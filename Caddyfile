@@ -1,0 +1,16 @@
+{
+    email sebastiangallo370@gmail.com
+    acme_ca https://acme.zerossl.com/v2/DV90
+}
+
+reprogramaciones.2.25.238.166.sslip.io {
+    reverse_proxy asistente:8000
+    encode zstd gzip
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+}

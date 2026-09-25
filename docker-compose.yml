@@ -1,0 +1,57 @@
+services:
+  asistente:
+    build: .
+    container_name: asistente-reprogramaciones
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - ./data:/data
+      - /mnt/nas-indoor:/mnt/nas
+      - ./secrets/google-service-account.json:/run/secrets/google-service-account.json:ro
+    environment:
+      - OLLAMA_URL=http://ollama:11434
+      - OLLAMA_MODEL=moondream
+    security_opt:
+      - no-new-privileges:true
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: asistente-reprogramaciones-caddy
+    restart: unless-stopped
+    depends_on:
+      - asistente
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    security_opt:
+      - no-new-privileges:true
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: asistente-reprogramaciones-tunnel
+    restart: unless-stopped
+    depends_on:
+      - asistente
+    command: tunnel --no-autoupdate --url http://asistente:8000
+    security_opt:
+      - no-new-privileges:true
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: asistente-vision
+    restart: unless-stopped
+    volumes:
+      - ollama_data:/root/.ollama
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  caddy_data:
+  caddy_config:
+  ollama_data:
