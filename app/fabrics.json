@@ -1,0 +1,452 @@
+[
+  {
+    "id": 1,
+    "name": "MONTECATINI 2",
+    "code": "50"
+  },
+  {
+    "id": 2,
+    "name": "MONTECATINI",
+    "code": "100"
+  },
+  {
+    "id": 3,
+    "name": "SUDAFRICA",
+    "code": "201"
+  },
+  {
+    "id": 4,
+    "name": "HYDROTECH",
+    "code": "300"
+  },
+  {
+    "id": 5,
+    "name": "EKOS R",
+    "code": "400"
+  },
+  {
+    "id": 6,
+    "name": "DUNGA",
+    "code": "501"
+  },
+  {
+    "id": 7,
+    "name": "IGUARAN SEC",
+    "code": "600"
+  },
+  {
+    "id": 8,
+    "name": "TOUR",
+    "code": "700"
+  },
+  {
+    "id": 9,
+    "name": "MEGAFIT",
+    "code": "800"
+  },
+  {
+    "id": 10,
+    "name": "BRILHO MINICAMO",
+    "code": "900"
+  },
+  {
+    "id": 11,
+    "name": "MANTRONIX",
+    "code": "1000"
+  },
+  {
+    "id": 12,
+    "name": "SPRINT OPTIMUS",
+    "code": "1100"
+  },
+  {
+    "id": 13,
+    "name": "BRILHO DAVOS CUADROS",
+    "code": "1200"
+  },
+  {
+    "id": 14,
+    "name": "DAVOS ROCAS",
+    "code": "1300"
+  },
+  {
+    "id": 15,
+    "name": "VASKANI/ SHELSY PLUS/ ACTIVE",
+    "code": "1400"
+  },
+  {
+    "id": 16,
+    "name": "DUBLIN",
+    "code": "1500"
+  },
+  {
+    "id": 17,
+    "name": "DAVOS ABSTRAB",
+    "code": "1600"
+  },
+  {
+    "id": 18,
+    "name": "ARCADIA",
+    "code": "1700"
+  },
+  {
+    "id": 19,
+    "name": "MONTESIMONE (LA FAYETTE)",
+    "code": "1800"
+  },
+  {
+    "id": 20,
+    "name": "DAVOS SAPRISSA",
+    "code": "1900"
+  },
+  {
+    "id": 21,
+    "name": "DAVOS SAN LORENZO",
+    "code": "2000"
+  },
+  {
+    "id": 22,
+    "name": "MICHIGAN",
+    "code": "10000"
+  },
+  {
+    "id": 23,
+    "name": "RACER",
+    "code": "10100"
+  },
+  {
+    "id": 24,
+    "name": "HYDROTECH RECICLADO",
+    "code": "10200"
+  },
+  {
+    "id": 25,
+    "name": "SPACE-DV",
+    "code": "10300"
+  },
+  {
+    "id": 26,
+    "name": "JUDE",
+    "code": "10400"
+  },
+  {
+    "id": 27,
+    "name": "HUDSON (SARAXY)",
+    "code": "10500"
+  },
+  {
+    "id": 28,
+    "name": "NET (SARAXY)",
+    "code": "10600"
+  },
+  {
+    "id": 29,
+    "name": "SANTINNI (SARAXY)",
+    "code": "10700"
+  },
+  {
+    "id": 30,
+    "name": "JACQUARD CAMO FAYETTE",
+    "code": "10800"
+  },
+  {
+    "id": 31,
+    "name": "JACQUARD ANIMAL PRINT",
+    "code": "10900"
+  },
+  {
+    "id": 32,
+    "name": "DAKOTA (DOBEL FAZ - FAYETTE)",
+    "code": "11000"
+  },
+  {
+    "id": 33,
+    "name": "SPIRIT PLUS (MONTECATINI)",
+    "code": "11100"
+  },
+  {
+    "id": 34,
+    "name": "QATAR (SUDAFRICA)",
+    "code": "11200"
+  },
+  {
+    "id": 35,
+    "name": "JACQUARD GALLINETO",
+    "code": "11300"
+  },
+  {
+    "id": 36,
+    "name": "TRIATLHON",
+    "code": "11400"
+  },
+  {
+    "id": 37,
+    "name": "ZAGA",
+    "code": "11500"
+  },
+  {
+    "id": 38,
+    "name": "DAVOS RENE HIGUITA",
+    "code": "11600"
+  },
+  {
+    "id": 39,
+    "name": "JURLY SEC",
+    "code": "2100"
+  },
+  {
+    "id": 40,
+    "name": "UNIVERSAL",
+    "code": "2200"
+  },
+  {
+    "id": 41,
+    "name": "UNIVERSAL (LICRADO)",
+    "code": "2300"
+  },
+  {
+    "id": 42,
+    "name": "MICROTECH",
+    "code": "2400"
+  },
+  {
+    "id": 43,
+    "name": "ORION",
+    "code": "2500"
+  },
+  {
+    "id": 44,
+    "name": "ORION (LICRADO)",
+    "code": "2600"
+  },
+  {
+    "id": 45,
+    "name": "LOTUS",
+    "code": "2700"
+  },
+  {
+    "id": 46,
+    "name": "IGUAZU LICRA R",
+    "code": "2800"
+  },
+  {
+    "id": 47,
+    "name": "T180 / (DVS)",
+    "code": "2900"
+  },
+  {
+    "id": 48,
+    "name": "REPEL / ANTIFLUIDOS",
+    "code": "3000"
+  },
+  {
+    "id": 49,
+    "name": "REFLECTIVO (Nylon) / CALI",
+    "code": "3100"
+  },
+  {
+    "id": 50,
+    "name": "FALCON (LICRADO SPIRIT)",
+    "code": "3200"
+  },
+  {
+    "id": 51,
+    "name": "PYXIS (ORION DE SPIRIT)",
+    "code": "3300"
+  },
+  {
+    "id": 52,
+    "name": "DUAL",
+    "code": "4100"
+  },
+  {
+    "id": 53,
+    "name": "FASTRACK",
+    "code": "4200"
+  },
+  {
+    "id": 54,
+    "name": "SUPER ZENTRAL",
+    "code": "4300"
+  },
+  {
+    "id": 55,
+    "name": "VIOTO",
+    "code": "4400"
+  },
+  {
+    "id": 56,
+    "name": "MONARCA",
+    "code": "4500"
+  },
+  {
+    "id": 57,
+    "name": "MATCH BURDA",
+    "code": "4600"
+  },
+  {
+    "id": 58,
+    "name": "MONACO",
+    "code": "4700"
+  },
+  {
+    "id": 59,
+    "name": "SANTORO PERCHA",
+    "code": "4800"
+  },
+  {
+    "id": 60,
+    "name": "HOODIE",
+    "code": "4900"
+  },
+  {
+    "id": 61,
+    "name": "GALES",
+    "code": "5000"
+  },
+  {
+    "id": 62,
+    "name": "CELTA",
+    "code": "5100"
+  },
+  {
+    "id": 63,
+    "name": "POLUX",
+    "code": "6100"
+  },
+  {
+    "id": 64,
+    "name": "ATLANTIC",
+    "code": "6200"
+  },
+  {
+    "id": 65,
+    "name": "PIQUÉ (SPORTMAP)",
+    "code": "6300"
+  },
+  {
+    "id": 66,
+    "name": "TIKAL R",
+    "code": "6400"
+  },
+  {
+    "id": 67,
+    "name": "POLTEX SEC",
+    "code": "6500"
+  },
+  {
+    "id": 68,
+    "name": "POLILICRA LIVIANA (970)",
+    "code": "7100"
+  },
+  {
+    "id": 69,
+    "name": "POLILICRA PESADA (972)",
+    "code": "7200"
+  },
+  {
+    "id": 70,
+    "name": "NEOSTRECHY",
+    "code": "7300"
+  },
+  {
+    "id": 71,
+    "name": "997W (TELA BUFF)",
+    "code": "7400"
+  },
+  {
+    "id": 72,
+    "name": "NYLON LICRA (924)",
+    "code": "7500"
+  },
+  {
+    "id": 73,
+    "name": "PACIFICPLUS",
+    "code": "7600"
+  },
+  {
+    "id": 74,
+    "name": "MALUBU R",
+    "code": "7700"
+  },
+  {
+    "id": 75,
+    "name": "BAHIA",
+    "code": "7800"
+  },
+  {
+    "id": 76,
+    "name": "AMORELA",
+    "code": "7900"
+  },
+  {
+    "id": 77,
+    "name": "SUPERRIB",
+    "code": "8100"
+  },
+  {
+    "id": 78,
+    "name": "ENTRETELA",
+    "code": "8200"
+  },
+  {
+    "id": 79,
+    "name": "TELA TOALLA",
+    "code": "8300"
+  },
+  {
+    "id": 80,
+    "name": "GUATA - NEOPRENO",
+    "code": "8400"
+  },
+  {
+    "id": 81,
+    "name": "ALGODÓN",
+    "code": "8500"
+  },
+  {
+    "id": 82,
+    "name": "POLIALGODÓN",
+    "code": "8600"
+  },
+  {
+    "id": 83,
+    "name": "MORELLO SEC",
+    "code": "8700"
+  },
+  {
+    "id": 84,
+    "name": "ALGODÓN INTERLOOK",
+    "code": "8800"
+  },
+  {
+    "id": 85,
+    "name": "ALVIERO STRECH",
+    "code": "8900"
+  },
+  {
+    "id": 86,
+    "name": "KEIRA PLUS",
+    "code": "9000"
+  },
+  {
+    "id": 87,
+    "name": "LONDON",
+    "code": "500"
+  },
+  {
+    "id": 88,
+    "name": "DIAMANTE",
+    "code": "201"
+  },
+  {
+    "id": 89,
+    "name": "DUNGA AMARILLA",
+    "code": "509"
+  },
+  {
+    "id": 90,
+    "name": "QATAR",
+    "code": "11200"
+  }
+]
