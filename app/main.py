@@ -738,11 +738,8 @@ def read_local_production() -> dict:
         for event in db.execute("SELECT id,source_row,column_number,value FROM production_finished ORDER BY id"):
             finished[(event["source_row"], event["column_number"] - 1, event["value"])] = event["id"]
         def process_label(i):
-            group = str(groups[i]).strip('" ').upper() if i < len(groups) else ""
-            title = normalized[i]
-            if not group or group == "GENERAL" or "LINEA PRODUCCION" in group or "METODOLOG" in group or title.startswith(("RESP", "HORA", "FECHA")) or title in ("OK", "ESTADO", "CONFECCIONISTA"):
-                return ""
-            return group
+            stage = official_process(headers[i]) if i < len(headers) else None
+            return PROCESS_FLOW[stage]['label'] if stage is not None else ''
         for row in rows:
             values = row["values"]
             active = [i for i, value in enumerate(values) if i < len(headers) and process_label(i) and str(value).strip().upper() == "P"]
@@ -767,6 +764,7 @@ def read_local_production() -> dict:
             "rows": rows,
             "updated_at": meta.get("updated_at", datetime.now(timezone.utc).isoformat()),
             "source": "local",
+            "process_responsibles": {f"{event['source_row']}:{event['column_number']}": event['responsible'] for event in db.execute("SELECT source_row,column_number,responsible FROM production_operator_events WHERE action IN ('start','rework','finish','na') ORDER BY id")} if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='production_operator_events'").fetchone() else {},
             "auto_closed": [f"{event['source_row']}:{event['column_number']}" for event in db.execute("SELECT source_row,column_number FROM production_operator_events WHERE action='Cierre automático'")] if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='production_operator_events'").fetchone() else [],
             "notes": {f"{n['source_row']}:{n['column_number']}": n["note"]
                       for n in db.execute("SELECT source_row,column_number,note FROM production_notes")},
@@ -819,6 +817,13 @@ def is_process_status_header(header):
 
 OPERATOR_PROCESS_HEADERS = PROCESS_STATUS_HEADERS | {'DISEÑO', 'DISENO', 'CONFECCION', 'CORTE TEXTIL', 'CORTE TEXTIL/PLT'}
 
+PROCESS_FLOW = json.loads(Path(__file__).with_name('process-flow.json').read_text(encoding='utf-8'))
+
+
+def official_process(header):
+    key = ''.join(c for c in unicodedata.normalize('NFD', str(header)) if not unicodedata.combining(c)).strip().upper()
+    return next((i for i, process in enumerate(PROCESS_FLOW) if key in process['headers']), None)
+
 
 def operator_process_header(header):
     key = ''.join(c for c in unicodedata.normalize('NFD', str(header)) if not unicodedata.combining(c)).strip().upper()
@@ -846,7 +851,7 @@ def production_operator_action(payload: dict = Body(...), _=Depends(authenticate
         record = db.execute('SELECT values_json FROM production_rows WHERE source_row=?', (row,)).fetchone()
         meta = {r['key']: r['value'] for r in db.execute('SELECT key,value FROM production_meta')}
         headers, groups = json.loads(meta.get('headers', '[]')), json.loads(meta.get('groups', '[]'))
-        if not record or not 1 <= column <= len(headers) or not operator_process_header(headers[column-1]):
+        if not record or not 1 <= column <= len(headers) or official_process(headers[column-1]) is None:
             raise HTTPException(400, 'Selecciona un proceso válido de esta orden')
         values = json.loads(record['values_json'])
         values.extend([''] * max(0, len(headers)-len(values)))
@@ -859,6 +864,11 @@ def production_operator_action(payload: dict = Body(...), _=Depends(authenticate
         if previous == value and action in ('start','finish','na'):
             raise HTTPException(409, 'El proceso ya tiene ese estado. Actualiza antes de continuar.')
         values[column-1] = value
+        process_index = official_process(headers[column-1])
+        # Multiple legacy applique columns belong to one official production stage.
+        for i, header in enumerate(headers):
+            if i != column-1 and official_process(header) == process_index and str(values[i] or '').strip().upper() in ('', 'P', 'R'):
+                values[i] = value
         group = groups[column-1] if column <= len(groups) else ''
         # Keep existing layout and stamp the process's own time/responsible fields.
         for i in range(column, len(headers)):
@@ -873,22 +883,19 @@ def production_operator_action(payload: dict = Body(...), _=Depends(authenticate
         db.execute('INSERT INTO production_operator_events(source_row,column_number,action,username,responsible,reason,created_at) VALUES (?,?,?,?,?,?,?)', (row,column,action,str(_),responsible,reason,timestamp))
         if action == 'start': db.execute('INSERT INTO production_started(source_row,column_number,created_at) VALUES (?,?,?)',(row,column,timestamp))
         if action == 'finish':
-            prior_groups = []
-            for i in range(column-1):
-                label = str(groups[i] if i < len(groups) else '').strip('" ').upper()
-                if not label or label == 'GENERAL' or 'LINEA PRODUCCION' in label or 'METODOLOG' in label or label == str(group).strip('" ').upper():
-                    continue
-                if not prior_groups or prior_groups[-1][0] != label or prior_groups[-1][1][-1] != i-1:
-                    prior_groups.append((label, []))
-                prior_groups[-1][1].append(i)
-            for label, indexes in prior_groups:
+            for prior_index in range(process_index):
+                indexes = [i for i, header in enumerate(headers) if official_process(header) == prior_index]
+                changed = []
                 # Preserve existing dates, N/A, quantities, responsible users and actual times.
                 for i in indexes:
                     if operator_process_header(headers[i]) and str(values[i] or '').strip().upper() in ('', 'P', 'R'):
                         values[i] = value
+                        changed.append(i)
                         db.execute('INSERT INTO production_finished(source_row,column_number,value,created_at) VALUES (?,?,?,?)',(row,i+1,value,timestamp))
+                if not changed:
+                    continue
                 automatic_reason = f'Cierre automático al terminar {headers[column-1]}. No indica la hora real de ejecución del proceso anterior.'
-                db.execute('INSERT INTO production_operator_events(source_row,column_number,action,username,responsible,reason,created_at) VALUES (?,?,?,?,?,?,?)',(row,indexes[0]+1,'Cierre automático',str(_),'Sin atribuir',automatic_reason,timestamp))
+                db.execute('INSERT INTO production_operator_events(source_row,column_number,action,username,responsible,reason,created_at) VALUES (?,?,?,?,?,?,?)',(row,changed[0]+1,'Cierre automático',str(_),'Sin atribuir',automatic_reason,timestamp))
             db.execute('INSERT INTO production_finished(source_row,column_number,value,created_at) VALUES (?,?,?,?)',(row,column,value,timestamp))
         if action == 'rework': db.execute('INSERT INTO production_rework(source_row,column_number,process,reason,username,created_at) VALUES (?,?,?,?,?,?)',(row,column,group,reason,str(_),timestamp))
         db.execute('UPDATE production_rows SET values_json=? WHERE source_row=?',(json.dumps(values,ensure_ascii=False),row))
@@ -1019,11 +1026,8 @@ def order_active_process(order: str, _=Depends(authenticate)):
         records = [(r['source_row'], json.loads(r['values_json'])) for r in db.execute('SELECT source_row,values_json FROM production_rows')]
         rows = {row: values for row, values in records if len(values) > order_index and str(values[order_index]).strip().upper() == order.strip().upper()}
         def process_at(index):
-            group = str(groups[index]).strip('" ').upper() if index < len(groups) else ''
-            title = str(headers[index]).strip().upper() if index < len(headers) else ''
-            if not group or group == 'GENERAL' or 'LINEA PRODUCCION' in group or 'METODOLOG' in group or title.startswith(('RESP', 'HORA', 'FECHA')) or title in ('OK', 'ESTADO', 'CONFECCIONISTA'):
-                return ''
-            return group
+            stage = official_process(headers[index]) if 0 <= index < len(headers) else None
+            return PROCESS_FLOW[stage]['label'] if stage is not None else ''
         active = [(row, i) for row, values in rows.items() for i, value in enumerate(values) if str(value).strip().upper() == 'P' and process_at(i)]
         history = [(r['source_row'], r['column_number']-1) for r in db.execute('SELECT source_row,column_number FROM production_started ORDER BY id DESC') if r['source_row'] in rows and process_at(r['column_number']-1)]
         latest_active = next((item for item in history if item in active), None)
@@ -2091,7 +2095,8 @@ commercialMenu.hidden=true;commercialMenu.style.display='none';
 traceScheduleButton.hidden=!canViewAdministration;
 traceScheduleButton.onclick=()=>{{if(!canViewAdministration)return;adminGroup.classList.remove('collapsed');adminGroup.querySelector('[data-kind="pedido"]').click();document.getElementById('order-form').scrollIntoView({{block:'start',behavior:'smooth'}})}};
 if(!canViewAdministration)adminGroup.remove();
-const operatorHeaders=new Set([...processStatusHeaders,'DISENO','CONFECCION','CORTE TEXTIL','CORTE TEXTIL/PLT']);
+const indoorProcessFlow={json.dumps(PROCESS_FLOW, ensure_ascii=False)};
+const operatorHeaders=new Set(indoorProcessFlow.flatMap(p=>p.headers));
 const operatorDialog=document.createElement('dialog');operatorDialog.className='operator-dialog';operatorDialog.innerHTML='<form id="operator-form"><button type="button" class="operator-close" aria-label="Cerrar">×</button><h2>Producción</h2><p class="operator-order"></p><label>Proceso<select name="column" required></select></label><p class="operator-current"></p><label>Responsable / iniciales<input name="responsible" required maxlength="80" autocomplete="off"></label><label>Motivo u observación<textarea name="reason" maxlength="2000" rows="3" placeholder="Obligatorio para reproceso"></textarea></label><div class="operator-actions"><button name="action" value="start" type="submit">Iniciar / retomar</button><button name="action" value="rework" type="submit">Reproceso</button><button name="action" value="finish" type="submit">Terminar</button><button name="action" value="na" type="submit">No aplica</button></div><p class="operator-message" role="status"></p></form><h3>Historial de actividad</h3><div class="operator-history"></div>';document.body.appendChild(operatorDialog);
 let operatorRow=null,operatorExpected='',operatorSaving=false;
 const operatorForm=operatorDialog.querySelector('form');
@@ -2221,7 +2226,7 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
 @media(max-width:700px){{body.production-mode .trace-cards{{grid-template-columns:minmax(0,1fr);padding:12px}}body.production-mode .trace-card{{grid-template-columns:minmax(0,1fr)}}body.production-mode .trace-media,body.production-mode .trace-media:has(img),body.production-mode .trace-media:not(:has(img)){{height:300px;min-height:0}}body.production-mode .trace-design-main img{{height:235px}}body.production-mode .trace-media:not(:has(img)){{height:120px}}.trace-no-design>span{{display:none}}body.production-mode .trace-card-body{{padding:20px}}}}
 `;document.head.appendChild(traceFigmaStyle);setTraceView();
     const commercialGroup=commercialToggle.closest('.nav-group');commercialGroup.classList.add('collapsed');const productionToggle=document.getElementById('production-toggle');if(productionToggle)productionToggle.addEventListener('click',()=>productionToggle.closest('.nav-group').classList.toggle('collapsed'));
-    </script><script src='/trace-ui.js?v=20260926-6'></script></body></html>"""
+    </script><script src='/trace-ui.js?v=20260926-7'></script></body></html>"""
 
 
 @app.post("/procesar", status_code=202)
@@ -2595,4 +2600,3 @@ def download_xlsx(job_id: int, _=Depends(authenticate)):
 def jobs(_=Depends(authenticate)):
     with connect() as db:
         return [dict(row) for row in db.execute("SELECT * FROM jobs ORDER BY id DESC LIMIT 100")]
-

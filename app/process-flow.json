@@ -1,0 +1,14 @@
+[
+  {"label":"MATERIALES","headers":["MATERIALES ESPECIALES"],"aliases":["MATERIALES ESPECIALES"]},
+  {"label":"DISEÑO","headers":["DISENO"],"aliases":[]},
+  {"label":"EDICIÓN","headers":["EDICION"],"aliases":[]},
+  {"label":"IMPRESIÓN","headers":["IMPRESION"],"aliases":[]},
+  {"label":"SUBLIMACIÓN","headers":["SUBLIMACION"],"aliases":[]},
+  {"label":"CORTE LÁSER","headers":["CORTE LASER"],"aliases":[]},
+  {"label":"APLIQUE","headers":["TEXTURIZADO-APLIQUE-BORDADO","BORDADO"],"aliases":["APLIQUES","BORDADO","TEXTURIZADO-APLIQUE-BORDADO"]},
+  {"label":"INSUMOS","headers":["INSUMOS"],"aliases":[]},
+  {"label":"CONFECCIÓN","headers":["CONFECCION"],"aliases":[]},
+  {"label":"EMPAQUE","headers":["EMPACADO Y EMBALAJE"],"aliases":["TERMINACION","EMPACADO Y EMBALAJE"]},
+  {"label":"FACTURACIÓN","headers":["FACTURADO"],"aliases":["FACTURADO"]},
+  {"label":"ENVÍO","headers":["ENTREGADO","ENVIO"],"aliases":["ENTREGADO"]}
+]

@@ -3,6 +3,7 @@
   'use strict';
   const key = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase();
   const personKey = value => key(value).replace(/[^A-Z0-9]/g, '');
+  const flow = typeof indoorProcessFlow !== 'undefined' ? indoorProcessFlow : require('./process-flow.json');
   function dateValue(value) {
     const raw = key(value).toLowerCase().replaceAll('.', '');
     const parts = raw.split(/[-/ ]+/);
@@ -16,18 +17,20 @@
     return Number.isInteger(day) && month >= 0 && month < 12 && date.getFullYear() === year && date.getMonth() === month && date.getDate() === day ? date : null;
   }
   function groupsFor(data, row, statusHeaders) {
-    const groups = [], statuses = new Set([...statusHeaders, 'DISENO', 'CONFECCION', 'CORTE TEXTIL', 'CORTE TEXTIL/PLT'].map(key));
-    data.headers.forEach((header, index) => {
-      const label = String(data.groups[index] || '').replace(/^["']|["']$/g, '').trim(), normalized = key(label);
-      if (!normalized || normalized === 'GENERAL' || normalized.includes('LINEA PRODUCCION') || normalized.includes('METODOLOG')) return;
-      let group = groups[groups.length - 1];
-      if (!group || group.key !== normalized || group.end !== index - 1) {
-        group = { key: normalized, label, start: index, columns: [] }; groups.push(group);
+    const statuses = new Set([...statusHeaders, ...flow.flatMap(p => p.headers), 'CORTE TEXTIL', 'CORTE TEXTIL/PLT'].map(key));
+    const groups = flow.map(process => {
+      const statusColumns = process.headers.flatMap(h => data.headers.flatMap((header, i) => key(header) === h ? [i] : []));
+      const columns = new Set();
+      for (const start of statusColumns) {
+        columns.add(start);
+        for (let i = start + 1; i < data.headers.length && data.groups[i] === data.groups[start]; i++) {
+          if (statuses.has(key(data.headers[i]))) break;
+          columns.add(i);
+        }
       }
-      group.end = index; group.columns.push(index);
-    });
+      return { key: key(process.label), label: process.label, start: statusColumns[0], columns: [...columns].sort((a,b) => a-b), statusColumns };
+    }).filter(group => group.statusColumns.length);
     return groups.map(group => {
-      group.statusColumns = group.columns.filter(i => statuses.has(key(data.headers[i])) || key(data.headers[i]) === group.key);
       const values = group.statusColumns.map(i => key(row.values[i]));
       const closed = values.map(v => v === 'N/A' || !!dateValue(v));
       group.state = values.includes('R') ? 'rework' : values.includes('P') ? 'active' : values.length && closed.every(Boolean) ? 'finished' : closed.some(Boolean) ? 'partial' : 'pending';
@@ -35,6 +38,7 @@
       if (group.autoClosed) group.state = 'finished';
       group.status = group.autoClosed ? 'Cierre automático' : group.state === 'finished' ? values.length && values.every(v => v === 'N/A') ? 'No aplica' : 'Terminado' : ({ active: 'En proceso', rework: 'Reproceso', partial: 'Avance parcial', pending: 'Pendiente' })[group.state];
       group.responsible = group.columns.filter(i => key(data.headers[i]).startsWith('RESP') || key(data.headers[i]) === 'CONFECCIONISTA').map(i => String(row.values[i] || '').trim()).filter(Boolean).join(', ');
+      if (!group.responsible) group.responsible = group.statusColumns.map(i => data.process_responsibles?.[row.source_row + ':' + (i+1)]).filter(Boolean)[0] || '';
       return group;
     });
   }
@@ -86,6 +90,34 @@
   if (typeof module !== 'undefined' && module.exports) { module.exports = { key, dateValue, groupsFor, summarize, matches, orderByDelivery, addBusinessDays, applyDefaultDeliveryDates }; return; }
   if (typeof traceCards === 'undefined') return;
 
+  const originalOpenProduction = openOperatorProduction;
+  openOperatorProduction = function(id) {
+    originalOpenProduction(id);
+    const area = key(document.querySelector('.user-info small')?.textContent);
+    const groups = groupsFor(productionData, productionData.rows.find(r => r.source_row === id), processStatusHeaders);
+    operatorForm.elements.column.innerHTML = '<option value="">Selecciona un proceso</option>' + groups.map(g => '<option value="' + (g.start+1) + '">' + esc(g.label) + '</option>').join('');
+    const process = flow.find(p => [key(p.label), ...p.headers, ...p.aliases].includes(area));
+    const selected = groups.find(g => g.label === process?.label);
+    if (selected) operatorForm.elements.column.value = String(selected.start+1);
+    operatorSelection();
+    operatorDialog.querySelector('.operator-message').textContent = selected ? 'Proceso seleccionado según tu perfil. La fecha y hora se guardan automáticamente.' : 'Selecciona uno de los procesos de Indoor.';
+  };
+  updateProcessFilter = function() {
+    const labels = new Map(flow.map(p => [key(p.label), p.label]));
+    if (!labels.has(selectedProcess)) selectedProcess = '';
+    const signature = JSON.stringify([...labels]);
+    if (productionProcess.dataset.signature !== signature) {
+      productionProcess.replaceChildren(new Option('Todos los procesos', ''));
+      labels.forEach((label, id) => productionProcess.add(new Option(label, id)));
+      productionProcess.dataset.signature = signature;
+    }
+    productionProcess.value = selectedProcess;
+  };
+  processColumnVisible = function(column) {
+    if (!selectedProcess || column.sourceIndex <= fixedDeliveryIndex()) return true;
+    return groupsFor(productionData, {values: []}, processStatusHeaders).find(g => g.key === selectedProcess)?.columns.includes(column.sourceIndex) || false;
+  };
+
   // Reapply after each fetch/edit, without writing dates or database row positions.
   const renderProductionOriginal = renderProduction;
   renderProduction = function () {
@@ -115,7 +147,7 @@
   nodeDialog.innerHTML = '<button type="button" class="trace-node-close" aria-label="Cerrar proceso">×</button><div class="trace-node-content"></div>';
   document.body.appendChild(nodeDialog);
   nodeDialog.querySelector('.trace-node-close').onclick = () => nodeDialog.close();
-  const abbreviations = { 'MATERIALES ESPECIALES': 'MAT', 'CORTE TEXTIL': 'CTX', 'DISENO': 'DIS', 'EDICION': 'EDI', 'IMPRESION': 'IMP', 'SUBLIMACION': 'SUB', 'CORTE LASER': 'LAS', 'TRAZO/CORTE/PLT': 'TRZ', 'APLIQUES': 'APL', 'CONFECCION': 'CON', 'TERMINACION': 'TER', 'ENVIO': 'ENV', 'FACTURACION': 'FAC' };
+  const abbreviations = { 'MATERIALES': 'MAT', 'DISENO': 'DIS', 'EDICION': 'EDI', 'IMPRESION': 'IMP', 'SUBLIMACION': 'SUB', 'CORTE LASER': 'LAS', 'APLIQUE': 'APL', 'INSUMOS': 'INS', 'CONFECCION': 'CON', 'EMPAQUE': 'EMP', 'FACTURACION': 'FAC', 'ENVIO': 'ENV' };
   function routeMarkup(row, summary) {
     return '<section class="trace-route"><div class="trace-route-heading"><h4>Ruta de producción</h4><span>' + summary.finished + '/' + summary.total + ' procesos</span></div><div class="trace-progress" role="progressbar" aria-label="Procesos terminados" aria-valuemin="0" aria-valuemax="' + summary.total + '" aria-valuenow="' + summary.finished + '"><span style="width:' + summary.percent + '%"></span></div><div class="trace-nodes" style="--nodes:' + Math.max(1, summary.total) + '">' + summary.groups.map((group, i) => '<button type="button" class="trace-node ' + group.state + '" data-node-row="' + row.source_row + '" data-node-index="' + i + '" title="' + esc(group.label + ' · ' + group.status) + '" aria-label="' + esc(group.label + ': ' + group.status) + '"><span class="trace-node-dot" aria-hidden="true">' + (group.state === 'finished' ? '✓' : group.state === 'rework' ? '!' : group.state === 'active' ? '●' : i + 1) + '</span><span class="trace-node-label">' + esc(abbreviations[group.key] || group.label.slice(0, 3)) + '</span></button>').join('') + '</div><p class="trace-route-caption">' + (summary.state === 'finished' ? 'Ruta completada' : esc((summary.state === 'rework' ? 'Revisar: ' : summary.state === 'active' ? 'Ahora: ' : 'Siguiente: ') + (summary.focus?.label || 'Sin proceso asignado'))) + '<span>Pulsa un punto para ver detalles</span></p></section>';
   }
@@ -144,6 +176,16 @@
       return '<article class="trace-card state-' + summary.state + '" data-card-row="' + id + '"><div class="trace-media">' + traceAssetsMarkup(id) + '</div><div class="trace-card-body"><div class="trace-card-heading"><h3>' + esc(traceField(row, 'ORDEN') || 'Sin número') + '</h3><span class="trace-stage ' + summary.state + '">' + labels[summary.state] + '</span></div><p class="trace-client">' + esc(traceField(row, 'NOMBRE DEL CLIENTE') || 'Sin cliente') + '</p><p class="trace-project">' + esc(traceField(row, 'NOMBRE PROYECTO')) + '</p><dl><div><dt>Referencia</dt><dd>' + esc(traceField(row, 'REFERENCIA') || '—') + '</dd></div><div><dt>Cantidad</dt><dd class="trace-quantity">' + esc(traceField(row, 'CANTIDAD') || '0') + ' <small>und.</small></dd></div><div class="trace-due ' + (summary.overdue ? 'late' : '') + '"><dt>' + dueLabel + '</dt><dd>' + esc(summary.due ? displayProductionDate(due) : 'Sin programar') + '</dd></div><div><dt>Responsable del proceso</dt><dd>' + (responsible ? responsible.split(/[,;·\n]+/).filter(x => x.trim()).map(name => '<span class="trace-person">' + esc(name.trim()) + '</span>').join(' ') : '<span class="trace-unassigned">Sin asignar</span>') + '</dd></div></dl><div class="trace-card-meta"><span>' + notes + ' nota' + (notes === 1 ? '' : 's') + '</span><span>Fila ' + id + '</span></div><div class="trace-card-actions"><button type="button" class="operator-open" data-card-edit="' + id + '">PRODUCCIÓN</button><button type="button" data-card-detail="' + id + '">Ver detalle</button><button type="button" data-card-nas="' + id + '" aria-label="Abrir carpeta del pedido">NAS ↗</button></div></div>' + routeMarkup(row, summary) + '</article>';
     }).join('') || '<div class="trace-empty"><h3>No hay pedidos en esta vista</h3><p>' + (filter === 'mine' ? 'No hay responsables que coincidan con tu usuario o iniciales. Prueba Todos o revisa la asignación.' : 'Prueba otro estado o cambia la búsqueda.') + '</p><button type="button" data-clear-trace>Ver todos</button></div>';
     traceCards.querySelectorAll('[data-card-row]').forEach(card => traceImageObserver.observe(card));
+    traceCards.querySelectorAll('[data-card-row]').forEach(card => {
+      const row = rows.find(r => r.source_row === Number(card.dataset.cardRow));
+      const description = ['PRODUCTO', 'DESCRIPCIÓN', 'DESCRIPCION', 'PRENDA'].map(h => traceField(row, h)).find(v => v.trim());
+      const fabric = traceField(row, 'TELA'), observation = traceField(row, 'OBSERVACIONES');
+      const details = (fabric ? '<span><small>TELA</small><strong>' + esc(fabric) + '</strong></span>' : '');
+      const notes = Object.entries(productionData.notes || {}).filter(([k,v]) => k.startsWith(row.source_row + ':') && v);
+      card.querySelector('.trace-project').insertAdjacentHTML('afterend', '<section class="trace-manufacture"><span class="trace-eyebrow">A FABRICAR</span><h4>' + esc(description || traceField(row, 'REFERENCIA') || 'Producto por especificar') + '</h4>' + (details ? '<div class="trace-material-facts">' + details + '</div>' : '') + (observation ? '<p class="trace-production-note"><strong>INDICACIONES</strong>' + esc(observation) + '</p>' : '') + (notes.length ? '<details class="trace-inline-notes"><summary>Ver ' + notes.length + ' indicación' + (notes.length === 1 ? '' : 'es') + ' de procesos</summary>' + notes.map(([k,v]) => '<p><strong>' + esc(productionData.headers[Number(k.split(':')[1])-1]) + '</strong>' + esc(v) + '</p>').join('') + '</details>' : '') + '</section>');
+      card.querySelector('[data-card-detail]').textContent = 'LISTADO Y DETALLES';
+      card.querySelector('.trace-card-heading h3').setAttribute('aria-label', 'Orden ' + traceField(row, 'ORDEN'));
+    });
     traceCards.scrollTop = scrollTop;
     if (focusKey && focusAttribute) traceCards.querySelector('[data-card-row="' + focusKey + '"] [' + focusAttribute + '="' + focusValue + '"]')?.focus({ preventScroll: true });
     fitTraceCards();
@@ -189,6 +231,7 @@
   @media(max-width:600px){body.production-mode .trace-card{grid-template-columns:1fr}body.production-mode .trace-media,body.production-mode .trace-media:has(img){height:290px;min-height:0;padding:12px}body.production-mode .trace-design-main img{height:230px}body.production-mode .trace-media:not(:has(img)){height:115px;min-height:0}.trace-no-design>span{display:none}body.production-mode .trace-card-body{padding:18px}.trace-route{padding:14px 10px 10px}.trace-node-dot{width:18px;height:18px;font-size:9px}.trace-node:before{top:15px}.trace-node-label{font-size:8px;letter-spacing:-.04em}.trace-route-caption>span{display:block;width:100%}.trace-card-actions button{font-size:12px!important}.operator-dialog{padding:20px 16px}.trace-node-dialog{padding:20px}.trace-node-dialog dl{grid-template-columns:1fr}}
   `;
   style.textContent += `
+  .trace-manufacture{border-top:1px solid #35463c;padding:13px 0 16px;margin-bottom:12px}.trace-manufacture h4{font:600 19px/1.35 Arial;color:#f4f8ed;margin:5px 0 8px;overflow-wrap:anywhere}.trace-material-facts{display:flex;gap:16px}.trace-material-facts small{display:block;font:10px/1.5 Arial;color:#9eb5a5}.trace-material-facts strong{font:500 13px/1.5 Arial;color:#d8e5da}.trace-production-note{font:13px/1.6 Arial;color:#f1e8c5;margin:12px 0 0;background:#afa15913;border-left:3px solid #bba658;padding:9px 11px;white-space:pre-wrap}.trace-production-note strong,.trace-inline-notes strong{display:block;font-size:10px;letter-spacing:.06em;margin-bottom:4px}.trace-inline-notes{font:12px/1.6 Arial;color:#c7d8c9;margin-top:12px}.trace-inline-notes summary{cursor:pointer;min-height:32px}.trace-inline-notes p{white-space:pre-wrap;border-top:1px solid #35463c;padding-top:8px}.trace-card-heading h3{font-size:19px!important}.trace-quantity{font-size:23px!important;font-weight:700!important}.trace-card-actions [data-card-nas]{opacity:.65}
   body.production-mode.trace-cards-mode .production-title p,body.production-mode.trace-cards-mode .production-kpis{display:none}
   .trace-workspace{padding-top:14px}.trace-workspace h3{font-size:17px;margin:0 0 12px}.trace-workspace-top{align-items:baseline}
   @media(max-width:860px){body.production-mode.trace-cards-mode{overflow-y:auto!important;height:auto!important}body.production-mode.trace-cards-mode .trace-cards{height:auto!important;max-height:none;overflow:visible;scrollbar-gutter:auto}body.production-mode.trace-cards-mode .production-shell{max-height:none;height:auto}.trace-workspace{padding-top:12px}.trace-workspace h3{font-size:16px}.trace-node-label{font-size:8px}}
