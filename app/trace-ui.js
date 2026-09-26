@@ -219,12 +219,14 @@
   deleteDialog.innerHTML = '<h2>ELIMINAR ORDEN Y CARPETA NAS</h2><p>Se eliminarán la tarjeta y todos los archivos de esta carpeta de la orden. No se tocarán otras carpetas.</p><p class="delete-folder" style="overflow-wrap:anywhere"></p><label>Escribe el número de orden para confirmar<input class="delete-order" autocomplete="off"></label><p class="delete-error" role="alert"></p><div style="display:flex;gap:12px;margin-top:16px"><button type="button" class="delete-cancel">CANCELAR</button><button type="button" class="delete-confirm" disabled style="background:#963b35;color:white">ELIMINAR TARJETA Y CARPETA</button></div>';
   document.body.appendChild(deleteDialog);
   deleteDialog.querySelector('.delete-order').closest('label').remove();
-  deleteDialog.querySelector('.delete-error').insertAdjacentHTML('beforebegin','<label for="delete-account-password">Contraseña de tu cuenta</label><div style="display:flex;gap:8px;align-items:center"><input id="delete-account-password" class="delete-password" type="password" autocomplete="current-password" maxlength="256" required style="min-width:0;flex:1"><button type="button" class="delete-password-toggle" aria-label="Ver contraseña" aria-controls="delete-account-password" aria-pressed="false">VER</button></div>');
+  const passwordEye = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/><path class="password-eye-slash" d="m3 3 18 18" style="display:none"/></svg>';
+  deleteDialog.querySelector('.delete-error').insertAdjacentHTML('beforebegin','<style>.operator-dialog .delete-password-field{position:relative;display:block;width:100%;margin-top:8px}.operator-dialog .delete-password-field input{display:block;box-sizing:border-box;width:100%!important;max-width:none;min-width:0;height:52px;margin:0;padding:12px 56px 12px 14px;border:1px solid #718174;border-radius:10px;background:#25312a;color:#fff;font-size:16px}.operator-dialog .delete-password-field input:focus{outline:2px solid #d4ec98;outline-offset:2px}.operator-dialog .delete-password-field .delete-password-toggle{position:absolute;right:5px;top:4px;display:flex;align-items:center;justify-content:center;width:44px!important;min-width:44px;max-width:44px;height:44px;min-height:44px;margin:0;padding:0;flex:none;background:transparent!important;border:0;border-radius:8px;box-shadow:none!important;color:#d4ec98;cursor:pointer;transform:none}.operator-dialog .delete-password-field .delete-password-toggle:hover{background:#ffffff12!important}.operator-dialog .delete-password-field .delete-password-toggle:focus-visible{outline:2px solid #d4ec98;outline-offset:-2px}</style><label for="delete-account-password">Contraseña de tu cuenta</label><div class="delete-password-field"><input id="delete-account-password" class="delete-password" type="password" autocomplete="current-password" placeholder="Escribe tu contraseña" maxlength="256" required><button type="button" class="delete-password-toggle" title="Ver contraseña" aria-label="Ver contraseña" aria-controls="delete-account-password" aria-pressed="false">'+passwordEye+'</button></div>');
   const passwordToggle = deleteDialog.querySelector('.delete-password-toggle');
   function resetDeletePassword() {
     const input = deleteDialog.querySelector('.delete-password');
     input.value = '';input.type = 'password';
-    passwordToggle.textContent = 'VER';
+    passwordToggle.querySelector('.password-eye-slash').style.display = 'none';
+    passwordToggle.title = 'Ver contraseña';
     passwordToggle.setAttribute('aria-label', 'Ver contraseña');
     passwordToggle.setAttribute('aria-pressed', 'false');
   }
@@ -232,7 +234,8 @@
     const input = deleteDialog.querySelector('.delete-password');
     const visible = input.type === 'password';
     input.type = visible ? 'text' : 'password';
-    passwordToggle.textContent = visible ? 'OCULTAR' : 'VER';
+    passwordToggle.querySelector('.password-eye-slash').style.display = visible ? '' : 'none';
+    passwordToggle.title = visible ? 'Ocultar contraseña' : 'Ver contraseña';
     passwordToggle.setAttribute('aria-label', visible ? 'Ocultar contraseña' : 'Ver contraseña');
     passwordToggle.setAttribute('aria-pressed', String(visible));
   };
