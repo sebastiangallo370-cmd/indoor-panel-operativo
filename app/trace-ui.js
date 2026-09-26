@@ -56,7 +56,7 @@
     return { groups, finished, total: groups.length, state, focus, mine, myPending, due, overdue, percent: groups.length ? Math.round(finished / groups.length * 100) : 0 };
   }
   function matches(summary, filter) {
-    return filter === 'all' || filter === 'work' && summary.myPending || filter === 'mine' && summary.mine || filter === 'late' && summary.overdue || filter === summary.state;
+    return filter === 'all' || filter === 'pending' && summary.state !== 'finished' || filter === 'work' && summary.myPending || filter === 'mine' && summary.mine || filter === 'late' && summary.overdue || filter === summary.state;
   }
   function processForProfile(profile) {
     return flow.find(p => [p.label, ...p.headers, ...p.aliases].some(label => key(label) === key(profile)));
@@ -116,6 +116,9 @@
     return data;
   }
   if (typeof module !== 'undefined' && module.exports) { module.exports = { key, dateValue, groupsFor, summarize, matches, processForProfile, processQueueSummary, queueMatches, summaryForView, paginate, orderByDelivery, addBusinessDays, applyDefaultDeliveryDates }; return; }
+  // Inventory is postponed: remove only its interface, preserving the catalog.
+  document.querySelectorAll('[data-kind="inventario"], [data-panel="inventario"]').forEach(element => element.remove());
+  document.body.classList.remove('inventory-mode');
   if (typeof traceCards === 'undefined') return;
 
   // Commercial assistants are workspaces, not landing pages. Keep controls in view
@@ -315,6 +318,7 @@
   const ownProcess = processForProfile(profile);
   const defaultFilter = 'all';
   let ownAreaFilter = false;
+  let navigationProcess = null;
 
   const originalOpenProduction = openOperatorProduction;
   openOperatorProduction = function(id) {
@@ -330,7 +334,8 @@
   };
   updateProcessFilter = function() {
     const labels = new Map(flow.map(p => [key(p.label), p.label]));
-    if (!isAdmin) selectedProcess = ownAreaFilter && ownProcess ? key(ownProcess.label) : '';
+    if (navigationProcess) selectedProcess = key(navigationProcess.label);
+    else if (!isAdmin) selectedProcess = ownAreaFilter && ownProcess ? key(ownProcess.label) : '';
     if (!labels.has(selectedProcess)) selectedProcess = '';
     const signature = JSON.stringify([...labels]);
     if (productionProcess.dataset.signature !== signature) {
@@ -359,6 +364,7 @@
   const labels = { pending: 'Pendiente', active: 'En proceso', rework: 'Reproceso', finished: 'Terminado', partial: 'Avance parcial' };
   const filters = isAdmin ? [['all', 'Todos'], ['work', 'Mi trabajo del día'], ['mine', 'Mis pedidos'], ['late', 'Atrasados'], ['active', 'En proceso'], ['rework', 'Reproceso'], ['finished', 'Terminados']] : [['all', 'Todos'], ['pending', 'Por fabricar'], ['mine', 'A mi cargo'], ['active', 'En proceso'], ['rework', 'Reproceso'], ['late', 'Atrasados'], ['finished', 'Terminados']];
   let filter = defaultFilter;
+  if (isAdmin) filters.splice(1, 0, ['pending', 'Por fabricar']);
   let currentPage = 1, pageQuery = '';
   const user = { name: document.querySelector('.user-info strong')?.textContent || '', initials: document.querySelector('.user-avatar')?.textContent || '' };
   const toolbar = document.createElement('section');
@@ -394,12 +400,41 @@
   areaButton.disabled = !ownProcess;
   toolbar.querySelector('.trace-workspace-top').appendChild(areaButton);
   areaButton.onclick = () => {
+    navigationProcess = null;
     ownAreaFilter = !ownAreaFilter;
     filter = ownAreaFilter ? 'pending' : 'all';
     updateProcessFilter();
     traceCards.scrollTop = 0;
     renderTraceCards();
   };
+  const productionNav = document.querySelector('.production-nav');
+  const processNavigation = [];
+  productionNav.addEventListener('click', () => {
+    navigationProcess = null;
+    ownAreaFilter = false;
+    filter = 'all';
+    selectedProcess = '';
+    processNavigation.forEach(button => button.classList.remove('active'));
+  }, true);
+  flow.forEach((process, index) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'tab process-nav';
+    button.dataset.kind = 'produccion';
+    button.innerHTML = '<span class="nav-icon">' + (index + 1) + '</span><strong>' + esc(process.label.toUpperCase()) + '</strong>';
+    button.onclick = () => {
+      productionNav.click();
+      navigationProcess = process;
+      filter = 'pending';
+      exactScheduleOrder = '';
+      productionSearch.value = '';
+      traceCards.scrollTop = 0;
+      document.querySelectorAll('.tab').forEach(tab => tab.classList.toggle('active', tab === button));
+      renderProduction();
+    };
+    processNavigation.push(button);
+    productionNav.parentElement.appendChild(button);
+  });
   toolbar.addEventListener('click', event => {
     const button = event.target.closest('[data-trace-filter]'); if (!button) return;
     filter = button.dataset.traceFilter; traceCards.scrollTop = 0; renderTraceCards();
@@ -426,11 +461,13 @@
     const visible = new Set([...productionBody.querySelectorAll('tr')].map(tr => Number(tr.querySelector('td[data-row]')?.dataset.row)));
     const base = productionData.rows.filter(row => visible.has(row.source_row) && ['ORDEN', 'NOMBRE DEL CLIENTE', 'NOMBRE PROYECTO', 'REFERENCIA'].some(name => traceField(row, name).trim()));
     const fullSummaries = new Map(base.map(row => [row.source_row, summarize(productionData, row, processStatusHeaders, user, scheduleToday())]));
-    const forView = (row, stateFilter) => summaryForView(fullSummaries.get(row.source_row), stateFilter, profile, user, scheduleToday(), isAdmin, ownAreaFilter);
+    const forView = (row, stateFilter) => navigationProcess
+      ? processQueueSummary(fullSummaries.get(row.source_row), navigationProcess.label, user, scheduleToday())
+      : summaryForView(fullSummaries.get(row.source_row), stateFilter, profile, user, scheduleToday(), isAdmin, ownAreaFilter);
     const summaries = new Map(base.map(row => [row.source_row, forView(row, filter)]));
-    const match = isAdmin && !ownAreaFilter ? matches : queueMatches;
+    const match = isAdmin && !ownAreaFilter && !navigationProcess ? matches : queueMatches;
     areaButton.setAttribute('aria-pressed', String(ownAreaFilter));
-    toolbar.querySelector('h3').textContent = ownAreaFilter || (!isAdmin && filter !== 'all') ? (ownProcess?.label || 'Proceso sin asignar') + ' · Trabajo entre turnos' : 'Todos los pedidos programados';
+    toolbar.querySelector('h3').textContent = navigationProcess ? navigationProcess.label + ' · Producción' : ownAreaFilter || (!isAdmin && filter !== 'all') ? (ownProcess?.label || 'Proceso sin asignar') + ' · Trabajo entre turnos' : 'Todos los pedidos programados';
     toolbar.querySelectorAll('[data-trace-filter]').forEach(button => { button.hidden = ownAreaFilter; });
     const query = JSON.stringify([filter, ownAreaFilter, selectedProcess, productionSearch.value, exactScheduleOrder]);
     if (pageQuery !== query) { currentPage = 1; pageQuery = query; scrollTop = 0; }
