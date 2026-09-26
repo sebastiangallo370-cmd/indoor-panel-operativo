@@ -564,6 +564,37 @@
     const notes = noteItems ? '<section class="trace-process-notes" aria-label="Notas de todos los procesos de la orden"><h3>OBSERVACIONES DE LA ORDEN</h3>' + noteItems + '</section>' : '';
     nodeDialog.querySelector('.trace-node-content').innerHTML = '<span class="trace-eyebrow">' + esc(traceField(row, 'ORDEN')) + '</span><h2 id="trace-node-heading">' + esc(group.label) + '</h2><span class="trace-stage ' + group.state + '">' + group.status + '</span><p>Responsable: <strong>' + esc(group.responsible || 'Sin asignar') + '</strong></p><dl>' + fields + '</dl>' + notes + (!fields ? '<p>Este proceso aún no tiene registros.</p>' : '') + '<p class="trace-node-hint">Registra la actividad desde PRODUCCIÓN. El proceso se selecciona según el perfil del usuario conectado.</p><button type="button" class="trace-register">Ir a PRODUCCIÓN</button>';
     nodeDialog.querySelector('.trace-register').onclick = () => { nodeDialog.close(); openOperatorProduction(id); };
+    const historyNotes = document.createElement('section');
+    historyNotes.className = 'trace-process-notes';
+    historyNotes.setAttribute('aria-label', 'Observaciones registradas por los operarios');
+    historyNotes.setAttribute('aria-live', 'polite');
+    historyNotes.textContent = 'Consultando observaciones de los procesos…';
+    nodeDialog.querySelector('.trace-node-hint').before(historyNotes);
+    // Reasons belong to the activity history, not to the spreadsheet notes.
+    // Keep this element captured so a late response cannot update another dialog.
+    Promise.allSettled(orderRows.map(async item => {
+      const response = await fetch('/api/produccion/operaciones/' + item.source_row, { cache: 'no-store' });
+      if (!response.ok) throw Error('No se pudo consultar el historial');
+      const events = await response.json();
+      if (!Array.isArray(events)) throw Error('Historial inválido');
+      return events.filter(entry => String(entry.reason || '').trim() && key(entry.action) !== 'CIERRE AUTOMATICO')
+        .map(entry => ({ ...entry, reference: traceField(item, 'REFERENCIA') }));
+    })).then(results => {
+      if (!historyNotes.isConnected || !nodeDialog.open) return;
+      const events = results.filter(result => result.status === 'fulfilled').flatMap(result => result.value)
+        .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+      const actionLabels = { rework: 'REPROCESO', start: 'INICIO / RETOMA', finish: 'TERMINADO', na: 'NO APLICA' };
+      historyNotes.innerHTML = events.length ? '<h3>NOTAS Y MOTIVOS DE LOS PROCESOS</h3>' + events.map(entry =>
+        '<article><strong>' + esc(productionData.headers[Number(entry.column_number) - 1] || 'PROCESO') +
+        ' · ' + esc(actionLabels[entry.action] || entry.action) +
+        (orderRows.length > 1 ? ' · ' + esc(entry.reference) : '') + '</strong>' +
+        '<p class="trace-full-note">' + esc(String(entry.reason)) + '</p>' +
+        '<small>' + esc(entry.responsible || entry.username || '') + '</small></article>').join('') : '';
+      if (results.some(result => result.status === 'rejected')) {
+        historyNotes.insertAdjacentHTML('beforeend', '<p>No se pudieron cargar todas las observaciones. Cierra y vuelve a abrir el panel para reintentar.</p>');
+      }
+      historyNotes.hidden = !historyNotes.innerHTML;
+    });
     nodeDialog.showModal();
   });
   const oldSelection = operatorSelection;
