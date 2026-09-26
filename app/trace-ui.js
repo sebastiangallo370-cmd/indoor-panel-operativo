@@ -1318,7 +1318,8 @@
   html body.production-mode .trace-disclosure-toggle:hover,html body.production-mode .trace-disclosure-toggle[aria-expanded=true]{background:#d0f44c;color:#14221b}
   html body.production-mode .trace-disclosure[hidden]{display:none!important}
   html body.production-mode .trace-disclosure:not([hidden]){display:block;margin-top:14px}
-  html body.production-mode .trace-card:not(.details-expanded){height:700px!important}
+  html body.production-mode .trace-card:not(.details-expanded){height:760px!important;grid-template-rows:380px minmax(0,1fr) auto}
+  html body.production-mode .trace-card .trace-design-tabs{height:36px;min-height:36px;flex:0 0 36px;overflow-x:auto;white-space:nowrap}
   html body.production-mode .trace-card.details-expanded{aspect-ratio:auto;grid-template-rows:380px auto auto}
   html body.production-mode .trace-card.details-expanded .trace-note-alert,html body.production-mode .trace-card.details-expanded .trace-production-note{max-height:none;overflow:visible}
   html body.production-mode .trace-disclosure .trace-card-actions{grid-template-columns:1fr!important;gap:8px}
