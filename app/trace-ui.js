@@ -479,10 +479,11 @@
       card.querySelector('[data-card-detail]').textContent = 'LISTADO Y DETALLES';
       if (notes.length) {
         card.classList.add('has-notes');
-        const notePanel = card.querySelector('.trace-inline-notes');
-        notePanel.classList.add('trace-note-alert');
-        notePanel.querySelector('summary').innerHTML = '<span class="trace-note-label"><span aria-hidden="true">✎</span> '+notes.length+' NOTA'+(notes.length === 1 ? '' : 'S')+' · LEER</span><span class="trace-note-preview">'+esc(String(notes[0][1]))+'</span>';
-        notePanel.querySelector('summary').setAttribute('aria-label', 'Leer '+notes.length+' nota'+(notes.length === 1 ? '' : 's')+' de la orden '+traceField(row, 'ORDEN'));
+        const notePanel = document.createElement('section');
+        notePanel.className = 'trace-inline-notes trace-note-alert';
+        notePanel.setAttribute('aria-label', 'Observaciones de la orden');
+        notePanel.innerHTML = '<span class="trace-note-label">OBSERVACIONES · '+notes.length+'</span>'+notes.map(([k,v]) => '<p><strong>'+esc(productionData.headers[Number(k.split(':')[1])-1] || 'NOTA')+'</strong>'+esc(String(v))+'</p>').join('');
+        card.querySelector('.trace-inline-notes').remove();
         card.querySelector('.trace-project').after(notePanel);
         const counter = card.querySelector('.trace-card-meta span');
         counter.classList.add('trace-note-count');
