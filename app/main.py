@@ -143,12 +143,19 @@ def password_matches(password: str, stored: str) -> bool:
         return False
 
 
+def account_exists(username: str) -> bool:
+    if username == os.getenv("APP_USER", "indoor"):
+        return True
+    with connect() as db:
+        return db.execute("SELECT 1 FROM users WHERE name=? COLLATE NOCASE", (username,)).fetchone() is not None
+
+
 def session_username(token: str) -> str | None:
     try:
         decoded = base64.urlsafe_b64decode(token.encode("ascii")).decode("utf-8")
         username, expires, signature = decoded.rsplit("|", 2)
         payload = f"{username}|{expires}"
-        if int(expires) >= int(time.time()) and secrets.compare_digest(signature, _session_signature(payload)):
+        if int(expires) >= int(time.time()) and secrets.compare_digest(signature, _session_signature(payload)) and account_exists(username):
             return username
     except (ValueError, TypeError, UnicodeError):
         pass
