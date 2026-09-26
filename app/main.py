@@ -24,6 +24,7 @@ from openpyxl import load_workbook
 
 from app.excel_linux import crear_excel_listado
 from app.excel_mockups import listing_designs
+from app.uploaded_mockups import sync_order_uploads
 from app.creator_xlsx import _data_from_source, create_from_images, create_from_sheet_bundle, normalize_output_name
 from app.settings import STATE_DIR, UPLOAD_DIR, prepare_pedidos_runtime, prepare_runtime
 
@@ -299,6 +300,10 @@ def process_job(job_id: int, pdf_path: Path, extra_paths: list[Path]):
                     extra_path.unlink()
                 copied += 1
             detail = "NAS y trazabilidad local de Producción actualizados"
+            inserted, image_issues = sync_order_uploads(order_dir, STATE_DIR / 'mockup-backups', uploaded_names={p.name for p in extra_paths})
+            detail += f". {inserted} mockup(s) insertado(s) en el listado; originales conservados en la carpeta"
+            if image_issues:
+                detail += ". Revisar imágenes: " + " | ".join(image_issues)
             if copied:
                 detail += f". {copied} imagen(es) anexada(s) a la orden"
             if warnings:
@@ -374,6 +379,10 @@ def process_reprogram_excel_job(job_id: int, excel_path: Path, extra_paths: list
                 extra_path.unlink()
             copied += 1
         detail = "Excel archivado en NAS y reprogramación registrada en Producción local"
+        inserted, image_issues = sync_order_uploads(order_dir, STATE_DIR / 'mockup-backups', uploaded_names={p.name for p in extra_paths})
+        detail += f". {inserted} mockup(s) insertado(s) en el listado; originales conservados en la carpeta"
+        if image_issues:
+            detail += ". Revisar imágenes: " + " | ".join(image_issues)
         if copied:
             detail += f". {copied} anexo(s) copiado(s)"
         update_job(job_id, "COMPLETADO", detail, order_number)
@@ -404,14 +413,20 @@ def process_order_job(job_id: int, job_dir: Path, pdf_path: Path, excel_path: Pa
         )
         if ok:
             copied = 0
+            uploaded_names = set()
             for attachment in job_dir.iterdir():
                 if not attachment.is_file() or attachment in (pdf_path, excel_path):
                     continue
                 update_job_progress(job_id, min(98, 94 + copied), "Copiando anexos del pedido")
                 pedidos.copiar_archivo(str(attachment), str(ok))
+                uploaded_names.add(attachment.name)
                 attachment.unlink()
                 copied += 1
             detail = "Pedido creado en NAS y registrado en Producción local"
+            inserted, image_issues = sync_order_uploads(Path(ok), STATE_DIR / 'mockup-backups', uploaded_names=uploaded_names)
+            detail += f". {inserted} mockup(s) insertado(s) en el listado; originales conservados en la carpeta"
+            if image_issues:
+                detail += ". Revisar imágenes: " + " | ".join(image_issues)
             if copied:
                 detail += f". {copied} anexo(s) copiado(s)"
             update_job(job_id, "COMPLETADO", detail, order_number)
