@@ -551,7 +551,17 @@
     if (!row) return;
     const group = groupsFor(productionData, row, processStatusHeaders)[Number(button.dataset.nodeIndex)];
     const fields = group.columns.filter(i => String(row.values[i] || '').trim()).map(i => '<div><dt>' + esc(productionData.headers[i]) + '</dt><dd>' + esc(displayProductionDate(String(row.values[i]))) + '</dd></div>').join('');
-    const notes = group.columns.filter(i => productionData.notes?.[id + ':' + (i + 1)]).map(i => '<p class="trace-full-note">' + esc(productionData.notes[id + ':' + (i + 1)]) + '</p>').join('');
+    // Show instructions from every process, not only the node being inspected.
+    const order = key(traceField(row, 'ORDEN'));
+    const client = key(traceField(row, 'NOMBRE DEL CLIENTE'));
+    const orderRows = productionData.rows.filter(item => item.source_row === id ||
+      (order && key(traceField(item, 'ORDEN')) === order && key(traceField(item, 'NOMBRE DEL CLIENTE')) === client));
+    const noteItems = orderRows.flatMap(item => Object.entries(productionData.notes || {})
+      .filter(([noteKey, text]) => noteKey.startsWith(item.source_row + ':') && String(text || '').trim())
+      .map(([noteKey, text]) => '<article><strong>' + esc(productionData.headers[Number(noteKey.split(':')[1]) - 1] || 'OBSERVACIÓN') +
+        (item.source_row !== id ? ' · ' + esc(traceField(item, 'REFERENCIA')) : '') +
+        '</strong><p class="trace-full-note">' + esc(String(text)) + '</p></article>')).join('');
+    const notes = noteItems ? '<section class="trace-process-notes" aria-label="Notas de todos los procesos de la orden"><h3>OBSERVACIONES DE LA ORDEN</h3>' + noteItems + '</section>' : '';
     nodeDialog.querySelector('.trace-node-content').innerHTML = '<span class="trace-eyebrow">' + esc(traceField(row, 'ORDEN')) + '</span><h2 id="trace-node-heading">' + esc(group.label) + '</h2><span class="trace-stage ' + group.state + '">' + group.status + '</span><p>Responsable: <strong>' + esc(group.responsible || 'Sin asignar') + '</strong></p><dl>' + fields + '</dl>' + notes + (!fields ? '<p>Este proceso aún no tiene registros.</p>' : '') + '<p class="trace-node-hint">Registra la actividad desde PRODUCCIÓN. El proceso se selecciona según el perfil del usuario conectado.</p><button type="button" class="trace-register">Ir a PRODUCCIÓN</button>';
     nodeDialog.querySelector('.trace-register').onclick = () => { nodeDialog.close(); openOperatorProduction(id); };
     nodeDialog.showModal();
@@ -588,6 +598,11 @@
   operatorForm.elements.reason.after(help);
   const style = document.createElement('style');
   style.textContent = `
+  .trace-process-notes{margin:18px 0;padding:14px;border:1px solid #dd6666;border-left:4px solid #ff7777;border-radius:10px;background:#392222;color:#fff0f0}
+  .trace-process-notes h3{font:700 14px/1.5 Arial;margin:0 0 12px;color:#ffaaaa}
+  .trace-process-notes article+article{border-top:1px solid #784242;margin-top:12px;padding-top:12px}
+  .trace-process-notes strong{font:700 12px/1.5 Arial;color:#ffc5c5}
+  .trace-process-notes .trace-full-note{font:600 15px/1.7 Arial;margin:5px 0 0;white-space:pre-wrap;overflow-wrap:anywhere;text-decoration-line:underline;text-decoration-color:#ff6868;text-decoration-thickness:2px;text-underline-offset:4px;color:#fff0f0}
   .trace-card .trace-note-alert{margin:8px 0 16px;padding:12px 14px;border:1px solid #a78944;border-left:4px solid #f0c46a;border-radius:10px;background:#3a3220;color:#fff0ce;min-width:0}
   .trace-note-alert summary{list-style:none;display:block;cursor:pointer;min-height:44px}
   .trace-note-alert summary::-webkit-details-marker{display:none}
