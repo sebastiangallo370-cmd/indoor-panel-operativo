@@ -372,6 +372,7 @@
   let filter = defaultFilter;
   if (isAdmin) filters.splice(1, 0, ['pending', 'Por fabricar']);
   let currentPage = 1, pageQuery = '';
+  const expandedCards = new Set();
   const user = { name: document.querySelector('.user-info strong')?.textContent || '', initials: document.querySelector('.user-avatar')?.textContent || '' };
   const toolbar = document.createElement('section');
   toolbar.className = 'trace-workspace';
@@ -544,6 +545,25 @@
         counter.textContent = '✎ '+notes.length+' nota'+(notes.length === 1 ? '' : 's');
       }
       card.querySelector('.trace-card-heading h3').setAttribute('aria-label', 'Orden ' + traceField(row, 'ORDEN'));
+      const body = card.querySelector('.trace-card-body');
+      const important = card.querySelector('.trace-production-note');
+      if (important) body.querySelector('.trace-client').after(important);
+      const disclosure = document.createElement('div');
+      disclosure.className = 'trace-disclosure';
+      disclosure.id = 'trace-disclosure-' + row.source_row;
+      body.querySelectorAll(':scope > .trace-project,:scope > .trace-manufacture,:scope > dl,:scope > .trace-card-meta,:scope > .trace-card-actions').forEach(item => disclosure.appendChild(item));
+      body.appendChild(disclosure);
+      const expanded = expandedCards.has(row.source_row);
+      disclosure.hidden = !expanded;
+      card.classList.toggle('details-expanded', expanded);
+      const toggle = document.createElement('button');
+      toggle.type = 'button'; toggle.className = 'trace-disclosure-toggle';
+      toggle.dataset.cardExpand = row.source_row;
+      toggle.setAttribute('aria-expanded', String(expanded));
+      toggle.setAttribute('aria-controls', disclosure.id);
+      toggle.setAttribute('aria-label', 'Detalles de la orden ' + traceField(row, 'ORDEN'));
+      toggle.textContent = '☰';
+      card.prepend(toggle);
     });
     traceCards.scrollTop = scrollTop;
     if (focusKey && focusAttribute) traceCards.querySelector('[data-card-row="' + focusKey + '"] [' + focusAttribute + '="' + focusValue + '"]')?.focus({ preventScroll: true });
@@ -551,6 +571,17 @@
     refreshOperatorActions();
   };
   traceCards.addEventListener('click', event => {
+    const disclosureToggle = event.target.closest('[data-card-expand]');
+    if (disclosureToggle) {
+      const id = Number(disclosureToggle.dataset.cardExpand), card = disclosureToggle.closest('.trace-card');
+      const expanded = !expandedCards.has(id);
+      if (expanded) expandedCards.add(id); else expandedCards.delete(id);
+      card.classList.toggle('details-expanded', expanded);
+      card.querySelector('.trace-disclosure').hidden = !expanded;
+      disclosureToggle.setAttribute('aria-expanded', String(expanded));
+      fitTraceCards();
+      return;
+    }
     if (event.target.closest('[data-clear-trace]')) { filter = ownAreaFilter ? 'pending' : defaultFilter; exactScheduleOrder = ''; productionSearch.value = ''; renderProduction(); renderTraceCards(); return; }
     const button = event.target.closest('[data-node-row]'); if (!button) return;
     const id = Number(button.dataset.nodeRow), row = productionData.rows.find(r => r.source_row === id);
@@ -1242,28 +1273,44 @@
   document.head.appendChild(style);
 })();
 
-// Fit every visible card to the tallest full content, including notes and images.
+// Four portrait summaries; details expand in place without changing order actions.
 (() => {
   if (typeof document === 'undefined') return;
-  const grid = document.querySelector('.trace-cards');
-  if (!grid) return;
-  let frame = 0;
-  const equalize = () => {
-    cancelAnimationFrame(frame);
-    frame = requestAnimationFrame(() => {
-      if (!grid.getClientRects().length) return;
-      grid.style.removeProperty('--uniform-card-height');
-      const cards = [...grid.querySelectorAll('.trace-card')];
-      const height = Math.ceil(Math.max(0, ...cards.map(card => Math.max(card.getBoundingClientRect().height, card.scrollHeight + 6))));
-      if (height) grid.style.setProperty('--uniform-card-height', height + 'px');
-    });
-  };
-  new MutationObserver(equalize).observe(grid, {childList:true,subtree:true,characterData:true});
-  let width = 0;
-  new ResizeObserver(entries => {const next=entries[0].contentRect.width;if(next!==width){width=next;equalize();}}).observe(grid);
-  new MutationObserver(equalize).observe(document.body,{attributes:true,attributeFilter:['class']});
-  grid.addEventListener('load', equalize, true);
-  window.addEventListener('resize', equalize);
-  document.fonts?.ready.then(equalize);
-  equalize();
+  const style = document.createElement('style');
+  style.textContent = `
+  html body.production-mode .trace-cards{grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:max-content;align-items:start;gap:16px;padding:16px}
+  html body.production-mode .trace-card,html body.production-mode.trace-density-compact .trace-card{position:relative;grid-template-columns:minmax(0,1fr)!important;grid-template-rows:minmax(0,1fr) auto auto;aspect-ratio:4/5;min-height:0;height:auto;align-self:start;container-type:inline-size}
+  html body.production-mode .trace-card .trace-media,html body.production-mode.trace-density-compact .trace-card .trace-media{height:100%!important;min-height:0!important;padding:8px!important;overflow:hidden;display:flex;flex-direction:column;justify-content:center}
+  html body.production-mode .trace-card .trace-design-main{flex:1;min-height:0;display:flex;align-items:center;justify-content:center}
+  html body.production-mode .trace-card .trace-design-main img,html body.production-mode.trace-density-compact .trace-card .trace-design-main img{width:100%;height:100%!important;max-height:100%;min-height:0;object-fit:contain}
+  html body.production-mode .trace-card .trace-card-body{padding:12px!important;display:block}
+  html body.production-mode .trace-card-heading{gap:6px;align-items:center;flex-wrap:wrap}
+  html body.production-mode .trace-card-heading h3{font-size:17px!important;margin:0}
+  html body.production-mode .trace-stage{font-size:11px;padding:3px 6px}
+  html body.production-mode .trace-client{font-size:13px!important;line-height:1.35;margin:7px 0 0}
+  html body.production-mode .trace-card .trace-note-alert,html body.production-mode .trace-card .trace-production-note{margin:8px 0 0;padding:7px 9px;font-size:12px;max-height:74px;overflow:auto;overscroll-behavior:contain}
+  html body.production-mode .trace-card .trace-note-alert p{font-size:12px;margin:4px 0}
+  html body.production-mode .trace-card .trace-route{min-height:0;padding:8px 12px 12px}
+  html body.production-mode .trace-card .trace-route-heading{display:none}
+  html body.production-mode .trace-card .trace-route-caption{font-size:11px;line-height:1.3;margin:4px 0;gap:3px}
+  html body.production-mode .trace-card .trace-route-caption .trace-progress-percent{font-size:12px}
+  html body.production-mode .trace-card .trace-progress{margin:6px 0 0;height:7px}
+  html body.production-mode .trace-card:not(.details-expanded) .trace-node{min-height:23px;padding:0;gap:0}
+  html body.production-mode .trace-card:not(.details-expanded) .trace-node-label{display:none}
+  html body.production-mode .trace-card:not(.details-expanded) .trace-node-dot{width:14px;height:14px;font-size:8px;box-shadow:none}
+  html body.production-mode .trace-card:not(.details-expanded) .trace-node:before{top:7px}
+  html body.production-mode .trace-disclosure-toggle{position:absolute;top:10px;right:10px;z-index:2;width:38px;height:38px;min-height:38px;padding:0;background:#14221b;color:#d0f44c;border:1px solid #75876a;border-radius:10px;font:24px/1 Arial;box-shadow:0 2px 8px #0003}
+  html body.production-mode .trace-disclosure-toggle:hover,html body.production-mode .trace-disclosure-toggle[aria-expanded=true]{background:#d0f44c;color:#14221b}
+  html body.production-mode .trace-disclosure[hidden]{display:none!important}
+  html body.production-mode .trace-disclosure:not([hidden]){display:block;margin-top:14px}
+  html body.production-mode .trace-card.details-expanded{aspect-ratio:auto;grid-template-rows:200px auto auto}
+  html body.production-mode .trace-card.details-expanded .trace-note-alert,html body.production-mode .trace-card.details-expanded .trace-production-note{max-height:none;overflow:visible}
+  html body.production-mode .trace-disclosure .trace-card-actions{grid-template-columns:1fr!important;gap:8px}
+  html body.production-mode .trace-disclosure .trace-card-actions button{width:100%;min-width:0;white-space:normal}
+  html body.production-mode .trace-disclosure dl{grid-template-columns:1fr 1fr;gap:12px}
+  html body.production-mode .trace-density-toggle{display:none}
+  @media(max-width:1050px) and (min-width:601px){html body.production-mode .trace-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media(max-width:600px){html body.production-mode .trace-cards{grid-template-columns:1fr}html body.production-mode .trace-card .trace-client{font-size:14px!important}}
+  `;
+  document.head.appendChild(style);
 })();
