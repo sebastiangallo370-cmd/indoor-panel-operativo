@@ -231,6 +231,17 @@
     }
     traceCards.querySelectorAll('[data-card-row]').forEach(card => {
       const row = rows.find(r => r.source_row === Number(card.dataset.cardRow));
+      const viewSummary = summaries.get(row.source_row);
+      const progressSummary = viewSummary.route || viewSummary;
+      const progress = card.querySelector('.trace-progress');
+      const caption = card.querySelector('.trace-route-caption');
+      caption.querySelector('span').textContent = progressSummary.percent + '% COMPLETADO';
+      caption.querySelector('span').classList.add('trace-progress-percent');
+      progress.setAttribute('aria-valuemax', '100');
+      progress.setAttribute('aria-valuenow', String(progressSummary.percent));
+      progress.setAttribute('aria-valuetext', progressSummary.percent + '% · ' + progressSummary.finished + ' de ' + progressSummary.total + ' procesos cerrados');
+      progress.title = 'Avance por procesos cerrados. Incluye No aplica y cierres automáticos; un reproceso vuelve a quedar pendiente.';
+      caption.after(progress);
       const description = ['PRODUCTO', 'DESCRIPCIÓN', 'DESCRIPCION', 'PRENDA'].map(h => traceField(row, h)).find(v => v.trim());
       const fabric = traceField(row, 'TELA'), observation = traceField(row, 'OBSERVACIONES');
       const details = (fabric ? '<span><small>TELA</small><strong>' + esc(fabric) + '</strong></span>' : '');
@@ -303,6 +314,7 @@
   @media(max-width:600px){body.production-mode .trace-card{grid-template-columns:1fr}body.production-mode .trace-media,body.production-mode .trace-media:has(img){height:290px;min-height:0;padding:12px}body.production-mode .trace-design-main img{height:230px}body.production-mode .trace-media:not(:has(img)){height:115px;min-height:0}.trace-no-design>span{display:none}body.production-mode .trace-card-body{padding:18px}.trace-route{padding:14px 10px 10px}.trace-node-dot{width:18px;height:18px;font-size:9px}.trace-node:before{top:15px}.trace-node-label{font-size:8px;letter-spacing:-.04em}.trace-route-caption>span{display:block;width:100%}.trace-card-actions button{font-size:12px!important}.operator-dialog{padding:20px 16px}.trace-node-dialog{padding:20px}.trace-node-dialog dl{grid-template-columns:1fr}}
   `;
   style.textContent += `
+  .trace-progress{height:10px;margin:10px 0 2px;border-radius:8px;overflow:hidden;background:#324638;border:1px solid #425c48}.trace-progress>span{background:linear-gradient(90deg,#76c995,#d0ec93)}.trace-route-caption>.trace-progress-percent{font:700 14px/1.5 Arial;color:#d0ec93;white-space:nowrap;width:auto}.trace-route-heading{margin-bottom:10px}
   .trace-area-toggle{width:auto;min-height:42px;padding:10px 14px;background:#23352a;color:#e2eddd;border:1px solid #617858;border-radius:8px;font:600 12px Arial;box-shadow:none}.trace-area-toggle[aria-pressed=true]{background:#d0ec93;color:#1c2b13}.trace-area-toggle:disabled{opacity:.5}.trace-quick-filters button[hidden]{display:none!important}.trace-workspace-top{flex-wrap:wrap;gap:10px}
   .trace-manufacture{border-top:1px solid #35463c;padding:13px 0 16px;margin-bottom:12px}.trace-manufacture h4{font:600 19px/1.35 Arial;color:#f4f8ed;margin:5px 0 8px;overflow-wrap:anywhere}.trace-material-facts{display:flex;gap:16px}.trace-material-facts small{display:block;font:10px/1.5 Arial;color:#9eb5a5}.trace-material-facts strong{font:500 13px/1.5 Arial;color:#d8e5da}.trace-production-note{font:13px/1.6 Arial;color:#f1e8c5;margin:12px 0 0;background:#afa15913;border-left:3px solid #bba658;padding:9px 11px;white-space:pre-wrap}.trace-production-note strong,.trace-inline-notes strong{display:block;font-size:10px;letter-spacing:.06em;margin-bottom:4px}.trace-inline-notes{font:12px/1.6 Arial;color:#c7d8c9;margin-top:12px}.trace-inline-notes summary{cursor:pointer;min-height:32px}.trace-inline-notes p{white-space:pre-wrap;border-top:1px solid #35463c;padding-top:8px}.trace-card-heading h3{font-size:19px!important}.trace-quantity{font-size:23px!important;font-weight:700!important}.trace-card-actions [data-card-nas]{opacity:.65}
   body.production-mode.trace-cards-mode .production-title p,body.production-mode.trace-cards-mode .production-kpis{display:none}
