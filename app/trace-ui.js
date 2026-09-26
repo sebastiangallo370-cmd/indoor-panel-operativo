@@ -118,6 +118,76 @@
   if (typeof module !== 'undefined' && module.exports) { module.exports = { key, dateValue, groupsFor, summarize, matches, processForProfile, processQueueSummary, queueMatches, summaryForView, paginate, orderByDelivery, addBusinessDays, applyDefaultDeliveryDates }; return; }
   if (typeof traceCards === 'undefined') return;
 
+  // Commercial assistants are workspaces, not landing pages. Keep controls in view
+  // without clipping real content, zoomed text, additional sheets or attachments.
+  const assistantLayout = document.createElement('style');
+  assistantLayout.textContent = `
+    body:has(.workspace.panel.active) main{min-height:100dvh;padding-bottom:16px;min-width:0}
+    body:has(.workspace.panel.active) main>header{text-align:left;padding:12px 2px;margin:0;max-width:none}
+    body:has(.workspace.panel.active) main>header h1{font-size:clamp(24px,2.1vw,32px);line-height:1.14;letter-spacing:-.035em;max-width:none;margin:0}
+    body:has(.workspace.panel.active) main>header h1 br{display:none}
+    body:has(.workspace.panel.active) main>header .eyebrow{font-size:11px;margin-bottom:6px}
+    body:has(.workspace.panel.active) main>header .subtitle{font-size:13px;line-height:1.45;margin:7px 0 0;max-width:none}
+    body:has(.workspace.panel.active) .footer-note{margin:12px 0 0;font-size:11px}
+    .workspace.panel.active{grid-template-columns:minmax(340px,1fr) minmax(0,1.3fr);gap:16px;min-width:0;align-items:stretch}
+    .workspace.panel.active>.card{min-width:0;border-radius:16px}
+    .workspace.panel.active .card-head{padding:18px 20px 0}
+    .workspace.panel.active .card-head p{font-size:13px;line-height:1.45}
+    .workspace.panel.active .upload-wrap{padding:14px 20px 18px}
+    .workspace.panel.active .dropzone{min-height:132px;padding:16px;border-radius:12px}
+    .workspace.panel.active .upload-icon{width:38px;height:38px;margin:0 auto 8px;border-radius:10px}
+    .workspace.panel.active .upload-icon svg{width:22px;height:22px}
+    .workspace.panel.active .file-row{padding:11px 12px;border-radius:10px}
+    .workspace.panel.active .file-row>div{min-width:0;overflow-wrap:anywhere}
+    .workspace.panel.active .file-row span{overflow-wrap:anywhere}
+    .workspace.panel.active .history{min-height:0}
+    .workspace.panel.active .history-head{padding:18px 20px 14px;flex-wrap:wrap}
+    .workspace.panel.active .table-wrap{min-width:0}
+    .workspace.panel.active .history table{min-width:0;table-layout:fixed}
+    .workspace.panel.active .history th,.workspace.panel.active .history td{padding:12px 10px;overflow-wrap:anywhere;letter-spacing:normal}
+    .workspace.panel.active .history th:first-child{width:52px}
+    .workspace.panel.active .history th:nth-child(2){width:23%}
+    .workspace.panel.active .history th:nth-child(3){width:17%}
+    .workspace.panel.active .history th:nth-child(4){width:23%}
+    .workspace.panel.active .history .state{white-space:normal;padding:6px 8px;max-width:100%;flex-wrap:wrap}
+    .workspace.panel.active .empty-row td{height:200px}
+    .workspace.panel.active .attachment-list{max-height:160px;overflow-y:auto;overscroll-behavior:contain}
+    .workspace.panel.active .creator-workbook-name{max-width:none;margin:0 0 14px;padding:12px 16px}
+    .workspace.panel.active .creator-cards{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;padding-bottom:12px}
+    .workspace.panel.active .creator-cards:not(:has(.excel-sheet)){grid-template-columns:minmax(0,1fr)}
+    .workspace.panel.active .creator-cards:not(:has(.excel-sheet)) .creator-main-card .upload-wrap{display:grid;grid-template-columns:minmax(180px,.75fr) minmax(0,1.5fr);gap:16px;align-items:start}
+    .workspace.panel.active .creator-cards:not(:has(.excel-sheet)) .creator-main-card .file-pair{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .workspace.panel.active .creator-cards:not(:has(.excel-sheet)) .creator-main-card .upload-wrap>.field{grid-column:1;grid-row:1}
+    .workspace.panel.active .creator-cards:not(:has(.excel-sheet)) .creator-main-card .upload-wrap>.file-pair{grid-column:2;grid-row:1}
+    .workspace.panel.active .add-sheet{min-height:44px;padding:12px;grid-column:1/-1}
+    .workspace.panel.active .add-mockup{min-height:40px;padding:10px;grid-column:1/-1}
+    .workspace.panel.active .creator-actions{max-width:none;margin:0;padding:10px 0;position:sticky;bottom:0;z-index:3;background:#0c100d;border-top:1px solid #39452f}
+    .workspace.panel.active .creator-actions .actions{margin:0}
+    .workspace.panel.active .creator-actions button{max-width:480px;margin-left:auto}
+    @media(min-width:1400px){.workspace.panel.active .creator-cards{grid-template-columns:repeat(3,minmax(0,1fr))}}
+    @media(min-width:1101px) and (min-height:700px){.workspace.panel.active:not([data-panel=creador]){min-height:calc(100dvh - 252px)}}
+    @media(max-width:1100px){.workspace.panel.active{grid-template-columns:minmax(0,1fr)}.workspace.panel.active .empty-row td{height:140px}}
+    @media(max-width:700px){
+      body:has(.workspace.panel.active) main{padding:70px 12px 16px}
+      body:has(.workspace.panel.active) main>.brand{position:fixed;top:4px;left:64px;right:12px;width:auto;padding:7px 0}
+      body:has(.workspace.panel.active) main>header{padding:12px 0 14px}
+      body:has(.workspace.panel.active) main>header h1{font-size:24px}
+      .workspace.panel.active .creator-cards{grid-template-columns:minmax(0,1fr)}
+      .workspace.panel.active .creator-cards:not(:has(.excel-sheet)) .creator-main-card .upload-wrap,.workspace.panel.active .creator-cards:not(:has(.excel-sheet)) .creator-main-card .file-pair{grid-template-columns:minmax(0,1fr)}
+      .workspace.panel.active .creator-cards:not(:has(.excel-sheet)) .creator-main-card .upload-wrap>.field,.workspace.panel.active .creator-cards:not(:has(.excel-sheet)) .creator-main-card .upload-wrap>.file-pair{grid-column:auto;grid-row:auto}
+      .workspace.panel.active .card-head{padding:16px 16px 0}
+      .workspace.panel.active .upload-wrap{padding:12px 16px 16px}
+      .workspace.panel.active .creator-actions button{max-width:none}
+      .workspace.panel.active .history thead{display:none}
+      .workspace.panel.active .history tr:not(.empty-row){display:grid;grid-template-columns:auto minmax(0,1fr);padding:12px}
+      .workspace.panel.active .history td{border:0;padding:7px}
+      .workspace.panel.active .history tr:not(.empty-row) td:nth-child(n+3){grid-column:1/-1}
+      .workspace.panel.active .history .file-name{max-width:100%;white-space:normal}
+    }
+  `;
+  document.head.appendChild(assistantLayout);
+  document.querySelectorAll('main > header h1 br').forEach(br => br.replaceWith(document.createTextNode(' ')));
+
   const isAdmin = typeof canViewAdministration !== 'undefined' && canViewAdministration;
   const canDelete = typeof deleteProductionAllowed !== 'undefined' && deleteProductionAllowed;
   const deletingRows = new Set();
