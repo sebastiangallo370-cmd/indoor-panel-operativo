@@ -66,12 +66,18 @@
     const group = summary.groups.find(g => g.label === process?.label);
     if (!group) return null;
     const tokens = [user.name, user.initials].map(personKey).filter(Boolean);
+    const index = summary.groups.indexOf(group);
+    // Each area's queue is released only by its immediately preceding stage.
+    // The first stage receives newly scheduled orders; No aplica is also closed.
+    const ready = index === 0 || summary.groups[index - 1].state === 'finished';
     return { ...summary, route: summary, focus: group, state: group.state,
+      ready,
       mine: group.responsible.split(/[,;·\n]+/).some(name => tokens.includes(personKey(name))),
       overdue: !!summary.due && summary.due < today && group.state !== 'finished' };
   }
   function queueMatches(summary, filter) {
     if (!summary) return false;
+    if (summary.route && !summary.ready) return false;
     if (filter === 'pending') return summary.state !== 'finished';
     if (filter === 'mine') return summary.route ? summary.mine && summary.state !== 'finished' : summary.myPending;
     return matches(summary, filter);
@@ -977,7 +983,9 @@
   body.production-mode .trace-stage.finished,.trace-stage.finished{background:var(--production-finished);border-color:var(--production-finished);color:#092d17}
   body.production-mode .trace-stage.active,.trace-stage.active{background:var(--production-active);border-color:var(--production-active);color:#382005}
   body.production-mode .trace-stage.rework,.trace-stage.rework{background:var(--production-rework);border-color:var(--production-rework);color:#350b0b}
-  body.production-mode .trace-card.state-finished{border-top-color:var(--production-finished)}body.production-mode .trace-card.state-active{border-top-color:var(--production-active)}body.production-mode .trace-card.state-rework{border-top-color:var(--production-rework)}
+  body.production-mode .trace-card.state-finished{--card-state-color:var(--production-finished)}body.production-mode .trace-card.state-active{--card-state-color:var(--production-active)}body.production-mode .trace-card.state-rework{--card-state-color:var(--production-rework)}
+  body.production-mode .trace-card:is(.state-finished,.state-active,.state-rework){border:3px solid var(--card-state-color);box-shadow:0 0 0 1px color-mix(in srgb,var(--card-state-color) 20%,transparent),0 6px 22px #0002}
+  @media(hover:hover){body.production-mode .trace-card:is(.state-finished,.state-active,.state-rework):hover{border-color:var(--card-state-color);box-shadow:0 0 0 2px color-mix(in srgb,var(--card-state-color) 25%,transparent),0 8px 22px #0004}}
   .trace-node.finished .trace-node-dot,.studio-stages .finished b{background:var(--production-finished);border-color:var(--production-finished);color:#092d17}
   .trace-node.active .trace-node-dot,.studio-stages .active b{background:var(--production-active);border-color:var(--production-active);color:#382005}
   .trace-node.rework .trace-node-dot,.studio-stages .rework b{background:var(--production-rework);border-color:var(--production-rework);color:#350b0b}
