@@ -1,13 +1,6 @@
 /* Production cards: derived presentation only. Operational writes remain in the existing API. */
 (function () {
   'use strict';
-  if (typeof document !== 'undefined' && typeof canViewAdministration !== 'undefined' && canViewAdministration) {
-    const studioLink = document.createElement('a');
-    studioLink.href = '/estudio';
-    studioLink.className = 'tab';
-    studioLink.innerHTML = '<span class="nav-icon">EQ</span><strong>ESPACIO DE EQUIPOS</strong>';
-    adminGroup.querySelector('.nav-children').appendChild(studioLink);
-  }
   const key = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase();
   const personKey = value => key(value).replace(/[^A-Z0-9]/g, '');
   function dateValue(value) {
