@@ -48,13 +48,15 @@
     const state = groups.some(g => g.state === 'rework') ? 'rework' : groups.some(g => g.state === 'active') ? 'active' : groups.length && finished === groups.length ? 'finished' : 'pending';
     const focus = groups.find(g => g.state === 'rework') || [...groups].reverse().find(g => g.state === 'active') || groups.find(g => g.state !== 'finished') || groups[groups.length - 1];
     const userTokens = [user.name, user.initials].map(personKey).filter(Boolean);
-    const mine = groups.some(g => g.responsible.split(/[,;·\n]+/).some(name => userTokens.includes(personKey(name))));
+    const assignedToMe = g => g.responsible.split(/[,;·\n]+/).some(name => userTokens.includes(personKey(name)));
+    const mine = groups.some(assignedToMe);
+    const myPending = groups.some(g => assignedToMe(g) && g.state !== 'finished');
     const dueIndex = data.headers.findIndex(h => key(h) === 'FECHA DE ENTREGA'), due = dateValue(row.values[dueIndex]);
     const overdue = !!due && due < today && state !== 'finished';
-    return { groups, finished, total: groups.length, state, focus, mine, due, overdue, percent: groups.length ? Math.round(finished / groups.length * 100) : 0 };
+    return { groups, finished, total: groups.length, state, focus, mine, myPending, due, overdue, percent: groups.length ? Math.round(finished / groups.length * 100) : 0 };
   }
   function matches(summary, filter) {
-    return filter === 'all' || filter === 'work' && summary.mine && summary.state !== 'finished' || filter === 'mine' && summary.mine || filter === 'late' && summary.overdue || filter === summary.state;
+    return filter === 'all' || filter === 'work' && summary.myPending || filter === 'mine' && summary.mine || filter === 'late' && summary.overdue || filter === summary.state;
   }
   function processForProfile(profile) {
     return flow.find(p => [p.label, ...p.headers, ...p.aliases].some(label => key(label) === key(profile)));
@@ -71,7 +73,7 @@
   function queueMatches(summary, filter) {
     if (!summary) return false;
     if (filter === 'pending') return summary.state !== 'finished';
-    if (filter === 'mine') return summary.mine && summary.state !== 'finished';
+    if (filter === 'mine') return summary.route ? summary.mine && summary.state !== 'finished' : summary.myPending;
     return matches(summary, filter);
   }
   function orderByDelivery(rows, headers) {
