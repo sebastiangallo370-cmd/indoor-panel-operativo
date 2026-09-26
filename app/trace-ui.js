@@ -1119,6 +1119,7 @@
   html body.top-navigation .sidebar .nav-parent:after{display:none}
   html body.top-navigation .sidebar nav.tabs>.tab,html body.top-navigation .sidebar nav.tabs>.nav-group{flex:0 0 auto}
   html body.top-navigation .sidebar .tab strong{margin:0}
+  html body.top-navigation .sidebar nav.tabs>.tab,html body.top-navigation .sidebar .nav-parent{display:flex;align-items:center;justify-content:center}
   html body.top-navigation .sidebar .nav-group{position:relative;margin:0;padding:0}
   html body.top-navigation .sidebar .nav-children{position:absolute;top:calc(100% + 12px);left:0;width:300px;max-height:calc(100dvh - 100px);overflow:auto;padding:10px;margin:0;border:1px solid #425440;border-radius:18px;background:#17251c;box-shadow:0 18px 50px #0006;box-sizing:border-box}
   html body.top-navigation .sidebar .nav-group:not(.collapsed)>.nav-children{display:grid;grid-template-columns:1fr}
