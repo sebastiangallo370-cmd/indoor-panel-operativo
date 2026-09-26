@@ -1291,7 +1291,8 @@
   html body.production-mode .trace-cards{grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:max-content;align-items:start;gap:16px;padding:16px}
   html body.production-mode .trace-card,html body.production-mode.trace-density-compact .trace-card{position:relative;grid-template-columns:minmax(0,1fr)!important;grid-template-rows:minmax(120px,1fr) auto auto;aspect-ratio:auto;width:100%;min-width:0;min-height:520px;height:auto;align-self:start;container-type:inline-size}
   html body.production-mode .trace-card .trace-media,html body.production-mode.trace-density-compact .trace-card .trace-media{height:100%!important;min-height:0!important;padding:8px!important;overflow:hidden;display:flex;flex-direction:column;justify-content:center}
-  html body.production-mode .trace-card .trace-design-main{flex:1;min-height:0;display:flex;align-items:center;justify-content:center}
+  html body.production-mode .trace-card .trace-design-view{display:flex;flex-direction:column;width:100%;height:100%;min-height:0;gap:4px}
+  html body.production-mode .trace-card .trace-design-main{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;width:100%}
   html body.production-mode .trace-card .trace-design-main img,html body.production-mode.trace-density-compact .trace-card .trace-design-main img{width:100%;height:100%!important;max-height:100%;min-height:0;object-fit:contain}
   html body.production-mode .trace-card .trace-card-body{padding:12px!important;display:block}
   html body.production-mode .trace-card-heading{gap:6px;align-items:center;flex-wrap:wrap}
@@ -1317,8 +1318,8 @@
   html body.production-mode .trace-disclosure-toggle:hover,html body.production-mode .trace-disclosure-toggle[aria-expanded=true]{background:#d0f44c;color:#14221b}
   html body.production-mode .trace-disclosure[hidden]{display:none!important}
   html body.production-mode .trace-disclosure:not([hidden]){display:block;margin-top:14px}
-  html body.production-mode .trace-card:not(.details-expanded){height:520px!important}
-  html body.production-mode .trace-card.details-expanded{aspect-ratio:auto;grid-template-rows:200px auto auto}
+  html body.production-mode .trace-card:not(.details-expanded){height:700px!important}
+  html body.production-mode .trace-card.details-expanded{aspect-ratio:auto;grid-template-rows:380px auto auto}
   html body.production-mode .trace-card.details-expanded .trace-note-alert,html body.production-mode .trace-card.details-expanded .trace-production-note{max-height:none;overflow:visible}
   html body.production-mode .trace-disclosure .trace-card-actions{grid-template-columns:1fr!important;gap:8px}
   html body.production-mode .trace-disclosure .trace-card-actions button{width:100%;min-width:0;white-space:normal}
