@@ -1680,6 +1680,23 @@ def home(_=Depends(authenticate)):
       body.schedule-mode main,body.production-mode main{{padding-bottom:env(safe-area-inset-bottom)!important}}
     }}
     @media(max-width:620px){{main{{padding-top:64px}}.card{{border-radius:16px}}}}
+    /* Trazabilidad en móvil: encabezado compacto para que las tarjetas usen la pantalla */
+    @media(max-width:860px){{
+      body.production-mode.trace-cards-mode .production-title p,
+      body.production-mode.trace-cards-mode .production-status,
+      body.production-mode.trace-cards-mode .production-zoom-group,
+      body.production-mode.trace-cards-mode .production-tools-menu{{display:none!important}}
+      body.production-mode.trace-cards-mode .production-toolbar{{gap:8px;padding:10px 12px}}
+      body.production-mode.trace-cards-mode .production-title h2{{margin:0;font-size:1.05rem}}
+      body.production-mode.trace-cards-mode .production-controls{{display:flex;flex-wrap:nowrap;gap:8px;width:100%;min-width:0}}
+      body.production-mode.trace-cards-mode .production-search{{flex:1 1 auto;min-width:0;width:auto}}
+      body.production-mode.trace-cards-mode .production-controls button{{flex:0 0 auto;white-space:nowrap}}
+      body.production-mode.trace-cards-mode .production-process-filter{{flex-wrap:nowrap;overflow-x:auto;gap:8px;padding:8px 12px;-webkit-overflow-scrolling:touch}}
+      body.production-mode.trace-cards-mode .production-process-filter>label{{display:none}}
+      body.production-mode.trace-cards-mode .production-process-filter select{{flex:1 0 150px;min-width:150px}}
+      body.production-mode.trace-cards-mode .production-process-filter button{{flex:0 0 auto;white-space:nowrap}}
+      body.production-mode.trace-cards-mode .production-kpis{{padding:6px 12px;gap:14px}}
+    }}
     @media(hover:none) and (pointer:coarse){{.tab,.nav-parent,.user-menu summary,.menu-toggle{{min-height:44px}}input,select,textarea{{font-size:16px}}}}
     </style></head><body class='schedule-mode'><div class='topbar'></div><button id='menu-toggle' class='menu-toggle' type='button' aria-label='Ocultar menú' aria-expanded='true'>‹</button><aside class='sidebar' aria-label='Menú principal'><div class='sidebar-brand'><img src='/marca-indoor.svg' alt='Indoor'></div><div class='session-card'><div class='session-avatar'>IS</div><div class='session-copy'><strong>INDOOR SPORT SAS</strong><span>Panel operativo</span></div></div><div class='sidebar-label'>Menú principal</div><nav class='tabs' aria-label='Navegación principal'><button class='tab schedule-nav active' data-kind='cronograma' type='button'><span class='nav-icon'>CR</span><strong>CRONOGRAMA</strong></button><div class='nav-group'><button id='commercial-toggle' class='nav-parent' type='button'><span class='nav-icon'>AC</span><span>Asistentes Comerciales</span></button><div class='nav-children'><button class='tab' data-kind='reprogramacion' type='button'><span class='nav-icon'>RP</span><strong>Reprogramaciones</strong></button><button class='tab' data-kind='pedido' type='button'><span class='nav-icon'>PN</span><strong>Pedidos normales</strong></button><button class='tab' data-kind='creador' type='button'><span class='nav-icon'>XL</span><strong>Creador XLSX</strong></button></div></div><div class='nav-group collapsed'><button id='production-toggle' class='nav-parent' type='button'><span class='nav-icon'>PR</span><span>Producción</span></button><div class='nav-children'><button class='tab production-nav' data-kind='produccion' type='button'><span class='nav-icon'>TR</span><strong>TRAZABILIDAD</strong></button><button class='tab' data-kind='inventario' type='button'><span class='nav-icon'>IT</span><strong>INVENTARIO TELAS</strong></button></div></div></nav><div class='sidebar-foot'>Indoor Sport · Operación interna</div></aside><main>
     <section class='panel' data-panel='inventario'><div class='card fabric-card'><div class='fabric-heading'><div><span class='eyebrow'>Producción · Catálogo</span><h2>INVENTARIO TELAS</h2><p>Consulta las telas y sus códigos.</p></div><input id='fabric-search' type='search' placeholder='Buscar tela o código' aria-label='Buscar tela o código'></div><div id='fabric-count' class='fabric-count' role='status'>{len(fabrics)} telas registradas</div><table class='fabric-table'><thead><tr><th scope='col'>Código</th><th scope='col'>Tela</th><th scope='col'>STOCK</th></tr></thead><tbody id='fabric-body'>{fabric_rows}</tbody></table><p id='fabric-empty' hidden>No se encontraron telas con esa búsqueda.</p></div></section>
