@@ -1226,7 +1226,44 @@
   body .trace-node-label{font-size:11px;letter-spacing:0}
   body .trace-node.pending .trace-node-label{color:var(--sport-muted)}
   body .production-title h2,body .schedule-title h2{font-size:22px}
+  /* Equal-sized cards without clipping observations or manufacturing details. */
+  html body.production-mode .trace-cards{align-items:stretch;grid-auto-rows:max-content}
+  html body.production-mode .trace-card{height:auto;min-height:var(--uniform-card-height,0px);box-sizing:border-box;grid-template-rows:minmax(min-content,1fr) auto;align-self:stretch}
+  html body.production-mode .trace-card-body{display:flex;flex-direction:column;min-height:0}
+  html body.production-mode .trace-card-actions{margin-top:auto}
+  html body.production-mode .trace-media{height:100%;min-height:0;box-sizing:border-box;align-self:stretch}
+  html body.production-mode .trace-route{align-self:end;min-height:154px;box-sizing:border-box}
+  @media(max-width:600px){
+    html body.production-mode .trace-card{grid-template-rows:290px minmax(min-content,1fr) auto}
+    html body.production-mode .trace-media,html body.production-mode .trace-media:has(img),html body.production-mode .trace-media:not(:has(img)){height:290px;min-height:290px}
+  }
   @media(max-width:700px){html body.top-navigation .sidebar nav.tabs>.tab strong,html body.top-navigation .sidebar .nav-parent{font-size:12px}html body.top-navigation .sidebar nav.tabs>.tab,html body.top-navigation .sidebar .nav-parent{padding:8px 6px}body .trace-node-label{font-size:10px}}
   `;
   document.head.appendChild(style);
+})();
+
+// Fit every visible card to the tallest full content, including notes and images.
+(() => {
+  if (typeof document === 'undefined') return;
+  const grid = document.querySelector('.trace-cards');
+  if (!grid) return;
+  let frame = 0;
+  const equalize = () => {
+    cancelAnimationFrame(frame);
+    frame = requestAnimationFrame(() => {
+      if (!grid.getClientRects().length) return;
+      grid.style.removeProperty('--uniform-card-height');
+      const cards = [...grid.querySelectorAll('.trace-card')];
+      const height = Math.ceil(Math.max(0, ...cards.map(card => Math.max(card.getBoundingClientRect().height, card.scrollHeight + 6))));
+      if (height) grid.style.setProperty('--uniform-card-height', height + 'px');
+    });
+  };
+  new MutationObserver(equalize).observe(grid, {childList:true,subtree:true,characterData:true});
+  let width = 0;
+  new ResizeObserver(entries => {const next=entries[0].contentRect.width;if(next!==width){width=next;equalize();}}).observe(grid);
+  new MutationObserver(equalize).observe(document.body,{attributes:true,attributeFilter:['class']});
+  grid.addEventListener('load', equalize, true);
+  window.addEventListener('resize', equalize);
+  document.fonts?.ready.then(equalize);
+  equalize();
 })();
