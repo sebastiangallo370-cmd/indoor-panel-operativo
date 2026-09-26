@@ -550,6 +550,8 @@
     const id = Number(button.dataset.nodeRow), row = productionData.rows.find(r => r.source_row === id);
     if (!row) return;
     const group = groupsFor(productionData, row, processStatusHeaders)[Number(button.dataset.nodeIndex)];
+    nodeDialog.dataset.row = String(id);
+    nodeDialog.dataset.index = button.dataset.nodeIndex;
     const fields = group.columns.filter(i => String(row.values[i] || '').trim()).map(i => '<div><dt>' + esc(productionData.headers[i]) + '</dt><dd>' + esc(displayProductionDate(String(row.values[i]))) + '</dd></div>').join('');
     // Show instructions from every process, not only the node being inspected.
     const order = key(traceField(row, 'ORDEN'));
@@ -607,6 +609,17 @@
   };
   operatorForm.elements.column.onchange = operatorSelection;
   function refreshOperatorActions() {
+    if (nodeDialog.open) {
+      const nodeRow = productionData?.rows.find(item => item.source_row === Number(nodeDialog.dataset.row));
+      const nodeGroup = nodeRow && groupsFor(productionData, nodeRow, processStatusHeaders)[Number(nodeDialog.dataset.index)];
+      if (nodeGroup) {
+        const badge = nodeDialog.querySelector('.trace-stage');
+        badge.className = 'trace-stage ' + nodeGroup.state;
+        badge.textContent = nodeGroup.status;
+        nodeDialog.querySelector('.trace-node-content > p > strong').textContent = nodeGroup.responsible || 'Sin asignar';
+        nodeDialog.querySelector('dl').innerHTML = nodeGroup.columns.filter(i => String(nodeRow.values[i] || '').trim()).map(i => '<div><dt>' + esc(productionData.headers[i]) + '</dt><dd>' + esc(displayProductionDate(String(nodeRow.values[i]))) + '</dd></div>').join('');
+      }
+    }
     if (operatorSaving) return;
     const row = productionData?.rows.find(r => r.source_row === operatorRow);
     const i = Number(operatorForm.elements.column.value) - 1;
@@ -616,7 +629,22 @@
       button.disabled = !row || i < 0 || (closed && button.value !== 'rework') || (value === 'P' && button.value === 'start');
     });
     if (row && i >= 0 && operatorDialog.open) {
+      operatorDialog.querySelector('.operator-current').className = 'operator-current trace-stage ' + (closed ? 'finished' : value === 'P' ? 'active' : value === 'R' ? 'rework' : 'pending');
       operatorDialog.querySelector('.operator-current').textContent = closed ? 'Este proceso ya está terminado. Solo se puede reabrir con un motivo de reproceso.' : 'Estado actual: ' + (value === 'P' ? 'En proceso' : value === 'R' ? 'Reproceso' : 'Pendiente');
+    }
+    if (row && operatorDialog.open && operatorDialog.querySelector('.studio-stages')) {
+      const summary = summarize(productionData, row, processStatusHeaders, user, scheduleToday());
+      operatorDialog.querySelector('.studio-progress-label strong').textContent = summary.percent + '%';
+      operatorDialog.querySelector('progress').value = summary.percent;
+      operatorDialog.querySelector('.studio-context > .studio-caption').textContent = summary.finished + ' de ' + summary.total + ' procesos cerrados · Incluye cierres automáticos y No aplica.';
+      operatorDialog.querySelectorAll('.studio-stages > span').forEach((node, index) => {
+        const group = summary.groups[index];
+        if (!group) return;
+        node.className = group.state;
+        node.title = group.label + ': ' + group.status;
+        node.querySelector('b').textContent = group.state === 'finished' ? '✓' : group.state === 'rework' ? '!' : index + 1;
+        node.querySelector('.studio-sr').textContent = node.title;
+      });
     }
   }
   const submitOperatorOriginal = operatorForm.onsubmit;
@@ -943,6 +971,20 @@
   @media(max-width:700px){.studio-jump{display:inline-block!important;width:auto!important;min-height:36px!important;margin-top:10px;padding:6px 12px!important;background:#d4ec98!important;color:#213217!important;font:600 12px Arial;box-shadow:none!important;border:0;border-radius:8px}}
   `;
   document.head.appendChild(studioStyle);
+  const statusColors = document.createElement('style');
+  statusColors.textContent = `
+  :root{--production-finished:#63d58a;--production-active:#ffad4f;--production-rework:#f56b6b}
+  body.production-mode .trace-stage.finished,.trace-stage.finished{background:var(--production-finished);border-color:var(--production-finished);color:#092d17}
+  body.production-mode .trace-stage.active,.trace-stage.active{background:var(--production-active);border-color:var(--production-active);color:#382005}
+  body.production-mode .trace-stage.rework,.trace-stage.rework{background:var(--production-rework);border-color:var(--production-rework);color:#350b0b}
+  body.production-mode .trace-card.state-finished{border-top-color:var(--production-finished)}body.production-mode .trace-card.state-active{border-top-color:var(--production-active)}body.production-mode .trace-card.state-rework{border-top-color:var(--production-rework)}
+  .trace-node.finished .trace-node-dot,.studio-stages .finished b{background:var(--production-finished);border-color:var(--production-finished);color:#092d17}
+  .trace-node.active .trace-node-dot,.studio-stages .active b{background:var(--production-active);border-color:var(--production-active);color:#382005}
+  .trace-node.rework .trace-node-dot,.studio-stages .rework b{background:var(--production-rework);border-color:var(--production-rework);color:#350b0b}
+  .trace-node.finished .trace-node-label{color:var(--production-finished)}.trace-node.active .trace-node-label{color:var(--production-active)}.trace-node.rework .trace-node-label{color:var(--production-rework)}
+  .trace-quick-filters button[data-tone=finished]:before{background:var(--production-finished)}.trace-quick-filters button[data-tone=active]:before{background:var(--production-active)}.trace-quick-filters button[data-tone=rework]:before{background:var(--production-rework)}
+  `;
+  document.head.appendChild(statusColors);
   renderTraceCards();
   updateTraceScroll();
   new ResizeObserver(fitTraceCards).observe(toolbar);
