@@ -121,20 +121,59 @@
   const isAdmin = typeof canViewAdministration !== 'undefined' && canViewAdministration;
   const canDelete = typeof deleteProductionAllowed !== 'undefined' && deleteProductionAllowed;
   const deletingRows = new Set();
+  const deleteProgress = document.createElement('dialog');
+  deleteProgress.className = 'operator-dialog';
+  deleteProgress.setAttribute('aria-label', 'Progreso de eliminación');
+  deleteProgress.innerHTML = '<h2 class="delete-progress-title">ELIMINANDO ORDEN</h2><p class="delete-progress-folder" style="overflow-wrap:anywhere"></p><progress max="1" aria-label="Eliminación en curso" style="display:block;width:100%;height:18px;accent-color:#d4ec98"></progress><p class="delete-progress-message" role="status" aria-live="polite"></p><button type="button" class="delete-progress-close" hidden>CERRAR</button>';
+  document.body.appendChild(deleteProgress);
+  let deleteProgressTimer;
+  function showDeleteProgress(title, message, folder = '') {
+    clearTimeout(deleteProgressTimer);
+    deleteProgress.querySelector('.delete-progress-title').textContent = title;
+    deleteProgress.querySelector('.delete-progress-folder').textContent = folder;
+    deleteProgress.querySelector('.delete-progress-message').textContent = message;
+    deleteProgress.querySelector('progress').removeAttribute('value');
+    deleteProgress.querySelector('progress').setAttribute('aria-label', 'Eliminación en curso');
+    deleteProgress.querySelector('.delete-progress-close').hidden = true;
+    deleteProgress.setAttribute('aria-busy', 'true');
+    deleteProgress.oncancel = event => event.preventDefault();
+    if (!deleteProgress.open) deleteProgress.showModal();
+  }
+  function closeDeleteProgress() {
+    clearTimeout(deleteProgressTimer);
+    deleteProgress.close();
+  }
+  deleteProgress.querySelector('.delete-progress-close').onclick = closeDeleteProgress;
   const deleteDialog = document.createElement('dialog');
   deleteDialog.className = 'operator-dialog';
   deleteDialog.innerHTML = '<h2>ELIMINAR ORDEN Y CARPETA NAS</h2><p>Se eliminarán la tarjeta y todos los archivos de esta carpeta de la orden. No se tocarán otras carpetas.</p><p class="delete-folder" style="overflow-wrap:anywhere"></p><label>Escribe el número de orden para confirmar<input class="delete-order" autocomplete="off"></label><p class="delete-error" role="alert"></p><div style="display:flex;gap:12px;margin-top:16px"><button type="button" class="delete-cancel">CANCELAR</button><button type="button" class="delete-confirm" disabled style="background:#963b35;color:white">ELIMINAR TARJETA Y CARPETA</button></div>';
   document.body.appendChild(deleteDialog);
   deleteDialog.querySelector('.delete-order').closest('label').remove();
-  deleteDialog.querySelector('.delete-error').insertAdjacentHTML('beforebegin','<label>Contraseña de tu cuenta<input class="delete-password" type="password" autocomplete="current-password" maxlength="256" required></label>');
+  deleteDialog.querySelector('.delete-error').insertAdjacentHTML('beforebegin','<label for="delete-account-password">Contraseña de tu cuenta</label><div style="display:flex;gap:8px;align-items:center"><input id="delete-account-password" class="delete-password" type="password" autocomplete="current-password" maxlength="256" required style="min-width:0;flex:1"><button type="button" class="delete-password-toggle" aria-label="Ver contraseña" aria-controls="delete-account-password" aria-pressed="false">VER</button></div>');
+  const passwordToggle = deleteDialog.querySelector('.delete-password-toggle');
+  function resetDeletePassword() {
+    const input = deleteDialog.querySelector('.delete-password');
+    input.value = '';input.type = 'password';
+    passwordToggle.textContent = 'VER';
+    passwordToggle.setAttribute('aria-label', 'Ver contraseña');
+    passwordToggle.setAttribute('aria-pressed', 'false');
+  }
+  passwordToggle.onclick = () => {
+    const input = deleteDialog.querySelector('.delete-password');
+    const visible = input.type === 'password';
+    input.type = visible ? 'text' : 'password';
+    passwordToggle.textContent = visible ? 'OCULTAR' : 'VER';
+    passwordToggle.setAttribute('aria-label', visible ? 'Ocultar contraseña' : 'Ver contraseña');
+    passwordToggle.setAttribute('aria-pressed', String(visible));
+  };
   function confirmFolderDeletion(info) {
     return new Promise(resolve => {
       const passwordInput = deleteDialog.querySelector('.delete-password'), confirmButton = deleteDialog.querySelector('.delete-confirm');
       deleteDialog.querySelector('.delete-folder').textContent = info.folder;
       deleteDialog.querySelector('.delete-error').textContent = 'Orden: '+info.order+'. Se conservará una copia de recuperación en el servidor.';
-      passwordInput.value='';confirmButton.disabled=true;
+      resetDeletePassword();confirmButton.disabled=true;
       passwordInput.oninput=()=>{confirmButton.disabled=!passwordInput.value;};
-      const finish=value=>{passwordInput.value='';deleteDialog.close();resolve(value);};
+      const finish=value=>{resetDeletePassword();deleteDialog.close();resolve(value);};
       confirmButton.onclick=()=>{if(passwordInput.value)finish(passwordInput.value);};
       deleteDialog.querySelector('.delete-cancel').onclick=()=>finish(false);
       deleteDialog.oncancel=event=>{event.preventDefault();finish(false);};
@@ -150,12 +189,18 @@
     const row = productionData?.rows.find(r => Number(r.source_row) === id);
     if (!row) return;
     deletingRows.add(id);button.disabled = true;
+    showDeleteProgress('VERIFICANDO ORDEN', 'Consultando la ruta exacta de la carpeta en el NAS…');
     try {
       const previewResponse = await fetch('/api/produccion/fila/' + id + '/eliminacion');
       const preview = await previewResponse.json();
       if (!previewResponse.ok) throw new Error(preview.detail || 'No se pudo verificar la carpeta NAS');
+      closeDeleteProgress();
       let password = await confirmFolderDeletion(preview);
       if (!password) return;
+      showDeleteProgress('ELIMINANDO ' + preview.order, 'El servidor está procesando la solicitud: validación, copia de recuperación y eliminación de la carpeta y la tarjeta. No cierres ni recargues esta página.', preview.folder);
+      deleteProgressTimer = setTimeout(() => {
+        deleteProgress.querySelector('.delete-progress-message').textContent = 'La operación sigue en curso. Puede tardar según el tamaño de la carpeta y la conexión al NAS. Espera la confirmación; no vuelvas a enviarla.';
+      }, 20000);
       let response;
       try {
         response = await fetch('/api/produccion/fila/' + id, {method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({order:preview.order,confirmation:preview.confirmation,password})});
@@ -164,9 +209,19 @@
       if (!response.ok) throw new Error(data.detail || 'No se pudo eliminar la orden');
       productionData.rows = productionData.rows.filter(r => Number(r.source_row) !== id);
       traceAssets.delete(id);renderTraceCards();
-      await loadProduction();
+      clearTimeout(deleteProgressTimer);
+      deleteProgress.querySelector('.delete-progress-title').textContent = 'ELIMINACIÓN COMPLETADA';
+      deleteProgress.querySelector('progress').value = 1;
+      deleteProgress.querySelector('progress').setAttribute('aria-label', 'Eliminación completada');
+      deleteProgress.querySelector('.delete-progress-message').textContent = 'La tarjeta y la carpeta se eliminaron. Se conservó una copia de recuperación. Si la carpeta sigue visible en el Explorador, cierra su pestaña y pulsa F5.';
+      deleteProgress.querySelector('.delete-progress-close').hidden = false;
+      deleteProgress.setAttribute('aria-busy', 'false');
+      deleteProgress.oncancel = () => clearTimeout(deleteProgressTimer);
       productionStatus.textContent = '✓ Tarjeta y carpeta de la orden eliminadas. Copia de recuperación conservada en el servidor.';
+      try { await loadProduction(); } catch (_) { productionStatus.textContent += ' No se pudo refrescar el listado; actualiza la página.'; }
     } catch (error) {
+      closeDeleteProgress();
+      if (error instanceof TypeError) error = new Error('Se perdió la conexión. No se pudo confirmar el resultado. Actualiza el listado y comprueba la carpeta antes de volver a eliminar.');
       productionStatus.textContent = error.message;
       deleteDialog.querySelector('.delete-folder').textContent = '';
       deleteDialog.querySelector('.delete-error').textContent = error.message;
