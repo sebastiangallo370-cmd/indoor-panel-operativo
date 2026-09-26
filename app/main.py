@@ -2149,7 +2149,31 @@ function operatorSelection(){{const row=productionData.rows.find(r=>r.source_row
 operatorForm.elements.column.onchange=operatorSelection;
 async function operatorHistory(){{const id=operatorRow;try{{const response=await fetch('/api/produccion/operaciones/'+id,{{cache:'no-store'}});if(!response.ok)throw Error();const events=await response.json();if(id!==operatorRow)return;const labels={{start:'Inicio / retoma',rework:'Reproceso',finish:'Terminado',na:'No aplica'}};operatorDialog.querySelector('.operator-history').innerHTML=events.map(e=>'<article><strong>'+esc(productionData.headers[e.column_number-1]||'Proceso')+' · '+esc(labels[e.action]||e.action)+'</strong><p>'+esc(e.responsible)+' · Registró: '+esc(e.username)+'</p><time>'+esc(new Date(e.created_at).toLocaleString('es-CO',{{timeZone:'America/Bogota'}}))+'</time>'+(e.reason?'<p>'+esc(e.reason)+'</p>':'')+'</article>').join('')||'<p>Sin registros nuevos. Los datos anteriores se conservan en la tarjeta.</p>'}}catch(error){{operatorDialog.querySelector('.operator-history').textContent='No se pudo consultar el historial.'}}}}
 function openOperatorProduction(id){{operatorRow=id;const row=productionData.rows.find(r=>r.source_row===id);if(!row)return;operatorDialog.querySelector('.operator-order').textContent=traceField(row,'ORDEN')+' · '+traceField(row,'REFERENCIA')+' · '+traceField(row,'NOMBRE DEL CLIENTE');const area=processKey(document.querySelector('.user-info small')?.textContent||''),eligible=productionData.headers.map((h,i)=>({{h,i}})).filter(item=>operatorHeaders.has(processKey(item.h))),matches=eligible.filter(item=>processKey(item.h)===area),groupMatches=eligible.filter(item=>processKey(productionData.groups[item.i]||'')===area),selected=matches.length===1?matches[0]:groupMatches.length===1?groupMatches[0]:null;operatorForm.elements.column.innerHTML='<option value="">Selecciona un proceso</option>'+eligible.map(({{h,i}})=>'<option value="'+(i+1)+'">'+esc(productionData.groups[i]||h)+' · '+esc(h)+'</option>').join('');if(selected)operatorForm.elements.column.value=String(selected.i+1);operatorDialog.querySelector('.operator-current').textContent='';operatorForm.elements.responsible.value=document.querySelector('.user-info strong').textContent;operatorForm.elements.reason.value='';operatorExpected='';operatorSelection();operatorDialog.querySelector('.operator-message').textContent=selected?'Proceso seleccionado según tu perfil. La fecha y hora se guardan automáticamente.':'Selecciona el proceso de esta actividad. Tu perfil no tiene un proceso único asignado.';operatorDialog.querySelector('.operator-history').textContent='Consultando…';operatorDialog.showModal();operatorHistory()}}
-operatorForm.onsubmit=async event=>{{event.preventDefault();if(operatorSaving)return;const action=event.submitter?.value;if(!action)return;const reason=operatorForm.elements.reason.value.trim(),responsible=operatorForm.elements.responsible.value.trim(),message=operatorDialog.querySelector('.operator-message');if(!responsible||action==='rework'&&!reason){{message.textContent='Indica el responsable y, para reproceso, el motivo.';return}}operatorSaving=true;const controls=[...operatorForm.querySelectorAll('button,input,select,textarea')],payload={{row:operatorRow,column:Number(operatorForm.elements.column.value),action,responsible,reason,expected:operatorExpected}};controls.forEach(c=>c.disabled=true);message.textContent='Guardando…';try{{const response=await fetch('/api/produccion/operacion',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify(payload)}}),data=await response.json();if(!response.ok)throw Error(data.detail||'No se pudo guardar');const row=productionData.rows.find(r=>r.source_row===operatorRow);if(row)row.values=data.values;operatorExpected=String(data.values[payload.column-1]||'');operatorDialog.querySelector('.operator-current').textContent='Estado actual: '+displayProductionDate(operatorExpected);operatorForm.elements.reason.value='';message.textContent='✓ Actividad guardada con fecha y hora.';await syncProductionRealtime();renderTraceCards();await operatorHistory()}}catch(error){{message.textContent=error.message}}finally{{operatorSaving=false;controls.forEach(c=>c.disabled=false)}}}};
+operatorForm.onsubmit=async event=>{{
+  event.preventDefault();
+  if(operatorSaving)return;
+  const action=event.submitter?.value;
+  if(!action)return;
+  const reason=operatorForm.elements.reason.value.trim(),responsible=operatorForm.elements.responsible.value.trim(),message=operatorDialog.querySelector('.operator-message');
+  if(!responsible||action==='rework'&&!reason){{message.textContent='Indica el responsable y, para reproceso, el motivo.';return}}
+  operatorSaving=true;
+  const controls=[...operatorForm.querySelectorAll('button,input,select,textarea')],payload={{row:operatorRow,column:Number(operatorForm.elements.column.value),action,responsible,reason,expected:operatorExpected}};
+  controls.forEach(c=>c.disabled=true);
+  message.textContent='Guardando…';
+  try{{
+    const response=await fetch('/api/produccion/operacion',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify(payload)}}),data=await response.json();
+    if(!response.ok)throw Error(data.detail||'No se pudo guardar');
+    const row=productionData.rows.find(r=>r.source_row===operatorRow);
+    if(row)row.values=data.values;
+    operatorExpected=String(data.values[payload.column-1]||'');
+    operatorForm.elements.reason.value='';
+    operatorDialog.close();
+    await syncProductionRealtime();
+    renderTraceCards();
+    productionStatus.textContent='✓ Actividad guardada con fecha y hora.';
+  }}catch(error){{message.textContent=error.message}}
+  finally{{operatorSaving=false;controls.forEach(c=>c.disabled=false)}}
+}};
 function traceProcessMarkup(row){{
 const groups=[];productionData.headers.forEach((header,index)=>{{const label=String(productionData.groups[index]||'').replace(/^['"]|['"]$/g,'').trim(),key=processKey(label);if(!key||key==='GENERAL'||key.includes('LINEA PRODUCCION')||key.includes('METODOLOG'))return;let group=groups[groups.length-1];if(!group||group.key!==key||group.end!==index-1){{group={{key,label,start:index,end:index,columns:[]}};groups.push(group)}}group.end=index;group.columns.push(index)}});
 return '<section class="trace-processes"><h4>Seguimiento de producción</h4><div class="trace-process-grid">'+groups.map(group=>{{
