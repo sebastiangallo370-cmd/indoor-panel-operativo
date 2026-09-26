@@ -997,3 +997,78 @@
   updateTraceScroll();
   new ResizeObserver(fitTraceCards).observe(toolbar);
 })();
+
+// Presentation only: keep workflow, permissions and production state colours intact.
+(() => {
+  if (typeof document === 'undefined') return;
+  const style = document.createElement('style');
+  style.id = 'indoor-clean-interface';
+  style.textContent = `
+  :root{--metal:#d0f44c;--line:rgba(230,240,233,.13);--muted:#a9b7ae;--ink:#f5f7f5}
+  html body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#090f0c;color:#f5f7f5;-webkit-font-smoothing:antialiased}
+  body:before,body:after{pointer-events:none}body:before{background:none}
+  body button,body input,body select,body textarea{font-family:inherit}
+  body h1,body h2,body h3,body h4{letter-spacing:-.035em;font-weight:600}
+  body .topbar{height:2px;background:#d0f44c;box-shadow:none}
+  body .sidebar{background:#101913;border-color:var(--line);box-shadow:none}
+  body .sidebar-brand,body .session-card,body .sidebar-foot{border-color:var(--line)}
+  body .session-card{background:transparent}
+  body .session-avatar{background:#d0f44c;box-shadow:none;color:#14200b}
+  body .sidebar-label{letter-spacing:.12em;font-size:10px;font-weight:600;color:#83988a}
+  body .sidebar .tab,body .nav-parent{background:transparent;border:1px solid transparent;border-radius:12px;box-shadow:none;color:#bdc9c0}
+  body .sidebar .tab strong,body .nav-parent{font-weight:600;font-size:12px}
+  body .sidebar .tab.active{background:#26351f;border-color:#526736;color:#e0f6a0;box-shadow:none}
+  body .sidebar .tab:hover,body .nav-parent:hover{background:#1d2b22;border-color:transparent;filter:none}
+  body .nav-children{border-color:#344434}
+  body .nav-icon{background:#223021;color:#d0f44c;border-radius:8px;font-weight:600}
+  body .brand{background:rgba(9,15,12,.94);border-color:var(--line);box-shadow:none;backdrop-filter:blur(18px)}
+  body .brand-line{font-weight:600;letter-spacing:.16em;font-size:11px}
+  body .system,body .menu-toggle{background:#17231b;border-color:var(--line);box-shadow:none}
+  body header{padding:28px 20px 26px;text-align:left}
+  body header h1{font-size:clamp(28px,3.4vw,48px);line-height:1.08;max-width:900px;margin:10px 0 12px}
+  body header p{font-size:15px;font-weight:400;color:#a9b7ae}
+  body header .eyebrow{letter-spacing:.12em;font-size:10px}
+  body .card,body .schedule-shell,body .production-shell{background:#111c15;border:1px solid var(--line);border-radius:20px;box-shadow:none}
+  body .card-head{background:transparent;border-color:var(--line);padding:20px 22px}
+  body .card-head h2{font-size:20px;font-weight:600}
+  body .card-head p{font-size:13px;font-weight:400;line-height:1.5}
+  body .dropzone{min-height:150px;background:#152119;border-color:#536546;border-radius:16px;box-shadow:none;padding:20px}
+  body .dropzone:hover{transform:none;background:#1a291d;box-shadow:none}
+  body .upload-icon{background:#d0f44c;box-shadow:none;border-radius:14px}
+  body .file-row,body .creator-workbook-name{background:#16221a;border-color:var(--line);box-shadow:none;border-radius:12px}
+  body .file-row.has-file{background:#21321d;border-color:#718b43;box-shadow:none}
+  body .creator-workbook-name label{font-weight:600}
+  body button{box-shadow:none;font-weight:600}
+  body button:focus-visible,body a:focus-visible{outline:2px solid #d0f44c;outline-offset:3px}
+  body #submit,body .creator-actions button{background:#d0f44c;color:#14200b;border-radius:999px;box-shadow:none}
+  body .production-toolbar,body .production-process-filter,body .production-kpis,
+  body .schedule-toolbar,body .schedule-summary,body .schedule-weekdays{background:#111c15;border-color:var(--line)}
+  body .production-refresh,body .production-connector,body .schedule-actions button{border-radius:999px;background:#203022;color:#e2eccf;border-color:#3b4b39;font-weight:500;box-shadow:none}
+  body .production-search{border-radius:12px}
+  body .schedule-title h2{font-weight:600;letter-spacing:-.03em}
+  body .schedule-day{background:#121c16;border-color:var(--line)}
+  body .schedule-day.outside{background:#0d1510}
+  body .schedule-event{background:#203222;border-color:#344b30;box-shadow:none;border-radius:8px}
+  body .schedule-event strong{font-weight:600;color:#dbefb1}
+  body .trace-quick-filters button{border-radius:999px;box-shadow:none;font-weight:500}
+  body .trace-quick-filters button.active{background:#d0f44c;color:#13210b;border-color:#d0f44c}
+  body.production-mode .trace-card{background:#18251d;border-radius:22px;box-shadow:none}
+  body.production-mode .trace-card-body{padding:22px}
+  body.production-mode .trace-card-body h3{font-family:inherit;font-weight:600;letter-spacing:-.03em}
+  body.production-mode .trace-client{font-family:inherit;font-weight:600}
+  body.production-mode .trace-card :is(p,dt,dd,small){font-family:inherit}
+  body.production-mode .trace-card dt{color:#a9b7ae;font-weight:400}
+  body.production-mode .trace-route{background:#132017;border-top-color:#344238}
+  body.production-mode .trace-card button{box-shadow:none}
+  body dialog{font-family:inherit;background:#18251d;color:#f5f7f5;border:1px solid #465746;border-radius:24px;box-shadow:0 24px 80px #0006}
+  body dialog::backdrop{background:#020906aa;backdrop-filter:blur(6px)}
+  body dialog h2{font-family:inherit;font-weight:600;letter-spacing:-.035em}
+  body .studio-context{background:#132017;border-color:var(--line);border-radius:16px}
+  body .production-studio .operator-actions button{border-radius:16px;box-shadow:none}
+  body .operator-history article{border-color:var(--line)}
+  @media(min-width:1121px){body .workspace{gap:20px;grid-template-columns:minmax(340px,.85fr) minmax(0,1.5fr)}}
+  @media(max-width:860px){body header{padding:18px 10px}body header h1{font-size:30px}body.production-mode .trace-card-body{padding:16px}body .card-head{padding:16px}body dialog{border-radius:20px}}
+  @media(prefers-reduced-motion:reduce){body *,body *:before,body *:after{scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important}}
+  `;
+  document.head.appendChild(style);
+})();
