@@ -1481,6 +1481,27 @@ pause
         media_type="application/octet-stream",
         headers={"Content-Disposition": 'attachment; filename="Instalar-Conector-Indoor-NAS.cmd"'},
     )
+def nas_client_key(value):
+    return ' '.join(''.join(c for c in unicodedata.normalize('NFD', str(value))
+                           if not unicodedata.combining(c)).casefold().split())
+
+
+def resolve_nas_client(root: Path, client_name: str) -> Path:
+    root = root.resolve()
+    if not root.is_dir():
+        raise HTTPException(503, 'El NAS no está disponible')
+    if not client_name or (root / client_name).resolve().parent != root:
+        raise HTTPException(400, 'Nombre de cliente inválido')
+    matches = [p.resolve() for p in root.iterdir()
+               if nas_client_key(p.name) == nas_client_key(client_name)
+               and p.is_dir() and p.resolve().parent == root]
+    if len(matches) > 1:
+        raise HTTPException(409, 'Hay varias carpetas con el mismo nombre de cliente al ignorar tildes. Revisa cuál corresponde a la orden.')
+    if not matches:
+        raise HTTPException(404, f'No se encontró la carpeta del cliente {client_name}, incluso ignorando tildes y mayúsculas.')
+    return matches[0]
+
+
 def find_nas_order(order: str) -> Path:
     clean = str(order or "").strip().upper()
     if not re.fullmatch(r"[A-Z0-9_-]{2,40}", clean):
@@ -1488,12 +1509,20 @@ def find_nas_order(order: str) -> Path:
     root = Path(CONFIG["ruta_nas_clientes"]).resolve()
     if not root.is_dir():
         raise HTTPException(503, "El NAS no está disponible")
+    matches = []
     for client_dir in root.iterdir():
-        if not client_dir.is_dir():
+        if not client_dir.is_dir() or client_dir.resolve().parent != root:
             continue
         for candidate in client_dir.iterdir():
-            if candidate.is_dir() and candidate.name.upper().startswith(clean):
-                return candidate.resolve()
+            name = candidate.name.upper()
+            if candidate.is_dir() and (name == clean or any(name.startswith(clean + separator) for separator in ('_', ' ', '-'))):
+                target = candidate.resolve()
+                if target.parent == client_dir.resolve():
+                    matches.append(target)
+    if len(matches) > 1:
+        raise HTTPException(409, f'Hay varias carpetas para la orden {clean}. Revisa la carpeta correcta; no se abrió ninguna.')
+    if matches:
+        return matches[0]
     raise HTTPException(404, f"No se encontró la orden {clean} en el NAS")
 
 
@@ -1514,14 +1543,7 @@ def production_row_files(source_row: int, excel_only=False):
     order = field('ORDEN').upper()
     if not client_name or not re.fullmatch(r'[A-Z0-9_-]{2,40}', order):
         raise HTTPException(404, "La fila no tiene cliente u orden válidos")
-    client = (root / client_name).resolve()
-    if client.parent != root:
-        raise HTTPException(403, "Ruta no permitida")
-    if not client.is_dir():
-        candidates = [p.resolve() for p in root.iterdir() if p.is_dir() and normalized_name(p.name) == normalized_name(client_name) and p.resolve().parent == root]
-        if len(candidates) != 1:
-            raise HTTPException(404, "No se encontró la carpeta exacta del cliente")
-        client = candidates[0]
+    client = resolve_nas_client(root, client_name)
     matches = [p.resolve() for p in client.iterdir() if p.is_dir() and
                (p.name.upper() == order or any(p.name.upper().startswith(order + s) for s in ('_', ' ', '-')))]
     files = []
@@ -1664,14 +1686,21 @@ def nas_order_progress(payload: dict = Body(...), _=Depends(authenticate)):
             if not root.is_dir():
                 raise HTTPException(503, "El NAS no está disponible")
             client_name = legacy.sanitize(str(payload.get("client") or "").strip())
-            if not client_name:
-                raise HTTPException(400, "La fila no tiene nombre de cliente")
-            client_dir = (root / client_name).resolve()
-            if client_dir.parent != root:
-                raise HTTPException(400, "Nombre de cliente inválido")
             yield event(20, f"Consultando únicamente el cliente: {client_name}")
-            if not client_dir.is_dir():
-                raise HTTPException(404, f"No existe la carpeta exacta del cliente {client_name}. Revisa su nombre en la fila.")
+            try:
+                if not client_name:
+                    raise HTTPException(404, 'La fila no tiene nombre de cliente')
+                client_dir = resolve_nas_client(root, client_name)
+            except HTTPException as error:
+                if error.status_code != 404:
+                    raise
+                yield event(25, f'Cliente no encontrado. Buscando la orden exacta {order} en el NAS…')
+                target = find_nas_order(order)
+                relative = target.relative_to(root)
+                yield event(100, 'ORDEN ENCONTRADA', done=True, ok=True,
+                            windows_url='indoor-nas://folder/' + '/'.join(quote(p, safe='') for p in relative.parts),
+                            smb_url='smb://192.168.0.120/NAS%20INDOOR/CLIENTES/' + '/'.join(quote(p, safe='') for p in relative.parts))
+                return
             yield event(30, "CLIENTE ENCONTRADO")
             orders = list(client_dir.iterdir())
             total = len(orders)
