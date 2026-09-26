@@ -1087,9 +1087,29 @@
     const trigger = group.querySelector('.nav-parent');
     if (trigger) trigger.setAttribute('aria-expanded', String(!group.classList.contains('collapsed')));
   });
-  const close = () => { groups.forEach(group => group.classList.add('collapsed')); sync(); };
+  let hoverCloseTimer;
+  const cancelHoverClose = () => clearTimeout(hoverCloseTimer);
+  const close = () => { cancelHoverClose(); groups.forEach(group => group.classList.add('collapsed')); sync(); };
+  // Mouse/trackpad only: touch keeps the existing tap and keyboard controls.
+  groups.forEach(group => {
+    group.addEventListener('pointerenter', event => {
+      if (event.pointerType !== 'mouse') return;
+      cancelHoverClose();
+      groups.forEach(other => other.classList.toggle('collapsed', other !== group));
+      sync();
+    });
+    group.addEventListener('pointerleave', event => {
+      if (event.pointerType !== 'mouse') return;
+      cancelHoverClose();
+      hoverCloseTimer = setTimeout(() => {
+        group.classList.add('collapsed');
+        sync();
+      }, 220);
+    });
+  });
   close();
   navigation.addEventListener('click', event => {
+    cancelHoverClose();
     const trigger = event.target.closest('.nav-parent');
     if (trigger) groups.forEach(group => { if (group !== trigger.closest('.nav-group')) group.classList.add('collapsed'); });
     if (event.target.closest('.tab')) close();
@@ -1121,6 +1141,7 @@
   html body.top-navigation .sidebar .tab strong{margin:0}
   html body.top-navigation .sidebar nav.tabs>.tab,html body.top-navigation .sidebar .nav-parent{display:flex;align-items:center;justify-content:center}
   html body.top-navigation .sidebar .nav-group{position:relative;margin:0;padding:0}
+  @media(hover:hover) and (pointer:fine){html body.top-navigation .sidebar .nav-group:not(.collapsed):before{content:'';position:absolute;top:100%;left:0;width:100%;height:14px}}
   html body.top-navigation .sidebar .nav-children{position:absolute;top:calc(100% + 12px);left:0;width:300px;max-height:calc(100dvh - 100px);overflow:auto;padding:10px;margin:0;border:1px solid #425440;border-radius:18px;background:#17251c;box-shadow:0 18px 50px #0006;box-sizing:border-box}
   html body.top-navigation .sidebar .nav-group:not(.collapsed)>.nav-children{display:grid;grid-template-columns:1fr}
   html body.top-navigation .sidebar .nav-children .tab{width:100%;min-height:40px;padding:8px 12px;margin:0;text-align:left}
