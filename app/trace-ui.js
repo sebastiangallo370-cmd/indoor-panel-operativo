@@ -292,6 +292,77 @@
   @media(max-width:360px){.trace-quick-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.operator-actions{grid-template-columns:1fr!important}.trace-detail dl{grid-template-columns:1fr!important}}
   `;
   document.head.appendChild(mobileStyle);
+
+  // Compact navigation while browsing; never intercept the wheel or touch gesture.
+  const scrollControls = document.createElement('button');
+  scrollControls.type = 'button'; scrollControls.className = 'trace-scroll-controls';
+  scrollControls.textContent = 'Filtros y opciones';
+  scrollControls.setAttribute('aria-expanded', 'false');
+  scrollControls.setAttribute('aria-controls', 'production-process');
+  toolbar.querySelector('.trace-workspace-top').appendChild(scrollControls);
+  scrollControls.onclick = () => {
+    const open = document.body.classList.toggle('trace-controls-open');
+    scrollControls.setAttribute('aria-expanded', String(open));
+    requestAnimationFrame(fitTraceCards);
+  };
+  const backToTop = document.createElement('button');
+  backToTop.type = 'button'; backToTop.className = 'trace-back-top';
+  backToTop.textContent = '↑ Volver arriba'; backToTop.hidden = true;
+  document.body.appendChild(backToTop);
+  const pageScroll = () => getComputedStyle(traceCards).overflowY === 'visible';
+  backToTop.onclick = () => {
+    const behavior = matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth';
+    (pageScroll() ? window : traceCards).scrollTo({ top: 0, behavior });
+  };
+  let scrollFrame = 0;
+  function updateTraceScroll() {
+    scrollFrame = 0;
+    const active = document.body.classList.contains('production-mode') && traceView === 'cards' && !document.body.classList.contains('admin-summary-mode');
+    const position = pageScroll() ? window.scrollY : traceCards.scrollTop;
+    const compact = active && position > (document.body.classList.contains('trace-scrolled') ? 16 : 90);
+    if (compact !== document.body.classList.contains('trace-scrolled')) {
+      document.body.classList.toggle('trace-scrolled', compact);
+      if (!compact) {
+        document.body.classList.remove('trace-controls-open');
+        scrollControls.setAttribute('aria-expanded', 'false');
+      }
+      requestAnimationFrame(fitTraceCards);
+    }
+    backToTop.hidden = !active || position < 220;
+  }
+  const queueScroll = () => { if (!scrollFrame) scrollFrame = requestAnimationFrame(updateTraceScroll); };
+  traceCards.addEventListener('scroll', queueScroll, { passive: true });
+  window.addEventListener('scroll', queueScroll, { passive: true });
+  window.addEventListener('resize', queueScroll, { passive: true });
+  new MutationObserver(queueScroll).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+  document.querySelector('.production-shell')?.addEventListener('transitionend', event => {
+    if (event.propertyName === 'max-height' || event.propertyName === 'padding-top') fitTraceCards();
+  });
+  const scrollStyle = document.createElement('style');
+  scrollStyle.textContent = `
+  .trace-scroll-controls{display:none;width:auto;min-height:36px;padding:7px 12px;border:1px solid #496150;border-radius:8px;background:#24372a;color:#e0efce;box-shadow:none;font:600 12px Arial}
+  .trace-back-top{position:fixed;right:28px;bottom:max(22px,env(safe-area-inset-bottom));z-index:30;width:auto;min-height:44px;padding:11px 17px;background:#d0ec93;color:#1c2b13;border:1px solid #e4f8bb;border-radius:24px;box-shadow:0 5px 22px #0006;font:600 13px Arial}
+  .trace-back-top[hidden]{display:none!important}
+  body.production-mode.trace-cards-mode .production-toolbar{transition:padding .2s ease}
+  body.production-mode.trace-cards-mode .production-process-filter{max-height:260px;transition:max-height .2s ease,padding .2s ease;overflow:hidden}
+  body.production-mode.trace-cards-mode .trace-workspace-top{min-height:26px}
+  body.production-mode.trace-cards-mode .trace-cards{overscroll-behavior-y:contain;scroll-padding-top:18px;padding-bottom:76px;scrollbar-width:thin;scrollbar-color:#769666 #17221b}
+  body.trace-scrolled.production-mode.trace-cards-mode .production-toolbar{padding-top:8px;padding-bottom:8px}
+  body.trace-scrolled.production-mode.trace-cards-mode .production-title{display:none}
+  body.trace-scrolled.production-mode.trace-cards-mode .production-controls{flex:1;max-width:none}
+  body.trace-scrolled.production-mode.trace-cards-mode:not(.trace-controls-open) .production-process-filter:not(:focus-within){max-height:0;padding-top:0;padding-bottom:0;border-bottom:0;visibility:hidden}
+  body.trace-scrolled.production-mode.trace-cards-mode .trace-workspace{padding-top:8px;padding-bottom:8px;box-shadow:0 7px 16px #0003}
+  body.trace-scrolled.production-mode.trace-cards-mode .trace-workspace h3{margin-bottom:4px;font-size:14px}
+  body.trace-scrolled.production-mode.trace-cards-mode .trace-live,body.trace-scrolled.production-mode.trace-cards-mode .trace-results{display:none}
+  body.trace-scrolled.production-mode.trace-cards-mode .trace-scroll-controls{display:block}
+  body.trace-scrolled.production-mode.trace-cards-mode .trace-quick-filters{margin-top:6px}
+  body.trace-scrolled.production-mode.trace-cards-mode .trace-quick-filters button{min-height:34px;padding-top:6px;padding-bottom:6px}
+  @media(min-width:861px){body.trace-scrolled.production-mode.trace-cards-mode main>.header,body.trace-scrolled.production-mode.trace-cards-mode main>.brand-header{display:none}}
+  @media(max-width:860px){.trace-back-top{right:16px;bottom:18px}.trace-scroll-controls{min-height:44px}body.trace-scrolled.production-mode.trace-cards-mode .trace-quick-filters button{min-height:44px}body.production-mode.trace-cards-mode .trace-cards{overscroll-behavior-y:auto}}
+  @media(prefers-reduced-motion:reduce){body.production-mode.trace-cards-mode .production-toolbar,body.production-mode.trace-cards-mode .production-process-filter{transition:none}}
+  `;
+  document.head.appendChild(scrollStyle);
   renderTraceCards();
+  updateTraceScroll();
   new ResizeObserver(fitTraceCards).observe(toolbar);
 })();
