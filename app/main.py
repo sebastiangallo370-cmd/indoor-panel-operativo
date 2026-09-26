@@ -525,9 +525,30 @@ def health():
     }
 
 
+INPUT_CONTRAST_STYLE = """<style id="indoor-input-contrast">
+/* Keep typed and autofilled text legible, including focused browser autofill. */
+input:not([type=file]):not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=hidden]):not([type=submit]):not([type=button]), textarea, select {
+  color-scheme:dark; background-color:#25312a!important; color:#f4f7f2!important;
+  -webkit-text-fill-color:#f4f7f2!important; caret-color:#e0fc82!important;
+}
+input::placeholder,textarea::placeholder {color:#b8c4bb!important;-webkit-text-fill-color:#b8c4bb!important;opacity:1}
+input:autofill,input:autofill:hover,input:autofill:focus,input:autofill:active {
+  background-color:#25312a!important;color:#f4f7f2!important;
+  box-shadow:0 0 0 1000px #25312a inset!important;
+}
+input:-webkit-autofill,input:-webkit-autofill:hover,input:-webkit-autofill:focus,input:-webkit-autofill:active {
+  -webkit-text-fill-color:#f4f7f2!important;caret-color:#e0fc82!important;
+  -webkit-box-shadow:0 0 0 1000px #25312a inset!important;box-shadow:0 0 0 1000px #25312a inset!important;
+}
+input:focus-visible,textarea:focus-visible,select:focus-visible {outline:2px solid #d4ec98!important;outline-offset:2px}
+input::selection,textarea::selection {background:#d4ec98;color:#142014;-webkit-text-fill-color:#142014}
+select option {background:#25312a;color:#f4f7f2}
+</style>"""
+
+
 def login_page(error: str = "") -> str:
     template = Path(__file__).with_name("login.html").read_text(encoding="utf-8")
-    return template.replace("__LOGIN_ERROR__", escape(error))
+    return template.replace("__LOGIN_ERROR__", escape(error)).replace('</head>', INPUT_CONTRAST_STYLE + '</head>')
 
 
 @app.get("/login-sport.jpg")
@@ -562,7 +583,7 @@ def login_submit(username: str = Form(...), password: str = Form(...)):
 
 def register_page(error: str = "") -> str:
     template = Path(__file__).with_name('register.html').read_text(encoding='utf-8')
-    return template.replace('__REGISTER_ERROR__', escape(error))
+    return template.replace('__REGISTER_ERROR__', escape(error)).replace('</head>', INPUT_CONTRAST_STYLE + '</head>')
 
 
 @app.get("/registro", response_class=HTMLResponse)
@@ -1782,6 +1803,7 @@ def home(_=Depends(authenticate)):
     return f"""<!doctype html><html lang='es'><head><meta charset='utf-8'>
     <meta name='viewport' content='width=device-width,initial-scale=1,viewport-fit=cover'>
     <meta name='theme-color' content='#050605'>
+    {INPUT_CONTRAST_STYLE}
     <link rel='manifest' href='/manifest.webmanifest'><link rel='apple-touch-icon' href='/favicon.png'>
     <meta name='mobile-web-app-capable' content='yes'><meta name='apple-mobile-web-app-capable' content='yes'><meta name='apple-mobile-web-app-status-bar-style' content='black'><meta name='apple-mobile-web-app-title' content='Indoor'>
     <link rel='icon' type='image/svg+xml' href='/favicon.svg?v=6'>
