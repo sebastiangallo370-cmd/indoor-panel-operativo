@@ -1171,7 +1171,7 @@
   const style = document.createElement('style');
   style.id = 'indoor-sport-interface';
   style.textContent = `
-  :root{--sport-font:"Helvetica Neue",Arial,sans-serif;--sport-title:"Arial Narrow","Helvetica Neue",Arial,sans-serif;--sport-weight:800;--sport-bg:#080e0b;--sport-surface:#14221b;--sport-lime:#d0f44c;--sport-text:#f5f7f3;--sport-muted:#a9b5ad;--sport-line:#ffffff20;--sport-radius:18px;--sport-pill:30px;--sport-gap:24px}
+  :root{--sport-font:Arial,"Segoe UI",sans-serif;--sport-title:Arial,"Segoe UI",sans-serif;--sport-weight:700;--sport-bg:#080e0b;--sport-surface:#14221b;--sport-lime:#d0f44c;--sport-text:#f5f7f3;--sport-muted:#c5d1c9;--sport-line:#ffffff20;--sport-radius:18px;--sport-pill:30px;--sport-gap:24px}
   html body{font-family:var(--sport-font);background:var(--sport-bg)}
   body :is(button,input,textarea,select){font-family:var(--sport-font)}
   body :is(h1,h2,h3,h4){font-family:var(--sport-title);font-weight:var(--sport-weight);letter-spacing:-.04em}
@@ -1216,6 +1216,17 @@
   body :is(input,select,textarea):focus-visible{outline:2px solid var(--sport-lime);outline-offset:2px}
   @media(hover:hover){body .dropzone:hover{border-color:var(--sport-lime);background:var(--sport-surface)}body #submit:not(:disabled):hover{filter:brightness(1.08)}}
   @media(max-width:700px){html body.top-navigation .sidebar nav.tabs>.tab,html body.top-navigation .sidebar .nav-parent{min-height:38px}body .card-head,body.production-mode .trace-card-body{padding:16px}body header h1{font-size:30px}body.production-mode .trace-card-body h3,body.production-mode .trace-card-body h4{font-size:22px}}
+  body :is(h1,h2,h3,h4){letter-spacing:normal!important;line-height:1.25}
+  html body.top-navigation .sidebar nav.tabs>.tab strong,html body.top-navigation .sidebar .nav-parent{font-size:14px;letter-spacing:normal}
+  html body.top-navigation .sidebar .nav-children .tab strong{font-size:14px;line-height:1.4}
+  body .card-head p,body .trace-results,body .trace-route-caption,body .trace-route-caption>span{font-size:14px;color:var(--sport-muted)}
+  body.production-mode .trace-card dt,body.production-mode .trace-material-facts small{font-size:13px;color:var(--sport-muted)}
+  body.production-mode .trace-card dd,body.production-mode .trace-material-facts strong{font-size:15px;line-height:1.5}
+  body .trace-quick-filters button{font-size:14px;line-height:1.4}
+  body .trace-node-label{font-size:11px;letter-spacing:0}
+  body .trace-node.pending .trace-node-label{color:var(--sport-muted)}
+  body .production-title h2,body .schedule-title h2{font-size:22px}
+  @media(max-width:700px){html body.top-navigation .sidebar nav.tabs>.tab strong,html body.top-navigation .sidebar .nav-parent{font-size:12px}html body.top-navigation .sidebar nav.tabs>.tab,html body.top-navigation .sidebar .nav-parent{padding:8px 6px}body .trace-node-label{font-size:10px}}
   `;
   document.head.appendChild(style);
 })();
