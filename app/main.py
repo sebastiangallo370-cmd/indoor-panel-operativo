@@ -25,6 +25,7 @@ from openpyxl import load_workbook
 from app.excel_linux import crear_excel_listado
 from app.excel_mockups import listing_designs
 from app.uploaded_mockups import sync_order_uploads, require_mockup_upload
+from app import sheets_sync
 from app.creator_xlsx import _data_from_source, create_from_images, create_from_sheet_bundle, normalize_output_name
 from app.settings import STATE_DIR, UPLOAD_DIR, prepare_pedidos_runtime, prepare_runtime
 
@@ -514,6 +515,7 @@ def startup():
     with connect():
         pass
     legacy.setup_logging(CONFIG["log_file"])
+    sheets_sync.start(connect, legacy.get_gspread, STATE_DIR)
 
 
 @app.get("/salud")
@@ -844,7 +846,7 @@ def read_local_production() -> dict:
                 row["current_process"] = {"label": process_label(i), "state": "finished"}
             else:
                 row["current_process"] = {"label": "Sin iniciar", "state": "pending"}
-        return {
+        return sheets_sync.decorate(db, {
             "sheet": meta.get("sheet", "PRODUCCIÓN LOCAL"),
             "start_row": int(meta.get("start_row", PRODUCTION_START_ROW)),
             "groups": json.loads(meta["groups"]),
@@ -856,7 +858,7 @@ def read_local_production() -> dict:
             "auto_closed": [f"{event['source_row']}:{event['column_number']}" for event in db.execute("SELECT source_row,column_number FROM production_operator_events WHERE action='Cierre automático'")] if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='production_operator_events'").fetchone() else [],
             "notes": {f"{n['source_row']}:{n['column_number']}": n["note"]
                       for n in db.execute("SELECT source_row,column_number,note FROM production_notes")},
-        }
+        })
     finally:
         db.close()
 
