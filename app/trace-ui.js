@@ -792,6 +792,157 @@
   @media(prefers-reduced-motion:reduce){body.production-mode.trace-cards-mode .production-toolbar,body.production-mode.trace-cards-mode .production-process-filter{transition:none}}
   `;
   document.head.appendChild(scrollStyle);
+  // A denser optional workspace without changing the queue or permissions.
+  const densityToggle = document.createElement('button');
+  densityToggle.type = 'button';
+  densityToggle.className = 'trace-density-toggle';
+  densityToggle.textContent = 'Vista compacta';
+  densityToggle.setAttribute('aria-pressed', 'false');
+  toolbar.querySelector('.trace-workspace-top').appendChild(densityToggle);
+  densityToggle.onclick = () => {
+    const compact = document.body.classList.toggle('trace-density-compact');
+    densityToggle.setAttribute('aria-pressed', String(compact));
+    densityToggle.textContent = compact ? 'Vista amplia' : 'Vista compacta';
+    requestAnimationFrame(fitTraceCards);
+  };
+  toolbar.querySelectorAll('[data-trace-filter]').forEach(button => {
+    button.dataset.tone = ({ pending:'pending', active:'active', rework:'rework', late:'rework', finished:'finished' })[button.dataset.traceFilter] || 'neutral';
+  });
+
+  // Move existing controls, preserving submit handlers and server validation.
+  operatorDialog.classList.add('production-studio');
+  operatorDialog.setAttribute('aria-labelledby', 'production-studio-title');
+  const studioHeader = document.createElement('div');
+  studioHeader.className = 'studio-header';
+  const studioTitle = operatorForm.querySelector('h2');
+  studioTitle.id = 'production-studio-title';
+  studioTitle.textContent = 'Registrar producción';
+  studioHeader.append(operatorForm.querySelector('.operator-close'), studioTitle, operatorForm.querySelector('.operator-order'));
+  const studioGrid = document.createElement('div');
+  studioGrid.className = 'studio-grid';
+  const studioContext = document.createElement('aside');
+  studioContext.className = 'studio-context';
+  studioContext.setAttribute('aria-label', 'Resumen de la orden');
+  operatorDialog.prepend(studioHeader, studioGrid);
+  studioGrid.append(studioContext, operatorForm);
+  const jumpToActions = document.createElement('button');
+  jumpToActions.type = 'button';
+  jumpToActions.className = 'studio-jump';
+  jumpToActions.textContent = 'Registrar actividad ↓';
+  jumpToActions.onclick = () => { operatorForm.elements.column.focus(); operatorForm.scrollIntoView({ block: 'start', behavior: 'instant' }); };
+  studioHeader.appendChild(jumpToActions);
+  const historyHeading = operatorDialog.querySelector('h3');
+  const studioHistory = document.createElement('details');
+  studioHistory.className = 'studio-history';
+  studioHistory.innerHTML = '<summary>Historial de actividad <span>Ver registros y responsables</span></summary>';
+  studioHistory.append(operatorDialog.querySelector('.operator-history'));
+  historyHeading.replaceWith(studioHistory);
+  operatorForm.elements.reason.placeholder = 'Escribe una indicación para el siguiente proceso…';
+  const actionCopy = {
+    start: ['▶', 'Iniciar / retomar', 'Registrar el comienzo de este trabajo'],
+    finish: ['✓', 'Terminar proceso', 'Cerrar y actualizar el avance'],
+    rework: ['↺', 'Reproceso', 'Reabrir con un motivo obligatorio'],
+    na: ['—', 'No aplica', 'Este pedido no requiere este proceso']
+  };
+  operatorForm.querySelectorAll('.operator-actions button').forEach(button => {
+    const copy = actionCopy[button.value];
+    button.innerHTML = '<span class="studio-action-icon" aria-hidden="true">' + copy[0] + '</span><span><strong>' + copy[1] + '</strong><small>' + copy[2] + '</small></span>';
+  });
+  const studioCounter = document.createElement('small');
+  studioCounter.className = 'studio-counter';
+  operatorForm.elements.reason.after(studioCounter);
+  const updateStudioCounter = () => { studioCounter.textContent = operatorForm.elements.reason.value.length + ' / 2000'; };
+  operatorForm.elements.reason.addEventListener('input', updateStudioCounter);
+  operatorForm.elements.column.addEventListener('change', updateStudioCounter);
+  operatorForm.elements.column.addEventListener('change', () => {
+    operatorDialog.querySelector('.operator-message').textContent = operatorForm.elements.column.value ? 'Elige una acción. La fecha y hora se guardan automáticamente.' : 'Selecciona el proceso para habilitar las acciones.';
+  });
+  const studioOpenOriginal = openOperatorProduction;
+  let studioLoad = 0;
+  openOperatorProduction = id => {
+    studioOpenOriginal(id);
+    const row = productionData.rows.find(item => item.source_row === id);
+    if (!row) return;
+    // Administrators enter the area they are browsing; operators retain their profile.
+    if (isAdmin && navigationProcess) {
+      const group = groupsFor(productionData, row, processStatusHeaders).find(item => item.label === navigationProcess.label);
+      if (group) { operatorForm.elements.column.value = String(group.start + 1); operatorSelection(); refreshOperatorActions(); operatorDialog.querySelector('.operator-message').textContent = 'Proceso seleccionado según el área que estás consultando.'; }
+    }
+    studioHistory.open = false;
+    if (!operatorForm.elements.column.value) operatorDialog.querySelector('.operator-current').textContent = 'Selecciona el proceso para habilitar las acciones.';
+    updateStudioCounter();
+    const summary = summarize(productionData, row, processStatusHeaders, user, scheduleToday());
+    const notes = Object.entries(productionData.notes || {}).filter(([noteKey, text]) => noteKey.startsWith(id + ':') && String(text || '').trim());
+    studioContext.innerHTML = '<span class="trace-eyebrow">LA ORDEN DE UN VISTAZO</span><h3>' + esc(traceField(row, 'REFERENCIA')) + '</h3>' +
+      '<div class="studio-facts"><div><small>A FABRICAR</small><strong>' + esc(traceField(row, 'CANTIDAD') || '0') + ' und.</strong></div><div><small>ENTREGA</small><strong>' + esc(displayProductionDate(traceField(row, 'FECHA DE ENTREGA')) || 'Sin fecha') + '</strong></div></div>' +
+      '<div class="studio-progress-label"><span>Avance de la orden</span><strong>' + summary.percent + '%</strong></div>' +
+      '<progress max="100" value="' + summary.percent + '" aria-label="Avance de la orden">' + summary.percent + '%</progress>' +
+      '<div class="studio-stages" aria-label="Estado de los doce procesos">' + summary.groups.map((group, index) => '<span class="' + group.state + '" title="' + esc(group.label + ': ' + group.status) + '"><b aria-hidden="true">' + (group.state === 'finished' ? '✓' : group.state === 'rework' ? '!' : index + 1) + '</b><small>' + esc(abbreviations[group.key] || group.label.slice(0, 3)) + '</small><span class="studio-sr">' + esc(group.label + ': ' + group.status) + '</span></span>').join('') + '</div>' +
+      '<p class="studio-caption">' + summary.finished + ' de ' + summary.total + ' procesos cerrados · Incluye cierres automáticos y No aplica.</p>' +
+      (notes.length ? '<section class="studio-notes"><h4>OBSERVACIONES</h4>' + notes.map(([noteKey, text]) => '<article><strong>' + esc(productionData.headers[Number(noteKey.split(':')[1]) - 1] || 'NOTA') + '</strong><p>' + esc(String(text)) + '</p></article>').join('') + '</section>' : '') +
+      '<section class="studio-event-notes" aria-live="polite">Consultando notas de los operarios…</section>';
+    const target = studioContext.querySelector('.studio-event-notes'), request = ++studioLoad;
+    fetch('/api/produccion/operaciones/' + id, { cache: 'no-store' }).then(response => {
+      if (!response.ok) throw Error();
+      return response.json();
+    }).then(events => {
+      if (!target.isConnected || request !== studioLoad) return;
+      if (!Array.isArray(events)) throw Error();
+      const observations = events.filter(entry => String(entry.reason || '').trim() && key(entry.action) !== 'CIERRE AUTOMATICO');
+      target.innerHTML = observations.length ? '<h4>NOTAS DE LOS PROCESOS</h4>' + observations.map(entry => '<article><strong>' + esc(productionData.headers[Number(entry.column_number) - 1] || 'PROCESO') + '</strong><p>' + esc(entry.reason) + '</p><small>' + esc(entry.responsible || entry.username || '') + '</small></article>').join('') : '<p class="studio-caption">No hay observaciones adicionales de los operarios.</p>';
+      target.classList.toggle('studio-notes', !!observations.length);
+    }).catch(() => {
+      if (target.isConnected && request === studioLoad) target.textContent = 'No se pudieron consultar las notas. Vuelve a abrir el panel para reintentar.';
+    });
+    operatorDialog.scrollTop = 0;
+  };
+  const studioSubmitOriginal = operatorForm.onsubmit;
+  operatorForm.onsubmit = async event => {
+    operatorDialog.setAttribute('aria-busy', 'true');
+    try { await studioSubmitOriginal(event); }
+    finally { operatorDialog.setAttribute('aria-busy', 'false'); updateStudioCounter(); }
+  };
+  const studioStyle = document.createElement('style');
+  studioStyle.textContent = `
+  .trace-density-toggle{width:auto!important;min-height:36px;padding:8px 12px!important;border:1px solid #596c54;border-radius:8px;background:#263328;color:#e9f4db;box-shadow:none;font:600 12px Arial}
+  .trace-density-toggle[aria-pressed=true]{background:#d4ec98;color:#192617}
+  .trace-quick-filters button{transition:background .15s,border-color .15s;gap:8px!important}
+  .trace-quick-filters button:before{content:'';width:7px;height:7px;border-radius:50%;background:#8a9d8f;flex-shrink:0}
+  .trace-quick-filters button[data-tone=active]:before{background:#f3b852}.trace-quick-filters button[data-tone=rework]:before{background:#ff8982}.trace-quick-filters button[data-tone=finished]:before{background:#7bd9a4}
+  .trace-quick-filters button[aria-pressed=true]{box-shadow:inset 0 -3px 0 #94b547}
+  body.production-mode .trace-card{border-top:3px solid #40584a;transition:border-color .18s,box-shadow .18s}
+  body.production-mode .trace-card.state-active{border-top-color:#f3b852}body.production-mode .trace-card.state-rework{border-top-color:#f08079}body.production-mode .trace-card.state-finished{border-top-color:#8bdbaf}
+  body.production-mode .trace-card:focus-within{outline:2px solid #d4ec98;outline-offset:2px}
+  @media(hover:hover){body.production-mode .trace-card:hover{box-shadow:0 8px 22px #0004;border-left-color:#92a886;border-right-color:#92a886}}
+  @media(min-width:861px){body.production-mode.trace-density-compact .trace-card{grid-template-columns:minmax(115px,28%) minmax(0,1fr)!important}body.production-mode.trace-density-compact .trace-media,body.production-mode.trace-density-compact .trace-media:has(img){min-height:220px!important;height:auto!important;padding:10px!important}body.production-mode.trace-density-compact .trace-design-main img{height:210px!important;object-fit:contain}body.production-mode.trace-density-compact .trace-card-body{padding:16px!important}body.production-mode.trace-density-compact .trace-manufacture{margin:10px 0!important;padding:10px 0!important}body.production-mode.trace-density-compact .trace-card dl{gap:12px!important;margin:12px 0!important}body.production-mode.trace-density-compact .trace-client{font-size:15px!important}body.production-mode.trace-density-compact .trace-route{padding-top:10px!important;padding-bottom:10px!important}}
+  .production-studio{width:min(960px,95vw)!important;max-height:92dvh!important;padding:0!important;box-sizing:border-box;background:#14221b;border:1px solid #536a55;box-shadow:0 24px 90px #0008}
+  .production-studio .studio-header{position:sticky;top:0;z-index:3;padding:18px 24px;border-bottom:1px solid #354b3a;background:linear-gradient(110deg,#243526,#16241c)}
+  .production-studio .studio-header h2{font:700 24px/1.3 Arial;margin:0 44px 8px 0;color:#f5faee}.production-studio .operator-order{margin:0;color:#c6d6bd;font-size:13px}
+  .production-studio .operator-close{min-height:36px;min-width:36px;border:1px solid #6b8066!important;border-radius:10px;cursor:pointer}
+  .studio-grid{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr)}
+  .studio-context{padding:24px;background:#19291f;border-right:1px solid #354b3a;min-width:0}.studio-context>h3{font:700 21px Arial;margin:10px 0 20px;overflow-wrap:anywhere}
+  .production-studio #operator-form{padding:20px 24px;min-width:0}.production-studio #operator-form>label{margin:0 0 14px;color:#cad8c4;font-weight:600;font-size:12px}
+  .production-studio select,.production-studio input,.production-studio textarea{border-radius:10px!important;background:#24362b!important;color:#f4f9f1!important}.production-studio textarea{min-height:90px;resize:vertical}
+  .production-studio :is(input,select,textarea,button,summary):focus-visible{outline:2px solid #d5ed9a;outline-offset:3px}
+  .production-studio .operator-current{display:block!important;padding:10px 12px!important;margin:0 0 16px;font-size:12px;line-height:1.5}
+  .studio-facts{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:24px}.studio-facts>div{padding:12px;background:#233629;border-radius:10px;border:1px solid #3d5540}.studio-facts small{display:block;color:#a9bea7;font:10px Arial;letter-spacing:.06em;margin-bottom:7px}.studio-facts strong{font:700 16px Arial;color:#eef8e6}
+  .studio-progress-label{display:flex;justify-content:space-between;gap:10px;font:12px Arial;color:#c0d1b7}.studio-progress-label strong{font-size:18px;color:#d4ec98}
+  .studio-context progress{appearance:none;width:100%;height:7px;margin:10px 0 16px;border:0;border-radius:10px;overflow:hidden;background:#344c3a;accent-color:#c9eb83}.studio-context progress::-webkit-progress-bar{background:#344c3a}.studio-context progress::-webkit-progress-value{background:linear-gradient(90deg,#7bd4a0,#d4ec98);border-radius:10px}
+  .studio-stages{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:3px}.studio-stages>span{position:relative;text-align:center;color:#9eb8a4}.studio-stages b{position:relative;z-index:1;display:grid;place-items:center;width:19px;height:19px;margin:auto;border:1px solid #6a8270;border-radius:50%;font:10px Arial;background:#23372a}.studio-stages>span:not(:last-child):after{content:'';position:absolute;left:50%;width:calc(100% + 3px);top:10px;height:1px;background:#58715f}.studio-stages small{display:block;font:8px Arial;margin-top:5px}.studio-stages .finished b{background:#375d42;color:#a5edbb;border-color:#8bdbaf}.studio-stages .active b{background:#f3b852;color:#2a2008}.studio-stages .rework b{background:#ed827a;color:#2a100d}.studio-caption{color:#a8bda9;font:11px/1.6 Arial;margin:12px 0}
+  .studio-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+  .studio-notes{margin-top:20px;padding:14px;border:1px solid #9e5d58;border-left:3px solid #ff8d86;border-radius:10px;background:#352622}.studio-notes h4{color:#ffb6ae;font:700 11px Arial;letter-spacing:.05em;margin:0 0 12px}.studio-notes article+article{border-top:1px solid #6b4841;padding-top:10px;margin-top:10px}.studio-notes strong,.studio-notes small{color:#d6b8af;font:11px/1.4 Arial}.studio-notes p{color:#fff1ed;font:600 13px/1.6 Arial;text-decoration:underline #ff8178 2px;text-underline-offset:4px;white-space:pre-wrap;overflow-wrap:anywhere;margin:6px 0}.studio-event-notes{font:12px/1.6 Arial;color:#b9cbb4}
+  .studio-counter{display:block;text-align:right;font:11px Arial;color:#a7bca4;margin-top:6px}
+  .production-studio .operator-actions{gap:9px!important}.production-studio .operator-actions button{display:flex;align-items:center;gap:10px;text-align:left;padding:13px!important;min-height:76px!important;border-radius:11px;box-shadow:none;transform:none!important}.production-studio .operator-actions strong{display:block;font:700 13px/1.4 Arial}.production-studio .operator-actions small{display:block;font:11px/1.4 Arial;margin-top:4px;opacity:.85}.studio-action-icon{font:20px Arial;flex-shrink:0}
+  .production-studio .operator-actions button[value=start]{background:#edbb68}.production-studio .operator-actions button[value=finish]{background:#d4ec98}.production-studio .operator-actions button[value=rework]{background:#482c29;color:#ffc3b8;border-color:#a76c62}.production-studio .operator-actions button[value=na]{background:#23382c;color:#d2e3cb}
+  .production-studio button:disabled{cursor:not-allowed;opacity:.4}.production-studio[aria-busy=true] .operator-message{padding:12px;background:#32442b;border-radius:8px}.production-studio[aria-busy=true] .operator-message:before{content:'◌ ';display:inline-block;margin-right:6px}
+  .studio-history{border-top:1px solid #354b3a;padding:16px 24px}.studio-history summary{cursor:pointer;color:#d9eacb;font:600 13px Arial;min-height:24px}.studio-history summary span{font:12px Arial;color:#95af9b;margin-left:12px}.studio-history .operator-history{padding:12px 0 0}.studio-history article{padding-left:16px;border-left:2px solid #617e52;margin-left:6px}
+  .studio-jump{display:none}.production-studio #operator-form{scroll-margin-top:175px}
+  @media(min-width:701px){.production-studio .studio-header{padding:14px 22px}.production-studio .studio-header h2{font-size:22px}.production-studio #operator-form{padding:16px 22px}.production-studio #operator-form>label{margin-bottom:10px}.production-studio textarea{min-height:70px;height:70px}.production-studio .operator-actions button{min-height:64px!important;padding:10px!important}.production-studio #trace-reason-help{font-size:11px;line-height:1.4}.studio-context{padding:20px}.studio-facts{margin-bottom:18px}.studio-notes{margin-top:14px;padding:11px}.studio-context>h3{margin-bottom:14px}}
+  @media(max-width:700px){.studio-grid{grid-template-columns:1fr}.studio-context{border-right:0;border-bottom:1px solid #354b3a;padding:18px}.production-studio .studio-header{padding:18px}.production-studio .studio-header h2{font-size:21px}.production-studio #operator-form{padding:18px}.studio-facts{margin-bottom:16px}.studio-history{padding:16px 18px}.studio-history summary span{display:block;margin:8px 0}.trace-density-toggle{min-height:44px}.production-studio .operator-actions{grid-template-columns:1fr 1fr!important}.production-studio .operator-actions button{padding:10px!important}.studio-action-icon{display:none}body.production-mode.trace-density-compact .trace-media,body.production-mode.trace-density-compact .trace-media:has(img){height:170px!important;min-height:0!important}body.production-mode.trace-density-compact .trace-design-main img{height:125px!important}}
+  @media(prefers-reduced-motion:reduce){.trace-quick-filters button,body.production-mode .trace-card{transition:none}}
+  @media(max-width:700px){.studio-jump{display:inline-block!important;width:auto!important;min-height:36px!important;margin-top:10px;padding:6px 12px!important;background:#d4ec98!important;color:#213217!important;font:600 12px Arial;box-shadow:none!important;border:0;border-radius:8px}}
+  `;
+  document.head.appendChild(studioStyle);
   renderTraceCards();
   updateTraceScroll();
   new ResizeObserver(fitTraceCards).observe(toolbar);
