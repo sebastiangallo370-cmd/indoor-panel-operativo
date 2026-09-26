@@ -34,11 +34,11 @@
       const values = group.statusColumns.map(i => key(row.values[i]));
       const closed = values.map(v => v === 'N/A' || !!dateValue(v));
       group.state = values.includes('R') ? 'rework' : values.includes('P') ? 'active' : values.length && closed.every(Boolean) ? 'finished' : closed.some(Boolean) ? 'partial' : 'pending';
-      group.autoClosed = ['partial', 'pending'].includes(group.state) && (data.auto_closed || []).includes(row.source_row + ':' + (group.start + 1));
+      group.autoClosed = values.some(v => v) && ['partial', 'pending'].includes(group.state) && (data.auto_closed || []).includes(row.source_row + ':' + (group.start + 1));
       if (group.autoClosed) group.state = 'finished';
       group.status = group.autoClosed ? 'Cierre automático' : group.state === 'finished' ? values.length && values.every(v => v === 'N/A') ? 'No aplica' : 'Terminado' : ({ active: 'En proceso', rework: 'Reproceso', partial: 'Avance parcial', pending: 'Pendiente' })[group.state];
       group.responsible = group.columns.filter(i => key(data.headers[i]).startsWith('RESP') || key(data.headers[i]) === 'CONFECCIONISTA').map(i => String(row.values[i] || '').trim()).filter(Boolean).join(', ');
-      if (!group.responsible) group.responsible = group.statusColumns.map(i => data.process_responsibles?.[row.source_row + ':' + (i+1)]).filter(Boolean)[0] || '';
+      if (!group.responsible && values.some(v => v)) group.responsible = group.statusColumns.map(i => data.process_responsibles?.[row.source_row + ':' + (i+1)]).filter(Boolean)[0] || '';
       return group;
     });
   }

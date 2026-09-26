@@ -225,6 +225,7 @@ def append_local_production(record: dict, row_builder=None):
     """Registra una referencia directamente en la trazabilidad local."""
     db = connect()
     try:
+        db.execute('BEGIN IMMEDIATE')
         meta = {row["key"]: row["value"] for row in db.execute("SELECT key, value FROM production_meta")}
         headers = json.loads(meta.get("headers") or "[]")
         if not headers:
@@ -235,7 +236,15 @@ def append_local_production(record: dict, row_builder=None):
             values = [""] * len(headers)
         width = len(headers)
         values = (values + [""] * width)[:width]
-        source_row = int(db.execute("SELECT COALESCE(MAX(source_row), ?) + 1 FROM production_rows", (PRODUCTION_START_ROW - 1,)).fetchone()[0])
+        groups = json.loads(meta.get('groups') or '[]')
+        values = fresh_production_values(values, headers, groups)
+        # Never recycle a row identity, even if the last order was deleted.
+        highest = max(PRODUCTION_START_ROW - 1, int(meta.get('last_allocated_row') or 0))
+        for table in ('production_rows', 'production_notes', 'production_started', 'production_finished', 'production_rework', 'production_operator_events'):
+            if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)).fetchone():
+                highest = max(highest, int(db.execute(f'SELECT COALESCE(MAX(source_row),0) FROM {table}').fetchone()[0]))
+        source_row = highest + 1
+        db.execute("INSERT OR REPLACE INTO production_meta(key,value) VALUES ('last_allocated_row',?)", (str(source_row),))
         sort_order = int(db.execute("SELECT COALESCE(MAX(sort_order), 0) + 1 FROM production_rows").fetchone()[0])
         db.execute(
             "INSERT INTO production_rows(source_row, values_json, sort_order) VALUES (?, ?, ?)",
@@ -825,6 +834,35 @@ def official_process(header):
     return next((i for i, process in enumerate(PROCESS_FLOW) if key in process['headers']), None)
 
 
+def fresh_production_values(values, headers, groups):
+    """Keep the order specifications, never copy execution state into a new order."""
+    result = list(values)
+    for i, header in enumerate(headers):
+        title = str(header).strip().upper()
+        group = str(groups[i] if i < len(groups) else '').strip('" ').upper()
+        operational = group and group != 'GENERAL' and 'LINEA PRODUCCION' not in group and 'METODOLOG' not in group
+        status = official_process(header) is not None or title in ('CORTE TEXTIL', 'CORTE TEXTIL/PLT', 'TRAZO')
+        if status or (operational and (title.startswith(('RESP', 'HORA ')) or title in ('ESTADO', 'CONFECCIONISTA'))):
+            result[i] = ''
+    return result
+
+
+def archive_production_activity(db, row, reason):
+    """Recoverably separate a prior lifecycle from an explicitly reset order."""
+    db.execute('CREATE TABLE IF NOT EXISTS production_activity_archive (id INTEGER PRIMARY KEY AUTOINCREMENT, source_row INTEGER, source_table TEXT, payload TEXT, reason TEXT, archived_at TEXT)')
+    now = datetime.now(timezone.utc).isoformat()
+    counts = {}
+    for table in ('production_notes', 'production_started', 'production_finished', 'production_rework', 'production_operator_events'):
+        if not db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)).fetchone():
+            continue
+        records = [dict(r) for r in db.execute(f'SELECT * FROM {table} WHERE source_row=?', (row,))]
+        counts[table] = len(records)
+        if records:
+            db.execute('INSERT INTO production_activity_archive(source_row,source_table,payload,reason,archived_at) VALUES (?,?,?,?,?)', (row,table,json.dumps(records,ensure_ascii=False),reason,now))
+            db.execute(f'DELETE FROM {table} WHERE source_row=?', (row,))
+    return counts
+
+
 def operator_process_header(header):
     key = ''.join(c for c in unicodedata.normalize('NFD', str(header)) if not unicodedata.combining(c)).strip().upper()
     return key in OPERATOR_PROCESS_HEADERS
@@ -1113,6 +1151,8 @@ async def delete_production_row(row: int, _=Depends(authenticate)):
         record = db.execute("SELECT source_row FROM production_rows WHERE source_row = ?", (row,)).fetchone()
         if not record:
             raise HTTPException(404, "La fila ya no existe")
+        highest = max(row, int((db.execute("SELECT value FROM production_meta WHERE key='last_allocated_row'").fetchone() or [0])[0]))
+        db.execute("INSERT OR REPLACE INTO production_meta(key,value) VALUES ('last_allocated_row',?)", (str(highest),))
         db.execute("DELETE FROM production_rows WHERE source_row = ?", (row,))
         db.execute("DELETE FROM production_notes WHERE source_row = ?", (row,))
         now = datetime.now(timezone.utc).isoformat()
@@ -2226,7 +2266,7 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
 @media(max-width:700px){{body.production-mode .trace-cards{{grid-template-columns:minmax(0,1fr);padding:12px}}body.production-mode .trace-card{{grid-template-columns:minmax(0,1fr)}}body.production-mode .trace-media,body.production-mode .trace-media:has(img),body.production-mode .trace-media:not(:has(img)){{height:300px;min-height:0}}body.production-mode .trace-design-main img{{height:235px}}body.production-mode .trace-media:not(:has(img)){{height:120px}}.trace-no-design>span{{display:none}}body.production-mode .trace-card-body{{padding:20px}}}}
 `;document.head.appendChild(traceFigmaStyle);setTraceView();
     const commercialGroup=commercialToggle.closest('.nav-group');commercialGroup.classList.add('collapsed');const productionToggle=document.getElementById('production-toggle');if(productionToggle)productionToggle.addEventListener('click',()=>productionToggle.closest('.nav-group').classList.toggle('collapsed'));
-    </script><script src='/trace-ui.js?v=20260926-7'></script></body></html>"""
+    </script><script src='/trace-ui.js?v=20260926-8'></script></body></html>"""
 
 
 @app.post("/procesar", status_code=202)
