@@ -111,7 +111,8 @@
   const isAdmin = typeof canViewAdministration !== 'undefined' && canViewAdministration;
   const profile = document.querySelector('.user-info small')?.textContent || '';
   const ownProcess = processForProfile(profile);
-  const defaultFilter = isAdmin ? 'all' : 'pending';
+  const defaultFilter = 'all';
+  let ownAreaFilter = false;
 
   const originalOpenProduction = openOperatorProduction;
   openOperatorProduction = function(id) {
@@ -127,7 +128,7 @@
   };
   updateProcessFilter = function() {
     const labels = new Map(flow.map(p => [key(p.label), p.label]));
-    if (!isAdmin) selectedProcess = ownProcess ? key(ownProcess.label) : '';
+    if (!isAdmin) selectedProcess = ownAreaFilter && ownProcess ? key(ownProcess.label) : '';
     if (!labels.has(selectedProcess)) selectedProcess = '';
     const signature = JSON.stringify([...labels]);
     if (productionProcess.dataset.signature !== signature) {
@@ -154,7 +155,7 @@
   };
 
   const labels = { pending: 'Pendiente', active: 'En proceso', rework: 'Reproceso', finished: 'Terminado', partial: 'Avance parcial' };
-  const filters = isAdmin ? [['all', 'Todos'], ['work', 'Mi trabajo del día'], ['mine', 'Mis pedidos'], ['late', 'Atrasados'], ['active', 'En proceso'], ['rework', 'Reproceso'], ['finished', 'Terminados']] : [['pending', 'Por fabricar'], ['mine', 'A mi cargo'], ['active', 'En proceso'], ['rework', 'Reproceso'], ['late', 'Atrasados'], ['finished', 'Terminados']];
+  const filters = isAdmin ? [['all', 'Todos'], ['work', 'Mi trabajo del día'], ['mine', 'Mis pedidos'], ['late', 'Atrasados'], ['active', 'En proceso'], ['rework', 'Reproceso'], ['finished', 'Terminados']] : [['all', 'Todos'], ['pending', 'Por fabricar'], ['mine', 'A mi cargo'], ['active', 'En proceso'], ['rework', 'Reproceso'], ['late', 'Atrasados'], ['finished', 'Terminados']];
   let filter = defaultFilter;
   const user = { name: document.querySelector('.user-info strong')?.textContent || '', initials: document.querySelector('.user-avatar')?.textContent || '' };
   const toolbar = document.createElement('section');
@@ -162,7 +163,21 @@
   toolbar.setAttribute('aria-label', 'Filtros de trazabilidad');
   toolbar.innerHTML = '<div class="trace-workspace-top"><div><h3>Pedidos en seguimiento</h3></div><span class="trace-live">Actualización automática</span></div><div class="trace-quick-filters" role="group" aria-label="Estado de los pedidos">' + filters.map(([id, label]) => '<button type="button" data-trace-filter="' + id + '" aria-pressed="' + (id === 'all') + '">' + label + '<span>0</span></button>').join('') + '</div><p class="trace-results" role="status" aria-live="polite"></p>';
   traceCards.before(toolbar);
-  if (!isAdmin) toolbar.querySelector('h3').textContent = ownProcess ? ownProcess.label + ' · Trabajo entre turnos' : 'Solicita que Administración asigne tu proceso';
+  const areaButton = document.createElement('button');
+  areaButton.type = 'button';
+  areaButton.className = 'trace-area-toggle';
+  areaButton.textContent = 'PROCESO AL QUE PERTENECES';
+  areaButton.setAttribute('aria-pressed', 'false');
+  areaButton.title = ownProcess ? ownProcess.label : 'Tu usuario no tiene un proceso de fabricación asignado';
+  areaButton.disabled = !ownProcess;
+  toolbar.querySelector('.trace-workspace-top').appendChild(areaButton);
+  areaButton.onclick = () => {
+    ownAreaFilter = !ownAreaFilter;
+    filter = ownAreaFilter ? 'pending' : 'all';
+    updateProcessFilter();
+    traceCards.scrollTop = 0;
+    renderTraceCards();
+  };
   toolbar.addEventListener('click', event => {
     const button = event.target.closest('[data-trace-filter]'); if (!button) return;
     filter = button.dataset.traceFilter; traceCards.scrollTop = 0; renderTraceCards();
@@ -189,9 +204,12 @@
     const base = productionData.rows.filter(row => visible.has(row.source_row) && ['ORDEN', 'NOMBRE DEL CLIENTE', 'NOMBRE PROYECTO', 'REFERENCIA'].some(name => traceField(row, name).trim()));
     const summaries = new Map(base.map(row => {
       const summary = summarize(productionData, row, processStatusHeaders, user, scheduleToday());
-      return [row.source_row, isAdmin ? summary : processQueueSummary(summary, profile, user, scheduleToday())];
+      return [row.source_row, ownAreaFilter ? processQueueSummary(summary, profile, user, scheduleToday()) : summary];
     }));
-    const match = isAdmin ? matches : queueMatches;
+    const match = isAdmin && !ownAreaFilter ? matches : queueMatches;
+    areaButton.setAttribute('aria-pressed', String(ownAreaFilter));
+    toolbar.querySelector('h3').textContent = ownAreaFilter ? ownProcess.label + ' · Trabajo entre turnos' : 'Todos los pedidos programados';
+    toolbar.querySelectorAll('[data-trace-filter]').forEach(button => { button.hidden = ownAreaFilter; });
     const rows = orderByDelivery(base.filter(row => match(summaries.get(row.source_row), filter)), productionData.headers);
     toolbar.querySelectorAll('[data-trace-filter]').forEach(button => {
       button.setAttribute('aria-pressed', String(button.dataset.traceFilter === filter));
@@ -207,9 +225,9 @@
       return '<article class="trace-card state-' + summary.state + '" data-card-row="' + id + '"><div class="trace-media">' + traceAssetsMarkup(id) + '</div><div class="trace-card-body"><div class="trace-card-heading"><h3>' + esc(traceField(row, 'ORDEN') || 'Sin número') + '</h3><span class="trace-stage ' + summary.state + '">' + labels[summary.state] + '</span></div><p class="trace-client">' + esc(traceField(row, 'NOMBRE DEL CLIENTE') || 'Sin cliente') + '</p><p class="trace-project">' + esc(traceField(row, 'NOMBRE PROYECTO')) + '</p><dl><div><dt>Referencia</dt><dd>' + esc(traceField(row, 'REFERENCIA') || '—') + '</dd></div><div><dt>Cantidad</dt><dd class="trace-quantity">' + esc(traceField(row, 'CANTIDAD') || '0') + ' <small>und.</small></dd></div><div class="trace-due ' + (summary.overdue ? 'late' : '') + '"><dt>' + dueLabel + '</dt><dd>' + esc(summary.due ? displayProductionDate(due) : 'Sin programar') + '</dd></div><div><dt>Responsable del proceso</dt><dd>' + (responsible ? responsible.split(/[,;·\n]+/).filter(x => x.trim()).map(name => '<span class="trace-person">' + esc(name.trim()) + '</span>').join(' ') : '<span class="trace-unassigned">Sin asignar</span>') + '</dd></div></dl><div class="trace-card-meta"><span>' + notes + ' nota' + (notes === 1 ? '' : 's') + '</span><span>Fila ' + id + '</span></div><div class="trace-card-actions"><button type="button" class="operator-open" data-card-edit="' + id + '">PRODUCCIÓN</button><button type="button" data-card-detail="' + id + '">Ver detalle</button><button type="button" data-card-nas="' + id + '" aria-label="Abrir carpeta del pedido">NAS ↗</button></div></div>' + routeMarkup(row, summary) + '</article>';
     }).join('') || '<div class="trace-empty"><h3>No hay pedidos en esta vista</h3><p>' + (filter === 'mine' ? 'No hay responsables que coincidan con tu usuario o iniciales. Prueba Todos o revisa la asignación.' : 'Prueba otro estado o cambia la búsqueda.') + '</p><button type="button" data-clear-trace>Ver todos</button></div>';
     traceCards.querySelectorAll('[data-card-row]').forEach(card => traceImageObserver.observe(card));
-    if (!isAdmin && !rows.length) {
-      traceCards.querySelector('.trace-empty p').textContent = ownProcess ? 'No hay pedidos de tu proceso en este estado. Puedes consultar Terminados o limpiar la búsqueda.' : 'Administración debe asignar un proceso de Indoor a tu cuenta.';
-      traceCards.querySelector('[data-clear-trace]').textContent = 'Ver pendientes de mi proceso';
+    if (ownAreaFilter && !rows.length) {
+      traceCards.querySelector('.trace-empty p').textContent = ownProcess ? 'No hay pendientes para tu área. Desactiva PROCESO AL QUE PERTENECES para consultar todos los pedidos.' : 'Administración debe asignar un proceso de Indoor a tu cuenta.';
+      traceCards.querySelector('[data-clear-trace]').textContent = 'Limpiar búsqueda';
     }
     traceCards.querySelectorAll('[data-card-row]').forEach(card => {
       const row = rows.find(r => r.source_row === Number(card.dataset.cardRow));
@@ -227,7 +245,7 @@
     refreshOperatorActions();
   };
   traceCards.addEventListener('click', event => {
-    if (event.target.closest('[data-clear-trace]')) { filter = defaultFilter; exactScheduleOrder = ''; productionSearch.value = ''; renderProduction(); renderTraceCards(); return; }
+    if (event.target.closest('[data-clear-trace]')) { filter = ownAreaFilter ? 'pending' : defaultFilter; exactScheduleOrder = ''; productionSearch.value = ''; renderProduction(); renderTraceCards(); return; }
     const button = event.target.closest('[data-node-row]'); if (!button) return;
     const id = Number(button.dataset.nodeRow), row = productionData.rows.find(r => r.source_row === id);
     if (!row) return;
@@ -285,6 +303,7 @@
   @media(max-width:600px){body.production-mode .trace-card{grid-template-columns:1fr}body.production-mode .trace-media,body.production-mode .trace-media:has(img){height:290px;min-height:0;padding:12px}body.production-mode .trace-design-main img{height:230px}body.production-mode .trace-media:not(:has(img)){height:115px;min-height:0}.trace-no-design>span{display:none}body.production-mode .trace-card-body{padding:18px}.trace-route{padding:14px 10px 10px}.trace-node-dot{width:18px;height:18px;font-size:9px}.trace-node:before{top:15px}.trace-node-label{font-size:8px;letter-spacing:-.04em}.trace-route-caption>span{display:block;width:100%}.trace-card-actions button{font-size:12px!important}.operator-dialog{padding:20px 16px}.trace-node-dialog{padding:20px}.trace-node-dialog dl{grid-template-columns:1fr}}
   `;
   style.textContent += `
+  .trace-area-toggle{width:auto;min-height:42px;padding:10px 14px;background:#23352a;color:#e2eddd;border:1px solid #617858;border-radius:8px;font:600 12px Arial;box-shadow:none}.trace-area-toggle[aria-pressed=true]{background:#d0ec93;color:#1c2b13}.trace-area-toggle:disabled{opacity:.5}.trace-quick-filters button[hidden]{display:none!important}.trace-workspace-top{flex-wrap:wrap;gap:10px}
   .trace-manufacture{border-top:1px solid #35463c;padding:13px 0 16px;margin-bottom:12px}.trace-manufacture h4{font:600 19px/1.35 Arial;color:#f4f8ed;margin:5px 0 8px;overflow-wrap:anywhere}.trace-material-facts{display:flex;gap:16px}.trace-material-facts small{display:block;font:10px/1.5 Arial;color:#9eb5a5}.trace-material-facts strong{font:500 13px/1.5 Arial;color:#d8e5da}.trace-production-note{font:13px/1.6 Arial;color:#f1e8c5;margin:12px 0 0;background:#afa15913;border-left:3px solid #bba658;padding:9px 11px;white-space:pre-wrap}.trace-production-note strong,.trace-inline-notes strong{display:block;font-size:10px;letter-spacing:.06em;margin-bottom:4px}.trace-inline-notes{font:12px/1.6 Arial;color:#c7d8c9;margin-top:12px}.trace-inline-notes summary{cursor:pointer;min-height:32px}.trace-inline-notes p{white-space:pre-wrap;border-top:1px solid #35463c;padding-top:8px}.trace-card-heading h3{font-size:19px!important}.trace-quantity{font-size:23px!important;font-weight:700!important}.trace-card-actions [data-card-nas]{opacity:.65}
   body.production-mode.trace-cards-mode .production-title p,body.production-mode.trace-cards-mode .production-kpis{display:none}
   .trace-workspace{padding-top:14px}.trace-workspace h3{font-size:17px;margin:0 0 12px}.trace-workspace-top{align-items:baseline}
