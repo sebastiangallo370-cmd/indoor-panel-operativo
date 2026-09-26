@@ -558,6 +558,11 @@ def indoor_favicon_svg():
     return FileResponse(FAVICON_SVG_FILE, media_type="image/svg+xml")
 
 
+@app.get("/trace-ui.js")
+def trace_ui_script():
+    return FileResponse(Path(__file__).with_name("trace-ui.js"), media_type="application/javascript")
+
+
 @app.get("/manifest.webmanifest")
 def web_manifest():
     """Permite instalar el panel en el teléfono y abrirlo a pantalla completa, sin barras del navegador."""
@@ -2216,7 +2221,7 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
 @media(max-width:700px){{body.production-mode .trace-cards{{grid-template-columns:minmax(0,1fr);padding:12px}}body.production-mode .trace-card{{grid-template-columns:minmax(0,1fr)}}body.production-mode .trace-media,body.production-mode .trace-media:has(img),body.production-mode .trace-media:not(:has(img)){{height:300px;min-height:0}}body.production-mode .trace-design-main img{{height:235px}}body.production-mode .trace-media:not(:has(img)){{height:120px}}.trace-no-design>span{{display:none}}body.production-mode .trace-card-body{{padding:20px}}}}
 `;document.head.appendChild(traceFigmaStyle);setTraceView();
     const commercialGroup=commercialToggle.closest('.nav-group');commercialGroup.classList.add('collapsed');const productionToggle=document.getElementById('production-toggle');if(productionToggle)productionToggle.addEventListener('click',()=>productionToggle.closest('.nav-group').classList.toggle('collapsed'));
-    </script></body></html>"""
+    </script><script src='/trace-ui.js?v=20260926-1'></script></body></html>"""
 
 
 @app.post("/procesar", status_code=202)

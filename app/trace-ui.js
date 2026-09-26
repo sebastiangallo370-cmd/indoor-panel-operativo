@@ -1,0 +1,158 @@
+/* Production cards: derived presentation only. Operational writes remain in the existing API. */
+(function () {
+  'use strict';
+  const key = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase();
+  const personKey = value => key(value).replace(/[^A-Z0-9]/g, '');
+  function dateValue(value) {
+    const raw = key(value).toLowerCase().replaceAll('.', '');
+    const parts = raw.split(/[-/ ]+/);
+    if (parts.length !== 3) return null;
+    const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+    let day = Number(parts[0]), year = Number(parts[2]);
+    let month = /^\d+$/.test(parts[1]) ? Number(parts[1]) - 1 : months.indexOf(parts[1].slice(0, 3));
+    if (/^\d{4}$/.test(parts[0])) { year = Number(parts[0]); day = Number(parts[2]); }
+    if (year < 100) year += 2000;
+    const date = new Date(year, month, day);
+    return Number.isInteger(day) && month >= 0 && month < 12 && date.getFullYear() === year && date.getMonth() === month && date.getDate() === day ? date : null;
+  }
+  function groupsFor(data, row, statusHeaders) {
+    const groups = [], statuses = new Set([...statusHeaders, 'DISENO', 'CONFECCION', 'CORTE TEXTIL', 'CORTE TEXTIL/PLT'].map(key));
+    data.headers.forEach((header, index) => {
+      const label = String(data.groups[index] || '').replace(/^["']|["']$/g, '').trim(), normalized = key(label);
+      if (!normalized || normalized === 'GENERAL' || normalized.includes('LINEA PRODUCCION') || normalized.includes('METODOLOG')) return;
+      let group = groups[groups.length - 1];
+      if (!group || group.key !== normalized || group.end !== index - 1) {
+        group = { key: normalized, label, start: index, columns: [] }; groups.push(group);
+      }
+      group.end = index; group.columns.push(index);
+    });
+    return groups.map(group => {
+      group.statusColumns = group.columns.filter(i => statuses.has(key(data.headers[i])) || key(data.headers[i]) === group.key);
+      const values = group.statusColumns.map(i => key(row.values[i]));
+      const closed = values.map(v => v === 'N/A' || !!dateValue(v));
+      group.state = values.includes('R') ? 'rework' : values.includes('P') ? 'active' : values.length && closed.every(Boolean) ? 'finished' : closed.some(Boolean) ? 'partial' : 'pending';
+      group.autoClosed = ['partial', 'pending'].includes(group.state) && (data.auto_closed || []).includes(row.source_row + ':' + (group.start + 1));
+      if (group.autoClosed) group.state = 'finished';
+      group.status = group.autoClosed ? 'Cierre automático' : group.state === 'finished' ? values.length && values.every(v => v === 'N/A') ? 'No aplica' : 'Terminado' : ({ active: 'En proceso', rework: 'Reproceso', partial: 'Avance parcial', pending: 'Pendiente' })[group.state];
+      group.responsible = group.columns.filter(i => key(data.headers[i]).startsWith('RESP') || key(data.headers[i]) === 'CONFECCIONISTA').map(i => String(row.values[i] || '').trim()).filter(Boolean).join(', ');
+      return group;
+    });
+  }
+  function summarize(data, row, statusHeaders, user, today) {
+    const groups = groupsFor(data, row, statusHeaders);
+    const finished = groups.filter(g => g.state === 'finished').length;
+    const state = groups.some(g => g.state === 'rework') ? 'rework' : groups.some(g => g.state === 'active') ? 'active' : groups.length && finished === groups.length ? 'finished' : 'pending';
+    const focus = groups.find(g => g.state === 'rework') || [...groups].reverse().find(g => g.state === 'active') || groups.find(g => g.state !== 'finished') || groups[groups.length - 1];
+    const userTokens = [user.name, user.initials].map(personKey).filter(Boolean);
+    const mine = groups.some(g => g.responsible.split(/[,;·\n]+/).some(name => userTokens.includes(personKey(name))));
+    const dueIndex = data.headers.findIndex(h => key(h) === 'FECHA DE ENTREGA'), due = dateValue(row.values[dueIndex]);
+    const overdue = !!due && due < today && state !== 'finished';
+    return { groups, finished, total: groups.length, state, focus, mine, due, overdue, percent: groups.length ? Math.round(finished / groups.length * 100) : 0 };
+  }
+  function matches(summary, filter) {
+    return filter === 'all' || filter === 'mine' && summary.mine || filter === 'late' && summary.overdue || filter === summary.state;
+  }
+  if (typeof module !== 'undefined' && module.exports) { module.exports = { key, dateValue, groupsFor, summarize, matches }; return; }
+  if (typeof traceCards === 'undefined') return;
+
+  const labels = { pending: 'Pendiente', active: 'En proceso', rework: 'Reproceso', finished: 'Terminado', partial: 'Avance parcial' };
+  const filters = [['all', 'Todos'], ['mine', 'Mis pedidos'], ['late', 'Atrasados'], ['active', 'En proceso'], ['rework', 'Reproceso'], ['finished', 'Terminados']];
+  let filter = 'all';
+  const user = { name: document.querySelector('.user-info strong')?.textContent || '', initials: document.querySelector('.user-avatar')?.textContent || '' };
+  const toolbar = document.createElement('section');
+  toolbar.className = 'trace-workspace';
+  toolbar.setAttribute('aria-label', 'Filtros de trazabilidad');
+  toolbar.innerHTML = '<div class="trace-workspace-top"><div><h3>Pedidos en seguimiento</h3></div><span class="trace-live">Actualización automática</span></div><div class="trace-quick-filters" role="group" aria-label="Estado de los pedidos">' + filters.map(([id, label]) => '<button type="button" data-trace-filter="' + id + '" aria-pressed="' + (id === 'all') + '">' + label + '<span>0</span></button>').join('') + '</div><p class="trace-results" role="status" aria-live="polite"></p>';
+  traceCards.before(toolbar);
+  toolbar.addEventListener('click', event => {
+    const button = event.target.closest('[data-trace-filter]'); if (!button) return;
+    filter = button.dataset.traceFilter; traceCards.scrollTop = 0; renderTraceCards();
+  });
+  const nodeDialog = document.createElement('dialog');
+  nodeDialog.className = 'trace-node-dialog';
+  nodeDialog.setAttribute('aria-labelledby', 'trace-node-heading');
+  nodeDialog.innerHTML = '<button type="button" class="trace-node-close" aria-label="Cerrar proceso">×</button><div class="trace-node-content"></div>';
+  document.body.appendChild(nodeDialog);
+  nodeDialog.querySelector('.trace-node-close').onclick = () => nodeDialog.close();
+  const abbreviations = { 'MATERIALES ESPECIALES': 'MAT', 'CORTE TEXTIL': 'CTX', 'DISENO': 'DIS', 'EDICION': 'EDI', 'IMPRESION': 'IMP', 'SUBLIMACION': 'SUB', 'CORTE LASER': 'LAS', 'TRAZO/CORTE/PLT': 'TRZ', 'APLIQUES': 'APL', 'CONFECCION': 'CON', 'TERMINACION': 'TER', 'ENVIO': 'ENV', 'FACTURACION': 'FAC' };
+  function routeMarkup(row, summary) {
+    return '<section class="trace-route"><div class="trace-route-heading"><h4>Ruta de producción</h4><span>' + summary.finished + '/' + summary.total + ' procesos</span></div><div class="trace-progress" role="progressbar" aria-label="Procesos terminados" aria-valuemin="0" aria-valuemax="' + summary.total + '" aria-valuenow="' + summary.finished + '"><span style="width:' + summary.percent + '%"></span></div><div class="trace-nodes" style="--nodes:' + Math.max(1, summary.total) + '">' + summary.groups.map((group, i) => '<button type="button" class="trace-node ' + group.state + '" data-node-row="' + row.source_row + '" data-node-index="' + i + '" title="' + esc(group.label + ' · ' + group.status) + '" aria-label="' + esc(group.label + ': ' + group.status) + '"><span class="trace-node-dot" aria-hidden="true">' + (group.state === 'finished' ? '✓' : group.state === 'rework' ? '!' : group.state === 'active' ? '●' : i + 1) + '</span><span class="trace-node-label">' + esc(abbreviations[group.key] || group.label.slice(0, 3)) + '</span></button>').join('') + '</div><p class="trace-route-caption">' + (summary.state === 'finished' ? 'Ruta completada' : esc((summary.state === 'rework' ? 'Revisar: ' : summary.state === 'active' ? 'Ahora: ' : 'Siguiente: ') + (summary.focus?.label || 'Sin proceso asignado'))) + '<span>Pulsa un punto para ver detalles</span></p></section>';
+  }
+  renderTraceCards = function () {
+    if (!productionData || traceView !== 'cards') return;
+    const scrollTop = traceCards.scrollTop, focused = document.activeElement;
+    const focusKey = focused?.closest('[data-card-row]')?.dataset.cardRow;
+    const focusAttribute = ['data-card-edit', 'data-card-detail', 'data-card-nas', 'data-node-index', 'data-design-index'].find(a => focused?.hasAttribute(a));
+    const focusValue = focusAttribute ? focused.getAttribute(focusAttribute) : null;
+    traceImageObserver.disconnect();
+    const visible = new Set([...productionBody.querySelectorAll('tr')].map(tr => Number(tr.querySelector('td[data-row]')?.dataset.row)));
+    const base = productionData.rows.filter(row => visible.has(row.source_row) && ['ORDEN', 'NOMBRE DEL CLIENTE', 'NOMBRE PROYECTO', 'REFERENCIA'].some(name => traceField(row, name).trim()));
+    const summaries = new Map(base.map(row => [row.source_row, summarize(productionData, row, processStatusHeaders, user, scheduleToday())]));
+    const rows = base.filter(row => matches(summaries.get(row.source_row), filter));
+    toolbar.querySelectorAll('[data-trace-filter]').forEach(button => {
+      button.setAttribute('aria-pressed', String(button.dataset.traceFilter === filter));
+      button.querySelector('span').textContent = base.filter(row => matches(summaries.get(row.source_row), button.dataset.traceFilter)).length;
+    });
+    toolbar.querySelector('.trace-results').textContent = rows.length + ' tarjetas visibles · ' + (filter === 'mine' ? 'Asignadas a tu usuario o iniciales' : 'Pulsa PRODUCCIÓN para registrar tu actividad');
+    traceCards.innerHTML = rows.map(row => {
+      const summary = summaries.get(row.source_row), id = row.source_row;
+      const notes = Object.entries(productionData.notes || {}).filter(([k, v]) => k.startsWith(id + ':') && v).length;
+      const responsible = summary.focus?.responsible || '';
+      const due = traceField(row, 'FECHA DE ENTREGA');
+      const dueLabel = !summary.due ? 'Sin fecha' : summary.overdue ? 'Atrasado' : summary.state !== 'finished' && summary.due.getTime() === scheduleToday().getTime() ? 'Entrega hoy' : 'Entrega';
+      return '<article class="trace-card state-' + summary.state + '" data-card-row="' + id + '"><div class="trace-media">' + traceAssetsMarkup(id) + '</div><div class="trace-card-body"><div class="trace-card-heading"><h3>' + esc(traceField(row, 'ORDEN') || 'Sin número') + '</h3><span class="trace-stage ' + summary.state + '">' + labels[summary.state] + '</span></div><p class="trace-client">' + esc(traceField(row, 'NOMBRE DEL CLIENTE') || 'Sin cliente') + '</p><p class="trace-project">' + esc(traceField(row, 'NOMBRE PROYECTO')) + '</p><dl><div><dt>Referencia</dt><dd>' + esc(traceField(row, 'REFERENCIA') || '—') + '</dd></div><div><dt>Cantidad</dt><dd class="trace-quantity">' + esc(traceField(row, 'CANTIDAD') || '0') + ' <small>und.</small></dd></div><div class="trace-due ' + (summary.overdue ? 'late' : '') + '"><dt>' + dueLabel + '</dt><dd>' + esc(summary.due ? displayProductionDate(due) : 'Sin programar') + '</dd></div><div><dt>Responsable del proceso</dt><dd>' + (responsible ? responsible.split(/[,;·\n]+/).filter(x => x.trim()).map(name => '<span class="trace-person">' + esc(name.trim()) + '</span>').join(' ') : '<span class="trace-unassigned">Sin asignar</span>') + '</dd></div></dl><div class="trace-card-meta"><span>' + notes + ' nota' + (notes === 1 ? '' : 's') + '</span><span>Fila ' + id + '</span></div><div class="trace-card-actions"><button type="button" class="operator-open" data-card-edit="' + id + '">PRODUCCIÓN</button><button type="button" data-card-detail="' + id + '">Ver detalle</button><button type="button" data-card-nas="' + id + '" aria-label="Abrir carpeta del pedido">NAS ↗</button></div></div>' + routeMarkup(row, summary) + '</article>';
+    }).join('') || '<div class="trace-empty"><h3>No hay pedidos en esta vista</h3><p>' + (filter === 'mine' ? 'No hay responsables que coincidan con tu usuario o iniciales. Prueba Todos o revisa la asignación.' : 'Prueba otro estado o cambia la búsqueda.') + '</p><button type="button" data-clear-trace>Ver todos</button></div>';
+    traceCards.querySelectorAll('[data-card-row]').forEach(card => traceImageObserver.observe(card));
+    traceCards.scrollTop = scrollTop;
+    if (focusKey && focusAttribute) traceCards.querySelector('[data-card-row="' + focusKey + '"] [' + focusAttribute + '="' + focusValue + '"]')?.focus({ preventScroll: true });
+    fitTraceCards();
+  };
+  traceCards.addEventListener('click', event => {
+    if (event.target.closest('[data-clear-trace]')) { filter = 'all'; exactScheduleOrder = ''; productionSearch.value = ''; renderProduction(); renderTraceCards(); return; }
+    const button = event.target.closest('[data-node-row]'); if (!button) return;
+    const id = Number(button.dataset.nodeRow), row = productionData.rows.find(r => r.source_row === id);
+    if (!row) return;
+    const group = groupsFor(productionData, row, processStatusHeaders)[Number(button.dataset.nodeIndex)];
+    const fields = group.columns.filter(i => String(row.values[i] || '').trim()).map(i => '<div><dt>' + esc(productionData.headers[i]) + '</dt><dd>' + esc(displayProductionDate(String(row.values[i]))) + '</dd></div>').join('');
+    const notes = group.columns.filter(i => productionData.notes?.[id + ':' + (i + 1)]).map(i => '<p class="trace-full-note">' + esc(productionData.notes[id + ':' + (i + 1)]) + '</p>').join('');
+    nodeDialog.querySelector('.trace-node-content').innerHTML = '<span class="trace-eyebrow">' + esc(traceField(row, 'ORDEN')) + '</span><h2 id="trace-node-heading">' + esc(group.label) + '</h2><span class="trace-stage ' + group.state + '">' + group.status + '</span><p>Responsable: <strong>' + esc(group.responsible || 'Sin asignar') + '</strong></p><dl>' + fields + '</dl>' + notes + (!fields ? '<p>Este proceso aún no tiene registros.</p>' : '') + '<p class="trace-node-hint">Registra la actividad desde PRODUCCIÓN. El proceso se selecciona según el perfil del usuario conectado.</p><button type="button" class="trace-register">Ir a PRODUCCIÓN</button>';
+    nodeDialog.querySelector('.trace-register').onclick = () => { nodeDialog.close(); openOperatorProduction(id); };
+    nodeDialog.showModal();
+  });
+  const oldSelection = operatorSelection;
+  operatorSelection = function () {
+    oldSelection();
+    const value = key(operatorExpected), state = value === 'R' ? 'rework' : value === 'P' ? 'active' : value === 'N/A' || dateValue(value) ? 'finished' : 'pending';
+    const current = operatorDialog.querySelector('.operator-current');
+    current.className = 'operator-current trace-stage ' + state;
+    current.textContent = 'Estado actual: ' + (value === 'N/A' ? 'No aplica' : labels[state]) + (dateValue(value) ? ' · ' + displayProductionDate(operatorExpected) : '');
+  };
+  operatorForm.elements.column.onchange = operatorSelection;
+  operatorForm.elements.reason.setAttribute('aria-describedby', 'trace-reason-help');
+  const help = document.createElement('small'); help.id = 'trace-reason-help'; help.textContent = 'Para reproceso, explica el motivo. Al terminar se conserva el cierre automático de procesos anteriores.';
+  operatorForm.elements.reason.after(help);
+  const style = document.createElement('style');
+  style.textContent = `
+  .trace-workspace{padding:22px 24px 12px;background:#111917;border-bottom:1px solid #31403a}.trace-workspace-top{display:flex;justify-content:space-between;align-items:center;gap:12px}.trace-eyebrow{font:700 11px/1.5 Arial;letter-spacing:.13em;color:#b4c792}.trace-workspace h3{font:600 21px/1.3 Arial;color:#f3f6ef;margin:4px 0 18px}.trace-live{font:12px Arial;color:#aac7b3}.trace-quick-filters{display:flex;gap:7px;flex-wrap:wrap}.trace-quick-filters button{width:auto;background:#1b2722;color:#c8d6ce;border:1px solid #3b4d42;padding:9px 12px;border-radius:9px;box-shadow:none;font:600 13px Arial;display:flex;gap:10px;align-items:center;min-height:40px}.trace-quick-filters button span{font-size:12px;border-radius:4px;padding:2px 5px;background:#ffffff0d}.trace-quick-filters button[aria-pressed=true]{background:#d0ec93;border-color:#d0ec93;color:#172215}.trace-results{font:12px/1.5 Arial;color:#a7b8ad;margin:12px 0 0}.trace-workspace[hidden],body:not(.trace-cards-mode) .trace-workspace,body.admin-summary-mode .trace-workspace{display:none}
+  body.production-mode .trace-cards{grid-template-columns:repeat(auto-fill,minmax(min(100%,570px),1fr));padding:20px 24px;gap:20px;scrollbar-gutter:stable;align-items:start}
+  body.production-mode .trace-card{grid-template-columns:36% minmax(0,1fr);border-radius:16px;border:1px solid #3a4a40;background:#19231e;min-width:0;overflow:hidden;box-shadow:0 6px 22px #0002}
+  body.production-mode .trace-card.state-rework{border-color:#985452}body.production-mode .trace-card.state-active{border-color:#827044}
+  body.production-mode .trace-media,body.production-mode .trace-media:has(img),body.production-mode .trace-media:not(:has(img)){min-height:325px;height:100%;padding:14px;background:#edf0eb}
+  body.production-mode .trace-design-main img{height:295px;max-height:360px;object-fit:contain}.trace-design-view{gap:10px}.trace-design-tabs button{min-height:36px}
+  body.production-mode .trace-card-body{padding:22px;min-width:0}.trace-card-heading{flex-wrap:wrap}body.production-mode .trace-card-heading h3{font:700 24px/1.2 Arial;letter-spacing:-.6px}body.production-mode .trace-client{font:600 16px/1.4 Arial;overflow-wrap:anywhere}body.production-mode .trace-project{font:13px/1.5 Arial;color:#a4b7aa;margin-bottom:20px}body.production-mode .trace-card dl{gap:17px 14px}body.production-mode .trace-card dt{font:12px/1.5 Arial;color:#a6b7ab;margin-bottom:5px}body.production-mode .trace-card dd{font:500 14px/1.5 Arial;color:#eef5ed}.trace-quantity small{font-size:12px;color:#adbdaf}.trace-person{display:inline-block;background:#b8ddf5;border:1px solid #cfebfc;color:#14374e;border-radius:5px;padding:2px 6px;font:600 12px/1.6 Arial;margin:0 2px 3px 0}.trace-unassigned{color:#afbbb3;font-size:13px}body.production-mode .trace-due.late dt,body.production-mode .trace-due.late dd{color:#ffac9c}.trace-card-meta{display:flex;justify-content:space-between;font:12px Arial;color:#92a899;margin:1px 0 14px}
+  body.production-mode .trace-card-heading>.trace-stage,.trace-stage,.operator-current.trace-stage{display:inline-block;font:600 12px/1.4 Arial;border-radius:6px;padding:6px 9px;background:#36433b;color:#d3ded6;border:1px solid #536459;white-space:normal}body.production-mode .trace-stage.active,.trace-stage.active{background:#f3b852;color:#332306;border-color:#f3b852}body.production-mode .trace-stage.rework,.trace-stage.rework{background:#e36764;color:#240b0d;border-color:#f79089}body.production-mode .trace-stage.finished,.trace-stage.finished{background:#8bdbaf;color:#103423;border-color:#8bdbaf}
+  body.production-mode .trace-card-actions{grid-template-columns:1fr auto auto;gap:6px;margin-top:auto}body.production-mode .trace-card-actions button{min-height:42px;padding:10px 9px;border:1px solid #4a5b4e!important;border-radius:8px;background:#1d2b23!important;color:#e0eddf!important;font:600 12px Arial}body.production-mode .trace-card-actions .operator-open{background:#d0ec93!important;color:#1c2b13!important;border-color:#d0ec93!important}.trace-card-actions button:focus-visible,.trace-node:focus-visible,.trace-quick-filters button:focus-visible{outline:2px solid #b8ddf5;outline-offset:2px}
+  .trace-route{grid-column:1/-1;padding:16px 20px 12px;background:#121d17;border-top:1px solid #35473b;min-width:0}.trace-route-heading{display:flex;justify-content:space-between;gap:12px;align-items:center}.trace-route-heading h4{font:600 13px Arial;margin:0;color:#e9f1e7}.trace-route-heading>span{font:12px Arial;color:#b4c8b8}.trace-progress{height:3px;border-radius:4px;background:#334238;margin:12px 0}.trace-progress>span{display:block;height:100%;background:#83dca4;border-radius:inherit}.trace-nodes{display:grid;grid-template-columns:repeat(var(--nodes),minmax(0,1fr));gap:0;min-width:0}.trace-node{position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0;min-height:50px;width:100%;padding:6px 0 2px;background:transparent!important;border:0!important;box-shadow:none!important;border-radius:4px;cursor:pointer;color:#9aada0;font:10px Arial}.trace-node:before{content:'';position:absolute;height:1px;background:#4c6152;top:16px;left:0;right:0}.trace-node:first-child:before{left:50%}.trace-node:last-child:before{right:50%}.trace-node-dot{position:relative;z-index:1;display:grid;place-items:center;box-sizing:border-box;width:21px;height:21px;border:1px solid #718879;border-radius:50%;background:#26372c;box-shadow:0 0 0 3px #121d17;font:600 10px Arial;color:#cedad0}.trace-node.finished .trace-node-dot{background:#214c35;border-color:#85dba5;color:#b0f1c7}.trace-node.active .trace-node-dot{background:#443214;color:#ffc56e;border:2px solid #f3b852;box-shadow:0 0 0 3px #121d17,0 0 0 5px #f3b85240}.trace-node.rework .trace-node-dot{background:#542a2a;border-color:#f47d78;color:#ffc5c2}.trace-node.partial .trace-node-dot{border-color:#abd8f4;color:#abd8f4}.trace-node-label{font-size:9px;letter-spacing:.015em;color:#b7c9bc;white-space:nowrap}.trace-route-caption{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font:12px/1.5 Arial;color:#d6e4d5;margin:6px 0 0}.trace-route-caption>span{color:#839d8c;font-size:11px}
+  .trace-node-dialog{width:min(560px,94vw);max-height:88dvh;overflow:auto;border-radius:16px;border:1px solid #526950;background:#19271e;color:#e9f2e7;padding:26px}.trace-node-dialog::backdrop{background:#000b}.trace-node-close{float:right;width:36px;padding:5px;min-height:36px;border:1px solid #58715c;background:#283a2d;color:#fff;box-shadow:none}.trace-node-dialog h2{font:600 22px/1.4 Arial}.trace-node-dialog dl{display:grid;grid-template-columns:1fr 1fr;gap:14px}.trace-node-dialog dt{font:12px Arial;color:#abc0b1}.trace-node-dialog dd{margin:5px 0 0;font:14px/1.5 Arial;overflow-wrap:anywhere}.trace-node-hint{font:13px/1.6 Arial;color:#b5c5b6}.trace-register{background:#cce992;color:#17260e;border:0;border-radius:8px;min-height:44px;font:600 14px Arial}.trace-empty{grid-column:1/-1;padding:45px 20px;text-align:center;color:#b7c9ba}.trace-empty h3{color:#e5f0df}.trace-empty button{width:auto;padding:12px 24px;background:#cce992;color:#192514}.operator-dialog{font-family:Arial,sans-serif}.operator-dialog input,.operator-dialog select,.operator-dialog textarea{min-height:44px;font-size:16px}.operator-dialog #trace-reason-help{display:block;color:#a9bcae;font:12px/1.6 Arial;margin-top:7px}.operator-actions button{min-height:48px;font-size:14px}.operator-order{font:600 15px/1.5 Arial;overflow-wrap:anywhere}.operator-dialog input[readonly]{background:#203b46;color:#c1e9ff;border-color:#507384}.operator-history article{font-size:13px}
+  @media(max-width:860px){.trace-workspace{padding:14px 12px 10px}.trace-workspace h3{font-size:18px;margin-bottom:12px}.trace-live{display:none}.trace-quick-filters{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.trace-quick-filters button{font-size:12px;padding:9px 7px;justify-content:space-between;gap:3px;min-height:44px}body.production-mode .trace-cards{padding:12px;gap:14px}.trace-results{font-size:11px}.trace-workspace-top .trace-eyebrow{font-size:10px}}
+  @media(max-width:600px){body.production-mode .trace-card{grid-template-columns:1fr}body.production-mode .trace-media,body.production-mode .trace-media:has(img){height:290px;min-height:0;padding:12px}body.production-mode .trace-design-main img{height:230px}body.production-mode .trace-media:not(:has(img)){height:115px;min-height:0}.trace-no-design>span{display:none}body.production-mode .trace-card-body{padding:18px}.trace-route{padding:14px 10px 10px}.trace-node-dot{width:18px;height:18px;font-size:9px}.trace-node:before{top:15px}.trace-node-label{font-size:8px;letter-spacing:-.04em}.trace-route-caption>span{display:block;width:100%}.trace-card-actions button{font-size:12px!important}.operator-dialog{padding:20px 16px}.trace-node-dialog{padding:20px}.trace-node-dialog dl{grid-template-columns:1fr}}
+  `;
+  style.textContent += `
+  body.production-mode.trace-cards-mode .production-title p,body.production-mode.trace-cards-mode .production-kpis{display:none}
+  .trace-workspace{padding-top:14px}.trace-workspace h3{font-size:17px;margin:0 0 12px}.trace-workspace-top{align-items:baseline}
+  @media(max-width:860px){body.production-mode.trace-cards-mode{overflow-y:auto!important;height:auto!important}body.production-mode.trace-cards-mode .trace-cards{height:auto!important;max-height:none;overflow:visible;scrollbar-gutter:auto}body.production-mode.trace-cards-mode .production-shell{max-height:none;height:auto}.trace-workspace{padding-top:12px}.trace-workspace h3{font-size:16px}.trace-node-label{font-size:8px}}
+  `;
+  document.head.appendChild(style);
+  renderTraceCards();
+  new ResizeObserver(fitTraceCards).observe(toolbar);
+})();
