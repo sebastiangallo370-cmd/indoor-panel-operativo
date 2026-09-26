@@ -1606,6 +1606,9 @@ def production_excel_designs(source_row, files):
     # Previously confirmed correspondence for this exact order/reference.
     if order == 'RM7613' and reference == 'A11200CA02-A11200PT01':
         reference = 'A11200FUT02'
+    # CO6032 has a blank reference in Sheets; its order listing identifies IBOLDEP.
+    if order == 'CO6032' and not reference:
+        reference = 'IBOLDEP'
     try:
         return listing_designs(files, reference)
     except OSError:
