@@ -1151,15 +1151,28 @@ def sort_production_by_delivery(_=Depends(authenticate)):
         db.close()
 
 
+def can_delete_production_profile(profile):
+    normalized = ''.join(c for c in unicodedata.normalize('NFD', str(profile)) if not unicodedata.combining(c))
+    return ' '.join(normalized.upper().split()) in {'ADMINISTRACION', 'EDICION', 'COMERCIAL', 'COMERCIALES', 'ASISTENTE COMERCIAL', 'ASISTENTES COMERCIALES'}
+
+
 @app.delete("/api/produccion/fila/{row}")
 async def delete_production_row(row: int, _=Depends(authenticate)):
     if row < PRODUCTION_START_ROW:
         raise HTTPException(400, "La fila está fuera del área de Producción")
     db = connect()
     try:
-        record = db.execute("SELECT source_row FROM production_rows WHERE source_row = ?", (row,)).fetchone()
+        profile = db.execute('SELECT process FROM users WHERE name=? COLLATE NOCASE', (_,)).fetchone()
+        if _ != os.getenv('APP_USER', 'indoor') and not (profile and can_delete_production_profile(profile['process'])):
+            raise HTTPException(403, 'Solo Administración y Edición pueden eliminar órdenes')
+        db.execute('BEGIN IMMEDIATE')
+        record = db.execute("SELECT * FROM production_rows WHERE source_row = ?", (row,)).fetchone()
         if not record:
             raise HTTPException(404, "La fila ya no existe")
+        db.execute('CREATE TABLE IF NOT EXISTS production_deleted_rows (id INTEGER PRIMARY KEY AUTOINCREMENT, source_row INTEGER, payload TEXT, deleted_by TEXT, deleted_at TEXT)')
+        db.execute('INSERT INTO production_deleted_rows(source_row,payload,deleted_by,deleted_at) VALUES (?,?,?,?)',
+                   (row, json.dumps(dict(record), ensure_ascii=False), _, datetime.now(timezone.utc).isoformat()))
+        archive_production_activity(db, row, 'Orden eliminada por ' + str(_))
         highest = max(row, int((db.execute("SELECT value FROM production_meta WHERE key='last_allocated_row'").fetchone() or [0])[0]))
         db.execute("INSERT OR REPLACE INTO production_meta(key,value) VALUES ('last_allocated_row',?)", (str(highest),))
         db.execute("DELETE FROM production_rows WHERE source_row = ?", (row,))
@@ -1168,6 +1181,9 @@ async def delete_production_row(row: int, _=Depends(authenticate)):
         db.execute("INSERT OR REPLACE INTO production_meta(key, value) VALUES ('updated_at', ?)", (now,))
         db.commit()
         return {"ok": True, "row": row, "updated_at": now}
+    except Exception:
+        db.rollback()
+        raise
     finally:
         db.close()
 
@@ -1792,6 +1808,7 @@ def home(_=Depends(authenticate)):
     <section class='panel' data-panel='produccion'><div class='card production-shell'><div class='production-toolbar'><div class='production-title'><h2>Producción</h2><p>Órdenes de producción desde la fila 726 · doble clic para editar</p></div><div class='production-controls'><input id='production-search' class='production-search' type='search' placeholder='Buscar cliente, orden, referencia o responsable'><a class='production-connector' href='/descargar-conector-nas' title='Instalar una sola vez en este PC'>Instalar conexión NAS</a><select id='production-zoom' class='production-zoom' aria-label='Tamaño de la tabla'><option value='0.5'>50%</option><option value='0.6'>60%</option><option value='0.75'>75%</option><option value='0.9'>90%</option><option value='1' selected>100%</option><option value='1.25'>125%</option><option value='1.5'>150%</option></select><button id='production-refresh' class='production-refresh' type='button'>Actualizar</button></div></div><div class='production-kpis'><div class='production-kpi'><span>Registros visibles</span><strong id='production-records'>—</strong></div><div class='production-kpi'><span>Unidades</span><strong id='production-units'>—</strong></div><div id='production-status' class='production-status'>Abre esta pestaña para consultar la información.</div></div><div id='production-x-scroll' class='production-x-scroll' aria-label='Desplazamiento horizontal de procesos'><div id='production-x-scroll-inner'></div></div><div class='production-table-wrap' id='production-table-wrap'><table class='production-table' id='production-table'><thead id='production-head'></thead><tbody id='production-body'></tbody></table><div id='production-empty' class='production-empty' hidden>No hay registros para mostrar.</div></div></div></section>
     <div id='preview-modal' class='preview-modal' role='dialog' aria-modal='true' aria-labelledby='preview-title'><div class='preview-dialog'><div class='preview-head'><div><h2 id='preview-title'>Revisar datos antes de crear</h2><p>Corrige cualquier valor. El Excel se generará exactamente con estas filas.</p></div><div class='preview-overview'><div id='preview-designs' class='preview-designs'></div><div id='preview-size-summary' class='preview-size-summary' aria-live='polite'></div></div><button id='preview-close' class='preview-close' type='button'>Cerrar</button></div><div id='preview-content' class='preview-content'></div><div class='preview-actions'><button id='preview-confirm' type='button'>Confirmar y crear XLSX</button><button id='preview-cancel' class='preview-cancel' type='button'>Volver a los archivos</button></div></div></div>
     <p class='footer-note'>Los documentos se procesan de forma segura en el servidor de Indoor.</p></main><script>
+    const deleteProductionAllowed={json.dumps(can_delete_production_profile(user_process))};
     const form=document.getElementById('upload-form'),input=document.getElementById('archivo'),drop=document.getElementById('dropzone'),selected=document.getElementById('selected'),submit=document.getElementById('submit'),message=document.getElementById('message'),reproExtras=document.getElementById('repro-extras');
     const tbody=document.getElementById('jobs'),orderBody=document.getElementById('order-jobs'),creatorBody=document.getElementById('creator-jobs'); let allJobs=[],hydratedCreatorJob=0;
     const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}}[c]));
@@ -2323,7 +2340,7 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
 @media(max-width:700px){{body.production-mode .trace-cards{{grid-template-columns:minmax(0,1fr);padding:12px}}body.production-mode .trace-card{{grid-template-columns:minmax(0,1fr)}}body.production-mode .trace-media,body.production-mode .trace-media:has(img),body.production-mode .trace-media:not(:has(img)){{height:300px;min-height:0}}body.production-mode .trace-design-main img{{height:235px}}body.production-mode .trace-media:not(:has(img)){{height:120px}}.trace-no-design>span{{display:none}}body.production-mode .trace-card-body{{padding:20px}}}}
 `;document.head.appendChild(traceFigmaStyle);setTraceView();
     const commercialGroup=commercialToggle.closest('.nav-group');commercialGroup.classList.add('collapsed');const productionToggle=document.getElementById('production-toggle');if(productionToggle)productionToggle.addEventListener('click',()=>productionToggle.closest('.nav-group').classList.toggle('collapsed'));
-    </script><script src='/trace-ui.js?v=20260926-15'></script></body></html>"""
+    </script><script src='/trace-ui.js?v=20260926-16'></script></body></html>"""
 
 
 @app.post("/procesar", status_code=202)

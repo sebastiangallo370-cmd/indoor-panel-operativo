@@ -119,6 +119,30 @@
   if (typeof traceCards === 'undefined') return;
 
   const isAdmin = typeof canViewAdministration !== 'undefined' && canViewAdministration;
+  const canDelete = typeof deleteProductionAllowed !== 'undefined' && deleteProductionAllowed;
+  const deletingRows = new Set();
+  traceCards.addEventListener('click', async event => {
+    const button = event.target.closest('[data-card-delete]');
+    if (!button || !canDelete) return;
+    event.preventDefault();event.stopPropagation();
+    const id = Number(button.dataset.cardDelete);
+    if (deletingRows.has(id)) return;
+    const row = productionData?.rows.find(r => Number(r.source_row) === id);
+    if (!row || !confirm('¿Eliminar esta tarjeta de la programación?\nOrden: ' + traceField(row, 'ORDEN') + '\nCliente: ' + traceField(row, 'NOMBRE DEL CLIENTE') + '\nReferencia: ' + traceField(row, 'REFERENCIA') + '\nSe conservará un respaldo. No se borrarán archivos del NAS.')) return;
+    deletingRows.add(id);button.disabled = true;
+    try {
+      const response = await fetch('/api/produccion/fila/' + id, {method:'DELETE'});
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || 'No se pudo eliminar la orden');
+      productionData.rows = productionData.rows.filter(r => Number(r.source_row) !== id);
+      traceAssets.delete(id);renderTraceCards();
+      await loadProduction();
+      productionStatus.textContent = '✓ Tarjeta eliminada de la programación. Respaldo conservado.';
+    } catch (error) {
+      productionStatus.textContent = error.message;
+      alert(error.message);
+    } finally { deletingRows.delete(id);renderTraceCards(); }
+  });
   const profile = document.querySelector('.user-info small')?.textContent || '';
   const ownProcess = processForProfile(profile);
   const defaultFilter = 'all';
@@ -268,6 +292,14 @@
     }
     traceCards.querySelectorAll('[data-card-row]').forEach(card => {
       const row = rows.find(r => r.source_row === Number(card.dataset.cardRow));
+      if (canDelete) {
+        const button = document.createElement('button');
+        button.type = 'button';button.textContent = 'ELIMINAR';button.dataset.cardDelete = row.source_row;
+        button.disabled = deletingRows.has(Number(row.source_row));
+        button.setAttribute('aria-label', 'Eliminar orden ' + traceField(row, 'ORDEN') + ', fila ' + row.source_row);
+        button.style.cssText = 'grid-column:1/-1;color:#ffb5ae!important;border-color:#8c524c!important;background:#392323!important';
+        card.querySelector('.trace-card-actions').appendChild(button);
+      }
       const viewSummary = summaries.get(row.source_row);
       const progressSummary = viewSummary.route || viewSummary;
       const progress = card.querySelector('.trace-progress');
