@@ -1212,6 +1212,25 @@ def preview_production_delete(row: int, _=Depends(authenticate)):
         db.close()
 
 
+def verify_delete_password(db, username, password):
+    db.execute('CREATE TABLE IF NOT EXISTS production_delete_attempts (username TEXT PRIMARY KEY COLLATE NOCASE, attempts INTEGER, started REAL)')
+    now = time.time()
+    attempt = db.execute('SELECT attempts,started FROM production_delete_attempts WHERE username=?', (username,)).fetchone()
+    count = attempt['attempts'] if attempt and now-attempt['started']<900 else 0
+    if count >= 5:
+        raise HTTPException(429, 'Demasiados intentos de contraseña. Espera 15 minutos antes de volver a eliminar.')
+    user = db.execute('SELECT password_hash FROM users WHERE name=? COLLATE NOCASE', (username,)).fetchone()
+    valid = isinstance(password,str) and 0 < len(password) <= 256 and (
+        password_matches(password,user['password_hash']) if user else
+        username==os.getenv('APP_USER','indoor') and bool(os.getenv('APP_PASSWORD','')) and secrets.compare_digest(password.encode(),os.getenv('APP_PASSWORD','').encode()))
+    if not valid:
+        db.execute('INSERT OR REPLACE INTO production_delete_attempts(username,attempts,started) VALUES (?,?,?)',
+                   (username,count+1,attempt['started'] if count else now))
+        db.commit()
+        raise HTTPException(403, 'Contraseña incorrecta. No se eliminó la tarjeta ni la carpeta.')
+    db.execute('DELETE FROM production_delete_attempts WHERE username=?',(username,))
+
+
 @app.delete("/api/produccion/fila/{row}")
 def delete_production_row(row: int, payload: dict = Body(...), _=Depends(authenticate)):
     if row < PRODUCTION_START_ROW:
@@ -1220,6 +1239,7 @@ def delete_production_row(row: int, payload: dict = Body(...), _=Depends(authent
     try:
         db.execute('BEGIN IMMEDIATE')
         record, target, order, relative, fingerprint = production_delete_target(db,row,_)
+        verify_delete_password(db, _, payload.get('password'))
         if payload.get('confirmation')!=fingerprint or payload.get('order')!=order:
             raise HTTPException(409, 'Confirma la carpeta y la orden actual antes de eliminarla.')
         backup_dir = STATE_DIR / 'deleted-order-backups'
@@ -2410,7 +2430,7 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
 @media(max-width:700px){{body.production-mode .trace-cards{{grid-template-columns:minmax(0,1fr);padding:12px}}body.production-mode .trace-card{{grid-template-columns:minmax(0,1fr)}}body.production-mode .trace-media,body.production-mode .trace-media:has(img),body.production-mode .trace-media:not(:has(img)){{height:300px;min-height:0}}body.production-mode .trace-design-main img{{height:235px}}body.production-mode .trace-media:not(:has(img)){{height:120px}}.trace-no-design>span{{display:none}}body.production-mode .trace-card-body{{padding:20px}}}}
 `;document.head.appendChild(traceFigmaStyle);setTraceView();
     const commercialGroup=commercialToggle.closest('.nav-group');commercialGroup.classList.add('collapsed');const productionToggle=document.getElementById('production-toggle');if(productionToggle)productionToggle.addEventListener('click',()=>productionToggle.closest('.nav-group').classList.toggle('collapsed'));
-    </script><script src='/trace-ui.js?v=20260926-17'></script></body></html>"""
+    </script><script src='/trace-ui.js?v=20260926-18'></script></body></html>"""
 
 
 @app.post("/procesar", status_code=202)

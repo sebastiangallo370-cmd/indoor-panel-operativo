@@ -125,18 +125,20 @@
   deleteDialog.className = 'operator-dialog';
   deleteDialog.innerHTML = '<h2>ELIMINAR ORDEN Y CARPETA NAS</h2><p>Se eliminarán la tarjeta y todos los archivos de esta carpeta de la orden. No se tocarán otras carpetas.</p><p class="delete-folder" style="overflow-wrap:anywhere"></p><label>Escribe el número de orden para confirmar<input class="delete-order" autocomplete="off"></label><p class="delete-error" role="alert"></p><div style="display:flex;gap:12px;margin-top:16px"><button type="button" class="delete-cancel">CANCELAR</button><button type="button" class="delete-confirm" disabled style="background:#963b35;color:white">ELIMINAR TARJETA Y CARPETA</button></div>';
   document.body.appendChild(deleteDialog);
+  deleteDialog.querySelector('.delete-order').closest('label').remove();
+  deleteDialog.querySelector('.delete-error').insertAdjacentHTML('beforebegin','<label>Contraseña de tu cuenta<input class="delete-password" type="password" autocomplete="current-password" maxlength="256" required></label>');
   function confirmFolderDeletion(info) {
     return new Promise(resolve => {
-      const input = deleteDialog.querySelector('.delete-order'), confirmButton = deleteDialog.querySelector('.delete-confirm');
+      const passwordInput = deleteDialog.querySelector('.delete-password'), confirmButton = deleteDialog.querySelector('.delete-confirm');
       deleteDialog.querySelector('.delete-folder').textContent = info.folder;
       deleteDialog.querySelector('.delete-error').textContent = 'Orden: '+info.order+'. Se conservará una copia de recuperación en el servidor.';
-      input.value='';confirmButton.disabled=true;
-      input.oninput=()=>{confirmButton.disabled=input.value.trim()!==info.order;};
-      const finish=value=>{deleteDialog.close();resolve(value);};
-      confirmButton.onclick=()=>{if(input.value.trim()===info.order)finish(true);};
+      passwordInput.value='';confirmButton.disabled=true;
+      passwordInput.oninput=()=>{confirmButton.disabled=!passwordInput.value;};
+      const finish=value=>{passwordInput.value='';deleteDialog.close();resolve(value);};
+      confirmButton.onclick=()=>{if(passwordInput.value)finish(passwordInput.value);};
       deleteDialog.querySelector('.delete-cancel').onclick=()=>finish(false);
       deleteDialog.oncancel=event=>{event.preventDefault();finish(false);};
-      deleteDialog.showModal();input.focus();
+      deleteDialog.showModal();passwordInput.focus();
     });
   }
   document.addEventListener('click', async event => {
@@ -152,8 +154,12 @@
       const previewResponse = await fetch('/api/produccion/fila/' + id + '/eliminacion');
       const preview = await previewResponse.json();
       if (!previewResponse.ok) throw new Error(preview.detail || 'No se pudo verificar la carpeta NAS');
-      if (!await confirmFolderDeletion(preview)) return;
-      const response = await fetch('/api/produccion/fila/' + id, {method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({order:preview.order,confirmation:preview.confirmation})});
+      let password = await confirmFolderDeletion(preview);
+      if (!password) return;
+      let response;
+      try {
+        response = await fetch('/api/produccion/fila/' + id, {method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({order:preview.order,confirmation:preview.confirmation,password})});
+      } finally { password = ''; }
       const data = await response.json();
       if (!response.ok) throw new Error(data.detail || 'No se pudo eliminar la orden');
       productionData.rows = productionData.rows.filter(r => Number(r.source_row) !== id);
