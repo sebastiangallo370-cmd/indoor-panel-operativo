@@ -186,6 +186,14 @@
     }
   `;
   document.head.appendChild(assistantLayout);
+  document.querySelectorAll('#upload-form,#order-form').forEach(form => {
+    const field = document.createElement('div');
+    field.className = 'field';field.style.margin = '16px 0';
+    const fieldId = form.id + '-observaciones';
+    field.innerHTML = '<label for="'+fieldId+'">OBSERVACIONES</label><textarea id="'+fieldId+'" name="observaciones" maxlength="5000" rows="3" placeholder="Ejemplo: NO LLEVA TEXTURIZADO" aria-describedby="'+fieldId+'-hint"></textarea><small id="'+fieldId+'-hint">Se mostrarán completas en todas las tarjetas de este pedido para que producción las vea sin abrir paneles.</small>';
+    const submit = form.querySelector('button[type="submit"]');
+    if (submit) (submit.closest('.actions') || submit).before(field); else form.appendChild(field);
+  });
   document.querySelectorAll('main > header h1 br').forEach(br => br.replaceWith(document.createTextNode(' ')));
 
   const isAdmin = typeof canViewAdministration !== 'undefined' && canViewAdministration;

@@ -230,7 +230,7 @@ def run_with_live_progress(job_id: int, start: int, ceiling: int, detail: str, o
     return result[0] if result else None
 
 
-def append_local_production(record: dict, row_builder=None):
+def append_local_production(record: dict, row_builder=None, observations: str = '', author: str = ''):
     """Registra una referencia directamente en la trazabilidad local."""
     db = connect()
     try:
@@ -260,6 +260,11 @@ def append_local_production(record: dict, row_builder=None):
             (source_row, json.dumps(values, ensure_ascii=False), sort_order),
         )
         now = datetime.now(timezone.utc).isoformat()
+        if observations.strip():
+            # Save the programming instruction atomically with each new card.
+            note_column = next((i + 1 for i, h in enumerate(headers) if str(h).strip().upper() == 'ORDEN'), 1)
+            db.execute('INSERT INTO production_notes(source_row,column_number,note,username,updated_at) VALUES(?,?,?,?,?)',
+                       (source_row, note_column, observations.strip(), author, now))
         db.execute("INSERT OR REPLACE INTO production_meta(key, value) VALUES ('updated_at', ?)", (now,))
         db.commit()
         return source_row
@@ -280,7 +285,7 @@ def verify_order_mockups(order_dir, records):
                              'Sube la imagen con la referencia correcta en el nombre y vuelve a procesar.')
 
 
-def process_job(job_id: int, pdf_path: Path, extra_paths: list[Path]):
+def process_job(job_id: int, pdf_path: Path, extra_paths: list[Path], observations: str = '', author: str = ''):
     try:
         pending_records = []
         parsed = run_with_live_progress(
@@ -326,7 +331,7 @@ def process_job(job_id: int, pdf_path: Path, extra_paths: list[Path]):
                 raise ValueError('No se programó: ' + ' | '.join(image_issues))
             verify_order_mockups(order_dir, pending_records)
             for record in pending_records:
-                append_local_production(record, legacy._fila_produccion)
+                append_local_production(record, legacy._fila_produccion, observations, author)
             update_job(job_id, "COMPLETADO", detail, order_number)
         else:
             update_job(job_id, "REVISAR", "El documento incumple una regla de negocio", order_number)
@@ -335,7 +340,7 @@ def process_job(job_id: int, pdf_path: Path, extra_paths: list[Path]):
         update_job(job_id, "ERROR", str(error))
 
 
-def process_reprogram_excel_job(job_id: int, excel_path: Path, extra_paths: list[Path]):
+def process_reprogram_excel_job(job_id: int, excel_path: Path, extra_paths: list[Path], observations: str = '', author: str = ''):
     try:
         update_job_progress(job_id, 8, "Leyendo el listado Excel")
         workbook = load_workbook(excel_path, read_only=True, data_only=True)
@@ -407,14 +412,14 @@ def process_reprogram_excel_job(job_id: int, excel_path: Path, extra_paths: list
             raise ValueError('No se programó: ' + ' | '.join(image_issues))
         verify_order_mockups(order_dir, records)
         for record in records:
-            append_local_production(record, legacy._fila_produccion)
+            append_local_production(record, legacy._fila_produccion, observations, author)
         update_job(job_id, "COMPLETADO", detail, order_number)
     except Exception as error:
         logging.exception("Error procesando reprogramación Excel %s", job_id)
         update_job(job_id, "ERROR", str(error))
 
 
-def process_order_job(job_id: int, job_dir: Path, pdf_path: Path, excel_path: Path):
+def process_order_job(job_id: int, job_dir: Path, pdf_path: Path, excel_path: Path, observations: str = '', author: str = ''):
     try:
         pending_records = []
         # The legacy processor moves/removes attachments: remember them beforehand.
@@ -458,7 +463,7 @@ def process_order_job(job_id: int, job_dir: Path, pdf_path: Path, excel_path: Pa
                 raise ValueError('No se programó: ' + ' | '.join(image_issues))
             verify_order_mockups(Path(ok), pending_records)
             for record in pending_records:
-                append_local_production(record, pedidos._fila_produccion)
+                append_local_production(record, pedidos._fila_produccion, observations, author)
             update_job(job_id, "COMPLETADO", detail, order_number)
         else:
             update_job(job_id, "REVISAR", "El pedido incumple una regla de negocio", order_number)
@@ -2541,6 +2546,7 @@ def ordered_mockup_uploads(extras, slots):
 @app.post("/procesar", status_code=202)
 async def upload(
     archivo: UploadFile = File(...),
+    observaciones: str = Form(default='', max_length=5000),
     extras: list[UploadFile] = File(default=[]),
     mockup_d1: UploadFile = File(default=None),
     mockup_d2: UploadFile = File(default=None),
@@ -2585,18 +2591,19 @@ async def upload(
     now = datetime.now(timezone.utc).isoformat()
     with connect() as db:
         cursor = db.execute(
-            "INSERT INTO jobs(filename,status,detail,created_at,updated_at,kind) VALUES(?,?,?,?,?,?)",
-            (safe_name, "RECIBIDO", "En cola", now, now, "reprogramacion"),
+            "INSERT INTO jobs(filename,status,detail,created_at,updated_at,kind,input_summary) VALUES(?,?,?,?,?,?,?)",
+            (safe_name, "RECIBIDO", "En cola", now, now, "reprogramacion", json.dumps({'observaciones': observaciones.strip()}, ensure_ascii=False)),
         )
         job_id = cursor.lastrowid
     processor = process_job if extension == ".pdf" else process_reprogram_excel_job
-    asyncio.create_task(asyncio.to_thread(processor, job_id, target, extra_paths))
+    asyncio.create_task(asyncio.to_thread(processor, job_id, target, extra_paths, observaciones.strip(), str(_)))
     return {"id": job_id, "estado": "RECIBIDO", "mensaje": "El documento se está procesando"}
 
 
 @app.post("/procesar/pedido", status_code=202)
 async def upload_order(
     pdf: UploadFile = File(...),
+    observaciones: str = Form(default='', max_length=5000),
     excel: UploadFile = File(...),
     extras: list[UploadFile] = File(default=[]),
     mockup_d1: UploadFile = File(default=None),
@@ -2641,11 +2648,11 @@ async def upload_order(
         display_name += f" + {len(valid_extras)} anexo(s)"
     with connect() as db:
         cursor = db.execute(
-            "INSERT INTO jobs(filename,status,detail,created_at,updated_at,kind) VALUES(?,?,?,?,?,?)",
-            (display_name, "RECIBIDO", "En cola", now, now, "pedido"),
+            "INSERT INTO jobs(filename,status,detail,created_at,updated_at,kind,input_summary) VALUES(?,?,?,?,?,?,?)",
+            (display_name, "RECIBIDO", "En cola", now, now, "pedido", json.dumps({'observaciones': observaciones.strip()}, ensure_ascii=False)),
         )
         job_id = cursor.lastrowid
-    asyncio.create_task(asyncio.to_thread(process_order_job, job_id, job_dir, saved[0], saved[1]))
+    asyncio.create_task(asyncio.to_thread(process_order_job, job_id, job_dir, saved[0], saved[1], observaciones.strip(), str(_)))
     return {"id": job_id, "estado": "RECIBIDO", "mensaje": "El pedido se está procesando"}
 
 
