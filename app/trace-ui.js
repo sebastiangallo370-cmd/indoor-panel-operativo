@@ -52,8 +52,49 @@
   function matches(summary, filter) {
     return filter === 'all' || filter === 'mine' && summary.mine || filter === 'late' && summary.overdue || filter === summary.state;
   }
-  if (typeof module !== 'undefined' && module.exports) { module.exports = { key, dateValue, groupsFor, summarize, matches }; return; }
+  function orderByDelivery(rows, headers) {
+    const column = headers.findIndex(h => key(h) === 'FECHA DE ENTREGA');
+    return rows.map((row, index) => ({ row, index, due: dateValue(row.values[column])?.getTime() ?? Infinity }))
+      .sort((a, b) => a.due === b.due ? a.index - b.index : a.due < b.due ? -1 : 1).map(item => item.row);
+  }
+  function addBusinessDays(date, count) {
+    const result = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    let remaining = count;
+    while (remaining > 0) {
+      result.setDate(result.getDate() + 1);
+      const weekday = result.getDay();
+      if (weekday !== 0 && weekday !== 6) remaining -= 1;
+    }
+    return result;
+  }
+  function formatShortDate(date) {
+    const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+    return String(date.getDate()).padStart(2, '0') + '-' + months[date.getMonth()] + '-' + String(date.getFullYear()).slice(-2);
+  }
+  function applyDefaultDeliveryDates(data, today = new Date()) {
+    const column = data.headers.findIndex(h => key(h) === 'FECHA DE ENTREGA');
+    if (column < 0) return data;
+    const fallback = formatShortDate(addBusinessDays(today, 15));
+    data.rows = data.rows.map(row => {
+      if (dateValue(row.values[column])) return row;
+      const values = [...row.values];
+      values[column] = fallback;
+      return { ...row, values };
+    });
+    return data;
+  }
+  if (typeof module !== 'undefined' && module.exports) { module.exports = { key, dateValue, groupsFor, summarize, matches, orderByDelivery, addBusinessDays, applyDefaultDeliveryDates }; return; }
   if (typeof traceCards === 'undefined') return;
+
+  // Reapply after each fetch/edit, without writing dates or database row positions.
+  const renderProductionOriginal = renderProduction;
+  renderProduction = function () {
+    if (productionData) {
+      applyDefaultDeliveryDates(productionData);
+      productionData.rows = orderByDelivery(productionData.rows, productionData.headers);
+    }
+    return renderProductionOriginal();
+  };
 
   const labels = { pending: 'Pendiente', active: 'En proceso', rework: 'Reproceso', finished: 'Terminado', partial: 'Avance parcial' };
   const filters = [['all', 'Todos'], ['mine', 'Mis pedidos'], ['late', 'Atrasados'], ['active', 'En proceso'], ['rework', 'Reproceso'], ['finished', 'Terminados']];
@@ -88,12 +129,12 @@
     const visible = new Set([...productionBody.querySelectorAll('tr')].map(tr => Number(tr.querySelector('td[data-row]')?.dataset.row)));
     const base = productionData.rows.filter(row => visible.has(row.source_row) && ['ORDEN', 'NOMBRE DEL CLIENTE', 'NOMBRE PROYECTO', 'REFERENCIA'].some(name => traceField(row, name).trim()));
     const summaries = new Map(base.map(row => [row.source_row, summarize(productionData, row, processStatusHeaders, user, scheduleToday())]));
-    const rows = base.filter(row => matches(summaries.get(row.source_row), filter));
+    const rows = orderByDelivery(base.filter(row => matches(summaries.get(row.source_row), filter)), productionData.headers);
     toolbar.querySelectorAll('[data-trace-filter]').forEach(button => {
       button.setAttribute('aria-pressed', String(button.dataset.traceFilter === filter));
       button.querySelector('span').textContent = base.filter(row => matches(summaries.get(row.source_row), button.dataset.traceFilter)).length;
     });
-    toolbar.querySelector('.trace-results').textContent = rows.length + ' tarjetas visibles · ' + (filter === 'mine' ? 'Asignadas a tu usuario o iniciales' : 'Pulsa PRODUCCIÓN para registrar tu actividad');
+    toolbar.querySelector('.trace-results').textContent = rows.length + ' tarjetas · Entrega: de más próxima a más lejana · Sin fecha al final' + (filter === 'mine' ? ' · Asignadas a tu usuario' : '');
     traceCards.innerHTML = rows.map(row => {
       const summary = summaries.get(row.source_row), id = row.source_row;
       const notes = Object.entries(productionData.notes || {}).filter(([k, v]) => k.startsWith(id + ':') && v).length;
