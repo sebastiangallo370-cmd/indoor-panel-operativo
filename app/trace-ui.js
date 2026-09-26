@@ -477,6 +477,17 @@
       const notes = Object.entries(productionData.notes || {}).filter(([k,v]) => k.startsWith(row.source_row + ':') && v);
       card.querySelector('.trace-project').insertAdjacentHTML('afterend', '<section class="trace-manufacture"><span class="trace-eyebrow">A FABRICAR</span><h4>' + esc(description || traceField(row, 'REFERENCIA') || 'Producto por especificar') + '</h4>' + (details ? '<div class="trace-material-facts">' + details + '</div>' : '') + (observation ? '<p class="trace-production-note"><strong>INDICACIONES</strong>' + esc(observation) + '</p>' : '') + (notes.length ? '<details class="trace-inline-notes"><summary>Ver ' + notes.length + ' indicación' + (notes.length === 1 ? '' : 'es') + ' de procesos</summary>' + notes.map(([k,v]) => '<p><strong>' + esc(productionData.headers[Number(k.split(':')[1])-1]) + '</strong>' + esc(v) + '</p>').join('') + '</details>' : '') + '</section>');
       card.querySelector('[data-card-detail]').textContent = 'LISTADO Y DETALLES';
+      if (notes.length) {
+        card.classList.add('has-notes');
+        const notePanel = card.querySelector('.trace-inline-notes');
+        notePanel.classList.add('trace-note-alert');
+        notePanel.querySelector('summary').innerHTML = '<span class="trace-note-label"><span aria-hidden="true">✎</span> '+notes.length+' NOTA'+(notes.length === 1 ? '' : 'S')+' · LEER</span><span class="trace-note-preview">'+esc(String(notes[0][1]))+'</span>';
+        notePanel.querySelector('summary').setAttribute('aria-label', 'Leer '+notes.length+' nota'+(notes.length === 1 ? '' : 's')+' de la orden '+traceField(row, 'ORDEN'));
+        card.querySelector('.trace-project').after(notePanel);
+        const counter = card.querySelector('.trace-card-meta span');
+        counter.classList.add('trace-note-count');
+        counter.textContent = '✎ '+notes.length+' nota'+(notes.length === 1 ? '' : 's');
+      }
       card.querySelector('.trace-card-heading h3').setAttribute('aria-label', 'Orden ' + traceField(row, 'ORDEN'));
     });
     traceCards.scrollTop = scrollTop;
@@ -528,6 +539,15 @@
   operatorForm.elements.reason.after(help);
   const style = document.createElement('style');
   style.textContent = `
+  .trace-card .trace-note-alert{margin:8px 0 16px;padding:12px 14px;border:1px solid #a78944;border-left:4px solid #f0c46a;border-radius:10px;background:#3a3220;color:#fff0ce;min-width:0}
+  .trace-note-alert summary{list-style:none;display:block;cursor:pointer;min-height:44px}
+  .trace-note-alert summary::-webkit-details-marker{display:none}
+  .trace-note-alert summary:focus-visible{outline:2px solid #f0c46a;outline-offset:4px;border-radius:4px}
+  .trace-note-label{display:block;color:#ffe0a0;font:700 12px/1.5 Arial;letter-spacing:.04em}
+  .trace-note-preview{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere;font:14px/1.5 Arial;color:#fff6e2;margin-top:5px;white-space:pre-wrap}
+  .trace-note-alert[open] .trace-note-preview{display:none}
+  .trace-note-alert p{border-color:#806b3b;overflow-wrap:anywhere}
+  .trace-card-meta .trace-note-count{color:#ffe0a0;font-weight:700}
   .trace-workspace{padding:22px 24px 12px;background:#111917;border-bottom:1px solid #31403a}.trace-workspace-top{display:flex;justify-content:space-between;align-items:center;gap:12px}.trace-eyebrow{font:700 11px/1.5 Arial;letter-spacing:.13em;color:#b4c792}.trace-workspace h3{font:600 21px/1.3 Arial;color:#f3f6ef;margin:4px 0 18px}.trace-live{font:12px Arial;color:#aac7b3}.trace-quick-filters{display:flex;gap:7px;flex-wrap:wrap}.trace-quick-filters button{width:auto;background:#1b2722;color:#c8d6ce;border:1px solid #3b4d42;padding:9px 12px;border-radius:9px;box-shadow:none;font:600 13px Arial;display:flex;gap:10px;align-items:center;min-height:40px}.trace-quick-filters button span{font-size:12px;border-radius:4px;padding:2px 5px;background:#ffffff0d}.trace-quick-filters button[aria-pressed=true]{background:#d0ec93;border-color:#d0ec93;color:#172215}.trace-results{font:12px/1.5 Arial;color:#a7b8ad;margin:12px 0 0}.trace-workspace[hidden],body:not(.trace-cards-mode) .trace-workspace,body.admin-summary-mode .trace-workspace{display:none}
   body.production-mode .trace-cards{grid-template-columns:repeat(auto-fill,minmax(min(100%,570px),1fr));padding:20px 24px;gap:20px;scrollbar-gutter:stable;align-items:start}
   body.production-mode .trace-card{grid-template-columns:36% minmax(0,1fr);border-radius:16px;border:1px solid #3a4a40;background:#19231e;min-width:0;overflow:hidden;box-shadow:0 6px 22px #0002}
