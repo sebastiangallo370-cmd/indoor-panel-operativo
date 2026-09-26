@@ -4,6 +4,7 @@
   const key = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase();
   const personKey = value => key(value).replace(/[^A-Z0-9]/g, '');
   const flow = typeof indoorProcessFlow !== 'undefined' ? indoorProcessFlow : require('./process-flow.json');
+  const isExternal = process => key(process.label) === 'DISENO';
   function dateValue(value) {
     const raw = key(value).toLowerCase().replaceAll('.', '');
     const parts = raw.split(/[-/ ]+/);
@@ -38,22 +39,24 @@
       if (group.autoClosed) group.state = 'finished';
       group.status = group.autoClosed ? 'Cierre automático' : group.state === 'finished' ? values.length && values.every(v => v === 'N/A') ? 'No aplica' : 'Terminado' : ({ active: 'En proceso', rework: 'Reproceso', partial: 'Avance parcial', pending: 'Pendiente' })[group.state];
       group.responsible = group.columns.filter(i => key(data.headers[i]).startsWith('RESP') || key(data.headers[i]) === 'CONFECCIONISTA').map(i => String(row.values[i] || '').trim()).filter(Boolean).join(', ');
+      if (isExternal(group)) group.status = 'Externo · ' + group.status;
       if (!group.responsible && values.some(v => v)) group.responsible = group.statusColumns.map(i => data.process_responsibles?.[row.source_row + ':' + (i+1)]).filter(Boolean)[0] || '';
       return group;
     });
   }
   function summarize(data, row, statusHeaders, user, today) {
     const groups = groupsFor(data, row, statusHeaders);
-    const finished = groups.filter(g => g.state === 'finished').length;
-    const state = groups.some(g => g.state === 'rework') ? 'rework' : groups.some(g => g.state === 'active') ? 'active' : groups.length && finished === groups.length ? 'finished' : 'pending';
-    const focus = groups.find(g => g.state === 'rework') || [...groups].reverse().find(g => g.state === 'active') || groups.find(g => g.state !== 'finished') || groups[groups.length - 1];
+    const internal = groups.filter(g => !isExternal(g));
+    const finished = internal.filter(g => g.state === 'finished').length;
+    const state = internal.some(g => g.state === 'rework') ? 'rework' : internal.some(g => g.state === 'active') ? 'active' : internal.length && finished === internal.length ? 'finished' : 'pending';
+    const focus = internal.find(g => g.state === 'rework') || [...internal].reverse().find(g => g.state === 'active') || internal.find(g => g.state !== 'finished') || internal[internal.length - 1];
     const userTokens = [user.name, user.initials].map(personKey).filter(Boolean);
     const assignedToMe = g => g.responsible.split(/[,;·\n]+/).some(name => userTokens.includes(personKey(name)));
-    const mine = groups.some(assignedToMe);
-    const myPending = groups.some(g => assignedToMe(g) && g.state !== 'finished');
+    const mine = internal.some(assignedToMe);
+    const myPending = internal.some(g => assignedToMe(g) && g.state !== 'finished');
     const dueIndex = data.headers.findIndex(h => key(h) === 'FECHA DE ENTREGA'), due = dateValue(row.values[dueIndex]);
     const overdue = !!due && due < today && state !== 'finished';
-    return { groups, finished, total: groups.length, state, focus, mine, myPending, due, overdue, percent: groups.length ? Math.round(finished / groups.length * 100) : 0 };
+    return { groups, finished, total: internal.length, state, focus, mine, myPending, due, overdue, percent: internal.length ? Math.round(finished / internal.length * 100) : 0 };
   }
   function matches(summary, filter) {
     return filter === 'all' || filter === 'pending' && summary.state !== 'finished' || filter === 'work' && summary.myPending || filter === 'mine' && summary.mine || filter === 'late' && summary.overdue || filter === summary.state;
@@ -69,7 +72,8 @@
     const index = summary.groups.indexOf(group);
     // Each area's queue is released only by its immediately preceding stage.
     // The first stage receives newly scheduled orders; No aplica is also closed.
-    const ready = index === 0 || summary.groups[index - 1].state === 'finished';
+    const previous = summary.groups.slice(0, index).filter(g => !isExternal(g)).at(-1);
+    const ready = !previous || previous.state === 'finished';
     return { ...summary, route: summary, focus: group, state: group.state,
       ready,
       mine: group.responsible.split(/[,;·\n]+/).some(name => tokens.includes(personKey(name))),
@@ -549,9 +553,15 @@
       const important = card.querySelector('.trace-production-note');
       if (important) body.querySelector('.trace-client').after(important);
       const disclosure = document.createElement('div');
+      const facts = document.createElement('dl');
+      facts.className = 'trace-primary-facts';
+      body.querySelectorAll(':scope > dl > div').forEach(item => {
+        if (['REFERENCIA', 'CANTIDAD'].includes(key(item.querySelector('dt')?.textContent))) facts.appendChild(item);
+      });
+      body.querySelector('.trace-project').after(facts);
       disclosure.className = 'trace-disclosure';
       disclosure.id = 'trace-disclosure-' + row.source_row;
-      body.querySelectorAll(':scope > .trace-project,:scope > .trace-manufacture,:scope > dl,:scope > .trace-card-meta,:scope > .trace-card-actions').forEach(item => disclosure.appendChild(item));
+      body.querySelectorAll(':scope > .trace-manufacture,:scope > dl:not(.trace-primary-facts),:scope > .trace-card-meta,:scope > .trace-card-actions').forEach(item => disclosure.appendChild(item));
       body.appendChild(disclosure);
       const expanded = expandedCards.has(row.source_row);
       disclosure.hidden = !expanded;
@@ -1279,7 +1289,7 @@
   const style = document.createElement('style');
   style.textContent = `
   html body.production-mode .trace-cards{grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:max-content;align-items:start;gap:16px;padding:16px}
-  html body.production-mode .trace-card,html body.production-mode.trace-density-compact .trace-card{position:relative;grid-template-columns:minmax(0,1fr)!important;grid-template-rows:minmax(0,1fr) auto auto;aspect-ratio:4/5;min-height:0;height:auto;align-self:start;container-type:inline-size}
+  html body.production-mode .trace-card,html body.production-mode.trace-density-compact .trace-card{position:relative;grid-template-columns:minmax(0,1fr)!important;grid-template-rows:minmax(120px,1fr) auto auto;aspect-ratio:auto;width:100%;min-width:0;min-height:520px;height:auto;align-self:start;container-type:inline-size}
   html body.production-mode .trace-card .trace-media,html body.production-mode.trace-density-compact .trace-card .trace-media{height:100%!important;min-height:0!important;padding:8px!important;overflow:hidden;display:flex;flex-direction:column;justify-content:center}
   html body.production-mode .trace-card .trace-design-main{flex:1;min-height:0;display:flex;align-items:center;justify-content:center}
   html body.production-mode .trace-card .trace-design-main img,html body.production-mode.trace-density-compact .trace-card .trace-design-main img{width:100%;height:100%!important;max-height:100%;min-height:0;object-fit:contain}
@@ -1288,6 +1298,10 @@
   html body.production-mode .trace-card-heading h3{font-size:17px!important;margin:0}
   html body.production-mode .trace-stage{font-size:11px;padding:3px 6px}
   html body.production-mode .trace-client{font-size:13px!important;line-height:1.35;margin:7px 0 0}
+  html body.production-mode .trace-card .trace-project{font-size:12px;line-height:1.35;margin:4px 0;color:#c4cec7;overflow-wrap:anywhere}
+  html body.production-mode .trace-card .trace-primary-facts{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;margin:8px 0 0}
+  html body.production-mode .trace-card .trace-primary-facts dt{font-size:11px}
+  html body.production-mode .trace-card .trace-primary-facts dd{font-size:13px;line-height:1.35;margin:0;overflow-wrap:anywhere}
   html body.production-mode .trace-card .trace-note-alert,html body.production-mode .trace-card .trace-production-note{margin:8px 0 0;padding:7px 9px;font-size:12px;max-height:74px;overflow:auto;overscroll-behavior:contain}
   html body.production-mode .trace-card .trace-note-alert p{font-size:12px;margin:4px 0}
   html body.production-mode .trace-card .trace-route{min-height:0;padding:8px 12px 12px}
@@ -1303,6 +1317,7 @@
   html body.production-mode .trace-disclosure-toggle:hover,html body.production-mode .trace-disclosure-toggle[aria-expanded=true]{background:#d0f44c;color:#14221b}
   html body.production-mode .trace-disclosure[hidden]{display:none!important}
   html body.production-mode .trace-disclosure:not([hidden]){display:block;margin-top:14px}
+  html body.production-mode .trace-card:not(.details-expanded){height:520px!important}
   html body.production-mode .trace-card.details-expanded{aspect-ratio:auto;grid-template-rows:200px auto auto}
   html body.production-mode .trace-card.details-expanded .trace-note-alert,html body.production-mode .trace-card.details-expanded .trace-production-note{max-height:none;overflow:visible}
   html body.production-mode .trace-disclosure .trace-card-actions{grid-template-columns:1fr!important;gap:8px}
