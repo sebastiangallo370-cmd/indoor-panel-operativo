@@ -408,6 +408,9 @@
     renderTraceCards();
   };
   const productionNav = document.querySelector('.production-nav');
+  // Retain the internal navigation handler for calendar/admin links, not a menu entry.
+  productionNav.hidden = true;
+  productionNav.style.setProperty('display', 'none', 'important');
   const processNavigation = [];
   productionNav.addEventListener('click', () => {
     navigationProcess = null;
