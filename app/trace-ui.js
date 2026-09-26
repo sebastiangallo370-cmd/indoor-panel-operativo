@@ -121,28 +121,54 @@
   const isAdmin = typeof canViewAdministration !== 'undefined' && canViewAdministration;
   const canDelete = typeof deleteProductionAllowed !== 'undefined' && deleteProductionAllowed;
   const deletingRows = new Set();
-  traceCards.addEventListener('click', async event => {
-    const button = event.target.closest('[data-card-delete]');
+  const deleteDialog = document.createElement('dialog');
+  deleteDialog.className = 'operator-dialog';
+  deleteDialog.innerHTML = '<h2>ELIMINAR ORDEN Y CARPETA NAS</h2><p>Se eliminarán la tarjeta y todos los archivos de esta carpeta de la orden. No se tocarán otras carpetas.</p><p class="delete-folder" style="overflow-wrap:anywhere"></p><label>Escribe el número de orden para confirmar<input class="delete-order" autocomplete="off"></label><p class="delete-error" role="alert"></p><div style="display:flex;gap:12px;margin-top:16px"><button type="button" class="delete-cancel">CANCELAR</button><button type="button" class="delete-confirm" disabled style="background:#963b35;color:white">ELIMINAR TARJETA Y CARPETA</button></div>';
+  document.body.appendChild(deleteDialog);
+  function confirmFolderDeletion(info) {
+    return new Promise(resolve => {
+      const input = deleteDialog.querySelector('.delete-order'), confirmButton = deleteDialog.querySelector('.delete-confirm');
+      deleteDialog.querySelector('.delete-folder').textContent = info.folder;
+      deleteDialog.querySelector('.delete-error').textContent = 'Orden: '+info.order+'. Se conservará una copia de recuperación en el servidor.';
+      input.value='';confirmButton.disabled=true;
+      input.oninput=()=>{confirmButton.disabled=input.value.trim()!==info.order;};
+      const finish=value=>{deleteDialog.close();resolve(value);};
+      confirmButton.onclick=()=>{if(input.value.trim()===info.order)finish(true);};
+      deleteDialog.querySelector('.delete-cancel').onclick=()=>finish(false);
+      deleteDialog.oncancel=event=>{event.preventDefault();finish(false);};
+      deleteDialog.showModal();input.focus();
+    });
+  }
+  document.addEventListener('click', async event => {
+    const button = event.target.closest('[data-card-delete],.production-delete-row');
     if (!button || !canDelete) return;
-    event.preventDefault();event.stopPropagation();
-    const id = Number(button.dataset.cardDelete);
-    if (deletingRows.has(id)) return;
+    event.preventDefault();event.stopImmediatePropagation();
+    const id = Number(button.dataset.cardDelete || button.closest('[data-source-row]')?.dataset.sourceRow);
+    if (deletingRows.size) return;
     const row = productionData?.rows.find(r => Number(r.source_row) === id);
-    if (!row || !confirm('¿Eliminar esta tarjeta de la programación?\nOrden: ' + traceField(row, 'ORDEN') + '\nCliente: ' + traceField(row, 'NOMBRE DEL CLIENTE') + '\nReferencia: ' + traceField(row, 'REFERENCIA') + '\nSe conservará un respaldo. No se borrarán archivos del NAS.')) return;
+    if (!row) return;
     deletingRows.add(id);button.disabled = true;
     try {
-      const response = await fetch('/api/produccion/fila/' + id, {method:'DELETE'});
+      const previewResponse = await fetch('/api/produccion/fila/' + id + '/eliminacion');
+      const preview = await previewResponse.json();
+      if (!previewResponse.ok) throw new Error(preview.detail || 'No se pudo verificar la carpeta NAS');
+      if (!await confirmFolderDeletion(preview)) return;
+      const response = await fetch('/api/produccion/fila/' + id, {method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({order:preview.order,confirmation:preview.confirmation})});
       const data = await response.json();
       if (!response.ok) throw new Error(data.detail || 'No se pudo eliminar la orden');
       productionData.rows = productionData.rows.filter(r => Number(r.source_row) !== id);
       traceAssets.delete(id);renderTraceCards();
       await loadProduction();
-      productionStatus.textContent = '✓ Tarjeta eliminada de la programación. Respaldo conservado.';
+      productionStatus.textContent = '✓ Tarjeta y carpeta de la orden eliminadas. Copia de recuperación conservada en el servidor.';
     } catch (error) {
       productionStatus.textContent = error.message;
-      alert(error.message);
-    } finally { deletingRows.delete(id);renderTraceCards(); }
-  });
+      deleteDialog.querySelector('.delete-folder').textContent = '';
+      deleteDialog.querySelector('.delete-error').textContent = error.message;
+      deleteDialog.querySelector('.delete-confirm').disabled=true;
+      deleteDialog.querySelector('.delete-cancel').onclick=()=>deleteDialog.close();
+      deleteDialog.showModal();
+    } finally { deletingRows.delete(id);button.disabled=false;renderTraceCards(); }
+  }, true);
   const profile = document.querySelector('.user-info small')?.textContent || '';
   const ownProcess = processForProfile(profile);
   const defaultFilter = 'all';

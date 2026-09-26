@@ -7,6 +7,7 @@ import logging
 import os
 import re
 import secrets
+import shutil
 import sqlite3
 import threading
 import time
@@ -1156,19 +1157,84 @@ def can_delete_production_profile(profile):
     return ' '.join(normalized.upper().split()) in {'ADMINISTRACION', 'EDICION', 'COMERCIAL', 'COMERCIALES', 'ASISTENTE COMERCIAL', 'ASISTENTES COMERCIALES'}
 
 
+def production_delete_target(db, row, username):
+    profile = db.execute('SELECT process FROM users WHERE name=? COLLATE NOCASE', (username,)).fetchone()
+    if username != os.getenv('APP_USER', 'indoor') and not (profile and can_delete_production_profile(profile['process'])):
+        raise HTTPException(403, 'Solo Administración y Edición pueden eliminar órdenes')
+    record = db.execute('SELECT * FROM production_rows WHERE source_row=?', (row,)).fetchone()
+    if not record:
+        raise HTTPException(404, 'La tarjeta ya no existe')
+    meta = db.execute("SELECT value FROM production_meta WHERE key='headers'").fetchone()
+    headers = json.loads(meta['value']) if meta else []
+    values = json.loads(record['values_json'])
+    def field(items, title):
+        index = next((i for i,h in enumerate(headers) if str(h).strip().upper()==title), -1)
+        return str(items[index] or '').strip() if 0 <= index < len(items) else ''
+    order, client_name = field(values, 'ORDEN').upper(), legacy.sanitize(field(values, 'NOMBRE DEL CLIENTE'))
+    if not client_name or not re.fullmatch(r'[A-Z0-9_-]{2,40}', order) or not any(c.isdigit() for c in order):
+        raise HTTPException(409, 'La tarjeta no identifica un cliente y una orden válidos. No se eliminó nada.')
+    for other in db.execute('SELECT source_row,values_json FROM production_rows WHERE source_row<>?', (row,)):
+        other_values = json.loads(other['values_json'])
+        if field(other_values,'ORDEN').upper()==order:
+            raise HTTPException(409, 'Otra tarjeta comparte esta orden. No se puede borrar su carpeta mientras siga programada.')
+    root = Path(CONFIG['ruta_nas_clientes']).resolve(strict=True)
+    client = root / client_name
+    if client.is_symlink() or client.resolve().parent != root or not client.is_dir():
+        raise HTTPException(409, 'No se pudo confirmar la carpeta exacta del cliente. No se eliminó nada.')
+    client = client.resolve(strict=True)
+    matches = [p for p in client.iterdir() if p.is_dir() and (p.name.upper()==order or any(p.name.upper().startswith(order+s) for s in ('_', ' ', '-')))]
+    if len(matches)!=1:
+        raise HTTPException(409, 'Debe existir una única carpeta de esta orden en el cliente. No se eliminó nada.')
+    candidate = matches[0]
+    target = candidate.resolve(strict=True)
+    if candidate.is_symlink() or target.parent!=client or len(target.relative_to(root).parts)!=2:
+        raise HTTPException(403, 'Ruta de orden no permitida')
+    # Reject links/junctions and nested mount points before any recursive deletion.
+    for parent, dirs, files in os.walk(target, followlinks=False):
+        for name in dirs + files:
+            entry = Path(parent) / name
+            if entry.is_symlink() or (hasattr(entry, 'is_junction') and entry.is_junction()) or os.path.ismount(entry) or not entry.resolve().is_relative_to(target):
+                raise HTTPException(409, 'La carpeta contiene enlaces o rutas externas. Se requiere revisión manual.')
+    relative = str(target.relative_to(root)).replace('\\','/')
+    fingerprint = hashlib.sha256((record['values_json']+'\n'+relative).encode()).hexdigest()
+    return record, target, order, relative, fingerprint
+
+
+@app.get('/api/produccion/fila/{row}/eliminacion')
+def preview_production_delete(row: int, _=Depends(authenticate)):
+    db = connect()
+    try:
+        record, target, order, relative, fingerprint = production_delete_target(db,row,_)
+        return dict(order=order, folder='\\\\192.168.0.120\\NAS INDOOR\\CLIENTES\\'+relative.replace('/','\\'), confirmation=fingerprint)
+    except OSError as error:
+        raise HTTPException(503, 'No se pudo acceder al NAS. No se eliminó nada.') from error
+    finally:
+        db.close()
+
+
 @app.delete("/api/produccion/fila/{row}")
-async def delete_production_row(row: int, _=Depends(authenticate)):
+def delete_production_row(row: int, payload: dict = Body(...), _=Depends(authenticate)):
     if row < PRODUCTION_START_ROW:
         raise HTTPException(400, "La fila está fuera del área de Producción")
     db = connect()
     try:
-        profile = db.execute('SELECT process FROM users WHERE name=? COLLATE NOCASE', (_,)).fetchone()
-        if _ != os.getenv('APP_USER', 'indoor') and not (profile and can_delete_production_profile(profile['process'])):
-            raise HTTPException(403, 'Solo Administración y Edición pueden eliminar órdenes')
         db.execute('BEGIN IMMEDIATE')
-        record = db.execute("SELECT * FROM production_rows WHERE source_row = ?", (row,)).fetchone()
-        if not record:
-            raise HTTPException(404, "La fila ya no existe")
+        record, target, order, relative, fingerprint = production_delete_target(db,row,_)
+        if payload.get('confirmation')!=fingerprint or payload.get('order')!=order:
+            raise HTTPException(409, 'Confirma la carpeta y la orden actual antes de eliminarla.')
+        backup_dir = STATE_DIR / 'deleted-order-backups'
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        backup_base = backup_dir / (str(row)+'-'+secrets.token_hex(12))
+        # Complete a server-side recovery copy before touching NAS files.
+        backup = shutil.make_archive(str(backup_base), 'zip', root_dir=str(target.parent), base_dir=target.name)
+        db.execute('CREATE TABLE IF NOT EXISTS production_nas_deletions (id INTEGER PRIMARY KEY AUTOINCREMENT, source_row INTEGER, folder TEXT, backup TEXT, actor TEXT, deleted_at TEXT)')
+        db.execute('INSERT INTO production_nas_deletions(source_row,folder,backup,actor,deleted_at) VALUES (?,?,?,?,?)',
+                   (row,relative,backup,_,datetime.now(timezone.utc).isoformat()))
+        # Resolve again after backup and require the same exact target and row.
+        verified_record, verified, verified_order, verified_relative, verified_fingerprint = production_delete_target(db,row,_)
+        if verified!=target or verified_fingerprint!=fingerprint:
+            raise HTTPException(409, 'La orden cambió durante la operación. No se eliminó nada.')
+        shutil.rmtree(verified)
         db.execute('CREATE TABLE IF NOT EXISTS production_deleted_rows (id INTEGER PRIMARY KEY AUTOINCREMENT, source_row INTEGER, payload TEXT, deleted_by TEXT, deleted_at TEXT)')
         db.execute('INSERT INTO production_deleted_rows(source_row,payload,deleted_by,deleted_at) VALUES (?,?,?,?)',
                    (row, json.dumps(dict(record), ensure_ascii=False), _, datetime.now(timezone.utc).isoformat()))
@@ -1180,7 +1246,11 @@ async def delete_production_row(row: int, _=Depends(authenticate)):
         now = datetime.now(timezone.utc).isoformat()
         db.execute("INSERT OR REPLACE INTO production_meta(key, value) VALUES ('updated_at', ?)", (now,))
         db.commit()
-        return {"ok": True, "row": row, "updated_at": now}
+        return {"ok": True, "row": row, "updated_at": now, "nas_deleted": relative}
+    except OSError as error:
+        db.rollback()
+        logging.exception('No se completó la eliminación NAS de fila %s', row)
+        raise HTTPException(503, 'No se completó la eliminación del NAS. La tarjeta se conserva; si comenzó el borrado, hay un respaldo en el servidor para recuperación.') from error
     except Exception:
         db.rollback()
         raise
@@ -2340,7 +2410,7 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
 @media(max-width:700px){{body.production-mode .trace-cards{{grid-template-columns:minmax(0,1fr);padding:12px}}body.production-mode .trace-card{{grid-template-columns:minmax(0,1fr)}}body.production-mode .trace-media,body.production-mode .trace-media:has(img),body.production-mode .trace-media:not(:has(img)){{height:300px;min-height:0}}body.production-mode .trace-design-main img{{height:235px}}body.production-mode .trace-media:not(:has(img)){{height:120px}}.trace-no-design>span{{display:none}}body.production-mode .trace-card-body{{padding:20px}}}}
 `;document.head.appendChild(traceFigmaStyle);setTraceView();
     const commercialGroup=commercialToggle.closest('.nav-group');commercialGroup.classList.add('collapsed');const productionToggle=document.getElementById('production-toggle');if(productionToggle)productionToggle.addEventListener('click',()=>productionToggle.closest('.nav-group').classList.toggle('collapsed'));
-    </script><script src='/trace-ui.js?v=20260926-16'></script></body></html>"""
+    </script><script src='/trace-ui.js?v=20260926-17'></script></body></html>"""
 
 
 @app.post("/procesar", status_code=202)
