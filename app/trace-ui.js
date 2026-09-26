@@ -575,6 +575,31 @@
     fitTraceCards();
     refreshOperatorActions();
   };
+  // Resolve NAS from the card's source data, never from filtered table rows.
+  // Reuse the existing NAS progress/resolver handler and its platform support.
+  traceCards.addEventListener('click', event => {
+    const button = event.target.closest('[data-card-nas]');
+    if (!button) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const row = productionData.rows.find(item => Number(item.source_row) === Number(button.dataset.cardNas));
+    const order = row && traceField(row, 'ORDEN').trim();
+    if (!order) {
+      nasNotice.hidden = false;
+      nasNotice.querySelector('.nas-title').textContent = 'Acceso al NAS';
+      nasNotice.querySelector('.nas-retry').hidden = true;
+      nasProgress(0, 'Esta tarjeta no tiene número de orden. Completa ese dato para localizar su carpeta.');
+      return;
+    }
+    const bridge = document.createElement('tr');
+    bridge.hidden = true;
+    const cell = document.createElement('td');
+    cell.innerHTML = productionRowButton(row.source_row, order, traceField(row, 'NOMBRE DEL CLIENTE'), traceField(row, 'NOMBRE PROYECTO'));
+    bridge.appendChild(cell);
+    productionBody.appendChild(bridge);
+    try { cell.querySelector('.production-row-open').click(); }
+    finally { bridge.remove(); }
+  }, true);
   traceCards.addEventListener('click', event => {
     if (event.target.closest('[data-clear-trace]')) { filter = ownAreaFilter ? 'pending' : defaultFilter; exactScheduleOrder = ''; productionSearch.value = ''; renderProduction(); renderTraceCards(); return; }
     const button = event.target.closest('[data-node-row]'); if (!button) return;
@@ -1282,6 +1307,7 @@
   html body.production-mode .trace-card .trace-card-body> :not(.trace-disclosure){flex-shrink:0}
   html body.production-mode .trace-card .trace-card-actions{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,.7fr) minmax(0,1fr)!important;gap:5px;margin-top:auto;padding-top:10px}
   html body.production-mode .trace-card .trace-card-actions button{grid-column:auto!important;min-height:38px;min-width:0;padding:8px 3px;font-size:11px!important;white-space:nowrap}
+  html body.production-mode .trace-card .trace-card-actions [data-card-nas]{opacity:1;color:#e7f5ca!important;border-color:#7d9655!important}
   html body.production-mode .trace-card .trace-card-actions:not(:has([data-card-delete])){grid-template-columns:minmax(0,1.35fr) minmax(0,.7fr)!important}
   html body.production-mode .trace-card-heading{gap:6px;align-items:center;flex-wrap:wrap}
   html body.production-mode .trace-card-heading h3{font-size:17px!important;margin:0}
