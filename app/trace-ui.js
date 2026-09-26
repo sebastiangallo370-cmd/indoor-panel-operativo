@@ -376,7 +376,6 @@
   let filter = defaultFilter;
   if (isAdmin) filters.splice(1, 0, ['pending', 'Por fabricar']);
   let currentPage = 1, pageQuery = '';
-  const expandedCards = new Set();
   const user = { name: document.querySelector('.user-info strong')?.textContent || '', initials: document.querySelector('.user-avatar')?.textContent || '' };
   const toolbar = document.createElement('section');
   toolbar.className = 'trace-workspace';
@@ -561,16 +560,12 @@
       body.querySelector('.trace-project').after(facts);
       disclosure.className = 'trace-disclosure';
       disclosure.id = 'trace-disclosure-' + row.source_row;
-      body.querySelectorAll(':scope > .trace-manufacture,:scope > dl:not(.trace-primary-facts),:scope > .trace-card-meta,:scope > .trace-card-actions').forEach(item => disclosure.appendChild(item));
+      body.querySelectorAll(':scope > .trace-manufacture,:scope > dl:not(.trace-primary-facts),:scope > .trace-card-meta').forEach(item => disclosure.appendChild(item));
       body.appendChild(disclosure);
-      const expanded = expandedCards.has(row.source_row);
-      disclosure.hidden = !expanded;
-      card.classList.toggle('details-expanded', expanded);
-      const toggle = document.createElement('button');
+      disclosure.hidden = true;
+      const toggle = card.querySelector('[data-card-detail]');
       toggle.type = 'button'; toggle.className = 'trace-disclosure-toggle';
-      toggle.dataset.cardExpand = row.source_row;
-      toggle.setAttribute('aria-expanded', String(expanded));
-      toggle.setAttribute('aria-controls', disclosure.id);
+      toggle.setAttribute('aria-haspopup', 'dialog');
       toggle.setAttribute('aria-label', 'Detalles de la orden ' + traceField(row, 'ORDEN'));
       toggle.textContent = '☰';
       card.prepend(toggle);
@@ -581,17 +576,6 @@
     refreshOperatorActions();
   };
   traceCards.addEventListener('click', event => {
-    const disclosureToggle = event.target.closest('[data-card-expand]');
-    if (disclosureToggle) {
-      const id = Number(disclosureToggle.dataset.cardExpand), card = disclosureToggle.closest('.trace-card');
-      const expanded = !expandedCards.has(id);
-      if (expanded) expandedCards.add(id); else expandedCards.delete(id);
-      card.classList.toggle('details-expanded', expanded);
-      card.querySelector('.trace-disclosure').hidden = !expanded;
-      disclosureToggle.setAttribute('aria-expanded', String(expanded));
-      fitTraceCards();
-      return;
-    }
     if (event.target.closest('[data-clear-trace]')) { filter = ownAreaFilter ? 'pending' : defaultFilter; exactScheduleOrder = ''; productionSearch.value = ''; renderProduction(); renderTraceCards(); return; }
     const button = event.target.closest('[data-node-row]'); if (!button) return;
     const id = Number(button.dataset.nodeRow), row = productionData.rows.find(r => r.source_row === id);
@@ -1294,7 +1278,10 @@
   html body.production-mode .trace-card .trace-design-view{display:flex;flex-direction:column;width:100%;height:100%;min-height:0;gap:4px}
   html body.production-mode .trace-card .trace-design-main{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;width:100%}
   html body.production-mode .trace-card .trace-design-main img,html body.production-mode.trace-density-compact .trace-card .trace-design-main img{width:100%;height:100%!important;max-height:100%;min-height:0;object-fit:contain}
-  html body.production-mode .trace-card .trace-card-body{padding:12px!important;display:block}
+  html body.production-mode .trace-card .trace-card-body{padding:12px!important;display:flex;flex-direction:column;min-height:0}
+  html body.production-mode .trace-card .trace-card-body> :not(.trace-disclosure){flex-shrink:0}
+  html body.production-mode .trace-card .trace-card-actions{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;margin-top:auto;padding-top:10px}
+  html body.production-mode .trace-card .trace-card-actions button{min-height:36px;min-width:0;padding:8px;font-size:12px}
   html body.production-mode .trace-card-heading{gap:6px;align-items:center;flex-wrap:wrap}
   html body.production-mode .trace-card-heading h3{font-size:17px!important;margin:0}
   html body.production-mode .trace-stage{font-size:11px;padding:3px 6px}
@@ -1318,7 +1305,7 @@
   html body.production-mode .trace-disclosure-toggle:hover,html body.production-mode .trace-disclosure-toggle[aria-expanded=true]{background:#d0f44c;color:#14221b}
   html body.production-mode .trace-disclosure[hidden]{display:none!important}
   html body.production-mode .trace-disclosure:not([hidden]){display:block;margin-top:14px}
-  html body.production-mode .trace-card:not(.details-expanded){height:760px!important;grid-template-rows:380px minmax(0,1fr) auto}
+  html body.production-mode .trace-card:not(.details-expanded){height:860px!important;grid-template-rows:380px minmax(0,1fr) auto}
   html body.production-mode .trace-card .trace-design-tabs{height:36px;min-height:36px;flex:0 0 36px;overflow-x:auto;white-space:nowrap}
   html body.production-mode .trace-card.details-expanded{aspect-ratio:auto;grid-template-rows:380px auto auto}
   html body.production-mode .trace-card.details-expanded .trace-note-alert,html body.production-mode .trace-card.details-expanded .trace-production-note{max-height:none;overflow:visible}
