@@ -1,0 +1,54 @@
+name: PUBLICAR WEB
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmar:
+        description: Publicar la versión de main en la web de producción
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: indoor-produccion
+  cancel-in-progress: false
+
+jobs:
+  publicar:
+    if: github.ref == 'refs/heads/main' && inputs.confirmar
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Descargar versión exacta del proyecto
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/tarball/$GITHUB_SHA" \
+            -o "$RUNNER_TEMP/indoor.tar.gz"
+
+      - name: Publicar y comprobar la salud del servidor
+        env:
+          DEPLOY_KEY: ${{ secrets.INDOOR_DEPLOY_KEY }}
+          KNOWN_HOSTS: ${{ secrets.INDOOR_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$DEPLOY_KEY" || { echo 'Falta configurar INDOOR_DEPLOY_KEY'; exit 1; }
+          test -n "$KNOWN_HOSTS" || { echo 'Falta configurar INDOOR_KNOWN_HOSTS'; exit 1; }
+          umask 077
+          printf '%s\n' "$DEPLOY_KEY" > "$RUNNER_TEMP/indoor_key"
+          printf '%s\n' "$KNOWN_HOSTS" > "$RUNNER_TEMP/indoor_hosts"
+          trap 'rm -f "$RUNNER_TEMP/indoor_key" "$RUNNER_TEMP/indoor_hosts"' EXIT
+          ssh -T -i "$RUNNER_TEMP/indoor_key" \
+            -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=20 \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/indoor_hosts" \
+            root@2.25.238.166 "publish $GITHUB_SHA" < "$RUNNER_TEMP/indoor.tar.gz"
+          echo '### Publicación completada' >> "$GITHUB_STEP_SUMMARY"
+          echo "Versión: $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+          echo 'El servidor verificó /salud. Datos y configuración conservados.' >> "$GITHUB_STEP_SUMMARY"
