@@ -1280,8 +1280,9 @@
   html body.production-mode .trace-card .trace-design-main img,html body.production-mode.trace-density-compact .trace-card .trace-design-main img{width:100%;height:100%!important;max-height:100%;min-height:0;object-fit:contain}
   html body.production-mode .trace-card .trace-card-body{padding:12px!important;display:flex;flex-direction:column;min-height:0}
   html body.production-mode .trace-card .trace-card-body> :not(.trace-disclosure){flex-shrink:0}
-  html body.production-mode .trace-card .trace-card-actions{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;margin-top:auto;padding-top:10px}
-  html body.production-mode .trace-card .trace-card-actions button{min-height:36px;min-width:0;padding:8px;font-size:12px}
+  html body.production-mode .trace-card .trace-card-actions{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,.7fr) minmax(0,1fr)!important;gap:5px;margin-top:auto;padding-top:10px}
+  html body.production-mode .trace-card .trace-card-actions button{grid-column:auto!important;min-height:38px;min-width:0;padding:8px 3px;font-size:11px!important;white-space:nowrap}
+  html body.production-mode .trace-card .trace-card-actions:not(:has([data-card-delete])){grid-template-columns:minmax(0,1.35fr) minmax(0,.7fr)!important}
   html body.production-mode .trace-card-heading{gap:6px;align-items:center;flex-wrap:wrap}
   html body.production-mode .trace-card-heading h3{font-size:17px!important;margin:0}
   html body.production-mode .trace-stage{font-size:11px;padding:3px 6px}
