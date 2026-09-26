@@ -194,6 +194,61 @@
   @media(max-width:860px){body.production-mode.trace-cards-mode{overflow-y:auto!important;height:auto!important}body.production-mode.trace-cards-mode .trace-cards{height:auto!important;max-height:none;overflow:visible;scrollbar-gutter:auto}body.production-mode.trace-cards-mode .production-shell{max-height:none;height:auto}.trace-workspace{padding-top:12px}.trace-workspace h3{font-size:16px}.trace-node-label{font-size:8px}}
   `;
   document.head.appendChild(style);
+  const mobileStyle = document.createElement('style');
+  mobileStyle.textContent = `
+  @media(max-width:860px){
+    body{overflow-wrap:anywhere} main,.panel,.card{min-width:0;max-width:100%;box-sizing:border-box}
+    body main{padding-top:72px!important;padding-bottom:max(20px,env(safe-area-inset-bottom))!important}
+    .sidebar{max-height:100dvh;overflow-y:auto;overscroll-behavior:contain}.sidebar .tab,.sidebar .nav-parent{min-height:48px}
+    input:not([type=checkbox]):not([type=radio]),select,textarea{font-size:16px!important;max-width:100%;box-sizing:border-box}
+    button,input,select,textarea,a{touch-action:manipulation}
+    dialog{box-sizing:border-box!important;width:calc(100vw - 24px)!important;max-width:620px!important;max-height:calc(100dvh - 24px)!important;overflow-y:auto!important;overscroll-behavior:contain;padding:20px 16px!important;border-radius:16px!important}
+    dialog input,dialog select,dialog textarea{width:100%;min-width:0}dialog h2{font-size:21px}dialog button{min-height:44px}
+    .operator-actions{gap:10px!important}.operator-actions button{min-height:50px!important;padding:12px 8px!important}
+    .trace-detail dl{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:16px!important}.trace-detail dd{margin-left:0;overflow-wrap:anywhere}
+    .trace-detail-assets{max-width:100%;overflow:hidden}.trace-detail-assets img{max-width:100%;height:auto;object-fit:contain}
+    body.production-mode .production-process-filter{display:flex;flex-wrap:wrap!important;overflow:visible!important}
+    body.production-mode .production-process-filter select{flex:1 1 100%!important;width:100%;min-width:0!important;min-height:44px}
+    body.production-mode .production-process-filter button{flex:1 1 auto!important;min-height:44px}
+    body.production-mode .production-search,body.production-mode .production-refresh{min-height:44px}
+    body.production-mode .trace-card-actions{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+    body.production-mode .trace-card-actions .operator-open{grid-column:1/-1;min-height:48px;font-size:15px}
+    body.production-mode .trace-card-actions button{min-height:44px}
+    .trace-design-tabs button{min-width:44px;min-height:44px}.trace-quick-filters button{min-height:46px}
+    body.admin-summary-mode .production-table-wrap{max-width:100%;overflow:auto!important;touch-action:pan-x pan-y}
+    body.admin-summary-mode .production-table th,body.admin-summary-mode .production-table td{position:static!important}
+  }
+  @media(max-width:620px){
+    body.schedule-mode{height:auto!important;overflow-y:auto!important}
+    body.schedule-mode .schedule-shell{height:auto!important;max-height:none!important}
+    body.schedule-mode .schedule-toolbar{padding:14px 12px!important;gap:8px!important;flex-wrap:wrap}
+    body.schedule-mode .schedule-actions button{min-width:44px;min-height:44px}
+    body.schedule-mode .schedule-title h2{font-size:18px!important}
+    body.schedule-mode .schedule-metrics{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px!important;padding:12px!important}
+    body.schedule-mode .schedule-metrics>div{display:flex;flex-direction:column;align-items:flex-start;gap:4px!important;font-size:11px!important}
+    body.schedule-mode .schedule-metrics strong{font-size:22px!important}
+    body.schedule-mode .schedule-filters input{min-height:44px}
+    body.schedule-mode .schedule-weekdays{display:none!important}
+    body.schedule-mode .schedule-grid{display:flex!important;flex-direction:column!important;min-width:0!important;height:auto!important;gap:12px;padding:12px;box-sizing:border-box}
+    body.schedule-mode .schedule-day:not(:has(.schedule-event)){display:none!important}
+    body.schedule-mode .schedule-day{min-height:0!important;height:auto!important;overflow:visible!important;padding:12px!important;border:1px solid #3a4a40!important;border-radius:12px;background:#19231e}
+    body.schedule-mode .schedule-day-number{width:auto!important;height:auto!important;margin:0 0 10px!important;display:block!important;font-size:15px!important;text-align:left;padding:6px 8px;border-radius:6px}
+    body.schedule-mode .schedule-day-number:before{content:'Día '}
+    body.schedule-mode .schedule-day-total{position:static!important;display:block;min-height:36px;font-size:12px;float:right;padding:6px 8px}
+    body.schedule-mode .schedule-events{display:grid!important;grid-template-columns:1fr!important;max-height:none!important;height:auto!important;overflow:visible!important;gap:8px!important}
+    body.schedule-mode .schedule-event{width:100%!important;height:auto!important;min-height:72px!important;padding:12px!important;text-align:left;display:block!important}
+    body.schedule-mode .schedule-event strong{font-size:15px!important;white-space:normal!important;overflow-wrap:anywhere}
+    body.schedule-mode .schedule-event .schedule-client{display:block!important;font-size:13px!important;white-space:normal!important;line-height:1.4;margin:5px 0}
+    body.schedule-mode .schedule-event .schedule-units{display:block!important;font-size:12px!important}
+    body.schedule-mode .schedule-badge{display:inline-block!important;font-size:11px!important;margin-top:6px}
+    body.schedule-mode .schedule-grid:not(:has(.schedule-event)):after{content:'No hay entregas para este mes o búsqueda.';padding:24px 12px;color:#b8cbbf;font-size:15px}
+    body.production-mode .trace-card-body{padding:16px!important}.trace-card-heading{gap:10px}
+    body.production-mode .trace-card dl{grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 12px}
+    .trace-node-label{font-size:7px!important}.trace-route{padding-left:8px;padding-right:8px}
+  }
+  @media(max-width:360px){.trace-quick-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.operator-actions{grid-template-columns:1fr!important}.trace-detail dl{grid-template-columns:1fr!important}}
+  `;
+  document.head.appendChild(mobileStyle);
   renderTraceCards();
   new ResizeObserver(fitTraceCards).observe(toolbar);
 })();
