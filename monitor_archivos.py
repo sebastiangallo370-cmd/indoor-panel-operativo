@@ -1,4 +1,4 @@
-﻿"""
+"""
 Servidor_Reprogramacion  -  monitor_archivos.py
 ===============================================
 (arranca con Servidor_Reprogramacion.vbs)
@@ -860,8 +860,8 @@ ITEM_PDF_RE = re.compile(
     r"^(\d+)\s+([A-Z0-9\-]+)\s+(.+?)\s+(\d+)\s+\$[\d,\.]+\s.*$"
 )
 GENERO_PDF_RE = re.compile(r"\b(MASCULINO|MASC|MAC|FEMENINO|FEM)\b", re.IGNORECASE)
-TALLAS_CONOCIDAS = {"XS", "S", "M", "L", "XL", "2XL", "3XL", "4XL", "4", "6", "8", "10", "12", "14", "16"}
-SEGMENTO_RE = re.compile(r"^[A-Z0-9]{1,10}$")
+TALLAS_CONOCIDAS = {"XS", "S", "M", "L", "XL", "2XL", "3XL", "4XL", "2", "4", "6", "8", "10", "12", "14", "16"}
+SEGMENTO_RE = re.compile(r"^[\w .’']{1,100}$", re.UNICODE)
 
 def normalizar_genero(texto):
     m = GENERO_PDF_RE.search(texto)
@@ -870,18 +870,19 @@ def normalizar_genero(texto):
     return "FEM" if m.group(1).upper() in ("FEM", "FEMENINO") else "MASC"
 
 def parsear_talla_linea(linea):
-    partes = linea.split("-")
+    # Preserve accents, compound names and leading-zero shirt numbers.
+    partes = [p.strip() for p in linea.strip().upper().replace('–', '-').replace('—', '-').split("-")]
     if not (1 <= len(partes) <= 3):
         return None
     if not all(SEGMENTO_RE.match(p) for p in partes):
         return None
     if len(partes) == 1:
-        return {"nombre": None, "talla": partes[0], "numero": None}
+        return {"nombre": None, "talla": partes[0], "numero": None} if partes[0] in TALLAS_CONOCIDAS else None
     if len(partes) == 2:
         if partes[0] in TALLAS_CONOCIDAS:
             return {"nombre": None, "talla": partes[0], "numero": partes[1]}
-        return {"nombre": partes[0], "talla": partes[1], "numero": None}
-    return {"nombre": partes[0], "talla": partes[1], "numero": partes[2]}
+        return {"nombre": partes[0], "talla": partes[1], "numero": None} if partes[1] in TALLAS_CONOCIDAS else None
+    return {"nombre": partes[0], "talla": partes[1], "numero": partes[2]} if partes[1] in TALLAS_CONOCIDAS else None
 
 # Trozo de REF partida en varios renglones: 'A50PT01M', 'A100CA01M-', '-',
 # '-2100FUT11', 'H01M', '4-1', '1F' (codigos alfanumericos unidos por guiones).
@@ -1082,6 +1083,11 @@ def parsear_items_pdf(texto, warnings=None, lineas=None):
     # linea de continuacion. Si un item de verdad no lo trae, se avisa (y la
     # remision se rechaza aguas arriba, como antes).
     for it in items:
+        if it['tallas'] and len(it['tallas']) != it['cantidad']:
+            raise ValueError(
+                f"Item {it['item']} ({it['ref']}): el PDF indica {it['cantidad']} unidades "
+                f"pero se leyeron {len(it['tallas'])} filas del listado. Revisar antes de programar."
+            )
         if not it["diseno_explicito"]:
             msg = f"Item {it['item']} ({it['ref']}): no se detecto numero de diseno (D1/D2/D3/D4) explicito en el PDF, se asumio D1."
             logging.warning(f"PDF: {msg}")
