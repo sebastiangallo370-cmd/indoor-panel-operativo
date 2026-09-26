@@ -19,6 +19,26 @@ P = 'http://schemas.openxmlformats.org/package/2006/relationships'
 X = 'http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing'
 A = 'http://schemas.openxmlformats.org/drawingml/2006/main'
 C = 'http://schemas.openxmlformats.org/package/2006/content-types'
+IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp', '.bmp', '.tif', '.tiff'}
+
+
+async def require_mockup_upload(uploads):
+    """Validate actual image bytes before accepting a programming job."""
+    images = [item for item in uploads if Path(item.filename or '').suffix.lower() in IMAGE_EXTENSIONS]
+    if not images:
+        raise ValueError('Debes adjuntar al menos un mockup JPG, PNG o WEBP para programar la orden.')
+    for item in images:
+        data = await item.read(10 * 1024 * 1024 + 1)
+        await item.seek(0)
+        if len(data) > 10 * 1024 * 1024:
+            raise ValueError('El mockup supera 10 MB: ' + item.filename)
+        try:
+            with Image.open(io.BytesIO(data)) as image:
+                if image.width * image.height > 25_000_000:
+                    raise ValueError('Demasiados píxeles')
+                image.verify()
+        except Exception as exc:
+            raise ValueError('El mockup no es una imagen válida: ' + item.filename) from exc
 
 
 def normalized(text):
@@ -39,7 +59,7 @@ def match_uploads(paths, references):
         if not matches:
             # Recognize conventional short codes such as FUT01_D1.
             matches = [ref for ref in refs if any(code in normalized(ref) for code in codes)]
-        if not matches and len(refs) == 1 and not codes:
+        if len(refs) == 1:
             matches = refs
         if len(matches) != 1:
             issues.append(path.name + ': indicar referencia en el nombre')
@@ -47,7 +67,7 @@ def match_uploads(paths, references):
         ref = matches[0]
         found = re.search(r'(?:^| )(?:D|DISENO)\s*([1-4])(?: |$)', name)
         slots = result.setdefault(ref, {})
-        design = int(found[1]) if found else next((n for n in range(1, 5) if n not in slots), None)
+        design = int(found[1]) if found and int(found[1]) not in slots else next((n for n in range(1, 5) if n not in slots), None)
         if design is None or design in slots:
             raise ValueError('Máximo cuatro diseños distintos por referencia; revisar ' + path.name)
         if path.is_symlink() or path.stat().st_size > 10 * 1024 * 1024:
@@ -97,6 +117,8 @@ def embed_uploads(workbook_path, paths, backup_dir, missing_only=False):
     book = xml('xl/workbook.xml')
     sheets = {s.get('name'): s for s in book.findall('{'+S+'}sheets/{'+S+'}sheet') if s.get('state', 'visible') == 'visible' and s.get('name', '').upper() != 'BASE_DATOS'}
     assignments, issues = match_uploads(paths, sheets)
+    if issues and not missing_only:
+        raise ValueError('No se insertaron las imágenes: ' + ' | '.join(issues))
     book_rels = rels('xl/workbook.xml')
     content = xml('[Content_Types].xml')
     inserted = 0
@@ -198,6 +220,9 @@ def sync_order_uploads(order_dir, backup_dir, missing_only=False, uploaded_names
     order_dir = Path(order_dir)
     files = [p for p in order_dir.iterdir() if p.is_file() and not p.is_symlink() and not p.name.startswith(('~$', '.'))]
     listings = [p for p in files if p.suffix.lower() in {'.xlsx', '.xlsm'}]
+    canonical = [p for p in listings if p.stem.casefold() == order_dir.name.casefold()]
+    if len(canonical) == 1:
+        listings = canonical
     if len(listings) != 1:
         return 0, ['No hay un único listado Excel en la orden']
     images = files if uploaded_names is None else [p for p in files if p.name in uploaded_names]

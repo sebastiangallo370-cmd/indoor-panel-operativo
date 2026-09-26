@@ -24,7 +24,7 @@ from openpyxl import load_workbook
 
 from app.excel_linux import crear_excel_listado
 from app.excel_mockups import listing_designs
-from app.uploaded_mockups import sync_order_uploads
+from app.uploaded_mockups import sync_order_uploads, require_mockup_upload
 from app.creator_xlsx import _data_from_source, create_from_images, create_from_sheet_bundle, normalize_output_name
 from app.settings import STATE_DIR, UPLOAD_DIR, prepare_pedidos_runtime, prepare_runtime
 
@@ -267,8 +267,22 @@ def append_local_production(record: dict, row_builder=None):
         db.close()
 
 
+def verify_order_mockups(order_dir, records):
+    """Use the same reader as cards; never publish a reference without a design."""
+    files = [p for p in Path(order_dir).iterdir() if p.is_file() and not p.is_symlink()]
+    if not records:
+        raise ValueError('No hay referencias para programar')
+    for record in records:
+        reference = str(record.get('referencia') or '').strip()
+        designs, status = listing_designs(files, reference)
+        if not designs:
+            raise ValueError(f'No se programó la tarjeta: falta el mockup de {reference}. {status}. '
+                             'Sube la imagen con la referencia correcta en el nombre y vuelve a procesar.')
+
+
 def process_job(job_id: int, pdf_path: Path, extra_paths: list[Path]):
     try:
+        pending_records = []
         parsed = run_with_live_progress(
             job_id, 8, 34, "Leyendo y verificando el PDF",
             lambda: legacy.extraer_info_pdf(str(pdf_path)),
@@ -282,7 +296,7 @@ def process_job(job_id: int, pdf_path: Path, extra_paths: list[Path]):
             job_id, 38, 92, "Creando archivos y registrando en Producción local",
             lambda: legacy.procesar_orden(
                 order_number, str(pdf_path), CONFIG,
-                production_writer=lambda record: append_local_production(record, legacy._fila_produccion),
+                production_writer=lambda record: pending_records.append(dict(record)),
                 write_google_sheets=False,
             ),
         )
@@ -308,6 +322,11 @@ def process_job(job_id: int, pdf_path: Path, extra_paths: list[Path]):
                 detail += f". {copied} imagen(es) anexada(s) a la orden"
             if warnings:
                 detail += ". Avisos: " + " | ".join(warnings)
+            if image_issues:
+                raise ValueError('No se programó: ' + ' | '.join(image_issues))
+            verify_order_mockups(order_dir, pending_records)
+            for record in pending_records:
+                append_local_production(record, legacy._fila_produccion)
             update_job(job_id, "COMPLETADO", detail, order_number)
         else:
             update_job(job_id, "REVISAR", "El documento incumple una regla de negocio", order_number)
@@ -370,7 +389,6 @@ def process_reprogram_excel_job(job_id: int, excel_path: Path, extra_paths: list
         for index, record in enumerate(records, start=1):
             update_job_progress(job_id, 58 + int(index * 30 / total_records), f"Registrando referencia {index} de {total_records} en Producción local")
             legacy.guardar_referencia_supabase(record["referencia"], proyecto_safe)
-            append_local_production(record, legacy._fila_produccion)
         copied = 0
         for extra_path in extra_paths:
             update_job_progress(job_id, min(98, 90 + copied), "Copiando anexos de la reprogramación")
@@ -385,6 +403,11 @@ def process_reprogram_excel_job(job_id: int, excel_path: Path, extra_paths: list
             detail += ". Revisar imágenes: " + " | ".join(image_issues)
         if copied:
             detail += f". {copied} anexo(s) copiado(s)"
+        if image_issues:
+            raise ValueError('No se programó: ' + ' | '.join(image_issues))
+        verify_order_mockups(order_dir, records)
+        for record in records:
+            append_local_production(record, legacy._fila_produccion)
         update_job(job_id, "COMPLETADO", detail, order_number)
     except Exception as error:
         logging.exception("Error procesando reprogramación Excel %s", job_id)
@@ -393,6 +416,9 @@ def process_reprogram_excel_job(job_id: int, excel_path: Path, extra_paths: list
 
 def process_order_job(job_id: int, job_dir: Path, pdf_path: Path, excel_path: Path):
     try:
+        pending_records = []
+        # The legacy processor moves/removes attachments: remember them beforehand.
+        uploaded_names = {p.name for p in job_dir.iterdir() if p.is_file() and p not in (pdf_path, excel_path)}
         update_job_progress(job_id, 8, "Validando la pareja PDF + Excel")
         pdf_prefix, pdf_number = pedidos.extraer_prefijo_numero_nombre(pdf_path.name)
         xls_prefix, xls_number = pedidos.extraer_prefijo_numero_nombre(excel_path.name)
@@ -407,13 +433,12 @@ def process_order_job(job_id: int, job_dir: Path, pdf_path: Path, excel_path: Pa
             job_id, 20, 93, "Creando la orden y registrando en Producción local",
             lambda: pedidos.procesar_orden(
                 order_number, str(pdf_path), str(excel_path), PEDIDOS_CONFIG,
-                production_writer=lambda record: append_local_production(record, pedidos._fila_produccion),
+                production_writer=lambda record: pending_records.append(dict(record)),
                 write_google_sheets=False,
             ),
         )
         if ok:
             copied = 0
-            uploaded_names = set()
             for attachment in job_dir.iterdir():
                 if not attachment.is_file() or attachment in (pdf_path, excel_path):
                     continue
@@ -429,6 +454,11 @@ def process_order_job(job_id: int, job_dir: Path, pdf_path: Path, excel_path: Pa
                 detail += ". Revisar imágenes: " + " | ".join(image_issues)
             if copied:
                 detail += f". {copied} anexo(s) copiado(s)"
+            if image_issues:
+                raise ValueError('No se programó: ' + ' | '.join(image_issues))
+            verify_order_mockups(Path(ok), pending_records)
+            for record in pending_records:
+                append_local_production(record, pedidos._fila_produccion)
             update_job(job_id, "COMPLETADO", detail, order_number)
         else:
             update_job(job_id, "REVISAR", "El pedido incumple una regla de negocio", order_number)
@@ -1471,7 +1501,7 @@ def production_row_files(source_row: int, excel_only=False):
         files = [p for p in matches[0].iterdir() if p.is_file() and p.resolve().parent == matches[0]]
     reference = field('REFERENCIA').upper()
     if excel_only:
-        return [p for p in files if not p.name.startswith('~$') and p.suffix.lower() in ('.xlsx', '.xls', '.pdf', '.csv')], [], client
+        return [p for p in files if not p.name.startswith('~$') and p.suffix.lower() in ('.xlsx', '.xlsm', '.xls', '.pdf', '.csv')], [], client
     def child(parent, name):
         found = [p.resolve() for p in parent.iterdir() if p.is_dir() and p.name.casefold() == name.casefold() and p.resolve().parent == parent]
         return found[0] if len(found) == 1 else None
@@ -1886,7 +1916,7 @@ def home(_=Depends(authenticate)):
     <form id='upload-form' method='post' action='/procesar' enctype='multipart/form-data'>
     <label class='dropzone' id='dropzone' for='archivo'><div><div class='upload-icon'><svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' aria-hidden='true'><path d='M12 16V4m0 0L7 9m5-5 5 5'/><path d='M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4'/></svg></div><strong>Arrastra el PDF o Excel aquí</strong><span>o haz clic para buscar · máximo 25 MB</span></div></label>
     <input required id='archivo' type='file' name='archivo' accept='application/pdf,.pdf,.xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'><div id='selected' class='selected'></div>
-    <label class='file-row' style='margin-top:14px'><div><b>Imágenes de la reprogramación</b><span id='repro-extras-label'>Opcional · selecciona una o varias imágenes</span></div><input id='repro-extras' type='file' name='extras' accept='image/*,.ai,.eps,.svg' multiple></label>
+    <label class='file-row' style='margin-top:14px'><div><b>MOCKUP OBLIGATORIO</b><span id='repro-extras-label'>Adjunta la imagen que aparecerá en la tarjeta</span></div><input id='repro-extras' type='file' name='extras' accept='image/*,.ai,.eps,.svg' multiple required></label>
     <div class='actions'><button id='submit' type='submit' disabled>Procesar documento</button></div><div id='message' class='message' role='status' aria-live='polite'></div></form></div></div>
     <div class='card history'><div class='history-head'><div><h2>Orden actual</h2><p class='count'>Sin una orden seleccionada</p></div><button class='refresh' type='button'>Actualizar</button></div>
     <div class='table-wrap'><table><thead><tr><th>ID</th><th>Archivo</th><th>Orden</th><th>Estado</th><th>Detalle</th></tr></thead><tbody id='jobs'>{rows}</tbody></table></div></div></section>
@@ -1894,7 +1924,7 @@ def home(_=Depends(authenticate)):
     <form id='order-form' method='post' action='/procesar/pedido' enctype='multipart/form-data'><div class='file-pair'>
     <label class='file-row'><div><b>Documento PDF</b><span id='pdf-label'>Seleccionar cotización o remisión</span></div><input required id='pedido-pdf' type='file' name='pdf' accept='application/pdf,.pdf'></label>
     <label class='file-row'><div><b>Listado Excel</b><span id='excel-label'>Seleccionar archivo .xlsx o .xlsm</span></div><input required id='pedido-excel' type='file' name='excel' accept='.xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'></label>
-    <label class='file-row'><div><b>Anexos opcionales</b><span id='extras-label'>Imágenes u otros archivos del pedido</span></div><input id='pedido-extras' type='file' name='extras' multiple></label></div>
+    <label class='file-row'><div><b>MOCKUP OBLIGATORIO Y ANEXOS</b><span id='extras-label'>Adjunta la imagen que aparecerá en la tarjeta</span></div><input id='pedido-extras' type='file' name='extras' multiple required></label></div>
     <div class='actions'><button id='order-submit' type='submit' disabled>Procesar pedido</button></div><div id='order-message' class='message' role='status' aria-live='polite'></div></form></div></div>
     <div class='card history'><div class='history-head'><div><h2>Pedido actual</h2><p class='count'>Sin un pedido seleccionado</p></div><button class='refresh' type='button'>Actualizar</button></div>
     <div class='table-wrap'><table><thead><tr><th>ID</th><th>Archivos</th><th>Orden</th><th>Estado</th><th>Detalle</th></tr></thead><tbody id='order-jobs'></tbody></table></div></div></section>
@@ -1925,13 +1955,13 @@ def home(_=Depends(authenticate)):
       let files=[];
       const row=field.closest('.file-row'),list=document.createElement('div'),hint=document.createElement('p');
       list.className='attachment-list';list.setAttribute('aria-label','Archivos seleccionados');
-      hint.textContent='Añade archivos de distintas carpetas. Se conservan todos hasta enviar el pedido. Puedes quitar los que no necesites.';
+      hint.textContent='Anexos adicionales: puedes añadir archivos de distintas carpetas. Los mockups se cargan arriba, en D1–D4 (hasta 10 MB por imagen).';
       hint.style.cssText='font-size:12px;color:#aebcae;line-height:1.5;margin:8px 0';
       row.after(hint,list);
       function sync(){{
         const transfer=new DataTransfer();files.forEach(file=>transfer.items.add(file));field.files=transfer.files;
         list.replaceChildren();row.classList.toggle('has-file',files.length>0);
-        row.querySelector('span').textContent=files.length?files.length+' archivo(s) seleccionado(s) · Añadir más':'Seleccionar imágenes o anexos';
+        row.querySelector('span').textContent=files.length?files.length+' archivo(s) seleccionado(s) · Añadir más':'Seleccionar anexos opcionales';
         files.forEach((file,index)=>{{
           const item=document.createElement('div'),name=document.createElement('span'),remove=document.createElement('button');
           item.style.cssText='display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid #39443a';
@@ -1946,6 +1976,35 @@ def home(_=Depends(authenticate)):
       sync();
     }}
     [reproExtras,document.getElementById('pedido-extras')].forEach(accumulateAttachments);
+    for (const [formId,fieldId,messageId] of [['upload-form','repro-extras','message'],['order-form','pedido-extras','order-message']]){{
+      const targetForm=document.getElementById(formId),annex=document.getElementById(fieldId),annexRow=annex.closest('.file-row');
+      annex.required=false;annexRow.querySelector('b').textContent='ANEXOS ADICIONALES (OPCIONAL)';
+      const annexList=annexRow.nextElementSibling?.nextElementSibling,annexHint=annexRow.nextElementSibling;
+      const optional=document.createElement('details'),optionalTitle=document.createElement('summary');
+      optionalTitle.textContent='＋ Anexos adicionales (opcional)';optional.style.cssText='margin:8px 0;font-size:12px';
+      annexRow.before(optional);optional.append(optionalTitle,annexRow);
+      if(annexHint)optional.append(annexHint);if(annexList)optional.append(annexList);
+      const designs=document.createElement('fieldset');designs.className='required-mockups';
+      designs.style.cssText='border:1px solid #526344;border-radius:12px;padding:10px;margin:10px 0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px';
+      designs.innerHTML='<legend style="font-size:12px">MOCKUPS · AL MENOS UNO OBLIGATORIO</legend>';
+      for(let number=1;number<=4;number++){{
+        const slot=document.createElement('label');slot.className='file-row';
+        slot.innerHTML='<div><b>D'+number+'</b><span>Seleccionar imagen</span></div><input type="file" name="mockup_d'+number+'" accept=".jpg,.jpeg,.png,.webp,.bmp,.tif,.tiff">';
+        designs.appendChild(slot);
+      }}
+      optional.before(designs);
+      targetForm.addEventListener('reset',()=>queueMicrotask(()=>{{
+        designs.querySelectorAll('.file-row').forEach(row=>{{row.classList.remove('has-file');row.querySelector('span').textContent='Seleccionar imagen'}});
+      }}));
+      document.getElementById(formId).addEventListener('submit',event=>{{
+        const files=[...designs.querySelectorAll('input')].flatMap(field=>[...field.files]);
+        if(!files.some(file=>/\\.(jpe?g|png|webp|bmp|tiff?)$/i.test(file.name))){{
+          event.preventDefault();event.stopImmediatePropagation();
+          const notice=document.getElementById(messageId);notice.className='message show error';
+          notice.textContent='Adjunta un mockup JPG, PNG o WEBP. La orden no se programará sin imagen en su tarjeta.';
+        }}
+      }},true);
+    }}
     drop.addEventListener('drop',e=>{{const file=e.dataTransfer.files[0];if(file){{const dt=new DataTransfer();dt.items.add(file);input.files=dt.files;choose(file)}}}});
     const currentKeys={{reprogramacion:'indoor-current-reprogramacion',pedido:'indoor-current-pedido',creador:'indoor-current-creador'}};
     const currentId=kind=>Number(localStorage.getItem(currentKeys[kind])||0); const remember=(kind,id)=>localStorage.setItem(currentKeys[kind],String(id));
@@ -2448,12 +2507,30 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
     </script><script src='/trace-ui.js?v=20260926-20'></script></body></html>"""
 
 
+def ordered_mockup_uploads(extras, slots):
+    uploads = list(extras)
+    for number, image in enumerate(slots, 1):
+        if image and image.filename:
+            image.filename = f'D{number}_' + Path(image.filename).name
+            uploads.append(image)
+    return uploads
+
+
 @app.post("/procesar", status_code=202)
 async def upload(
     archivo: UploadFile = File(...),
     extras: list[UploadFile] = File(default=[]),
+    mockup_d1: UploadFile = File(default=None),
+    mockup_d2: UploadFile = File(default=None),
+    mockup_d3: UploadFile = File(default=None),
+    mockup_d4: UploadFile = File(default=None),
     _=Depends(authenticate),
 ):
+    extras = ordered_mockup_uploads(extras, [mockup_d1, mockup_d2, mockup_d3, mockup_d4])
+    try:
+        await require_mockup_upload(extras)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
     extension = Path(archivo.filename or "").suffix.lower()
     if extension not in {".pdf", ".xlsx", ".xlsm"}:
         raise HTTPException(400, "Solo se permiten archivos PDF, XLSX o XLSM")
@@ -2500,8 +2577,17 @@ async def upload_order(
     pdf: UploadFile = File(...),
     excel: UploadFile = File(...),
     extras: list[UploadFile] = File(default=[]),
+    mockup_d1: UploadFile = File(default=None),
+    mockup_d2: UploadFile = File(default=None),
+    mockup_d3: UploadFile = File(default=None),
+    mockup_d4: UploadFile = File(default=None),
     _=Depends(authenticate),
 ):
+    extras = ordered_mockup_uploads(extras, [mockup_d1, mockup_d2, mockup_d3, mockup_d4])
+    try:
+        await require_mockup_upload(extras)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
     if not pdf.filename or Path(pdf.filename).suffix.lower() != ".pdf":
         raise HTTPException(400, "El primer archivo debe ser un PDF")
     if not excel.filename or Path(excel.filename).suffix.lower() not in {".xlsx", ".xlsm"}:

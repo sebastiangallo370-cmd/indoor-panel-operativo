@@ -144,7 +144,7 @@ def extract_designs(filename, size, reference):
 
 
 def listing_designs(files, reference):
-    candidates = [p for p in files if p.suffix.lower() == '.xlsx' and not p.name.startswith('~$')]
+    candidates = [p for p in files if p.suffix.lower() in ('.xlsx', '.xlsm') and not p.name.startswith('~$')]
     canonical = [p for p in candidates if p.stem.casefold() == p.parent.name.casefold()]
     if len(canonical) == 1:
         candidates = canonical
