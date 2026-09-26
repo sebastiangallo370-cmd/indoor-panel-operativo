@@ -1164,3 +1164,58 @@
   document.head.appendChild(style);
   window.dispatchEvent(new Event('resize'));
 })();
+
+// Indoor athletic visual language; interaction and workflow remain unchanged.
+(() => {
+  if (typeof document === 'undefined') return;
+  const style = document.createElement('style');
+  style.id = 'indoor-sport-interface';
+  style.textContent = `
+  :root{--sport-font:"Helvetica Neue",Arial,sans-serif;--sport-title:"Arial Narrow","Helvetica Neue",Arial,sans-serif;--sport-weight:800;--sport-bg:#080e0b;--sport-surface:#14221b;--sport-lime:#d0f44c;--sport-text:#f5f7f3;--sport-muted:#a9b5ad;--sport-line:#ffffff20;--sport-radius:18px;--sport-pill:30px;--sport-gap:24px}
+  html body{font-family:var(--sport-font);background:var(--sport-bg)}
+  body :is(button,input,textarea,select){font-family:var(--sport-font)}
+  body :is(h1,h2,h3,h4){font-family:var(--sport-title);font-weight:var(--sport-weight);letter-spacing:-.04em}
+  body header h1{font-weight:var(--sport-weight);text-transform:uppercase;font-size:clamp(28px,3.3vw,48px);line-height:.98;max-width:1000px}
+  body header h1 br{display:none}
+  body header .subtitle{font-weight:400;line-height:1.5}
+  body .eyebrow{font-weight:700;letter-spacing:.12em}
+  html body.top-navigation .sidebar{background:var(--sport-bg);backdrop-filter:none;border-bottom-color:var(--sport-line)}
+  html body.top-navigation .sidebar nav.tabs>.tab,html body.top-navigation .sidebar .nav-parent{border-radius:0;border:0;border-bottom:2px solid transparent;min-height:48px;background:transparent;color:var(--sport-text);font-weight:700}
+  html body.top-navigation .sidebar nav.tabs>.tab.active,html body.top-navigation .sidebar .nav-parent[aria-expanded=true]{border-bottom-color:var(--sport-lime);background:transparent;color:var(--sport-lime)}
+  html body.top-navigation .sidebar nav.tabs>.tab:hover,html body.top-navigation .sidebar .nav-parent:hover{border-bottom-color:var(--sport-lime);background:transparent}
+  html body.top-navigation .sidebar .nav-children{background:var(--sport-surface);border-radius:0 0 var(--sport-radius) var(--sport-radius);box-shadow:0 20px 40px #0005}
+  html body.top-navigation .sidebar .nav-children .tab{font-weight:600;border-radius:var(--sport-radius)}
+  body .card,body .production-shell,body .schedule-shell{border-radius:var(--sport-radius);background:var(--sport-surface);box-shadow:none}
+  body .card-head h2,body .schedule-title h2,body .production-title h2{font-weight:var(--sport-weight);text-transform:uppercase;letter-spacing:-.035em}
+  body .card-head{padding:var(--sport-gap);border-color:var(--sport-line)}
+  body .workspace{gap:var(--sport-gap)}
+  body .dropzone{background:var(--sport-bg);border-radius:var(--sport-radius);min-height:140px}
+  body .dropzone strong{font-size:16px;font-weight:700}
+  body .upload-icon{border-radius:50%;background:var(--sport-lime);color:var(--sport-bg)}
+  body #submit,body .creator-actions button{border-radius:var(--sport-pill);font-weight:700;min-height:48px}
+  body button:disabled{cursor:not-allowed}
+  body .production-refresh,body .production-connector,body .schedule-actions button{border-radius:var(--sport-pill);font-weight:600;box-shadow:none}
+  body .trace-quick-filters button{font-family:var(--sport-font);border-radius:var(--sport-pill);font-weight:600;box-shadow:none}
+  body .trace-quick-filters button.active{background:var(--sport-lime);color:var(--sport-bg)}
+  body.production-mode .trace-card{border-radius:var(--sport-radius);background:var(--sport-surface)}
+  body.production-mode .trace-card-body{padding:var(--sport-gap)}
+  body.production-mode .trace-card-body h3{font-family:var(--sport-title);font-size:24px;font-weight:var(--sport-weight);letter-spacing:-.045em}
+  body.production-mode .trace-card-body h4{font-family:var(--sport-title);font-size:24px;font-weight:var(--sport-weight)}
+  body.production-mode .trace-client{font-family:var(--sport-font);font-weight:700}
+  body.production-mode .trace-card :is(dt,dd,p,small){font-family:var(--sport-font)}
+  body.production-mode .trace-media{background:var(--sport-text)}
+  body.production-mode .trace-card .trace-design-main img{object-fit:contain}
+  body.production-mode .trace-card button:not(.trace-node){font-family:var(--sport-font);font-weight:600;box-shadow:none}
+  body.production-mode .trace-route{background:var(--sport-bg)}
+  body .studio-header h2,body dialog h2{font-family:var(--sport-title);font-weight:var(--sport-weight);text-transform:uppercase;letter-spacing:-.035em}
+  body .studio-context{border-radius:var(--sport-radius);background:var(--sport-bg)}
+  body .production-studio .operator-actions button{border-radius:var(--sport-radius);box-shadow:none}
+  body .schedule-event{border-radius:var(--sport-radius);box-shadow:none}
+  body .schedule-event strong{font-family:var(--sport-font);font-weight:700}
+  body .production-table th{font-family:var(--sport-font);font-weight:600}
+  body :is(input,select,textarea):focus-visible{outline:2px solid var(--sport-lime);outline-offset:2px}
+  @media(hover:hover){body .dropzone:hover{border-color:var(--sport-lime);background:var(--sport-surface)}body #submit:not(:disabled):hover{filter:brightness(1.08)}}
+  @media(max-width:700px){html body.top-navigation .sidebar nav.tabs>.tab,html body.top-navigation .sidebar .nav-parent{min-height:38px}body .card-head,body.production-mode .trace-card-body{padding:16px}body header h1{font-size:30px}body.production-mode .trace-card-body h3,body.production-mode .trace-card-body h4{font-size:22px}}
+  `;
+  document.head.appendChild(style);
+})();
