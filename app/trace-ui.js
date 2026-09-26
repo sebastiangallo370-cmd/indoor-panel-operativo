@@ -76,6 +76,9 @@
     if (filter === 'mine') return summary.route ? summary.mine && summary.state !== 'finished' : summary.myPending;
     return matches(summary, filter);
   }
+  function summaryForView(summary, filter, profile, user, today, admin, areaOnly) {
+    return areaOnly || (!admin && filter !== 'all') ? processQueueSummary(summary, profile, user, today) : summary;
+  }
   function orderByDelivery(rows, headers) {
     const column = headers.findIndex(h => key(h) === 'FECHA DE ENTREGA');
     return rows.map((row, index) => ({ row, index, due: dateValue(row.values[column])?.getTime() ?? Infinity }))
@@ -107,7 +110,7 @@
     });
     return data;
   }
-  if (typeof module !== 'undefined' && module.exports) { module.exports = { key, dateValue, groupsFor, summarize, matches, processForProfile, processQueueSummary, queueMatches, orderByDelivery, addBusinessDays, applyDefaultDeliveryDates }; return; }
+  if (typeof module !== 'undefined' && module.exports) { module.exports = { key, dateValue, groupsFor, summarize, matches, processForProfile, processQueueSummary, queueMatches, summaryForView, orderByDelivery, addBusinessDays, applyDefaultDeliveryDates }; return; }
   if (typeof traceCards === 'undefined') return;
 
   const isAdmin = typeof canViewAdministration !== 'undefined' && canViewAdministration;
@@ -204,18 +207,17 @@
     traceImageObserver.disconnect();
     const visible = new Set([...productionBody.querySelectorAll('tr')].map(tr => Number(tr.querySelector('td[data-row]')?.dataset.row)));
     const base = productionData.rows.filter(row => visible.has(row.source_row) && ['ORDEN', 'NOMBRE DEL CLIENTE', 'NOMBRE PROYECTO', 'REFERENCIA'].some(name => traceField(row, name).trim()));
-    const summaries = new Map(base.map(row => {
-      const summary = summarize(productionData, row, processStatusHeaders, user, scheduleToday());
-      return [row.source_row, ownAreaFilter ? processQueueSummary(summary, profile, user, scheduleToday()) : summary];
-    }));
+    const fullSummaries = new Map(base.map(row => [row.source_row, summarize(productionData, row, processStatusHeaders, user, scheduleToday())]));
+    const forView = (row, stateFilter) => summaryForView(fullSummaries.get(row.source_row), stateFilter, profile, user, scheduleToday(), isAdmin, ownAreaFilter);
+    const summaries = new Map(base.map(row => [row.source_row, forView(row, filter)]));
     const match = isAdmin && !ownAreaFilter ? matches : queueMatches;
     areaButton.setAttribute('aria-pressed', String(ownAreaFilter));
-    toolbar.querySelector('h3').textContent = ownAreaFilter ? ownProcess.label + ' · Trabajo entre turnos' : 'Todos los pedidos programados';
+    toolbar.querySelector('h3').textContent = ownAreaFilter || (!isAdmin && filter !== 'all') ? (ownProcess?.label || 'Proceso sin asignar') + ' · Trabajo entre turnos' : 'Todos los pedidos programados';
     toolbar.querySelectorAll('[data-trace-filter]').forEach(button => { button.hidden = ownAreaFilter; });
     const rows = orderByDelivery(base.filter(row => match(summaries.get(row.source_row), filter)), productionData.headers);
     toolbar.querySelectorAll('[data-trace-filter]').forEach(button => {
       button.setAttribute('aria-pressed', String(button.dataset.traceFilter === filter));
-      button.querySelector('span').textContent = base.filter(row => match(summaries.get(row.source_row), button.dataset.traceFilter)).length;
+      button.querySelector('span').textContent = base.filter(row => match(forView(row, button.dataset.traceFilter), button.dataset.traceFilter)).length;
     });
     toolbar.querySelector('.trace-results').textContent = rows.length + ' tarjetas · Entrega: de más próxima a más lejana · Sin fecha al final' + (filter === 'mine' ? ' · Asignadas a tu usuario' : '');
     traceCards.innerHTML = rows.map(row => {
