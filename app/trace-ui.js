@@ -1,6 +1,13 @@
 /* Production cards: derived presentation only. Operational writes remain in the existing API. */
 (function () {
   'use strict';
+  if (typeof document !== 'undefined' && typeof canViewAdministration !== 'undefined' && canViewAdministration) {
+    const studioLink = document.createElement('a');
+    studioLink.href = '/estudio';
+    studioLink.className = 'tab';
+    studioLink.innerHTML = '<span class="nav-icon">EQ</span><strong>ESPACIO DE EQUIPOS</strong>';
+    adminGroup.querySelector('.nav-children').appendChild(studioLink);
+  }
   const key = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase();
   const personKey = value => key(value).replace(/[^A-Z0-9]/g, '');
   function dateValue(value) {
@@ -50,7 +57,7 @@
     return { groups, finished, total: groups.length, state, focus, mine, due, overdue, percent: groups.length ? Math.round(finished / groups.length * 100) : 0 };
   }
   function matches(summary, filter) {
-    return filter === 'all' || filter === 'mine' && summary.mine || filter === 'late' && summary.overdue || filter === summary.state;
+    return filter === 'all' || filter === 'work' && summary.mine && summary.state !== 'finished' || filter === 'mine' && summary.mine || filter === 'late' && summary.overdue || filter === summary.state;
   }
   function orderByDelivery(rows, headers) {
     const column = headers.findIndex(h => key(h) === 'FECHA DE ENTREGA');
@@ -97,7 +104,7 @@
   };
 
   const labels = { pending: 'Pendiente', active: 'En proceso', rework: 'Reproceso', finished: 'Terminado', partial: 'Avance parcial' };
-  const filters = [['all', 'Todos'], ['mine', 'Mis pedidos'], ['late', 'Atrasados'], ['active', 'En proceso'], ['rework', 'Reproceso'], ['finished', 'Terminados']];
+  const filters = [['all', 'Todos'], ['work', 'Mi trabajo del día'], ['mine', 'Mis pedidos'], ['late', 'Atrasados'], ['active', 'En proceso'], ['rework', 'Reproceso'], ['finished', 'Terminados']];
   let filter = 'all';
   const user = { name: document.querySelector('.user-info strong')?.textContent || '', initials: document.querySelector('.user-avatar')?.textContent || '' };
   const toolbar = document.createElement('section');
