@@ -1799,7 +1799,31 @@ def home(_=Depends(authenticate)):
     function show(text,type){{message.textContent=text;message.className='message show '+type}}
     document.addEventListener('change',event=>{{const field=event.target;if(!field.matches('input[type="file"]'))return;const row=field.closest('.file-row');if(row){{row.classList.toggle('has-file',field.files.length>0);const label=row.querySelector('span');if(label&&field.files.length)label.textContent=field.files.length===1?field.files[0].name:field.files.length+' archivos seleccionados'}}}});
     input.addEventListener('change',()=>{{choose(input.files[0]);if(input.files.length){{localStorage.removeItem(currentKeys.reprogramacion);resetProgressButton(submit,'Procesar documento')}}}}); ['dragenter','dragover'].forEach(e=>drop.addEventListener(e,x=>{{x.preventDefault();drop.classList.add('drag')}})); ['dragleave','drop'].forEach(e=>drop.addEventListener(e,x=>{{x.preventDefault();drop.classList.remove('drag')}}));
-    reproExtras.addEventListener('change',()=>{{document.getElementById('repro-extras-label').textContent=reproExtras.files.length?reproExtras.files.length+' imagen(es) seleccionada(s)':'Opcional · selecciona una o varias imágenes'}});
+    function accumulateAttachments(field){{
+      let files=[];
+      const row=field.closest('.file-row'),list=document.createElement('div'),hint=document.createElement('p');
+      list.className='attachment-list';list.setAttribute('aria-label','Archivos seleccionados');
+      hint.textContent='Añade archivos de distintas carpetas. Se conservan todos hasta enviar el pedido. Puedes quitar los que no necesites.';
+      hint.style.cssText='font-size:12px;color:#aebcae;line-height:1.5;margin:8px 0';
+      row.after(hint,list);
+      function sync(){{
+        const transfer=new DataTransfer();files.forEach(file=>transfer.items.add(file));field.files=transfer.files;
+        list.replaceChildren();row.classList.toggle('has-file',files.length>0);
+        row.querySelector('span').textContent=files.length?files.length+' archivo(s) seleccionado(s) · Añadir más':'Seleccionar imágenes o anexos';
+        files.forEach((file,index)=>{{
+          const item=document.createElement('div'),name=document.createElement('span'),remove=document.createElement('button');
+          item.style.cssText='display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid #39443a';
+          name.textContent=(index+1)+'. '+file.name+' · '+(file.size/1024/1024).toFixed(2)+' MB';name.style.cssText='flex:1;min-width:0;overflow-wrap:anywhere;font-size:13px';
+          remove.type='button';remove.textContent='Quitar';remove.setAttribute('aria-label','Quitar archivo '+(index+1)+': '+file.name);remove.style.cssText='width:auto;padding:8px 12px;margin:0;background:#263429;color:#e5eddf;box-shadow:none';
+          remove.addEventListener('click',()=>{{files.splice(index,1);sync()}});item.append(name,remove);list.appendChild(item);
+        }});
+      }}
+      field.addEventListener('change',()=>{{files.push(...field.files);sync()}});
+      field.addEventListener('cancel',sync);
+      field.form.addEventListener('reset',event=>queueMicrotask(()=>{{if(!event.defaultPrevented){{files=[];sync()}}}}));
+      sync();
+    }}
+    [reproExtras,document.getElementById('pedido-extras')].forEach(accumulateAttachments);
     drop.addEventListener('drop',e=>{{const file=e.dataTransfer.files[0];if(file){{const dt=new DataTransfer();dt.items.add(file);input.files=dt.files;choose(file)}}}});
     const currentKeys={{reprogramacion:'indoor-current-reprogramacion',pedido:'indoor-current-pedido',creador:'indoor-current-creador'}};
     const currentId=kind=>Number(localStorage.getItem(currentKeys[kind])||0); const remember=(kind,id)=>localStorage.setItem(currentKeys[kind],String(id));
