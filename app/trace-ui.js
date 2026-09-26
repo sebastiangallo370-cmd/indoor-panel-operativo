@@ -79,6 +79,11 @@
   function summaryForView(summary, filter, profile, user, today, admin, areaOnly) {
     return areaOnly || (!admin && filter !== 'all') ? processQueueSummary(summary, profile, user, today) : summary;
   }
+  function paginate(rows, requestedPage) {
+    const pages = Math.max(1, Math.ceil(rows.length / 15));
+    const page = Math.max(1, Math.min(pages, Math.trunc(Number(requestedPage)) || 1));
+    return { page, pages, total: rows.length, start: rows.length ? (page - 1) * 15 + 1 : 0, end: Math.min(page * 15, rows.length), rows: rows.slice((page - 1) * 15, page * 15) };
+  }
   function orderByDelivery(rows, headers) {
     const column = headers.findIndex(h => key(h) === 'FECHA DE ENTREGA');
     return rows.map((row, index) => ({ row, index, due: dateValue(row.values[column])?.getTime() ?? Infinity }))
@@ -110,7 +115,7 @@
     });
     return data;
   }
-  if (typeof module !== 'undefined' && module.exports) { module.exports = { key, dateValue, groupsFor, summarize, matches, processForProfile, processQueueSummary, queueMatches, summaryForView, orderByDelivery, addBusinessDays, applyDefaultDeliveryDates }; return; }
+  if (typeof module !== 'undefined' && module.exports) { module.exports = { key, dateValue, groupsFor, summarize, matches, processForProfile, processQueueSummary, queueMatches, summaryForView, paginate, orderByDelivery, addBusinessDays, applyDefaultDeliveryDates }; return; }
   if (typeof traceCards === 'undefined') return;
 
   const isAdmin = typeof canViewAdministration !== 'undefined' && canViewAdministration;
@@ -162,12 +167,32 @@
   const labels = { pending: 'Pendiente', active: 'En proceso', rework: 'Reproceso', finished: 'Terminado', partial: 'Avance parcial' };
   const filters = isAdmin ? [['all', 'Todos'], ['work', 'Mi trabajo del día'], ['mine', 'Mis pedidos'], ['late', 'Atrasados'], ['active', 'En proceso'], ['rework', 'Reproceso'], ['finished', 'Terminados']] : [['all', 'Todos'], ['pending', 'Por fabricar'], ['mine', 'A mi cargo'], ['active', 'En proceso'], ['rework', 'Reproceso'], ['late', 'Atrasados'], ['finished', 'Terminados']];
   let filter = defaultFilter;
+  let currentPage = 1, pageQuery = '';
   const user = { name: document.querySelector('.user-info strong')?.textContent || '', initials: document.querySelector('.user-avatar')?.textContent || '' };
   const toolbar = document.createElement('section');
   toolbar.className = 'trace-workspace';
   toolbar.setAttribute('aria-label', 'Filtros de trazabilidad');
   toolbar.innerHTML = '<div class="trace-workspace-top"><div><h3>Pedidos en seguimiento</h3></div><span class="trace-live">Actualización automática</span></div><div class="trace-quick-filters" role="group" aria-label="Estado de los pedidos">' + filters.map(([id, label]) => '<button type="button" data-trace-filter="' + id + '" aria-pressed="' + (id === 'all') + '">' + label + '<span>0</span></button>').join('') + '</div><p class="trace-results" role="status" aria-live="polite"></p>';
   traceCards.before(toolbar);
+  const pager = document.createElement('nav');
+  pager.className = 'trace-pagination';
+  pager.setAttribute('aria-label', 'Páginas de pedidos');
+  toolbar.appendChild(pager);
+  function pageMarkup(result) {
+    const numbers = [...new Set([1, result.pages, result.page-2, result.page-1, result.page, result.page+1, result.page+2])].filter(n => n >= 1 && n <= result.pages).sort((a,b) => a-b);
+    return '<span class="trace-page-count">Página ' + result.page + ' de ' + result.pages + '</span><button type="button" data-trace-page="' + (result.page-1) + '"' + (result.page===1?' disabled':'') + '>Anterior</button>' + numbers.map((n,i) => (i && n>numbers[i-1]+1 ? '<span aria-hidden="true">…</span>' : '') + '<button type="button" data-trace-page="' + n + '" aria-label="Página ' + n + '"' + (n===result.page?' aria-current="page"':'') + '>' + n + '</button>').join('') + '<button type="button" data-trace-page="' + (result.page+1) + '"' + (result.page===result.pages?' disabled':'') + '>Siguiente</button>';
+  }
+  function changePage(event) {
+    const button = event.target.closest('[data-trace-page]');
+    if (!button || button.disabled) return;
+    currentPage = Number(button.dataset.tracePage);
+    traceCards.scrollTop = 0;
+    renderTraceCards();
+    if (getComputedStyle(traceCards).overflowY === 'visible') pager.scrollIntoView({ block: 'start' });
+    pager.querySelector('[aria-current="page"]')?.focus({ preventScroll:true });
+  }
+  pager.addEventListener('click', changePage);
+  traceCards.addEventListener('click', changePage);
   const areaButton = document.createElement('button');
   areaButton.type = 'button';
   areaButton.className = 'trace-area-toggle';
@@ -200,7 +225,8 @@
   }
   renderTraceCards = function () {
     if (!productionData || traceView !== 'cards') return;
-    const scrollTop = traceCards.scrollTop, focused = document.activeElement;
+    let scrollTop = traceCards.scrollTop;
+    const focused = document.activeElement;
     const focusKey = focused?.closest('[data-card-row]')?.dataset.cardRow;
     const focusAttribute = ['data-card-edit', 'data-card-detail', 'data-card-nas', 'data-node-index', 'data-design-index'].find(a => focused?.hasAttribute(a));
     const focusValue = focusAttribute ? focused.getAttribute(focusAttribute) : null;
@@ -214,12 +240,18 @@
     areaButton.setAttribute('aria-pressed', String(ownAreaFilter));
     toolbar.querySelector('h3').textContent = ownAreaFilter || (!isAdmin && filter !== 'all') ? (ownProcess?.label || 'Proceso sin asignar') + ' · Trabajo entre turnos' : 'Todos los pedidos programados';
     toolbar.querySelectorAll('[data-trace-filter]').forEach(button => { button.hidden = ownAreaFilter; });
-    const rows = orderByDelivery(base.filter(row => match(summaries.get(row.source_row), filter)), productionData.headers);
+    const query = JSON.stringify([filter, ownAreaFilter, selectedProcess, productionSearch.value, exactScheduleOrder]);
+    if (pageQuery !== query) { currentPage = 1; pageQuery = query; scrollTop = 0; }
+    const pageResult = paginate(orderByDelivery(base.filter(row => match(summaries.get(row.source_row), filter)), productionData.headers), currentPage);
+    currentPage = pageResult.page;
+    const rows = pageResult.rows;
+    pager.hidden = pageResult.pages <= 1;
+    pager.innerHTML = pageResult.pages > 1 ? pageMarkup(pageResult) : '';
     toolbar.querySelectorAll('[data-trace-filter]').forEach(button => {
       button.setAttribute('aria-pressed', String(button.dataset.traceFilter === filter));
       button.querySelector('span').textContent = base.filter(row => match(forView(row, button.dataset.traceFilter), button.dataset.traceFilter)).length;
     });
-    toolbar.querySelector('.trace-results').textContent = rows.length + ' tarjetas · Entrega: de más próxima a más lejana · Sin fecha al final' + (filter === 'mine' ? ' · Asignadas a tu usuario' : '');
+    toolbar.querySelector('.trace-results').textContent = 'Mostrando ' + pageResult.start + '–' + pageResult.end + ' de ' + pageResult.total + ' tarjetas · Entrega: de más próxima a más lejana' + (filter === 'mine' ? ' · Asignadas a tu usuario' : '');
     traceCards.innerHTML = rows.map(row => {
       const summary = summaries.get(row.source_row), id = row.source_row;
       const notes = Object.entries(productionData.notes || {}).filter(([k, v]) => k.startsWith(id + ':') && v).length;
@@ -229,6 +261,7 @@
       return '<article class="trace-card state-' + summary.state + '" data-card-row="' + id + '"><div class="trace-media">' + traceAssetsMarkup(id) + '</div><div class="trace-card-body"><div class="trace-card-heading"><h3>' + esc(traceField(row, 'ORDEN') || 'Sin número') + '</h3><span class="trace-stage ' + summary.state + '">' + labels[summary.state] + '</span></div><p class="trace-client">' + esc(traceField(row, 'NOMBRE DEL CLIENTE') || 'Sin cliente') + '</p><p class="trace-project">' + esc(traceField(row, 'NOMBRE PROYECTO')) + '</p><dl><div><dt>Referencia</dt><dd>' + esc(traceField(row, 'REFERENCIA') || '—') + '</dd></div><div><dt>Cantidad</dt><dd class="trace-quantity">' + esc(traceField(row, 'CANTIDAD') || '0') + ' <small>und.</small></dd></div><div class="trace-due ' + (summary.overdue ? 'late' : '') + '"><dt>' + dueLabel + '</dt><dd>' + esc(summary.due ? displayProductionDate(due) : 'Sin programar') + '</dd></div><div><dt>Responsable del proceso</dt><dd>' + (responsible ? responsible.split(/[,;·\n]+/).filter(x => x.trim()).map(name => '<span class="trace-person">' + esc(name.trim()) + '</span>').join(' ') : '<span class="trace-unassigned">Sin asignar</span>') + '</dd></div></dl><div class="trace-card-meta"><span>' + notes + ' nota' + (notes === 1 ? '' : 's') + '</span><span>Fila ' + id + '</span></div><div class="trace-card-actions"><button type="button" class="operator-open" data-card-edit="' + id + '">PRODUCCIÓN</button><button type="button" data-card-detail="' + id + '">Ver detalle</button><button type="button" data-card-nas="' + id + '" aria-label="Abrir carpeta del pedido">NAS ↗</button></div></div>' + routeMarkup(row, summary) + '</article>';
     }).join('') || '<div class="trace-empty"><h3>No hay pedidos en esta vista</h3><p>' + (filter === 'mine' ? 'No hay responsables que coincidan con tu usuario o iniciales. Prueba Todos o revisa la asignación.' : 'Prueba otro estado o cambia la búsqueda.') + '</p><button type="button" data-clear-trace>Ver todos</button></div>';
     traceCards.querySelectorAll('[data-card-row]').forEach(card => traceImageObserver.observe(card));
+    if (pageResult.pages > 1) traceCards.insertAdjacentHTML('beforeend', '<nav class="trace-pagination trace-pagination-bottom" aria-label="Páginas de pedidos al final">' + pageMarkup(pageResult) + '</nav>');
     if (ownAreaFilter && !rows.length) {
       traceCards.querySelector('.trace-empty p').textContent = ownProcess ? 'No hay pendientes para tu área. Desactiva PROCESO AL QUE PERTENECES para consultar todos los pedidos.' : 'Administración debe asignar un proceso de Indoor a tu cuenta.';
       traceCards.querySelector('[data-clear-trace]').textContent = 'Limpiar búsqueda';
@@ -318,6 +351,7 @@
   @media(max-width:600px){body.production-mode .trace-card{grid-template-columns:1fr}body.production-mode .trace-media,body.production-mode .trace-media:has(img){height:290px;min-height:0;padding:12px}body.production-mode .trace-design-main img{height:230px}body.production-mode .trace-media:not(:has(img)){height:115px;min-height:0}.trace-no-design>span{display:none}body.production-mode .trace-card-body{padding:18px}.trace-route{padding:14px 10px 10px}.trace-node-dot{width:18px;height:18px;font-size:9px}.trace-node:before{top:15px}.trace-node-label{font-size:8px;letter-spacing:-.04em}.trace-route-caption>span{display:block;width:100%}.trace-card-actions button{font-size:12px!important}.operator-dialog{padding:20px 16px}.trace-node-dialog{padding:20px}.trace-node-dialog dl{grid-template-columns:1fr}}
   `;
   style.textContent += `
+  .trace-pagination{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:10px 0 0}.trace-pagination[hidden]{display:none!important}.trace-pagination button{width:auto;min-width:36px;min-height:36px;padding:7px 10px;border:1px solid #4a6350;border-radius:7px;background:#23352a;color:#e1ebdc;font:600 12px Arial;box-shadow:none}.trace-pagination button[aria-current=page]{background:#d0ec93;color:#1c2b13;border-color:#d0ec93}.trace-pagination button:disabled{opacity:.4;cursor:default}.trace-pagination button:focus-visible{outline:2px solid #b8ddf5;outline-offset:2px}.trace-page-count{font:12px Arial;color:#c2d3c4;margin-right:6px}.trace-pagination-bottom{grid-column:1/-1;justify-content:center;padding:16px 0}.trace-pagination{scroll-margin-top:80px}@media(max-width:600px){.trace-pagination button{min-width:40px;min-height:44px}.trace-page-count{width:100%}.trace-pagination{gap:5px}}
   .trace-progress{height:10px;margin:10px 0 2px;border-radius:8px;overflow:hidden;background:#324638;border:1px solid #425c48}.trace-progress>span{background:linear-gradient(90deg,#76c995,#d0ec93)}.trace-route-caption>.trace-progress-percent{font:700 14px/1.5 Arial;color:#d0ec93;white-space:nowrap;width:auto}.trace-route-heading{margin-bottom:10px}
   .trace-area-toggle{width:auto;min-height:42px;padding:10px 14px;background:#23352a;color:#e2eddd;border:1px solid #617858;border-radius:8px;font:600 12px Arial;box-shadow:none}.trace-area-toggle[aria-pressed=true]{background:#d0ec93;color:#1c2b13}.trace-area-toggle:disabled{opacity:.5}.trace-quick-filters button[hidden]{display:none!important}.trace-workspace-top{flex-wrap:wrap;gap:10px}
   .trace-manufacture{border-top:1px solid #35463c;padding:13px 0 16px;margin-bottom:12px}.trace-manufacture h4{font:600 19px/1.35 Arial;color:#f4f8ed;margin:5px 0 8px;overflow-wrap:anywhere}.trace-material-facts{display:flex;gap:16px}.trace-material-facts small{display:block;font:10px/1.5 Arial;color:#9eb5a5}.trace-material-facts strong{font:500 13px/1.5 Arial;color:#d8e5da}.trace-production-note{font:13px/1.6 Arial;color:#f1e8c5;margin:12px 0 0;background:#afa15913;border-left:3px solid #bba658;padding:9px 11px;white-space:pre-wrap}.trace-production-note strong,.trace-inline-notes strong{display:block;font-size:10px;letter-spacing:.06em;margin-bottom:4px}.trace-inline-notes{font:12px/1.6 Arial;color:#c7d8c9;margin-top:12px}.trace-inline-notes summary{cursor:pointer;min-height:32px}.trace-inline-notes p{white-space:pre-wrap;border-top:1px solid #35463c;padding-top:8px}.trace-card-heading h3{font-size:19px!important}.trace-quantity{font-size:23px!important;font-weight:700!important}.trace-card-actions [data-card-nas]{opacity:.65}
