@@ -896,6 +896,8 @@ def production_operator_action(payload: dict = Body(...), _=Depends(authenticate
         previous = str(values[column-1] or '')
         if payload.get('expected') != previous:
             raise HTTPException(409, 'Otro usuario actualizó este proceso. Cierra y vuelve a abrir Producción.')
+        if action != 'rework' and (previous.strip().upper() == 'N/A' or parse_production_date(previous)):
+            raise HTTPException(409, 'Este proceso ya fue terminado. Para reabrirlo registra un reproceso con su motivo.')
         now = datetime.now(timezone(timedelta(hours=-5)))
         timestamp = now.isoformat()
         value = {'start':'P', 'rework':'R', 'finish':now.strftime('%d/%m/%Y'), 'na':'N/A'}[action]
@@ -2266,7 +2268,7 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
 @media(max-width:700px){{body.production-mode .trace-cards{{grid-template-columns:minmax(0,1fr);padding:12px}}body.production-mode .trace-card{{grid-template-columns:minmax(0,1fr)}}body.production-mode .trace-media,body.production-mode .trace-media:has(img),body.production-mode .trace-media:not(:has(img)){{height:300px;min-height:0}}body.production-mode .trace-design-main img{{height:235px}}body.production-mode .trace-media:not(:has(img)){{height:120px}}.trace-no-design>span{{display:none}}body.production-mode .trace-card-body{{padding:20px}}}}
 `;document.head.appendChild(traceFigmaStyle);setTraceView();
     const commercialGroup=commercialToggle.closest('.nav-group');commercialGroup.classList.add('collapsed');const productionToggle=document.getElementById('production-toggle');if(productionToggle)productionToggle.addEventListener('click',()=>productionToggle.closest('.nav-group').classList.toggle('collapsed'));
-    </script><script src='/trace-ui.js?v=20260926-9'></script></body></html>"""
+    </script><script src='/trace-ui.js?v=20260926-10'></script></body></html>"""
 
 
 @app.post("/procesar", status_code=202)

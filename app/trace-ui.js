@@ -56,6 +56,24 @@
   function matches(summary, filter) {
     return filter === 'all' || filter === 'work' && summary.mine && summary.state !== 'finished' || filter === 'mine' && summary.mine || filter === 'late' && summary.overdue || filter === summary.state;
   }
+  function processForProfile(profile) {
+    return flow.find(p => [p.label, ...p.headers, ...p.aliases].some(label => key(label) === key(profile)));
+  }
+  function processQueueSummary(summary, profile, user, today) {
+    const process = processForProfile(profile);
+    const group = summary.groups.find(g => g.label === process?.label);
+    if (!group) return null;
+    const tokens = [user.name, user.initials].map(personKey).filter(Boolean);
+    return { ...summary, route: summary, focus: group, state: group.state,
+      mine: group.responsible.split(/[,;·\n]+/).some(name => tokens.includes(personKey(name))),
+      overdue: !!summary.due && summary.due < today && group.state !== 'finished' };
+  }
+  function queueMatches(summary, filter) {
+    if (!summary) return false;
+    if (filter === 'pending') return summary.state !== 'finished';
+    if (filter === 'mine') return summary.mine && summary.state !== 'finished';
+    return matches(summary, filter);
+  }
   function orderByDelivery(rows, headers) {
     const column = headers.findIndex(h => key(h) === 'FECHA DE ENTREGA');
     return rows.map((row, index) => ({ row, index, due: dateValue(row.values[column])?.getTime() ?? Infinity }))
@@ -87,15 +105,20 @@
     });
     return data;
   }
-  if (typeof module !== 'undefined' && module.exports) { module.exports = { key, dateValue, groupsFor, summarize, matches, orderByDelivery, addBusinessDays, applyDefaultDeliveryDates }; return; }
+  if (typeof module !== 'undefined' && module.exports) { module.exports = { key, dateValue, groupsFor, summarize, matches, processForProfile, processQueueSummary, queueMatches, orderByDelivery, addBusinessDays, applyDefaultDeliveryDates }; return; }
   if (typeof traceCards === 'undefined') return;
+
+  const isAdmin = typeof canViewAdministration !== 'undefined' && canViewAdministration;
+  const profile = document.querySelector('.user-info small')?.textContent || '';
+  const ownProcess = processForProfile(profile);
+  const defaultFilter = isAdmin ? 'all' : 'pending';
 
   const originalOpenProduction = openOperatorProduction;
   openOperatorProduction = function(id) {
     originalOpenProduction(id);
     const area = key(document.querySelector('.user-info small')?.textContent);
     const groups = groupsFor(productionData, productionData.rows.find(r => r.source_row === id), processStatusHeaders);
-    operatorForm.elements.column.innerHTML = '<option value="">Selecciona un proceso</option>' + groups.map(g => '<option value="' + (g.start+1) + '">' + esc(g.label) + '</option>').join('');
+    operatorForm.elements.column.innerHTML = '<option value="">Selecciona un proceso</option>' + groups.filter(g => isAdmin || g.label === ownProcess?.label).map(g => '<option value="' + (g.start+1) + '">' + esc(g.label) + '</option>').join('');
     const process = flow.find(p => [key(p.label), ...p.headers, ...p.aliases].includes(area));
     const selected = groups.find(g => g.label === process?.label);
     if (selected) operatorForm.elements.column.value = String(selected.start+1);
@@ -104,6 +127,7 @@
   };
   updateProcessFilter = function() {
     const labels = new Map(flow.map(p => [key(p.label), p.label]));
+    if (!isAdmin) selectedProcess = ownProcess ? key(ownProcess.label) : '';
     if (!labels.has(selectedProcess)) selectedProcess = '';
     const signature = JSON.stringify([...labels]);
     if (productionProcess.dataset.signature !== signature) {
@@ -112,6 +136,7 @@
       productionProcess.dataset.signature = signature;
     }
     productionProcess.value = selectedProcess;
+    productionProcess.disabled = !isAdmin;
   };
   processColumnVisible = function(column) {
     if (!selectedProcess || column.sourceIndex <= fixedDeliveryIndex()) return true;
@@ -129,14 +154,15 @@
   };
 
   const labels = { pending: 'Pendiente', active: 'En proceso', rework: 'Reproceso', finished: 'Terminado', partial: 'Avance parcial' };
-  const filters = [['all', 'Todos'], ['work', 'Mi trabajo del día'], ['mine', 'Mis pedidos'], ['late', 'Atrasados'], ['active', 'En proceso'], ['rework', 'Reproceso'], ['finished', 'Terminados']];
-  let filter = 'all';
+  const filters = isAdmin ? [['all', 'Todos'], ['work', 'Mi trabajo del día'], ['mine', 'Mis pedidos'], ['late', 'Atrasados'], ['active', 'En proceso'], ['rework', 'Reproceso'], ['finished', 'Terminados']] : [['pending', 'Por fabricar'], ['mine', 'A mi cargo'], ['active', 'En proceso'], ['rework', 'Reproceso'], ['late', 'Atrasados'], ['finished', 'Terminados']];
+  let filter = defaultFilter;
   const user = { name: document.querySelector('.user-info strong')?.textContent || '', initials: document.querySelector('.user-avatar')?.textContent || '' };
   const toolbar = document.createElement('section');
   toolbar.className = 'trace-workspace';
   toolbar.setAttribute('aria-label', 'Filtros de trazabilidad');
   toolbar.innerHTML = '<div class="trace-workspace-top"><div><h3>Pedidos en seguimiento</h3></div><span class="trace-live">Actualización automática</span></div><div class="trace-quick-filters" role="group" aria-label="Estado de los pedidos">' + filters.map(([id, label]) => '<button type="button" data-trace-filter="' + id + '" aria-pressed="' + (id === 'all') + '">' + label + '<span>0</span></button>').join('') + '</div><p class="trace-results" role="status" aria-live="polite"></p>';
   traceCards.before(toolbar);
+  if (!isAdmin) toolbar.querySelector('h3').textContent = ownProcess ? ownProcess.label + ' · Trabajo entre turnos' : 'Solicita que Administración asigne tu proceso';
   toolbar.addEventListener('click', event => {
     const button = event.target.closest('[data-trace-filter]'); if (!button) return;
     filter = button.dataset.traceFilter; traceCards.scrollTop = 0; renderTraceCards();
@@ -149,6 +175,7 @@
   nodeDialog.querySelector('.trace-node-close').onclick = () => nodeDialog.close();
   const abbreviations = { 'MATERIALES': 'MAT', 'DISENO': 'DIS', 'EDICION': 'EDI', 'IMPRESION': 'IMP', 'SUBLIMACION': 'SUB', 'CORTE LASER': 'LAS', 'APLIQUE': 'APL', 'INSUMOS': 'INS', 'CONFECCION': 'CON', 'EMPAQUE': 'EMP', 'FACTURACION': 'FAC', 'ENVIO': 'ENV' };
   function routeMarkup(row, summary) {
+    summary = summary.route || summary; // Keep all twelve connected stages, independent of the operator queue.
     return '<section class="trace-route"><div class="trace-route-heading"><h4>Ruta de producción</h4><span>' + summary.finished + '/' + summary.total + ' procesos</span></div><div class="trace-progress" role="progressbar" aria-label="Procesos terminados" aria-valuemin="0" aria-valuemax="' + summary.total + '" aria-valuenow="' + summary.finished + '"><span style="width:' + summary.percent + '%"></span></div><div class="trace-nodes" style="--nodes:' + Math.max(1, summary.total) + '">' + summary.groups.map((group, i) => '<button type="button" class="trace-node ' + group.state + '" data-node-row="' + row.source_row + '" data-node-index="' + i + '" title="' + esc(group.label + ' · ' + group.status) + '" aria-label="' + esc(group.label + ': ' + group.status) + '"><span class="trace-node-dot" aria-hidden="true">' + (group.state === 'finished' ? '✓' : group.state === 'rework' ? '!' : group.state === 'active' ? '●' : i + 1) + '</span><span class="trace-node-label">' + esc(abbreviations[group.key] || group.label.slice(0, 3)) + '</span></button>').join('') + '</div><p class="trace-route-caption">' + (summary.state === 'finished' ? 'Ruta completada' : esc((summary.state === 'rework' ? 'Revisar: ' : summary.state === 'active' ? 'Ahora: ' : 'Siguiente: ') + (summary.focus?.label || 'Sin proceso asignado'))) + '<span>Pulsa un punto para ver detalles</span></p></section>';
   }
   renderTraceCards = function () {
@@ -160,11 +187,15 @@
     traceImageObserver.disconnect();
     const visible = new Set([...productionBody.querySelectorAll('tr')].map(tr => Number(tr.querySelector('td[data-row]')?.dataset.row)));
     const base = productionData.rows.filter(row => visible.has(row.source_row) && ['ORDEN', 'NOMBRE DEL CLIENTE', 'NOMBRE PROYECTO', 'REFERENCIA'].some(name => traceField(row, name).trim()));
-    const summaries = new Map(base.map(row => [row.source_row, summarize(productionData, row, processStatusHeaders, user, scheduleToday())]));
-    const rows = orderByDelivery(base.filter(row => matches(summaries.get(row.source_row), filter)), productionData.headers);
+    const summaries = new Map(base.map(row => {
+      const summary = summarize(productionData, row, processStatusHeaders, user, scheduleToday());
+      return [row.source_row, isAdmin ? summary : processQueueSummary(summary, profile, user, scheduleToday())];
+    }));
+    const match = isAdmin ? matches : queueMatches;
+    const rows = orderByDelivery(base.filter(row => match(summaries.get(row.source_row), filter)), productionData.headers);
     toolbar.querySelectorAll('[data-trace-filter]').forEach(button => {
       button.setAttribute('aria-pressed', String(button.dataset.traceFilter === filter));
-      button.querySelector('span').textContent = base.filter(row => matches(summaries.get(row.source_row), button.dataset.traceFilter)).length;
+      button.querySelector('span').textContent = base.filter(row => match(summaries.get(row.source_row), button.dataset.traceFilter)).length;
     });
     toolbar.querySelector('.trace-results').textContent = rows.length + ' tarjetas · Entrega: de más próxima a más lejana · Sin fecha al final' + (filter === 'mine' ? ' · Asignadas a tu usuario' : '');
     traceCards.innerHTML = rows.map(row => {
@@ -176,6 +207,10 @@
       return '<article class="trace-card state-' + summary.state + '" data-card-row="' + id + '"><div class="trace-media">' + traceAssetsMarkup(id) + '</div><div class="trace-card-body"><div class="trace-card-heading"><h3>' + esc(traceField(row, 'ORDEN') || 'Sin número') + '</h3><span class="trace-stage ' + summary.state + '">' + labels[summary.state] + '</span></div><p class="trace-client">' + esc(traceField(row, 'NOMBRE DEL CLIENTE') || 'Sin cliente') + '</p><p class="trace-project">' + esc(traceField(row, 'NOMBRE PROYECTO')) + '</p><dl><div><dt>Referencia</dt><dd>' + esc(traceField(row, 'REFERENCIA') || '—') + '</dd></div><div><dt>Cantidad</dt><dd class="trace-quantity">' + esc(traceField(row, 'CANTIDAD') || '0') + ' <small>und.</small></dd></div><div class="trace-due ' + (summary.overdue ? 'late' : '') + '"><dt>' + dueLabel + '</dt><dd>' + esc(summary.due ? displayProductionDate(due) : 'Sin programar') + '</dd></div><div><dt>Responsable del proceso</dt><dd>' + (responsible ? responsible.split(/[,;·\n]+/).filter(x => x.trim()).map(name => '<span class="trace-person">' + esc(name.trim()) + '</span>').join(' ') : '<span class="trace-unassigned">Sin asignar</span>') + '</dd></div></dl><div class="trace-card-meta"><span>' + notes + ' nota' + (notes === 1 ? '' : 's') + '</span><span>Fila ' + id + '</span></div><div class="trace-card-actions"><button type="button" class="operator-open" data-card-edit="' + id + '">PRODUCCIÓN</button><button type="button" data-card-detail="' + id + '">Ver detalle</button><button type="button" data-card-nas="' + id + '" aria-label="Abrir carpeta del pedido">NAS ↗</button></div></div>' + routeMarkup(row, summary) + '</article>';
     }).join('') || '<div class="trace-empty"><h3>No hay pedidos en esta vista</h3><p>' + (filter === 'mine' ? 'No hay responsables que coincidan con tu usuario o iniciales. Prueba Todos o revisa la asignación.' : 'Prueba otro estado o cambia la búsqueda.') + '</p><button type="button" data-clear-trace>Ver todos</button></div>';
     traceCards.querySelectorAll('[data-card-row]').forEach(card => traceImageObserver.observe(card));
+    if (!isAdmin && !rows.length) {
+      traceCards.querySelector('.trace-empty p').textContent = ownProcess ? 'No hay pedidos de tu proceso en este estado. Puedes consultar Terminados o limpiar la búsqueda.' : 'Administración debe asignar un proceso de Indoor a tu cuenta.';
+      traceCards.querySelector('[data-clear-trace]').textContent = 'Ver pendientes de mi proceso';
+    }
     traceCards.querySelectorAll('[data-card-row]').forEach(card => {
       const row = rows.find(r => r.source_row === Number(card.dataset.cardRow));
       const description = ['PRODUCTO', 'DESCRIPCIÓN', 'DESCRIPCION', 'PRENDA'].map(h => traceField(row, h)).find(v => v.trim());
@@ -189,9 +224,10 @@
     traceCards.scrollTop = scrollTop;
     if (focusKey && focusAttribute) traceCards.querySelector('[data-card-row="' + focusKey + '"] [' + focusAttribute + '="' + focusValue + '"]')?.focus({ preventScroll: true });
     fitTraceCards();
+    refreshOperatorActions();
   };
   traceCards.addEventListener('click', event => {
-    if (event.target.closest('[data-clear-trace]')) { filter = 'all'; exactScheduleOrder = ''; productionSearch.value = ''; renderProduction(); renderTraceCards(); return; }
+    if (event.target.closest('[data-clear-trace]')) { filter = defaultFilter; exactScheduleOrder = ''; productionSearch.value = ''; renderProduction(); renderTraceCards(); return; }
     const button = event.target.closest('[data-node-row]'); if (!button) return;
     const id = Number(button.dataset.nodeRow), row = productionData.rows.find(r => r.source_row === id);
     if (!row) return;
@@ -211,6 +247,24 @@
     current.textContent = 'Estado actual: ' + (value === 'N/A' ? 'No aplica' : labels[state]) + (dateValue(value) ? ' · ' + displayProductionDate(operatorExpected) : '');
   };
   operatorForm.elements.column.onchange = operatorSelection;
+  function refreshOperatorActions() {
+    if (operatorSaving) return;
+    const row = productionData?.rows.find(r => r.source_row === operatorRow);
+    const i = Number(operatorForm.elements.column.value) - 1;
+    const value = row && i >= 0 ? key(row.values[i]) : '';
+    const closed = value === 'N/A' || !!dateValue(value);
+    operatorForm.querySelectorAll('.operator-actions button').forEach(button => {
+      button.disabled = !row || i < 0 || (closed && button.value !== 'rework') || (value === 'P' && button.value === 'start');
+    });
+    if (row && i >= 0 && operatorDialog.open) {
+      operatorDialog.querySelector('.operator-current').textContent = closed ? 'Este proceso ya está terminado. Solo se puede reabrir con un motivo de reproceso.' : 'Estado actual: ' + (value === 'P' ? 'En proceso' : value === 'R' ? 'Reproceso' : 'Pendiente');
+    }
+  }
+  const submitOperatorOriginal = operatorForm.onsubmit;
+  operatorForm.onsubmit = async event => { await submitOperatorOriginal(event); refreshOperatorActions(); };
+  operatorForm.elements.column.addEventListener('change', refreshOperatorActions);
+  const openProductionWithQueue = openOperatorProduction;
+  openOperatorProduction = id => { openProductionWithQueue(id); refreshOperatorActions(); };
   operatorForm.elements.reason.setAttribute('aria-describedby', 'trace-reason-help');
   const help = document.createElement('small'); help.id = 'trace-reason-help'; help.textContent = 'Para reproceso, explica el motivo. Al terminar se conserva el cierre automático de procesos anteriores.';
   operatorForm.elements.reason.after(help);
