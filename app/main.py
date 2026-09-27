@@ -2158,7 +2158,7 @@ def home(_=Depends(authenticate)):
     .operarios-title{{display:flex;align-items:center}}
     .operarios-title .eyebrow{{margin:0}}
     .operarios-toolbar .production-refresh{{padding:8px 13px;flex:0 0 auto}}
-    .operarios-hover-wrap{{display:grid;grid-template-columns:1.2fr 1fr auto;align-items:stretch;gap:10px;padding:8px 26px 8px}}
+    .operarios-hover-wrap{{display:grid;grid-template-columns:1.3fr .7fr auto;align-items:stretch;gap:10px;padding:8px 26px 8px}}
     .operarios-day-filter-slot{{display:flex;align-items:center;justify-content:flex-end}}
     .operarios-day-filter-slot:empty{{display:none}}
     @media(max-width:1180px){{.operarios-hover-wrap{{grid-template-columns:1.2fr 1fr}}.operarios-day-filter-slot{{grid-column:1/-1;justify-content:flex-start}}}}
@@ -2185,7 +2185,7 @@ def home(_=Depends(authenticate)):
     .operarios-hover-cal-title{{margin:0;padding:8px 20px 0;font-size:1rem;color:#eef3e8;display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 8px}}
     .operarios-hover-cal-title small{{margin-left:0;color:var(--muted);font-size:.72rem;font-weight:400;text-transform:capitalize}}
     .operarios-day-filter-row{{display:flex;align-items:center;gap:6px}}
-    .operarios-day-filter{{background:#0a0d09;border:1px solid var(--line);border-radius:9px;color:#e7ede2;font:inherit;font-size:.7rem;padding:5px 8px;color-scheme:dark}}
+    .operarios-day-filter{{background:#0a0d09;border:1px solid var(--line);border-radius:9px;color:#e7ede2;font:inherit;font-size:.76rem;padding:7px 12px;color-scheme:dark;width:180px}}
     .operarios-day-filter:focus{{outline:none;border-color:var(--lime)}}
     .operarios-day-filter-clear{{width:auto;padding:5px 10px;border:1px solid rgba(208,244,76,.35);border-radius:9px;background:#141a10;color:#efffb0;font:inherit;font-size:.66rem;font-weight:700;box-shadow:none;cursor:pointer}}
     .operarios-day-filter-clear:hover{{border-color:var(--lime);background:#1d2517}}
