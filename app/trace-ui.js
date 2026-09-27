@@ -3,6 +3,61 @@
   'use strict';
   const key = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase();
   const personKey = value => key(value).replace(/[^A-Z0-9]/g, '');
+  const operatorInitials = new Map([
+    ['Ediht Johana Londoño', 'EJ'], ['Edith Johana Londoño', 'EJ'],
+    ['Alejandro Mora', 'AM'], ['Alejandro Padilla', 'AP'],
+    ['Andrés López', 'AL'], ['Augusto López', 'AU'],
+    ['Carlos Cáceres', 'CC'], ['Keyner', 'K'],
+    ['Dagoberto Botero', 'DB'], ['Edwin Espinosa', 'EE'],
+    ['Esteban Estrada', 'ES'], ['Hesleidy Londoño', 'HL'],
+    ['Jeison Padilla', 'JP'], ['Julian Ocampo', 'JO'],
+    ['Juliana Diaz', 'JD'], ['Santiago Vásquez', 'SV'],
+    ['Sebastian Gallo', 'SG'], ['Stiven Sánchez', 'SS'],
+    ['Dairo Diaz', 'DD'], ['Yenifer Sánchez Arcila', 'YS'],
+    ['Gloria', 'G'], ['David Hincapie', 'DH'],
+    ['Geovanny Piedrahita', 'GP'], ['AUTOMATIZACION', 'BOT'],
+    ['Daniel Gonzales', 'DG']
+  ].flatMap(([name, initials]) => [[personKey(name), initials], [initials, initials]]));
+  function noteInitials(author) {
+    const assigned = operatorInitials.get(personKey(author));
+    if (assigned) return assigned;
+    const words = key(author).match(/[A-Z0-9]+/g) || [];
+    return words.length ? words.map(word => word[0]).join('') : 'N/A';
+  }
+  function noteAttribution(data, row, column, author, source = '') {
+    const index = Number(column) - 1;
+    const area = key(data.groups?.[index]);
+    const header = key(data.headers[index]);
+    const generalArea = area === 'GENERAL' || area.includes('LINEA PRODUCCION') || area.includes('COMERCIAL');
+    const fromListing = ['LISTADO', 'LISTING'].includes(key(source)) || header.includes('LISTADO') || (generalArea && ['ORDEN', 'OBSERVACIONES'].includes(header));
+    if (fromListing) {
+      const commercialColumns = data.headers.map((h, i) => i).filter(i => /^(COMERCIAL|VENDEDOR)(\s|$)/.test(key(data.headers[i])));
+      if (!commercialColumns.length) data.headers.forEach((h, i) => {
+        const group = key(data.groups?.[i]);
+        if (/^RESP/.test(key(h)) && (group === 'GENERAL' || group.includes('LINEA PRODUCCION') || group.includes('COMERCIAL'))) commercialColumns.push(i);
+      });
+      const names = commercialColumns.map(i => String(row.values[i] || '').trim()).filter(Boolean);
+      return {name: [...new Set(names)].join(', '), inferred: !!names.length};
+    }
+    if (String(author || '').trim()) return {name: String(author).trim(), inferred: false};
+    if (index < 0 || index >= data.headers.length || !area) return {name: '', inferred: false};
+    const columns = data.headers.map((header, i) => i).filter(i => key(data.groups?.[i]) === area);
+    // Use the responsibility recorded in this order's area, not the note's wording.
+    const names = columns.filter(i => /^RESP/.test(key(data.headers[i])) || ['COMERCIAL', 'VENDEDOR', 'CONFECCIONISTA'].includes(key(data.headers[i])))
+      .map(i => String(row.values[i] || '').trim()).filter(Boolean);
+    if (!names.length) columns.forEach(i => {
+      const name = data.process_responsibles?.[row.source_row + ':' + (i + 1)];
+      if (name) names.push(String(name).trim());
+    });
+    return {name: [...new Set(names)].join(', '), inferred: !!names.length};
+  }
+  function noteSignature(attribution) {
+    return attribution.name ? attribution.name.split(/[,;·\n]+/).filter(name => name.trim()).map(noteInitials).join('/') : 'N/A';
+  }
+  function noteBadges(attribution) {
+    const initials = attribution.name ? attribution.name.split(/[,;·\n]+/).filter(name => name.trim()).map(noteInitials) : ['N/A'];
+    return '<span class="trace-note-authors">' + initials.map(value => '<strong class="trace-note-author-badge">' + esc(value) + '</strong>').join('') + '</span>';
+  }
   const flow = typeof indoorProcessFlow !== 'undefined' ? indoorProcessFlow : require('./process-flow.json');
   const isExternal = process => key(process.label) === 'DISENO';
   function dateValue(value) {
@@ -125,7 +180,7 @@
     });
     return data;
   }
-  if (typeof module !== 'undefined' && module.exports) { module.exports = { key, dateValue, groupsFor, summarize, matches, processForProfile, processQueueSummary, queueMatches, summaryForView, paginate, orderByDelivery, addBusinessDays, applyDefaultDeliveryDates }; return; }
+  if (typeof module !== 'undefined' && module.exports) { module.exports = { key, noteInitials, noteAttribution, noteSignature, dateValue, groupsFor, summarize, matches, processForProfile, processQueueSummary, queueMatches, summaryForView, paginate, orderByDelivery, addBusinessDays, applyDefaultDeliveryDates }; return; }
   // Inventory is postponed: remove only its interface, preserving the catalog.
   document.querySelectorAll('[data-kind="inventario"], [data-panel="inventario"]').forEach(element => element.remove());
   document.body.classList.remove('inventory-mode');
@@ -540,7 +595,11 @@
         const notePanel = document.createElement('section');
         notePanel.className = 'trace-inline-notes trace-note-alert';
         notePanel.setAttribute('aria-label', 'Observaciones de la orden');
-        notePanel.innerHTML = '<span class="trace-note-label">OBSERVACIONES · '+notes.length+'</span>'+notes.map(([k,v]) => '<p><strong>'+esc(productionData.headers[Number(k.split(':')[1])-1] || 'NOTA')+'</strong>'+esc(String(v))+'</p>').join('');
+        notePanel.innerHTML = notes.flatMap(([k,v]) => (productionData.note_entries?.[k] || [{text: String(v), author: ''}]).map(note => ({...note, column: Number(k.split(':')[1])}))).map(note => {
+          const attribution = noteAttribution(productionData, row, note.column, note.author, note.source);
+          const title = attribution.name ? (attribution.inferred ? 'Responsable del área: ' : 'Autor: ') + attribution.name : 'Sin autor ni responsable registrado en esta área';
+          return '<p title="'+esc(title)+'">'+noteBadges(attribution)+'<span class="trace-note-text">'+esc(String(note.text).replace(/\s+/g, ' ').trim())+'</span></p>';
+        }).join('');
         card.querySelector('.trace-inline-notes').remove();
         card.querySelector('.trace-project').after(notePanel);
         const counter = card.querySelector('.trace-card-meta span');
@@ -550,7 +609,20 @@
       card.querySelector('.trace-card-heading h3').setAttribute('aria-label', 'Orden ' + traceField(row, 'ORDEN'));
       const body = card.querySelector('.trace-card-body');
       const important = card.querySelector('.trace-production-note');
-      if (important) body.querySelector('.trace-client').after(important);
+      if (important) {
+        let notePanel = body.querySelector('.trace-note-alert');
+        if (!notePanel) {
+          notePanel = document.createElement('section');
+          notePanel.className = 'trace-inline-notes trace-note-alert';
+          notePanel.setAttribute('aria-label', 'Observaciones de la orden');
+          body.querySelector('.trace-project').after(notePanel);
+        }
+        const attribution = noteAttribution(productionData, row, productionData.headers.findIndex(header => key(header) === 'OBSERVACIONES') + 1, '', 'listado');
+        important.title = attribution.name ? 'Responsable del área: ' + attribution.name : 'Sin responsable registrado en esta área';
+        important.innerHTML = noteBadges(attribution) + '<span class="trace-note-text">' + esc(observation.replace(/\s+/g, ' ').trim()) + '</span>';
+        if (!notes.some(([k,v]) => String(v).trim() === observation.trim())) notePanel.prepend(important);
+        else important.remove();
+      }
       const disclosure = document.createElement('div');
       const facts = document.createElement('dl');
       facts.className = 'trace-primary-facts';
@@ -1355,6 +1427,21 @@
   html body.production-mode .trace-disclosure .trace-card-actions button{width:100%;min-width:0;white-space:normal}
   html body.production-mode .trace-disclosure dl{grid-template-columns:1fr 1fr;gap:12px}
   html body.production-mode .trace-density-toggle{display:none}
+  html body.production-mode .trace-card .trace-note-alert{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 10px;max-height:none;overflow:visible}
+  html body.production-mode .trace-card .trace-note-alert>.trace-note-label{grid-column:1/-1}
+  html body.production-mode .trace-card .trace-note-alert>p{min-width:0;margin:0;padding:5px 0 0;max-height:none;overflow:visible;overflow-wrap:anywhere;white-space:pre-wrap}
+  html body.production-mode .trace-card .trace-note-alert>.trace-production-note{background:transparent!important;border-left:0;border-top:1px solid #87ceeb}
+  html body.production-mode .trace-card .trace-note-alert strong{display:inline;margin:0;letter-spacing:0}
+  html body.production-mode .trace-card .trace-note-alert>p{white-space:normal;border:0;padding:0}
+  html body.production-mode .trace-card:not(.details-expanded){height:auto!important;min-height:860px;align-self:stretch}
+  /* Shared observation treatment: sky blue, readable on Indoor's dark surfaces. */
+  html body :is(.trace-note-alert,.trace-production-note,.trace-process-notes,.studio-notes){background:#142e3b!important;border-color:#87ceeb!important}
+  html body :is(.trace-note-alert,.trace-production-note,.trace-process-notes,.studio-notes,.trace-inline-notes,.trace-full-note,.trace-note-count,.trace-note-label,.trace-note-preview),
+  html body :is(.trace-note-alert,.trace-production-note,.trace-process-notes,.studio-notes,.trace-inline-notes,.trace-full-note) :is(p,strong,small,h3,h4,span,summary){color:#87ceeb!important;font-weight:700!important;font-size:12px!important;line-height:1.45!important;text-decoration-color:#87ceeb!important}
+  html body.production-mode .trace-card .trace-note-alert>p{display:flex;align-items:flex-start;gap:6px}
+  html body.production-mode .trace-card .trace-note-authors{display:flex;flex-wrap:wrap;gap:3px;flex:0 0 auto;max-width:62px}
+  html body.production-mode .trace-card .trace-note-alert .trace-note-author-badge{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;box-sizing:border-box;flex:0 0 28px;border:1px solid #87ceeb;border-radius:50%;background:#203f50;font-size:10px!important;line-height:1!important;letter-spacing:0;margin:0}
+  html body.production-mode .trace-card .trace-note-text{min-width:0;padding-top:5px;overflow-wrap:anywhere}
   @media(max-width:1050px) and (min-width:601px){html body.production-mode .trace-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
   @media(max-width:600px){html body.production-mode .trace-cards{grid-template-columns:1fr}html body.production-mode .trace-card .trace-client{font-size:14px!important}}
   `;

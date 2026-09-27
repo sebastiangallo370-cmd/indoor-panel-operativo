@@ -144,6 +144,9 @@ def decorate(db, data):
     for row, column, note in db.execute('SELECT source_row,column_number,note FROM production_sheet_notes'):
         key = f'{row}:{column}'
         local = data['notes'].get(key, '')
+        entries = data.setdefault('note_entries', {})
+        if note != local:
+            entries[key] = [{'text': note, 'author': ''}] + entries.get(key, [])
         data['notes'][key] = note if not local or local == note else note+'\n\nNota de la web: '+local
     meta = dict(db.execute("SELECT key,value FROM production_meta WHERE key LIKE 'sheets_sync_%'"))
     data['sheets_sync'] = {'checked_at':meta.get('sheets_sync_checked_at'), 'error':meta.get('sheets_sync_error',''), 'start_row':START_ROW}

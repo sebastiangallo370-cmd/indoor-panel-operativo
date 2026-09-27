@@ -870,6 +870,8 @@ def read_local_production() -> dict:
             "auto_closed": [f"{event['source_row']}:{event['column_number']}" for event in db.execute("SELECT source_row,column_number FROM production_operator_events WHERE action='Cierre automático'")] if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='production_operator_events'").fetchone() else [],
             "notes": {f"{n['source_row']}:{n['column_number']}": n["note"]
                       for n in db.execute("SELECT source_row,column_number,note FROM production_notes")},
+            "note_entries": {f"{n['source_row']}:{n['column_number']}": [{"text": n["note"], "author": n["username"]}]
+                             for n in db.execute("SELECT source_row,column_number,note,username FROM production_notes")},
         })
     finally:
         db.close()
@@ -891,7 +893,7 @@ def save_production_note(payload: dict = Body(...), _=Depends(authenticate)):
         else:
             db.execute("DELETE FROM production_notes WHERE source_row=? AND column_number=?", (row, column))
         db.execute("INSERT OR REPLACE INTO production_meta(key,value) VALUES ('updated_at',?)", (now,))
-    return {"ok": True, "note": note}
+    return {"ok": True, "note": note, "author": str(_)}
 
 
 @app.get("/api/produccion")
@@ -2197,7 +2199,7 @@ body.production-mode .production-tools-popover a{{display:block;font-size:12px}}
     productionBody.addEventListener('contextmenu',event=>{{const cell=event.target.closest('td[data-row][data-column]');if(!cell)return;event.preventDefault();openNote(cell)}});
     productionBody.addEventListener('keydown',event=>{{if(event.key==='F10'&&event.shiftKey){{const cell=event.target.closest('td[data-row][data-column]');if(cell){{event.preventDefault();openNote(cell)}}}}}});
     noteDialog.querySelector('.note-cancel').addEventListener('click',()=>noteDialog.close());
-    async function persistNote(note){{noteDialog.querySelectorAll('button').forEach(b=>b.disabled=true);try{{const response=await fetch('/api/produccion/nota',{{method:'PUT',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{...noteTarget,note}})}}),data=await response.json();if(!response.ok)throw Error(data.detail||'No se pudo guardar la nota');productionData.notes=productionData.notes||{{}};productionData.notes[noteTarget.row+':'+noteTarget.column]=data.note;noteDialog.close();renderProduction()}}catch(error){{noteDialog.querySelector('.note-error').textContent=error.message}}finally{{noteDialog.querySelectorAll('button').forEach(b=>b.disabled=false)}}}}
+    async function persistNote(note){{noteDialog.querySelectorAll('button').forEach(b=>b.disabled=true);try{{const response=await fetch('/api/produccion/nota',{{method:'PUT',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{...noteTarget,note}})}}),data=await response.json();if(!response.ok)throw Error(data.detail||'No se pudo guardar la nota');productionData.notes=productionData.notes||{{}};productionData.notes[noteTarget.row+':'+noteTarget.column]=data.note;productionData.note_entries=productionData.note_entries||{{}};productionData.note_entries[noteTarget.row+':'+noteTarget.column]=[{{text:data.note,author:data.author||''}}];noteDialog.close();renderProduction()}}catch(error){{noteDialog.querySelector('.note-error').textContent=error.message}}finally{{noteDialog.querySelectorAll('button').forEach(b=>b.disabled=false)}}}}
     noteDialog.querySelector('.note-save').addEventListener('click',()=>persistNote(noteDialog.querySelector('textarea').value));noteDialog.querySelector('.note-delete').addEventListener('click',()=>{{if(confirm('¿Eliminar la nota de esta celda?'))persistNote('')}});noteDialog.addEventListener('cancel',event=>{{if(noteDialog.querySelector('.note-save').disabled)event.preventDefault()}});
     function fitProductionHeight(){{if(!document.body.classList.contains('production-mode'))return;const top=productionTableWrap.getBoundingClientRect().top,available=Math.max(240,window.innerHeight-Math.max(0,top)-10);productionTableWrap.style.height=available+'px';productionTableWrap.style.maxHeight=available+'px';productionTableWrap.style.minHeight='0'}}
     productionBody.addEventListener('click',event=>{{const cell=event.target.closest('td[data-row][data-column]');if(!cell||event.target.closest('button,a,input,select,textarea')||cell.classList.contains('delivery-days-cell'))return;hideNotePreview();const select=cell.querySelector('select'),picker=cell.querySelector('.production-machine-picker');if(select){{cell.focus();return}}if(picker){{picker.click();return}}cell.focus()}});
@@ -2587,7 +2589,7 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
 @media(max-width:700px){{body.production-mode .trace-cards{{grid-template-columns:minmax(0,1fr);padding:12px}}body.production-mode .trace-card{{grid-template-columns:minmax(0,1fr)}}body.production-mode .trace-media,body.production-mode .trace-media:has(img),body.production-mode .trace-media:not(:has(img)){{height:300px;min-height:0}}body.production-mode .trace-design-main img{{height:235px}}body.production-mode .trace-media:not(:has(img)){{height:120px}}.trace-no-design>span{{display:none}}body.production-mode .trace-card-body{{padding:20px}}}}
 `;document.head.appendChild(traceFigmaStyle);setTraceView();
     const commercialGroup=commercialToggle.closest('.nav-group');commercialGroup.classList.add('collapsed');const productionToggle=document.getElementById('production-toggle');if(productionToggle)productionToggle.addEventListener('click',()=>productionToggle.closest('.nav-group').classList.toggle('collapsed'));
-    </script><script src='/trace-ui.js?v=20260927-1'></script><script src='/home-dashboard.js?v=20260927-2'></script></body></html>"""
+    </script><script src='/trace-ui.js?v=20260927-3'></script><script src='/home-dashboard.js?v=20260927-2'></script></body></html>"""
 
 
 def ordered_mockup_uploads(extras, slots):
