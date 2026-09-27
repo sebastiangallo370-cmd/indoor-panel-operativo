@@ -2150,6 +2150,8 @@ def home(_=Depends(authenticate)):
     /* Control de operarios: quién está trabajando ahora y cuántos procesos cerró hoy */
     body.operarios-mode{{--line:rgba(180,195,167,.16)}}
     body.operarios-mode header{{display:none}}
+    body.operarios-mode .footer-note{{display:none}}
+    body.operarios-mode main{{padding-bottom:12px}}
     .panel[data-panel='operarios'].active{{display:block}}
     .operarios-shell{{overflow:hidden;border-radius:18px}}
     .operarios-toolbar{{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:12px 26px;border-bottom:1px solid var(--line);background:linear-gradient(135deg,#121810,#0b0e0b)}}
@@ -2178,7 +2180,7 @@ def home(_=Depends(authenticate)):
     .operarios-hover-detail{{font-size:.68rem;color:#c7d1c0;line-height:1.3}}
     @media(max-width:980px){{.operarios-hover-wrap{{grid-template-columns:1fr}}}}
     .operarios-grid{{padding:0}}
-    .operarios-hover-calendar{{margin:8px 26px 14px;border:1px solid var(--line);border-radius:16px;background:#10140f;min-height:120px}}
+    .operarios-hover-calendar{{margin:8px 26px 10px;border:1px solid var(--line);border-radius:16px;background:#10140f;min-height:120px}}
     .operarios-hover-calendar:empty{{display:none}}
     .operarios-hover-cal-title{{margin:0;padding:8px 20px 0;font-size:1rem;color:#eef3e8;display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 8px}}
     .operarios-hover-cal-title small{{margin-left:0;color:var(--muted);font-size:.72rem;font-weight:400;text-transform:capitalize}}
@@ -2223,7 +2225,12 @@ def home(_=Depends(authenticate)):
     .operarios-dialog-kpis span{{color:var(--muted);font-size:.65rem;text-transform:uppercase;letter-spacing:.06em}}
     .operarios-dialog-kpis strong{{color:var(--lime);font-size:1rem}}
     .operarios-dialog-body{{max-height:60dvh;overflow:auto;-webkit-overflow-scrolling:touch}}
-    .operarios-days{{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;padding:10px 22px 16px}}
+    .operarios-days{{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;padding:10px 22px 14px;max-height:46vh;overflow-y:auto;scrollbar-color:rgba(208,244,76,.4) #10140f;scrollbar-width:thin}}
+    .operarios-days::-webkit-scrollbar{{width:9px}}
+    .operarios-days::-webkit-scrollbar-track{{background:#10140f}}
+    .operarios-days::-webkit-scrollbar-thumb{{background:rgba(208,244,76,.35);border-radius:999px}}
+    .operarios-days::-webkit-scrollbar-thumb:hover{{background:rgba(208,244,76,.55)}}
+    @media(max-width:860px){{.operarios-days{{max-height:60vh}}}}
     .operarios-daycard{{position:relative;display:grid;grid-template-rows:auto 1fr auto;gap:12px;padding:16px 16px 15px;border:1px solid rgba(255,255,255,.09);border-radius:16px;background:linear-gradient(160deg,#10140f,#0c0f0b);box-shadow:0 6px 16px rgba(0,0,0,.22);transition:border-color .15s,transform .15s}}
     .operarios-daycard:hover{{border-color:rgba(208,244,76,.4);transform:translateY(-1px)}}
     .operarios-daycard.is-today{{border-color:var(--lime);background:linear-gradient(160deg,#182014,#0f130d);box-shadow:0 8px 20px rgba(208,244,76,.1)}}
