@@ -1070,8 +1070,81 @@ def production_operator_history(row: int, _=Depends(authenticate)):
         db.close()
 
 
+OPERATOR_SHEET_GID = 1538767125
+OPERATOR_SHEET_TTL_SECONDS = 90
+_operator_sheet_cache = {"at": 0.0, "data": None, "error": None}
+
+
+def parse_operator_sheet(values: list) -> dict:
+    """Interpreta CONTROL OPERARIOS: fila 1 = area (celdas combinadas), fila 2 = codigo
+    de operario, columna A = fecha, y cada celda la cantidad que cerro ese operario
+    ese dia. Se lee tal cual esta en la hoja, sin una lista fija de codigos."""
+    if len(values) < 3:
+        return {"areas": [], "columns": [], "daily": {}}
+    header_area, header_code = values[0], values[1]
+    width = max(len(header_area), len(header_code))
+    columns = []
+    current_area = ""
+    for i in range(1, width):
+        area_cell = header_area[i].strip() if i < len(header_area) else ""
+        if area_cell:
+            current_area = area_cell
+        code = header_code[i].strip() if i < len(header_code) else ""
+        if code:
+            columns.append({"index": i, "area": current_area, "code": code})
+    daily: dict = {}
+    for row in values[2:]:
+        if not row or not str(row[0]).strip():
+            continue
+        date_value = parse_production_date(str(row[0]).strip())
+        if not date_value:
+            continue
+        date_iso = date_value.isoformat()
+        for col in columns:
+            if col["index"] >= len(row):
+                continue
+            raw = str(row[col["index"]]).strip().replace(",", ".")
+            if not raw:
+                continue
+            try:
+                count = int(float(raw))
+            except ValueError:
+                continue
+            if count <= 0:
+                continue
+            by_date = daily.setdefault(col["code"], {})
+            by_date[date_iso] = by_date.get(date_iso, 0) + count
+    areas = sorted({col["area"] for col in columns if col["area"]})
+    return {"areas": areas, "columns": columns, "daily": daily}
+
+
+def read_operator_sheet(force: bool = False):
+    """Lee en vivo la pestaña CONTROL OPERARIOS de Google Sheets (solo lectura),
+    reutilizando la misma conexion autenticada que ya usa Produccion. Se guarda en
+    caché un par de minutos para no golpear la API de Google en cada actualización."""
+    cache = _operator_sheet_cache
+    now = time.time()
+    if not force and cache["data"] is not None and now - cache["at"] < OPERATOR_SHEET_TTL_SECONDS:
+        return cache["data"], cache["error"]
+    try:
+        production_worksheet = legacy.get_gspread()
+        operator_worksheet = production_worksheet.spreadsheet.get_worksheet_by_id(OPERATOR_SHEET_GID)
+        values = operator_worksheet.get_all_values()
+        data = parse_operator_sheet(values)
+        cache.update(at=now, data=data, error=None)
+        return data, None
+    except Exception as error:
+        logging.exception("No se pudo leer CONTROL OPERARIOS desde Google Sheets")
+        message = str(error) or error.__class__.__name__
+        if cache["data"] is not None:
+            return cache["data"], message
+        cache.update(at=now, data=None, error=message)
+        return None, message
+
+
 @app.get('/api/produccion/operarios')
-def production_operators(_=Depends(authenticate)):
+def production_operators(refresh: bool = False, _=Depends(authenticate)):
+    sheet_data, sheet_error = read_operator_sheet(force=refresh)
     db = connect()
     try:
         ensure_operator_events(db)
@@ -1133,6 +1206,13 @@ def production_operators(_=Depends(authenticate)):
             'operators': sorted(operators.values(), key=lambda item: item['responsible'].casefold()),
             'finished_by_process': finished_by_process,
             'daily': daily,
+            'sheet': {
+                'available': sheet_data is not None,
+                'error': sheet_error,
+                'areas': sheet_data['areas'] if sheet_data else [],
+                'columns': sheet_data['columns'] if sheet_data else [],
+                'daily_by_code': sheet_data['daily'] if sheet_data else {},
+            },
         }
     finally:
         db.close()
@@ -2485,8 +2565,10 @@ let html='';for(let n=0;n<days;n++){{const date=new Date(start);date.setDate(sta
     /* Roster por area, tomado de las columnas de la hoja de produccion. */
     const operariosAreaStats=document.getElementById('operarios-area-stats'),operariosTotal=document.getElementById('operarios-total');
     const operariosDialog=document.getElementById('operarios-dialog'),operariosDialogTitle=document.getElementById('operarios-dialog-title'),operariosDialogKpis=document.getElementById('operarios-dialog-kpis'),operariosDialogBody=document.getElementById('operarios-dialog-body'),operariosDialogMonth=document.getElementById('operarios-dialog-month'),operariosDialogClose=document.getElementById('operarios-dialog-close'),operariosDialogPrev=document.getElementById('operarios-dialog-prev'),operariosDialogNext=document.getElementById('operarios-dialog-next');
-    const operatorState={{data:[],daily:{{}},finished:{{}},byRef:{{}},area:'',year:0,month:0,daysInMonth:30,today:''}};
-    const operatorAreaColumns=[
+    const operatorState={{data:[],daily:{{}},dailyByCode:{{}},finished:{{}},byRef:{{}},area:'',year:0,month:0,daysInMonth:30,today:'',sheetAvailable:false}};
+    /* Respaldo por si Google Sheets no responde: se usa mientras carga o si falla la conexión.
+       Cuando la hoja CONTROL OPERARIOS SÍ responde, esta lista se reemplaza con lo que haya ahí. */
+    const operatorAreaFallback=[
       {{area:'EDICIÓN',columns:[['SG'],['BOT'],['CO','JD','EE']]}},
       {{area:'IMPRESIÓN',columns:[['SG'],['SV']]}},
       {{area:'SUBLIMACIÓN',columns:[['G'],['CC'],['GP'],['JP']]}},
@@ -2495,25 +2577,43 @@ let html='';for(let n=0;n<days;n++){{const date=new Date(start);date.setDate(sta
       {{area:'CONFECCIÓN',columns:[['ALBA'],['ANGELA'],['BLANCA'],['BLANCA EMILSE'],['EUCARIS'],['FANNY'],['GLORIA'],['GLORIA LOPEZ'],['CARMEN'],['JUAN ESTEBAN'],['MIRYAM'],['NOELIA'],['NURY'],['OMAIRA'],['OMAIRA BERGARA'],['PATRICIA'],['SANDRA'],['OFELIA'],['YINI'],['LILIANA'],['YENNY'],['CANDELARIA']]}},
       {{area:'TERMINACIÓN',columns:[['EJ'],['JO'],['DB']]}}
     ];
+    let operatorAreaColumns=operatorAreaFallback;
     const operatorAreaOfProcess={{EDICION:'EDICIÓN',IMPRESION:'IMPRESIÓN',SUBLIMACION:'SUBLIMACIÓN','CORTE LASER':'CORTE LÁSER',APLIQUE:'APLIQUES',CONFECCION:'CONFECCIÓN',TERMINACION:'TERMINACIÓN',EMPAQUE:'EMPAQUE'}};
     const operatorCodeByName={{}},operatorNameByCode={{}};
     productionResponsibles.forEach(entry=>{{if(entry[0]&&entry[1]){{operatorCodeByName[processKey(entry[1])]=entry[0];operatorNameByCode[entry[0]]=entry[1]}}}});
     function operatorCode(responsible){{const key=processKey(responsible);if(operatorCodeByName[key])return operatorCodeByName[key];return /^[A-ZÁÉÍÓÚÑ0-9 .'-]{{1,4}}$/.test(key)?key:''}}
-    const operariosOpenAreas=['EDICIÓN','IMPRESIÓN','SUBLIMACIÓN','CORTE LÁSER','CONFECCIÓN'];
+    let operariosOpenAreas=['EDICIÓN','IMPRESIÓN','SUBLIMACIÓN','CORTE LÁSER','CONFECCIÓN'];
+    /* Reconstruye el reparto por area con lo que realmente hay hoy en la pestaña CONTROL OPERARIOS
+       de Google Sheets (columnas y codigos de operario), en vez de la lista fija de respaldo. */
+    function applyOperatorSheet(sheet){{
+      if(!sheet||!sheet.available||!(sheet.columns||[]).length)return false;
+      const byArea=new Map();
+      sheet.columns.forEach(col=>{{
+        if(!col.area||!col.code)return;
+        if(!byArea.has(col.area))byArea.set(col.area,[]);
+        byArea.get(col.area).push([col.code]);
+      }});
+      if(!byArea.size)return false;
+      operatorAreaColumns=[...byArea.entries()].map(([area,columns])=>({{area,columns}}));
+      operariosOpenAreas=(sheet.areas&&sheet.areas.length)?sheet.areas:operatorAreaColumns.map(item=>item.area);
+      return true;
+    }}
+    function operatorTodayTotal(code,todayKey){{const byCode=operatorState.dailyByCode||{{}};return((byCode[code]||{{}})[todayKey])||0}}
     function operatorDayKey(year,month,day){{return year+'-'+String(month+1).padStart(2,'0')+'-'+String(day).padStart(2,'0')}}
     function renderOperators(data){{
       const operators=(data&&data.operators)||[],daily=(data&&data.daily)||{{}};
-      const busy=operators.filter(item=>item.current),done=operators.reduce((sum,item)=>sum+(Number(item.today_count)||0),0);
+      const sheet=(data&&data.sheet)||{{}},dailyByCode=sheet.daily_by_code||{{}};
+      const sheetAvailable=applyOperatorSheet(sheet);
+      const busy=operators.filter(item=>item.current);
+      const todayKey=(data&&data.today)||'';
       const finished=(data&&data.finished_by_process)||{{}};
-      operariosTotal.textContent=String(operators.length);
-      operariosBusy.textContent=String(busy.length);
-      operariosIdle.textContent=String(operators.length-busy.length);
-      operariosDone.textContent=String(done);
-      operatorState.data=operators;operatorState.daily=daily;operatorState.finished=finished;operatorState.today=(data&&data.today)||'';
+      operatorState.data=operators;operatorState.daily=daily;operatorState.dailyByCode=dailyByCode;operatorState.finished=finished;operatorState.today=todayKey;operatorState.sheetAvailable=sheetAvailable;
       operatorState.byRef={{}};
       const byRef=operatorState.byRef;
       operators.forEach(item=>{{const key=processKey(item.responsible);if(key)byRef[key]=item;const code=operatorCode(item.responsible);if(code)byRef[code]=item}});
-      const cards=operariosOpenAreas.map(label=>{{
+      let totalPeople=0,totalWorking=0,totalDone=0;
+      const seenCodes=new Set();
+      const cards=operariosOpenAreas.map((label,index)=>{{
         const group=operatorAreaColumns.find(item=>processKey(item.area)===processKey(label));
         if(!group)return '';
         const people=[];
@@ -2522,20 +2622,31 @@ let html='';for(let n=0;n<days;n++){{const date=new Date(start);date.setDate(sta
           if(!people.some(entry=>processKey(entry.name)===processKey(name)))people.push({{name:name,member:member,record:record}});
         }}));
         const working=people.filter(entry=>entry.record&&entry.record.current).length;
-        const closed=people.reduce((sum,entry)=>sum+(entry.record?(Number(entry.record.today_count)||0):0),0);
+        const closed=people.reduce((sum,entry)=>{{
+          if(sheetAvailable)return sum+operatorTodayTotal(entry.member,todayKey);
+          return sum+(entry.record?(Number(entry.record.today_count)||0):0);
+        }},0);
+        totalPeople+=people.length;totalWorking+=working;totalDone+=closed;
+        people.forEach(entry=>seenCodes.add(processKey(entry.member)));
         const pct=people.length?Math.round(working/people.length*100):0;
         return '<button class="operarios-openarea'+(working?' is-busy':'')+'" type="button" data-area="'+esc(label)+'"><span class="operarios-openarea-head"><span class="operarios-openarea-name">'+esc(label)+'</span><span class="operarios-openarea-count">'+working+'/'+people.length+'</span></span><span class="operarios-openarea-bar"><i style="width:'+pct+'%"></i></span><span class="operarios-openarea-foot"><span>'+people.length+' operario'+(people.length===1?'':'s')+'</span><span><b>'+closed+'</b> hoy</span></span></button>';
       }});
+      operariosTotal.textContent=String(totalPeople||operators.length);
+      operariosBusy.textContent=String(totalWorking||busy.length);
+      operariosIdle.textContent=String(Math.max(0,(totalPeople||operators.length)-(totalWorking||busy.length)));
+      operariosDone.textContent=String(totalDone);
       operariosGrid.innerHTML=cards.filter(Boolean).join('')||'<p class="operarios-empty">Todavía no hay procesos configurados.</p>';
+      operariosStatus.dataset.sheet=sheetAvailable?'ok':(sheet.error?'error':'sin-datos');
+      operariosStatus.title=sheetAvailable?'Cantidades tomadas de Google Sheets · CONTROL OPERARIOS':(sheet.error?'No se pudo leer Google Sheets: '+sheet.error+'. Mostrando lo que registra la app.':'');
     }}
     function renderOperatorsCalendar(){{
       const group=operatorAreaColumns.find(item=>processKey(item.area)===processKey(operatorState.area));
       if(!group)return;
-      const byRef=operatorState.byRef,daily=operatorState.daily;
+      const byRef=operatorState.byRef,daily=operatorState.daily,dailyByCode=operatorState.dailyByCode||{{}},sheetAvailable=operatorState.sheetAvailable;
       const roster=[];
       group.columns.forEach(column=>column.forEach(member=>{{
         const record=byRef[processKey(member)],name=record?record.responsible:(operatorNameByCode[member]||member);
-        if(!roster.some(entry=>processKey(entry.name)===processKey(name)))roster.push({{name:name,record:record}});
+        if(!roster.some(entry=>processKey(entry.name)===processKey(name)))roster.push({{name:name,member:member,record:record}});
       }}));
 
       const year=operatorState.year,month=operatorState.month,total=operatorState.daysInMonth;
@@ -2544,7 +2655,8 @@ let html='';for(let n=0;n<days;n++){{const date=new Date(start);date.setDate(sta
 
       const days=Array.from({{length:total}},(_,index)=>{{
         const day=index+1,key=operatorDayKey(year,month,day);
-        const people=roster.map(entry=>({{name:entry.name,record:entry.record,count:(daily[entry.name]||{{}})[key]||0}}))
+        const people=roster.map(entry=>({{name:entry.name,record:entry.record,
+          count:sheetAvailable?((dailyByCode[entry.member]||{{}})[key]||0):((daily[entry.name]||{{}})[key]||0)}}))
           .filter(entry=>entry.count>0).sort((a,b)=>b.count-a.count);
         return {{day:day,key:key,people:people,total:people.reduce((sum,entry)=>sum+entry.count,0)}};
       }}).filter(entry=>entry.total>0||entry.key===todayKey).reverse();
