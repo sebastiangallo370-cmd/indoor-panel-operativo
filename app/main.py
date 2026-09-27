@@ -2307,10 +2307,14 @@ def home(_=Depends(authenticate)):
     .operarios-daylist li{{display:flex;align-items:center;gap:7px;padding:5px 11px 5px 5px;border:1px solid rgba(255,255,255,.08);border-radius:12px;background:#0a0d09}}
     .operarios-daylist b{{display:grid;place-items:center;flex:0 0 auto;min-width:24px;height:21px;padding:0 5px;white-space:nowrap;border-radius:999px;background:rgba(255,255,255,.08);color:#e7ede2;font-size:.62rem;font-weight:900;letter-spacing:.02em}}
     .operarios-daylist-stats{{display:flex;flex-wrap:wrap;align-items:center;gap:2px 9px}}
-    .op-stat{{font-size:.72rem;font-weight:900;font-variant-numeric:tabular-nums;white-space:nowrap}}
+    .op-stat{{display:inline-flex;align-items:center;gap:4px;font-size:.72rem;font-weight:900;font-variant-numeric:tabular-nums;white-space:nowrap}}
+    .op-stat-icon{{display:inline-grid;place-items:center;flex:0 0 auto;width:16px;height:16px;border-radius:50%;font-size:.58rem;font-weight:900;line-height:1}}
     .op-stat-done{{color:#4ade80}}
+    .op-stat-done .op-stat-icon{{background:rgba(74,222,128,.16);border:1px solid rgba(74,222,128,.55);color:#4ade80}}
     .op-stat-active{{color:#ffa63d}}
+    .op-stat-active .op-stat-icon{{background:rgba(255,166,61,.16);border:1px solid rgba(255,166,61,.55);color:#ffa63d}}
     .op-stat-rework{{color:#ff5c5c}}
+    .op-stat-rework .op-stat-icon{{background:rgba(255,92,92,.16);border:1px solid rgba(255,92,92,.55);color:#ff5c5c}}
     .operarios-badge{{display:inline-grid;place-items:center;width:26px;height:26px;flex:0 0 26px;border:1px solid rgba(208,244,76,.55);border-radius:50%;background:rgba(208,244,76,.12);color:var(--lime);font-size:.62rem;font-weight:900;letter-spacing:.02em;box-sizing:border-box}}
     .operarios-daynone{{color:#77816f;font-size:.68rem;text-align:center;padding:6px 0}}
     .operarios-cal-empty{{padding:44px 20px;text-align:center;color:var(--muted);font-size:.85rem}}
@@ -2898,9 +2902,9 @@ let html='';for(let n=0;n<days;n++){{const date=new Date(start);date.setDate(sta
         const list=entry.people.length
           ?'<ul class="operarios-daylist">'+entry.people.map(person=>{{
               const extra=isToday?personExtraStats(person.name):null;
-              const stats=person.count>0?['<span class="op-stat op-stat-done">✓ '+person.count+' unds</span>']:[];
-              if(extra&&extra.active_units)stats.push('<span class="op-stat op-stat-active">✖ '+extra.active_units.toLocaleString('es-CO')+' unds</span>');
-              if(extra&&extra.rework_units)stats.push('<span class="op-stat op-stat-rework">® '+extra.rework_units.toLocaleString('es-CO')+' unds</span>');
+              const stats=person.count>0?['<span class="op-stat op-stat-done"><i class="op-stat-icon">✓</i>'+person.count+' unds</span>']:[];
+              if(extra&&extra.active_units)stats.push('<span class="op-stat op-stat-active"><i class="op-stat-icon">P</i>'+extra.active_units.toLocaleString('es-CO')+' unds</span>');
+              if(extra&&extra.rework_units)stats.push('<span class="op-stat op-stat-rework"><i class="op-stat-icon">R</i>'+extra.rework_units.toLocaleString('es-CO')+' unds</span>');
               return '<li>'+operatorBadgeHTML(person.name)+'<span class="operarios-daylist-stats">'+stats.join('')+'</span></li>';
             }}).join('')+'</ul>'
           :'<p class="operarios-daynone">Sin cierres</p>';
