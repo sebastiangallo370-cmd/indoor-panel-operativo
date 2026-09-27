@@ -1114,7 +1114,9 @@ def parse_operator_sheet(values: list) -> dict:
                 continue
             by_date = daily.setdefault(col["code"], {})
             by_date[date_iso] = by_date.get(date_iso, 0) + count
-    areas = sorted({col["area"] for col in columns if col["area"]})
+    # En el orden en que aparecen las columnas en la hoja (de izquierda a derecha), que es
+    # el mismo orden del proceso de producción; no alfabético.
+    areas = list(dict.fromkeys(col["area"] for col in columns if col["area"]))
     return {"areas": areas, "columns": columns, "daily": daily}
 
 
@@ -2154,7 +2156,16 @@ def home(_=Depends(authenticate)):
     .operarios-title h2{{margin:4px 0 5px;font-size:1.45rem}}
     .operarios-title p{{color:var(--muted);font-size:.84rem}}
     .operarios-toolbar .production-refresh{{padding:9px 13px}}
-    .operarios-hover-wrap{{display:flex;justify-content:center;padding:4px 26px 24px}}
+    .operarios-hover-wrap{{display:flex;flex-direction:column;align-items:center;gap:14px;padding:4px 26px 24px}}
+    .operarios-goal{{width:100%;max-width:560px;display:grid;gap:8px;padding:14px 22px;background:#10140f;border:1px solid var(--line);border-radius:14px}}
+    .operarios-goal-head{{display:flex;justify-content:space-between;align-items:baseline;gap:10px}}
+    .operarios-goal-head span{{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700}}
+    .operarios-goal-head strong{{font-size:1rem;color:#eef3e8;font-variant-numeric:tabular-nums}}
+    .operarios-goal-bar{{height:10px;border-radius:999px;background:#1c231b;overflow:hidden}}
+    .operarios-goal-bar i{{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#7aad50,var(--lime));transition:width .4s ease}}
+    .operarios-goal.over-goal .operarios-goal-bar i{{background:linear-gradient(90deg,#3fae7a,#8bd450)}}
+    .operarios-goal-pct{{font-size:.78rem;color:#c7d1c0}}
+    .operarios-goal.over-goal .operarios-goal-pct{{color:#a6e26d;font-weight:700}}
     .operarios-hover-btn{{width:100%;max-width:560px;display:grid;gap:10px;padding:18px 24px;background:linear-gradient(160deg,rgba(208,244,76,.1),rgba(208,244,76,.03));border:1px solid rgba(208,244,76,.35);border-radius:18px;text-align:center;box-shadow:0 14px 34px rgba(0,0,0,.28);transition:border-color .15s,background .15s}}
     .operarios-hover-btn.has-data{{border-color:var(--lime)}}
     .operarios-hover-nav{{display:flex;align-items:center;justify-content:center;gap:16px}}
@@ -2205,10 +2216,9 @@ def home(_=Depends(authenticate)):
     .operarios-days{{display:grid;grid-template-columns:repeat(auto-fill,minmax(158px,1fr));gap:9px;padding:16px 20px 20px}}
     .operarios-daycard{{display:grid;grid-template-rows:auto 1fr auto;gap:8px;padding:11px;border:1px solid rgba(255,255,255,.09);border-radius:13px;background:#0d110d}}
     .operarios-daycard.is-today{{border-color:var(--lime);background:#151b12}}
-    .operarios-daycard-head{{display:flex;align-items:baseline;gap:6px}}
-    .operarios-daycard-date{{color:#efffb0;font-size:.86rem;font-weight:900;font-variant-numeric:tabular-nums}}
+    .operarios-daycard-head{{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 6px}}
+    .operarios-daycard-date{{color:#efffb0;font-size:.66rem;font-weight:900;letter-spacing:.02em}}
     .operarios-daycard.is-today .operarios-daycard-date{{color:var(--lime)}}
-    .operarios-daycard-dow{{color:#7f8a79;font-size:.58rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em}}
     .operarios-daycard-total{{margin-left:auto;color:var(--muted);font-size:.62rem;font-weight:700}}
     .operarios-daylist{{display:flex;flex-wrap:wrap;gap:5px;align-content:start;margin:0;padding:0;list-style:none}}
     .operarios-daylist li{{display:flex;align-items:center;gap:5px;padding:3px 8px 3px 3px;border:1px solid rgba(255,255,255,.08);border-radius:999px;background:#0a0d09}}
@@ -2243,7 +2253,7 @@ def home(_=Depends(authenticate)):
     <div class='home-section'><h3>Nuestro proceso</h3><div class='home-gallery'><figure><img src='/landing/proceso-1.jpg' alt='Impresión de diseños' loading='lazy'><figcaption>Impresión de diseños</figcaption></figure><figure><img src='/landing/proceso-2.jpg' alt='Corte y armado' loading='lazy'><figcaption>Corte y armado</figcaption></figure><figure><img src='/landing/proceso-3.jpg' alt='Corte láser' loading='lazy'><figcaption>Corte láser</figcaption></figure><figure><img src='/landing/proceso-4.jpg' alt='Aplicación en plancha' loading='lazy'><figcaption>Aplicación en plancha</figcaption></figure><figure><img src='/landing/proceso-5.jpg' alt='Diseño digital' loading='lazy'><figcaption>Diseño digital</figcaption></figure><figure><img src='/landing/proceso-6.jpg' alt='Empaque final' loading='lazy'><figcaption>Empaque final</figcaption></figure></div></div>
     <div class='home-section'><h3>Nuestros uniformes</h3><div class='home-gallery'><figure><img src='/landing/uniforme-1.jpg' alt='Uniforme en cancha' loading='lazy'><figcaption>Uniforme en cancha</figcaption></figure><figure><img src='/landing/uniforme-2.jpg' alt='Uniforme premium' loading='lazy'><figcaption>Uniforme premium</figcaption></figure><figure><img src='/landing/uniforme-3.jpg' alt='Escudo texturizado' loading='lazy'><figcaption>Escudo texturizado</figcaption></figure><figure><img src='/landing/uniforme-4.jpg' alt='Numeración' loading='lazy'><figcaption>Numeración</figcaption></figure><figure><img src='/landing/uniforme-5.jpg' alt='Diseño bicolor' loading='lazy'><figcaption>Diseño bicolor</figcaption></figure><figure><img src='/landing/uniforme-6.jpg' alt='Uniforme sublimado' loading='lazy'><figcaption>Uniforme sublimado</figcaption></figure></div></div>
     </div></section>
-    <section class='panel' data-panel='operarios'><div class='card operarios-shell'><div class='operarios-toolbar'><div class='operarios-title'><span class='eyebrow'>Producción · En vivo</span><h2>CONTROL OPERARIOS</h2><p>Reparto por área: quién integra cada proceso, quién está trabajando ahora y cuántos se cerraron hoy.</p></div><button id='operarios-refresh' type='button' class='production-refresh'>Actualizar</button></div><div class='operarios-hover-wrap'><div id='operarios-hover' class='operarios-hover-btn' aria-live='polite'><div class='operarios-hover-nav'><button id='operarios-hover-prev' type='button' aria-label='Área anterior'>‹</button><span class='operarios-hover-title'>Cargando áreas…</span><button id='operarios-hover-next' type='button' aria-label='Área siguiente'>›</button></div><div class='operarios-hover-detail'>Verás aquí quién está trabajando y cuántos cerró hoy.</div></div></div><div class='operarios-kpis'><div class='operarios-kpi'><span>Operarios</span><strong id='operarios-total'>—</strong></div><div class='operarios-kpi'><span>Trabajando</span><strong id='operarios-busy'>—</strong></div><div class='operarios-kpi'><span>Libres</span><strong id='operarios-idle'>—</strong></div><div class='operarios-kpi'><span>Cerrados hoy</span><strong id='operarios-done'>—</strong></div><div id='operarios-status' class='operarios-status' role='status'>Cargando operarios…</div></div><div id='operarios-area-stats' class='operarios-area-stats' hidden></div><div id='operarios-grid' class='operarios-grid' hidden></div><div id='operarios-hover-calendar' class='operarios-hover-calendar'></div></div></section>
+    <section class='panel' data-panel='operarios'><div class='card operarios-shell'><div class='operarios-toolbar'><div class='operarios-title'><span class='eyebrow'>Producción · En vivo</span><h2>CONTROL OPERARIOS</h2><p>Reparto por área: quién integra cada proceso, quién está trabajando ahora y cuántos se cerraron hoy.</p></div><button id='operarios-refresh' type='button' class='production-refresh'>Actualizar</button></div><div class='operarios-hover-wrap'><div id='operarios-hover' class='operarios-hover-btn' aria-live='polite'><div class='operarios-hover-nav'><button id='operarios-hover-prev' type='button' aria-label='Área anterior'>‹</button><span class='operarios-hover-title'>Cargando áreas…</span><button id='operarios-hover-next' type='button' aria-label='Área siguiente'>›</button></div><div class='operarios-hover-detail'>Verás aquí quién está trabajando y cuántos cerró hoy.</div></div><div id='operarios-goal' class='operarios-goal'><div class='operarios-goal-head'><span>Unidades del mes</span><strong id='operarios-goal-count'>—</strong></div><div class='operarios-goal-bar'><i id='operarios-goal-fill' style='width:0%'></i></div><span id='operarios-goal-pct' class='operarios-goal-pct'>Cargando…</span></div></div><div class='operarios-kpis'><div class='operarios-kpi'><span>Operarios</span><strong id='operarios-total'>—</strong></div><div class='operarios-kpi'><span>Trabajando</span><strong id='operarios-busy'>—</strong></div><div class='operarios-kpi'><span>Libres</span><strong id='operarios-idle'>—</strong></div><div class='operarios-kpi'><span>Cerrados hoy</span><strong id='operarios-done'>—</strong></div><div id='operarios-status' class='operarios-status' role='status'>Cargando operarios…</div></div><div id='operarios-area-stats' class='operarios-area-stats' hidden></div><div id='operarios-grid' class='operarios-grid' hidden></div><div id='operarios-hover-calendar' class='operarios-hover-calendar'></div></div></section>
 <dialog id='operarios-dialog' class='operarios-dialog' aria-labelledby='operarios-dialog-title'><div class='operarios-dialog-head'><div><span class='eyebrow'>Producción · Calendario</span><h2 id='operarios-dialog-title'>Proceso</h2><p id='operarios-dialog-sub'>Procesos cerrados por operario y día</p></div><div class='operarios-dialog-actions'><button id='operarios-dialog-prev' type='button' aria-label='Mes anterior'>‹</button><strong id='operarios-dialog-month'>—</strong><button id='operarios-dialog-next' type='button' aria-label='Mes siguiente'>›</button><button id='operarios-dialog-close' type='button' class='operarios-dialog-x' aria-label='Cerrar'>×</button></div></div><div class='operarios-dialog-kpis' id='operarios-dialog-kpis'></div><div class='operarios-dialog-body' id='operarios-dialog-body'></div></dialog>
     <section class='panel' data-panel='cronograma'><div class='card schedule-shell'><div class='schedule-toolbar'><div class='schedule-title'><span class='eyebrow'>Planeación de entregas</span><h2>CRONOGRAMA</h2><p>Fechas de entrega de todos los pedidos registrados en Producción.</p></div><div class='schedule-actions'><button id='schedule-prev' type='button' aria-label='Mes anterior'>‹</button><button id='schedule-today' type='button'>Hoy</button><button id='schedule-next' type='button' aria-label='Mes siguiente'>›</button></div></div><div class='schedule-days-block'><div class='schedule-days-nav'><h4 class='schedule-overview-title'>Entregas de la semana <small id='schedule-days-range'></small></h4><div class='schedule-days-actions'><button id='schedule-days-prev' type='button' aria-label='Semana anterior'>‹</button><button id='schedule-days-today' type='button'>Hoy</button><button id='schedule-days-next' type='button' aria-label='Semana siguiente'>›</button></div></div><div id='schedule-days' class='schedule-days' aria-label='Próximos días'></div></div><div class='schedule-summary'><strong id='schedule-month'>—</strong><span id='schedule-count'>Cargando pedidos…</span></div><div class='schedule-weekdays'><div>LUN</div><div>MAR</div><div>MIÉ</div><div>JUE</div><div>VIE</div><div>SÁB</div><div>DOM</div></div><div id='schedule-grid' class='schedule-grid'></div><div id='schedule-cards' class='schedule-cards' hidden></div></div></section>
     <section class='workspace panel' data-panel='reprogramacion'><div class='card'><div class='card-head'><h2>Nueva reprogramación</h2><p>Selecciona una cotización, remisión o listado en PDF o Excel.</p></div><div class='upload-wrap'>
@@ -2678,6 +2688,19 @@ let html='';for(let n=0;n<days;n++){{const date=new Date(start);date.setDate(sta
       operariosBusy.textContent=String(totalWorking||busy.length);
       operariosIdle.textContent=String(Math.max(0,(totalPeople||operators.length)-(totalWorking||busy.length)));
       operariosDone.textContent=String(totalDone);
+      /* Meta de produccion: 10.000 unidades al mes, acordada con el equipo. */
+      const OPERATORS_MONTHLY_GOAL=10000;
+      const monthPrefix=(todayKey||'').slice(0,7);
+      let monthUnits=0;
+      if(sheetAvailable&&monthPrefix){{
+        Object.values(dailyByCode).forEach(byDate=>{{Object.entries(byDate).forEach(([date,count])=>{{if(date.slice(0,7)===monthPrefix)monthUnits+=Number(count)||0}})}});
+      }}
+      const goalPct=Math.round(monthUnits/OPERATORS_MONTHLY_GOAL*100);
+      const goalEl=document.getElementById('operarios-goal');
+      goalEl.classList.toggle('over-goal',goalPct>=100);
+      document.getElementById('operarios-goal-count').textContent=monthUnits.toLocaleString('es-CO')+' / '+OPERATORS_MONTHLY_GOAL.toLocaleString('es-CO');
+      document.getElementById('operarios-goal-fill').style.width=Math.min(100,goalPct)+'%';
+      document.getElementById('operarios-goal-pct').textContent=sheetAvailable?goalPct+'% de la meta del mes':'Sin datos de Google Sheets para calcular la meta.';
       operariosGrid.innerHTML=cards.filter(Boolean).join('')||'<p class="operarios-empty">Todavía no hay procesos configurados.</p>';
       operariosStatus.dataset.sheet=sheetAvailable?'ok':(sheet.error?'error':'sin-datos');
       operariosStatus.title=sheetAvailable?'Cantidades tomadas de Google Sheets · CONTROL OPERARIOS':(sheet.error?'No se pudo leer Google Sheets: '+sheet.error+'. Mostrando lo que registra la app.':'');
@@ -2751,11 +2774,12 @@ let html='';for(let n=0;n<days;n++){{const date=new Date(start);date.setDate(sta
       }}
       const cards=days.map(entry=>{{
         const moment=new Date(year,month,entry.day);
-        const dow=moment.toLocaleDateString('es-CO',{{weekday:'short'}}).replace('.','').toUpperCase();
+        const dowFull=moment.toLocaleDateString('es-CO',{{weekday:'long'}}).toUpperCase();
+        const monthFull=moment.toLocaleDateString('es-CO',{{month:'long'}}).toUpperCase();
         const list=entry.people.length
           ?'<ul class="operarios-daylist">'+entry.people.map(person=>'<li>'+operatorBadgeHTML(person.name)+'<em>'+person.count+'</em></li>').join('')+'</ul>'
           :'<p class="operarios-daynone">Sin cierres</p>';
-        return '<article class="operarios-daycard'+(entry.key===todayKey?' is-today':'')+'"><div class="operarios-daycard-head"><span class="operarios-daycard-date">'+String(entry.day).padStart(2,'0')+'/'+String(month+1).padStart(2,'0')+'/'+year+'</span><span class="operarios-daycard-dow">'+esc(dow)+'</span><span class="operarios-daycard-total">'+entry.total+'</span></div>'+list+'</article>';
+        return '<article class="operarios-daycard'+(entry.key===todayKey?' is-today':'')+'"><div class="operarios-daycard-head"><span class="operarios-daycard-date">'+esc(dowFull)+' / '+entry.day+' / '+esc(monthFull)+'</span><span class="operarios-daycard-total">'+entry.total+'</span></div>'+list+'</article>';
       }}).join('');
       const kpisHTML='<div><span>Operarios</span><strong>'+roster.length+'</strong></div><div><span>Trabajando</span><strong>'+roster.filter(entry=>entry.record&&entry.record.current).length+'</strong></div><div><span>Días con registro</span><strong>'+days.filter(entry=>entry.total>0).length+'</strong></div><div><span>Procesos del mes</span><strong>'+days.reduce((sum,entry)=>sum+entry.total,0)+'</strong></div>';
       const bodyHTML=cards?'<div class="operarios-days">'+cards+'</div>':'<p class="operarios-cal-empty">No hay procesos cerrados en este mes.</p>';
