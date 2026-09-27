@@ -11,7 +11,7 @@
   const DAY = 86400000;
   const PAGE = 12;
   const COLORS = { red: '#ff6b6b', orange: '#ffb347', yellow: '#e6e35a', green: '#8bd450', gray: '#4b5648', blue: '#6cb6ff' };
-  const STATE_LABEL = { finished: 'Terminado', active: 'En proceso', rework: 'Reproceso', pending: 'Pendiente' };
+  const STATE_LABEL = { finished: 'Terminado', active: 'En proceso', rework: 'Reproceso', pending: 'Pendiente', ready: 'Listos para iniciar', work: 'En el área' };
   const STATE_COLOR = { finished: COLORS.green, active: COLORS.blue, rework: COLORS.red, pending: COLORS.gray };
 
   function parseDate(value) {
@@ -97,6 +97,12 @@
         o.states[p.label] = cells.includes('R') ? 'rework' : cells.includes('P') ? 'active'
           : cells.length && closed.every(Boolean) ? 'finished' : 'pending';
       });
+      // Listo para iniciar = pendiente y con la etapa interna anterior ya terminada.
+      o.ready = {};
+      processes.forEach((p, i) => {
+        const prev = processes.slice(0, i).filter(q => !q.external).at(-1);
+        o.ready[p.label] = o.states[p.label] === 'pending' && (!prev || o.states[prev.label] === 'finished');
+      });
       o.finishedOn = {};
       processes.forEach(p => {
         const dates = o.rows.flatMap(v => p.columns.map(i => parseDate(v[i]))).filter(Boolean);
@@ -134,8 +140,11 @@
     }
 
     const stages = processes.map(p => {
-      const s = { label: p.label, finished: 0, active: 0, rework: 0, pending: 0 };
-      active.forEach(o => { s[o.states[p.label]]++; });
+      const s = { label: p.label, external: p.external, finished: 0, active: 0, rework: 0, ready: 0, wait: 0 };
+      active.forEach(o => {
+        const st = o.states[p.label];
+        if (st === 'pending') { if (o.ready[p.label]) s.ready++; else s.wait++; } else s[st]++;
+      });
       return s;
     });
 
@@ -181,12 +190,17 @@
     if (filter === 'all') return () => true;
     if (['late', 'soon', 'mid', 'ok'].includes(filter)) return o => o.bucket === filter;
     if (['active', 'rework', 'finished'].includes(filter)) return o => o.state === filter;
-    if (filter.startsWith('p|')) { const [, label, state] = filter.split('|'); return o => o.states[label] === state; }
+    if (filter.startsWith('a|')) { const label = filter.slice(2); return o => o.ready[label] || ['active', 'rework'].includes(o.states[label]); }
+    if (filter.startsWith('p|')) {
+      const [, label, state] = filter.split('|');
+      return state === 'ready' ? o => !!o.ready[label] : o => o.states[label] === state;
+    }
     return () => true;
   }
   function filterLabel(filter) {
     const known = FILTERS.find(f => f[0] === filter);
     if (known) return known[1];
+    if (filter.startsWith('a|')) return filter.slice(2) + ' · ' + STATE_LABEL.work;
     if (filter.startsWith('p|')) { const [, label, state] = filter.split('|'); return label + ' · ' + STATE_LABEL[state]; }
     return filter;
   }
@@ -265,13 +279,27 @@
           '<div class="dash-months">' + a.months.map(m => '<div title="' + esc(m.label + ': ' + (m.value === null ? 'sin entregas' : fmtDays(m.value) + ' días · ' + m.count + ' pedidos')) + '"><span style="height:' + (m.value ? Math.max(6, m.value / maxMonth * 100) : 0) + '%"></span><b>' + (m.value === null ? '' : Math.round(m.value)) + '</b><small>' + m.label + '</small></div>').join('') + '</div>') +
       procBlock;
 
+    const selectedArea = ui.filter.startsWith('a|') ? ui.filter.slice(2) : ui.filter.startsWith('p|') ? ui.filter.split('|')[1] : '';
+    const areaButtons = [...document.querySelectorAll('.tab.process-nav')];
+    const areaCard = (st, index) => {
+      const load = st.ready + st.active + st.rework;
+      const total = st.finished + st.active + st.rework + st.ready + st.wait;
+      const bar = [['finished', COLORS.green], ['active', COLORS.blue], ['rework', COLORS.red], ['ready', COLORS.yellow], ['wait', COLORS.gray]]
+        .filter(([k]) => st[k]).map(([k, c]) => '<span style="flex:' + st[k] + ';background:' + c + '"></span>').join('');
+      const chip = (state, label, n) => '<button type="button" class="dash-achip ' + state + '" data-filter="p|' + esc(st.label) + '|' + state + '"' + (n ? '' : ' disabled') + '><b>' + n + '</b>' + label + '</button>';
+      const openIndex = areaButtons.findIndex(b => key(b.textContent.replace(/^\d+/, '')) === key(st.label));
+      return '<article class="dash-area' + (selectedArea === st.label ? ' is-selected' : '') + (st.rework ? ' has-rework' : '') + '" data-filter="a|' + esc(st.label) + '" tabindex="0" role="button" aria-pressed="' + (selectedArea === st.label) + '" aria-label="' + esc(st.label + ': ' + load + ' pedidos en el área. Ver sus pedidos') + '">' +
+        '<div class="dash-area-top"><span class="dash-area-n">' + (index + 1) + '</span><h5>' + esc(st.label) + (st.external ? ' <small>externo</small>' : '') + '</h5></div>' +
+        '<div class="dash-area-main"><strong>' + load + '</strong><span>pedido' + (load === 1 ? '' : 's') + ' en el área</span></div>' +
+        '<div class="dash-area-bar" title="' + esc(st.finished + ' terminados de ' + total) + '">' + bar + '</div>' +
+        '<div class="dash-area-chips">' + chip('ready', 'Listos', st.ready) + chip('active', 'En proceso', st.active) + chip('rework', 'Reproceso', st.rework) + chip('finished', 'Terminados', st.finished) + '</div>' +
+        (openIndex >= 0 ? '<button type="button" class="dash-area-open" data-open-area="' + openIndex + '">Abrir área ↗</button>' : '') +
+        '</article>';
+    };
     const stageBlock =
-      '<h4>Avance por proceso <small>pedidos activos · toca un tramo para ver sus tarjetas</small></h4>' +
-      '<div class="dash-stages">' + a.stages.map(s => '<div class="dash-stage"><label>' + esc(s.label) + '</label>' +
-        segments(['finished', 'active', 'rework', 'pending'].map(state => ({
-          label: STATE_LABEL[state], value: s[state], color: STATE_COLOR[state], filter: 'p|' + s.label + '|' + state
-        }))) + '</div>').join('') + '</div>' +
-      '<div class="dash-legend"><i style="background:' + COLORS.green + '"></i>Terminado <i style="background:' + COLORS.blue + '"></i>En proceso <i style="background:' + COLORS.red + '"></i>Reproceso <i style="background:' + COLORS.gray + '"></i>Pendiente</div>';
+      '<h4>Áreas de producción <small>pedidos activos · toca una tarjeta para ver sus pedidos</small></h4>' +
+      '<div class="dash-areas">' + a.stages.map(areaCard).join('') + '</div>' +
+      '<div class="dash-legend"><i style="background:' + COLORS.green + '"></i>Terminado <i style="background:' + COLORS.blue + '"></i>En proceso <i style="background:' + COLORS.red + '"></i>Reproceso <i style="background:' + COLORS.yellow + '"></i>Listo para iniciar <i style="background:' + COLORS.gray + '"></i>Esperando etapa anterior</div>';
 
     // Tarjetas dinámicas
     const sorted = [...a.active].sort((x, y) => (x.due ? x.due.getTime() : Infinity) - (y.due ? y.due.getTime() : Infinity));
@@ -312,6 +340,19 @@
   .dash-note{margin:0 0 14px;color:var(--muted);font-size:.78rem;line-height:1.45}
   .dash-card h5{margin:16px 0 10px;font-size:.88rem}.dash-card h5 small{color:var(--muted);font-weight:400;font-size:.72rem;margin-left:6px}
   .dash-proc{display:grid;gap:7px}.dash-proc div{display:grid;grid-template-columns:104px 1fr 44px;align-items:center;gap:10px;font-size:.76rem}.dash-proc label{color:#d5dccf;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.dash-proc span{height:8px;border-radius:4px;background:#1f271f;overflow:hidden}.dash-proc i{display:block;height:100%;border-radius:4px;background:var(--lime)}.dash-proc b{text-align:right}
+  .dash-areas{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
+  .dash-area{display:grid;gap:9px;padding:14px;border:1px solid rgba(255,255,255,.13);border-radius:12px;background:#121712;cursor:pointer;transition:border-color .15s,transform .15s,background .15s}
+  .dash-area:hover,.dash-area:focus-visible{border-color:var(--lime);transform:translateY(-2px);background:#161d15;outline:none}
+  .dash-area.is-selected{border-color:var(--lime);background:rgba(208,244,76,.09);box-shadow:0 0 0 1px var(--lime)}.dash-area.has-rework{border-top:3px solid #ff6b6b}
+  .dash-area-top{display:flex;align-items:center;gap:8px}.dash-area-top h5{margin:0;font-size:.86rem;letter-spacing:.04em}.dash-area-top small{color:var(--muted);font-weight:400;letter-spacing:0}
+  .dash-area-n{display:grid;place-items:center;width:22px;height:22px;border-radius:7px;background:rgba(208,244,76,.14);color:var(--lime);font-size:.72rem;font-weight:800}
+  .dash-area-main{display:flex;align-items:baseline;gap:8px}.dash-area-main strong{font-size:2rem;line-height:1}.dash-area-main span{color:var(--muted);font-size:.76rem}
+  .dash-area-bar{display:flex;height:7px;border-radius:4px;overflow:hidden;background:#1f271f}
+  .dash-area-chips{display:flex;flex-wrap:wrap;gap:5px}
+  button.dash-achip{display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border:1px solid rgba(255,255,255,.14);border-radius:999px;background:rgba(255,255,255,.04);font:inherit;font-size:.7rem;color:#cfd8c9;cursor:pointer;box-shadow:none;width:auto;min-height:0}
+  button.dash-achip b{font-size:.74rem}button.dash-achip.ready b{color:#e6e35a}button.dash-achip.active b{color:#6cb6ff}button.dash-achip.rework b{color:#ff8a8a}button.dash-achip.finished b{color:#8bd450}
+  button.dash-achip:hover:not(:disabled){border-color:var(--lime);color:#fff}button.dash-achip:disabled{opacity:.4;cursor:default}
+  button.dash-area-open{justify-self:start;padding:5px 10px;border:1px solid var(--line);border-radius:8px;background:rgba(208,244,76,.08);font:inherit;font-size:.72rem;font-weight:700;color:var(--lime);cursor:pointer;box-shadow:none;width:auto;min-height:0}button.dash-area-open:hover{border-color:var(--lime)}
   .dash-empty{color:var(--muted);font-size:.85rem;padding:10px 0}
   button.dash-link,button.dash-seg,button.dash-chip,button.dash-open,button.dash-more{font:inherit;cursor:pointer;color:inherit;box-shadow:none;width:auto;min-height:0}
   button.dash-link{text-align:left;transition:border-color .15s,background .15s}button.dash-link:hover,button.dash-link:focus-visible{border-color:var(--lime);background:rgba(208,244,76,.07)}.dash-kpi u{color:var(--lime);text-decoration:none}
@@ -357,6 +398,11 @@
   }
 
   root.addEventListener('click', event => {
+    const openArea = event.target.closest('[data-open-area]');
+    if (openArea) {
+      document.querySelectorAll('.tab.process-nav')[Number(openArea.dataset.openArea)]?.click();
+      return;
+    }
     const filterButton = event.target.closest('[data-filter]');
     if (filterButton) {
       ui.filter = filterButton.dataset.filter; ui.shown = PAGE; render();
@@ -367,6 +413,9 @@
     if (event.target.closest('[data-open-trace]')) document.querySelector('.tab.production-nav')?.click();
   });
 
+  root.addEventListener('keydown', event => {
+    if ((event.key === 'Enter' || event.key === ' ') && event.target.matches('.dash-area')) { event.preventDefault(); event.target.click(); }
+  });
   root.innerHTML = '<div class="dash-empty">Cargando resumen de pedidos…</div>';
   refresh(true);
   document.querySelectorAll('.tab[data-kind="inicio"]').forEach(tab => tab.addEventListener('click', () => refresh(false)));
