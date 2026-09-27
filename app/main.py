@@ -2294,9 +2294,13 @@ def home(_=Depends(authenticate)):
     .operarios-daycard:hover{{border-color:rgba(208,244,76,.4);transform:translateY(-1px)}}
     .operarios-daycard.is-today{{border-color:var(--lime);background:linear-gradient(160deg,#182014,#0f130d);box-shadow:0 8px 20px rgba(208,244,76,.1)}}
     .operarios-daycard.is-today:before{{content:'HOY';position:absolute;top:-8px;right:12px;padding:2px 8px;border-radius:999px;background:var(--lime);color:#0d1108;font-size:.56rem;font-weight:900;letter-spacing:.05em}}
-    .operarios-daycard-head{{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 6px;padding-bottom:11px;border-bottom:1px solid rgba(255,255,255,.07)}}
-    .operarios-daycard-date{{color:#efffb0;font-size:.76rem;font-weight:900;letter-spacing:.02em;line-height:1.3}}
-    .operarios-daycard.is-today .operarios-daycard-date{{color:var(--lime)}}
+    .operarios-daycard-head{{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding-bottom:11px;border-bottom:1px solid rgba(255,255,255,.07)}}
+    .operarios-daycard-num{{flex:0 0 auto;display:grid;place-items:center;width:28px;height:28px;border-radius:8px;background:rgba(208,244,76,.12);border:1px solid rgba(208,244,76,.3);color:var(--lime);font-size:.86rem;font-weight:900;font-variant-numeric:tabular-nums}}
+    .operarios-daycard.is-today .operarios-daycard-num{{background:var(--lime);color:#0d1108;border-color:var(--lime)}}
+    .operarios-daycard-date{{display:flex;flex-direction:column;line-height:1.2;gap:1px}}
+    .operarios-daycard-date b{{color:#efffb0;font-size:.7rem;font-weight:900;letter-spacing:.02em}}
+    .operarios-daycard-date small{{color:var(--muted);font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.03em}}
+    .operarios-daycard.is-today .operarios-daycard-date b{{color:var(--lime)}}
     .operarios-daycard-total{{margin-left:auto;flex:0 0 auto;padding:3px 9px;border-radius:999px;background:rgba(255,255,255,.06);color:#dbe4d3;font-size:.68rem;font-weight:800;font-variant-numeric:tabular-nums}}
     .operarios-daycard.is-today .operarios-daycard-total{{background:rgba(208,244,76,.16);color:var(--lime)}}
     .operarios-daylist{{display:flex;flex-wrap:wrap;gap:7px;align-content:start;margin:0;padding:0;list-style:none}}
@@ -2900,7 +2904,7 @@ let html='';for(let n=0;n<days;n++){{const date=new Date(start);date.setDate(sta
               return '<li>'+operatorBadgeHTML(person.name)+'<span class="operarios-daylist-stats">'+stats.join('')+'</span></li>';
             }}).join('')+'</ul>'
           :'<p class="operarios-daynone">Sin cierres</p>';
-        return '<article class="operarios-daycard'+(isToday?' is-today':'')+'"><div class="operarios-daycard-head"><span class="operarios-daycard-date">'+esc(dowFull)+' / '+entry.day+' / '+esc(monthFull)+'</span><span class="operarios-daycard-total">Total '+entry.total+' unds</span></div>'+list+'</article>';
+        return '<article class="operarios-daycard'+(isToday?' is-today':'')+'"><div class="operarios-daycard-head"><span class="operarios-daycard-num">'+entry.day+'</span><span class="operarios-daycard-date"><b>'+esc(dowFull)+'</b><small>'+esc(monthFull)+'</small></span><span class="operarios-daycard-total">Total '+entry.total+' unds</span></div>'+list+'</article>';
       }}).join('');
       const kpisHTML='<div><span>Operarios</span><strong>'+roster.length+'</strong></div><div><span>Trabajando</span><strong>'+roster.filter(entry=>entry.record&&entry.record.current).length+'</strong></div><div><span>Días con registro</span><strong>'+days.filter(entry=>entry.total>0).length+'</strong></div><div><span>Procesos del mes</span><strong>'+days.reduce((sum,entry)=>sum+entry.total,0)+'</strong></div>';
       const bodyHTML=cards?'<div class="operarios-days">'+cards+'</div>':'<p class="operarios-cal-empty">'+(search?'No hay cierres registrados en esa fecha.':'No hay procesos cerrados en este mes.')+'</p>';
