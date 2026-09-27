@@ -2154,13 +2154,22 @@ def home(_=Depends(authenticate)):
     .operarios-title h2{{margin:4px 0 5px;font-size:1.45rem}}
     .operarios-title p{{color:var(--muted);font-size:.84rem}}
     .operarios-toolbar .production-refresh{{padding:9px 13px}}
-    .operarios-hover-btn{{flex:1;min-width:220px;max-width:420px;display:grid;gap:3px;padding:10px 16px;background:rgba(208,244,76,.05);border:1px solid rgba(208,244,76,.3);border-radius:12px;text-align:left;box-shadow:none;transition:border-color .15s,background .15s}}
-    .operarios-hover-btn:hover,.operarios-hover-btn:focus-visible{{border-color:var(--lime);background:rgba(208,244,76,.09)}}
+    .operarios-hover-btn{{flex:1;min-width:260px;max-width:440px;display:grid;gap:6px;padding:10px 12px;background:rgba(208,244,76,.05);border:1px solid rgba(208,244,76,.3);border-radius:12px;transition:border-color .15s,background .15s}}
     .operarios-hover-btn.has-data{{border-color:var(--lime);background:rgba(208,244,76,.1)}}
-    .operarios-hover-title{{font-size:.72rem;color:var(--lime);text-transform:uppercase;letter-spacing:.06em;font-weight:700}}
+    .operarios-hover-nav{{display:flex;align-items:center;gap:8px}}
+    .operarios-hover-nav button{{width:auto;min-width:0;flex:0 0 26px;height:26px;padding:0;display:grid;place-items:center;background:#0f120d;border:1px solid rgba(208,244,76,.35);border-radius:8px;color:var(--lime);box-shadow:none;font-size:14px;line-height:1}}
+    .operarios-hover-nav button:hover{{border-color:var(--lime);filter:none}}
+    .operarios-hover-title{{flex:1;min-width:0;font-size:.72rem;color:var(--lime);text-transform:uppercase;letter-spacing:.06em;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
     .operarios-hover-detail{{font-size:.82rem;color:#dfe7d8;line-height:1.35;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}}
     @media(max-width:860px){{.operarios-hover-btn{{display:none}}}}
     .operarios-grid{{padding:0}}
+    .operarios-hover-calendar{{margin:18px 26px 26px;border:1px solid var(--line);border-radius:16px;background:#10140f;min-height:120px}}
+    .operarios-hover-calendar:empty{{display:none}}
+    .operarios-hover-cal-title{{margin:0;padding:16px 20px 0;font-size:1rem;color:#eef3e8}}
+    .operarios-hover-cal-title small{{margin-left:8px;color:var(--muted);font-size:.72rem;font-weight:400;text-transform:capitalize}}
+    .operarios-hover-calendar .operarios-dialog-kpis{{border-bottom:1px solid rgba(255,255,255,.07);margin-top:14px}}
+    .operarios-hover-calendar .operarios-cal-empty{{padding:20px;color:var(--muted);font-size:.85rem}}
+    @media(max-width:860px){{.operarios-hover-calendar{{margin:14px}}}}
     .operarios-kpis{{display:flex;align-items:center;gap:18px;padding:11px 20px;background:#10150e;border-bottom:1px solid var(--line)}}
     .operarios-kpi{{display:flex;align-items:baseline;gap:7px}}
     .operarios-kpi span{{color:var(--muted);font-size:.65rem;text-transform:uppercase;letter-spacing:.06em}}
@@ -2233,7 +2242,7 @@ def home(_=Depends(authenticate)):
     <div class='home-section'><h3>Nuestro proceso</h3><div class='home-gallery'><figure><img src='/landing/proceso-1.jpg' alt='Impresión de diseños' loading='lazy'><figcaption>Impresión de diseños</figcaption></figure><figure><img src='/landing/proceso-2.jpg' alt='Corte y armado' loading='lazy'><figcaption>Corte y armado</figcaption></figure><figure><img src='/landing/proceso-3.jpg' alt='Corte láser' loading='lazy'><figcaption>Corte láser</figcaption></figure><figure><img src='/landing/proceso-4.jpg' alt='Aplicación en plancha' loading='lazy'><figcaption>Aplicación en plancha</figcaption></figure><figure><img src='/landing/proceso-5.jpg' alt='Diseño digital' loading='lazy'><figcaption>Diseño digital</figcaption></figure><figure><img src='/landing/proceso-6.jpg' alt='Empaque final' loading='lazy'><figcaption>Empaque final</figcaption></figure></div></div>
     <div class='home-section'><h3>Nuestros uniformes</h3><div class='home-gallery'><figure><img src='/landing/uniforme-1.jpg' alt='Uniforme en cancha' loading='lazy'><figcaption>Uniforme en cancha</figcaption></figure><figure><img src='/landing/uniforme-2.jpg' alt='Uniforme premium' loading='lazy'><figcaption>Uniforme premium</figcaption></figure><figure><img src='/landing/uniforme-3.jpg' alt='Escudo texturizado' loading='lazy'><figcaption>Escudo texturizado</figcaption></figure><figure><img src='/landing/uniforme-4.jpg' alt='Numeración' loading='lazy'><figcaption>Numeración</figcaption></figure><figure><img src='/landing/uniforme-5.jpg' alt='Diseño bicolor' loading='lazy'><figcaption>Diseño bicolor</figcaption></figure><figure><img src='/landing/uniforme-6.jpg' alt='Uniforme sublimado' loading='lazy'><figcaption>Uniforme sublimado</figcaption></figure></div></div>
     </div></section>
-    <section class='panel' data-panel='operarios'><div class='card operarios-shell'><div class='operarios-toolbar'><div class='operarios-title'><span class='eyebrow'>Producción · En vivo</span><h2>CONTROL OPERARIOS</h2><p>Reparto por área: quién integra cada proceso, quién está trabajando ahora y cuántos se cerraron hoy.</p></div><button id='operarios-hover' type='button' class='operarios-hover-btn' aria-live='polite'><span class='operarios-hover-title'>Pasa el mouse sobre un área</span><span class='operarios-hover-detail'>Verás aquí quién está trabajando y cuántos cerró hoy.</span></button><button id='operarios-refresh' type='button' class='production-refresh'>Actualizar</button></div><div class='operarios-kpis'><div class='operarios-kpi'><span>Operarios</span><strong id='operarios-total'>—</strong></div><div class='operarios-kpi'><span>Trabajando</span><strong id='operarios-busy'>—</strong></div><div class='operarios-kpi'><span>Libres</span><strong id='operarios-idle'>—</strong></div><div class='operarios-kpi'><span>Cerrados hoy</span><strong id='operarios-done'>—</strong></div><div id='operarios-status' class='operarios-status' role='status'>Cargando operarios…</div></div><div id='operarios-area-stats' class='operarios-area-stats' hidden></div><div id='operarios-grid' class='operarios-grid'></div></div></section>
+    <section class='panel' data-panel='operarios'><div class='card operarios-shell'><div class='operarios-toolbar'><div class='operarios-title'><span class='eyebrow'>Producción · En vivo</span><h2>CONTROL OPERARIOS</h2><p>Reparto por área: quién integra cada proceso, quién está trabajando ahora y cuántos se cerraron hoy.</p></div><div id='operarios-hover' class='operarios-hover-btn' aria-live='polite'><div class='operarios-hover-nav'><button id='operarios-hover-prev' type='button' aria-label='Área anterior'>‹</button><span class='operarios-hover-title'>Cargando áreas…</span><button id='operarios-hover-next' type='button' aria-label='Área siguiente'>›</button></div><div class='operarios-hover-detail'>Verás aquí quién está trabajando y cuántos cerró hoy.</div></div><button id='operarios-refresh' type='button' class='production-refresh'>Actualizar</button></div><div class='operarios-kpis'><div class='operarios-kpi'><span>Operarios</span><strong id='operarios-total'>—</strong></div><div class='operarios-kpi'><span>Trabajando</span><strong id='operarios-busy'>—</strong></div><div class='operarios-kpi'><span>Libres</span><strong id='operarios-idle'>—</strong></div><div class='operarios-kpi'><span>Cerrados hoy</span><strong id='operarios-done'>—</strong></div><div id='operarios-status' class='operarios-status' role='status'>Cargando operarios…</div></div><div id='operarios-area-stats' class='operarios-area-stats' hidden></div><div id='operarios-grid' class='operarios-grid'></div><div id='operarios-hover-calendar' class='operarios-hover-calendar'></div></div></section>
 <dialog id='operarios-dialog' class='operarios-dialog' aria-labelledby='operarios-dialog-title'><div class='operarios-dialog-head'><div><span class='eyebrow'>Producción · Calendario</span><h2 id='operarios-dialog-title'>Proceso</h2><p id='operarios-dialog-sub'>Procesos cerrados por operario y día</p></div><div class='operarios-dialog-actions'><button id='operarios-dialog-prev' type='button' aria-label='Mes anterior'>‹</button><strong id='operarios-dialog-month'>—</strong><button id='operarios-dialog-next' type='button' aria-label='Mes siguiente'>›</button><button id='operarios-dialog-close' type='button' class='operarios-dialog-x' aria-label='Cerrar'>×</button></div></div><div class='operarios-dialog-kpis' id='operarios-dialog-kpis'></div><div class='operarios-dialog-body' id='operarios-dialog-body'></div></dialog>
     <section class='panel' data-panel='cronograma'><div class='card schedule-shell'><div class='schedule-toolbar'><div class='schedule-title'><span class='eyebrow'>Planeación de entregas</span><h2>CRONOGRAMA</h2><p>Fechas de entrega de todos los pedidos registrados en Producción.</p></div><div class='schedule-actions'><button id='schedule-prev' type='button' aria-label='Mes anterior'>‹</button><button id='schedule-today' type='button'>Hoy</button><button id='schedule-next' type='button' aria-label='Mes siguiente'>›</button></div></div><div class='schedule-days-block'><div class='schedule-days-nav'><h4 class='schedule-overview-title'>Entregas de la semana <small id='schedule-days-range'></small></h4><div class='schedule-days-actions'><button id='schedule-days-prev' type='button' aria-label='Semana anterior'>‹</button><button id='schedule-days-today' type='button'>Hoy</button><button id='schedule-days-next' type='button' aria-label='Semana siguiente'>›</button></div></div><div id='schedule-days' class='schedule-days' aria-label='Próximos días'></div></div><div class='schedule-summary'><strong id='schedule-month'>—</strong><span id='schedule-count'>Cargando pedidos…</span></div><div class='schedule-weekdays'><div>LUN</div><div>MAR</div><div>MIÉ</div><div>JUE</div><div>VIE</div><div>SÁB</div><div>DOM</div></div><div id='schedule-grid' class='schedule-grid'></div><div id='schedule-cards' class='schedule-cards' hidden></div></div></section>
     <section class='workspace panel' data-panel='reprogramacion'><div class='card'><div class='card-head'><h2>Nueva reprogramación</h2><p>Selecciona una cotización, remisión o listado en PDF o Excel.</p></div><div class='upload-wrap'>
@@ -2595,6 +2604,7 @@ let html='';for(let n=0;n<days;n++){{const date=new Date(start);date.setDate(sta
     /* Roster por area, tomado de las columnas de la hoja de produccion. */
     const operariosAreaStats=document.getElementById('operarios-area-stats'),operariosTotal=document.getElementById('operarios-total');
     const operariosDialog=document.getElementById('operarios-dialog'),operariosDialogTitle=document.getElementById('operarios-dialog-title'),operariosDialogKpis=document.getElementById('operarios-dialog-kpis'),operariosDialogBody=document.getElementById('operarios-dialog-body'),operariosDialogMonth=document.getElementById('operarios-dialog-month'),operariosDialogClose=document.getElementById('operarios-dialog-close'),operariosDialogPrev=document.getElementById('operarios-dialog-prev'),operariosDialogNext=document.getElementById('operarios-dialog-next');
+    const operariosHoverCalendar=document.getElementById('operarios-hover-calendar');
     const operatorState={{data:[],daily:{{}},dailyByCode:{{}},finished:{{}},byRef:{{}},area:'',year:0,month:0,daysInMonth:30,today:'',sheetAvailable:false}};
     /* Respaldo por si Google Sheets no responde: se usa mientras carga o si falla la conexión.
        Cuando la hoja CONTROL OPERARIOS SÍ responde, esta lista se reemplaza con lo que haya ahí. */
@@ -2670,37 +2680,47 @@ let html='';for(let n=0;n<days;n++){{const date=new Date(start);date.setDate(sta
       operariosGrid.innerHTML=cards.filter(Boolean).join('')||'<p class="operarios-empty">Todavía no hay procesos configurados.</p>';
       operariosStatus.dataset.sheet=sheetAvailable?'ok':(sheet.error?'error':'sin-datos');
       operariosStatus.title=sheetAvailable?'Cantidades tomadas de Google Sheets · CONTROL OPERARIOS':(sheet.error?'No se pudo leer Google Sheets: '+sheet.error+'. Mostrando lo que registra la app.':'');
-      if(operariosHover.dataset.area&&!operatorState.areaDetails[operariosHover.dataset.area])resetOperatorsHover();
-      else if(operariosHover.dataset.area)showOperatorsHover(operariosHover.dataset.area);
+      const keepArea=operariosHover.dataset.area&&operariosOpenAreas.includes(operariosHover.dataset.area)?operariosHover.dataset.area:operariosOpenAreas[operariosHoverIndex]||operariosOpenAreas[0];
+      if(keepArea)showOperatorsHoverArea(keepArea);
     }}
     /* Al pasar el mouse (o el foco, para teclado) sobre un area, se ve aqui mismo
        quien la integra, quien esta trabajando ahora mismo y cuanto ha cerrado hoy. */
-    const operariosHover=document.getElementById('operarios-hover');
-    function resetOperatorsHover(){{
-      delete operariosHover.dataset.area;
-      operariosHover.classList.remove('has-data');
-      operariosHover.querySelector('.operarios-hover-title').textContent='Pasa el mouse sobre un área';
-      operariosHover.querySelector('.operarios-hover-detail').textContent='Verás aquí quién está trabajando y cuántos cerró hoy.';
+    /* El botón de arriba recorre las áreas con las flechas; abajo (operarios-hover-calendar)
+       se ve el calendario completo del área elegida, sin tener que abrir el diálogo. */
+    const operariosHover=document.getElementById('operarios-hover'),operariosHoverPrev=document.getElementById('operarios-hover-prev'),operariosHoverNext=document.getElementById('operarios-hover-next');
+    let operariosHoverIndex=0;
+    function ensureOperatorsMonth(){{
+      if(operatorState.year)return;
+      const now=new Date();
+      operatorState.year=now.getFullYear();operatorState.month=now.getMonth();
+      operatorState.daysInMonth=new Date(operatorState.year,operatorState.month+1,0).getDate();
     }}
-    function showOperatorsHover(area){{
+    function showOperatorsHoverIndex(index){{
+      if(!operariosOpenAreas.length)return;
+      operariosHoverIndex=((index%operariosOpenAreas.length)+operariosOpenAreas.length)%operariosOpenAreas.length;
+      showOperatorsHoverArea(operariosOpenAreas[operariosHoverIndex]);
+    }}
+    function showOperatorsHoverArea(area){{
       const info=operatorState.areaDetails&&operatorState.areaDetails[area];
-      if(!info)return resetOperatorsHover();
       operariosHover.dataset.area=area;
-      operariosHover.classList.add('has-data');
-      operariosHover.querySelector('.operarios-hover-title').textContent=area+' · '+info.working+'/'+info.total+' trabajando · '+info.closed+' hoy';
-      const working=info.people.filter(entry=>entry.record&&entry.record.current);
+      operariosHover.classList.toggle('has-data',!!info);
+      const count=operariosOpenAreas.length,position=operariosOpenAreas.indexOf(area);
+      if(position>=0)operariosHoverIndex=position;
+      operariosHover.querySelector('.operarios-hover-title').textContent=area+(count>1?' · '+(operariosHoverIndex+1)+'/'+count:'');
       const detail=operariosHover.querySelector('.operarios-hover-detail');
-      if(working.length){{
-        detail.innerHTML=working.map(entry=>operatorBadgeHTML(entry.name)+' '+esc(entry.name)+(entry.record.current.order?' · '+esc(entry.record.current.order):'')).join(' &nbsp; ');
-      }}else{{
-        detail.textContent=info.total?'Nadie de esta área está trabajando en este momento.':'Esta área todavía no tiene operarios asignados.';
+      if(!info){{detail.textContent='Cargando…'}}
+      else{{
+        const working=info.people.filter(entry=>entry.record&&entry.record.current);
+        detail.textContent=info.working+'/'+info.total+' trabajando · '+info.closed+' hoy'+(working.length?' · '+working.map(entry=>entry.name).join(', '):'');
       }}
+      ensureOperatorsMonth();
+      operatorState.area=area;
+      renderOperatorsCalendar();
     }}
-    operariosGrid.addEventListener('mouseover',event=>{{const card=event.target.closest('.operarios-openarea');if(card)showOperatorsHover(card.dataset.area)}});
-    operariosGrid.addEventListener('focusin',event=>{{const card=event.target.closest('.operarios-openarea');if(card)showOperatorsHover(card.dataset.area)}});
-    operariosGrid.addEventListener('mouseleave',resetOperatorsHover);
-    operariosGrid.addEventListener('focusout',event=>{{if(!operariosGrid.contains(event.relatedTarget))resetOperatorsHover()}});
-    operariosHover.addEventListener('click',()=>{{if(operariosHover.dataset.area)openOperatorsArea(operariosHover.dataset.area)}});
+    operariosHoverPrev.addEventListener('click',()=>showOperatorsHoverIndex(operariosHoverIndex-1));
+    operariosHoverNext.addEventListener('click',()=>showOperatorsHoverIndex(operariosHoverIndex+1));
+    operariosGrid.addEventListener('mouseover',event=>{{const card=event.target.closest('.operarios-openarea');if(card)showOperatorsHoverArea(card.dataset.area)}});
+    operariosGrid.addEventListener('focusin',event=>{{const card=event.target.closest('.operarios-openarea');if(card)showOperatorsHoverArea(card.dataset.area)}});
     function renderOperatorsCalendar(){{
       const group=operatorAreaColumns.find(item=>processKey(item.area)===processKey(operatorState.area));
       if(!group)return;
@@ -2723,8 +2743,9 @@ let html='';for(let n=0;n<days;n++){{const date=new Date(start);date.setDate(sta
         return {{day:day,key:key,people:people,total:people.reduce((sum,entry)=>sum+entry.count,0)}};
       }}).filter(entry=>entry.total>0||entry.key===todayKey).reverse();
       if(!roster.length){{
-        operariosDialogBody.innerHTML='<p class="operarios-cal-empty">Este proceso no tiene operarios asignados.</p>';
-        operariosDialogKpis.innerHTML='';
+        const emptyMsg='<p class="operarios-cal-empty">Este proceso no tiene operarios asignados.</p>';
+        operariosDialogBody.innerHTML=emptyMsg;operariosDialogKpis.innerHTML='';
+        operariosHoverCalendar.innerHTML='<h3 class="operarios-hover-cal-title">'+esc(group.area)+'</h3>'+emptyMsg;
         return;
       }}
       const cards=days.map(entry=>{{
@@ -2735,16 +2756,16 @@ let html='';for(let n=0;n<days;n++){{const date=new Date(start);date.setDate(sta
           :'<p class="operarios-daynone">Sin cierres</p>';
         return '<article class="operarios-daycard'+(entry.key===todayKey?' is-today':'')+'"><div class="operarios-daycard-head"><span class="operarios-daycard-date">'+String(entry.day).padStart(2,'0')+'/'+String(month+1).padStart(2,'0')+'/'+year+'</span><span class="operarios-daycard-dow">'+esc(dow)+'</span><span class="operarios-daycard-total">'+entry.total+'</span></div>'+list+'</article>';
       }}).join('');
-      operariosDialogKpis.innerHTML='<div><span>Operarios</span><strong>'+roster.length+'</strong></div><div><span>Trabajando</span><strong>'+roster.filter(entry=>entry.record&&entry.record.current).length+'</strong></div><div><span>Días con registro</span><strong>'+days.filter(entry=>entry.total>0).length+'</strong></div><div><span>Procesos del mes</span><strong>'+days.reduce((sum,entry)=>sum+entry.total,0)+'</strong></div>';
-      operariosDialogBody.innerHTML=cards?'<div class="operarios-days">'+cards+'</div>':'<p class="operarios-cal-empty">No hay procesos cerrados en este mes.</p>';
+      const kpisHTML='<div><span>Operarios</span><strong>'+roster.length+'</strong></div><div><span>Trabajando</span><strong>'+roster.filter(entry=>entry.record&&entry.record.current).length+'</strong></div><div><span>Días con registro</span><strong>'+days.filter(entry=>entry.total>0).length+'</strong></div><div><span>Procesos del mes</span><strong>'+days.reduce((sum,entry)=>sum+entry.total,0)+'</strong></div>';
+      const bodyHTML=cards?'<div class="operarios-days">'+cards+'</div>':'<p class="operarios-cal-empty">No hay procesos cerrados en este mes.</p>';
+      operariosDialogKpis.innerHTML=kpisHTML;
+      operariosDialogBody.innerHTML=bodyHTML;
+      operariosHoverCalendar.innerHTML='<h3 class="operarios-hover-cal-title">'+esc(group.area)+' <small>'+new Date(year,month,1).toLocaleDateString('es-CO',{{month:'long',year:'numeric'}})+'</small></h3><div class="operarios-dialog-kpis">'+kpisHTML+'</div>'+bodyHTML;
     }}
     function openOperatorsArea(area){{
-      const now=new Date();
-      operatorState.area=area;operatorState.year=now.getFullYear();operatorState.month=now.getMonth();
-      operatorState.daysInMonth=new Date(operatorState.year,operatorState.month+1,0).getDate();
+      showOperatorsHoverArea(area);
       const group=operatorAreaColumns.find(item=>processKey(item.area)===processKey(area));
       operariosDialogTitle.textContent=group?group.area:area;
-      renderOperatorsCalendar();
       operariosDialog.showModal();
     }}
     operariosGrid.addEventListener('click',event=>{{
