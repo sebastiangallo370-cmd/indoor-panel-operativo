@@ -1229,6 +1229,20 @@
       }, 220);
     });
   });
+  // The Indoor logo always takes the user back to INICIO.
+  const brand = navigation.querySelector('.sidebar-brand');
+  if (brand) {
+    brand.setAttribute('role', 'link');
+    brand.setAttribute('tabindex', '0');
+    brand.setAttribute('aria-label', 'Ir al inicio');
+    brand.style.cursor = 'pointer';
+    const goHome = () => {
+      navigation.querySelector('nav.tabs > .tab[data-kind="inicio"]')?.click();
+      window.scrollTo({ top: 0 });
+    };
+    brand.addEventListener('click', goHome);
+    brand.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); goHome(); } });
+  }
   // Direct top buttons (INICIO, NOVEDADES) open their section just by hovering, like the menus.
   let hoverOpenTimer;
   navigation.querySelectorAll('nav.tabs > .tab').forEach(tab => {
