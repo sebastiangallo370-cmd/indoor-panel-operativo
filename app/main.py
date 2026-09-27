@@ -2158,11 +2158,11 @@ def home(_=Depends(authenticate)):
     .operarios-title{{display:flex;align-items:center}}
     .operarios-title .eyebrow{{margin:0}}
     .operarios-toolbar .production-refresh{{padding:8px 13px;flex:0 0 auto}}
-    .operarios-hover-wrap{{display:grid;grid-template-columns:1.3fr .7fr auto;align-items:stretch;gap:10px;padding:8px 26px 8px}}
-    .operarios-day-filter-slot{{display:flex;align-items:center;justify-content:flex-end}}
+    .operarios-hover-wrap{{display:flex;align-items:stretch;flex-wrap:wrap;gap:10px;padding:8px 26px 8px}}
+    .operarios-day-filter-slot{{display:flex;align-items:center;justify-content:flex-end;margin-left:auto}}
     .operarios-day-filter-slot:empty{{display:none}}
-    @media(max-width:1180px){{.operarios-hover-wrap{{grid-template-columns:1.2fr 1fr}}.operarios-day-filter-slot{{grid-column:1/-1;justify-content:flex-start}}}}
-    .operarios-goal{{width:100%;display:grid;align-content:center;gap:4px;padding:7px 16px;background:linear-gradient(160deg,#12160f,#0b0e0a);border:1px solid var(--line);border-radius:11px;box-shadow:0 6px 14px rgba(0,0,0,.18)}}
+    @media(max-width:1180px){{.operarios-day-filter-slot{{margin-left:0;justify-content:flex-start;flex:1 1 100%}}}}
+    .operarios-goal{{width:260px;flex:0 0 auto;display:grid;align-content:center;gap:4px;padding:7px 16px;background:linear-gradient(160deg,#12160f,#0b0e0a);border:1px solid var(--line);border-radius:11px;box-shadow:0 6px 14px rgba(0,0,0,.18)}}
     .operarios-goal-head{{display:flex;justify-content:space-between;align-items:baseline;gap:10px}}
     .operarios-goal-head span{{font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;font-weight:700}}
     .operarios-goal-head strong{{font-size:.84rem;color:#eef3e8;font-variant-numeric:tabular-nums;letter-spacing:.01em}}
@@ -2171,14 +2171,14 @@ def home(_=Depends(authenticate)):
     .operarios-goal.over-goal .operarios-goal-bar i{{background:linear-gradient(90deg,#3fae7a,#8bd450)}}
     .operarios-goal-pct{{font-size:.64rem;color:#c7d1c0;font-weight:600}}
     .operarios-goal.over-goal .operarios-goal-pct{{color:#a6e26d;font-weight:800}}
-    .operarios-hover-btn{{width:100%;display:grid;align-content:center;gap:3px;padding:7px 18px;background:linear-gradient(160deg,rgba(208,244,76,.07),rgba(208,244,76,.02));border:1px solid rgba(208,244,76,.28);border-radius:11px;text-align:center;box-shadow:0 6px 14px rgba(0,0,0,.18);transition:border-color .15s,background .15s}}
+    .operarios-hover-btn{{width:300px;flex:0 0 auto;display:grid;align-content:center;gap:3px;padding:7px 18px;background:linear-gradient(160deg,rgba(208,244,76,.07),rgba(208,244,76,.02));border:1px solid rgba(208,244,76,.28);border-radius:11px;text-align:center;box-shadow:0 6px 14px rgba(0,0,0,.18);transition:border-color .15s,background .15s}}
     .operarios-hover-btn.has-data{{border-color:rgba(208,244,76,.5)}}
     .operarios-hover-nav{{display:flex;align-items:center;justify-content:center;gap:10px}}
     .operarios-hover-nav button{{width:auto;min-width:0;flex:0 0 24px;height:24px;padding:0;display:grid;place-items:center;background:#0f120d;border:1px solid rgba(208,244,76,.35);border-radius:50%;color:var(--lime);box-shadow:none;font-size:13px;line-height:1}}
     .operarios-hover-nav button:hover{{border-color:var(--lime);background:rgba(208,244,76,.12);filter:none}}
     .operarios-hover-title{{flex:1;min-width:0;font-size:.88rem;color:#f2f7ea;letter-spacing:.02em;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
     .operarios-hover-detail{{font-size:.68rem;color:#c7d1c0;line-height:1.3}}
-    @media(max-width:980px){{.operarios-hover-wrap{{grid-template-columns:1fr}}}}
+    @media(max-width:980px){{.operarios-hover-btn,.operarios-goal{{width:100%}}}}
     .operarios-grid{{padding:0}}
     .operarios-hover-calendar{{margin:8px 26px 10px;border:1px solid var(--line);border-radius:16px;background:#10140f;min-height:120px}}
     .operarios-hover-calendar:empty{{display:none}}
