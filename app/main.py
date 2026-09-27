@@ -1155,6 +1155,7 @@ def production_operators(refresh: bool = False, _=Depends(authenticate)):
         headers = json.loads(meta.get('headers', '[]'))
         order_idx = next((i for i, h in enumerate(headers) if str(h).strip().upper() == 'ORDEN'), -1)
         client_idx = next((i for i, h in enumerate(headers) if str(h).strip().upper() == 'NOMBRE DEL CLIENTE'), -1)
+        quantity_idx = next((i for i, h in enumerate(headers) if str(h).strip().upper() == 'CANTIDAD'), -1)
         rows_values = {r['source_row']: json.loads(r['values_json']) for r in db.execute('SELECT source_row,values_json FROM production_rows')}
         tz = timezone(timedelta(hours=-5))
         today = datetime.now(tz).date()
@@ -1203,11 +1204,46 @@ def production_operators(refresh: bool = False, _=Depends(authenticate)):
                     days[day] = days.get(day, 0) + 1
             if not operator['last_at'] or event['created_at'] > operator['last_at']:
                 operator['last_at'] = event['created_at']
+
+        # Unidades activas (P) y en reproceso (R) por area, leidas directamente del estado
+        # actual de cada pedido en Produccion (misma logica que usa el Cronograma), no del
+        # historial de eventos: es una foto de lo que hay AHORA mismo en cada proceso.
+        process_columns: dict = {}
+        for index, header in enumerate(headers):
+            process_index = official_process(header)
+            if process_index is None:
+                continue
+            label = PROCESS_FLOW[process_index]['label']
+            process_columns.setdefault(label, []).append(index)
+
+        def normalize_cell(value):
+            text = ''.join(c for c in unicodedata.normalize('NFD', str(value or '')) if not unicodedata.combining(c))
+            return text.strip().upper()
+
+        process_status: dict = {}
+        for values in rows_values.values():
+            quantity = 0
+            if quantity_idx >= 0 and quantity_idx < len(values):
+                try:
+                    quantity = int(float(str(values[quantity_idx]).replace(',', '.')))
+                except ValueError:
+                    quantity = 0
+            for label, indexes in process_columns.items():
+                cells = [normalize_cell(values[i]) if i < len(values) else '' for i in indexes]
+                if not any(cells):
+                    continue
+                bucket = process_status.setdefault(label, {'active_units': 0, 'rework_units': 0})
+                if 'R' in cells:
+                    bucket['rework_units'] += quantity
+                elif 'P' in cells:
+                    bucket['active_units'] += quantity
+
         return {
             'today': today.isoformat(),
             'operators': sorted(operators.values(), key=lambda item: item['responsible'].casefold()),
             'finished_by_process': finished_by_process,
             'daily': daily,
+            'process_status': process_status,
             'sheet': {
                 'available': sheet_data is not None,
                 'error': sheet_error,
@@ -2246,6 +2282,11 @@ def home(_=Depends(authenticate)):
     .operarios-daylist em{{color:var(--lime);font-style:normal;font-size:.75rem;font-weight:900;font-variant-numeric:tabular-nums}}
     .operarios-badge{{display:inline-grid;place-items:center;width:26px;height:26px;flex:0 0 26px;border:1px solid rgba(208,244,76,.55);border-radius:50%;background:rgba(208,244,76,.12);color:var(--lime);font-size:.62rem;font-weight:900;letter-spacing:.02em;box-sizing:border-box}}
     .operarios-daynone{{color:#77816f;font-size:.68rem;text-align:center;padding:6px 0}}
+    .operarios-daycard-status{{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:2px}}
+    .operarios-status-chip{{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:999px;font-size:.62rem;font-weight:700;letter-spacing:.01em}}
+    .operarios-status-chip b{{font-weight:900;font-variant-numeric:tabular-nums}}
+    .operarios-status-chip.is-active{{background:rgba(93,168,255,.14);color:#8ec3ff;border:1px solid rgba(93,168,255,.35)}}
+    .operarios-status-chip.is-rework{{background:rgba(255,124,93,.14);color:#ff9b7c;border:1px solid rgba(255,124,93,.35)}}
     .operarios-cal-empty{{padding:44px 20px;text-align:center;color:var(--muted);font-size:.85rem}}
     .operarios-empty{{grid-column:1/-1;padding:44px 20px;text-align:center;border:1px dashed var(--line);border-radius:14px;color:var(--muted);font-size:.85rem}}
     body.operarios-mode .production-refresh:disabled{{opacity:.55;cursor:progress}}
@@ -2637,7 +2678,7 @@ let html='';for(let n=0;n<days;n++){{const date=new Date(start);date.setDate(sta
     const operariosDialog=document.getElementById('operarios-dialog'),operariosDialogTitle=document.getElementById('operarios-dialog-title'),operariosDialogKpis=document.getElementById('operarios-dialog-kpis'),operariosDialogBody=document.getElementById('operarios-dialog-body'),operariosDialogMonth=document.getElementById('operarios-dialog-month'),operariosDialogClose=document.getElementById('operarios-dialog-close'),operariosDialogPrev=document.getElementById('operarios-dialog-prev'),operariosDialogNext=document.getElementById('operarios-dialog-next');
     const operariosHoverCalendar=document.getElementById('operarios-hover-calendar');
     const operariosDayFilterSlot=document.getElementById('operarios-day-filter-slot');
-    const operatorState={{data:[],daily:{{}},dailyByCode:{{}},finished:{{}},byRef:{{}},area:'',year:0,month:0,daysInMonth:30,today:'',sheetAvailable:false,daySearch:''}};
+    const operatorState={{data:[],daily:{{}},dailyByCode:{{}},finished:{{}},byRef:{{}},area:'',year:0,month:0,daysInMonth:30,today:'',sheetAvailable:false,daySearch:'',processStatus:{{}}}};
     /* Respaldo por si Google Sheets no responde: se usa mientras carga o si falla la conexión.
        Cuando la hoja CONTROL OPERARIOS SÍ responde, esta lista se reemplaza con lo que haya ahí. */
     const operatorAreaFallback=[
@@ -2680,7 +2721,8 @@ let html='';for(let n=0;n<days;n++){{const date=new Date(start);date.setDate(sta
       const busy=operators.filter(item=>item.current);
       const todayKey=(data&&data.today)||'';
       const finished=(data&&data.finished_by_process)||{{}};
-      operatorState.data=operators;operatorState.daily=daily;operatorState.dailyByCode=dailyByCode;operatorState.finished=finished;operatorState.today=todayKey;operatorState.sheetAvailable=sheetAvailable;
+      const processStatus=(data&&data.process_status)||{{}};
+      operatorState.data=operators;operatorState.daily=daily;operatorState.dailyByCode=dailyByCode;operatorState.finished=finished;operatorState.today=todayKey;operatorState.sheetAvailable=sheetAvailable;operatorState.processStatus=processStatus;
       operatorState.byRef={{}};
       const byRef=operatorState.byRef;
       operators.forEach(item=>{{const key=processKey(item.responsible);if(key)byRef[key]=item;const code=operatorCode(item.responsible);if(code)byRef[code]=item}});
@@ -2801,6 +2843,11 @@ let html='';for(let n=0;n<days;n++){{const date=new Date(start);date.setDate(sta
       }}
       const search=operatorState.daySearch||'';
       const visibleDays=search?days.filter(entry=>entry.key===search):days;
+      /* En proceso / en reproceso: foto EN VIVO del estado de los pedidos en Produccion
+         (celdas 'P' y 'R' de esta area), solo tiene sentido mostrarla en la tarjeta de hoy. */
+      const statusMap=operatorState.processStatus||{{}};
+      const statusKey=Object.keys(statusMap).find(key=>processKey(key)===processKey(group.area));
+      const areaStatus=statusKey?statusMap[statusKey]:null;
       const cards=visibleDays.map(entry=>{{
         const moment=new Date(year,month,entry.day);
         const dowFull=moment.toLocaleDateString('es-CO',{{weekday:'long'}}).toUpperCase();
@@ -2808,7 +2855,12 @@ let html='';for(let n=0;n<days;n++){{const date=new Date(start);date.setDate(sta
         const list=entry.people.length
           ?'<ul class="operarios-daylist">'+entry.people.map(person=>'<li>'+operatorBadgeHTML(person.name)+'<em>'+person.count+'</em></li>').join('')+'</ul>'
           :'<p class="operarios-daynone">Sin cierres</p>';
-        return '<article class="operarios-daycard'+(entry.key===todayKey?' is-today':'')+'"><div class="operarios-daycard-head"><span class="operarios-daycard-date">'+esc(dowFull)+' / '+entry.day+' / '+esc(monthFull)+'</span><span class="operarios-daycard-total">Total '+entry.total+' unds</span></div>'+list+'</article>';
+        const showStatus=entry.key===todayKey&&areaStatus&&(areaStatus.active_units||areaStatus.rework_units);
+        const statusHTML=showStatus?'<div class="operarios-daycard-status">'+
+          (areaStatus.active_units?'<span class="operarios-status-chip is-active">En proceso <b>'+areaStatus.active_units.toLocaleString('es-CO')+'</b> unds</span>':'')+
+          (areaStatus.rework_units?'<span class="operarios-status-chip is-rework">En reproceso <b>'+areaStatus.rework_units.toLocaleString('es-CO')+'</b> unds</span>':'')+
+          '</div>':'';
+        return '<article class="operarios-daycard'+(entry.key===todayKey?' is-today':'')+'"><div class="operarios-daycard-head"><span class="operarios-daycard-date">'+esc(dowFull)+' / '+entry.day+' / '+esc(monthFull)+'</span><span class="operarios-daycard-total">Total '+entry.total+' unds</span></div>'+statusHTML+list+'</article>';
       }}).join('');
       const kpisHTML='<div><span>Operarios</span><strong>'+roster.length+'</strong></div><div><span>Trabajando</span><strong>'+roster.filter(entry=>entry.record&&entry.record.current).length+'</strong></div><div><span>Días con registro</span><strong>'+days.filter(entry=>entry.total>0).length+'</strong></div><div><span>Procesos del mes</span><strong>'+days.reduce((sum,entry)=>sum+entry.total,0)+'</strong></div>';
       const bodyHTML=cards?'<div class="operarios-days">'+cards+'</div>':'<p class="operarios-cal-empty">'+(search?'No hay cierres registrados en esa fecha.':'No hay procesos cerrados en este mes.')+'</p>';
