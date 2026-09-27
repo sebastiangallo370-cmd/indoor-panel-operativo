@@ -967,6 +967,21 @@ def ensure_operator_events(db):
     db.execute('CREATE TABLE IF NOT EXISTS production_operator_events (id INTEGER PRIMARY KEY, source_row INTEGER, column_number INTEGER, action TEXT, username TEXT, responsible TEXT, reason TEXT, created_at TEXT)')
 
 
+DEPARTED_OPERATORS = ('ALEJANDRO MORA', 'AM', 'KEYNER PIEDRAHITA', 'K', 'CAROLINA OSORNO')
+
+
+def is_departed_operator(responsible: str) -> bool:
+    """Los operarios que ya no hacen parte de la empresa no deben figurar en los tableros."""
+    key = ''.join(c for c in unicodedata.normalize('NFD', str(responsible or '')) if not unicodedata.combining(c)).strip().upper()
+    if not key:
+        return False
+    for gone in DEPARTED_OPERATORS:
+        full = ''.join(c for c in unicodedata.normalize('NFD', gone) if not unicodedata.combining(c)).strip().upper()
+        if key == full or (full.split(' ')[0] != full and key == full.split(' ')[0]):
+            return True
+    return False
+
+
 @app.post('/api/produccion/operacion')
 def production_operator_action(payload: dict = Body(...), _=Depends(authenticate)):
     row, column, action = payload.get('row'), payload.get('column'), payload.get('action')
@@ -1074,6 +1089,8 @@ def production_operators(_=Depends(authenticate)):
             "WHERE responsible IS NOT NULL AND responsible<>'' AND responsible<>'Sin atribuir' ORDER BY id"
         ).fetchall()
         operators: dict = {}
+        finished_by_process: dict = {}
+        daily: dict = {}
 
         def process_label(column_number):
             index = column_number - 1
@@ -1084,6 +1101,8 @@ def production_operators(_=Depends(authenticate)):
 
         for event in events:
             responsible = event['responsible']
+            if is_departed_operator(responsible):
+                continue
             operator = operators.setdefault(responsible, {
                 'responsible': responsible, 'current': None, 'today_count': 0, 'last_at': None,
             })
@@ -1100,11 +1119,20 @@ def production_operators(_=Depends(authenticate)):
                 operator['current'] = None
             if event['action'] == 'finish' and event['created_at'] >= today_start:
                 operator['today_count'] += 1
+                if label:
+                    finished_by_process[label] = finished_by_process.get(label, 0) + 1
+            if event['action'] == 'finish':
+                day = str(event['created_at'] or '')[:10]
+                if len(day) == 10:
+                    days = daily.setdefault(responsible, {})
+                    days[day] = days.get(day, 0) + 1
             if not operator['last_at'] or event['created_at'] > operator['last_at']:
                 operator['last_at'] = event['created_at']
         return {
             'today': today.isoformat(),
             'operators': sorted(operators.values(), key=lambda item: item['responsible'].casefold()),
+            'finished_by_process': finished_by_process,
+            'daily': daily,
         }
     finally:
         db.close()
@@ -2046,31 +2074,53 @@ def home(_=Depends(authenticate)):
     .operarios-title h2{{margin:4px 0 5px;font-size:1.45rem}}
     .operarios-title p{{color:var(--muted);font-size:.84rem}}
     .operarios-toolbar .production-refresh{{padding:9px 13px}}
+    .operarios-grid{{padding:0}}
     .operarios-kpis{{display:flex;align-items:center;gap:18px;padding:11px 20px;background:#10150e;border-bottom:1px solid var(--line)}}
     .operarios-kpi{{display:flex;align-items:baseline;gap:7px}}
     .operarios-kpi span{{color:var(--muted);font-size:.65rem;text-transform:uppercase;letter-spacing:.06em}}
     .operarios-kpi strong{{color:var(--lime);font-size:1rem}}
     .operarios-status{{margin-left:auto;color:#7f8a79;font-size:.7rem}}
-    .operarios-grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(282px,1fr));gap:12px;padding:20px}}
-    .operarios-card{{display:grid;grid-template-rows:auto auto 1fr auto;gap:9px;padding:15px;border:1px solid rgba(255,255,255,.09);border-radius:14px;background:#0d110d;transition:border-color .15s,background .15s}}
-    .operarios-card.is-busy{{border-color:rgba(208,244,76,.42);background:#151b12}}
-    .operarios-head{{display:grid;grid-template-columns:auto 1fr;grid-template-areas:'avatar name' 'avatar badge';align-items:center;gap:3px 10px;min-width:0}}
-    .operarios-avatar{{display:grid;place-items:center;grid-area:avatar;align-self:start;flex:0 0 34px;height:34px;border-radius:50%;background:rgba(208,244,76,.12);color:var(--lime);font-size:.78rem;font-weight:900;letter-spacing:.02em}}
-    .operarios-card.is-busy .operarios-avatar{{background:var(--lime);color:#10140d}}
-    .operarios-name{{grid-area:name;min-width:0;font-size:.9rem;font-weight:800;line-height:1.25;overflow-wrap:break-word}}
-    .operarios-badge{{grid-area:badge;justify-self:start;padding:2px 8px;border-radius:999px;background:#1c2418;color:#9fb096;font-size:.58rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}}
-    .operarios-card.is-busy .operarios-badge{{background:rgba(208,244,76,.16);color:var(--lime)}}
-    .operarios-current{{display:grid;gap:3px;padding:10px 11px;border-radius:10px;background:#0a0d09;border:1px solid rgba(255,255,255,.06)}}
-    .operarios-process{{color:#efffb0;font-size:.78rem;font-weight:800;text-transform:uppercase;letter-spacing:.04em}}
-    .operarios-order{{color:#c8d2c2;font-size:.75rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
-    .operarios-client{{color:#8d978a;font-size:.71rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
-    .operarios-idle{{display:grid;place-items:center;padding:10px 11px;border-radius:10px;background:#0a0d09;border:1px dashed rgba(255,255,255,.09);color:#77816f;font-size:.75rem}}
-    .operarios-foot{{display:flex;align-items:center;justify-content:space-between;gap:8px;color:#7f8a79;font-size:.68rem}}
-    .operarios-foot b{{color:var(--lime);font-size:.95rem;font-weight:900}}
+    .operarios-grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(232px,1fr));gap:12px;padding:0 20px 20px}}
+    .operarios-openarea{{display:grid;grid-template-rows:auto 1fr auto;gap:10px;width:100%;padding:17px;text-align:left;border:1px solid rgba(255,255,255,.09);border-radius:15px;background:#0d110d;color:inherit;font:inherit;cursor:pointer;transition:border-color .15s,background .15s,transform .15s}}
+    .operarios-openarea:hover{{border-color:rgba(208,244,76,.55);background:#151b12;transform:translateY(-1px)}}
+    .operarios-openarea.is-busy{{border-color:rgba(208,244,76,.42);background:#151b12}}
+    .operarios-openarea-head{{display:flex;align-items:baseline;gap:9px}}
+    .operarios-openarea-name{{font-size:1rem;font-weight:900;letter-spacing:.05em;text-transform:uppercase}}
+    .operarios-openarea-count{{margin-left:auto;flex:0 0 auto;padding:2px 9px;border-radius:999px;background:rgba(208,244,76,.14);color:var(--lime);font-size:.7rem;font-weight:900}}
+    .operarios-openarea-bar{{height:6px;border-radius:3px;background:#1d2419;overflow:hidden}}
+    .operarios-openarea-bar i{{display:block;height:100%;border-radius:3px;background:var(--lime)}}
+    .operarios-openarea-foot{{display:flex;justify-content:space-between;gap:8px;color:#7f8a79;font-size:.7rem}}
+    .operarios-openarea-foot b{{color:var(--lime);font-weight:900}}
+    .operarios-dialog{{width:min(1180px,96vw);max-width:96vw;max-height:92dvh;padding:0;border:1px solid rgba(208,244,76,.4);border-radius:20px;background:#0d100d;color:#f4f7f1;box-shadow:0 30px 90px rgba(0,0,0,.72);overflow:hidden}}
+    .operarios-dialog::backdrop{{background:rgba(0,0,0,.8);backdrop-filter:blur(6px)}}
+    .operarios-dialog-head{{display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap;padding:18px 22px;border-bottom:1px solid var(--line);background:linear-gradient(135deg,#121810,#0b0e0b)}}
+    .operarios-dialog-head h2{{margin:3px 0 2px;font-size:1.3rem;letter-spacing:.04em}}
+    .operarios-dialog-head p{{margin:0;color:var(--muted);font-size:.78rem}}
+    .operarios-dialog-actions{{display:flex;align-items:center;gap:8px}}
+    .operarios-dialog-actions button{{width:auto;min-width:34px;padding:8px 11px;border:1px solid rgba(208,244,76,.38);border-radius:9px;background:#171e14;color:#efffb0;font:inherit;font-size:.8rem;font-weight:800;box-shadow:none;cursor:pointer}}
+    .operarios-dialog-actions button:hover{{border-color:var(--lime);background:#243019}}
+    .operarios-dialog-actions strong{{padding:0 6px;color:#e7ede2;font-size:.9rem;text-transform:capitalize;white-space:nowrap}}
+    .operarios-dialog-x{{margin-left:6px;font-size:1.1rem!important;line-height:1}}
+    .operarios-dialog-kpis{{display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:11px 22px;border-bottom:1px solid rgba(255,255,255,.07);background:#10150e}}
+    .operarios-dialog-kpis div{{display:flex;align-items:baseline;gap:7px}}
+    .operarios-dialog-kpis span{{color:var(--muted);font-size:.65rem;text-transform:uppercase;letter-spacing:.06em}}
+    .operarios-dialog-kpis strong{{color:var(--lime);font-size:1rem}}
+    .operarios-dialog-body{{max-height:60dvh;overflow:auto;-webkit-overflow-scrolling:touch}}
+    .operarios-days{{display:grid;grid-template-columns:repeat(auto-fill,minmax(158px,1fr));gap:9px;padding:16px 20px 20px}}
+    .operarios-daycard{{display:grid;grid-template-rows:auto 1fr auto;gap:8px;padding:11px;border:1px solid rgba(255,255,255,.09);border-radius:13px;background:#0d110d}}
+    .operarios-daycard.is-today{{border-color:var(--lime);background:#151b12}}
+    .operarios-daycard-head{{display:flex;align-items:baseline;gap:6px}}
+    .operarios-daycard-date{{color:#efffb0;font-size:.86rem;font-weight:900;font-variant-numeric:tabular-nums}}
+    .operarios-daycard.is-today .operarios-daycard-date{{color:var(--lime)}}
+    .operarios-daycard-dow{{color:#7f8a79;font-size:.58rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em}}
+    .operarios-daycard-total{{margin-left:auto;color:var(--muted);font-size:.62rem;font-weight:700}}
+    .operarios-daylist{{display:flex;flex-wrap:wrap;gap:5px;align-content:start;margin:0;padding:0;list-style:none}}
+    .operarios-daylist li{{display:flex;align-items:center;gap:5px;padding:3px 8px 3px 3px;border:1px solid rgba(255,255,255,.08);border-radius:999px;background:#0a0d09}}
+    .operarios-daylist b{{display:grid;place-items:center;flex:0 0 22px;height:19px;border-radius:999px;background:rgba(255,255,255,.08);color:#e7ede2;font-size:.58rem;font-weight:900;letter-spacing:.02em}}
+    .operarios-daylist em{{color:var(--lime);font-style:normal;font-size:.7rem;font-weight:900;font-variant-numeric:tabular-nums}}
+    .operarios-daynone{{color:#77816f;font-size:.68rem;text-align:center;padding:6px 0}}
+    .operarios-cal-empty{{padding:44px 20px;text-align:center;color:var(--muted);font-size:.85rem}}
     .operarios-empty{{grid-column:1/-1;padding:44px 20px;text-align:center;border:1px dashed var(--line);border-radius:14px;color:var(--muted);font-size:.85rem}}
-    .operarios-open{{padding:7px 10px;border:1px solid rgba(208,244,76,.38);border-radius:9px;background:rgba(208,244,76,.1);color:#efffb0;font:inherit;font-size:.72rem;font-weight:800;cursor:pointer}}
-    .operarios-open:hover{{border-color:var(--lime);background:rgba(208,244,76,.17)}}
-    .operarios-open:disabled{{opacity:.55;cursor:progress}}
     body.operarios-mode .production-refresh:disabled{{opacity:.55;cursor:progress}}
     @media(max-width:860px){{
       body.operarios-mode .operarios-toolbar{{padding:14px;gap:10px}}
@@ -2096,7 +2146,8 @@ def home(_=Depends(authenticate)):
     <div class='home-section'><h3>Nuestro proceso</h3><div class='home-gallery'><figure><img src='/landing/proceso-1.jpg' alt='Impresión de diseños' loading='lazy'><figcaption>Impresión de diseños</figcaption></figure><figure><img src='/landing/proceso-2.jpg' alt='Corte y armado' loading='lazy'><figcaption>Corte y armado</figcaption></figure><figure><img src='/landing/proceso-3.jpg' alt='Corte láser' loading='lazy'><figcaption>Corte láser</figcaption></figure><figure><img src='/landing/proceso-4.jpg' alt='Aplicación en plancha' loading='lazy'><figcaption>Aplicación en plancha</figcaption></figure><figure><img src='/landing/proceso-5.jpg' alt='Diseño digital' loading='lazy'><figcaption>Diseño digital</figcaption></figure><figure><img src='/landing/proceso-6.jpg' alt='Empaque final' loading='lazy'><figcaption>Empaque final</figcaption></figure></div></div>
     <div class='home-section'><h3>Nuestros uniformes</h3><div class='home-gallery'><figure><img src='/landing/uniforme-1.jpg' alt='Uniforme en cancha' loading='lazy'><figcaption>Uniforme en cancha</figcaption></figure><figure><img src='/landing/uniforme-2.jpg' alt='Uniforme premium' loading='lazy'><figcaption>Uniforme premium</figcaption></figure><figure><img src='/landing/uniforme-3.jpg' alt='Escudo texturizado' loading='lazy'><figcaption>Escudo texturizado</figcaption></figure><figure><img src='/landing/uniforme-4.jpg' alt='Numeración' loading='lazy'><figcaption>Numeración</figcaption></figure><figure><img src='/landing/uniforme-5.jpg' alt='Diseño bicolor' loading='lazy'><figcaption>Diseño bicolor</figcaption></figure><figure><img src='/landing/uniforme-6.jpg' alt='Uniforme sublimado' loading='lazy'><figcaption>Uniforme sublimado</figcaption></figure></div></div>
     </div></section>
-    <section class='panel' data-panel='operarios'><div class='card operarios-shell'><div class='operarios-toolbar'><div class='operarios-title'><span class='eyebrow'>Producción · En vivo</span><h2>CONTROL OPERARIOS</h2><p>Quién está trabajando ahora y cuántos procesos ha cerrado hoy cada operario.</p></div><button id='operarios-refresh' type='button' class='production-refresh'>Actualizar</button></div><div class='operarios-kpis'><div class='operarios-kpi'><span>Trabajando</span><strong id='operarios-busy'>—</strong></div><div class='operarios-kpi'><span>Libres</span><strong id='operarios-idle'>—</strong></div><div class='operarios-kpi'><span>Cerrados hoy</span><strong id='operarios-done'>—</strong></div><div id='operarios-status' class='operarios-status' role='status'>Cargando operarios…</div></div><div id='operarios-grid' class='operarios-grid'></div></div></section>
+    <section class='panel' data-panel='operarios'><div class='card operarios-shell'><div class='operarios-toolbar'><div class='operarios-title'><span class='eyebrow'>Producción · En vivo</span><h2>CONTROL OPERARIOS</h2><p>Reparto por área: quién integra cada proceso, quién está trabajando ahora y cuántos se cerraron hoy.</p></div><button id='operarios-refresh' type='button' class='production-refresh'>Actualizar</button></div><div class='operarios-kpis'><div class='operarios-kpi'><span>Operarios</span><strong id='operarios-total'>—</strong></div><div class='operarios-kpi'><span>Trabajando</span><strong id='operarios-busy'>—</strong></div><div class='operarios-kpi'><span>Libres</span><strong id='operarios-idle'>—</strong></div><div class='operarios-kpi'><span>Cerrados hoy</span><strong id='operarios-done'>—</strong></div><div id='operarios-status' class='operarios-status' role='status'>Cargando operarios…</div></div><div id='operarios-area-stats' class='operarios-area-stats' hidden></div><div id='operarios-grid' class='operarios-grid'></div></div></section>
+<dialog id='operarios-dialog' class='operarios-dialog' aria-labelledby='operarios-dialog-title'><div class='operarios-dialog-head'><div><span class='eyebrow'>Producción · Calendario</span><h2 id='operarios-dialog-title'>Proceso</h2><p id='operarios-dialog-sub'>Procesos cerrados por operario y día</p></div><div class='operarios-dialog-actions'><button id='operarios-dialog-prev' type='button' aria-label='Mes anterior'>‹</button><strong id='operarios-dialog-month'>—</strong><button id='operarios-dialog-next' type='button' aria-label='Mes siguiente'>›</button><button id='operarios-dialog-close' type='button' class='operarios-dialog-x' aria-label='Cerrar'>×</button></div></div><div class='operarios-dialog-kpis' id='operarios-dialog-kpis'></div><div class='operarios-dialog-body' id='operarios-dialog-body'></div></dialog>
     <section class='panel' data-panel='cronograma'><div class='card schedule-shell'><div class='schedule-toolbar'><div class='schedule-title'><span class='eyebrow'>Planeación de entregas</span><h2>CRONOGRAMA</h2><p>Fechas de entrega de todos los pedidos registrados en Producción.</p></div><div class='schedule-actions'><button id='schedule-prev' type='button' aria-label='Mes anterior'>‹</button><button id='schedule-today' type='button'>Hoy</button><button id='schedule-next' type='button' aria-label='Mes siguiente'>›</button></div></div><div class='schedule-days-block'><div class='schedule-days-nav'><h4 class='schedule-overview-title'>Entregas de la semana <small id='schedule-days-range'></small></h4><div class='schedule-days-actions'><button id='schedule-days-prev' type='button' aria-label='Semana anterior'>‹</button><button id='schedule-days-today' type='button'>Hoy</button><button id='schedule-days-next' type='button' aria-label='Semana siguiente'>›</button></div></div><div id='schedule-days' class='schedule-days' aria-label='Próximos días'></div></div><div class='schedule-summary'><strong id='schedule-month'>—</strong><span id='schedule-count'>Cargando pedidos…</span></div><div class='schedule-weekdays'><div>LUN</div><div>MAR</div><div>MIÉ</div><div>JUE</div><div>VIE</div><div>SÁB</div><div>DOM</div></div><div id='schedule-grid' class='schedule-grid'></div><div id='schedule-cards' class='schedule-cards' hidden></div></div></section>
     <section class='workspace panel' data-panel='reprogramacion'><div class='card'><div class='card-head'><h2>Nueva reprogramación</h2><p>Selecciona una cotización, remisión o listado en PDF o Excel.</p></div><div class='upload-wrap'>
     <form id='upload-form' method='post' action='/procesar' enctype='multipart/form-data'>
@@ -2207,7 +2258,7 @@ def home(_=Depends(authenticate)):
     const productionSearch=document.getElementById('production-search'),productionZoom=document.getElementById('production-zoom'),productionTable=document.getElementById('production-table'),productionHead=document.getElementById('production-head'),productionBody=document.getElementById('production-body'),productionStatus=document.getElementById('production-status'),productionEmpty=document.getElementById('production-empty'),productionRefresh=document.getElementById('production-refresh'),productionTableWrap=document.getElementById('production-table-wrap'),productionXScroll=document.getElementById('production-x-scroll'),productionXScrollInner=document.getElementById('production-x-scroll-inner');let productionData=null,productionTimer=null,productionScrollSync=false;
     function productionGroupSegments(groups){{const result=[];(groups||[]).forEach(name=>{{const label=String(name||'GENERAL').replace(/^["']|["']$/g,'').trim()||'GENERAL',last=result[result.length-1];if(last&&last.label===label)last.count+=1;else result.push({{label,count:1}})}});return result}}
     function productionCellClass(value,header){{const text=String(value||'').trim().toUpperCase(),title=String(header||'').trim().toUpperCase(),number=Number(text.replace(',','.').replace(/[^0-9.-]/g,''));if((title.includes('DÍAS ENTREGA FINAL')||title.includes('DIAS ENTREGA FINAL'))&&text&&Number.isFinite(number))return 'delivery-days-cell '+(number<=9?'semaphore-red':number<=14?'semaphore-orange':'semaphore-green');if(title.includes('FECHA')&&text)return 'semaphore-green';if(text==='P')return 'semaphore-orange';if(text==='R')return 'semaphore-red';if(title==='ESTADO'&&text&&Number.isFinite(number))return number<0?'semaphore-red':number===0?'semaphore-yellow':'semaphore-green';if(['SI','SÍ','OK','COMPLETADO','FINALIZADO'].includes(text))return 'semaphore-green';if(text==='NO'||text==='VENCIDO'||text==='ATRASADO')return 'semaphore-red';if((title.includes('RESP')||title==='LINEA'||title==='LÍNEA'||title==='TELA')&&text)return 'cell-chip';return ''}}
-    const productionResponsibles=[['','Sin asignar'],['EJ','Ediht Johana Londoño'],['AM','Alejandro Mora'],['AP','Alejandro Padilla'],['AL','Andrés López'],['AU','Augusto López'],['CC','Carlos Cáceres'],['K','Keyner'],['DB','Dagoberto Botero'],['EE','Edwin Espinosa'],['ES','Esteban Estrada'],['HL','Hesleidy Londoño'],['JP','Jeison Padilla'],['JO','Julian Ocampo'],['JD','Juliana Diaz'],['SV','Santiago Vásquez'],['SG','Sebastian Gallo'],['SS','Stiven Sánchez'],['DD','Dairo Diaz'],['YS','Yenifer Sánchez Arcila'],['G','Gloria'],['DH','David Hincapie'],['GP','Geovanny Piedrahita'],['BOT','Automatización'],['DG','Daniel Gonzales']];
+    const productionResponsibles=[['','Sin asignar'],['EJ','Ediht Johana Londoño'],['AP','Alejandro Padilla'],['AL','Andrés López'],['AU','Augusto López'],['CC','Carlos Cáceres'],['DB','Dagoberto Botero'],['EE','Edwin Espinosa'],['ES','Esteban Estrada'],['HL','Hesleidy Londoño'],['JP','Jeison Padilla'],['JO','Julian Ocampo'],['JD','Juliana Diaz'],['SV','Santiago Vásquez'],['SG','Sebastian Gallo'],['SS','Stiven Sánchez'],['DD','Dairo Diaz'],['YS','Yenifer Sánchez Arcila'],['G','Gloria'],['DH','David Hincapie'],['GP','Geovanny Piedrahita'],['BOT','Automatización'],['DG','Daniel Gonzales']];
     const productionLines=['','COPA','MUNDIAL','OLIMPICA','MUESTRA','PLUS','BOT'];
     function isResponsibleHeader(header){{const title=String(header||'').trim().toUpperCase();return title.startsWith('RESP')||['CONFECCIONISTA','COMERCIAL','VENDEDOR'].includes(title)}}
     function isLineHeader(header){{const title=String(header||'').trim().toUpperCase();return title==='LINEA'||title==='LÍNEA'}}
@@ -2429,21 +2480,116 @@ let html='';for(let n=0;n<days;n++){{const date=new Date(start);date.setDate(sta
     /* Control de operarios: quién trabaja ahora y cuántos procesos cerró hoy */
     const operariosGrid=document.getElementById('operarios-grid'),operariosStatus=document.getElementById('operarios-status'),operariosRefresh=document.getElementById('operarios-refresh'),operariosBusy=document.getElementById('operarios-busy'),operariosIdle=document.getElementById('operarios-idle'),operariosDone=document.getElementById('operarios-done');
     let operariosPending=false,operariosTimer=null;
-    function operatorInitials(name){{const parts=String(name||'').trim().split(/\\s+/).filter(Boolean);if(!parts.length)return'—';return((parts[0][0]||'')+(parts[1]?parts[1][0]:'')).toUpperCase()}}
+    function operatorInitials(name){{const parts=String(name||'').trim().split(/\\s+/).filter(Boolean);if(!parts.length)return'—';return(parts.length>1?((parts[0][0]||'')+(parts[1][0]||'')):parts[0].slice(0,2)).toUpperCase()}}
     function operatorAgo(value){{const stamp=Date.parse(value);if(!value||!Number.isFinite(stamp))return'sin registro';const minutes=Math.floor((Date.now()-stamp)/60000);if(minutes<1)return'ahora mismo';if(minutes<60)return'hace '+minutes+' min';const hours=Math.floor(minutes/60);if(hours<24)return'hace '+hours+(hours===1?' hora':' horas');const days=Math.floor(hours/24);if(days===1)return'ayer';if(days<7)return'hace '+days+' días';const moment=new Date(stamp);return moment.toLocaleDateString('es-CO',{{day:'numeric',month:'short'}})+' · '+moment.toLocaleTimeString('es-CO',{{hour:'numeric',minute:'2-digit',timeZone:'America/Bogota'}})}}
+    /* Roster por area, tomado de las columnas de la hoja de produccion. */
+    const operariosAreaStats=document.getElementById('operarios-area-stats'),operariosTotal=document.getElementById('operarios-total');
+    const operariosDialog=document.getElementById('operarios-dialog'),operariosDialogTitle=document.getElementById('operarios-dialog-title'),operariosDialogKpis=document.getElementById('operarios-dialog-kpis'),operariosDialogBody=document.getElementById('operarios-dialog-body'),operariosDialogMonth=document.getElementById('operarios-dialog-month'),operariosDialogClose=document.getElementById('operarios-dialog-close'),operariosDialogPrev=document.getElementById('operarios-dialog-prev'),operariosDialogNext=document.getElementById('operarios-dialog-next');
+    const operatorState={{data:[],daily:{{}},finished:{{}},byRef:{{}},area:'',year:0,month:0,daysInMonth:30,today:''}};
+    const operatorAreaColumns=[
+      {{area:'EDICIÓN',columns:[['SG'],['BOT'],['CO','JD','EE']]}},
+      {{area:'IMPRESIÓN',columns:[['SG'],['SV']]}},
+      {{area:'SUBLIMACIÓN',columns:[['G'],['CC'],['GP'],['JP']]}},
+      {{area:'CORTE LÁSER',columns:[['CC'],['DD'],['ES'],['JP'],['HL'],['G'],['SV'],['SG']]}},
+      {{area:'APLIQUES',columns:[['HL']]}},
+      {{area:'CONFECCIÓN',columns:[['ALBA'],['ANGELA'],['BLANCA'],['BLANCA EMILSE'],['EUCARIS'],['FANNY'],['GLORIA'],['GLORIA LOPEZ'],['CARMEN'],['JUAN ESTEBAN'],['MIRYAM'],['NOELIA'],['NURY'],['OMAIRA'],['OMAIRA BERGARA'],['PATRICIA'],['SANDRA'],['OFELIA'],['YINI'],['LILIANA'],['YENNY'],['CANDELARIA']]}},
+      {{area:'TERMINACIÓN',columns:[['EJ'],['JO'],['DB']]}}
+    ];
+    const operatorAreaOfProcess={{EDICION:'EDICIÓN',IMPRESION:'IMPRESIÓN',SUBLIMACION:'SUBLIMACIÓN','CORTE LASER':'CORTE LÁSER',APLIQUE:'APLIQUES',CONFECCION:'CONFECCIÓN',TERMINACION:'TERMINACIÓN',EMPAQUE:'EMPAQUE'}};
+    const operatorCodeByName={{}},operatorNameByCode={{}};
+    productionResponsibles.forEach(entry=>{{if(entry[0]&&entry[1]){{operatorCodeByName[processKey(entry[1])]=entry[0];operatorNameByCode[entry[0]]=entry[1]}}}});
+    function operatorCode(responsible){{const key=processKey(responsible);if(operatorCodeByName[key])return operatorCodeByName[key];return /^[A-ZÁÉÍÓÚÑ0-9 .'-]{{1,4}}$/.test(key)?key:''}}
+    const operariosOpenAreas=['EDICIÓN','IMPRESIÓN','SUBLIMACIÓN','CORTE LÁSER','CONFECCIÓN'];
+    function operatorDayKey(year,month,day){{return year+'-'+String(month+1).padStart(2,'0')+'-'+String(day).padStart(2,'0')}}
     function renderOperators(data){{
-      const operators=(data&&data.operators)||[],busy=operators.filter(item=>item.current),done=operators.reduce((sum,item)=>sum+(Number(item.today_count)||0),0);
-      operariosBusy.textContent=String(busy.length);operariosIdle.textContent=String(operators.length-busy.length);operariosDone.textContent=String(done);
-      if(!operators.length){{operariosGrid.innerHTML='<p class="operarios-empty">Todavía no hay operarios con procesos registrados en Trazabilidad.</p>';return}}
-      operariosGrid.innerHTML=operators.map(item=>{{
-        const current=item.current,closed=Number(item.today_count)||0;
-        const head='<div class="operarios-head"><span class="operarios-avatar">'+esc(operatorInitials(item.responsible))+'</span><span class="operarios-name" title="'+esc(item.responsible)+'">'+esc(item.responsible)+'</span><span class="operarios-badge">'+(current?'Trabajando':'Libre')+'</span></div>';
-        const body=current?'<div class="operarios-current"><span class="operarios-process">'+esc(current.process||'Proceso')+'</span><span class="operarios-order" title="Orden '+esc(current.order)+'">'+esc(current.order||'Sin orden')+'</span><span class="operarios-client" title="'+esc(current.client)+'">'+esc(current.client||'Sin cliente')+'</span></div>':'<div class="operarios-idle">Sin proceso en curso</div>';
-        const foot='<div class="operarios-foot"><span>'+(current?'Desde '+esc(operatorAgo(current.since)):'Última actividad '+esc(operatorAgo(item.last_at)))+'</span><span title="Procesos terminados hoy"><b>'+closed+'</b> hoy</span></div>';
-        const open=current&&current.order?'<button class="operarios-open" type="button" data-order="'+esc(current.order)+'">Ver en Trazabilidad</button>':'';
-        return '<article class="operarios-card'+(current?' is-busy':'')+'">'+head+body+foot+open+'</article>';
-      }}).join('');
+      const operators=(data&&data.operators)||[],daily=(data&&data.daily)||{{}};
+      const busy=operators.filter(item=>item.current),done=operators.reduce((sum,item)=>sum+(Number(item.today_count)||0),0);
+      const finished=(data&&data.finished_by_process)||{{}};
+      operariosTotal.textContent=String(operators.length);
+      operariosBusy.textContent=String(busy.length);
+      operariosIdle.textContent=String(operators.length-busy.length);
+      operariosDone.textContent=String(done);
+      operatorState.data=operators;operatorState.daily=daily;operatorState.finished=finished;operatorState.today=(data&&data.today)||'';
+      operatorState.byRef={{}};
+      const byRef=operatorState.byRef;
+      operators.forEach(item=>{{const key=processKey(item.responsible);if(key)byRef[key]=item;const code=operatorCode(item.responsible);if(code)byRef[code]=item}});
+      const cards=operariosOpenAreas.map(label=>{{
+        const group=operatorAreaColumns.find(item=>processKey(item.area)===processKey(label));
+        if(!group)return '';
+        const people=[];
+        group.columns.forEach(column=>column.forEach(member=>{{
+          const record=byRef[processKey(member)],name=record?record.responsible:(operatorNameByCode[member]||member);
+          if(!people.some(entry=>processKey(entry.name)===processKey(name)))people.push({{name:name,member:member,record:record}});
+        }}));
+        const working=people.filter(entry=>entry.record&&entry.record.current).length;
+        const closed=people.reduce((sum,entry)=>sum+(entry.record?(Number(entry.record.today_count)||0):0),0);
+        const pct=people.length?Math.round(working/people.length*100):0;
+        return '<button class="operarios-openarea'+(working?' is-busy':'')+'" type="button" data-area="'+esc(label)+'"><span class="operarios-openarea-head"><span class="operarios-openarea-name">'+esc(label)+'</span><span class="operarios-openarea-count">'+working+'/'+people.length+'</span></span><span class="operarios-openarea-bar"><i style="width:'+pct+'%"></i></span><span class="operarios-openarea-foot"><span>'+people.length+' operario'+(people.length===1?'':'s')+'</span><span><b>'+closed+'</b> hoy</span></span></button>';
+      }});
+      operariosGrid.innerHTML=cards.filter(Boolean).join('')||'<p class="operarios-empty">Todavía no hay procesos configurados.</p>';
     }}
+    function renderOperatorsCalendar(){{
+      const group=operatorAreaColumns.find(item=>processKey(item.area)===processKey(operatorState.area));
+      if(!group)return;
+      const byRef=operatorState.byRef,daily=operatorState.daily;
+      const roster=[];
+      group.columns.forEach(column=>column.forEach(member=>{{
+        const record=byRef[processKey(member)],name=record?record.responsible:(operatorNameByCode[member]||member);
+        if(!roster.some(entry=>processKey(entry.name)===processKey(name)))roster.push({{name:name,record:record}});
+      }}));
+
+      const year=operatorState.year,month=operatorState.month,total=operatorState.daysInMonth;
+      const todayKey=operatorState.today||operatorDayKey(year,month,Math.min(new Date().getDate(),total));
+      operariosDialogMonth.textContent=new Date(year,month,1).toLocaleDateString('es-CO',{{month:'long',year:'numeric'}});
+
+      const days=Array.from({{length:total}},(_,index)=>{{
+        const day=index+1,key=operatorDayKey(year,month,day);
+        const people=roster.map(entry=>({{name:entry.name,record:entry.record,count:(daily[entry.name]||{{}})[key]||0}}))
+          .filter(entry=>entry.count>0).sort((a,b)=>b.count-a.count);
+        return {{day:day,key:key,people:people,total:people.reduce((sum,entry)=>sum+entry.count,0)}};
+      }}).filter(entry=>entry.total>0||entry.key===todayKey).reverse();
+      if(!roster.length){{
+        operariosDialogBody.innerHTML='<p class="operarios-cal-empty">Este proceso no tiene operarios asignados.</p>';
+        operariosDialogKpis.innerHTML='';
+        return;
+      }}
+      const cards=days.map(entry=>{{
+        const moment=new Date(year,month,entry.day);
+        const dow=moment.toLocaleDateString('es-CO',{{weekday:'short'}}).replace('.','').toUpperCase();
+        const list=entry.people.length
+          ?'<ul class="operarios-daylist">'+entry.people.map(person=>'<li title="'+esc(person.name)+'"><b>'+esc(operatorInitials(person.name))+'</b><em>'+person.count+'</em></li>').join('')+'</ul>'
+          :'<p class="operarios-daynone">Sin cierres</p>';
+        return '<article class="operarios-daycard'+(entry.key===todayKey?' is-today':'')+'"><div class="operarios-daycard-head"><span class="operarios-daycard-date">'+String(entry.day).padStart(2,'0')+'/'+String(month+1).padStart(2,'0')+'/'+year+'</span><span class="operarios-daycard-dow">'+esc(dow)+'</span><span class="operarios-daycard-total">'+entry.total+'</span></div>'+list+'</article>';
+      }}).join('');
+      operariosDialogKpis.innerHTML='<div><span>Operarios</span><strong>'+roster.length+'</strong></div><div><span>Trabajando</span><strong>'+roster.filter(entry=>entry.record&&entry.record.current).length+'</strong></div><div><span>Días con registro</span><strong>'+days.filter(entry=>entry.total>0).length+'</strong></div><div><span>Procesos del mes</span><strong>'+days.reduce((sum,entry)=>sum+entry.total,0)+'</strong></div>';
+      operariosDialogBody.innerHTML=cards?'<div class="operarios-days">'+cards+'</div>':'<p class="operarios-cal-empty">No hay procesos cerrados en este mes.</p>';
+    }}
+    function openOperatorsArea(area){{
+      const now=new Date();
+      operatorState.area=area;operatorState.year=now.getFullYear();operatorState.month=now.getMonth();
+      operatorState.daysInMonth=new Date(operatorState.year,operatorState.month+1,0).getDate();
+      const group=operatorAreaColumns.find(item=>processKey(item.area)===processKey(area));
+      operariosDialogTitle.textContent=group?group.area:area;
+      renderOperatorsCalendar();
+      operariosDialog.showModal();
+    }}
+    operariosGrid.addEventListener('click',event=>{{
+      const button=event.target.closest('.operarios-openarea');
+      if(button)openOperatorsArea(button.dataset.area);
+    }});
+    operariosDialogClose.addEventListener('click',()=>operariosDialog.close());
+    operariosDialogPrev.addEventListener('click',()=>{{
+      operatorState.month-=1;
+      if(operatorState.month<0){{operatorState.month=11;operatorState.year-=1}}
+      operatorState.daysInMonth=new Date(operatorState.year,operatorState.month+1,0).getDate();
+      renderOperatorsCalendar();
+    }});
+    operariosDialogNext.addEventListener('click',()=>{{
+      operatorState.month+=1;
+      if(operatorState.month>11){{operatorState.month=0;operatorState.year+=1}}
+      operatorState.daysInMonth=new Date(operatorState.year,operatorState.month+1,0).getDate();
+      renderOperatorsCalendar();
+    }});
     async function loadOperators(){{
       if(operariosPending)return;operariosPending=true;
       operariosRefresh.disabled=true;operariosRefresh.textContent='Actualizando…';
@@ -2481,6 +2627,7 @@ let html='';for(let n=0;n<days;n++){{const date=new Date(start);date.setDate(sta
       }}catch(error){{alert(error.message)}}finally{{button.disabled=false}}
     }});
     startOperatorsAutoRefresh();
+    operariosDialog.addEventListener('close',()=>{{operatorState.area=''}});
     document.addEventListener('visibilitychange',()=>{{if(!document.hidden&&document.body.classList.contains('operarios-mode'))loadOperators()}});
     window.addEventListener('focus',()=>{{if(document.body.classList.contains('operarios-mode'))loadOperators()}});
 document.getElementById('schedule-prev').addEventListener('click',()=>scheduleMove(-1));document.getElementById('schedule-next').addEventListener('click',()=>scheduleMove(1));document.getElementById('schedule-today').addEventListener('click',()=>{{scheduleDate=scheduleToday();renderSchedule()}});async function handleScheduleEventClick(event){{const button=event.target.closest('.schedule-event');if(!button)return;button.disabled=true;try{{const response=await fetch('/api/produccion/proceso-orden?order='+encodeURIComponent(button.dataset.order)),data=await response.json();if(!response.ok)throw new Error(data.detail||'No se pudo consultar el proceso');orderProgress.hidden=false;orderProgress.textContent=button.dataset.order+' · '+(data.process?(data.basis.startsWith('finished')?'Último proceso terminado: ':'En proceso: ')+data.process:'Sin proceso en curso ni fecha de terminado');selectedProcess=processKey(data.process);localStorage.setItem('indoor-production-process',selectedProcess);exactScheduleOrder=button.dataset.order;productionSearch.value=button.dataset.order;productionTableWrap.scrollLeft=0;productionTableWrap.scrollTop=0;productionXScroll.scrollLeft=0;document.getElementById('production-toggle').closest('.nav-group').classList.remove('collapsed');document.querySelector('.tab[data-kind="produccion"]').click();renderProduction()}}catch(error){{alert(error.message)}}finally{{button.disabled=false}}}}scheduleGrid.addEventListener('click',handleScheduleEventClick);scheduleCards.addEventListener('click',handleScheduleEventClick);loadSchedule();
