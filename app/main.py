@@ -1153,6 +1153,7 @@ def production_operators(refresh: bool = False, _=Depends(authenticate)):
         db.commit()
         meta = {r['key']: r['value'] for r in db.execute('SELECT key,value FROM production_meta')}
         headers = json.loads(meta.get('headers', '[]'))
+        groups = json.loads(meta.get('groups', '[]'))
         order_idx = next((i for i, h in enumerate(headers) if str(h).strip().upper() == 'ORDEN'), -1)
         client_idx = next((i for i, h in enumerate(headers) if str(h).strip().upper() == 'NOMBRE DEL CLIENTE'), -1)
         quantity_idx = next((i for i, h in enumerate(headers) if str(h).strip().upper() == 'CANTIDAD'), -1)
@@ -1208,17 +1209,31 @@ def production_operators(refresh: bool = False, _=Depends(authenticate)):
         # Unidades activas (P) y en reproceso (R) por area, leidas directamente del estado
         # actual de cada pedido en Produccion (misma logica que usa el Cronograma), no del
         # historial de eventos: es una foto de lo que hay AHORA mismo en cada proceso.
+        # Tambien se reparte por responsable (columna RESP... de ese mismo grupo), para poder
+        # mostrar el desglose por operario en la tarjeta de hoy.
+        def normalize_group(value):
+            return str(value or '').strip('" ').upper()
+
+        def normalize_cell(value):
+            text = ''.join(c for c in unicodedata.normalize('NFD', str(value or '')) if not unicodedata.combining(c))
+            return text.strip().upper()
+
+        resp_cols_by_group: dict = {}
+        for index, header in enumerate(headers):
+            if str(header or '').strip().upper().startswith('RESP'):
+                group_value = normalize_group(groups[index] if index < len(groups) else '')
+                resp_cols_by_group.setdefault(group_value, []).append(index)
+
         process_columns: dict = {}
         for index, header in enumerate(headers):
             process_index = official_process(header)
             if process_index is None:
                 continue
             label = PROCESS_FLOW[process_index]['label']
-            process_columns.setdefault(label, []).append(index)
-
-        def normalize_cell(value):
-            text = ''.join(c for c in unicodedata.normalize('NFD', str(value or '')) if not unicodedata.combining(c))
-            return text.strip().upper()
+            group_value = normalize_group(groups[index] if index < len(groups) else '')
+            entry = process_columns.setdefault(label, {'status': [], 'resp': []})
+            entry['status'].append(index)
+            entry['resp'] = resp_cols_by_group.get(group_value, [])
 
         process_status: dict = {}
         for values in rows_values.values():
@@ -1228,15 +1243,23 @@ def production_operators(refresh: bool = False, _=Depends(authenticate)):
                     quantity = int(float(str(values[quantity_idx]).replace(',', '.')))
                 except ValueError:
                     quantity = 0
-            for label, indexes in process_columns.items():
-                cells = [normalize_cell(values[i]) if i < len(values) else '' for i in indexes]
+            for label, cols in process_columns.items():
+                cells = [normalize_cell(values[i]) if i < len(values) else '' for i in cols['status']]
                 if not any(cells):
                     continue
-                bucket = process_status.setdefault(label, {'active_units': 0, 'rework_units': 0})
-                if 'R' in cells:
-                    bucket['rework_units'] += quantity
-                elif 'P' in cells:
-                    bucket['active_units'] += quantity
+                state_key = 'rework_units' if 'R' in cells else ('active_units' if 'P' in cells else None)
+                if not state_key:
+                    continue
+                bucket = process_status.setdefault(label, {'active_units': 0, 'rework_units': 0, 'by_responsible': {}})
+                bucket[state_key] += quantity
+                responsible_name = ''
+                for ri in cols['resp']:
+                    if ri < len(values) and str(values[ri]).strip():
+                        responsible_name = str(values[ri]).strip()
+                        break
+                if responsible_name:
+                    person = bucket['by_responsible'].setdefault(responsible_name, {'active_units': 0, 'rework_units': 0})
+                    person[state_key] += quantity
 
         return {
             'today': today.isoformat(),
@@ -2277,16 +2300,15 @@ def home(_=Depends(authenticate)):
     .operarios-daycard-total{{margin-left:auto;flex:0 0 auto;padding:3px 9px;border-radius:999px;background:rgba(255,255,255,.06);color:#dbe4d3;font-size:.68rem;font-weight:800;font-variant-numeric:tabular-nums}}
     .operarios-daycard.is-today .operarios-daycard-total{{background:rgba(208,244,76,.16);color:var(--lime)}}
     .operarios-daylist{{display:flex;flex-wrap:wrap;gap:7px;align-content:start;margin:0;padding:0;list-style:none}}
-    .operarios-daylist li{{display:flex;align-items:center;gap:6px;padding:4px 10px 4px 4px;border:1px solid rgba(255,255,255,.08);border-radius:999px;background:#0a0d09}}
+    .operarios-daylist li{{display:flex;align-items:center;gap:7px;padding:5px 11px 5px 5px;border:1px solid rgba(255,255,255,.08);border-radius:12px;background:#0a0d09}}
     .operarios-daylist b{{display:grid;place-items:center;flex:0 0 auto;min-width:24px;height:21px;padding:0 5px;white-space:nowrap;border-radius:999px;background:rgba(255,255,255,.08);color:#e7ede2;font-size:.62rem;font-weight:900;letter-spacing:.02em}}
-    .operarios-daylist em{{color:var(--lime);font-style:normal;font-size:.75rem;font-weight:900;font-variant-numeric:tabular-nums}}
+    .operarios-daylist-stats{{display:flex;flex-wrap:wrap;align-items:center;gap:2px 9px}}
+    .op-stat{{font-size:.72rem;font-weight:900;font-variant-numeric:tabular-nums;white-space:nowrap}}
+    .op-stat-done{{color:var(--lime)}}
+    .op-stat-active{{color:#8ec3ff}}
+    .op-stat-rework{{color:#ff9b7c}}
     .operarios-badge{{display:inline-grid;place-items:center;width:26px;height:26px;flex:0 0 26px;border:1px solid rgba(208,244,76,.55);border-radius:50%;background:rgba(208,244,76,.12);color:var(--lime);font-size:.62rem;font-weight:900;letter-spacing:.02em;box-sizing:border-box}}
     .operarios-daynone{{color:#77816f;font-size:.68rem;text-align:center;padding:6px 0}}
-    .operarios-daycard-status{{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:2px}}
-    .operarios-status-chip{{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:999px;font-size:.62rem;font-weight:700;letter-spacing:.01em}}
-    .operarios-status-chip b{{font-weight:900;font-variant-numeric:tabular-nums}}
-    .operarios-status-chip.is-active{{background:rgba(93,168,255,.14);color:#8ec3ff;border:1px solid rgba(93,168,255,.35)}}
-    .operarios-status-chip.is-rework{{background:rgba(255,124,93,.14);color:#ff9b7c;border:1px solid rgba(255,124,93,.35)}}
     .operarios-cal-empty{{padding:44px 20px;text-align:center;color:var(--muted);font-size:.85rem}}
     .operarios-empty{{grid-column:1/-1;padding:44px 20px;text-align:center;border:1px dashed var(--line);border-radius:14px;color:var(--muted);font-size:.85rem}}
     body.operarios-mode .production-refresh:disabled{{opacity:.55;cursor:progress}}
@@ -2810,6 +2832,19 @@ let html='';for(let n=0;n<days;n++){{const date=new Date(start);date.setDate(sta
       const todayKey=operatorState.today||operatorDayKey(year,month,Math.min(new Date().getDate(),total));
       operariosDialogMonth.textContent=new Date(year,month,1).toLocaleDateString('es-CO',{{month:'long',year:'numeric'}});
 
+      /* En proceso (✖) y en reproceso (®) por operario: foto EN VIVO del estado de los pedidos
+         en Produccion, repartida por responsable. Solo aplica al dia de hoy; en los demas dias
+         solo se ve lo terminado (✓), que si es historico. Se calcula antes que "days" porque un
+         operario puede estar trabajando hoy sin haber cerrado nada todavia (count=0). */
+      const statusMap=operatorState.processStatus||{{}};
+      const statusKey=Object.keys(statusMap).find(key=>processKey(key)===processKey(group.area));
+      const byResponsible=(statusKey&&statusMap[statusKey].by_responsible)||{{}};
+      const responsibleKeys=Object.keys(byResponsible);
+      function personExtraStats(name){{
+        const key=responsibleKeys.find(item=>processKey(item)===processKey(name));
+        return key?byResponsible[key]:null;
+      }}
+
       const days=Array.from({{length:total}},(_,index)=>{{
         const day=index+1,key=operatorDayKey(year,month,day);
         const peopleMap=new Map();
@@ -2820,6 +2855,14 @@ let html='';for(let n=0;n<days;n++){{const date=new Date(start);date.setDate(sta
           if(peopleMap.has(codeKey))peopleMap.get(codeKey).count+=count;
           else peopleMap.set(codeKey,{{name:entry.name,record:entry.record,count:count}});
         }});
+        if(key===todayKey){{
+          roster.forEach(entry=>{{
+            const codeKey=entry.member||entry.name;
+            if(peopleMap.has(codeKey))return;
+            const extra=personExtraStats(entry.name);
+            if(extra&&(extra.active_units||extra.rework_units))peopleMap.set(codeKey,{{name:entry.name,record:entry.record,count:0}});
+          }});
+        }}
         const people=Array.from(peopleMap.values()).sort((a,b)=>b.count-a.count);
         return {{day:day,key:key,people:people,total:people.reduce((sum,entry)=>sum+entry.count,0)}};
       }}).filter(entry=>entry.total>0||entry.key===todayKey).reverse();
@@ -2843,24 +2886,21 @@ let html='';for(let n=0;n<days;n++){{const date=new Date(start);date.setDate(sta
       }}
       const search=operatorState.daySearch||'';
       const visibleDays=search?days.filter(entry=>entry.key===search):days;
-      /* En proceso / en reproceso: foto EN VIVO del estado de los pedidos en Produccion
-         (celdas 'P' y 'R' de esta area), solo tiene sentido mostrarla en la tarjeta de hoy. */
-      const statusMap=operatorState.processStatus||{{}};
-      const statusKey=Object.keys(statusMap).find(key=>processKey(key)===processKey(group.area));
-      const areaStatus=statusKey?statusMap[statusKey]:null;
       const cards=visibleDays.map(entry=>{{
         const moment=new Date(year,month,entry.day);
         const dowFull=moment.toLocaleDateString('es-CO',{{weekday:'long'}}).toUpperCase();
         const monthFull=moment.toLocaleDateString('es-CO',{{month:'long'}}).toUpperCase();
+        const isToday=entry.key===todayKey;
         const list=entry.people.length
-          ?'<ul class="operarios-daylist">'+entry.people.map(person=>'<li>'+operatorBadgeHTML(person.name)+'<em>'+person.count+'</em></li>').join('')+'</ul>'
+          ?'<ul class="operarios-daylist">'+entry.people.map(person=>{{
+              const extra=isToday?personExtraStats(person.name):null;
+              const stats=person.count>0?['<span class="op-stat op-stat-done">✓ '+person.count+' unds</span>']:[];
+              if(extra&&extra.active_units)stats.push('<span class="op-stat op-stat-active">✖ '+extra.active_units.toLocaleString('es-CO')+' unds</span>');
+              if(extra&&extra.rework_units)stats.push('<span class="op-stat op-stat-rework">® '+extra.rework_units.toLocaleString('es-CO')+' unds</span>');
+              return '<li>'+operatorBadgeHTML(person.name)+'<span class="operarios-daylist-stats">'+stats.join('')+'</span></li>';
+            }}).join('')+'</ul>'
           :'<p class="operarios-daynone">Sin cierres</p>';
-        const showStatus=entry.key===todayKey&&areaStatus&&(areaStatus.active_units||areaStatus.rework_units);
-        const statusHTML=showStatus?'<div class="operarios-daycard-status">'+
-          (areaStatus.active_units?'<span class="operarios-status-chip is-active">En proceso <b>'+areaStatus.active_units.toLocaleString('es-CO')+'</b> unds</span>':'')+
-          (areaStatus.rework_units?'<span class="operarios-status-chip is-rework">En reproceso <b>'+areaStatus.rework_units.toLocaleString('es-CO')+'</b> unds</span>':'')+
-          '</div>':'';
-        return '<article class="operarios-daycard'+(entry.key===todayKey?' is-today':'')+'"><div class="operarios-daycard-head"><span class="operarios-daycard-date">'+esc(dowFull)+' / '+entry.day+' / '+esc(monthFull)+'</span><span class="operarios-daycard-total">Total '+entry.total+' unds</span></div>'+statusHTML+list+'</article>';
+        return '<article class="operarios-daycard'+(isToday?' is-today':'')+'"><div class="operarios-daycard-head"><span class="operarios-daycard-date">'+esc(dowFull)+' / '+entry.day+' / '+esc(monthFull)+'</span><span class="operarios-daycard-total">Total '+entry.total+' unds</span></div>'+list+'</article>';
       }}).join('');
       const kpisHTML='<div><span>Operarios</span><strong>'+roster.length+'</strong></div><div><span>Trabajando</span><strong>'+roster.filter(entry=>entry.record&&entry.record.current).length+'</strong></div><div><span>Días con registro</span><strong>'+days.filter(entry=>entry.total>0).length+'</strong></div><div><span>Procesos del mes</span><strong>'+days.reduce((sum,entry)=>sum+entry.total,0)+'</strong></div>';
       const bodyHTML=cards?'<div class="operarios-days">'+cards+'</div>':'<p class="operarios-cal-empty">'+(search?'No hay cierres registrados en esa fecha.':'No hay procesos cerrados en este mes.')+'</p>';
