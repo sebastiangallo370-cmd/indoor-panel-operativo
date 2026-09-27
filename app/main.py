@@ -1055,6 +1055,61 @@ def production_operator_history(row: int, _=Depends(authenticate)):
         db.close()
 
 
+@app.get('/api/produccion/operarios')
+def production_operators(_=Depends(authenticate)):
+    db = connect()
+    try:
+        ensure_operator_events(db)
+        db.commit()
+        meta = {r['key']: r['value'] for r in db.execute('SELECT key,value FROM production_meta')}
+        headers = json.loads(meta.get('headers', '[]'))
+        order_idx = next((i for i, h in enumerate(headers) if str(h).strip().upper() == 'ORDEN'), -1)
+        client_idx = next((i for i, h in enumerate(headers) if str(h).strip().upper() == 'NOMBRE DEL CLIENTE'), -1)
+        rows_values = {r['source_row']: json.loads(r['values_json']) for r in db.execute('SELECT source_row,values_json FROM production_rows')}
+        tz = timezone(timedelta(hours=-5))
+        today = datetime.now(tz).date()
+        today_start = datetime(today.year, today.month, today.day, tzinfo=tz).isoformat()
+        events = db.execute(
+            "SELECT source_row,column_number,action,responsible,reason,created_at FROM production_operator_events "
+            "WHERE responsible IS NOT NULL AND responsible<>'' AND responsible<>'Sin atribuir' ORDER BY id"
+        ).fetchall()
+        operators: dict = {}
+
+        def process_label(column_number):
+            index = column_number - 1
+            if not 0 <= index < len(headers):
+                return ''
+            process_index = official_process(headers[index])
+            return PROCESS_FLOW[process_index]['label'] if process_index is not None else str(headers[index])
+
+        for event in events:
+            responsible = event['responsible']
+            operator = operators.setdefault(responsible, {
+                'responsible': responsible, 'current': None, 'today_count': 0, 'last_at': None,
+            })
+            label = process_label(event['column_number'])
+            values = rows_values.get(event['source_row'], [])
+            order = str(values[order_idx]).strip() if order_idx >= 0 and order_idx < len(values) else ''
+            client = str(values[client_idx]).strip() if client_idx >= 0 and client_idx < len(values) else ''
+            if event['action'] == 'start':
+                operator['current'] = {
+                    'row': event['source_row'], 'process': label, 'order': order, 'client': client,
+                    'since': event['created_at'],
+                }
+            elif operator['current'] and operator['current']['row'] == event['source_row'] and operator['current']['process'] == label:
+                operator['current'] = None
+            if event['action'] == 'finish' and event['created_at'] >= today_start:
+                operator['today_count'] += 1
+            if not operator['last_at'] or event['created_at'] > operator['last_at']:
+                operator['last_at'] = event['created_at']
+        return {
+            'today': today.isoformat(),
+            'operators': sorted(operators.values(), key=lambda item: item['responsible'].casefold()),
+        }
+    finally:
+        db.close()
+
+
 def stamp_edition_start(values, headers, groups, column, previous, value):
     index = column - 1
     header = str(headers[index]).strip().upper() if index < len(headers) else ""
@@ -1982,8 +2037,56 @@ def home(_=Depends(authenticate)):
       body.production-mode.trace-cards-mode .production-process-filter button{{flex:0 0 auto;white-space:nowrap}}
       body.production-mode.trace-cards-mode .production-kpis{{padding:6px 12px;gap:14px}}
     }}
+    /* Control de operarios: quién está trabajando ahora y cuántos procesos cerró hoy */
+    body.operarios-mode{{--line:rgba(180,195,167,.16)}}
+    body.operarios-mode header{{display:none}}
+    .panel[data-panel='operarios'].active{{display:block}}
+    .operarios-shell{{overflow:hidden;border-radius:18px}}
+    .operarios-toolbar{{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:24px 26px;border-bottom:1px solid var(--line);background:linear-gradient(135deg,#121810,#0b0e0b)}}
+    .operarios-title h2{{margin:4px 0 5px;font-size:1.45rem}}
+    .operarios-title p{{color:var(--muted);font-size:.84rem}}
+    .operarios-toolbar .production-refresh{{padding:9px 13px}}
+    .operarios-kpis{{display:flex;align-items:center;gap:18px;padding:11px 20px;background:#10150e;border-bottom:1px solid var(--line)}}
+    .operarios-kpi{{display:flex;align-items:baseline;gap:7px}}
+    .operarios-kpi span{{color:var(--muted);font-size:.65rem;text-transform:uppercase;letter-spacing:.06em}}
+    .operarios-kpi strong{{color:var(--lime);font-size:1rem}}
+    .operarios-status{{margin-left:auto;color:#7f8a79;font-size:.7rem}}
+    .operarios-grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(282px,1fr));gap:12px;padding:20px}}
+    .operarios-card{{display:grid;grid-template-rows:auto auto 1fr auto;gap:9px;padding:15px;border:1px solid rgba(255,255,255,.09);border-radius:14px;background:#0d110d;transition:border-color .15s,background .15s}}
+    .operarios-card.is-busy{{border-color:rgba(208,244,76,.42);background:#151b12}}
+    .operarios-head{{display:grid;grid-template-columns:auto 1fr;grid-template-areas:'avatar name' 'avatar badge';align-items:center;gap:3px 10px;min-width:0}}
+    .operarios-avatar{{display:grid;place-items:center;grid-area:avatar;align-self:start;flex:0 0 34px;height:34px;border-radius:50%;background:rgba(208,244,76,.12);color:var(--lime);font-size:.78rem;font-weight:900;letter-spacing:.02em}}
+    .operarios-card.is-busy .operarios-avatar{{background:var(--lime);color:#10140d}}
+    .operarios-name{{grid-area:name;min-width:0;font-size:.9rem;font-weight:800;line-height:1.25;overflow-wrap:break-word}}
+    .operarios-badge{{grid-area:badge;justify-self:start;padding:2px 8px;border-radius:999px;background:#1c2418;color:#9fb096;font-size:.58rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}}
+    .operarios-card.is-busy .operarios-badge{{background:rgba(208,244,76,.16);color:var(--lime)}}
+    .operarios-current{{display:grid;gap:3px;padding:10px 11px;border-radius:10px;background:#0a0d09;border:1px solid rgba(255,255,255,.06)}}
+    .operarios-process{{color:#efffb0;font-size:.78rem;font-weight:800;text-transform:uppercase;letter-spacing:.04em}}
+    .operarios-order{{color:#c8d2c2;font-size:.75rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
+    .operarios-client{{color:#8d978a;font-size:.71rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
+    .operarios-idle{{display:grid;place-items:center;padding:10px 11px;border-radius:10px;background:#0a0d09;border:1px dashed rgba(255,255,255,.09);color:#77816f;font-size:.75rem}}
+    .operarios-foot{{display:flex;align-items:center;justify-content:space-between;gap:8px;color:#7f8a79;font-size:.68rem}}
+    .operarios-foot b{{color:var(--lime);font-size:.95rem;font-weight:900}}
+    .operarios-empty{{grid-column:1/-1;padding:44px 20px;text-align:center;border:1px dashed var(--line);border-radius:14px;color:var(--muted);font-size:.85rem}}
+    .operarios-open{{padding:7px 10px;border:1px solid rgba(208,244,76,.38);border-radius:9px;background:rgba(208,244,76,.1);color:#efffb0;font:inherit;font-size:.72rem;font-weight:800;cursor:pointer}}
+    .operarios-open:hover{{border-color:var(--lime);background:rgba(208,244,76,.17)}}
+    .operarios-open:disabled{{opacity:.55;cursor:progress}}
+    body.operarios-mode .production-refresh:disabled{{opacity:.55;cursor:progress}}
+    @media(max-width:860px){{
+      body.operarios-mode .operarios-toolbar{{padding:14px;gap:10px}}
+      body.operarios-mode .operarios-title h2{{font-size:1.1rem}}
+      body.operarios-mode .operarios-title p{{font-size:.68rem;line-height:1.35}}
+      body.operarios-mode .operarios-kpis{{padding:9px 12px;gap:14px;flex-wrap:wrap}}
+      body.operarios-mode .operarios-status{{display:none}}
+      body.operarios-mode .operarios-grid{{grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:9px;padding:12px}}
+    }}
+    @media(max-width:620px){{
+      body.operarios-mode .operarios-toolbar{{display:grid;grid-template-columns:1fr auto;align-items:center}}
+      body.operarios-mode .operarios-title h2{{white-space:nowrap}}
+      body.operarios-mode .operarios-grid{{grid-template-columns:1fr}}
+    }}
     @media(hover:none) and (pointer:coarse){{.tab,.nav-parent,.user-menu summary,.menu-toggle{{min-height:44px}}input,select,textarea{{font-size:16px}}}}
-    </style></head><body class='inicio-mode'><div class='topbar'></div><button id='menu-toggle' class='menu-toggle' type='button' aria-label='Ocultar menú' aria-expanded='true'>‹</button><aside class='sidebar' aria-label='Menú principal'><div class='sidebar-brand'><img src='/marca-indoor.svg' alt='Indoor'></div><div class='session-card'><div class='session-avatar'>IS</div><div class='session-copy'><strong>INDOOR SPORT SAS</strong><span>Panel operativo</span></div></div><div class='sidebar-label'>Menú principal</div><nav class='tabs' aria-label='Navegación principal'><button class='tab home-nav active' data-kind='inicio' type='button'><span class='nav-icon'>IN</span><strong>INICIO</strong></button><div class='nav-group collapsed'><button id='news-toggle' class='nav-parent' type='button'><span class='nav-icon'>NV</span><span>NOVEDADES</span></button><div class='nav-children'><button class='tab schedule-nav' data-kind='cronograma' type='button'><span class='nav-icon'>CR</span><strong>CRONOGRAMA</strong></button></div></div><div class='nav-group'><button id='commercial-toggle' class='nav-parent' type='button'><span class='nav-icon'>AC</span><span>Asistentes Comerciales</span></button><div class='nav-children'><button class='tab' data-kind='reprogramacion' type='button'><span class='nav-icon'>RP</span><strong>Reprogramaciones</strong></button><button class='tab' data-kind='pedido' type='button'><span class='nav-icon'>PN</span><strong>Pedidos normales</strong></button><button class='tab' data-kind='creador' type='button'><span class='nav-icon'>XL</span><strong>Creador XLSX</strong></button></div></div><div class='nav-group collapsed'><button id='production-toggle' class='nav-parent' type='button'><span class='nav-icon'>PR</span><span>Producción</span></button><div class='nav-children'><button class='tab production-nav' data-kind='produccion' type='button'><span class='nav-icon'>TR</span><strong>TRAZABILIDAD</strong></button><button class='tab' data-kind='inventario' type='button'><span class='nav-icon'>IT</span><strong>INVENTARIO TELAS</strong></button></div></div></nav><div class='sidebar-foot'>Indoor Sport · Operación interna</div></aside><main>
+    </style></head><body class='inicio-mode'><div class='topbar'></div><button id='menu-toggle' class='menu-toggle' type='button' aria-label='Ocultar menú' aria-expanded='true'>‹</button><aside class='sidebar' aria-label='Menú principal'><div class='sidebar-brand'><img src='/marca-indoor.svg' alt='Indoor'></div><div class='session-card'><div class='session-avatar'>IS</div><div class='session-copy'><strong>INDOOR SPORT SAS</strong><span>Panel operativo</span></div></div><div class='sidebar-label'>Menú principal</div><nav class='tabs' aria-label='Navegación principal'><button class='tab home-nav active' data-kind='inicio' type='button'><span class='nav-icon'>IN</span><strong>INICIO</strong></button><div class='nav-group collapsed'><button id='news-toggle' class='nav-parent' type='button'><span class='nav-icon'>NV</span><span>NOVEDADES</span></button><div class='nav-children'><button class='tab schedule-nav' data-kind='cronograma' type='button'><span class='nav-icon'>CR</span><strong>CRONOGRAMA</strong></button><button class='tab' data-kind='operarios' type='button'><span class='nav-icon'>OP</span><strong>CONTROL OPERARIOS</strong></button></div></div><div class='nav-group'><button id='commercial-toggle' class='nav-parent' type='button'><span class='nav-icon'>AC</span><span>Asistentes Comerciales</span></button><div class='nav-children'><button class='tab' data-kind='reprogramacion' type='button'><span class='nav-icon'>RP</span><strong>Reprogramaciones</strong></button><button class='tab' data-kind='pedido' type='button'><span class='nav-icon'>PN</span><strong>Pedidos normales</strong></button><button class='tab' data-kind='creador' type='button'><span class='nav-icon'>XL</span><strong>Creador XLSX</strong></button></div></div><div class='nav-group collapsed'><button id='production-toggle' class='nav-parent' type='button'><span class='nav-icon'>PR</span><span>Producción</span></button><div class='nav-children'><button class='tab production-nav' data-kind='produccion' type='button'><span class='nav-icon'>TR</span><strong>TRAZABILIDAD</strong></button><button class='tab' data-kind='inventario' type='button'><span class='nav-icon'>IT</span><strong>INVENTARIO TELAS</strong></button></div></div></nav><div class='sidebar-foot'>Indoor Sport · Operación interna</div></aside><main>
     <section class='panel' data-panel='inventario'><div class='card fabric-card'><div class='fabric-heading'><div><span class='eyebrow'>Producción · Catálogo</span><h2>INVENTARIO TELAS</h2><p>Consulta las telas y sus códigos.</p></div><input id='fabric-search' type='search' placeholder='Buscar tela o código' aria-label='Buscar tela o código'></div><div id='fabric-count' class='fabric-count' role='status'>{len(fabrics)} telas registradas</div><table class='fabric-table'><thead><tr><th scope='col'>Código</th><th scope='col'>Tela</th><th scope='col'>STOCK</th></tr></thead><tbody id='fabric-body'>{fabric_rows}</tbody></table><p id='fabric-empty' hidden>No se encontraron telas con esa búsqueda.</p></div></section>
     <div class='brand'><span class='brand-logo' aria-label='Indoor'><img src='/marca-indoor.svg' alt='Indoor'></span><span class='brand-line'></span><span class='eyebrow'>Panel operativo</span><div class='systems'><span class='session-user' aria-label='Usuario conectado'>{escape(str(_))}</span></div></div>
     <header><div><div class='eyebrow'>Asistentes comerciales</div><h1>Convierte documentos<br>en órdenes listas.</h1><p class='subtitle'>Tres flujos especializados, una sola operación y seguimiento en tiempo real.</p></div></header>
@@ -1993,6 +2096,7 @@ def home(_=Depends(authenticate)):
     <div class='home-section'><h3>Nuestro proceso</h3><div class='home-gallery'><figure><img src='/landing/proceso-1.jpg' alt='Impresión de diseños' loading='lazy'><figcaption>Impresión de diseños</figcaption></figure><figure><img src='/landing/proceso-2.jpg' alt='Corte y armado' loading='lazy'><figcaption>Corte y armado</figcaption></figure><figure><img src='/landing/proceso-3.jpg' alt='Corte láser' loading='lazy'><figcaption>Corte láser</figcaption></figure><figure><img src='/landing/proceso-4.jpg' alt='Aplicación en plancha' loading='lazy'><figcaption>Aplicación en plancha</figcaption></figure><figure><img src='/landing/proceso-5.jpg' alt='Diseño digital' loading='lazy'><figcaption>Diseño digital</figcaption></figure><figure><img src='/landing/proceso-6.jpg' alt='Empaque final' loading='lazy'><figcaption>Empaque final</figcaption></figure></div></div>
     <div class='home-section'><h3>Nuestros uniformes</h3><div class='home-gallery'><figure><img src='/landing/uniforme-1.jpg' alt='Uniforme en cancha' loading='lazy'><figcaption>Uniforme en cancha</figcaption></figure><figure><img src='/landing/uniforme-2.jpg' alt='Uniforme premium' loading='lazy'><figcaption>Uniforme premium</figcaption></figure><figure><img src='/landing/uniforme-3.jpg' alt='Escudo texturizado' loading='lazy'><figcaption>Escudo texturizado</figcaption></figure><figure><img src='/landing/uniforme-4.jpg' alt='Numeración' loading='lazy'><figcaption>Numeración</figcaption></figure><figure><img src='/landing/uniforme-5.jpg' alt='Diseño bicolor' loading='lazy'><figcaption>Diseño bicolor</figcaption></figure><figure><img src='/landing/uniforme-6.jpg' alt='Uniforme sublimado' loading='lazy'><figcaption>Uniforme sublimado</figcaption></figure></div></div>
     </div></section>
+    <section class='panel' data-panel='operarios'><div class='card operarios-shell'><div class='operarios-toolbar'><div class='operarios-title'><span class='eyebrow'>Producción · En vivo</span><h2>CONTROL OPERARIOS</h2><p>Quién está trabajando ahora y cuántos procesos ha cerrado hoy cada operario.</p></div><button id='operarios-refresh' type='button' class='production-refresh'>Actualizar</button></div><div class='operarios-kpis'><div class='operarios-kpi'><span>Trabajando</span><strong id='operarios-busy'>—</strong></div><div class='operarios-kpi'><span>Libres</span><strong id='operarios-idle'>—</strong></div><div class='operarios-kpi'><span>Cerrados hoy</span><strong id='operarios-done'>—</strong></div><div id='operarios-status' class='operarios-status' role='status'>Cargando operarios…</div></div><div id='operarios-grid' class='operarios-grid'></div></div></section>
     <section class='panel' data-panel='cronograma'><div class='card schedule-shell'><div class='schedule-toolbar'><div class='schedule-title'><span class='eyebrow'>Planeación de entregas</span><h2>CRONOGRAMA</h2><p>Fechas de entrega de todos los pedidos registrados en Producción.</p></div><div class='schedule-actions'><button id='schedule-prev' type='button' aria-label='Mes anterior'>‹</button><button id='schedule-today' type='button'>Hoy</button><button id='schedule-next' type='button' aria-label='Mes siguiente'>›</button></div></div><div class='schedule-days-block'><div class='schedule-days-nav'><h4 class='schedule-overview-title'>Entregas de la semana <small id='schedule-days-range'></small></h4><div class='schedule-days-actions'><button id='schedule-days-prev' type='button' aria-label='Semana anterior'>‹</button><button id='schedule-days-today' type='button'>Hoy</button><button id='schedule-days-next' type='button' aria-label='Semana siguiente'>›</button></div></div><div id='schedule-days' class='schedule-days' aria-label='Próximos días'></div></div><div class='schedule-summary'><strong id='schedule-month'>—</strong><span id='schedule-count'>Cargando pedidos…</span></div><div class='schedule-weekdays'><div>LUN</div><div>MAR</div><div>MIÉ</div><div>JUE</div><div>VIE</div><div>SÁB</div><div>DOM</div></div><div id='schedule-grid' class='schedule-grid'></div><div id='schedule-cards' class='schedule-cards' hidden></div></div></section>
     <section class='workspace panel' data-panel='reprogramacion'><div class='card'><div class='card-head'><h2>Nueva reprogramación</h2><p>Selecciona una cotización, remisión o listado en PDF o Excel.</p></div><div class='upload-wrap'>
     <form id='upload-form' method='post' action='/procesar' enctype='multipart/form-data'>
@@ -2242,7 +2346,7 @@ async function saveProductionCell(cell,value,original){{let reason=null;const he
     let productionActiveCell=null;productionBody.addEventListener('click',event=>{{const cell=event.target.closest('td[data-row]');if(!cell)return;if(productionActiveCell)productionActiveCell.classList.remove('is-active-cell');productionActiveCell=cell;cell.classList.add('is-active-cell')}});document.addEventListener('keydown',async event=>{{if(!event.ctrlKey||event.code!=='Semicolon'||!productionActiveCell||productionActiveCell.classList.contains('delivery-days-cell')||productionActiveCell.querySelector('input,select'))return;event.preventDefault();const cell=productionActiveCell,original=cell.textContent,now=new Date(),value=productionDateShortcut(now,event.altKey,event.shiftKey&&!event.altKey);cell.textContent=value;const ok=await saveProductionCell(cell,value,original);if(ok)setTimeout(renderProduction,120);else cell.textContent=original}});
     const menuToggle=document.getElementById('menu-toggle'),commercialToggle=document.getElementById('commercial-toggle');function syncMenuButton(){{if(window.innerWidth<=860){{const open=document.body.classList.contains('menu-open');menuToggle.setAttribute('aria-expanded',String(open));menuToggle.setAttribute('aria-label',open?'Cerrar menú':'Abrir menú');menuToggle.textContent=open?'×':'☰'}}else{{const hidden=document.body.classList.contains('sidebar-hidden');menuToggle.setAttribute('aria-expanded',String(!hidden));menuToggle.setAttribute('aria-label',hidden?'Mostrar menú':'Ocultar menú');menuToggle.textContent=hidden?'☰':'‹'}}}}if(localStorage.getItem('indoor-sidebar-hidden')==='1')document.body.classList.add('sidebar-hidden');syncMenuButton();menuToggle.addEventListener('click',()=>{{if(window.innerWidth<=860)document.body.classList.toggle('menu-open');else{{const hidden=document.body.classList.toggle('sidebar-hidden');localStorage.setItem('indoor-sidebar-hidden',hidden?'1':'0')}}syncMenuButton()}});window.addEventListener('resize',()=>{{syncMenuButton();requestAnimationFrame(freezeProductionColumns)}});commercialToggle.addEventListener('click',()=>commercialToggle.closest('.nav-group').classList.toggle('collapsed'));
     document.getElementById('news-toggle').addEventListener('click',()=>document.getElementById('news-toggle').closest('.nav-group').classList.toggle('collapsed'));
-    document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{{document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===t));document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.dataset.panel===t.dataset.kind));document.body.classList.toggle('inventory-mode',t.dataset.kind==='inventario');document.body.classList.toggle('production-mode',t.dataset.kind==='produccion');document.body.classList.toggle('inicio-mode',t.dataset.kind==='inicio');document.body.classList.toggle('schedule-mode',t.dataset.kind==='cronograma');if(t.dataset.kind==='produccion')loadProduction();if(t.dataset.kind==='cronograma')loadSchedule();if(window.innerWidth<=860){{document.body.classList.remove('menu-open');syncMenuButton()}}}}));
+    document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{{document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===t));document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.dataset.panel===t.dataset.kind));document.body.classList.toggle('inventory-mode',t.dataset.kind==='inventario');document.body.classList.toggle('production-mode',t.dataset.kind==='produccion');document.body.classList.toggle('inicio-mode',t.dataset.kind==='inicio');document.body.classList.toggle('schedule-mode',t.dataset.kind==='cronograma');document.body.classList.toggle('operarios-mode',t.dataset.kind==='operarios');if(t.dataset.kind==='produccion')loadProduction();if(t.dataset.kind==='cronograma')loadSchedule();if(t.dataset.kind==='operarios')loadOperators();if(window.innerWidth<=860){{document.body.classList.remove('menu-open');syncMenuButton()}}}}));
     document.getElementById('fabric-search').addEventListener('input',event=>{{const norm=text=>text.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase(),query=norm(event.target.value.trim());let visible=0;document.querySelectorAll('#fabric-body tr').forEach(row=>{{row.hidden=!norm(row.textContent).includes(query);if(!row.hidden)visible++}});document.getElementById('fabric-count').textContent=visible+' de {len(fabrics)} telas';document.getElementById('fabric-empty').hidden=visible>0}});
     const orderForm=document.getElementById('order-form'),pdf=document.getElementById('pedido-pdf'),excel=document.getElementById('pedido-excel'),extras=document.getElementById('pedido-extras'),orderSubmit=document.getElementById('order-submit'),orderMessage=document.getElementById('order-message');
     function checkOrder(){{document.getElementById('pdf-label').textContent=pdf.files[0]?.name||'Seleccionar cotización o remisión';document.getElementById('excel-label').textContent=excel.files[0]?.name||'Seleccionar archivo .xlsx o .xlsm';document.getElementById('extras-label').textContent=extras.files.length?extras.files.length+' anexo(s) seleccionado(s)':'Imágenes u otros archivos del pedido';orderSubmit.disabled=!(pdf.files.length&&excel.files.length)}} [pdf,excel,extras].forEach(x=>x.addEventListener('change',()=>{{checkOrder();if(pdf.files.length||excel.files.length){{localStorage.removeItem(currentKeys.pedido);resetProgressButton(orderSubmit,'Procesar pedido')}}}}));
@@ -2322,6 +2426,63 @@ const byDate=new Map();visible.forEach(item=>{{const key=scheduleISO(item.date);
 let html='';for(let n=0;n<days;n++){{const date=new Date(start);date.setDate(start.getDate()+n);const key=scheduleISO(date),events=byDate.get(key)||[];html+='<div class="schedule-day'+(scheduleView==='month'&&date.getMonth()!==month?' outside':'')+(key===todayKey?' today':'')+(events.length>1?' multiple-deliveries':'')+'">'+(events.length>1?'<button type="button" class="schedule-day-total" aria-label="Ver las '+events.length+' entregas">'+events.length+' entregas</button>':'')+'<div class="schedule-day-number">'+date.getDate()+'</div><div class="schedule-events">'+events.map(item=>{{const status=item.delivered?'Entregado':item.date<today?'Vencido':key===todayKey?'Hoy':'Programado',tone=item.delivered?'done':item.date<today?'late':key===todayKey?'due':'planned';return '<button class="schedule-event" type="button" data-order="'+esc(item.order)+'" title="Abrir '+esc(item.order)+' · '+esc(item.client)+' en Trazabilidad"><strong>'+esc(item.order)+'</strong><span class="schedule-client">'+esc(item.client||item.project||'Sin cliente')+'</span><span class="schedule-units">'+item.units.toLocaleString('es-CO')+' <span class="u-full">unidades</span><span class="u-short">u.</span></span><small class="schedule-badge '+tone+'">'+status+'</small></button>'}}).join('')+(!events.length&&scheduleView==='week'?'<span class="schedule-no-orders">Sin entregas</span>':'')+'</div></div>'}}scheduleGrid.innerHTML=html;requestAnimationFrame(fitDeliveryChips);
 }}
     async function loadSchedule(){{if(productionData){{renderSchedule();return}}scheduleCount.textContent='Cargando pedidos…';try{{const response=await fetch('/api/produccion'),data=await response.json();if(!response.ok)throw new Error(data.detail||'No se pudo cargar el cronograma');productionData=data;renderSchedule()}}catch(error){{scheduleCount.textContent=error.message;scheduleGrid.innerHTML='<div class="schedule-empty">No fue posible cargar las fechas de los pedidos.</div>'}}}}
+    /* Control de operarios: quién trabaja ahora y cuántos procesos cerró hoy */
+    const operariosGrid=document.getElementById('operarios-grid'),operariosStatus=document.getElementById('operarios-status'),operariosRefresh=document.getElementById('operarios-refresh'),operariosBusy=document.getElementById('operarios-busy'),operariosIdle=document.getElementById('operarios-idle'),operariosDone=document.getElementById('operarios-done');
+    let operariosPending=false,operariosTimer=null;
+    function operatorInitials(name){{const parts=String(name||'').trim().split(/\\s+/).filter(Boolean);if(!parts.length)return'—';return((parts[0][0]||'')+(parts[1]?parts[1][0]:'')).toUpperCase()}}
+    function operatorAgo(value){{const stamp=Date.parse(value);if(!value||!Number.isFinite(stamp))return'sin registro';const minutes=Math.floor((Date.now()-stamp)/60000);if(minutes<1)return'ahora mismo';if(minutes<60)return'hace '+minutes+' min';const hours=Math.floor(minutes/60);if(hours<24)return'hace '+hours+(hours===1?' hora':' horas');const days=Math.floor(hours/24);if(days===1)return'ayer';if(days<7)return'hace '+days+' días';const moment=new Date(stamp);return moment.toLocaleDateString('es-CO',{{day:'numeric',month:'short'}})+' · '+moment.toLocaleTimeString('es-CO',{{hour:'numeric',minute:'2-digit',timeZone:'America/Bogota'}})}}
+    function renderOperators(data){{
+      const operators=(data&&data.operators)||[],busy=operators.filter(item=>item.current),done=operators.reduce((sum,item)=>sum+(Number(item.today_count)||0),0);
+      operariosBusy.textContent=String(busy.length);operariosIdle.textContent=String(operators.length-busy.length);operariosDone.textContent=String(done);
+      if(!operators.length){{operariosGrid.innerHTML='<p class="operarios-empty">Todavía no hay operarios con procesos registrados en Trazabilidad.</p>';return}}
+      operariosGrid.innerHTML=operators.map(item=>{{
+        const current=item.current,closed=Number(item.today_count)||0;
+        const head='<div class="operarios-head"><span class="operarios-avatar">'+esc(operatorInitials(item.responsible))+'</span><span class="operarios-name" title="'+esc(item.responsible)+'">'+esc(item.responsible)+'</span><span class="operarios-badge">'+(current?'Trabajando':'Libre')+'</span></div>';
+        const body=current?'<div class="operarios-current"><span class="operarios-process">'+esc(current.process||'Proceso')+'</span><span class="operarios-order" title="Orden '+esc(current.order)+'">'+esc(current.order||'Sin orden')+'</span><span class="operarios-client" title="'+esc(current.client)+'">'+esc(current.client||'Sin cliente')+'</span></div>':'<div class="operarios-idle">Sin proceso en curso</div>';
+        const foot='<div class="operarios-foot"><span>'+(current?'Desde '+esc(operatorAgo(current.since)):'Última actividad '+esc(operatorAgo(item.last_at)))+'</span><span title="Procesos terminados hoy"><b>'+closed+'</b> hoy</span></div>';
+        const open=current&&current.order?'<button class="operarios-open" type="button" data-order="'+esc(current.order)+'">Ver en Trazabilidad</button>':'';
+        return '<article class="operarios-card'+(current?' is-busy':'')+'">'+head+body+foot+open+'</article>';
+      }}).join('');
+    }}
+    async function loadOperators(){{
+      if(operariosPending)return;operariosPending=true;
+      operariosRefresh.disabled=true;operariosRefresh.textContent='Actualizando…';
+      if(!operariosGrid.children.length)operariosStatus.textContent='Cargando operarios…';
+      try{{
+        const response=await fetch('/api/produccion/operarios',{{cache:'no-store'}}),data=await response.json();
+        if(!response.ok)throw new Error(data.detail||'No se pudieron consultar los operarios');
+        renderOperators(data);
+        operariosStatus.textContent='Actualizado a las '+new Date().toLocaleTimeString('es-CO',{{hour:'numeric',minute:'2-digit',timeZone:'America/Bogota'}});
+      }}catch(error){{
+        operariosStatus.textContent=error.message;
+        if(!operariosGrid.children.length)operariosGrid.innerHTML='<p class="operarios-empty">No fue posible cargar la información de los operarios.</p>';
+      }}finally{{operariosPending=false;operariosRefresh.disabled=false;operariosRefresh.textContent='Actualizar'}}
+    }}
+    function startOperatorsAutoRefresh(){{clearInterval(operariosTimer);operariosTimer=setInterval(()=>{{if(document.hidden||!document.body.classList.contains('operarios-mode'))return;loadOperators()}},5000)}}
+    operariosRefresh.addEventListener('click',loadOperators);
+    operariosGrid.addEventListener('click',async event=>{{
+      const button=event.target.closest('.operarios-open');
+      if(!button)return;
+      const order=button.dataset.order;
+      if(!order)return;
+      button.disabled=true;
+      try{{
+        const response=await fetch('/api/produccion/proceso-orden?order='+encodeURIComponent(order)),data=await response.json();
+        if(!response.ok)throw new Error(data.detail||'No se pudo consultar el proceso');
+        selectedProcess=processKey(data.process);
+        localStorage.setItem('indoor-production-process',selectedProcess);
+        exactScheduleOrder=order;productionSearch.value=order;
+        orderProgress.hidden=false;
+        orderProgress.textContent=order+' · '+(data.process?(data.basis.startsWith('finished')?'Último proceso terminado: ':'En proceso: ')+data.process:'Sin proceso en curso ni fecha de terminado');
+        productionTableWrap.scrollLeft=0;productionTableWrap.scrollTop=0;productionXScroll.scrollLeft=0;
+        document.getElementById('production-toggle').closest('.nav-group').classList.remove('collapsed');
+        document.querySelector('.tab[data-kind="produccion"]').click();
+        await loadProduction();renderProduction();
+      }}catch(error){{alert(error.message)}}finally{{button.disabled=false}}
+    }});
+    startOperatorsAutoRefresh();
+    document.addEventListener('visibilitychange',()=>{{if(!document.hidden&&document.body.classList.contains('operarios-mode'))loadOperators()}});
+    window.addEventListener('focus',()=>{{if(document.body.classList.contains('operarios-mode'))loadOperators()}});
 document.getElementById('schedule-prev').addEventListener('click',()=>scheduleMove(-1));document.getElementById('schedule-next').addEventListener('click',()=>scheduleMove(1));document.getElementById('schedule-today').addEventListener('click',()=>{{scheduleDate=scheduleToday();renderSchedule()}});async function handleScheduleEventClick(event){{const button=event.target.closest('.schedule-event');if(!button)return;button.disabled=true;try{{const response=await fetch('/api/produccion/proceso-orden?order='+encodeURIComponent(button.dataset.order)),data=await response.json();if(!response.ok)throw new Error(data.detail||'No se pudo consultar el proceso');orderProgress.hidden=false;orderProgress.textContent=button.dataset.order+' · '+(data.process?(data.basis.startsWith('finished')?'Último proceso terminado: ':'En proceso: ')+data.process:'Sin proceso en curso ni fecha de terminado');selectedProcess=processKey(data.process);localStorage.setItem('indoor-production-process',selectedProcess);exactScheduleOrder=button.dataset.order;productionSearch.value=button.dataset.order;productionTableWrap.scrollLeft=0;productionTableWrap.scrollTop=0;productionXScroll.scrollLeft=0;document.getElementById('production-toggle').closest('.nav-group').classList.remove('collapsed');document.querySelector('.tab[data-kind="produccion"]').click();renderProduction()}}catch(error){{alert(error.message)}}finally{{button.disabled=false}}}}scheduleGrid.addEventListener('click',handleScheduleEventClick);scheduleCards.addEventListener('click',handleScheduleEventClick);loadSchedule();
 const scheduleStyle=document.createElement('style');scheduleStyle.textContent=`
 body.schedule-mode{{overflow-y:auto}}
