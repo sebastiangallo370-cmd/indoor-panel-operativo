@@ -598,7 +598,7 @@
         notePanel.innerHTML = notes.flatMap(([k,v]) => (productionData.note_entries?.[k] || [{text: String(v), author: ''}]).map(note => ({...note, column: Number(k.split(':')[1])}))).map(note => {
           const attribution = noteAttribution(productionData, row, note.column, note.author, note.source);
           const title = attribution.name ? (attribution.inferred ? 'Responsable del área: ' : 'Autor: ') + attribution.name : 'Sin autor ni responsable registrado en esta área';
-          return '<p title="'+esc(title)+'">'+noteBadges(attribution)+'<span class="trace-note-text">'+esc(String(note.text).replace(/\s+/g, ' ').trim())+'</span></p>';
+          return '<p title="'+esc(title)+'">'+noteBadges(attribution)+'<span class="trace-note-text">'+esc(String(note.text).replace(/\s+/g, ' ').trim())+'</span><button type="button" class="trace-note-delete" data-note-row="'+row.source_row+'" data-note-column="'+note.column+'" aria-label="Eliminar nota" title="Eliminar nota">×</button></p>';
         }).join('');
         card.querySelector('.trace-inline-notes').remove();
         card.querySelector('.trace-project').after(notePanel);
@@ -647,6 +647,26 @@
     fitTraceCards();
     refreshOperatorActions();
   };
+  // Boton "X" en cada nota: la borra por completo (misma API que el editor de notas de la tabla).
+  traceCards.addEventListener('click', async event => {
+    const delBtn = event.target.closest('.trace-note-delete');
+    if (!delBtn) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const row = Number(delBtn.dataset.noteRow), column = Number(delBtn.dataset.noteColumn);
+    if (!confirm('¿Eliminar esta nota?')) return;
+    delBtn.disabled = true;
+    try {
+      const response = await fetch('/api/produccion/nota', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ row, column, note: '' }) });
+      if (!response.ok) { const data = await response.json().catch(() => ({})); throw new Error(data.detail || 'No se pudo eliminar la nota'); }
+      if (productionData.notes) delete productionData.notes[row + ':' + column];
+      if (productionData.note_entries) delete productionData.note_entries[row + ':' + column];
+      renderTraceCards();
+    } catch (error) {
+      alert(error.message);
+      delBtn.disabled = false;
+    }
+  });
   // Resolve NAS from the card's source data, never from filtered table rows.
   // Reuse the existing NAS progress/resolver handler and its platform support.
   traceCards.addEventListener('click', event => {
@@ -1444,17 +1464,20 @@
   html body.production-mode .trace-card .trace-note-alert{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 10px;max-height:none;overflow:visible}
   html body.production-mode .trace-card .trace-note-alert>.trace-note-label{grid-column:1/-1}
   html body.production-mode .trace-card .trace-note-alert>p{min-width:0;margin:0;padding:5px 0 0;max-height:none;overflow:visible;overflow-wrap:anywhere;white-space:pre-wrap}
-  html body.production-mode .trace-card .trace-note-alert>.trace-production-note{background:transparent!important;border-left:0;border-top:1px solid #87ceeb}
+  html body.production-mode .trace-card .trace-note-alert>.trace-production-note{background:transparent!important;border-left:0;border-top:1px solid #f5a623}
   html body.production-mode .trace-card .trace-note-alert strong{display:inline;margin:0;letter-spacing:0}
   html body.production-mode .trace-card .trace-note-alert>p{white-space:normal;border:0;padding:0}
   html body.production-mode .trace-card:not(.details-expanded){height:auto!important;min-height:860px;align-self:stretch}
-  /* Shared observation treatment: sky blue, readable on Indoor's dark surfaces. */
-  html body :is(.trace-note-alert,.trace-production-note,.trace-process-notes,.studio-notes){background:#142e3b!important;border-color:#87ceeb!important}
+  /* Shared observation treatment: amber/orange, readable on Indoor's dark surfaces. */
+  html body :is(.trace-note-alert,.trace-production-note,.trace-process-notes,.studio-notes){background:#3a2a12!important;border-color:#f5a623!important}
   html body :is(.trace-note-alert,.trace-production-note,.trace-process-notes,.studio-notes,.trace-inline-notes,.trace-full-note,.trace-note-count,.trace-note-label,.trace-note-preview),
-  html body :is(.trace-note-alert,.trace-production-note,.trace-process-notes,.studio-notes,.trace-inline-notes,.trace-full-note) :is(p,strong,small,h3,h4,span,summary){color:#87ceeb!important;font-weight:700!important;font-size:12px!important;line-height:1.45!important;text-decoration-color:#87ceeb!important}
+  html body :is(.trace-note-alert,.trace-production-note,.trace-process-notes,.studio-notes,.trace-inline-notes,.trace-full-note) :is(p,strong,small,h3,h4,span,summary){color:#ffb84d!important;font-weight:700!important;font-size:12px!important;line-height:1.45!important;text-decoration-color:#ffb84d!important}
   html body.production-mode .trace-card .trace-note-alert>p{display:flex;align-items:flex-start;gap:6px}
   html body.production-mode .trace-card .trace-note-authors{display:flex;flex-wrap:wrap;gap:3px;flex:0 0 auto;max-width:62px}
-  html body.production-mode .trace-card .trace-note-alert .trace-note-author-badge{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;box-sizing:border-box;flex:0 0 28px;border:1px solid #87ceeb;border-radius:50%;background:#203f50;font-size:10px!important;line-height:1!important;letter-spacing:0;margin:0}
+  html body.production-mode .trace-card .trace-note-alert .trace-note-author-badge{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;box-sizing:border-box;flex:0 0 28px;border:1px solid #f5a623;border-radius:50%;background:#4a3316;font-size:10px!important;line-height:1!important;letter-spacing:0;margin:0}
+  html body.production-mode .trace-card .trace-note-alert .trace-note-delete{flex:0 0 auto;margin-left:auto;width:20px!important;height:20px;padding:0!important;display:grid;place-items:center;border-radius:50%;border:1px solid #f5a623;background:#4a3316;color:#ffd9a0!important;font-size:13px!important;font-weight:900!important;line-height:1!important;box-shadow:none;cursor:pointer}
+  html body.production-mode .trace-card .trace-note-alert .trace-note-delete:hover{background:#f5a623;color:#2a1c08!important}
+  html body.production-mode .trace-card .trace-note-alert .trace-note-delete:disabled{opacity:.5;cursor:progress}
   html body.production-mode .trace-card .trace-note-text{min-width:0;padding-top:5px;overflow-wrap:anywhere}
   @media(max-width:1050px) and (min-width:601px){html body.production-mode .trace-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
   @media(max-width:600px){html body.production-mode .trace-cards{grid-template-columns:1fr}html body.production-mode .trace-card .trace-client{font-size:14px!important}}
