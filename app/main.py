@@ -2645,11 +2645,12 @@ let html='';for(let n=0;n<days;n++){{const date=new Date(start);date.setDate(sta
       const byArea=new Map();
       sheet.columns.forEach(col=>{{
         if(!col.area||!col.code)return;
-        if(!byArea.has(col.area))byArea.set(col.area,[]);
-        byArea.get(col.area).push([col.code]);
+        if(!byArea.has(col.area))byArea.set(col.area,new Map());
+        const codes=byArea.get(col.area);
+        if(!codes.has(col.code))codes.set(col.code,[col.code]);
       }});
       if(!byArea.size)return false;
-      operatorAreaColumns=[...byArea.entries()].map(([area,columns])=>({{area,columns}}));
+      operatorAreaColumns=[...byArea.entries()].map(([area,codes])=>({{area,columns:[...codes.values()]}}));
       operariosOpenAreas=(sheet.areas&&sheet.areas.length)?sheet.areas:operatorAreaColumns.map(item=>item.area);
       return true;
     }}
@@ -2765,9 +2766,15 @@ let html='';for(let n=0;n<days;n++){{const date=new Date(start);date.setDate(sta
 
       const days=Array.from({{length:total}},(_,index)=>{{
         const day=index+1,key=operatorDayKey(year,month,day);
-        const people=roster.map(entry=>({{name:entry.name,record:entry.record,
-          count:sheetAvailable?((dailyByCode[entry.member]||{{}})[key]||0):((daily[entry.name]||{{}})[key]||0)}}))
-          .filter(entry=>entry.count>0).sort((a,b)=>b.count-a.count);
+        const peopleMap=new Map();
+        roster.forEach(entry=>{{
+          const count=sheetAvailable?((dailyByCode[entry.member]||{{}})[key]||0):((daily[entry.name]||{{}})[key]||0);
+          if(count<=0)return;
+          const codeKey=entry.member||entry.name;
+          if(peopleMap.has(codeKey))peopleMap.get(codeKey).count+=count;
+          else peopleMap.set(codeKey,{{name:entry.name,record:entry.record,count:count}});
+        }});
+        const people=Array.from(peopleMap.values()).sort((a,b)=>b.count-a.count);
         return {{day:day,key:key,people:people,total:people.reduce((sum,entry)=>sum+entry.count,0)}};
       }}).filter(entry=>entry.total>0||entry.key===todayKey).reverse();
       if(!roster.length){{
@@ -2783,7 +2790,7 @@ let html='';for(let n=0;n<days;n++){{const date=new Date(start);date.setDate(sta
         const list=entry.people.length
           ?'<ul class="operarios-daylist">'+entry.people.map(person=>'<li>'+operatorBadgeHTML(person.name)+'<em>'+person.count+'</em></li>').join('')+'</ul>'
           :'<p class="operarios-daynone">Sin cierres</p>';
-        return '<article class="operarios-daycard'+(entry.key===todayKey?' is-today':'')+'"><div class="operarios-daycard-head"><span class="operarios-daycard-date">'+esc(dowFull)+' / '+entry.day+' / '+esc(monthFull)+'</span><span class="operarios-daycard-total">'+entry.total+'</span></div>'+list+'</article>';
+        return '<article class="operarios-daycard'+(entry.key===todayKey?' is-today':'')+'"><div class="operarios-daycard-head"><span class="operarios-daycard-date">'+esc(dowFull)+' / '+entry.day+' / '+esc(monthFull)+'</span><span class="operarios-daycard-total">Total '+entry.total+' unds</span></div>'+list+'</article>';
       }}).join('');
       const kpisHTML='<div><span>Operarios</span><strong>'+roster.length+'</strong></div><div><span>Trabajando</span><strong>'+roster.filter(entry=>entry.record&&entry.record.current).length+'</strong></div><div><span>Días con registro</span><strong>'+days.filter(entry=>entry.total>0).length+'</strong></div><div><span>Procesos del mes</span><strong>'+days.reduce((sum,entry)=>sum+entry.total,0)+'</strong></div>';
       const bodyHTML=cards?'<div class="operarios-days">'+cards+'</div>':'<p class="operarios-cal-empty">No hay procesos cerrados en este mes.</p>';
