@@ -1333,7 +1333,7 @@
   html body.top-navigation .sidebar{background:var(--sport-bg);backdrop-filter:none;border-bottom-color:var(--sport-line)}
   html body.top-navigation .sidebar nav.tabs>.tab,html body.top-navigation .sidebar .nav-parent{border-radius:0;border:0;border-bottom:2px solid transparent;min-height:48px;background:transparent;color:var(--sport-text);font-weight:700}
   html body.top-navigation .sidebar nav.tabs>.tab.active,html body.top-navigation .sidebar .nav-parent[aria-expanded=true]{border-bottom-color:var(--sport-lime);background:transparent;color:var(--sport-lime)}
-  html body.top-navigation .sidebar nav.tabs>.tab:hover,html body.top-navigation .sidebar .nav-parent:hover{border-bottom-color:var(--sport-lime);background:transparent}
+  html body.top-navigation .sidebar nav.tabs>.tab:hover,html body.top-navigation .sidebar .nav-parent:hover{background:transparent;outline:2px solid var(--sport-lime);outline-offset:-2px;border-radius:8px}
   html body.top-navigation .sidebar .nav-children{background:var(--sport-surface);border-radius:0 0 var(--sport-radius) var(--sport-radius);box-shadow:0 20px 40px #0005}
   html body.top-navigation .sidebar .nav-children .tab{font-weight:600;border-radius:var(--sport-radius)}
   body .card,body .production-shell,body .schedule-shell{border-radius:var(--sport-radius);background:var(--sport-surface);box-shadow:none}
