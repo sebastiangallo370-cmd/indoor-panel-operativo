@@ -1183,6 +1183,7 @@
   html body.top-navigation .sidebar :is(.session-card,.sidebar-label,.sidebar-foot){display:none}
   html body.top-navigation #menu-toggle,html body.top-navigation main>.brand{display:none!important}
   html body.top-navigation .sidebar nav.tabs{display:flex;align-items:center;gap:8px;padding:0;margin:0;flex:1;overflow:visible}
+  @media(min-width:701px){html body.top-navigation .sidebar nav.tabs{justify-content:center;margin-right:128px}}
   html body.top-navigation .sidebar nav.tabs>.tab,html body.top-navigation .sidebar .nav-parent{width:auto;min-height:42px;padding:10px 16px;gap:8px;font-size:12px;white-space:nowrap;border-radius:999px}
   html body.top-navigation .sidebar nav.tabs>.tab .nav-icon,html body.top-navigation .nav-parent .nav-icon{display:none}
   html body.top-navigation .sidebar nav.tabs>.tab:after{display:none}
