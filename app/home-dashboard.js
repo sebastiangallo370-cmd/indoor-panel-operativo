@@ -126,27 +126,32 @@
     const total = items.reduce((s, i) => s + i.value, 0);
     if (!total) return '<div class="dash-empty">Sin datos</div>';
     return '<div class="dash-bar" role="img" aria-label="' + esc(items.map(i => i.label + ': ' + i.value).join(', ')) + '">' +
-      items.filter(i => i.value).map(i => '<span style="flex:' + i.value + ';background:' + i.color + '" title="' + esc(i.label + ': ' + i.value) + '">' + i.value + '</span>').join('') + '</div>';
+      items.filter(i => i.value).map(i => i.cards
+        ? '<button type="button" class="dash-seg" data-open-cards="' + i.cards + '" style="flex:' + i.value + ';background:' + i.color + '" title="' + esc(i.label + ': ' + i.value + ' · ver tarjetas') + '">' + i.value + '</button>'
+        : '<span style="flex:' + i.value + ';background:' + i.color + '" title="' + esc(i.label + ': ' + i.value) + '">' + i.value + '</span>').join('') + '</div>';
   }
 
   function render(a) {
     const C = { red: '#ff6b6b', orange: '#ffb347', yellow: '#e6e35a', green: '#8bd450', gray: '#4b5648', blue: '#6cb6ff' };
-    const kpi = (label, value, note, tone) => '<div class="dash-kpi ' + (tone || '') + '"><small>' + label + '</small><strong>' + value + '</strong><span>' + note + '</span></div>';
+    const kpi = (label, value, note, tone, cards) => {
+      const inner = '<small>' + label + '</small><strong>' + value + '</strong><span>' + note + (cards ? ' · <u>ver tarjetas</u>' : '') + '</span>';
+      return cards ? '<button type="button" class="dash-kpi dash-link ' + (tone || '') + '" data-open-cards="' + cards + '">' + inner + '</button>' : '<div class="dash-kpi ' + (tone || '') + '">' + inner + '</div>';
+    };
 
     const kpis =
-      kpi('Pedidos activos', a.active, 'de ' + a.total + ' pedidos registrados') +
-      kpi('Entregas vencidas', a.late.length, a.late.length ? 'requieren atención' : 'todo al día', a.late.length ? 'bad' : 'good') +
-      kpi('Vencen en 7 días', a.soon.length, 'próximas entregas', a.soon.length ? 'warn' : '') +
+      kpi('Pedidos activos', a.active, 'de ' + a.total + ' registrados', '', 'pending') +
+      kpi('Entregas vencidas', a.late.length, a.late.length ? 'requieren atención' : 'todo al día', a.late.length ? 'bad' : 'good', 'late') +
+      kpi('Vencen en 7 días', a.soon.length, 'próximas entregas', a.soon.length ? 'warn' : '', 'pending') +
       kpi('Salida promedio', a.lead === null ? '—' : fmtDays(a.lead) + ' <em>días</em>',
         a.lead === null ? 'aún sin pedidos entregados con fecha' : 'de creación a entrega · ' + a.sampleSize + ' pedidos' + (a.recentWindow ? ' (90 días)' : ''));
 
     const dueBlock =
       '<h4>Fechas de entrega</h4>' +
       segments([
-        { label: 'Vencidos', value: a.late.length, color: C.red },
-        { label: '0 a 7 días', value: a.soon.length, color: C.orange },
-        { label: '8 a 14 días', value: a.mid.length, color: C.yellow },
-        { label: 'Más de 14 días', value: a.ok.length, color: C.green }
+        { label: 'Vencidos', value: a.late.length, color: C.red, cards: 'late' },
+        { label: '0 a 7 días', value: a.soon.length, color: C.orange, cards: 'pending' },
+        { label: '8 a 14 días', value: a.mid.length, color: C.yellow, cards: 'pending' },
+        { label: 'Más de 14 días', value: a.ok.length, color: C.green, cards: 'pending' }
       ]) +
       '<div class="dash-legend"><i style="background:' + C.red + '"></i>Vencidos <i style="background:' + C.orange + '"></i>0–7 días <i style="background:' + C.yellow + '"></i>8–14 días <i style="background:' + C.green + '"></i>+14 días' +
       (a.noDue ? ' · ' + a.noDue + ' sin fecha' : '') + '</div>' +
@@ -199,6 +204,9 @@
   .dash-stages{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px 18px}.dash-stage label{display:block;margin-bottom:4px;font-size:.74rem;color:#d5dccf;font-weight:700}.dash-stage .dash-bar{height:20px}
   .dash-time{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}.dash-time div{padding:10px;border-radius:10px;background:rgba(255,255,255,.04)}.dash-time small{display:block;color:var(--muted);font-size:.7rem}.dash-time strong{font-size:1.25rem}
   .dash-months{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;align-items:end;height:130px}.dash-months div{position:relative;display:grid;grid-template-rows:1fr auto auto;justify-items:center;height:100%}.dash-months span{align-self:end;width:70%;max-width:38px;border-radius:6px 6px 0 0;background:var(--lime)}.dash-months b{font-size:.75rem}.dash-months small{color:var(--muted);font-size:.7rem}
+  button.dash-link,button.dash-seg{font:inherit;text-align:left;cursor:pointer;color:inherit;box-shadow:none;width:auto;min-height:0}
+  button.dash-link{transition:border-color .15s,background .15s}button.dash-link:hover,button.dash-link:focus-visible{border-color:var(--lime);background:rgba(208,244,76,.07)}.dash-kpi u{color:var(--lime);text-decoration:none}
+  button.dash-seg{display:grid;place-items:center;min-width:22px;padding:0;border:0;border-radius:0;color:#10140f;font-size:.72rem;font-weight:800;text-align:center}button.dash-seg:hover,button.dash-seg:focus-visible{filter:brightness(1.15);outline:2px solid #fff;outline-offset:-2px}
   .dash-empty{color:var(--muted);font-size:.85rem;padding:10px 0}
   @media(max-width:800px){.dash-grid{grid-template-columns:1fr}.dash-wide{grid-column:auto}.dash-time{grid-template-columns:1fr}.dash-kpi strong{font-size:1.6rem}}
   `;
@@ -217,6 +225,20 @@
       root.innerHTML = '<div class="dash-empty">No fue posible cargar el resumen de pedidos: ' + esc(error.message) + '</div>';
     } finally { busy = false; }
   }
+  // Abrir Trazabilidad en vista de tarjetas con el filtro elegido.
+  root.addEventListener('click', event => {
+    const target = event.target.closest('[data-open-cards]');
+    if (!target) return;
+    const nav = document.querySelector('.tab.production-nav');
+    if (!nav) return;
+    const wanted = target.dataset.openCards;
+    nav.click();
+    setTimeout(() => {
+      document.querySelector('[data-trace-view="cards"]')?.click();
+      const button = document.querySelector('[data-trace-filter="' + wanted + '"]') || document.querySelector('[data-trace-filter="all"]');
+      button?.click();
+    }, 250);
+  });
   root.innerHTML = '<div class="dash-empty">Cargando resumen de pedidos…</div>';
   refresh();
   document.querySelectorAll('.tab[data-kind="inicio"]').forEach(tab => tab.addEventListener('click', refresh));
