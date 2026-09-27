@@ -2308,9 +2308,9 @@ def home(_=Depends(authenticate)):
     .operarios-daylist b{{display:grid;place-items:center;flex:0 0 auto;min-width:24px;height:21px;padding:0 5px;white-space:nowrap;border-radius:999px;background:rgba(255,255,255,.08);color:#e7ede2;font-size:.62rem;font-weight:900;letter-spacing:.02em}}
     .operarios-daylist-stats{{display:flex;flex-wrap:wrap;align-items:center;gap:2px 9px}}
     .op-stat{{font-size:.72rem;font-weight:900;font-variant-numeric:tabular-nums;white-space:nowrap}}
-    .op-stat-done{{color:var(--lime)}}
-    .op-stat-active{{color:#8ec3ff}}
-    .op-stat-rework{{color:#ff9b7c}}
+    .op-stat-done{{color:#4ade80}}
+    .op-stat-active{{color:#ffa63d}}
+    .op-stat-rework{{color:#ff5c5c}}
     .operarios-badge{{display:inline-grid;place-items:center;width:26px;height:26px;flex:0 0 26px;border:1px solid rgba(208,244,76,.55);border-radius:50%;background:rgba(208,244,76,.12);color:var(--lime);font-size:.62rem;font-weight:900;letter-spacing:.02em;box-sizing:border-box}}
     .operarios-daynone{{color:#77816f;font-size:.68rem;text-align:center;padding:6px 0}}
     .operarios-cal-empty{{padding:44px 20px;text-align:center;color:var(--muted);font-size:.85rem}}
