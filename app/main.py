@@ -2275,7 +2275,8 @@ const scheduleGrid=document.getElementById('schedule-grid'),scheduleMonth=docume
 function scheduleToday(){{const p=new Intl.DateTimeFormat('en-CA',{{timeZone:'America/Bogota',year:'numeric',month:'2-digit',day:'2-digit'}}).formatToParts(new Date());const get=k=>Number(p.find(x=>x.type===k).value);return new Date(get('year'),get('month')-1,get('day'))}}
 let scheduleDate=scheduleToday();const scheduleView='month';
 const scheduleExtras=document.createElement('div');scheduleExtras.className='schedule-extras';scheduleExtras.innerHTML='<div class="schedule-metrics" aria-label="Resumen de entregas"></div><div class="schedule-filters"><input id="schedule-search" type="search" placeholder="Buscar cliente u orden" aria-label="Buscar cliente u orden"></div>';
-document.querySelector('.schedule-summary').before(scheduleExtras);
+const scheduleStatsBar=document.createElement('div');scheduleStatsBar.className='schedule-stats-bar';scheduleStatsBar.innerHTML='<div class="schedule-stats-chart" id="schedule-week-chart" aria-label="Entregas por semana del mes"></div><div class="schedule-stats-kpis" id="schedule-stats-kpis"></div>';
+document.querySelector('.schedule-summary').before(scheduleExtras);scheduleExtras.after(scheduleStatsBar);
 const scheduleSearch=document.getElementById('schedule-search');
 scheduleSearch.addEventListener('input',renderSchedule);
 function scheduleMove(direction){{scheduleDate=scheduleView==='week'?new Date(scheduleDate.getFullYear(),scheduleDate.getMonth(),scheduleDate.getDate()+direction*7):new Date(scheduleDate.getFullYear(),scheduleDate.getMonth()+direction,1);renderSchedule()}}
@@ -2288,7 +2289,8 @@ function renderSchedule(){{
 if(!scheduleGrid||!productionData)return;
 const today=scheduleToday(),todayKey=scheduleISO(today),weekStart=new Date(today);weekStart.setDate(today.getDate()-(today.getDay()+6)%7);const weekEnd=new Date(weekStart);weekEnd.setDate(weekStart.getDate()+7);
 const all=scheduleOrders(),query=scheduleSearch.value.trim().toLocaleLowerCase('es'),orders=all.filter(item=>!query||(item.order+' '+item.client).toLocaleLowerCase('es').includes(query));
-document.querySelector('.schedule-metrics').innerHTML=[['Hoy',all.filter(i=>scheduleISO(i.date)===todayKey).length],['Esta semana',all.filter(i=>i.date>=weekStart&&i.date<weekEnd).length],['Vencidas sin entregar',all.filter(i=>i.date<today&&!i.delivered).length]].map(([label,count])=>'<div><span>'+label+'</span><strong>'+count+'</strong></div>').join('');
+document.querySelector('.schedule-metrics').innerHTML=[['Hoy',all.filter(i=>scheduleISO(i.date)===todayKey).length,'metric-today'],['Esta semana',all.filter(i=>i.date>=weekStart&&i.date<weekEnd).length,'metric-week'],['Vencidas sin entregar',all.filter(i=>i.date<today&&!i.delivered).length,'metric-late'],['Total mes',all.filter(i=>i.date.getMonth()===scheduleDate.getMonth()&&i.date.getFullYear()===scheduleDate.getFullYear()).length,'metric-month']].map(([label,count,cls])=>'<div class="'+cls+(count>0&&cls==='metric-late'?' has-value':'')+'"><span>'+label+'</span><strong>'+count+'</strong></div>').join('');
+(function renderScheduleStats(){{const weekChart=document.getElementById('schedule-week-chart'),kpisEl=document.getElementById('schedule-stats-kpis');if(!weekChart||!kpisEl)return;const curMonth=scheduleDate.getMonth(),curYear=scheduleDate.getFullYear(),monthOrders=all.filter(i=>i.date.getMonth()===curMonth&&i.date.getFullYear()===curYear);const weeks=[];for(let w=0;w<6;w++){{const ws=new Date(curYear,curMonth,1-((new Date(curYear,curMonth,1).getDay()+6)%7)+w*7),we=new Date(ws);we.setDate(ws.getDate()+7);const inWeek=monthOrders.filter(i=>i.date>=ws&&i.date<we);if(inWeek.length||weeks.length<6)weeks.push({{ws,we,count:inWeek.length,units:inWeek.reduce((s,i)=>s+i.units,0),late:inWeek.filter(i=>i.date<today&&!i.delivered).length,done:inWeek.filter(i=>i.delivered).length}})}}const maxCount=Math.max(1,...weeks.map(w=>w.count));const totalUnits=monthOrders.reduce((s,i)=>s+i.units,0),totalDone=monthOrders.filter(i=>i.delivered).length,totalLate=monthOrders.filter(i=>i.date<today&&!i.delivered).length,pctDone=monthOrders.length?Math.round(totalDone/monthOrders.length*100):0;weekChart.innerHTML='<div class="sch-chart-title">Pedidos por semana · '+scheduleDate.toLocaleDateString("es-CO",{{month:"long",year:"numeric"}})+'</div><div class="sch-bars">'+weeks.map((w,i)=>{{const isCurrentWeek=w.ws<=today&&today<w.we,h=Math.max(4,Math.round(w.count/maxCount*80));return'<div class="sch-bar-col'+(isCurrentWeek?' sch-bar-current':'')+'"><div class="sch-bar-wrap"><div class="sch-bar-fill" style="height:'+h+'px" title="'+w.count+' pedidos · '+w.units.toLocaleString("es-CO")+' u."><span class="sch-bar-num">'+w.count+'</span></div>'+(w.late?'<div class="sch-bar-late">'+w.late+'⚠</div>':'')+'</div><div class="sch-bar-label">S'+(i+1)+'</div></div>'}}).join('')+'</div>';kpisEl.innerHTML='<div class="sch-kpi"><span>Unidades mes</span><strong>'+totalUnits.toLocaleString("es-CO")+'</strong></div><div class="sch-kpi"><span>Entregados</span><strong class="sch-done">'+totalDone+'</strong></div><div class="sch-kpi"><span>Vencidos</span><strong class="'+(totalLate?'sch-late':'sch-ok')+'">'+totalLate+'</strong></div><div class="sch-kpi"><span>% Cumplimiento</span><div class="sch-progress-wrap"><div class="sch-progress-fill" style="width:'+pctDone+'%"></div><span class="sch-progress-label">'+pctDone+'%</span></div></div>'}})()
 const month=scheduleDate.getMonth(),start=scheduleView==='week'?new Date(scheduleDate):new Date(scheduleDate.getFullYear(),month,1);start.setDate(start.getDate()-(start.getDay()+6)%7);
 const days=scheduleView==='week'?7:42,end=new Date(start);end.setDate(start.getDate()+days);const last=new Date(end);last.setDate(last.getDate()-1);
 scheduleMonth.textContent=scheduleView==='week'?start.toLocaleDateString('es-CO',{{day:'numeric',month:'short'}})+' — '+last.toLocaleDateString('es-CO',{{day:'numeric',month:'short',year:'numeric'}}):scheduleDate.toLocaleDateString('es-CO',{{month:'long',year:'numeric'}});
@@ -2306,7 +2308,26 @@ body.schedule-mode{{overflow-y:auto}}
 body.schedule-mode .schedule-toolbar{{padding:18px 24px}}
 .schedule-extras{{padding:14px 20px;background:#171b18;border-bottom:1px solid #343b34}}
 .schedule-metrics{{display:flex;gap:36px;margin-bottom:14px}}.schedule-metrics>div{{display:flex;gap:12px;align-items:center}}.schedule-metrics span{{font-size:12px;color:#b6bfb6}}.schedule-metrics strong{{font-size:22px;color:#f3f5f2}}
+.schedule-metrics .metric-late.has-value strong{{color:#f3b9af}}.schedule-metrics .metric-late.has-value{{animation:sch-pulse 2s ease-in-out infinite}}
+@keyframes sch-pulse{{0%,100%{{opacity:1}}50%{{opacity:.65}}}}
 .schedule-filters{{display:flex;gap:14px;justify-content:space-between}}.schedule-filters input{{width:min(440px,65%);padding:10px 12px;background:#222723;border:1px solid #485047;border-radius:8px;color:white;font:inherit;font-size:14px}}.schedule-view{{display:flex;gap:5px}}.schedule-view button{{width:auto;padding:9px 18px;background:#232924;border:1px solid #465044;color:#c9d2c5;box-shadow:none}}.schedule-view button[aria-pressed=true]{{background:#3a4630;color:#f1f6e9;border-color:#899967}}
+.schedule-stats-bar{{display:flex;align-items:flex-end;gap:24px;padding:10px 20px 12px;background:#131714;border-bottom:1px solid #2b342c;flex-wrap:wrap}}
+.sch-chart-title{{font-size:10px;color:#7a8f7a;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}}
+.schedule-stats-chart{{flex:1;min-width:220px}}.sch-bars{{display:flex;align-items:flex-end;gap:6px;height:96px;padding-top:14px}}
+.sch-bar-col{{display:flex;flex-direction:column;align-items:center;gap:3px;flex:1;min-width:0}}
+.sch-bar-wrap{{position:relative;display:flex;flex-direction:column;align-items:center;width:100%}}
+.sch-bar-fill{{width:100%;max-width:36px;background:linear-gradient(180deg,#7aad50 0%,#4d7a30 100%);border-radius:4px 4px 0 0;position:relative;transition:height .4s cubic-bezier(.4,0,.2,1);display:flex;align-items:flex-start;justify-content:center;cursor:default}}
+.sch-bar-num{{font-size:9px;color:#ddf5c0;padding-top:2px;font-weight:700;line-height:1}}
+.sch-bar-late{{font-size:8px;color:#f5a97f;margin-top:2px;line-height:1}}
+.sch-bar-label{{font-size:10px;color:#7a8f7a;margin-top:2px}}
+.sch-bar-col.sch-bar-current .sch-bar-fill{{background:linear-gradient(180deg,#a2d468 0%,#6b9c3a 100%);box-shadow:0 0 8px rgba(162,212,104,.3)}}
+.sch-bar-col.sch-bar-current .sch-bar-label{{color:#c8e89a;font-weight:700}}
+.schedule-stats-kpis{{display:flex;gap:18px;flex-wrap:wrap;align-items:center}}
+.sch-kpi{{display:flex;flex-direction:column;gap:3px;min-width:80px}}.sch-kpi span{{font-size:10px;color:#7a8f7a;text-transform:uppercase;letter-spacing:.05em}}.sch-kpi strong{{font-size:20px;color:#e8f0e2;line-height:1}}
+.sch-done{{color:#9fe87a!important}}.sch-late{{color:#f5a97f!important}}.sch-ok{{color:#9fe87a!important}}
+.sch-progress-wrap{{position:relative;width:80px;height:8px;background:#263228;border-radius:4px;overflow:hidden;margin-top:2px}}
+.sch-progress-fill{{height:100%;background:linear-gradient(90deg,#4d9e30,#88cc50);border-radius:4px;transition:width .5s ease}}
+.sch-progress-label{{position:absolute;top:-1px;left:0;width:100%;font-size:9px;color:#c8e89a;text-align:center;line-height:10px}}
 body.schedule-mode .schedule-grid{{grid-template-rows:repeat(6,minmax(120px,auto))}}
 body.schedule-mode .schedule-grid.week-view{{grid-template-rows:minmax(330px,auto)}}
 body.schedule-mode .schedule-day{{background:#171b18;padding:10px;min-height:120px}}
@@ -2329,7 +2350,7 @@ body.schedule-mode .schedule-day-number{{font-size:13px}}
 html:has(body.schedule-mode),html body.schedule-mode{{overflow:hidden!important;height:100dvh}}
 body.schedule-mode main{{padding-bottom:0!important}}
 body.schedule-mode .footer-note{{display:none}}
-body.schedule-mode .schedule-shell{{display:grid;grid-template-rows:auto auto auto auto minmax(0,1fr);height:var(--schedule-height,calc(100dvh - 150px));min-height:0;overflow:hidden!important}}
+body.schedule-mode .schedule-shell{{display:grid;grid-template-rows:auto auto auto auto auto minmax(0,1fr);height:var(--schedule-height,calc(100dvh - 150px));min-height:0;overflow:hidden!important}}
 body.schedule-mode .schedule-toolbar{{padding:9px 16px;gap:8px}}
 body.schedule-mode .schedule-title .eyebrow,body.schedule-mode .schedule-title p{{display:none}}
 body.schedule-mode .schedule-title h2{{font-size:18px;margin:0}}
@@ -2340,6 +2361,13 @@ body.schedule-mode .schedule-metrics strong{{font-size:18px}}
 body.schedule-mode .schedule-filters{{flex:0 1 320px;min-width:0}}
 body.schedule-mode .schedule-filters input{{width:100%;padding:7px 10px}}
 body.schedule-mode .schedule-summary{{padding:6px 16px}}
+body.schedule-mode .schedule-stats-bar{{padding:6px 16px;gap:12px;min-height:0}}
+body.schedule-mode .schedule-stats-chart{{min-width:0}}
+body.schedule-mode .sch-bars{{height:52px}}
+body.schedule-mode .sch-bar-fill{{max-width:24px}}
+body.schedule-mode .sch-bar-num{{font-size:8px}}
+body.schedule-mode .sch-chart-title{{margin-bottom:2px;font-size:9px}}
+body.schedule-mode .sch-kpi strong{{font-size:15px}}
 body.schedule-mode .schedule-grid{{min-height:0;overflow:hidden;grid-template-rows:repeat(6,minmax(0,1fr))!important}}
 body.schedule-mode .schedule-day{{display:flex;flex-direction:column;min-height:0;height:auto!important;padding:4px 6px;overflow:hidden}}
 body.schedule-mode .schedule-day-number{{flex:0 0 18px;height:18px;margin-bottom:2px;font-size:12px}}
