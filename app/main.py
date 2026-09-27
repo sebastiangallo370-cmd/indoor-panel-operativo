@@ -2156,23 +2156,23 @@ def home(_=Depends(authenticate)):
     .operarios-title h2{{margin:4px 0 5px;font-size:1.45rem}}
     .operarios-title p{{color:var(--muted);font-size:.84rem}}
     .operarios-toolbar .production-refresh{{padding:9px 13px}}
-    .operarios-hover-wrap{{display:grid;grid-template-columns:1.35fr 1fr;align-items:stretch;gap:18px;padding:22px 26px 26px;max-width:1360px;margin:0 auto}}
-    .operarios-goal{{width:100%;display:grid;align-content:center;gap:12px;padding:20px 26px;background:linear-gradient(160deg,#12160f,#0b0e0a);border:1px solid var(--line);border-radius:18px;box-shadow:0 14px 34px rgba(0,0,0,.24)}}
+    .operarios-hover-wrap{{display:grid;grid-template-columns:1.35fr 1fr;align-items:stretch;gap:12px;padding:14px 26px 12px;max-width:1360px;margin:0 auto}}
+    .operarios-goal{{width:100%;display:grid;align-content:center;gap:7px;padding:11px 18px;background:linear-gradient(160deg,#12160f,#0b0e0a);border:1px solid var(--line);border-radius:13px;box-shadow:0 8px 18px rgba(0,0,0,.2)}}
     .operarios-goal-head{{display:flex;justify-content:space-between;align-items:baseline;gap:10px}}
-    .operarios-goal-head span{{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700}}
-    .operarios-goal-head strong{{font-size:1.3rem;color:#eef3e8;font-variant-numeric:tabular-nums;letter-spacing:.01em}}
-    .operarios-goal-bar{{height:12px;border-radius:999px;background:#1c231b;overflow:hidden;box-shadow:inset 0 1px 3px rgba(0,0,0,.4)}}
+    .operarios-goal-head span{{font-size:.64rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;font-weight:700}}
+    .operarios-goal-head strong{{font-size:.94rem;color:#eef3e8;font-variant-numeric:tabular-nums;letter-spacing:.01em}}
+    .operarios-goal-bar{{height:8px;border-radius:999px;background:#1c231b;overflow:hidden;box-shadow:inset 0 1px 3px rgba(0,0,0,.4)}}
     .operarios-goal-bar i{{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#7aad50,var(--lime));transition:width .4s ease}}
     .operarios-goal.over-goal .operarios-goal-bar i{{background:linear-gradient(90deg,#3fae7a,#8bd450)}}
-    .operarios-goal-pct{{font-size:.84rem;color:#c7d1c0;font-weight:600}}
+    .operarios-goal-pct{{font-size:.7rem;color:#c7d1c0;font-weight:600}}
     .operarios-goal.over-goal .operarios-goal-pct{{color:#a6e26d;font-weight:800}}
-    .operarios-hover-btn{{width:100%;display:grid;align-content:center;gap:14px;padding:22px 28px;background:linear-gradient(160deg,rgba(208,244,76,.1),rgba(208,244,76,.03));border:1px solid rgba(208,244,76,.35);border-radius:18px;text-align:center;box-shadow:0 14px 34px rgba(0,0,0,.28);transition:border-color .15s,background .15s}}
-    .operarios-hover-btn.has-data{{border-color:var(--lime)}}
-    .operarios-hover-nav{{display:flex;align-items:center;justify-content:center;gap:18px}}
-    .operarios-hover-nav button{{width:auto;min-width:0;flex:0 0 42px;height:42px;padding:0;display:grid;place-items:center;background:#0f120d;border:1px solid rgba(208,244,76,.4);border-radius:50%;color:var(--lime);box-shadow:none;font-size:19px;line-height:1}}
+    .operarios-hover-btn{{width:100%;display:grid;align-content:center;gap:6px;padding:11px 20px;background:linear-gradient(160deg,rgba(208,244,76,.07),rgba(208,244,76,.02));border:1px solid rgba(208,244,76,.28);border-radius:13px;text-align:center;box-shadow:0 8px 18px rgba(0,0,0,.2);transition:border-color .15s,background .15s}}
+    .operarios-hover-btn.has-data{{border-color:rgba(208,244,76,.5)}}
+    .operarios-hover-nav{{display:flex;align-items:center;justify-content:center;gap:12px}}
+    .operarios-hover-nav button{{width:auto;min-width:0;flex:0 0 30px;height:30px;padding:0;display:grid;place-items:center;background:#0f120d;border:1px solid rgba(208,244,76,.35);border-radius:50%;color:var(--lime);box-shadow:none;font-size:15px;line-height:1}}
     .operarios-hover-nav button:hover{{border-color:var(--lime);background:rgba(208,244,76,.12);filter:none}}
-    .operarios-hover-title{{flex:1;min-width:0;font-size:1.35rem;color:#f2f7ea;letter-spacing:.02em;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
-    .operarios-hover-detail{{font-size:.9rem;color:#c7d1c0;line-height:1.45}}
+    .operarios-hover-title{{flex:1;min-width:0;font-size:1rem;color:#f2f7ea;letter-spacing:.02em;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
+    .operarios-hover-detail{{font-size:.76rem;color:#c7d1c0;line-height:1.35}}
     @media(max-width:980px){{.operarios-hover-wrap{{grid-template-columns:1fr}}}}
     .operarios-grid{{padding:0}}
     .operarios-hover-calendar{{margin:18px 26px 26px;border:1px solid var(--line);border-radius:16px;background:#10140f;min-height:120px}}
@@ -2214,20 +2214,20 @@ def home(_=Depends(authenticate)):
     .operarios-dialog-kpis span{{color:var(--muted);font-size:.65rem;text-transform:uppercase;letter-spacing:.06em}}
     .operarios-dialog-kpis strong{{color:var(--lime);font-size:1rem}}
     .operarios-dialog-body{{max-height:60dvh;overflow:auto;-webkit-overflow-scrolling:touch}}
-    .operarios-days{{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;padding:18px 22px 22px}}
-    .operarios-daycard{{position:relative;display:grid;grid-template-rows:auto 1fr auto;gap:10px;padding:14px 14px 13px;border:1px solid rgba(255,255,255,.09);border-radius:14px;background:linear-gradient(160deg,#10140f,#0c0f0b);box-shadow:0 6px 16px rgba(0,0,0,.22);transition:border-color .15s,transform .15s}}
+    .operarios-days{{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px;padding:18px 22px 22px}}
+    .operarios-daycard{{position:relative;display:grid;grid-template-rows:auto 1fr auto;gap:12px;padding:16px 16px 15px;border:1px solid rgba(255,255,255,.09);border-radius:16px;background:linear-gradient(160deg,#10140f,#0c0f0b);box-shadow:0 6px 16px rgba(0,0,0,.22);transition:border-color .15s,transform .15s}}
     .operarios-daycard:hover{{border-color:rgba(208,244,76,.4);transform:translateY(-1px)}}
     .operarios-daycard.is-today{{border-color:var(--lime);background:linear-gradient(160deg,#182014,#0f130d);box-shadow:0 8px 20px rgba(208,244,76,.1)}}
     .operarios-daycard.is-today:before{{content:'HOY';position:absolute;top:-8px;right:12px;padding:2px 8px;border-radius:999px;background:var(--lime);color:#0d1108;font-size:.56rem;font-weight:900;letter-spacing:.05em}}
-    .operarios-daycard-head{{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 6px;padding-bottom:9px;border-bottom:1px solid rgba(255,255,255,.07)}}
-    .operarios-daycard-date{{color:#efffb0;font-size:.68rem;font-weight:900;letter-spacing:.02em;line-height:1.3}}
+    .operarios-daycard-head{{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 6px;padding-bottom:11px;border-bottom:1px solid rgba(255,255,255,.07)}}
+    .operarios-daycard-date{{color:#efffb0;font-size:.76rem;font-weight:900;letter-spacing:.02em;line-height:1.3}}
     .operarios-daycard.is-today .operarios-daycard-date{{color:var(--lime)}}
-    .operarios-daycard-total{{margin-left:auto;flex:0 0 auto;padding:2px 8px;border-radius:999px;background:rgba(255,255,255,.06);color:#dbe4d3;font-size:.64rem;font-weight:800;font-variant-numeric:tabular-nums}}
+    .operarios-daycard-total{{margin-left:auto;flex:0 0 auto;padding:3px 9px;border-radius:999px;background:rgba(255,255,255,.06);color:#dbe4d3;font-size:.68rem;font-weight:800;font-variant-numeric:tabular-nums}}
     .operarios-daycard.is-today .operarios-daycard-total{{background:rgba(208,244,76,.16);color:var(--lime)}}
-    .operarios-daylist{{display:flex;flex-wrap:wrap;gap:6px;align-content:start;margin:0;padding:0;list-style:none}}
-    .operarios-daylist li{{display:flex;align-items:center;gap:5px;padding:3px 9px 3px 3px;border:1px solid rgba(255,255,255,.08);border-radius:999px;background:#0a0d09}}
-    .operarios-daylist b{{display:grid;place-items:center;flex:0 0 auto;min-width:22px;height:19px;padding:0 4px;white-space:nowrap;border-radius:999px;background:rgba(255,255,255,.08);color:#e7ede2;font-size:.58rem;font-weight:900;letter-spacing:.02em}}
-    .operarios-daylist em{{color:var(--lime);font-style:normal;font-size:.7rem;font-weight:900;font-variant-numeric:tabular-nums}}
+    .operarios-daylist{{display:flex;flex-wrap:wrap;gap:7px;align-content:start;margin:0;padding:0;list-style:none}}
+    .operarios-daylist li{{display:flex;align-items:center;gap:6px;padding:4px 10px 4px 4px;border:1px solid rgba(255,255,255,.08);border-radius:999px;background:#0a0d09}}
+    .operarios-daylist b{{display:grid;place-items:center;flex:0 0 auto;min-width:24px;height:21px;padding:0 5px;white-space:nowrap;border-radius:999px;background:rgba(255,255,255,.08);color:#e7ede2;font-size:.62rem;font-weight:900;letter-spacing:.02em}}
+    .operarios-daylist em{{color:var(--lime);font-style:normal;font-size:.75rem;font-weight:900;font-variant-numeric:tabular-nums}}
     .operarios-badge{{display:inline-grid;place-items:center;width:26px;height:26px;flex:0 0 26px;border:1px solid rgba(208,244,76,.55);border-radius:50%;background:rgba(208,244,76,.12);color:var(--lime);font-size:.62rem;font-weight:900;letter-spacing:.02em;box-sizing:border-box}}
     .operarios-daynone{{color:#77816f;font-size:.68rem;text-align:center;padding:6px 0}}
     .operarios-cal-empty{{padding:44px 20px;text-align:center;color:var(--muted);font-size:.85rem}}
