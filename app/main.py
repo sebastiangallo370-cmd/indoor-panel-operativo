@@ -655,6 +655,11 @@ def indoor_favicon_svg():
     return FileResponse(FAVICON_SVG_FILE, media_type="image/svg+xml")
 
 
+@app.get("/home-dashboard.js")
+def home_dashboard_js():
+    return FileResponse(Path(__file__).with_name("home-dashboard.js"), media_type="application/javascript", headers={"Cache-Control": "no-cache"})
+
+
 @app.get("/trace-ui.js")
 def trace_ui_script():
     return FileResponse(Path(__file__).with_name("trace-ui.js"), media_type="application/javascript")
@@ -1982,6 +1987,7 @@ def home(_=Depends(authenticate)):
     <header><div><div class='eyebrow'>Asistentes comerciales</div><h1>Convierte documentos<br>en órdenes listas.</h1><p class='subtitle'>Tres flujos especializados, una sola operación y seguimiento en tiempo real.</p></div></header>
     <section class='panel active' data-panel='inicio'><div class='home-page'>
     <div class='home-hero'><img src='/landing/hero.jpg' alt='Uniforme Indoor Sport en la cancha'><div class='home-hero-copy'><span class='eyebrow'>Indoor Sport · Panel operativo</span><h2>Uniformes deportivos<br>hechos con precisión.</h2><p>Del diseño a la entrega: gestiona pedidos, producción y fechas en un solo lugar.</p></div></div>
+    <div id='home-dashboard' aria-live='polite'></div>
     <div class='home-grid'><button class='home-link' type='button' data-go='cronograma'><span class='nav-icon'>CR</span><strong>Cronograma</strong><small>Fechas de entrega de los pedidos.</small></button><button class='home-link' type='button' data-go='reprogramacion'><span class='nav-icon'>RP</span><strong>Reprogramaciones</strong><small>Procesa cotizaciones o remisiones.</small></button><button class='home-link' type='button' data-go='pedido'><span class='nav-icon'>PN</span><strong>Pedidos normales</strong><small>Sube el PDF y el Excel de una orden.</small></button><button class='home-link' type='button' data-go='creador'><span class='nav-icon'>XL</span><strong>Creador XLSX</strong><small>Genera el listado de producción.</small></button><button class='home-link' type='button' data-go='produccion'><span class='nav-icon'>TR</span><strong>Trazabilidad</strong><small>Órdenes de producción.</small></button><button class='home-link' type='button' data-go='inventario'><span class='nav-icon'>IT</span><strong>Inventario telas</strong><small>Consulta telas y códigos.</small></button></div>
     <div class='home-section'><h3>Nuestro proceso</h3><div class='home-gallery'><figure><img src='/landing/proceso-1.jpg' alt='Impresión de diseños' loading='lazy'><figcaption>Impresión de diseños</figcaption></figure><figure><img src='/landing/proceso-2.jpg' alt='Corte y armado' loading='lazy'><figcaption>Corte y armado</figcaption></figure><figure><img src='/landing/proceso-3.jpg' alt='Corte láser' loading='lazy'><figcaption>Corte láser</figcaption></figure><figure><img src='/landing/proceso-4.jpg' alt='Aplicación en plancha' loading='lazy'><figcaption>Aplicación en plancha</figcaption></figure><figure><img src='/landing/proceso-5.jpg' alt='Diseño digital' loading='lazy'><figcaption>Diseño digital</figcaption></figure><figure><img src='/landing/proceso-6.jpg' alt='Empaque final' loading='lazy'><figcaption>Empaque final</figcaption></figure></div></div>
     <div class='home-section'><h3>Nuestros uniformes</h3><div class='home-gallery'><figure><img src='/landing/uniforme-1.jpg' alt='Uniforme en cancha' loading='lazy'><figcaption>Uniforme en cancha</figcaption></figure><figure><img src='/landing/uniforme-2.jpg' alt='Uniforme a rayas' loading='lazy'><figcaption>Uniforme a rayas</figcaption></figure><figure><img src='/landing/uniforme-3.jpg' alt='Escudo bordado' loading='lazy'><figcaption>Escudo bordado</figcaption></figure><figure><img src='/landing/uniforme-4.jpg' alt='Numeración' loading='lazy'><figcaption>Numeración</figcaption></figure><figure><img src='/landing/uniforme-5.jpg' alt='Diseño bicolor' loading='lazy'><figcaption>Diseño bicolor</figcaption></figure><figure><img src='/landing/uniforme-6.jpg' alt='Uniforme sublimado' loading='lazy'><figcaption>Uniforme sublimado</figcaption></figure></div></div>
@@ -2581,7 +2587,7 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
 @media(max-width:700px){{body.production-mode .trace-cards{{grid-template-columns:minmax(0,1fr);padding:12px}}body.production-mode .trace-card{{grid-template-columns:minmax(0,1fr)}}body.production-mode .trace-media,body.production-mode .trace-media:has(img),body.production-mode .trace-media:not(:has(img)){{height:300px;min-height:0}}body.production-mode .trace-design-main img{{height:235px}}body.production-mode .trace-media:not(:has(img)){{height:120px}}.trace-no-design>span{{display:none}}body.production-mode .trace-card-body{{padding:20px}}}}
 `;document.head.appendChild(traceFigmaStyle);setTraceView();
     const commercialGroup=commercialToggle.closest('.nav-group');commercialGroup.classList.add('collapsed');const productionToggle=document.getElementById('production-toggle');if(productionToggle)productionToggle.addEventListener('click',()=>productionToggle.closest('.nav-group').classList.toggle('collapsed'));
-    </script><script src='/trace-ui.js?v=20260926-20'></script></body></html>"""
+    </script><script src='/trace-ui.js?v=20260926-20'></script><script src='/home-dashboard.js'></script></body></html>"""
 
 
 def ordered_mockup_uploads(extras, slots):
