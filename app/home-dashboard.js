@@ -97,6 +97,11 @@
         o.states[p.label] = cells.includes('R') ? 'rework' : cells.includes('P') ? 'active'
           : cells.length && closed.every(Boolean) ? 'finished' : 'pending';
       });
+      o.finishedOn = {};
+      processes.forEach(p => {
+        const dates = o.rows.flatMap(v => p.columns.map(i => parseDate(v[i]))).filter(Boolean);
+        if (dates.length) o.finishedOn[p.label] = new Date(Math.max(...dates));
+      });
       const inner = internal.map(p => o.states[p.label]);
       const done = inner.filter(s => s === 'finished').length;
       o.percent = inner.length ? Math.round(done / inner.length * 100) : 0;
@@ -134,8 +139,29 @@
       return s;
     });
 
+    // Días que tarda cada proceso: desde el cierre del anterior (o la creación) hasta su propio cierre.
+    const spans = new Map(processes.map(p => [p.label, []]));
+    list.forEach(o => {
+      let prev = o.created;
+      processes.forEach(p => {
+        const d = o.finishedOn[p.label];
+        if (!d) return;
+        if (prev) { const n = daysBetween(prev, d); if (n >= 0) spans.get(p.label).push(n); }
+        if (!prev || d > prev) prev = d;
+      });
+    });
+    const procTimes = processes.map(p => ({ label: p.label, value: avg(spans.get(p.label)), count: spans.get(p.label).length }))
+      .filter(t => t.value !== null && !processes.find(p => p.label === t.label).external);
+    const both = active.filter(o => o.created && o.due && o.due >= o.created);
+    const aged = active.filter(o => o.created && o.created <= today);
+    const plan = {
+      lead: avg(both.map(o => daysBetween(o.created, o.due))), leadCount: both.length,
+      age: avg(aged.map(o => daysBetween(o.created, today))), ageCount: aged.length,
+      progress: active.length ? avg(active.map(o => o.percent)) : null
+    };
+
     return {
-      today, total: list.length, active, processes, stages, upcoming, months,
+      plan, procTimes, today, total: list.length, active, processes, stages, upcoming, months,
       late: bucket('late'), soon: bucket('soon'), mid: bucket('mid'), ok: bucket('ok'), noDue: active.length - withDue.length,
       lead: avg(lead), promised: avg(promised), sampleSize: sample.length, recentWindow: sample === recent,
       onTimePct: onTime.length ? Math.round(onTime.filter(o => o.deliveredOn <= o.due).length / onTime.length * 100) : null,
@@ -221,14 +247,23 @@
         : '<li class="dash-empty">No hay entregas próximas.</li>') + '</ul>';
 
     const maxMonth = Math.max(1, ...a.months.map(m => m.value || 0));
+    const tile = (label, value) => '<div><small>' + label + '</small><strong>' + value + '</strong></div>';
+    const maxProc = Math.max(1, ...a.procTimes.map(t => t.value));
+    const procBlock = a.procTimes.length
+      ? '<h5>Días promedio por proceso <small>desde el cierre del anterior</small></h5><div class="dash-proc">' + a.procTimes.map(t =>
+        '<div title="' + esc(t.label + ': ' + fmtDays(t.value) + ' días en promedio · ' + t.count + ' pedidos') + '"><label>' + esc(t.label) + '</label><span><i style="width:' + Math.max(4, t.value / maxProc * 100) + '%"></i></span><b>' + fmtDays(t.value) + ' d</b></div>').join('') + '</div>'
+      : '';
     const timeBlock =
       '<h4>Tiempo de salida <small>días de creación a entrega</small></h4>' +
       (a.lead === null
-        ? '<div class="dash-empty">' + (a.hasCreated ? 'Todavía no hay pedidos entregados con fecha para calcular el promedio.' : 'No se encontró la columna de fecha de creación.') + '</div>'
-        : '<div class="dash-time"><div><small>Promedio real</small><strong>' + fmtDays(a.lead) + ' d</strong></div>' +
-          '<div><small>Promedio prometido</small><strong>' + fmtDays(a.promised) + ' d</strong></div>' +
-          '<div><small>Entregados a tiempo</small><strong>' + (a.onTimePct === null ? '—' : a.onTimePct + '%') + '</strong></div></div>' +
-          '<div class="dash-months">' + a.months.map(m => '<div title="' + esc(m.label + ': ' + (m.value === null ? 'sin entregas' : fmtDays(m.value) + ' días · ' + m.count + ' pedidos')) + '"><span style="height:' + (m.value ? Math.max(6, m.value / maxMonth * 100) : 0) + '%"></span><b>' + (m.value === null ? '' : Math.round(m.value)) + '</b><small>' + m.label + '</small></div>').join('') + '</div>');
+        ? '<div class="dash-time">' + tile('Plazo promedio de entrega', a.plan.lead === null ? '—' : fmtDays(a.plan.lead) + ' d') +
+          tile('Antigüedad promedio', a.plan.age === null ? '—' : fmtDays(a.plan.age) + ' d') +
+          tile('Avance promedio', a.plan.progress === null ? '—' : Math.round(a.plan.progress) + '%') + '</div>' +
+          '<p class="dash-note">' + (a.hasCreated ? 'Aún no hay pedidos entregados con fecha, así que se muestra el plazo prometido y la edad de los pedidos activos. El tiempo real aparecerá cuando se registren entregas.' : 'No se encontró la columna de fecha de creación.') + '</p>'
+        : '<div class="dash-time">' + tile('Promedio real', fmtDays(a.lead) + ' d') + tile('Promedio prometido', fmtDays(a.promised) + ' d') +
+          tile('Entregados a tiempo', a.onTimePct === null ? '—' : a.onTimePct + '%') + '</div>' +
+          '<div class="dash-months">' + a.months.map(m => '<div title="' + esc(m.label + ': ' + (m.value === null ? 'sin entregas' : fmtDays(m.value) + ' días · ' + m.count + ' pedidos')) + '"><span style="height:' + (m.value ? Math.max(6, m.value / maxMonth * 100) : 0) + '%"></span><b>' + (m.value === null ? '' : Math.round(m.value)) + '</b><small>' + m.label + '</small></div>').join('') + '</div>') +
+      procBlock;
 
     const stageBlock =
       '<h4>Avance por proceso <small>pedidos activos · toca un tramo para ver sus tarjetas</small></h4>' +
@@ -274,6 +309,9 @@
   .dash-stages{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px 18px}.dash-stage label{display:block;margin-bottom:4px;font-size:.74rem;color:#d5dccf;font-weight:700}.dash-stage .dash-bar{height:20px}
   .dash-time{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}.dash-time div{padding:10px;border-radius:10px;background:rgba(255,255,255,.04)}.dash-time small{display:block;color:var(--muted);font-size:.7rem}.dash-time strong{font-size:1.25rem}
   .dash-months{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;align-items:end;height:130px}.dash-months div{display:grid;grid-template-rows:1fr auto auto;justify-items:center;height:100%}.dash-months span{align-self:end;width:70%;max-width:38px;border-radius:6px 6px 0 0;background:var(--lime)}.dash-months b{font-size:.75rem}.dash-months small{color:var(--muted);font-size:.7rem}
+  .dash-note{margin:0 0 14px;color:var(--muted);font-size:.78rem;line-height:1.45}
+  .dash-card h5{margin:16px 0 10px;font-size:.88rem}.dash-card h5 small{color:var(--muted);font-weight:400;font-size:.72rem;margin-left:6px}
+  .dash-proc{display:grid;gap:7px}.dash-proc div{display:grid;grid-template-columns:104px 1fr 44px;align-items:center;gap:10px;font-size:.76rem}.dash-proc label{color:#d5dccf;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.dash-proc span{height:8px;border-radius:4px;background:#1f271f;overflow:hidden}.dash-proc i{display:block;height:100%;border-radius:4px;background:var(--lime)}.dash-proc b{text-align:right}
   .dash-empty{color:var(--muted);font-size:.85rem;padding:10px 0}
   button.dash-link,button.dash-seg,button.dash-chip,button.dash-open,button.dash-more{font:inherit;cursor:pointer;color:inherit;box-shadow:none;width:auto;min-height:0}
   button.dash-link{text-align:left;transition:border-color .15s,background .15s}button.dash-link:hover,button.dash-link:focus-visible{border-color:var(--lime);background:rgba(208,244,76,.07)}.dash-kpi u{color:var(--lime);text-decoration:none}
