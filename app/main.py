@@ -1258,6 +1258,9 @@ def production_operators(refresh: bool = False, _=Depends(authenticate)):
             except ValueError:
                 return 0
 
+        # Estado final de cada (row, column) según eventos de operarios.
+        # Solo se muestra P/R si el último evento registrado NO fue 'finish'.
+        event_pending: dict = {}  # (source_row, col_number) → {day, qty, resp, kind}
         for event in events:
             responsible = event['responsible']
             if is_departed_operator(responsible):
@@ -1285,16 +1288,23 @@ def production_operators(refresh: bool = False, _=Depends(authenticate)):
                 if len(day) == 10:
                     days = daily.setdefault(responsible, {})
                     days[day] = days.get(day, 0) + 1
-            # Cuantas unidades quedaron "P" (en proceso) o "R" (reproceso) cada dia, por
-            # responsable, para poder mostrarlas en el reparto por area junto a lo cerrado.
+            key = (event['source_row'], event['column_number'])
             if event['action'] in ('start', 'rework'):
                 day = str(event['created_at'] or '')[:10]
                 if len(day) == 10:
-                    bucket = daily_active if event['action'] == 'start' else daily_rework
-                    days = bucket.setdefault(responsible, {})
-                    days[day] = days.get(day, 0) + row_quantity(values)
+                    event_pending[key] = {
+                        'day': day, 'qty': row_quantity(values),
+                        'resp': responsible,
+                        'kind': 'active' if event['action'] == 'start' else 'rework',
+                    }
+            elif event['action'] == 'finish':
+                event_pending.pop(key, None)
             if not operator['last_at'] or event['created_at'] > operator['last_at']:
                 operator['last_at'] = event['created_at']
+        for info in event_pending.values():
+            bucket = daily_active if info['kind'] == 'active' else daily_rework
+            days_map = bucket.setdefault(info['resp'], {})
+            days_map[info['day']] = max(days_map.get(info['day'], 0), info['qty'])
 
         # Complementar P/R historico con los cambios que llegan de Google Sheets.
         # Cuando la hoja cambia una celda a P o R, el sync lo registra en
