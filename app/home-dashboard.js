@@ -65,7 +65,7 @@
       if (!name && !client) return;
       const id = name || 'fila-' + row.source_row;
       let o = orders.get(id);
-      if (!o) { o = { id, rows: [], due: null, created: null, units: 0 }; orders.set(id, o); }
+      if (!o) { o = { id, client, rows: [], due: null, created: null, units: 0 }; orders.set(id, o); }
       o.rows.push(v);
       o.units += col.quantity >= 0 ? num(v[col.quantity]) : 0;
       const due = col.due >= 0 ? parseDate(v[col.due]) : null;
@@ -97,6 +97,10 @@
       const done = internal.filter(p => states[p.label] === 'finished').length;
       o.percent = internal.length ? Math.round(done / internal.length * 100) : 0;
       o.complete = internal.length > 0 && done === internal.length;
+      o.rework = internal.some(p => states[p.label] === 'rework');
+      // Area donde esta el pedido ahora: reproceso > en proceso > primer proceso sin cerrar.
+      const focus = internal.find(p => states[p.label] === 'rework') || [...internal].reverse().find(p => states[p.label] === 'active') || internal.find(p => states[p.label] !== 'finished');
+      o.focus = focus ? focus.label : '';
     });
 
     const active = list.filter(o => !o.delivered);
@@ -128,7 +132,20 @@
     const estimated = perProcess.length ? perProcess.reduce((s, n) => s + n, 0) : null;
     const promised = avg(active.filter(o => o.created && o.due && o.due >= o.created).map(o => daysBetween(o.created, o.due)));
 
+    const tomorrow = addDays(today, 1);
+    const sameDay = (a, b) => a && a.getTime() === b.getTime();
+    const byDue = (a, b) => a.due - b.due;
+    const dueToday = active.filter(o => sameDay(o.due, today));
+    const dueTomorrow = active.filter(o => sameDay(o.due, tomorrow));
+    const late = active.filter(o => o.due && o.due < today).sort(byDue);
+    const reworkList = active.filter(o => o.rework).sort((a, b) => (a.due || Infinity) - (b.due || Infinity));
+    const load = internal.map(p => {
+      const here = toMake.filter(o => o.focus === p.label);
+      return { label: p.label, orders: here.length, units: here.reduce((s, o) => s + o.units, 0) };
+    }).filter(item => item.orders);
+
     return {
+      dueToday, dueTomorrow, late, reworkList, load,
       today, weekStart, weekEnd, activeCount: active.length,
       real, realCount: sample.length, estimated, promised,
       unitsToMake: toMake.reduce((s, o) => s + o.units, 0), ordersToMake: toMake.length,
@@ -140,9 +157,53 @@
     };
   }
 
-  const card = (tone, title, value, unit, lines) =>
-    '<article class="dash-card ' + tone + '"><h4>' + title + '</h4><div class="dash-big"><strong>' + value + '</strong><span>' + unit + '</span></div>' +
+  const card = (tone, title, value, unit, lines, badge) =>
+    '<article class="dash-card ' + tone + '"><h4>' + title + (badge ? '<em class="dash-badge">' + badge + '</em>' : '') + '</h4><div class="dash-big"><strong>' + value + '</strong><span>' + unit + '</span></div>' +
     '<ul>' + lines.filter(Boolean).map(([label, val]) => val === '' ? '<li class="note">' + label + '</li>' : '<li><span>' + label + '</span><b>' + val + '</b></li>').join('') + '</ul></article>';
+
+  const fmtDue = d => d ? fmtShort(d) : 'Sin fecha';
+  function orderList(items, empty, detail) {
+    if (!items.length) return '<p class="dash-none">' + empty + '</p>';
+    const shown = items.slice(0, 5);
+    return '<ul class="dash-orders">' + shown.map(o => '<li><div><strong>' + esc(o.id) + '</strong><span>' + esc(o.client || 'Sin cliente') + '</span></div><div class="dash-order-meta"><b>' + fmtNum(o.units) + ' und.</b><small>' + detail(o) + '</small></div></li>').join('') + '</ul>' +
+      (items.length > shown.length ? '<p class="dash-more">y ' + (items.length - shown.length) + ' más</p>' : '');
+  }
+  function todayPanel(tone, title, count, body) {
+    return '<section class="dash-panel ' + tone + '"><div class="dash-panel-head"><h4>' + title + '</h4><span class="dash-count">' + count + '</span></div>' + body + '</section>';
+  }
+
+  function greet(a) {
+    const hour = new Date().getHours();
+    const hello = hour < 12 ? 'Buenos días' : hour < 19 ? 'Buenas tardes' : 'Buenas noches';
+    const fullName = (document.querySelector('.user-menu .user-info strong')?.textContent || '').trim();
+    const first = fullName.split(/\s+/)[0] || '';
+    const pretty = first ? first.charAt(0).toUpperCase() + first.slice(1).toLowerCase() : '';
+    const heading = document.getElementById('home-greeting');
+    const line = document.getElementById('home-date');
+    if (heading) heading.textContent = hello + (pretty ? ', ' + pretty : '');
+    if (line) {
+      const date = new Date().toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' });
+      const bits = [a.dueToday.length + (a.dueToday.length === 1 ? ' entrega hoy' : ' entregas hoy')];
+      if (a.late.length) bits.push(a.late.length + (a.late.length === 1 ? ' pedido atrasado' : ' pedidos atrasados'));
+      if (a.reworkList.length) bits.push(a.reworkList.length + ' en reproceso');
+      line.textContent = date + ' · ' + bits.join(' · ');
+    }
+  }
+
+  function countUp() {
+    if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    root.querySelectorAll('.dash-big strong').forEach(el => {
+      const target = Number(String(el.textContent).replace(/\./g, '').replace(',', '.'));
+      if (!Number.isFinite(target) || target <= 0) return;
+      const decimals = String(el.textContent).includes(',') ? 1 : 0, start = performance.now(), final = el.textContent;
+      const step = now => {
+        const t = Math.min(1, (now - start) / 700), eased = 1 - Math.pow(1 - t, 3);
+        el.textContent = t < 1 ? fmtNum(target * eased, decimals) : final;
+        if (t < 1) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    });
+  }
 
   function render(a) {
     const time = a.real !== null
@@ -152,14 +213,33 @@
         ['Estimado sumando lo que tarda cada proceso', ''], a.promised !== null ? ['Plazo prometido', fmtNum(a.promised, 1) + ' d'] : null, ['Se vuelve real al registrar entregas', '']]);
     const units = card('blue', 'Unidades por fabricar', fmtNum(a.unitsToMake), 'unidades', [
       ['Pedidos con procesos pendientes', a.ordersToMake], ['Unidades en pedidos activos', fmtNum(a.unitsAll)]]);
-    const week = card('orange', 'Entregas de la semana', String(a.weekCount), a.weekCount === 1 ? 'pedido' : 'pedidos', [
+    const week = card(a.lateBefore ? 'red' : 'orange', 'Entregas de la semana', String(a.weekCount), a.weekCount === 1 ? 'pedido' : 'pedidos', [
       ['Del ' + fmtShort(a.weekStart) + ' al ' + fmtShort(a.weekEnd), ''], ['Unidades a entregar', fmtNum(a.weekUnits)],
-      a.weekProgress !== null ? ['Avance de estos pedidos', Math.round(a.weekProgress) + '%'] : null, a.lateBefore ? ['Vencidos de semanas anteriores', a.lateBefore] : null]);
+      a.weekProgress !== null ? ['Avance de estos pedidos', Math.round(a.weekProgress) + '%'] : null, a.lateBefore ? ['Vencidos de semanas anteriores', a.lateBefore] : null],
+      a.lateBefore ? a.lateBefore + ' vencidos' : '');
     const pct = card('green', 'Porcentaje de avance', a.progress === null ? '—' : String(Math.round(a.progress)), '%', [
       ['Procesos terminados por pedido', ''], ['Pedidos activos', a.activeCount], a.progressUnits !== null ? ['Avance por unidades', Math.round(a.progressUnits) + '%'] : null]);
+
+    const soon = [...a.dueToday.map(o => ({ ...o, when: 'Hoy' })), ...a.dueTomorrow.map(o => ({ ...o, when: 'Mañana' }))];
+    const today = todayPanel('orange', 'Entregas hoy y mañana', soon.length,
+      orderList(soon, 'No hay entregas programadas para hoy ni mañana.', o => o.when + ' · ' + o.percent + '% avance'));
+    const late = todayPanel('red', 'Pedidos atrasados', a.late.length,
+      orderList(a.late, 'Ningún pedido atrasado. ¡Bien!', o => 'Venció ' + fmtDue(o.due) + ' · ' + daysBetween(o.due, a.today) + ' d'));
+    const rework = todayPanel('rose', 'En reproceso', a.reworkList.length,
+      orderList(a.reworkList, 'No hay pedidos en reproceso.', o => (o.focus || 'Reproceso') + ' · entrega ' + fmtDue(o.due)));
+
+    const maxLoad = Math.max(1, ...a.load.map(item => item.orders));
+    const load = a.load.length
+      ? '<section class="dash-load"><div class="dash-panel-head"><h4>Carga por área</h4><small>Pedidos pendientes según el proceso en el que están ahora</small></div>' +
+        a.load.map(item => '<div class="dash-bar"><span>' + esc(item.label) + '</span><i><b style="width:' + Math.max(4, Math.round(item.orders / maxLoad * 100)) + '%"></b></i><strong>' + item.orders + '</strong><small>' + fmtNum(item.units) + ' und.</small></div>').join('') + '</section>'
+      : '';
+
     root.innerHTML =
       '<div class="dash-head"><div><span class="eyebrow">Resumen operativo</span><h3>Estado de la producción</h3></div><small><i class="dash-live"></i>En vivo · actualizado ' + new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) + '</small></div>' +
-      '<div class="dash-cards">' + time + units + week + pct + '</div>';
+      '<div class="dash-cards">' + time + units + week + pct + '</div>' +
+      '<div class="dash-today">' + today + late + rework + '</div>' + load;
+    greet(a);
+    countUp();
   }
 
   const style = document.createElement('style');
@@ -176,7 +256,27 @@
   .dash-card ul{list-style:none;margin:0;padding:0;display:grid;gap:8px}.dash-card li{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 12px;border-radius:9px;background:rgba(255,255,255,.05);font-size:.88rem;color:#c4cfbf}.dash-card li b{color:#fff;font-size:1rem}
   .dash-card li.note{background:none;padding:0 2px;font-size:.84rem;color:#aab5a5}
   .dash-empty{color:var(--muted);font-size:.9rem;padding:10px 0}
-  @media(max-width:800px){.dash-big strong{font-size:2.8rem}}
+  .dash-card.red{--c:#ff6b6b}
+  .dash-card h4{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .dash-badge{font-style:normal;font-size:.68rem;letter-spacing:.02em;text-transform:none;padding:3px 9px;border-radius:999px;background:rgba(255,107,107,.16);color:#ff9b9b;border:1px solid rgba(255,107,107,.4)}
+  .dash-today{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+  .dash-panel{display:grid;align-content:start;gap:12px;padding:18px;border:1px solid rgba(255,255,255,.12);border-left:4px solid var(--c);border-radius:16px;background:#111611}
+  .dash-panel.orange{--c:#ffb347}.dash-panel.red{--c:#ff6b6b}.dash-panel.rose{--c:#ff8d86}
+  .dash-panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .dash-panel h4{margin:0;font-size:.9rem;color:#e3eadc;text-transform:uppercase;letter-spacing:.05em}
+  .dash-count{min-width:30px;padding:3px 10px;border-radius:999px;background:color-mix(in srgb,var(--c) 18%,transparent);color:var(--c);font-weight:900;text-align:center}
+  .dash-orders{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+  .dash-orders li{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 11px;border-radius:10px;background:rgba(255,255,255,.04)}
+  .dash-orders li>div:first-child{display:grid;min-width:0}.dash-orders strong{font-size:.9rem;color:#f2f7ea}
+  .dash-orders span{font-size:.76rem;color:#a9b5a3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .dash-order-meta{display:grid;justify-items:end;flex-shrink:0}.dash-order-meta b{font-size:.86rem;color:#fff}.dash-order-meta small{font-size:.7rem;color:var(--c)}
+  .dash-none{margin:0;padding:10px 2px;font-size:.84rem;color:#8f9b8a}.dash-more{margin:0;font-size:.76rem;color:#a9b5a3;text-align:right}
+  .dash-load{display:grid;gap:10px;padding:18px;border:1px solid rgba(255,255,255,.12);border-radius:16px;background:#111611}
+  .dash-load .dash-panel-head{align-items:baseline;flex-wrap:wrap}.dash-load h4{margin:0;font-size:.9rem;color:#e3eadc;text-transform:uppercase;letter-spacing:.05em}.dash-load .dash-panel-head small{color:#8f9b8a;font-size:.76rem}
+  .dash-bar{display:grid;grid-template-columns:130px 1fr 36px 80px;align-items:center;gap:10px;font-size:.8rem;color:#c4cfbf}
+  .dash-bar i{height:10px;border-radius:999px;background:#1c231b;overflow:hidden}.dash-bar i b{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#7aad50,#d0f44c);transition:width .6s ease}
+  .dash-bar strong{color:#fff;text-align:right}.dash-bar small{color:#8f9b8a;text-align:right}
+  @media(max-width:800px){.dash-big strong{font-size:2.8rem}.dash-bar{grid-template-columns:96px 1fr 30px}.dash-bar small{display:none}}
   `;
   document.head.appendChild(style);
 
