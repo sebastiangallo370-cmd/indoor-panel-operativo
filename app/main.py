@@ -1235,6 +1235,8 @@ def production_operators(refresh: bool = False, _=Depends(authenticate)):
         operators: dict = {}
         finished_by_process: dict = {}
         daily: dict = {}
+        daily_active: dict = {}
+        daily_rework: dict = {}
 
         def process_label(column_number):
             index = column_number - 1
@@ -1242,6 +1244,14 @@ def production_operators(refresh: bool = False, _=Depends(authenticate)):
                 return ''
             process_index = official_process(headers[index])
             return PROCESS_FLOW[process_index]['label'] if process_index is not None else str(headers[index])
+
+        def row_quantity(values):
+            if quantity_idx < 0 or quantity_idx >= len(values):
+                return 0
+            try:
+                return int(float(str(values[quantity_idx]).replace(',', '.')))
+            except ValueError:
+                return 0
 
         for event in events:
             responsible = event['responsible']
@@ -1270,6 +1280,14 @@ def production_operators(refresh: bool = False, _=Depends(authenticate)):
                 if len(day) == 10:
                     days = daily.setdefault(responsible, {})
                     days[day] = days.get(day, 0) + 1
+            # Cuantas unidades quedaron "P" (en proceso) o "R" (reproceso) cada dia, por
+            # responsable, para poder mostrarlas en el reparto por area junto a lo cerrado.
+            if event['action'] in ('start', 'rework'):
+                day = str(event['created_at'] or '')[:10]
+                if len(day) == 10:
+                    bucket = daily_active if event['action'] == 'start' else daily_rework
+                    days = bucket.setdefault(responsible, {})
+                    days[day] = days.get(day, 0) + row_quantity(values)
             if not operator['last_at'] or event['created_at'] > operator['last_at']:
                 operator['last_at'] = event['created_at']
 
@@ -1333,6 +1351,8 @@ def production_operators(refresh: bool = False, _=Depends(authenticate)):
             'operators': sorted(operators.values(), key=lambda item: item['responsible'].casefold()),
             'finished_by_process': finished_by_process,
             'daily': daily,
+            'daily_active': daily_active,
+            'daily_rework': daily_rework,
             'process_status': process_status,
             'sheet': {
                 'available': sheet_data is not None,
@@ -2864,7 +2884,7 @@ let html='';for(let n=0;n<days;n++){{const date=new Date(start);date.setDate(sta
     const operariosDialog=document.getElementById('operarios-dialog'),operariosDialogTitle=document.getElementById('operarios-dialog-title'),operariosDialogKpis=document.getElementById('operarios-dialog-kpis'),operariosDialogBody=document.getElementById('operarios-dialog-body'),operariosDialogMonth=document.getElementById('operarios-dialog-month'),operariosDialogClose=document.getElementById('operarios-dialog-close'),operariosDialogPrev=document.getElementById('operarios-dialog-prev'),operariosDialogNext=document.getElementById('operarios-dialog-next');
     const operariosHoverCalendar=document.getElementById('operarios-hover-calendar');
     const operariosDayFilterSlot=document.getElementById('operarios-day-filter-slot');
-    const operatorState={{data:[],daily:{{}},dailyByCode:{{}},finished:{{}},byRef:{{}},area:'',year:0,month:0,daysInMonth:30,today:'',sheetAvailable:false,daySearch:'',processStatus:{{}}}};
+    const operatorState={{data:[],daily:{{}},dailyByCode:{{}},dailyActive:{{}},dailyRework:{{}},finished:{{}},byRef:{{}},area:'',year:0,month:0,daysInMonth:30,today:'',sheetAvailable:false,daySearch:'',processStatus:{{}}}};
     /* Respaldo por si Google Sheets no responde: se usa mientras carga o si falla la conexión.
        Cuando la hoja CONTROL OPERARIOS SÍ responde, esta lista se reemplaza con lo que haya ahí. */
     const operatorAreaFallback=[
@@ -2903,12 +2923,13 @@ let html='';for(let n=0;n<days;n++){{const date=new Date(start);date.setDate(sta
     function renderOperators(data){{
       const operators=(data&&data.operators)||[],daily=(data&&data.daily)||{{}};
       const sheet=(data&&data.sheet)||{{}},dailyByCode=sheet.daily_by_code||{{}};
+      const dailyActive=(data&&data.daily_active)||{{}},dailyRework=(data&&data.daily_rework)||{{}};
       const sheetAvailable=applyOperatorSheet(sheet);
       const busy=operators.filter(item=>item.current);
       const todayKey=(data&&data.today)||'';
       const finished=(data&&data.finished_by_process)||{{}};
       const processStatus=(data&&data.process_status)||{{}};
-      operatorState.data=operators;operatorState.daily=daily;operatorState.dailyByCode=dailyByCode;operatorState.finished=finished;operatorState.today=todayKey;operatorState.sheetAvailable=sheetAvailable;operatorState.processStatus=processStatus;
+      operatorState.data=operators;operatorState.daily=daily;operatorState.dailyByCode=dailyByCode;operatorState.dailyActive=dailyActive;operatorState.dailyRework=dailyRework;operatorState.finished=finished;operatorState.today=todayKey;operatorState.sheetAvailable=sheetAvailable;operatorState.processStatus=processStatus;
       operatorState.byRef={{}};
       const byRef=operatorState.byRef;
       operators.forEach(item=>{{const key=processKey(item.responsible);if(key)byRef[key]=item;const code=operatorCode(item.responsible);if(code)byRef[code]=item}});
@@ -2986,6 +3007,7 @@ let html='';for(let n=0;n<days;n++){{const date=new Date(start);date.setDate(sta
       const group=operatorAreaColumns.find(item=>processKey(item.area)===processKey(operatorState.area));
       if(!group)return;
       const byRef=operatorState.byRef,daily=operatorState.daily,dailyByCode=operatorState.dailyByCode||{{}},sheetAvailable=operatorState.sheetAvailable;
+      const dailyActive=operatorState.dailyActive||{{}},dailyRework=operatorState.dailyRework||{{}};
       const roster=[];
       group.columns.forEach(column=>column.forEach(member=>{{
         const record=byRef[processKey(member)],name=record?record.responsible:(operatorNameByCode[member]||member);
@@ -2996,10 +3018,11 @@ let html='';for(let n=0;n<days;n++){{const date=new Date(start);date.setDate(sta
       const todayKey=operatorState.today||operatorDayKey(year,month,Math.min(new Date().getDate(),total));
       operariosDialogMonth.textContent=new Date(year,month,1).toLocaleDateString('es-CO',{{month:'long',year:'numeric'}});
 
-      /* En proceso (✖) y en reproceso (®) por operario: foto EN VIVO del estado de los pedidos
-         en Produccion, repartida por responsable. Solo aplica al dia de hoy; en los demas dias
-         solo se ve lo terminado (✓), que si es historico. Se calcula antes que "days" porque un
-         operario puede estar trabajando hoy sin haber cerrado nada todavia (count=0). */
+      /* En proceso (P) y en reproceso (R) por operario: para hoy se usa la foto EN VIVO del
+         estado actual de los pedidos en Produccion (lo mas exacto, porque un P/R de hoy puede
+         cambiar en cualquier momento); para dias anteriores se usa el historial de cuando se
+         marco Iniciar/Reproceso ese dia. Se calcula antes que "days" porque un operario puede
+         estar trabajando hoy sin haber cerrado nada todavia (count=0). */
       const statusMap=operatorState.processStatus||{{}};
       const statusKey=Object.keys(statusMap).find(key=>processKey(key)===processKey(group.area));
       const byResponsible=(statusKey&&statusMap[statusKey].by_responsible)||{{}};
@@ -3011,25 +3034,21 @@ let html='';for(let n=0;n<days;n++){{const date=new Date(start);date.setDate(sta
 
       const days=Array.from({{length:total}},(_,index)=>{{
         const day=index+1,key=operatorDayKey(year,month,day);
+        const isToday=key===todayKey;
         const peopleMap=new Map();
         roster.forEach(entry=>{{
           const count=sheetAvailable?((dailyByCode[entry.member]||{{}})[key]||0):((daily[entry.name]||{{}})[key]||0);
-          if(count<=0)return;
+          const extra=isToday?personExtraStats(entry.name):null;
+          const active=isToday?(extra&&extra.active_units||0):((dailyActive[entry.name]||{{}})[key]||0);
+          const rework=isToday?(extra&&extra.rework_units||0):((dailyRework[entry.name]||{{}})[key]||0);
+          if(count<=0&&active<=0&&rework<=0)return;
           const codeKey=entry.member||entry.name;
-          if(peopleMap.has(codeKey))peopleMap.get(codeKey).count+=count;
-          else peopleMap.set(codeKey,{{name:entry.name,record:entry.record,count:count}});
+          if(peopleMap.has(codeKey)){{const p=peopleMap.get(codeKey);p.count+=count;p.active+=active;p.rework+=rework}}
+          else peopleMap.set(codeKey,{{name:entry.name,record:entry.record,count:count,active:active,rework:rework}});
         }});
-        if(key===todayKey){{
-          roster.forEach(entry=>{{
-            const codeKey=entry.member||entry.name;
-            if(peopleMap.has(codeKey))return;
-            const extra=personExtraStats(entry.name);
-            if(extra&&(extra.active_units||extra.rework_units))peopleMap.set(codeKey,{{name:entry.name,record:entry.record,count:0}});
-          }});
-        }}
         const people=Array.from(peopleMap.values()).sort((a,b)=>b.count-a.count);
         return {{day:day,key:key,people:people,total:people.reduce((sum,entry)=>sum+entry.count,0)}};
-      }}).filter(entry=>entry.total>0||entry.key===todayKey).reverse();
+      }}).filter(entry=>entry.people.length>0||entry.key===todayKey).reverse();
       /* Meta de produccion: 10.000 unidades al mes POR AREA (asi esta calculado en la propia
          hoja de Google Sheets, pestana CONTROL OPERARIOS: cada area se mide contra su propia
          meta de 10.000, no la suma de toda la fabrica). */
@@ -3057,10 +3076,9 @@ let html='';for(let n=0;n<days;n++){{const date=new Date(start);date.setDate(sta
         const isToday=entry.key===todayKey;
         const list=entry.people.length
           ?'<ul class="operarios-daylist">'+entry.people.map(person=>{{
-              const extra=isToday?personExtraStats(person.name):null;
-              const stats=person.count>0?['<span class="op-stat op-stat-done"><i class="op-stat-icon">✓</i>'+person.count+' unds</span>']:[];
-              if(extra&&extra.active_units)stats.push('<span class="op-stat op-stat-active"><i class="op-stat-icon">P</i>'+extra.active_units.toLocaleString('es-CO')+' unds</span>');
-              if(extra&&extra.rework_units)stats.push('<span class="op-stat op-stat-rework"><i class="op-stat-icon">R</i>'+extra.rework_units.toLocaleString('es-CO')+' unds</span>');
+              const stats=person.count>0?['<span class="op-stat op-stat-done"><i class="op-stat-icon">✓</i>'+person.count.toLocaleString('es-CO')+' unds</span>']:[];
+              if(person.active)stats.push('<span class="op-stat op-stat-active"><i class="op-stat-icon">P</i>'+person.active.toLocaleString('es-CO')+' unds</span>');
+              if(person.rework)stats.push('<span class="op-stat op-stat-rework"><i class="op-stat-icon">R</i>'+person.rework.toLocaleString('es-CO')+' unds</span>');
               return '<li>'+operatorBadgeHTML(person.name)+'<span class="operarios-daylist-stats">'+stats.join('')+'</span></li>';
             }}).join('')+'</ul>'
           :'<p class="operarios-daynone">Sin cierres</p>';
