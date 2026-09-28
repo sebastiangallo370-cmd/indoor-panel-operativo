@@ -29,7 +29,7 @@ def read_designs(filename, modified_ns, size, reference):
     STATE_DIR.mkdir(parents=True, exist_ok=True)
     with closing(sqlite3.connect(cache_path, timeout=15)) as db, db:
         db.execute('CREATE TABLE IF NOT EXISTS previews (filename TEXT, reference TEXT, version TEXT, payload TEXT, updated REAL, PRIMARY KEY(filename,reference))')
-        version = f'1:{modified_ns}:{size}'
+        version = f'2:{modified_ns}:{size}'
         row = db.execute('SELECT payload FROM previews WHERE filename=? AND reference=? AND version=?', (filename, reference, version)).fetchone()
     if row:
         try:
