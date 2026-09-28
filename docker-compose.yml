@@ -32,13 +32,19 @@ services:
     security_opt:
       - no-new-privileges:true
 
-  cloudflared:
-    image: cloudflare/cloudflared:latest
+  # Dominio fijo gratis (mientras se consigue el dominio propio definitivo de Indoor).
+  # Reemplaza al tunel temporal de cloudflared: con esto el link ya NO cambia cada
+  # vez que se reinicia el servidor. Requiere NGROK_AUTHTOKEN y NGROK_DOMAIN en el
+  # .env (se crean gratis, sin tarjeta, en https://dashboard.ngrok.com).
+  ngrok:
+    image: ngrok/ngrok:latest
     container_name: asistente-reprogramaciones-tunnel
     restart: unless-stopped
     depends_on:
       - asistente
-    command: tunnel --no-autoupdate --url http://asistente:8000
+    environment:
+      - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN}
+    command: http --url=${NGROK_DOMAIN} http://asistente:8000
     security_opt:
       - no-new-privileges:true
 
