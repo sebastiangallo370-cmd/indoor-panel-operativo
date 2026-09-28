@@ -1794,6 +1794,166 @@ def delete_production_row(row: int, payload: dict = Body(...), _=Depends(authent
         db.close()
 
 
+# ---- Cartera ---------------------------------------------------------------
+
+_cartera_cache: dict = {"data": None, "at": 0.0, "error": None}
+_CARTERA_TTL = 120
+
+
+def _leer_cartera_sheet():
+    """Descarga y parsea CONTROL DE PAGOS COTIZACIONES. Retorna ({id→rec}, err|None)."""
+    import io as _io
+    config = pedidos.load_config()
+    fid = config.get("pagos_cotizaciones_file_id")
+    hoja = config.get("pagos_cotizaciones_hoja", "Control de pagos")
+    if not fid:
+        return {}, "Sin configurar PAGOS_COTIZACIONES_FILE_ID"
+    try:
+        sess = pedidos._drive_session()
+        r = sess.get(
+            f"https://www.googleapis.com/drive/v3/files/{fid}",
+            params={"alt": "media", "supportsAllDrives": "true"},
+            timeout=60,
+        )
+        r.raise_for_status()
+        wb = load_workbook(_io.BytesIO(r.content), data_only=True, read_only=True)
+        ws = wb[hoja] if hoja in wb.sheetnames else wb.active
+        registros: dict = {}
+        for fila in ws.iter_rows(min_row=2, values_only=True):
+            if not fila or fila[0] in (None, ""):
+                continue
+            try:
+                id_cot = int(fila[0])
+            except (ValueError, TypeError):
+                continue
+            pagos = []
+            col = 6  # columna G (0-indexed): PAGO 1, FECHA 1, PAGO 2, FECHA 2 …
+            while col < len(fila):
+                monto = fila[col]
+                fecha = fila[col + 1] if col + 1 < len(fila) else None
+                if isinstance(monto, (int, float)) and monto > 0:
+                    pagos.append({"monto": float(monto), "fecha": str(fecha) if fecha else ""})
+                col += 2
+            total_bruto = fila[3] if len(fila) > 3 else None
+            total_neto = fila[5] if len(fila) > 5 else None
+            total_pagado = sum(p["monto"] for p in pagos)
+            registros[id_cot] = {
+                "total_bruto": float(total_bruto) if isinstance(total_bruto, (int, float)) else None,
+                "total_neto": float(total_neto) if isinstance(total_neto, (int, float)) else None,
+                "pagos": pagos,
+                "total_pagado": total_pagado,
+            }
+        wb.close()
+        return registros, None
+    except Exception as exc:
+        logging.exception("No se pudo leer CONTROL DE PAGOS COTIZACIONES")
+        return {}, str(exc)[:200]
+
+
+@app.get("/api/cartera")
+async def cartera_data_endpoint(force: bool = False, _=Depends(authenticate)):
+    """CO en producción cruzadas con CONTROL DE PAGOS COTIZACIONES."""
+    cache = _cartera_cache
+    now = time.time()
+    if force or cache["data"] is None or now - cache["at"] > _CARTERA_TTL:
+        sheet, err = await asyncio.to_thread(_leer_cartera_sheet)
+        cache.update(data=sheet, at=now, error=err)
+    else:
+        sheet, err = cache["data"], cache["error"]
+
+    with connect() as db:
+        meta = {r["key"]: r["value"] for r in db.execute("SELECT key,value FROM production_meta")}
+        headers = json.loads(meta.get("headers", "[]"))
+        rows_values = {
+            r["source_row"]: json.loads(r["values_json"])
+            for r in db.execute("SELECT source_row,values_json FROM production_rows")
+        }
+
+    def idx(name):
+        return next((i for i, h in enumerate(headers) if str(h).strip().upper() == name), -1)
+
+    order_i = idx("ORDEN")
+    client_i = idx("NOMBRE DEL CLIENTE")
+    project_i = idx("NOMBRE PROYECTO")
+    qty_i = idx("CANTIDAD")
+    delivery_i = idx("FECHA DE ENTREGA")
+    vendor_i = idx("VENDEDOR")
+
+    orders = []
+    for src_row, vals in sorted(rows_values.items()):
+        if order_i < 0 or order_i >= len(vals):
+            continue
+        orden = str(vals[order_i] or "").strip().upper()
+        if not re.match(r'^CO\d+$', orden):
+            continue
+        try:
+            id_cot = int(orden[2:])
+        except ValueError:
+            continue
+
+        def v(i, _vals=vals):
+            return str(_vals[i] or "").strip() if 0 <= i < len(_vals) else ""
+
+        try:
+            cantidad = int(float(v(qty_i).replace(",", "."))) if qty_i >= 0 else 0
+        except (ValueError, TypeError):
+            cantidad = 0
+
+        rec = sheet.get(id_cot) if sheet else None
+        cartera = None
+        if rec:
+            tn = rec.get("total_neto") or rec.get("total_bruto")
+            cartera = {
+                "total_bruto": rec.get("total_bruto"),
+                "total_neto": tn,
+                "total_pagado": rec["total_pagado"],
+                "pendiente": round(tn - rec["total_pagado"], 2) if tn is not None else None,
+                "pagos": rec["pagos"],
+            }
+        orders.append({
+            "source_row": src_row,
+            "orden": orden,
+            "id": id_cot,
+            "cliente": v(client_i),
+            "proyecto": v(project_i),
+            "cantidad": cantidad,
+            "fecha_entrega": v(delivery_i),
+            "vendedor": v(vendor_i),
+            "cartera": cartera,
+        })
+
+    return {"orders": orders, "sheet_error": err}
+
+
+@app.post("/api/cartera/registrar")
+async def cartera_registrar(body: dict = Body(...), _=Depends(authenticate)):
+    """Registra una CO en CONTROL DE PAGOS COTIZACIONES."""
+    orden = str(body.get("orden", "")).strip().upper()
+    if not re.match(r'^CO\d+$', orden):
+        raise HTTPException(400, "Número de orden inválido")
+    id_cot = int(orden[2:])
+    config = pedidos.load_config()
+    fid = config.get("pagos_cotizaciones_file_id")
+    if not fid:
+        raise HTTPException(503, "Sin configurar PAGOS_COTIZACIONES_FILE_ID")
+    payload = {
+        "file_id": fid,
+        "hoja": config.get("pagos_cotizaciones_hoja", "Control de pagos"),
+        "id_cotizacion": id_cot,
+        "cliente": str(body.get("cliente", "")).strip(),
+        "vendedor": str(body.get("vendedor", "")).strip(),
+        "total_bruto": body.get("total_bruto"),
+        "descuento": body.get("descuento") or None,
+    }
+    try:
+        await asyncio.to_thread(pedidos._op_pagos_cotizacion, payload)
+        _cartera_cache["data"] = None
+        return {"ok": True, "mensaje": f"{orden} registrada en CONTROL DE PAGOS COTIZACIONES"}
+    except Exception as exc:
+        logging.exception("No se pudo registrar %s en cartera", orden)
+        raise HTTPException(502, str(exc)[:300]) from exc
+
+
 @app.get("/descargar-conector-nas")
 def download_nas_connector(_=Depends(authenticate)):
     handler = r'''param([string]$Uri)
@@ -2581,8 +2741,11 @@ def home(_=Depends(authenticate)):
       body.operarios-mode .operarios-grid{{grid-template-columns:1fr}}
     }}
     @media(hover:none) and (pointer:coarse){{.tab,.nav-parent,.user-menu summary,.menu-toggle{{min-height:44px}}input,select,textarea{{font-size:16px}}}}
+    .panel[data-panel='cartera'].active{{display:block}}.cartera-shell{{overflow:hidden;border-radius:15px}}.cartera-toolbar{{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 20px;border-bottom:1px solid var(--line);background:linear-gradient(135deg,#121810,#0b0e0b);flex-wrap:wrap}}.cartera-kpis{{display:flex;gap:18px;flex-wrap:wrap;align-items:flex-end}}.cartera-kpi{{display:flex;flex-direction:column;gap:2px}}.cartera-kpi span{{font-size:.64rem;font-weight:850;color:var(--muted);letter-spacing:.07em;text-transform:uppercase}}.cartera-kpi strong{{font-size:1rem;font-weight:950;color:var(--ink)}}.cartera-status{{padding:8px 20px;color:var(--muted);font-size:.78rem}}.cartera-table-wrap{{overflow-x:auto}}.cartera-table{{width:100%;border-collapse:collapse;font-size:.8rem}}.cartera-table th,.cartera-table td{{padding:9px 13px;border-bottom:1px solid rgba(255,255,255,.07);text-align:left;white-space:nowrap}}.cartera-table th{{background:#0f130e;color:#9aab93;font-size:.64rem;letter-spacing:.07em;text-transform:uppercase;font-weight:850}}.cartera-table tr:hover td{{background:rgba(208,244,76,.04)}}.cartera-empty{{padding:50px 24px;text-align:center;color:var(--muted)}}.badge-ok{{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:20px;background:rgba(139,212,80,.15);color:#8bd450;font-size:.7rem;font-weight:850}}.badge-warn{{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:20px;background:rgba(245,166,35,.15);color:#f5a623;font-size:.7rem;font-weight:850}}.cartera-reg-btn{{padding:5px 12px;border-radius:8px;background:rgba(208,244,76,.15);color:var(--lime);border:1px solid rgba(208,244,76,.35);font:inherit;font-size:.72rem;font-weight:850;cursor:pointer}}.cartera-reg-btn:hover{{background:rgba(208,244,76,.28)}}.cartera-dialog{{max-width:420px;width:90vw;border-radius:16px;border:1px solid var(--line);background:#141812;color:var(--ink);padding:26px}}.cartera-dialog::backdrop{{background:rgba(0,0,0,.72)}}.cartera-dialog h2{{margin:0 0 18px;font-size:1.1rem}}.cartera-dialog label{{display:flex;flex-direction:column;gap:5px;font-size:.8rem;color:#c0cabb;margin-bottom:12px}}.cartera-dialog input{{padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.07);color:#fff;font:inherit;font-size:.84rem;outline:none}}.cartera-dialog input:focus{{border-color:var(--lime)}}.cartera-dialog-actions{{display:flex;gap:10px;justify-content:flex-end;margin-top:12px}}.cartera-dialog .btn-cancel{{background:transparent;border:1px solid var(--line);color:var(--muted)}}.cartera-dialog .btn-cancel:hover{{border-color:#fff}}.cartera-dialog-msg{{min-height:1.4em;font-size:.78rem;color:var(--muted);margin-top:6px}}
     </style></head><body class='inicio-mode'><div class='topbar'></div><button id='menu-toggle' class='menu-toggle' type='button' aria-label='Ocultar menú' aria-expanded='true'>‹</button><aside class='sidebar' aria-label='Menú principal'><div class='sidebar-brand'><img src='/marca-indoor.svg' alt='Indoor'></div><div class='session-card'><div class='session-avatar'>IS</div><div class='session-copy'><strong>INDOOR SPORT SAS</strong><span>Panel operativo</span></div></div><div class='sidebar-label'>Menú principal</div><nav class='tabs' aria-label='Navegación principal'><button class='tab home-nav active' data-kind='inicio' type='button'><span class='nav-icon'>IN</span><strong>INICIO</strong></button><div class='nav-group collapsed'><button id='news-toggle' class='nav-parent' type='button'><span class='nav-icon'>NV</span><span>NOVEDADES</span></button><div class='nav-children'><button class='tab schedule-nav' data-kind='cronograma' type='button'><span class='nav-icon'>CR</span><strong>CRONOGRAMA</strong></button><button class='tab' data-kind='operarios' type='button'><span class='nav-icon'>OP</span><strong>CONTROL OPERARIOS</strong></button></div></div><div class='nav-group'><button id='commercial-toggle' class='nav-parent' type='button'><span class='nav-icon'>AC</span><span>Asistentes Comerciales</span></button><div class='nav-children'><button class='tab' data-kind='reprogramacion' type='button'><span class='nav-icon'>RP</span><strong>REPROGRAMACIONES</strong></button><button class='tab' data-kind='pedido' type='button'><span class='nav-icon'>PN</span><strong>PROGRAMAR</strong></button><button class='tab' data-kind='creador' type='button'><span class='nav-icon'>XL</span><strong>EXCEL</strong></button></div></div><div class='nav-group collapsed'><button id='production-toggle' class='nav-parent' type='button'><span class='nav-icon'>PR</span><span>Producción</span></button><div class='nav-children'><button class='tab production-nav' data-kind='produccion' type='button'><span class='nav-icon'>TR</span><strong>TRAZABILIDAD</strong></button><button class='tab' data-kind='inventario' type='button'><span class='nav-icon'>IT</span><strong>INVENTARIO TELAS</strong></button></div></div></nav><div class='sidebar-foot'>Indoor Sport · Operación interna</div></aside><main>
     <section class='panel' data-panel='inventario'><div class='card fabric-card'><div class='fabric-heading'><div><span class='eyebrow'>Producción · Catálogo</span><h2>INVENTARIO TELAS</h2><p>Consulta las telas y sus códigos.</p></div><input id='fabric-search' type='search' placeholder='Buscar tela o código' aria-label='Buscar tela o código'></div><div id='fabric-count' class='fabric-count' role='status'>{len(fabrics)} telas registradas</div><table class='fabric-table'><thead><tr><th scope='col'>Código</th><th scope='col'>Tela</th><th scope='col'>STOCK</th></tr></thead><tbody id='fabric-body'>{fabric_rows}</tbody></table><p id='fabric-empty' hidden>No se encontraron telas con esa búsqueda.</p></div></section>
+    <section class='panel' data-panel='cartera'><div class='card cartera-shell'><div class='cartera-toolbar'><div><span class='eyebrow'>Administración · Pagos</span><h2>CARTERA · CO</h2><p>Cotizaciones en producción y su estado de pago.</p></div><div class='cartera-kpis'><div class='cartera-kpi'><span>En producción</span><strong id='cartera-total'>—</strong></div><div class='cartera-kpi'><span>Registradas</span><strong id='cartera-reg'>—</strong></div><div class='cartera-kpi'><span>Sin registrar</span><strong id='cartera-unreg'>—</strong></div><div class='cartera-kpi'><span>Pendiente total</span><strong id='cartera-outstanding'>—</strong></div></div><button id='cartera-refresh' class='production-refresh' type='button'>Actualizar</button></div><div id='cartera-status' class='cartera-status'>Cargando…</div><div class='cartera-table-wrap'><table class='cartera-table' id='cartera-table'><thead id='cartera-head'></thead><tbody id='cartera-body'></tbody></table><p id='cartera-empty' class='cartera-empty' hidden>No hay órdenes CO en producción.</p></div></div></section>
+    <dialog id='cartera-dialog' class='cartera-dialog'><h2>Registrar cotización en CARTERA</h2><form id='cartera-form' method='dialog'><label>Orden<input id='creg-orden' readonly></label><label>Cliente<input id='creg-cliente' placeholder='Nombre del cliente'></label><label>Vendedor<input id='creg-vendedor' placeholder='Nombre del vendedor'></label><label>Total bruto (COP)<input id='creg-total' type='number' min='0' step='1' placeholder='0'></label><label>Descuento (dejar vacío si no aplica)<input id='creg-descuento' type='number' min='0' step='1' placeholder=''></label><div class='cartera-dialog-actions'><button type='button' class='btn btn-cancel' id='creg-cancel'>Cancelar</button><button type='button' class='btn' id='creg-submit'>Registrar</button></div><p id='creg-msg' class='cartera-dialog-msg'></p></form></dialog>
     <div class='brand'><span class='brand-logo' aria-label='Indoor'><img src='/marca-indoor.svg' alt='Indoor'></span><span class='brand-line'></span><span class='eyebrow'>Panel operativo</span><div class='systems'><span class='session-user' aria-label='Usuario conectado'>{escape(str(_))}</span></div></div>
     <header><div><div class='eyebrow'>Asistentes comerciales</div><h1>Convierte documentos<br>en órdenes listas.</h1><p class='subtitle'>Tres flujos especializados, una sola operación y seguimiento en tiempo real.</p></div></header>
     <section class='panel active' data-panel='inicio'><div class='home-page'>
@@ -3506,7 +3669,7 @@ const traceExpandedProcesses=new Set();
 traceCards.addEventListener('click',event=>{{const summary=event.target.closest('.trace-process summary');if(!summary)return;const detail=summary.parentElement;traceCards.querySelectorAll('.trace-process[open]').forEach(other=>{{if(other!==detail){{other.open=false;traceExpandedProcesses.delete(other.dataset.processKey)}}}});const info=detail.querySelector('.trace-process-info');if(!info.querySelector('.trace-node-title')){{const title=document.createElement('h4');title.className='trace-node-title';title.textContent=summary.querySelector('strong').textContent+' · '+summary.querySelector('small').textContent;info.prepend(title)}}}});
 document.addEventListener('click',event=>{{if(event.target.closest('.trace-process'))return;traceCards.querySelectorAll('.trace-process[open]').forEach(detail=>{{detail.open=false;traceExpandedProcesses.delete(detail.dataset.processKey)}})}});
 traceViewBar.hidden=true;
-const adminGroup=document.createElement('div');adminGroup.className='nav-group collapsed';adminGroup.innerHTML='<button class="nav-parent" type="button"><span class="nav-icon">AD</span><span>ADMINISTRACIÓN</span></button><div class="nav-children"><button class="tab" data-kind="produccion" data-admin-summary="true" type="button"><span class="nav-icon">RP</span><strong>PEDIDOS</strong></button></div>';document.querySelector('nav.tabs').appendChild(adminGroup);adminGroup.querySelector('.nav-parent').onclick=()=>adminGroup.classList.toggle('collapsed');
+const adminGroup=document.createElement('div');adminGroup.className='nav-group collapsed';adminGroup.innerHTML='<button class="nav-parent" type="button"><span class="nav-icon">AD</span><span>ADMINISTRACIÓN</span></button><div class="nav-children"><button class="tab" data-kind="produccion" data-admin-summary="true" type="button"><span class="nav-icon">RP</span><strong>PEDIDOS</strong></button><button class="tab" data-kind="cartera" type="button"><span class="nav-icon">CT</span><strong>CARTERA</strong></button></div>';document.querySelector('nav.tabs').appendChild(adminGroup);adminGroup.querySelector('.nav-parent').onclick=()=>adminGroup.classList.toggle('collapsed');
 const traceNav=document.querySelector('.tab.production-nav'),adminNav=adminGroup.querySelector('.tab');
 traceNav.addEventListener('click',()=>{{traceView='cards';setTraceView();document.body.classList.remove('admin-summary-mode')}});
 adminNav.onclick=()=>{{if(!canViewAdministration)return;traceNav.click();document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===adminNav));traceView='table';setTraceView();document.body.classList.add('admin-summary-mode');adminGroup.classList.remove('collapsed')}};
@@ -3516,6 +3679,83 @@ commercialMenu.hidden=true;commercialMenu.style.display='none';
 traceScheduleButton.hidden=!canViewAdministration;
 traceScheduleButton.onclick=()=>{{if(!canViewAdministration)return;adminGroup.classList.remove('collapsed');adminGroup.querySelector('[data-kind="pedido"]').click();document.getElementById('order-form').scrollIntoView({{block:'start',behavior:'smooth'}})}};
 if(!canViewAdministration)adminGroup.remove();
+// ---- Cartera CO -----------------------------------------------------------
+(function(){{
+  let _carteraLoaded=false;
+  const fmt=n=>n==null?'—':new Intl.NumberFormat('es-CO',{{style:'currency',currency:'COP',maximumFractionDigits:0}}).format(n);
+  function renderCartera(data){{
+    const orders=data.orders||[];
+    document.getElementById('cartera-total').textContent=orders.length;
+    const reg=orders.filter(o=>o.cartera);
+    const unreg=orders.filter(o=>!o.cartera);
+    document.getElementById('cartera-reg').textContent=reg.length;
+    document.getElementById('cartera-unreg').textContent=unreg.length;
+    const outstanding=reg.reduce((s,o)=>s+(o.cartera.pendiente||0),0);
+    document.getElementById('cartera-outstanding').textContent=fmt(outstanding);
+    const status=document.getElementById('cartera-status');
+    status.textContent=data.sheet_error?'⚠ '+data.sheet_error:'Datos actualizados.';
+    const head=document.getElementById('cartera-head');
+    const body=document.getElementById('cartera-body');
+    const empty=document.getElementById('cartera-empty');
+    if(!orders.length){{empty.hidden=false;head.innerHTML='';body.innerHTML='';return;}}
+    empty.hidden=true;
+    head.innerHTML='<tr><th>Orden</th><th>Cliente</th><th>Proyecto</th><th>Cant.</th><th>Entrega</th><th>Vendedor</th><th>Total neto</th><th>Pagado</th><th>Pendiente</th><th>Estado</th><th></th></tr>';
+    body.innerHTML=orders.map(o=>{{
+      const c=o.cartera;
+      const badge=c?(c.pendiente===0?'<span class="badge-ok">✓ Pagado</span>':'<span class="badge-warn">⚠ Pendiente</span>'):'<span class="badge-warn">Sin registrar</span>';
+      const regBtn=c?'':'<button class="cartera-reg-btn" data-orden="'+o.orden+'" data-cliente="'+encodeURIComponent(o.cliente)+'" data-vendedor="'+encodeURIComponent(o.vendedor)+'">Registrar</button>';
+      return '<tr><td><strong>'+o.orden+'</strong></td><td>'+o.cliente+'</td><td>'+o.proyecto+'</td><td>'+o.cantidad+'</td><td>'+o.fecha_entrega+'</td><td>'+o.vendedor+'</td><td>'+(c?fmt(c.total_neto):'—')+'</td><td>'+(c?fmt(c.total_pagado):'—')+'</td><td>'+(c?fmt(c.pendiente):'—')+'</td><td>'+badge+'</td><td>'+regBtn+'</td></tr>';
+    }}).join('');
+    body.querySelectorAll('.cartera-reg-btn').forEach(btn=>btn.onclick=()=>openRegDialog(btn));
+  }}
+  async function loadCartera(force){{
+    document.getElementById('cartera-status').textContent='Cargando…';
+    try{{
+      const r=await fetch('/api/cartera'+(force?'?force=true':''),{{credentials:'same-origin'}});
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      renderCartera(await r.json());
+    }}catch(e){{document.getElementById('cartera-status').textContent='Error: '+e.message;}}
+  }}
+  document.querySelectorAll('.tab[data-kind="cartera"]').forEach(btn=>btn.addEventListener('click',()=>{{
+    if(!_carteraLoaded){{_carteraLoaded=true;loadCartera(false);}}
+  }}));
+  document.getElementById('cartera-refresh').onclick=()=>loadCartera(true);
+  // ---- Dialog ----
+  const dlg=document.getElementById('cartera-dialog');
+  function openRegDialog(btn){{
+    document.getElementById('creg-orden').value=btn.dataset.orden||'';
+    document.getElementById('creg-cliente').value=decodeURIComponent(btn.dataset.cliente||'');
+    document.getElementById('creg-vendedor').value=decodeURIComponent(btn.dataset.vendedor||'');
+    document.getElementById('creg-total').value='';
+    document.getElementById('creg-descuento').value='';
+    document.getElementById('creg-msg').textContent='';
+    dlg.showModal();
+  }}
+  document.getElementById('creg-cancel').onclick=()=>dlg.close();
+  document.getElementById('creg-submit').onclick=async()=>{{
+    const msg=document.getElementById('creg-msg');
+    const totalRaw=document.getElementById('creg-total').value.trim();
+    if(!totalRaw){{msg.textContent='Ingresa el total bruto.';return;}}
+    const body={{
+      orden:document.getElementById('creg-orden').value,
+      cliente:document.getElementById('creg-cliente').value,
+      vendedor:document.getElementById('creg-vendedor').value,
+      total_bruto:parseFloat(totalRaw)||0,
+    }};
+    const descRaw=document.getElementById('creg-descuento').value.trim();
+    if(descRaw)body.descuento=parseFloat(descRaw)||0;
+    msg.textContent='Registrando…';
+    document.getElementById('creg-submit').disabled=true;
+    try{{
+      const r=await fetch('/api/cartera/registrar',{{method:'POST',credentials:'same-origin',headers:{{'Content-Type':'application/json'}},body:JSON.stringify(body)}});
+      const j=await r.json();
+      if(!r.ok)throw new Error(j.detail||'Error '+r.status);
+      msg.style.color='#8bd450';msg.textContent=j.mensaje||'Registrado.';
+      setTimeout(()=>{{dlg.close();loadCartera(true);}},1200);
+    }}catch(e){{msg.style.color='#f5a623';msg.textContent='Error: '+e.message;}}
+    finally{{document.getElementById('creg-submit').disabled=false;}}
+  }};
+}})();
 const indoorProcessFlow={json.dumps(PROCESS_FLOW, ensure_ascii=False)};
 const operatorHeaders=new Set(indoorProcessFlow.flatMap(p=>p.headers));
 const operatorDialog=document.createElement('dialog');operatorDialog.className='operator-dialog';operatorDialog.innerHTML='<form id="operator-form"><button type="button" class="operator-close" aria-label="Cerrar">×</button><h2>Producción</h2><p class="operator-order"></p><label>Proceso<select name="column" required></select></label><p class="operator-current"></p><label>Responsable / iniciales<input name="responsible" required maxlength="80" autocomplete="off"></label><label>Motivo u observación<textarea name="reason" maxlength="2000" rows="3" placeholder="Obligatorio para reproceso"></textarea></label><div class="operator-actions"><button name="action" value="start" type="submit">Iniciar / retomar</button><button name="action" value="rework" type="submit">Reproceso</button><button name="action" value="finish" type="submit">Terminar</button><button name="action" value="na" type="submit">No aplica</button><button name="action" value="clear" type="submit">Cambiar estado</button></div><p class="operator-message" role="status"></p></form><h3>Historial de actividad</h3><div class="operator-history"></div>';document.body.appendChild(operatorDialog);
