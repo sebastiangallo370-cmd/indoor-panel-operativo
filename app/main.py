@@ -4000,7 +4000,7 @@ if(!canViewAdministration)adminGroup.remove();
       {{cls:'v2',lbl:'16 a 30 días',v:s.v2}},
       {{cls:'v3',lbl:'31 a 60 días',v:s.v3}},
       {{cls:'v4',lbl:'Más de 60',v:s.v4}}
-    ].filter(x=>x.v>0).map(x=>`<div class="ct-vbar-seg ${{x.cls}}" style="flex:${{x.v/total}}" title="${{{x.lbl}}: ${{fmt(x.v)}}"><span>${{x.lbl}}</span><strong>${{fmt(x.v)}}</strong></div>`).join('');
+    ].filter(x=>x.v>0).map(x=>`<div class="ct-vbar-seg ${{x.cls}}" style="flex:${{x.v/total}}" title="${{x.lbl}}: ${{fmt(x.v)}}"><span>${{x.lbl}}</span><strong>${{fmt(x.v)}}</strong></div>`).join('');
     // saldo charts
     const maxC=data.saldo_cliente.length?data.saldo_cliente[0].saldo:1;
     $('ct-saldo-cliente').innerHTML=data.saldo_cliente.map(c=>`<div class="ct-sbar-item"><div class="ct-sbar-label">${{esc(c.nombre)}}<small>${{c.docs}} doc · ${{c.pct_vencido}}% vencido</small></div><div class="ct-sbar-track"><div class="ct-sbar-fill${{c.pct_vencido>50?' danger':c.pct_vencido>20?' warn':''}}" style="width:${{Math.round(c.saldo/maxC*100)}}%"></div></div><div class="ct-sbar-val">${{fmt(c.saldo)}}</div></div>`).join('')||'<p class="ct-empty">Sin datos</p>';
