@@ -25,7 +25,7 @@ from openpyxl import load_workbook
 from app.excel_linux import crear_excel_listado
 from app.excel_mockups import listing_designs
 from app.uploaded_mockups import sync_order_uploads, require_mockup_upload
-from app import sheets_sync
+from app import sheets_sync, db_backup
 from app.creator_xlsx import _data_from_source, create_from_images, create_from_sheet_bundle, normalize_output_name
 from app.settings import STATE_DIR, UPLOAD_DIR, prepare_pedidos_runtime, prepare_runtime
 
@@ -516,6 +516,7 @@ def startup():
         pass
     legacy.setup_logging(CONFIG["log_file"])
     sheets_sync.start(connect, legacy.get_gspread, STATE_DIR)
+    db_backup.start(DB_PATH, STATE_DIR, legacy.get_supabase)
 
 
 @app.get("/salud")
@@ -1118,6 +1119,20 @@ def sheets_sync_activar(_=Depends(authenticate)):
 def sheets_sync_desactivar(_=Depends(authenticate)):
     _sheets_sync_flag().unlink(missing_ok=True)
     return {'ok': True, 'enabled': False}
+
+
+@app.get('/api/produccion/backup/estado')
+def backup_estado(_=Depends(authenticate)):
+    return db_backup.status
+
+
+@app.post('/api/produccion/backup/ahora')
+def backup_ahora(_=Depends(authenticate)):
+    try:
+        db_backup.run_once(DB_PATH, STATE_DIR, legacy.get_supabase)
+    except Exception as error:
+        raise HTTPException(500, f"No se pudo hacer la copia de seguridad: {error}")
+    return {'ok': True, **db_backup.status}
 
 
 OPERATOR_SHEET_GID = 1538767125
@@ -2538,6 +2553,12 @@ def home(_=Depends(authenticate)):
     async function refreshSheetsSyncStatus(){{try{{const response=await fetch('/api/produccion/sheets-sync/estado'),data=await response.json();if(!response.ok)throw Error();const statusEl=document.getElementById('sheets-sync-status'),toggleEl=document.getElementById('sheets-sync-toggle');if(data.enabled){{statusEl.textContent='Vinculada · las filas nuevas de la hoja se importan solas cada 30s.'+(data.checked_at?' Última revisión: '+new Date(data.checked_at).toLocaleTimeString('es-CO',{{timeZone:'America/Bogota'}}):'')+(data.error?' · Aviso: '+data.error:'');toggleEl.textContent='Desvincular';toggleEl.dataset.action='desactivar'}}else{{statusEl.textContent='Sin vincular: las filas nuevas que agregues en Google Sheets no aparecen solas en la página todavía.';toggleEl.textContent='Vincular Google Sheets';toggleEl.dataset.action='activar'}}}}catch(error){{document.getElementById('sheets-sync-status').textContent='No se pudo consultar el estado.'}}}}
     document.getElementById('sheets-sync-toggle').addEventListener('click',async event=>{{const button=event.currentTarget,action=button.dataset.action;if(action==='activar'&&!confirm('¿Vincular la hoja de Google Sheets? Desde ahora, las filas nuevas o editadas ahí se importarán solas a Producción cada 30 segundos. No borra ni sobrescribe lo que ya existe solo en la página.'))return;if(action==='desactivar'&&!confirm('¿Desvincular Google Sheets? Se deja de importar automáticamente.'))return;button.disabled=true;button.textContent='Un momento…';try{{const response=await fetch('/api/produccion/sheets-sync/'+action,{{method:'POST'}});if(!response.ok)throw Error();await refreshSheetsSyncStatus()}}catch(error){{document.getElementById('sheets-sync-status').textContent='No se pudo actualizar. Intenta de nuevo.'}}finally{{button.disabled=false}}}});
     refreshSheetsSyncStatus();
+    /* Copia de seguridad: cada 6 horas se sube una foto de la base de datos a Supabase,
+       por si el servidor falla. El botón permite forzar una copia y ver cuándo fue la última. */
+    const backupBox=document.createElement('div');backupBox.className='sheets-sync-box';backupBox.innerHTML='<strong>Copia de seguridad</strong><p id="backup-status">Consultando estado…</p><button type="button" id="backup-now" class="production-refresh">Respaldar ahora</button>';productionTools.querySelector('div').appendChild(backupBox);
+    async function refreshBackupStatus(){{try{{const response=await fetch('/api/produccion/backup/estado'),data=await response.json();if(!response.ok)throw Error();const statusEl=document.getElementById('backup-status');statusEl.textContent=(data.last_ok_at?'Última copia: '+new Date(data.last_ok_at).toLocaleString('es-CO',{{timeZone:'America/Bogota'}}):'Todavía no se ha hecho ninguna copia.')+(data.last_error?' · Aviso: '+data.last_error:'')}}catch(error){{document.getElementById('backup-status').textContent='No se pudo consultar el estado.'}}}}
+    document.getElementById('backup-now').addEventListener('click',async event=>{{const button=event.currentTarget;button.disabled=true;button.textContent='Respaldando…';try{{const response=await fetch('/api/produccion/backup/ahora',{{method:'POST'}}),data=await response.json();if(!response.ok)throw Error(data.detail||'No se pudo respaldar');await refreshBackupStatus()}}catch(error){{document.getElementById('backup-status').textContent=error.message}}finally{{button.disabled=false;button.textContent='Respaldar ahora'}}}});
+    refreshBackupStatus();
     const cleanProductionStyle=document.createElement('style');cleanProductionStyle.textContent=`
 body.production-mode{{--line:rgba(180,195,167,.16)}}
 body.production-mode .production-shell{{border-color:#344032;box-shadow:none}}
