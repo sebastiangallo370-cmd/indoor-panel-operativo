@@ -73,6 +73,43 @@ def _sizes(value: str) -> list[dict]:
     return rows
 
 
+VALID_SIZES = ("XS", "S", "M", "L", "XL", "XXL", "XXXL", "10", "12", "14", "16")
+
+
+def _clean_size(value: str) -> str:
+    """Normaliza la talla tal como aparece en listados reales.
+
+    Los listados fotografiados mezclan notaciones: 2XL, 2X, XL2 o "2xl". Antes
+    una sola de esas formas descartaba la fila completa, dejando fuera personas
+    que si estaban en la foto. Aqui se traducen a la forma de la plantilla.
+    """
+    raw = re.sub(r"[^A-Z0-9]", "", str(value or "").upper())
+    if not raw:
+        return ""
+    if raw in VALID_SIZES:
+        return raw
+    # 2XL, 3XL, 4XL -> XXL, XXXL, XXXL
+    match = re.fullmatch(r"([234])X?L", raw) or re.fullmatch(r"L([234])", raw)
+    if match:
+        digit = int(match.group(1))
+        return "XXL" if digit == 2 else "XXXL"
+    # "2X", "3X" sueltas suelen ser la version corta de una talla de letra.
+    match = re.fullmatch(r"([234])X", raw)
+    if match:
+        return "XXL" if int(match.group(1)) == 2 else "XXXL"
+    if raw in {"1", "2", "3"}:
+        return {"1": "S", "2": "M", "3": "L"}[raw]
+    if raw in {"I", "1X"}:
+        return "S"
+    if raw in {"3", "LI"}:
+        return "L"
+    return raw if re.fullmatch(r"(?:XS|S|M|L|XL|XXL|XXXL|\d{1,2})", raw) else ""
+
+
+def _clean_name(value: str) -> str:
+    return re.sub(r"\s+", " ", re.sub(r"^\W+|\W+$", "", str(value or ""))).strip()
+
+
 def _table_rows_from_vision(image_path: Path) -> list[dict]:
     """Segunda lectura, independiente de la geometría concreta de la tabla."""
     try:
@@ -133,6 +170,82 @@ def _merge_table_readings(ocr_rows: list[dict], vision_rows: list[dict]) -> list
             row["numero"] = vision.get("numero", "")
         merged.append(row)
     return merged
+
+
+def _grid_cells(image_path: Path) -> list[list]:
+    """Lee una tabla fotografiada como celdas usando su encabezado real.
+
+    El lector historico exigia cinco columnas en posiciones fijas (deportista,
+    camiseta, talla, numero). Los listados reales llegan con tres columnas
+    (item, nombre, talla) o con otras combinaciones, y con el camino anterior
+    se descartaban por completo. Aqui se devuelven las celdas tal como estan y
+    las interpreta _rows_from_cells, que ya reconoce el encabezado.
+    """
+    with Image.open(image_path) as source:
+        source = ImageOps.exif_transpose(source).convert("L")
+        width, height = source.size
+        if width < 40 or height < 40:
+            return []
+        pixels = source.load()
+        horizontal = []
+        for y in range(height):
+            dark = sum(1 for x in range(width) if pixels[x, y] < 90)
+            if dark > width * .55 and (not horizontal or y - horizontal[-1] > 2):
+                horizontal.append(y)
+        if not horizontal:
+            return []
+        if horizontal[0] > 2:
+            horizontal.insert(0, 0)
+        table_top = horizontal[0]
+        vertical = []
+        for x in range(width):
+            dark = sum(1 for y in range(table_top, height) if pixels[x, y] < 90)
+            if dark > max(10, (height - table_top) * .55) and (not vertical or x - vertical[-1] > 2):
+                vertical.append(x)
+        if vertical and vertical[0] > 2:
+            vertical.insert(0, 0)
+        if vertical and vertical[-1] < width - 4:
+            vertical.append(width - 1)
+        # Se necesita al menos un encabezado, un dato y separadores para tres columnas.
+        if len(horizontal) < 3 or len(vertical) < 3:
+            return []
+        if horizontal[-1] < height - 4:
+            horizontal.append(height - 1)
+
+        def cell_text(left: int, top: int, right: int, bottom: int) -> str:
+            if right - left < 4 or bottom - top < 7:
+                return ""
+            cell = source.crop((left + 1, top + 1, min(width, right + 1), bottom - 1))
+            scale = 16 if cell.width < 60 else 10
+            cell = ImageOps.autocontrast(cell).resize(
+                (max(1, cell.width * scale), max(1, cell.height * scale)),
+                Image.Resampling.LANCZOS,
+            ).filter(ImageFilter.SHARPEN)
+            cell = ImageOps.expand(cell, border=30, fill=255)
+            handle = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+            name = handle.name
+            handle.close()
+            try:
+                cell.save(name)
+                result = subprocess.run(
+                    ["tesseract", name, "stdout", "-l", "spa+eng", "--psm", "7"],
+                    capture_output=True, text=True, timeout=30, check=False,
+                )
+                return re.sub(r"\s+", " ", result.stdout or "").strip(" |.,-")
+            except OSError:
+                return ""
+            finally:
+                Path(name).unlink(missing_ok=True)
+
+        cells = []
+        for index in range(len(horizontal) - 1):
+            top, bottom = horizontal[index], horizontal[index + 1]
+            if bottom - top < 7:
+                continue
+            row = [cell_text(vertical[i], top, vertical[i + 1], bottom) for i in range(len(vertical) - 1)]
+            if any(row):
+                cells.append(row)
+        return cells
 
 
 def _table_rows_from_tsv(image_path: Path) -> list[dict]:
@@ -484,6 +597,54 @@ def _ocr_text(image_path: Path) -> str:
             Path(temporary).unlink(missing_ok=True)
 
 
+def _table_rows_from_text(text: str) -> list[dict]:
+    """Interpreta OCR plano como tabla cuando las celdas vienen separadas.
+
+    Cuando la imagen no conserva una cuadrícula visible, Tesseract devuelve las
+    columnas separadas por espacios amplios o barras. Antes esa forma se perdia
+    porque _person_rows exigia la palabra "talla" en cada linea.
+    """
+    raw_lines = [line.rstrip() for line in text.splitlines() if line.strip()]
+
+    def flat(value: str) -> str:
+        return re.sub(r"[ \t]+", " ", value).strip(" |")
+
+    lines = [flat(line) for line in raw_lines]
+    header_index = None
+    for index, line in enumerate(lines[:15]):
+        if re.search(r"\btalla\b", line, re.I) and re.search(r"\b(nombre|numero|n[uú]mero|dorsal)\b", line, re.I):
+            header_index = index
+            break
+    if header_index is None:
+        return []
+    header = re.split(r"\s{2,}|\t|\|", raw_lines[header_index])
+    columns = {}
+    for field, names in {
+        "nombre": ("nombre", "deportista", "jugador", "dorsal"),
+        "talla": ("talla", "size"),
+        "numero": ("numero", "número", "number"),
+    }.items():
+        for position, value in enumerate(header):
+            plain = re.sub(r"[^a-z0-9]", "", unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode().lower())
+            if plain and any(re.sub(r"[^a-z0-9]", "", n) in plain for n in names):
+                columns[field] = position
+                break
+    if "talla" not in columns or "nombre" not in columns:
+        return []
+    rows = []
+    for original in raw_lines[header_index + 1:]:
+        cells = re.split(r"\s{2,}|\t|\|", original)
+        if len(cells) <= max(columns.values()):
+            continue
+        name = _clean_name(cells[columns["nombre"]])
+        size = _clean_size(cells[columns["talla"]])
+        if not name or not size:
+            continue
+        number = _clean_name(cells[columns["numero"]]) if "numero" in columns and columns["numero"] < len(cells) else ""
+        rows.append({"nombre": name, "talla": size, "numero": number, "genero": "", "observaciones": ""})
+    return rows
+
+
 def _person_rows(text: str) -> list[dict]:
     rows = []
 
@@ -550,12 +711,18 @@ def _data_from_image(image_path: Path) -> dict:
         "this exact format: CLIENTE=, PROYECTO=, REFERENCIA=, CANTIDAD=, GENERO=, TALLAS=, "
         "DESCRIPCION=. Use visible information only. For TALLAS use examples like S X 5, M X 10."
     )
-    parsed_rows = _table_rows_from_tsv(image_path)
+    # Primero se respeta el encabezado real de la tabla fotografiada: sirve para
+    # cualquier combinacion de columnas, no solo las cinco de la plantilla vieja.
+    parsed_rows = _rows_from_cells(_grid_cells(image_path))
     if parsed_rows:
         parsed_rows = _merge_table_readings(parsed_rows, _table_rows_from_vision(image_path))
+    if not parsed_rows:
+        parsed_rows = _table_rows_from_tsv(image_path)
+        if parsed_rows:
+            parsed_rows = _merge_table_readings(parsed_rows, _table_rows_from_vision(image_path))
     ocr = "" if parsed_rows else _ocr_text(image_path)
     if not parsed_rows:
-        parsed_rows = _person_rows(ocr)
+        parsed_rows = _table_rows_from_text(ocr) or _person_rows(ocr)
     if parsed_rows:
         raw = ""
     else:
@@ -631,10 +798,10 @@ def _rows_from_cells(rows: list[list]) -> list[dict]:
         def value(field):
             position = columns.get(field)
             return row[position] if position is not None and position < len(row) else ""
-        name, size, number = value("nombre"), value("talla").upper(), value("numero")
+        name, size, number = _clean_name(value("nombre")), _clean_size(value("talla")), _clean_name(value("numero"))
         if not any((name, size, number)):
             continue
-        if not re.fullmatch(r"(?:XS|S|M|L|XL|XXL|XXXL|\d{1,2})", size, re.I):
+        if not size:
             continue
         masc_value = value("masc").strip().upper()
         fem_value = value("fem").strip().upper()
