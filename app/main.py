@@ -1313,6 +1313,10 @@ def production_operators(refresh: bool = False, _=Depends(authenticate)):
                 if p_index is not None:
                     label = PROCESS_FLOW[p_index]['label']
                     process_cols_pre[idx] = label
+            # Rastrear el estado FINAL de cada celda (source_row, col_idx).
+            # Si una celda pasó de P a una fecha (Terminado), solo cuenta Terminado;
+            # P y R se muestran únicamente mientras ese es el estado actual de la celda.
+            cell_final: dict = {}
             for audit_row in db.execute(
                 'SELECT source_row, previous_values, new_values, created_at FROM production_sheet_audit ORDER BY id'
             ):
@@ -1333,7 +1337,14 @@ def production_operators(refresh: bool = False, _=Depends(authenticate)):
                         continue
                     new_val = str(curr[col_idx] or '').strip().upper()
                     old_val = str(prev[col_idx] if col_idx < len(prev) else '').strip().upper()
-                    if new_val == old_val or new_val not in ('P', 'R'):
+                    if new_val == old_val:
+                        continue
+                    if new_val in ('P', 'R'):
+                        state = new_val
+                    elif new_val:
+                        state = 'T'  # Terminado: fecha u otro valor no vacío
+                    else:
+                        cell_final.pop((audit_row['source_row'], col_idx), None)
                         continue
                     group_key = str(groups[col_idx] if col_idx < len(groups) else '').strip('" ').upper()
                     resp_name = ''
@@ -1343,10 +1354,17 @@ def production_operators(refresh: bool = False, _=Depends(authenticate)):
                             break
                     if not resp_name:
                         resp_name = 'Sin asignar'
-                    bucket = daily_active if new_val == 'P' else daily_rework
-                    days_map = bucket.setdefault(resp_name, {})
-                    existing = days_map.get(day, 0)
-                    days_map[day] = max(existing, qty)
+                    cell_final[(audit_row['source_row'], col_idx)] = {
+                        'state': state, 'day': day, 'qty': qty, 'resp': resp_name
+                    }
+            # Solo agregar P/R al calendario si ese sigue siendo el estado final.
+            # Las celdas en T (Terminado) ya aparecen como ✓ desde Google Sheets.
+            for info in cell_final.values():
+                if info['state'] == 'T':
+                    continue
+                bucket = daily_active if info['state'] == 'P' else daily_rework
+                days_map = bucket.setdefault(info['resp'], {})
+                days_map[info['day']] = max(days_map.get(info['day'], 0), info['qty'])
 
         # Unidades activas (P) y en reproceso (R) por area, leidas directamente del estado
         # actual de cada pedido en Produccion (misma logica que usa el Cronograma), no del
@@ -1985,17 +2003,27 @@ def production_card_assets(source_row: int, _=Depends(authenticate)):
         designs, status = production_excel_designs(source_row, files)
     except OSError:
         raise HTTPException(503, 'El NAS no está disponible')
-    images, documents = [], []
+    documents = []
     for path in sorted(files, key=lambda p: p.name.lower()):
-        url = f'/api/produccion/fila/{source_row}/archivo?name=' + quote(path.relative_to(client).as_posix(), safe='')
-        if path in mockups:
-            images.append({'name': path.name, 'url': url})
         if path.suffix.lower() in ('.xlsx', '.xls', '.pdf', '.csv'):
+            url = f'/api/produccion/fila/{source_row}/archivo?name=' + quote(path.relative_to(client).as_posix(), safe='')
             documents.append({'name': path.name, 'url': url})
-    images = [{'name': f'D{number} · imagen del listado Excel', 'design': number,
-               'url': f'/api/produccion/fila/{source_row}/mockup-excel/{number}?v=' + hashlib.sha256(data).hexdigest()[:20]}
-              for number, mime, data in designs]
-    return {'images': images, 'documents': documents[:20], 'image_status': status, 'image_source': 'excel'}
+    if designs:
+        images = [{'name': f'D{number} · imagen del listado Excel', 'design': number,
+                   'url': f'/api/produccion/fila/{source_row}/mockup-excel/{number}?v=' + hashlib.sha256(data).hexdigest()[:20]}
+                  for number, mime, data in designs]
+        return {'images': images, 'documents': documents[:20], 'image_status': status, 'image_source': 'excel'}
+    # Sin diseño en el Excel: buscar en la carpeta MAESTROS del NAS como respaldo.
+    try:
+        _, nas_images, nas_client = production_row_files(source_row, excel_only=False)
+        if nas_images:
+            images = [{'name': p.name,
+                       'url': f'/api/produccion/fila/{source_row}/archivo?name=' + quote(p.relative_to(nas_client).as_posix(), safe='')}
+                      for p in nas_images]
+            return {'images': images, 'documents': documents[:20], 'image_status': 'Imagen desde carpeta MAESTROS', 'image_source': 'nas'}
+    except (OSError, HTTPException):
+        pass
+    return {'images': [], 'documents': documents[:20], 'image_status': status, 'image_source': 'none'}
 
 
 def production_excel_designs(source_row, files):
