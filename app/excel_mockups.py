@@ -82,50 +82,80 @@ def extract_designs(filename, size, reference):
             return result
 
         workbook = xml('xl/workbook.xml')
-        sheets = [s for s in workbook.findall('s:sheets/s:sheet', NS)
-                  if normalized(s.get('name', '')) == normalized(reference)]
-        if len(sheets) != 1:
+        wb_rels = relations('xl/workbook.xml')
+        all_sheets = workbook.findall('s:sheets/s:sheet', NS)
+
+        def sheet_candidates(sheet_el):
+            """Return (candidates, unsupported) for one sheet element."""
+            part = wb_rels.get(sheet_el.get('{'+NS['r']+'}id'))
+            if not part:
+                return [], False
+            try:
+                sheet_xml = xml(part)
+            except Exception:
+                return [], False
+            sheet_rels = relations(part)
+            items, bad = [], False
+            for drawing in sheet_xml.findall('s:drawing', NS):
+                drawing_part = sheet_rels.get(drawing.get('{'+NS['r']+'}id'))
+                if not drawing_part:
+                    continue
+                image_rels = relations(drawing_part)
+                try:
+                    drawing_xml = xml(drawing_part)
+                except Exception:
+                    continue
+                for anchor in drawing_xml:
+                    marker = anchor.find('x:from', NS)
+                    if marker is None:
+                        continue
+                    col = int(marker.findtext('x:col', '-1', NS))
+                    row = int(marker.findtext('x:row', '-1', NS))
+                    # Verified listing layout: designs start near S, logo lives at B.
+                    if not 17 <= col <= 42 or not 0 <= row <= 100:
+                        continue
+                    blip = anchor.find('.//a:blip', NS)
+                    if blip is None:
+                        continue
+                    media = image_rels.get(blip.get('{'+NS['r']+'}embed'))
+                    if not media or not media.startswith('xl/media/'):
+                        continue
+                    if Path(media).suffix.lower() not in ('.jpg', '.jpeg', '.png', '.webp') or z.getinfo(media).file_size > 10 * 1024 * 1024:
+                        bad = True
+                        continue
+                    data = read(media, 10 * 1024 * 1024)
+                    mime = ('image/png' if data.startswith(b'\x89PNG\r\n\x1a\n') else
+                            'image/jpeg' if data.startswith(b'\xff\xd8\xff') else
+                            'image/webp' if data[:4] == b'RIFF' and data[8:12] == b'WEBP' else None)
+                    if mime is None:
+                        bad = True
+                        continue
+                    # New templates have four six-column slots S/Y/AE/AK.
+                    design = min(4, max(1, round((col - 18) / 6) + 1)) if row < 10 else None
+                    items.append((row, col, design, mime, data))
+            return items, bad
+
+        # 1) Exact sheet-name match.
+        matched = [s for s in all_sheets if normalized(s.get('name', '')) == normalized(reference)]
+        # 2) Token-based match: any [A-Z]+\d+ code from the reference found in a sheet name.
+        if len(matched) != 1:
+            ref_tokens = set(re.findall(r'[A-Z]+\d+', reference.upper()))
+            if ref_tokens:
+                matched = [s for s in all_sheets
+                           if any(t in normalized(s.get('name', '')) for t in ref_tokens)]
+        # 3) Fallback: first sheet in workbook order that has images in the design area.
+        if len(matched) != 1:
+            matched = []
+            for candidate in all_sheets:
+                imgs, _ = sheet_candidates(candidate)
+                if imgs:
+                    matched = [candidate]
+                    break
+
+        if len(matched) != 1:
             return (), 'Sin hoja coincidente con la referencia'
-        sheet = sheets[0]
-        part = relations('xl/workbook.xml').get(sheet.get('{'+NS['r']+'}id'))
-        if not part:
-            return (), 'Sin hoja disponible'
-        sheet_xml = xml(part)
-        sheet_rels = relations(part)
-        candidates = []
-        unsupported = False
-        for drawing in sheet_xml.findall('s:drawing', NS):
-            drawing_part = sheet_rels.get(drawing.get('{'+NS['r']+'}id'))
-            if not drawing_part:
-                continue
-            image_rels = relations(drawing_part)
-            for anchor in xml(drawing_part):
-                marker = anchor.find('x:from', NS)
-                if marker is None:
-                    continue
-                col, row = int(marker.findtext('x:col', '-1', NS)), int(marker.findtext('x:row', '-1', NS))
-                # Verified listing layout: designs start near S, logo lives at B.
-                if not 17 <= col <= 42 or not 0 <= row <= 100:
-                    continue
-                blip = anchor.find('.//a:blip', NS)
-                if blip is None:
-                    continue
-                media = image_rels.get(blip.get('{'+NS['r']+'}embed'))
-                if not media or not media.startswith('xl/media/'):
-                    continue
-                if Path(media).suffix.lower() not in ('.jpg', '.jpeg', '.png', '.webp') or z.getinfo(media).file_size > 10 * 1024 * 1024:
-                    unsupported = True
-                    continue
-                data = read(media, 10 * 1024 * 1024)
-                mime = ('image/png' if data.startswith(b'\x89PNG\r\n\x1a\n') else
-                        'image/jpeg' if data.startswith(b'\xff\xd8\xff') else
-                        'image/webp' if data[:4] == b'RIFF' and data[8:12] == b'WEBP' else None)
-                if mime is None:
-                    unsupported = True
-                    continue
-                # New templates have four six-column slots S/Y/AE/AK.
-                design = min(4, max(1, round((col - 18) / 6) + 1)) if row < 10 else None
-                candidates.append((row, col, design, mime, data))
+
+        candidates, unsupported = sheet_candidates(matched[0])
         candidates.sort(key=lambda item: (item[1], item[0]))
         if sum(len(item[4]) for item in candidates) > 16 * 1024 * 1024:
             return (), 'Imágenes demasiado grandes para vista previa'
