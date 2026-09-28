@@ -1058,7 +1058,13 @@ def create_from_images(
     extracted = _data_from_source(data_image)
     if progress_callback:
         progress_callback(52, "Datos identificados. Analizando el mockup principal")
-    metadata = _mockup_metadata(images[0][1]) if images and images[0][1] else {}
+    # El mockup principal es siempre el diseno D1. Antes se tomaba el primer
+    # archivo subido, que no coincide con D1 cuando el usuario adjunta las
+    # imagenes en otro orden: el cliente, la referencia, el genero y la
+    # descripcion se leian de la foto equivocada.
+    ordered_images = sorted((item for item in images if item[1]), key=lambda item: item[0])
+    first_image = next((item for item in ordered_images if item[0] == 1), (ordered_images[0] if ordered_images else (1, None)))
+    metadata = _mockup_metadata(first_image[1]) if first_image[1] else {}
     reference_value = extracted.get("REFERENCIA") or metadata.get("REFERENCIA") or ""
     referencia = re.sub(r"[^A-Za-z0-9_-]+", "-", reference_value).strip("-") or f"IMG-{stamp}"
     header = {
@@ -1070,7 +1076,6 @@ def create_from_images(
     quantity_match = re.search(r"\d+", extracted.get("CANTIDAD", ""))
     quantity = int(quantity_match.group()) if quantity_match else max(len(size_rows), 1)
     image_map = {referencia: {}}
-    first_image = images[0] if images else (1, None)
     if extracted.get("DESCRIPCION"):
         description = extracted["DESCRIPCION"]
     elif metadata:
@@ -1132,7 +1137,13 @@ def create_from_sheet_bundle(
         data_image = Path(spec["data_image"])
         images = list(spec.get("images") or [])
         extracted = spec.get("extracted_override") or _data_from_source(data_image)
-        metadata = _mockup_metadata(images[0][1]) if images and images[0][1] else {}
+        # El mockup principal es siempre el diseno D1. Antes se tomaba el primer
+        # archivo subido, que no coincide con D1 cuando el usuario adjunta las
+        # imagenes en otro orden: el cliente, la referencia, el genero y la
+        # descripcion se leian de la foto equivocada.
+        ordered_images = sorted((item for item in images if item[1]), key=lambda item: item[0])
+        first_image = next((item for item in ordered_images if item[0] == 1), (ordered_images[0] if ordered_images else (1, None)))
+        metadata = _mockup_metadata(first_image[1]) if first_image[1] else {}
         actual_ref = re.sub(
             r"[^A-Za-z0-9_-]+", "-",
             extracted.get("REFERENCIA") or metadata.get("REFERENCIA") or "",
@@ -1147,7 +1158,6 @@ def create_from_sheet_bundle(
         rows = extracted.get("FILAS") or _sizes(extracted.get("TALLAS", ""))
         quantity_match = re.search(r"\d+", extracted.get("CANTIDAD", ""))
         quantity = int(quantity_match.group()) if quantity_match else max(len(rows), 1)
-        first_image = images[0] if images else (1, None)
         description = extracted.get("DESCRIPCION") or f"Diseno D{first_image[0]} creado desde imagen"
         if metadata.get("REFERENCIA"):
             description += f" - {metadata['REFERENCIA']}"

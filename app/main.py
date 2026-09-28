@@ -1431,42 +1431,67 @@ def production_operators(refresh: bool = False, _=Depends(authenticate)):
                 group_value = normalize_group(groups[index] if index < len(groups) else '')
                 resp_cols_by_group.setdefault(group_value, []).append(index)
 
-        process_columns: dict = {}
-        for index, header in enumerate(headers):
-            process_index = official_process(header)
-            if process_index is None:
-                continue
-            label = PROCESS_FLOW[process_index]['label']
-            group_value = normalize_group(groups[index] if index < len(groups) else '')
-            entry = process_columns.setdefault(label, {'status': [], 'resp': []})
-            entry['status'].append(index)
-            entry['resp'] = resp_cols_by_group.get(group_value, [])
+        # Columnas de proceso en el orden en que aparecen en la hoja, que es el orden en que
+        # la produccion avanza de izquierda a derecha.
+        process_columns = [index for index, header in enumerate(headers) if official_process(header) is not None]
+        due_index = next((index for index, header in enumerate(headers)
+                          if str(header or '').strip().upper() in ('FECHA DE ENTREGA', 'FECHA ENTREGA')), -1)
+
+        def process_cell_state(values, index):
+            """'active' (P), 'rework' (R), 'closed' (fecha o N/A) o 'blank' de una celda de proceso."""
+            cell = normalize_cell(values[index]) if index < len(values) else ''
+            if cell == 'R':
+                return 'rework'
+            if cell == 'P':
+                return 'active'
+            return 'closed' if cell == 'N/A' or parse_production_date(cell) else 'blank'
+
+        def current_process_state(values, today):
+            """Proceso vigente de la orden HOY: el primero que sigue abierto ("P" o "R").
+
+            Antes este tablero contaba la orden en TODOS los procesos que tuvieran "P" o "R",
+            aunque ya los hubiera superado, y le sumaba la cantidad completa de la fila. Por eso
+            una orden de 8 unidades en reproceso se veia como 26 (18 de una "R" vieja + 8).
+            Ahora la orden se cuenta una sola vez, en el proceso donde esta de verdad, y una "R"
+            vieja deja de contar cuando: todos los procesos posteriores ya estan cerrados (el
+            pedido supero ese proceso) o su fecha de entrega ya vencio (todavia esta pendiente).
+            Asi el tablero se actualiza solo conforme pasan los dias y se mueven las ordenes, en
+            vez de arrastrar reprocesos de meses anteriores. "R" cuenta como abierto, igual que
+            en la tarjeta de Trazabilidad."""
+            for position, index in enumerate(process_columns):
+                state = process_cell_state(values, index)
+                if state not in ('active', 'rework'):
+                    continue
+                if all(process_cell_state(values, later) == 'closed'
+                       for later in process_columns[position + 1:]):
+                    return None, None
+                if due_index >= 0 and due_index < len(values):
+                    due = parse_production_date(str(values[due_index] or '').strip())
+                    if due and due < today:
+                        return None, None
+                return index, state
+            return None, None
 
         process_status: dict = {}
         for values in rows_values.values():
-            quantity = 0
-            if quantity_idx >= 0 and quantity_idx < len(values):
-                try:
-                    quantity = int(float(str(values[quantity_idx]).replace(',', '.')))
-                except ValueError:
-                    quantity = 0
-            for label, cols in process_columns.items():
-                cells = [normalize_cell(values[i]) if i < len(values) else '' for i in cols['status']]
-                if not any(cells):
-                    continue
-                state_key = 'rework_units' if 'R' in cells else ('active_units' if 'P' in cells else None)
-                if not state_key:
-                    continue
-                bucket = process_status.setdefault(label, {'active_units': 0, 'rework_units': 0, 'by_responsible': {}})
-                bucket[state_key] += quantity
-                responsible_name = ''
-                for ri in cols['resp']:
-                    if ri < len(values) and str(values[ri]).strip():
-                        responsible_name = str(values[ri]).strip()
-                        break
-                if responsible_name:
-                    person = bucket['by_responsible'].setdefault(responsible_name, {'active_units': 0, 'rework_units': 0})
-                    person[state_key] += quantity
+            index, state = current_process_state(values, today)
+            if index is None:
+                continue
+            quantity = row_quantity(values)
+            process_index = official_process(headers[index])
+            label = PROCESS_FLOW[process_index]['label']
+            state_key = 'rework_units' if state == 'rework' else 'active_units'
+            bucket = process_status.setdefault(label, {'active_units': 0, 'rework_units': 0, 'by_responsible': {}})
+            bucket[state_key] += quantity
+            group_value = normalize_group(groups[index] if index < len(groups) else '')
+            responsible_name = ''
+            for ri in resp_cols_by_group.get(group_value, []):
+                if ri < len(values) and str(values[ri]).strip():
+                    responsible_name = str(values[ri]).strip()
+                    break
+            if responsible_name:
+                person = bucket['by_responsible'].setdefault(responsible_name, {'active_units': 0, 'rework_units': 0})
+                person[state_key] += quantity
 
         return {
             'today': today.isoformat(),
@@ -3944,7 +3969,7 @@ async def confirm_xlsx(payload: dict = Body(...), _=Depends(authenticate)):
         sheets.append({
             "sheet_name": str(changes.get("name") or original["sheet_name"]).strip(),
             "data_image": Path(original["data_image"]),
-            "images": [(int(design), Path(path)) for design, path in original["images"]],
+            "images": sorted(((int(design), Path(path)) for design, path in original["images"]), key=lambda item: item[0]),
             "extracted_override": extracted,
         })
     output_name = normalize_output_name(str(payload.get("workbook_name") or manifest["output_name"]))
