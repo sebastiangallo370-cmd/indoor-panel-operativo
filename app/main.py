@@ -1368,10 +1368,17 @@ def production_operators(refresh: bool = False, _=Depends(authenticate)):
                         'state': state, 'day': day, 'qty': qty, 'resp': resp_name
                     }
             # Solo agregar P/R al calendario si ese sigue siendo el estado final.
-            # Las celdas en T (Terminado) ya aparecen como ✓ desde Google Sheets.
-            for info in cell_final.values():
+            # Verificar también el valor actual en rows_values: si la celda ya tiene una
+            # fecha u otro valor distinto de P/R, el proceso está Terminado aunque el
+            # audit no haya capturado esa transición (p.ej. si el sync empezó después).
+            for (src_row, col_idx), info in cell_final.items():
                 if info['state'] == 'T':
                     continue
+                current_row = rows_values.get(src_row)
+                if current_row is not None and col_idx < len(current_row):
+                    current_val = str(current_row[col_idx] or '').strip().upper()
+                    if current_val and current_val not in ('P', 'R'):
+                        continue  # ya está Terminado en Sheets
                 bucket = daily_active if info['state'] == 'P' else daily_rework
                 days_map = bucket.setdefault(info['resp'], {})
                 days_map[info['day']] = max(days_map.get(info['day'], 0), info['qty'])
