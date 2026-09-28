@@ -124,6 +124,27 @@ def apply(db, snapshot):
                        (key,number,item['sheet_row'],json.dumps(item,ensure_ascii=False)))
             counts['linked'] += 1
             counts['notes'] += len(item['notes'])
+        # Eliminar del app las filas que ya no existen en la hoja de Google Sheets.
+        # Solo se eliminan las que fueron importadas desde Sheets (tienen entrada en
+        # production_sheet_links); las creadas localmente no se tocan.
+        sheet_keys = {identity(item['values']) for item in snapshot['rows']}
+        linked_rows = db.execute('SELECT identity,source_row FROM production_sheet_links').fetchall()
+        counts['removed'] = 0
+        for link_identity, link_source_row in linked_rows:
+            if link_identity in sheet_keys:
+                continue  # Aun existe en la hoja
+            if link_identity in deleted:
+                continue  # Ya fue marcada como eliminada localmente
+            if not db.execute('SELECT 1 FROM production_rows WHERE source_row=?', (link_source_row,)).fetchone():
+                continue  # Ya no existe en produccion
+            db.execute('DELETE FROM production_rows WHERE source_row=?', (link_source_row,))
+            for tbl in ('production_notes','production_started','production_finished',
+                        'production_rework','production_sheet_notes'):
+                db.execute(f'DELETE FROM {tbl} WHERE source_row=?', (link_source_row,))
+            if db.execute("SELECT 1 FROM sqlite_master WHERE name='production_operator_events'").fetchone():
+                db.execute('DELETE FROM production_operator_events WHERE source_row=?', (link_source_row,))
+            db.execute('DELETE FROM production_sheet_links WHERE source_row=?', (link_source_row,))
+            counts['removed'] += 1
         db.executemany('INSERT OR REPLACE INTO production_meta(key,value) VALUES (?,?)',[
             ('last_allocated_row',str(maximum)),('sheets_sync_checked_at',now),
             ('sheets_sync_error',''),('sheets_sync_counts',json.dumps(counts)),('updated_at',now)])

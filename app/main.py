@@ -515,6 +515,11 @@ def startup():
     with connect():
         pass
     legacy.setup_logging(CONFIG["log_file"])
+    # Activar siempre la sincronizacion con Google Sheets al arrancar.
+    # Los datos de produccion (P, R, Terminado) deben reflejar la hoja en todo momento.
+    flag = STATE_DIR / 'sheets-sync-enabled'
+    flag.parent.mkdir(parents=True, exist_ok=True)
+    flag.touch(exist_ok=True)
     sheets_sync.start(connect, legacy.get_gspread, STATE_DIR)
     db_backup.start(DB_PATH, STATE_DIR, legacy.get_supabase)
 
@@ -1290,6 +1295,58 @@ def production_operators(refresh: bool = False, _=Depends(authenticate)):
                     days[day] = days.get(day, 0) + row_quantity(values)
             if not operator['last_at'] or event['created_at'] > operator['last_at']:
                 operator['last_at'] = event['created_at']
+
+        # Complementar P/R historico con los cambios que llegan de Google Sheets.
+        # Cuando la hoja cambia una celda a P o R, el sync lo registra en
+        # production_sheet_audit; se usa ese timestamp para poblar daily_active/rework
+        # por responsable, de modo que el calendario muestre datos reales de la hoja
+        # aunque los operarios no hayan pulsado ningun boton en la app.
+        if db.execute("SELECT 1 FROM sqlite_master WHERE name='production_sheet_audit'").fetchone():
+            resp_cols_by_group_pre: dict = {}
+            process_cols_pre: dict = {}  # column_index -> process_label
+            for idx, header in enumerate(headers):
+                title = str(header or '').strip().upper()
+                if title.startswith('RESP'):
+                    group_value = str(groups[idx] if idx < len(groups) else '').strip('" ').upper()
+                    resp_cols_by_group_pre.setdefault(group_value, []).append(idx)
+                p_index = official_process(header)
+                if p_index is not None:
+                    label = PROCESS_FLOW[p_index]['label']
+                    process_cols_pre[idx] = label
+            for audit_row in db.execute(
+                'SELECT source_row, previous_values, new_values, created_at FROM production_sheet_audit ORDER BY id'
+            ):
+                day = str(audit_row['created_at'] or '')[:10]
+                if len(day) != 10:
+                    continue
+                try:
+                    prev = json.loads(audit_row['previous_values'])
+                    curr = json.loads(audit_row['new_values'])
+                except Exception:
+                    continue
+                row_vals = rows_values.get(audit_row['source_row'], curr)
+                qty = row_quantity(row_vals)
+                if qty <= 0:
+                    continue
+                for col_idx, _label in process_cols_pre.items():
+                    if col_idx >= len(curr):
+                        continue
+                    new_val = str(curr[col_idx] or '').strip().upper()
+                    old_val = str(prev[col_idx] if col_idx < len(prev) else '').strip().upper()
+                    if new_val == old_val or new_val not in ('P', 'R'):
+                        continue
+                    group_key = str(groups[col_idx] if col_idx < len(groups) else '').strip('" ').upper()
+                    resp_name = ''
+                    for ri in resp_cols_by_group_pre.get(group_key, []):
+                        if ri < len(row_vals) and str(row_vals[ri]).strip():
+                            resp_name = str(row_vals[ri]).strip()
+                            break
+                    if not resp_name:
+                        resp_name = 'Sin asignar'
+                    bucket = daily_active if new_val == 'P' else daily_rework
+                    days_map = bucket.setdefault(resp_name, {})
+                    existing = days_map.get(day, 0)
+                    days_map[day] = max(existing, qty)
 
         # Unidades activas (P) y en reproceso (R) por area, leidas directamente del estado
         # actual de cada pedido en Produccion (misma logica que usa el Cronograma), no del
@@ -2609,10 +2666,12 @@ def home(_=Depends(authenticate)):
     const productionTools=document.createElement('details');productionTools.className='production-tools-menu';productionTools.innerHTML='<summary>Herramientas</summary><div class="production-tools-popover"></div>';document.querySelector('.production-controls').appendChild(productionTools);productionTools.querySelector('div').appendChild(document.querySelector('.production-connector'));const zoomGroup=document.createElement('label');zoomGroup.className='production-zoom-group';zoomGroup.append('Tamaño ');zoomGroup.appendChild(productionZoom);zoomGroup.append(' %');processFilterBar.appendChild(zoomGroup);document.querySelector('.production-title h2').textContent='Trazabilidad de producción';document.querySelector('.production-title p').textContent='Doble clic para editar · Clic derecho para notas';productionSearch.placeholder='Buscar cliente, orden o referencia';deliverySortButton.textContent='Ordenar entregas';document.addEventListener('click',event=>{{if(!productionTools.contains(event.target))productionTools.open=false}});
     /* Vincular Google Sheets: cuando se activa, las filas nuevas que se agreguen en la hoja
        (o los cambios que se hagan ahi) se importan solas a Producción cada 30 segundos. */
-    const sheetsSyncBox=document.createElement('div');sheetsSyncBox.className='sheets-sync-box';sheetsSyncBox.innerHTML='<strong>Google Sheets</strong><p id="sheets-sync-status">Consultando estado…</p><button type="button" id="sheets-sync-toggle" class="production-refresh">Consultando…</button>';productionTools.querySelector('div').appendChild(sheetsSyncBox);
-    async function refreshSheetsSyncStatus(){{try{{const response=await fetch('/api/produccion/sheets-sync/estado'),data=await response.json();if(!response.ok)throw Error();const statusEl=document.getElementById('sheets-sync-status'),toggleEl=document.getElementById('sheets-sync-toggle');if(data.enabled){{statusEl.textContent='Vinculada · las filas nuevas de la hoja se importan solas cada 30s.'+(data.checked_at?' Última revisión: '+new Date(data.checked_at).toLocaleTimeString('es-CO',{{timeZone:'America/Bogota'}}):'')+(data.error?' · Aviso: '+data.error:'');toggleEl.textContent='Desvincular';toggleEl.dataset.action='desactivar'}}else{{statusEl.textContent='Sin vincular: las filas nuevas que agregues en Google Sheets no aparecen solas en la página todavía.';toggleEl.textContent='Vincular Google Sheets';toggleEl.dataset.action='activar'}}}}catch(error){{document.getElementById('sheets-sync-status').textContent='No se pudo consultar el estado.'}}}}
-    document.getElementById('sheets-sync-toggle').addEventListener('click',async event=>{{const button=event.currentTarget,action=button.dataset.action;if(action==='activar'&&!confirm('¿Vincular la hoja de Google Sheets? Desde ahora, las filas nuevas o editadas ahí se importarán solas a Producción cada 30 segundos. No borra ni sobrescribe lo que ya existe solo en la página.'))return;if(action==='desactivar'&&!confirm('¿Desvincular Google Sheets? Se deja de importar automáticamente.'))return;button.disabled=true;button.textContent='Un momento…';try{{const response=await fetch('/api/produccion/sheets-sync/'+action,{{method:'POST'}});if(!response.ok)throw Error();await refreshSheetsSyncStatus()}}catch(error){{document.getElementById('sheets-sync-status').textContent='No se pudo actualizar. Intenta de nuevo.'}}finally{{button.disabled=false}}}});
-    refreshSheetsSyncStatus();
+    const sheetsSyncBox=document.createElement('div');sheetsSyncBox.className='sheets-sync-box';sheetsSyncBox.innerHTML='<strong>Google Sheets · Sincronización automática</strong><p id="sheets-sync-status">Consultando estado…</p><button type="button" id="sheets-sync-toggle" class="production-refresh">Consultando…</button>';productionTools.querySelector('div').appendChild(sheetsSyncBox);
+    /* Indicador compacto de sync en la barra de produccion (siempre visible) */
+    const syncPill=document.createElement('span');syncPill.id='sheets-sync-pill';syncPill.className='sheets-sync-pill';syncPill.title='Vinculado a Google Sheets';syncPill.innerHTML='<i class="sheets-sync-dot"></i><span id="sheets-sync-pill-text">Sheets…</span>';document.querySelector('.production-kpis').appendChild(syncPill);
+    async function refreshSheetsSyncStatus(){{try{{const response=await fetch('/api/produccion/sheets-sync/estado'),data=await response.json();if(!response.ok)throw Error();const statusEl=document.getElementById('sheets-sync-status'),toggleEl=document.getElementById('sheets-sync-toggle'),pill=document.getElementById('sheets-sync-pill'),pillText=document.getElementById('sheets-sync-pill-text');const lastCheck=data.checked_at?new Date(data.checked_at).toLocaleTimeString('es-CO',{{timeZone:'America/Bogota'}}):'';if(data.enabled){{statusEl.textContent='Sincronización activa · los cambios de Google Sheets se reflejan aquí cada 30s.'+(lastCheck?' Última revisión: '+lastCheck:'')+(data.error?' · Error: '+data.error:'');toggleEl.textContent='Pausar sync';toggleEl.dataset.action='desactivar';pill.classList.toggle('pill-error',!!data.error);pill.classList.remove('pill-off');pillText.textContent=lastCheck?'Sheets · '+lastCheck:'Sheets activo'}}else{{statusEl.textContent='Sincronización pausada · los cambios en Google Sheets NO se reflejan en la página. El servidor la reactiva sola al reiniciar.';toggleEl.textContent='Reactivar sync';toggleEl.dataset.action='activar';pill.classList.add('pill-off');pill.classList.remove('pill-error');pillText.textContent='Sheets pausado'}}}}catch(error){{document.getElementById('sheets-sync-status').textContent='No se pudo consultar el estado.'}}}}
+    document.getElementById('sheets-sync-toggle').addEventListener('click',async event=>{{const button=event.currentTarget,action=button.dataset.action;if(action==='desactivar'&&!confirm('¿Pausar la sincronización con Google Sheets? Los cambios que hagas allá no se reflejarán aquí hasta reactivarla. El servidor la activa sola al reiniciar.'))return;if(action==='activar'&&!confirm('¿Reactivar la sincronización con Google Sheets?'))return;button.disabled=true;button.textContent='Un momento…';try{{const response=await fetch('/api/produccion/sheets-sync/'+action,{{method:'POST'}});if(!response.ok)throw Error();await refreshSheetsSyncStatus()}}catch(error){{document.getElementById('sheets-sync-status').textContent='No se pudo actualizar. Intenta de nuevo.'}}finally{{button.disabled=false}}}});
+    refreshSheetsSyncStatus();setInterval(refreshSheetsSyncStatus,60000);
     /* Copia de seguridad: cada 6 horas se sube una foto de la base de datos a Supabase,
        por si el servidor falla. El botón permite forzar una copia y ver cuándo fue la última. */
     const backupBox=document.createElement('div');backupBox.className='sheets-sync-box';backupBox.innerHTML='<strong>Copia de seguridad</strong><p id="backup-status">Consultando estado…</p><button type="button" id="backup-now" class="production-refresh">Respaldar ahora</button>';productionTools.querySelector('div').appendChild(backupBox);
@@ -2664,6 +2723,16 @@ body.production-mode .production-tools-popover{{position:absolute;right:0;top:42
 .sheets-sync-box strong{{font-size:.72rem;letter-spacing:.04em;text-transform:uppercase;color:#c7d1b8}}
 .sheets-sync-box p{{margin:0;font-size:.72rem;line-height:1.4;color:#a9b599}}
 .sheets-sync-box button{{width:100%}}
+.sheets-sync-pill{{display:inline-flex;align-items:center;gap:5px;margin-left:auto;padding:3px 9px;border-radius:999px;background:rgba(208,244,76,.1);border:1px solid rgba(208,244,76,.28);font-size:.66rem;font-weight:700;color:#c8e87a;white-space:nowrap;cursor:default;transition:.2s}}
+.sheets-sync-pill.pill-off{{background:rgba(255,200,80,.08);border-color:rgba(255,200,80,.3);color:#f0d070}}
+.sheets-sync-pill.pill-error{{background:rgba(255,80,80,.09);border-color:rgba(255,80,80,.3);color:#ffa0a0}}
+.sheets-sync-dot{{display:inline-block;width:6px;height:6px;border-radius:50%;background:#d0f44c;box-shadow:0 0 6px rgba(208,244,76,.7);animation:syncPulse 2.5s ease-in-out infinite}}
+.sheets-sync-pill.pill-off .sheets-sync-dot{{background:#e0b840;box-shadow:0 0 6px rgba(224,184,64,.5);animation:none}}
+.sheets-sync-pill.pill-error .sheets-sync-dot{{background:#ff7070;box-shadow:0 0 6px rgba(255,112,112,.5)}}
+@keyframes syncPulse{{0%,100%{{opacity:1}}50%{{opacity:.45}}}}
+.operarios-legend{{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;padding:8px 20px 4px;border-bottom:1px solid rgba(255,255,255,.06)}}
+.operarios-legend .op-stat{{font-size:.7rem;font-weight:700;gap:5px}}
+.operarios-legend-source{{margin-left:auto;font-size:.62rem;color:#6e7d65;font-weight:600;font-style:italic}}
 body.production-mode .production-tools-popover a{{display:block;font-size:12px}}
 @media(max-width:860px){{body.production-mode .production-toolbar{{padding:12px}}body.production-mode .production-controls{{max-width:none;width:100%}}body.production-mode .production-process-filter{{padding:10px 12px;gap:8px}}body.production-mode .production-status{{display:none}}body.production-mode .production-zoom-group{{margin-left:0}}}}
 `;document.head.appendChild(cleanProductionStyle);
@@ -3133,14 +3202,15 @@ let html='';for(let n=0;n<days;n++){{const date=new Date(start);date.setDate(sta
           :'<p class="operarios-daynone">Sin cierres</p>';
         return '<article class="operarios-daycard'+(isToday?' is-today':'')+'"><div class="operarios-daycard-head"><span class="operarios-daycard-num">'+entry.day+'</span><span class="operarios-daycard-date"><b>'+esc(dowFull)+'</b><small>'+esc(monthFull)+'</small></span><span class="operarios-daycard-total">Total '+entry.total+' unds</span></div>'+list+'</article>';
       }}).join('');
+      const legendHTML='<div class="operarios-legend"><span class="op-stat op-stat-done"><i class="op-stat-icon">✓</i>Terminado</span><span class="op-stat op-stat-active"><i class="op-stat-icon">P</i>En proceso</span><span class="op-stat op-stat-rework"><i class="op-stat-icon">R</i>Reproceso</span><small class="operarios-legend-source">Datos reales · Google Sheets</small></div>';
       const kpisHTML='<div><span>Operarios</span><strong>'+roster.length+'</strong></div><div><span>Trabajando</span><strong>'+roster.filter(entry=>entry.record&&entry.record.current).length+'</strong></div><div><span>Días con registro</span><strong>'+days.filter(entry=>entry.total>0).length+'</strong></div><div><span>Procesos del mes</span><strong>'+days.reduce((sum,entry)=>sum+entry.total,0)+'</strong></div>';
-      const bodyHTML=cards?'<div class="operarios-days">'+cards+'</div>':'<p class="operarios-cal-empty">'+(search?'No hay cierres registrados en esa fecha.':'No hay procesos cerrados en este mes.')+'</p>';
+      const bodyHTML=cards?legendHTML+'<div class="operarios-days">'+cards+'</div>':legendHTML+'<p class="operarios-cal-empty">'+(search?'No hay cierres registrados en esa fecha.':'No hay procesos cerrados en este mes.')+'</p>';
       operariosDialogKpis.innerHTML=kpisHTML;
       operariosDialogBody.innerHTML=bodyHTML;
       const minDate=year+'-'+String(month+1).padStart(2,'0')+'-01';
       const maxDate=year+'-'+String(month+1).padStart(2,'0')+'-'+String(total).padStart(2,'0');
       operariosDayFilterSlot.innerHTML='<div class="operarios-day-filter-row"><input type="date" id="operarios-day-filter" class="operarios-day-filter" value="'+esc(search)+'" min="'+minDate+'" max="'+maxDate+'" aria-label="Buscar una fecha"><button type="button" id="operarios-day-filter-clear" class="operarios-day-filter-clear"'+(search?'':' hidden')+'>Ver todo</button></div>';
-      operariosHoverCalendar.innerHTML='<h3 class="operarios-hover-cal-title">'+esc(group.area)+' <small>'+new Date(year,month,1).toLocaleDateString('es-CO',{{month:'long',year:'numeric'}})+'</small></h3><div class="operarios-dialog-kpis">'+kpisHTML+'</div>'+bodyHTML;
+      operariosHoverCalendar.innerHTML='<h3 class="operarios-hover-cal-title">'+esc(group.area)+' <small>'+new Date(year,month,1).toLocaleDateString('es-CO',{{month:'long',year:'numeric'}})+'</small></h3><div class="operarios-dialog-kpis">'+kpisHTML+'</div>'+legendHTML+bodyHTML;
     }}
     operariosDayFilterSlot.addEventListener('change',event=>{{
       if(event.target.id!=='operarios-day-filter')return;
