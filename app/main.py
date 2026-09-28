@@ -1301,10 +1301,12 @@ def production_operators(refresh: bool = False, _=Depends(authenticate)):
                 event_pending.pop(key, None)
             if not operator['last_at'] or event['created_at'] > operator['last_at']:
                 operator['last_at'] = event['created_at']
+        today_str = today.isoformat()
         for info in event_pending.values():
             bucket = daily_active if info['kind'] == 'active' else daily_rework
             days_map = bucket.setdefault(info['resp'], {})
-            days_map[info['day']] = max(days_map.get(info['day'], 0), info['qty'])
+            # Proceso aún abierto: se muestra en HOY, no en el día en que se inició.
+            days_map[today_str] = max(days_map.get(today_str, 0), info['qty'])
 
         # Complementar P/R historico con los cambios que llegan de Google Sheets.
         # Cuando la hoja cambia una celda a P o R, el sync lo registra en
@@ -1381,7 +1383,8 @@ def production_operators(refresh: bool = False, _=Depends(authenticate)):
                         continue  # ya está Terminado en Sheets
                 bucket = daily_active if info['state'] == 'P' else daily_rework
                 days_map = bucket.setdefault(info['resp'], {})
-                days_map[info['day']] = max(days_map.get(info['day'], 0), info['qty'])
+                # Proceso aún abierto: se muestra en HOY, no en el día original.
+                days_map[today_str] = max(days_map.get(today_str, 0), info['qty'])
 
         # Unidades activas (P) y en reproceso (R) por area, leidas directamente del estado
         # actual de cada pedido en Produccion (misma logica que usa el Cronograma), no del
