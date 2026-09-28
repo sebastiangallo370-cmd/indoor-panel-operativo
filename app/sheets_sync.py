@@ -154,23 +154,26 @@ def decorate(db, data):
 
 
 def start(connect, worksheet_provider, state_dir):
+    """The worker thread always runs; it re-checks the flag file on every tick, so
+    activating/deactivating the sync from the app takes effect within one poll
+    interval, without needing to restart the server."""
     enabled = state_dir / 'sheets-sync-enabled'
-    if not enabled.exists():
-        return
+
     def worker():
-        while enabled.exists():
-            try:
-                snapshot = fetch(worksheet_provider())
-                with connect() as db:
-                    backup = state_dir / 'before-sheets-sync.sqlite3'
-                    if not backup.exists():
-                        with sqlite3.connect(backup) as destination:
-                            db.backup(destination)
-                    counts = apply(db, snapshot)
-                logging.info('Sheets sync: %s', counts)
-            except Exception as error:
-                logging.exception('Google Sheets sync failed; local production preserved')
-                with connect() as db:
-                    db.execute("INSERT OR REPLACE INTO production_meta VALUES ('sheets_sync_error',?)",(str(error)[:500],))
+        while True:
+            if enabled.exists():
+                try:
+                    snapshot = fetch(worksheet_provider())
+                    with connect() as db:
+                        backup = state_dir / 'before-sheets-sync.sqlite3'
+                        if not backup.exists():
+                            with sqlite3.connect(backup) as destination:
+                                db.backup(destination)
+                        counts = apply(db, snapshot)
+                    logging.info('Sheets sync: %s', counts)
+                except Exception as error:
+                    logging.exception('Google Sheets sync failed; local production preserved')
+                    with connect() as db:
+                        db.execute("INSERT OR REPLACE INTO production_meta VALUES ('sheets_sync_error',?)",(str(error)[:500],))
             threading.Event().wait(30)
     threading.Thread(target=worker, name='sheets-production-sync', daemon=True).start()

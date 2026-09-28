@@ -1084,6 +1084,42 @@ def delete_production_operator_event(event_id: int, _=Depends(authenticate)):
         db.close()
 
 
+def _sheets_sync_flag():
+    return STATE_DIR / 'sheets-sync-enabled'
+
+
+@app.get('/api/produccion/sheets-sync/estado')
+def sheets_sync_estado(_=Depends(authenticate)):
+    db = connect()
+    try:
+        meta = dict(db.execute("SELECT key,value FROM production_meta WHERE key LIKE 'sheets_sync_%'"))
+    finally:
+        db.close()
+    return {
+        'enabled': _sheets_sync_flag().exists(),
+        'checked_at': meta.get('sheets_sync_checked_at'),
+        'error': meta.get('sheets_sync_error', ''),
+        'counts': json.loads(meta['sheets_sync_counts']) if meta.get('sheets_sync_counts') else None,
+    }
+
+
+@app.post('/api/produccion/sheets-sync/activar')
+def sheets_sync_activar(_=Depends(authenticate)):
+    """Vincula la hoja de Google Sheets: desde este momento, las filas nuevas que se
+    agreguen ahi (o se editen) se importan a Produccion automaticamente cada 30s.
+    No borra ni sobrescribe nada que ya exista solo en la web (ver sheets_sync.apply)."""
+    flag = _sheets_sync_flag()
+    flag.parent.mkdir(parents=True, exist_ok=True)
+    flag.touch(exist_ok=True)
+    return {'ok': True, 'enabled': True}
+
+
+@app.post('/api/produccion/sheets-sync/desactivar')
+def sheets_sync_desactivar(_=Depends(authenticate)):
+    _sheets_sync_flag().unlink(missing_ok=True)
+    return {'ok': True, 'enabled': False}
+
+
 OPERATOR_SHEET_GID = 1538767125
 OPERATOR_SHEET_TTL_SECONDS = 90
 _operator_sheet_cache = {"at": 0.0, "data": None, "error": None}
@@ -2496,6 +2532,12 @@ def home(_=Depends(authenticate)):
     const processFilterBar=document.createElement('div');processFilterBar.className='production-process-filter';processFilterBar.innerHTML='<label for="production-process">Proceso</label><select id="production-process" aria-label="Filtrar columnas por proceso"><option value="">Todos los procesos</option></select>';document.querySelector('.production-toolbar').insertAdjacentElement('afterend',processFilterBar);const productionProcess=document.getElementById('production-process');let selectedProcess=localStorage.getItem('indoor-production-process')||'';
     const deliverySortButton=document.createElement('button');deliverySortButton.type='button';deliverySortButton.className='production-refresh';deliverySortButton.textContent='Ordenar por fecha de entrega';deliverySortButton.title='Ordena todas las filas: fechas más próximas primero y sin fecha al final. Se guarda para todos.';processFilterBar.appendChild(deliverySortButton);deliverySortButton.addEventListener('click',async()=>{{if(!productionData||productionBody.querySelector('.is-editing'))return;if(!confirm('¿Ordenar todas las filas por fecha de entrega, de la más antigua a la más lejana? Las filas sin fecha irán al final. El orden se guardará para todos los usuarios.'))return;deliverySortButton.disabled=true;deliverySortButton.textContent='Ordenando…';try{{const response=await fetch('/api/produccion/ordenar-entrega',{{method:'POST'}}),data=await response.json();if(!response.ok)throw Error(data.detail||'No se pudo ordenar');await loadProduction();productionTableWrap.scrollTop=0;productionStatus.textContent='✓ Filas ordenadas por fecha de entrega para todos los usuarios'}}catch(error){{productionStatus.textContent=error.message}}finally{{deliverySortButton.disabled=false;deliverySortButton.textContent='Ordenar por fecha de entrega'}}}});
     const productionTools=document.createElement('details');productionTools.className='production-tools-menu';productionTools.innerHTML='<summary>Herramientas</summary><div class="production-tools-popover"></div>';document.querySelector('.production-controls').appendChild(productionTools);productionTools.querySelector('div').appendChild(document.querySelector('.production-connector'));const zoomGroup=document.createElement('label');zoomGroup.className='production-zoom-group';zoomGroup.append('Tamaño ');zoomGroup.appendChild(productionZoom);zoomGroup.append(' %');processFilterBar.appendChild(zoomGroup);document.querySelector('.production-title h2').textContent='Trazabilidad de producción';document.querySelector('.production-title p').textContent='Doble clic para editar · Clic derecho para notas';productionSearch.placeholder='Buscar cliente, orden o referencia';deliverySortButton.textContent='Ordenar entregas';document.addEventListener('click',event=>{{if(!productionTools.contains(event.target))productionTools.open=false}});
+    /* Vincular Google Sheets: cuando se activa, las filas nuevas que se agreguen en la hoja
+       (o los cambios que se hagan ahi) se importan solas a Producción cada 30 segundos. */
+    const sheetsSyncBox=document.createElement('div');sheetsSyncBox.className='sheets-sync-box';sheetsSyncBox.innerHTML='<strong>Google Sheets</strong><p id="sheets-sync-status">Consultando estado…</p><button type="button" id="sheets-sync-toggle" class="production-refresh">Consultando…</button>';productionTools.querySelector('div').appendChild(sheetsSyncBox);
+    async function refreshSheetsSyncStatus(){{try{{const response=await fetch('/api/produccion/sheets-sync/estado'),data=await response.json();if(!response.ok)throw Error();const statusEl=document.getElementById('sheets-sync-status'),toggleEl=document.getElementById('sheets-sync-toggle');if(data.enabled){{statusEl.textContent='Vinculada · las filas nuevas de la hoja se importan solas cada 30s.'+(data.checked_at?' Última revisión: '+new Date(data.checked_at).toLocaleTimeString('es-CO',{{timeZone:'America/Bogota'}}):'')+(data.error?' · Aviso: '+data.error:'');toggleEl.textContent='Desvincular';toggleEl.dataset.action='desactivar'}}else{{statusEl.textContent='Sin vincular: las filas nuevas que agregues en Google Sheets no aparecen solas en la página todavía.';toggleEl.textContent='Vincular Google Sheets';toggleEl.dataset.action='activar'}}}}catch(error){{document.getElementById('sheets-sync-status').textContent='No se pudo consultar el estado.'}}}}
+    document.getElementById('sheets-sync-toggle').addEventListener('click',async event=>{{const button=event.currentTarget,action=button.dataset.action;if(action==='activar'&&!confirm('¿Vincular la hoja de Google Sheets? Desde ahora, las filas nuevas o editadas ahí se importarán solas a Producción cada 30 segundos. No borra ni sobrescribe lo que ya existe solo en la página.'))return;if(action==='desactivar'&&!confirm('¿Desvincular Google Sheets? Se deja de importar automáticamente.'))return;button.disabled=true;button.textContent='Un momento…';try{{const response=await fetch('/api/produccion/sheets-sync/'+action,{{method:'POST'}});if(!response.ok)throw Error();await refreshSheetsSyncStatus()}}catch(error){{document.getElementById('sheets-sync-status').textContent='No se pudo actualizar. Intenta de nuevo.'}}finally{{button.disabled=false}}}});
+    refreshSheetsSyncStatus();
     const cleanProductionStyle=document.createElement('style');cleanProductionStyle.textContent=`
 body.production-mode{{--line:rgba(180,195,167,.16)}}
 body.production-mode .production-shell{{border-color:#344032;box-shadow:none}}
@@ -2537,6 +2579,10 @@ body.production-mode .production-drag-handle{{box-shadow:none;border-color:#4f5d
 body.production-mode .production-delete-row{{box-shadow:none!important;background:transparent!important;border-color:#67483d!important;color:#d8a293!important}}
 body.production-mode .production-tools-menu{{position:relative}}
 body.production-mode .production-tools-popover{{position:absolute;right:0;top:42px;z-index:120;background:#1c2517;padding:10px;border:1px solid #596745;border-radius:9px;box-shadow:0 10px 25px #0008;min-width:185px}}
+.sheets-sync-box{{margin-top:10px;padding-top:10px;border-top:1px solid #3a4530;display:grid;gap:6px}}
+.sheets-sync-box strong{{font-size:.72rem;letter-spacing:.04em;text-transform:uppercase;color:#c7d1b8}}
+.sheets-sync-box p{{margin:0;font-size:.72rem;line-height:1.4;color:#a9b599}}
+.sheets-sync-box button{{width:100%}}
 body.production-mode .production-tools-popover a{{display:block;font-size:12px}}
 @media(max-width:860px){{body.production-mode .production-toolbar{{padding:12px}}body.production-mode .production-controls{{max-width:none;width:100%}}body.production-mode .production-process-filter{{padding:10px 12px;gap:8px}}body.production-mode .production-status{{display:none}}body.production-mode .production-zoom-group{{margin-left:0}}}}
 `;document.head.appendChild(cleanProductionStyle);
