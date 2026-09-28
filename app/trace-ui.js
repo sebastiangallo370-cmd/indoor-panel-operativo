@@ -127,7 +127,9 @@
     const index = summary.groups.indexOf(group);
     // Each area's queue is released only by its immediately preceding stage.
     // The first stage receives newly scheduled orders; No aplica is also closed.
-    const previous = summary.groups.slice(0, index).filter(g => !isExternal(g)).at(-1);
+    // MATERIALES nunca bloquea lo que sigue: hay pedidos que pasan directo a EDICIÓN
+    // sin esperar a que se cierre esa columna (a pedido del negocio).
+    const previous = summary.groups.slice(0, index).filter(g => !isExternal(g) && g.label !== 'MATERIALES').at(-1);
     const ready = !previous || previous.state === 'finished';
     return { ...summary, route: summary, focus: group, state: group.state,
       ready,
