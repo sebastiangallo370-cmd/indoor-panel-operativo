@@ -776,7 +776,7 @@
     const value = row && i >= 0 ? key(row.values[i]) : '';
     const closed = value === 'N/A' || !!dateValue(value);
     operatorForm.querySelectorAll('.operator-actions button').forEach(button => {
-      button.disabled = !row || i < 0 || (closed && button.value !== 'rework') || (value === 'P' && button.value === 'start');
+      button.disabled = !row || i < 0 || (button.value === 'clear' ? !value : (closed && button.value !== 'rework') || (value === 'P' && button.value === 'start'));
     });
     if (row && i >= 0 && operatorDialog.open) {
       operatorDialog.querySelector('.operator-current').className = 'operator-current trace-stage ' + (closed ? 'finished' : value === 'P' ? 'active' : value === 'R' ? 'rework' : 'pending');
@@ -1020,7 +1020,8 @@
     start: ['▶', 'Iniciar / retomar', 'Registrar el comienzo de este trabajo'],
     finish: ['✓', 'Terminar proceso', 'Cerrar y actualizar el avance'],
     rework: ['↺', 'Reproceso', 'Reabrir con un motivo obligatorio'],
-    na: ['—', 'No aplica', 'Este pedido no requiere este proceso']
+    na: ['—', 'No aplica', 'Este pedido no requiere este proceso'],
+    clear: ['⟲', 'Cambiar estado', 'Vaciar el proceso para elegir otro estado']
   };
   operatorForm.querySelectorAll('.operator-actions button').forEach(button => {
     const copy = actionCopy[button.value];
@@ -1161,7 +1162,7 @@
   .studio-event-notes .studio-note-add:hover{background:#f5a623;color:#2a1c08}
   .studio-counter{display:block;text-align:right;font:11px Arial;color:#a7bca4;margin-top:6px}
   .production-studio .operator-actions{gap:9px!important}.production-studio .operator-actions button{display:flex;align-items:center;gap:10px;text-align:left;padding:13px!important;min-height:76px!important;border-radius:11px;box-shadow:none;transform:none!important}.production-studio .operator-actions strong{display:block;font:700 13px/1.4 Arial}.production-studio .operator-actions small{display:block;font:11px/1.4 Arial;margin-top:4px;opacity:.85}.studio-action-icon{font:20px Arial;flex-shrink:0}
-  .production-studio .operator-actions button[value=start]{background:#edbb68}.production-studio .operator-actions button[value=finish]{background:#d4ec98}.production-studio .operator-actions button[value=rework]{background:#482c29;color:#ffc3b8;border-color:#a76c62}.production-studio .operator-actions button[value=na]{background:#23382c;color:#d2e3cb}
+  .production-studio .operator-actions button[value=start]{background:#edbb68}.production-studio .operator-actions button[value=finish]{background:#d4ec98}.production-studio .operator-actions button[value=rework]{background:#482c29;color:#ffc3b8;border-color:#a76c62}.production-studio .operator-actions button[value=na]{background:#23382c;color:#d2e3cb}.production-studio .operator-actions button[value=clear]{background:#2a3550;color:#c9d6f5;border-color:#4d5f8f}
   .production-studio button:disabled{cursor:not-allowed;opacity:.4}.production-studio[aria-busy=true] .operator-message{padding:12px;background:#32442b;border-radius:8px}.production-studio[aria-busy=true] .operator-message:before{content:'◌ ';display:inline-block;margin-right:6px}
   .studio-history{border-top:1px solid #354b3a;padding:16px 24px}.studio-history summary{cursor:pointer;color:#d9eacb;font:600 13px Arial;min-height:24px}.studio-history summary span{font:12px Arial;color:#95af9b;margin-left:12px}.studio-history .operator-history{padding:12px 0 0}.studio-history article{padding-left:16px;border-left:2px solid #617e52;margin-left:6px}
   .studio-jump{display:none}.production-studio #operator-form{scroll-margin-top:175px}
