@@ -1065,7 +1065,21 @@ def production_operator_history(row: int, _=Depends(authenticate)):
     try:
         ensure_operator_events(db)
         db.commit()
-        return [dict(r) for r in db.execute('SELECT column_number,action,username,responsible,reason,created_at FROM production_operator_events WHERE source_row=? ORDER BY id DESC LIMIT 100',(row,))]
+        return [dict(r) for r in db.execute('SELECT id,column_number,action,username,responsible,reason,created_at FROM production_operator_events WHERE source_row=? ORDER BY id DESC LIMIT 100',(row,))]
+    finally:
+        db.close()
+
+
+@app.delete('/api/produccion/operaciones/evento/{event_id}')
+def delete_production_operator_event(event_id: int, _=Depends(authenticate)):
+    db = connect()
+    try:
+        ensure_operator_events(db)
+        deleted = db.execute('DELETE FROM production_operator_events WHERE id=?', (event_id,)).rowcount
+        db.commit()
+        if not deleted:
+            raise HTTPException(404, "La nota ya no existe")
+        return {'ok': True}
     finally:
         db.close()
 

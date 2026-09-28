@@ -1034,11 +1034,12 @@
     operatorDialog.querySelector('.operator-message').textContent = operatorForm.elements.column.value ? 'Elige una acción. La fecha y hora se guardan automáticamente.' : 'Selecciona el proceso para habilitar las acciones.';
   });
   const studioOpenOriginal = openOperatorProduction;
-  let studioLoad = 0;
+  let studioLoad = 0, studioCurrentRow = null;
   openOperatorProduction = id => {
     studioOpenOriginal(id);
     const row = productionData.rows.find(item => item.source_row === id);
     if (!row) return;
+    studioCurrentRow = id;
     // Administrators enter the area they are browsing; operators retain their profile.
     if (isAdmin && navigationProcess) {
       const group = groupsFor(productionData, row, processStatusHeaders).find(item => item.label === navigationProcess.label);
@@ -1048,16 +1049,29 @@
     if (!operatorForm.elements.column.value) operatorDialog.querySelector('.operator-current').textContent = 'Selecciona el proceso para habilitar las acciones.';
     updateStudioCounter();
     const summary = summarize(productionData, row, processStatusHeaders, user, scheduleToday());
-    const notes = Object.entries(productionData.notes || {}).filter(([noteKey, text]) => noteKey.startsWith(id + ':') && String(text || '').trim());
     studioContext.innerHTML = '<span class="trace-eyebrow">LA ORDEN DE UN VISTAZO</span><h3>' + esc(traceField(row, 'REFERENCIA')) + '</h3>' +
       '<div class="studio-facts"><div><small>A FABRICAR</small><strong>' + esc(traceField(row, 'CANTIDAD') || '0') + ' und.</strong></div><div><small>ENTREGA</small><strong>' + esc(displayProductionDate(traceField(row, 'FECHA DE ENTREGA')) || 'Sin fecha') + '</strong></div></div>' +
       '<div class="studio-progress-label"><span>Avance de la orden</span><strong>' + summary.percent + '%</strong></div>' +
       '<progress max="100" value="' + summary.percent + '" aria-label="Avance de la orden">' + summary.percent + '%</progress>' +
       '<div class="studio-stages" aria-label="Estado de los doce procesos">' + summary.groups.map((group, index) => '<span class="' + group.state + '" title="' + esc(group.label + ': ' + group.status) + '"><b aria-hidden="true">' + (group.state === 'finished' ? '✓' : group.state === 'rework' ? '!' : index + 1) + '</b><small>' + esc(abbreviations[group.key] || group.label.slice(0, 3)) + '</small><span class="studio-sr">' + esc(group.label + ': ' + group.status) + '</span></span>').join('') + '</div>' +
       '<p class="studio-caption">' + summary.finished + ' de ' + summary.total + ' procesos cerrados · Incluye cierres automáticos y No aplica.</p>' +
-      (notes.length ? '<section class="studio-notes"><h4>OBSERVACIONES</h4>' + notes.map(([noteKey, text]) => '<article><strong>' + esc(productionData.headers[Number(noteKey.split(':')[1]) - 1] || 'NOTA') + '</strong><p>' + esc(String(text)) + '</p></article>').join('') + '</section>' : '') +
+      '<div class="studio-observaciones"></div>' +
       '<section class="studio-event-notes" aria-live="polite">Consultando notas de los operarios…</section>';
-    const target = studioContext.querySelector('.studio-event-notes'), request = ++studioLoad;
+    renderStudioObservations(id);
+    loadStudioEventNotes(id);
+    operatorDialog.scrollTop = 0;
+  };
+  function renderStudioObservations(id) {
+    const holder = studioContext.querySelector('.studio-observaciones');
+    if (!holder) return;
+    const notes = Object.entries(productionData.notes || {}).filter(([noteKey, text]) => noteKey.startsWith(id + ':') && String(text || '').trim());
+    holder.innerHTML = notes.length ? '<section class="studio-notes"><h4>OBSERVACIONES</h4>' + notes.map(([noteKey, text]) => '<article><strong>' + esc(productionData.headers[Number(noteKey.split(':')[1]) - 1] || 'NOTA') + '</strong><p>' + esc(String(text)) + '</p></article>').join('') + '</section>' : '';
+  }
+  function loadStudioEventNotes(id) {
+    const target = studioContext.querySelector('.studio-event-notes');
+    if (!target) return;
+    const request = ++studioLoad;
+    const addButton = '<button type="button" class="studio-note-add" data-row-id="' + id + '">+ Agregar nota</button>';
     fetch('/api/produccion/operaciones/' + id, { cache: 'no-store' }).then(response => {
       if (!response.ok) throw Error();
       return response.json();
@@ -1065,13 +1079,44 @@
       if (!target.isConnected || request !== studioLoad) return;
       if (!Array.isArray(events)) throw Error();
       const observations = events.filter(entry => String(entry.reason || '').trim() && key(entry.action) !== 'CIERRE AUTOMATICO');
-      target.innerHTML = observations.length ? '<h4>NOTAS DE LOS PROCESOS</h4>' + observations.map(entry => '<article><strong>' + esc(productionData.headers[Number(entry.column_number) - 1] || 'PROCESO') + '</strong><p>' + esc(entry.reason) + '</p><small>' + esc(entry.responsible || entry.username || '') + '</small></article>').join('') : '<p class="studio-caption">No hay observaciones adicionales de los operarios.</p>';
+      target.innerHTML = addButton + (observations.length ? '<h4>NOTAS DE LOS PROCESOS</h4>' + observations.map(entry => '<article><button type="button" class="studio-note-delete" data-event-id="' + entry.id + '" data-row-id="' + id + '" aria-label="Eliminar nota" title="Eliminar nota">×</button><strong>' + esc(productionData.headers[Number(entry.column_number) - 1] || 'PROCESO') + '</strong><p>' + esc(entry.reason) + '</p><small>' + esc(entry.responsible || entry.username || '') + '</small></article>').join('') : '<p class="studio-caption">No hay observaciones adicionales de los operarios.</p>');
       target.classList.toggle('studio-notes', !!observations.length);
     }).catch(() => {
-      if (target.isConnected && request === studioLoad) target.textContent = 'No se pudieron consultar las notas. Vuelve a abrir el panel para reintentar.';
+      if (target.isConnected && request === studioLoad) target.innerHTML = addButton + 'No se pudieron consultar las notas. Vuelve a abrir el panel para reintentar.';
     });
-    operatorDialog.scrollTop = 0;
-  };
+  }
+  // Boton "+ Agregar nota": reutiliza el mismo editor de notas de la tabla (celda del proceso elegido).
+  operatorDialog.addEventListener('click', event => {
+    const addBtn = event.target.closest('.studio-note-add');
+    if (!addBtn) return;
+    const column = Number(operatorForm.elements.column.value);
+    if (!column) { alert('Selecciona primero un proceso.'); return; }
+    openNote({ dataset: { row: addBtn.dataset.rowId, column: String(column) } });
+  });
+  // MutationObserver en vez de 'close': mas confiable para detectar que el dialogo de nota se cerro
+  // (al guardar o cancelar), y asi refrescar las notas del panel sin tener que reabrirlo.
+  new MutationObserver(() => {
+    if (noteDialog.open || !operatorDialog.open || studioCurrentRow == null) return;
+    renderStudioObservations(studioCurrentRow);
+    loadStudioEventNotes(studioCurrentRow);
+  }).observe(noteDialog, { attributes: true, attributeFilter: ['open'] });
+  // Boton "X" en cada nota de proceso: borra el evento de reproceso por completo.
+  operatorDialog.addEventListener('click', async event => {
+    const delBtn = event.target.closest('.studio-note-delete');
+    if (!delBtn) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (!confirm('¿Eliminar esta nota?')) return;
+    delBtn.disabled = true;
+    try {
+      const response = await fetch('/api/produccion/operaciones/evento/' + delBtn.dataset.eventId, { method: 'DELETE' });
+      if (!response.ok) { const data = await response.json().catch(() => ({})); throw new Error(data.detail || 'No se pudo eliminar la nota'); }
+      loadStudioEventNotes(Number(delBtn.dataset.rowId));
+    } catch (error) {
+      alert(error.message);
+      delBtn.disabled = false;
+    }
+  });
   const studioSubmitOriginal = operatorForm.onsubmit;
   operatorForm.onsubmit = async event => {
     operatorDialog.setAttribute('aria-busy', 'true');
@@ -1106,7 +1151,12 @@
   .studio-context progress{appearance:none;width:100%;height:7px;margin:10px 0 16px;border:0;border-radius:10px;overflow:hidden;background:#344c3a;accent-color:#c9eb83}.studio-context progress::-webkit-progress-bar{background:#344c3a}.studio-context progress::-webkit-progress-value{background:linear-gradient(90deg,#7bd4a0,#d4ec98);border-radius:10px}
   .studio-stages{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:3px}.studio-stages>span{position:relative;text-align:center;color:#9eb8a4}.studio-stages b{position:relative;z-index:1;display:grid;place-items:center;width:19px;height:19px;margin:auto;border:1px solid #6a8270;border-radius:50%;font:10px Arial;background:#23372a}.studio-stages>span:not(:last-child):after{content:'';position:absolute;left:50%;width:calc(100% + 3px);top:10px;height:1px;background:#58715f}.studio-stages small{display:block;font:8px Arial;margin-top:5px}.studio-stages .finished b{background:#375d42;color:#a5edbb;border-color:#8bdbaf}.studio-stages .active b{background:#f3b852;color:#2a2008}.studio-stages .rework b{background:#ed827a;color:#2a100d}.studio-caption{color:#a8bda9;font:11px/1.6 Arial;margin:12px 0}
   .studio-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
-  .studio-notes{margin-top:20px;padding:14px;border:1px solid #9e5d58;border-left:3px solid #ff8d86;border-radius:10px;background:#352622}.studio-notes h4{color:#ffb6ae;font:700 11px Arial;letter-spacing:.05em;margin:0 0 12px}.studio-notes article+article{border-top:1px solid #6b4841;padding-top:10px;margin-top:10px}.studio-notes strong,.studio-notes small{color:#d6b8af;font:11px/1.4 Arial}.studio-notes p{color:#fff1ed;font:600 13px/1.6 Arial;text-decoration:underline #ff8178 2px;text-underline-offset:4px;white-space:pre-wrap;overflow-wrap:anywhere;margin:6px 0}.studio-event-notes{font:12px/1.6 Arial;color:#b9cbb4}
+  .studio-notes{margin-top:20px;padding:14px;border:1px solid #9e5d58;border-left:3px solid #ff8d86;border-radius:10px;background:#352622}.studio-notes h4{color:#ffb6ae;font:700 11px Arial;letter-spacing:.05em;margin:0 0 12px}.studio-notes article{position:relative;padding-right:28px}.studio-notes article+article{border-top:1px solid #6b4841;padding-top:10px;margin-top:10px}.studio-notes strong,.studio-notes small{color:#d6b8af;font:11px/1.4 Arial}.studio-notes p{color:#fff1ed;font:600 13px/1.6 Arial;text-decoration:underline #ff8178 2px;text-underline-offset:4px;white-space:pre-wrap;overflow-wrap:anywhere;margin:6px 0}.studio-event-notes{font:12px/1.6 Arial;color:#b9cbb4}
+  .studio-note-delete{position:absolute;top:0;right:0;width:20px!important;height:20px;padding:0!important;display:grid;place-items:center;border-radius:50%;border:1px solid #f5a623;background:#4a3316;color:#ffd9a0!important;font-size:13px!important;font-weight:900!important;line-height:1!important;box-shadow:none;cursor:pointer}
+  .studio-note-delete:hover{background:#f5a623;color:#2a1c08!important}
+  .studio-note-delete:disabled{opacity:.5;cursor:progress}
+  .studio-event-notes .studio-note-add{display:block;width:auto;min-height:0;margin:0 0 12px;padding:9px 14px!important;border:1px solid #f5a623;border-radius:9px;background:#4a3316;color:#ffd9a0;font:700 12px Arial;box-shadow:none;cursor:pointer}
+  .studio-event-notes .studio-note-add:hover{background:#f5a623;color:#2a1c08}
   .studio-counter{display:block;text-align:right;font:11px Arial;color:#a7bca4;margin-top:6px}
   .production-studio .operator-actions{gap:9px!important}.production-studio .operator-actions button{display:flex;align-items:center;gap:10px;text-align:left;padding:13px!important;min-height:76px!important;border-radius:11px;box-shadow:none;transform:none!important}.production-studio .operator-actions strong{display:block;font:700 13px/1.4 Arial}.production-studio .operator-actions small{display:block;font:11px/1.4 Arial;margin-top:4px;opacity:.85}.studio-action-icon{font:20px Arial;flex-shrink:0}
   .production-studio .operator-actions button[value=start]{background:#edbb68}.production-studio .operator-actions button[value=finish]{background:#d4ec98}.production-studio .operator-actions button[value=rework]{background:#482c29;color:#ffc3b8;border-color:#a76c62}.production-studio .operator-actions button[value=na]{background:#23382c;color:#d2e3cb}
