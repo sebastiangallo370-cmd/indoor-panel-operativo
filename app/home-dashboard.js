@@ -236,7 +236,7 @@
     };
     const load = a.load.length
       ? '<section class="dash-load"><div class="dash-panel-head"><h4>Carga por área</h4><small>' + totalLoad + ' pedido' + (totalLoad === 1 ? '' : 's') + ' pendiente' + (totalLoad === 1 ? '' : 's') + ' según el proceso en el que están ahora</small></div>' +
-        a.load.map((item, i) => '<div class="dash-bar ' + tier(item) + (i === 0 ? ' is-top' : '') + '"><span>' + esc(item.label) + (i === 0 ? '<em class="dash-bottleneck">Mayor carga</em>' : '') + '</span><i><b style="width:' + Math.max(4, Math.round(item.orders / maxLoad * 100)) + '%"></b></i><strong>' + item.orders + '</strong><small>' + fmtNum(item.units) + ' und.</small></div>').join('') + '</section>'
+        '<div class="dash-load-grid">' + a.load.map((item, i) => '<article class="dash-load-card ' + tier(item) + '">' + (i === 0 ? '<em class="dash-bottleneck">Mayor carga</em>' : '') + '<span class="dash-load-label">' + esc(item.label) + '</span><div class="dash-big"><strong>' + item.orders + '</strong><span>' + (item.orders === 1 ? 'pedido' : 'pedidos') + '</span></div><small>' + fmtNum(item.units) + ' und.</small></article>').join('') + '</div></section>'
       : '';
 
     root.innerHTML =
@@ -278,17 +278,14 @@
   .dash-none{margin:0;padding:10px 2px;font-size:.84rem;color:#8f9b8a}.dash-more{margin:0;font-size:.76rem;color:#a9b5a3;text-align:right}
   .dash-load{display:grid;gap:10px;padding:18px;border:1px solid rgba(255,255,255,.12);border-radius:16px;background:#111611}
   .dash-load .dash-panel-head{align-items:baseline;flex-wrap:wrap}.dash-load h4{margin:0;font-size:.9rem;color:#e3eadc;text-transform:uppercase;letter-spacing:.05em}.dash-load .dash-panel-head small{color:#8f9b8a;font-size:.76rem}
-  .dash-bar{display:grid;grid-template-columns:130px 1fr 36px 80px;align-items:center;gap:10px;padding:5px 8px;border-radius:9px;font-size:.8rem;color:#c4cfbf;transition:background .15s}
-  .dash-bar span{display:flex;align-items:center;gap:8px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .dash-bar i{height:10px;border-radius:999px;background:#1c231b;overflow:hidden}.dash-bar i b{display:block;height:100%;border-radius:999px;transition:width .6s ease}
-  .dash-bar.cool i b{background:linear-gradient(90deg,#4f8f5a,#7ecf8a)}
-  .dash-bar.warm i b{background:linear-gradient(90deg,#c99a3a,#ffc95c)}
-  .dash-bar.hot i b{background:linear-gradient(90deg,#c94a3a,#ff6b5c)}
-  .dash-bar.hot{background:rgba(255,107,92,.08)}
-  .dash-bar.hot strong{color:#ff8a7c}
-  .dash-bottleneck{flex-shrink:0;font-style:normal;font-size:.6rem;font-weight:800;letter-spacing:.03em;text-transform:uppercase;padding:2px 7px;border-radius:999px;background:rgba(255,107,92,.18);color:#ff9585;border:1px solid rgba(255,107,92,.4)}
-  .dash-bar strong{color:#fff;text-align:right}.dash-bar small{color:#8f9b8a;text-align:right}
-  @media(max-width:800px){.dash-big strong{font-size:2.8rem}.dash-bar{grid-template-columns:96px 1fr 30px}.dash-bar small{display:none}}
+  .dash-load-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+  .dash-load-card{position:relative;display:grid;align-content:start;gap:6px;padding:16px;border:1px solid rgba(255,255,255,.13);border-top:5px solid var(--t,#7ecf8a);border-radius:16px;background:#121712;transition:transform .15s,border-color .15s}
+  .dash-load-card:hover{transform:translateY(-3px)}
+  .dash-load-card.cool{--t:#7ecf8a}.dash-load-card.warm{--t:#ffc95c}.dash-load-card.hot{--t:#ff6b5c;background:rgba(255,107,92,.06)}
+  .dash-load-label{font-size:.78rem;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:#d5dccf}
+  .dash-load-card .dash-big{gap:6px}.dash-load-card .dash-big strong{font-size:2rem;color:var(--t)}.dash-load-card .dash-big span{font-size:.78rem;color:#a9b5a3}
+  .dash-load-card>small{color:#8f9b8a;font-size:.76rem}
+  .dash-bottleneck{position:absolute;top:-11px;right:12px;font-style:normal;font-size:.6rem;font-weight:800;letter-spacing:.03em;text-transform:uppercase;padding:3px 8px;border-radius:999px;background:#ff6b5c;color:#2a0e0a;border:1px solid #ff8a7c}
   `;
   document.head.appendChild(style);
 
