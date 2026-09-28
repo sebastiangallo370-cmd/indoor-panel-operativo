@@ -1385,6 +1385,29 @@ def production_operators(refresh: bool = False, _=Depends(authenticate)):
                 days_map = bucket.setdefault(info['resp'], {})
                 # Proceso aún abierto: se muestra en HOY, no en el día original.
                 days_map[today_str] = max(days_map.get(today_str, 0), info['qty'])
+            # Escanear el estado ACTUAL de todas las filas para capturar P/R que
+            # existían antes de que el audit empezara a rastrear (no aparecen en cell_final).
+            for src_row, row_vals in rows_values.items():
+                qty = row_quantity(row_vals)
+                if qty <= 0:
+                    continue
+                for col_idx in process_cols_pre:
+                    if col_idx >= len(row_vals):
+                        continue
+                    current_val = str(row_vals[col_idx] or '').strip().upper()
+                    if current_val not in ('P', 'R'):
+                        continue
+                    group_key = str(groups[col_idx] if col_idx < len(groups) else '').strip('" ').upper()
+                    resp_name = ''
+                    for ri in resp_cols_by_group_pre.get(group_key, []):
+                        if ri < len(row_vals) and str(row_vals[ri]).strip():
+                            resp_name = str(row_vals[ri]).strip()
+                            break
+                    if not resp_name:
+                        resp_name = 'Sin asignar'
+                    bucket = daily_active if current_val == 'P' else daily_rework
+                    days_map = bucket.setdefault(resp_name, {})
+                    days_map[today_str] = max(days_map.get(today_str, 0), qty)
 
         # Unidades activas (P) y en reproceso (R) por area, leidas directamente del estado
         # actual de cada pedido en Produccion (misma logica que usa el Cronograma), no del
