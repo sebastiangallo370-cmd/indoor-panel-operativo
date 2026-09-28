@@ -1533,6 +1533,39 @@
   html body.production-mode .trace-card .trace-note-text{min-width:0;padding-top:5px;overflow-wrap:anywhere}
   @media(max-width:1050px) and (min-width:601px){html body.production-mode .trace-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
   @media(max-width:600px){html body.production-mode .trace-cards{grid-template-columns:1fr}html body.production-mode .trace-card .trace-client{font-size:14px!important}}
+
+  /* ===== Capa de acabado profesional (Producción) =====
+     Borde neutro con una franja superior de color según el estado (en vez de marcos gruesos),
+     tarjetas de altura natural e igualadas por fila, ruta en una sola línea y controles más limpios. */
+  html body.production-mode .trace-cards{gap:18px;padding:18px}
+  html body.production-mode .trace-card,html body.production-mode .trace-card:is(.state-finished,.state-active,.state-rework){--accent:#4b5a4e;border:1px solid #2c372f!important;border-top:3px solid var(--accent)!important;border-radius:16px;background:#141b16;box-shadow:0 1px 2px #0005,0 10px 26px -14px #000b;transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease}
+  html body.production-mode .trace-card.state-active{--accent:#ffad4f}html body.production-mode .trace-card.state-rework{--accent:#ff6b6b}html body.production-mode .trace-card.state-finished{--accent:#63d58a}
+  @media(hover:hover){html body.production-mode .trace-card:hover,html body.production-mode .trace-card:is(.state-finished,.state-active,.state-rework):hover{transform:translateY(-3px);border-color:#46564a!important;border-top-color:var(--accent)!important;box-shadow:0 18px 36px -16px #000d}}
+  html body.production-mode .trace-card:not(.details-expanded){min-height:0;height:auto!important;grid-template-rows:230px 1fr auto;align-self:stretch}
+  html body.production-mode .trace-card.details-expanded{grid-template-rows:230px auto auto}
+  html body.production-mode .trace-card .trace-media,html body.production-mode.trace-density-compact .trace-card .trace-media{padding:10px!important;background:linear-gradient(180deg,#f4f6f2,#e7ebe4)}
+  html body.production-mode .trace-card .trace-design-tabs{height:26px;min-height:26px;flex:0 0 26px}
+  html body.production-mode .trace-card .trace-design-tabs button{min-height:22px;padding:0 9px;font-size:10px;border-radius:999px}
+  html body.production-mode .trace-card .trace-card-body{padding:14px 14px 12px!important;gap:2px}
+  html body.production-mode .trace-card-heading h3{font-size:18px!important;letter-spacing:.01em}
+  html body.production-mode .trace-card .trace-stage{border-radius:999px;padding:3px 10px;font-weight:700;letter-spacing:.02em}
+  html body.production-mode .trace-card .trace-client{font-size:12px!important;font-weight:700;letter-spacing:.03em;color:#dfe8da;text-transform:uppercase}
+  html body.production-mode .trace-card .trace-primary-facts{padding:8px 10px;margin-top:10px;border-radius:10px;background:#0f1511}
+  html body.production-mode .trace-card .trace-primary-facts dt{font-size:10px;color:#8e9c8f;text-transform:uppercase;letter-spacing:.05em}
+  html body.production-mode .trace-card .trace-note-alert{grid-template-columns:1fr;margin-top:10px;border-radius:10px}
+  html body.production-mode .trace-card .trace-card-actions{gap:6px;padding-top:12px}
+  html body.production-mode .trace-card .trace-card-actions button{min-height:36px;border-radius:10px;font-weight:700!important;letter-spacing:.03em}
+  html body.production-mode .trace-card .trace-route{padding:10px 14px 14px;background:#101612;border-top:1px solid #243028}
+  html body.production-mode .trace-card .trace-nodes{grid-template-columns:none!important;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr)}
+  html body.production-mode .trace-card .trace-progress{height:6px;border-radius:999px}
+  html body.production-mode .trace-disclosure-toggle{top:12px;right:12px;width:34px;height:34px;min-height:34px;font-size:18px;border-radius:50%;background:rgba(15,21,17,.78);border-color:rgba(255,255,255,.18);backdrop-filter:blur(6px);box-shadow:0 4px 12px #0005}
+  html body.production-mode .trace-quick-filters button{transition:background .15s,border-color .15s,transform .15s}
+  html body.production-mode .trace-quick-filters button:hover{transform:translateY(-1px)}
+  html body.production-mode #trace-schedule-order{background:var(--lime,#d0f44c);color:#10140d;border-color:var(--lime,#d0f44c);font-weight:800}
+  html body.production-mode #trace-schedule-order:hover{filter:brightness(1.06)}
+  @media(max-width:600px){html body.production-mode .trace-card:not(.details-expanded),html body.production-mode .trace-card.details-expanded{grid-template-rows:220px auto auto}}
+  @media(max-width:860px){html body.production-mode .trace-quick-filters{display:flex!important;flex-wrap:nowrap;overflow-x:auto;gap:8px;padding-bottom:4px;scrollbar-width:none;-webkit-overflow-scrolling:touch}html body.production-mode .trace-quick-filters::-webkit-scrollbar{display:none}html body.production-mode .trace-quick-filters button{flex:0 0 auto;white-space:nowrap;min-height:40px;padding:8px 14px}}
+  @media(prefers-reduced-motion:reduce){html body.production-mode .trace-card{transition:none}}
   `;
   document.head.appendChild(style);
 })();
