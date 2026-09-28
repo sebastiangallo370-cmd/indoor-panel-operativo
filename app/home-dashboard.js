@@ -142,7 +142,7 @@
     const load = internal.map(p => {
       const here = toMake.filter(o => o.focus === p.label);
       return { label: p.label, orders: here.length, units: here.reduce((s, o) => s + o.units, 0) };
-    }).filter(item => item.orders);
+    }).filter(item => item.orders).sort((a, b) => b.orders - a.orders);
 
     return {
       dueToday, dueTomorrow, late, reworkList, load,
@@ -229,9 +229,14 @@
       orderList(a.reworkList, 'No hay pedidos en reproceso.', o => (o.focus || 'Reproceso') + ' · entrega ' + fmtDue(o.due)));
 
     const maxLoad = Math.max(1, ...a.load.map(item => item.orders));
+    const totalLoad = a.load.reduce((s, item) => s + item.orders, 0);
+    const tier = item => {
+      const share = item.orders / maxLoad;
+      return share >= .75 ? 'hot' : share >= .4 ? 'warm' : 'cool';
+    };
     const load = a.load.length
-      ? '<section class="dash-load"><div class="dash-panel-head"><h4>Carga por área</h4><small>Pedidos pendientes según el proceso en el que están ahora</small></div>' +
-        a.load.map(item => '<div class="dash-bar"><span>' + esc(item.label) + '</span><i><b style="width:' + Math.max(4, Math.round(item.orders / maxLoad * 100)) + '%"></b></i><strong>' + item.orders + '</strong><small>' + fmtNum(item.units) + ' und.</small></div>').join('') + '</section>'
+      ? '<section class="dash-load"><div class="dash-panel-head"><h4>Carga por área</h4><small>' + totalLoad + ' pedido' + (totalLoad === 1 ? '' : 's') + ' pendiente' + (totalLoad === 1 ? '' : 's') + ' según el proceso en el que están ahora</small></div>' +
+        a.load.map((item, i) => '<div class="dash-bar ' + tier(item) + (i === 0 ? ' is-top' : '') + '"><span>' + esc(item.label) + (i === 0 ? '<em class="dash-bottleneck">Mayor carga</em>' : '') + '</span><i><b style="width:' + Math.max(4, Math.round(item.orders / maxLoad * 100)) + '%"></b></i><strong>' + item.orders + '</strong><small>' + fmtNum(item.units) + ' und.</small></div>').join('') + '</section>'
       : '';
 
     root.innerHTML =
@@ -273,8 +278,15 @@
   .dash-none{margin:0;padding:10px 2px;font-size:.84rem;color:#8f9b8a}.dash-more{margin:0;font-size:.76rem;color:#a9b5a3;text-align:right}
   .dash-load{display:grid;gap:10px;padding:18px;border:1px solid rgba(255,255,255,.12);border-radius:16px;background:#111611}
   .dash-load .dash-panel-head{align-items:baseline;flex-wrap:wrap}.dash-load h4{margin:0;font-size:.9rem;color:#e3eadc;text-transform:uppercase;letter-spacing:.05em}.dash-load .dash-panel-head small{color:#8f9b8a;font-size:.76rem}
-  .dash-bar{display:grid;grid-template-columns:130px 1fr 36px 80px;align-items:center;gap:10px;font-size:.8rem;color:#c4cfbf}
-  .dash-bar i{height:10px;border-radius:999px;background:#1c231b;overflow:hidden}.dash-bar i b{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#7aad50,#d0f44c);transition:width .6s ease}
+  .dash-bar{display:grid;grid-template-columns:130px 1fr 36px 80px;align-items:center;gap:10px;padding:5px 8px;border-radius:9px;font-size:.8rem;color:#c4cfbf;transition:background .15s}
+  .dash-bar span{display:flex;align-items:center;gap:8px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .dash-bar i{height:10px;border-radius:999px;background:#1c231b;overflow:hidden}.dash-bar i b{display:block;height:100%;border-radius:999px;transition:width .6s ease}
+  .dash-bar.cool i b{background:linear-gradient(90deg,#4f8f5a,#7ecf8a)}
+  .dash-bar.warm i b{background:linear-gradient(90deg,#c99a3a,#ffc95c)}
+  .dash-bar.hot i b{background:linear-gradient(90deg,#c94a3a,#ff6b5c)}
+  .dash-bar.hot{background:rgba(255,107,92,.08)}
+  .dash-bar.hot strong{color:#ff8a7c}
+  .dash-bottleneck{flex-shrink:0;font-style:normal;font-size:.6rem;font-weight:800;letter-spacing:.03em;text-transform:uppercase;padding:2px 7px;border-radius:999px;background:rgba(255,107,92,.18);color:#ff9585;border:1px solid rgba(255,107,92,.4)}
   .dash-bar strong{color:#fff;text-align:right}.dash-bar small{color:#8f9b8a;text-align:right}
   @media(max-width:800px){.dash-big strong{font-size:2.8rem}.dash-bar{grid-template-columns:96px 1fr 30px}.dash-bar small{display:none}}
   `;
