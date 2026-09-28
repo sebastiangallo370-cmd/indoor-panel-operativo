@@ -3036,16 +3036,28 @@ let html='';for(let n=0;n<days;n++){{const date=new Date(start);date.setDate(sta
         const day=index+1,key=operatorDayKey(year,month,day);
         const isToday=key===todayKey;
         const peopleMap=new Map();
+        let matchedActive=0,matchedRework=0;
         roster.forEach(entry=>{{
           const count=sheetAvailable?((dailyByCode[entry.member]||{{}})[key]||0):((daily[entry.name]||{{}})[key]||0);
           const extra=isToday?personExtraStats(entry.name):null;
           const active=isToday?(extra&&extra.active_units||0):((dailyActive[entry.name]||{{}})[key]||0);
           const rework=isToday?(extra&&extra.rework_units||0):((dailyRework[entry.name]||{{}})[key]||0);
+          if(isToday){{matchedActive+=active;matchedRework+=rework}}
           if(count<=0&&active<=0&&rework<=0)return;
           const codeKey=entry.member||entry.name;
           if(peopleMap.has(codeKey)){{const p=peopleMap.get(codeKey);p.count+=count;p.active+=active;p.rework+=rework}}
           else peopleMap.set(codeKey,{{name:entry.name,record:entry.record,count:count,active:active,rework:rework}});
         }});
+        /* Lo que este EN VIVO en "P"/"R" pero cuya fila no tiene el RESP... diligenciado no
+           se le puede atribuir a ningun operario del roster: igual debe contarse, para que el
+           total que se ve aqui hoy coincida con lo que muestra el filtro Reproceso/En proceso
+           de Trazabilidad. Se agrupa como "Sin asignar". */
+        if(isToday){{
+          const bucket=statusKey?statusMap[statusKey]:null;
+          const leftoverActive=Math.max(0,((bucket&&bucket.active_units)||0)-matchedActive);
+          const leftoverRework=Math.max(0,((bucket&&bucket.rework_units)||0)-matchedRework);
+          if(leftoverActive>0||leftoverRework>0)peopleMap.set('__unassigned',{{name:'Sin asignar',record:null,count:0,active:leftoverActive,rework:leftoverRework}});
+        }}
         const people=Array.from(peopleMap.values()).sort((a,b)=>b.count-a.count);
         return {{day:day,key:key,people:people,total:people.reduce((sum,entry)=>sum+entry.count,0)}};
       }}).filter(entry=>entry.people.length>0||entry.key===todayKey).reverse();
