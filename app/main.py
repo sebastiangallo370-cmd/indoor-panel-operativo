@@ -517,13 +517,14 @@ def startup():
     with connect():
         pass
     legacy.setup_logging(CONFIG["log_file"])
-    # Activar siempre la sincronizacion con Google Sheets al arrancar.
-    # Los datos de produccion (P, R, Terminado) deben reflejar la hoja en todo momento.
-    flag = STATE_DIR / 'sheets-sync-enabled'
-    flag.parent.mkdir(parents=True, exist_ok=True)
-    flag.touch(exist_ok=True)
-    sheets_sync.start(connect, legacy.get_gspread, STATE_DIR)
-    db_backup.start(DB_PATH, STATE_DIR, legacy.get_supabase)
+    if os.getenv("DISABLE_EXTERNAL_SYNC", "").strip().lower() not in ("1", "true", "yes"):
+        flag = STATE_DIR / 'sheets-sync-enabled'
+        flag.parent.mkdir(parents=True, exist_ok=True)
+        flag.touch(exist_ok=True)
+        sheets_sync.start(connect, legacy.get_gspread, STATE_DIR)
+        db_backup.start(DB_PATH, STATE_DIR, legacy.get_supabase)
+    else:
+        logging.info("External sync disabled (DISABLE_EXTERNAL_SYNC=1)")
 
 
 @app.get("/salud")
