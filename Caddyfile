@@ -3,7 +3,7 @@
     acme_ca https://acme.zerossl.com/v2/DV90
 }
 
-reprogramaciones.2.25.238.166.sslip.io {
+produccion.tech {
     reverse_proxy asistente:8000
     encode zstd gzip
 

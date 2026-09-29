@@ -1,0 +1,1540 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Control de cartera · INDOOR SPORT S.A.S.</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* ── Variables ─────────────────────────────────────────────────── */
+:root {
+  --blue:#1d3bc4; --amber:#b36b00; --red:#d24a2f; --magenta:#d0107a;
+  --wine:#7a0a3a; --green:#1f8a5b; --bg:#e9ebef; --card:#fff;
+  --border:#d8dce4; --text:#1a1d26; --muted:#636878; --topbar:#0b0b0f;
+  --font:Inter,system-ui,sans-serif; --mono:'JetBrains Mono','IBM Plex Mono',monospace;
+  --r:9px; --shadow:0 1px 3px rgba(0,0,0,.09),0 4px 12px rgba(0,0,0,.06);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--bg);color:var(--text);font-size:14px;line-height:1.5;min-height:100vh}
+
+/* ── Topbar ────────────────────────────────────────────────────── */
+.topbar{position:sticky;top:0;z-index:100;display:flex;align-items:center;gap:14px;
+  padding:0 20px;height:52px;background:var(--topbar);color:#fff;flex-shrink:0}
+.topbar-brand{font-weight:800;font-size:1.05rem;letter-spacing:.01em;color:#fff;text-decoration:none}
+.topbar-brand span{color:#9ca3af;font-weight:400;margin-left:6px;font-size:.82rem}
+.topbar-conn{display:flex;align-items:center;gap:5px;font-size:.72rem;padding:4px 9px;
+  border-radius:999px;background:rgba(255,255,255,.07);color:#9ca3af}
+.topbar-conn i{width:7px;height:7px;border-radius:50%;background:#9ca3af;flex-shrink:0}
+.topbar-conn.ok i{background:#22c55e;box-shadow:0 0 5px #22c55e}
+.topbar-conn.ok{color:#86efac}
+.topbar-date{font-family:var(--mono);font-size:.72rem;color:#9ca3af}
+.topbar-space{flex:1}
+.topbar-user{display:flex;align-items:center;gap:6px;font-size:.75rem;font-weight:600;
+  color:#e5e7eb;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);
+  border-radius:999px;padding:4px 12px 4px 8px;cursor:pointer;transition:.15s}
+.topbar-user:hover{background:rgba(255,255,255,.16)}
+.topbar-user-dot{width:24px;height:24px;border-radius:50%;background:#1d3bc4;color:#fff;
+  display:grid;place-items:center;font-size:.6rem;font-weight:800;flex-shrink:0}
+.topbar-back{display:inline-flex;align-items:center;gap:5px;color:#9ca3af;font-size:.72rem;
+  text-decoration:none;padding:4px 10px;border-radius:6px;border:1px solid rgba(255,255,255,.1)}
+.topbar-back:hover{color:#fff;background:rgba(255,255,255,.07)}
+
+/* ── Tab bar ───────────────────────────────────────────────────── */
+.tabbar{display:flex;gap:0;background:#fff;border-bottom:1px solid var(--border);
+  padding:0 20px;overflow-x:auto;flex-shrink:0;position:sticky;top:52px;z-index:90}
+.tabbar-tab{display:flex;align-items:center;gap:5px;padding:12px 16px;font-size:.8rem;
+  font-weight:600;color:var(--muted);border:none;background:none;cursor:pointer;
+  white-space:nowrap;border-bottom:2px solid transparent;transition:.15s}
+.tabbar-tab:hover{color:var(--text)}
+.tabbar-tab.active{color:var(--blue);border-bottom-color:var(--blue)}
+
+/* ── Layout ────────────────────────────────────────────────────── */
+.content{padding:20px;max-width:1400px;margin:0 auto}
+.panel{display:none}.panel.active{display:block}
+
+/* ── Section labels ────────────────────────────────────────────── */
+.section-label{font-size:.65rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:8px}
+
+/* ── Cards ─────────────────────────────────────────────────────── */
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);
+  box-shadow:var(--shadow);padding:16px 18px;margin-bottom:16px}
+.card-title{font-size:.85rem;font-weight:700;margin-bottom:2px}
+.card-sub{font-size:.75rem;color:var(--muted);margin-bottom:14px}
+
+/* ── Filters ───────────────────────────────────────────────────── */
+.filters{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+.filter-field{display:flex;flex-direction:column;gap:4px;min-width:140px}
+.filter-field input,.filter-field select{height:34px;padding:0 10px;border:1px solid var(--border);
+  border-radius:6px;font:inherit;font-size:.78rem;background:#fff;color:var(--text);outline:none}
+.filter-field input:focus,.filter-field select:focus{border-color:var(--blue);
+  box-shadow:0 0 0 2px rgba(29,59,196,.12)}
+.filter-field label{font-size:.62rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.btn-clear{height:34px;padding:0 12px;border:1px solid var(--border);border-radius:6px;
+  font:inherit;font-size:.75rem;background:#fff;cursor:pointer;color:var(--muted)}
+.btn-clear:hover{background:var(--bg)}
+
+/* ── Buttons ───────────────────────────────────────────────────── */
+.btn{display:inline-flex;align-items:center;gap:5px;height:34px;padding:0 14px;
+  border-radius:6px;font:inherit;font-size:.78rem;font-weight:600;cursor:pointer;
+  border:1px solid transparent;transition:.15s;white-space:nowrap}
+.btn-primary{background:var(--blue);color:#fff;border-color:var(--blue)}
+.btn-primary:hover{background:#1833a8}
+.btn-secondary{background:#fff;color:var(--text);border-color:var(--border)}
+.btn-secondary:hover{background:var(--bg)}
+.btn-danger{background:#fff;color:#dc2626;border-color:#fca5a5}
+.btn-danger:hover{background:#fef2f2}
+.btn-icon{width:30px;height:30px;padding:0;display:grid;place-items:center;font-size:14px;
+  border-radius:5px;border:1px solid var(--border);background:#fff;cursor:pointer;color:var(--muted)}
+.btn-icon:hover{background:var(--bg);color:var(--text)}
+
+/* ── KPI grid ──────────────────────────────────────────────────── */
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+@media(max-width:900px){.kpi-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:500px){.kpi-grid{grid-template-columns:1fr}}
+.kpi-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);
+  box-shadow:var(--shadow);padding:14px 16px}
+.kpi-label{font-size:.62rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:6px}
+.kpi-value{font-family:var(--mono);font-size:1.3rem;font-weight:700;margin-bottom:3px}
+.kpi-support{font-size:.7rem;color:var(--muted)}
+.kpi-card.danger .kpi-value{color:var(--magenta)}
+.kpi-card.success .kpi-value{color:var(--green)}
+
+/* ── Aging bar ─────────────────────────────────────────────────── */
+.aging-bar{display:flex;height:44px;border-radius:7px;overflow:hidden;margin-bottom:20px;
+  border:1px solid var(--border)}
+.aging-segment{display:flex;align-items:center;justify-content:center;
+  flex-direction:column;cursor:pointer;transition:filter .15s;min-width:0;overflow:hidden;gap:1px}
+.aging-segment:hover{filter:brightness(.92)}
+.aging-segment.active{filter:brightness(.85)}
+.aging-segment span{font-size:.6rem;font-weight:700;letter-spacing:.06em;color:rgba(255,255,255,.85);white-space:nowrap}
+.aging-segment strong{font-family:var(--mono);font-size:.72rem;color:#fff;white-space:nowrap}
+.seg-noVencer{background:var(--blue)}
+.seg-1a15{background:var(--amber)}
+.seg-16a30{background:var(--red)}
+.seg-31a60{background:var(--magenta)}
+.seg-mas60{background:var(--wine)}
+
+/* ── Bar chart panels ──────────────────────────────────────────── */
+.panels-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px}
+@media(max-width:800px){.panels-grid{grid-template-columns:1fr}}
+.bar-panel{background:var(--card);border:1px solid var(--border);border-radius:var(--r);
+  box-shadow:var(--shadow);padding:16px 18px}
+.bar-panel-title{font-size:.8rem;font-weight:700;margin-bottom:2px}
+.bar-panel-sub{font-size:.7rem;color:var(--muted);margin-bottom:12px}
+.bar-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bg);cursor:pointer}
+.bar-row:last-child{border-bottom:0}
+.bar-row-name{min-width:0;flex:1;font-size:.75rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar-row-detail{font-size:.62rem;color:var(--muted);margin-top:1px;white-space:nowrap}
+.bar-track{flex:1.5;height:5px;border-radius:3px;background:var(--bg);overflow:hidden;min-width:0}
+.bar-fill{height:100%;border-radius:3px;transition:width .3s}
+.bar-fill.blue{background:var(--blue)} .bar-fill.red{background:var(--magenta)}
+.bar-amount{font-family:var(--mono);font-size:.72rem;font-weight:700;white-space:nowrap;min-width:80px;text-align:right}
+
+/* ── Alerts ────────────────────────────────────────────────────── */
+.alert-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);
+  box-shadow:var(--shadow);padding:14px 16px;margin-bottom:10px;border-left:3px solid var(--amber)}
+.alert-card.critical{border-left-color:var(--magenta)}
+.alert-title{font-size:.8rem;font-weight:700;margin-bottom:4px}
+.alert-detail{font-size:.75rem;color:var(--muted);margin-bottom:6px}
+.alert-rec{font-size:.72rem;color:var(--amber);font-style:italic}
+.alert-card.critical .alert-rec{color:var(--magenta)}
+
+/* ── Table ─────────────────────────────────────────────────────── */
+.table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{width:100%;border-collapse:collapse;min-width:900px}
+th{padding:9px 10px;text-align:left;font-size:.65rem;font-weight:700;letter-spacing:.07em;
+  text-transform:uppercase;color:var(--muted);background:#f9fafb;border-bottom:1px solid var(--border);
+  white-space:nowrap;cursor:pointer;user-select:none}
+th:hover{background:#f3f4f6}
+th.sorted-asc::after{content:" ↑"}
+th.sorted-desc::after{content:" ↓"}
+td{padding:10px 10px;border-bottom:1px solid #f3f4f6;vertical-align:middle;font-size:.78rem}
+tbody tr:hover{background:#f9fafb}
+.num{font-family:var(--mono);text-align:right}
+.num.green{color:var(--green)}
+.num.bold{font-weight:700}
+.chip{display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;
+  font-size:.65rem;font-weight:700;white-space:nowrap}
+.chip-vencida{background:#fce7f3;color:var(--magenta)}
+.chip-cartera{background:#f3f4f6;color:var(--muted)}
+.chip-abonada{background:#dbeafe;color:#1d40af}
+.chip-pagada{background:#dcfce7;color:var(--green)}
+.chip-anulada{background:#f3f4f6;color:#9ca3af;text-decoration:line-through}
+.chip-excluida{background:#fef3c7;color:#92400e}
+.chip-anticipo{background:#dcfce7;color:var(--green)}
+.chip-abono{background:#dbeafe;color:#1d40af}
+.dot-revisar{display:inline-block;width:7px;height:7px;border-radius:50%;
+  background:var(--amber);margin-right:4px;flex-shrink:0}
+.actions-cell{display:flex;gap:4px;align-items:center;white-space:nowrap}
+.anulado-row td{opacity:.5}
+.anulado-row td:first-child{text-decoration:line-through}
+.dias-positivo{color:var(--magenta);font-weight:700}
+.dias-negativo{color:var(--muted)}
+.empty-state{text-align:center;padding:48px 20px;color:var(--muted)}
+.empty-state strong{display:block;font-size:.9rem;margin-bottom:4px;color:var(--text)}
+
+/* ── Table summary bar ─────────────────────────────────────────── */
+.table-summary{display:flex;align-items:center;justify-content:space-between;
+  flex-wrap:wrap;gap:10px;padding-bottom:12px;border-bottom:1px solid var(--border);margin-bottom:12px}
+.table-summary-text{font-size:.78rem;color:var(--muted)}
+.table-summary-text strong{color:var(--text)}
+.table-actions{display:flex;gap:8px}
+
+/* ── Modal ─────────────────────────────────────────────────────── */
+.modal-bg{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.4);
+  backdrop-filter:blur(3px);display:none;align-items:center;justify-content:center;padding:20px}
+.modal-bg.open{display:flex}
+.modal{background:#fff;border-radius:12px;width:min(560px,96vw);max-height:90vh;
+  display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,.2)}
+.modal-lg{width:min(840px,96vw)}
+.modal-head{display:flex;align-items:center;justify-content:space-between;
+  padding:16px 20px;border-bottom:1px solid var(--border)}
+.modal-head h2{font-size:.95rem;font-weight:700}
+.modal-body{padding:20px;overflow-y:auto;flex:1}
+.modal-foot{padding:14px 20px;border-top:1px solid var(--border);
+  display:flex;gap:8px;justify-content:flex-end}
+
+/* ── Form fields ───────────────────────────────────────────────── */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.field{display:flex;flex-direction:column;gap:5px}
+.field.full{grid-column:1/-1}
+.field label{font-size:.7rem;font-weight:700;color:var(--muted);letter-spacing:.05em;text-transform:uppercase}
+.field input,.field select,.field textarea{padding:9px 10px;border:1px solid var(--border);
+  border-radius:6px;font:inherit;font-size:.82rem;background:#fff;color:var(--text);outline:none}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--blue);
+  box-shadow:0 0 0 2px rgba(29,59,196,.1)}
+.field textarea{resize:vertical;min-height:60px}
+.field .hint{font-size:.68rem;color:var(--muted)}
+
+/* ── Upload drop zone ──────────────────────────────────────────── */
+.dropzone{border:2px dashed var(--border);border-radius:8px;padding:32px 20px;
+  text-align:center;cursor:pointer;transition:.15s;background:#fafafa}
+.dropzone:hover,.dropzone.drag{border-color:var(--blue);background:#eff2ff}
+.dropzone strong{display:block;font-size:.85rem;margin-bottom:5px}
+.dropzone span{font-size:.75rem;color:var(--muted)}
+input[type=file].hidden{position:absolute;opacity:0;pointer-events:none;width:0;height:0}
+
+/* ── Comprobante print ─────────────────────────────────────────── */
+@media print{
+  body *{visibility:hidden}
+  .print-area,.print-area *{visibility:visible}
+  .print-area{position:fixed;inset:0;z-index:9999;background:#fff;
+    padding:24px;font-family:Arial,sans-serif;font-size:11pt}
+}
+
+/* ── Spinner ───────────────────────────────────────────────────── */
+.spinner{display:inline-block;width:16px;height:16px;border:2px solid rgba(29,59,196,.2);
+  border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── User-selector dropdown ────────────────────────────────────── */
+.user-dropdown{position:fixed;z-index:200;top:52px;right:14px;
+  background:#fff;border:1px solid var(--border);border-radius:8px;
+  box-shadow:0 8px 24px rgba(0,0,0,.12);padding:6px 0;min-width:180px;display:none}
+.user-dropdown.open{display:block}
+.user-option{padding:9px 14px;font-size:.8rem;font-weight:600;cursor:pointer;transition:.1s}
+.user-option:hover{background:var(--bg)}
+.user-option.active{color:var(--blue)}
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <a href="/" class="topbar-back" title="Volver al panel">← Panel</a>
+  <a href="/cartera" class="topbar-brand">INDOOR<span>Control de cartera</span></a>
+  <div id="conn-badge" class="topbar-conn"><i></i><span>Conectando…</span></div>
+  <div class="topbar-space"></div>
+  <span id="topbar-date" class="topbar-date"></span>
+  <button id="user-btn" class="topbar-user" type="button">
+    <span id="user-dot" class="topbar-user-dot">?</span>
+    <span id="user-label">Cargando…</span>
+  </button>
+</div>
+
+<!-- USER DROPDOWN -->
+<div id="user-dropdown" class="user-dropdown" role="listbox" aria-label="Seleccionar usuario"></div>
+
+<!-- TAB BAR -->
+<nav class="tabbar" aria-label="Módulos de cartera">
+  <button class="tabbar-tab active" data-tab="tablero" type="button">Tablero</button>
+  <button class="tabbar-tab" data-tab="cartera" type="button">Cartera</button>
+  <button class="tabbar-tab" data-tab="pagos" type="button">Pagos y comprobantes</button>
+  <button class="tabbar-tab" data-tab="cargar" type="button">Cargar cotizaciones</button>
+  <button class="tabbar-tab" data-tab="ajustes" type="button">Ajustes y datos</button>
+</nav>
+
+<div class="content">
+
+<!-- ══════════════════════════════════════════════════════ TABLERO -->
+<div id="panel-tablero" class="panel active">
+  <div id="filters-tablero"></div>
+  <div class="section-label" style="margin-bottom:8px">VENCIMIENTO DE LA CARTERA</div>
+  <div id="aging-bar" class="aging-bar" role="group" aria-label="Distribución por antigüedad"></div>
+  <div id="kpi-grid" class="kpi-grid"></div>
+  <div class="panels-grid">
+    <div class="bar-panel"><div class="bar-panel-title">Saldo por cliente</div><div class="bar-panel-sub">Concentración: a quién le está financiando la producción. (Top 10)</div><div id="chart-clientes"></div></div>
+    <div class="bar-panel"><div class="bar-panel-title">Saldo por vendedor</div><div class="bar-panel-sub">Quien vende también responde por el recaudo.</div><div id="chart-vendedores"></div></div>
+    <div class="bar-panel"><div class="bar-panel-title">Saldo por forma de pago</div><div class="bar-panel-sub">El plazo otorgado es crédito que financia INDOOR con su capital de trabajo.</div><div id="chart-formas"></div></div>
+    <div class="bar-panel"><div class="bar-panel-title">Recaudo por mes</div><div class="bar-panel-sub">Caja efectivamente ingresada, no ventas.</div><div id="chart-recaudo"></div></div>
+  </div>
+  <div class="section-label">ALERTAS DE CONTROL</div>
+  <div class="card-sub" style="margin-bottom:10px">Revisiones automáticas sobre los documentos cargados.</div>
+  <div id="alertas"></div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ CARTERA -->
+<div id="panel-cartera" class="panel">
+  <div id="filters-cartera"></div>
+  <div class="card">
+    <div class="table-summary">
+      <div class="table-summary-text" id="cartera-summary">Cargando…</div>
+      <div class="table-actions">
+        <button class="btn btn-secondary" id="btn-agregar-doc" type="button">+ Agregar documento</button>
+        <button class="btn btn-secondary" id="btn-exportar-cartera" type="button">↓ Exportar CSV</button>
+      </div>
+    </div>
+    <div class="table-wrap"><table id="cartera-table">
+      <thead><tr>
+        <th data-col="numero">N°</th>
+        <th data-col="cliente">CLIENTE</th>
+        <th data-col="vendedor">VENDEDOR</th>
+        <th data-col="fechaCreacion">CREACIÓN</th>
+        <th data-col="fechaEntrega">ENTREGA</th>
+        <th data-col="formaPago">FORMA DE PAGO</th>
+        <th data-col="fechaVencimiento">VENCE</th>
+        <th data-col="dias">DÍAS</th>
+        <th data-col="total" style="text-align:right">TOTAL</th>
+        <th data-col="pagado" style="text-align:right">PAGADO</th>
+        <th data-col="saldo" style="text-align:right">SALDO</th>
+        <th data-col="estadoVisual">ESTADO</th>
+        <th>ACCIONES</th>
+      </tr></thead>
+      <tbody id="cartera-tbody"></tbody>
+    </table></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ PAGOS -->
+<div id="panel-pagos" class="panel">
+  <div id="filters-pagos"></div>
+  <div class="card">
+    <div class="table-summary">
+      <div class="table-summary-text" id="pagos-summary">Cargando…</div>
+      <div class="table-actions">
+        <button class="btn btn-primary" id="btn-nuevo-pago" type="button">+ Registrar pago</button>
+        <button class="btn btn-secondary" id="btn-exportar-pagos" type="button">↓ Exportar CSV</button>
+      </div>
+    </div>
+    <div class="table-wrap"><table id="pagos-table">
+      <thead><tr>
+        <th>COMPROBANTE</th>
+        <th>FECHA</th>
+        <th>COTIZACIÓN</th>
+        <th>CLIENTE</th>
+        <th>MEDIO</th>
+        <th>REFERENCIA</th>
+        <th style="text-align:right">VALOR</th>
+        <th>TIPO</th>
+        <th>RECIBIÓ</th>
+        <th>ACCIONES</th>
+      </tr></thead>
+      <tbody id="pagos-tbody"></tbody>
+    </table></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ CARGAR -->
+<div id="panel-cargar" class="panel">
+  <div class="card">
+    <div class="card-title">Cargar cotizaciones en PDF</div>
+    <p class="card-sub">Sirve para un PDF individual o para el consolidado con varias. Todo lo que se carga entra a la cartera; las que el sistema marque como TRANSACCIÓN ANULADA quedan por fuera del saldo.</p>
+    <div id="drop-zone" class="dropzone" role="button" tabindex="0" aria-label="Arrastrar PDFs aquí">
+      <strong>Arrastre aquí los PDF</strong>
+      <span>o haga clic para seleccionar</span>
+    </div>
+    <input type="file" id="pdf-input" accept=".pdf,application/pdf" multiple class="hidden">
+    <div id="pdf-file-list" style="margin-top:10px;font-size:.78rem;color:var(--muted)"></div>
+    <div class="field" style="margin-top:14px">
+      <label>SI EL NÚMERO DE COTIZACIÓN YA EXISTE</label>
+      <select id="pdf-modo">
+        <option value="omitir">Omitir — conservar lo que ya está registrado (recomendado)</option>
+        <option value="reemplazar">Reemplazar los datos del documento (conserva pagos y estado)</option>
+      </select>
+      <span class="hint">Cargar el mismo consolidado dos veces no duplica nada: la herramienta identifica cada cotización por su número.</span>
+    </div>
+    <div style="margin-top:14px;display:flex;gap:10px">
+      <button class="btn btn-primary" id="btn-cargar-pdf" type="button" disabled>Cargar PDFs</button>
+      <span id="cargar-spinner" style="display:none"><span class="spinner"></span></span>
+    </div>
+    <div id="cargar-result" style="margin-top:14px"></div>
+  </div>
+  <div class="card" style="margin-top:16px">
+    <div class="card-title">Qué lee de cada cotización</div>
+    <p style="font-size:.78rem;color:var(--muted);margin-top:6px;line-height:1.6">
+      Número · Fecha de creación y entrega · Cliente y CC/NIT · Teléfono · Correo · Ciudad · Vendedor · Quién elaboró · Club/proyecto · Forma de pago y plazo · Valor total · IVA (si está discriminado) · Unidades · Ítems (referencia, cantidad, precio, total).<br>
+      <strong>Regla de validación:</strong> si la suma de ítems no coincide con el total, el documento se marca con punto ámbar. El total siempre se toma del pie de la cotización.
+    </p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ AJUSTES -->
+<div id="panel-ajustes" class="panel">
+  <div class="card">
+    <div class="card-title">Regla de vencimiento</div>
+    <p class="card-sub">Configurado según la política de INDOOR: el 100% se paga el día de la entrega del pedido.</p>
+    <div class="form-grid">
+      <div class="field">
+        <label>El plazo se cuenta desde</label>
+        <select id="cfg-plazoDesde">
+          <option value="entrega">Fecha de entrega (si no hay, la de creación)</option>
+          <option value="creacion">Fecha de creación</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>"Contado a 1 día" equivale a</label>
+        <select id="cfg-contadoEquivale">
+          <option value="mismo_dia_entrega">Pago del 100% el día de la entrega</option>
+          <option value="un_dia_despues">1 día después de la entrega</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Anticipo mínimo esperado (%)</label>
+        <input type="number" id="cfg-anticipoMinimoPct" min="0" max="100" value="50">
+        <span class="hint">Se usa para el botón rápido de anticipo y para la alerta de pedidos sin anticipo.</span>
+      </div>
+    </div>
+    <div style="margin-top:14px;display:flex;gap:10px;align-items:center">
+      <button class="btn btn-primary" id="btn-guardar-cfg" type="button">Guardar ajustes</button>
+      <span id="cfg-msg" style="font-size:.75rem;color:var(--green);display:none">✓ Guardado</span>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Usuarios del sistema</div>
+    <p class="card-sub">Lista de personas que pueden registrar pagos.</p>
+    <div class="field full" style="margin-bottom:10px">
+      <label>Un usuario por línea</label>
+      <textarea id="cfg-usuarios" rows="5" style="font-family:var(--mono);font-size:.82rem"></textarea>
+    </div>
+    <button class="btn btn-secondary" id="btn-guardar-usuarios" type="button">Guardar usuarios</button>
+  </div>
+  <div class="card">
+    <div class="card-title">Dónde vive la información</div>
+    <p style="font-size:.78rem;color:var(--muted);margin-bottom:14px;line-height:1.6">
+      La información vive en el servidor de INDOOR (<code>/data/cartera.json</code>) y todos los usuarios ven lo mismo.
+      El servidor guarda cada cambio al instante y hace un respaldo automático diario en <code>/data/respaldos</code>.
+      El respaldo manual es solo para llevarse una copia fuera del servidor.
+    </p>
+    <div id="ajustes-status" style="font-size:.75rem;color:var(--muted);margin-bottom:14px"></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <a id="btn-respaldo" href="/api/cartera/respaldo" class="btn btn-secondary" download>↓ Descargar respaldo (.json)</a>
+      <button class="btn btn-danger" id="btn-restaurar" type="button">↑ Restaurar desde respaldo</button>
+    </div>
+    <input type="file" id="restaurar-input" accept=".json" class="hidden">
+  </div>
+</div>
+
+</div><!-- /content -->
+
+<!-- ═══════════ MODAL: REGISTRAR PAGO ═════════════════════════════ -->
+<div id="modal-pago" class="modal-bg" role="dialog" aria-modal="true" aria-labelledby="modal-pago-title">
+<div class="modal">
+  <div class="modal-head"><h2 id="modal-pago-title">Registrar pago</h2><button class="btn-icon" data-close="modal-pago">×</button></div>
+  <div class="modal-body">
+    <div class="form-grid">
+      <div class="field full">
+        <label>Cotización</label>
+        <input type="text" id="pago-cotizacion" placeholder="Número o nombre del cliente" list="pago-cot-list" autocomplete="off">
+        <datalist id="pago-cot-list"></datalist>
+        <span class="hint" id="pago-cot-info" style="color:var(--blue)"></span>
+      </div>
+      <div class="field">
+        <label>Fecha</label>
+        <input type="date" id="pago-fecha">
+      </div>
+      <div class="field">
+        <label>Medio de pago</label>
+        <select id="pago-medio">
+          <option value="Transferencia Bancolombia">Transferencia Bancolombia</option>
+          <option value="Efectivo">Efectivo</option>
+          <option value="Consignación Bancolombia">Consignación Bancolombia</option>
+          <option value="Nequi">Nequi</option>
+          <option value="Daviplata">Daviplata</option>
+          <option value="Transferencia Davivienda">Transferencia Davivienda</option>
+          <option value="Otro">Otro</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Referencia (opcional)</label>
+        <input type="text" id="pago-referencia" placeholder="N° de transferencia">
+      </div>
+      <div class="field">
+        <label>Valor</label>
+        <input type="number" id="pago-valor" min="1" placeholder="0">
+        <span class="hint" id="pago-saldo-hint"></span>
+      </div>
+      <div class="field">
+        <label>Tipo</label>
+        <select id="pago-tipo">
+          <option value="Abono">Abono</option>
+          <option value="Anticipo">Anticipo</option>
+        </select>
+      </div>
+      <div class="field full">
+        <label>Recibió</label>
+        <select id="pago-recibio"></select>
+      </div>
+      <div class="field full" id="pago-anticipo-row" style="display:none">
+        <button type="button" class="btn btn-secondary" id="btn-anticipo-min">Usar anticipo mínimo</button>
+      </div>
+    </div>
+    <div id="pago-error" style="margin-top:10px;font-size:.75rem;color:#dc2626;display:none"></div>
+  </div>
+  <div class="modal-foot">
+    <button class="btn btn-secondary" data-close="modal-pago" type="button">Cancelar</button>
+    <button class="btn btn-primary" id="btn-guardar-pago" type="button">Guardar pago</button>
+  </div>
+</div>
+</div>
+
+<!-- ═══════════ MODAL: DETALLE DOCUMENTO ══════════════════════════ -->
+<div id="modal-detalle" class="modal-bg" role="dialog" aria-modal="true" aria-labelledby="modal-detalle-title">
+<div class="modal modal-lg">
+  <div class="modal-head"><h2 id="modal-detalle-title">Detalle del documento</h2><button class="btn-icon" data-close="modal-detalle">×</button></div>
+  <div class="modal-body" id="modal-detalle-body"></div>
+  <div class="modal-foot">
+    <button class="btn btn-secondary" data-close="modal-detalle" type="button">Cerrar</button>
+    <button class="btn btn-primary" id="btn-detalle-pago" type="button">Registrar pago</button>
+  </div>
+</div>
+</div>
+
+<!-- ═══════════ MODAL: EDITAR DOCUMENTO ═══════════════════════════ -->
+<div id="modal-editar" class="modal-bg" role="dialog" aria-modal="true" aria-labelledby="modal-editar-title">
+<div class="modal modal-lg">
+  <div class="modal-head"><h2 id="modal-editar-title">Editar documento</h2><button class="btn-icon" data-close="modal-editar">×</button></div>
+  <div class="modal-body">
+    <div class="form-grid" id="editar-form">
+      <div class="field"><label>Número</label><input id="ed-numero" type="number" readonly style="background:#f3f4f6"></div>
+      <div class="field"><label>Cliente</label><input id="ed-cliente" type="text"></div>
+      <div class="field"><label>CC/NIT</label><input id="ed-ccNit" type="text"></div>
+      <div class="field"><label>Teléfono</label><input id="ed-telefono" type="text"></div>
+      <div class="field"><label>Correo</label><input id="ed-correo" type="text"></div>
+      <div class="field"><label>Ciudad</label><input id="ed-ciudad" type="text"></div>
+      <div class="field"><label>Vendedor</label><input id="ed-vendedor" type="text"></div>
+      <div class="field"><label>Club/Proyecto</label><input id="ed-club" type="text"></div>
+      <div class="field"><label>Fecha creación</label><input id="ed-fechaCreacion" type="date"></div>
+      <div class="field"><label>Fecha entrega</label><input id="ed-fechaEntrega" type="date"></div>
+      <div class="field"><label>Forma de pago</label><input id="ed-formaPago" type="text"></div>
+      <div class="field"><label>Plazo (días)</label><input id="ed-plazoDias" type="number"></div>
+      <div class="field"><label>Total</label><input id="ed-total" type="number"></div>
+      <div class="field"><label>Estado</label>
+        <select id="ed-estado">
+          <option value="pedido">Pedido</option>
+          <option value="facturado">Facturado</option>
+          <option value="pagada">Pagada</option>
+          <option value="anulada">Anulada</option>
+          <option value="excluida">Excluida de cartera</option>
+          <option value="perdida">Perdida</option>
+        </select>
+      </div>
+      <div class="field full"><label>Notas</label><textarea id="ed-notas"></textarea></div>
+    </div>
+    <div id="editar-error" style="margin-top:10px;font-size:.75rem;color:#dc2626;display:none"></div>
+  </div>
+  <div class="modal-foot">
+    <button class="btn btn-secondary" data-close="modal-editar" type="button">Cancelar</button>
+    <button class="btn btn-primary" id="btn-guardar-editar" type="button">Guardar cambios</button>
+  </div>
+</div>
+</div>
+
+<!-- ═══════════ MODAL: AGREGAR DOCUMENTO ══════════════════════════ -->
+<div id="modal-agregar" class="modal-bg" role="dialog" aria-modal="true" aria-labelledby="modal-agregar-title">
+<div class="modal modal-lg">
+  <div class="modal-head"><h2 id="modal-agregar-title">Agregar documento manual</h2><button class="btn-icon" data-close="modal-agregar">×</button></div>
+  <div class="modal-body">
+    <div class="form-grid">
+      <div class="field"><label>Número *</label><input id="ag-numero" type="number" required></div>
+      <div class="field"><label>Cliente *</label><input id="ag-cliente" type="text" required></div>
+      <div class="field"><label>CC/NIT</label><input id="ag-ccNit" type="text"></div>
+      <div class="field"><label>Teléfono</label><input id="ag-telefono" type="text"></div>
+      <div class="field"><label>Correo</label><input id="ag-correo" type="text"></div>
+      <div class="field"><label>Ciudad</label><input id="ag-ciudad" type="text"></div>
+      <div class="field"><label>Vendedor</label><input id="ag-vendedor" type="text"></div>
+      <div class="field"><label>Club/Proyecto</label><input id="ag-club" type="text"></div>
+      <div class="field"><label>Fecha creación</label><input id="ag-fechaCreacion" type="date"></div>
+      <div class="field"><label>Fecha entrega</label><input id="ag-fechaEntrega" type="date"></div>
+      <div class="field"><label>Forma de pago</label>
+        <select id="ag-formaPago">
+          <option value="">Sin definir</option>
+          <option value="Contado a 1 día">Contado a 1 día</option>
+          <option value="7 días">7 días</option>
+          <option value="10 días">10 días</option>
+          <option value="15 días">15 días</option>
+          <option value="30 días">30 días</option>
+          <option value="45 días">45 días</option>
+        </select>
+      </div>
+      <div class="field"><label>Total *</label><input id="ag-total" type="number" required></div>
+      <div class="field full"><label>Notas</label><textarea id="ag-notas"></textarea></div>
+    </div>
+    <div id="agregar-error" style="margin-top:10px;font-size:.75rem;color:#dc2626;display:none"></div>
+  </div>
+  <div class="modal-foot">
+    <button class="btn btn-secondary" data-close="modal-agregar" type="button">Cancelar</button>
+    <button class="btn btn-primary" id="btn-guardar-agregar" type="button">Agregar documento</button>
+  </div>
+</div>
+</div>
+
+<!-- Print area -->
+<div id="print-area" class="print-area" style="display:none"></div>
+
+<script>
+'use strict';
+// ── State ───────────────────────────────────────────────────────────────────
+let DATA = null;         // raw from server
+let DOCS = [];           // enriched documents
+let COMPS = [];          // comprobantes
+let CONFIG = {};
+let USUARIOS = [];
+let ACTIVE_TAB = 'tablero';
+let ACTIVE_USER = '';
+let AGING_FILTER = null; // tramo activo en la barra
+let SORT = {col: 'dias', dir: 'desc'};
+let CURRENT_EDIT_NUM = null;
+let CURRENT_DETALLE_NUM = null;
+let pollTimer = null;
+
+// ── Filters state ───────────────────────────────────────────────────────────
+const F = {
+  buscar: '', vendedor: '', cliente: '', formaPago: '',
+  estado: 'pendiente', rangoBy: '', desde: '', hasta: '',
+};
+
+// ── Formatting ──────────────────────────────────────────────────────────────
+const fmtCOP = v => {
+  const n = Math.round(Number(v) || 0);
+  return '$' + n.toLocaleString('es-CO', {maximumFractionDigits: 0});
+};
+const fmtM = v => {
+  const n = (Number(v) || 0) / 1e6;
+  return '$' + n.toLocaleString('es-CO', {minimumFractionDigits: 1, maximumFractionDigits: 1}) + ' M';
+};
+const fmtDate = s => {
+  if (!s) return '';
+  const [y, m, d] = s.split('-');
+  return d && m ? `${d}/${m}/${y}` : s;
+};
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+// ── API ─────────────────────────────────────────────────────────────────────
+async function api(path, opts = {}) {
+  const r = await fetch(path, {cache: 'no-store', ...opts,
+    headers: opts.body instanceof FormData ? {} : {'Content-Type': 'application/json', ...(opts.headers || {})}});
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Error del servidor');
+  return data;
+}
+const post = (path, body) => api(path, {method: 'POST', body: JSON.stringify(body)});
+const put = (path, body) => api(path, {method: 'PUT', body: JSON.stringify(body)});
+
+// ── Load data ───────────────────────────────────────────────────────────────
+async function loadData() {
+  try {
+    DATA = await api('/api/cartera/datos');
+    DOCS = DATA.documentos || [];
+    COMPS = DATA.comprobantes || [];
+    CONFIG = DATA.config || {};
+    USUARIOS = DATA.usuarios || [];
+    if (!ACTIVE_USER && USUARIOS.length) ACTIVE_USER = USUARIOS[0];
+    setConnected(true);
+    render();
+  } catch (e) {
+    setConnected(false);
+  }
+}
+
+function setConnected(ok) {
+  const badge = document.getElementById('conn-badge');
+  badge.className = 'topbar-conn' + (ok ? ' ok' : '');
+  badge.querySelector('span').textContent = ok ? 'Conectado · datos compartidos' : 'Sin conexión';
+}
+
+// ── Date helpers ────────────────────────────────────────────────────────────
+function today() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+// ── Filtering ───────────────────────────────────────────────────────────────
+function filteredDocs() {
+  let docs = DOCS.filter(d => {
+    if (d.estado === 'excluida' && F.estado !== 'excluidas' && F.estado !== 'todos') return false;
+    const q = F.buscar.toLowerCase();
+    if (q && !String(d.numero).includes(q) && !(d.cliente||'').toLowerCase().includes(q)
+           && !(d.club||'').toLowerCase().includes(q)) return false;
+    if (F.vendedor && (d.vendedor||'') !== F.vendedor) return false;
+    if (F.cliente && (d.cliente||'') !== F.cliente) return false;
+    if (F.formaPago && (d.formaPago||'') !== F.formaPago) return false;
+
+    const estado = F.estado;
+    if (estado === 'pendiente') {
+      if (d.estadoVisual === 'Pagada' || d.estadoVisual === 'Anulada' || d.estadoVisual === 'Excluida') return false;
+    } else if (estado === 'pagadas') {
+      if (d.estadoVisual !== 'Pagada') return false;
+    } else if (estado === 'cartera') {
+      if (d.estadoVisual !== 'En cartera') return false;
+    } else if (estado === 'anuladas') {
+      if (d.estadoVisual !== 'Anulada') return false;
+    } else if (estado === 'excluidas') {
+      if (d.estadoVisual !== 'Excluida') return false;
+    } else if (estado === 'facturadas') {
+      if (d.estado !== 'facturado') return false;
+    }
+
+    if (F.rangoBy && (F.desde || F.hasta)) {
+      const colMap = {creacion: 'fechaCreacion', vencimiento: 'fechaVencimiento', entrega: 'fechaEntrega'};
+      const v = d[colMap[F.rangoBy]] || '';
+      if (F.desde && v < F.desde) return false;
+      if (F.hasta && v > F.hasta) return false;
+    }
+
+    if (AGING_FILTER !== null) {
+      const dias = d.dias;
+      if (AGING_FILTER === 'noVencer' && !(d.saldo > 0 && (dias === null || dias <= 0))) return false;
+      if (AGING_FILTER === '1a15' && !(d.saldo > 0 && dias >= 1 && dias <= 15)) return false;
+      if (AGING_FILTER === '16a30' && !(d.saldo > 0 && dias >= 16 && dias <= 30)) return false;
+      if (AGING_FILTER === '31a60' && !(d.saldo > 0 && dias >= 31 && dias <= 60)) return false;
+      if (AGING_FILTER === 'mas60' && !(d.saldo > 0 && dias > 60)) return false;
+    }
+    return true;
+  });
+
+  // Sort
+  docs.sort((a, b) => {
+    let va = a[SORT.col], vb = b[SORT.col];
+    if (va == null) va = SORT.dir === 'asc' ? '￿' : '';
+    if (vb == null) vb = SORT.dir === 'asc' ? '￿' : '';
+    if (typeof va === 'number' && typeof vb === 'number') return SORT.dir === 'asc' ? va - vb : vb - va;
+    return SORT.dir === 'asc' ? String(va).localeCompare(String(vb), 'es') : String(vb).localeCompare(String(va), 'es');
+  });
+  return docs;
+}
+
+function filteredComps() {
+  return COMPS.filter(c => {
+    const q = F.buscar.toLowerCase();
+    if (q && !String(c.cotizacionNumero).includes(q) && !(c.cliente||'').toLowerCase().includes(q)
+          && !(c.id||'').toLowerCase().includes(q)) return false;
+    if (F.cliente && (c.cliente||'') !== F.cliente) return false;
+    if (F.rangoBy === 'creacion' && (F.desde || F.hasta)) {
+      if (F.desde && (c.fecha||'') < F.desde) return false;
+      if (F.hasta && (c.fecha||'') > F.hasta) return false;
+    }
+    return true;
+  });
+}
+
+// ── Chip helper ─────────────────────────────────────────────────────────────
+function estadoChip(doc) {
+  const v = doc.estadoVisual || '';
+  const cls = v.startsWith('Vencida') ? 'chip-vencida' : v === 'En cartera' ? 'chip-cartera' :
+    v === 'Abonada' ? 'chip-abonada' : v === 'Pagada' ? 'chip-pagada' :
+    v === 'Anulada' ? 'chip-anulada' : v === 'Excluida' ? 'chip-excluida' : 'chip-cartera';
+  return `<span class="chip ${cls}">${esc(v)}</span>`;
+}
+
+// ── Filters HTML ────────────────────────────────────────────────────────────
+function buildFilters(id) {
+  const vendors = [...new Set(DOCS.map(d => d.vendedor).filter(Boolean))].sort();
+  const clients = [...new Set(DOCS.map(d => d.cliente).filter(Boolean))].sort();
+  const formas = [...new Set(DOCS.map(d => d.formaPago).filter(Boolean))].sort();
+
+  return `<div class="card" style="margin-bottom:16px"><div class="filters">
+    <div class="filter-field"><label>Buscar</label><input type="search" id="${id}-buscar" placeholder="Cliente, N°, club…" value="${esc(F.buscar)}"></div>
+    <div class="filter-field"><label>Vendedor</label><select id="${id}-vendedor"><option value="">Todos</option>${vendors.map(v=>`<option value="${esc(v)}"${F.vendedor===v?' selected':''}>${esc(v)}</option>`).join('')}</select></div>
+    <div class="filter-field"><label>Cliente</label><select id="${id}-cliente"><option value="">Todos</option>${clients.map(v=>`<option value="${esc(v)}"${F.cliente===v?' selected':''}>${esc(v)}</option>`).join('')}</select></div>
+    <div class="filter-field"><label>Forma de pago</label><select id="${id}-forma"><option value="">Todas</option>${formas.map(v=>`<option value="${esc(v)}"${F.formaPago===v?' selected':''}>${esc(v)}</option>`).join('')}></select></div>
+    <div class="filter-field"><label>Estado</label><select id="${id}-estado">
+      <option value="pendiente"${F.estado==='pendiente'?' selected':''}>Con saldo pendiente</option>
+      <option value="todos"${F.estado==='todos'?' selected':''}>Todos los documentos</option>
+      <option value="pagadas"${F.estado==='pagadas'?' selected':''}>Pagadas</option>
+      <option value="cartera"${F.estado==='cartera'?' selected':''}>En cartera</option>
+      <option value="facturadas"${F.estado==='facturadas'?' selected':''}>Facturadas</option>
+      <option value="anuladas"${F.estado==='anuladas'?' selected':''}>Anuladas</option>
+      <option value="excluidas"${F.estado==='excluidas'?' selected':''}>Excluidas de cartera</option>
+    </select></div>
+    <div class="filter-field"><label>Rango por</label><select id="${id}-rangoPor">
+      <option value="">—</option>
+      <option value="creacion"${F.rangoBy==='creacion'?' selected':''}>Fecha creación</option>
+      <option value="vencimiento"${F.rangoBy==='vencimiento'?' selected':''}>Fecha vencimiento</option>
+      <option value="entrega"${F.rangoBy==='entrega'?' selected':''}>Fecha entrega</option>
+    </select></div>
+    <div class="filter-field"><label>Desde</label><input type="date" id="${id}-desde" value="${F.desde}"></div>
+    <div class="filter-field"><label>Hasta</label><input type="date" id="${id}-hasta" value="${F.hasta}"></div>
+    <button class="btn-clear" id="${id}-limpiar" type="button">Limpiar</button>
+  </div></div>`;
+}
+
+function attachFilters(prefix) {
+  const get = id => document.getElementById(`${prefix}-${id}`);
+  const handle = () => {
+    F.buscar = get('buscar')?.value || '';
+    F.vendedor = get('vendedor')?.value || '';
+    F.cliente = get('cliente')?.value || '';
+    F.formaPago = get('forma')?.value || '';
+    F.estado = get('estado')?.value || 'pendiente';
+    F.rangoBy = get('rangoPor')?.value || '';
+    F.desde = get('desde')?.value || '';
+    F.hasta = get('hasta')?.value || '';
+    syncFilters(prefix);
+    renderActivePanel();
+  };
+  ['buscar','vendedor','cliente','forma','estado','rangoPor','desde','hasta']
+    .forEach(id => get(id)?.addEventListener('change', handle));
+  get('buscar')?.addEventListener('input', handle);
+  get('limpiar')?.addEventListener('click', () => {
+    Object.assign(F, {buscar:'',vendedor:'',cliente:'',formaPago:'',estado:'pendiente',rangoBy:'',desde:'',hasta:''});
+    AGING_FILTER = null;
+    renderActivePanel();
+  });
+}
+
+function syncFilters(prefix) {
+  // sync filter values to other filter bars
+  ['tablero','cartera','pagos'].forEach(p => {
+    if (p === prefix) return;
+    const get = id => document.getElementById(`${p}-${id}`);
+    if (get('buscar')) get('buscar').value = F.buscar;
+    if (get('vendedor')) get('vendedor').value = F.vendedor;
+    if (get('cliente')) get('cliente').value = F.cliente;
+    if (get('forma')) get('forma').value = F.formaPago;
+    if (get('estado')) get('estado').value = F.estado;
+    if (get('rangoPor')) get('rangoPor').value = F.rangoBy;
+    if (get('desde')) get('desde').value = F.desde;
+    if (get('hasta')) get('hasta').value = F.hasta;
+  });
+}
+
+// ── Aging helpers ────────────────────────────────────────────────────────────
+function agingSegments(docs) {
+  const active = docs.filter(d => d.saldo > 0 && d.estadoVisual !== 'Anulada' && d.estadoVisual !== 'Excluida');
+  const seg = (label, fn) => {
+    const s = active.filter(fn).reduce((a, d) => a + d.saldo, 0);
+    return {label, saldo: s};
+  };
+  return [
+    {key:'noVencer', label:'SIN VENCER', ...seg('SIN VENCER', d => !d.dias || d.dias <= 0), cls:'seg-noVencer'},
+    {key:'1a15', label:'1 A 15 DÍAS', ...seg('1 A 15 DÍAS', d => d.dias >= 1 && d.dias <= 15), cls:'seg-1a15'},
+    {key:'16a30', label:'16 A 30 DÍAS', ...seg('16 A 30 DÍAS', d => d.dias >= 16 && d.dias <= 30), cls:'seg-16a30'},
+    {key:'31a60', label:'31 A 60 DÍAS', ...seg('31 A 60 DÍAS', d => d.dias >= 31 && d.dias <= 60), cls:'seg-31a60'},
+    {key:'mas60', label:'MÁS DE 60', ...seg('MÁS DE 60', d => d.dias > 60), cls:'seg-mas60'},
+  ];
+}
+
+// ── KPI calculations ─────────────────────────────────────────────────────────
+function calcKPIs(docs) {
+  const active = docs.filter(d => d.estadoVisual !== 'Anulada' && d.estadoVisual !== 'Excluida');
+  const hoy = new Date().toISOString().slice(0, 10);
+  const en7 = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+
+  const carteraSaldo = active.filter(d => d.saldo > 0).reduce((a, d) => a + d.saldo, 0);
+  const vencida = active.filter(d => d.dias > 0 && d.saldo > 0).reduce((a, d) => a + d.saldo, 0);
+  const vence7 = active.filter(d => d.saldo > 0 && d.fechaVencimiento >= hoy && d.fechaVencimiento <= en7).reduce((a, d) => a + d.saldo, 0);
+
+  const mesActual = hoy.slice(0, 7);
+  const recaudoMes = COMPS.filter(c => !c.anulado && (c.fecha||'').startsWith(mesActual)).reduce((a, c) => a + (c.valor||0), 0);
+
+  const docsConSaldo = active.filter(d => d.saldo > 0);
+  const totalSaldo = carteraSaldo;
+  const dso = docsConSaldo.length ? docsConSaldo.reduce((a, d) => {
+    const base = d.fechaCreacion || d.fechaEntrega || hoy;
+    const dias = Math.max(0, Math.round((new Date(hoy) - new Date(base)) / 86400000));
+    return a + dias * d.saldo;
+  }, 0) / (totalSaldo || 1) : 0;
+
+  const clienteSaldos = {};
+  active.forEach(d => { if (d.saldo > 0) clienteSaldos[d.cliente] = (clienteSaldos[d.cliente] || 0) + d.saldo; });
+  const maxCliente = Math.max(0, ...Object.values(clienteSaldos));
+  const concentracion = totalSaldo ? (maxCliente / totalSaldo * 100) : 0;
+
+  const vigente = active.reduce((a, d) => a + (d.total||0), 0);
+  const anticipos = COMPS.filter(c => !c.anulado && c.tipo === 'Anticipo').reduce((a, c) => a + (c.valor||0), 0);
+  const plazoPromedio = docs.filter(d => d.plazoDias != null).reduce((a, d, i, arr) => a + (d.plazoDias||0) / arr.length, 0);
+
+  return {carteraSaldo, vencida, vence7, recaudoMes, dso, concentracion, vigente, anticipos, plazoPromedio,
+    nDocs: docsConSaldo.length, pctVencida: totalSaldo ? vencida / totalSaldo * 100 : 0};
+}
+
+// ── Render ───────────────────────────────────────────────────────────────────
+function render() {
+  renderTopbarUser();
+  renderFiltersAll();
+  renderActivePanel();
+}
+
+function renderFiltersAll() {
+  document.getElementById('filters-tablero').innerHTML = buildFilters('tablero');
+  document.getElementById('filters-cartera').innerHTML = buildFilters('cartera');
+  document.getElementById('filters-pagos').innerHTML = buildFilters('pagos');
+  ['tablero','cartera','pagos'].forEach(attachFilters);
+}
+
+function renderActivePanel() {
+  if (ACTIVE_TAB === 'tablero') renderTablero();
+  else if (ACTIVE_TAB === 'cartera') renderCartera();
+  else if (ACTIVE_TAB === 'pagos') renderPagos();
+  else if (ACTIVE_TAB === 'ajustes') renderAjustes();
+}
+
+function renderTopbarUser() {
+  document.getElementById('user-label').textContent = ACTIVE_USER || '—';
+  const initials = (ACTIVE_USER || 'U').split(' ').map(p => p[0]).slice(0, 2).join('').toUpperCase();
+  document.getElementById('user-dot').textContent = initials;
+  const topbarDate = document.getElementById('topbar-date');
+  const d = new Date();
+  topbarDate.textContent = d.toLocaleDateString('es-CO', {weekday:'long', day:'numeric', month:'long'});
+}
+
+// ── Tablero ─────────────────────────────────────────────────────────────────
+function renderTablero() {
+  const docs = filteredDocs();
+  renderAgingBar(docs);
+  renderKPIs(docs);
+  renderBarCharts(docs);
+  renderAlertas();
+}
+
+function renderAgingBar(docs) {
+  const segs = agingSegments(docs);
+  const total = segs.reduce((a, s) => a + s.saldo, 0);
+  const bar = document.getElementById('aging-bar');
+  if (!total) { bar.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;width:100%;color:var(--muted);font-size:.78rem">Sin documentos con saldo</div>'; return; }
+  bar.innerHTML = segs.filter(s => s.saldo > 0).map(s => `
+    <button class="aging-segment ${s.cls}${AGING_FILTER === s.key ? ' active' : ''}"
+      style="width:${s.saldo/total*100}%" data-key="${s.key}"
+      aria-label="Tramo: ${fmtM(s.saldo)}" type="button">
+      <span>${s.label}</span><strong>${fmtM(s.saldo)}</strong>
+    </button>`).join('');
+  bar.querySelectorAll('.aging-segment').forEach(btn => {
+    btn.addEventListener('click', () => {
+      AGING_FILTER = AGING_FILTER === btn.dataset.key ? null : btn.dataset.key;
+      renderTablero(); renderCartera();
+    });
+  });
+}
+
+function renderKPIs(docs) {
+  const k = calcKPIs(docs);
+  document.getElementById('kpi-grid').innerHTML = `
+    <div class="kpi-card"><div class="kpi-label">Cartera por cobrar</div><div class="kpi-value">${fmtCOP(k.carteraSaldo)}</div><div class="kpi-support">${k.nDocs} documentos con saldo</div></div>
+    <div class="kpi-card danger"><div class="kpi-label">Cartera vencida</div><div class="kpi-value">${fmtCOP(k.vencida)}</div><div class="kpi-support">${k.pctVencida.toFixed(1)}% del total</div></div>
+    <div class="kpi-card"><div class="kpi-label">Vence en 7 días</div><div class="kpi-value">${fmtCOP(k.vence7)}</div><div class="kpi-support">Gestione el cobro esta semana</div></div>
+    <div class="kpi-card success"><div class="kpi-label">Recaudado este mes</div><div class="kpi-value">${fmtCOP(k.recaudoMes)}</div><div class="kpi-support">Caja efectivamente ingresada</div></div>
+    <div class="kpi-card"><div class="kpi-label">Días de cartera (DSO)</div><div class="kpi-value" style="font-family:var(--mono)">${Math.round(k.dso)} d</div><div class="kpi-support">Plazo promedio otorgado: ${Math.round(k.plazoPromedio)} d</div></div>
+    <div class="kpi-card"><div class="kpi-label">Concentración</div><div class="kpi-value" style="font-family:var(--mono)">${k.concentracion.toFixed(1)}%</div><div class="kpi-support">Peso del cliente más grande</div></div>
+    <div class="kpi-card"><div class="kpi-label">Valor cotizado vigente</div><div class="kpi-value">${fmtCOP(k.vigente)}</div><div class="kpi-support">Excluyendo anuladas y excluidas</div></div>
+    <div class="kpi-card success"><div class="kpi-label">Anticipos recibidos</div><div class="kpi-value">${fmtCOP(k.anticipos)}</div><div class="kpi-support">Cobrado antes de entregar</div></div>`;
+}
+
+function renderBarCharts(docs) {
+  const active = docs.filter(d => d.saldo > 0 && d.estadoVisual !== 'Anulada' && d.estadoVisual !== 'Excluida');
+
+  function groupBy(key, limit = 10) {
+    const map = {};
+    active.forEach(d => {
+      const k = d[key] || 'Sin definir';
+      if (!map[k]) map[k] = {saldo: 0, total: 0, vencida: 0, n: 0};
+      map[k].saldo += d.saldo;
+      map[k].total += d.total || 0;
+      map[k].vencida += d.dias > 0 ? d.saldo : 0;
+      map[k].n++;
+    });
+    return Object.entries(map).sort((a, b) => b[1].saldo - a[1].saldo).slice(0, limit);
+  }
+
+  function barHtml(entries, filterKey) {
+    if (!entries.length) return '<div class="empty-state" style="padding:20px"><strong>Sin datos</strong></div>';
+    const maxSaldo = entries[0][1].saldo;
+    return entries.map(([name, g]) => {
+      const pctV = g.saldo ? (g.vencida / g.saldo * 100) : 0;
+      return `<div class="bar-row" data-filter-key="${filterKey}" data-filter-val="${esc(name)}">
+        <div><div class="bar-row-name" title="${esc(name)}">${esc(name)}</div>
+          <div class="bar-row-detail">${g.n} doc · ${pctV.toFixed(0)}% vencido</div></div>
+        <div class="bar-track"><div class="bar-fill ${pctV > 0 ? 'red' : 'blue'}" style="width:${maxSaldo?g.saldo/maxSaldo*100:0}%"></div></div>
+        <div class="bar-amount">${fmtCOP(g.saldo)}</div>
+      </div>`;
+    }).join('');
+  }
+
+  document.getElementById('chart-clientes').innerHTML = barHtml(groupBy('cliente'), 'cliente');
+  document.getElementById('chart-vendedores').innerHTML = barHtml(groupBy('vendedor'), 'vendedor');
+  document.getElementById('chart-formas').innerHTML = barHtml(groupBy('formaPago'), 'formaPago');
+
+  // Recaudo por mes
+  const mesMap = {};
+  COMPS.filter(c => !c.anulado).forEach(c => {
+    const m = (c.fecha || '').slice(0, 7);
+    if (m) mesMap[m] = (mesMap[m] || 0) + (c.valor || 0);
+  });
+  const mesEntries = Object.entries(mesMap).sort((a, b) => b[0].localeCompare(a[0])).slice(0, 12);
+  const maxMes = mesEntries.length ? mesEntries.reduce((a, [, v]) => Math.max(a, v), 0) : 0;
+  document.getElementById('chart-recaudo').innerHTML = mesEntries.length
+    ? mesEntries.map(([m, v]) => `<div class="bar-row">
+        <div class="bar-row-name">${m}</div>
+        <div class="bar-track"><div class="bar-fill blue" style="width:${maxMes?v/maxMes*100:0}%"></div></div>
+        <div class="bar-amount">${fmtCOP(v)}</div>
+      </div>`).join('')
+    : '<div class="empty-state" style="padding:20px"><strong>Sin recaudo registrado</strong></div>';
+
+  // Click filter
+  document.querySelectorAll('.bar-row[data-filter-key]').forEach(row => {
+    row.addEventListener('click', () => {
+      const key = row.dataset.filterKey, val = row.dataset.filterVal;
+      if (key === 'cliente') F.cliente = F.cliente === val ? '' : val;
+      if (key === 'vendedor') F.vendedor = F.vendedor === val ? '' : val;
+      if (key === 'formaPago') F.formaPago = F.formaPago === val ? '' : val;
+      renderFiltersAll(); renderActivePanel();
+    });
+  });
+}
+
+function renderAlertas() {
+  const docs = DOCS.filter(d => d.estadoVisual !== 'Anulada' && d.estadoVisual !== 'Excluida');
+  const html = [];
+  const pct = Number(CONFIG.anticipoMinimoPct || 50);
+
+  // 1. Más de 60 días vencidos
+  const criticos = docs.filter(d => d.dias > 60 && d.saldo > 0);
+  if (criticos.length) {
+    html.push(`<div class="alert-card critical">
+      <div class="alert-title">⚠ ${criticos.length} documentos con más de 60 días vencidos</div>
+      <div class="alert-detail">${criticos.map(d=>`#${d.numero} ${esc(d.cliente||'')} ${fmtCOP(d.saldo)}`).join(' · ')}</div>
+      <div class="alert-rec">Acuerdo de pago escrito o suspensión de despachos: después de 60 días el recaudo cae en picada.</div>
+    </div>`);
+  }
+
+  // 2. Pedidos sin anticipo mínimo (no entregados)
+  const sinAnticipo = docs.filter(d => {
+    if (d.estado === 'pagada' || d.estado === 'anulada') return false;
+    const sinEntrega = !d.fechaEntrega || d.fechaEntrega >= today();
+    if (!sinEntrega) return false;
+    const pagado = d.pagado || 0;
+    return pagado < (d.total || 0) * pct / 100;
+  });
+  if (sinAnticipo.length) {
+    html.push(`<div class="alert-card">
+      <div class="alert-title">⏳ ${sinAnticipo.length} pedidos en producción sin anticipo mínimo (${pct}%)</div>
+      <div class="alert-detail">${sinAnticipo.map(d=>`#${d.numero} ${esc(d.cliente||'')} — anticipo ${fmtCOP(d.pagado||0)} de ${fmtCOP(d.total||0)}`).join(' · ')}</div>
+      <div class="alert-rec">Aún no se entregan y ya consumen tela, insumos y mano de obra pagados por INDOOR.</div>
+    </div>`);
+  }
+
+  // 3. Precios distintos entre cotizaciones
+  const precioMap = {};
+  docs.forEach(d => (d.items||[]).forEach(i => {
+    if (!i.referencia) return;
+    if (!precioMap[i.referencia]) precioMap[i.referencia] = {min:Infinity, max:-Infinity};
+    precioMap[i.referencia].min = Math.min(precioMap[i.referencia].min, i.precioUnitario||0);
+    precioMap[i.referencia].max = Math.max(precioMap[i.referencia].max, i.precioUnitario||0);
+  }));
+  const precios = Object.entries(precioMap).filter(([,v]) => v.max > v.min * 1.05);
+  if (precios.length) {
+    html.push(`<div class="alert-card">
+      <div class="alert-title">💲 ${precios.length} referencias con precios distintos entre cotizaciones</div>
+      <div class="alert-detail">${precios.slice(0,8).map(([ref,v])=>`${esc(ref)}: ${fmtCOP(v.min)} a ${fmtCOP(v.max)}`).join(' · ')}</div>
+      <div class="alert-rec">Sin lista de precios única no hay control de margen ni del descuento que da cada vendedor.</div>
+    </div>`);
+  }
+
+  // 4. Sin IVA discriminado
+  const conIva = docs.filter(d => d.iva != null && d.iva > 0).length;
+  const sinIva = docs.filter(d => d.iva == null || d.iva === 0).length;
+  if (sinIva > 0 && conIva > 0) {
+    html.push(`<div class="alert-card">
+      <div class="alert-title">🧾 ${sinIva} documentos sin IVA discriminado (${conIva} sí lo tienen)</div>
+      <div class="alert-detail">INDOOR es responsable de IVA (régimen ordinario).</div>
+      <div class="alert-rec">Si las ventas son gravadas, el impuesto queda embebido en el precio y lo asume la empresa; verificar con el contador.</div>
+    </div>`);
+  }
+
+  // 5. Ítems por revisar
+  const porRevisar = docs.filter(d => d.revisar);
+  if (porRevisar.length) {
+    html.push(`<div class="alert-card">
+      <div class="alert-title">🔍 ${porRevisar.length} documentos con ítems por revisar</div>
+      <div class="alert-detail">${porRevisar.slice(0,10).map(d=>`#${d.numero} ${esc(d.cliente||'')}`).join(' · ')}</div>
+      <div class="alert-rec">El total quedó bien registrado; solo el detalle de líneas puede estar incompleto.</div>
+    </div>`);
+  }
+
+  document.getElementById('alertas').innerHTML = html.join('') || '<div class="card" style="color:var(--green);font-size:.82rem">✓ Sin alertas activas</div>';
+}
+
+// ── Cartera table ─────────────────────────────────────────────────────────────
+function renderCartera() {
+  const docs = filteredDocs();
+  const totTotal = docs.reduce((a, d) => a + (d.total||0), 0);
+  const totPagado = docs.reduce((a, d) => a + (d.pagado||0), 0);
+  const totSaldo = docs.reduce((a, d) => a + (d.saldo||0), 0);
+
+  document.getElementById('cartera-summary').innerHTML =
+    `<strong>${docs.length}</strong> documentos · Valor <strong>${fmtCOP(totTotal)}</strong> · Recaudado <strong>${fmtCOP(totPagado)}</strong> · Saldo <strong>${fmtCOP(totSaldo)}</strong>`;
+
+  const tbody = document.getElementById('cartera-tbody');
+  if (!docs.length) {
+    tbody.innerHTML = `<tr><td colspan="13"><div class="empty-state"><strong>Sin documentos</strong>No hay documentos con esos filtros.</div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = docs.map(d => {
+    const dias = d.dias;
+    const diasCell = dias == null ? '<span class="num dias-negativo">—</span>' :
+      dias > 0 ? `<span class="num dias-positivo">+${dias}</span>` : `<span class="num dias-negativo">${dias}</span>`;
+    const row = `<tr class="${d.estadoVisual === 'Anulada' ? 'anulado-row' : ''}">
+      <td class="num" style="text-align:left">${d.revisar ? '<span class="dot-revisar" title="Por revisar"></span>' : ''}${d.numero}</td>
+      <td><strong style="font-size:.78rem">${esc(d.cliente||'')}</strong><br><span style="font-size:.65rem;color:var(--muted)">${esc(d.ciudad||'')}${d.ciudad&&d.club?' · ':''}${esc(d.club||'')}</span></td>
+      <td>${esc(d.vendedor||'')}</td>
+      <td>${fmtDate(d.fechaCreacion)}</td>
+      <td>${fmtDate(d.fechaEntrega)}</td>
+      <td>${esc(d.formaPago||'')}</td>
+      <td>${fmtDate(d.fechaVencimiento)}</td>
+      <td>${diasCell}</td>
+      <td class="num">${fmtCOP(d.total)}</td>
+      <td class="num green">${fmtCOP(d.pagado)}</td>
+      <td class="num bold">${fmtCOP(d.saldo)}</td>
+      <td>${estadoChip(d)}</td>
+      <td><div class="actions-cell">
+        <button class="btn-icon" title="Registrar pago" data-action="pago" data-num="${d.numero}">$</button>
+        <button class="btn-icon" title="Ver detalle" data-action="detalle" data-num="${d.numero}">👁</button>
+        <button class="btn-icon" title="Editar" data-action="editar" data-num="${d.numero}">✎</button>
+      </div></td>
+    </tr>`;
+    return row;
+  }).join('');
+
+  // Sort headers
+  document.querySelectorAll('#cartera-table th[data-col]').forEach(th => {
+    th.classList.toggle('sorted-asc', SORT.col === th.dataset.col && SORT.dir === 'asc');
+    th.classList.toggle('sorted-desc', SORT.col === th.dataset.col && SORT.dir === 'desc');
+    th.addEventListener('click', () => {
+      if (SORT.col === th.dataset.col) SORT.dir = SORT.dir === 'asc' ? 'desc' : 'asc';
+      else { SORT.col = th.dataset.col; SORT.dir = 'asc'; }
+      renderCartera();
+    });
+  });
+}
+
+// ── Pagos table ───────────────────────────────────────────────────────────────
+function renderPagos() {
+  const comps = filteredComps().sort((a, b) => (b.fecha||'').localeCompare(a.fecha||''));
+  const total = comps.filter(c => !c.anulado).reduce((a, c) => a + (c.valor||0), 0);
+  document.getElementById('pagos-summary').innerHTML =
+    `<strong>${comps.length}</strong> comprobantes · <strong style="color:var(--green)">${fmtCOP(total)}</strong> recaudados (sin anulados)`;
+
+  const tbody = document.getElementById('pagos-tbody');
+  if (!comps.length) {
+    tbody.innerHTML = `<tr><td colspan="10"><div class="empty-state"><strong>Sin comprobantes</strong>Registra el primer pago.</div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = comps.map(c => `
+    <tr class="${c.anulado ? 'anulado-row' : ''}">
+      <td style="font-family:var(--mono);font-weight:700">${esc(c.id)}${c.editado?' <span title="Editado" style="color:var(--amber)">✎</span>':''}</td>
+      <td>${fmtDate(c.fecha)}</td>
+      <td class="num" style="text-align:left">${esc(c.cotizacionNumero)}</td>
+      <td>${esc(c.cliente||'')}</td>
+      <td>${esc(c.medio||'')}</td>
+      <td style="font-size:.72rem">${esc(c.referencia||'')}</td>
+      <td class="num bold">${fmtCOP(c.valor)}</td>
+      <td><span class="chip ${c.tipo==='Anticipo'?'chip-anticipo':'chip-abono'}">${esc(c.tipo||'Abono')}</span></td>
+      <td>${esc(c.recibio||'')}</td>
+      <td><div class="actions-cell">
+        <button class="btn-icon" title="Imprimir" data-action="print-comp" data-id="${esc(c.id)}">🖨</button>
+        ${!c.anulado ? `<button class="btn-icon" title="Anular" data-action="anular-comp" data-id="${esc(c.id)}">✕</button>` : `<button class="btn-icon" title="Restaurar" data-action="restaurar-comp" data-id="${esc(c.id)}">↺</button>`}
+      </div></td>
+    </tr>`).join('');
+}
+
+// ── Ajustes ──────────────────────────────────────────────────────────────────
+function renderAjustes() {
+  if (!DATA) return;
+  document.getElementById('cfg-plazoDesde').value = CONFIG.plazoDesde || 'entrega';
+  document.getElementById('cfg-contadoEquivale').value = CONFIG.contadoEquivale || 'mismo_dia_entrega';
+  document.getElementById('cfg-anticipoMinimoPct').value = CONFIG.anticipoMinimoPct ?? 50;
+  document.getElementById('cfg-usuarios').value = USUARIOS.join('\n');
+  const ndocs = DOCS.length, ncomp = COMPS.length, nextComp = DATA.contadorComprobante || 1;
+  document.getElementById('ajustes-status').textContent = `${ndocs} documentos · ${ncomp} comprobantes · próximo comprobante CI-${String(nextComp).padStart(4,'0')}`;
+}
+
+// ── Tab navigation ───────────────────────────────────────────────────────────
+document.querySelectorAll('.tabbar-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tabbar-tab').forEach(b => b.classList.toggle('active', b === btn));
+    document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === `panel-${btn.dataset.tab}`));
+    ACTIVE_TAB = btn.dataset.tab;
+    renderActivePanel();
+  });
+});
+
+// ── User selector ────────────────────────────────────────────────────────────
+document.getElementById('user-btn').addEventListener('click', () => {
+  const dd = document.getElementById('user-dropdown');
+  dd.innerHTML = USUARIOS.map(u => `<div class="user-option${u===ACTIVE_USER?' active':''}" data-user="${esc(u)}">${esc(u)}</div>`).join('');
+  dd.classList.toggle('open');
+});
+document.addEventListener('click', e => {
+  if (!e.target.closest('#user-btn') && !e.target.closest('#user-dropdown'))
+    document.getElementById('user-dropdown').classList.remove('open');
+});
+document.getElementById('user-dropdown').addEventListener('click', e => {
+  const opt = e.target.closest('.user-option');
+  if (!opt) return;
+  ACTIVE_USER = opt.dataset.user;
+  renderTopbarUser();
+  document.getElementById('user-dropdown').classList.remove('open');
+});
+
+// ── Modal helpers ────────────────────────────────────────────────────────────
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+document.querySelectorAll('[data-close]').forEach(btn => {
+  btn.addEventListener('click', () => closeModal(btn.dataset.close));
+});
+document.querySelectorAll('.modal-bg').forEach(bg => {
+  bg.addEventListener('click', e => { if (e.target === bg) closeModal(bg.id); });
+});
+
+// ── Action delegation ─────────────────────────────────────────────────────────
+document.addEventListener('click', async e => {
+  const btn = e.target.closest('[data-action]');
+  if (!btn) return;
+  const action = btn.dataset.action;
+  const num = Number(btn.dataset.num);
+  const id = btn.dataset.id;
+
+  if (action === 'pago') openPaymentModal(num);
+  if (action === 'detalle') openDetalleModal(num);
+  if (action === 'editar') openEditarModal(num);
+  if (action === 'print-comp') printComprobante(id);
+  if (action === 'anular-comp') await anularComp(id, false);
+  if (action === 'restaurar-comp') await anularComp(id, true);
+});
+
+// ── Open payment modal ────────────────────────────────────────────────────────
+function openPaymentModal(docNum) {
+  const doc = DOCS.find(d => d.numero === docNum);
+  document.getElementById('pago-cotizacion').value = docNum ? String(docNum) : '';
+  document.getElementById('pago-fecha').value = today();
+  document.getElementById('pago-referencia').value = '';
+  document.getElementById('pago-valor').value = doc ? doc.saldo : '';
+  const sel = document.getElementById('pago-recibio');
+  sel.innerHTML = USUARIOS.map(u => `<option value="${esc(u)}"${u===ACTIVE_USER?' selected':''}>${esc(u)}</option>`).join('');
+  if (doc) {
+    document.getElementById('pago-cot-info').textContent = `${doc.cliente} · Saldo: ${fmtCOP(doc.saldo)}`;
+    document.getElementById('pago-saldo-hint').textContent = `Saldo: ${fmtCOP(doc.saldo)}`;
+    document.getElementById('pago-anticipo-row').style.display = doc.saldo > 0 ? 'block' : 'none';
+  }
+  document.getElementById('pago-error').style.display = 'none';
+  openModal('modal-pago');
+}
+
+document.getElementById('pago-cotizacion').addEventListener('input', () => {
+  const q = document.getElementById('pago-cotizacion').value;
+  const doc = DOCS.find(d => String(d.numero) === q || (d.cliente||'').toLowerCase().includes(q.toLowerCase()));
+  if (doc) {
+    document.getElementById('pago-cot-info').textContent = `${doc.cliente} · Saldo: ${fmtCOP(doc.saldo)}`;
+    document.getElementById('pago-saldo-hint').textContent = `Saldo: ${fmtCOP(doc.saldo)}`;
+    document.getElementById('pago-anticipo-row').style.display = doc.saldo > 0 ? 'block' : 'none';
+  }
+});
+
+document.getElementById('btn-anticipo-min').addEventListener('click', () => {
+  const q = document.getElementById('pago-cotizacion').value;
+  const doc = DOCS.find(d => String(d.numero) === q);
+  if (doc) document.getElementById('pago-valor').value = Math.ceil(doc.total * (CONFIG.anticipoMinimoPct || 50) / 100);
+});
+
+document.getElementById('btn-nuevo-pago').addEventListener('click', () => openPaymentModal(null));
+document.getElementById('btn-agregar-doc').addEventListener('click', () => openModal('modal-agregar'));
+
+document.getElementById('btn-guardar-pago').addEventListener('click', async () => {
+  const err = document.getElementById('pago-error');
+  err.style.display = 'none';
+  const cotNum = document.getElementById('pago-cotizacion').value.trim();
+  const valor = Number(document.getElementById('pago-valor').value);
+  if (!cotNum || !valor) { err.textContent = 'Completa cotización y valor'; err.style.display = 'block'; return; }
+  const doc = DOCS.find(d => String(d.numero) === cotNum);
+  const payload = {
+    cotizacionNumero: cotNum, cliente: doc?.cliente || cotNum,
+    fecha: document.getElementById('pago-fecha').value,
+    medio: document.getElementById('pago-medio').value,
+    referencia: document.getElementById('pago-referencia').value,
+    valor, tipo: document.getElementById('pago-tipo').value,
+    recibio: document.getElementById('pago-recibio').value,
+  };
+  try {
+    await post('/api/cartera/comprobantes', payload);
+    closeModal('modal-pago'); await loadData();
+  } catch(ex) { err.textContent = ex.message; err.style.display = 'block'; }
+});
+
+// Populate datalist for cotizacion search
+function updateCotDatalist() {
+  const dl = document.getElementById('pago-cot-list');
+  dl.innerHTML = DOCS.filter(d => d.saldo > 0).map(d => `<option value="${d.numero}">${d.numero} - ${esc(d.cliente||'')}</option>`).join('');
+}
+
+// ── Detalle modal ─────────────────────────────────────────────────────────────
+function openDetalleModal(num) {
+  const doc = DOCS.find(d => d.numero === num);
+  if (!doc) return;
+  CURRENT_DETALLE_NUM = num;
+  const comps = COMPS.filter(c => String(c.cotizacionNumero) === String(num));
+  document.getElementById('modal-detalle-title').textContent = `Cotización #${num} · ${doc.cliente}`;
+  document.getElementById('modal-detalle-body').innerHTML = `
+    <div class="form-grid" style="margin-bottom:14px">
+      <div><div class="section-label">Cliente</div><p style="font-size:.82rem"><strong>${esc(doc.cliente)}</strong><br>${esc(doc.ccNit||'')} · ${esc(doc.ciudad||'')} · ${esc(doc.telefono||'')}<br>${esc(doc.correo||'')}</p></div>
+      <div><div class="section-label">Vendedor / Elaboró</div><p style="font-size:.82rem">${esc(doc.vendedor||'—')} / ${esc(doc.elaboradoPor||'—')}<br>Club: ${esc(doc.club||'—')}</p></div>
+      <div><div class="section-label">Fechas</div><p style="font-size:.82rem">Creación: ${fmtDate(doc.fechaCreacion)}<br>Entrega: ${fmtDate(doc.fechaEntrega)}<br>Vence: ${fmtDate(doc.fechaVencimiento)}</p></div>
+      <div><div class="section-label">Financiero</div><p style="font-size:.82rem;font-family:var(--mono)">Total: ${fmtCOP(doc.total)}<br>Pagado: <span style="color:var(--green)">${fmtCOP(doc.pagado)}</span><br>Saldo: <strong>${fmtCOP(doc.saldo)}</strong></p></div>
+    </div>
+    ${doc.items?.length ? `<div class="section-label">ÍTEMS</div><div class="table-wrap"><table><thead><tr><th>Referencia</th><th style="text-align:right">Cant.</th><th style="text-align:right">P. Unit.</th><th style="text-align:right">Total</th></tr></thead><tbody>
+      ${doc.items.map(i=>`<tr><td>${esc(i.referencia||'')}</td><td class="num">${i.cantidad}</td><td class="num">${fmtCOP(i.precioUnitario)}</td><td class="num">${fmtCOP(i.total)}</td></tr>`).join('')}
+    </tbody></table></div>` : ''}
+    ${comps.length ? `<div class="section-label" style="margin-top:14px">PAGOS APLICADOS</div><div class="table-wrap"><table><thead><tr><th>Comprobante</th><th>Fecha</th><th>Medio</th><th style="text-align:right">Valor</th><th>Tipo</th></tr></thead><tbody>
+      ${comps.map(c=>`<tr class="${c.anulado?'anulado-row':''}"><td style="font-family:var(--mono)">${esc(c.id)}</td><td>${fmtDate(c.fecha)}</td><td>${esc(c.medio||'')}</td><td class="num">${fmtCOP(c.valor)}</td><td><span class="chip ${c.tipo==='Anticipo'?'chip-anticipo':'chip-abono'}">${esc(c.tipo||'')}</span></td></tr>`).join('')}
+    </tbody></table></div>` : ''}
+    ${doc.notas ? `<div class="section-label" style="margin-top:14px">NOTAS</div><p style="font-size:.78rem">${esc(doc.notas)}</p>` : ''}`;
+  openModal('modal-detalle');
+}
+
+document.getElementById('btn-detalle-pago').addEventListener('click', () => {
+  closeModal('modal-detalle');
+  openPaymentModal(CURRENT_DETALLE_NUM);
+});
+
+// ── Editar modal ──────────────────────────────────────────────────────────────
+function openEditarModal(num) {
+  const doc = DOCS.find(d => d.numero === num);
+  if (!doc) return;
+  CURRENT_EDIT_NUM = num;
+  ['numero','cliente','ccNit','telefono','correo','ciudad','vendedor','club',
+   'fechaCreacion','fechaEntrega','formaPago','plazoDias','total','estado','notas']
+    .forEach(k => { const el = document.getElementById(`ed-${k}`); if (el) el.value = doc[k] ?? ''; });
+  document.getElementById('editar-error').style.display = 'none';
+  openModal('modal-editar');
+}
+
+document.getElementById('btn-guardar-editar').addEventListener('click', async () => {
+  const err = document.getElementById('editar-error');
+  err.style.display = 'none';
+  const body = {};
+  ['cliente','ccNit','telefono','correo','ciudad','vendedor','club','fechaCreacion',
+   'fechaEntrega','formaPago','plazoDias','total','estado','notas'].forEach(k => {
+    const el = document.getElementById(`ed-${k}`);
+    if (el) body[k] = el.type === 'number' ? (el.value ? Number(el.value) : null) : el.value;
+  });
+  try {
+    await put(`/api/cartera/documentos/${CURRENT_EDIT_NUM}`, body);
+    closeModal('modal-editar'); await loadData();
+  } catch(ex) { err.textContent = ex.message; err.style.display = 'block'; }
+});
+
+// ── Agregar documento ─────────────────────────────────────────────────────────
+document.getElementById('btn-guardar-agregar').addEventListener('click', async () => {
+  const err = document.getElementById('agregar-error');
+  err.style.display = 'none';
+  const get = id => document.getElementById(`ag-${id}`)?.value;
+  const body = {
+    numero: Number(get('numero')), cliente: get('cliente'), ccNit: get('ccNit'),
+    telefono: get('telefono'), correo: get('correo'), ciudad: get('ciudad'),
+    vendedor: get('vendedor'), club: get('club'),
+    fechaCreacion: get('fechaCreacion'), fechaEntrega: get('fechaEntrega'),
+    formaPago: get('formaPago'), total: Number(get('total')), notas: get('notas'),
+  };
+  if (!body.numero || !body.cliente || !body.total) {
+    err.textContent = 'Número, cliente y total son obligatorios'; err.style.display = 'block'; return;
+  }
+  try {
+    await post('/api/cartera/documentos', body);
+    closeModal('modal-agregar'); await loadData();
+  } catch(ex) { err.textContent = ex.message; err.style.display = 'block'; }
+});
+
+// ── Anular comprobante ────────────────────────────────────────────────────────
+async function anularComp(id, restaurar) {
+  if (!restaurar && !confirm(`¿Anular el comprobante ${id}? No se elimina, solo se excluye de los cálculos.`)) return;
+  const motivo = !restaurar ? (prompt('Motivo de anulación:') || '') : '';
+  try {
+    await put(`/api/cartera/comprobantes/${encodeURIComponent(id)}`, restaurar ? {restaurar: true} : {anular: true, motivo});
+    await loadData();
+  } catch(ex) { alert(ex.message); }
+}
+
+// ── Print comprobante ─────────────────────────────────────────────────────────
+function printComprobante(id) {
+  const comp = COMPS.find(c => c.id === id);
+  if (!comp) return;
+  const doc = DOCS.find(d => String(d.numero) === String(comp.cotizacionNumero));
+  const numToWords = n => {
+    // Simplified; for production use a proper library
+    return n.toLocaleString('es-CO', {maximumFractionDigits:0}) + ' PESOS';
+  };
+  const saldo = doc ? Math.max(0, doc.saldo - (comp.anulado ? 0 : comp.valor)) : 0;
+  const html = `<div style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;padding:24px">
+    <h1 style="font-size:22px;text-align:center;letter-spacing:2px">INDOOR SPORT S.A.S.</h1>
+    <h2 style="font-size:13px;text-align:center;color:#555;margin:4px 0 20px">NIT: 900.XXX.XXX-X · Control de cartera</h2>
+    <hr>
+    <h3 style="font-size:14px;margin:12px 0 8px">COMPROBANTE DE INGRESO</h3>
+    <table style="width:100%;font-size:12px;border-collapse:collapse">
+      <tr><td style="padding:4px 0;width:160px;color:#555">Comprobante</td><td><strong>${esc(comp.id)}</strong></td></tr>
+      <tr><td style="padding:4px 0;color:#555">Fecha</td><td>${fmtDate(comp.fecha)}</td></tr>
+      <tr><td style="padding:4px 0;color:#555">Cliente</td><td>${esc(comp.cliente||doc?.cliente||'')}</td></tr>
+      <tr><td style="padding:4px 0;color:#555">Concepto</td><td>Cotización N° ${esc(comp.cotizacionNumero)}</td></tr>
+      <tr><td style="padding:4px 0;color:#555">Medio de pago</td><td>${esc(comp.medio||'')}</td></tr>
+      ${comp.referencia ? `<tr><td style="padding:4px 0;color:#555">Referencia</td><td>${esc(comp.referencia)}</td></tr>` : ''}
+      <tr><td style="padding:4px 0;color:#555">Tipo</td><td>${esc(comp.tipo||'Abono')}</td></tr>
+    </table>
+    <div style="background:#f5f5f5;padding:10px 14px;border-radius:6px;margin:16px 0">
+      <div style="font-size:22px;font-weight:bold">${fmtCOP(comp.valor)}</div>
+      <div style="font-size:11px;color:#555;margin-top:2px">${numToWords(comp.valor)}</div>
+    </div>
+    <p style="font-size:11px;color:#555">Saldo restante de la cotización: <strong>${fmtCOP(saldo)}</strong></p>
+    <div style="margin-top:40px;display:flex;justify-content:space-between">
+      <div style="text-align:center;width:160px"><div style="border-top:1px solid #333;padding-top:6px;font-size:11px">Recibió: ${esc(comp.recibio||'')}</div></div>
+      <div style="text-align:center;width:160px"><div style="border-top:1px solid #333;padding-top:6px;font-size:11px">Firma del cliente</div></div>
+    </div>
+  </div>`;
+  document.getElementById('print-area').innerHTML = html;
+  document.getElementById('print-area').style.display = 'block';
+  window.print();
+  setTimeout(() => { document.getElementById('print-area').style.display = 'none'; }, 1000);
+}
+
+// ── PDF loading ───────────────────────────────────────────────────────────────
+const dropZone = document.getElementById('drop-zone');
+const pdfInput = document.getElementById('pdf-input');
+let pdfFiles = [];
+
+dropZone.addEventListener('click', () => pdfInput.click());
+dropZone.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') pdfInput.click(); });
+['dragenter','dragover'].forEach(ev => dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.add('drag'); }));
+['dragleave','drop'].forEach(ev => dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.remove('drag'); }));
+dropZone.addEventListener('drop', e => {
+  pdfFiles = Array.from(e.dataTransfer.files).filter(f => f.type === 'application/pdf' || f.name.endsWith('.pdf'));
+  updatePdfList();
+});
+pdfInput.addEventListener('change', () => {
+  pdfFiles = Array.from(pdfInput.files);
+  updatePdfList();
+});
+function updatePdfList() {
+  document.getElementById('pdf-file-list').textContent = pdfFiles.length ? pdfFiles.map(f => f.name).join(', ') : '';
+  document.getElementById('btn-cargar-pdf').disabled = !pdfFiles.length;
+}
+
+document.getElementById('btn-cargar-pdf').addEventListener('click', async () => {
+  if (!pdfFiles.length) return;
+  const btn = document.getElementById('btn-cargar-pdf');
+  const spin = document.getElementById('cargar-spinner');
+  const result = document.getElementById('cargar-result');
+  btn.disabled = true; spin.style.display = 'inline';
+  result.innerHTML = '';
+  try {
+    const form = new FormData();
+    pdfFiles.forEach(f => form.append('files', f));
+    form.append('modo', document.getElementById('pdf-modo').value);
+    form.append('usuario', ACTIVE_USER);
+    const r = await fetch('/api/cartera/cargar-pdf', {method:'POST', body: form, cache:'no-store'});
+    const stats = await r.json();
+    if (!r.ok) throw new Error(stats.detail || 'Error al procesar');
+    result.innerHTML = `<div class="card" style="background:#f0fdf4;border-color:#bbf7d0">
+      <strong>Carga completada:</strong>
+      ${stats.nuevas} nuevas · ${stats.omitidas} omitidas · ${stats.actualizadas} actualizadas ·
+      ${stats.anuladas} anuladas · ${stats.revisar} por revisar
+      ${stats.errores?.length ? `<br><span style="color:#dc2626">Errores: ${stats.errores.join('; ')}</span>` : ''}
+    </div>`;
+    pdfFiles = []; updatePdfList();
+    await loadData();
+  } catch(ex) {
+    result.innerHTML = `<div style="color:#dc2626;font-size:.78rem">${esc(ex.message)}</div>`;
+  }
+  btn.disabled = false; spin.style.display = 'none';
+});
+
+// ── Ajustes actions ───────────────────────────────────────────────────────────
+document.getElementById('btn-guardar-cfg').addEventListener('click', async () => {
+  const msg = document.getElementById('cfg-msg');
+  msg.style.display = 'none';
+  const body = {
+    plazoDesde: document.getElementById('cfg-plazoDesde').value,
+    contadoEquivale: document.getElementById('cfg-contadoEquivale').value,
+    anticipoMinimoPct: Number(document.getElementById('cfg-anticipoMinimoPct').value),
+  };
+  try {
+    await put('/api/cartera/config', body);
+    msg.style.display = 'inline'; setTimeout(() => msg.style.display = 'none', 2000);
+    await loadData();
+  } catch(ex) { alert(ex.message); }
+});
+
+document.getElementById('btn-guardar-usuarios').addEventListener('click', async () => {
+  const lines = document.getElementById('cfg-usuarios').value.split('\n').map(l => l.trim()).filter(Boolean);
+  try {
+    await put('/api/cartera/usuarios', {usuarios: lines});
+    await loadData();
+  } catch(ex) { alert(ex.message); }
+});
+
+document.getElementById('btn-restaurar').addEventListener('click', () => {
+  if (!confirm('¿Restaurar la base de datos desde un respaldo? Esto SOBRESCRIBIRÁ todos los datos actuales. Esta acción no se puede deshacer.')) return;
+  document.getElementById('restaurar-input').click();
+});
+document.getElementById('restaurar-input').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const form = new FormData();
+  form.append('file', file);
+  try {
+    const r = await fetch('/api/cartera/restaurar', {method:'POST', body: form, cache:'no-store'});
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.detail || 'Error');
+    alert(`Restaurado: ${data.documentos} documentos`);
+    await loadData();
+  } catch(ex) { alert(ex.message); }
+  e.target.value = '';
+});
+
+// ── Exportar CSV ──────────────────────────────────────────────────────────────
+document.getElementById('btn-exportar-cartera').addEventListener('click', () => {
+  window.location.href = '/api/cartera/exportar';
+});
+document.getElementById('btn-exportar-pagos').addEventListener('click', () => {
+  window.location.href = '/api/cartera/exportar';
+});
+
+// ── Keyboard shortcut: / to focus search ─────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === '/' && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
+    e.preventDefault();
+    const s = document.querySelector(`#filters-${ACTIVE_TAB} input[type="search"], #filters-${ACTIVE_TAB} input`);
+    s?.focus();
+  }
+});
+
+// ── Poll ──────────────────────────────────────────────────────────────────────
+function startPoll() {
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(async () => { if (!document.hidden) await loadData(); }, 30000);
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+loadData().then(() => { updateCotDatalist(); startPoll(); });
+</script>
+</body>
+</html>

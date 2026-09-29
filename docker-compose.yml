@@ -9,7 +9,6 @@ services:
     volumes:
       - ./data:/data
       - /mnt/nas-indoor:/mnt/nas
-      - ./secrets/google-service-account.json:/run/secrets/google-service-account.json:ro
     environment:
       - OLLAMA_URL=http://ollama:11434
       - OLLAMA_MODEL=moondream
@@ -36,22 +35,6 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
-    security_opt:
-      - no-new-privileges:true
-
-  # Dominio fijo gratis (mientras se consigue el dominio propio definitivo de Indoor).
-  # Reemplaza al tunel temporal de cloudflared: con esto el link ya NO cambia cada
-  # vez que se reinicia el servidor. Requiere NGROK_AUTHTOKEN y NGROK_DOMAIN en el
-  # .env (se crean gratis, sin tarjeta, en https://dashboard.ngrok.com).
-  ngrok:
-    image: ngrok/ngrok:latest
-    container_name: asistente-reprogramaciones-tunnel
-    restart: unless-stopped
-    depends_on:
-      - asistente
-    environment:
-      - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN}
-    command: http --url=${NGROK_DOMAIN} http://asistente:8000
     security_opt:
       - no-new-privileges:true
 

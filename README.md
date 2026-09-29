@@ -18,6 +18,14 @@ Aplicación web para recibir cotizaciones o remisiones PDF, generar el listado d
 producción, guardar los archivos en el NAS y registrar la información en Google
 Sheets y Supabase.
 
+## Control de cartera
+
+El módulo **Administración → Cartera** se publica en `/cartera` y guarda su
+información compartida en `data/cartera.json`. Puede desplegarse sin la plantilla
+privada `FORMATO_EXCEL.xlsx` ni las credenciales de Google; esas dependencias se
+requieren únicamente para las funciones anteriores de creación de Excel y
+sincronización con Google Sheets.
+
 ## Arquitectura
 
 - FastAPI sirve la interfaz y procesa los PDF.

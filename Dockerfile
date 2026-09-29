@@ -13,7 +13,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app ./app
 COPY monitor_archivos.py ./monitor_archivos.py
 COPY pedidos_legacy.py ./pedidos_legacy.py
-COPY FORMATO_EXCEL.xlsx ./FORMATO_EXCEL.xlsx
+# La plantilla Excel se instala solo en servidores que usan el creador de XLSX.
+# Cartera no depende de ella; no se incluye para que el panel pueda desplegarse
+# sin distribuir un archivo operativo privado.
 
 RUN mkdir -p /data/uploads /data/state /mnt/nas
 EXPOSE 8000
