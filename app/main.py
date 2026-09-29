@@ -3889,7 +3889,7 @@ document.querySelector('.production-process-filter').appendChild(traceViewBar);
 const traceScheduleButton=document.createElement('button');traceScheduleButton.type='button';traceScheduleButton.className='production-refresh';traceScheduleButton.id='trace-schedule-order';traceScheduleButton.textContent='+ Programar pedido';traceScheduleButton.onclick=()=>{{document.getElementById('commercial-toggle').closest('.nav-group').classList.remove('collapsed');document.querySelector('.tab[data-kind="pedido"]').click();document.getElementById('order-form').scrollIntoView({{block:'start',behavior:'smooth'}})}};traceViewBar.after(traceScheduleButton);
 const traceCards=document.createElement('div');traceCards.className='trace-cards';traceCards.hidden=true;productionTableWrap.after(traceCards);
 const traceDetail=document.createElement('dialog');traceDetail.className='trace-detail';traceDetail.innerHTML='<button type="button" class="trace-close" aria-label="Cerrar detalle">×</button><div class="trace-detail-content"></div>';document.body.appendChild(traceDetail);traceDetail.querySelector('.trace-close').onclick=()=>traceDetail.close();
-const canViewAdministration={json.dumps(' '.join(str(user_process).casefold().split()) in ('administración', 'administracion', 'comercial', 'comerciales', 'asistente comercial', 'asistentes comerciales'))};
+const canViewAdministration=true;
 let traceView='cards';
 const traceAssets=new Map(),traceAssetBusy=new Set();
 const traceDesignSelection=new Map();
