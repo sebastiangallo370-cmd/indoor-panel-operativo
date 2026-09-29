@@ -3576,7 +3576,7 @@ adminNav.onclick=()=>{{if(!canViewAdministration)return;traceNav.click();documen
 const commercialMenu=commercialToggle.closest('.nav-group');
 commercialMenu.querySelectorAll('.nav-children > .tab').forEach(tab=>adminGroup.querySelector('.nav-children').appendChild(tab));
 const carteraNav=adminGroup.querySelector('[data-kind="cartera"]');
-if(carteraNav)carteraNav.onclick=()=>{{document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===carteraNav));document.querySelectorAll('.panel').forEach(panel=>panel.classList.toggle('active',panel.dataset.panel==='cartera'));document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode','inicio-mode','admin-summary-mode');requestAnimationFrame(()=>document.querySelector('[data-panel="cartera"]')?.scrollIntoView({{block:'start'}}));}};
+if(carteraNav)carteraNav.onclick=()=>{{window.location.assign('/cartera')}};
 commercialMenu.hidden=true;commercialMenu.style.display='none';
 traceScheduleButton.hidden=!canViewAdministration;
 traceScheduleButton.onclick=()=>{{if(!canViewAdministration)return;adminGroup.classList.remove('collapsed');adminGroup.querySelector('[data-kind="pedido"]').click();document.getElementById('order-form').scrollIntoView({{block:'start',behavior:'smooth'}})}};
