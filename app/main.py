@@ -1957,8 +1957,7 @@ def find_nas_order(order: str) -> Path:
         if not client_dir.is_dir() or client_dir.resolve().parent != root:
             continue
         for candidate in client_dir.iterdir():
-            name = candidate.name.upper()
-            if candidate.is_dir() and (name == clean or any(name.startswith(clean + separator) for separator in ('_', ' ', '-'))):
+            if candidate.is_dir() and candidate.name.upper() == clean:
                 target = candidate.resolve()
                 if target.parent == client_dir.resolve():
                     matches.append(target)
@@ -2158,9 +2157,7 @@ def nas_order_progress(payload: dict = Body(...), _=Depends(authenticate)):
             orders = list(client_dir.iterdir())
             total = len(orders)
             for index, candidate in enumerate(orders):
-                name = candidate.name.upper()
-                matches = name == order or any(name.startswith(order + separator) for separator in ("_", " ", "-"))
-                if candidate.is_dir() and matches:
+                if candidate.is_dir() and candidate.name.upper() == order:
                     target = candidate.resolve()
                     if target.parent != client_dir:
                         raise HTTPException(403, "Ruta de orden no permitida")
@@ -2723,7 +2720,11 @@ def home(_=Depends(authenticate)):
     const explorerTab=window.open('about:blank','_blank');
     const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),30000);
     try{{const response=await fetch('/api/nas/progreso',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{order:link.dataset.order,client:link.dataset.client,project:link.dataset.project}}),signal:controller.signal}});if(!response.ok){{const error=await response.json();throw Error(error.detail||'No se pudo consultar el NAS')}}if(!response.body)throw Error('El navegador no permite recibir el progreso.');const reader=response.body.getReader(),decoder=new TextDecoder();let pending='',complete=false;while(true){{const chunk=await reader.read();pending+=decoder.decode(chunk.value||new Uint8Array(),{{stream:!chunk.done}});const lines=pending.split('\\n');pending=lines.pop();for(const line of lines){{if(!line.trim())continue;const update=JSON.parse(line);if(update.done&&!update.ok)throw Error(update.message);nasProgress(update.percent,update.message);if(update.message==='CLIENTE ENCONTRADO'||update.message==='ORDEN ENCONTRADA')await new Promise(resolve=>setTimeout(resolve,1200));if(update.done)complete=true}}if(chunk.done)break}}if(!complete)throw Error('Se interrumpió la conexión con el NAS. Vuelve a intentar.');
-    const webUrl='/nas/orden/'+encodeURIComponent(link.dataset.order),explorerUrl=webUrl+'/abrir-explorador';retry.href=explorerUrl;retry.hidden=false;const explorerLink=nasNotice.querySelector('.nas-explorer');explorerLink.href=webUrl;explorerLink.hidden=false;nasProgress(100,'ABRIENDO EN EL EXPLORADOR DE ARCHIVOS');if(explorerTab)explorerTab.location.href=explorerUrl;else window.open(explorerUrl,'_blank','noopener');const noticeOrder=link.dataset.order;setTimeout(()=>{{if(!nasBusy&&nasNotice.querySelector('.nas-title').textContent==='Carpeta de la orden '+noticeOrder)nasNotice.hidden=true}},1200)}}
+    // La pestaña ya abierta navega a la página web (siempre carga); el protocolo externo
+    // (search-ms:/smb:) solo se ofrece como enlace para un clic nuevo del usuario, porque un
+    // salto automático a esta altura del flujo ya no cuenta como gesto directo y el navegador
+    // lo bloquea en silencio, dejando la pestaña en about:blank para siempre.
+    const webUrl='/nas/orden/'+encodeURIComponent(link.dataset.order),explorerUrl=webUrl+'/abrir-explorador';retry.href=explorerUrl;retry.hidden=false;const explorerLink=nasNotice.querySelector('.nas-explorer');explorerLink.href=webUrl;explorerLink.hidden=false;nasProgress(100,'ABRIENDO CARPETA');if(explorerTab)explorerTab.location.href=webUrl;else window.open(webUrl,'_blank','noopener');const noticeOrder=link.dataset.order;setTimeout(()=>{{if(!nasBusy&&nasNotice.querySelector('.nas-title').textContent==='Carpeta de la orden '+noticeOrder)nasNotice.hidden=true}},1200)}}
     catch(error){{if(explorerTab)explorerTab.close();nasNotice.querySelector('.nas-percent').textContent='No se completó';nasNotice.querySelector('.nas-status').textContent=error.name==='AbortError'?'El NAS tardó demasiado. Vuelve a pulsar el botón NAS para intentar de nuevo.':error.message}}
     finally{{clearTimeout(timeout);nasBusy=false}}}},true);
     function freezeProductionColumns(){{const columnsRow=productionHead.querySelector('.production-columns'),rowHead=productionHead.querySelector('.production-row-head');if(!columnsRow||!rowHead)return;const bodyRows=[...productionBody.querySelectorAll('tr')],headers=[...columnsRow.children],deliveryIndex=headers.findIndex(header=>{{const title=header.textContent.trim().toUpperCase();return title.includes('DÍAS ENTREGA FINAL')||title.includes('DIAS ENTREGA FINAL')}}),freezeCount=deliveryIndex>=0?deliveryIndex+1:Math.min(10,headers.length),zoom=(Number(productionZoom.value)||100)/100,layoutWidth=element=>element.getBoundingClientRect().width/zoom;rowHead.classList.add('production-frozen');rowHead.style.left='0px';bodyRows.forEach(row=>{{const cell=row.children[0];if(cell){{cell.classList.add('production-frozen');cell.style.left='0px'}}}});let left=layoutWidth(rowHead);for(let index=0;index<freezeCount;index++){{const edge=index===freezeCount-1,header=headers[index];header.classList.add('production-frozen');header.classList.toggle('production-frozen-edge',edge);header.style.left=left+'px';bodyRows.forEach(row=>{{const cell=row.children[index+1];if(!cell)return;cell.classList.add('production-frozen');cell.classList.toggle('production-frozen-edge',edge);cell.style.left=left+'px'}});left+=layoutWidth(header)}}}}
