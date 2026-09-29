@@ -1959,7 +1959,8 @@ def find_nas_order(order: str) -> Path:
         if not client_dir.is_dir() or client_dir.resolve().parent != root:
             continue
         for candidate in client_dir.iterdir():
-            if candidate.is_dir() and candidate.name.upper() == clean:
+            name = candidate.name.upper()
+            if candidate.is_dir() and (name == clean or any(name.startswith(clean + separator) for separator in ('_', ' ', '-'))):
                 target = candidate.resolve()
                 if target.parent == client_dir.resolve():
                     matches.append(target)
@@ -2177,7 +2178,8 @@ def resolve_nas_order_path(root_raw: Path, clean: str, client_name: str):
             client_dir = None
         if client_dir:
             for candidate in client_dir.iterdir():
-                if candidate.is_dir() and candidate.name.upper() == clean:
+                name = candidate.name.upper()
+                if candidate.is_dir() and (name == clean or any(name.startswith(clean + separator) for separator in ('_', ' ', '-'))):
                     resolved = candidate.resolve()
                     if resolved.parent == client_dir:
                         target = resolved
