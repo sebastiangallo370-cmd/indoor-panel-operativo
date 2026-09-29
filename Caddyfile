@@ -14,3 +14,23 @@ reprogramaciones.2.25.238.166.sslip.io {
         Referrer-Policy "strict-origin-when-cross-origin"
     }
 }
+
+# Dominio propio de INDOOR. Usa DNS-01 (registro TXT en Cloudflare) en vez de HTTP-01:
+# la validacion normal por HTTP no logra conectar con este VPS desde ciertas ubicaciones
+# internacionales, y DNS-01 no depende de que nadie se conecte al servidor para validar.
+# Requiere que produccion.tech use los nameservers de Cloudflare y CLOUDFLARE_API_TOKEN
+# en el .env (token con permiso Zone:DNS:Edit sobre produccion.tech).
+produccion.tech, www.produccion.tech {
+    tls {
+        dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+    }
+    reverse_proxy asistente:8000
+    encode zstd gzip
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+}

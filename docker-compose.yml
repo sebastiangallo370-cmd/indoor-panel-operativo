@@ -17,11 +17,18 @@ services:
       - no-new-privileges:true
 
   caddy:
-    image: caddy:2-alpine
+    # Imagen con el modulo DNS de Cloudflare compilado (ver Dockerfile.caddy): permite
+    # validar certificados por DNS-01 en vez de HTTP-01/TLS-ALPN-01. produccion.tech lo
+    # necesita porque la validacion HTTP normal de Let's Encrypt/ZeroSSL no logra conectar
+    # con este VPS desde ciertas ubicaciones internacionales (problema de red, no de Caddy).
+    build:
+      context: .
+      dockerfile: Dockerfile.caddy
     container_name: asistente-reprogramaciones-caddy
     restart: unless-stopped
     depends_on:
       - asistente
+    env_file: .env
     ports:
       - "80:80"
       - "443:443"
