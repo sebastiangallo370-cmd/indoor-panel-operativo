@@ -1,0 +1,37 @@
+name: REINICIAR SERVIDOR
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmar:
+        description: Reiniciar todos los contenedores Docker en el servidor
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  reiniciar:
+    if: inputs.confirmar
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Reiniciar contenedores en el servidor
+        env:
+          DEPLOY_KEY: ${{ secrets.INDOOR_DEPLOY_KEY }}
+          KNOWN_HOSTS: ${{ secrets.INDOOR_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$DEPLOY_KEY" || { echo 'Falta INDOOR_DEPLOY_KEY'; exit 1; }
+          test -n "$KNOWN_HOSTS" || { echo 'Falta INDOOR_KNOWN_HOSTS'; exit 1; }
+          umask 077
+          printf '%s\n' "$DEPLOY_KEY" > "$RUNNER_TEMP/indoor_key"
+          printf '%s\n' "$KNOWN_HOSTS" > "$RUNNER_TEMP/indoor_hosts"
+          trap 'rm -f "$RUNNER_TEMP/indoor_key" "$RUNNER_TEMP/indoor_hosts"' EXIT
+          ssh -T -i "$RUNNER_TEMP/indoor_key" \
+            -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=20 \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/indoor_hosts" \
+            root@2.25.238.166 "docker restart asistente-reprogramaciones asistente-reprogramaciones-tunnel asistente-reprogramaciones-caddy 2>&1 || docker compose -f /opt/indoor-panel/docker-compose.yml up -d 2>&1 || true"
+          echo '### Reinicio completado' >> "$GITHUB_STEP_SUMMARY"
