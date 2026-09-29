@@ -1794,6 +1794,322 @@ def delete_production_row(row: int, payload: dict = Body(...), _=Depends(authent
         db.close()
 
 
+# ---- Cartera ---------------------------------------------------------------
+
+CARTERA_FILE = STATE_DIR / "cartera.json"
+_cartera_lock = threading.Lock()
+
+
+def _cartera_default() -> dict:
+    return {"documentos": {}, "comprobantes": [], "config": {"plazo_desde": "entrega", "contado_equivale": "entrega_100", "anticipo_minimo_pct": 50}, "meta": {"ultimo_ci": 0}}
+
+
+def _cartera_read() -> dict:
+    if CARTERA_FILE.exists():
+        try:
+            return json.loads(CARTERA_FILE.read_text("utf-8"))
+        except Exception:
+            pass
+    return _cartera_default()
+
+
+def _cartera_write(data: dict) -> None:
+    CARTERA_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+
+
+def _calcular_dias_credito(forma_pago: str) -> int:
+    fp = (forma_pago or "").lower()
+    if "60" in fp: return 60
+    if "45" in fp: return 45
+    if "30" in fp: return 30
+    if "15" in fp: return 15
+    if "10" in fp: return 10
+    if "7 " in fp or fp.startswith("7"): return 7
+    return 0
+
+
+def _enriquecer_docs(data: dict) -> list:
+    from datetime import date as _date
+    docs = data.get("documentos", {})
+    comprobantes = data.get("comprobantes", [])
+    config = data.get("config", {})
+    plazo_desde = config.get("plazo_desde", "entrega")
+    hoy = _date.today()
+    result = []
+    for doc_id_str, doc in docs.items():
+        pagado = sum(float(c.get("monto", 0) or 0) for c in comprobantes if str(c.get("cotizacion_id", "")) == str(doc_id_str))
+        total = float(doc.get("total", 0) or 0)
+        saldo = max(0.0, total - pagado)
+        fecha_entrega = doc.get("fecha_entrega")
+        fecha_creacion = doc.get("fecha_creacion", "")
+        fecha_base_str = (fecha_entrega if fecha_entrega and plazo_desde == "entrega" else fecha_creacion) or ""
+        dias_credito = _calcular_dias_credito(doc.get("forma_pago", ""))
+        fecha_vence = None
+        dias = None
+        if fecha_base_str:
+            try:
+                fb = _date.fromisoformat(fecha_base_str[:10])
+                fv = fb + timedelta(days=dias_credito)
+                fecha_vence = fv.isoformat()
+                dias = (hoy - fv).days
+            except Exception:
+                pass
+        if saldo == 0:
+            estado = "Pagada"
+        elif pagado > 0:
+            estado = "Abonada"
+        elif dias is not None and dias > 0:
+            estado = "Vencida"
+        else:
+            estado = "En cartera"
+        result.append({**doc, "id": doc.get("id", doc_id_str), "_key": doc_id_str, "pagado": round(pagado, 2), "saldo": round(saldo, 2), "fecha_vence": fecha_vence, "dias": dias, "estado": estado})
+    def _sk(d):
+        return ({"Vencida": 0, "En cartera": 1, "Abonada": 2, "Pagada": 3}.get(d["estado"], 4), -(d.get("dias") or 0))
+    return sorted(result, key=_sk)
+
+
+@app.get("/api/cartera/data")
+async def cartera_get_data(_=Depends(authenticate)):
+    from datetime import date as _date
+    data = await asyncio.to_thread(_cartera_read)
+    docs = _enriquecer_docs(data)
+    comprobantes = sorted(data.get("comprobantes", []), key=lambda c: c.get("fecha", ""), reverse=True)
+    hoy = _date.today()
+    mes_actual = hoy.strftime("%Y-%m")
+    saldo_total = sum(d["saldo"] for d in docs if d["estado"] != "Pagada")
+    cartera_vencida = sum(d["saldo"] for d in docs if d["estado"] == "Vencida")
+    vence_7 = sum(d["saldo"] for d in docs if d.get("dias") is not None and -7 <= d["dias"] <= 0 and d["estado"] == "En cartera")
+    recaudado_mes = sum(float(c.get("monto", 0) or 0) for c in data.get("comprobantes", []) if (c.get("fecha") or "").startswith(mes_actual))
+    valor_cotizado = sum(float(d.get("total", 0) or 0) for d in docs)
+    anticipos = sum(float(c.get("monto", 0) or 0) for c in data.get("comprobantes", []) if c.get("tipo") == "Anticipo")
+    docs_venc = [d for d in docs if d.get("saldo", 0) > 0 and (d.get("dias") or 0) > 0]
+    dso = round(sum(d["dias"] for d in docs_venc) / len(docs_venc)) if docs_venc else None
+    por_cliente: dict = {}
+    for d in docs:
+        if d.get("saldo", 0) > 0:
+            k = d.get("cliente") or ""
+            por_cliente[k] = por_cliente.get(k, 0) + d["saldo"]
+    concentracion = round(max(por_cliente.values()) / saldo_total * 100) if saldo_total > 0 and por_cliente else None
+    v0 = sum(d["saldo"] for d in docs if (d.get("dias") or 0) <= 0 and d["estado"] not in ("Pagada",))
+    v1 = sum(d["saldo"] for d in docs if 1 <= (d.get("dias") or -1) <= 15)
+    v2 = sum(d["saldo"] for d in docs if 16 <= (d.get("dias") or -1) <= 30)
+    v3 = sum(d["saldo"] for d in docs if 31 <= (d.get("dias") or -1) <= 60)
+    v4 = sum(d["saldo"] for d in docs if (d.get("dias") or -1) > 60)
+    saldo_cliente = sorted([
+        {"nombre": k, "saldo": v,
+         "docs": sum(1 for d in docs if d.get("cliente") == k and d.get("saldo", 0) > 0),
+         "pct_vencido": round(sum(d["saldo"] for d in docs if d.get("cliente") == k and d["estado"] == "Vencida") / v * 100) if v > 0 else 0}
+        for k, v in por_cliente.items()
+    ], key=lambda x: -x["saldo"])[:10]
+    por_vend: dict = {}
+    for d in docs:
+        if d.get("saldo", 0) > 0:
+            k = d.get("vendedor") or ""
+            por_vend[k] = por_vend.get(k, 0) + d["saldo"]
+    saldo_vendedor = sorted([
+        {"nombre": k, "saldo": v,
+         "docs": sum(1 for d in docs if d.get("vendedor") == k and d.get("saldo", 0) > 0),
+         "pct_vencido": round(sum(d["saldo"] for d in docs if d.get("vendedor") == k and d["estado"] == "Vencida") / v * 100) if v > 0 else 0}
+        for k, v in por_vend.items()
+    ], key=lambda x: -x["saldo"])
+    por_fp: dict = {}
+    for d in docs:
+        if d.get("saldo", 0) > 0:
+            k = d.get("forma_pago") or "Sin forma de pago"
+            por_fp[k] = por_fp.get(k, 0) + d["saldo"]
+    saldo_fp = sorted([
+        {"nombre": k, "saldo": v,
+         "docs": sum(1 for d in docs if (d.get("forma_pago") or "Sin forma de pago") == k and d.get("saldo", 0) > 0),
+         "pct_vencido": round(sum(d["saldo"] for d in docs if (d.get("forma_pago") or "Sin forma de pago") == k and d["estado"] == "Vencida") / v * 100) if v > 0 else 0}
+        for k, v in por_fp.items()
+    ], key=lambda x: -x["saldo"])
+    rec_mes: dict = {}
+    for c in data.get("comprobantes", []):
+        mes = (c.get("fecha") or "")[:7]
+        if mes:
+            rec_mes[mes] = rec_mes.get(mes, 0) + float(c.get("monto", 0) or 0)
+    recaudo_mes_list = sorted([{"mes": k, "monto": v} for k, v in rec_mes.items()], key=lambda x: x["mes"], reverse=True)[:6]
+    alertas = []
+    venc_60 = [d for d in docs if (d.get("dias") or 0) > 60 and d.get("saldo", 0) > 0]
+    if venc_60:
+        refs = " · ".join(f"{d['id']} ({d.get('cliente', '')[:18]} ${d['saldo']:,.0f})" for d in venc_60[:4])
+        alertas.append({"tipo": "danger", "titulo": f"{len(venc_60)} documento(s) con más de 60 días de vencimiento", "detalle": refs + ". Acuerdo de pago escrito o suspensión de despachos; después de 60 días el recaudo cae en picada."})
+    ant_min = (data.get("config") or {}).get("anticipo_minimo_pct", 50)
+    sin_ant = [d for d in docs if float(d.get("pagado", 0)) < float(d.get("total", 0) or 0) * (ant_min / 100) and float(d.get("total", 0) or 0) > 0 and d["estado"] != "Pagada"]
+    if sin_ant:
+        refs = " · ".join(str(d["id"]) for d in sin_ant[:8])
+        alertas.append({"tipo": "warning", "titulo": f"{len(sin_ant)} pedido(s) en producción sin el anticipo del {ant_min}%", "detalle": f"Aún no se entregan y ya consumen tela, insumos y mano de obra pagados por INDOOR. {refs}"})
+    meta = data.get("meta", {})
+    return {
+        "documentos": docs, "comprobantes": comprobantes, "config": data.get("config", {}), "meta": meta,
+        "stats": {"saldo_total": saldo_total, "cartera_vencida": cartera_vencida, "vence_7": vence_7,
+                  "recaudado_mes": recaudado_mes, "valor_cotizado": valor_cotizado, "anticipos": anticipos,
+                  "dso": dso, "concentracion": concentracion, "v0": v0, "v1": v1, "v2": v2, "v3": v3, "v4": v4,
+                  "total_docs": len([d for d in docs if d["estado"] != "Pagada"])},
+        "saldo_cliente": saldo_cliente, "saldo_vendedor": saldo_vendedor, "saldo_fp": saldo_fp,
+        "recaudo_mes": recaudo_mes_list, "alertas": alertas,
+    }
+
+
+@app.post("/api/cartera/documentos")
+async def cartera_add_doc(body: dict = Body(...), _=Depends(authenticate)):
+    raw_id = str(body.get("id", "")).strip()
+    doc_id = re.sub(r'^[Cc][Oo]', '', raw_id).strip() or raw_id
+    if not doc_id:
+        raise HTTPException(400, "ID requerido")
+    def _do():
+        with _cartera_lock:
+            data = _cartera_read()
+            data.setdefault("documentos", {})[doc_id] = {
+                "id": doc_id, "cliente": body.get("cliente", ""), "ciudad": body.get("ciudad", ""),
+                "vendedor": body.get("vendedor", ""), "fecha_creacion": body.get("fecha_creacion", ""),
+                "fecha_entrega": body.get("fecha_entrega") or None, "forma_pago": body.get("forma_pago", ""),
+                "total": float(body.get("total", 0) or 0), "descuento": float(body.get("descuento", 0) or 0),
+                "notas": body.get("notas", "")}
+            _cartera_write(data)
+    await asyncio.to_thread(_do)
+    return {"ok": True, "id": doc_id}
+
+
+@app.put("/api/cartera/documentos/{doc_id}")
+async def cartera_update_doc(doc_id: str, body: dict = Body(...), _=Depends(authenticate)):
+    def _do():
+        with _cartera_lock:
+            data = _cartera_read()
+            if doc_id not in data.get("documentos", {}):
+                return False
+            data["documentos"][doc_id].update({k: v for k, v in body.items() if k not in ("id", "_key")})
+            _cartera_write(data)
+            return True
+    if not await asyncio.to_thread(_do):
+        raise HTTPException(404, "Documento no encontrado")
+    return {"ok": True}
+
+
+@app.delete("/api/cartera/documentos/{doc_id}")
+async def cartera_delete_doc(doc_id: str, _=Depends(authenticate)):
+    def _do():
+        with _cartera_lock:
+            data = _cartera_read()
+            data.get("documentos", {}).pop(doc_id, None)
+            _cartera_write(data)
+    await asyncio.to_thread(_do)
+    return {"ok": True}
+
+
+@app.post("/api/cartera/comprobantes")
+async def cartera_add_comprobante(body: dict = Body(...), _=Depends(authenticate)):
+    def _do():
+        with _cartera_lock:
+            data = _cartera_read()
+            meta = data.setdefault("meta", {"ultimo_ci": 0})
+            meta["ultimo_ci"] = int(meta.get("ultimo_ci", 0)) + 1
+            ci_id = f"CI-{meta['ultimo_ci']:04d}"
+            data.setdefault("comprobantes", []).append({
+                "id": ci_id, "fecha": body.get("fecha", ""), "cotizacion_id": str(body.get("cotizacion_id", "")),
+                "cliente": body.get("cliente", ""), "forma_pago": body.get("forma_pago", ""),
+                "referencia": body.get("referencia", ""), "monto": float(body.get("monto", 0) or 0),
+                "tipo": body.get("tipo", "Abono"), "registrado_por": body.get("registrado_por", "")})
+            _cartera_write(data)
+            return ci_id
+    ci_id = await asyncio.to_thread(_do)
+    return {"ok": True, "id": ci_id}
+
+
+@app.put("/api/cartera/comprobantes/{ci_id}")
+async def cartera_update_comprobante(ci_id: str, body: dict = Body(...), _=Depends(authenticate)):
+    def _do():
+        with _cartera_lock:
+            data = _cartera_read()
+            for i, c in enumerate(data.get("comprobantes", [])):
+                if c.get("id") == ci_id:
+                    data["comprobantes"][i] = {**c, **{k: v for k, v in body.items() if k != "id"}}
+                    _cartera_write(data)
+                    return True
+            return False
+    if not await asyncio.to_thread(_do):
+        raise HTTPException(404, "Comprobante no encontrado")
+    return {"ok": True}
+
+
+@app.delete("/api/cartera/comprobantes/{ci_id}")
+async def cartera_delete_comprobante(ci_id: str, _=Depends(authenticate)):
+    def _do():
+        with _cartera_lock:
+            data = _cartera_read()
+            data["comprobantes"] = [c for c in data.get("comprobantes", []) if c.get("id") != ci_id]
+            _cartera_write(data)
+    await asyncio.to_thread(_do)
+    return {"ok": True}
+
+
+@app.get("/api/cartera/backup")
+async def cartera_backup(_=Depends(authenticate)):
+    data = await asyncio.to_thread(_cartera_read)
+    content = json.dumps(data, ensure_ascii=False, indent=2, default=str).encode("utf-8")
+    return Response(content=content, media_type="application/json", headers={"Content-Disposition": "attachment; filename=cartera_backup.json"})
+
+
+@app.post("/api/cartera/restore")
+async def cartera_restore(file: UploadFile = File(...), _=Depends(authenticate)):
+    content = await file.read()
+    try:
+        restored = json.loads(content)
+        assert isinstance(restored.get("documentos"), dict)
+    except Exception:
+        raise HTTPException(400, "Archivo JSON inválido o sin campo 'documentos'")
+    def _do():
+        with _cartera_lock:
+            _cartera_write(restored)
+    await asyncio.to_thread(_do)
+    return {"ok": True, "documentos": len(restored.get("documentos", {}))}
+
+
+@app.post("/api/cartera/settings")
+async def cartera_save_settings(body: dict = Body(...), _=Depends(authenticate)):
+    def _do():
+        with _cartera_lock:
+            data = _cartera_read()
+            data.setdefault("config", {}).update(body)
+            _cartera_write(data)
+    await asyncio.to_thread(_do)
+    return {"ok": True}
+
+
+@app.get("/api/cartera/export-csv")
+async def cartera_export_csv(_=Depends(authenticate)):
+    import csv, io as _io
+    data = await asyncio.to_thread(_cartera_read)
+    docs = _enriquecer_docs(data)
+    buf = _io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["N°", "Cliente", "Ciudad", "Vendedor", "Creación", "Entrega", "Forma Pago", "Vence", "Días", "Total", "Pagado", "Saldo", "Estado"])
+    for d in docs:
+        w.writerow([d.get("id"), d.get("cliente"), d.get("ciudad"), d.get("vendedor"), d.get("fecha_creacion"), d.get("fecha_entrega"), d.get("forma_pago"), d.get("fecha_vence"), d.get("dias"), d.get("total"), d.get("pagado"), d.get("saldo"), d.get("estado")])
+    return Response(content=buf.getvalue().encode("utf-8-sig"), media_type="text/csv", headers={"Content-Disposition": "attachment; filename=cartera.csv"})
+
+
+@app.post("/api/cartera/importar-co")
+async def cartera_importar_co(body: dict = Body(...), _=Depends(authenticate)):
+    doc_id = str(body.get("id", "")).strip()
+    if not doc_id:
+        raise HTTPException(400, "ID requerido")
+    def _do():
+        with _cartera_lock:
+            data = _cartera_read()
+            exists = doc_id in data.get("documentos", {})
+            if not exists:
+                data.setdefault("documentos", {})[doc_id] = {
+                    "id": doc_id, "cliente": body.get("cliente", ""), "ciudad": "",
+                    "vendedor": body.get("vendedor", ""), "fecha_creacion": body.get("fecha_creacion", ""),
+                    "fecha_entrega": body.get("fecha_entrega") or None, "forma_pago": body.get("forma_pago", "Contado a 1 día"),
+                    "total": float(body.get("total", 0) or 0), "descuento": 0.0, "notas": ""}
+                _cartera_write(data)
+            return not exists
+    added = await asyncio.to_thread(_do)
+    return {"ok": True, "added": added}
+
+
 @app.get("/descargar-conector-nas")
 def download_nas_connector(_=Depends(authenticate)):
     handler = r'''param([string]$Uri)
@@ -2581,8 +2897,94 @@ def home(_=Depends(authenticate)):
       body.operarios-mode .operarios-grid{{grid-template-columns:1fr}}
     }}
     @media(hover:none) and (pointer:coarse){{.tab,.nav-parent,.user-menu summary,.menu-toggle{{min-height:44px}}input,select,textarea{{font-size:16px}}}}
-    </style></head><body class='inicio-mode'><div class='topbar'></div><button id='menu-toggle' class='menu-toggle' type='button' aria-label='Ocultar menú' aria-expanded='true'>‹</button><aside class='sidebar' aria-label='Menú principal'><div class='sidebar-brand'><img src='/marca-indoor.svg' alt='Indoor'></div><div class='session-card'><div class='session-avatar'>IS</div><div class='session-copy'><strong>INDOOR SPORT SAS</strong><span>Panel operativo</span></div></div><div class='sidebar-label'>Menú principal</div><nav class='tabs' aria-label='Navegación principal'><button class='tab home-nav active' data-kind='inicio' type='button'><span class='nav-icon'>IN</span><strong>INICIO</strong></button><div class='nav-group collapsed'><button id='news-toggle' class='nav-parent' type='button'><span class='nav-icon'>NV</span><span>NOVEDADES</span></button><div class='nav-children'><button class='tab schedule-nav' data-kind='cronograma' type='button'><span class='nav-icon'>CR</span><strong>CRONOGRAMA</strong></button><button class='tab' data-kind='operarios' type='button'><span class='nav-icon'>OP</span><strong>CONTROL OPERARIOS</strong></button></div></div><div class='nav-group'><button id='commercial-toggle' class='nav-parent' type='button'><span class='nav-icon'>AC</span><span>Asistentes Comerciales</span></button><div class='nav-children'><button class='tab' data-kind='reprogramacion' type='button'><span class='nav-icon'>RP</span><strong>REPROGRAMACIONES</strong></button><button class='tab' data-kind='pedido' type='button'><span class='nav-icon'>PN</span><strong>PROGRAMAR</strong></button><button class='tab' data-kind='creador' type='button'><span class='nav-icon'>XL</span><strong>EXCEL</strong></button></div></div><div class='nav-group collapsed'><button id='production-toggle' class='nav-parent' type='button'><span class='nav-icon'>PR</span><span>Producción</span></button><div class='nav-children'><button class='tab production-nav' data-kind='produccion' type='button'><span class='nav-icon'>TR</span><strong>TRAZABILIDAD</strong></button><button class='tab' data-kind='inventario' type='button'><span class='nav-icon'>IT</span><strong>INVENTARIO TELAS</strong></button></div></div></nav><div class='sidebar-foot'>Indoor Sport · Operación interna</div></aside><main>
+    .panel[data-panel='cartera'].active{{display:block}}.ct-shell{{overflow:hidden;border-radius:15px}}.ct-topbar{{padding:18px 22px 0;background:linear-gradient(135deg,#121810,#0b0e0b);border-bottom:1px solid var(--line)}}.ct-topbar h2{{margin:4px 0 14px;font-size:1.15rem}}.ct-nav{{display:flex;gap:2px;flex-wrap:wrap}}.ct-tab{{padding:8px 16px;border:none;border-bottom:2px solid transparent;background:transparent;color:var(--muted);font:inherit;font-size:.78rem;font-weight:850;cursor:pointer;letter-spacing:.04em;text-transform:uppercase;transition:.15s}}.ct-tab:hover{{color:var(--ink)}}.ct-tab.active{{color:var(--lime);border-bottom-color:var(--lime)}}.ct-section{{display:none}}.ct-section.active{{display:block}}.ct-filters{{display:flex;flex-wrap:wrap;gap:10px;padding:14px 20px;border-bottom:1px solid var(--line);background:#0c0f0c}}.ct-filters input,.ct-filters select{{padding:7px 11px;border:1px solid var(--line);border-radius:9px;background:rgba(255,255,255,.06);color:#f4f7f1;font:inherit;font-size:.8rem;outline:none;min-width:140px}}.ct-filters input:focus,.ct-filters select:focus{{border-color:var(--lime)}}.ct-filters select option{{background:#1a1f1a}}.ct-filter-group{{display:flex;flex-direction:column;gap:3px}}.ct-filter-group small{{font-size:.64rem;color:var(--muted);font-weight:850;letter-spacing:.05em;text-transform:uppercase}}.ct-kpi-grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;padding:16px 20px}}.ct-kpi{{padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:#0d110d}}.ct-kpi small{{display:block;font-size:.62rem;font-weight:850;color:var(--muted);letter-spacing:.07em;text-transform:uppercase;margin-bottom:5px}}.ct-kpi strong{{display:block;font-size:1.25rem;font-weight:950;color:#f4f7f1}}.ct-kpi sub{{font-size:.72rem;color:var(--muted);font-weight:400}}.ct-kpi.danger strong{{color:#f27272}}.ct-kpi.warn strong{{color:#f5a623}}.ct-kpi.ok strong{{color:#8bd450}}.ct-vbar{{margin:0 20px 16px;border-radius:8px;overflow:hidden;display:flex;height:42px}}.ct-vbar-seg{{display:flex;flex-direction:column;justify-content:center;padding:0 10px;min-width:60px;transition:.3s}}.ct-vbar-seg span{{font-size:.6rem;font-weight:850;color:rgba(255,255,255,.8);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}}.ct-vbar-seg strong{{font-size:.75rem;color:#fff;font-weight:900;white-space:nowrap}}.ct-vbar-seg.sv{{background:#2563eb}}.ct-vbar-seg.v1{{background:#92400e}}.ct-vbar-seg.v2{{background:#c2410c}}.ct-vbar-seg.v3{{background:#dc2626}}.ct-vbar-seg.v4{{background:#7f1d1d}}.ct-charts{{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line)}}.ct-chart{{background:#0a0d0a;padding:16px 20px}}.ct-chart h3{{margin:0 0 4px;font-size:.72rem;font-weight:900;color:#f4f7f1;text-transform:uppercase;letter-spacing:.06em}}.ct-chart p{{margin:0 0 12px;font-size:.68rem;color:var(--muted)}}.ct-sbar-item{{display:flex;align-items:center;gap:10px;margin-bottom:8px}}.ct-sbar-label{{flex:0 0 160px;font-size:.74rem;color:#e0e5dc;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}.ct-sbar-label small{{display:block;font-size:.64rem;color:var(--muted)}}.ct-sbar-track{{flex:1;height:5px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden}}.ct-sbar-fill{{height:100%;border-radius:3px;background:#2563eb}}.ct-sbar-fill.warn{{background:#f5a623}}.ct-sbar-fill.danger{{background:#dc2626}}.ct-sbar-val{{flex:0 0 90px;text-align:right;font-size:.74rem;font-weight:850;color:#f4f7f1;white-space:nowrap}}.ct-alerts{{padding:14px 20px;display:flex;flex-direction:column;gap:10px}}.ct-alert{{padding:12px 16px;border-radius:10px;border-left:3px solid}}.ct-alert.danger{{background:rgba(220,38,38,.1);border-color:#dc2626}}.ct-alert.warning{{background:rgba(245,166,35,.1);border-color:#f5a623}}.ct-alert strong{{display:block;font-size:.8rem;margin-bottom:3px}}.ct-alert span{{font-size:.74rem;color:var(--muted)}}.ct-doc-hdr{{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;padding:12px 20px;border-bottom:1px solid var(--line)}}.ct-doc-hdr p{{margin:0;font-size:.78rem;color:var(--muted)}}.ct-tbl-wrap{{overflow-x:auto}}.ct-tbl{{width:100%;border-collapse:collapse;font-size:.78rem}}.ct-tbl th,.ct-tbl td{{padding:8px 12px;border-bottom:1px solid rgba(255,255,255,.06);text-align:left;white-space:nowrap}}.ct-tbl th{{background:#0c0f0b;color:#8a9e83;font-size:.62rem;letter-spacing:.07em;text-transform:uppercase;font-weight:850;position:sticky;top:0}}.ct-tbl tr:hover td{{background:rgba(208,244,76,.03)}}.ct-tbl .cl{{color:#c0d4ba;font-size:.72rem}}.ct-empty{{padding:40px 24px;text-align:center;color:var(--muted);font-size:.82rem}}.est-vencida{{display:inline-block;padding:2px 8px;border-radius:12px;background:rgba(220,38,38,.18);color:#f27272;font-size:.68rem;font-weight:900}}.est-cartera{{display:inline-block;padding:2px 8px;border-radius:12px;background:rgba(37,99,235,.18);color:#7baef8;font-size:.68rem;font-weight:900}}.est-abonada{{display:inline-block;padding:2px 8px;border-radius:12px;background:rgba(139,212,80,.18);color:#8bd450;font-size:.68rem;font-weight:900}}.est-pagada{{display:inline-block;padding:2px 8px;border-radius:12px;background:rgba(148,163,184,.15);color:#94a3b8;font-size:.68rem;font-weight:900}}.ct-act-btn{{padding:3px 8px;border-radius:6px;background:transparent;border:1px solid var(--line);color:var(--muted);font:inherit;font-size:.7rem;cursor:pointer;transition:.15s}}.ct-act-btn:hover{{border-color:var(--lime);color:var(--lime)}}.ct-act-btn.danger:hover{{border-color:#f27272;color:#f27272}}.ct-dlg{{max-width:480px;width:92vw;border-radius:16px;border:1px solid var(--line);background:#131710;color:#f4f7f1;padding:24px}}.ct-dlg::backdrop{{background:rgba(0,0,0,.75)}}.ct-dlg h2{{margin:0 0 16px;font-size:1rem}}.ct-dlg label{{display:flex;flex-direction:column;gap:4px;font-size:.78rem;color:#b0bcab;margin-bottom:10px}}.ct-dlg input,.ct-dlg select,.ct-dlg textarea{{padding:9px 11px;border:1px solid var(--line);border-radius:9px;background:rgba(255,255,255,.07);color:#fff;font:inherit;font-size:.82rem;outline:none}}.ct-dlg input:focus,.ct-dlg select:focus{{border-color:var(--lime)}}.ct-dlg select option{{background:#1a1f1a}}.ct-dlg-row{{display:grid;grid-template-columns:1fr 1fr;gap:10px}}.ct-dlg-actions{{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}}.ct-dlg .bc{{background:transparent;border:1px solid var(--line);color:var(--muted)}}.ct-dlg .bc:hover{{border-color:#fff}}.ct-dlg-msg{{min-height:1.3em;font-size:.75rem;color:var(--muted);margin-top:5px}}.ct-ajustes{{padding:20px;display:flex;flex-direction:column;gap:20px}}.ct-ajustes-card{{padding:18px 20px;border:1px solid var(--line);border-radius:12px;background:#0d110d}}.ct-ajustes-card h3{{margin:0 0 5px;font-size:.82rem;font-weight:900}}.ct-ajustes-card p{{margin:0 0 14px;font-size:.75rem;color:var(--muted)}}.ct-ajustes-row{{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}}.ct-ajustes-row label{{display:flex;flex-direction:column;gap:5px;font-size:.78rem;color:#b0bcab}}.ct-ajustes-row select,.ct-ajustes-row input{{padding:9px 11px;border:1px solid var(--line);border-radius:9px;background:rgba(255,255,255,.07);color:#fff;font:inherit;font-size:.82rem}}.ct-meta-info{{font-size:.78rem;color:var(--muted);margin-top:10px}}.ct-import-wrap{{padding:18px 20px}}.ct-import-card{{padding:16px;border:1px solid var(--line);border-radius:12px;background:#0d110d;margin-bottom:12px}}.ct-import-card h3{{margin:0 0 4px;font-size:.82rem;font-weight:900}}.ct-import-card p{{margin:0 0 12px;font-size:.74rem;color:var(--muted)}}.ct-co-list{{display:flex;flex-direction:column;gap:6px;max-height:420px;overflow-y:auto}}.ct-co-item{{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:#0a0d0a;font-size:.78rem}}.ct-co-item.imported{{opacity:.5}}.ct-co-item .co-info{{display:flex;flex-direction:column;gap:2px}}.ct-co-item .co-num{{font-weight:900;color:var(--lime)}}.ct-co-item .co-det{{color:var(--muted);font-size:.7rem}}@media(max-width:700px){{.ct-charts{{grid-template-columns:1fr}}.ct-ajustes-row{{grid-template-columns:1fr}}.ct-dlg-row{{grid-template-columns:1fr}}.ct-kpi-grid{{grid-template-columns:repeat(2,1fr)}}.ct-filters{{flex-direction:column}}.ct-filters input,.ct-filters select{{min-width:unset;width:100%}}}}
+    </style></head><body class='inicio-mode'><div class='topbar'></div><button id='menu-toggle' class='menu-toggle' type='button' aria-label='Ocultar menú' aria-expanded='true'>‹</button><aside class='sidebar' aria-label='Menú principal'><div class='sidebar-brand'><img src='/marca-indoor.svg' alt='Indoor'></div><div class='session-card'><div class='session-avatar'>IS</div><div class='session-copy'><strong>INDOOR SPORT SAS</strong><span>Panel operativo</span></div></div><div class='sidebar-label'>Menú principal</div><nav class='tabs' aria-label='Navegación principal'><button class='tab home-nav active' data-kind='inicio' type='button'><span class='nav-icon'>IN</span><strong>INICIO</strong></button><div class='nav-group collapsed'><button id='news-toggle' class='nav-parent' type='button'><span class='nav-icon'>NV</span><span>NOVEDADES</span></button><div class='nav-children'><button class='tab schedule-nav' data-kind='cronograma' type='button'><span class='nav-icon'>CR</span><strong>CRONOGRAMA</strong></button><button class='tab' data-kind='operarios' type='button'><span class='nav-icon'>OP</span><strong>CONTROL OPERARIOS</strong></button></div></div><div class='nav-group'><button id='commercial-toggle' class='nav-parent' type='button'><span class='nav-icon'>AC</span><span>Asistentes Comerciales</span></button><div class='nav-children'><button class='tab' data-kind='reprogramacion' type='button'><span class='nav-icon'>RP</span><strong>REPROGRAMACIONES</strong></button><button class='tab' data-kind='pedido' type='button'><span class='nav-icon'>PN</span><strong>PROGRAMAR</strong></button><button class='tab' data-kind='creador' type='button'><span class='nav-icon'>XL</span><strong>EXCEL</strong></button><button class='tab' data-kind='cartera' type='button'><span class='nav-icon'>CT</span><strong>CARTERA</strong></button></div></div><div class='nav-group collapsed'><button id='production-toggle' class='nav-parent' type='button'><span class='nav-icon'>PR</span><span>Producción</span></button><div class='nav-children'><button class='tab production-nav' data-kind='produccion' type='button'><span class='nav-icon'>TR</span><strong>TRAZABILIDAD</strong></button><button class='tab' data-kind='inventario' type='button'><span class='nav-icon'>IT</span><strong>INVENTARIO TELAS</strong></button></div></div></nav><div class='sidebar-foot'>Indoor Sport · Operación interna</div></aside><main>
     <section class='panel' data-panel='inventario'><div class='card fabric-card'><div class='fabric-heading'><div><span class='eyebrow'>Producción · Catálogo</span><h2>INVENTARIO TELAS</h2><p>Consulta las telas y sus códigos.</p></div><input id='fabric-search' type='search' placeholder='Buscar tela o código' aria-label='Buscar tela o código'></div><div id='fabric-count' class='fabric-count' role='status'>{len(fabrics)} telas registradas</div><table class='fabric-table'><thead><tr><th scope='col'>Código</th><th scope='col'>Tela</th><th scope='col'>STOCK</th></tr></thead><tbody id='fabric-body'>{fabric_rows}</tbody></table><p id='fabric-empty' hidden>No se encontraron telas con esa búsqueda.</p></div></section>
+    <section class='panel' data-panel='cartera'><div class='card ct-shell'>
+      <div class='ct-topbar'><span class='eyebrow'>Administración · Pagos</span><h2>CONTROL DE CARTERA</h2>
+        <nav class='ct-nav' id='ct-nav'>
+          <button class='ct-tab active' data-ct='tablero' type='button'>Tablero</button>
+          <button class='ct-tab' data-ct='cartera' type='button'>Cartera</button>
+          <button class='ct-tab' data-ct='pagos' type='button'>Pagos y comprobantes</button>
+          <button class='ct-tab' data-ct='cargar' type='button'>Cargar cotizaciones</button>
+          <button class='ct-tab' data-ct='ajustes' type='button'>Ajustes y datos</button>
+        </nav>
+      </div>
+      <div class='ct-section active' id='ct-s-tablero'>
+        <div id='ct-filters-tablero' class='ct-filters'>
+          <div class='ct-filter-group'><small>Buscar</small><input id='ctf-buscar' placeholder='Cliente, N° cotización…'></div>
+          <div class='ct-filter-group'><small>Vendedor</small><select id='ctf-vendedor'><option value=''>Todos</option></select></div>
+          <div class='ct-filter-group'><small>Estado</small><select id='ctf-estado'><option value=''>Todos</option><option value='Vencida'>Vencida</option><option value='En cartera'>En cartera</option><option value='Abonada'>Abonada</option><option value='Pagada'>Pagada</option></select></div>
+          <div class='ct-filter-group'><small>Desde</small><input id='ctf-desde' type='date'></div>
+          <div class='ct-filter-group'><small>Hasta</small><input id='ctf-hasta' type='date'></div>
+          <div class='ct-filter-group' style='justify-content:flex-end'><small>&nbsp;</small><button id='ct-refresh' class='btn' type='button' style='padding:7px 14px;font-size:.78rem'>Actualizar</button></div>
+        </div>
+        <div class='ct-kpi-grid' id='ct-kpis'>
+          <div class='ct-kpi'><small>Cartera por cobrar</small><strong id='kpi-total'>—</strong><sub id='kpi-total-docs'></sub></div>
+          <div class='ct-kpi danger'><small>Cartera vencida</small><strong id='kpi-vencida'>—</strong><sub id='kpi-vencida-pct'></sub></div>
+          <div class='ct-kpi warn'><small>Vence en 7 días</small><strong id='kpi-v7'>—</strong><sub>Gestione el cobro esta semana</sub></div>
+          <div class='ct-kpi ok'><small>Recaudado este mes</small><strong id='kpi-recmes'>—</strong><sub>Caja efectivamente ingresada</sub></div>
+          <div class='ct-kpi'><small>Días de cartera (DSO)</small><strong id='kpi-dso'>—</strong><sub id='kpi-dso-sub'></sub></div>
+          <div class='ct-kpi'><small>Concentración</small><strong id='kpi-conc'>—</strong><sub>Peso del cliente más grande</sub></div>
+          <div class='ct-kpi'><small>Valor cotizado vigente</small><strong id='kpi-cotiz'>—</strong><sub>Sin anuladas ni excluidas</sub></div>
+          <div class='ct-kpi'><small>Anticipos recibidos</small><strong id='kpi-ant'>—</strong><sub>Cobrado antes de entregar</sub></div>
+        </div>
+        <div style='padding:0 20px 8px'><p style='margin:0 0 6px;font-size:.72rem;color:var(--muted)'>Vencimiento de la cartera · Cada bloque es proporcional al saldo. Haga clic para filtrar.</p><div class='ct-vbar' id='ct-vbar'></div></div>
+        <div class='ct-charts' id='ct-charts'>
+          <div class='ct-chart'><h3>Saldo por cliente</h3><p>Concentración: a quién le está financiando la producción.</p><div id='ct-saldo-cliente'></div></div>
+          <div class='ct-chart'><h3>Saldo por vendedor</h3><p>Quien vende también responde por el recaudo.</p><div id='ct-saldo-vendedor'></div></div>
+          <div class='ct-chart'><h3>Saldo por forma de pago</h3><p>El plazo otorgado es crédito que financia INDOOR con su capital de trabajo.</p><div id='ct-saldo-fp'></div></div>
+          <div class='ct-chart'><h3>Recaudo por mes</h3><p>Caja efectivamente ingresada, no ventas.</p><div id='ct-recaudo-mes'></div></div>
+        </div>
+        <div class='ct-alerts' id='ct-alertas'></div>
+      </div>
+      <div class='ct-section' id='ct-s-cartera'>
+        <div class='ct-doc-hdr'><div><p id='ct-doc-summary'>0 documentos</p></div><div style='display:flex;gap:8px'><button id='ct-add-doc' class='btn' type='button' style='font-size:.78rem;padding:7px 13px'>+ Agregar documento</button><a id='ct-export-csv' href='/api/cartera/export-csv' class='btn' style='font-size:.78rem;padding:7px 13px;text-decoration:none'>Exportar Excel (CSV)</a></div></div>
+        <div class='ct-tbl-wrap'><table class='ct-tbl'><thead><tr><th>N°</th><th>Cliente</th><th>Vendedor</th><th>Creación</th><th>Entrega</th><th>Forma de pago</th><th>Vence</th><th>Días</th><th>Total</th><th>Pagado</th><th>Saldo</th><th>Estado</th><th>Acciones</th></tr></thead><tbody id='ct-doc-body'></tbody></table><p id='ct-doc-empty' class='ct-empty' hidden>No hay documentos registrados.</p></div>
+      </div>
+      <div class='ct-section' id='ct-s-pagos'>
+        <div class='ct-doc-hdr'><p id='ct-pag-summary'>0 comprobantes</p><button id='ct-add-pago' class='btn' type='button' style='font-size:.78rem;padding:7px 13px'>+ Registrar pago</button></div>
+        <div class='ct-tbl-wrap'><table class='ct-tbl'><thead><tr><th>ID</th><th>Fecha</th><th>Cotización</th><th>Cliente</th><th>Forma de pago</th><th>Referencia</th><th>Monto</th><th>Tipo</th><th>Registrado por</th><th>Acciones</th></tr></thead><tbody id='ct-pag-body'></tbody></table><p id='ct-pag-empty' class='ct-empty' hidden>No hay comprobantes registrados.</p></div>
+      </div>
+      <div class='ct-section' id='ct-s-cargar'>
+        <div class='ct-import-wrap'>
+          <div class='ct-import-card'><h3>Cotizaciones CO del Sheet de producción</h3><p>Órdenes CO actualmente en producción. Las que ya están en cartera aparecen marcadas. Haga clic en Importar para agregarlas.</p><div id='ct-co-list' class='ct-co-list'><p class='ct-empty'>Cargando…</p></div></div>
+        </div>
+      </div>
+      <div class='ct-section' id='ct-s-ajustes'>
+        <div class='ct-ajustes'>
+          <div class='ct-ajustes-card'><h3>Regla de vencimiento</h3><p>Configurado según la política de INDOOR: el 100% se paga el día de la entrega del pedido.</p>
+            <div class='ct-ajustes-row'>
+              <label>El plazo se cuenta desde<select id='aj-plazo'><option value='entrega'>Fecha de entrega (si no hay, la de creación)</option><option value='creacion'>Fecha de creación</option></select></label>
+              <label>"Contado a 1 día" equivale a<select id='aj-contado'><option value='entrega_100'>Pago del 100% el día de la entrega</option><option value='creacion_1'>1 día desde creación</option></select></label>
+            </div>
+            <div class='ct-ajustes-row'><label style='grid-column:1'>Anticipo mínimo esperado (%)<input id='aj-anticipo' type='number' min='0' max='100' value='50'><span style='font-size:.7rem;color:var(--muted)'>Se usa para la alerta de pedidos sin anticipo.</span></label></div>
+            <button id='aj-guardar' class='btn' type='button'>Guardar ajustes</button><span id='aj-msg' style='font-size:.75rem;color:var(--muted);margin-left:10px'></span>
+          </div>
+          <div class='ct-ajustes-card'><h3>Dónde vive la información</h3><p>La información vive en el servidor INDOOR (<code>datos/cartera.json</code>) y todos los usuarios ven lo mismo. El servidor guarda cada cambio al instante y hace un respaldo automático diario en <code>datos/respaldos</code>. El respaldo manual es solo para llevarse una copia fuera del servidor.</p>
+            <div style='display:flex;gap:10px;flex-wrap:wrap'><a id='aj-backup' href='/api/cartera/backup' class='btn' style='font-size:.78rem;padding:7px 13px;text-decoration:none'>Descargar respaldo (.json)</a><button id='aj-restore-btn' class='btn' type='button' style='font-size:.78rem;padding:7px 13px'>Restaurar desde respaldo</button><input id='aj-restore-input' type='file' accept='.json' style='display:none'></div>
+            <p class='ct-meta-info' id='aj-meta-info'></p>
+          </div>
+        </div>
+      </div>
+    </div></section>
+    <dialog id='ct-dlg-doc' class='ct-dlg'><h2 id='ct-dlg-doc-title'>Agregar documento</h2>
+      <div class='ct-dlg-row'><label>N° cotización *<input id='dd-id' placeholder='Ej: 6001'></label><label>Total (COP) *<input id='dd-total' type='number' min='0' placeholder='0'></label></div>
+      <div class='ct-dlg-row'><label>Cliente<input id='dd-cliente'></label><label>Ciudad<input id='dd-ciudad'></label></div>
+      <div class='ct-dlg-row'><label>Vendedor<input id='dd-vendedor'></label><label>Forma de pago<select id='dd-forma'><option>Contado a 1 día</option><option>7 días</option><option>10 días</option><option>15 días</option><option>30 días</option><option>45 días</option><option>60 días</option><option>Sin forma de pago</option></select></label></div>
+      <div class='ct-dlg-row'><label>Fecha creación<input id='dd-creacion' type='date'></label><label>Fecha entrega<input id='dd-entrega' type='date'></label></div>
+      <label>Notas<input id='dd-notas'></label>
+      <div class='ct-dlg-actions'><button type='button' class='btn bc' id='dd-cancel'>Cancelar</button><button type='button' class='btn' id='dd-save'>Guardar</button></div>
+      <p id='dd-msg' class='ct-dlg-msg'></p>
+    </dialog>
+    <dialog id='ct-dlg-pago' class='ct-dlg'><h2 id='ct-dlg-pago-title'>Registrar pago</h2>
+      <div class='ct-dlg-row'><label>N° cotización *<input id='dp-cot' placeholder='Ej: 6001'></label><label>Fecha *<input id='dp-fecha' type='date'></label></div>
+      <div class='ct-dlg-row'><label>Cliente<input id='dp-cliente'></label><label>Monto (COP) *<input id='dp-monto' type='number' min='0' placeholder='0'></label></div>
+      <div class='ct-dlg-row'><label>Forma de pago<input id='dp-forma' placeholder='Transferencia Bancolombia'></label><label>Referencia / N°<input id='dp-ref' placeholder='Número de transacción'></label></div>
+      <div class='ct-dlg-row'><label>Tipo<select id='dp-tipo'><option>Abono</option><option>Anticipo</option></select></label><label>Registrado por<input id='dp-registrador' placeholder='Nombre'></label></div>
+      <div class='ct-dlg-actions'><button type='button' class='btn bc' id='dp-cancel'>Cancelar</button><button type='button' class='btn' id='dp-save'>Guardar</button></div>
+      <p id='dp-msg' class='ct-dlg-msg'></p>
+    </dialog>
     <div class='brand'><span class='brand-logo' aria-label='Indoor'><img src='/marca-indoor.svg' alt='Indoor'></span><span class='brand-line'></span><span class='eyebrow'>Panel operativo</span><div class='systems'><span class='session-user' aria-label='Usuario conectado'>{escape(str(_))}</span></div></div>
     <header><div><div class='eyebrow'>Asistentes comerciales</div><h1>Convierte documentos<br>en órdenes listas.</h1><p class='subtitle'>Tres flujos especializados, una sola operación y seguimiento en tiempo real.</p></div></header>
     <section class='panel active' data-panel='inicio'><div class='home-page'>
@@ -3516,6 +3918,302 @@ commercialMenu.hidden=true;commercialMenu.style.display='none';
 traceScheduleButton.hidden=!canViewAdministration;
 traceScheduleButton.onclick=()=>{{if(!canViewAdministration)return;adminGroup.classList.remove('collapsed');adminGroup.querySelector('[data-kind="pedido"]').click();document.getElementById('order-form').scrollIntoView({{block:'start',behavior:'smooth'}})}};
 if(!canViewAdministration)adminGroup.remove();
+// ---- Control de Cartera ---------------------------------------------------
+(function(){{
+  const $ = id => document.getElementById(id);
+  const fmt = n => n==null?'—':new Intl.NumberFormat('es-CO',{{style:'currency',currency:'COP',maximumFractionDigits:0}}).format(n);
+  const fmtDias = d => d==null?'—':(d>0?'+'+d:String(d));
+  const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  let _ctData = null;
+  let _ctLoaded = false;
+  let _editDocId = null;
+  let _editCiId = null;
+  // ---- sub-tab nav ----
+  const ctNavBtns = document.querySelectorAll('#ct-nav .ct-tab');
+  const ctSections = {{tablero:$('ct-s-tablero'),cartera:$('ct-s-cartera'),pagos:$('ct-s-pagos'),cargar:$('ct-s-cargar'),ajustes:$('ct-s-ajustes')}};
+  function ctShowTab(name){{
+    ctNavBtns.forEach(b=>b.classList.toggle('active',b.dataset.ct===name));
+    Object.keys(ctSections).forEach(k=>ctSections[k]&&ctSections[k].classList.toggle('active',k===name));
+    if(name==='cargar'&&_ctData)renderImport(_ctData);
+    if(name==='ajustes'&&_ctData)renderAjustes(_ctData);
+  }}
+  ctNavBtns.forEach(b=>b.onclick=()=>ctShowTab(b.dataset.ct));
+  // ---- main panel tab opens cartera ----
+  document.querySelectorAll('.tab[data-kind="cartera"]').forEach(btn=>btn.addEventListener('click',()=>{{
+    if(!_ctLoaded){{_ctLoaded=true;loadCt();}}
+  }}));
+  // ---- load ----
+  async function loadCt(){{
+    try{{
+      const r=await fetch('/api/cartera/data',{{credentials:'same-origin'}});
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      _ctData=await r.json();
+      renderAll(_ctData);
+    }}catch(e){{console.error('cartera',e);}}
+  }}
+  $('ct-refresh').onclick=()=>loadCt();
+  // ---- filters ----
+  function getFilters(){{
+    return {{buscar:($('ctf-buscar').value||'').toLowerCase(),vendedor:$('ctf-vendedor').value,estado:$('ctf-estado').value,desde:$('ctf-desde').value,hasta:$('ctf-hasta').value}};
+  }}
+  ['ctf-buscar','ctf-vendedor','ctf-estado','ctf-desde','ctf-hasta'].forEach(id=>{{const el=$(id);if(el)el.oninput=()=>{{if(_ctData){{renderDocs(_ctData);renderPagos(_ctData);}}}}}});
+  function applyFilters(docs,f){{
+    return docs.filter(d=>{{
+      if(f.buscar&&!(String(d.id).includes(f.buscar)||d.cliente.toLowerCase().includes(f.buscar)||d.ciudad.toLowerCase().includes(f.buscar)))return false;
+      if(f.vendedor&&d.vendedor!==f.vendedor)return false;
+      if(f.estado&&d.estado!==f.estado)return false;
+      if(f.desde&&d.fecha_creacion&&d.fecha_creacion<f.desde)return false;
+      if(f.hasta&&d.fecha_creacion&&d.fecha_creacion>f.hasta)return false;
+      return true;
+    }});
+  }}
+  // ---- render all ----
+  function renderAll(data){{
+    renderTablero(data);
+    renderDocs(data);
+    renderPagos(data);
+    // populate vendor filter
+    const vend=new Set(data.documentos.map(d=>d.vendedor).filter(Boolean));
+    const sel=$('ctf-vendedor');
+    const cur=sel.value;
+    sel.innerHTML='<option value="">Todos</option>'+[...vend].sort().map(v=>`<option${{v===cur?' selected':''}}>${{esc(v)}}</option>`).join('');
+  }}
+  // ---- tablero ----
+  function renderTablero(data){{
+    const s=data.stats||{{}};
+    $('kpi-total').textContent=fmt(s.saldo_total);
+    $('kpi-total-docs').textContent=s.total_docs+' documentos con saldo';
+    $('kpi-vencida').textContent=fmt(s.cartera_vencida);
+    $('kpi-vencida-pct').textContent=s.saldo_total>0?Math.round(s.cartera_vencida/s.saldo_total*100)+'% del total':'';
+    $('kpi-v7').textContent=fmt(s.vence_7);
+    $('kpi-recmes').textContent=fmt(s.recaudado_mes);
+    $('kpi-dso').textContent=s.dso!=null?s.dso+' días':'—';
+    $('kpi-dso-sub').textContent=s.dso!=null?'Plazo promedio vencido':'Sin cartera vencida';
+    $('kpi-conc').textContent=s.concentracion!=null?s.concentracion+'%':'—';
+    $('kpi-cotiz').textContent=fmt(s.valor_cotizado);
+    $('kpi-ant').textContent=fmt(s.anticipos);
+    // vencimiento bar
+    const total=s.v0+s.v1+s.v2+s.v3+s.v4||1;
+    $('ct-vbar').innerHTML=[
+      {{cls:'sv',lbl:'Sin vencer',v:s.v0}},
+      {{cls:'v1',lbl:'1 a 15 días',v:s.v1}},
+      {{cls:'v2',lbl:'16 a 30 días',v:s.v2}},
+      {{cls:'v3',lbl:'31 a 60 días',v:s.v3}},
+      {{cls:'v4',lbl:'Más de 60',v:s.v4}}
+    ].filter(x=>x.v>0).map(x=>`<div class="ct-vbar-seg ${{x.cls}}" style="flex:${{x.v/total}}" title="${{x.lbl}}: ${{fmt(x.v)}}"><span>${{x.lbl}}</span><strong>${{fmt(x.v)}}</strong></div>`).join('');
+    // saldo charts
+    const maxC=data.saldo_cliente.length?data.saldo_cliente[0].saldo:1;
+    $('ct-saldo-cliente').innerHTML=data.saldo_cliente.map(c=>`<div class="ct-sbar-item"><div class="ct-sbar-label">${{esc(c.nombre)}}<small>${{c.docs}} doc · ${{c.pct_vencido}}% vencido</small></div><div class="ct-sbar-track"><div class="ct-sbar-fill${{c.pct_vencido>50?' danger':c.pct_vencido>20?' warn':''}}" style="width:${{Math.round(c.saldo/maxC*100)}}%"></div></div><div class="ct-sbar-val">${{fmt(c.saldo)}}</div></div>`).join('')||'<p class="ct-empty">Sin datos</p>';
+    const maxV=data.saldo_vendedor.length?data.saldo_vendedor[0].saldo:1;
+    $('ct-saldo-vendedor').innerHTML=data.saldo_vendedor.map(v=>`<div class="ct-sbar-item"><div class="ct-sbar-label">${{esc(v.nombre)}}<small>${{v.docs}} doc · ${{v.pct_vencido}}% vencido</small></div><div class="ct-sbar-track"><div class="ct-sbar-fill${{v.pct_vencido>50?' danger':v.pct_vencido>20?' warn':''}}" style="width:${{Math.round(v.saldo/maxV*100)}}%"></div></div><div class="ct-sbar-val">${{fmt(v.saldo)}}</div></div>`).join('')||'<p class="ct-empty">Sin datos</p>';
+    const maxF=data.saldo_fp&&data.saldo_fp.length?data.saldo_fp[0].saldo:1;
+    $('ct-saldo-fp').innerHTML=(data.saldo_fp||[]).map(f=>`<div class="ct-sbar-item"><div class="ct-sbar-label">${{esc(f.nombre)}}<small>${{f.docs}} doc · ${{f.pct_vencido}}% vencido</small></div><div class="ct-sbar-track"><div class="ct-sbar-fill${{f.pct_vencido>50?' danger':f.pct_vencido>20?' warn':''}}" style="width:${{Math.round(f.saldo/maxF*100)}}%"></div></div><div class="ct-sbar-val">${{fmt(f.saldo)}}</div></div>`).join('')||'<p class="ct-empty">Sin datos</p>';
+    const maxM=data.recaudo_mes.length?data.recaudo_mes[0].monto:1;
+    $('ct-recaudo-mes').innerHTML=data.recaudo_mes.map(m=>`<div class="ct-sbar-item"><div class="ct-sbar-label">${{esc(m.mes)}}</div><div class="ct-sbar-track"><div class="ct-sbar-fill ok" style="width:${{Math.round(m.monto/maxM*100)}}%"></div></div><div class="ct-sbar-val">${{fmt(m.monto)}}</div></div>`).join('')||'<p class="ct-empty">Sin recaudos</p>';
+    // alertas
+    $('ct-alertas').innerHTML=(data.alertas||[]).map(a=>`<div class="ct-alert ${{a.tipo}}"><strong>${{esc(a.titulo)}}</strong><span>${{esc(a.detalle)}}</span></div>`).join('');
+  }}
+  // ---- docs ----
+  function estadoBadge(e){{
+    const m={{'Vencida':'est-vencida','En cartera':'est-cartera','Abonada':'est-abonada','Pagada':'est-pagada'}};
+    return `<span class="${{m[e]||'est-cartera'}}">${{esc(e)}}</span>`;
+  }}
+  function renderDocs(data){{
+    const f=getFilters();
+    const docs=applyFilters(data.documentos,f);
+    $('ct-doc-summary').textContent=docs.length+' documentos · Valor '+fmt(docs.reduce((s,d)=>s+d.total,0))+' · Recaudado '+fmt(docs.reduce((s,d)=>s+d.pagado,0))+' · Saldo '+fmt(docs.reduce((s,d)=>s+d.saldo,0));
+    const empty=$('ct-doc-empty');
+    const body=$('ct-doc-body');
+    if(!docs.length){{empty.hidden=false;body.innerHTML='';return;}}
+    empty.hidden=true;
+    body.innerHTML=docs.map(d=>`<tr>
+      <td><strong>${{esc(d.id)}}</strong></td>
+      <td><div>${{esc(d.cliente)}}</div><div class="cl">${{esc(d.ciudad)}}</div></td>
+      <td>${{esc(d.vendedor)}}</td>
+      <td>${{esc(d.fecha_creacion||'')}}</td>
+      <td>${{esc(d.fecha_entrega||'—')}}</td>
+      <td>${{esc(d.forma_pago||'')}}</td>
+      <td>${{esc(d.fecha_vence||'—')}}</td>
+      <td style="color:${{(d.dias||0)>0?'#f27272':(d.dias||0)<=-7?'#8bd450':'#f5a623'}}">${{fmtDias(d.dias)}}</td>
+      <td>${{fmt(d.total)}}</td>
+      <td style="color:#8bd450">${{d.pagado>0?fmt(d.pagado):'—'}}</td>
+      <td><strong>${{fmt(d.saldo)}}</strong></td>
+      <td>${{estadoBadge(d.estado)}}</td>
+      <td style="display:flex;gap:4px"><button class="ct-act-btn" onclick="ctEditDoc('${{esc(d._key)}}')">$</button><button class="ct-act-btn" onclick="ctOpenPago('${{esc(d.id)}}','${{esc(d.cliente)}}')">Abonar</button><button class="ct-act-btn danger" onclick="ctDelDoc('${{esc(d._key)}}','${{esc(d.id)}}')">✕</button></td>
+    </tr>`).join('');
+  }}
+  window.ctEditDoc=function(key){{
+    if(!_ctData)return;
+    const d=_ctData.documentos.find(x=>x._key===key);
+    if(!d)return;
+    _editDocId=key;
+    $('ct-dlg-doc-title').textContent='Editar documento '+d.id;
+    $('dd-id').value=d.id;$('dd-id').readOnly=true;
+    $('dd-total').value=d.total;$('dd-cliente').value=d.cliente;$('dd-ciudad').value=d.ciudad;
+    $('dd-vendedor').value=d.vendedor;$('dd-forma').value=d.forma_pago||'Contado a 1 día';
+    $('dd-creacion').value=d.fecha_creacion||'';$('dd-entrega').value=d.fecha_entrega||'';
+    $('dd-notas').value=d.notas||'';$('dd-msg').textContent='';
+    $('ct-dlg-doc').showModal();
+  }};
+  window.ctDelDoc=async function(key,label){{
+    if(!confirm('¿Eliminar documento '+label+'? Esta acción no se puede deshacer.'))return;
+    await fetch('/api/cartera/documentos/'+encodeURIComponent(key),{{method:'DELETE',credentials:'same-origin'}});
+    loadCt();
+  }};
+  window.ctOpenPago=function(cotId,cliente){{
+    _editCiId=null;
+    $('ct-dlg-pago-title').textContent='Registrar pago';
+    $('dp-cot').value=cotId;$('dp-cliente').value=cliente;
+    $('dp-fecha').value=new Date().toISOString().slice(0,10);
+    $('dp-monto').value='';$('dp-forma').value='';$('dp-ref').value='';
+    $('dp-tipo').value='Abono';$('dp-registrador').value='';$('dp-msg').textContent='';
+    $('ct-dlg-pago').showModal();
+  }};
+  $('ct-add-doc').onclick=()=>{{
+    _editDocId=null;
+    $('ct-dlg-doc-title').textContent='Agregar documento';
+    ['dd-id','dd-total','dd-cliente','dd-ciudad','dd-vendedor','dd-creacion','dd-entrega','dd-notas'].forEach(id=>$(id).value='');
+    $('dd-id').readOnly=false;$('dd-forma').value='Contado a 1 día';$('dd-msg').textContent='';
+    $('ct-dlg-doc').showModal();
+  }};
+  $('dd-cancel').onclick=()=>$('ct-dlg-doc').close();
+  $('dd-save').onclick=async()=>{{
+    const msg=$('dd-msg');
+    const id=$('dd-id').value.trim();const total=$('dd-total').value.trim();
+    if(!id||!total){{msg.textContent='N° y Total son obligatorios.';return;}}
+    msg.textContent='Guardando…';$('dd-save').disabled=true;
+    try{{
+      const url=_editDocId?'/api/cartera/documentos/'+encodeURIComponent(_editDocId):'/api/cartera/documentos';
+      const method=_editDocId?'PUT':'POST';
+      const body={{id,total:parseFloat(total)||0,cliente:$('dd-cliente').value,ciudad:$('dd-ciudad').value,vendedor:$('dd-vendedor').value,forma_pago:$('dd-forma').value,fecha_creacion:$('dd-creacion').value,fecha_entrega:$('dd-entrega').value||null,notas:$('dd-notas').value}};
+      const r=await fetch(url,{{method,credentials:'same-origin',headers:{{'Content-Type':'application/json'}},body:JSON.stringify(body)}});
+      const j=await r.json();if(!r.ok)throw new Error(j.detail||'Error');
+      msg.style.color='#8bd450';msg.textContent='Guardado.';
+      setTimeout(()=>{{$('ct-dlg-doc').close();loadCt();}},800);
+    }}catch(e){{msg.style.color='#f27272';msg.textContent='Error: '+e.message;}}
+    finally{{$('dd-save').disabled=false;}}
+  }};
+  // ---- pagos ----
+  function renderPagos(data){{
+    const comps=data.comprobantes||[];
+    $('ct-pag-summary').textContent=comps.length+' comprobantes · Total '+fmt(comps.reduce((s,c)=>s+(c.monto||0),0));
+    const empty=$('ct-pag-empty');const body=$('ct-pag-body');
+    if(!comps.length){{empty.hidden=false;body.innerHTML='';return;}}
+    empty.hidden=true;
+    body.innerHTML=comps.map(c=>`<tr>
+      <td><strong>${{esc(c.id)}}</strong></td>
+      <td>${{esc(c.fecha||'')}}</td>
+      <td>${{esc(c.cotizacion_id||'')}}</td>
+      <td>${{esc(c.cliente||'')}}</td>
+      <td>${{esc(c.forma_pago||'')}}</td>
+      <td>${{esc(c.referencia||'—')}}</td>
+      <td><strong>${{fmt(c.monto)}}</strong></td>
+      <td><span class="${{c.tipo==='Anticipo'?'est-abonada':'est-cartera'}}">${{esc(c.tipo||'Abono')}}</span></td>
+      <td>${{esc(c.registrado_por||'')}}</td>
+      <td style="display:flex;gap:4px"><button class="ct-act-btn" onclick="ctEditPago('${{esc(c.id)}}')">✎</button><button class="ct-act-btn danger" onclick="ctDelPago('${{esc(c.id)}}')">✕</button></td>
+    </tr>`).join('');
+  }}
+  $('ct-add-pago').onclick=()=>ctOpenPago('','');
+  window.ctEditPago=function(ciId){{
+    if(!_ctData)return;
+    const c=(_ctData.comprobantes||[]).find(x=>x.id===ciId);
+    if(!c)return;
+    _editCiId=ciId;
+    $('ct-dlg-pago-title').textContent='Editar '+ciId;
+    $('dp-cot').value=c.cotizacion_id||'';$('dp-fecha').value=c.fecha||'';
+    $('dp-cliente').value=c.cliente||'';$('dp-monto').value=c.monto||'';
+    $('dp-forma').value=c.forma_pago||'';$('dp-ref').value=c.referencia||'';
+    $('dp-tipo').value=c.tipo||'Abono';$('dp-registrador').value=c.registrado_por||'';
+    $('dp-msg').textContent='';$('ct-dlg-pago').showModal();
+  }};
+  window.ctDelPago=async function(ciId){{
+    if(!confirm('¿Eliminar comprobante '+ciId+'?'))return;
+    await fetch('/api/cartera/comprobantes/'+encodeURIComponent(ciId),{{method:'DELETE',credentials:'same-origin'}});
+    loadCt();
+  }};
+  $('dp-cancel').onclick=()=>$('ct-dlg-pago').close();
+  $('dp-save').onclick=async()=>{{
+    const msg=$('dp-msg');
+    const cot=$('dp-cot').value.trim();const monto=$('dp-monto').value.trim();const fecha=$('dp-fecha').value.trim();
+    if(!cot||!monto||!fecha){{msg.textContent='Cotización, Fecha y Monto son obligatorios.';return;}}
+    msg.textContent='Guardando…';$('dp-save').disabled=true;
+    try{{
+      const url=_editCiId?'/api/cartera/comprobantes/'+encodeURIComponent(_editCiId):'/api/cartera/comprobantes';
+      const method=_editCiId?'PUT':'POST';
+      const body={{cotizacion_id:cot,fecha,cliente:$('dp-cliente').value,monto:parseFloat(monto)||0,forma_pago:$('dp-forma').value,referencia:$('dp-ref').value,tipo:$('dp-tipo').value,registrado_por:$('dp-registrador').value}};
+      const r=await fetch(url,{{method,credentials:'same-origin',headers:{{'Content-Type':'application/json'}},body:JSON.stringify(body)}});
+      const j=await r.json();if(!r.ok)throw new Error(j.detail||'Error');
+      msg.style.color='#8bd450';msg.textContent='Guardado.';
+      setTimeout(()=>{{$('ct-dlg-pago').close();loadCt();}},800);
+    }}catch(e){{msg.style.color='#f27272';msg.textContent='Error: '+e.message;}}
+    finally{{$('dp-save').disabled=false;}}
+  }};
+  // ---- import CO ----
+  async function renderImport(data){{
+    const keys=new Set((data.documentos||[]).map(d=>String(d._key)));
+    // load production CO orders
+    let coOrders=[];
+    try{{
+      const r=await fetch('/api/produccion',{{credentials:'same-origin'}});
+      if(r.ok){{const pd=await r.json();
+        const hdrs=pd.headers||[];
+        const orderI=hdrs.findIndex(h=>String(h).trim().toUpperCase()==='ORDEN');
+        const clientI=hdrs.findIndex(h=>String(h).trim().toUpperCase()==='NOMBRE DEL CLIENTE');
+        const vendI=hdrs.findIndex(h=>String(h).trim().toUpperCase()==='VENDEDOR');
+        const entregaI=hdrs.findIndex(h=>String(h).trim().toUpperCase()==='FECHA DE ENTREGA');
+        (pd.rows||[]).forEach(row=>{{
+          const ord=String(row[orderI]||'').trim().toUpperCase();
+          if(/^CO\d+$/.test(ord)){{
+            const id=ord.slice(2);
+            coOrders.push({{id,orden:ord,cliente:String(row[clientI]||''),vendedor:String(row[vendI]||''),fecha_entrega:String(row[entregaI]||'')}});
+          }}
+        }});
+      }}
+    }}catch(e){{}}
+    const list=$('ct-co-list');
+    if(!coOrders.length){{list.innerHTML='<p class="ct-empty">No hay órdenes CO en producción o no se pudieron cargar.</p>';return;}}
+    list.innerHTML=coOrders.map(o=>{{
+      const imp=keys.has(o.id);
+      return `<div class="ct-co-item${{imp?' imported':''}}">
+        <div class="co-info"><span class="co-num">${{esc(o.orden)}}</span><span class="co-det">${{esc(o.cliente)}} · Entrega: ${{esc(o.fecha_entrega||'—')}}</span></div>
+        <div style="display:flex;align-items:center;gap:8px">
+          ${{imp?'<span style="color:#8bd450;font-size:.72rem">✓ En cartera</span>':'<button class="ct-act-btn" onclick="ctImportCO(\''+esc(o.id)+'\',\''+esc(o.cliente)+'\',\''+esc(o.vendedor)+'\',\''+esc(o.fecha_entrega||'')+'\')">Importar</button>'}}
+        </div>
+      </div>`;
+    }}).join('');
+  }}
+  window.ctImportCO=async function(id,cliente,vendedor,fechaEntrega){{
+    const body={{id,cliente,vendedor,fecha_entrega:fechaEntrega||null,forma_pago:'Contado a 1 día',total:0}};
+    const r=await fetch('/api/cartera/importar-co',{{method:'POST',credentials:'same-origin',headers:{{'Content-Type':'application/json'}},body:JSON.stringify(body)}});
+    if(r.ok){{await loadCt();renderImport(_ctData);}}
+  }};
+  // ---- ajustes ----
+  function renderAjustes(data){{
+    const cfg=data.config||{{}};const meta=data.meta||{{}};
+    $('aj-plazo').value=cfg.plazo_desde||'entrega';
+    $('aj-contado').value=cfg.contado_equivale||'entrega_100';
+    $('aj-anticipo').value=cfg.anticipo_minimo_pct??50;
+    $('aj-meta-info').textContent=(data.documentos||[]).length+' documentos · '+(data.comprobantes||[]).length+' comprobantes · próximo comprobante CI-'+String((meta.ultimo_ci||0)+1).padStart(4,'0');
+  }}
+  $('aj-guardar').onclick=async()=>{{
+    const msg=$('aj-msg');msg.textContent='Guardando…';
+    const body={{plazo_desde:$('aj-plazo').value,contado_equivale:$('aj-contado').value,anticipo_minimo_pct:parseInt($('aj-anticipo').value)||50}};
+    const r=await fetch('/api/cartera/settings',{{method:'POST',credentials:'same-origin',headers:{{'Content-Type':'application/json'}},body:JSON.stringify(body)}});
+    if(r.ok){{msg.style.color='#8bd450';msg.textContent='Ajustes guardados.';loadCt();}}
+    else{{msg.style.color='#f27272';msg.textContent='Error al guardar.';}}
+  }};
+  $('aj-restore-btn').onclick=()=>$('aj-restore-input').click();
+  $('aj-restore-input').onchange=async function(){{
+    const file=this.files[0];if(!file)return;
+    if(!confirm('¿Restaurar desde '+file.name+'? Los datos actuales serán reemplazados.'))return;
+    const fd=new FormData();fd.append('file',file);
+    const r=await fetch('/api/cartera/restore',{{method:'POST',credentials:'same-origin',body:fd}});
+    const j=await r.json();
+    if(r.ok){{alert('Restaurado: '+j.documentos+' documentos.');loadCt();}}
+    else alert('Error: '+(j.detail||'desconocido'));
+    this.value='';
+  }};
+}})();
 const indoorProcessFlow={json.dumps(PROCESS_FLOW, ensure_ascii=False)};
 const operatorHeaders=new Set(indoorProcessFlow.flatMap(p=>p.headers));
 const operatorDialog=document.createElement('dialog');operatorDialog.className='operator-dialog';operatorDialog.innerHTML='<form id="operator-form"><button type="button" class="operator-close" aria-label="Cerrar">×</button><h2>Producción</h2><p class="operator-order"></p><label>Proceso<select name="column" required></select></label><p class="operator-current"></p><label>Responsable / iniciales<input name="responsible" required maxlength="80" autocomplete="off"></label><label>Motivo u observación<textarea name="reason" maxlength="2000" rows="3" placeholder="Obligatorio para reproceso"></textarea></label><div class="operator-actions"><button name="action" value="start" type="submit">Iniciar / retomar</button><button name="action" value="rework" type="submit">Reproceso</button><button name="action" value="finish" type="submit">Terminar</button><button name="action" value="na" type="submit">No aplica</button><button name="action" value="clear" type="submit">Cambiar estado</button></div><p class="operator-message" role="status"></p></form><h3>Historial de actividad</h3><div class="operator-history"></div>';document.body.appendChild(operatorDialog);
