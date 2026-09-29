@@ -7,7 +7,7 @@ from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
 from fastapi.responses import HTMLResponse
 from typing import List, Dict, Any
 
-from cartera_pdf import parse_effi_pdf
+from app.cartera_pdf import parse_effi_pdf
 
 cartera_router = APIRouter(prefix="/api/cartera", tags=["cartera"])
 

@@ -40,7 +40,7 @@ PEDIDOS_CONFIG = prepare_pedidos_runtime()
 pedidos.CONFIG_PATH = STATE_DIR / "pedidos_config.json"
 DB_PATH = STATE_DIR / "jobs.sqlite3"
 security = HTTPBasic(auto_error=False)
-from cartera_api import cartera_router
+from app.cartera_api import cartera_router
 app = FastAPI(title="Asistente de Reprogramaciones", version="1.0.0")
 app.include_router(cartera_router)
 PRODUCTION_START_ROW = 726
