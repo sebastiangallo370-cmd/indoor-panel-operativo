@@ -29,8 +29,20 @@ if errorlevel 1 (
 )
 echo [OK] Git encontrado
 
-:: Definir ruta de instalacion
-set "INSTALL_DIR=%~dp0indoor-panel-operativo"
+:: Detectar si estamos dentro del proyecto o fuera
+:: Si el script esta en scripts/ dentro del repo, subir un nivel
+set "SCRIPT_DIR=%~dp0"
+set "SCRIPT_DIR=%SCRIPT_DIR:~0,-1%"
+
+:: Verificar si estamos dentro del proyecto (scripts/ tiene un ..\app\main.py)
+if exist "%SCRIPT_DIR%\..\app\main.py" (
+    echo [INFO] Script ejecutado desde dentro del proyecto.
+    for %%I in ("%SCRIPT_DIR%\..") do set "INSTALL_DIR=%%~fI"
+) else (
+    :: Estamos fuera, clonar en la carpeta donde esta el script
+    set "INSTALL_DIR=%SCRIPT_DIR%\indoor-panel-operativo"
+)
+
 echo.
 echo El proyecto se instalara en:
 echo %INSTALL_DIR%
@@ -42,15 +54,20 @@ if exist "%INSTALL_DIR%\.git" (
     cd /d "%INSTALL_DIR%"
     git pull origin main
 ) else (
-    echo [INFO] Clonando proyecto desde GitHub...
-    cd /d "%~dp0"
-    git clone https://github.com/sebastiangallo370-cmd/indoor-panel-operativo.git
-    if errorlevel 1 (
-        echo [ERROR] No se pudo clonar el repositorio.
-        pause
-        exit /b 1
+    if exist "%INSTALL_DIR%\app\main.py" (
+        echo [INFO] Proyecto encontrado sin git. Continuando instalacion...
+        cd /d "%INSTALL_DIR%"
+    ) else (
+        echo [INFO] Clonando proyecto desde GitHub...
+        cd /d "%SCRIPT_DIR%"
+        git clone https://github.com/sebastiangallo370-cmd/indoor-panel-operativo.git
+        if errorlevel 1 (
+            echo [ERROR] No se pudo clonar el repositorio.
+            pause
+            exit /b 1
+        )
+        cd /d "%INSTALL_DIR%"
     )
-    cd /d "%INSTALL_DIR%"
 )
 echo [OK] Proyecto listo
 
@@ -78,40 +95,27 @@ if not exist ".env" (
     echo.
     echo [INFO] Creando archivo .env de desarrollo...
     (
-        echo # Desarrollo: desactivar Google Sheets y Supabase sync
         echo DISABLE_EXTERNAL_SYNC=1
-        echo.
-        echo # Acceso al asistente web
         echo APP_USER=indoor
         echo APP_PASSWORD=indoor2024
-        echo.
-        echo # No aplica en desarrollo local
         echo NGROK_AUTHTOKEN=disabled
         echo NGROK_DOMAIN=disabled.ngrok-free.app
         echo CLOUDFLARE_API_TOKEN=disabled
-        echo.
-        echo # Destinos
         echo NAS_CLIENTES_PATH=\\192.168.0.120\nas indoor\CLIENTES
         echo GOOGLE_SHEETS_URL=https://docs.google.com/spreadsheets/d/placeholder/edit
         echo GOOGLE_SHEETS_GID=0
         echo PEDIDOS_GOOGLE_SHEETS_GID=1514880696
         echo GOOGLE_CREDENTIALS=secrets/google-service-account.json
-        echo.
-        echo # Supabase
         echo SUPABASE_URL=https://placeholder.supabase.co
         echo SUPABASE_KEY=placeholder
-        echo.
-        echo # Control de pagos
         echo PAGOS_COTIZACIONES_FILE_ID=placeholder
         echo PAGOS_COTIZACIONES_HOJA=CONTROL DE PAGOS
-        echo.
-        echo # Correo
         echo SMTP_EMAIL=placeholder@gmail.com
         echo SMTP_PASSWORD=placeholder
         echo SMTP_SERVER=smtp.gmail.com
         echo SMTP_PORT=587
     ) > .env
-    echo [OK] Archivo .env creado con valores de desarrollo
+    echo [OK] Archivo .env creado con DISABLE_EXTERNAL_SYNC=1
 ) else (
     echo [OK] Archivo .env ya existe, no se toca
 )
@@ -128,7 +132,7 @@ if not exist "FORMATO_EXCEL.xlsx" (
 :: Verificar credenciales Google
 if not exist "secrets\google-service-account.json" (
     echo [AVISO] Falta secrets\google-service-account.json
-    echo         Copialo manualmente para habilitar Google Sheets.
+    echo         Solo necesario si quieres sincronizar con Google Sheets.
 ) else (
     echo [OK] Credenciales Google encontradas
 )
