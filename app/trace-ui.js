@@ -670,7 +670,7 @@
     }
   });
   // Resolve NAS from the card's source data, never from filtered table rows.
-  // Reuse the existing NAS progress/resolver handler and its platform support.
+  // Reuse the existing NAS resolver link (a real <a href> built by productionRowButton).
   traceCards.addEventListener('click', event => {
     const button = event.target.closest('[data-card-nas]');
     if (!button) return;
@@ -679,10 +679,7 @@
     const row = productionData.rows.find(item => Number(item.source_row) === Number(button.dataset.cardNas));
     const order = row && traceField(row, 'ORDEN').trim();
     if (!order) {
-      nasNotice.hidden = false;
-      nasNotice.querySelector('.nas-title').textContent = 'Acceso al NAS';
-      nasNotice.querySelector('.nas-retry').hidden = true;
-      nasProgress(0, 'Esta tarjeta no tiene número de orden. Completa ese dato para localizar su carpeta.');
+      alert('Esta tarjeta no tiene número de orden. Completa ese dato para localizar su carpeta.');
       return;
     }
     const bridge = document.createElement('tr');
