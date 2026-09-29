@@ -1898,25 +1898,36 @@ try {
     encoded = base64.b64encode(handler.encode("utf-8")).decode("ascii")
     launcher = r'''Set shell = CreateObject("WScript.Shell")
 If WScript.Arguments.Count = 0 Then WScript.Quit 1
-scriptPath = shell.ExpandEnvironmentStrings("%LOCALAPPDATA%") & "\IndoorNAS\open-order.ps1"
+scriptPath = shell.ExpandEnvironmentStrings("%ProgramData%") & "\IndoorNAS\open-order.ps1"
 uri = Replace(WScript.Arguments(0), Chr(34), Chr(34) & Chr(34))
 command = "powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File " & Chr(34) & scriptPath & Chr(34) & " " & Chr(34) & uri & Chr(34)
 shell.Run command, 0, False
 '''
     launcher_encoded = base64.b64encode(launcher.encode("utf-8")).decode("ascii")
+    # HKLM + %ProgramData% (no HKCU + %LOCALAPPDATA%): el protocolo y los scripts deben quedar
+    # a nivel de equipo, para que cualquier cuenta de Windows de ese PC use el botón, no solo
+    # quien corrió el instalador. Escribir en HKLM exige permisos de administrador, así que el
+    # script se reejecuta a sí mismo elevado (UAC) cuando no corre ya como Administrador.
     installer = fr'''@echo off
 setlocal
 title Instalador Indoor NAS
-set "INDOOR_DIR=%LOCALAPPDATA%\IndoorNAS"
+net session >nul 2>&1
+if %errorlevel% neq 0 (
+  echo Se necesitan permisos de Administrador para instalarlo en todos los usuarios de este equipo.
+  echo Se abrira un aviso de Windows para confirmarlo.
+  powershell -NoProfile -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
+  exit /b
+)
+set "INDOOR_DIR=%ProgramData%\IndoorNAS"
 if not exist "%INDOOR_DIR%" mkdir "%INDOOR_DIR%"
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$handler=[Convert]::FromBase64String('{encoded}'); $launcher=[Convert]::FromBase64String('{launcher_encoded}'); [IO.File]::WriteAllBytes($env:LOCALAPPDATA+'\IndoorNAS\open-order.ps1',$handler); [IO.File]::WriteAllBytes($env:LOCALAPPDATA+'\IndoorNAS\open-order.vbs',$launcher); $key='HKCU:\Software\Classes\indoor-nas'; New-Item -Path $key -Force | Out-Null; Set-Item -Path $key -Value 'URL:Indoor NAS'; New-ItemProperty -Path $key -Name 'URL Protocol' -Value '' -Force | Out-Null; $commandKey=$key+'\shell\open\command'; New-Item -Path $commandKey -Force | Out-Null; Set-Item -Path $commandKey -Value ('wscript.exe "'+$env:LOCALAPPDATA+'\IndoorNAS\open-order.vbs" "%%1"')"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$handler=[Convert]::FromBase64String('{encoded}'); $launcher=[Convert]::FromBase64String('{launcher_encoded}'); [IO.File]::WriteAllBytes($env:ProgramData+'\IndoorNAS\open-order.ps1',$handler); [IO.File]::WriteAllBytes($env:ProgramData+'\IndoorNAS\open-order.vbs',$launcher); $key='HKLM:\Software\Classes\indoor-nas'; New-Item -Path $key -Force | Out-Null; Set-Item -Path $key -Value 'URL:Indoor NAS'; New-ItemProperty -Path $key -Name 'URL Protocol' -Value '' -Force | Out-Null; $commandKey=$key+'\shell\open\command'; New-Item -Path $commandKey -Force | Out-Null; Set-Item -Path $commandKey -Value ('wscript.exe "'+$env:ProgramData+'\IndoorNAS\open-order.vbs" "%%1"')"
 if errorlevel 1 (
   echo No fue posible instalar el conector.
   pause
   exit /b 1
 )
 echo.
-echo Conector Indoor NAS instalado correctamente.
+echo Conector Indoor NAS instalado correctamente para todos los usuarios de este equipo.
 echo Ya puedes cerrar esta ventana y pulsar una fila en Produccion.
 echo.
 pause
@@ -2198,6 +2209,16 @@ def nas_native_redirect(request: Request, parts: list) -> RedirectResponse:
     return RedirectResponse(smb_url, status_code=307)
 
 
+def nas_indoor_redirect(request: Request, target: Path, parts: list) -> RedirectResponse:
+    """A diferencia de search-ms (vista de resultados de búsqueda), indoor-nas:// abre la
+    carpeta real y navegable en Explorador — pero exige el conector instalado en el PC."""
+    if "Windows" in request.headers.get("user-agent", ""):
+        windows_url = "indoor-nas://folder/" + quote(target.parent.name, safe="") + "/" + quote(target.name, safe="")
+        return RedirectResponse(windows_url, status_code=307)
+    smb_url = "smb://192.168.0.120/NAS%20INDOOR/" + "/".join(quote(part, safe="") for part in parts)
+    return RedirectResponse(smb_url, status_code=307)
+
+
 def nas_error_page(message: str) -> HTMLResponse:
     return HTMLResponse(f"""<!doctype html><html lang='es'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>NAS Indoor</title><style>
     body{{margin:0;min-height:100vh;display:grid;place-items:center;background:#080b08;color:#f4f7f1;font-family:Inter,Arial,sans-serif;padding:24px;box-sizing:border-box}}
@@ -2207,9 +2228,9 @@ def nas_error_page(message: str) -> HTMLResponse:
 
 @app.get("/nas/abrir")
 def open_nas_order_direct(order: str, request: Request, client: str = "", _=Depends(authenticate)):
-    """Resuelve y redirige de un solo salto (sin JS ni progreso), para que el enlace
-    cuente como clic directo del usuario: así el navegador entrega search-ms:/smb: al
-    Explorador/Finder en vez de bloquearlo en silencio por falta de gesto reciente."""
+    """Resuelve y redirige de un solo salto, para que el enlace cuente como clic directo
+    del usuario: así el navegador entrega indoor-nas:/smb: al Explorador/Finder en vez de
+    bloquearlo en silencio por falta de gesto reciente."""
     clean = str(order or "").strip().upper()
     if not re.fullmatch(r"[A-Z0-9_-]{2,40}", clean):
         return nas_error_page("Número de orden inválido.")
@@ -2225,7 +2246,7 @@ def open_nas_order_direct(order: str, request: Request, client: str = "", _=Depe
     except HTTPException as error:
         return nas_error_page(str(error.detail))
     relative = target.relative_to(root)
-    return nas_native_redirect(request, ["CLIENTES", *relative.parts])
+    return nas_indoor_redirect(request, target, ["CLIENTES", *relative.parts])
 
 
 @app.get("/nas/orden/{order}/abrir-explorador")
@@ -2629,7 +2650,7 @@ def home(_=Depends(authenticate)):
     <div class='creator-actions'><div class='actions'><button id='creator-submit' type='submit'>Crear listado XLSX</button></div><div id='creator-message' class='message' role='status' aria-live='polite'></div></div></form>
     <div class='card history creator-history' aria-hidden='true'><div class='history-head'><div><h2>Listado actual</h2><p class='count'>Sin un listado seleccionado</p></div><button class='refresh' type='button'>Actualizar</button></div>
     <div class='table-wrap'><table><thead><tr><th>ID</th><th>Referencia</th><th>Orden</th><th>Estado</th><th>Resultado</th></tr></thead><tbody id='creator-jobs'></tbody></table></div></div></section>
-    <section class='panel' data-panel='produccion'><div class='card production-shell'><div class='production-toolbar'><div class='production-title'><h2>Producción</h2><p>Órdenes de producción desde la fila 726 · doble clic para editar</p></div><div class='production-controls'><input id='production-search' class='production-search' type='search' placeholder='Buscar cliente, orden, referencia o responsable'><a class='production-connector' href='/descargar-conector-nas' title='Instalar una sola vez en este PC'>Instalar conexión NAS</a><select id='production-zoom' class='production-zoom' aria-label='Tamaño de la tabla'><option value='0.5'>50%</option><option value='0.6'>60%</option><option value='0.75'>75%</option><option value='0.9'>90%</option><option value='1' selected>100%</option><option value='1.25'>125%</option><option value='1.5'>150%</option></select><button id='production-refresh' class='production-refresh' type='button'>Actualizar</button></div></div><div class='production-kpis'><div class='production-kpi'><span>Registros visibles</span><strong id='production-records'>—</strong></div><div class='production-kpi'><span>Unidades</span><strong id='production-units'>—</strong></div><div id='production-status' class='production-status'>Abre esta pestaña para consultar la información.</div></div><div id='production-x-scroll' class='production-x-scroll' aria-label='Desplazamiento horizontal de procesos'><div id='production-x-scroll-inner'></div></div><div class='production-table-wrap' id='production-table-wrap'><table class='production-table' id='production-table'><thead id='production-head'></thead><tbody id='production-body'></tbody></table><div id='production-empty' class='production-empty' hidden>No hay registros para mostrar.</div></div></div></section>
+    <section class='panel' data-panel='produccion'><div class='card production-shell'><div class='production-toolbar'><div class='production-title'><h2>Producción</h2><p>Órdenes de producción desde la fila 726 · doble clic para editar</p></div><div class='production-controls'><input id='production-search' class='production-search' type='search' placeholder='Buscar cliente, orden, referencia o responsable'><a class='production-connector' href='/descargar-conector-nas' title='Instalar una sola vez por equipo, como Administrador. Queda disponible para todos los usuarios de Windows de ese PC.'>Instalar conexión NAS</a><select id='production-zoom' class='production-zoom' aria-label='Tamaño de la tabla'><option value='0.5'>50%</option><option value='0.6'>60%</option><option value='0.75'>75%</option><option value='0.9'>90%</option><option value='1' selected>100%</option><option value='1.25'>125%</option><option value='1.5'>150%</option></select><button id='production-refresh' class='production-refresh' type='button'>Actualizar</button></div></div><div class='production-kpis'><div class='production-kpi'><span>Registros visibles</span><strong id='production-records'>—</strong></div><div class='production-kpi'><span>Unidades</span><strong id='production-units'>—</strong></div><div id='production-status' class='production-status'>Abre esta pestaña para consultar la información.</div></div><div id='production-x-scroll' class='production-x-scroll' aria-label='Desplazamiento horizontal de procesos'><div id='production-x-scroll-inner'></div></div><div class='production-table-wrap' id='production-table-wrap'><table class='production-table' id='production-table'><thead id='production-head'></thead><tbody id='production-body'></tbody></table><div id='production-empty' class='production-empty' hidden>No hay registros para mostrar.</div></div></div></section>
     <div id='preview-modal' class='preview-modal' role='dialog' aria-modal='true' aria-labelledby='preview-title'><div class='preview-dialog'><div class='preview-head'><div><h2 id='preview-title'>Revisar datos antes de crear</h2><p>Corrige cualquier valor. El Excel se generará exactamente con estas filas.</p></div><div class='preview-overview'><div id='preview-designs' class='preview-designs'></div><div id='preview-size-summary' class='preview-size-summary' aria-live='polite'></div></div><button id='preview-close' class='preview-close' type='button'>Cerrar</button></div><div id='preview-content' class='preview-content'></div><div class='preview-actions'><button id='preview-confirm' type='button'>Confirmar y crear XLSX</button><button id='preview-cancel' class='preview-cancel' type='button'>Volver a los archivos</button></div></div></div>
     <p class='footer-note'>Los documentos se procesan de forma segura en el servidor de Indoor.</p></main><script>
     const deleteProductionAllowed={json.dumps(can_delete_production_profile(user_process))};
@@ -2720,10 +2741,16 @@ def home(_=Depends(authenticate)):
     function lineSelect(value,row,column){{const current=String(value||'').trim().toUpperCase(),choices=productionLines.includes(current)?productionLines:[current,...productionLines],colorClass='line-'+(current?current.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-'):'empty');return '<select class="production-resp-select production-line-select '+colorClass+'" data-row="'+row+'" data-column="'+column+'" data-original="'+esc(current)+'" aria-label="Línea">'+choices.map(item=>'<option value="'+esc(item)+'" '+(item===current?'selected':'')+'>'+esc(item||'—')+'</option>').join('')+'</select>'}}
     function productionRowButton(row,order,client,project){{const clean=String(order||'').trim();if(!clean)return '—';const record=productionData?.rows.find(item=>Number(item.source_row)===Number(row)),indexOf=name=>productionData?.headers.findIndex(header=>String(header||'').trim().toUpperCase()===name)??-1,clientIndex=indexOf('NOMBRE DEL CLIENTE');client=client||((record&&clientIndex>=0)?record.values[clientIndex]:'');
     // Enlace real (no JS), SIN target=_blank: al navegar en la misma pestaña, el navegador
-    // entrega search-ms:/smb: al Explorador/Finder sin ni siquiera abandonar esta página
+    // entrega indoor-nas:/smb: al Explorador/Finder sin ni siquiera abandonar esta página
     // (solo la redirige si falla y cae en la página de error). Nada de pestañas nuevas.
     const url='/nas/abrir?order='+encodeURIComponent(clean)+'&client='+encodeURIComponent(client||'');
-    return '<a class="production-row-open" href="'+esc(url)+'" data-order="'+esc(clean)+'" title="Abrir la carpeta de la orden '+esc(clean)+' en el Explorador de archivos / Finder">NAS <span>↗</span></a>'}}
+    return '<a class="production-row-open" href="'+esc(url)+'" data-order="'+esc(clean)+'" data-client="'+esc(client||'')+'" title="Abrir la carpeta de la orden '+esc(clean)+' en el Explorador de archivos / Finder">NAS <span>↗</span></a>'}}
+    const nasNotice=document.createElement('div');nasNotice.hidden=true;nasNotice.setAttribute('role','status');nasNotice.setAttribute('aria-label','Estado de acceso al NAS');nasNotice.style.cssText='position:fixed;right:20px;bottom:20px;padding:14px 18px;background:#142017;color:#f2f7ed;border:1px solid #91ac36;border-radius:12px;box-shadow:0 12px 40px #0008;z-index:10000;font-size:14px;font-weight:700';
+    document.body.appendChild(nasNotice);
+    // Sin async/fetch antes de navegar: mostrar el aviso y saltar deben ocurrir en el mismo
+    // clic (gesto) del usuario, o el navegador puede bloquear en silencio la entrega a
+    // indoor-nas:/search-ms:/smb: por considerarlo un salto no solicitado.
+    productionBody.addEventListener('click',event=>{{const link=event.target.closest('.production-row-open');if(!link)return;event.preventDefault();event.stopPropagation();nasNotice.textContent='Procesando '+(link.dataset.client||'la orden '+link.dataset.order)+'…';nasNotice.hidden=false;clearTimeout(nasNotice._hideTimer);nasNotice._hideTimer=setTimeout(()=>{{nasNotice.hidden=true}},3000);window.location.assign(link.href)}},true);
     function freezeProductionColumns(){{const columnsRow=productionHead.querySelector('.production-columns'),rowHead=productionHead.querySelector('.production-row-head');if(!columnsRow||!rowHead)return;const bodyRows=[...productionBody.querySelectorAll('tr')],headers=[...columnsRow.children],deliveryIndex=headers.findIndex(header=>{{const title=header.textContent.trim().toUpperCase();return title.includes('DÍAS ENTREGA FINAL')||title.includes('DIAS ENTREGA FINAL')}}),freezeCount=deliveryIndex>=0?deliveryIndex+1:Math.min(10,headers.length),zoom=(Number(productionZoom.value)||100)/100,layoutWidth=element=>element.getBoundingClientRect().width/zoom;rowHead.classList.add('production-frozen');rowHead.style.left='0px';bodyRows.forEach(row=>{{const cell=row.children[0];if(cell){{cell.classList.add('production-frozen');cell.style.left='0px'}}}});let left=layoutWidth(rowHead);for(let index=0;index<freezeCount;index++){{const edge=index===freezeCount-1,header=headers[index];header.classList.add('production-frozen');header.classList.toggle('production-frozen-edge',edge);header.style.left=left+'px';bodyRows.forEach(row=>{{const cell=row.children[index+1];if(!cell)return;cell.classList.add('production-frozen');cell.classList.toggle('production-frozen-edge',edge);cell.style.left=left+'px'}});left+=layoutWidth(header)}}}}
     function syncProductionWidth(){{productionXScrollInner.style.width=productionTable.scrollWidth+'px'}}
    const processStatusHeaders=new Set({json.dumps(sorted(PROCESS_STATUS_HEADERS))});
