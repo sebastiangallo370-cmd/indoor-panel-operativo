@@ -2123,61 +2123,6 @@ def production_card_file(source_row: int, name: str, _=Depends(authenticate)):
     return FileResponse(target, headers={'Cache-Control': 'private, max-age=120', 'X-Content-Type-Options': 'nosniff'})
 
 
-@app.post("/api/nas/progreso")
-def nas_order_progress(payload: dict = Body(...), _=Depends(authenticate)):
-    order = str(payload.get("order") or "").strip().upper()
-    if not re.fullmatch(r"[A-Z0-9_-]{2,40}", order):
-        raise HTTPException(400, "Número de orden inválido")
-
-    def stream():
-        def event(percent, message, **extra):
-            return json.dumps(dict(percent=percent, message=message, **extra), ensure_ascii=False) + "\n"
-        try:
-            yield event(5, "Conectando con el NAS…")
-            root = Path(CONFIG["ruta_nas_clientes"]).resolve()
-            if not root.is_dir():
-                raise HTTPException(503, "El NAS no está disponible")
-            client_name = legacy.sanitize(str(payload.get("client") or "").strip())
-            yield event(20, f"Consultando únicamente el cliente: {client_name}")
-            try:
-                if not client_name:
-                    raise HTTPException(404, 'La fila no tiene nombre de cliente')
-                client_dir = resolve_nas_client(root, client_name)
-            except HTTPException as error:
-                if error.status_code != 404:
-                    raise
-                yield event(25, f'Cliente no encontrado. Buscando la orden exacta {order} en el NAS…')
-                target = find_nas_order(order)
-                relative = target.relative_to(root)
-                yield event(100, 'ORDEN ENCONTRADA', done=True, ok=True,
-                            windows_url='indoor-nas://folder/' + '/'.join(quote(p, safe='') for p in relative.parts),
-                            smb_url='smb://192.168.0.120/NAS%20INDOOR/CLIENTES/' + '/'.join(quote(p, safe='') for p in relative.parts))
-                return
-            yield event(30, "CLIENTE ENCONTRADO")
-            orders = list(client_dir.iterdir())
-            total = len(orders)
-            for index, candidate in enumerate(orders):
-                if candidate.is_dir() and candidate.name.upper() == order:
-                    target = candidate.resolve()
-                    if target.parent != client_dir:
-                        raise HTTPException(403, "Ruta de orden no permitida")
-                    relative = target.relative_to(root)
-                    unc = "\\\\192.168.0.120\\NAS INDOOR\\CLIENTES\\" + "\\".join(relative.parts)
-                    yield event(100, "ORDEN ENCONTRADA", done=True, ok=True,
-                                windows_url="indoor-nas://folder/" + "/".join(quote(p, safe="") for p in relative.parts),
-                                smb_url="smb://192.168.0.120/NAS%20INDOOR/CLIENTES/" + "/".join(quote(p, safe="") for p in relative.parts))
-                    return
-                yield event(20 + int(70 * (index + 1) / max(total, 1)),
-                            f"{client_name}: {index + 1} de {total} órdenes revisadas.")
-            raise HTTPException(404, f"No se encontró la orden {order} en la carpeta del cliente {client_name}.")
-        except Exception as error:
-            message = error.detail if isinstance(error, HTTPException) else "No se pudo consultar el NAS. Intenta nuevamente."
-            yield event(0, str(message), done=True, ok=False)
-
-    return StreamingResponse(stream(), media_type="application/x-ndjson",
-                             headers={"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no"})
-
-
 @app.post("/api/nas/preparar")
 def prepare_nas_order(payload: dict = Body(...), _=Depends(authenticate)):
     order = str(payload.get("order") or "").strip().upper()
@@ -2212,18 +2157,64 @@ def prepare_nas_order(payload: dict = Body(...), _=Depends(authenticate)):
     return {"ok": True, "created": True, "folder": order_dir.name}
 
 
-@app.get("/nas/orden/{order}/abrir-explorador")
-def open_nas_order_in_explorer(order: str, request: Request, _=Depends(authenticate)):
-    order_root = find_nas_order(order)
-    nas_root = Path(CONFIG["ruta_nas_clientes"]).resolve()
-    relative = order_root.relative_to(nas_root)
-    parts = ["CLIENTES", *relative.parts]
+def nas_native_redirect(request: Request, parts: list) -> RedirectResponse:
     smb_url = "smb://192.168.0.120/NAS%20INDOOR/" + "/".join(quote(part, safe="") for part in parts)
     if "Windows" in request.headers.get("user-agent", ""):
         unc_path = "\\\\192.168.0.120\\NAS INDOOR\\" + "\\".join(parts)
         explorer_url = "search-ms:query=*&crumb=location:" + quote(unc_path, safe="")
         return RedirectResponse(explorer_url, status_code=307)
     return RedirectResponse(smb_url, status_code=307)
+
+
+def nas_error_page(message: str) -> HTMLResponse:
+    return HTMLResponse(f"""<!doctype html><html lang='es'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>NAS Indoor</title><style>
+    body{{margin:0;min-height:100vh;display:grid;place-items:center;background:#080b08;color:#f4f7f1;font-family:Inter,Arial,sans-serif;padding:24px;box-sizing:border-box}}
+    .box{{max-width:420px;text-align:center}}h1{{font-size:1.3rem;margin:0 0 12px}}p{{margin:0;color:#98a393;line-height:1.5}}</style></head>
+    <body><div class='box'><h1>No se pudo abrir la carpeta</h1><p>{escape(message)}</p></div></body></html>""", status_code=200)
+
+
+@app.get("/nas/abrir")
+def open_nas_order_direct(order: str, request: Request, client: str = "", _=Depends(authenticate)):
+    """Resuelve y redirige de un solo salto (sin JS ni progreso), para que el enlace
+    cuente como clic directo del usuario: así el navegador entrega search-ms:/smb: al
+    Explorador/Finder en vez de bloquearlo en silencio por falta de gesto reciente."""
+    clean = str(order or "").strip().upper()
+    if not re.fullmatch(r"[A-Z0-9_-]{2,40}", clean):
+        return nas_error_page("Número de orden inválido.")
+    root = Path(CONFIG["ruta_nas_clientes"]).resolve()
+    if not root.is_dir():
+        return nas_error_page("El NAS no está disponible.")
+    client_name = legacy.sanitize(str(client or "").strip())
+    target = None
+    if client_name:
+        try:
+            client_dir = resolve_nas_client(root, client_name)
+        except HTTPException as error:
+            if error.status_code != 404:
+                raise
+            client_dir = None
+        if client_dir:
+            for candidate in client_dir.iterdir():
+                if candidate.is_dir() and candidate.name.upper() == clean:
+                    resolved = candidate.resolve()
+                    if resolved.parent == client_dir:
+                        target = resolved
+                    break
+    if target is None:
+        try:
+            target = find_nas_order(clean)
+        except HTTPException as error:
+            return nas_error_page(str(error.detail))
+    relative = target.relative_to(root)
+    return nas_native_redirect(request, ["CLIENTES", *relative.parts])
+
+
+@app.get("/nas/orden/{order}/abrir-explorador")
+def open_nas_order_in_explorer(order: str, request: Request, _=Depends(authenticate)):
+    order_root = find_nas_order(order)
+    nas_root = Path(CONFIG["ruta_nas_clientes"]).resolve()
+    relative = order_root.relative_to(nas_root)
+    return nas_native_redirect(request, ["CLIENTES", *relative.parts])
 
 
 @app.get("/nas/orden/{order}", response_class=HTMLResponse)
@@ -2708,25 +2699,11 @@ def home(_=Depends(authenticate)):
     const processResponsibles={{EDICION:['SG','AM','BOT','CO','JD','EE'],IMPRESION:['SG','SV','K'],SUBLIMACION:['G','CC','GP','JP'],'CORTE LASER':['CC','DD','ES','JP','K','HL','G','SV','SG'],APLIQUES:['HL'],CONFECCION:sewingResponsibles,TERMINACION:sewingResponsibles,EMPAQUE:['JO','JHO'],COMERCIAL:['AU','AL','YS','DH'],VENDEDOR:['AU','AL','YS','DH']}};
     function responsibleSelect(value,row,column){{const current=String(value||'').trim(),normalize=text=>String(text||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replaceAll('"','').trim().toUpperCase(),group=normalize(productionData.groups[column-1]),header=normalize(productionData.headers[column-1]),key=group==='LINEA PRODUCCION INDOOR SPORT SAS'?'COMERCIAL':(['COMERCIAL','VENDEDOR'].includes(header)?header:group),allowed=processResponsibles[key],choices=allowed?[['','Sin asignar'],...allowed.map(code=>[code,code])]:productionResponsibles,known=choices.some(item=>item[0]===current),legacyOption=known?'':'<option disabled selected value="'+esc(current)+'">'+esc(current)+' · anterior</option>';return '<select class="production-resp-select production-responsible" data-row="'+row+'" data-column="'+column+'" data-original="'+esc(current)+'" aria-label="Responsable de '+esc(key)+'">'+legacyOption+choices.map(item=>'<option value="'+esc(item[0])+'" title="'+esc(item[1])+'" '+(item[0]===current?'selected':'')+'>'+esc(item[0]||'—')+'</option>').join('')+'</select>'}}
     function lineSelect(value,row,column){{const current=String(value||'').trim().toUpperCase(),choices=productionLines.includes(current)?productionLines:[current,...productionLines],colorClass='line-'+(current?current.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-'):'empty');return '<select class="production-resp-select production-line-select '+colorClass+'" data-row="'+row+'" data-column="'+column+'" data-original="'+esc(current)+'" aria-label="Línea">'+choices.map(item=>'<option value="'+esc(item)+'" '+(item===current?'selected':'')+'>'+esc(item||'—')+'</option>').join('')+'</select>'}}
-    function productionRowButton(row,order,client,project){{const clean=String(order||'').trim();if(!clean)return '—';const record=productionData?.rows.find(item=>Number(item.source_row)===Number(row)),indexOf=name=>productionData?.headers.findIndex(header=>String(header||'').trim().toUpperCase()===name)??-1,clientIndex=indexOf('NOMBRE DEL CLIENTE'),projectIndex=indexOf('NOMBRE PROYECTO');client=client||((record&&clientIndex>=0)?record.values[clientIndex]:'');project=project||((record&&projectIndex>=0)?record.values[projectIndex]:'');return '<a class="production-row-open" href="#" data-order="'+esc(clean)+'" data-client="'+esc(client||'')+'" data-project="'+esc(project||'')+'" title="Ver y descargar los archivos de la orden '+esc(clean)+'">NAS <span>↗</span></a>'}}
-    const nasNotice=document.createElement('aside');nasNotice.hidden=true;nasNotice.setAttribute('aria-label','Acceso a carpeta NAS');nasNotice.style.cssText='position:fixed;right:20px;bottom:20px;width:min(390px,calc(100vw - 40px));padding:20px;background:#142017;color:#f2f7ed;border:1px solid #91ac36;border-radius:14px;box-shadow:0 12px 40px #0008;z-index:10000';
-    nasNotice.innerHTML='<button type="button" aria-label="Cerrar progreso NAS" style="float:right;background:transparent;border:0;color:#fff;font-size:20px;cursor:pointer">×</button><strong class="nas-title"></strong><p class="nas-status" role="status" style="font-size:13px;line-height:1.5"></p><progress max="100" value="0" aria-label="Progreso de preparación del acceso" style="width:100%;height:12px;accent-color:#d0f44c"></progress><p class="nas-percent" style="margin:8px 0;color:#d0f44c;font-weight:700"></p><a class="nas-retry" hidden target="_blank" style="display:block;color:#d0f44c;text-decoration:underline">Abrir en Finder / Explorador de archivos</a><a class="nas-explorer" hidden target="_blank" style="display:block;margin-top:6px;color:#9ac9ee;text-decoration:underline;font-size:12.5px">Ver en el navegador (fuera de la red de la oficina)</a>';
-    document.body.appendChild(nasNotice);nasNotice.querySelector('button').addEventListener('click',()=>{{nasNotice.hidden=true}});let nasBusy=false;
-    function nasProgress(value,message){{nasNotice.querySelector('progress').value=value;nasNotice.querySelector('.nas-percent').textContent=value+'% · Preparación del acceso';nasNotice.querySelector('.nas-status').textContent=message}}
-    productionBody.addEventListener('click',async event=>{{const link=event.target.closest('.production-row-open');if(!link)return;event.preventDefault();event.stopPropagation();nasNotice.hidden=false;if(nasBusy)return;nasBusy=true;nasNotice.querySelector('.nas-title').textContent='Carpeta de la orden '+link.dataset.order;const retry=nasNotice.querySelector('.nas-retry');retry.hidden=true;nasProgress(10,'Consultando la carpeta en el NAS…');
-    // La pestaña se abre YA, en el mismo clic (si se abre después de los await de abajo, el
-    // navegador la trata como pop-up no solicitado y la bloquea). Se redirige más abajo cuando
-    // ya se sabe la carpeta exacta; si algo falla, se cierra sola.
-    const explorerTab=window.open('about:blank','_blank');
-    const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),30000);
-    try{{const response=await fetch('/api/nas/progreso',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{order:link.dataset.order,client:link.dataset.client,project:link.dataset.project}}),signal:controller.signal}});if(!response.ok){{const error=await response.json();throw Error(error.detail||'No se pudo consultar el NAS')}}if(!response.body)throw Error('El navegador no permite recibir el progreso.');const reader=response.body.getReader(),decoder=new TextDecoder();let pending='',complete=false;while(true){{const chunk=await reader.read();pending+=decoder.decode(chunk.value||new Uint8Array(),{{stream:!chunk.done}});const lines=pending.split('\\n');pending=lines.pop();for(const line of lines){{if(!line.trim())continue;const update=JSON.parse(line);if(update.done&&!update.ok)throw Error(update.message);nasProgress(update.percent,update.message);if(update.message==='CLIENTE ENCONTRADO'||update.message==='ORDEN ENCONTRADA')await new Promise(resolve=>setTimeout(resolve,1200));if(update.done)complete=true}}if(chunk.done)break}}if(!complete)throw Error('Se interrumpió la conexión con el NAS. Vuelve a intentar.');
-    // La pestaña ya abierta navega a la página web (siempre carga); el protocolo externo
-    // (search-ms:/smb:) solo se ofrece como enlace para un clic nuevo del usuario, porque un
-    // salto automático a esta altura del flujo ya no cuenta como gesto directo y el navegador
-    // lo bloquea en silencio, dejando la pestaña en about:blank para siempre.
-    const webUrl='/nas/orden/'+encodeURIComponent(link.dataset.order),explorerUrl=webUrl+'/abrir-explorador';retry.href=explorerUrl;retry.hidden=false;const explorerLink=nasNotice.querySelector('.nas-explorer');explorerLink.href=webUrl;explorerLink.hidden=false;nasProgress(100,'ABRIENDO CARPETA');if(explorerTab)explorerTab.location.href=webUrl;else window.open(webUrl,'_blank','noopener');const noticeOrder=link.dataset.order;setTimeout(()=>{{if(!nasBusy&&nasNotice.querySelector('.nas-title').textContent==='Carpeta de la orden '+noticeOrder)nasNotice.hidden=true}},1200)}}
-    catch(error){{if(explorerTab)explorerTab.close();nasNotice.querySelector('.nas-percent').textContent='No se completó';nasNotice.querySelector('.nas-status').textContent=error.name==='AbortError'?'El NAS tardó demasiado. Vuelve a pulsar el botón NAS para intentar de nuevo.':error.message}}
-    finally{{clearTimeout(timeout);nasBusy=false}}}},true);
+    function productionRowButton(row,order,client,project){{const clean=String(order||'').trim();if(!clean)return '—';const record=productionData?.rows.find(item=>Number(item.source_row)===Number(row)),indexOf=name=>productionData?.headers.findIndex(header=>String(header||'').trim().toUpperCase()===name)??-1,clientIndex=indexOf('NOMBRE DEL CLIENTE');client=client||((record&&clientIndex>=0)?record.values[clientIndex]:'');
+    // Enlace real (no JS) a /nas/abrir: el navegador lo trata como clic directo del usuario,
+    // así entrega search-ms:/smb: al Explorador/Finder de inmediato en vez de bloquearlo.
+    const url='/nas/abrir?order='+encodeURIComponent(clean)+'&client='+encodeURIComponent(client||'');
+    return '<a class="production-row-open" href="'+esc(url)+'" target="_blank" rel="noopener" data-order="'+esc(clean)+'" title="Abrir la carpeta de la orden '+esc(clean)+' en el Explorador de archivos / Finder">NAS <span>↗</span></a>'}}
     function freezeProductionColumns(){{const columnsRow=productionHead.querySelector('.production-columns'),rowHead=productionHead.querySelector('.production-row-head');if(!columnsRow||!rowHead)return;const bodyRows=[...productionBody.querySelectorAll('tr')],headers=[...columnsRow.children],deliveryIndex=headers.findIndex(header=>{{const title=header.textContent.trim().toUpperCase();return title.includes('DÍAS ENTREGA FINAL')||title.includes('DIAS ENTREGA FINAL')}}),freezeCount=deliveryIndex>=0?deliveryIndex+1:Math.min(10,headers.length),zoom=(Number(productionZoom.value)||100)/100,layoutWidth=element=>element.getBoundingClientRect().width/zoom;rowHead.classList.add('production-frozen');rowHead.style.left='0px';bodyRows.forEach(row=>{{const cell=row.children[0];if(cell){{cell.classList.add('production-frozen');cell.style.left='0px'}}}});let left=layoutWidth(rowHead);for(let index=0;index<freezeCount;index++){{const edge=index===freezeCount-1,header=headers[index];header.classList.add('production-frozen');header.classList.toggle('production-frozen-edge',edge);header.style.left=left+'px';bodyRows.forEach(row=>{{const cell=row.children[index+1];if(!cell)return;cell.classList.add('production-frozen');cell.classList.toggle('production-frozen-edge',edge);cell.style.left=left+'px'}});left+=layoutWidth(header)}}}}
     function syncProductionWidth(){{productionXScrollInner.style.width=productionTable.scrollWidth+'px'}}
    const processStatusHeaders=new Set({json.dumps(sorted(PROCESS_STATUS_HEADERS))});
