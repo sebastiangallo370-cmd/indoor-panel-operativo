@@ -42,7 +42,6 @@ DB_PATH = STATE_DIR / "jobs.sqlite3"
 security = HTTPBasic(auto_error=False)
 from app.cartera_api import cartera_router
 app = FastAPI(title="Asistente de Reprogramaciones", version="1.0.0")
-app.include_router(cartera_router)
 PRODUCTION_START_ROW = 726
 PRODUCTION_CACHE = {"at": 0.0, "data": None}
 PRODUCTION_CACHE_LOCK = threading.Lock()
@@ -177,6 +176,17 @@ def authenticate(request: Request):
     if request.url.path == "/":
         raise HTTPException(status_code=307, headers={"Location": "/login"})
     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Sesión no válida")
+
+
+# Cartera es un módulo interno: tanto su pantalla como sus datos requieren una
+# sesión válida del panel operativo.
+app.include_router(cartera_router, dependencies=[Depends(authenticate)])
+
+
+@app.get("/cartera", response_class=HTMLResponse)
+def cartera_directa(_: str = Depends(authenticate)):
+    """Abre Cartera directamente desde el dominio oficial."""
+    return HTMLResponse(Path(__file__).with_name("cartera_app.html").read_text(encoding="utf-8"))
 
 
 def update_job(job_id: int, state: str, detail: str = "", order_number: str = ""):
