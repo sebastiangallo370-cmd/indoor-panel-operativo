@@ -12,6 +12,8 @@ import sqlite3
 import threading
 import time
 import unicodedata
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FuturesTimeoutError
 from datetime import datetime, timedelta, timezone
 from html import escape
 from pathlib import Path
@@ -2157,6 +2159,34 @@ def prepare_nas_order(payload: dict = Body(...), _=Depends(authenticate)):
     return {"ok": True, "created": True, "folder": order_dir.name}
 
 
+# Un mount CIFS/VPN caído deja iterdir()/resolve() bloqueados indefinidamente (no lanzan
+# excepción, se cuelgan). Resolver en un hilo aparte con límite de tiempo evita que un NAS
+# sin responder deje la pestaña del usuario cargando para siempre.
+_nas_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="nas-resolve")
+
+
+def resolve_nas_order_path(root_raw: Path, clean: str, client_name: str):
+    root = root_raw.resolve()
+    target = None
+    if client_name:
+        try:
+            client_dir = resolve_nas_client(root, client_name)
+        except HTTPException as error:
+            if error.status_code != 404:
+                raise
+            client_dir = None
+        if client_dir:
+            for candidate in client_dir.iterdir():
+                if candidate.is_dir() and candidate.name.upper() == clean:
+                    resolved = candidate.resolve()
+                    if resolved.parent == client_dir:
+                        target = resolved
+                    break
+    if target is None:
+        target = find_nas_order(clean)
+    return root, target
+
+
 def nas_native_redirect(request: Request, parts: list) -> RedirectResponse:
     smb_url = "smb://192.168.0.120/NAS%20INDOOR/" + "/".join(quote(part, safe="") for part in parts)
     if "Windows" in request.headers.get("user-agent", ""):
@@ -2181,30 +2211,17 @@ def open_nas_order_direct(order: str, request: Request, client: str = "", _=Depe
     clean = str(order or "").strip().upper()
     if not re.fullmatch(r"[A-Z0-9_-]{2,40}", clean):
         return nas_error_page("Número de orden inválido.")
-    root = Path(CONFIG["ruta_nas_clientes"]).resolve()
-    if not root.is_dir():
-        return nas_error_page("El NAS no está disponible.")
+    # Path(...) por sí solo no toca el filesystem; el .resolve() (y todo lo demás que sí
+    # lo toca) ocurre dentro de resolve_nas_order_path, cubierto por el límite de tiempo.
+    root_raw = Path(CONFIG["ruta_nas_clientes"])
     client_name = legacy.sanitize(str(client or "").strip())
-    target = None
-    if client_name:
-        try:
-            client_dir = resolve_nas_client(root, client_name)
-        except HTTPException as error:
-            if error.status_code != 404:
-                raise
-            client_dir = None
-        if client_dir:
-            for candidate in client_dir.iterdir():
-                if candidate.is_dir() and candidate.name.upper() == clean:
-                    resolved = candidate.resolve()
-                    if resolved.parent == client_dir:
-                        target = resolved
-                    break
-    if target is None:
-        try:
-            target = find_nas_order(clean)
-        except HTTPException as error:
-            return nas_error_page(str(error.detail))
+    future = _nas_pool.submit(resolve_nas_order_path, root_raw, clean, client_name)
+    try:
+        root, target = future.result(timeout=8)
+    except FuturesTimeoutError:
+        return nas_error_page("El NAS está tardando demasiado en responder. Puede que la conexión con el NAS esté caída; avisa a soporte técnico.")
+    except HTTPException as error:
+        return nas_error_page(str(error.detail))
     relative = target.relative_to(root)
     return nas_native_redirect(request, ["CLIENTES", *relative.parts])
 
