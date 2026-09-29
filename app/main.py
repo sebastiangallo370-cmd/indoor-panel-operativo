@@ -73,6 +73,8 @@ def connect():
         db.execute("ALTER TABLE jobs ADD COLUMN progress INTEGER NOT NULL DEFAULT 0")
     if "input_summary" not in columns:
         db.execute("ALTER TABLE jobs ADD COLUMN input_summary TEXT")
+    if "nas_synced" not in columns:
+        db.execute("ALTER TABLE jobs ADD COLUMN nas_synced INTEGER NOT NULL DEFAULT 0")
     db.execute(
         """CREATE TABLE IF NOT EXISTS production_rows (
         source_row INTEGER PRIMARY KEY,
@@ -4101,3 +4103,112 @@ def download_xlsx(job_id: int, _=Depends(authenticate)):
 def jobs(_=Depends(authenticate)):
     with connect() as db:
         return [dict(row) for row in db.execute("SELECT * FROM jobs ORDER BY id DESC LIMIT 100")]
+
+
+# --- Worker API: endpoints para el PC local de la fábrica ---
+
+@app.get("/api/worker/pendientes")
+def worker_pending(_=Depends(authenticate)):
+    with connect() as db:
+        rows = db.execute(
+            "SELECT id, filename, order_number, status, detail, kind, created_at "
+            "FROM jobs WHERE status='COMPLETADO' AND nas_synced=0 ORDER BY id"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+@app.post("/api/worker/confirmar/{job_id}")
+def worker_confirm(job_id: int, _=Depends(authenticate)):
+    now = datetime.now(timezone.utc).isoformat()
+    with connect() as db:
+        db.execute("UPDATE jobs SET nas_synced=1, updated_at=? WHERE id=?", (now, job_id))
+    return {"ok": True}
+
+
+@app.get("/api/worker/archivos/{job_id}")
+def worker_job_files(job_id: int, _=Depends(authenticate)):
+    with connect() as db:
+        job = db.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()
+    if not job:
+        raise HTTPException(404, "Job no encontrado")
+    job_kind = job["kind"]
+    job_created = job["created_at"]
+    stamp = job_created[:10].replace("-", "") if job_created else ""
+    candidates = []
+    for subdir in ("reprogramaciones", "pedidos"):
+        base = UPLOAD_DIR / subdir
+        if not base.is_dir():
+            continue
+        for d in sorted(base.iterdir(), reverse=True):
+            if d.is_dir():
+                candidates.append(d)
+    result = []
+    for candidate in candidates:
+        for f in candidate.iterdir():
+            if f.is_file() and f.suffix.lower() in (".pdf", ".xlsx", ".xlsm", ".jpg", ".jpeg", ".png", ".webp"):
+                result.append({"name": f.name, "size": f.stat().st_size, "dir": candidate.name})
+        if result:
+            break
+    nas_root = Path(CONFIG.get("ruta_nas_clientes", ""))
+    order_num = job["order_number"] or ""
+    if order_num and nas_root.is_dir():
+        try:
+            order_dir = find_nas_order(order_num)
+            for f in order_dir.iterdir():
+                if f.is_file() and f.suffix.lower() in (".pdf", ".xlsx", ".xlsm", ".jpg", ".jpeg", ".png", ".webp"):
+                    result.append({"name": f.name, "size": f.stat().st_size, "source": "nas", "dir": str(order_dir)})
+        except HTTPException:
+            pass
+    return {"job_id": job_id, "order_number": order_num, "files": result}
+
+
+@app.get("/api/worker/descargar/{job_id}/{filename}")
+def worker_download(job_id: int, filename: str, _=Depends(authenticate)):
+    safe_name = Path(filename).name
+    if not safe_name or ".." in filename:
+        raise HTTPException(400, "Nombre de archivo inválido")
+    with connect() as db:
+        job = db.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()
+    if not job:
+        raise HTTPException(404, "Job no encontrado")
+    for subdir in ("reprogramaciones", "pedidos"):
+        base = UPLOAD_DIR / subdir
+        if not base.is_dir():
+            continue
+        for d in sorted(base.iterdir(), reverse=True):
+            candidate = d / safe_name
+            if candidate.is_file():
+                return FileResponse(candidate, filename=safe_name)
+    order_num = job["order_number"] or ""
+    if order_num:
+        nas_root = Path(CONFIG.get("ruta_nas_clientes", ""))
+        if nas_root.is_dir():
+            try:
+                order_dir = find_nas_order(order_num)
+                candidate = order_dir / safe_name
+                if candidate.is_file():
+                    return FileResponse(candidate, filename=safe_name)
+            except HTTPException:
+                pass
+    raise HTTPException(404, "Archivo no encontrado")
+
+
+@app.get("/api/worker/produccion-resumen")
+def worker_production_summary(_=Depends(authenticate)):
+    with connect() as db:
+        meta = {row["key"]: row["value"] for row in db.execute("SELECT key, value FROM production_meta")}
+        rows = db.execute("SELECT source_row, values_json FROM production_rows ORDER BY sort_order, source_row").fetchall()
+    headers = json.loads(meta.get("headers") or "[]")
+    result = []
+    for row in rows:
+        values = json.loads(row["values_json"])
+        order = values[4] if len(values) > 4 else ""
+        client = values[2] if len(values) > 2 else ""
+        project = values[3] if len(values) > 3 else ""
+        reference = values[6] if len(values) > 6 else ""
+        result.append({
+            "source_row": row["source_row"],
+            "order": order, "client": client,
+            "project": project, "reference": reference,
+        })
+    return {"updated_at": meta.get("updated_at", ""), "rows": result}

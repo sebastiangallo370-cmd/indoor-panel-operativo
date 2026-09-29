@@ -100,13 +100,13 @@ class IndoorWorker:
             )
             if resp.status_code in (302, 303) and "indoor_session" in resp.cookies:
                 self.logged_in = True
-                log.info("Sesi\u00f3n iniciada en el servidor")
+                log.info("Sesión iniciada en el servidor")
                 return True
             if resp.status_code in (302, 303):
                 for cookie in resp.cookies:
                     if "session" in cookie.name.lower():
                         self.logged_in = True
-                        log.info("Sesi\u00f3n iniciada en el servidor")
+                        log.info("Sesión iniciada en el servidor")
                         return True
             log.error("Login fallido (status %s)", resp.status_code)
             return False
@@ -118,7 +118,7 @@ class IndoorWorker:
         try:
             resp = self.session.get(f"{SERVIDOR_URL}{path}", timeout=30)
             if resp.status_code == 401 or resp.status_code == 307:
-                log.info("Sesi\u00f3n expirada, reintentando login...")
+                log.info("Sesión expirada, reintentando login...")
                 if self.login():
                     resp = self.session.get(f"{SERVIDOR_URL}{path}", timeout=30)
             if resp.status_code == 200:
