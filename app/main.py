@@ -173,7 +173,7 @@ def authenticate(request: Request):
     username = session_username(session_token)
     if username:
         return username
-    if request.url.path == "/":
+    if request.url.path in {"/", "/cartera"}:
         raise HTTPException(status_code=307, headers={"Location": "/login"})
     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Sesión no válida")
 
