@@ -442,6 +442,82 @@ def _table_rows_from_tsv(image_path: Path) -> list[dict]:
     return rows
 
 
+def _rows_from_row_scan(image_path: Path) -> list[dict]:
+    """Lee cada fila completa de la tabla en vez de celda por celda.
+
+    El motor de OCR reconoce muy mal una celda diminuta con una sola palabra
+    o letra aislada (probado con listados reales: fallaba incluso con tallas
+    tan simples como "L" sola), pero acierta casi siempre al leer la fila
+    completa, porque el propio borde de la celda se lee como "|" y separa
+    nombre de talla igual que una columna.
+    """
+    with Image.open(image_path) as source:
+        source = ImageOps.exif_transpose(source).convert("L")
+        width, height = source.size
+        if width < 40 or height < 40:
+            return []
+        pixels = source.load()
+        horizontal = []
+        for y in range(height):
+            dark = sum(1 for x in range(width) if pixels[x, y] < 90)
+            if dark > width * .55 and (not horizontal or y - horizontal[-1] > 2):
+                horizontal.append(y)
+        if not horizontal:
+            return []
+        if horizontal[0] > 2:
+            horizontal.insert(0, 0)
+        if horizontal[-1] < height - 4:
+            horizontal.append(height - 1)
+        if len(horizontal) < 3:
+            return []
+
+        def row_text(top: int, bottom: int) -> str:
+            if bottom - top < 7:
+                return ""
+            row = source.crop((0, top + 1, width, bottom - 1))
+            row = ImageOps.autocontrast(row).resize(
+                (max(1, row.width * 4), max(1, row.height * 4)), Image.Resampling.LANCZOS,
+            )
+            handle = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+            name = handle.name
+            handle.close()
+            try:
+                row.save(name)
+                result = subprocess.run(
+                    ["tesseract", name, "stdout", "-l", "spa+eng", "--psm", "7"],
+                    capture_output=True, text=True, timeout=30, check=False,
+                )
+                return re.sub(r"[ \t]+", " ", result.stdout or "").strip()
+            except OSError:
+                return ""
+            finally:
+                Path(name).unlink(missing_ok=True)
+
+        def parse_line(line: str) -> dict | None:
+            # El borde de la celda casi siempre se lee como "|", pero a veces
+            # el OCR se lo salta y junta nombre y talla sin separador visible
+            # ("Mama de Matthew M"). Tratar cualquier borde como espacio y
+            # tomar la última palabra como talla cubre ambos casos por igual.
+            words = re.sub(r"[|}{\[\]]+", " ", line).split()
+            if len(words) < 2:
+                return None
+            talla = _clean_size(words[-1])
+            if not talla:
+                return None
+            name_part = re.sub(r"^[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+", "", " ".join(words[:-1]))
+            name = _clean_name(name_part)
+            if not name:
+                return None
+            return {"nombre": name, "talla": talla, "numero": "", "genero": "", "observaciones": ""}
+
+        rows = []
+        for index in range(len(horizontal) - 1):
+            parsed = parse_line(row_text(horizontal[index], horizontal[index + 1]))
+            if parsed:
+                rows.append(parsed)
+        return rows if len(rows) >= 3 else []
+
+
 def _mockup_metadata(image_path: Path) -> dict:
     result = subprocess.run(
         ["tesseract", str(image_path), "stdout", "-l", "spa+eng", "--psm", "3"],
@@ -716,6 +792,12 @@ def _data_from_image(image_path: Path) -> dict:
     parsed_rows = _rows_from_cells(_grid_cells(image_path))
     if parsed_rows:
         parsed_rows = _merge_table_readings(parsed_rows, _table_rows_from_vision(image_path))
+    # Leer celda por celda falla seguido con texto corto (una sola talla como
+    # "L" aislada es casi ilegible para el motor de OCR); leer la fila entera
+    # sí funciona porque tiene más contexto y el borde de la celda actúa como
+    # separador de columnas.
+    if not parsed_rows:
+        parsed_rows = _rows_from_row_scan(image_path)
     if not parsed_rows:
         parsed_rows = _table_rows_from_tsv(image_path)
         if parsed_rows:
@@ -737,6 +819,47 @@ def _data_from_image(image_path: Path) -> dict:
     data["OCR"] = ocr
     data["FILAS"] = parsed_rows
     return data
+
+
+def _rows_from_content(clean: list[list[str]]) -> list[dict]:
+    """Detecta nombre/talla por su contenido cuando no hay encabezado legible.
+
+    Se usa como respaldo de _rows_from_cells: si ninguna fila coincide con
+    los alias conocidos (encabezado ilegible por OCR, fondo de color, ícono
+    de filtro, etc.), se identifica la columna de talla por tener valores de
+    talla válidos y la de nombre por ser la columna con más texto.
+    """
+    width = max((len(row) for row in clean), default=0)
+    if width < 2 or not clean:
+        return []
+    size_hits = [
+        sum(1 for row in clean if len(row) > col and _clean_size(row[col]))
+        for col in range(width)
+    ]
+    talla_col = max(range(width), key=lambda col: size_hits[col])
+    threshold = max(3, len(clean) * 0.4)
+    if size_hits[talla_col] < threshold:
+        return []
+    text_hits = [
+        sum(1 for row in clean if len(row) > col and re.search(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]{2,}", row[col]))
+        if col != talla_col else -1
+        for col in range(width)
+    ]
+    nombre_col = max(range(width), key=lambda col: text_hits[col])
+    if text_hits[nombre_col] <= 0:
+        return []
+    # Si la primera fila ya trae una talla válida, es un dato y no un
+    # encabezado; de lo contrario se descarta como fila de títulos.
+    first_size = _clean_size(clean[0][talla_col]) if len(clean[0]) > talla_col else ""
+    start = 0 if first_size else 1
+    result = []
+    for row in clean[start:]:
+        name = _clean_name(row[nombre_col]) if len(row) > nombre_col else ""
+        size = _clean_size(row[talla_col]) if len(row) > talla_col else ""
+        if not size:
+            continue
+        result.append({"nombre": name, "talla": size, "numero": "", "genero": "", "observaciones": ""})
+    return result
 
 
 def _rows_from_cells(rows: list[list]) -> list[dict]:
@@ -783,7 +906,13 @@ def _rows_from_cells(rows: list[list]) -> list[dict]:
             header_index, columns = index, found
             break
     if header_index is None:
-        return []
+        # Encabezados con fondo de color o íconos de filtro (los que trae
+        # cualquier tabla exportada de una app o una hoja de cálculo) suelen
+        # salir en blanco al leerlos por OCR, así que nunca coinciden con un
+        # alias conocido. En vez de descartar todo el listado, se identifica
+        # la columna de talla por su contenido (valores de talla válidos) y
+        # la de nombre por ser la columna con más texto alfabético.
+        return _rows_from_content(clean)
     # Género suele estar en un segundo nivel de encabezados (MASCULINO /
     # NIÑO y FEMENINO). Se detecta aparte para conservarlo fila por fila.
     for header_row in clean[header_index:min(len(clean), header_index + 3)]:
