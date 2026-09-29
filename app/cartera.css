@@ -238,3 +238,38 @@ dialog::backdrop { background: rgba(0,0,0,0.5); }
 .alert-card h5 { margin: 0 0 8px; font-size: 13px; color: #92400e; }
 .alert-card p { margin: 0; font-size: 12px; color: #b45309; }
 .alert-card ul { padding-left: 20px; margin: 8px 0 0; font-size: 11px; color: #92400e; font-family: 'JetBrains Mono', monospace; }
+
+/* Identidad del panel operativo de INDOOR. Se mantiene la semántica de los
+   estados financieros, pero el módulo comparte la misma interfaz oscura. */
+:root { --bg-page:#071009; --bg-card:#111a12; --text-main:#edf4e9; --text-muted:#a8b5a5; --border:#2c3b2c; --c-topbar:#070c08; --c-primary:#cef441; --c-green:#63d49a; }
+body { min-height:100vh; background:radial-gradient(circle at 75% 0,#192610 0,#071009 48%); color:var(--text-main); }
+.topbar { padding:18px clamp(18px,4vw,54px); background:#070c08; border-bottom:1px solid #263322; }
+.brand strong { font-size:26px; font-style:italic; letter-spacing:-1px; }
+.brand .muted { color:#cbd7c5; font-weight:700; }
+.status-area { color:#dfe8db; flex-wrap:wrap; justify-content:flex-end; }
+.indicator.green { color:var(--c-primary); font-weight:700; }
+.pill-btn { background:#1e2d18; border:1px solid #526a37; color:#e5f6ce; padding:9px 14px; }
+.tabs { padding:0 clamp(14px,4vw,52px); gap:4px; background:#0b120c; border-bottom:1px solid #263322; overflow-x:auto; }
+.tab-btn { color:#b7c4b1; padding:15px 18px; font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; white-space:nowrap; }
+.tab-btn:hover,.tab-btn.active { color:#d8fa52; background:#1b2a13; border-bottom-color:#d8fa52; }
+.cartera-hero { padding:30px clamp(20px,4vw,54px) 20px; max-width:1280px; margin:auto; }
+.cartera-hero p { margin:0 0 7px; color:#cef441; font-size:11px; font-weight:900; letter-spacing:.13em; }
+.cartera-hero h1 { margin:0; font-size:clamp(28px,4vw,44px); letter-spacing:-.04em; }
+.cartera-hero span { display:block; margin-top:8px; color:var(--text-muted); }
+.filters { max-width:1280px; margin:0 auto 22px; padding:16px 20px; background:#111a12; border:1px solid var(--border); border-radius:14px; }
+.filter-group label,.kpi-title { color:#a8b5a5; }
+.filter-group input,.filter-group select,.form-group input,.form-group select { color:#edf4e9; background:#172217; border-color:#3a4c37; }
+main { max-width:1280px; margin:auto; padding:0 20px 48px; }
+.card,.aging-bar-container,.chart-card,.kpi-card,.table-wrap { background:linear-gradient(145deg,#121d13,#0e170f); border-color:#2d402d; box-shadow:0 12px 30px rgba(0,0,0,.16); }
+.card,.aging-bar-container,.chart-card,.kpi-card { border-radius:14px; }
+.kpi-card { border-top:2px solid #cef441; }
+.kpi-value { color:#efffd5; font-size:22px; }
+.btn-primary { background:#cef441; color:#14200f; font-weight:850; }
+.btn-secondary { background:#1b291a; border-color:#465f3f; color:#e9f4e4; font-weight:700; }
+th { background:#162216; color:#aebdaa; border-bottom-color:#304430; }
+td { border-bottom-color:#263927; color:#e2ebde; }
+.bar-track { background:#253325; }.bar-fill.blue { background:#cef441; }.bar-fill.magenta { background:#f05c9c; }
+.dropzone { background:#101a10; border-color:#617d43; color:#dcebd5; }
+.alert-card { background:#2d2512; border-color:#80651e; }.alert-card h5 { color:#f7cf60; }.alert-card p,.alert-card ul { color:#e7d39b; }
+dialog { background:#111a12; color:#edf4e9; border:1px solid #496143; }
+@media (max-width:800px) { .topbar{align-items:flex-start;gap:14px;flex-direction:column}.status-area{justify-content:flex-start}.kpi-grid{grid-template-columns:repeat(2,1fr)}.charts-grid{grid-template-columns:1fr}.filters{margin-left:12px;margin-right:12px}.cartera-hero{padding-top:22px} }
