@@ -872,11 +872,15 @@ def _data_from_document(path: Path) -> dict:
         delimiter = "\t" if suffix == ".tsv" else None
         if delimiter:
             tables.append(list(csv.reader(io.StringIO(text), delimiter=delimiter)))
+    # No basta con la primera hoja que produzca alguna fila: un Excel con
+    # portada/datos del cliente en la primera pestaña puede disparar una
+    # coincidencia falsa de encabezado y dejar sin leer la pestaña real con
+    # el listado completo. Se usa la que aporta más filas.
     rows = []
     for table in tables:
-        rows = _rows_from_cells(table)
-        if rows:
-            break
+        candidate = _rows_from_cells(table)
+        if len(candidate) > len(rows):
+            rows = candidate
     if not rows:
         rows = _person_rows(text)
     data = {key: "" for key in ("CLIENTE", "PROYECTO", "REFERENCIA", "CANTIDAD", "GENERO", "TALLAS", "DESCRIPCION")}
