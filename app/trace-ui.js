@@ -183,9 +183,6 @@
     return data;
   }
   if (typeof module !== 'undefined' && module.exports) { module.exports = { key, noteInitials, noteAttribution, noteSignature, dateValue, groupsFor, summarize, matches, processForProfile, processQueueSummary, queueMatches, summaryForView, paginate, orderByDelivery, addBusinessDays, applyDefaultDeliveryDates }; return; }
-  // Inventory is postponed: remove only its interface, preserving the catalog.
-  document.querySelectorAll('[data-kind="inventario"], [data-panel="inventario"]').forEach(element => element.remove());
-  document.body.classList.remove('inventory-mode');
   if (typeof traceCards === 'undefined') return;
 
   // Commercial assistants are workspaces, not landing pages. Keep controls in view
