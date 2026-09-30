@@ -42,13 +42,9 @@ jobs:
           test -n "$DEPLOY_KEY" || { echo 'ERROR: INDOOR_DEPLOY_KEY está vacío'; exit 1; }
           test -n "$KNOWN_HOSTS" || { echo 'ERROR: INDOOR_KNOWN_HOSTS está vacío'; exit 1; }
           umask 077
-          echo "--- Decodificando clave ---"
-          if printf '%s' "$DEPLOY_KEY" | base64 -d > "$RUNNER_TEMP/indoor_key" 2>&1; then
-            echo "OK: base64 decode exitoso"
-          else
-            echo "ERROR: base64 decode falló — revisa INDOOR_DEPLOY_KEY"
-            exit 1
-          fi
+          echo "--- Escribiendo clave ---"
+          printf '%s\n' "$DEPLOY_KEY" > "$RUNNER_TEMP/indoor_key"
+          echo "OK: clave escrita"
           chmod 600 "$RUNNER_TEMP/indoor_key"
           echo "--- Huella de la clave privada ---"
           ssh-keygen -l -f "$RUNNER_TEMP/indoor_key" || echo "ERROR: clave privada inválida"
@@ -65,7 +61,7 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
-          printf '%s' "$DEPLOY_KEY" | base64 -d > "$RUNNER_TEMP/indoor_key"
+          printf '%s\n' "$DEPLOY_KEY" > "$RUNNER_TEMP/indoor_key"
           chmod 600 "$RUNNER_TEMP/indoor_key"
           printf '%s\n' "$KNOWN_HOSTS" > "$RUNNER_TEMP/indoor_hosts"
           trap 'rm -f "$RUNNER_TEMP/indoor_key" "$RUNNER_TEMP/indoor_hosts"' EXIT
