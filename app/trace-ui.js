@@ -627,6 +627,22 @@
         if (!notes.some(([k,v]) => String(v).trim() === observation.trim())) notePanel.prepend(important);
         else important.remove();
       }
+      const activeGroup = progressSummary.focus;
+      const activeColumn = activeGroup?.start + 1;
+      const activeValue = activeColumn ? String(row.values[activeColumn - 1] || '') : '';
+      const activeKey = key(activeValue);
+      const activeClosed = activeKey === 'N/A' || !!dateValue(activeValue);
+      const quickActions = document.createElement('section');
+      quickActions.className = 'trace-card-quick-actions';
+      quickActions.setAttribute('aria-label', 'Acciones de producción');
+      quickActions.innerHTML = '<div class="trace-quick-action-head"><span>ACCIONES DE PRODUCCIÓN</span><strong>' + esc(activeGroup?.label || 'Sin proceso activo') + '</strong></div><div class="trace-quick-action-grid">' + [
+        ['start', '▶', 'Iniciar / retomar', 'Registrar el comienzo', activeKey === 'P' || !activeColumn],
+        ['rework', '↺', 'Reproceso', 'Registrar observaciones', !activeColumn],
+        ['finish', '✓', 'Terminar proceso', 'Cerrar y avanzar', activeClosed || !activeColumn],
+        ['na', '—', 'No aplica', 'No requiere este proceso', activeClosed || !activeColumn],
+        ['clear', '⟲', 'Cambiar estado', 'Vaciar el proceso', !activeKey || !activeColumn]
+      ].map(([action, icon, title, hint, disabled]) => '<button type="button" class="trace-quick-' + action + '" data-card-operation="' + action + '" data-card-row="' + row.source_row + '" data-card-column="' + (activeColumn || '') + '"' + (disabled ? ' disabled' : '') + '><i aria-hidden="true">' + icon + '</i><span><strong>' + title + '</strong><small>' + hint + '</small></span></button>').join('') + '</div>';
+      card.querySelector('.trace-card-actions').after(quickActions);
       const disclosure = document.createElement('div');
       const facts = document.createElement('dl');
       facts.className = 'trace-primary-facts';
@@ -713,6 +729,41 @@
       if (reworkAction && previousAction) reworkAction.innerHTML = previousAction;
       operatorDialog.classList.remove('rework-entry');
     }, { once: true });
+  }, true);
+  traceCards.addEventListener('click', async event => {
+    const button = event.target.closest('[data-card-operation]');
+    if (!button || button.disabled) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const rowId = Number(button.dataset.cardRow), column = Number(button.dataset.cardColumn);
+    const action = button.dataset.cardOperation;
+    const row = productionData?.rows.find(item => Number(item.source_row) === rowId);
+    if (!row || !column) return;
+    let reason = '';
+    if (action === 'rework') {
+      reason = prompt('REPROCESO · Escribe las observaciones (obligatorio):', '');
+      if (reason === null) return;
+      reason = reason.trim();
+      if (!reason || reason.length > 2000) { alert('Escribe una observación entre 1 y 2000 caracteres.'); return; }
+    }
+    if (action === 'clear' && !confirm('¿Cambiar el estado de este proceso a pendiente?')) return;
+    const label = button.querySelector('strong')?.textContent || 'acción';
+    button.disabled = true;
+    try {
+      const response = await fetch('/api/produccion/operacion', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ row: rowId, column, action, responsible: user.name, reason, expected: String(row.values[column - 1] || '') })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.detail || 'No se pudo registrar la acción');
+      if (data.values) row.values = data.values;
+      productionStatus.textContent = '✓ ' + label + ' registrado en la orden ' + traceField(row, 'ORDEN');
+      renderProduction();
+      renderTraceCards();
+    } catch (error) {
+      alert(error.message);
+      button.disabled = false;
+    }
   }, true);
   traceCards.addEventListener('click', event => {
     const button = event.target.closest('[data-card-nas]');
@@ -1559,6 +1610,12 @@
   html body.production-mode .trace-order-rework.has-rework{border-color:#ef7370!important;background:#43201e!important;color:#ffd7d3!important}
   html body.production-mode .trace-order-rework:hover{background:#354237!important;color:#f3faef!important}.trace-order-rework.has-rework:hover{background:#ef7370!important;color:#32110f!important}
   html body.production-mode .trace-order-rework:focus-visible{outline:2px solid #ffd2ce;outline-offset:2px}
+  html body.production-mode .trace-card-quick-actions{margin-top:10px;padding:10px;border:1px solid #344436;border-radius:12px;background:#101711}
+  html body.production-mode .trace-quick-action-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;color:#9db198;font:800 9px/1 Arial;letter-spacing:.07em}
+  html body.production-mode .trace-quick-action-head strong{color:#dbe9d6;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  html body.production-mode .trace-quick-action-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  html body.production-mode .trace-quick-action-grid button{display:flex;align-items:center;gap:7px;min-width:0;min-height:44px;padding:7px 8px!important;border:1px solid #526154!important;border-radius:9px;background:#1b281e!important;color:#e4eee0!important;text-align:left;font:700 10px/1.2 Arial!important;white-space:normal!important;box-shadow:none}
+  html body.production-mode .trace-quick-action-grid button i{font:18px/1 Arial;font-style:normal}.trace-quick-action-grid button span{display:grid;gap:2px;min-width:0}.trace-quick-action-grid button strong{font-size:10px}.trace-quick-action-grid button small{font-size:8px;color:#b8c9b4}.trace-quick-action-grid .trace-quick-start{background:#f0bc69!important;border-color:#f0bc69!important;color:#2f220a!important}.trace-quick-action-grid .trace-quick-start small{color:#4b3814}.trace-quick-action-grid .trace-quick-rework{background:#472826!important;border-color:#9c635d!important;color:#ffd0c9!important}.trace-quick-action-grid .trace-quick-finish{background:#d0ec93!important;border-color:#d0ec93!important;color:#1f2e14!important}.trace-quick-action-grid .trace-quick-finish small{color:#344526}.trace-quick-action-grid button:disabled{opacity:.38;filter:saturate(.4)}
   html body.production-mode .trace-stage{font-size:11px;padding:3px 6px}
   html body.production-mode .trace-client{font-size:13px!important;line-height:1.35;margin:7px 0 0}
   html body.production-mode .trace-card .trace-project{font-size:12px;line-height:1.35;margin:4px 0;color:#c4cec7;overflow-wrap:anywhere}
@@ -1607,7 +1664,7 @@
   html body.production-mode .trace-card .trace-note-alert .trace-note-delete:disabled{opacity:.5;cursor:progress}
   html body.production-mode .trace-card .trace-note-text{min-width:0;padding-top:5px;overflow-wrap:anywhere}
   @media(max-width:1050px) and (min-width:601px){html body.production-mode .trace-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
-  @media(max-width:600px){html body.production-mode .trace-cards{grid-template-columns:1fr}html body.production-mode .trace-card .trace-client{font-size:14px!important}html body.production-mode .trace-order-rework{min-height:30px;padding:6px 9px;font-size:10px!important}}
+  @media(max-width:600px){html body.production-mode .trace-cards{grid-template-columns:1fr}html body.production-mode .trace-card .trace-client{font-size:14px!important}html body.production-mode .trace-order-rework{min-height:30px;padding:6px 9px;font-size:10px!important}html body.production-mode .trace-quick-action-grid button{min-height:48px;font-size:11px!important}}
 
   /* ===== Capa de acabado profesional (Producción) =====
      Borde neutro con una franja superior de color según el estado (en vez de marcos gruesos),
