@@ -53,10 +53,73 @@ FAVICON_SVG_FILE = Path(__file__).resolve().parent / "favicon.svg"
 
 REWORK_MODULE_SCRIPT = """<script>(()=>{const nav=document.querySelector('#news-toggle')?.closest('.nav-group');if(!nav)return;const panel=document.createElement('section');panel.className='panel';panel.dataset.panel='reproceso';panel.innerHTML='<div class="rework-module"><header><div><span>CONTROL DE CALIDAD</span><h2>REPROCESO</h2><p>Órdenes que requieren corrección y su motivo registrado.</p></div><button type="button" id="rework-refresh">Actualizar</button></header><div id="rework-summary" class="rework-summary">Cargando reprocesos…</div><div id="rework-cards" class="rework-cards"></div></div>';document.querySelector('main').appendChild(panel);const group=document.createElement('div');group.className='nav-group';group.innerHTML='<button class="tab" data-kind="reproceso" type="button"><span class="nav-icon">RP</span><strong>REPROCESO</strong></button>';nav.insertAdjacentElement('afterend',group);const css=document.createElement('style');css.textContent='.rework-module{display:grid;gap:16px;max-width:1440px;margin:auto}.rework-module>header{display:flex;justify-content:space-between;gap:16px;align-items:start;padding:24px;border:1px solid var(--line);border-radius:18px;background:linear-gradient(135deg,#241515,#11150f)}.rework-module header span{color:#ff9c99;font-size:.68rem;font-weight:900;letter-spacing:.12em}.rework-module h2{margin:5px 0;font-size:1.7rem}.rework-module p{margin:0;color:var(--muted)}.rework-module button{width:auto;padding:9px 14px;background:#ef7370;color:#251111;border:0;border-radius:9px;font-weight:900}.rework-summary{padding:13px 16px;border:1px solid rgba(239,115,112,.25);border-radius:12px;background:rgba(239,115,112,.07);color:#ffd2ce}.rework-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(265px,1fr));gap:13px}.rework-card{display:grid;gap:12px;padding:17px;border:1px solid rgba(239,115,112,.26);border-top:3px solid #ef7370;border-radius:15px;background:linear-gradient(150deg,#211817,#10140f)}.rework-card header{display:flex;justify-content:space-between;gap:8px}.rework-card small{color:#b8c4b2;font-size:.68rem}.rework-card h3{margin:4px 0;font-size:1rem}.rework-card p{margin:0;color:#e3ebe0;white-space:pre-wrap;line-height:1.45}.rework-card footer{display:flex;justify-content:space-between;gap:8px;color:#aeb9a6;font-size:.7rem}.rework-empty{padding:42px;text-align:center;border:1px dashed #6f403d;border-radius:14px;color:#b7c0b3}@media(max-width:620px){.rework-module>header{padding:17px;flex-direction:column}.rework-module>header button{width:100%}.rework-cards{grid-template-columns:1fr}}';document.head.appendChild(css);const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));async function load(){const box=document.querySelector('#rework-cards'),summary=document.querySelector('#rework-summary');try{const response=await fetch('/api/reproceso',{cache:'no-store'}),rows=await response.json();if(!response.ok)throw Error(rows.detail||'No fue posible cargar');summary.textContent=rows.length+' reproceso'+(rows.length===1?' activo':'s')+' registrado'+(rows.length===1?'':'s');box.innerHTML=rows.map(row=>'<article class="rework-card"><header><div><small>ORDEN</small><h3>'+esc(row.order||'Sin orden')+'</h3><small>'+esc(row.client||'Sin cliente')+'</small></div><small>'+new Date(row.created_at).toLocaleString('es-CO',{dateStyle:'medium',timeStyle:'short'})+'</small></header><div><small>PROCESO</small><p>'+esc(row.process||'Sin proceso')+'</p></div><div><small>MOTIVO</small><p>'+esc(row.reason)+'</p></div><footer><span>Registró: '+esc(row.username)+'</span><span>Fila '+esc(row.source_row)+'</span></footer></article>').join('')||'<div class="rework-empty">No hay reprocesos registrados.</div>'}catch(error){summary.textContent=error.message}}group.querySelector('button').onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===group.querySelector('button')));document.querySelectorAll('.panel').forEach(x=>x.classList.toggle('active',x===panel));document.body.classList.remove('inicio-mode','inventory-mode','production-mode','schedule-mode','operarios-mode','cartera-mode');load()};document.querySelector('#rework-refresh').onclick=load})();</script>"""
 
+REWORK_CONTROLS_SCRIPT = """<script>
+(() => {
+  const refresh = document.getElementById('rework-refresh');
+  const board = document.getElementById('rework-cards');
+  const tab = document.querySelector('.tab[data-kind="reproceso"]');
+  if (!refresh || !board || !tab) return;
+  let rows = [];
+  const decorate = async () => {
+    try {
+      const response = await fetch('/api/reproceso', {cache: 'no-store'});
+      if (!response.ok) return;
+      rows = await response.json();
+      const cards = [...board.querySelectorAll('.rework-card')];
+      cards.forEach((card, index) => {
+        const row = rows[index];
+        if (!row || card.querySelector('.rework-card-actions')) return;
+        const actions = document.createElement('div');
+        actions.className = 'rework-card-actions';
+        actions.innerHTML = '<button type="button" data-rework-edit="' + row.id + '">Editar</button><button type="button" data-rework-delete="' + row.id + '">Eliminar</button>';
+        card.appendChild(actions);
+      });
+    } catch (_) {}
+  };
+  const afterLoad = () => setTimeout(decorate, 350);
+  tab.addEventListener('click', afterLoad);
+  refresh.addEventListener('click', afterLoad);
+  const observer = new MutationObserver(() => { if (board.children.length) decorate(); });
+  observer.observe(board, {childList: true});
+  board.addEventListener('click', async event => {
+    const edit = event.target.closest('[data-rework-edit]');
+    const remove = event.target.closest('[data-rework-delete]');
+    const button = edit || remove;
+    if (!button) return;
+    const id = Number(button.dataset.reworkEdit || button.dataset.reworkDelete);
+    const row = rows.find(item => Number(item.id) === id);
+    if (!id || !row) return;
+    if (edit) {
+      const reason = prompt('Editar observación de reproceso:', row.reason || '');
+      if (reason === null) return;
+      const value = reason.trim();
+      if (!value || value.length > 2000) { alert('Escribe una observación entre 1 y 2000 caracteres.'); return; }
+      button.disabled = true;
+      try {
+        const response = await fetch('/api/produccion/operaciones/evento/' + id, {method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({reason: value})});
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw Error(data.detail || 'No fue posible editar el reproceso');
+        refresh.click();
+      } catch (error) { alert(error.message); button.disabled = false; }
+      return;
+    }
+    if (!confirm('¿Eliminar este registro de reproceso?')) return;
+    button.disabled = true;
+    try {
+      const response = await fetch('/api/produccion/operaciones/evento/' + id, {method: 'DELETE'});
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw Error(data.detail || 'No fue posible eliminar el reproceso');
+      refresh.click();
+    } catch (error) { alert(error.message); button.disabled = false; }
+  });
+})();
+</script>"""
+
 REWORK_LAYOUT_STYLE = """<style>
 body:has(.panel[data-panel='reproceso'].active) main{width:100%!important;max-width:none!important;margin-left:0!important;margin-right:0!important;padding-left:clamp(18px,4vw,76px)!important;padding-right:clamp(18px,4vw,76px)!important}
 .panel[data-panel='reproceso'],.panel[data-panel='reproceso'].active,.rework-module{width:100%!important;max-width:none!important}
 .rework-module{margin:0!important;gap:20px!important}.rework-module>header{justify-content:flex-end!important;min-height:0!important;padding:0!important;border:0!important;border-radius:0!important;background:transparent!important}.rework-module>header>div{display:none!important}.rework-module>header button{margin-left:auto!important}.tab[data-kind='reproceso'] .nav-icon{display:none!important}.rework-cards{grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:16px!important}.rework-card{min-height:260px;padding:20px!important}@media(max-width:1050px){.rework-cards{grid-template-columns:repeat(2,minmax(0,1fr))!important}}@media(max-width:620px){body:has(.panel[data-panel='reproceso'].active) main{padding-left:12px!important;padding-right:12px!important}.rework-module>header{padding:0!important}.rework-cards{grid-template-columns:1fr!important}.rework-card{min-height:0}}
+.rework-card-actions{display:flex;gap:8px;margin-top:auto}.rework-card-actions button{flex:1;width:auto!important;padding:8px 10px!important;border:1px solid #6e875c!important;border-radius:8px!important;background:#233321!important;color:#e4f5d4!important;font-size:12px!important}.rework-card-actions button[data-rework-delete]{border-color:#a85a55!important;background:#3a201e!important;color:#ffc4bd!important}
 </style>"""
 
 PERSONAL_NOTES_SCRIPT = """
@@ -1691,7 +1754,19 @@ def list_rework_module(_=Depends(authenticate)):
         order_index = next((i for i, value in enumerate(headers) if str(value).strip().upper() == "ORDEN"), -1)
         client_index = next((i for i, value in enumerate(headers) if str(value).strip().upper() in {"NOMBRE DEL CLIENTE", "CLIENTE"}), -1)
         values_by_row = {row["source_row"]: json.loads(row["values_json"]) for row in db.execute("SELECT source_row, values_json FROM production_rows")}
-        events = db.execute("SELECT source_row, process, reason, username, created_at FROM production_rework ORDER BY created_at DESC, id DESC LIMIT 250").fetchall()
+        events = db.execute("""
+            SELECT event.id, event.source_row, event.column_number,
+                   COALESCE(rework.process, '') AS process, event.reason, event.username, event.created_at
+            FROM production_operator_events AS event
+            LEFT JOIN production_rework AS rework
+              ON rework.source_row=event.source_row
+             AND rework.column_number=event.column_number
+             AND rework.username=event.username
+             AND rework.created_at=event.created_at
+            WHERE event.action='rework'
+            ORDER BY event.created_at DESC, event.id DESC
+            LIMIT 250
+        """).fetchall()
     result = []
     for event in events:
         values = values_by_row.get(event["source_row"], [])
@@ -3943,7 +4018,7 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
 `;document.head.appendChild(traceFigmaStyle);setTraceView();
     const commercialGroup=commercialToggle.closest('.nav-group');commercialGroup.classList.add('collapsed');const productionToggle=document.getElementById('production-toggle');if(productionToggle)productionToggle.addEventListener('click',()=>{{const g=productionToggle.closest('.nav-group');g.classList.toggle('collapsed');if(!g.classList.contains('collapsed'))g.querySelector('.nav-children .tab')?.click()}});
     setTimeout(()=>{{if(!document.querySelector('.panel.active'))document.querySelector('.tab[data-kind="inicio"]')?.click()}},0);
-    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}<script src='/api/cartera/cartera.js?v=20261001-14'></script><script src='/trace-ui.js?v=20261001-15'></script><script src='/home-dashboard.js?v=20261001-6'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);</script></body></html>"""
+    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}<script src='/api/cartera/cartera.js?v=20261001-14'></script><script src='/trace-ui.js?v=20261001-16'></script><script src='/home-dashboard.js?v=20261001-6'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);</script></body></html>"""
 
 
 def ordered_mockup_uploads(extras, slots):

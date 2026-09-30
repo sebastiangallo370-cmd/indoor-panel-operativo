@@ -696,6 +696,66 @@
       delBtn.disabled = false;
     }
   });
+  const reworkEntryDialog = document.createElement('dialog');
+  reworkEntryDialog.className = 'trace-rework-entry';
+  reworkEntryDialog.innerHTML = '<form method="dialog" class="trace-rework-form"><button type="button" class="trace-rework-close" aria-label="Cerrar">×</button><span class="trace-eyebrow">REGISTRO DE REPROCESO</span><h2>Registrar reproceso</h2><p>Confirma la información de la orden y escribe la observación.</p><div class="trace-rework-facts"></div><label class="trace-rework-observation">Observación<textarea name="reason" required maxlength="2000" rows="5" placeholder="Describe qué se debe corregir…"></textarea><small>0 / 2000</small></label><div class="trace-rework-actions"><button type="button" value="cancel">Cancelar</button><button type="submit">Guardar reproceso</button></div><p class="trace-rework-message" role="status"></p></form>';
+  document.body.appendChild(reworkEntryDialog);
+  const reworkForm = reworkEntryDialog.querySelector('form');
+  const reworkReason = reworkForm.elements.reason;
+  const reworkMessage = reworkEntryDialog.querySelector('.trace-rework-message');
+  const updateReworkCount = () => { reworkReason.nextElementSibling.textContent = reworkReason.value.length + ' / 2000'; };
+  reworkReason.addEventListener('input', updateReworkCount);
+  reworkEntryDialog.querySelector('.trace-rework-close').onclick = () => reworkEntryDialog.close();
+  reworkForm.querySelector('[value="cancel"]').onclick = () => reworkEntryDialog.close();
+  function openReworkEntry(rowId) {
+    const row = productionData?.rows.find(item => Number(item.source_row) === Number(rowId));
+    if (!row) return;
+    const summary = summarize(productionData, row, processStatusHeaders, user, scheduleToday());
+    const process = summary.focus || summary.groups.find(group => !isExternal(group));
+    if (!process || process.start === undefined) { alert('No se encontró un proceso para registrar el reproceso.'); return; }
+    reworkForm.dataset.row = String(row.source_row);
+    reworkForm.dataset.column = String(process.start + 1);
+    reworkForm.dataset.expected = String(row.values[process.start] || '');
+    const facts = [
+      ['Nombre cliente', traceField(row, 'NOMBRE DEL CLIENTE') || 'Sin cliente'],
+      ['Proyecto', traceField(row, 'NOMBRE PROYECTO') || 'Sin proyecto'],
+      ['Orden', traceField(row, 'ORDEN') || 'Sin orden'],
+      ['Referencia', traceField(row, 'REFERENCIA') || 'Sin referencia'],
+      ['Usuario', user.name || 'Usuario actual'],
+      ['Proceso', process.label]
+    ];
+    reworkEntryDialog.querySelector('.trace-rework-facts').innerHTML = facts.map(([label, value]) => '<div><small>' + esc(label) + '</small><strong>' + esc(value) + '</strong></div>').join('');
+    reworkReason.value = '';
+    updateReworkCount();
+    reworkMessage.textContent = '';
+    reworkEntryDialog.showModal();
+    reworkReason.focus();
+  }
+  reworkForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    const rowId = Number(reworkForm.dataset.row), column = Number(reworkForm.dataset.column);
+    const reason = reworkReason.value.trim();
+    if (!reason || reason.length > 2000) { reworkMessage.textContent = 'Escribe una observación entre 1 y 2000 caracteres.'; reworkReason.focus(); return; }
+    const row = productionData?.rows.find(item => Number(item.source_row) === rowId);
+    if (!row || !column) return;
+    const submit = reworkForm.querySelector('[type="submit"]');
+    submit.disabled = true;
+    reworkMessage.textContent = 'Guardando reproceso…';
+    try {
+      const response = await fetch('/api/produccion/operacion', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ row: rowId, column, action: 'rework', responsible: user.name, reason, expected: reworkForm.dataset.expected || String(row.values[column - 1] || '') })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.detail || 'No se pudo registrar el reproceso');
+      if (data.values) row.values = data.values;
+      productionStatus.textContent = '✓ Reproceso registrado en la orden ' + traceField(row, 'ORDEN');
+      reworkEntryDialog.close();
+      renderProduction();
+      renderTraceCards();
+    } catch (error) { reworkMessage.textContent = error.message; }
+    finally { submit.disabled = false; }
+  });
   // Resolve NAS from the card's source data, never from filtered table rows.
   // Reuse the existing NAS resolver link (a real <a href> built by productionRowButton).
   traceCards.addEventListener('click', event => {
@@ -706,38 +766,7 @@
     const card = button.closest('[data-card-row]');
     const row = Number(card?.dataset.cardRow);
     if (!row) return;
-    // The per-order button is deliberately a focused writing flow, not a shortcut
-    // to the general Reproceso board. It reuses the persisted production operation.
-    openOperatorProduction(row);
-    const title = operatorForm.querySelector('h2');
-    const previousTitle = title.textContent;
-    const textNode = label => [...label.childNodes].find(node => node.nodeType === Node.TEXT_NODE);
-    const processLabel = operatorForm.elements.column.closest('label');
-    const reasonLabel = operatorForm.elements.reason.closest('label');
-    const responsibleLabel = operatorForm.elements.responsible.closest('label');
-    const processText = textNode(processLabel), reasonText = textNode(reasonLabel), responsibleText = textNode(responsibleLabel);
-    const previousLabels = [processText?.nodeValue, reasonText?.nodeValue, responsibleText?.nodeValue];
-    title.textContent = 'Registrar reproceso';
-    if (processText) processText.nodeValue = 'Proceso a reprocesar';
-    if (reasonText) reasonText.nodeValue = 'Observaciones';
-    if (responsibleText) responsibleText.nodeValue = 'Usuario responsable';
-    operatorForm.elements.responsible.value = document.querySelector('.user-info strong')?.textContent?.trim() || user.name;
-    operatorForm.elements.reason.placeholder = 'Describe qué se debe corregir y por qué…';
-    operatorDialog.querySelector('.operator-message').textContent = 'Selecciona el proceso y registra aquí el motivo del reproceso de esta orden.';
-    const reworkAction = operatorForm.querySelector('button[value="rework"]');
-    const previousAction = reworkAction?.innerHTML;
-    if (reworkAction) reworkAction.innerHTML = '<span class="studio-action-icon" aria-hidden="true">↺</span><span><strong>Guardar reproceso</strong><small>Registra las observaciones de esta orden</small></span>';
-    operatorDialog.classList.add('rework-entry');
-    reworkAction?.scrollIntoView({ block: 'nearest' });
-    operatorForm.elements.reason.focus();
-    operatorDialog.addEventListener('close', () => {
-      title.textContent = previousTitle;
-      if (processText) processText.nodeValue = previousLabels[0];
-      if (reasonText) reasonText.nodeValue = previousLabels[1];
-      if (responsibleText) responsibleText.nodeValue = previousLabels[2];
-      if (reworkAction && previousAction) reworkAction.innerHTML = previousAction;
-      operatorDialog.classList.remove('rework-entry');
-    }, { once: true });
+    openReworkEntry(row);
   }, true);
   traceCards.addEventListener('click', async event => {
     const button = event.target.closest('[data-order-note]');
@@ -1329,6 +1358,11 @@
   @media(max-width:700px){.studio-jump{display:inline-block!important;width:auto!important;min-height:36px!important;margin-top:10px;padding:6px 12px!important;background:#d4ec98!important;color:#213217!important;font:600 12px Arial;box-shadow:none!important;border:0;border-radius:8px}}
   `;
   document.head.appendChild(studioStyle);
+  const reworkEntryStyle = document.createElement('style');
+  reworkEntryStyle.textContent = `
+    .trace-rework-entry{width:min(720px,94vw);max-height:90dvh;padding:0;border:1px solid #b36b64;border-radius:18px;background:#131a14;color:#f3f7ee;box-shadow:0 28px 90px #000b}.trace-rework-entry::backdrop{background:#000b}.trace-rework-form{position:relative;display:grid;gap:16px;padding:25px}.trace-rework-form h2{margin:-10px 40px 0 0;font:800 25px Arial}.trace-rework-form>p{margin:-8px 0 0;color:#b7c3b1;font-size:13px}.trace-rework-close{position:absolute;top:17px;right:17px;width:34px!important;min-height:34px!important;padding:0!important;border:1px solid #687667!important;border-radius:9px!important;background:#263228!important;color:#fff!important;font-size:20px!important;box-shadow:none!important}.trace-rework-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:15px;border:1px solid #3e4d3d;border-radius:13px;background:#1b261d}.trace-rework-facts>div{display:grid;gap:5px;min-width:0;padding:10px;border-radius:9px;background:#111811}.trace-rework-facts small{color:#a9ba9f;font:800 10px Arial;letter-spacing:.07em;text-transform:uppercase}.trace-rework-facts strong{overflow-wrap:anywhere;color:#f0f7e9;font:700 13px/1.35 Arial}.trace-rework-observation{display:grid;gap:7px;color:#f2bbb5;font:800 12px Arial}.trace-rework-observation textarea{box-sizing:border-box;width:100%;min-height:115px;padding:12px;border:1px solid #6d4a45;border-radius:10px;background:#211a19;color:#fff4f1;font:14px/1.5 Arial;resize:vertical}.trace-rework-observation small{text-align:right;color:#aeb9a7;font:11px Arial}.trace-rework-actions{display:flex;justify-content:flex-end;gap:10px}.trace-rework-actions button{width:auto!important;min-height:40px!important;padding:10px 15px!important;border:1px solid #65755f;border-radius:9px;background:#243025;color:#eff7e9;font-weight:800;box-shadow:none}.trace-rework-actions [type=submit]{border-color:#f08079;background:#ef7370;color:#291211}.trace-rework-actions [type=submit]:disabled{opacity:.6;cursor:progress}.trace-rework-message{min-height:18px!important;color:#ffbbb5!important}@media(max-width:560px){.trace-rework-form{padding:18px}.trace-rework-facts{grid-template-columns:1fr}.trace-rework-actions{flex-direction:column-reverse}.trace-rework-actions button{width:100%!important}}
+  `;
+  document.head.appendChild(reworkEntryStyle);
   const statusColors = document.createElement('style');
   statusColors.textContent = `
   :root{--production-finished:#63d58a;--production-active:#ffad4f;--production-rework:#f56b6b}
