@@ -1,0 +1,148 @@
+"""Lectura consolidada del inventario de Indoor desde Google Sheets."""
+
+from __future__ import annotations
+
+import os
+import re
+import threading
+import time
+import unicodedata
+from datetime import datetime, timezone
+from typing import Any
+
+import gspread
+from fastapi import APIRouter, HTTPException
+from google.oauth2.service_account import Credentials
+
+
+inventario_router = APIRouter(prefix="/api/inventarios", tags=["inventarios"])
+
+SOURCE_TABS = (
+    ("STOCK PARA MERCAR", "Stock para mercar"),
+    ("INSUMOS", "Insumos"),
+    ("MATERIA PRIMA IMPRESION", "Materia prima impresión"),
+    ("BODEGA TELA", "Bodega tela"),
+    ("RETAL CANASTAS", "Retal canastas"),
+)
+CACHE_SECONDS = 90
+_cache: dict[str, Any] = {"at": 0.0, "data": None}
+_lock = threading.Lock()
+
+
+def _normalized(value: Any) -> str:
+    text = unicodedata.normalize("NFD", str(value or ""))
+    text = "".join(char for char in text if unicodedata.category(char) != "Mn")
+    return re.sub(r"\s+", " ", text.upper()).strip()
+
+
+def _number(value: Any) -> float:
+    text = str(value or "").strip()
+    if not text:
+        return 0.0
+    text = text.replace(".", "").replace(",", ".")
+    match = re.search(r"-?\d+(?:\.\d+)?", text)
+    return float(match.group(0)) if match else 0.0
+
+
+def _display_total(value: float) -> str:
+    return str(int(value)) if value.is_integer() else f"{value:,.2f}".replace(",", " ")
+
+
+def _header_positions(row: list[str]) -> tuple[int | None, int | None]:
+    headers = [_normalized(value) for value in row]
+    name_index = next(
+        (index for index, value in enumerate(headers)
+         if value in {"REFERENCIA", "NOMBRE", "NOMBRE TELA", "NOMBRE INSUMO"}
+         or value.startswith("NOMBRE ")),
+        None,
+    )
+    total_index = next((index for index, value in enumerate(headers) if value == "TOTAL" or value.startswith("TOTAL ")), None)
+    return name_index, total_index
+
+
+def _is_header(row: list[str]) -> bool:
+    name_index, total_index = _header_positions(row)
+    return name_index is not None and total_index is not None
+
+
+def _records_for_tab(values: list[list[str]], tab_key: str, tab_label: str) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    active_name: int | None = None
+    active_total: int | None = None
+    seen: set[tuple[str, str, float]] = set()
+    for row_index, row in enumerate(values, start=1):
+        if _is_header(row):
+            active_name, active_total = _header_positions(row)
+            continue
+        if active_name is None or active_total is None:
+            continue
+        name = str(row[active_name] if active_name < len(row) else "").strip()
+        total = _number(row[active_total] if active_total < len(row) else "")
+        normalized_name = _normalized(name)
+        if not name or normalized_name in {"TOTAL", "SUBTOTAL", "NOMBRE", "REFERENCIA"}:
+            continue
+        if total == 0 and not any(str(cell or "").strip() for cell in row[active_name + 1:active_total + 1]):
+            continue
+        identity = (tab_key, normalized_name, total)
+        if identity in seen:
+            continue
+        seen.add(identity)
+        records.append({
+            "id": f"{tab_key}:{row_index}:{len(records)}",
+            "categoria": tab_key,
+            "categoria_label": tab_label,
+            "nombre": name,
+            "total": total,
+            "total_label": _display_total(total),
+        })
+    return records
+
+
+def _open_inventory_sheet():
+    url = os.getenv("INVENTARIOS_GOOGLE_SHEETS_URL", "").strip()
+    credentials_path = os.getenv("GOOGLE_CREDENTIALS", "/run/secrets/google-service-account.json")
+    if not url or "REEMPLAZAR" in url:
+        raise RuntimeError("Falta configurar INVENTARIOS_GOOGLE_SHEETS_URL en el servidor.")
+    credentials = Credentials.from_service_account_file(
+        credentials_path,
+        scopes=["https://www.googleapis.com/auth/spreadsheets.readonly"],
+    )
+    return gspread.authorize(credentials).open_by_url(url)
+
+
+def _read_inventory() -> dict[str, Any]:
+    workbook = _open_inventory_sheet()
+    categories: list[dict[str, Any]] = []
+    all_records: list[dict[str, Any]] = []
+    for tab_key, tab_label in SOURCE_TABS:
+        try:
+            worksheet = workbook.worksheet(tab_key)
+        except gspread.WorksheetNotFound:
+            categories.append({"key": tab_key, "label": tab_label, "items": 0, "units": 0, "available": False})
+            continue
+        records = _records_for_tab(worksheet.get_all_values(), tab_key, tab_label)
+        units = sum(record["total"] for record in records)
+        categories.append({"key": tab_key, "label": tab_label, "items": len(records), "units": units, "units_label": _display_total(units), "available": True})
+        all_records.extend(records)
+    all_records.sort(key=lambda record: (record["categoria_label"], record["nombre"].casefold()))
+    total_units = sum(record["total"] for record in all_records)
+    return {
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "categories": categories,
+        "items": all_records,
+        "summary": {"items": len(all_records), "units": total_units, "units_label": _display_total(total_units), "sources": len([category for category in categories if category["available"]])},
+    }
+
+
+@inventario_router.get("")
+def inventory_snapshot(refresh: bool = False):
+    with _lock:
+        cached = _cache["data"]
+        if cached and not refresh and time.monotonic() - _cache["at"] < CACHE_SECONDS:
+            return cached
+        try:
+            payload = _read_inventory()
+        except Exception as exc:
+            raise HTTPException(status_code=503, detail="No fue posible leer Inventarios. Verifica que la hoja esté compartida con la cuenta de servicio y que la URL esté configurada.") from exc
+        _cache.update({"at": time.monotonic(), "data": payload})
+        return payload
