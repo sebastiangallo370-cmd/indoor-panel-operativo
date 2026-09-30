@@ -551,7 +551,8 @@
     const mtsColi = productionData.headers.findIndex(h => String(h || '').trim().toUpperCase() === 'MTS REQUERIDO');
     traceCards.innerHTML = rows.map(row => {
       const summary = summaries.get(row.source_row), id = row.source_row;
-      const mtsV = mtsColi >= 0 ? String(row.values[mtsColi] || '').trim() : '';
+      const _mtsRaw = mtsColi >= 0 ? (productionData.notes?.[id + ':' + (mtsColi + 1)] || '').trim() : '';
+      const mtsV = _mtsRaw.includes(' : ') ? _mtsRaw.split(' : ').slice(1).join(' : ').trim() : _mtsRaw;
       const notes = Object.entries(productionData.notes || {}).filter(([k, v]) => k.startsWith(id + ':') && v).length;
       const responsible = summary.focus?.responsible || '';
       const due = traceField(row, 'FECHA DE ENTREGA');
@@ -698,7 +699,8 @@
       if (!row || !productionData) return;
       const ci = productionData.headers.findIndex(h => String(h || '').trim().toUpperCase() === 'MTS REQUERIDO');
       if (ci < 0) { alert('No se encontró la columna MTS REQUERIDO'); return; }
-      const cur = String(row.values[ci] || '').trim();
+      const _noteRaw = (productionData.notes?.[id + ':' + (ci + 1)] || '').trim();
+      const cur = _noteRaw.includes(' : ') ? _noteRaw.split(' : ').slice(1).join(' : ').trim() : _noteRaw;
       if (typeof mtsTarget !== 'undefined') {
         mtsTarget = { sourceRow: id, colIdx: ci, rowRef: row };
         mtsDialog.querySelector('.mts-order').textContent = traceField(row, 'ORDEN') + ' · ' + traceField(row, 'REFERENCIA') + ' · ' + traceField(row, 'NOMBRE DEL CLIENTE');
