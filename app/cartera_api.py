@@ -1,156 +1,121 @@
-import io, json, os, re
+"""API del control compartido de cartera; JSON único y escrituras atómicas."""
+import io, json, os, re, shutil
 from datetime import datetime, timezone
 from pathlib import Path
-from fastapi import APIRouter, HTTPException, UploadFile, File
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi.responses import FileResponse, JSONResponse
 
 cartera_router = APIRouter(prefix="/api/cartera", tags=["cartera"])
-
-_STATE   = Path(os.getenv("CARTERA_STATE_DIR", "/data/state")) / "cartera_v2.json"
-_PDF_DIR = Path(os.getenv("CARTERA_STATE_DIR", "/data/state")) / "cartera_pdfs"
-
-
-def _safe(numero: str) -> str:
-    return re.sub(r"[^A-Za-z0-9\-_]", "_", numero)
-
-
-def _load():
-    if _STATE.exists():
-        return json.loads(_STATE.read_text(encoding="utf-8"))
-    return {"documentos": [], "ultima_sync": None}
-
-
-def _save(data):
-    tmp = _STATE.with_suffix(".tmp")
-    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-    tmp.replace(_STATE)
-
-
-def _amt(v):
-    if not v:
-        return 0.0
-    try:
-        return float(re.sub(r"[^0-9,.\-]", "", str(v)).replace(",", "."))
-    except ValueError:
-        return 0.0
-
-
+_ROOT=Path(os.getenv("CARTERA_STATE_DIR","/data/state")); _STATE=_ROOT/"cartera.json"; _OLD=_ROOT/"cartera_v2.json"
+_PDF_DIR=_ROOT/"cartera_pdfs"; _BACKUPS=_ROOT/"respaldos"
+def _empty(): return {"config":{"plazoDesde":"entrega","contadoEquivale":"mismo_dia_entrega","anticipoMinimoPct":50},"usuarios":["DANIEL","ANDRES","SEBASTIAN GALLO"],"documentos":[],"comprobantes":[],"contadorComprobante":1}
+def _safe(v): return re.sub(r"[^A-Za-z0-9_-]","_",str(v))
 def _date(v):
-    if hasattr(v, "isoformat"):
-        return v.isoformat()[:10]
-    s = str(v or "").strip()[:10]
-    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"):
-        try:
-            return datetime.strptime(s, fmt).date().isoformat()
-        except ValueError:
-            pass
+    if hasattr(v,"isoformat"): return v.isoformat()[:10]
+    s=str(v or "").strip()[:10]
+    for f in ("%Y-%m-%d","%d/%m/%Y","%d-%m-%Y"):
+        try: return datetime.strptime(s,f).date().isoformat()
+        except ValueError: pass
     return s
-
+def _amount(v):
+    if isinstance(v,(int,float)): return float(v)
+    s=re.sub(r"[^0-9,.-]","",str(v or ""))
+    if s.count(",")==1 and s.count(".")>=1: s=s.replace(".","").replace(",",".")
+    elif s.count(",")==1: s=s.replace(",",".")
+    try: return float(s)
+    except ValueError: return 0.
+def _term(v):
+    m=re.search(r"(\d+)",str(v or "")); return int(m.group(1)) if m else 0
+def _audit(d,action,user="Sistema"): d.setdefault("historial",[]).append({"fecha":datetime.now(timezone.utc).isoformat(),"accion":action,"usuario":user})
+def _normalize(raw):
+    data=_empty(); data.update(raw or {}); data["config"]={**_empty()["config"],**(data.get("config") or {})}; data["usuarios"]=data.get("usuarios") or _empty()["usuarios"]
+    docs=[]
+    for row in data.get("documentos") or []:
+        d=dict(row); d["numero"]=str(d.get("numero","")).strip()
+        if not d["numero"]: continue
+        d["fechaCreacion"]=_date(d.get("fechaCreacion",d.get("fecha"))); d["fechaEntrega"]=_date(d.get("fechaEntrega")) or None; d["total"]=_amount(d.get("total")); d["pagadoImportado"]=_amount(d.get("pagadoImportado",d.get("pagado"))); d["items"]=d.get("items") or []; d["estado"]=d.get("estado","pedido"); d["historial"]=d.get("historial") or []; d["plazoDias"]=int(d.get("plazoDias") or _term(d.get("formaPago"))); docs.append(d)
+    data["documentos"]=docs; data["comprobantes"]=data.get("comprobantes") or []; data["contadorComprobante"]=max(int(data.get("contadorComprobante") or 1),len(data["comprobantes"])+1); return data
+def _load():
+    _ROOT.mkdir(parents=True,exist_ok=True); source=_STATE if _STATE.exists() else _OLD
+    if not source.exists(): return _empty()
+    try: return _normalize(json.loads(source.read_text(encoding="utf-8")))
+    except Exception as exc: raise HTTPException(500,"No se pudo leer cartera.json") from exc
+def _backup():
+    _BACKUPS.mkdir(parents=True,exist_ok=True); out=_BACKUPS/f"cartera-{datetime.now().date().isoformat()}.json"
+    if not out.exists() and _STATE.exists(): shutil.copy2(_STATE,out)
+    for old in sorted(_BACKUPS.glob("cartera-*.json"))[:-30]: old.unlink(missing_ok=True)
+def _save(data):
+    data=_normalize(data); data["actualizadoEn"]=datetime.now(timezone.utc).isoformat(); _ROOT.mkdir(parents=True,exist_ok=True); tmp=_STATE.with_suffix(".tmp"); tmp.write_text(json.dumps(data,ensure_ascii=False,indent=2),encoding="utf-8"); tmp.replace(_STATE); _backup(); return data
 
 @cartera_router.get("/datos")
-def get_datos():
-    data = _load()
-    _PDF_DIR.mkdir(parents=True, exist_ok=True)
-    for doc in data["documentos"]:
-        doc["has_pdf"] = (_PDF_DIR / f"{_safe(doc['numero'])}.pdf").exists()
+def datos():
+    data=_load(); _PDF_DIR.mkdir(parents=True,exist_ok=True)
+    for d in data["documentos"]: d["has_pdf"]=(_PDF_DIR/f"{_safe(d['numero'])}.pdf").exists()
     return data
-
-
+@cartera_router.put("/datos")
+async def guardar_datos(payload:dict): return _save(payload)
+@cartera_router.post("/documentos")
+async def guardar_documento(payload:dict):
+    data=_load(); doc=dict(payload); numero=str(doc.get("numero","")).strip()
+    if not numero: raise HTTPException(400,"El número de cotización es obligatorio")
+    user=doc.pop("usuario","Usuario"); old=next((x for x in data["documentos"] if x["numero"]==numero),None)
+    if old:
+        history=old.get("historial",[]); old.update(doc); old["historial"]=history; _audit(old,"Documento actualizado",user)
+    else: doc["historial"]=[]; _audit(doc,"Documento creado",user); data["documentos"].append(doc)
+    _save(data); return {"ok":True,"numero":numero}
+@cartera_router.post("/comprobantes")
+async def guardar_comprobante(payload:dict):
+    data=_load(); p=dict(payload); numero=str(p.get("cotizacionNumero","")).strip(); doc=next((x for x in data["documentos"] if x["numero"]==numero),None)
+    if not doc: raise HTTPException(400,"La cotización no existe")
+    p["valor"]=_amount(p.get("valor"))
+    if p["valor"]<=0: raise HTTPException(400,"El valor debe ser mayor a cero")
+    if p.get("id"):
+        old=next((x for x in data["comprobantes"] if x["id"]==p["id"]),None)
+        if not old: raise HTTPException(404,"Comprobante no encontrado")
+        old.update(p); old["editado"]=True; p=old
+    else:
+        p.update({"id":f"CI-{data['contadorComprobante']:04d}","anulado":False,"editado":False,"creadoEn":datetime.now(timezone.utc).isoformat()}); data["contadorComprobante"]+=1; data["comprobantes"].append(p)
+    _audit(doc,f"Pago {p['id']} registrado",p.get("recibio","Usuario")); _save(data); return p
+@cartera_router.post("/comprobantes/{identificador}/anular")
+async def anular(identificador:str,payload:dict):
+    data=_load(); p=next((x for x in data["comprobantes"] if x["id"]==identificador),None)
+    if not p: raise HTTPException(404,"Comprobante no encontrado")
+    p["anulado"]=bool(payload.get("anulado",True)); p["motivoAnulacion"]=payload.get("motivo",""); p["editado"]=True; _save(data); return p
 @cartera_router.post("/pdf/{numero}")
-async def upload_pdf(numero: str, file: UploadFile = File(...)):
-    _PDF_DIR.mkdir(parents=True, exist_ok=True)
-    content = await file.read()
-    if not content[:4] == b"%PDF":
-        raise HTTPException(400, "El archivo no es un PDF válido")
-    (_PDF_DIR / f"{_safe(numero)}.pdf").write_bytes(content)
-    return {"ok": True, "numero": numero}
-
-
+async def subir_pdf(numero:str,file:UploadFile=File(...)):
+    content=await file.read()
+    if content[:4]!=b"%PDF": raise HTTPException(400,"El archivo no es un PDF válido")
+    _PDF_DIR.mkdir(parents=True,exist_ok=True); (_PDF_DIR/f"{_safe(numero)}.pdf").write_bytes(content); return {"ok":True,"numero":numero}
 @cartera_router.get("/pdf/{numero}")
-def get_pdf(numero: str):
-    path = _PDF_DIR / f"{_safe(numero)}.pdf"
-    if not path.exists():
-        raise HTTPException(404, "PDF no encontrado")
-    return FileResponse(path, media_type="application/pdf", filename=f"{numero}.pdf")
-
-
+def ver_pdf(numero:str):
+    path=_PDF_DIR/f"{_safe(numero)}.pdf"
+    if not path.exists(): raise HTTPException(404,"PDF no encontrado")
+    return FileResponse(path,media_type="application/pdf",filename=f"{numero}.pdf")
+@cartera_router.get("/respaldo")
+def respaldo(): return JSONResponse(_save(_load()),headers={"Content-Disposition":"attachment; filename=cartera-respaldo.json"})
+@cartera_router.post("/restaurar")
+async def restaurar(file:UploadFile=File(...)):
+    try: return _save(json.loads((await file.read()).decode("utf-8")))
+    except Exception as exc: raise HTTPException(400,"El respaldo no es un JSON válido") from exc
 @cartera_router.post("/sincronizar")
 def sincronizar():
-    creds_path = Path(os.getenv("GOOGLE_CREDENTIALS", "/run/secrets/google-service-account.json"))
-    file_id    = os.getenv("PAGOS_COTIZACIONES_FILE_ID", "").strip()
-    sheet_name = os.getenv("PAGOS_COTIZACIONES_HOJA", "").strip()
-
-    if not file_id:
-        raise HTTPException(503, "Falta configurar PAGOS_COTIZACIONES_FILE_ID en el servidor")
-    if not creds_path.is_file():
-        raise HTTPException(503, "Falta la credencial de Google en /run/secrets/google-service-account.json")
-
+    creds=Path(os.getenv("GOOGLE_CREDENTIALS","/run/secrets/google-service-account.json")); file_id=os.getenv("PAGOS_COTIZACIONES_FILE_ID","").strip()
+    if not file_id or not creds.is_file(): raise HTTPException(503,"Falta configurar Google Sheets en el servidor")
     try:
         import openpyxl
         from google.oauth2.service_account import Credentials
         from google.auth.transport.requests import AuthorizedSession
-
-        sess = AuthorizedSession(Credentials.from_service_account_file(
-            str(creds_path), scopes=["https://www.googleapis.com/auth/drive.readonly"]
-        ))
-        resp = sess.get(
-            f"https://www.googleapis.com/drive/v3/files/{file_id}",
-            params={"alt": "media", "supportsAllDrives": "true"},
-            timeout=60,
-        )
-        resp.raise_for_status()
-        wb = openpyxl.load_workbook(io.BytesIO(resp.content), data_only=True, read_only=True)
-    except HTTPException:
-        raise
-    except Exception as exc:
-        raise HTTPException(502, f"No se pudo leer el archivo de Google Drive: {exc}") from exc
-
-    ws = wb[sheet_name] if sheet_name and sheet_name in wb.sheetnames else wb[wb.sheetnames[0]]
-    rows = ws.iter_rows(values_only=True)
-    headers = [str(c or "").upper().strip() for c in (next(rows, []))]
-
-    def col(*words):
-        for i, h in enumerate(headers):
-            if all(w in h for w in words):
-                return i
-        return None
-
-    c_num = col("COTIZACION") or 0
-    c_cli = col("CLIENTE") or 1
-    c_ven = col("VENDEDOR") or 2
-    c_tot = col("TOTAL") or 3
-    c_fec = col("FECHA")
-    c_pag = col("PAGADO")
-    c_est = col("ESTADO")
-
-    def v(row, i):
-        return row[i] if i is not None and i < len(row) else ""
-
-    docs = []
+        session=AuthorizedSession(Credentials.from_service_account_file(str(creds),scopes=["https://www.googleapis.com/auth/drive.readonly"])); response=session.get(f"https://www.googleapis.com/drive/v3/files/{file_id}",params={"alt":"media","supportsAllDrives":"true"},timeout=60); response.raise_for_status(); wb=openpyxl.load_workbook(io.BytesIO(response.content),data_only=True,read_only=True)
+    except Exception as exc: raise HTTPException(502,f"No se pudo leer Google Sheets: {exc}") from exc
+    name=os.getenv("PAGOS_COTIZACIONES_HOJA",""); ws=wb[name] if name in wb.sheetnames else wb[wb.sheetnames[0]]; rows=ws.iter_rows(values_only=True); heads=[str(x or "").upper().strip() for x in next(rows,[])]
+    def col(word,default=None): return next((i for i,h in enumerate(heads) if word in h),default)
+    n,cl,v,t,f,e=col("COTIZ",0),col("CLIENTE",1),col("VENDEDOR",2),col("TOTAL",3),col("FECHA"),col("ESTADO"); data=_load(); indexed={d["numero"]:d for d in data["documentos"]}; count=0
     for row in rows:
-        num = str(v(row, c_num) or "").strip()
-        if not num:
-            continue
-        total  = _amt(v(row, c_tot))
-        pagado = _amt(v(row, c_pag))
-        estado_raw = str(v(row, c_est) or "").lower()
-        estado = "anulada" if "anulad" in estado_raw else "activa"
-        docs.append({
-            "numero":   num,
-            "cliente":  str(v(row, c_cli) or "").strip() or "SIN CLIENTE",
-            "vendedor": str(v(row, c_ven) or "").strip(),
-            "fecha":    _date(v(row, c_fec)),
-            "total":    total,
-            "pagado":   pagado,
-            "saldo":    round(total - pagado, 2),
-            "estado":   estado,
-        })
-
-    data = {"documentos": docs, "ultima_sync": datetime.now(timezone.utc).isoformat()}
-    _save(data)
-    return {"ok": True, "documentos": len(docs), "hoja": ws.title}
-
-
+        get=lambda i:row[i] if i is not None and i<len(row) else ""; number=str(get(n) or "").strip()
+        if not number: continue
+        d=indexed.get(number,{"numero":number,"historial":[]}); d.update({"cliente":str(get(cl) or "SIN CLIENTE").strip(),"vendedor":str(get(v) or "").strip(),"fechaCreacion":_date(get(f)),"total":_amount(get(t)),"estado":"anulada" if "anulad" in str(get(e)).lower() else d.get("estado","pedido")}); d.setdefault("items",[]); d.setdefault("plazoDias",0)
+        if number not in indexed: data["documentos"].append(d); indexed[number]=d
+        count+=1
+    _save(data); return {"ok":True,"documentos":count,"hoja":ws.title}
 @cartera_router.get("/cartera.js")
-def serve_js():
-    return FileResponse(Path(__file__).with_name("cartera.js"), media_type="application/javascript")
+def script(): return FileResponse(Path(__file__).with_name("cartera.js"),media_type="application/javascript")

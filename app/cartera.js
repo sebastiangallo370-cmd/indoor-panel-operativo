@@ -1,159 +1,37 @@
-// cartera.js — el HTML ya existe en el DOM al cargar este script
 'use strict';
-
-const _ctBody      = document.getElementById('cartera-body');
-const _ctStatus    = document.getElementById('cartera-status');
-const _ctSearch    = document.getElementById('cartera-search');
-const _ctSync      = document.getElementById('btn-cartera-sync');
-const _ctKpiTotal  = document.getElementById('ct-kpi-total');
-const _ctKpiSaldo  = document.getElementById('ct-kpi-saldo');
-const _ctKpiAct    = document.getElementById('ct-kpi-activas');
-
-// Input oculto reutilizable para seleccionar archivos PDF
-const _ctFileInput = (() => {
-  const el = document.createElement('input');
-  el.type = 'file';
-  el.accept = 'application/pdf,.pdf';
-  el.className = 'ct-pdf-upload';
-  document.body.appendChild(el);
-  return el;
-})();
-
-let _ctData = null;
-
-function _e(v) {
-  return String(v ?? '').replace(/[&<>"']/g, c =>
-    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])
-  );
-}
-
-function _fmt(n) {
-  return '$ ' + Math.round(n || 0).toLocaleString('es-CO');
-}
-
-function _updateKpis() {
-  if (!_ctData) return;
-  const docs = _ctData.documentos;
-  const totalSaldo = docs.reduce((s, d) => s + (d.saldo || 0), 0);
-  const activas    = docs.filter(d => d.saldo > 0).length;
-  if (_ctKpiTotal) _ctKpiTotal.textContent = docs.length;
-  if (_ctKpiSaldo) _ctKpiSaldo.textContent = '$ ' + Math.round(totalSaldo).toLocaleString('es-CO');
-  if (_ctKpiAct)   _ctKpiAct.textContent   = activas;
-}
-
-function _pdfCell(d) {
-  if (d.has_pdf) {
-    return '<td><a href="/api/cartera/pdf/' + encodeURIComponent(d.numero) +
-      '" target="_blank" rel="noopener" class="ct-pdf-btn ct-has-pdf" title="Ver PDF">📄 Ver PDF</a></td>';
-  }
-  return '<td><button type="button" class="ct-pdf-btn" ' +
-    'data-ct-upload="' + _e(d.numero) + '" title="Subir PDF">⬆ Subir PDF</button></td>';
-}
-
-function carteraRender() {
-  if (!_ctData) return;
-  _updateKpis();
-  const q = (_ctSearch.value || '').trim().toLowerCase();
-  const docs = _ctData.documentos.filter(d =>
-    !q ||
-    (d.cliente  || '').toLowerCase().includes(q) ||
-    (d.numero   || '').toLowerCase().includes(q) ||
-    (d.vendedor || '').toLowerCase().includes(q)
-  );
-  if (!docs.length) {
-    _ctBody.innerHTML =
-      '<tr><td colspan="8" class="ct-empty">' +
-      (q ? 'Sin resultados para «' + _e(q) + '».' : 'No hay cotizaciones. Presiona Sincronizar.') +
-      '</td></tr>';
-    return;
-  }
-  _ctBody.innerHTML = docs.map(d => {
-    const cls = d.saldo > 0 ? 'ct-pend' : 'ct-ok';
-    return '<tr>' +
-      '<td>'                            + _e(d.numero)           + '</td>' +
-      '<td>'                            + _e(d.cliente)          + '</td>' +
-      '<td>'                            + _e(d.vendedor || '—')  + '</td>' +
-      '<td>'                            + _e(d.fecha    || '—')  + '</td>' +
-      '<td class="ct-num">'             + _fmt(d.total)          + '</td>' +
-      '<td class="ct-num ' + cls + '">' + _fmt(d.saldo)          + '</td>' +
-      '<td><span class="ct-badge ct-'  + _e(d.estado) + '">'    + _e(d.estado) + '</span></td>' +
-      _pdfCell(d) +
-      '</tr>';
-  }).join('');
-}
-
-async function loadCartera() {
-  _ctStatus.textContent = 'Cargando datos…';
-  try {
-    const r = await fetch('/api/cartera/datos');
-    if (!r.ok) throw new Error('Error ' + r.status);
-    _ctData = await r.json();
-    carteraRender();
-    if (_ctData.ultima_sync) {
-      const t = new Date(_ctData.ultima_sync)
-        .toLocaleString('es-CO', { timeZone: 'America/Bogota', dateStyle: 'short', timeStyle: 'short' });
-      _ctStatus.textContent = _ctData.documentos.length + ' cotizaciones · sincronizado ' + t;
-    } else {
-      _ctStatus.textContent = 'Sin datos. Presiona Sincronizar para importar desde Google Sheets.';
-    }
-  } catch (e) {
-    _ctStatus.textContent = 'Error cargando datos: ' + e.message;
-  }
-}
-
-// Delegación de eventos: click en botones "Subir PDF"
-if (_ctBody) {
-  _ctBody.addEventListener('click', e => {
-    const btn = e.target.closest('[data-ct-upload]');
-    if (!btn) return;
-    const numero = btn.dataset.ctUpload;
-    _ctFileInput.value = '';
-    _ctFileInput.onchange = async () => {
-      const file = _ctFileInput.files[0];
-      if (!file) return;
-      btn.disabled = true;
-      btn.textContent = 'Subiendo…';
-      try {
-        const fd = new FormData();
-        fd.append('file', file);
-        const r = await fetch('/api/cartera/pdf/' + encodeURIComponent(numero), {
-          method: 'POST', body: fd,
-        });
-        const d = await r.json();
-        if (!r.ok) throw new Error(d.detail || 'Error al subir');
-        // Actualizar has_pdf en los datos locales sin recargar todo
-        const doc = _ctData.documentos.find(x => x.numero === numero);
-        if (doc) doc.has_pdf = true;
-        carteraRender();
-      } catch (err) {
-        btn.disabled = false;
-        btn.textContent = '⬆ Subir PDF';
-        _ctStatus.textContent = 'Error al subir PDF: ' + err.message;
-      }
-    };
-    _ctFileInput.click();
-  });
-}
-
-if (_ctSync) {
-  _ctSync.addEventListener('click', async () => {
-    _ctSync.disabled = true;
-    _ctSync.textContent = 'Sincronizando…';
-    _ctStatus.textContent = 'Leyendo desde Google Sheets…';
-    try {
-      const r = await fetch('/api/cartera/sincronizar', { method: 'POST' });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.detail || 'Error al sincronizar');
-      await loadCartera();
-    } catch (e) {
-      _ctStatus.textContent = 'Error: ' + e.message;
-    } finally {
-      _ctSync.disabled = false;
-      _ctSync.textContent = '↻ Sincronizar';
-    }
-  });
-}
-
-if (_ctSearch) {
-  _ctSearch.addEventListener('input', carteraRender);
-}
+/* Interfaz sin dependencias: cálculos derivados siempre ocurren en el navegador. */
+const app=document.getElementById('cartera-app'); let data, tab='tablero', activeBand='', filters={q:'',vendedor:'',cliente:'',estado:'pendiente'};
+const money=v=>'$'+Math.round(v||0).toLocaleString('es-CO'); const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const today=()=>new Date().toISOString().slice(0,10); const date=v=>v?new Date(v+'T12:00:00'):null; const days=(from,to)=>Math.round((date(to)-date(from))/86400000);
+function term(d){return Number(d.plazoDias||(/(\d+)/.exec(d.formaPago||'')||[0,0])[1])||0}
+function due(d){let base=(data.config.plazoDesde==='creacion'?d.fechaCreacion:(d.fechaEntrega||d.fechaCreacion)); if(!base)return ''; let n=term(d); if(/contado/i.test(d.formaPago||'')&&data.config.contadoEquivale==='un_dia_despues')n=1; let x=date(base);x.setDate(x.getDate()+n);return x.toISOString().slice(0,10)}
+function payments(d){return Number(d.pagadoImportado||0)+data.comprobantes.filter(p=>p.cotizacionNumero===d.numero&&!p.anulado).reduce((n,p)=>n+Number(p.valor||0),0)}
+function view(d){let paid=payments(d), balance=Math.max(0,Number(d.total||0)-paid), dd=due(d), late=dd?days(dd,today()):0, excluded=['anulada','perdida','excluida'].includes(d.estado);let status=excluded?(d.estado==='anulada'?'Anulada':'Excluida de cartera'):balance===0?'Pagada':paid?'Abonada':late>0?`Vencida ${late} d`:'En cartera';return {...d,paid,balance,due:dd,late,status,excluded}}
+function docs(){return data.documentos.map(view).filter(d=>{if(filters.q&&!`${d.numero} ${d.cliente} ${d.vendedor} ${d.club||''}`.toLowerCase().includes(filters.q.toLowerCase()))return false;if(filters.vendedor&&d.vendedor!==filters.vendedor)return false;if(filters.cliente&&d.cliente!==filters.cliente)return false;if(filters.estado==='pendiente'&&(!d.balance||d.excluded))return false;if(filters.estado==='pagada'&&d.status!=='Pagada')return false;if(filters.estado==='vencida'&&d.late<=0)return false;if(activeBand&&band(d)!==activeBand)return false;return true})}
+function band(d){return d.late>60?'60+':d.late>30?'31-60':d.late>15?'16-30':d.late>0?'1-15':'sin'}
+function sum(list,key='balance'){return list.reduce((n,x)=>n+Number(x[key]||0),0)}
+function group(list,key){let out={};list.forEach(d=>{let k=typeof key==='function'?key(d):(d[key]||'Sin dato');out[k]??={name:k,value:0,count:0,late:0};out[k].value+=d.balance;out[k].count++;out[k].late+=d.late>0?d.balance:0});return Object.values(out).sort((a,b)=>b.value-a.value)}
+function render(){if(!data)return; const list=docs(); app.innerHTML=`<div class="ct-head"><div><span class="eyebrow">ADMINISTRACIÓN · CARTERA</span><h2>CONTROL DE CARTERA</h2><small id="ct-connect">● Conectado · datos compartidos</small></div><div><button data-a="sync">↻ Sincronizar</button> <button data-a="newdoc">＋ Documento</button></div></div><nav class="ct-tabs">${[['tablero','Tablero'],['cartera','Cartera'],['pagos','Pagos y comprobantes'],['cargar','Cargar cotizaciones'],['ajustes','Ajustes y datos']].map(x=>`<button class="${tab===x[0]?'active':''}" data-tab="${x[0]}">${x[1]}</button>`).join('')}</nav>${['tablero','cartera','pagos'].includes(tab)?filterBox():''}<main class="ct-main">${tab==='tablero'?dashboard(list):tab==='cartera'?portfolio(list):tab==='pagos'?receipts(list):tab==='cargar'?upload():settings()}</main><dialog id="ct-dialog"></dialog>`; bind()}
+function filterBox(){let vendors=[...new Set(data.documentos.map(d=>d.vendedor).filter(Boolean))].sort(), clients=[...new Set(data.documentos.map(d=>d.cliente).filter(Boolean))].sort();let options=(items,value)=>`<option value="">Todos</option>${items.map(x=>`<option ${value===x?'selected':''}>${esc(x)}</option>`).join('')}`;return `<section class="ct-filters"><label>BUSCAR<input id="ct-q" value="${esc(filters.q)}" placeholder="Cliente, N° o club"></label><label>VENDEDOR<select id="ct-v">${options(vendors,filters.vendedor)}</select></label><label>CLIENTE<select id="ct-c">${options(clients,filters.cliente)}</select></label><label>ESTADO<select id="ct-s"><option value="pendiente">Con saldo pendiente</option><option value="todos">Todos los documentos</option><option value="vencida">Vencidas</option><option value="pagada">Pagadas</option></select></label><button data-a="clear">Limpiar</button></section>`}
+function kpi(label,value,help,cls=''){return `<article class="ct-kpi ${cls}"><span>${label}</span><strong>${value}</strong><small>${help}</small></article>`}
+function dashboard(list){let outstanding=sum(list), overdue=sum(list.filter(x=>x.late>0)), collected=sum(data.comprobantes.filter(p=>!p.anulado&&String(p.fecha||'').slice(0,7)===today().slice(0,7)),'valor'), next=sum(list.filter(x=>x.late<=0&&x.late>=-7)), prices={};list.forEach(d=>(d.items||[]).forEach(i=>{let k=i.referencia;if(k&&i.precioUnitario){prices[k]??=[];prices[k].push(Number(i.precioUnitario))}}));let priceAlerts=Object.entries(prices).filter(([,v])=>Math.min(...v)!==Math.max(...v)).map(([k,v])=>`${k}: ${money(Math.min(...v))} a ${money(Math.max(...v))}`); let bands=[['sin','SIN VENCER'],['1-15','1 A 15 DÍAS'],['16-30','16 A 30 DÍAS'],['31-60','31 A 60 DÍAS'],['60+','MÁS DE 60']];let alerts=list.filter(x=>x.late>60);return `<section class="ct-aging"><h3>Vencimiento de la cartera</h3><p>Cada bloque es proporcional al saldo. Haga clic para filtrar toda la pantalla.</p><div class="ct-bands">${bands.map(([id,n])=>{let v=sum(list.filter(d=>band(d)===id));return `<button class="b-${id} ${activeBand===id?'selected':''}" data-band="${id}" style="flex:${Math.max(v,1)}" aria-label="Tramo: ${money(v)}"><b>${n}</b><span>${money(v)}</span></button>`}).join('')}</div></section><section class="ct-kpis">${kpi('CARTERA POR COBRAR',money(outstanding),`${list.filter(x=>x.balance).length} documentos con saldo`)}${kpi('CARTERA VENCIDA',money(overdue),`${outstanding?Math.round(overdue/outstanding*100):0}% del total`,'danger')}${kpi('VENCE EN 7 DÍAS',money(next),'Gestione el cobro esta semana')}${kpi('RECAUDADO ESTE MES',money(collected),'Caja efectivamente ingresada','good')}${kpi('DÍAS DE CARTERA',`${Math.round(sum(list.filter(x=>x.balance).map(x=>({...x,balance:x.balance*Math.max(0,days(x.fechaEntrega||x.fechaCreacion,today()))})))/Math.max(outstanding,1))} d`,'Promedio ponderado por saldo')}${kpi('CONCENTRACIÓN',`${Math.round((group(list,'cliente')[0]?.value||0)/Math.max(outstanding,1)*100)}%`,'Peso del cliente más grande')}${kpi('VALOR COTIZADO VIGENTE',money(sum(list.filter(x=>!x.excluded),'total')),'Sin anuladas ni excluidas')}${kpi('ANTICIPOS RECIBIDOS',money(sum(data.comprobantes.filter(p=>!p.anulado&&p.tipo==='Anticipo'),'valor')),'Cobrado antes de entregar','good')}</section><section class="ct-groups">${panel('Saldo por cliente',group(list,'cliente'))}${panel('Saldo por vendedor',group(list,'vendedor'))}${panel('Saldo por forma de pago',group(list,d=>d.formaPago||'Sin forma de pago'))}${panel('Recaudo por mes',groupReceipts())}</section><section class="ct-alerts"><h3>Alertas de control</h3>${alertCard('Más de 60 días vencidos',alerts.map(d=>`#${d.numero} · ${d.cliente} · ${money(d.balance)}`),'Acuerdo de pago escrito o suspensión de despachos.')}${alertCard('Pedidos sin anticipo mínimo',list.filter(d=>!d.fechaEntrega&&d.paid<d.total*(data.config.anticipoMinimoPct/100)).map(d=>`#${d.numero} · ${money(d.paid)} de ${money(d.total)}`),'Aún no se entregan y ya consumen capital de trabajo.')}${alertCard('Referencias con precios distintos',priceAlerts,'Sin una lista de precios única no hay control de margen.')}${alertCard('IVA sin discriminar',list.filter(d=>!Number(d.iva||0)).map(d=>`#${d.numero} · ${d.cliente}`),'Verificar tratamiento tributario con el contador.')}${alertCard('Descuentos de 20 % o más',list.filter(d=>Number(d.descuentoPct||0)>=20).map(d=>`#${d.numero} · ${d.descuentoPct}%`),'Revise si el descuento conserva el margen bruto.')}${alertCard('Ítems por revisar',list.filter(d=>d.revisar).map(d=>`#${d.numero} · ${d.cliente}`),'El total quedó bien registrado; solo el detalle puede estar incompleto.')}</section>`}
+function panel(title, rows){let max=rows[0]?.value||1;return `<article class="ct-group"><h3>${title}</h3>${rows.slice(0,10).map(r=>`<div><span>${esc(r.name)} <small>${r.count||''} doc.</small></span><i><b style="width:${r.value/max*100}%"></b></i><strong>${money(r.value)}</strong></div>`).join('')||'<p>Sin datos.</p>'}</article>`}
+function groupReceipts(){let a={};data.comprobantes.filter(p=>!p.anulado).forEach(p=>{let k=String(p.fecha||'').slice(0,7)||'Sin fecha';a[k]??={name:k,value:0,count:0};a[k].value+=Number(p.valor||0);a[k].count++});return Object.values(a).sort((a,b)=>b.name.localeCompare(a.name))}
+function alertCard(t,items,advice){return items.length?`<article><b>${t}</b><p>${items.slice(0,8).join('<br>')}</p><small>${advice}</small></article>`:''}
+function portfolio(list){return `<section class="ct-card"><header><div><h3>Documentos</h3><small>${list.length} documentos · Valor ${money(sum(list,'total'))} · Recaudado ${money(sum(list,'paid'))} · Saldo ${money(sum(list))}</small></div><button data-a="csvdocs">Exportar CSV</button></header><div class="ct-table-wrap"><table><thead><tr><th>N°</th><th>CLIENTE</th><th>VENDEDOR</th><th>CREACIÓN</th><th>ENTREGA</th><th>VENCE</th><th>DÍAS</th><th>TOTAL</th><th>PAGADO</th><th>SALDO</th><th>ESTADO</th><th>ACCIONES</th></tr></thead><tbody>${list.sort((a,b)=>b.late-a.late).map(d=>`<tr><td>${d.revisar?'● ':''}${esc(d.numero)}</td><td>${esc(d.cliente)}<small>${esc(d.ciudad||d.club||'')}</small></td><td>${esc(d.vendedor||'—')}</td><td>${d.fechaCreacion||'—'}</td><td>${d.fechaEntrega||'—'}</td><td>${d.due||'—'}</td><td class="${d.late>0?'late':''}">${d.due?(d.late>0?'+':'')+d.late:'—'}</td><td>${money(d.total)}</td><td class="paid">${money(d.paid)}</td><td><b>${money(d.balance)}</b></td><td><em>${d.status}</em></td><td><button data-pay="${esc(d.numero)}">＄</button><button data-detail="${esc(d.numero)}">👁</button><button data-edit="${esc(d.numero)}">✎</button></td></tr>`).join('')||'<tr><td colspan="12">No hay documentos con esos filtros.</td></tr>'}</tbody></table></div></section>`}
+function receipts(){let rows=data.comprobantes.filter(p=>filters.q?`${p.id} ${p.cliente} ${p.cotizacionNumero}`.toLowerCase().includes(filters.q.toLowerCase()):true);return `<section class="ct-card"><header><div><h3>Comprobantes de ingreso</h3><small>${rows.length} comprobantes · ${money(sum(rows.filter(p=>!p.anulado),'valor'))} recaudados</small></div><div><button data-a="newpay">Registrar pago</button> <button data-a="csvpay">Exportar CSV</button></div></header><div class="ct-table-wrap"><table><thead><tr><th>COMPROBANTE</th><th>FECHA</th><th>COTIZACIÓN</th><th>CLIENTE</th><th>MEDIO</th><th>REFERENCIA</th><th>VALOR</th><th>TIPO</th><th>RECIBIÓ</th><th>ACCIONES</th></tr></thead><tbody>${rows.map(p=>`<tr class="${p.anulado?'void':''}"><td>${p.id}${p.editado?' ✎':''}</td><td>${p.fecha}</td><td>${p.cotizacionNumero}</td><td>${esc(p.cliente)}</td><td>${esc(p.medio||'')}</td><td>${esc(p.referencia||'')}</td><td>${money(p.valor)}</td><td><em>${p.tipo||'Abono'}</em></td><td>${esc(p.recibio||'')}</td><td>${p.anulado?`<button data-restore="${p.id}">↺</button>`:`<button data-print="${p.id}">🖨</button><button data-void="${p.id}">✕</button>`}</td></tr>`).join('')||'<tr><td colspan="10">No hay comprobantes.</td></tr>'}</tbody></table></div></section>`}
+function upload(){return `<section class="ct-card"><h3>Cargar cotizaciones en PDF</h3><p>Con un PDF de muestra de Effi activaremos la extracción automática de los campos. Por ahora puede adjuntar el PDF a una cotización existente.</p><label class="ct-drop">Seleccione una cotización <select id="ct-pdf-doc"><option value="">— Elegir —</option>${data.documentos.map(d=>`<option>${d.numero}</option>`).join('')}</select><input id="ct-pdf" type="file" accept="application/pdf"></label><p id="ct-upload-msg"></p></section>`}
+function settings(){return `<section class="ct-settings"><article><h3>Regla de vencimiento</h3><label>El plazo se cuenta desde <select id="set-from"><option value="entrega">Fecha de entrega (si no hay, creación)</option><option value="creacion">Fecha de creación</option></select></label><label>Contado a 1 día equivale a <select id="set-cont"><option value="mismo_dia_entrega">Pago el día de entrega</option><option value="un_dia_despues">1 día después</option></select></label><label>Anticipo mínimo esperado (%) <input id="set-advance" type="number" min="0" max="100" value="${data.config.anticipoMinimoPct}"></label><button data-a="saveconfig">Guardar ajustes</button></article><article><h3>Dónde vive la información</h3><p>Los datos compartidos viven en el servidor y se respaldan diariamente. Se conservan al menos 30 copias.</p><button data-a="backup">Descargar respaldo</button> <label class="file">Restaurar desde respaldo<input id="ct-restore" type="file" accept="application/json"></label><p>${data.documentos.length} documentos · ${data.comprobantes.length} comprobantes · próximo CI-${String(data.contadorComprobante).padStart(4,'0')}</p></article></section>`}
+function bind(){app.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{tab=b.dataset.tab;render()}); let q=$('#ct-q'),v=$('#ct-v'),c=$('#ct-c'),s=$('#ct-s'); if(q){q.oninput=()=>{filters.q=q.value;render()};v.onchange=()=>{filters.vendedor=v.value;render()};c.onchange=()=>{filters.cliente=c.value;render()};s.value=filters.estado;s.onchange=()=>{filters.estado=s.value;render()}} app.querySelectorAll('[data-band]').forEach(b=>b.onclick=()=>{activeBand=activeBand===b.dataset.band?'':b.dataset.band;render()});app.querySelectorAll('[data-pay]').forEach(b=>b.onclick=()=>payment(b.dataset.pay));app.querySelectorAll('[data-detail]').forEach(b=>b.onclick=()=>detail(b.dataset.detail));app.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>documentForm(b.dataset.edit));app.querySelectorAll('[data-void]').forEach(b=>b.onclick=()=>voidPay(b.dataset.void,true));app.querySelectorAll('[data-restore]').forEach(b=>b.onclick=()=>voidPay(b.dataset.restore,false));app.querySelectorAll('[data-print]').forEach(b=>b.onclick=()=>printPay(b.dataset.print));let pdf=$('#ct-pdf');if(pdf)pdf.onchange=uploadPdf;let restore=$('#ct-restore');if(restore)restore.onchange=restoreData;app.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>action(b.dataset.a))}
+function $(s){return app.querySelector(s)}
+async function action(a){if(a==='sync'){await api('/sincronizar',{method:'POST'});return load()}if(a==='clear'){filters={q:'',vendedor:'',cliente:'',estado:'pendiente'};activeBand='';return render()}if(a==='newdoc')return documentForm();if(a==='newpay')return payment();if(a==='saveconfig'){data.config.plazoDesde=$('#set-from').value;data.config.contadoEquivale=$('#set-cont').value;data.config.anticipoMinimoPct=Number($('#set-advance').value);await save();return render()}if(a==='backup')location.href='/api/cartera/respaldo';if(a==='csvdocs')csv('cartera.csv',docs().map(d=>[d.numero,d.cliente,d.vendedor,d.fechaCreacion,d.fechaEntrega,d.due,d.total,d.paid,d.balance,d.status]));if(a==='csvpay')csv('comprobantes.csv',data.comprobantes.map(p=>[p.id,p.fecha,p.cotizacionNumero,p.cliente,p.medio,p.referencia,p.valor,p.tipo,p.recibio,p.anulado?'Anulado':'']))}
+function dialog(html){let d=$('#ct-dialog');d.innerHTML=html;d.showModal();d.querySelector('[data-close]').onclick=()=>d.close();return d}
+function documentForm(number){let x=number?data.documentos.find(d=>d.numero===number):{};let d=dialog(`<form method="dialog" class="ct-form"><h3>${number?'Editar':'Agregar'} documento</h3><label>Número<input name="numero" required value="${esc(x.numero||'')}"></label><label>Cliente<input name="cliente" required value="${esc(x.cliente||'')}"></label><label>Vendedor<input name="vendedor" value="${esc(x.vendedor||'')}"></label><label>Fecha creación<input name="fechaCreacion" type="date" value="${x.fechaCreacion||today()}"></label><label>Fecha entrega<input name="fechaEntrega" type="date" value="${x.fechaEntrega||''}"></label><label>Forma de pago<input name="formaPago" value="${esc(x.formaPago||'Contado a 1 día')}"></label><label>Total<input name="total" type="number" min="0" value="${x.total||''}"></label><label>Estado<select name="estado"><option>pedido</option><option>facturado</option><option>anulada</option><option>excluida</option></select></label><button>Guardar</button><button type="button" data-close>Cancelar</button></form>`);d.querySelector('form').onsubmit=async e=>{e.preventDefault();let p=Object.fromEntries(new FormData(e.target));p.usuario='Usuario';await api('/documentos',{method:'POST',body:JSON.stringify(p)});d.close();load()}}
+function payment(number){let d=number?view(data.documentos.find(x=>x.numero===number)):null;let options=data.documentos.map(x=>`<option value="${x.numero}" ${x.numero===number?'selected':''}>${x.numero} · ${esc(x.cliente)}</option>`).join('');let modal=dialog(`<form method="dialog" class="ct-form"><h3>Registrar pago</h3><label>Cotización<select name="cotizacionNumero">${options}</select></label><label>Fecha<input name="fecha" type="date" value="${today()}"></label><label>Medio<select name="medio"><option>Transferencia Bancolombia</option><option>Efectivo</option><option>Consignación Bancolombia</option><option>Otro</option></select></label><label>Referencia<input name="referencia"></label><label>Valor<input name="valor" type="number" required min="1" value="${d?d.balance:''}"></label><label>Tipo<select name="tipo"><option>Abono</option><option>Anticipo</option></select></label><label>Recibió<select name="recibio">${data.usuarios.map(u=>`<option>${esc(u)}</option>`).join('')}</select></label><button>Guardar comprobante</button><button type="button" data-close>Cancelar</button></form>`);modal.querySelector('form').onsubmit=async e=>{e.preventDefault();let p=Object.fromEntries(new FormData(e.target)), doc=view(data.documentos.find(x=>x.numero===p.cotizacionNumero));if(Number(p.valor)>doc.balance&&!confirm('El valor supera el saldo. ¿Desea registrarlo?'))return;p.cliente=doc.cliente;await api('/comprobantes',{method:'POST',body:JSON.stringify(p)});modal.close();load()}}
+function detail(number){let d=view(data.documentos.find(x=>x.numero===number));dialog(`<section class="ct-detail"><h3>Cotización #${esc(d.numero)}</h3><p>${esc(d.cliente)} · ${esc(d.vendedor||'Sin vendedor')}</p><p>Total ${money(d.total)} · Pagado ${money(d.paid)} · Saldo <b>${money(d.balance)}</b></p><h4>Pagos aplicados</h4>${data.comprobantes.filter(p=>p.cotizacionNumero===number).map(p=>`<p>${p.id} · ${p.fecha} · ${money(p.valor)} ${p.anulado?'(anulado)':''}</p>`).join('')||'<p>Sin pagos.</p>'}<h4>Historial</h4>${d.historial.map(h=>`<p>${h.fecha.slice(0,16)} · ${esc(h.usuario)} · ${esc(h.accion)}</p>`).join('')}<button data-close>Cerrar</button></section>`)}
+async function voidPay(id,on){if(on&&!confirm('¿Anular el comprobante? El registro se conservará.'))return;await api(`/comprobantes/${id}/anular`,{method:'POST',body:JSON.stringify({anulado:on,motivo:on?'Anulado desde cartera':''})});load()}
+function printPay(id){let p=data.comprobantes.find(x=>x.id===id);let w=window.open('','_blank');w.document.write(`<h1>INDOOR SPORT S.A.S.</h1><h2>Comprobante de ingreso ${p.id}</h2><p>Fecha: ${p.fecha}</p><p>Cliente: ${esc(p.cliente)}</p><p>Concepto: Cotización ${p.cotizacionNumero}</p><p>Medio: ${esc(p.medio)}</p><h2>${money(p.valor)}</h2><br><br><p>Firma de quien recibió: ____________________</p>`);w.print()}
+async function uploadPdf(){let f=$('#ct-pdf').files[0],n=$('#ct-pdf-doc').value;if(!f||!n)return;let fd=new FormData();fd.append('file',f);await api('/pdf/'+encodeURIComponent(n),{method:'POST',body:fd});$('#ct-upload-msg').textContent='PDF adjuntado correctamente.'}
+async function restoreData(){let f=$('#ct-restore').files[0];if(!f||!confirm('Esto reemplazará todos los datos actuales. ¿Continuar?'))return;let fd=new FormData();fd.append('file',f);await api('/restaurar',{method:'POST',body:fd});load()}
+function csv(name,rows){let a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+rows.map(r=>r.map(v=>`"${String(v??'').replaceAll('"','""')}"`).join(';')).join('\n')],{type:'text/csv'}));a.download=name;a.click();URL.revokeObjectURL(a.href)}
+async function api(path,opt={}){opt.headers={...(opt.headers||{}),...(opt.body instanceof FormData?{}:{'Content-Type':'application/json'})};let r=await fetch('/api/cartera'+path,opt);let d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.detail||'No se pudo guardar');return d}async function save(){await api('/datos',{method:'PUT',body:JSON.stringify(data)})}async function load(){try{data=await api('/datos');render()}catch(e){app.innerHTML=`<p class="ct-error">No hay conexión con el servidor: ${esc(e.message)}. La edición está bloqueada.</p>`}}document.addEventListener('keydown',e=>{if(e.key==='/'&&tab!=='cargar'){e.preventDefault();$('#ct-q')?.focus()}});window.loadCartera=load;

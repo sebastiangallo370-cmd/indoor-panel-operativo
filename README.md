@@ -26,6 +26,13 @@ privada `FORMATO_EXCEL.xlsx` ni las credenciales de Google; esas dependencias se
 requieren únicamente para las funciones anteriores de creación de Excel y
 sincronización con Google Sheets.
 
+Incluye tablero de vencimientos, cartera por cliente/vendedor/condición, registro
+auditable de abonos y anticipos, comprobantes anulables, exportación CSV, reglas
+de vencimiento y respaldos diarios en `data/state/respaldos`. La sincronización
+con Google Sheets conserva los pagos registrados localmente. Para habilitar la
+lectura automática de cotizaciones Effi en PDF hace falta primero una muestra
+real y anonimizada para ajustar el extractor a su formato.
+
 ## Arquitectura
 
 - FastAPI sirve la interfaz y procesa los PDF.
