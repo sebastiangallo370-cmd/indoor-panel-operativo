@@ -677,7 +677,21 @@
     if (!button) return;
     event.preventDefault();
     event.stopPropagation();
-    document.querySelector('.tab[data-kind="reproceso"]')?.click();
+    const card = button.closest('[data-card-row]');
+    const row = Number(card?.dataset.cardRow);
+    if (!row) return;
+    // The per-order button is deliberately a focused writing flow, not a shortcut
+    // to the general Reproceso board. It reuses the persisted production operation.
+    openOperatorProduction(row);
+    const title = operatorForm.querySelector('h2');
+    const previousTitle = title.textContent;
+    title.textContent = 'Registrar reproceso';
+    operatorForm.elements.reason.placeholder = 'Describe qué se debe corregir y por qué…';
+    operatorDialog.querySelector('.operator-message').textContent = 'Selecciona el proceso y registra aquí el motivo del reproceso de esta orden.';
+    const reworkAction = operatorForm.querySelector('button[value="rework"]');
+    reworkAction?.scrollIntoView({ block: 'nearest' });
+    operatorForm.elements.reason.focus();
+    operatorDialog.addEventListener('close', () => { title.textContent = previousTitle; }, { once: true });
   }, true);
   traceCards.addEventListener('click', event => {
     const button = event.target.closest('[data-card-nas]');
