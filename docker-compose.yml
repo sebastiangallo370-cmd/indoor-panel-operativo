@@ -9,6 +9,8 @@ services:
     volumes:
       - ./data:/data
       - /mnt/nas-indoor:/mnt/nas
+      # La credencial no se versiona: se guarda solo en el VPS, dentro de ./secrets.
+      - ./secrets:/run/secrets:ro
     environment:
       - OLLAMA_URL=http://ollama:11434
       - OLLAMA_MODEL=moondream

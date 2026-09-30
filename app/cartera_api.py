@@ -2,6 +2,9 @@ import os
 import json
 import uuid
 import shutil
+import io
+import re
+from pathlib import Path
 from datetime import datetime, timezone
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
 from fastapi.responses import HTMLResponse
@@ -11,11 +14,11 @@ from app.cartera_pdf import parse_effi_pdf
 
 cartera_router = APIRouter(prefix="/api/cartera", tags=["cartera"])
 
-DATOS_DIR = "datos"
-RESPALDOS_DIR = os.path.join(DATOS_DIR, "respaldos")
-CARTERA_FILE = os.path.join(DATOS_DIR, "cartera.json")
+DATOS_DIR = Path(os.getenv("CARTERA_STATE_DIR", "/data/state"))
+RESPALDOS_DIR = DATOS_DIR / "cartera_respaldos"
+CARTERA_FILE = DATOS_DIR / "cartera.json"
 
-os.makedirs(RESPALDOS_DIR, exist_ok=True)
+RESPALDOS_DIR.mkdir(parents=True, exist_ok=True)
 
 @cartera_router.get("/app", response_class=HTMLResponse)
 def serve_cartera_app():
@@ -58,19 +61,159 @@ def save_cartera(data):
 def backup_cartera():
     if not os.path.exists(CARTERA_FILE): return
     today = datetime.now().strftime("%Y-%m-%d")
-    backup_file = os.path.join(RESPALDOS_DIR, f"cartera_{today}.json")
-    if not os.path.exists(backup_file):
+    backup_file = RESPALDOS_DIR / f"cartera_{today}.json"
+    if not backup_file.exists():
         shutil.copy2(CARTERA_FILE, backup_file)
     # Limpiar viejos
-    backups = sorted(os.listdir(RESPALDOS_DIR))
+    backups = sorted(RESPALDOS_DIR.iterdir())
     while len(backups) > 30:
         oldest = backups.pop(0)
-        os.remove(os.path.join(RESPALDOS_DIR, oldest))
+        oldest.unlink()
+
+
+def _header_key(value: Any) -> str:
+    """Normaliza encabezados de Excel sin depender de tildes o mayúsculas."""
+    text = str(value or "").upper().strip()
+    return re.sub(r"[^A-Z0-9]+", " ", text)
+
+
+def _find_column(headers: List[Any], words: List[str], fallback: int | None = None) -> int | None:
+    for index, header in enumerate(headers):
+        normalized = _header_key(header)
+        if all(word in normalized for word in words):
+            return index
+    return fallback
+
+
+def _amount(value: Any) -> float:
+    if value in (None, ""):
+        return 0
+    if isinstance(value, (int, float)):
+        return float(value)
+    digits = re.sub(r"[^0-9,.-]", "", str(value))
+    if not digits:
+        return 0
+    if digits.count(",") == 1 and digits.count(".") >= 1:
+        digits = digits.replace(".", "").replace(",", ".")
+    elif digits.count(",") > 1 or (digits.count(",") == 1 and digits.count(".") == 0):
+        digits = digits.replace(",", "")
+    try:
+        return float(digits)
+    except ValueError:
+        return 0
+
+
+def _date_value(value: Any) -> str:
+    if hasattr(value, "isoformat"):
+        return value.isoformat()[:10]
+    text = str(value or "").strip()
+    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"):
+        try:
+            return datetime.strptime(text[:10], fmt).date().isoformat()
+        except ValueError:
+            pass
+    return ""
+
+
+def sync_from_indoor_control() -> Dict[str, Any]:
+    """Lee el Excel real de CONTROL DE PAGOS COTIZACIONES desde Drive.
+
+    La misma cuenta de servicio que usan los procesos de pedidos se utiliza en
+    modo lectura. No se modifica el archivo comercial desde este módulo.
+    """
+    credentials_path = Path(os.getenv("GOOGLE_CREDENTIALS", "/run/secrets/google-service-account.json"))
+    file_id = os.getenv("PAGOS_COTIZACIONES_FILE_ID", "").strip()
+    sheet_name = os.getenv("PAGOS_COTIZACIONES_HOJA", "").strip()
+    if not file_id or file_id == "REEMPLAZAR":
+        raise HTTPException(503, "Falta configurar PAGOS_COTIZACIONES_FILE_ID en el servidor")
+    if not credentials_path.is_file():
+        raise HTTPException(503, "Falta la credencial de Google en /run/secrets/google-service-account.json")
+
+    try:
+        import openpyxl
+        from google.oauth2.service_account import Credentials
+        from google.auth.transport.requests import AuthorizedSession
+
+        credentials = Credentials.from_service_account_file(
+            str(credentials_path), scopes=["https://www.googleapis.com/auth/drive.readonly"]
+        )
+        response = AuthorizedSession(credentials).get(
+            f"https://www.googleapis.com/drive/v3/files/{file_id}",
+            params={"alt": "media", "supportsAllDrives": "true"}, timeout=60,
+        )
+        response.raise_for_status()
+        workbook = openpyxl.load_workbook(io.BytesIO(response.content), data_only=True, read_only=True)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(502, f"No fue posible leer CONTROL DE PAGOS COTIZACIONES: {exc}") from exc
+
+    worksheet = workbook[sheet_name] if sheet_name in workbook.sheetnames else workbook[workbook.sheetnames[0]]
+    rows = worksheet.iter_rows(values_only=True)
+    headers = list(next(rows, []))
+    if not headers:
+        raise HTTPException(422, "El archivo de CONTROL DE PAGOS COTIZACIONES no tiene encabezados")
+
+    col_number = _find_column(headers, ["COTIZACION"], 0)
+    col_client = _find_column(headers, ["CLIENTE"], 1)
+    col_seller = _find_column(headers, ["VENDEDOR"], 2)
+    col_total = _find_column(headers, ["TOTAL"], 3)
+    col_created = _find_column(headers, ["FECHA"], None)
+    col_paid = _find_column(headers, ["PAGADO"], None)
+    col_status = _find_column(headers, ["ESTADO"], None)
+
+    documents = []
+    for row in rows:
+        if not row or col_number is None or col_number >= len(row) or row[col_number] in (None, ""):
+            continue
+        raw_number = str(row[col_number]).strip()
+        number = re.sub(r"^(?:CO|COTIZACION)\s*", "", raw_number, flags=re.IGNORECASE).strip()
+        if not number:
+            continue
+        value_at = lambda column: row[column] if column is not None and column < len(row) else ""
+        status_text = str(value_at(col_status)).lower()
+        documents.append({
+            "numero": number,
+            "cliente": str(value_at(col_client)).strip() or "SIN CLIENTE",
+            "vendedor": str(value_at(col_seller)).strip(),
+            "fechaCreacion": _date_value(value_at(col_created)),
+            "fechaEntrega": "",
+            "formaPago": "",
+            "total": _amount(value_at(col_total)),
+            "pagadoImportado": _amount(value_at(col_paid)),
+            "estado": "anulada" if "anulad" in status_text else "pedido",
+            "origen": "CONTROL DE PAGOS COTIZACIONES",
+            "revisar": False,
+            "notas": "Sincronizado desde Indoor",
+        })
+
+    db = load_cartera()
+    previous = {str(item.get("numero")): item for item in db["documentos"]}
+    merged = []
+    imported_numbers = set()
+    for document in documents:
+        imported_numbers.add(document["numero"])
+        old = previous.get(document["numero"], {})
+        document["historial"] = old.get("historial", [])
+        document["historial"].append({"fecha": datetime.now(timezone.utc).isoformat(), "accion": "Sincronizado desde Indoor"})
+        merged.append(document)
+    # Conserva únicamente los documentos creados manualmente o desde PDF que no
+    # pertenecen al control comercial de Indoor.
+    merged.extend(item for number, item in previous.items() if number not in imported_numbers and item.get("origen") != "CONTROL DE PAGOS COTIZACIONES")
+    db["documentos"] = merged
+    db["ultimaSincronizacionIndoor"] = datetime.now(timezone.utc).isoformat()
+    save_cartera(db)
+    return {"ok": True, "documentos": len(documents), "hoja": worksheet.title, "sincronizado_en": db["ultimaSincronizacionIndoor"]}
 
 @cartera_router.get("/datos")
 def get_datos():
     backup_cartera()
     return load_cartera()
+
+
+@cartera_router.post("/sincronizar-indoor")
+def sincronizar_indoor():
+    return sync_from_indoor_control()
 
 @cartera_router.post("/documentos")
 def upsert_documentos(docs: List[Dict[Any, Any]]):

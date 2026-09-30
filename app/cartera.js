@@ -23,6 +23,8 @@ async function loadDatos() {
         document.getElementById('conn-status').className = 'indicator green';
         document.getElementById('conn-status').textContent = '● Conectado · datos compartidos';
         document.getElementById('db-stats').textContent = `${state.datos.documentos.length} documentos · ${state.datos.comprobantes.length} comprobantes · próximo comprobante CI-${String(state.datos.contadorComprobante).padStart(4, '0')}`;
+        const lastSync = state.datos.ultimaSincronizacionIndoor;
+        document.getElementById('sync-status').textContent = lastSync ? `Última sincronización de Indoor: ${new Date(lastSync).toLocaleString('es-CO')}` : 'Aún no se han sincronizado datos de Indoor.';
         
         // La sesión se muestra en la plataforma principal. Aquí evitamos
         // duplicar o inventar un usuario dentro del módulo embebido.
@@ -48,7 +50,7 @@ function processData() {
     });
 
     let procesados = documentos.map(doc => {
-        const pagado = pagosPorCot[doc.numero] || 0;
+        const pagado = Number(doc.pagadoImportado || 0) + (pagosPorCot[doc.numero] || 0);
         const saldo = Math.max(0, doc.total - pagado);
         
         // Fechas
@@ -254,6 +256,24 @@ function openTab(tabName) {
 
 document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', e => openTab(e.currentTarget.dataset.tab)));
 document.querySelectorAll('.quick-tab').forEach(b => b.addEventListener('click', e => openTab(e.currentTarget.dataset.targetTab)));
+
+document.getElementById('btn-sync-indoor').addEventListener('click', async event => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    button.textContent = 'Sincronizando…';
+    try {
+        const response = await fetch(`${API_URL}/sincronizar-indoor`, { method: 'POST' });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.detail || 'No se pudo sincronizar');
+        document.getElementById('sync-status').textContent = `${result.documentos} documentos reales actualizados desde Indoor.`;
+        await loadDatos();
+    } catch (error) {
+        document.getElementById('sync-status').textContent = `Sincronización pendiente: ${error.message}`;
+    } finally {
+        button.disabled = false;
+        button.textContent = '↻ Sincronizar Indoor';
+    }
+});
 
 document.querySelectorAll('#global-filters input, #global-filters select').forEach(el => {
     el.addEventListener('change', e => {
