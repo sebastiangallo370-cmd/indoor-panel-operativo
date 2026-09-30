@@ -1,5 +1,19 @@
 const API_URL = '/api/cartera';
 
+// Captura errores globales y los muestra en la pantalla para diagnóstico
+window.addEventListener('error', ev => {
+    const panel = document.querySelector('.cartera-panel');
+    if (!panel) return;
+    const box = panel.querySelector('#cartera-error-display') || (() => {
+        const d = document.createElement('div');
+        d.id = 'cartera-error-display';
+        d.style.cssText = 'position:fixed;top:0;left:0;right:0;padding:12px 16px;background:#7f1d1d;color:#fecaca;font-family:monospace;font-size:12px;z-index:9999;white-space:pre-wrap;';
+        document.body.appendChild(d);
+        return d;
+    })();
+    box.textContent = `[cartera.js ERROR] ${ev.message}\n  en ${ev.filename}:${ev.lineno}:${ev.colno}`;
+});
+
 let state = {
     datos: null,
     filtros: {
@@ -33,8 +47,8 @@ async function loadDatos() {
         
         updateUI();
     } catch (e) {
-        document.getElementById('conn-status').className = 'indicator red';
-        document.getElementById('conn-status').textContent = '● Error de conexión';
+        const cs = document.getElementById('conn-status');
+        if (cs) { cs.className = 'indicator red'; cs.textContent = '● Error de conexión'; }
     }
 }
 
@@ -290,17 +304,17 @@ function abrirDetalleCartera(action) {
     updateUI();
 }
 
-document.getElementById('kpi-grid').addEventListener('click', event => {
+document.getElementById('kpi-grid')?.addEventListener('click', event => {
     const card = event.target.closest('[data-kpi-action]');
     if (card) abrirDetalleCartera(card.dataset.kpiAction);
 });
 
-document.getElementById('aging-bar').addEventListener('click', event => {
+document.getElementById('aging-bar')?.addEventListener('click', event => {
     const segment = event.target.closest('[data-tramo]');
     if (segment) abrirDetalleCartera(segment.dataset.tramo);
 });
 
-document.getElementById('btn-sync-indoor').addEventListener('click', async event => {
+document.getElementById('btn-sync-indoor')?.addEventListener('click', async event => {
     const button = event.currentTarget;
     button.disabled = true;
     button.textContent = 'Sincronizando…';
@@ -329,7 +343,7 @@ document.querySelectorAll('#global-filters input, #global-filters select').forEa
     });
 });
 
-document.getElementById('f-limpiar').addEventListener('click', () => {
+document.getElementById('f-limpiar')?.addEventListener('click', () => {
     state.filtros = { buscar:'', vendedor:'Todos', cliente:'Todos', pago:'Todos', estado:'pendiente', rangoTipo:'fechaCreacion', desde:'', hasta:'', tramo:'todos' };
     document.querySelectorAll('#global-filters input').forEach(input => input.value = '');
     document.getElementById('f-estado').value = 'pendiente';
@@ -346,7 +360,7 @@ function openPago(num, max) {
     document.getElementById('modal-pago').showModal();
 }
 
-document.getElementById('form-pago').addEventListener('submit', async e => {
+document.getElementById('form-pago')?.addEventListener('submit', async e => {
     e.preventDefault();
     const data = {
         cotizacionNumero: document.getElementById('pago-cotizacion').value,
@@ -363,7 +377,7 @@ document.getElementById('form-pago').addEventListener('submit', async e => {
     loadDatos();
 });
 
-document.getElementById('file-upload').addEventListener('change', async e => {
+document.getElementById('file-upload')?.addEventListener('change', async e => {
     const files = e.target.files;
     if(!files.length) return;
     const results = document.getElementById('upload-results');
@@ -392,7 +406,7 @@ document.getElementById('file-upload').addEventListener('change', async e => {
 function scheduleDate() {
     const d = new Date();
     const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-    document.getElementById('current-date').textContent = d.toLocaleDateString('es-CO', options);
+    if (document.getElementById('current-date')) document.getElementById('current-date').textContent = d.toLocaleDateString('es-CO', options);
 }
 
 // ── Exportar CSV ─────────────────────────────────────────────────────────────
@@ -408,14 +422,14 @@ function downloadCSV(filename, headers, rows) {
     a.click();
 }
 
-document.getElementById('btn-export-cartera').addEventListener('click', () => {
+document.getElementById('btn-export-cartera')?.addEventListener('click', () => {
     const docs = processData();
     const headers = ['N°','CLIENTE','VENDEDOR','FECHA CREACIÓN','FECHA ENTREGA','FORMA PAGO','VENCE','DÍAS','TOTAL','PAGADO','SALDO','ESTADO'];
     const rows = docs.map(d => [d.numero, d.cliente, d.vendedor||'', d.fechaCreacion||'', d.fechaEntrega||'', d.formaPago||'', d.fechaVencimiento, d.diasVencido, d.total, d.pagado, d.saldo, d.estadoVisual]);
     downloadCSV(`cartera_${new Date().toISOString().split('T')[0]}.csv`, headers, rows);
 });
 
-document.getElementById('btn-export-pagos').addEventListener('click', () => {
+document.getElementById('btn-export-pagos')?.addEventListener('click', () => {
     const comps = [...state.datos.comprobantes].reverse();
     const headers = ['COMPROBANTE','FECHA','COTIZACIÓN','CLIENTE','MEDIO','REFERENCIA','VALOR','TIPO','RECIBIÓ','ESTADO'];
     const rows = comps.map(c => [c.id, (c.fecha||'').split('T')[0], c.cotizacionNumero, c.cliente||'', c.medio, c.referencia||'', c.valor, c.tipo, c.recibio, c.anulado ? 'Anulado' : 'Válido']);
@@ -423,13 +437,13 @@ document.getElementById('btn-export-pagos').addEventListener('click', () => {
 });
 
 // Clic en el sugerido → rellena el campo valor
-document.getElementById('pago-sugerido').addEventListener('click', () => {
+document.getElementById('pago-sugerido')?.addEventListener('click', () => {
     const max = document.getElementById('pago-valor').max;
     if (max) document.getElementById('pago-valor').value = max;
 });
 
 // btn-add-pago: abre modal con selector completo de cotizaciones
-document.getElementById('btn-add-pago').addEventListener('click', () => {
+document.getElementById('btn-add-pago')?.addEventListener('click', () => {
     const options = (state.datos?.documentos || [])
         .filter(d => d.saldo > 0 && d.estado !== 'anulada')
         .sort((a, b) => String(a.numero).localeCompare(String(b.numero)));
@@ -444,7 +458,7 @@ document.getElementById('btn-add-pago').addEventListener('click', () => {
 });
 
 // Actualizar max y sugerido al cambiar la cotización en el selector completo
-document.getElementById('pago-cotizacion').addEventListener('change', e => {
+document.getElementById('pago-cotizacion')?.addEventListener('change', e => {
     const num = e.target.value;
     const doc = (state.datos?.documentos || []).find(d => String(d.numero) === String(num));
     if (doc) {
@@ -469,7 +483,7 @@ async function anularPago(id) {
 }
 
 // ── Agregar documento manual ──────────────────────────────────────────────────
-document.getElementById('btn-add-doc').addEventListener('click', () => {
+document.getElementById('btn-add-doc')?.addEventListener('click', () => {
     const num = prompt('Número de cotización:');
     if (!num || !num.trim()) return;
     const cliente = prompt('Cliente:') || '';
@@ -492,7 +506,7 @@ document.getElementById('btn-add-doc').addEventListener('click', () => {
 });
 
 // ── Ajustes ───────────────────────────────────────────────────────────────────
-document.getElementById('btn-save-settings').addEventListener('click', async () => {
+document.getElementById('btn-save-settings')?.addEventListener('click', async () => {
     const config = {
         plazoDesde: document.getElementById('conf-plazo').value,
         contadoEquivale: document.getElementById('conf-contado').value,
@@ -508,7 +522,7 @@ document.getElementById('btn-save-settings').addEventListener('click', async () 
 });
 
 // ── Respaldo ──────────────────────────────────────────────────────────────────
-document.getElementById('btn-backup').addEventListener('click', () => {
+document.getElementById('btn-backup')?.addEventListener('click', () => {
     const data = JSON.stringify(state.datos, null, 2);
     const blob = new Blob([data], { type: 'application/json' });
     const a = document.createElement('a');
@@ -518,6 +532,16 @@ document.getElementById('btn-backup').addEventListener('click', () => {
 });
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
+const _checkIds = ['kpi-grid','aging-bar','btn-sync-indoor','f-limpiar','form-pago',
+    'file-upload','btn-export-cartera','btn-export-pagos','pago-sugerido','btn-add-pago',
+    'pago-cotizacion','btn-add-doc','btn-save-settings','btn-backup','current-date'];
+const _missing = _checkIds.filter(id => !document.getElementById(id));
+if (_missing.length) {
+    const dbg = document.createElement('div');
+    dbg.style.cssText = 'padding:8px 14px;background:#7f1d1d;color:#fecaca;font-size:12px;margin:8px;border-radius:6px;font-family:monospace;z-index:999;position:relative;';
+    dbg.textContent = 'DIAGNÓSTICO cartera.js: elementos no encontrados → ' + _missing.join(', ');
+    document.querySelector('.cartera-panel')?.prepend(dbg);
+}
 scheduleDate();
 loadDatos();
 setInterval(loadDatos, 30000);
