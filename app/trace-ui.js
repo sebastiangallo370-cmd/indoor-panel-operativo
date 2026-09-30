@@ -638,7 +638,8 @@
       headerActions.innerHTML = [
         ['start', 'INICIAR', activeKey === 'P' || !activeColumn],
         ['finish', 'FINALIZAR', activeClosed || !activeColumn],
-        ['na', 'N/A', activeClosed || !activeColumn]
+        ['na', 'N/A', activeClosed || !activeColumn],
+        ['clear', 'QUITAR ESTADO', !activeKey || !activeColumn]
       ].map(([action, label, disabled]) => '<button type="button" class="trace-order-' + action + '" data-card-operation="' + action + '" data-card-row="' + row.source_row + '" data-card-column="' + (activeColumn || '') + '" title="' + esc(activeGroup?.label || 'Sin proceso activo') + '"' + (disabled ? ' disabled' : '') + '>' + label + '</button>').join('');
       const heading = card.querySelector('.trace-card-heading');
       heading.insertBefore(headerActions, heading.querySelector('.trace-stage'));
@@ -1611,7 +1612,7 @@
   html body.production-mode .trace-order-rework:focus-visible{outline:2px solid #ffd2ce;outline-offset:2px}
   html body.production-mode .trace-order-actions{display:inline-flex;flex-wrap:wrap;gap:4px;align-items:center}
   html body.production-mode .trace-order-actions button{width:auto;min-height:28px;padding:5px 7px!important;border:1px solid #5c6e60!important;border-radius:999px;background:#202b23!important;color:#d7e2d6!important;font:800 9px/1 Arial!important;letter-spacing:.04em;white-space:nowrap;box-shadow:none}
-  html body.production-mode .trace-order-actions .trace-order-start{border-color:#e1ae61!important;color:#ffda9a!important}.trace-order-actions .trace-order-finish{border-color:#82b88c!important;color:#bbefc6!important}.trace-order-actions .trace-order-na{border-color:#718479!important;color:#d8e3d8!important}.trace-order-actions button:disabled{opacity:.38;filter:saturate(.4)}
+  html body.production-mode .trace-order-actions .trace-order-start{border-color:#e1ae61!important;color:#ffda9a!important}.trace-order-actions .trace-order-finish{border-color:#82b88c!important;color:#bbefc6!important}.trace-order-actions .trace-order-na{border-color:#718479!important;color:#d8e3d8!important}.trace-order-actions .trace-order-clear{border-color:#74bde4!important;color:#bde9ff!important}.trace-order-actions button:disabled{opacity:.38;filter:saturate(.4)}
   html body.production-mode .trace-card-quick-actions{margin-top:10px;padding:10px;border:1px solid #344436;border-radius:12px;background:#101711}
   html body.production-mode .trace-quick-action-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;color:#9db198;font:800 9px/1 Arial;letter-spacing:.07em}
   html body.production-mode .trace-quick-action-head strong{color:#dbe9d6;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
