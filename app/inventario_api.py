@@ -76,15 +76,30 @@ def _records_for_tab(values: list[list[str]], tab_key: str, tab_label: str) -> l
             if not name or _normalized(name) in {"MATERIA PRIMA O PRODUCTO", "UBICACIONES"}:
                 continue
             display_name = f"{name} · {location}" if location else name
-            records.append({"id": f"{tab_key}:{row_index}", "categoria": tab_key, "categoria_label": tab_label, "nombre": display_name, "total": 0.0, "total_label": registration or "Sin registro", "detalle": registration or location or "Sin registro"})
+            records.append({
+                "id": f"{tab_key}:{row_index}",
+                "categoria": tab_key,
+                "categoria_label": tab_label,
+                "nombre": display_name,
+                "total": 0.0,
+                "total_label": registration or "Sin registro",
+                "detalle": registration or location or "Sin registro",
+                "campos": {
+                    "Materia prima o producto": name,
+                    "Ubicación": location or "—",
+                    "Registro": registration or "—",
+                },
+            })
         return records
     records: list[dict[str, Any]] = []
     active_name: int | None = None
     active_total: int | None = None
+    active_headers: list[str] = []
     seen: set[tuple[str, str, float]] = set()
     for row_index, row in enumerate(values, start=1):
         if _is_header(row):
             active_name, active_total = _header_positions(row)
+            active_headers = [str(value or "").strip() or f"Campo {index + 1}" for index, value in enumerate(row)]
             continue
         if active_name is None or active_total is None:
             continue
@@ -99,6 +114,11 @@ def _records_for_tab(values: list[list[str]], tab_key: str, tab_label: str) -> l
         if identity in seen:
             continue
         seen.add(identity)
+        fields = {
+            active_headers[index] if index < len(active_headers) else f"Campo {index + 1}": str(value).strip()
+            for index, value in enumerate(row)
+            if str(value or "").strip()
+        }
         records.append({
             "id": f"{tab_key}:{row_index}:{len(records)}",
             "categoria": tab_key,
@@ -106,6 +126,7 @@ def _records_for_tab(values: list[list[str]], tab_key: str, tab_label: str) -> l
             "nombre": name,
             "total": total,
             "total_label": _display_total(total),
+            "campos": fields,
         })
     return records
 
