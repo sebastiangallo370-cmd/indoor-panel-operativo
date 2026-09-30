@@ -33,16 +33,40 @@ jobs:
             "https://api.github.com/repos/$GITHUB_REPOSITORY/tarball/$GITHUB_SHA" \
             -o "$RUNNER_TEMP/indoor.tar.gz"
 
+      - name: Validar secretos SSH
+        env:
+          DEPLOY_KEY: ${{ secrets.INDOOR_DEPLOY_KEY }}
+          KNOWN_HOSTS: ${{ secrets.INDOOR_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$DEPLOY_KEY" || { echo 'ERROR: INDOOR_DEPLOY_KEY está vacío'; exit 1; }
+          test -n "$KNOWN_HOSTS" || { echo 'ERROR: INDOOR_KNOWN_HOSTS está vacío'; exit 1; }
+          umask 077
+          echo "--- Decodificando clave ---"
+          if printf '%s' "$DEPLOY_KEY" | base64 -d > "$RUNNER_TEMP/indoor_key" 2>&1; then
+            echo "OK: base64 decode exitoso"
+          else
+            echo "ERROR: base64 decode falló — revisa INDOOR_DEPLOY_KEY"
+            exit 1
+          fi
+          chmod 600 "$RUNNER_TEMP/indoor_key"
+          echo "--- Huella de la clave privada ---"
+          ssh-keygen -l -f "$RUNNER_TEMP/indoor_key" || echo "ERROR: clave privada inválida"
+          echo "--- Contenido de known_hosts ---"
+          printf '%s\n' "$KNOWN_HOSTS" > "$RUNNER_TEMP/indoor_hosts"
+          cat "$RUNNER_TEMP/indoor_hosts"
+          echo "--- Validando known_hosts ---"
+          ssh-keygen -H -F 2.25.238.166 -f "$RUNNER_TEMP/indoor_hosts" || echo "AVISO: IP no encontrada en known_hosts"
+
       - name: Publicar y comprobar la salud del servidor
         env:
           DEPLOY_KEY: ${{ secrets.INDOOR_DEPLOY_KEY }}
           KNOWN_HOSTS: ${{ secrets.INDOOR_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
-          test -n "$DEPLOY_KEY" || { echo 'Falta configurar INDOOR_DEPLOY_KEY'; exit 1; }
-          test -n "$KNOWN_HOSTS" || { echo 'Falta configurar INDOOR_KNOWN_HOSTS'; exit 1; }
           umask 077
           printf '%s' "$DEPLOY_KEY" | base64 -d > "$RUNNER_TEMP/indoor_key"
+          chmod 600 "$RUNNER_TEMP/indoor_key"
           printf '%s\n' "$KNOWN_HOSTS" > "$RUNNER_TEMP/indoor_hosts"
           trap 'rm -f "$RUNNER_TEMP/indoor_key" "$RUNNER_TEMP/indoor_hosts"' EXIT
           ssh -Tv -i "$RUNNER_TEMP/indoor_key" \
