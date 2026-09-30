@@ -1,10 +1,13 @@
 // cartera.js — el HTML ya existe en el DOM al cargar este script
 'use strict';
 
-const _ctBody   = document.getElementById('cartera-body');
-const _ctStatus = document.getElementById('cartera-status');
-const _ctSearch = document.getElementById('cartera-search');
-const _ctSync   = document.getElementById('btn-cartera-sync');
+const _ctBody      = document.getElementById('cartera-body');
+const _ctStatus    = document.getElementById('cartera-status');
+const _ctSearch    = document.getElementById('cartera-search');
+const _ctSync      = document.getElementById('btn-cartera-sync');
+const _ctKpiTotal  = document.getElementById('ct-kpi-total');
+const _ctKpiSaldo  = document.getElementById('ct-kpi-saldo');
+const _ctKpiAct    = document.getElementById('ct-kpi-activas');
 
 let _ctData = null;
 
@@ -18,8 +21,19 @@ function _fmt(n) {
   return '$ ' + Math.round(n || 0).toLocaleString('es-CO');
 }
 
+function _updateKpis() {
+  if (!_ctData) return;
+  const docs = _ctData.documentos;
+  const totalSaldo = docs.reduce((s, d) => s + (d.saldo || 0), 0);
+  const activas    = docs.filter(d => d.saldo > 0).length;
+  if (_ctKpiTotal) _ctKpiTotal.textContent = docs.length;
+  if (_ctKpiSaldo) _ctKpiSaldo.textContent = '$ ' + Math.round(totalSaldo).toLocaleString('es-CO');
+  if (_ctKpiAct)   _ctKpiAct.textContent   = activas;
+}
+
 function carteraRender() {
   if (!_ctData) return;
+  _updateKpis();
   const q = (_ctSearch.value || '').trim().toLowerCase();
   const docs = _ctData.documentos.filter(d =>
     !q ||

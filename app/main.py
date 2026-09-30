@@ -2648,27 +2648,35 @@ def home(_=Depends(authenticate)):
       body.operarios-mode .operarios-grid{{grid-template-columns:1fr}}
     }}
     @media(hover:none) and (pointer:coarse){{.tab,.nav-parent,.user-menu summary,.menu-toggle{{min-height:44px}}input,select,textarea{{font-size:16px}}}}
-    .ct-shell{{padding:28px 32px;max-width:1400px;margin:0 auto}}
-    .ct-head{{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;gap:16px;flex-wrap:wrap}}
-    .ct-head h2{{font-size:24px;font-weight:700;color:var(--ink);margin:0 0 4px}}
-    .ct-status{{font-size:13px;color:var(--muted);margin:0}}
-    .ct-sync-btn{{background:var(--lime);color:#1a2a0a;font-weight:700;border:none;border-radius:8px;padding:10px 20px;cursor:pointer;font-size:14px;white-space:nowrap}}
+    .ct-shell{{gap:12px}}
+    .ct-hero{{display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;padding:28px 32px 20px}}
+    .ct-hero div p{{color:var(--muted);font-size:14px;max-width:520px;margin:6px 0 0;line-height:1.5}}
+    .ct-sync-btn{{background:var(--lime);color:#1a2a0a;font-weight:700;border:none;border-radius:8px;padding:10px 22px;cursor:pointer;font-size:14px;white-space:nowrap;flex-shrink:0}}
     .ct-sync-btn:hover{{opacity:.88}}.ct-sync-btn:disabled{{opacity:.5;cursor:not-allowed}}
-    .ct-toolbar{{margin-bottom:16px}}
-    .ct-search{{width:100%;max-width:360px;background:#1a1f18;border:1px solid var(--line);border-radius:8px;color:var(--ink);padding:9px 14px;font-size:14px}}
-    .ct-table-wrap{{overflow-x:auto;border-radius:12px;border:1px solid var(--line)}}
+    .ct-kpi-row{{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;padding:0 32px 8px}}
+    .ct-kpi{{background:var(--glass);border:1px solid var(--line);border-radius:14px;padding:18px 20px;display:flex;flex-direction:column;gap:4px}}
+    .ct-kpi span{{font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}}
+    .ct-kpi strong{{font-size:22px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}}
+    .ct-kpi small{{font-size:12px;color:var(--muted)}}
+    .ct-kpi.ct-kpi-alert strong{{color:#f87171}}
+    .ct-table-card{{margin:0 32px 32px}}
+    .ct-toolbar{{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;flex-wrap:wrap}}
+    .ct-toolbar-left strong{{font-size:15px;font-weight:600;color:var(--ink)}}
+    .ct-status{{font-size:12px;color:var(--muted);margin:2px 0 0}}
+    .ct-search{{background:#1a1f18;border:1px solid var(--line);border-radius:8px;color:var(--ink);padding:8px 14px;font-size:13px;width:280px}}
+    .ct-table-wrap{{overflow-x:auto;border-radius:10px;border:1px solid var(--line)}}
     .ct-table{{width:100%;border-collapse:collapse;font-size:13px}}
     .ct-table th{{background:#1a1f18;color:var(--muted);font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:10px 14px;text-align:left;border-bottom:1px solid var(--line)}}
-    .ct-table td{{padding:10px 14px;border-bottom:1px solid rgba(208,244,76,.08);color:var(--ink)}}
-    .ct-table tr:last-child td{{border-bottom:none}}.ct-table tr:hover td{{background:rgba(208,244,76,.04)}}
+    .ct-table td{{padding:10px 14px;border-bottom:1px solid rgba(208,244,76,.07);color:var(--ink)}}
+    .ct-table tr:last-child td{{border-bottom:none}}.ct-table tbody tr:hover td{{background:rgba(208,244,76,.04)}}
     .ct-num{{font-variant-numeric:tabular-nums;text-align:right}}
-    .ct-pend{{color:#f87171;font-weight:600}}.ct-ok{{color:#4ade80;font-weight:600}}
-    .ct-empty{{text-align:center;color:var(--muted);padding:40px 20px}}
-    .ct-badge{{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;text-transform:uppercase;background:rgba(208,244,76,.12);color:var(--lime)}}
+    .ct-pend{{color:#f87171;font-weight:600}}.ct-ok{{color:#4ade80}}
+    .ct-empty{{text-align:center;color:var(--muted);padding:40px 20px;font-size:14px}}
+    .ct-badge{{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:600;text-transform:uppercase;background:rgba(208,244,76,.12);color:var(--lime)}}
     .ct-badge.ct-anulada{{background:rgba(248,113,113,.12);color:#f87171}}
     .ct-badge.ct-activa{{background:rgba(74,222,128,.12);color:#4ade80}}
     body.cartera-mode .footer-note{{display:none}}
-    @media(max-width:700px){{.ct-shell{{padding:16px}}.ct-search{{max-width:100%}}}}
+    @media(max-width:700px){{.ct-hero,.ct-kpi-row,.ct-table-card{{padding-left:16px;padding-right:16px}}.ct-search{{width:100%}}}}
     </style></head><body class='inicio-mode'><div class='topbar'></div><button id='menu-toggle' class='menu-toggle' type='button' aria-label='Ocultar menú' aria-expanded='true'>‹</button><aside class='sidebar' aria-label='Menú principal'><div class='sidebar-brand'><img src='/marca-indoor.svg' alt='Indoor'></div><div class='session-card'><div class='session-avatar'>IS</div><div class='session-copy'><strong>INDOOR SPORT SAS</strong><span>Panel operativo</span></div></div><div class='sidebar-label'>Menú principal</div><nav class='tabs' aria-label='Navegación principal'><button class='tab home-nav active' data-kind='inicio' type='button'><span class='nav-icon'>IN</span><strong>INICIO</strong></button><div class='nav-group collapsed'><button id='news-toggle' class='nav-parent' type='button'><span class='nav-icon'>NV</span><span>NOVEDADES</span></button><div class='nav-children'><button class='tab schedule-nav' data-kind='cronograma' type='button'><span class='nav-icon'>CR</span><strong>CRONOGRAMA</strong></button><button class='tab' data-kind='operarios' type='button'><span class='nav-icon'>OP</span><strong>CONTROL OPERARIOS</strong></button></div></div><div class='nav-group'><button id='commercial-toggle' class='nav-parent' type='button'><span class='nav-icon'>AC</span><span>Asistentes Comerciales</span></button><div class='nav-children'><button class='tab' data-kind='reprogramacion' type='button'><span class='nav-icon'>RP</span><strong>REPROGRAMACIONES</strong></button><button class='tab' data-kind='pedido' type='button'><span class='nav-icon'>PN</span><strong>PROGRAMAR</strong></button><button class='tab' data-kind='creador' type='button'><span class='nav-icon'>XL</span><strong>EXCEL</strong></button><button class='tab' data-kind='cartera' type='button'><span class='nav-icon'>CT</span><strong>CARTERA</strong></button></div></div><div class='nav-group collapsed'><button id='production-toggle' class='nav-parent' type='button'><span class='nav-icon'>PR</span><span>Producción</span></button><div class='nav-children'><button class='tab production-nav' data-kind='produccion' type='button'><span class='nav-icon'>TR</span><strong>TRAZABILIDAD</strong></button><button class='tab' data-kind='inventario' type='button'><span class='nav-icon'>IT</span><strong>INVENTARIOS</strong></button></div></div></nav><div class='sidebar-foot'>Indoor Sport · Operación interna</div></aside><main>
     <section class='panel' data-panel='inventario'><div class='inventory-shell'><section class='inventory-hero'><div><span class='eyebrow'>Producción · Existencias</span><h2>INVENTARIOS</h2><p>Consulta en un solo lugar las existencias de telas, insumos y materia prima. La información se lee directamente desde el archivo maestro de Google Sheets.</p></div><button id='inventory-refresh' class='inventory-refresh' type='button'>↻ Actualizar</button></section><section id='inventory-categories' class='inventory-category-grid' aria-label='Categorías de inventarios'></section><section class='card inventory-table-card'><div class='inventory-toolbar'><div><strong>Detalle de existencias</strong><div id='inventory-status' class='inventory-status'>Cargando inventarios…</div></div><input id='inventory-search' type='search' placeholder='Buscar referencia, tela o insumo' aria-label='Buscar inventario'></div><div class='inventory-cards-wrap'><div id='inventory-body' class='inventory-cards-grid'><div class='inventory-empty'>Cargando datos desde Google Sheets…</div></div></div></section></div></section>
     <div class='brand'><span class='brand-logo' aria-label='Indoor'><img src='/marca-indoor.svg' alt='Indoor'></span><span class='brand-line'></span><span class='eyebrow'>Panel operativo</span><div class='systems'><span class='session-user' aria-label='Usuario conectado'>{escape(user_display)}</span></div></div>
@@ -2712,28 +2720,40 @@ def home(_=Depends(authenticate)):
     <section class='panel' data-panel='produccion'><div class='card production-shell'><div class='production-toolbar'><div class='production-title'><h2>Producción</h2><p>Órdenes de producción desde la fila 726 · doble clic para editar</p></div><div class='production-controls'><input id='production-search' class='production-search' type='search' placeholder='Buscar cliente, orden, referencia o responsable'><a class='production-connector' href='/descargar-conector-nas' title='Instalar una sola vez por equipo, como Administrador. Queda disponible para todos los usuarios de Windows de ese PC.'>Instalar conexión NAS</a><select id='production-zoom' class='production-zoom' aria-label='Tamaño de la tabla'><option value='0.5'>50%</option><option value='0.6'>60%</option><option value='0.75'>75%</option><option value='0.9'>90%</option><option value='1' selected>100%</option><option value='1.25'>125%</option><option value='1.5'>150%</option></select><button id='production-refresh' class='production-refresh' type='button'>Actualizar</button></div></div><div class='production-kpis'><div class='production-kpi'><span>Registros visibles</span><strong id='production-records'>—</strong></div><div class='production-kpi'><span>Unidades</span><strong id='production-units'>—</strong></div><div id='production-status' class='production-status'>Abre esta pestaña para consultar la información.</div></div><div id='production-x-scroll' class='production-x-scroll' aria-label='Desplazamiento horizontal de procesos'><div id='production-x-scroll-inner'></div></div><div class='production-table-wrap' id='production-table-wrap'><table class='production-table' id='production-table'><thead id='production-head'></thead><tbody id='production-body'></tbody></table><div id='production-empty' class='production-empty' hidden>No hay registros para mostrar.</div></div></div></section>
     <div id='preview-modal' class='preview-modal' role='dialog' aria-modal='true' aria-labelledby='preview-title'><div class='preview-dialog'><div class='preview-head'><div><h2 id='preview-title'>Revisar datos antes de crear</h2><p>Corrige cualquier valor. El Excel se generará exactamente con estas filas.</p></div><div class='preview-overview'><div id='preview-designs' class='preview-designs'></div><div id='preview-size-summary' class='preview-size-summary' aria-live='polite'></div></div><button id='preview-close' class='preview-close' type='button'>Cerrar</button></div><div id='preview-content' class='preview-content'></div><div class='preview-actions'><button id='preview-confirm' type='button'>Confirmar y crear XLSX</button><button id='preview-cancel' class='preview-cancel' type='button'>Volver a los archivos</button></div></div></div>
     <section class='panel cartera-panel' data-panel='cartera'>
-      <div class='ct-shell'>
-        <div class='ct-head'>
+      <div class='inventory-shell ct-shell'>
+        <section class='inventory-hero ct-hero'>
           <div>
-            <h2>Control de Cartera</h2>
-            <p id='cartera-status' class='ct-status'>Presiona Sincronizar para cargar los datos desde Google Sheets.</p>
+            <span class='eyebrow'>Administración · Cartera</span>
+            <h2>CONTROL DE CARTERA</h2>
+            <p>Saldos pendientes de cobro importados desde el archivo comercial de Google Sheets.</p>
           </div>
           <button id='btn-cartera-sync' class='ct-sync-btn' type='button'>↻ Sincronizar</button>
+        </section>
+        <div class='ct-kpi-row'>
+          <div class='ct-kpi'><span>Documentos</span><strong id='ct-kpi-total'>—</strong><small>cotizaciones cargadas</small></div>
+          <div class='ct-kpi ct-kpi-alert'><span>Saldo total</span><strong id='ct-kpi-saldo'>—</strong><small>pendiente por cobrar</small></div>
+          <div class='ct-kpi'><span>Con saldo</span><strong id='ct-kpi-activas'>—</strong><small>cotizaciones activas</small></div>
         </div>
-        <div class='ct-toolbar'>
-          <input id='cartera-search' class='ct-search' type='search' placeholder='Buscar cliente, vendedor o N° cotización'>
-        </div>
-        <div class='ct-table-wrap'>
-          <table class='ct-table'>
-            <thead><tr>
-              <th>Cotización</th><th>Cliente</th><th>Vendedor</th>
-              <th>Fecha</th><th>Total</th><th>Saldo</th><th>Estado</th>
-            </tr></thead>
-            <tbody id='cartera-body'>
-              <tr><td colspan='7' class='ct-empty'>Presiona Sincronizar para importar los datos.</td></tr>
-            </tbody>
-          </table>
-        </div>
+        <section class='card ct-table-card'>
+          <div class='ct-toolbar'>
+            <div class='ct-toolbar-left'>
+              <strong>Detalle por cotización</strong>
+              <div id='cartera-status' class='ct-status'>Presiona Sincronizar para importar los datos.</div>
+            </div>
+            <input id='cartera-search' class='ct-search' type='search' placeholder='Buscar cliente, vendedor o N° cotización'>
+          </div>
+          <div class='ct-table-wrap'>
+            <table class='ct-table'>
+              <thead><tr>
+                <th>Cotización</th><th>Cliente</th><th>Vendedor</th>
+                <th>Fecha</th><th>Total</th><th>Saldo</th><th>Estado</th>
+              </tr></thead>
+              <tbody id='cartera-body'>
+                <tr><td colspan='7' class='ct-empty'>Presiona Sincronizar para importar los datos desde Google Sheets.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
       </div>
     </section>
     <p class='footer-note'>Los documentos se procesan de forma segura en el servidor de Indoor.</p></main><script>
