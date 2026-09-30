@@ -145,6 +145,7 @@
     }).filter(item => item.orders).sort((a, b) => b.orders - a.orders);
 
     return {
+      orders: list,
       dueToday, dueTomorrow, late, reworkList, load,
       today, weekStart, weekEnd, activeCount: active.length,
       real, realCount: sample.length, estimated, promised,
@@ -170,6 +171,39 @@
   }
   function todayPanel(tone, title, count, body) {
     return '<section class="dash-panel ' + tone + '"><div class="dash-panel-head"><h4>' + title + '</h4><span class="dash-count">' + count + '</span></div>' + body + '</section>';
+  }
+  function orderFinder(orders) {
+    return '<section class="dash-order-finder"><div><span class="eyebrow">Consulta rápida</span><h3>¿En qué proceso va una orden?</h3><p>Busca por número de orden o por cliente para consultar su avance actual.</p></div><label><span class="dash-sr">Buscar orden o cliente</span><input id="dash-order-search" type="search" autocomplete="off" placeholder="Ej.: RM7611 o nombre del cliente"><span class="dash-search-icon" aria-hidden="true">⌕</span></label><div id="dash-order-results" class="dash-order-results" aria-live="polite"></div></section>';
+  }
+  function bindOrderFinder(orders) {
+    const input = root.querySelector('#dash-order-search');
+    const results = root.querySelector('#dash-order-results');
+    if (!input || !results) return;
+    const show = query => {
+      const q = key(query);
+      if (!q) { results.innerHTML = '<p>Escribe una orden o un cliente para consultar el proceso actual.</p>'; return; }
+      const matches = orders.filter(order => key(order.id).includes(q) || key(order.client).includes(q)).slice(0, 8);
+      results.innerHTML = matches.length ? matches.map(order => {
+        const status = order.rework ? 'En reproceso' : order.complete ? 'Finalizada' : order.focus ? 'En ' + order.focus : 'Sin proceso activo';
+        const state = order.rework ? 'rework' : order.complete ? 'finished' : 'active';
+        return '<button type="button" class="dash-order-result" data-order="' + esc(order.id) + '"><span><strong>' + esc(order.id) + '</strong><small>' + esc(order.client || 'Sin cliente') + '</small></span><span class="dash-order-process ' + state + '"><b>' + esc(status) + '</b><small>' + order.percent + '% de avance · ' + fmtNum(order.units) + ' und.</small></span></button>';
+      }).join('') : '<p>No encontramos una orden o cliente con esa búsqueda.</p>';
+    };
+    input.addEventListener('input', () => show(input.value));
+    results.addEventListener('click', event => {
+      const result = event.target.closest('[data-order]');
+      if (!result) return;
+      const order = result.dataset.order;
+      const productionTab = document.querySelector('.tab[data-kind="produccion"]');
+      productionTab?.click();
+      const productionInput = document.getElementById('production-search');
+      if (productionInput) {
+        productionInput.value = order;
+        productionInput.dispatchEvent(new Event('input', { bubbles: true }));
+        setTimeout(() => document.getElementById('production-table-wrap')?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 260);
+      }
+    });
+    show('');
   }
 
   function greet(a) {
@@ -241,9 +275,11 @@
 
     root.innerHTML =
       '<div class="dash-head"><div><span class="eyebrow">Resumen operativo</span><h3>Estado de la producción</h3></div><small><i class="dash-live"></i>En vivo · actualizado ' + new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) + '</small></div>' +
+      orderFinder(a.orders) +
       '<div class="dash-cards">' + time + units + week + pct + '</div>' +
       '<div class="dash-today">' + today + late + rework + '</div>' + load;
     greet(a);
+    bindOrderFinder(a.orders);
     countUp();
   }
 
@@ -251,6 +287,7 @@
   style.textContent = `
   #home-dashboard{display:grid;gap:16px}
   .dash-head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px}.dash-head h3{margin:4px 0 0;font-size:1.4rem}.dash-head small{color:var(--muted);display:flex;align-items:center;gap:6px}
+  .dash-order-finder{display:grid;grid-template-columns:minmax(220px,.85fr) minmax(300px,1.15fr);gap:14px;padding:18px 20px;border:1px solid rgba(208,244,76,.3);border-radius:16px;background:linear-gradient(120deg,rgba(208,244,76,.08),rgba(18,23,18,.98) 48%)}.dash-order-finder h3{margin:4px 0 5px;font-size:1.12rem}.dash-order-finder p{margin:0;color:#aebaa9;font-size:.85rem;line-height:1.45}.dash-order-finder label{position:relative;align-self:center}.dash-order-finder input{width:100%;box-sizing:border-box;min-height:48px;padding:12px 42px 12px 14px;border:1px solid #60754d;border-radius:11px;background:#172118;color:#f5faef;font:600 15px Arial;outline:none}.dash-order-finder input:focus{border-color:#d0f44c;box-shadow:0 0 0 3px rgba(208,244,76,.13)}.dash-search-icon{position:absolute;right:14px;top:13px;color:#d0f44c;font:24px/1 Arial}.dash-order-results{grid-column:1/-1;display:grid;gap:7px}.dash-order-results>p{padding:4px 0}.dash-order-result{display:flex;justify-content:space-between;align-items:center;gap:14px;width:100%;padding:10px 12px;border:1px solid rgba(255,255,255,.11);border-radius:10px;background:#151d16;color:#eef4e9;text-align:left;box-shadow:none;cursor:pointer}.dash-order-result:hover{border-color:#d0f44c;background:#202b1b}.dash-order-result>span{display:grid;gap:3px;min-width:0}.dash-order-result strong{font-size:.94rem}.dash-order-result small{font-size:.75rem;color:#aebaa9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.dash-order-process{text-align:right;justify-items:end}.dash-order-process b{font-size:.8rem;color:#ffbe67}.dash-order-process.rework b{color:#ff8d86}.dash-order-process.finished b{color:#8bd450}.dash-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
   .dash-live{width:8px;height:8px;border-radius:50%;background:#8bd450;box-shadow:0 0 0 0 rgba(139,212,80,.6);animation:dashPulse 2s infinite}@keyframes dashPulse{70%{box-shadow:0 0 0 7px rgba(139,212,80,0)}100%{box-shadow:0 0 0 0 rgba(139,212,80,0)}}
   .dash-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
   .dash-card{display:grid;align-content:start;gap:14px;padding:22px;border:1px solid rgba(255,255,255,.13);border-top:5px solid var(--c,#8bd450);border-radius:18px;background:#121712;transition:transform .15s,border-color .15s}
@@ -286,6 +323,7 @@
   .dash-load-card .dash-big{gap:6px}.dash-load-card .dash-big strong{font-size:2rem;color:var(--t)}.dash-load-card .dash-big span{font-size:.78rem;color:#a9b5a3}
   .dash-load-card>small{color:#8f9b8a;font-size:.76rem}
   .dash-bottleneck{position:absolute;top:-11px;right:12px;font-style:normal;font-size:.6rem;font-weight:800;letter-spacing:.03em;text-transform:uppercase;padding:3px 8px;border-radius:999px;background:#ff6b5c;color:#2a0e0a;border:1px solid #ff8a7c}
+  @media(max-width:700px){.dash-order-finder{grid-template-columns:1fr;padding:15px}.dash-order-results{grid-column:auto}.dash-order-result{align-items:flex-start;flex-direction:column}.dash-order-process{text-align:left;justify-items:start}}
   `;
   document.head.appendChild(style);
 
