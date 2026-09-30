@@ -558,7 +558,7 @@
       const responsible = summary.focus?.responsible || '';
       const due = traceField(row, 'FECHA DE ENTREGA');
       const dueLabel = !summary.due ? 'Sin fecha' : summary.overdue ? 'Atrasado' : summary.state !== 'finished' && summary.due.getTime() === scheduleToday().getTime() ? 'Entrega hoy' : 'Entrega';
-      return '<article class="trace-card state-' + summary.state + '" data-card-row="' + id + '"><div class="trace-media">' + traceAssetsMarkup(id) + '</div><div class="trace-card-body"><div class="trace-card-heading"><h3>' + esc(traceField(row, 'ORDEN') || 'Sin número') + '</h3><span class="trace-stage ' + summary.state + '">' + labels[summary.state] + '</span></div><p class="trace-client">' + esc(traceField(row, 'NOMBRE DEL CLIENTE') || 'Sin cliente') + '</p><p class="trace-project">' + esc(traceField(row, 'NOMBRE PROYECTO')) + '</p><button class="trace-mts-btn' + (mtsV ? ' has-value' : '') + '" type="button" data-card-mts="' + id + '">' + (mtsV ? '<strong class="mts-current">' + esc(mtsV) + '</strong>' : '') + '<span class="mts-label">Ingresar MTS REQUERIDOS</span></button><dl><div><dt>Referencia</dt><dd>' + esc(traceField(row, 'REFERENCIA') || '—') + '</dd></div><div><dt>Cantidad</dt><dd class="trace-quantity">' + esc(traceField(row, 'CANTIDAD') || '0') + ' <small>und.</small></dd></div><div class="trace-due ' + (summary.overdue ? 'late' : '') + '"><dt>' + dueLabel + '</dt><dd>' + esc(summary.due ? displayProductionDate(due) : 'Sin programar') + '</dd></div><div><dt>Responsable del proceso</dt><dd>' + (responsible ? responsible.split(/[,;·\n]+/).filter(x => x.trim()).map(name => '<span class="trace-person">' + esc(name.trim()) + '</span>').join(' ') : '<span class="trace-unassigned">Sin asignar</span>') + '</dd></div></dl><div class="trace-card-meta"><span>' + notes + ' nota' + (notes === 1 ? '' : 's') + '</span><span>Fila ' + id + '</span></div><div class="trace-card-actions"><button type="button" class="operator-open" data-card-edit="' + id + '">PRODUCCIÓN</button><button type="button" data-card-detail="' + id + '">Ver detalle</button><button type="button" data-card-nas="' + id + '" aria-label="Abrir carpeta del pedido">NAS ↗</button></div></div>' + routeMarkup(row, summary) + '</article>';
+      return '<article class="trace-card state-' + summary.state + '" data-card-row="' + id + '"><div class="trace-media">' + traceAssetsMarkup(id) + '</div><div class="trace-card-body"><div class="trace-card-heading"><h3>' + esc(traceField(row, 'ORDEN') || 'Sin número') + '</h3><button type="button" class="trace-order-rework" data-card-rework="' + esc(traceField(row, 'ORDEN')) + '" aria-label="Abrir reprocesos de la orden ' + esc(traceField(row, 'ORDEN')) + '">REPROCESO</button><span class="trace-stage ' + summary.state + '">' + labels[summary.state] + '</span></div><p class="trace-client">' + esc(traceField(row, 'NOMBRE DEL CLIENTE') || 'Sin cliente') + '</p><p class="trace-project">' + esc(traceField(row, 'NOMBRE PROYECTO')) + '</p><button class="trace-mts-btn' + (mtsV ? ' has-value' : '') + '" type="button" data-card-mts="' + id + '">' + (mtsV ? '<strong class="mts-current">' + esc(mtsV) + '</strong>' : '') + '<span class="mts-label">Ingresar MTS REQUERIDOS</span></button><dl><div><dt>Referencia</dt><dd>' + esc(traceField(row, 'REFERENCIA') || '—') + '</dd></div><div><dt>Cantidad</dt><dd class="trace-quantity">' + esc(traceField(row, 'CANTIDAD') || '0') + ' <small>und.</small></dd></div><div class="trace-due ' + (summary.overdue ? 'late' : '') + '"><dt>' + dueLabel + '</dt><dd>' + esc(summary.due ? displayProductionDate(due) : 'Sin programar') + '</dd></div><div><dt>Responsable del proceso</dt><dd>' + (responsible ? responsible.split(/[,;·\n]+/).filter(x => x.trim()).map(name => '<span class="trace-person">' + esc(name.trim()) + '</span>').join(' ') : '<span class="trace-unassigned">Sin asignar</span>') + '</dd></div></dl><div class="trace-card-meta"><span>' + notes + ' nota' + (notes === 1 ? '' : 's') + '</span><span>Fila ' + id + '</span></div><div class="trace-card-actions"><button type="button" class="operator-open" data-card-edit="' + id + '">PRODUCCIÓN</button><button type="button" data-card-detail="' + id + '">Ver detalle</button><button type="button" data-card-nas="' + id + '" aria-label="Abrir carpeta del pedido">NAS ↗</button></div></div>' + routeMarkup(row, summary) + '</article>';
     }).join('') || '<div class="trace-empty"><h3>No hay pedidos en esta vista</h3><p>' + (filter === 'mine' ? 'No hay responsables que coincidan con tu usuario o iniciales. Prueba Todos o revisa la asignación.' : 'Prueba otro estado o cambia la búsqueda.') + '</p><button type="button" data-clear-trace>Ver todos</button></div>';
     traceCards.querySelectorAll('[data-card-row]').forEach(card => traceImageObserver.observe(card));
     if (pageResult.pages > 1) traceCards.insertAdjacentHTML('beforeend', '<nav class="trace-pagination trace-pagination-bottom" aria-label="Páginas de pedidos al final">' + pageMarkup(pageResult) + '</nav>');
@@ -672,6 +672,13 @@
   });
   // Resolve NAS from the card's source data, never from filtered table rows.
   // Reuse the existing NAS resolver link (a real <a href> built by productionRowButton).
+  traceCards.addEventListener('click', event => {
+    const button = event.target.closest('[data-card-rework]');
+    if (!button) return;
+    event.preventDefault();
+    event.stopPropagation();
+    document.querySelector('.tab[data-kind="reproceso"]')?.click();
+  }, true);
   traceCards.addEventListener('click', event => {
     const button = event.target.closest('[data-card-nas]');
     if (!button) return;
@@ -1493,6 +1500,9 @@
   html body.production-mode .trace-card .trace-card-actions:not(:has([data-card-delete])){grid-template-columns:minmax(0,1.35fr) minmax(0,.7fr)!important}
   html body.production-mode .trace-card-heading{gap:6px;align-items:center;flex-wrap:wrap}
   html body.production-mode .trace-card-heading h3{font-size:17px!important;margin:0}
+  html body.production-mode .trace-order-rework{min-height:28px;width:auto;padding:5px 8px;border:1px solid #ef7370!important;border-radius:999px;background:#43201e!important;color:#ffd7d3!important;font:800 10px/1 Arial!important;letter-spacing:.04em;white-space:nowrap;box-shadow:none;cursor:pointer}
+  html body.production-mode .trace-order-rework:hover{background:#ef7370!important;color:#32110f!important}
+  html body.production-mode .trace-order-rework:focus-visible{outline:2px solid #ffd2ce;outline-offset:2px}
   html body.production-mode .trace-stage{font-size:11px;padding:3px 6px}
   html body.production-mode .trace-client{font-size:13px!important;line-height:1.35;margin:7px 0 0}
   html body.production-mode .trace-card .trace-project{font-size:12px;line-height:1.35;margin:4px 0;color:#c4cec7;overflow-wrap:anywhere}
@@ -1541,7 +1551,7 @@
   html body.production-mode .trace-card .trace-note-alert .trace-note-delete:disabled{opacity:.5;cursor:progress}
   html body.production-mode .trace-card .trace-note-text{min-width:0;padding-top:5px;overflow-wrap:anywhere}
   @media(max-width:1050px) and (min-width:601px){html body.production-mode .trace-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
-  @media(max-width:600px){html body.production-mode .trace-cards{grid-template-columns:1fr}html body.production-mode .trace-card .trace-client{font-size:14px!important}}
+  @media(max-width:600px){html body.production-mode .trace-cards{grid-template-columns:1fr}html body.production-mode .trace-card .trace-client{font-size:14px!important}html body.production-mode .trace-order-rework{min-height:30px;padding:6px 9px;font-size:10px!important}}
 
   /* ===== Capa de acabado profesional (Producción) =====
      Borde neutro con una franja superior de color según el estado (en vez de marcos gruesos),
