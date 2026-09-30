@@ -1,4 +1,5 @@
 'use strict';
+(() => {
 /* Interfaz sin dependencias: cálculos derivados siempre ocurren en el navegador. */
 const app=document.getElementById('cartera-app'); let data, tab='tablero', activeBand='', filters={q:'',vendedor:'',cliente:'',estado:'pendiente'};
 const money=v=>'$'+Math.round(v||0).toLocaleString('es-CO'); const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -38,3 +39,4 @@ async function api(path,opt={}){opt.headers={...(opt.headers||{}),...(opt.body i
 // La navegación principal puede activar Cartera antes de terminar de cargar este archivo.
 // Esta comprobación evita que la vista se quede con el mensaje inicial en ese caso.
 if (document.querySelector('.panel[data-panel="cartera"].active')) load();
+})();
