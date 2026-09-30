@@ -45,7 +45,7 @@ jobs:
           printf '%s\n' "$DEPLOY_KEY" > "$RUNNER_TEMP/indoor_key"
           printf '%s\n' "$KNOWN_HOSTS" > "$RUNNER_TEMP/indoor_hosts"
           trap 'rm -f "$RUNNER_TEMP/indoor_key" "$RUNNER_TEMP/indoor_hosts"' EXIT
-          ssh -T -i "$RUNNER_TEMP/indoor_key" \
+          ssh -Tv -i "$RUNNER_TEMP/indoor_key" \
             -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=20 \
             -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/indoor_hosts" \
             root@2.25.238.166 "publish $GITHUB_SHA" < "$RUNNER_TEMP/indoor.tar.gz"
