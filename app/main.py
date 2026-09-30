@@ -1716,7 +1716,7 @@ def sort_production_by_delivery(_=Depends(authenticate)):
 
 def can_delete_production_profile(profile):
     normalized = ''.join(c for c in unicodedata.normalize('NFD', str(profile)) if not unicodedata.combining(c))
-    return ' '.join(normalized.upper().split()) in {'ADMINISTRACION', 'ADMINISTRATIVA', 'ADMINISTRATIVO', 'EDICION', 'COMERCIAL', 'COMERCIALES', 'ASISTENTE COMERCIAL', 'ASISTENTES COMERCIALES'}
+    return ' '.join(normalized.upper().split()) in {'ADMINISTRACION', 'ADMINISTRATIVA', 'ADMINISTRATIVO', 'COORDINADOR', 'EDICION', 'COMERCIAL', 'COMERCIALES', 'ASISTENTE COMERCIAL', 'ASISTENTES COMERCIALES'}
 
 
 def production_delete_target(db, row, username):
@@ -3560,7 +3560,7 @@ document.querySelector('.production-process-filter').appendChild(traceViewBar);
 const traceScheduleButton=document.createElement('button');traceScheduleButton.type='button';traceScheduleButton.className='production-refresh';traceScheduleButton.id='trace-schedule-order';traceScheduleButton.textContent='+ Programar pedido';traceScheduleButton.onclick=()=>{{document.getElementById('commercial-toggle').closest('.nav-group').classList.remove('collapsed');document.querySelector('.tab[data-kind="pedido"]').click();document.getElementById('order-form').scrollIntoView({{block:'start',behavior:'smooth'}})}};traceViewBar.after(traceScheduleButton);
 const traceCards=document.createElement('div');traceCards.className='trace-cards';traceCards.hidden=true;productionTableWrap.after(traceCards);
 const traceDetail=document.createElement('dialog');traceDetail.className='trace-detail';traceDetail.innerHTML='<button type="button" class="trace-close" aria-label="Cerrar detalle">×</button><div class="trace-detail-content"></div>';document.body.appendChild(traceDetail);traceDetail.querySelector('.trace-close').onclick=()=>traceDetail.close();
-const canViewAdministration={json.dumps(' '.join(str(user_process).casefold().split()) in ('administración', 'administracion', 'administrativa', 'administrativo', 'comercial', 'comerciales', 'asistente comercial', 'asistentes comerciales'))};
+const canViewAdministration={json.dumps(' '.join(str(user_process).casefold().split()) in ('administración', 'administracion', 'administrativa', 'administrativo', 'coordinador', 'comercial', 'comerciales', 'asistente comercial', 'asistentes comerciales'))};
 let traceView='cards';
 const traceAssets=new Map(),traceAssetBusy=new Set();
 const traceDesignSelection=new Map();
