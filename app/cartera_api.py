@@ -21,6 +21,80 @@ CARTERA_FILE = DATOS_DIR / "cartera.json"
 
 RESPALDOS_DIR.mkdir(parents=True, exist_ok=True)
 
+def _scope_css(css: str, scope: str = ".cartera-panel") -> str:
+    """Prefix every CSS selector with `scope` so cartera styles don't bleed into the main page."""
+    result: list[str] = []
+    i = 0
+    depth = 0
+    in_keyframes = False
+
+    while i < len(css):
+        ob = css.find("{", i)
+        cb = css.find("}", i)
+
+        if ob == -1 and cb == -1:
+            result.append(css[i:])
+            break
+
+        if ob != -1 and (cb == -1 or ob < cb):
+            text = css[i:ob]
+            stripped = text.strip()
+
+            if in_keyframes:
+                result.append(text + "{")
+            elif stripped.lower().startswith("@keyframes") or stripped.lower().startswith("@-"):
+                in_keyframes = True
+                result.append(text + "{")
+            elif stripped.startswith("@"):
+                result.append(text + "{")
+            else:
+                parts = [s.strip() for s in stripped.split(",")]
+                scoped: list[str] = []
+                for p in parts:
+                    if not p:
+                        continue
+                    if p in ("body", "html", ":root"):
+                        scoped.append(scope)
+                    elif p.startswith(":root"):
+                        scoped.append(scope + p[5:])
+                    else:
+                        scoped.append(scope + " " + p)
+                leading = len(text) - len(text.lstrip())
+                selector_str = ", ".join(scoped) if scoped else stripped
+                result.append(text[:leading] + selector_str + " {")
+
+            depth += 1
+            i = ob + 1
+        else:
+            result.append(css[i : cb + 1])
+            if depth > 0:
+                depth -= 1
+            if depth == 0:
+                in_keyframes = False
+            i = cb + 1
+
+    return "".join(result)
+
+
+@cartera_router.get("/embed.css")
+def serve_cartera_embed_css():
+    from fastapi.responses import Response
+    css = Path("app/cartera.css").read_text(encoding="utf-8")
+    return Response(content=_scope_css(css), media_type="text/css")
+
+
+@cartera_router.get("/fragment", response_class=HTMLResponse)
+def serve_cartera_fragment():
+    html = Path("app/cartera_app.html").read_text(encoding="utf-8")
+    # Extract only the <body> content (strip html/head/body tags and link/script tags)
+    body_match = re.search(r"<body[^>]*>(.*?)</body>", html, re.DOTALL | re.IGNORECASE)
+    body = body_match.group(1) if body_match else html
+    # Remove <link> and <script> tags (CSS/JS loaded separately)
+    body = re.sub(r"<link[^>]+>", "", body, flags=re.IGNORECASE)
+    body = re.sub(r"<script[^>]*>.*?</script>", "", body, flags=re.DOTALL | re.IGNORECASE)
+    return body.strip()
+
+
 @cartera_router.get("/app", response_class=HTMLResponse)
 def serve_cartera_app():
     with open("app/cartera_app.html", "r", encoding="utf-8") as f:
