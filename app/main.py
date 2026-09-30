@@ -2651,7 +2651,7 @@ def home(_=Depends(authenticate)):
     .ct-shell{{gap:12px}}
     .ct-hero{{display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;padding:28px 32px 20px}}
     .ct-hero div p{{color:var(--muted);font-size:14px;max-width:520px;margin:6px 0 0;line-height:1.5}}
-    .ct-sync-btn{{background:var(--lime);color:#1a2a0a;font-weight:700;border:none;border-radius:8px;padding:10px 22px;cursor:pointer;font-size:14px;white-space:nowrap;flex-shrink:0}}
+    .ct-sync-btn{{background:var(--lime);color:#1a2a0a;font-weight:700;border:none;border-radius:8px;padding:10px 22px;cursor:pointer;font-size:14px;white-space:nowrap;flex-shrink:0;width:fit-content;align-self:center}}
     .ct-sync-btn:hover{{opacity:.88}}.ct-sync-btn:disabled{{opacity:.5;cursor:not-allowed}}
     .ct-kpi-row{{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;padding:0 32px 8px}}
     .ct-kpi{{background:var(--glass);border:1px solid var(--line);border-radius:14px;padding:18px 20px;display:flex;flex-direction:column;gap:4px}}
