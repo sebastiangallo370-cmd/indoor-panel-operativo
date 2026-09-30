@@ -1,5 +1,6 @@
 [
   {"label":"MATERIALES","headers":["MATERIALES ESPECIALES"],"aliases":["MATERIALES ESPECIALES"]},
+  {"label":"MTS REQUERIDOS","headers":["MTS REQUERIDO"],"aliases":["MTS REQUERIDO"]},
   {"label":"DISEÑO","headers":["DISENO"],"aliases":[]},
   {"label":"EDICIÓN","headers":["EDICION"],"aliases":[]},
   {"label":"IMPRESIÓN","headers":["IMPRESION"],"aliases":[]},
