@@ -4,6 +4,7 @@ import uuid
 import shutil
 import io
 import re
+import os
 from pathlib import Path
 from datetime import datetime, timezone
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
@@ -52,10 +53,17 @@ def load_cartera():
         return json.load(f)
 
 def save_cartera(data):
-    # Escritura atómica
-    temp_file = CARTERA_FILE + ".tmp"
+    """Guarda el estado de Cartera de forma atómica y persistente.
+
+    El archivo vive en el volumen ``/data`` de Docker. Escribimos primero en
+    un temporal del mismo directorio y después lo reemplazamos para no dejar
+    un JSON incompleto si el proceso se reinicia durante el guardado.
+    """
+    temp_file = CARTERA_FILE.with_suffix(f"{CARTERA_FILE.suffix}.tmp")
     with open(temp_file, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
+        f.flush()
+        os.fsync(f.fileno())
     os.replace(temp_file, CARTERA_FILE)
 
 def backup_cartera():
