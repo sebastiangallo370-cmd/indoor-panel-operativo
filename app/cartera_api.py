@@ -98,6 +98,32 @@ async def cargar_pdfs(files:list[UploadFile]=File(...)):
         name=f"{stem}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}.pdf"
         (pending/name).write_bytes(content); saved.append(file.filename or name)
     return {"ok":True,"archivos":saved,"mensaje":f"{len(saved)} PDF(s) cargado(s) y pendiente(s) de asociar"}
+@cartera_router.get("/pendientes")
+def pendientes_pdf():
+    pending=_PDF_DIR/"pendientes"
+    pending.mkdir(parents=True,exist_ok=True)
+    return [{"archivo":p.name,"tamano":p.stat().st_size,"cargadoEn":datetime.fromtimestamp(p.stat().st_mtime,timezone.utc).isoformat()} for p in sorted(pending.glob("*.pdf"),key=lambda p:p.stat().st_mtime,reverse=True)]
+@cartera_router.get("/pendientes/{archivo}/resumen")
+def resumen_pendiente(archivo:str):
+    path=(_PDF_DIR/"pendientes"/_safe(Path(archivo).stem)).with_suffix(".pdf")
+    if not path.is_file(): raise HTTPException(404,"PDF pendiente no encontrado")
+    try:
+        import pdfplumber
+        with pdfplumber.open(path) as pdf:
+            paginas=len(pdf.pages)
+            text="\n".join((page.extract_text() or "") for page in pdf.pages[:3])
+    except Exception as exc: raise HTTPException(422,f"No se pudo leer el PDF: {exc}") from exc
+    def match(pattern):
+        found=re.search(pattern,text,re.I); return found.group(1).strip() if found else "No detectado"
+    return {"archivo":archivo,"paginas":paginas,"cotizacion":match(r"(?:cotizaci[oó]n|pedido|n[°oº])\s*[:#-]?\s*([A-Z0-9-]{3,})"),"fecha":match(r"(?:fecha|emisi[oó]n)\s*[:#-]?\s*(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})"),"cliente":match(r"(?:cliente|señor(?:es)?)\s*[:#-]?\s*([^\n]{3,80})"),"total":match(r"(?:total(?:\s+a\s+pagar)?|valor\s+total)\s*[:$#-]*\s*([^\n]{2,40})"),"texto":text[:5000] or "El PDF no tiene texto seleccionable; puede ser una imagen escaneada."}
+@cartera_router.post("/pendientes/{archivo}/asociar/{numero}")
+def asociar_pendiente(archivo:str,numero:str):
+    source=(_PDF_DIR/"pendientes"/_safe(Path(archivo).stem)).with_suffix(".pdf")
+    target=_PDF_DIR/f"{_safe(numero)}.pdf"
+    if not source.is_file(): raise HTTPException(404,"PDF pendiente no encontrado")
+    if target.exists(): raise HTTPException(409,"La cotización ya tiene un PDF asociado")
+    source.replace(target)
+    return {"ok":True,"mensaje":f"PDF asociado a la cotización {numero}"}
 @cartera_router.get("/pdf/{numero}")
 def ver_pdf(numero:str):
     path=_PDF_DIR/f"{_safe(numero)}.pdf"
