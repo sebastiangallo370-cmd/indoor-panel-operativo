@@ -86,6 +86,18 @@ async def subir_pdf(numero:str,file:UploadFile=File(...)):
     content=await file.read()
     if content[:4]!=b"%PDF": raise HTTPException(400,"El archivo no es un PDF válido")
     _PDF_DIR.mkdir(parents=True,exist_ok=True); (_PDF_DIR/f"{_safe(numero)}.pdf").write_bytes(content); return {"ok":True,"numero":numero}
+@cartera_router.post("/cargar-pdf")
+async def cargar_pdfs(files:list[UploadFile]=File(...)):
+    """Conserva PDFs aún sin cotización; permite cargarlos antes de completar sus datos."""
+    pending=_PDF_DIR/"pendientes"; pending.mkdir(parents=True,exist_ok=True); saved=[]
+    for file in files:
+        content=await file.read()
+        if content[:4]!=b"%PDF":
+            raise HTTPException(400,f"{file.filename or 'Archivo'} no es un PDF válido")
+        stem=_safe(Path(file.filename or "cotizacion.pdf").stem) or "cotizacion"
+        name=f"{stem}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}.pdf"
+        (pending/name).write_bytes(content); saved.append(file.filename or name)
+    return {"ok":True,"archivos":saved,"mensaje":f"{len(saved)} PDF(s) cargado(s) y pendiente(s) de asociar"}
 @cartera_router.get("/pdf/{numero}")
 def ver_pdf(numero:str):
     path=_PDF_DIR/f"{_safe(numero)}.pdf"
