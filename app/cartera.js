@@ -252,18 +252,32 @@ function renderPagos() {
 
 // Interacciones
 function openTab(tabName) {
-    document.querySelectorAll('.tab-btn').forEach(x => x.classList.remove('active'));
-    document.querySelectorAll('.view').forEach(x => x.classList.remove('active'));
-    const tab = document.querySelector(`.tab-btn[data-tab="${tabName}"]`);
-    const view = document.getElementById(`view-${tabName}`);
+    const panel = document.querySelector('.cartera-panel');
+    if (!panel) return;
+    panel.querySelectorAll('.tab-btn').forEach(x => x.classList.remove('active'));
+    panel.querySelectorAll('.view').forEach(x => x.classList.remove('active'));
+    const tab = panel.querySelector(`.tab-btn[data-tab="${tabName}"]`);
+    const view = panel.querySelector(`#view-${tabName}`);
     if (!tab || !view) return;
     tab.classList.add('active');
     view.classList.add('active');
-    view.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // Cargar valores actuales al abrir ajustes
+    if (tabName === 'ajustes' && state.datos?.config) {
+        const cfg = state.datos.config;
+        const el = id => panel.querySelector('#' + id);
+        if (el('conf-plazo')) el('conf-plazo').value = cfg.plazoDesde || 'entrega';
+        if (el('conf-contado')) el('conf-contado').value = cfg.contadoEquivale || 'mismo_dia_entrega';
+        if (el('conf-anticipo')) el('conf-anticipo').value = cfg.anticipoMinimoPct ?? 50;
+    }
 }
 
-document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', e => openTab(e.currentTarget.dataset.tab)));
-document.querySelectorAll('.quick-tab').forEach(b => b.addEventListener('click', e => openTab(e.currentTarget.dataset.targetTab)));
+// Event delegation desde el panel persistente: funciona aunque el HTML interno se reinyecte
+document.addEventListener('click', e => {
+    const btn = e.target.closest('.tab-btn');
+    if (btn && btn.closest('.cartera-panel')) openTab(btn.dataset.tab);
+    const qt = e.target.closest('.quick-tab');
+    if (qt && qt.closest('.cartera-panel')) openTab(qt.dataset.targetTab);
+});
 
 function abrirDetalleCartera(action) {
     if (action === 'pagos') return openTab('pagos');
@@ -491,15 +505,6 @@ document.getElementById('btn-save-settings').addEventListener('click', async () 
     });
     if (r.ok) { await loadDatos(); alert('Ajustes guardados correctamente.'); }
     else alert('No se pudieron guardar los ajustes');
-});
-
-// Cargar ajustes actuales en el formulario cuando se abre la pestaña
-document.querySelector('.tab-btn[data-tab="ajustes"]').addEventListener('click', () => {
-    if (!state.datos?.config) return;
-    const cfg = state.datos.config;
-    document.getElementById('conf-plazo').value = cfg.plazoDesde || 'entrega';
-    document.getElementById('conf-contado').value = cfg.contadoEquivale || 'mismo_dia_entrega';
-    document.getElementById('conf-anticipo').value = cfg.anticipoMinimoPct ?? 50;
 });
 
 // ── Respaldo ──────────────────────────────────────────────────────────────────
