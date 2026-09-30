@@ -24,9 +24,9 @@ async function loadDatos() {
         document.getElementById('conn-status').textContent = '● Conectado · datos compartidos';
         document.getElementById('db-stats').textContent = `${state.datos.documentos.length} documentos · ${state.datos.comprobantes.length} comprobantes · próximo comprobante CI-${String(state.datos.contadorComprobante).padStart(4, '0')}`;
         
-        // Asumimos usuario activo desde localStorage o mock
-        const user = localStorage.getItem('indoor-user') || state.datos.usuarios[0] || 'ADMIN';
-        document.getElementById('user-btn').textContent = user;
+        // La sesión se muestra en la plataforma principal. Aquí evitamos
+        // duplicar o inventar un usuario dentro del módulo embebido.
+        document.getElementById('user-btn').textContent = 'Sesión activa';
         
         updateUI();
     } catch (e) {
