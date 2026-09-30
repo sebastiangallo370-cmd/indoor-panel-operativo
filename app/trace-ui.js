@@ -125,12 +125,12 @@
     if (!group) return null;
     const tokens = [user.name, user.initials].map(personKey).filter(Boolean);
     const index = summary.groups.indexOf(group);
-    // Each area's queue is released only by its immediately preceding stage.
-    // The first stage receives newly scheduled orders; No aplica is also closed.
-    // MATERIALES nunca bloquea lo que sigue: hay pedidos que pasan directo a EDICIÓN
-    // sin esperar a que se cierre esa columna (a pedido del negocio).
-    const previous = summary.groups.slice(0, index).filter(g => !isExternal(g) && g.label !== 'MATERIALES').at(-1);
-    const ready = !previous || previous.state === 'finished';
+    // Edición recibe las órdenes desde que se crean: no depende de Materiales ni de
+    // MTS requeridos. Los demás procesos conservan su liberación secuencial.
+    const edition = key(group.label) === 'EDICION';
+    const nonBlocking = new Set(['MATERIALES', 'MATERIALES ESPECIALES', 'MTS REQUERIDO']);
+    const previous = summary.groups.slice(0, index).filter(g => !isExternal(g) && !nonBlocking.has(key(g.label))).at(-1);
+    const ready = edition || !previous || previous.state === 'finished';
     return { ...summary, route: summary, focus: group, state: group.state,
       ready,
       mine: group.responsible.split(/[,;·\n]+/).some(name => tokens.includes(personKey(name))),
