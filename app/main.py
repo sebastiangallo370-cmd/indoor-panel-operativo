@@ -51,6 +51,33 @@ LOGO_SVG_FILE = Path(__file__).resolve().parent / "indoor-logo.svg"
 FAVICON_FILE = Path(__file__).resolve().parent / "favicon.png"
 FAVICON_SVG_FILE = Path(__file__).resolve().parent / "favicon.svg"
 
+PERSONAL_NOTES_SCRIPT = """
+<script>
+(() => {
+  const api = async (url, options = {}) => {
+    const response = await fetch(url, {headers: {'Content-Type': 'application/json', ...(options.headers || {})}, ...options});
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw Error(body.detail || 'No fue posible guardar la nota.');
+    return body;
+  };
+  const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+  let notes = [];
+  const dialog = document.createElement('dialog'); dialog.className = 'personal-notes-dialog'; document.body.appendChild(dialog);
+  const style = document.createElement('style'); style.textContent = `.personal-notes-dialog{width:min(980px,94vw);max-height:90dvh;padding:0;border:1px solid rgba(208,244,76,.6);border-radius:20px;background:#0c110b;color:#f3f7ee;box-shadow:0 30px 90px #000b}.personal-notes-dialog::backdrop{background:#000b}.personal-notes{padding:24px}.personal-notes header{display:flex;justify-content:space-between;gap:16px;padding-bottom:17px;border-bottom:1px solid rgba(255,255,255,.1)}.personal-notes header span{color:#d0f44c;font-size:.65rem;font-weight:900;letter-spacing:.12em}.personal-notes h2{margin:4px 0;font-size:1.45rem}.personal-notes p{margin:0;color:#aeb9a6;font-size:.82rem}.notes-close{width:36px;height:36px;padding:0;border-radius:10px;background:#20271e;color:#fff;border:1px solid #44503f;font-size:1.25rem}.personal-notes form{display:grid;grid-template-columns:1fr 2fr;gap:11px;margin:18px 0;padding:16px;border:1px solid rgba(208,244,76,.2);border-radius:14px;background:rgba(208,244,76,.045)}.personal-notes label{display:grid;gap:5px;color:#aab5a4;font-size:.62rem;font-weight:850;letter-spacing:.08em}.personal-notes input,.personal-notes textarea,.personal-notes select{width:100%;padding:10px;border:1px solid #3d4938;border-radius:9px;background:#171e15;color:#f4f7ef;font:inherit}.personal-notes textarea{min-height:92px;resize:vertical}.note-form-actions{display:flex;align-items:end;justify-content:space-between;gap:12px;grid-column:1/-1}.note-form-actions label{min-width:130px}.note-form-actions button{width:auto;padding:10px 15px;border:0;border-radius:9px;background:#d0f44c;color:#13200c;font-weight:900}.personal-note-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}.personal-note-card{display:flex;flex-direction:column;justify-content:space-between;min-height:178px;padding:15px;border:1px solid rgba(255,255,255,.1);border-top:3px solid var(--note-color,#d0f44c);border-radius:14px;background:linear-gradient(150deg,#1b2318,#10150f)}.personal-note-card.tone-blue{--note-color:#6ab8ff}.personal-note-card.tone-pink{--note-color:#ef78b4}.personal-note-card.tone-orange{--note-color:#f4ae4e}.personal-note-card small{color:var(--note-color,#d0f44c);font-size:.64rem;font-weight:800}.personal-note-card h3{margin:8px 0 7px;font-size:.96rem}.personal-note-card p{white-space:normal;overflow-wrap:anywhere;line-height:1.45}.personal-note-card footer{display:flex;gap:7px;margin-top:14px}.personal-note-card footer button{width:auto;padding:6px 9px;border:1px solid #3e493a;border-radius:8px;background:transparent;color:#e9f0e4;font-size:.72rem}.personal-note-card footer button:last-child{color:#ffaaa3;border-color:#6a3d38}.personal-notes-empty{display:grid;place-items:center;min-height:130px;border:1px dashed #46533c;border-radius:13px;color:#aeb9a6;font-size:.82rem}@media(max-width:600px){.personal-notes-dialog{width:calc(100vw - 16px);max-height:calc(100dvh - 16px)}.personal-notes{padding:17px;overflow:auto}.personal-notes form{grid-template-columns:1fr}.note-form-actions{grid-column:auto;align-items:stretch;flex-direction:column}.note-form-actions button{width:100%;min-height:44px}.personal-note-grid{grid-template-columns:1fr}.personal-notes header h2{font-size:1.2rem}}`; document.head.appendChild(style);
+  const render = () => {
+    dialog.innerHTML = `<section class="personal-notes"><header><div><span>ESPACIO PRIVADO</span><h2>Notas personales</h2><p>Solo tú puedes ver y editar estos apuntes.</p></div><button type="button" class="notes-close" aria-label="Cerrar">×</button></header><form id="personal-note-form"><input type="hidden" name="id"><label>TÍTULO<input name="title" maxlength="100" required placeholder="Ej. Llamar al cliente"></label><label>NOTA<textarea name="content" maxlength="4000" required placeholder="Escribe tu apunte personal…"></textarea></label><div class="note-form-actions"><label>COLOR<select name="color"><option value="lime">Verde</option><option value="blue">Azul</option><option value="pink">Rosa</option><option value="orange">Naranja</option></select></label><button>Guardar nota</button></div></form><div class="personal-note-grid">${notes.map(note => `<article class="personal-note-card tone-${esc(note.color)}"><div><small>${new Date(note.updated_at).toLocaleDateString('es-CO',{day:'2-digit',month:'short'})}</small><h3>${esc(note.title)}</h3><p>${esc(note.content).replace(/\\n/g,'<br>')}</p></div><footer><button type="button" data-edit-note="${note.id}">Editar</button><button type="button" data-delete-note="${note.id}">Eliminar</button></footer></article>`).join('') || '<div class="personal-notes-empty">Aún no tienes notas. Crea la primera arriba.</div>'}</div></section>`;
+    dialog.querySelector('.notes-close').onclick = () => dialog.close();
+    dialog.querySelector('#personal-note-form').onsubmit = async event => { event.preventDefault(); const form = Object.fromEntries(new FormData(event.currentTarget)); try { if (form.id) await api('/api/notas-personales/' + form.id, {method:'PUT', body:JSON.stringify(form)}); else await api('/api/notas-personales', {method:'POST', body:JSON.stringify(form)}); await openNotes(); } catch (error) { alert(error.message); } };
+    dialog.querySelectorAll('[data-edit-note]').forEach(button => button.onclick = () => { const note = notes.find(item => item.id === Number(button.dataset.editNote)); const form = dialog.querySelector('#personal-note-form'); form.id.value = note.id; form.title.value = note.title; form.content.value = note.content; form.color.value = note.color; form.title.focus(); });
+    dialog.querySelectorAll('[data-delete-note]').forEach(button => button.onclick = async () => { if (!confirm('¿Eliminar esta nota personal?')) return; try { await api('/api/notas-personales/' + button.dataset.deleteNote, {method:'DELETE'}); await openNotes(); } catch (error) { alert(error.message); } });
+  };
+  async function openNotes() { try { notes = await api('/api/notas-personales'); render(); if (!dialog.open) dialog.showModal(); } catch (error) { alert(error.message); } }
+  const addButton = () => { const menu = document.querySelector('.user-dropdown'); if (!menu || menu.querySelector('#open-personal-notes')) return; const button = document.createElement('button'); button.type = 'button'; button.id = 'open-personal-notes'; button.textContent = 'Notas personales'; button.onclick = openNotes; menu.insertBefore(button, menu.querySelector('a[href="/logout"]')); };
+  addButton(); new MutationObserver(addButton).observe(document.body, {childList:true, subtree:true});
+})();
+</script>
+"""
+
 
 def connect():
     db = sqlite3.connect(DB_PATH)
@@ -123,6 +150,15 @@ def connect():
         db.execute("ALTER TABLE users ADD COLUMN display_name TEXT NOT NULL DEFAULT ''")
     except Exception:
         pass
+    db.execute("""CREATE TABLE IF NOT EXISTS personal_notes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT NOT NULL COLLATE NOCASE,
+        title TEXT NOT NULL,
+        content TEXT NOT NULL,
+        color TEXT NOT NULL DEFAULT 'lime',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )""")
     db.commit()
     return db
 
@@ -2376,6 +2412,55 @@ def change_account_name(payload: dict = Body(...), username=Depends(authenticate
     return response
 
 
+def _personal_note_payload(payload: dict) -> tuple[str, str, str]:
+    title = " ".join(str(payload.get("title") or "").split())
+    content = str(payload.get("content") or "").strip()
+    color = str(payload.get("color") or "lime")
+    if not 1 <= len(title) <= 100 or not 1 <= len(content) <= 4000:
+        raise HTTPException(400, "La nota debe tener título y contenido.")
+    if color not in {"lime", "blue", "pink", "orange"}:
+        color = "lime"
+    return title, content, color
+
+
+@app.get("/api/notas-personales")
+def list_personal_notes(username=Depends(authenticate)):
+    with connect() as db:
+        rows = db.execute("SELECT id, title, content, color, created_at, updated_at FROM personal_notes WHERE username=? COLLATE NOCASE ORDER BY updated_at DESC, id DESC", (username,)).fetchall()
+    return [dict(row) for row in rows]
+
+
+@app.post("/api/notas-personales")
+def create_personal_note(payload: dict = Body(...), username=Depends(authenticate)):
+    title, content, color = _personal_note_payload(payload)
+    now = datetime.now(timezone.utc).isoformat()
+    with connect() as db:
+        cursor = db.execute("INSERT INTO personal_notes(username, title, content, color, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)", (username, title, content, color, now, now))
+        db.commit()
+    return {"ok": True, "id": cursor.lastrowid}
+
+
+@app.put("/api/notas-personales/{note_id}")
+def update_personal_note(note_id: int, payload: dict = Body(...), username=Depends(authenticate)):
+    title, content, color = _personal_note_payload(payload)
+    with connect() as db:
+        cursor = db.execute("UPDATE personal_notes SET title=?, content=?, color=?, updated_at=? WHERE id=? AND username=? COLLATE NOCASE", (title, content, color, datetime.now(timezone.utc).isoformat(), note_id, username))
+        db.commit()
+    if not cursor.rowcount:
+        raise HTTPException(404, "Nota no encontrada")
+    return {"ok": True}
+
+
+@app.delete("/api/notas-personales/{note_id}")
+def delete_personal_note(note_id: int, username=Depends(authenticate)):
+    with connect() as db:
+        cursor = db.execute("DELETE FROM personal_notes WHERE id=? AND username=? COLLATE NOCASE", (note_id, username))
+        db.commit()
+    if not cursor.rowcount:
+        raise HTTPException(404, "Nota no encontrada")
+    return {"ok": True}
+
+
 @app.get("/", response_class=HTMLResponse)
 def home(_=Depends(authenticate)):
     # These HTML strings also appear inside JavaScript template literals.
@@ -3810,7 +3895,7 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
 `;document.head.appendChild(traceFigmaStyle);setTraceView();
     const commercialGroup=commercialToggle.closest('.nav-group');commercialGroup.classList.add('collapsed');const productionToggle=document.getElementById('production-toggle');if(productionToggle)productionToggle.addEventListener('click',()=>{{const g=productionToggle.closest('.nav-group');g.classList.toggle('collapsed');if(!g.classList.contains('collapsed'))g.querySelector('.nav-children .tab')?.click()}});
     setTimeout(()=>{{if(!document.querySelector('.panel.active'))document.querySelector('.tab[data-kind="inicio"]')?.click()}},0);
-    </script><script src='/api/cartera/cartera.js?v=20261001-13'></script><script src='/trace-ui.js?v=20260930-6'></script><script src='/home-dashboard.js?v=20260930-1'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);</script></body></html>"""
+    </script>{PERSONAL_NOTES_SCRIPT}<script src='/api/cartera/cartera.js?v=20261001-13'></script><script src='/trace-ui.js?v=20260930-6'></script><script src='/home-dashboard.js?v=20260930-1'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);</script></body></html>"""
 
 
 def ordered_mockup_uploads(extras, slots):
