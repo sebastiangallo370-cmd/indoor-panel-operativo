@@ -577,6 +577,8 @@
         button.style.cssText = 'grid-column:1/-1;color:#ffb5ae!important;border-color:#8c524c!important;background:#392323!important';
         card.querySelector('.trace-card-actions').appendChild(button);
       }
+      // Las acciones operativas ya están en el encabezado; no repetimos el botón Producción.
+      card.querySelector('.operator-open')?.remove();
       const viewSummary = summaries.get(row.source_row);
       const progressSummary = viewSummary.route || viewSummary;
       const progress = card.querySelector('.trace-progress');
@@ -1600,10 +1602,10 @@
   html body.production-mode .trace-card .trace-design-main img,html body.production-mode.trace-density-compact .trace-card .trace-design-main img{width:100%;height:100%!important;max-height:100%;min-height:0;object-fit:contain}
   html body.production-mode .trace-card .trace-card-body{padding:12px!important;display:flex;flex-direction:column;min-height:0}
   html body.production-mode .trace-card .trace-card-body> :not(.trace-disclosure){flex-shrink:0}
-  html body.production-mode .trace-card .trace-card-actions{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,.7fr) minmax(0,1fr)!important;gap:5px;margin-top:auto;padding-top:10px}
+  html body.production-mode .trace-card .trace-card-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:5px;margin-top:auto;padding-top:10px}
   html body.production-mode .trace-card .trace-card-actions button{grid-column:auto!important;min-height:38px;min-width:0;padding:8px 3px;font-size:11px!important;white-space:nowrap}
   html body.production-mode .trace-card .trace-card-actions [data-card-nas]{opacity:1;color:#e7f5ca!important;border-color:#7d9655!important}
-  html body.production-mode .trace-card .trace-card-actions:not(:has([data-card-delete])){grid-template-columns:minmax(0,1.35fr) minmax(0,.7fr)!important}
+  html body.production-mode .trace-card .trace-card-actions:not(:has([data-card-delete])){grid-template-columns:1fr!important}
   html body.production-mode .trace-card-heading{gap:6px;align-items:center;flex-wrap:wrap}
   html body.production-mode .trace-card-heading h3{font-size:17px!important;margin:0}
   html body.production-mode .trace-order-rework{min-height:28px;width:auto;padding:5px 8px;border:1px solid #5c6e60!important;border-radius:999px;background:#202b23!important;color:#d7e2d6!important;font:800 10px/1 Arial!important;letter-spacing:.04em;white-space:nowrap;box-shadow:none;cursor:pointer}
