@@ -103,6 +103,11 @@ def pendientes_pdf():
     pending=_PDF_DIR/"pendientes"
     pending.mkdir(parents=True,exist_ok=True)
     return [{"archivo":p.name,"tamano":p.stat().st_size,"cargadoEn":datetime.fromtimestamp(p.stat().st_mtime,timezone.utc).isoformat()} for p in sorted(pending.glob("*.pdf"),key=lambda p:p.stat().st_mtime,reverse=True)]
+@cartera_router.get("/pendientes/{archivo}/archivo")
+def ver_pdf_pendiente(archivo:str):
+    path=(_PDF_DIR/"pendientes"/_safe(Path(archivo).stem)).with_suffix(".pdf")
+    if not path.is_file(): raise HTTPException(404,"PDF pendiente no encontrado")
+    return FileResponse(path,media_type="application/pdf",filename=path.name)
 @cartera_router.get("/pendientes/{archivo}/resumen")
 def resumen_pendiente(archivo:str):
     path=(_PDF_DIR/"pendientes"/_safe(Path(archivo).stem)).with_suffix(".pdf")
@@ -113,9 +118,17 @@ def resumen_pendiente(archivo:str):
             paginas=len(pdf.pages)
             text="\n".join((page.extract_text() or "") for page in pdf.pages[:3])
     except Exception as exc: raise HTTPException(422,f"No se pudo leer el PDF: {exc}") from exc
-    def match(pattern):
-        found=re.search(pattern,text,re.I); return found.group(1).strip() if found else "No detectado"
-    return {"archivo":archivo,"paginas":paginas,"cotizacion":match(r"(?:cotizaci[oó]n|pedido|n[°oº])\s*[:#-]?\s*([A-Z0-9-]{3,})"),"fecha":match(r"(?:fecha|emisi[oó]n)\s*[:#-]?\s*(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})"),"cliente":match(r"(?:cliente|señor(?:es)?)\s*[:#-]?\s*([^\n]{3,80})"),"total":match(r"(?:total(?:\s+a\s+pagar)?|valor\s+total)\s*[:$#-]*\s*([^\n]{2,40})"),"texto":text[:5000] or "El PDF no tiene texto seleccionable; puede ser una imagen escaneada."}
+    def match(*patterns):
+        for pattern in patterns:
+            found=re.search(pattern,text,re.I)
+            if found: return found.group(1).strip(" .:-")
+        return "No detectado"
+    cliente=match(r"(?:cliente|señor(?:es)?)\s*[:#-]?\s*([^\n]{3,100}?)(?=\s*(?:\.?\s*(?:CC|C\.C\.|NIT|creaci[oó]n|tel[eé]fono|email)\b|$))")
+    total=match(r"(?:total\s*(?:neto|a\s+pagar)?|valor\s+total)\s*[:$#-]*\s*(?:\n\s*)?([^\n]{2,40})")
+    if not re.search(r"\d",total):
+        amount=re.search(r"(?:total\s*(?:neto|a\s+pagar)?|valor\s+total)[\s\S]{0,180}?(\$?\s*\d[\d.,]+)",text,re.I)
+        total=amount.group(1).strip() if amount else "No detectado"
+    return {"archivo":archivo,"paginas":paginas,"cotizacion":match(r"(?:cotizaci[oó]n\s*(?:no\.?|n[°oº])?|(?:^|\n)no\.?)\s*[:#-]?\s*(\d{3,}[A-Z0-9-]*)",r"(?:pedido|cotizaci[oó]n|n[°oº])\s*[:#-]?\s*([A-Z0-9-]{3,})"),"fecha":match(r"(?:fecha|emisi[oó]n|creaci[oó]n)\s*[:#-]?\s*(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4})"),"cliente":cliente,"total":total,"texto":text[:5000] or "El PDF no tiene texto seleccionable; puede ser una imagen escaneada."}
 @cartera_router.post("/pendientes/{archivo}/asociar/{numero}")
 def asociar_pendiente(archivo:str,numero:str):
     source=(_PDF_DIR/"pendientes"/_safe(Path(archivo).stem)).with_suffix(".pdf")
