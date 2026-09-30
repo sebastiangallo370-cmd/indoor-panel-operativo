@@ -23,6 +23,7 @@ SOURCE_TABS = (
     ("MATERIA PRIMA IMPRESION", "Materia prima impresión"),
     ("BODEGA TELA", "Bodega tela"),
     ("RETAL CANASTAS", "Retal canastas"),
+    ("DOCUMENTACION PROCESO", "Documentación proceso"),
 )
 CACHE_SECONDS = 90
 _cache: dict[str, Any] = {"at": 0.0, "data": None}
@@ -66,6 +67,17 @@ def _is_header(row: list[str]) -> bool:
 
 
 def _records_for_tab(values: list[list[str]], tab_key: str, tab_label: str) -> list[dict[str, Any]]:
+    if tab_key == "DOCUMENTACION PROCESO":
+        records = []
+        for row_index, row in enumerate(values, start=1):
+            name = str(row[1] if len(row) > 1 else "").strip()
+            location = str(row[2] if len(row) > 2 else "").strip()
+            registration = str(row[3] if len(row) > 3 else "").strip()
+            if not name or _normalized(name) in {"MATERIA PRIMA O PRODUCTO", "UBICACIONES"}:
+                continue
+            display_name = f"{name} · {location}" if location else name
+            records.append({"id": f"{tab_key}:{row_index}", "categoria": tab_key, "categoria_label": tab_label, "nombre": display_name, "total": 0.0, "total_label": registration or "Sin registro", "detalle": registration or location or "Sin registro"})
+        return records
     records: list[dict[str, Any]] = []
     active_name: int | None = None
     active_total: int | None = None
