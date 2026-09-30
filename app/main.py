@@ -2404,6 +2404,7 @@ def home(_=Depends(authenticate)):
     <link rel='manifest' href='/manifest.webmanifest'><link rel='apple-touch-icon' href='/favicon.png'>
     <meta name='mobile-web-app-capable' content='yes'><meta name='apple-mobile-web-app-capable' content='yes'><meta name='apple-mobile-web-app-status-bar-style' content='black'><meta name='apple-mobile-web-app-title' content='Indoor'>
     <link rel='icon' type='image/svg+xml' href='/favicon.svg?v=6'>
+    <link rel='stylesheet' href='/api/cartera/embed.css' data-cartera-css='1'>
     <title>Indoor Sport SAS</title><style>
     :root{{--lime:#d0f44c;--lime-2:#8eaa25;--metal:linear-gradient(135deg,#6f871d 0%,#d0f44c 24%,#efffa5 48%,#d0f44c 68%,#78921e 100%);--ink:#f7f9f2;--muted:#a7b0a0;--line:rgba(208,244,76,.22);--glass:rgba(20,24,19,.62);--panel:#11150f}}
     *{{box-sizing:border-box}} body{{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;background:#050605;margin:0;color:var(--ink);font-size:16px;line-height:1.5;min-height:100vh;min-height:100dvh;overflow-x:hidden}}
@@ -3793,6 +3794,7 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
 `;document.head.appendChild(traceFigmaStyle);setTraceView();
     const commercialGroup=commercialToggle.closest('.nav-group');commercialGroup.classList.add('collapsed');const productionToggle=document.getElementById('production-toggle');if(productionToggle)productionToggle.addEventListener('click',()=>{{const g=productionToggle.closest('.nav-group');g.classList.toggle('collapsed');if(!g.classList.contains('collapsed'))g.querySelector('.nav-children .tab')?.click()}});
     setTimeout(()=>{{if(!document.querySelector('.panel.active'))document.querySelector('.tab[data-kind="inicio"]')?.click()}},0);
+    initCarteraPanel().catch(()=>{{}});
     </script><script src='/trace-ui.js?v=20260930-6'></script><script src='/home-dashboard.js?v=20260930-1'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);</script></body></html>"""
 
 
