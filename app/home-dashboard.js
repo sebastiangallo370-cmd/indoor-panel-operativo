@@ -188,7 +188,7 @@
       results.innerHTML = matches.length ? matches.map(order => {
         const status = order.rework ? 'En reproceso' : order.complete ? 'Finalizada' : order.focus ? 'En ' + order.focus : 'Sin proceso activo';
         const state = order.rework ? 'rework' : order.complete ? 'finished' : 'active';
-        const reference = order.reference ? '<span class="dash-order-reference"><b>Referencia</b><small>' + esc(order.reference) + '</small></span>' : '';
+        const reference = order.reference ? '<span class="dash-order-reference"><small>' + esc(order.reference) + '</small></span>' : '';
         return '<button type="button" class="dash-order-result" data-order="' + esc(order.id) + '"><span class="dash-order-result-head"><strong>' + esc(order.id) + '</strong><em class="' + state + '">' + esc(status) + '</em></span><span class="dash-order-client">' + esc(order.client || 'Sin cliente') + '</span>' + reference + '<span class="dash-order-process ' + state + '"><b>Proceso actual</b><small>' + esc(order.focus || (order.complete ? 'Orden finalizada' : 'Sin proceso activo')) + '</small></span><span class="dash-order-progress"><i><b style="width:' + order.percent + '%"></b></i><small>' + order.percent + '% de avance · ' + fmtNum(order.units) + ' und.</small></span><span class="dash-order-open">Ver en producción →</span></button>';
       }).join('') : '<p>No encontramos una orden o cliente con esa búsqueda.</p>';
     };
