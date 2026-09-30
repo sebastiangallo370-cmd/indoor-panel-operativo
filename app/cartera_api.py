@@ -26,6 +26,16 @@ def _amount(v):
     except ValueError: return 0.
 def _term(v):
     m=re.search(r"(\d+)",str(v or "")); return int(m.group(1)) if m else 0
+def _pdf_quote_number(content:bytes):
+    """Identifica el consecutivo en PDFs de cotización sin detener una carga si el PDF no tiene texto."""
+    try:
+        import pdfplumber
+        with pdfplumber.open(io.BytesIO(content)) as pdf:
+            text="\n".join((page.extract_text() or "") for page in pdf.pages[:2])
+        found=re.search(r"(?:cotizaci[oó]n\s*(?:no\.?|n[°oº])?|(?:^|\n)no\.?)\s*[:#-]?\s*(\d{3,}[A-Z0-9-]*)",text,re.I)
+        return found.group(1).strip() if found else ""
+    except Exception:
+        return ""
 def _audit(d,action,user="Sistema"): d.setdefault("historial",[]).append({"fecha":datetime.now(timezone.utc).isoformat(),"accion":action,"usuario":user})
 def _normalize(raw):
     data=_empty(); data.update(raw or {}); data["config"]={**_empty()["config"],**(data.get("config") or {})}; data["usuarios"]=data.get("usuarios") or _empty()["usuarios"]
@@ -89,15 +99,22 @@ async def subir_pdf(numero:str,file:UploadFile=File(...)):
 @cartera_router.post("/cargar-pdf")
 async def cargar_pdfs(files:list[UploadFile]=File(...)):
     """Conserva PDFs aún sin cotización; permite cargarlos antes de completar sus datos."""
-    pending=_PDF_DIR/"pendientes"; pending.mkdir(parents=True,exist_ok=True); saved=[]
+    pending=_PDF_DIR/"pendientes"; pending.mkdir(parents=True,exist_ok=True); saved=[]; skipped=[]
+    existentes={str(d.get("numero","")).strip():d for d in _load().get("documentos",[])}
     for file in files:
         content=await file.read()
         if content[:4]!=b"%PDF":
             raise HTTPException(400,f"{file.filename or 'Archivo'} no es un PDF válido")
+        numero=_pdf_quote_number(content)
+        if numero and numero in existentes:
+            skipped.append({"archivo":file.filename or "PDF","numero":numero,"cliente":existentes[numero].get("cliente","")})
+            continue
         stem=_safe(Path(file.filename or "cotizacion.pdf").stem) or "cotizacion"
         name=f"{stem}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}.pdf"
         (pending/name).write_bytes(content); saved.append(file.filename or name)
-    return {"ok":True,"archivos":saved,"mensaje":f"{len(saved)} PDF(s) cargado(s) y pendiente(s) de asociar"}
+    message=f"{len(saved)} PDF(s) cargado(s) y pendiente(s) de asociar"
+    if skipped: message+=f" · {len(skipped)} omitido(s) por estar ya registrado(s)"
+    return {"ok":True,"archivos":saved,"omitidos":skipped,"mensaje":message}
 @cartera_router.get("/pendientes")
 def pendientes_pdf():
     pending=_PDF_DIR/"pendientes"
