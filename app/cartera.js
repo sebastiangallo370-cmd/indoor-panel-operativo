@@ -201,7 +201,7 @@ function renderTablero(docs) {
     let vence7 = docs.filter(d => d.saldo>0 && d.diasVencido>=-7 && d.diasVencido<=0).reduce((a,b)=>a+b.saldo,0);
     
     let now = new Date();
-    let recMes = state.datos.comprobantes.filter(c => !c.anulado && new Date(c.fecha).getMonth() === now.getMonth()).reduce((a,b)=>a+Number(c.valor), 0);
+    let recMes = state.datos.comprobantes.filter(c => !c.anulado && new Date(c.fecha).getMonth() === now.getMonth()).reduce((a,b)=>a+Number(b.valor), 0);
     
     let sumDiasXPeso = docs.filter(d=>d.saldo>0).reduce((a,b)=>a + (b.saldo * b.diasVencido), 0);
     let dso = sumSaldos > 0 ? Math.round(sumDiasXPeso / sumSaldos) : 0;
@@ -381,7 +381,138 @@ function scheduleDate() {
     document.getElementById('current-date').textContent = d.toLocaleDateString('es-CO', options);
 }
 
-// INIT
+// ── Exportar CSV ─────────────────────────────────────────────────────────────
+function downloadCSV(filename, headers, rows) {
+    const sep = ';';
+    const csv = [headers, ...rows]
+        .map(row => row.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(sep))
+        .join('\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+}
+
+document.getElementById('btn-export-cartera').addEventListener('click', () => {
+    const docs = processData();
+    const headers = ['N°','CLIENTE','VENDEDOR','FECHA CREACIÓN','FECHA ENTREGA','FORMA PAGO','VENCE','DÍAS','TOTAL','PAGADO','SALDO','ESTADO'];
+    const rows = docs.map(d => [d.numero, d.cliente, d.vendedor||'', d.fechaCreacion||'', d.fechaEntrega||'', d.formaPago||'', d.fechaVencimiento, d.diasVencido, d.total, d.pagado, d.saldo, d.estadoVisual]);
+    downloadCSV(`cartera_${new Date().toISOString().split('T')[0]}.csv`, headers, rows);
+});
+
+document.getElementById('btn-export-pagos').addEventListener('click', () => {
+    const comps = [...state.datos.comprobantes].reverse();
+    const headers = ['COMPROBANTE','FECHA','COTIZACIÓN','CLIENTE','MEDIO','REFERENCIA','VALOR','TIPO','RECIBIÓ','ESTADO'];
+    const rows = comps.map(c => [c.id, (c.fecha||'').split('T')[0], c.cotizacionNumero, c.cliente||'', c.medio, c.referencia||'', c.valor, c.tipo, c.recibio, c.anulado ? 'Anulado' : 'Válido']);
+    downloadCSV(`pagos_${new Date().toISOString().split('T')[0]}.csv`, headers, rows);
+});
+
+// Clic en el sugerido → rellena el campo valor
+document.getElementById('pago-sugerido').addEventListener('click', () => {
+    const max = document.getElementById('pago-valor').max;
+    if (max) document.getElementById('pago-valor').value = max;
+});
+
+// btn-add-pago: abre modal con selector completo de cotizaciones
+document.getElementById('btn-add-pago').addEventListener('click', () => {
+    const options = (state.datos?.documentos || [])
+        .filter(d => d.saldo > 0 && d.estado !== 'anulada')
+        .sort((a, b) => String(a.numero).localeCompare(String(b.numero)));
+    document.getElementById('pago-cotizacion').innerHTML =
+        '<option value="">— Seleccione cotización —</option>' +
+        options.map(d => `<option value="${d.numero}">${d.numero} – ${d.cliente} (saldo ${USD.format(d.saldo)})</option>`).join('');
+    document.getElementById('pago-fecha').value = new Date().toISOString().split('T')[0];
+    document.getElementById('pago-valor').value = '';
+    document.getElementById('pago-valor').max = '';
+    document.getElementById('pago-sugerido').textContent = '';
+    document.getElementById('modal-pago').showModal();
+});
+
+// Actualizar max y sugerido al cambiar la cotización en el selector completo
+document.getElementById('pago-cotizacion').addEventListener('change', e => {
+    const num = e.target.value;
+    const doc = (state.datos?.documentos || []).find(d => String(d.numero) === String(num));
+    if (doc) {
+        document.getElementById('pago-valor').max = doc.saldo;
+        document.getElementById('pago-sugerido').textContent = `Sugerido: ${USD.format(doc.saldo)}`;
+    } else {
+        document.getElementById('pago-sugerido').textContent = '';
+    }
+});
+
+// ── Anular comprobante ────────────────────────────────────────────────────────
+async function anularPago(id) {
+    const motivo = prompt('Motivo de anulación (requerido):');
+    if (motivo === null || !motivo.trim()) return;
+    const r = await fetch(`${API_URL}/comprobantes/${id}/anular`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ motivo: motivo.trim() })
+    });
+    if (r.ok) loadDatos();
+    else alert('No se pudo anular el comprobante');
+}
+
+// ── Agregar documento manual ──────────────────────────────────────────────────
+document.getElementById('btn-add-doc').addEventListener('click', () => {
+    const num = prompt('Número de cotización:');
+    if (!num || !num.trim()) return;
+    const cliente = prompt('Cliente:') || '';
+    const vendedor = prompt('Vendedor:') || '';
+    const totalStr = prompt('Total ($):') || '0';
+    const total = parseFloat(totalStr.replace(/[^0-9.]/g, '')) || 0;
+    const fechaCreacion = prompt('Fecha de creación (YYYY-MM-DD):', new Date().toISOString().split('T')[0]) || '';
+    const fechaEntrega = prompt('Fecha de entrega (YYYY-MM-DD, opcional):') || '';
+    const formaPago = prompt('Forma de pago (ej: Contado a 1 día, 30 días):') || 'Contado a 1 día';
+    const doc = {
+        numero: num.trim(), cliente: cliente.trim(), vendedor: vendedor.trim(),
+        fechaCreacion, fechaEntrega, formaPago, total,
+        pagadoImportado: 0, estado: 'pedido', origen: 'Manual', revisar: false, notas: ''
+    };
+    fetch(`${API_URL}/documentos`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify([doc])
+    }).then(r => { if (r.ok) loadDatos(); else alert('No se pudo guardar el documento'); });
+});
+
+// ── Ajustes ───────────────────────────────────────────────────────────────────
+document.getElementById('btn-save-settings').addEventListener('click', async () => {
+    const config = {
+        plazoDesde: document.getElementById('conf-plazo').value,
+        contadoEquivale: document.getElementById('conf-contado').value,
+        anticipoMinimoPct: parseInt(document.getElementById('conf-anticipo').value) || 50
+    };
+    const r = await fetch(`${API_URL}/config`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config)
+    });
+    if (r.ok) { await loadDatos(); alert('Ajustes guardados correctamente.'); }
+    else alert('No se pudieron guardar los ajustes');
+});
+
+// Cargar ajustes actuales en el formulario cuando se abre la pestaña
+document.querySelector('.tab-btn[data-tab="ajustes"]').addEventListener('click', () => {
+    if (!state.datos?.config) return;
+    const cfg = state.datos.config;
+    document.getElementById('conf-plazo').value = cfg.plazoDesde || 'entrega';
+    document.getElementById('conf-contado').value = cfg.contadoEquivale || 'mismo_dia_entrega';
+    document.getElementById('conf-anticipo').value = cfg.anticipoMinimoPct ?? 50;
+});
+
+// ── Respaldo ──────────────────────────────────────────────────────────────────
+document.getElementById('btn-backup').addEventListener('click', () => {
+    const data = JSON.stringify(state.datos, null, 2);
+    const blob = new Blob([data], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `cartera_respaldo_${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+});
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
 scheduleDate();
 loadDatos();
 setInterval(loadDatos, 30000);

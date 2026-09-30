@@ -339,6 +339,14 @@ def anular_comprobante(comp_id: str, payload: Dict[Any, Any]):
             return {"ok": True}
     raise HTTPException(404, "Comprobante no encontrado")
 
+@cartera_router.post("/config")
+def save_config(config: Dict[Any, Any]):
+    db = load_cartera()
+    db["config"] = {**db.get("config", {}), **config}
+    save_cartera(db)
+    return {"ok": True, "config": db["config"]}
+
+
 @cartera_router.post("/upload")
 async def upload_pdf(file: UploadFile = File(...)):
     if not file.filename.lower().endswith(".pdf"):
