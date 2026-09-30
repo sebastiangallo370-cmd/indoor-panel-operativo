@@ -224,7 +224,7 @@
     const today = todayPanel('orange', 'Entregas hoy y mañana', soon.length,
       orderList(soon, 'No hay entregas programadas para hoy ni mañana.', o => o.when + ' · ' + o.percent + '% avance'));
     const late = todayPanel('red', 'Pedidos atrasados', a.late.length,
-      orderList(a.late, 'Ningún pedido atrasado. ¡Bien!', o => 'Venció ' + fmtDue(o.due) + ' · ' + daysBetween(o.due, a.today) + ' d'));
+      orderList(a.late, 'Ningún pedido atrasado. ¡Bien!', o => (o.focus ? o.focus + ' · ' : '') + 'Venció ' + fmtDue(o.due) + ' · ' + daysBetween(o.due, a.today) + ' d'));
     const rework = todayPanel('rose', 'En reproceso', a.reworkList.length,
       orderList(a.reworkList, 'No hay pedidos en reproceso.', o => (o.focus || 'Reproceso') + ' · entrega ' + fmtDue(o.due)));
 
