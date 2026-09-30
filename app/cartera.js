@@ -10,7 +10,8 @@ let state = {
         estado: 'pendiente',
         rangoTipo: 'fechaCreacion',
         desde: '',
-        hasta: ''
+        hasta: '',
+        tramo: 'todos'
     }
 };
 
@@ -107,6 +108,13 @@ function processData() {
     if (f.vendedor !== 'Todos') procesados = procesados.filter(d => d.vendedor === f.vendedor);
     if (f.cliente !== 'Todos') procesados = procesados.filter(d => d.cliente === f.cliente);
     if (f.pago !== 'Todos') procesados = procesados.filter(d => (d.formaPago || '') === f.pago);
+    if (f.tramo === 'sin-vencer') procesados = procesados.filter(d => d.saldo > 0 && d.diasVencido <= 0);
+    if (f.tramo === '1-15') procesados = procesados.filter(d => d.saldo > 0 && d.diasVencido >= 1 && d.diasVencido <= 15);
+    if (f.tramo === '16-30') procesados = procesados.filter(d => d.saldo > 0 && d.diasVencido >= 16 && d.diasVencido <= 30);
+    if (f.tramo === '31-60') procesados = procesados.filter(d => d.saldo > 0 && d.diasVencido >= 31 && d.diasVencido <= 60);
+    if (f.tramo === 'mas-60') procesados = procesados.filter(d => d.saldo > 0 && d.diasVencido > 60);
+    if (f.tramo === 'vencida') procesados = procesados.filter(d => d.saldo > 0 && d.diasVencido > 0);
+    if (f.tramo === 'vence-7') procesados = procesados.filter(d => d.saldo > 0 && d.diasVencido >= -7 && d.diasVencido <= 0);
     
     if (f.estado === 'pendiente') procesados = procesados.filter(d => d.saldo > 0 && d.estado !== 'anulada' && d.estado !== 'excluida');
     else if (f.estado === 'pagadas') procesados = procesados.filter(d => d.saldo === 0 && d.estado !== 'anulada');
@@ -181,12 +189,12 @@ function renderTablero(docs) {
     const ab = document.getElementById('aging-bar');
     if (totalSal === 0) ab.innerHTML = '<div class="aging-segment bg-sin-vencer" style="width:100%; color:var(--text-muted); background:#f3f4f6">Sin saldo</div>';
     else {
-        const seg = (val, cls, label) => val > 0 ? `<div class="aging-segment ${cls}" style="width:${(val/totalSal)*100}%" title="${label}: ${USD.format(val)}">${(val/1e6).toFixed(1)}M</div>` : '';
-        ab.innerHTML = seg(s0, 'bg-sin-vencer', 'Sin Vencer') + seg(s15, 'bg-1-15', '1 a 15 días') + seg(s30, 'bg-16-30', '16 a 30 días') + seg(s60, 'bg-31-60', '31 a 60 días') + seg(sMas, 'bg-mas-60', 'Más de 60');
+        const seg = (val, cls, label, tramo) => val > 0 ? `<button class="aging-segment ${cls}" data-tramo="${tramo}" style="width:${(val/totalSal)*100}%" title="${label}: ${USD.format(val)}">${(val/1e6).toFixed(1)}M</button>` : '';
+        ab.innerHTML = seg(s0, 'bg-sin-vencer', 'Sin Vencer', 'sin-vencer') + seg(s15, 'bg-1-15', '1 a 15 días', '1-15') + seg(s30, 'bg-16-30', '16 a 30 días', '16-30') + seg(s60, 'bg-31-60', '31 a 60 días', '31-60') + seg(sMas, 'bg-mas-60', 'Más de 60', 'mas-60');
     }
 
     // KPIs
-    const kpi = (title, val, sub, color='') => `<div class="kpi-card"><div class="kpi-title">${title}</div><div class="kpi-value" style="color:${color}">${val}</div><div class="kpi-support">${sub}</div></div>`;
+    const kpi = (title, val, sub, action, color='') => `<button class="kpi-card" type="button" data-kpi-action="${action}" title="Ver detalle"><span class="kpi-title">${title}</span><strong class="kpi-value" style="color:${color}">${val}</strong><span class="kpi-support">${sub}</span><small>Ver detalle →</small></button>`;
     
     let sumSaldos = totalSal;
     let sumVencida = s15+s30+s60+sMas;
@@ -201,12 +209,12 @@ function renderTablero(docs) {
     const clis = {}; docs.forEach(d => { if(d.saldo>0) clis[d.cliente] = (clis[d.cliente]||0)+d.saldo; });
     const maxCli = Math.max(0, ...Object.values(clis));
     
-    let html = kpi('CARTERA POR COBRAR', USD.format(sumSaldos), `${docs.filter(d=>d.saldo>0).length} documentos con saldo`);
-    html += kpi('CARTERA VENCIDA', USD.format(sumVencida), sumSaldos>0 ? `${Math.round((sumVencida/sumSaldos)*100)}% del total` : '0%', 'var(--c-magenta)');
-    html += kpi('VENCE EN 7 DÍAS', USD.format(vence7), 'Gestione el cobro esta semana');
-    html += kpi('RECAUDADO ESTE MES', USD.format(recMes), 'Caja efectivamente ingresada', 'var(--c-green)');
-    html += kpi('DÍAS DE CARTERA (DSO)', `${dso > 0 ? '+'+dso : dso} d`, 'Promedio ponderado por saldo');
-    html += kpi('CONCENTRACIÓN', sumSaldos>0 ? `${Math.round((maxCli/sumSaldos)*100)}%` : '0%', 'Peso del cliente más grande');
+    let html = kpi('CARTERA POR COBRAR', USD.format(sumSaldos), `${docs.filter(d=>d.saldo>0).length} documentos con saldo`, 'todos');
+    html += kpi('CARTERA VENCIDA', USD.format(sumVencida), sumSaldos>0 ? `${Math.round((sumVencida/sumSaldos)*100)}% del total` : '0%', 'vencida', 'var(--c-magenta)');
+    html += kpi('VENCE EN 7 DÍAS', USD.format(vence7), 'Gestione el cobro esta semana', 'vence-7');
+    html += kpi('RECAUDADO ESTE MES', USD.format(recMes), 'Caja efectivamente ingresada', 'pagos', 'var(--c-green)');
+    html += kpi('DÍAS DE CARTERA (DSO)', `${dso > 0 ? '+'+dso : dso} d`, 'Promedio ponderado por saldo', 'todos');
+    html += kpi('CONCENTRACIÓN', sumSaldos>0 ? `${Math.round((maxCli/sumSaldos)*100)}%` : '0%', 'Peso del cliente más grande', 'todos');
     
     document.getElementById('kpi-grid').innerHTML = html;
     
@@ -257,6 +265,27 @@ function openTab(tabName) {
 document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', e => openTab(e.currentTarget.dataset.tab)));
 document.querySelectorAll('.quick-tab').forEach(b => b.addEventListener('click', e => openTab(e.currentTarget.dataset.targetTab)));
 
+function abrirDetalleCartera(action) {
+    if (action === 'pagos') return openTab('pagos');
+    state.filtros.tramo = action === 'vencida' ? '1-15' : action;
+    if (action === 'vencida') {
+        // Incluye todos los documentos vencidos, no solo los primeros 15 días.
+        state.filtros.tramo = 'vencida';
+    }
+    openTab('cartera');
+    updateUI();
+}
+
+document.getElementById('kpi-grid').addEventListener('click', event => {
+    const card = event.target.closest('[data-kpi-action]');
+    if (card) abrirDetalleCartera(card.dataset.kpiAction);
+});
+
+document.getElementById('aging-bar').addEventListener('click', event => {
+    const segment = event.target.closest('[data-tramo]');
+    if (segment) abrirDetalleCartera(segment.dataset.tramo);
+});
+
 document.getElementById('btn-sync-indoor').addEventListener('click', async event => {
     const button = event.currentTarget;
     button.disabled = true;
@@ -284,6 +313,14 @@ document.querySelectorAll('#global-filters input, #global-filters select').forEa
         state.filtros.buscar = e.target.value;
         updateUI();
     });
+});
+
+document.getElementById('f-limpiar').addEventListener('click', () => {
+    state.filtros = { buscar:'', vendedor:'Todos', cliente:'Todos', pago:'Todos', estado:'pendiente', rangoTipo:'fechaCreacion', desde:'', hasta:'', tramo:'todos' };
+    document.querySelectorAll('#global-filters input').forEach(input => input.value = '');
+    document.getElementById('f-estado').value = 'pendiente';
+    document.getElementById('f-rango-tipo').value = 'fechaCreacion';
+    updateUI();
 });
 
 function openPago(num, max) {

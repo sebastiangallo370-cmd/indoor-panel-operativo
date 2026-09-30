@@ -270,7 +270,9 @@ main { width:100%; max-width:none; margin:0; padding:0 clamp(20px,3vw,52px) 54px
 .card,.aging-bar-container,.chart-card,.kpi-card,.table-wrap { background:linear-gradient(145deg,#121d13,#0e170f); border-color:#2d402d; box-shadow:0 12px 30px rgba(0,0,0,.16); }
 .card,.aging-bar-container,.chart-card,.kpi-card { border-radius:14px; }
 .kpi-grid { grid-template-columns:repeat(6,minmax(150px,1fr)); gap:14px; }
-.kpi-card { border-top:2px solid #cef441; min-height:118px; display:flex; flex-direction:column; justify-content:center; }
+.kpi-card { width:100%; border-top:2px solid #cef441; min-height:118px; display:flex; flex-direction:column; justify-content:center; text-align:left; cursor:pointer; transition:transform .18s ease,border-color .18s ease,background .18s ease; }
+.kpi-card:hover { transform:translateY(-3px); border-color:#cef441; background:#192617; }
+.kpi-card small { margin-top:8px; color:#cef441; font-size:10px; font-weight:800; opacity:.86; }
 .kpi-value { color:#efffd5; font-size:22px; }
 .btn-primary { background:#cef441; color:#14200f; font-weight:850; }
 .btn-secondary { background:#1b291a; border-color:#465f3f; color:#e9f4e4; font-weight:700; }
@@ -278,6 +280,7 @@ th { background:#162216; color:#aebdaa; border-bottom-color:#304430; }
 td { border-bottom-color:#263927; color:#e2ebde; }
 .bar-track { background:#253325; }.bar-fill.blue { background:#cef441; }.bar-fill.magenta { background:#f05c9c; }
 .aging-bar-container { padding:22px; }
+.aging-segment { border:0; cursor:pointer; font:inherit; }
 .charts-grid { grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; }
 .chart-card { min-height:228px; padding:18px; }
 .table-wrap { min-height:420px; }
