@@ -548,13 +548,15 @@
       button.querySelector('span').textContent = base.filter(row => match(forView(row, button.dataset.traceFilter), button.dataset.traceFilter)).length;
     });
     toolbar.querySelector('.trace-results').textContent = 'Mostrando ' + pageResult.start + '–' + pageResult.end + ' de ' + pageResult.total + ' tarjetas · Entrega: de más próxima a más lejana' + (filter === 'mine' ? ' · Asignadas a tu usuario' : '');
+    const mtsColi = productionData.headers.findIndex(h => String(h || '').trim().toUpperCase() === 'MTS REQUERIDO');
     traceCards.innerHTML = rows.map(row => {
       const summary = summaries.get(row.source_row), id = row.source_row;
+      const mtsV = mtsColi >= 0 ? String(row.values[mtsColi] || '').trim() : '';
       const notes = Object.entries(productionData.notes || {}).filter(([k, v]) => k.startsWith(id + ':') && v).length;
       const responsible = summary.focus?.responsible || '';
       const due = traceField(row, 'FECHA DE ENTREGA');
       const dueLabel = !summary.due ? 'Sin fecha' : summary.overdue ? 'Atrasado' : summary.state !== 'finished' && summary.due.getTime() === scheduleToday().getTime() ? 'Entrega hoy' : 'Entrega';
-      return '<article class="trace-card state-' + summary.state + '" data-card-row="' + id + '"><div class="trace-media">' + traceAssetsMarkup(id) + '</div><div class="trace-card-body"><div class="trace-card-heading"><h3>' + esc(traceField(row, 'ORDEN') || 'Sin número') + '</h3><span class="trace-stage ' + summary.state + '">' + labels[summary.state] + '</span></div><p class="trace-client">' + esc(traceField(row, 'NOMBRE DEL CLIENTE') || 'Sin cliente') + '</p><p class="trace-project">' + esc(traceField(row, 'NOMBRE PROYECTO')) + '</p><dl><div><dt>Referencia</dt><dd>' + esc(traceField(row, 'REFERENCIA') || '—') + '</dd></div><div><dt>Cantidad</dt><dd class="trace-quantity">' + esc(traceField(row, 'CANTIDAD') || '0') + ' <small>und.</small></dd></div><div class="trace-due ' + (summary.overdue ? 'late' : '') + '"><dt>' + dueLabel + '</dt><dd>' + esc(summary.due ? displayProductionDate(due) : 'Sin programar') + '</dd></div><div><dt>Responsable del proceso</dt><dd>' + (responsible ? responsible.split(/[,;·\n]+/).filter(x => x.trim()).map(name => '<span class="trace-person">' + esc(name.trim()) + '</span>').join(' ') : '<span class="trace-unassigned">Sin asignar</span>') + '</dd></div></dl><div class="trace-card-meta"><span>' + notes + ' nota' + (notes === 1 ? '' : 's') + '</span><span>Fila ' + id + '</span></div><div class="trace-card-actions"><button type="button" class="operator-open" data-card-edit="' + id + '">PRODUCCIÓN</button><button type="button" data-card-detail="' + id + '">Ver detalle</button><button type="button" data-card-nas="' + id + '" aria-label="Abrir carpeta del pedido">NAS ↗</button></div></div>' + routeMarkup(row, summary) + '</article>';
+      return '<article class="trace-card state-' + summary.state + '" data-card-row="' + id + '"><div class="trace-media">' + traceAssetsMarkup(id) + '</div><div class="trace-card-body"><div class="trace-card-heading"><h3>' + esc(traceField(row, 'ORDEN') || 'Sin número') + '</h3><span class="trace-stage ' + summary.state + '">' + labels[summary.state] + '</span></div><p class="trace-client">' + esc(traceField(row, 'NOMBRE DEL CLIENTE') || 'Sin cliente') + '</p><p class="trace-project">' + esc(traceField(row, 'NOMBRE PROYECTO')) + '</p><button class="trace-mts-btn' + (mtsV ? ' has-value' : '') + '" type="button" data-card-mts="' + id + '"><span class="mts-label">Ingresar MTS REQUERIDOS</span>' + (mtsV ? '<strong class="mts-current">' + esc(mtsV) + ' mts</strong>' : '') + '</button><dl><div><dt>Referencia</dt><dd>' + esc(traceField(row, 'REFERENCIA') || '—') + '</dd></div><div><dt>Cantidad</dt><dd class="trace-quantity">' + esc(traceField(row, 'CANTIDAD') || '0') + ' <small>und.</small></dd></div><div class="trace-due ' + (summary.overdue ? 'late' : '') + '"><dt>' + dueLabel + '</dt><dd>' + esc(summary.due ? displayProductionDate(due) : 'Sin programar') + '</dd></div><div><dt>Responsable del proceso</dt><dd>' + (responsible ? responsible.split(/[,;·\n]+/).filter(x => x.trim()).map(name => '<span class="trace-person">' + esc(name.trim()) + '</span>').join(' ') : '<span class="trace-unassigned">Sin asignar</span>') + '</dd></div></dl><div class="trace-card-meta"><span>' + notes + ' nota' + (notes === 1 ? '' : 's') + '</span><span>Fila ' + id + '</span></div><div class="trace-card-actions"><button type="button" class="operator-open" data-card-edit="' + id + '">PRODUCCIÓN</button><button type="button" data-card-detail="' + id + '">Ver detalle</button><button type="button" data-card-nas="' + id + '" aria-label="Abrir carpeta del pedido">NAS ↗</button></div></div>' + routeMarkup(row, summary) + '</article>';
     }).join('') || '<div class="trace-empty"><h3>No hay pedidos en esta vista</h3><p>' + (filter === 'mine' ? 'No hay responsables que coincidan con tu usuario o iniciales. Prueba Todos o revisa la asignación.' : 'Prueba otro estado o cambia la búsqueda.') + '</p><button type="button" data-clear-trace>Ver todos</button></div>';
     traceCards.querySelectorAll('[data-card-row]').forEach(card => traceImageObserver.observe(card));
     if (pageResult.pages > 1) traceCards.insertAdjacentHTML('beforeend', '<nav class="trace-pagination trace-pagination-bottom" aria-label="Páginas de pedidos al final">' + pageMarkup(pageResult) + '</nav>');
@@ -600,7 +602,7 @@
           return '<p title="'+esc(title)+'">'+noteBadges(attribution)+'<span class="trace-note-text">'+esc(String(note.text).replace(/\s+/g, ' ').trim())+'</span><button type="button" class="trace-note-delete" data-note-row="'+row.source_row+'" data-note-column="'+note.column+'" aria-label="Eliminar nota" title="Eliminar nota">×</button></p>';
         }).join('');
         card.querySelector('.trace-inline-notes').remove();
-        card.querySelector('.trace-project').after(notePanel);
+        (card.querySelector('.trace-mts-btn') || card.querySelector('.trace-project')).after(notePanel);
         const counter = card.querySelector('.trace-card-meta span');
         counter.classList.add('trace-note-count');
         counter.textContent = '✎ '+notes.length+' nota'+(notes.length === 1 ? '' : 's');
@@ -614,7 +616,7 @@
           notePanel = document.createElement('section');
           notePanel.className = 'trace-inline-notes trace-note-alert';
           notePanel.setAttribute('aria-label', 'Observaciones de la orden');
-          body.querySelector('.trace-project').after(notePanel);
+          (body.querySelector('.trace-mts-btn') || body.querySelector('.trace-project')).after(notePanel);
         }
         const attribution = noteAttribution(productionData, row, productionData.headers.findIndex(header => key(header) === 'OBSERVACIONES') + 1, '', 'listado');
         important.title = attribution.name ? 'Responsable del área: ' + attribution.name : 'Sin responsable registrado en esta área';
@@ -628,7 +630,7 @@
       body.querySelectorAll(':scope > dl > div').forEach(item => {
         if (['REFERENCIA', 'CANTIDAD'].includes(key(item.querySelector('dt')?.textContent))) facts.appendChild(item);
       });
-      body.querySelector('.trace-project').after(facts);
+      (body.querySelector('.trace-mts-btn') || body.querySelector('.trace-project')).after(facts);
       disclosure.className = 'trace-disclosure';
       disclosure.id = 'trace-disclosure-' + row.source_row;
       body.querySelectorAll(':scope > .trace-manufacture,:scope > dl:not(.trace-primary-facts),:scope > .trace-card-meta').forEach(item => disclosure.appendChild(item));
@@ -688,6 +690,27 @@
     try { cell.querySelector('.production-row-open').click(); }
     finally { bridge.remove(); }
   }, true);
+  traceCards.addEventListener('click', event => {
+    const mtsBtn = event.target.closest('[data-card-mts]');
+    if (mtsBtn) {
+      event.preventDefault();
+      const id = Number(mtsBtn.dataset.cardMts), row = productionData?.rows.find(r => r.source_row === id);
+      if (!row || !productionData) return;
+      const ci = productionData.headers.findIndex(h => String(h || '').trim().toUpperCase() === 'MTS REQUERIDO');
+      if (ci < 0) { alert('No se encontró la columna MTS REQUERIDO'); return; }
+      const cur = String(row.values[ci] || '').trim();
+      if (typeof mtsTarget !== 'undefined') {
+        mtsTarget = { sourceRow: id, colIdx: ci, rowRef: row };
+        mtsDialog.querySelector('.mts-order').textContent = traceField(row, 'ORDEN') + ' · ' + traceField(row, 'REFERENCIA') + ' · ' + traceField(row, 'NOMBRE DEL CLIENTE');
+        mtsDialog.querySelector('.mts-current-val').textContent = cur ? 'Valor actual: ' + cur + ' mts' : 'Sin valor registrado';
+        mtsDialog.querySelector('.mts-input').value = cur;
+        mtsDialog.querySelector('.mts-msg').textContent = '';
+        mtsDialog.showModal();
+        setTimeout(() => mtsDialog.querySelector('.mts-input').select(), 50);
+      }
+      return;
+    }
+  });
   traceCards.addEventListener('click', event => {
     if (event.target.closest('[data-clear-trace]')) { filter = ownAreaFilter ? 'pending' : defaultFilter; exactScheduleOrder = ''; productionSearch.value = ''; renderProduction(); renderTraceCards(); return; }
     const button = event.target.closest('[data-node-row]'); if (!button) return;
@@ -828,6 +851,7 @@
   .trace-node-dialog{width:min(560px,94vw);max-height:88dvh;overflow:auto;border-radius:16px;border:1px solid #526950;background:#19271e;color:#e9f2e7;padding:26px}.trace-node-dialog::backdrop{background:#000b}.trace-node-close{float:right;width:36px;padding:5px;min-height:36px;border:1px solid #58715c;background:#283a2d;color:#fff;box-shadow:none}.trace-node-dialog h2{font:600 22px/1.4 Arial}.trace-node-dialog dl{display:grid;grid-template-columns:1fr 1fr;gap:14px}.trace-node-dialog dt{font:12px Arial;color:#abc0b1}.trace-node-dialog dd{margin:5px 0 0;font:14px/1.5 Arial;overflow-wrap:anywhere}.trace-node-hint{font:13px/1.6 Arial;color:#b5c5b6}.trace-register{background:#cce992;color:#17260e;border:0;border-radius:8px;min-height:44px;font:600 14px Arial}.trace-empty{grid-column:1/-1;padding:45px 20px;text-align:center;color:#b7c9ba}.trace-empty h3{color:#e5f0df}.trace-empty button{width:auto;padding:12px 24px;background:#cce992;color:#192514}.operator-dialog{font-family:Arial,sans-serif}.operator-dialog input,.operator-dialog select,.operator-dialog textarea{min-height:44px;font-size:16px}.operator-dialog #trace-reason-help{display:block;color:#a9bcae;font:12px/1.6 Arial;margin-top:7px}.operator-actions button{min-height:48px;font-size:14px}.operator-order{font:600 15px/1.5 Arial;overflow-wrap:anywhere}.operator-dialog input[readonly]{background:#203b46;color:#c1e9ff;border-color:#507384}.operator-history article{font-size:13px}
   @media(max-width:860px){.trace-workspace{padding:14px 12px 10px}.trace-workspace h3{font-size:18px;margin-bottom:12px}.trace-live{display:none}.trace-quick-filters{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.trace-quick-filters button{font-size:12px;padding:9px 7px;justify-content:space-between;gap:3px;min-height:44px}body.production-mode .trace-cards{padding:12px;gap:14px}.trace-results{font-size:11px}.trace-workspace-top .trace-eyebrow{font-size:10px}}
   @media(max-width:600px){body.production-mode .trace-card{grid-template-columns:1fr}body.production-mode .trace-media,body.production-mode .trace-media:has(img){height:290px;min-height:0;padding:12px}body.production-mode .trace-design-main img{height:230px}body.production-mode .trace-media:not(:has(img)){height:115px;min-height:0}.trace-no-design>span{display:none}body.production-mode .trace-card-body{padding:18px}.trace-route{padding:14px 10px 10px}.trace-node-dot{width:18px;height:18px;font-size:9px}.trace-node:before{top:15px}.trace-node-label{font-size:8px;letter-spacing:-.04em}.trace-route-caption>span{display:block;width:100%}.trace-card-actions button{font-size:12px!important}.operator-dialog{padding:20px 16px}.trace-node-dialog{padding:20px}.trace-node-dialog dl{grid-template-columns:1fr}}
+  .trace-mts-btn{display:flex;align-items:center;justify-content:space-between;width:100%;box-sizing:border-box;margin:4px 0 12px;padding:10px 14px;border:1.5px dashed #4e6348;border-radius:10px;background:rgba(208,244,76,.05);color:#b0c2ab;font:700 12px Arial;text-align:left;cursor:pointer;text-transform:uppercase;letter-spacing:.04em;transition:border-color .15s,background .15s;box-shadow:none}.trace-mts-btn:hover{border-color:#91b87a;background:rgba(208,244,76,.1);color:#d5e8ce}.trace-mts-btn.has-value{border-style:solid;border-color:#5f9650;background:rgba(208,244,76,.08)}.mts-label{display:block;flex:1}.mts-current{flex:none;font-size:16px;color:#d0f44c;font-weight:900;margin-left:10px}.mts-order{font:600 13px/1.5 Arial;color:#b5cbb8;margin:4px 0 8px;overflow-wrap:anywhere}.mts-current-val{font:13px/1.5 Arial;color:#a9d5ee;margin:0 0 10px}.mts-msg{font:13px Arial;color:#cfeb96;margin-top:10px;min-height:18px}
   `;
   style.textContent += `
   .trace-pagination{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:10px 0 0}.trace-pagination[hidden]{display:none!important}.trace-pagination button{width:auto;min-width:36px;min-height:36px;padding:7px 10px;border:1px solid #4a6350;border-radius:7px;background:#23352a;color:#e1ebdc;font:600 12px Arial;box-shadow:none}.trace-pagination button[aria-current=page]{background:#d0ec93;color:#1c2b13;border-color:#d0ec93}.trace-pagination button:disabled{opacity:.4;cursor:default}.trace-pagination button:focus-visible{outline:2px solid #b8ddf5;outline-offset:2px}.trace-page-count{font:12px Arial;color:#c2d3c4;margin-right:6px}.trace-pagination-bottom{grid-column:1/-1;justify-content:center;padding:16px 0}.trace-pagination{scroll-margin-top:80px}@media(max-width:600px){.trace-pagination button{min-width:40px;min-height:44px}.trace-page-count{width:100%}.trace-pagination{gap:5px}}
