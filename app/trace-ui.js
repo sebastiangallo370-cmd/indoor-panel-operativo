@@ -632,17 +632,16 @@
       const activeValue = activeColumn ? String(row.values[activeColumn - 1] || '') : '';
       const activeKey = key(activeValue);
       const activeClosed = activeKey === 'N/A' || !!dateValue(activeValue);
-      const quickActions = document.createElement('section');
-      quickActions.className = 'trace-card-quick-actions';
-      quickActions.setAttribute('aria-label', 'Acciones de producción');
-      quickActions.innerHTML = '<div class="trace-quick-action-head"><span>ACCIONES DE PRODUCCIÓN</span><strong>' + esc(activeGroup?.label || 'Sin proceso activo') + '</strong></div><div class="trace-quick-action-grid">' + [
-        ['start', '▶', 'Iniciar / retomar', 'Registrar el comienzo', activeKey === 'P' || !activeColumn],
-        ['rework', '↺', 'Reproceso', 'Registrar observaciones', !activeColumn],
-        ['finish', '✓', 'Terminar proceso', 'Cerrar y avanzar', activeClosed || !activeColumn],
-        ['na', '—', 'No aplica', 'No requiere este proceso', activeClosed || !activeColumn],
-        ['clear', '⟲', 'Cambiar estado', 'Vaciar el proceso', !activeKey || !activeColumn]
-      ].map(([action, icon, title, hint, disabled]) => '<button type="button" class="trace-quick-' + action + '" data-card-operation="' + action + '" data-card-row="' + row.source_row + '" data-card-column="' + (activeColumn || '') + '"' + (disabled ? ' disabled' : '') + '><i aria-hidden="true">' + icon + '</i><span><strong>' + title + '</strong><small>' + hint + '</small></span></button>').join('') + '</div>';
-      card.querySelector('.trace-card-actions').after(quickActions);
+      const headerActions = document.createElement('span');
+      headerActions.className = 'trace-order-actions';
+      headerActions.setAttribute('aria-label', 'Acciones del proceso ' + (activeGroup?.label || ''));
+      headerActions.innerHTML = [
+        ['start', 'INICIAR', activeKey === 'P' || !activeColumn],
+        ['finish', 'FINALIZAR', activeClosed || !activeColumn],
+        ['na', 'N/A', activeClosed || !activeColumn]
+      ].map(([action, label, disabled]) => '<button type="button" class="trace-order-' + action + '" data-card-operation="' + action + '" data-card-row="' + row.source_row + '" data-card-column="' + (activeColumn || '') + '" title="' + esc(activeGroup?.label || 'Sin proceso activo') + '"' + (disabled ? ' disabled' : '') + '>' + label + '</button>').join('');
+      const heading = card.querySelector('.trace-card-heading');
+      heading.insertBefore(headerActions, heading.querySelector('.trace-stage'));
       const disclosure = document.createElement('div');
       const facts = document.createElement('dl');
       facts.className = 'trace-primary-facts';
@@ -1610,6 +1609,9 @@
   html body.production-mode .trace-order-rework.has-rework{border-color:#ef7370!important;background:#43201e!important;color:#ffd7d3!important}
   html body.production-mode .trace-order-rework:hover{background:#354237!important;color:#f3faef!important}.trace-order-rework.has-rework:hover{background:#ef7370!important;color:#32110f!important}
   html body.production-mode .trace-order-rework:focus-visible{outline:2px solid #ffd2ce;outline-offset:2px}
+  html body.production-mode .trace-order-actions{display:inline-flex;flex-wrap:wrap;gap:4px;align-items:center}
+  html body.production-mode .trace-order-actions button{width:auto;min-height:28px;padding:5px 7px!important;border:1px solid #5c6e60!important;border-radius:999px;background:#202b23!important;color:#d7e2d6!important;font:800 9px/1 Arial!important;letter-spacing:.04em;white-space:nowrap;box-shadow:none}
+  html body.production-mode .trace-order-actions .trace-order-start{border-color:#e1ae61!important;color:#ffda9a!important}.trace-order-actions .trace-order-finish{border-color:#82b88c!important;color:#bbefc6!important}.trace-order-actions .trace-order-na{border-color:#718479!important;color:#d8e3d8!important}.trace-order-actions button:disabled{opacity:.38;filter:saturate(.4)}
   html body.production-mode .trace-card-quick-actions{margin-top:10px;padding:10px;border:1px solid #344436;border-radius:12px;background:#101711}
   html body.production-mode .trace-quick-action-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;color:#9db198;font:800 9px/1 Arial;letter-spacing:.07em}
   html body.production-mode .trace-quick-action-head strong{color:#dbe9d6;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -1664,7 +1666,7 @@
   html body.production-mode .trace-card .trace-note-alert .trace-note-delete:disabled{opacity:.5;cursor:progress}
   html body.production-mode .trace-card .trace-note-text{min-width:0;padding-top:5px;overflow-wrap:anywhere}
   @media(max-width:1050px) and (min-width:601px){html body.production-mode .trace-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
-  @media(max-width:600px){html body.production-mode .trace-cards{grid-template-columns:1fr}html body.production-mode .trace-card .trace-client{font-size:14px!important}html body.production-mode .trace-order-rework{min-height:30px;padding:6px 9px;font-size:10px!important}html body.production-mode .trace-quick-action-grid button{min-height:48px;font-size:11px!important}}
+  @media(max-width:600px){html body.production-mode .trace-cards{grid-template-columns:1fr}html body.production-mode .trace-card .trace-client{font-size:14px!important}html body.production-mode .trace-order-rework{min-height:30px;padding:6px 9px;font-size:10px!important}html body.production-mode .trace-order-actions button{min-height:30px;padding:6px 8px!important;font-size:9px!important}}
 
   /* ===== Capa de acabado profesional (Producción) =====
      Borde neutro con una franja superior de color según el estado (en vez de marcos gruesos),
