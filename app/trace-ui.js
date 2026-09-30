@@ -645,6 +645,13 @@
       ].map(([action, label, disabled]) => '<button type="button" class="trace-order-' + action + '" data-card-operation="' + action + '" data-card-row="' + row.source_row + '" data-card-column="' + (activeColumn || '') + '" title="' + esc(activeGroup?.label || 'Sin proceso activo') + '"' + (disabled ? ' disabled' : '') + '>' + label + '</button>').join('');
       const heading = card.querySelector('.trace-card-heading');
       heading.insertBefore(headerActions, heading.querySelector('.trace-stage'));
+      const generalNote = document.createElement('button');
+      generalNote.type = 'button';
+      generalNote.className = 'trace-order-note';
+      generalNote.dataset.orderNote = row.source_row;
+      generalNote.textContent = '+ NOTA GENERAL';
+      generalNote.setAttribute('aria-label', 'Agregar nota general a la orden ' + traceField(row, 'ORDEN'));
+      heading.insertBefore(generalNote, heading.querySelector('.trace-stage'));
       const disclosure = document.createElement('div');
       const facts = document.createElement('dl');
       facts.className = 'trace-primary-facts';
@@ -731,6 +738,19 @@
       if (reworkAction && previousAction) reworkAction.innerHTML = previousAction;
       operatorDialog.classList.remove('rework-entry');
     }, { once: true });
+  }, true);
+  traceCards.addEventListener('click', async event => {
+    const button = event.target.closest('[data-order-note]');
+    if (!button) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const rowId = Number(button.dataset.orderNote);
+    const column = productionData?.headers.findIndex(header => ['OBSERVACIONES', 'OBSERVACION', 'NOTAS'].includes(key(header)));
+    if (!rowId || column === undefined || column < 0) {
+      alert('No se encontró la columna de observaciones generales para esta orden.');
+      return;
+    }
+    openNote({ dataset: { row: String(rowId), column: String(column + 1) } });
   }, true);
   traceCards.addEventListener('click', async event => {
     const button = event.target.closest('[data-card-operation]');
@@ -1615,6 +1635,7 @@
   html body.production-mode .trace-order-actions{display:inline-flex;flex-wrap:wrap;gap:4px;align-items:center}
   html body.production-mode .trace-order-actions button{width:auto;min-height:28px;padding:5px 7px!important;border:1px solid #5c6e60!important;border-radius:999px;background:#202b23!important;color:#d7e2d6!important;font:800 9px/1 Arial!important;letter-spacing:.04em;white-space:nowrap;box-shadow:none}
   html body.production-mode .trace-order-actions .trace-order-start{border-color:#e1ae61!important;color:#ffda9a!important}.trace-order-actions .trace-order-finish{border-color:#82b88c!important;color:#bbefc6!important}.trace-order-actions .trace-order-na{border-color:#718479!important;color:#d8e3d8!important}.trace-order-actions .trace-order-clear{border-color:#74bde4!important;color:#bde9ff!important}.trace-order-actions button:disabled{opacity:.38;filter:saturate(.4)}
+  html body.production-mode .trace-order-note{width:auto;min-height:28px;padding:5px 8px!important;border:1px solid #6ca8c7!important;border-radius:999px;background:#19303b!important;color:#c3edff!important;font:800 9px/1 Arial!important;letter-spacing:.04em;white-space:nowrap;box-shadow:none}.trace-order-note:hover{background:#6ca8c7!important;color:#102b36!important}
   html body.production-mode .trace-card-quick-actions{margin-top:10px;padding:10px;border:1px solid #344436;border-radius:12px;background:#101711}
   html body.production-mode .trace-quick-action-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;color:#9db198;font:800 9px/1 Arial;letter-spacing:.07em}
   html body.production-mode .trace-quick-action-head strong{color:#dbe9d6;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -1669,7 +1690,7 @@
   html body.production-mode .trace-card .trace-note-alert .trace-note-delete:disabled{opacity:.5;cursor:progress}
   html body.production-mode .trace-card .trace-note-text{min-width:0;padding-top:5px;overflow-wrap:anywhere}
   @media(max-width:1050px) and (min-width:601px){html body.production-mode .trace-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
-  @media(max-width:600px){html body.production-mode .trace-cards{grid-template-columns:1fr}html body.production-mode .trace-card .trace-client{font-size:14px!important}html body.production-mode .trace-order-rework{min-height:30px;padding:6px 9px;font-size:10px!important}html body.production-mode .trace-order-actions button{min-height:30px;padding:6px 8px!important;font-size:9px!important}}
+  @media(max-width:600px){html body.production-mode .trace-cards{grid-template-columns:1fr}html body.production-mode .trace-card .trace-client{font-size:14px!important}html body.production-mode .trace-order-rework{min-height:30px;padding:6px 9px;font-size:10px!important}html body.production-mode .trace-order-actions button,html body.production-mode .trace-order-note{min-height:30px;padding:6px 8px!important;font-size:9px!important}}
 
   /* ===== Capa de acabado profesional (Producción) =====
      Borde neutro con una franja superior de color según el estado (en vez de marcos gruesos),
