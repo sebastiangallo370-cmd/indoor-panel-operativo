@@ -108,6 +108,12 @@ def ver_pdf_pendiente(archivo:str):
     path=(_PDF_DIR/"pendientes"/_safe(Path(archivo).stem)).with_suffix(".pdf")
     if not path.is_file(): raise HTTPException(404,"PDF pendiente no encontrado")
     return FileResponse(path,media_type="application/pdf",filename=path.name)
+@cartera_router.delete("/pendientes/{archivo}")
+def eliminar_pdf_pendiente(archivo:str):
+    path=(_PDF_DIR/"pendientes"/_safe(Path(archivo).stem)).with_suffix(".pdf")
+    if not path.is_file(): raise HTTPException(404,"PDF pendiente no encontrado")
+    path.unlink()
+    return {"ok":True,"mensaje":"PDF pendiente eliminado"}
 @cartera_router.get("/pendientes/{archivo}/resumen")
 def resumen_pendiente(archivo:str):
     path=(_PDF_DIR/"pendientes"/_safe(Path(archivo).stem)).with_suffix(".pdf")
