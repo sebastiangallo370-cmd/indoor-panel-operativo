@@ -1,12 +1,17 @@
 import io, json, os, re
 from datetime import datetime, timezone
 from pathlib import Path
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
 
 cartera_router = APIRouter(prefix="/api/cartera", tags=["cartera"])
 
-_STATE = Path(os.getenv("CARTERA_STATE_DIR", "/data/state")) / "cartera_v2.json"
+_STATE   = Path(os.getenv("CARTERA_STATE_DIR", "/data/state")) / "cartera_v2.json"
+_PDF_DIR = Path(os.getenv("CARTERA_STATE_DIR", "/data/state")) / "cartera_pdfs"
+
+
+def _safe(numero: str) -> str:
+    return re.sub(r"[^A-Za-z0-9\-_]", "_", numero)
 
 
 def _load():
@@ -44,7 +49,29 @@ def _date(v):
 
 @cartera_router.get("/datos")
 def get_datos():
-    return _load()
+    data = _load()
+    _PDF_DIR.mkdir(parents=True, exist_ok=True)
+    for doc in data["documentos"]:
+        doc["has_pdf"] = (_PDF_DIR / f"{_safe(doc['numero'])}.pdf").exists()
+    return data
+
+
+@cartera_router.post("/pdf/{numero}")
+async def upload_pdf(numero: str, file: UploadFile = File(...)):
+    _PDF_DIR.mkdir(parents=True, exist_ok=True)
+    content = await file.read()
+    if not content[:4] == b"%PDF":
+        raise HTTPException(400, "El archivo no es un PDF válido")
+    (_PDF_DIR / f"{_safe(numero)}.pdf").write_bytes(content)
+    return {"ok": True, "numero": numero}
+
+
+@cartera_router.get("/pdf/{numero}")
+def get_pdf(numero: str):
+    path = _PDF_DIR / f"{_safe(numero)}.pdf"
+    if not path.exists():
+        raise HTTPException(404, "PDF no encontrado")
+    return FileResponse(path, media_type="application/pdf", filename=f"{numero}.pdf")
 
 
 @cartera_router.post("/sincronizar")

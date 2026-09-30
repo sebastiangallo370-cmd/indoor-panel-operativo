@@ -2675,6 +2675,11 @@ def home(_=Depends(authenticate)):
     .ct-badge{{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:600;text-transform:uppercase;background:rgba(208,244,76,.12);color:var(--lime)}}
     .ct-badge.ct-anulada{{background:rgba(248,113,113,.12);color:#f87171}}
     .ct-badge.ct-activa{{background:rgba(74,222,128,.12);color:#4ade80}}
+    .ct-pdf-btn{{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:600;border:1px solid var(--line);background:transparent;cursor:pointer;color:var(--muted);transition:color .15s,border-color .15s;white-space:nowrap}}
+    .ct-pdf-btn:hover{{color:var(--ink);border-color:var(--muted)}}
+    .ct-pdf-btn.ct-has-pdf{{color:#60a5fa;border-color:rgba(96,165,250,.35)}}
+    .ct-pdf-btn.ct-has-pdf:hover{{background:rgba(96,165,250,.08)}}
+    .ct-pdf-upload{{display:none}}
     body.cartera-mode .footer-note{{display:none}}
     @media(max-width:700px){{.ct-hero,.ct-kpi-row,.ct-table-card{{padding-left:16px;padding-right:16px}}.ct-search{{width:100%}}}}
     </style></head><body class='inicio-mode'><div class='topbar'></div><button id='menu-toggle' class='menu-toggle' type='button' aria-label='Ocultar menú' aria-expanded='true'>‹</button><aside class='sidebar' aria-label='Menú principal'><div class='sidebar-brand'><img src='/marca-indoor.svg' alt='Indoor'></div><div class='session-card'><div class='session-avatar'>IS</div><div class='session-copy'><strong>INDOOR SPORT SAS</strong><span>Panel operativo</span></div></div><div class='sidebar-label'>Menú principal</div><nav class='tabs' aria-label='Navegación principal'><button class='tab home-nav active' data-kind='inicio' type='button'><span class='nav-icon'>IN</span><strong>INICIO</strong></button><div class='nav-group collapsed'><button id='news-toggle' class='nav-parent' type='button'><span class='nav-icon'>NV</span><span>NOVEDADES</span></button><div class='nav-children'><button class='tab schedule-nav' data-kind='cronograma' type='button'><span class='nav-icon'>CR</span><strong>CRONOGRAMA</strong></button><button class='tab' data-kind='operarios' type='button'><span class='nav-icon'>OP</span><strong>CONTROL OPERARIOS</strong></button></div></div><div class='nav-group'><button id='commercial-toggle' class='nav-parent' type='button'><span class='nav-icon'>AC</span><span>Asistentes Comerciales</span></button><div class='nav-children'><button class='tab' data-kind='reprogramacion' type='button'><span class='nav-icon'>RP</span><strong>REPROGRAMACIONES</strong></button><button class='tab' data-kind='pedido' type='button'><span class='nav-icon'>PN</span><strong>PROGRAMAR</strong></button><button class='tab' data-kind='creador' type='button'><span class='nav-icon'>XL</span><strong>EXCEL</strong></button><button class='tab' data-kind='cartera' type='button'><span class='nav-icon'>CT</span><strong>CARTERA</strong></button></div></div><div class='nav-group collapsed'><button id='production-toggle' class='nav-parent' type='button'><span class='nav-icon'>PR</span><span>Producción</span></button><div class='nav-children'><button class='tab production-nav' data-kind='produccion' type='button'><span class='nav-icon'>TR</span><strong>TRAZABILIDAD</strong></button><button class='tab' data-kind='inventario' type='button'><span class='nav-icon'>IT</span><strong>INVENTARIOS</strong></button></div></div></nav><div class='sidebar-foot'>Indoor Sport · Operación interna</div></aside><main>
@@ -2746,10 +2751,10 @@ def home(_=Depends(authenticate)):
             <table class='ct-table'>
               <thead><tr>
                 <th>Cotización</th><th>Cliente</th><th>Vendedor</th>
-                <th>Fecha</th><th>Total</th><th>Saldo</th><th>Estado</th>
+                <th>Fecha</th><th>Total</th><th>Saldo</th><th>Estado</th><th>PDF</th>
               </tr></thead>
               <tbody id='cartera-body'>
-                <tr><td colspan='7' class='ct-empty'>Presiona Sincronizar para importar los datos desde Google Sheets.</td></tr>
+                <tr><td colspan='8' class='ct-empty'>Presiona Sincronizar para importar los datos desde Google Sheets.</td></tr>
               </tbody>
             </table>
           </div>
