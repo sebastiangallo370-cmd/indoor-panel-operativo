@@ -1130,12 +1130,34 @@ def production_operator_history(row: int, _=Depends(authenticate)):
         db.close()
 
 
+@app.patch('/api/produccion/operaciones/evento/{event_id}')
+def update_production_rework_event(event_id: int, payload: dict = Body(...), _=Depends(authenticate)):
+    reason = str(payload.get('reason') or '').strip()
+    if not reason or len(reason) > 2000:
+        raise HTTPException(400, 'Escribe una observación entre 1 y 2000 caracteres')
+    with connect() as db:
+        event = db.execute('SELECT source_row,column_number,action,username,created_at FROM production_operator_events WHERE id=?', (event_id,)).fetchone()
+        if not event:
+            raise HTTPException(404, 'El reproceso ya no existe')
+        if event['action'] != 'rework':
+            raise HTTPException(400, 'Solo se pueden editar observaciones de reproceso')
+        db.execute('UPDATE production_operator_events SET reason=? WHERE id=?', (reason, event_id))
+        db.execute('UPDATE production_rework SET reason=? WHERE source_row=? AND column_number=? AND username=? AND created_at=?', (reason, event['source_row'], event['column_number'], event['username'], event['created_at']))
+        db.commit()
+    return {'ok': True, 'reason': reason}
+
+
 @app.delete('/api/produccion/operaciones/evento/{event_id}')
 def delete_production_operator_event(event_id: int, _=Depends(authenticate)):
     db = connect()
     try:
         ensure_operator_events(db)
+        event = db.execute('SELECT source_row,column_number,action,username,created_at FROM production_operator_events WHERE id=?', (event_id,)).fetchone()
+        if not event:
+            raise HTTPException(404, "La nota ya no existe")
         deleted = db.execute('DELETE FROM production_operator_events WHERE id=?', (event_id,)).rowcount
+        if event['action'] == 'rework':
+            db.execute('DELETE FROM production_rework WHERE source_row=? AND column_number=? AND username=? AND created_at=?', (event['source_row'], event['column_number'], event['username'], event['created_at']))
         db.commit()
         if not deleted:
             raise HTTPException(404, "La nota ya no existe")
@@ -3915,7 +3937,7 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
 `;document.head.appendChild(traceFigmaStyle);setTraceView();
     const commercialGroup=commercialToggle.closest('.nav-group');commercialGroup.classList.add('collapsed');const productionToggle=document.getElementById('production-toggle');if(productionToggle)productionToggle.addEventListener('click',()=>{{const g=productionToggle.closest('.nav-group');g.classList.toggle('collapsed');if(!g.classList.contains('collapsed'))g.querySelector('.nav-children .tab')?.click()}});
     setTimeout(()=>{{if(!document.querySelector('.panel.active'))document.querySelector('.tab[data-kind="inicio"]')?.click()}},0);
-    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}<script src='/api/cartera/cartera.js?v=20261001-14'></script><script src='/trace-ui.js?v=20261001-9'></script><script src='/home-dashboard.js?v=20260930-1'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);</script></body></html>"""
+    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}<script src='/api/cartera/cartera.js?v=20261001-14'></script><script src='/trace-ui.js?v=20261001-10'></script><script src='/home-dashboard.js?v=20260930-1'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);</script></body></html>"""
 
 
 def ordered_mockup_uploads(extras, slots):

@@ -686,13 +686,33 @@
     openOperatorProduction(row);
     const title = operatorForm.querySelector('h2');
     const previousTitle = title.textContent;
+    const textNode = label => [...label.childNodes].find(node => node.nodeType === Node.TEXT_NODE);
+    const processLabel = operatorForm.elements.column.closest('label');
+    const reasonLabel = operatorForm.elements.reason.closest('label');
+    const responsibleLabel = operatorForm.elements.responsible.closest('label');
+    const processText = textNode(processLabel), reasonText = textNode(reasonLabel), responsibleText = textNode(responsibleLabel);
+    const previousLabels = [processText?.nodeValue, reasonText?.nodeValue, responsibleText?.nodeValue];
     title.textContent = 'Registrar reproceso';
+    if (processText) processText.nodeValue = 'Proceso a reprocesar';
+    if (reasonText) reasonText.nodeValue = 'Observaciones';
+    if (responsibleText) responsibleText.nodeValue = 'Usuario responsable';
+    operatorForm.elements.responsible.value = document.querySelector('.user-info strong')?.textContent?.trim() || user.name;
     operatorForm.elements.reason.placeholder = 'Describe qué se debe corregir y por qué…';
     operatorDialog.querySelector('.operator-message').textContent = 'Selecciona el proceso y registra aquí el motivo del reproceso de esta orden.';
     const reworkAction = operatorForm.querySelector('button[value="rework"]');
+    const previousAction = reworkAction?.innerHTML;
+    if (reworkAction) reworkAction.innerHTML = '<span class="studio-action-icon" aria-hidden="true">↺</span><span><strong>Guardar reproceso</strong><small>Registra las observaciones de esta orden</small></span>';
+    operatorDialog.classList.add('rework-entry');
     reworkAction?.scrollIntoView({ block: 'nearest' });
     operatorForm.elements.reason.focus();
-    operatorDialog.addEventListener('close', () => { title.textContent = previousTitle; }, { once: true });
+    operatorDialog.addEventListener('close', () => {
+      title.textContent = previousTitle;
+      if (processText) processText.nodeValue = previousLabels[0];
+      if (reasonText) reasonText.nodeValue = previousLabels[1];
+      if (responsibleText) responsibleText.nodeValue = previousLabels[2];
+      if (reworkAction && previousAction) reworkAction.innerHTML = previousAction;
+      operatorDialog.classList.remove('rework-entry');
+    }, { once: true });
   }, true);
   traceCards.addEventListener('click', event => {
     const button = event.target.closest('[data-card-nas]');
@@ -1126,7 +1146,7 @@
       if (!target.isConnected || request !== studioLoad) return;
       if (!Array.isArray(events)) throw Error();
       const observations = events.filter(entry => String(entry.reason || '').trim() && key(entry.action) !== 'CIERRE AUTOMATICO');
-      target.innerHTML = addButton + (observations.length ? '<h4>NOTAS DE LOS PROCESOS</h4>' + observations.map(entry => '<article><button type="button" class="studio-note-delete" data-event-id="' + entry.id + '" data-row-id="' + id + '" aria-label="Eliminar nota" title="Eliminar nota">×</button><strong>' + esc(productionData.headers[Number(entry.column_number) - 1] || 'PROCESO') + '</strong><p>' + esc(entry.reason) + '</p><small>' + esc(entry.responsible || entry.username || '') + '</small></article>').join('') : '<p class="studio-caption">No hay observaciones adicionales de los operarios.</p>');
+      target.innerHTML = addButton + (observations.length ? '<h4>NOTAS DE LOS PROCESOS</h4>' + observations.map(entry => '<article>' + (entry.action === 'rework' ? '<span class="studio-note-controls"><button type="button" class="studio-note-edit" data-event-id="' + entry.id + '" data-row-id="' + id + '" data-reason="' + esc(entry.reason) + '">Editar</button><button type="button" class="studio-note-delete" data-event-id="' + entry.id + '" data-row-id="' + id + '" aria-label="Eliminar reproceso" title="Eliminar reproceso">Eliminar</button></span>' : '<button type="button" class="studio-note-delete" data-event-id="' + entry.id + '" data-row-id="' + id + '" aria-label="Eliminar nota" title="Eliminar nota">×</button>') + '<strong>' + esc(productionData.headers[Number(entry.column_number) - 1] || 'PROCESO') + '</strong><p>' + esc(entry.reason) + '</p><small>' + esc(entry.responsible || entry.username || '') + '</small></article>').join('') : '<p class="studio-caption">No hay observaciones adicionales de los operarios.</p>');
       target.classList.toggle('studio-notes', !!observations.length);
     }).catch(() => {
       if (target.isConnected && request === studioLoad) target.innerHTML = addButton + 'No se pudieron consultar las notas. Vuelve a abrir el panel para reintentar.';
@@ -1148,6 +1168,25 @@
     loadStudioEventNotes(studioCurrentRow);
   }).observe(noteDialog, { attributes: true, attributeFilter: ['open'] });
   // Boton "X" en cada nota de proceso: borra el evento de reproceso por completo.
+  operatorDialog.addEventListener('click', async event => {
+    const editBtn = event.target.closest('.studio-note-edit');
+    if (!editBtn) return;
+    event.preventDefault();
+    const reason = prompt('Editar observaciones del reproceso:', editBtn.dataset.reason || '');
+    if (reason === null) return;
+    const normalized = reason.trim();
+    if (!normalized || normalized.length > 2000) { alert('Escribe una observación entre 1 y 2000 caracteres.'); return; }
+    editBtn.disabled = true;
+    try {
+      const response = await fetch('/api/produccion/operaciones/evento/' + editBtn.dataset.eventId, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: normalized }) });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.detail || 'No se pudo editar el reproceso');
+      loadStudioEventNotes(Number(editBtn.dataset.rowId));
+    } catch (error) {
+      alert(error.message);
+      editBtn.disabled = false;
+    }
+  });
   operatorDialog.addEventListener('click', async event => {
     const delBtn = event.target.closest('.studio-note-delete');
     if (!delBtn) return;
@@ -1199,13 +1238,14 @@
   .studio-stages{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:3px}.studio-stages>span{position:relative;text-align:center;color:#9eb8a4}.studio-stages b{position:relative;z-index:1;display:grid;place-items:center;width:19px;height:19px;margin:auto;border:1px solid #6a8270;border-radius:50%;font:10px Arial;background:#23372a}.studio-stages>span:not(:last-child):after{content:'';position:absolute;left:50%;width:calc(100% + 3px);top:10px;height:1px;background:#58715f}.studio-stages small{display:block;font:8px Arial;margin-top:5px}.studio-stages .finished b{background:#375d42;color:#a5edbb;border-color:#8bdbaf}.studio-stages .active b{background:#f3b852;color:#2a2008}.studio-stages .rework b{background:#ed827a;color:#2a100d}.studio-caption{color:#a8bda9;font:11px/1.6 Arial;margin:12px 0}
   .studio-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
   .studio-notes{margin-top:20px;padding:14px;border:1px solid #9e5d58;border-left:3px solid #ff8d86;border-radius:10px;background:#352622}.studio-notes h4{color:#ffb6ae;font:700 11px Arial;letter-spacing:.05em;margin:0 0 12px}.studio-notes article{position:relative;padding-right:28px}.studio-notes article+article{border-top:1px solid #6b4841;padding-top:10px;margin-top:10px}.studio-notes strong,.studio-notes small{color:#d6b8af;font:11px/1.4 Arial}.studio-notes p{color:#fff1ed;font:600 13px/1.6 Arial;text-decoration:underline #ff8178 2px;text-underline-offset:4px;white-space:pre-wrap;overflow-wrap:anywhere;margin:6px 0}.studio-event-notes{font:12px/1.6 Arial;color:#b9cbb4}
-  .studio-note-delete{position:absolute;top:0;right:0;width:20px!important;height:20px;padding:0!important;display:grid;place-items:center;border-radius:50%;border:1px solid #f5a623;background:#4a3316;color:#ffd9a0!important;font-size:13px!important;font-weight:900!important;line-height:1!important;box-shadow:none;cursor:pointer}
+  .studio-note-delete{position:absolute;top:0;right:0;width:20px!important;height:20px;padding:0!important;display:grid;place-items:center;border-radius:50%;border:1px solid #f5a623;background:#4a3316;color:#ffd9a0!important;font-size:13px!important;font-weight:900!important;line-height:1!important;box-shadow:none;cursor:pointer}.studio-note-controls{position:absolute;top:0;right:0;display:flex;gap:6px}.studio-note-controls .studio-note-delete,.studio-note-controls .studio-note-edit{position:static;width:auto!important;height:28px;min-height:28px;padding:4px 8px!important;border-radius:7px;border:1px solid #9a655d;background:#432722;color:#ffd7d3;font:700 11px Arial;box-shadow:none;cursor:pointer}.studio-note-controls .studio-note-edit{border-color:#73885c;background:#263321;color:#e5f1d4}.studio-event-notes article:has(.studio-note-controls){padding-right:150px}
   .studio-note-delete:hover{background:#f5a623;color:#2a1c08!important}
   .studio-note-delete:disabled{opacity:.5;cursor:progress}
   .studio-event-notes .studio-note-add{display:block;width:auto;min-height:0;margin:0 0 12px;padding:9px 14px!important;border:1px solid #f5a623;border-radius:9px;background:#4a3316;color:#ffd9a0;font:700 12px Arial;box-shadow:none;cursor:pointer}
   .studio-event-notes .studio-note-add:hover{background:#f5a623;color:#2a1c08}
   .studio-counter{display:block;text-align:right;font:11px Arial;color:#a7bca4;margin-top:6px}
   .production-studio .operator-actions{gap:9px!important}.production-studio .operator-actions button{display:flex;align-items:center;gap:10px;text-align:left;padding:13px!important;min-height:76px!important;border-radius:11px;box-shadow:none;transform:none!important}.production-studio .operator-actions strong{display:block;font:700 13px/1.4 Arial}.production-studio .operator-actions small{display:block;font:11px/1.4 Arial;margin-top:4px;opacity:.85}.studio-action-icon{font:20px Arial;flex-shrink:0}
+  .production-studio.rework-entry .operator-actions button:not([value=rework]){display:none!important}.production-studio.rework-entry .operator-actions{grid-template-columns:1fr!important}.production-studio.rework-entry .operator-actions button[value=rework]{min-height:58px!important;background:#ef7370!important;color:#32110f!important;border-color:#ef7370!important}
   .production-studio .operator-actions button[value=start]{background:#edbb68}.production-studio .operator-actions button[value=finish]{background:#d4ec98}.production-studio .operator-actions button[value=rework]{background:#482c29;color:#ffc3b8;border-color:#a76c62}.production-studio .operator-actions button[value=na]{background:#23382c;color:#d2e3cb}.production-studio .operator-actions button[value=clear]{background:#2a3550;color:#c9d6f5;border-color:#4d5f8f}
   .production-studio button:disabled{cursor:not-allowed;opacity:.4}.production-studio[aria-busy=true] .operator-message{padding:12px;background:#32442b;border-radius:8px}.production-studio[aria-busy=true] .operator-message:before{content:'◌ ';display:inline-block;margin-right:6px}
   .studio-history{border-top:1px solid #354b3a;padding:16px 24px}.studio-history summary{cursor:pointer;color:#d9eacb;font:600 13px Arial;min-height:24px}.studio-history summary span{font:12px Arial;color:#95af9b;margin-left:12px}.studio-history .operator-history{padding:12px 0 0}.studio-history article{padding-left:16px;border-left:2px solid #617e52;margin-left:6px}
