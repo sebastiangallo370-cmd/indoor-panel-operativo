@@ -241,12 +241,19 @@ function renderPagos() {
 }
 
 // Interacciones
-document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', e => {
+function openTab(tabName) {
     document.querySelectorAll('.tab-btn').forEach(x => x.classList.remove('active'));
     document.querySelectorAll('.view').forEach(x => x.classList.remove('active'));
-    e.target.classList.add('active');
-    document.getElementById(`view-${e.target.dataset.tab}`).classList.add('active');
-}));
+    const tab = document.querySelector(`.tab-btn[data-tab="${tabName}"]`);
+    const view = document.getElementById(`view-${tabName}`);
+    if (!tab || !view) return;
+    tab.classList.add('active');
+    view.classList.add('active');
+    view.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', e => openTab(e.currentTarget.dataset.tab)));
+document.querySelectorAll('.quick-tab').forEach(b => b.addEventListener('click', e => openTab(e.currentTarget.dataset.targetTab)));
 
 document.querySelectorAll('#global-filters input, #global-filters select').forEach(el => {
     el.addEventListener('change', e => {
