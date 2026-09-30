@@ -260,6 +260,7 @@ body { min-height:100vh; background:radial-gradient(circle at 75% 0,#192610 0,#0
 .cartera-hero h1 { margin:0; font-size:clamp(28px,4vw,44px); letter-spacing:-.04em; }
 .cartera-hero span { display:block; margin-top:8px; color:var(--text-muted); }
 .hero-actions { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+.sync-status { flex-basis:100%; margin:0; color:#a8b5a5; font-size:12px; }
 .filters { margin:18px clamp(20px,3vw,52px) 24px; padding:16px 20px; background:#111a12; border:1px solid var(--border); border-radius:14px; }
 .filter-group label,.kpi-title { color:#a8b5a5; }
 .filter-group input,.filter-group select,.form-group input,.form-group select { color:#edf4e9; background:#172217; border-color:#3a4c37; }
