@@ -1310,20 +1310,6 @@
     brand.addEventListener('click', goHome);
     brand.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); goHome(); } });
   }
-  // Direct top buttons (INICIO, NOVEDADES) open their section just by hovering, like the menus.
-  let hoverOpenTimer;
-  navigation.querySelectorAll('nav.tabs > .tab').forEach(tab => {
-    tab.addEventListener('pointerenter', event => {
-      if (event.pointerType !== 'mouse') return;
-      clearTimeout(hoverOpenTimer);
-      hoverOpenTimer = setTimeout(() => {
-        groups.forEach(group => group.classList.add('collapsed'));
-        sync();
-        if (!tab.classList.contains('active')) tab.click();
-      }, 120);
-    });
-    tab.addEventListener('pointerleave', () => clearTimeout(hoverOpenTimer));
-  });
   close();
   navigation.addEventListener('click', event => {
     cancelHoverClose();
