@@ -164,6 +164,19 @@ def _records_for_tab(values: list[list[str]], tab_key: str, tab_label: str, grid
                 },
             })
         return records
+    def roll_status(row_index: int, index: int) -> str:
+        cell_format = ((grid_rows[row_index - 1].get('values', [])[index]
+                        if grid_rows and row_index - 1 < len(grid_rows)
+                        and index < len(grid_rows[row_index - 1].get('values', [])) else {})
+                      .get('effectiveFormat', {}) if grid_rows else {})
+        fmt = cell_format.get('backgroundColor', {}) or cell_format.get('backgroundColorStyle', {}).get('rgbColor', {})
+        default = 0 if fmt else 1
+        red, green, blue = float(fmt.get('red', default)), float(fmt.get('green', default)), float(fmt.get('blue', default))
+        if (red > .9 and .5 < green < .7 and blue < .2) or (red > .9 and .65 < green < .88 and blue < .8):
+            return 'started'
+        return 'new'
+
+    last_record: dict[str, Any] | None = None
     records: list[dict[str, Any]] = []
     active_name: int | None = None
     active_total: int | None = None
@@ -173,15 +186,31 @@ def _records_for_tab(values: list[list[str]], tab_key: str, tab_label: str, grid
         if _is_header(row):
             active_name, active_total = _header_positions(row)
             active_headers = [str(value or "").strip() or f"Campo {index + 1}" for index, value in enumerate(row)]
+            last_record = None
             continue
         if active_name is None or active_total is None:
             continue
         name = str(row[active_name] if active_name < len(row) else "").strip()
         total = _number(row[active_total] if active_total < len(row) else "")
         normalized_name = _normalized(name)
+        if not name and last_record is not None:
+            extra = [(index, _number(value)) for index, value in enumerate(row)
+                     if active_name < index < active_total and str(value or '').strip() and _number(value) > 0]
+            if extra or total > 0:
+                for index, value in extra:
+                    last_record['roll_values'].append(value)
+                    last_record['roll_statuses'].append(roll_status(row_index, index))
+                last_record['total'] += total
+                last_record['mts'] = last_record.get('mts', 0) + total
+                last_record['total_label'] = _display_total(last_record['total'])
+                if last_record.get('rolls'):
+                    last_record['rolls'] += len(extra)
+            continue
         if not name or normalized_name in {"TOTAL", "SUBTOTAL", "NOMBRE", "REFERENCIA"}:
+            last_record = None
             continue
         if total == 0 and not any(str(cell or "").strip() for cell in row[active_name + 1:active_total + 1]):
+            last_record = None
             continue
         identity = (tab_key, normalized_name, total)
         if identity in seen:
@@ -200,17 +229,7 @@ def _records_for_tab(values: list[list[str]], tab_key: str, tab_label: str, grid
             if index in {active_name, active_total} or not str(value or '').strip() or _number(value) <= 0:
                 continue
             roll_values.append(_number(value))
-            cell_format = ((grid_rows[row_index - 1].get('values', [])[index]
-                            if grid_rows and row_index - 1 < len(grid_rows)
-                            and index < len(grid_rows[row_index - 1].get('values', [])) else {})
-                          .get('effectiveFormat', {}) if grid_rows else {})
-            fmt = cell_format.get('backgroundColor', {}) or cell_format.get('backgroundColorStyle', {}).get('rgbColor', {})
-            default = 0 if fmt else 1
-            red, green, blue = float(fmt.get('red', default)), float(fmt.get('green', default)), float(fmt.get('blue', default))
-            if (red > .9 and .5 < green < .7 and blue < .2) or (red > .9 and .65 < green < .88 and blue < .8):
-                roll_statuses.append('started')
-            else:
-                roll_statuses.append('new')
+            roll_statuses.append(roll_status(row_index, index))
         records.append({
             "id": f"{tab_key}:{row_index}:{len(records)}",
             "categoria": tab_key,
@@ -224,6 +243,7 @@ def _records_for_tab(values: list[list[str]], tab_key: str, tab_label: str, grid
             "roll_statuses": roll_statuses,
             "campos": fields,
         })
+        last_record = records[-1]
     return records
 
 
