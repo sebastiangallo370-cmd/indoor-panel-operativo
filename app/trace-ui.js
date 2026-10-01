@@ -546,12 +546,13 @@
     });
     toolbar.querySelector('.trace-results').textContent = 'Mostrando ' + pageResult.start + '–' + pageResult.end + ' de ' + pageResult.total + ' tarjetas · Entrega: de más próxima a más lejana' + (filter === 'mine' ? ' · Asignadas a tu usuario' : '');
     const mtsColi = productionData.headers.findIndex(h => String(h || '').trim().toUpperCase() === 'MTS REQUERIDO');
+    const isMtsNoteKey = key => mtsColi < 0 || Number(String(key).split(':')[1]) !== mtsColi + 1;
     traceCards.innerHTML = rows.map(row => {
       const summary = summaries.get(row.source_row), id = row.source_row;
       const _mtsRaw = mtsColi >= 0 ? (productionData.notes?.[id + ':' + (mtsColi + 1)] || '').trim() : '';
       const _mtsMatches = [..._mtsRaw.matchAll(/(\d+[,.]?\d*)\s*MTS/gi)];
       const mtsV = _mtsMatches.length ? _mtsMatches[_mtsMatches.length - 1][1] + ' MTS' : (_mtsRaw.includes(' : ') ? _mtsRaw.split(' : ').slice(1).join(' : ').trim() : _mtsRaw);
-      const notes = Object.entries(productionData.notes || {}).filter(([k, v]) => k.startsWith(id + ':') && v).length;
+      const notes = Object.entries(productionData.notes || {}).filter(([k, v]) => k.startsWith(id + ':') && v && isMtsNoteKey(k)).length;
       const responsible = summary.focus?.responsible || '';
       const due = traceField(row, 'FECHA DE ENTREGA');
       const dueLabel = !summary.due ? 'Sin fecha' : summary.overdue ? 'Atrasado' : summary.state !== 'finished' && summary.due.getTime() === scheduleToday().getTime() ? 'Entrega hoy' : 'Entrega';
@@ -590,7 +591,7 @@
       const description = ['PRODUCTO', 'DESCRIPCIÓN', 'DESCRIPCION', 'PRENDA'].map(h => traceField(row, h)).find(v => v.trim());
       const fabric = traceField(row, 'TELA'), observation = traceField(row, 'OBSERVACIONES');
       const details = (fabric ? '<span><small>TELA</small><strong>' + esc(fabric) + '</strong></span>' : '');
-      const notes = Object.entries(productionData.notes || {}).filter(([k,v]) => k.startsWith(row.source_row + ':') && v);
+      const notes = Object.entries(productionData.notes || {}).filter(([k,v]) => k.startsWith(row.source_row + ':') && v && isMtsNoteKey(k));
       card.querySelector('.trace-project').insertAdjacentHTML('afterend', '<section class="trace-manufacture"><span class="trace-eyebrow">A FABRICAR</span><h4>' + esc(description || traceField(row, 'REFERENCIA') || 'Producto por especificar') + '</h4>' + (details ? '<div class="trace-material-facts">' + details + '</div>' : '') + (observation ? '<p class="trace-production-note"><strong>INDICACIONES</strong>' + esc(observation) + '</p>' : '') + (notes.length ? '<details class="trace-inline-notes"><summary>Ver ' + notes.length + ' indicación' + (notes.length === 1 ? '' : 'es') + ' de procesos</summary>' + notes.map(([k,v]) => '<p><strong>' + esc(productionData.headers[Number(k.split(':')[1])-1]) + '</strong>' + esc(v) + '</p>').join('') + '</details>' : '') + '</section>');
       card.querySelector('[data-card-detail]').textContent = 'LISTADO Y DETALLES';
       if (notes.length) {
@@ -993,7 +994,7 @@
     const orderRows = productionData.rows.filter(item => item.source_row === id ||
       (order && key(traceField(item, 'ORDEN')) === order && key(traceField(item, 'NOMBRE DEL CLIENTE')) === client));
     const noteItems = orderRows.flatMap(item => Object.entries(productionData.notes || {})
-      .filter(([noteKey, text]) => noteKey.startsWith(item.source_row + ':') && String(text || '').trim())
+      .filter(([noteKey, text]) => noteKey.startsWith(item.source_row + ':') && String(text || '').trim() && String(productionData.headers[Number(noteKey.split(':')[1]) - 1] || '').trim().toUpperCase() !== 'MTS REQUERIDO')
       .map(([noteKey, text]) => '<article><strong>' + esc(productionData.headers[Number(noteKey.split(':')[1]) - 1] || 'OBSERVACIÓN') +
         (item.source_row !== id ? ' · ' + esc(traceField(item, 'REFERENCIA')) : '') +
         '</strong><p class="trace-full-note">' + esc(String(text)) + '</p></article>')).join('');
@@ -1352,7 +1353,7 @@
   function renderStudioObservations(id) {
     const holder = studioContext.querySelector('.studio-observaciones');
     if (!holder) return;
-    const notes = Object.entries(productionData.notes || {}).filter(([noteKey, text]) => noteKey.startsWith(id + ':') && String(text || '').trim());
+    const notes = Object.entries(productionData.notes || {}).filter(([noteKey, text]) => noteKey.startsWith(id + ':') && String(text || '').trim() && String(productionData.headers[Number(noteKey.split(':')[1]) - 1] || '').trim().toUpperCase() !== 'MTS REQUERIDO');
     holder.innerHTML = notes.length ? '<section class="studio-notes"><h4>OBSERVACIONES</h4>' + notes.map(([noteKey, text]) => '<article><strong>' + esc(productionData.headers[Number(noteKey.split(':')[1]) - 1] || 'NOTA') + '</strong><p>' + esc(String(text)) + '</p></article>').join('') + '</section>' : '';
   }
   function loadStudioEventNotes(id) {
