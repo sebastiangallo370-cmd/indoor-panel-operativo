@@ -235,7 +235,51 @@ INVENTORY_CONTROL_SCRIPT = """<script>
       const esc = value => String(value ?? '').replace(/[&<>\"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[char]));
       const activeCategory = [...document.querySelectorAll('.nav-children .tab.active strong')].map(node => node.textContent.trim().toUpperCase()).find(Boolean) || 'BODEGA TELA';
       const visibleItems = activeCategory === 'RESUMEN' ? (data.items || []) : (data.items || []).filter(item => String(item.categoria || '').trim().toUpperCase() === activeCategory);
-      body.innerHTML = visibleItems.map(item => '<article class="inventory-item-card"><span class="inv-badge">'+esc(item.categoria_label)+'</span><strong class="inv-name">'+esc(item.nombre)+'</strong><div class="inventory-rolls">'+(item.roll_values || []).map((value,index) => '<span class="inventory-roll '+(item.roll_statuses?.[index]==='started'?'roll-started':'roll-new')+'">'+esc(value)+'</span>').join('')+'</div><span class="inv-total">'+esc(item.mts ?? item.total ?? 0)+' MTS</span><span class="inv-unit">'+esc(item.rolls || (item.roll_values || []).length)+' rollos</span></article>').join('') || '<div class="inventory-empty">No hay referencias en el inventario local.</div>';
+      const normTxt = v => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/\s+/g, ' ').trim();
+      const pickRolls = new Map(), pickNotes = new Map();
+      if (activeCategory === 'BODEGA TELA') {
+        try {
+          const prod = await fetch('/api/produccion', {cache:'no-store'});
+          if (prod.ok) {
+            const pd = await prod.json();
+            const H = (pd.headers || []).map(normTxt), si = H.indexOf('SUBLIMACION'), ti = H.indexOf('TELA');
+            const needs = {};
+            if (si >= 0 && ti >= 0) (pd.rows || []).forEach(r => {
+              if (normTxt(r.values[si]) !== 'P') return;
+              const tela = normTxt(r.values[ti]);
+              if (!tela) return;
+              const m = [...String((pd.notes || {})[r.source_row + ':17'] || '').matchAll(/(\d+(?:[.,]\d+)?)\s*MTS/gi)].pop();
+              (needs[tela] ||= []).push({orden: String(r.values[4] || '').trim(), mts: m ? parseFloat(m[1].replace(',', '.')) : 0});
+            });
+            Object.entries(needs).forEach(([tela, orders]) => {
+              const base = item => ' ' + normTxt(item.nombre).replace(/^\(\d+\)\s*/, '') + ' ';
+              let matched = visibleItems.filter(item => base(item).includes(' ' + tela + ' '));
+              const white = matched.filter(item => base(item).includes(' BLANCO '));
+              if (white.length) matched = white;
+              const need = orders.reduce((sum, o) => sum + o.mts, 0);
+              const label = orders.map(o => o.orden + (o.mts ? ' · ' + o.mts.toLocaleString('es-CO') + ' MTS' : '')).join(' / ');
+              const rolls = [];
+              matched.forEach(item => (item.roll_values || []).forEach((value, index) => rolls.push({id: item.id, index, value: Number(value) || 0, started: item.roll_statuses?.[index] === 'started'})));
+              const chosen = rolls.filter(r => r.started);
+              let covered = chosen.reduce((sum, r) => sum + r.value, 0);
+              rolls.filter(r => !r.started).sort((x, y) => x.value - y.value).forEach(r => {
+                if (need > 0 ? covered >= need : chosen.some(c => !c.started)) return;
+                chosen.push({...r, started: false});
+                covered += r.value;
+              });
+              chosen.forEach(r => { if (!pickRolls.has(r.id)) pickRolls.set(r.id, new Set()); pickRolls.get(r.id).add(r.index); });
+              matched.forEach(item => { if (pickRolls.has(item.id)) pickNotes.set(item.id, [...(pickNotes.get(item.id) || []), label]); });
+            });
+          }
+        } catch (error) {}
+      }
+      if (!document.getElementById('inventory-pick-style')) {
+        const pickStyle = document.createElement('style');
+        pickStyle.id = 'inventory-pick-style';
+        pickStyle.textContent = '.inventory-roll.roll-pick{border-color:#4da3ff!important;background:#12335c!important;color:#d6e9ff!important;box-shadow:0 0 0 2px #4da3ff55}.inv-pick{display:block;margin-top:6px;padding:4px 8px;border-radius:6px;background:#12335c;border:1px solid #4da3ff;color:#d6e9ff;font:600 10px Arial;letter-spacing:.03em}';
+        document.head.appendChild(pickStyle);
+      }
+      body.innerHTML = visibleItems.map(item => '<article class="inventory-item-card"><span class="inv-badge">'+esc(item.categoria_label)+'</span><strong class="inv-name">'+esc(item.nombre)+'</strong><div class="inventory-rolls">'+(item.roll_values || []).map((value,index) => '<span class="inventory-roll '+(item.roll_statuses?.[index]==='started'?'roll-started':'roll-new')+(pickRolls.get(item.id)?.has(index)?' roll-pick':'')+'">'+esc(value)+'</span>').join('')+'</div><span class="inv-total">'+esc(item.mts ?? item.total ?? 0)+' MTS</span><span class="inv-unit">'+esc(item.rolls || (item.roll_values || []).length)+' rollos</span>'+(pickNotes.has(item.id)?'<span class="inv-pick">SUBLIMACIÓN: '+esc(pickNotes.get(item.id).join(' / '))+'</span>':'')+'</article>').join('') || '<div class="inventory-empty">No hay referencias en el inventario local.</div>';
       if (status) status.textContent = (data.summary?.items || data.items?.length || 0) + ' referencias disponibles · inventario local';
       body.dataset.localRendered = 'true';
     } catch (error) { body.innerHTML = '<div class="inventory-empty">'+String(error.message || error)+'</div>'; }
@@ -248,6 +292,10 @@ INVENTORY_CONTROL_SCRIPT = """<script>
       renderLocalInventory();
     }
   }, 1200);
+  setInterval(() => {
+    const inventoryBody = document.getElementById('inventory-body'), search = document.getElementById('inventory-search');
+    if (inventoryBody && inventoryBody.offsetParent && !(search && search.value.trim())) { inventoryBody.dataset.localRendered = 'false'; renderLocalInventory(); }
+  }, 60000);
   const inventorySearchBox = document.getElementById('inventory-search');
   if (inventorySearchBox) inventorySearchBox.addEventListener('input', event => {
     event.stopImmediatePropagation();
