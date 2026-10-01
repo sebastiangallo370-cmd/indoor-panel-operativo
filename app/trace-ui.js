@@ -125,12 +125,9 @@
     if (!group) return null;
     const tokens = [user.name, user.initials].map(personKey).filter(Boolean);
     const index = summary.groups.indexOf(group);
-    // Edición recibe las órdenes desde que se crean: no depende de Materiales ni de
-    // MTS requeridos. Los demás procesos conservan su liberación secuencial.
-    const edition = key(group.label) === 'EDICION';
-    const nonBlocking = new Set(['MATERIALES', 'MATERIALES ESPECIALES', 'MTS REQUERIDO']);
-    const previous = summary.groups.slice(0, index).filter(g => !isExternal(g) && !nonBlocking.has(key(g.label))).at(-1);
-    const ready = edition || !previous || previous.state === 'finished';
+    // Cada área puede recibir la orden desde su creación. Ningún proceso queda
+    // bloqueado por el cierre de una etapa anterior.
+    const ready = true;
     return { ...summary, route: summary, focus: group, state: group.state,
       ready,
       mine: group.responsible.split(/[,;·\n]+/).some(name => tokens.includes(personKey(name))),
@@ -698,7 +695,7 @@
   });
   const reworkEntryDialog = document.createElement('dialog');
   reworkEntryDialog.className = 'trace-rework-entry';
-  reworkEntryDialog.innerHTML = '<form method="dialog" class="trace-rework-form"><button type="button" class="trace-rework-close" aria-label="Cerrar">×</button><span class="trace-eyebrow">REGISTRO DE REPROCESO</span><h2>Registrar reproceso</h2><p>Confirma la información de la orden y escribe la observación.</p><div class="trace-rework-facts"></div><label class="trace-rework-observation">Observación<textarea name="reason" required maxlength="2000" rows="5" placeholder="Describe qué se debe corregir…"></textarea><small>0 / 2000</small></label><div class="trace-rework-actions"><button type="button" value="cancel">Cancelar</button><button type="submit">Guardar reproceso</button></div><p class="trace-rework-message" role="status"></p></form>';
+  reworkEntryDialog.innerHTML = '<form method="dialog" class="trace-rework-form"><button type="button" class="trace-rework-close" aria-label="Cerrar">×</button><span class="trace-eyebrow">REGISTRO DE REPROCESO</span><h2>Registrar reproceso</h2><p>Confirma la información de la orden y escribe la observación.</p><div class="trace-rework-facts"></div><label class="trace-rework-observation">Observación<textarea name="reason" required maxlength="2000" rows="5" placeholder="Describe qué se debe corregir…"></textarea><small>0 / 2000</small></label><section class="trace-rework-history" aria-live="polite"></section><div class="trace-rework-actions"><button type="button" value="cancel">Cancelar</button><button type="submit">Guardar reproceso</button></div><p class="trace-rework-message" role="status"></p></form>';
   document.body.appendChild(reworkEntryDialog);
   const reworkForm = reworkEntryDialog.querySelector('form');
   const reworkReason = reworkForm.elements.reason;
@@ -707,6 +704,17 @@
   reworkReason.addEventListener('input', updateReworkCount);
   reworkEntryDialog.querySelector('.trace-rework-close').onclick = () => reworkEntryDialog.close();
   reworkForm.querySelector('[value="cancel"]').onclick = () => reworkEntryDialog.close();
+  async function loadReworkEntryHistory(rowId, column) {
+    const holder = reworkEntryDialog.querySelector('.trace-rework-history');
+    holder.textContent = 'Consultando reprocesos registrados…';
+    try {
+      const response = await fetch('/api/produccion/operaciones/' + rowId, {cache: 'no-store'});
+      if (!response.ok) throw Error();
+      const events = await response.json();
+      const reworks = events.filter(event => event.action === 'rework' && Number(event.column_number) === Number(column));
+      holder.innerHTML = reworks.length ? '<h3>Reprocesos registrados</h3>' + reworks.map(event => '<article><p>' + esc(event.reason || '') + '</p><small>' + esc(event.username || event.responsible || 'Usuario') + ' · ' + esc(new Date(event.created_at).toLocaleString('es-CO', {dateStyle: 'short', timeStyle: 'short'})) + '</small><span><button type="button" data-entry-edit="' + event.id + '">Editar</button><button type="button" data-entry-delete="' + event.id + '">Eliminar</button></span></article>').join('') : '';
+    } catch (_) { holder.textContent = ''; }
+  }
   function openReworkEntry(rowId) {
     const row = productionData?.rows.find(item => Number(item.source_row) === Number(rowId));
     if (!row) return;
@@ -728,6 +736,7 @@
     reworkReason.value = '';
     updateReworkCount();
     reworkMessage.textContent = '';
+    loadReworkEntryHistory(row.source_row, process.start + 1);
     reworkEntryDialog.showModal();
     reworkReason.focus();
   }
@@ -755,6 +764,37 @@
       renderTraceCards();
     } catch (error) { reworkMessage.textContent = error.message; }
     finally { submit.disabled = false; }
+  });
+  reworkEntryDialog.addEventListener('click', async event => {
+    const edit = event.target.closest('[data-entry-edit]');
+    const remove = event.target.closest('[data-entry-delete]');
+    const button = edit || remove;
+    if (!button) return;
+    const id = Number(button.dataset.entryEdit || button.dataset.entryDelete);
+    if (!id) return;
+    if (edit) {
+      const current = button.closest('article')?.querySelector('p')?.textContent || '';
+      const reason = prompt('Editar observación de reproceso:', current);
+      if (reason === null) return;
+      const value = reason.trim();
+      if (!value || value.length > 2000) { alert('Escribe una observación entre 1 y 2000 caracteres.'); return; }
+      button.disabled = true;
+      try {
+        const response = await fetch('/api/produccion/operaciones/evento/' + id, {method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({reason: value})});
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw Error(data.detail || 'No fue posible editar el reproceso');
+        await loadReworkEntryHistory(Number(reworkForm.dataset.row), Number(reworkForm.dataset.column));
+      } catch (error) { alert(error.message); button.disabled = false; }
+      return;
+    }
+    if (!confirm('¿Eliminar este registro de reproceso?')) return;
+    button.disabled = true;
+    try {
+      const response = await fetch('/api/produccion/operaciones/evento/' + id, {method: 'DELETE'});
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw Error(data.detail || 'No fue posible eliminar el reproceso');
+      await loadReworkEntryHistory(Number(reworkForm.dataset.row), Number(reworkForm.dataset.column));
+    } catch (error) { alert(error.message); button.disabled = false; }
   });
   // Resolve NAS from the card's source data, never from filtered table rows.
   // Reuse the existing NAS resolver link (a real <a href> built by productionRowButton).
@@ -1360,7 +1400,7 @@
   document.head.appendChild(studioStyle);
   const reworkEntryStyle = document.createElement('style');
   reworkEntryStyle.textContent = `
-    .trace-rework-entry{width:min(720px,94vw);max-height:90dvh;padding:0;border:1px solid #b36b64;border-radius:18px;background:#131a14;color:#f3f7ee;box-shadow:0 28px 90px #000b}.trace-rework-entry::backdrop{background:#000b}.trace-rework-form{position:relative;display:grid;gap:16px;padding:25px}.trace-rework-form h2{margin:-10px 40px 0 0;font:800 25px Arial}.trace-rework-form>p{margin:-8px 0 0;color:#b7c3b1;font-size:13px}.trace-rework-close{position:absolute;top:17px;right:17px;width:34px!important;min-height:34px!important;padding:0!important;border:1px solid #687667!important;border-radius:9px!important;background:#263228!important;color:#fff!important;font-size:20px!important;box-shadow:none!important}.trace-rework-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:15px;border:1px solid #3e4d3d;border-radius:13px;background:#1b261d}.trace-rework-facts>div{display:grid;gap:5px;min-width:0;padding:10px;border-radius:9px;background:#111811}.trace-rework-facts small{color:#a9ba9f;font:800 10px Arial;letter-spacing:.07em;text-transform:uppercase}.trace-rework-facts strong{overflow-wrap:anywhere;color:#f0f7e9;font:700 13px/1.35 Arial}.trace-rework-observation{display:grid;gap:7px;color:#f2bbb5;font:800 12px Arial}.trace-rework-observation textarea{box-sizing:border-box;width:100%;min-height:115px;padding:12px;border:1px solid #6d4a45;border-radius:10px;background:#211a19;color:#fff4f1;font:14px/1.5 Arial;resize:vertical}.trace-rework-observation small{text-align:right;color:#aeb9a7;font:11px Arial}.trace-rework-actions{display:flex;justify-content:flex-end;gap:10px}.trace-rework-actions button{width:auto!important;min-height:40px!important;padding:10px 15px!important;border:1px solid #65755f;border-radius:9px;background:#243025;color:#eff7e9;font-weight:800;box-shadow:none}.trace-rework-actions [type=submit]{border-color:#f08079;background:#ef7370;color:#291211}.trace-rework-actions [type=submit]:disabled{opacity:.6;cursor:progress}.trace-rework-message{min-height:18px!important;color:#ffbbb5!important}@media(max-width:560px){.trace-rework-form{padding:18px}.trace-rework-facts{grid-template-columns:1fr}.trace-rework-actions{flex-direction:column-reverse}.trace-rework-actions button{width:100%!important}}
+    .trace-rework-entry{width:min(720px,94vw);max-height:90dvh;padding:0;border:1px solid #b36b64;border-radius:18px;background:#131a14;color:#f3f7ee;box-shadow:0 28px 90px #000b}.trace-rework-entry::backdrop{background:#000b}.trace-rework-form{position:relative;display:grid;gap:16px;padding:25px}.trace-rework-form h2{margin:-10px 40px 0 0;font:800 25px Arial}.trace-rework-form>p{margin:-8px 0 0;color:#b7c3b1;font-size:13px}.trace-rework-close{position:absolute;top:17px;right:17px;width:34px!important;min-height:34px!important;padding:0!important;border:1px solid #687667!important;border-radius:9px!important;background:#263228!important;color:#fff!important;font-size:20px!important;box-shadow:none!important}.trace-rework-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:15px;border:1px solid #3e4d3d;border-radius:13px;background:#1b261d}.trace-rework-facts>div{display:grid;gap:5px;min-width:0;padding:10px;border-radius:9px;background:#111811}.trace-rework-facts small{color:#a9ba9f;font:800 10px Arial;letter-spacing:.07em;text-transform:uppercase}.trace-rework-facts strong{overflow-wrap:anywhere;color:#f0f7e9;font:700 13px/1.35 Arial}.trace-rework-observation{display:grid;gap:7px;color:#f2bbb5;font:800 12px Arial}.trace-rework-observation textarea{box-sizing:border-box;width:100%;min-height:115px;padding:12px;border:1px solid #6d4a45;border-radius:10px;background:#211a19;color:#fff4f1;font:14px/1.5 Arial;resize:vertical}.trace-rework-observation small{text-align:right;color:#aeb9a7;font:11px Arial}.trace-rework-history{display:grid;gap:8px;max-height:210px;overflow:auto}.trace-rework-history:empty{display:none}.trace-rework-history h3{margin:0;color:#d8e6d1;font:800 12px Arial}.trace-rework-history article{position:relative;padding:10px 112px 10px 12px;border:1px solid #455443;border-radius:9px;background:#182118}.trace-rework-history article p{margin:0 0 6px!important;color:#edf4e9!important;font:13px/1.4 Arial}.trace-rework-history article small{color:#aab8a5;font:10px Arial}.trace-rework-history article>span{position:absolute;top:9px;right:9px;display:flex;gap:5px}.trace-rework-history button{width:auto!important;min-height:28px!important;padding:5px 7px!important;border:1px solid #718865;border-radius:7px;background:#283624;color:#e4f3db;font:800 10px Arial;box-shadow:none}.trace-rework-history button[data-entry-delete]{border-color:#985752;background:#3a201e;color:#ffc5bd}.trace-rework-actions{display:flex;justify-content:flex-end;gap:10px}.trace-rework-actions button{width:auto!important;min-height:40px!important;padding:10px 15px!important;border:1px solid #65755f;border-radius:9px;background:#243025;color:#eff7e9;font-weight:800;box-shadow:none}.trace-rework-actions [type=submit]{border-color:#f08079;background:#ef7370;color:#291211}.trace-rework-actions [type=submit]:disabled{opacity:.6;cursor:progress}.trace-rework-message{min-height:18px!important;color:#ffbbb5!important}@media(max-width:560px){.trace-rework-form{padding:18px}.trace-rework-facts{grid-template-columns:1fr}.trace-rework-history article{padding-right:12px}.trace-rework-history article>span{position:static;margin-top:9px}.trace-rework-actions{flex-direction:column-reverse}.trace-rework-actions button{width:100%!important}}
   `;
   document.head.appendChild(reworkEntryStyle);
   const statusColors = document.createElement('style');
