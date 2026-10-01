@@ -274,7 +274,7 @@ def inventory_snapshot(refresh: bool = False):
             snapshot = _load_snapshot()
             # Una copia local inicial solo contiene nombres. Importar una vez
             # el libro completo para incorporar metros, rollos y categorías.
-            if snapshot is not None and len(snapshot.get('categories', [])) > 1:
+            if snapshot is not None and len(snapshot.get('categories', [])) > 1 and all('roll_values' in item for item in snapshot.get('items', [])[:5]):
                 _cache.update({"at": time.monotonic(), "data": snapshot})
                 return snapshot
         try:
