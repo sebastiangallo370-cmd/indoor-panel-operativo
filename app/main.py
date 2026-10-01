@@ -238,10 +238,13 @@ INVENTORY_CONTROL_SCRIPT = """<script>
       body.dataset.localRendered = 'true';
     } catch (error) { body.innerHTML = '<div class="inventory-empty">'+String(error.message || error)+'</div>'; }
   };
-  const openInventoryGroup = () => [...document.querySelectorAll('.nav-group')].find(item => /BODEGA TELA/i.test(item.textContent))?.classList.remove('collapsed');
-  openInventoryGroup();
   renderLocalInventory();
-  setInterval(() => { openInventoryGroup(); renderLocalInventory(); }, 1000);
+  const inventoryGroup = [...document.querySelectorAll('.nav-group')].find(item => /BODEGA TELA/i.test(item.textContent));
+  if (inventoryGroup) {
+    inventoryGroup.classList.add('inventory-hover-group', 'collapsed');
+    inventoryGroup.addEventListener('mouseenter', () => inventoryGroup.classList.remove('collapsed'));
+    inventoryGroup.addEventListener('mouseleave', () => inventoryGroup.classList.add('collapsed'));
+  }
 })();
 </script>"""
 
