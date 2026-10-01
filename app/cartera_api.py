@@ -152,6 +152,10 @@ def resumen_pendiente(archivo:str):
             if found: return found.group(1).strip(" .:-")
         return "No detectado"
     cliente=match(r"(?:cliente|señor(?:es)?)\s*[:#-]?\s*([^\n]{3,100}?)(?=\s*(?:\.?\s*(?:CC|C\.C\.|NIT|creaci[oó]n|tel[eé]fono|email)\b|$))")
+    vendedor=match(r"vendedor\s*[:#-]?\s*([^\n]{3,80})",r"elabor[oó]\s*[:#-]?\s*([^\n]{3,80})")
+    fecha_entrega=match(r"entrega\s*[:#-]?\s*(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4})")
+    _fp=match(r"forma\s+de\s+pago\s*[:#-]?\s*\n?([^\n]+)")
+    forma_pago=re.sub(r'\s*-\s*(?:valor|neto).*','',_fp,flags=re.I).strip() if _fp!='No detectado' else _fp
     # Busca el monto total: primero etiquetas más específicas, luego "TOTAL" genérico.
     # Prioriza la última ocurrencia para evitar capturar subtotales anteriores.
     def find_total(t):
@@ -159,13 +163,14 @@ def resumen_pendiente(archivo:str):
             r"(?:gran\s+total|total\s+(?:neto|a\s+pagar|pedido|orden|general|cotizaci[oó]n)|valor\s+total(?:\s+\w+)?)\s*[:\s$]*(\$?\s*\d[\d.,]{2,})",
             r"(?<!\w)total\s*[:\s$]+(\$?\s*\d[\d.,]{2,})",
             r"(?<!\w)total[\s\S]{0,60}?(\$\s*\d[\d.,]{2,})",
+            r"(?<!\w)valor\s*[:#-]+\s*(\$?\s*\d[\d.,]{2,})",
         ]
         for pat in patterns:
             hits=re.findall(pat,t,re.I)
             if hits: return hits[-1].strip()
         return "No detectado"
     total=find_total(text)
-    return {"archivo":archivo,"paginas":paginas,"cotizacion":match(r"(?:cotizaci[oó]n\s*(?:no\.?|n[°oº])?|(?:^|\n)no\.?)\s*[:#-]?\s*(\d{3,}[A-Z0-9-]*)",r"(?:pedido|cotizaci[oó]n|n[°oº])\s*[:#-]?\s*([A-Z0-9-]{3,})"),"fecha":match(r"(?:fecha|emisi[oó]n|creaci[oó]n)\s*[:#-]?\s*(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4})"),"cliente":cliente,"total":total,"texto":text[:5000] or "El PDF no tiene texto seleccionable; puede ser una imagen escaneada."}
+    return {"archivo":archivo,"paginas":paginas,"cotizacion":match(r"(?:cotizaci[oó]n\s*(?:no\.?|n[°oº])?|(?:^|\n)no\.?)\s*[:#-]?\s*(\d{3,}[A-Z0-9-]*)",r"(?:pedido|cotizaci[oó]n|n[°oº])\s*[:#-]?\s*([A-Z0-9-]{3,})"),"fecha":match(r"(?:fecha|emisi[oó]n|creaci[oó]n)\s*[:#-]?\s*(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4})"),"cliente":cliente,"vendedor":vendedor,"fechaEntrega":fecha_entrega,"formaPago":forma_pago,"total":total,"texto":text[:5000] or "El PDF no tiene texto seleccionable; puede ser una imagen escaneada."}
 @cartera_router.post("/pendientes/{archivo}/asociar/{numero}")
 def asociar_pendiente(archivo:str,numero:str):
     source=(_PDF_DIR/"pendientes"/_safe(Path(archivo).stem)).with_suffix(".pdf")
