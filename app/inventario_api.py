@@ -192,6 +192,7 @@ def _records_for_tab(values: list[list[str]], tab_key: str, tab_label: str) -> l
         }
         meters = next((value for key, value in fields.items() if 'MTS' in _normalized(key) or 'METROS' in _normalized(key)), '')
         rolls = next((value for key, value in fields.items() if 'ROLLO' in _normalized(key)), '')
+        roll_values = [_number(value) for index, value in enumerate(row) if index not in {active_name, active_total} and str(value or '').strip() and _number(value) > 0]
         records.append({
             "id": f"{tab_key}:{row_index}:{len(records)}",
             "categoria": tab_key,
@@ -201,6 +202,7 @@ def _records_for_tab(values: list[list[str]], tab_key: str, tab_label: str) -> l
             "total_label": _display_total(total),
             "mts": _number(meters) if meters else total,
             "rolls": int(_number(rolls)) if rolls else 0,
+            "roll_values": roll_values,
             "campos": fields,
         })
     return records

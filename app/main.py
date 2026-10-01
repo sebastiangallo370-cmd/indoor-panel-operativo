@@ -233,12 +233,15 @@ INVENTORY_CONTROL_SCRIPT = """<script>
       const data = await response.json();
       if (!response.ok) throw Error(data.detail || 'No fue posible cargar Inventarios');
       const esc = value => String(value ?? '').replace(/[&<>\"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[char]));
-      body.innerHTML = (data.items || []).map(item => '<article class="inventory-item-card"><span class="inv-badge">'+esc(item.categoria_label)+'</span><strong class="inv-name">'+esc(item.nombre)+'</strong><span class="inv-total">'+esc(item.mts ?? item.total ?? 0)+' MTS</span><span class="inv-unit">'+esc(item.rolls ?? 0)+' rollos</span></article>').join('') || '<div class="inventory-empty">No hay referencias en el inventario local.</div>';
+      body.innerHTML = (data.items || []).map(item => '<article class="inventory-item-card"><span class="inv-badge">'+esc(item.categoria_label)+'</span><strong class="inv-name">'+esc(item.nombre)+'</strong><div class="inventory-rolls">'+(item.roll_values || []).map(value => '<span class="inventory-roll">'+esc(value)+'</span>').join('')+'</div><span class="inv-total">'+esc(item.mts ?? item.total ?? 0)+' MTS</span><span class="inv-unit">'+esc(item.rolls || (item.roll_values || []).length)+' rollos</span></article>').join('') || '<div class="inventory-empty">No hay referencias en el inventario local.</div>';
       if (status) status.textContent = (data.summary?.items || data.items?.length || 0) + ' referencias disponibles · inventario local';
       body.dataset.localRendered = 'true';
     } catch (error) { body.innerHTML = '<div class="inventory-empty">'+String(error.message || error)+'</div>'; }
   };
   renderLocalInventory();
+  const rollStyle = document.createElement('style');
+  rollStyle.textContent = '.inventory-rolls{display:flex;flex-wrap:wrap;gap:7px;margin:7px 0 3px}.inventory-roll{display:inline-grid;place-items:center;min-width:34px;height:34px;padding:0 7px;border:2px solid #b5e834;border-radius:50%;background:#182719;color:#e8ff9b;font:800 12px Arial;box-sizing:border-box}.inventory-item-card .inv-total{margin-top:3px}';
+  document.head.appendChild(rollStyle);
   const inventoryGroup = [...document.querySelectorAll('.nav-group')].find(item => /BODEGA TELA/i.test(item.textContent));
   if (inventoryGroup) {
     inventoryGroup.classList.add('inventory-hover-group', 'collapsed');
