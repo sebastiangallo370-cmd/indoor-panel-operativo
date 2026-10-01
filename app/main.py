@@ -224,6 +224,57 @@ INVENTORY_CONTROL_SCRIPT = """<script>
   };
   hideResumen();
   new MutationObserver(hideResumen).observe(document.body, {childList:true, subtree:true});
+  const renderLocalInventory = async () => {
+    const body = document.getElementById('inventory-body');
+    const status = document.getElementById('inventory-status');
+    if (!body || body.dataset.localRendered === 'true') return;
+    try {
+      const response = await fetch('/api/inventarios', {cache:'no-store'});
+      const data = await response.json();
+      if (!response.ok) throw Error(data.detail || 'No fue posible cargar Inventarios');
+      const esc = value => String(value ?? '').replace(/[&<>\"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[char]));
+      body.innerHTML = (data.items || []).map(item => '<article class="inventory-item-card"><span class="inv-badge">'+esc(item.categoria_label)+'</span><strong class="inv-name">'+esc(item.nombre)+'</strong><span class="inv-total">'+esc(item.total_label || item.total)+'</span><span class="inv-unit">unidades</span></article>').join('') || '<div class="inventory-empty">No hay referencias en el inventario local.</div>';
+      if (status) status.textContent = (data.summary?.items || data.items?.length || 0) + ' referencias disponibles · inventario local';
+      body.dataset.localRendered = 'true';
+    } catch (error) { body.innerHTML = '<div class="inventory-empty">'+String(error.message || error)+'</div>'; }
+  };
+  const openInventoryGroup = () => [...document.querySelectorAll('.nav-group')].find(item => /BODEGA TELA/i.test(item.textContent))?.classList.remove('collapsed');
+  openInventoryGroup();
+  renderLocalInventory();
+  setInterval(() => { openInventoryGroup(); renderLocalInventory(); }, 1000);
+})();
+</script>"""
+
+# Renderizado de respaldo del inventario local. Este bloque es independiente del
+# script histórico del módulo y evita que una excepción de navegación deje la
+# pantalla atrapada en "Cargando".
+INVENTORY_LOCAL_RENDER_SCRIPT = """<script>
+(() => {
+  const escapeHtml = value => String(value ?? '').replace(/[&<>\"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[char]));
+  const format = value => new Intl.NumberFormat('es-CO', {maximumFractionDigits: 2}).format(Number(value) || 0);
+  const render = async () => {
+    const body = document.getElementById('inventory-body');
+    const status = document.getElementById('inventory-status');
+    const categories = document.getElementById('inventory-categories');
+    if (!body || body.dataset.localRendered === 'true') return;
+    try {
+      const response = await fetch('/api/inventarios', {cache: 'no-store'});
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || 'No fue posible cargar Inventarios');
+      const items = data.items || [];
+      body.innerHTML = items.length ? items.map((item, index) => '<article class="inventory-item-card" style="animation-delay:' + Math.min(index * 15, 600) + 'ms"><span class="inv-badge">' + escapeHtml(item.categoria_label) + '</span><strong class="inv-name">' + escapeHtml(item.nombre) + '</strong><span class="inv-total">' + escapeHtml(item.total_label || format(item.total)) + '</span><span class="inv-unit">unidades</span></article>').join('') : '<div class="inventory-empty">No hay referencias en el inventario local.</div>';
+      if (categories) categories.innerHTML = (data.categories || []).filter(item => item.available).map(item => '<button type="button" class="inventory-category"><small>' + escapeHtml(item.label) + '</small><b>' + format(item.items) + '</b><span>referencias · ' + escapeHtml(item.units_label) + ' und.</span></button>').join('');
+      if (status) status.textContent = (data.summary?.items || items.length) + ' referencias disponibles · inventario local';
+      body.dataset.localRendered = 'true';
+    } catch (error) {
+      body.innerHTML = '<div class="inventory-empty">' + escapeHtml(error.message) + '</div>';
+      if (status) status.textContent = 'Inventario local no disponible';
+    }
+  };
+  const openGroup = () => [...document.querySelectorAll('.nav-group')].find(group => /BODEGA TELA/i.test(group.textContent))?.classList.remove('collapsed');
+  openGroup();
+  render();
+  setInterval(() => { openGroup(); render(); }, 1000);
 })();
 </script>"""
 
