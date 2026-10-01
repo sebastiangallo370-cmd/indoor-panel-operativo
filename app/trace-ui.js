@@ -567,6 +567,10 @@
     }
     traceCards.querySelectorAll('[data-card-row]').forEach(card => {
       const row = rows.find(r => r.source_row === Number(card.dataset.cardRow));
+      const mtsDisplay = card.querySelector('.trace-mts-display.has-value');
+      if (mtsDisplay && !mtsDisplay.querySelector('.trace-mts-actions')) {
+        mtsDisplay.insertAdjacentHTML('beforeend', '<span class="trace-mts-actions"><button type="button" data-mts-edit="' + row.source_row + '" aria-label="Editar MTS REQUERIDOS">✎</button><button type="button" data-mts-delete="' + row.source_row + '" aria-label="Eliminar MTS REQUERIDOS">⌫</button></span>');
+      }
       if (canDelete) {
         const button = document.createElement('button');
         button.type = 'button';button.textContent = 'ELIMINAR';button.dataset.cardDelete = row.source_row;
@@ -955,6 +959,26 @@
       const inventoryTab = [...document.querySelectorAll('.nav-children .tab')].find(tab => tab.textContent.trim() === 'BODEGA TELA');
       inventoryTab?.click();
       setTimeout(() => { const search = document.getElementById('inventory-search'); if (search) { search.value = searchValue; search.dispatchEvent(new Event('input', {bubbles:true})); } }, 450);
+      return;
+    }
+    const mtsEdit = event.target.closest('[data-mts-edit]');
+    if (mtsEdit) {
+      event.preventDefault(); event.stopPropagation();
+      const id = Number(mtsEdit.dataset.mtsEdit);
+      traceCards.querySelector('[data-card-mts="' + id + '"]')?.click();
+      return;
+    }
+    const mtsDelete = event.target.closest('[data-mts-delete]');
+    if (mtsDelete) {
+      event.preventDefault(); event.stopPropagation();
+      const id = Number(mtsDelete.dataset.mtsDelete), row = productionData?.rows.find(r => r.source_row === id);
+      const ci = productionData?.headers.findIndex(h => String(h || '').trim().toUpperCase() === 'MTS REQUERIDO');
+      if (!row || ci == null || ci < 0 || !confirm('¿Eliminar MTS REQUERIDOS de esta orden?')) return;
+      const button = mtsDelete; button.disabled = true;
+      fetch('/api/produccion/nota', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({row:id, column:ci + 1, note:''})})
+        .then(response => response.ok ? response.json() : response.json().then(data => { throw Error(data.detail || 'No se pudo eliminar MTS REQUERIDOS'); }))
+        .then(() => { delete productionData.notes[id + ':' + (ci + 1)]; if (productionData.note_entries) delete productionData.note_entries[id + ':' + (ci + 1)]; renderProduction(); })
+        .catch(error => { button.disabled = false; alert(error.message); });
       return;
     }
     const mtsBtn = event.target.closest('[data-card-mts]');
