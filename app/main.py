@@ -60,6 +60,22 @@ REWORK_CONTROLS_SCRIPT = """<script>
   const tab = document.querySelector('.tab[data-kind="reproceso"]');
   if (!refresh || !board || !tab) return;
   let rows = [];
+  const filters = document.createElement('section');
+  filters.className = 'rework-filters';
+  filters.innerHTML = '<label>Cliente<input type="search" data-rework-filter="client" placeholder="Buscar cliente"></label><label>Orden<input type="search" data-rework-filter="order" placeholder="N° de orden"></label><label>Referencia<input type="search" data-rework-filter="reference" placeholder="Referencia"></label><label>Observaciones<input type="search" data-rework-filter="reason" placeholder="Buscar observación"></label><label>Operario<input type="search" data-rework-filter="username" placeholder="Usuario responsable"></label><label>Fecha<input type="date" data-rework-filter="date"></label><button type="button" data-rework-clear>Limpiar</button>';
+  refresh.closest('.rework-module')?.insertBefore(filters, refresh.closest('.rework-module')?.querySelector('.rework-summary'));
+  const normalize = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+  const applyFilters = () => {
+    const values = Object.fromEntries([...filters.querySelectorAll('[data-rework-filter]')].map(input => [input.dataset.reworkFilter, normalize(input.value)]));
+    board.querySelectorAll('.rework-card').forEach((card, index) => {
+      const row = rows[index];
+      if (!row) return;
+      const date = String(row.created_at || '').slice(0, 10);
+      card.hidden = !['client','order','reference','reason','username'].every(field => !values[field] || normalize(row[field]).includes(values[field])) || !!(values.date && date !== values.date);
+    });
+  };
+  filters.addEventListener('input', applyFilters);
+  filters.querySelector('[data-rework-clear]').onclick = () => { filters.querySelectorAll('input').forEach(input => input.value = ''); applyFilters(); };
   const decorate = async () => {
     try {
       const response = await fetch('/api/reproceso', {cache: 'no-store'});
@@ -74,6 +90,7 @@ REWORK_CONTROLS_SCRIPT = """<script>
         actions.innerHTML = '<button type="button" data-rework-edit="' + row.id + '">Editar</button><button type="button" data-rework-delete="' + row.id + '">Eliminar</button>';
         card.appendChild(actions);
       });
+      applyFilters();
     } catch (_) {}
   };
   const afterLoad = () => setTimeout(decorate, 350);
@@ -163,7 +180,7 @@ REWORK_LAYOUT_STYLE = """<style>
 body:has(.panel[data-panel='reproceso'].active) main{width:100%!important;max-width:none!important;margin-left:0!important;margin-right:0!important;padding-left:clamp(18px,4vw,76px)!important;padding-right:clamp(18px,4vw,76px)!important}
 .panel[data-panel='reproceso'],.panel[data-panel='reproceso'].active,.rework-module{width:100%!important;max-width:none!important}
 .rework-module{margin:0!important;gap:20px!important}.rework-module>header{justify-content:flex-end!important;min-height:0!important;padding:0!important;border:0!important;border-radius:0!important;background:transparent!important}.rework-module>header>div{display:none!important}.rework-module>header button{margin-left:auto!important}.tab[data-kind='reproceso'] .nav-icon{display:none!important}nav.tabs>.nav-group:has(.tab[data-kind='reproceso']){flex:0 0 auto!important;margin-right:18px!important}nav.tabs>.nav-group:has(.tab[data-kind='reproceso']) .tab{display:inline-flex!important;align-items:center!important;justify-content:center!important;min-height:36px!important;margin:0!important;padding:9px 12px!important;column-gap:0!important;color:#fff!important}nav.tabs .tab[data-kind='reproceso']>strong{display:block!important;font:800 12px/1 Arial,sans-serif!important;letter-spacing:0!important;color:#fff!important}nav.tabs .tab[data-kind='reproceso']:after{content:none!important;display:none!important}nav.tabs :is(.tab>strong,.nav-parent>span:not(.nav-icon)){font:800 12px/1 Arial,sans-serif!important;letter-spacing:0!important}nav.tabs .tab{line-height:1!important}.rework-cards{grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:16px!important}.rework-card{min-height:260px;padding:20px!important}@media(max-width:1050px){.rework-cards{grid-template-columns:repeat(2,minmax(0,1fr))!important}}@media(max-width:620px){body:has(.panel[data-panel='reproceso'].active) main{padding-left:12px!important;padding-right:12px!important}.rework-module>header{padding:0!important}.rework-cards{grid-template-columns:1fr!important}.rework-card{min-height:0}}
-.rework-card-actions{display:flex;gap:8px;margin-top:auto}.rework-card-actions button{flex:1;width:auto!important;padding:8px 10px!important;border:1px solid #6e875c!important;border-radius:8px!important;background:#233321!important;color:#e4f5d4!important;font-size:12px!important}.rework-card-actions button[data-rework-delete]{border-color:#a85a55!important;background:#3a201e!important;color:#ffc4bd!important}
+.rework-card-actions{display:flex;gap:8px;margin-top:auto}.rework-card-actions button{flex:1;width:auto!important;padding:8px 10px!important;border:1px solid #6e875c!important;border-radius:8px!important;background:#233321!important;color:#e4f5d4!important;font-size:12px!important}.rework-card-actions button[data-rework-delete]{border-color:#a85a55!important;background:#3a201e!important;color:#ffc4bd!important}.rework-filters{display:grid;grid-template-columns:repeat(6,minmax(120px,1fr)) auto;gap:9px;padding:13px;border:1px solid #394839;border-radius:12px;background:#131a14}.rework-filters label{display:grid;gap:5px;color:#aebaa8;font:800 10px Arial;letter-spacing:.06em;text-transform:uppercase}.rework-filters input{min-width:0;padding:9px 10px;border:1px solid #465644;border-radius:8px;background:#202b21;color:#f1f7ed;font:600 12px Arial}.rework-filters button{align-self:end;width:auto!important;min-height:35px;padding:8px 11px!important;border:1px solid #657661!important;border-radius:8px!important;background:#2b382a!important;color:#edf5e6!important;font-size:12px!important}@media(max-width:1050px){.rework-filters{grid-template-columns:repeat(3,1fr)}}@media(max-width:620px){.rework-filters{grid-template-columns:1fr}.rework-filters button{width:100%!important}}
 </style>"""
 
 PERSONAL_NOTES_SCRIPT = """
@@ -1797,6 +1814,8 @@ def list_rework_module(_=Depends(authenticate)):
         headers = json.loads(meta.get("headers", "[]"))
         order_index = next((i for i, value in enumerate(headers) if str(value).strip().upper() == "ORDEN"), -1)
         client_index = next((i for i, value in enumerate(headers) if str(value).strip().upper() in {"NOMBRE DEL CLIENTE", "CLIENTE"}), -1)
+        project_index = next((i for i, value in enumerate(headers) if str(value).strip().upper() in {"NOMBRE PROYECTO", "PROYECTO"}), -1)
+        reference_index = next((i for i, value in enumerate(headers) if str(value).strip().upper() == "REFERENCIA"), -1)
         values_by_row = {row["source_row"]: json.loads(row["values_json"]) for row in db.execute("SELECT source_row, values_json FROM production_rows")}
         events = db.execute("""
             SELECT event.id, event.source_row, event.column_number,
@@ -1814,7 +1833,13 @@ def list_rework_module(_=Depends(authenticate)):
     result = []
     for event in events:
         values = values_by_row.get(event["source_row"], [])
-        result.append({**dict(event), "order": str(values[order_index]).strip() if 0 <= order_index < len(values) else "", "client": str(values[client_index]).strip() if 0 <= client_index < len(values) else ""})
+        result.append({
+            **dict(event),
+            "order": str(values[order_index]).strip() if 0 <= order_index < len(values) else "",
+            "client": str(values[client_index]).strip() if 0 <= client_index < len(values) else "",
+            "project": str(values[project_index]).strip() if 0 <= project_index < len(values) else "",
+            "reference": str(values[reference_index]).strip() if 0 <= reference_index < len(values) else "",
+        })
     return result
 
 
