@@ -167,7 +167,7 @@
   const fmtDue = d => d ? fmtShort(d) : 'Sin fecha';
   function orderList(items, empty, detail) {
     if (!items.length) return '<p class="dash-none">' + empty + '</p>';
-    const shown = items.slice(0, 5);
+    const shown = items;
     return '<ul class="dash-orders">' + shown.map(o => '<li><div><strong>' + esc(o.id) + '</strong><span>' + esc(o.client || 'Sin cliente') + '</span></div><div class="dash-order-meta"><b>' + fmtNum(o.units) + ' und.</b><small>' + detail(o) + '</small></div></li>').join('') + '</ul>' +
       (items.length > shown.length ? '<p class="dash-more">y ' + (items.length - shown.length) + ' más</p>' : '');
   }
