@@ -199,6 +199,11 @@ def _read_inventory() -> dict[str, Any]:
                 index += 1
             for roll in range(int(movement.get('rolls') or 1)):
                 fields[f'{base} {index + roll}'] = str(movement.get('mts') or 0)
+        else:
+            fields = target.setdefault('campos', {})
+            roll_keys = [key for key, value in fields.items() if not re.search(r'total', key, re.I) and _number(value) or False]
+            for key in roll_keys[-int(movement.get('rolls') or 1):]:
+                fields.pop(key, None)
     all_records.sort(key=lambda record: (record["categoria_label"], record["nombre"].casefold()))
     total_units = sum(record["total"] for record in all_records)
     return {
