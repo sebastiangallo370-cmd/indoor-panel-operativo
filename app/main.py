@@ -3042,7 +3042,7 @@ def home(_=Depends(authenticate)):
     function show(text,type){{message.textContent=text;message.className='message show '+type}}
     document.addEventListener('change',event=>{{const field=event.target;if(!field.matches('input[type="file"]'))return;const row=field.closest('.file-row');if(row){{row.classList.toggle('has-file',field.files.length>0);const label=row.querySelector('span');if(label&&field.files.length)label.textContent=field.files.length===1?field.files[0].name:field.files.length+' archivos seleccionados'}}}});
     input.addEventListener('change',()=>{{choose(input.files[0]);if(input.files.length){{localStorage.removeItem(currentKeys.reprogramacion);resetProgressButton(submit,'Procesar documento')}}}}); ['dragenter','dragover'].forEach(e=>drop.addEventListener(e,x=>{{x.preventDefault();drop.classList.add('drag')}})); ['dragleave','drop'].forEach(e=>drop.addEventListener(e,x=>{{x.preventDefault();drop.classList.remove('drag')}}));
-    function accumulateAttachments(field){{
+    function accumulateAttachments(field){{try{{new DataTransfer()}}catch(e){{return}}
       let files=[];
       const row=field.closest('.file-row'),list=document.createElement('div'),hint=document.createElement('p');
       list.className='attachment-list';list.setAttribute('aria-label','Archivos seleccionados');
@@ -3096,7 +3096,7 @@ def home(_=Depends(authenticate)):
         }}
       }},true);
     }}
-    drop.addEventListener('drop',e=>{{const file=e.dataTransfer.files[0];if(file){{const dt=new DataTransfer();dt.items.add(file);input.files=dt.files;choose(file)}}}});
+    drop.addEventListener('drop',e=>{{const file=e.dataTransfer.files[0];if(file){{try{{const dt=new DataTransfer();dt.items.add(file);input.files=dt.files}}catch(ex){{}}choose(file)}}}});
     const currentKeys={{reprogramacion:'indoor-current-reprogramacion',pedido:'indoor-current-pedido',creador:'indoor-current-creador'}};
     const currentId=kind=>Number(localStorage.getItem(currentKeys[kind])||0); const remember=(kind,id)=>localStorage.setItem(currentKeys[kind],String(id));
     function resetProgressButton(button,label){{button.classList.remove('is-progress');button.style.removeProperty('--creator-progress');button.textContent=label}}
