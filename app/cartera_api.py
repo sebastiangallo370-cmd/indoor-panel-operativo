@@ -23,6 +23,7 @@ def _amount(v):
     if s.count(",")==1 and s.count(".")>=1: s=s.replace(".","").replace(",",".")  # 1.234.567,00 → 1234567.00
     elif s.count(",")==1: s=s.replace(",",".")                                      # 1234567,00 → 1234567.00
     elif s.count(".")>1: s=s.replace(".","")                                        # 1.234.567 → 1234567
+    elif s.count(",")>1: s=s.replace(",","")                                        # 1,685,000 → 1685000
     try: return float(s)
     except ValueError: return 0.
 def _term(v):
