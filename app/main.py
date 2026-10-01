@@ -60,6 +60,9 @@ REWORK_CONTROLS_SCRIPT = """<script>
   const tab = document.querySelector('.tab[data-kind="reproceso"]');
   if (!refresh || !board || !tab) return;
   let rows = [];
+  const reworkCanDelete = ['ADMINISTRACION', 'ADMINISTRATIVA', 'ADMINISTRATIVO', 'COORDINADOR'].includes(
+    String(document.querySelector('.user-info small')?.textContent || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase()
+  );
   const filters = document.createElement('section');
   filters.className = 'rework-filters';
   filters.innerHTML = '<label>Cliente<input type="search" data-rework-filter="client" placeholder="Buscar cliente"></label><label>Orden<input type="search" data-rework-filter="order" placeholder="N° de orden"></label><label>Referencia<input type="search" data-rework-filter="reference" placeholder="Referencia"></label><label>Observaciones<input type="search" data-rework-filter="reason" placeholder="Buscar observación"></label><label>Operario<input type="search" data-rework-filter="username" placeholder="Usuario responsable"></label><label>Fecha<input type="date" data-rework-filter="date"></label><button type="button" data-rework-clear>Limpiar</button>';
@@ -87,7 +90,7 @@ REWORK_CONTROLS_SCRIPT = """<script>
         if (!row || card.querySelector('.rework-card-actions')) return;
         const actions = document.createElement('div');
         actions.className = 'rework-card-actions';
-        actions.innerHTML = '<button type="button" data-rework-edit="' + row.id + '">Editar</button>';
+        actions.innerHTML = '<button type="button" data-rework-edit="' + row.id + '">Editar</button>' + (reworkCanDelete ? '<button type="button" data-rework-delete="' + row.id + '">Eliminar</button>' : '');
         card.appendChild(actions);
       });
       applyFilters();
@@ -1285,6 +1288,10 @@ def delete_production_operator_event(event_id: int, _=Depends(authenticate)):
         event = db.execute('SELECT source_row,column_number,action,username,created_at FROM production_operator_events WHERE id=?', (event_id,)).fetchone()
         if not event:
             raise HTTPException(404, "La nota ya no existe")
+        if event['action'] == 'rework':
+            profile = db.execute('SELECT process FROM users WHERE name=? COLLATE NOCASE', (_,)).fetchone()
+            if not profile or not can_delete_rework_profile(profile['process']):
+                raise HTTPException(403, 'Solo el área Administrativa y Coordinación pueden eliminar reprocesos')
         deleted = db.execute('DELETE FROM production_operator_events WHERE id=?', (event_id,)).rowcount
         if event['action'] == 'rework':
             db.execute('DELETE FROM production_rework WHERE source_row=? AND column_number=? AND username=? AND created_at=?', (event['source_row'], event['column_number'], event['username'], event['created_at']))
@@ -1936,6 +1943,11 @@ def sort_production_by_delivery(_=Depends(authenticate)):
 def can_delete_production_profile(profile):
     normalized = ''.join(c for c in unicodedata.normalize('NFD', str(profile)) if not unicodedata.combining(c))
     return ' '.join(normalized.upper().split()) in {'ADMINISTRACION', 'ADMINISTRATIVA', 'ADMINISTRATIVO', 'COORDINADOR', 'EDICION', 'COMERCIAL', 'COMERCIALES', 'ASISTENTE COMERCIAL', 'ASISTENTES COMERCIALES'}
+
+
+def can_delete_rework_profile(profile):
+    normalized = ''.join(c for c in unicodedata.normalize('NFD', str(profile or '')) if not unicodedata.combining(c))
+    return ' '.join(normalized.upper().split()) in {'ADMINISTRACION', 'ADMINISTRATIVA', 'ADMINISTRATIVO', 'COORDINADOR'}
 
 
 def production_delete_target(db, row, username):
