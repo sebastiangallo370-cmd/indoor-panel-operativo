@@ -567,6 +567,7 @@
     }
     traceCards.querySelectorAll('[data-card-row]').forEach(card => {
       const row = rows.find(r => r.source_row === Number(card.dataset.cardRow));
+      card.querySelector('.trace-mts-inventory')?.remove();
       const mtsDisplay = card.querySelector('.trace-mts-display.has-value');
       if (mtsDisplay && !mtsDisplay.querySelector('.trace-mts-actions')) {
         mtsDisplay.style.position = 'relative';
@@ -967,7 +968,8 @@
     if (mtsEdit) {
       event.preventDefault(); event.stopPropagation();
       const id = Number(mtsEdit.dataset.mtsEdit);
-      traceCards.querySelector('[data-card-mts="' + id + '"]')?.click();
+      const editButton = traceCards.querySelector('[data-card-mts="' + id + '"]');
+      if (editButton) { editButton.dataset.openEditor = '1'; editButton.click(); }
       return;
     }
     const mtsDelete = event.target.closest('[data-mts-delete]');
@@ -988,6 +990,14 @@
       event.preventDefault();
       const id = Number(mtsBtn.dataset.cardMts), row = productionData?.rows.find(r => r.source_row === id);
       if (!row || !productionData) return;
+      if (!mtsBtn.dataset.openEditor) {
+        const searchValue = traceField(row, 'NOMBRE TELA') || traceField(row, 'TELA') || traceField(row, 'REFERENCIA') || '';
+        const inventoryTab = [...document.querySelectorAll('.nav-children .tab')].find(tab => tab.textContent.toUpperCase().includes('BODEGA TELA'));
+        inventoryTab?.click();
+        setTimeout(() => { const search = document.getElementById('inventory-search'); if (search) { search.value = searchValue; search.dispatchEvent(new Event('input', {bubbles:true})); } }, 450);
+        return;
+      }
+      delete mtsBtn.dataset.openEditor;
       const ci = productionData.headers.findIndex(h => String(h || '').trim().toUpperCase() === 'MTS REQUERIDO');
       if (ci < 0) { alert('No se encontró la columna MTS REQUERIDO'); return; }
       const _noteRaw = (productionData.notes?.[id + ':' + (ci + 1)] || '').trim();
