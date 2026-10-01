@@ -251,7 +251,8 @@ INVENTORY_CONTROL_SCRIPT = """<script>
     event.stopImmediatePropagation();
     const query = String(event.target.value || '').trim().toLocaleLowerCase('es');
     document.querySelectorAll('#inventory-body .inventory-item-card').forEach(card => {
-      card.hidden = query && !String(card.querySelector('.inv-name')?.textContent || '').toLocaleLowerCase('es').includes(query);
+      card.hidden = false;
+      card.style.display = !query || String(card.querySelector('.inv-name')?.textContent || '').toLocaleLowerCase('es').includes(query) ? '' : 'none';
     });
   }, true);
   const rollStyle = document.createElement('style');
