@@ -548,7 +548,7 @@
     const mtsColi = productionData.headers.findIndex(h => String(h || '').trim().toUpperCase() === 'MTS REQUERIDO');
     const isMtsNoteKey = key => {
       const column = Number(String(key).split(':')[1]);
-      return column === 17 || (mtsColi >= 0 && column === mtsColi + 1);
+      return mtsColi >= 0 && column === mtsColi + 1;
     };
     traceCards.innerHTML = rows.map(row => {
       const summary = summaries.get(row.source_row), id = row.source_row;
