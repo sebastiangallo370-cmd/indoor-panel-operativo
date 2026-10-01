@@ -284,6 +284,22 @@ def _read_inventory() -> dict[str, Any]:
         units = sum(record["total"] for record in records)
         categories.append({"key": tab_key, "label": tab_label, "items": len(records), "units": units, "units_label": _display_total(units), "available": True})
         all_records.extend(records)
+    existing = {record['nombre'] for record in all_records if record['categoria'] == 'BODEGA TELA'}
+    added = 0
+    for fabric in _load_new_fabrics():
+        nombre = f"({fabric['codigo']}) {fabric['nombre']}"
+        if nombre in existing:
+            continue
+        all_records.append({
+            "id": f"BODEGA TELA:NUEVA:{fabric['codigo']}", "categoria": "BODEGA TELA", "categoria_label": "Bodega tela",
+            "nombre": nombre, "total": 0.0, "total_label": "0", "mts": 0.0, "rolls": 0,
+            "roll_values": [], "roll_statuses": [], "campos": {},
+        })
+        added += 1
+    if added:
+        for category in categories:
+            if category['key'] == 'BODEGA TELA':
+                category['items'] += added
     for movement in _load_movements():
         target = next((record for record in all_records if record['nombre'] == movement.get('name') or (movement.get('code') and f"({movement.get('code')})" in record['nombre'])), None)
         if not target:
@@ -383,6 +399,18 @@ def _refresh_snapshot() -> None:
         _cache.update({'at': 0.0, 'data': None})
 
 
+_new_fabrics_file = os.getenv('INVENTORY_NEW_FABRICS_FILE', '/data/inventory_telas_nuevas.json')
+
+
+def _load_new_fabrics() -> list[dict[str, Any]]:
+    try:
+        with open(_new_fabrics_file, encoding='utf-8') as handle:
+            data = json.load(handle)
+        return data if isinstance(data, list) else []
+    except (OSError, ValueError):
+        return []
+
+
 _documents_file = os.getenv('INVENTORY_DOCUMENTS_FILE', '/data/inventory_documentos.json')
 _documents_dir = os.getenv('INVENTORY_DOCUMENTS_DIR', '/data/inventory_documentos')
 
@@ -410,6 +438,33 @@ class InventoryBatch(BaseModel):
     movements: list[InventoryMovement] = Field(min_length=1, max_length=300)
     doc_hash: str = ''
     doc_name: str = ''
+
+
+class NewFabric(BaseModel):
+    codigo: str = Field(min_length=1, max_length=12, pattern=r'^[A-Za-z0-9-]+$')
+    nombre: str = Field(min_length=2, max_length=80)
+
+
+@inventario_router.post('/tela')
+def inventory_new_fabric(fabric: NewFabric):
+    codigo = fabric.codigo.strip()
+    nombre = re.sub(r'\s+', ' ', fabric.nombre.strip()).upper()
+    with _lock:
+        known = [item['nombre'] for item in (_load_snapshot() or {}).get('items', []) if item.get('categoria') == 'BODEGA TELA']
+        known += [f"({f['codigo']}) {f['nombre']}" for f in _load_new_fabrics()]
+        for name in known:
+            match = re.match(r'^\s*\(([^)]+)\)\s*(.*)$', name)
+            if match and match.group(1) == codigo:
+                raise HTTPException(status_code=409, detail=f'El código {codigo} ya existe: {name}')
+            if match and _normalized(match.group(2)) == _normalized(nombre):
+                raise HTTPException(status_code=409, detail=f'Ya existe una tela con ese nombre: {name}')
+        fabrics = _load_new_fabrics()
+        fabrics.append({'codigo': codigo, 'nombre': nombre, 'fecha': datetime.now(timezone.utc).isoformat()})
+        os.makedirs(os.path.dirname(_new_fabrics_file) or '.', exist_ok=True)
+        with open(_new_fabrics_file, 'w', encoding='utf-8') as handle:
+            json.dump(fabrics, handle, ensure_ascii=False)
+        _refresh_snapshot()
+    return {'ok': True, 'nombre': f'({codigo}) {nombre}'}
 
 
 @inventario_router.post('/movimientos')
