@@ -115,6 +115,50 @@ REWORK_CONTROLS_SCRIPT = """<script>
 })();
 </script>"""
 
+INVENTORY_CONTROL_SCRIPT = """<script>
+(() => {
+  const inventory = document.querySelector('.tab[data-kind="inventario"]');
+  const group = inventory?.closest('.nav-group');
+  const children = group?.querySelector('.nav-children');
+  if (!children || children.querySelector('[data-inventory-control]')) return;
+  const panel = document.createElement('section');
+  panel.className = 'panel';
+  panel.dataset.panel = 'panel-control';
+  panel.innerHTML = '<div class="control-panel"><div class="control-panel-head"><div><span>RESUMEN</span><h2>PANEL DE CONTROL</h2></div><button type="button" class="control-panel-refresh">Actualizar</button></div><div class="control-panel-cards">Cargando resumen…</div></div>';
+  document.querySelector('main')?.appendChild(panel);
+  const control = document.createElement('button');
+  control.type = 'button';
+  control.className = 'tab inventory-control-nav';
+  control.dataset.inventoryControl = 'true';
+  control.innerHTML = '<span class="nav-icon">PC</span><strong>PANEL DE CONTROL</strong>';
+  const cards = panel.querySelector('.control-panel-cards');
+  const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+  const load = async () => {
+    cards.textContent = 'Actualizando resumen…';
+    try {
+      const [stockResponse, productionResponse, reworkResponse] = await Promise.all([fetch('/api/inventarios', {cache:'no-store'}), fetch('/api/produccion', {cache:'no-store'}), fetch('/api/reproceso', {cache:'no-store'})]);
+      const [stock, production, rework] = await Promise.all([stockResponse.json(), productionResponse.json(), reworkResponse.json()]);
+      if (!stockResponse.ok || !productionResponse.ok || !reworkResponse.ok) throw Error('No fue posible cargar el resumen');
+      const orderIndex = (production.headers || []).findIndex(header => String(header || '').trim().toUpperCase() === 'ORDEN');
+      const orders = new Set((production.rows || []).map(row => String((row.values || [])[orderIndex] || '').trim()).filter(Boolean)).size;
+      const categories = (stock.categories || []).filter(category => category.available && category.key !== 'DOCUMENTACION PROCESO').length;
+      cards.innerHTML = '<article><small>ÓRDENES ACTIVAS</small><strong>' + orders.toLocaleString('es-CO') + '</strong><span>Pedidos cargados en producción</span></article><article><small>REFERENCIAS EN STOCK</small><strong>' + Number(stock.summary?.items || 0).toLocaleString('es-CO') + '</strong><span>' + categories + ' categorías disponibles</span></article><article><small>REPROCESOS</small><strong>' + rework.length.toLocaleString('es-CO') + '</strong><span>Registros pendientes de seguimiento</span></article>';
+    } catch (error) { cards.innerHTML = '<p>' + esc(error.message) + '</p>'; }
+  };
+  control.onclick = () => {
+    document.querySelectorAll('.tab').forEach(tab => tab.classList.toggle('active', tab === control));
+    document.querySelectorAll('.panel').forEach(item => item.classList.toggle('active', item === panel));
+    document.body.classList.remove('inicio-mode','inventory-mode','production-mode','schedule-mode','operarios-mode','cartera-mode');
+    load();
+  };
+  panel.querySelector('.control-panel-refresh').onclick = load;
+  const style = document.createElement('style');
+  style.textContent = '.control-panel{display:grid;gap:16px;max-width:1100px;margin:auto}.control-panel-head{display:flex;align-items:center;justify-content:space-between;gap:14px}.control-panel-head span{color:#d0f44c;font:800 10px Arial;letter-spacing:.1em}.control-panel-head h2{margin:4px 0 0;font-size:1.4rem}.control-panel-refresh{width:auto!important;padding:9px 13px!important;border:1px solid #60754d!important;border-radius:9px!important;background:#233020!important;color:#eff9df!important;font-weight:800}.control-panel-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px}.control-panel-cards article{display:grid;gap:8px;min-height:115px;padding:17px;border:1px solid #3d4f3d;border-radius:14px;background:linear-gradient(145deg,#182118,#101510)}.control-panel-cards small{color:#aebba7;font:800 10px Arial;letter-spacing:.07em}.control-panel-cards strong{color:#d0f44c;font:800 28px Arial}.control-panel-cards span,.control-panel-cards p{color:#bdc8b8;font-size:12px;margin:0}@media(max-width:700px){.control-panel-cards{grid-template-columns:1fr}.control-panel-head{align-items:flex-start}.control-panel-refresh{min-height:40px}}';
+  document.head.appendChild(style);
+  children.prepend(control);
+})();
+</script>"""
+
 REWORK_LAYOUT_STYLE = """<style>
 body:has(.panel[data-panel='reproceso'].active) main{width:100%!important;max-width:none!important;margin-left:0!important;margin-right:0!important;padding-left:clamp(18px,4vw,76px)!important;padding-right:clamp(18px,4vw,76px)!important}
 .panel[data-panel='reproceso'],.panel[data-panel='reproceso'].active,.rework-module{width:100%!important;max-width:none!important}
@@ -4018,7 +4062,7 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
 `;document.head.appendChild(traceFigmaStyle);setTraceView();
     const commercialGroup=commercialToggle.closest('.nav-group');commercialGroup.classList.add('collapsed');const productionToggle=document.getElementById('production-toggle');if(productionToggle)productionToggle.addEventListener('click',()=>{{const g=productionToggle.closest('.nav-group');g.classList.toggle('collapsed');if(!g.classList.contains('collapsed'))g.querySelector('.nav-children .tab')?.click()}});
     setTimeout(()=>{{if(!document.querySelector('.panel.active'))document.querySelector('.tab[data-kind="inicio"]')?.click()}},0);
-    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}<script src='/api/cartera/cartera.js?v=20261001-14'></script><script src='/trace-ui.js?v=20261001-17'></script><script src='/home-dashboard.js?v=20261001-7'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);</script></body></html>"""
+    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/api/cartera/cartera.js?v=20261001-14'></script><script src='/trace-ui.js?v=20261001-17'></script><script src='/home-dashboard.js?v=20261001-7'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);</script></body></html>"""
 
 
 def ordered_mockup_uploads(extras, slots):
