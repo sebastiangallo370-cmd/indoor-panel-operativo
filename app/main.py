@@ -43,6 +43,15 @@ security = HTTPBasic(auto_error=False)
 from app.cartera_api import cartera_router
 from app.inventario_api import inventario_router
 app = FastAPI(title="Asistente de Reprogramaciones", version="1.0.0")
+
+
+@app.middleware("http")
+async def no_cache_html(request: Request, call_next):
+    response = await call_next(request)
+    if request.url.path == "/" and response.headers.get("content-type", "").startswith("text/html"):
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+    return response
 PRODUCTION_START_ROW = 726
 PRODUCTION_CACHE = {"at": 0.0, "data": None}
 PRODUCTION_CACHE_LOCK = threading.Lock()
