@@ -260,13 +260,16 @@ INVENTORY_CONTROL_SCRIPT = """<script>
               const label = orders.map(o => o.orden + (o.mts ? ' · ' + o.mts.toLocaleString('es-CO') + ' MTS' : '')).join(' / ');
               const rolls = [];
               matched.forEach(item => (item.roll_values || []).forEach((value, index) => rolls.push({id: item.id, index, value: Number(value) || 0, started: item.roll_statuses?.[index] === 'started'})));
-              const chosen = rolls.filter(r => r.started);
-              let covered = chosen.reduce((sum, r) => sum + r.value, 0);
-              rolls.filter(r => !r.started).sort((x, y) => x.value - y.value).forEach(r => {
-                if (need > 0 ? covered >= need : chosen.some(c => !c.started)) return;
-                chosen.push({...r, started: false});
-                covered += r.value;
-              });
+              const chosen = [];
+              let covered = 0;
+              const ordered = [...rolls].sort((x, y) => (y.started - x.started) || (x.value - y.value));
+              if (need > 0) {
+                for (const r of ordered) { if (covered >= need) break; chosen.push(r); covered += r.value; }
+              } else {
+                rolls.filter(r => r.started).forEach(r => chosen.push(r));
+                const smallest = rolls.filter(r => !r.started).sort((x, y) => x.value - y.value)[0];
+                if (smallest) chosen.push(smallest);
+              }
               chosen.forEach(r => { if (!pickRolls.has(r.id)) pickRolls.set(r.id, new Set()); pickRolls.get(r.id).add(r.index); });
               matched.forEach(item => { if (pickRolls.has(item.id)) pickNotes.set(item.id, [...(pickNotes.get(item.id) || []), label]); });
             });
