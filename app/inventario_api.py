@@ -137,7 +137,7 @@ def _is_header(row: list[str]) -> bool:
     return name_index is not None and total_index is not None
 
 
-def _records_for_tab(values: list[list[str]], tab_key: str, tab_label: str) -> list[dict[str, Any]]:
+def _records_for_tab(values: list[list[str]], tab_key: str, tab_label: str, grid_rows: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
     if tab_key == "DOCUMENTACION PROCESO":
         records = []
         for row_index, row in enumerate(values, start=1):
@@ -192,7 +192,19 @@ def _records_for_tab(values: list[list[str]], tab_key: str, tab_label: str) -> l
         }
         meters = next((value for key, value in fields.items() if 'MTS' in _normalized(key) or 'METROS' in _normalized(key)), '')
         rolls = next((value for key, value in fields.items() if 'ROLLO' in _normalized(key)), '')
-        roll_values = [_number(value) for index, value in enumerate(row) if index not in {active_name, active_total} and str(value or '').strip() and _number(value) > 0]
+        roll_values = []
+        roll_statuses = []
+        for index, value in enumerate(row):
+            if index in {active_name, active_total} or not str(value or '').strip() or _number(value) <= 0:
+                continue
+            roll_values.append(_number(value))
+            fmt = (((grid_rows[row_index - 1].get('values', [])[index] if grid_rows and row_index - 1 < len(grid_rows) and index < len(grid_rows[row_index - 1].get('values', [])) else {})
+                    .get('effectiveFormat', {}).get('backgroundColor', {})) if grid_rows else {})
+            red, green, blue = float(fmt.get('red', 1)), float(fmt.get('green', 1)), float(fmt.get('blue', 1))
+            if red > .9 and .65 < green < .88 and blue < .8:
+                roll_statuses.append('started')
+            else:
+                roll_statuses.append('new')
         records.append({
             "id": f"{tab_key}:{row_index}:{len(records)}",
             "categoria": tab_key,
@@ -203,6 +215,7 @@ def _records_for_tab(values: list[list[str]], tab_key: str, tab_label: str) -> l
             "mts": _number(meters) if meters else total,
             "rolls": int(_number(rolls)) if rolls else 0,
             "roll_values": roll_values,
+            "roll_statuses": roll_statuses,
             "campos": fields,
         })
     return records
@@ -230,7 +243,15 @@ def _read_inventory() -> dict[str, Any]:
         except gspread.WorksheetNotFound:
             categories.append({"key": tab_key, "label": tab_label, "items": 0, "units": 0, "available": False})
             continue
-        records = _records_for_tab(worksheet.get_all_values(), tab_key, tab_label)
+        values = worksheet.get_all_values()
+        grid_rows = None
+        if tab_key == 'BODEGA TELA':
+            try:
+                metadata = workbook.fetch_sheet_metadata(params={'includeGridData': True, 'ranges': [f"'{tab_key}'!A1:Z{len(values)}"]})
+                grid_rows = next((sheet.get('data', [{}])[0].get('rowData', []) for sheet in metadata.get('sheets', []) if sheet.get('properties', {}).get('title') == tab_key), None)
+            except Exception:
+                grid_rows = None
+        records = _records_for_tab(values, tab_key, tab_label, grid_rows)
         units = sum(record["total"] for record in records)
         categories.append({"key": tab_key, "label": tab_label, "items": len(records), "units": units, "units_label": _display_total(units), "available": True})
         all_records.extend(records)
