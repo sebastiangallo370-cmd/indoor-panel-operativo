@@ -569,7 +569,7 @@
       const row = rows.find(r => r.source_row === Number(card.dataset.cardRow));
       const mtsDisplay = card.querySelector('.trace-mts-display.has-value');
       if (mtsDisplay && !mtsDisplay.querySelector('.trace-mts-actions')) {
-        mtsDisplay.insertAdjacentHTML('beforeend', '<span class="trace-mts-actions"><button type="button" data-mts-edit="' + row.source_row + '" aria-label="Editar MTS REQUERIDOS">✎</button><button type="button" data-mts-delete="' + row.source_row + '" aria-label="Eliminar MTS REQUERIDOS">⌫</button></span>');
+        mtsDisplay.insertAdjacentHTML('beforeend', '<span class="trace-mts-actions"><button type="button" style="width:30px!important;min-width:30px!important;height:30px!important;min-height:30px!important;padding:0!important;border-radius:7px!important;font-size:14px!important;line-height:1!important" data-mts-edit="' + row.source_row + '" aria-label="Editar MTS REQUERIDOS">✎</button><button type="button" style="width:30px!important;min-width:30px!important;height:30px!important;min-height:30px!important;padding:0!important;border-radius:7px!important;font-size:14px!important;line-height:1!important" data-mts-delete="' + row.source_row + '" aria-label="Eliminar MTS REQUERIDOS">⌫</button></span>');
       }
       if (canDelete) {
         const button = document.createElement('button');
