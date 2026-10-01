@@ -65,6 +65,8 @@ def _local_inventory() -> dict[str, Any]:
         "nombre": f"({fabric.get('code', '')}) {fabric.get('name', '')}".strip(),
         "total": 0.0,
         "total_label": "0",
+        "mts": 0.0,
+        "rolls": 0,
         "campos": {},
     } for index, fabric in enumerate(fabrics, start=1) if fabric.get("name")]
     return {
@@ -188,6 +190,8 @@ def _records_for_tab(values: list[list[str]], tab_key: str, tab_label: str) -> l
             for index, value in enumerate(row)
             if str(value or "").strip()
         }
+        meters = next((value for key, value in fields.items() if 'MTS' in _normalized(key) or 'METROS' in _normalized(key)), '')
+        rolls = next((value for key, value in fields.items() if 'ROLLO' in _normalized(key)), '')
         records.append({
             "id": f"{tab_key}:{row_index}:{len(records)}",
             "categoria": tab_key,
@@ -195,6 +199,8 @@ def _records_for_tab(values: list[list[str]], tab_key: str, tab_label: str) -> l
             "nombre": name,
             "total": total,
             "total_label": _display_total(total),
+            "mts": _number(meters) if meters else total,
+            "rolls": int(_number(rolls)) if rolls else 0,
             "campos": fields,
         })
     return records
@@ -268,7 +274,10 @@ def inventory_snapshot(refresh: bool = False):
                 _cache.update({"at": time.monotonic(), "data": snapshot})
                 return snapshot
         try:
-            payload = _local_inventory()
+            # La apertura normal usa la copia local. Solo una actualización
+            # explícita consulta Sheets para importar metros, rollos y demás
+            # columnas al snapshot del servidor.
+            payload = _read_inventory() if refresh else _local_inventory()
             _save_snapshot(payload)
         except Exception as exc:
             snapshot = _load_snapshot()

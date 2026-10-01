@@ -233,7 +233,7 @@ INVENTORY_CONTROL_SCRIPT = """<script>
       const data = await response.json();
       if (!response.ok) throw Error(data.detail || 'No fue posible cargar Inventarios');
       const esc = value => String(value ?? '').replace(/[&<>\"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[char]));
-      body.innerHTML = (data.items || []).map(item => '<article class="inventory-item-card"><span class="inv-badge">'+esc(item.categoria_label)+'</span><strong class="inv-name">'+esc(item.nombre)+'</strong><span class="inv-total">'+esc(item.total_label || item.total)+'</span><span class="inv-unit">unidades</span></article>').join('') || '<div class="inventory-empty">No hay referencias en el inventario local.</div>';
+      body.innerHTML = (data.items || []).map(item => '<article class="inventory-item-card"><span class="inv-badge">'+esc(item.categoria_label)+'</span><strong class="inv-name">'+esc(item.nombre)+'</strong><span class="inv-total">'+esc(item.mts ?? item.total ?? 0)+' MTS</span><span class="inv-unit">'+esc(item.rolls ?? 0)+' rollos</span></article>').join('') || '<div class="inventory-empty">No hay referencias en el inventario local.</div>';
       if (status) status.textContent = (data.summary?.items || data.items?.length || 0) + ' referencias disponibles · inventario local';
       body.dataset.localRendered = 'true';
     } catch (error) { body.innerHTML = '<div class="inventory-empty">'+String(error.message || error)+'</div>'; }
