@@ -198,8 +198,13 @@ INVENTORY_CONTROL_SCRIPT = """<script>
   style.textContent = '.control-panel{display:grid;gap:16px;max-width:1100px;margin:auto}.control-panel-head{display:flex;align-items:center;justify-content:space-between;gap:14px}.control-panel-head span{color:#d0f44c;font:800 10px Arial;letter-spacing:.1em}.control-panel-head h2{margin:4px 0 0;font-size:1.4rem}.control-panel-refresh{width:auto!important;padding:9px 13px!important;border:1px solid #60754d!important;border-radius:9px!important;background:#233020!important;color:#eff9df!important;font-weight:800}.control-panel-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px}.control-panel-cards article{display:grid;gap:8px;min-height:115px;padding:17px;border:1px solid #3d4f3d;border-radius:14px;background:linear-gradient(145deg,#182118,#101510)}.control-panel-cards small{color:#aebba7;font:800 10px Arial;letter-spacing:.07em}.control-panel-cards strong{color:#d0f44c;font:800 28px Arial}.control-panel-cards span,.control-panel-cards p{color:#bdc8b8;font-size:12px;margin:0}@media(max-width:700px){.control-panel-cards{grid-template-columns:1fr}.control-panel-head{align-items:flex-start}.control-panel-refresh{min-height:40px}}';
   document.head.appendChild(style);
   children.prepend(control);
-  const removeResumen = setInterval(() => { [...document.querySelectorAll('.nav-children .tab')].filter(button => button.textContent.trim() === 'RESUMEN').forEach(item => item.remove()); }, 100);
-  setTimeout(() => clearInterval(removeResumen), 10000);
+  const hideResumen = () => {
+    [...document.querySelectorAll('.nav-children .tab')]
+      .filter(button => button.textContent.trim().replace(/\s+/g, ' ') === 'IVRESUMEN' || button.textContent.trim() === 'RESUMEN')
+      .forEach(item => { item.hidden = true; item.style.display = 'none'; });
+  };
+  hideResumen();
+  new MutationObserver(hideResumen).observe(document.body, {childList:true, subtree:true});
 })();
 </script>"""
 
