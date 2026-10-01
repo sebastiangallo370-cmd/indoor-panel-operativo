@@ -3034,6 +3034,7 @@ def home(_=Depends(authenticate)):
       <div id='cartera-app' class='inventory-shell ct-shell'><p class='ct-empty'>Cargando control de cartera…</p></div>
     </section>
     <p class='footer-note'>Los documentos se procesan de forma segura en el servidor de Indoor.</p></main><script>
+    window.addEventListener('error',function(e){{const d=document.getElementById('js-error-banner')||document.createElement('div');d.id='js-error-banner';d.style.cssText='position:fixed;inset:0;z-index:99999;background:#0d1109;color:#ff9c9c;font-family:monospace;padding:24px;overflow:auto;font-size:14px;line-height:1.6';d.innerHTML='<h2 style="color:#ff6060;margin:0 0 12px">Error JS – envíale esta pantalla a quien te ayuda</h2><p>'+String(e.message||'').replace(/</g,'&lt;')+'</p><p style="color:#aaa">'+String(e.filename||'').replace(/</g,'&lt;')+' línea '+e.lineno+'</p>';document.body.appendChild(d)}});
     const deleteProductionAllowed={json.dumps(can_delete_production_profile(user_process))};
     const form=document.getElementById('upload-form'),input=document.getElementById('archivo'),drop=document.getElementById('dropzone'),selected=document.getElementById('selected'),submit=document.getElementById('submit'),message=document.getElementById('message'),reproExtras=document.getElementById('repro-extras');
     const tbody=document.getElementById('jobs'),orderBody=document.getElementById('order-jobs'),creatorBody=document.getElementById('creator-jobs'); let allJobs=[],hydratedCreatorJob=0;
