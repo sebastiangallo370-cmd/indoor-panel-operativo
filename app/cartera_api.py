@@ -21,7 +21,10 @@ def _amount(v):
     if isinstance(v,(int,float)): return float(v)
     s=re.sub(r"[^0-9,.-]","",str(v or ""))
     if s.count(",")==1 and s.count(".")>=1: s=s.replace(".","").replace(",",".")  # 1.234.567,00 → 1234567.00
-    elif s.count(",")==1: s=s.replace(",",".")                                      # 1234567,00 → 1234567.00
+    elif s.count(",")==1:
+        after=s.split(",")[1]
+        if len(after)==3: s=s.replace(",","")   # 139,000 → 139000 (miles anglosajón)
+        else: s=s.replace(",",".")               # 1234567,00 → 1234567.00 (decimal colombiano)
     elif s.count(".")>1: s=s.replace(".","")                                        # 1.234.567 → 1234567
     elif s.count(",")>1: s=s.replace(",","")                                        # 1,685,000 → 1685000
     try: return float(s)

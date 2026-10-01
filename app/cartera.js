@@ -3,7 +3,7 @@
 /* Interfaz sin dependencias: cálculos derivados siempre ocurren en el navegador. */
 const app=document.getElementById('cartera-app'); let data, pendingPdfs=[], uploadResults=[], tab='tablero', activeBand='', filters={clienteTexto:'',orden:'',vendedor:'',estado:'pendiente'};
 const money=v=>'$'+Math.round(v||0).toLocaleString('es-CO');
-function amount(v){if(typeof v==='number')return v;let s=String(v??'').replace(/[^0-9,.-]/g,'');if((s.match(/,/g)||[]).length===1&&(s.match(/\./g)||[]).length>=1){s=s.replace(/\./g,'').replace(',','.')}else if((s.match(/,/g)||[]).length===1){s=s.replace(',','.')}else if((s.match(/\./g)||[]).length>1){s=s.replace(/\./g,'')}else if((s.match(/,/g)||[]).length>1){s=s.replace(/,/g,'')}return parseFloat(s)||0}
+function amount(v){if(typeof v==='number')return v;let s=String(v??'').replace(/[^0-9,.-]/g,'');if((s.match(/,/g)||[]).length===1&&(s.match(/\./g)||[]).length>=1){s=s.replace(/\./g,'').replace(',','.')}else if((s.match(/,/g)||[]).length===1){let after=s.split(',')[1]||'';if(after.length===3){s=s.replace(',','')}else{s=s.replace(',','.')}}else if((s.match(/\./g)||[]).length>1){s=s.replace(/\./g,'')}else if((s.match(/,/g)||[]).length>1){s=s.replace(/,/g,'')}return parseFloat(s)||0}
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const today=()=>new Date().toISOString().slice(0,10); const date=v=>v?new Date(v+'T12:00:00'):null; const days=(from,to)=>Math.round((date(to)-date(from))/86400000);
 function term(d){return Number(d.plazoDias||(/(\d+)/.exec(d.formaPago||'')||[0,0])[1])||0}
