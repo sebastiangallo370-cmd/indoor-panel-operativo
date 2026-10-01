@@ -31,6 +31,24 @@ CACHE_SECONDS = 90
 _cache: dict[str, Any] = {"at": 0.0, "data": None}
 _lock = threading.Lock()
 _movement_file = os.getenv('INVENTORY_MOVEMENTS_FILE', '/data/inventory_movements.json')
+_snapshot_file = os.getenv('INVENTORY_SNAPSHOT_FILE', '/data/inventory_snapshot.json')
+
+
+def _load_snapshot() -> dict[str, Any] | None:
+    try:
+        with open(_snapshot_file, encoding='utf-8') as handle:
+            data = json.load(handle)
+            return data if isinstance(data, dict) and data.get('items') is not None else None
+    except (OSError, ValueError):
+        return None
+
+
+def _save_snapshot(data: dict[str, Any]) -> None:
+    folder = os.path.dirname(_snapshot_file)
+    if folder:
+        os.makedirs(folder, exist_ok=True)
+    with open(_snapshot_file, 'w', encoding='utf-8') as handle:
+        json.dump(data, handle, ensure_ascii=False)
 
 
 class InventoryMovement(BaseModel):
@@ -220,10 +238,19 @@ def inventory_snapshot(refresh: bool = False):
         cached = _cache["data"]
         if cached and not refresh and time.monotonic() - _cache["at"] < CACHE_SECONDS:
             return cached
+        if not refresh and cached is None:
+            snapshot = _load_snapshot()
+            if snapshot is not None:
+                _cache.update({"at": time.monotonic(), "data": snapshot})
+                return snapshot
         try:
             payload = _read_inventory()
+            _save_snapshot(payload)
         except Exception as exc:
-            raise HTTPException(status_code=503, detail="No fue posible leer Inventarios. Verifica que la hoja esté compartida con la cuenta de servicio y que la URL esté configurada.") from exc
+            snapshot = _load_snapshot()
+            if snapshot is None:
+                raise HTTPException(status_code=503, detail="Inventario aún no sincronizado. Ejecuta una sincronización inicial.") from exc
+            payload = snapshot
         _cache.update({"at": time.monotonic(), "data": payload})
         return payload
 
