@@ -51,6 +51,30 @@ def _save_snapshot(data: dict[str, Any]) -> None:
         json.dump(data, handle, ensure_ascii=False)
 
 
+def _local_inventory() -> dict[str, Any]:
+    """Catálogo inmediato para que Inventarios nunca dependa de Sheets para abrir."""
+    try:
+        with open(os.path.join(os.path.dirname(__file__), "fabrics.json"), encoding="utf-8") as handle:
+            fabrics = json.load(handle)
+    except (OSError, ValueError):
+        fabrics = []
+    items = [{
+        "id": f"BODEGA TELA:LOCAL:{index}",
+        "categoria": "BODEGA TELA",
+        "categoria_label": "Bodega tela",
+        "nombre": f"({fabric.get('code', '')}) {fabric.get('name', '')}".strip(),
+        "total": 0.0,
+        "total_label": "0",
+        "campos": {},
+    } for index, fabric in enumerate(fabrics, start=1) if fabric.get("name")]
+    return {
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "categories": [{"key": "BODEGA TELA", "label": "Bodega tela", "items": len(items), "units": 0, "units_label": "0", "available": True}],
+        "items": items,
+        "summary": {"items": len(items), "units": 0, "units_label": "0", "sources": 1},
+    }
+
+
 class InventoryMovement(BaseModel):
     type: str = Field(pattern='^(INGRESO|SALIDA)$')
     name: str
@@ -244,7 +268,7 @@ def inventory_snapshot(refresh: bool = False):
                 _cache.update({"at": time.monotonic(), "data": snapshot})
                 return snapshot
         try:
-            payload = _read_inventory()
+            payload = _local_inventory()
             _save_snapshot(payload)
         except Exception as exc:
             snapshot = _load_snapshot()
