@@ -957,8 +957,8 @@
     if (inventoryButton) {
       event.preventDefault(); event.stopPropagation();
       const row = productionData?.rows.find(item => Number(item.source_row) === Number(inventoryButton.dataset.cardInventory));
-      const searchValue = row && (traceField(row, 'NOMBRE TELA') || traceField(row, 'REFERENCIA') || '');
-      const inventoryTab = [...document.querySelectorAll('.nav-children .tab')].find(tab => tab.textContent.trim() === 'BODEGA TELA');
+      const searchValue = row && (traceField(row, 'NOMBRE TELA') || traceField(row, 'TELA') || traceField(row, 'REFERENCIA') || '');
+      const inventoryTab = [...document.querySelectorAll('.nav-children .tab')].find(tab => tab.textContent.toUpperCase().includes('BODEGA TELA'));
       inventoryTab?.click();
       setTimeout(() => { const search = document.getElementById('inventory-search'); if (search) { search.value = searchValue; search.dispatchEvent(new Event('input', {bubbles:true})); } }, 450);
       return;
