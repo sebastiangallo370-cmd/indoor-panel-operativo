@@ -997,8 +997,8 @@
     if (mtsDelete) {
       event.preventDefault(); event.stopPropagation();
       const id = Number(mtsDelete.dataset.mtsDelete), row = productionData?.rows.find(r => r.source_row === id);
-      const ci = productionData?.headers.findIndex(h => String(h || '').trim().toUpperCase() === 'MTS REQUERIDO');
-      if (!row || ci == null || ci < 0 || !confirm('¿Eliminar MTS REQUERIDOS de esta orden?')) return;
+      const ci = 16;
+      if (!row || !confirm('¿Eliminar MTS REQUERIDOS de esta orden?')) return;
       const button = mtsDelete; button.disabled = true;
       fetch('/api/produccion/nota', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({row:id, column:ci + 1, note:''})})
         .then(response => response.ok ? response.json() : response.json().then(data => { throw Error(data.detail || 'No se pudo eliminar MTS REQUERIDOS'); }))
@@ -1011,8 +1011,7 @@
       event.preventDefault();
       const id = Number(mtsBtn.dataset.cardMts), row = productionData?.rows.find(r => r.source_row === id);
       if (!row || !productionData) return;
-      const ci = productionData.headers.findIndex(h => String(h || '').trim().toUpperCase() === 'MTS REQUERIDO');
-      if (ci < 0) { alert('No se encontró la columna MTS REQUERIDO'); return; }
+      const ci = 16;
       const _noteRaw = (productionData.notes?.[id + ':' + (ci + 1)] || '').trim();
       const _noteMatches = [..._noteRaw.matchAll(/(\d+[,.]?\d*)\s*MTS/gi)];
       const cur = _noteMatches.length ? _noteMatches[_noteMatches.length - 1][1] + ' MTS' : (_noteRaw.includes(' : ') ? _noteRaw.split(' : ').slice(1).join(' : ').trim() : _noteRaw);
