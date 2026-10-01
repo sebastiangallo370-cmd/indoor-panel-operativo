@@ -41,7 +41,7 @@ pedidos.CONFIG_PATH = STATE_DIR / "pedidos_config.json"
 DB_PATH = STATE_DIR / "jobs.sqlite3"
 security = HTTPBasic(auto_error=False)
 from app.cartera_api import cartera_router
-from app.inventario_api import inventario_router
+from app.inventario_api import inventario_router, start_sublimacion_worker
 app = FastAPI(title="Asistente de Reprogramaciones", version="1.0.0")
 
 
@@ -235,56 +235,16 @@ INVENTORY_CONTROL_SCRIPT = """<script>
       const esc = value => String(value ?? '').replace(/[&<>\"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[char]));
       const activeCategory = [...document.querySelectorAll('.nav-children .tab.active strong')].map(node => node.textContent.trim().toUpperCase()).find(Boolean) || 'BODEGA TELA';
       const visibleItems = activeCategory === 'RESUMEN' ? (data.items || []) : (data.items || []).filter(item => String(item.categoria || '').trim().toUpperCase() === activeCategory);
-      const normTxt = v => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/\s+/g, ' ').trim();
       const pickRolls = new Map(), pickNotes = new Map();
       if (activeCategory === 'BODEGA TELA') {
-        try {
-          const prod = await fetch('/api/produccion', {cache:'no-store'});
-          if (prod.ok) {
-            const pd = await prod.json();
-            const H = (pd.headers || []).map(normTxt), si = H.indexOf('SUBLIMACION'), ti = H.indexOf('TELA');
-            const needs = {};
-            if (si >= 0 && ti >= 0) (pd.rows || []).forEach(r => {
-              if (normTxt(r.values[si]) !== 'P') return;
-              const tela = normTxt(r.values[ti]);
-              if (!tela) return;
-              const m = [...String((pd.notes || {})[r.source_row + ':17'] || '').matchAll(/(\d+(?:[.,]\d+)?)\s*MTS/gi)].pop();
-              (needs[tela] ||= []).push({orden: String(r.values[4] || '').trim(), mts: m ? parseFloat(m[1].replace(',', '.')) : 0});
-            });
-            const usedRolls = new Set();
-            let orderSeq = 0;
-            const fmtMts = n => Number(n).toLocaleString('es-CO', {maximumFractionDigits: 2});
-            Object.entries(needs).forEach(([tela, orders]) => {
-              const base = item => ' ' + normTxt(item.nombre).replace(/^\(\d+\)\s*/, '') + ' ';
-              let matched = visibleItems.filter(item => base(item).includes(' ' + tela + ' ') && !base(item).includes('DON ALVEIRO') && !base(item).includes(' RIB '));
-              const white = matched.filter(item => base(item).includes(' BLANCO '));
-              if (white.length) matched = white;
-              orders.forEach(o => {
-                const color = orderSeq++ % 5;
-                const rolls = [];
-                matched.forEach(item => (item.roll_values || []).forEach((value, index) => {
-                  const key = item.id + ':' + index;
-                  if (!usedRolls.has(key)) rolls.push({id: item.id, index, key, value: Number(value) || 0, started: item.roll_statuses?.[index] === 'started'});
-                }));
-                rolls.sort((x, y) => (y.started - x.started) || (x.value - y.value));
-                const chosen = [];
-                let covered = 0;
-                if (o.mts > 0) { for (const r of rolls) { if (covered >= o.mts) break; chosen.push(r); covered += r.value; } }
-                else if (rolls[0]) { chosen.push(rolls[0]); covered = rolls[0].value; }
-                const short = o.mts > 0 && covered < o.mts;
-                chosen.forEach(r => {
-                  usedRolls.add(r.key);
-                  if (!pickRolls.has(r.id)) pickRolls.set(r.id, new Map());
-                  pickRolls.get(r.id).set(r.index, short ? 'short' : String(color));
-                });
-                const owners = new Set(chosen.map(r => r.id));
-                if (!owners.size) matched.forEach(m => owners.add(m.id));
-                const note = {label: o.orden + (o.mts ? ' · ' + fmtMts(o.mts) + ' MTS' : ''), short, missing: short ? o.mts - covered : 0, color};
-                owners.forEach(id => pickNotes.set(id, [...(pickNotes.get(id) || []), note]));
-              });
-            });
-          }
-        } catch (error) {}
+        (data.sublimacion || []).forEach(plan => {
+          plan.rolls.forEach(roll => {
+            if (!pickRolls.has(roll.id)) pickRolls.set(roll.id, new Map());
+            pickRolls.get(roll.id).set(roll.index, plan.short ? 'short' : String(plan.color));
+          });
+          const note = {label: plan.label, short: plan.short, missing: plan.missing, color: plan.color};
+          (plan.owners || []).forEach(id => pickNotes.set(id, [...(pickNotes.get(id) || []), note]));
+        });
       }
       if (!document.getElementById('inventory-pick-style-v2')) {
         const pickStyle = document.createElement('style');
@@ -915,6 +875,7 @@ def startup():
     flag.parent.mkdir(parents=True, exist_ok=True)
     flag.touch(exist_ok=True)
     sheets_sync.start(connect, legacy.get_gspread, STATE_DIR)
+    start_sublimacion_worker()
     db_backup.start(DB_PATH, STATE_DIR, legacy.get_supabase)
 
 

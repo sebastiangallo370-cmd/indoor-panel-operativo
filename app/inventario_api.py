@@ -16,6 +16,8 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from google.oauth2.service_account import Credentials
 
+from app import sublimacion_stock
+
 
 inventario_router = APIRouter(prefix="/api/inventarios", tags=["inventarios"])
 
@@ -289,8 +291,24 @@ def _read_inventory() -> dict[str, Any]:
     }
 
 
+def _with_sublimacion(payload: dict[str, Any]) -> dict[str, Any]:
+    try:
+        items, plan = sublimacion_stock.reconcile(payload.get('items') or [])
+    except Exception:
+        return payload
+    return {**payload, "items": items, "sublimacion": plan}
+
+
 @inventario_router.get("")
 def inventory_snapshot(refresh: bool = False):
+    return _with_sublimacion(_inventory_payload(refresh))
+
+
+def start_sublimacion_worker() -> None:
+    sublimacion_stock.start_worker(_load_snapshot)
+
+
+def _inventory_payload(refresh: bool = False):
     with _lock:
         cached = _cache["data"]
         if cached and not refresh and time.monotonic() - _cache["at"] < CACHE_SECONDS:
