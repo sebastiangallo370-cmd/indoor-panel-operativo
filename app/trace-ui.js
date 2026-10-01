@@ -971,7 +971,7 @@
       return;
     }
     const inventoryAccess = event.target.closest('[data-inventory-access]');
-    if (inventoryAccess) {
+    if (inventoryAccess && !event.target.closest('[data-mts-edit],[data-mts-delete]')) {
       event.preventDefault(); event.stopPropagation();
       const id = Number(inventoryAccess.dataset.inventoryAccess), row = productionData?.rows.find(item => Number(item.source_row) === id);
       const searchValue = row && (traceField(row, 'NOMBRE TELA') || traceField(row, 'TELA') || traceField(row, 'REFERENCIA') || '');
