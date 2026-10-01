@@ -759,7 +759,10 @@
       if (!response.ok) throw new Error(data.detail || 'No se pudo registrar el reproceso');
       if (data.values) row.values = data.values;
       productionStatus.textContent = '✓ Reproceso registrado en la orden ' + traceField(row, 'ORDEN');
-      reworkEntryDialog.close();
+      reworkReason.value = '';
+      updateReworkCount();
+      reworkMessage.textContent = 'Reproceso guardado. Puedes editarlo o quitar su estado de la tarjeta abajo.';
+      await loadReworkEntryHistory(rowId, column);
       renderProduction();
       renderTraceCards();
     } catch (error) { reworkMessage.textContent = error.message; }
