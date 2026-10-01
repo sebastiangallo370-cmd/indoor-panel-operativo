@@ -546,13 +546,16 @@
     });
     toolbar.querySelector('.trace-results').textContent = 'Mostrando ' + pageResult.start + '–' + pageResult.end + ' de ' + pageResult.total + ' tarjetas · Entrega: de más próxima a más lejana' + (filter === 'mine' ? ' · Asignadas a tu usuario' : '');
     const mtsColi = productionData.headers.findIndex(h => String(h || '').trim().toUpperCase() === 'MTS REQUERIDO');
-    const isMtsNoteKey = key => mtsColi < 0 || Number(String(key).split(':')[1]) !== mtsColi + 1;
+    const isMtsNoteKey = key => {
+      const column = Number(String(key).split(':')[1]);
+      return column === 17 || (mtsColi >= 0 && column === mtsColi + 1);
+    };
     traceCards.innerHTML = rows.map(row => {
       const summary = summaries.get(row.source_row), id = row.source_row;
       const _mtsRaw = mtsColi >= 0 ? (productionData.notes?.[id + ':' + (mtsColi + 1)] || '').trim() : '';
       const _mtsMatches = [..._mtsRaw.matchAll(/(\d+[,.]?\d*)\s*MTS/gi)];
       const mtsV = _mtsMatches.length ? _mtsMatches[_mtsMatches.length - 1][1] + ' MTS' : (_mtsRaw.includes(' : ') ? _mtsRaw.split(' : ').slice(1).join(' : ').trim() : _mtsRaw);
-      const notes = Object.entries(productionData.notes || {}).filter(([k, v]) => k.startsWith(id + ':') && v && isMtsNoteKey(k)).length;
+      const notes = Object.entries(productionData.notes || {}).filter(([k, v]) => k.startsWith(id + ':') && v && !isMtsNoteKey(k)).length;
       const responsible = summary.focus?.responsible || '';
       const due = traceField(row, 'FECHA DE ENTREGA');
       const dueLabel = !summary.due ? 'Sin fecha' : summary.overdue ? 'Atrasado' : summary.state !== 'finished' && summary.due.getTime() === scheduleToday().getTime() ? 'Entrega hoy' : 'Entrega';
@@ -602,7 +605,7 @@
       const description = ['PRODUCTO', 'DESCRIPCIÓN', 'DESCRIPCION', 'PRENDA'].map(h => traceField(row, h)).find(v => v.trim());
       const fabric = traceField(row, 'TELA'), observation = traceField(row, 'OBSERVACIONES');
       const details = (fabric ? '<span><small>TELA</small><strong>' + esc(fabric) + '</strong></span>' : '');
-      const notes = Object.entries(productionData.notes || {}).filter(([k,v]) => k.startsWith(row.source_row + ':') && v && isMtsNoteKey(k));
+      const notes = Object.entries(productionData.notes || {}).filter(([k,v]) => k.startsWith(row.source_row + ':') && v && !isMtsNoteKey(k));
       card.querySelector('.trace-project').insertAdjacentHTML('afterend', '<section class="trace-manufacture"><span class="trace-eyebrow">A FABRICAR</span><h4>' + esc(description || traceField(row, 'REFERENCIA') || 'Producto por especificar') + '</h4>' + (details ? '<div class="trace-material-facts">' + details + '</div>' : '') + (observation ? '<p class="trace-production-note"><strong>INDICACIONES</strong>' + esc(observation) + '</p>' : '') + (notes.length ? '<details class="trace-inline-notes"><summary>Ver ' + notes.length + ' indicación' + (notes.length === 1 ? '' : 'es') + ' de procesos</summary>' + notes.map(([k,v]) => '<p><strong>' + esc(productionData.headers[Number(k.split(':')[1])-1]) + '</strong>' + esc(v) + '</p>').join('') + '</details>' : '') + '</section>');
       card.querySelector('[data-card-detail]').textContent = 'LISTADO Y DETALLES';
       if (notes.length) {
