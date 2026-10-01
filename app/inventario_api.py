@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import json
 import re
 import threading
 import time
@@ -12,6 +13,7 @@ from typing import Any
 
 import gspread
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
 from google.oauth2.service_account import Credentials
 
 
@@ -28,6 +30,31 @@ SOURCE_TABS = (
 CACHE_SECONDS = 90
 _cache: dict[str, Any] = {"at": 0.0, "data": None}
 _lock = threading.Lock()
+_movement_file = os.getenv('INVENTORY_MOVEMENTS_FILE', '/data/inventory_movements.json')
+
+
+class InventoryMovement(BaseModel):
+    type: str = Field(pattern='^(INGRESO|SALIDA)$')
+    name: str
+    code: str = ''
+    mts: float = Field(gt=0)
+    rolls: int = Field(default=1, ge=1)
+
+
+def _load_movements() -> list[dict[str, Any]]:
+    try:
+        with open(_movement_file, encoding='utf-8') as handle:
+            return json.load(handle)
+    except (OSError, ValueError):
+        return []
+
+
+def _save_movements(movements: list[dict[str, Any]]) -> None:
+    folder = os.path.dirname(_movement_file)
+    if folder:
+        os.makedirs(folder, exist_ok=True)
+    with open(_movement_file, 'w', encoding='utf-8') as handle:
+        json.dump(movements, handle, ensure_ascii=False)
 
 
 def _normalized(value: Any) -> str:
@@ -157,6 +184,21 @@ def _read_inventory() -> dict[str, Any]:
         units = sum(record["total"] for record in records)
         categories.append({"key": tab_key, "label": tab_label, "items": len(records), "units": units, "units_label": _display_total(units), "available": True})
         all_records.extend(records)
+    for movement in _load_movements():
+        target = next((record for record in all_records if record['nombre'] == movement.get('name') or (movement.get('code') and f"({movement.get('code')})" in record['nombre'])), None)
+        if not target:
+            continue
+        sign = 1 if movement.get('type') == 'INGRESO' else -1
+        target['total'] = max(0, target['total'] + sign * float(movement.get('mts') or 0))
+        target['total_label'] = _display_total(target['total'])
+        if sign > 0:
+            fields = target.setdefault('campos', {})
+            base = 'Movimiento ingreso'
+            index = 1
+            while f'{base} {index}' in fields:
+                index += 1
+            for roll in range(int(movement.get('rolls') or 1)):
+                fields[f'{base} {index + roll}'] = str(movement.get('mts') or 0)
     all_records.sort(key=lambda record: (record["categoria_label"], record["nombre"].casefold()))
     total_units = sum(record["total"] for record in all_records)
     return {
@@ -179,3 +221,13 @@ def inventory_snapshot(refresh: bool = False):
             raise HTTPException(status_code=503, detail="No fue posible leer Inventarios. Verifica que la hoja esté compartida con la cuenta de servicio y que la URL esté configurada.") from exc
         _cache.update({"at": time.monotonic(), "data": payload})
         return payload
+
+
+@inventario_router.post('/movimiento')
+def inventory_movement(movement: InventoryMovement):
+    with _lock:
+        movements = _load_movements()
+        movements.append(movement.model_dump())
+        _save_movements(movements)
+        _cache.update({'at': 0.0, 'data': None})
+    return {'ok': True}
