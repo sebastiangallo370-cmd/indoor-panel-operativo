@@ -91,6 +91,7 @@ def read_orders() -> dict[int, dict] | None:
             found = re.findall(r'(\d+(?:[.,]\d+)?)\s*MTS', note, re.I)
             orders[row] = {
                 'orden': str(values[4]).strip(),
+                'referencia': str(values[6]).strip() if len(values) > 6 else '',
                 'tela': norm(values[ti]),
                 'mts': float(found[-1].replace(',', '.')) if found else 0.0,
                 'state': state,
@@ -167,7 +168,7 @@ def build_plan(items: list[dict], orders: list[tuple[int, dict]]) -> list[dict]:
         plans.append({
             'source_row': source_row, 'orden': order['orden'], 'mts': need, 'color': seq % COLORS,
             'short': short, 'missing': round(need - covered, 2) if short else 0.0,
-            'label': order['orden'] + (f" · {f'{need:.2f}'.rstrip('0').rstrip('.').replace('.', ',')} MTS" if need else ''),
+            'label': order['orden'] + (f" · {order['referencia']}" if order.get('referencia') else '') + (f" · {f'{need:.2f}'.rstrip('0').rstrip('.').replace('.', ',')} MTS" if need else ''),
             'rolls': chosen, 'owners': owners,
         })
     return plans
