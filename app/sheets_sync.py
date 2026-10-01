@@ -117,6 +117,8 @@ def apply(db, snapshot):
                 db.execute('INSERT INTO production_rows(source_row,values_json,sort_order) VALUES (?,?,?)',
                            (number,json.dumps(item['values'],ensure_ascii=False),number))
                 counts['new'] += 1
+            if old is not None and item['notes'].get('17') != (old.get('notes') or {}).get('17'):
+                db.execute('DELETE FROM production_notes WHERE source_row=? AND column_number=17',(number,))
             db.execute('DELETE FROM production_sheet_notes WHERE source_row=?',(number,))
             db.executemany('INSERT INTO production_sheet_notes VALUES (?,?,?)',
                            [(number,int(column),note) for column,note in item['notes'].items()])
@@ -168,7 +170,7 @@ def decorate(db, data):
         entries = data.setdefault('note_entries', {})
         if note != local:
             entries[key] = [{'text': note, 'author': ''}] + entries.get(key, [])
-        data['notes'][key] = note if not local or local == note else note+'\n\nNota de la web: '+local
+        data['notes'][key] = (local or note) if column == 17 else (note if not local or local == note else note+'\n\nNota de la web: '+local)
     meta = dict(db.execute("SELECT key,value FROM production_meta WHERE key LIKE 'sheets_sync_%'"))
     data['sheets_sync'] = {'checked_at':meta.get('sheets_sync_checked_at'), 'error':meta.get('sheets_sync_error',''), 'start_row':START_ROW}
     return data
