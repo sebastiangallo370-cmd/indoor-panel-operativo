@@ -251,38 +251,50 @@ INVENTORY_CONTROL_SCRIPT = """<script>
               const m = [...String((pd.notes || {})[r.source_row + ':17'] || '').matchAll(/(\d+(?:[.,]\d+)?)\s*MTS/gi)].pop();
               (needs[tela] ||= []).push({orden: String(r.values[4] || '').trim(), mts: m ? parseFloat(m[1].replace(',', '.')) : 0});
             });
+            const usedRolls = new Set();
+            let orderSeq = 0;
+            const fmtMts = n => Number(n).toLocaleString('es-CO', {maximumFractionDigits: 2});
             Object.entries(needs).forEach(([tela, orders]) => {
               const base = item => ' ' + normTxt(item.nombre).replace(/^\(\d+\)\s*/, '') + ' ';
               let matched = visibleItems.filter(item => base(item).includes(' ' + tela + ' '));
               const white = matched.filter(item => base(item).includes(' BLANCO '));
               if (white.length) matched = white;
-              const need = orders.reduce((sum, o) => sum + o.mts, 0);
-              const label = orders.map(o => o.orden + (o.mts ? ' · ' + o.mts.toLocaleString('es-CO') + ' MTS' : '')).join(' / ');
-              const rolls = [];
-              matched.forEach(item => (item.roll_values || []).forEach((value, index) => rolls.push({id: item.id, index, value: Number(value) || 0, started: item.roll_statuses?.[index] === 'started'})));
-              const chosen = [];
-              let covered = 0;
-              const ordered = [...rolls].sort((x, y) => (y.started - x.started) || (x.value - y.value));
-              if (need > 0) {
-                for (const r of ordered) { if (covered >= need) break; chosen.push(r); covered += r.value; }
-              } else {
-                rolls.filter(r => r.started).forEach(r => chosen.push(r));
-                const smallest = rolls.filter(r => !r.started).sort((x, y) => x.value - y.value)[0];
-                if (smallest) chosen.push(smallest);
-              }
-              chosen.forEach(r => { if (!pickRolls.has(r.id)) pickRolls.set(r.id, new Set()); pickRolls.get(r.id).add(r.index); });
-              matched.forEach(item => { if (pickRolls.has(item.id)) pickNotes.set(item.id, [...(pickNotes.get(item.id) || []), label]); });
+              orders.forEach(o => {
+                const color = orderSeq++ % 5;
+                const rolls = [];
+                matched.forEach(item => (item.roll_values || []).forEach((value, index) => {
+                  const key = item.id + ':' + index;
+                  if (!usedRolls.has(key)) rolls.push({id: item.id, index, key, value: Number(value) || 0, started: item.roll_statuses?.[index] === 'started'});
+                }));
+                rolls.sort((x, y) => (y.started - x.started) || (x.value - y.value));
+                const chosen = [];
+                let covered = 0;
+                if (o.mts > 0) { for (const r of rolls) { if (covered >= o.mts) break; chosen.push(r); covered += r.value; } }
+                else if (rolls[0]) { chosen.push(rolls[0]); covered = rolls[0].value; }
+                const short = o.mts > 0 && covered < o.mts;
+                chosen.forEach(r => {
+                  usedRolls.add(r.key);
+                  if (!pickRolls.has(r.id)) pickRolls.set(r.id, new Map());
+                  pickRolls.get(r.id).set(r.index, short ? 'short' : String(color));
+                });
+                const owners = new Set(chosen.map(r => r.id));
+                if (!owners.size) matched.forEach(m => owners.add(m.id));
+                const note = {label: o.orden + (o.mts ? ' · ' + fmtMts(o.mts) + ' MTS' : ''), short, missing: short ? o.mts - covered : 0, color};
+                owners.forEach(id => pickNotes.set(id, [...(pickNotes.get(id) || []), note]));
+              });
             });
           }
         } catch (error) {}
       }
-      if (!document.getElementById('inventory-pick-style')) {
+      if (!document.getElementById('inventory-pick-style-v2')) {
         const pickStyle = document.createElement('style');
-        pickStyle.id = 'inventory-pick-style';
-        pickStyle.textContent = '.inventory-roll.roll-pick{border-color:#4da3ff!important;background:#12335c!important;color:#d6e9ff!important;box-shadow:0 0 0 2px #4da3ff55}.inv-pick{display:block;margin-top:6px;padding:4px 8px;border-radius:6px;background:#12335c;border:1px solid #4da3ff;color:#d6e9ff;font:600 10px Arial;letter-spacing:.03em}';
+        pickStyle.id = 'inventory-pick-style-v2';
+        const palette = [['#4da3ff','#12335c','#d6e9ff'],['#b57bff','#2f1b57','#ecdcff'],['#27d3c3','#0f3d3a','#cffaf5'],['#ff6fb5','#4a1634','#ffd9ec'],['#e6e6e6','#3a3a3a','#ffffff'],['#ff3b3b','#6b0f0f','#ffe0e0']];
+        const names = ['0','1','2','3','4','short'];
+        pickStyle.textContent = palette.map(([border, bg, fg], n) => '.inventory-roll.roll-pick-'+names[n]+'{border-color:'+border+'!important;background:'+bg+'!important;color:'+fg+'!important;box-shadow:0 0 0 2px '+border+'66}.inv-pick.pick-'+names[n]+'{background:'+bg+';border:1px solid '+border+';color:'+fg+'}').join('') + '.inv-pick{display:block;margin-top:6px;padding:4px 8px;border-radius:6px;font:600 10px Arial;letter-spacing:.03em}.inv-pick.pick-short{font-weight:800}';
         document.head.appendChild(pickStyle);
       }
-      body.innerHTML = visibleItems.map(item => '<article class="inventory-item-card"><span class="inv-badge">'+esc(item.categoria_label)+'</span><strong class="inv-name">'+esc(item.nombre)+'</strong><div class="inventory-rolls">'+(item.roll_values || []).map((value,index) => '<span class="inventory-roll '+(item.roll_statuses?.[index]==='started'?'roll-started':'roll-new')+(pickRolls.get(item.id)?.has(index)?' roll-pick':'')+'">'+esc(value)+'</span>').join('')+'</div><span class="inv-total">'+esc(item.mts ?? item.total ?? 0)+' MTS</span><span class="inv-unit">'+esc(item.rolls || (item.roll_values || []).length)+' rollos</span>'+(pickNotes.has(item.id)?'<span class="inv-pick">SUBLIMACIÓN: '+esc(pickNotes.get(item.id).join(' / '))+'</span>':'')+'</article>').join('') || '<div class="inventory-empty">No hay referencias en el inventario local.</div>';
+      body.innerHTML = visibleItems.map(item => '<article class="inventory-item-card"><span class="inv-badge">'+esc(item.categoria_label)+'</span><strong class="inv-name">'+esc(item.nombre)+'</strong><div class="inventory-rolls">'+(item.roll_values || []).map((value,index) => '<span class="inventory-roll '+(item.roll_statuses?.[index]==='started'?'roll-started':'roll-new')+(pickRolls.get(item.id)?.has(index)?' roll-pick roll-pick-'+pickRolls.get(item.id).get(index):'')+'">'+esc(value)+'</span>').join('')+'</div><span class="inv-total">'+esc(item.mts ?? item.total ?? 0)+' MTS</span><span class="inv-unit">'+esc(item.rolls || (item.roll_values || []).length)+' rollos</span>'+(pickNotes.get(item.id)||[]).map(n => '<span class="inv-pick pick-'+(n.short?'short':n.color)+'">'+(n.short?'⚠ NO ALCANZA · '+esc(n.label)+' · FALTAN '+esc(Number(n.missing).toLocaleString('es-CO',{maximumFractionDigits:2}))+' MTS':'SUBLIMACIÓN: '+esc(n.label))+'</span>').join('')+'</article>').join('') || '<div class="inventory-empty">No hay referencias en el inventario local.</div>';
       if (status) status.textContent = (data.summary?.items || data.items?.length || 0) + ' referencias disponibles · inventario local';
       body.dataset.localRendered = 'true';
     } catch (error) { body.innerHTML = '<div class="inventory-empty">'+String(error.message || error)+'</div>'; }
