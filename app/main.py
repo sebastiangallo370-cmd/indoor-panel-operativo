@@ -256,7 +256,7 @@ INVENTORY_CONTROL_SCRIPT = """<script>
             const fmtMts = n => Number(n).toLocaleString('es-CO', {maximumFractionDigits: 2});
             Object.entries(needs).forEach(([tela, orders]) => {
               const base = item => ' ' + normTxt(item.nombre).replace(/^\(\d+\)\s*/, '') + ' ';
-              let matched = visibleItems.filter(item => base(item).includes(' ' + tela + ' '));
+              let matched = visibleItems.filter(item => base(item).includes(' ' + tela + ' ') && !base(item).includes('DON ALVEIRO') && !base(item).includes(' RIB '));
               const white = matched.filter(item => base(item).includes(' BLANCO '));
               if (white.length) matched = white;
               orders.forEach(o => {
