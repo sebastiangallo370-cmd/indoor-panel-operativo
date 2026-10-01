@@ -712,7 +712,7 @@
       if (!response.ok) throw Error();
       const events = await response.json();
       const reworks = events.filter(event => event.action === 'rework' && Number(event.column_number) === Number(column));
-      holder.innerHTML = reworks.length ? '<h3>Reprocesos registrados</h3>' + reworks.map(event => '<article><p>' + esc(event.reason || '') + '</p><small>' + esc(event.username || event.responsible || 'Usuario') + ' · ' + esc(new Date(event.created_at).toLocaleString('es-CO', {dateStyle: 'short', timeStyle: 'short'})) + '</small><span><button type="button" data-entry-edit="' + event.id + '">Editar</button><button type="button" data-entry-delete="' + event.id + '">Eliminar</button></span></article>').join('') : '';
+      holder.innerHTML = reworks.length ? '<h3>Reprocesos registrados</h3>' + reworks.map(event => '<article><p>' + esc(event.reason || '') + '</p><small>' + esc(event.username || event.responsible || 'Usuario') + ' · ' + esc(new Date(event.created_at).toLocaleString('es-CO', {dateStyle: 'short', timeStyle: 'short'})) + '</small><span><button type="button" data-entry-edit="' + event.id + '">Editar</button><button type="button" data-entry-delete="' + event.id + '">Quitar estado</button></span></article>').join('') : '';
     } catch (_) { holder.textContent = ''; }
   }
   function openReworkEntry(rowId) {
@@ -787,13 +787,20 @@
       } catch (error) { alert(error.message); button.disabled = false; }
       return;
     }
-    if (!confirm('¿Eliminar este registro de reproceso?')) return;
+    if (!confirm('¿Quitar el estado de reproceso de la tarjeta? El registro seguirá guardado en el módulo Reproceso.')) return;
     button.disabled = true;
     try {
-      const response = await fetch('/api/produccion/operaciones/evento/' + id, {method: 'DELETE'});
+      const rowId = Number(reworkForm.dataset.row), column = Number(reworkForm.dataset.column);
+      const row = productionData?.rows.find(item => Number(item.source_row) === rowId);
+      if (!row || !column) throw Error('No se encontró el proceso de esta orden');
+      const response = await fetch('/api/produccion/operacion', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({row: rowId, column, action: 'clear', responsible: user.name, expected: String(row.values[column - 1] || '')})});
       const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw Error(data.detail || 'No fue posible eliminar el reproceso');
-      await loadReworkEntryHistory(Number(reworkForm.dataset.row), Number(reworkForm.dataset.column));
+      if (!response.ok) throw Error(data.detail || 'No fue posible quitar el estado de reproceso');
+      if (data.values) row.values = data.values;
+      productionStatus.textContent = '✓ Estado de reproceso retirado de la orden ' + traceField(row, 'ORDEN');
+      await loadReworkEntryHistory(rowId, column);
+      renderProduction();
+      renderTraceCards();
     } catch (error) { alert(error.message); button.disabled = false; }
   });
   // Resolve NAS from the card's source data, never from filtered table rows.
