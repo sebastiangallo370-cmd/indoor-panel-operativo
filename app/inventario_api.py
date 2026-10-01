@@ -198,8 +198,11 @@ def _records_for_tab(values: list[list[str]], tab_key: str, tab_label: str, grid
             if index in {active_name, active_total} or not str(value or '').strip() or _number(value) <= 0:
                 continue
             roll_values.append(_number(value))
-            fmt = (((grid_rows[row_index - 1].get('values', [])[index] if grid_rows and row_index - 1 < len(grid_rows) and index < len(grid_rows[row_index - 1].get('values', [])) else {})
-                    .get('effectiveFormat', {}).get('backgroundColor', {})) if grid_rows else {})
+            cell_format = ((grid_rows[row_index - 1].get('values', [])[index]
+                            if grid_rows and row_index - 1 < len(grid_rows)
+                            and index < len(grid_rows[row_index - 1].get('values', [])) else {})
+                          .get('effectiveFormat', {}) if grid_rows else {})
+            fmt = cell_format.get('backgroundColor', {}) or cell_format.get('backgroundColorStyle', {}).get('rgbColor', {})
             red, green, blue = float(fmt.get('red', 1)), float(fmt.get('green', 1)), float(fmt.get('blue', 1))
             if (red > .9 and .5 < green < .7 and blue < .2) or (red > .9 and .65 < green < .88 and blue < .8):
                 roll_statuses.append('started')
