@@ -643,6 +643,8 @@
       const activeValue = activeColumn ? String(row.values[activeColumn - 1] || '') : '';
       const activeKey = key(activeValue);
       const activeClosed = activeKey === 'N/A' || !!dateValue(activeValue);
+      const clearGroup = [...(progressSummary.groups || [])].reverse().find(group => group.columns.some(index => { const value = String(row.values[index] || '').trim(); return key(value) === 'N/A' || !!dateValue(value); }));
+      const clearColumn = clearGroup ? clearGroup.start + 1 : 0;
       const headerActions = document.createElement('span');
       headerActions.className = 'trace-order-actions';
       headerActions.setAttribute('aria-label', 'Acciones del proceso ' + (activeGroup?.label || ''));
@@ -651,7 +653,7 @@
         ['finish', 'FINALIZAR', activeClosed || !activeColumn],
         ['na', 'N/A', activeClosed || !activeColumn],
         ['clear', 'QUITAR ESTADO', !activeKey || !activeColumn]
-      ].map(([action, label, disabled]) => '<button type="button" class="trace-order-' + action + '" data-card-operation="' + action + '" data-card-row="' + row.source_row + '" data-card-column="' + (activeColumn || '') + '" title="' + esc(activeGroup?.label || 'Sin proceso activo') + '"' + (disabled ? ' disabled' : '') + '>' + label + '</button>').join('');
+      ].map(([action, label, disabled]) => { const column = action === 'clear' ? clearColumn : activeColumn; const isDisabled = action === 'clear' ? !clearColumn : disabled; return '<button type="button" class="trace-order-' + action + '" data-card-operation="' + action + '" data-card-row="' + row.source_row + '" data-card-column="' + (column || '') + '" title="' + esc(action === 'clear' && clearGroup ? clearGroup.label : (activeGroup?.label || 'Sin proceso activo')) + '"' + (isDisabled ? ' disabled' : '') + '>' + label + '</button>'; }).join('');
       const heading = card.querySelector('.trace-card-heading');
       heading.insertBefore(headerActions, heading.querySelector('.trace-stage'));
       if (activeGroup?.state === 'rework') {
