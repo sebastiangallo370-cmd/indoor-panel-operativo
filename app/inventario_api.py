@@ -295,13 +295,20 @@ def inventory_snapshot(refresh: bool = False):
         cached = _cache["data"]
         if cached and not refresh and time.monotonic() - _cache["at"] < CACHE_SECONDS:
             return cached
-        if not refresh and cached is None:
-            snapshot = _load_snapshot()
-            # Una copia local inicial solo contiene nombres. Importar una vez
-            # el libro completo para incorporar metros, rollos y categorías.
-            if snapshot is not None and len(snapshot.get('categories', [])) > 1 and all('roll_values' in item for item in snapshot.get('items', [])[:5]):
-                _cache.update({"at": time.monotonic(), "data": snapshot})
-                return snapshot
+        snapshot = _load_snapshot()
+        if not refresh and snapshot is not None and len(snapshot.get('categories', [])) > 1:
+            try:
+                age = (datetime.now(timezone.utc) - datetime.fromisoformat(snapshot['updated_at'])).total_seconds()
+            except (KeyError, ValueError):
+                age = 0
+            if age > 300:
+                try:
+                    snapshot = _read_inventory()
+                    _save_snapshot(snapshot)
+                except Exception:
+                    pass
+            _cache.update({"at": time.monotonic(), "data": snapshot})
+            return snapshot
         try:
             # La apertura normal usa la copia local. Solo una actualización
             # explícita consulta Sheets para importar metros, rollos y demás
