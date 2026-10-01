@@ -207,7 +207,7 @@ def _records_for_tab(values: list[list[str]], tab_key: str, tab_label: str) -> l
 
 
 def _open_inventory_sheet():
-    url = os.getenv("INVENTARIOS_GOOGLE_SHEETS_URL", "").strip()
+    url = os.getenv("INVENTARIOS_GOOGLE_SHEETS_URL", "https://docs.google.com/spreadsheets/d/1MKEfOXLmKObM8zXmtZ_1W_xjbTK6k2HLd6XjwdFphWQ/edit").strip()
     credentials_path = os.getenv("GOOGLE_CREDENTIALS", "/run/secrets/google-service-account.json")
     if not url or "REEMPLAZAR" in url:
         raise RuntimeError("Falta configurar INVENTARIOS_GOOGLE_SHEETS_URL en el servidor.")
@@ -270,14 +270,16 @@ def inventory_snapshot(refresh: bool = False):
             return cached
         if not refresh and cached is None:
             snapshot = _load_snapshot()
-            if snapshot is not None:
+            # Una copia local inicial solo contiene nombres. Importar una vez
+            # el libro completo para incorporar metros, rollos y categorías.
+            if snapshot is not None and len(snapshot.get('categories', [])) > 1:
                 _cache.update({"at": time.monotonic(), "data": snapshot})
                 return snapshot
         try:
             # La apertura normal usa la copia local. Solo una actualización
             # explícita consulta Sheets para importar metros, rollos y demás
             # columnas al snapshot del servidor.
-            payload = _read_inventory() if refresh else _local_inventory()
+            payload = _read_inventory() if (refresh or _load_snapshot() is None or len((_load_snapshot() or {}).get('categories', [])) <= 1) else _local_inventory()
             _save_snapshot(payload)
         except Exception as exc:
             snapshot = _load_snapshot()
