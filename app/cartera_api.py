@@ -20,8 +20,9 @@ def _date(v):
 def _amount(v):
     if isinstance(v,(int,float)): return float(v)
     s=re.sub(r"[^0-9,.-]","",str(v or ""))
-    if s.count(",")==1 and s.count(".")>=1: s=s.replace(".","").replace(",",".")
-    elif s.count(",")==1: s=s.replace(",",".")
+    if s.count(",")==1 and s.count(".")>=1: s=s.replace(".","").replace(",",".")  # 1.234.567,00 → 1234567.00
+    elif s.count(",")==1: s=s.replace(",",".")                                      # 1234567,00 → 1234567.00
+    elif s.count(".")>1: s=s.replace(".","")                                        # 1.234.567 → 1234567
     try: return float(s)
     except ValueError: return 0.
 def _term(v):
@@ -99,7 +100,7 @@ async def subir_pdf(numero:str,file:UploadFile=File(...)):
 @cartera_router.post("/cargar-pdf")
 async def cargar_pdfs(files:list[UploadFile]=File(...)):
     """Conserva PDFs aún sin cotización; permite cargarlos antes de completar sus datos."""
-    pending=_PDF_DIR/"pendientes"; pending.mkdir(parents=True,exist_ok=True); saved=[]; skipped=[]
+    pending=_PDF_DIR/"pendientes"; pending.mkdir(parents=True,exist_ok=True); saved=[]; skipped=[]; disco=[]
     existentes={str(d.get("numero","")).strip():d for d in _load().get("documentos",[])}
     for file in files:
         content=await file.read()
@@ -111,10 +112,10 @@ async def cargar_pdfs(files:list[UploadFile]=File(...)):
             continue
         stem=_safe(Path(file.filename or "cotizacion.pdf").stem) or "cotizacion"
         name=f"{stem}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}.pdf"
-        (pending/name).write_bytes(content); saved.append(file.filename or name)
+        (pending/name).write_bytes(content); saved.append(file.filename or name); disco.append(name)
     message=f"{len(saved)} PDF(s) cargado(s) y pendiente(s) de asociar"
     if skipped: message+=f" · {len(skipped)} omitido(s) por estar ya registrado(s)"
-    return {"ok":True,"archivos":saved,"omitidos":skipped,"mensaje":message}
+    return {"ok":True,"archivos":saved,"disco":disco,"omitidos":skipped,"mensaje":message}
 @cartera_router.get("/pendientes")
 def pendientes_pdf():
     pending=_PDF_DIR/"pendientes"
@@ -147,10 +148,19 @@ def resumen_pendiente(archivo:str):
             if found: return found.group(1).strip(" .:-")
         return "No detectado"
     cliente=match(r"(?:cliente|señor(?:es)?)\s*[:#-]?\s*([^\n]{3,100}?)(?=\s*(?:\.?\s*(?:CC|C\.C\.|NIT|creaci[oó]n|tel[eé]fono|email)\b|$))")
-    total=match(r"(?:total\s*(?:neto|a\s+pagar)?|valor\s+total)\s*[:$#-]*\s*(?:\n\s*)?([^\n]{2,40})")
-    if not re.search(r"\d",total):
-        amount=re.search(r"(?:total\s*(?:neto|a\s+pagar)?|valor\s+total)[\s\S]{0,180}?(\$?\s*\d[\d.,]+)",text,re.I)
-        total=amount.group(1).strip() if amount else "No detectado"
+    # Busca el monto total: primero etiquetas más específicas, luego "TOTAL" genérico.
+    # Prioriza la última ocurrencia para evitar capturar subtotales anteriores.
+    def find_total(t):
+        patterns=[
+            r"(?:gran\s+total|total\s+(?:neto|a\s+pagar|pedido|orden|general|cotizaci[oó]n)|valor\s+total(?:\s+\w+)?)\s*[:\s$]*(\$?\s*\d[\d.,]{2,})",
+            r"(?<!\w)total\s*[:\s$]+(\$?\s*\d[\d.,]{2,})",
+            r"(?<!\w)total[\s\S]{0,60}?(\$\s*\d[\d.,]{2,})",
+        ]
+        for pat in patterns:
+            hits=re.findall(pat,t,re.I)
+            if hits: return hits[-1].strip()
+        return "No detectado"
+    total=find_total(text)
     return {"archivo":archivo,"paginas":paginas,"cotizacion":match(r"(?:cotizaci[oó]n\s*(?:no\.?|n[°oº])?|(?:^|\n)no\.?)\s*[:#-]?\s*(\d{3,}[A-Z0-9-]*)",r"(?:pedido|cotizaci[oó]n|n[°oº])\s*[:#-]?\s*([A-Z0-9-]{3,})"),"fecha":match(r"(?:fecha|emisi[oó]n|creaci[oó]n)\s*[:#-]?\s*(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4})"),"cliente":cliente,"total":total,"texto":text[:5000] or "El PDF no tiene texto seleccionable; puede ser una imagen escaneada."}
 @cartera_router.post("/pendientes/{archivo}/asociar/{numero}")
 def asociar_pendiente(archivo:str,numero:str):
