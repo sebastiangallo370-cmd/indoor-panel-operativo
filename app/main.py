@@ -240,7 +240,7 @@ INVENTORY_CONTROL_SCRIPT = """<script>
   };
   renderLocalInventory();
   const rollStyle = document.createElement('style');
-  rollStyle.textContent = '.inventory-rolls{display:flex;flex-wrap:wrap;gap:7px;margin:7px 0 3px}.inventory-roll{display:inline-grid;place-items:center;min-width:34px;height:34px;padding:0 7px;border:2px solid #b5e834;border-radius:50%;background:#182719;color:#e8ff9b;font:800 12px Arial;box-sizing:border-box}.inventory-item-card .inv-total{margin-top:3px}';
+  rollStyle.textContent = '.inventory-category-grid{display:grid!important;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px!important}.inventory-category{display:grid!important;gap:6px;min-height:92px;padding:15px!important;border-radius:15px!important;background:linear-gradient(145deg,#182319,#0d130e)!important;text-align:left!important}.inventory-category small{font-size:.68rem}.inventory-category b{font-size:1.35rem!important}.inventory-category span{margin-left:0!important}.inventory-rolls{display:flex;flex-wrap:wrap;gap:7px;margin:7px 0 3px}.inventory-roll{display:inline-grid;place-items:center;min-width:34px;height:34px;padding:0 7px;border:2px solid #b5e834;border-radius:50%;background:#182719;color:#e8ff9b;font:800 12px Arial;box-sizing:border-box}.inventory-item-card .inv-total{margin-top:3px}';
   document.head.appendChild(rollStyle);
   const inventoryGroup = [...document.querySelectorAll('.nav-group')].find(item => /BODEGA TELA/i.test(item.textContent));
   if (inventoryGroup) {
