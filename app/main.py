@@ -248,6 +248,27 @@ INVENTORY_CONTROL_SCRIPT = """<script>
     inventoryGroup.addEventListener('mouseenter', () => inventoryGroup.classList.remove('collapsed'));
     inventoryGroup.addEventListener('mouseleave', () => inventoryGroup.classList.add('collapsed'));
   }
+  const decorateRollCards = async () => {
+    const body = document.getElementById('inventory-body');
+    if (!body) return;
+    try {
+      const response = await fetch('/api/inventarios', {cache:'no-store'});
+      const data = await response.json();
+      const byName = new Map((data.items || []).map(item => [String(item.nombre), item]));
+      body.querySelectorAll('.inventory-item-card').forEach(card => {
+        const name = card.querySelector('.inv-name')?.textContent?.trim();
+        const item = byName.get(name);
+        if (!item || card.querySelector('.inventory-rolls')) return;
+        const rolls = document.createElement('div');
+        rolls.className = 'inventory-rolls';
+        rolls.innerHTML = (item.roll_values || []).map(value => '<span class="inventory-roll">' + String(value) + '</span>').join('');
+        card.querySelector('.inv-total')?.before(rolls);
+        const unit = card.querySelector('.inv-unit');
+        if (unit) unit.textContent = (item.rolls || (item.roll_values || []).length) + ' rollos';
+      });
+    } catch (_) {}
+  };
+  setInterval(decorateRollCards, 700);
 })();
 </script>"""
 
