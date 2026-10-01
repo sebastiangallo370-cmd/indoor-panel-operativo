@@ -201,7 +201,7 @@ INVENTORY_CONTROL_SCRIPT = """<script>
   const hideResumen = () => {
     [...document.querySelectorAll('.nav-children .tab')]
       .filter(button => button.textContent.trim().replace(/\s+/g, ' ') === 'IVRESUMEN' || button.textContent.trim() === 'RESUMEN')
-      .forEach(item => { item.hidden = true; item.style.display = 'none'; });
+      .forEach(item => item.remove());
   };
   hideResumen();
   new MutationObserver(hideResumen).observe(document.body, {childList:true, subtree:true});
