@@ -554,7 +554,7 @@
       const summary = summaries.get(row.source_row), id = row.source_row;
       const _rowNotes = Object.entries(productionData.notes || {}).filter(([key, value]) => key.startsWith(id + ':') && String(value || '').trim());
       const _reference = String(traceField(row, 'REFERENCIA') || '').trim().toUpperCase();
-      const _qCell = String(row.values[16] || '').trim(), _mtsRaw = String(productionData.notes?.[id + ':17'] || (/\d+[,.]?\d*\s*MTS/i.test(_qCell) ? _qCell : '') || (mtsColi >= 0 ? productionData.notes?.[id + ':' + (mtsColi + 1)] : '') || _rowNotes.find(([, value]) => /\d+[,.]?\d*\s*MTS/i.test(String(value)))?.[1] || _rowNotes.find(([, value]) => _reference && String(value).toUpperCase().includes(_reference))?.[1] || '').trim();
+      const _mtsRaw = String(productionData.notes?.[id + ':17'] || '').trim();
       const _mtsMatches = [..._mtsRaw.matchAll(/(\d+[,.]?\d*)\s*MTS/gi)];
       const mtsV = _mtsMatches.length ? _mtsMatches[_mtsMatches.length - 1][1] + ' MTS' : (_mtsRaw.includes(' : ') ? _mtsRaw.split(' : ').slice(1).join(' : ').trim() : _mtsRaw);
       const notes = Object.entries(productionData.notes || {}).filter(([k, v]) => k.startsWith(id + ':') && v && !isMtsNoteKey(k)).length;
@@ -1012,7 +1012,7 @@
       const id = Number(mtsBtn.dataset.cardMts), row = productionData?.rows.find(r => r.source_row === id);
       if (!row || !productionData) return;
       const ci = 16;
-      const _qv = String(row.values[16] || '').trim(), _noteRaw = (productionData.notes?.[id + ':' + (ci + 1)] || (/\d+[,.]?\d*\s*MTS/i.test(_qv) ? _qv : '')).trim();
+      const _noteRaw = (productionData.notes?.[id + ':17'] || '').trim();
       const _noteMatches = [..._noteRaw.matchAll(/(\d+[,.]?\d*)\s*MTS/gi)];
       const cur = _noteMatches.length ? _noteMatches[_noteMatches.length - 1][1] + ' MTS' : (_noteRaw.includes(' : ') ? _noteRaw.split(' : ').slice(1).join(' : ').trim() : _noteRaw);
       if (typeof mtsTarget !== 'undefined') {
