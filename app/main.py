@@ -185,7 +185,7 @@ INVENTORY_CONTROL_SCRIPT = """<script>
   if (inventoryToolbar) {
     const movementActions = document.createElement('div');
     movementActions.className = 'inventory-movement-actions';
-    movementActions.innerHTML = '<button type="button" data-inventory-movement="INGRESO">INGRESO</button><button type="button" data-inventory-movement="SALIDA">SALIDA</button>';
+    movementActions.innerHTML = '<input type="file" class="inventory-doc-input" accept="application/pdf,image/*" hidden><button type="button" class="inventory-doc-btn" data-inventory-doc title="Sube una nota de entrega en PDF o imagen">📎 SUBIR DOCUMENTO</button><button type="button" data-inventory-movement="INGRESO">INGRESO</button><button type="button" data-inventory-movement="SALIDA">SALIDA</button>';
     inventoryToolbar.appendChild(movementActions);
     const movementDialog = document.createElement('dialog');
     movementDialog.className = 'inventory-movement-dialog';
@@ -250,6 +250,97 @@ INVENTORY_CONTROL_SCRIPT = """<script>
     movementForm.querySelector('[value="cancel"]').onclick = () => movementDialog.close();
     movementForm.onsubmit = async event => { event.preventDefault(); movementForm.dataset.saving = '1'; const message = movementForm.querySelector('.inventory-movement-message'), name = resolveMovementItem().item?.nombre || nameSelect.value, code = codeInput.value; message.classList.remove('im-error'); message.textContent = 'Guardando…'; try { for (const line of movementLines()) { const response = await fetch('/api/inventarios/movimiento', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name, code, type:movementType, mts:line.mts, rolls:line.rolls})}); const body = await response.json().catch(() => ({})); if (!response.ok) throw Error(body.detail || 'No se pudo guardar el movimiento.'); } message.textContent = 'Movimiento registrado correctamente.'; setTimeout(() => { movementDialog.close(); location.reload(); }, 700); } catch (error) { delete movementForm.dataset.saving; message.classList.add('im-error'); message.textContent = error.message; } };
     const movementStyle = document.createElement('style'); movementStyle.textContent = '.inventory-movement-actions{display:flex;gap:8px;margin-left:auto}.inventory-movement-actions button{width:auto;padding:9px 14px;border:1px solid #718c4a;border-radius:9px;background:#26351d;color:#e8f8c8;font-weight:900}.inventory-movement-actions button:last-child{border-color:#a45c58;background:#3b211f;color:#ffd0cc}.inventory-movement-dialog{--im:#d0f44c;box-sizing:border-box;width:min(720px,94vw);max-width:none;max-height:92vh;margin:auto;padding:0;border:1px solid #3f553d;border-radius:22px;background:linear-gradient(160deg,#18231a,#0f160f);color:#f1f7ec;box-shadow:0 30px 80px #000c;overflow:auto}.inventory-movement-dialog[data-type=SALIDA]{--im:#ff7a70;border-color:#6b3a36}.inventory-movement-dialog::backdrop{background:#000b;backdrop-filter:blur(3px)}.inventory-movement-dialog form{display:grid;gap:18px;box-sizing:border-box;padding:30px 32px 26px}.im-head{display:grid;gap:6px;padding-right:44px}.im-badge{justify-self:start;padding:4px 10px;border-radius:999px;background:color-mix(in srgb,var(--im) 18%,transparent);border:1px solid var(--im);color:var(--im);font:800 10px Arial;letter-spacing:.12em}.inventory-movement-dialog h2{margin:0;font-size:clamp(24px,3vw,32px)}.im-sub{margin:0;color:#a9b8a3;font-size:13px}.im-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.im-wide{grid-column:1/-1}.inventory-movement-dialog label{display:grid;gap:7px;padding:13px 14px;border:1px solid #344934;border-radius:12px;background:#101811;color:#b8c7b1;font:800 11px Arial;letter-spacing:.06em;text-transform:uppercase}.inventory-movement-dialog label:focus-within{border-color:var(--im);box-shadow:0 0 0 3px color-mix(in srgb,var(--im) 22%,transparent)}.inventory-movement-dialog input{padding:13px;border:1px solid #4f6545;border-radius:9px;background:#202d22;color:#fff;font:16px Arial;min-width:0;width:100%;box-sizing:border-box}.inventory-movement-dialog input:focus{outline:none;border-color:var(--im)}.inventory-movement-dialog input[readonly]{opacity:.7}.im-stepper{display:grid;grid-template-columns:52px 1fr 52px;gap:8px}.im-stepper button{border:1px solid #4f6545;border-radius:9px;background:#26351d;color:#fff;font:700 22px Arial;cursor:pointer}.im-stepper button:hover{border-color:var(--im);color:var(--im)}.im-stepper input{text-align:center;font-weight:700}.im-lines{display:grid;gap:8px;padding:13px 14px;border:1px solid #344934;border-radius:12px;background:#101811}.im-lines-head,.im-line{display:grid;grid-template-columns:1fr 1.3fr 40px;gap:8px;align-items:stretch}.im-lines-head span{color:#b8c7b1;font:800 11px Arial;letter-spacing:.06em;text-transform:uppercase}.im-line .im-stepper{grid-template-columns:44px 1fr 44px}.im-remove{border:1px solid #6b3a36;border-radius:9px;background:#3b211f;color:#ffd0cc;cursor:pointer;font:700 20px Arial}.im-remove:hover{background:#5a2a27}.im-add{justify-self:start;margin-top:2px;padding:10px 16px;border:1px dashed var(--im);border-radius:10px;background:color-mix(in srgb,var(--im) 10%,transparent);color:var(--im);font:800 13px Arial;cursor:pointer}.im-add:hover{background:color-mix(in srgb,var(--im) 20%,transparent)}.im-preview{display:grid;grid-template-columns:1.6fr 1fr 1fr;gap:12px;padding:14px;border:1px solid #344934;border-radius:14px;background:#0d140e}.im-preview small{display:block;color:#8fa088;font:800 10px Arial;letter-spacing:.1em}.im-prev-main strong{display:block;margin:5px 0 3px;font-size:15px;overflow-wrap:anywhere}.im-prev-main span{color:#a9b8a3;font-size:12px}.im-stock{padding:4px 12px;border-left:1px solid #2a3a2b}.im-stock b{display:block;margin-top:6px;font:800 20px Arial;color:#f1f7ec}.im-after b{color:var(--im)}.im-after b.im-bad{color:#ff6b6b}.inventory-movement-close{position:absolute;top:18px;right:18px;width:38px!important;min-height:38px;padding:4px!important;background:#29352b!important;color:#fff;border:1px solid #66775f!important;border-radius:9px;cursor:pointer}.inventory-movement-form-actions{display:flex;justify-content:flex-end;gap:10px}.inventory-movement-form-actions button{width:auto;padding:13px 22px;border:1px solid #64795b;border-radius:10px;background:#293629;color:#fff;font-weight:800;cursor:pointer}.inventory-movement-form-actions button[type=submit]{background:var(--im);border-color:var(--im);color:#17210f}.inventory-movement-form-actions button[type=submit]:disabled{opacity:.35;cursor:not-allowed}.inventory-movement-message{min-height:18px;margin:0;color:var(--im);font-size:13px}.inventory-movement-message.im-error{color:#ff8a80}@media(max-width:600px){.inventory-toolbar .inventory-movement-actions{margin-top:10px}.inventory-movement-actions{width:100%}.inventory-movement-actions button{flex:1}.inventory-movement-dialog{width:100vw;max-height:100vh;border-radius:0}.inventory-movement-dialog form{padding:26px 18px 22px}.im-grid{grid-template-columns:1fr}.im-preview{grid-template-columns:1fr 1fr}.im-prev-main{grid-column:1/-1}.im-stock:first-of-type{border-left:0}.inventory-movement-form-actions{flex-direction:column-reverse}.inventory-movement-form-actions button{width:100%}}'; document.head.appendChild(movementStyle);
+    const docDialog = document.createElement('dialog');
+    docDialog.className = 'inventory-movement-dialog inventory-doc-dialog';
+    docDialog.dataset.type = 'INGRESO';
+    docDialog.innerHTML = '<form method="dialog" novalidate><button type="button" class="inventory-movement-close" aria-label="Cerrar">×</button><header class="im-head"><span class="im-badge">INGRESO DESDE DOCUMENTO</span><h2>Revisa el documento</h2><p class="im-sub"></p></header><div class="im-doc-body"></div><section class="im-doc-total"></section><p class="inventory-movement-message" role="status"></p><div class="inventory-movement-form-actions"><button type="button" value="cancel">Cancelar</button><button type="submit" disabled>Registrar ingreso</button></div></form>';
+    document.body.appendChild(docDialog);
+    const docForm = docDialog.querySelector('form'), docBody = docDialog.querySelector('.im-doc-body'), docTotal = docDialog.querySelector('.im-doc-total'), docMessage = docDialog.querySelector('.inventory-movement-message'), docSubmit = docForm.querySelector('[type=submit]'), docInput = movementActions.querySelector('.inventory-doc-input');
+    let docState = null;
+    const docSum = line => line.rollos.reduce((sum, value) => sum + (Number(value) || 0), 0);
+    const docOptions = selected => [...movementItems.values()].map(item => '<option value="' + esc(item.nombre) + '"' + (item.nombre === selected ? ' selected' : '') + '>' + esc(item.nombre) + '</option>').join('');
+    const updateDoc = () => {
+      if (!docState) return;
+      let totalMts = 0, totalRolls = 0, problem = '';
+      docState.lineas.forEach((line, lineIndex) => {
+        const sum = docSum(line), box = docBody.querySelector('[data-doc-sum="' + lineIndex + '"]');
+        if (box) box.textContent = fmtN(sum) + ' MTS · ' + line.rollos.length + ' rollo(s)';
+        totalMts += sum; totalRolls += line.rollos.length;
+        if (!line.tela) problem = problem || 'Elige la tela del inventario en cada línea.';
+        if (!line.rollos.length) problem = problem || 'Hay una tela sin rollos.';
+        if (line.rollos.some(value => !(Number(value) > 0))) problem = problem || 'Hay rollos sin metros: completa o quita esos rollos.';
+      });
+      const expected = docState.total_documento;
+      let check = '';
+      if (expected) check = Math.abs(totalMts - expected) < 0.5 ? '<span class="im-ok">✓ Coincide con el total del documento (' + fmtN(expected) + ' MTS)</span>' : '<span class="im-warn">⚠ La suma (' + fmtN(totalMts) + ' MTS) no coincide con el total del documento (' + fmtN(expected) + ' MTS). Revisa los rollos.</span>';
+      docTotal.innerHTML = '<div><small>TOTAL A INGRESAR</small><strong>' + fmtN(totalMts) + ' MTS</strong><span>' + totalRolls + ' rollo(s) · ' + docState.lineas.length + ' tela(s)</span></div><div>' + check + '</div>';
+      if (docState.duplicado) problem = 'Este documento ya fue registrado el ' + new Date(docState.duplicado.fecha).toLocaleDateString('es-CO') + '.';
+      docMessage.classList.toggle('im-error', !!problem);
+      if (!docForm.dataset.saving) docMessage.textContent = problem;
+      docSubmit.disabled = !!problem || !docState.lineas.length || totalMts <= 0;
+    };
+    const renderDoc = () => {
+      docBody.innerHTML = docState.lineas.map((line, lineIndex) => '<section class="im-doc-line"><div class="im-doc-head"><div><strong>' + esc(line.descripcion) + '</strong><small>' + esc(line.referencia || '') + '</small></div><button type="button" class="im-remove" data-doc-del="' + lineIndex + '" title="Quitar esta tela" aria-label="Quitar esta tela">×</button></div><label>Tela del inventario<select data-doc-tela="' + lineIndex + '"><option value="">— Elegir tela —</option>' + docOptions(line.tela) + '</select></label><div class="im-doc-rolls">' + line.rollos.map((value, rollIndex) => '<span class="im-doc-roll"><input type="number" inputmode="decimal" min="0" step="0.01" data-doc-roll="' + lineIndex + ':' + rollIndex + '" value="' + (value ?? '') + '" aria-label="Metros del rollo ' + (rollIndex + 1) + '"><button type="button" data-doc-roll-del="' + lineIndex + ':' + rollIndex + '" aria-label="Quitar rollo">×</button></span>').join('') + '<button type="button" class="im-add im-add-roll" data-doc-roll-add="' + lineIndex + '">+ Rollo</button></div><div class="im-doc-sum" data-doc-sum="' + lineIndex + '"></div></section>').join('') || '<p class="im-sub">No se encontraron telas en el documento.</p>';
+      updateDoc();
+    };
+    docDialog.addEventListener('click', event => {
+      if (event.target === docDialog) { docDialog.close(); return; }
+      const del = event.target.closest('[data-doc-del]'), rollDel = event.target.closest('[data-doc-roll-del]'), rollAdd = event.target.closest('[data-doc-roll-add]');
+      if (del) { docState.lineas.splice(Number(del.dataset.docDel), 1); renderDoc(); }
+      else if (rollDel) { const [l, r] = rollDel.dataset.docRollDel.split(':').map(Number); docState.lineas[l].rollos.splice(r, 1); renderDoc(); }
+      else if (rollAdd) { docState.lineas[Number(rollAdd.dataset.docRollAdd)].rollos.push(''); renderDoc(); }
+    });
+    docDialog.addEventListener('input', event => {
+      const roll = event.target.closest('[data-doc-roll]');
+      if (roll) { const [l, r] = roll.dataset.docRoll.split(':').map(Number); docState.lineas[l].rollos[r] = roll.value; updateDoc(); }
+    });
+    docDialog.addEventListener('change', event => {
+      const select = event.target.closest('[data-doc-tela]');
+      if (select) { docState.lineas[Number(select.dataset.docTela)].tela = select.value; updateDoc(); }
+    });
+    docDialog.querySelector('.inventory-movement-close').onclick = () => docDialog.close();
+    docForm.querySelector('[value="cancel"]').onclick = () => docDialog.close();
+    movementActions.addEventListener('click', event => { if (event.target.closest('[data-inventory-doc]')) { docInput.value = ''; docInput.click(); } });
+    docInput.onchange = async () => {
+      const file = docInput.files[0];
+      if (!file) return;
+      docState = null; delete docForm.dataset.saving;
+      docBody.innerHTML = '<div class="im-doc-loading"><span class="im-spinner"></span><p>Leyendo el documento… puede tardar hasta 30 segundos.</p></div>';
+      docTotal.innerHTML = ''; docMessage.textContent = ''; docMessage.classList.remove('im-error'); docSubmit.disabled = true;
+      docForm.querySelector('.im-sub').textContent = file.name;
+      docDialog.showModal();
+      try {
+        await loadMovementNames();
+        const form = new FormData(); form.append('file', file);
+        const response = await fetch('/api/inventarios/documento', {method: 'POST', body: form});
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw Error(data.detail || 'No se pudo leer el documento.');
+        docState = {hash: data.hash, nombre: data.nombre, total_documento: data.total_documento, duplicado: data.duplicado, proveedor: data.proveedor, fecha: data.fecha,
+          lineas: (data.lineas || []).map(line => ({descripcion: line.descripcion, referencia: line.referencia, rollos: line.rollos.map(roll => roll.mts), tela: (line.sugerencias?.[0]?.score >= 1 && movementItems.has(line.sugerencias[0].nombre)) ? line.sugerencias[0].nombre : ''}))};
+        docForm.querySelector('.im-sub').textContent = [file.name, data.proveedor, data.fecha].filter(Boolean).join(' · ');
+        renderDoc();
+      } catch (error) {
+        docBody.innerHTML = '<p class="im-sub">' + esc(error.message) + '</p>';
+        docMessage.classList.add('im-error'); docMessage.textContent = 'No se pudo procesar el documento. Puedes cargar los datos manualmente con INGRESO.';
+      }
+    };
+    docForm.onsubmit = async event => {
+      event.preventDefault();
+      if (!docState || docSubmit.disabled) return;
+      docForm.dataset.saving = '1'; docSubmit.disabled = true; docMessage.classList.remove('im-error'); docMessage.textContent = 'Registrando ingreso…';
+      const movements = [];
+      docState.lineas.forEach(line => line.rollos.forEach(value => { const code = (String(line.tela).match(/^\s*\(([^)]+)\)/) || [])[1] || ''; movements.push({name: line.tela, code, type: 'INGRESO', mts: Number(value), rolls: 1}); }));
+      try {
+        const response = await fetch('/api/inventarios/movimientos', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({movements, doc_hash: docState.hash, doc_name: docState.nombre})});
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) throw Error(body.detail || 'No se pudo registrar el ingreso.');
+        docMessage.textContent = '✓ Ingreso registrado: ' + movements.length + ' rollo(s).';
+        setTimeout(() => { docDialog.close(); location.reload(); }, 900);
+      } catch (error) { delete docForm.dataset.saving; docMessage.classList.add('im-error'); docMessage.textContent = error.message; updateDoc(); }
+    };
+    const docStyle = document.createElement('style');
+    docStyle.textContent = '.inventory-movement-actions .inventory-doc-btn{border-color:#4da3ff;background:#12335c;color:#d6e9ff}.inventory-doc-dialog{width:min(900px,95vw)}.im-doc-body{display:grid;gap:12px}.im-doc-line{display:grid;gap:10px;padding:14px;border:1px solid #344934;border-radius:14px;background:#101811}.im-doc-head{display:flex;align-items:flex-start;gap:10px;justify-content:space-between}.im-doc-head strong{display:block;font-size:15px}.im-doc-head small{color:#8fa088;font-size:11px}.im-doc-head .im-remove{width:36px;height:36px}.inventory-doc-dialog select{padding:13px;border:1px solid #4f6545;border-radius:9px;background:#202d22;color:#fff;font:15px Arial;width:100%;box-sizing:border-box}.inventory-doc-dialog select:focus{outline:none;border-color:var(--im)}.im-doc-rolls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.im-doc-roll{display:inline-flex;align-items:stretch}.im-doc-roll input{width:96px!important;padding:10px 8px!important;text-align:center;border-radius:9px 0 0 9px!important}.im-doc-roll button{width:30px;border:1px solid #6b3a36;border-left:0;border-radius:0 9px 9px 0;background:#3b211f;color:#ffd0cc;cursor:pointer}.im-add-roll{margin:0;padding:9px 14px}.im-doc-sum{color:var(--im);font:800 12px Arial;letter-spacing:.04em}.im-doc-total{display:flex;justify-content:space-between;gap:16px;align-items:center;padding:14px 16px;border:1px solid #344934;border-radius:14px;background:#0d140e}.im-doc-total small{display:block;color:#8fa088;font:800 10px Arial;letter-spacing:.1em}.im-doc-total strong{display:block;margin:4px 0 2px;font:800 24px Arial;color:var(--im)}.im-doc-total span{font-size:12px;color:#a9b8a3}.im-doc-total .im-ok{color:#8fe08f}.im-doc-total .im-warn{color:#ffb86b;font-weight:700}.im-doc-loading{display:grid;justify-items:center;gap:12px;padding:40px 10px;color:#a9b8a3}.im-spinner{width:36px;height:36px;border:4px solid #344934;border-top-color:var(--im);border-radius:50%;animation:im-spin 0.9s linear infinite}@keyframes im-spin{to{transform:rotate(360deg)}}@media(max-width:600px){.im-doc-total{flex-direction:column;align-items:flex-start}.inventory-movement-actions .inventory-doc-btn{flex-basis:100%}}';
+    document.head.appendChild(docStyle);
   }
   const style = document.createElement('style');
   style.textContent = '.control-panel{display:grid;gap:16px;max-width:1100px;margin:auto}.control-panel-head{display:flex;align-items:center;justify-content:space-between;gap:14px}.control-panel-head span{color:#d0f44c;font:800 10px Arial;letter-spacing:.1em}.control-panel-head h2{margin:4px 0 0;font-size:1.4rem}.control-panel-refresh{width:auto!important;padding:9px 13px!important;border:1px solid #60754d!important;border-radius:9px!important;background:#233020!important;color:#eff9df!important;font-weight:800}.control-panel-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px}.control-panel-cards article{display:grid;gap:8px;min-height:115px;padding:17px;border:1px solid #3d4f3d;border-radius:14px;background:linear-gradient(145deg,#182118,#101510)}.control-panel-cards small{color:#aebba7;font:800 10px Arial;letter-spacing:.07em}.control-panel-cards strong{color:#d0f44c;font:800 28px Arial}.control-panel-cards span,.control-panel-cards p{color:#bdc8b8;font-size:12px;margin:0}@media(max-width:700px){.control-panel-cards{grid-template-columns:1fr}.control-panel-head{align-items:flex-start}.control-panel-refresh{min-height:40px}}';

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
 import json
 import re
@@ -12,11 +13,12 @@ from datetime import datetime, timezone
 from typing import Any
 
 import gspread
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 from google.oauth2.service_account import Credentials
 
-from app import sublimacion_stock
+from app import ingreso_documento, sublimacion_stock
 
 
 inventario_router = APIRouter(prefix="/api/inventarios", tags=["inventarios"])
@@ -85,6 +87,7 @@ class InventoryMovement(BaseModel):
     code: str = ''
     mts: float = Field(gt=0)
     rolls: int = Field(default=1, ge=1)
+    source: str = ''
 
 
 def _load_movements() -> list[dict[str, Any]]:
@@ -286,9 +289,18 @@ def _read_inventory() -> dict[str, Any]:
         if not target:
             continue
         sign = 1 if movement.get('type') == 'INGRESO' else -1
-        target['total'] = max(0, target['total'] + sign * float(movement.get('mts') or 0))
+        delta = sign * float(movement.get('mts') or 0)
+        target['total'] = max(0, target['total'] + delta)
+        target['mts'] = max(0, float(target.get('mts') or 0) + delta)
         target['total_label'] = _display_total(target['total'])
         if sign > 0:
+            count = max(1, int(movement.get('rolls') or 1))
+            values = target.setdefault('roll_values', [])
+            statuses = target.setdefault('roll_statuses', ['new'] * len(values))
+            for _ in range(count):
+                values.append(round(float(movement.get('mts') or 0) / count, 2))
+                statuses.append('new')
+            target['rolls'] = len(values)
             fields = target.setdefault('campos', {})
             base = 'Movimiento ingreso'
             index = 1
@@ -362,11 +374,84 @@ def _inventory_payload(refresh: bool = False):
         return payload
 
 
+def _refresh_snapshot() -> None:
+    try:
+        payload = _read_inventory()
+        _save_snapshot(payload)
+        _cache.update({"at": time.monotonic(), "data": payload})
+    except Exception:
+        _cache.update({'at': 0.0, 'data': None})
+
+
+_documents_file = os.getenv('INVENTORY_DOCUMENTS_FILE', '/data/inventory_documentos.json')
+_documents_dir = os.getenv('INVENTORY_DOCUMENTS_DIR', '/data/inventory_documentos')
+
+
+def _imported_documents() -> dict[str, Any]:
+    try:
+        with open(_documents_file, encoding='utf-8') as handle:
+            data = json.load(handle)
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
 @inventario_router.post('/movimiento')
 def inventory_movement(movement: InventoryMovement):
     with _lock:
         movements = _load_movements()
         movements.append(movement.model_dump())
         _save_movements(movements)
-        _cache.update({'at': 0.0, 'data': None})
+        _refresh_snapshot()
     return {'ok': True}
+
+
+class InventoryBatch(BaseModel):
+    movements: list[InventoryMovement] = Field(min_length=1, max_length=300)
+    doc_hash: str = ''
+    doc_name: str = ''
+
+
+@inventario_router.post('/movimientos')
+def inventory_movements(batch: InventoryBatch):
+    with _lock:
+        imported = _imported_documents()
+        if batch.doc_hash and batch.doc_hash in imported:
+            raise HTTPException(status_code=409, detail='Este documento ya fue registrado antes.')
+        movements = _load_movements()
+        movements.extend({**movement.model_dump(), 'source': batch.doc_name} for movement in batch.movements)
+        _save_movements(movements)
+        if batch.doc_hash:
+            imported[batch.doc_hash] = {'nombre': batch.doc_name, 'fecha': datetime.now(timezone.utc).isoformat(), 'movimientos': len(batch.movements)}
+            os.makedirs(os.path.dirname(_documents_file) or '.', exist_ok=True)
+            with open(_documents_file, 'w', encoding='utf-8') as handle:
+                json.dump(imported, handle, ensure_ascii=False)
+        _refresh_snapshot()
+    return {'ok': True, 'registrados': len(batch.movements)}
+
+
+@inventario_router.post('/documento')
+async def inventory_document(file: UploadFile = File(...)):
+    data = await file.read()
+    if not data or len(data) > 15 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail='El archivo está vacío o supera los 15 MB.')
+    name = file.filename or 'documento'
+    if not (data[:4] == b'%PDF' or (file.content_type or '').startswith('image/') or name.lower().endswith(('.png', '.jpg', '.jpeg', '.webp'))):
+        raise HTTPException(status_code=415, detail='Sube un PDF o una imagen (JPG, PNG).')
+    digest = hashlib.sha256(data).hexdigest()
+    try:
+        os.makedirs(_documents_dir, exist_ok=True)
+        with open(os.path.join(_documents_dir, digest + os.path.splitext(name)[1].lower()), 'wb') as handle:
+            handle.write(data)
+    except OSError:
+        pass
+    try:
+        parsed = await run_in_threadpool(ingreso_documento.parse_document, data, name)
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=f'No se pudo leer el documento: {exc}') from exc
+    snapshot = _load_snapshot() or {}
+    items = [item for item in snapshot.get('items', []) if item.get('categoria') in ('BODEGA TELA', 'RETAL CANASTAS')]
+    for line in parsed['lineas']:
+        line['sugerencias'] = ingreso_documento.suggest_items(line['descripcion'], items)
+    already = _imported_documents().get(digest)
+    return {**parsed, 'hash': digest, 'nombre': name, 'duplicado': already}
