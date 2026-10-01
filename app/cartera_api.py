@@ -27,6 +27,7 @@ def _amount(v):
         else: s=s.replace(",",".")               # 1234567,00 → 1234567.00 (decimal colombiano)
     elif s.count(".")>1: s=s.replace(".","")                                        # 1.234.567 → 1234567
     elif s.count(",")>1: s=s.replace(",","")                                        # 1,685,000 → 1685000
+    elif s.count(".")==1 and s.count(",")==0 and len(s.split(".")[1])==3: s=s.replace(".","")  # 139.000 → 139000
     try: return float(s)
     except ValueError: return 0.
 def _term(v):
@@ -78,6 +79,16 @@ async def guardar_documento(payload:dict):
         history=old.get("historial",[]); old.update(doc); old["historial"]=history; _audit(old,"Documento actualizado",user)
     else: doc["historial"]=[]; _audit(doc,"Documento creado",user); data["documentos"].append(doc)
     _save(data); return {"ok":True,"numero":numero}
+@cartera_router.delete("/documentos/{numero}")
+async def eliminar_documento(numero:str):
+    data=_load(); doc=next((x for x in data["documentos"] if x["numero"]==numero),None)
+    if not doc: raise HTTPException(404,"Documento no encontrado")
+    if any(p for p in data["comprobantes"] if p["cotizacionNumero"]==numero and not p.get("anulado")):
+        raise HTTPException(409,"El documento tiene pagos registrados; anúlelos antes de eliminar")
+    data["documentos"]=[x for x in data["documentos"] if x["numero"]!=numero]
+    pdf=_PDF_DIR/f"{_safe(numero)}.pdf"
+    if pdf.exists(): pdf.unlink()
+    _save(data); return {"ok":True,"eliminado":numero}
 @cartera_router.post("/comprobantes")
 async def guardar_comprobante(payload:dict):
     data=_load(); p=dict(payload); numero=str(p.get("cotizacionNumero","")).strip(); doc=next((x for x in data["documentos"] if x["numero"]==numero),None)
