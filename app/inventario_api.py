@@ -366,7 +366,7 @@ def _read_inventory() -> dict[str, Any]:
             roll_keys = [key for key, value in fields.items() if not re.search(r'total', key, re.I) and _number(value) or False]
             for key in roll_keys[-int(movement.get('rolls') or 1):]:
                 fields.pop(key, None)
-    all_records.sort(key=lambda record: (record["categoria_label"], record["nombre"].casefold()))
+    all_records.sort(key=_alpha_key)
     total_units = sum(record["total"] for record in all_records)
     return {
         "updated_at": datetime.now(timezone.utc).isoformat(),
@@ -376,12 +376,18 @@ def _read_inventory() -> dict[str, Any]:
     }
 
 
+def _alpha_key(item: dict[str, Any]) -> tuple[str, str, str]:
+    """Orden alfabético A-Z por nombre, sin tener en cuenta el código entre paréntesis."""
+    name = str(item.get('nombre') or '')
+    return (str(item.get('categoria_label') or ''), _normalized(re.sub(r'^\s*\([^)]*\)\s*', '', name)), name)
+
+
 def _with_sublimacion(payload: dict[str, Any]) -> dict[str, Any]:
     try:
         items, plan = sublimacion_stock.reconcile(payload.get('items') or [])
     except Exception:
-        return payload
-    return {**payload, "items": items, "sublimacion": plan}
+        return {**payload, "items": sorted(payload.get('items') or [], key=_alpha_key)}
+    return {**payload, "items": sorted(items, key=_alpha_key), "sublimacion": plan}
 
 
 @inventario_router.get("")
@@ -457,7 +463,7 @@ def inventory_dashboard():
     return {
         'updated_at': payload.get('updated_at'),
         'umbral_bajo': LOW_STOCK_MTS,
-        'telas': sorted({item['nombre'] for item in items}),
+        'telas': [item['nombre'] for item in items],
         'kpis': {
             'mts': round(sum(float(item.get('total') or 0) for item in items), 2),
             'telas': len(items), 'telas_con_stock': len(stock), 'telas_sin_stock': len(items) - len(stock),
