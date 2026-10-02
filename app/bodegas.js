@@ -261,6 +261,51 @@
       });
     } catch (_) {} finally { decorating = false; }
   };
+  // Botón ACTUALIZAR en la barra de Stock tela: recarga los datos y redibuja sin recargar la página.
+  const mountRefresh = () => {
+    const bar = document.querySelector('.inventory-movement-actions');
+    if (!bar || bar.querySelector('[data-inventory-refresh]')) return;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'inventory-refresh-btn';
+    button.dataset.inventoryRefresh = 'true';
+    button.title = 'Vuelve a cargar el inventario sin recargar la página';
+    button.textContent = '↻ ACTUALIZAR';
+    button.onclick = async () => {
+      if (button.disabled) return;
+      button.disabled = true;
+      button.textContent = '↻ Actualizando…';
+      try {
+        await fetch('/api/inventarios?refresh=true', {cache: 'no-store'});
+        data = null;
+        const search = document.getElementById('inventory-search');
+        const typed = search ? search.value : '';
+        const activeTab = document.querySelector('.nav-children .tab.active');
+        activeTab?.click();                      // redibuja las tarjetas de la categoría abierta
+        // Reaplica la búsqueda cuando las tarjetas terminan de redibujarse (unos segundos).
+        const until = Date.now() + 4000;
+        while (Date.now() < until) {
+          await new Promise(resolve => setTimeout(resolve, 250));
+          if (!search || !typed) continue;
+          const cards = [...document.querySelectorAll('#inventory-body .inventory-item-card')];
+          const shown = cards.filter(card => card.style.display !== 'none' && !card.hidden).length;
+          if (cards.length && (search.value !== typed || shown === cards.length)) {
+            search.value = typed;
+            search.dispatchEvent(new Event('input', {bubbles: true}));
+          }
+        }
+        await decorateInventory(true);           // vuelve a poner bodegas, pedidos y botón EDITAR BODEGA
+        button.textContent = '✓ Actualizado ' + new Date().toLocaleTimeString('es-CO', {hour: '2-digit', minute: '2-digit'});
+      } catch (_) { button.textContent = '⚠ No se pudo actualizar'; }
+      setTimeout(() => { button.disabled = false; button.textContent = '↻ ACTUALIZAR'; }, 2500);
+    };
+    bar.prepend(button);
+  };
+  const refreshStyle = document.createElement('style');
+  refreshStyle.textContent = '.inventory-refresh-btn{border:1px solid #6ca8c7!important;background:#10222c!important;color:#bfe6ff!important}.inventory-refresh-btn:disabled{opacity:.7;cursor:progress}';
+  document.head.appendChild(refreshStyle);
+  new MutationObserver(mountRefresh).observe(document.body, {childList: true, subtree: true});
+  mountRefresh();
   let decorateTimer = 0;
   new MutationObserver(() => { clearTimeout(decorateTimer); decorateTimer = setTimeout(() => decorateInventory(false), 250); }).observe(document.body, {childList: true, subtree: true});
   cardsBox.addEventListener('click', event => {
