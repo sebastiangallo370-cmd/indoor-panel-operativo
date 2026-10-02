@@ -25,8 +25,12 @@ def norm(value) -> str:
     return re.sub(r'\s+', ' ', text.upper()).strip()
 
 
+# El servidor tiene un solo procesador: con varios hilos tesseract compite consigo mismo y tarda ~4 veces más.
+_TESSERACT_ENV = {**os.environ, 'OMP_THREAD_LIMIT': '1'}
+
+
 def _tesseract(path: str, *args: str, timeout: int = 180) -> str:
-    result = subprocess.run(['tesseract', path, 'stdout', *args], capture_output=True, text=True, timeout=timeout)
+    result = subprocess.run(['tesseract', path, 'stdout', *args], capture_output=True, text=True, timeout=timeout, env=_TESSERACT_ENV)
     return result.stdout
 
 
@@ -54,7 +58,7 @@ def load_images(data: bytes, filename: str) -> list[Image.Image]:
 def _words(image: Image.Image) -> list[dict]:
     path = _save_temp(image)
     try:
-        tsv = _tesseract(path, '-l', 'spa+eng', '--psm', '6', 'tsv')
+        tsv = _tesseract(path, '-l', 'spa', '--psm', '6', 'tsv')
     finally:
         os.unlink(path)
     words = []
