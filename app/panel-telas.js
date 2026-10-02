@@ -232,7 +232,7 @@
   const style = document.createElement('style');
   style.textContent = `
   .panel[data-panel="panel-control"] .control-panel{max-width:1280px!important}
-  .panel[data-panel="panel-control"] .control-panel-head,.panel[data-panel="panel-control"] .control-panel-cards{display:none!important}
+  .panel[data-panel="panel-control"] .td{margin-top:22px;padding-top:22px;border-top:1px solid #2f3f2f}
   .td{--td-bg:#101510;--td-card:#151d15;--td-line:#2f3f2f;--td-text:#eef6e8;--td-muted:#a9b8a3;--td-lime:#d0f44c;--td-new:#5fcf6a;--td-started:#f29b38;--td-warn:#f2c94c;--td-bad:#ff6b6b;display:grid;gap:16px;color:var(--td-text);font-family:Arial,Helvetica,sans-serif}
   .td button{font:inherit;color:inherit;cursor:pointer}
   .td-head{display:flex;justify-content:space-between;align-items:flex-end;gap:14px}
