@@ -653,14 +653,25 @@
       const headerActions = document.createElement('span');
       headerActions.className = 'trace-order-actions';
       headerActions.setAttribute('aria-label', 'Acciones del proceso ' + (activeGroup?.label || ''));
+      const pausedAt = activeColumn && activeKey === 'P' ? (productionData.paused || {})[row.source_row + ':' + activeColumn] : '';
       headerActions.innerHTML = [
-        ['start', 'INICIAR', activeKey === 'P' || !activeColumn],
+        activeKey === 'P' ? (pausedAt ? ['resume', 'REANUDAR', false] : ['pause', 'PAUSAR', false]) : ['start', 'INICIAR', !activeColumn],
         ['finish', 'FINALIZAR', activeClosed || !activeColumn],
         ['na', 'N/A', activeClosed || !activeColumn],
         ['clear', 'QUITAR ESTADO', !activeKey || !activeColumn]
       ].map(([action, label, disabled]) => { const column = action === 'clear' ? clearColumn : activeColumn; const isDisabled = action === 'clear' ? !clearColumn : disabled; return '<button type="button" class="trace-order-' + action + '" data-card-operation="' + action + '" data-card-row="' + row.source_row + '" data-card-column="' + (column || '') + '" title="' + esc(action === 'clear' && clearGroup ? clearGroup.label : (activeGroup?.label || 'Sin proceso activo')) + '"' + (isDisabled ? ' disabled' : '') + '>' + label + '</button>'; }).join('');
       const heading = card.querySelector('.trace-card-heading');
       heading.insertBefore(headerActions, heading.querySelector('.trace-stage'));
+      if (activeKey === 'P') {
+        // Proceso iniciado: la tarjeta dice EN PROCESO; si está en pausa se pinta de rojo con PAUSADO.
+        const stage = heading.querySelector('.trace-stage');
+        card.classList.add(pausedAt ? 'trace-paused' : 'trace-running');
+        if (stage) {
+          stage.className = 'trace-stage ' + (pausedAt ? 'paused' : 'active');
+          stage.textContent = (pausedAt ? 'PAUSADO' : 'EN PROCESO') + (activeGroup?.label ? ' · ' + activeGroup.label : '');
+          if (pausedAt) stage.title = 'Pausado desde ' + new Date(pausedAt).toLocaleString('es-CO', {dateStyle: 'short', timeStyle: 'short'});
+        }
+      }
       if (activeGroup?.state === 'rework') {
         const reworkActions = document.createElement('span');
         reworkActions.className = 'trace-order-actions trace-card-rework-actions';
@@ -935,6 +946,9 @@
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.detail || 'No se pudo registrar la acción');
       if (data.values) row.values = data.values;
+      productionData.paused = productionData.paused || {};
+      if (data.paused) productionData.paused[rowId + ':' + column] = data.created_at;
+      else delete productionData.paused[rowId + ':' + column];
       productionStatus.textContent = '✓ ' + label + ' registrado en la orden ' + traceField(row, 'ORDEN');
       renderProduction();
       renderTraceCards();
@@ -943,6 +957,15 @@
       button.disabled = false;
     }
   }, true);
+  const pauseStyle = document.createElement('style');
+  pauseStyle.textContent = '.trace-card.trace-running{border-color:#79d66f!important;box-shadow:0 0 0 1px #79d66f55,0 12px 28px rgba(0,0,0,.25)!important}'
+    + '.trace-card.trace-paused{border-color:#ff5a50!important;background:linear-gradient(160deg,#3a1513,#160b0a)!important;box-shadow:0 0 0 2px #ff5a5066,0 12px 28px rgba(0,0,0,.3)!important}'
+    + '.trace-card.trace-paused .trace-card-body{background:transparent!important}'
+    + 'body.production-mode .trace-card-heading>.trace-stage.active,.trace-card .trace-stage.active{background:#1d4922!important;border-color:#79d66f!important;color:#d9ffd4!important;font-weight:800!important}'
+    + 'body.production-mode .trace-card-heading>.trace-stage.paused,.trace-card .trace-stage.paused{background:#7a1712!important;border-color:#ff5a50!important;color:#fff!important;font-weight:800!important;letter-spacing:.03em}'
+    + '.trace-order-pause{border-color:#ff8a80!important;color:#ffb3ad!important}'
+    + '.trace-order-resume{border-color:#79d66f!important;color:#c9f7c3!important;background:#1d4922!important}';
+  document.head.appendChild(pauseStyle);
   const inventoryQuickStyle = document.createElement('style'); inventoryQuickStyle.textContent = '.trace-mts-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.trace-mts-inventory{width:auto!important;min-height:32px;padding:7px 10px;border:1px solid #6ca8c7!important;border-radius:8px;background:#19303b!important;color:#c3edff!important;font:800 10px Arial!important}'; document.head.appendChild(inventoryQuickStyle);
   traceCards.addEventListener('click', event => {
     const button = event.target.closest('[data-card-nas]');
@@ -1068,7 +1091,7 @@
       if (!historyNotes.isConnected || !nodeDialog.open) return;
       const events = results.filter(result => result.status === 'fulfilled').flatMap(result => result.value)
         .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
-      const actionLabels = { rework: 'REPROCESO', start: 'INICIO / RETOMA', finish: 'TERMINADO', na: 'NO APLICA' };
+      const actionLabels = { rework: 'REPROCESO', start: 'INICIO / RETOMA', finish: 'TERMINADO', na: 'NO APLICA', pause: 'PAUSA', resume: 'REANUDA' };
       historyNotes.innerHTML = events.length ? '<h3>NOTAS Y MOTIVOS DE LOS PROCESOS</h3>' + events.map(entry =>
         '<article><strong>' + esc(productionData.headers[Number(entry.column_number) - 1] || 'PROCESO') +
         ' · ' + esc(actionLabels[entry.action] || entry.action) +

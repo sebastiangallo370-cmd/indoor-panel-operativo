@@ -1452,6 +1452,9 @@ def read_local_production() -> dict:
             "source": "local",
             "process_responsibles": {f"{event['source_row']}:{event['column_number']}": event['responsible'] for event in db.execute("SELECT source_row,column_number,responsible FROM production_operator_events WHERE action IN ('start','rework','finish','na') ORDER BY id")} if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='production_operator_events'").fetchone() else {},
             "auto_closed": [f"{event['source_row']}:{event['column_number']}" for event in db.execute("SELECT source_row,column_number FROM production_operator_events WHERE action='Cierre automático'")] if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='production_operator_events'").fetchone() else [],
+            "paused": {f"{p['source_row']}:{p['column_number']}": p["created_at"]
+                       for p in db.execute("SELECT source_row,column_number,created_at FROM production_paused")}
+                      if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='production_paused'").fetchone() else {},
             "notes": {f"{n['source_row']}:{n['column_number']}": n["note"]
                       for n in db.execute("SELECT source_row,column_number,note FROM production_notes")},
             "note_entries": {f"{n['source_row']}:{n['column_number']}": [{"text": n["note"], "author": n["username"]}]
@@ -1551,6 +1554,11 @@ def ensure_operator_events(db):
     db.execute('CREATE TABLE IF NOT EXISTS production_operator_events (id INTEGER PRIMARY KEY, source_row INTEGER, column_number INTEGER, action TEXT, username TEXT, responsible TEXT, reason TEXT, created_at TEXT)')
 
 
+def ensure_paused(db):
+    # Pausa de un proceso en curso: la celda sigue en "P" (no se pierde el inicio ni los rollos apartados).
+    db.execute('CREATE TABLE IF NOT EXISTS production_paused (source_row INTEGER, column_number INTEGER, username TEXT, created_at TEXT, PRIMARY KEY(source_row, column_number))')
+
+
 DEPARTED_OPERATORS = ('ALEJANDRO MORA', 'AM', 'KEYNER PIEDRAHITA', 'K', 'CAROLINA OSORNO')
 
 
@@ -1569,7 +1577,7 @@ def is_departed_operator(responsible: str) -> bool:
 @app.post('/api/produccion/operacion')
 def production_operator_action(payload: dict = Body(...), _=Depends(authenticate)):
     row, column, action = payload.get('row'), payload.get('column'), payload.get('action')
-    if type(row) is not int or type(column) is not int or action not in ('start', 'rework', 'finish', 'na', 'clear'):
+    if type(row) is not int or type(column) is not int or action not in ('start', 'rework', 'finish', 'na', 'clear', 'pause', 'resume'):
         raise HTTPException(400, 'Operación inválida')
     reason = str(payload.get('reason') or '').strip()
     responsible = str(_).strip()
@@ -1590,6 +1598,23 @@ def production_operator_action(payload: dict = Body(...), _=Depends(authenticate
         previous = str(values[column-1] or '')
         if payload.get('expected') != previous:
             raise HTTPException(409, 'Otro usuario actualizó este proceso. Cierra y vuelve a abrir Producción.')
+        if action in ('pause', 'resume'):
+            if previous.strip().upper() != 'P':
+                raise HTTPException(409, 'Solo se puede pausar o reanudar un proceso que está en curso.')
+            ensure_paused(db)
+            ensure_operator_events(db)
+            paused = db.execute('SELECT 1 FROM production_paused WHERE source_row=? AND column_number=?', (row, column)).fetchone()
+            if (action == 'pause') == bool(paused):
+                raise HTTPException(409, 'El proceso ya está ' + ('pausado.' if paused else 'en curso.') + ' Actualiza antes de continuar.')
+            timestamp = datetime.now(timezone(timedelta(hours=-5))).isoformat()
+            if action == 'pause':
+                db.execute('INSERT INTO production_paused(source_row,column_number,username,created_at) VALUES (?,?,?,?)', (row, column, str(_), timestamp))
+            else:
+                db.execute('DELETE FROM production_paused WHERE source_row=? AND column_number=?', (row, column))
+            db.execute('INSERT INTO production_operator_events(source_row,column_number,action,username,responsible,reason,created_at) VALUES (?,?,?,?,?,?,?)', (row, column, action, str(_), responsible, reason, timestamp))
+            db.execute("INSERT OR REPLACE INTO production_meta(key,value) VALUES ('updated_at',?)", (timestamp,))
+            db.commit()
+            return {'ok': True, 'values': values, 'created_at': timestamp, 'paused': action == 'pause'}
         if action not in ('rework', 'clear') and (previous.strip().upper() == 'N/A' or parse_production_date(previous)):
             raise HTTPException(409, 'Este proceso ya fue terminado. Para reabrirlo registra un reproceso con su motivo.')
         if action == 'clear' and not previous.strip():
@@ -1616,6 +1641,8 @@ def production_operator_action(payload: dict = Body(...), _=Depends(authenticate
             if action == 'finish' and title == 'HORA FINAL': values[i] = now.strftime('%H:%M')
             if title.startswith('RESP') or title == 'CONFECCIONISTA': values[i] = responsible
         ensure_operator_events(db)
+        ensure_paused(db)
+        db.execute('DELETE FROM production_paused WHERE source_row=? AND column_number=?', (row, column))
         db.execute('INSERT INTO production_operator_events(source_row,column_number,action,username,responsible,reason,created_at) VALUES (?,?,?,?,?,?,?)', (row,column,action,str(_),responsible,reason,timestamp))
         if action == 'start': db.execute('INSERT INTO production_started(source_row,column_number,created_at) VALUES (?,?,?)',(row,column,timestamp))
         if action == 'finish':
@@ -4496,7 +4523,7 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
 `;document.head.appendChild(traceFigmaStyle);setTraceView();
     const commercialGroup=commercialToggle.closest('.nav-group');commercialGroup.classList.add('collapsed');const productionToggle=document.getElementById('production-toggle');if(productionToggle)productionToggle.addEventListener('click',()=>{{const g=productionToggle.closest('.nav-group');g.classList.toggle('collapsed');if(!g.classList.contains('collapsed')&&window.innerWidth>860)g.querySelector('.nav-children .tab')?.click()}});
     setTimeout(()=>{{if(!document.querySelector('.panel.active'))document.querySelector('.tab[data-kind="inicio"]')?.click()}},0);
-    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/api/cartera/cartera.js?v=20261001-14'></script><script src='/trace-ui.js?v=20261001-28'></script><script src='/home-dashboard.js?v=20261001-8'></script><script src='/bodega-dashboard.js?v=20261001-12'></script><script src='/bodegas.js?v=20261001-7'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);</script></body></html>"""
+    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/api/cartera/cartera.js?v=20261001-14'></script><script src='/trace-ui.js?v=20261001-29'></script><script src='/home-dashboard.js?v=20261001-8'></script><script src='/bodega-dashboard.js?v=20261001-12'></script><script src='/bodegas.js?v=20261001-7'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);</script></body></html>"""
 
 
 def ordered_mockup_uploads(extras, slots):
