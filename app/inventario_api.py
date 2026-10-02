@@ -382,12 +382,64 @@ def _alpha_key(item: dict[str, Any]) -> tuple[str, str, str]:
     return (str(item.get('categoria_label') or ''), _normalized(re.sub(r'^\s*\([^)]*\)\s*', '', name)), name)
 
 
+_GENERIC_WORDS = {'TELA', 'SUPER', 'DEL', 'CLIENTE', 'BLANCO', 'NEGRO'}
+_usage_cache: dict[str, Any] = {'at': 0.0, 'orders': None}
+
+
+def _usage_matches(items: list[dict[str, Any]], text: str) -> list[dict[str, Any]]:
+    """Telas de Bodega que corresponden al texto de la columna TELA de Producción.
+    Primero el nombre completo; si no aparece, las primeras palabras (MONARCA OLIMPICA… -> MONARCA)."""
+    words = [word for word in re.split(r'[\s\-/]+', sublimacion_stock.norm(text)) if word]
+    for size in range(len(words), 0, -1):
+        phrase = ' '.join(words[:size])
+        if size == 1 and (len(phrase) < 5 or phrase in _GENERIC_WORDS):
+            break
+        found = sublimacion_stock._matched(items, phrase)
+        if found:
+            return found
+    return []
+
+
+def _with_usage(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Agrega a cada tela cuántos pedidos de Producción la usan y sus MTS requeridos."""
+    now = time.monotonic()
+    if _usage_cache['orders'] is None or now - _usage_cache['at'] > 60:
+        _usage_cache.update({'at': now, 'orders': sublimacion_stock.read_orders() or {}})
+    fabrics = [item for item in items if item.get('categoria') == 'BODEGA TELA']
+    usage: dict[str, list[float]] = {}
+    for order in _usage_cache['orders'].values():
+        if not order.get('tela'):
+            continue
+        targets = {item['id']: item for part in re.split(r'[,;]+', order['tela']) if part.strip()
+                   for item in _usage_matches(fabrics, part)}
+        for item_id in targets:
+            entry = usage.setdefault(item_id, [0, 0.0])
+            entry[0] += 1
+            entry[1] += float(order.get('mts') or 0)
+    for item in fabrics:
+        count, meters = usage.get(item['id'], [0, 0.0])
+        item['uso_pedidos'] = count
+        item['uso_mts'] = round(meters, 2)
+    return items
+
+
+def _usage_key(item: dict[str, Any]) -> tuple:
+    """Bodega tela: de la más usada a la menos usada (luego A-Z). Las demás categorías: A-Z."""
+    category, name, raw = _alpha_key(item)
+    return (category, -int(item.get('uso_pedidos') or 0), -float(item.get('uso_mts') or 0), name, raw)
+
+
 def _with_sublimacion(payload: dict[str, Any]) -> dict[str, Any]:
     try:
         items, plan = sublimacion_stock.reconcile(payload.get('items') or [])
     except Exception:
-        return {**payload, "items": sorted(payload.get('items') or [], key=_alpha_key)}
-    return {**payload, "items": sorted(items, key=_alpha_key), "sublimacion": plan}
+        items, plan = [dict(item) for item in payload.get('items') or []], None
+    try:
+        items = _with_usage(items)
+    except Exception:
+        pass
+    items = sorted(items, key=_usage_key)
+    return {**payload, "items": items} if plan is None else {**payload, "items": items, "sublimacion": plan}
 
 
 @inventario_router.get("")
@@ -703,7 +755,8 @@ def inventory_bodegas():
             totals[place]['mts'] += value
             totals[place]['rollos'] += 1
             totals[place]['telas'].add(item['nombre'])
-        telas.append({'nombre': item['nombre'], 'mts': round(float(item.get('total') or 0), 2), 'rollos': rolls})
+        telas.append({'nombre': item['nombre'], 'mts': round(float(item.get('total') or 0), 2), 'rollos': rolls,
+                      'uso_pedidos': item.get('uso_pedidos', 0), 'uso_mts': item.get('uso_mts', 0)})
     return {
         'bodegas': data['bodegas'],
         'resumen': [{'nombre': entry['nombre'], 'mts': round(entry['mts'], 2), 'rollos': entry['rollos'], 'telas': len(entry['telas'])}

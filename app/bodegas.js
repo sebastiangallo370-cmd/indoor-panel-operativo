@@ -37,6 +37,7 @@
 .bg-actions .bg-btn{width:100%!important}
 .bg-inline{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;margin-top:4px;padding-top:10px;border-top:1px solid #26321f}
 .bg-inline>span{display:flex;flex-wrap:wrap;gap:5px}
+.bg-uso{display:inline-block;width:max-content;padding:3px 8px;border:1px solid #d0f44c;border-radius:999px;background:#2a3a12;color:#e7ff9a;font:850 .62rem Arial;letter-spacing:.05em;text-transform:uppercase}
 .bg-chip{display:inline-block;padding:3px 7px;border:1px solid #46563f;border-radius:999px;background:#1d2a14;color:#c9e7a6;font:800 .62rem Arial;letter-spacing:.05em;text-transform:uppercase}
 .bg-inline .bg-btn{padding:6px 10px!important;font-size:.7rem}
 .bg-dialog{width:min(760px,94vw);max-height:90dvh;padding:0;border:1px solid rgba(208,244,76,.6);border-radius:20px;background:#0c110b;color:#f3f7ee;box-shadow:0 30px 90px #000b}
@@ -103,7 +104,7 @@
     const where = order.filter(Boolean);
     const codeMatch = tela.nombre.match(/^\s*\(([^)]+)\)/);
     return '<article class="inventory-item-card" data-nombre="' + esc(tela.nombre) + '" data-tela="' + esc(norm(tela.nombre)) + '" data-codigo="' + esc(codeMatch ? norm(codeMatch[1]) : '') + '" data-bodegas="' + esc([...groups.keys()].map(key => key || NONE).join('|')) + '">' +
-      '<span class="inv-badge">' + esc(where.length ? where.join(' · ') : NONE) + '</span><strong class="inv-name">' + esc(tela.nombre) + '</strong>' +
+      usage(tela) + '<span class="inv-badge">' + esc(where.length ? where.join(' · ') : NONE) + '</span><strong class="inv-name">' + esc(tela.nombre) + '</strong>' +
       (tela.rollos.length ? order.map(key => '<div class="bg-group' + (key ? '' : ' none') + '"><small>' + chip(key, key || NONE) + ' · ' + rolls(groups.get(key).length) + ' · ' + num(groups.get(key).reduce((sum, roll) => sum + roll.v, 0)) + ' MTS</small><div class="inventory-rolls">' +
         groups.get(key).map(roll => '<span class="inventory-roll ' + (roll.estado === 'started' ? 'roll-started' : 'roll-new') + placeClass(roll.bodega) + '" data-i="' + roll.i + '" title="Rollo de ' + esc(num(roll.v)) + ' MTS · ' + esc(key || NONE) + '">' + esc(num(roll.v)) + '</span>').join('') + '</div></div>').join('') : '<p class="bg-note">Sin rollos en inventario.</p>') +
       '<span class="inv-total">' + num(tela.mts) + '<small>MTS</small></span>' +
@@ -159,6 +160,7 @@
     }).join('');
   };
   const chip = (name, text) => '<span class="bg-chip' + placeClass(name) + '">' + esc(text) + '</span>';
+  const usage = tela => tela.uso_pedidos ? '<span class="bg-uso" title="Pedidos de Producción que usan esta tela · ' + esc(num(tela.uso_mts)) + ' MTS requeridos">★ ' + num(tela.uso_pedidos) + (tela.uso_pedidos === 1 ? ' pedido' : ' pedidos') + '</span>' : '';
   const fetchData = async () => { data = await api('/api/inventarios/bodegas'); data.at = Date.now(); paintPlaces(); return data; };
   const load = async () => {
     telasBox.innerHTML = '<p class="bg-note">Cargando bodegas…</p>';
@@ -253,7 +255,7 @@
         tela.rollos.forEach(roll => counts.set(roll.bodega || NONE, (counts.get(roll.bodega || NONE) || 0) + 1));
         const line = document.createElement('div');
         line.className = 'bg-inline';
-        line.innerHTML = '<span>' + [...counts.entries()].map(([place, count]) => chip(place, place.replace(/^BODEGA /, '') + ' (' + count + ')')).join('') + '</span><button type="button" class="bg-btn">EDITAR BODEGA</button>';
+        line.innerHTML = '<span>' + usage(tela) + [...counts.entries()].map(([place, count]) => chip(place, place.replace(/^BODEGA /, '') + ' (' + count + ')')).join('') + '</span><button type="button" class="bg-btn">EDITAR BODEGA</button>';
         line.querySelector('button').addEventListener('click', event => { event.preventDefault(); event.stopPropagation(); openEditor(name); });
         card.appendChild(line);
       });
