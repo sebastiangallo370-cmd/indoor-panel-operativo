@@ -54,6 +54,7 @@
 .bd-switch input:checked~.bd-switch-text small,.bd-switch:has(input:checked) small{color:#9fe0a8}
 .bd-switch input:focus-visible~.bd-switch-track{outline:2px solid #d0f44c;outline-offset:2px}
 .bd-switch.busy{opacity:.6;pointer-events:none}
+.bd-home-sync{display:flex;justify-content:flex-end;margin:0 0 10px}
 .bd-filters{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) auto;gap:10px;align-items:end;padding:14px 18px;border:1px solid #46563f;border-radius:18px;background:#111811}
 .bd-filters label{display:grid;gap:5px;color:#aebba7;font:800 .64rem Arial;letter-spacing:.07em;text-transform:uppercase}
 .bd-filters input{width:100%;box-sizing:border-box;border:1px solid #46563f;border-radius:9px;background:#0b100b;color:#fff;padding:9px 11px;font:500 .85rem Arial;outline:none;color-scheme:dark}
@@ -69,7 +70,7 @@
   const panel = document.createElement('section');
   panel.className = 'panel';
   panel.dataset.panel = 'bodega-dashboard';
-  panel.innerHTML = '<div class="bd"><div class="bd-head"><div><h2>Panel de control · Stock tela</h2><p class="bd-updated">Cargando…</p></div><div class="bd-head-actions"><label class="bd-switch" title="Conecta o desvincula el inventario del Google Sheets"><span class="bd-switch-text"><b>Inventario · Sheets</b><small data-bd-link-state>Cargando…</small></span><input type="checkbox" role="switch" data-bd-link><i class="bd-switch-track"><i class="bd-switch-dot"></i></i></label><label class="bd-switch" title="Conecta o desvincula Producción (pedidos y MTS REQUERIDOS) del Google Sheets"><span class="bd-switch-text"><b>Producción · Sheets</b><small data-bd-prod-state>Cargando…</small></span><input type="checkbox" role="switch" data-bd-prod><i class="bd-switch-track"><i class="bd-switch-dot"></i></i></label><button type="button" class="bd-refresh">Actualizar</button></div></div>' +
+  panel.innerHTML = '<div class="bd"><div class="bd-head"><div><h2>Panel de control · Stock tela</h2><p class="bd-updated">Cargando…</p></div><div class="bd-head-actions"><label class="bd-switch" title="Conecta o desvincula el inventario del Google Sheets"><span class="bd-switch-text"><b>Google Sheets</b><small data-bd-link-state>Cargando…</small></span><input type="checkbox" role="switch" data-bd-link><i class="bd-switch-track"><i class="bd-switch-dot"></i></i></label><button type="button" class="bd-refresh">Actualizar</button></div></div>' +
     '<form class="bd-filters" autocomplete="off" onsubmit="return false"><label>Nombre tela<input name="tela" type="search" list="bd-telas" placeholder="Ej. MONTECATINI"><datalist id="bd-telas"></datalist></label><label>Código tela<input name="codigo" type="search" inputmode="numeric" placeholder="Ej. 100"></label><label>Fecha desde<input name="desde" type="date"></label><label>Fecha hasta<input name="hasta" type="date"></label><button type="button" class="bd-clear">Limpiar</button><p class="bd-count"></p></form>' +
     '<div class="bd-body"></div></div>';
   const body = panel.querySelector('.bd-body');
@@ -175,7 +176,6 @@
 
   const load = async () => {
     if (typeof showLink === 'function') showLink();
-    if (typeof showProd === 'function') showProd();
     body.innerHTML = '<p class="bd-note">Cargando estadísticas…</p>';
     try {
       const response = await fetch('/api/inventarios/dashboard', {cache: 'no-store'});
@@ -207,8 +207,11 @@
   });
   showLink();
 
-  // Producción: la sincronización de pedidos, notas y MTS REQUERIDOS desde el Sheet de Producción.
-  const prodSwitch = panel.querySelector('[data-bd-prod]'), prodState = panel.querySelector('[data-bd-prod-state]'), prodBox = prodSwitch.closest('.bd-switch');
+  // Producción · Sheets: interruptor en INICIO (pedidos, estados y MTS REQUERIDOS desde el Sheet de Producción).
+  const homeRow = document.createElement('div');
+  homeRow.className = 'bd-home-sync';
+  homeRow.innerHTML = '<label class="bd-switch" title="Conecta o desvincula Producción (pedidos y MTS REQUERIDOS) del Google Sheets"><span class="bd-switch-text"><b>Producción · Google Sheets</b><small data-bd-prod-state>Cargando…</small></span><input type="checkbox" role="switch" data-bd-prod><i class="bd-switch-track"><i class="bd-switch-dot"></i></i></label>';
+  const prodSwitch = homeRow.querySelector('[data-bd-prod]'), prodState = homeRow.querySelector('[data-bd-prod-state]'), prodBox = homeRow.querySelector('.bd-switch');
   const showProd = async () => {
     try {
       const status = await (await fetch('/api/produccion/sheets-sync/estado', {cache: 'no-store'})).json();
@@ -227,7 +230,14 @@
     prodBox.classList.remove('busy');
     await showProd();
   });
-  showProd();
+  const mountHome = () => {
+    if (homeRow.isConnected) return;
+    const dash = document.getElementById('home-dashboard');
+    if (dash?.parentElement) { dash.parentElement.insertBefore(homeRow, dash); showProd(); }
+  };
+  mountHome();
+  new MutationObserver(mountHome).observe(document.body, {childList: true, subtree: true});
+  setInterval(() => { if (homeRow.offsetParent) showProd(); }, 30000);
 
   const open = button => {
     document.querySelectorAll('.tab').forEach(tab => tab.classList.toggle('active', tab === button));
