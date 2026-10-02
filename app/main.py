@@ -4148,6 +4148,8 @@ let html='';for(let n=0;n<days;n++){{const date=new Date(start);date.setDate(sta
         if(rangeEnd<rangeStart){{const swap=rangeStart;rangeStart=rangeEnd;rangeEnd=swap}}
         if((rangeEnd-rangeStart)/86400000>400)rangeEnd=new Date(rangeStart.getFullYear(),rangeStart.getMonth(),rangeStart.getDate()+400);
       }}
+      const periodLabel=(pickFrom||pickTo)?rangeStart.toLocaleDateString('es-CO',{{day:'numeric',month:'short'}})+' – '+rangeEnd.toLocaleDateString('es-CO',{{day:'numeric',month:'short',year:'numeric'}}):new Date(year,month,1).toLocaleDateString('es-CO',{{month:'long',year:'numeric'}});
+      operariosDialogMonth.textContent=periodLabel;
       const dayDates=[];
       for(const cursor=new Date(rangeStart);cursor<=rangeEnd;cursor.setDate(cursor.getDate()+1))dayDates.push(new Date(cursor));
       const days=dayDates.map(date=>{{
@@ -4178,7 +4180,7 @@ let html='';for(let n=0;n<days;n++){{const date=new Date(start);date.setDate(sta
         }}
         const people=Array.from(peopleMap.values()).sort((a,b)=>b.count-a.count);
         return {{day:day,date:date,key:key,people:people,total:people.reduce((sum,entry)=>sum+entry.count,0)}};
-      }}).filter(entry=>entry.people.length>0||entry.key===todayKey).reverse();
+      }}).filter(entry=>pickFrom||pickTo||entry.people.length>0||entry.key===todayKey).reverse();
       /* Meta de produccion: 10.000 unidades al mes POR AREA (asi esta calculado en la propia
          hoja de Google Sheets, pestana CONTROL OPERARIOS: cada area se mide contra su propia
          meta de 10.000, no la suma de toda la fabrica). */
@@ -4203,7 +4205,7 @@ let html='';for(let n=0;n<days;n++){{const date=new Date(start);date.setDate(sta
         if(!personQuery)return entry;
         const people=entry.people.filter(person=>plainOperator(person.name).includes(personQuery)||plainOperator(operatorInitials(person.name))===personQuery||plainOperator(operatorInitials(person.name)).startsWith(personQuery));
         return {{...entry,people,total:people.reduce((sum,person)=>sum+(person.count||0),0)}};
-      }}).filter(entry=>!personQuery||entry.people.length);
+      }}).filter(entry=>!personQuery||entry.people.length||pickFrom||pickTo);
       const cards=visibleDays.map(entry=>{{
         const moment=entry.date;
         const dowFull=moment.toLocaleDateString('es-CO',{{weekday:'long'}}).toUpperCase();
@@ -4238,7 +4240,7 @@ let html='';for(let n=0;n<days;n++){{const date=new Date(start);date.setDate(sta
         const clear=operariosDayFilterSlot.querySelector('#operarios-day-filter-clear');
         if(clear)clear.hidden=!search;
       }}
-      operariosHoverCalendar.innerHTML='<h3 class="operarios-hover-cal-title">'+esc(group.area)+' <small>'+new Date(year,month,1).toLocaleDateString('es-CO',{{month:'long',year:'numeric'}})+'</small></h3><div class="operarios-dialog-kpis">'+kpisHTML+'</div>'+legendHTML+bodyHTML;
+      operariosHoverCalendar.innerHTML='<h3 class="operarios-hover-cal-title">'+esc(group.area)+' <small>'+esc(periodLabel)+'</small></h3><div class="operarios-dialog-kpis">'+kpisHTML+'</div>'+legendHTML+bodyHTML;
     }}
     function applyOperatorFilter(){{
       const from=(document.getElementById('operarios-day-from')||{{}}).value||'',to=(document.getElementById('operarios-day-to')||{{}}).value||'';
