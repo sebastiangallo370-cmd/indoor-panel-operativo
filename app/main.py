@@ -2883,20 +2883,68 @@ def prepare_nas_order(payload: dict = Body(...), _=Depends(authenticate)):
 _nas_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="nas-resolve")
 
 
+_NAS_NAME_STOPWORDS = {'SAS', 'S', 'A', 'SA', 'LTDA', 'DE', 'DEL', 'LA', 'EL', 'LOS', 'LAS', 'Y', 'E', 'CIA', 'CO', 'INC', 'EU', 'ESP'}
+
+
+def _nas_name_tokens(value: str) -> set:
+    return {token for token in re.split(r'[^A-Z0-9]+', nas_client_key(value).upper()) if token and token not in _NAS_NAME_STOPWORDS}
+
+
+def _nas_order_in(folder: Path, clean: str):
+    """Carpeta exacta de la orden dentro de una carpeta de cliente: RM7628 o RM7628_/ -/espacio… (nunca RM76281)."""
+    found = []
+    for candidate in folder.iterdir():
+        name = candidate.name.upper()
+        if (name == clean or any(name.startswith(clean + separator) for separator in ('_', ' ', '-'))) and candidate.is_dir():
+            resolved = candidate.resolve()
+            if resolved.parent == folder:
+                found.append(resolved)
+    return found
+
+
 def resolve_nas_order_path(root_raw: Path, clean: str, client_name: str):
     root = root_raw.resolve()
     if not client_name:
         # Enlaces sin cliente (antiguos): única situación en la que se revisan todas las carpetas.
         return root, find_nas_order(clean)
-    # Con cliente: se busca la orden SOLO dentro de la carpeta de ese cliente (no en los 742 clientes).
-    client_dir = resolve_nas_client(root, client_name)
-    for candidate in client_dir.iterdir():
-        name = candidate.name.upper()
-        if (name == clean or any(name.startswith(clean + separator) for separator in ('_', ' ', '-'))) and candidate.is_dir():
-            resolved = candidate.resolve()
-            if resolved.parent == client_dir:
-                return root, resolved
-    raise HTTPException(404, f'No se encontró la orden {clean} en la carpeta del cliente {client_dir.name}. Revisa que la carpeta de la orden esté creada con ese número.')
+    # 1) Carpeta del cliente: se busca la orden exacta solo ahí.
+    try:
+        client_dir = resolve_nas_client(root, client_name)
+    except HTTPException as error:
+        if error.status_code != 404:
+            raise
+        client_dir = None
+    if client_dir:
+        found = _nas_order_in(client_dir, clean)
+        if len(found) == 1:
+            return root, found[0]
+        if len(found) > 1:
+            raise HTTPException(409, f'Hay varias carpetas para la orden {clean} en {client_dir.name}; no se abrió ninguna.')
+    # 2) Si no está, solo las carpetas de cliente con nombre parecido (p. ej. YAMAHA / ...YAMAHA S.A), máximo 4.
+    wanted = _nas_name_tokens(client_name)
+    similar = []
+    if wanted:
+        for folder in root.iterdir():
+            if client_dir is not None and folder.name == client_dir.name:
+                continue
+            tokens = _nas_name_tokens(folder.name)
+            common = len(tokens & wanted)
+            if not tokens or not common:
+                continue
+            score = common / len(wanted)
+            if tokens <= wanted or score >= 0.6:
+                similar.append((score, folder))
+    similar.sort(key=lambda pair: -pair[0])
+    found = []
+    for _, folder in similar[:4]:
+        if folder.is_dir() and folder.resolve().parent == root:
+            found.extend(_nas_order_in(folder.resolve(), clean))
+    if len(found) == 1:
+        return root, found[0]
+    if len(found) > 1:
+        raise HTTPException(409, f'Hay varias carpetas para la orden {clean} en carpetas parecidas del cliente; no se abrió ninguna.')
+    where = client_dir.name if client_dir else client_name
+    raise HTTPException(404, f'No se encontró la carpeta de la orden {clean} en la carpeta del cliente {where} ni en carpetas con nombre parecido. Revisa que esté creada con ese número.')
 
 
 def nas_native_redirect(request: Request, parts: list) -> RedirectResponse:
