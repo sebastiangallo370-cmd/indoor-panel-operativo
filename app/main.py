@@ -4214,7 +4214,26 @@ let html='';for(let n=0;n<days;n++){{const date=new Date(start);date.setDate(sta
       const minDate=year+'-'+String(month+1).padStart(2,'0')+'-01';
       const maxDate=year+'-'+String(month+1).padStart(2,'0')+'-'+String(total).padStart(2,'0');
       const names=[...new Set(days.flatMap(entry=>entry.people.map(person=>person.name)))].sort();
-      operariosDayFilterSlot.innerHTML='<div class="operarios-day-filter-row" style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end"><label class="op-filter-field" style="display:grid;gap:4px;font:800 10px Arial;letter-spacing:.06em;color:#aebaa8;text-transform:uppercase;flex:1 1 140px">Operario<input type="search" id="operarios-person-filter" class="operarios-day-filter" list="operarios-person-list" value="'+esc(operatorState.dayPerson||'')+'" placeholder="Nombre"><datalist id="operarios-person-list">'+names.map(name=>'<option value="'+esc(name)+'"></option>').join('')+'</datalist></label><label class="op-filter-field" style="display:grid;gap:4px;font:800 10px Arial;letter-spacing:.06em;color:#aebaa8;text-transform:uppercase;flex:1 1 140px">Desde<input type="date" id="operarios-day-from" class="operarios-day-filter" value="'+esc(from)+'" min="'+minDate+'" max="'+maxDate+'"></label><label class="op-filter-field" style="display:grid;gap:4px;font:800 10px Arial;letter-spacing:.06em;color:#aebaa8;text-transform:uppercase;flex:1 1 140px">Hasta<input type="date" id="operarios-day-to" class="operarios-day-filter" value="'+esc(to)+'" min="'+minDate+'" max="'+maxDate+'"></label><button type="button" id="operarios-day-filter-clear" class="operarios-day-filter-clear"'+(search?'':' hidden')+'>Ver todo</button></div>';
+      const filterHTML='<div class="operarios-day-filter-row" style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end"><label class="op-filter-field" style="display:grid;gap:4px;font:800 10px Arial;letter-spacing:.06em;color:#aebaa8;text-transform:uppercase;flex:1 1 140px">Operario<input type="search" id="operarios-person-filter" class="operarios-day-filter" list="operarios-person-list" value="'+esc(operatorState.dayPerson||'')+'" placeholder="Nombre"><datalist id="operarios-person-list">'+names.map(name=>'<option value="'+esc(name)+'"></option>').join('')+'</datalist></label><label class="op-filter-field" style="display:grid;gap:4px;font:800 10px Arial;letter-spacing:.06em;color:#aebaa8;text-transform:uppercase;flex:1 1 140px">Desde<input type="date" id="operarios-day-from" class="operarios-day-filter" value="'+esc(from)+'" min="'+minDate+'" max="'+maxDate+'"></label><label class="op-filter-field" style="display:grid;gap:4px;font:800 10px Arial;letter-spacing:.06em;color:#aebaa8;text-transform:uppercase;flex:1 1 140px">Hasta<input type="date" id="operarios-day-to" class="operarios-day-filter" value="'+esc(to)+'" min="'+minDate+'" max="'+maxDate+'"></label><button type="button" id="operarios-day-filter-clear" class="operarios-day-filter-clear"'+(search?'':' hidden')+'>Ver todo</button></div>';
+      // Los filtros se dibujan UNA sola vez: si la pantalla se actualiza sola mientras tienes el calendario abierto o
+      // estás escribiendo, no se tocan (antes se redibujaban y se cerraba el calendario).
+      if(!operariosDayFilterSlot.querySelector('#operarios-day-from')){{operariosDayFilterSlot.innerHTML=filterHTML}}
+      else{{
+        const list=operariosDayFilterSlot.querySelector('#operarios-person-list');
+        const options=names.map(name=>'<option value="'+esc(name)+'"></option>').join('');
+        if(list&&list.innerHTML!==options)list.innerHTML=options;
+        [['operarios-day-from',from],['operarios-day-to',to]].forEach(([id,value])=>{{
+          const input=operariosDayFilterSlot.querySelector('#'+id);
+          if(!input)return;
+          if(input.min!==minDate)input.min=minDate;
+          if(input.max!==maxDate)input.max=maxDate;
+          if(document.activeElement!==input&&input.value!==value)input.value=value;
+        }});
+        const person=operariosDayFilterSlot.querySelector('#operarios-person-filter');
+        if(person&&document.activeElement!==person&&person.value!==(operatorState.dayPerson||''))person.value=operatorState.dayPerson||'';
+        const clear=operariosDayFilterSlot.querySelector('#operarios-day-filter-clear');
+        if(clear)clear.hidden=!search;
+      }}
       operariosHoverCalendar.innerHTML='<h3 class="operarios-hover-cal-title">'+esc(group.area)+' <small>'+new Date(year,month,1).toLocaleDateString('es-CO',{{month:'long',year:'numeric'}})+'</small></h3><div class="operarios-dialog-kpis">'+kpisHTML+'</div>'+legendHTML+bodyHTML;
     }}
     operariosDayFilterSlot.addEventListener('change',event=>{{
