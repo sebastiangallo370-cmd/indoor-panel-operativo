@@ -177,13 +177,18 @@ def _plan_label(order: dict, need: float) -> str:
 
 
 def build_plan(items: list[dict], orders: list[tuple[int, dict]]) -> list[dict]:
+    """Un plan por (orden, tela): varias referencias de la misma orden sobre la misma tela se tratan como UNA
+    (mismo color, un solo total y rollos asignados para cubrir la suma)."""
     used: set[tuple[str, int]] = set()
-    plans = []
-    for seq, (source_row, order) in enumerate(orders):
-        tela = order['tela']
-        if not tela:
+    groups: dict[tuple[str, str], list[tuple[int, dict]]] = {}
+    for source_row, order in orders:
+        if not order['tela']:
             continue
-
+        groups.setdefault((order['orden'], order['tela']), []).append((source_row, order))
+    plans = []
+    for seq, ((orden, tela), members) in enumerate(groups.items()):
+        members.sort(key=lambda pair: pair[0])
+        need = round(sum(order['mts'] for _, order in members), 2)
         matched = _matched(items, tela)
         rolls = []
         for item in matched:
@@ -192,7 +197,7 @@ def build_plan(items: list[dict], orders: list[tuple[int, dict]]) -> list[dict]:
                     rolls.append({'id': item['id'], 'item': item['nombre'], 'index': index, 'value': float(value),
                                   'started': (item.get('roll_statuses') or [])[index:index + 1] == ['started']})
         rolls.sort(key=lambda r: (not r['started'], r['value']))
-        chosen, covered, need = [], 0.0, order['mts']
+        chosen, covered = [], 0.0
         if need > 0:
             for roll in rolls:
                 if covered >= need:
@@ -206,22 +211,36 @@ def build_plan(items: list[dict], orders: list[tuple[int, dict]]) -> list[dict]:
         for roll in chosen:
             used.add((roll['id'], roll['index']))
         owners = sorted({r['id'] for r in chosen}) or [i['id'] for i in matched]
+        refs = [order.get('referencia') for _, order in members if order.get('referencia')]
+        label = orden + (f" · {' + '.join(refs)}" if refs else '') + (f" · {f'{need:.2f}'.rstrip('0').rstrip('.').replace('.', ',')} MTS" if need else '')
+        first = members[0][1]
         plans.append({
-            'source_row': source_row, 'orden': order['orden'], 'tela': tela, 'fecha': order.get('fecha', ''), 'mts': need, 'color': seq % COLORS,
+            'source_row': members[0][0], 'rows': [row for row, _ in members], 'row_mts': {str(row): order['mts'] for row, order in members},
+            'orden': orden, 'tela': tela, 'fecha': first.get('fecha', ''), 'mts': need, 'color': seq % COLORS,
             'short': short, 'missing': round(need - covered, 2) if short else 0.0,
-            'label': _plan_label(order, need),
-            'rolls': chosen, 'owners': owners,
+            'label': label, 'rolls': chosen, 'owners': owners,
         })
     return plans
 
 
-def _consume(plan: dict) -> list[dict]:
-    left, taken = plan['mts'], []
+def whole_mts(value: float) -> int:
+    """Descuento en metros ENTEROS: se redondea al entero más cercano (mínimo 1 si se requiere algo)."""
+    value = float(value or 0)
+    return 0 if value <= 0 else max(1, int(value + 0.5))
+
+
+def _consume(plan: dict, need: float | None = None) -> list[dict]:
+    """Descuenta los MTS requeridos (suma del grupo) en números enteros. Un rollo se gasta completo si cabe;
+    si no, se gasta una parte entera y el sobrante queda como rollo empezado."""
+    left, taken = float(whole_mts(plan['mts'] if need is None else need)), []
     for roll in plan['rolls']:
-        take = min(roll['value'], left)
-        if take > 0:
-            taken.append({'item': roll['item'], 'value': roll['value'], 'take': round(take, 2)})
-            left -= take
+        if left <= 0:
+            break
+        value = float(roll['value'])
+        take = value if value <= left else float(max(1, int(left + 0.5)))
+        take = min(take, value)
+        taken.append({'item': roll['item'], 'value': roll['value'], 'take': round(take, 2)})
+        left -= take
     return taken
 
 
@@ -234,30 +253,38 @@ def reconcile(base_items: list[dict]) -> tuple[list[dict], list[dict]]:
         if not ledger.get('aplicar_desde'):
             ledger['aplicar_desde'] = datetime.now(timezone.utc).isoformat()
             changed = True
+        pending_rows: set[int] = set()
         if orders is not None:
-            # Si a una orden finalizada le quitan el estado (o vuelve a P/R), su consumo se deshace.
+            # Si a una referencia finalizada le quitan el estado (o vuelve a P/R), su consumo se deshace.
             for key in list(ledger['done']):
-                order = orders.get(int(key))
-                if order is not None and order['state'] != 'DONE':
+                rows = ledger['done'][key].get('rows') or [int(key)]
+                states = [orders[r]['state'] for r in rows if r in orders]
+                if states and any(state != 'DONE' for state in states):
                     ledger['done'].pop(key)
                     changed = True
             for key in list(ledger['plans']):
-                order = orders.get(int(key))
-                state = order['state'] if order else None
-                if state == 'P':
+                plan = ledger['plans'][key]
+                rows = plan.get('rows') or [int(key)]
+                states = {r: (orders[r]['state'] if r in orders else None) for r in rows}
+                if any(state == 'P' for state in states.values()):
+                    # Sigue en curso: las referencias ya finalizadas esperan a que termine el resto del grupo.
+                    pending_rows.update(r for r, state in states.items() if state in ('P', 'DONE'))
                     continue
-                plan = ledger['plans'].pop(key)
+                ledger['plans'].pop(key)
                 changed = True
-                if state == 'DONE' and key not in ledger['done']:
-                    taken = _consume(plan)
+                done_rows = [r for r, state in states.items() if state == 'DONE']
+                if done_rows and key not in ledger['done']:
+                    need = round(sum((plan.get('row_mts') or {}).get(str(r), plan['mts'] if len(rows) == 1 else 0) for r in done_rows), 2)
+                    taken = _consume(plan, need)
                     if taken:
-                        ledger['done'][key] = {'orden': plan['orden'], 'ts': datetime.now(timezone.utc).isoformat(), 'rolls': taken}
+                        ledger['done'][key] = {'orden': plan['orden'], 'ts': datetime.now(timezone.utc).isoformat(), 'rolls': taken, 'rows': done_rows}
         items = copy.deepcopy(base_items)
         if APPLY_CONSUMPTIONS:
             apply_consumptions(items, ledger['done'], ledger.get('aplicar_desde', ''))
         plans: list[dict] = []
         if orders is not None:
-            active = sorted((r, o) for r, o in orders.items() if o['state'] == 'P' and str(r) not in ledger['done'])
+            consumed_rows = {r for key, entry in ledger['done'].items() for r in (entry.get('rows') or [int(key)])}
+            active = sorted((r, o) for r, o in orders.items() if (o['state'] == 'P' or r in pending_rows) and r not in consumed_rows)
             plans = build_plan(items, active)
             current = {str(p['source_row']): p for p in plans}
             if current != ledger['plans']:
