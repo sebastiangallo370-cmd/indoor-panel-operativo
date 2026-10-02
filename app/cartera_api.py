@@ -201,8 +201,19 @@ def respaldo(): return JSONResponse(_save(_load()),headers={"Content-Disposition
 async def restaurar(file:UploadFile=File(...)):
     try: return _save(json.loads((await file.read()).decode("utf-8")))
     except Exception as exc: raise HTTPException(400,"El respaldo no es un JSON válido") from exc
+_UNLINK=_ROOT/"cartera-desvinculada"
+@cartera_router.get("/vinculo")
+def vinculo_estado(): return {"vinculado":not _UNLINK.exists()}
+@cartera_router.post("/vinculo")
+def vinculo_cambiar(payload:dict):
+    """Interruptor del Google Sheets de pagos: apagado = Sincronizar queda bloqueado y Cartera trabaja solo con los datos de la web."""
+    if payload.get("vinculado") is True: _UNLINK.unlink(missing_ok=True)
+    else:
+        _ROOT.mkdir(parents=True,exist_ok=True); _UNLINK.touch(exist_ok=True)
+    return {"ok":True,"vinculado":not _UNLINK.exists()}
 @cartera_router.post("/sincronizar")
 def sincronizar():
+    if _UNLINK.exists(): raise HTTPException(409,"Cartera está desvinculada del Google Sheets (interruptor apagado).")
     creds=Path(os.getenv("GOOGLE_CREDENTIALS","/run/secrets/google-service-account.json")); file_id=os.getenv("PAGOS_COTIZACIONES_FILE_ID","").strip()
     if not file_id or not creds.is_file(): raise HTTPException(503,"Falta configurar Google Sheets en el servidor")
     try:
