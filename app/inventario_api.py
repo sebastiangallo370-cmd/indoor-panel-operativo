@@ -137,6 +137,20 @@ def _header_positions(row: list[str]) -> tuple[int | None, int | None]:
     return name_index, total_index
 
 
+def _bodega_from_text(text: Any) -> str:
+    """Texto de la leyenda del Sheet -> nombre de la bodega en la web."""
+    value = _normalized(text)
+    if 'GLORIA' in value:
+        return 'BODEGA GLORIA'
+    if re.search(r'\bCASA\b', value):
+        return 'BODEGA CASA'
+    if 'SEGUNDO PISO' in value:
+        return 'BODEGA SEGUNDO PISO'
+    if 'INDOOR' in value and ('BODEGA' in value or 'ESTANTERIA' in value):
+        return 'BODEGA INDOOR'
+    return ''
+
+
 def _is_header(row: list[str]) -> bool:
     name_index, total_index = _header_positions(row)
     return name_index is not None and total_index is not None
@@ -167,17 +181,33 @@ def _records_for_tab(values: list[list[str]], tab_key: str, tab_label: str, grid
                 },
             })
         return records
-    def roll_status(row_index: int, index: int) -> str:
-        cell_format = ((grid_rows[row_index - 1].get('values', [])[index]
-                        if grid_rows and row_index - 1 < len(grid_rows)
-                        and index < len(grid_rows[row_index - 1].get('values', [])) else {})
-                      .get('effectiveFormat', {}) if grid_rows else {})
+    def cell(row_index: int, index: int) -> dict[str, Any]:
+        return (grid_rows[row_index - 1].get('values', [])[index]
+                if grid_rows and row_index - 1 < len(grid_rows)
+                and index < len(grid_rows[row_index - 1].get('values', [])) else {})
+
+    def cell_rgb(row_index: int, index: int) -> tuple[float, float, float]:
+        cell_format = cell(row_index, index).get('effectiveFormat', {}) if grid_rows else {}
         fmt = cell_format.get('backgroundColor', {}) or cell_format.get('backgroundColorStyle', {}).get('rgbColor', {})
         default = 0 if fmt else 1
-        red, green, blue = float(fmt.get('red', default)), float(fmt.get('green', default)), float(fmt.get('blue', default))
+        return float(fmt.get('red', default)), float(fmt.get('green', default)), float(fmt.get('blue', default))
+
+    def roll_status(row_index: int, index: int) -> str:
+        red, green, blue = cell_rgb(row_index, index)
         if (red > .9 and .5 < green < .7 and blue < .2) or (red > .9 and .65 < green < .88 and blue < .8):
             return 'started'
         return 'new'
+
+    # Leyenda de colores del Sheet (columna S: BODEGA GLORIA, BODEGA CASA, SEGUNDO PISO...).
+    legend: dict[tuple[float, ...], str] = {}
+    for legend_row in range(1, min(len(grid_rows or []), 40) + 1):
+        for legend_col in range(17, len(grid_rows[legend_row - 1].get('values', []))):
+            place = _bodega_from_text(cell(legend_row, legend_col).get('formattedValue', ''))
+            if place:
+                legend[tuple(round(part, 2) for part in cell_rgb(legend_row, legend_col))] = place
+
+    def roll_place(row_index: int, index: int) -> str:
+        return legend.get(tuple(round(part, 2) for part in cell_rgb(row_index, index)), '')
 
     last_record: dict[str, Any] | None = None
     records: list[dict[str, Any]] = []
@@ -203,6 +233,7 @@ def _records_for_tab(values: list[list[str]], tab_key: str, tab_label: str, grid
                 for index, value in extra:
                     last_record['roll_values'].append(value)
                     last_record['roll_statuses'].append(roll_status(row_index, index))
+                    last_record.setdefault('roll_bodegas', []).append(roll_place(row_index, index))
                 last_record['total'] += total
                 last_record['mts'] = last_record.get('mts', 0) + total
                 last_record['total_label'] = _display_total(last_record['total'])
@@ -228,11 +259,13 @@ def _records_for_tab(values: list[list[str]], tab_key: str, tab_label: str, grid
         rolls = next((value for key, value in fields.items() if 'ROLLO' in _normalized(key)), '')
         roll_values = []
         roll_statuses = []
+        roll_bodegas = []
         for index, value in enumerate(row):
             if index in {active_name, active_total} or not str(value or '').strip() or _number(value) <= 0:
                 continue
             roll_values.append(_number(value))
             roll_statuses.append(roll_status(row_index, index))
+            roll_bodegas.append(roll_place(row_index, index))
         supplier = active_headers[active_name + 1] if active_name + 1 < len(active_headers) else ''
         records.append({
             "id": f"{tab_key}:{row_index}:{len(records)}",
@@ -246,6 +279,7 @@ def _records_for_tab(values: list[list[str]], tab_key: str, tab_label: str, grid
             "rolls": int(_number(rolls)) if rolls else 0,
             "roll_values": roll_values,
             "roll_statuses": roll_statuses,
+            "roll_bodegas": roll_bodegas,
             "campos": fields,
         })
         last_record = records[-1]
@@ -318,6 +352,7 @@ def _read_inventory() -> dict[str, Any]:
             for _ in range(count):
                 values.append(round(float(movement.get('mts') or 0) / count, 2))
                 statuses.append('new')
+                target.setdefault('roll_bodegas', []).append('')
             target['rolls'] = len(values)
             fields = target.setdefault('campos', {})
             base = 'Movimiento ingreso'
@@ -650,10 +685,14 @@ def inventory_bodegas():
         values = [float(v) for v in item.get('roll_values') or []]
         statuses = item.get('roll_statuses') or []
         places = _resolve_rolls(values, data['asignaciones'].get(item['nombre'], []))
+        sheet = list(item.get('roll_bodegas') or [])
+        sheet += [''] * (len(values) - len(sheet))
         rolls = []
         for index, value in enumerate(values):
-            place = places[index] if places[index] in totals else ''
-            rolls.append({'i': index, 'v': value, 'estado': statuses[index] if index < len(statuses) else 'new', 'bodega': place})
+            place = places[index] or sheet[index]
+            place = place if place in totals else ''
+            rolls.append({'i': index, 'v': value, 'estado': statuses[index] if index < len(statuses) else 'new', 'bodega': place,
+                          'origen': 'web' if places[index] else ('sheet' if sheet[index] else '')})
             totals[place]['mts'] += value
             totals[place]['rollos'] += 1
             totals[place]['telas'].add(item['nombre'])
@@ -687,7 +726,7 @@ def inventory_bodegas_assign(assignment: BodegaAssignment):
             raise HTTPException(status_code=409, detail='Los rollos cambiaron; recarga la página.')
         places = _resolve_rolls(values, data['asignaciones'].get(item['nombre'], []))
         for index in assignment.rollos:
-            places[index] = assignment.bodega
+            places[index] = assignment.bodega or '-'  # '-' = quitada a mano (no usar la del Sheet)
         data['asignaciones'][item['nombre']] = [{'i': i, 'v': values[i], 'b': b} for i, b in enumerate(places) if b]
         if not data['asignaciones'][item['nombre']]:
             data['asignaciones'].pop(item['nombre'])

@@ -148,6 +148,8 @@ def apply_consumptions(items: list[dict], done: dict) -> None:
             else:
                 values.pop(index)
                 statuses.pop(index)
+                if index < len(item.get('roll_bodegas') or []):
+                    item['roll_bodegas'].pop(index)
             item['total'] = max(0.0, float(item.get('total') or 0) - roll['take'])
             item['mts'] = max(0.0, float(item.get('mts') or 0) - roll['take'])
             item['total_label'] = _label(item['total'])

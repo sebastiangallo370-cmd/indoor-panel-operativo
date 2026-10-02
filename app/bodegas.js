@@ -18,7 +18,7 @@
 .bg-btn.alt{border-color:#46563f!important;background:#151d15!important;color:#dfe8d9!important}
 .bg-btn:disabled{opacity:.45;cursor:not-allowed}
 .bg h3{margin:0;color:#d0f44c;font:850 .72rem Arial;letter-spacing:.1em;text-transform:uppercase}
-.bg-cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+.bg-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px}
 .bg-telas{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
 .bg .inventory-item-card{min-height:0;align-content:start}
 .bg .inventory-item-card .inv-name{min-height:0}
