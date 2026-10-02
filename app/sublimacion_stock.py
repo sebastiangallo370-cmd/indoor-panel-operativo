@@ -235,6 +235,12 @@ def reconcile(base_items: list[dict]) -> tuple[list[dict], list[dict]]:
             ledger['aplicar_desde'] = datetime.now(timezone.utc).isoformat()
             changed = True
         if orders is not None:
+            # Si a una orden finalizada le quitan el estado (o vuelve a P/R), su consumo se deshace.
+            for key in list(ledger['done']):
+                order = orders.get(int(key))
+                if order is not None and order['state'] != 'DONE':
+                    ledger['done'].pop(key)
+                    changed = True
             for key in list(ledger['plans']):
                 order = orders.get(int(key))
                 state = order['state'] if order else None
