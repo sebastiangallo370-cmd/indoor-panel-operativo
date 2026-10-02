@@ -987,15 +987,36 @@
     try { cell.querySelector('.production-row-open').click(); }
     finally { bridge.remove(); }
   }, true);
+  // Abre STOCK TELA y deja escrita la tela de la orden en el buscador. Espera a que las tarjetas
+  // estén dibujadas y vuelve a aplicar el filtro unos segundos por si el inventario se redibuja.
+  const openStockFiltered = searchValue => {
+    const text = String(searchValue || '').trim();
+    const inventoryTab = [...document.querySelectorAll('.nav-children .tab')].find(tab => tab.textContent.toUpperCase().includes('STOCK TELA'));
+    inventoryTab?.click();
+    window.scrollTo({top: 0});
+    if (!text) return;
+    const started = Date.now();
+    const apply = () => {
+      const search = document.getElementById('inventory-search');
+      const cards = document.querySelectorAll('#inventory-body .inventory-item-card');
+      if (search && cards.length) {
+        const shown = [...cards].filter(card => card.style.display !== 'none' && !card.hidden).length;
+        if (search.value !== text || shown === cards.length) {
+          search.value = text;
+          search.dispatchEvent(new Event('input', {bubbles: true}));
+        }
+      }
+      if (Date.now() - started < 5000) setTimeout(apply, 250);
+    };
+    setTimeout(apply, 200);
+  };
   traceCards.addEventListener('click', event => {
     const inventoryButton = event.target.closest('[data-card-inventory]');
     if (inventoryButton) {
       event.preventDefault(); event.stopPropagation();
       const row = productionData?.rows.find(item => Number(item.source_row) === Number(inventoryButton.dataset.cardInventory));
       const searchValue = row && (traceField(row, 'NOMBRE TELA') || traceField(row, 'TELA') || traceField(row, 'REFERENCIA') || '');
-      const inventoryTab = [...document.querySelectorAll('.nav-children .tab')].find(tab => tab.textContent.toUpperCase().includes('STOCK TELA'));
-      inventoryTab?.click();
-      setTimeout(() => { const search = document.getElementById('inventory-search'); if (search) { search.value = searchValue; search.dispatchEvent(new Event('input', {bubbles:true})); } }, 450);
+      openStockFiltered(searchValue);
       return;
     }
     const inventoryAccess = event.target.closest('[data-inventory-access]');
@@ -1003,9 +1024,7 @@
       event.preventDefault(); event.stopPropagation();
       const id = Number(inventoryAccess.dataset.inventoryAccess), row = productionData?.rows.find(item => Number(item.source_row) === id);
       const searchValue = row && (traceField(row, 'NOMBRE TELA') || traceField(row, 'TELA') || traceField(row, 'REFERENCIA') || '');
-      const inventoryTab = [...document.querySelectorAll('.nav-children .tab')].find(tab => tab.textContent.toUpperCase().includes('STOCK TELA'));
-      inventoryTab?.click();
-      setTimeout(() => { const search = document.getElementById('inventory-search'); if (search) { search.value = searchValue; search.dispatchEvent(new Event('input', {bubbles:true})); } }, 450);
+      openStockFiltered(searchValue);
       return;
     }
     const mtsEdit = event.target.closest('[data-mts-edit]');

@@ -159,7 +159,7 @@
     markActive();
     fitHeader();
   };
-  const schedule = () => { if (!queued) { queued = true; requestAnimationFrame(run); } };
+  const schedule = () => { if (!queued) { queued = true; setTimeout(run, 60); } };
   run();
   window.addEventListener('resize', () => { lastTop = ''; if (!isMobile()) closeSheet(); schedule(); });
   new MutationObserver(schedule).observe(document.body, {childList: true, subtree: true, attributes: true, attributeFilter: ['class']});
