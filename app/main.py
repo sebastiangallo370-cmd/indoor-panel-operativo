@@ -1245,6 +1245,11 @@ def bodegas_js():
     return FileResponse(Path(__file__).with_name("bodegas.js"), media_type="application/javascript", headers={"Cache-Control": "no-cache"})
 
 
+@app.get("/mobile-nav.js")
+def mobile_nav_js():
+    return FileResponse(Path(__file__).with_name("mobile-nav.js"), media_type="application/javascript", headers={"Cache-Control": "no-cache"})
+
+
 @app.get("/trace-ui.js")
 def trace_ui_script():
     return FileResponse(Path(__file__).with_name("trace-ui.js"), media_type="application/javascript")
@@ -4524,7 +4529,7 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
 `;document.head.appendChild(traceFigmaStyle);setTraceView();
     const commercialGroup=commercialToggle.closest('.nav-group');commercialGroup.classList.add('collapsed');const productionToggle=document.getElementById('production-toggle');if(productionToggle)productionToggle.addEventListener('click',()=>{{const g=productionToggle.closest('.nav-group');g.classList.toggle('collapsed');if(!g.classList.contains('collapsed')&&window.innerWidth>860)g.querySelector('.nav-children .tab')?.click()}});
     setTimeout(()=>{{if(!document.querySelector('.panel.active'))document.querySelector('.tab[data-kind="inicio"]')?.click()}},0);
-    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/api/cartera/cartera.js?v=20261001-14'></script><script src='/trace-ui.js?v=20261001-29'></script><script src='/home-dashboard.js?v=20261001-8'></script><script src='/bodega-dashboard.js?v=20261001-12'></script><script src='/bodegas.js?v=20261002-1'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);</script></body></html>"""
+    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/api/cartera/cartera.js?v=20261001-14'></script><script src='/trace-ui.js?v=20261001-29'></script><script src='/home-dashboard.js?v=20261001-8'></script><script src='/bodega-dashboard.js?v=20261001-12'></script><script src='/bodegas.js?v=20261002-1'></script><script src='/mobile-nav.js?v=20261002-4'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);</script></body></html>"""
 
 
 def ordered_mockup_uploads(extras, slots):
