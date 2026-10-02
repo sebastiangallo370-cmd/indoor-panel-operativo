@@ -68,6 +68,7 @@ def read_orders() -> dict[int, dict] | None:
         if 'SUBLIMACION' not in headers or 'TELA' not in headers:
             return None
         si, ti = headers.index('SUBLIMACION'), headers.index('TELA')
+        ei = headers.index('EDICION') if 'EDICION' in headers else None
         web = {r: n for r, n in db.execute('SELECT source_row,note FROM production_notes WHERE column_number=17')}
         try:
             sheet = {r: n for r, n in db.execute('SELECT source_row,note FROM production_sheet_notes WHERE column_number=17')}
@@ -87,6 +88,7 @@ def read_orders() -> dict[int, dict] | None:
                 state = 'DONE'
             else:
                 state = ''
+            edition = norm(values[ei]) if ei is not None and ei < len(values) else ''
             note = web.get(row) or sheet.get(row) or ''
             found = re.findall(r'(\d+(?:[.,]\d+)?)\s*MTS', note, re.I)
             orders[row] = {
@@ -95,6 +97,7 @@ def read_orders() -> dict[int, dict] | None:
                 'tela': norm(values[ti]),
                 'mts': float(found[-1].replace(',', '.')) if found else 0.0,
                 'state': state,
+                'edicion': 'DONE' if edition not in ('', 'R', 'N/A') and re.search(r'\d', edition) else '',
             }
         return orders
     except (sqlite3.Error, ValueError, KeyError):
@@ -128,6 +131,21 @@ def apply_consumptions(items: list[dict], done: dict) -> None:
             item['rolls'] = len(values)
 
 
+def _base(item: dict) -> str:
+    return ' ' + re.sub(r'^\(\d+\)\s*', '', norm(item['nombre'])) + ' '
+
+
+def _matched(items: list[dict], tela: str) -> list[dict]:
+    matched = [i for i in items if i.get('categoria') == 'BODEGA TELA' and f' {tela} ' in _base(i)
+               and not any(name in _base(i) for name in EXCLUDED_NAMES) and ' RIB ' not in _base(i)]
+    white = [i for i in matched if ' BLANCO ' in _base(i)]
+    return white or matched
+
+
+def _plan_label(order: dict, need: float) -> str:
+    return order['orden'] + (f" · {order['referencia']}" if order.get('referencia') else '') + (f" · {f'{need:.2f}'.rstrip('0').rstrip('.').replace('.', ',')} MTS" if need else '')
+
+
 def build_plan(items: list[dict], orders: list[tuple[int, dict]]) -> list[dict]:
     used: set[tuple[str, int]] = set()
     plans = []
@@ -136,14 +154,7 @@ def build_plan(items: list[dict], orders: list[tuple[int, dict]]) -> list[dict]:
         if not tela:
             continue
 
-        def base(item):
-            return ' ' + re.sub(r'^\(\d+\)\s*', '', norm(item['nombre'])) + ' '
-
-        matched = [i for i in items if i.get('categoria') == 'BODEGA TELA' and f' {tela} ' in base(i)
-                   and not any(name in base(i) for name in EXCLUDED_NAMES) and ' RIB ' not in base(i)]
-        white = [i for i in matched if ' BLANCO ' in base(i)]
-        if white:
-            matched = white
+        matched = _matched(items, tela)
         rolls = []
         for item in matched:
             for index, value in enumerate(item.get('roll_values') or []):
@@ -166,9 +177,9 @@ def build_plan(items: list[dict], orders: list[tuple[int, dict]]) -> list[dict]:
             used.add((roll['id'], roll['index']))
         owners = sorted({r['id'] for r in chosen}) or [i['id'] for i in matched]
         plans.append({
-            'source_row': source_row, 'orden': order['orden'], 'mts': need, 'color': seq % COLORS,
+            'source_row': source_row, 'orden': order['orden'], 'tela': tela, 'mts': need, 'color': seq % COLORS,
             'short': short, 'missing': round(need - covered, 2) if short else 0.0,
-            'label': order['orden'] + (f" · {order['referencia']}" if order.get('referencia') else '') + (f" · {f'{need:.2f}'.rstrip('0').rstrip('.').replace('.', ',')} MTS" if need else ''),
+            'label': _plan_label(order, need),
             'rolls': chosen, 'owners': owners,
         })
     return plans
@@ -215,6 +226,44 @@ def reconcile(base_items: list[dict]) -> tuple[list[dict], list[dict]]:
         if changed:
             _save_ledger(ledger)
         return items, plans
+
+
+def forecast(items: list[dict]) -> list[dict]:
+    """Órdenes con EDICIÓN finalizada que aún no entran a Sublimación: revisa por metros si la
+    tela alcanza después de lo que consumirán las órdenes en Sublimación (P). Solo lectura."""
+    with _lock:
+        ledger = _load_ledger()
+        orders = read_orders()
+    if orders is None:
+        return []
+    active = sorted((r, o) for r, o in orders.items() if o['state'] == 'P' and str(r) not in ledger['done'])
+    ready = sorted((r, o) for r, o in orders.items() if o['state'] == '' and o.get('edicion') == 'DONE')
+    left = {i['id']: sum(float(v) for v in i.get('roll_values') or []) for i in items if i.get('categoria') == 'BODEGA TELA'}
+    ids = {i['nombre']: i['id'] for i in items if i.get('categoria') == 'BODEGA TELA'}
+    for plan in build_plan(items, active):
+        for taken in _consume(plan):
+            if taken['item'] in ids:
+                left[ids[taken['item']]] -= taken['take']
+    result = []
+    for source_row, order in ready:
+        if not order['tela']:
+            continue
+        matched = _matched(items, order['tela'])
+        need = order['mts']
+        have = sum(max(0.0, left[i['id']]) for i in matched)
+        pending = need
+        for item in matched:
+            take = min(max(0.0, left[item['id']]), pending)
+            left[item['id']] -= take
+            pending -= take
+        short = need > 0 and have < need
+        result.append({
+            'source_row': source_row, 'orden': order['orden'], 'tela': order['tela'], 'mts': need,
+            'short': short, 'missing': round(need - have, 2) if short else 0.0, 'disponible': round(have, 2),
+            'label': _plan_label(order, need), 'rolls': [], 'owners': [i['id'] for i in matched],
+            'telas': [i['nombre'] for i in matched],
+        })
+    return result
 
 
 def start_worker(load_snapshot) -> None:

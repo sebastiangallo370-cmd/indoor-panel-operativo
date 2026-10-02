@@ -59,6 +59,7 @@
   const render = data => {
     const k = data.kpis, sub = data.sublimacion, mov = data.movimientos, con = data.consumos;
     const split = (k.mts_nuevos + k.mts_empezados) || 1;
+    const alerts = sub.no_alcanzan + (data.listas_no_alcanzan || 0);
     panel.querySelector('.bd-updated').textContent = 'Inventario leído del Sheet: ' + when(data.updated_at);
     const resumen =
       card({badge: 'Bodega tela', name: 'Metros en bodega', total: num(k.mts) + '<small>MTS</small>', unit: 'Suma de todas las telas'}) +
@@ -67,15 +68,24 @@
         extra: '<div class="bd-split" role="img" aria-label="Nuevos ' + num(k.mts_nuevos) + ' MTS, empezados ' + num(k.mts_empezados) + ' MTS"><i class="n" style="width:' + (k.mts_nuevos / split * 100) + '%" title="Nuevos: ' + num(k.mts_nuevos) + ' MTS"></i><i class="s" style="width:' + (k.mts_empezados / split * 100) + '%" title="Empezados: ' + num(k.mts_empezados) + ' MTS"></i></div>' +
           '<div class="inventory-rolls"><span class="inventory-roll roll-new">' + num(k.rollos_nuevos) + '</span><span class="bd-line" style="align-self:center">Nuevos · ' + num(k.mts_nuevos) + ' MTS</span></div><div class="inventory-rolls"><span class="inventory-roll roll-started">' + num(k.rollos_empezados) + '</span><span class="bd-line" style="align-self:center">Empezados · ' + num(k.mts_empezados) + ' MTS</span></div>'}) +
       card({badge: 'Sublimación', name: 'Reservado para Sublimación', total: num(sub.mts) + '<small>MTS</small>', unit: num(sub.ordenes) + ' órdenes en curso'}) +
-      card({badge: sub.no_alcanzan ? 'Atención' : 'Al día', badgeClass: sub.no_alcanzan ? 'bad' : 'ok', cls: sub.no_alcanzan ? 'bad' : '', name: 'Órdenes que no alcanzan', total: num(sub.no_alcanzan), unit: sub.no_alcanzan ? 'Faltan ' + num(sub.faltan) + ' MTS' : 'Todas las órdenes alcanzan'}) +
+      card({badge: alerts ? 'Atención' : 'Al día', badgeClass: alerts ? 'bad' : 'ok', cls: alerts ? 'bad' : '', name: 'Órdenes que no alcanzan', total: num(alerts), unit: alerts ? num(sub.no_alcanzan) + ' en Sublimación · ' + num(data.listas_no_alcanzan || 0) + ' con Edición finalizada' : 'Todas las órdenes alcanzan'}) +
       card({badge: 'Consumo', name: 'Consumido en Sublimación', total: num(con.mts_30d) + '<small>MTS</small>', unit: 'Últimos 30 días · ' + num(con.ordenes_30d) + ' órdenes'});
 
     const maxTop = data.top[0]?.mts || 1;
     const top = data.top.map((row, index) => card({badge: 'Top ' + (index + 1), name: row.nombre, total: num(row.mts) + '<small>MTS</small>', unit: rolls(row.rollos), extra: circles(row.valores, row.estados) + meter(row.mts, maxTop)})).join('');
 
-    const orders = sub.lista.map(row => card({badge: row.short ? 'No alcanza' : 'Alcanza', badgeClass: row.short ? 'bad' : 'ok', cls: row.short ? 'bad' : '', name: row.label,
-      total: row.short ? num(row.missing) + '<small>MTS FALTAN</small>' : num(row.mts) + '<small>MTS</small>',
-      unit: (row.short ? 'Necesita ' + num(row.mts) + ' MTS · ' : '') + (row.telas.length ? row.telas.join(', ') + ' · ' : '') + rolls(row.rollos), extra: circles(row.valores, row.estados)})).join('');
+    const orderCard = row => !row.encontrada
+      ? card({badge: 'Tela no encontrada', badgeClass: 'bad', cls: 'bad', name: row.label, total: num(row.mts) + '<small>MTS</small>',
+          unit: 'Tela en producción: ' + (row.tela || 'sin tela') + ' · no hay una tela con ese nombre en Bodega'})
+      : card({badge: row.short ? 'No alcanza' : 'Alcanza', badgeClass: row.short ? 'bad' : 'ok', cls: row.short ? 'bad' : '', name: row.label,
+          total: row.short ? num(row.missing) + '<small>MTS FALTAN</small>' : num(row.mts) + '<small>MTS</small>',
+          unit: (row.short ? 'Necesita ' + num(row.mts) + ' MTS · ' : '') + (row.telas.length ? row.telas.join(', ') + ' · ' : '') + rolls(row.rollos), extra: circles(row.valores, row.estados)});
+    const readyCard = row => !row.encontrada ? orderCard(row)
+      : card({badge: row.short ? 'No alcanza' : 'Alcanza', badgeClass: row.short ? 'bad' : 'ok', cls: row.short ? 'bad' : '', name: row.label,
+          total: row.short ? num(row.missing) + '<small>MTS FALTAN</small>' : num(row.mts) + '<small>MTS</small>',
+          unit: 'Disponible ' + num(row.disponible) + ' MTS · ' + row.telas.join(', ')});
+    const orders = sub.lista.map(orderCard).join('');
+    const ready = (data.listas || []).slice().sort((a, b) => (b.short - a.short)).map(readyCard).join('');
 
     const low = data.bajo_stock.map(row => card({badge: 'Bajo stock', badgeClass: 'warn', name: row.nombre, total: num(row.mts) + '<small>MTS</small>', unit: rolls(row.rollos), extra: circles(row.valores, row.estados)})).join('') +
       data.sin_stock.map(name => card({badge: 'Sin stock', badgeClass: 'bad', name, total: '0<small>MTS</small>', unit: '0 rollos'})).join('');
@@ -92,6 +102,7 @@
 
     body.innerHTML =
       section('Resumen', '', resumen, true) +
+      section('Listas para sublimar', 'Edición finalizada · ' + num((data.listas || []).length) + ' referencias · se revisa si alcanza la tela', ready || '') + (ready ? '' : '<p class="bd-note">No hay referencias con Edición finalizada pendientes de Sublimación.</p>') +
       section('Sublimación en curso', num(sub.ordenes) + ' órdenes', orders || '') + (orders ? '' : '<p class="bd-note">No hay órdenes en Sublimación (P).</p>') +
       section('Bajo stock', 'menos de ' + num(data.umbral_bajo) + ' MTS', low || '') + (low ? '' : '<p class="bd-note">Ninguna tela por debajo del umbral.</p>') +
       section('Top 10 telas con más metros', '', top) +
