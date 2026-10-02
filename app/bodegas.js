@@ -124,7 +124,7 @@
       if (ok) shown += 1;
     });
     cardsBox.querySelectorAll('.bg-sum').forEach(card => card.classList.toggle('on', card.dataset.bgPick === bodega));
-    if (!message.dataset.keep) message.textContent = shown + (shown === 1 ? ' tela' : ' telas') + (tela || codigo || bodega ? (shown === 1 ? ' coincide' : ' coinciden') + ' con el filtro.' : ' en Bodega tela.');
+    if (!message.dataset.keep) message.textContent = shown + (shown === 1 ? ' tela' : ' telas') + (tela || codigo || bodega ? (shown === 1 ? ' coincide' : ' coinciden') + ' con el filtro.' : ' en Stock tela.');
   };
 
   const render = () => {
@@ -168,7 +168,7 @@
     catch (error) { telasBox.innerHTML = '<p class="bg-note">' + esc(error.message) + '</p>'; }
   };
 
-  // Ventana EDITAR BODEGA (se abre desde BODEGAS y desde BODEGA TELA).
+  // Ventana EDITAR BODEGA (se abre desde BODEGAS y desde STOCK TELA).
   const dialog = document.createElement('dialog');
   dialog.className = 'bg-dialog';
   document.body.appendChild(dialog);
@@ -232,12 +232,12 @@
     if (edit) openEditor(edit.closest('.inventory-item-card').dataset.nombre);
   });
 
-  // BODEGA TELA: cada tarjeta muestra dónde están sus rollos y el botón EDITAR BODEGA.
+  // STOCK TELA: cada tarjeta muestra dónde están sus rollos y el botón EDITAR BODEGA.
   let decorating = false;
   const decorateInventory = async force => {
     const body = document.getElementById('inventory-body');
     if (!body || decorating) return;
-    const cards = [...body.querySelectorAll('.inventory-item-card')].filter(card => /BODEGA TELA/i.test(card.querySelector('.inv-badge')?.textContent || ''));
+    const cards = [...body.querySelectorAll('.inventory-item-card')].filter(card => /STOCK TELA|BODEGA TELA/i.test(card.querySelector('.inv-badge')?.textContent || ''));
     if (!cards.length || (!force && cards.every(card => card.querySelector('.bg-inline')))) return;
     decorating = true;
     try {

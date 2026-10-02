@@ -27,7 +27,7 @@ SOURCE_TABS = (
     ("STOCK PARA MERCAR", "Stock para mercar"),
     ("INSUMOS", "Insumos"),
     ("MATERIA PRIMA IMPRESION", "Materia prima impresión"),
-    ("BODEGA TELA", "Bodega tela"),
+    ("BODEGA TELA", "Stock tela"),  # clave = nombre de la pestaña del Sheet; en pantalla se llama STOCK TELA
     ("RETAL CANASTAS", "Retal canastas"),
     ("DOCUMENTACION PROCESO", "Documentación proceso"),
 )
@@ -65,7 +65,7 @@ def _local_inventory() -> dict[str, Any]:
     items = [{
         "id": f"BODEGA TELA:LOCAL:{index}",
         "categoria": "BODEGA TELA",
-        "categoria_label": "Bodega tela",
+        "categoria_label": "Stock tela",
         "nombre": f"({fabric.get('code', '')}) {fabric.get('name', '')}".strip(),
         "total": 0.0,
         "total_label": "0",
@@ -75,7 +75,7 @@ def _local_inventory() -> dict[str, Any]:
     } for index, fabric in enumerate(fabrics, start=1) if fabric.get("name")]
     return {
         "updated_at": datetime.now(timezone.utc).isoformat(),
-        "categories": [{"key": "BODEGA TELA", "label": "Bodega tela", "items": len(items), "units": 0, "units_label": "0", "available": True}],
+        "categories": [{"key": "BODEGA TELA", "label": "Stock tela", "items": len(items), "units": 0, "units_label": "0", "available": True}],
         "items": items,
         "summary": {"items": len(items), "units": 0, "units_label": "0", "sources": 1},
     }
@@ -327,7 +327,7 @@ def _read_inventory() -> dict[str, Any]:
         if nombre in existing:
             continue
         all_records.append({
-            "id": f"BODEGA TELA:NUEVA:{fabric['codigo']}", "categoria": "BODEGA TELA", "categoria_label": "Bodega tela",
+            "id": f"BODEGA TELA:NUEVA:{fabric['codigo']}", "categoria": "BODEGA TELA", "categoria_label": "Stock tela",
             "nombre": nombre, "total": 0.0, "total_label": "0", "mts": 0.0, "rolls": 0,
             "roll_values": [], "roll_statuses": [], "campos": {},
         })
@@ -438,6 +438,9 @@ def _with_sublimacion(payload: dict[str, Any]) -> dict[str, Any]:
         items = _with_usage(items)
     except Exception:
         pass
+    for item in items:
+        if item.get('categoria') == 'BODEGA TELA':
+            item['categoria_label'] = 'Stock tela'
     items = sorted(items, key=_usage_key)
     return {**payload, "items": items} if plan is None else {**payload, "items": items, "sublimacion": plan}
 
@@ -780,7 +783,7 @@ def inventory_bodegas_assign(assignment: BodegaAssignment):
             raise HTTPException(status_code=404, detail='Esa bodega no existe.')
         item = next((i for i in items if i['nombre'] == assignment.nombre), None)
         if not item:
-            raise HTTPException(status_code=404, detail='Esa tela no existe en Bodega tela.')
+            raise HTTPException(status_code=404, detail='Esa tela no existe en Stock tela.')
         values = [float(v) for v in item.get('roll_values') or []]
         if any(index < 0 or index >= len(values) for index in assignment.rollos):
             raise HTTPException(status_code=409, detail='Los rollos cambiaron; recarga la página.')
