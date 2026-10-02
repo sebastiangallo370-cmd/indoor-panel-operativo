@@ -626,6 +626,7 @@ def inventory_movements(batch: InventoryBatch):
 
 _bodegas_file = os.getenv('INVENTORY_BODEGAS_FILE', '/data/inventory_bodegas.json')
 DEFAULT_BODEGAS = ['BODEGA GLORIA', 'BODEGA SEGUNDO PISO', 'BODEGA CASA', 'BODEGA INDOOR']
+DEFAULT_PLACE = 'BODEGA INDOOR'  # rollos sin color de bodega en el Sheet ni asignación en la web
 _bodegas_lock = threading.Lock()
 
 
@@ -689,7 +690,7 @@ def inventory_bodegas():
         sheet += [''] * (len(values) - len(sheet))
         rolls = []
         for index, value in enumerate(values):
-            place = places[index] or sheet[index]
+            place = places[index] or sheet[index] or DEFAULT_PLACE
             place = place if place in totals else ''
             rolls.append({'i': index, 'v': value, 'estado': statuses[index] if index < len(statuses) else 'new', 'bodega': place,
                           'origen': 'web' if places[index] else ('sheet' if sheet[index] else '')})
@@ -726,7 +727,7 @@ def inventory_bodegas_assign(assignment: BodegaAssignment):
             raise HTTPException(status_code=409, detail='Los rollos cambiaron; recarga la página.')
         places = _resolve_rolls(values, data['asignaciones'].get(item['nombre'], []))
         for index in assignment.rollos:
-            places[index] = assignment.bodega or '-'  # '-' = quitada a mano (no usar la del Sheet)
+            places[index] = assignment.bodega  # vacío = volver a lo que diga el Sheet
         data['asignaciones'][item['nombre']] = [{'i': i, 'v': values[i], 'b': b} for i, b in enumerate(places) if b]
         if not data['asignaciones'][item['nombre']]:
             data['asignaciones'].pop(item['nombre'])

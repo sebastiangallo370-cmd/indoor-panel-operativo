@@ -56,7 +56,7 @@
   panel.className = 'panel';
   panel.dataset.panel = 'bodegas';
   panel.innerHTML = '<div class="bg">' +
-    '<div class="bg-head"><div><h2>Bodegas</h2><p>Toca los rollos de una tela, elige la bodega y guarda. Se guarda en el servidor (no se escribe al Sheet).</p></div><div><button type="button" class="bg-btn alt" data-bg-new>+ NUEVA BODEGA</button><button type="button" class="bg-btn" data-bg-refresh>Actualizar</button></div></div>' +
+    '<div class="bg-head"><div><h2>Bodegas</h2><p>La bodega sale del color de la celda en el Sheet (sin color = BODEGA INDOOR). Para cambiarla aquí: toca los rollos, elige la bodega y guarda (no se escribe al Sheet).</p></div><div><button type="button" class="bg-btn alt" data-bg-new>+ NUEVA BODEGA</button><button type="button" class="bg-btn" data-bg-refresh>Actualizar</button></div></div>' +
     '<section class="bg-section"><h3>Resumen por bodega</h3></section><div class="bg-cards"></div>' +
     '<form class="bg-filters" autocomplete="off" onsubmit="return false"><label>Nombre tela<input name="tela" type="search" list="bg-telas-list" placeholder="Ej. MONTECATINI"><datalist id="bg-telas-list"></datalist></label><label>Código tela<input name="codigo" type="search" inputmode="numeric" placeholder="Ej. 100"></label><label>Bodega<select name="bodega"></select></label><button type="button" class="bg-btn alt" data-bg-clear>Limpiar</button></form>' +
     '<p class="bg-note bg-msg" role="status"></p><div class="bg-telas"></div></div>';
@@ -71,7 +71,7 @@
 
   const renderSummary = () => {
     const chosen = filters.elements.bodega.value;
-    cardsBox.innerHTML = data.resumen.map(entry => {
+    cardsBox.innerHTML = data.resumen.filter(entry => entry.nombre || entry.rollos).map(entry => {
       const name = entry.nombre || NONE;
       return '<button type="button" class="inventory-item-card bg-sum' + (entry.nombre ? '' : ' none') + (chosen === name ? ' on' : '') + '" data-bg-pick="' + esc(name) + '"><span class="inv-badge">' + (entry.nombre ? 'Bodega' : 'Pendiente') + '</span><strong class="inv-name">' + esc(name) + '</strong><span class="inv-total">' + num(entry.mts) + '<small>MTS</small></span><span class="inv-unit">' + rolls(entry.rollos) + ' · ' + num(entry.telas) + (entry.telas === 1 ? ' tela' : ' telas') + '</span></button>';
     }).join('');
@@ -88,7 +88,7 @@
       (tela.rollos.length ? order.map(key => '<div class="bg-group' + (key ? '' : ' none') + '"><small><b>' + esc(key || NONE) + '</b> · ' + rolls(groups.get(key).length) + ' · ' + num(groups.get(key).reduce((sum, roll) => sum + roll.v, 0)) + ' MTS</small><div class="inventory-rolls">' +
         groups.get(key).map(roll => '<span class="inventory-roll ' + (roll.estado === 'started' ? 'roll-started' : 'roll-new') + '" data-i="' + roll.i + '" title="Rollo de ' + esc(num(roll.v)) + ' MTS · ' + esc(key || NONE) + '">' + esc(num(roll.v)) + '</span>').join('') + '</div></div>').join('') : '<p class="bg-note">Sin rollos en inventario.</p>') +
       '<span class="inv-total">' + num(tela.mts) + '<small>MTS</small></span>' +
-      (tela.rollos.length ? '<div class="bg-assign"><select><option value="">Mover a…</option>' + data.bodegas.map(name => '<option value="' + esc(name) + '">' + esc(name) + '</option>').join('') + '<option value="__none__">Quitar bodega</option></select><button type="button" class="bg-btn alt" data-bg-all>Todos</button><button type="button" class="bg-btn" data-bg-save disabled>Guardar</button><span>0 rollos seleccionados</span></div>' : '') +
+      (tela.rollos.length ? '<div class="bg-assign"><select><option value="">Mover a…</option>' + data.bodegas.map(name => '<option value="' + esc(name) + '">' + esc(name) + '</option>').join('') + '<option value="__none__">Según el Sheet</option></select><button type="button" class="bg-btn alt" data-bg-all>Todos</button><button type="button" class="bg-btn" data-bg-save disabled>Guardar</button><span>0 rollos seleccionados</span></div>' : '') +
       '</article>';
   };
 
@@ -151,7 +151,7 @@
     try {
       await api('/api/inventarios/bodegas/asignar', {method: 'POST', body: JSON.stringify({nombre: card.dataset.nombre, rollos: indexes, bodega: target === '__none__' ? '' : target})});
       message.dataset.keep = 'true';
-      message.textContent = 'Guardado: ' + rolls(indexes.length) + ' de ' + card.dataset.nombre + (target === '__none__' ? ' quedaron sin bodega.' : ' en ' + target + '.');
+      message.textContent = 'Guardado: ' + rolls(indexes.length) + ' de ' + card.dataset.nombre + (target === '__none__' ? ' vuelven a la bodega que indica el Sheet.' : ' en ' + target + '.');
       await load();
       setTimeout(() => { delete message.dataset.keep; }, 4000);
     } catch (error) { alert(error.message); save.disabled = false; save.textContent = 'Guardar'; }
