@@ -590,7 +590,7 @@ def inventory_movements(batch: InventoryBatch):
 
 
 _bodegas_file = os.getenv('INVENTORY_BODEGAS_FILE', '/data/inventory_bodegas.json')
-DEFAULT_BODEGAS = ['BODEGA GLORIA', 'SEGUNDO PISO', 'BODEGA CASA']
+DEFAULT_BODEGAS = ['BODEGA GLORIA', 'BODEGA SEGUNDO PISO', 'BODEGA CASA', 'BODEGA INDOOR']
 _bodegas_lock = threading.Lock()
 
 
