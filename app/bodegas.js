@@ -33,13 +33,31 @@
 .bg-group small b{color:#e7ff9a}
 .bg-group.none small b{color:#ffd9a0}
 .bg .inventory-rolls{display:flex;flex-wrap:wrap;gap:6px}
-.bg .inventory-roll{cursor:pointer;user-select:none;transition:transform .12s}
-.bg .inventory-roll:hover{transform:scale(1.08)}
-.bg .inventory-roll.sel{outline:3px solid #fff;outline-offset:2px}
-.bg-assign{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding-top:8px;border-top:1px solid #26321f}
-.bg-assign select{flex:1;min-width:140px;border:1px solid #46563f;border-radius:9px;background:#0b100b;color:#fff;padding:8px 10px;font:600 .8rem Arial}
-.bg-assign button{padding:8px 12px!important;font-size:.78rem}
-.bg-assign span{width:100%;color:#8a9485;font-size:.72rem}
+.bg-actions{padding-top:8px;border-top:1px solid #26321f}
+.bg-actions .bg-btn{width:100%!important}
+.bg-inline{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;margin-top:4px;padding-top:10px;border-top:1px solid #26321f}
+.bg-inline span{color:#9fb584;font:800 .66rem Arial;letter-spacing:.05em;text-transform:uppercase}
+.bg-inline .bg-btn{padding:6px 10px!important;font-size:.7rem}
+.bg-dialog{width:min(760px,94vw);max-height:90dvh;padding:0;border:1px solid rgba(208,244,76,.6);border-radius:20px;background:#0c110b;color:#f3f7ee;box-shadow:0 30px 90px #000b}
+.bg-dialog::backdrop{background:#000b}
+.bg-dlg{position:relative;display:grid;gap:14px;padding:24px}
+.bg-dlg header{display:block!important;position:static!important;margin:0!important;padding:0 40px 0 0!important;border:0!important;background:none!important;min-height:0!important;box-shadow:none!important}
+.bg-dlg header h2{margin:8px 0 4px;font-size:1.15rem}
+.bg-dlg header p{margin:0;color:#9fae99;font-size:.8rem}
+.bg-x{position:absolute;top:12px;right:14px;width:34px!important;height:34px;padding:0!important;border:1px solid #46563f!important;border-radius:50%!important;background:#151d15!important;color:#fff!important;font-size:20px;cursor:pointer}
+.bg-dgroup{display:grid;gap:8px;padding:12px;border:1px solid #2b382b;border-radius:12px;background:#111811}
+.bg-dgroup small{color:#aebba7;font:800 .66rem Arial;letter-spacing:.07em;text-transform:uppercase}
+.bg-dgroup small b{color:#e7ff9a}
+.bg-dgroup em{color:#6f7b6a;font-size:.75rem}
+.bg-dialog .inventory-rolls{display:flex;flex-wrap:wrap;gap:7px}
+.bg-dialog .inventory-roll{cursor:pointer;user-select:none;transition:transform .12s}
+.bg-dialog .inventory-roll:hover{transform:scale(1.08)}
+.bg-dialog .inventory-roll.sel{outline:3px solid #fff;outline-offset:2px}
+.bg-move{display:grid;gap:10px;padding-top:6px;border-top:1px solid #26321f}
+.bg-move>div:first-child{display:flex;align-items:center;gap:12px;color:#9fae99;font-size:.78rem}
+.bg-move small{color:#d0f44c;font:850 .66rem Arial;letter-spacing:.1em}
+.bg-targets{display:flex;flex-wrap:wrap;gap:8px}
+.bg-targets .bg-btn{flex:1 1 150px}
 .bg-filters{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1fr) auto;gap:10px;align-items:end;padding:14px 18px;border:1px solid #46563f;border-radius:18px;background:#111811}
 .bg-filters label{display:grid;gap:5px;color:#aebba7;font:800 .64rem Arial;letter-spacing:.07em;text-transform:uppercase}
 .bg-filters input,.bg-filters select{width:100%;box-sizing:border-box;border:1px solid #46563f;border-radius:9px;background:#0b100b;color:#fff;padding:9px 11px;font:500 .85rem Arial;outline:none}
@@ -56,7 +74,7 @@
   panel.className = 'panel';
   panel.dataset.panel = 'bodegas';
   panel.innerHTML = '<div class="bg">' +
-    '<div class="bg-head"><div><h2>Bodegas</h2><p>La bodega sale del color de la celda en el Sheet (sin color = BODEGA INDOOR). Para cambiarla aquí: toca los rollos, elige la bodega y guarda (no se escribe al Sheet).</p></div><div><button type="button" class="bg-btn alt" data-bg-new>+ NUEVA BODEGA</button><button type="button" class="bg-btn" data-bg-refresh>Actualizar</button></div></div>' +
+    '<div class="bg-head"><div><h2>Bodegas</h2><p>La bodega sale del color de la celda en el Sheet (sin color = BODEGA INDOOR). Para moverla usa EDITAR BODEGA en cada tela (se guarda en el servidor, no se escribe al Sheet).</p></div><div><button type="button" class="bg-btn alt" data-bg-new>+ NUEVA BODEGA</button><button type="button" class="bg-btn" data-bg-refresh>Actualizar</button></div></div>' +
     '<section class="bg-section"><h3>Resumen por bodega</h3></section><div class="bg-cards"></div>' +
     '<form class="bg-filters" autocomplete="off" onsubmit="return false"><label>Nombre tela<input name="tela" type="search" list="bg-telas-list" placeholder="Ej. MONTECATINI"><datalist id="bg-telas-list"></datalist></label><label>Código tela<input name="codigo" type="search" inputmode="numeric" placeholder="Ej. 100"></label><label>Bodega<select name="bodega"></select></label><button type="button" class="bg-btn alt" data-bg-clear>Limpiar</button></form>' +
     '<p class="bg-note bg-msg" role="status"></p><div class="bg-telas"></div></div>';
@@ -88,7 +106,7 @@
       (tela.rollos.length ? order.map(key => '<div class="bg-group' + (key ? '' : ' none') + '"><small><b>' + esc(key || NONE) + '</b> · ' + rolls(groups.get(key).length) + ' · ' + num(groups.get(key).reduce((sum, roll) => sum + roll.v, 0)) + ' MTS</small><div class="inventory-rolls">' +
         groups.get(key).map(roll => '<span class="inventory-roll ' + (roll.estado === 'started' ? 'roll-started' : 'roll-new') + '" data-i="' + roll.i + '" title="Rollo de ' + esc(num(roll.v)) + ' MTS · ' + esc(key || NONE) + '">' + esc(num(roll.v)) + '</span>').join('') + '</div></div>').join('') : '<p class="bg-note">Sin rollos en inventario.</p>') +
       '<span class="inv-total">' + num(tela.mts) + '<small>MTS</small></span>' +
-      (tela.rollos.length ? '<div class="bg-assign"><select><option value="">Mover a…</option>' + data.bodegas.map(name => '<option value="' + esc(name) + '">' + esc(name) + '</option>').join('') + '<option value="__none__">Según el Sheet</option></select><button type="button" class="bg-btn alt" data-bg-all>Todos</button><button type="button" class="bg-btn" data-bg-save disabled>Guardar</button><span>0 rollos seleccionados</span></div>' : '') +
+      (tela.rollos.length ? '<div class="bg-actions"><button type="button" class="bg-btn" data-bg-edit>EDITAR BODEGA</button></div>' : '') +
       '</article>';
   };
 
@@ -117,46 +135,105 @@
     applyFilters();
   };
 
+  const fetchData = async () => { data = await api('/api/inventarios/bodegas'); data.at = Date.now(); return data; };
   const load = async () => {
     telasBox.innerHTML = '<p class="bg-note">Cargando bodegas…</p>';
-    try { data = await api('/api/inventarios/bodegas'); render(); }
+    try { await fetchData(); render(); decorateInventory(true); }
     catch (error) { telasBox.innerHTML = '<p class="bg-note">' + esc(error.message) + '</p>'; }
   };
 
-  const updateSelection = card => {
-    const count = card.querySelectorAll('.inventory-roll.sel').length;
-    const assign = card.querySelector('.bg-assign');
-    assign.querySelector('span').textContent = count + (count === 1 ? ' rollo seleccionado' : ' rollos seleccionados');
-    assign.querySelector('[data-bg-save]').disabled = !count || !assign.querySelector('select').value;
+  // Ventana EDITAR BODEGA (se abre desde BODEGAS y desde BODEGA TELA).
+  const dialog = document.createElement('dialog');
+  dialog.className = 'bg-dialog';
+  document.body.appendChild(dialog);
+  let editing = '';
+  const renderDialog = (note = '') => {
+    const tela = data.telas.find(item => item.nombre === editing);
+    if (!tela) { dialog.innerHTML = '<div class="bg-dlg"><button type="button" class="bg-x" aria-label="Cerrar">×</button><p class="bg-note">Esa tela ya no está en el inventario.</p></div>'; return; }
+    const groups = new Map(data.bodegas.map(name => [name, []]));
+    tela.rollos.forEach(roll => { if (!groups.has(roll.bodega || NONE)) groups.set(roll.bodega || NONE, []); groups.get(roll.bodega || NONE).push(roll); });
+    dialog.innerHTML = '<div class="bg-dlg"><button type="button" class="bg-x" aria-label="Cerrar">×</button>' +
+      '<header><span class="inv-badge">EDITAR BODEGA</span><h2>' + esc(tela.nombre) + '</h2><p>' + rolls(tela.rollos.length) + ' · ' + num(tela.mts) + ' MTS. Toca los rollos que quieres mover y luego la bodega de destino.</p></header>' +
+      [...groups.entries()].map(([name, list]) => '<section class="bg-dgroup"><small><b>' + esc(name) + '</b> · ' + rolls(list.length) + (list.length ? ' · ' + num(list.reduce((sum, roll) => sum + roll.v, 0)) + ' MTS' : '') + '</small><div class="inventory-rolls">' +
+        (list.length ? list.map(roll => '<span class="inventory-roll ' + (roll.estado === 'started' ? 'roll-started' : 'roll-new') + '" data-i="' + roll.i + '" title="' + esc(num(roll.v)) + ' MTS · ' + (roll.origen === 'web' ? 'asignado en la web' : roll.origen === 'sheet' ? 'según el color del Sheet' : 'sin color en el Sheet') + '">' + esc(num(roll.v)) + '</span>').join('') : '<em>Sin rollos</em>') + '</div></section>').join('') +
+      '<div class="bg-move"><div><button type="button" class="bg-btn alt" data-bg-all>Seleccionar todos</button><span data-bg-count>0 rollos seleccionados</span></div><small>MOVER SELECCIONADOS A:</small><div class="bg-targets">' +
+        data.bodegas.map(name => '<button type="button" class="bg-btn" data-bg-to="' + esc(name) + '" disabled>' + esc(name) + '</button>').join('') +
+        '<button type="button" class="bg-btn alt" data-bg-to="__none__" disabled title="Quita lo asignado en la web y deja la bodega que indica el color del Sheet">Según el Sheet</button></div></div>' +
+      '<p class="bg-note bg-dmsg" role="status">' + esc(note) + '</p></div>';
   };
-
-  telasBox.addEventListener('click', async event => {
-    const card = event.target.closest('.inventory-item-card');
-    if (!card) return;
+  const openEditor = async nombre => {
+    editing = nombre;
+    dialog.innerHTML = '<div class="bg-dlg"><p class="bg-note">Cargando…</p></div>';
+    if (!dialog.open) dialog.showModal();
+    try { if (!data || Date.now() - data.at > 20000) await fetchData(); renderDialog(); }
+    catch (error) { dialog.innerHTML = '<div class="bg-dlg"><button type="button" class="bg-x" aria-label="Cerrar">×</button><p class="bg-note">' + esc(error.message) + '</p></div>'; }
+  };
+  const syncSelection = () => {
+    const count = dialog.querySelectorAll('.inventory-roll.sel').length;
+    const counter = dialog.querySelector('[data-bg-count]');
+    if (counter) counter.textContent = count + (count === 1 ? ' rollo seleccionado' : ' rollos seleccionados');
+    dialog.querySelectorAll('[data-bg-to]').forEach(button => { button.disabled = !count; });
+  };
+  dialog.addEventListener('click', async event => {
+    if (event.target === dialog || event.target.closest('.bg-x')) { dialog.close(); return; }
     const roll = event.target.closest('.inventory-roll');
-    if (roll) { roll.classList.toggle('sel'); updateSelection(card); return; }
+    if (roll) { roll.classList.toggle('sel'); syncSelection(); return; }
     if (event.target.closest('[data-bg-all]')) {
-      const all = card.querySelectorAll('.inventory-roll'), allOn = [...all].every(node => node.classList.contains('sel'));
+      const all = dialog.querySelectorAll('.inventory-roll'), allOn = [...all].every(node => node.classList.contains('sel'));
       all.forEach(node => node.classList.toggle('sel', !allOn));
-      updateSelection(card);
+      syncSelection();
       return;
     }
-    const save = event.target.closest('[data-bg-save]');
-    if (!save) return;
-    const target = card.querySelector('.bg-assign select').value;
-    const indexes = [...card.querySelectorAll('.inventory-roll.sel')].map(node => Number(node.dataset.i));
-    if (!indexes.length || !target) return;
-    save.disabled = true;
-    save.textContent = 'Guardando…';
+    const move = event.target.closest('[data-bg-to]');
+    if (!move || move.disabled) return;
+    const target = move.dataset.bgTo;
+    const indexes = [...dialog.querySelectorAll('.inventory-roll.sel')].map(node => Number(node.dataset.i));
+    if (!indexes.length) return;
+    dialog.querySelectorAll('[data-bg-to]').forEach(button => { button.disabled = true; });
+    dialog.querySelector('.bg-dmsg').textContent = 'Guardando…';
     try {
-      await api('/api/inventarios/bodegas/asignar', {method: 'POST', body: JSON.stringify({nombre: card.dataset.nombre, rollos: indexes, bodega: target === '__none__' ? '' : target})});
-      message.dataset.keep = 'true';
-      message.textContent = 'Guardado: ' + rolls(indexes.length) + ' de ' + card.dataset.nombre + (target === '__none__' ? ' vuelven a la bodega que indica el Sheet.' : ' en ' + target + '.');
-      await load();
-      setTimeout(() => { delete message.dataset.keep; }, 4000);
-    } catch (error) { alert(error.message); save.disabled = false; save.textContent = 'Guardar'; }
+      await api('/api/inventarios/bodegas/asignar', {method: 'POST', body: JSON.stringify({nombre: editing, rollos: indexes, bodega: target === '__none__' ? '' : target})});
+      await fetchData();
+      const one = indexes.length === 1;
+      renderDialog('Guardado: ' + rolls(indexes.length) + (target === '__none__' ? (one ? ' vuelve' : ' vuelven') + ' a la bodega que indica el Sheet.' : (one ? ' movido' : ' movidos') + ' a ' + target + '.'));
+      if (panel.classList.contains('active')) render();
+      decorateInventory(true);
+    } catch (error) { dialog.querySelector('.bg-dmsg').textContent = error.message; syncSelection(); }
   });
-  telasBox.addEventListener('change', event => { const card = event.target.closest('.inventory-item-card'); if (card && event.target.matches('.bg-assign select')) updateSelection(card); });
+
+  telasBox.addEventListener('click', event => {
+    const edit = event.target.closest('[data-bg-edit]');
+    if (edit) openEditor(edit.closest('.inventory-item-card').dataset.nombre);
+  });
+
+  // BODEGA TELA: cada tarjeta muestra dónde están sus rollos y el botón EDITAR BODEGA.
+  let decorating = false;
+  const decorateInventory = async force => {
+    const body = document.getElementById('inventory-body');
+    if (!body || decorating) return;
+    const cards = [...body.querySelectorAll('.inventory-item-card')].filter(card => /BODEGA TELA/i.test(card.querySelector('.inv-badge')?.textContent || ''));
+    if (!cards.length || (!force && cards.every(card => card.querySelector('.bg-inline')))) return;
+    decorating = true;
+    try {
+      if (!data || Date.now() - data.at > 60000) await fetchData();
+      const byName = new Map(data.telas.map(tela => [tela.nombre, tela]));
+      cards.forEach(card => {
+        const name = card.querySelector('.inv-name')?.textContent.trim();
+        const tela = byName.get(name);
+        card.querySelector('.bg-inline')?.remove();
+        if (!tela || !tela.rollos.length) return;
+        const counts = new Map();
+        tela.rollos.forEach(roll => counts.set(roll.bodega || NONE, (counts.get(roll.bodega || NONE) || 0) + 1));
+        const line = document.createElement('div');
+        line.className = 'bg-inline';
+        line.innerHTML = '<span>' + [...counts.entries()].map(([place, count]) => esc(place.replace(/^BODEGA /, '')) + ' (' + count + ')').join(' · ') + '</span><button type="button" class="bg-btn">EDITAR BODEGA</button>';
+        line.querySelector('button').addEventListener('click', event => { event.preventDefault(); event.stopPropagation(); openEditor(name); });
+        card.appendChild(line);
+      });
+    } catch (_) {} finally { decorating = false; }
+  };
+  let decorateTimer = 0;
+  new MutationObserver(() => { clearTimeout(decorateTimer); decorateTimer = setTimeout(() => decorateInventory(false), 250); }).observe(document.body, {childList: true, subtree: true});
   cardsBox.addEventListener('click', event => {
     const pick = event.target.closest('[data-bg-pick]');
     if (!pick) return;
