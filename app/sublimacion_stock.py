@@ -20,9 +20,9 @@ LEDGER_FILE = os.getenv('INVENTORY_SUBLIMACION_FILE', '/data/inventory_sublimaci
 DB_FILE = Path(os.getenv('STATE_DIR', '/data/state')) / 'jobs.sqlite3'
 EXCLUDED_NAMES = ('DON ALVEIRO',)
 COLORS = 5
-# El inventario muestra exactamente lo que dice el Google Sheet. Los consumos de Sublimación se siguen
-# registrando en el servidor, pero ya no se restan solos (ponerlo en '1' los vuelve a restar).
-APPLY_CONSUMPTIONS = os.getenv('INVENTORY_APPLY_CONSUMPTIONS', '0') == '1'
+# Al FINALIZAR Sublimación se descuentan del stock los MTS requeridos de esa referencia. Solo cuentan los consumos
+# registrados desde 'aplicar_desde' (fecha guardada en el registro); los anteriores quedan como historial.
+APPLY_CONSUMPTIONS = os.getenv('INVENTORY_APPLY_CONSUMPTIONS', '1') == '1'
 _lock = threading.RLock()
 
 
@@ -132,9 +132,11 @@ def read_orders() -> dict[int, dict] | None:
         db.close()
 
 
-def apply_consumptions(items: list[dict], done: dict) -> None:
-    """Descuenta los consumos registrados; el sobrante del rollo queda como empezado."""
+def apply_consumptions(items: list[dict], done: dict, since: str = '') -> None:
+    """Descuenta los consumos registrados desde 'since'; el sobrante del rollo queda como empezado."""
     for key in sorted(done, key=lambda k: done[k].get('ts', '')):
+        if since and done[key].get('ts', '') < since:
+            continue
         for roll in done[key].get('rolls', []):
             item = next((i for i in items if i.get('nombre') == roll['item']), None)
             if not item:
@@ -229,6 +231,9 @@ def reconcile(base_items: list[dict]) -> tuple[list[dict], list[dict]]:
         ledger = _load_ledger()
         orders = read_orders()
         changed = False
+        if not ledger.get('aplicar_desde'):
+            ledger['aplicar_desde'] = datetime.now(timezone.utc).isoformat()
+            changed = True
         if orders is not None:
             for key in list(ledger['plans']):
                 order = orders.get(int(key))
@@ -243,7 +248,7 @@ def reconcile(base_items: list[dict]) -> tuple[list[dict], list[dict]]:
                         ledger['done'][key] = {'orden': plan['orden'], 'ts': datetime.now(timezone.utc).isoformat(), 'rolls': taken}
         items = copy.deepcopy(base_items)
         if APPLY_CONSUMPTIONS:
-            apply_consumptions(items, ledger['done'])
+            apply_consumptions(items, ledger['done'], ledger.get('aplicar_desde', ''))
         plans: list[dict] = []
         if orders is not None:
             active = sorted((r, o) for r, o in orders.items() if o['state'] == 'P' and str(r) not in ledger['done'])
