@@ -154,7 +154,6 @@ INVENTORY_CONTROL_SCRIPT = """<script>
   panel.className = 'panel';
   panel.dataset.panel = 'panel-control';
   panel.innerHTML = '<div class="control-panel"><div class="control-panel-head"><div><span>RESUMEN</span><h2>PANEL DE CONTROL</h2></div><button type="button" class="control-panel-refresh">Actualizar</button></div><div class="control-panel-cards">Cargando resumen…</div></div>';
-  document.querySelector('main')?.appendChild(panel);
   const control = document.createElement('button');
   control.type = 'button';
   control.className = 'tab inventory-control-nav';
@@ -422,7 +421,6 @@ INVENTORY_CONTROL_SCRIPT = """<script>
   const style = document.createElement('style');
   style.textContent = '.control-panel{display:grid;gap:16px;max-width:1100px;margin:auto}.control-panel-head{display:flex;align-items:center;justify-content:space-between;gap:14px}.control-panel-head span{color:#d0f44c;font:800 10px Arial;letter-spacing:.1em}.control-panel-head h2{margin:4px 0 0;font-size:1.4rem}.control-panel-refresh{width:auto!important;padding:9px 13px!important;border:1px solid #60754d!important;border-radius:9px!important;background:#233020!important;color:#eff9df!important;font-weight:800}.control-panel-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px}.control-panel-cards article{display:grid;gap:8px;min-height:115px;padding:17px;border:1px solid #3d4f3d;border-radius:14px;background:linear-gradient(145deg,#182118,#101510)}.control-panel-cards small{color:#aebba7;font:800 10px Arial;letter-spacing:.07em}.control-panel-cards strong{color:#d0f44c;font:800 28px Arial}.control-panel-cards span,.control-panel-cards p{color:#bdc8b8;font-size:12px;margin:0}@media(max-width:700px){.control-panel-cards{grid-template-columns:1fr}.control-panel-head{align-items:flex-start}.control-panel-refresh{min-height:40px}}';
   document.head.appendChild(style);
-  children.prepend(control);
   let inventoryRetryCount = 0;
   const retryInventoryIfStuck = () => {
     const body = document.getElementById('inventory-body');
@@ -4493,7 +4491,7 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
 `;document.head.appendChild(traceFigmaStyle);setTraceView();
     const commercialGroup=commercialToggle.closest('.nav-group');commercialGroup.classList.add('collapsed');const productionToggle=document.getElementById('production-toggle');if(productionToggle)productionToggle.addEventListener('click',()=>{{const g=productionToggle.closest('.nav-group');g.classList.toggle('collapsed');if(!g.classList.contains('collapsed')&&window.innerWidth>860)g.querySelector('.nav-children .tab')?.click()}});
     setTimeout(()=>{{if(!document.querySelector('.panel.active'))document.querySelector('.tab[data-kind="inicio"]')?.click()}},0);
-    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/api/cartera/cartera.js?v=20261001-14'></script><script src='/trace-ui.js?v=20261001-28'></script><script src='/home-dashboard.js?v=20261001-8'></script><script src='/bodega-dashboard.js?v=20261001-7'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);</script></body></html>"""
+    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/api/cartera/cartera.js?v=20261001-14'></script><script src='/trace-ui.js?v=20261001-28'></script><script src='/home-dashboard.js?v=20261001-8'></script><script src='/bodega-dashboard.js?v=20261001-9'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);</script></body></html>"""
 
 
 def ordered_mockup_uploads(extras, slots):

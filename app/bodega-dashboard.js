@@ -119,9 +119,10 @@
 
   const mount = () => {
     if (document.querySelector('[data-bodega-dashboard]')) return true;
-    const control = document.querySelector('[data-inventory-control]');
+    const group = [...document.querySelectorAll('.nav-group')].find(item => /INVENTARIOS/i.test(item.querySelector('.nav-parent')?.textContent || ''));
+    const children = group?.querySelector('.nav-children');
     const main = document.querySelector('main');
-    if (!control || !main) return false;
+    if (!children || !main) return false;
     main.appendChild(panel);
     const button = document.createElement('button');
     button.type = 'button';
@@ -129,7 +130,7 @@
     button.dataset.bodegaDashboard = 'true';
     button.innerHTML = '<span class="nav-icon">DB</span><strong>DASHBOARD BODEGA</strong>';
     button.onclick = () => open(button);
-    control.after(button);
+    children.prepend(button);
     return true;
   };
   if (!mount()) { const timer = setInterval(() => { if (mount()) clearInterval(timer); }, 300); setTimeout(() => clearInterval(timer), 15000); }
