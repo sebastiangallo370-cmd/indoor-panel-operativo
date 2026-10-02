@@ -393,7 +393,8 @@ def inventory_dashboard():
         entry['mts'] += float(item.get('total') or 0)
         entry['telas'] += 1
     stock = [item for item in items if float(item.get('total') or 0) > 0]
-    simple = lambda item: {'nombre': item['nombre'], 'mts': round(float(item.get('total') or 0), 2), 'rollos': len(item.get('roll_values') or [])}
+    simple = lambda item: {'nombre': item['nombre'], 'mts': round(float(item.get('total') or 0), 2), 'rollos': len(item.get('roll_values') or []),
+                           'valores': item.get('roll_values') or [], 'estados': item.get('roll_statuses') or []}
     plans = payload.get('sublimacion') or []
     ledger = sublimacion_stock._load_ledger()
     consumptions = []
@@ -420,6 +421,7 @@ def inventory_dashboard():
         'top': [simple(item) for item in sorted(stock, key=lambda item: -float(item['total']))[:10]],
         'bajo_stock': [simple(item) for item in sorted((i for i in stock if float(i['total']) < LOW_STOCK_MTS), key=lambda i: float(i['total']))[:12]],
         'sin_stock': [item['nombre'] for item in items if float(item.get('total') or 0) <= 0],
+        'proveedores_telas': {name: sorted(((item['nombre'], round(float(item.get('total') or 0), 2)) for item in items if _supplier(item) == name), key=lambda pair: -pair[1])[:3] for name in suppliers},
         'proveedores': [{**entry, 'mts': round(entry['mts'], 2)} for entry in sorted(suppliers.values(), key=lambda entry: -entry['mts'])],
         'sublimacion': {
             'ordenes': len(plans),
@@ -428,6 +430,8 @@ def inventory_dashboard():
             'faltan': round(sum(float(plan.get('missing') or 0) for plan in plans), 2),
             'lista': [{'label': plan.get('label', ''), 'mts': plan.get('mts', 0), 'short': plan.get('short', False),
                        'missing': plan.get('missing', 0), 'rollos': len(plan.get('rolls') or []),
+                       'valores': [roll.get('value') for roll in plan.get('rolls') or []],
+                       'estados': ['started' if roll.get('started') else 'new' for roll in plan.get('rolls') or []],
                        'telas': sorted({roll.get('item', '') for roll in plan.get('rolls') or []})} for plan in plans],
         },
         'consumos': {'mts_30d': round(sum(entry['mts'] for entry in recent), 2), 'ordenes_30d': len(recent), 'ultimos': consumptions[:8]},
