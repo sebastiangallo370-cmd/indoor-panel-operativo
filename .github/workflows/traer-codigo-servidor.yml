@@ -1,0 +1,52 @@
+name: TRAER CODIGO DEL SERVIDOR
+
+# Solo lectura en el servidor: copia los .py y .js que corren dentro del
+# contenedor a una rama nueva para compararlos con main. No modifica el servidor.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: indoor-produccion
+  cancel-in-progress: false
+
+jobs:
+  traer:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Copiar código del contenedor
+        env:
+          DEPLOY_KEY: ${{ secrets.INDOOR_DEPLOY_KEY }}
+          KNOWN_HOSTS: ${{ secrets.INDOOR_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          umask 077
+          printf '%s\n' "$DEPLOY_KEY" > "$RUNNER_TEMP/indoor_key"
+          printf '%s\n' "$KNOWN_HOSTS" > "$RUNNER_TEMP/indoor_hosts"
+          trap 'rm -f "$RUNNER_TEMP/indoor_key" "$RUNNER_TEMP/indoor_hosts"' EXIT
+          ssh -T -i "$RUNNER_TEMP/indoor_key" \
+            -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=20 \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/indoor_hosts" \
+            root@2.25.238.166 \
+            "docker exec asistente-reprogramaciones sh -c 'cd /app/app && tar czf - --exclude=usuarios_panel.html *.py *.js'" \
+            > "$RUNNER_TEMP/servidor.tgz"
+          tar tzf "$RUNNER_TEMP/servidor.tgz"
+          tar xzf "$RUNNER_TEMP/servidor.tgz" -C app/
+
+      - name: Guardar en rama servidor-actual
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git checkout -B servidor-actual
+          git add app/*.py app/*.js
+          git commit -m "Código tal como está en el servidor ($(date -u +%F\ %H:%M) UTC)" || echo "Sin diferencias con main"
+          git push -f origin servidor-actual
+          git diff --stat main servidor-actual >> "$GITHUB_STEP_SUMMARY" || true
