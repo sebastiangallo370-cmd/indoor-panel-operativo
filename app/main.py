@@ -28,7 +28,7 @@ from openpyxl import load_workbook
 from app.excel_linux import crear_excel_listado
 from app.excel_mockups import listing_designs
 from app.uploaded_mockups import sync_order_uploads, require_mockup_upload
-from app import sheets_sync, db_backup
+from app import sheets_sync, db_backup, respaldo
 from app.creator_xlsx import _data_from_source, create_from_images, create_from_sheet_bundle, normalize_output_name
 from app.settings import STATE_DIR, UPLOAD_DIR, prepare_pedidos_runtime, prepare_runtime
 
@@ -1112,6 +1112,78 @@ def startup():
     sheets_sync.start(connect, legacy.get_gspread, STATE_DIR)
     start_sublimacion_worker()
     db_backup.start(DB_PATH, STATE_DIR, legacy.get_supabase)
+    respaldo.start(DATA_ROOT, DB_PATH)
+
+
+DATA_ROOT = STATE_DIR.parent
+
+
+@app.get('/salud.js')
+def salud_js():
+    return FileResponse(Path(__file__).with_name('salud.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
+
+
+@app.get('/api/salud-panel')
+def salud_panel(_=Depends(authenticate)):
+    """Problemas visibles para el usuario: sincronizacion detenida, NAS caido, respaldo atrasado."""
+    problemas = []
+    now = datetime.now(timezone.utc)
+
+    def age(iso):
+        try:
+            return (now - datetime.fromisoformat(iso)).total_seconds()
+        except Exception:
+            return None
+    db = connect()
+    try:
+        meta = dict(db.execute("SELECT key,value FROM production_meta WHERE key LIKE 'sheets_sync_%'"))
+    finally:
+        db.close()
+    if _sheets_sync_flag().exists():
+        seconds = age(meta.get('sheets_sync_checked_at') or '')
+        if meta.get('sheets_sync_error'):
+            problemas.append('Producción no se está sincronizando con Google Sheets: ' + meta['sheets_sync_error'][:120])
+        elif seconds is not None and seconds > 600:
+            problemas.append('Producción lleva %d min sin sincronizar con Google Sheets' % (seconds // 60))
+    try:
+        from app import inventario_api
+        if inventario_api.sheet_linked():
+            snap = Path(inventario_api._snapshot_file)
+            if snap.exists() and (now.timestamp() - snap.stat().st_mtime) > 1800:
+                problemas.append('Inventario lleva %d min sin actualizarse desde Google Sheets' % ((now.timestamp() - snap.stat().st_mtime) // 60))
+    except Exception:
+        pass
+    if not Path(CONFIG['ruta_nas_clientes']).is_dir():
+        problemas.append('El NAS no está disponible (se reintenta solo): los archivos de clientes no abren')
+    info = respaldo.load_status(DATA_ROOT)
+    seconds = age(info.get('last_ok_at') or '')
+    if info.get('last_error'):
+        problemas.append('Falló el último respaldo: ' + info['last_error'][:100])
+    elif seconds is not None and seconds > 36 * 3600:
+        problemas.append('El último respaldo tiene más de un día y medio')
+    return {'problemas': problemas}
+
+
+@app.get('/api/respaldos')
+def respaldos_lista(_=Depends(authenticate)):
+    return {'estado': respaldo.load_status(DATA_ROOT), 'archivos': respaldo.listing(DATA_ROOT)}
+
+
+@app.post('/api/respaldos/ahora')
+def respaldos_ahora(_=Depends(authenticate)):
+    try:
+        name = respaldo.run_once(DATA_ROOT, DB_PATH)
+    except Exception as error:
+        raise HTTPException(500, 'No se pudo respaldar: ' + str(error)[:200])
+    return {'ok': True, 'name': name}
+
+
+@app.get('/api/respaldos/{name}')
+def respaldos_descargar(name: str, _=Depends(authenticate)):
+    path = respaldo.backups_dir(DATA_ROOT) / name
+    if not re.fullmatch(r'respaldo-\d{8}-\d{6}\.tar\.gz', name) or not path.is_file():
+        raise HTTPException(404, 'Respaldo no encontrado')
+    return FileResponse(path, media_type='application/gzip', filename=name)
 
 
 @app.get("/salud")
@@ -4654,7 +4726,7 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
 `;document.head.appendChild(traceFigmaStyle);setTraceView();
     const commercialGroup=commercialToggle.closest('.nav-group');commercialGroup.classList.add('collapsed');const productionToggle=document.getElementById('production-toggle');if(productionToggle)productionToggle.addEventListener('click',()=>{{const g=productionToggle.closest('.nav-group');g.classList.toggle('collapsed');if(!g.classList.contains('collapsed')&&window.innerWidth>860)g.querySelector('.nav-children .tab')?.click()}});
     setTimeout(()=>{{if(!document.querySelector('.panel.active'))document.querySelector('.tab[data-kind="inicio"]')?.click()}},0);
-    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/api/cartera/cartera.js?v=20261002-3'></script><script src='/trace-ui.js?v=20261002-3'></script><script src='/home-dashboard.js?v=20261001-8'></script><script src='/bodega-dashboard.js?v=20261002-10'></script><script src='/bodegas.js?v=20261002-4'></script><script src='/mobile-nav.js?v=20261002-9'></script><script src='/build-watch.js?v=20261002-1'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);</script></body></html>"""
+    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/api/cartera/cartera.js?v=20261002-3'></script><script src='/trace-ui.js?v=20261002-3'></script><script src='/home-dashboard.js?v=20261001-8'></script><script src='/bodega-dashboard.js?v=20261002-10'></script><script src='/bodegas.js?v=20261002-4'></script><script src='/mobile-nav.js?v=20261002-9'></script><script src='/build-watch.js?v=20261002-1'></script><script src='/salud.js?v=20261002-1'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);</script></body></html>"""
 
 
 def ordered_mockup_uploads(extras, slots):
