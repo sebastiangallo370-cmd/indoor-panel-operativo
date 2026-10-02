@@ -343,6 +343,14 @@ def forecast(items: list[dict]) -> list[dict]:
     return result
 
 
+def reset_baseline() -> None:
+    """Los consumos registrados hasta ahora quedan como historial: el descuento vuelve a contar desde este momento."""
+    with _lock:
+        ledger = _load_ledger()
+        ledger['aplicar_desde'] = datetime.now(timezone.utc).isoformat()
+        _save_ledger(ledger)
+
+
 def start_worker(load_snapshot) -> None:
     """Revisa cada 30 s para registrar el consumo aunque nadie tenga abierta la página."""
     def worker():

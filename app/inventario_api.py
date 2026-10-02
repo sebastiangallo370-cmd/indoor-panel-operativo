@@ -501,10 +501,13 @@ def inventory_link_change(change: LinkChange):
     Sheet; los movimientos de la web quedan registrados y se siguen aplicando encima. No afecta MTS REQUERIDOS."""
     with _lock:
         if change.vinculado:
+            was_unlinked = not sheet_linked()
             try:
                 os.unlink(_unlink_flag)
             except FileNotFoundError:
                 pass
+            if was_unlinked:
+                _match_sheet_exactly()
         else:
             if _load_base() is None:
                 _save_base_from_sheet()
@@ -515,6 +518,20 @@ def inventory_link_change(change: LinkChange):
     if change.vinculado:
         _refresh_snapshot()
     return {"ok": True, "vinculado": sheet_linked()}
+
+
+def _match_sheet_exactly() -> None:
+    """Al volver a conectar: el inventario queda EXACTAMENTE igual al Google Sheets. Los ingresos/salidas hechos
+    en la web durante el modo pruebas se descartan (se guarda una copia) y el descuento de Sublimación
+    vuelve a contar desde este momento."""
+    stamp = datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')
+    try:
+        if os.path.exists(_movement_file) and _load_movements():
+            os.replace(_movement_file, f'{_movement_file}.antes-de-vincular-{stamp}')
+        _save_movements([])
+    except OSError:
+        pass
+    sublimacion_stock.reset_baseline()
 
 
 def _save_base_from_sheet() -> None:

@@ -66,8 +66,10 @@ def schema(db):
     ''')
 
 
-def apply(db, snapshot):
-    """Atomically merge, retaining local IDs, history, local notes and tombstones."""
+def apply(db, snapshot, force=False):
+    """Atomically merge, retaining local IDs, history, local notes and tombstones.
+    force=True (al volver a encender el interruptor de Producción): los valores de las filas vinculadas se
+    igualan EXACTAMENTE a los del Google Sheets y se descartan los cambios hechos en la web mientras estuvo apagado."""
     schema(db)
     db.execute('BEGIN IMMEDIATE')
     try:
@@ -106,9 +108,12 @@ def apply(db, snapshot):
                     raise ValueError('La identidad local cambió; se conserva sin sobrescribir')
                 after = list(before)
                 after += [''] * (WIDTH-len(after))
-                for i, value in enumerate(item['values']):
-                    if old is None or value != old['values'][i]:
-                        after[i] = value
+                if force:
+                    after = list(item['values']) + [''] * (WIDTH - len(item['values']))
+                else:
+                    for i, value in enumerate(item['values']):
+                        if old is None or value != old['values'][i]:
+                            after[i] = value
                 if before != after:
                     db.execute('INSERT INTO production_sheet_audit(source_row,previous_values,new_values,created_at) VALUES (?,?,?,?)',
                                (number,json.dumps(before,ensure_ascii=False),json.dumps(after,ensure_ascii=False),now))
@@ -120,8 +125,10 @@ def apply(db, snapshot):
                 db.execute('INSERT INTO production_rows(source_row,values_json,sort_order) VALUES (?,?,?)',
                            (number,json.dumps(item['values'],ensure_ascii=False),number))
                 counts['new'] += 1
-            if old is not None and item['notes'].get('17') != (old.get('notes') or {}).get('17'):
+            if force or (old is not None and item['notes'].get('17') != (old.get('notes') or {}).get('17')):
                 db.execute('DELETE FROM production_notes WHERE source_row=? AND column_number=17',(number,))
+            if force and db.execute("SELECT 1 FROM sqlite_master WHERE name='production_paused'").fetchone():
+                db.execute('DELETE FROM production_paused WHERE source_row=?',(number,))
             db.execute('DELETE FROM production_sheet_notes WHERE source_row=?',(number,))
             db.executemany('INSERT INTO production_sheet_notes VALUES (?,?,?)',
                            [(number,int(column),note) for column,note in item['notes'].items()])
@@ -184,18 +191,30 @@ def start(connect, worksheet_provider, state_dir):
     activating/deactivating the sync from the app takes effect within one poll
     interval, without needing to restart the server."""
     enabled = state_dir / 'sheets-sync-enabled'
+    resync = state_dir / 'sheets-sync-resync'
 
     def worker():
         while True:
             if enabled.exists():
                 try:
                     snapshot = fetch(worksheet_provider())
+                    force = resync.exists()
                     with connect() as db:
                         backup = state_dir / 'before-sheets-sync.sqlite3'
                         if not backup.exists():
                             with sqlite3.connect(backup) as destination:
                                 db.backup(destination)
-                        counts = apply(db, snapshot)
+                        if force:
+                            # Copia de seguridad antes de igualar todo al Sheet (se conservan las 5 últimas).
+                            stamp = datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')
+                            with sqlite3.connect(state_dir / f'before-relink-{stamp}.sqlite3') as destination:
+                                db.backup(destination)
+                            for old_copy in sorted(state_dir.glob('before-relink-*.sqlite3'))[:-5]:
+                                old_copy.unlink(missing_ok=True)
+                        counts = apply(db, snapshot, force=force)
+                    if force:
+                        resync.unlink(missing_ok=True)
+                        logging.info('Sheets sync (igualado completo al Sheet): %s', counts)
                     logging.info('Sheets sync: %s', counts)
                 except Exception as error:
                     logging.exception('Google Sheets sync failed; local production preserved')

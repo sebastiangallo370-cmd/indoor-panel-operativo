@@ -195,6 +195,7 @@
   };
   linkSwitch.addEventListener('change', async () => {
     const wantLinked = linkSwitch.checked;
+    if (wantLinked && !confirm('Al CONECTAR el Inventario se iguala todo al Google Sheets: los ingresos, salidas y descuentos de prueba hechos en la web se descartan (se guarda copia). ¿Conectar y igualar?')) { linkSwitch.checked = false; return; }
     linkBox.classList.add('busy');
     linkState.textContent = wantLinked ? 'Conectando…' : 'Desvinculando…';
     try {
@@ -203,6 +204,7 @@
     } catch (error) { alert(error.message); }
     linkBox.classList.remove('busy');
     await showLink();
+    if (wantLinked) fetch('/api/inventarios?refresh=true', {cache: 'no-store'}).catch(() => {});
     load();
   });
   showLink();
@@ -216,17 +218,25 @@
     try {
       const status = await (await fetch('/api/produccion/sheets-sync/estado', {cache: 'no-store'})).json();
       prodSwitch.checked = !!status.enabled;
-      prodState.textContent = status.enabled ? 'CONECTADO' : 'DESVINCULADO';
+      prodState.textContent = status.enabled ? (status.resync ? 'Igualando con el Sheet…' : 'CONECTADO') : 'DESVINCULADO';
+      return status;
     } catch (_) { prodState.textContent = 'sin estado'; }
   };
   prodSwitch.addEventListener('change', async () => {
     const wantLinked = prodSwitch.checked;
+    if (wantLinked && !confirm('Al CONECTAR Producción se iguala todo al Google Sheets: estados, fechas y MTS. Lo que se haya cambiado solo en la web y no esté en el Sheet SE PIERDE (se guarda una copia de seguridad antes). ¿Conectar y igualar?')) { prodSwitch.checked = false; return; }
     prodBox.classList.add('busy');
     prodState.textContent = wantLinked ? 'Conectando…' : 'Desvinculando…';
     try {
       const response = await fetch('/api/produccion/sheets-sync/' + (wantLinked ? 'activar' : 'desactivar'), {method: 'POST'});
       if (!response.ok) throw Error('No se pudo cambiar el vínculo de Producción');
     } catch (error) { alert(error.message); }
+    // Al volver a conectar se iguala todo al Google Sheets: se espera a que termine (máx. ~90 s).
+    for (let i = 0; i < 45; i++) {
+      const status = await showProd();
+      if (!status || !status.resync) break;
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
     prodBox.classList.remove('busy');
     await showProd();
   });

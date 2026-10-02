@@ -1776,6 +1776,7 @@ def sheets_sync_estado(_=Depends(authenticate)):
         db.close()
     return {
         'enabled': _sheets_sync_flag().exists(),
+        'resync': (STATE_DIR / 'sheets-sync-resync').exists(),
         'checked_at': meta.get('sheets_sync_checked_at'),
         'error': meta.get('sheets_sync_error', ''),
         'counts': json.loads(meta['sheets_sync_counts']) if meta.get('sheets_sync_counts') else None,
@@ -1789,9 +1790,13 @@ def sheets_sync_activar(_=Depends(authenticate)):
     No borra ni sobrescribe nada que ya exista solo en la web (ver sheets_sync.apply)."""
     flag = _sheets_sync_flag()
     flag.parent.mkdir(parents=True, exist_ok=True)
+    marker = STATE_DIR / 'sheets-sync-desvinculado'
+    if marker.exists():
+        # Estaba desvinculada: al volver a conectar se iguala TODO al Google Sheets (con copia de seguridad).
+        (STATE_DIR / 'sheets-sync-resync').touch(exist_ok=True)
+    marker.unlink(missing_ok=True)
     flag.touch(exist_ok=True)
-    (STATE_DIR / 'sheets-sync-desvinculado').unlink(missing_ok=True)
-    return {'ok': True, 'enabled': True}
+    return {'ok': True, 'enabled': True, 'resync': (STATE_DIR / 'sheets-sync-resync').exists()}
 
 
 @app.post('/api/produccion/sheets-sync/desactivar')
@@ -4628,7 +4633,7 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
 `;document.head.appendChild(traceFigmaStyle);setTraceView();
     const commercialGroup=commercialToggle.closest('.nav-group');commercialGroup.classList.add('collapsed');const productionToggle=document.getElementById('production-toggle');if(productionToggle)productionToggle.addEventListener('click',()=>{{const g=productionToggle.closest('.nav-group');g.classList.toggle('collapsed');if(!g.classList.contains('collapsed')&&window.innerWidth>860)g.querySelector('.nav-children .tab')?.click()}});
     setTimeout(()=>{{if(!document.querySelector('.panel.active'))document.querySelector('.tab[data-kind="inicio"]')?.click()}},0);
-    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/api/cartera/cartera.js?v=20261002-3'></script><script src='/trace-ui.js?v=20261002-3'></script><script src='/home-dashboard.js?v=20261001-8'></script><script src='/bodega-dashboard.js?v=20261002-8'></script><script src='/bodegas.js?v=20261002-4'></script><script src='/mobile-nav.js?v=20261002-9'></script><script src='/build-watch.js?v=20261002-1'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);</script></body></html>"""
+    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/api/cartera/cartera.js?v=20261002-3'></script><script src='/trace-ui.js?v=20261002-3'></script><script src='/home-dashboard.js?v=20261001-8'></script><script src='/bodega-dashboard.js?v=20261002-10'></script><script src='/bodegas.js?v=20261002-4'></script><script src='/mobile-nav.js?v=20261002-9'></script><script src='/build-watch.js?v=20261002-1'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);</script></body></html>"""
 
 
 def ordered_mockup_uploads(extras, slots):
