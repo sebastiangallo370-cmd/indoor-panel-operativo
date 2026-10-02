@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import os
 import json
@@ -298,10 +299,44 @@ def _open_inventory_sheet():
     return gspread.authorize(credentials).open_by_url(url)
 
 
+_base_file = os.getenv('INVENTORY_BASE_FILE', '/data/inventory_sheet_base.json')
+_unlink_flag = os.getenv('INVENTORY_UNLINK_FLAG', '/data/inventory_desvinculado.flag')
+
+
+def sheet_linked() -> bool:
+    """True = el inventario se lee del Google Sheet. False = congelado en la última copia (modo pruebas)."""
+    return not os.path.exists(_unlink_flag)
+
+
+def _save_base(categories: list[dict[str, Any]], records: list[dict[str, Any]]) -> None:
+    """Copia de lo leído del Sheet, SIN movimientos de la web: sirve de base cuando se desvincula."""
+    try:
+        os.makedirs(os.path.dirname(_base_file) or '.', exist_ok=True)
+        tmp = _base_file + '.tmp'
+        with open(tmp, 'w', encoding='utf-8') as handle:
+            json.dump({'categories': categories, 'records': records}, handle, ensure_ascii=False)
+        os.replace(tmp, _base_file)
+    except OSError:
+        pass
+
+
+def _load_base() -> tuple[list[dict[str, Any]], list[dict[str, Any]]] | None:
+    try:
+        with open(_base_file, encoding='utf-8') as handle:
+            data = json.load(handle)
+        return data['categories'], data['records']
+    except (OSError, ValueError, KeyError):
+        return None
+
+
 def _read_inventory() -> dict[str, Any]:
-    workbook = _open_inventory_sheet()
     categories: list[dict[str, Any]] = []
     all_records: list[dict[str, Any]] = []
+    frozen = None if sheet_linked() else _load_base()
+    if frozen is not None:
+        categories, all_records = copy.deepcopy(frozen[0]), copy.deepcopy(frozen[1])
+        return _finish_inventory(categories, all_records)
+    workbook = _open_inventory_sheet()
     for tab_key, tab_label in SOURCE_TABS:
         try:
             worksheet = workbook.worksheet(tab_key)
@@ -320,6 +355,11 @@ def _read_inventory() -> dict[str, Any]:
         units = sum(record["total"] for record in records)
         categories.append({"key": tab_key, "label": tab_label, "items": len(records), "units": units, "units_label": _display_total(units), "available": True})
         all_records.extend(records)
+    _save_base(categories, all_records)
+    return _finish_inventory(categories, all_records)
+
+
+def _finish_inventory(categories: list[dict[str, Any]], all_records: list[dict[str, Any]]) -> dict[str, Any]:
     existing = {record['nombre'] for record in all_records if record['categoria'] == 'BODEGA TELA'}
     added = 0
     for fabric in _load_new_fabrics():
@@ -443,6 +483,42 @@ def _with_sublimacion(payload: dict[str, Any]) -> dict[str, Any]:
             item['categoria_label'] = 'Stock tela'
     items = sorted(items, key=_usage_key)
     return {**payload, "items": items} if plan is None else {**payload, "items": items, "sublimacion": plan}
+
+
+@inventario_router.get("/vinculo")
+def inventory_link_status():
+    return {"vinculado": sheet_linked(), "copia_base": _load_base() is not None}
+
+
+class LinkChange(BaseModel):
+    vinculado: bool
+
+
+@inventario_router.post("/vinculo")
+def inventory_link_change(change: LinkChange):
+    """Desvincular = el inventario deja de leer el Google Sheet y queda congelado en la última copia (modo pruebas);
+    los ingresos/salidas hechos en la web siguen sumándose sobre esa copia. Volver a vincular = vuelve a leer el
+    Sheet; los movimientos de la web quedan registrados y se siguen aplicando encima. No afecta MTS REQUERIDOS."""
+    with _lock:
+        if change.vinculado:
+            try:
+                os.unlink(_unlink_flag)
+            except FileNotFoundError:
+                pass
+        else:
+            if _load_base() is None:
+                _save_base_from_sheet()
+            os.makedirs(os.path.dirname(_unlink_flag) or '.', exist_ok=True)
+            with open(_unlink_flag, 'w', encoding='utf-8') as handle:
+                handle.write(datetime.now(timezone.utc).isoformat())
+        _cache.update({"at": 0.0, "data": None})
+    if change.vinculado:
+        _refresh_snapshot()
+    return {"ok": True, "vinculado": sheet_linked()}
+
+
+def _save_base_from_sheet() -> None:
+    _read_inventory()
 
 
 @inventario_router.get("")

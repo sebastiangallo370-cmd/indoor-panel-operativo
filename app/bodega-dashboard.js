@@ -41,6 +41,19 @@
 .bd-line{display:flex;justify-content:space-between;gap:10px;color:#bdc8b8;font-size:.74rem}
 .bd-line b{color:#f0f4eb;white-space:nowrap}
 .bd-note{margin:0;color:#8a9485;font-size:.78rem}
+.bd-head-actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
+.bd-switch{display:inline-flex;align-items:center;gap:10px;padding:6px 12px;border:1px solid #46563f;border-radius:12px;background:#151d15;cursor:pointer;user-select:none}
+.bd-switch input{position:absolute;opacity:0;width:0;height:0}
+.bd-switch-text{display:grid;gap:1px;text-align:right}
+.bd-switch-text b{color:#f0f4eb;font:800 .72rem Arial;letter-spacing:.05em;text-transform:uppercase}
+.bd-switch-text small{font:700 .66rem Arial;letter-spacing:.04em;color:#ffb3ad}
+.bd-switch-track{position:relative;display:block;width:46px;height:26px;border-radius:999px;background:#5a2723;border:1px solid #a8433d;transition:background .2s,border-color .2s}
+.bd-switch-dot{position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:#f0f4eb;transition:transform .2s}
+.bd-switch input:checked~.bd-switch-track{background:#2f7a3d;border-color:#79d66f}
+.bd-switch input:checked~.bd-switch-track .bd-switch-dot{transform:translateX(20px)}
+.bd-switch input:checked~.bd-switch-text small,.bd-switch:has(input:checked) small{color:#9fe0a8}
+.bd-switch input:focus-visible~.bd-switch-track{outline:2px solid #d0f44c;outline-offset:2px}
+.bd-switch.busy{opacity:.6;pointer-events:none}
 .bd-filters{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) auto;gap:10px;align-items:end;padding:14px 18px;border:1px solid #46563f;border-radius:18px;background:#111811}
 .bd-filters label{display:grid;gap:5px;color:#aebba7;font:800 .64rem Arial;letter-spacing:.07em;text-transform:uppercase}
 .bd-filters input{width:100%;box-sizing:border-box;border:1px solid #46563f;border-radius:9px;background:#0b100b;color:#fff;padding:9px 11px;font:500 .85rem Arial;outline:none;color-scheme:dark}
@@ -56,7 +69,7 @@
   const panel = document.createElement('section');
   panel.className = 'panel';
   panel.dataset.panel = 'bodega-dashboard';
-  panel.innerHTML = '<div class="bd"><div class="bd-head"><div><h2>Panel de control · Stock tela</h2><p class="bd-updated">Cargando…</p></div><button type="button" class="bd-refresh">Actualizar</button></div>' +
+  panel.innerHTML = '<div class="bd"><div class="bd-head"><div><h2>Panel de control · Stock tela</h2><p class="bd-updated">Cargando…</p></div><div class="bd-head-actions"><label class="bd-switch" title="Conecta o desvincula el inventario del Google Sheets"><span class="bd-switch-text"><b>Google Sheets</b><small data-bd-link-state>Cargando…</small></span><input type="checkbox" role="switch" data-bd-link><i class="bd-switch-track"><i class="bd-switch-dot"></i></i></label><button type="button" class="bd-refresh">Actualizar</button></div></div>' +
     '<form class="bd-filters" autocomplete="off" onsubmit="return false"><label>Nombre tela<input name="tela" type="search" list="bd-telas" placeholder="Ej. MONTECATINI"><datalist id="bd-telas"></datalist></label><label>Código tela<input name="codigo" type="search" inputmode="numeric" placeholder="Ej. 100"></label><label>Fecha desde<input name="desde" type="date"></label><label>Fecha hasta<input name="hasta" type="date"></label><button type="button" class="bd-clear">Limpiar</button><p class="bd-count"></p></form>' +
     '<div class="bd-body"></div></div>';
   const body = panel.querySelector('.bd-body');
@@ -161,6 +174,7 @@
   panel.querySelector('.bd-clear').onclick = () => { filters.reset(); applyFilters(); };
 
   const load = async () => {
+    if (typeof showLink === 'function') showLink();
     body.innerHTML = '<p class="bd-note">Cargando estadísticas…</p>';
     try {
       const response = await fetch('/api/inventarios/dashboard', {cache: 'no-store'});
@@ -170,6 +184,27 @@
     } catch (error) { body.innerHTML = '<p class="bd-note">' + esc(error.message) + '</p>'; }
   };
   panel.querySelector('.bd-refresh').onclick = load;
+  const linkSwitch = panel.querySelector('[data-bd-link]'), linkState = panel.querySelector('[data-bd-link-state]'), linkBox = linkSwitch.closest('.bd-switch');
+  const showLink = async () => {
+    try {
+      const status = await (await fetch('/api/inventarios/vinculo', {cache: 'no-store'})).json();
+      linkSwitch.checked = !!status.vinculado;
+      linkState.textContent = status.vinculado ? 'CONECTADO' : 'DESVINCULADO';
+    } catch (_) { linkState.textContent = 'sin estado'; }
+  };
+  linkSwitch.addEventListener('change', async () => {
+    const wantLinked = linkSwitch.checked;
+    linkBox.classList.add('busy');
+    linkState.textContent = wantLinked ? 'Conectando…' : 'Desvinculando…';
+    try {
+      const response = await fetch('/api/inventarios/vinculo', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({vinculado: wantLinked})});
+      if (!response.ok) throw Error('No se pudo cambiar el vínculo');
+    } catch (error) { alert(error.message); }
+    linkBox.classList.remove('busy');
+    await showLink();
+    load();
+  });
+  showLink();
 
   const open = button => {
     document.querySelectorAll('.tab').forEach(tab => tab.classList.toggle('active', tab === button));
