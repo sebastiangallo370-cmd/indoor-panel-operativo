@@ -452,7 +452,7 @@ INVENTORY_CONTROL_SCRIPT = """<script>
             if (!pickRolls.has(roll.id)) pickRolls.set(roll.id, new Map());
             pickRolls.get(roll.id).set(roll.index, plan.short ? 'short' : String(plan.color));
           });
-          const note = {label: plan.label, short: plan.short, missing: plan.missing, color: plan.color, mts: Number(plan.mts) || 0};
+          const note = {label: plan.label, short: plan.short, missing: plan.missing, color: plan.color, mts: Number(plan.mts) || 0, orden: plan.orden};
           (plan.owners || []).forEach(id => pickNotes.set(id, [...(pickNotes.get(id) || []), note]));
         });
       }
@@ -466,11 +466,16 @@ INVENTORY_CONTROL_SCRIPT = """<script>
       }
       const fmtPick = n => Number(n).toLocaleString('es-CO', {maximumFractionDigits: 2});
       const pickLine = n => '<span class="inv-pick pick-'+(n.short?'short':n.color)+'">'+(n.short?'⚠ NO ALCANZA · '+esc(n.label)+' · FALTAN '+esc(fmtPick(n.missing))+' MTS':'SUBLIMACIÓN: '+esc(n.label))+'</span>';
-      // Varias referencias de la misma tela se unifican: un solo total y debajo el detalle de cada una.
+      // Varias referencias de la MISMA ORDEN sobre la misma tela se unifican: un solo total y debajo el detalle.
+      // Órdenes distintas se muestran por separado.
       const pickBlock = notes => {
-        if (notes.length < 2) return notes.map(pickLine).join('');
-        const total = notes.reduce((sum, n) => sum + (n.mts || 0), 0), missing = notes.reduce((sum, n) => sum + (n.short ? Number(n.missing) || 0 : 0), 0);
-        return '<div class="inv-pick-group"><span class="inv-pick-total">'+(missing?'⚠ ':'')+'SUBLIMACIÓN · '+notes.length+' REFERENCIAS · TOTAL '+esc(fmtPick(total))+' MTS'+(missing?' · FALTAN '+esc(fmtPick(missing))+' MTS':'')+'</span>'+notes.map(pickLine).join('')+'</div>';
+        const byOrder = new Map();
+        notes.forEach(n => { const key = n.orden || n.label.split(' · ')[0]; byOrder.set(key, [...(byOrder.get(key) || []), n]); });
+        return [...byOrder.entries()].map(([order, group]) => {
+          if (group.length < 2) return pickLine(group[0]);
+          const total = group.reduce((sum, n) => sum + (n.mts || 0), 0), missing = group.reduce((sum, n) => sum + (n.short ? Number(n.missing) || 0 : 0), 0);
+          return '<div class="inv-pick-group"><span class="inv-pick-total">'+(missing?'⚠ ':'')+'SUBLIMACIÓN · '+esc(order)+' · '+group.length+' REFERENCIAS · TOTAL '+esc(fmtPick(total))+' MTS'+(missing?' · FALTAN '+esc(fmtPick(missing))+' MTS':'')+'</span>'+group.map(pickLine).join('')+'</div>';
+        }).join('');
       };
       body.innerHTML = visibleItems.map(item => '<article class="inventory-item-card"><span class="inv-badge">'+esc(item.categoria_label)+'</span><strong class="inv-name">'+esc(item.nombre)+'</strong><div class="inventory-rolls">'+(item.roll_values || []).map((value,index) => '<span class="inventory-roll '+(item.roll_statuses?.[index]==='started'?'roll-started':'roll-new')+(pickRolls.get(item.id)?.has(index)?' roll-pick roll-pick-'+pickRolls.get(item.id).get(index):'')+'">'+esc(value)+'</span>').join('')+'</div><span class="inv-total">'+esc(item.mts ?? item.total ?? 0)+' MTS</span><span class="inv-unit">'+esc(item.rolls || (item.roll_values || []).length)+' rollos</span>'+pickBlock(pickNotes.get(item.id)||[])+'</article>').join('') || '<div class="inventory-empty">No hay referencias en el inventario local.</div>';
       if (status) status.textContent = (data.summary?.items || data.items?.length || 0) + ' referencias disponibles · inventario local';
