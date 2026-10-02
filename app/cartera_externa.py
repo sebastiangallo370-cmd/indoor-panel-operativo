@@ -1,6 +1,6 @@
 """Cartera externa: trae el proyecto de Cartera de la red de la oficina a través de este servidor.
 
-- Solo funciona con sesión iniciada (se incluye con authenticate) y mientras el interruptor de Cartera esté ENCENDIDO.
+- Solo funciona con sesión iniciada y si el servidor tiene CARTERA_EXTERNA_ENABLED=1 (hoy: desactivado).
 - Solo habla con la dirección configurada (CARTERA_EXTERNA_URL); no es un proxy abierto.
 """
 from __future__ import annotations
@@ -11,7 +11,6 @@ import httpx
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, RedirectResponse, Response
 
-from app import cartera_api
 
 externa_router = APIRouter()
 BASE = os.getenv("CARTERA_EXTERNA_URL", "http://192.168.0.140:8080").rstrip("/")
@@ -21,7 +20,8 @@ _METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"]
 
 
 def linked() -> bool:
-    return not cartera_api._UNLINK.exists()
+    """Desactivado por defecto: solo se activa con CARTERA_EXTERNA_ENABLED=1 en el servidor."""
+    return os.getenv("CARTERA_EXTERNA_ENABLED", "0") == "1"
 
 
 @externa_router.get(PREFIX)
@@ -32,7 +32,7 @@ def externa_root_redirect():
 @externa_router.api_route(PREFIX + "/{path:path}", methods=_METHODS)
 async def externa_proxy(path: str, request: Request):
     if not linked():
-        return JSONResponse({"error": "Cartera está desvinculada (interruptor apagado)."}, status_code=409)
+        return JSONResponse({"error": "La conexión con el proyecto de Cartera está desactivada."}, status_code=409)
     if ".." in path.split("/"):
         return JSONResponse({"error": "Ruta no permitida"}, status_code=400)
     url = f"{BASE}/{path}"
