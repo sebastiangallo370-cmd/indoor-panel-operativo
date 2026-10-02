@@ -70,7 +70,7 @@
   const panel = document.createElement('section');
   panel.className = 'panel';
   panel.dataset.panel = 'bodega-dashboard';
-  panel.innerHTML = '<div class="bd"><div class="bd-head"><div><h2>Panel de control · Stock tela</h2><p class="bd-updated">Cargando…</p></div><div class="bd-head-actions"><label class="bd-switch" title="Conecta o desvincula el inventario del Google Sheets"><span class="bd-switch-text"><b>Google Sheets</b><small data-bd-link-state>Cargando…</small></span><input type="checkbox" role="switch" data-bd-link><i class="bd-switch-track"><i class="bd-switch-dot"></i></i></label><button type="button" class="bd-refresh">Actualizar</button></div></div>' +
+  panel.innerHTML = '<div class="bd"><div class="bd-head"><div><h2>Panel de control · Stock tela</h2><p class="bd-updated">Cargando…</p></div><div class="bd-head-actions"><label class="bd-switch" title="Conecta o desvincula el inventario del Google Sheets"><span class="bd-switch-text"><b>Inventario</b><small data-bd-link-state>Cargando…</small></span><input type="checkbox" role="switch" data-bd-link><i class="bd-switch-track"><i class="bd-switch-dot"></i></i></label><button type="button" class="bd-refresh">Actualizar</button></div></div>' +
     '<form class="bd-filters" autocomplete="off" onsubmit="return false"><label>Nombre tela<input name="tela" type="search" list="bd-telas" placeholder="Ej. MONTECATINI"><datalist id="bd-telas"></datalist></label><label>Código tela<input name="codigo" type="search" inputmode="numeric" placeholder="Ej. 100"></label><label>Fecha desde<input name="desde" type="date"></label><label>Fecha hasta<input name="hasta" type="date"></label><button type="button" class="bd-clear">Limpiar</button><p class="bd-count"></p></form>' +
     '<div class="bd-body"></div></div>';
   const body = panel.querySelector('.bd-body');
@@ -210,7 +210,7 @@
   // Producción · Sheets: interruptor en INICIO (pedidos, estados y MTS REQUERIDOS desde el Sheet de Producción).
   const homeRow = document.createElement('div');
   homeRow.className = 'bd-home-sync';
-  homeRow.innerHTML = '<label class="bd-switch" title="Conecta o desvincula Producción (pedidos y MTS REQUERIDOS) del Google Sheets"><span class="bd-switch-text"><b>Producción · Google Sheets</b><small data-bd-prod-state>Cargando…</small></span><input type="checkbox" role="switch" data-bd-prod><i class="bd-switch-track"><i class="bd-switch-dot"></i></i></label>';
+  homeRow.innerHTML = '<label class="bd-switch" title="Conecta o desvincula Producción (pedidos y MTS REQUERIDOS) del Google Sheets"><span class="bd-switch-text"><b>Producción</b><small data-bd-prod-state>Cargando…</small></span><input type="checkbox" role="switch" data-bd-prod><i class="bd-switch-track"><i class="bd-switch-dot"></i></i></label>';
   const prodSwitch = homeRow.querySelector('[data-bd-prod]'), prodState = homeRow.querySelector('[data-bd-prod-state]'), prodBox = homeRow.querySelector('.bd-switch');
   const showProd = async () => {
     try {
