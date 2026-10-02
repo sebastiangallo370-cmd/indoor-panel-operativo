@@ -6,8 +6,16 @@
   const style = document.createElement('style');
   style.textContent = `
 .mbar,.msheet,.msheet-backdrop{display:none}
+.user-menu summary{display:flex;align-items:center;gap:10px;padding:6px 14px 6px 6px!important;border-radius:999px!important;border:1px solid rgba(208,244,76,.22)!important;background:linear-gradient(145deg,#1b2417,#10150e)!important;cursor:pointer;transition:border-color .18s,box-shadow .18s,transform .12s}
+.user-menu summary:hover,.user-menu[open] summary{border-color:rgba(208,244,76,.6)!important;box-shadow:0 0 0 3px rgba(208,244,76,.12)}
+.user-menu summary:active{transform:scale(.98)}
+.user-menu .user-avatar{width:38px!important;height:38px!important;flex:0 0 38px;display:grid!important;place-items:center;border-radius:50%!important;background:linear-gradient(145deg,#d9ff5a,#b5e834)!important;color:#11150e!important;font:900 14px/1 Arial,sans-serif!important;letter-spacing:.02em!important;overflow:hidden!important;white-space:nowrap!important;box-shadow:inset 0 -3px 6px rgba(0,0,0,.18)}
+.user-menu .user-info{display:grid;gap:1px;text-align:left}
+.user-menu .user-info strong{font:800 13px/1.2 Arial,sans-serif!important;color:#f0f9d2!important;letter-spacing:.01em}
+.user-menu .user-info small{font:700 10.5px/1.2 Arial,sans-serif!important;color:#9fb08c!important;letter-spacing:.06em;text-transform:uppercase}
+.user-menu summary>span[aria-hidden]{color:#d0f44c;font-size:15px;line-height:1;margin-left:2px;transition:transform .18s}
+.user-menu[open] summary>span[aria-hidden]{transform:rotate(180deg)}
 @media ${MOBILE}{
-  .user-menu .user-avatar{overflow:hidden!important;white-space:nowrap!important;text-overflow:clip!important;letter-spacing:0!important}
   html body.top-navigation .sidebar nav.tabs{display:none!important}
   html body.top-navigation .sidebar{height:auto!important;min-height:0!important;max-height:none!important}
   html body main{padding-bottom:calc(104px + env(safe-area-inset-bottom))!important}
@@ -122,12 +130,13 @@
 
   const initials = name => String(name || '').trim().split(/\s+/).filter(Boolean).slice(0, 2).map(word => word[0]).join('').toUpperCase();
   const fixAvatar = () => {
-    // Celular: iniciales. Computador: el texto original de siempre.
+    // Avatar con las iniciales del usuario (el nombre completo queda en el texto de al lado y en el tooltip).
     document.querySelectorAll('.user-menu .user-avatar').forEach(avatar => {
       const full = avatar.dataset.fullName || avatar.textContent.trim();
       if (!full) return;
       avatar.dataset.fullName = full;
-      const wanted = isMobile() ? (initials(full) || full.slice(0, 2)) : full;
+      avatar.title = full;
+      const wanted = initials(full) || full.slice(0, 2);
       if (avatar.textContent !== wanted) avatar.textContent = wanted;
     });
   };
