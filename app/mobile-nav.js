@@ -26,10 +26,10 @@
   .msheet button.on{border-color:#d0f44c;background:#1d2a14;color:#e7ff9a}
   .msheet button::after{content:'›';margin-left:auto;color:#6f7b6a;font-size:1.2rem}
   /* Bodega Tela: botones + TELA NUEVA / SUBIR DOCUMENTO / INGRESO / SALIDA compactos en una sola fila */
-  .inventory-toolbar .inventory-movement-actions{display:grid!important;grid-template-columns:repeat(5,minmax(0,1fr))!important;gap:5px!important;width:100%!important;margin-top:10px!important}
+  .inventory-toolbar .inventory-movement-actions{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:6px!important;width:100%!important;margin-top:10px!important}
   .inventory-toolbar .inventory-movement-actions button{width:100%!important;min-width:0!important;height:44px!important;min-height:44px!important;max-height:44px!important;padding:0 4px!important;margin:0!important;writing-mode:horizontal-tb!important;display:flex!important;align-items:center!important;justify-content:center!important;text-align:center!important;font-size:10px!important;line-height:1.15!important;letter-spacing:0!important;white-space:normal!important;overflow:hidden!important;word-break:normal!important;overflow-wrap:normal!important;border-radius:10px!important}
   .inventory-toolbar .inventory-movement-actions button[data-inventory-doc]{font-size:8.5px!important;letter-spacing:-.02em!important}
-  .inventory-toolbar .inventory-movement-actions button.inventory-refresh-btn{font-size:8.5px!important;letter-spacing:-.02em!important;padding:0 2px!important}
+  .inventory-toolbar .inventory-movement-actions button.inventory-refresh-btn{grid-column:1/-1!important;height:38px!important;min-height:38px!important;max-height:38px!important;font-size:11px!important;letter-spacing:.03em!important;padding:0 8px!important;white-space:nowrap!important}
 }`;
   document.head.appendChild(style);
 
