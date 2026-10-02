@@ -72,7 +72,10 @@ def apply(db, snapshot):
     db.execute('BEGIN IMMEDIATE')
     try:
         headers = json.loads(db.execute("SELECT value FROM production_meta WHERE key='headers'").fetchone()[0])
-        if headers != snapshot['headers']:
+        # Un encabezado que quedó vacío en el Sheet (p. ej. se borró el "." de A3) no cambia la estructura.
+        same = len(headers) == len(snapshot['headers']) and all(
+            old == new or new == f'COLUMNA {i+1}' for i, (old, new) in enumerate(zip(headers, snapshot['headers'])))
+        if not same:
             raise ValueError('Las columnas de Google Sheets cambiaron; no se importó nada')
         local = {}
         for number, raw in db.execute('SELECT source_row,values_json FROM production_rows'):
