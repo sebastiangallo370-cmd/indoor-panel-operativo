@@ -137,6 +137,8 @@ def apply_consumptions(items: list[dict], done: dict, since: str = '') -> None:
     for key in sorted(done, key=lambda k: done[k].get('ts', '')):
         if since and done[key].get('ts', '') < since:
             continue
+        orden = done[key].get('orden', '')
+        stamp = done[key].get('ts', '')
         for roll in done[key].get('rolls', []):
             item = next((i for i in items if i.get('nombre') == roll['item']), None)
             if not item:
@@ -151,11 +153,13 @@ def apply_consumptions(items: list[dict], done: dict, since: str = '') -> None:
                     match = next((i for i, v in enumerate(values) if abs(float(v) - left) < 0.011), None)
                     if match is not None:
                         statuses[match] = 'started'
+                        item.setdefault('sobrantes', []).append({'orden': orden, 'valor': left, 'ts': stamp})
                 continue
             left = round(roll['value'] - roll['take'], 2)
             if left > 0.009:
                 values[index] = left
                 statuses[index] = 'started'
+                item.setdefault('sobrantes', []).append({'orden': orden, 'valor': left, 'ts': stamp})
             else:
                 values.pop(index)
                 statuses.pop(index)
