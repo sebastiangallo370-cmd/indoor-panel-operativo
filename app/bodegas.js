@@ -36,7 +36,8 @@
 .bg-actions{padding-top:8px;border-top:1px solid #26321f}
 .bg-actions .bg-btn{width:100%!important}
 .bg-inline{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;margin-top:4px;padding-top:10px;border-top:1px solid #26321f}
-.bg-inline span{color:#9fb584;font:800 .66rem Arial;letter-spacing:.05em;text-transform:uppercase}
+.bg-inline>span{display:flex;flex-wrap:wrap;gap:5px}
+.bg-chip{display:inline-block;padding:3px 7px;border:1px solid #46563f;border-radius:999px;background:#1d2a14;color:#c9e7a6;font:800 .62rem Arial;letter-spacing:.05em;text-transform:uppercase}
 .bg-inline .bg-btn{padding:6px 10px!important;font-size:.7rem}
 .bg-dialog{width:min(760px,94vw);max-height:90dvh;padding:0;border:1px solid rgba(208,244,76,.6);border-radius:20px;background:#0c110b;color:#f3f7ee;box-shadow:0 30px 90px #000b}
 .bg-dialog::backdrop{background:#000b}
@@ -91,7 +92,7 @@
     const chosen = filters.elements.bodega.value;
     cardsBox.innerHTML = data.resumen.filter(entry => entry.nombre || entry.rollos).map(entry => {
       const name = entry.nombre || NONE;
-      return '<button type="button" class="inventory-item-card bg-sum' + (entry.nombre ? '' : ' none') + (chosen === name ? ' on' : '') + '" data-bg-pick="' + esc(name) + '"><span class="inv-badge">' + (entry.nombre ? 'Bodega' : 'Pendiente') + '</span><strong class="inv-name">' + esc(name) + '</strong><span class="inv-total">' + num(entry.mts) + '<small>MTS</small></span><span class="inv-unit">' + rolls(entry.rollos) + ' · ' + num(entry.telas) + (entry.telas === 1 ? ' tela' : ' telas') + '</span></button>';
+      return '<button type="button" class="inventory-item-card bg-sum' + (entry.nombre ? '' : ' none') + (chosen === name ? ' on' : '') + '" data-bg-pick="' + esc(name) + '"><span class="inv-badge">' + (entry.nombre ? 'Bodega' : 'Pendiente') + '</span><strong class="inv-name">' + chip(entry.nombre, name) + '</strong><span class="inv-total">' + num(entry.mts) + '<small>MTS</small></span><span class="inv-unit">' + rolls(entry.rollos) + ' · ' + num(entry.telas) + (entry.telas === 1 ? ' tela' : ' telas') + '</span></button>';
     }).join('');
   };
 
@@ -103,8 +104,8 @@
     const codeMatch = tela.nombre.match(/^\s*\(([^)]+)\)/);
     return '<article class="inventory-item-card" data-nombre="' + esc(tela.nombre) + '" data-tela="' + esc(norm(tela.nombre)) + '" data-codigo="' + esc(codeMatch ? norm(codeMatch[1]) : '') + '" data-bodegas="' + esc([...groups.keys()].map(key => key || NONE).join('|')) + '">' +
       '<span class="inv-badge">' + esc(where.length ? where.join(' · ') : NONE) + '</span><strong class="inv-name">' + esc(tela.nombre) + '</strong>' +
-      (tela.rollos.length ? order.map(key => '<div class="bg-group' + (key ? '' : ' none') + '"><small><b>' + esc(key || NONE) + '</b> · ' + rolls(groups.get(key).length) + ' · ' + num(groups.get(key).reduce((sum, roll) => sum + roll.v, 0)) + ' MTS</small><div class="inventory-rolls">' +
-        groups.get(key).map(roll => '<span class="inventory-roll ' + (roll.estado === 'started' ? 'roll-started' : 'roll-new') + '" data-i="' + roll.i + '" title="Rollo de ' + esc(num(roll.v)) + ' MTS · ' + esc(key || NONE) + '">' + esc(num(roll.v)) + '</span>').join('') + '</div></div>').join('') : '<p class="bg-note">Sin rollos en inventario.</p>') +
+      (tela.rollos.length ? order.map(key => '<div class="bg-group' + (key ? '' : ' none') + '"><small>' + chip(key, key || NONE) + ' · ' + rolls(groups.get(key).length) + ' · ' + num(groups.get(key).reduce((sum, roll) => sum + roll.v, 0)) + ' MTS</small><div class="inventory-rolls">' +
+        groups.get(key).map(roll => '<span class="inventory-roll ' + (roll.estado === 'started' ? 'roll-started' : 'roll-new') + placeClass(roll.bodega) + '" data-i="' + roll.i + '" title="Rollo de ' + esc(num(roll.v)) + ' MTS · ' + esc(key || NONE) + '">' + esc(num(roll.v)) + '</span>').join('') + '</div></div>').join('') : '<p class="bg-note">Sin rollos en inventario.</p>') +
       '<span class="inv-total">' + num(tela.mts) + '<small>MTS</small></span>' +
       (tela.rollos.length ? '<div class="bg-actions"><button type="button" class="bg-btn" data-bg-edit>EDITAR BODEGA</button></div>' : '') +
       '</article>';
@@ -135,7 +136,30 @@
     applyFilters();
   };
 
-  const fetchData = async () => { data = await api('/api/inventarios/bodegas'); data.at = Date.now(); return data; };
+  // Color de cada bodega (los mismos de la leyenda del Sheet). BODEGA INDOOR conserva el color normal del rollo.
+  const PLACE_COLORS = {'BODEGA GLORIA': ['#dde9f5', '#12335c', '#8fb3d9'], 'BODEGA CASA': ['#fff2cc', '#5a4500', '#e0c060'], 'BODEGA SEGUNDO PISO': ['#d9d2e9', '#3b2a63', '#a593cf'], 'BODEGA INDOOR': null};
+  const EXTRA_COLORS = [['#c8f1ec', '#0f3d3a', '#5cc9bd'], ['#ffd9ec', '#4a1634', '#e58ab8'], ['#ffe0c2', '#5c2e00', '#e8a35c']];
+  const placeColor = name => {
+    if (name in PLACE_COLORS) return PLACE_COLORS[name];
+    const extra = (data?.bodegas || []).filter(item => !(item in PLACE_COLORS));
+    const index = extra.indexOf(name);
+    return index < 0 ? null : EXTRA_COLORS[index % EXTRA_COLORS.length];
+  };
+  const placeClass = name => (data?.bodegas || []).includes(name) && placeColor(name) ? ' bgp-' + data.bodegas.indexOf(name) : '';
+  const placeStyle = document.createElement('style');
+  document.head.appendChild(placeStyle);
+  const paintPlaces = () => {
+    placeStyle.textContent = (data?.bodegas || []).map((name, index) => {
+      const color = placeColor(name);
+      if (!color) return '';
+      const [bg, fg, border] = color, roll = '.inventory-roll.bgp-' + index + ':not([class*="roll-pick"])';
+      return roll + '{background:' + bg + '!important;color:' + fg + '!important;border-color:' + border + '!important}' +
+        roll + '.roll-started{border-color:#ff9f1c!important;border-style:dashed!important}' +
+        '.bg-chip.bgp-' + index + '{background:' + bg + ';color:' + fg + ';border-color:' + border + '}';
+    }).join('');
+  };
+  const chip = (name, text) => '<span class="bg-chip' + placeClass(name) + '">' + esc(text) + '</span>';
+  const fetchData = async () => { data = await api('/api/inventarios/bodegas'); data.at = Date.now(); paintPlaces(); return data; };
   const load = async () => {
     telasBox.innerHTML = '<p class="bg-note">Cargando bodegas…</p>';
     try { await fetchData(); render(); decorateInventory(true); }
@@ -154,8 +178,8 @@
     tela.rollos.forEach(roll => { if (!groups.has(roll.bodega || NONE)) groups.set(roll.bodega || NONE, []); groups.get(roll.bodega || NONE).push(roll); });
     dialog.innerHTML = '<div class="bg-dlg"><button type="button" class="bg-x" aria-label="Cerrar">×</button>' +
       '<header><span class="inv-badge">EDITAR BODEGA</span><h2>' + esc(tela.nombre) + '</h2><p>' + rolls(tela.rollos.length) + ' · ' + num(tela.mts) + ' MTS. Toca los rollos que quieres mover y luego la bodega de destino.</p></header>' +
-      [...groups.entries()].map(([name, list]) => '<section class="bg-dgroup"><small><b>' + esc(name) + '</b> · ' + rolls(list.length) + (list.length ? ' · ' + num(list.reduce((sum, roll) => sum + roll.v, 0)) + ' MTS' : '') + '</small><div class="inventory-rolls">' +
-        (list.length ? list.map(roll => '<span class="inventory-roll ' + (roll.estado === 'started' ? 'roll-started' : 'roll-new') + '" data-i="' + roll.i + '" title="' + esc(num(roll.v)) + ' MTS · ' + (roll.origen === 'web' ? 'asignado en la web' : roll.origen === 'sheet' ? 'según el color del Sheet' : 'sin color en el Sheet') + '">' + esc(num(roll.v)) + '</span>').join('') : '<em>Sin rollos</em>') + '</div></section>').join('') +
+      [...groups.entries()].map(([name, list]) => '<section class="bg-dgroup"><small>' + chip(name, name) + ' · ' + rolls(list.length) + (list.length ? ' · ' + num(list.reduce((sum, roll) => sum + roll.v, 0)) + ' MTS' : '') + '</small><div class="inventory-rolls">' +
+        (list.length ? list.map(roll => '<span class="inventory-roll ' + (roll.estado === 'started' ? 'roll-started' : 'roll-new') + placeClass(roll.bodega) + '" data-i="' + roll.i + '" title="' + esc(num(roll.v)) + ' MTS · ' + (roll.origen === 'web' ? 'asignado en la web' : roll.origen === 'sheet' ? 'según el color del Sheet' : 'sin color en el Sheet') + '">' + esc(num(roll.v)) + '</span>').join('') : '<em>Sin rollos</em>') + '</div></section>').join('') +
       '<div class="bg-move"><div><button type="button" class="bg-btn alt" data-bg-all>Seleccionar todos</button><span data-bg-count>0 rollos seleccionados</span></div><small>MOVER SELECCIONADOS A:</small><div class="bg-targets">' +
         data.bodegas.map(name => '<button type="button" class="bg-btn" data-bg-to="' + esc(name) + '" disabled>' + esc(name) + '</button>').join('') +
         '<button type="button" class="bg-btn alt" data-bg-to="__none__" disabled title="Quita lo asignado en la web y deja la bodega que indica el color del Sheet">Según el Sheet</button></div></div>' +
@@ -221,12 +245,15 @@
         const name = card.querySelector('.inv-name')?.textContent.trim();
         const tela = byName.get(name);
         card.querySelector('.bg-inline')?.remove();
+        const spans = card.querySelectorAll('.inventory-rolls .inventory-roll');
+        spans.forEach(span => { span.className = span.className.replace(/\s*bgp-\d+/g, ''); });
+        tela.rollos.forEach(roll => { const cls = placeClass(roll.bodega).trim(); if (cls && spans[roll.i]) spans[roll.i].classList.add(cls); });
         if (!tela || !tela.rollos.length) return;
         const counts = new Map();
         tela.rollos.forEach(roll => counts.set(roll.bodega || NONE, (counts.get(roll.bodega || NONE) || 0) + 1));
         const line = document.createElement('div');
         line.className = 'bg-inline';
-        line.innerHTML = '<span>' + [...counts.entries()].map(([place, count]) => esc(place.replace(/^BODEGA /, '')) + ' (' + count + ')').join(' · ') + '</span><button type="button" class="bg-btn">EDITAR BODEGA</button>';
+        line.innerHTML = '<span>' + [...counts.entries()].map(([place, count]) => chip(place, place.replace(/^BODEGA /, '') + ' (' + count + ')')).join('') + '</span><button type="button" class="bg-btn">EDITAR BODEGA</button>';
         line.querySelector('button').addEventListener('click', event => { event.preventDefault(); event.stopPropagation(); openEditor(name); });
         card.appendChild(line);
       });
