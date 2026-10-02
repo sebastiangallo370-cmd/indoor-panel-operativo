@@ -145,6 +145,12 @@ def apply_consumptions(items: list[dict], done: dict, since: str = '') -> None:
             statuses = item.setdefault('roll_statuses', ['new'] * len(values))
             index = next((i for i, v in enumerate(values) if abs(float(v) - roll['value']) < 1e-6), None)
             if index is None:
+                # El Sheet ya refleja el descuento: si el rollo que sobró está ahí, debe figurar como EMPEZADO.
+                left = round(roll['value'] - roll['take'], 2)
+                if left > 0.009:
+                    match = next((i for i, v in enumerate(values) if abs(float(v) - left) < 0.011), None)
+                    if match is not None:
+                        statuses[match] = 'started'
                 continue
             left = round(roll['value'] - roll['take'], 2)
             if left > 0.009:
