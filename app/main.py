@@ -3948,7 +3948,10 @@ let html='';for(let n=0;n<days;n++){{const date=new Date(start);date.setDate(sta
     const operariosDialog=document.getElementById('operarios-dialog'),operariosDialogTitle=document.getElementById('operarios-dialog-title'),operariosDialogKpis=document.getElementById('operarios-dialog-kpis'),operariosDialogBody=document.getElementById('operarios-dialog-body'),operariosDialogMonth=document.getElementById('operarios-dialog-month'),operariosDialogClose=document.getElementById('operarios-dialog-close'),operariosDialogPrev=document.getElementById('operarios-dialog-prev'),operariosDialogNext=document.getElementById('operarios-dialog-next');
     const operariosHoverCalendar=document.getElementById('operarios-hover-calendar');
     const operariosDayFilterSlot=document.getElementById('operarios-day-filter-slot');
-    const operatorState={{data:[],daily:{{}},dailyByCode:{{}},dailyActive:{{}},dailyRework:{{}},finished:{{}},byRef:{{}},area:'',year:0,month:0,daysInMonth:30,today:'',sheetAvailable:false,daySearch:'',processStatus:{{}}}};
+    const operatorState={{data:[],daily:{{}},dailyByCode:{{}},dailyActive:{{}},dailyRework:{{}},finished:{{}},byRef:{{}},area:'',year:0,month:0,daysInMonth:30,today:'',sheetAvailable:false,daySearch:'',dayFrom:'',dayTo:'',dayPerson:'',processStatus:{{}}}};
+    try{{const saved=JSON.parse(localStorage.getItem('operarios-filtro')||'{{}}');operatorState.dayFrom=saved.from||'';operatorState.dayTo=saved.to||'';operatorState.dayPerson=saved.person||''}}catch(_){{}}
+    const saveOperatorFilter=()=>{{try{{localStorage.setItem('operarios-filtro',JSON.stringify({{from:operatorState.dayFrom,to:operatorState.dayTo,person:operatorState.dayPerson}}))}}catch(_){{}}}};
+    const plainOperator=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
     /* Respaldo por si Google Sheets no responde: se usa mientras carga o si falla la conexión.
        Cuando la hoja CONTROL OPERARIOS SÍ responde, esta lista se reemplaza con lo que haya ahí. */
     const operatorAreaFallback=[
@@ -4143,8 +4146,13 @@ let html='';for(let n=0;n<days;n++){{const date=new Date(start);date.setDate(sta
         operariosHoverCalendar.innerHTML='<h3 class="operarios-hover-cal-title">'+esc(group.area)+'</h3>'+emptyMsg;
         return;
       }}
-      const search=operatorState.daySearch||'';
-      const visibleDays=search?days.filter(entry=>entry.key===search):days;
+      const from=operatorState.dayFrom||'',to=operatorState.dayTo||'',personQuery=plainOperator(operatorState.dayPerson);
+      const search=from||to||personQuery;
+      const visibleDays=days.filter(entry=>(!from||entry.key>=from)&&(!to||entry.key<=to)).map(entry=>{{
+        if(!personQuery)return entry;
+        const people=entry.people.filter(person=>plainOperator(person.name).includes(personQuery));
+        return {{...entry,people,total:people.reduce((sum,person)=>sum+(person.count||0),0)}};
+      }}).filter(entry=>!personQuery||entry.people.length);
       const cards=visibleDays.map(entry=>{{
         const moment=new Date(year,month,entry.day);
         const dowFull=moment.toLocaleDateString('es-CO',{{weekday:'long'}}).toUpperCase();
@@ -4162,30 +4170,38 @@ let html='';for(let n=0;n<days;n++){{const date=new Date(start);date.setDate(sta
       }}).join('');
       const legendHTML='<div class="operarios-legend"><span class="op-stat op-stat-done"><i class="op-stat-icon">✓</i>Terminado</span><span class="op-stat op-stat-active"><i class="op-stat-icon">P</i>En proceso</span><span class="op-stat op-stat-rework"><i class="op-stat-icon">R</i>Reproceso</span><small class="operarios-legend-source">Datos reales · Google Sheets</small></div>';
       const kpisHTML='<div><span>Operarios</span><strong>'+roster.length+'</strong></div><div><span>Trabajando</span><strong>'+roster.filter(entry=>entry.record&&entry.record.current).length+'</strong></div><div><span>Días con registro</span><strong>'+days.filter(entry=>entry.total>0).length+'</strong></div><div><span>Procesos del mes</span><strong>'+days.reduce((sum,entry)=>sum+entry.total,0)+'</strong></div>';
-      const bodyHTML=cards?legendHTML+'<div class="operarios-days">'+cards+'</div>':legendHTML+'<p class="operarios-cal-empty">'+(search?'No hay cierres registrados en esa fecha.':'No hay procesos cerrados en este mes.')+'</p>';
+      const bodyHTML=cards?legendHTML+'<div class="operarios-days">'+cards+'</div>':legendHTML+'<p class="operarios-cal-empty">'+(search?'No hay registros con esos filtros (operario / fechas).':'No hay procesos cerrados en este mes.')+'</p>';
       operariosDialogKpis.innerHTML=kpisHTML;
       operariosDialogBody.innerHTML=bodyHTML;
       const minDate=year+'-'+String(month+1).padStart(2,'0')+'-01';
       const maxDate=year+'-'+String(month+1).padStart(2,'0')+'-'+String(total).padStart(2,'0');
-      operariosDayFilterSlot.innerHTML='<div class="operarios-day-filter-row"><input type="date" id="operarios-day-filter" class="operarios-day-filter" value="'+esc(search)+'" min="'+minDate+'" max="'+maxDate+'" aria-label="Buscar una fecha"><button type="button" id="operarios-day-filter-clear" class="operarios-day-filter-clear"'+(search?'':' hidden')+'>Ver todo</button></div>';
+      const names=[...new Set(days.flatMap(entry=>entry.people.map(person=>person.name)))].sort();
+      operariosDayFilterSlot.innerHTML='<div class="operarios-day-filter-row" style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end"><label class="op-filter-field" style="display:grid;gap:4px;font:800 10px Arial;letter-spacing:.06em;color:#aebaa8;text-transform:uppercase;flex:1 1 140px">Operario<input type="search" id="operarios-person-filter" class="operarios-day-filter" list="operarios-person-list" value="'+esc(operatorState.dayPerson||'')+'" placeholder="Nombre"><datalist id="operarios-person-list">'+names.map(name=>'<option value="'+esc(name)+'"></option>').join('')+'</datalist></label><label class="op-filter-field" style="display:grid;gap:4px;font:800 10px Arial;letter-spacing:.06em;color:#aebaa8;text-transform:uppercase;flex:1 1 140px">Desde<input type="date" id="operarios-day-from" class="operarios-day-filter" value="'+esc(from)+'" min="'+minDate+'" max="'+maxDate+'"></label><label class="op-filter-field" style="display:grid;gap:4px;font:800 10px Arial;letter-spacing:.06em;color:#aebaa8;text-transform:uppercase;flex:1 1 140px">Hasta<input type="date" id="operarios-day-to" class="operarios-day-filter" value="'+esc(to)+'" min="'+minDate+'" max="'+maxDate+'"></label><button type="button" id="operarios-day-filter-clear" class="operarios-day-filter-clear"'+(search?'':' hidden')+'>Ver todo</button></div>';
       operariosHoverCalendar.innerHTML='<h3 class="operarios-hover-cal-title">'+esc(group.area)+' <small>'+new Date(year,month,1).toLocaleDateString('es-CO',{{month:'long',year:'numeric'}})+'</small></h3><div class="operarios-dialog-kpis">'+kpisHTML+'</div>'+legendHTML+bodyHTML;
     }}
     operariosDayFilterSlot.addEventListener('change',event=>{{
-      if(event.target.id!=='operarios-day-filter')return;
-      const val=event.target.value;
-      if(val){{
-        const parts=val.split('-').map(Number);
-        operatorState.year=parts[0];operatorState.month=parts[1]-1;
-        operatorState.daysInMonth=new Date(parts[0],parts[1],0).getDate();
-        operatorState.daySearch=val;
-      }}else{{
-        operatorState.daySearch='';
-      }}
+      const id=event.target.id;
+      if(id==='operarios-day-from'||id==='operarios-day-to'){{
+        const val=event.target.value;
+        if(id==='operarios-day-from')operatorState.dayFrom=val;else operatorState.dayTo=val;
+        if(val){{
+          const parts=val.split('-').map(Number);
+          operatorState.year=parts[0];operatorState.month=parts[1]-1;
+          operatorState.daysInMonth=new Date(parts[0],parts[1],0).getDate();
+        }}
+      }}else if(id==='operarios-person-filter'){{
+        operatorState.dayPerson=event.target.value.trim();
+      }}else return;
+      saveOperatorFilter();
       renderOperatorsCalendar();
+    }});
+    operariosDayFilterSlot.addEventListener('keydown',event=>{{
+      if(event.target.id==='operarios-person-filter'&&event.key==='Enter'){{operatorState.dayPerson=event.target.value.trim();saveOperatorFilter();renderOperatorsCalendar();}}
     }});
     operariosDayFilterSlot.addEventListener('click',event=>{{
       if(!event.target.closest('#operarios-day-filter-clear'))return;
-      operatorState.daySearch='';
+      operatorState.dayFrom='';operatorState.dayTo='';operatorState.dayPerson='';
+      saveOperatorFilter();
       renderOperatorsCalendar();
     }});
     function openOperatorsArea(area){{
