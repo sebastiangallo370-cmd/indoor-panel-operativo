@@ -233,10 +233,12 @@ def _records_for_tab(values: list[list[str]], tab_key: str, tab_label: str, grid
                 continue
             roll_values.append(_number(value))
             roll_statuses.append(roll_status(row_index, index))
+        supplier = active_headers[active_name + 1] if active_name + 1 < len(active_headers) else ''
         records.append({
             "id": f"{tab_key}:{row_index}:{len(records)}",
             "categoria": tab_key,
             "categoria_label": tab_label,
+            "proveedor": '' if supplier.startswith('Campo ') or 'TOTAL' in _normalized(supplier) else supplier,
             "nombre": name,
             "total": total,
             "total_label": _display_total(total),
@@ -352,6 +354,93 @@ def inventory_snapshot(refresh: bool = False):
     return _with_sublimacion(_inventory_payload(refresh))
 
 
+LOW_STOCK_MTS = 100
+
+
+def _supplier(item: dict[str, Any]) -> str:
+    if item.get('proveedor'):
+        return item['proveedor']
+    fields = item.get('campos') or {}
+    keys = list(fields.keys())
+    names = [key for key in keys if fields[key] == item.get('nombre')]
+    start = keys.index(names[0]) + 1 if names else 1
+    for key in keys[start:]:
+        normalized = _normalized(key)
+        if not key.startswith('Campo ') and 'TOTAL' not in normalized and 'MOVIMIENTO' not in normalized:
+            return key
+    return 'Sin proveedor'
+
+
+@inventario_router.get("/dashboard")
+def inventory_dashboard():
+    """Estadísticas de Bodega tela para el dashboard."""
+    payload = _with_sublimacion(_inventory_payload())
+    items = [item for item in payload.get('items') or [] if item.get('categoria') == 'BODEGA TELA']
+    rolls_new = rolls_started = 0
+    mts_new = mts_started = 0.0
+    suppliers: dict[str, dict[str, Any]] = {}
+    for item in items:
+        values = item.get('roll_values') or []
+        statuses = item.get('roll_statuses') or []
+        for index, value in enumerate(values):
+            if index < len(statuses) and statuses[index] == 'started':
+                rolls_started += 1
+                mts_started += float(value)
+            else:
+                rolls_new += 1
+                mts_new += float(value)
+        entry = suppliers.setdefault(_supplier(item), {'nombre': _supplier(item), 'mts': 0.0, 'telas': 0})
+        entry['mts'] += float(item.get('total') or 0)
+        entry['telas'] += 1
+    stock = [item for item in items if float(item.get('total') or 0) > 0]
+    simple = lambda item: {'nombre': item['nombre'], 'mts': round(float(item.get('total') or 0), 2), 'rollos': len(item.get('roll_values') or [])}
+    plans = payload.get('sublimacion') or []
+    ledger = sublimacion_stock._load_ledger()
+    consumptions = []
+    for done in ledger.get('done', {}).values():
+        consumptions.append({'orden': done.get('orden', ''), 'fecha': done.get('ts', ''),
+                             'mts': round(sum(float(roll.get('take') or 0) for roll in done.get('rolls', [])), 2),
+                             'telas': sorted({roll.get('item', '') for roll in done.get('rolls', [])})})
+    consumptions.sort(key=lambda entry: entry['fecha'], reverse=True)
+    month_ago = datetime.now(timezone.utc).timestamp() - 30 * 86400
+    recent = [entry for entry in consumptions if entry['fecha'] and datetime.fromisoformat(entry['fecha']).timestamp() >= month_ago]
+    movements = _load_movements()
+    ingresos = [m for m in movements if m.get('type') == 'INGRESO']
+    salidas = [m for m in movements if m.get('type') == 'SALIDA']
+    return {
+        'updated_at': payload.get('updated_at'),
+        'umbral_bajo': LOW_STOCK_MTS,
+        'kpis': {
+            'mts': round(sum(float(item.get('total') or 0) for item in items), 2),
+            'telas': len(items), 'telas_con_stock': len(stock), 'telas_sin_stock': len(items) - len(stock),
+            'rollos': rolls_new + rolls_started,
+            'rollos_nuevos': rolls_new, 'mts_nuevos': round(mts_new, 2),
+            'rollos_empezados': rolls_started, 'mts_empezados': round(mts_started, 2),
+        },
+        'top': [simple(item) for item in sorted(stock, key=lambda item: -float(item['total']))[:10]],
+        'bajo_stock': [simple(item) for item in sorted((i for i in stock if float(i['total']) < LOW_STOCK_MTS), key=lambda i: float(i['total']))[:12]],
+        'sin_stock': [item['nombre'] for item in items if float(item.get('total') or 0) <= 0],
+        'proveedores': [{**entry, 'mts': round(entry['mts'], 2)} for entry in sorted(suppliers.values(), key=lambda entry: -entry['mts'])],
+        'sublimacion': {
+            'ordenes': len(plans),
+            'mts': round(sum(float(plan.get('mts') or 0) for plan in plans), 2),
+            'no_alcanzan': sum(1 for plan in plans if plan.get('short')),
+            'faltan': round(sum(float(plan.get('missing') or 0) for plan in plans), 2),
+            'lista': [{'label': plan.get('label', ''), 'mts': plan.get('mts', 0), 'short': plan.get('short', False),
+                       'missing': plan.get('missing', 0), 'rollos': len(plan.get('rolls') or []),
+                       'telas': sorted({roll.get('item', '') for roll in plan.get('rolls') or []})} for plan in plans],
+        },
+        'consumos': {'mts_30d': round(sum(entry['mts'] for entry in recent), 2), 'ordenes_30d': len(recent), 'ultimos': consumptions[:8]},
+        'movimientos': {
+            'ingresos': len(ingresos), 'ingresos_mts': round(sum(float(m.get('mts') or 0) for m in ingresos), 2),
+            'salidas': len(salidas), 'salidas_mts': round(sum(float(m.get('mts') or 0) for m in salidas), 2),
+            'ultimos': [{'tipo': m.get('type'), 'nombre': m.get('name'), 'mts': m.get('mts'), 'rollos': m.get('rolls'),
+                         'fecha': m.get('fecha', ''), 'origen': m.get('source', '')} for m in movements[-8:][::-1]],
+        },
+        'documentos': len(_imported_documents()),
+    }
+
+
 def start_sublimacion_worker() -> None:
     sublimacion_stock.start_worker(_load_snapshot)
 
@@ -428,7 +517,7 @@ def _imported_documents() -> dict[str, Any]:
 def inventory_movement(movement: InventoryMovement):
     with _lock:
         movements = _load_movements()
-        movements.append(movement.model_dump())
+        movements.append({**movement.model_dump(), 'fecha': datetime.now(timezone.utc).isoformat()})
         _save_movements(movements)
         _refresh_snapshot()
     return {'ok': True}
@@ -474,7 +563,8 @@ def inventory_movements(batch: InventoryBatch):
         if batch.doc_hash and batch.doc_hash in imported:
             raise HTTPException(status_code=409, detail='Este documento ya fue registrado antes.')
         movements = _load_movements()
-        movements.extend({**movement.model_dump(), 'source': batch.doc_name} for movement in batch.movements)
+        now = datetime.now(timezone.utc).isoformat()
+        movements.extend({**movement.model_dump(), 'source': batch.doc_name, 'fecha': now} for movement in batch.movements)
         _save_movements(movements)
         if batch.doc_hash:
             imported[batch.doc_hash] = {'nombre': batch.doc_name, 'fecha': datetime.now(timezone.utc).isoformat(), 'movimientos': len(batch.movements)}
