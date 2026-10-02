@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import re
+from difflib import SequenceMatcher
 import secrets
 import shutil
 import sqlite3
@@ -2930,7 +2931,8 @@ def resolve_nas_order_path(root_raw: Path, clean: str, client_name: str):
             if client_dir is not None and folder.name == client_dir.name:
                 continue
             tokens = _nas_name_tokens(folder.name)
-            common = len(tokens & wanted)
+            # Palabras casi iguales cuentan igual (TRASFORMEMOS ~ TRANSFORMEMOS).
+            common = sum(1 for w in wanted if any(w == t or (len(w) >= 5 and SequenceMatcher(None, w, t).ratio() >= 0.85) for t in tokens))
             if not tokens or not common:
                 continue
             score = common / len(wanted)
