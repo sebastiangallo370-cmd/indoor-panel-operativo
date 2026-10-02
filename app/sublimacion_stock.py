@@ -20,6 +20,9 @@ LEDGER_FILE = os.getenv('INVENTORY_SUBLIMACION_FILE', '/data/inventory_sublimaci
 DB_FILE = Path(os.getenv('STATE_DIR', '/data/state')) / 'jobs.sqlite3'
 EXCLUDED_NAMES = ('DON ALVEIRO',)
 COLORS = 5
+# El inventario muestra exactamente lo que dice el Google Sheet. Los consumos de Sublimación se siguen
+# registrando en el servidor, pero ya no se restan solos (ponerlo en '1' los vuelve a restar).
+APPLY_CONSUMPTIONS = os.getenv('INVENTORY_APPLY_CONSUMPTIONS', '0') == '1'
 _lock = threading.RLock()
 
 
@@ -239,7 +242,8 @@ def reconcile(base_items: list[dict]) -> tuple[list[dict], list[dict]]:
                     if taken:
                         ledger['done'][key] = {'orden': plan['orden'], 'ts': datetime.now(timezone.utc).isoformat(), 'rolls': taken}
         items = copy.deepcopy(base_items)
-        apply_consumptions(items, ledger['done'])
+        if APPLY_CONSUMPTIONS:
+            apply_consumptions(items, ledger['done'])
         plans: list[dict] = []
         if orders is not None:
             active = sorted((r, o) for r, o in orders.items() if o['state'] == 'P' and str(r) not in ledger['done'])
