@@ -1086,11 +1086,14 @@ def startup():
     with connect():
         pass
     legacy.setup_logging(CONFIG["log_file"])
-    # Activar siempre la sincronizacion con Google Sheets al arrancar.
-    # Los datos de produccion (P, R, Terminado) deben reflejar la hoja en todo momento.
+    # Activar la sincronizacion con Google Sheets al arrancar (los datos de produccion deben reflejar la hoja),
+    # salvo que alguien la haya desvinculado a proposito con el interruptor del Panel de control.
     flag = STATE_DIR / 'sheets-sync-enabled'
     flag.parent.mkdir(parents=True, exist_ok=True)
-    flag.touch(exist_ok=True)
+    if (STATE_DIR / 'sheets-sync-desvinculado').exists():
+        flag.unlink(missing_ok=True)
+    else:
+        flag.touch(exist_ok=True)
     sheets_sync.start(connect, legacy.get_gspread, STATE_DIR)
     start_sublimacion_worker()
     db_backup.start(DB_PATH, STATE_DIR, legacy.get_supabase)
@@ -1759,12 +1762,14 @@ def sheets_sync_activar(_=Depends(authenticate)):
     flag = _sheets_sync_flag()
     flag.parent.mkdir(parents=True, exist_ok=True)
     flag.touch(exist_ok=True)
+    (STATE_DIR / 'sheets-sync-desvinculado').unlink(missing_ok=True)
     return {'ok': True, 'enabled': True}
 
 
 @app.post('/api/produccion/sheets-sync/desactivar')
 def sheets_sync_desactivar(_=Depends(authenticate)):
     _sheets_sync_flag().unlink(missing_ok=True)
+    (STATE_DIR / 'sheets-sync-desvinculado').touch(exist_ok=True)  # se recuerda aunque el servidor se reinicie
     return {'ok': True, 'enabled': False}
 
 
@@ -4595,7 +4600,7 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
 `;document.head.appendChild(traceFigmaStyle);setTraceView();
     const commercialGroup=commercialToggle.closest('.nav-group');commercialGroup.classList.add('collapsed');const productionToggle=document.getElementById('production-toggle');if(productionToggle)productionToggle.addEventListener('click',()=>{{const g=productionToggle.closest('.nav-group');g.classList.toggle('collapsed');if(!g.classList.contains('collapsed')&&window.innerWidth>860)g.querySelector('.nav-children .tab')?.click()}});
     setTimeout(()=>{{if(!document.querySelector('.panel.active'))document.querySelector('.tab[data-kind="inicio"]')?.click()}},0);
-    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/api/cartera/cartera.js?v=20261001-14'></script><script src='/trace-ui.js?v=20261002-3'></script><script src='/home-dashboard.js?v=20261001-8'></script><script src='/bodega-dashboard.js?v=20261002-5'></script><script src='/bodegas.js?v=20261002-2'></script><script src='/mobile-nav.js?v=20261002-5'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);</script></body></html>"""
+    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/api/cartera/cartera.js?v=20261001-14'></script><script src='/trace-ui.js?v=20261002-3'></script><script src='/home-dashboard.js?v=20261001-8'></script><script src='/bodega-dashboard.js?v=20261002-6'></script><script src='/bodegas.js?v=20261002-2'></script><script src='/mobile-nav.js?v=20261002-5'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);</script></body></html>"""
 
 
 def ordered_mockup_uploads(extras, slots):
