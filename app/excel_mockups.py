@@ -8,6 +8,7 @@ import zipfile
 import sqlite3
 import json
 import base64
+import io
 import time
 from xml.etree import ElementTree as ET
 from app.settings import STATE_DIR
@@ -29,7 +30,7 @@ def read_designs(filename, modified_ns, size, reference):
     STATE_DIR.mkdir(parents=True, exist_ok=True)
     with closing(sqlite3.connect(cache_path, timeout=15)) as db, db:
         db.execute('CREATE TABLE IF NOT EXISTS previews (filename TEXT, reference TEXT, version TEXT, payload TEXT, updated REAL, PRIMARY KEY(filename,reference))')
-        version = f'2:{modified_ns}:{size}'
+        version = f'3:{modified_ns}:{size}'
         row = db.execute('SELECT payload FROM previews WHERE filename=? AND reference=? AND version=?', (filename, reference, version)).fetchone()
     if row:
         try:
@@ -111,8 +112,8 @@ def extract_designs(filename, size, reference):
                         continue
                     col = int(marker.findtext('x:col', '-1', NS))
                     row = int(marker.findtext('x:row', '-1', NS))
-                    # Verified listing layout: designs start near S, logo lives at B.
-                    if not 17 <= col <= 42 or not 0 <= row <= 100:
+                    # Diseños desde la columna R (los antiguos) o AH (las plantillas nuevas); el logo vive en B.
+                    if not 17 <= col <= 300 or not 0 <= row <= 100:
                         continue
                     blip = anchor.find('.//a:blip', NS)
                     if blip is None:
@@ -120,7 +121,8 @@ def extract_designs(filename, size, reference):
                     media = image_rels.get(blip.get('{'+NS['r']+'}embed'))
                     if not media or not media.startswith('xl/media/'):
                         continue
-                    if Path(media).suffix.lower() not in ('.jpg', '.jpeg', '.png', '.webp') or z.getinfo(media).file_size > 10 * 1024 * 1024:
+                    # Excel a veces guarda las imágenes como .tmp: se acepta cualquier nombre y se valida el contenido.
+                    if z.getinfo(media).file_size > 10 * 1024 * 1024:
                         bad = True
                         continue
                     data = read(media, 10 * 1024 * 1024)
@@ -130,9 +132,7 @@ def extract_designs(filename, size, reference):
                     if mime is None:
                         bad = True
                         continue
-                    # New templates have four six-column slots S/Y/AE/AK.
-                    design = min(4, max(1, round((col - 18) / 6) + 1)) if row < 10 else None
-                    items.append((row, col, design, mime, data))
+                    items.append((row, col, None, mime, data, row))
             return items, bad
 
         # 1) Exact sheet-name match.
@@ -156,21 +156,47 @@ def extract_designs(filename, size, reference):
             return (), 'Sin hoja coincidente con la referencia'
 
         candidates, unsupported = sheet_candidates(matched[0])
+        # Imágenes sueltas fuera de la franja de diseños (fila 10 en adelante) se ignoran si ya hay diseños arriba.
+        if any(item[5] < 10 for item in candidates):
+            candidates = [item for item in candidates if item[5] < 10]
         candidates.sort(key=lambda item: (item[1], item[0]))
-        if sum(len(item[4]) for item in candidates) > 16 * 1024 * 1024:
+        if len(candidates) > 40:
+            return (), 'Más de 40 imágenes: revisar listado'
+        if sum(len(item[4]) for item in candidates) > 120 * 1024 * 1024:
             return (), 'Imágenes demasiado grandes para vista previa'
-        if len(candidates) > 4:
-            return (), 'Más de cuatro imágenes: revisar listado'
+        first_col = min((item[1] for item in candidates), default=0)
         result = []
         seen = set()
-        for _, _, design, mime, data in candidates:
-            number = design or len(result) + 1
+        for row, col, _design, mime, data, _row in candidates:
+            if first_col >= 31:
+                number = max(1, round((col - 33) / 6) + 1)       # plantilla nueva: AH, AN, AT… = D1, D2, D3…
+            else:
+                number = min(4, max(1, round((col - 18) / 6) + 1))  # plantilla antigua: S, Y, AE, AK
             if number in seen:
                 return (), 'Diseños superpuestos: revisar listado'
             seen.add(number)
-            result.append((number, mime, data))
+            result.append((number, 'image/jpeg', _thumbnail(data)))
         return tuple(result), ('Imagen del Excel en formato no compatible' if unsupported else
                                '' if result else 'Sin imagen en la hoja del listado')
+
+
+def _thumbnail(data, side=1000):
+    """Vista previa liviana (JPEG de hasta 1000 px): los listados traen fotos de 2000x3800 px."""
+    try:
+        from PIL import Image
+        with Image.open(io.BytesIO(data)) as image:
+            image.draft('RGB', (side * 2, side * 2))
+            frame = image.convert('RGBA') if image.mode in ('RGBA', 'LA', 'P') else image.convert('RGB')
+            if frame.mode == 'RGBA':
+                background = Image.new('RGB', frame.size, 'white')
+                background.paste(frame, mask=frame.split()[-1])
+                frame = background
+            frame.thumbnail((side, side))
+            out = io.BytesIO()
+            frame.save(out, 'JPEG', quality=82, optimize=True)
+            return out.getvalue()
+    except Exception:
+        return data
 
 
 def listing_designs(files, reference):
