@@ -4137,8 +4137,21 @@ let html='';for(let n=0;n<days;n++){{const date=new Date(start);date.setDate(sta
         return key?byResponsible[key]:null;
       }}
 
-      const days=Array.from({{length:total}},(_,index)=>{{
-        const day=index+1,key=operatorDayKey(year,month,day);
+      // Rango de días: el mes que se muestra, o EXACTAMENTE el rango elegido en Desde/Hasta (puede cruzar meses).
+      const pickFrom=operatorState.dayFrom||'',pickTo=operatorState.dayTo||'';
+      const parseDay=value=>{{const parts=String(value).split('-').map(Number);return new Date(parts[0],parts[1]-1,parts[2])}};
+      let rangeStart=new Date(year,month,1),rangeEnd=new Date(year,month,total);
+      if(pickFrom||pickTo){{
+        const one=parseDay(pickFrom||pickTo);
+        rangeStart=pickFrom?parseDay(pickFrom):new Date(one.getFullYear(),one.getMonth(),1);
+        rangeEnd=pickTo?parseDay(pickTo):new Date(one.getFullYear(),one.getMonth()+1,0);
+        if(rangeEnd<rangeStart){{const swap=rangeStart;rangeStart=rangeEnd;rangeEnd=swap}}
+        if((rangeEnd-rangeStart)/86400000>400)rangeEnd=new Date(rangeStart.getFullYear(),rangeStart.getMonth(),rangeStart.getDate()+400);
+      }}
+      const dayDates=[];
+      for(const cursor=new Date(rangeStart);cursor<=rangeEnd;cursor.setDate(cursor.getDate()+1))dayDates.push(new Date(cursor));
+      const days=dayDates.map(date=>{{
+        const day=date.getDate(),key=operatorDayKey(date.getFullYear(),date.getMonth(),day);
         const isToday=key===todayKey;
         const peopleMap=new Map();
         let matchedActive=0,matchedRework=0;
@@ -4164,7 +4177,7 @@ let html='';for(let n=0;n<days;n++){{const date=new Date(start);date.setDate(sta
           if(leftoverActive>0||leftoverRework>0)peopleMap.set('__unassigned',{{name:'Sin asignar',record:null,count:0,active:leftoverActive,rework:leftoverRework}});
         }}
         const people=Array.from(peopleMap.values()).sort((a,b)=>b.count-a.count);
-        return {{day:day,key:key,people:people,total:people.reduce((sum,entry)=>sum+entry.count,0)}};
+        return {{day:day,date:date,key:key,people:people,total:people.reduce((sum,entry)=>sum+entry.count,0)}};
       }}).filter(entry=>entry.people.length>0||entry.key===todayKey).reverse();
       /* Meta de produccion: 10.000 unidades al mes POR AREA (asi esta calculado en la propia
          hoja de Google Sheets, pestana CONTROL OPERARIOS: cada area se mide contra su propia
@@ -4192,7 +4205,7 @@ let html='';for(let n=0;n<days;n++){{const date=new Date(start);date.setDate(sta
         return {{...entry,people,total:people.reduce((sum,person)=>sum+(person.count||0),0)}};
       }}).filter(entry=>!personQuery||entry.people.length);
       const cards=visibleDays.map(entry=>{{
-        const moment=new Date(year,month,entry.day);
+        const moment=entry.date;
         const dowFull=moment.toLocaleDateString('es-CO',{{weekday:'long'}}).toUpperCase();
         const monthFull=moment.toLocaleDateString('es-CO',{{month:'long'}}).toUpperCase();
         const isToday=entry.key===todayKey;
@@ -4214,7 +4227,7 @@ let html='';for(let n=0;n<days;n++){{const date=new Date(start);date.setDate(sta
       const minDate=year+'-'+String(month+1).padStart(2,'0')+'-01';
       const maxDate=year+'-'+String(month+1).padStart(2,'0')+'-'+String(total).padStart(2,'0');
       const names=[...new Set(days.flatMap(entry=>entry.people.map(person=>person.name)))].sort();
-      const filterHTML='<div class="operarios-day-filter-row" style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end"><label class="op-filter-field" style="display:grid;gap:4px;font:800 10px Arial;letter-spacing:.06em;color:#aebaa8;text-transform:uppercase;flex:1 1 140px">Operario<input type="search" id="operarios-person-filter" class="operarios-day-filter" list="operarios-person-list" value="'+esc(operatorState.dayPerson||'')+'" placeholder="Nombre"><datalist id="operarios-person-list">'+names.map(name=>'<option value="'+esc(name)+'"></option>').join('')+'</datalist></label><label class="op-filter-field" style="display:grid;gap:4px;font:800 10px Arial;letter-spacing:.06em;color:#aebaa8;text-transform:uppercase;flex:1 1 140px">Desde<input type="date" id="operarios-day-from" class="operarios-day-filter" value="'+esc(from)+'" min="'+minDate+'" max="'+maxDate+'"></label><label class="op-filter-field" style="display:grid;gap:4px;font:800 10px Arial;letter-spacing:.06em;color:#aebaa8;text-transform:uppercase;flex:1 1 140px">Hasta<input type="date" id="operarios-day-to" class="operarios-day-filter" value="'+esc(to)+'" min="'+minDate+'" max="'+maxDate+'"></label><button type="button" id="operarios-day-filter-clear" class="operarios-day-filter-clear"'+(search?'':' hidden')+'>Ver todo</button></div>';
+      const filterHTML='<div class="operarios-day-filter-row" style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end"><label class="op-filter-field" style="display:grid;gap:4px;font:800 10px Arial;letter-spacing:.06em;color:#aebaa8;text-transform:uppercase;flex:1 1 140px">Operario<input type="search" id="operarios-person-filter" class="operarios-day-filter" list="operarios-person-list" value="'+esc(operatorState.dayPerson||'')+'" placeholder="Nombre"><datalist id="operarios-person-list">'+names.map(name=>'<option value="'+esc(name)+'"></option>').join('')+'</datalist></label><label class="op-filter-field" style="display:grid;gap:4px;font:800 10px Arial;letter-spacing:.06em;color:#aebaa8;text-transform:uppercase;flex:1 1 140px">Desde<input type="date" id="operarios-day-from" class="operarios-day-filter" value="'+esc(from)+'" ></label><label class="op-filter-field" style="display:grid;gap:4px;font:800 10px Arial;letter-spacing:.06em;color:#aebaa8;text-transform:uppercase;flex:1 1 140px">Hasta<input type="date" id="operarios-day-to" class="operarios-day-filter" value="'+esc(to)+'"></label><button type="button" id="operarios-day-filter-clear" class="operarios-day-filter-clear"'+(search?'':' hidden')+'>Ver todo</button></div>';
       // Los filtros se dibujan UNA sola vez: si la pantalla se actualiza sola mientras tienes el calendario abierto o
       // estás escribiendo, no se tocan (antes se redibujaban y se cerraba el calendario).
       if(!operariosDayFilterSlot.querySelector('#operarios-day-from')){{operariosDayFilterSlot.innerHTML=filterHTML}}
@@ -4225,8 +4238,6 @@ let html='';for(let n=0;n<days;n++){{const date=new Date(start);date.setDate(sta
         [['operarios-day-from',from],['operarios-day-to',to]].forEach(([id,value])=>{{
           const input=operariosDayFilterSlot.querySelector('#'+id);
           if(!input)return;
-          if(input.min!==minDate)input.min=minDate;
-          if(input.max!==maxDate)input.max=maxDate;
           if(document.activeElement!==input&&input.value!==value)input.value=value;
         }});
         const person=operariosDayFilterSlot.querySelector('#operarios-person-filter');
