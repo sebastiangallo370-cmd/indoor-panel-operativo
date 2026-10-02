@@ -402,7 +402,7 @@ def inventory_dashboard():
         ready = []
     plan_card = lambda plan: {'label': plan.get('label', ''), 'mts': plan.get('mts', 0), 'short': plan.get('short', False),
                               'missing': plan.get('missing', 0), 'rollos': len(plan.get('rolls') or []),
-                              'encontrada': bool(plan.get('owners')), 'tela': plan.get('tela', ''),
+                              'encontrada': bool(plan.get('owners')), 'tela': plan.get('tela', ''), 'fecha': plan.get('fecha', ''),
                               'valores': [roll.get('value') for roll in plan.get('rolls') or []],
                               'estados': ['started' if roll.get('started') else 'new' for roll in plan.get('rolls') or []],
                               'disponible': plan.get('disponible'),
@@ -422,6 +422,7 @@ def inventory_dashboard():
     return {
         'updated_at': payload.get('updated_at'),
         'umbral_bajo': LOW_STOCK_MTS,
+        'telas': sorted({item['nombre'] for item in items}),
         'kpis': {
             'mts': round(sum(float(item.get('total') or 0) for item in items), 2),
             'telas': len(items), 'telas_con_stock': len(stock), 'telas_sin_stock': len(items) - len(stock),

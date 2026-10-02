@@ -54,6 +54,28 @@ def _save_ledger(ledger: dict) -> None:
     os.replace(tmp, LEDGER_FILE)
 
 
+_MONTHS = {'ENE': 1, 'FEB': 2, 'MAR': 3, 'ABR': 4, 'MAY': 5, 'JUN': 6, 'JUL': 7, 'AGO': 8,
+           'SEP': 9, 'SEPT': 9, 'OCT': 10, 'NOV': 11, 'DIC': 12}
+
+
+def parse_date(value) -> str:
+    """'1-oct-26' o '26/09/2026' -> '2026-10-01'. Vacío si no se reconoce."""
+    text = norm(value)
+    match = re.match(r'^(\d{1,2})[-/ ]([A-Z]+)\.?[-/ ](\d{2,4})$', text)
+    if match and match.group(2) in _MONTHS:
+        day, month, year = int(match.group(1)), _MONTHS[match.group(2)], int(match.group(3))
+    else:
+        match = re.match(r'^(\d{1,2})/(\d{1,2})/(\d{2,4})$', text)
+        if not match:
+            return ''
+        day, month, year = int(match.group(1)), int(match.group(2)), int(match.group(3))
+    year += 2000 if year < 100 else 0
+    try:
+        return datetime(year, month, day).date().isoformat()
+    except ValueError:
+        return ''
+
+
 def read_orders() -> dict[int, dict] | None:
     """Órdenes con su estado de Sublimación: P (iniciada), DONE, NA o ''. None si no se pudo leer."""
     try:
@@ -98,6 +120,7 @@ def read_orders() -> dict[int, dict] | None:
                 'mts': float(found[-1].replace(',', '.')) if found else 0.0,
                 'state': state,
                 'edicion': 'DONE' if edition not in ('', 'R', 'N/A') and re.search(r'\d', edition) else '',
+                'fecha': parse_date(values[ei]) if ei is not None and ei < len(values) else '',
             }
         return orders
     except (sqlite3.Error, ValueError, KeyError):
@@ -177,7 +200,7 @@ def build_plan(items: list[dict], orders: list[tuple[int, dict]]) -> list[dict]:
             used.add((roll['id'], roll['index']))
         owners = sorted({r['id'] for r in chosen}) or [i['id'] for i in matched]
         plans.append({
-            'source_row': source_row, 'orden': order['orden'], 'tela': tela, 'mts': need, 'color': seq % COLORS,
+            'source_row': source_row, 'orden': order['orden'], 'tela': tela, 'fecha': order.get('fecha', ''), 'mts': need, 'color': seq % COLORS,
             'short': short, 'missing': round(need - covered, 2) if short else 0.0,
             'label': _plan_label(order, need),
             'rolls': chosen, 'owners': owners,
@@ -258,7 +281,7 @@ def forecast(items: list[dict]) -> list[dict]:
             pending -= take
         short = need > 0 and have < need
         result.append({
-            'source_row': source_row, 'orden': order['orden'], 'tela': order['tela'], 'mts': need,
+            'source_row': source_row, 'orden': order['orden'], 'tela': order['tela'], 'fecha': order.get('fecha', ''), 'mts': need,
             'short': short, 'missing': round(need - have, 2) if short else 0.0, 'disponible': round(have, 2),
             'label': _plan_label(order, need), 'rolls': [], 'owners': [i['id'] for i in matched],
             'telas': [i['nombre'] for i in matched],

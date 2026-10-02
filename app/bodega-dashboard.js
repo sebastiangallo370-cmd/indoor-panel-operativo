@@ -3,6 +3,9 @@
   const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
   const num = value => Number(value || 0).toLocaleString('es-CO', {maximumFractionDigits: 2});
   const rolls = n => num(n) + (Number(n) === 1 ? ' rollo' : ' rollos');
+  const norm = value => String(value ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/\s+/g, ' ').trim();
+  const day = value => { if (!value) return ''; if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value; const date = new Date(value); return isNaN(date) ? '' : date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0'); };
+  const shortDay = value => { const date = value ? new Date(value + 'T12:00:00') : null; return date && !isNaN(date) ? date.toLocaleDateString('es-CO', {day: 'numeric', month: 'short', year: 'numeric'}) : ''; };
   const when = value => { if (!value) return 'sin fecha'; const date = new Date(value); return isNaN(date) ? 'sin fecha' : date.toLocaleString('es-CO', {day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit'}); };
 
   const style = document.createElement('style');
@@ -38,6 +41,14 @@
 .bd-line{display:flex;justify-content:space-between;gap:10px;color:#bdc8b8;font-size:.74rem}
 .bd-line b{color:#f0f4eb;white-space:nowrap}
 .bd-note{margin:0;color:#8a9485;font-size:.78rem}
+.bd-filters{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) auto;gap:10px;align-items:end;padding:14px 18px;border:1px solid #46563f;border-radius:18px;background:#111811}
+.bd-filters label{display:grid;gap:5px;color:#aebba7;font:800 .64rem Arial;letter-spacing:.07em;text-transform:uppercase}
+.bd-filters input{width:100%;box-sizing:border-box;border:1px solid #46563f;border-radius:9px;background:#0b100b;color:#fff;padding:9px 11px;font:500 .85rem Arial;outline:none;color-scheme:dark}
+.bd-filters input:focus{border-color:#d0f44c}
+.bd-clear{padding:9px 14px!important;border:1px solid #46563f!important;border-radius:9px!important;background:#151d15!important;color:#dfe8d9!important;font-weight:800;cursor:pointer;width:auto!important}
+.bd-count{grid-column:1/-1;margin:0;color:#8a9485;font-size:.74rem}
+.bd-count:empty{display:none}
+@media (max-width:900px){.bd-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.bd-filters label:first-child{grid-column:1/-1}}
 @media (max-width:520px){.bd-head{flex-direction:column;align-items:stretch}.bd-cards{grid-template-columns:1fr}}
 `;
   document.head.appendChild(style);
@@ -45,15 +56,19 @@
   const panel = document.createElement('section');
   panel.className = 'panel';
   panel.dataset.panel = 'bodega-dashboard';
-  panel.innerHTML = '<div class="bd"><div class="bd-head"><div><h2>Panel de control · Bodega tela</h2><p class="bd-updated">Cargando…</p></div><button type="button" class="bd-refresh">Actualizar</button></div><div class="bd-body"></div></div>';
+  panel.innerHTML = '<div class="bd"><div class="bd-head"><div><h2>Panel de control · Bodega tela</h2><p class="bd-updated">Cargando…</p></div><button type="button" class="bd-refresh">Actualizar</button></div>' +
+    '<form class="bd-filters" autocomplete="off" onsubmit="return false"><label>Nombre tela<input name="tela" type="search" list="bd-telas" placeholder="Ej. MONTECATINI"><datalist id="bd-telas"></datalist></label><label>Código tela<input name="codigo" type="search" inputmode="numeric" placeholder="Ej. 100"></label><label>Fecha desde<input name="desde" type="date"></label><label>Fecha hasta<input name="hasta" type="date"></label><button type="button" class="bd-clear">Limpiar</button><p class="bd-count"></p></form>' +
+    '<div class="bd-body"></div></div>';
   const body = panel.querySelector('.bd-body');
   body.style.display = 'grid';
   body.style.gap = '26px';
 
   const circles = (values, states) => values && values.length ? '<div class="inventory-rolls">' + values.map((value, index) => '<span class="inventory-roll ' + (states?.[index] === 'started' ? 'roll-started' : 'roll-new') + '">' + esc(num(value)) + '</span>').join('') + '</div>' : '';
-  const card = ({badge, badgeClass = '', name, total, unit, extra = '', cls = '', title = ''}) =>
-    '<article class="inventory-item-card ' + cls + '"' + (title ? ' title="' + esc(title) + '"' : '') + '><span class="inv-badge ' + badgeClass + '">' + esc(badge) + '</span><strong class="inv-name">' + esc(name) + '</strong>' + extra + '<span class="inv-total">' + total + '</span>' + (unit ? '<span class="inv-unit">' + esc(unit) + '</span>' : '') + '</article>';
-  const section = (title, note, cards, fit) => '<section class="bd-section"><h3>' + esc(title) + (note ? ' <small>· ' + esc(note) + '</small>' : '') + '</h3>' + (cards ? '<div class="bd-cards' + (fit ? ' fit' : '') + '">' + cards + '</div>' : '') + '</section>';
+  const codes = names => names.map(name => (String(name).match(/^\s*\(([^)]+)\)/) || [])[1]).filter(Boolean);
+  const card = ({badge, badgeClass = '', name, total, unit, extra = '', cls = '', title = '', telas = null, fecha = ''}) =>
+    '<article class="inventory-item-card ' + cls + '"' + (title ? ' title="' + esc(title) + '"' : '') +
+      (telas ? ' data-tela="' + esc(norm(telas.join(' | '))) + '" data-codigo="' + esc(codes(telas).join('|')) + '"' : ' data-sinfiltro="true"') + (fecha ? ' data-fecha="' + esc(day(fecha)) + '"' : '') + '><span class="inv-badge ' + badgeClass + '">' + esc(badge) + '</span><strong class="inv-name">' + esc(name) + '</strong>' + extra + '<span class="inv-total">' + total + '</span>' + (unit ? '<span class="inv-unit">' + esc(unit) + '</span>' : '') + '</article>';
+  const section = (title, note, cards, fit) => '<section class="bd-section"' + (fit ? ' data-fijo="true"' : '') + '><h3>' + esc(title) + (note ? ' <small>· ' + esc(note) + '</small>' : '') + '</h3>' + (cards ? '<div class="bd-cards' + (fit ? ' fit' : '') + '">' + cards + '</div>' : '') + '</section>';
   const meter = (value, max) => '<div class="bd-meter"><i style="width:' + Math.max(1, value / (max || 1) * 100) + '%"></i></div>';
 
   const render = data => {
@@ -72,33 +87,34 @@
       card({badge: 'Consumo', name: 'Consumido en Sublimación', total: num(con.mts_30d) + '<small>MTS</small>', unit: 'Últimos 30 días · ' + num(con.ordenes_30d) + ' órdenes'});
 
     const maxTop = data.top[0]?.mts || 1;
-    const top = data.top.map((row, index) => card({badge: 'Top ' + (index + 1), name: row.nombre, total: num(row.mts) + '<small>MTS</small>', unit: rolls(row.rollos), extra: circles(row.valores, row.estados) + meter(row.mts, maxTop)})).join('');
+    const top = data.top.map((row, index) => card({badge: 'Top ' + (index + 1), telas: [row.nombre], name: row.nombre, total: num(row.mts) + '<small>MTS</small>', unit: rolls(row.rollos), extra: circles(row.valores, row.estados) + meter(row.mts, maxTop)})).join('');
 
     const orderCard = row => !row.encontrada
-      ? card({badge: 'Tela no encontrada', badgeClass: 'bad', cls: 'bad', name: row.label, total: num(row.mts) + '<small>MTS</small>',
-          unit: 'Tela en producción: ' + (row.tela || 'sin tela') + ' · no hay una tela con ese nombre en Bodega'})
-      : card({badge: row.short ? 'No alcanza' : 'Alcanza', badgeClass: row.short ? 'bad' : 'ok', cls: row.short ? 'bad' : '', name: row.label,
+      ? card({badge: 'Tela no encontrada', badgeClass: 'bad', cls: 'bad', name: row.label, total: num(row.mts) + '<small>MTS</small>', telas: [row.tela], fecha: row.fecha,
+          unit: (row.fecha ? 'Edición ' + shortDay(row.fecha) + ' · ' : '') + 'Tela en producción: ' + (row.tela || 'sin tela') + ' · no hay una tela con ese nombre en Bodega'})
+      : card({badge: row.short ? 'No alcanza' : 'Alcanza', badgeClass: row.short ? 'bad' : 'ok', cls: row.short ? 'bad' : '', name: row.label, telas: [row.tela, ...row.telas], fecha: row.fecha,
           total: row.short ? num(row.missing) + '<small>MTS FALTAN</small>' : num(row.mts) + '<small>MTS</small>',
-          unit: (row.short ? 'Necesita ' + num(row.mts) + ' MTS · ' : '') + (row.telas.length ? row.telas.join(', ') + ' · ' : '') + rolls(row.rollos), extra: circles(row.valores, row.estados)});
+          unit: (row.fecha ? 'Edición ' + shortDay(row.fecha) + ' · ' : '') + (row.short ? 'Necesita ' + num(row.mts) + ' MTS · ' : '') + (row.telas.length ? row.telas.join(', ') + ' · ' : '') + rolls(row.rollos), extra: circles(row.valores, row.estados)});
     const readyCard = row => !row.encontrada ? orderCard(row)
       : card({badge: row.short ? 'No alcanza' : 'Alcanza', badgeClass: row.short ? 'bad' : 'ok', cls: row.short ? 'bad' : '', name: row.label,
           total: row.short ? num(row.missing) + '<small>MTS FALTAN</small>' : num(row.mts) + '<small>MTS</small>',
-          unit: 'Disponible ' + num(row.disponible) + ' MTS · ' + row.telas.join(', ')});
+          telas: [row.tela, ...row.telas], fecha: row.fecha,
+          unit: (row.fecha ? 'Edición ' + shortDay(row.fecha) + ' · ' : '') + 'Disponible ' + num(row.disponible) + ' MTS · ' + row.telas.join(', ')});
     const orders = sub.lista.map(orderCard).join('');
     const ready = (data.listas || []).slice().sort((a, b) => (b.short - a.short)).map(readyCard).join('');
 
-    const low = data.bajo_stock.map(row => card({badge: 'Bajo stock', badgeClass: 'warn', name: row.nombre, total: num(row.mts) + '<small>MTS</small>', unit: rolls(row.rollos), extra: circles(row.valores, row.estados)})).join('') +
-      data.sin_stock.map(name => card({badge: 'Sin stock', badgeClass: 'bad', name, total: '0<small>MTS</small>', unit: '0 rollos'})).join('');
+    const low = data.bajo_stock.map(row => card({badge: 'Bajo stock', badgeClass: 'warn', telas: [row.nombre], name: row.nombre, total: num(row.mts) + '<small>MTS</small>', unit: rolls(row.rollos), extra: circles(row.valores, row.estados)})).join('') +
+      data.sin_stock.map(name => card({badge: 'Sin stock', badgeClass: 'bad', telas: [name], name, total: '0<small>MTS</small>', unit: '0 rollos'})).join('');
 
     const maxSupplier = data.proveedores[0]?.mts || 1;
-    const suppliers = data.proveedores.filter(row => row.mts > 0).map(row => card({badge: 'Proveedor', name: row.nombre, total: num(row.mts) + '<small>MTS</small>', unit: num(row.telas) + (row.telas === 1 ? ' tela · ' : ' telas · ') + Math.round(row.mts / (k.mts || 1) * 100) + '% de la bodega',
+    const suppliers = data.proveedores.filter(row => row.mts > 0).map(row => card({badge: 'Proveedor', telas: ((data.proveedores_telas || {})[row.nombre] || []).map(pair => pair[0]), name: row.nombre, total: num(row.mts) + '<small>MTS</small>', unit: num(row.telas) + (row.telas === 1 ? ' tela · ' : ' telas · ') + Math.round(row.mts / (k.mts || 1) * 100) + '% de la bodega',
       extra: meter(row.mts, maxSupplier) + ((data.proveedores_telas || {})[row.nombre] || []).map(([name, mts]) => '<div class="bd-line"><span>' + esc(name) + '</span><b>' + num(mts) + ' MTS</b></div>').join('')})).join('');
 
     const activity =
       card({badge: 'Ingresos web', badgeClass: 'ok', name: num(mov.ingresos) + ' ingresos registrados', total: num(mov.ingresos_mts) + '<small>MTS</small>', unit: num(data.documentos) + ' documentos de entrega'}) +
       card({badge: 'Salidas web', badgeClass: 'warn', name: num(mov.salidas) + ' salidas registradas', total: num(mov.salidas_mts) + '<small>MTS</small>', unit: 'Desde el formulario SALIDA'}) +
-      mov.ultimos.map(row => card({badge: row.tipo === 'INGRESO' ? 'Ingreso' : 'Salida', badgeClass: row.tipo === 'INGRESO' ? 'ok' : 'warn', name: row.nombre, total: num(row.mts) + '<small>MTS</small>', unit: when(row.fecha) + ' · ' + rolls(row.rollos) + (row.origen ? ' · ' + row.origen : '')})).join('') +
-      con.ultimos.map(row => card({badge: 'Consumo Sublimación', name: 'Orden ' + row.orden, total: num(row.mts) + '<small>MTS</small>', unit: when(row.fecha) + (row.telas.length ? ' · ' + row.telas.join(', ') : '')})).join('');
+      mov.ultimos.map(row => card({badge: row.tipo === 'INGRESO' ? 'Ingreso' : 'Salida', badgeClass: row.tipo === 'INGRESO' ? 'ok' : 'warn', telas: [row.nombre], fecha: row.fecha, name: row.nombre, total: num(row.mts) + '<small>MTS</small>', unit: when(row.fecha) + ' · ' + rolls(row.rollos) + (row.origen ? ' · ' + row.origen : '')})).join('') +
+      con.ultimos.map(row => card({badge: 'Consumo Sublimación', telas: row.telas, fecha: row.fecha, name: 'Orden ' + row.orden, total: num(row.mts) + '<small>MTS</small>', unit: when(row.fecha) + (row.telas.length ? ' · ' + row.telas.join(', ') : '')})).join('');
 
     body.innerHTML =
       section('Resumen', '', resumen, true) +
@@ -108,7 +124,41 @@
       section('Top 10 telas con más metros', '', top) +
       section('Metros por proveedor', '', suppliers) +
       section('Movimientos', 'ingresos, salidas y consumos', activity);
+    panel.querySelector('#bd-telas').innerHTML = (data.telas || []).map(name => '<option value="' + esc(name) + '"></option>').join('');
+    applyFilters();
   };
+
+  const filters = panel.querySelector('.bd-filters');
+  const applyFilters = () => {
+    const typed = filters.elements.tela.value;
+    const tela = norm(typed).replace(/^\([^)]*\)\s*/, '');
+    const typedCode = (typed.match(/^\s*\(([^)]+)\)/) || [])[1] || '';
+    const codigo = norm(filters.elements.codigo.value).replace(/[()]/g, '') || norm(typedCode);
+    const desde = filters.elements.desde.value, hasta = filters.elements.hasta.value;
+    const active = Boolean(tela || codigo || desde || hasta);
+    let shown = 0;
+    body.querySelectorAll('.bd-section').forEach(sectionNode => {
+      if (sectionNode.dataset.fijo) return;
+      let visible = 0;
+      sectionNode.querySelectorAll('.inventory-item-card').forEach(cardNode => {
+        let ok = !active;
+        if (active && !cardNode.dataset.sinfiltro) {
+          const fecha = cardNode.dataset.fecha || '';
+          ok = (!tela || (cardNode.dataset.tela || '').includes(tela))
+            && (!codigo || (cardNode.dataset.codigo || '').split('|').includes(codigo))
+            && (!(desde || hasta) || (fecha && (!desde || fecha >= desde) && (!hasta || fecha <= hasta)));
+        }
+        cardNode.style.display = ok ? '' : 'none';
+        if (ok) visible += 1;
+      });
+      sectionNode.style.display = active && !visible ? 'none' : '';
+      shown += visible;
+    });
+    body.querySelectorAll(':scope > .bd-note').forEach(note => { note.style.display = active ? 'none' : ''; });
+    panel.querySelector('.bd-count').textContent = active ? (shown ? shown + (shown === 1 ? ' tarjeta coincide' : ' tarjetas coinciden') + ' con el filtro.' : 'Nada coincide con el filtro.') : '';
+  };
+  filters.addEventListener('input', applyFilters);
+  panel.querySelector('.bd-clear').onclick = () => { filters.reset(); applyFilters(); };
 
   const load = async () => {
     body.innerHTML = '<p class="bd-note">Cargando estadísticas…</p>';
