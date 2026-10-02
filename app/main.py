@@ -2645,10 +2645,15 @@ def nas_client_key(value):
 
 def resolve_nas_client(root: Path, client_name: str) -> Path:
     root = root.resolve()
-    if not root.is_dir():
-        raise HTTPException(503, 'El NAS no está disponible')
     if not client_name or (root / client_name).resolve().parent != root:
         raise HTTPException(400, 'Nombre de cliente inválido')
+    # Primero la carpeta exacta del cliente (una sola consulta al NAS); solo si no existe así,
+    # se compara contra la lista de clientes ignorando tildes y mayúsculas.
+    direct = root / client_name
+    if direct.is_dir():
+        return direct.resolve()
+    if not root.is_dir():
+        raise HTTPException(503, 'El NAS no está disponible')
     matches = [p.resolve() for p in root.iterdir()
                if nas_client_key(p.name) == nas_client_key(client_name)
                and p.is_dir() and p.resolve().parent == root]
@@ -2880,25 +2885,18 @@ _nas_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="nas-resolve")
 
 def resolve_nas_order_path(root_raw: Path, clean: str, client_name: str):
     root = root_raw.resolve()
-    target = None
-    if client_name:
-        try:
-            client_dir = resolve_nas_client(root, client_name)
-        except HTTPException as error:
-            if error.status_code != 404:
-                raise
-            client_dir = None
-        if client_dir:
-            for candidate in client_dir.iterdir():
-                name = candidate.name.upper()
-                if candidate.is_dir() and (name == clean or any(name.startswith(clean + separator) for separator in ('_', ' ', '-'))):
-                    resolved = candidate.resolve()
-                    if resolved.parent == client_dir:
-                        target = resolved
-                    break
-    if target is None:
-        target = find_nas_order(clean)
-    return root, target
+    if not client_name:
+        # Enlaces sin cliente (antiguos): única situación en la que se revisan todas las carpetas.
+        return root, find_nas_order(clean)
+    # Con cliente: se busca la orden SOLO dentro de la carpeta de ese cliente (no en los 742 clientes).
+    client_dir = resolve_nas_client(root, client_name)
+    for candidate in client_dir.iterdir():
+        name = candidate.name.upper()
+        if (name == clean or any(name.startswith(clean + separator) for separator in ('_', ' ', '-'))) and candidate.is_dir():
+            resolved = candidate.resolve()
+            if resolved.parent == client_dir:
+                return root, resolved
+    raise HTTPException(404, f'No se encontró la orden {clean} en la carpeta del cliente {client_dir.name}. Revisa que la carpeta de la orden esté creada con ese número.')
 
 
 def nas_native_redirect(request: Request, parts: list) -> RedirectResponse:
