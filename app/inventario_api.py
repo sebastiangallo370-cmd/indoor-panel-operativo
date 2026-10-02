@@ -589,6 +589,128 @@ def inventory_movements(batch: InventoryBatch):
     return {'ok': True, 'registrados': len(batch.movements)}
 
 
+_bodegas_file = os.getenv('INVENTORY_BODEGAS_FILE', '/data/inventory_bodegas.json')
+DEFAULT_BODEGAS = ['BODEGA GLORIA', 'SEGUNDO PISO', 'BODEGA CASA']
+_bodegas_lock = threading.Lock()
+
+
+def _load_bodegas() -> dict[str, Any]:
+    try:
+        with open(_bodegas_file, encoding='utf-8') as handle:
+            data = json.load(handle)
+        if isinstance(data, dict):
+            data.setdefault('bodegas', list(DEFAULT_BODEGAS))
+            data.setdefault('asignaciones', {})
+            return data
+    except (OSError, ValueError):
+        pass
+    return {'bodegas': list(DEFAULT_BODEGAS), 'asignaciones': {}}
+
+
+def _save_bodegas(data: dict[str, Any]) -> None:
+    os.makedirs(os.path.dirname(_bodegas_file) or '.', exist_ok=True)
+    tmp = _bodegas_file + '.tmp'
+    with open(tmp, 'w', encoding='utf-8') as handle:
+        json.dump(data, handle, ensure_ascii=False)
+    os.replace(tmp, _bodegas_file)
+
+
+def _fabric_rolls() -> list[dict[str, Any]]:
+    payload = _with_sublimacion(_inventory_payload())
+    return [item for item in payload.get('items') or [] if item.get('categoria') == 'BODEGA TELA']
+
+
+def _resolve_rolls(values: list[float], saved: list[dict[str, Any]]) -> list[str]:
+    """Bodega de cada rollo actual. Se reconoce el rollo por posición y metros; si sus metros
+    cambiaron (se consumió una parte) se mantiene la bodega de la misma posición."""
+    result = [''] * len(values)
+    pending = list(saved)
+    for index, value in enumerate(values):
+        match = next((s for s in pending if s['i'] == index and abs(float(s['v']) - float(value)) < 1e-6), None)
+        if match:
+            result[index] = match['b']
+            pending.remove(match)
+    for index, value in enumerate(values):
+        if result[index]:
+            continue
+        match = next((s for s in pending if abs(float(s['v']) - float(value)) < 1e-6), None) \
+            or next((s for s in pending if s['i'] == index), None)
+        if match:
+            result[index] = match['b']
+            pending.remove(match)
+    return result
+
+
+@inventario_router.get('/bodegas')
+def inventory_bodegas():
+    data = _load_bodegas()
+    telas = []
+    totals = {name: {'nombre': name, 'mts': 0.0, 'rollos': 0, 'telas': set()} for name in data['bodegas'] + ['']}
+    for item in _fabric_rolls():
+        values = [float(v) for v in item.get('roll_values') or []]
+        statuses = item.get('roll_statuses') or []
+        places = _resolve_rolls(values, data['asignaciones'].get(item['nombre'], []))
+        rolls = []
+        for index, value in enumerate(values):
+            place = places[index] if places[index] in totals else ''
+            rolls.append({'i': index, 'v': value, 'estado': statuses[index] if index < len(statuses) else 'new', 'bodega': place})
+            totals[place]['mts'] += value
+            totals[place]['rollos'] += 1
+            totals[place]['telas'].add(item['nombre'])
+        telas.append({'nombre': item['nombre'], 'mts': round(float(item.get('total') or 0), 2), 'rollos': rolls})
+    return {
+        'bodegas': data['bodegas'],
+        'resumen': [{'nombre': entry['nombre'], 'mts': round(entry['mts'], 2), 'rollos': entry['rollos'], 'telas': len(entry['telas'])}
+                    for entry in totals.values()],
+        'telas': telas,
+    }
+
+
+class BodegaAssignment(BaseModel):
+    nombre: str
+    rollos: list[int] = Field(min_length=1, max_length=500)
+    bodega: str = ''
+
+
+@inventario_router.post('/bodegas/asignar')
+def inventory_bodegas_assign(assignment: BodegaAssignment):
+    items = _fabric_rolls()
+    with _bodegas_lock:
+        data = _load_bodegas()
+        if assignment.bodega and assignment.bodega not in data['bodegas']:
+            raise HTTPException(status_code=404, detail='Esa bodega no existe.')
+        item = next((i for i in items if i['nombre'] == assignment.nombre), None)
+        if not item:
+            raise HTTPException(status_code=404, detail='Esa tela no existe en Bodega tela.')
+        values = [float(v) for v in item.get('roll_values') or []]
+        if any(index < 0 or index >= len(values) for index in assignment.rollos):
+            raise HTTPException(status_code=409, detail='Los rollos cambiaron; recarga la página.')
+        places = _resolve_rolls(values, data['asignaciones'].get(item['nombre'], []))
+        for index in assignment.rollos:
+            places[index] = assignment.bodega
+        data['asignaciones'][item['nombre']] = [{'i': i, 'v': values[i], 'b': b} for i, b in enumerate(places) if b]
+        if not data['asignaciones'][item['nombre']]:
+            data['asignaciones'].pop(item['nombre'])
+        _save_bodegas(data)
+    return {'ok': True}
+
+
+class NewBodega(BaseModel):
+    nombre: str = Field(min_length=2, max_length=40)
+
+
+@inventario_router.post('/bodegas')
+def inventory_bodegas_create(bodega: NewBodega):
+    name = re.sub(r'\s+', ' ', bodega.nombre.strip()).upper()
+    with _bodegas_lock:
+        data = _load_bodegas()
+        if any(_normalized(existing) == _normalized(name) for existing in data['bodegas']):
+            raise HTTPException(status_code=409, detail=f'La bodega {name} ya existe.')
+        data['bodegas'].append(name)
+        _save_bodegas(data)
+    return {'ok': True, 'nombre': name}
+
+
 @inventario_router.post('/documento')
 async def inventory_document(file: UploadFile = File(...)):
     data = await file.read()
