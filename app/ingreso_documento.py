@@ -5,12 +5,14 @@ El OCR se usa solo para proponer datos: el usuario revisa y confirma antes de re
 from __future__ import annotations
 
 import io
+import math
 import os
 import re
 import subprocess
 import tempfile
 import unicodedata
-from collections import defaultdict
+from collections import Counter, defaultdict
+from difflib import SequenceMatcher
 
 import pdfplumber
 from PIL import Image, ImageOps
@@ -122,13 +124,105 @@ def _read_number(image: Image.Image, box: tuple[int, int, int, int]) -> float | 
     return float(raw)
 
 
+def _cell_candidates(image: Image.Image, box: tuple[int, int, int, int]) -> list[float]:
+    """Varias lecturas de una celda (con distintos contrastes); devuelve los valores "00.00" del más al menos repetido."""
+    gray = image.crop(box).convert('L')
+    gray = ImageOps.autocontrast(gray.resize((gray.width * 3, gray.height * 3), Image.LANCZOS), cutoff=2)
+    found: list[float] = []
+    for threshold in (None, 110, 140, 170):
+        variant = gray if threshold is None else gray.point(lambda value, t=threshold: 255 if value > t else 0)
+        path = _save_temp(ImageOps.expand(variant, border=30, fill=255))
+        try:
+            text = _tesseract(path, '--psm', '7', '-c', 'tessedit_char_whitelist=0123456789.,', timeout=30)
+        finally:
+            os.unlink(path)
+        text = text.strip().replace(',', '.').replace(' ', '')
+        if re.fullmatch(r'\d{1,5}\.\d{2}', text):
+            found.append(float(text))
+    return [value for value, _ in Counter(found).most_common()]
+
+
+def _read_column(image: Image.Image, box: tuple[int, int, int, int]) -> list[list[float]]:
+    """Respaldo para fotos: corta la columna CANTIDAD por las rayas de la tabla y lee celda por celda."""
+    x0, y0, x1, y1 = (max(0, box[0]), max(0, box[1]), min(image.width, box[2]), min(image.height, box[3]))
+    if x1 - x0 < 20 or y1 - y0 < 20:
+        return []
+    gray = ImageOps.autocontrast(image.crop((x0, y0, x1, y1)).convert('L'), cutoff=2)
+    width, height = gray.size
+    pixels = gray.load()
+    inner = range(int(width * 0.1), int(width * 0.9))
+    rules = [y for y in range(height) if sum(1 for x in inner if pixels[x, y] < 120) > 0.45 * len(inner)]
+    bands, start = [], 0
+    for y in rules + [height]:
+        if y - start > 12:
+            bands.append((start, y))
+        start = y + 1
+    margin = int(width * 0.08)
+    cells = [_cell_candidates(image, (x0 + margin, y0 + top + 2, x1 - margin, y0 + bottom - 2)) for top, bottom in bands]
+    return [options for options in cells if options]
+
+
+def _match_total(cells: list[list[float]], total: float) -> list[float] | None:
+    """Elige una lectura por celda de modo que la suma dé el total del documento (prefiere las más repetidas)."""
+    options = [cell[:3] for cell in cells]
+    combos = 1
+    for cell in options:
+        combos *= len(cell)
+    if not options or combos > 200000:
+        return None
+    best: tuple[int, list[float]] | None = None
+
+    def search(index: int, chosen: list[float], cost: int, partial: float) -> None:
+        nonlocal best
+        if best is not None and cost >= best[0]:
+            return
+        if index == len(options):
+            if abs(partial - total) <= 0.01:
+                best = (cost, list(chosen))
+            return
+        for rank, value in enumerate(options[index]):
+            chosen.append(value)
+            search(index + 1, chosen, cost + rank, partial + value)
+            chosen.pop()
+
+    search(0, [], 0, 0.0)
+    return best[1] if best else None
+
+
 def _first(words: list[dict], *names: str) -> dict | None:
     wanted = {norm(n) for n in names}
     return next((w for w in words if norm(w['text']).strip('.:') in wanted), None)
 
 
+def _skew_degrees(words: list[dict]) -> float:
+    """Inclinación del texto (grados). Positivo = las líneas bajan hacia la derecha (foto torcida)."""
+    lines: dict[tuple, list[dict]] = defaultdict(list)
+    for word in words:
+        lines[word['line']].append(word)
+    slopes = []
+    for ws in lines.values():
+        points = [((w['left'] + w['right']) / 2, (w['top'] + w['bottom']) / 2) for w in ws if len(w['text']) >= 2]
+        if len(points) < 3 or max(x for x, _ in points) - min(x for x, _ in points) < 250:
+            continue
+        mean_x = sum(x for x, _ in points) / len(points)
+        mean_y = sum(y for _, y in points) / len(points)
+        spread = sum((x - mean_x) ** 2 for x, _ in points)
+        if spread:
+            slopes.append(sum((x - mean_x) * (y - mean_y) for x, y in points) / spread)
+    if len(slopes) < 3:
+        return 0.0
+    slopes.sort()
+    return math.degrees(math.atan(slopes[len(slopes) // 2]))
+
+
 def parse_page(image: Image.Image) -> dict:
     words = _words(image)
+    # Fotos tomadas con el celular: si la hoja está torcida, se endereza y se vuelve a leer,
+    # para que cada cantidad quede a la misma altura que su fila.
+    angle = _skew_degrees(words)
+    if 0.4 <= abs(angle) <= 15:
+        image = image.rotate(angle, resample=Image.BICUBIC, expand=True, fillcolor='white')
+        words = _words(image)
     lines: dict[tuple, list[dict]] = defaultdict(list)
     for word in words:
         lines[word['line']].append(word)
@@ -157,6 +251,7 @@ def parse_page(image: Image.Image) -> dict:
     header_bottom = max(w['bottom'] for w in header)
 
     finished = False
+    total_top = None
     for ws in ordered:
         top, bottom = min(w['top'] for w in ws), max(w['bottom'] for w in ws)
         if top <= header_bottom:
@@ -166,6 +261,7 @@ def parse_page(image: Image.Image) -> dict:
         is_total = any(key in joined for key in ('TOTAL', 'BULTO', 'ROLLOS'))
         if is_total:
             finished = True
+            total_top = top if total_top is None else total_top
             if 'TOTAL GENERAL' in joined:
                 result['total_documento'] = _read_number(image, (qty_box[0], top - 6, qty_box[1], bottom + 6))
             continue
@@ -182,6 +278,23 @@ def parse_page(image: Image.Image) -> dict:
             digits = ''.join(re.findall(r'\d+', ' '.join(w['text'] for w in ws if roll_head['left'] - 15 <= w['left'] <= roll_head['left'] + 260)))
             roll_no = digits if len(digits) >= 8 else ''
         result['filas'].append({'descripcion': in_desc.strip(), 'referencia': reference.strip(), 'rollo_no': roll_no, 'mts': qty})
+
+    # Validación contra el TOTAL GENERAL del documento. Si la lectura fila por fila no cuadra (típico en fotos),
+    # se lee la columna CANTIDAD completa y se usa si su suma sí coincide con el total.
+    total = result['total_documento']
+    rows = result['filas']
+    row_sum = sum(row['mts'] or 0 for row in rows)
+    if total and rows and (any(row['mts'] is None for row in rows) or abs(row_sum - total) > 0.01):
+        column = _match_total(_read_column(image, (qty_box[0], header_bottom + 4, qty_box[1], (total_top or image.height) - 4)), total)
+        if column:
+            if len(column) == len(rows):
+                for row, value in zip(rows, column):
+                    row['mts'] = value
+            else:
+                main_desc = Counter(norm(row['descripcion']) for row in rows).most_common(1)[0][0]
+                base = next(row for row in rows if norm(row['descripcion']) == main_desc)
+                result['filas'] = [{'descripcion': base['descripcion'], 'referencia': base['referencia'], 'rollo_no': '', 'mts': value}
+                                   for value in column]
     return result
 
 
@@ -197,8 +310,22 @@ def parse_document(data: bytes, filename: str) -> dict:
     groups: dict[str, dict] = {}
     for row in merged['filas']:
         row['descripcion'] = re.sub(r'[^\w\s/.()-]+', ' ', row['descripcion']).strip()
-        key = norm(re.sub(r'-\s*\d+\s*$', '', row['descripcion']))
-        group = groups.setdefault(key, {'descripcion': row['descripcion'], 'referencia': row['referencia'], 'rollos': []})
+    # Variantes del OCR del mismo nombre (SUDAFRICASEC, subarricasec…) se unen a la más repetida.
+    counts = Counter(norm(re.sub(r'-\s*\d+\s*$', '', row['descripcion'])) for row in merged['filas'])
+    canonical = [name for name, _ in counts.most_common()]
+    def group_key(text: str) -> str:
+        key = norm(re.sub(r'-\s*\d+\s*$', '', text))
+        compact = key.replace(' ', '')
+        for name in canonical:
+            if name == key or SequenceMatcher(None, compact, name.replace(' ', '')).ratio() >= 0.8:
+                return name
+        return key
+    for row in merged['filas']:
+        key = group_key(row['descripcion'])
+        group = groups.get(key)
+        if group is None:
+            source = next((r for r in merged['filas'] if norm(re.sub(r'-\s*\d+\s*$', '', r['descripcion'])) == key), row)
+            group = groups[key] = {'descripcion': source['descripcion'], 'referencia': source['referencia'], 'rollos': []}
         group['rollos'].append({'mts': row['mts'], 'rollo_no': row['rollo_no']})
     return {'proveedor': merged['proveedor'], 'fecha': merged['fecha'], 'total_documento': merged['total_documento'],
             'lineas': list(groups.values())}
