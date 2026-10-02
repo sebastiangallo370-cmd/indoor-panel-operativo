@@ -452,7 +452,7 @@ INVENTORY_CONTROL_SCRIPT = """<script>
             if (!pickRolls.has(roll.id)) pickRolls.set(roll.id, new Map());
             pickRolls.get(roll.id).set(roll.index, plan.short ? 'short' : String(plan.color));
           });
-          const note = {label: plan.label, short: plan.short, missing: plan.missing, color: plan.color};
+          const note = {label: plan.label, short: plan.short, missing: plan.missing, color: plan.color, mts: Number(plan.mts) || 0};
           (plan.owners || []).forEach(id => pickNotes.set(id, [...(pickNotes.get(id) || []), note]));
         });
       }
@@ -461,10 +461,18 @@ INVENTORY_CONTROL_SCRIPT = """<script>
         pickStyle.id = 'inventory-pick-style-v2';
         const palette = [['#4da3ff','#12335c','#d6e9ff'],['#b57bff','#2f1b57','#ecdcff'],['#27d3c3','#0f3d3a','#cffaf5'],['#ff6fb5','#4a1634','#ffd9ec'],['#e6e6e6','#3a3a3a','#ffffff'],['#ff3b3b','#6b0f0f','#ffe0e0']];
         const names = ['0','1','2','3','4','short'];
-        pickStyle.textContent = palette.map(([border, bg, fg], n) => '.inventory-roll.roll-pick-'+names[n]+'{border-color:'+border+'!important;background:'+bg+'!important;color:'+fg+'!important;box-shadow:0 0 0 2px '+border+'66}.inv-pick.pick-'+names[n]+'{background:'+bg+';border:1px solid '+border+';color:'+fg+'}').join('') + '.inv-pick{display:block;margin-top:6px;padding:4px 8px;border-radius:6px;font:600 10px Arial;letter-spacing:.03em}.inv-pick.pick-short{font-weight:800}';
+        pickStyle.textContent = palette.map(([border, bg, fg], n) => '.inventory-roll.roll-pick-'+names[n]+'{border-color:'+border+'!important;background:'+bg+'!important;color:'+fg+'!important;box-shadow:0 0 0 2px '+border+'66}.inv-pick.pick-'+names[n]+'{background:'+bg+';border:1px solid '+border+';color:'+fg+'}').join('') + '.inv-pick{display:block;margin-top:6px;padding:4px 8px;border-radius:6px;font:600 10px Arial;letter-spacing:.03em}.inv-pick.pick-short{font-weight:800}.inv-pick-group{display:grid;gap:3px;margin-top:6px;padding:6px;border:1px solid #3d5a8a;border-radius:9px;background:#0f1b2e}.inv-pick-group .inv-pick{margin-top:0}.inv-pick-total{display:block;padding:2px 4px 4px;color:#d6e9ff;font:850 10px Arial;letter-spacing:.05em}';
         document.head.appendChild(pickStyle);
       }
-      body.innerHTML = visibleItems.map(item => '<article class="inventory-item-card"><span class="inv-badge">'+esc(item.categoria_label)+'</span><strong class="inv-name">'+esc(item.nombre)+'</strong><div class="inventory-rolls">'+(item.roll_values || []).map((value,index) => '<span class="inventory-roll '+(item.roll_statuses?.[index]==='started'?'roll-started':'roll-new')+(pickRolls.get(item.id)?.has(index)?' roll-pick roll-pick-'+pickRolls.get(item.id).get(index):'')+'">'+esc(value)+'</span>').join('')+'</div><span class="inv-total">'+esc(item.mts ?? item.total ?? 0)+' MTS</span><span class="inv-unit">'+esc(item.rolls || (item.roll_values || []).length)+' rollos</span>'+(pickNotes.get(item.id)||[]).map(n => '<span class="inv-pick pick-'+(n.short?'short':n.color)+'">'+(n.short?'⚠ NO ALCANZA · '+esc(n.label)+' · FALTAN '+esc(Number(n.missing).toLocaleString('es-CO',{maximumFractionDigits:2}))+' MTS':'SUBLIMACIÓN: '+esc(n.label))+'</span>').join('')+'</article>').join('') || '<div class="inventory-empty">No hay referencias en el inventario local.</div>';
+      const fmtPick = n => Number(n).toLocaleString('es-CO', {maximumFractionDigits: 2});
+      const pickLine = n => '<span class="inv-pick pick-'+(n.short?'short':n.color)+'">'+(n.short?'⚠ NO ALCANZA · '+esc(n.label)+' · FALTAN '+esc(fmtPick(n.missing))+' MTS':'SUBLIMACIÓN: '+esc(n.label))+'</span>';
+      // Varias referencias de la misma tela se unifican: un solo total y debajo el detalle de cada una.
+      const pickBlock = notes => {
+        if (notes.length < 2) return notes.map(pickLine).join('');
+        const total = notes.reduce((sum, n) => sum + (n.mts || 0), 0), missing = notes.reduce((sum, n) => sum + (n.short ? Number(n.missing) || 0 : 0), 0);
+        return '<div class="inv-pick-group"><span class="inv-pick-total">'+(missing?'⚠ ':'')+'SUBLIMACIÓN · '+notes.length+' REFERENCIAS · TOTAL '+esc(fmtPick(total))+' MTS'+(missing?' · FALTAN '+esc(fmtPick(missing))+' MTS':'')+'</span>'+notes.map(pickLine).join('')+'</div>';
+      };
+      body.innerHTML = visibleItems.map(item => '<article class="inventory-item-card"><span class="inv-badge">'+esc(item.categoria_label)+'</span><strong class="inv-name">'+esc(item.nombre)+'</strong><div class="inventory-rolls">'+(item.roll_values || []).map((value,index) => '<span class="inventory-roll '+(item.roll_statuses?.[index]==='started'?'roll-started':'roll-new')+(pickRolls.get(item.id)?.has(index)?' roll-pick roll-pick-'+pickRolls.get(item.id).get(index):'')+'">'+esc(value)+'</span>').join('')+'</div><span class="inv-total">'+esc(item.mts ?? item.total ?? 0)+' MTS</span><span class="inv-unit">'+esc(item.rolls || (item.roll_values || []).length)+' rollos</span>'+pickBlock(pickNotes.get(item.id)||[])+'</article>').join('') || '<div class="inventory-empty">No hay referencias en el inventario local.</div>';
       if (status) status.textContent = (data.summary?.items || data.items?.length || 0) + ' referencias disponibles · inventario local';
       body.dataset.localRendered = 'true';
     } catch (error) { body.innerHTML = '<div class="inventory-empty">'+String(error.message || error)+'</div>'; }
