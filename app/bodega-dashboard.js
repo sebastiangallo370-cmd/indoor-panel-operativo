@@ -45,7 +45,7 @@
   const panel = document.createElement('section');
   panel.className = 'panel';
   panel.dataset.panel = 'bodega-dashboard';
-  panel.innerHTML = '<div class="bd"><div class="bd-head"><div><h2>Dashboard Bodega tela</h2><p class="bd-updated">Cargando…</p></div><button type="button" class="bd-refresh">Actualizar</button></div><div class="bd-body"></div></div>';
+  panel.innerHTML = '<div class="bd"><div class="bd-head"><div><h2>Panel de control · Bodega tela</h2><p class="bd-updated">Cargando…</p></div><button type="button" class="bd-refresh">Actualizar</button></div><div class="bd-body"></div></div>';
   const body = panel.querySelector('.bd-body');
   body.style.display = 'grid';
   body.style.gap = '26px';
@@ -128,7 +128,7 @@
     button.type = 'button';
     button.className = 'tab inventory-control-nav';
     button.dataset.bodegaDashboard = 'true';
-    button.innerHTML = '<span class="nav-icon">DB</span><strong>DASHBOARD BODEGA</strong>';
+    button.innerHTML = '<span class="nav-icon">PC</span><strong>PANEL DE CONTROL</strong>';
     button.onclick = () => open(button);
     children.prepend(button);
     return true;
