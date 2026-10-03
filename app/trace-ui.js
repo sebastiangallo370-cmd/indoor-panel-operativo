@@ -583,7 +583,10 @@
       if (lineValue && !card.querySelector('.trace-line')) {
         const chip = document.createElement('span');
         chip.className = 'trace-line';
-        chip.title = 'Línea de producto: ' + lineValue;
+        chip.title = 'Línea de producto: ' + lineValue + ' · toca para ver qué incluye';
+        chip.dataset.line = lineValue;
+        chip.setAttribute('role', 'button');
+        chip.tabIndex = 0;
         chip.innerHTML = '<small>LÍNEA</small>' + esc(lineValue);
         const sheetColor = (productionData.line_colors || {})[lineValue.toUpperCase()];
         if (/^#[0-9a-f]{6}$/i.test(sheetColor || '')) {

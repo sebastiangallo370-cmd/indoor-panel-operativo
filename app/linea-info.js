@@ -1,0 +1,98 @@
+// Al tocar la etiqueta de LÍNEA de una tarjeta se abre una ventana con lo que incluye esa línea de producto
+// (según el documento «Líneas de producto»). Los textos viven en /api/lineas-producto.
+(function(){
+  if(window.__lineaInfo)return;window.__lineaInfo=true;
+  var data=null,loading=null,opener=null;
+  function plain(text){return String(text||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().replace(/\s+/g,' ').trim()}
+  function esc(text){return String(text==null?'':text).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+  function load(){
+    if(data)return Promise.resolve(data);
+    if(!loading)loading=fetch('/api/lineas-producto',{cache:'no-store'}).then(function(r){if(!r.ok)throw Error();return r.json()}).then(function(d){data=d;return d}).catch(function(){loading=null;return null});
+    return loading;
+  }
+
+  var style=document.createElement('style');
+  style.textContent=
+    '.trace-line[data-line]{cursor:pointer;transition:transform .15s,box-shadow .15s}'+
+    '.trace-line[data-line]:hover{transform:translateY(-1px);box-shadow:0 3px 12px rgba(0,0,0,.35)}'+
+    '.trace-line[data-line]:focus-visible{outline:2px solid #d0f44c;outline-offset:2px}'+
+    '.li-overlay{position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(5,8,5,.66);backdrop-filter:blur(3px);animation:li-fade .18s ease-out}'+
+    '.li-card{position:relative;width:min(520px,100%);max-height:min(90vh,760px);display:flex;flex-direction:column;overflow:hidden;border:1px solid rgba(208,244,76,.28);border-radius:20px;background:#0f140e;color:#eaf0e4;font-family:Inter,Arial,sans-serif;box-shadow:0 28px 70px rgba(0,0,0,.6);animation:li-pop .22s cubic-bezier(.2,.9,.3,1.2)}'+
+    '.li-close{position:absolute;top:12px;right:12px;z-index:2;width:34px;height:34px;display:grid;place-items:center;padding:0;border:0;border-radius:50%;background:rgba(0,0,0,.35);color:inherit;font:400 22px/1 Arial;cursor:pointer;transition:background .15s}'+
+    '.li-close:hover{background:rgba(0,0,0,.6)}'+
+    '.li-head,.li-tabs,.li-foot{flex:0 0 auto}'+
+    '.li-head{padding:28px 30px 24px}'+
+    '.li-head small{display:block;font:700 10px Arial;letter-spacing:.3em;opacity:.75}'+
+    '.li-head h2{margin:6px 0 2px;font:900 34px/1.05 Inter,Arial,sans-serif;letter-spacing:.02em}'+
+    '.li-head span{font:500 12.5px Arial;opacity:.8}'+
+    '.li-premium{background:#1c1c1c;color:#d0f44c}.li-estandar{background:#d0f44c;color:#111}.li-plus{background:#8b8b8b;color:#fff}.li-maquila{background:#fafaf7;color:#111;border-bottom:3px solid #111}.li-otro{background:linear-gradient(135deg,#1b2417,#0f140e);color:#d0f44c;border-bottom:1px solid rgba(208,244,76,.25)}'+
+    '.li-body{flex:1;min-height:0;overflow-y:auto;padding:8px 28px 14px;scrollbar-width:thin}'+
+    '.li-list{margin:0;padding:0;list-style:none}'+
+    '.li-list li{display:flex;gap:14px;align-items:flex-start;padding:13px 0;border-bottom:1px solid rgba(255,255,255,.08);font:500 14px/1.45 Inter,Arial,sans-serif;letter-spacing:.01em}'+
+    '.li-list li:last-child{border-bottom:0}'+
+    '.li-list li i{flex:0 0 9px;height:9px;margin-top:5px;border-radius:2px;background:#d0f44c}'+
+    '.li-empty{margin:18px 0;color:#aab6a3;font:italic 400 14px/1.55 Inter,Arial,sans-serif}'+
+    '.li-tabs{display:flex;flex-wrap:wrap;gap:6px;padding:12px 24px;border-top:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.025)}'+
+    '.li-tabs button{display:inline-flex!important;width:auto!important;min-height:0!important;margin:0!important;padding:7px 14px!important;border:1px solid rgba(255,255,255,.18)!important;border-radius:999px!important;background:transparent!important;color:#b8c4b0!important;font:800 10.5px Arial!important;letter-spacing:.1em;cursor:pointer;box-shadow:none!important;transition:all .15s}'+
+    '.li-tabs button:hover{border-color:#d0f44c!important;color:#d0f44c!important}.li-tabs button[aria-pressed=true]{background:#d0f44c!important;border-color:#d0f44c!important;color:#111!important}'+
+    '.li-foot{display:flex;justify-content:space-between;gap:10px;padding:11px 28px 15px;color:#7d8978;font:500 10.5px Arial;letter-spacing:.04em}'+
+    '@keyframes li-fade{from{opacity:0}to{opacity:1}}@keyframes li-pop{from{opacity:0;transform:translateY(14px) scale(.97)}to{opacity:1;transform:none}}'+
+    '@media(max-width:600px){.li-overlay{align-items:flex-end;padding:0}.li-card{width:100%;max-height:86vh;border-radius:22px 22px 0 0;animation:li-up .25s ease-out}.li-head{padding:24px 22px 18px}.li-body{padding:6px 22px 12px}.li-tabs{padding:12px 18px}.li-foot{padding:10px 22px 22px;flex-direction:column;gap:2px}@keyframes li-up{from{transform:translateY(40px);opacity:.6}to{transform:none;opacity:1}}}';
+  document.head.appendChild(style);
+
+  function find(name){
+    var key=plain(name);
+    for(var i=0;i<data.lineas.length;i++)if(plain(data.lineas[i].nombre)===key)return data.lineas[i];
+    return null;
+  }
+  function render(overlay,name,chipName){
+    var line=find(name),head,body;
+    if(line){
+      var n=line.caracteristicas.length;
+      head='<div class="li-head li-'+esc(line.estilo)+'"><small>LÍNEA DE PRODUCTO</small><h2 id="li-title">'+esc(line.nombre)+'</h2><span>'+(n?n+' característica'+(n===1?'':'s'):'Por definir')+'</span></div>';
+      body=n?'<ul class="li-list">'+line.caracteristicas.map(function(c){return '<li><i></i><span>'+esc(c)+'</span></li>'}).join('')+'</ul>':'<p class="li-empty">'+esc(line.nota||'Las especificaciones de esta línea están pendientes de definir.')+'</p>';
+    }else{
+      head='<div class="li-head li-otro"><small>LÍNEA DE PRODUCTO</small><h2 id="li-title">'+esc(chipName)+'</h2><span>Sin especificaciones registradas</span></div>';
+      body='<p class="li-empty">Esta línea no aparece en el documento «Líneas de producto» ('+esc(data.fuente.split('·').pop().trim())+'). El documento define '+data.lineas.map(function(l){return l.nombre.charAt(0)+l.nombre.slice(1).toLowerCase()}).join(', ').replace(/, ([^,]*)$/,' y $1')+'. Toca una de ellas abajo para ver lo que incluye.</p>';
+    }
+    var tabs='<nav class="li-tabs" aria-label="Líneas de producto">'+data.lineas.map(function(l){return '<button type="button" data-li-tab="'+esc(l.nombre)+'" aria-pressed="'+(line&&l.nombre===line.nombre)+'">'+esc(l.nombre)+'</button>'}).join('')+'</nav>';
+    overlay.querySelector('.li-card').innerHTML='<button type="button" class="li-close" aria-label="Cerrar">×</button>'+head+'<div class="li-body">'+body+'</div>'+tabs+'<div class="li-foot"><span>'+esc(data.fuente.split('·').slice(1).join('·').trim())+'</span><span>Documento interno · Indoor Sport</span></div>';
+    overlay.querySelector('.li-close').focus();
+  }
+  function close(){
+    var overlay=document.querySelector('.li-overlay');
+    if(overlay)overlay.remove();
+    document.removeEventListener('keydown',onKey);
+    if(opener&&opener.focus)opener.focus();
+  }
+  function onKey(event){if(event.key==='Escape')close()}
+  function open(name,chip){
+    load().then(function(d){
+      if(!d||!d.lineas)return;
+      close();
+      opener=chip||null;
+      var overlay=document.createElement('div');
+      overlay.className='li-overlay';
+      overlay.setAttribute('role','dialog');overlay.setAttribute('aria-modal','true');overlay.setAttribute('aria-labelledby','li-title');
+      overlay.innerHTML='<div class="li-card theme-reinvert"></div>';
+      overlay.addEventListener('click',function(event){
+        if(event.target===overlay||event.target.closest('.li-close')){close();return}
+        var tab=event.target.closest('[data-li-tab]');
+        if(tab)render(overlay,tab.dataset.liTab,name);
+      });
+      document.body.appendChild(overlay);
+      document.addEventListener('keydown',onKey);
+      render(overlay,name,name);
+    });
+  }
+  document.addEventListener('click',function(event){
+    var chip=event.target.closest&&event.target.closest('.trace-line[data-line]');
+    if(chip){event.preventDefault();event.stopPropagation();open(chip.dataset.line,chip)}
+  },true);
+  document.addEventListener('keydown',function(event){
+    if(event.key!=='Enter'&&event.key!==' ')return;
+    var chip=event.target.closest&&event.target.closest('.trace-line[data-line]');
+    if(chip){event.preventDefault();open(chip.dataset.line,chip)}
+  });
+  load();
+})();

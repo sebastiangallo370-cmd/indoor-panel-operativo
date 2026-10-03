@@ -1,0 +1,50 @@
+{
+  "fuente": "Líneas de producto · Especificaciones por línea · Octubre 2026",
+  "documento": "Lineas_de_Producto_Indoor.pdf",
+  "lema": "Nos inspira vestir a los ganadores",
+  "lineas": [
+    {
+      "nombre": "PREMIUM",
+      "estilo": "premium",
+      "caracteristicas": [
+        "TAPACUELLOS LOGO INDOOR",
+        "INSTRUCCIÓN DE LAVADO EN TPU",
+        "SELLO PRESTIGIO (LABEL CRISTAL DOME) REDONDO INDOOR",
+        "COCOTERA EN TRANSFERS WB",
+        "TEXTURIZADO",
+        "REFERENCIA 2 O MÁS MATERIALES",
+        "CT PROFESIONAL O PERNERA PROFESIONAL O CANILLERA PROFESIONAL"
+      ]
+    },
+    {
+      "nombre": "ESTÁNDAR",
+      "estilo": "estandar",
+      "caracteristicas": [
+        "CON TAPACUELLO",
+        "TALLA EN DTF",
+        "INSTRUCCIÓN DE LAVADO SATÍN",
+        "SELLO PRESTIGIO EN TRANSFERS WB (NEGRITO)",
+        "TODO SUBLIMADO (TEXTURIZADO OPCIONAL)",
+        "MEDIA NYLON (CALCETÍN FÚTBOL PROFESIONAL CT)"
+      ]
+    },
+    {
+      "nombre": "PLUS",
+      "estilo": "plus",
+      "caracteristicas": [
+        "SIN TAPACUELLO",
+        "TALLA EN DTF",
+        "SIN INSTRUCCIÓN DE LAVADO",
+        "QATAR - MONTECATINI 2",
+        "MEDIA DE POLIÉSTER (FÚTBOL - CANILLERA)",
+        "SIN APLIQUE NI SELLOS DE PRESTIGIO"
+      ]
+    },
+    {
+      "nombre": "MAQUILA",
+      "estilo": "maquila",
+      "caracteristicas": [],
+      "nota": "Las especificaciones de esta línea están pendientes de definir."
+    }
+  ]
+}
