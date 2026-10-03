@@ -669,7 +669,9 @@
         else important.remove();
       }
       // Un usuario de un área (p. ej. IMPRESIÓN) inicia, finaliza o marca N/A SOLO su propia área; las demás siguen como estaban (PENDIENTE).
-      const ownGroup = !isAdmin && ownProcess ? (progressSummary.groups || []).find(group => group.label === ownProcess.label && !isExternal(group)) : null;
+      // El administrador actúa sobre el proceso elegido en el filtro «Proceso»; sin filtro, sobre el proceso en curso.
+      const ownGroup = !isAdmin && ownProcess ? (progressSummary.groups || []).find(group => group.label === ownProcess.label && !isExternal(group))
+        : isAdmin && selectedProcess ? (progressSummary.groups || []).find(group => group.key === selectedProcess && !isExternal(group)) : null;
       const activeGroup = ownGroup || progressSummary.focus;
       const activeColumn = activeGroup?.start + 1;
       const activeValue = activeColumn ? String(row.values[activeColumn - 1] || '') : '';
@@ -689,6 +691,11 @@
       ].map(([action, label, disabled]) => { const column = action === 'clear' ? clearColumn : activeColumn; const isDisabled = action === 'clear' ? !clearColumn : disabled; return '<button type="button" class="trace-order-' + action + '" data-card-operation="' + action + '" data-card-row="' + row.source_row + '" data-card-column="' + (column || '') + '" title="' + esc(action === 'clear' && clearGroup ? clearGroup.label : (activeGroup?.label || 'Sin proceso activo')) + '"' + (isDisabled ? ' disabled' : '') + '>' + label + '</button>'; }).join('');
       const heading = card.querySelector('.trace-card-heading');
       heading.insertBefore(headerActions, heading.querySelector('.trace-stage'));
+      if (ownGroup) {
+        // El estado que se muestra es el del proceso elegido, no el de toda la orden.
+        const chosenStage = heading.querySelector('.trace-stage');
+        if (chosenStage) { chosenStage.className = 'trace-stage ' + ownGroup.state; chosenStage.textContent = (labels[ownGroup.state] || ownGroup.status) + ' · ' + ownGroup.label; }
+      }
       if (activeKey === 'P') {
         // Proceso iniciado: la tarjeta dice EN PROCESO; si está en pausa se pinta de rojo con PAUSADO.
         const stage = heading.querySelector('.trace-stage');
