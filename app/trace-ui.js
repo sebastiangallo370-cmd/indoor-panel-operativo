@@ -602,8 +602,8 @@
       if (orderKey && (productionData.web_orders || []).includes(orderKey) && !card.querySelector('.trace-web')) {
         const web = document.createElement('div');
         web.className = 'trace-web';
-        web.title = 'Este pedido lo programó el cliente desde la página web';
-        web.innerHTML = '🌐 Pedido web';
+        web.title = 'Programado por el cliente desde la página web';
+        web.innerHTML = 'Programado cliente';
         card.insertBefore(web, card.firstChild);
       }
       const mtsDisplay = card.querySelector('.trace-mts-display');
