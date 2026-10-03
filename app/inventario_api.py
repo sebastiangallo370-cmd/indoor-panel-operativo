@@ -561,6 +561,101 @@ def _supplier(item: dict[str, Any]) -> str:
     return 'Sin proveedor'
 
 
+_minimos_file = os.getenv('INVENTORY_MINIMOS_FILE', '/data/inventory_minimos.json')
+_minimos_lock = threading.Lock()
+TOP_TELAS_DEFAULT = {'cantidad': 10, 'minimo': 2000.0}
+
+
+def _load_minimos() -> dict[str, Any]:
+    try:
+        with open(_minimos_file, encoding='utf-8') as handle:
+            data = json.load(handle)
+    except (OSError, ValueError):
+        data = {}
+    data.setdefault('items', {})
+    data['top_telas'] = {**TOP_TELAS_DEFAULT, **(data.get('top_telas') or {})}
+    return data
+
+
+def _save_minimos(data: dict[str, Any]) -> None:
+    os.makedirs(os.path.dirname(_minimos_file) or '.', exist_ok=True)
+    temporary = _minimos_file + '.tmp'
+    with open(temporary, 'w', encoding='utf-8') as handle:
+        json.dump(data, handle, ensure_ascii=False, indent=2)
+    os.replace(temporary, _minimos_file)
+
+
+def _effective_minimums(items: list[dict[str, Any]], config: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Mínimo de cada ítem: el definido a mano; si no, las telas más pedidas por los clientes (regla configurable)."""
+    result: dict[str, dict[str, Any]] = {}
+    rule = config['top_telas']
+    fabrics = [item for item in items if item.get('categoria') == 'BODEGA TELA' and int(item.get('uso_pedidos') or 0) > 0]
+    fabrics.sort(key=lambda item: (-int(item.get('uso_pedidos') or 0), -float(item.get('uso_mts') or 0), str(item.get('nombre'))))
+    for item in fabrics[:max(0, int(rule['cantidad']))]:
+        result[item['nombre']] = {'minimo': float(rule['minimo']), 'origen': 'top'}
+    for name, entry in config['items'].items():
+        result[name] = {'minimo': float(entry.get('min') or 0), 'origen': 'manual'}
+    return {name: value for name, value in result.items() if value['minimo'] > 0}
+
+
+@inventario_router.get("/alertas")
+def inventory_alerts():
+    """Ítems por debajo de su stock mínimo (manual o regla de las telas más pedidas)."""
+    payload = _with_sublimacion(_inventory_payload())
+    items = [item for item in payload.get('items') or [] if item.get('categoria') != 'DOCUMENTACION PROCESO']
+    config = _load_minimos()
+    minimums = _effective_minimums(items, config)
+    alerts = []
+    for item in items:
+        info = minimums.get(item['nombre'])
+        if not info:
+            continue
+        total = float(item.get('total') or 0)
+        if total < info['minimo']:
+            alerts.append({'nombre': item['nombre'], 'categoria': item.get('categoria'), 'categoria_label': item.get('categoria_label'),
+                           'total': round(total, 2), 'minimo': info['minimo'], 'faltan': round(info['minimo'] - total, 2),
+                           'nivel': 'agotado' if total <= 0 else 'bajo', 'origen': info['origen'],
+                           'pedidos': int(item.get('uso_pedidos') or 0)})
+    alerts.sort(key=lambda entry: (entry['nivel'] != 'agotado', -entry['faltan'], entry['nombre']))
+    return {'alertas': alerts, 'minimos': minimums, 'top_telas': config['top_telas'],
+            'resumen': {'agotado': sum(1 for a in alerts if a['nivel'] == 'agotado'), 'bajo': sum(1 for a in alerts if a['nivel'] == 'bajo'),
+                        'con_minimo': len(minimums)}}
+
+
+class MinimoItem(BaseModel):
+    nombre: str
+    minimo: float | None = Field(default=None, ge=0, le=10_000_000)
+
+
+class MinimoTop(BaseModel):
+    cantidad: int = Field(ge=0, le=60)
+    minimo: float = Field(ge=0, le=10_000_000)
+
+
+@inventario_router.put("/minimos")
+def inventory_set_minimum(change: MinimoItem):
+    payload = _inventory_payload()
+    if not any(item.get('nombre') == change.nombre for item in payload.get('items') or []):
+        raise HTTPException(404, 'Ese ítem no existe en el inventario')
+    with _minimos_lock:
+        config = _load_minimos()
+        if change.minimo is None:
+            config['items'].pop(change.nombre, None)
+        else:
+            config['items'][change.nombre] = {'min': change.minimo, 'en': datetime.now(timezone.utc).isoformat()}
+        _save_minimos(config)
+    return {'ok': True}
+
+
+@inventario_router.put("/minimos/telas-mas-pedidas")
+def inventory_set_top_rule(rule: MinimoTop):
+    with _minimos_lock:
+        config = _load_minimos()
+        config['top_telas'] = {'cantidad': rule.cantidad, 'minimo': rule.minimo}
+        _save_minimos(config)
+    return {'ok': True}
+
+
 @inventario_router.get("/dashboard")
 def inventory_dashboard():
     """Estadísticas de Bodega tela para el dashboard."""
