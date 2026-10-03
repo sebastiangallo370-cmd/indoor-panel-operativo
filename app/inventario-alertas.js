@@ -12,7 +12,7 @@
     '.sa-bar b{font-size:15px}.sa-bar .sa-sub{color:#aebba9;font-size:12.5px}',
     '.sa-bar .sa-grow{flex:1 1 auto}',
     '.sa-btn{min-height:34px;padding:0 14px;border:1px solid rgba(208,244,76,.5);border-radius:10px;background:transparent;color:#d0f44c;font:800 11px Arial;letter-spacing:.06em;text-transform:uppercase;cursor:pointer}',
-    '.sa-btn.sa-wa{border-color:#3ddc84;color:#3ddc84}.sa-btn.sa-wa:hover{background:#3ddc84;color:#07130b}.sa-btn:hover{background:#d0f44c;color:#10150e}.sa-btn.on{background:#d0f44c;color:#10150e}',
+    '.sa-btn:hover{background:#d0f44c;color:#10150e}.sa-btn.on{background:#d0f44c;color:#10150e}',
     '.sa-list{display:grid;gap:6px;max-height:340px;overflow:auto;padding:4px 2px}',
     '.sa-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;gap:12px;align-items:center;padding:9px 14px;border:1px solid #2a3a2c;border-radius:12px;background:#0f1710}',
     '.sa-row .sa-name{font-weight:700;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
@@ -40,36 +40,6 @@
   ].join('');
   var style=document.createElement('style');style.textContent=css;document.head.appendChild(style);
 
-  function waNumber(){try{return (localStorage.getItem('sa_wa')||'').replace(/\D/g,'')}catch(e){return ''}}
-  function waMessage(){
-    var list=(data&&data.alertas)||[],lines=['*Alertas de stock · Indoor Sport*',new Date().toLocaleDateString('es-CO',{day:'numeric',month:'long',year:'numeric'}),''];
-    var out=list.filter(function(a){return a.nivel==='agotado'}),low=list.filter(function(a){return a.nivel!=='agotado'}),shown=0,MAX=30;
-    function block(title,arr,fn){if(!arr.length)return;lines.push(title);arr.forEach(function(a){if(shown>=MAX)return;shown++;lines.push(fn(a))});lines.push('')}
-    block('🔴 *AGOTADO*',out,function(a){return '• '+a.nombre+' — mínimo '+fmt(a.minimo)});
-    block('🟠 *BAJO EL MÍNIMO*',low,function(a){return '• '+a.nombre+': '+fmt(a.total)+' de '+fmt(a.minimo)+' (faltan '+fmt(a.faltan)+')'});
-    if(list.length>shown)lines.push('… y '+(list.length-shown)+' más en el panel.');
-    return lines.join(String.fromCharCode(10)).trim();
-  }
-  function toast(text){
-    var t=document.createElement('div');t.textContent=text;
-    t.style.cssText='position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:100002;max-width:min(520px,92vw);padding:12px 18px;border:1px solid #3ddc84;border-radius:14px;background:#0c130d;color:#eef2e9;font:600 13.5px/1.45 Arial;box-shadow:0 18px 50px rgba(0,0,0,.6)';
-    document.body.appendChild(t);setTimeout(function(){t.remove()},6500);
-  }
-  function waSend(){
-    var text=waMessage(),number=waNumber();
-    if(number){
-      // WhatsApp Web con el chat del número guardado y el mensaje ya escrito
-      window.open('https://web.whatsapp.com/send?phone='+number+'&text='+encodeURIComponent(text),'_blank','noopener');
-      return;
-    }
-    // Sin número: se copia el resumen y se abre WhatsApp Web para pegarlo en el chat o grupo que elijas
-    var done=function(ok){
-      window.open('https://web.whatsapp.com/','_blank','noopener');
-      toast(ok?'Resumen copiado. En WhatsApp Web abre el chat o grupo y pégalo (Ctrl+V).':'No se pudo copiar automáticamente. Selecciona el texto de «Ver alertas» y pégalo en WhatsApp Web.');
-    };
-    if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(text).then(function(){done(true)},function(){done(false)});
-    else done(false);
-  }
   function minimumOf(name){return data&&data.minimos?data.minimos[name]:null}
   function alertOf(name){return data&&data.alertas?data.alertas.find(function(a){return a.nombre===name}):null}
 
@@ -111,11 +81,11 @@
     var res=data.resumen||{},total=(res.agotado||0)+(res.bajo||0);
     var html='<div class="sa-bar'+(total?' warn':'')+'">'+
       (total?'<b>⚠ '+total+(total===1?' ítem':' ítems')+' por debajo del mínimo</b><span class="sa-sub">'+(res.agotado||0)+' agotado(s) · '+(res.bajo||0)+' bajo el mínimo</span>':'<b>✓ Sin alertas de stock</b><span class="sa-sub">'+(res.con_minimo||0)+' ítems con mínimo definido</span>')+
-      '<span class="sa-grow"></span>'+(total?'<button type="button" class="sa-btn sa-wa" data-wa title="Envía el resumen por WhatsApp Web">Enviar por WhatsApp Web</button><button type="button" class="sa-btn'+(open?' on':'')+'" data-toggle>'+(open?'Ocultar':'Ver alertas')+'</button>':'')+
+      '<span class="sa-grow"></span>'+(total?'<button type="button" class="sa-btn'+(open?' on':'')+'" data-toggle>'+(open?'Ocultar':'Ver alertas')+'</button>':'')+
       '<button type="button" class="sa-btn'+(rules?' on':'')+'" data-rules>Reglas</button></div>';
     if(rules){
       var t=data.top_telas||{};
-      html+='<div class="sa-rules"><label>Telas más pedidas<input type="number" min="0" max="60" id="sa-top-n" value="'+esc(t.cantidad)+'"></label><label>Mínimo (MTS)<input type="number" min="0" step="any" id="sa-top-min" value="'+esc(t.minimo)+'"></label><button type="button" class="sa-btn" data-save-rule>Guardar regla</button><label>Número de WhatsApp Web (opcional)<input type="tel" id="sa-wa-num" placeholder="573001234567" value="'+esc(waNumber())+'" style="width:170px"></label><button type="button" class="sa-btn" data-save-wa>Guardar número</button><p>Las telas con más pedidos de clientes en Producción deben mantener al menos este mínimo. También puedes definir un mínimo propio en cualquier ítem con el botón «MÍN» de su tarjeta.</p></div>';
+      html+='<div class="sa-rules"><label>Telas más pedidas<input type="number" min="0" max="60" id="sa-top-n" value="'+esc(t.cantidad)+'"></label><label>Mínimo (MTS)<input type="number" min="0" step="any" id="sa-top-min" value="'+esc(t.minimo)+'"></label><button type="button" class="sa-btn" data-save-rule>Guardar regla</button><p>Las telas con más pedidos de clientes en Producción deben mantener al menos este mínimo. También puedes definir un mínimo propio en cualquier ítem con el botón «MÍN» de su tarjeta.</p></div>';
     }
     if(open&&total){
       html+='<div class="sa-list">'+data.alertas.map(function(a){
@@ -151,8 +121,6 @@
 
   document.addEventListener('click',function(e){
     var ed=e.target.closest('[data-edit]');if(ed){e.preventDefault();e.stopPropagation();dialog(ed.dataset.edit);return}
-    if(e.target.closest('[data-wa]')){e.preventDefault();waSend();return}
-    if(e.target.closest('[data-save-wa]')){var num=document.getElementById('sa-wa-num').value.replace(/\D/g,'');try{localStorage.setItem('sa_wa',num)}catch(x){}rules=false;render();return}
     if(e.target.closest('[data-toggle]')){open=!open;render();return}
     if(e.target.closest('[data-rules]')){rules=!rules;render();return}
     if(e.target.closest('[data-save-rule]')){
