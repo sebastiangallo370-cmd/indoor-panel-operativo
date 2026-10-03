@@ -23,16 +23,25 @@
 @media ${MOBILE}{
   html body.top-navigation .sidebar nav.tabs{display:none!important}
   html body.top-navigation .sidebar{height:auto!important;min-height:0!important;max-height:none!important}
-  html body main{padding-bottom:calc(104px + env(safe-area-inset-bottom))!important}
-  .mbar{display:flex;position:fixed;z-index:95;left:12px;right:12px;bottom:max(12px,env(safe-area-inset-bottom));height:64px;padding:6px;gap:2px;align-items:center;justify-content:space-between;border:1px solid rgba(208,244,76,.22);border-radius:999px;background:rgba(14,19,13,.92);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 14px 40px rgba(0,0,0,.55)}
-  .mbar button{flex:1 1 0;min-width:0;height:52px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:0;margin:0;border:0;border-radius:999px;background:transparent;color:#cfd9c8;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:background .18s,color .18s,transform .12s}
-  .mbar button:active{transform:scale(.94)}
-  .mbar button svg{width:23px;height:23px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-  .mbar button small{display:none;font:800 8.5px Arial;letter-spacing:.02em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
-  .mbar button.on{flex:1.9 1 0;background:rgba(208,244,76,.16);color:#e7ff9a}
-  .mbar button.on small{display:block}
+  html body main{padding-bottom:calc(110px + env(safe-area-inset-bottom))!important}
+  /* Barra inferior «liquid»: la misma barra de siempre, pero la opción activa va en una burbuja que se desliza y se estira como líquido */
+  .mbar{--cx:0px;display:flex;position:fixed;z-index:95;left:12px;right:12px;bottom:max(12px,env(safe-area-inset-bottom));height:70px;padding:0 6px;align-items:stretch;border:1px solid rgba(208,244,76,.22);border-radius:999px;background:rgba(14,19,13,.92);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 14px 40px rgba(0,0,0,.55);-webkit-tap-highlight-color:transparent}
+  .mbar-goo{position:absolute;inset:0;z-index:0;pointer-events:none;filter:url(#mbar-goo) drop-shadow(0 0 9px rgba(208,244,76,.38))}
+  .mbar-blob{position:absolute;left:0;top:6px;width:44px;height:44px;border-radius:50%;background:#d0f44c;transform:translateX(calc(var(--cx) - 22px))}
+  .mbar.ready .mbar-blob.b1{transition:transform .44s cubic-bezier(.3,1.3,.5,1)}
+  .mbar.ready .mbar-blob.b2{transition:transform .74s cubic-bezier(.25,1.1,.4,1)}
+  .mbar.no-active .mbar-blob{opacity:0}
+  .mbar button{position:relative;z-index:2;flex:1 1 0;min-width:0;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:0;padding:16px 0 0;margin:0;border:0;border-radius:999px;background:transparent;color:#cfd9c8;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:color .25s}
+  .mbar button svg{width:24px;height:24px;margin-bottom:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;transition:transform .44s cubic-bezier(.3,1.3,.5,1),color .25s}
+  .mbar button small{position:absolute;left:50%;bottom:6px;display:none;transform:translateX(-50%);font:800 8px Arial;letter-spacing:.03em;text-transform:uppercase;white-space:nowrap;pointer-events:none}
+  .mbar button.on{color:#e7ff9a}
+  .mbar button.on svg{color:#10150e;transform:scale(1.06)}
+  .mbar button.on small{display:block;animation:mbar-label .35s ease-out}
+  @keyframes mbar-label{from{opacity:0;transform:translateX(-50%) translateY(4px)}to{opacity:1;transform:translateX(-50%)}}
+  .mbar button:active svg{transform:scale(.88)}
+  @media(prefers-reduced-motion:reduce){.mbar.ready .mbar-blob,.mbar button svg{transition:none!important}}
   .msheet-backdrop{position:fixed;inset:0;z-index:96;background:rgba(0,0,0,.55)}
-  .msheet{position:fixed;z-index:97;left:10px;right:10px;bottom:calc(max(12px,env(safe-area-inset-bottom)) + 74px);max-height:min(70dvh,560px);overflow-y:auto;padding:14px 12px 10px;border:1px solid rgba(208,244,76,.3);border-radius:22px;background:#10160f;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+  .msheet{position:fixed;z-index:97;left:10px;right:10px;bottom:calc(max(12px,env(safe-area-inset-bottom)) + 82px);max-height:min(70dvh,560px);overflow-y:auto;padding:14px 12px 10px;border:1px solid rgba(208,244,76,.3);border-radius:22px;background:#10160f;box-shadow:0 20px 60px rgba(0,0,0,.6)}
   body.msheet-open .msheet,body.msheet-open .msheet-backdrop{display:block}
   .msheet h3{margin:0 6px 10px;color:#d0f44c;font:850 .7rem Arial;letter-spacing:.1em;text-transform:uppercase}
   .msheet button{display:flex;width:100%;align-items:center;gap:10px;min-height:46px;margin:0 0 6px;padding:10px 14px;border:1px solid #26321f;border-radius:14px;background:#151d15;color:#f0f4eb;font:700 .86rem Arial;text-align:left;cursor:pointer}
@@ -88,6 +97,11 @@
   const bar = document.createElement('nav');
   bar.className = 'mbar';
   bar.setAttribute('aria-label', 'Menú principal');
+  bar.innerHTML = '<div class="mbar-goo" aria-hidden="true"><span class="mbar-blob b1"></span><span class="mbar-blob b2"></span></div>';
+  // Filtro SVG «goo»: funde las dos burbujas en una sola masa líquida mientras se mueven.
+  const gooHolder = document.createElement('div');
+  gooHolder.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden';
+  gooHolder.innerHTML = '<svg width="0" height="0" aria-hidden="true"><defs><filter id="mbar-goo" x="-20%" y="-60%" width="140%" height="220%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceGraphic" stdDeviation="8" result="b"/><feColorMatrix in="b" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 20 -8"/></filter></defs></svg>';
   const sheet = document.createElement('div');
   sheet.className = 'msheet';
   sheet.setAttribute('role', 'dialog');
@@ -113,12 +127,24 @@
   };
   backdrop.onclick = closeSheet;
 
+  // Lleva la burbuja al centro de la opción activa (la animación la hace el CSS).
+  const placeLiquid = button => {
+    bar.classList.toggle('no-active', !button);
+    if (!button || !bar.clientWidth) return;
+    const barRect = bar.getBoundingClientRect(), rect = button.getBoundingClientRect();
+    const cx = Math.round(rect.left - barRect.left - bar.clientLeft + rect.width / 2) + 'px';
+    if (bar.style.getPropertyValue('--cx') !== cx) bar.style.setProperty('--cx', cx);
+    if (!bar.classList.contains('ready')) setTimeout(() => bar.classList.add('ready'), 90);
+  };
   const markActive = () => {
-    [...bar.children].forEach((button, index) => {
+    let activeButton = null;
+    [...bar.querySelectorAll(':scope > button')].forEach((button, index) => {
       const section = list[index];
       const on = section && (section.direct ? section.direct.classList.contains('active') : !!section.node.querySelector('.nav-children .tab.active'));
       button.classList.toggle('on', !!on);
+      if (on) activeButton = button;
     });
+    placeLiquid(activeButton);
   };
 
   const build = () => {
@@ -126,7 +152,7 @@
     const signature = list.map(item => item.label).join('|');
     if (bar.dataset.signature === signature) return;
     bar.dataset.signature = signature;
-    bar.innerHTML = '';
+    bar.querySelectorAll(':scope > button').forEach(button => button.remove());
     list.forEach(section => {
       const button = document.createElement('button');
       button.type = 'button';
@@ -134,6 +160,7 @@
       button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true">' + (ICONS[plain(section.label)] || ICONS.OTRO) + '</svg><small></small>';
       button.querySelector('small').textContent = section.label;
       button.onclick = () => {
+        if (navigator.vibrate) navigator.vibrate(8);
         if (section.direct) { closeSheet(); section.direct.click(); window.scrollTo({top: 0}); return; }
         if (document.body.classList.contains('msheet-open') && sheet.querySelector('h3')?.textContent === section.label) closeSheet();
         else openSheet(section);
@@ -163,7 +190,7 @@
     const rect = sidebar.getBoundingClientRect();
     if (!isMobile() || rect.right <= 0 || rect.bottom <= 0) {
       if (lastTop) { main.style.removeProperty('padding-top'); lastTop = ''; }
-      if (isMobile()) main.style.setProperty('padding-bottom', 'calc(104px + env(safe-area-inset-bottom))', 'important');
+      if (isMobile()) main.style.setProperty('padding-bottom', 'calc(110px + env(safe-area-inset-bottom))', 'important');
       else main.style.removeProperty('padding-bottom');
       return;
     }
@@ -171,13 +198,13 @@
     if (top === lastTop) return;
     lastTop = top;
     main.style.setProperty('padding-top', top + 'px', 'important');
-    main.style.setProperty('padding-bottom', 'calc(104px + env(safe-area-inset-bottom))', 'important');
+    main.style.setProperty('padding-bottom', 'calc(110px + env(safe-area-inset-bottom))', 'important');
   };
 
   let queued = false;
   const run = () => {
     queued = false;
-    if (!bar.isConnected && document.body) document.body.append(backdrop, sheet, bar);
+    if (!bar.isConnected && document.body) document.body.append(backdrop, sheet, bar, gooHolder);
     fixAvatar();
     build();
     markActive();
