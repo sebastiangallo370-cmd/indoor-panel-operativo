@@ -603,7 +603,7 @@
         const web = document.createElement('div');
         web.className = 'trace-web';
         web.title = 'Este pedido lo programó el cliente desde la página web';
-        web.innerHTML = '<b>🌐 PEDIDO WEB</b><span>Programado por el cliente</span>';
+        web.innerHTML = '🌐 Pedido web';
         card.insertBefore(web, card.firstChild);
       }
       const mtsDisplay = card.querySelector('.trace-mts-display');
@@ -2059,8 +2059,7 @@
   html body.production-mode .trace-card .trace-order-actions{align-content:center;min-height:50px}
   html body.production-mode .trace-card .trace-mts-row{align-items:stretch}
   html body.production-mode .trace-card .trace-line{grid-area:badge;justify-self:end;align-self:start;display:inline-flex;align-items:center;gap:6px;max-width:100%;padding:4px 11px;border:1px solid rgba(208,244,76,.5);border-radius:999px;background:rgba(208,244,76,.12);color:#d0f44c;font:800 11px/1.2 Arial,sans-serif;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  html body.production-mode .trace-card .trace-web{display:flex;align-items:center;justify-content:center;gap:10px;margin:-2px -2px 10px;padding:7px 12px;border-radius:12px;background:linear-gradient(90deg,#2d6cdf,#1f9fd1);color:#fff;font:800 11px/1.2 Arial,sans-serif;letter-spacing:.1em;text-transform:uppercase}
-  html body.production-mode .trace-card .trace-web span{font-weight:600;letter-spacing:.04em;opacity:.9;text-transform:none}
+  html body.production-mode .trace-card .trace-web{display:inline-flex;align-items:center;gap:5px;align-self:flex-start;justify-self:start;width:max-content;margin:0 0 8px;padding:2px 9px;border:1px solid rgba(110,165,255,.4);border-radius:999px;background:rgba(70,120,220,.12);color:#9cc0ff;font:700 9.5px/1.3 Arial,sans-serif;letter-spacing:.1em;text-transform:uppercase;cursor:default}
   html body.production-mode .trace-card .trace-line small{font:700 8px Arial,sans-serif;letter-spacing:.16em;opacity:.7}
   @media(prefers-reduced-motion:reduce){html body.production-mode .trace-card{transition:none}}
   `;
