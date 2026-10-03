@@ -18,8 +18,12 @@
     '.trace-line[data-line]:focus-visible{outline:2px solid #d0f44c;outline-offset:2px}'+
     '.li-overlay{position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(5,8,5,.66);backdrop-filter:blur(3px);animation:li-fade .18s ease-out}'+
     '.li-card{position:relative;width:min(520px,100%);max-height:min(90vh,760px);display:flex;flex-direction:column;overflow:hidden;border:1px solid rgba(208,244,76,.28);border-radius:20px;background:#0f140e;color:#eaf0e4;font-family:Inter,Arial,sans-serif;box-shadow:0 28px 70px rgba(0,0,0,.6);animation:li-pop .22s cubic-bezier(.2,.9,.3,1.2)}'+
-    '.li-close{position:absolute;top:12px;right:12px;z-index:2;width:34px;height:34px;display:grid;place-items:center;padding:0;border:0;border-radius:50%;background:rgba(0,0,0,.35);color:inherit;font:400 22px/1 Arial;cursor:pointer;transition:background .15s}'+
-    '.li-close:hover{background:rgba(0,0,0,.6)}'+
+    '.li-close{position:absolute;top:13px;right:14px;z-index:3;width:34px;height:34px;display:grid;place-items:center;padding:0!important;border:0!important;border-radius:50%!important;background:rgba(255,255,255,.12)!important;color:#fff!important;font:400 22px/1 Arial!important;cursor:pointer;transition:background .15s}'+
+    '.li-close:hover{background:rgba(255,255,255,.26)!important}'+
+    '.li-brand{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 62px 16px 26px;background:#1f1f1f}'+
+    '.li-logo{display:block;flex:0 0 auto;width:118px;height:30px;background:#d0f44c;-webkit-mask:url(/marca-indoor.svg) left center/contain no-repeat;mask:url(/marca-indoor.svg) left center/contain no-repeat}'+
+    '.li-brand-t{text-align:right;line-height:1.3}.li-brand-t b{display:block;color:#fff;font:800 12px Arial;letter-spacing:.16em}.li-brand-t span{color:#9b9b9b;font:500 10.5px Arial}'+
+    '.li-rule{flex:0 0 auto;height:4px;background:#d0f44c}'+
     '.li-head,.li-tabs,.li-foot{flex:0 0 auto}'+
     '.li-head{padding:28px 30px 24px}'+
     '.li-head small{display:block;font:700 10px Arial;letter-spacing:.3em;opacity:.75}'+
@@ -35,9 +39,10 @@
     '.li-tabs{display:flex;flex-wrap:wrap;gap:6px;padding:12px 24px;border-top:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.025)}'+
     '.li-tabs button{display:inline-flex!important;width:auto!important;min-height:0!important;margin:0!important;padding:7px 14px!important;border:1px solid rgba(255,255,255,.18)!important;border-radius:999px!important;background:transparent!important;color:#b8c4b0!important;font:800 10.5px Arial!important;letter-spacing:.1em;cursor:pointer;box-shadow:none!important;transition:all .15s}'+
     '.li-tabs button:hover{border-color:#d0f44c!important;color:#d0f44c!important}.li-tabs button[aria-pressed=true]{background:#d0f44c!important;border-color:#d0f44c!important;color:#111!important}'+
-    '.li-foot{display:flex;justify-content:space-between;gap:10px;padding:11px 28px 15px;color:#7d8978;font:500 10.5px Arial;letter-spacing:.04em}'+
+    '.li-foot{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:13px 26px 16px;color:#7d8978;font:500 10.5px Arial;letter-spacing:.04em;border-top:1px solid rgba(255,255,255,.06)}'+
+    '.li-foot-l{display:flex;align-items:center;gap:10px}.li-iso{display:block;height:20px;width:auto}.li-foot i{color:#b9c4b1;font:italic 500 12px Arial;letter-spacing:.02em}'+
     '@keyframes li-fade{from{opacity:0}to{opacity:1}}@keyframes li-pop{from{opacity:0;transform:translateY(14px) scale(.97)}to{opacity:1;transform:none}}'+
-    '@media(max-width:600px){.li-overlay{align-items:flex-end;padding:0}.li-card{width:100%;max-height:86vh;border-radius:22px 22px 0 0;animation:li-up .25s ease-out}.li-head{padding:24px 22px 18px}.li-body{padding:6px 22px 12px}.li-tabs{padding:12px 18px}.li-foot{padding:10px 22px 22px;flex-direction:column;gap:2px}@keyframes li-up{from{transform:translateY(40px);opacity:.6}to{transform:none;opacity:1}}}';
+    '@media(max-width:600px){.li-overlay{align-items:flex-end;padding:0}.li-card{width:100%;max-height:86vh;border-radius:22px 22px 0 0;animation:li-up .25s ease-out}.li-brand{padding:15px 56px 13px 20px}.li-logo{width:96px;height:25px}.li-brand-t span{display:none}.li-head{padding:22px 22px 18px}.li-body{padding:6px 22px 12px}.li-tabs{padding:12px 18px}.li-foot{padding:12px 20px 24px;flex-direction:column;align-items:flex-start;gap:6px}@keyframes li-up{from{transform:translateY(40px);opacity:.6}to{transform:none;opacity:1}}}';
   document.head.appendChild(style);
 
   function find(name){
@@ -56,7 +61,9 @@
       body='<p class="li-empty">Esta línea no aparece en el documento «Líneas de producto» ('+esc(data.fuente.split('·').pop().trim())+'). El documento define '+data.lineas.map(function(l){return l.nombre.charAt(0)+l.nombre.slice(1).toLowerCase()}).join(', ').replace(/, ([^,]*)$/,' y $1')+'. Toca una de ellas abajo para ver lo que incluye.</p>';
     }
     var tabs='<nav class="li-tabs" aria-label="Líneas de producto">'+data.lineas.map(function(l){return '<button type="button" data-li-tab="'+esc(l.nombre)+'" aria-pressed="'+(line&&l.nombre===line.nombre)+'">'+esc(l.nombre)+'</button>'}).join('')+'</nav>';
-    overlay.querySelector('.li-card').innerHTML='<button type="button" class="li-close" aria-label="Cerrar">×</button>'+head+'<div class="li-body">'+body+'</div>'+tabs+'<div class="li-foot"><span>'+esc(data.fuente.split('·').slice(1).join('·').trim())+'</span><span>Documento interno · Indoor Sport</span></div>';
+    var brand='<div class="li-brand"><span class="li-logo" role="img" aria-label="Indoor"></span><div class="li-brand-t"><b>LÍNEAS DE PRODUCTO</b><span>'+esc(data.fuente.split('·').slice(1).join('·').trim())+'</span></div></div><div class="li-rule"></div>';
+    var foot='<div class="li-foot"><span class="li-foot-l"><img class="li-iso" src="/favicon.svg" alt=""><i>'+esc(data.lema||'')+'</i></span><span>Documento interno · Indoor Sport</span></div>';
+    overlay.querySelector('.li-card').innerHTML='<button type="button" class="li-close" aria-label="Cerrar">×</button>'+brand+head+'<div class="li-body">'+body+'</div>'+tabs+foot;
     overlay.querySelector('.li-close').focus();
   }
   function close(){
