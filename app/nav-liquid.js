@@ -13,7 +13,8 @@
       '.nl-goo.on .nl-blob{opacity:1}',
       '.nl-goo.ready .nl-blob.b1{transition:transform .24s cubic-bezier(.3,1.25,.5,1),width .24s cubic-bezier(.3,1.25,.5,1)}',
       '.nl-goo.ready .nl-blob.b2{transition:transform .42s cubic-bezier(.25,1.1,.4,1),width .42s cubic-bezier(.25,1.1,.4,1)}',
-      NAV+' .nl-on,'+NAV+' .nl-on:hover{color:#10150e!important;background:transparent!important;box-shadow:none!important;border-color:transparent!important;text-shadow:none!important}',
+      NAV+' .nl-on,'+NAV+' .nl-on:hover{background:transparent!important;box-shadow:none!important;border-color:transparent!important;text-shadow:none!important;outline-color:transparent!important}',
+      NAV+' .nl-on,'+NAV+' .nl-on *{color:#10150e!important;-webkit-text-fill-color:#10150e!important;text-shadow:none!important}',
     '}',
     '@media(prefers-reduced-motion:reduce){.nl-goo.ready .nl-blob{transition:none!important}}'
   ].join('');
