@@ -19,16 +19,38 @@
   var SUN='<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.3M12 19.2v2.3M2.5 12h2.3M19.2 12h2.3M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M18.7 5.3l-1.6 1.6M6.9 17.1l-1.6 1.6"/></svg>';
   var MOON='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 14.2A8.5 8.5 0 0 1 9.8 3.5a8.5 8.5 0 1 0 10.7 10.7z"/></svg>';
   function toggle(){apply(root.classList.contains('theme-light')?'dark':'light',true)}
-  var queued=false;
+  var queued=false,seen=new WeakSet();
+  // luminosidad (0-1) de un color "rgb(...)" o "rgba(...)"; -1 si es transparente
+  function lum(text){
+    var m=/rgba?\(([^)]+)\)/.exec(text||'');
+    if(!m)return -1;
+    var v=m[1].split(',').map(parseFloat);
+    if(v.length>3&&v[3]<0.8)return -1;
+    return (0.2126*v[0]+0.7152*v[1]+0.0722*v[2])/255;
+  }
+  function isLight(style){
+    var l=lum(style.backgroundColor);
+    if(l>=0)return l>0.72;
+    var image=style.backgroundImage||'';
+    if(image.indexOf('gradient')<0)return false;
+    var colors=image.match(/rgba?\([^)]+\)/g)||[],sum=0,n=0;
+    colors.forEach(function(c){var x=lum(c);if(x>=0){sum+=x;n++}});
+    return n>0&&sum/n>0.72;
+  }
   function scan(){
     queued=false;
     if(!root.classList.contains('theme-light')||!document.body)return;
     var all=document.body.getElementsByTagName('*');
     for(var i=0;i<all.length;i++){
       var el=all[i];
-      if(el.classList.contains('theme-reinvert')||el.tagName==='IMG'||el.tagName==='SCRIPT'||el.tagName==='STYLE')continue;
-      var bg=getComputedStyle(el).backgroundImage;
-      if(bg&&bg.indexOf('url(')>=0&&!el.parentElement.closest('.theme-reinvert'))el.classList.add('theme-reinvert');
+      if(seen.has(el)||el.tagName==='IMG'||el.tagName==='SCRIPT'||el.tagName==='STYLE'||el.tagName==='svg')continue;
+      seen.add(el);
+      if(el.classList.contains('theme-reinvert')||el.parentElement.closest('.theme-reinvert'))continue;
+      var rect=el.getBoundingClientRect();
+      if(rect.width<60||rect.height<30)continue;
+      var style=getComputedStyle(el);
+      // fotos de fondo y paneles que ya eran claros en modo oscuro conservan su aspecto original
+      if((style.backgroundImage||'').indexOf('url(')>=0||isLight(style))el.classList.add('theme-reinvert');
     }
   }
   function schedule(){if(!queued&&root.classList.contains('theme-light')){queued=true;setTimeout(scan,700)}}
