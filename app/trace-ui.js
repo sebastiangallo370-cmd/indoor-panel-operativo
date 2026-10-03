@@ -459,7 +459,7 @@
   areaButton.setAttribute('aria-pressed', 'false');
   areaButton.title = ownProcess ? ownProcess.label : 'Tu usuario no tiene un proceso de fabricación asignado';
   areaButton.disabled = !ownProcess;
-  toolbar.querySelector('.trace-workspace-top').appendChild(areaButton);
+  // El botón «PROCESO AL QUE PERTENECES» ya no se muestra (no cumplía ninguna función); se deja el objeto para no tocar la lógica.
   areaButton.onclick = () => {
     navigationProcess = null;
     ownAreaFilter = !ownAreaFilter;
@@ -1971,6 +1971,7 @@
   html body.production-mode .trace-card .trace-media,html body.production-mode.trace-density-compact .trace-card .trace-media{padding:0!important;background:linear-gradient(180deg,#f4f6f2,#e3e8df)!important;display:flex;flex-direction:column}
   html body.production-mode .trace-card .trace-design-view{gap:0;height:100%;min-height:0;position:relative}
   @media(min-width:601px){html body.production-mode .trace-card:not(.details-expanded){grid-template-rows:262px 1fr auto}html body.production-mode .trace-card.details-expanded{grid-template-rows:262px auto auto}}
+  @media(max-width:600px){html body.production-mode .trace-card:not(.details-expanded){grid-template-rows:252px 1fr auto}html body.production-mode .trace-card.details-expanded{grid-template-rows:252px auto auto}}
   html body.production-mode .trace-card .trace-design-stage{position:relative;flex:1;min-height:0;display:flex}
   html body.production-mode .trace-card .trace-design-main{padding:40px 30px 10px;cursor:zoom-in;width:100%}
   html body.production-mode .trace-card .trace-design-main img{filter:drop-shadow(0 6px 10px rgba(16,21,14,.22));transition:transform .25s}

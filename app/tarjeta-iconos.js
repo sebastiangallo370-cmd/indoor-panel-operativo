@@ -43,7 +43,8 @@
     B+'.trace-rail [data-card-rework].has-rework{background:rgba(239,115,112,.28)!important;border-color:#ef7370!important;color:#ffb3ae!important}'+
     B+'.trace-rail button::after{content:attr(data-tip);position:absolute;right:46px;top:50%;transform:translateY(-50%);padding:5px 9px;border-radius:7px;background:#10150e;color:#fff;font:700 11px Arial;letter-spacing:.03em;white-space:nowrap;box-shadow:0 4px 14px rgba(0,0,0,.4);opacity:0;pointer-events:none;transition:opacity .12s}'+
     B+'.trace-rail button:hover::after,'+B+'.trace-rail button:focus-visible::after{opacity:1}'+
-    B+'.trace-order-actions:empty,'+B+'.trace-card-actions:empty{display:none!important}';
+    B+'.trace-order-actions:empty,'+B+'.trace-card-actions:empty{display:none!important}'+
+    '@media(max-width:700px){'+B+'.trace-rail button{width:42px!important;min-width:42px!important;height:42px!important;min-height:42px!important}'+B+'.trace-card-body{padding-right:66px!important}'+B+'.trace-rail{right:8px}}';
   document.head.appendChild(style);
 
   function iconize(button,icon,tip){
@@ -96,7 +97,7 @@
     queued=false;
     document.querySelectorAll('.trace-card[data-card-row]').forEach(railize);
   }
-  function schedule(){if(!queued){queued=true;requestAnimationFrame(run)}}
+  function schedule(){if(!queued){queued=true;setTimeout(run,40)}}
   function start(){
     var container=document.querySelector('.trace-cards')||document.getElementById('trace-cards');
     if(!container){setTimeout(start,800);return}
