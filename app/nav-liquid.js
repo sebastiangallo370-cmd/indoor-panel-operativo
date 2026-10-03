@@ -11,6 +11,7 @@
       '.nl-goo{position:absolute;left:0;top:0;width:100%;height:100%;z-index:-1;pointer-events:none;filter:url(#nl-goo) drop-shadow(0 0 9px rgba(208,244,76,.4))}',
       '.nl-blob{position:absolute;left:0;top:0;width:var(--nw,0px);height:var(--nh,0px);border-radius:12px;background:#d0f44c;transform:translate(var(--nx,0px),var(--ny,0px));opacity:0}',
       '.nl-goo.on .nl-blob{opacity:1}',
+      NAV+' .tab strong,'+NAV+' .nav-parent strong{transition:color .14s ease .09s,-webkit-text-fill-color .14s ease .09s}',
       '.nl-goo.ready .nl-blob.b1{transition:transform .24s cubic-bezier(.3,1.25,.5,1),width .24s cubic-bezier(.3,1.25,.5,1)}',
       '.nl-goo.ready .nl-blob.b2{transition:transform .42s cubic-bezier(.25,1.1,.4,1),width .42s cubic-bezier(.25,1.1,.4,1)}',
       NAV+' .nl-on,'+NAV+' .nl-on:hover{background:transparent!important;box-shadow:none!important;border-color:transparent!important;text-shadow:none!important;outline-color:transparent!important}',

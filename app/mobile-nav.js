@@ -31,12 +31,12 @@
   .mbar.ready .mbar-blob.b1{transition:transform .26s cubic-bezier(.3,1.3,.5,1)}
   .mbar.ready .mbar-blob.b2{transition:transform .44s cubic-bezier(.25,1.1,.4,1)}
   .mbar.no-active .mbar-blob{opacity:0}
-  .mbar button{position:relative;z-index:2;flex:1 1 0;min-width:0;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:0;padding:16px 0 0;margin:0;border:0;border-radius:999px;background:transparent;color:#cfd9c8;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:color .25s}
-  .mbar button svg{width:24px;height:24px;margin-bottom:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;transition:transform .26s cubic-bezier(.3,1.3,.5,1),color .2s}
+  .mbar button{position:relative;z-index:2;flex:1 1 0;min-width:0;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:0;padding:16px 0 0;margin:0;border:0;border-radius:999px;background:transparent;color:#cfd9c8;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:color .14s ease .08s}
+  .mbar button svg{width:24px;height:24px;margin-bottom:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;transition:transform .26s cubic-bezier(.3,1.3,.5,1),color .14s ease .08s}
   .mbar button small{position:absolute;left:50%;bottom:6px;display:none;transform:translateX(-50%);font:800 8px Arial;letter-spacing:.03em;text-transform:uppercase;white-space:nowrap;pointer-events:none}
   .mbar button.on{color:#e7ff9a}
   .mbar button.on svg{color:#10150e;transform:scale(1.06)}
-  .mbar button.on small{display:block;animation:mbar-label .2s ease-out}
+  .mbar button.on small{display:block;animation:mbar-label .2s ease-out .08s both}
   @keyframes mbar-label{from{opacity:0;transform:translateX(-50%) translateY(4px)}to{opacity:1;transform:translateX(-50%)}}
   .mbar button:active svg{transform:scale(.88)}
   @media(prefers-reduced-motion:reduce){.mbar.ready .mbar-blob,.mbar button svg{transition:none!important}}
