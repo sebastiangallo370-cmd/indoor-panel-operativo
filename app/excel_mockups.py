@@ -171,7 +171,7 @@ def extract_designs(filename, size, reference):
             if first_col >= 31:
                 number = max(1, round((col - 33) / 6) + 1)       # plantilla nueva: AH, AN, AT… = D1, D2, D3…
             else:
-                number = min(4, max(1, round((col - 18) / 6) + 1))  # plantilla antigua: S, Y, AE, AK
+                number = max(1, round((col - 18) / 6) + 1)  # plantilla antigua: S, Y, AE, AK, AQ… = D1, D2, D3…
             if number in seen:
                 return (), 'Diseños superpuestos: revisar listado'
             seen.add(number)

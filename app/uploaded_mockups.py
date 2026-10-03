@@ -47,7 +47,7 @@ def normalized(text):
 
 
 def match_uploads(paths, references):
-    """Never infer across different reference sheets. Preserve all D1-D4 uploads."""
+    """Never infer across different reference sheets. Preserve all D1-D20 uploads."""
     result, issues = {}, []
     refs = list(references)
     for path in sorted(map(Path, paths), key=lambda p: normalized(p.name)):
@@ -65,23 +65,26 @@ def match_uploads(paths, references):
             issues.append(path.name + ': indicar referencia en el nombre')
             continue
         ref = matches[0]
-        found = re.search(r'(?:^| )(?:D|DISENO)\s*([1-4])(?: |$)', name)
+        found = re.search(r'(?:^| )(?:D|DISENO)\s*(20|1[0-9]|[1-9])(?: |$)', name)
         slots = result.setdefault(ref, {})
-        design = int(found[1]) if found and int(found[1]) not in slots else next((n for n in range(1, 5) if n not in slots), None)
+        design = int(found[1]) if found and int(found[1]) not in slots else next((n for n in range(1, 21) if n not in slots), None)
         if design is None or design in slots:
-            raise ValueError('Máximo cuatro diseños distintos por referencia; revisar ' + path.name)
+            raise ValueError('Máximo veinte diseños distintos por referencia; revisar ' + path.name)
         if path.is_symlink() or path.stat().st_size > 10 * 1024 * 1024:
             raise ValueError('Imagen no válida o demasiado grande: ' + path.name)
         with Image.open(path) as image:
             if image.width * image.height > 25_000_000:
                 raise ValueError('Imagen demasiado grande: ' + path.name)
             output = io.BytesIO()
-            image.convert('RGB').save(output, format='PNG')
+            frame = image.convert('RGB')
+            frame.thumbnail((1600, 1600))
+            width, height = frame.size
+            frame.save(output, format='PNG', optimize=True)
             if output.tell() > 10 * 1024 * 1024:
                 raise ValueError('Imagen demasiado grande para el listado: ' + path.name)
             slots[design] = (path, output.getvalue(), image.width, image.height)
-    if sum(len(item[1]) for slots in result.values() for item in slots.values()) > 16 * 1024 * 1024:
-        raise ValueError('El conjunto de mockups supera 16 MB')
+    if sum(len(item[1]) for slots in result.values() for item in slots.values()) > 40 * 1024 * 1024:
+        raise ValueError('El conjunto de mockups supera 40 MB')
     return result, issues
 
 
@@ -157,7 +160,7 @@ def embed_uploads(workbook_path, paths, backup_dir, missing_only=False):
                 col = int(marker.findtext('{'+X+'}col', '-1'))
                 row = int(marker.findtext('{'+X+'}row', '-1'))
                 if 17 <= col <= 42 and 0 <= row <= 100:
-                    existing.setdefault(min(4, max(1, round((col-18)/6)+1)), []).append(anchor)
+                    existing.setdefault(max(1, round((col-18)/6)+1), []).append(anchor)
         image_rels = rels(drawing_part)
         for design, (path, data, width, height) in designs.items():
             if missing_only and existing:

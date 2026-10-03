@@ -1995,8 +1995,8 @@ async def programar_pedido_publico(request: Request, pdf: UploadFile = File(...)
         raise HTTPException(400, 'El primer archivo debe ser un PDF.')
     if not excel.filename or Path(excel.filename).suffix.lower() not in {'.xlsx', '.xlsm'}:
         raise HTTPException(400, 'El listado debe ser un archivo .xlsx o .xlsm.')
-    if len(extras) > 8:
-        raise HTTPException(400, 'Máximo 8 mockups.')
+    if len(extras) > 20:
+        raise HTTPException(400, 'Máximo 20 diseños.')
     pdf_bytes, excel_bytes = await pdf.read(), await excel.read()
     if not pdf_bytes.startswith(b'%PDF') or not excel_bytes.startswith(b'PK'):
         raise HTTPException(400, 'Los archivos no son válidos. Sube el PDF y el Excel originales.')
