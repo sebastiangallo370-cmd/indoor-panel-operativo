@@ -1967,6 +1967,28 @@
   html body.production-mode #trace-schedule-order:hover{filter:brightness(1.06)}
   @media(max-width:600px){html body.production-mode .trace-card:not(.details-expanded),html body.production-mode .trace-card.details-expanded{grid-template-rows:220px auto auto}}
   @media(max-width:860px){html body.production-mode .trace-quick-filters{display:flex!important;flex-wrap:nowrap;overflow-x:auto;gap:8px;padding-bottom:4px;scrollbar-width:none;-webkit-overflow-scrolling:touch}html body.production-mode .trace-quick-filters::-webkit-scrollbar{display:none}html body.production-mode .trace-quick-filters button{flex:0 0 auto;white-space:nowrap;min-height:40px;padding:8px 14px}}
+  /* Zona de diseños de la tarjeta */
+  html body.production-mode .trace-card .trace-media,html body.production-mode.trace-density-compact .trace-card .trace-media{padding:0!important;background:linear-gradient(180deg,#f4f6f2,#e3e8df)!important;display:flex;flex-direction:column}
+  html body.production-mode .trace-card .trace-design-view{gap:0;height:100%;min-height:0;position:relative}
+  @media(min-width:601px){html body.production-mode .trace-card:not(.details-expanded){grid-template-rows:262px 1fr auto}html body.production-mode .trace-card.details-expanded{grid-template-rows:262px auto auto}}
+  html body.production-mode .trace-card .trace-design-stage{position:relative;flex:1;min-height:0;display:flex}
+  html body.production-mode .trace-card .trace-design-main{padding:40px 30px 10px;cursor:zoom-in;width:100%}
+  html body.production-mode .trace-card .trace-design-main img{filter:drop-shadow(0 6px 10px rgba(16,21,14,.22));transition:transform .25s}
+  html body.production-mode .trace-card .trace-design-stage:hover .trace-design-main img{transform:scale(1.03)}
+  html body.production-mode .trace-card .trace-design-count{position:absolute;left:12px;top:10px;padding:4px 10px;border-radius:999px;background:rgba(16,21,14,.82);color:#d0f44c;font:800 10px Arial;letter-spacing:.12em;pointer-events:none}
+  html body.production-mode .trace-card .trace-design-count small{color:#c9d1c3;font-size:10px;letter-spacing:.06em}
+  html body.production-mode .trace-card .trace-design-zoom{position:absolute;right:12px;bottom:6px;width:24px;height:24px;display:grid;place-items:center;border-radius:50%;background:rgba(16,21,14,.7);color:#fff;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none}
+  html body.production-mode .trace-card .trace-design-stage:hover .trace-design-zoom{opacity:1}
+  html body.production-mode .trace-card .trace-design-nav{position:absolute;top:50%;transform:translateY(-50%);width:30px;height:30px;min-height:30px;padding:0;display:grid;place-items:center;border:0;border-radius:50%;background:rgba(16,21,14,.78);color:#fff;font:700 20px/1 Arial;cursor:pointer;opacity:0;transition:opacity .2s,background .15s,transform .15s}
+  html body.production-mode .trace-card .trace-design-nav.is-prev{left:8px}html body.production-mode .trace-card .trace-design-nav.is-next{right:8px}
+  html body.production-mode .trace-card .trace-design-stage:hover .trace-design-nav,html body.production-mode .trace-card .trace-design-nav:focus-visible{opacity:1}
+  html body.production-mode .trace-card .trace-design-nav:hover{background:#10150e;color:#d0f44c;transform:translateY(-50%) scale(1.08)}
+  @media(hover:none){html body.production-mode .trace-card .trace-design-nav{opacity:.85}}
+  html body.production-mode .trace-card .trace-design-tabs{position:absolute;z-index:2;top:8px;left:132px;right:54px;display:flex;justify-content:flex-end;gap:5px;height:26px;min-height:26px;padding:0;align-items:center;overflow-x:auto;scrollbar-width:none;scroll-behavior:smooth;background:none;border:0;-webkit-mask-image:linear-gradient(90deg,transparent,#000 12px);mask-image:linear-gradient(90deg,transparent,#000 12px)}
+  html body.production-mode .trace-card .trace-design-tabs::-webkit-scrollbar{display:none}
+  html body.production-mode .trace-card .trace-design-tabs button{flex:0 0 auto;min-width:32px;min-height:24px;height:24px;padding:0 10px;border:1px solid rgba(16,21,14,.16);border-radius:999px;background:#fff;color:#44503f;font:700 10px Arial;letter-spacing:.04em;transition:all .15s}
+  html body.production-mode .trace-card .trace-design-tabs button:hover{border-color:#10150e;color:#10150e}
+  html body.production-mode .trace-card .trace-design-tabs button[aria-pressed=true]{background:#10150e;border-color:#10150e;color:#d0f44c}
   @media(prefers-reduced-motion:reduce){html body.production-mode .trace-card{transition:none}}
   `;
   document.head.appendChild(style);
