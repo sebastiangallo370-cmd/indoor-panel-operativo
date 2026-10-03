@@ -1989,6 +1989,23 @@
   html body.production-mode .trace-card .trace-design-tabs button{flex:0 0 auto;min-width:32px;min-height:24px;height:24px;padding:0 10px;border:1px solid rgba(16,21,14,.16);border-radius:999px;background:#fff;color:#44503f;font:700 10px Arial;letter-spacing:.04em;transition:all .15s}
   html body.production-mode .trace-card .trace-design-tabs button:hover{border-color:#10150e;color:#10150e}
   html body.production-mode .trace-card .trace-design-tabs button[aria-pressed=true]{background:#10150e;border-color:#10150e;color:#d0f44c}
+  /* Orden de la tarjeta: titulo y estado, cliente, barra de acciones, datos clave, notas y pie */
+  html body.production-mode .trace-card .trace-card-body{display:grid!important;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"title badge" "client client" "project project" "stage note" "actions actions" "mts mts" "facts facts" "notes notes" "foot foot" "more more";gap:9px 10px!important;align-content:start;padding:16px 16px 14px!important}
+  html body.production-mode .trace-card .trace-card-heading{display:contents!important}
+  html body.production-mode .trace-card .trace-card-heading>h3{grid-area:title;margin:0!important;font-size:23px!important;line-height:1.05;letter-spacing:.01em}
+  html body.production-mode .trace-card .trace-order-rework{grid-area:badge;justify-self:end;align-self:start}
+  html body.production-mode .trace-card .trace-client{grid-area:client;margin:2px 0 0!important;font:800 13px/1.25 Inter,Arial,sans-serif!important;letter-spacing:.05em;text-transform:uppercase}
+  html body.production-mode .trace-card .trace-project{grid-area:project;margin:-6px 0 2px!important;font:600 12px/1.3 Inter,Arial,sans-serif!important;opacity:.7}
+  html body.production-mode .trace-card .trace-stage{grid-area:stage;justify-self:start;align-self:center}
+  html body.production-mode .trace-card .trace-order-note{grid-area:note;justify-self:end;align-self:center}
+  html body.production-mode .trace-card .trace-order-actions{grid-area:actions;display:grid!important;grid-template-columns:repeat(auto-fit,minmax(86px,1fr));gap:6px;width:100%;padding:8px;border:1px solid rgba(128,140,120,.28);border-radius:12px;background:rgba(128,140,120,.08)}
+  html body.production-mode .trace-card .trace-order-actions>button{width:100%;margin:0;justify-content:center;white-space:nowrap}
+  html body.production-mode .trace-card .trace-mts-row{grid-area:mts;margin:0!important}
+  html body.production-mode .trace-card .trace-primary-facts{grid-area:facts;display:grid!important;grid-template-columns:minmax(0,1fr) auto;gap:12px;margin:0!important;padding:11px 14px;border-radius:12px;background:rgba(128,140,120,.1)}
+  html body.production-mode .trace-card .trace-inline-notes{grid-area:notes;margin:0!important;max-height:172px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(128,140,120,.5) transparent}
+  html body.production-mode .trace-card .trace-card-actions{grid-area:foot;display:grid!important;grid-template-columns:1fr 1fr;gap:8px;margin:2px 0 0!important;padding-top:10px;border-top:1px solid rgba(128,140,120,.25)}
+  html body.production-mode .trace-card .trace-card-actions button{min-height:34px;font-size:11px;letter-spacing:.06em}
+  html body.production-mode .trace-card .trace-disclosure{grid-area:more}
   @media(prefers-reduced-motion:reduce){html body.production-mode .trace-card{transition:none}}
   `;
   document.head.appendChild(style);
