@@ -25,12 +25,7 @@
     ['.trace-order-na','na','No aplica (N/A)',1],
     ['.trace-order-clear','undo','Quitar estado',1],
     ['[data-card-rework]','loop','Registrar reproceso',2],
-    ['[data-card-rework-edit]','edit','Editar reproceso',2],
-    ['[data-card-rework-remove]','trash','Eliminar reproceso',2],
-    ['.trace-order-note','note','Agregar nota general',3],
-    ['.trace-mts-btn','ruler','Ingresar MTS requeridos',3],
-    ['[data-card-nas]','folder','Abrir carpeta en el NAS',4],
-    ['[data-card-delete]','trash','Eliminar orden',4]
+    ['.trace-order-note','note','Agregar nota general',3]
   ];
   var B='html body.production-mode .trace-card ';
   var style=document.createElement('style');
@@ -45,13 +40,10 @@
     B+'.trace-rail button:disabled{opacity:.3;cursor:not-allowed}'+
     B+'.trace-rail .trace-order-finish{color:#7fe08f!important}'+
     B+'.trace-rail .trace-order-clear{color:#f2c14e!important}'+
-    B+'.trace-rail [data-card-delete],'+B+'.trace-rail [data-card-rework-remove]{color:#ff9d94!important}'+
-    B+'.trace-rail [data-card-delete]:hover:not(:disabled),'+B+'.trace-rail [data-card-rework-remove]:hover:not(:disabled){background:#e0574c!important;border-color:#e0574c!important;color:#fff!important}'+
     B+'.trace-rail [data-card-rework].has-rework{background:rgba(239,115,112,.28)!important;border-color:#ef7370!important;color:#ffb3ae!important}'+
     B+'.trace-rail button::after{content:attr(data-tip);position:absolute;right:46px;top:50%;transform:translateY(-50%);padding:5px 9px;border-radius:7px;background:#10150e;color:#fff;font:700 11px Arial;letter-spacing:.03em;white-space:nowrap;box-shadow:0 4px 14px rgba(0,0,0,.4);opacity:0;pointer-events:none;transition:opacity .12s}'+
     B+'.trace-rail button:hover::after,'+B+'.trace-rail button:focus-visible::after{opacity:1}'+
-    B+'.trace-order-actions:empty,'+B+'.trace-card-actions:empty{display:none!important}'+
-    B+'.trace-mts-row{display:block!important}';
+    B+'.trace-order-actions:empty,'+B+'.trace-card-actions:empty{display:none!important}';
   document.head.appendChild(style);
 
   function iconize(button,icon,tip){
