@@ -1126,6 +1126,7 @@ def startup():
     start_sublimacion_worker()
     db_backup.start(DB_PATH, STATE_DIR, legacy.get_supabase)
     respaldo.start(DATA_ROOT, DB_PATH)
+    threading.Thread(target=_warm_card_assets, name='precarga-disenos', daemon=True).start()
 
 
 DATA_ROOT = STATE_DIR.parent
@@ -1217,6 +1218,7 @@ def health():
     db.close()
     return {
         "estado": "ok",
+        "disenos_en_memoria": len(_ASSET_CACHE),
         "nas_disponible": nas.is_dir(),
         "produccion_local": local_rows,
         "pedidos_habilitados": True,
@@ -2928,6 +2930,23 @@ def nas_client_key(value):
                            if not unicodedata.combining(c)).casefold().split())
 
 
+_NAS_CLIENTS = {'at': 0.0, 'map': {}}
+
+
+def _nas_client_index(root: Path, force=False) -> dict:
+    now = time.monotonic()
+    if force or not _NAS_CLIENTS['map'] or now - _NAS_CLIENTS['at'] > 300:
+        found = {}
+        for entry in root.iterdir():
+            try:
+                if entry.is_dir() and entry.resolve().parent == root:
+                    found.setdefault(nas_client_key(entry.name), []).append(entry.resolve())
+            except OSError:
+                continue
+        _NAS_CLIENTS.update(at=now, map=found)
+    return _NAS_CLIENTS['map']
+
+
 def resolve_nas_client(root: Path, client_name: str) -> Path:
     root = root.resolve()
     if not client_name or (root / client_name).resolve().parent != root:
@@ -2939,9 +2958,10 @@ def resolve_nas_client(root: Path, client_name: str) -> Path:
         return direct.resolve()
     if not root.is_dir():
         raise HTTPException(503, 'El NAS no está disponible')
-    matches = [p.resolve() for p in root.iterdir()
-               if nas_client_key(p.name) == nas_client_key(client_name)
-               and p.is_dir() and p.resolve().parent == root]
+    matches = [m for m in _nas_client_index(root).get(nas_client_key(client_name), []) if m.is_dir()]
+    if not matches and time.monotonic() - _NAS_CLIENTS['at'] > 20:
+        # puede ser un cliente recién creado: se vuelve a leer la lista (máximo cada 20 s)
+        matches = [m for m in _nas_client_index(root, force=True).get(nas_client_key(client_name), []) if m.is_dir()]
     if len(matches) > 1:
         raise HTTPException(409, 'Hay varias carpetas con el mismo nombre de cliente al ignorar tildes. Revisa cuál corresponde a la orden.')
     if not matches:
@@ -3043,8 +3063,24 @@ def production_row_files(source_row: int, excel_only=False):
     return files, images, client
 
 
-@app.get('/api/produccion/fila/{source_row}/archivos')
-def production_card_assets(source_row: int, _=Depends(authenticate)):
+import collections
+
+_ASSET_CACHE: dict = {}
+_ASSET_BUSY: set = set()
+_ASSET_LOCK = threading.Lock()
+_IMAGE_CACHE: "collections.OrderedDict" = collections.OrderedDict()
+ASSET_FRESH_SECONDS = 30
+
+
+def _remember_image(source_row, number, digest, mime, data):
+    with _ASSET_LOCK:
+        _IMAGE_CACHE[(source_row, number)] = (digest, mime, data)
+        _IMAGE_CACHE.move_to_end((source_row, number))
+        while len(_IMAGE_CACHE) > 400:
+            _IMAGE_CACHE.popitem(last=False)
+
+
+def _compute_card_assets(source_row: int):
     try:
         files, mockups, client = production_row_files(source_row, excel_only=True)
         designs, status = production_excel_designs(source_row, files)
@@ -3056,6 +3092,8 @@ def production_card_assets(source_row: int, _=Depends(authenticate)):
             url = f'/api/produccion/fila/{source_row}/archivo?name=' + quote(path.relative_to(client).as_posix(), safe='')
             documents.append({'name': path.name, 'url': url})
     if designs:
+        for number, mime, data in designs:
+            _remember_image(source_row, number, hashlib.sha256(data).hexdigest()[:20], mime, data)
         images = [{'name': f'D{number} · imagen del listado Excel', 'design': number,
                    'url': f'/api/produccion/fila/{source_row}/mockup-excel/{number}?v=' + hashlib.sha256(data).hexdigest()[:20]}
                   for number, mime, data in designs]
@@ -3071,6 +3109,56 @@ def production_card_assets(source_row: int, _=Depends(authenticate)):
     except (OSError, HTTPException):
         pass
     return {'images': [], 'documents': documents[:20], 'image_status': status, 'image_source': 'none'}
+
+
+def _warm_card_assets():
+    """Tras arrancar, precarga con calma los diseños de los pedidos más recientes para que la primera visita sea rápida."""
+    time.sleep(25)
+    try:
+        with connect() as db:
+            rows = [r[0] for r in db.execute('SELECT source_row FROM production_rows ORDER BY source_row DESC LIMIT 140')]
+    except Exception:
+        return
+    for row in rows:
+        if row in _ASSET_CACHE:
+            continue
+        try:
+            payload = _compute_card_assets(row)
+            with _ASSET_LOCK:
+                _ASSET_CACHE[row] = (time.monotonic(), payload)
+        except Exception:
+            pass
+        time.sleep(0.25)
+
+
+def _refresh_card_assets(source_row: int):
+    try:
+        payload = _compute_card_assets(source_row)
+        with _ASSET_LOCK:
+            _ASSET_CACHE[source_row] = (time.monotonic(), payload)
+    except Exception:
+        pass
+    finally:
+        with _ASSET_LOCK:
+            _ASSET_BUSY.discard(source_row)
+
+
+@app.get('/api/produccion/fila/{source_row}/archivos')
+def production_card_assets(source_row: int, _=Depends(authenticate)):
+    """Los diseños se entregan al instante desde memoria; si ya pasaron 30 s se renuevan en segundo plano."""
+    with _ASSET_LOCK:
+        entry = _ASSET_CACHE.get(source_row)
+        stale = bool(entry) and time.monotonic() - entry[0] > ASSET_FRESH_SECONDS and source_row not in _ASSET_BUSY
+        if stale:
+            _ASSET_BUSY.add(source_row)
+    if entry:
+        if stale:
+            threading.Thread(target=_refresh_card_assets, args=(source_row,), daemon=True).start()
+        return entry[1]
+    payload = _compute_card_assets(source_row)
+    with _ASSET_LOCK:
+        _ASSET_CACHE[source_row] = (time.monotonic(), payload)
+    return payload
 
 
 def production_excel_designs(source_row, files):
@@ -3101,6 +3189,18 @@ def production_excel_designs(source_row, files):
 def production_excel_image(source_row: int, design: int, request: Request = None, _=Depends(authenticate)):
     if not 1 <= design <= 40:
         raise HTTPException(404, 'Diseño no encontrado')
+    with _ASSET_LOCK:
+        hit = _IMAGE_CACHE.get((source_row, design))
+        if hit:
+            _IMAGE_CACHE.move_to_end((source_row, design))
+    version = request.query_params.get('v') if request is not None else None
+    if hit and (not version or version == hit[0]):
+        digest, mime, data = hit
+        cache = 'private, max-age=31536000, immutable' if version == digest else 'private, no-cache'
+        headers = {'Cache-Control': cache, 'ETag': '"' + digest + '"', 'X-Content-Type-Options': 'nosniff'}
+        if request.headers.get('if-none-match') == headers['ETag']:
+            return Response(status_code=304, headers=headers)
+        return Response(data, media_type=mime, headers=headers)
     try:
         files, _, _client = production_row_files(source_row, excel_only=True)
         images, _status = production_excel_designs(source_row, files)
