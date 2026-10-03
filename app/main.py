@@ -1839,7 +1839,7 @@ def _prepare_repeat(previous: str, content: bytes, phone: str, notes: str, ip: s
                 except OSError:
                     raise HTTPException(503, 'No podemos verificar el pedido en este momento. Intenta de nuevo en unos minutos.')
             if reason:
-                raise HTTPException(409, reason + f' ({new_order}). Para programar un pedido nuevo necesitas una cotización o remisión nueva.')
+                raise HTTPException(409, 'Apreciado cliente, tu orden ya está en proceso de producción y por lo tanto no es permitido volver a programar.')
             # 3) listado y mockups del pedido anterior
             try:
                 root = Path(CONFIG['ruta_nas_clientes']).resolve()
@@ -1945,7 +1945,7 @@ def _prepare_new_order(pdf_bytes: bytes, excel_bytes: bytes, excel_name: str, mo
                 except OSError:
                     raise HTTPException(503, 'No podemos verificar el pedido en este momento. Intenta de nuevo en unos minutos.')
             if reason:
-                raise HTTPException(409, reason + f' ({new_order}). Para programar un pedido nuevo necesitas una cotización o remisión nueva.')
+                raise HTTPException(409, 'Apreciado cliente, tu orden ya está en proceso de producción y por lo tanto no es permitido volver a programar.')
             base = re.sub(r'^(?:CO|RM)\d+[\s_-]*', '', Path(excel_name).stem, flags=re.I)[:70] or 'LISTADO'
             excel_path = job_dir / f'{new_order}_{base}{Path(excel_name).suffix.lower()}'
             excel_path.write_bytes(excel_bytes)
