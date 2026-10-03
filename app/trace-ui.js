@@ -2006,6 +2006,15 @@
   html body.production-mode .trace-card .trace-card-actions{grid-area:foot;display:grid!important;grid-template-columns:1fr 1fr;gap:8px;margin:2px 0 0!important;padding-top:10px;border-top:1px solid rgba(128,140,120,.25)}
   html body.production-mode .trace-card .trace-card-actions button{min-height:34px;font-size:11px;letter-spacing:.06em}
   html body.production-mode .trace-card .trace-disclosure{grid-area:more}
+  /* Alineacion entre tarjetas de una misma fila: bloques de altura fija y pie al fondo */
+  html body.production-mode .trace-card .trace-card-body{grid-template-rows:auto auto auto auto auto auto auto minmax(0,1fr) auto auto!important}
+  html body.production-mode .trace-card .trace-client{display:-webkit-box!important;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.5em}
+  html body.production-mode .trace-card .trace-project{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  html body.production-mode .trace-card .trace-primary-facts dd{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  html body.production-mode .trace-card .trace-primary-facts>div:first-child{min-height:3.4em}
+  html body.production-mode .trace-card .trace-inline-notes{align-self:start}
+  html body.production-mode .trace-card .trace-order-actions{align-content:center;min-height:50px}
+  html body.production-mode .trace-card .trace-mts-row{align-items:stretch}
   @media(prefers-reduced-motion:reduce){html body.production-mode .trace-card{transition:none}}
   `;
   document.head.appendChild(style);
