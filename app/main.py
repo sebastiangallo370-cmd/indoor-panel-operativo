@@ -1510,29 +1510,8 @@ def _too_many(bucket: str, request: Request, limit: int, seconds: int = 60) -> b
         return len(hits) > limit
 
 
-@app.get('/api/consulta-pedido')
-def consulta_publica_pedido(request: Request, orden: str = ''):
-    """Consulta pública para el cliente: en qué proceso va su orden. Solo estados; nada de clientes, cantidades ni precios."""
-    if _too_many('consulta', request, 12):
-        raise HTTPException(429, 'Demasiadas consultas. Intenta de nuevo en un minuto.')
-    order = re.sub(r'\s+', '', str(orden or '')).upper()
-    if not re.fullmatch(r'[A-Z]{1,3}-?\d{3,6}', order):
-        raise HTTPException(400, 'Escribe el número de tu orden, por ejemplo CO6128.')
-    db = connect()
-    try:
-        meta = {r['key']: r['value'] for r in db.execute("SELECT key,value FROM production_meta WHERE key='headers'")}
-        headers = json.loads(meta.get('headers') or '[]')
-        order_idx = next((i for i, h in enumerate(headers) if str(h).strip().upper() == 'ORDEN'), -1)
-        due_idx = next((i for i, h in enumerate(headers) if str(h).strip().upper() == 'FECHA DE ENTREGA'), -1)
-        rows = []
-        for raw in db.execute('SELECT values_json FROM production_rows'):
-            values = json.loads(raw['values_json'])
-            if 0 <= order_idx < len(values) and re.sub(r'[\s-]+', '', str(values[order_idx])).upper() == order.replace('-', ''):
-                rows.append(values + [''] * max(0, len(headers) - len(values)))
-    finally:
-        db.close()
-    if not rows:
-        raise HTTPException(404, 'No encontramos esa orden. Revisa el número o comunícate con tu asesor.')
+def _order_progress(headers: list, rows: list) -> dict:
+    """Estado de una orden (puede tener varias referencias) por proceso, solo con estados."""
     steps = []
     for index, process in enumerate(PROCESS_FLOW):
         label = process['label']
@@ -1550,28 +1529,126 @@ def consulta_publica_pedido(request: Request, orden: str = ''):
             state = 'rework'
         elif 'active' in states:
             state = 'active'
-        elif all(s == 'finished' for s in states):
+        elif all(x == 'finished' for x in states):
             state = 'finished'
-        elif any(s in ('finished', 'partial') for s in states):
+        elif any(x in ('finished', 'partial') for x in states):
             state = 'active'
         else:
             state = 'pending'
         steps.append({'proceso': label, 'estado': state})
-    done = sum(1 for s in steps if s['estado'] == 'finished')
+    done = sum(1 for x in steps if x['estado'] == 'finished')
     if steps and done == len(steps):
         overall, current = 'finished', ''
-    elif any(s['estado'] == 'rework' for s in steps):
-        overall, current = 'rework', next(s['proceso'] for s in steps if s['estado'] == 'rework')
-    elif any(s['estado'] == 'active' for s in steps):
-        overall, current = 'active', [s['proceso'] for s in steps if s['estado'] == 'active'][-1]
+    elif any(x['estado'] == 'rework' for x in steps):
+        overall, current = 'rework', next(x['proceso'] for x in steps if x['estado'] == 'rework')
+    elif any(x['estado'] == 'active' for x in steps):
+        overall, current = 'active', [x['proceso'] for x in steps if x['estado'] == 'active'][-1]
     else:
-        overall, current = 'pending', next((s['proceso'] for s in steps if s['estado'] != 'finished'), '')
+        overall, current = 'pending', next((x['proceso'] for x in steps if x['estado'] != 'finished'), '')
+    due_idx = next((i for i, h in enumerate(headers) if str(h).strip().upper() == 'FECHA DE ENTREGA'), -1)
     due = None
     if due_idx >= 0:
         dates = [d for d in (parse_production_date(str(v[due_idx])) for v in rows) if d]
         due = min(dates).isoformat() if dates else None
-    return {'orden': order, 'estado': overall, 'proceso_actual': current, 'porcentaje': round(done / len(steps) * 100) if steps else 0,
+    return {'estado': overall, 'proceso_actual': current, 'porcentaje': round(done / len(steps) * 100) if steps else 0,
             'procesos': steps, 'entrega': due}
+
+
+def _order_progress(headers: list, rows: list) -> dict:
+    """Estado de una orden (puede tener varias referencias) por proceso, solo con estados."""
+    steps = []
+    for index, process in enumerate(PROCESS_FLOW):
+        label = process['label']
+        if _plain_text(label) == 'DISENO':
+            continue
+        columns = [i for i, h in enumerate(headers) if official_process(h) == index and operator_process_header(h)]
+        if not columns:
+            continue
+        states = []
+        for values in rows:
+            cells = [str(values[i] or '').strip().upper() for i in columns]
+            closed = [c == 'N/A' or bool(parse_production_date(c)) for c in cells]
+            states.append('rework' if 'R' in cells else 'active' if 'P' in cells else 'finished' if closed and all(closed) else 'partial' if any(closed) else 'pending')
+        if 'rework' in states:
+            state = 'rework'
+        elif 'active' in states:
+            state = 'active'
+        elif all(x == 'finished' for x in states):
+            state = 'finished'
+        elif any(x in ('finished', 'partial') for x in states):
+            state = 'active'
+        else:
+            state = 'pending'
+        steps.append({'proceso': label, 'estado': state})
+    done = sum(1 for x in steps if x['estado'] == 'finished')
+    if steps and done == len(steps):
+        overall, current = 'finished', ''
+    elif any(x['estado'] == 'rework' for x in steps):
+        overall, current = 'rework', next(x['proceso'] for x in steps if x['estado'] == 'rework')
+    elif any(x['estado'] == 'active' for x in steps):
+        overall, current = 'active', [x['proceso'] for x in steps if x['estado'] == 'active'][-1]
+    else:
+        overall, current = 'pending', next((x['proceso'] for x in steps if x['estado'] != 'finished'), '')
+    due_idx = next((i for i, h in enumerate(headers) if str(h).strip().upper() == 'FECHA DE ENTREGA'), -1)
+    due = None
+    if due_idx >= 0:
+        dates = [d for d in (parse_production_date(str(v[due_idx])) for v in rows) if d]
+        due = min(dates).isoformat() if dates else None
+    return {'estado': overall, 'proceso_actual': current, 'porcentaje': round(done / len(steps) * 100) if steps else 0,
+            'procesos': steps, 'entrega': due}
+
+
+@app.get('/api/consulta-pedido')
+def consulta_publica_pedido(request: Request, q: str = '', orden: str = ''):
+    """Consulta pública para el cliente: en qué proceso va su pedido, por número de orden o por nombre del cliente.
+    Solo devuelve estados (nada de cantidades, referencias, notas ni precios)."""
+    if _too_many('consulta', request, 12):
+        raise HTTPException(429, 'Demasiadas consultas. Intenta de nuevo en un minuto.')
+    text = ' '.join(str(q or orden or '').split())
+    compact = re.sub(r'[\s-]+', '', text).upper()
+    by_order = bool(re.fullmatch(r'[A-Z]{1,3}\d{3,6}', compact))
+    tokens = [t for t in re.split(r'\s+', _plain_text(text)) if len(t) >= 2]
+    if not by_order and (len(re.sub(r'[^A-Z0-9]', '', _plain_text(text))) < 4 or not any(len(t) >= 3 for t in tokens)):
+        raise HTTPException(400, 'Escribe tu número de orden (por ejemplo CO6128) o el nombre de tu cliente (mínimo 4 letras).')
+    if not by_order and _too_many('consulta-nombre', request, 6):
+        raise HTTPException(429, 'Demasiadas búsquedas por nombre. Intenta de nuevo en un minuto.')
+    db = connect()
+    try:
+        meta = {r['key']: r['value'] for r in db.execute("SELECT key,value FROM production_meta WHERE key='headers'")}
+        headers = json.loads(meta.get('headers') or '[]')
+        index = {str(h).strip().upper(): i for i, h in enumerate(headers)}
+        order_idx, client_idx, project_idx = index.get('ORDEN', -1), index.get('NOMBRE DEL CLIENTE', -1), index.get('NOMBRE PROYECTO', -1)
+        matches = []
+        for raw in db.execute('SELECT values_json FROM production_rows'):
+            values = json.loads(raw['values_json'])
+            values = values + [''] * max(0, len(headers) - len(values))
+            order_value = re.sub(r'[\s-]+', '', str(values[order_idx])).upper() if order_idx >= 0 else ''
+            if not order_value:
+                continue
+            if by_order:
+                if order_value == compact:
+                    matches.append(values)
+            elif client_idx >= 0:
+                name = _plain_text(values[client_idx])
+                if name and all(t in name for t in tokens):
+                    matches.append(values)
+    finally:
+        db.close()
+    if not matches:
+        raise HTTPException(404, 'No encontramos ese pedido. Revisa el dato o comunícate con tu asesor.')
+    if not by_order and len({_plain_text(v[client_idx]) for v in matches}) > 1:
+        return {'tipo': 'varios', 'mensaje': 'Hay varios clientes con ese nombre. Escribe el nombre completo o tu número de orden.'}
+    grouped: dict = {}
+    for values in matches:
+        grouped.setdefault(re.sub(r'[\s-]+', '', str(values[order_idx])).upper(), []).append(values)
+    pedidos = []
+    for order_value, rows in grouped.items():
+        item = {'orden': order_value, **_order_progress(headers, rows)}
+        if not by_order and project_idx >= 0:
+            item['proyecto'] = ' '.join(str(rows[0][project_idx] or '').split())[:80]
+        pedidos.append(item)
+    pedidos.sort(key=lambda x: (x['estado'] == 'finished', x['entrega'] or '9999'))
+    return {'tipo': 'orden' if by_order else 'cliente', 'pedidos': pedidos[:10], 'total': len(pedidos)}
 
 
 def _is_admin_session(request: Request) -> str | None:
