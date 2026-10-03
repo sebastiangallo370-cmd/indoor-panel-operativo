@@ -1023,7 +1023,7 @@ def process_reprogram_excel_job(job_id: int, excel_path: Path, extra_paths: list
         update_job(job_id, "ERROR", str(error))
 
 
-def process_order_job(job_id: int, job_dir: Path, pdf_path: Path, excel_path: Path, observations: str = '', author: str = '', linea: str = ''):
+def process_order_job(job_id: int, job_dir: Path, pdf_path: Path, excel_path: Path, observations: str = '', author: str = '', linea: str = '', overrides: dict | None = None):
     try:
         pending_records = []
         # The legacy processor moves/removes attachments: remember them beforehand.
@@ -1067,6 +1067,8 @@ def process_order_job(job_id: int, job_dir: Path, pdf_path: Path, excel_path: Pa
                 raise ValueError('No se programó: ' + ' | '.join(image_issues))
             verify_order_mockups(Path(ok), pending_records)
             for record in pending_records:
+                if overrides:
+                    record.update(overrides)
                 append_local_production(record, pedidos._fila_produccion, observations, author, linea)
             update_job(job_id, "COMPLETADO", detail, order_number)
         else:
@@ -1668,12 +1670,195 @@ def consulta_publica_pedido(request: Request, q: str = '', orden: str = ''):
         if due_idx >= 0:
             dates = [d for d in (parse_production_date(str(v[due_idx])) for _, v in rows) if d]
             due = min(dates).isoformat() if dates else None
-        item = {'orden': order_value, 'estado': best[1], 'texto': best[2], 'entrega': due, 'referencias': references}
+        item = {'orden': order_value, 'estado': best[1], 'texto': best[2], 'entrega': due, 'referencias': references, 'repetir': _repeat_token(order_value)}
         if not by_order and project_idx >= 0:
             item['proyecto'] = ' '.join(str(rows[0][1][project_idx] or '').split())[:80]
         pedidos.append(item)
     pedidos.sort(key=lambda x: (x['estado'] == 'finished', x['entrega'] or '9999'))
     return {'tipo': 'orden' if by_order else 'cliente', 'pedidos': pedidos[:10], 'total': len(pedidos)}
+
+
+_repeat_lock = threading.Lock()
+
+
+def _repeat_token(order: str) -> str:
+    expires = int(time.time()) + 3600
+    return f"{order}.{expires}.{_session_signature(f'repetir|{order}|{expires}')[:32]}"
+
+
+def _verify_repeat_token(token: str) -> str:
+    try:
+        order, expires, sig = str(token).rsplit('.', 2)
+        expires = int(expires)
+    except ValueError:
+        raise HTTPException(403, 'Solicitud no válida. Vuelve a consultar tu pedido.')
+    if expires < time.time() or not hmac.compare_digest(sig, _session_signature(f'repetir|{order}|{expires}')[:32]):
+        raise HTTPException(403, 'Esta solicitud venció. Vuelve a consultar tu pedido.')
+    return order
+
+
+def _client_match(first: str, second: str) -> bool:
+    a = {t for t in re.split(r'\s+', _plain_text(first)) if len(t) >= 3}
+    b = {t for t in re.split(r'\s+', _plain_text(second)) if len(t) >= 3}
+    return bool(a and b) and len(a & b) / min(len(a), len(b)) >= 0.6
+
+
+def _order_already_exists(db, new_order: str, doc_hash: str) -> str:
+    """Motivo por el que NO se puede programar (ya se produjo, se programó o se envió antes); '' si está libre."""
+    compact = lambda v: re.sub(r'[\s-]+', '', str(v or '')).upper()
+    headers = json.loads((db.execute("SELECT value FROM production_meta WHERE key='headers'").fetchone() or ['[]'])[0] or '[]')
+    order_idx = next((i for i, h in enumerate(headers) if str(h).strip().upper() == 'ORDEN'), -1)
+    if order_idx >= 0:
+        for raw in db.execute('SELECT values_json FROM production_rows'):
+            values = json.loads(raw[0])
+            if order_idx < len(values) and compact(values[order_idx]) == new_order:
+                return 'Esa cotización o remisión ya fue programada en producción.'
+        if db.execute("SELECT 1 FROM sqlite_master WHERE name='production_deleted_rows'").fetchone():
+            for (payload,) in db.execute('SELECT payload FROM production_deleted_rows'):
+                try:
+                    values = json.loads(json.loads(payload)['values_json'])
+                except (ValueError, KeyError, TypeError):
+                    continue
+                if order_idx < len(values) and compact(values[order_idx]) == new_order:
+                    return 'Esa cotización o remisión ya fue usada en un pedido anterior.'
+    if db.execute("SELECT 1 FROM jobs WHERE order_number=? AND status<>'ERROR' LIMIT 1", (new_order,)).fetchone():
+        return 'Esa cotización o remisión ya fue enviada y se está programando.'
+    db.execute('CREATE TABLE IF NOT EXISTS web_repeat_requests(id INTEGER PRIMARY KEY AUTOINCREMENT, doc_hash TEXT, new_order TEXT, prev_order TEXT, ip TEXT, job_id INTEGER, created_at TEXT)')
+    if db.execute('SELECT 1 FROM web_repeat_requests r LEFT JOIN jobs j ON j.id=r.job_id WHERE (r.doc_hash=? OR r.new_order=?) AND COALESCE(j.status,\'\')<>\'ERROR\' LIMIT 1', (doc_hash, new_order)).fetchone():
+        return 'Ese documento ya fue enviado antes.'
+    return ''
+
+
+def _nas_has_order(client_name: str, new_order: str) -> bool:
+    """¿Ya hay carpeta de esta orden en el NAS dentro de la carpeta del cliente?"""
+    root = Path(CONFIG['ruta_nas_clientes']).resolve()
+    client = resolve_nas_client(root, legacy.sanitize(client_name))
+    return any(p.is_dir() and re.match(rf'^{re.escape(new_order)}(?:[\s_-]|$)', p.name.upper()) for p in client.iterdir())
+
+
+def _prepare_repeat(previous: str, content: bytes, phone: str, notes: str, ip: str) -> dict:
+    db = connect()
+    try:
+        meta = {r['key']: r['value'] for r in db.execute("SELECT key,value FROM production_meta WHERE key='headers'")}
+        headers = json.loads(meta.get('headers') or '[]')
+        index = {str(h).strip().upper(): i for i, h in enumerate(headers)}
+        order_idx, client_idx = index.get('ORDEN', -1), index.get('NOMBRE DEL CLIENTE', -1)
+        previous_rows = []
+        for raw in db.execute('SELECT values_json FROM production_rows'):
+            values = json.loads(raw['values_json'])
+            if order_idx >= 0 and order_idx < len(values) and re.sub(r'[\s-]+', '', str(values[order_idx])).upper() == previous:
+                previous_rows.append(values + [''] * max(0, len(headers) - len(values)))
+    finally:
+        db.close()
+    if not previous_rows:
+        raise HTTPException(404, 'No encontramos el pedido anterior. Vuelve a consultarlo.')
+    previous_client = str(previous_rows[0][client_idx] or '').strip()
+    line = str(previous_rows[0][1] or '').strip()
+    line = '' if line.upper() == 'BOT' else line
+    # 1) leer el documento nuevo
+    stamp = datetime.now().strftime('%Y%m%d%H%M%S%f')
+    job_dir = UPLOAD_DIR / 'pedidos' / f'web-{stamp}'
+    job_dir.mkdir(parents=True, exist_ok=False)
+    keep = False
+    try:
+        pdf_tmp = job_dir / 'documento.pdf'
+        pdf_tmp.write_bytes(content)
+        try:
+            _, header, _, _ = legacy.extraer_info_pdf(str(pdf_tmp))
+        except Exception:
+            raise HTTPException(400, 'No pudimos leer el documento. Sube el PDF original de tu cotización o remisión.')
+        new_order = str(header.get('orden') or '')
+        if not re.fullmatch(r'(CO|RM)\d{3,6}', new_order) or header.get('tipo_doc') not in ('COTIZACION', 'REMISION'):
+            raise HTTPException(400, 'El documento debe ser una cotización o una remisión de Indoor Sport.')
+        if not _client_match(header.get('cliente') or '', previous_client):
+            raise HTTPException(400, 'Esa cotización o remisión no corresponde al mismo cliente del pedido anterior.')
+        doc_hash = hashlib.sha256(content).hexdigest()
+        # 2) verificar que esa orden NO se haya producido ni programado antes
+        with _repeat_lock:
+            db = connect()
+            try:
+                reason = _order_already_exists(db, new_order, doc_hash)
+            finally:
+                db.close()
+            if not reason:
+                try:
+                    if _nas_has_order(previous_client, new_order):
+                        reason = 'Esa cotización o remisión ya tiene carpeta de producción.'
+                except HTTPException as error:
+                    if error.status_code != 404:
+                        raise HTTPException(503, 'No podemos verificar el pedido en este momento. Intenta de nuevo en unos minutos.')
+                except OSError:
+                    raise HTTPException(503, 'No podemos verificar el pedido en este momento. Intenta de nuevo en unos minutos.')
+            if reason:
+                raise HTTPException(409, reason + f' ({new_order}). Para programar un pedido nuevo necesitas una cotización o remisión nueva.')
+            # 3) listado y mockups del pedido anterior
+            try:
+                root = Path(CONFIG['ruta_nas_clientes']).resolve()
+                client_dir = resolve_nas_client(root, legacy.sanitize(previous_client))
+                folder = next(p for p in client_dir.iterdir() if p.is_dir() and re.match(rf'^{re.escape(previous)}(?:[\s_-]|$)', p.name.upper()))
+            except (HTTPException, StopIteration, OSError):
+                raise HTTPException(409, 'No encontramos el listado del pedido anterior. Un asesor te ayudará con tu pedido.')
+            sheets = [p for p in folder.iterdir() if p.is_file() and p.suffix.lower() in ('.xlsx', '.xlsm') and not p.name.startswith('~$')]
+            preferred = [p for p in sheets if p.name.upper().startswith(previous)] or sheets
+            if not preferred:
+                raise HTTPException(409, 'No encontramos el listado del pedido anterior. Un asesor te ayudará con tu pedido.')
+            source = max(preferred, key=lambda p: p.stat().st_mtime)
+            base = re.sub(r'^(?:CO|RM)\d+[\s_-]*', '', source.stem, flags=re.I)[:70] or 'LISTADO'
+            excel_path = job_dir / f'{new_order}_{base}{source.suffix.lower()}'
+            shutil.copy2(source, excel_path)
+            pdf_path = job_dir / f"{new_order}_{re.sub(r'[^A-Za-z0-9]+', '_', _plain_text(previous_client))[:40]}.pdf"
+            pdf_tmp.rename(pdf_path)
+            overrides = {'fecha_creacion': header.get('fecha_creacion') or pedidos.fecha_es(datetime.now())}
+            if header.get('fecha_entrega_date'):
+                overrides['fecha_entrega'] = pedidos.fecha_es(datetime.combine(header['fecha_entrega_date'], datetime.min.time()))
+            now = datetime.now(timezone.utc).isoformat()
+            with connect() as db:
+                db.execute('CREATE TABLE IF NOT EXISTS web_repeat_requests(id INTEGER PRIMARY KEY AUTOINCREMENT, doc_hash TEXT, new_order TEXT, prev_order TEXT, ip TEXT, job_id INTEGER, created_at TEXT)')
+                cursor = db.execute(
+                    'INSERT INTO jobs(filename,status,detail,created_at,updated_at,kind,input_summary,order_number) VALUES(?,?,?,?,?,?,?,?)',
+                    (f'WEB · {new_order} (repite {previous})', 'RECIBIDO', 'Solicitud del cliente desde la web', now, now, 'pedido',
+                     json.dumps({'origen': 'web', 'repite': previous, 'telefono': phone, 'notas': notes}, ensure_ascii=False), new_order))
+                job_id = cursor.lastrowid
+                db.execute('INSERT INTO web_repeat_requests(doc_hash,new_order,prev_order,ip,job_id,created_at) VALUES(?,?,?,?,?,?)',
+                           (doc_hash, new_order, previous, ip, job_id, now))
+        keep = True
+    finally:
+        if not keep:
+            shutil.rmtree(job_dir, ignore_errors=True)
+    observations = f'Pedido repetido desde {previous} · solicitado por el cliente desde la página web' + (f' · Tel: {phone}' if phone else '') + (f' · {notes}' if notes else '')
+    threading.Thread(target=process_order_job, name=f'repetir-{new_order}', daemon=True,
+                     args=(job_id, job_dir, pdf_path, excel_path, observations, 'Cliente (web)', line), kwargs={'overrides': overrides}).start()
+    return {'ok': True, 'orden': new_order, 'job': job_id, 'sig': _session_signature(f'repetir-job|{job_id}')[:32]}
+
+
+@app.post('/api/repetir-pedido', status_code=202)
+async def repetir_pedido_publico(request: Request, token: str = Form(...), pdf: UploadFile = File(...),
+                                 telefono: str = Form(default='', max_length=30), notas: str = Form(default='', max_length=400),
+                                 website: str = Form(default='')):
+    """Repetir un pedido anterior desde la página pública: exige una cotización o remisión NUEVA del mismo cliente."""
+    if website:  # trampa para robots: se finge éxito
+        return {'ok': True, 'orden': '', 'job': 0, 'sig': ''}
+    if _too_many('repetir', request, 3, 3600):
+        raise HTTPException(429, 'Ya enviaste varias solicitudes. Intenta de nuevo más tarde.')
+    previous = _verify_repeat_token(token)
+    content = await pdf.read()
+    if not content or len(content) > 8 * 1024 * 1024 or not content.startswith(b'%PDF'):
+        raise HTTPException(400, 'Sube el PDF de tu cotización o remisión (máximo 8 MB).')
+    phone = re.sub(r'[^0-9+() -]', '', telefono)[:30]
+    notes = ' '.join(notas.split())[:400]
+    return await asyncio.to_thread(_prepare_repeat, previous, content, phone, notes, _client_ip(request))
+
+
+@app.get('/api/repetir-pedido/estado')
+def repetir_pedido_estado(job: int = 0, s: str = ''):
+    if not hmac.compare_digest(str(s), _session_signature(f'repetir-job|{job}')[:32]):
+        raise HTTPException(403, 'Enlace no válido.')
+    with connect() as db:
+        row = db.execute('SELECT status, order_number FROM jobs WHERE id=?', (job,)).fetchone()
+    if not row:
+        raise HTTPException(404, 'No encontrado.')
+    state = {'COMPLETADO': 'listo', 'ERROR': 'revision', 'REVISAR': 'revision'}.get(row['status'], 'procesando')
+    return {'estado': state, 'orden': row['order_number']}
 
 
 def _is_admin_session(request: Request) -> str | None:
