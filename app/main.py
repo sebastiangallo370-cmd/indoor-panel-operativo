@@ -1510,8 +1510,8 @@ def _too_many(bucket: str, request: Request, limit: int, seconds: int = 60) -> b
         return len(hits) > limit
 
 
-def _order_progress(headers: list, rows: list) -> dict:
-    """Estado de una orden (puede tener varias referencias) por proceso, solo con estados."""
+def _row_steps(headers: list, values: list) -> list:
+    """Estado de cada proceso (sin DISEÑO) para una referencia."""
     steps = []
     for index, process in enumerate(PROCESS_FLOW):
         label = process['label']
@@ -1520,88 +1520,101 @@ def _order_progress(headers: list, rows: list) -> dict:
         columns = [i for i, h in enumerate(headers) if official_process(h) == index and operator_process_header(h)]
         if not columns:
             continue
-        states = []
-        for values in rows:
-            cells = [str(values[i] or '').strip().upper() for i in columns]
-            closed = [c == 'N/A' or bool(parse_production_date(c)) for c in cells]
-            states.append('rework' if 'R' in cells else 'active' if 'P' in cells else 'finished' if closed and all(closed) else 'partial' if any(closed) else 'pending')
-        if 'rework' in states:
-            state = 'rework'
-        elif 'active' in states:
-            state = 'active'
-        elif all(x == 'finished' for x in states):
-            state = 'finished'
-        elif any(x in ('finished', 'partial') for x in states):
-            state = 'active'
-        else:
-            state = 'pending'
-        steps.append({'proceso': label, 'estado': state})
-    done = sum(1 for x in steps if x['estado'] == 'finished')
-    if steps and done == len(steps):
-        overall, current = 'finished', ''
-    elif any(x['estado'] == 'rework' for x in steps):
-        overall, current = 'rework', next(x['proceso'] for x in steps if x['estado'] == 'rework')
-    elif any(x['estado'] == 'active' for x in steps):
-        overall, current = 'active', [x['proceso'] for x in steps if x['estado'] == 'active'][-1]
-    else:
-        overall, current = 'pending', next((x['proceso'] for x in steps if x['estado'] != 'finished'), '')
-    due_idx = next((i for i, h in enumerate(headers) if str(h).strip().upper() == 'FECHA DE ENTREGA'), -1)
-    due = None
-    if due_idx >= 0:
-        dates = [d for d in (parse_production_date(str(v[due_idx])) for v in rows) if d]
-        due = min(dates).isoformat() if dates else None
-    return {'estado': overall, 'proceso_actual': current, 'porcentaje': round(done / len(steps) * 100) if steps else 0,
-            'procesos': steps, 'entrega': due}
+        cells = [str(values[i] or '').strip().upper() for i in columns]
+        closed = [c == 'N/A' or bool(parse_production_date(c)) for c in cells]
+        state = 'rework' if 'R' in cells else 'active' if 'P' in cells else 'finished' if closed and all(closed) else 'partial' if any(closed) else 'pending'
+        steps.append((label, state))
+    return steps
 
 
-def _order_progress(headers: list, rows: list) -> dict:
-    """Estado de una orden (puede tener varias referencias) por proceso, solo con estados."""
-    steps = []
-    for index, process in enumerate(PROCESS_FLOW):
-        label = process['label']
-        if _plain_text(label) == 'DISENO':
+def _furthest(steps: list) -> tuple:
+    """(posición, estado, texto) del proceso MÁS AVANZADO que ya empezó; solo eso se le muestra al cliente."""
+    for position in range(len(steps) - 1, -1, -1):
+        label, state = steps[position]
+        if state == 'pending':
             continue
-        columns = [i for i, h in enumerate(headers) if official_process(h) == index and operator_process_header(h)]
-        if not columns:
-            continue
-        states = []
-        for values in rows:
-            cells = [str(values[i] or '').strip().upper() for i in columns]
-            closed = [c == 'N/A' or bool(parse_production_date(c)) for c in cells]
-            states.append('rework' if 'R' in cells else 'active' if 'P' in cells else 'finished' if closed and all(closed) else 'partial' if any(closed) else 'pending')
-        if 'rework' in states:
-            state = 'rework'
-        elif 'active' in states:
-            state = 'active'
-        elif all(x == 'finished' for x in states):
-            state = 'finished'
-        elif any(x in ('finished', 'partial') for x in states):
-            state = 'active'
-        else:
-            state = 'pending'
-        steps.append({'proceso': label, 'estado': state})
-    done = sum(1 for x in steps if x['estado'] == 'finished')
-    if steps and done == len(steps):
-        overall, current = 'finished', ''
-    elif any(x['estado'] == 'rework' for x in steps):
-        overall, current = 'rework', next(x['proceso'] for x in steps if x['estado'] == 'rework')
-    elif any(x['estado'] == 'active' for x in steps):
-        overall, current = 'active', [x['proceso'] for x in steps if x['estado'] == 'active'][-1]
-    else:
-        overall, current = 'pending', next((x['proceso'] for x in steps if x['estado'] != 'finished'), '')
-    due_idx = next((i for i, h in enumerate(headers) if str(h).strip().upper() == 'FECHA DE ENTREGA'), -1)
-    due = None
-    if due_idx >= 0:
-        dates = [d for d in (parse_production_date(str(v[due_idx])) for v in rows) if d]
-        due = min(dates).isoformat() if dates else None
-    return {'estado': overall, 'proceso_actual': current, 'porcentaje': round(done / len(steps) * 100) if steps else 0,
-            'procesos': steps, 'entrega': due}
+        if state == 'finished' and position == len(steps) - 1:
+            return position, 'finished', 'Terminado'
+        if state == 'finished':
+            return position, 'active', f'Terminó {label}'
+        if state == 'rework':
+            return position, 'rework', f'En revisión · {label}'
+        return position, 'active', f'En proceso · {label}'
+    return -1, 'pending', 'Recibido · en cola de producción'
+
+
+def _assets_with_timeout(source_row: int, seconds: int = 12):
+    """Mockups de una referencia con tope de espera; si el NAS tarda o falla, se recuerda el resultado para no repetir la espera."""
+    entry = _ASSET_CACHE.get(source_row)
+    if entry:
+        return entry[1]
+    result = {}
+
+    def work():
+        try:
+            payload = _compute_card_assets(source_row)
+        except Exception:
+            payload = {'images': []}
+        with _ASSET_LOCK:
+            _ASSET_CACHE[source_row] = (time.monotonic(), payload)
+        result['payload'] = payload
+    worker = threading.Thread(target=work, daemon=True)
+    worker.start()
+    worker.join(seconds)
+    return result.get('payload')
+
+
+def _signed_images(source_row: int, payload: dict, expires: int) -> list:
+    urls = []
+    for image in ((payload or {}).get('images') or [])[:4]:
+        design = image.get('design')
+        if isinstance(design, int):
+            sig = _session_signature(f'mockup|{source_row}|{design}|{expires}')
+            urls.append(f'/api/consulta-pedido/mockup/{source_row}/{design}?e={expires}&s={sig}')
+    return urls
+
+
+def _public_mockup_info(source_row: int) -> dict:
+    """Si los mockups ya están en memoria se entregan; si no, se da un enlace firmado para pedirlos aparte (sin hacer esperar la consulta)."""
+    expires = int(time.time()) + 1800
+    entry = _ASSET_CACHE.get(source_row)
+    if entry:
+        return {'mockups': _signed_images(source_row, entry[1], expires), 'mockups_lista': None}
+    sig = _session_signature(f'mockups|{source_row}|{expires}')
+    return {'mockups': [], 'mockups_lista': f'/api/consulta-pedido/mockups/{source_row}?e={expires}&s={sig}'}
+
+
+@app.get('/api/consulta-pedido/mockups/{source_row}')
+def consulta_publica_lista_mockups(request: Request, source_row: int, e: int = 0, s: str = ''):
+    if _too_many('consulta-lista', request, 40):
+        raise HTTPException(429, 'Demasiadas solicitudes.')
+    if e < time.time() or not hmac.compare_digest(str(s), _session_signature(f'mockups|{source_row}|{e}')):
+        raise HTTPException(403, 'Enlace vencido. Vuelve a consultar tu pedido.')
+    return {'mockups': _signed_images(source_row, _assets_with_timeout(source_row), int(time.time()) + 1800)}
+
+
+@app.get('/api/consulta-pedido/mockup/{source_row}/{design}')
+def consulta_publica_mockup(request: Request, source_row: int, design: int, e: int = 0, s: str = ''):
+    """Imagen de un mockup para la consulta pública: solo con el enlace firmado y temporal que entrega la consulta."""
+    if _too_many('consulta-img', request, 90):
+        raise HTTPException(429, 'Demasiadas solicitudes.')
+    if e < time.time() or not hmac.compare_digest(str(s), _session_signature(f'mockup|{source_row}|{design}|{e}')):
+        raise HTTPException(403, 'Enlace vencido. Vuelve a consultar tu pedido.')
+    with _ASSET_LOCK:
+        hit = _IMAGE_CACHE.get((source_row, design))
+    if not hit:
+        _assets_with_timeout(source_row)
+        with _ASSET_LOCK:
+            hit = _IMAGE_CACHE.get((source_row, design))
+    if not hit:
+        raise HTTPException(404, 'Imagen no encontrada.')
+    return Response(hit[2], media_type=hit[1], headers={'Cache-Control': 'private, max-age=1800', 'X-Content-Type-Options': 'nosniff'})
 
 
 @app.get('/api/consulta-pedido')
 def consulta_publica_pedido(request: Request, q: str = '', orden: str = ''):
-    """Consulta pública para el cliente: en qué proceso va su pedido, por número de orden o por nombre del cliente.
-    Solo devuelve estados (nada de cantidades, referencias, notas ni precios)."""
+    """Consulta pública para el cliente, por número de orden o por nombre del cliente: sus órdenes, la referencia, el mockup
+    y solo el proceso más avanzado. Nada de cantidades, notas ni precios."""
     if _too_many('consulta', request, 12):
         raise HTTPException(429, 'Demasiadas consultas. Intenta de nuevo en un minuto.')
     text = ' '.join(str(q or orden or '').split())
@@ -1617,35 +1630,47 @@ def consulta_publica_pedido(request: Request, q: str = '', orden: str = ''):
         meta = {r['key']: r['value'] for r in db.execute("SELECT key,value FROM production_meta WHERE key='headers'")}
         headers = json.loads(meta.get('headers') or '[]')
         index = {str(h).strip().upper(): i for i, h in enumerate(headers)}
-        order_idx, client_idx, project_idx = index.get('ORDEN', -1), index.get('NOMBRE DEL CLIENTE', -1), index.get('NOMBRE PROYECTO', -1)
+        order_idx, client_idx = index.get('ORDEN', -1), index.get('NOMBRE DEL CLIENTE', -1)
+        project_idx, ref_idx, due_idx = index.get('NOMBRE PROYECTO', -1), index.get('REFERENCIA', -1), index.get('FECHA DE ENTREGA', -1)
         matches = []
-        for raw in db.execute('SELECT values_json FROM production_rows'):
+        for raw in db.execute('SELECT source_row, values_json FROM production_rows ORDER BY source_row'):
             values = json.loads(raw['values_json'])
             values = values + [''] * max(0, len(headers) - len(values))
             order_value = re.sub(r'[\s-]+', '', str(values[order_idx])).upper() if order_idx >= 0 else ''
             if not order_value:
                 continue
             if by_order:
-                if order_value == compact:
-                    matches.append(values)
-            elif client_idx >= 0:
-                name = _plain_text(values[client_idx])
-                if name and all(t in name for t in tokens):
-                    matches.append(values)
+                ok = order_value == compact
+            else:
+                name = _plain_text(values[client_idx]) if client_idx >= 0 else ''
+                ok = bool(name) and all(t in name for t in tokens)
+            if ok:
+                matches.append((raw['source_row'], order_value, values))
     finally:
         db.close()
     if not matches:
         raise HTTPException(404, 'No encontramos ese pedido. Revisa el dato o comunícate con tu asesor.')
-    if not by_order and len({_plain_text(v[client_idx]) for v in matches}) > 1:
+    if not by_order and len({_plain_text(v[client_idx]) for _, _, v in matches}) > 1:
         return {'tipo': 'varios', 'mensaje': 'Hay varios clientes con ese nombre. Escribe el nombre completo o tu número de orden.'}
     grouped: dict = {}
-    for values in matches:
-        grouped.setdefault(re.sub(r'[\s-]+', '', str(values[order_idx])).upper(), []).append(values)
+    for source_row, order_value, values in matches:
+        grouped.setdefault(order_value, []).append((source_row, values))
     pedidos = []
     for order_value, rows in grouped.items():
-        item = {'orden': order_value, **_order_progress(headers, rows)}
+        references, best = [], (-2, 'pending', 'Recibido · en cola de producción')
+        for source_row, values in rows[:12]:
+            result = _furthest(_row_steps(headers, values))
+            if (result[0], not result[2].startswith('Terminó')) > (best[0], not best[2].startswith('Terminó')):
+                best = result
+            references.append({'referencia': ' '.join(str(values[ref_idx] or '').split())[:80] if ref_idx >= 0 else '',
+                               'estado': result[1], 'texto': result[2], **_public_mockup_info(source_row)})
+        due = None
+        if due_idx >= 0:
+            dates = [d for d in (parse_production_date(str(v[due_idx])) for _, v in rows) if d]
+            due = min(dates).isoformat() if dates else None
+        item = {'orden': order_value, 'estado': best[1], 'texto': best[2], 'entrega': due, 'referencias': references}
         if not by_order and project_idx >= 0:
-            item['proyecto'] = ' '.join(str(rows[0][project_idx] or '').split())[:80]
+            item['proyecto'] = ' '.join(str(rows[0][1][project_idx] or '').split())[:80]
         pedidos.append(item)
     pedidos.sort(key=lambda x: (x['estado'] == 'finished', x['entrega'] or '9999'))
     return {'tipo': 'orden' if by_order else 'cliente', 'pedidos': pedidos[:10], 'total': len(pedidos)}
