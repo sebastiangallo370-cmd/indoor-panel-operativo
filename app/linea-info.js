@@ -83,9 +83,14 @@
 
   function find(name){
     var key=plain(name);
-    for(var i=0;i<data.lineas.length;i++)if(plain(data.lineas[i].nombre)===key)return data.lineas[i];
+    for(var i=0;i<data.lineas.length;i++){
+      var l=data.lineas[i];
+      if(plain(l.nombre)===key)return l;
+      if((l.alias||[]).some(function(a){return plain(a)===key}))return l;
+    }
     return null;
   }
+  function edition(){return 'Especificaciones por línea'+(data.edicion?' · '+data.edicion:'')}
   function pad(n){return n<10?'0'+n:''+n}
   function render(overlay,name,chipName){
     var line=find(name),card=overlay.querySelector('.li-card');
@@ -96,12 +101,12 @@
     var body;
     if(line&&n)body='<ol class="li-list">'+line.caracteristicas.map(function(c,i){return '<li><b>'+pad(i+1)+'</b><span>'+esc(c)+'</span></li>'}).join('')+'</ol>';
     else if(line)body='<p class="li-empty">'+esc(line.nota||'Las especificaciones de esta línea están pendientes de definir.')+'</p>';
-    else body='<p class="li-empty">Esta línea no aparece en el documento «Líneas de producto» ('+esc(data.fuente.split('·').pop().trim())+'). El documento define '+data.lineas.map(function(l){return l.nombre.charAt(0)+l.nombre.slice(1).toLowerCase()}).join(', ').replace(/, ([^,]*)$/,' y $1')+'. Elige una arriba para ver lo que incluye.</p>';
+    else body='<p class="li-empty">Esta línea no aparece en el documento «Líneas de producto» ('+esc(data.edicion||'')+'). El documento define '+data.lineas.map(function(l){return l.nombre.charAt(0)+l.nombre.slice(1).toLowerCase()}).join(', ').replace(/, ([^,]*)$/,' y $1')+'. Elige una arriba para ver lo que incluye.</p>';
     var tabs='<div class="li-tabs" role="tablist" aria-label="Líneas de producto">'+data.lineas.map(function(l){return '<button type="button" role="tab" data-li-tab="'+esc(l.nombre)+'" aria-pressed="'+(!!line&&l.nombre===line.nombre)+'">'+esc(l.nombre)+'</button>'}).join('')+'</div>';
-    var slug=plain(title).replace(/[^A-Z0-9]/g,''),mockUrl=data.mockups&&data.mockups[slug];
+    var slug=line?(line.id||plain(title).replace(/[^A-Z0-9]/g,'')):plain(title).replace(/[^A-Z0-9]/g,''),mockUrl=data.mockups&&data.mockups[slug];
     var mock=mockUrl?'<div class="li-mock"><div class="li-mock-tag"><i></i>MOCKUP DE REFERENCIA</div><a class="li-stage" href="'+esc(mockUrl)+'" target="_blank" rel="noopener" title="Ver en grande"><img src="'+esc(mockUrl)+'" alt="Mockup de la línea '+esc(title)+'"><span class="li-zoom" aria-hidden="true">⤢</span></a><div class="li-mock-cap">Línea '+esc(title)+'</div></div>':'';
     var top='<div class="li-top"><span class="li-logo" role="img" aria-label="Indoor"></span><span>LÍNEAS DE PRODUCTO</span></div>';
-    var pane='<div class="li-pane"><div class="li-title"><i class="li-bar"></i><h2 id="li-title">'+esc(title)+'</h2></div><p class="li-sub"><span class="li-count">'+esc(count)+'</span><span>'+esc(data.fuente.split('·').slice(1).join('·').trim())+'</span></p>'+body+'</div>';
+    var pane='<div class="li-pane"><div class="li-title"><i class="li-bar"></i><h2 id="li-title">'+esc(title)+'</h2></div><p class="li-sub"><span class="li-count">'+esc(count)+'</span><span>'+esc(edition())+'</span></p>'+body+'</div>';
     var foot='<div class="li-foot"><span class="li-foot-l"><img class="li-iso" src="/favicon.svg" alt=""><i>'+esc(data.lema||'')+'</i></span><span>Documento interno · Indoor Sport</span></div>';
     card.style.setProperty('--ac',accent);
     card.classList.toggle('has-mock',!!mockUrl);
@@ -155,5 +160,6 @@
     var chip=event.target.closest&&event.target.closest('.trace-line[data-line]');
     if(chip){event.preventDefault();open(chip.dataset.line,chip)}
   });
+  window.addEventListener('lineas-actualizadas',function(){data=null;loading=null;load()});
   load();
 })();

@@ -1152,6 +1152,10 @@ def linea_info_js():
 
 
 LINEAS_MOCKUPS_DIR = STATE_DIR.parent / 'lineas_mockups'
+LINEAS_FILE = STATE_DIR.parent / 'lineas_producto.json'
+LINEAS_HISTORIAL = STATE_DIR.parent / 'lineas_producto_historial'
+LINEA_ESTILOS = ('premium', 'estandar', 'plus', 'maquila', 'otro')
+_lineas_lock = threading.Lock()
 
 
 def _linea_slug(value) -> str:
@@ -1159,8 +1163,44 @@ def _linea_slug(value) -> str:
     return re.sub(r'[^A-Z0-9]', '', plain.upper())
 
 
+def _can_edit_lines(username: str) -> bool:
+    """Pueden editar las líneas: el usuario administrador y los perfiles Administración o Coordinador."""
+    if username == os.getenv('APP_USER', 'indoor'):
+        return True
+    with connect() as db:
+        profile = db.execute('SELECT process FROM users WHERE name=? COLLATE NOCASE', (username,)).fetchone()
+    return bool(profile and can_delete_rework_profile(profile['process']))
+
+
+def _normalize_lineas(data: dict) -> dict:
+    """Cada línea lleva un id estable (nombre del mockup), alias (cómo aparece en la columna B del Sheet) y nota."""
+    used = set()
+    for line in data.get('lineas', []):
+        line.setdefault('alias', [])
+        line.setdefault('nota', '')
+        if line.get('estilo') not in LINEA_ESTILOS:
+            line['estilo'] = 'otro'
+        ident = _linea_slug(line.get('id') or line.get('nombre')) or 'LINEA'
+        base, n = ident, 2
+        while ident in used:
+            ident, n = f'{base}{n}', n + 1
+        line['id'] = ident
+        used.add(ident)
+    if 'edicion' not in data:
+        data['edicion'] = str(data.get('fuente', '')).split('·')[-1].strip()
+    return data
+
+
+def _load_lineas() -> dict:
+    try:
+        data = json.loads(LINEAS_FILE.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        data = json.loads(Path(__file__).with_name('lineas_producto.json').read_text(encoding='utf-8'))
+    return _normalize_lineas(data)
+
+
 def _linea_mockups() -> dict:
-    """Mockup de referencia por línea: /data/lineas_mockups/<LINEA>.png|jpg|webp (p. ej. PLUS.png, ESTANDAR.jpg)."""
+    """Mockup de referencia por línea: /data/lineas_mockups/<ID>.jpg|png|webp."""
     found = {}
     if LINEAS_MOCKUPS_DIR.is_dir():
         for path in sorted(LINEAS_MOCKUPS_DIR.iterdir()):
@@ -1170,12 +1210,81 @@ def _linea_mockups() -> dict:
     return found
 
 
+def _lineas_response(username: str) -> dict:
+    data = _load_lineas()
+    data['mockups'] = _linea_mockups()
+    data['puede_editar'] = _can_edit_lines(username)
+    data['estilos'] = list(LINEA_ESTILOS)
+    return data
+
+
+def _clean_text(value, limit: int) -> str:
+    return ' '.join(str(value or '').split())[:limit]
+
+
 @app.get('/api/lineas-producto')
 def lineas_producto(_=Depends(authenticate)):
-    """Qué incluye cada línea de producto (documento «Líneas de producto») y qué líneas tienen mockup."""
-    data = json.loads(Path(__file__).with_name('lineas_producto.json').read_text(encoding='utf-8'))
-    data['mockups'] = _linea_mockups()
-    return data
+    """Qué incluye cada línea de producto y qué líneas tienen mockup."""
+    return _lineas_response(_)
+
+
+@app.put('/api/lineas-producto')
+def lineas_producto_guardar(payload: dict = Body(...), _=Depends(authenticate)):
+    if not _can_edit_lines(_):
+        raise HTTPException(403, 'Tu usuario no puede editar las líneas de producto')
+    raw_lines = payload.get('lineas')
+    if not isinstance(raw_lines, list) or not 1 <= len(raw_lines) <= 20:
+        raise HTTPException(400, 'Debe haber entre 1 y 20 líneas')
+    lines, names, ids, claimed = [], set(), set(), {}
+    for raw in raw_lines:
+        if not isinstance(raw, dict):
+            raise HTTPException(400, 'Formato de línea no válido')
+        nombre = _clean_text(raw.get('nombre'), 40).upper()
+        slug = _linea_slug(nombre)
+        if not slug:
+            raise HTTPException(400, 'Cada línea necesita un nombre')
+        if slug in claimed:
+            raise HTTPException(400, f'El nombre {nombre} está repetido')
+        claimed[slug] = nombre
+        ident = _linea_slug(raw.get('id')) or slug
+        base, n = ident, 2
+        while ident in ids:
+            ident, n = f'{base}{n}', n + 1
+        ids.add(ident)
+        alias = []
+        for item in (raw.get('alias') or [])[:10]:
+            text = _clean_text(item, 40).upper()
+            key = _linea_slug(text)
+            if not key or key == slug or key in claimed:
+                if key and key != slug:
+                    raise HTTPException(400, f'«{text}» ya está usado por otra línea')
+                continue
+            claimed[key] = nombre
+            alias.append(text)
+        features = [_clean_text(c, 160).upper() for c in (raw.get('caracteristicas') or [])]
+        lines.append({
+            'id': ident, 'nombre': nombre,
+            'estilo': raw.get('estilo') if raw.get('estilo') in LINEA_ESTILOS else 'otro',
+            'alias': alias, 'caracteristicas': [c for c in features if c][:30],
+            'nota': _clean_text(raw.get('nota'), 300),
+        })
+    previous = _load_lineas()
+    edicion = _clean_text(payload.get('edicion'), 40)
+    data = {
+        'fuente': 'Líneas de producto · Especificaciones por línea' + (f' · {edicion}' if edicion else ''),
+        'edicion': edicion, 'documento': previous.get('documento', ''), 'lema': previous.get('lema', ''),
+        'lineas': lines, 'editado_por': _, 'editado_en': datetime.now(timezone.utc).isoformat(),
+    }
+    with _lineas_lock:
+        LINEAS_HISTORIAL.mkdir(parents=True, exist_ok=True)
+        if LINEAS_FILE.exists():
+            shutil.copy2(LINEAS_FILE, LINEAS_HISTORIAL / f"lineas-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}.json")
+            for old in sorted(LINEAS_HISTORIAL.glob('lineas-*.json'))[:-25]:
+                old.unlink(missing_ok=True)
+        tmp = LINEAS_FILE.with_suffix('.tmp')
+        tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
+        os.replace(tmp, LINEAS_FILE)
+    return _lineas_response(_)
 
 
 @app.get('/api/lineas-producto/mockup/{slug}')
@@ -1187,6 +1296,62 @@ def linea_mockup(slug: str, v: str = '', _=Depends(authenticate)):
                 cache = 'private, max-age=31536000, immutable' if v else 'private, no-cache'
                 return FileResponse(path, headers={'Cache-Control': cache, 'X-Content-Type-Options': 'nosniff'})
     raise HTTPException(404, 'Esa línea no tiene mockup')
+
+
+def _save_linea_mockup(ident: str, content: bytes):
+    import io
+    from PIL import Image
+    image = Image.open(io.BytesIO(content))
+    image.load()
+    if image.mode in ('RGBA', 'LA', 'P'):
+        image = image.convert('RGBA')
+        background = Image.new('RGB', image.size, 'white')
+        background.paste(image, mask=image.split()[-1])
+        image = background
+    else:
+        image = image.convert('RGB')
+    image.thumbnail((1100, 1950))
+    LINEAS_MOCKUPS_DIR.mkdir(parents=True, exist_ok=True)
+    tmp = LINEAS_MOCKUPS_DIR / f'.{ident}.tmp.jpg'
+    image.save(tmp, 'JPEG', quality=86, optimize=True)
+    for other in LINEAS_MOCKUPS_DIR.iterdir():
+        if other.is_file() and other != tmp and _linea_slug(other.stem) == ident:
+            other.unlink(missing_ok=True)
+    os.replace(tmp, LINEAS_MOCKUPS_DIR / f'{ident}.jpg')
+
+
+@app.post('/api/lineas-producto/mockup/{ident}')
+async def linea_mockup_subir(ident: str, file: UploadFile = File(...), _=Depends(authenticate)):
+    if not _can_edit_lines(_):
+        raise HTTPException(403, 'Tu usuario no puede editar las líneas de producto')
+    ident = _linea_slug(ident)
+    if ident not in {line['id'] for line in _load_lineas()['lineas']}:
+        raise HTTPException(404, 'Guarda primero la línea y luego sube su imagen')
+    content = await file.read()
+    if not content or len(content) > 12 * 1024 * 1024:
+        raise HTTPException(413, 'La imagen debe pesar menos de 12 MB')
+    try:
+        await asyncio.to_thread(_save_linea_mockup, ident, content)
+    except Exception:
+        raise HTTPException(400, 'No se pudo leer la imagen. Usa un JPG, PNG o WEBP')
+    return {'ok': True, 'mockups': _linea_mockups()}
+
+
+@app.delete('/api/lineas-producto/mockup/{ident}')
+def linea_mockup_quitar(ident: str, _=Depends(authenticate)):
+    if not _can_edit_lines(_):
+        raise HTTPException(403, 'Tu usuario no puede editar las líneas de producto')
+    clean = _linea_slug(ident)
+    if clean and LINEAS_MOCKUPS_DIR.is_dir():
+        for path in LINEAS_MOCKUPS_DIR.iterdir():
+            if path.is_file() and _linea_slug(path.stem) == clean:
+                path.unlink(missing_ok=True)
+    return {'ok': True, 'mockups': _linea_mockups()}
+
+
+@app.get('/linea-editor.js')
+def linea_editor_js():
+    return FileResponse(Path(__file__).with_name('linea-editor.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
 
 
 @app.get('/salud.js')
@@ -5055,7 +5220,7 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
 `;document.head.appendChild(traceFigmaStyle);setTraceView();
     const commercialGroup=commercialToggle.closest('.nav-group');commercialGroup.classList.add('collapsed');const productionToggle=document.getElementById('production-toggle');if(productionToggle)productionToggle.addEventListener('click',()=>{{const g=productionToggle.closest('.nav-group');g.classList.toggle('collapsed');if(!g.classList.contains('collapsed')&&window.innerWidth>860)g.querySelector('.nav-children .tab')?.click()}});
     setTimeout(()=>{{if(!document.querySelector('.panel.active'))document.querySelector('.tab[data-kind="inicio"]')?.click()}},0);
-    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/api/cartera/cartera.js?v=20261002-5'></script><script src='/trace-ui.js?v=20261002-12'></script><script src='/home-dashboard.js?v=20261001-8'></script><script src='/bodega-dashboard.js?v=20261002-10'></script><script src='/bodegas.js?v=20261002-4'></script><script src='/mobile-nav.js?v=20261002-10'></script><script src='/build-watch.js?v=20261002-1'></script><script src='/salud.js?v=20261002-1'></script><script src='/tema.js?v=20261002-3'></script><script src='/tarjeta-iconos.js?v=20261002-5'></script><script src='/linea-info.js?v=20261002-6'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
+    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/api/cartera/cartera.js?v=20261002-5'></script><script src='/trace-ui.js?v=20261002-12'></script><script src='/home-dashboard.js?v=20261001-8'></script><script src='/bodega-dashboard.js?v=20261002-10'></script><script src='/bodegas.js?v=20261002-4'></script><script src='/mobile-nav.js?v=20261002-10'></script><script src='/build-watch.js?v=20261002-1'></script><script src='/salud.js?v=20261002-1'></script><script src='/tema.js?v=20261002-3'></script><script src='/tarjeta-iconos.js?v=20261002-5'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/linea-editor.js?v=20261003-1'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
 
 
 def ordered_mockup_uploads(extras, slots):
