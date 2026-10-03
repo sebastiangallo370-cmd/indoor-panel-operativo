@@ -9,6 +9,7 @@ import re
 from difflib import SequenceMatcher
 import secrets
 import shutil
+import tempfile
 import sqlite3
 import threading
 import time
@@ -1750,7 +1751,7 @@ def _client_match(first: str, second: str) -> bool:
     return bool(a and b) and len(a & b) / min(len(a), len(b)) >= 0.6
 
 
-def _order_already_exists(db, new_order: str, doc_hash: str) -> str:
+def _order_already_exists(db, new_order: str, doc_hash: str, ignore_review: bool = False) -> str:
     """Motivo por el que NO se puede programar (ya se produjo, se programó o se envió antes); '' si está libre."""
     compact = lambda v: re.sub(r'[\s-]+', '', str(v or '')).upper()
     headers = json.loads((db.execute("SELECT value FROM production_meta WHERE key='headers'").fetchone() or ['[]'])[0] or '[]')
@@ -1768,7 +1769,8 @@ def _order_already_exists(db, new_order: str, doc_hash: str) -> str:
                     continue
                 if order_idx < len(values) and compact(values[order_idx]) == new_order:
                     return 'Esa cotización o remisión ya fue usada en un pedido anterior.'
-    if db.execute("SELECT 1 FROM jobs WHERE order_number=? AND status<>'ERROR' LIMIT 1", (new_order,)).fetchone():
+    skipped = ('ERROR', 'REVISAR') if ignore_review else ('ERROR',)
+    if db.execute(f"SELECT 1 FROM jobs WHERE order_number=? AND status NOT IN ({','.join('?' * len(skipped))}) LIMIT 1", (new_order, *skipped)).fetchone():
         return 'Esa cotización o remisión ya fue enviada y se está programando.'
     db.execute('CREATE TABLE IF NOT EXISTS web_repeat_requests(id INTEGER PRIMARY KEY AUTOINCREMENT, doc_hash TEXT, new_order TEXT, prev_order TEXT, ip TEXT, job_id INTEGER, created_at TEXT)')
     if db.execute('SELECT 1 FROM web_repeat_requests r LEFT JOIN jobs j ON j.id=r.job_id WHERE (r.doc_hash=? OR r.new_order=?) AND COALESCE(j.status,\'\')<>\'ERROR\' LIMIT 1', (doc_hash, new_order)).fetchone():
@@ -5849,6 +5851,38 @@ async def upload(
     return {"id": job_id, "estado": "RECIBIDO", "mensaje": "El documento se está procesando"}
 
 
+def _reject_existing_order(pdf_bytes: bytes, pdf_name: str):
+    """Impide programar una orden que ya está en el sistema (producción, tarjetas eliminadas, pedidos enviados o carpeta del NAS)."""
+    tmp = Path(tempfile.mkdtemp(prefix='chk-'))
+    try:
+        path = tmp / 'documento.pdf'
+        path.write_bytes(pdf_bytes)
+        try:
+            _, header, _, _ = legacy.extraer_info_pdf(str(path))
+        except Exception:
+            return ''  # el procesamiento normal informará si el PDF no se puede leer
+        prefix, number = pedidos.extraer_prefijo_numero_nombre(pdf_name)
+        order = str(header.get('orden') or (f'{prefix}{number}' if number else '')).upper()
+        if not order:
+            return ''
+        db = connect()
+        try:
+            reason = _order_already_exists(db, order, hashlib.sha256(pdf_bytes).hexdigest(), ignore_review=True)
+        finally:
+            db.close()
+        if not reason:
+            try:
+                if _nas_has_order(str(header.get('cliente') or ''), order):
+                    reason = 'Esa orden ya tiene carpeta de producción en el NAS.'
+            except (HTTPException, OSError):
+                pass
+        if reason:
+            raise HTTPException(409, f'La orden {order} ya está en el sistema. ' + reason)
+        return order
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 @app.post("/procesar/pedido", status_code=202)
 async def upload_order(
     pdf: UploadFile = File(...),
@@ -5881,6 +5915,7 @@ async def upload_order(
         if total > 75 * 1024 * 1024:
             raise HTTPException(413, "El conjunto de archivos supera 75 MB")
         contents.append(content)
+    checked_order = await asyncio.to_thread(_reject_existing_order, contents[0], pdf.filename)
     stamp = datetime.now().strftime("%Y%m%d%H%M%S%f")
     job_dir = UPLOAD_DIR / "pedidos" / stamp
     job_dir.mkdir(parents=True, exist_ok=False)
@@ -5898,8 +5933,8 @@ async def upload_order(
         display_name += f" + {len(valid_extras)} anexo(s)"
     with connect() as db:
         cursor = db.execute(
-            "INSERT INTO jobs(filename,status,detail,created_at,updated_at,kind,input_summary) VALUES(?,?,?,?,?,?,?)",
-            (display_name, "RECIBIDO", "En cola", now, now, "pedido", json.dumps({'observaciones': observaciones.strip(), 'linea': linea.strip()}, ensure_ascii=False)),
+            "INSERT INTO jobs(filename,status,detail,created_at,updated_at,kind,input_summary,order_number) VALUES(?,?,?,?,?,?,?,?)",
+            (display_name, "RECIBIDO", "En cola", now, now, "pedido", json.dumps({'observaciones': observaciones.strip(), 'linea': linea.strip()}, ensure_ascii=False), checked_order or None),
         )
         job_id = cursor.lastrowid
     asyncio.create_task(asyncio.to_thread(process_order_job, job_id, job_dir, saved[0], saved[1], observaciones.strip(), str(_), linea.strip()))
