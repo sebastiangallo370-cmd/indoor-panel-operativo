@@ -1566,13 +1566,56 @@ def _assets_with_timeout(source_row: int, seconds: int = 12):
     return result.get('payload')
 
 
-def _signed_images(source_row: int, payload: dict, expires: int) -> list:
+_PUBLIC_EXTRA: dict = {}
+
+
+def _ref_file_match(stem: str, reference: str) -> bool:
+    parts = [x for x in re.split(r'[^A-Z0-9]+', stem.upper()) if x]
+    ref = reference.upper().strip()
+    tokens = {t for t in re.findall(r'[A-Z]+\d+', ref) if len(re.sub(r'\d', '', t)) >= 2}
+    return any(x == ref or x in tokens for x in parts)
+
+
+def _folder_design_numbers(source_row: int) -> list:
+    """Todos los mockups de la referencia que hay en la carpeta del pedido (más de los 4 del listado). Se guardan en memoria y se devuelven sus números."""
+    hit = _PUBLIC_EXTRA.get(source_row)
+    if hit and time.monotonic() - hit[0] < 600:
+        return hit[1]
+    numbers = []
+    try:
+        files, _, _client = production_row_files(source_row, excel_only=True)
+        folder = files[0].parent if files else None
+        with connect() as db:
+            record = db.execute('SELECT values_json FROM production_rows WHERE source_row=?', (source_row,)).fetchone()
+            headers = json.loads(db.execute("SELECT value FROM production_meta WHERE key='headers'").fetchone()[0])
+        values = json.loads(record['values_json']) if record else []
+        ref_idx = next((i for i, h in enumerate(headers) if str(h).strip().upper() == 'REFERENCIA'), -1)
+        reference = str(values[ref_idx]).strip() if 0 <= ref_idx < len(values) else ''
+        if folder and reference:
+            images = [p for p in folder.iterdir() if p.is_file() and not p.is_symlink() and p.suffix.lower() in ('.png', '.jpg', '.jpeg', '.webp')
+                      and _ref_file_match(p.stem, reference) and p.stat().st_size <= 8 * 1024 * 1024]
+            images.sort(key=lambda p: [int(x) if x.isdigit() else x for x in re.split(r'(\d+)', p.name.casefold())])
+            for k, path in enumerate(images[:24]):
+                data = path.read_bytes()
+                mime = {'.png': 'image/png', '.webp': 'image/webp'}.get(path.suffix.lower(), 'image/jpeg')
+                _remember_image(source_row, 101 + k, hashlib.sha256(data).hexdigest()[:20], mime, data)
+                numbers.append(101 + k)
+    except Exception:
+        numbers = []
+    _PUBLIC_EXTRA[source_row] = (time.monotonic(), numbers)
+    return numbers
+
+
+def _signed_images(source_row: int, payload: dict, expires: int, with_folder: bool = False) -> list:
+    designs = [image.get('design') for image in ((payload or {}).get('images') or []) if isinstance(image.get('design'), int)]
+    if with_folder:
+        extra = _folder_design_numbers(source_row)
+        if len(extra) > len(designs):
+            designs = extra
     urls = []
-    for image in ((payload or {}).get('images') or [])[:4]:
-        design = image.get('design')
-        if isinstance(design, int):
-            sig = _session_signature(f'mockup|{source_row}|{design}|{expires}')
-            urls.append(f'/api/consulta-pedido/mockup/{source_row}/{design}?e={expires}&s={sig}')
+    for design in designs[:24]:
+        sig = _session_signature(f'mockup|{source_row}|{design}|{expires}')
+        urls.append(f'/api/consulta-pedido/mockup/{source_row}/{design}?e={expires}&s={sig}')
     return urls
 
 
@@ -1580,8 +1623,8 @@ def _public_mockup_info(source_row: int) -> dict:
     """Si los mockups ya están en memoria se entregan; si no, se da un enlace firmado para pedirlos aparte (sin hacer esperar la consulta)."""
     expires = int(time.time()) + 1800
     entry = _ASSET_CACHE.get(source_row)
-    if entry:
-        return {'mockups': _signed_images(source_row, entry[1], expires), 'mockups_lista': None}
+    if entry and source_row in _PUBLIC_EXTRA:
+        return {'mockups': _signed_images(source_row, entry[1], expires, True), 'mockups_lista': None}
     sig = _session_signature(f'mockups|{source_row}|{expires}')
     return {'mockups': [], 'mockups_lista': f'/api/consulta-pedido/mockups/{source_row}?e={expires}&s={sig}'}
 
@@ -1592,7 +1635,7 @@ def consulta_publica_lista_mockups(request: Request, source_row: int, e: int = 0
         raise HTTPException(429, 'Demasiadas solicitudes.')
     if e < time.time() or not hmac.compare_digest(str(s), _session_signature(f'mockups|{source_row}|{e}')):
         raise HTTPException(403, 'Enlace vencido. Vuelve a consultar tu pedido.')
-    return {'mockups': _signed_images(source_row, _assets_with_timeout(source_row), int(time.time()) + 1800)}
+    return {'mockups': _signed_images(source_row, _assets_with_timeout(source_row), int(time.time()) + 1800, True)}
 
 
 @app.get('/api/consulta-pedido/mockup/{source_row}/{design}')
@@ -1605,7 +1648,11 @@ def consulta_publica_mockup(request: Request, source_row: int, design: int, e: i
     with _ASSET_LOCK:
         hit = _IMAGE_CACHE.get((source_row, design))
     if not hit:
-        _assets_with_timeout(source_row)
+        if design > 100:
+            _PUBLIC_EXTRA.pop(source_row, None)
+            _folder_design_numbers(source_row)
+        else:
+            _assets_with_timeout(source_row)
         with _ASSET_LOCK:
             hit = _IMAGE_CACHE.get((source_row, design))
     if not hit:
@@ -3801,7 +3848,7 @@ def _remember_image(source_row, number, digest, mime, data):
     with _ASSET_LOCK:
         _IMAGE_CACHE[(source_row, number)] = (digest, mime, data)
         _IMAGE_CACHE.move_to_end((source_row, number))
-        while len(_IMAGE_CACHE) > 400:
+        while len(_IMAGE_CACHE) > 700:
             _IMAGE_CACHE.popitem(last=False)
 
 

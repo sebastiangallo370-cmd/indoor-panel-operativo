@@ -96,9 +96,14 @@ out.addEventListener('click',function(e){var b=e.target.closest('.mk-a');if(!b)r
 (function(){var x0=null;out.addEventListener('touchstart',function(e){x0=e.touches[0].clientX},{passive:true});out.addEventListener('touchend',function(e){var mk=e.target.closest&&e.target.closest('.mk');if(x0===null||!mk||+mk.dataset.n<2)return;var dx=e.changedTouches[0].clientX-x0;if(Math.abs(dx)>40)mkGo(mk,dx<0?1:-1);x0=null})})();
 function loadMockups(){
  [].forEach.call(out.querySelectorAll('[data-list]'),function(box){
-  fetch(box.dataset.list,{credentials:'omit'}).then(function(r){return r.json()}).then(function(d){
-   if(d.mockups&&d.mockups.length)box.outerHTML=mockHtml(d.mockups,box.dataset.ref);else box.querySelector('span').textContent='Mockup en preparación';
-  }).catch(function(){box.querySelector('span').textContent='Mockup en preparación'});
+  var tries=0;
+  (function go(){
+   fetch(box.dataset.list,{credentials:'omit'}).then(function(r){return r.json()}).then(function(d){
+    if(d.mockups&&d.mockups.length){box.outerHTML=mockHtml(d.mockups,box.dataset.ref)}
+    else if(tries++<3){box.querySelector('span').textContent='Cargando mockup…';setTimeout(go,12000)}
+    else box.querySelector('span').textContent='Mockup en preparación';
+   }).catch(function(){if(tries++<3)setTimeout(go,12000);else box.querySelector('span').textContent='Mockup en preparación'});
+  })();
  });
 }
 function card(d,project){
