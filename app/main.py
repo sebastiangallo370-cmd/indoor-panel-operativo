@@ -1979,6 +1979,155 @@ def read_operator_sheet(force: bool = False):
         return None, message
 
 
+ACTION_LABELS = {'start': 'Inicio', 'finish': 'Finalizado', 'rework': 'Reproceso', 'na': 'No aplica',
+                 'clear': 'Reiniciado', 'pause': 'Pausa', 'resume': 'Reanudó'}
+
+
+def _plain_text(value) -> str:
+    return ''.join(c for c in unicodedata.normalize('NFD', str(value or '')) if not unicodedata.combining(c)).upper().strip()
+
+
+def _initials(name) -> str:
+    return ''.join(word[0] for word in _plain_text(name).split() if word)
+
+
+@app.get('/api/produccion/operarios/informe')
+def production_operators_report(desde: str = '', hasta: str = '', operario: str = '', _=Depends(authenticate)):
+    """Informe en Excel de lo que hizo cada operario en un periodo (por defecto, el mes actual)."""
+    import io
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font, PatternFill
+    from openpyxl.utils import get_column_letter
+    tz = timezone(timedelta(hours=-5))
+    today = datetime.now(tz).date()
+    try:
+        first = datetime.strptime(desde, '%Y-%m-%d').date() if desde else today.replace(day=1)
+        last = datetime.strptime(hasta, '%Y-%m-%d').date() if hasta else today
+    except ValueError:
+        raise HTTPException(400, 'Las fechas deben tener el formato AAAA-MM-DD')
+    if first > last:
+        first, last = last, first
+    if (last - first).days > 366:
+        raise HTTPException(400, 'El periodo no puede superar un año')
+    person = _plain_text(operario)
+    db = connect()
+    try:
+        meta = {r['key']: r['value'] for r in db.execute('SELECT key,value FROM production_meta')}
+        headers = json.loads(meta.get('headers', '[]'))
+        order_idx = next((i for i, h in enumerate(headers) if str(h).strip().upper() == 'ORDEN'), -1)
+        client_idx = next((i for i, h in enumerate(headers) if str(h).strip().upper() == 'NOMBRE DEL CLIENTE'), -1)
+        quantity_idx = next((i for i, h in enumerate(headers) if str(h).strip().upper() == 'CANTIDAD'), -1)
+        rows_values = {r['source_row']: json.loads(r['values_json']) for r in db.execute('SELECT source_row,values_json FROM production_rows')}
+        events = db.execute(
+            "SELECT source_row,column_number,action,responsible,reason,created_at FROM production_operator_events "
+            "WHERE responsible IS NOT NULL AND responsible<>'' AND responsible<>'Sin atribuir' AND substr(created_at,1,10)>=? AND substr(created_at,1,10)<=? ORDER BY id",
+            (first.isoformat(), last.isoformat())).fetchall()
+    finally:
+        db.close()
+
+    def cell(values, index):
+        return str(values[index]).strip() if 0 <= index < len(values) else ''
+
+    def quantity(values):
+        try:
+            return int(float(cell(values, quantity_idx).replace(',', '.')))
+        except ValueError:
+            return 0
+
+    def process_label(column_number):
+        index = (column_number or 0) - 1
+        if not 0 <= index < len(headers):
+            return ''
+        process_index = official_process(headers[index])
+        return PROCESS_FLOW[process_index]['label'] if process_index is not None else str(headers[index])
+
+    detail, people = [], {}
+    for event in events:
+        name = event['responsible']
+        if is_departed_operator(name):
+            continue
+        if person and person not in _plain_text(name) and person != _initials(name):
+            continue
+        values = rows_values.get(event['source_row'], [])
+        created = str(event['created_at'] or '')
+        day, hour = created[:10], created[11:19]
+        label = process_label(event['column_number'])
+        qty = quantity(values)
+        record = people.setdefault(name, {'finish': 0, 'start': 0, 'rework': 0, 'units': 0, 'days': set(), 'first': '', 'last': '', 'by_day': {}, 'by_process': {}})
+        action = event['action']
+        if action in ('start', 'rework'):
+            record[action] += 1
+        if action == 'finish':
+            record['finish'] += 1
+            record['units'] += qty
+            record['days'].add(day)
+            record['by_day'][day] = record['by_day'].get(day, 0) + 1
+            record['by_process'][label] = record['by_process'].get(label, 0) + 1
+            stamp = day + ' ' + hour
+            record['first'] = min(record['first'] or stamp, stamp)
+            record['last'] = max(record['last'], stamp)
+        detail.append((day, hour, name, label, ACTION_LABELS.get(action, action), cell(values, order_idx), cell(values, client_idx), qty, event['reason'] or ''))
+
+    workbook = Workbook()
+    head_fill, head_font = PatternFill('solid', fgColor='1F2B12'), Font(bold=True, color='D0F44C')
+    total_fill = PatternFill('solid', fgColor='E8F2C8')
+
+    def sheet(title, header, rows, first_sheet=False, note=None):
+        ws = workbook.active if first_sheet else workbook.create_sheet()
+        ws.title = title
+        start = 1
+        if note:
+            ws.cell(1, 1, note[0]).font = Font(bold=True, size=14)
+            for offset, line in enumerate(note[1:], start=2):
+                ws.cell(offset, 1, line).font = Font(color='555555')
+            start = len(note) + 2
+        for column, text in enumerate(header, start=1):
+            c = ws.cell(start, column, text)
+            c.fill, c.font, c.alignment = head_fill, head_font, Alignment(horizontal='center', vertical='center', wrap_text=True)
+        for r, row in enumerate(rows, start=start + 1):
+            for column, value in enumerate(row, start=1):
+                ws.cell(r, column, value)
+        for column in range(1, len(header) + 1):
+            width = max([len(str(header[column - 1]))] + [len(str(row[column - 1])) for row in rows[:300]] + [8])
+            ws.column_dimensions[get_column_letter(column)].width = min(width + 3, 42)
+        ws.freeze_panes = ws.cell(start + 1, 2)
+        if rows:
+            ws.auto_filter.ref = f'A{start}:{get_column_letter(len(header))}{start + len(rows)}'
+        return ws, start
+
+    ranking = sorted(people.items(), key=lambda pair: (-pair[1]['finish'], pair[0]))
+    period = f"{first.strftime('%d/%m/%Y')} al {last.strftime('%d/%m/%Y')}"
+    note = ['Informe de operarios · Indoor Sport', f'Periodo: {period}', 'Filtro de operario: ' + (operario or 'todos'),
+            'Generado: ' + datetime.now(tz).strftime('%d/%m/%Y %H:%M') + ' · Cierres = procesos finalizados']
+    rows = [(n, d['finish'], d['units'], len(d['days']), round(d['finish'] / len(d['days']), 1) if d['days'] else 0, d['start'], d['rework'], d['first'], d['last']) for n, d in ranking]
+    ws, start = sheet('Resumen', ['Operario', 'Cierres', 'Unidades cerradas', 'Días con cierres', 'Cierres por día', 'Inicios', 'Reprocesos', 'Primer cierre', 'Último cierre'], rows, True, note)
+    total_row = start + len(rows) + 1
+    ws.cell(total_row, 1, 'TOTAL')
+    for column, letter in ((2, 'B'), (3, 'C'), (6, 'F'), (7, 'G')):
+        ws.cell(total_row, column, f'=SUM({letter}{start + 1}:{letter}{start + len(rows)})' if rows else 0)
+    for column in range(1, 10):
+        ws.cell(total_row, column).font, ws.cell(total_row, column).fill = Font(bold=True), total_fill
+
+    days, cursor = [], first
+    while cursor <= last:
+        days.append(cursor.isoformat())
+        cursor += timedelta(days=1)
+    rows = [(n, *[d['by_day'].get(day, 0) or None for day in days], d['finish']) for n, d in ranking]
+    sheet('Cierres por día', ['Operario', *[day[8:10] + '/' + day[5:7] for day in days], 'Total'], rows)
+
+    processes = sorted({label for _, d in ranking for label in d['by_process']})
+    rows = [(n, *[d['by_process'].get(label, 0) or None for label in processes], d['finish']) for n, d in ranking]
+    sheet('Cierres por proceso', ['Operario', *processes, 'Total'], rows)
+
+    detail.sort(key=lambda r: (r[0], r[1]))
+    sheet('Detalle', ['Fecha', 'Hora', 'Operario', 'Proceso', 'Acción', 'Orden', 'Cliente', 'Cantidad', 'Motivo'], detail)
+    buffer = io.BytesIO()
+    workbook.save(buffer)
+    name = f"informe-operarios_{first.isoformat()}_{last.isoformat()}.xlsx"
+    return Response(buffer.getvalue(), media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    headers={'Content-Disposition': f'attachment; filename="{name}"', 'Cache-Control': 'no-store'})
+
+
 @app.get('/api/produccion/operarios')
 def production_operators(refresh: bool = False, _=Depends(authenticate)):
     sheet_data, sheet_error = read_operator_sheet(force=refresh)
@@ -3596,7 +3745,7 @@ def home(_=Depends(authenticate)):
     <div class='home-section'><h3>Nuestro proceso</h3><div class='home-gallery'><figure><img src='/landing/proceso-1.jpg' alt='Impresión de diseños' loading='lazy'><figcaption>Impresión de diseños</figcaption></figure><figure><img src='/landing/proceso-2.jpg' alt='Corte y armado' loading='lazy'><figcaption>Corte y armado</figcaption></figure><figure><img src='/landing/proceso-3.jpg' alt='Corte láser' loading='lazy'><figcaption>Corte láser</figcaption></figure><figure><img src='/landing/proceso-4.jpg' alt='Aplicación en plancha' loading='lazy'><figcaption>Aplicación en plancha</figcaption></figure><figure><img src='/landing/proceso-5.jpg' alt='Diseño digital' loading='lazy'><figcaption>Diseño digital</figcaption></figure><figure><img src='/landing/proceso-6.jpg' alt='Empaque final' loading='lazy'><figcaption>Empaque final</figcaption></figure></div></div>
     <div class='home-section'><h3>Nuestros uniformes</h3><div class='home-gallery'><figure><img src='/landing/uniforme-1.jpg' alt='Uniforme en cancha' loading='lazy'><figcaption>Uniforme en cancha</figcaption></figure><figure><img src='/landing/uniforme-2.jpg' alt='Uniforme premium' loading='lazy'><figcaption>Uniforme premium</figcaption></figure><figure><img src='/landing/uniforme-3.jpg' alt='Escudo texturizado' loading='lazy'><figcaption>Escudo texturizado</figcaption></figure><figure><img src='/landing/uniforme-4.jpg' alt='Numeración' loading='lazy'><figcaption>Numeración</figcaption></figure><figure><img src='/landing/uniforme-5.jpg' alt='Diseño bicolor' loading='lazy'><figcaption>Diseño bicolor</figcaption></figure><figure><img src='/landing/uniforme-6.jpg' alt='Uniforme sublimado' loading='lazy'><figcaption>Uniforme sublimado</figcaption></figure></div></div>
     </div></section>
-    <section class='panel' data-panel='operarios'><div class='card operarios-shell'><div class='operarios-toolbar'><div class='operarios-title'><span class='eyebrow'>Producción · En vivo · Reparto por área</span></div><button id='operarios-refresh' type='button' class='production-refresh'>Actualizar</button></div><div class='operarios-hover-wrap'><div id='operarios-hover' class='operarios-hover-btn' aria-live='polite'><div class='operarios-hover-nav'><button id='operarios-hover-prev' type='button' aria-label='Área anterior'>‹</button><span class='operarios-hover-title'>Cargando áreas…</span><button id='operarios-hover-next' type='button' aria-label='Área siguiente'>›</button></div><div class='operarios-hover-detail'>Verás aquí quién está trabajando y cuántos cerró hoy.</div></div><div id='operarios-goal' class='operarios-goal'><div class='operarios-goal-head'><span id='operarios-goal-label'>Unidades del mes</span><strong id='operarios-goal-count'>—</strong></div><div class='operarios-goal-bar'><i id='operarios-goal-fill' style='width:0%'></i></div><span id='operarios-goal-pct' class='operarios-goal-pct'>Cargando…</span></div><div id='operarios-day-filter-slot' class='operarios-day-filter-slot'></div></div><div class='operarios-kpis'><div class='operarios-kpi'><span>Operarios</span><strong id='operarios-total'>—</strong></div><div class='operarios-kpi'><span>Trabajando</span><strong id='operarios-busy'>—</strong></div><div class='operarios-kpi'><span>Libres</span><strong id='operarios-idle'>—</strong></div><div class='operarios-kpi'><span>Cerrados hoy</span><strong id='operarios-done'>—</strong></div><div id='operarios-status' class='operarios-status' role='status'>Cargando operarios…</div></div><div id='operarios-area-stats' class='operarios-area-stats' hidden></div><div id='operarios-grid' class='operarios-grid' hidden></div><div id='operarios-hover-calendar' class='operarios-hover-calendar'></div></div></section>
+    <section class='panel' data-panel='operarios'><div class='card operarios-shell'><div class='operarios-toolbar'><div class='operarios-title'><span class='eyebrow'>Producción · En vivo · Reparto por área</span></div><button id='operarios-refresh' type='button' class='production-refresh'>Actualizar</button><button id='operarios-report' type='button' class='production-refresh' title='Descarga un Excel con lo que hizo cada operario en el periodo y el filtro que tienes'>Descargar informe</button></div><div class='operarios-hover-wrap'><div id='operarios-hover' class='operarios-hover-btn' aria-live='polite'><div class='operarios-hover-nav'><button id='operarios-hover-prev' type='button' aria-label='Área anterior'>‹</button><span class='operarios-hover-title'>Cargando áreas…</span><button id='operarios-hover-next' type='button' aria-label='Área siguiente'>›</button></div><div class='operarios-hover-detail'>Verás aquí quién está trabajando y cuántos cerró hoy.</div></div><div id='operarios-goal' class='operarios-goal'><div class='operarios-goal-head'><span id='operarios-goal-label'>Unidades del mes</span><strong id='operarios-goal-count'>—</strong></div><div class='operarios-goal-bar'><i id='operarios-goal-fill' style='width:0%'></i></div><span id='operarios-goal-pct' class='operarios-goal-pct'>Cargando…</span></div><div id='operarios-day-filter-slot' class='operarios-day-filter-slot'></div></div><div class='operarios-kpis'><div class='operarios-kpi'><span>Operarios</span><strong id='operarios-total'>—</strong></div><div class='operarios-kpi'><span>Trabajando</span><strong id='operarios-busy'>—</strong></div><div class='operarios-kpi'><span>Libres</span><strong id='operarios-idle'>—</strong></div><div class='operarios-kpi'><span>Cerrados hoy</span><strong id='operarios-done'>—</strong></div><div id='operarios-status' class='operarios-status' role='status'>Cargando operarios…</div></div><div id='operarios-area-stats' class='operarios-area-stats' hidden></div><div id='operarios-grid' class='operarios-grid' hidden></div><div id='operarios-hover-calendar' class='operarios-hover-calendar'></div></div></section>
 <dialog id='operarios-dialog' class='operarios-dialog' aria-labelledby='operarios-dialog-title'><div class='operarios-dialog-head'><div><span class='eyebrow'>Producción · Calendario</span><h2 id='operarios-dialog-title'>Proceso</h2><p id='operarios-dialog-sub'>Procesos cerrados por operario y día</p></div><div class='operarios-dialog-actions'><button id='operarios-dialog-prev' type='button' aria-label='Mes anterior'>‹</button><strong id='operarios-dialog-month'>—</strong><button id='operarios-dialog-next' type='button' aria-label='Mes siguiente'>›</button><button id='operarios-dialog-close' type='button' class='operarios-dialog-x' aria-label='Cerrar'>×</button></div></div><div class='operarios-dialog-kpis' id='operarios-dialog-kpis'></div><div class='operarios-dialog-body' id='operarios-dialog-body'></div></dialog>
     <section class='panel' data-panel='cronograma'><div class='card schedule-shell'><div class='schedule-toolbar'><div class='schedule-title'><span class='eyebrow'>Planeación de entregas</span><h2>CRONOGRAMA</h2><p>Fechas de entrega de todos los pedidos registrados en Producción.</p></div><div class='schedule-actions'><button id='schedule-prev' type='button' aria-label='Mes anterior'>‹</button><button id='schedule-today' type='button'>Hoy</button><button id='schedule-next' type='button' aria-label='Mes siguiente'>›</button></div></div><div class='schedule-days-block'><div class='schedule-days-nav'><h4 class='schedule-overview-title'>Entregas de la semana <small id='schedule-days-range'></small></h4><div class='schedule-days-actions'><button id='schedule-days-prev' type='button' aria-label='Semana anterior'>‹</button><button id='schedule-days-today' type='button'>Hoy</button><button id='schedule-days-next' type='button' aria-label='Semana siguiente'>›</button></div></div><div id='schedule-days' class='schedule-days' aria-label='Próximos días'></div></div><div class='schedule-summary'><strong id='schedule-month'>—</strong><span id='schedule-count'>Cargando pedidos…</span></div><div class='schedule-weekdays'><div>LUN</div><div>MAR</div><div>MIÉ</div><div>JUE</div><div>VIE</div><div>SÁB</div><div>DOM</div></div><div id='schedule-grid' class='schedule-grid'></div><div id='schedule-cards' class='schedule-cards' hidden></div></div></section>
     <section class='workspace panel' data-panel='reprogramacion'><div class='card'><div class='card-head'><h2>Nueva reprogramación</h2><p>Selecciona una cotización, remisión o listado en PDF o Excel.</p></div><div class='upload-wrap'>
@@ -4387,6 +4536,15 @@ let html='';for(let n=0;n<days;n++){{const date=new Date(start);date.setDate(sta
     }}
     function startOperatorsAutoRefresh(){{clearInterval(operariosTimer);operariosTimer=setInterval(()=>{{if(document.hidden||!document.body.classList.contains('operarios-mode'))return;loadOperators()}},5000)}}
     operariosRefresh.addEventListener('click',loadOperators);
+    document.getElementById('operarios-report').addEventListener('click',()=>{{
+      const pad=number=>String(number).padStart(2,'0');
+      let from=operatorState.dayFrom,to=operatorState.dayTo;
+      if(!from&&!to&&operatorState.year){{from=operatorState.year+'-'+pad(operatorState.month+1)+'-01';to=operatorState.year+'-'+pad(operatorState.month+1)+'-'+pad(operatorState.daysInMonth)}}
+      else if(from||to){{from=from||to;to=to||from}}
+      const query=new URLSearchParams();if(from)query.set('desde',from);if(to)query.set('hasta',to);
+      if(operatorState.dayPerson)query.set('operario',operatorState.dayPerson);
+      window.location.href='/api/produccion/operarios/informe?'+query.toString();
+    }});
     operariosGrid.addEventListener('click',async event=>{{
       const button=event.target.closest('.operarios-open');
       if(!button)return;
