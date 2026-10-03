@@ -49,7 +49,42 @@ def fetch(worksheet):
     duplicates = [k for k, count in collections.Counter(identity(r['values']) for r in rows).items() if count > 1]
     if duplicates:
         raise ValueError('Órdenes/referencias repetidas; sincronización pausada para evitar una asociación incorrecta')
-    return {'headers': headers, 'rows': rows, 'sheet': prop['title']}
+    try:
+        line_colors = line_color_map(rows, fetch_line_colors(worksheet, title, prop['gridProperties']['rowCount']))
+    except Exception:
+        line_colors = None  # si falla, se conservan los colores que ya estaban guardados
+    return {'headers': headers, 'rows': rows, 'sheet': prop['title'], 'line_colors': line_colors}
+
+
+def fetch_line_colors(worksheet, title, row_count):
+    """Color de relleno de la columna B (LINEA) de cada fila: {fila_del_sheet: '#rrggbb'}. Una sola consulta."""
+    response = worksheet.spreadsheet.fetch_sheet_metadata(params={
+        'ranges': f"'{title}'!B{START_ROW}:B{row_count}", 'includeGridData': 'true',
+        'fields': 'sheets(data(startRow,rowData(values(effectiveFormat(backgroundColor)))))'})
+    colors = {}
+    for sheet in response.get('sheets', []):
+        for block in sheet.get('data', []):
+            for offset, row in enumerate(block.get('rowData', [])):
+                cells = row.get('values') or []
+                color = (cells[0].get('effectiveFormat') or {}).get('backgroundColor') if cells else None
+                if not color:
+                    continue
+                rgb = [round(color.get(k, 0) * 255) for k in ('red', 'green', 'blue')]
+                if min(rgb) >= 250:
+                    continue  # sin relleno (blanco): se deja el estilo normal
+                colors[block.get('startRow', 0) + offset + 1] = '#%02x%02x%02x' % tuple(rgb)
+    return colors
+
+
+def line_color_map(rows, colors):
+    """{LINEA: color más usado} para que los pedidos creados desde la página tengan el mismo color."""
+    votes = {}
+    for item in rows:
+        name = str(item['values'][1] or '').strip().upper() if len(item['values']) > 1 else ''
+        color = colors.get(item['sheet_row'])
+        if name and color:
+            votes.setdefault(name, collections.Counter())[color] += 1
+    return {name: counter.most_common(1)[0][0] for name, counter in votes.items()}
 
 
 def schema(db):
@@ -160,6 +195,9 @@ def apply(db, snapshot, force=False):
         db.executemany('INSERT OR REPLACE INTO production_meta(key,value) VALUES (?,?)',[
             ('last_allocated_row',str(maximum)),('sheets_sync_checked_at',now),
             ('sheets_sync_error',''),('sheets_sync_counts',json.dumps(counts)),('updated_at',now)])
+        if snapshot.get('line_colors') is not None:
+            db.execute("INSERT OR REPLACE INTO production_meta(key,value) VALUES ('line_colors',?)",
+                       (json.dumps(snapshot['line_colors'], ensure_ascii=False),))
         db.commit()
         return counts
     except Exception:
@@ -182,6 +220,10 @@ def decorate(db, data):
             entries[key] = [{'text': note, 'author': ''}] + entries.get(key, [])
         data['notes'][key] = (local or note) if column == 17 else (note if not local or local == note else note+'\n\nNota de la web: '+local)
     meta = dict(db.execute("SELECT key,value FROM production_meta WHERE key LIKE 'sheets_sync_%'"))
+    try:
+        data['line_colors'] = json.loads((db.execute("SELECT value FROM production_meta WHERE key='line_colors'").fetchone() or ['{}'])[0] or '{}')
+    except ValueError:
+        data['line_colors'] = {}
     data['sheets_sync'] = {'checked_at':meta.get('sheets_sync_checked_at'), 'error':meta.get('sheets_sync_error',''), 'start_row':START_ROW}
     return data
 

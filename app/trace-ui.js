@@ -574,12 +574,25 @@
       const row = rows.find(r => r.source_row === Number(card.dataset.cardRow));
       card.querySelector('.trace-mts-inventory')?.remove();
       // Línea de producto (columna B del Sheet)
+      const lineList = document.getElementById('order-lines');
+      if (lineList && !lineList.dataset.filled) {
+        const names = [...new Set((productionData.rows || []).map(r => String(traceField(r, 'LINEA') || '').trim().toUpperCase()).filter(Boolean))].sort();
+        if (names.length) { lineList.innerHTML = names.map(n => '<option value="' + esc(n) + '">').join(''); lineList.dataset.filled = '1'; }
+      }
       const lineValue = String(traceField(row, 'LINEA') || '').trim();
       if (lineValue && !card.querySelector('.trace-line')) {
         const chip = document.createElement('span');
         chip.className = 'trace-line';
         chip.title = 'Línea de producto: ' + lineValue;
         chip.innerHTML = '<small>LÍNEA</small>' + esc(lineValue);
+        const sheetColor = (productionData.line_colors || {})[lineValue.toUpperCase()];
+        if (/^#[0-9a-f]{6}$/i.test(sheetColor || '')) {
+          // mismo color de relleno que la celda del Google Sheets
+          const [r, g, b] = [1, 3, 5].map(i => parseInt(sheetColor.slice(i, i + 2), 16));
+          const dark = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255 < 0.55;
+          chip.style.cssText = 'background:' + sheetColor + ';color:' + (dark ? '#ffffff' : '#10150e') + ';border-color:rgba(0,0,0,.35)';
+          chip.querySelector('small').style.opacity = '.8';
+        }
         card.querySelector('.trace-card-heading')?.appendChild(chip);
       }
       const mtsDisplay = card.querySelector('.trace-mts-display');

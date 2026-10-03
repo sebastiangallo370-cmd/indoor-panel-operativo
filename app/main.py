@@ -830,7 +830,7 @@ def run_with_live_progress(job_id: int, start: int, ceiling: int, detail: str, o
     return result[0] if result else None
 
 
-def append_local_production(record: dict, row_builder=None, observations: str = '', author: str = ''):
+def append_local_production(record: dict, row_builder=None, observations: str = '', author: str = '', linea: str = ''):
     """Registra una referencia directamente en la trazabilidad local."""
     db = connect()
     try:
@@ -845,6 +845,10 @@ def append_local_production(record: dict, row_builder=None, observations: str = 
             values = [""] * len(headers)
         width = len(headers)
         values = (values + [""] * width)[:width]
+        # Línea de producto elegida al programar el pedido (columna LINEA = columna B del Sheet)
+        line_index = next((i for i, h in enumerate(headers) if str(h).strip().upper() == 'LINEA'), -1)
+        if linea.strip() and line_index >= 0:
+            values[line_index] = linea.strip().upper()
         groups = json.loads(meta.get('groups') or '[]')
         values = fresh_production_values(values, headers, groups)
         # Never recycle a row identity, even if the last order was deleted.
@@ -1019,7 +1023,7 @@ def process_reprogram_excel_job(job_id: int, excel_path: Path, extra_paths: list
         update_job(job_id, "ERROR", str(error))
 
 
-def process_order_job(job_id: int, job_dir: Path, pdf_path: Path, excel_path: Path, observations: str = '', author: str = ''):
+def process_order_job(job_id: int, job_dir: Path, pdf_path: Path, excel_path: Path, observations: str = '', author: str = '', linea: str = ''):
     try:
         pending_records = []
         # The legacy processor moves/removes attachments: remember them beforehand.
@@ -1063,7 +1067,7 @@ def process_order_job(job_id: int, job_dir: Path, pdf_path: Path, excel_path: Pa
                 raise ValueError('No se programó: ' + ' | '.join(image_issues))
             verify_order_mockups(Path(ok), pending_records)
             for record in pending_records:
-                append_local_production(record, pedidos._fila_produccion, observations, author)
+                append_local_production(record, pedidos._fila_produccion, observations, author, linea)
             update_job(job_id, "COMPLETADO", detail, order_number)
         else:
             update_job(job_id, "REVISAR", "El pedido incumple una regla de negocio", order_number)
@@ -3871,6 +3875,7 @@ def home(_=Depends(authenticate)):
     <label class='file-row'><div><b>Documento PDF</b><span id='pdf-label'>Seleccionar cotización o remisión</span></div><input required id='pedido-pdf' type='file' name='pdf' accept='application/pdf,.pdf'></label>
     <label class='file-row'><div><b>Listado Excel</b><span id='excel-label'>Seleccionar archivo .xlsx o .xlsm</span></div><input required id='pedido-excel' type='file' name='excel' accept='.xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'></label>
     <label class='file-row'><div><b>MOCKUP OBLIGATORIO Y ANEXOS</b><span id='extras-label'>Adjunta la imagen que aparecerá en la tarjeta</span></div><input id='pedido-extras' type='file' name='extras' multiple required></label></div>
+    <div class='field full' style='margin:14px 0'><label for='order-line'>Línea de producto (columna B del Sheet · opcional)</label><input id='order-line' class='sheet-name-input' type='text' name='linea' list='order-lines' maxlength='40' autocomplete='off' placeholder='Ej. BOT, PLUS, OLIMPICA, COPA' style='text-transform:uppercase'><datalist id='order-lines'></datalist></div>
     <div class='actions'><button id='order-submit' type='submit' disabled>Procesar pedido</button></div><div id='order-message' class='message' role='status' aria-live='polite'></div></form></div></div>
     <div class='card history'><div class='history-head'><div><h2>Pedido actual</h2><p class='count'>Sin un pedido seleccionado</p></div><button class='refresh' type='button'>Actualizar</button></div>
     <div class='table-wrap'><table><thead><tr><th>ID</th><th>Archivos</th><th>Orden</th><th>Estado</th><th>Detalle</th></tr></thead><tbody id='order-jobs'></tbody></table></div></div></section>
@@ -5007,7 +5012,7 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
 `;document.head.appendChild(traceFigmaStyle);setTraceView();
     const commercialGroup=commercialToggle.closest('.nav-group');commercialGroup.classList.add('collapsed');const productionToggle=document.getElementById('production-toggle');if(productionToggle)productionToggle.addEventListener('click',()=>{{const g=productionToggle.closest('.nav-group');g.classList.toggle('collapsed');if(!g.classList.contains('collapsed')&&window.innerWidth>860)g.querySelector('.nav-children .tab')?.click()}});
     setTimeout(()=>{{if(!document.querySelector('.panel.active'))document.querySelector('.tab[data-kind="inicio"]')?.click()}},0);
-    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/api/cartera/cartera.js?v=20261002-5'></script><script src='/trace-ui.js?v=20261002-10'></script><script src='/home-dashboard.js?v=20261001-8'></script><script src='/bodega-dashboard.js?v=20261002-10'></script><script src='/bodegas.js?v=20261002-4'></script><script src='/mobile-nav.js?v=20261002-10'></script><script src='/build-watch.js?v=20261002-1'></script><script src='/salud.js?v=20261002-1'></script><script src='/tema.js?v=20261002-3'></script><script src='/tarjeta-iconos.js?v=20261002-5'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
+    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/api/cartera/cartera.js?v=20261002-5'></script><script src='/trace-ui.js?v=20261002-11'></script><script src='/home-dashboard.js?v=20261001-8'></script><script src='/bodega-dashboard.js?v=20261002-10'></script><script src='/bodegas.js?v=20261002-4'></script><script src='/mobile-nav.js?v=20261002-10'></script><script src='/build-watch.js?v=20261002-1'></script><script src='/salud.js?v=20261002-1'></script><script src='/tema.js?v=20261002-3'></script><script src='/tarjeta-iconos.js?v=20261002-5'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
 
 
 def ordered_mockup_uploads(extras, slots):
@@ -5080,6 +5085,7 @@ async def upload(
 async def upload_order(
     pdf: UploadFile = File(...),
     observaciones: str = Form(default='', max_length=5000),
+    linea: str = Form(default='', max_length=40),
     excel: UploadFile = File(...),
     extras: list[UploadFile] = File(default=[]),
     mockup_d1: UploadFile = File(default=None),
@@ -5125,10 +5131,10 @@ async def upload_order(
     with connect() as db:
         cursor = db.execute(
             "INSERT INTO jobs(filename,status,detail,created_at,updated_at,kind,input_summary) VALUES(?,?,?,?,?,?,?)",
-            (display_name, "RECIBIDO", "En cola", now, now, "pedido", json.dumps({'observaciones': observaciones.strip()}, ensure_ascii=False)),
+            (display_name, "RECIBIDO", "En cola", now, now, "pedido", json.dumps({'observaciones': observaciones.strip(), 'linea': linea.strip()}, ensure_ascii=False)),
         )
         job_id = cursor.lastrowid
-    asyncio.create_task(asyncio.to_thread(process_order_job, job_id, job_dir, saved[0], saved[1], observaciones.strip(), str(_)))
+    asyncio.create_task(asyncio.to_thread(process_order_job, job_id, job_dir, saved[0], saved[1], observaciones.strip(), str(_), linea.strip()))
     return {"id": job_id, "estado": "RECIBIDO", "mensaje": "El pedido se está procesando"}
 
 
