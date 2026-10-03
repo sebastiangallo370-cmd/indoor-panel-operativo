@@ -2,7 +2,7 @@
   if(window.__saludAviso)return;window.__saludAviso=true;
   var bar=document.createElement('div');
   bar.id='salud-aviso';
-  bar.style.cssText='display:none;position:fixed;top:0;left:0;right:0;z-index:99999;background:#b3261e;color:#fff;font:700 13px Arial;padding:8px 14px;text-align:center;box-shadow:0 2px 10px #0008';
+  bar.style.cssText='display:none;position:fixed;left:50%;transform:translateX(-50%);bottom:'+(innerWidth<=700?'86px':'14px')+';max-width:min(900px,calc(100vw - 24px));z-index:94;background:#b3261e;color:#fff;font:700 12px Arial;padding:8px 14px;border-radius:10px;text-align:center;box-shadow:0 4px 16px #000a';
   document.body.appendChild(bar);
   function check(){
     fetch('/api/salud-panel',{cache:'no-store'}).then(function(r){return r.ok?r.json():null}).then(function(d){

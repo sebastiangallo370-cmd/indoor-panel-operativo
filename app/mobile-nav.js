@@ -15,6 +15,11 @@
 .user-menu .user-info small{font:700 10.5px/1.2 Arial,sans-serif!important;color:#9fb08c!important;letter-spacing:.06em;text-transform:uppercase}
 .user-menu summary>span[aria-hidden]{color:#d0f44c;font-size:15px;line-height:1;margin-left:2px;transition:transform .18s}
 .user-menu[open] summary>span[aria-hidden]{transform:rotate(180deg)}
+/* Computador: botones de Stock tela más pequeños */
+@media (min-width:701px){
+  .inventory-toolbar .inventory-movement-actions{gap:6px!important}
+  .inventory-toolbar .inventory-movement-actions button{min-height:0!important;height:32px!important;padding:0 12px!important;font-size:12px!important;letter-spacing:.02em!important;border-radius:8px!important}
+}
 @media ${MOBILE}{
   html body.top-navigation .sidebar nav.tabs{display:none!important}
   html body.top-navigation .sidebar{height:auto!important;min-height:0!important;max-height:none!important}
