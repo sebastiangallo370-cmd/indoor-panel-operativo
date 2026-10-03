@@ -89,6 +89,7 @@ class InventoryMovement(BaseModel):
     mts: float = Field(gt=0)
     rolls: int = Field(default=1, ge=1)
     source: str = ''
+    bodega: str = ''  # bodega donde quedan los rollos de un INGRESO ('' = la de por defecto)
 
 
 def _load_movements() -> list[dict[str, Any]]:
@@ -392,7 +393,7 @@ def _finish_inventory(categories: list[dict[str, Any]], all_records: list[dict[s
             for _ in range(count):
                 values.append(round(float(movement.get('mts') or 0) / count, 2))
                 statuses.append('new')
-                target.setdefault('roll_bodegas', []).append('')
+                target.setdefault('roll_bodegas', []).append(movement.get('bodega') or '')
             target['rolls'] = len(values)
             fields = target.setdefault('campos', {})
             base = 'Movimiento ingreso'
@@ -716,8 +717,16 @@ def _imported_documents() -> dict[str, Any]:
         return {}
 
 
+def _check_bodegas(movements) -> None:
+    known = set(_load_bodegas()['bodegas'])
+    for movement in movements:
+        if movement.bodega and movement.bodega not in known:
+            raise HTTPException(status_code=404, detail=f'La bodega {movement.bodega} no existe.')
+
+
 @inventario_router.post('/movimiento')
 def inventory_movement(movement: InventoryMovement):
+    _check_bodegas([movement])
     with _lock:
         movements = _load_movements()
         movements.append({**movement.model_dump(), 'fecha': datetime.now(timezone.utc).isoformat()})
@@ -761,6 +770,7 @@ def inventory_new_fabric(fabric: NewFabric):
 
 @inventario_router.post('/movimientos')
 def inventory_movements(batch: InventoryBatch):
+    _check_bodegas(batch.movements)
     with _lock:
         imported = _imported_documents()
         if batch.doc_hash and batch.doc_hash in imported:
