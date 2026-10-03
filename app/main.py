@@ -1151,10 +1151,42 @@ def linea_info_js():
     return FileResponse(Path(__file__).with_name('linea-info.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
 
 
+LINEAS_MOCKUPS_DIR = STATE_DIR.parent / 'lineas_mockups'
+
+
+def _linea_slug(value) -> str:
+    plain = ''.join(c for c in unicodedata.normalize('NFD', str(value or '')) if not unicodedata.combining(c))
+    return re.sub(r'[^A-Z0-9]', '', plain.upper())
+
+
+def _linea_mockups() -> dict:
+    """Mockup de referencia por línea: /data/lineas_mockups/<LINEA>.png|jpg|webp (p. ej. PLUS.png, ESTANDAR.jpg)."""
+    found = {}
+    if LINEAS_MOCKUPS_DIR.is_dir():
+        for path in sorted(LINEAS_MOCKUPS_DIR.iterdir()):
+            if path.is_file() and path.suffix.lower() in ('.png', '.jpg', '.jpeg', '.webp'):
+                slug = _linea_slug(path.stem)
+                found[slug] = f'/api/lineas-producto/mockup/{slug}?v={int(path.stat().st_mtime)}'
+    return found
+
+
 @app.get('/api/lineas-producto')
 def lineas_producto(_=Depends(authenticate)):
-    """Qué incluye cada línea de producto (documento «Líneas de producto»)."""
-    return json.loads(Path(__file__).with_name('lineas_producto.json').read_text(encoding='utf-8'))
+    """Qué incluye cada línea de producto (documento «Líneas de producto») y qué líneas tienen mockup."""
+    data = json.loads(Path(__file__).with_name('lineas_producto.json').read_text(encoding='utf-8'))
+    data['mockups'] = _linea_mockups()
+    return data
+
+
+@app.get('/api/lineas-producto/mockup/{slug}')
+def linea_mockup(slug: str, v: str = '', _=Depends(authenticate)):
+    clean = _linea_slug(slug)
+    if clean and LINEAS_MOCKUPS_DIR.is_dir():
+        for path in sorted(LINEAS_MOCKUPS_DIR.iterdir()):
+            if path.is_file() and path.suffix.lower() in ('.png', '.jpg', '.jpeg', '.webp') and _linea_slug(path.stem) == clean:
+                cache = 'private, max-age=31536000, immutable' if v else 'private, no-cache'
+                return FileResponse(path, headers={'Cache-Control': cache, 'X-Content-Type-Options': 'nosniff'})
+    raise HTTPException(404, 'Esa línea no tiene mockup')
 
 
 @app.get('/salud.js')
@@ -5023,7 +5055,7 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
 `;document.head.appendChild(traceFigmaStyle);setTraceView();
     const commercialGroup=commercialToggle.closest('.nav-group');commercialGroup.classList.add('collapsed');const productionToggle=document.getElementById('production-toggle');if(productionToggle)productionToggle.addEventListener('click',()=>{{const g=productionToggle.closest('.nav-group');g.classList.toggle('collapsed');if(!g.classList.contains('collapsed')&&window.innerWidth>860)g.querySelector('.nav-children .tab')?.click()}});
     setTimeout(()=>{{if(!document.querySelector('.panel.active'))document.querySelector('.tab[data-kind="inicio"]')?.click()}},0);
-    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/api/cartera/cartera.js?v=20261002-5'></script><script src='/trace-ui.js?v=20261002-12'></script><script src='/home-dashboard.js?v=20261001-8'></script><script src='/bodega-dashboard.js?v=20261002-10'></script><script src='/bodegas.js?v=20261002-4'></script><script src='/mobile-nav.js?v=20261002-10'></script><script src='/build-watch.js?v=20261002-1'></script><script src='/salud.js?v=20261002-1'></script><script src='/tema.js?v=20261002-3'></script><script src='/tarjeta-iconos.js?v=20261002-5'></script><script src='/linea-info.js?v=20261002-4'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
+    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/api/cartera/cartera.js?v=20261002-5'></script><script src='/trace-ui.js?v=20261002-12'></script><script src='/home-dashboard.js?v=20261001-8'></script><script src='/bodega-dashboard.js?v=20261002-10'></script><script src='/bodegas.js?v=20261002-4'></script><script src='/mobile-nav.js?v=20261002-10'></script><script src='/build-watch.js?v=20261002-1'></script><script src='/salud.js?v=20261002-1'></script><script src='/tema.js?v=20261002-3'></script><script src='/tarjeta-iconos.js?v=20261002-5'></script><script src='/linea-info.js?v=20261002-5'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
 
 
 def ordered_mockup_uploads(extras, slots):
