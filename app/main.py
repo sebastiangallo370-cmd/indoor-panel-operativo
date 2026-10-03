@@ -1849,6 +1849,122 @@ async def repetir_pedido_publico(request: Request, token: str = Form(...), pdf: 
     return await asyncio.to_thread(_prepare_repeat, previous, content, phone, notes, _client_ip(request))
 
 
+def _prepare_new_order(pdf_bytes: bytes, excel_bytes: bytes, excel_name: str, mockups: list, phone: str, notes: str, ip: str) -> dict:
+    """Pedido nuevo del cliente desde la web: PDF + Excel + mockups, con las mismas validaciones que el formulario interno."""
+    stamp = datetime.now().strftime('%Y%m%d%H%M%S%f')
+    job_dir = UPLOAD_DIR / 'pedidos' / f'web-{stamp}'
+    job_dir.mkdir(parents=True, exist_ok=False)
+    keep = False
+    try:
+        pdf_tmp = job_dir / 'documento.pdf'
+        pdf_tmp.write_bytes(pdf_bytes)
+        try:
+            _, header, _, _ = legacy.extraer_info_pdf(str(pdf_tmp))
+        except Exception:
+            raise HTTPException(400, 'No pudimos leer el PDF. Sube el original de tu cotización o remisión.')
+        new_order = str(header.get('orden') or '')
+        if not re.fullmatch(r'(CO|RM)\d{3,6}', new_order) or header.get('tipo_doc') not in ('COTIZACION', 'REMISION'):
+            raise HTTPException(400, 'El PDF debe ser una cotización o una remisión de Indoor Sport.')
+        client_name = str(header.get('cliente') or '').strip()
+        excel_prefix, excel_number = pedidos.extraer_prefijo_numero_nombre(excel_name)
+        if excel_number and f'{excel_prefix}{excel_number}' != new_order:
+            raise HTTPException(400, f'El Excel corresponde a otra orden ({excel_prefix}{excel_number}); el PDF es {new_order}.')
+        db = connect()
+        try:
+            headers = json.loads((db.execute("SELECT value FROM production_meta WHERE key='headers'").fetchone() or ['[]'])[0] or '[]')
+            client_idx = next((i for i, h in enumerate(headers) if str(h).strip().upper() == 'NOMBRE DEL CLIENTE'), -1)
+            known = client_idx >= 0 and any(
+                _client_match(client_name, (json.loads(r[0]) + [''] * 60)[client_idx]) for r in db.execute('SELECT values_json FROM production_rows'))
+        finally:
+            db.close()
+        if not known:
+            raise HTTPException(403, 'No encontramos tu empresa entre nuestros clientes. Comunícate con tu asesor para programar tu pedido.')
+        doc_hash = hashlib.sha256(pdf_bytes).hexdigest()
+        with _repeat_lock:
+            db = connect()
+            try:
+                reason = _order_already_exists(db, new_order, doc_hash)
+            finally:
+                db.close()
+            if not reason:
+                try:
+                    if _nas_has_order(client_name, new_order):
+                        reason = 'Esa cotización o remisión ya tiene carpeta de producción.'
+                except HTTPException as error:
+                    if error.status_code != 404:
+                        raise HTTPException(503, 'No podemos verificar el pedido en este momento. Intenta de nuevo en unos minutos.')
+                except OSError:
+                    raise HTTPException(503, 'No podemos verificar el pedido en este momento. Intenta de nuevo en unos minutos.')
+            if reason:
+                raise HTTPException(409, reason + f' ({new_order}). Para programar un pedido nuevo necesitas una cotización o remisión nueva.')
+            base = re.sub(r'^(?:CO|RM)\d+[\s_-]*', '', Path(excel_name).stem, flags=re.I)[:70] or 'LISTADO'
+            excel_path = job_dir / f'{new_order}_{base}{Path(excel_name).suffix.lower()}'
+            excel_path.write_bytes(excel_bytes)
+            pdf_path = job_dir / f"{new_order}_{re.sub(r'[^A-Za-z0-9]+', '_', _plain_text(client_name))[:40]}.pdf"
+            pdf_tmp.rename(pdf_path)
+            for index, (name, content) in enumerate(mockups):
+                target = job_dir / name
+                if target.exists():
+                    target = job_dir / f'{index}_{name}'
+                target.write_bytes(content)
+            now = datetime.now(timezone.utc).isoformat()
+            with connect() as db:
+                db.execute('CREATE TABLE IF NOT EXISTS web_repeat_requests(id INTEGER PRIMARY KEY AUTOINCREMENT, doc_hash TEXT, new_order TEXT, prev_order TEXT, ip TEXT, job_id INTEGER, created_at TEXT)')
+                cursor = db.execute(
+                    'INSERT INTO jobs(filename,status,detail,created_at,updated_at,kind,input_summary,order_number) VALUES(?,?,?,?,?,?,?,?)',
+                    (f'WEB · {new_order}', 'RECIBIDO', 'Pedido del cliente desde la web', now, now, 'pedido',
+                     json.dumps({'origen': 'web', 'telefono': phone, 'notas': notes}, ensure_ascii=False), new_order))
+                job_id = cursor.lastrowid
+                db.execute('INSERT INTO web_repeat_requests(doc_hash,new_order,prev_order,ip,job_id,created_at) VALUES(?,?,?,?,?,?)',
+                           (doc_hash, new_order, '', ip, job_id, now))
+        keep = True
+    finally:
+        if not keep:
+            shutil.rmtree(job_dir, ignore_errors=True)
+    observations = 'Pedido programado por el cliente desde la página web' + (f' · Tel: {phone}' if phone else '') + (f' · {notes}' if notes else '')
+    threading.Thread(target=process_order_job, name=f'web-{new_order}', daemon=True,
+                     args=(job_id, job_dir, pdf_path, excel_path, observations, 'Cliente (web)', '')).start()
+    return {'ok': True, 'orden': new_order, 'job': job_id, 'sig': _session_signature(f'repetir-job|{job_id}')[:32]}
+
+
+@app.post('/api/programar-pedido', status_code=202)
+async def programar_pedido_publico(request: Request, pdf: UploadFile = File(...), excel: UploadFile = File(...),
+                                   extras: list[UploadFile] = File(default=[]),
+                                   telefono: str = Form(default='', max_length=30), notas: str = Form(default='', max_length=400),
+                                   website: str = Form(default='')):
+    """Programar un pedido nuevo desde el acceso público (PDF + Excel + mockups) para clientes ya registrados."""
+    if website:
+        return {'ok': True, 'orden': '', 'job': 0, 'sig': ''}
+    if _too_many('programar', request, 3, 3600):
+        raise HTTPException(429, 'Ya enviaste varias solicitudes. Intenta de nuevo más tarde.')
+    extras = [e for e in extras if e.filename]
+    if any(Path(e.filename).suffix.lower() not in {'.jpg', '.jpeg', '.png', '.webp'} for e in extras):
+        raise HTTPException(400, 'Los mockups deben ser imágenes JPG, PNG o WEBP.')
+    try:
+        await require_mockup_upload(extras)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    if not pdf.filename or Path(pdf.filename).suffix.lower() != '.pdf':
+        raise HTTPException(400, 'El primer archivo debe ser un PDF.')
+    if not excel.filename or Path(excel.filename).suffix.lower() not in {'.xlsx', '.xlsm'}:
+        raise HTTPException(400, 'El listado debe ser un archivo .xlsx o .xlsm.')
+    if len(extras) > 8:
+        raise HTTPException(400, 'Máximo 8 mockups.')
+    pdf_bytes, excel_bytes = await pdf.read(), await excel.read()
+    if not pdf_bytes.startswith(b'%PDF') or not excel_bytes.startswith(b'PK'):
+        raise HTTPException(400, 'Los archivos no son válidos. Sube el PDF y el Excel originales.')
+    mockups, total = [], len(pdf_bytes) + len(excel_bytes)
+    for item in extras:
+        content = await item.read()
+        total += len(content)
+        mockups.append((Path(item.filename).name, content))
+    if total > 40 * 1024 * 1024:
+        raise HTTPException(413, 'Los archivos superan 40 MB.')
+    phone = re.sub(r'[^0-9+() -]', '', telefono)[:30]
+    notes = ' '.join(notas.split())[:400]
+    return await asyncio.to_thread(_prepare_new_order, pdf_bytes, excel_bytes, excel.filename, mockups, phone, notes, _client_ip(request))
+
+
 @app.get('/api/repetir-pedido/estado')
 def repetir_pedido_estado(job: int = 0, s: str = ''):
     if not hmac.compare_digest(str(s), _session_signature(f'repetir-job|{job}')[:32]):
