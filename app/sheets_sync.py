@@ -224,6 +224,10 @@ def decorate(db, data):
         data['line_colors'] = json.loads((db.execute("SELECT value FROM production_meta WHERE key='line_colors'").fetchone() or ['{}'])[0] or '{}')
     except ValueError:
         data['line_colors'] = {}
+    try:
+        data['web_orders'] = [str(r[0]).upper() for r in db.execute("SELECT DISTINCT new_order FROM web_repeat_requests WHERE new_order<>''")]
+    except Exception:
+        data['web_orders'] = []
     data['sheets_sync'] = {'checked_at':meta.get('sheets_sync_checked_at'), 'error':meta.get('sheets_sync_error',''), 'start_row':START_ROW}
     return data
 
