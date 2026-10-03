@@ -92,7 +92,7 @@
         '<button type="button" class="le-mini" data-le="fup" data-f="'+i+'" title="Subir"'+(i===0?' disabled':'')+'>↑</button>'+
         '<button type="button" class="le-mini" data-le="fdown" data-f="'+i+'" title="Bajar"'+(i===l.caracteristicas.length-1?' disabled':'')+'>↓</button>'+
         '<button type="button" class="le-mini" data-le="fdel" data-f="'+i+'" title="Quitar">✕</button></div>';
-    }).join('')||'<p style="margin:0 0 8px;color:#6f7b68;font:italic 13px Arial">Sin características todavía.</p>';
+    }).join('')+(l.caracteristicas.length?'<button type="button" class="le-btn" data-le="fadd" style="margin-top:6px!important">+ Agregar otra característica</button>':'')||'<p style="margin:0 0 8px;color:#6f7b68;font:italic 13px Arial">Sin características todavía.</p>';
   }
   function mockHtml(l){
     var url=l.id&&st.mockups&&st.mockups[l.id];
@@ -182,7 +182,7 @@
     var key=target.dataset.le,l=line(),f=Number(target.dataset.f);
     if(key==='sel'){sel=Number(target.dataset.i);paint()}
     else if(key==='nueva'){st.lineas.push({id:'',nombre:'NUEVA LÍNEA',estilo:'otro',alias:[],caracteristicas:[],nota:''});sel=st.lineas.length-1;mark();paint();var n=overlay.querySelector('[data-le="nombre"]');n.focus();n.select()}
-    else if(key==='fadd'){l.caracteristicas.push('');mark();paint();focusFeat(l.caracteristicas.length-1)}
+    else if(key==='fadd'){if(l.caracteristicas.length>=80){say('Máximo 80 características por línea','err');return}l.caracteristicas.push('');mark();paint();focusFeat(l.caracteristicas.length-1)}
     else if(key==='fdel'){l.caracteristicas.splice(f,1);mark();paint()}
     else if(key==='fup'&&f>0){var a=l.caracteristicas;a.splice(f-1,0,a.splice(f,1)[0]);mark();paint()}
     else if(key==='fdown'&&f<l.caracteristicas.length-1){var b=l.caracteristicas;b.splice(f+1,0,b.splice(f,1)[0]);mark();paint()}
@@ -207,6 +207,23 @@
     else if(event.key==='Backspace'&&t.value===''&&l.caracteristicas.length>0){event.preventDefault();l.caracteristicas.splice(i,1);mark();paint();focusFeat(Math.max(0,i-1))}
   }
 
+  // Pegar varias líneas de una vez (por ejemplo desde Excel o el PDF): cada renglón pasa a ser una característica.
+  function onPaste(event){
+    var t=event.target;
+    if(!t.dataset||t.dataset.le!=='feat')return;
+    var text=String((event.clipboardData||window.clipboardData).getData('text'));
+    if(text.trim().indexOf(String.fromCharCode(10))<0)return;
+    var parts=text.split(/\r?\n/).map(function(x){return x.replace(/^\s*(?:[-•·*▪■]|\d+[.)])\s*/,'').trim()}).filter(Boolean);
+    if(parts.length<2)return;
+    event.preventDefault();
+    var l=line(),i=Number(t.dataset.f),empty=t.value.trim()==='',room=80-l.caracteristicas.length+(empty?1:0);
+    parts=parts.slice(0,Math.max(room,0));
+    if(empty)l.caracteristicas.splice.apply(l.caracteristicas,[i,1].concat(parts));
+    else l.caracteristicas.splice.apply(l.caracteristicas,[i+1,0].concat(parts));
+    mark();paint();focusFeat(Math.min(l.caracteristicas.length-1,i+parts.length-(empty?1:0)));
+    say(parts.length+' características agregadas');
+  }
+
   function open(){
     api('/api/lineas-producto',{cache:'no-store'}).then(function(data){
       if(!data.puede_editar)return;
@@ -222,6 +239,7 @@
       overlay.addEventListener('input',onInput);
       overlay.addEventListener('change',onChange);
       overlay.addEventListener('keydown',onKeydown);
+      overlay.addEventListener('paste',onPaste);
       document.body.appendChild(overlay);
       document.addEventListener('keydown',onKey);
       paint();

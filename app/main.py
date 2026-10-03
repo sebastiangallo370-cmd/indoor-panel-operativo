@@ -1233,8 +1233,8 @@ def lineas_producto_guardar(payload: dict = Body(...), _=Depends(authenticate)):
     if not _can_edit_lines(_):
         raise HTTPException(403, 'Tu usuario no puede editar las líneas de producto')
     raw_lines = payload.get('lineas')
-    if not isinstance(raw_lines, list) or not 1 <= len(raw_lines) <= 20:
-        raise HTTPException(400, 'Debe haber entre 1 y 20 líneas')
+    if not isinstance(raw_lines, list) or not 1 <= len(raw_lines) <= 40:
+        raise HTTPException(400, 'Debe haber entre 1 y 40 líneas')
     lines, names, ids, claimed = [], set(), set(), {}
     for raw in raw_lines:
         if not isinstance(raw, dict):
@@ -1265,7 +1265,7 @@ def lineas_producto_guardar(payload: dict = Body(...), _=Depends(authenticate)):
         lines.append({
             'id': ident, 'nombre': nombre,
             'estilo': raw.get('estilo') if raw.get('estilo') in LINEA_ESTILOS else 'otro',
-            'alias': alias, 'caracteristicas': [c for c in features if c][:30],
+            'alias': alias, 'caracteristicas': [c for c in features if c][:80],
             'nota': _clean_text(raw.get('nota'), 300),
         })
     previous = _load_lineas()
@@ -5220,7 +5220,7 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
 `;document.head.appendChild(traceFigmaStyle);setTraceView();
     const commercialGroup=commercialToggle.closest('.nav-group');commercialGroup.classList.add('collapsed');const productionToggle=document.getElementById('production-toggle');if(productionToggle)productionToggle.addEventListener('click',()=>{{const g=productionToggle.closest('.nav-group');g.classList.toggle('collapsed');if(!g.classList.contains('collapsed')&&window.innerWidth>860)g.querySelector('.nav-children .tab')?.click()}});
     setTimeout(()=>{{if(!document.querySelector('.panel.active'))document.querySelector('.tab[data-kind="inicio"]')?.click()}},0);
-    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/api/cartera/cartera.js?v=20261002-5'></script><script src='/trace-ui.js?v=20261002-12'></script><script src='/home-dashboard.js?v=20261001-8'></script><script src='/bodega-dashboard.js?v=20261002-10'></script><script src='/bodegas.js?v=20261002-4'></script><script src='/mobile-nav.js?v=20261002-10'></script><script src='/build-watch.js?v=20261002-1'></script><script src='/salud.js?v=20261002-1'></script><script src='/tema.js?v=20261002-3'></script><script src='/tarjeta-iconos.js?v=20261002-5'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/linea-editor.js?v=20261003-1'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
+    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/api/cartera/cartera.js?v=20261002-5'></script><script src='/trace-ui.js?v=20261002-12'></script><script src='/home-dashboard.js?v=20261001-8'></script><script src='/bodega-dashboard.js?v=20261002-10'></script><script src='/bodegas.js?v=20261002-4'></script><script src='/mobile-nav.js?v=20261002-10'></script><script src='/build-watch.js?v=20261002-1'></script><script src='/salud.js?v=20261002-1'></script><script src='/tema.js?v=20261002-3'></script><script src='/tarjeta-iconos.js?v=20261002-5'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/linea-editor.js?v=20261003-2'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
 
 
 def ordered_mockup_uploads(extras, slots):
