@@ -33,6 +33,15 @@
   .msheet button{display:flex;width:100%;align-items:center;gap:10px;min-height:46px;margin:0 0 6px;padding:10px 14px;border:1px solid #26321f;border-radius:14px;background:#151d15;color:#f0f4eb;font:700 .86rem Arial;text-align:left;cursor:pointer}
   .msheet button.on{border-color:#d0f44c;background:#1d2a14;color:#e7ff9a}
   .msheet button::after{content:'›';margin-left:auto;color:#6f7b6a;font-size:1.2rem}
+  /* Control operarios y Reproceso: campos y botones cómodos para el dedo (44 px, letra 16 px para que no haga zoom) */
+  .operarios-day-filter-row{display:grid!important;grid-template-columns:1fr 1fr!important;gap:8px!important;width:100%!important}
+  .operarios-day-filter-row>.op-filter-field:first-child{grid-column:1/-1!important}
+  .operarios-day-filter-row .op-filter-field{min-width:0!important}
+  .operarios-day-filter[type=date]{min-width:0!important;max-width:100%!important;padding:8px 6px!important;font-size:15px!important}
+  .operarios-day-filter{width:100%!important;box-sizing:border-box!important;min-height:44px!important;font-size:16px!important;padding:8px 12px!important}
+  .operarios-day-filter-row #operarios-day-filter-apply,.operarios-day-filter-row #operarios-day-filter-clear{grid-column:1/-1!important;width:100%!important;min-height:44px!important;font-size:14px!important}
+  .panel[data-panel="operarios"] input:not([type=checkbox]):not([type=radio]),.panel[data-panel="reproceso"] input:not([type=checkbox]):not([type=radio]),.panel[data-panel="reproceso"] select{min-height:44px!important;font-size:16px!important;box-sizing:border-box!important}
+  .panel[data-panel="reproceso"] button,.panel[data-panel="operarios"] button.operarios-refresh,.rework-module button{min-height:44px!important}
   /* Bodega Tela: botones + TELA NUEVA / SUBIR DOCUMENTO / INGRESO / SALIDA compactos en una sola fila */
   .inventory-toolbar .inventory-movement-actions{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:6px!important;width:100%!important;margin-top:10px!important}
   .inventory-toolbar .inventory-movement-actions button{width:100%!important;min-width:0!important;height:44px!important;min-height:44px!important;max-height:44px!important;padding:0 4px!important;margin:0!important;writing-mode:horizontal-tb!important;display:flex!important;align-items:center!important;justify-content:center!important;text-align:center!important;font-size:10px!important;line-height:1.15!important;letter-spacing:0!important;white-space:normal!important;overflow:hidden!important;word-break:normal!important;overflow-wrap:normal!important;border-radius:10px!important}
