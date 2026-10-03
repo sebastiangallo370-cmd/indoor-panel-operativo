@@ -573,6 +573,15 @@
     traceCards.querySelectorAll('[data-card-row]').forEach(card => {
       const row = rows.find(r => r.source_row === Number(card.dataset.cardRow));
       card.querySelector('.trace-mts-inventory')?.remove();
+      // Línea de producto (columna B del Sheet)
+      const lineValue = String(traceField(row, 'LINEA') || '').trim();
+      if (lineValue && !card.querySelector('.trace-line')) {
+        const chip = document.createElement('span');
+        chip.className = 'trace-line';
+        chip.title = 'Línea de producto: ' + lineValue;
+        chip.innerHTML = '<small>LÍNEA</small>' + esc(lineValue);
+        card.querySelector('.trace-card-heading')?.appendChild(chip);
+      }
       const mtsDisplay = card.querySelector('.trace-mts-display');
       if (mtsDisplay && !mtsDisplay.querySelector('.trace-mts-actions')) {
         mtsDisplay.dataset.inventoryAccess = String(row.source_row);
@@ -2016,6 +2025,8 @@
   html body.production-mode .trace-card .trace-inline-notes{align-self:start}
   html body.production-mode .trace-card .trace-order-actions{align-content:center;min-height:50px}
   html body.production-mode .trace-card .trace-mts-row{align-items:stretch}
+  html body.production-mode .trace-card .trace-line{grid-area:badge;justify-self:end;align-self:start;display:inline-flex;align-items:center;gap:6px;max-width:100%;padding:4px 11px;border:1px solid rgba(208,244,76,.5);border-radius:999px;background:rgba(208,244,76,.12);color:#d0f44c;font:800 11px/1.2 Arial,sans-serif;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  html body.production-mode .trace-card .trace-line small{font:700 8px Arial,sans-serif;letter-spacing:.16em;opacity:.7}
   @media(prefers-reduced-motion:reduce){html body.production-mode .trace-card{transition:none}}
   `;
   document.head.appendChild(style);
