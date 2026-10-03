@@ -1160,7 +1160,7 @@ def alertas_telas_js():
 
 
 @app.get('/api/alertas-telas')
-def alertas_telas(_=Depends(authenticate)):
+def alertas_telas(request: Request, _=Depends(authenticate)):
     """Telas por debajo de su mínimo, solo para los perfiles Patronaje y Coordinador (aviso al iniciar sesión y a las 4 p. m.)."""
     with connect() as db:
         profile = db.execute('SELECT process FROM users WHERE name=? COLLATE NOCASE', (_,)).fetchone()
@@ -1168,7 +1168,9 @@ def alertas_telas(_=Depends(authenticate)):
     if not process.startswith(('PATRONAJE', 'COORDINADOR')):
         return {'aplica': False, 'alertas': []}
     data = inventory_alerts()
-    return {'aplica': True, 'alertas': [a for a in data['alertas'] if a.get('categoria') == 'BODEGA TELA']}
+    # Identifica este inicio de sesión (cambia cada vez que la persona entra con su usuario)
+    session = hashlib.sha256((request.cookies.get('indoor_login', '') + '|' + request.cookies.get('indoor_session', '')).encode()).hexdigest()[:16]
+    return {'aplica': True, 'sesion': session, 'alertas': [a for a in data['alertas'] if a.get('categoria') == 'BODEGA TELA']}
 
 
 @app.get('/linea-info.js')
@@ -2070,6 +2072,7 @@ def login_submit(request: Request, username: str = Form(...), password: str = Fo
     response = RedirectResponse("/", status_code=303)
     session_name = user["name"] if user and password_matches(password, user["password_hash"]) else expected_user
     response.set_cookie("indoor_session", create_session_token(session_name), max_age=43200, httponly=True, secure=True, samesite="lax")
+    response.set_cookie("indoor_login", secrets.token_hex(8), max_age=43200, httponly=True, secure=True, samesite="lax")  # identifica cada inicio de sesión (aviso de telas)
     return response
 
 
@@ -5804,7 +5807,7 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
 `;document.head.appendChild(traceFigmaStyle);setTraceView();
     const commercialGroup=commercialToggle.closest('.nav-group');commercialGroup.classList.add('collapsed');const productionToggle=document.getElementById('production-toggle');if(productionToggle)productionToggle.addEventListener('click',()=>{{const g=productionToggle.closest('.nav-group');g.classList.toggle('collapsed');if(!g.classList.contains('collapsed')&&window.innerWidth>860)g.querySelector('.nav-children .tab')?.click()}});
     setTimeout(()=>{{if(!document.querySelector('.panel.active'))document.querySelector('.tab[data-kind="inicio"]')?.click()}},0);
-    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/api/cartera/cartera.js?v=20261002-5'></script><script src='/trace-ui.js?v=20261003-5'></script><script src='/home-dashboard.js?v=20261001-8'></script><script src='/bodega-dashboard.js?v=20261002-10'></script><script src='/bodegas.js?v=20261002-4'></script><script src='/mobile-nav.js?v=20261003-4'></script><script src='/nav-liquid.js?v=20261003-3'></script><script src='/build-watch.js?v=20261002-1'></script><script src='/salud.js?v=20261002-1'></script><script src='/tema.js?v=20261002-3'></script><script src='/tarjeta-iconos.js?v=20261002-5'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261004-4'></script><script src='/alertas-telas.js?v=20261004-1'></script><script src='/linea-editor.js?v=20261003-3'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
+    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/api/cartera/cartera.js?v=20261002-5'></script><script src='/trace-ui.js?v=20261003-5'></script><script src='/home-dashboard.js?v=20261001-8'></script><script src='/bodega-dashboard.js?v=20261002-10'></script><script src='/bodegas.js?v=20261002-4'></script><script src='/mobile-nav.js?v=20261003-4'></script><script src='/nav-liquid.js?v=20261003-3'></script><script src='/build-watch.js?v=20261002-1'></script><script src='/salud.js?v=20261002-1'></script><script src='/tema.js?v=20261002-3'></script><script src='/tarjeta-iconos.js?v=20261002-5'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261004-4'></script><script src='/alertas-telas.js?v=20261004-3'></script><script src='/linea-editor.js?v=20261003-3'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
 
 
 def ordered_mockup_uploads(extras, slots):

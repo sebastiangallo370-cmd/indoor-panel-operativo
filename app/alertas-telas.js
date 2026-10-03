@@ -45,14 +45,20 @@
 
   function check(reason){
     return fetch('/api/alertas-telas',{cache:'no-store',credentials:'same-origin'}).then(function(r){return r.ok?r.json():null}).then(function(d){
-      if(!d||!d.aplica||!d.alertas||!d.alertas.length)return;
+      if(!d||!d.aplica)return;
+      if(reason==='sesion'){
+        // un aviso por cada inicio de sesión (la marca cambia cuando la persona vuelve a entrar con su usuario)
+        if(get('localStorage','at_sesion')===d.sesion)return;
+        set('localStorage','at_sesion',d.sesion);
+      }
+      if(!d.alertas||!d.alertas.length)return;
       show(d.alertas,reason);
       if(reason==='tarde'||new Date().getHours()>=HORA)set('localStorage','at_dia',today());
     }).catch(function(){});
   }
 
-  // 1) al iniciar sesión (una vez por sesión del navegador)
-  if(!get('sessionStorage','at_login')){set('sessionStorage','at_login','1');setTimeout(function(){check('sesion')},2500)}
+  // 1) cada vez que la persona inicia sesión
+  setTimeout(function(){check('sesion')},2500);
   // 2) todos los días a las 4 p. m. (también si se abre pasada la hora y aún no se mostró hoy)
   setInterval(function(){
     var now=new Date();
