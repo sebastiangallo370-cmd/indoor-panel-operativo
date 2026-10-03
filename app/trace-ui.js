@@ -668,12 +668,14 @@
         if (!notes.some(([k,v]) => String(v).trim() === observation.trim())) notePanel.prepend(important);
         else important.remove();
       }
-      const activeGroup = progressSummary.focus;
+      // Un usuario de un área (p. ej. IMPRESIÓN) inicia, finaliza o marca N/A SOLO su propia área; las demás siguen como estaban (PENDIENTE).
+      const ownGroup = !isAdmin && ownProcess ? (progressSummary.groups || []).find(group => group.label === ownProcess.label && !isExternal(group)) : null;
+      const activeGroup = ownGroup || progressSummary.focus;
       const activeColumn = activeGroup?.start + 1;
       const activeValue = activeColumn ? String(row.values[activeColumn - 1] || '') : '';
       const activeKey = key(activeValue);
       const activeClosed = activeKey === 'N/A' || !!dateValue(activeValue);
-      const clearGroup = activeGroup && activeKey ? activeGroup : [...(progressSummary.groups || [])].reverse().find(group => group.columns.some(index => { const value = String(row.values[index] || '').trim(); return key(value) === 'N/A' || !!dateValue(value); }));
+      const clearGroup = ownGroup ? (activeKey ? ownGroup : null) : activeGroup && activeKey ? activeGroup : [...(progressSummary.groups || [])].reverse().find(group => group.columns.some(index => { const value = String(row.values[index] || '').trim(); return key(value) === 'N/A' || !!dateValue(value); }));
       const clearColumn = clearGroup ? clearGroup.start + 1 : 0;
       const headerActions = document.createElement('span');
       headerActions.className = 'trace-order-actions';
