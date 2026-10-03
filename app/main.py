@@ -1154,6 +1154,10 @@ def inventario_alertas_js():
     return FileResponse(Path(__file__).with_name('inventario-alertas.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
 
 
+# Personas que reciben el aviso de telas por reponer (se compara el usuario y su nombre, sin tildes ni mayúsculas).
+TELA_ALERT_USERS = {'ALEJANDRO PADILLA', 'STIVEN SANCHEZ', 'INDOOR SPORT'}
+
+
 @app.get('/alertas-telas.js')
 def alertas_telas_js():
     return FileResponse(Path(__file__).with_name('alertas-telas.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
@@ -1161,11 +1165,11 @@ def alertas_telas_js():
 
 @app.get('/api/alertas-telas')
 def alertas_telas(request: Request, _=Depends(authenticate)):
-    """Telas por debajo de su mínimo, solo para los perfiles Patronaje y Coordinador (aviso al iniciar sesión y a las 4 p. m.)."""
+    """Telas por debajo de su mínimo, solo para las personas autorizadas (aviso al iniciar sesión y a las 4 p. m.)."""
     with connect() as db:
-        profile = db.execute('SELECT process FROM users WHERE name=? COLLATE NOCASE', (_,)).fetchone()
-    process = _plain_text(profile['process']) if profile else ''
-    if not process.startswith(('PATRONAJE', 'COORDINADOR')):
+        profile = db.execute('SELECT name, display_name FROM users WHERE name=? COLLATE NOCASE', (_,)).fetchone()
+    names = {_plain_text(profile['name']), _plain_text(profile['display_name'])} if profile else {_plain_text(_)}
+    if not names & TELA_ALERT_USERS:
         return {'aplica': False, 'alertas': []}
     data = inventory_alerts()
     # Identifica este inicio de sesión (cambia cada vez que la persona entra con su usuario)
