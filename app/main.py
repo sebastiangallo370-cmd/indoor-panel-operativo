@@ -1487,8 +1487,102 @@ def login_form(request: Request):
     return HTMLResponse(login_page())
 
 
+_rate_hits: dict = {}
+_rate_lock = threading.Lock()
+
+
+def _client_ip(request: Request) -> str:
+    return (request.headers.get('cf-connecting-ip') or (request.headers.get('x-forwarded-for') or '').split(',')[-1].strip()
+            or (request.client.host if request.client else 'desconocida'))
+
+
+def _too_many(bucket: str, request: Request, limit: int, seconds: int = 60) -> bool:
+    """Limitador simple por IP: más de `limit` peticiones en `seconds` segundos."""
+    now = time.monotonic()
+    key = (bucket, _client_ip(request))
+    with _rate_lock:
+        hits = [t for t in _rate_hits.get(key, []) if now - t < seconds]
+        hits.append(now)
+        _rate_hits[key] = hits
+        if len(_rate_hits) > 5000:
+            for old in [k for k, v in _rate_hits.items() if not v or now - v[-1] > 3600]:
+                _rate_hits.pop(old, None)
+        return len(hits) > limit
+
+
+@app.get('/api/consulta-pedido')
+def consulta_publica_pedido(request: Request, orden: str = ''):
+    """Consulta pública para el cliente: en qué proceso va su orden. Solo estados; nada de clientes, cantidades ni precios."""
+    if _too_many('consulta', request, 12):
+        raise HTTPException(429, 'Demasiadas consultas. Intenta de nuevo en un minuto.')
+    order = re.sub(r'\s+', '', str(orden or '')).upper()
+    if not re.fullmatch(r'[A-Z]{1,3}-?\d{3,6}', order):
+        raise HTTPException(400, 'Escribe el número de tu orden, por ejemplo CO6128.')
+    db = connect()
+    try:
+        meta = {r['key']: r['value'] for r in db.execute("SELECT key,value FROM production_meta WHERE key='headers'")}
+        headers = json.loads(meta.get('headers') or '[]')
+        order_idx = next((i for i, h in enumerate(headers) if str(h).strip().upper() == 'ORDEN'), -1)
+        due_idx = next((i for i, h in enumerate(headers) if str(h).strip().upper() == 'FECHA DE ENTREGA'), -1)
+        rows = []
+        for raw in db.execute('SELECT values_json FROM production_rows'):
+            values = json.loads(raw['values_json'])
+            if 0 <= order_idx < len(values) and re.sub(r'[\s-]+', '', str(values[order_idx])).upper() == order.replace('-', ''):
+                rows.append(values + [''] * max(0, len(headers) - len(values)))
+    finally:
+        db.close()
+    if not rows:
+        raise HTTPException(404, 'No encontramos esa orden. Revisa el número o comunícate con tu asesor.')
+    steps = []
+    for index, process in enumerate(PROCESS_FLOW):
+        label = process['label']
+        if _plain_text(label) == 'DISENO':
+            continue
+        columns = [i for i, h in enumerate(headers) if official_process(h) == index and operator_process_header(h)]
+        if not columns:
+            continue
+        states = []
+        for values in rows:
+            cells = [str(values[i] or '').strip().upper() for i in columns]
+            closed = [c == 'N/A' or bool(parse_production_date(c)) for c in cells]
+            states.append('rework' if 'R' in cells else 'active' if 'P' in cells else 'finished' if closed and all(closed) else 'partial' if any(closed) else 'pending')
+        if 'rework' in states:
+            state = 'rework'
+        elif 'active' in states:
+            state = 'active'
+        elif all(s == 'finished' for s in states):
+            state = 'finished'
+        elif any(s in ('finished', 'partial') for s in states):
+            state = 'active'
+        else:
+            state = 'pending'
+        steps.append({'proceso': label, 'estado': state})
+    done = sum(1 for s in steps if s['estado'] == 'finished')
+    if steps and done == len(steps):
+        overall, current = 'finished', ''
+    elif any(s['estado'] == 'rework' for s in steps):
+        overall, current = 'rework', next(s['proceso'] for s in steps if s['estado'] == 'rework')
+    elif any(s['estado'] == 'active' for s in steps):
+        overall, current = 'active', [s['proceso'] for s in steps if s['estado'] == 'active'][-1]
+    else:
+        overall, current = 'pending', next((s['proceso'] for s in steps if s['estado'] != 'finished'), '')
+    due = None
+    if due_idx >= 0:
+        dates = [d for d in (parse_production_date(str(v[due_idx])) for v in rows) if d]
+        due = min(dates).isoformat() if dates else None
+    return {'orden': order, 'estado': overall, 'proceso_actual': current, 'porcentaje': round(done / len(steps) * 100) if steps else 0,
+            'procesos': steps, 'entrega': due}
+
+
+def _is_admin_session(request: Request) -> str | None:
+    username = session_username(request.cookies.get('indoor_session', ''))
+    return username if username and _can_edit_lines(username) else None
+
+
 @app.post("/login")
-def login_submit(username: str = Form(...), password: str = Form(...)):
+def login_submit(request: Request, username: str = Form(...), password: str = Form(...)):
+    if _too_many('login', request, 8):
+        return HTMLResponse(login_page("Demasiados intentos. Espera un minuto e inténtalo de nuevo."), status_code=429)
     expected_user = os.getenv("APP_USER", "indoor")
     expected_password = os.getenv("APP_PASSWORD", "")
     with connect() as db:
@@ -1507,18 +1601,25 @@ def login_submit(username: str = Form(...), password: str = Form(...)):
 
 def register_page(error: str = "") -> str:
     template = Path(__file__).with_name('register.html').read_text(encoding='utf-8')
-    return template.replace('__REGISTER_ERROR__', escape(error)).replace('</head>', INPUT_CONTRAST_STYLE + '</head>')
+    ok_style = '<style>.error.ok{background:#1d3a16!important;border-color:#5fa84a!important;color:#dff7d3!important}</style>' if error.startswith('✓') else ''
+    page = template.replace('__REGISTER_ERROR__', escape(error)).replace('</head>', INPUT_CONTRAST_STYLE + ok_style + '</head>')
+    return page.replace('class="error"', 'class="error ok"', 1) if error.startswith('✓') else page
 
 
 @app.get("/registro", response_class=HTMLResponse)
 def register_form(request: Request):
-    if session_username(request.cookies.get("indoor_session", "")):
-        return RedirectResponse("/", status_code=303)
+    # Las cuentas las crea solo la administración (antes cualquiera podía registrarse y elegir su proceso).
+    if not session_username(request.cookies.get("indoor_session", "")):
+        return RedirectResponse("/login", status_code=303)
+    if not _is_admin_session(request):
+        return HTMLResponse("<h1>Sin permiso</h1><p>Las cuentas nuevas las crea la administración.</p><p><a href='/'>Volver</a></p>", status_code=403)
     return HTMLResponse(register_page())
 
 
 @app.post("/registro")
-def register_submit(name: str = Form(...), process: str = Form(...), password: str = Form(...)):
+def register_submit(request: Request, name: str = Form(...), process: str = Form(...), password: str = Form(...)):
+    if not _is_admin_session(request):
+        return HTMLResponse("<h1>Sin permiso</h1><p>Las cuentas nuevas las crea la administración.</p>", status_code=403)
     clean_name = " ".join(name.split())
     clean_process = " ".join(process.split())
     if len(clean_name) < 3 or len(clean_process) < 2:
@@ -1533,9 +1634,8 @@ def register_submit(name: str = Form(...), process: str = Form(...), password: s
             )
     except sqlite3.IntegrityError:
         return HTMLResponse(register_page("Ya existe un operario registrado con ese nombre."), status_code=409)
-    response = RedirectResponse("/", status_code=303)
-    response.set_cookie("indoor_session", create_session_token(clean_name), max_age=43200, httponly=True, secure=True, samesite="lax")
-    return response
+    # La cuenta nueva NO inicia sesión: quien la creó sigue con su propia sesión.
+    return HTMLResponse(register_page(f"✓ Cuenta creada: {clean_name}. Puedes crear otra."))
 
 
 @app.get("/logout")
@@ -5230,7 +5330,7 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
 `;document.head.appendChild(traceFigmaStyle);setTraceView();
     const commercialGroup=commercialToggle.closest('.nav-group');commercialGroup.classList.add('collapsed');const productionToggle=document.getElementById('production-toggle');if(productionToggle)productionToggle.addEventListener('click',()=>{{const g=productionToggle.closest('.nav-group');g.classList.toggle('collapsed');if(!g.classList.contains('collapsed')&&window.innerWidth>860)g.querySelector('.nav-children .tab')?.click()}});
     setTimeout(()=>{{if(!document.querySelector('.panel.active'))document.querySelector('.tab[data-kind="inicio"]')?.click()}},0);
-    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/api/cartera/cartera.js?v=20261002-5'></script><script src='/trace-ui.js?v=20261003-2'></script><script src='/home-dashboard.js?v=20261001-8'></script><script src='/bodega-dashboard.js?v=20261002-10'></script><script src='/bodegas.js?v=20261002-4'></script><script src='/mobile-nav.js?v=20261003-4'></script><script src='/nav-liquid.js?v=20261003-3'></script><script src='/build-watch.js?v=20261002-1'></script><script src='/salud.js?v=20261002-1'></script><script src='/tema.js?v=20261002-3'></script><script src='/tarjeta-iconos.js?v=20261002-5'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/linea-editor.js?v=20261003-2'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
+    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/api/cartera/cartera.js?v=20261002-5'></script><script src='/trace-ui.js?v=20261003-2'></script><script src='/home-dashboard.js?v=20261001-8'></script><script src='/bodega-dashboard.js?v=20261002-10'></script><script src='/bodegas.js?v=20261002-4'></script><script src='/mobile-nav.js?v=20261003-4'></script><script src='/nav-liquid.js?v=20261003-3'></script><script src='/build-watch.js?v=20261002-1'></script><script src='/salud.js?v=20261002-1'></script><script src='/tema.js?v=20261002-3'></script><script src='/tarjeta-iconos.js?v=20261002-5'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/linea-editor.js?v=20261003-3'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
 
 
 def ordered_mockup_uploads(extras, slots):
