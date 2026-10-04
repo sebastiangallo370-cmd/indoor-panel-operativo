@@ -45,6 +45,7 @@ DB_PATH = STATE_DIR / "jobs.sqlite3"
 security = HTTPBasic(auto_error=False)
 from app.cartera_api import cartera_router
 from app.inventario_api import inventario_router, start_sublimacion_worker, inventory_alerts
+from app import permisos as permisos_mod, exportar as exportar_mod
 from app.cartera_externa import externa_router
 app = FastAPI(title="Asistente de Reprogramaciones", version="1.0.0")
 
@@ -770,8 +771,19 @@ def authenticate(request: Request):
     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Sesión no válida")
 
 
-app.include_router(cartera_router, dependencies=[Depends(authenticate)])
-app.include_router(inventario_router, dependencies=[Depends(authenticate)])
+def _process_of(username: str):
+    with connect() as db:
+        row = db.execute('SELECT process FROM users WHERE name=? COLLATE NOCASE', (username,)).fetchone()
+    return row['process'] if row else None
+
+
+permisos_mod.registrar_lookup(_process_of)
+permisos_mod.registrar_autenticacion(authenticate)
+exportar_mod.configurar(lambda: read_local_production(), authenticate)
+app.include_router(permisos_mod.router)
+app.include_router(exportar_mod.router)
+app.include_router(cartera_router, dependencies=[Depends(authenticate), Depends(permisos_mod.exigir('cartera'))])
+app.include_router(inventario_router, dependencies=[Depends(authenticate), Depends(permisos_mod.exigir('inventario'))])
 app.include_router(externa_router, dependencies=[Depends(authenticate)])
 
 
@@ -1394,6 +1406,21 @@ def linea_editor_js():
 @app.get('/nav-liquid.js')
 def nav_liquid_js():
     return FileResponse(Path(__file__).with_name('nav-liquid.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
+
+
+@app.get('/permisos.js')
+def permisos_js():
+    return FileResponse(Path(__file__).with_name('permisos.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
+
+
+@app.get('/permisos', response_class=HTMLResponse)
+def permisos_page(request: Request):
+    username = session_username(request.cookies.get('indoor_session', ''))
+    if not username:
+        return RedirectResponse('/login', status_code=303)
+    if permisos_mod.rol_de(username) != 'administracion':
+        return HTMLResponse("<h1>Sin permiso</h1><p>Solo la administración puede cambiar los permisos.</p><p><a href='/'>Volver</a></p>", status_code=403)
+    return HTMLResponse(Path(__file__).with_name('permisos.html').read_text(encoding='utf-8'), headers={'Cache-Control': 'no-store'})
 
 
 @app.get('/salud.js')
@@ -5862,7 +5889,7 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
 `;document.head.appendChild(traceFigmaStyle);setTraceView();
     const commercialGroup=commercialToggle.closest('.nav-group');commercialGroup.classList.add('collapsed');const productionToggle=document.getElementById('production-toggle');if(productionToggle)productionToggle.addEventListener('click',()=>{{const g=productionToggle.closest('.nav-group');g.classList.toggle('collapsed');if(!g.classList.contains('collapsed')&&window.innerWidth>860)g.querySelector('.nav-children .tab')?.click()}});
     setTimeout(()=>{{if(!document.querySelector('.panel.active'))document.querySelector('.tab[data-kind="inicio"]')?.click()}},0);
-    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/api/cartera/cartera.js?v=20261002-5'></script><script src='/trace-ui.js?v=20261003-5'></script><script src='/home-dashboard.js?v=20261001-8'></script><script src='/bodega-dashboard.js?v=20261002-10'></script><script src='/bodegas.js?v=20261002-4'></script><script src='/mobile-nav.js?v=20261003-4'></script><script src='/nav-liquid.js?v=20261003-3'></script><script src='/build-watch.js?v=20261002-1'></script><script src='/salud.js?v=20261002-1'></script><script src='/tema.js?v=20261002-3'></script><script src='/tarjeta-iconos.js?v=20261002-5'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261005-3'></script><script src='/linea-editor.js?v=20261003-3'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
+    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/permisos.js?v=20261005-1'></script><script src='/api/cartera/cartera.js?v=20261002-5'></script><script src='/trace-ui.js?v=20261003-5'></script><script src='/home-dashboard.js?v=20261001-8'></script><script src='/bodega-dashboard.js?v=20261002-10'></script><script src='/bodegas.js?v=20261002-4'></script><script src='/mobile-nav.js?v=20261003-4'></script><script src='/nav-liquid.js?v=20261003-3'></script><script src='/build-watch.js?v=20261002-1'></script><script src='/salud.js?v=20261002-1'></script><script src='/tema.js?v=20261002-3'></script><script src='/tarjeta-iconos.js?v=20261002-5'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261005-3'></script><script src='/linea-editor.js?v=20261003-3'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
 
 
 def ordered_mockup_uploads(extras, slots):
