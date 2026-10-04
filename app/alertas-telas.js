@@ -21,36 +21,11 @@
     '.at-chip.agotado{background:rgba(255,106,90,.18);color:#ff9a8c;border:1px solid rgba(255,106,90,.5)}.at-chip.bajo{background:rgba(255,184,107,.16);color:#ffc98a;border:1px solid rgba(255,184,107,.45)}',
     '.at-num{text-align:right;font-variant-numeric:tabular-nums;font-size:13px;white-space:nowrap}.at-num em{display:block;font-style:normal;color:#93a28f;font-size:11px}',
     '.at-foot{display:flex;gap:10px;padding:14px 24px 22px;flex-wrap:wrap}',
-    '.at-tab{visibility:visible!important;position:fixed;left:0;top:46%;z-index:100003;display:flex;flex-direction:column;align-items:center;gap:1px;padding:9px 8px 9px 7px;border:1px solid rgba(255,184,107,.65);border-left:0;border-radius:0 14px 14px 0;background:#1a1410;color:#ffc98a;font-family:Arial,sans-serif;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.5);transition:transform .15s,padding .15s}',
-    '.at-tab{width:auto!important;min-width:0!important;max-width:none!important;height:auto!important;min-height:0!important;right:auto!important;margin:0!important;line-height:1.1!important}',
-    '.at-x{width:30px!important;min-width:0!important;height:30px!important;min-height:0!important;padding:0!important}',
-    '.at-tab:hover{transform:translateX(2px);padding-left:11px}.at-tab span{font-size:15px;line-height:1}.at-tab b{font-size:16px;line-height:1.1}.at-tab em{font:700 8.5px Arial;letter-spacing:.1em;text-transform:uppercase;font-style:normal}',
-    '.at-tab.hot{border-color:rgba(255,106,90,.75);background:#20110f;color:#ff9a8c}',
-    '.at-tab.ping{animation:at-ping 1.1s ease-out 4}',
-    '@keyframes at-ping{0%{box-shadow:0 8px 24px rgba(0,0,0,.5),0 0 0 0 rgba(255,138,122,.65)}100%{box-shadow:0 8px 24px rgba(0,0,0,.5),0 0 0 16px rgba(255,138,122,0)}}',
-    '.at-pop{visibility:visible!important;position:fixed;left:58px;top:46%;transform:translateY(-50%);z-index:100003;width:min(400px,calc(100vw - 76px));max-height:min(70vh,520px);display:flex;flex-direction:column;border:1px solid rgba(255,138,122,.5);border-radius:16px;background:#0e1410;color:#eef2e9;font-family:Arial,sans-serif;box-shadow:0 24px 70px rgba(0,0,0,.65);animation:at-in .14s ease-out}',
-    '.at-pop-head{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 6px;font-size:15px}.at-pop .at-list{padding:8px 14px}.at-pop .at-foot{padding:6px 14px 14px}',
-    '.at-pop .at-row{grid-template-columns:1fr;gap:8px}.at-pop .at-row b{white-space:normal}.at-pop .at-row>div:last-child{justify-content:space-between}',
-    '.at-x{width:30px;height:30px;border:0;border-radius:50%;background:#1a2a22;color:#fff;font-size:20px;line-height:1;cursor:pointer}.at-x:hover{background:#d0f44c;color:#10150e}',
     '.at-btn{flex:1;min-height:44px;border:1.5px solid #d0f44c;border-radius:12px;background:transparent;color:#d0f44c;font:800 12px Arial;letter-spacing:.06em;text-transform:uppercase;cursor:pointer}',
     '.at-btn.main{background:#d0f44c;color:#10150e}.at-btn:hover{filter:brightness(1.1)}'
   ].join('');
   var st=document.createElement('style');st.textContent=css;document.head.appendChild(st);
 
-  var tab=null,pop=null,current=[];
-  function closePop(){if(pop){pop.remove();pop=null}open=false}
-  function openPop(){
-    if(pop||!current.length)return;open=true;
-    pop=document.createElement('div');pop.className='at-pop';pop.setAttribute('role','dialog');
-    pop.innerHTML='<div class="at-pop-head"><b>⚠ '+current.length+(current.length===1?' tela por reponer':' telas por reponer')+'</b><button type="button" class="at-x" data-close aria-label="Cerrar">×</button></div>'+
-      '<div class="at-list">'+current.map(function(a){return '<div class="at-row"><div><b title="'+esc(a.nombre)+'">'+esc(a.nombre)+'</b><small>'+(a.pedidos?a.pedidos+' pedidos de clientes':'Stock mínimo definido')+'</small></div><div style="display:flex;align-items:center;gap:10px"><span class="at-chip '+esc(a.nivel)+'">'+(a.nivel==='agotado'?'Agotada':'Baja')+'</span><div class="at-num">'+fmt(a.total)+' MTS<em>mín '+fmt(a.minimo)+' · faltan '+fmt(a.faltan)+'</em></div></div></div>'}).join('')+'</div>'+
-      '<div class="at-foot"><button type="button" class="at-btn main" data-go>Ver inventario</button></div>';
-    (document.body||document.documentElement).appendChild(pop);
-    pop.addEventListener('click',function(e){
-      if(e.target.closest('[data-close]'))closePop();
-      else if(e.target.closest('[data-go]')){closePop();var t=document.querySelector('.tab[data-kind="inventario"],.tab[data-panel="inventario"],[data-open-panel="inventario"]');if(t)t.click()}
-    });
-  }
   var modal=null;
   function showModal(alerts,reason){
     if(modal||!alerts.length)return;
@@ -68,21 +43,7 @@
     document.addEventListener('keydown',function onKey(e){if(e.key==='Escape'&&modal===ov){close();document.removeEventListener('keydown',onKey)}});
   }
   function show(alerts,reason){
-    current=alerts;
-    if(!alerts.length){if(tab){tab.remove();tab=null}closePop();return}
-    if(!tab){
-      tab=document.createElement('button');tab.type='button';tab.className='at-tab';
-      tab.addEventListener('click',function(){if(pop)closePop();else openPop()});
-      (document.body||document.documentElement).appendChild(tab);
-    }
-    var out=alerts.filter(function(a){return a.nivel==='agotado'}).length;
-    tab.className='at-tab'+(out?' hot':'');
-    tab.title='Telas por reponer: '+alerts.length+(out?' ('+out+' agotada'+(out===1?'':'s')+')':'');
-    tab.innerHTML='<span>⚠</span><b>'+alerts.length+'</b><em>'+(alerts.length===1?'tela':'telas')+'</em>';
-    // llama la atención un momento (al iniciar sesión y a las 4 p. m.)
-    tab.classList.remove('ping');void tab.offsetWidth;tab.classList.add('ping');
-    if(pop){closePop();openPop()}
-    if(reason==='sesion'||reason==='tarde')showModal(alerts,reason);
+    if(alerts.length&&(reason==='sesion'||reason==='tarde'))showModal(alerts,reason);
   }
 
   function check(reason){
