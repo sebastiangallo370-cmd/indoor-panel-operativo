@@ -1665,6 +1665,8 @@ def _signed_images(source_row: int, payload: dict, expires: int, with_folder: bo
 
 
 _PREFETCH_BUSY: set = set()
+_PREFETCH_LOCK = threading.Lock()
+_PREFETCH_POOL = ThreadPoolExecutor(max_workers=3, thread_name_prefix="prefetch-public")
 
 
 def _prefetch_extra(source_row: int):
@@ -1675,16 +1677,18 @@ def _prefetch_extra(source_row: int):
 
 def _prefetch_public(source_row: int):
     """Empieza a preparar los mockups de una referencia apenas se consulta, para que estén listos cuando la página los pida."""
-    if source_row in _PREFETCH_BUSY:
-        return
-    _PREFETCH_BUSY.add(source_row)
+    with _PREFETCH_LOCK:
+        if source_row in _PREFETCH_BUSY:
+            return
+        _PREFETCH_BUSY.add(source_row)
     try:
         if _assets_with_timeout(source_row, 60) is not None:
             _prefetch_extra(source_row)
     except Exception:
         pass
     finally:
-        _PREFETCH_BUSY.discard(source_row)
+        with _PREFETCH_LOCK:
+            _PREFETCH_BUSY.discard(source_row)
 
 
 def _public_mockup_info(source_row: int) -> dict:
@@ -1775,7 +1779,7 @@ def consulta_publica_pedido(request: Request, q: str = '', orden: str = ''):
     for rows_ in grouped.values():
         for source_row_, _values in rows_[:12]:
             if source_row_ not in _ASSET_CACHE or source_row_ not in _PUBLIC_EXTRA:
-                threading.Thread(target=_prefetch_public, args=(source_row_,), daemon=True).start()
+                _PREFETCH_POOL.submit(_prefetch_public, source_row_)
     pedidos = []
     for order_value, rows in grouped.items():
         references, best = [], (-2, 'pending', 'Recibido · en cola de producción')
