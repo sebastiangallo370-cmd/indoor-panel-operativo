@@ -28,11 +28,10 @@
 
   function show(alerts,reason){
     if(open||!alerts.length)return;open=true;
-    var out=alerts.filter(function(a){return a.nivel==='agotado'}).length;
     var ov=document.createElement('div');ov.className='at-overlay';
     ov.innerHTML='<div class="at-card" role="alertdialog" aria-modal="true"><div class="at-head"><small>'+(reason==='tarde'?'RECORDATORIO · 4:00 P. M.':'ALERTA DE INVENTARIO')+'</small>'+
       '<h3>⚠ '+alerts.length+(alerts.length===1?' tela necesita reposición':' telas necesitan reposición')+'</h3>'+
-      '<p>'+(out?out+' agotada'+(out===1?'':'s')+'. ':'')+'Hay que pedirlas. Este aviso se repite al iniciar sesión y todos los días a las 4 p. m. hasta que ingrese la tela y supere su mínimo.</p></div>'+
+      '</div>'+
       '<div class="at-list">'+alerts.map(function(a){return '<div class="at-row"><div><b title="'+esc(a.nombre)+'">'+esc(a.nombre)+'</b><small>'+(a.pedidos?a.pedidos+' pedidos de clientes':'Stock mínimo definido')+'</small></div><div style="display:flex;align-items:center;gap:10px"><span class="at-chip '+esc(a.nivel)+'">'+(a.nivel==='agotado'?'Agotada':'Baja')+'</span><div class="at-num">'+fmt(a.total)+' MTS<em>mín '+fmt(a.minimo)+' · faltan '+fmt(a.faltan)+'</em></div></div></div>'}).join('')+'</div>'+
       '<div class="at-foot"><button type="button" class="at-btn" data-close>Entendido</button><button type="button" class="at-btn main" data-go>Ver inventario</button></div></div>';
     document.body.appendChild(ov);
