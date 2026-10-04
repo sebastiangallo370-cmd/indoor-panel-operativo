@@ -17,10 +17,24 @@
       var alive=false,now=Date.now();
       Object.keys(localStorage).forEach(function(k){if(k.indexOf(HB)===0&&now-parseInt(localStorage.getItem(k),10)<ALIVE)alive=true});
       if(alive)sessionStorage.setItem(FLAG,'1');   // otra pestaña del panel sigue abierta
-      else{out();return}                           // se cerró todo: hay que iniciar sesión de nuevo
+      else if(window.BroadcastChannel){
+        // el latido puede estar viejo si la otra pestaña está en segundo plano (el navegador frena sus temporizadores): se le pregunta directo
+        var ch=new BroadcastChannel('indoor_guard'),done=false;
+        ch.onmessage=function(e){if(e.data==='pong'&&!done){done=true;sessionStorage.setItem(FLAG,'1');ch.close();start()}};
+        ch.postMessage('ping');
+        setTimeout(function(){if(!done){done=true;ch.close();out()}},800);
+        return;
+      }else{out();return}                          // se cerró todo: hay que iniciar sesión de nuevo
     }
-    function beat(){try{localStorage.setItem(HB+id,String(Date.now()))}catch(e){}}
-    beat();setInterval(beat,5000);
-    window.addEventListener('pagehide',function(){try{localStorage.removeItem(HB+id)}catch(e){}});
+    start();
   }catch(e){}
+  function start(){
+    try{
+      function beat(){try{localStorage.setItem(HB+id,String(Date.now()))}catch(e){}}
+      beat();setInterval(beat,5000);
+      document.addEventListener('visibilitychange',beat);
+      if(window.BroadcastChannel){var me=new BroadcastChannel('indoor_guard');me.onmessage=function(e){if(e.data==='ping')me.postMessage('pong')}}
+      window.addEventListener('pagehide',function(){try{localStorage.removeItem(HB+id)}catch(e){}});
+    }catch(e){}
+  }
 })();
