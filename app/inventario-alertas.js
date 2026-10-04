@@ -6,7 +6,7 @@
   function esc(t){return String(t==null?'':t).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
   function fmt(n){return new Intl.NumberFormat('es-CO',{maximumFractionDigits:1}).format(Number(n)||0)}
   var css=[
-    '#stock-alertas{margin:0 0 4px}',
+    '.sa-box{margin:0 0 14px}',
     '.sa-card{padding:16px 18px;border:1px solid rgba(255,138,122,.5);border-radius:18px;background:linear-gradient(180deg,#1b1210,#0f1710 60%)}',
     '.sa-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:12px}',
     '.sa-head b{font-size:16px;color:#eef2e9}.sa-head span{font-size:12.5px;color:#aebba9}',
@@ -22,16 +22,30 @@
   ].join('');
   var style=document.createElement('style');style.textContent=css;document.head.appendChild(style);
 
-  function render(){
-    var shell=document.querySelector('.inventory-shell');
-    if(!shell)return;
-    var box=document.getElementById('stock-alertas');
-    var list=(data&&data.aplica&&data.alertas)||[];
-    if(!list.length){if(box)box.remove();return}
-    if(!box){box=document.createElement('div');box.id='stock-alertas';shell.insertBefore(box,shell.firstChild)}
+  function cardHtml(list){
     var out=list.filter(function(a){return a.nivel==='agotado'}).length;
-    box.innerHTML='<div class="sa-card"><div class="sa-head"><b>⚠ Telas por reponer · '+list.length+'</b><span>'+(out?out+' agotada'+(out===1?'':'s')+' · ':'')+'por debajo de su stock mínimo</span></div><div class="sa-grid">'+
+    return '<div class="sa-card"><div class="sa-head"><b>⚠ '+list.length+(list.length===1?' TELA CON FALTA DE STOCK':' TELAS CON FALTA DE STOCK')+'</b><span>'+(out?out+' agotada'+(out===1?'':'s')+' · ':'')+'por debajo de su stock mínimo</span></div><div class="sa-grid">'+
       list.map(function(a){return '<div class="sa-item '+esc(a.nivel)+'"><div class="sa-name" title="'+esc(a.nombre)+'">'+esc(a.nombre)+'</div><div class="sa-line"><span class="sa-num">'+fmt(a.total)+' MTS<em>mín '+fmt(a.minimo)+' · faltan '+fmt(a.faltan)+'</em></span><span class="sa-chip '+esc(a.nivel)+'">'+(a.nivel==='agotado'?'Agotada':'Baja')+'</span></div></div>'}).join('')+'</div></div>';
+  }
+  function mount(host,id,list){
+    var box=document.getElementById(id);
+    if(!list.length){if(box)box.remove();return}
+    var html=cardHtml(list);
+    if(!box){box=document.createElement('div');box.id=id;box.className='sa-box';host.insertBefore(box,host.firstChild)}
+    if(box.dataset.h!==html){box.innerHTML=html;box.dataset.h=html}
+  }
+  function render(){
+    var list=(data&&data.aplica&&data.alertas)||[];
+    var shell=document.querySelector('.inventory-shell');if(shell)mount(shell,'stock-alertas',list);
+    var bd=document.querySelector('.bd-body');
+    if(bd&&bd.children.length&&!bd.querySelector(':scope > .bd-note')){
+      mount(bd,'stock-alertas-bd',list);
+      // la tarjeta nueva reemplaza la sección antigua «Bajo stock» (umbral fijo de 100 MTS)
+      if(list.length)[].forEach.call(bd.querySelectorAll('.bd-section'),function(sec){
+        var h=sec.querySelector('h3');
+        if(h&&/^\s*Bajo stock/i.test(h.textContent)){sec.style.display='none';var n=sec.nextElementSibling;if(n&&n.classList.contains('bd-note'))n.style.display='none'}
+      });
+    }
   }
 
   function refresh(){
@@ -40,9 +54,9 @@
   }
 
   new MutationObserver(function(){
-    if(!document.querySelector('.inventory-shell'))return;
-    if(data&&!document.getElementById('stock-alertas'))render();
+    if(!data)return;
+    if((document.querySelector('.inventory-shell')&&!document.getElementById('stock-alertas'))||(document.querySelector('.bd-body > .bd-section')&&!document.getElementById('stock-alertas-bd')))render();
   }).observe(document.body||document.documentElement,{childList:true,subtree:true});
   refresh();
-  setInterval(function(){if(document.querySelector('.inventory-shell'))refresh()},60000);
+  setInterval(refresh,60000);
 })();
