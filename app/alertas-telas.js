@@ -9,7 +9,7 @@
   function get(store,key){try{return window[store].getItem(key)}catch(e){return null}}
   function set(store,key,value){try{window[store].setItem(key,value)}catch(e){}}
   var css=[
-    '.at-overlay{position:fixed;inset:0;z-index:100003;display:grid;place-items:center;padding:20px;background:rgba(4,6,4,.72);backdrop-filter:blur(4px);animation:at-in .12s ease-out}',
+    '.at-overlay{visibility:visible!important;position:fixed;inset:0;z-index:100003;display:grid;place-items:center;padding:20px;background:rgba(4,6,4,.72);backdrop-filter:blur(4px);animation:at-in .12s ease-out}',
     '@keyframes at-in{from{opacity:0}to{opacity:1}}',
     '.at-card{width:min(560px,100%);max-height:min(88vh,720px);display:flex;flex-direction:column;border:1px solid rgba(255,138,122,.55);border-radius:22px;background:linear-gradient(180deg,#1b1210,#0d130e 38%);color:#eef2e9;font-family:Arial,sans-serif;box-shadow:0 34px 90px rgba(0,0,0,.65)}',
     '.at-head{padding:22px 24px 8px}.at-head small{display:block;font:800 10.5px Arial;letter-spacing:.18em;color:#ff9a8c}',
@@ -34,7 +34,7 @@
       '</div>'+
       '<div class="at-list">'+alerts.map(function(a){return '<div class="at-row"><div><b title="'+esc(a.nombre)+'">'+esc(a.nombre)+'</b><small>'+(a.pedidos?a.pedidos+' pedidos de clientes':'Stock mínimo definido')+'</small></div><div style="display:flex;align-items:center;gap:10px"><span class="at-chip '+esc(a.nivel)+'">'+(a.nivel==='agotado'?'Agotada':'Baja')+'</span><div class="at-num">'+fmt(a.total)+' MTS<em>mín '+fmt(a.minimo)+' · faltan '+fmt(a.faltan)+'</em></div></div></div>'}).join('')+'</div>'+
       '<div class="at-foot"><button type="button" class="at-btn" data-close>Entendido</button><button type="button" class="at-btn main" data-go>Ver inventario</button></div></div>';
-    document.body.appendChild(ov);
+    (document.body||document.documentElement).appendChild(ov);
     function close(){open=false;ov.remove()}
     ov.addEventListener('click',function(e){
       if(e.target.closest('[data-close]')||e.target===ov)close();
@@ -43,7 +43,10 @@
   }
 
   function check(reason){
-    return fetch('/api/alertas-telas',{cache:'no-store',credentials:'same-origin'}).then(function(r){return r.ok?r.json():null}).then(function(d){
+    // la primera consulta ya la lanzó la cabecera de la página, apenas empezó a cargar
+    var first=reason==='sesion'&&window.__telasP,request=first?window.__telasP:fetch('/api/alertas-telas',{cache:'no-store',credentials:'same-origin'}).then(function(r){return r.ok?r.json():null});
+    if(first)window.__telasP=null;
+    return request.then(function(d){
       if(!d||!d.aplica)return;
       if(reason==='sesion'){
         // un aviso por cada inicio de sesión (la marca cambia cuando la persona vuelve a entrar con su usuario)
