@@ -1,5 +1,4 @@
-// Aviso de telas por reponer para Patronaje y Coordinador: aparece al iniciar sesión y todos los días a las 4 p. m.
-// mientras la tela siga por debajo de su stock mínimo (cuando ingresa y supera el mínimo, deja de avisar).
+// Aviso de telas por reponer: aparece al iniciar sesión mientras alguna tela esté por debajo de su stock mínimo.
 (function(){
   if(window.__alertasTelas)return;window.__alertasTelas=true;
   var HORA=16,open=false;
@@ -65,9 +64,4 @@
 
   // 1) cada vez que la persona inicia sesión
   check('sesion');
-  // 2) todos los días a las 4 p. m. (también si se abre pasada la hora y aún no se mostró hoy)
-  setInterval(function(){
-    var now=new Date();
-    if(now.getHours()>=HORA&&get('localStorage','at_dia')!==today())check('tarde');
-  },30000);
 })();
