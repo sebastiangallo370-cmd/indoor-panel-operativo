@@ -9,7 +9,7 @@
   function get(store,key){try{return window[store].getItem(key)}catch(e){return null}}
   function set(store,key,value){try{window[store].setItem(key,value)}catch(e){}}
   var css=[
-    '.at-overlay{position:fixed;inset:0;z-index:100003;display:grid;place-items:center;padding:20px;background:rgba(4,6,4,.72);backdrop-filter:blur(4px);animation:at-in .2s ease-out}',
+    '.at-overlay{position:fixed;inset:0;z-index:100003;display:grid;place-items:center;padding:20px;background:rgba(4,6,4,.72);backdrop-filter:blur(4px);animation:at-in .12s ease-out}',
     '@keyframes at-in{from{opacity:0}to{opacity:1}}',
     '.at-card{width:min(560px,100%);max-height:min(88vh,720px);display:flex;flex-direction:column;border:1px solid rgba(255,138,122,.55);border-radius:22px;background:linear-gradient(180deg,#1b1210,#0d130e 38%);color:#eef2e9;font-family:Arial,sans-serif;box-shadow:0 34px 90px rgba(0,0,0,.65)}',
     '.at-head{padding:22px 24px 8px}.at-head small{display:block;font:800 10.5px Arial;letter-spacing:.18em;color:#ff9a8c}',
@@ -58,7 +58,7 @@
   }
 
   // 1) cada vez que la persona inicia sesión
-  setTimeout(function(){check('sesion')},2500);
+  check('sesion');
   // 2) todos los días a las 4 p. m. (también si se abre pasada la hora y aún no se mostró hoy)
   setInterval(function(){
     var now=new Date();
