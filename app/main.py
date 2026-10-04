@@ -28,6 +28,7 @@ from openpyxl import load_workbook
 
 from app.excel_linux import crear_excel_listado
 from app.excel_mockups import listing_designs
+from app import excel_mockups
 from app.uploaded_mockups import sync_order_uploads, require_mockup_upload
 from app import sheets_sync, db_backup, respaldo
 from app.creator_xlsx import _data_from_source, create_from_images, create_from_sheet_bundle, normalize_output_name
@@ -1605,10 +1606,11 @@ def _ref_file_match(stem: str, reference: str) -> bool:
     return any(x == ref or x in tokens for x in parts)
 
 
-def _folder_design_numbers(source_row: int) -> list:
-    """Todos los mockups de la referencia que hay en la carpeta del pedido (más de los 4 del listado). Se guardan en memoria y se devuelven sus números."""
+def _folder_design_numbers(source_row: int, base_count: int = 0) -> list:
+    """Mockups de la referencia en la carpeta del pedido cuando son MÁS que los del listado Excel (el listado solo guarda unos pocos).
+    Se guardan en memoria y en disco (miniaturas) y se devuelven sus números; si no hay más que en el Excel, devuelve []."""
     hit = _PUBLIC_EXTRA.get(source_row)
-    if hit and time.monotonic() - hit[0] < 600:
+    if hit and time.monotonic() - hit[0] < 21600 and hit[2] == base_count:
         return hit[1]
     numbers = []
     try:
@@ -1623,22 +1625,31 @@ def _folder_design_numbers(source_row: int) -> list:
         if folder and reference:
             images = [p for p in folder.iterdir() if p.is_file() and not p.is_symlink() and p.suffix.lower() in ('.png', '.jpg', '.jpeg', '.webp')
                       and _ref_file_match(p.stem, reference) and p.stat().st_size <= 8 * 1024 * 1024]
-            images.sort(key=lambda p: [int(x) if x.isdigit() else x for x in re.split(r'(\d+)', p.name.casefold())])
-            for k, path in enumerate(images[:24]):
-                data = path.read_bytes()
-                mime = {'.png': 'image/png', '.webp': 'image/webp'}.get(path.suffix.lower(), 'image/jpeg')
-                _remember_image(source_row, 101 + k, hashlib.sha256(data).hexdigest()[:20], mime, data)
-                numbers.append(101 + k)
+            if len(images) > base_count:
+                images.sort(key=lambda p: [int(x) if x.isdigit() else x for x in re.split(r'(\d+)', p.name.casefold())])
+                cache_dir = STATE_DIR / 'mockups_carpeta'
+                cache_dir.mkdir(parents=True, exist_ok=True)
+                for k, path in enumerate(images[:24]):
+                    stat = path.stat()
+                    key = cache_dir / (hashlib.sha1(f'{path}|{stat.st_mtime_ns}|{stat.st_size}'.encode()).hexdigest() + '.jpg')
+                    if key.exists():
+                        data = key.read_bytes()
+                    else:
+                        data = excel_mockups._thumbnail(path.read_bytes())
+                        key.write_bytes(data)
+                    mime = 'image/png' if data[:4] == bytes([137, 80, 78, 71]) else 'image/jpeg'
+                    _remember_image(source_row, 101 + k, hashlib.sha256(data).hexdigest()[:20], mime, data)
+                    numbers.append(101 + k)
     except Exception:
         numbers = []
-    _PUBLIC_EXTRA[source_row] = (time.monotonic(), numbers)
+    _PUBLIC_EXTRA[source_row] = (time.monotonic(), numbers, base_count)
     return numbers
 
 
 def _signed_images(source_row: int, payload: dict, expires: int, with_folder: bool = False) -> list:
     designs = [image.get('design') for image in ((payload or {}).get('images') or []) if isinstance(image.get('design'), int)]
     if with_folder:
-        extra = _folder_design_numbers(source_row)
+        extra = _folder_design_numbers(source_row, len(designs))
         if len(extra) > len(designs):
             designs = extra
     urls = []
@@ -1646,6 +1657,29 @@ def _signed_images(source_row: int, payload: dict, expires: int, with_folder: bo
         sig = _session_signature(f'mockup|{source_row}|{design}|{expires}')
         urls.append(f'/api/consulta-pedido/mockup/{source_row}/{design}?e={expires}&s={sig}')
     return urls
+
+
+_PREFETCH_BUSY: set = set()
+
+
+def _prefetch_extra(source_row: int):
+    entry = _ASSET_CACHE.get(source_row)
+    count = len([i for i in ((entry[1] if entry else {}) or {}).get('images') or [] if isinstance(i.get('design'), int)])
+    _folder_design_numbers(source_row, count)
+
+
+def _prefetch_public(source_row: int):
+    """Empieza a preparar los mockups de una referencia apenas se consulta, para que estén listos cuando la página los pida."""
+    if source_row in _PREFETCH_BUSY:
+        return
+    _PREFETCH_BUSY.add(source_row)
+    try:
+        if _assets_with_timeout(source_row, 60) is not None:
+            _prefetch_extra(source_row)
+    except Exception:
+        pass
+    finally:
+        _PREFETCH_BUSY.discard(source_row)
 
 
 def _public_mockup_info(source_row: int) -> dict:
@@ -1679,7 +1713,7 @@ def consulta_publica_mockup(request: Request, source_row: int, design: int, e: i
     if not hit:
         if design > 100:
             _PUBLIC_EXTRA.pop(source_row, None)
-            _folder_design_numbers(source_row)
+            _prefetch_extra(source_row)
         else:
             _assets_with_timeout(source_row)
         with _ASSET_LOCK:
@@ -1733,6 +1767,10 @@ def consulta_publica_pedido(request: Request, q: str = '', orden: str = ''):
     grouped: dict = {}
     for source_row, order_value, values in matches:
         grouped.setdefault(order_value, []).append((source_row, values))
+    for rows_ in grouped.values():
+        for source_row_, _values in rows_[:12]:
+            if source_row_ not in _ASSET_CACHE or source_row_ not in _PUBLIC_EXTRA:
+                threading.Thread(target=_prefetch_public, args=(source_row_,), daemon=True).start()
     pedidos = []
     for order_value, rows in grouped.items():
         references, best = [], (-2, 'pending', 'Recibido · en cola de producción')
@@ -3879,7 +3917,7 @@ def _remember_image(source_row, number, digest, mime, data):
     with _ASSET_LOCK:
         _IMAGE_CACHE[(source_row, number)] = (digest, mime, data)
         _IMAGE_CACHE.move_to_end((source_row, number))
-        while len(_IMAGE_CACHE) > 700:
+        while len(_IMAGE_CACHE) > 1500:
             _IMAGE_CACHE.popitem(last=False)
 
 
@@ -3915,23 +3953,26 @@ def _compute_card_assets(source_row: int):
 
 
 def _warm_card_assets():
-    """Tras arrancar, precarga con calma los diseños de los pedidos más recientes para que la primera visita sea rápida."""
-    time.sleep(25)
-    try:
-        with connect() as db:
-            rows = [r[0] for r in db.execute('SELECT source_row FROM production_rows ORDER BY source_row DESC LIMIT 140')]
-    except Exception:
-        return
-    for row in rows:
-        if row in _ASSET_CACHE:
-            continue
+    """Mantiene en memoria los diseños de TODAS las órdenes (tarjetas de Producción y consulta del cliente) para que aparezcan al instante."""
+    time.sleep(5)
+    while True:
         try:
-            payload = _compute_card_assets(row)
-            with _ASSET_LOCK:
-                _ASSET_CACHE[row] = (time.monotonic(), payload)
+            with connect() as db:
+                rows = [r[0] for r in db.execute('SELECT source_row FROM production_rows ORDER BY source_row DESC')]
         except Exception:
-            pass
-        time.sleep(0.25)
+            rows = []
+        for row in rows:
+            entry = _ASSET_CACHE.get(row)
+            try:
+                if not entry or time.monotonic() - entry[0] > 1200:
+                    payload = _compute_card_assets(row)
+                    with _ASSET_LOCK:
+                        _ASSET_CACHE[row] = (time.monotonic(), payload)
+                _prefetch_extra(row)
+            except Exception:
+                pass
+            time.sleep(0.2)
+        time.sleep(600)
 
 
 def _refresh_card_assets(source_row: int):
