@@ -49,6 +49,22 @@
       else if(e.target.closest('[data-go]')){closePop();var t=document.querySelector('.tab[data-kind="inventario"],.tab[data-panel="inventario"],[data-open-panel="inventario"]');if(t)t.click()}
     });
   }
+  var modal=null;
+  function showModal(alerts,reason){
+    if(modal||!alerts.length)return;
+    var ov=modal=document.createElement('div');ov.className='at-overlay';
+    ov.innerHTML='<div class="at-card" role="alertdialog" aria-modal="true"><div class="at-head"><small>'+(reason==='tarde'?'RECORDATORIO · 4:00 P. M.':'ALERTA DE INVENTARIO')+'</small>'+
+      '<h3>⚠ '+alerts.length+(alerts.length===1?' tela necesita reposición':' telas necesitan reposición')+'</h3></div>'+
+      '<div class="at-list">'+alerts.map(function(a){return '<div class="at-row"><div><b title="'+esc(a.nombre)+'">'+esc(a.nombre)+'</b><small>'+(a.pedidos?a.pedidos+' pedidos de clientes':'Stock mínimo definido')+'</small></div><div style="display:flex;align-items:center;gap:10px"><span class="at-chip '+esc(a.nivel)+'">'+(a.nivel==='agotado'?'Agotada':'Baja')+'</span><div class="at-num">'+fmt(a.total)+' MTS<em>mín '+fmt(a.minimo)+' · faltan '+fmt(a.faltan)+'</em></div></div></div>'}).join('')+'</div>'+
+      '<div class="at-foot"><button type="button" class="at-btn" data-close>Entendido</button><button type="button" class="at-btn main" data-go>Ver inventario</button></div></div>';
+    (document.body||document.documentElement).appendChild(ov);
+    function close(){modal=null;ov.remove()}
+    ov.addEventListener('click',function(e){
+      if(e.target.closest('[data-close]')||e.target===ov)close();
+      else if(e.target.closest('[data-go]')){close();var t=document.querySelector('.tab[data-kind="inventario"],.tab[data-panel="inventario"],[data-open-panel="inventario"]');if(t)t.click()}
+    });
+    document.addEventListener('keydown',function onKey(e){if(e.key==='Escape'&&modal===ov){close();document.removeEventListener('keydown',onKey)}});
+  }
   function show(alerts,reason){
     current=alerts;
     if(!alerts.length){if(tab){tab.remove();tab=null}closePop();return}
@@ -64,6 +80,7 @@
     // llama la atención un momento (al iniciar sesión y a las 4 p. m.)
     tab.classList.remove('ping');void tab.offsetWidth;tab.classList.add('ping');
     if(pop){closePop();openPop()}
+    if(reason==='sesion'||reason==='tarde')showModal(alerts,reason);
   }
 
   function check(reason){
