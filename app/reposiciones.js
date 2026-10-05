@@ -1,18 +1,18 @@
-/* REPROCESO › Reposiciones y garantías: tarjetas dinámicas desde la pestaña REPOSICIONES-GARANTIAS del Sheet. */
+/* REPROCESOS › GARANTÍAS: tarjetas dinámicas desde la pestaña REPOSICIONES-GARANTIAS del Sheet. */
 (() => {
   const PAGE = 36;
   const TIPOS = {garantia: ['Garantía', '#f5a623'], cliente: ['Reposición cliente', '#6fb7ff'], interna: ['Falla interna', '#ef7370']};
   const ESTADOS = {en_proceso: 'En proceso', sin_iniciar: 'Sin iniciar', terminada: 'Terminada', historico: 'Histórico'};
-  const st = {data: null, view: 'reproceso', estado: 'activas', tipo: '', q: '', dias: 120, shown: PAGE, open: new Set(), loading: false};
+  const st = {data: null, estado: 'activas', tipo: '', q: '', dias: 120, shown: PAGE, open: new Set(), loading: false};
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
   const plain = v => String(v || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase();
   const fmtDate = iso => { if (!iso) return 'Sin fecha'; const [y, m, d] = iso.split('-'); return d + '/' + m + '/' + y.slice(2); };
-  let mod, view, tabs;
+  let panel, view;
 
   const css = document.createElement('style');
   css.textContent = `
-  .rp-tabs{display:flex;gap:8px;flex-wrap:wrap}.rp-tabs button{width:auto!important;padding:10px 16px!important;border:1px solid #3d4f3d!important;border-radius:999px!important;background:#141a13!important;color:#cdd8c6!important;font:800 12px Arial!important;letter-spacing:.04em;cursor:pointer;min-height:40px}.rp-tabs button.on{background:#d0f44c!important;color:#17210c!important;border-color:#d0f44c!important}
-  .rework-module.rp-on>:not(.rp-tabs):not(.rp-view){display:none!important}.rework-module:not(.rp-on)>.rp-view{display:none!important}
+  body:has(.panel[data-panel='garantias'].active) main{width:100%!important;max-width:none!important;margin-left:0!important;margin-right:0!important;padding-left:clamp(18px,4vw,76px)!important;padding-right:clamp(18px,4vw,76px)!important}.panel[data-panel='garantias'],.panel[data-panel='garantias'].active{width:100%!important;max-width:none!important}
+  .rp-head span{color:#d0f44c;font:800 10px Arial;letter-spacing:.1em}.rp-head h2{margin:4px 0 2px;font-size:1.5rem}.rp-head p{margin:0;color:#aebba7;font-size:.9rem}
   .rp-view{display:grid;gap:16px}.rp-bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.rp-bar input,.rp-bar select{min-height:42px;padding:9px 12px;border:1px solid #3d4f3d;border-radius:10px;background:#0f140e;color:#eef5e8;font:14px Arial}.rp-bar input{flex:1 1 240px}.rp-bar .rp-btn{width:auto;padding:9px 14px;border:1px solid #60754d;border-radius:10px;background:#233020;color:#eff9df;font:800 12px Arial;cursor:pointer;min-height:42px}.rp-stamp{color:#9fae98;font-size:12px;margin-left:auto}
   .rp-chips{display:flex;gap:8px;flex-wrap:wrap}.rp-chips button{width:auto;padding:8px 13px;border:1px solid #3d4f3d;border-radius:999px;background:transparent;color:#cdd8c6;font:800 12px Arial;cursor:pointer;min-height:38px}.rp-chips button.on{background:#233020;border-color:#d0f44c;color:#d0f44c}.rp-chips b{margin-left:6px;opacity:.8}
   .rp-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.rp-kpi{padding:14px 16px;border:1px solid #3d4f3d;border-radius:14px;background:linear-gradient(145deg,#182118,#101510)}.rp-kpi small{display:block;color:#aebba7;font:800 10px Arial;letter-spacing:.07em}.rp-kpi strong{display:block;margin-top:4px;color:#d0f44c;font:800 26px Arial}
@@ -81,15 +81,14 @@
     st.loading = false; render();
   }
 
-  function build() {
-    mod = document.querySelector('.rework-module');
-    if (!mod || mod.querySelector('.rp-tabs')) return !!mod;
-    tabs = document.createElement('div'); tabs.className = 'rp-tabs';
-    tabs.innerHTML = '<button type="button" data-v="reproceso" class="on">REPROCESOS</button><button type="button" data-v="reposiciones">REPOSICIONES Y GARANTÍAS</button>';
-    view = document.createElement('section'); view.className = 'rp-view';
-    view.innerHTML = '<div class="rp-kpis"></div><div class="rp-bar"><input type="search" class="rp-q" placeholder="Buscar cliente, cotización, referencia o motivo" aria-label="Buscar"><select class="rp-tipo" aria-label="Tipo"><option value="">Todos los tipos</option><option value="garantia">Garantía</option><option value="cliente">Reposición cliente</option><option value="interna">Falla interna</option></select><select class="rp-dias" aria-label="Periodo"><option value="30">Últimos 30 días</option><option value="120" selected>Últimos 120 días</option><option value="365">Último año</option><option value="0">Todo el historial</option></select><button type="button" class="rp-btn rp-refresh">↻ Actualizar</button><span class="rp-stamp">Cargando…</span></div><div class="rp-chips"></div><div class="rp-grid"></div><button type="button" class="rp-more" hidden></button>';
-    mod.insertBefore(tabs, mod.firstChild); mod.appendChild(view);
-    tabs.onclick = e => { const b = e.target.closest('button[data-v]'); if (!b) return; st.view = b.dataset.v; mod.classList.toggle('rp-on', st.view === 'reposiciones'); tabs.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); if (st.view === 'reposiciones') { render(); load(false); } };
+  function buildPanel() {
+    const main = document.querySelector('main');
+    if (!main) return false;
+    if (document.querySelector('.panel[data-panel="garantias"]')) return true;
+    panel = document.createElement('section'); panel.className = 'panel'; panel.dataset.panel = 'garantias';
+    view = document.createElement('div'); view.className = 'rp-view';
+    view.innerHTML = '<div class="rp-head"><span>REPROCESOS · GARANTÍAS</span><h2>REPOSICIONES Y GARANTÍAS</h2><p>Piezas repuestas por garantía, reposición de cliente o falla interna, con su avance por proceso.</p></div><div class="rp-kpis"></div><div class="rp-bar"><input type="search" class="rp-q" placeholder="Buscar cliente, cotización, referencia o motivo" aria-label="Buscar"><select class="rp-tipo" aria-label="Tipo"><option value="">Todos los tipos</option><option value="garantia">Garantía</option><option value="cliente">Reposición cliente</option><option value="interna">Falla interna</option></select><select class="rp-dias" aria-label="Periodo"><option value="30">Últimos 30 días</option><option value="120" selected>Últimos 120 días</option><option value="365">Último año</option><option value="0">Todo el historial</option></select><button type="button" class="rp-btn rp-refresh">↻ Actualizar</button><span class="rp-stamp">Cargando…</span></div><div class="rp-chips"></div><div class="rp-grid"></div><button type="button" class="rp-more" hidden></button>';
+    panel.appendChild(view); main.appendChild(panel);
     view.addEventListener('click', e => {
       const chipBtn = e.target.closest('[data-estado]'); if (chipBtn) { st.estado = chipBtn.dataset.estado; st.shown = PAGE; render(); return; }
       if (e.target.closest('.rp-refresh')) { load(true); return; }
@@ -102,8 +101,39 @@
     return true;
   }
 
-  // Actualización automática mientras la pestaña está a la vista.
-  setInterval(() => { if (st.view === 'reposiciones' && !document.hidden && mod && mod.offsetParent) load(false); }, 60000);
+  // Menú: el botón REPROCESO pasa a ser un grupo desplegable REPROCESOS › PRODUCCIÓN / GARANTÍAS.
+  function buildNav() {
+    const tab = document.querySelector('nav.tabs .tab[data-kind="reproceso"]');
+    if (!tab) return false;
+    if (document.getElementById('rework-toggle')) return true;
+    const group = tab.closest('.nav-group');
+    const parent = document.createElement('button');
+    parent.id = 'rework-toggle'; parent.type = 'button'; parent.className = 'nav-parent';
+    parent.innerHTML = '<span class="nav-icon">RE</span><span>Reprocesos</span>';
+    const children = document.createElement('div'); children.className = 'nav-children';
+    const label = tab.querySelector('strong'); if (label) label.textContent = 'PRODUCCIÓN';
+    const icon = tab.querySelector('.nav-icon'); if (icon) icon.textContent = 'PR';
+    const gar = document.createElement('button');
+    gar.type = 'button'; gar.className = 'tab'; gar.dataset.kind = 'garantias';
+    gar.innerHTML = '<span class="nav-icon">GA</span><strong>GARANTÍAS</strong>';
+    group.insertBefore(parent, tab); group.insertBefore(children, tab.nextSibling);
+    children.appendChild(tab); children.appendChild(gar);
+    group.classList.add('collapsed');
+    // El manejador original marca como activo "el primer botón del grupo", que ahora es el padre: lo marcamos nosotros.
+    tab.addEventListener('click', () => { document.querySelectorAll('.tab.active').forEach(x => x.classList.remove('active')); tab.classList.add('active'); });
+    parent.addEventListener('click', () => { group.classList.toggle('collapsed'); if (!group.classList.contains('collapsed') && window.innerWidth > 860) children.querySelector('.tab')?.click(); });
+    gar.onclick = () => {
+      document.querySelectorAll('.tab').forEach(x => x.classList.toggle('active', x === gar));
+      document.querySelectorAll('.panel').forEach(x => x.classList.toggle('active', x === panel));
+      document.body.classList.remove('inicio-mode', 'inventory-mode', 'production-mode', 'schedule-mode', 'operarios-mode', 'cartera-mode');
+      group.classList.remove('collapsed');
+      render(); load(false);
+    };
+    return true;
+  }
+
+  // Actualización automática mientras la pantalla está a la vista.
+  setInterval(() => { if (panel && panel.classList.contains('active') && !document.hidden) load(false); }, 60000);
   let tries = 0;
-  const wait = setInterval(() => { if (build() || ++tries > 40) clearInterval(wait); }, 250);
+  const wait = setInterval(() => { if ((buildPanel() && buildNav()) || ++tries > 40) clearInterval(wait); }, 250);
 })();
