@@ -346,7 +346,7 @@
   .dash-load-card .dash-big{gap:6px}.dash-load-card .dash-big strong{font-size:2rem;color:var(--t)}.dash-load-card .dash-big span{font-size:.78rem;color:#a9b5a3}
   .dash-load-card>small{color:#8f9b8a;font-size:.76rem}
   .dash-bottleneck{position:absolute;top:-11px;right:12px;font-style:normal;font-size:.6rem;font-weight:800;letter-spacing:.03em;text-transform:uppercase;padding:3px 8px;border-radius:999px;background:#ff6b5c;color:#2a0e0a;border:1px solid #ff8a7c}
-  .dash-time-list{list-style:none;margin:0;padding:0;display:grid;gap:6px;max-height:420px;overflow:auto}
+  .dash-time-list{list-style:none;margin:0;padding:0 6px 0 0;display:grid;grid-auto-rows:max-content;gap:6px;max-height:420px;overflow:auto}
   .dash-time-list li{--t:#7ecf8a;display:grid;grid-template-columns:minmax(120px,1fr) minmax(160px,2fr) auto;align-items:center;gap:14px;padding:9px 12px;border-radius:10px;background:rgba(255,255,255,.04)}
   .dash-time-list li.warn{--t:#ffc95c}.dash-time-list li.late{--t:#ff6b5c}
   .dash-time-id{display:grid;min-width:0}.dash-time-id strong{font-size:.9rem;color:#f2f7ea}.dash-time-id span{font-size:.76rem;color:#a9b5a3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
