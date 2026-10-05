@@ -444,6 +444,7 @@
   .dash-time-export input,.dash-time-export select{min-height:38px;padding:6px 9px;border:1px solid #3d4c3b;border-radius:9px;background:#142017;color:#f5faef;font:600 13px Arial;color-scheme:dark}
   .dash-time-csv{width:auto!important;min-height:38px;padding:0 16px;border:0;border-radius:9px;background:#d0f44c;color:#142017;font:800 .78rem Arial;cursor:pointer}
   .dash-time-csv-note{flex-basis:100%;color:#ffb347;font-size:.76rem}
+  @media(max-width:700px){.dash-time-search{flex-basis:100%}.dash-time-export{display:grid;grid-template-columns:1fr 1fr;width:100%}.dash-time-export label:first-child,.dash-time-csv{grid-column:1/-1}.dash-time-export input,.dash-time-export select{width:100%;box-sizing:border-box}}
   .dash-time-body{display:grid;gap:12px}.dash-time-sub{font-size:.72rem;color:#b3c0ad}
   .dash-time-more{justify-self:center;width:auto!important;padding:9px 22px;border:1px solid rgba(208,244,76,.45);border-radius:999px;background:transparent;color:#d0f44c;font:800 .78rem Arial;cursor:pointer}
   @media(max-width:1050px) and (min-width:701px){.dash-order-results{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:700px){.dash-order-finder{grid-template-columns:1fr;padding:15px}.dash-order-results{grid-column:auto;grid-template-columns:1fr}.dash-order-result{min-height:260px}}
