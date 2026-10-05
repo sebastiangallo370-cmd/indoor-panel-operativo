@@ -278,7 +278,7 @@
     const box = root.querySelector('.dash-timing');
     if (!box) return;
     box.innerHTML = '<div class="dash-panel-head"><h4>Tiempo por orden</h4><small>Días desde la creación · promedio ' + fmtNum(a.typical, 1) + ' d · aproximado</small></div>' +
-      '<div class="dash-time-tools"><label class="dash-time-search"><span class="dash-sr">Buscar orden o cliente</span><input type="search" autocomplete="off" placeholder="Buscar orden o cliente y ver cuánto demoró" value="' + esc(timeQuery) + '"></label>' +
+      '<div class="dash-time-tools"><label class="dash-time-search"><span class="dash-sr">Buscar orden o cliente</span><input type="search" autocomplete="off" placeholder="Buscar orden o cliente" value="' + esc(timeQuery) + '"></label>' +
       '<div class="dash-time-export"><label>Filtrar por<select data-f="basis"><option value="created">Fecha de creación</option><option value="delivered">Fecha de entrega</option></select></label><label>Desde<input type="date" data-f="from" value="' + dateFrom + '"></label><label>Hasta<input type="date" data-f="to" value="' + dateTo + '"></label><button type="button" class="dash-time-csv">Descargar CSV</button></div></div>' +
       '<div class="dash-time-body"></div>';
     box.querySelector('[data-f="basis"]').value = dateBasis;
@@ -439,7 +439,7 @@
   .dash-time-bar i{display:block;height:6px;border-radius:999px;background:#314033;overflow:hidden}.dash-time-bar b{display:block;height:100%;background:var(--t);border-radius:inherit}
   .dash-time-card em{font-style:normal;font-weight:800;font-size:.74rem;color:var(--t)}
   .dash-time-tools{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px}
-  .dash-time-search{flex:1 1 280px}.dash-time-search input{width:100%;box-sizing:border-box;min-height:42px;padding:10px 14px;border:1px solid #60754d;border-radius:12px;background:#142017;color:#f5faef;font:600 14px Arial;outline:none}.dash-time-search input:focus{border-color:#d0f44c}
+  .dash-time-search{flex:0 1 300px}.dash-time-search input{width:100%;box-sizing:border-box;min-height:38px;padding:7px 12px;border:1px solid #60754d;border-radius:12px;background:#142017;color:#f5faef;font:600 13px Arial;outline:none}.dash-time-search input:focus{border-color:#d0f44c}
   .dash-time-export{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px}.dash-time-export label{display:grid;gap:3px;font-size:.68rem;color:#a9b5a3;text-transform:uppercase;letter-spacing:.04em}
   .dash-time-export input,.dash-time-export select{min-height:38px;padding:6px 9px;border:1px solid #3d4c3b;border-radius:9px;background:#142017;color:#f5faef;font:600 13px Arial;color-scheme:dark}
   .dash-time-csv{width:auto!important;min-height:38px;padding:0 16px;border:0;border-radius:9px;background:#d0f44c;color:#142017;font:800 .78rem Arial;cursor:pointer}
