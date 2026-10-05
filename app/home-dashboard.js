@@ -134,6 +134,15 @@
     const estimated = perProcess.length ? perProcess.reduce((s, n) => s + n, 0) : null;
     const promised = avg(active.filter(o => o.created && o.due && o.due >= o.created).map(o => daysBetween(o.created, o.due)));
 
+    // Tiempo por orden: dias desde la creacion; plazo propio (creacion→entrega) o, si falta, el promedio.
+    const typical = real !== null ? real : estimated !== null ? estimated : promised;
+    const timing = active.filter(o => o.created && o.created <= today).map(o => {
+      const elapsed = daysBetween(o.created, today);
+      const plazo = o.due && o.due >= o.created ? daysBetween(o.created, o.due) : (typical !== null ? Math.round(typical) : null);
+      const left = o.due ? daysBetween(today, o.due) : (plazo !== null ? plazo - elapsed : null);
+      return { o, elapsed, plazo, left, ratio: plazo ? elapsed / plazo : 0 };
+    }).sort((a, b) => b.ratio - a.ratio || b.elapsed - a.elapsed);
+
     const tomorrow = addDays(today, 1);
     const sameDay = (a, b) => a && a.getTime() === b.getTime();
     const byDue = (a, b) => a.due - b.due;
@@ -147,7 +156,7 @@
     }).filter(item => item.orders).sort((a, b) => b.orders - a.orders);
 
     return {
-      orders: list,
+      orders: list, timing, typical,
       dueToday, dueTomorrow, late, reworkList, load,
       today, weekStart, weekEnd, activeCount: active.length,
       real, realCount: sample.length, estimated, promised,
@@ -276,11 +285,22 @@
         '<div class="dash-load-grid">' + a.load.map((item, i) => '<article class="dash-load-card ' + tier(item) + '">' + (i === 0 ? '<em class="dash-bottleneck">Mayor carga</em>' : '') + '<span class="dash-load-label">' + esc(item.label) + '</span><div class="dash-big"><strong>' + item.orders + '</strong><span>' + (item.orders === 1 ? 'pedido' : 'pedidos') + '</span></div><small>' + fmtNum(item.units) + ' und.</small></article>').join('') + '</div></section>'
       : '';
 
+    const timing = a.timing.length
+      ? '<section class="dash-load dash-timing"><div class="dash-panel-head"><h4>Tiempo por orden</h4><small>Días desde la creación frente al plazo de entrega' + (a.typical !== null ? ' · promedio ' + fmtNum(a.typical, 1) + ' d' : '') + ' · aproximado</small></div>' +
+        '<ul class="dash-time-list">' + a.timing.map(t => {
+          const tone = t.o.due && t.o.due < a.today ? 'late' : t.ratio >= .8 ? 'warn' : 'ok';
+          const note = t.left === null ? '' : t.left < 0 ? 'Atrasada ' + (-t.left) + ' d' : t.left === 0 ? 'Entrega hoy' : 'Quedan ' + t.left + ' d';
+          return '<li class="' + tone + '"><div class="dash-time-id"><strong>' + esc(t.o.id) + '</strong><span>' + esc(t.o.client || 'Sin cliente') + '</span></div>' +
+            '<div class="dash-time-bar"><i><b style="width:' + Math.min(100, Math.round(t.ratio * 100)) + '%"></b></i><small>Lleva ' + t.elapsed + ' d' + (t.plazo ? ' de ~' + t.plazo + ' d' : '') + ' · ' + (t.o.focus ? esc(t.o.focus) + ' · ' : '') + t.o.percent + '%</small></div>' +
+            '<em>' + note + '</em></li>';
+        }).join('') + '</ul></section>'
+      : '';
+
     root.innerHTML =
       '<div class="dash-head"><div><span class="eyebrow">Resumen operativo</span><h3>Estado de la producción</h3></div><small><i class="dash-live"></i>En vivo · actualizado ' + new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) + '</small></div>' +
       orderFinder(a.orders) +
       '<div class="dash-cards">' + time + units + week + pct + '</div>' +
-      '<div class="dash-today">' + today + late + rework + '</div>' + load;
+      '<div class="dash-today">' + today + late + rework + '</div>' + timing + load;
     greet(a);
     bindOrderFinder(a.orders);
     countUp();
@@ -326,6 +346,13 @@
   .dash-load-card .dash-big{gap:6px}.dash-load-card .dash-big strong{font-size:2rem;color:var(--t)}.dash-load-card .dash-big span{font-size:.78rem;color:#a9b5a3}
   .dash-load-card>small{color:#8f9b8a;font-size:.76rem}
   .dash-bottleneck{position:absolute;top:-11px;right:12px;font-style:normal;font-size:.6rem;font-weight:800;letter-spacing:.03em;text-transform:uppercase;padding:3px 8px;border-radius:999px;background:#ff6b5c;color:#2a0e0a;border:1px solid #ff8a7c}
+  .dash-time-list{list-style:none;margin:0;padding:0;display:grid;gap:6px;max-height:420px;overflow:auto}
+  .dash-time-list li{--t:#7ecf8a;display:grid;grid-template-columns:minmax(120px,1fr) minmax(160px,2fr) auto;align-items:center;gap:14px;padding:9px 12px;border-radius:10px;background:rgba(255,255,255,.04)}
+  .dash-time-list li.warn{--t:#ffc95c}.dash-time-list li.late{--t:#ff6b5c}
+  .dash-time-id{display:grid;min-width:0}.dash-time-id strong{font-size:.9rem;color:#f2f7ea}.dash-time-id span{font-size:.76rem;color:#a9b5a3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .dash-time-bar{display:grid;gap:4px}.dash-time-bar i{display:block;height:7px;border-radius:999px;background:#314033;overflow:hidden}.dash-time-bar b{display:block;height:100%;background:var(--t);border-radius:inherit}.dash-time-bar small{font-size:.72rem;color:#b3c0ad}
+  .dash-time-list em{font-style:normal;font-weight:800;font-size:.76rem;color:var(--t);white-space:nowrap}
+  @media(max-width:700px){.dash-time-list li{grid-template-columns:1fr auto}.dash-time-bar{grid-column:1/-1;order:3}}
   @media(max-width:1050px) and (min-width:701px){.dash-order-results{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:700px){.dash-order-finder{grid-template-columns:1fr;padding:15px}.dash-order-results{grid-column:auto;grid-template-columns:1fr}.dash-order-result{min-height:260px}}
   `;
   document.head.appendChild(style);
