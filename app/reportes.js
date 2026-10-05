@@ -52,6 +52,9 @@
   .rpt-dlg label{display:grid;gap:5px;font-size:.78rem;color:#aebba7;text-transform:uppercase;letter-spacing:.04em}
   .rpt-dlg input:not([type=checkbox]):not([type=radio]),.rpt-dlg select,.rpt-dlg textarea{width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #3d4f3d;border-radius:10px;background:#0c110d;color:#f1f7ed;font:600 14px Arial;text-transform:none;letter-spacing:0}
   .rpt-dlg textarea{min-height:96px;resize:vertical}
+  .rpt-flist{display:grid;gap:8px;max-height:52vh;overflow:auto}.rpt-frow{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;padding:9px 12px;border:1px solid #34432f;border-radius:12px;background:#0c110d}.rpt-frow small{display:block;color:#8f9b8a;font-size:.72rem}
+  .rpt-upl{padding:7px 12px;border:1px solid #60754d;border-radius:9px;color:#d0f44c;font:800 11px Arial;cursor:pointer;white-space:nowrap}
+  .rpt-sig img[data-src-user]{min-height:40px}
   .rpt-two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
   .rpt-kv{display:grid;grid-template-columns:140px 1fr;gap:6px 12px;font-size:.9rem}.rpt-kv b{color:#aebba7;font-weight:700}
   .rpt-txt{white-space:pre-wrap;margin:0;line-height:1.45;font-size:.92rem}
@@ -64,7 +67,7 @@
 
   html.theme-light dialog.rpt-dlg{background:#fff;color:#18210f;border-color:#cdd8c6}html.theme-light .rpt-dlg input:not([type=checkbox]):not([type=radio]),html.theme-light .rpt-dlg select,html.theme-light .rpt-dlg textarea{background:#f6f8f2;color:#18210f;border-color:#cdd8c6}
   html.theme-light .rpt-dlg h4{background:#e9efe2;color:#3f6a10}html.theme-light .rpt-dlg label,html.theme-light .rpt-kv b{color:#5d6a55}html.theme-light .rpt-sig{background:#f6f8f2;border-color:#cdd8c6}
-  @media(max-width:700px){dialog.rpt-dlg{width:100vw;max-width:100vw;height:100dvh;max-height:100dvh;border-radius:0}.rpt-two{grid-template-columns:1fr}.rpt-kv{grid-template-columns:1fr}.rpt-actions button{flex:1}.rpt-bar input{flex:1 1 100%}.rpt-btn{min-height:46px}}
+  @media(max-width:700px){.rpt-frow{grid-template-columns:1fr auto}.rpt-upl{grid-column:1/-1;text-align:center;padding:11px}dialog.rpt-dlg{width:100vw;max-width:100vw;height:100dvh;max-height:100dvh;border-radius:0}.rpt-two{grid-template-columns:1fr}.rpt-kv{grid-template-columns:1fr}.rpt-actions button{flex:1}.rpt-bar input{flex:1 1 100%}.rpt-btn{min-height:46px}}
   `;
   document.head.appendChild(css);
 
@@ -111,18 +114,23 @@
     const presencial = st.admin && !mine && r.estado === 'pendiente';
     const puedeFirmar = (mine || presencial) && r.estado === 'pendiente';
     const puedeDecidir = st.admin && r.estado === 'firmado';
+    const tiene = u => (st.opciones.firmas || []).some(x => String(x).toLowerCase() === String(u).toLowerCase());
+    const storedOp = puedeFirmar && (mine ? st.opciones.miFirma : tiene(r.operario));
+    const storedGer = puedeDecidir && st.opciones.miFirma;
+    const storedBox = (kind, usuario, label) => '<div class="rpt-sig" data-stored="' + kind + '"><b>' + label + '</b><img alt="Firma registrada" data-src-user="' + esc(usuario) + '"><small>Firma registrada · se aplicará al pulsar el botón</small></div>';
     const dlg = openDialog('<div class="rpt-body"><div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><div><small style="color:#aebba7">' + esc(r.numero) + '</small><h2>Reporte de daño / incidente de planta</h2></div><span class="rpt-badge" style="--c:' + ESTADOS[r.estado][1] + '">' + ESTADOS[r.estado][0] + '</span></div>' +
       '<h4>Datos del incidente y personal</h4><div class="rpt-kv"><b>Operario</b><span>' + esc(r.operarioNombre) + '</span><b>Cargo</b><span>' + esc(r.cargo || '—') + '</span><b>Fecha</b><span>' + fechaCorta(r.fechaHecho) + '</span><b>Hora</b><span>' + esc(r.horaHecho || '—') + '</span><b>OP / Lote</b><span>' + esc(r.orden || '—') + '</span></div>' +
       '<h4>1. Detalle del daño o material perdido</h4><p class="rpt-txt"><b>¿Qué pasó?</b>\n' + esc(r.quePaso) + '</p><p class="rpt-txt"><b>Cantidad / material perdido:</b> ' + esc(r.material || '—') + '</p>' +
       '<h4>2. Versión del operario</h4>' + (r.versionOperario ? '<p class="rpt-txt">' + esc(r.versionOperario) + '</p>' : puedeFirmar ? '<label>' + (presencial ? 'Versión del operario (la que él te cuenta)' : 'Escribe tu versión de lo ocurrido') + '<textarea data-f="version" maxlength="3000" placeholder="' + (presencial ? 'Escribe lo que el operario responde' : 'Cuenta con tus palabras qué pasó') + '"></textarea></label>' : '<p class="rpt-txt" style="color:#8f9b8a">Pendiente de la versión del operario.</p>') +
       '<h4>Firmas</h4><div class="rpt-sig"><b>Coordinador de Planta</b><small>' + esc(r.creadoPor) + ' · ' + fechaHora(r.creado) + '</small></div>' + firmaBloque('Firma operario', r.firma) +
-      (puedeFirmar ? (presencial ? '<p class="rpt-txt" style="color:#ffc98a">Firma presencial: pásale la pantalla a <b>' + esc(r.operarioNombre) + '</b> para que firme aquí.</p>' : '') + '<div class="rpt-pad" data-pad="op"></div><label class="rpt-check"><input type="checkbox" data-f="acepta"> ' + (presencial ? esc(r.operarioNombre) + ' leyó este reporte y firmó en mi presencia. Queda registrado que la firma fue ingresada por mí.' : 'Leí este reporte y firmo digitalmente. Mi firma, fecha, hora e IP quedan registradas.') + '</label>' : '') +
+      (puedeFirmar ? (presencial && !storedOp ? '<p class="rpt-txt" style="color:#ffc98a">Esta persona no tiene firma registrada: pásale la pantalla a <b>' + esc(r.operarioNombre) + '</b> para que firme aquí (o registra su foto en «Firmas»).</p>' : '') + (storedOp ? storedBox('op', r.operario, presencial ? 'Firma registrada de ' + esc(r.operarioNombre) : 'Tu firma') : '<div class="rpt-pad" data-pad="op"></div>') + '<label class="rpt-check"><input type="checkbox" data-f="acepta"> ' + (presencial ? esc(r.operarioNombre) + ' leyó este reporte y firmó en mi presencia. Queda registrado que la firma fue ingresada por mí.' : 'Leí este reporte y firmo digitalmente. Mi firma, fecha, hora e IP quedan registradas.') + '</label>' : '') +
       (r.gerencia ? '<h4>Uso exclusivo de gerencia / administración</h4><p class="rpt-txt"><b>Decisión:</b> ' + esc(r.gerencia.decision) + '</p>' + (r.gerencia.nota ? '<p class="rpt-txt">' + esc(r.gerencia.nota) + '</p>' : '') + firmaBloque('Firma gerencia', r.gerencia) : '') +
-      (puedeDecidir ? '<h4>Uso exclusivo de gerencia / administración</h4><div class="rpt-radios">' + st.opciones.decisiones.map((d, i) => '<label><input type="radio" name="dec" value="' + esc(d) + '"' + (i === 0 ? ' checked' : '') + '> ' + esc(d) + '</label>').join('') + '</div><label>Nota (opcional)<textarea data-f="nota" maxlength="1500"></textarea></label><div class="rpt-pad" data-pad="ger"></div>' : '') +
+      (puedeDecidir ? '<h4>Uso exclusivo de gerencia / administración</h4><div class="rpt-radios">' + st.opciones.decisiones.map((d, i) => '<label><input type="radio" name="dec" value="' + esc(d) + '"' + (i === 0 ? ' checked' : '') + '> ' + esc(d) + '</label>').join('') + '</div><label>Nota (opcional)<textarea data-f="nota" maxlength="1500"></textarea></label>' + (storedGer ? storedBox('ger', st.usuario, 'Tu firma de gerencia') : '<div class="rpt-pad" data-pad="ger"></div>') : '') +
       '<div class="rpt-err" data-err></div><div class="rpt-actions"><button type="button" class="rpt-btn sec" data-doc>Imprimir / PDF</button>' + (st.admin && r.estado === 'pendiente' ? '<button type="button" class="rpt-btn danger" data-anular>Anular</button>' : '') +
-      (puedeFirmar ? '<button type="button" class="rpt-btn" data-send>' + (presencial ? 'Registrar firma del operario' : 'Firmar y enviar') + '</button>' : '') + (puedeDecidir ? '<button type="button" class="rpt-btn" data-decidir>Registrar decisión y firmar</button>' : '') + '<button type="button" class="rpt-btn sec" data-close>Cerrar</button></div></div>');
+      (puedeFirmar ? '<button type="button" class="rpt-btn" data-send>' + (presencial ? 'Registrar firma del operario' : storedOp ? 'Firmar' : 'Firmar y enviar') + '</button>' : '') + (puedeDecidir ? '<button type="button" class="rpt-btn" data-decidir>Registrar decisión y firmar</button>' : '') + '<button type="button" class="rpt-btn sec" data-close>Cerrar</button></div></div>');
     const err = msg => { dlg.querySelector('[data-err]').textContent = msg || ''; };
     const pad = dlg.querySelector('[data-pad]') ? signaturePad(dlg.querySelector('[data-pad]')) : null;
+    dlg.querySelectorAll('[data-src-user]').forEach(img => api('/api/reportes/firma-usuario/' + encodeURIComponent(img.dataset.srcUser)).then(d => { img.src = d.imagen; }).catch(() => { img.alt = 'No se pudo cargar la firma'; }));
     dlg.querySelector('[data-close]').onclick = () => dlg.close();
     dlg.querySelector('[data-doc]').onclick = () => window.open('/api/reportes/' + encodeURIComponent(r.id) + '/documento', '_blank');
     const act = (selector, build, url) => {
@@ -139,19 +147,70 @@
     act('[data-send]', () => {
       const version = dlg.querySelector('[data-f="version"]')?.value.trim();
       if (!version) { err('Escribe tu versión de lo ocurrido.'); return null; }
-      if (pad.isEmpty()) { err('Dibuja tu firma en el recuadro.'); return null; }
+      if (!storedOp && pad.isEmpty()) { err('Dibuja tu firma en el recuadro.'); return null; }
       if (!dlg.querySelector('[data-f="acepta"]').checked) { err('Marca la casilla de confirmación.'); return null; }
-      return { version, firma: pad.data(), acepta: true };
+      return storedOp ? { version, usarGuardada: true, acepta: true } : { version, firma: pad.data(), acepta: true };
     }, '/api/reportes/' + r.id + (presencial ? '/firmar-presencial' : '/firmar'));
     act('[data-decidir]', () => {
-      if (pad.isEmpty()) { err('Dibuja tu firma de gerencia.'); return null; }
-      return { decision: dlg.querySelector('input[name="dec"]:checked').value, nota: dlg.querySelector('[data-f="nota"]').value, firma: pad.data() };
+      if (!storedGer && pad.isEmpty()) { err('Dibuja tu firma de gerencia.'); return null; }
+      const base = { decision: dlg.querySelector('input[name="dec"]:checked').value, nota: dlg.querySelector('[data-f="nota"]').value };
+      return storedGer ? { ...base, usarGuardada: true } : { ...base, firma: pad.data() };
     }, '/api/reportes/' + r.id + '/decision');
     const anular = dlg.querySelector('[data-anular]');
     if (anular) anular.onclick = async () => {
       if (!confirm('¿Anular este reporte? El operario ya no podrá firmarlo.')) return;
       try { await api('/api/reportes/' + r.id + '/anular', { method: 'POST', body: '{}' }); dlg.close(); await load(true); } catch (e) { err(e.message); }
     };
+  }
+
+
+  // ---- Firmas de usuarios (foto de la firma, registrada por la administración)
+  function photoToSignature(file) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file), img = new Image();
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('No se pudo leer la imagen')); };
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        let width = Math.min(640, img.naturalWidth), data = '';
+        for (let i = 0; i < 4; i++) {
+          const canvas = document.createElement('canvas'), height = Math.max(1, Math.round(img.naturalHeight * width / img.naturalWidth));
+          canvas.width = width; canvas.height = height;
+          const ctx = canvas.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, width, height); ctx.drawImage(img, 0, 0, width, height);
+          const pixels = ctx.getImageData(0, 0, width, height), px = pixels.data;   // gris + contraste: la firma se ve nítida y pesa menos
+          for (let k = 0; k < px.length; k += 4) { const g = Math.max(0, Math.min(255, ((px[k] * .299 + px[k + 1] * .587 + px[k + 2] * .114) - 128) * 1.5 + 140)); px[k] = px[k + 1] = px[k + 2] = g; }
+          ctx.putImageData(pixels, 0, 0);
+          data = canvas.toDataURL('image/png');
+          if (data.length < 600000) return resolve(data);
+          width = Math.round(width * .7);
+        }
+        reject(new Error('La foto es muy pesada; acércala a la firma o usa menos fondo'));
+      };
+      img.src = url;
+    });
+  }
+  function signaturesDialog() {
+    const users = st.opciones.usuarios, has = u => (st.opciones.firmas || []).some(x => String(x).toLowerCase() === u.toLowerCase());
+    const dlg = openDialog('<div class="rpt-body"><h2>Firmas de usuarios</h2><p class="rpt-txt" style="color:#aebba7">Sube una foto de la firma de cada persona (en papel blanco, bien iluminada). Cuando llegue un reporte, esa persona solo pulsa «Firmar».</p>' +
+      '<input type="search" data-q placeholder="Buscar persona" autocomplete="off" style="min-height:40px"><div class="rpt-flist" data-list></div><div class="rpt-err" data-err></div><div class="rpt-actions"><button type="button" class="rpt-btn sec" data-close>Cerrar</button></div></div>');
+    const list = dlg.querySelector('[data-list]'), err = m => { dlg.querySelector('[data-err]').textContent = m || ''; };
+    const paint = () => {
+      const q = norm(dlg.querySelector('[data-q]').value);
+      list.innerHTML = users.filter(u => !q || norm(u.nombre + ' ' + u.usuario).includes(q)).map(u => '<div class="rpt-frow"><div><b>' + esc(u.nombre) + '</b><small>' + esc(u.proceso || '') + '</small></div><span class="rpt-badge" style="--c:' + (has(u.usuario) ? '#8bd450' : '#ffb347') + '">' + (has(u.usuario) ? 'Con firma' : 'Sin firma') + '</span>' +
+        '<label class="rpt-upl">' + (has(u.usuario) ? 'Cambiar foto' : 'Subir foto') + '<input type="file" accept="image/*" data-u="' + esc(u.usuario) + '" hidden></label></div>').join('') || '<p class="rpt-txt">Sin resultados.</p>';
+    };
+    paint();
+    dlg.querySelector('[data-q]').addEventListener('input', paint);
+    dlg.querySelector('[data-close]').onclick = () => dlg.close();
+    list.addEventListener('change', async event => {
+      const input = event.target.closest('input[type=file]');
+      if (!input || !input.files[0]) return;
+      err('');
+      try {
+        const firma = await photoToSignature(input.files[0]);
+        const out = await api('/api/reportes/firma-usuario', { method: 'POST', body: JSON.stringify({ usuario: input.dataset.u, firma }) });
+        st.opciones.firmas = out.firmas; paint();
+      } catch (e) { err(e.message); }
+    });
   }
 
   function newReport() {
@@ -192,7 +251,7 @@
     const chips = (st.admin ? [['activos', 'Abiertos'], ['pendiente', 'Por firmar'], ['firmado', 'Por decidir'], ['resuelto', 'Cerrados'], ['anulado', 'Anulados'], ['todos', 'Todos']] : [['activos', 'Por firmar'], ['resuelto', 'Cerrados'], ['firmado', 'Firmados'], ['todos', 'Todos']]);
     const list = visibleList();
     panel.innerHTML = '<div class="rpt"><header class="rpt-head"><div><span>CONTROL DE PLANTA</span><h2>REPORTES</h2><p>' + (st.admin ? 'Reportes de daño o incidente enviados al personal, con firma digital.' : 'Reportes dirigidos a ti. Léelos, escribe tu versión y fírmalos.') + '</p></div><div style="display:flex;gap:8px;flex-wrap:wrap">' +
-      (st.admin ? '<button type="button" class="rpt-btn" data-new>+ Nuevo reporte</button>' : '') + '<button type="button" class="rpt-btn sec" data-refresh>Actualizar</button></div></header>' +
+      (st.admin ? '<button type="button" class="rpt-btn" data-new>+ Nuevo reporte</button><button type="button" class="rpt-btn sec" data-firmas>Firmas</button>' + (('Notification' in window && Notification.permission === 'default') ? '<button type="button" class="rpt-btn sec" data-notif>🔔 Activar avisos</button>' : '') : '') + '<button type="button" class="rpt-btn sec" data-refresh>Actualizar</button></div></header>' +
       '<div class="rpt-bar"><div class="rpt-chips">' + chips.map(([k, l]) => '<button type="button" data-f="' + k + '" class="' + (st.filtro === k ? 'on' : '') + '">' + l + ' (' + count(k) + ')</button>').join('') + '</div><input type="search" data-q placeholder="Buscar número, persona u orden" autocomplete="off" value="' + esc(st.q) + '"></div>' +
       (list.length ? '<div class="rpt-grid">' + list.map(r => { const [label, color] = ESTADOS[r.estado]; return '<button type="button" class="rpt-card" style="--c:' + color + '" data-id="' + r.id + '"><header><strong>' + esc(r.numero) + '</strong><span class="rpt-badge">' + label + '</span></header><h3>' + esc(r.operarioNombre) + '</h3><small>' + fechaCorta(r.fechaHecho) + (r.orden ? ' · ' + esc(r.orden) : '') + '</small><p>' + esc(r.quePaso) + '</p></button>'; }).join('') + '</div>'
         : '<div class="rpt-empty">' + (st.loading ? 'Cargando…' : 'No hay reportes en esta vista.') + '</div>') + '</div>';
@@ -218,8 +277,8 @@
     const ov = modal = document.createElement('div');
     ov.className = 'rpa-overlay';
     ov.innerHTML = '<div class="rpa-card" role="alertdialog" aria-modal="true"><div class="rpa-head"><small>' + (admin ? 'REPORTES DE PLANTA' : 'REPORTE DE PLANTA') + '</small>' +
-      '<h3>⚠ ' + (admin ? n + (n === 1 ? ' REPORTE ESPERA TU ATENCIÓN' : ' REPORTES ESPERAN TU ATENCIÓN') : n + (n === 1 ? ' REPORTE POR FIRMAR' : ' REPORTES POR FIRMAR')) + '</h3>' +
-      '<p>' + (admin ? 'Hay reportes sin firma del operario o sin decisión de gerencia.' : 'Léelo, escribe tu versión de lo ocurrido y fírmalo.') + '</p></div>' +
+      '<h3>' + (data.title || '⚠ ' + (admin ? n + (n === 1 ? ' REPORTE ESPERA TU ATENCIÓN' : ' REPORTES ESPERAN TU ATENCIÓN') : n + (n === 1 ? ' REPORTE POR FIRMAR' : ' REPORTES POR FIRMAR'))) + '</h3>' +
+      '<p>' + (data.sub || (admin ? 'Hay reportes sin firma del operario o sin decisión de gerencia.' : 'Léelo, escribe tu versión de lo ocurrido y pulsa Firmar.')) + '</p></div>' +
       '<div class="rpa-list">' + data.items.map(i => '<div class="rpa-row"><div><b>' + esc(i.numero) + (admin ? ' · ' + esc(i.operarioNombre) : '') + '</b><small>' + fechaCorta(i.fechaHecho) + (i.orden ? ' · ' + esc(i.orden) : '') + '</small><p>' + esc(i.quePaso) + '</p></div><span class="rpa-chip ' + i.estado + '">' + (i.estado === 'pendiente' ? 'Por firmar' : 'Por decidir') + '</span></div>').join('') + '</div>' +
       '<div class="rpa-foot"><button type="button" class="rpa-btn" data-close>Entendido</button><button type="button" class="rpa-btn main" data-go>Ver reportes</button></div></div>';
     document.body.appendChild(ov);
@@ -257,6 +316,21 @@
       document.getElementById('open-reportes')?.append(mk('rpt-dot'));
       document.querySelector('.user-menu summary')?.append(mk('rpt-avdot'));
     }
+    // aviso al coordinador: operarios que firmaron desde la última vez que se le avisó
+    let avisados = [];
+    try { avisados = JSON.parse(localStorage.getItem('rpt_avisados') || '[]'); } catch (e) { /* sin almacenamiento */ }
+    if (data.admin) {
+      const nuevos = data.items.filter(i => i.estado === 'firmado' && !avisados.includes(i.id));
+      if (nuevos.length) {
+        try { localStorage.setItem('rpt_avisados', JSON.stringify(avisados.concat(nuevos.map(i => i.id)).slice(-200))); } catch (e) { /* sin almacenamiento */ }
+        const title = '✍ ' + nuevos.length + (nuevos.length === 1 ? ' REPORTE FIRMADO' : ' REPORTES FIRMADOS');
+        try { if ('Notification' in window && Notification.permission === 'granted' && document.hidden) new Notification(title, { body: nuevos.map(i => i.numero + ' · ' + i.operarioNombre).join('\n') }); } catch (e) { /* sin permiso */ }
+        alertModal({ ...data, items: nuevos, title, sub: 'El operario ya firmó. Revisa su versión y registra tu decisión.' });
+        try { localStorage.setItem('rpt_sesion', data.sesion); } catch (e) { /* sin almacenamiento */ }
+        if (panel && panel.classList.contains('active')) load(true);
+        return;
+      }
+    }
     // un aviso por cada inicio de sesión
     let seen = null;
     try { seen = localStorage.getItem('rpt_sesion'); } catch (e) { /* sin almacenamiento */ }
@@ -290,6 +364,8 @@
       if (card) openReport(card.dataset.id);
       else if (chip) { st.filtro = chip.dataset.f; render(); }
       else if (e.target.closest('[data-new]')) newReport();
+      else if (e.target.closest('[data-firmas]')) signaturesDialog();
+      else if (e.target.closest('[data-notif]')) Notification.requestPermission().then(() => render());
       else if (e.target.closest('[data-refresh]')) load(true);
     });
     return true;
@@ -307,5 +383,5 @@
   }
   let tries = 0;
   const wait = setInterval(() => { if ((build() && addMenuItem()) || ++tries > 60) { clearInterval(wait); if (tab) badge(); } }, 250);
-  setInterval(() => { if (!document.hidden && tab) { if (panel.classList.contains('active') && !document.querySelector('dialog.rpt-dlg')) load(true); else badge(); } }, 60000);
+  setInterval(() => { if (!document.hidden && tab) { if (panel.classList.contains('active') && !document.querySelector('dialog.rpt-dlg')) load(true); else badge(); } }, 30000);
 })();

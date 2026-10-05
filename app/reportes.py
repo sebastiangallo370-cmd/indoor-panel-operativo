@@ -25,7 +25,8 @@ _file = Path(os.getenv('REPORTES_FILE', '/data/state/reportes.json'))
 _lock = threading.Lock()
 
 DECISIONES = ['Llamado de atención', 'Citación a descargos', 'Sin sanción / Incidente operativo']
-MAX_FIRMA = 250_000  # caracteres del data URL
+MAX_FIRMA = 700_000  # caracteres del data URL
+_firmas_dir = Path(os.getenv('REPORTES_FIRMAS_DIR', '/data/state/firmas_usuarios'))
 _auth: Callable = lambda request: None
 _es_admin: Callable[[str], bool] = lambda usuario: False
 _usuarios: Callable[[], list] = lambda: []
@@ -99,6 +100,22 @@ def _imagen_firma(valor) -> str:
     return imagen
 
 
+def _firma_path(usuario: str) -> Path:
+    return _firmas_dir / (hashlib.sha1(str(usuario).strip().casefold().encode('utf-8')).hexdigest()[:20] + '.png')
+
+
+def _firma_guardada(usuario: str) -> str | None:
+    """Foto de la firma registrada para una persona, como data URL (o None)."""
+    try:
+        return 'data:image/png;base64,' + base64.b64encode(_firma_path(usuario).read_bytes()).decode()
+    except OSError:
+        return None
+
+
+def _con_firma() -> list:
+    return [u['usuario'] for u in _usuarios() if _firma_path(u['usuario']).exists()]
+
+
 def _buscar(datos: dict, rid: str) -> dict:
     for r in datos['reportes']:
         if r['id'] == rid:
@@ -110,7 +127,8 @@ def _buscar(datos: dict, rid: str) -> dict:
 def opciones(request: Request):
     usuario = _auth(request)
     admin = _es_admin(usuario)
-    return {'admin': admin, 'usuario': usuario, 'decisiones': DECISIONES, 'usuarios': _usuarios() if admin else []}
+    return {'admin': admin, 'usuario': usuario, 'decisiones': DECISIONES, 'usuarios': _usuarios() if admin else [],
+            'miFirma': _firma_path(usuario).exists(), 'firmas': _con_firma() if admin else []}
 
 
 @router.get('/resumen')
@@ -177,6 +195,35 @@ def crear(request: Request, payload: dict):
     return {'ok': True, 'reporte': _publico(registro)}
 
 
+@router.get('/firma-usuario/{usuario}')
+def ver_firma_usuario(request: Request, usuario: str):
+    actual = _auth(request)
+    if not (_es_admin(actual) or _mismo(actual, usuario)):
+        raise HTTPException(403, 'No tienes acceso a esta firma')
+    imagen = _firma_guardada(usuario)
+    if not imagen:
+        raise HTTPException(404, 'Esta persona aún no tiene firma registrada')
+    return {'imagen': imagen}
+
+
+@router.post('/firma-usuario')
+def guardar_firma_usuario(request: Request, payload: dict):
+    """La administración registra la foto de la firma de una persona (reemplaza la anterior)."""
+    actual = _auth(request)
+    if not _es_admin(actual):
+        raise HTTPException(403, 'Solo la administración puede registrar firmas')
+    cuenta = next((u for u in _usuarios() if _mismo(u['usuario'], payload.get('usuario'))), None)
+    if not cuenta:
+        raise HTTPException(400, 'Esa persona no existe en el sistema')
+    imagen = _imagen_firma(payload.get('firma'))
+    _firmas_dir.mkdir(parents=True, exist_ok=True)
+    destino = _firma_path(cuenta['usuario'])
+    tmp = destino.with_suffix('.tmp')
+    tmp.write_bytes(base64.b64decode(imagen.split(',', 1)[1]))
+    tmp.replace(destino)
+    return {'ok': True, 'firmas': _con_firma()}
+
+
 @router.get('/{rid}')
 def detalle(request: Request, rid: str):
     usuario = _auth(request)
@@ -188,7 +235,6 @@ def detalle(request: Request, rid: str):
 
 
 def _registrar_firma(request: Request, rid: str, payload: dict, usuario: str, presencial: bool):
-    imagen = _imagen_firma(payload.get('firma'))
     version = _texto(payload.get('version'), 3000, True, 'La versión de lo ocurrido')
     if payload.get('acepta') is not True:
         raise HTTPException(400, 'Debes confirmar que se leyó el reporte')
@@ -202,6 +248,9 @@ def _registrar_firma(request: Request, rid: str, payload: dict, usuario: str, pr
             raise HTTPException(403, 'Solo la persona a quien va dirigido el reporte puede firmarlo')
         if r['estado'] != 'pendiente':
             raise HTTPException(409, 'Este reporte ya no está pendiente')
+        imagen = _firma_guardada(r['operario']) if payload.get('usarGuardada') else _imagen_firma(payload.get('firma'))
+        if not imagen:
+            raise HTTPException(400, 'Esta persona aún no tiene firma registrada')
         r['versionOperario'] = version
         r['estado'] = 'firmado'
         r['firma'] = {'imagen': imagen, 'firmante': r['operario'], 'fecha': _ahora(), 'ip': _ip(request),
@@ -233,7 +282,9 @@ def decidir(request: Request, rid: str, payload: dict):
     decision = str(payload.get('decision') or '')
     if decision not in DECISIONES:
         raise HTTPException(400, 'Elige una decisión')
-    imagen = _imagen_firma(payload.get('firma'))
+    imagen = _firma_guardada(usuario) if payload.get('usarGuardada') else _imagen_firma(payload.get('firma'))
+    if not imagen:
+        raise HTTPException(400, 'Aún no tienes firma registrada')
     with _lock:
         datos = _leer()
         r = _buscar(datos, rid)
