@@ -24,6 +24,7 @@
   const css = document.createElement('style');
   css.textContent = `
   body:has(.panel[data-panel='reportes'].active) main{width:100%!important;max-width:none!important;margin-left:0!important;margin-right:0!important;padding-left:clamp(18px,4vw,76px)!important;padding-right:clamp(18px,4vw,76px)!important}
+  .tab[data-kind='reportes'] .nav-icon{display:none!important}
   .rpt{display:grid;gap:16px;max-width:1440px;margin:auto}
   .rpt-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;padding:22px;border:1px solid #3a2b2b;border-radius:18px;background:linear-gradient(135deg,#241818,#11150f)}
   .rpt-head span{color:#ff9c99;font:900 10px Arial;letter-spacing:.12em}.rpt-head h2{margin:4px 0;font-size:1.6rem}.rpt-head p{margin:0;color:#aebba7;font-size:.9rem}
