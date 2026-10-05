@@ -252,28 +252,90 @@
   }
 
   const TONES = [['late', 'Atrasadas'], ['warn', 'Por vencer'], ['ok', 'A tiempo']];
-  let timeFilter = '', timeLimit = 8;
+  let timeFilter = '', timeLimit = 8, timeQuery = '', dateFrom = '', dateTo = '', dateBasis = 'created';
+  const iso = d => d ? d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') : '';
+  const lastFinish = o => { const ds = Object.values(o.finishedOn || {}); return ds.length ? new Date(Math.max(...ds)) : null; };
+  // Duracion en produccion: creacion → entrega real; si no hay entrega, → ultimo proceso cerrado (si ya termino) o → hoy.
+  function duration(o, today) {
+    if (!o.created) return { days: null, state: 'Sin fecha de creación', end: null };
+    const end = o.delivered && o.deliveredOn ? o.deliveredOn : o.complete ? lastFinish(o) : null;
+    const state = o.delivered ? 'Entregada' : o.complete ? 'Terminada, sin entrega' : o.rework ? 'En reproceso' : 'En producción';
+    const stop = end && end >= o.created ? end : today;
+    return { days: Math.max(0, daysBetween(o.created, stop)), state, end: end || null };
+  }
+  function downloadCsv(a, rows) {
+    const head = ['Orden', 'Cliente', 'Referencia', 'Unidades', 'Fecha de creación', 'Fecha de entrega prometida', 'Fecha de entrega real', 'Fin de producción', 'Días en producción', 'Estado', 'Proceso actual', '% de avance'];
+    const cell = v => { const t = String(v ?? ''); return /[;"\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
+    const lines = rows.map(o => { const d = duration(o, a.today); return [o.id, o.client, o.reference, o.units, iso(o.created), iso(o.due), iso(o.deliveredOn), iso(lastFinish(o)), d.days === null ? '' : d.days, d.state, o.focus, o.percent].map(cell).join(';'); });
+    const blob = new Blob(['﻿' + [head.join(';'), ...lines].join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'tiempos_produccion_' + iso(a.today) + '.csv';
+    document.body.appendChild(link); link.click(); link.remove();
+    setTimeout(() => URL.revokeObjectURL(link.href), 4000);
+  }
   function renderTiming(a) {
     const box = root.querySelector('.dash-timing');
     if (!box) return;
-    const rows = a.timing.map(t => ({ ...t, tone: t.o.due && t.o.due < a.today ? 'late' : t.ratio >= .8 ? 'warn' : 'ok' }));
-    const count = tone => rows.filter(r => r.tone === tone).length;
-    if (!timeFilter || !count(timeFilter)) timeFilter = (TONES.find(([tone]) => tone === 'warn' && count(tone)) || TONES.find(([tone]) => count(tone)))[0];
-    const shown = rows.filter(r => r.tone === timeFilter);
-    const visible = shown.slice(0, timeLimit);
     box.innerHTML = '<div class="dash-panel-head"><h4>Tiempo por orden</h4><small>Días desde la creación · promedio ' + fmtNum(a.typical, 1) + ' d · aproximado</small></div>' +
-      '<div class="dash-time-chips">' + TONES.map(([tone, label]) => '<button type="button" class="' + tone + (tone === timeFilter ? ' on' : '') + '" data-tone="' + tone + '">' + label + ' <b>' + count(tone) + '</b></button>').join('') + '</div>' +
-      '<div class="dash-time-list">' + visible.map(t => {
-        const note = t.left === null ? '' : t.left < 0 ? 'Atrasada ' + (-t.left) + ' d' : t.left === 0 ? 'Entrega hoy' : 'Quedan ' + t.left + ' d';
-        return '<article class="dash-time-card ' + t.tone + '"><div class="dash-time-id"><strong>' + esc(t.o.id) + '</strong><span>' + esc(t.o.client || 'Sin cliente') + '</span></div>' +
-          '<div class="dash-big"><strong>' + t.elapsed + '</strong><span>' + (t.plazo ? 'de ~' + t.plazo + ' días' : 'días') + '</span></div>' +
-          '<div class="dash-time-bar"><i><b style="width:' + Math.min(100, Math.round(t.ratio * 100)) + '%"></b></i></div><em>' + note + '</em></article>';
-      }).join('') + '</div>' +
-      (shown.length > visible.length ? '<button type="button" class="dash-time-more">Ver más (' + (shown.length - visible.length) + ')</button>' : '');
+      '<div class="dash-time-tools"><label class="dash-time-search"><span class="dash-sr">Buscar orden o cliente</span><input type="search" autocomplete="off" placeholder="Buscar orden o cliente y ver cuánto demoró" value="' + esc(timeQuery) + '"></label>' +
+      '<div class="dash-time-export"><label>Filtrar por<select data-f="basis"><option value="created">Fecha de creación</option><option value="delivered">Fecha de entrega</option></select></label><label>Desde<input type="date" data-f="from" value="' + dateFrom + '"></label><label>Hasta<input type="date" data-f="to" value="' + dateTo + '"></label><button type="button" class="dash-time-csv">Descargar CSV</button></div></div>' +
+      '<div class="dash-time-body"></div>';
+    box.querySelector('[data-f="basis"]').value = dateBasis;
+    const body = box.querySelector('.dash-time-body');
+    const inRange = o => {
+      if (!dateFrom && !dateTo) return true;
+      const d = dateBasis === 'delivered' ? (o.deliveredOn || o.due) : o.created;
+      if (!d) return false;
+      return (!dateFrom || iso(d) >= dateFrom) && (!dateTo || iso(d) <= dateTo);
+    };
+    const matches = () => { const q = key(timeQuery); return a.orders.filter(o => (!q || key(o.id).includes(q) || key(o.client).includes(q)) && inRange(o)); };
+    const paint = () => {
+      const q = key(timeQuery);
+      if (q) {
+        const found = matches().sort((x, y) => (y.created || 0) - (x.created || 0));
+        const visible = found.slice(0, timeLimit);
+        body.innerHTML = found.length ? '<div class="dash-time-list">' + visible.map(o => {
+          const d = duration(o, a.today);
+          const tone = o.delivered || o.complete ? 'ok' : o.due && o.due < a.today ? 'late' : 'warn';
+          const sub = d.end ? 'Terminó el ' + fmtShort(d.end) : 'Creada el ' + (o.created ? fmtShort(o.created) : '—');
+          return '<article class="dash-time-card ' + tone + '"><div class="dash-time-id"><strong>' + esc(o.id) + '</strong><span>' + esc(o.client || 'Sin cliente') + '</span></div>' +
+            '<div class="dash-big"><strong>' + (d.days === null ? '—' : d.days) + '</strong><span>días</span></div><em>' + esc(d.state) + '</em><small class="dash-time-sub">' + sub + '</small></article>';
+        }).join('') + '</div>' + (found.length > visible.length ? '<button type="button" class="dash-time-more">Ver más (' + (found.length - visible.length) + ')</button>' : '')
+          : '<p class="dash-none">No encontramos órdenes con esa búsqueda.</p>';
+        return;
+      }
+      const rows = a.timing.map(t => ({ ...t, tone: t.o.due && t.o.due < a.today ? 'late' : t.ratio >= .8 ? 'warn' : 'ok' }));
+      const count = tone => rows.filter(r => r.tone === tone).length;
+      if (!timeFilter || !count(timeFilter)) timeFilter = (TONES.find(([tone]) => tone === 'warn' && count(tone)) || TONES.find(([tone]) => count(tone)))[0];
+      const shown = rows.filter(r => r.tone === timeFilter);
+      const visible = shown.slice(0, timeLimit);
+      body.innerHTML = '<div class="dash-time-chips">' + TONES.map(([tone, label]) => '<button type="button" class="' + tone + (tone === timeFilter ? ' on' : '') + '" data-tone="' + tone + '">' + label + ' <b>' + count(tone) + '</b></button>').join('') + '</div>' +
+        '<div class="dash-time-list">' + visible.map(t => {
+          const note = t.left === null ? '' : t.left < 0 ? 'Atrasada ' + (-t.left) + ' d' : t.left === 0 ? 'Entrega hoy' : 'Quedan ' + t.left + ' d';
+          return '<article class="dash-time-card ' + t.tone + '"><div class="dash-time-id"><strong>' + esc(t.o.id) + '</strong><span>' + esc(t.o.client || 'Sin cliente') + '</span></div>' +
+            '<div class="dash-big"><strong>' + t.elapsed + '</strong><span>' + (t.plazo ? 'de ~' + t.plazo + ' días' : 'días') + '</span></div>' +
+            '<div class="dash-time-bar"><i><b style="width:' + Math.min(100, Math.round(t.ratio * 100)) + '%"></b></i></div><em>' + note + '</em></article>';
+        }).join('') + '</div>' + (shown.length > visible.length ? '<button type="button" class="dash-time-more">Ver más (' + (shown.length - visible.length) + ')</button>' : '');
+    };
+    paint();
+    box.oninput = event => {
+      const f = event.target;
+      if (f.matches('.dash-time-search input')) { timeQuery = f.value; timeLimit = 8; paint(); }
+      else if (f.dataset.f === 'from') dateFrom = f.value;
+      else if (f.dataset.f === 'to') dateTo = f.value;
+      else if (f.dataset.f === 'basis') dateBasis = f.value;
+      if (f.dataset.f) paint();
+    };
     box.onclick = event => {
       const chip = event.target.closest('[data-tone]');
-      if (chip) { timeFilter = chip.dataset.tone; timeLimit = 8; renderTiming(a); }
-      else if (event.target.closest('.dash-time-more')) { timeLimit += 8; renderTiming(a); }
+      if (chip) { timeFilter = chip.dataset.tone; timeLimit = 8; paint(); }
+      else if (event.target.closest('.dash-time-more')) { timeLimit += 8; paint(); }
+      else if (event.target.closest('.dash-time-csv')) {
+        const rows = matches().sort((x, y) => (x.created || 0) - (y.created || 0));
+        if (!rows.length) { alert('No hay órdenes en ese filtro para descargar.'); return; }
+        downloadCsv(a, rows);
+      }
     };
   }
 
@@ -375,6 +437,12 @@
   .dash-time-card .dash-big{gap:6px}.dash-time-card .dash-big strong{font-size:2.3rem;color:var(--t)}.dash-time-card .dash-big span{font-size:.78rem;color:#a9b5a3}
   .dash-time-bar i{display:block;height:6px;border-radius:999px;background:#314033;overflow:hidden}.dash-time-bar b{display:block;height:100%;background:var(--t);border-radius:inherit}
   .dash-time-card em{font-style:normal;font-weight:800;font-size:.74rem;color:var(--t)}
+  .dash-time-tools{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px}
+  .dash-time-search{flex:1 1 280px}.dash-time-search input{width:100%;box-sizing:border-box;min-height:42px;padding:10px 14px;border:1px solid #60754d;border-radius:12px;background:#142017;color:#f5faef;font:600 14px Arial;outline:none}.dash-time-search input:focus{border-color:#d0f44c}
+  .dash-time-export{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px}.dash-time-export label{display:grid;gap:3px;font-size:.68rem;color:#a9b5a3;text-transform:uppercase;letter-spacing:.04em}
+  .dash-time-export input,.dash-time-export select{min-height:38px;padding:6px 9px;border:1px solid #3d4c3b;border-radius:9px;background:#142017;color:#f5faef;font:600 13px Arial;color-scheme:dark}
+  .dash-time-csv{width:auto!important;min-height:38px;padding:0 16px;border:0;border-radius:9px;background:#d0f44c;color:#142017;font:800 .78rem Arial;cursor:pointer}
+  .dash-time-body{display:grid;gap:12px}.dash-time-sub{font-size:.72rem;color:#b3c0ad}
   .dash-time-more{justify-self:center;width:auto!important;padding:9px 22px;border:1px solid rgba(208,244,76,.45);border-radius:999px;background:transparent;color:#d0f44c;font:800 .78rem Arial;cursor:pointer}
   @media(max-width:1050px) and (min-width:701px){.dash-order-results{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:700px){.dash-order-finder{grid-template-columns:1fr;padding:15px}.dash-order-results{grid-column:auto;grid-template-columns:1fr}.dash-order-result{min-height:260px}}
   `;
