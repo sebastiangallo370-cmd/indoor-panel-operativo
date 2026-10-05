@@ -287,13 +287,14 @@
 
     const timing = a.timing.length
       ? '<section class="dash-load dash-timing"><div class="dash-panel-head"><h4>Tiempo por orden</h4><small>Días desde la creación frente al plazo de entrega' + (a.typical !== null ? ' · promedio ' + fmtNum(a.typical, 1) + ' d' : '') + ' · aproximado</small></div>' +
-        '<ul class="dash-time-list">' + a.timing.map(t => {
+        '<div class="dash-time-list">' + a.timing.map(t => {
           const tone = t.o.due && t.o.due < a.today ? 'late' : t.ratio >= .8 ? 'warn' : 'ok';
           const note = t.left === null ? '' : t.left < 0 ? 'Atrasada ' + (-t.left) + ' d' : t.left === 0 ? 'Entrega hoy' : 'Quedan ' + t.left + ' d';
-          return '<li class="' + tone + '"><div class="dash-time-id"><strong>' + esc(t.o.id) + '</strong><span>' + esc(t.o.client || 'Sin cliente') + '</span></div>' +
-            '<div class="dash-time-bar"><i><b style="width:' + Math.min(100, Math.round(t.ratio * 100)) + '%"></b></i><small>Lleva ' + t.elapsed + ' d' + (t.plazo ? ' de ~' + t.plazo + ' d' : '') + ' · ' + (t.o.focus ? esc(t.o.focus) + ' · ' : '') + t.o.percent + '%</small></div>' +
-            '<em>' + note + '</em></li>';
-        }).join('') + '</ul></section>'
+          return '<article class="dash-time-card ' + tone + '"><div class="dash-time-top"><div class="dash-time-id"><strong>' + esc(t.o.id) + '</strong><span>' + esc(t.o.client || 'Sin cliente') + '</span></div><em>' + note + '</em></div>' +
+            '<div class="dash-big"><strong>' + t.elapsed + '</strong><span>' + (t.plazo ? 'días de ~' + t.plazo : 'días') + '</span></div>' +
+            '<div class="dash-time-bar"><i><b style="width:' + Math.min(100, Math.round(t.ratio * 100)) + '%"></b></i></div>' +
+            '<small>' + (t.o.focus ? esc(t.o.focus) + ' · ' : '') + t.o.percent + '% de avance · ' + fmtNum(t.o.units) + ' und.</small></article>';
+        }).join('') + '</div></section>'
       : '';
 
     root.innerHTML =
@@ -346,13 +347,15 @@
   .dash-load-card .dash-big{gap:6px}.dash-load-card .dash-big strong{font-size:2rem;color:var(--t)}.dash-load-card .dash-big span{font-size:.78rem;color:#a9b5a3}
   .dash-load-card>small{color:#8f9b8a;font-size:.76rem}
   .dash-bottleneck{position:absolute;top:-11px;right:12px;font-style:normal;font-size:.6rem;font-weight:800;letter-spacing:.03em;text-transform:uppercase;padding:3px 8px;border-radius:999px;background:#ff6b5c;color:#2a0e0a;border:1px solid #ff8a7c}
-  .dash-time-list{list-style:none;margin:0;padding:0 6px 0 0;display:grid;grid-auto-rows:max-content;gap:6px;max-height:420px;overflow:auto}
-  .dash-time-list li{--t:#7ecf8a;display:grid;grid-template-columns:minmax(120px,1fr) minmax(160px,2fr) auto;align-items:center;gap:14px;padding:9px 12px;border-radius:10px;background:rgba(255,255,255,.04)}
-  .dash-time-list li.warn{--t:#ffc95c}.dash-time-list li.late{--t:#ff6b5c}
-  .dash-time-id{display:grid;min-width:0}.dash-time-id strong{font-size:.9rem;color:#f2f7ea}.dash-time-id span{font-size:.76rem;color:#a9b5a3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .dash-time-bar{display:grid;gap:4px}.dash-time-bar i{display:block;height:7px;border-radius:999px;background:#314033;overflow:hidden}.dash-time-bar b{display:block;height:100%;background:var(--t);border-radius:inherit}.dash-time-bar small{font-size:.72rem;color:#b3c0ad}
-  .dash-time-list em{font-style:normal;font-weight:800;font-size:.76rem;color:var(--t);white-space:nowrap}
-  @media(max-width:700px){.dash-time-list li{grid-template-columns:1fr auto}.dash-time-bar{grid-column:1/-1;order:3}}
+  .dash-time-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));grid-auto-rows:max-content;gap:12px;max-height:640px;overflow:auto;padding:0 6px 0 0}
+  .dash-time-card{--t:#7ecf8a;display:grid;gap:10px;padding:14px;border:1px solid rgba(255,255,255,.13);border-top:4px solid var(--t);border-radius:14px;background:#121712;transition:transform .15s}
+  .dash-time-card:hover{transform:translateY(-2px)}.dash-time-card.warn{--t:#ffc95c}.dash-time-card.late{--t:#ff6b5c;background:rgba(255,107,92,.06)}
+  .dash-time-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+  .dash-time-id{display:grid;min-width:0}.dash-time-id strong{font-size:.95rem;color:#f2f7ea}.dash-time-id span{font-size:.74rem;color:#a9b5a3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .dash-time-top em{font-style:normal;font-weight:800;font-size:.68rem;padding:4px 8px;border-radius:999px;white-space:nowrap;color:var(--t);background:color-mix(in srgb,var(--t) 16%,transparent)}
+  .dash-time-card .dash-big{gap:6px}.dash-time-card .dash-big strong{font-size:2.3rem;color:var(--t)}.dash-time-card .dash-big span{font-size:.78rem;color:#a9b5a3}
+  .dash-time-bar i{display:block;height:7px;border-radius:999px;background:#314033;overflow:hidden}.dash-time-bar b{display:block;height:100%;background:var(--t);border-radius:inherit}
+  .dash-time-card>small{font-size:.72rem;color:#b3c0ad}
   @media(max-width:1050px) and (min-width:701px){.dash-order-results{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:700px){.dash-order-finder{grid-template-columns:1fr;padding:15px}.dash-order-results{grid-column:auto;grid-template-columns:1fr}.dash-order-result{min-height:260px}}
   `;
   document.head.appendChild(style);
