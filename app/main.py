@@ -3813,6 +3813,8 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
+rem Una instalacion antigua por usuario (HKCU / AppData) tiene prioridad sobre la de equipo: se elimina SOLO la clave indoor-nas y la carpeta IndoorNAS de cada perfil.
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Get-ChildItem Registry::HKEY_USERS -ErrorAction SilentlyContinue | Where-Object {{ $_.PSChildName -match '^S-1-5-21-[0-9-]+$' }} | ForEach-Object {{ Remove-Item -LiteralPath ($_.PSPath + '\Software\Classes\indoor-nas') -Recurse -Force -ErrorAction SilentlyContinue }}; Get-ChildItem 'C:\Users' -Directory -ErrorAction SilentlyContinue | ForEach-Object {{ Remove-Item -LiteralPath ($_.FullName + '\AppData\Local\IndoorNAS') -Recurse -Force -ErrorAction SilentlyContinue }}"
 echo.
 echo Conector Indoor NAS instalado correctamente para todos los usuarios de este equipo.
 echo Ya puedes cerrar esta ventana y pulsar una fila en Produccion.
