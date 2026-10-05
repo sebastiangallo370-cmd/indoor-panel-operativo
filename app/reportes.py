@@ -187,27 +187,41 @@ def detalle(request: Request, rid: str):
     return _publico(r, con_firma=True)
 
 
-@router.post('/{rid}/firmar')
-def firmar(request: Request, rid: str, payload: dict):
-    """Firma del operario, con su versión de los hechos."""
-    usuario = _auth(request)
+def _registrar_firma(request: Request, rid: str, payload: dict, usuario: str, presencial: bool):
     imagen = _imagen_firma(payload.get('firma'))
-    version = _texto(payload.get('version'), 3000, True, 'Tu versión de lo ocurrido')
+    version = _texto(payload.get('version'), 3000, True, 'La versión de lo ocurrido')
     if payload.get('acepta') is not True:
-        raise HTTPException(400, 'Debes confirmar que leíste el reporte')
+        raise HTTPException(400, 'Debes confirmar que se leyó el reporte')
     with _lock:
         datos = _leer()
         r = _buscar(datos, rid)
-        if not _mismo(r['operario'], usuario):
+        if presencial:
+            if not _es_admin(usuario):
+                raise HTTPException(403, 'Solo la administración puede registrar la firma de otra persona')
+        elif not _mismo(r['operario'], usuario):
             raise HTTPException(403, 'Solo la persona a quien va dirigido el reporte puede firmarlo')
         if r['estado'] != 'pendiente':
             raise HTTPException(409, 'Este reporte ya no está pendiente')
         r['versionOperario'] = version
         r['estado'] = 'firmado'
-        r['firma'] = {'imagen': imagen, 'firmante': usuario, 'fecha': _ahora(), 'ip': _ip(request),
+        r['firma'] = {'imagen': imagen, 'firmante': r['operario'], 'fecha': _ahora(), 'ip': _ip(request),
                       'dispositivo': request.headers.get('user-agent', '')[:200], 'huella': _huella(r)}
+        if presencial:
+            r['firma']['registradoPor'] = usuario
         _guardar(datos)
         return {'ok': True, 'reporte': _publico(r)}
+
+
+@router.post('/{rid}/firmar')
+def firmar(request: Request, rid: str, payload: dict):
+    """Firma del operario, con su versión de los hechos."""
+    return _registrar_firma(request, rid, payload, _auth(request), False)
+
+
+@router.post('/{rid}/firmar-presencial')
+def firmar_presencial(request: Request, rid: str, payload: dict):
+    """La administración registra la firma del operario, que firma en su pantalla en su presencia."""
+    return _registrar_firma(request, rid, payload, _auth(request), True)
 
 
 @router.post('/{rid}/decision')
@@ -268,7 +282,7 @@ def documento(request: Request, rid: str):
         if not f:
             return '<div class="fr"><div class="vacia"></div><b>' + titulo + '</b><small>Pendiente</small></div>'
         return ('<div class="fr">' + ('<img alt="Firma" src="' + e(f['imagen'], quote=True) + '">' if f.get('imagen') else '<div class="vacia"></div>') + '<b>' + titulo + '</b><small>' + e(f.get('firmante', '')) + ' · ' + e(_fecha(f['fecha'])) +
-                ' · IP ' + e(f.get('ip') or '—') + '</small>' + extra + '</div>')
+                ' · IP ' + e(f.get('ip') or '—') + '</small>' + (('<small>Firma registrada en presencia por ' + e(f['registradoPor']) + '</small>') if f.get('registradoPor') else '') + extra + '</div>')
     ger = r.get('gerencia') or {}
     marca = lambda d: '[ X ] ' + d if ger.get('decision') == d else '[   ] ' + d
     fila = lambda k, v: '<tr><th>' + k + '</th><td>' + e(str(v or '—')) + '</td></tr>'

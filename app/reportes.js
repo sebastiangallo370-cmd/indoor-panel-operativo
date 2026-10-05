@@ -102,24 +102,25 @@
     dialog.showModal();
     return dialog;
   }
-  const firmaBloque = (titulo, f) => f ? '<div class="rpt-sig"><b>' + titulo + '</b>' + (f.imagen ? '<img alt="Firma" src="' + esc(f.imagen) + '">' : '') + '<small>' + esc(f.firmante || '') + ' · ' + fechaHora(f.fecha) + (f.ip ? ' · IP ' + esc(f.ip) : '') + '</small></div>' : '';
+  const firmaBloque = (titulo, f) => f ? '<div class="rpt-sig"><b>' + titulo + '</b>' + (f.imagen ? '<img alt="Firma" src="' + esc(f.imagen) + '">' : '') + '<small>' + esc(f.firmante || '') + ' · ' + fechaHora(f.fecha) + (f.ip ? ' · IP ' + esc(f.ip) : '') + '</small>' + (f.registradoPor ? '<small>Firma registrada en presencia por ' + esc(f.registradoPor) + '</small>' : '') + '</div>' : '';
 
   async function openReport(id) {
     let r;
     try { r = await api('/api/reportes/' + encodeURIComponent(id)); } catch (e) { alert(e.message); return; }
     const mine = r.operario && r.operario.toLowerCase() === st.usuario.toLowerCase();
-    const puedeFirmar = mine && r.estado === 'pendiente';
+    const presencial = st.admin && !mine && r.estado === 'pendiente';
+    const puedeFirmar = (mine || presencial) && r.estado === 'pendiente';
     const puedeDecidir = st.admin && r.estado === 'firmado';
     const dlg = openDialog('<div class="rpt-body"><div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><div><small style="color:#aebba7">' + esc(r.numero) + '</small><h2>Reporte de daño / incidente de planta</h2></div><span class="rpt-badge" style="--c:' + ESTADOS[r.estado][1] + '">' + ESTADOS[r.estado][0] + '</span></div>' +
       '<h4>Datos del incidente y personal</h4><div class="rpt-kv"><b>Operario</b><span>' + esc(r.operarioNombre) + '</span><b>Cargo</b><span>' + esc(r.cargo || '—') + '</span><b>Fecha</b><span>' + fechaCorta(r.fechaHecho) + '</span><b>Hora</b><span>' + esc(r.horaHecho || '—') + '</span><b>OP / Lote</b><span>' + esc(r.orden || '—') + '</span></div>' +
       '<h4>1. Detalle del daño o material perdido</h4><p class="rpt-txt"><b>¿Qué pasó?</b>\n' + esc(r.quePaso) + '</p><p class="rpt-txt"><b>Cantidad / material perdido:</b> ' + esc(r.material || '—') + '</p>' +
-      '<h4>2. Versión del operario</h4>' + (r.versionOperario ? '<p class="rpt-txt">' + esc(r.versionOperario) + '</p>' : puedeFirmar ? '<label>Escribe tu versión de lo ocurrido<textarea data-f="version" maxlength="3000" placeholder="Cuenta con tus palabras qué pasó"></textarea></label>' : '<p class="rpt-txt" style="color:#8f9b8a">Pendiente de la versión del operario.</p>') +
+      '<h4>2. Versión del operario</h4>' + (r.versionOperario ? '<p class="rpt-txt">' + esc(r.versionOperario) + '</p>' : puedeFirmar ? '<label>' + (presencial ? 'Versión del operario (la que él te cuenta)' : 'Escribe tu versión de lo ocurrido') + '<textarea data-f="version" maxlength="3000" placeholder="' + (presencial ? 'Escribe lo que el operario responde' : 'Cuenta con tus palabras qué pasó') + '"></textarea></label>' : '<p class="rpt-txt" style="color:#8f9b8a">Pendiente de la versión del operario.</p>') +
       '<h4>Firmas</h4><div class="rpt-sig"><b>Coordinador de Planta</b><small>' + esc(r.creadoPor) + ' · ' + fechaHora(r.creado) + '</small></div>' + firmaBloque('Firma operario', r.firma) +
-      (puedeFirmar ? '<div class="rpt-pad" data-pad="op"></div><label class="rpt-check"><input type="checkbox" data-f="acepta"> Leí este reporte y firmo digitalmente. Mi firma, fecha, hora e IP quedan registradas.</label>' : '') +
+      (puedeFirmar ? (presencial ? '<p class="rpt-txt" style="color:#ffc98a">Firma presencial: pásale la pantalla a <b>' + esc(r.operarioNombre) + '</b> para que firme aquí.</p>' : '') + '<div class="rpt-pad" data-pad="op"></div><label class="rpt-check"><input type="checkbox" data-f="acepta"> ' + (presencial ? esc(r.operarioNombre) + ' leyó este reporte y firmó en mi presencia. Queda registrado que la firma fue ingresada por mí.' : 'Leí este reporte y firmo digitalmente. Mi firma, fecha, hora e IP quedan registradas.') + '</label>' : '') +
       (r.gerencia ? '<h4>Uso exclusivo de gerencia / administración</h4><p class="rpt-txt"><b>Decisión:</b> ' + esc(r.gerencia.decision) + '</p>' + (r.gerencia.nota ? '<p class="rpt-txt">' + esc(r.gerencia.nota) + '</p>' : '') + firmaBloque('Firma gerencia', r.gerencia) : '') +
       (puedeDecidir ? '<h4>Uso exclusivo de gerencia / administración</h4><div class="rpt-radios">' + st.opciones.decisiones.map((d, i) => '<label><input type="radio" name="dec" value="' + esc(d) + '"' + (i === 0 ? ' checked' : '') + '> ' + esc(d) + '</label>').join('') + '</div><label>Nota (opcional)<textarea data-f="nota" maxlength="1500"></textarea></label><div class="rpt-pad" data-pad="ger"></div>' : '') +
       '<div class="rpt-err" data-err></div><div class="rpt-actions"><button type="button" class="rpt-btn sec" data-doc>Imprimir / PDF</button>' + (st.admin && r.estado === 'pendiente' ? '<button type="button" class="rpt-btn danger" data-anular>Anular</button>' : '') +
-      (puedeFirmar ? '<button type="button" class="rpt-btn" data-send>Firmar y enviar</button>' : '') + (puedeDecidir ? '<button type="button" class="rpt-btn" data-decidir>Registrar decisión y firmar</button>' : '') + '<button type="button" class="rpt-btn sec" data-close>Cerrar</button></div></div>');
+      (puedeFirmar ? '<button type="button" class="rpt-btn" data-send>' + (presencial ? 'Registrar firma del operario' : 'Firmar y enviar') + '</button>' : '') + (puedeDecidir ? '<button type="button" class="rpt-btn" data-decidir>Registrar decisión y firmar</button>' : '') + '<button type="button" class="rpt-btn sec" data-close>Cerrar</button></div></div>');
     const err = msg => { dlg.querySelector('[data-err]').textContent = msg || ''; };
     const pad = dlg.querySelector('[data-pad]') ? signaturePad(dlg.querySelector('[data-pad]')) : null;
     dlg.querySelector('[data-close]').onclick = () => dlg.close();
@@ -141,7 +142,7 @@
       if (pad.isEmpty()) { err('Dibuja tu firma en el recuadro.'); return null; }
       if (!dlg.querySelector('[data-f="acepta"]').checked) { err('Marca la casilla de confirmación.'); return null; }
       return { version, firma: pad.data(), acepta: true };
-    }, '/api/reportes/' + r.id + '/firmar');
+    }, '/api/reportes/' + r.id + (presencial ? '/firmar-presencial' : '/firmar'));
     act('[data-decidir]', () => {
       if (pad.isEmpty()) { err('Dibuja tu firma de gerencia.'); return null; }
       return { decision: dlg.querySelector('input[name="dec"]:checked').value, nota: dlg.querySelector('[data-f="nota"]').value, firma: pad.data() };
