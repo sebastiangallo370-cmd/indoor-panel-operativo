@@ -24,22 +24,32 @@
   html body.top-navigation .sidebar nav.tabs{display:none!important}
   html body.top-navigation .sidebar{height:auto!important;min-height:0!important;max-height:none!important}
   html body main{padding-bottom:calc(110px + env(safe-area-inset-bottom))!important}
-  /* Barra inferior «liquid»: la misma barra de siempre, pero la opción activa va en una burbuja que se desliza y se estira como líquido */
-  .mbar{--cx:0px;display:flex;position:fixed;z-index:95;left:12px;right:12px;bottom:max(12px,env(safe-area-inset-bottom));height:70px;padding:0 6px;align-items:stretch;border:1px solid rgba(208,244,76,.22);border-radius:999px;background:rgba(14,19,13,.92);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 14px 40px rgba(0,0,0,.55);-webkit-tap-highlight-color:transparent}
-  .mbar-goo{position:absolute;inset:0;z-index:0;pointer-events:none;filter:url(#mbar-goo) drop-shadow(0 0 9px rgba(208,244,76,.38))}
-  .mbar-blob{position:absolute;left:0;top:6px;width:44px;height:44px;border-radius:50%;background:#d0f44c;transform:translateX(calc(var(--cx) - 22px))}
-  .mbar.ready .mbar-blob.b1{transition:transform .26s cubic-bezier(.3,1.3,.5,1)}
-  .mbar.ready .mbar-blob.b2{transition:transform .44s cubic-bezier(.25,1.1,.4,1)}
-  .mbar.no-active .mbar-blob{opacity:0}
-  .mbar button{position:relative;z-index:2;flex:1 1 0;min-width:0;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:0;padding:16px 0 0;margin:0;border:0;border-radius:999px;background:transparent;color:#cfd9c8;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:color .14s ease .08s}
-  .mbar button svg{width:24px;height:24px;margin-bottom:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;transition:transform .26s cubic-bezier(.3,1.3,.5,1),color .14s ease .08s}
-  .mbar button small{position:absolute;left:50%;bottom:6px;display:none;transform:translateX(-50%);font:800 8px Arial;letter-spacing:.03em;text-transform:uppercase;white-space:nowrap;pointer-events:none}
-  .mbar button.on{color:#e7ff9a}
-  .mbar button.on svg{color:#10150e;transform:scale(1.06)}
-  .mbar button.on small{display:block;animation:mbar-label .2s ease-out .08s both}
-  @keyframes mbar-label{from{opacity:0;transform:translateX(-50%) translateY(4px)}to{opacity:1;transform:translateX(-50%)}}
-  .mbar button:active svg{transform:scale(.88)}
-  @media(prefers-reduced-motion:reduce){.mbar.ready .mbar-blob,.mbar button svg{transition:none!important}}
+  /* Barra inferior: píldora con íconos y etiquetas, y un botón central «+» que abre las demás secciones en abanico */
+  .mbar{--mb-bg:rgba(17,23,16,.96);--mb-line:rgba(208,244,76,.2);--mb-fg:#aebba7;--mb-on:#d0f44c;--mb-fab:#d0f44c;--mb-fab-fg:#10150e;--mb-chip:#1b2417;display:flex;position:fixed;z-index:95;left:12px;right:12px;bottom:max(12px,env(safe-area-inset-bottom));height:68px;padding:0 6px;align-items:stretch;border:1px solid var(--mb-line);border-radius:26px;background:var(--mb-bg);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 14px 36px rgba(0,0,0,.5);-webkit-tap-highlight-color:transparent}
+  html.theme-light .mbar{--mb-bg:rgba(255,255,255,.97);--mb-line:#d3dcc8;--mb-fg:#5d6a55;--mb-on:#3f6a10;--mb-fab:#3f6a10;--mb-fab-fg:#fff;--mb-chip:#f3f7ec;box-shadow:0 12px 30px rgba(40,60,20,.22)}
+  .mbar>.mitem{position:relative;flex:1 1 0;min-width:0;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:0;margin:0;border:0;border-radius:18px;background:transparent;color:var(--mb-fg);cursor:pointer;-webkit-tap-highlight-color:transparent;transition:color .18s}
+  .mbar>.mitem svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;transition:transform .25s cubic-bezier(.3,1.4,.5,1)}
+  .mbar>.mitem small{font:700 10px/1 Arial,sans-serif;letter-spacing:.01em;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+  .mbar>.mitem.on{color:var(--mb-on)}
+  .mbar>.mitem.on svg{transform:translateY(-1px) scale(1.08)}
+  .mbar>.mitem.on::after{content:'';position:absolute;bottom:6px;left:50%;width:18px;height:3px;margin-left:-9px;border-radius:3px;background:var(--mb-on);animation:mbar-dot .25s ease-out both}
+  @keyframes mbar-dot{from{transform:scaleX(.2);opacity:0}to{transform:scaleX(1);opacity:1}}
+  .mbar>.mitem:active svg{transform:scale(.88)}
+  .mspacer{flex:0 0 76px}
+  .mfab{position:absolute;left:50%;top:-26px;z-index:3;width:58px;height:58px;margin-left:-29px;display:grid;place-items:center;padding:0;border:5px solid var(--mb-bg);border-radius:50%;background:var(--mb-fab);color:var(--mb-fab-fg);cursor:pointer;box-shadow:0 8px 20px rgba(0,0,0,.35);-webkit-tap-highlight-color:transparent;transition:transform .2s}
+  .mfab svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:2.6;stroke-linecap:round;transition:transform .32s cubic-bezier(.3,1.4,.5,1)}
+  .mfab:active{transform:scale(.93)}
+  .mfab.has-active::after{content:'';position:absolute;right:2px;top:2px;width:11px;height:11px;border-radius:50%;background:#fff;border:2.5px solid var(--mb-fab)}
+  .mbar.fan-open .mfab svg{transform:rotate(45deg)}
+  .mfan{position:absolute;left:50%;top:3px;width:0;height:0;z-index:2}
+  .mfan button{position:absolute;left:-27px;top:-27px;width:54px;height:54px;display:grid;place-items:center;padding:0;border:1.5px solid var(--mb-on);border-radius:50%;background:var(--mb-chip);color:var(--mb-on);cursor:pointer;box-shadow:0 8px 18px rgba(0,0,0,.4);opacity:0;pointer-events:none;transform:translate(0,0) scale(.3);transition:transform .34s cubic-bezier(.3,1.35,.5,1) var(--d,0s),opacity .18s ease var(--d,0s);-webkit-tap-highlight-color:transparent}
+  .mfan button svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .mfan button span{position:absolute;top:100%;left:50%;margin-top:5px;transform:translateX(-50%);padding:2px 7px;border-radius:999px;background:rgba(10,14,9,.82);color:#f1f7e8;font:700 9.5px/1.2 Arial,sans-serif;white-space:nowrap;pointer-events:none}
+  html.theme-light .mfan button span{background:rgba(255,255,255,.92);color:#1b2517}
+  .mfan button.on{background:var(--mb-on);color:var(--mb-fab-fg)}
+  .mbar.fan-open .mfan button{opacity:1;pointer-events:auto;transform:translate(var(--x),var(--y)) scale(1)}
+  body.mfan-open .msheet-backdrop{display:block;background:rgba(0,0,0,.45)}
+  @media(prefers-reduced-motion:reduce){.mbar>.mitem svg,.mfab svg,.mfan button{transition:none!important}.mbar>.mitem.on::after{animation:none}}
   .msheet-backdrop{position:fixed;inset:0;z-index:96;background:rgba(0,0,0,.55)}
   .msheet{position:fixed;z-index:97;left:10px;right:10px;bottom:calc(max(12px,env(safe-area-inset-bottom)) + 82px);max-height:min(70dvh,560px);overflow-y:auto;padding:14px 12px 10px;border:1px solid rgba(208,244,76,.3);border-radius:22px;background:#10160f;box-shadow:0 20px 60px rgba(0,0,0,.6)}
   body.msheet-open .msheet,body.msheet-open .msheet-backdrop{display:block}
@@ -72,6 +82,7 @@
     PRODUCCION: '<path d="M3 21V10l6 4V10l6 4V6l6 3v12z"/><path d="M7 17h2M12 17h2M17 17h1"/>',
     INVENTARIOS: '<path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="M3 8l9 5 9-5"/><path d="M12 13v8"/>',
     ADMINISTRACION: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/><path d="M3 13h18"/>',
+    PERMISOS: '<path d="M12 3l8 3v6c0 5-3.4 8.2-8 9-4.6-.8-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/>',
     OTRO: '<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>'
   };
   const plain = text => String(text || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/\s+/g, ' ').trim();
@@ -98,11 +109,6 @@
   const bar = document.createElement('nav');
   bar.className = 'mbar';
   bar.setAttribute('aria-label', 'Menú principal');
-  bar.innerHTML = '<div class="mbar-goo" aria-hidden="true"><span class="mbar-blob b1"></span><span class="mbar-blob b2"></span></div>';
-  // Filtro SVG «goo»: funde las dos burbujas en una sola masa líquida mientras se mueven.
-  const gooHolder = document.createElement('div');
-  gooHolder.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden';
-  gooHolder.innerHTML = '<svg width="0" height="0" aria-hidden="true"><defs><filter id="mbar-goo" x="-20%" y="-60%" width="140%" height="220%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceGraphic" stdDeviation="8" result="b"/><feColorMatrix in="b" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 20 -8"/></filter></defs></svg>';
   const sheet = document.createElement('div');
   sheet.className = 'msheet';
   sheet.setAttribute('role', 'dialog');
@@ -126,26 +132,26 @@
     });
     document.body.classList.add('msheet-open');
   };
-  backdrop.onclick = closeSheet;
+  const closeFan = () => { bar.classList.remove('fan-open'); document.body.classList.remove('mfan-open'); fab && fab.setAttribute('aria-expanded', 'false'); };
+  backdrop.onclick = () => { closeSheet(); closeFan(); };
 
-  // Lleva la burbuja al centro de la opción activa (la animación la hace el CSS).
-  const placeLiquid = button => {
-    bar.classList.toggle('no-active', !button);
-    if (!button || !bar.clientWidth) return;
-    const barRect = bar.getBoundingClientRect(), rect = button.getBoundingClientRect();
-    const cx = Math.round(rect.left - barRect.left - bar.clientLeft + rect.width / 2) + 'px';
-    if (bar.style.getPropertyValue('--cx') !== cx) bar.style.setProperty('--cx', cx);
-    if (!bar.classList.contains('ready')) setTimeout(() => bar.classList.add('ready'), 90);
+  const PRIORITY = ['INICIO', 'PRODUCCION', 'REPROCESOS', 'INVENTARIOS'];
+  const pretty = label => { const t = String(label || '').trim().toLowerCase(); return t.charAt(0).toUpperCase() + t.slice(1).replace('produccion', 'producción').replace('administracion', 'administración'); };
+  const PLUS = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
+  let fab = null, items = [], fanItems = [];
+
+  const activate = section => {
+    if (navigator.vibrate) navigator.vibrate(8);
+    closeFan();
+    if (section.direct) { closeSheet(); section.direct.click(); window.scrollTo({top: 0}); return; }
+    if (document.body.classList.contains('msheet-open') && sheet.querySelector('h3')?.textContent === section.label) closeSheet();
+    else openSheet(section);
   };
+  const isOn = section => !!section && (section.direct ? section.direct.classList.contains('active') : !!section.node.querySelector('.nav-children .tab.active'));
   const markActive = () => {
-    let activeButton = null;
-    [...bar.querySelectorAll(':scope > button')].forEach((button, index) => {
-      const section = list[index];
-      const on = section && (section.direct ? section.direct.classList.contains('active') : !!section.node.querySelector('.nav-children .tab.active'));
-      button.classList.toggle('on', !!on);
-      if (on) activeButton = button;
-    });
-    placeLiquid(activeButton);
+    items.forEach(({section, button}) => button.classList.toggle('on', isOn(section)));
+    fanItems.forEach(({section, button}) => button.classList.toggle('on', isOn(section)));
+    if (fab) fab.classList.toggle('has-active', fanItems.some(({section}) => isOn(section)));
   };
 
   const build = () => {
@@ -153,21 +159,61 @@
     const signature = list.map(item => item.label).join('|');
     if (bar.dataset.signature === signature) return;
     bar.dataset.signature = signature;
-    bar.querySelectorAll(':scope > button').forEach(button => button.remove());
-    list.forEach(section => {
+    closeFan();
+    bar.innerHTML = '';
+    items = []; fanItems = []; fab = null;
+    const wanted = PRIORITY.map(key => list.find(section => plain(section.label) === key)).filter(Boolean);
+    const main = wanted.length >= 2 ? wanted : list.slice(0, 4);
+    const more = list.filter(section => !main.includes(section));
+    const makeItem = section => {
+      const button = document.createElement('button');
+      button.type = 'button'; button.className = 'mitem';
+      button.setAttribute('aria-label', section.label);
+      button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true">' + (ICONS[plain(section.label)] || ICONS.OTRO) + '</svg><small></small>';
+      button.querySelector('small').textContent = pretty(section.label);
+      button.onclick = () => activate(section);
+      items.push({section, button});
+      return button;
+    };
+    const half = more.length ? Math.ceil(main.length / 2) : main.length;
+    main.slice(0, half).forEach(section => bar.appendChild(makeItem(section)));
+    if (more.length) {
+      const spacer = document.createElement('span');
+      spacer.className = 'mspacer'; spacer.setAttribute('aria-hidden', 'true');
+      bar.appendChild(spacer);
+    }
+    main.slice(half).forEach(section => bar.appendChild(makeItem(section)));
+    if (!more.length) return;
+    fab = document.createElement('button');
+    fab.type = 'button'; fab.className = 'mfab';
+    fab.setAttribute('aria-label', 'Más secciones'); fab.setAttribute('aria-expanded', 'false');
+    fab.innerHTML = PLUS;
+    fab.onclick = () => {
+      if (navigator.vibrate) navigator.vibrate(8);
+      closeSheet();
+      const open = !bar.classList.contains('fan-open');
+      bar.classList.toggle('fan-open', open);
+      document.body.classList.toggle('mfan-open', open);
+      fab.setAttribute('aria-expanded', String(open));
+    };
+    const fan = document.createElement('div');
+    fan.className = 'mfan';
+    const spread = more.length > 1 ? Math.min(55 * (more.length - 1), 150) : 0;
+    more.forEach((section, index) => {
+      const angle = more.length > 1 ? (-spread / 2 + spread * index / (more.length - 1)) * Math.PI / 180 : 0;
       const button = document.createElement('button');
       button.type = 'button';
       button.setAttribute('aria-label', section.label);
-      button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true">' + (ICONS[plain(section.label)] || ICONS.OTRO) + '</svg><small></small>';
-      button.querySelector('small').textContent = section.label;
-      button.onclick = () => {
-        if (navigator.vibrate) navigator.vibrate(8);
-        if (section.direct) { closeSheet(); section.direct.click(); window.scrollTo({top: 0}); return; }
-        if (document.body.classList.contains('msheet-open') && sheet.querySelector('h3')?.textContent === section.label) closeSheet();
-        else openSheet(section);
-      };
-      bar.appendChild(button);
+      button.style.setProperty('--x', Math.round(Math.sin(angle) * 88) + 'px');
+      button.style.setProperty('--y', Math.round(-Math.cos(angle) * 88 - 4) + 'px');
+      button.style.setProperty('--d', (index * 0.04) + 's');
+      button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true">' + (ICONS[plain(section.label)] || ICONS.OTRO) + '</svg><span></span>';
+      button.querySelector('span').textContent = pretty(section.label);
+      button.onclick = () => activate(section);
+      fan.appendChild(button);
+      fanItems.push({section, button});
     });
+    bar.append(fan, fab);
   };
 
   const initials = name => String(name || '').trim().split(/\s+/).filter(Boolean).slice(0, 2).map(word => word[0]).join('').toUpperCase();
@@ -205,7 +251,7 @@
   let queued = false;
   const run = () => {
     queued = false;
-    if (!bar.isConnected && document.body) document.body.append(backdrop, sheet, bar, gooHolder);
+    if (!bar.isConnected && document.body) document.body.append(backdrop, sheet, bar);
     fixAvatar();
     build();
     markActive();
@@ -213,7 +259,7 @@
   };
   const schedule = () => { if (!queued) { queued = true; setTimeout(run, 60); } };
   run();
-  window.addEventListener('resize', () => { lastTop = ''; if (!isMobile()) closeSheet(); schedule(); });
+  window.addEventListener('resize', () => { lastTop = ''; if (!isMobile()) { closeSheet(); closeFan(); } schedule(); });
   new MutationObserver(schedule).observe(document.body, {childList: true, subtree: true, attributes: true, attributeFilter: ['class']});
   setTimeout(run, 600);
   setTimeout(run, 2000);
