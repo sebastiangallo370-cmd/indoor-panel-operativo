@@ -120,8 +120,13 @@ def resumen(request: Request):
     admin = _es_admin(usuario)
     with _lock:
         lista = _leer()['reportes']
-    pend = sum(1 for r in lista if _visible(usuario, r) and (r['estado'] == 'pendiente' and not admin or admin and r['estado'] in ('pendiente', 'firmado')))
-    return {'pendientes': pend}
+    abiertos = [r for r in lista if _visible(usuario, r) and (r['estado'] == 'pendiente' and not admin or admin and r['estado'] in ('pendiente', 'firmado'))]
+    abiertos.sort(key=lambda r: r.get('creado', ''), reverse=True)
+    # Identifica este inicio de sesión (cambia cada vez que la persona entra), para avisar una vez por ingreso.
+    sesion = hashlib.sha256((request.cookies.get('indoor_login', '') + '|' + request.cookies.get('indoor_session', '')).encode()).hexdigest()[:16]
+    items = [{'id': r['id'], 'numero': r['numero'], 'estado': r['estado'], 'operarioNombre': r['operarioNombre'], 'fechaHecho': r['fechaHecho'],
+              'orden': r.get('orden', ''), 'quePaso': r['quePaso'][:140]} for r in abiertos[:20]]
+    return {'pendientes': len(abiertos), 'admin': admin, 'sesion': sesion, 'items': items}
 
 
 @router.get('')

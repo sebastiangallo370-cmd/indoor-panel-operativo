@@ -61,7 +61,7 @@
   .rpt-check{display:flex!important;grid-template-columns:none!important;align-items:flex-start;gap:10px!important;text-transform:none!important;letter-spacing:0!important;font-size:.88rem!important;color:#e3eadc!important}.rpt-check input{margin-top:3px;flex:none}
   .rpt-radios{display:grid;gap:8px}.rpt-radios label{display:flex!important;align-items:center;gap:10px!important;padding:10px 12px;border:1px solid #3d4f3d;border-radius:10px;text-transform:none!important;letter-spacing:0!important;font-size:.9rem!important;color:#eef4e9!important;cursor:pointer}
   .rpt-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}.rpt-err{color:#ff9b9b;font-size:.85rem;min-height:1em}
-  .rpt-toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);z-index:9999;max-width:90vw;padding:12px 18px;border-radius:12px;background:#ef7370;color:#251111;font:800 13px Arial;box-shadow:0 10px 30px #0008;cursor:pointer}
+
   html.theme-light dialog.rpt-dlg{background:#fff;color:#18210f;border-color:#cdd8c6}html.theme-light .rpt-dlg input:not([type=checkbox]):not([type=radio]),html.theme-light .rpt-dlg select,html.theme-light .rpt-dlg textarea{background:#f6f8f2;color:#18210f;border-color:#cdd8c6}
   html.theme-light .rpt-dlg h4{background:#e9efe2;color:#3f6a10}html.theme-light .rpt-dlg label,html.theme-light .rpt-kv b{color:#5d6a55}html.theme-light .rpt-sig{background:#f6f8f2;border-color:#cdd8c6}
   @media(max-width:700px){dialog.rpt-dlg{width:100vw;max-width:100vw;height:100dvh;max-height:100dvh;border-radius:0}.rpt-two{grid-template-columns:1fr}.rpt-kv{grid-template-columns:1fr}.rpt-actions button{flex:1}.rpt-bar input{flex:1 1 100%}.rpt-btn{min-height:46px}}
@@ -209,12 +209,46 @@
     st.loading = false; render(); badge();
   }
 
-  // ---- Aviso de pendientes (insignia en el menú y un aviso al entrar)
-  let toastShown = false;
+  // ---- Aviso de pendientes: insignia en el menú y ventana de alerta al iniciar sesión (como la de inventario)
+  let modal = null;
+  function alertModal(data) {
+    if (modal || !data.items.length) return;
+    const admin = data.admin, n = data.pendientes;
+    const ov = modal = document.createElement('div');
+    ov.className = 'rpa-overlay';
+    ov.innerHTML = '<div class="rpa-card" role="alertdialog" aria-modal="true"><div class="rpa-head"><small>' + (admin ? 'REPORTES DE PLANTA' : 'REPORTE DE PLANTA') + '</small>' +
+      '<h3>⚠ ' + (admin ? n + (n === 1 ? ' REPORTE ESPERA TU ATENCIÓN' : ' REPORTES ESPERAN TU ATENCIÓN') : n + (n === 1 ? ' REPORTE POR FIRMAR' : ' REPORTES POR FIRMAR')) + '</h3>' +
+      '<p>' + (admin ? 'Hay reportes sin firma del operario o sin decisión de gerencia.' : 'Léelo, escribe tu versión de lo ocurrido y fírmalo.') + '</p></div>' +
+      '<div class="rpa-list">' + data.items.map(i => '<div class="rpa-row"><div><b>' + esc(i.numero) + (admin ? ' · ' + esc(i.operarioNombre) : '') + '</b><small>' + fechaCorta(i.fechaHecho) + (i.orden ? ' · ' + esc(i.orden) : '') + '</small><p>' + esc(i.quePaso) + '</p></div><span class="rpa-chip ' + i.estado + '">' + (i.estado === 'pendiente' ? 'Por firmar' : 'Por decidir') + '</span></div>').join('') + '</div>' +
+      '<div class="rpa-foot"><button type="button" class="rpa-btn" data-close>Entendido</button><button type="button" class="rpa-btn main" data-go>Ver reportes</button></div></div>';
+    document.body.appendChild(ov);
+    const close = () => { modal = null; ov.remove(); };
+    ov.addEventListener('click', e => {
+      if (e.target.closest('[data-close]') || e.target === ov) close();
+      else if (e.target.closest('[data-go]')) { close(); tab.click(); if (data.items.length === 1) setTimeout(() => openReport(data.items[0].id), 700); }
+    });
+    document.addEventListener('keydown', function onKey(e) { if (e.key === 'Escape' && modal === ov) { close(); document.removeEventListener('keydown', onKey); } });
+  }
+  const alertCss = document.createElement('style');
+  alertCss.textContent = `
+  .rpa-overlay{position:fixed;inset:0;z-index:100003;display:grid;place-items:center;padding:20px;background:rgba(4,6,4,.72);backdrop-filter:blur(4px)}
+  .rpa-card{width:min(560px,100%);max-height:min(88vh,720px);display:flex;flex-direction:column;border:1px solid rgba(255,138,122,.55);border-radius:22px;background:linear-gradient(180deg,#1b1210,#0d130e 38%);color:#eef2e9;font-family:Arial,sans-serif;box-shadow:0 34px 90px rgba(0,0,0,.65)}
+  .rpa-head{padding:22px 24px 8px}.rpa-head small{display:block;font:800 10.5px Arial;letter-spacing:.18em;color:#ff9a8c}.rpa-head h3{margin:6px 0;font-size:21px;line-height:1.2}.rpa-head p{margin:0;font-size:13.5px;line-height:1.5;color:#b9c6b4}
+  .rpa-list{display:grid;gap:8px;overflow:auto;padding:12px 24px}
+  .rpa-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;padding:11px 14px;border:1px solid #2d3b2f;border-radius:14px;background:#0f1710}
+  .rpa-row b{display:block;font-size:14px}.rpa-row small{color:#93a28f;font-size:11.5px}.rpa-row p{margin:4px 0 0;color:#c4cfbf;font-size:12.5px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .rpa-chip{padding:3px 10px;border-radius:999px;font:800 10px Arial;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
+  .rpa-chip.pendiente{background:rgba(255,106,90,.18);color:#ff9a8c;border:1px solid rgba(255,106,90,.5)}.rpa-chip.firmado{background:rgba(255,184,107,.16);color:#ffc98a;border:1px solid rgba(255,184,107,.45)}
+  .rpa-foot{display:flex;gap:10px;padding:14px 24px 22px;flex-wrap:wrap}
+  .rpa-btn{flex:1;min-height:44px;width:auto;border:1.5px solid #d0f44c;border-radius:12px;background:transparent;color:#d0f44c;font:800 12px Arial;letter-spacing:.06em;text-transform:uppercase;cursor:pointer}.rpa-btn.main{background:#d0f44c;color:#10150e}
+  @media(max-width:560px){.rpa-overlay{padding:12px}.rpa-head{padding:18px 18px 6px}.rpa-head h3{font-size:18px}.rpa-list{padding:10px 18px}.rpa-row{grid-template-columns:1fr}.rpa-foot{flex-direction:column;padding:12px 18px 18px}.rpa-btn{flex:none;width:100%;min-height:46px}}`;
+  document.head.appendChild(alertCss);
+
   async function badge() {
     if (!tab) return;
-    let pendientes = 0;
-    try { pendientes = (await api('/api/reportes/resumen')).pendientes; } catch (e) { return; }
+    let data;
+    try { data = await api('/api/reportes/resumen'); } catch (e) { return; }
+    const pendientes = data.pendientes;
     document.querySelectorAll('.rpt-dot,.rpt-avdot').forEach(x => x.remove());
     if (pendientes) {
       const mk = cls => { const dot = document.createElement('span'); dot.className = cls; dot.textContent = pendientes; return dot; };
@@ -222,13 +256,12 @@
       document.getElementById('open-reportes')?.append(mk('rpt-dot'));
       document.querySelector('.user-menu summary')?.append(mk('rpt-avdot'));
     }
-    if (pendientes && !toastShown) {
-      toastShown = true;
-      try { if (sessionStorage.getItem('rptToast')) return; sessionStorage.setItem('rptToast', '1'); } catch (e) { /* sin sessionStorage */ }
-      const toast = document.createElement('div'); toast.className = 'rpt-toast';
-      toast.textContent = st.admin ? pendientes + ' reporte(s) esperan firma o decisión' : 'Tienes ' + pendientes + ' reporte(s) por firmar · toca para verlos';
-      toast.onclick = () => { toast.remove(); tab.click(); };
-      document.body.appendChild(toast); setTimeout(() => toast.remove(), 12000);
+    // un aviso por cada inicio de sesión
+    let seen = null;
+    try { seen = localStorage.getItem('rpt_sesion'); } catch (e) { /* sin almacenamiento */ }
+    if (pendientes && seen !== data.sesion) {
+      try { localStorage.setItem('rpt_sesion', data.sesion); } catch (e) { /* sin almacenamiento */ }
+      alertModal(data);
     }
   }
 
