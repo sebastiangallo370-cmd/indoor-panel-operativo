@@ -1,6 +1,7 @@
 """Reposiciones y garantías: lee la pestaña REPOSICIONES-GARANTIAS del Sheet de producción (solo lectura)
 y la entrega agrupada en casos (cliente + cotización + fecha) para las tarjetas del módulo Reproceso.
 """
+import gzip
 import json
 import logging
 import os
@@ -12,7 +13,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Callable
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request, Response
 
 router = APIRouter(prefix='/api/reposiciones', tags=['reposiciones'])
 SHEET_ID = 940423036
@@ -20,7 +21,6 @@ SHEET_TITLE_HINT = 'GARANT'
 FIRST_DATA_ROW = 4  # filas 1-3: título y encabezados
 RANGE = 'A1:AD4000'
 CACHE_SECONDS = 120
-OLD_AFTER_DAYS = 60
 _snapshot_file = Path(os.getenv('REPOSICIONES_SNAPSHOT', '/data/state/reposiciones_snapshot.json'))
 _provider: Callable = lambda: None
 _lock = threading.Lock()
@@ -79,18 +79,17 @@ def _tipo(reason: str) -> str:
 
 
 def build(values: list[list[str]]) -> dict:
-    today = datetime.now(timezone(timedelta(hours=-5))).date()
+    """Agrupa filas consecutivas del mismo cliente y cotización. No inventa fechas ni estados por antigüedad:
+    muestra lo que dice la hoja (la FECHA solo si la columna B la trae)."""
     groups: list[dict] = []
     last_key = None
     for offset, raw in enumerate(values[FIRST_DATA_ROW - 1:]):
         row = (list(raw) + [''] * 30)[:30]
         if not any(c.strip() for c in row[2:29]) or not (row[2].strip() or row[4].strip() or row[5].strip()):
             continue
-        dates = [parse_date(row[i]) for i in (1, 18, 21, 23, 25, 27, 28)]
-        when = next((d for d in dates if d), None)
-        key = (_plain(row[2]), _plain(row[4]), when)
+        key = (_plain(row[2]), _plain(row[4]), row[1].strip())
         if key != last_key or not groups:
-            groups.append({'rows': [], 'fecha': when, 'row': FIRST_DATA_ROW + offset})
+            groups.append({'rows': [], 'row': FIRST_DATA_ROW + offset})
             last_key = key
         groups[-1]['rows'].append(row)
     cases = []
@@ -100,29 +99,27 @@ def build(values: list[list[str]]) -> dict:
         steps = {}
         for key, label, col, resp_col in STEPS:
             done = [r for r in rows if _done(r[col])]
-            stamps = [d for d in (parse_date(r[col]) for r in done) if d]
             people = sorted({r[resp_col].strip() for r in done if resp_col and r[resp_col].strip()})
-            steps[key] = {'label': label, 'done': len(done), 'total': len(rows), 'fecha': max(stamps).isoformat() if stamps else '',
+            steps[key] = {'label': label, 'done': len(done), 'total': len(rows), 'fecha': done[-1][col].strip()[:12] if done else '',
                           'resp': ', '.join(people)}
         finished = steps['terminacion']['done'] == len(rows)
         started = any(s['done'] for s in steps.values())
-        age = (today - g['fecha']).days if g['fecha'] else 0
-        state = 'terminada' if finished else ('historico' if age > OLD_AFTER_DAYS else ('en_proceso' if started else 'sin_iniciar'))
         reasons = [r[12].strip() for r in rows if r[12].strip()]
         notes = sorted({r[29].strip() for r in rows if r[29].strip()})
         cases.append({
-            'id': g['row'], 'fecha': g['fecha'].isoformat() if g['fecha'] else '',
+            'id': g['row'], 'fecha': first[1].strip(),
             'cliente': first[2].strip(), 'proyecto': first[3].strip(), 'cot': first[4].strip(),
             'prioridad': any(_plain(r[0]) == 'SI' for r in rows),
             'comercial': ', '.join(sorted({r[13].strip() for r in rows if r[13].strip()})),
             'tipo': next((t for t in ('garantia', 'cliente') if any(_tipo(x) == t for x in reasons)), 'interna'),
-            'motivo': reasons[0] if reasons else '', 'estado': state, 'notas': notes, 'steps': steps,
+            'motivo': reasons[0] if reasons else '', 'estado': 'terminada' if finished else ('en_proceso' if started else 'sin_iniciar'),
+            'notas': notes, 'steps': steps,
             'unidades': sum(_int(r[6]) or 1 for r in rows),
             'piezas': [{'ref': r[5].strip(), 'cant': _int(r[6]) or 1, 'talla': r[7].strip(), 'numero': r[8].strip(), 'dorsal': r[9].strip(),
                         'genero': r[10].strip().upper(), 'pieza': r[11].strip(), 'motivo': r[12].strip(), 'tela': r[22].strip() if '❌' not in r[22] else '',
                         'maquina': r[19].strip(), 'hecha': _done(r[28])} for r in rows],
         })
-    cases.sort(key=lambda c: (c['fecha'] or '0000', c['id']), reverse=True)
+    cases.reverse()  # lo último que se escribió en la hoja, primero
     return {'casos': cases, 'total_filas': sum(len(g['rows']) for g in groups)}
 
 
@@ -172,11 +169,10 @@ def payload(force: bool = False) -> dict:
 
 
 @router.get('')
-def reposiciones(refresh: bool = False, dias: int = 120):
-    """`dias`: solo casos de los últimos N días (0 = todo el historial)."""
-    data = payload(force=refresh)
-    casos = data.get('casos', [])
-    if dias > 0:
-        limite = (datetime.now(timezone(timedelta(hours=-5))).date() - timedelta(days=dias)).isoformat()
-        casos = [c for c in casos if c['fecha'] >= limite]
-    return {**data, 'casos': casos, 'total_casos': len(data.get('casos', [])), 'dias': dias}
+def reposiciones(request: Request, refresh: bool = False):
+    """Todos los casos de la hoja, comprimidos con gzip cuando el navegador lo admite."""
+    body = json.dumps(payload(force=refresh), ensure_ascii=False).encode('utf-8')
+    headers = {'Cache-Control': 'no-store', 'Vary': 'Accept-Encoding'}
+    if 'gzip' in request.headers.get('accept-encoding', ''):
+        body, headers['Content-Encoding'] = gzip.compress(body, 5), 'gzip'
+    return Response(body, media_type='application/json', headers=headers)

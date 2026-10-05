@@ -2,11 +2,10 @@
 (() => {
   const PAGE = 36;
   const TIPOS = {garantia: ['Garantía', '#f5a623'], cliente: ['Reposición cliente', '#6fb7ff'], interna: ['Falla interna', '#ef7370']};
-  const ESTADOS = {en_proceso: 'En proceso', sin_iniciar: 'Sin iniciar', terminada: 'Terminada', historico: 'Histórico'};
-  const st = {data: null, estado: 'activas', tipo: '', q: '', dias: 120, shown: PAGE, open: new Set(), loading: false};
+  const ESTADOS = {en_proceso: 'Sin terminar', sin_iniciar: 'Sin iniciar', terminada: 'Terminada'};
+  const st = {data: null, estado: 'todas', tipo: '', q: '', shown: PAGE, open: new Set(), loading: false};
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
   const plain = v => String(v || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase();
-  const fmtDate = iso => { if (!iso) return 'Sin fecha'; const [y, m, d] = iso.split('-'); return d + '/' + m + '/' + y.slice(2); };
   let panel, view;
 
   const css = document.createElement('style');
@@ -41,12 +40,12 @@
     const open = st.open.has(c.id);
     const steps = Object.values(c.steps).map(s => {
       const cls = s.done >= s.total ? 'done' : s.done ? 'part' : '';
-      const info = s.fecha ? fmtDate(s.fecha).slice(0, 5) : s.done >= s.total ? '✓' : s.done ? s.done + '/' + s.total : '';
+      const info = s.done < s.total && s.done ? s.done + '/' + s.total : (s.fecha || (s.done ? '✓' : ''));
       return '<div class="rp-step ' + cls + '" style="--p:' + Math.round(100 * s.done / s.total) + '%" title="' + esc(s.label + (s.resp ? ' · ' + s.resp : '')) + '"><i></i><span>' + esc(s.label) + '</span><em>' + esc(info) + '</em></div>';
     }).join('');
     const pieces = open ? '<div class="rp-pieces">' + c.piezas.map(p => '<div class="rp-piece' + (p.hecha ? ' ok' : '') + '"><span>' + esc(p.cant + '× ' + p.ref + (p.talla ? ' · T' + p.talla : '') + (p.numero ? ' · #' + p.numero : '') + (p.dorsal ? ' ' + p.dorsal : '')) + '<br><small>' + esc([p.pieza, p.tela, p.maquina].filter(Boolean).join(' · ')) + '</small></span><span>' + esc(p.motivo) + (p.hecha ? ' ✓' : '') + '</span></div>').join('') + '</div>' : '';
-    const stateColor = c.estado === 'terminada' ? '#66c58a' : c.estado === 'historico' ? '#8b9a85' : '#d0f44c';
-    return '<article class="rp-card" data-id="' + c.id + '" style="--rp:' + color + '"><header><div><h3>' + esc(c.cliente || 'Sin cliente') + '</h3><small class="rp-proj">' + esc([c.proyecto, c.cot].filter(Boolean).join(' · ')) + '</small></div><span class="rp-date">' + fmtDate(c.fecha) + '</span></header>' +
+    const stateColor = c.estado === 'terminada' ? '#66c58a' : '#d0f44c';
+    return '<article class="rp-card" data-id="' + c.id + '" style="--rp:' + color + '"><header><div><h3>' + esc(c.cliente || 'Sin cliente') + '</h3><small class="rp-proj">' + esc([c.proyecto, c.cot].filter(Boolean).join(' · ')) + '</small></div>' + (c.fecha ? '<span class="rp-date">' + esc(c.fecha) + '</span>' : '') + '</header>' +
       '<div class="rp-badges"><span class="rp-badge" style="--c:' + color + '">' + tipoLabel.toUpperCase() + '</span><span class="rp-badge" style="--c:' + stateColor + '">' + ESTADOS[c.estado].toUpperCase() + '</span>' + (c.prioridad ? '<span class="rp-badge" style="--c:#ff6b6b">PRIORIDAD</span>' : '') + '</div>' +
       '<p class="rp-reason">' + esc(c.motivo || 'Sin motivo registrado') + '</p><div class="rp-steps">' + steps + '</div>' +
       '<div class="rp-meta"><span>' + c.unidades + ' unidad' + (c.unidades === 1 ? '' : 'es') + '</span><span>' + c.piezas.length + ' pieza' + (c.piezas.length === 1 ? '' : 's') + (open ? ' ▲' : ' ▼') + '</span>' + (c.comercial ? '<span>Comercial: ' + esc(c.comercial) + '</span>' : '') + '</div>' +
@@ -59,10 +58,10 @@
     const count = f => all.filter(c => f(c)).length;
     const list = all.filter(matches);
     const chip = (key, label, n) => '<button type="button" data-estado="' + key + '" class="' + (st.estado === key ? 'on' : '') + '">' + label + '<b>' + n + '</b></button>';
-    view.querySelector('.rp-kpis').innerHTML = [['En proceso', count(c => c.estado === 'en_proceso' || c.estado === 'sin_iniciar')], ['Terminadas', count(c => c.estado === 'terminada')], ['Garantías', count(c => c.tipo === 'garantia')], ['Unidades', all.reduce((s, c) => s + c.unidades, 0)]]
+    view.querySelector('.rp-kpis').innerHTML = [['Sin terminar', count(c => c.estado === 'en_proceso' || c.estado === 'sin_iniciar')], ['Terminadas', count(c => c.estado === 'terminada')], ['Garantías', count(c => c.tipo === 'garantia')], ['Unidades', all.reduce((s, c) => s + c.unidades, 0)]]
       .map(([l, n]) => '<div class="rp-kpi"><small>' + l.toUpperCase() + '</small><strong>' + n.toLocaleString('es-CO') + '</strong></div>').join('');
-    view.querySelector('.rp-chips').innerHTML = chip('activas', 'En proceso', count(c => c.estado === 'en_proceso' || c.estado === 'sin_iniciar')) + chip('terminada', 'Terminadas', count(c => c.estado === 'terminada')) + chip('historico', 'Histórico', count(c => c.estado === 'historico')) + chip('todas', 'Todas', all.length);
-    view.querySelector('.rp-stamp').textContent = !d ? 'Cargando…' : (d.error ? '⚠ ' + d.error + ' · ' : '') + 'Hoja actualizada ' + (d.updated_at ? new Date(d.updated_at).toLocaleTimeString('es-CO', {timeZone: 'America/Bogota', hour: '2-digit', minute: '2-digit'}) : '—') + (st.dias ? ' · últimos ' + st.dias + ' días' : ' · todo el historial');
+    view.querySelector('.rp-chips').innerHTML = chip('todas', 'Todas', all.length) + chip('activas', 'Sin terminar', count(c => c.estado === 'en_proceso' || c.estado === 'sin_iniciar')) + chip('terminada', 'Terminadas', count(c => c.estado === 'terminada'));
+    view.querySelector('.rp-stamp').textContent = !d ? 'Cargando…' : (d.error ? '⚠ ' + d.error + ' · ' : '') + 'Hoja actualizada ' + (d.updated_at ? new Date(d.updated_at).toLocaleTimeString('es-CO', {timeZone: 'America/Bogota', hour: '2-digit', minute: '2-digit'}) : '—');
     const grid = view.querySelector('.rp-grid');
     grid.innerHTML = list.length ? list.slice(0, st.shown).map(card).join('') : '<div class="rp-empty">' + (d ? 'No hay casos con estos filtros.' : 'Cargando reposiciones…') + '</div>';
     const more = view.querySelector('.rp-more');
@@ -74,7 +73,7 @@
     if (st.loading) return;
     st.loading = true;
     try {
-      const r = await fetch('/api/reposiciones?dias=' + st.dias + (force ? '&refresh=true' : ''), {cache: 'no-store', credentials: 'same-origin'});
+      const r = await fetch('/api/reposiciones' + (force ? '?refresh=true' : ''), {cache: 'no-store', credentials: 'same-origin'});
       if (!r.ok) throw new Error('No se pudo cargar');
       st.data = await r.json();
     } catch (e) { st.data = st.data ? {...st.data, error: e.message} : {casos: [], error: e.message, updated_at: ''}; }
@@ -87,7 +86,7 @@
     if (document.querySelector('.panel[data-panel="garantias"]')) return true;
     panel = document.createElement('section'); panel.className = 'panel'; panel.dataset.panel = 'garantias';
     view = document.createElement('div'); view.className = 'rp-view';
-    view.innerHTML = '<div class="rp-head"><span>REPROCESOS · GARANTÍAS</span><h2>REPOSICIONES Y GARANTÍAS</h2><p>Piezas repuestas por garantía, reposición de cliente o falla interna, con su avance por proceso.</p></div><div class="rp-kpis"></div><div class="rp-bar"><input type="search" class="rp-q" placeholder="Buscar cliente, cotización, referencia o motivo" aria-label="Buscar"><select class="rp-tipo" aria-label="Tipo"><option value="">Todos los tipos</option><option value="garantia">Garantía</option><option value="cliente">Reposición cliente</option><option value="interna">Falla interna</option></select><select class="rp-dias" aria-label="Periodo"><option value="30">Últimos 30 días</option><option value="120" selected>Últimos 120 días</option><option value="365">Último año</option><option value="0">Todo el historial</option></select><button type="button" class="rp-btn rp-refresh">↻ Actualizar</button><span class="rp-stamp">Cargando…</span></div><div class="rp-chips"></div><div class="rp-grid"></div><button type="button" class="rp-more" hidden></button>';
+    view.innerHTML = '<div class="rp-head"><span>REPROCESOS · GARANTÍAS</span><h2>REPOSICIONES Y GARANTÍAS</h2><p>Piezas repuestas por garantía, reposición de cliente o falla interna, con su avance por proceso.</p></div><div class="rp-kpis"></div><div class="rp-bar"><input type="search" class="rp-q" placeholder="Buscar cliente, cotización, referencia o motivo" aria-label="Buscar"><select class="rp-tipo" aria-label="Tipo"><option value="">Todos los tipos</option><option value="garantia">Garantía</option><option value="cliente">Reposición cliente</option><option value="interna">Falla interna</option></select><button type="button" class="rp-btn rp-refresh">↻ Actualizar</button><span class="rp-stamp">Cargando…</span></div><div class="rp-chips"></div><div class="rp-grid"></div><button type="button" class="rp-more" hidden></button>';
     panel.appendChild(view); main.appendChild(panel);
     view.addEventListener('click', e => {
       const chipBtn = e.target.closest('[data-estado]'); if (chipBtn) { st.estado = chipBtn.dataset.estado; st.shown = PAGE; render(); return; }
@@ -97,7 +96,6 @@
     });
     view.querySelector('.rp-q').oninput = e => { st.q = e.target.value; st.shown = PAGE; render(); };
     view.querySelector('.rp-tipo').onchange = e => { st.tipo = e.target.value; st.shown = PAGE; render(); };
-    view.querySelector('.rp-dias').onchange = e => { st.dias = Number(e.target.value); st.shown = PAGE; load(false); };
     return true;
   }
 
