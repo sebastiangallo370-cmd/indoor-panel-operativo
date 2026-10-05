@@ -3781,7 +3781,8 @@ try {
     exit 1
 }
 '''
-    encoded = base64.b64encode(handler.encode("utf-8")).decode("ascii")
+    # utf-8-sig: Windows PowerShell 5.1 lee un .ps1 sin BOM como ANSI y los acentos salen como «encontrÃ³».
+    encoded = base64.b64encode(handler.encode("utf-8-sig")).decode("ascii")
     launcher = r'''Set shell = CreateObject("WScript.Shell")
 If WScript.Arguments.Count = 0 Then WScript.Quit 1
 scriptPath = shell.ExpandEnvironmentStrings("%ProgramData%") & "\IndoorNAS\open-order.ps1"
