@@ -251,6 +251,32 @@
     });
   }
 
+  const TONES = [['late', 'Atrasadas'], ['warn', 'Por vencer'], ['ok', 'A tiempo']];
+  let timeFilter = '', timeLimit = 8;
+  function renderTiming(a) {
+    const box = root.querySelector('.dash-timing');
+    if (!box) return;
+    const rows = a.timing.map(t => ({ ...t, tone: t.o.due && t.o.due < a.today ? 'late' : t.ratio >= .8 ? 'warn' : 'ok' }));
+    const count = tone => rows.filter(r => r.tone === tone).length;
+    if (!timeFilter || !count(timeFilter)) timeFilter = (TONES.find(([tone]) => tone === 'warn' && count(tone)) || TONES.find(([tone]) => count(tone)))[0];
+    const shown = rows.filter(r => r.tone === timeFilter);
+    const visible = shown.slice(0, timeLimit);
+    box.innerHTML = '<div class="dash-panel-head"><h4>Tiempo por orden</h4><small>Días desde la creación · promedio ' + fmtNum(a.typical, 1) + ' d · aproximado</small></div>' +
+      '<div class="dash-time-chips">' + TONES.map(([tone, label]) => '<button type="button" class="' + tone + (tone === timeFilter ? ' on' : '') + '" data-tone="' + tone + '">' + label + ' <b>' + count(tone) + '</b></button>').join('') + '</div>' +
+      '<div class="dash-time-list">' + visible.map(t => {
+        const note = t.left === null ? '' : t.left < 0 ? 'Atrasada ' + (-t.left) + ' d' : t.left === 0 ? 'Entrega hoy' : 'Quedan ' + t.left + ' d';
+        return '<article class="dash-time-card ' + t.tone + '"><div class="dash-time-id"><strong>' + esc(t.o.id) + '</strong><span>' + esc(t.o.client || 'Sin cliente') + '</span></div>' +
+          '<div class="dash-big"><strong>' + t.elapsed + '</strong><span>' + (t.plazo ? 'de ~' + t.plazo + ' días' : 'días') + '</span></div>' +
+          '<div class="dash-time-bar"><i><b style="width:' + Math.min(100, Math.round(t.ratio * 100)) + '%"></b></i></div><em>' + note + '</em></article>';
+      }).join('') + '</div>' +
+      (shown.length > visible.length ? '<button type="button" class="dash-time-more">Ver más (' + (shown.length - visible.length) + ')</button>' : '');
+    box.onclick = event => {
+      const chip = event.target.closest('[data-tone]');
+      if (chip) { timeFilter = chip.dataset.tone; timeLimit = 8; renderTiming(a); }
+      else if (event.target.closest('.dash-time-more')) { timeLimit += 8; renderTiming(a); }
+    };
+  }
+
   function render(a) {
     const time = a.real !== null
       ? card('lime', 'Promedio de producción', fmtNum(a.real, 1), 'días', [
@@ -285,17 +311,7 @@
         '<div class="dash-load-grid">' + a.load.map((item, i) => '<article class="dash-load-card ' + tier(item) + '">' + (i === 0 ? '<em class="dash-bottleneck">Mayor carga</em>' : '') + '<span class="dash-load-label">' + esc(item.label) + '</span><div class="dash-big"><strong>' + item.orders + '</strong><span>' + (item.orders === 1 ? 'pedido' : 'pedidos') + '</span></div><small>' + fmtNum(item.units) + ' und.</small></article>').join('') + '</div></section>'
       : '';
 
-    const timing = a.timing.length
-      ? '<section class="dash-load dash-timing"><div class="dash-panel-head"><h4>Tiempo por orden</h4><small>Días desde la creación frente al plazo de entrega' + (a.typical !== null ? ' · promedio ' + fmtNum(a.typical, 1) + ' d' : '') + ' · aproximado</small></div>' +
-        '<div class="dash-time-list">' + a.timing.map(t => {
-          const tone = t.o.due && t.o.due < a.today ? 'late' : t.ratio >= .8 ? 'warn' : 'ok';
-          const note = t.left === null ? '' : t.left < 0 ? 'Atrasada ' + (-t.left) + ' d' : t.left === 0 ? 'Entrega hoy' : 'Quedan ' + t.left + ' d';
-          return '<article class="dash-time-card ' + tone + '"><div class="dash-time-top"><div class="dash-time-id"><strong>' + esc(t.o.id) + '</strong><span>' + esc(t.o.client || 'Sin cliente') + '</span></div><em>' + note + '</em></div>' +
-            '<div class="dash-big"><strong>' + t.elapsed + '</strong><span>' + (t.plazo ? 'días de ~' + t.plazo : 'días') + '</span></div>' +
-            '<div class="dash-time-bar"><i><b style="width:' + Math.min(100, Math.round(t.ratio * 100)) + '%"></b></i></div>' +
-            '<small>' + (t.o.focus ? esc(t.o.focus) + ' · ' : '') + t.o.percent + '% de avance · ' + fmtNum(t.o.units) + ' und.</small></article>';
-        }).join('') + '</div></section>'
-      : '';
+    const timing = a.timing.length ? '<section class="dash-load dash-timing"></section>' : '';
 
     root.innerHTML =
       '<div class="dash-head"><div><span class="eyebrow">Resumen operativo</span><h3>Estado de la producción</h3></div><small><i class="dash-live"></i>En vivo · actualizado ' + new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) + '</small></div>' +
@@ -304,6 +320,7 @@
       '<div class="dash-today">' + today + late + rework + '</div>' + timing + load;
     greet(a);
     bindOrderFinder(a.orders);
+    renderTiming(a);
     countUp();
   }
 
@@ -347,15 +364,18 @@
   .dash-load-card .dash-big{gap:6px}.dash-load-card .dash-big strong{font-size:2rem;color:var(--t)}.dash-load-card .dash-big span{font-size:.78rem;color:#a9b5a3}
   .dash-load-card>small{color:#8f9b8a;font-size:.76rem}
   .dash-bottleneck{position:absolute;top:-11px;right:12px;font-style:normal;font-size:.6rem;font-weight:800;letter-spacing:.03em;text-transform:uppercase;padding:3px 8px;border-radius:999px;background:#ff6b5c;color:#2a0e0a;border:1px solid #ff8a7c}
-  .dash-time-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));grid-auto-rows:max-content;gap:12px;max-height:640px;overflow:auto;padding:0 6px 0 0}
-  .dash-time-card{--t:#7ecf8a;display:grid;gap:10px;padding:14px;border:1px solid rgba(255,255,255,.13);border-top:4px solid var(--t);border-radius:14px;background:#121712;transition:transform .15s}
-  .dash-time-card:hover{transform:translateY(-2px)}.dash-time-card.warn{--t:#ffc95c}.dash-time-card.late{--t:#ff6b5c;background:rgba(255,107,92,.06)}
-  .dash-time-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+  .dash-time-chips{display:flex;flex-wrap:wrap;gap:8px}
+  .dash-time-chips button{--t:#7ecf8a;padding:7px 14px;border:1px solid rgba(255,255,255,.15);border-radius:999px;background:transparent;color:#c4cfbf;font:700 .78rem Arial;cursor:pointer}
+  .dash-time-chips .late{--t:#ff6b5c}.dash-time-chips .warn{--t:#ffc95c}
+  .dash-time-chips button b{margin-left:4px;color:var(--t)}.dash-time-chips button.on{border-color:var(--t);background:color-mix(in srgb,var(--t) 16%,transparent);color:#fff}
+  .dash-time-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
+  .dash-time-card{--t:#7ecf8a;display:grid;gap:8px;padding:14px;border:1px solid rgba(255,255,255,.13);border-top:4px solid var(--t);border-radius:14px;background:#121712}
+  .dash-time-card.warn{--t:#ffc95c}.dash-time-card.late{--t:#ff6b5c}
   .dash-time-id{display:grid;min-width:0}.dash-time-id strong{font-size:.95rem;color:#f2f7ea}.dash-time-id span{font-size:.74rem;color:#a9b5a3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .dash-time-top em{font-style:normal;font-weight:800;font-size:.68rem;padding:4px 8px;border-radius:999px;white-space:nowrap;color:var(--t);background:color-mix(in srgb,var(--t) 16%,transparent)}
   .dash-time-card .dash-big{gap:6px}.dash-time-card .dash-big strong{font-size:2.3rem;color:var(--t)}.dash-time-card .dash-big span{font-size:.78rem;color:#a9b5a3}
-  .dash-time-bar i{display:block;height:7px;border-radius:999px;background:#314033;overflow:hidden}.dash-time-bar b{display:block;height:100%;background:var(--t);border-radius:inherit}
-  .dash-time-card>small{font-size:.72rem;color:#b3c0ad}
+  .dash-time-bar i{display:block;height:6px;border-radius:999px;background:#314033;overflow:hidden}.dash-time-bar b{display:block;height:100%;background:var(--t);border-radius:inherit}
+  .dash-time-card em{font-style:normal;font-weight:800;font-size:.74rem;color:var(--t)}
+  .dash-time-more{justify-self:center;padding:9px 22px;border:1px solid rgba(208,244,76,.45);border-radius:999px;background:transparent;color:#d0f44c;font:800 .78rem Arial;cursor:pointer}
   @media(max-width:1050px) and (min-width:701px){.dash-order-results{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:700px){.dash-order-finder{grid-template-columns:1fr;padding:15px}.dash-order-results{grid-column:auto;grid-template-columns:1fr}.dash-order-result{min-height:260px}}
   `;
   document.head.appendChild(style);
