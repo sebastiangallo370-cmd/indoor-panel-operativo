@@ -165,6 +165,11 @@
     panel.addEventListener('input', e => { if (e.target.matches('textarea')) { e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 140) + 'px'; } });
     return true;
   }
-  let tries = 0;
-  const wait = setInterval(() => { if (build() || ++tries > 60) clearInterval(wait); }, 250);
+  // Solo Administración/Coordinador y Edición (según PERMISOS): a los demás la pestaña ni se crea.
+  fetch('/api/permisos/mi', { cache: 'no-store', credentials: 'same-origin' }).then(r => (r.ok ? r.json() : null)).then(mi => {
+    if (!mi || !((mi.permisos || {}).agentes || {}).ver) return;
+    st.admin = !!mi.admin;
+    let tries = 0;
+    const wait = setInterval(() => { if (build() || ++tries > 60) clearInterval(wait); }, 250);
+  }).catch(() => { /* sin permisos confirmados: no se muestra */ });
 })();
