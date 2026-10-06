@@ -47,15 +47,26 @@
   .ag-tbl td{padding:8px 12px;border-top:1px solid #243024;color:#eef4e9;white-space:nowrap}.ag-tbl tbody tr:nth-child(even){background:rgba(255,255,255,.035)}.ag-tbl tbody tr:hover{background:rgba(208,244,76,.08)}
   .ag-tbl .n{width:1%;color:#8f9b8a;text-align:right}.ag-tbl .v{color:#5f6b5e}
   html.theme-light .ag-tbl th{background:#e9efe2;color:#3f6a10}html.theme-light .ag-tbl td{color:#18210f;border-color:#dfe6d7}html.theme-light .ag-tbl-wrap{background:#fff;border-color:#cdd8c6}
-  .ag-main{display:grid;grid-template-columns:minmax(360px,32%) minmax(0,1fr);gap:14px;align-items:stretch;height:calc(100vh - 300px);min-height:560px}
-  .ag-flowcol{display:grid;grid-template-rows:minmax(0,1.5fr) auto minmax(0,1fr);gap:14px;min-height:0}.ag-lienzo{grid-row:1}.ag-live{grid-row:2}.ag-detalle{grid-row:3}
-  .ag-live{display:none;border:1px solid #34432f;border-radius:14px;background:#0c110d;padding:10px 12px}
-  .ag-live-top{display:flex;align-items:center;gap:10px;margin-bottom:8px}.ag-live-top b{font:800 11px Arial;letter-spacing:.12em;color:#d7ff3a}.ag-live-top i{display:inline-block;width:8px;height:8px;border-radius:50%;background:#6f7d6a;margin-right:6px}.ag-live-top i.on{background:#8bd450;animation:agpulso 1.1s infinite}.ag-live-top small{color:#8fa088;font-size:11px}
+  .ag-main{display:grid;grid-template-columns:minmax(360px,32%) minmax(0,1fr);gap:14px;align-items:stretch;height:max(760px,calc(100vh - 250px));min-height:700px}
+  .ag-flowcol{display:grid;grid-template-rows:auto minmax(0,1fr) 176px;gap:14px;min-height:0}.ag-lienzo{grid-row:1}.ag-live{grid-row:2}.ag-detalle{grid-row:3}
+  .ag-live{display:grid;grid-template-rows:auto minmax(0,1fr);gap:10px;min-height:0;border:1px solid #34432f;border-radius:16px;background:#0c110d;padding:12px 14px}
+  .ag-live-top{display:flex;align-items:center;gap:10px}.ag-live-top b{font:800 11px Arial;letter-spacing:.12em;color:#d7ff3a}.ag-live-top i{display:inline-block;width:8px;height:8px;border-radius:50%;background:#6f7d6a;margin-right:6px}.ag-live-top i.on{background:#8bd450;animation:agpulso 1.1s infinite}.ag-live-top small{color:#8fa088;font-size:11px}
+  .ag-live-top .seguir{margin-left:auto;min-height:0;padding:4px 12px;border:1px solid #8bd450;border-radius:999px;background:transparent;color:#8bd450;font:800 11px Arial;cursor:pointer}
   @keyframes agpulso{50%{opacity:.25}}
-  .ag-live-cols{display:grid;grid-template-columns:1fr 1fr;gap:12px}.ag-live-col h4{margin:0;font:800 11px Arial;letter-spacing:.1em;color:#aebba7;display:flex;justify-content:space-between;gap:8px}.ag-live-col h4 span{color:#d7ff3a}
-  .ag-live-bar{height:5px;border-radius:99px;background:#1c261c;margin:6px 0}.ag-live-bar i{display:block;height:100%;border-radius:99px;background:#8bd450;transition:width .3s}
-  .ag-live-list{max-height:112px;overflow:auto;display:grid;gap:3px;font-size:12px}.ag-live-list div{display:flex;gap:6px;align-items:center;padding:3px 7px;border-radius:7px;background:#121a13;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ag-live-list div::before{content:'✓';color:#8bd450;font-weight:800}.ag-live-list div.nuevo{animation:agnuevo 1s}@keyframes agnuevo{from{background:#2d4a1f}}
-  .ag-live small.dest{display:block;margin-top:5px;color:#8fa088;font-size:10.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ag-live-body{display:grid;grid-template-columns:minmax(0,1fr) 270px;gap:14px;min-height:0}
+  .ag-live-vista{position:relative;min-height:0;border-radius:12px;background:#fff;overflow:hidden}
+  .ag-live-vista img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:none}.ag-live-vista img.ok{display:block}
+  .ag-live-vista.cambio img{animation:agfoto .35s}@keyframes agfoto{from{opacity:.25}}
+  .ag-live-vacio{position:absolute;inset:0;display:grid;place-items:center;align-content:center;gap:6px;text-align:center;padding:24px;background:#0a0f0b;color:#8f9b8a;font-size:13px;line-height:1.5}.ag-live-vacio b{color:#d7ff3a;font:800 13px Arial;letter-spacing:.1em}
+  .ag-live-cap{position:absolute;left:12px;bottom:14px;display:none;align-items:center;gap:14px;max-width:calc(100% - 24px);padding:9px 16px;border-radius:12px;background:#0b110bde;border:1px solid #3a4b36;color:#fff}.ag-live-cap.ok{display:flex}
+  .ag-live-cap .num{font:800 36px Arial;color:#d7ff3a;line-height:1}.ag-live-cap .nom{display:block;font:800 19px Arial;text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ag-live-cap small{display:block;margin-top:2px;color:#aebba7;font-size:11px}
+  .ag-live-prog{position:absolute;left:0;right:0;bottom:0;height:5px;background:#1c261c}.ag-live-prog i{display:block;height:100%;background:#8bd450;transition:width .3s}
+  .ag-live-side{display:grid;grid-template-rows:minmax(0,.7fr) minmax(0,1.3fr);gap:10px;min-height:0}
+  .ag-live-sec{display:grid;grid-template-rows:auto minmax(0,1fr);gap:6px;min-height:0}
+  .ag-live-sec h4{margin:0;font:800 11px Arial;letter-spacing:.1em;color:#aebba7;display:flex;justify-content:space-between;gap:8px}.ag-live-sec h4 span{color:#d7ff3a}
+  .ag-live-list{min-height:0;overflow:auto;display:grid;align-content:start;gap:3px;font-size:12px}.ag-live-list div{display:flex;gap:6px;align-items:center;padding:4px 8px;border-radius:7px;background:#121a13;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ag-live-list div::before{content:'✓';color:#8bd450;font-weight:800}.ag-live-list div.nuevo{animation:agnuevo 1s}@keyframes agnuevo{from{background:#2d4a1f}}
+  .ag-live-list div[data-vista]{cursor:pointer}.ag-live-list div[data-vista]:hover{background:#1a2a1a}.ag-live-list div.sel{outline:1px solid #8bd450;background:#1a2a1a}
+  .ag-live small.dest{display:block;color:#8fa088;font-size:10.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .ag-lienzo{position:relative;height:auto;min-height:0;overflow:hidden;border:1px solid #2d3b2f;border-radius:16px;background-color:#0c110d;background-image:radial-gradient(#26322a 1.2px,transparent 1.2px);background-size:20px 20px}
   .ag-barra{position:absolute;top:12px;left:14px;right:14px;display:flex;justify-content:space-between;align-items:center;gap:8px;z-index:3;pointer-events:none}
   .ag-ftit{padding:5px 11px;border:1px solid #34432f;border-radius:9px;background:#111611;font:700 13px Arial;color:#eef4e9}.ag-ftit small{margin-left:6px;color:#8f9b8a;font-weight:500}
@@ -86,7 +97,7 @@
   .ag-filtros{display:flex;gap:5px;flex-wrap:wrap}.ag-filtros button{min-height:0;padding:2px 10px;border:1px solid #34432f;border-radius:999px;background:transparent;color:#aebba7;font:700 11px Arial;cursor:pointer}.ag-filtros button.on{background:#e3eadc;color:#10150e;border-color:#e3eadc}
   .ag-log{height:auto;min-height:0;overflow:auto;margin:10px 12px 12px;padding:9px 11px;border-radius:9px;background:#080b08;color:#d6dae2;font:12px/1.6 Consolas,ui-monospace,monospace}
   .ag-log div{white-space:pre-wrap;word-break:break-word}.ag-log .h{opacity:.45;margin-right:7px}.ag-log b{margin-right:6px}.ag-log .vacio2{opacity:.45}.ag-log .WARN .m{color:#ffbd66}.ag-log .ERROR .m{color:#ff8a8a}
-  @media(max-width:1000px){.ag-main{grid-template-columns:1fr;height:auto;min-height:0}.ag-flowcol{grid-template-rows:auto auto auto}.ag-live-cols{grid-template-columns:1fr}.ag-lienzo{height:380px}.ag-log{height:200px}.ag-chat{grid-template-rows:auto auto auto auto auto}.ag-thread{height:62vh;min-height:300px;max-height:none}}
+  @media(max-width:1000px){.ag-main{grid-template-columns:1fr;height:auto;min-height:0}.ag-flowcol{grid-template-rows:auto auto auto}.ag-live{grid-template-rows:auto auto}.ag-live-body{grid-template-columns:1fr}.ag-live-vista{height:62vw;min-height:280px}.ag-live-side{grid-template-rows:auto auto}.ag-live-list{max-height:150px}.ag-log{height:200px}.ag-chat{grid-template-rows:auto auto auto auto auto}.ag-thread{height:62vh;min-height:300px;max-height:none}}
   .ag-files{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
   .ag-file{--fc:#ffcf5c;display:grid;gap:9px;padding:12px;border:1px solid #34432f;border-left:4px solid var(--fc);border-radius:12px;background:#0c110d}.ag-file.mesa{--fc:#6fe39a}.ag-file.abierto{grid-column:1/-1}
   .ag-file-head{display:flex;gap:10px;align-items:center}.ag-fico{font-size:1.7rem;line-height:1}.ag-file-head b{display:block;font-size:.92rem;color:#eef4e9}.ag-file-head small{display:block;color:#8f9b8a;font-size:.72rem;overflow-wrap:anywhere}
@@ -211,12 +222,12 @@
   function acomodar() {
     const lienzo = flow.lienzo; if (!lienzo) return;
     const W = lienzo.clientWidth, H = lienzo.clientHeight; if (!W) return;
-    const tam = W > 1000 ? 88 : 68, margen = 56, ancho = tam; flow.tam = tam;
+    const tam = W > 1000 ? 72 : 60, margen = 44, ancho = tam; flow.tam = tam;
     const porFila = Math.max(3, Math.min(NODOS.length, Math.floor((W - margen * 2 + 40) / 112)));
     const filas = Math.ceil(NODOS.length / porFila);
     const sep = porFila > 1 ? (W - margen * 2 - ancho) / (porFila - 1) : 0;
-    const altoFila = Math.min(190, (H - 150) / Math.max(filas - 1, 1) || 0);
-    const y0 = filas === 1 ? H / 2 - 50 : Math.max(80, (H - 90 - altoFila * (filas - 1)) / 2);
+    const altoFila = tam + 58, y0 = 54;   // el mapa es una tira: su alto se ajusta a las filas que ocupa
+    lienzo.style.height = (y0 + (filas - 1) * altoFila + tam + 46) + 'px';
     NODOS.forEach((n, i) => {
       const f = Math.floor(i / porFila), c = i % porFila, x = margen + c * sep, y = y0 + f * altoFila;
       flow.POS[n.id] = { x, y, fila: f, col: i };
@@ -337,11 +348,23 @@
   }
   function filtrar(id) { flow.filtro = id; marcarSeleccion(); pintarLog(); }
   function marcarSeleccion() { Object.values(flow.el).forEach(d => d.classList.toggle('sel', d.dataset.n === flow.filtro)); }
-  // Pantallita EN VIVO: cómo van quedando los montajes (.ai por talla) y los PDF de producción de la ejecución actual
+  // PANTALLA EN VIVO: imagen del PDF de cada jugador (cambia con su nombre y número) + montajes y PDF que van quedando
+  function armarLive(box) {
+    box.dataset.listo = '1';
+    box.innerHTML = '<div class="ag-live-top"><b><i data-pto></i>PANTALLA EN VIVO</b><small data-estado></small><button type="button" class="seguir" data-seguir hidden>Seguir en vivo</button></div>' +
+      '<div class="ag-live-body"><div class="ag-live-vista" data-vista><img alt="PDF de producción"><div class="ag-live-vacio"><div><b>ESPERANDO LOS PDF</b><br>Aquí verás cada PDF de producción, con el nombre y el número de cada jugador, a medida que se genera.</div></div>' +
+      '<div class="ag-live-cap" data-cap><span class="num"></span><div><span class="nom"></span><small class="det"></small></div></div><div class="ag-live-prog"><i></i></div></div>' +
+      '<aside class="ag-live-side"><div class="ag-live-sec"><h4>MONTAJES <span data-nm>0</span></h4><div class="ag-live-list" data-lm></div></div>' +
+      '<div class="ag-live-sec"><h4>PDF DE PRODUCCIÓN <span data-np>0</span></h4><div class="ag-live-list" data-lp></div><small class="dest" data-dp></small></div></aside></div>';
+    box.addEventListener('click', e => {
+      const fila = e.target.closest('[data-vista]'); if (fila && fila.dataset.vista) { flow.vistaFija = fila.dataset.vista; pintarLive(); return; }
+      if (e.target.closest('[data-seguir]')) { flow.vistaFija = null; pintarLive(); }
+    });
+  }
   function pintarLive() {
     const box = panel && panel.querySelector('[data-live]'); if (!box) return;
+    if (!box.dataset.listo) armarLive(box);
     const evs = flow.ejec ? flow.ejec.eventos.filter(e => e.archivo) : [];
-    if (!evs.length) { box.style.display = 'none'; return; }
     const montajes = [], pdfs = [], vm = new Set(), vp = new Set(); let total = 0, dm = '', dp = '';
     evs.forEach(e => {
       const a = e.archivo;
@@ -349,14 +372,32 @@
       else if (a.tipo === 'montaje' && !vm.has(a.nombre)) { vm.add(a.nombre); montajes.push(a); dm = a.carpeta || dm; }
       else if (a.tipo === 'pdf') { const k = a.detalle || (a.nombre + a.numero + a.talla); if (!vp.has(k)) { vp.add(k); pdfs.push(a); dp = a.carpeta || dp; } }
     });
+    const q = sel => box.querySelector(sel);
+    q('[data-pto]').className = st.esperando ? 'on' : '';
+    q('[data-estado]').textContent = st.esperando ? 'Illustrator está trabajando…' : (evs.length ? 'Última ejecución' : 'Sin ejecución en curso');
     const itemM = a => { const m = /^Talla_([^_]+)_Tipo_(D\d+)_Gen_(\w+)$/.exec(a.nombre || ''); return m ? '<b>' + esc(m[1]) + '</b> · ' + esc(m[2]) + ' · ' + esc(m[3]) : esc(a.nombre); };
-    const itemP = a => '<b>' + esc(a.nombre || 'Sin nombre') + '</b> · #' + esc(a.numero || '—') + ' · ' + esc(a.talla) + (a.diseno ? ' · ' + esc(a.diseno) : '');
-    const lista = (items, fn) => items.slice().reverse().slice(0, 60).map((a, i) => '<div' + (i === 0 ? ' class="nuevo"' : '') + '>' + fn(a) + '</div>').join('');
-    const pct = total ? Math.min(100, Math.round(pdfs.length / total * 100)) : 0;
-    box.style.display = 'block';
-    box.innerHTML = '<div class="ag-live-top"><b><i class="' + (st.esperando ? 'on' : '') + '"></i>EN VIVO</b><small>' + (st.esperando ? 'Illustrator está trabajando…' : 'Última ejecución') + '</small></div><div class="ag-live-cols">' +
-      '<div class="ag-live-col"><h4>MONTAJES <span>' + montajes.length + ' exportados</span></h4><div class="ag-live-bar"><i style="width:' + (montajes.length ? 100 : 0) + '%"></i></div><div class="ag-live-list">' + (lista(montajes, itemM) || '<div style="opacity:.5">Esperando…</div>') + '</div>' + (dm ? '<small class="dest">→ ' + esc(dm) + '</small>' : '') + '</div>' +
-      '<div class="ag-live-col"><h4>PDF DE PRODUCCIÓN <span>' + pdfs.length + (total ? ' de ' + total : '') + '</span></h4><div class="ag-live-bar"><i style="width:' + pct + '%"></i></div><div class="ag-live-list">' + (lista(pdfs, itemP) || '<div style="opacity:.5">Esperando…</div>') + '</div>' + (dp ? '<small class="dest">→ ' + esc(dp) + '</small>' : '') + '</div></div>';
+    q('[data-nm]').textContent = montajes.length + ' exportados';
+    q('[data-lm]').innerHTML = montajes.slice().reverse().slice(0, 60).map((a, i) => '<div' + (i === 0 ? ' class="nuevo"' : '') + '>' + itemM(a) + '</div>').join('') || '<div style="opacity:.5">Esperando…</div>';
+    const conVista = pdfs.filter(a => a.vista);
+    const fija = flow.vistaFija && conVista.find(a => a.vista === flow.vistaFija);
+    if (flow.vistaFija && !fija) flow.vistaFija = null;
+    const actual = fija || conVista[conVista.length - 1] || null;
+    q('[data-np]').textContent = pdfs.length + (total ? ' de ' + total : '');
+    q('[data-lp]').innerHTML = pdfs.slice().reverse().slice(0, 80).map((a, i) => '<div' + (a.vista ? ' data-vista="' + esc(a.vista) + '"' : '') + ' class="' + (i === 0 ? 'nuevo ' : '') + (actual && a.vista === actual.vista ? 'sel' : '') + '"><b>' + esc(a.nombre || 'Sin nombre') + '</b> · #' + esc(a.numero || '—') + ' · ' + esc(a.talla) + '</div>').join('') || '<div style="opacity:.5">Esperando…</div>';
+    q('[data-dp]').textContent = dp ? '→ ' + dp : '';
+    q('[data-seguir]').hidden = !fija;
+    q('.ag-live-prog i').style.width = (total ? Math.min(100, Math.round(pdfs.length / total * 100)) : 0) + '%';
+    const vista = q('[data-vista]'), img = vista.querySelector('img'), cap = q('[data-cap]');
+    if (!actual) { img.classList.remove('ok'); img.removeAttribute('src'); delete img.dataset.id; vista.querySelector('.ag-live-vacio').style.display = ''; cap.classList.remove('ok'); return; }
+    q('.ag-live-cap .num').textContent = '#' + (actual.numero || '—');
+    q('.ag-live-cap .nom').textContent = actual.nombre || 'Sin nombre';
+    q('.ag-live-cap .det').textContent = ['Talla ' + actual.talla, actual.diseno, actual.genero].filter(Boolean).join(' · ');
+    cap.classList.add('ok');
+    if (img.dataset.id !== actual.vista) {   // se precarga para cambiar de imagen sin parpadeo
+      const url = '/api/agentes/archivo/' + encodeURIComponent(actual.vista), pre = new Image();
+      pre.onload = () => { img.src = url; img.dataset.id = actual.vista; img.classList.add('ok'); vista.querySelector('.ag-live-vacio').style.display = 'none'; vista.classList.remove('cambio'); void vista.offsetWidth; vista.classList.add('cambio'); };
+      pre.src = url;
+    }
   }
   function pintarLog() {
     const l = panel.querySelector('[data-log]'), f = panel.querySelector('[data-filtros]'); if (!l || !f || !flow.ejec) return;
@@ -381,7 +422,7 @@
       '<div class="ag-live" data-live></div>' +
       '<div class="ag-detalle"><header><h3>Ejecución</h3><div class="ag-filtros" data-filtros></div></header><div class="ag-log" data-log></div></div></section></div></div>';
     panel.dataset.armado = '1';
-    crearNodos();
+    crearNodos(); pintarLive();
   }
 
   const KB = n => (n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB');

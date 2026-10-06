@@ -27,6 +27,7 @@ _token_file = Path(os.getenv('AGENTES_TOKEN_FILE', '/data/state/agentes_token.tx
 _lock = threading.Lock()
 MAX_MENSAJES = 400
 MAX_EVENTOS = 900
+MAX_VISTAS = 12                   # imágenes de la pantalla en vivo que se conservan
 MAX_ARCHIVOS = 160                 # PDF/imágenes que los agentes suben para verlos en el chat
 MAX_BYTES_ARCHIVO = 25 * 1024 * 1024
 _dir_archivos = Path(os.getenv('AGENTES_ARCHIVOS_DIR', '/data/state/agentes_archivos'))
@@ -371,6 +372,8 @@ def _archivo_evento(valor) -> dict | None:
     if not isinstance(valor, dict) or valor.get('tipo') not in ('montaje', 'pdf', 'plan'):
         return None
     limpio = {k: str(valor.get(k, ''))[:160] for k in ('tipo', 'nombre', 'numero', 'talla', 'diseno', 'genero', 'detalle', 'carpeta')}
+    vista = str(valor.get('vista') or '')
+    limpio['vista'] = vista if re.fullmatch(r'[0-9a-f]{8,32}', vista) else ''
     if valor.get('tipo') == 'plan':
         try:
             limpio['pdfs'] = max(0, min(int(valor.get('pdfs') or 0), 5000))
@@ -432,6 +435,9 @@ async def subir_archivo(request: Request):
     with _lock:
         datos = _leer()
         datos['archivos'][aid] = {'sesion': sesion, 'nombre': re.sub(r'[\\/]+', '_', nombre), 'ext': ext, 'size': len(cuerpo), 'creado': _iso()}
+        vistas = [k for k, v in datos['archivos'].items() if str(v.get('nombre', '')).startswith('vista_')]
+        for viejo in vistas[:-MAX_VISTAS]:   # las imágenes de la pantalla en vivo no desplazan a los archivos del chat: solo se guardan las últimas
+            _borrar_archivo(datos, viejo)
         while len(datos['archivos']) > MAX_ARCHIVOS:
             _borrar_archivo(datos, next(iter(datos['archivos'])))
         _guardar(datos)
