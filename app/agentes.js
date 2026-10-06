@@ -387,7 +387,7 @@
     if (barra.dataset.clave !== claveOrden) {
       barra.dataset.clave = claveOrden;
       barra.innerHTML = st.orden && !st.cambiandoOrden
-        ? '<span class="ag-ochip">Orden activa <b>' + esc(st.orden) + '</b></span><button type="button" class="ag-btn sec" data-orden-cambiar>Cambiar</button><button type="button" class="ag-btn sec" data-orden-quitar>Quitar</button><small>Todo lo que pidas se hace con esta orden: no tienes que escribirla en cada mensaje.</small>'
+        ? '<span class="ag-ochip">Orden activa <b>' + esc(st.orden) + '</b></span><button type="button" class="ag-btn" data-iniciar title="Lee el listado, crea la muestra, te pide aprobarla y sigue con las mesas y los PDF de producción">▶ Iniciar orden</button><button type="button" class="ag-btn sec" data-orden-cambiar>Cambiar</button><button type="button" class="ag-btn sec" data-orden-quitar>Quitar</button><small>Todo lo que pidas se hace con esta orden: no tienes que escribirla en cada mensaje.</small>'
         : '<form data-orden-form><label for="ag-orden-in">Orden</label><input id="ag-orden-in" maxlength="12" autocomplete="off" placeholder="CO6133" value="' + esc(st.orden) + '"><button type="submit" class="ag-btn">Fijar orden</button>' + (st.orden ? '<button type="button" class="ag-btn sec" data-orden-cancelar>Cancelar</button>' : '') + '</form><small>Escríbela una sola vez y TAVO relaciona todo con ella (listado, mesas, muestra, PDF).</small>';
       if (st.cambiandoOrden) panel.querySelector('#ag-orden-in')?.focus();
     }
@@ -397,6 +397,7 @@
     panel.querySelector('[data-replies]').innerHTML = botones.map(b => '<button type="button" class="reply" data-send="' + esc(b) + '">' + esc(b) + '</button>').join('');
     panel.querySelectorAll('[data-atajo]').forEach(b => { b.disabled = st.esperando; });
     panel.querySelector('header [data-detener]').style.display = st.esperando ? '' : 'none';
+    const ini = panel.querySelector('[data-iniciar]'); if (ini) ini.disabled = st.esperando || st.enviando;
     panel.querySelector('textarea').disabled = st.esperando;
     panel.querySelector('[data-form] button').disabled = st.esperando || st.enviando;
     if (st.admin) panel.querySelector('[data-conectar]').hidden = false;
@@ -509,6 +510,8 @@
         const texto = atajo.dataset.atajo;
         if (texto.endsWith(' ') && st.orden) enviar(texto.trim() + ' ' + st.orden);
         else if (texto.endsWith(' ')) { const caja = panel.querySelector('textarea'); caja.value = texto; caja.focus(); caja.setSelectionRange(texto.length, texto.length); } else enviar(texto);
+      } else if (e.target.closest('[data-iniciar]')) {
+        if (!st.esperando && st.orden) enviar('Pedido completo de la orden ' + st.orden);
       } else if (e.target.closest('[data-detener]')) {
         const b = e.target.closest('[data-detener]'); b.disabled = true; b.textContent = 'Deteniendo…';
         try { await api('/api/agentes/detener', { method: 'POST', body: '{}' }); } catch (err) { b.disabled = false; b.textContent = 'Detener'; alert(err.message); return; }
