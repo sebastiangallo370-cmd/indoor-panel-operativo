@@ -534,7 +534,7 @@
     if (document.getElementById('open-agentes')) return true;
     const button = document.createElement('button');
     button.type = 'button'; button.id = 'open-agentes'; button.textContent = 'Agentes';
-    const anterior = document.getElementById('open-reportes') || document.getElementById('open-personal-notes');
+    const anterior = document.getElementById('open-personal-notes');
     anterior ? anterior.insertAdjacentElement('afterend', button) : menu.querySelector('p')?.insertAdjacentElement('afterend', button);
     button.addEventListener('click', () => { document.querySelector('.user-menu')?.removeAttribute('open'); tab.click(); });
     return true;
