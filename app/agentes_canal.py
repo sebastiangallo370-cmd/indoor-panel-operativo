@@ -62,6 +62,7 @@ def _leer() -> dict:
     datos.setdefault('eventos', [])   # avance de los agentes para dibujar el flujo (por persona y mensaje)
     datos.setdefault('cont_ev', 0)
     datos.setdefault('archivos', {})   # id -> {sesion, nombre, ext, size, creado}
+    datos.setdefault('ordenes', {})    # sesion -> orden activa (CO6133): todo lo que pide esa persona se hace con ella
     return datos
 
 
@@ -186,7 +187,7 @@ def mensajes(request: Request, desde: int = 0, desde_ev: int = 0):
         nuevos = [{k: v for k, v in m.items() if k not in ('t',)} for m in propios if m['id'] > desde]
         eventos = [e for e in datos['eventos'] if e['sesion'] == usuario and e['id'] > desde_ev]
         return {'mensajes': nuevos, 'esperando': esperando, 'trabajo': trabajo, 'conectado': _conectado(datos), 'ultimo': datos['contador'],
-                'eventos': eventos, 'ultimo_ev': datos['cont_ev']}
+                'eventos': eventos, 'ultimo_ev': datos['cont_ev'], 'orden': datos['ordenes'].get(usuario, '')}
 
 
 @router.post('/mensaje')
@@ -203,6 +204,27 @@ def enviar(request: Request, payload: dict):
         msg = _nuevo(datos, usuario, 'yo', texto, t=_ahora(), tomado=False, respondido=False)
         _guardar(datos)
         return {'ok': True, 'id': msg['id'], 'conectado': _conectado(datos)}
+
+
+@router.post('/orden')
+def fijar_orden(request: Request, payload: dict):
+    """Fija (o quita, con texto vacío) la orden activa de esta persona. TAVO reinicia su sesión para no mezclar órdenes."""
+    usuario = _auth(request)
+    crudo = str(payload.get('orden') or '').strip().upper().replace(' ', '')
+    if crudo and not re.fullmatch(r'[A-Z]{1,3}-?\d{3,7}', crudo):
+        raise HTTPException(400, 'Escribe la orden como CO6133 (letras y números)')
+    codigo = crudo.replace('-', '')
+    with _lock:
+        datos = _leer()
+        if datos['ordenes'].get(usuario, '') != codigo:
+            if codigo:
+                datos['ordenes'][usuario] = codigo
+            else:
+                datos['ordenes'].pop(usuario, None)
+            # reinicio interno de TAVO (no aparece en el chat): así no arrastra pasos de la orden anterior
+            _nuevo(datos, usuario, 'yo', 'cancelar', t=_ahora(), tomado=False, respondido=False, oculto=True)
+            _guardar(datos)
+    return {'ok': True, 'orden': codigo}
 
 
 @router.post('/limpiar')
@@ -267,7 +289,7 @@ def sondeo(request: Request, payload: dict):
         for m in datos['mensajes']:
             if m['rol'] == 'yo' and not m.get('tomado'):
                 m['tomado'] = True
-                pendientes.append({'id': m['id'], 'sesion': m['sesion'], 'mensaje': m['texto']})
+                pendientes.append({'id': m['id'], 'sesion': m['sesion'], 'mensaje': m['texto'], 'orden': datos['ordenes'].get(m['sesion'], '')})
                 if m.get('oculto'):
                     continue
                 datos['trabajo'][m['sesion']] = {'agente': 'TAVO', 'msg': 'Recibí tu mensaje', 'hora': datetime.now().strftime('%H:%M:%S'), 'agentes': ['TAVO']}
