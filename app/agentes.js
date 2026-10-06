@@ -122,6 +122,8 @@
     .ag-tbl-head{align-items:flex-start}.ag-tbl-head button{min-height:36px}.ag-tbl-wrap{max-height:42vh}
     .ag-lienzo{height:340px}.ag-log{height:170px;font-size:11.5px}.ag-ftit{font-size:12px}
     dialog.ag-dlg .row .ag-btn{flex:1 1 40%;min-height:46px}
+    .ag .ag-chips button,.ag .ag-tbl-head button,.ag .ag-file-acc button,.ag .ag-file-acc a{font:800 12px/1.2 Arial!important;letter-spacing:0!important;text-transform:none!important}
+    .ag .ag-chips[data-replies] button{padding:9px 14px!important}
   }
 
   `;
