@@ -2626,6 +2626,73 @@ def _terry_nota_en_sheet(source_row: int, orden: str, referencia: str, mts: str)
         return {'sheet': False, 'sheet_motivo': f'No pude escribir en Google Sheets: {exc}'}
 
 
+def _terry_finalizar_edicion_web(db, fila: int) -> dict:
+    """Marca el proceso EDICIÓN de la tarjeta como finalizado (fecha de hoy), igual que cuando una persona pulsa «finalizar»,
+    a nombre de TERRY. Si ya estaba finalizado o no aplica, no lo toca."""
+    meta = {r['key']: r['value'] for r in db.execute('SELECT key, value FROM production_meta')}
+    headers, groups = json.loads(meta.get('headers') or '[]'), json.loads(meta.get('groups') or '[]')
+    etapa = official_process('EDICION')
+    columnas = [i for i, h in enumerate(headers) if etapa is not None and official_process(h) == etapa]
+    if not columnas:
+        return {'finalizado': False, 'finalizado_motivo': 'No encontré la columna EDICIÓN en Producción'}
+    columna = columnas[0] + 1
+    registro = db.execute('SELECT values_json FROM production_rows WHERE source_row=?', (fila,)).fetchone()
+    valores = json.loads(registro['values_json'])
+    valores.extend([''] * max(0, len(headers) - len(valores)))
+    previo = str(valores[columna - 1] or '')
+    if previo.strip().upper() == 'N/A' or parse_production_date(previo):
+        return {'finalizado': False, 'finalizado_motivo': f'EDICIÓN ya estaba finalizado ({previo.strip()})', 'columna': columna}
+    ahora = datetime.now(timezone(timedelta(hours=-5)))
+    marca, fecha = ahora.isoformat(), ahora.strftime('%d/%m/%Y')
+    valores[columna - 1] = fecha
+    for i, h in enumerate(headers):   # columnas del mismo proceso que seguían abiertas
+        if i != columna - 1 and official_process(h) == etapa and str(valores[i] or '').strip().upper() in ('', 'P', 'R'):
+            valores[i] = fecha
+    grupo = groups[columna - 1] if columna <= len(groups) else ''
+    for i in range(columna, len(headers)):
+        if i >= len(groups) or groups[i] != grupo or operator_process_header(headers[i]):
+            break
+        titulo = str(headers[i]).strip().upper()
+        if titulo == 'HORA FINAL':
+            valores[i] = ahora.strftime('%H:%M')
+        if titulo.startswith('RESP') or titulo == 'CONFECCIONISTA':
+            valores[i] = 'TERRY'
+    ensure_operator_events(db)
+    ensure_paused(db)
+    db.execute('DELETE FROM production_paused WHERE source_row=? AND column_number=?', (fila, columna))
+    db.execute('INSERT INTO production_operator_events(source_row,column_number,action,username,responsible,reason,created_at) VALUES (?,?,?,?,?,?,?)',
+               (fila, columna, 'finish', 'TERRY', 'TERRY', '', marca))
+    db.execute('INSERT INTO production_finished(source_row,column_number,value,created_at) VALUES (?,?,?,?)', (fila, columna, fecha, marca))
+    db.execute('UPDATE production_rows SET values_json=? WHERE source_row=?', (json.dumps(valores, ensure_ascii=False), fila))
+    db.execute("INSERT OR REPLACE INTO production_meta(key,value) VALUES ('updated_at',?)", (marca,))
+    return {'finalizado': True, 'columna': columna, 'fecha': fecha}
+
+
+def _terry_finalizar_edicion_sheet(source_row: int, orden: str, referencia: str, columna: int, fecha: str) -> dict:
+    """Escribe la fecha de hoy en la celda EDICIÓN de la fila del Google Sheets (por ahora también allá). Antes comprueba EN VIVO que la fila
+    sea la misma orden y referencia, y solo escribe si la celda está vacía o en «P»."""
+    import gspread
+    plano = lambda v: re.sub(r'\s+', '', str(v or '')).upper()
+    try:
+        with connect() as db:
+            link = db.execute('SELECT sheet_row FROM production_sheet_links WHERE source_row=?', (source_row,)).fetchone()
+        if not link:
+            return {'finalizado_sheet': False, 'finalizado_sheet_motivo': 'La tarjeta no está enlazada a una fila del Google Sheets'}
+        fila = int(link['sheet_row'])
+        ws = legacy.get_gspread()
+        vivos = ws.row_values(fila)
+        if len(vivos) < 7 or plano(vivos[4]) != plano(orden) or plano(vivos[6]) != plano(referencia):
+            return {'finalizado_sheet': False, 'finalizado_sheet_motivo': f'La fila {fila} del Google Sheets ya no corresponde a {orden} / {referencia}; no marqué nada allá'}
+        actual = str(vivos[columna - 1] if len(vivos) >= columna else '').strip()
+        if actual and actual.upper() != 'P':
+            return {'finalizado_sheet': False, 'finalizado_sheet_motivo': f'La celda EDICIÓN del Sheet ya tiene «{actual}»; no la cambié'}
+        ws.update_cell(fila, columna, fecha)
+        return {'finalizado_sheet': True}
+    except Exception as exc:  # noqa: BLE001
+        logging.exception('TERRY: no se pudo marcar EDICIÓN como finalizado en Google Sheets')
+        return {'finalizado_sheet': False, 'finalizado_sheet_motivo': f'No pude escribir en Google Sheets: {exc}'}
+
+
 def _terry_guardar_mts(orden: str, referencia: str, texto: str) -> dict:
     """Escribe «NN.NN MTS» en la nota de MTS REQUERIDOS (columna 17) de la tarjeta de la orden. No pisa un valor puesto por una persona."""
     plano = lambda v: re.sub(r'\s+', '', str(v or '')).upper()
@@ -2651,8 +2718,11 @@ def _terry_guardar_mts(orden: str, referencia: str, texto: str) -> dict:
         ahora = datetime.now(timezone.utc).isoformat()
         db.execute('INSERT OR REPLACE INTO production_notes VALUES (?,?,?,?,?)', (fila, 17, texto, 'TERRY', ahora))
         db.execute("INSERT OR REPLACE INTO production_meta(key,value) VALUES ('updated_at',?)", (ahora,))
-    resultado = {'ok': True, 'fila': fila}
+        final = _terry_finalizar_edicion_web(db, fila)   # con los MTS puestos, el trabajo de EDICIÓN queda finalizado
+    resultado = {'ok': True, 'fila': fila, **final}
     resultado.update(_terry_nota_en_sheet(fila, orden, referencia, texto.replace('.', ',')))   # también en el Google Sheets (por ahora)
+    if final.get('finalizado'):
+        resultado.update(_terry_finalizar_edicion_sheet(fila, orden, referencia, final['columna'], final['fecha']))
     return resultado
 
 

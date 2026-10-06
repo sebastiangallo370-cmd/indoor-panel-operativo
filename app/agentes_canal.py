@@ -357,7 +357,9 @@ def mts_orden(request: Request, payload: dict):
         if calculo['completo'] and _escribir_mts:
             escrito = _escribir_mts(orden, str(hoja), f"{calculo['mts']:.2f} MTS")
             calculo.update(escrito=bool(escrito.get('ok')), motivo=escrito.get('motivo', ''), fila=escrito.get('fila'),
-                           sheet=bool(escrito.get('sheet')), sheet_motivo=escrito.get('sheet_motivo', ''))
+                           sheet=bool(escrito.get('sheet')), sheet_motivo=escrito.get('sheet_motivo', ''),
+                           finalizado=bool(escrito.get('finalizado')), finalizado_motivo=escrito.get('finalizado_motivo', ''),
+                           finalizado_sheet=bool(escrito.get('finalizado_sheet')), finalizado_sheet_motivo=escrito.get('finalizado_sheet_motivo', ''))
         elif not calculo['completo']:
             calculo['motivo'] = 'Faltan consumos en Promedios maestros: no escribí nada en la tarjeta.'
         resultados.append(calculo)
