@@ -153,6 +153,20 @@
     return rows.map((row, index) => ({ row, index, due: dateValue(row.values[column])?.getTime() ?? Infinity }))
       .sort((a, b) => a.due === b.due ? a.index - b.index : a.due < b.due ? -1 : 1).map(item => item.row);
   }
+  // Listas para trabajar: el proceso anterior ya está FINALIZADO y el actual todavía no terminó.
+  function readyToWork(summary) {
+    const groups = ((summary && (summary.route || summary).groups) || []).filter(g => !isExternal(g));
+    const focus = summary && summary.focus;
+    if (!focus || focus.state === 'finished') return false;
+    const position = groups.findIndex(g => g.key === focus.key);
+    return position <= 0 || groups[position - 1].state === 'finished';
+  }
+  // Siempre: primero las tarjetas cuyo proceso anterior ya está finalizado y después, dentro de cada grupo, por fecha de entrega.
+  function orderByReadiness(rows, headers, summaries) {
+    const column = headers.findIndex(h => key(h) === 'FECHA DE ENTREGA');
+    return rows.map((row, index) => ({ row, index, listo: readyToWork(summaries.get(row.source_row)) ? 0 : 1, due: dateValue(row.values[column])?.getTime() ?? Infinity }))
+      .sort((a, b) => a.listo - b.listo || (a.due === b.due ? a.index - b.index : a.due < b.due ? -1 : 1)).map(item => item.row);
+  }
   function addBusinessDays(date, count) {
     const result = new Date(date.getFullYear(), date.getMonth(), date.getDate());
     let remaining = count;
@@ -535,7 +549,7 @@
     toolbar.querySelectorAll('[data-trace-filter]').forEach(button => { button.hidden = ownAreaFilter; });
     const query = JSON.stringify([filter, ownAreaFilter, selectedProcess, productionSearch.value, exactScheduleOrder]);
     if (pageQuery !== query) { currentPage = 1; pageQuery = query; scrollTop = 0; }
-    const pageResult = paginate(orderByDelivery(base.filter(row => match(summaries.get(row.source_row), filter)), productionData.headers), currentPage);
+    const pageResult = paginate(orderByReadiness(base.filter(row => match(summaries.get(row.source_row), filter)), productionData.headers, summaries), currentPage);
     currentPage = pageResult.page;
     const rows = pageResult.rows;
     pager.hidden = pageResult.pages <= 1;
@@ -544,7 +558,7 @@
       button.setAttribute('aria-pressed', String(button.dataset.traceFilter === filter));
       button.querySelector('span').textContent = base.filter(row => match(forView(row, button.dataset.traceFilter), button.dataset.traceFilter)).length;
     });
-    toolbar.querySelector('.trace-results').textContent = 'Mostrando ' + pageResult.start + '–' + pageResult.end + ' de ' + pageResult.total + ' tarjetas · Entrega: de más próxima a más lejana' + (filter === 'mine' ? ' · Asignadas a tu usuario' : '');
+    toolbar.querySelector('.trace-results').textContent = 'Mostrando ' + pageResult.start + '–' + pageResult.end + ' de ' + pageResult.total + ' tarjetas · Primero las del proceso anterior finalizado y luego por fecha de entrega' + (filter === 'mine' ? ' · Asignadas a tu usuario' : '');
     const mtsColi = productionData.headers.findIndex(h => String(h || '').trim().toUpperCase() === 'MTS REQUERIDO');
     const isMtsNoteKey = key => {
       const column = Number(String(key).split(':')[1]);
