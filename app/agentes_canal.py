@@ -340,9 +340,25 @@ def sondeo(request: Request, payload: dict):
 _escribir_mts: Callable | None = None   # lo registra main.py: guarda el MTS en la tarjeta de producción de la orden
 
 
+_refs_proceso: Callable | None = None   # lo registra main.py: referencias de una orden cuya tarjeta tiene EDICIÓN en proceso
+
+
+def configurar_refs(fn: Callable) -> None:
+    global _refs_proceso
+    _refs_proceso = fn
+
+
 def configurar_mts(fn: Callable) -> None:
     global _escribir_mts
     _escribir_mts = fn
+
+
+@pc_router.post('/referencias-proceso')
+def referencias_proceso(request: Request, payload: dict):
+    """TAVO: referencias de la orden que están en proceso de EDICIÓN en Producción (solo esas se ejecutan)."""
+    _pc(request)
+    orden = re.sub(r'\s+', '', str(payload.get('orden') or '')).upper()
+    return {'referencias': sorted(set(_refs_proceso(orden))) if (_refs_proceso and orden) else []}
 
 
 @pc_router.post('/plantillas')

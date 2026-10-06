@@ -2782,6 +2782,7 @@ def _terry_guardar_mts(orden: str, referencia: str, texto: str) -> dict:
 
 
 agentes_mod.configurar_mts(_terry_guardar_mts)
+agentes_mod.configurar_refs(lambda orden: [c['ref'] for c in _edicion_en_proceso() if c['orden'] == orden and c['ref']])
 
 
 @app.get("/api/produccion")
