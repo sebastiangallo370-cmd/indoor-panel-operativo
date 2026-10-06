@@ -421,40 +421,32 @@ def parse_packing_list(data: bytes, filename: str) -> dict | None:
 # estándar {proveedor, fecha, total_documento, lineas:[{descripcion, referencia, rollos:[{mts, rollo_no}]}]}. Para sumar un proveedor nuevo se agrega
 # un lector (función) y una fila aquí; la pantalla toma la lista de /api/inventarios/documento/formatos.
 FORMATOS = [
-    {'id': 'auto', 'nombre': 'Detectar automáticamente', 'ayuda': 'Prueba los formatos conocidos y usa el que coincida.'},
-    {'id': 'lindatextil', 'nombre': 'Lindatextil', 'ayuda': 'Lista de empaque (escaneo o foto, un rollo por fila con su total) o factura electrónica en PDF (entra 1 rollo con el total y lo repartes).'},
-    {'id': 'eliot', 'nombre': 'Manufacturas Eliot', 'ayuda': 'Nota de entrega (escaneo, foto o PDF): lee la columna CANTIDAD, un rollo por fila, y la contrasta con el total.'},
-    {'id': 'lafayette', 'nombre': 'Lafayette · formato por configurar', 'pendiente': True, 'ayuda': 'Todavía no tengo el formato de este proveedor. Si el PDF trae texto intento leerlo; si no, usa «registrar a mano» y envíame un PDF de ejemplo para configurarlo.'},
-    {'id': 'saraxy', 'nombre': 'Saraxy · formato por configurar', 'pendiente': True, 'ayuda': 'Todavía no tengo el formato de este proveedor. Si el PDF trae texto intento leerlo; si no, usa «registrar a mano» y envíame un PDF de ejemplo para configurarlo.'},
-    {'id': 'puntoflex', 'nombre': 'Puntoflex · formato por configurar', 'pendiente': True, 'ayuda': 'Todavía no tengo el formato de este proveedor. Si el PDF trae texto intento leerlo; si no, usa «registrar a mano» y envíame un PDF de ejemplo para configurarlo.'},
-    {'id': 'spirit', 'nombre': 'Spirit · formato por configurar', 'pendiente': True, 'ayuda': 'Todavía no tengo el formato de este proveedor. Si el PDF trae texto intento leerlo; si no, usa «registrar a mano» y envíame un PDF de ejemplo para configurarlo.'},
-    {'id': 'manual', 'nombre': 'Otro proveedor · registrar a mano', 'ayuda': 'No lee el documento: eliges la tela y escribes los metros de cada rollo.'},
+    {'id': 'lindatextil', 'nombre': 'Lindatextil', 'disponible': True,
+     'ayuda': 'Lista de empaque (escaneo o foto, un rollo por fila con su total) o factura electrónica en PDF (entra 1 rollo con el total y lo repartes).'},
+    {'id': 'eliot', 'nombre': 'Manufacturas Eliot · próximamente', 'disponible': False, 'ayuda': 'Este proveedor todavía no está habilitado.'},
+    {'id': 'lafayette', 'nombre': 'Lafayette · próximamente', 'disponible': False, 'ayuda': 'Este proveedor todavía no está habilitado.'},
+    {'id': 'saraxy', 'nombre': 'Saraxy · próximamente', 'disponible': False, 'ayuda': 'Este proveedor todavía no está habilitado.'},
+    {'id': 'puntoflex', 'nombre': 'Puntoflex · próximamente', 'disponible': False, 'ayuda': 'Este proveedor todavía no está habilitado.'},
+    {'id': 'spirit', 'nombre': 'Spirit · próximamente', 'disponible': False, 'ayuda': 'Este proveedor todavía no está habilitado.'},
 ]
 FORMATOS_IDS = {f['id'] for f in FORMATOS}
-FORMATOS_PENDIENTES = {f['id']: f['nombre'].split(' · ')[0] for f in FORMATOS if f.get('pendiente')}
 
 
-def parse_document(data: bytes, filename: str, formato: str = 'auto') -> dict:
-    formato = formato if formato in FORMATOS_IDS else 'auto'
-    if formato == 'manual':
-        return {'proveedor': '', 'fecha': '', 'total_documento': None, 'tipo': 'manual',
-                'lineas': [{'descripcion': 'Tela a registrar', 'referencia': '', 'rollos': []}]}
-    if (formato in ('auto', 'lindatextil') or formato in FORMATOS_PENDIENTES) and data[:4] == b'%PDF':
+def parse_document(data: bytes, filename: str, formato: str = 'lindatextil') -> dict:
+    """Por ahora solo se lee el formato de Lindatextil (lista de empaque o factura electrónica). Los demás proveedores se habilitan
+    cuando se tenga un documento de ejemplo de cada uno: basta marcar 'disponible' en FORMATOS y llamar a su lector aquí."""
+    formato = formato if formato in FORMATOS_IDS else 'lindatextil'
+    info = next(f for f in FORMATOS if f['id'] == formato)
+    if not info.get('disponible'):
+        raise ValueError(f"El formato de {info['nombre'].split(' · ')[0]} todavía no está habilitado. Por ahora solo se puede subir documentos de Lindatextil.")
+    if data[:4] == b'%PDF':
         invoice = parse_invoice_text(data)
         if invoice:
             return invoice
-    if formato in FORMATOS_PENDIENTES:
-        raise ValueError(f'Todavía no tengo configurado el formato de {FORMATOS_PENDIENTES[formato]}. Envíame un PDF de ejemplo de ese proveedor para configurarlo; mientras tanto elige «Otro proveedor · registrar a mano».')
-    if formato in ('auto', 'lindatextil'):
-        empaque = parse_packing_list(data, filename)
-        if empaque:
-            return empaque
-        if formato == 'lindatextil':
-            raise ValueError('No reconocí un documento de Lindatextil (lista de empaque o factura electrónica). Revisa que la foto o el escaneo se vea completo y derecho, o elige otro formato.')
-    try:
-        return parse_eliot(data, filename)
-    except Exception as exc:
-        raise ValueError('No pude leer este documento como nota de entrega de Manufacturas Eliot. Revisa que el proveedor elegido sea el correcto.') from exc
+    empaque = parse_packing_list(data, filename)
+    if empaque:
+        return empaque
+    raise ValueError('No reconocí un documento de Lindatextil (lista de empaque o factura electrónica). Revisa que la foto o el escaneo se vea completo y derecho.')
 
 
 def parse_eliot(data: bytes, filename: str) -> dict:

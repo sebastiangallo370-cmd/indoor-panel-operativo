@@ -1017,7 +1017,7 @@ def inventory_document_formats():
 
 
 @inventario_router.post('/documento')
-async def inventory_document(file: UploadFile = File(...), formato: str = Form('auto')):
+async def inventory_document(file: UploadFile = File(...), formato: str = Form('lindatextil')):
     data = await file.read()
     if not data or len(data) > 15 * 1024 * 1024:
         raise HTTPException(status_code=413, detail='El archivo está vacío o supera los 15 MB.')

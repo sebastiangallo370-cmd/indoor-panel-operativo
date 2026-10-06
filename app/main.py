@@ -404,12 +404,13 @@ INVENTORY_CONTROL_SCRIPT = """<script>
         docMessage.classList.add('im-error'); docMessage.textContent = 'No se pudo procesar el documento. Puedes cargar los datos manualmente con INGRESO.';
       }
     };
-    let docFormats = [{id: 'auto', nombre: 'Detectar automáticamente', ayuda: ''}], docFormat = 'auto';
-    try { docFormat = localStorage.getItem('inv_doc_formato') || 'auto'; } catch (error) { /* sin almacenamiento */ }
+    let docFormats = [{id: 'lindatextil', nombre: 'Lindatextil', disponible: true, ayuda: ''}], docFormat = 'lindatextil';
+    try { docFormat = localStorage.getItem('inv_doc_formato') || 'lindatextil'; } catch (error) { /* sin almacenamiento */ }
     fetch('/api/inventarios/documento/formatos', {cache: 'no-store', credentials: 'same-origin'}).then(r => r.ok ? r.json() : null).then(d => { if (d && d.formatos && d.formatos.length) docFormats = d.formatos; }).catch(() => {});
     const formatPickerMarkup = () => {
-      const current = docFormats.find(f => f.id === docFormat) || docFormats[0];
-      return '<label class="im-format">Formato del proveedor<select data-doc-format>' + docFormats.map(f => '<option value="' + esc(f.id) + '"' + (f.id === current.id ? ' selected' : '') + '>' + esc(f.nombre) + '</option>').join('') + '</select><small>' + esc(current.ayuda || '') + '</small></label>';
+      const current = docFormats.find(f => f.id === docFormat && f.disponible) || docFormats.find(f => f.disponible) || docFormats[0];
+      docFormat = current.id;
+      return '<label class="im-format">Formato del proveedor<select data-doc-format>' + docFormats.map(f => '<option value="' + esc(f.id) + '"' + (f.id === current.id ? ' selected' : '') + (f.disponible ? '' : ' disabled') + '>' + esc(f.nombre) + '</option>').join('') + '</select><small>' + esc(current.ayuda || '') + '</small></label>';
     };
     const dropzoneHtml = () => formatPickerMarkup() + dropzoneMarkup;
     const dropzoneMarkup = '<div class="im-dropzone" tabindex="0" role="button" aria-label="Seleccionar documento"><span class="im-drop-icon">⇧</span><strong>Arrastra el documento aquí</strong><small>o haz clic para seleccionar · PDF, JPG o PNG</small></div>';
