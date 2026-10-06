@@ -6272,8 +6272,14 @@ def _reject_existing_order(pdf_bytes: bytes, pdf_name: str):
         finally:
             db.close()
         if not reason:
+            db = connect()
             try:
-                if _nas_has_order(str(header.get('cliente') or ''), order):
+                # Si un intento anterior de esta orden falló, su carpeta del NAS no debe bloquear el reenvío (se reemplazan los archivos).
+                fallido = db.execute("SELECT 1 FROM jobs WHERE kind='pedido' AND order_number=? AND status IN ('ERROR','REVISAR') LIMIT 1", (order,)).fetchone()
+            finally:
+                db.close()
+            try:
+                if not fallido and _nas_has_order(str(header.get('cliente') or ''), order):
                     reason = 'Esa orden ya tiene carpeta de producción en el NAS.'
             except (HTTPException, OSError):
                 pass
