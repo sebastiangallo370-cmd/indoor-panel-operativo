@@ -79,7 +79,7 @@
   .ag-filtros{display:flex;gap:5px;flex-wrap:wrap}.ag-filtros button{min-height:0;padding:2px 10px;border:1px solid #34432f;border-radius:999px;background:transparent;color:#aebba7;font:700 11px Arial;cursor:pointer}.ag-filtros button.on{background:#e3eadc;color:#10150e;border-color:#e3eadc}
   .ag-log{height:auto;min-height:0;overflow:auto;margin:10px 12px 12px;padding:9px 11px;border-radius:9px;background:#080b08;color:#d6dae2;font:12px/1.6 Consolas,ui-monospace,monospace}
   .ag-log div{white-space:pre-wrap;word-break:break-word}.ag-log .h{opacity:.45;margin-right:7px}.ag-log b{margin-right:6px}.ag-log .vacio2{opacity:.45}.ag-log .WARN .m{color:#ffbd66}.ag-log .ERROR .m{color:#ff8a8a}
-  @media(max-width:1000px){.ag-main{grid-template-columns:1fr;height:auto;min-height:0}.ag-flowcol{order:-1;grid-template-rows:auto auto}.ag-lienzo{height:400px}.ag-log{height:200px}.ag-chat{grid-template-rows:auto auto auto auto auto}.ag-thread{max-height:55vh;min-height:220px}}
+  @media(max-width:1000px){.ag-main{grid-template-columns:1fr;height:auto;min-height:0}.ag-flowcol{grid-template-rows:auto auto}.ag-lienzo{height:380px}.ag-log{height:200px}.ag-chat{grid-template-rows:auto auto auto auto auto}.ag-thread{height:62vh;min-height:300px;max-height:none}}
   .ag-files{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
   .ag-file{--fc:#ffcf5c;display:grid;gap:9px;padding:12px;border:1px solid #34432f;border-left:4px solid var(--fc);border-radius:12px;background:#0c110d}.ag-file.mesa{--fc:#6fe39a}.ag-file.abierto{grid-column:1/-1}
   .ag-file-head{display:flex;gap:10px;align-items:center}.ag-fico{font-size:1.7rem;line-height:1}.ag-file-head b{display:block;font-size:.92rem;color:#eef4e9}.ag-file-head small{display:block;color:#8f9b8a;font-size:.72rem;overflow-wrap:anywhere}
@@ -105,7 +105,25 @@
   .ag-dlg .b{display:grid;gap:12px;padding:22px}.ag-dlg h2{margin:0}.ag-dlg code{display:block;padding:10px 12px;border-radius:10px;background:#0c110d;border:1px solid #34432f;color:#d0f44c;font:600 12px Consolas,monospace;overflow-wrap:anywhere}
   .ag-dlg ol{margin:0;padding-left:20px;color:#c4cfbf;font-size:.88rem;line-height:1.6}.ag-dlg .row{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
   html.theme-light .ag-msg,html.theme-light .ag-chat,html.theme-light dialog.ag-dlg{background:#fff;color:#18210f;border-color:#cdd8c6}html.theme-light .ag-txt{color:#18210f}
-  @media(max-width:700px){.ag-msg,.ag-work{max-width:96%}.ag-form{flex-direction:column;align-items:stretch}.ag-thread{max-height:50vh}.ag-btn{min-height:46px}dialog.ag-dlg{width:100vw;max-width:100vw;height:100dvh;max-height:100dvh;border-radius:0}}
+  @media(max-width:700px){.ag-work{max-width:100%}.ag-btn{min-height:46px}dialog.ag-dlg{width:100vw;max-width:100vw;height:100dvh;max-height:100dvh;border-radius:0}}
+  @media(max-width:700px){
+    .ag{gap:10px}
+    .ag-head{padding:14px 16px;gap:10px;border-radius:14px}.ag-head h2{margin:2px 0;font-size:1.25rem}.ag-head p{display:none}.ag-head>div:last-child{width:100%}.ag-head>div:last-child .ag-btn{flex:1 1 0;min-height:42px;padding:0 10px;font-size:12px}
+    .ag-state{gap:6px}.ag-pill{padding:5px 10px;font-size:11px}
+    .ag-chat{padding:12px;gap:10px;border-radius:14px}
+    .ag-orden{padding:8px 10px;gap:8px}.ag-orden small{display:none}.ag-orden form{flex:1 1 100%}.ag-orden .ag-btn{min-height:42px}.ag-ochip{padding:6px 12px}
+    .ag-orden input,.ag-form textarea{font-size:16px}
+    .ag-thread{height:58vh;min-height:280px;padding-right:2px}
+    .ag-msg{max-width:100%;padding:11px 12px}.ag-msg.yo{max-width:92%}
+    .ag-chips[data-atajos]{flex-wrap:nowrap;overflow-x:auto;margin:0 -2px;padding:2px 2px 6px;-webkit-overflow-scrolling:touch}.ag-chips[data-atajos] button{flex:none;min-height:40px}
+    .ag-chips[data-replies] button{min-height:44px;flex:1 1 40%}
+    .ag-form{flex-direction:row;align-items:flex-end}.ag-form textarea{min-height:46px}.ag-form .ag-btn{min-height:46px;padding:0 16px}
+    .ag-files{grid-template-columns:1fr}.ag-prev{height:46vh}.ag-file-acc button,.ag-file-acc a{min-height:38px;display:inline-flex;align-items:center}
+    .ag-tbl-head{align-items:flex-start}.ag-tbl-head button{min-height:36px}.ag-tbl-wrap{max-height:42vh}
+    .ag-lienzo{height:340px}.ag-log{height:170px;font-size:11.5px}.ag-ftit{font-size:12px}
+    dialog.ag-dlg .row .ag-btn{flex:1 1 40%;min-height:46px}
+  }
+
   `;
   document.head.appendChild(css);
 
