@@ -108,10 +108,10 @@
   @media(max-width:700px){.ag-work{max-width:100%}.ag-btn{min-height:46px}dialog.ag-dlg{width:100vw;max-width:100vw;height:100dvh;max-height:100dvh;border-radius:0}}
   @media(max-width:700px){
     .ag{gap:10px}
-    .ag-head{padding:14px 16px;gap:10px;border-radius:14px}.ag-head h2{margin:2px 0;font-size:1.25rem}.ag-head p{display:none}.ag-head>div:last-child{width:100%}.ag-head>div:last-child .ag-btn{flex:1 1 0;min-height:42px;padding:0 10px;font-size:12px}
+    .ag-head{padding:14px 16px;gap:10px;border-radius:14px}.ag-head h2{margin:2px 0;font-size:1.25rem}.ag-head p{display:none}.ag-head>div:last-child{width:100%}.ag-head>div:last-child .ag-btn{flex:1 1 0;min-height:42px;padding:0 8px;font-size:11.5px;white-space:nowrap}
     .ag-state{gap:6px}.ag-pill{padding:5px 10px;font-size:11px}
     .ag-chat{padding:12px;gap:10px;border-radius:14px}
-    .ag-orden{padding:8px 10px;gap:8px}.ag-orden small{display:none}.ag-orden form{flex:1 1 100%}.ag-orden .ag-btn{min-height:42px}.ag-ochip{padding:6px 12px}
+    .ag-orden{padding:8px 10px;gap:8px}.ag-orden small{display:none}.ag-orden form{flex:1 1 100%}.ag-orden .ag-btn{min-height:42px;padding:0 10px;font-size:11.5px}.ag-ochip{padding:6px 10px;font-size:11px}.ag-ochip b{font-size:.95rem}
     .ag-orden input,.ag-form textarea{font-size:16px}
     .ag-thread{height:58vh;min-height:280px;padding-right:2px}
     .ag-msg{max-width:100%;padding:11px 12px}.ag-msg.yo{max-width:92%}
