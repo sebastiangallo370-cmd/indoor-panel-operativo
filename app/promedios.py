@@ -249,7 +249,11 @@ def calcular_hoja(hoja: str, lineas: list[dict], datos: dict | None = None) -> d
     partes = partes_de_hoja(hoja)
     cuenta: dict[tuple, int] = {}
     for linea in lineas:
-        clave = (_grupo_de_genero(linea.get('genero', '')), _talla(linea.get('talla', '')))
+        grupo, talla = _grupo_de_genero(linea.get('genero', '')), _talla(linea.get('talla', ''))
+        # Talla numérica (2 a 16) en MASC/FEM: es talla de niño/niña aunque el listado diga solo el género
+        if grupo in ('masc', 'fem') and talla not in GRUPOS[grupo] and talla in GRUPOS['nino']:
+            grupo = 'nino' if grupo == 'masc' else 'nina'
+        clave = (grupo, talla)
         cuenta[clave] = cuenta.get(clave, 0) + int(linea.get('cantidad') or 1)
     detalle, faltan, total = [], set(), 0.0
     for (grupo, talla), cantidad in sorted(cuenta.items()):
