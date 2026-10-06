@@ -23,6 +23,7 @@
   const css = document.createElement('style');
   css.textContent = `
   .tab[data-kind='agentes'] .nav-icon{display:none!important}
+  @media(min-width:701px){.nav-group:has(>.tab[data-kind='agentes']){display:none!important}}
   body:has(.panel[data-panel='agentes'].active) main{width:100%!important;max-width:none!important;margin-left:0!important;margin-right:0!important;padding-left:clamp(18px,4vw,76px)!important;padding-right:clamp(18px,4vw,76px)!important}
   .ag{display:grid;gap:16px;max-width:1100px;margin:auto}.ag button{width:auto}
   .ag-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;padding:22px;border:1px solid #2d3b4a;border-radius:18px;background:linear-gradient(135deg,#131c27,#11150f)}
@@ -198,11 +199,24 @@
     panel.addEventListener('input', e => { if (e.target.matches('textarea')) { e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 140) + 'px'; } });
     return true;
   }
+  // Acceso desde el menú del usuario (en computador sale del menú superior; en celular sigue en la barra inferior).
+  function addMenuItem() {
+    const menu = document.querySelector('.user-dropdown');
+    if (!menu || !tab) return !!document.getElementById('open-agentes');
+    if (document.getElementById('open-agentes')) return true;
+    const button = document.createElement('button');
+    button.type = 'button'; button.id = 'open-agentes'; button.textContent = 'Agentes';
+    const anterior = document.getElementById('open-reportes') || document.getElementById('open-personal-notes');
+    anterior ? anterior.insertAdjacentElement('afterend', button) : menu.querySelector('p')?.insertAdjacentElement('afterend', button);
+    button.addEventListener('click', () => { document.querySelector('.user-menu')?.removeAttribute('open'); tab.click(); });
+    return true;
+  }
+
   // Solo Administración/Coordinador y Edición (según PERMISOS): a los demás la pestaña ni se crea.
   fetch('/api/permisos/mi', { cache: 'no-store', credentials: 'same-origin' }).then(r => (r.ok ? r.json() : null)).then(mi => {
     if (!mi || !((mi.permisos || {}).agentes || {}).ver) return;
     st.admin = !!mi.admin;
     let tries = 0;
-    const wait = setInterval(() => { if (build() || ++tries > 60) clearInterval(wait); }, 250);
+    const wait = setInterval(() => { if ((build() && addMenuItem()) || ++tries > 60) clearInterval(wait); }, 250);
   }).catch(() => { /* sin permisos confirmados: no se muestra */ });
 })();
