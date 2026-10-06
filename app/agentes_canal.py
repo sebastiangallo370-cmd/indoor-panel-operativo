@@ -227,6 +227,24 @@ def fijar_orden(request: Request, payload: dict):
     return {'ok': True, 'orden': codigo}
 
 
+@router.post('/detener')
+def detener(request: Request):
+    """Frena a los agentes de esta persona: cierra lo que esperaba respuesta y le ordena al PC cortar el trabajo en curso."""
+    usuario = _auth(request)
+    with _lock:
+        datos = _leer()
+        for m in datos['mensajes']:
+            if m['sesion'] == usuario and m['rol'] == 'yo' and not m.get('respondido'):
+                m['respondido'] = True
+                m['tomado'] = True   # si el PC aún no lo había tomado, ya no se le entrega
+        datos['trabajo'].pop(usuario, None)
+        _nuevo(datos, usuario, 'bot', 'Detuve los agentes. Lo que estaba en curso se cancela; si Illustrator estaba guardando un archivo, termina ese archivo y no sigue con el resto. Escribe cuando quieras continuar.',
+               estado='DETENIDO', botones=[], agentes=['TAVO'], respondido=True)
+        _nuevo(datos, usuario, 'yo', '__detener__', t=_ahora(), tomado=False, respondido=False, oculto=True)
+        _guardar(datos)
+    return {'ok': True}
+
+
 @router.post('/limpiar')
 def limpiar(request: Request):
     """Borra la conversación de quien la pide (no toca la de otras personas)."""
@@ -309,7 +327,7 @@ def evento(request: Request, payload: dict):
         datos = _leer()
         msg_id = payload.get('msg_id')
         origen = next((m for m in datos['mensajes'] if m['id'] == msg_id and m['rol'] == 'yo'), None)
-        if origen is not None and origen.get('oculto'):
+        if origen is not None and (origen.get('oculto') or origen.get('respondido')):
             return {'ok': True}   # reinicio interno de TAVO: no se muestra
         if origen is not None:
             for e in lista:

@@ -94,6 +94,7 @@
   .ag-orden .ag-btn{min-height:36px;padding:0 14px}
   .ag-who{display:flex;gap:6px;flex-wrap:wrap;align-items:center}.ag-tag{padding:2px 9px;border-radius:999px;font:900 10px Arial;letter-spacing:.06em;color:var(--c);background:color-mix(in srgb,var(--c) 15%,transparent);border:1px solid color-mix(in srgb,var(--c) 45%,transparent)}
   .ag-txt{white-space:pre-wrap;overflow-wrap:anywhere;margin:0;color:#eef4e9}.ag-time{color:#8f9b8a;font-size:.7rem}
+  .ag-btn.danger{border:1px solid #e5484d;background:rgba(229,72,77,.14);color:#ff9a9d}.ag-btn.danger:hover{background:rgba(229,72,77,.28)}.ag-work .ag-btn.danger{justify-self:start;min-height:34px;padding:0 14px}
   .ag-work{display:grid;gap:10px;justify-self:start;max-width:86%;padding:14px 16px;border:1px solid rgba(125,164,255,.45);border-radius:16px;background:rgba(125,164,255,.07)}
   .ag-work b{font-size:.9rem}.ag-work small{color:#aebba7;font-size:.8rem}.ag-flow{display:flex;gap:6px;flex-wrap:wrap}
   .ag-dots{display:inline-flex;gap:4px;margin-left:6px}.ag-dots i{width:6px;height:6px;border-radius:50%;background:#7da4ff;animation:agp 1s infinite}.ag-dots i:nth-child(2){animation-delay:.15s}.ag-dots i:nth-child(3){animation-delay:.3s}@keyframes agp{0%,80%,100%{opacity:.25}40%{opacity:1}}
@@ -342,7 +343,7 @@
   // ================================================================== pantalla
   function armar() {
     panel.innerHTML = '<div class="ag"><header class="ag-head"><div><span class="k">EDICIÓN · INTELIGENCIA</span><h2>AGENTES</h2><p>Escríbele a TAVO y él decide qué agente actúa. Todo se ejecuta en el PC con Illustrator.</p></div>' +
-      '<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="ag-btn sec" data-nueva>Nueva conversación</button><button type="button" class="ag-btn sec" data-conectar hidden>Conectar PC</button></div></header>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="ag-btn danger" data-detener style="display:none">Detener agentes</button><button type="button" class="ag-btn sec" data-nueva>Nueva conversación</button><button type="button" class="ag-btn sec" data-conectar hidden>Conectar PC</button></div></header>' +
       '<div class="ag-state" data-estado></div><div data-aviso></div>' +
       '<div class="ag-main"><section class="ag-chat"><div class="ag-orden" data-orden></div><div class="ag-thread" data-hilo></div><div class="ag-chips" data-replies></div>' +
       '<div class="ag-chips" data-atajos>' + ATAJOS.map(([l, p]) => '<button type="button" data-atajo="' + esc(p) + '">' + esc(l) + '</button>').join('') + '</div>' +
@@ -381,7 +382,7 @@
       : '<div class="ag-msg bot' + (m.estado === 'ERROR' ? ' err' : '') + (m.tabla || (m.archivos && m.archivos.length) ? ' con-tabla' : '') + '"><div class="ag-who">' + (m.agentes && m.agentes.length ? m.agentes : ['TAVO']).map(tag).join('') + '</div><p class="ag-txt">' + esc(m.tabla ? m.texto.split(/\n\nDesglose del listado/)[0] : m.texto) + '</p>' + (m.tabla ? tablaHtml(m) : '') + (m.archivos && m.archivos.length ? archivosHtml(m) : '') + '<span class="ag-time">' + hora(m.creado) + '</span></div>').join('')
       : '<div class="ag-empty"><h3>¿Qué necesitas hoy?</h3><p>Fija la orden arriba y pídele lo que necesites, por ejemplo «exporta las mesas». TAVO decide qué agente actúa.</p></div>';
     const trabajando = st.esperando ? '<div class="ag-work"><div class="ag-who">' + ((trabajo && trabajo.agentes) || ['TAVO']).map(a => tag(a)).join('') + '<span class="ag-dots"><i></i><i></i><i></i></span></div><b>' +
-      esc(trabajo && trabajo.msg ? trabajo.agente + ': ' + trabajo.msg : e.conectado ? 'TAVO está trabajando…' : 'Esperando al PC de los agentes…') + '</b></div>' : '';
+      esc(trabajo && trabajo.msg ? trabajo.agente + ': ' + trabajo.msg : e.conectado ? 'TAVO está trabajando…' : 'Esperando al PC de los agentes…') + '</b><button type="button" class="ag-btn danger" data-detener>Detener</button></div>' : '';
     const barra = panel.querySelector('[data-orden]'), claveOrden = st.orden + '|' + st.cambiandoOrden;
     if (barra.dataset.clave !== claveOrden) {
       barra.dataset.clave = claveOrden;
@@ -395,6 +396,7 @@
     if (hiloEl.dataset.firma !== firma) { hiloEl.innerHTML = firma; hiloEl.dataset.firma = firma; hiloEl.scrollTop = hiloEl.scrollHeight; }
     panel.querySelector('[data-replies]').innerHTML = botones.map(b => '<button type="button" class="reply" data-send="' + esc(b) + '">' + esc(b) + '</button>').join('');
     panel.querySelectorAll('[data-atajo]').forEach(b => { b.disabled = st.esperando; });
+    panel.querySelector('header [data-detener]').style.display = st.esperando ? '' : 'none';
     panel.querySelector('textarea').disabled = st.esperando;
     panel.querySelector('[data-form] button').disabled = st.esperando || st.enviando;
     if (st.admin) panel.querySelector('[data-conectar]').hidden = false;
@@ -507,6 +509,10 @@
         const texto = atajo.dataset.atajo;
         if (texto.endsWith(' ') && st.orden) enviar(texto.trim() + ' ' + st.orden);
         else if (texto.endsWith(' ')) { const caja = panel.querySelector('textarea'); caja.value = texto; caja.focus(); caja.setSelectionRange(texto.length, texto.length); } else enviar(texto);
+      } else if (e.target.closest('[data-detener]')) {
+        const b = e.target.closest('[data-detener]'); b.disabled = true; b.textContent = 'Deteniendo…';
+        try { await api('/api/agentes/detener', { method: 'POST', body: '{}' }); } catch (err) { b.disabled = false; b.textContent = 'Detener'; alert(err.message); return; }
+        st.esperando = false; st.trabajo = null; await cargar(true); pintar();
       } else if (e.target.closest('[data-nueva]')) {
         if (st.msgs.length && !confirm('¿Borrar esta conversación? Los agentes empiezan de cero.')) return;
         try { await api('/api/agentes/limpiar', { method: 'POST', body: '{}' }); } catch (err) { alert(err.message); return; }
