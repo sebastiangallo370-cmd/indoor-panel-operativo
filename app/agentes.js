@@ -120,7 +120,7 @@
     .ag-form{flex-direction:row;align-items:flex-end}.ag-form textarea{min-height:46px}.ag-form .ag-btn{min-height:46px;padding:0 16px}
     .ag-files{grid-template-columns:1fr}.ag-prev{height:46vh}.ag-file-acc button,.ag-file-acc a{min-height:38px;display:inline-flex;align-items:center}
     .ag-tbl-head{align-items:flex-start}.ag-tbl-head button{min-height:36px}
-    .ag-msg,.ag-tbl,.ag-tbl-wrap{min-width:0;max-width:100%}.ag-tbl-wrap{overflow:visible}.ag-tbl table{font-size:11.5px;table-layout:auto;width:100%}.ag-tbl th{position:static;padding:7px 4px;font-size:9px;letter-spacing:0;white-space:normal}.ag-tbl td{padding:7px 4px;white-space:normal;overflow-wrap:anywhere;line-height:1.25}.ag-tbl th.n,.ag-tbl td.n{display:none}
+    .ag-msg,.ag-tbl,.ag-tbl-wrap{min-width:0;max-width:100%}.ag-tbl-wrap{overflow:visible}.ag-tbl table{font-size:11.5px;table-layout:fixed;width:100%}.ag-tbl col.n{display:none}.ag-tbl th{position:static;padding:7px 4px;font-size:9px;letter-spacing:0;white-space:normal}.ag-tbl td{padding:7px 4px;white-space:normal;overflow-wrap:anywhere;line-height:1.25}.ag-tbl th.n,.ag-tbl td.n{display:none}
     .ag-lienzo{height:340px}.ag-log{height:170px;font-size:11.5px}.ag-ftit{font-size:12px}
     dialog.ag-dlg .row .ag-btn{flex:1 1 40%;min-height:46px}
     .ag .ag-chips button,.ag .ag-tbl-head button,.ag .ag-file-acc button,.ag .ag-file-acc a{font:800 12px/1.2 Arial!important;letter-spacing:0!important;text-transform:none!important}
@@ -131,10 +131,16 @@
   document.head.appendChild(css);
 
   const celda = v => (String(v || '').trim() ? esc(v) : '<span class="v">—</span>');
+  // Ancho de cada columna proporcional a lo que trae (en celular la tabla es de ancho fijo y cabe completa, sin scroll)
+  function anchos(t) {
+    const pesos = t.columnas.map((c, k) => Math.max(c.length * .8, Math.min(26, ...t.filas.map(f => String(f[k] || '').length)), 4));
+    const suma = pesos.reduce((a, b) => a + b, 0);
+    return pesos.map(p => '<col style="width:' + (p / suma * 100).toFixed(1) + '%">').join('');
+  }
   function tablaHtml(m) {
     const t = m.tabla;
     return '<div class="ag-tbl"><div class="ag-tbl-head"><b>' + esc(t.titulo) + '</b><span><button type="button" data-tabla-copiar="' + m.id + '">Copiar</button><button type="button" data-tabla-csv="' + m.id + '">Descargar CSV</button></span></div>' +
-      '<div class="ag-tbl-wrap"><table><thead><tr><th class="n">#</th>' + t.columnas.map(c => '<th>' + esc(c) + '</th>').join('') + '</tr></thead><tbody>' +
+      '<div class="ag-tbl-wrap"><table><colgroup><col class="n">' + anchos(t) + '</colgroup><thead><tr><th class="n">#</th>' + t.columnas.map(c => '<th>' + esc(c) + '</th>').join('') + '</tr></thead><tbody>' +
       t.filas.map((f, i) => '<tr><td class="n">' + (i + 1) + '</td>' + t.columnas.map((_, k) => '<td>' + celda(f[k]) + '</td>').join('') + '</tr>').join('') + '</tbody></table></div></div>';
   }
   function tablaDe(id) { const m = st.msgs.find(x => String(x.id) === String(id)); return m && m.tabla; }
