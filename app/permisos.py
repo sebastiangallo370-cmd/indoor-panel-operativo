@@ -23,6 +23,7 @@ MODULOS = {
     'inventario': ('Inventarios', ('ver', 'editar', 'exportar')),
     'cartera': ('Cartera', ('ver', 'editar', 'exportar')),
     'produccion': ('Producción', ('exportar',)),
+    'agentes': ('Agentes de edición', ('ver', 'editar')),
 }
 ACCIONES = {'ver': 'Ver', 'editar': 'Editar', 'exportar': 'Exportar a Excel'}
 
@@ -44,6 +45,8 @@ def _defaults() -> dict:
     matriz['edicion']['cartera'] = {'ver': False, 'editar': False, 'exportar': False}
     matriz['operario']['cartera'] = {'ver': False, 'editar': False, 'exportar': False}
     matriz['operario']['produccion']['exportar'] = False
+    matriz['operario']['agentes'] = {'ver': False, 'editar': False}
+    matriz['comercial']['agentes'] = {'ver': False, 'editar': False}
     return matriz
 
 

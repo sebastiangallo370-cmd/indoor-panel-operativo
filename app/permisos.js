@@ -33,7 +33,7 @@
   function apply() {
     if (!mine) return;
     // Menú: oculta lo que el perfil no puede ver.
-    [['inventario', 'inventario'], ['cartera', 'cartera']].forEach(([kind, mod]) => {
+    [['inventario', 'inventario'], ['cartera', 'cartera'], ['agentes', 'agentes']].forEach(([kind, mod]) => {
       document.querySelectorAll('.tab[data-kind="' + kind + '"]').forEach(tab => { tab.style.display = can(mod, 'ver') ? '' : 'none'; });
     });
     // Botones de Excel.

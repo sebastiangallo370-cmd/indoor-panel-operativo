@@ -1,0 +1,170 @@
+/* AGENTES: canal de comunicación con TAVO y los agentes de edición (los que corren en el PC con Illustrator).
+   El panel solo guarda la conversación; el PC la recoge, ejecuta a los agentes y devuelve la respuesta. */
+(() => {
+  'use strict';
+  const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const COLORES = { TAVO: '#7da4ff', LEO: '#b794ff', JACK: '#ffcf5c', OLVER: '#6fe39a', OLIVER: '#ff8fd0', TERRY: '#6ee0e0' };
+  const ROLES = { TAVO: 'Coordina', LEO: 'Lee el listado', JACK: 'Muestra PDF', OLVER: 'Exporta mesas', OLIVER: 'Valida tallas', TERRY: 'Google Sheets' };
+  const ATAJOS = [['Ver listado', 'Qué dice el listado de la orden '], ['Exportar mesas', 'Expórtame las mesas de trabajo de la orden '], ['Crear muestra', 'Crea la muestra de la orden '],
+    ['Pedido completo', 'Pedido completo de la orden '], ['Jugadores', 'jugadores'], ['Reiniciar', 'cancelar']];
+  const st = { msgs: [], ultimo: 0, esperando: false, trabajo: null, estado: { conectado: false }, cargando: false, enviando: false };
+  let panel, tab, timer = 0;
+
+  async function api(url, options) {
+    const response = await fetch(url, { cache: 'no-store', credentials: 'same-origin', ...options, headers: { 'Content-Type': 'application/json', ...((options || {}).headers || {}) } });
+    let data = null;
+    try { data = await response.json(); } catch (e) { /* sin cuerpo JSON */ }
+    if (!response.ok) throw new Error((data && data.detail) || 'No fue posible completar la acción');
+    return data;
+  }
+  const hora = iso => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }); };
+  const tag = a => '<span class="ag-tag" style="--c:' + (COLORES[a] || '#c4cfbf') + '">' + esc(a) + '</span>';
+
+  const css = document.createElement('style');
+  css.textContent = `
+  .tab[data-kind='agentes'] .nav-icon{display:none!important}
+  body:has(.panel[data-panel='agentes'].active) main{width:100%!important;max-width:none!important;margin-left:0!important;margin-right:0!important;padding-left:clamp(18px,4vw,76px)!important;padding-right:clamp(18px,4vw,76px)!important}
+  .ag{display:grid;gap:16px;max-width:1100px;margin:auto}.ag button{width:auto}
+  .ag-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;padding:22px;border:1px solid #2d3b4a;border-radius:18px;background:linear-gradient(135deg,#131c27,#11150f)}
+  .ag-head span.k{color:#7da4ff;font:900 10px Arial;letter-spacing:.12em}.ag-head h2{margin:4px 0;font-size:1.6rem}.ag-head p{margin:0;color:#aebba7;font-size:.9rem}
+  .ag-btn{min-height:40px;padding:0 16px;border:0;border-radius:10px;background:#d0f44c;color:#142017;font:800 13px Arial;cursor:pointer}.ag-btn.sec{background:transparent;border:1px solid #60754d;color:#e3eadc}.ag-btn:disabled{opacity:.6;cursor:progress}
+  .ag-state{display:flex;gap:8px;flex-wrap:wrap}.ag-pill{display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border:1px solid #34432f;border-radius:999px;background:#0c110d;color:#c4cfbf;font:700 12px Arial}
+  .ag-pill i{width:8px;height:8px;border-radius:50%;background:var(--c,#8f9b8a)}.ag-pill.ok{--c:#8bd450}.ag-pill.mal{--c:#ff6b5c}.ag-pill.sim{--c:#ffc95c}
+  .ag-warn{padding:14px 16px;border:1px solid rgba(255,106,90,.5);border-radius:14px;background:rgba(255,106,90,.08);color:#ffc7bf;font-size:.9rem;line-height:1.45}
+  .ag-chat{display:grid;gap:14px;padding:18px;border:1px solid #2d3b2f;border-radius:18px;background:#0f1410}
+  .ag-thread{display:grid;gap:12px;align-content:start;min-height:260px;max-height:58vh;overflow:auto;padding-right:6px}
+  .ag-empty{padding:34px 10px;text-align:center;color:#8f9b8a}.ag-empty h3{margin:0 0 8px;color:#e3eadc}
+  .ag-msg{display:grid;gap:8px;max-width:86%;padding:13px 15px;border:1px solid #34432f;border-radius:16px;background:linear-gradient(150deg,#1a221a,#10140f);font-size:.92rem;line-height:1.5}
+  .ag-msg.yo{justify-self:end;border-color:rgba(208,244,76,.4);background:linear-gradient(150deg,#26331a,#141b10)}
+  .ag-msg.bot{justify-self:start;border-left:4px solid #7da4ff}.ag-msg.bot.err{border-left-color:#ff6b5c}
+  .ag-who{display:flex;gap:6px;flex-wrap:wrap;align-items:center}.ag-tag{padding:2px 9px;border-radius:999px;font:900 10px Arial;letter-spacing:.06em;color:var(--c);background:color-mix(in srgb,var(--c) 15%,transparent);border:1px solid color-mix(in srgb,var(--c) 45%,transparent)}
+  .ag-txt{white-space:pre-wrap;overflow-wrap:anywhere;margin:0;color:#eef4e9}.ag-time{color:#8f9b8a;font-size:.7rem}
+  .ag-work{display:grid;gap:10px;justify-self:start;max-width:86%;padding:14px 16px;border:1px solid rgba(125,164,255,.45);border-radius:16px;background:rgba(125,164,255,.07)}
+  .ag-work b{font-size:.9rem}.ag-work small{color:#aebba7;font-size:.8rem}.ag-flow{display:flex;gap:6px;flex-wrap:wrap}
+  .ag-dots{display:inline-flex;gap:4px;margin-left:6px}.ag-dots i{width:6px;height:6px;border-radius:50%;background:#7da4ff;animation:agp 1s infinite}.ag-dots i:nth-child(2){animation-delay:.15s}.ag-dots i:nth-child(3){animation-delay:.3s}@keyframes agp{0%,80%,100%{opacity:.25}40%{opacity:1}}
+  .ag-chips{display:flex;gap:8px;flex-wrap:wrap}.ag-chips button{min-height:0;padding:8px 14px;border:1px solid #60754d;border-radius:999px;background:transparent;color:#d0f44c;font:800 12px Arial;cursor:pointer}.ag-chips button.reply{background:#d0f44c;color:#142017;border-color:#d0f44c}.ag-chips button:disabled{opacity:.5}
+  .ag-form{display:flex;gap:10px;align-items:flex-end}.ag-form textarea{flex:1;min-height:44px;max-height:140px;box-sizing:border-box;padding:11px 14px;border:1px solid #3d4f3d;border-radius:12px;background:#0c110d;color:#f1f7ed;font:600 14px Arial;resize:none}.ag-form textarea:focus{outline:none;border-color:#d0f44c}
+  .ag-form .ag-btn{min-height:44px}
+  .ag-team{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}.ag-card{display:grid;gap:3px;padding:12px;border:1px solid #34432f;border-top:3px solid var(--c);border-radius:12px;background:#10150f}.ag-card b{color:var(--c);font-size:.9rem}.ag-card small{color:#aebba7;font-size:.74rem}
+  dialog.ag-dlg{width:min(560px,94vw);padding:0;border:1px solid #3d4f3d;border-radius:18px;background:#111611;color:#eef4e9}dialog.ag-dlg::backdrop{background:rgba(0,0,0,.65)}
+  .ag-dlg .b{display:grid;gap:12px;padding:22px}.ag-dlg h2{margin:0}.ag-dlg code{display:block;padding:10px 12px;border-radius:10px;background:#0c110d;border:1px solid #34432f;color:#d0f44c;font:600 12px Consolas,monospace;overflow-wrap:anywhere}
+  .ag-dlg ol{margin:0;padding-left:20px;color:#c4cfbf;font-size:.88rem;line-height:1.6}.ag-dlg .row{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+  html.theme-light .ag-msg,html.theme-light .ag-chat,html.theme-light dialog.ag-dlg{background:#fff;color:#18210f;border-color:#cdd8c6}html.theme-light .ag-txt{color:#18210f}
+  @media(max-width:700px){.ag-msg,.ag-work{max-width:96%}.ag-form{flex-direction:column;align-items:stretch}.ag-thread{max-height:50vh}.ag-btn{min-height:46px}dialog.ag-dlg{width:100vw;max-width:100vw;height:100dvh;max-height:100dvh;border-radius:0}}
+  `;
+  document.head.appendChild(css);
+
+  function render() {
+    if (!panel) return;
+    const e = st.estado, ultimo = st.msgs[st.msgs.length - 1];
+    const botones = ultimo && ultimo.rol === 'bot' && !st.esperando ? (ultimo.botones || []) : [];
+    const pill = (clase, texto) => '<span class="ag-pill ' + clase + '"><i></i>' + esc(texto) + '</span>';
+    const modo = v => !v ? '' : v === 'real' ? 'ok' : /^error/.test(v) ? 'mal' : 'sim';
+    const trabajo = st.trabajo;
+    const hilo = st.msgs.length ? st.msgs.map(m => m.rol === 'yo'
+      ? '<div class="ag-msg yo"><p class="ag-txt">' + esc(m.texto) + '</p><span class="ag-time">' + hora(m.creado) + '</span></div>'
+      : '<div class="ag-msg bot' + (m.estado === 'ERROR' ? ' err' : '') + '"><div class="ag-who">' + (m.agentes && m.agentes.length ? m.agentes : ['TAVO']).map(tag).join('') + '</div><p class="ag-txt">' + esc(m.texto) + '</p><span class="ag-time">' + hora(m.creado) + '</span></div>').join('')
+      : '<div class="ag-empty"><h3>¿Qué necesitas hoy?</h3><p>Por ejemplo: «expórtame las mesas de trabajo de la orden CO7890». TAVO decide qué agente actúa.</p></div>';
+    const trabajando = st.esperando ? '<div class="ag-work"><div class="ag-who">' + ((trabajo && trabajo.agentes) || ['TAVO']).map(a => tag(a)).join('') + '<span class="ag-dots"><i></i><i></i><i></i></span></div><b>' +
+      esc(trabajo && trabajo.msg ? trabajo.agente + ': ' + trabajo.msg : e.conectado ? 'TAVO está trabajando…' : 'Esperando al PC de los agentes…') + '</b></div>' : '';
+    panel.innerHTML = '<div class="ag"><header class="ag-head"><div><span class="k">EDICIÓN · INTELIGENCIA</span><h2>AGENTES</h2><p>Escríbele a TAVO y él decide qué agente actúa. Todo se ejecuta en el PC con Illustrator.</p></div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="ag-btn sec" data-nueva>Nueva conversación</button><button type="button" class="ag-btn sec" data-conectar hidden>Conectar PC</button></div></header>' +
+      '<div class="ag-state">' + pill(e.conectado ? 'ok' : 'mal', e.conectado ? 'PC conectado' : 'PC desconectado') + (e.conectado && e.illustrator ? pill(modo(e.illustrator), 'Illustrator: ' + e.illustrator) : '') + (e.conectado && e.sheets ? pill(modo(e.sheets), 'Sheets: ' + e.sheets) : '') + '</div>' +
+      (!e.conectado ? '<div class="ag-warn">El PC de los agentes no está conectado. Tu mensaje queda en cola y se atiende cuando abran <b>iniciar.bat</b> en el PC con Illustrator.</div>' : '') +
+      '<section class="ag-chat"><div class="ag-thread" data-hilo>' + hilo + trabajando + '</div>' +
+      (botones.length ? '<div class="ag-chips">' + botones.map(b => '<button type="button" class="reply" data-send="' + esc(b) + '">' + esc(b) + '</button>').join('') + '</div>' : '') +
+      '<div class="ag-chips">' + ATAJOS.map(([l, p]) => '<button type="button" data-atajo="' + esc(p) + '"' + (st.esperando ? ' disabled' : '') + '>' + esc(l) + '</button>').join('') + '</div>' +
+      '<form class="ag-form" data-form><textarea rows="1" placeholder="Escribe a TAVO…" maxlength="2000"' + (st.esperando ? ' disabled' : '') + '></textarea><button type="submit" class="ag-btn"' + (st.esperando || st.enviando ? ' disabled' : '') + '>Enviar</button></form></section>' +
+      '<div class="ag-team">' + Object.keys(ROLES).map(a => '<div class="ag-card" style="--c:' + COLORES[a] + '"><b>' + a + '</b><small>' + ROLES[a] + '</small></div>').join('') + '</div></div>';
+    const hiloEl = panel.querySelector('[data-hilo]');
+    hiloEl.scrollTop = hiloEl.scrollHeight;
+    if (st.admin) panel.querySelector('[data-conectar]').hidden = false;
+  }
+
+  async function enviar(texto) {
+    texto = String(texto || '').trim();
+    if (!texto || st.esperando || st.enviando) return;
+    st.enviando = true;
+    try { await api('/api/agentes/mensaje', { method: 'POST', body: JSON.stringify({ mensaje: texto }) }); st.esperando = true; await cargar(true); }
+    catch (e) { alert(e.message); }
+    st.enviando = false; render(); programar();
+  }
+
+  async function cargar(forzar) {
+    if (st.cargando && !forzar) return;
+    st.cargando = true;
+    try {
+      const [datos, estado] = await Promise.all([api('/api/agentes/mensajes?desde=' + st.ultimo), api('/api/agentes/estado')]);
+      const nuevos = datos.mensajes || [];
+      const cambio = nuevos.length || datos.esperando !== st.esperando || JSON.stringify(datos.trabajo) !== JSON.stringify(st.trabajo) || estado.conectado !== st.estado.conectado || estado.illustrator !== st.estado.illustrator;
+      if (nuevos.length) { st.msgs = st.msgs.concat(nuevos); st.ultimo = Math.max(...nuevos.map(m => m.id), st.ultimo); }
+      st.esperando = datos.esperando; st.trabajo = datos.trabajo; st.estado = estado;
+      if (cambio) { const caja = panel.querySelector('textarea'), borrador = caja ? caja.value : ''; render(); const nueva = panel.querySelector('textarea'); if (nueva && borrador) nueva.value = borrador; }
+    } catch (e) { /* sin conexión: se reintenta */ }
+    st.cargando = false;
+  }
+  function programar() {
+    clearTimeout(timer);
+    if (!panel || !panel.classList.contains('active')) return;
+    timer = setTimeout(async () => { if (!document.hidden) await cargar(false); programar(); }, st.esperando ? 1500 : 4000);
+  }
+
+  async function conectar() {
+    let info;
+    try { info = await api('/api/agentes/conexion'); } catch (e) { alert(e.message); return; }
+    const dlg = document.createElement('dialog');
+    dlg.className = 'ag-dlg';
+    const pintar = i => {
+      dlg.innerHTML = '<div class="b"><h2>Conectar el PC de los agentes</h2><p style="margin:0;color:#aebba7;font-size:.88rem">Este código lo usa el PC con Illustrator para entrar al panel. Trátalo como una contraseña: no lo compartas ni lo pegues en chats.</p>' +
+        '<b style="font-size:.8rem">Dirección del panel</b><code>' + esc(i.url) + '</code><b style="font-size:.8rem">Código de conexión</b><code data-token>' + esc(i.token) + '</code>' +
+        '<ol><li>En el PC con Illustrator abre la carpeta <b>agentes_uniformes</b>.</li><li>Ejecuta <b>conectar_panel.bat</b> y pega la dirección y el código.</li><li>Abre <b>iniciar.bat</b>: aquí debe aparecer «PC conectado».</li></ol>' +
+        '<div class="row"><button type="button" class="ag-btn sec" data-copiar>Copiar código</button><button type="button" class="ag-btn sec" data-regenerar>Generar uno nuevo</button><button type="button" class="ag-btn" data-cerrar>Cerrar</button></div></div>';
+      dlg.querySelector('[data-cerrar]').onclick = () => dlg.close();
+      dlg.querySelector('[data-copiar]').onclick = () => { try { navigator.clipboard.writeText(i.token); } catch (e) { /* sin portapapeles */ } };
+      dlg.querySelector('[data-regenerar]').onclick = async () => { if (!confirm('El PC dejará de conectarse hasta que le pongas el código nuevo. ¿Generar uno nuevo?')) return; try { pintar(await api('/api/agentes/conexion/regenerar', { method: 'POST', body: '{}' })); } catch (e) { alert(e.message); } };
+    };
+    pintar(info);
+    document.body.appendChild(dlg);
+    dlg.addEventListener('close', () => dlg.remove());
+    dlg.showModal();
+  }
+
+  function build() {
+    const anchor = document.querySelector('nav.tabs .tab[data-kind="produccion"]')?.closest('.nav-group') || document.querySelector('nav.tabs .nav-group:last-child');
+    const main = document.querySelector('main');
+    if (!anchor || !main) return false;
+    if (document.querySelector('.tab[data-kind="agentes"]')) return true;
+    panel = document.createElement('section'); panel.className = 'panel'; panel.dataset.panel = 'agentes';
+    panel.innerHTML = '<div class="ag"><div class="ag-empty">Cargando agentes…</div></div>';
+    main.appendChild(panel);
+    const group = document.createElement('div'); group.className = 'nav-group';
+    group.innerHTML = '<button class="tab" data-kind="agentes" type="button"><span class="nav-icon">AG</span><strong>AGENTES</strong></button>';
+    anchor.insertAdjacentElement('afterend', group);
+    tab = group.querySelector('.tab');
+    tab.addEventListener('click', async () => {
+      document.querySelectorAll('.tab').forEach(x => x.classList.toggle('active', x === tab));
+      document.querySelectorAll('.panel').forEach(x => x.classList.toggle('active', x === panel));
+      document.body.classList.remove('inicio-mode', 'inventory-mode', 'production-mode', 'schedule-mode', 'operarios-mode', 'cartera-mode');
+      if (st.admin === undefined) { try { st.admin = !!(await api('/api/permisos/mi')).admin; } catch (e) { st.admin = false; } }
+      await cargar(true); render(); programar();
+    });
+    panel.addEventListener('click', async e => {
+      const reply = e.target.closest('[data-send]'), atajo = e.target.closest('[data-atajo]');
+      if (reply) enviar(reply.dataset.send);
+      else if (atajo) {
+        const texto = atajo.dataset.atajo;
+        if (texto.endsWith(' ')) { const caja = panel.querySelector('textarea'); caja.value = texto; caja.focus(); caja.setSelectionRange(texto.length, texto.length); } else enviar(texto);
+      } else if (e.target.closest('[data-nueva]')) {
+        if (st.msgs.length && !confirm('¿Borrar esta conversación? Los agentes empiezan de cero.')) return;
+        try { await api('/api/agentes/limpiar', { method: 'POST', body: '{}' }); } catch (err) { alert(err.message); return; }
+        st.msgs = []; st.ultimo = 0; st.trabajo = null; await cargar(true); render();
+      } else if (e.target.closest('[data-conectar]')) conectar();
+    });
+    panel.addEventListener('submit', e => { e.preventDefault(); const caja = panel.querySelector('textarea'); const v = caja.value; caja.value = ''; enviar(v); });
+    panel.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && e.target.matches('textarea')) { e.preventDefault(); panel.querySelector('form').requestSubmit(); } });
+    panel.addEventListener('input', e => { if (e.target.matches('textarea')) { e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 140) + 'px'; } });
+    return true;
+  }
+  let tries = 0;
+  const wait = setInterval(() => { if (build() || ++tries > 60) clearInterval(wait); }, 250);
+})();
