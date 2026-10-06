@@ -145,7 +145,7 @@
   function anchos(t) {
     // ancho de cada columna en píxeles según su palabra más larga (así no se parten nombres ni encabezados); los textos largos se reparten en varias líneas
     const mayor = txt => Math.max(0, ...String(txt || '').split(/\s+/).map(w => w.length));
-    const px = t.columnas.map((c, k) => Math.max(mayor(cabecera(c)) * 5.8, ...t.filas.map(f => mayor(vista(c, f[k])) * 7.6), 18) + 8);
+    const px = t.columnas.map((c, k) => Math.max(mayor(cabecera(c)) * 5.8, ...t.filas.map(f => mayor(vista(c, f[k])) * 8.5), 18) + 8);
     const suma = px.reduce((x, y) => x + y, 0);
     return px.map(v => '<col style="width:' + (v / suma * 100).toFixed(1) + '%">').join('');
   }
