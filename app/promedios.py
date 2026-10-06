@@ -212,6 +212,13 @@ def calcular_hoja(hoja: str, lineas: list[dict], datos: dict | None = None) -> d
         with _lock:
             datos = _leer()
     maestros = {m['ref']: m for m in datos['maestros']}
+    # La hoja puede traer el código de la plantilla (A50CA00M = tela A50 + plantilla CA00M del maestro CA00): también se reconoce por ahí
+    plantillas = {}
+    for m in datos['maestros']:
+        for campo in ('p_masculino', 'p_femenino', 'p_femenino_short', 'p_nino', 'p_nina', 'p_nina_short'):
+            codigo = str(m.get(campo) or '').strip().upper()
+            if codigo:
+                plantillas.setdefault(codigo, m)
     partes = partes_de_hoja(hoja)
     cuenta: dict[tuple, int] = {}
     for linea in lineas:
@@ -221,7 +228,7 @@ def calcular_hoja(hoja: str, lineas: list[dict], datos: dict | None = None) -> d
     for (grupo, talla), cantidad in sorted(cuenta.items()):
         consumo = 0.0
         for parte in partes:
-            maestro = maestros.get(parte)
+            maestro = maestros.get(parte) or plantillas.get(parte)
             if not maestro:
                 faltan.add(f'no existe el maestro {parte} en Promedios maestros')
                 continue
