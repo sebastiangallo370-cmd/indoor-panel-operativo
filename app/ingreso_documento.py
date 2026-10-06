@@ -347,7 +347,7 @@ def parse_packing_list_text(texto: str) -> dict | None:
     articulos: list[dict] = []
     actual = None
     for linea in texto.splitlines():
-        limpia = linea.strip()
+        limpia = re.sub(r'(?<=\d),(?=\d{3}\b)', '', linea.strip())   # 3,046.86 -> 3046.86
         if not limpia:
             continue
         match = _EMPAQUE_ARTICULO.match(limpia)
@@ -355,18 +355,27 @@ def parse_packing_list_text(texto: str) -> dict | None:
             actual = {'referencia': match.group(1), 'descripcion': _limpiar_articulo(match.group(2)), 'color': '', 'rollos': []}
             articulos.append(actual)
             continue
-        if actual is None:
+        if re.match(r'^(subt|total|resumen)', limpia, re.I):
+            if actual is not None and not actual['color']:
+                sub = re.match(r'^subt\w*\s*\(([^)]+)\)\s*(\w+)?', limpia, re.I)
+                if sub:
+                    actual['color'] = f"({sub.group(1).strip()})" + (f" {sub.group(2)}" if sub.group(2) else '')
             continue
+        if actual is None:
+            # página de continuación («Pag. 2 de 2»): las filas llegan sin el encabezado del artículo; se toma el nombre del Subtotal
+            if len(_EMPAQUE_DECIMALES.findall(limpia)) >= 2 and re.search(r'PEN-|\d{6,}', limpia):
+                actual = {'referencia': '', 'descripcion': 'Tela de la lista de empaque', 'color': '', 'rollos': []}
+                articulos.append(actual)
+            else:
+                continue
         if not actual['color']:
             color = re.match(r'^\(([^)]+)\)\s*(\w+)?', limpia)
             if color:
                 actual['color'] = f"({color.group(1).strip()})" + (f" {color.group(2)}" if color.group(2) else '')
-        if re.match(r'^(subt|total)', limpia, re.I):
-            continue
         decimales = _EMPAQUE_DECIMALES.findall(limpia)
         identificador = _EMPAQUE_ID.search(limpia)
-        if len(decimales) >= 2 and identificador:
-            actual['rollos'].append({'mts': float(decimales[-2]), 'rollo_no': identificador.group(0)[:7]})
+        if len(decimales) >= 2 and (identificador or re.search(r'PEN-', limpia)):   # el ID puede salir ilegible del OCR: el rollo igual cuenta
+            actual['rollos'].append({'mts': float(decimales[-2]), 'rollo_no': identificador.group(0)[:7] if identificador else ''})
     lineas = []
     for a in articulos:
         if not a['rollos']:
@@ -376,7 +385,12 @@ def parse_packing_list_text(texto: str) -> dict | None:
     if not lineas:
         return None
     fecha = re.search(r'Fecha:?\s*(\d{4}/\d{2}/\d{2})', texto)
-    total = re.findall(r'^\s*Total\s+\d{5,7}\s*-.*?(\d+\.\d{2})\s+\d+\.\d{2}\s*$', texto, re.M | re.I)
+    normal = re.sub(r'(?<=\d),(?=\d{3}\b)', '', texto)
+    total = re.findall(r'^\s*Total\s+\d{5,7}\s*-.*?(\d+\.\d{2})\s+\d+\.\d{2}\s*$', normal, re.M | re.I)
+    suma = round(sum(r['mts'] for l in lineas for r in l['rollos']), 2)
+    if not total:   # sin línea «Total»: el subtotal solo sirve de control si cuadra con esta página (en «Pag. 2 de 2» es acumulado)
+        sub = re.findall(r'^\s*Subt\w*.*?(\d+\.\d{2})\s+\d+\.\d{2}\s*$', normal, re.M | re.I)
+        total = [sub[0]] if sub and abs(float(sub[0]) - suma) < 0.5 else []
     return {'proveedor': 'TEJIDOS DE PUNTO LINDATEXTIL S.A.S.', 'fecha': fecha.group(1) if fecha else '',
             'total_documento': round(sum(float(t) for t in total), 2) if total else None, 'lineas': lineas, 'tipo': 'lista_empaque'}
 
@@ -408,9 +422,8 @@ def parse_packing_list(data: bytes, filename: str) -> dict | None:
 # un lector (función) y una fila aquí; la pantalla toma la lista de /api/inventarios/documento/formatos.
 FORMATOS = [
     {'id': 'auto', 'nombre': 'Detectar automáticamente', 'ayuda': 'Prueba los formatos conocidos y usa el que coincida.'},
-    {'id': 'linda_empaque', 'nombre': 'Lindatextil · Lista de empaque', 'ayuda': 'Escaneo o foto de la lista de empaque: un rollo por fila (ID y metros de la columna Cant.), contrastado con el total de la tela.'},
-    {'id': 'linda_factura', 'nombre': 'Lindatextil · Factura electrónica', 'ayuda': 'PDF con texto: una línea por tela con sus metros. La factura no trae los rollos: entra como 1 rollo con el total y lo repartes.'},
-    {'id': 'eliot', 'nombre': 'Manufacturas Eliot · Nota de entrega', 'ayuda': 'Escaneo, foto o PDF de la nota: lee la columna CANTIDAD (un rollo por fila) y la contrasta con el total.'},
+    {'id': 'lindatextil', 'nombre': 'Lindatextil', 'ayuda': 'Lista de empaque (escaneo o foto, un rollo por fila con su total) o factura electrónica en PDF (entra 1 rollo con el total y lo repartes).'},
+    {'id': 'eliot', 'nombre': 'Manufacturas Eliot', 'ayuda': 'Nota de entrega (escaneo, foto o PDF): lee la columna CANTIDAD, un rollo por fila, y la contrasta con el total.'},
     {'id': 'lafayette', 'nombre': 'Lafayette · formato por configurar', 'pendiente': True, 'ayuda': 'Todavía no tengo el formato de este proveedor. Si el PDF trae texto intento leerlo; si no, usa «registrar a mano» y envíame un PDF de ejemplo para configurarlo.'},
     {'id': 'saraxy', 'nombre': 'Saraxy · formato por configurar', 'pendiente': True, 'ayuda': 'Todavía no tengo el formato de este proveedor. Si el PDF trae texto intento leerlo; si no, usa «registrar a mano» y envíame un PDF de ejemplo para configurarlo.'},
     {'id': 'puntoflex', 'nombre': 'Puntoflex · formato por configurar', 'pendiente': True, 'ayuda': 'Todavía no tengo el formato de este proveedor. Si el PDF trae texto intento leerlo; si no, usa «registrar a mano» y envíame un PDF de ejemplo para configurarlo.'},
@@ -426,20 +439,25 @@ def parse_document(data: bytes, filename: str, formato: str = 'auto') -> dict:
     if formato == 'manual':
         return {'proveedor': '', 'fecha': '', 'total_documento': None, 'tipo': 'manual',
                 'lineas': [{'descripcion': 'Tela a registrar', 'referencia': '', 'rollos': []}]}
-    if (formato in ('auto', 'linda_factura') or formato in FORMATOS_PENDIENTES) and data[:4] == b'%PDF':
+    if (formato in ('auto', 'lindatextil') or formato in FORMATOS_PENDIENTES) and data[:4] == b'%PDF':
         invoice = parse_invoice_text(data)
         if invoice:
             return invoice
     if formato in FORMATOS_PENDIENTES:
         raise ValueError(f'Todavía no tengo configurado el formato de {FORMATOS_PENDIENTES[formato]}. Envíame un PDF de ejemplo de ese proveedor para configurarlo; mientras tanto elige «Otro proveedor · registrar a mano».')
-    if formato == 'linda_factura':
-        raise ValueError('No encontré líneas de factura en este PDF. Revisa que sea la factura electrónica con texto (no un escaneo) o elige otro formato.')
-    if formato in ('auto', 'linda_empaque'):
+    if formato in ('auto', 'lindatextil'):
         empaque = parse_packing_list(data, filename)
         if empaque:
             return empaque
-        if formato == 'linda_empaque':
-            raise ValueError('No reconocí una lista de empaque de Lindatextil en este documento. Revisa que la foto o el escaneo se vea completo o elige otro formato.')
+        if formato == 'lindatextil':
+            raise ValueError('No reconocí un documento de Lindatextil (lista de empaque o factura electrónica). Revisa que la foto o el escaneo se vea completo y derecho, o elige otro formato.')
+    try:
+        return parse_eliot(data, filename)
+    except Exception as exc:
+        raise ValueError('No pude leer este documento como nota de entrega de Manufacturas Eliot. Revisa que el proveedor elegido sea el correcto.') from exc
+
+
+def parse_eliot(data: bytes, filename: str) -> dict:
     pages = [parse_page(image) for image in load_images(data, filename)]
     merged = {'proveedor': '', 'fecha': '', 'total_documento': None, 'filas': []}
     for page in pages:
