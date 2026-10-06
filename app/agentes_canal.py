@@ -63,6 +63,7 @@ def _leer() -> dict:
     datos.setdefault('cont_ev', 0)
     datos.setdefault('archivos', {})   # id -> {sesion, nombre, ext, size, creado}
     datos.setdefault('ordenes', {})    # sesion -> orden activa (CO6133): todo lo que pide esa persona se hace con ella
+    datos.setdefault('auto', {'activo': True, 'vistos': None})   # inicio automático: tarjetas de EDICIÓN que pasan a «en proceso»
     return datos
 
 
@@ -171,7 +172,7 @@ def estado(request: Request):
         datos = _leer()
     latido = datos['latido']
     return {'conectado': _conectado(datos), 'illustrator': latido.get('illustrator', ''), 'sheets': latido.get('sheets', ''),
-            'visto': latido.get('iso', '')}
+            'visto': latido.get('iso', ''), 'auto': bool(datos['auto'].get('activo', True))}
 
 
 @router.get('/mensajes')
@@ -243,6 +244,23 @@ def detener(request: Request):
         _nuevo(datos, usuario, 'yo', '__detener__', t=_ahora(), tomado=False, respondido=False, oculto=True)
         _guardar(datos)
     return {'ok': True}
+
+
+@router.get('/auto')
+def auto_estado():
+    with _lock:
+        a = _leer()['auto']
+    return {'activo': bool(a.get('activo', True))}
+
+
+@router.post('/auto')
+def auto_cambiar(payload: dict):
+    """Enciende o apaga el inicio automático. Apagado, las tarjetas que pasen a EDICIÓN en proceso se anotan como vistas y no arrancan nada."""
+    with _lock:
+        datos = _leer()
+        datos['auto']['activo'] = bool(payload.get('activo'))
+        _guardar(datos)
+    return {'activo': datos['auto']['activo']}
 
 
 @router.post('/limpiar')
@@ -429,3 +447,43 @@ def respuesta(request: Request, payload: dict):
         datos['trabajo'].pop(origen['sesion'], None)
         _guardar(datos)
     return {'ok': True}
+
+
+# ------------------------------------------------------------------ inicio automático (EDICIÓN en proceso)
+def auto_procesar(candidatos: list[dict]) -> list[str]:
+    """candidatos: tarjetas cuya columna EDICIÓN está en proceso: [{'clave', 'orden', 'ref', 'usuario'}].
+    La primera vez solo se anotan (para no arrancar de golpe lo que ya estaba en proceso). Después, cada tarjeta nueva inicia el
+    «pedido completo» en el chat de quien la puso en proceso (o de quien usó los agentes por última vez). Si esa persona está esperando
+    una respuesta o el PC no está conectado, se reintenta en la siguiente vuelta. Devuelve las órdenes lanzadas."""
+    lanzadas = []
+    with _lock:
+        datos = _leer()
+        auto = datos['auto']
+        if auto.get('vistos') is None:
+            auto['vistos'] = [c['clave'] for c in candidatos]
+            _guardar(datos)
+            return lanzadas
+        vistos = set(auto['vistos'])
+        cambio = False
+        for c in candidatos:
+            if c['clave'] in vistos:
+                continue
+            if not auto.get('activo', True):
+                vistos.add(c['clave']); cambio = True   # apagado: se anota como vista, no arranca
+                continue
+            sesion = c.get('usuario') or next((m['sesion'] for m in reversed(datos['mensajes']) if m['rol'] == 'yo' and not m.get('auto')), '')
+            if not sesion or not _conectado(datos):
+                continue   # sin a quién avisarle o sin PC: se reintenta luego
+            if any(m['sesion'] == sesion and m['rol'] == 'yo' and not m.get('respondido') and not m.get('oculto') for m in datos['mensajes']):
+                continue   # esa persona ya tiene un pedido en curso: se espera
+            orden = c['orden']
+            datos['ordenes'][sesion] = orden
+            _nuevo(datos, sesion, 'yo', 'cancelar', t=_ahora(), tomado=False, respondido=False, oculto=True)   # sesión limpia para la orden nueva
+            _nuevo(datos, sesion, 'yo', f"Pedido completo de la orden {orden} (inicio automático: EDICIÓN en proceso)", t=_ahora(),
+                   tomado=False, respondido=False, auto=True)
+            vistos.add(c['clave']); cambio = True
+            lanzadas.append(orden)
+        if cambio:
+            auto['vistos'] = sorted(vistos)[-3000:]
+            _guardar(datos)
+    return lanzadas

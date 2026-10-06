@@ -374,7 +374,8 @@
     const botones = ultimo && ultimo.rol === 'bot' && !st.esperando ? (ultimo.botones || []) : [];
     const pill = (clase, texto) => '<span class="ag-pill ' + clase + '"><i></i>' + esc(texto) + '</span>';
     const modo = v => !v ? '' : v === 'real' ? 'ok' : /^error/.test(v) ? 'mal' : 'sim';
-    panel.querySelector('[data-estado]').innerHTML = pill(e.conectado ? 'ok' : 'mal', e.conectado ? 'PC conectado' : 'PC desconectado') + (e.conectado && e.illustrator ? pill(modo(e.illustrator), 'Illustrator: ' + e.illustrator) : '') + (e.conectado && e.sheets ? pill(modo(e.sheets), 'Sheets: ' + e.sheets) : '');
+    panel.querySelector('[data-estado]').innerHTML = pill(e.conectado ? 'ok' : 'mal', e.conectado ? 'PC conectado' : 'PC desconectado') + (e.conectado && e.illustrator ? pill(modo(e.illustrator), 'Illustrator: ' + e.illustrator) : '') + (e.conectado && e.sheets ? pill(modo(e.sheets), 'Sheets: ' + e.sheets) : '') +
+      '<button type="button" class="ag-pill ' + (e.auto ? 'ok' : 'sim') + '" data-auto title="Cuando una tarjeta de EDICIÓN pasa a «en proceso», los agentes arrancan solos con esa orden. Toca para ' + (e.auto ? 'apagar' : 'encender') + '" style="cursor:pointer"><i></i>Inicio automático: ' + (e.auto ? 'ON' : 'OFF') + '</button>';
     panel.querySelector('[data-aviso]').innerHTML = !e.conectado ? '<div class="ag-warn">El PC de los agentes no está conectado. Tu mensaje queda en cola y se atiende cuando el PC con Illustrator esté encendido con los agentes iniciados.</div>' : '';
     const trabajo = st.trabajo;
     const hilo = st.msgs.length ? st.msgs.map(m => m.rol === 'yo'
@@ -510,6 +511,9 @@
         const texto = atajo.dataset.atajo;
         if (texto.endsWith(' ') && st.orden) enviar(texto.trim() + ' ' + st.orden);
         else if (texto.endsWith(' ')) { const caja = panel.querySelector('textarea'); caja.value = texto; caja.focus(); caja.setSelectionRange(texto.length, texto.length); } else enviar(texto);
+      } else if (e.target.closest('[data-auto]')) {
+        try { const r = await api('/api/agentes/auto', { method: 'POST', body: JSON.stringify({ activo: !st.estado.auto }) }); st.estado = { ...st.estado, auto: r.activo }; } catch (err) { alert(err.message); }
+        pintar();
       } else if (e.target.closest('[data-iniciar]')) {
         if (!st.esperando && st.orden) enviar('Pedido completo de la orden ' + st.orden);
       } else if (e.target.closest('[data-detener]')) {

@@ -1154,6 +1154,7 @@ def startup():
     db_backup.start(DB_PATH, STATE_DIR, legacy.get_supabase)
     respaldo.start(DATA_ROOT, DB_PATH)
     threading.Thread(target=_warm_card_assets, name='precarga-disenos', daemon=True).start()
+    threading.Thread(target=_vigilar_edicion, name='agentes-auto-edicion', daemon=True).start()
 
 
 DATA_ROOT = STATE_DIR.parent
@@ -2513,6 +2514,50 @@ def save_production_note(payload: dict = Body(...), _=Depends(authenticate)):
             db.execute("DELETE FROM production_notes WHERE source_row=? AND column_number=?", (row, column))
         db.execute("INSERT OR REPLACE INTO production_meta(key,value) VALUES ('updated_at',?)", (now,))
     return {"ok": True, "note": note, "author": str(_)}
+
+
+def _edicion_en_proceso() -> list[dict]:
+    """Tarjetas de producción cuyo proceso EDICIÓN está en proceso (columna con «P»): [{'clave', 'orden', 'ref', 'usuario'}]."""
+    plano = lambda v: re.sub(r'\s+', '', str(v or '')).upper()
+    with connect() as db:
+        meta = {r['key']: r['value'] for r in db.execute('SELECT key, value FROM production_meta')}
+        headers = json.loads(meta.get('headers') or '[]')
+        titulos = [str(h or '').strip().upper() for h in headers]
+        if 'ORDEN' not in titulos or 'REFERENCIA' not in titulos:
+            return []
+        i_orden, i_ref = titulos.index('ORDEN'), titulos.index('REFERENCIA')
+        etapa = official_process('EDICION')
+        columnas = [i for i, h in enumerate(headers) if etapa is not None and official_process(h) == etapa]
+        resultado = []
+        for r in db.execute('SELECT source_row, values_json FROM production_rows ORDER BY source_row'):
+            v = json.loads(r['values_json'])
+            if not any(i < len(v) and str(v[i]).strip().upper() == 'P' for i in columnas):
+                continue
+            orden, ref = plano(v[i_orden] if i_orden < len(v) else ''), plano(v[i_ref] if i_ref < len(v) else '')
+            if not orden:
+                continue
+            usuario = ''
+            if db.execute("SELECT 1 FROM sqlite_master WHERE name='production_operator_events'").fetchone():
+                marcas = ','.join('?' * len(columnas)) or '0'
+                ev = db.execute(f"SELECT username FROM production_operator_events WHERE source_row=? AND action='start' AND column_number IN ({marcas}) ORDER BY id DESC LIMIT 1",
+                                (r['source_row'], *[c + 1 for c in columnas])).fetchone()
+                usuario = ev['username'] if ev else ''
+                if usuario and not permisos_mod.puede(usuario, 'agentes', 'ver'):
+                    usuario = ''   # quien la puso en proceso no usa los agentes: el aviso va a quien los usó por última vez
+            resultado.append({'clave': f'{orden}|{ref}', 'orden': orden, 'ref': ref, 'usuario': usuario})
+        return resultado
+
+
+def _vigilar_edicion():
+    """Cada 30 s: si una tarjeta pasó a EDICIÓN en proceso, arranca los agentes con esa orden (ver agentes_canal.auto_procesar)."""
+    while True:
+        try:
+            lanzadas = agentes_mod.auto_procesar(_edicion_en_proceso())
+            if lanzadas:
+                logging.info('Agentes: inicio automático para %s (EDICIÓN en proceso)', ', '.join(lanzadas))
+        except Exception:
+            logging.exception('No se pudo revisar las tarjetas de EDICIÓN para el inicio automático de los agentes')
+        time.sleep(30)
 
 
 def _terry_nota_en_sheet(source_row: int, orden: str, referencia: str, mts: str) -> dict:
@@ -5981,7 +6026,7 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
 `;document.head.appendChild(traceFigmaStyle);setTraceView();
     const commercialGroup=commercialToggle.closest('.nav-group');commercialGroup.classList.add('collapsed');const productionToggle=document.getElementById('production-toggle');if(productionToggle)productionToggle.addEventListener('click',()=>{{const g=productionToggle.closest('.nav-group');g.classList.toggle('collapsed');if(!g.classList.contains('collapsed')&&window.innerWidth>860)g.querySelector('.nav-children .tab')?.click()}});
     setTimeout(()=>{{if(!document.querySelector('.panel.active'))document.querySelector('.tab[data-kind="inicio"]')?.click()}},0);
-    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/permisos.js?v=20261006-1'></script><script src='/reposiciones.js?v=20261005-4'></script><script src='/agentes.js?v=20261006-25'></script><script src='/promedios.js?v=20261006-7'></script><script src='/api/cartera/cartera.js?v=20261002-5'></script><script src='/trace-ui.js?v=20261005-1'></script><script src='/home-dashboard.js?v=20261005-9'></script><script src='/bodega-dashboard.js?v=20261002-10'></script><script src='/bodegas.js?v=20261002-4'></script><script src='/mobile-nav.js?v=20261006-1'></script><script src='/nav-liquid.js?v=20261003-3'></script><script src='/build-watch.js?v=20261002-1'></script><script src='/salud.js?v=20261002-1'></script><script src='/tema.js?v=20261002-3'></script><script src='/tarjeta-iconos.js?v=20261002-5'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261005-3'></script><script src='/linea-editor.js?v=20261003-3'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
+    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/permisos.js?v=20261006-1'></script><script src='/reposiciones.js?v=20261005-4'></script><script src='/agentes.js?v=20261006-26'></script><script src='/promedios.js?v=20261006-7'></script><script src='/api/cartera/cartera.js?v=20261002-5'></script><script src='/trace-ui.js?v=20261005-1'></script><script src='/home-dashboard.js?v=20261005-9'></script><script src='/bodega-dashboard.js?v=20261002-10'></script><script src='/bodegas.js?v=20261002-4'></script><script src='/mobile-nav.js?v=20261006-1'></script><script src='/nav-liquid.js?v=20261003-3'></script><script src='/build-watch.js?v=20261002-1'></script><script src='/salud.js?v=20261002-1'></script><script src='/tema.js?v=20261002-3'></script><script src='/tarjeta-iconos.js?v=20261002-5'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261005-3'></script><script src='/linea-editor.js?v=20261003-3'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
 
 
 def ordered_mockup_uploads(extras, slots):
