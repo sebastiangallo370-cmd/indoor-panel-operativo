@@ -298,7 +298,40 @@ def parse_page(image: Image.Image) -> dict:
     return result
 
 
+_INVOICE_LINE = re.compile(r'^\s*\d+\s+(\d{3,})\s+(.+?)\s+(MTS?|M)\s+([\d.,]+)\s+\$', re.I | re.M)
+
+
+def parse_invoice_text(data: bytes) -> dict | None:
+    """Factura electrónica en PDF (con texto, no escaneada): una línea por tela con su cantidad en metros.
+    La factura no trae el detalle de rollos: cada tela entra como un solo rollo con el total y se puede repartir en la pantalla."""
+    try:
+        with pdfplumber.open(io.BytesIO(data)) as pdf:
+            text = '\n'.join((page.extract_text() or '') for page in pdf.pages)
+    except Exception:
+        return None
+    if 'FACTURA' not in text.upper():
+        return None
+    lines = []
+    for code, description, _unit, quantity in _INVOICE_LINE.findall(text):
+        try:
+            meters = float(quantity.replace(',', ''))
+        except ValueError:
+            continue
+        if meters > 0:
+            lines.append({'descripcion': description.strip(), 'referencia': code, 'rollos': [{'mts': meters, 'rollo_no': ''}]})
+    if not lines:
+        return None
+    supplier = re.search(r'^\s*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ0-9 .&]+?(?:S\.?A\.?S\.?|LTDA\.?|S\.?A\.?))\s*(?:No\.|$)', text, re.M)
+    date = re.search(r'Fecha facturaci[^:]*:\s*(\d{4}/\d{2}/\d{2})', text)
+    return {'proveedor': (supplier.group(1).strip() if supplier else ''), 'fecha': date.group(1) if date else '',
+            'total_documento': round(sum(r['mts'] for line in lines for r in line['rollos']), 2), 'lineas': lines, 'tipo': 'factura'}
+
+
 def parse_document(data: bytes, filename: str) -> dict:
+    if data[:4] == b'%PDF':
+        invoice = parse_invoice_text(data)
+        if invoice:
+            return invoice
     pages = [parse_page(image) for image in load_images(data, filename)]
     merged = {'proveedor': '', 'fecha': '', 'total_documento': None, 'filas': []}
     for page in pages:
