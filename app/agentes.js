@@ -141,17 +141,18 @@
     if (/g[eé]nero/i.test(columna)) return v.replace(/^MASC(ULINO)?$/i, 'M').replace(/^FEM(ENINO)?$/i, 'F').replace(/^NI[NÑ][OA]S?$/i, 'N').replace(/\s*\/\s*/g, '/');
     return v;
   }
+  const cabecera = c => (pantallaChica() ? ({ 'NÚMERO': 'Nº', 'DISEÑO': 'DIS.', 'GÉNERO': 'GÉN.', 'OBSERVACIONES': 'OBSERV.' }[String(c).toUpperCase()] || c) : c);
   function anchos(t) {
-    // el ancho de cada columna sale de su palabra más larga (para no partir nombres a la mitad); los textos largos se reparten en varias líneas
+    // ancho de cada columna en píxeles según su palabra más larga (así no se parten nombres ni encabezados); los textos largos se reparten en varias líneas
     const mayor = txt => Math.max(0, ...String(txt || '').split(/\s+/).map(w => w.length));
-    const pesos = t.columnas.map((c, k) => Math.max(mayor(c) * .75, ...t.filas.map(f => mayor(vista(c, f[k]))), 3));
-    const suma = pesos.reduce((x, y) => x + y, 0);
-    return pesos.map(p => '<col style="width:' + (p / suma * 100).toFixed(1) + '%">').join('');
+    const px = t.columnas.map((c, k) => Math.max(mayor(cabecera(c)) * 5.8, ...t.filas.map(f => mayor(vista(c, f[k])) * 7.6), 18) + 8);
+    const suma = px.reduce((x, y) => x + y, 0);
+    return px.map(v => '<col style="width:' + (v / suma * 100).toFixed(1) + '%">').join('');
   }
   function tablaHtml(m) {
     const t = m.tabla;
     return '<div class="ag-tbl"><div class="ag-tbl-head"><b>' + esc(t.titulo) + '</b><span><button type="button" data-tabla-copiar="' + m.id + '">Copiar</button><button type="button" data-tabla-csv="' + m.id + '">Descargar CSV</button></span></div>' +
-      '<div class="ag-tbl-wrap"><table><colgroup><col class="n">' + anchos(t) + '</colgroup><thead><tr><th class="n">#</th>' + t.columnas.map(c => '<th>' + esc(c) + '</th>').join('') + '</tr></thead><tbody>' +
+      '<div class="ag-tbl-wrap"><table><colgroup><col class="n">' + anchos(t) + '</colgroup><thead><tr><th class="n">#</th>' + t.columnas.map(c => '<th>' + esc(cabecera(c)) + '</th>').join('') + '</tr></thead><tbody>' +
       t.filas.map((f, i) => '<tr><td class="n">' + (i + 1) + '</td>' + t.columnas.map((c, k) => '<td>' + celda(vista(c, f[k])) + '</td>').join('') + '</tr>').join('') + '</tbody></table></div></div>';
   }
   function tablaDe(id) { const m = st.msgs.find(x => String(x.id) === String(id)); return m && m.tabla; }
