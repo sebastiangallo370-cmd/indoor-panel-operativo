@@ -836,6 +836,76 @@ class InventoryBatch(BaseModel):
     doc_name: str = ''
 
 
+_codes_file = os.getenv('INVENTORY_CODES_FILE', '/data/inventory_codigos.json')
+_codes_lock = threading.Lock()
+_CODE_PREFIX = {'BODEGA TELA': 'T', 'STOCK PARA MERCAR': 'M', 'INSUMOS': 'I', 'MATERIA PRIMA IMPRESION': 'P', 'RETAL CANASTAS': 'R'}
+
+
+def _assign_codes(items: list[dict[str, Any]]) -> list[str | None]:
+    """Código de barras permanente de cada artículo (no cambia con los metros). Telas: T + el código entre paréntesis (T100);
+    el resto: letra de la categoría + consecutivo (I0001). Si dos artículos comparten código, el segundo lleva -2, -3…"""
+    with _codes_lock:
+        try:
+            with open(_codes_file, encoding='utf-8') as handle:
+                registry = json.load(handle)
+        except (OSError, ValueError):
+            registry = {}
+        assigned = registry.setdefault('asignados', {})
+        counters = registry.setdefault('siguiente', {})
+        used = set(assigned.values())
+        changed = False
+        counts: dict[str, int] = {}
+        keys: list[str | None] = []
+        for item in items:   # un nombre repetido dentro de la misma categoría recibe su propio código (clave con #2, #3…)
+            base = f"{item.get('categoria')}|{_normalized(item.get('nombre'))}"
+            counts[base] = counts.get(base, 0) + 1
+            keys.append(None if item.get('categoria') not in _CODE_PREFIX else (base if counts[base] == 1 else f"{base}#{counts[base]}"))
+        for item, key in sorted(zip(items, keys), key=lambda pair: (pair[0].get('categoria', ''), pair[0].get('nombre', ''))):
+            if key is None or key in assigned:
+                continue
+            category = item.get('categoria')
+            prefix = _CODE_PREFIX[category]
+            match = re.match(r'^\s*\(([A-Za-z0-9]+)\)', str(item.get('nombre', '')))
+            if match:
+                base = f"{prefix}{match.group(1).upper()}"
+            else:
+                number = int(counters.get(prefix, 0)) + 1
+                while f"{prefix}{number:04d}" in used:
+                    number += 1
+                counters[prefix] = number
+                base = f"{prefix}{number:04d}"
+            code, suffix = base, 2
+            while code in used:
+                code, suffix = f"{base}-{suffix}", suffix + 1
+            assigned[key] = code
+            used.add(code)
+            changed = True
+        if changed:
+            os.makedirs(os.path.dirname(_codes_file) or '.', exist_ok=True)
+            tmp = _codes_file + '.tmp'
+            with open(tmp, 'w', encoding='utf-8') as handle:
+                json.dump(registry, handle, ensure_ascii=False)
+            os.replace(tmp, _codes_file)
+        return [assigned.get(key) if key else None for key in keys]
+
+
+@inventario_router.get('/codigos')
+def inventory_codes():
+    """Artículos del inventario con su código de barras permanente (para imprimir etiquetas y escanear)."""
+    payload = _cache.get('data') or _load_snapshot() or _inventory_payload(False)   # la copia guardada basta: no se espera la lectura del Sheet
+    items = [i for i in payload.get('items', []) if i.get('categoria') in _CODE_PREFIX]
+    codes = _assign_codes(items)
+    rows = []
+    for item, code in zip(items, codes):
+        if not code:
+            continue
+        rows.append({'codigo': code, 'nombre': item.get('nombre', ''), 'categoria': item['categoria'],
+                     'categoria_label': item.get('categoria_label', ''), 'total_label': item.get('total_label', ''),
+                     'mts': item.get('mts'), 'rollos': len(item.get('roll_values') or []) or item.get('rolls') or 0})
+    rows.sort(key=lambda r: (r['categoria_label'], r['nombre'].casefold()))
+    return {'codigos': rows, 'actualizado': payload.get('updated_at')}
+
+
 class NewFabric(BaseModel):
     codigo: str = Field(min_length=1, max_length=12, pattern=r'^[A-Za-z0-9-]+$')
     nombre: str = Field(min_length=2, max_length=80)

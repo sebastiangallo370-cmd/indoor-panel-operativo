@@ -31,6 +31,9 @@ MAX_VISTAS = 12                   # imágenes de la pantalla en vivo que se cons
 MAX_ARCHIVOS = 160                 # PDF/imágenes que los agentes suben para verlos en el chat
 MAX_BYTES_ARCHIVO = 25 * 1024 * 1024
 _dir_archivos = Path(os.getenv('AGENTES_ARCHIVOS_DIR', '/data/state/agentes_archivos'))
+_dir_vistas = _dir_archivos / 'vistas'
+_vistas: dict[str, dict] = {}   # id -> {sesion, nombre, ext}: se pierden al reiniciar (son temporales)
+_lock_vistas = threading.Lock()
 _TIPOS = {'pdf': ('application/pdf', b'%PDF'), 'png': ('image/png', b'\x89PNG'), 'jpg': ('image/jpeg', b'\xff\xd8\xff'), 'jpeg': ('image/jpeg', b'\xff\xd8\xff')}
 LATIDO_SEG = 25          # el PC se considera conectado si sondeó hace menos de esto
 ESPERA_MAX_SEG = 2700    # un lote de PDF de producción por jugador puede tardar varios minutos (hasta 45 min antes de avisar)
@@ -285,10 +288,10 @@ def limpiar(request: Request):
 def ver_archivo(request: Request, aid: str, descargar: int = 0):
     usuario = _auth(request)
     with _lock:
-        info = _leer()['archivos'].get(aid)
+        info = _vistas.get(aid) or _leer()['archivos'].get(aid)
     if not info or not (info['sesion'] == usuario or _es_admin(usuario)):
         raise HTTPException(404, 'Archivo no encontrado')
-    ruta = _dir_archivos / f"{aid}.{info['ext']}"
+    ruta = (_dir_vistas if aid in _vistas else _dir_archivos) / f"{aid}.{info['ext']}"
     if not ruta.exists():
         raise HTTPException(404, 'El archivo ya no está disponible')
     return FileResponse(ruta, media_type=_TIPOS[info['ext']][0], filename=info['nombre'],
@@ -430,14 +433,25 @@ async def subir_archivo(request: Request):
     if len(cuerpo) > MAX_BYTES_ARCHIVO or not cuerpo.startswith(_TIPOS[ext][1]):
         raise HTTPException(400, 'El contenido no corresponde al tipo de archivo')
     aid = uuid.uuid4().hex[:16]
+    if nombre.startswith('vista_'):   # imagen de la pantalla en vivo: ligera, sin tocar el estado compartido; solo se conservan las últimas
+        _dir_vistas.mkdir(parents=True, exist_ok=True)
+        (_dir_vistas / f'{aid}.{ext}').write_bytes(cuerpo)
+        with _lock_vistas:
+            _vistas[aid] = {'sesion': sesion, 'nombre': re.sub(r'[\\/]+', '_', nombre), 'ext': ext}
+            while len(_vistas) > MAX_VISTAS:
+                viejo = next(iter(_vistas))
+                info_vieja = _vistas.pop(viejo)
+                try:
+                    (_dir_vistas / f"{viejo}.{info_vieja['ext']}").unlink()
+                except OSError:
+                    pass
+        return {'id': aid}
+    aid = uuid.uuid4().hex[:16]
     _dir_archivos.mkdir(parents=True, exist_ok=True)
     (_dir_archivos / f'{aid}.{ext}').write_bytes(cuerpo)
     with _lock:
         datos = _leer()
         datos['archivos'][aid] = {'sesion': sesion, 'nombre': re.sub(r'[\\/]+', '_', nombre), 'ext': ext, 'size': len(cuerpo), 'creado': _iso()}
-        vistas = [k for k, v in datos['archivos'].items() if str(v.get('nombre', '')).startswith('vista_')]
-        for viejo in vistas[:-MAX_VISTAS]:   # las imágenes de la pantalla en vivo no desplazan a los archivos del chat: solo se guardan las últimas
-            _borrar_archivo(datos, viejo)
         while len(datos['archivos']) > MAX_ARCHIVOS:
             _borrar_archivo(datos, next(iter(datos['archivos'])))
         _guardar(datos)
