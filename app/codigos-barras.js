@@ -52,7 +52,8 @@
 
   function etiquetaHTML(item, [w, h]) {
     const pad = h >= 40 ? 3 : 2;
-    const nombreMm = h >= 60 ? 5 : h >= 45 ? 4.2 : h >= 35 ? 3.4 : 2.7;
+    const nombreImpreso = String(item.nombre || '').replace(/^\s*\([^)]*\)\s*/, '').trim() || item.nombre;   // el código ya sale debajo de las barras
+    const nombreMm = (h >= 60 ? 5 : h >= 45 ? 4.2 : h >= 35 ? 3.4 : 2.7) * (nombreImpreso.length > 50 ? 0.82 : nombreImpreso.length > 32 ? 0.92 : 1);
     const codigoMm = h >= 45 ? 4 : h >= 35 ? 3.4 : 2.8;
     const pieMm = h >= 45 ? 2.8 : 2.3;
     const disponible = w - pad * 2;
@@ -60,7 +61,7 @@
     const altoBarras = Math.max(8, Math.round(h * (cfg.nombre ? 0.36 : 0.5)));
     const pie = [cfg.categoria ? item.categoria_label : '', cfg.stock && item.total_label ? item.total_label + (item.categoria === 'BODEGA TELA' ? ' MTS' : '') : '', cfg.fecha ? new Date().toLocaleDateString('es-CO') : ''].filter(Boolean).join(' · ');
     return '<div class="l">' +
-      (cfg.nombre ? '<div class="n">' + esc(item.nombre) + '</div>' : '') +
+      (cfg.nombre ? '<div class="n">' + esc(nombreImpreso) + '</div>' : '') +
       '<div class="b">' + svgBarras(item.codigo, altoBarras, modulo) + '</div>' +
       '<div class="c">' + esc(item.codigo) + '</div>' +
       (pie ? '<div class="p">' + esc(pie) + '</div>' : '') +
@@ -69,7 +70,7 @@
   function estiloEtiqueta([w, h]) {
     const pad = h >= 40 ? 3 : 2;
     return '.l{width:' + w + 'mm;height:' + h + 'mm;padding:' + pad + 'mm;box-sizing:border-box;display:flex;flex-direction:column;justify-content:space-between;align-items:center;overflow:hidden;font-family:Arial,Helvetica,sans-serif;color:#000;background:#fff;text-align:center}' +
-      '.l .n{font-weight:700;line-height:1.1;max-height:2.3em;overflow:hidden;width:100%}.l .b{display:flex;justify-content:center;width:100%}.l .c{font-family:Consolas,"Courier New",monospace;font-weight:700;letter-spacing:.08em}.l .p{color:#222;line-height:1.1;width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}';
+      '.l .n{font-weight:700;line-height:1.1;max-height:2.3em;overflow:hidden;width:100%;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow-wrap:anywhere}.l .b{display:flex;justify-content:center;width:100%}.l .c{font-family:Consolas,"Courier New",monospace;font-weight:700;letter-spacing:.08em}.l .p{color:#222;line-height:1.1;width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}';
   }
 
   function imprimir(items) {
