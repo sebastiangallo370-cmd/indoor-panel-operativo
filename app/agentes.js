@@ -388,7 +388,7 @@
     if (barra.dataset.clave !== claveOrden) {
       barra.dataset.clave = claveOrden;
       barra.innerHTML = st.orden && !st.cambiandoOrden
-        ? '<span class="ag-ochip">Orden activa <b>' + esc(st.orden) + '</b></span><button type="button" class="ag-btn" data-iniciar title="Lee el listado, crea la muestra, te pide aprobarla y sigue con las mesas y los PDF de producción">▶ Iniciar orden</button><button type="button" class="ag-btn sec" data-orden-cambiar>Cambiar</button><button type="button" class="ag-btn sec" data-orden-quitar>Quitar</button><small>Todo lo que pidas se hace con esta orden: no tienes que escribirla en cada mensaje.</small>'
+        ? '<span class="ag-ochip">Orden activa <b>' + esc(st.orden) + '</b></span><button type="button" class="ag-btn" data-iniciar title="Lee el listado, crea la muestra, te pide aprobarla y sigue con las mesas y los PDF de producción">▶ Iniciar orden</button><button type="button" class="ag-btn sec" data-reprocesar title="Vuelve a procesar una orden que ya se hizo: tú eliges si reemplazas todo o conservas lo que ya existe">↻ Reprocesar</button><button type="button" class="ag-btn sec" data-orden-cambiar>Cambiar</button><button type="button" class="ag-btn sec" data-orden-quitar>Quitar</button><small>Todo lo que pidas se hace con esta orden: no tienes que escribirla en cada mensaje.</small>'
         : '<form data-orden-form><label for="ag-orden-in">Orden</label><input id="ag-orden-in" maxlength="12" autocomplete="off" placeholder="CO6133" value="' + esc(st.orden) + '"><button type="submit" class="ag-btn">Fijar orden</button>' + (st.orden ? '<button type="button" class="ag-btn sec" data-orden-cancelar>Cancelar</button>' : '') + '</form><small>Escríbela una sola vez y TAVO relaciona todo con ella (listado, mesas, muestra, PDF).</small>';
       if (st.cambiandoOrden) panel.querySelector('#ag-orden-in')?.focus();
     }
@@ -399,6 +399,7 @@
     panel.querySelectorAll('[data-atajo]').forEach(b => { b.disabled = st.esperando; });
     panel.querySelector('header [data-detener]').style.display = st.esperando ? '' : 'none';
     const ini = panel.querySelector('[data-iniciar]'); if (ini) ini.disabled = st.esperando || st.enviando;
+    const repro = panel.querySelector('[data-reprocesar]'); if (repro) repro.disabled = st.esperando || st.enviando;
     panel.querySelector('textarea').disabled = st.esperando;
     panel.querySelector('[data-form] button').disabled = st.esperando || st.enviando;
     if (st.admin) panel.querySelector('[data-conectar]').hidden = false;
@@ -514,6 +515,8 @@
       } else if (e.target.closest('[data-auto]')) {
         try { const r = await api('/api/agentes/auto', { method: 'POST', body: JSON.stringify({ activo: !st.estado.auto }) }); st.estado = { ...st.estado, auto: r.activo }; } catch (err) { alert(err.message); }
         pintar();
+      } else if (e.target.closest('[data-reprocesar]')) {
+        if (!st.esperando && st.orden) enviar('Reprocesar la orden ' + st.orden);
       } else if (e.target.closest('[data-iniciar]')) {
         if (!st.esperando && st.orden) enviar('Pedido completo de la orden ' + st.orden);
       } else if (e.target.closest('[data-detener]')) {
