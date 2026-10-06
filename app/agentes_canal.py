@@ -366,6 +366,19 @@ def mts_orden(request: Request, payload: dict):
     return {'ok': True, 'resultados': resultados}
 
 
+def _archivo_evento(valor) -> dict | None:
+    """Datos de un archivo recién creado (montaje o PDF de producción) para la pantalla en vivo; solo se aceptan campos conocidos y cortos."""
+    if not isinstance(valor, dict) or valor.get('tipo') not in ('montaje', 'pdf', 'plan'):
+        return None
+    limpio = {k: str(valor.get(k, ''))[:160] for k in ('tipo', 'nombre', 'numero', 'talla', 'diseno', 'genero', 'detalle', 'carpeta')}
+    if valor.get('tipo') == 'plan':
+        try:
+            limpio['pdfs'] = max(0, min(int(valor.get('pdfs') or 0), 5000))
+        except (TypeError, ValueError):
+            limpio['pdfs'] = 0
+    return limpio
+
+
 @pc_router.post('/evento')
 def evento(request: Request, payload: dict):
     """Avance en vivo mientras los agentes trabajan: lista de {agente, msg, nivel, hora}."""
@@ -385,7 +398,7 @@ def evento(request: Request, payload: dict):
                 datos['cont_ev'] += 1
                 datos['eventos'].append({'id': datos['cont_ev'], 'sesion': sesion, 'msg_id': msg_id, 'agente': str(e.get('agente', 'TAVO')).upper()[:10],
                                          'msg': str(e.get('msg', ''))[:300], 'nivel': str(e.get('nivel', 'INFO'))[:8], 'hora': str(e.get('hora', ''))[:8],
-                                         't': float(e.get('t') or _ahora())})
+                                         't': float(e.get('t') or _ahora()), 'archivo': _archivo_evento(e.get('archivo'))})
         actual = datos['trabajo'].get(sesion) or {'agentes': ['TAVO']}
         agentes = list(actual.get('agentes') or ['TAVO'])
         for e in lista:

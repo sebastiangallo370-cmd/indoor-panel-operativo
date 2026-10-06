@@ -48,7 +48,14 @@
   .ag-tbl .n{width:1%;color:#8f9b8a;text-align:right}.ag-tbl .v{color:#5f6b5e}
   html.theme-light .ag-tbl th{background:#e9efe2;color:#3f6a10}html.theme-light .ag-tbl td{color:#18210f;border-color:#dfe6d7}html.theme-light .ag-tbl-wrap{background:#fff;border-color:#cdd8c6}
   .ag-main{display:grid;grid-template-columns:minmax(360px,32%) minmax(0,1fr);gap:14px;align-items:stretch;height:calc(100vh - 300px);min-height:560px}
-  .ag-flowcol{display:grid;grid-template-rows:minmax(0,1.5fr) minmax(0,1fr);gap:14px;min-height:0}
+  .ag-flowcol{display:grid;grid-template-rows:minmax(0,1.5fr) auto minmax(0,1fr);gap:14px;min-height:0}.ag-lienzo{grid-row:1}.ag-live{grid-row:2}.ag-detalle{grid-row:3}
+  .ag-live{display:none;border:1px solid #34432f;border-radius:14px;background:#0c110d;padding:10px 12px}
+  .ag-live-top{display:flex;align-items:center;gap:10px;margin-bottom:8px}.ag-live-top b{font:800 11px Arial;letter-spacing:.12em;color:#d7ff3a}.ag-live-top i{display:inline-block;width:8px;height:8px;border-radius:50%;background:#6f7d6a;margin-right:6px}.ag-live-top i.on{background:#8bd450;animation:agpulso 1.1s infinite}.ag-live-top small{color:#8fa088;font-size:11px}
+  @keyframes agpulso{50%{opacity:.25}}
+  .ag-live-cols{display:grid;grid-template-columns:1fr 1fr;gap:12px}.ag-live-col h4{margin:0;font:800 11px Arial;letter-spacing:.1em;color:#aebba7;display:flex;justify-content:space-between;gap:8px}.ag-live-col h4 span{color:#d7ff3a}
+  .ag-live-bar{height:5px;border-radius:99px;background:#1c261c;margin:6px 0}.ag-live-bar i{display:block;height:100%;border-radius:99px;background:#8bd450;transition:width .3s}
+  .ag-live-list{max-height:112px;overflow:auto;display:grid;gap:3px;font-size:12px}.ag-live-list div{display:flex;gap:6px;align-items:center;padding:3px 7px;border-radius:7px;background:#121a13;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ag-live-list div::before{content:'✓';color:#8bd450;font-weight:800}.ag-live-list div.nuevo{animation:agnuevo 1s}@keyframes agnuevo{from{background:#2d4a1f}}
+  .ag-live small.dest{display:block;margin-top:5px;color:#8fa088;font-size:10.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .ag-lienzo{position:relative;height:auto;min-height:0;overflow:hidden;border:1px solid #2d3b2f;border-radius:16px;background-color:#0c110d;background-image:radial-gradient(#26322a 1.2px,transparent 1.2px);background-size:20px 20px}
   .ag-barra{position:absolute;top:12px;left:14px;right:14px;display:flex;justify-content:space-between;align-items:center;gap:8px;z-index:3;pointer-events:none}
   .ag-ftit{padding:5px 11px;border:1px solid #34432f;border-radius:9px;background:#111611;font:700 13px Arial;color:#eef4e9}.ag-ftit small{margin-left:6px;color:#8f9b8a;font-weight:500}
@@ -79,7 +86,7 @@
   .ag-filtros{display:flex;gap:5px;flex-wrap:wrap}.ag-filtros button{min-height:0;padding:2px 10px;border:1px solid #34432f;border-radius:999px;background:transparent;color:#aebba7;font:700 11px Arial;cursor:pointer}.ag-filtros button.on{background:#e3eadc;color:#10150e;border-color:#e3eadc}
   .ag-log{height:auto;min-height:0;overflow:auto;margin:10px 12px 12px;padding:9px 11px;border-radius:9px;background:#080b08;color:#d6dae2;font:12px/1.6 Consolas,ui-monospace,monospace}
   .ag-log div{white-space:pre-wrap;word-break:break-word}.ag-log .h{opacity:.45;margin-right:7px}.ag-log b{margin-right:6px}.ag-log .vacio2{opacity:.45}.ag-log .WARN .m{color:#ffbd66}.ag-log .ERROR .m{color:#ff8a8a}
-  @media(max-width:1000px){.ag-main{grid-template-columns:1fr;height:auto;min-height:0}.ag-flowcol{grid-template-rows:auto auto}.ag-lienzo{height:380px}.ag-log{height:200px}.ag-chat{grid-template-rows:auto auto auto auto auto}.ag-thread{height:62vh;min-height:300px;max-height:none}}
+  @media(max-width:1000px){.ag-main{grid-template-columns:1fr;height:auto;min-height:0}.ag-flowcol{grid-template-rows:auto auto auto}.ag-live-cols{grid-template-columns:1fr}.ag-lienzo{height:380px}.ag-log{height:200px}.ag-chat{grid-template-rows:auto auto auto auto auto}.ag-thread{height:62vh;min-height:300px;max-height:none}}
   .ag-files{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
   .ag-file{--fc:#ffcf5c;display:grid;gap:9px;padding:12px;border:1px solid #34432f;border-left:4px solid var(--fc);border-radius:12px;background:#0c110d}.ag-file.mesa{--fc:#6fe39a}.ag-file.abierto{grid-column:1/-1}
   .ag-file-head{display:flex;gap:10px;align-items:center}.ag-fico{font-size:1.7rem;line-height:1}.ag-file-head b{display:block;font-size:.92rem;color:#eef4e9}.ag-file-head small{display:block;color:#8f9b8a;font-size:.72rem;overflow-wrap:anywhere}
@@ -330,6 +337,27 @@
   }
   function filtrar(id) { flow.filtro = id; marcarSeleccion(); pintarLog(); }
   function marcarSeleccion() { Object.values(flow.el).forEach(d => d.classList.toggle('sel', d.dataset.n === flow.filtro)); }
+  // Pantallita EN VIVO: cómo van quedando los montajes (.ai por talla) y los PDF de producción de la ejecución actual
+  function pintarLive() {
+    const box = panel && panel.querySelector('[data-live]'); if (!box) return;
+    const evs = flow.ejec ? flow.ejec.eventos.filter(e => e.archivo) : [];
+    if (!evs.length) { box.style.display = 'none'; return; }
+    const montajes = [], pdfs = [], vm = new Set(), vp = new Set(); let total = 0, dm = '', dp = '';
+    evs.forEach(e => {
+      const a = e.archivo;
+      if (a.tipo === 'plan') total += Number(a.pdfs) || 0;
+      else if (a.tipo === 'montaje' && !vm.has(a.nombre)) { vm.add(a.nombre); montajes.push(a); dm = a.carpeta || dm; }
+      else if (a.tipo === 'pdf') { const k = a.detalle || (a.nombre + a.numero + a.talla); if (!vp.has(k)) { vp.add(k); pdfs.push(a); dp = a.carpeta || dp; } }
+    });
+    const itemM = a => { const m = /^Talla_([^_]+)_Tipo_(D\d+)_Gen_(\w+)$/.exec(a.nombre || ''); return m ? '<b>' + esc(m[1]) + '</b> · ' + esc(m[2]) + ' · ' + esc(m[3]) : esc(a.nombre); };
+    const itemP = a => '<b>' + esc(a.nombre || 'Sin nombre') + '</b> · #' + esc(a.numero || '—') + ' · ' + esc(a.talla) + (a.diseno ? ' · ' + esc(a.diseno) : '');
+    const lista = (items, fn) => items.slice().reverse().slice(0, 60).map((a, i) => '<div' + (i === 0 ? ' class="nuevo"' : '') + '>' + fn(a) + '</div>').join('');
+    const pct = total ? Math.min(100, Math.round(pdfs.length / total * 100)) : 0;
+    box.style.display = 'block';
+    box.innerHTML = '<div class="ag-live-top"><b><i class="' + (st.esperando ? 'on' : '') + '"></i>EN VIVO</b><small>' + (st.esperando ? 'Illustrator está trabajando…' : 'Última ejecución') + '</small></div><div class="ag-live-cols">' +
+      '<div class="ag-live-col"><h4>MONTAJES <span>' + montajes.length + ' exportados</span></h4><div class="ag-live-bar"><i style="width:' + (montajes.length ? 100 : 0) + '%"></i></div><div class="ag-live-list">' + (lista(montajes, itemM) || '<div style="opacity:.5">Esperando…</div>') + '</div>' + (dm ? '<small class="dest">→ ' + esc(dm) + '</small>' : '') + '</div>' +
+      '<div class="ag-live-col"><h4>PDF DE PRODUCCIÓN <span>' + pdfs.length + (total ? ' de ' + total : '') + '</span></h4><div class="ag-live-bar"><i style="width:' + pct + '%"></i></div><div class="ag-live-list">' + (lista(pdfs, itemP) || '<div style="opacity:.5">Esperando…</div>') + '</div>' + (dp ? '<small class="dest">→ ' + esc(dp) + '</small>' : '') + '</div></div>';
+  }
   function pintarLog() {
     const l = panel.querySelector('[data-log]'), f = panel.querySelector('[data-filtros]'); if (!l || !f || !flow.ejec) return;
     const abajo = l.scrollTop + l.clientHeight >= l.scrollHeight - 30;
@@ -338,6 +366,7 @@
     l.innerHTML = lista.length ? lista.map(e => '<div class="' + esc(e.nivel) + '"><span class="h">' + esc(e.hora) + '</span><b style="color:' + (COLORES[e.agente] || '#ccc') + '">' + esc(e.agente) + '</b><span class="m">' + esc(e.msg) + '</span></div>').join('')
       : '<div class="vacio2">' + (flow.filtro ? 'Este nodo aún no ha hecho nada en esta ejecución.' : 'Aquí verás lo que hace cada agente, paso a paso.') + '</div>';
     if (abajo) l.scrollTop = l.scrollHeight;
+    pintarLive();
   }
 
   // ================================================================== pantalla
@@ -349,6 +378,7 @@
       '<div class="ag-chips" data-atajos>' + ATAJOS.map(([l, p]) => '<button type="button" data-atajo="' + esc(p) + '">' + esc(l) + '</button>').join('') + '</div>' +
       '<form class="ag-form" data-form><textarea rows="1" placeholder="Escribe a TAVO…" maxlength="2000"></textarea><button type="submit" class="ag-btn">Enviar</button></form></section>' +
       '<section class="ag-flowcol"><div class="ag-lienzo" data-lienzo><div class="ag-barra"><div class="ag-ftit">Flujo de agentes<small data-ejecnum></small></div><div class="ag-pildora" data-pildora><i></i><span>Listo</span></div></div><svg class="ag-cables" data-cables aria-hidden="true"></svg></div>' +
+      '<div class="ag-live" data-live></div>' +
       '<div class="ag-detalle"><header><h3>Ejecución</h3><div class="ag-filtros" data-filtros></div></header><div class="ag-log" data-log></div></div></section></div></div>';
     panel.dataset.armado = '1';
     crearNodos();
