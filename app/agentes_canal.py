@@ -508,3 +508,40 @@ def auto_procesar(candidatos: list[dict]) -> list[str]:
             auto['vistos'] = sorted(vistos)[-3000:]
             _guardar(datos)
     return lanzadas
+
+
+# ------------------------------------------------------------------ MTS automáticos (EDICIÓN finalizada)
+def auto_mts(candidatos: list[dict]) -> list[str]:
+    """candidatos: tarjetas con EDICIÓN finalizada y SIN MTS REQUERIDOS: [{'clave', 'orden', 'ref', 'usuario'}].
+    Cuando una tarjeta termina EDICIÓN, TERRY calcula cuánta tela se necesita (Promedios maestros) y la anota en la tarjeta, sin pedir
+    autorización. La primera vez solo se anotan las que ya estaban así (el historial no se toca). Si el PC no está conectado o la persona está
+    esperando una respuesta, se reintenta en la siguiente vuelta. Devuelve las órdenes lanzadas."""
+    lanzadas = []
+    with _lock:
+        datos = _leer()
+        auto = datos['auto']
+        if auto.get('vistos_mts') is None:
+            auto['vistos_mts'] = [c['clave'] for c in candidatos]
+            _guardar(datos)
+            return lanzadas
+        vistos = set(auto['vistos_mts'])
+        cambio = False
+        for c in candidatos:
+            if c['clave'] in vistos:
+                continue
+            sesion = c.get('usuario') or next((m['sesion'] for m in reversed(datos['mensajes']) if m['rol'] == 'yo' and not m.get('auto')), '')
+            if not sesion or not _conectado(datos):
+                continue
+            if any(m['sesion'] == sesion and m['rol'] == 'yo' and not m.get('respondido') and not m.get('oculto') for m in datos['mensajes']):
+                continue
+            orden = c['orden']
+            datos['ordenes'][sesion] = orden
+            _nuevo(datos, sesion, 'yo', 'cancelar', t=_ahora(), tomado=False, respondido=False, oculto=True)
+            _nuevo(datos, sesion, 'yo', f"Calcula los MTS requeridos de la orden {orden} (automático: EDICIÓN finalizada)", t=_ahora(),
+                   tomado=False, respondido=False, auto=True)
+            vistos.add(c['clave']); cambio = True
+            lanzadas.append(orden)
+        if cambio:
+            auto['vistos_mts'] = sorted(vistos)[-3000:]
+            _guardar(datos)
+    return lanzadas

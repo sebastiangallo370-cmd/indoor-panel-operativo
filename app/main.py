@@ -2580,6 +2580,50 @@ def _edicion_en_proceso() -> list[dict]:
         return resultado
 
 
+def _edicion_finalizada_sin_mts() -> list[dict]:
+    """Tarjetas cuyo proceso EDICIÓN ya está finalizado (fecha) y que todavía no tienen MTS REQUERIDOS (nota de la columna 17):
+    [{'clave', 'orden', 'ref', 'usuario'}]. Al terminar EDICIÓN los agentes calculan y anotan la tela necesaria."""
+    plano = lambda v: re.sub(r'\s+', '', str(v or '')).upper()
+    with connect() as db:
+        meta = {r['key']: r['value'] for r in db.execute('SELECT key, value FROM production_meta')}
+        headers = json.loads(meta.get('headers') or '[]')
+        titulos = [str(h or '').strip().upper() for h in headers]
+        if 'ORDEN' not in titulos or 'REFERENCIA' not in titulos:
+            return []
+        i_orden, i_ref = titulos.index('ORDEN'), titulos.index('REFERENCIA')
+        etapa = official_process('EDICION')
+        columnas = [i for i, h in enumerate(headers) if etapa is not None and official_process(h) == etapa]
+        if not columnas:
+            return []
+        estado = columnas[0]
+        con_eventos = bool(db.execute("SELECT 1 FROM sqlite_master WHERE name='production_operator_events'").fetchone())
+        con_sheet = bool(db.execute("SELECT 1 FROM sqlite_master WHERE name='production_sheet_notes'").fetchone())
+        resultado = []
+        for r in db.execute('SELECT source_row, values_json FROM production_rows ORDER BY source_row'):
+            v = json.loads(r['values_json'])
+            if estado >= len(v) or not parse_production_date(str(v[estado])):
+                continue   # EDICIÓN no está finalizada (vacía, en proceso, reproceso o N/A)
+            orden, ref = plano(v[i_orden] if i_orden < len(v) else ''), plano(v[i_ref] if i_ref < len(v) else '')
+            if not orden or not ref:
+                continue
+            fila = r['source_row']
+            nota = db.execute('SELECT note FROM production_notes WHERE source_row=? AND column_number=17', (fila,)).fetchone()
+            if nota and str(nota['note']).strip():
+                continue
+            if con_sheet and db.execute('SELECT 1 FROM production_sheet_notes WHERE source_row=? AND column_number=17 AND TRIM(note)<>\'\'', (fila,)).fetchone():
+                continue
+            usuario = ''
+            if con_eventos:
+                marcas = ','.join('?' * len(columnas))
+                ev = db.execute(f"SELECT username FROM production_operator_events WHERE source_row=? AND action='finish' AND column_number IN ({marcas}) ORDER BY id DESC LIMIT 1",
+                                (fila, *[c + 1 for c in columnas])).fetchone()
+                usuario = ev['username'] if ev else ''
+                if usuario and not permisos_mod.puede(usuario, 'agentes', 'ver'):
+                    usuario = ''
+            resultado.append({'clave': f'{orden}|{ref}', 'orden': orden, 'ref': ref, 'usuario': usuario})
+        return resultado
+
+
 def _vigilar_edicion():
     """Cada 30 s: si una tarjeta pasó a EDICIÓN en proceso, arranca los agentes con esa orden (ver agentes_canal.auto_procesar)."""
     while True:
@@ -2587,6 +2631,9 @@ def _vigilar_edicion():
             lanzadas = agentes_mod.auto_procesar(_edicion_en_proceso())
             if lanzadas:
                 logging.info('Agentes: inicio automático para %s (EDICIÓN en proceso)', ', '.join(lanzadas))
+            con_mts = agentes_mod.auto_mts(_edicion_finalizada_sin_mts())
+            if con_mts:
+                logging.info('Agentes: cálculo automático de MTS para %s (EDICIÓN finalizada)', ', '.join(con_mts))
         except Exception:
             logging.exception('No se pudo revisar las tarjetas de EDICIÓN para el inicio automático de los agentes')
         time.sleep(30)
