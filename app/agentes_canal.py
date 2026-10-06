@@ -32,7 +32,7 @@ MAX_BYTES_ARCHIVO = 25 * 1024 * 1024
 _dir_archivos = Path(os.getenv('AGENTES_ARCHIVOS_DIR', '/data/state/agentes_archivos'))
 _TIPOS = {'pdf': ('application/pdf', b'%PDF'), 'png': ('image/png', b'\x89PNG'), 'jpg': ('image/jpeg', b'\xff\xd8\xff'), 'jpeg': ('image/jpeg', b'\xff\xd8\xff')}
 LATIDO_SEG = 25          # el PC se considera conectado si sondeó hace menos de esto
-ESPERA_MAX_SEG = 600     # si el PC toma un mensaje y no responde en 10 min, se avisa y se libera el chat
+ESPERA_MAX_SEG = 2700    # un lote de PDF de producción por jugador puede tardar varios minutos (hasta 45 min antes de avisar)
 _auth: Callable = lambda request: None
 _es_admin: Callable[[str], bool] = lambda usuario: False
 
