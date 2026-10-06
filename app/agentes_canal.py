@@ -345,6 +345,15 @@ def configurar_mts(fn: Callable) -> None:
     _escribir_mts = fn
 
 
+@pc_router.post('/plantillas')
+def plantillas_orden(request: Request, payload: dict):
+    """OLVER/TAVO: qué plantillas .ai (CA02M, CA02F, CA02N…) corresponden a cada referencia del listado, según Promedios maestros."""
+    _pc(request)
+    from app import promedios as promedios_mod
+    hojas = [str(h).strip() for h in (payload.get('hojas') or []) if str(h).strip()]
+    return {'hojas': {h: promedios_mod.plantillas_de_hoja(h) for h in hojas}}
+
+
 @pc_router.post('/mts')
 def mts_orden(request: Request, payload: dict):
     """TERRY: calcula los MTS requeridos de una orden (promedio por talla × cantidad del listado) y los escribe en su tarjeta de producción."""

@@ -205,6 +205,33 @@ def _talla(talla: str) -> str:
     return '2XL' if t == 'XXL' else t
 
 
+def plantillas_de_hoja(hoja: str, datos: dict | None = None) -> dict:
+    """Plantillas .ai que corresponden a una referencia del listado, según Promedios maestros:
+    {'encontrado', 'maestros': [CA02], 'codigos': ['CA02M','CA02F','CA02N']}. Sin maestro en Promedios, 'encontrado' es False."""
+    if datos is None:
+        with _lock:
+            datos = _leer()
+    campos = ('p_masculino', 'p_femenino', 'p_femenino_short', 'p_nino', 'p_nina', 'p_nina_short')
+    maestros = {m['ref']: m for m in datos['maestros']}
+    por_plantilla = {}
+    for m in datos['maestros']:
+        for campo in campos:
+            codigo = str(m.get(campo) or '').strip().upper()
+            if codigo:
+                por_plantilla.setdefault(codigo, m)
+    refs, codigos = [], []
+    for parte in partes_de_hoja(hoja):
+        maestro = maestros.get(parte) or por_plantilla.get(parte)
+        if not maestro:
+            continue
+        refs.append(maestro['ref'])
+        for campo in campos:
+            codigo = str(maestro.get(campo) or '').strip().upper()
+            if codigo and codigo not in codigos:
+                codigos.append(codigo)
+    return {'encontrado': bool(refs), 'maestros': refs, 'codigos': codigos}
+
+
 def calcular_hoja(hoja: str, lineas: list[dict], datos: dict | None = None) -> dict:
     """MTS requeridos de una referencia del listado: por cada talla, el consumo promedio del maestro × la cantidad de prendas; todo sumado.
     Cada línea del listado es una prenda. Si falta el maestro o el consumo de alguna talla, `faltan` lo dice y `completo` es False."""
