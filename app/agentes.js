@@ -445,6 +445,8 @@
   fetch('/api/permisos/mi', { cache: 'no-store', credentials: 'same-origin' }).then(r => (r.ok ? r.json() : null)).then(mi => {
     if (!mi || !((mi.permisos || {}).agentes || {}).ver) return;
     st.admin = !!mi.admin;
+    // al volver a la pestaña se actualiza al instante (en segundo plano el panel no consulta)
+    document.addEventListener('visibilitychange', () => { if (!document.hidden && panel && panel.classList.contains('active')) { cargar(true).then(programar); } });
     let tries = 0;
     const wait = setInterval(() => { if ((build() && addMenuItem()) || ++tries > 60) clearInterval(wait); }, 250);
   }).catch(() => { /* sin permisos confirmados: no se muestra */ });

@@ -238,7 +238,9 @@ def evento(request: Request, payload: dict):
         datos = _leer()
         msg_id = payload.get('msg_id')
         origen = next((m for m in datos['mensajes'] if m['id'] == msg_id and m['rol'] == 'yo'), None)
-        if origen is not None and not origen.get('oculto'):
+        if origen is not None and origen.get('oculto'):
+            return {'ok': True}   # reinicio interno de TAVO: no se muestra
+        if origen is not None:
             for e in lista:
                 datos['cont_ev'] += 1
                 datos['eventos'].append({'id': datos['cont_ev'], 'sesion': sesion, 'msg_id': msg_id, 'agente': str(e.get('agente', 'TAVO')).upper()[:10],
