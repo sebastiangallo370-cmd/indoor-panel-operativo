@@ -59,13 +59,13 @@
   svg.ag-cables{position:absolute;inset:0;width:100%;height:100%;z-index:1;overflow:visible}
   .ag-cable{fill:none;stroke:#3a4a38;stroke-width:2}.ag-cable.hecho{stroke:#8bd450;stroke-width:2.6}.ag-cable.vivo{stroke:#7da4ff;stroke-width:2.8;stroke-dasharray:7 7;animation:agfluir .6s linear infinite}
   @keyframes agfluir{to{stroke-dashoffset:-14}}@keyframes agpul{50%{opacity:.35}}@keyframes aggirar{to{transform:rotate(360deg)}}@keyframes aglate{50%{box-shadow:0 0 0 6px color-mix(in srgb,#ffc95c 25%,transparent)}}
-  .ag-nodo{position:absolute;z-index:2;width:68px;height:68px;cursor:pointer;outline:none;--c:#7da4ff}
-  .ag-nodo .cj{position:absolute;inset:0;display:grid;place-items:center;background:#131a14;border:2px solid #34432f;border-radius:16px;font-size:28px;transition:border-color .25s,box-shadow .25s,transform .25s;box-shadow:0 2px 8px -4px rgba(0,0,0,.6)}
+  .ag-nodo{position:absolute;z-index:2;width:var(--tam,68px);height:var(--tam,68px);cursor:pointer;outline:none;--c:#7da4ff}
+  .ag-nodo .cj{position:absolute;inset:0;display:grid;place-items:center;background:#131a14;border:2px solid #34432f;border-radius:16px;font-size:calc(var(--tam,68px)*.42);transition:border-color .25s,box-shadow .25s,transform .25s;box-shadow:0 2px 8px -4px rgba(0,0,0,.6)}
   .ag-nodo .cj::before{content:"";position:absolute;left:0;top:12px;bottom:12px;width:4px;border-radius:0 3px 3px 0;background:var(--c)}
   .ag-nodo:hover .cj,.ag-nodo:focus-visible .cj{transform:translateY(-2px)}.ag-nodo.sel .cj{box-shadow:0 0 0 3px color-mix(in srgb,var(--c) 40%,transparent)}
-  .ag-nodo .et{position:absolute;top:74px;left:50%;transform:translateX(-50%);width:128px;text-align:center;line-height:1.25}
+  .ag-nodo .et{position:absolute;top:calc(var(--tam,68px) + 6px);left:50%;transform:translateX(-50%);width:128px;text-align:center;line-height:1.25}
   .ag-nodo .et b{display:block;font-size:13px;color:#eef4e9}.ag-nodo .et small{display:block;color:#8f9b8a;font-size:11px}.ag-nodo .et em{display:block;min-height:14px;font-style:normal;font-size:11px;color:#aebba7}
-  .ag-nodo .puerto{position:absolute;top:30px;width:8px;height:8px;border-radius:50%;background:#4a5a47;border:2px solid #0c110d}.ag-nodo .puerto.in{left:-5px}.ag-nodo .puerto.out{right:-5px}
+  .ag-nodo .puerto{position:absolute;top:calc(var(--tam,68px)/2 - 4px);width:8px;height:8px;border-radius:50%;background:#4a5a47;border:2px solid #0c110d}.ag-nodo .puerto.in{left:-5px}.ag-nodo .puerto.out{right:-5px}
   .ag-nodo .ins{position:absolute;right:-8px;bottom:-8px;width:22px;height:22px;border-radius:50%;display:none;place-items:center;color:#10150e;font:800 12px Arial;border:2px solid #0c110d}
   .ag-nodo .anillo{position:absolute;inset:-5px;border-radius:20px;border:3px solid transparent;border-top-color:#7da4ff;display:none;animation:aggirar .9s linear infinite}
   .ag-nodo.corriendo .cj{border-color:#7da4ff;box-shadow:0 0 0 4px rgba(125,164,255,.22)}.ag-nodo.corriendo .anillo{display:block}
@@ -133,7 +133,7 @@
   const CADENA = NODOS.map(n => n.id);
   const dormir = ms => new Promise(r => setTimeout(r, ms));
   const flow = { el: {}, POS: {}, estado: {}, ejec: null, filtro: null, cursor: null, estadoServidor: null, cola: [], reproduciendo: false,
-    listo: false, preparado: 0, silencio: false, lienzo: null, svg: null, ro: null, ejecN: 0 };
+    listo: false, preparado: 0, silencio: false, lienzo: null, svg: null, ro: null, ejecN: 0, tam: 68 };
 
   function crearNodos() {
     flow.lienzo = panel.querySelector('[data-lienzo]'); flow.svg = panel.querySelector('[data-cables]'); flow.el = {};
@@ -152,7 +152,7 @@
   function acomodar() {
     const lienzo = flow.lienzo; if (!lienzo) return;
     const W = lienzo.clientWidth, H = lienzo.clientHeight; if (!W) return;
-    const margen = 56, ancho = 68;
+    const tam = W > 1000 ? 88 : 68, margen = 56, ancho = tam; flow.tam = tam;
     const porFila = Math.max(3, Math.min(NODOS.length, Math.floor((W - margen * 2 + 40) / 112)));
     const filas = Math.ceil(NODOS.length / porFila);
     const sep = porFila > 1 ? (W - margen * 2 - ancho) / (porFila - 1) : 0;
@@ -161,13 +161,13 @@
     NODOS.forEach((n, i) => {
       const f = Math.floor(i / porFila), c = i % porFila, x = margen + c * sep, y = y0 + f * altoFila;
       flow.POS[n.id] = { x, y, fila: f, col: i };
-      flow.el[n.id].style.left = x + 'px'; flow.el[n.id].style.top = y + 'px';
+      flow.el[n.id].style.left = x + 'px'; flow.el[n.id].style.top = y + 'px'; flow.el[n.id].style.setProperty('--tam', tam + 'px');
     });
     dibujar();
   }
   function ruta(a, b) {
     const A = flow.POS[a], B = flow.POS[b]; if (!A || !B) return '';
-    const ax = A.x + 68, ay = A.y + 34, bx = B.x, by = B.y + 34, adj = Math.abs(A.col - B.col) === 1;
+    const T = flow.tam || 68, ax = A.x + T, ay = A.y + T / 2, bx = B.x, by = B.y + T / 2, adj = Math.abs(A.col - B.col) === 1;
     if (A.fila === B.fila && adj) { const k = (bx - ax) / 2; return 'M' + ax + ',' + ay + ' C' + (ax + k) + ',' + ay + ' ' + (bx - k) + ',' + by + ' ' + bx + ',' + by; }
     if (A.fila === B.fila) return 'M' + ax + ',' + ay + ' C' + (ax + 36) + ',' + (ay - 95) + ' ' + (bx - 36) + ',' + (by - 95) + ' ' + bx + ',' + by;
     return 'M' + ax + ',' + ay + ' C' + (ax + 80) + ',' + ay + ' ' + (bx - 80) + ',' + by + ' ' + bx + ',' + by;
