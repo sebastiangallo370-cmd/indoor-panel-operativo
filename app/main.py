@@ -2515,6 +2515,40 @@ def save_production_note(payload: dict = Body(...), _=Depends(authenticate)):
     return {"ok": True, "note": note, "author": str(_)}
 
 
+def _terry_nota_en_sheet(source_row: int, orden: str, referencia: str, mts: str) -> dict:
+    """Escribe «REFERENCIA : NN,NN MTS» como nota de la celda de la columna 17 de la hoja de producción en Google Sheets.
+    Antes comprueba EN VIVO que esa fila del Sheet sea la misma orden y referencia (las filas pueden moverse) y que la celda no tenga ya MTS."""
+    import gspread
+    plano = lambda v: re.sub(r'\s+', '', str(v or '')).upper()
+    try:
+        with connect() as db:
+            link = db.execute('SELECT sheet_row FROM production_sheet_links WHERE source_row=?', (source_row,)).fetchone()
+        if not link:
+            return {'sheet': False, 'sheet_motivo': 'La tarjeta no está enlazada a una fila del Google Sheets'}
+        fila = int(link['sheet_row'])
+        ws = legacy.get_gspread()
+        vivos = ws.row_values(fila)
+        if len(vivos) < 7 or plano(vivos[4]) != plano(orden) or plano(vivos[6]) != plano(referencia):
+            return {'sheet': False, 'sheet_motivo': f'La fila {fila} del Google Sheets ya no corresponde a {orden} / {referencia}; no escribí nada allá'}
+        titulo = ws.title.replace("'", "''")
+        meta = ws.spreadsheet.fetch_sheet_metadata(params={'ranges': f"'{titulo}'!{gspread.utils.rowcol_to_a1(fila, 17)}", 'includeGridData': 'true',
+                                                          'fields': 'sheets(data(rowData(values(note))))'})
+        previa = ''
+        for hoja in meta.get('sheets', []):
+            for bloque in hoja.get('data', []):
+                for fila_datos in bloque.get('rowData', []):
+                    for celda in fila_datos.get('values', []):
+                        previa = celda.get('note', '') or previa
+        if re.search(r'\d+(?:[.,]\d+)?\s*MTS', previa, re.I):
+            return {'sheet': False, 'sheet_motivo': f'La celda del Sheet ya tiene MTS ({previa.strip()}); no la cambié'}
+        linea = f"{referencia} : {mts}"
+        ws.update_note(gspread.utils.rowcol_to_a1(fila, 17), (previa.strip() + '\n' + linea) if previa.strip() else linea)
+        return {'sheet': True, 'sheet_fila': fila}
+    except Exception as exc:  # noqa: BLE001
+        logging.exception('TERRY: no se pudo escribir el MTS en Google Sheets')
+        return {'sheet': False, 'sheet_motivo': f'No pude escribir en Google Sheets: {exc}'}
+
+
 def _terry_guardar_mts(orden: str, referencia: str, texto: str) -> dict:
     """Escribe «NN.NN MTS» en la nota de MTS REQUERIDOS (columna 17) de la tarjeta de la orden. No pisa un valor puesto por una persona."""
     plano = lambda v: re.sub(r'\s+', '', str(v or '')).upper()
@@ -2540,7 +2574,9 @@ def _terry_guardar_mts(orden: str, referencia: str, texto: str) -> dict:
         ahora = datetime.now(timezone.utc).isoformat()
         db.execute('INSERT OR REPLACE INTO production_notes VALUES (?,?,?,?,?)', (fila, 17, texto, 'TERRY', ahora))
         db.execute("INSERT OR REPLACE INTO production_meta(key,value) VALUES ('updated_at',?)", (ahora,))
-    return {'ok': True, 'fila': fila}
+    resultado = {'ok': True, 'fila': fila}
+    resultado.update(_terry_nota_en_sheet(fila, orden, referencia, texto.replace('.', ',')))   # también en el Google Sheets (por ahora)
+    return resultado
 
 
 agentes_mod.configurar_mts(_terry_guardar_mts)
