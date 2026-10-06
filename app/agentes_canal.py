@@ -23,6 +23,7 @@ _file = Path(os.getenv('AGENTES_FILE', '/data/state/agentes_canal.json'))
 _token_file = Path(os.getenv('AGENTES_TOKEN_FILE', '/data/state/agentes_token.txt'))
 _lock = threading.Lock()
 MAX_MENSAJES = 400
+MAX_EVENTOS = 900
 LATIDO_SEG = 25          # el PC se considera conectado si sondeó hace menos de esto
 ESPERA_MAX_SEG = 600     # si el PC toma un mensaje y no responde en 10 min, se avisa y se libera el chat
 _auth: Callable = lambda request: None
@@ -51,11 +52,14 @@ def _leer() -> dict:
     datos.setdefault('mensajes', [])
     datos.setdefault('latido', {})
     datos.setdefault('trabajo', {})
+    datos.setdefault('eventos', [])   # avance de los agentes para dibujar el flujo (por persona y mensaje)
+    datos.setdefault('cont_ev', 0)
     return datos
 
 
 def _guardar(datos: dict) -> None:
     datos['mensajes'] = datos['mensajes'][-MAX_MENSAJES:]
+    datos['eventos'] = datos['eventos'][-MAX_EVENTOS:]
     _file.parent.mkdir(parents=True, exist_ok=True)
     tmp = _file.with_suffix('.tmp')
     tmp.write_text(json.dumps(datos, ensure_ascii=False), encoding='utf-8')
@@ -137,7 +141,7 @@ def estado(request: Request):
 
 
 @router.get('/mensajes')
-def mensajes(request: Request, desde: int = 0):
+def mensajes(request: Request, desde: int = 0, desde_ev: int = 0):
     usuario = _auth(request)
     with _lock:
         datos = _leer()
@@ -147,7 +151,9 @@ def mensajes(request: Request, desde: int = 0):
         esperando = any(m['rol'] == 'yo' and not m.get('respondido') for m in propios)
         trabajo = datos['trabajo'].get(usuario) if esperando else None
         nuevos = [{k: v for k, v in m.items() if k not in ('t',)} for m in propios if m['id'] > desde]
-        return {'mensajes': nuevos, 'esperando': esperando, 'trabajo': trabajo, 'conectado': _conectado(datos), 'ultimo': datos['contador']}
+        eventos = [e for e in datos['eventos'] if e['sesion'] == usuario and e['id'] > desde_ev]
+        return {'mensajes': nuevos, 'esperando': esperando, 'trabajo': trabajo, 'conectado': _conectado(datos), 'ultimo': datos['contador'],
+                'eventos': eventos, 'ultimo_ev': datos['cont_ev']}
 
 
 @router.post('/mensaje')
@@ -173,6 +179,7 @@ def limpiar(request: Request):
     with _lock:
         datos = _leer()
         datos['mensajes'] = [m for m in datos['mensajes'] if m['sesion'] != usuario]
+        datos['eventos'] = [e for e in datos['eventos'] if e['sesion'] != usuario]
         datos['trabajo'].pop(usuario, None)
         # mensaje oculto: el PC reinicia la sesión de TAVO de esta persona (no aparece en el chat)
         _nuevo(datos, usuario, 'yo', 'cancelar', t=_ahora(), tomado=False, respondido=False, oculto=True)
@@ -229,6 +236,14 @@ def evento(request: Request, payload: dict):
         return {'ok': True}
     with _lock:
         datos = _leer()
+        msg_id = payload.get('msg_id')
+        origen = next((m for m in datos['mensajes'] if m['id'] == msg_id and m['rol'] == 'yo'), None)
+        if origen is not None and not origen.get('oculto'):
+            for e in lista:
+                datos['cont_ev'] += 1
+                datos['eventos'].append({'id': datos['cont_ev'], 'sesion': sesion, 'msg_id': msg_id, 'agente': str(e.get('agente', 'TAVO')).upper()[:10],
+                                         'msg': str(e.get('msg', ''))[:300], 'nivel': str(e.get('nivel', 'INFO'))[:8], 'hora': str(e.get('hora', ''))[:8],
+                                         't': float(e.get('t') or _ahora())})
         actual = datos['trabajo'].get(sesion) or {'agentes': ['TAVO']}
         agentes = list(actual.get('agentes') or ['TAVO'])
         for e in lista:
@@ -260,7 +275,7 @@ def respuesta(request: Request, payload: dict):
         agentes = [str(a).upper()[:10] for a in (payload.get('agentes') or ['TAVO'])][:8]
         extra = {'tabla': _tabla(payload.get('tabla'))} if payload.get('tabla') else {}
         _nuevo(datos, origen['sesion'], 'bot', str(payload.get('respuesta', ''))[:30000], estado=str(payload.get('estado', ''))[:30],
-               botones=botones, agentes=agentes, respondido=True, **extra)
+               botones=botones, agentes=agentes, respondido=True, en_respuesta_a=origen['id'], **extra)
         datos['trabajo'].pop(origen['sesion'], None)
         _guardar(datos)
     return {'ok': True}
