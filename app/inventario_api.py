@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 import gspread
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 from google.oauth2.service_account import Credentials
@@ -1011,8 +1011,13 @@ def inventory_bodegas_create(bodega: NewBodega):
     return {'ok': True, 'nombre': name}
 
 
+@inventario_router.get('/documento/formatos')
+def inventory_document_formats():
+    return {'formatos': ingreso_documento.FORMATOS}
+
+
 @inventario_router.post('/documento')
-async def inventory_document(file: UploadFile = File(...)):
+async def inventory_document(file: UploadFile = File(...), formato: str = Form('auto')):
     data = await file.read()
     if not data or len(data) > 15 * 1024 * 1024:
         raise HTTPException(status_code=413, detail='El archivo está vacío o supera los 15 MB.')
@@ -1027,7 +1032,7 @@ async def inventory_document(file: UploadFile = File(...)):
     except OSError:
         pass
     try:
-        parsed = await run_in_threadpool(ingreso_documento.parse_document, data, name)
+        parsed = await run_in_threadpool(ingreso_documento.parse_document, data, name, formato)
     except Exception as exc:
         raise HTTPException(status_code=422, detail=f'No se pudo leer el documento: {exc}') from exc
     snapshot = _load_snapshot() or {}

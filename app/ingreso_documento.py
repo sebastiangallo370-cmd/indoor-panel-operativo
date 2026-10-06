@@ -327,11 +327,29 @@ def parse_invoice_text(data: bytes) -> dict | None:
             'total_documento': round(sum(r['mts'] for line in lines for r in line['rollos']), 2), 'lineas': lines, 'tipo': 'factura'}
 
 
-def parse_document(data: bytes, filename: str) -> dict:
-    if data[:4] == b'%PDF':
+# Formatos de documento por proveedor. Cada proveedor entrega el PDF distinto: se elige el formato al subirlo y todos terminan en el mismo resultado
+# estándar {proveedor, fecha, total_documento, lineas:[{descripcion, referencia, rollos:[{mts, rollo_no}]}]}. Para sumar un proveedor nuevo se agrega
+# un lector (función) y una fila aquí; la pantalla toma la lista de /api/inventarios/documento/formatos.
+FORMATOS = [
+    {'id': 'auto', 'nombre': 'Detectar automáticamente', 'ayuda': 'Prueba los formatos conocidos y usa el que coincida.'},
+    {'id': 'eliot', 'nombre': 'Manufacturas Eliot · nota de entrega', 'ayuda': 'Escaneo, foto o PDF de la nota: lee la columna CANTIDAD (un rollo por fila) y la contrasta con el total.'},
+    {'id': 'factura', 'nombre': 'Factura electrónica · Lindatextil', 'ayuda': 'PDF con texto: una línea por tela con sus metros. La factura no trae los rollos: entra como 1 rollo con el total y lo repartes.'},
+    {'id': 'manual', 'nombre': 'Otro proveedor · registrar a mano', 'ayuda': 'No lee el documento: eliges la tela y escribes los metros de cada rollo.'},
+]
+FORMATOS_IDS = {f['id'] for f in FORMATOS}
+
+
+def parse_document(data: bytes, filename: str, formato: str = 'auto') -> dict:
+    formato = formato if formato in FORMATOS_IDS else 'auto'
+    if formato == 'manual':
+        return {'proveedor': '', 'fecha': '', 'total_documento': None, 'tipo': 'manual',
+                'lineas': [{'descripcion': 'Tela a registrar', 'referencia': '', 'rollos': []}]}
+    if formato in ('auto', 'factura') and data[:4] == b'%PDF':
         invoice = parse_invoice_text(data)
         if invoice:
             return invoice
+    if formato == 'factura':
+        raise ValueError('No encontré líneas de factura en este PDF. Revisa que sea la factura electrónica con texto (no un escaneo) o elige otro formato.')
     pages = [parse_page(image) for image in load_images(data, filename)]
     merged = {'proveedor': '', 'fecha': '', 'total_documento': None, 'filas': []}
     for page in pages:
