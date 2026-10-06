@@ -31,7 +31,7 @@
       <div class="mp-meta">${esc(p.cliente)}${p.entrega ? ' · Entrega ' + esc(p.entrega) : ''} · ${esc(fecha(p.fecha))}</div>
       ${refs ? `<div class="mp-meta">${refs}</div>` : ''}
       ${p.nivel !== 'ok' && p.detalle ? `<div class="mp-detalle">${esc(p.detalle)}</div>` : ''}</div>`;
-    }).join('') : '<div class="mp-vacio">No hay pedidos para mostrar.</div>';
+    }).join('') : '<div class="mp-vacio">Aún no has programado pedidos con tu usuario. Cuando subas uno, aparecerá aquí.</div>';
   }
   async function cargar() {
     const caja = panel.querySelector('[data-lista]');

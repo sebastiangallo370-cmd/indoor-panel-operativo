@@ -6183,7 +6183,7 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
 `;document.head.appendChild(traceFigmaStyle);setTraceView();
     const commercialGroup=commercialToggle.closest('.nav-group');commercialGroup.classList.add('collapsed');const productionToggle=document.getElementById('production-toggle');if(productionToggle)productionToggle.addEventListener('click',()=>{{const g=productionToggle.closest('.nav-group');g.classList.toggle('collapsed');if(!g.classList.contains('collapsed')&&window.innerWidth>860)g.querySelector('.nav-children .tab')?.click()}});
     setTimeout(()=>{{if(!document.querySelector('.panel.active'))document.querySelector('.tab[data-kind="inicio"]')?.click()}},0);
-    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/permisos.js?v=20261006-1'></script><script src='/reposiciones.js?v=20261005-4'></script><script src='/agentes.js?v=20261006-29'></script><script src='/promedios.js?v=20261006-7'></script><script src='/api/cartera/cartera.js?v=20261002-5'></script><script src='/trace-ui.js?v=20261006-2'></script><script src='/home-dashboard.js?v=20261005-9'></script><script src='/bodega-dashboard.js?v=20261002-10'></script><script src='/bodegas.js?v=20261002-4'></script><script src='/codigos-barras.js?v=20261006-7'></script><script src='/mis-pedidos.js?v=20261006-2'></script><script src='/mobile-nav.js?v=20261006-1'></script><script src='/nav-liquid.js?v=20261003-3'></script><script src='/build-watch.js?v=20261002-1'></script><script src='/salud.js?v=20261002-1'></script><script src='/tema.js?v=20261002-3'></script><script src='/tarjeta-iconos.js?v=20261002-5'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261005-3'></script><script src='/linea-editor.js?v=20261003-3'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
+    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/permisos.js?v=20261006-1'></script><script src='/reposiciones.js?v=20261005-4'></script><script src='/agentes.js?v=20261006-29'></script><script src='/promedios.js?v=20261006-7'></script><script src='/api/cartera/cartera.js?v=20261002-5'></script><script src='/trace-ui.js?v=20261006-2'></script><script src='/home-dashboard.js?v=20261005-9'></script><script src='/bodega-dashboard.js?v=20261002-10'></script><script src='/bodegas.js?v=20261002-4'></script><script src='/codigos-barras.js?v=20261006-7'></script><script src='/mis-pedidos.js?v=20261006-3'></script><script src='/mobile-nav.js?v=20261006-1'></script><script src='/nav-liquid.js?v=20261003-3'></script><script src='/build-watch.js?v=20261002-1'></script><script src='/salud.js?v=20261002-1'></script><script src='/tema.js?v=20261002-3'></script><script src='/tarjeta-iconos.js?v=20261002-5'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261005-3'></script><script src='/linea-editor.js?v=20261003-3'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
 
 
 def ordered_mockup_uploads(extras, slots):
@@ -6291,7 +6291,7 @@ def _reject_existing_order(pdf_bytes: bytes, pdf_name: str):
 
 
 @app.get('/api/mis-pedidos')
-def mis_pedidos(_=Depends(authenticate)):
+def mis_pedidos(usuario=Depends(authenticate)):
     """Estado de los últimos pedidos subidos: si quedaron en producción o por qué fallaron (para los comerciales)."""
     db = connect()
     try:
@@ -6310,11 +6310,17 @@ def mis_pedidos(_=Depends(authenticate)):
                 e = en_prod.setdefault(key, {'cliente': get(ci), 'refs': [], 'entrega': get(di)})
                 if get(ri):
                     e['refs'].append(get(ri))
-        jobs = db.execute("SELECT id,filename,order_number,status,detail,created_at,updated_at FROM jobs WHERE kind='pedido' ORDER BY id DESC LIMIT 150").fetchall()
+        jobs = db.execute("SELECT id,filename,order_number,status,detail,created_at,updated_at,input_summary FROM jobs WHERE kind='pedido' ORDER BY id DESC LIMIT 600").fetchall()
     finally:
         db.close()
     vistos, salida = set(), []
     for j in jobs:
+        try:
+            autor = str(json.loads(j['input_summary'] or '{}').get('usuario') or '')
+        except ValueError:
+            autor = ''
+        if autor.strip().lower() != str(usuario).strip().lower():
+            continue  # cada usuario ve solo los pedidos que él programó
         orden = re.sub(r'[\s-]+', '', j['order_number'] or '').upper() or ('#' + str(j['id']))
         if orden in vistos:
             continue
@@ -6390,7 +6396,7 @@ async def upload_order(
     with connect() as db:
         cursor = db.execute(
             "INSERT INTO jobs(filename,status,detail,created_at,updated_at,kind,input_summary,order_number) VALUES(?,?,?,?,?,?,?,?)",
-            (display_name, "RECIBIDO", "En cola", now, now, "pedido", json.dumps({'observaciones': observaciones.strip(), 'linea': linea.strip()}, ensure_ascii=False), checked_order or None),
+            (display_name, "RECIBIDO", "En cola", now, now, "pedido", json.dumps({'observaciones': observaciones.strip(), 'linea': linea.strip(), 'usuario': str(_)}, ensure_ascii=False), checked_order or None),
         )
         job_id = cursor.lastrowid
     asyncio.create_task(asyncio.to_thread(process_order_job, job_id, job_dir, saved[0], saved[1], observaciones.strip(), str(_), linea.strip()))
