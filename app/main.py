@@ -6183,7 +6183,7 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
 `;document.head.appendChild(traceFigmaStyle);setTraceView();
     const commercialGroup=commercialToggle.closest('.nav-group');commercialGroup.classList.add('collapsed');const productionToggle=document.getElementById('production-toggle');if(productionToggle)productionToggle.addEventListener('click',()=>{{const g=productionToggle.closest('.nav-group');g.classList.toggle('collapsed');if(!g.classList.contains('collapsed')&&window.innerWidth>860)g.querySelector('.nav-children .tab')?.click()}});
     setTimeout(()=>{{if(!document.querySelector('.panel.active'))document.querySelector('.tab[data-kind="inicio"]')?.click()}},0);
-    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/permisos.js?v=20261006-1'></script><script src='/reposiciones.js?v=20261005-4'></script><script src='/agentes.js?v=20261006-29'></script><script src='/promedios.js?v=20261006-7'></script><script src='/api/cartera/cartera.js?v=20261002-5'></script><script src='/trace-ui.js?v=20261006-2'></script><script src='/home-dashboard.js?v=20261005-9'></script><script src='/bodega-dashboard.js?v=20261002-10'></script><script src='/bodegas.js?v=20261002-4'></script><script src='/codigos-barras.js?v=20261006-7'></script><script src='/mobile-nav.js?v=20261006-1'></script><script src='/nav-liquid.js?v=20261003-3'></script><script src='/build-watch.js?v=20261002-1'></script><script src='/salud.js?v=20261002-1'></script><script src='/tema.js?v=20261002-3'></script><script src='/tarjeta-iconos.js?v=20261002-5'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261005-3'></script><script src='/linea-editor.js?v=20261003-3'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
+    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/permisos.js?v=20261006-1'></script><script src='/reposiciones.js?v=20261005-4'></script><script src='/agentes.js?v=20261006-29'></script><script src='/promedios.js?v=20261006-7'></script><script src='/api/cartera/cartera.js?v=20261002-5'></script><script src='/trace-ui.js?v=20261006-2'></script><script src='/home-dashboard.js?v=20261005-9'></script><script src='/bodega-dashboard.js?v=20261002-10'></script><script src='/bodegas.js?v=20261002-4'></script><script src='/codigos-barras.js?v=20261006-7'></script><script src='/mis-pedidos.js?v=20261006-1'></script><script src='/mobile-nav.js?v=20261006-1'></script><script src='/nav-liquid.js?v=20261003-3'></script><script src='/build-watch.js?v=20261002-1'></script><script src='/salud.js?v=20261002-1'></script><script src='/tema.js?v=20261002-3'></script><script src='/tarjeta-iconos.js?v=20261002-5'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261005-3'></script><script src='/linea-editor.js?v=20261003-3'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
 
 
 def ordered_mockup_uploads(extras, slots):
@@ -6288,6 +6288,55 @@ def _reject_existing_order(pdf_bytes: bytes, pdf_name: str):
         return order
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
+
+
+@app.get('/api/mis-pedidos')
+def mis_pedidos(_=Depends(authenticate)):
+    """Estado de los últimos pedidos subidos: si quedaron en producción o por qué fallaron (para los comerciales)."""
+    db = connect()
+    try:
+        meta = {r['key']: r['value'] for r in db.execute("SELECT key,value FROM production_meta WHERE key='headers'")}
+        headers = json.loads(meta.get('headers') or '[]')
+        idx = {str(h).strip().upper(): i for i, h in enumerate(headers)}
+        oi, ci, ri, di = idx.get('ORDEN', -1), idx.get('NOMBRE DEL CLIENTE', -1), idx.get('REFERENCIA', -1), idx.get('FECHA DE ENTREGA', -1)
+        en_prod = {}
+        for raw in db.execute('SELECT values_json FROM production_rows'):
+            v = json.loads(raw['values_json'])
+
+            def get(i):
+                return str(v[i]).strip() if 0 <= i < len(v) else ''
+            key = re.sub(r'[\s-]+', '', get(oi)).upper()
+            if key:
+                e = en_prod.setdefault(key, {'cliente': get(ci), 'refs': [], 'entrega': get(di)})
+                if get(ri):
+                    e['refs'].append(get(ri))
+        jobs = db.execute("SELECT id,filename,order_number,status,detail,created_at,updated_at FROM jobs WHERE kind='pedido' ORDER BY id DESC LIMIT 150").fetchall()
+    finally:
+        db.close()
+    vistos, salida = set(), []
+    for j in jobs:
+        orden = re.sub(r'[\s-]+', '', j['order_number'] or '').upper() or ('#' + str(j['id']))
+        if orden in vistos:
+            continue
+        vistos.add(orden)
+        prod = en_prod.get(orden)
+        if j['status'] == 'COMPLETADO':
+            nivel, titulo = ('ok', 'SUBIDO CORRECTAMENTE') if prod else ('aviso', 'TERMINÓ PERO NO APARECE EN PRODUCCIÓN')
+        elif j['status'] in ('ERROR', 'REVISAR'):
+            nivel, titulo = ('ok', 'SUBIDO CORRECTAMENTE') if prod else ('error', 'NO SE SUBIÓ · VUELVE A SUBIRLO')
+        else:
+            nivel, titulo = 'proceso', 'PROCESANDO…'
+        salida.append({'orden': j['order_number'] or '', 'archivo': j['filename'], 'estado': titulo, 'nivel': nivel, 'detalle': j['detail'] or '',
+                       'fecha': j['updated_at'] or j['created_at'], 'cliente': (prod or {}).get('cliente', ''),
+                       'referencias': (prod or {}).get('refs', []), 'entrega': (prod or {}).get('entrega', '')})
+        if len(salida) >= 60:
+            break
+    return {'pedidos': salida}
+
+
+@app.get('/mis-pedidos.js')
+def mis_pedidos_js():
+    return FileResponse(Path(__file__).with_name('mis-pedidos.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
 
 
 @app.post("/procesar/pedido", status_code=202)
