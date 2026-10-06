@@ -857,10 +857,14 @@ def registrar_pago_cotizacion(header, config):
 #  EXTRACCION DE DATOS: EXCEL  (pedido subido por el comercial)
 # ======================================================================
 
-# Referencias historicas: A100..., y nuevas referencias descriptivas como
-# A-TELAUCO-CA02. Se exige que las descriptivas contengan al menos un digito
-# para no confundir hojas auxiliares (por ejemplo BASE_DATOS) con productos.
-REF_HOJA_RE = re.compile(r"^(?:[A-Z]\d{2,}|[A-Z]-[A-Z0-9-]*\d[A-Z0-9-]*)$")
+# Referencias de producto: tela + referencia (A300VOL01, A100FUT01, A50CA00M), la tela sola (A100), referencias compuestas
+# (A100CB02-A100PT01) y las descriptivas como A-TELAUCO-CA02. Se exige al menos un digito para no confundir hojas auxiliares
+# (por ejemplo BASE_DATOS o REFERENCIA) con productos.
+_REF_BASE = r"[A-Z]\d{2,}(?:[A-Z]{1,6}\d{1,3}[A-Z]?)?"
+REF_HOJA_RE = re.compile(r"^(?:" + _REF_BASE + r"(?:[-+/]" + _REF_BASE + r")*|[A-Z]-[A-Z0-9-]*\d[A-Z0-9-]*)$")
+
+# Por que se rechazo cada orden (orden -> lista de motivos) para mostrarlo en el panel en vez de un mensaje generico.
+MOTIVOS_RECHAZO = {}
 
 def extraer_items_excel(ruta):
     try:
@@ -1539,6 +1543,7 @@ def procesar_orden(orden, ruta_pdf, ruta_xlsx, config, production_writer=None, w
     if not any(d.get("referencia") for d in datos_xlsx):
         motivos.append("El Excel del pedido no tiene hojas de referencia (producto) validas.")
     if motivos:
+        MOTIVOS_RECHAZO[orden] = list(motivos)
         enviar_alerta_comercial(header_pdf, motivos, nombre_xlsx, config)
         logging.warning(f"Orden {orden}: reglas incumplidas, no se procesa -> {motivos}")
         return False

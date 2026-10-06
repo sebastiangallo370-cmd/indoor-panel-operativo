@@ -1125,7 +1125,8 @@ def process_order_job(job_id: int, job_dir: Path, pdf_path: Path, excel_path: Pa
                 append_local_production(record, pedidos._fila_produccion, observations, author, linea)
             update_job(job_id, "COMPLETADO", detail, order_number)
         else:
-            update_job(job_id, "REVISAR", "El pedido incumple una regla de negocio", order_number)
+            motivos = pedidos.MOTIVOS_RECHAZO.pop(order_number, [])
+            update_job(job_id, "REVISAR", "El pedido incumple una regla de negocio" + (": " + " ".join(motivos) if motivos else ""), order_number)
     except Exception as error:
         logging.exception("Error procesando pedido normal %s", job_id)
         update_job(job_id, "ERROR", str(error))
