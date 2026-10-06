@@ -327,16 +327,98 @@ def parse_invoice_text(data: bytes) -> dict | None:
             'total_documento': round(sum(r['mts'] for line in lines for r in line['rollos']), 2), 'lineas': lines, 'tipo': 'factura'}
 
 
+_EMPAQUE_ARTICULO = re.compile(r'^\s*(\d{5,7})\s*-\s*(.+)$')
+_EMPAQUE_DECIMALES = re.compile(r'\d+\.\d{2}(?!\d)')
+_EMPAQUE_ID = re.compile(r'\d{7,}')
+
+
+def _limpiar_articulo(texto: str) -> str:
+    """El OCR deja basura al final del nombre («SUPER ZENTRA PLUS DB E A»): se quitan las palabras sueltas o en minúscula del final."""
+    palabras = texto.split()
+    while palabras and (len(palabras[-1]) == 1 or palabras[-1].islower()):
+        palabras.pop()
+    return ' '.join(palabras)
+
+
+def parse_packing_list_text(texto: str) -> dict | None:
+    """Texto OCR de una «LISTA DE EMPAQUE» de Lindatextil: por artículo, un rollo por fila (ID, Cant. en metros, Cant.adic en kg)."""
+    if 'LISTA DE EMPAQUE' not in texto.upper() or 'LINDATEXTIL' not in texto.upper():
+        return None
+    articulos: list[dict] = []
+    actual = None
+    for linea in texto.splitlines():
+        limpia = linea.strip()
+        if not limpia:
+            continue
+        match = _EMPAQUE_ARTICULO.match(limpia)
+        if match and not limpia.upper().startswith('TOTAL'):
+            actual = {'referencia': match.group(1), 'descripcion': _limpiar_articulo(match.group(2)), 'color': '', 'rollos': []}
+            articulos.append(actual)
+            continue
+        if actual is None:
+            continue
+        if not actual['color']:
+            color = re.match(r'^\(([^)]+)\)\s*(\w+)?', limpia)
+            if color:
+                actual['color'] = f"({color.group(1).strip()})" + (f" {color.group(2)}" if color.group(2) else '')
+        if re.match(r'^(subt|total)', limpia, re.I):
+            continue
+        decimales = _EMPAQUE_DECIMALES.findall(limpia)
+        identificador = _EMPAQUE_ID.search(limpia)
+        if len(decimales) >= 2 and identificador:
+            actual['rollos'].append({'mts': float(decimales[-2]), 'rollo_no': identificador.group(0)[:7]})
+    lineas = []
+    for a in articulos:
+        if not a['rollos']:
+            continue
+        nombre = (a['descripcion'] + (' ' + a['color'] if a['color'] else '')).strip()
+        lineas.append({'descripcion': nombre, 'referencia': a['referencia'], 'rollos': a['rollos']})
+    if not lineas:
+        return None
+    fecha = re.search(r'Fecha:?\s*(\d{4}/\d{2}/\d{2})', texto)
+    total = re.findall(r'^\s*Total\s+\d{5,7}\s*-.*?(\d+\.\d{2})\s+\d+\.\d{2}\s*$', texto, re.M | re.I)
+    return {'proveedor': 'TEJIDOS DE PUNTO LINDATEXTIL S.A.S.', 'fecha': fecha.group(1) if fecha else '',
+            'total_documento': round(sum(float(t) for t in total), 2) if total else None, 'lineas': lineas, 'tipo': 'lista_empaque'}
+
+
+def parse_packing_list(data: bytes, filename: str) -> dict | None:
+    imagenes = load_images(data, filename)
+    textos = []
+    for imagen in imagenes:
+        ruta = _save_temp(imagen)
+        try:
+            textos.append(_tesseract(ruta, '-l', 'spa', '--psm', '6'))
+        finally:
+            try:
+                os.unlink(ruta)
+            except OSError:
+                pass
+    paginas = [r for r in (parse_packing_list_text(t) for t in textos) if r]
+    if not paginas:
+        return None
+    unido = paginas[0]
+    for extra in paginas[1:]:
+        unido['lineas'].extend(extra['lineas'])
+        unido['total_documento'] = (unido['total_documento'] or 0) + (extra['total_documento'] or 0)
+    return unido
+
+
 # Formatos de documento por proveedor. Cada proveedor entrega el PDF distinto: se elige el formato al subirlo y todos terminan en el mismo resultado
 # estándar {proveedor, fecha, total_documento, lineas:[{descripcion, referencia, rollos:[{mts, rollo_no}]}]}. Para sumar un proveedor nuevo se agrega
 # un lector (función) y una fila aquí; la pantalla toma la lista de /api/inventarios/documento/formatos.
 FORMATOS = [
     {'id': 'auto', 'nombre': 'Detectar automáticamente', 'ayuda': 'Prueba los formatos conocidos y usa el que coincida.'},
-    {'id': 'eliot', 'nombre': 'Manufacturas Eliot · nota de entrega', 'ayuda': 'Escaneo, foto o PDF de la nota: lee la columna CANTIDAD (un rollo por fila) y la contrasta con el total.'},
-    {'id': 'factura', 'nombre': 'Factura electrónica · Lindatextil', 'ayuda': 'PDF con texto: una línea por tela con sus metros. La factura no trae los rollos: entra como 1 rollo con el total y lo repartes.'},
+    {'id': 'linda_empaque', 'nombre': 'Lindatextil · Lista de empaque', 'ayuda': 'Escaneo o foto de la lista de empaque: un rollo por fila (ID y metros de la columna Cant.), contrastado con el total de la tela.'},
+    {'id': 'linda_factura', 'nombre': 'Lindatextil · Factura electrónica', 'ayuda': 'PDF con texto: una línea por tela con sus metros. La factura no trae los rollos: entra como 1 rollo con el total y lo repartes.'},
+    {'id': 'eliot', 'nombre': 'Manufacturas Eliot · Nota de entrega', 'ayuda': 'Escaneo, foto o PDF de la nota: lee la columna CANTIDAD (un rollo por fila) y la contrasta con el total.'},
+    {'id': 'lafayette', 'nombre': 'Lafayette · formato por configurar', 'pendiente': True, 'ayuda': 'Todavía no tengo el formato de este proveedor. Si el PDF trae texto intento leerlo; si no, usa «registrar a mano» y envíame un PDF de ejemplo para configurarlo.'},
+    {'id': 'saraxy', 'nombre': 'Saraxy · formato por configurar', 'pendiente': True, 'ayuda': 'Todavía no tengo el formato de este proveedor. Si el PDF trae texto intento leerlo; si no, usa «registrar a mano» y envíame un PDF de ejemplo para configurarlo.'},
+    {'id': 'puntoflex', 'nombre': 'Puntoflex · formato por configurar', 'pendiente': True, 'ayuda': 'Todavía no tengo el formato de este proveedor. Si el PDF trae texto intento leerlo; si no, usa «registrar a mano» y envíame un PDF de ejemplo para configurarlo.'},
+    {'id': 'spirit', 'nombre': 'Spirit · formato por configurar', 'pendiente': True, 'ayuda': 'Todavía no tengo el formato de este proveedor. Si el PDF trae texto intento leerlo; si no, usa «registrar a mano» y envíame un PDF de ejemplo para configurarlo.'},
     {'id': 'manual', 'nombre': 'Otro proveedor · registrar a mano', 'ayuda': 'No lee el documento: eliges la tela y escribes los metros de cada rollo.'},
 ]
 FORMATOS_IDS = {f['id'] for f in FORMATOS}
+FORMATOS_PENDIENTES = {f['id']: f['nombre'].split(' · ')[0] for f in FORMATOS if f.get('pendiente')}
 
 
 def parse_document(data: bytes, filename: str, formato: str = 'auto') -> dict:
@@ -344,12 +426,20 @@ def parse_document(data: bytes, filename: str, formato: str = 'auto') -> dict:
     if formato == 'manual':
         return {'proveedor': '', 'fecha': '', 'total_documento': None, 'tipo': 'manual',
                 'lineas': [{'descripcion': 'Tela a registrar', 'referencia': '', 'rollos': []}]}
-    if formato in ('auto', 'factura') and data[:4] == b'%PDF':
+    if (formato in ('auto', 'linda_factura') or formato in FORMATOS_PENDIENTES) and data[:4] == b'%PDF':
         invoice = parse_invoice_text(data)
         if invoice:
             return invoice
-    if formato == 'factura':
+    if formato in FORMATOS_PENDIENTES:
+        raise ValueError(f'Todavía no tengo configurado el formato de {FORMATOS_PENDIENTES[formato]}. Envíame un PDF de ejemplo de ese proveedor para configurarlo; mientras tanto elige «Otro proveedor · registrar a mano».')
+    if formato == 'linda_factura':
         raise ValueError('No encontré líneas de factura en este PDF. Revisa que sea la factura electrónica con texto (no un escaneo) o elige otro formato.')
+    if formato in ('auto', 'linda_empaque'):
+        empaque = parse_packing_list(data, filename)
+        if empaque:
+            return empaque
+        if formato == 'linda_empaque':
+            raise ValueError('No reconocí una lista de empaque de Lindatextil en este documento. Revisa que la foto o el escaneo se vea completo o elige otro formato.')
     pages = [parse_page(image) for image in load_images(data, filename)]
     merged = {'proveedor': '', 'fecha': '', 'total_documento': None, 'filas': []}
     for page in pages:
