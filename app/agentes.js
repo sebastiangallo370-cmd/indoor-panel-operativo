@@ -7,7 +7,7 @@
   const ROLES = { TAVO: 'Coordina', LEO: 'Lee el listado', JACK: 'Muestra PDF', OLVER: 'Exporta mesas', OLIVER: 'Valida tallas', TERRY: 'Google Sheets' };
   const ATAJOS = [['Ver listado', 'Qué dice el listado de la orden '], ['Exportar mesas', 'Expórtame las mesas de trabajo de la orden '], ['Crear muestra', 'Crea la muestra de la orden '],
     ['Pedido completo', 'Pedido completo de la orden '], ['Jugadores', 'jugadores'], ['Reiniciar', 'cancelar']];
-  const st = { msgs: [], ultimo: 0, evs: [], ultimoEv: 0, esperando: false, trabajo: null, estado: { conectado: false }, cargando: false, enviando: false };
+  const st = { abiertos: {}, msgs: [], ultimo: 0, evs: [], ultimoEv: 0, esperando: false, trabajo: null, estado: { conectado: false }, cargando: false, enviando: false };
   let panel, tab, timer = 0;
 
   async function api(url, options) {
@@ -80,6 +80,12 @@
   .ag-log{height:auto;min-height:0;overflow:auto;margin:10px 12px 12px;padding:9px 11px;border-radius:9px;background:#080b08;color:#d6dae2;font:12px/1.6 Consolas,ui-monospace,monospace}
   .ag-log div{white-space:pre-wrap;word-break:break-word}.ag-log .h{opacity:.45;margin-right:7px}.ag-log b{margin-right:6px}.ag-log .vacio2{opacity:.45}.ag-log .WARN .m{color:#ffbd66}.ag-log .ERROR .m{color:#ff8a8a}
   @media(max-width:1000px){.ag-main{grid-template-columns:1fr;height:auto;min-height:0}.ag-flowcol{order:-1;grid-template-rows:auto auto}.ag-lienzo{height:400px}.ag-log{height:200px}.ag-chat{grid-template-rows:auto auto auto auto}.ag-thread{max-height:55vh;min-height:220px}}
+  .ag-files{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+  .ag-file{--fc:#ffcf5c;display:grid;gap:9px;padding:12px;border:1px solid #34432f;border-left:4px solid var(--fc);border-radius:12px;background:#0c110d}.ag-file.mesa{--fc:#6fe39a}.ag-file.abierto{grid-column:1/-1}
+  .ag-file-head{display:flex;gap:10px;align-items:center}.ag-fico{font-size:1.7rem;line-height:1}.ag-file-head b{display:block;font-size:.92rem;color:#eef4e9}.ag-file-head small{display:block;color:#8f9b8a;font-size:.72rem;overflow-wrap:anywhere}
+  .ag-prev{display:block;width:100%;height:min(52vh,460px);border:1px solid #34432f;border-radius:8px;background:#fff}img.ag-prev{height:auto;max-height:460px;object-fit:contain}
+  .ag-file-acc{display:flex;gap:6px;flex-wrap:wrap;align-items:center}.ag-file-acc button,.ag-file-acc a{min-height:0;padding:6px 12px;border:1px solid #60754d;border-radius:8px;background:transparent;color:#d0f44c;font:800 11px Arial;text-decoration:none;cursor:pointer}.ag-file-acc .nopre{color:#8f9b8a;font-size:.74rem}
+  html.theme-light .ag-file{background:#f6f8f2;border-color:#cdd8c6}html.theme-light .ag-file-head b{color:#18210f}
   .ag-who{display:flex;gap:6px;flex-wrap:wrap;align-items:center}.ag-tag{padding:2px 9px;border-radius:999px;font:900 10px Arial;letter-spacing:.06em;color:var(--c);background:color-mix(in srgb,var(--c) 15%,transparent);border:1px solid color-mix(in srgb,var(--c) 45%,transparent)}
   .ag-txt{white-space:pre-wrap;overflow-wrap:anywhere;margin:0;color:#eef4e9}.ag-time{color:#8f9b8a;font-size:.7rem}
   .ag-work{display:grid;gap:10px;justify-self:start;max-width:86%;padding:14px 16px;border:1px solid rgba(125,164,255,.45);border-radius:16px;background:rgba(125,164,255,.07)}
@@ -302,6 +308,20 @@
     crearNodos();
   }
 
+  const KB = n => (n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB');
+  const esImagen = a => ['png', 'jpg', 'jpeg'].includes(a.ext);
+  const abierto = (m, i) => { const k = m.id + ':' + i; return st.abiertos[k] !== undefined ? st.abiertos[k] : (m.archivos[i].tipo === 'muestra' && m.archivos.length <= 2); };
+  function archivosHtml(m) {
+    return '<div class="ag-files">' + m.archivos.map((a, i) => {
+      const url = a.id ? '/api/agentes/archivo/' + a.id : '', ver = a.id && abierto(m, i);
+      const previa = ver ? (esImagen(a) ? '<img class="ag-prev" src="' + url + '" alt="' + esc(a.titulo) + '">' : '<iframe class="ag-prev" src="' + url + '#toolbar=0&navpanes=0&view=FitH" loading="lazy" title="' + esc(a.titulo) + '"></iframe>') : '';
+      return '<article class="ag-file ' + esc(a.tipo) + (ver ? ' abierto' : '') + '"><div class="ag-file-head"><span class="ag-fico">' + (esImagen(a) ? '🖼️' : '📄') + '</span><div><b>' + esc(a.titulo || a.nombre) + '</b><small>' + esc(a.nombre) + (a.size ? ' · ' + KB(a.size) : '') + '</small></div></div>' + previa +
+        '<div class="ag-file-acc">' + (a.id ? '<button type="button" data-f-ver="' + m.id + ':' + i + '">' + (ver ? 'Ocultar' : 'Ver') + '</button><a href="' + url + '" target="_blank" rel="noopener">Abrir</a><a href="' + url + '?descargar=1" download>Descargar</a>' : '<span class="nopre">Sin vista previa</span>') +
+        (a.ruta ? '<button type="button" data-f-ruta="' + m.id + ':' + i + '">Copiar ruta</button>' : '') + '</div></article>';
+    }).join('') + '</div>';
+  }
+
+
   function pintar() {
     if (!panel || !panel.dataset.armado) return;
     const e = st.estado, ultimo = st.msgs[st.msgs.length - 1];
@@ -313,7 +333,7 @@
     const trabajo = st.trabajo;
     const hilo = st.msgs.length ? st.msgs.map(m => m.rol === 'yo'
       ? '<div class="ag-msg yo"><p class="ag-txt">' + esc(m.texto) + '</p><span class="ag-time">' + hora(m.creado) + '</span></div>'
-      : '<div class="ag-msg bot' + (m.estado === 'ERROR' ? ' err' : '') + (m.tabla ? ' con-tabla' : '') + '"><div class="ag-who">' + (m.agentes && m.agentes.length ? m.agentes : ['TAVO']).map(tag).join('') + '</div><p class="ag-txt">' + esc(m.tabla ? m.texto.split(/\n\nDesglose del listado/)[0] : m.texto) + '</p>' + (m.tabla ? tablaHtml(m) : '') + '<span class="ag-time">' + hora(m.creado) + '</span></div>').join('')
+      : '<div class="ag-msg bot' + (m.estado === 'ERROR' ? ' err' : '') + (m.tabla || (m.archivos && m.archivos.length) ? ' con-tabla' : '') + '"><div class="ag-who">' + (m.agentes && m.agentes.length ? m.agentes : ['TAVO']).map(tag).join('') + '</div><p class="ag-txt">' + esc(m.tabla ? m.texto.split(/\n\nDesglose del listado/)[0] : m.texto) + '</p>' + (m.tabla ? tablaHtml(m) : '') + (m.archivos && m.archivos.length ? archivosHtml(m) : '') + '<span class="ag-time">' + hora(m.creado) + '</span></div>').join('')
       : '<div class="ag-empty"><h3>¿Qué necesitas hoy?</h3><p>Por ejemplo: «expórtame las mesas de trabajo de la orden CO7890». TAVO decide qué agente actúa.</p></div>';
     const trabajando = st.esperando ? '<div class="ag-work"><div class="ag-who">' + ((trabajo && trabajo.agentes) || ['TAVO']).map(a => tag(a)).join('') + '<span class="ag-dots"><i></i><i></i><i></i></span></div><b>' +
       esc(trabajo && trabajo.msg ? trabajo.agente + ': ' + trabajo.msg : e.conectado ? 'TAVO está trabajando…' : 'Esperando al PC de los agentes…') + '</b></div>' : '';
@@ -411,6 +431,9 @@
     panel.addEventListener('click', async e => {
       const filtro = e.target.closest('[data-filtro]'), reply = e.target.closest('[data-send]'), atajo = e.target.closest('[data-atajo]');
       if (filtro) { filtrar(filtro.dataset.filtro || null); return; }
+      const fv = e.target.closest('[data-f-ver]'), fr = e.target.closest('[data-f-ruta]');
+      if (fv) { const [mid, i] = fv.dataset.fVer.split(':'), m = st.msgs.find(x => String(x.id) === mid); if (m) { st.abiertos[fv.dataset.fVer] = !abierto(m, Number(i)); pintar(); } return; }
+      if (fr) { const [mid, i] = fr.dataset.fRuta.split(':'), m = st.msgs.find(x => String(x.id) === mid); const ruta = m && m.archivos[Number(i)] && m.archivos[Number(i)].ruta; if (ruta) { try { await navigator.clipboard.writeText(ruta); } catch (err) { /* sin portapapeles */ } fr.textContent = '¡Copiada!'; setTimeout(() => { fr.textContent = 'Copiar ruta'; }, 1500); } return; }
       if (e.target.closest('[data-tabla-copiar]')) { const b = e.target.closest('[data-tabla-copiar]'); copiarTabla(b.dataset.tablaCopiar); b.textContent = '¡Copiado!'; setTimeout(() => { b.textContent = 'Copiar'; }, 1500); }
       else if (e.target.closest('[data-tabla-csv]')) csvTabla(e.target.closest('[data-tabla-csv]').dataset.tablaCsv);
       else if (reply) enviar(reply.dataset.send);

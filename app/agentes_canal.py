@@ -7,6 +7,8 @@ Datos en /data/state/agentes_canal.json y el token del PC en /data/state/agentes
 """
 import json
 import os
+import re
+from urllib.parse import unquote
 import secrets
 import threading
 import time
@@ -16,6 +18,7 @@ from pathlib import Path
 from typing import Callable
 
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import FileResponse
 
 router = APIRouter(prefix='/api/agentes', tags=['agentes'])            # personas (con sesión)
 pc_router = APIRouter(prefix='/api/agentes/pc', tags=['agentes-pc'])   # el PC con Illustrator (con token)
@@ -24,6 +27,10 @@ _token_file = Path(os.getenv('AGENTES_TOKEN_FILE', '/data/state/agentes_token.tx
 _lock = threading.Lock()
 MAX_MENSAJES = 400
 MAX_EVENTOS = 900
+MAX_ARCHIVOS = 160                 # PDF/imágenes que los agentes suben para verlos en el chat
+MAX_BYTES_ARCHIVO = 25 * 1024 * 1024
+_dir_archivos = Path(os.getenv('AGENTES_ARCHIVOS_DIR', '/data/state/agentes_archivos'))
+_TIPOS = {'pdf': ('application/pdf', b'%PDF'), 'png': ('image/png', b'\x89PNG'), 'jpg': ('image/jpeg', b'\xff\xd8\xff'), 'jpeg': ('image/jpeg', b'\xff\xd8\xff')}
 LATIDO_SEG = 25          # el PC se considera conectado si sondeó hace menos de esto
 ESPERA_MAX_SEG = 600     # si el PC toma un mensaje y no responde en 10 min, se avisa y se libera el chat
 _auth: Callable = lambda request: None
@@ -54,6 +61,7 @@ def _leer() -> dict:
     datos.setdefault('trabajo', {})
     datos.setdefault('eventos', [])   # avance de los agentes para dibujar el flujo (por persona y mensaje)
     datos.setdefault('cont_ev', 0)
+    datos.setdefault('archivos', {})   # id -> {sesion, nombre, ext, size, creado}
     return datos
 
 
@@ -108,6 +116,31 @@ def _tabla(valor) -> dict | None:
         return None
     filas = [[str(c)[:200] for c in list(f)[:len(columnas)]] for f in (valor.get('filas') or []) if isinstance(f, (list, tuple))][:1500]
     return {'titulo': str(valor.get('titulo', ''))[:150], 'columnas': columnas, 'filas': filas}
+
+
+def _borrar_archivo(datos: dict, aid: str) -> None:
+    info = datos['archivos'].pop(aid, None)
+    if info:
+        try:
+            (_dir_archivos / f"{aid}.{info['ext']}").unlink()
+        except OSError:
+            pass
+
+
+def _tarjetas(datos: dict, sesion: str, valor) -> list:
+    """Archivos que acompañan una respuesta: solo se conserva el vínculo con lo que el PC subió para esta persona."""
+    tarjetas = []
+    for a in (valor or [])[:30]:
+        if not isinstance(a, dict):
+            continue
+        aid = str(a.get('id') or '')
+        info = datos['archivos'].get(aid)
+        t = {'nombre': str(a.get('nombre', ''))[:160], 'titulo': str(a.get('titulo', ''))[:160], 'tipo': str(a.get('tipo', ''))[:20],
+             'subtitulo': str(a.get('subtitulo', ''))[:200], 'ruta': str(a.get('ruta', ''))[:400]}
+        if info and info['sesion'] == sesion:
+            t.update(id=aid, ext=info['ext'], size=info['size'])
+        tarjetas.append(t)
+    return tarjetas
 
 
 def _conectado(datos: dict) -> bool:
@@ -180,11 +213,27 @@ def limpiar(request: Request):
         datos = _leer()
         datos['mensajes'] = [m for m in datos['mensajes'] if m['sesion'] != usuario]
         datos['eventos'] = [e for e in datos['eventos'] if e['sesion'] != usuario]
+        for aid in [k for k, v in datos['archivos'].items() if v['sesion'] == usuario]:
+            _borrar_archivo(datos, aid)
         datos['trabajo'].pop(usuario, None)
         # mensaje oculto: el PC reinicia la sesión de TAVO de esta persona (no aparece en el chat)
         _nuevo(datos, usuario, 'yo', 'cancelar', t=_ahora(), tomado=False, respondido=False, oculto=True)
         _guardar(datos)
     return {'ok': True}
+
+
+@router.get('/archivo/{aid}')
+def ver_archivo(request: Request, aid: str, descargar: int = 0):
+    usuario = _auth(request)
+    with _lock:
+        info = _leer()['archivos'].get(aid)
+    if not info or not (info['sesion'] == usuario or _es_admin(usuario)):
+        raise HTTPException(404, 'Archivo no encontrado')
+    ruta = _dir_archivos / f"{aid}.{info['ext']}"
+    if not ruta.exists():
+        raise HTTPException(404, 'El archivo ya no está disponible')
+    return FileResponse(ruta, media_type=_TIPOS[info['ext']][0], filename=info['nombre'],
+                        content_disposition_type='attachment' if descargar else 'inline', headers={'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'private, max-age=3600', 'X-Frame-Options': 'SAMEORIGIN', 'Content-Security-Policy': "frame-ancestors 'self'"})
 
 
 @router.get('/conexion')
@@ -259,6 +308,32 @@ def evento(request: Request, payload: dict):
     return {'ok': True}
 
 
+@pc_router.post('/archivo')
+async def subir_archivo(request: Request):
+    """El PC sube un PDF o imagen (cuerpo binario) para que la persona lo vea en el chat. Devuelve su id."""
+    _pc(request)
+    sesion = unquote(request.headers.get('x-sesion', ''))[:80]
+    nombre = unquote(request.headers.get('x-nombre', 'archivo'))[:160]
+    ext = nombre.rsplit('.', 1)[-1].lower() if '.' in nombre else ''
+    if not sesion or ext not in _TIPOS:
+        raise HTTPException(400, 'Archivo no permitido')
+    if int(request.headers.get('content-length') or 0) > MAX_BYTES_ARCHIVO:
+        raise HTTPException(413, 'Archivo demasiado grande')
+    cuerpo = await request.body()
+    if len(cuerpo) > MAX_BYTES_ARCHIVO or not cuerpo.startswith(_TIPOS[ext][1]):
+        raise HTTPException(400, 'El contenido no corresponde al tipo de archivo')
+    aid = uuid.uuid4().hex[:16]
+    _dir_archivos.mkdir(parents=True, exist_ok=True)
+    (_dir_archivos / f'{aid}.{ext}').write_bytes(cuerpo)
+    with _lock:
+        datos = _leer()
+        datos['archivos'][aid] = {'sesion': sesion, 'nombre': re.sub(r'[\\/]+', '_', nombre), 'ext': ext, 'size': len(cuerpo), 'creado': _iso()}
+        while len(datos['archivos']) > MAX_ARCHIVOS:
+            _borrar_archivo(datos, next(iter(datos['archivos'])))
+        _guardar(datos)
+    return {'id': aid}
+
+
 @pc_router.post('/respuesta')
 def respuesta(request: Request, payload: dict):
     _pc(request)
@@ -276,6 +351,8 @@ def respuesta(request: Request, payload: dict):
         botones = [str(b)[:60] for b in (payload.get('botones') or [])][:8]
         agentes = [str(a).upper()[:10] for a in (payload.get('agentes') or ['TAVO'])][:8]
         extra = {'tabla': _tabla(payload.get('tabla'))} if payload.get('tabla') else {}
+        if payload.get('archivos'):
+            extra['archivos'] = _tarjetas(datos, origen['sesion'], payload.get('archivos'))
         _nuevo(datos, origen['sesion'], 'bot', str(payload.get('respuesta', ''))[:30000], estado=str(payload.get('estado', ''))[:30],
                botones=botones, agentes=agentes, respondido=True, en_respuesta_a=origen['id'], **extra)
         datos['trabajo'].pop(origen['sesion'], None)
