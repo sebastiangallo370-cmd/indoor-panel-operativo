@@ -61,9 +61,9 @@ def match_uploads(paths, references):
             matches = [ref for ref in refs if any(code in normalized(ref) for code in codes)]
         if len(refs) == 1:
             matches = refs
-        if len(matches) != 1:
-            issues.append(path.name + ': indicar referencia en el nombre')
-            continue
+        if len(matches) != 1 and refs:
+            # Sin referencia en el nombre: va a la primera referencia (el nombre del archivo no importa).
+            matches = [matches[0] if matches else refs[0]]
         ref = matches[0]
         found = re.search(r'(?:^| )(?:D|DISENO)\s*(20|1[0-9]|[1-9])(?: |$)', name)
         slots = result.setdefault(ref, {})
