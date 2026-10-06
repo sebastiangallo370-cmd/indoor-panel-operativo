@@ -41,7 +41,7 @@
   .ag-msg.bot.con-tabla{max-width:100%;width:100%;box-sizing:border-box}
   .ag-tbl{display:grid;gap:8px}.ag-tbl-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}.ag-tbl-head b{font-size:.86rem;color:#e3eadc}
   .ag-tbl-head span{display:flex;gap:6px}.ag-tbl-head button{min-height:0;padding:6px 12px;border:1px solid #60754d;border-radius:8px;background:transparent;color:#d0f44c;font:800 11px Arial;cursor:pointer}
-  .ag-tbl-wrap{overflow:auto;max-height:46vh;border:1px solid #34432f;border-radius:12px;background:#0c110d}
+  .ag-tbl-wrap{overflow-x:auto;overflow-y:visible;border:1px solid #34432f;border-radius:12px;background:#0c110d}
   .ag-tbl table{border-collapse:collapse;width:100%;font-size:.84rem}
   .ag-tbl th{position:sticky;top:0;z-index:1;padding:9px 12px;background:#1d281b;color:#d0f44c;text-align:left;font:800 11px Arial;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;border-bottom:2px solid #3d4f3d}
   .ag-tbl td{padding:8px 12px;border-top:1px solid #243024;color:#eef4e9;white-space:nowrap}.ag-tbl tbody tr:nth-child(even){background:rgba(255,255,255,.035)}.ag-tbl tbody tr:hover{background:rgba(208,244,76,.08)}
@@ -119,7 +119,8 @@
     .ag-chips[data-replies] button{min-height:44px;flex:1 1 40%}
     .ag-form{flex-direction:row;align-items:flex-end}.ag-form textarea{min-height:46px}.ag-form .ag-btn{min-height:46px;padding:0 16px}
     .ag-files{grid-template-columns:1fr}.ag-prev{height:46vh}.ag-file-acc button,.ag-file-acc a{min-height:38px;display:inline-flex;align-items:center}
-    .ag-tbl-head{align-items:flex-start}.ag-tbl-head button{min-height:36px}.ag-tbl-wrap{max-height:42vh}
+    .ag-tbl-head{align-items:flex-start}.ag-tbl-head button{min-height:36px}
+    .ag-tbl-wrap{overflow:visible}.ag-tbl table{font-size:11.5px;table-layout:auto}.ag-tbl th{position:static;padding:7px 4px;font-size:9px;letter-spacing:0;white-space:normal}.ag-tbl td{padding:7px 4px;white-space:normal;overflow-wrap:anywhere;line-height:1.25}.ag-tbl th.n,.ag-tbl td.n{display:none}
     .ag-lienzo{height:340px}.ag-log{height:170px;font-size:11.5px}.ag-ftit{font-size:12px}
     dialog.ag-dlg .row .ag-btn{flex:1 1 40%;min-height:46px}
     .ag .ag-chips button,.ag .ag-tbl-head button,.ag .ag-file-acc button,.ag .ag-file-acc a{font:800 12px/1.2 Arial!important;letter-spacing:0!important;text-transform:none!important}
