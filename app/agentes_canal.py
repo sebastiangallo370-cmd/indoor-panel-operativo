@@ -95,6 +95,17 @@ def _nuevo(datos: dict, sesion: str, rol: str, texto: str, **extra) -> dict:
     return msg
 
 
+def _tabla(valor) -> dict | None:
+    """Tabla enviada por los agentes (p. ej. el desglose del listado): se limpia y se limita su tamaño."""
+    if not isinstance(valor, dict):
+        return None
+    columnas = [str(c)[:40] for c in (valor.get('columnas') or [])][:12]
+    if not columnas:
+        return None
+    filas = [[str(c)[:200] for c in list(f)[:len(columnas)]] for f in (valor.get('filas') or []) if isinstance(f, (list, tuple))][:1500]
+    return {'titulo': str(valor.get('titulo', ''))[:150], 'columnas': columnas, 'filas': filas}
+
+
 def _conectado(datos: dict) -> bool:
     return _ahora() - float(datos['latido'].get('at', 0)) < LATIDO_SEG
 
@@ -247,8 +258,9 @@ def respuesta(request: Request, payload: dict):
             return {'ok': True}
         botones = [str(b)[:60] for b in (payload.get('botones') or [])][:8]
         agentes = [str(a).upper()[:10] for a in (payload.get('agentes') or ['TAVO'])][:8]
+        extra = {'tabla': _tabla(payload.get('tabla'))} if payload.get('tabla') else {}
         _nuevo(datos, origen['sesion'], 'bot', str(payload.get('respuesta', ''))[:30000], estado=str(payload.get('estado', ''))[:30],
-               botones=botones, agentes=agentes, respondido=True)
+               botones=botones, agentes=agentes, respondido=True, **extra)
         datos['trabajo'].pop(origen['sesion'], None)
         _guardar(datos)
     return {'ok': True}

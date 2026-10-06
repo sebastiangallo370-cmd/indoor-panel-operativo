@@ -37,6 +37,15 @@
   .ag-msg{display:grid;gap:8px;max-width:86%;padding:13px 15px;border:1px solid #34432f;border-radius:16px;background:linear-gradient(150deg,#1a221a,#10140f);font-size:.92rem;line-height:1.5}
   .ag-msg.yo{justify-self:end;border-color:rgba(208,244,76,.4);background:linear-gradient(150deg,#26331a,#141b10)}
   .ag-msg.bot{justify-self:start;border-left:4px solid #7da4ff}.ag-msg.bot.err{border-left-color:#ff6b5c}
+  .ag-msg.bot.con-tabla{max-width:100%;width:100%;box-sizing:border-box}
+  .ag-tbl{display:grid;gap:8px}.ag-tbl-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}.ag-tbl-head b{font-size:.86rem;color:#e3eadc}
+  .ag-tbl-head span{display:flex;gap:6px}.ag-tbl-head button{min-height:0;padding:6px 12px;border:1px solid #60754d;border-radius:8px;background:transparent;color:#d0f44c;font:800 11px Arial;cursor:pointer}
+  .ag-tbl-wrap{overflow:auto;max-height:46vh;border:1px solid #34432f;border-radius:12px;background:#0c110d}
+  .ag-tbl table{border-collapse:collapse;width:100%;font-size:.84rem}
+  .ag-tbl th{position:sticky;top:0;z-index:1;padding:9px 12px;background:#1d281b;color:#d0f44c;text-align:left;font:800 11px Arial;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;border-bottom:2px solid #3d4f3d}
+  .ag-tbl td{padding:8px 12px;border-top:1px solid #243024;color:#eef4e9;white-space:nowrap}.ag-tbl tbody tr:nth-child(even){background:rgba(255,255,255,.035)}.ag-tbl tbody tr:hover{background:rgba(208,244,76,.08)}
+  .ag-tbl .n{width:1%;color:#8f9b8a;text-align:right}.ag-tbl .v{color:#5f6b5e}
+  html.theme-light .ag-tbl th{background:#e9efe2;color:#3f6a10}html.theme-light .ag-tbl td{color:#18210f;border-color:#dfe6d7}html.theme-light .ag-tbl-wrap{background:#fff;border-color:#cdd8c6}
   .ag-who{display:flex;gap:6px;flex-wrap:wrap;align-items:center}.ag-tag{padding:2px 9px;border-radius:999px;font:900 10px Arial;letter-spacing:.06em;color:var(--c);background:color-mix(in srgb,var(--c) 15%,transparent);border:1px solid color-mix(in srgb,var(--c) 45%,transparent)}
   .ag-txt{white-space:pre-wrap;overflow-wrap:anywhere;margin:0;color:#eef4e9}.ag-time{color:#8f9b8a;font-size:.7rem}
   .ag-work{display:grid;gap:10px;justify-self:start;max-width:86%;padding:14px 16px;border:1px solid rgba(125,164,255,.45);border-radius:16px;background:rgba(125,164,255,.07)}
@@ -54,6 +63,28 @@
   `;
   document.head.appendChild(css);
 
+  const celda = v => (String(v || '').trim() ? esc(v) : '<span class="v">—</span>');
+  function tablaHtml(m) {
+    const t = m.tabla;
+    return '<div class="ag-tbl"><div class="ag-tbl-head"><b>' + esc(t.titulo) + '</b><span><button type="button" data-tabla-copiar="' + m.id + '">Copiar</button><button type="button" data-tabla-csv="' + m.id + '">Descargar CSV</button></span></div>' +
+      '<div class="ag-tbl-wrap"><table><thead><tr><th class="n">#</th>' + t.columnas.map(c => '<th>' + esc(c) + '</th>').join('') + '</tr></thead><tbody>' +
+      t.filas.map((f, i) => '<tr><td class="n">' + (i + 1) + '</td>' + t.columnas.map((_, k) => '<td>' + celda(f[k]) + '</td>').join('') + '</tr>').join('') + '</tbody></table></div></div>';
+  }
+  function tablaDe(id) { const m = st.msgs.find(x => String(x.id) === String(id)); return m && m.tabla; }
+  async function copiarTabla(id) {
+    const t = tablaDe(id); if (!t) return;
+    const texto = [t.columnas.join('\t'), ...t.filas.map(f => t.columnas.map((_, k) => f[k] || '').join('\t'))].join('\n');
+    try { await navigator.clipboard.writeText(texto); } catch (e) { /* sin portapapeles */ }
+  }
+  function csvTabla(id) {
+    const t = tablaDe(id); if (!t) return;
+    const c = v => { const x = String(v ?? ''); return /[;"\n]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x; };
+    const blob = new Blob(['﻿' + [t.columnas, ...t.filas.map(f => t.columnas.map((_, k) => f[k] || ''))].map(r => r.map(c).join(';')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = (t.titulo.replace(/[^\wÁÉÍÓÚáéíóúñÑ-]+/g, '_').slice(0, 60) || 'desglose') + '.csv';
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  }
+
   function render() {
     if (!panel) return;
     const e = st.estado, ultimo = st.msgs[st.msgs.length - 1];
@@ -63,7 +94,7 @@
     const trabajo = st.trabajo;
     const hilo = st.msgs.length ? st.msgs.map(m => m.rol === 'yo'
       ? '<div class="ag-msg yo"><p class="ag-txt">' + esc(m.texto) + '</p><span class="ag-time">' + hora(m.creado) + '</span></div>'
-      : '<div class="ag-msg bot' + (m.estado === 'ERROR' ? ' err' : '') + '"><div class="ag-who">' + (m.agentes && m.agentes.length ? m.agentes : ['TAVO']).map(tag).join('') + '</div><p class="ag-txt">' + esc(m.texto) + '</p><span class="ag-time">' + hora(m.creado) + '</span></div>').join('')
+      : '<div class="ag-msg bot' + (m.estado === 'ERROR' ? ' err' : '') + (m.tabla ? ' con-tabla' : '') + '"><div class="ag-who">' + (m.agentes && m.agentes.length ? m.agentes : ['TAVO']).map(tag).join('') + '</div><p class="ag-txt">' + esc(m.tabla ? m.texto.split(/\n\nDesglose del listado/)[0] : m.texto) + '</p>' + (m.tabla ? tablaHtml(m) : '') + '<span class="ag-time">' + hora(m.creado) + '</span></div>').join('')
       : '<div class="ag-empty"><h3>¿Qué necesitas hoy?</h3><p>Por ejemplo: «expórtame las mesas de trabajo de la orden CO7890». TAVO decide qué agente actúa.</p></div>';
     const trabajando = st.esperando ? '<div class="ag-work"><div class="ag-who">' + ((trabajo && trabajo.agentes) || ['TAVO']).map(a => tag(a)).join('') + '<span class="ag-dots"><i></i><i></i><i></i></span></div><b>' +
       esc(trabajo && trabajo.msg ? trabajo.agente + ': ' + trabajo.msg : e.conectado ? 'TAVO está trabajando…' : 'Esperando al PC de los agentes…') + '</b></div>' : '';
@@ -150,7 +181,9 @@
     });
     panel.addEventListener('click', async e => {
       const reply = e.target.closest('[data-send]'), atajo = e.target.closest('[data-atajo]');
-      if (reply) enviar(reply.dataset.send);
+      if (e.target.closest('[data-tabla-copiar]')) { const b = e.target.closest('[data-tabla-copiar]'); copiarTabla(b.dataset.tablaCopiar); b.textContent = '¡Copiado!'; setTimeout(() => { b.textContent = 'Copiar'; }, 1500); }
+      else if (e.target.closest('[data-tabla-csv]')) csvTabla(e.target.closest('[data-tabla-csv]').dataset.tablaCsv);
+      else if (reply) enviar(reply.dataset.send);
       else if (atajo) {
         const texto = atajo.dataset.atajo;
         if (texto.endsWith(' ')) { const caja = panel.querySelector('textarea'); caja.value = texto; caja.focus(); caja.setSelectionRange(texto.length, texto.length); } else enviar(texto);
