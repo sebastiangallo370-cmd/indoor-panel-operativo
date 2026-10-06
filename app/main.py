@@ -2653,6 +2653,8 @@ def _terry_finalizar_edicion_web(db, fila: int) -> dict:
         if i >= len(groups) or groups[i] != grupo or operator_process_header(headers[i]):
             break
         titulo = str(headers[i]).strip().upper()
+        if str(valores[i] or '').strip():
+            continue   # solo se llenan los campos de EDICIÓN que estén vacíos: no se pisa al responsable ni la hora que ya había
         if titulo == 'HORA FINAL':
             valores[i] = ahora.strftime('%H:%M')
         if titulo.startswith('RESP') or titulo == 'CONFECCIONISTA':
