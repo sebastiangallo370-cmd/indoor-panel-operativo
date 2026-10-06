@@ -2515,6 +2515,37 @@ def save_production_note(payload: dict = Body(...), _=Depends(authenticate)):
     return {"ok": True, "note": note, "author": str(_)}
 
 
+def _terry_guardar_mts(orden: str, referencia: str, texto: str) -> dict:
+    """Escribe «NN.NN MTS» en la nota de MTS REQUERIDOS (columna 17) de la tarjeta de la orden. No pisa un valor puesto por una persona."""
+    plano = lambda v: re.sub(r'\s+', '', str(v or '')).upper()
+    with connect() as db:
+        meta = {r['key']: r['value'] for r in db.execute('SELECT key, value FROM production_meta')}
+        titulos = [str(h or '').strip().upper() for h in json.loads(meta.get('headers') or '[]')]
+        if 'ORDEN' not in titulos or 'REFERENCIA' not in titulos:
+            return {'ok': False, 'motivo': 'Producción no tiene las columnas ORDEN y REFERENCIA'}
+        i_orden, i_ref = titulos.index('ORDEN'), titulos.index('REFERENCIA')
+        filas = [r['source_row'] for r in db.execute('SELECT source_row, values_json FROM production_rows ORDER BY source_row')
+                 if len(json.loads(r['values_json'])) > max(i_orden, i_ref)
+                 and plano(json.loads(r['values_json'])[i_orden]) == plano(orden) and plano(json.loads(r['values_json'])[i_ref]) == plano(referencia)]
+        if not filas:
+            return {'ok': False, 'motivo': f'No encontré en Producción la orden {orden} con la referencia {referencia}'}
+        fila = filas[0]
+        del_sheet = db.execute('SELECT note FROM production_sheet_notes WHERE source_row=? AND column_number=17', (fila,)).fetchone() \
+            if db.execute("SELECT 1 FROM sqlite_master WHERE name='production_sheet_notes'").fetchone() else None
+        if del_sheet and re.search(r'\d+(?:[.,]\d+)?\s*MTS', del_sheet[0], re.I):   # el equipo ya registró los MTS en el Sheet: no se pisan
+            return {'ok': False, 'fila': fila, 'motivo': f'El Sheet ya tiene MTS registrados en esa tarjeta ({del_sheet[0].strip()}); no los cambié'}
+        previa = db.execute('SELECT note, username FROM production_notes WHERE source_row=? AND column_number=17', (fila,)).fetchone()
+        if previa and previa['note'].strip() and previa['username'] != 'TERRY':
+            return {'ok': False, 'fila': fila, 'motivo': f"La tarjeta ya tiene MTS registrados ({previa['note'].strip()}) por {previa['username']}; no los cambié"}
+        ahora = datetime.now(timezone.utc).isoformat()
+        db.execute('INSERT OR REPLACE INTO production_notes VALUES (?,?,?,?,?)', (fila, 17, texto, 'TERRY', ahora))
+        db.execute("INSERT OR REPLACE INTO production_meta(key,value) VALUES ('updated_at',?)", (ahora,))
+    return {'ok': True, 'fila': fila}
+
+
+agentes_mod.configurar_mts(_terry_guardar_mts)
+
+
 @app.get("/api/produccion")
 async def production_data(force: bool = False, _=Depends(authenticate)):
     try:

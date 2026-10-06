@@ -171,3 +171,67 @@ def borrar_nota(nota_id: str):
             raise HTTPException(404, 'Esa nota ya no existe.')
         _guardar(datos)
     return {'ok': True}
+
+
+# ---------------------------------------------------------------- MTS REQUERIDOS de una orden (lo usa el agente TERRY)
+_CODIGO_TELA = re.compile(r'^A\d+(?=[A-Z]{1,4}\d)')
+
+
+def _plano(texto: str) -> str:
+    import unicodedata
+    sin = ''.join(c for c in unicodedata.normalize('NFD', str(texto or '')) if not unicodedata.combining(c))
+    return re.sub(r'[^A-Z0-9]', '', sin.upper())
+
+
+def partes_de_hoja(hoja: str) -> list[str]:
+    """«A100FUT01» -> [FUT01] (quita el código de tela A100); una referencia compuesta «A100CB02-A100PT01» -> [CB02, PT01]."""
+    partes = [p.strip().upper() for p in re.split(r'[-+/]', str(hoja or '')) if p.strip()]
+    return [_CODIGO_TELA.sub('', p) for p in partes]
+
+
+def _grupo_de_genero(genero: str) -> str:
+    g = _plano(genero)
+    if g.startswith('MASC') or g == 'M':
+        return 'masc'
+    if g.startswith('FEM') or g == 'F':
+        return 'fem'
+    if g.startswith('NINA'):
+        return 'nina'
+    return 'nino'   # NIÑO y el «N» genérico
+
+
+def _talla(talla: str) -> str:
+    t = _plano(talla)
+    return '2XL' if t == 'XXL' else t
+
+
+def calcular_hoja(hoja: str, lineas: list[dict], datos: dict | None = None) -> dict:
+    """MTS requeridos de una referencia del listado: por cada talla, el consumo promedio del maestro × la cantidad de prendas; todo sumado.
+    Cada línea del listado es una prenda. Si falta el maestro o el consumo de alguna talla, `faltan` lo dice y `completo` es False."""
+    if datos is None:
+        with _lock:
+            datos = _leer()
+    maestros = {m['ref']: m for m in datos['maestros']}
+    partes = partes_de_hoja(hoja)
+    cuenta: dict[tuple, int] = {}
+    for linea in lineas:
+        clave = (_grupo_de_genero(linea.get('genero', '')), _talla(linea.get('talla', '')))
+        cuenta[clave] = cuenta.get(clave, 0) + int(linea.get('cantidad') or 1)
+    detalle, faltan, total = [], set(), 0.0
+    for (grupo, talla), cantidad in sorted(cuenta.items()):
+        consumo = 0.0
+        for parte in partes:
+            maestro = maestros.get(parte)
+            if not maestro:
+                faltan.add(f'no existe el maestro {parte} en Promedios maestros')
+                continue
+            tallas = GRUPOS[grupo]
+            valor = maestro[grupo][tallas.index(talla)] if talla in tallas else 0
+            if not valor:
+                faltan.add(f'{parte}: sin consumo para {grupo.upper()} talla {talla}')
+            consumo += valor
+        subtotal = round(consumo * cantidad, 4)
+        total += subtotal
+        detalle.append({'grupo': grupo, 'talla': talla, 'cantidad': cantidad, 'promedio': round(consumo, 2), 'subtotal': round(subtotal, 2)})
+    return {'hoja': hoja, 'partes': partes, 'prendas': sum(cuenta.values()), 'mts': round(total, 2), 'detalle': detalle,
+            'faltan': sorted(faltan), 'completo': not faltan and bool(cuenta)}

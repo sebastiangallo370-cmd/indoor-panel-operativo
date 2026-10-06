@@ -315,6 +315,36 @@ def sondeo(request: Request, payload: dict):
     return {'pendientes': pendientes}
 
 
+_escribir_mts: Callable | None = None   # lo registra main.py: guarda el MTS en la tarjeta de producción de la orden
+
+
+def configurar_mts(fn: Callable) -> None:
+    global _escribir_mts
+    _escribir_mts = fn
+
+
+@pc_router.post('/mts')
+def mts_orden(request: Request, payload: dict):
+    """TERRY: calcula los MTS requeridos de una orden (promedio por talla × cantidad del listado) y los escribe en su tarjeta de producción."""
+    _pc(request)
+    from app import promedios as promedios_mod
+    orden = re.sub(r'\s+', '', str(payload.get('orden') or '')).upper()
+    hojas = payload.get('hojas') or {}
+    if not orden or not isinstance(hojas, dict) or not hojas:
+        raise HTTPException(400, 'Faltan la orden o las referencias del listado')
+    resultados = []
+    for hoja, lineas in hojas.items():
+        calculo = promedios_mod.calcular_hoja(str(hoja), [l for l in (lineas or []) if isinstance(l, dict)])
+        calculo['escrito'] = False
+        if calculo['completo'] and _escribir_mts:
+            escrito = _escribir_mts(orden, str(hoja), f"{calculo['mts']:.2f} MTS")
+            calculo.update(escrito=bool(escrito.get('ok')), motivo=escrito.get('motivo', ''), fila=escrito.get('fila'))
+        elif not calculo['completo']:
+            calculo['motivo'] = 'Faltan consumos en Promedios maestros: no escribí nada en la tarjeta.'
+        resultados.append(calculo)
+    return {'ok': True, 'resultados': resultados}
+
+
 @pc_router.post('/evento')
 def evento(request: Request, payload: dict):
     """Avance en vivo mientras los agentes trabajan: lista de {agente, msg, nivel, hora}."""
