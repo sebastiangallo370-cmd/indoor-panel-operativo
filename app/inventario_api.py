@@ -889,19 +889,82 @@ def _assign_codes(items: list[dict[str, Any]]) -> list[str | None]:
         return [assigned.get(key) if key else None for key in keys]
 
 
+_rolls_file = os.getenv('INVENTORY_ROLLS_FILE', '/data/inventory_rollos.json')
+_rolls_lock = threading.Lock()
+
+
+def _assign_roll_serials(telas: list[tuple[str, dict[str, Any]]]) -> dict[str, list[dict[str, Any]]]:
+    """Serial permanente de cada rollo de tela (T100-007). El Sheet solo trae los metros de cada rollo, así que el registro enlaza cada rollo
+    con su serial por sus metros: 1) mismo valor = mismo rollo; 2) un rollo que bajó de metros (se usó una parte) conserva su serial;
+    3) un valor nuevo recibe el siguiente serial; 4) un rollo que ya no está queda «retirado» y su serial no se reutiliza.
+    telas: [(código de la tela, artículo)]. Devuelve {código: [{codigo, n, valor, empezado}]} en el orden de los rollos del artículo."""
+    with _rolls_lock:
+        try:
+            with open(_rolls_file, encoding='utf-8') as handle:
+                registry = json.load(handle)
+        except (OSError, ValueError):
+            registry = {}
+        changed = False
+        result: dict[str, list[dict[str, Any]]] = {}
+        for code, item in telas:
+            values = [round(float(v), 2) for v in (item.get('roll_values') or [])]
+            statuses = item.get('roll_statuses') or []
+            entry = registry.setdefault(code, {'siguiente': 1, 'rollos': []})
+            active = [r for r in entry['rollos'] if r.get('estado') == 'activo']
+            assigned: list[dict[str, Any] | None] = [None] * len(values)
+            pool: dict[float, list[dict[str, Any]]] = {}
+            for roll in active:
+                pool.setdefault(round(float(roll['valor']), 2), []).append(roll)
+            for index, value in enumerate(values):   # 1) mismos metros = mismo rollo
+                if pool.get(value):
+                    assigned[index] = pool[value].pop(0)
+            sobrantes = [r for lista in pool.values() for r in lista]
+            nuevos = sorted((i for i, a in enumerate(assigned) if a is None), key=lambda i: -values[i])
+            for index in nuevos:   # 2) un rollo que se usó en parte baja de metros y conserva su serial
+                mayores = [r for r in sobrantes if float(r['valor']) > values[index]]
+                if mayores:
+                    roll = min(mayores, key=lambda r: float(r['valor']))
+                    roll['valor'] = values[index]
+                    assigned[index] = roll
+                    sobrantes.remove(roll)
+                    changed = True
+            for index, value in enumerate(values):   # 3) rollos nuevos
+                if assigned[index] is None:
+                    roll = {'n': entry['siguiente'], 'valor': value, 'estado': 'activo'}
+                    entry['siguiente'] += 1
+                    entry['rollos'].append(roll)
+                    assigned[index] = roll
+                    changed = True
+            for roll in sobrantes:   # 4) ya no están en el inventario
+                roll['estado'] = 'retirado'
+                changed = True
+            result[code] = [{'codigo': f"{code}-{roll['n']:03d}", 'n': roll['n'], 'valor': values[i],
+                             'empezado': (statuses[i:i + 1] == ['started'])} for i, roll in enumerate(assigned)]
+        if changed:
+            os.makedirs(os.path.dirname(_rolls_file) or '.', exist_ok=True)
+            tmp = _rolls_file + '.tmp'
+            with open(tmp, 'w', encoding='utf-8') as handle:
+                json.dump(registry, handle, ensure_ascii=False)
+            os.replace(tmp, _rolls_file)
+        return result
+
+
 @inventario_router.get('/codigos')
 def inventory_codes():
     """Artículos del inventario con su código de barras permanente (para imprimir etiquetas y escanear)."""
     payload = _cache.get('data') or _load_snapshot() or _inventory_payload(False)   # la copia guardada basta: no se espera la lectura del Sheet
+    payload = _with_sublimacion(payload)   # metros ya descontados por los consumos de Sublimación, igual que en Bodega tela
     items = [i for i in payload.get('items', []) if i.get('categoria') in _CODE_PREFIX]
     codes = _assign_codes(items)
+    rolls = _assign_roll_serials([(code, item) for item, code in zip(items, codes) if code and item.get('categoria') == 'BODEGA TELA' and item.get('roll_values')])
     rows = []
     for item, code in zip(items, codes):
         if not code:
             continue
         rows.append({'codigo': code, 'nombre': item.get('nombre', ''), 'categoria': item['categoria'],
                      'categoria_label': item.get('categoria_label', ''), 'total_label': item.get('total_label', ''),
-                     'mts': item.get('mts'), 'rollos': len(item.get('roll_values') or []) or item.get('rolls') or 0})
+                     'mts': item.get('mts'), 'rollos': len(item.get('roll_values') or []) or item.get('rolls') or 0,
+                     'detalle_rollos': rolls.get(code, [])})
     rows.sort(key=lambda r: (r['categoria_label'], r['nombre'].casefold()))
     return {'codigos': rows, 'actualizado': payload.get('updated_at')}
 
