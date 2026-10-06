@@ -315,7 +315,7 @@
     return '<div class="ag-files">' + m.archivos.map((a, i) => {
       const url = a.id ? '/api/agentes/archivo/' + a.id : '', ver = a.id && abierto(m, i);
       const previa = ver ? (esImagen(a) ? '<img class="ag-prev" src="' + url + '" alt="' + esc(a.titulo) + '">' : '<iframe class="ag-prev" src="' + url + '#toolbar=0&navpanes=0&view=FitH" loading="lazy" title="' + esc(a.titulo) + '"></iframe>') : '';
-      return '<article class="ag-file ' + esc(a.tipo) + (ver ? ' abierto' : '') + '"><div class="ag-file-head"><span class="ag-fico">' + (esImagen(a) ? '🖼️' : '📄') + '</span><div><b>' + esc(a.titulo || a.nombre) + '</b><small>' + esc(a.nombre) + (a.size ? ' · ' + KB(a.size) : '') + '</small></div></div>' + previa +
+      return '<article class="ag-file ' + esc(a.tipo) + (ver ? ' abierto' : '') + '"><div class="ag-file-head"><span class="ag-fico">' + (esImagen(a) ? '🖼️' : /\.ai$/i.test(a.nombre) ? '🎨' : '📄') + '</span><div><b>' + esc(a.titulo || a.nombre) + '</b><small>' + esc(a.nombre) + (a.size ? ' · ' + KB(a.size) : '') + '</small></div></div>' + previa +
         '<div class="ag-file-acc">' + (a.id ? '<button type="button" data-f-ver="' + m.id + ':' + i + '">' + (ver ? 'Ocultar' : 'Ver') + '</button><a href="' + url + '" target="_blank" rel="noopener">Abrir</a><a href="' + url + '?descargar=1" download>Descargar</a>' : '<span class="nopre">Sin vista previa</span>') +
         (a.ruta ? '<button type="button" data-f-ruta="' + m.id + ':' + i + '">Copiar ruta</button>' : '') + '</div></article>';
     }).join('') + '</div>';
