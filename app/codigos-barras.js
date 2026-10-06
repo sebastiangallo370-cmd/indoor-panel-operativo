@@ -43,6 +43,7 @@
   }
 
   // ---------------------------------------------------------------- ajustes de la etiqueta
+  const SOLO_CATEGORIA = 'BODEGA TELA';
   const TAMANOS = {'100x50': [100, 50], '100x70': [100, 70], '60x40': [60, 40], '50x30': [50, 30], '40x25': [40, 25]};
   const POR_DEFECTO = {tamano: '100x50', ancho: 100, alto: 50, copias: 1, nombre: true, stock: true, categoria: true, fecha: false};
   let cfg = {...POR_DEFECTO};
@@ -126,9 +127,9 @@
   panel.dataset.panel = 'codigos-barras';
   panel.innerHTML = '<div class="cb">' +
     '<section class="cb-hero"><div><span class="eyebrow">Producción · Inventarios</span><h2>CÓDIGOS DE BARRAS</h2>' +
-    '<p>Cada artículo del inventario tiene su código permanente. Búscalo, escanéalo con el lector o selecciona los que quieras e imprime sus etiquetas en la impresora de etiquetas.</p></div></section>' +
+    '<p>Cada tela de Stock tela tiene su código permanente. Búscala, escanéala con el lector o selecciona las que quieras e imprime sus etiquetas en la impresora de etiquetas.</p></div></section>' +
     '<div class="cb-scan"><span>ESCANEAR / BUSCAR CÓDIGO</span><input type="text" data-cb-scan autocomplete="off" spellcheck="false" placeholder="Pasa el lector o escribe, por ejemplo T100"></div><div class="cb-eco" data-cb-eco></div>' +
-    '<div class="cb-tools"><input type="search" data-cb-q placeholder="Buscar por nombre o código"><select data-cb-cat><option value="">Todas las categorías</option></select>' +
+    '<div class="cb-tools"><input type="search" data-cb-q placeholder="Buscar tela por nombre o código"><select data-cb-cat hidden><option value="">Todas las categorías</option></select>' +
     '<button type="button" data-cb-todos>Seleccionar los visibles</button><button type="button" data-cb-ninguno>Quitar selección</button><button type="button" data-cb-recargar>Actualizar</button><span class="cuenta" data-cb-cuenta></span></div>' +
     '<div class="cb-grid" data-cb-grid></div></div>';
 
@@ -157,8 +158,8 @@
       '<article class="cb-card' + (estado.sel.has(i.codigo) ? ' sel' : '') + '" data-cod="' + esc(i.codigo) + '"><header><input type="checkbox" tabindex="-1"' + (estado.sel.has(i.codigo) ? ' checked' : '') + '><span class="cod">' + esc(i.codigo) + '</span><span class="cat">' + esc(i.categoria_label) + '</span></header>' +
       '<div class="nom">' + esc(i.nombre) + '</div><div class="stk">' + esc(i.total_label || '—') + (i.categoria === 'BODEGA TELA' ? ' MTS' : '') + (i.rollos ? ' · ' + i.rollos + ' rollos' : '') + '</div>' +
       '<div class="bar">' + svgBarras(i.codigo, 46, 1, 10) + '</div></article>').join('')
-      : '<div class="cb-vacio">' + (estado.cargando ? 'Cargando artículos…' : 'No hay artículos que coincidan.') + '</div>';
-    q('[data-cb-cuenta]').textContent = lista.length + ' de ' + estado.items.length + ' artículos';
+      : '<div class="cb-vacio">' + (estado.cargando ? 'Cargando telas…' : 'No hay telas que coincidan.') + '</div>';
+    q('[data-cb-cuenta]').textContent = lista.length + ' de ' + estado.items.length + ' telas';
     q('[data-cb-n]').textContent = estado.sel.size;
     q('[data-cb-barra]').classList.toggle('on', estado.sel.size > 0 && panel.classList.contains('active'));
   };
@@ -170,7 +171,7 @@
       const r = await fetch('/api/inventarios/codigos', {cache: 'no-store'});
       const d = await r.json();
       if (!r.ok) throw Error(d.detail || 'No se pudieron cargar los códigos');
-      estado.items = d.codigos || [];
+      estado.items = (d.codigos || []).filter(i => i.categoria === SOLO_CATEGORIA);   // por ahora solo Stock tela
       const cats = [...new Map(estado.items.map(i => [i.categoria, i.categoria_label])).entries()];
       q('[data-cb-cat]').innerHTML = '<option value="">Todas las categorías</option>' + cats.map(([k, l]) => '<option value="' + esc(k) + '">' + esc(l) + '</option>').join('');
       q('[data-cb-cat]').value = estado.cat;
