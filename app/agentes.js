@@ -120,7 +120,7 @@
     .ag-form{flex-direction:row;align-items:flex-end}.ag-form textarea{min-height:46px}.ag-form .ag-btn{min-height:46px;padding:0 16px}
     .ag-files{grid-template-columns:1fr}.ag-prev{height:46vh}.ag-file-acc button,.ag-file-acc a{min-height:38px;display:inline-flex;align-items:center}
     .ag-tbl-head{align-items:flex-start}.ag-tbl-head button{min-height:36px}
-    .ag-tbl-wrap{overflow:visible}.ag-tbl table{font-size:11.5px;table-layout:auto}.ag-tbl th{position:static;padding:7px 4px;font-size:9px;letter-spacing:0;white-space:normal}.ag-tbl td{padding:7px 4px;white-space:normal;overflow-wrap:anywhere;line-height:1.25}.ag-tbl th.n,.ag-tbl td.n{display:none}
+    .ag-msg,.ag-tbl,.ag-tbl-wrap{min-width:0;max-width:100%}.ag-tbl-wrap{overflow:visible}.ag-tbl table{font-size:11.5px;table-layout:auto;width:100%}.ag-tbl th{position:static;padding:7px 4px;font-size:9px;letter-spacing:0;white-space:normal}.ag-tbl td{padding:7px 4px;white-space:normal;overflow-wrap:anywhere;line-height:1.25}.ag-tbl th.n,.ag-tbl td.n{display:none}
     .ag-lienzo{height:340px}.ag-log{height:170px;font-size:11.5px}.ag-ftit{font-size:12px}
     dialog.ag-dlg .row .ag-btn{flex:1 1 40%;min-height:46px}
     .ag .ag-chips button,.ag .ag-tbl-head button,.ag .ag-file-acc button,.ag .ag-file-acc a{font:800 12px/1.2 Arial!important;letter-spacing:0!important;text-transform:none!important}
