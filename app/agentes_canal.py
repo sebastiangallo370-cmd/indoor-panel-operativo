@@ -247,7 +247,7 @@ def respuesta(request: Request, payload: dict):
             return {'ok': True}
         botones = [str(b)[:60] for b in (payload.get('botones') or [])][:8]
         agentes = [str(a).upper()[:10] for a in (payload.get('agentes') or ['TAVO'])][:8]
-        _nuevo(datos, origen['sesion'], 'bot', str(payload.get('respuesta', ''))[:6000], estado=str(payload.get('estado', ''))[:30],
+        _nuevo(datos, origen['sesion'], 'bot', str(payload.get('respuesta', ''))[:30000], estado=str(payload.get('estado', ''))[:30],
                botones=botones, agentes=agentes, respondido=True)
         datos['trabajo'].pop(origen['sesion'], None)
         _guardar(datos)
