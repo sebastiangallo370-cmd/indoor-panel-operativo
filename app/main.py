@@ -333,7 +333,7 @@ INVENTORY_CONTROL_SCRIPT = """<script>
       let totalMts = 0, totalRolls = 0, problem = '';
       docState.lineas.forEach((line, lineIndex) => {
         const sum = docSum(line), box = docBody.querySelector('[data-doc-sum="' + lineIndex + '"]');
-        if (box) box.textContent = fmtN(sum) + ' MTS · ' + line.rollos.length + ' rollo(s)';
+        if (box) box.textContent = fmtN(sum) + ' MTS · ' + line.rollos.length + ' rollo(s)' + (line.esperado ? (Math.abs(sum - line.esperado) < 0.5 ? ' · ✓ coincide con el subtotal del documento (' + fmtN(line.esperado) + ')' : ' · ⚠ el documento dice ' + fmtN(line.esperado) + ' MTS: revisa los rollos') : '');
         totalMts += sum; totalRolls += line.rollos.length;
         const hint = docBody.querySelector('[data-doc-hint="' + lineIndex + '"]');
         if (hint) { const typed = String(line.telaText ?? line.tela ?? '').trim(); hint.textContent = line.tela ? '✓ Tela del inventario' : (typed ? 'No coincide con una tela del inventario: elige una de la lista.' : 'Escribe o elige una tela de la lista.'); hint.className = 'im-doc-hint ' + (line.tela ? 'im-hint-ok' : 'im-hint-bad'); }
@@ -396,7 +396,7 @@ INVENTORY_CONTROL_SCRIPT = """<script>
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw Error(data.detail || 'No se pudo leer el documento.');
         docState = {hash: data.hash, nombre: data.nombre, total_documento: data.total_documento, duplicado: data.duplicado, proveedor: data.proveedor, fecha: data.fecha,
-          lineas: (data.lineas || []).map(line => ({descripcion: line.descripcion, referencia: line.referencia, rollos: line.rollos.map(roll => roll.mts), tela: (line.sugerencias?.[0]?.score >= 1 && movementItems.has(line.sugerencias[0].nombre)) ? line.sugerencias[0].nombre : '', telaText: undefined}))};
+          lineas: (data.lineas || []).map(line => ({descripcion: line.descripcion, referencia: line.referencia, esperado: line.total_esperado, rollos: line.rollos.map(roll => roll.mts), tela: (line.sugerencias?.[0]?.score >= 1 && movementItems.has(line.sugerencias[0].nombre)) ? line.sugerencias[0].nombre : '', telaText: undefined}))};
         docForm.querySelector('.im-sub').textContent = [file.name, data.proveedor, data.fecha].filter(Boolean).join(' · ');
         renderDoc();
       } catch (error) {

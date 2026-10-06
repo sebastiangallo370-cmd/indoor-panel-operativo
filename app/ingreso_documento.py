@@ -327,72 +327,88 @@ def parse_invoice_text(data: bytes) -> dict | None:
             'total_documento': round(sum(r['mts'] for line in lines for r in line['rollos']), 2), 'lineas': lines, 'tipo': 'factura'}
 
 
-_EMPAQUE_ARTICULO = re.compile(r'^\s*(\d{5,7})\s*-\s*(.+)$')
-_EMPAQUE_DECIMALES = re.compile(r'\d+\.\d{2}(?!\d)')
+_EMPAQUE_DECIMALES = re.compile(r'\d+\.\d{2}')   # sin «(?!\d)»: el OCR pega la marca de visto al número («104.834»)
 _EMPAQUE_ID = re.compile(r'\d{7,}')
+_EMPAQUE_SUBTOTAL = re.compile(r'Subt\w*\s*\(([^)]+)\)\s*(\d[A-Za-z])?[^\d]*?(\d+\.\d{2})\s+\d+\.\d{2}', re.I)   # tolera letras sueltas del OCR antes del total
+_EMPAQUE_TOTAL = re.compile(r'Total\s+(\d{5,7})\s*-[^\d]*?\s(\d+\.\d{2})\s+\d+\.\d{2}', re.I)
+_EMPAQUE_ARTICULO = re.compile(r'(?<!\d)(\d{5,7})\s*-\s*([A-Za-zÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑ0-9 ]*)')
+_EMPAQUE_COLOR = re.compile(r'\(([A-Za-zÁÉÍÓÚÑ ]+)\)\s*(\d[A-Za-z])?')
 
 
 def _limpiar_articulo(texto: str) -> str:
-    """El OCR deja basura al final del nombre («SUPER ZENTRA PLUS DB E A»): se quitan las palabras sueltas o en minúscula del final."""
-    palabras = texto.split()
-    while palabras and (len(palabras[-1]) == 1 or palabras[-1].islower()):
-        palabras.pop()
+    """El OCR deja basura al final del nombre («DIAMANTE Mz MT», «LONDON 7»): se conservan solo las palabras en mayúscula de 2+ letras, sin «MT»."""
+    palabras = [w for w in texto.split() if len(w) >= 2 and w.upper() == w and not w.isdigit() and w != 'MT']
     return ' '.join(palabras)
 
 
-def parse_packing_list_text(texto: str) -> dict | None:
-    """Texto OCR de una «LISTA DE EMPAQUE» de Lindatextil: por artículo, un rollo por fila (ID, Cant. en metros, Cant.adic en kg)."""
-    if 'LISTA DE EMPAQUE' not in texto.upper() or 'LINDATEXTIL' not in texto.upper():
-        return None
-    articulos: list[dict] = []
-    actual = None
+def _color_texto(nombre: str, sufijo) -> str:
+    return f"({nombre.strip()})" + (f" {sufijo}" if sufijo else '')
+
+
+def _empaque_grupos(texto: str) -> list[dict]:
+    """Grupos «tela + color» de una página de lista de empaque. Cada grupo se cierra con su línea «Subt…» (que trae el color y el total de metros).
+    Una página de continuación no trae el encabezado de la tela: sus filas quedan en un grupo con `continuacion=True`."""
+    grupos: list[dict] = []
+    articulo = None
+    grupo = None
     for linea in texto.splitlines():
         limpia = re.sub(r'(?<=\d),(?=\d{3}\b)', '', linea.strip())   # 3,046.86 -> 3046.86
         if not limpia:
             continue
-        match = _EMPAQUE_ARTICULO.match(limpia)
-        if match and not limpia.upper().startswith('TOTAL'):
-            actual = {'referencia': match.group(1), 'descripcion': _limpiar_articulo(match.group(2)), 'color': '', 'rollos': []}
-            articulos.append(actual)
+        if _EMPAQUE_TOTAL.search(limpia):
+            articulo = grupo = None
             continue
-        if re.match(r'^(subt|total|resumen)', limpia, re.I):
-            if actual is not None and not actual['color']:
-                sub = re.match(r'^subt\w*\s*\(([^)]+)\)\s*(\w+)?', limpia, re.I)
-                if sub:
-                    actual['color'] = f"({sub.group(1).strip()})" + (f" {sub.group(2)}" if sub.group(2) else '')
+        subtotal = _EMPAQUE_SUBTOTAL.search(limpia)
+        if subtotal:
+            if grupo is None:
+                grupo = {'codigo': articulo['codigo'] if articulo else '', 'nombre': articulo['nombre'] if articulo else '', 'color': '', 'rollos': [],
+                         'subtotal': None, 'cerrado': False, 'continuacion': articulo is None}
+                grupos.append(grupo)
+            grupo['color'] = _color_texto(subtotal.group(1), subtotal.group(2))
+            grupo['subtotal'] = float(subtotal.group(3))
+            grupo['cerrado'] = True
+            grupo = None
             continue
-        if actual is None:
-            # página de continuación («Pag. 2 de 2»): las filas llegan sin el encabezado del artículo; se toma el nombre del Subtotal
-            if len(_EMPAQUE_DECIMALES.findall(limpia)) >= 2 and re.search(r'PEN-|\d{6,}', limpia):
-                actual = {'referencia': '', 'descripcion': 'Tela de la lista de empaque', 'color': '', 'rollos': []}
-                articulos.append(actual)
-            else:
-                continue
-        if not actual['color']:
-            color = re.match(r'^\(([^)]+)\)\s*(\w+)?', limpia)
-            if color:
-                actual['color'] = f"({color.group(1).strip()})" + (f" {color.group(2)}" if color.group(2) else '')
         decimales = _EMPAQUE_DECIMALES.findall(limpia)
         identificador = _EMPAQUE_ID.search(limpia)
-        if len(decimales) >= 2 and (identificador or re.search(r'PEN-', limpia)):   # el ID puede salir ilegible del OCR: el rollo igual cuenta
-            actual['rollos'].append({'mts': float(decimales[-2]), 'rollo_no': identificador.group(0)[:7] if identificador else ''})
-    lineas = []
-    for a in articulos:
-        if not a['rollos']:
+        es_fila = bool(decimales) and (identificador or 'PEN-' in limpia) and not re.search(r'resumen|remision', limpia, re.I)
+        if not es_fila:
+            encabezado = _EMPAQUE_ARTICULO.search(limpia)
+            if encabezado and not decimales:
+                articulo = {'codigo': encabezado.group(1), 'nombre': _limpiar_articulo(encabezado.group(2))}
+                grupo = None
             continue
-        nombre = (a['descripcion'] + (' ' + a['color'] if a['color'] else '')).strip()
-        lineas.append({'descripcion': nombre, 'referencia': a['referencia'], 'rollos': a['rollos']})
-    if not lineas:
+        if grupo is None:
+            grupo = {'codigo': articulo['codigo'] if articulo else '', 'nombre': articulo['nombre'] if articulo else '', 'color': '', 'rollos': [],
+                     'subtotal': None, 'cerrado': False, 'continuacion': articulo is None and not grupos}
+            grupos.append(grupo)
+        if not grupo['color']:
+            color = _EMPAQUE_COLOR.search(limpia)
+            if color:
+                grupo['color'] = _color_texto(color.group(1), color.group(2))
+        grupo['rollos'].append({'mts': float(decimales[0]), 'rollo_no': identificador.group(0)[:7] if identificador else ''})   # Cant. va antes que Cant.adic (kg)
+    return [g for g in grupos if g['rollos']]
+
+
+def _empaque_resultado(grupos: list[dict], texto: str) -> dict | None:
+    if not grupos:
         return None
+    lineas = []
+    for g in grupos:
+        nombre = (g['nombre'] or 'Tela de la lista de empaque') + (' ' + g['color'] if g['color'] else '')
+        # la página 2 suelta trae el subtotal ACUMULADO de la tela (incluye la página 1): no sirve para controlar solo esas filas
+        lineas.append({'descripcion': nombre.strip(), 'referencia': g['codigo'], 'rollos': g['rollos'], 'total_esperado': None if g['continuacion'] else g['subtotal']})
     fecha = re.search(r'Fecha:?\s*(\d{4}/\d{2}/\d{2})', texto)
-    normal = re.sub(r'(?<=\d),(?=\d{3}\b)', '', texto)
-    total = re.findall(r'^\s*Total\s+\d{5,7}\s*-.*?(\d+\.\d{2})\s+\d+\.\d{2}\s*$', normal, re.M | re.I)
-    suma = round(sum(r['mts'] for l in lineas for r in l['rollos']), 2)
-    if not total:   # sin línea «Total»: el subtotal solo sirve de control si cuadra con esta página (en «Pag. 2 de 2» es acumulado)
-        sub = re.findall(r'^\s*Subt\w*.*?(\d+\.\d{2})\s+\d+\.\d{2}\s*$', normal, re.M | re.I)
-        total = [sub[0]] if sub and abs(float(sub[0]) - suma) < 0.5 else []
+    completo = all(g['cerrado'] and g['subtotal'] is not None and not g['continuacion'] for g in grupos)
     return {'proveedor': 'TEJIDOS DE PUNTO LINDATEXTIL S.A.S.', 'fecha': fecha.group(1) if fecha else '',
-            'total_documento': round(sum(float(t) for t in total), 2) if total else None, 'lineas': lineas, 'tipo': 'lista_empaque'}
+            'total_documento': round(sum(g['subtotal'] for g in grupos), 2) if completo else None, 'lineas': lineas, 'tipo': 'lista_empaque'}
+
+
+def parse_packing_list_text(texto: str) -> dict | None:
+    """Texto OCR de una «LISTA DE EMPAQUE» de Lindatextil (una página): varias telas y colores, un rollo por fila (ID y Cant. en metros)."""
+    if 'LISTA DE EMPAQUE' not in texto.upper() or 'LINDATEXTIL' not in texto.upper():
+        return None
+    return _empaque_resultado(_empaque_grupos(texto), texto)
 
 
 def parse_packing_list(data: bytes, filename: str) -> dict | None:
@@ -407,14 +423,22 @@ def parse_packing_list(data: bytes, filename: str) -> dict | None:
                 os.unlink(ruta)
             except OSError:
                 pass
-    paginas = [r for r in (parse_packing_list_text(t) for t in textos) if r]
-    if not paginas:
+    validos = [t for t in textos if 'LISTA DE EMPAQUE' in t.upper() and 'LINDATEXTIL' in t.upper()]
+    if not validos:
         return None
-    unido = paginas[0]
-    for extra in paginas[1:]:
-        unido['lineas'].extend(extra['lineas'])
-        unido['total_documento'] = (unido['total_documento'] or 0) + (extra['total_documento'] or 0)
-    return unido
+    grupos: list[dict] = []
+    for t in validos:
+        for g in _empaque_grupos(t):
+            previo = grupos[-1] if grupos else None
+            if g['continuacion'] and previo is not None and not previo['cerrado']:   # la tela de la página anterior sigue en esta
+                previo['rollos'].extend(g['rollos'])
+                previo['cerrado'], previo['subtotal'] = g['cerrado'], g['subtotal']
+                previo['continuacion'] = False
+                if not previo['color']:
+                    previo['color'] = g['color']
+            else:
+                grupos.append(g)
+    return _empaque_resultado(grupos, validos[0])
 
 
 # Formatos de documento por proveedor. Cada proveedor entrega el PDF distinto: se elige el formato al subirlo y todos terminan en el mismo resultado
@@ -485,6 +509,8 @@ def parse_eliot(data: bytes, filename: str) -> dict:
 def suggest_items(description: str, items: list[dict]) -> list[dict]:
     """Telas del inventario más parecidas a la descripción del documento."""
     tokens = set(re.findall(r'[A-Z]{3,}', norm(re.sub(r'-\s*\d+\s*$', '', description))))
+    if 'BLACK' in tokens:
+        tokens.add('NEGRO')
     scored = []
     for item in items:
         name = norm(re.sub(r'^\s*\(\d+\)\s*', '', item['nombre']))
