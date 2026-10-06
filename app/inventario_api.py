@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import logging
 import os
 import json
 import re
@@ -740,8 +741,31 @@ def inventory_dashboard():
     }
 
 
+def _sincronizar_codigos() -> int:
+    """Guarda los códigos de las telas y los seriales de los rollos que haya en el inventario (sin esperar a que alguien abra la pantalla).
+    Devuelve cuántos rollos tiene Stock tela."""
+    payload = _cache.get('data') or _load_snapshot()
+    if not payload:
+        return 0
+    payload = _with_sublimacion(payload)
+    items = [i for i in payload.get('items', []) if i.get('categoria') in _CODE_PREFIX]
+    codes = _assign_codes(items)
+    rolls = _assign_roll_serials([(code, item) for item, code in zip(items, codes) if code and item.get('categoria') == 'BODEGA TELA' and item.get('roll_values')])
+    return sum(len(v) for v in rolls.values())
+
+
+def _vigilar_codigos() -> None:
+    while True:
+        try:
+            _sincronizar_codigos()
+        except Exception:
+            logging.exception('No se pudieron guardar los códigos de barras del inventario')
+        threading.Event().wait(60)
+
+
 def start_sublimacion_worker() -> None:
     sublimacion_stock.start_worker(_load_snapshot)
+    threading.Thread(target=_vigilar_codigos, name='codigos-barras', daemon=True).start()
 
 
 def _inventory_payload(refresh: bool = False):
