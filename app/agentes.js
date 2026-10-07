@@ -201,6 +201,7 @@
   .ag-tab{display:inline-flex;align-items:center;gap:9px;min-height:42px;padding:6px 18px;border:1px solid #34432f;border-radius:12px;background:#0c110d;color:#c4cfbf;font:800 13px Arial;cursor:pointer;width:auto!important}
   .ag-tab i{width:9px;height:9px;border-radius:50%;background:#6f7d6a;flex:none}.ag-tab i.ok{background:#8bd450}.ag-tab i.mal{background:#ff6b5c}
   .ag-tab b{letter-spacing:.05em}.ag-tab em{font:600 11.5px Arial;font-style:normal;color:#8f9b8a;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ag-tabnota{align-self:center;margin-left:6px;color:#8f9b8a;font:600 12px Arial}
   .ag-tab.on{background:#d0f44c;border-color:#d0f44c;color:#142017}.ag-tab.on em{color:#33401a}
   .ag-tab.ocupado:not(.on){border-color:#7da4ff;background:rgba(125,164,255,.08)}.ag-tab.ocupado:not(.on) em{color:#9db8ff}.ag-tab.ocupado i{animation:agpul 1s infinite}
   @media(max-width:700px){.ag-tabs{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.ag-tabs::-webkit-scrollbar{display:none}.ag-tab{flex:none}}
@@ -613,7 +614,7 @@
   function armar() {
     panel.innerHTML = '<div class="ag"><header class="ag-hd"><h2>AGENTES</h2><div class="ag-state" data-estado></div>' +
       '<div class="ag-indiv" aria-label="Usar un agente por separado">' + AGENTES_BTN.map(([a, t, p]) => '<button type="button" class="ag-agbtn" style="--c:' + (COLORES[a] || '#c4cfbf') + '" data-atajo="' + esc(p) + '" title="' + esc(a + ': ' + ROLES[a] + ' (usa la orden activa)') + '"><i></i>' + esc(a) + '<small>' + esc(t) + '</small></button>').join('') + '</div>' +
-      '<div class="ag-hacc"><select class="ag-pcsel" data-pc-activo hidden title="PC en el que se hace el proceso (abre Illustrator)" aria-label="PC del proceso"></select><button type="button" class="ag-btn danger" data-detener style="display:none">Detener</button>' +
+      '<div class="ag-hacc"><button type="button" class="ag-btn danger" data-detener style="display:none">Detener</button>' +
       '<details class="ag-menu"><summary class="ag-ico" title="Más opciones">⋯</summary><div class="ag-menu-l"><button type="button" data-nueva>Nueva conversación</button><button type="button" data-conectar hidden>PC de los agentes…</button></div></details></div></header>' +
       '<nav class="ag-tabs" data-tabs hidden aria-label="PC de los agentes"></nav><div data-aviso></div><section class="ag-res" data-resumen hidden></section>' +
       '<button type="button" class="ag-ver-flujo" data-ver-flujo>▾ Ver flujo, pantalla en vivo y registro</button><div class="ag-main" data-main><div class="ag-orden" data-orden></div><section class="ag-chat"><div class="ag-thread" data-hilo></div><div class="ag-chips" data-replies></div>' +
@@ -682,7 +683,8 @@
       if (listaT.length > 1 && tabsEl.dataset.f !== firmaT) {
         tabsEl.dataset.f = firmaT;
         tabsEl.innerHTML = listaT.map(p => '<button type="button" class="ag-tab' + (p.id === st.pc ? ' on' : '') + (p.ocupado ? ' ocupado' : '') + '" data-pc-tab="' + esc(p.id) + '"><i class="' + (p.conectado ? 'ok' : 'mal') + '"></i><b>' + esc(p.nombre) + '</b><em>' +
-          (p.ocupado ? esc(p.trabajo || 'trabajando…') : (p.conectado ? 'libre' : 'desconectado')) + '</em></button>').join('');
+          (p.ocupado ? esc(p.trabajo || 'trabajando…') : (p.conectado ? 'libre' : 'desconectado')) + '</em></button>').join('') +
+          '<span class="ag-tabnota" title="La pestaña activa es el PC donde arranca solo el proceso cuando alguien pone la P en EDICIÓN">▸ La P arranca en la pestaña activa</span>';
       }
     }
     const selPc = panel.querySelector('[data-pc-activo]');
@@ -724,11 +726,17 @@
     const lista = (e && e.pcs) || [];
     let guardado = ''; try { guardado = localStorage.getItem('agentes_pc') || ''; } catch (x) { /* sin almacenamiento */ }
     const ok = id => lista.some(p => p.id === id), ocupado = lista.find(p => p.ocupado);
-    return (ok(guardado) && guardado) || (ocupado && ocupado.id) || (ok(e && e.pc_activo) && e.pc_activo) || (e && e.pc && e.pc.id) || 'principal';
+    return (ok(e && e.pc_activo) && e.pc_activo) || (ok(guardado) && guardado) || (ocupado && ocupado.id) || (e && e.pc && e.pc.id) || 'principal';
+  }
+  // La pestaña activa es también el PC donde arranca solo el proceso (la P de EDICIÓN): se guarda en el servidor al cambiar de pestaña
+  async function sincronizarPcAuto(id) {
+    if (!st.admin || !id) return;
+    try { await api('/api/agentes/pc-activo', { method: 'POST', body: JSON.stringify({ pc: id }) }); } catch (x) { /* sin permiso o sin conexión */ }
   }
   async function cambiarPc(id) {
     if (!id || id === st.pc) return;
     st.pc = id; try { localStorage.setItem('agentes_pc', id); } catch (x) { /* sin almacenamiento */ }
+    sincronizarPcAuto(id);
     Object.assign(st, { msgs: [], ultimo: 0, evs: [], ultimoEv: 0, trabajo: null, esperando: false, orden: '', cambiandoOrden: false, enviando: false, resAbierto: false });
     flow.listo = false; flow.preparado = 0; flow.estadoServidor = null; flow.vistaFija = null;
     const h = panel.querySelector('[data-hilo]'); if (h) { h.dataset.firma = ''; h.innerHTML = ''; }
@@ -741,7 +749,7 @@
     try {
       const canal = st.pc || '', q = canal ? '&pc=' + encodeURIComponent(canal) : '';
       const [datos, estado] = await Promise.all([api('/api/agentes/mensajes?desde=' + st.ultimo + '&desde_ev=' + st.ultimoEv + q), api('/api/agentes/estado' + (canal ? '?pc=' + encodeURIComponent(canal) : ''))]);
-      if (!st.pc) { st.pc = elegirPcInicial(estado); try { localStorage.setItem('agentes_pc', st.pc); } catch (e) { /* sin almacenamiento */ } st.cargando = false; return cargar(true); }
+      if (!st.pc) { st.pc = elegirPcInicial(estado); try { localStorage.setItem('agentes_pc', st.pc); } catch (e) { /* sin almacenamiento */ } if (st.pc !== (estado.pc_activo || '')) sincronizarPcAuto(st.pc); st.cargando = false; return cargar(true); }
       if (canal !== st.pc) { st.cargando = false; return; }   // cambiaste de pestaña mientras se consultaba: se descarta
       const nuevos = datos.mensajes || [], evs = datos.eventos || [], primera = !flow.listo;
       st.esperando = datos.esperando; st.trabajo = datos.trabajo; st.estado = estado;
