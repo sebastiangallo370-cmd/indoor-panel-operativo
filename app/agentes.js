@@ -177,7 +177,12 @@
     .ag-lienzo{grid-column:2;grid-row:1}
     .ag-chat{grid-column:1;grid-row:2 / span 2;min-height:0}
     .ag-live{grid-column:2;grid-row:2;min-height:0}
-    .ag-detalle{grid-column:2;grid-row:3;height:150px}
+    .ag-detalle{grid-column:2;grid-row:3;height:250px;border-color:#4a6338!important;background:#101710!important;box-shadow:0 0 0 1px rgba(208,244,76,.12)}
+    .ag-detalle header{padding:9px 16px!important;background:#16201a}.ag-detalle header h3{font-size:13px!important;color:#d0f44c!important;letter-spacing:.12em}
+    .ag-filtros .ag-pcsel{min-height:32px!important;font-size:13px!important}
+    .ag-log{font-size:14.5px!important;line-height:1.75!important;background:#0a0f0a!important;color:#eef4e9!important;padding:10px 16px!important}
+    .ag-log .h{opacity:.65;font-size:13px}.ag-log b{font-size:13.5px}.ag-log .WARN .m{color:#ffd283!important}.ag-log .ERROR .m{color:#ff9d9d!important}
+    .ag-log div{padding:2px 0;border-bottom:1px solid rgba(255,255,255,.05)}
     .ag-live-body{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr)!important}
     .ag-nodo .et b{font-size:15px}.ag-nodo .et small{font-size:12px}.ag-nodo .et em{font-size:12px}.ag-nodo .et{width:150px}
     .ag-ftit{font-size:15px}.ag-pildora{font-size:13px}.ag-live-top b{font-size:13px}.ag-live-top small{font-size:12.5px}
