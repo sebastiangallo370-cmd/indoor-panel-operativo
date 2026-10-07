@@ -150,6 +150,16 @@
     return c;
   }
   function imprimirHTML(html) {
+    let ventana = null;
+    try { ventana = window.open('', '_blank'); } catch (e) { ventana = null; }
+    if (ventana && ventana.document) {
+      const auto = '<script>window.addEventListener("load",function(){setTimeout(function(){window.focus();window.print();},300)});window.addEventListener("afterprint",function(){setTimeout(function(){window.close()},400)});<\/script>';
+      ventana.document.open();
+      ventana.document.write(html.replace('</body>', auto + '</body>'));
+      ventana.document.close();
+      return;
+    }
+    // sin ventana (bloqueada): se imprime desde un marco oculto
     const marco = document.createElement('iframe');
     marco.setAttribute('aria-hidden', 'true');
     marco.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
@@ -172,12 +182,7 @@
     items.forEach(item => { for (let i = 0; i < copias; i++) paginas.push('<section class="pg">' + etiquetaHTML(item, tam) + '</section>'); });
     const html = '<!doctype html><html><head><meta charset="utf-8"><title>Etiquetas</title><style>@page{size:' + w + 'mm ' + h + 'mm;margin:0}*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff}' +
       '.pg{width:' + w + 'mm;height:' + h + 'mm;page-break-after:always;break-after:page;overflow:hidden}.pg:last-child{page-break-after:auto;break-after:auto}' + estiloEtiqueta(tam) + '</style></head><body>' + paginas.join('') + '</body></html>';
-    const marco = document.createElement('iframe');
-    marco.setAttribute('aria-hidden', 'true');
-    marco.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
-    document.body.appendChild(marco);
-    marco.onload = () => { try { marco.contentWindow.focus(); marco.contentWindow.print(); } finally { setTimeout(() => marco.remove(), 120000); } };
-    marco.srcdoc = html;
+    imprimirHTML(html);
   }
 
   // ---------------------------------------------------------------- pantalla
