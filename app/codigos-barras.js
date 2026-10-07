@@ -108,6 +108,7 @@
 .cb-scan span{font:800 11px Arial;letter-spacing:.1em;color:#d0f44c;white-space:nowrap}
 .cb-scan input{flex:1;min-width:0;padding:12px 14px;border:1px solid #4f6545;border-radius:10px;background:#1b261c;color:#fff;font:700 18px Consolas,monospace;letter-spacing:.06em}
 .cb-scan input:focus{outline:none;border-color:#d0f44c}
+.cb-scan input{flex:1 1 auto!important;width:auto!important;min-width:200px!important}.cb-scan .cb-cam{flex:0 0 auto!important;width:auto!important;min-width:0}
 .cb-eco{min-height:22px;padding:0 4px;font-size:14px}.cb-eco.ok{color:#8fe08f}.cb-eco.mal{color:#ff9d8f}
 .cb-tools{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 .cb-tools input[type=search],.cb-tools select,.cb-barra select{width:auto!important}
