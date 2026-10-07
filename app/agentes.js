@@ -207,6 +207,7 @@
   .ag-tab.on{background:#d0f44c;border-color:#d0f44c;color:#142017}.ag-tab.on em{color:#33401a}
   .ag-tab.ocupado:not(.on){border-color:#7da4ff;background:rgba(125,164,255,.08)}.ag-tab.ocupado:not(.on) em{color:#9db8ff}.ag-tab.ocupado i{animation:agpul 1s infinite}
   @media(max-width:700px){.ag-tabs{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.ag-tabs::-webkit-scrollbar{display:none}.ag-tab{flex:none}}
+  .ag-stop{font-weight:900!important;letter-spacing:.04em;white-space:nowrap}.ag-stop.inactivo{opacity:.7}
   .ag-pcsel{min-height:40px;padding:0 12px;border:1px solid #60754d;border-radius:10px;background:#142017;color:#e3eadc;font:800 13px Arial;cursor:pointer}.ag-pcsel[hidden]{display:none}
   .ag-pcrow{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;border:1px solid #34432f;border-radius:12px;background:#0c110d}
   .ag-pcrow b{display:block;color:#eef4e9}.ag-pcrow small{display:block;color:#8f9b8a;font-size:.78rem}.ag-pcrow span{display:flex;gap:6px}.ag-pcrow .ag-btn{min-height:34px;padding:0 12px;font-size:12px}
@@ -617,8 +618,8 @@
     panel.innerHTML = '<div class="ag"><header class="ag-hd"><h2>AGENTES</h2><div class="ag-state" data-estado></div>' +
       '<nav class="ag-tabs" data-tabs hidden aria-label="PC de los agentes" title="La pestaña activa es el PC donde arranca solo el proceso cuando alguien pone la P en EDICIÓN"></nav>' +
       '<div class="ag-indiv" aria-label="Usar un agente por separado">' + AGENTES_BTN.map(([a, t, p]) => '<button type="button" class="ag-agbtn" style="--c:' + (COLORES[a] || '#c4cfbf') + '" data-atajo="' + esc(p) + '" title="' + esc(a + ': ' + ROLES[a] + ' (usa la orden activa)') + '"><i></i>' + esc(a) + '<small>' + esc(t) + '</small></button>').join('') + '</div>' +
-      '<div class="ag-hacc"><button type="button" class="ag-btn danger" data-detener style="display:none">Detener</button>' +
-      '<details class="ag-menu"><summary class="ag-ico" title="Más opciones">⋯</summary><div class="ag-menu-l"><button type="button" data-nueva>Nueva conversación</button><button type="button" data-conectar hidden>PC de los agentes…</button></div></details></div></header>' +
+      '<div class="ag-hacc"><button type="button" class="ag-btn danger ag-stop inactivo" data-detener data-txt="⏹ Detener" title="Detiene los agentes de esta pestaña (el PC elegido)">⏹ Detener</button>' +
+      '<details class="ag-menu"><summary class="ag-ico" title="Más opciones">⋯</summary><div class="ag-menu-l"><button type="button" data-detener-todo>⏹ Detener todo (ambos PC)</button><button type="button" data-nueva>Nueva conversación</button><button type="button" data-conectar hidden>PC de los agentes…</button></div></details></div></header>' +
       '<div data-aviso></div><section class="ag-res" data-resumen hidden></section>' +
       '<button type="button" class="ag-ver-flujo" data-ver-flujo>▾ Ver flujo, pantalla en vivo y registro</button><div class="ag-main" data-main><div class="ag-orden" data-orden></div><section class="ag-chat"><div class="ag-thread" data-hilo></div><div class="ag-chips" data-replies></div>' +
       '<form class="ag-form" data-form><details class="ag-menu ag-atajos"><summary class="ag-ico" title="Acciones rápidas">⚡</summary><div class="ag-menu-l">' + ATAJOS.map(([l, p]) => '<button type="button" data-atajo="' + esc(p) + '">' + esc(l) + '</button>').join('') + '</div></details>' +
@@ -673,7 +674,7 @@
     if (hiloEl.dataset.firma !== firma) { hiloEl.innerHTML = firma; hiloEl.dataset.firma = firma; hiloEl.scrollTop = hiloEl.scrollHeight; }
     panel.querySelector('[data-replies]').innerHTML = botones.map(b => '<button type="button" class="reply" data-send="' + esc(b) + '">' + esc(b) + '</button>').join('');
     panel.querySelectorAll('[data-atajo]').forEach(b => { b.disabled = st.esperando; });
-    panel.querySelector('header [data-detener]').style.display = st.esperando ? '' : 'none';
+    panel.querySelector('header [data-detener]').classList.toggle('inactivo', !st.esperando);   // el botón siempre está: se ve apagado cuando no hay nada en marcha
     const ini = panel.querySelector('[data-iniciar]'); if (ini) ini.disabled = st.esperando || st.enviando;
     const repro = panel.querySelector('[data-reprocesar]'); if (repro) repro.disabled = st.esperando || st.enviando;
     panel.querySelector('textarea').disabled = st.esperando;
@@ -859,10 +860,15 @@
         if (!st.esperando && st.orden) enviar('Reprocesar la orden ' + st.orden);
       } else if (e.target.closest('[data-iniciar]')) {
         if (!st.esperando && st.orden) enviar('Pedido completo de la orden ' + st.orden);
-      } else if (e.target.closest('[data-detener]')) {
-        const b = e.target.closest('[data-detener]'); b.disabled = true; b.textContent = 'Deteniendo…';
-        try { await api('/api/agentes/detener', { method: 'POST', body: JSON.stringify({ pc: st.pc }) }); } catch (err) { b.disabled = false; b.textContent = 'Detener'; alert(err.message); return; }
+      } else if (e.target.closest('[data-detener-todo]')) {
+        const ids = (st.estado.pcs || []).map(p => p.id); if (!ids.length) ids.push(st.pc || 'principal');
+        for (const id of ids) { try { await api('/api/agentes/detener', { method: 'POST', body: JSON.stringify({ pc: id }) }); } catch (err) { alert(err.message); } }
         st.esperando = false; st.trabajo = null; await cargar(true); pintar();
+      } else if (e.target.closest('[data-detener]')) {
+        const b = e.target.closest('[data-detener]'), orig = b.dataset.txt || 'Detener'; b.disabled = true; b.textContent = 'Deteniendo…';
+        try { await api('/api/agentes/detener', { method: 'POST', body: JSON.stringify({ pc: st.pc }) }); } catch (err) { b.disabled = false; b.textContent = orig; alert(err.message); return; }
+        st.esperando = false; st.trabajo = null; await cargar(true); pintar();
+        b.disabled = false; b.textContent = orig;
       } else if (e.target.closest('[data-nueva]')) {
         if (st.msgs.length && !confirm('¿Borrar esta conversación? Los agentes empiezan de cero.')) return;
         try { await api('/api/agentes/limpiar', { method: 'POST', body: JSON.stringify({ pc: st.pc }) }); } catch (err) { alert(err.message); return; }
