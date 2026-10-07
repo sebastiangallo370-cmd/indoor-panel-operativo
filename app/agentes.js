@@ -149,6 +149,11 @@
 
   .ag-res{display:grid;gap:12px;padding:16px 18px;border:1px solid #2d3b4a;border-radius:16px;background:linear-gradient(135deg,#111a22,#0f140f)}
   .ag-res[hidden]{display:none}
+  .ag-pcsel{min-height:40px;padding:0 12px;border:1px solid #60754d;border-radius:10px;background:#142017;color:#e3eadc;font:800 13px Arial;cursor:pointer}.ag-pcsel[hidden]{display:none}
+  .ag-pcrow{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;border:1px solid #34432f;border-radius:12px;background:#0c110d}
+  .ag-pcrow b{display:block;color:#eef4e9}.ag-pcrow small{display:block;color:#8f9b8a;font-size:.78rem}.ag-pcrow span{display:flex;gap:6px}.ag-pcrow .ag-btn{min-height:34px;padding:0 12px;font-size:12px}
+  .ag-pcnuevo{display:grid;gap:8px;padding:12px;border:1px solid #d0f44c;border-radius:12px;background:rgba(208,244,76,.06);font-size:.85rem}
+  .ag-pcadd{display:flex;gap:8px;flex-wrap:wrap}.ag-pcadd input{flex:1 1 220px;min-height:40px;padding:0 12px;border:1px solid #60754d;border-radius:10px;background:#142017;color:#f5faef;font:700 14px Arial}
   .ag-ver-flujo{display:none;align-items:center;justify-content:center;gap:8px;min-height:44px;border:1px solid #34432f;border-radius:12px;background:#0c110d;color:#d0f44c;font:800 13px Arial;cursor:pointer}
   .ag-res-top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
   .ag-res-top h3{margin:0;font:800 11px Arial;letter-spacing:.12em;color:#7da4ff;text-transform:uppercase}
@@ -547,7 +552,7 @@
   // ================================================================== pantalla
   function armar() {
     panel.innerHTML = '<div class="ag"><header class="ag-head"><div><span class="k">EDICIÓN · INTELIGENCIA</span><h2>AGENTES</h2><p>Escríbele a TAVO y él decide qué agente actúa. Todo se ejecuta en el PC con Illustrator.</p></div>' +
-      '<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="ag-btn danger" data-detener style="display:none">Detener agentes</button><button type="button" class="ag-btn sec" data-nueva>Nueva conversación</button><button type="button" class="ag-btn sec" data-conectar hidden>Conectar PC</button></div></header>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap"><select class="ag-pcsel" data-pc-activo hidden title="PC en el que se hace el proceso (abre Illustrator)" aria-label="PC del proceso"></select><button type="button" class="ag-btn danger" data-detener style="display:none">Detener agentes</button><button type="button" class="ag-btn sec" data-nueva>Nueva conversación</button><button type="button" class="ag-btn sec" data-conectar hidden>Conectar PC</button></div></header>' +
       '<div class="ag-state" data-estado></div><div data-aviso></div><section class="ag-res" data-resumen hidden></section>' +
       '<button type="button" class="ag-ver-flujo" data-ver-flujo>▾ Ver flujo, pantalla en vivo y registro</button><div class="ag-main" data-main><section class="ag-chat"><div class="ag-orden" data-orden></div><div class="ag-thread" data-hilo></div><div class="ag-chips" data-replies></div>' +
       '<div class="ag-chips" data-atajos>' + ATAJOS.map(([l, p]) => '<button type="button" data-atajo="' + esc(p) + '">' + esc(l) + '</button>').join('') + '</div>' +
@@ -579,9 +584,9 @@
     const botones = ultimo && ultimo.rol === 'bot' && !st.esperando ? (ultimo.botones || []) : [];
     const pill = (clase, texto) => '<span class="ag-pill ' + clase + '"><i></i>' + esc(texto) + '</span>';
     const modo = v => !v ? '' : v === 'real' ? 'ok' : /^error/.test(v) ? 'mal' : 'sim';
-    panel.querySelector('[data-estado]').innerHTML = pill(e.conectado ? 'ok' : 'mal', e.conectado ? 'PC conectado' : 'PC desconectado') + (e.conectado && e.illustrator ? pill(modo(e.illustrator), 'Illustrator: ' + e.illustrator) : '') + (e.conectado && e.sheets ? pill(modo(e.sheets), 'Sheets: ' + e.sheets) : '') +
+    panel.querySelector('[data-estado]').innerHTML = pill(e.conectado ? 'ok' : 'mal', (e.pc && e.pc.nombre ? e.pc.nombre + ' · ' : '') + (e.conectado ? 'PC conectado' : 'PC desconectado')) + (e.conectado && e.illustrator ? pill(modo(e.illustrator), 'Illustrator: ' + e.illustrator) : '') + (e.conectado && e.sheets ? pill(modo(e.sheets), 'Sheets: ' + e.sheets) : '') +
       '<button type="button" class="ag-pill ' + (e.auto ? 'ok' : 'sim') + '" data-auto title="Cuando una tarjeta de EDICIÓN pasa a «en proceso», los agentes arrancan solos con esa orden. Toca para ' + (e.auto ? 'apagar' : 'encender') + '" style="cursor:pointer"><i></i>Inicio automático: ' + (e.auto ? 'ON' : 'OFF') + '</button>';
-    panel.querySelector('[data-aviso]').innerHTML = !e.conectado ? '<div class="ag-warn">El PC de los agentes no está conectado. Tu mensaje queda en cola y se atiende cuando el PC con Illustrator esté encendido con los agentes iniciados.</div>' : '';
+    panel.querySelector('[data-aviso]').innerHTML = !e.conectado ? '<div class="ag-warn">El PC «' + esc((e.pc && e.pc.nombre) || 'de los agentes') + '» no está conectado. Tu mensaje queda en cola y se atiende cuando ese PC esté encendido con los agentes iniciados' + ((e.pcs || []).some(p => p.conectado && p.id !== (e.pc && e.pc.id)) ? '; también puedes elegir otro PC conectado arriba.' : '.') + '</div>' : '';
     const trabajo = st.trabajo;
     const hilo = st.msgs.length ? st.msgs.map(m => m.rol === 'yo'
       ? '<div class="ag-msg yo"><p class="ag-txt">' + esc(m.texto) + '</p><span class="ag-time">' + hora(m.creado) + '</span></div>'
@@ -608,6 +613,15 @@
     panel.querySelector('textarea').disabled = st.esperando;
     panel.querySelector('[data-form] button').disabled = st.esperando || st.enviando;
     if (st.admin) panel.querySelector('[data-conectar]').hidden = false;
+    const selPc = panel.querySelector('[data-pc-activo]');
+    if (selPc) {
+      selPc.hidden = !st.admin;
+      const lista = e.pcs || [], firma = JSON.stringify(lista) + '|' + (e.pc_activo || '');
+      if (selPc.dataset.firma !== firma) {
+        selPc.innerHTML = '<option value="">PC del proceso: automático</option>' + lista.map(p => '<option value="' + esc(p.id) + '">' + (p.conectado ? '● ' : '○ ') + esc(p.nombre) + '</option>').join('');
+        selPc.value = e.pc_activo || ''; selPc.dataset.firma = firma;
+      }
+    }
   }
   function render() { pintar(); }
 
@@ -661,21 +675,37 @@
     timer = setTimeout(async () => { if (!document.hidden) await cargar(false); programar(); }, st.esperando ? 1500 : 4000);
   }
 
+  // Administración de los PC con Illustrator (EDICION y AUTOMATIZACION): estado, agregar, código nuevo, quitar
   async function conectar() {
-    let info;
-    try { info = await api('/api/agentes/conexion'); } catch (e) { alert(e.message); return; }
     const dlg = document.createElement('dialog');
     dlg.className = 'ag-dlg';
-    const pintar = i => {
-      dlg.innerHTML = '<div class="b"><h2>Conectar el PC de los agentes</h2><p style="margin:0;color:#aebba7;font-size:.88rem">Este código lo usa el PC con Illustrator para entrar al panel. Trátalo como una contraseña: no lo compartas ni lo pegues en chats.</p>' +
-        '<b style="font-size:.8rem">Dirección del panel</b><code>' + esc(i.url) + '</code><b style="font-size:.8rem">Código de conexión</b><code data-token>' + esc(i.token) + '</code>' +
-        '<ol><li>En el PC con Illustrator abre la carpeta <b>agentes_uniformes</b>.</li><li>Ejecuta <b>conectar_panel.bat</b> y pega la dirección y el código.</li><li>Abre <b>iniciar.bat</b>: aquí debe aparecer «PC conectado».</li></ol>' +
-        '<div class="row"><button type="button" class="ag-btn sec" data-copiar>Copiar código</button><button type="button" class="ag-btn sec" data-regenerar>Generar uno nuevo</button><button type="button" class="ag-btn" data-cerrar>Cerrar</button></div></div>';
+    let datos, nuevo = null;
+    const cargarPcs = async () => { datos = await api('/api/agentes/pcs'); };
+    const pintar = () => {
+      const filas = datos.pcs.map(p => '<div class="ag-pcrow"><div><b>' + esc(p.nombre) + '</b><small>' + (p.conectado ? '● conectado' : '○ desconectado') + (p.equipo ? ' · ' + esc(p.equipo) : '') + (p.illustrator ? ' · Illustrator: ' + esc(p.illustrator) : '') + '</small></div>' +
+        '<span><button type="button" class="ag-btn sec" data-pc-token="' + esc(p.id) + '">Código nuevo</button>' + (p.principal ? '' : '<button type="button" class="ag-btn danger" data-pc-quitar="' + esc(p.id) + '">Quitar</button>') + '</span></div>').join('');
+      const caja = nuevo ? '<div class="ag-pcnuevo"><b>Código de ' + esc(nuevo.nombre || 'este PC') + '</b> (se muestra una sola vez; trátalo como una contraseña)<code data-token>' + esc(nuevo.token) + '</code><b style="font-size:.8rem">Dirección del panel</b><code>' + esc(nuevo.url) + '</code>' +
+        '<ol><li>En ese PC abre la carpeta <b>agentes_uniformes</b>.</li><li>Ejecuta <b>conectar_panel.bat</b> (o <b>INSTALAR_TODO.bat</b> si es la primera vez) y pega la dirección y el código.</li><li>Abre <b>iniciar.bat</b>: aquí debe aparecer «conectado».</li></ol><button type="button" class="ag-btn sec" data-copiar>Copiar código</button></div>' : '';
+      dlg.innerHTML = '<div class="b"><h2>PC de los agentes</h2><p style="margin:0;color:#aebba7;font-size:.88rem">Cada PC con Illustrator se conecta con su propio código. En el encabezado de AGENTES eliges en cuál se hace el proceso.</p>' +
+        filas + caja + '<form class="ag-pcadd" data-pc-add><input maxlength="40" placeholder="Nombre del PC nuevo, por ejemplo AUTOMATIZACION" required><button type="submit" class="ag-btn">Agregar PC</button></form>' +
+        '<div class="row"><button type="button" class="ag-btn" data-cerrar>Cerrar</button></div></div>';
       dlg.querySelector('[data-cerrar]').onclick = () => dlg.close();
-      dlg.querySelector('[data-copiar]').onclick = () => { try { navigator.clipboard.writeText(i.token); } catch (e) { /* sin portapapeles */ } };
-      dlg.querySelector('[data-regenerar]').onclick = async () => { if (!confirm('El PC dejará de conectarse hasta que le pongas el código nuevo. ¿Generar uno nuevo?')) return; try { pintar(await api('/api/agentes/conexion/regenerar', { method: 'POST', body: '{}' })); } catch (e) { alert(e.message); } };
+      const cp = dlg.querySelector('[data-copiar]'); if (cp) cp.onclick = () => { try { navigator.clipboard.writeText(nuevo.token); } catch (e) { /* sin portapapeles */ } };
+      dlg.querySelectorAll('[data-pc-token]').forEach(b => { b.onclick = async () => {
+        const p = datos.pcs.find(x => x.id === b.dataset.pcToken);
+        if (!confirm('El PC «' + p.nombre + '» dejará de conectarse hasta que le pongas el código nuevo. ¿Generar uno nuevo?')) return;
+        try { const r = await api('/api/agentes/pcs/' + encodeURIComponent(p.id) + '/token', { method: 'POST', body: '{}' }); nuevo = { ...r, nombre: p.nombre }; await cargarPcs(); pintar(); } catch (e) { alert(e.message); } }; });
+      dlg.querySelectorAll('[data-pc-quitar]').forEach(b => { b.onclick = async () => {
+        const p = datos.pcs.find(x => x.id === b.dataset.pcQuitar);
+        if (!confirm('¿Quitar el PC «' + p.nombre + '»? Dejará de poder conectarse.')) return;
+        try { await api('/api/agentes/pcs/' + encodeURIComponent(p.id), { method: 'DELETE' }); nuevo = null; await cargarPcs(); pintar(); cargar(true); } catch (e) { alert(e.message); } }; });
+      dlg.querySelector('[data-pc-add]').onsubmit = async ev => {
+        ev.preventDefault();
+        try { const r = await api('/api/agentes/pcs', { method: 'POST', body: JSON.stringify({ nombre: ev.target.querySelector('input').value }) }); nuevo = r; await cargarPcs(); pintar(); cargar(true); } catch (e) { alert(e.message); }
+      };
     };
-    pintar(info);
+    try { await cargarPcs(); } catch (e) { alert(e.message); return; }
+    pintar();
     document.body.appendChild(dlg);
     dlg.addEventListener('close', () => dlg.remove());
     dlg.showModal();
@@ -741,6 +771,11 @@
       if (abierto) { acomodar(); pintarLog(); }
     });
     panel.addEventListener('toggle', e => { if (e.target.matches && e.target.matches('[data-resdet]')) st.resAbierto = e.target.open; }, true);
+    panel.addEventListener('change', async e => {
+      if (!e.target.matches('[data-pc-activo]')) return;
+      try { await api('/api/agentes/pc-activo', { method: 'POST', body: JSON.stringify({ pc: e.target.value }) }); } catch (err) { alert(err.message); }
+      await cargar(true); pintar();
+    });
     panel.addEventListener('submit', e => { e.preventDefault(); if (e.target.matches('[data-orden-form]')) { fijarOrden(e.target.querySelector('input').value); return; } const caja = panel.querySelector('textarea'); const v = caja.value; caja.value = ''; enviar(v); });
     panel.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && e.target.matches('textarea')) { e.preventDefault(); panel.querySelector('form').requestSubmit(); } });
     panel.addEventListener('input', e => { if (e.target.matches('textarea')) { e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 140) + 'px'; } });

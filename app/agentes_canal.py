@@ -5,6 +5,7 @@ pregunta cada pocos segundos por mensajes nuevos (sondeo saliente, sin abrir pue
 Las personas del panel solo hablan con TAVO; el panel guarda la conversación de cada usuario.
 Datos en /data/state/agentes_canal.json y el token del PC en /data/state/agentes_token.txt.
 """
+import hashlib
 import json
 import os
 import re
@@ -39,11 +40,19 @@ LATIDO_SEG = 25          # el PC se considera conectado si sondeó hace menos de
 ESPERA_MAX_SEG = 2700    # un lote de PDF de producción por jugador puede tardar varios minutos (hasta 45 min antes de avisar)
 _auth: Callable = lambda request: None
 _es_admin: Callable[[str], bool] = lambda usuario: False
+_lista_usuarios: Callable[[], list] = lambda: []
+PRINCIPAL = 'principal'   # el PC que ya estaba conectado con el token de siempre (agentes_token.txt)
 
 
 def configurar(autenticar: Callable, es_admin: Callable) -> None:
     global _auth, _es_admin
     _auth, _es_admin = autenticar, es_admin
+
+
+def configurar_usuarios(fn: Callable) -> None:
+    """main.py registra cómo listar los usuarios del panel (para asignarles su PC)."""
+    global _lista_usuarios
+    _lista_usuarios = fn
 
 
 def _ahora() -> float:
@@ -68,6 +77,9 @@ def _leer() -> dict:
     datos.setdefault('archivos', {})   # id -> {sesion, nombre, ext, size, creado}
     datos.setdefault('ordenes', {})    # sesion -> orden activa (CO6133): todo lo que pide esa persona se hace con ella
     datos.setdefault('auto', {'activo': True, 'vistos': None})   # inicio automático: tarjetas de EDICIÓN que pasan a «en proceso»
+    datos.setdefault('pcs', {})        # id -> {nombre, usuarios, token_hash, latido}: cada PC con Illustrator (el «principal» usa el token de siempre)
+    datos.setdefault('ultimo_pc', {})  # usuario -> PC que atendió su último mensaje
+    datos.setdefault('pc_activo', '')  # PC elegido a mano para hacer el proceso ('' = automático: el PC de la persona o el que esté conectado)
     return datos
 
 
@@ -99,14 +111,63 @@ def _crear_token() -> str:
     return valor
 
 
-def _pc(request: Request) -> None:
-    esperado = _token()
+def _hash(valor: str) -> str:
+    return hashlib.sha256(valor.encode('utf-8')).hexdigest()
+
+
+def _pc(request: Request) -> str:
+    """Valida el token del PC y devuelve su id («principal» o el de un PC agregado después)."""
     recibido = request.headers.get('x-agentes-token', '')
-    if not esperado or not secrets.compare_digest(recibido, esperado):
-        raise HTTPException(401, 'Token del PC no válido')
+    esperado = _token()
+    if esperado and recibido and secrets.compare_digest(recibido, esperado):
+        return PRINCIPAL
+    if recibido:
+        huella = _hash(recibido)
+        for pid, info in _leer()['pcs'].items():
+            if info.get('token_hash') and secrets.compare_digest(info['token_hash'], huella):
+                return pid
+    raise HTTPException(401, 'Token del PC no válido')
+
+
+def _ids_pcs(datos: dict) -> list:
+    return [PRINCIPAL] + [p for p in datos['pcs'] if p != PRINCIPAL]
+
+
+def _nombre_pc(datos: dict, pid: str) -> str:
+    return (datos['pcs'].get(pid) or {}).get('nombre') or ('EDICION' if pid == PRINCIPAL else pid)   # el principal es el PC de EDICIÓN
+
+
+def _latido_pc(datos: dict, pid: str) -> dict:
+    return datos['latido'] if pid == PRINCIPAL else (datos['pcs'].get(pid) or {}).get('latido', {})
+
+
+def _conectado(datos: dict, pid: str | None = None) -> bool:
+    ids = [pid] if pid else _ids_pcs(datos)
+    return any(_ahora() - float(_latido_pc(datos, p).get('at', 0)) < LATIDO_SEG for p in ids)
+
+
+def _pc_de(datos: dict, usuario: str) -> str:
+    """En qué PC se abre Illustrator: el que se eligió a mano en el panel; si no, el asignado a la persona; si no, el que atendió su
+    último mensaje; si no, algún PC conectado; si no, el principal."""
+    elegido = datos.get('pc_activo') or ''
+    if elegido and (elegido == PRINCIPAL or elegido in datos['pcs']):
+        return elegido
+    clave = str(usuario or '').strip().lower()
+    for pid, info in datos['pcs'].items():
+        if clave and clave in [str(u).strip().lower() for u in info.get('usuarios', [])]:
+            return pid
+    ultimo = datos['ultimo_pc'].get(usuario)
+    if ultimo and (ultimo == PRINCIPAL or ultimo in datos['pcs']):
+        return ultimo
+    for pid in _ids_pcs(datos):
+        if _conectado(datos, pid):
+            return pid
+    return PRINCIPAL
 
 
 def _nuevo(datos: dict, sesion: str, rol: str, texto: str, **extra) -> dict:
+    if rol == 'yo' and 'pc' not in extra:
+        extra['pc'] = _pc_de(datos, sesion)   # el mensaje solo lo recoge el PC de esta persona
     datos['contador'] += 1
     msg = {'id': datos['contador'], 'sesion': sesion, 'rol': rol, 'texto': texto, 'creado': _iso(), **extra}
     datos['mensajes'].append(msg)
@@ -149,10 +210,6 @@ def _tarjetas(datos: dict, sesion: str, valor) -> list:
     return tarjetas
 
 
-def _conectado(datos: dict) -> bool:
-    return _ahora() - float(datos['latido'].get('at', 0)) < LATIDO_SEG
-
-
 def _liberar_vencidos(datos: dict) -> bool:
     """Un mensaje tomado por el PC que no se responde en ESPERA_MAX_SEG se cierra con un aviso."""
     cambio = False
@@ -171,12 +228,16 @@ def _liberar_vencidos(datos: dict) -> bool:
 # ------------------------------------------------------------------ personas
 @router.get('/estado')
 def estado(request: Request):
-    _auth(request)
+    usuario = _auth(request)
     with _lock:
         datos = _leer()
-    latido = datos['latido']
-    return {'conectado': _conectado(datos), 'illustrator': latido.get('illustrator', ''), 'sheets': latido.get('sheets', ''),
-            'visto': latido.get('iso', ''), 'auto': bool(datos['auto'].get('activo', True))}
+    pid = _pc_de(datos, usuario)   # el PC en el que se abre Illustrator para esta persona
+    latido = _latido_pc(datos, pid)
+    return {'conectado': _conectado(datos, pid), 'illustrator': latido.get('illustrator', ''), 'sheets': latido.get('sheets', ''),
+            'visto': latido.get('iso', ''), 'auto': bool(datos['auto'].get('activo', True)),
+            'pc': {'id': pid, 'nombre': _nombre_pc(datos, pid), 'equipo': latido.get('equipo', ''), 'elegido': bool(datos.get('pc_activo'))},
+            'pc_activo': datos.get('pc_activo') or '',
+            'pcs': [{'id': p, 'nombre': _nombre_pc(datos, p), 'conectado': _conectado(datos, p)} for p in _ids_pcs(datos)]}
 
 
 @router.get('/mensajes')
@@ -191,7 +252,7 @@ def mensajes(request: Request, desde: int = 0, desde_ev: int = 0):
         trabajo = datos['trabajo'].get(usuario) if esperando else None
         nuevos = [{k: v for k, v in m.items() if k not in ('t',)} for m in propios if m['id'] > desde]
         eventos = [e for e in datos['eventos'] if e['sesion'] == usuario and e['id'] > desde_ev]
-        return {'mensajes': nuevos, 'esperando': esperando, 'trabajo': trabajo, 'conectado': _conectado(datos), 'ultimo': datos['contador'],
+        return {'mensajes': nuevos, 'esperando': esperando, 'trabajo': trabajo, 'conectado': _conectado(datos, _pc_de(datos, usuario)), 'ultimo': datos['contador'],
                 'eventos': eventos, 'ultimo_ev': datos['cont_ev'], 'orden': datos['ordenes'].get(usuario, '')}
 
 
@@ -208,7 +269,7 @@ def enviar(request: Request, payload: dict):
             raise HTTPException(409, 'Espera la respuesta de TAVO antes de enviar otro mensaje')
         msg = _nuevo(datos, usuario, 'yo', texto, t=_ahora(), tomado=False, respondido=False)
         _guardar(datos)
-        return {'ok': True, 'id': msg['id'], 'conectado': _conectado(datos)}
+        return {'ok': True, 'id': msg['id'], 'conectado': _conectado(datos, msg.get('pc')), 'pc': _nombre_pc(datos, msg.get('pc') or PRINCIPAL)}
 
 
 @router.post('/orden')
@@ -317,18 +378,142 @@ def regenerar(request: Request):
     return {'token': token, 'url': str(request.base_url).rstrip('/')}
 
 
+# ------------------------------------------------------------------ administración de los PC con Illustrator
+def _solo_admin(request: Request) -> str:
+    usuario = _auth(request)
+    if not _es_admin(usuario):
+        raise HTTPException(403, 'Solo la administración puede administrar los PC de los agentes')
+    return usuario
+
+
+def _resumen_pc(datos: dict, pid: str) -> dict:
+    info = datos['pcs'].get(pid) or {}
+    latido = _latido_pc(datos, pid)
+    return {'id': pid, 'nombre': _nombre_pc(datos, pid), 'usuarios': list(info.get('usuarios') or []), 'conectado': _conectado(datos, pid),
+            'visto': latido.get('iso', ''), 'equipo': latido.get('equipo', ''), 'illustrator': latido.get('illustrator', ''), 'principal': pid == PRINCIPAL}
+
+
+@router.get('/pcs')
+def listar_pcs(request: Request):
+    _solo_admin(request)
+    with _lock:
+        datos = _leer()
+    nombres = sorted({str(u) for u in (_lista_usuarios() or []) if u}, key=str.casefold)
+    return {'pcs': [_resumen_pc(datos, p) for p in _ids_pcs(datos)], 'usuarios': nombres}
+
+
+@router.post('/pcs')
+def crear_pc(request: Request, payload: dict):
+    """Agrega un PC con Illustrator. Devuelve su código de conexión UNA sola vez."""
+    _solo_admin(request)
+    nombre = re.sub(r'\s+', ' ', str(payload.get('nombre') or '')).strip()[:40]
+    if len(nombre) < 2:
+        raise HTTPException(400, 'Ponle un nombre al PC, por ejemplo «PC Diseño 2»')
+    with _lock:
+        datos = _leer()
+        if any(_nombre_pc(datos, p).casefold() == nombre.casefold() for p in _ids_pcs(datos)):
+            raise HTTPException(409, 'Ya hay un PC con ese nombre')
+        pid = 'pc-' + secrets.token_hex(3)
+        token = secrets.token_urlsafe(32)
+        datos['pcs'][pid] = {'nombre': nombre, 'usuarios': [], 'token_hash': _hash(token), 'creado': _iso()}
+        _guardar(datos)
+    return {'id': pid, 'nombre': nombre, 'token': token, 'url': str(request.base_url).rstrip('/')}
+
+
+@router.put('/pcs/{pid}')
+def editar_pc(request: Request, pid: str, payload: dict):
+    """Cambia el nombre y/o las personas que trabajan con ese PC. Una persona solo puede estar en un PC."""
+    _solo_admin(request)
+    with _lock:
+        datos = _leer()
+        if pid != PRINCIPAL and pid not in datos['pcs']:
+            raise HTTPException(404, 'PC no encontrado')
+        info = datos['pcs'].setdefault(pid, {})
+        if 'nombre' in payload:
+            nombre = re.sub(r'\s+', ' ', str(payload.get('nombre') or '')).strip()[:40]
+            if len(nombre) < 2:
+                raise HTTPException(400, 'El nombre es muy corto')
+            info['nombre'] = nombre
+        if 'usuarios' in payload:
+            nuevos = []
+            for u in payload.get('usuarios') or []:
+                u = str(u).strip()[:60]
+                if u and u.casefold() not in [x.casefold() for x in nuevos]:
+                    nuevos.append(u)
+            for otro, otra in datos['pcs'].items():
+                if otro != pid:
+                    otra['usuarios'] = [u for u in (otra.get('usuarios') or []) if u.casefold() not in [x.casefold() for x in nuevos]]
+            info['usuarios'] = nuevos
+        _guardar(datos)
+        return _resumen_pc(datos, pid)
+
+
+@router.post('/pc-activo')
+def elegir_pc(request: Request, payload: dict):
+    """Elige en qué PC se hace el proceso (abre Illustrator). Vacío = automático. Aplica al inicio automático y a lo que se pida en el chat."""
+    _solo_admin(request)
+    pid = str(payload.get('pc') or '').strip()
+    with _lock:
+        datos = _leer()
+        if pid and pid != PRINCIPAL and pid not in datos['pcs']:
+            raise HTTPException(404, 'PC no encontrado')
+        datos['pc_activo'] = pid
+        _guardar(datos)
+        return {'pc_activo': pid, 'nombre': _nombre_pc(datos, pid) if pid else '', 'conectado': _conectado(datos, pid) if pid else _conectado(datos)}
+
+
+@router.post('/pcs/{pid}/token')
+def token_pc(request: Request, pid: str):
+    """Código nuevo para un PC (el anterior deja de servir)."""
+    _solo_admin(request)
+    with _lock:
+        datos = _leer()
+        if pid == PRINCIPAL:
+            token = _crear_token()
+        elif pid in datos['pcs']:
+            token = secrets.token_urlsafe(32)
+            datos['pcs'][pid]['token_hash'] = _hash(token)
+            _guardar(datos)
+        else:
+            raise HTTPException(404, 'PC no encontrado')
+    return {'id': pid, 'token': token, 'url': str(request.base_url).rstrip('/')}
+
+
+@router.delete('/pcs/{pid}')
+def borrar_pc(request: Request, pid: str):
+    _solo_admin(request)
+    if pid == PRINCIPAL:
+        raise HTTPException(400, 'El PC principal no se puede quitar')
+    with _lock:
+        datos = _leer()
+        if datos['pcs'].pop(pid, None) is None:
+            raise HTTPException(404, 'PC no encontrado')
+        for u, p in list(datos['ultimo_pc'].items()):
+            if p == pid:
+                datos['ultimo_pc'].pop(u, None)
+        _guardar(datos)
+    return {'ok': True}
+
+
 # ------------------------------------------------------------------ PC con Illustrator
 @pc_router.post('/sondeo')
 def sondeo(request: Request, payload: dict):
-    """El PC avisa que está vivo y recibe los mensajes pendientes."""
-    _pc(request)
+    """El PC avisa que está vivo y recibe SOLO los mensajes que le tocan a él (los de las personas asignadas a ese PC)."""
+    pid = _pc(request)
     with _lock:
         datos = _leer()
-        datos['latido'] = {'at': _ahora(), 'iso': _iso(), 'illustrator': str(payload.get('illustrator', ''))[:60], 'sheets': str(payload.get('sheets', ''))[:60]}
+        latido = {'at': _ahora(), 'iso': _iso(), 'illustrator': str(payload.get('illustrator', ''))[:60], 'sheets': str(payload.get('sheets', ''))[:60],
+                  'equipo': str(payload.get('equipo', ''))[:60]}
+        if pid == PRINCIPAL:
+            datos['latido'] = latido
+        else:
+            datos['pcs'].setdefault(pid, {})['latido'] = latido
         pendientes = []
         for m in datos['mensajes']:
-            if m['rol'] == 'yo' and not m.get('tomado'):
+            if m['rol'] == 'yo' and not m.get('tomado') and (m.get('pc') or PRINCIPAL) == pid:
                 m['tomado'] = True
+                if not m.get('oculto'):
+                    datos['ultimo_pc'][m['sesion']] = pid
                 pendientes.append({'id': m['id'], 'sesion': m['sesion'], 'mensaje': m['texto'], 'orden': datos['ordenes'].get(m['sesion'], '')})
                 if m.get('oculto'):
                     continue
@@ -532,8 +717,8 @@ def auto_procesar(candidatos: list[dict]) -> list[str]:
                 vistos.add(c['clave']); cambio = True   # apagado: se anota como vista, no arranca
                 continue
             sesion = c.get('usuario') or next((m['sesion'] for m in reversed(datos['mensajes']) if m['rol'] == 'yo' and not m.get('auto')), '')
-            if not sesion or not _conectado(datos):
-                continue   # sin a quién avisarle o sin PC: se reintenta luego
+            if not sesion or not _conectado(datos, _pc_de(datos, sesion)):
+                continue   # sin a quién avisarle o sin el PC de esa persona: se reintenta luego
             if any(m['sesion'] == sesion and m['rol'] == 'yo' and not m.get('respondido') and not m.get('oculto') for m in datos['mensajes']):
                 continue   # esa persona ya tiene un pedido en curso: se espera
             orden = c['orden']
@@ -569,7 +754,7 @@ def auto_mts(candidatos: list[dict]) -> list[str]:
             if c['clave'] in vistos:
                 continue
             sesion = c.get('usuario') or next((m['sesion'] for m in reversed(datos['mensajes']) if m['rol'] == 'yo' and not m.get('auto')), '')
-            if not sesion or not _conectado(datos):
+            if not sesion or not _conectado(datos, _pc_de(datos, sesion)):
                 continue
             if any(m['sesion'] == sesion and m['rol'] == 'yo' and not m.get('respondido') and not m.get('oculto') for m in datos['mensajes']):
                 continue
