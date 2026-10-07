@@ -352,11 +352,19 @@
     document.body.appendChild(ov);
     const video = ov.querySelector('video'), res = ov.querySelector('[data-cam-res]'), ayuda = ov.querySelector('[data-cam-ayuda]');
     let corriendo = true, stream = null, ultimo = '', ultimoT = 0, lector = null;
+    // El botón «Atrás» del celular cierra solo la cámara (no sale de la página ni pide iniciar sesión otra vez)
+    let conHistoria = false;
+    try { history.pushState({ cbcam: 1 }, '', location.href); conHistoria = true; } catch (e) { /* sin historial */ }
+    const alAtras = () => { if (camActiva) { conHistoria = false; cerrar(); } };
+    window.addEventListener('popstate', alAtras);
     const cerrar = () => {
+      window.removeEventListener('popstate', alAtras);
+      const volver = conHistoria && history.state && history.state.cbcam; conHistoria = false;
       corriendo = false; camActiva = null;
       try { if (lector) lector.reset(); } catch (e) { /* ya cerrado */ }
       if (stream) stream.getTracks().forEach(t => t.stop());
       ov.remove();
+      if (volver) { try { history.back(); } catch (e) { /* nada */ } }
     };
     camActiva = { cerrar };
     ov.querySelector('[data-cam-x]').onclick = cerrar;
