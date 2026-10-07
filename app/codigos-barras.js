@@ -68,7 +68,7 @@
     const fecha = cfg.fecha ? new Date().toLocaleDateString('es-CO') : '';
     const pie = rollo
       ? ['Rollo ' + item.n + (item.empezado ? ' · EMPEZADO' : ''), fecha].filter(Boolean).join(' · ')
-      : [cfg.categoria ? item.categoria_label : '', cfg.stock && item.total_label ? item.total_label + (item.categoria === 'BODEGA TELA' ? ' MTS' : '') : '', fecha].filter(Boolean).join(' · ');
+      : [cfg.categoria ? item.categoria_label : '', cfg.stock && item.total_label ? item.total_label + (item.categoria === 'BODEGA TELA' ? ' MTS' : ' UND') : '', cfg.stock && item.rollos ? item.rollos + (item.rollos === 1 ? ' ROLLO' : ' ROLLOS') : '', fecha].filter(Boolean).join(' · ');
     return '<div class="l">' +
       (cfg.nombre ? '<div class="n">' + esc(nombreImpreso) + '</div>' : '') +
       '<div class="b">' + svgBarras(item.codigo, altoBarras, modulo) + '</div>' +
@@ -120,7 +120,7 @@
 .cb-card:hover{border-color:#6c8a4a}.cb-card.sel{border-color:#d0f44c;box-shadow:0 0 0 2px #d0f44c33}.cb-card.halo{animation:cbhalo 1.6s}@keyframes cbhalo{0%,60%{box-shadow:0 0 0 5px #d0f44c}100%{box-shadow:0 0 0 0 #d0f44c00}}
 .cb-card header{display:flex;align-items:center;gap:8px}.cb-card header input{width:18px;height:18px;accent-color:#d0f44c}
 .cb-card .cod{font:800 17px Consolas,monospace;letter-spacing:.08em;color:#d0f44c}.cb-card .cat{margin-left:auto;padding:2px 8px;border-radius:99px;background:#1c2a18;color:#aebba7;font:700 10px Arial;white-space:nowrap}
-.cb-card .nom{font:700 14px Arial;line-height:1.25;color:#eef4e9;overflow-wrap:anywhere}.cb-card .stk{color:#8fa088;font-size:12px}
+.cb-card .nom{font:700 14px Arial;line-height:1.25;color:#eef4e9;overflow-wrap:anywhere}.cb-card .stk{display:flex;gap:8px;flex-wrap:wrap}.cb-card .cif{display:flex;align-items:baseline;gap:5px;padding:5px 10px;border-radius:9px;background:#16221a;border:1px solid #2f402e}.cb-card .cif b{font:800 18px Arial;color:#eaf6c7}.cb-card .cif small{font:800 10px Arial;letter-spacing:.08em;color:#8fa088}.cb-card .cif.und{background:#27391b;border-color:#6c8a4a}.cb-card .cif.und b{color:#d0f44c}
 .cb-card .bar{padding:8px;border-radius:8px;background:#fff;overflow:hidden}.cb-card .bar svg{width:100%!important;height:46px!important}
 .cb-rl{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .cb-rl button{width:auto!important;padding:6px 11px;border:1px solid #4f6545;border-radius:8px;background:#1a2616;color:#eaf6c7;font:700 12px Arial;cursor:pointer}.cb-rl button:hover{border-color:#d0f44c}
@@ -199,7 +199,7 @@
       const chips = abierto ? '<div class="cb-lista">' + rollos.map(r => '<span class="cb-chip' + (r.empezado ? ' emp' : '') + (estado.selR.has(r.codigo) ? ' sel' : '') + '" data-roll="' + esc(r.codigo) + '" title="' + esc(r.codigo) + '"><b>' + String(r.n).padStart(3, '0') + '</b>' + esc(fmt(r.valor)) + ' m</span>').join('') + '</div>' : '';
       const botones = rollos.length ? '<div class="cb-rl"><button type="button" data-roll-toggle="' + esc(i.codigo) + '">' + (abierto ? '▾' : '▸') + ' ' + rollos.length + (rollos.length === 1 ? ' rollo' : ' rollos') + '</button>' + (abierto ? '<button type="button" data-roll-todos="' + esc(i.codigo) + '">Seleccionar todos</button>' : '') + '</div>' + chips : '';
       return '<article class="cb-card' + (estado.sel.has(i.codigo) ? ' sel' : '') + '" data-cod="' + esc(i.codigo) + '"><header><input type="checkbox" tabindex="-1"' + (estado.sel.has(i.codigo) ? ' checked' : '') + '><span class="cod">' + esc(i.codigo) + '</span><span class="cat">' + esc(i.categoria_label) + '</span></header>' +
-        '<div class="nom">' + esc(i.nombre) + '</div><div class="stk">' + esc(i.total_label || '—') + (i.categoria === 'BODEGA TELA' ? ' MTS' : '') + (i.rollos ? ' · ' + i.rollos + ' rollos' : '') + '</div>' +
+        '<div class="nom">' + esc(i.nombre) + '</div><div class="stk"><span class="cif"><b>' + esc(i.total_label || '—') + '</b><small>' + (i.categoria === 'BODEGA TELA' ? 'MTS' : 'UND') + '</small></span>' + (i.rollos ? '<span class="cif und"><b>' + i.rollos + '</b><small>' + (i.rollos === 1 ? 'ROLLO' : 'ROLLOS') + '</small></span>' : '') + '</div>' +
         '<div class="bar">' + svgBarras(i.codigo, 46, 1, 10) + '</div>' + botones + '</article>';
     }).join('') : '<div class="cb-vacio">' + (estado.cargando ? 'Cargando telas…' : 'No hay telas que coincidan.') + '</div>';
     q('[data-cb-cuenta]').textContent = lista.length + ' de ' + estado.items.length + ' telas';
