@@ -410,6 +410,34 @@
   }
   panel.addEventListener('click', e => { if (e.target.closest('[data-cb-cam]')) abrirCamara(); });
 
+  // Al registrar un INGRESO, los rollos nuevos reciben su código de barras y aquí se ofrece imprimir sus etiquetas de una vez
+  function ofrecerEtiquetas(lista) {
+    if (!Array.isArray(lista) || !lista.length) return;
+    const ov = document.createElement('div');
+    ov.className = 'cb-nuevos-ov';
+    ov.innerHTML = '<div class="cb-nuevos"><h3>✓ Ingreso registrado · códigos de barras de los rollos nuevos</h3>' +
+      '<div class="lst">' + lista.map(r => '<div><b>' + esc(r.codigo) + '</b><span>' + esc(r.tela) + '</span><em>' + esc(fmt(r.valor)) + ' MTS</em></div>').join('') + '</div>' +
+      '<div class="acc"><button type="button" class="p" data-nv-imp>🖨 Imprimir ' + lista.length + (lista.length === 1 ? ' etiqueta' : ' etiquetas') + '</button><button type="button" data-nv-x>Ahora no</button></div>' +
+      '<small>Las etiquetas salen con el tamaño elegido en Inventarios → Códigos de barras. Los rollos quedan en esa pantalla cuando quieras imprimirlos después.</small></div>';
+    document.body.appendChild(ov);
+    ov.querySelector('[data-nv-x]').onclick = () => ov.remove();
+    ov.querySelector('[data-nv-imp]').onclick = () => {
+      imprimir(lista.map(r => ({tipo: 'rollo', codigo: r.codigo, n: r.n, valor: r.valor, empezado: false, nombre: r.tela, categoria: 'BODEGA TELA', categoria_label: 'Stock tela'})));
+    };
+  }
+  const nuevosCss = document.createElement('style');
+  nuevosCss.textContent = '.cb-nuevos-ov{position:fixed;inset:0;z-index:100000;display:grid;place-items:center;padding:16px;background:#000b}' +
+    '.cb-nuevos{width:min(560px,100%);max-height:90vh;overflow:auto;display:grid;gap:12px;padding:20px;border:1px solid #4a6338;border-radius:18px;background:#10170f;color:#eef4e9}' +
+    '.cb-nuevos h3{margin:0;font:800 14px Arial;color:#d0f44c;line-height:1.35}.cb-nuevos .lst{display:grid;gap:6px;max-height:40vh;overflow:auto}' +
+    '.cb-nuevos .lst div{display:flex;gap:10px;align-items:center;padding:8px 10px;border:1px solid #2f402e;border-radius:10px;background:#0c110d;font-size:13px}' +
+    '.cb-nuevos .lst b{font:800 15px Consolas,monospace;color:#d0f44c}.cb-nuevos .lst span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#c4cfbf}.cb-nuevos .lst em{font-style:normal;font-weight:800}' +
+    '.cb-nuevos .acc{display:flex;gap:10px;flex-wrap:wrap}.cb-nuevos button{flex:1 1 40%;min-height:46px;border:1px solid #60754d;border-radius:12px;background:transparent;color:#eaf6c7;font:800 14px Arial;cursor:pointer}' +
+    '.cb-nuevos button.p{background:#d0f44c;color:#142017;border-color:#d0f44c}.cb-nuevos small{color:#8fa088;font-size:12px;line-height:1.4}';
+  document.head.appendChild(nuevosCss);
+  setTimeout(() => {
+    try { const raw = sessionStorage.getItem('cbPend'); if (raw) { sessionStorage.removeItem('cbPend'); ofrecerEtiquetas(JSON.parse(raw)); } } catch (e) { /* sin sessionStorage */ }
+  }, 900);
+
   const abrir = boton => {
     document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t === boton));
     document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p === panel));

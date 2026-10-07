@@ -846,12 +846,13 @@ def _check_bodegas(movements) -> None:
 @inventario_router.post('/movimiento')
 def inventory_movement(movement: InventoryMovement):
     _check_bodegas([movement])
+    antes = _roll_code_set() if movement.type == 'INGRESO' else set()
     with _lock:
         movements = _load_movements()
         movements.append({**movement.model_dump(), 'fecha': datetime.now(timezone.utc).isoformat()})
         _save_movements(movements)
         _refresh_snapshot()
-    return {'ok': True}
+    return {'ok': True, 'etiquetas': _new_roll_labels(antes) if movement.type == 'INGRESO' else []}
 
 
 class InventoryBatch(BaseModel):
@@ -973,9 +974,7 @@ def _assign_roll_serials(telas: list[tuple[str, dict[str, Any]]]) -> dict[str, l
         return result
 
 
-@inventario_router.get('/codigos')
-def inventory_codes():
-    """Artículos del inventario con su código de barras permanente (para imprimir etiquetas y escanear)."""
+def _code_rows() -> tuple[list[dict[str, Any]], Any]:
     payload = _cache.get('data') or _load_snapshot() or _inventory_payload(False)   # la copia guardada basta: no se espera la lectura del Sheet
     payload = _with_sublimacion(payload)   # metros ya descontados por los consumos de Sublimación, igual que en Bodega tela
     items = [i for i in payload.get('items', []) if i.get('categoria') in _CODE_PREFIX]
@@ -990,7 +989,32 @@ def inventory_codes():
                      'mts': item.get('mts'), 'rollos': len(item.get('roll_values') or []) or item.get('rolls') or 0,
                      'detalle_rollos': rolls.get(code, [])})
     rows.sort(key=lambda r: (r['categoria_label'], r['nombre'].casefold()))
-    return {'codigos': rows, 'actualizado': payload.get('updated_at')}
+    return rows, payload.get('updated_at')
+
+
+@inventario_router.get('/codigos')
+def inventory_codes():
+    """Artículos del inventario con su código de barras permanente (para imprimir etiquetas y escanear)."""
+    rows, updated = _code_rows()
+    return {'codigos': rows, 'actualizado': updated}
+
+
+def _roll_code_set() -> set[str]:
+    try:
+        rows, _ = _code_rows()
+    except Exception:
+        return set()
+    return {roll['codigo'] for row in rows for roll in row.get('detalle_rollos', [])}
+
+
+def _new_roll_labels(before: set[str]) -> list[dict[str, Any]]:
+    """Rollos que no existían antes del ingreso, con el código de barras que les tocó (para imprimir sus etiquetas de una vez)."""
+    try:
+        rows, _ = _code_rows()
+    except Exception:
+        return []
+    return [{'codigo': roll['codigo'], 'n': roll['n'], 'valor': roll['valor'], 'tela': row['nombre'], 'tela_codigo': row['codigo']}
+            for row in rows for roll in row.get('detalle_rollos', []) if roll['codigo'] not in before]
 
 
 class NewFabric(BaseModel):
@@ -1023,6 +1047,8 @@ def inventory_new_fabric(fabric: NewFabric):
 @inventario_router.post('/movimientos')
 def inventory_movements(batch: InventoryBatch):
     _check_bodegas(batch.movements)
+    hay_ingreso = any(m.type == 'INGRESO' for m in batch.movements)
+    antes = _roll_code_set() if hay_ingreso else set()
     with _lock:
         imported = _imported_documents()
         if batch.doc_hash and batch.doc_hash in imported:
@@ -1037,7 +1063,7 @@ def inventory_movements(batch: InventoryBatch):
             with open(_documents_file, 'w', encoding='utf-8') as handle:
                 json.dump(imported, handle, ensure_ascii=False)
         _refresh_snapshot()
-    return {'ok': True, 'registrados': len(batch.movements)}
+    return {'ok': True, 'registrados': len(batch.movements), 'etiquetas': _new_roll_labels(antes) if hay_ingreso else []}
 
 
 _bodegas_file = os.getenv('INVENTORY_BODEGAS_FILE', '/data/inventory_bodegas.json')
