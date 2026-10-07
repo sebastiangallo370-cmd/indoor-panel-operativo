@@ -46,11 +46,11 @@
 
   // ---------------------------------------------------------------- ajustes de la etiqueta
   const SOLO_CATEGORIA = 'BODEGA TELA';
-  const TAMANOS = {'100x50': [100, 50], '100x70': [100, 70], '60x40': [60, 40], '50x30': [50, 30], '40x25': [40, 25]};
-  const POR_DEFECTO = {tamano: '100x50', ancho: 100, alto: 50, copias: 1, nombre: true, stock: true, categoria: true, fecha: false};
+  const TAMANOS = {'50x40': [50, 40], '100x50': [100, 50], '100x70': [100, 70], '60x40': [60, 40], '50x30': [50, 30], '40x25': [40, 25]};
+  const POR_DEFECTO = {tamano: '50x40', ancho: 50, alto: 40, copias: 1, nombre: true, stock: true, categoria: true, fecha: false};
   let cfg = {...POR_DEFECTO};
-  try { cfg = {...POR_DEFECTO, ...JSON.parse(localStorage.getItem('codigosBarrasCfg') || '{}')}; } catch (_) {}
-  const guardarCfg = () => { try { localStorage.setItem('codigosBarrasCfg', JSON.stringify(cfg)); } catch (_) {} };
+  try { cfg = {...POR_DEFECTO, ...JSON.parse(localStorage.getItem('codigosBarrasCfg2') || '{}')}; } catch (_) {}
+  const guardarCfg = () => { try { localStorage.setItem('codigosBarrasCfg2', JSON.stringify(cfg)); } catch (_) {} };
   const medidas = () => cfg.tamano === 'otro' ? [Math.max(20, Math.min(200, Number(cfg.ancho) || 100)), Math.max(15, Math.min(200, Number(cfg.alto) || 50))] : TAMANOS[cfg.tamano] || TAMANOS['100x50'];
 
   // item.tipo === 'rollo': etiqueta de un rollo (código propio + metros); si no, etiqueta de la tela
@@ -391,28 +391,63 @@
   .cb-cam-ov .mira::after{content:'';position:absolute;left:6%;right:6%;top:50%;height:2px;background:#ff5a5a;box-shadow:0 0 8px #ff5a5a}
   .cb-cam-ov footer{padding:14px 16px 22px;background:#0c110d;display:grid;gap:8px;text-align:center}
   .cb-cam-ov .res{font:800 16px Arial;min-height:22px}.cb-cam-ov .res.ok{color:#8bd450}.cb-cam-ov .res.mal{color:#ff8a7c}
-  .cb-cam-ov small{color:#aebba7;font-size:12px;line-height:1.4}`;
+  .cb-cam-ov small{color:#aebba7;font-size:12px;line-height:1.4}
+  .cb-cam-ov .foto{display:flex;align-items:center;justify-content:center;gap:8px;min-height:46px;border:1px solid #d0f44c;border-radius:12px;color:#d0f44c;font:800 14px Arial;cursor:pointer}`;
   document.head.appendChild(camCss);
 
   let camActiva = null;
+  // El lector (ZXing) se sirve desde el propio panel: no depende de internet externo ni de bloqueadores del celular
   function cargarZXing() {
     return new Promise((ok, mal) => {
       if (window.ZXing) return ok(window.ZXing);
       const sc = document.createElement('script');
-      sc.src = 'https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js';
-      sc.onload = () => ok(window.ZXing); sc.onerror = () => mal(new Error('No se pudo cargar el lector de códigos'));
+      sc.src = '/zxing.js?v=1';
+      sc.onload = () => (window.ZXing ? ok(window.ZXing) : mal(new Error('El lector de códigos no se pudo iniciar.')));
+      sc.onerror = () => mal(new Error('No se pudo cargar el lector de códigos. Revisa tu conexión y vuelve a intentar.'));
       document.head.appendChild(sc);
     });
+  }
+  // Devuelve una función canvas -> texto leído (o null)
+  function crearDecodificador(ZX) {
+    const hints = new Map();
+    hints.set(ZX.DecodeHintType.POSSIBLE_FORMATS, [ZX.BarcodeFormat.CODE_128, ZX.BarcodeFormat.CODE_39, ZX.BarcodeFormat.EAN_13, ZX.BarcodeFormat.QR_CODE]);
+    hints.set(ZX.DecodeHintType.TRY_HARDER, true);
+    const lector = new ZX.MultiFormatReader();
+    lector.setHints(hints);
+    return canvas => {
+      try { return lector.decode(new ZX.BinaryBitmap(new ZX.HybridBinarizer(new ZX.HTMLCanvasElementLuminanceSource(canvas)))).getText(); } catch (e) { return null; }
+    };
+  }
+  // Recorta una región de una imagen/video y la escala (más píxeles por barra = lectura más fácil)
+  function recorte(fuente, sw, sh, x, y, w, h, anchoMax, giro) {
+    const esc = Math.min(2, anchoMax / w), cw = Math.round(w * esc), ch = Math.round(h * esc);
+    const c = document.createElement('canvas');
+    if (giro) { c.width = ch; c.height = cw; const g = c.getContext('2d'); g.translate(ch, 0); g.rotate(Math.PI / 2); g.drawImage(fuente, x, y, w, h, 0, 0, cw, ch); }
+    else { c.width = cw; c.height = ch; c.getContext('2d').drawImage(fuente, x, y, w, h, 0, 0, cw, ch); }
+    return c;
+  }
+  // Intenta varias regiones: franja central (donde apunta la mira), la imagen entera y la imagen girada
+  function leerImagen(fuente, sw, sh, decodificar, completo) {
+    const bandas = [[0, sh * 0.32, sw, sh * 0.36], [sw * 0.05, sh * 0.38, sw * 0.9, sh * 0.24], [0, 0, sw, sh]];
+    if (completo) bandas.push([0, sh * 0.2, sw, sh * 0.6], [0, 0, sw, sh / 2], [0, sh / 2, sw, sh / 2]);
+    for (const [x, y, w, h] of bandas) {
+      for (const giro of completo ? [false, true] : [false]) {
+        const t = decodificar(recorte(fuente, sw, sh, x, y, w, h, 1280, giro));
+        if (t) return t;
+      }
+    }
+    return null;
   }
   async function abrirCamara() {
     if (camActiva) return;
     const ov = document.createElement('div');
     ov.className = 'cb-cam-ov';
     ov.innerHTML = '<header><b>ESCANEAR CÓDIGO</b><button type="button" data-cam-x>Cerrar</button></header><div class="vista"><video playsinline muted autoplay></video><div class="mira"></div></div>' +
-      '<footer><div class="res" data-cam-res></div><small data-cam-ayuda>Apunta a la barra del código de la etiqueta. Mantén el celular quieto, a unos 15 cm. Puedes escanear varios seguidos.</small></footer>';
+      '<footer><div class="res" data-cam-res></div><small data-cam-ayuda>Apunta a la barra del código de la etiqueta. Mantén el celular quieto, a unos 15-20 cm, con buena luz.</small>' +
+      '<label class="foto"><input type="file" accept="image/*" capture="environment" data-cam-foto hidden>📷 Tomar una foto del código</label></footer>';
     document.body.appendChild(ov);
     const video = ov.querySelector('video'), res = ov.querySelector('[data-cam-res]'), ayuda = ov.querySelector('[data-cam-ayuda]');
-    let corriendo = true, stream = null, ultimo = '', ultimoT = 0, lector = null;
+    let corriendo = true, stream = null, ultimo = '', ultimoT = 0, intentos = 0, decodificar = null;
     // El botón «Atrás» del celular cierra solo la cámara (no sale de la página ni pide iniciar sesión otra vez)
     let conHistoria = false;
     try { history.pushState({ cbcam: 1 }, '', location.href); conHistoria = true; } catch (e) { /* sin historial */ }
@@ -422,13 +457,13 @@
       window.removeEventListener('popstate', alAtras);
       const volver = conHistoria && history.state && history.state.cbcam; conHistoria = false;
       corriendo = false; camActiva = null;
-      try { if (lector) lector.reset(); } catch (e) { /* ya cerrado */ }
       if (stream) stream.getTracks().forEach(t => t.stop());
       ov.remove();
       if (volver) { try { history.back(); } catch (e) { /* nada */ } }
     };
     camActiva = { cerrar };
     ov.querySelector('[data-cam-x]').onclick = cerrar;
+    const mensaje = (texto, clase) => { res.className = 'res ' + (clase || ''); res.textContent = texto; };
     const alLeer = valor => {
       valor = String(valor || '').trim(); if (!valor) return;
       const ahora = Date.now();
@@ -437,36 +472,54 @@
       try { navigator.vibrate && navigator.vibrate(120); } catch (e) { /* sin vibración */ }
       escanear(valor);
       const eco = (q('[data-cb-eco]').textContent || '').trim();
-      res.className = 'res ' + (q('[data-cb-eco]').classList.contains('mal') ? 'mal' : 'ok');
-      res.textContent = eco || valor;
+      mensaje(eco || valor, q('[data-cb-eco]').classList.contains('mal') ? 'mal' : 'ok');
     };
+    // Foto del código (funciona aunque el navegador no deje usar la cámara en vivo, por ejemplo dentro de otra app)
+    ov.querySelector('[data-cam-foto]').addEventListener('change', async e => {
+      const archivo = e.target.files && e.target.files[0]; e.target.value = ''; if (!archivo) return;
+      mensaje('Leyendo la foto…', '');
+      try {
+        const ZX = await cargarZXing(); if (!decodificar) decodificar = crearDecodificador(ZX);
+        const bmp = await (window.createImageBitmap ? createImageBitmap(archivo) : new Promise((ok, mal) => { const im = new Image(); im.onload = () => ok(im); im.onerror = mal; im.src = URL.createObjectURL(archivo); }));
+        const w = bmp.width || bmp.naturalWidth, h = bmp.height || bmp.naturalHeight;
+        const texto = leerImagen(bmp, w, h, decodificar, true);
+        if (texto) alLeer(texto); else mensaje('No pude leer el código en esa foto. Acércate para que la barra ocupe casi todo el ancho y vuelve a intentar.', 'mal');
+      } catch (err) { mensaje((err && err.message) || 'No se pudo leer la foto.', 'mal'); }
+    });
     try {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('Este navegador no permite usar la cámara (abre el panel con https).');
-      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw Object.assign(new Error('Este navegador no deja usar la cámara en vivo. Usa «Tomar una foto del código» o abre el panel directamente en Safari/Chrome.'), { name: 'SinCamara' });
+      mensaje('Abriendo la cámara…', '');
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
       const pista = stream.getVideoTracks()[0];
       try { await pista.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }); } catch (e) { /* sin enfoque continuo */ }
       video.srcObject = stream; await video.play();
+      mensaje('Buscando el código…', '');
+      let detector = null;
       if ('BarcodeDetector' in window) {
-        const det = new BarcodeDetector({ formats: ['code_128', 'code_39', 'ean_13', 'qr_code'] });
-        const ciclo = async () => {
-          if (!corriendo) return;
-          try { const r = await det.detect(video); if (r.length) alLeer(r[0].rawValue); } catch (e) { /* cuadro sin imagen */ }
-          setTimeout(ciclo, 120);
-        };
-        ciclo();
-      } else {
-        ayuda.textContent = 'Cargando el lector…';
-        const ZX = await cargarZXing();
-        const hints = new Map(); hints.set(ZX.DecodeHintType.POSSIBLE_FORMATS, [ZX.BarcodeFormat.CODE_128, ZX.BarcodeFormat.CODE_39, ZX.BarcodeFormat.EAN_13, ZX.BarcodeFormat.QR_CODE]);
-        hints.set(ZX.DecodeHintType.TRY_HARDER, true);
-        lector = new ZX.BrowserMultiFormatReader(hints, 150);
-        ayuda.textContent = 'Apunta a la barra del código de la etiqueta. Mantén el celular quieto, a unos 15 cm.';
-        lector.decodeFromVideoElement(video, (r) => { if (corriendo && r) alLeer(r.getText()); });
+        try { const fm = await BarcodeDetector.getSupportedFormats(); if (fm.includes('code_128')) detector = new BarcodeDetector({ formats: ['code_128', 'code_39', 'ean_13', 'qr_code'] }); } catch (e) { detector = null; }
       }
+      if (!detector) { ayuda.textContent = 'Cargando el lector…'; const ZX = await cargarZXing(); decodificar = crearDecodificador(ZX); ayuda.textContent = 'Apunta a la barra del código de la etiqueta. Mantén el celular quieto, a unos 15-20 cm, con buena luz.'; }
+      let alterna = 0;
+      const ciclo = async () => {
+        if (!corriendo) return;
+        try {
+          const vw = video.videoWidth, vh = video.videoHeight;
+          if (vw && vh) {
+            intentos++;
+            let texto = null;
+            if (detector) { const r = await detector.detect(video); if (r.length) texto = r[0].rawValue; }
+            else { alterna++; texto = leerImagen(video, vw, vh, decodificar, alterna % 4 === 0); }
+            if (texto) alLeer(texto);
+            else if (intentos % 8 === 0 && !res.classList.contains('ok') && !res.classList.contains('mal')) mensaje('Buscando el código… (' + intentos + ')', '');
+          }
+        } catch (e) { /* cuadro sin imagen */ }
+        setTimeout(ciclo, detector ? 120 : 180);
+      };
+      ciclo();
     } catch (err) {
-      res.className = 'res mal';
       const motivo = String(err && (err.name + ' ' + err.message));
-      res.textContent = /Permission|NotAllowed/i.test(motivo) ? 'Permite el acceso a la cámara en tu navegador y vuelve a intentar.' : /NotFound|not found/i.test(motivo) ? 'No encontré una cámara en este equipo. Ábrelo desde tu celular.' : (err && err.message) || 'No se pudo abrir la cámara.';
+      mensaje(/Permission|NotAllowed/i.test(motivo) ? 'La cámara está bloqueada. Permite el acceso a la cámara para este sitio (Ajustes del navegador) o usa «Tomar una foto del código».'
+        : /NotFound|not found/i.test(motivo) ? 'No encontré una cámara en este equipo. Ábrelo desde tu celular.' : (err && err.message) || 'No se pudo abrir la cámara.', 'mal');
     }
   }
   panel.addEventListener('click', e => { if (e.target.closest('[data-cb-cam]')) abrirCamara(); });
