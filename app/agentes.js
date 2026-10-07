@@ -167,7 +167,18 @@
   .ag-file-acc button,.ag-file-acc a{padding:4px 10px!important}
   .ag-detalle header{padding:6px 12px}.ag-filtros .ag-pcsel{min-height:28px;font-size:11px}
   /* chat más angosto y el trabajo de los agentes (flujo, pantalla en vivo, montajes y PDF) más grande */
-  @media(min-width:1001px){.ag-main{grid-template-columns:minmax(300px,23%) minmax(0,1fr)!important}.ag-live-body{grid-template-columns:minmax(0,1fr) 330px}.ag-flowcol{grid-template-rows:auto minmax(0,1fr) 150px}
+  .ag-chat{grid-template-rows:minmax(0,1fr) auto auto}
+  @media(max-width:1000px){.ag-chat{grid-template-rows:none!important}}
+  @media(min-width:1001px){
+    /* franja superior: orden + flujo; debajo: chat angosto | pantalla en vivo grande | montajes y PDF */
+    .ag-main{grid-template-columns:minmax(300px,24%) minmax(0,1fr)!important;grid-template-rows:auto minmax(0,1fr) auto!important;gap:12px!important;height:max(720px,calc(100vh - 150px))!important;min-height:0!important}
+    .ag-flowcol{display:contents!important}
+    .ag-orden{grid-column:1;grid-row:1;align-self:start}
+    .ag-lienzo{grid-column:2;grid-row:1}
+    .ag-chat{grid-column:1;grid-row:2 / span 2;min-height:0}
+    .ag-live{grid-column:2;grid-row:2;min-height:0}
+    .ag-detalle{grid-column:2;grid-row:3;height:150px}
+    .ag-live-body{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr)!important}
     .ag-nodo .et b{font-size:15px}.ag-nodo .et small{font-size:12px}.ag-nodo .et em{font-size:12px}.ag-nodo .et{width:150px}
     .ag-ftit{font-size:15px}.ag-pildora{font-size:13px}.ag-live-top b{font-size:13px}.ag-live-top small{font-size:12.5px}
     .ag-live-cap .num{font-size:46px}.ag-live-cap .nom{font-size:24px}.ag-live-cap small{font-size:13px}
@@ -583,7 +594,7 @@
       '<div class="ag-hacc"><select class="ag-pcsel" data-pc-activo hidden title="PC en el que se hace el proceso (abre Illustrator)" aria-label="PC del proceso"></select><button type="button" class="ag-btn danger" data-detener style="display:none">Detener</button>' +
       '<details class="ag-menu"><summary class="ag-ico" title="Más opciones">⋯</summary><div class="ag-menu-l"><button type="button" data-nueva>Nueva conversación</button><button type="button" data-conectar hidden>PC de los agentes…</button></div></details></div></header>' +
       '<div data-aviso></div><section class="ag-res" data-resumen hidden></section>' +
-      '<button type="button" class="ag-ver-flujo" data-ver-flujo>▾ Ver flujo, pantalla en vivo y registro</button><div class="ag-main" data-main><section class="ag-chat"><div class="ag-orden" data-orden></div><div class="ag-thread" data-hilo></div><div class="ag-chips" data-replies></div>' +
+      '<button type="button" class="ag-ver-flujo" data-ver-flujo>▾ Ver flujo, pantalla en vivo y registro</button><div class="ag-main" data-main><div class="ag-orden" data-orden></div><section class="ag-chat"><div class="ag-thread" data-hilo></div><div class="ag-chips" data-replies></div>' +
       '<form class="ag-form" data-form><details class="ag-menu ag-atajos"><summary class="ag-ico" title="Acciones rápidas">⚡</summary><div class="ag-menu-l">' + ATAJOS.map(([l, p]) => '<button type="button" data-atajo="' + esc(p) + '">' + esc(l) + '</button>').join('') + '</div></details>' +
       '<textarea rows="1" placeholder="Escribe a TAVO…" maxlength="2000"></textarea><button type="submit" class="ag-btn">Enviar</button></form></section>' +
       '<section class="ag-flowcol"><div class="ag-lienzo" data-lienzo><div class="ag-barra"><div class="ag-ftit">Flujo de agentes<small data-ejecnum></small></div><div class="ag-pildora" data-pildora><i></i><span>Listo</span></div></div><svg class="ag-cables" data-cables aria-hidden="true"></svg></div>' +
