@@ -179,7 +179,7 @@
   @media(max-width:1000px){.ag-chat{grid-template-rows:none!important}}
   @media(min-width:1001px){
     /* franja superior: orden + flujo; debajo: chat angosto | pantalla en vivo grande | montajes y PDF */
-    .ag-main{grid-template-columns:minmax(300px,24%) minmax(0,1fr)!important;grid-template-rows:auto minmax(0,1fr) auto!important;gap:12px!important;height:max(720px,calc(100vh - 150px))!important;min-height:0!important}
+    .ag-main{grid-template-columns:minmax(300px,24%) minmax(0,1fr)!important;grid-template-rows:auto minmax(0,1fr) auto!important;gap:12px!important;height:max(660px,calc(100vh - 215px))!important;min-height:0!important}
     .ag-flowcol{display:contents!important}
     .ag-orden{grid-column:1;grid-row:1;align-self:start}
     .ag-lienzo{grid-column:2;grid-row:1}
