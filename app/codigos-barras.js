@@ -145,7 +145,7 @@
   panel.innerHTML = '<div class="cb">' +
     '<section class="cb-hero"><div><span class="eyebrow">Producción · Inventarios</span><h2>CÓDIGOS DE BARRAS</h2>' +
     '<p>Cada tela de Stock tela tiene su código permanente y cada <b>rollo</b> tiene el suyo (por ejemplo T100-007). Búscalos, escanéalos con el lector o selecciona los que quieras e imprime sus etiquetas.</p></div></section>' +
-    '<div class="cb-scan"><span>ESCANEAR / BUSCAR CÓDIGO</span><input type="text" data-cb-scan autocomplete="off" spellcheck="false" placeholder="Pasa el lector o escribe, por ejemplo T100 o T100-007"></div><div class="cb-eco" data-cb-eco></div>' +
+    '<div class="cb-scan"><span>ESCANEAR / BUSCAR CÓDIGO</span><input type="text" data-cb-scan autocomplete="off" spellcheck="false" placeholder="Pasa el lector o escribe, por ejemplo T100 o T100-007"><button type="button" class="cb-cam" data-cb-cam>📷 Escanear con la cámara</button></div><div class="cb-eco" data-cb-eco></div>' +
     '<div class="cb-tools"><input type="search" data-cb-q placeholder="Buscar tela por nombre o código"><select data-cb-cat hidden><option value="">Todas las categorías</option></select>' +
     '<button type="button" data-cb-todos>Seleccionar las telas visibles</button><button type="button" data-cb-todosrollos>Seleccionar todos los rollos visibles</button><button type="button" data-cb-ninguno>Quitar selección</button><button type="button" data-cb-recargar>Actualizar</button><span class="cuenta" data-cb-cuenta></span></div>' +
     '<div class="cb-grid" data-cb-grid></div></div>';
@@ -290,6 +290,93 @@
     if (e.key !== 'Enter') return;
     e.preventDefault(); escanear(e.target.value); e.target.value = '';   // el lector escribe el código y pulsa Enter
   });
+
+
+  // ---------------------------------------------------------------- escanear con la cámara del celular (o de cualquier equipo con cámara)
+  const camCss = document.createElement('style');
+  camCss.textContent = `
+  .cb-cam{flex:none;min-height:46px;padding:0 16px;border:0;border-radius:10px;background:#d0f44c;color:#142017;font:800 13px Arial;cursor:pointer;white-space:nowrap}
+  .cb-cam-ov{position:fixed;inset:0;z-index:100000;display:grid;grid-template-rows:auto minmax(0,1fr) auto;background:#050805;color:#fff}
+  .cb-cam-ov header{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:14px 16px;background:#0c110d}
+  .cb-cam-ov header b{font:800 13px Arial;letter-spacing:.1em;color:#d0f44c}
+  .cb-cam-ov header button{min-height:42px;padding:0 18px;border:1px solid #60754d;border-radius:10px;background:transparent;color:#fff;font:800 13px Arial;cursor:pointer}
+  .cb-cam-ov .vista{position:relative;overflow:hidden;background:#000}
+  .cb-cam-ov video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+  .cb-cam-ov .mira{position:absolute;left:8%;right:8%;top:50%;height:26%;transform:translateY(-50%);border:3px solid #d0f44c;border-radius:14px;box-shadow:0 0 0 100vmax rgba(0,0,0,.45)}
+  .cb-cam-ov .mira::after{content:'';position:absolute;left:6%;right:6%;top:50%;height:2px;background:#ff5a5a;box-shadow:0 0 8px #ff5a5a}
+  .cb-cam-ov footer{padding:14px 16px 22px;background:#0c110d;display:grid;gap:8px;text-align:center}
+  .cb-cam-ov .res{font:800 16px Arial;min-height:22px}.cb-cam-ov .res.ok{color:#8bd450}.cb-cam-ov .res.mal{color:#ff8a7c}
+  .cb-cam-ov small{color:#aebba7;font-size:12px;line-height:1.4}
+  @media(max-width:700px){.cb-scan .cb-cam{flex:1 1 100%}}`;
+  document.head.appendChild(camCss);
+
+  let camActiva = null;
+  function cargarZXing() {
+    return new Promise((ok, mal) => {
+      if (window.ZXing) return ok(window.ZXing);
+      const sc = document.createElement('script');
+      sc.src = 'https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js';
+      sc.onload = () => ok(window.ZXing); sc.onerror = () => mal(new Error('No se pudo cargar el lector de códigos'));
+      document.head.appendChild(sc);
+    });
+  }
+  async function abrirCamara() {
+    if (camActiva) return;
+    const ov = document.createElement('div');
+    ov.className = 'cb-cam-ov';
+    ov.innerHTML = '<header><b>ESCANEAR CÓDIGO</b><button type="button" data-cam-x>Cerrar</button></header><div class="vista"><video playsinline muted autoplay></video><div class="mira"></div></div>' +
+      '<footer><div class="res" data-cam-res></div><small data-cam-ayuda>Apunta a la barra del código de la etiqueta. Mantén el celular quieto, a unos 15 cm. Puedes escanear varios seguidos.</small></footer>';
+    document.body.appendChild(ov);
+    const video = ov.querySelector('video'), res = ov.querySelector('[data-cam-res]'), ayuda = ov.querySelector('[data-cam-ayuda]');
+    let corriendo = true, stream = null, ultimo = '', ultimoT = 0, lector = null;
+    const cerrar = () => {
+      corriendo = false; camActiva = null;
+      try { if (lector) lector.reset(); } catch (e) { /* ya cerrado */ }
+      if (stream) stream.getTracks().forEach(t => t.stop());
+      ov.remove();
+    };
+    camActiva = { cerrar };
+    ov.querySelector('[data-cam-x]').onclick = cerrar;
+    const alLeer = valor => {
+      valor = String(valor || '').trim(); if (!valor) return;
+      const ahora = Date.now();
+      if (valor === ultimo && ahora - ultimoT < 2500) return;   // no repetir el mismo código mientras sigue enfrente
+      ultimo = valor; ultimoT = ahora;
+      try { navigator.vibrate && navigator.vibrate(120); } catch (e) { /* sin vibración */ }
+      escanear(valor);
+      const eco = (q('[data-cb-eco]').textContent || '').trim();
+      res.className = 'res ' + (q('[data-cb-eco]').classList.contains('mal') ? 'mal' : 'ok');
+      res.textContent = eco || valor;
+    };
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('Este navegador no permite usar la cámara (abre el panel con https).');
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+      const pista = stream.getVideoTracks()[0];
+      try { await pista.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }); } catch (e) { /* sin enfoque continuo */ }
+      video.srcObject = stream; await video.play();
+      if ('BarcodeDetector' in window) {
+        const det = new BarcodeDetector({ formats: ['code_128', 'code_39', 'ean_13', 'qr_code'] });
+        const ciclo = async () => {
+          if (!corriendo) return;
+          try { const r = await det.detect(video); if (r.length) alLeer(r[0].rawValue); } catch (e) { /* cuadro sin imagen */ }
+          setTimeout(ciclo, 120);
+        };
+        ciclo();
+      } else {
+        ayuda.textContent = 'Cargando el lector…';
+        const ZX = await cargarZXing();
+        const hints = new Map(); hints.set(ZX.DecodeHintType.POSSIBLE_FORMATS, [ZX.BarcodeFormat.CODE_128, ZX.BarcodeFormat.CODE_39, ZX.BarcodeFormat.EAN_13, ZX.BarcodeFormat.QR_CODE]);
+        hints.set(ZX.DecodeHintType.TRY_HARDER, true);
+        lector = new ZX.BrowserMultiFormatReader(hints, 150);
+        ayuda.textContent = 'Apunta a la barra del código de la etiqueta. Mantén el celular quieto, a unos 15 cm.';
+        lector.decodeFromVideoElement(video, (r) => { if (corriendo && r) alLeer(r.getText()); });
+      }
+    } catch (err) {
+      res.className = 'res mal';
+      res.textContent = /Permission|NotAllowed/i.test(String(err && (err.name || err.message))) ? 'Permite el acceso a la cámara en tu navegador y vuelve a intentar.' : (err && err.message) || 'No se pudo abrir la cámara.';
+    }
+  }
+  panel.addEventListener('click', e => { if (e.target.closest('[data-cb-cam]')) abrirCamara(); });
 
   const abrir = boton => {
     document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t === boton));
