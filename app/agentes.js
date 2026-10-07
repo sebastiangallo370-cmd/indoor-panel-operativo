@@ -149,6 +149,23 @@
 
   .ag-res{display:grid;gap:12px;padding:16px 18px;border:1px solid #2d3b4a;border-radius:16px;background:linear-gradient(135deg,#111a22,#0f140f)}
   .ag-res[hidden]{display:none}
+  /* ---- interfaz compacta: encabezado en una fila, menús ⋯ y ⚡, botones pequeños ---- */
+  .ag{gap:8px}
+  .ag-hd{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:7px 12px;border:1px solid #2d3b4a;border-radius:14px;background:linear-gradient(135deg,#131c27,#11150f)}
+  .ag-hd h2{margin:0;font-size:1rem;letter-spacing:.08em}
+  .ag-hd .ag-state{flex:1 1 auto;gap:6px;min-width:0}.ag-hd .ag-pill{padding:3px 9px;font-size:11px}
+  .ag-hacc{display:flex;gap:6px;align-items:center;margin-left:auto}
+  .ag-menu{position:relative}.ag-menu>summary{list-style:none;cursor:pointer}.ag-menu>summary::-webkit-details-marker{display:none}
+  .ag-ico{display:inline-grid;place-items:center;min-width:32px;min-height:32px;padding:0 8px;border:1px solid #60754d;border-radius:10px;background:transparent;color:#e3eadc;font:800 14px Arial;cursor:pointer}.ag-ico:hover{border-color:#d0f44c}
+  .ag-menu-l{position:absolute;right:0;top:calc(100% + 6px);z-index:30;display:grid;gap:2px;min-width:210px;padding:6px;border:1px solid #3d4f3d;border-radius:12px;background:#111611;box-shadow:0 12px 30px #000a}
+  .ag-menu-l button{width:100%!important;justify-content:flex-start;text-align:left;min-height:38px;padding:0 12px;border:0;border-radius:8px;background:transparent;color:#eef4e9;font:700 13px Arial;cursor:pointer}.ag-menu-l button:hover{background:#1b261c}.ag-menu-l button:disabled{opacity:.45}
+  .ag-atajos .ag-menu-l{right:auto;left:0;top:auto;bottom:calc(100% + 6px)}
+  .ag .ag-btn{min-height:34px;padding:0 12px;font-size:12px}.ag-chips button{padding:6px 12px!important;font-size:12px!important}
+  .ag-orden{padding:6px 10px;gap:8px}.ag-ochip{padding:3px 4px 3px 12px;gap:6px;font-size:12px}.ag-ochip .ag-ico{min-width:26px;min-height:26px;padding:0 6px;border-color:transparent}
+  .ag-orden form{gap:6px}.ag-orden input{min-height:32px;padding:4px 10px}
+  .ag-chat{padding:12px;gap:8px}.ag-form{align-items:center;gap:8px}.ag-form textarea{min-height:38px;padding:8px 12px}
+  .ag-file-acc button,.ag-file-acc a{padding:4px 10px!important}
+  .ag-detalle header{padding:6px 12px}.ag-filtros .ag-pcsel{min-height:28px;font-size:11px}
   .ag-pcsel{min-height:40px;padding:0 12px;border:1px solid #60754d;border-radius:10px;background:#142017;color:#e3eadc;font:800 13px Arial;cursor:pointer}.ag-pcsel[hidden]{display:none}
   .ag-pcrow{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;border:1px solid #34432f;border-radius:12px;background:#0c110d}
   .ag-pcrow b{display:block;color:#eef4e9}.ag-pcrow small{display:block;color:#8f9b8a;font-size:.78rem}.ag-pcrow span{display:flex;gap:6px}.ag-pcrow .ag-btn{min-height:34px;padding:0 12px;font-size:12px}
@@ -443,7 +460,11 @@
   function pintarLog() {
     const l = panel.querySelector('[data-log]'), f = panel.querySelector('[data-filtros]'); if (!l || !f || !flow.ejec) return;
     const abajo = l.scrollTop + l.clientHeight >= l.scrollHeight - 30;
-    f.innerHTML = [['Todo', null], ['⚠ Avisos y errores', '!'], ...['TAVO', 'LEO', 'JACK', 'OLVER', 'OLIVER', 'TERRY'].map(x => [x, x])].map(([t, v]) => '<button type="button" data-filtro="' + (v || '') + '" class="' + (flow.filtro === v ? 'on' : '') + '">' + t + '</button>').join('');
+    const claveFiltro = String(flow.filtro || '');
+    if (f.dataset.f !== claveFiltro) {   // un solo selector (en vez de ocho botones)
+      f.dataset.f = claveFiltro;
+      f.innerHTML = '<select class="ag-pcsel" data-filtro-sel aria-label="Qué mostrar">' + [['Todo', ''], ['⚠ Avisos y errores', '!'], ...['TAVO', 'LEO', 'JACK', 'OLVER', 'OLIVER', 'TERRY'].map(x => [x, x])].map(([t, v]) => '<option value="' + v + '"' + (claveFiltro === v ? ' selected' : '') + '>' + t + '</option>').join('') + '</select>';
+    }
     const lista = flow.ejec.eventos.filter(e => !flow.filtro || (flow.filtro === '!' ? (e.nivel === 'WARN' || e.nivel === 'ERROR') : e.agente === flow.filtro));
     l.innerHTML = lista.length ? lista.map(e => '<div class="' + esc(e.nivel) + '"><span class="h">' + esc(e.hora) + '</span><b style="color:' + (COLORES[e.agente] || '#ccc') + '">' + esc(e.agente) + '</b><span class="m">' + esc(e.msg) + '</span></div>').join('')
       : '<div class="vacio2">' + (flow.filtro ? 'Este nodo aún no ha hecho nada en esta ejecución.' : 'Aquí verás lo que hace cada agente, paso a paso.') + '</div>';
@@ -551,12 +572,13 @@
 
   // ================================================================== pantalla
   function armar() {
-    panel.innerHTML = '<div class="ag"><header class="ag-head"><div><span class="k">EDICIÓN · INTELIGENCIA</span><h2>AGENTES</h2><p>Escríbele a TAVO y él decide qué agente actúa. Todo se ejecuta en el PC con Illustrator.</p></div>' +
-      '<div style="display:flex;gap:8px;flex-wrap:wrap"><select class="ag-pcsel" data-pc-activo hidden title="PC en el que se hace el proceso (abre Illustrator)" aria-label="PC del proceso"></select><button type="button" class="ag-btn danger" data-detener style="display:none">Detener agentes</button><button type="button" class="ag-btn sec" data-nueva>Nueva conversación</button><button type="button" class="ag-btn sec" data-conectar hidden>Conectar PC</button></div></header>' +
-      '<div class="ag-state" data-estado></div><div data-aviso></div><section class="ag-res" data-resumen hidden></section>' +
+    panel.innerHTML = '<div class="ag"><header class="ag-hd"><h2>AGENTES</h2><div class="ag-state" data-estado></div>' +
+      '<div class="ag-hacc"><select class="ag-pcsel" data-pc-activo hidden title="PC en el que se hace el proceso (abre Illustrator)" aria-label="PC del proceso"></select><button type="button" class="ag-btn danger" data-detener style="display:none">Detener</button>' +
+      '<details class="ag-menu"><summary class="ag-ico" title="Más opciones">⋯</summary><div class="ag-menu-l"><button type="button" data-nueva>Nueva conversación</button><button type="button" data-conectar hidden>PC de los agentes…</button></div></details></div></header>' +
+      '<div data-aviso></div><section class="ag-res" data-resumen hidden></section>' +
       '<button type="button" class="ag-ver-flujo" data-ver-flujo>▾ Ver flujo, pantalla en vivo y registro</button><div class="ag-main" data-main><section class="ag-chat"><div class="ag-orden" data-orden></div><div class="ag-thread" data-hilo></div><div class="ag-chips" data-replies></div>' +
-      '<div class="ag-chips" data-atajos>' + ATAJOS.map(([l, p]) => '<button type="button" data-atajo="' + esc(p) + '">' + esc(l) + '</button>').join('') + '</div>' +
-      '<form class="ag-form" data-form><textarea rows="1" placeholder="Escribe a TAVO…" maxlength="2000"></textarea><button type="submit" class="ag-btn">Enviar</button></form></section>' +
+      '<form class="ag-form" data-form><details class="ag-menu ag-atajos"><summary class="ag-ico" title="Acciones rápidas">⚡</summary><div class="ag-menu-l">' + ATAJOS.map(([l, p]) => '<button type="button" data-atajo="' + esc(p) + '">' + esc(l) + '</button>').join('') + '</div></details>' +
+      '<textarea rows="1" placeholder="Escribe a TAVO…" maxlength="2000"></textarea><button type="submit" class="ag-btn">Enviar</button></form></section>' +
       '<section class="ag-flowcol"><div class="ag-lienzo" data-lienzo><div class="ag-barra"><div class="ag-ftit">Flujo de agentes<small data-ejecnum></small></div><div class="ag-pildora" data-pildora><i></i><span>Listo</span></div></div><svg class="ag-cables" data-cables aria-hidden="true"></svg></div>' +
       '<div class="ag-live" data-live></div>' +
       '<div class="ag-detalle"><header><h3>Ejecución</h3><div class="ag-filtros" data-filtros></div></header><div class="ag-log" data-log></div></div></section></div></div>';
@@ -572,8 +594,8 @@
       const url = a.id ? '/api/agentes/archivo/' + a.id : '', ver = a.id && abierto(m, i);
       const previa = ver ? (esImagen(a) ? '<img class="ag-prev" src="' + url + '" alt="' + esc(a.titulo) + '">' : '<iframe class="ag-prev" src="' + url + '#toolbar=0&navpanes=0&view=FitH" loading="lazy" title="' + esc(a.titulo) + '"></iframe>') : '';
       return '<article class="ag-file ' + esc(a.tipo) + (ver ? ' abierto' : '') + '"><div class="ag-file-head"><span class="ag-fico">' + (esImagen(a) ? '🖼️' : /\.ai$/i.test(a.nombre) ? '🎨' : '📄') + '</span><div><b>' + esc(a.titulo || a.nombre) + '</b><small>' + esc(a.nombre) + (a.size ? ' · ' + KB(a.size) : '') + '</small></div></div>' + previa +
-        '<div class="ag-file-acc">' + (a.id ? '<button type="button" data-f-ver="' + m.id + ':' + i + '">' + (ver ? 'Ocultar' : 'Ver') + '</button><a href="' + url + '" target="_blank" rel="noopener">Abrir</a><a href="' + url + '?descargar=1" download>Descargar</a>' : '<span class="nopre">Sin vista previa</span>') +
-        (a.ruta ? '<button type="button" data-f-ruta="' + m.id + ':' + i + '">Copiar ruta</button>' : '') + '</div></article>';
+        '<div class="ag-file-acc">' + (a.id ? '<button type="button" data-f-ver="' + m.id + ':' + i + '">' + (ver ? 'Ocultar' : 'Ver') + '</button><a href="' + url + '" target="_blank" rel="noopener" title="Abrir en otra pestaña">↗</a><a href="' + url + '?descargar=1" download title="Descargar">⬇</a>' : '<span class="nopre">Sin vista previa</span>') +
+        (a.ruta ? '<button type="button" data-f-ruta="' + m.id + ':' + i + '" title="Copiar la ruta del archivo">⧉</button>' : '') + '</div></article>';
     }).join('') + '</div>';
   }
 
@@ -585,7 +607,7 @@
     const pill = (clase, texto) => '<span class="ag-pill ' + clase + '"><i></i>' + esc(texto) + '</span>';
     const modo = v => !v ? '' : v === 'real' ? 'ok' : /^error/.test(v) ? 'mal' : 'sim';
     panel.querySelector('[data-estado]').innerHTML = pill(e.conectado ? 'ok' : 'mal', (e.pc && e.pc.nombre ? e.pc.nombre + ' · ' : '') + (e.conectado ? 'PC conectado' : 'PC desconectado')) + (e.conectado && e.illustrator ? pill(modo(e.illustrator), 'Illustrator: ' + e.illustrator) : '') + (e.conectado && e.sheets ? pill(modo(e.sheets), 'Sheets: ' + e.sheets) : '') +
-      '<button type="button" class="ag-pill ' + (e.auto ? 'ok' : 'sim') + '" data-auto title="Cuando una tarjeta de EDICIÓN pasa a «en proceso», los agentes arrancan solos con esa orden. Toca para ' + (e.auto ? 'apagar' : 'encender') + '" style="cursor:pointer"><i></i>Inicio automático: ' + (e.auto ? 'ON' : 'OFF') + '</button>';
+      '<button type="button" class="ag-pill ' + (e.auto ? 'ok' : 'sim') + '" data-auto title="Cuando una tarjeta de EDICIÓN pasa a «en proceso», los agentes arrancan solos con esa orden. Toca para ' + (e.auto ? 'apagar' : 'encender') + '" style="cursor:pointer"><i></i>Auto ' + (e.auto ? 'ON' : 'OFF') + '</button>';
     panel.querySelector('[data-aviso]').innerHTML = !e.conectado ? '<div class="ag-warn">El PC «' + esc((e.pc && e.pc.nombre) || 'de los agentes') + '» no está conectado. Tu mensaje queda en cola y se atiende cuando ese PC esté encendido con los agentes iniciados' + ((e.pcs || []).some(p => p.conectado && p.id !== (e.pc && e.pc.id)) ? '; también puedes elegir otro PC conectado arriba.' : '.') + '</div>' : '';
     const trabajo = st.trabajo;
     const hilo = st.msgs.length ? st.msgs.map(m => m.rol === 'yo'
@@ -598,8 +620,8 @@
     if (barra.dataset.clave !== claveOrden) {
       barra.dataset.clave = claveOrden;
       barra.innerHTML = st.orden && !st.cambiandoOrden
-        ? '<span class="ag-ochip">Orden activa <b>' + esc(st.orden) + '</b></span><button type="button" class="ag-btn" data-iniciar title="Lee el listado, crea la muestra, te pide aprobarla y sigue con las mesas y los PDF de producción">▶ Iniciar orden</button><button type="button" class="ag-btn sec" data-reprocesar title="Vuelve a procesar una orden que ya se hizo: tú eliges si reemplazas todo o conservas lo que ya existe">↻ Reprocesar</button><button type="button" class="ag-btn sec" data-orden-cambiar>Cambiar</button><button type="button" class="ag-btn sec" data-orden-quitar>Quitar</button><small>Todo lo que pidas se hace con esta orden: no tienes que escribirla en cada mensaje.</small>'
-        : '<form data-orden-form><label for="ag-orden-in">Orden</label><input id="ag-orden-in" maxlength="12" autocomplete="off" placeholder="CO6133" value="' + esc(st.orden) + '"><button type="submit" class="ag-btn">Fijar orden</button>' + (st.orden ? '<button type="button" class="ag-btn sec" data-orden-cancelar>Cancelar</button>' : '') + '</form><small>Escríbela una sola vez y TAVO relaciona todo con ella (listado, mesas, muestra, PDF).</small>';
+        ? '<span class="ag-ochip" title="Todo lo que pidas se hace con esta orden">Orden <b>' + esc(st.orden) + '</b><button type="button" class="ag-ico" data-orden-cambiar title="Cambiar la orden">✎</button><button type="button" class="ag-ico" data-orden-quitar title="Quitar la orden">✕</button></span><button type="button" class="ag-btn" data-iniciar title="Lee el listado, crea la muestra, te pide aprobarla y sigue con las mesas y los PDF de producción">▶ Iniciar</button><button type="button" class="ag-btn sec" data-reprocesar title="Vuelve a procesar una orden que ya se hizo: tú eliges si reemplazas todo o conservas lo que ya existe">↻ Reprocesar</button>'
+        : '<form data-orden-form><label for="ag-orden-in">Orden</label><input id="ag-orden-in" maxlength="12" autocomplete="off" placeholder="CO6133" value="' + esc(st.orden) + '" title="Escríbela una sola vez y TAVO relaciona todo con ella"><button type="submit" class="ag-btn">Fijar</button>' + (st.orden ? '<button type="button" class="ag-ico" data-orden-cancelar title="Cancelar">✕</button>' : '') + '</form>';
       if (st.cambiandoOrden) panel.querySelector('#ag-orden-in')?.focus();
     }
     panel.querySelector('textarea').placeholder = st.orden ? 'Pídele a TAVO (usa la orden ' + st.orden + ')…' : 'Escribe a TAVO…';
@@ -611,7 +633,7 @@
     const ini = panel.querySelector('[data-iniciar]'); if (ini) ini.disabled = st.esperando || st.enviando;
     const repro = panel.querySelector('[data-reprocesar]'); if (repro) repro.disabled = st.esperando || st.enviando;
     panel.querySelector('textarea').disabled = st.esperando;
-    panel.querySelector('[data-form] button').disabled = st.esperando || st.enviando;
+    panel.querySelector('[data-form] button[type="submit"]').disabled = st.esperando || st.enviando;
     if (st.admin) panel.querySelector('[data-conectar]').hidden = false;
     const selPc = panel.querySelector('[data-pc-activo]');
     if (selPc) {
@@ -732,6 +754,8 @@
       await cargar(true); pintar(); programar();
     });
     panel.addEventListener('click', async e => {
+      // los menús (⋯ y ⚡) se cierran al elegir una opción o al tocar fuera
+      panel.querySelectorAll('details.ag-menu[open]').forEach(d => { if (!d.contains(e.target) || e.target.closest('.ag-menu-l button')) d.removeAttribute('open'); });
       if (e.target.closest('[data-orden-cambiar]')) { st.cambiandoOrden = true; pintar(); return; }
       if (e.target.closest('[data-orden-cancelar]')) { st.cambiandoOrden = false; pintar(); return; }
       if (e.target.closest('[data-orden-quitar]')) { await fijarOrden(''); return; }
@@ -739,7 +763,7 @@
       if (filtro) { filtrar(filtro.dataset.filtro || null); return; }
       const fv = e.target.closest('[data-f-ver]'), fr = e.target.closest('[data-f-ruta]');
       if (fv) { const [mid, i] = fv.dataset.fVer.split(':'), m = st.msgs.find(x => String(x.id) === mid); if (m) { st.abiertos[fv.dataset.fVer] = !abierto(m, Number(i)); pintar(); } return; }
-      if (fr) { const [mid, i] = fr.dataset.fRuta.split(':'), m = st.msgs.find(x => String(x.id) === mid); const ruta = m && m.archivos[Number(i)] && m.archivos[Number(i)].ruta; if (ruta) { try { await navigator.clipboard.writeText(ruta); } catch (err) { /* sin portapapeles */ } fr.textContent = '¡Copiada!'; setTimeout(() => { fr.textContent = 'Copiar ruta'; }, 1500); } return; }
+      if (fr) { const [mid, i] = fr.dataset.fRuta.split(':'), m = st.msgs.find(x => String(x.id) === mid); const ruta = m && m.archivos[Number(i)] && m.archivos[Number(i)].ruta; if (ruta) { try { await navigator.clipboard.writeText(ruta); } catch (err) { /* sin portapapeles */ } fr.textContent = '✓'; setTimeout(() => { fr.textContent = '⧉'; }, 1500); } return; }
       if (e.target.closest('[data-tabla-copiar]')) { const b = e.target.closest('[data-tabla-copiar]'); copiarTabla(b.dataset.tablaCopiar); b.textContent = '¡Copiado!'; setTimeout(() => { b.textContent = 'Copiar'; }, 1500); }
       else if (e.target.closest('[data-tabla-csv]')) csvTabla(e.target.closest('[data-tabla-csv]').dataset.tablaCsv);
       else if (reply) enviar(reply.dataset.send);
@@ -772,6 +796,7 @@
     });
     panel.addEventListener('toggle', e => { if (e.target.matches && e.target.matches('[data-resdet]')) st.resAbierto = e.target.open; }, true);
     panel.addEventListener('change', async e => {
+      if (e.target.matches('[data-filtro-sel]')) { filtrar(e.target.value || null); return; }
       if (!e.target.matches('[data-pc-activo]')) return;
       try { await api('/api/agentes/pc-activo', { method: 'POST', body: JSON.stringify({ pc: e.target.value }) }); } catch (err) { alert(err.message); }
       await cargar(true); pintar();
