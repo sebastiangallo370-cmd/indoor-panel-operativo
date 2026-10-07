@@ -37,48 +37,51 @@
     const total = c.modulos + margenModulos * 2;
     return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + total + ' 1" preserveAspectRatio="none" shape-rendering="crispEdges" style="display:block;width:' + (total * moduloMm).toFixed(3) + 'mm;height:' + altoMm + 'mm" fill="#000">' + barras + '</svg>';
   }
-  const modulosDe = texto => code128(texto).modulos + 20;
+  const modulosDe = (texto, margen = 10) => code128(texto).modulos + margen * 2;
   // El módulo (barra más fina) es múltiplo del punto de la impresora (203 dpi = 0,125 mm) para que las barras salgan nítidas
-  function moduloMm(texto, anchoDisponibleMm) {
-    const k = Math.max(1, Math.min(5, Math.floor(anchoDisponibleMm / modulosDe(texto) / 0.125)));
+  function moduloMm(texto, anchoDisponibleMm, margen = 10) {
+    const k = Math.max(1, Math.min(5, Math.floor(anchoDisponibleMm / modulosDe(texto, margen) / 0.125)));
     return k * 0.125;
   }
 
   // ---------------------------------------------------------------- ajustes de la etiqueta
   const SOLO_CATEGORIA = 'BODEGA TELA';
-  const TAMANOS = {'40x40': [40, 40], '50x40': [50, 40], '100x50': [100, 50], '100x70': [100, 70], '60x40': [60, 40], '50x30': [50, 30], '40x25': [40, 25]};
+  const TAMANOS = {'40x40': [40, 40], '45x40': [45, 40], '50x40': [50, 40], '100x50': [100, 50], '100x70': [100, 70], '60x40': [60, 40], '50x30': [50, 30], '40x25': [40, 25]};
   const POR_DEFECTO = {tamano: '40x40', ancho: 40, alto: 40, copias: 1, nombre: true, stock: true, categoria: true, fecha: false};
   let cfg = {...POR_DEFECTO};
-  try { cfg = {...POR_DEFECTO, ...JSON.parse(localStorage.getItem('codigosBarrasCfg3') || '{}')}; } catch (_) {}
-  const guardarCfg = () => { try { localStorage.setItem('codigosBarrasCfg3', JSON.stringify(cfg)); } catch (_) {} };
+  try { cfg = {...POR_DEFECTO, ...JSON.parse(localStorage.getItem('codigosBarrasCfg5') || '{}')}; } catch (_) {}
+  const guardarCfg = () => { try { localStorage.setItem('codigosBarrasCfg5', JSON.stringify(cfg)); } catch (_) {} };
   const medidas = () => cfg.tamano === 'otro' ? [Math.max(20, Math.min(200, Number(cfg.ancho) || 100)), Math.max(15, Math.min(200, Number(cfg.alto) || 50))] : TAMANOS[cfg.tamano] || TAMANOS['100x50'];
 
   // item.tipo === 'rollo': etiqueta de un rollo (código propio + metros); si no, etiqueta de la tela
   function etiquetaHTML(item, [w, h]) {
     const rollo = item.tipo === 'rollo';
-    const pad = w <= 45 ? 1.5 : (h >= 40 ? 3 : 2);
+    const compacta = w <= 46;
+    const pad = compacta ? (w <= 42 ? 1 : 1.5) : (h >= 40 ? 3 : 2);
+    const margen = compacta ? (w <= 42 ? 3 : 6) : 10;   // la zona blanca del lado también la da el borde de la etiqueta
     const nombreImpreso = String(item.nombre || '').replace(/^\s*\([^)]*\)\s*/, '').trim() || item.nombre;   // el código ya sale debajo de las barras
-    const nombreMm = (h >= 60 ? 5 : h >= 45 ? 4.2 : h >= 35 ? 3.4 : 2.7) * (nombreImpreso.length > 50 ? 0.82 : nombreImpreso.length > 32 ? 0.92 : 1);
-    const codigoMm = h >= 45 ? 4 : h >= 35 ? 3.4 : 2.8;
-    const metrosMm = h >= 60 ? 8 : h >= 45 ? 6.5 : h >= 35 ? 5 : 3.8;
-    const pieMm = h >= 45 ? 2.8 : 2.3;
+    const nombreMm = compacta ? (nombreImpreso.length > 40 ? 2.6 : nombreImpreso.length > 24 ? 2.9 : 3.2)
+      : (h >= 60 ? 5 : h >= 45 ? 4.2 : h >= 35 ? 3.4 : 2.7) * (nombreImpreso.length > 50 ? 0.82 : nombreImpreso.length > 32 ? 0.92 : 1);
+    const codigoMm = compacta ? 3.4 : h >= 45 ? 4 : h >= 35 ? 3.4 : 2.8;
+    const metrosMm = compacta ? 5.6 : h >= 60 ? 8 : h >= 45 ? 6.5 : h >= 35 ? 5 : 3.8;
+    const pieMm = compacta ? 2.3 : h >= 45 ? 2.8 : 2.3;
     const disponible = w - pad * 2;
-    const modulo = moduloMm(item.codigo, disponible);
-    const altoBarras = Math.max(7, Math.round(h * (rollo ? (cfg.nombre ? 0.27 : 0.38) : (cfg.nombre ? 0.36 : 0.5))));
+    const modulo = moduloMm(item.codigo, disponible, margen);
+    const altoBarras = compacta ? Math.round(h * (cfg.nombre ? 0.34 : 0.45)) : Math.max(7, Math.round(h * (rollo ? (cfg.nombre ? 0.27 : 0.38) : (cfg.nombre ? 0.36 : 0.5))));
     const fecha = cfg.fecha ? new Date().toLocaleDateString('es-CO') : '';
     const pie = rollo
       ? ['Rollo ' + item.n + (item.empezado ? ' · EMPEZADO' : ''), fecha].filter(Boolean).join(' · ')
       : [cfg.categoria ? item.categoria_label : '', cfg.stock && item.total_label ? item.total_label + (item.categoria === 'BODEGA TELA' ? ' MTS' : ' UND') : '', cfg.stock && item.rollos ? item.rollos + (item.rollos === 1 ? ' ROLLO' : ' ROLLOS') : '', fecha].filter(Boolean).join(' · ');
     return '<div class="l">' +
       (cfg.nombre ? '<div class="n">' + esc(nombreImpreso) + '</div>' : '') +
-      '<div class="b">' + svgBarras(item.codigo, altoBarras, modulo) + '</div>' +
+      '<div class="b">' + svgBarras(item.codigo, altoBarras, modulo, margen) + '</div>' +
       '<div class="c">' + esc(item.codigo) + '</div>' +
       (rollo ? '<div class="m">' + esc(fmt(item.valor)) + ' MTS</div>' : '') +
       (pie ? '<div class="p">' + esc(pie) + '</div>' : '') +
       '</div>' + '<style>.l .n{font-size:' + nombreMm + 'mm}.l .c{font-size:' + codigoMm + 'mm}.l .m{font-size:' + metrosMm + 'mm}.l .p{font-size:' + pieMm + 'mm}</style>';
   }
   function estiloEtiqueta([w, h]) {
-    const pad = w <= 45 ? 1.5 : (h >= 40 ? 3 : 2);
+    const pad = w <= 46 ? (w <= 42 ? 1 : 1.5) : (h >= 40 ? 3 : 2);
     return '.l{width:' + w + 'mm;height:' + h + 'mm;padding:' + pad + 'mm;box-sizing:border-box;display:flex;flex-direction:column;justify-content:space-between;align-items:center;overflow:hidden;font-family:Arial,Helvetica,sans-serif;color:#000;background:#fff;text-align:center}' +
       '.l .n{font-weight:700;line-height:1.1;max-height:2.3em;overflow:hidden;width:100%;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow-wrap:anywhere}.l .b{display:flex;justify-content:center;width:100%}.l .c{font-family:Consolas,"Courier New",monospace;font-weight:700;letter-spacing:.08em}' +
       '.l .m{font-weight:800;line-height:1}.l .p{color:#222;line-height:1.1;width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}';
