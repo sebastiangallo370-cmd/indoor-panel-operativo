@@ -130,7 +130,7 @@
 .cb-chip.sel{border-color:#d0f44c;background:#27391b;box-shadow:0 0 0 2px #d0f44c33}.cb-chip.halo{animation:cbhalo 1.6s}
 .cb-vacio{padding:40px;text-align:center;color:#8fa088;border:1px dashed #34432f;border-radius:14px}
 .cb-barra{position:fixed;left:50%;transform:translateX(-50%);bottom:14px;z-index:60;display:flex;gap:12px;flex-wrap:wrap;align-items:center;justify-content:center;max-width:calc(100vw - 24px);padding:12px 16px;border:1px solid #4a6338;border-radius:16px;background:#0b110bf2;box-shadow:0 14px 40px #000b;backdrop-filter:blur(6px)}
-.cb-opc{display:contents}.cb-opcbtn{display:none}.cb-barra:not(.on){display:none}.cb-barra label{display:flex;align-items:center;gap:6px;color:#c5d1bf;font:600 12px Arial}.cb-barra select,.cb-barra input[type=number]{padding:8px 9px;border:1px solid #3f553d;border-radius:8px;background:#162016;color:#fff;font:13px Arial}
+.cb-mas{display:none!important}.cb-opc{display:contents}.cb-opcbtn{display:none}.cb-barra:not(.on){display:none}.cb-barra label{display:flex;align-items:center;gap:6px;color:#c5d1bf;font:600 12px Arial}.cb-barra select,.cb-barra input[type=number]{padding:8px 9px;border:1px solid #3f553d;border-radius:8px;background:#162016;color:#fff;font:13px Arial}
 .cb-barra input[type=number]{width:64px!important}.cb-barra input[type=checkbox]{width:auto!important}.cb-barra .p{background:#d0f44c;border-color:#d0f44c;color:#16200c}.cb-barra b{color:#d0f44c}
 .cb-prev{position:fixed;inset:0;z-index:90;display:none;place-items:center;background:#000c}.cb-prev.on{display:grid}.cb-prev>div{max-width:92vw;max-height:92vh;overflow:auto;padding:18px;border-radius:16px;background:#1a2218;border:1px solid #4a6338}
 .cb-prev h3{margin:0 0 12px;font:800 13px Arial;letter-spacing:.08em;color:#d0f44c}.cb-prev .hoja{display:inline-block;padding:0;border:1px dashed #888;background:#fff;box-shadow:0 8px 28px #0008}
@@ -142,7 +142,15 @@
 .cb-scan .cb-cam{flex:1 1 100%;min-height:50px;font-size:15px}
 .cb-tools{gap:8px}.cb-tools input[type=search],.cb-tools select{flex:1 1 100%;min-width:0;font-size:16px}
 .cb-tools button{flex:1 1 calc(50% - 8px);min-height:44px}.cb-tools .cuenta{margin-left:0;flex:1 1 100%}
-.cb-grid{grid-template-columns:1fr}
+.cb-grid{grid-template-columns:1fr;gap:8px}
+.cb-hero p{display:none}.cb-hero{padding:12px 14px}.cb-hero h2{margin:2px 0 0;font-size:1.25rem}.cb-hero .eyebrow{display:none}
+.cb-scan{flex-wrap:nowrap!important;align-items:center}.cb-scan span{display:none}.cb-scan input{flex:1 1 0!important;min-width:0!important;width:auto!important}
+.cb-scan .cb-cam{flex:0 0 54px!important;width:54px!important;min-height:48px;padding:0!important;font-size:0!important;text-align:center}.cb-scan .cb-cam::before{content:'📷';font-size:24px;line-height:48px}
+.cb-eco{min-height:0}.cb-eco:empty{display:none}
+.cb-tools{gap:6px}.cb-tools input[type=search]{flex:1 1 100%}
+.cb-tools button{flex:1 1 calc(33% - 6px);min-height:40px;padding:6px 8px;font-size:12px}
+.cb-mas{display:inline-block!important}.cb-tools:not(.mas) .cb-sec{display:none}.cb-tools .cuenta{flex:1 1 100%;font-size:12px}
+.cb-card{padding:10px;gap:6px}.cb-card .bar{padding:5px}.cb-card .bar svg{height:34px!important}.cb-card .nom{font-size:13px}
 .cb-chip{padding:8px 11px;font-size:13px}.cb-rl button{min-height:40px}
 .cb-barra{left:8px;right:8px;bottom:8px;transform:none;max-width:none;padding:10px 12px;gap:8px;justify-content:space-between}
 .cb-barra button{min-height:44px;flex:1 1 40%}.cb-barra label{flex:1 1 45%}.cb-barra select{flex:1;min-width:0}
@@ -159,9 +167,9 @@
   panel.innerHTML = '<div class="cb">' +
     '<section class="cb-hero"><div><span class="eyebrow">Producción · Inventarios</span><h2>CÓDIGOS DE BARRAS</h2>' +
     '<p>Cada tela de Stock tela tiene su código permanente y cada <b>rollo</b> tiene el suyo (por ejemplo T100-007). Búscalos, escanéalos con el lector o selecciona los que quieras e imprime sus etiquetas.</p></div></section>' +
-    '<div class="cb-scan"><span>ESCANEAR / BUSCAR CÓDIGO</span><input type="text" data-cb-scan autocomplete="off" spellcheck="false" placeholder="Pasa el lector o escribe, por ejemplo T100 o T100-007"><button type="button" class="cb-cam" data-cb-cam>📷 Escanear con la cámara</button></div><div class="cb-eco" data-cb-eco></div>' +
+    '<div class="cb-scan"><span>ESCANEAR / BUSCAR CÓDIGO</span><input type="text" data-cb-scan autocomplete="off" spellcheck="false" placeholder="Pasa el lector o escribe, por ejemplo T100 o T100-007"><button type="button" class="cb-cam" data-cb-cam aria-label="Escanear con la cámara">📷 Escanear con la cámara</button></div><div class="cb-eco" data-cb-eco></div>' +
     '<div class="cb-tools"><input type="search" data-cb-q placeholder="Buscar tela por nombre o código"><select data-cb-cat hidden><option value="">Todas las categorías</option></select>' +
-    '<button type="button" data-cb-todos>Seleccionar las telas visibles</button><button type="button" data-cb-todosrollos>Seleccionar todos los rollos visibles</button><button type="button" data-cb-ninguno>Quitar selección</button><button type="button" data-cb-recargar>Actualizar</button><span class="cuenta" data-cb-cuenta></span></div>' +
+    '<button type="button" class="cb-mas" data-cb-mas>⋯ Más</button><button type="button" class="cb-sec" data-cb-todos>Seleccionar las telas visibles</button><button type="button" class="cb-sec" data-cb-todosrollos>Seleccionar todos los rollos visibles</button><button type="button" data-cb-ninguno>Quitar selección</button><button type="button" data-cb-recargar>Actualizar</button><span class="cuenta" data-cb-cuenta></span></div>' +
     '<div class="cb-grid" data-cb-grid></div></div>';
 
   const extras = document.createElement('div');
@@ -299,6 +307,7 @@
     else if (e.target.matches('[data-cb-tam]')) { cfg.tamano = e.target.value; q('[data-cb-otro]').hidden = cfg.tamano !== 'otro'; guardarCfg(); }
     else if (e.target.matches('[data-cb-op]')) { cfg[e.target.dataset.cbOp] = e.target.checked; guardarCfg(); }
   };
+  panel.addEventListener('click', e => { if (e.target.closest('[data-cb-mas]')) q('.cb-tools').classList.toggle('mas'); });
   extras.addEventListener('click', e => { const b = e.target.closest('[data-cb-opcbtn]'); if (b) q('[data-cb-barra]').classList.toggle('opc'); });
   [panel, extras].forEach(zona => { zona.addEventListener('click', alClic); zona.addEventListener('input', alEscribir); zona.addEventListener('change', alCambiar); });
   q('[data-cb-scan]').addEventListener('keydown', e => {
@@ -321,8 +330,7 @@
   .cb-cam-ov .mira::after{content:'';position:absolute;left:6%;right:6%;top:50%;height:2px;background:#ff5a5a;box-shadow:0 0 8px #ff5a5a}
   .cb-cam-ov footer{padding:14px 16px 22px;background:#0c110d;display:grid;gap:8px;text-align:center}
   .cb-cam-ov .res{font:800 16px Arial;min-height:22px}.cb-cam-ov .res.ok{color:#8bd450}.cb-cam-ov .res.mal{color:#ff8a7c}
-  .cb-cam-ov small{color:#aebba7;font-size:12px;line-height:1.4}
-  @media(max-width:700px){.cb-scan .cb-cam{flex:1 1 100%}}`;
+  .cb-cam-ov small{color:#aebba7;font-size:12px;line-height:1.4}`;
   document.head.appendChild(camCss);
 
   let camActiva = null;

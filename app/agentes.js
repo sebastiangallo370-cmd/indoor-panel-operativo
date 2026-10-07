@@ -149,6 +149,7 @@
 
   .ag-res{display:grid;gap:12px;padding:16px 18px;border:1px solid #2d3b4a;border-radius:16px;background:linear-gradient(135deg,#111a22,#0f140f)}
   .ag-res[hidden]{display:none}
+  .ag-ver-flujo{display:none;align-items:center;justify-content:center;gap:8px;min-height:44px;border:1px solid #34432f;border-radius:12px;background:#0c110d;color:#d0f44c;font:800 13px Arial;cursor:pointer}
   .ag-res-top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
   .ag-res-top h3{margin:0;font:800 11px Arial;letter-spacing:.12em;color:#7da4ff;text-transform:uppercase}
   .ag-res-top .qa{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}.ag-res-top .qa b{font-size:1.05rem;color:#eef4e9}.ag-res-top .qa small{color:#aebba7;font-size:.8rem}
@@ -174,7 +175,13 @@
   details.ag-det div{margin-top:6px;max-height:220px;overflow:auto;color:#c4cfbf;font-size:.8rem;line-height:1.5;white-space:pre-wrap}
   .ag-log .WARN::before{content:'⚠ ';color:#ffbd66}.ag-log .ERROR::before{content:'✖ ';color:#ff8a8a}
   @media(max-width:1000px){.ag-pasos{grid-template-columns:repeat(3,minmax(0,1fr))}}
-  @media(max-width:700px){.ag-pasos{grid-template-columns:repeat(2,minmax(0,1fr))}.ag-datos{grid-template-columns:1fr 1fr}.ag-res{padding:12px}}
+  @media(max-width:700px){.ag-pasos{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.ag-paso{padding:6px 8px}.ag-paso b{font-size:.74rem}.ag-paso em{font-size:.66rem}.ag-datos{grid-template-columns:1fr}.ag-res{padding:12px;gap:10px}.ag-res-top .qa{gap:6px}.ag-res-top h3{flex:1 1 100%}.ag-ahora{font-size:.82rem}details.ag-det div.ag-datos{max-height:none;white-space:normal}}
+  @media(max-width:700px){.ag-state{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}.ag-pill{flex:none;white-space:nowrap}.ag-chat{order:1}.ag-res{order:0}.ag-head{padding:10px 12px!important;flex-direction:row!important;align-items:center!important}.ag-head>div:first-child{flex:1 1 auto}.ag-head span.k{display:none}.ag-head h2{font-size:1.1rem!important;margin:0!important}
+    .ag-head>div:last-child{width:auto!important;flex:0 0 auto}.ag-head>div:last-child .ag-btn{min-height:36px!important;padding:0 10px!important;flex:0 0 auto!important}
+    .ag-paso em{display:none}.ag-paso.corriendo em,.ag-paso.espera em,.ag-paso.error em{display:block}.ag-paso{padding:5px 7px}
+    .ag-ver-flujo{display:flex!important}.ag-main:not(.flujo-abierto) .ag-flowcol{display:none}
+    .ag-thread{height:52vh!important;min-height:240px!important}
+    .ag-state,.ag-chips[data-atajos]{scrollbar-width:none}.ag-state::-webkit-scrollbar,.ag-chips[data-atajos]::-webkit-scrollbar{display:none}}
   `;
   document.head.appendChild(css);
 
@@ -501,7 +508,7 @@
       dato('Líneas del listado', d.lineas ? d.lineas + (d.blancos ? ' · ' + d.blancos + ' datos en blanco (nombre/número)' : '') : '', d.blancos > 0) + dato('MTS requeridos', d.mts.join(' · '));
     box.innerHTML = '<div class="ag-res-top"><div class="qa"><h3>Resumen de la orden</h3><b>' + esc(d.orden || st.orden || '') + '</b><small>' + (d.errores ? '✖ ' + d.errores + ' error(es)' : '') + (d.avisos ? ' ⚠ ' + d.avisos + ' aviso(s)' : '') + '</small></div><span class="tiempo">⏱ ' + mmss(total) + (corriendo ? ' en curso' : '') + '</span></div>' +
       '<div class="ag-barra2' + (d.errores ? ' err' : '') + '"><i style="width:' + Math.round(avance) + '%"></i></div><div class="ag-pasos">' + pasosHtml + '</div>' +
-      (ahoraHtml ? '<div class="ag-ahora' + (nota ? ' nota' : '') + '">' + ahoraHtml + '</div>' : '') + (datos ? '<div class="ag-datos">' + datos + '</div>' : '');
+      (ahoraHtml ? '<div class="ag-ahora' + (nota ? ' nota' : '') + '">' + ahoraHtml + '</div>' : '') + (datos ? (pantallaChica() ? '<details class="ag-det" data-resdet' + (st.resAbierto ? ' open' : '') + '><summary>Detalles de la orden</summary><div class="ag-datos" style="margin-top:8px">' + datos + '</div></details>' : '<div class="ag-datos">' + datos + '</div>') : '');
   }
   setInterval(() => { if (panel && panel.classList.contains('active') && st.esperando) pintarResumen(); }, 1000);
 
@@ -542,7 +549,7 @@
     panel.innerHTML = '<div class="ag"><header class="ag-head"><div><span class="k">EDICIÓN · INTELIGENCIA</span><h2>AGENTES</h2><p>Escríbele a TAVO y él decide qué agente actúa. Todo se ejecuta en el PC con Illustrator.</p></div>' +
       '<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="ag-btn danger" data-detener style="display:none">Detener agentes</button><button type="button" class="ag-btn sec" data-nueva>Nueva conversación</button><button type="button" class="ag-btn sec" data-conectar hidden>Conectar PC</button></div></header>' +
       '<div class="ag-state" data-estado></div><div data-aviso></div><section class="ag-res" data-resumen hidden></section>' +
-      '<div class="ag-main"><section class="ag-chat"><div class="ag-orden" data-orden></div><div class="ag-thread" data-hilo></div><div class="ag-chips" data-replies></div>' +
+      '<button type="button" class="ag-ver-flujo" data-ver-flujo>▾ Ver flujo, pantalla en vivo y registro</button><div class="ag-main" data-main><section class="ag-chat"><div class="ag-orden" data-orden></div><div class="ag-thread" data-hilo></div><div class="ag-chips" data-replies></div>' +
       '<div class="ag-chips" data-atajos>' + ATAJOS.map(([l, p]) => '<button type="button" data-atajo="' + esc(p) + '">' + esc(l) + '</button>').join('') + '</div>' +
       '<form class="ag-form" data-form><textarea rows="1" placeholder="Escribe a TAVO…" maxlength="2000"></textarea><button type="submit" class="ag-btn">Enviar</button></form></section>' +
       '<section class="ag-flowcol"><div class="ag-lienzo" data-lienzo><div class="ag-barra"><div class="ag-ftit">Flujo de agentes<small data-ejecnum></small></div><div class="ag-pildora" data-pildora><i></i><span>Listo</span></div></div><svg class="ag-cables" data-cables aria-hidden="true"></svg></div>' +
@@ -727,6 +734,13 @@
         st.msgs = []; st.ultimo = 0; st.evs = []; st.ultimoEv = 0; st.trabajo = null; flow.listo = false; flow.preparado = 0; await cargar(true); pintar();
       } else if (e.target.closest('[data-conectar]')) conectar();
     });
+    panel.addEventListener('click', e => {
+      const b = e.target.closest('[data-ver-flujo]'); if (!b) return;
+      const main = panel.querySelector('[data-main]'), abierto = main.classList.toggle('flujo-abierto');
+      b.textContent = abierto ? '▴ Ocultar flujo, pantalla en vivo y registro' : '▾ Ver flujo, pantalla en vivo y registro';
+      if (abierto) { acomodar(); pintarLog(); }
+    });
+    panel.addEventListener('toggle', e => { if (e.target.matches && e.target.matches('[data-resdet]')) st.resAbierto = e.target.open; }, true);
     panel.addEventListener('submit', e => { e.preventDefault(); if (e.target.matches('[data-orden-form]')) { fijarOrden(e.target.querySelector('input').value); return; } const caja = panel.querySelector('textarea'); const v = caja.value; caja.value = ''; enviar(v); });
     panel.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && e.target.matches('textarea')) { e.preventDefault(); panel.querySelector('form').requestSubmit(); } });
     panel.addEventListener('input', e => { if (e.target.matches('textarea')) { e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 140) + 'px'; } });
