@@ -103,7 +103,16 @@ def agentes_permitido(username: str) -> bool:
     return _plano(_lookup(username)) in _PROCESOS_AGENTES
 
 
+_SIN_MODULO = {'cartera': {'AP'}}   # cuentas a las que no se les muestra un módulo aunque su rol lo tenga (excepciones por persona)
+
+
+def sin_modulo(username: str, modulo: str) -> bool:
+    return _plano(username) in {_plano(u) for u in _SIN_MODULO.get(modulo, set())}
+
+
 def puede(username: str, modulo: str, accion: str) -> bool:
+    if sin_modulo(username, modulo):
+        return False
     if modulo == 'agentes' and not agentes_permitido(username):
         return False
     return bool(matriz().get(rol_de(username), {}).get(modulo, {}).get(accion))
@@ -148,6 +157,9 @@ def mis_permisos(request: Request):
     permisos = json.loads(json.dumps(matriz()[rol]))
     if not agentes_permitido(usuario):
         permisos['agentes'] = {'ver': False, 'editar': False}
+    for modulo in list(permisos):
+        if sin_modulo(usuario, modulo):
+            permisos[modulo] = {accion: False for accion in permisos[modulo]}
     return {'usuario': usuario, 'rol': rol, 'rol_nombre': ROLES[rol], 'admin': rol == 'administracion',
             'permisos': permisos}
 
