@@ -166,6 +166,13 @@
   .ag-chat{padding:12px;gap:8px}.ag-form{align-items:center;gap:8px}.ag-form textarea{min-height:38px;padding:8px 12px}
   .ag-file-acc button,.ag-file-acc a{padding:4px 10px!important}
   .ag-detalle header{padding:6px 12px}.ag-filtros .ag-pcsel{min-height:28px;font-size:11px}
+  /* chat más angosto y el trabajo de los agentes (flujo, pantalla en vivo, montajes y PDF) más grande */
+  @media(min-width:1001px){.ag-main{grid-template-columns:minmax(300px,23%) minmax(0,1fr)!important}.ag-live-body{grid-template-columns:minmax(0,1fr) 330px}.ag-flowcol{grid-template-rows:auto minmax(0,1fr) 150px}
+    .ag-nodo .et b{font-size:15px}.ag-nodo .et small{font-size:12px}.ag-nodo .et em{font-size:12px}.ag-nodo .et{width:150px}
+    .ag-ftit{font-size:15px}.ag-pildora{font-size:13px}.ag-live-top b{font-size:13px}.ag-live-top small{font-size:12.5px}
+    .ag-live-cap .num{font-size:46px}.ag-live-cap .nom{font-size:24px}.ag-live-cap small{font-size:13px}
+    .ag-live-sec h4{font-size:12.5px}.ag-live-list{font-size:13.5px}.ag-live-list div{padding:6px 10px}
+    .ag-log{font-size:13px}}
   .ag-pcsel{min-height:40px;padding:0 12px;border:1px solid #60754d;border-radius:10px;background:#142017;color:#e3eadc;font:800 13px Arial;cursor:pointer}.ag-pcsel[hidden]{display:none}
   .ag-pcrow{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;border:1px solid #34432f;border-radius:12px;background:#0c110d}
   .ag-pcrow b{display:block;color:#eef4e9}.ag-pcrow small{display:block;color:#8f9b8a;font-size:.78rem}.ag-pcrow span{display:flex;gap:6px}.ag-pcrow .ag-btn{min-height:34px;padding:0 12px;font-size:12px}
@@ -280,8 +287,8 @@
   function acomodar() {
     const lienzo = flow.lienzo; if (!lienzo) return;
     const W = lienzo.clientWidth, H = lienzo.clientHeight; if (!W) return;
-    const tam = W > 1000 ? 72 : 60, margen = 44, ancho = tam; flow.tam = tam;
-    const porFila = Math.max(3, Math.min(NODOS.length, Math.floor((W - margen * 2 + 40) / 112)));
+    const tam = W > 1000 ? 88 : 60, margen = 44, ancho = tam; flow.tam = tam;
+    const porFila = Math.max(3, Math.min(NODOS.length, Math.floor((W - margen * 2 + 40) / (W > 1000 ? 130 : 112))));
     const filas = Math.ceil(NODOS.length / porFila);
     const sep = porFila > 1 ? (W - margen * 2 - ancho) / (porFila - 1) : 0;
     const altoFila = tam + 58, y0 = 54;   // el mapa es una tira: su alto se ajusta a las filas que ocupa
