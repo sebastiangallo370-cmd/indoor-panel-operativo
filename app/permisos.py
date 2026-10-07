@@ -93,7 +93,19 @@ def matriz() -> dict:
     return resultado
 
 
+_PROCESOS_AGENTES = {'EDICION', 'COORDINADOR'}   # los agentes de edición solo los ven las cuentas con proceso Edición o Coordinador
+
+
+def agentes_permitido(username: str) -> bool:
+    """Regla fija (no se cambia desde /permisos): solo Edición y Coordinador, más la cuenta maestra de la aplicación."""
+    if username == os.getenv('APP_USER', 'indoor'):
+        return True
+    return _plano(_lookup(username)) in _PROCESOS_AGENTES
+
+
 def puede(username: str, modulo: str, accion: str) -> bool:
+    if modulo == 'agentes' and not agentes_permitido(username):
+        return False
     return bool(matriz().get(rol_de(username), {}).get(modulo, {}).get(accion))
 
 
@@ -133,8 +145,11 @@ def registrar_autenticacion(fn: Callable) -> None:
 def mis_permisos(request: Request):
     usuario = _autenticar(request)
     rol = rol_de(usuario)
+    permisos = json.loads(json.dumps(matriz()[rol]))
+    if not agentes_permitido(usuario):
+        permisos['agentes'] = {'ver': False, 'editar': False}
     return {'usuario': usuario, 'rol': rol, 'rol_nombre': ROLES[rol], 'admin': rol == 'administracion',
-            'permisos': matriz()[rol]}
+            'permisos': permisos}
 
 
 @router.get('/matriz')
