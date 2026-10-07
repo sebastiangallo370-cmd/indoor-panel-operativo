@@ -168,6 +168,16 @@
     marco.onload = () => { try { marco.contentWindow.focus(); marco.contentWindow.print(); } finally { setTimeout(() => marco.remove(), 120000); } };
     marco.srcdoc = html;
   }
+  function imprimirPrueba() {
+    const tam = medidas(), [w, h] = tam;
+    const c = etiquetaCanvas({tipo: 'tela', codigo: 'T100', nombre: 'PRUEBA ' + w + ' x ' + h + ' mm', categoria_label: 'Stock tela', total_label: '', rollos: 0}, tam);
+    const g = c.getContext('2d');
+    g.fillStyle = '#000';
+    g.fillRect(0, 0, c.width, 2); g.fillRect(0, c.height - 2, c.width, 2); g.fillRect(0, 0, 2, c.height); g.fillRect(c.width - 2, 0, 2, c.height);   // borde: si se corta, el papel no es de esta medida
+    g.fillRect(0, 0, 14, 2); g.fillRect(0, 0, 2, 14);
+    imprimirHTML('<!doctype html><html><head><meta charset="utf-8"><title>Etiqueta de prueba</title><style>@page{size:' + w + 'mm ' + h + 'mm;margin:0}html,body{margin:0;padding:0;background:#fff}' +
+      'img{display:block;width:' + w + 'mm;height:' + h + 'mm;image-rendering:pixelated;image-rendering:crisp-edges}</style></head><body><img alt="" src="' + c.toDataURL('image/png') + '"></body></html>');
+  }
   function imprimirImagen(items) {
     const [w, h] = medidas(), copias = Math.max(1, Math.min(200, Number(cfg.copias) || 1));
     const paginas = [];
@@ -279,7 +289,7 @@
     '<div class="cb-kpi" data-cb-kpi></div>' +
     '<div class="cb-scan"><span>ESCANEAR / BUSCAR CÓDIGO</span><input type="text" data-cb-scan autocomplete="off" spellcheck="false" placeholder="Pasa el lector o escribe, por ejemplo T100 o T100-007"><button type="button" class="cb-cam" data-cb-cam aria-label="Escanear con la cámara">📷 Escanear con la cámara</button></div><div class="cb-eco" data-cb-eco></div><section class="cb-res" data-cb-res hidden></section>' +
     '<div class="cb-tools"><input type="search" data-cb-q placeholder="Buscar tela por nombre o código"><select data-cb-cat hidden><option value="">Todas las categorías</option></select>' +
-    '<button type="button" class="cb-mas" data-cb-mas>⋯ Más</button><button type="button" class="cb-sec" data-cb-todos>Seleccionar las telas visibles</button><button type="button" class="cb-sec" data-cb-todosrollos>Seleccionar todos los rollos visibles</button><button type="button" data-cb-ninguno>Quitar selección</button><button type="button" data-cb-recargar>Actualizar</button><span class="cuenta" data-cb-cuenta></span></div>' +
+    '<button type="button" class="cb-mas" data-cb-mas>⋯ Más</button><button type="button" class="cb-sec" data-cb-todos>Seleccionar las telas visibles</button><button type="button" class="cb-sec" data-cb-todosrollos>Seleccionar todos los rollos visibles</button><button type="button" data-cb-ninguno>Quitar selección</button><button type="button" data-cb-prueba title="Imprime una etiqueta de prueba con un recuadro en el borde para comprobar la medida del papel">🧪 Etiqueta de prueba</button><button type="button" data-cb-recargar>Actualizar</button><span class="cuenta" data-cb-cuenta></span></div>' +
     '<div class="cb-filtros" data-cb-filtros><button type="button" class="fc on" data-cb-f="">Todas</button><button type="button" class="fc" data-cb-f="emp">Con rollos empezados</button><button type="button" class="fc" data-cb-f="bajo">Stock bajo</button><button type="button" class="fc" data-cb-f="sin">Sin rollos</button>' +
     '<select data-cb-orden aria-label="Ordenar"><option value="nombre">Ordenar: A–Z</option><option value="mts-desc">Más metros primero</option><option value="mts-asc">Menos metros primero</option><option value="rollos-desc">Más rollos primero</option></select></div>' +
     '<div class="cb-grid" data-cb-grid></div></div>';
@@ -408,6 +418,7 @@
   };
 
   const alClic = e => {
+    if (e.target.closest('[data-cb-prueba]')) { imprimirPrueba(); return; }
     const filtro = e.target.closest('[data-cb-f]');
     if (filtro) { estado.filtro = filtro.dataset.cbF; pintar(); return; }
     if (e.target.closest('[data-res-x]')) { q('[data-cb-res]').hidden = true; return; }
