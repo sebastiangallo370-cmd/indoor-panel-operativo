@@ -146,9 +146,23 @@ def _conectado(datos: dict, pid: str | None = None) -> bool:
     return any(_ahora() - float(_latido_pc(datos, p).get('at', 0)) < LATIDO_SEG for p in ids)
 
 
+def _sesion(usuario: str, pid: str) -> str:
+    """Canal de conversación de una persona con un PC. El del PC principal conserva el nombre de siempre (compatibilidad); los demás
+    llevan el id del PC. Así se puede trabajar en un PC mientras el otro está ocupado."""
+    return usuario if (not pid or pid == PRINCIPAL) else f'{usuario}|{pid}'
+
+
+def _base(sesion: str) -> str:
+    return str(sesion or '').split('|', 1)[0]
+
+
 def _pc_de(datos: dict, usuario: str) -> str:
-    """En qué PC se abre Illustrator: el que se eligió a mano en el panel; si no, el asignado a la persona; si no, el que atendió su
-    último mensaje; si no, algún PC conectado; si no, el principal."""
+    """En qué PC se abre Illustrator: el del canal si la sesión lo dice («usuario|pc»); si no, el que se eligió a mano en el panel;
+    si no, el asignado a la persona; si no, el que atendió su último mensaje; si no, algún PC conectado; si no, el principal."""
+    if '|' in str(usuario or ''):
+        canal = str(usuario).split('|', 1)[1]
+        if canal == PRINCIPAL or canal in datos['pcs']:
+            return canal
     elegido = datos.get('pc_activo') or ''
     if elegido and (elegido == PRINCIPAL or elegido in datos['pcs']):
         return elegido
@@ -226,34 +240,47 @@ def _liberar_vencidos(datos: dict) -> bool:
 
 
 # ------------------------------------------------------------------ personas
+def _canal(datos: dict, usuario: str, pc: str) -> tuple[str, str]:
+    """(PC, sesión) del canal que pide la persona; sin PC explícito usa el de siempre."""
+    pid = pc if (pc == PRINCIPAL or pc in datos['pcs']) else (_pc_de(datos, usuario) if not pc else PRINCIPAL)
+    return pid, _sesion(usuario, pid)
+
+
 @router.get('/estado')
-def estado(request: Request):
+def estado(request: Request, pc: str = ''):
     usuario = _auth(request)
     with _lock:
         datos = _leer()
-    pid = _pc_de(datos, usuario)   # el PC en el que se abre Illustrator para esta persona
+    pid, _ses = _canal(datos, usuario, pc)   # el PC (pestaña) que se está mirando
     latido = _latido_pc(datos, pid)
+    pcs = []
+    for p in _ids_pcs(datos):
+        ses = _sesion(usuario, p)
+        ocupado = any(m['sesion'] == ses and m['rol'] == 'yo' and not m.get('respondido') and not m.get('oculto') for m in datos['mensajes'])
+        trabajo = datos['trabajo'].get(ses) if ocupado else None
+        pcs.append({'id': p, 'nombre': _nombre_pc(datos, p), 'conectado': _conectado(datos, p), 'ocupado': ocupado,
+                    'trabajo': (f"{trabajo.get('agente', '')}: {trabajo.get('msg', '')}"[:120] if trabajo else '')})
     return {'conectado': _conectado(datos, pid), 'illustrator': latido.get('illustrator', ''), 'sheets': latido.get('sheets', ''),
             'visto': latido.get('iso', ''), 'auto': bool(datos['auto'].get('activo', True)),
             'pc': {'id': pid, 'nombre': _nombre_pc(datos, pid), 'equipo': latido.get('equipo', ''), 'elegido': bool(datos.get('pc_activo'))},
-            'pc_activo': datos.get('pc_activo') or '',
-            'pcs': [{'id': p, 'nombre': _nombre_pc(datos, p), 'conectado': _conectado(datos, p)} for p in _ids_pcs(datos)]}
+            'pc_activo': datos.get('pc_activo') or '', 'pcs': pcs}
 
 
 @router.get('/mensajes')
-def mensajes(request: Request, desde: int = 0, desde_ev: int = 0):
+def mensajes(request: Request, desde: int = 0, desde_ev: int = 0, pc: str = ''):
     usuario = _auth(request)
     with _lock:
         datos = _leer()
         if _liberar_vencidos(datos):
             _guardar(datos)
-        propios = [m for m in datos['mensajes'] if m['sesion'] == usuario and not m.get('oculto')]
+        pid, ses = _canal(datos, usuario, pc)
+        propios = [m for m in datos['mensajes'] if m['sesion'] == ses and not m.get('oculto')]
         esperando = any(m['rol'] == 'yo' and not m.get('respondido') for m in propios)
-        trabajo = datos['trabajo'].get(usuario) if esperando else None
+        trabajo = datos['trabajo'].get(ses) if esperando else None
         nuevos = [{k: v for k, v in m.items() if k not in ('t',)} for m in propios if m['id'] > desde]
-        eventos = [e for e in datos['eventos'] if e['sesion'] == usuario and e['id'] > desde_ev]
-        return {'mensajes': nuevos, 'esperando': esperando, 'trabajo': trabajo, 'conectado': _conectado(datos, _pc_de(datos, usuario)), 'ultimo': datos['contador'],
-                'eventos': eventos, 'ultimo_ev': datos['cont_ev'], 'orden': datos['ordenes'].get(usuario, '')}
+        eventos = [e for e in datos['eventos'] if e['sesion'] == ses and e['id'] > desde_ev]
+        return {'mensajes': nuevos, 'esperando': esperando, 'trabajo': trabajo, 'conectado': _conectado(datos, pid), 'ultimo': datos['contador'],
+                'eventos': eventos, 'ultimo_ev': datos['cont_ev'], 'orden': datos['ordenes'].get(ses, ''), 'pc': pid}
 
 
 @router.post('/mensaje')
@@ -265,9 +292,10 @@ def enviar(request: Request, payload: dict):
     with _lock:
         datos = _leer()
         _liberar_vencidos(datos)
-        if any(m['sesion'] == usuario and m['rol'] == 'yo' and not m.get('respondido') and not m.get('oculto') for m in datos['mensajes']):
+        pid, ses = _canal(datos, usuario, str(payload.get('pc') or ''))
+        if any(m['sesion'] == ses and m['rol'] == 'yo' and not m.get('respondido') and not m.get('oculto') for m in datos['mensajes']):
             raise HTTPException(409, 'Espera la respuesta de TAVO antes de enviar otro mensaje')
-        msg = _nuevo(datos, usuario, 'yo', texto, t=_ahora(), tomado=False, respondido=False)
+        msg = _nuevo(datos, ses, 'yo', texto, t=_ahora(), tomado=False, respondido=False)
         _guardar(datos)
         return {'ok': True, 'id': msg['id'], 'conectado': _conectado(datos, msg.get('pc')), 'pc': _nombre_pc(datos, msg.get('pc') or PRINCIPAL)}
 
@@ -282,31 +310,33 @@ def fijar_orden(request: Request, payload: dict):
     codigo = crudo.replace('-', '')
     with _lock:
         datos = _leer()
-        if datos['ordenes'].get(usuario, '') != codigo:
+        _pid, ses = _canal(datos, usuario, str(payload.get('pc') or ''))
+        if datos['ordenes'].get(ses, '') != codigo:
             if codigo:
-                datos['ordenes'][usuario] = codigo
+                datos['ordenes'][ses] = codigo
             else:
-                datos['ordenes'].pop(usuario, None)
+                datos['ordenes'].pop(ses, None)
             # reinicio interno de TAVO (no aparece en el chat): así no arrastra pasos de la orden anterior
-            _nuevo(datos, usuario, 'yo', 'cancelar', t=_ahora(), tomado=False, respondido=False, oculto=True)
+            _nuevo(datos, ses, 'yo', 'cancelar', t=_ahora(), tomado=False, respondido=False, oculto=True)
             _guardar(datos)
     return {'ok': True, 'orden': codigo}
 
 
 @router.post('/detener')
-def detener(request: Request):
-    """Frena a los agentes de esta persona: cierra lo que esperaba respuesta y le ordena al PC cortar el trabajo en curso."""
+def detener(request: Request, payload: dict | None = None):
+    """Frena a los agentes de esta persona en ese PC: cierra lo que esperaba respuesta y le ordena al PC cortar el trabajo en curso."""
     usuario = _auth(request)
     with _lock:
         datos = _leer()
+        _pid, ses = _canal(datos, usuario, str((payload or {}).get('pc') or ''))
         for m in datos['mensajes']:
-            if m['sesion'] == usuario and m['rol'] == 'yo' and not m.get('respondido'):
+            if m['sesion'] == ses and m['rol'] == 'yo' and not m.get('respondido'):
                 m['respondido'] = True
                 m['tomado'] = True   # si el PC aún no lo había tomado, ya no se le entrega
-        datos['trabajo'].pop(usuario, None)
-        _nuevo(datos, usuario, 'bot', 'Detuve los agentes. Lo que estaba en curso se cancela; si Illustrator estaba guardando un archivo, termina ese archivo y no sigue con el resto. Escribe cuando quieras continuar.',
+        datos['trabajo'].pop(ses, None)
+        _nuevo(datos, ses, 'bot', 'Detuve los agentes. Lo que estaba en curso se cancela; si Illustrator estaba guardando un archivo, termina ese archivo y no sigue con el resto. Escribe cuando quieras continuar.',
                estado='DETENIDO', botones=[], agentes=['TAVO'], respondido=True)
-        _nuevo(datos, usuario, 'yo', '__detener__', t=_ahora(), tomado=False, respondido=False, oculto=True)
+        _nuevo(datos, ses, 'yo', '__detener__', t=_ahora(), tomado=False, respondido=False, oculto=True)
         _guardar(datos)
     return {'ok': True}
 
@@ -329,18 +359,19 @@ def auto_cambiar(payload: dict):
 
 
 @router.post('/limpiar')
-def limpiar(request: Request):
-    """Borra la conversación de quien la pide (no toca la de otras personas)."""
+def limpiar(request: Request, payload: dict | None = None):
+    """Borra la conversación de quien la pide en ese PC (no toca la de otras personas ni la del otro PC)."""
     usuario = _auth(request)
     with _lock:
         datos = _leer()
-        datos['mensajes'] = [m for m in datos['mensajes'] if m['sesion'] != usuario]
-        datos['eventos'] = [e for e in datos['eventos'] if e['sesion'] != usuario]
-        for aid in [k for k, v in datos['archivos'].items() if v['sesion'] == usuario]:
+        _pid, ses = _canal(datos, usuario, str((payload or {}).get('pc') or ''))
+        datos['mensajes'] = [m for m in datos['mensajes'] if m['sesion'] != ses]
+        datos['eventos'] = [e for e in datos['eventos'] if e['sesion'] != ses]
+        for aid in [k for k, v in datos['archivos'].items() if v['sesion'] == ses]:
             _borrar_archivo(datos, aid)
-        datos['trabajo'].pop(usuario, None)
+        datos['trabajo'].pop(ses, None)
         # mensaje oculto: el PC reinicia la sesión de TAVO de esta persona (no aparece en el chat)
-        _nuevo(datos, usuario, 'yo', 'cancelar', t=_ahora(), tomado=False, respondido=False, oculto=True)
+        _nuevo(datos, ses, 'yo', 'cancelar', t=_ahora(), tomado=False, respondido=False, oculto=True)
         _guardar(datos)
     return {'ok': True}
 
@@ -350,7 +381,7 @@ def ver_archivo(request: Request, aid: str, descargar: int = 0):
     usuario = _auth(request)
     with _lock:
         info = _vistas.get(aid) or _leer()['archivos'].get(aid)
-    if not info or not (info['sesion'] == usuario or _es_admin(usuario)):
+    if not info or not (_base(info['sesion']) == usuario or _es_admin(usuario)):
         raise HTTPException(404, 'Archivo no encontrado')
     ruta = (_dir_vistas if aid in _vistas else _dir_archivos) / f"{aid}.{info['ext']}"
     if not ruta.exists():
@@ -717,6 +748,9 @@ def auto_procesar(candidatos: list[dict]) -> list[str]:
                 vistos.add(c['clave']); cambio = True   # apagado: se anota como vista, no arranca
                 continue
             sesion = c.get('usuario') or next((m['sesion'] for m in reversed(datos['mensajes']) if m['rol'] == 'yo' and not m.get('auto')), '')
+            if sesion:
+                base = _base(sesion)
+                sesion = _sesion(base, _pc_de(datos, base))   # canal del PC elegido para el inicio automático
             if not sesion or not _conectado(datos, _pc_de(datos, sesion)):
                 continue   # sin a quién avisarle o sin el PC de esa persona: se reintenta luego
             if any(m['sesion'] == sesion and m['rol'] == 'yo' and not m.get('respondido') and not m.get('oculto') for m in datos['mensajes']):
@@ -754,6 +788,9 @@ def auto_mts(candidatos: list[dict]) -> list[str]:
             if c['clave'] in vistos:
                 continue
             sesion = c.get('usuario') or next((m['sesion'] for m in reversed(datos['mensajes']) if m['rol'] == 'yo' and not m.get('auto')), '')
+            if sesion:
+                base = _base(sesion)
+                sesion = _sesion(base, _pc_de(datos, base))
             if not sesion or not _conectado(datos, _pc_de(datos, sesion)):
                 continue
             if any(m['sesion'] == sesion and m['rol'] == 'yo' and not m.get('respondido') and not m.get('oculto') for m in datos['mensajes']):

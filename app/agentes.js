@@ -197,6 +197,13 @@
     .ag-live-cap .num{font-size:46px}.ag-live-cap .nom{font-size:24px}.ag-live-cap small{font-size:13px}
     .ag-live-sec h4{font-size:12.5px}.ag-live-list{font-size:13.5px}.ag-live-list div{padding:6px 10px}
     .ag-log{font-size:13px}}
+  .ag-tabs{display:flex;gap:8px;flex-wrap:wrap}.ag-tabs[hidden]{display:none}
+  .ag-tab{display:inline-flex;align-items:center;gap:9px;min-height:42px;padding:6px 18px;border:1px solid #34432f;border-radius:12px;background:#0c110d;color:#c4cfbf;font:800 13px Arial;cursor:pointer;width:auto!important}
+  .ag-tab i{width:9px;height:9px;border-radius:50%;background:#6f7d6a;flex:none}.ag-tab i.ok{background:#8bd450}.ag-tab i.mal{background:#ff6b5c}
+  .ag-tab b{letter-spacing:.05em}.ag-tab em{font:600 11.5px Arial;font-style:normal;color:#8f9b8a;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ag-tab.on{background:#d0f44c;border-color:#d0f44c;color:#142017}.ag-tab.on em{color:#33401a}
+  .ag-tab.ocupado:not(.on){border-color:#7da4ff;background:rgba(125,164,255,.08)}.ag-tab.ocupado:not(.on) em{color:#9db8ff}.ag-tab.ocupado i{animation:agpul 1s infinite}
+  @media(max-width:700px){.ag-tabs{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.ag-tabs::-webkit-scrollbar{display:none}.ag-tab{flex:none}}
   .ag-pcsel{min-height:40px;padding:0 12px;border:1px solid #60754d;border-radius:10px;background:#142017;color:#e3eadc;font:800 13px Arial;cursor:pointer}.ag-pcsel[hidden]{display:none}
   .ag-pcrow{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;border:1px solid #34432f;border-radius:12px;background:#0c110d}
   .ag-pcrow b{display:block;color:#eef4e9}.ag-pcrow small{display:block;color:#8f9b8a;font-size:.78rem}.ag-pcrow span{display:flex;gap:6px}.ag-pcrow .ag-btn{min-height:34px;padding:0 12px;font-size:12px}
@@ -608,7 +615,7 @@
       '<div class="ag-indiv" aria-label="Usar un agente por separado">' + AGENTES_BTN.map(([a, t, p]) => '<button type="button" class="ag-agbtn" style="--c:' + (COLORES[a] || '#c4cfbf') + '" data-atajo="' + esc(p) + '" title="' + esc(a + ': ' + ROLES[a] + ' (usa la orden activa)') + '"><i></i>' + esc(a) + '<small>' + esc(t) + '</small></button>').join('') + '</div>' +
       '<div class="ag-hacc"><select class="ag-pcsel" data-pc-activo hidden title="PC en el que se hace el proceso (abre Illustrator)" aria-label="PC del proceso"></select><button type="button" class="ag-btn danger" data-detener style="display:none">Detener</button>' +
       '<details class="ag-menu"><summary class="ag-ico" title="Más opciones">⋯</summary><div class="ag-menu-l"><button type="button" data-nueva>Nueva conversación</button><button type="button" data-conectar hidden>PC de los agentes…</button></div></details></div></header>' +
-      '<div data-aviso></div><section class="ag-res" data-resumen hidden></section>' +
+      '<nav class="ag-tabs" data-tabs hidden aria-label="PC de los agentes"></nav><div data-aviso></div><section class="ag-res" data-resumen hidden></section>' +
       '<button type="button" class="ag-ver-flujo" data-ver-flujo>▾ Ver flujo, pantalla en vivo y registro</button><div class="ag-main" data-main><div class="ag-orden" data-orden></div><section class="ag-chat"><div class="ag-thread" data-hilo></div><div class="ag-chips" data-replies></div>' +
       '<form class="ag-form" data-form><details class="ag-menu ag-atajos"><summary class="ag-ico" title="Acciones rápidas">⚡</summary><div class="ag-menu-l">' + ATAJOS.map(([l, p]) => '<button type="button" data-atajo="' + esc(p) + '">' + esc(l) + '</button>').join('') + '</div></details>' +
       '<textarea rows="1" placeholder="Escribe a TAVO…" maxlength="2000"></textarea><button type="submit" class="ag-btn">Enviar</button></form></section>' +
@@ -668,12 +675,23 @@
     panel.querySelector('textarea').disabled = st.esperando;
     panel.querySelector('[data-form] button[type="submit"]').disabled = st.esperando || st.enviando;
     if (st.admin) panel.querySelector('[data-conectar]').hidden = false;
+    const tabsEl = panel.querySelector('[data-tabs]');
+    if (tabsEl) {
+      const listaT = e.pcs || [], firmaT = JSON.stringify(listaT) + '|' + st.pc;
+      tabsEl.hidden = listaT.length < 2;
+      if (listaT.length > 1 && tabsEl.dataset.f !== firmaT) {
+        tabsEl.dataset.f = firmaT;
+        tabsEl.innerHTML = listaT.map(p => '<button type="button" class="ag-tab' + (p.id === st.pc ? ' on' : '') + (p.ocupado ? ' ocupado' : '') + '" data-pc-tab="' + esc(p.id) + '"><i class="' + (p.conectado ? 'ok' : 'mal') + '"></i><b>' + esc(p.nombre) + '</b><em>' +
+          (p.ocupado ? esc(p.trabajo || 'trabajando…') : (p.conectado ? 'libre' : 'desconectado')) + '</em></button>').join('');
+      }
+    }
     const selPc = panel.querySelector('[data-pc-activo]');
     if (selPc) {
       selPc.hidden = !st.admin;
-      const lista = e.pcs || [], firma = JSON.stringify(lista) + '|' + (e.pc_activo || '');
+      const lista = e.pcs || [], firma = lista.map(p => p.id + p.nombre + (p.conectado ? '1' : '0')).join(',') + '|' + (e.pc_activo || '');
       if (selPc.dataset.firma !== firma) {
-        selPc.innerHTML = '<option value="">PC del proceso: automático</option>' + lista.map(p => '<option value="' + esc(p.id) + '">' + (p.conectado ? '● ' : '○ ') + esc(p.nombre) + '</option>').join('');
+        selPc.title = 'PC donde arranca solo el proceso cuando alguien pone la P en EDICIÓN';
+        selPc.innerHTML = '<option value="">Inicio automático en: cualquiera</option>' + lista.map(p => '<option value="' + esc(p.id) + '">' + (p.conectado ? '● ' : '○ ') + esc(p.nombre) + '</option>').join('');
         selPc.value = e.pc_activo || ''; selPc.dataset.firma = firma;
       }
     }
@@ -682,7 +700,7 @@
 
   async function fijarOrden(codigo) {
     try {
-      const r = await api('/api/agentes/orden', { method: 'POST', body: JSON.stringify({ orden: codigo }) });
+      const r = await api('/api/agentes/orden', { method: 'POST', body: JSON.stringify({ orden: codigo, pc: st.pc }) });
       st.orden = r.orden; st.cambiandoOrden = false; flow.estadoServidor = null;   // la próxima petición abre una ejecución nueva
     } catch (e) { alert(e.message); }
     pintar();
@@ -695,17 +713,36 @@
     try {
       if (!flow.listo) reconstruir();
       prepararEjecucion();
-      const r = await api('/api/agentes/mensaje', { method: 'POST', body: JSON.stringify({ mensaje: texto }) });
+      const r = await api('/api/agentes/mensaje', { method: 'POST', body: JSON.stringify({ mensaje: texto, pc: st.pc }) });
       flow.preparado = r.id; st.esperando = true; await cargar(true);
     } catch (e) { alert(e.message); flow.listo = false; }
     st.enviando = false; pintar(); programar();
   }
 
+  // Cada PC con Illustrator tiene su propia pestaña (su chat, su flujo y su registro): se puede trabajar en uno mientras el otro está ocupado
+  function elegirPcInicial(e) {
+    const lista = (e && e.pcs) || [];
+    let guardado = ''; try { guardado = localStorage.getItem('agentes_pc') || ''; } catch (x) { /* sin almacenamiento */ }
+    const ok = id => lista.some(p => p.id === id), ocupado = lista.find(p => p.ocupado);
+    return (ok(guardado) && guardado) || (ocupado && ocupado.id) || (ok(e && e.pc_activo) && e.pc_activo) || (e && e.pc && e.pc.id) || 'principal';
+  }
+  async function cambiarPc(id) {
+    if (!id || id === st.pc) return;
+    st.pc = id; try { localStorage.setItem('agentes_pc', id); } catch (x) { /* sin almacenamiento */ }
+    Object.assign(st, { msgs: [], ultimo: 0, evs: [], ultimoEv: 0, trabajo: null, esperando: false, orden: '', cambiandoOrden: false, enviando: false, resAbierto: false });
+    flow.listo = false; flow.preparado = 0; flow.estadoServidor = null; flow.vistaFija = null;
+    const h = panel.querySelector('[data-hilo]'); if (h) { h.dataset.firma = ''; h.innerHTML = ''; }
+    const b = panel.querySelector('[data-orden]'); if (b) b.dataset.clave = '';
+    await cargar(true); pintar(); programar();
+  }
   async function cargar(forzar) {
     if (st.cargando && !forzar) return;
     st.cargando = true;
     try {
-      const [datos, estado] = await Promise.all([api('/api/agentes/mensajes?desde=' + st.ultimo + '&desde_ev=' + st.ultimoEv), api('/api/agentes/estado')]);
+      const canal = st.pc || '', q = canal ? '&pc=' + encodeURIComponent(canal) : '';
+      const [datos, estado] = await Promise.all([api('/api/agentes/mensajes?desde=' + st.ultimo + '&desde_ev=' + st.ultimoEv + q), api('/api/agentes/estado' + (canal ? '?pc=' + encodeURIComponent(canal) : ''))]);
+      if (!st.pc) { st.pc = elegirPcInicial(estado); try { localStorage.setItem('agentes_pc', st.pc); } catch (e) { /* sin almacenamiento */ } st.cargando = false; return cargar(true); }
+      if (canal !== st.pc) { st.cargando = false; return; }   // cambiaste de pestaña mientras se consultaba: se descarta
       const nuevos = datos.mensajes || [], evs = datos.eventos || [], primera = !flow.listo;
       st.esperando = datos.esperando; st.trabajo = datos.trabajo; st.estado = estado;
       if (!st.cambiandoOrden) st.orden = datos.orden || '';
@@ -789,6 +826,7 @@
     panel.addEventListener('click', async e => {
       // los menús (⋯ y ⚡) se cierran al elegir una opción o al tocar fuera
       panel.querySelectorAll('details.ag-menu[open]').forEach(d => { if (!d.contains(e.target) || e.target.closest('.ag-menu-l button')) d.removeAttribute('open'); });
+      const pestana = e.target.closest('[data-pc-tab]'); if (pestana) { await cambiarPc(pestana.dataset.pcTab); return; }
       if (e.target.closest('[data-orden-cambiar]')) { st.cambiandoOrden = true; pintar(); return; }
       if (e.target.closest('[data-orden-cancelar]')) { st.cambiandoOrden = false; pintar(); return; }
       if (e.target.closest('[data-orden-quitar]')) { await fijarOrden(''); return; }
@@ -813,11 +851,11 @@
         if (!st.esperando && st.orden) enviar('Pedido completo de la orden ' + st.orden);
       } else if (e.target.closest('[data-detener]')) {
         const b = e.target.closest('[data-detener]'); b.disabled = true; b.textContent = 'Deteniendo…';
-        try { await api('/api/agentes/detener', { method: 'POST', body: '{}' }); } catch (err) { b.disabled = false; b.textContent = 'Detener'; alert(err.message); return; }
+        try { await api('/api/agentes/detener', { method: 'POST', body: JSON.stringify({ pc: st.pc }) }); } catch (err) { b.disabled = false; b.textContent = 'Detener'; alert(err.message); return; }
         st.esperando = false; st.trabajo = null; await cargar(true); pintar();
       } else if (e.target.closest('[data-nueva]')) {
         if (st.msgs.length && !confirm('¿Borrar esta conversación? Los agentes empiezan de cero.')) return;
-        try { await api('/api/agentes/limpiar', { method: 'POST', body: '{}' }); } catch (err) { alert(err.message); return; }
+        try { await api('/api/agentes/limpiar', { method: 'POST', body: JSON.stringify({ pc: st.pc }) }); } catch (err) { alert(err.message); return; }
         st.msgs = []; st.ultimo = 0; st.evs = []; st.ultimoEv = 0; st.trabajo = null; flow.listo = false; flow.preparado = 0; await cargar(true); pintar();
       } else if (e.target.closest('[data-conectar]')) conectar();
     });
