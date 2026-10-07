@@ -130,12 +130,26 @@
 .cb-chip.sel{border-color:#d0f44c;background:#27391b;box-shadow:0 0 0 2px #d0f44c33}.cb-chip.halo{animation:cbhalo 1.6s}
 .cb-vacio{padding:40px;text-align:center;color:#8fa088;border:1px dashed #34432f;border-radius:14px}
 .cb-barra{position:fixed;left:50%;transform:translateX(-50%);bottom:14px;z-index:60;display:flex;gap:12px;flex-wrap:wrap;align-items:center;justify-content:center;max-width:calc(100vw - 24px);padding:12px 16px;border:1px solid #4a6338;border-radius:16px;background:#0b110bf2;box-shadow:0 14px 40px #000b;backdrop-filter:blur(6px)}
-.cb-barra:not(.on){display:none}.cb-barra label{display:flex;align-items:center;gap:6px;color:#c5d1bf;font:600 12px Arial}.cb-barra select,.cb-barra input[type=number]{padding:8px 9px;border:1px solid #3f553d;border-radius:8px;background:#162016;color:#fff;font:13px Arial}
+.cb-opc{display:contents}.cb-opcbtn{display:none}.cb-barra:not(.on){display:none}.cb-barra label{display:flex;align-items:center;gap:6px;color:#c5d1bf;font:600 12px Arial}.cb-barra select,.cb-barra input[type=number]{padding:8px 9px;border:1px solid #3f553d;border-radius:8px;background:#162016;color:#fff;font:13px Arial}
 .cb-barra input[type=number]{width:64px!important}.cb-barra input[type=checkbox]{width:auto!important}.cb-barra .p{background:#d0f44c;border-color:#d0f44c;color:#16200c}.cb-barra b{color:#d0f44c}
 .cb-prev{position:fixed;inset:0;z-index:90;display:none;place-items:center;background:#000c}.cb-prev.on{display:grid}.cb-prev>div{max-width:92vw;max-height:92vh;overflow:auto;padding:18px;border-radius:16px;background:#1a2218;border:1px solid #4a6338}
 .cb-prev h3{margin:0 0 12px;font:800 13px Arial;letter-spacing:.08em;color:#d0f44c}.cb-prev .hoja{display:inline-block;padding:0;border:1px dashed #888;background:#fff;box-shadow:0 8px 28px #0008}
 .cb-prev button{margin-top:14px}
-@media(max-width:700px){.cb-hero{padding:18px}.cb-scan{flex-wrap:wrap}.cb-tools .cuenta{margin-left:0}}
+@media(max-width:700px){
+.cb{gap:12px;padding-bottom:150px}
+.cb-hero{padding:16px 16px;border-radius:16px}.cb-hero h2{font-size:1.45rem}.cb-hero p{font-size:.88rem}
+.cb-scan{flex-wrap:wrap;gap:8px;padding:12px}.cb-scan span{flex:1 1 100%;white-space:normal}.cb-scan input{flex:1 1 100%;font-size:16px}
+.cb-scan .cb-cam{flex:1 1 100%;min-height:50px;font-size:15px}
+.cb-tools{gap:8px}.cb-tools input[type=search],.cb-tools select{flex:1 1 100%;min-width:0;font-size:16px}
+.cb-tools button{flex:1 1 calc(50% - 8px);min-height:44px}.cb-tools .cuenta{margin-left:0;flex:1 1 100%}
+.cb-grid{grid-template-columns:1fr}
+.cb-chip{padding:8px 11px;font-size:13px}.cb-rl button{min-height:40px}
+.cb-barra{left:8px;right:8px;bottom:8px;transform:none;max-width:none;padding:10px 12px;gap:8px;justify-content:space-between}
+.cb-barra button{min-height:44px;flex:1 1 40%}.cb-barra label{flex:1 1 45%}.cb-barra select{flex:1;min-width:0}
+.cb-prev>div{max-width:98vw;max-height:94vh;padding:12px}
+.cb-opcbtn{display:inline-block;flex:1 1 30%}.cb-opc{display:none;flex:1 1 100%;flex-wrap:wrap;gap:8px;align-items:center;order:5}.cb-barra.opc .cb-opc{display:flex}
+.cb-barra>span{flex:1 1 100%;order:0}.cb-barra button.p{flex:1 1 100%;order:9}
+}
 `;
   document.head.appendChild(estilo);
 
@@ -152,11 +166,11 @@
 
   const extras = document.createElement('div');
   extras.dataset.cbExtras = 'true';
-  extras.innerHTML = '<div class="cb-barra" data-cb-barra><span><b data-cb-n>0</b> etiquetas <small data-cb-det></small></span>' +
+  extras.innerHTML = '<div class="cb-barra" data-cb-barra><span><b data-cb-n>0</b> etiquetas <small data-cb-det></small></span><button type="button" class="cb-opcbtn" data-cb-opcbtn>⚙ Opciones</button><div class="cb-opc">' +
     '<label>Etiqueta <select data-cb-tam>' + Object.keys(TAMANOS).map(k => '<option value="' + k + '">' + k.replace('x', ' × ') + ' mm</option>').join('') + '<option value="otro">Otro tamaño…</option></select></label>' +
     '<label data-cb-otro hidden>Ancho <input type="number" min="20" max="200" data-cb-w> × Alto <input type="number" min="15" max="200" data-cb-h> mm</label>' +
     '<label>Copias <input type="number" min="1" max="200" data-cb-copias></label>' +
-    '<label><input type="checkbox" data-cb-op="nombre"> Nombre</label><label><input type="checkbox" data-cb-op="categoria"> Categoría</label><label><input type="checkbox" data-cb-op="stock"> Cantidad</label><label><input type="checkbox" data-cb-op="fecha"> Fecha</label>' +
+    '<label><input type="checkbox" data-cb-op="nombre"> Nombre</label><label><input type="checkbox" data-cb-op="categoria"> Categoría</label><label><input type="checkbox" data-cb-op="stock"> Cantidad</label><label><input type="checkbox" data-cb-op="fecha"> Fecha</label></div>' +
     '<button type="button" data-cb-vista>Vista previa</button><button type="button" class="p" data-cb-imprimir>Imprimir etiquetas</button></div>' +
     '<div class="cb-prev" data-cb-prev><div><h3>VISTA PREVIA · tamaño real de la etiqueta</h3><div data-cb-hoja></div><button type="button" data-cb-cerrar>Cerrar</button></div></div>';
   document.body.appendChild(extras);
@@ -285,6 +299,7 @@
     else if (e.target.matches('[data-cb-tam]')) { cfg.tamano = e.target.value; q('[data-cb-otro]').hidden = cfg.tamano !== 'otro'; guardarCfg(); }
     else if (e.target.matches('[data-cb-op]')) { cfg[e.target.dataset.cbOp] = e.target.checked; guardarCfg(); }
   };
+  extras.addEventListener('click', e => { const b = e.target.closest('[data-cb-opcbtn]'); if (b) q('[data-cb-barra]').classList.toggle('opc'); });
   [panel, extras].forEach(zona => { zona.addEventListener('click', alClic); zona.addEventListener('input', alEscribir); zona.addEventListener('change', alCambiar); });
   q('[data-cb-scan]').addEventListener('keydown', e => {
     if (e.key !== 'Enter') return;
@@ -373,7 +388,8 @@
       }
     } catch (err) {
       res.className = 'res mal';
-      res.textContent = /Permission|NotAllowed/i.test(String(err && (err.name || err.message))) ? 'Permite el acceso a la cámara en tu navegador y vuelve a intentar.' : (err && err.message) || 'No se pudo abrir la cámara.';
+      const motivo = String(err && (err.name + ' ' + err.message));
+      res.textContent = /Permission|NotAllowed/i.test(motivo) ? 'Permite el acceso a la cámara en tu navegador y vuelve a intentar.' : /NotFound|not found/i.test(motivo) ? 'No encontré una cámara en este equipo. Ábrelo desde tu celular.' : (err && err.message) || 'No se pudo abrir la cámara.';
     }
   }
   panel.addEventListener('click', e => { if (e.target.closest('[data-cb-cam]')) abrirCamara(); });
