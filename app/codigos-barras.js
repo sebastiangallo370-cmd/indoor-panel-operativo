@@ -47,10 +47,10 @@
   // ---------------------------------------------------------------- ajustes de la etiqueta
   const SOLO_CATEGORIA = 'BODEGA TELA';
   const TAMANOS = {'42x30': [42, 30], '40x40': [40, 40], '45x40': [45, 40], '50x40': [50, 40], '100x50': [100, 50], '100x70': [100, 70], '60x40': [60, 40], '50x30': [50, 30], '40x25': [40, 25]};
-  const POR_DEFECTO = {tamano: '42x30', ancho: 42, alto: 30, copias: 1, nombre: true, stock: true, categoria: true, fecha: false, imagen: true, dx: 0, dy: 0, anchoBarras: 1};
+  const POR_DEFECTO = {tamano: '42x30', ancho: 42, alto: 30, copias: 1, nombre: true, stock: true, categoria: true, fecha: false, imagen: true, dx: 0, dy: 0, anchoBarras: 1, hoja: 'igual'};
   let cfg = {...POR_DEFECTO};
-  try { cfg = {...POR_DEFECTO, ...JSON.parse(localStorage.getItem('codigosBarrasCfg8') || '{}')}; } catch (_) {}
-  const guardarCfg = () => { try { localStorage.setItem('codigosBarrasCfg8', JSON.stringify(cfg)); } catch (_) {} };
+  try { cfg = {...POR_DEFECTO, ...JSON.parse(localStorage.getItem('codigosBarrasCfg9') || '{}')}; } catch (_) {}
+  const guardarCfg = () => { try { localStorage.setItem('codigosBarrasCfg9', JSON.stringify(cfg)); } catch (_) {} };
   const medidas = () => cfg.tamano === 'otro' ? [Math.max(20, Math.min(200, Number(cfg.ancho) || 100)), Math.max(15, Math.min(200, Number(cfg.alto) || 50))] : TAMANOS[cfg.tamano] || TAMANOS['100x50'];
 
   // item.tipo === 'rollo': etiqueta de un rollo (código propio + metros); si no, etiqueta de la tela
@@ -182,15 +182,22 @@
     g.fillStyle = '#000';
     g.fillRect(0, 0, c.width, 2); g.fillRect(0, c.height - 2, c.width, 2); g.fillRect(0, 0, 2, c.height); g.fillRect(c.width - 2, 0, 2, c.height);   // borde: si se corta, el papel no es de esta medida
     g.fillRect(0, 0, 14, 2); g.fillRect(0, 0, 2, 14);
-    imprimirHTML('<!doctype html><html><head><meta charset="utf-8"><title>Etiqueta de prueba</title><style>@page{size:' + w + 'mm ' + h + 'mm;margin:0}html,body{margin:0;padding:0;background:#fff}' +
-      'img{display:block;width:' + w + 'mm;height:' + h + 'mm;image-rendering:pixelated;image-rendering:crisp-edges}</style></head><body><img alt="" src="' + c.toDataURL('image/png') + '"></body></html>');
+    imprimirHTML(paginaImagenes([c.toDataURL('image/png')], 'Etiqueta de prueba'));
+  }
+  // Papel de la impresora: normalmente igual a la etiqueta; si el driver solo trabaja con un papel más grande, la etiqueta va en su esquina superior izquierda
+  const medidasHoja = () => (cfg.hoja && cfg.hoja !== 'igual' && TAMANOS[cfg.hoja]) ? TAMANOS[cfg.hoja] : medidas();
+  function paginaImagenes(srcs, titulo) {
+    const [w, h] = medidas(), [HW, HH] = medidasHoja();
+    const paginas = srcs.map(src => '<section class="pg"><img alt="" src="' + src + '"></section>').join('');
+    return '<!doctype html><html><head><meta charset="utf-8"><title>' + titulo + '</title><style>@page{size:' + HW + 'mm ' + HH + 'mm;margin:0}*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff}' +
+      '.pg{position:relative;width:' + HW + 'mm;height:' + HH + 'mm;overflow:hidden;page-break-after:always;break-after:page}.pg:last-child{page-break-after:auto;break-after:auto}' +
+      '.pg img{position:absolute;left:0;top:0;display:block;width:' + w + 'mm;height:' + h + 'mm;image-rendering:pixelated;image-rendering:crisp-edges}</style></head><body>' + paginas + '</body></html>';
   }
   function imprimirImagen(items) {
     const [w, h] = medidas(), copias = Math.max(1, Math.min(200, Number(cfg.copias) || 1));
-    const paginas = [];
-    items.forEach(item => { const src = etiquetaCanvas(item, [w, h]).toDataURL('image/png'); for (let i = 0; i < copias; i++) paginas.push('<img alt="" src="' + src + '">'); });
-    imprimirHTML('<!doctype html><html><head><meta charset="utf-8"><title>Etiquetas</title><style>@page{size:' + w + 'mm ' + h + 'mm;margin:0}*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff}' +
-      'img{display:block;width:' + w + 'mm;height:' + h + 'mm;image-rendering:pixelated;image-rendering:crisp-edges;page-break-after:always;break-after:page}img:last-child{page-break-after:auto;break-after:auto}</style></head><body>' + paginas.join('') + '</body></html>');
+    const srcs = [];
+    items.forEach(item => { const src = etiquetaCanvas(item, [w, h]).toDataURL('image/png'); for (let i = 0; i < copias; i++) srcs.push(src); });
+    imprimirHTML(paginaImagenes(srcs, 'Etiquetas'));
   }
 
   function imprimir(items) {
@@ -307,6 +314,7 @@
     '<label>Etiqueta <select data-cb-tam>' + Object.keys(TAMANOS).map(k => '<option value="' + k + '">' + k.replace('x', ' × ') + ' mm</option>').join('') + '<option value="otro">Otro tamaño…</option></select></label>' +
     '<label data-cb-otro hidden>Ancho <input type="number" min="20" max="200" data-cb-w> × Alto <input type="number" min="15" max="200" data-cb-h> mm</label>' +
     '<label>Copias <input type="number" min="1" max="200" data-cb-copias></label>' +
+    '<label>Papel de la impresora <select data-cb-papel><option value="igual">Igual que la etiqueta</option>' + Object.keys(TAMANOS).map(k => '<option value="' + k + '">' + k.replace('x', ' × ') + ' mm</option>').join('') + '</select></label>' +
     '<label>Mover → <input type="number" step="0.5" min="-10" max="10" data-cb-dx> mm</label><label>↓ <input type="number" step="0.5" min="-10" max="10" data-cb-dy> mm</label>' +
     '<label>Barras <select data-cb-ab><option value="1">Ancho máximo</option><option value="0.9">90 %</option><option value="0.8">80 %</option><option value="0.7">70 %</option></select></label>' +
     '<label><input type="checkbox" data-cb-op="nombre"> Nombre</label><label><input type="checkbox" data-cb-op="categoria"> Categoría</label><label><input type="checkbox" data-cb-op="stock"> Cantidad</label><label><input type="checkbox" data-cb-op="fecha"> Fecha</label><label><input type="checkbox" data-cb-op="imagen"> Como imagen</label></div>' +
@@ -412,7 +420,7 @@
   }
 
   const aplicarCfg = () => {
-    q('[data-cb-tam]').value = cfg.tamano; q('[data-cb-w]').value = cfg.ancho; q('[data-cb-h]').value = cfg.alto; q('[data-cb-copias]').value = cfg.copias; q('[data-cb-dx]').value = cfg.dx; q('[data-cb-dy]').value = cfg.dy; q('[data-cb-ab]').value = String(cfg.anchoBarras);
+    q('[data-cb-tam]').value = cfg.tamano; q('[data-cb-w]').value = cfg.ancho; q('[data-cb-h]').value = cfg.alto; q('[data-cb-copias]').value = cfg.copias; q('[data-cb-dx]').value = cfg.dx; q('[data-cb-dy]').value = cfg.dy; q('[data-cb-ab]').value = String(cfg.anchoBarras); q('[data-cb-papel]').value = cfg.hoja || 'igual';
     q('[data-cb-otro]').hidden = cfg.tamano !== 'otro';
     extras.querySelectorAll('[data-cb-op]').forEach(c => { c.checked = !!cfg[c.dataset.cbOp]; });
   };
@@ -474,6 +482,7 @@
   };
   const alCambiar = e => {
     if (e.target.matches('[data-cb-cat]')) { estado.cat = e.target.value; pintar(); }
+    else if (e.target.matches('[data-cb-papel]')) { cfg.hoja = e.target.value; guardarCfg(); }
     else if (e.target.matches('[data-cb-ab]')) { cfg.anchoBarras = Number(e.target.value) || 1; guardarCfg(); }
     else if (e.target.matches('[data-cb-orden]')) { estado.orden = e.target.value; pintar(); }
     else if (e.target.matches('[data-cb-tam]')) { cfg.tamano = e.target.value; q('[data-cb-otro]').hidden = cfg.tamano !== 'otro'; guardarCfg(); }
