@@ -152,16 +152,4 @@ def mis_permisos(request: Request):
             'permisos': permisos}
 
 
-@router.get('/matriz')
-def ver_matriz(request: Request):
-    if rol_de(_autenticar(request)) != 'administracion':
-        raise HTTPException(403, 'Solo la administración puede ver los permisos')
-    return {'roles': ROLES, 'acciones': ACCIONES, 'modulos': {m: {'nombre': n, 'acciones': list(a)} for m, (n, a) in MODULOS.items()},
-            'matriz': matriz()}
-
-
-@router.put('/matriz')
-def cambiar_matriz(request: Request, payload: dict):
-    if rol_de(_autenticar(request)) != 'administracion':
-        raise HTTPException(403, 'Solo la administración puede cambiar los permisos')
-    return {'ok': True, 'matriz': guardar(payload.get('matriz') or {})}
+# (Se eliminó la pantalla y los endpoints para cambiar la matriz de permisos: rigen los valores por defecto de _defaults().)

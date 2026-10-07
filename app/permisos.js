@@ -52,11 +52,8 @@
     // Quien edita solo lo suyo no ve botones de escritura.
     document.body.classList.toggle('sin-editar-inventario', !can('inventario', 'editar'));
     document.body.classList.toggle('sin-editar-cartera', !can('cartera', 'editar'));
-    // Enlace para la administración.
-    if (mine.admin && !document.querySelector('[data-permisos-link]')) {
-      const nav = document.querySelector('.sidebar nav.tabs');
-      if (nav) { const a = document.createElement('a'); a.dataset.permisosLink = '1'; a.href = '/permisos'; a.className = 'tab'; a.style.cssText = 'text-decoration:none;display:flex;align-items:center;gap:10px'; a.innerHTML = '<span class="nav-icon">PM</span><strong>PERMISOS</strong>'; nav.appendChild(a); }
-    }
+    // (El módulo PERMISOS se eliminó: ya no hay enlace ni pantalla para cambiar permisos; rigen los valores por defecto.)
+    document.querySelectorAll('[data-permisos-link]').forEach(a => a.remove());
   }
 
   const eds = document.createElement('style');
