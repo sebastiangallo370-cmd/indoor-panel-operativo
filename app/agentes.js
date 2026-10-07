@@ -151,7 +151,7 @@
   .ag-res[hidden]{display:none}
   /* ---- interfaz compacta: encabezado en una fila, menús ⋯ y ⚡, botones pequeños ---- */
   .ag{gap:8px}
-  .ag-hd{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:7px 12px;border:1px solid #2d3b4a;border-radius:14px;background:linear-gradient(135deg,#131c27,#11150f)}
+  .ag-hd{width:100%;max-width:none;box-sizing:border-box;margin:0;display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:7px 12px;border:1px solid #2d3b4a;border-radius:14px;background:linear-gradient(135deg,#131c27,#11150f)}
   .ag-hd h2{margin:0;font-size:1rem;letter-spacing:.08em}
   .ag-hd .ag-state{flex:1 1 auto;gap:6px;min-width:0}.ag-hd .ag-pill{padding:3px 9px;font-size:11px}
   .ag-hacc{display:flex;gap:6px;align-items:center;margin-left:auto}
