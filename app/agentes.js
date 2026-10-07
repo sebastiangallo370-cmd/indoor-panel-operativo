@@ -179,7 +179,7 @@
   @media(max-width:1000px){.ag-chat{grid-template-rows:none!important}}
   @media(min-width:1001px){
     /* franja superior: orden + flujo; debajo: chat angosto | pantalla en vivo grande | montajes y PDF */
-    .ag-main{grid-template-columns:minmax(300px,24%) minmax(0,1fr)!important;grid-template-rows:auto minmax(0,1fr) auto!important;gap:12px!important;height:max(660px,calc(100vh - 215px))!important;min-height:0!important}
+    .ag-main{grid-template-columns:minmax(300px,24%) minmax(0,1fr)!important;grid-template-rows:auto minmax(0,1fr) auto!important;gap:12px!important;height:max(700px,calc(100vh - 165px))!important;min-height:0!important}
     .ag-flowcol{display:contents!important}
     .ag-orden{grid-column:1;grid-row:1;align-self:start}
     .ag-lienzo{grid-column:2;grid-row:1}
@@ -201,7 +201,9 @@
   .ag-tab{display:inline-flex;align-items:center;gap:9px;min-height:42px;padding:6px 18px;border:1px solid #34432f;border-radius:12px;background:#0c110d;color:#c4cfbf;font:800 13px Arial;cursor:pointer;width:auto!important}
   .ag-tab i{width:9px;height:9px;border-radius:50%;background:#6f7d6a;flex:none}.ag-tab i.ok{background:#8bd450}.ag-tab i.mal{background:#ff6b5c}
   .ag-tab b{letter-spacing:.05em}.ag-tab em{font:600 11.5px Arial;font-style:normal;color:#8f9b8a;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .ag-tabnota{align-self:center;margin-left:6px;color:#8f9b8a;font:600 12px Arial}
+  .ag-hd .ag-tabs{flex:0 0 auto;gap:6px;flex-wrap:nowrap;padding:0 12px 0 10px;border-left:1px solid #34432f;border-right:1px solid #34432f}
+  .ag-hd .ag-tab{min-height:34px;padding:3px 12px;font-size:12px;gap:7px}.ag-hd .ag-tab em{max-width:150px;font-size:11px}
+  @media(max-width:1000px){.ag-hd .ag-tabs{flex:1 1 100%;border:0;padding:0;overflow-x:auto}}
   .ag-tab.on{background:#d0f44c;border-color:#d0f44c;color:#142017}.ag-tab.on em{color:#33401a}
   .ag-tab.ocupado:not(.on){border-color:#7da4ff;background:rgba(125,164,255,.08)}.ag-tab.ocupado:not(.on) em{color:#9db8ff}.ag-tab.ocupado i{animation:agpul 1s infinite}
   @media(max-width:700px){.ag-tabs{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.ag-tabs::-webkit-scrollbar{display:none}.ag-tab{flex:none}}
@@ -613,10 +615,11 @@
   // ================================================================== pantalla
   function armar() {
     panel.innerHTML = '<div class="ag"><header class="ag-hd"><h2>AGENTES</h2><div class="ag-state" data-estado></div>' +
+      '<nav class="ag-tabs" data-tabs hidden aria-label="PC de los agentes" title="La pestaña activa es el PC donde arranca solo el proceso cuando alguien pone la P en EDICIÓN"></nav>' +
       '<div class="ag-indiv" aria-label="Usar un agente por separado">' + AGENTES_BTN.map(([a, t, p]) => '<button type="button" class="ag-agbtn" style="--c:' + (COLORES[a] || '#c4cfbf') + '" data-atajo="' + esc(p) + '" title="' + esc(a + ': ' + ROLES[a] + ' (usa la orden activa)') + '"><i></i>' + esc(a) + '<small>' + esc(t) + '</small></button>').join('') + '</div>' +
       '<div class="ag-hacc"><button type="button" class="ag-btn danger" data-detener style="display:none">Detener</button>' +
       '<details class="ag-menu"><summary class="ag-ico" title="Más opciones">⋯</summary><div class="ag-menu-l"><button type="button" data-nueva>Nueva conversación</button><button type="button" data-conectar hidden>PC de los agentes…</button></div></details></div></header>' +
-      '<nav class="ag-tabs" data-tabs hidden aria-label="PC de los agentes"></nav><div data-aviso></div><section class="ag-res" data-resumen hidden></section>' +
+      '<div data-aviso></div><section class="ag-res" data-resumen hidden></section>' +
       '<button type="button" class="ag-ver-flujo" data-ver-flujo>▾ Ver flujo, pantalla en vivo y registro</button><div class="ag-main" data-main><div class="ag-orden" data-orden></div><section class="ag-chat"><div class="ag-thread" data-hilo></div><div class="ag-chips" data-replies></div>' +
       '<form class="ag-form" data-form><details class="ag-menu ag-atajos"><summary class="ag-ico" title="Acciones rápidas">⚡</summary><div class="ag-menu-l">' + ATAJOS.map(([l, p]) => '<button type="button" data-atajo="' + esc(p) + '">' + esc(l) + '</button>').join('') + '</div></details>' +
       '<textarea rows="1" placeholder="Escribe a TAVO…" maxlength="2000"></textarea><button type="submit" class="ag-btn">Enviar</button></form></section>' +
@@ -683,8 +686,7 @@
       if (listaT.length > 1 && tabsEl.dataset.f !== firmaT) {
         tabsEl.dataset.f = firmaT;
         tabsEl.innerHTML = listaT.map(p => '<button type="button" class="ag-tab' + (p.id === st.pc ? ' on' : '') + (p.ocupado ? ' ocupado' : '') + '" data-pc-tab="' + esc(p.id) + '"><i class="' + (p.conectado ? 'ok' : 'mal') + '"></i><b>' + esc(p.nombre) + '</b><em>' +
-          (p.ocupado ? esc(p.trabajo || 'trabajando…') : (p.conectado ? 'libre' : 'desconectado')) + '</em></button>').join('') +
-          '<span class="ag-tabnota" title="La pestaña activa es el PC donde arranca solo el proceso cuando alguien pone la P en EDICIÓN">▸ La P arranca en la pestaña activa</span>';
+          (p.ocupado ? esc(p.trabajo || 'trabajando…') : (p.conectado ? 'libre' : 'desconectado')) + '</em></button>').join('');
       }
     }
     const selPc = panel.querySelector('[data-pc-activo]');
