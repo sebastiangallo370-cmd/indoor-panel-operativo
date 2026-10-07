@@ -47,10 +47,10 @@
   // ---------------------------------------------------------------- ajustes de la etiqueta
   const SOLO_CATEGORIA = 'BODEGA TELA';
   const TAMANOS = {'42x30': [42, 30], '40x40': [40, 40], '45x40': [45, 40], '50x40': [50, 40], '100x50': [100, 50], '100x70': [100, 70], '60x40': [60, 40], '50x30': [50, 30], '40x25': [40, 25]};
-  const POR_DEFECTO = {tamano: '42x30', ancho: 42, alto: 30, copias: 1, nombre: true, stock: true, categoria: true, fecha: false, imagen: true};
+  const POR_DEFECTO = {tamano: '42x30', ancho: 42, alto: 30, copias: 1, nombre: true, stock: true, categoria: true, fecha: false, imagen: true, dx: 0, dy: 0, anchoBarras: 1};
   let cfg = {...POR_DEFECTO};
-  try { cfg = {...POR_DEFECTO, ...JSON.parse(localStorage.getItem('codigosBarrasCfg7') || '{}')}; } catch (_) {}
-  const guardarCfg = () => { try { localStorage.setItem('codigosBarrasCfg7', JSON.stringify(cfg)); } catch (_) {} };
+  try { cfg = {...POR_DEFECTO, ...JSON.parse(localStorage.getItem('codigosBarrasCfg8') || '{}')}; } catch (_) {}
+  const guardarCfg = () => { try { localStorage.setItem('codigosBarrasCfg8', JSON.stringify(cfg)); } catch (_) {} };
   const medidas = () => cfg.tamano === 'otro' ? [Math.max(20, Math.min(200, Number(cfg.ancho) || 100)), Math.max(15, Math.min(200, Number(cfg.alto) || 50))] : TAMANOS[cfg.tamano] || TAMANOS['100x50'];
 
   // item.tipo === 'rollo': etiqueta de un rollo (código propio + metros); si no, etiqueta de la tela
@@ -66,7 +66,7 @@
     const codigoMm = baja ? 3 : compacta ? 3.4 : h >= 45 ? 4 : h >= 35 ? 3.4 : 2.8;
     const metrosMm = baja ? 4.4 : compacta ? 5.6 : h >= 60 ? 8 : h >= 45 ? 6.5 : h >= 35 ? 5 : 3.8;
     const pieMm = baja ? 2 : compacta ? 2.3 : h >= 45 ? 2.8 : 2.3;
-    const disponible = w - pad * 2;
+    const disponible = (w - pad * 2) * (Number(cfg.anchoBarras) || 1);
     const modulo = moduloMm(item.codigo, disponible, margen);
     const altoBarras = baja ? (cfg.nombre ? 9 : 12) : compacta ? Math.round(h * (cfg.nombre ? 0.34 : 0.45)) : Math.max(7, Math.round(h * (rollo ? (cfg.nombre ? 0.27 : 0.38) : (cfg.nombre ? 0.36 : 0.5))));
     const fecha = cfg.fecha ? new Date().toLocaleDateString('es-CO') : '';
@@ -144,6 +144,13 @@
       }
       y += b.h + hueco;
     });
+    // ajuste fino: mover todo el contenido unos milímetros (si la impresora corre la etiqueta)
+    const dx = Math.round((Number(cfg.dx) || 0) * DPM), dy = Math.round((Number(cfg.dy) || 0) * DPM);
+    if (dx || dy) {
+      const copia = document.createElement('canvas'); copia.width = W; copia.height = H;
+      copia.getContext('2d').drawImage(c, 0, 0);
+      g.fillStyle = '#fff'; g.fillRect(0, 0, W, H); g.drawImage(copia, dx, dy);
+    }
     // blanco y negro puros: sin grises que el driver de la etiquetadora tenga que adivinar
     const d = g.getImageData(0, 0, W, H), px = d.data;
     for (let i = 0; i < px.length; i += 4) { const v = (px[i] * 0.3 + px[i + 1] * 0.59 + px[i + 2] * 0.11) < 150 ? 0 : 255; px[i] = px[i + 1] = px[i + 2] = v; px[i + 3] = 255; }
@@ -300,6 +307,8 @@
     '<label>Etiqueta <select data-cb-tam>' + Object.keys(TAMANOS).map(k => '<option value="' + k + '">' + k.replace('x', ' × ') + ' mm</option>').join('') + '<option value="otro">Otro tamaño…</option></select></label>' +
     '<label data-cb-otro hidden>Ancho <input type="number" min="20" max="200" data-cb-w> × Alto <input type="number" min="15" max="200" data-cb-h> mm</label>' +
     '<label>Copias <input type="number" min="1" max="200" data-cb-copias></label>' +
+    '<label>Mover → <input type="number" step="0.5" min="-10" max="10" data-cb-dx> mm</label><label>↓ <input type="number" step="0.5" min="-10" max="10" data-cb-dy> mm</label>' +
+    '<label>Barras <select data-cb-ab><option value="1">Ancho máximo</option><option value="0.9">90 %</option><option value="0.8">80 %</option><option value="0.7">70 %</option></select></label>' +
     '<label><input type="checkbox" data-cb-op="nombre"> Nombre</label><label><input type="checkbox" data-cb-op="categoria"> Categoría</label><label><input type="checkbox" data-cb-op="stock"> Cantidad</label><label><input type="checkbox" data-cb-op="fecha"> Fecha</label><label><input type="checkbox" data-cb-op="imagen"> Como imagen</label></div>' +
     '<button type="button" data-cb-vista>Vista previa</button><button type="button" class="p" data-cb-imprimir>Imprimir etiquetas</button></div>' +
     '<div class="cb-prev" data-cb-prev><div><h3>VISTA PREVIA · tamaño real de la etiqueta</h3><div data-cb-hoja></div><button type="button" data-cb-cerrar>Cerrar</button></div></div>';
@@ -403,7 +412,7 @@
   }
 
   const aplicarCfg = () => {
-    q('[data-cb-tam]').value = cfg.tamano; q('[data-cb-w]').value = cfg.ancho; q('[data-cb-h]').value = cfg.alto; q('[data-cb-copias]').value = cfg.copias;
+    q('[data-cb-tam]').value = cfg.tamano; q('[data-cb-w]').value = cfg.ancho; q('[data-cb-h]').value = cfg.alto; q('[data-cb-copias]').value = cfg.copias; q('[data-cb-dx]').value = cfg.dx; q('[data-cb-dy]').value = cfg.dy; q('[data-cb-ab]').value = String(cfg.anchoBarras);
     q('[data-cb-otro]').hidden = cfg.tamano !== 'otro';
     extras.querySelectorAll('[data-cb-op]').forEach(c => { c.checked = !!cfg[c.dataset.cbOp]; });
   };
@@ -458,11 +467,14 @@
   const alEscribir = e => {
     if (e.target.matches('[data-cb-q]')) { estado.texto = e.target.value; pintar(); }
     else if (e.target.matches('[data-cb-copias]')) { cfg.copias = e.target.value; guardarCfg(); }
+    else if (e.target.matches('[data-cb-dx]')) { cfg.dx = Number(e.target.value) || 0; guardarCfg(); }
+    else if (e.target.matches('[data-cb-dy]')) { cfg.dy = Number(e.target.value) || 0; guardarCfg(); }
     else if (e.target.matches('[data-cb-w]')) { cfg.ancho = e.target.value; guardarCfg(); }
     else if (e.target.matches('[data-cb-h]')) { cfg.alto = e.target.value; guardarCfg(); }
   };
   const alCambiar = e => {
     if (e.target.matches('[data-cb-cat]')) { estado.cat = e.target.value; pintar(); }
+    else if (e.target.matches('[data-cb-ab]')) { cfg.anchoBarras = Number(e.target.value) || 1; guardarCfg(); }
     else if (e.target.matches('[data-cb-orden]')) { estado.orden = e.target.value; pintar(); }
     else if (e.target.matches('[data-cb-tam]')) { cfg.tamano = e.target.value; q('[data-cb-otro]').hidden = cfg.tamano !== 'otro'; guardarCfg(); }
     else if (e.target.matches('[data-cb-op]')) { cfg[e.target.dataset.cbOp] = e.target.checked; guardarCfg(); }
