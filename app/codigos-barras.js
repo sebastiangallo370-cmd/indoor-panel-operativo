@@ -46,11 +46,11 @@
 
   // ---------------------------------------------------------------- ajustes de la etiqueta
   const SOLO_CATEGORIA = 'BODEGA TELA';
-  const TAMANOS = {'40x40': [40, 40], '45x40': [45, 40], '50x40': [50, 40], '100x50': [100, 50], '100x70': [100, 70], '60x40': [60, 40], '50x30': [50, 30], '40x25': [40, 25]};
-  const POR_DEFECTO = {tamano: '40x40', ancho: 40, alto: 40, copias: 1, nombre: true, stock: true, categoria: true, fecha: false, imagen: true};
+  const TAMANOS = {'42x30': [42, 30], '40x40': [40, 40], '45x40': [45, 40], '50x40': [50, 40], '100x50': [100, 50], '100x70': [100, 70], '60x40': [60, 40], '50x30': [50, 30], '40x25': [40, 25]};
+  const POR_DEFECTO = {tamano: '42x30', ancho: 42, alto: 30, copias: 1, nombre: true, stock: true, categoria: true, fecha: false, imagen: true};
   let cfg = {...POR_DEFECTO};
-  try { cfg = {...POR_DEFECTO, ...JSON.parse(localStorage.getItem('codigosBarrasCfg6') || '{}')}; } catch (_) {}
-  const guardarCfg = () => { try { localStorage.setItem('codigosBarrasCfg6', JSON.stringify(cfg)); } catch (_) {} };
+  try { cfg = {...POR_DEFECTO, ...JSON.parse(localStorage.getItem('codigosBarrasCfg7') || '{}')}; } catch (_) {}
+  const guardarCfg = () => { try { localStorage.setItem('codigosBarrasCfg7', JSON.stringify(cfg)); } catch (_) {} };
   const medidas = () => cfg.tamano === 'otro' ? [Math.max(20, Math.min(200, Number(cfg.ancho) || 100)), Math.max(15, Math.min(200, Number(cfg.alto) || 50))] : TAMANOS[cfg.tamano] || TAMANOS['100x50'];
 
   // item.tipo === 'rollo': etiqueta de un rollo (código propio + metros); si no, etiqueta de la tela
@@ -60,14 +60,15 @@
     const pad = compacta ? (w <= 42 ? 1 : 1.5) : (h >= 40 ? 3 : 2);
     const margen = compacta ? (w <= 42 ? 3 : 6) : 10;   // la zona blanca del lado también la da el borde de la etiqueta
     const nombreImpreso = String(item.nombre || '').replace(/^\s*\([^)]*\)\s*/, '').trim() || item.nombre;   // el código ya sale debajo de las barras
-    const nombreMm = compacta ? (nombreImpreso.length > 40 ? 2.6 : nombreImpreso.length > 24 ? 2.9 : 3.2)
+    const baja = compacta && h <= 32;   // etiqueta baja (42 x 30): todo más compacto
+    const nombreMm = baja ? (nombreImpreso.length > 40 ? 2.2 : nombreImpreso.length > 24 ? 2.4 : 2.6) : compacta ? (nombreImpreso.length > 40 ? 2.6 : nombreImpreso.length > 24 ? 2.9 : 3.2)
       : (h >= 60 ? 5 : h >= 45 ? 4.2 : h >= 35 ? 3.4 : 2.7) * (nombreImpreso.length > 50 ? 0.82 : nombreImpreso.length > 32 ? 0.92 : 1);
-    const codigoMm = compacta ? 3.4 : h >= 45 ? 4 : h >= 35 ? 3.4 : 2.8;
-    const metrosMm = compacta ? 5.6 : h >= 60 ? 8 : h >= 45 ? 6.5 : h >= 35 ? 5 : 3.8;
-    const pieMm = compacta ? 2.3 : h >= 45 ? 2.8 : 2.3;
+    const codigoMm = baja ? 3 : compacta ? 3.4 : h >= 45 ? 4 : h >= 35 ? 3.4 : 2.8;
+    const metrosMm = baja ? 4.4 : compacta ? 5.6 : h >= 60 ? 8 : h >= 45 ? 6.5 : h >= 35 ? 5 : 3.8;
+    const pieMm = baja ? 2 : compacta ? 2.3 : h >= 45 ? 2.8 : 2.3;
     const disponible = w - pad * 2;
     const modulo = moduloMm(item.codigo, disponible, margen);
-    const altoBarras = compacta ? Math.round(h * (cfg.nombre ? 0.34 : 0.45)) : Math.max(7, Math.round(h * (rollo ? (cfg.nombre ? 0.27 : 0.38) : (cfg.nombre ? 0.36 : 0.5))));
+    const altoBarras = baja ? (cfg.nombre ? 9 : 12) : compacta ? Math.round(h * (cfg.nombre ? 0.34 : 0.45)) : Math.max(7, Math.round(h * (rollo ? (cfg.nombre ? 0.27 : 0.38) : (cfg.nombre ? 0.36 : 0.5))));
     const fecha = cfg.fecha ? new Date().toLocaleDateString('es-CO') : '';
     const pie = rollo
       ? ['Rollo ' + item.n + (item.empezado ? ' · EMPEZADO' : ''), fecha].filter(Boolean).join(' · ')
