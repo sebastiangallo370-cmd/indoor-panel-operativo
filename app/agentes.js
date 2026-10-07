@@ -386,6 +386,7 @@
       case 'CONFIRMAR_SHEETS': espera('TERRY'); pildora('espera', 'Esperando tu confirmación'); break;
       case 'CONFIRMAR': poner(flow.cursor, 'espera'); pildora('espera', 'Esperando tu confirmación'); break;
       case 'ELEGIR_PROYECTO': poner('LEO', 'espera'); flow.cursor = 'LEO'; pildora('espera', 'Elige un proyecto'); break;
+      case 'ELEGIR_PESTANA': poner('LEO', 'espera'); flow.cursor = 'LEO'; pildora('espera', 'Elige una pestaña'); break;
       case 'ELEGIR_AI': poner('TAVO', 'espera'); flow.cursor = 'TAVO'; pildora('espera', 'Elige un archivo'); break;
       case 'ERROR': pildora('error', 'Terminó con errores'); break;
       default:
