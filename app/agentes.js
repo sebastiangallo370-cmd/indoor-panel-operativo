@@ -146,6 +146,35 @@
     .ag .ag-chips[data-replies] button{padding:9px 14px!important}
   }
 
+
+  .ag-res{display:grid;gap:12px;padding:16px 18px;border:1px solid #2d3b4a;border-radius:16px;background:linear-gradient(135deg,#111a22,#0f140f)}
+  .ag-res[hidden]{display:none}
+  .ag-res-top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+  .ag-res-top h3{margin:0;font:800 11px Arial;letter-spacing:.12em;color:#7da4ff;text-transform:uppercase}
+  .ag-res-top .qa{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}.ag-res-top .qa b{font-size:1.05rem;color:#eef4e9}.ag-res-top .qa small{color:#aebba7;font-size:.8rem}
+  .ag-res-top .tiempo{font:800 13px Consolas,monospace;color:#d7ff3a}
+  .ag-barra2{height:8px;border-radius:99px;background:#1c261c;overflow:hidden}.ag-barra2 i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#6fe39a,#d7ff3a);transition:width .5s}
+  .ag-barra2.err i{background:#ff6b5c}
+  .ag-pasos{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}
+  .ag-paso{display:grid;gap:2px;padding:8px 10px;border:1px solid #34432f;border-radius:10px;background:#0c110d;font-size:.78rem;color:#8f9b8a}
+  .ag-paso b{font-size:.8rem;color:#c4cfbf}.ag-paso em{font-style:normal;font-size:.72rem}
+  .ag-paso.ok{border-color:#8bd450}.ag-paso.ok b{color:#8bd450}.ag-paso.corriendo{border-color:#7da4ff;background:rgba(125,164,255,.08)}.ag-paso.corriendo b{color:#7da4ff}
+  .ag-paso.espera{border-color:#ffc95c}.ag-paso.espera b{color:#ffc95c}.ag-paso.error{border-color:#ff6b5c}.ag-paso.error b{color:#ff6b5c}
+  .ag-ahora{padding:9px 12px;border-radius:10px;background:#0c110d;border:1px solid #34432f;color:#d6dae2;font-size:.86rem;line-height:1.45}.ag-ahora b{color:#7da4ff}
+  .ag-ahora.nota{border-color:#ffc95c;background:rgba(255,201,92,.07);color:#ffe3a3}
+  .ag-datos{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px}
+  .ag-dato{display:grid;gap:2px;padding:9px 12px;border:1px solid #2d3b2f;border-radius:10px;background:#0c110d}
+  .ag-dato small{color:#8f9b8a;font:800 10px Arial;letter-spacing:.08em;text-transform:uppercase}.ag-dato span{color:#eef4e9;font-size:.88rem;overflow-wrap:anywhere}
+  .ag-dato.aviso{border-color:rgba(255,201,92,.55)}.ag-dato.aviso small{color:#ffc95c}
+  .ag-ayuda{display:grid;gap:8px;padding:11px 13px;border-radius:12px;border:1px solid rgba(255,201,92,.55);background:rgba(255,201,92,.07);color:#ffe3a3;font-size:.86rem;line-height:1.45}
+  .ag-ayuda b{color:#ffc95c}.ag-ayuda .acc{display:flex;gap:8px;flex-wrap:wrap}
+  .ag-ayuda button{min-height:0;padding:7px 14px;border:1px solid #ffc95c;border-radius:999px;background:transparent;color:#ffc95c;font:800 12px Arial;cursor:pointer}.ag-ayuda button:disabled{opacity:.5}
+  .ag-ayuda.err{border-color:rgba(255,106,90,.6);background:rgba(255,106,90,.07);color:#ffc7bf}.ag-ayuda.err b{color:#ff8a7c}.ag-ayuda.err button{border-color:#ff8a7c;color:#ff8a7c}
+  details.ag-det{border:1px solid #34432f;border-radius:10px;background:#0c110d;padding:8px 12px}details.ag-det summary{cursor:pointer;color:#ffc95c;font-weight:800;font-size:.84rem}
+  details.ag-det div{margin-top:6px;max-height:220px;overflow:auto;color:#c4cfbf;font-size:.8rem;line-height:1.5;white-space:pre-wrap}
+  .ag-log .WARN::before{content:'⚠ ';color:#ffbd66}.ag-log .ERROR::before{content:'✖ ';color:#ff8a8a}
+  @media(max-width:1000px){.ag-pasos{grid-template-columns:repeat(3,minmax(0,1fr))}}
+  @media(max-width:700px){.ag-pasos{grid-template-columns:repeat(2,minmax(0,1fr))}.ag-datos{grid-template-columns:1fr 1fr}.ag-res{padding:12px}}
   `;
   document.head.appendChild(css);
 
@@ -402,19 +431,117 @@
   function pintarLog() {
     const l = panel.querySelector('[data-log]'), f = panel.querySelector('[data-filtros]'); if (!l || !f || !flow.ejec) return;
     const abajo = l.scrollTop + l.clientHeight >= l.scrollHeight - 30;
-    f.innerHTML = [['Todo', null], ...['TAVO', 'LEO', 'JACK', 'OLVER', 'OLIVER', 'TERRY'].map(x => [x, x])].map(([t, v]) => '<button type="button" data-filtro="' + (v || '') + '" class="' + (flow.filtro === v ? 'on' : '') + '">' + t + '</button>').join('');
-    const lista = flow.ejec.eventos.filter(e => !flow.filtro || e.agente === flow.filtro);
+    f.innerHTML = [['Todo', null], ['⚠ Avisos y errores', '!'], ...['TAVO', 'LEO', 'JACK', 'OLVER', 'OLIVER', 'TERRY'].map(x => [x, x])].map(([t, v]) => '<button type="button" data-filtro="' + (v || '') + '" class="' + (flow.filtro === v ? 'on' : '') + '">' + t + '</button>').join('');
+    const lista = flow.ejec.eventos.filter(e => !flow.filtro || (flow.filtro === '!' ? (e.nivel === 'WARN' || e.nivel === 'ERROR') : e.agente === flow.filtro));
     l.innerHTML = lista.length ? lista.map(e => '<div class="' + esc(e.nivel) + '"><span class="h">' + esc(e.hora) + '</span><b style="color:' + (COLORES[e.agente] || '#ccc') + '">' + esc(e.agente) + '</b><span class="m">' + esc(e.msg) + '</span></div>').join('')
       : '<div class="vacio2">' + (flow.filtro ? 'Este nodo aún no ha hecho nada en esta ejecución.' : 'Aquí verás lo que hace cada agente, paso a paso.') + '</div>';
     if (abajo) l.scrollTop = l.scrollHeight;
-    pintarLive();
+    pintarLive(); pintarResumen();
+  }
+
+  // ================================================================== resumen de la orden, progreso y ayuda
+  const PASOS = [['LEO', 'Listado'], ['JACK', 'Muestra'], ['APROB', 'Aprobación'], ['OLVER', 'Mesas'], ['OLIVER', 'PDF por jugador'], ['TERRY', 'MTS y Sheets']];
+  const mmss = seg => { seg = Math.max(0, Math.round(seg)); return Math.floor(seg / 60) + ':' + String(seg % 60).padStart(2, '0'); };
+  function datosOrden() {
+    const evs = flow.ejec ? flow.ejec.eventos : [], d = { mts: [], plantillas: [], ignoradas: [], enProceso: [], blancos: 0, lineas: 0, muestra: '', montajes: 0, pdfs: 0, pdfsPlan: 0, avisos: 0, errores: 0 };
+    const vm = new Set(), vp = new Set();
+    evs.forEach(e => {
+      const m = e.msg || '';
+      if (e.nivel === 'WARN') d.avisos++; if (e.nivel === 'ERROR') d.errores++;
+      let r;
+      if ((r = /LEO informó: (\S+) = cliente (.+) \/ proyecto (.+)$/.exec(m))) { d.orden = r[1]; d.cliente = r[2]; d.proyecto = r[3]; }
+      if ((r = /Producción tiene en proceso (.+?): ignoro las demás referencias del listado \((.+)\)/.exec(m))) { d.enProceso = r[1].split(/,\s*/); d.ignoradas = d.ignoradas.concat(r[2].split(/,\s*/)); }
+      if ((r = /El listado no trae las referencias (.+?): no hago/.exec(m))) d.ignoradas = d.ignoradas.concat(r[1].split(/,\s*/).map(x => x + ' (maestro)'));
+      if ((r = /Promedios maestros: (\S+) -> maestro (.+?); plantillas (.+)$/.exec(m))) d.plantillas.push(r[1] + ': ' + r[3]);
+      if ((r = /(\S+): ([\d.,]+) MTS escritos/.exec(m))) d.mts.push(r[1] + ' ' + r[2] + ' MTS');
+      if ((r = /Validé (\d+) líneas del listado/.exec(m))) { d.lineas = Number(r[1]); d.blancos = Number((/(\d+) dato\(s\) en blanco/.exec(m) || [])[1] || 0); }
+      if (/Muestra lista:|conservo la muestra/.test(m)) d.muestra = /conservo/.test(m) ? 'Conservada (ya existía)' : 'Creada';
+      const a = e.archivo;
+      if (a) {
+        if (a.tipo === 'plan') d.pdfsPlan += Number(a.pdfs) || 0;
+        else if (a.tipo === 'montaje' && !vm.has(a.nombre)) { vm.add(a.nombre); d.montajes++; }
+        else if (a.tipo === 'pdf') { const k = a.detalle || (a.nombre + a.numero + a.talla); if (!vp.has(k)) { vp.add(k); d.pdfs++; } }
+      }
+    });
+    return d;
+  }
+  function pintarResumen() {
+    const box = panel && panel.querySelector('[data-resumen]'); if (!box || !flow.ejec) return;
+    const evs = flow.ejec.eventos;
+    if (!evs.length && !st.esperando) { box.hidden = true; return; }
+    box.hidden = false;
+    const d = datosOrden(), ahora = Date.now() / 1000, primero = evs.length ? evs[0].t : ahora, ultimo = evs.length ? evs[evs.length - 1] : null;
+    const corriendo = st.esperando, fin = !corriendo && ['INICIO', 'FIN', 'ERROR'].includes(flow.estadoServidor || 'INICIO');
+    const total = (corriendo ? ahora : (ultimo ? ultimo.t : ahora)) - primero;
+    const estados = PASOS.map(([id]) => flow.estado[id] || 'inactivo');
+    let avance = estados.reduce((a, x) => a + (x === 'ok' ? 1 : (x === 'corriendo' || x === 'espera') ? 0.5 : 0), 0) / PASOS.length * 100;
+    if (fin && !d.errores) avance = 100;
+    const esperaAprob = flow.estado.APROB === 'espera', esperaOtro = Object.values(flow.estado).includes('espera');
+    let ahoraHtml = '', nota = false;
+    if (corriendo && ultimo) {
+      const desde = ultimo.t, seg = ahora - desde;
+      if (/^Exportando mesas de/.test(ultimo.msg) && seg > 8) {
+        nota = true;
+        ahoraHtml = '<b>OLVER</b> está preparando la plantilla (' + esc(ultimo.msg.replace(/^Exportando mesas de /, '').split(' a ')[0]) + '). La primera vez que se usa una plantilla tarda unos 2 minutos; las siguientes veces, segundos. ' + (seg < 120 ? 'Faltan aprox. ' + mmss(120 - seg) + '.' : 'Casi listo…');
+      } else ahoraHtml = '<b>' + esc(ultimo.agente) + '</b> · ' + esc(ultimo.msg) + ' <span style="color:#8f9b8a">(hace ' + mmss(seg) + ')</span>';
+    } else if (esperaAprob) { ahoraHtml = '<b>Te toca a ti:</b> revisa la muestra y pulsa Aprobada o Rechazada.'; nota = true; }
+    else if (esperaOtro && !corriendo) { ahoraHtml = '<b>Te toca a ti:</b> responde en el chat para que sigan los agentes.'; nota = true; }
+    else if (fin && ultimo) ahoraHtml = d.errores ? 'Terminó con <b>' + d.errores + ' error(es)</b>. Revisa el aviso en el chat.' : 'Terminó' + (d.avisos ? ' con ' + d.avisos + ' aviso(s)' : ' sin problemas') + ' en <b>' + mmss(total) + '</b>.';
+    const pasosHtml = PASOS.map(([id, nom], i) => {
+      const e = estados[i], txt = { ok: 'Listo', corriendo: 'Trabajando…', espera: 'Esperando', error: 'Con error', inactivo: '—' }[e];
+      let extra = '';
+      if (id === 'OLVER' && d.montajes) extra = ' · ' + d.montajes + ' tallas';
+      if (id === 'OLIVER' && d.pdfs) extra = ' · ' + d.pdfs + (d.pdfsPlan ? '/' + d.pdfsPlan : '') + ' PDF';
+      return '<div class="ag-paso ' + e + '"><b>' + esc(nom) + '</b><em>' + txt + extra + '</em></div>';
+    }).join('');
+    const dato = (k, v, aviso) => v ? '<div class="ag-dato' + (aviso ? ' aviso' : '') + '"><small>' + esc(k) + '</small><span>' + esc(v) + '</span></div>' : '';
+    const datos = dato('Cliente · proyecto', d.cliente ? d.cliente + ' · ' + d.proyecto : '') + dato('Referencias en proceso', d.enProceso.join(', ')) +
+      dato('Ignoradas (no están en proceso o en el listado)', d.ignoradas.join(', '), true) + dato('Plantillas (Promedios maestros)', d.plantillas.join(' | ')) +
+      dato('Muestra', d.muestra) + dato('Mesas exportadas', d.montajes ? d.montajes + ' tallas' : '') + dato('PDF de producción', d.pdfs ? d.pdfs + (d.pdfsPlan ? ' de ' + d.pdfsPlan : '') : '') +
+      dato('Líneas del listado', d.lineas ? d.lineas + (d.blancos ? ' · ' + d.blancos + ' datos en blanco (nombre/número)' : '') : '', d.blancos > 0) + dato('MTS requeridos', d.mts.join(' · '));
+    box.innerHTML = '<div class="ag-res-top"><div class="qa"><h3>Resumen de la orden</h3><b>' + esc(d.orden || st.orden || '') + '</b><small>' + (d.errores ? '✖ ' + d.errores + ' error(es)' : '') + (d.avisos ? ' ⚠ ' + d.avisos + ' aviso(s)' : '') + '</small></div><span class="tiempo">⏱ ' + mmss(total) + (corriendo ? ' en curso' : '') + '</span></div>' +
+      '<div class="ag-barra2' + (d.errores ? ' err' : '') + '"><i style="width:' + Math.round(avance) + '%"></i></div><div class="ag-pasos">' + pasosHtml + '</div>' +
+      (ahoraHtml ? '<div class="ag-ahora' + (nota ? ' nota' : '') + '">' + ahoraHtml + '</div>' : '') + (datos ? '<div class="ag-datos">' + datos + '</div>' : '');
+  }
+  setInterval(() => { if (panel && panel.classList.contains('active') && st.esperando) pintarResumen(); }, 1000);
+
+  // Qué significa cada mensaje de error o aviso y qué hacer (con botones que mandan el mensaje al chat)
+  const AYUDAS = [
+    [/no pude exportar ninguna talla/i, 'Ninguna plantilla del maestro coincide con las tallas del listado.', 'Revisa que el listado tenga talla, género y diseño de la referencia en proceso.', [['Ver listado', 'Qué dice el listado de la orden '], ['Reprocesar', 'Reprocesar la orden ']]],
+    [/no pide tallas de dise/i, 'Esa plantilla no se usa en esta orden (el listado no pide ese diseño o género).', 'Normalmente no hay que hacer nada: se salta sola y sigue con las demás.', []],
+    [/no aparece en el listado|no está en el listado/i, 'LEO no encontró la orden en el listado.', 'Revisa que la carpeta de la orden esté en la NAS con su Excel y que el código esté bien escrito.', [['Reintentar', 'Reprocesar la orden ']]],
+    [/Faltan consumos en Promedios|sin consumo para|no existe el maestro/i, 'Falta el consumo de alguna talla en Promedios maestros.', 'Cárgalo en PROMEDIOS MAESTROS y vuelve a calcular los MTS.', [['Calcular MTS otra vez', 'Calcula los MTS requeridos de la orden ']]],
+    [/Illustrator no respondió|Illustrator no pudo abrir|no encuentro el archivo|No encuentro Illustrator/i, 'Illustrator no respondió o no encuentra el archivo.', 'Revisa que Illustrator esté abierto en el PC de los agentes y que la NAS esté conectada; luego reintenta.', [['Reintentar', 'Reprocesar la orden ']]],
+    [/sin género claro/i, 'Hay líneas del listado sin género claro (MASC, FEM o NIÑO).', 'Corrige el género en el Excel del listado y reprocesa.', [['Reprocesar', 'Reprocesar la orden ']]],
+    [/no hay un Excel|no encontré la fila de encabezados/i, 'No se pudo leer el Excel del listado.', 'Debe estar dentro de la carpeta de la orden y tener una columna TALLA.', [['Ver listado', 'Qué dice el listado de la orden ']]],
+    [/no tiene la mesa de trabajo|no tiene mesas de las tallas/i, 'El maestro no trae la mesa de alguna talla pedida.', 'Revisa la plantilla del maestro en la NAS (nombre de las mesas: Talla_M_…).', []],
+    [/El Sheet ya tiene MTS/i, 'La tarjeta ya tenía MTS: no se cambiaron.', 'Si necesitas otros, bórralos en la tarjeta y vuelve a calcular.', []],
+  ];
+  function ayudaDe(texto, esError) {
+    const hit = AYUDAS.find(([re]) => re.test(texto)); if (!hit) return '';
+    const [, que, hacer, botones] = hit;
+    return '<div class="ag-ayuda' + (esError ? ' err' : '') + '"><div><b>' + (esError ? '✖ ' : '⚠ ') + esc(que) + '</b></div><div>💡 ' + esc(hacer) + '</div>' +
+      (botones.length ? '<div class="acc">' + botones.map(([t, msg]) => '<button type="button" data-send="' + esc(msg.endsWith(' ') ? msg.trim() + (st.orden ? ' ' + st.orden : '') : msg) + '"' + (st.esperando ? ' disabled' : '') + '>' + esc(t) + '</button>').join('') + '</div>' : '') + '</div>';
+  }
+  // Los bloques largos de «datos en blanco» se pliegan en un solo renglón
+  function textoHtml(texto) {
+    const lineas = String(texto || '').split('\n'), out = [];
+    for (let i = 0; i < lineas.length; i++) {
+      if (/datos? en blanco/i.test(lineas[i]) && /^•/.test(lineas[i + 1] || '')) {
+        let j = i + 1; const det = [];
+        while (j < lineas.length && /^•/.test(lineas[j])) det.push(lineas[j++]);
+        out.push('<details class="ag-det"><summary>' + esc(lineas[i].replace(/^[^A-Za-zÁ-ú0-9]+/, '').replace(/\(no los invento.*?\)/i, '').trim().replace(/:$/, '')) + ' · ' + det.length + ' avisos · ver detalle</summary><div>' + esc(det.join('\n')) + '</div></details>');
+        i = j - 1;
+      } else out.push(esc(lineas[i]));
+    }
+    return out.join('\n').replace(/\n(<details)/g, '$1').replace(/(<\/details>)\n/g, '$1');
   }
 
   // ================================================================== pantalla
   function armar() {
     panel.innerHTML = '<div class="ag"><header class="ag-head"><div><span class="k">EDICIÓN · INTELIGENCIA</span><h2>AGENTES</h2><p>Escríbele a TAVO y él decide qué agente actúa. Todo se ejecuta en el PC con Illustrator.</p></div>' +
       '<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="ag-btn danger" data-detener style="display:none">Detener agentes</button><button type="button" class="ag-btn sec" data-nueva>Nueva conversación</button><button type="button" class="ag-btn sec" data-conectar hidden>Conectar PC</button></div></header>' +
-      '<div class="ag-state" data-estado></div><div data-aviso></div>' +
+      '<div class="ag-state" data-estado></div><div data-aviso></div><section class="ag-res" data-resumen hidden></section>' +
       '<div class="ag-main"><section class="ag-chat"><div class="ag-orden" data-orden></div><div class="ag-thread" data-hilo></div><div class="ag-chips" data-replies></div>' +
       '<div class="ag-chips" data-atajos>' + ATAJOS.map(([l, p]) => '<button type="button" data-atajo="' + esc(p) + '">' + esc(l) + '</button>').join('') + '</div>' +
       '<form class="ag-form" data-form><textarea rows="1" placeholder="Escribe a TAVO…" maxlength="2000"></textarea><button type="submit" class="ag-btn">Enviar</button></form></section>' +
@@ -451,7 +578,7 @@
     const trabajo = st.trabajo;
     const hilo = st.msgs.length ? st.msgs.map(m => m.rol === 'yo'
       ? '<div class="ag-msg yo"><p class="ag-txt">' + esc(m.texto) + '</p><span class="ag-time">' + hora(m.creado) + '</span></div>'
-      : '<div class="ag-msg bot' + (m.estado === 'ERROR' ? ' err' : '') + (m.tabla || (m.archivos && m.archivos.length) ? ' con-tabla' : '') + '"><div class="ag-who">' + (m.agentes && m.agentes.length ? m.agentes : ['TAVO']).map(tag).join('') + '</div><p class="ag-txt">' + esc(m.tabla ? m.texto.split(/\n\nDesglose del listado/)[0] : m.texto) + '</p>' + (m.tabla ? tablaHtml(m) : '') + (m.archivos && m.archivos.length ? archivosHtml(m) : '') + '<span class="ag-time">' + hora(m.creado) + '</span></div>').join('')
+      : '<div class="ag-msg bot' + (m.estado === 'ERROR' ? ' err' : '') + (m.tabla || (m.archivos && m.archivos.length) ? ' con-tabla' : '') + '"><div class="ag-who">' + (m.agentes && m.agentes.length ? m.agentes : ['TAVO']).map(tag).join('') + '</div><p class="ag-txt">' + textoHtml(m.tabla ? m.texto.split(/\n\nDesglose del listado/)[0] : m.texto) + '</p>' + (m.estado === 'ERROR' || /^[A-Z]+: /.test(m.texto) ? ayudaDe(m.texto, m.estado === 'ERROR' || /no pude|no pudo|falt|no aparece|no está/i.test(m.texto)) : '') + (m.tabla ? tablaHtml(m) : '') + (m.archivos && m.archivos.length ? archivosHtml(m) : '') + '<span class="ag-time">' + hora(m.creado) + '</span></div>').join('')
       : '<div class="ag-empty"><h3>¿Qué necesitas hoy?</h3><p>Fija la orden arriba y pídele lo que necesites, por ejemplo «exporta las mesas». TAVO decide qué agente actúa.</p></div>';
     const trabajando = st.esperando ? '<div class="ag-work"><div class="ag-who">' + ((trabajo && trabajo.agentes) || ['TAVO']).map(a => tag(a)).join('') + '<span class="ag-dots"><i></i><i></i><i></i></span></div><b>' +
       esc(trabajo && trabajo.msg ? trabajo.agente + ': ' + trabajo.msg : e.conectado ? 'TAVO está trabajando…' : 'Esperando al PC de los agentes…') + '</b><button type="button" class="ag-btn danger" data-detener>Detener</button></div>' : '';
