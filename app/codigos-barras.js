@@ -46,17 +46,17 @@
 
   // ---------------------------------------------------------------- ajustes de la etiqueta
   const SOLO_CATEGORIA = 'BODEGA TELA';
-  const TAMANOS = {'50x40': [50, 40], '100x50': [100, 50], '100x70': [100, 70], '60x40': [60, 40], '50x30': [50, 30], '40x25': [40, 25]};
-  const POR_DEFECTO = {tamano: '50x40', ancho: 50, alto: 40, copias: 1, nombre: true, stock: true, categoria: true, fecha: false};
+  const TAMANOS = {'40x40': [40, 40], '50x40': [50, 40], '100x50': [100, 50], '100x70': [100, 70], '60x40': [60, 40], '50x30': [50, 30], '40x25': [40, 25]};
+  const POR_DEFECTO = {tamano: '40x40', ancho: 40, alto: 40, copias: 1, nombre: true, stock: true, categoria: true, fecha: false};
   let cfg = {...POR_DEFECTO};
-  try { cfg = {...POR_DEFECTO, ...JSON.parse(localStorage.getItem('codigosBarrasCfg2') || '{}')}; } catch (_) {}
-  const guardarCfg = () => { try { localStorage.setItem('codigosBarrasCfg2', JSON.stringify(cfg)); } catch (_) {} };
+  try { cfg = {...POR_DEFECTO, ...JSON.parse(localStorage.getItem('codigosBarrasCfg3') || '{}')}; } catch (_) {}
+  const guardarCfg = () => { try { localStorage.setItem('codigosBarrasCfg3', JSON.stringify(cfg)); } catch (_) {} };
   const medidas = () => cfg.tamano === 'otro' ? [Math.max(20, Math.min(200, Number(cfg.ancho) || 100)), Math.max(15, Math.min(200, Number(cfg.alto) || 50))] : TAMANOS[cfg.tamano] || TAMANOS['100x50'];
 
   // item.tipo === 'rollo': etiqueta de un rollo (código propio + metros); si no, etiqueta de la tela
   function etiquetaHTML(item, [w, h]) {
     const rollo = item.tipo === 'rollo';
-    const pad = h >= 40 ? 3 : 2;
+    const pad = w <= 45 ? 1.5 : (h >= 40 ? 3 : 2);
     const nombreImpreso = String(item.nombre || '').replace(/^\s*\([^)]*\)\s*/, '').trim() || item.nombre;   // el código ya sale debajo de las barras
     const nombreMm = (h >= 60 ? 5 : h >= 45 ? 4.2 : h >= 35 ? 3.4 : 2.7) * (nombreImpreso.length > 50 ? 0.82 : nombreImpreso.length > 32 ? 0.92 : 1);
     const codigoMm = h >= 45 ? 4 : h >= 35 ? 3.4 : 2.8;
@@ -78,7 +78,7 @@
       '</div>' + '<style>.l .n{font-size:' + nombreMm + 'mm}.l .c{font-size:' + codigoMm + 'mm}.l .m{font-size:' + metrosMm + 'mm}.l .p{font-size:' + pieMm + 'mm}</style>';
   }
   function estiloEtiqueta([w, h]) {
-    const pad = h >= 40 ? 3 : 2;
+    const pad = w <= 45 ? 1.5 : (h >= 40 ? 3 : 2);
     return '.l{width:' + w + 'mm;height:' + h + 'mm;padding:' + pad + 'mm;box-sizing:border-box;display:flex;flex-direction:column;justify-content:space-between;align-items:center;overflow:hidden;font-family:Arial,Helvetica,sans-serif;color:#000;background:#fff;text-align:center}' +
       '.l .n{font-weight:700;line-height:1.1;max-height:2.3em;overflow:hidden;width:100%;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow-wrap:anywhere}.l .b{display:flex;justify-content:center;width:100%}.l .c{font-family:Consolas,"Courier New",monospace;font-weight:700;letter-spacing:.08em}' +
       '.l .m{font-weight:800;line-height:1}.l .p{color:#222;line-height:1.1;width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}';
