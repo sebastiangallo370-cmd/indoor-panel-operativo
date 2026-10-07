@@ -7,6 +7,9 @@
   const ROLES = { TAVO: 'Coordina', LEO: 'Lee el listado', JACK: 'Muestra PDF', OLVER: 'Exporta mesas', OLIVER: 'Valida tallas', TERRY: 'Google Sheets' };
   const ATAJOS = [['Ver listado', 'Qué dice el listado de la orden '], ['Exportar mesas', 'Expórtame las mesas de trabajo de la orden '], ['Crear muestra', 'Crea la muestra de la orden '],
     ['Pedido completo', 'Pedido completo de la orden '], ['Jugadores', 'jugadores'], ['Reiniciar', 'cancelar']];
+  // Botones para usar cada agente por separado (se aplican a la orden activa)
+  const AGENTES_BTN = [['LEO', 'Listado', 'Qué dice el listado de la orden '], ['JACK', 'Muestra', 'Crea la muestra de la orden '], ['OLVER', 'Mesas', 'Expórtame las mesas de trabajo de la orden '],
+    ['OLIVER', 'Jugadores', 'jugadores'], ['TERRY', 'MTS', 'Calcula los MTS requeridos de la orden ']];
   const st = { orden: '', cambiandoOrden: false, abiertos: {}, msgs: [], ultimo: 0, evs: [], ultimoEv: 0, esperando: false, trabajo: null, estado: { conectado: false }, cargando: false, enviando: false };
   let panel, tab, timer = 0;
 
@@ -153,7 +156,12 @@
   .ag{gap:8px}
   .ag-hd{width:100%;max-width:none;box-sizing:border-box;margin:0;display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:7px 12px;border:1px solid #2d3b4a;border-radius:14px;background:linear-gradient(135deg,#131c27,#11150f)}
   .ag-hd h2{margin:0;font-size:1rem;letter-spacing:.08em}
-  .ag-hd .ag-state{flex:1 1 auto;gap:6px;min-width:0}.ag-hd .ag-pill{padding:3px 9px;font-size:11px}
+  .ag-hd .ag-state{flex:0 1 auto;gap:6px;min-width:0}.ag-hd .ag-pill{padding:3px 9px;font-size:11px}
+  .ag-indiv{display:flex;gap:6px;flex:1 1 auto;justify-content:center;flex-wrap:wrap;align-items:center}
+  .ag-agbtn{display:inline-flex;align-items:center;gap:6px;min-height:34px;padding:0 12px;border:1px solid color-mix(in srgb,var(--c) 55%,transparent);border-radius:999px;background:color-mix(in srgb,var(--c) 10%,transparent);color:#eef4e9;font:800 12px Arial;letter-spacing:.04em;cursor:pointer;white-space:nowrap;width:auto!important}
+  .ag-agbtn i{width:8px;height:8px;border-radius:50%;background:var(--c)}.ag-agbtn small{font:700 11px Arial;color:#c4cfbf;letter-spacing:0}
+  .ag-agbtn:hover:not(:disabled){background:color-mix(in srgb,var(--c) 22%,transparent)}.ag-agbtn:disabled{opacity:.45;cursor:progress}
+  @media(max-width:1000px){.ag-indiv{flex:1 1 100%;flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;scrollbar-width:none}.ag-indiv::-webkit-scrollbar{display:none}}
   .ag-hacc{display:flex;gap:6px;align-items:center;margin-left:auto}
   .ag-menu{position:relative}.ag-menu>summary{list-style:none;cursor:pointer}.ag-menu>summary::-webkit-details-marker{display:none}
   .ag-ico{display:inline-grid;place-items:center;min-width:32px;min-height:32px;padding:0 8px;border:1px solid #60754d;border-radius:10px;background:transparent;color:#e3eadc;font:800 14px Arial;cursor:pointer}.ag-ico:hover{border-color:#d0f44c}
@@ -596,6 +604,7 @@
   // ================================================================== pantalla
   function armar() {
     panel.innerHTML = '<div class="ag"><header class="ag-hd"><h2>AGENTES</h2><div class="ag-state" data-estado></div>' +
+      '<div class="ag-indiv" aria-label="Usar un agente por separado">' + AGENTES_BTN.map(([a, t, p]) => '<button type="button" class="ag-agbtn" style="--c:' + (COLORES[a] || '#c4cfbf') + '" data-atajo="' + esc(p) + '" title="' + esc(a + ': ' + ROLES[a] + ' (usa la orden activa)') + '"><i></i>' + esc(a) + '<small>' + esc(t) + '</small></button>').join('') + '</div>' +
       '<div class="ag-hacc"><select class="ag-pcsel" data-pc-activo hidden title="PC en el que se hace el proceso (abre Illustrator)" aria-label="PC del proceso"></select><button type="button" class="ag-btn danger" data-detener style="display:none">Detener</button>' +
       '<details class="ag-menu"><summary class="ag-ico" title="Más opciones">⋯</summary><div class="ag-menu-l"><button type="button" data-nueva>Nueva conversación</button><button type="button" data-conectar hidden>PC de los agentes…</button></div></details></div></header>' +
       '<div data-aviso></div><section class="ag-res" data-resumen hidden></section>' +
