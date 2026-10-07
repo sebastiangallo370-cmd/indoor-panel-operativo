@@ -47,14 +47,14 @@
   // ---------------------------------------------------------------- ajustes de la etiqueta
   const SOLO_CATEGORIA = 'BODEGA TELA';
   const TAMANOS = {'40x40': [40, 40], '45x40': [45, 40], '50x40': [50, 40], '100x50': [100, 50], '100x70': [100, 70], '60x40': [60, 40], '50x30': [50, 30], '40x25': [40, 25]};
-  const POR_DEFECTO = {tamano: '40x40', ancho: 40, alto: 40, copias: 1, nombre: true, stock: true, categoria: true, fecha: false};
+  const POR_DEFECTO = {tamano: '40x40', ancho: 40, alto: 40, copias: 1, nombre: true, stock: true, categoria: true, fecha: false, imagen: true};
   let cfg = {...POR_DEFECTO};
-  try { cfg = {...POR_DEFECTO, ...JSON.parse(localStorage.getItem('codigosBarrasCfg5') || '{}')}; } catch (_) {}
-  const guardarCfg = () => { try { localStorage.setItem('codigosBarrasCfg5', JSON.stringify(cfg)); } catch (_) {} };
+  try { cfg = {...POR_DEFECTO, ...JSON.parse(localStorage.getItem('codigosBarrasCfg6') || '{}')}; } catch (_) {}
+  const guardarCfg = () => { try { localStorage.setItem('codigosBarrasCfg6', JSON.stringify(cfg)); } catch (_) {} };
   const medidas = () => cfg.tamano === 'otro' ? [Math.max(20, Math.min(200, Number(cfg.ancho) || 100)), Math.max(15, Math.min(200, Number(cfg.alto) || 50))] : TAMANOS[cfg.tamano] || TAMANOS['100x50'];
 
   // item.tipo === 'rollo': etiqueta de un rollo (código propio + metros); si no, etiqueta de la tela
-  function etiquetaHTML(item, [w, h]) {
+  function paramsEtiqueta(item, [w, h]) {
     const rollo = item.tipo === 'rollo';
     const compacta = w <= 46;
     const pad = compacta ? (w <= 42 ? 1 : 1.5) : (h >= 40 ? 3 : 2);
@@ -72,6 +72,11 @@
     const pie = rollo
       ? ['Rollo ' + item.n + (item.empezado ? ' · EMPEZADO' : ''), fecha].filter(Boolean).join(' · ')
       : [cfg.categoria ? item.categoria_label : '', cfg.stock && item.total_label ? item.total_label + (item.categoria === 'BODEGA TELA' ? ' MTS' : ' UND') : '', cfg.stock && item.rollos ? item.rollos + (item.rollos === 1 ? ' ROLLO' : ' ROLLOS') : '', fecha].filter(Boolean).join(' · ');
+    return {rollo, compacta, pad, margen, nombreImpreso, nombreMm, codigoMm, metrosMm, pieMm, modulo, altoBarras, fecha, pie};
+  }
+  function etiquetaHTML(item, tam) {
+    const [w, h] = tam;
+    const {rollo, pad, margen, nombreImpreso, nombreMm, codigoMm, metrosMm, pieMm, modulo, altoBarras, pie} = paramsEtiqueta(item, tam);
     return '<div class="l">' +
       (cfg.nombre ? '<div class="n">' + esc(nombreImpreso) + '</div>' : '') +
       '<div class="b">' + svgBarras(item.codigo, altoBarras, modulo, margen) + '</div>' +
@@ -87,7 +92,81 @@
       '.l .m{font-weight:800;line-height:1}.l .p{color:#222;line-height:1.1;width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}';
   }
 
+
+  // ---------------------------------------------------------------- etiqueta como IMAGEN a la medida exacta (203 dpi = 8 puntos por mm)
+  const DPM = 8;
+  function etiquetaCanvas(item, tam) {
+    const [w, h] = tam, P = paramsEtiqueta(item, tam);
+    const W = Math.round(w * DPM), H = Math.round(h * DPM), padPx = Math.round(P.pad * DPM), ancho = W - padPx * 2;
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const g = c.getContext('2d', {willReadFrequently: true});
+    g.fillStyle = '#fff'; g.fillRect(0, 0, W, H); g.fillStyle = '#000'; g.textAlign = 'center'; g.textBaseline = 'top';
+    const FUENTE = 'Arial, Helvetica, sans-serif';
+    const lineasDe = (texto, px, peso, maxLineas) => {
+      g.font = peso + ' ' + px + 'px ' + FUENTE;
+      const lineas = []; let actual = '';
+      String(texto).split(/\s+/).filter(Boolean).forEach(pal => {
+        const t = actual ? actual + ' ' + pal : pal;
+        if (g.measureText(t).width <= ancho || !actual) actual = t; else { lineas.push(actual); actual = pal; }
+      });
+      if (actual) lineas.push(actual);
+      if (lineas.length > maxLineas) {
+        lineas.length = maxLineas; let u = lineas[maxLineas - 1];
+        while (u.length > 1 && g.measureText(u + '…').width > ancho) u = u.slice(0, -1);
+        lineas[maxLineas - 1] = u + '…';
+      }
+      return lineas;
+    };
+    const texto = (txt, px, peso, maxLineas) => {   // reduce la letra hasta que quepa a lo ancho
+      let lineas = lineasDe(txt, px, peso, maxLineas);
+      while (px > 9 && lineas.some(l => g.measureText(l).width > ancho)) { px -= 1; lineas = lineasDe(txt, px, peso, maxLineas); }
+      return {tipo: 'texto', lineas, px, peso, h: Math.ceil(lineas.length * px * 1.12)};
+    };
+    const bloques = [];
+    if (cfg.nombre) bloques.push(texto(P.nombreImpreso, Math.round(P.nombreMm * DPM), '700', 2));
+    const altoBarras = Math.round(P.altoBarras * DPM);
+    bloques.push({tipo: 'barras', h: altoBarras});
+    bloques.push(texto(item.codigo, Math.round(P.codigoMm * DPM), '700', 1));
+    if (P.rollo) bloques.push(texto(fmt(item.valor) + ' MTS', Math.round(P.metrosMm * DPM), '800', 1));
+    if (P.pie) bloques.push(texto(P.pie, Math.round(P.pieMm * DPM), '400', 1));
+    const total = bloques.reduce((a, b) => a + b.h, 0), libre = H - padPx * 2 - total;
+    const hueco = bloques.length > 1 ? Math.max(0, libre / (bloques.length - 1)) : 0;
+    let y = bloques.length > 1 ? padPx : Math.max(padPx, (H - total) / 2);
+    bloques.forEach(b => {
+      if (b.tipo === 'texto') {
+        g.font = b.peso + ' ' + b.px + 'px ' + FUENTE;
+        b.lineas.forEach((l, i) => g.fillText(l, W / 2, Math.round(y + i * b.px * 1.12)));
+      } else {
+        const modulo = Math.max(1, Math.round(P.modulo * DPM)), cod = code128(item.codigo), totalMod = cod.modulos + P.margen * 2;
+        let x = Math.round((W - totalMod * modulo) / 2) + P.margen * modulo;
+        cod.anchos.forEach((a, i) => { if (i % 2 === 0) g.fillRect(x, Math.round(y), a * modulo, b.h); x += a * modulo; });
+      }
+      y += b.h + hueco;
+    });
+    // blanco y negro puros: sin grises que el driver de la etiquetadora tenga que adivinar
+    const d = g.getImageData(0, 0, W, H), px = d.data;
+    for (let i = 0; i < px.length; i += 4) { const v = (px[i] * 0.3 + px[i + 1] * 0.59 + px[i + 2] * 0.11) < 150 ? 0 : 255; px[i] = px[i + 1] = px[i + 2] = v; px[i + 3] = 255; }
+    g.putImageData(d, 0, 0);
+    return c;
+  }
+  function imprimirHTML(html) {
+    const marco = document.createElement('iframe');
+    marco.setAttribute('aria-hidden', 'true');
+    marco.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
+    document.body.appendChild(marco);
+    marco.onload = () => { try { marco.contentWindow.focus(); marco.contentWindow.print(); } finally { setTimeout(() => marco.remove(), 120000); } };
+    marco.srcdoc = html;
+  }
+  function imprimirImagen(items) {
+    const [w, h] = medidas(), copias = Math.max(1, Math.min(200, Number(cfg.copias) || 1));
+    const paginas = [];
+    items.forEach(item => { const src = etiquetaCanvas(item, [w, h]).toDataURL('image/png'); for (let i = 0; i < copias; i++) paginas.push('<img alt="" src="' + src + '">'); });
+    imprimirHTML('<!doctype html><html><head><meta charset="utf-8"><title>Etiquetas</title><style>@page{size:' + w + 'mm ' + h + 'mm;margin:0}*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff}' +
+      'img{display:block;width:' + w + 'mm;height:' + h + 'mm;image-rendering:pixelated;image-rendering:crisp-edges;page-break-after:always;break-after:page}img:last-child{page-break-after:auto;break-after:auto}</style></head><body>' + paginas.join('') + '</body></html>');
+  }
+
   function imprimir(items) {
+    if (cfg.imagen) { imprimirImagen(items); return; }
     const tam = medidas(), [w, h] = tam, copias = Math.max(1, Math.min(200, Number(cfg.copias) || 1));
     const paginas = [];
     items.forEach(item => { for (let i = 0; i < copias; i++) paginas.push('<section class="pg">' + etiquetaHTML(item, tam) + '</section>'); });
@@ -205,7 +284,7 @@
     '<label>Etiqueta <select data-cb-tam>' + Object.keys(TAMANOS).map(k => '<option value="' + k + '">' + k.replace('x', ' × ') + ' mm</option>').join('') + '<option value="otro">Otro tamaño…</option></select></label>' +
     '<label data-cb-otro hidden>Ancho <input type="number" min="20" max="200" data-cb-w> × Alto <input type="number" min="15" max="200" data-cb-h> mm</label>' +
     '<label>Copias <input type="number" min="1" max="200" data-cb-copias></label>' +
-    '<label><input type="checkbox" data-cb-op="nombre"> Nombre</label><label><input type="checkbox" data-cb-op="categoria"> Categoría</label><label><input type="checkbox" data-cb-op="stock"> Cantidad</label><label><input type="checkbox" data-cb-op="fecha"> Fecha</label></div>' +
+    '<label><input type="checkbox" data-cb-op="nombre"> Nombre</label><label><input type="checkbox" data-cb-op="categoria"> Categoría</label><label><input type="checkbox" data-cb-op="stock"> Cantidad</label><label><input type="checkbox" data-cb-op="fecha"> Fecha</label><label><input type="checkbox" data-cb-op="imagen"> Como imagen</label></div>' +
     '<button type="button" data-cb-vista>Vista previa</button><button type="button" class="p" data-cb-imprimir>Imprimir etiquetas</button></div>' +
     '<div class="cb-prev" data-cb-prev><div><h3>VISTA PREVIA · tamaño real de la etiqueta</h3><div data-cb-hoja></div><button type="button" data-cb-cerrar>Cerrar</button></div></div>';
   document.body.appendChild(extras);
@@ -353,7 +432,7 @@
     if (e.target.closest('[data-cb-vista]')) {
       const lista = seleccionados(); if (!lista.length) return;
       const tam = medidas();
-      q('[data-cb-hoja]').innerHTML = '<style>' + estiloEtiqueta(tam) + '</style><div class="hoja">' + etiquetaHTML(lista[0], tam) + '</div>' + (lista.length > 1 ? '<p style="color:#aebba7;font:12px Arial">Se muestra la primera de ' + lista.length + ' etiquetas.</p>' : '');
+      q('[data-cb-hoja]').innerHTML = (cfg.imagen ? '<div class="hoja"><img alt="" style="display:block;width:' + tam[0] + 'mm;height:' + tam[1] + 'mm;image-rendering:pixelated" src="' + etiquetaCanvas(lista[0], tam).toDataURL('image/png') + '"></div>' : '<style>' + estiloEtiqueta(tam) + '</style><div class="hoja">' + etiquetaHTML(lista[0], tam) + '</div>') + (lista.length > 1 ? '<p style="color:#aebba7;font:12px Arial">Se muestra la primera de ' + lista.length + ' etiquetas.</p>' : '');
       q('[data-cb-prev]').classList.add('on'); return;
     }
     if (e.target.closest('[data-cb-cerrar]') || e.target === q('[data-cb-prev]')) { q('[data-cb-prev]').classList.remove('on'); return; }
