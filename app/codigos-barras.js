@@ -135,6 +135,26 @@
 .cb-prev{position:fixed;inset:0;z-index:90;display:none;place-items:center;background:#000c}.cb-prev.on{display:grid}.cb-prev>div{max-width:92vw;max-height:92vh;overflow:auto;padding:18px;border-radius:16px;background:#1a2218;border:1px solid #4a6338}
 .cb-prev h3{margin:0 0 12px;font:800 13px Arial;letter-spacing:.08em;color:#d0f44c}.cb-prev .hoja{display:inline-block;padding:0;border:1px dashed #888;background:#fff;box-shadow:0 8px 28px #0008}
 .cb-prev button{margin-top:14px}
+.cb-kpi{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.cb-kpi>div{display:grid;gap:2px;padding:12px 16px;border:1px solid #2f402e;border-radius:14px;background:linear-gradient(145deg,#142016,#0f150e)}
+.cb-kpi small{font:800 10px Arial;letter-spacing:.1em;color:#8fa088}.cb-kpi b{font:800 24px Arial;color:#eef4e9}.cb-kpi .v b{color:#d0f44c}.cb-kpi .n b{color:#ffb454}
+.cb-filtros{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.cb-filtros .fc{min-height:36px;padding:6px 14px;border:1px solid #3f553d;border-radius:999px;background:#122015;color:#c9d7bf;font:700 13px Arial;cursor:pointer;white-space:nowrap;width:auto!important}
+.cb-filtros .fc.on{background:#d0f44c;border-color:#d0f44c;color:#142017}
+.cb-filtros select{margin-left:auto;width:auto!important;padding:8px 12px;border:1px solid #3f553d;border-radius:10px;background:#162016;color:#eef4e9;font:13px Arial}
+.cb-res{display:grid;gap:10px;padding:16px 18px;border:2px solid #8bd450;border-radius:16px;background:linear-gradient(145deg,#1a2a16,#0f150e)}
+.cb-res[hidden]{display:none}.cb-res.emp{border-color:#ffb454}
+.cb-res .top{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.cb-res .cod{font:800 26px Consolas,monospace;letter-spacing:.06em;color:#d0f44c}
+.cb-res .tag{padding:4px 12px;border-radius:999px;font:800 12px Arial;letter-spacing:.06em;background:#27391b;color:#d0f44c;border:1px solid #6c8a4a}.cb-res.emp .tag{background:#2a1f10;color:#ffb454;border-color:#9a6a1f}
+.cb-res .nom{font:700 17px Arial;color:#eef4e9;overflow-wrap:anywhere}
+.cb-res .dat{display:flex;gap:10px;flex-wrap:wrap}.cb-res .dat span{display:grid;gap:1px;padding:8px 14px;border-radius:10px;background:#0c110d;border:1px solid #2f402e}
+.cb-res .dat small{font:800 10px Arial;letter-spacing:.08em;color:#8fa088}.cb-res .dat b{font:800 20px Arial;color:#eaf6c7}
+.cb-res .acc{display:flex;gap:8px;flex-wrap:wrap}.cb-res .acc button{min-height:42px;padding:0 16px;border:1px solid #60754d;border-radius:10px;background:transparent;color:#eaf6c7;font:800 13px Arial;cursor:pointer;width:auto!important}
+.cb-res .acc button.p{background:#d0f44c;color:#142017;border-color:#d0f44c}
+.cb-card .emp-badge{padding:2px 8px;border-radius:99px;background:#2a1f10;color:#ffb454;border:1px solid #9a6a1f;font:800 10px Arial;white-space:nowrap}
+@media(max-width:700px){.cb-kpi{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.cb-kpi>div{padding:9px 12px}.cb-kpi b{font-size:19px}
+.cb-filtros{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:2px}.cb-filtros::-webkit-scrollbar{display:none}.cb-filtros select{margin-left:0;flex:none;font-size:14px}
+.cb-res{padding:12px 14px}.cb-res .cod{font-size:22px}.cb-res .nom{font-size:15px}.cb-res .dat b{font-size:17px}.cb-res .acc button{flex:1 1 40%}}
 @media(max-width:700px){
 .cb{gap:12px;padding-bottom:150px}
 .cb-hero{padding:16px 16px;border-radius:16px}.cb-hero h2{font-size:1.45rem}.cb-hero p{font-size:.88rem}
@@ -167,9 +187,12 @@
   panel.innerHTML = '<div class="cb">' +
     '<section class="cb-hero"><div><span class="eyebrow">Producción · Inventarios</span><h2>CÓDIGOS DE BARRAS</h2>' +
     '<p>Cada tela de Stock tela tiene su código permanente y cada <b>rollo</b> tiene el suyo (por ejemplo T100-007). Búscalos, escanéalos con el lector o selecciona los que quieras e imprime sus etiquetas.</p></div></section>' +
-    '<div class="cb-scan"><span>ESCANEAR / BUSCAR CÓDIGO</span><input type="text" data-cb-scan autocomplete="off" spellcheck="false" placeholder="Pasa el lector o escribe, por ejemplo T100 o T100-007"><button type="button" class="cb-cam" data-cb-cam aria-label="Escanear con la cámara">📷 Escanear con la cámara</button></div><div class="cb-eco" data-cb-eco></div>' +
+    '<div class="cb-kpi" data-cb-kpi></div>' +
+    '<div class="cb-scan"><span>ESCANEAR / BUSCAR CÓDIGO</span><input type="text" data-cb-scan autocomplete="off" spellcheck="false" placeholder="Pasa el lector o escribe, por ejemplo T100 o T100-007"><button type="button" class="cb-cam" data-cb-cam aria-label="Escanear con la cámara">📷 Escanear con la cámara</button></div><div class="cb-eco" data-cb-eco></div><section class="cb-res" data-cb-res hidden></section>' +
     '<div class="cb-tools"><input type="search" data-cb-q placeholder="Buscar tela por nombre o código"><select data-cb-cat hidden><option value="">Todas las categorías</option></select>' +
     '<button type="button" class="cb-mas" data-cb-mas>⋯ Más</button><button type="button" class="cb-sec" data-cb-todos>Seleccionar las telas visibles</button><button type="button" class="cb-sec" data-cb-todosrollos>Seleccionar todos los rollos visibles</button><button type="button" data-cb-ninguno>Quitar selección</button><button type="button" data-cb-recargar>Actualizar</button><span class="cuenta" data-cb-cuenta></span></div>' +
+    '<div class="cb-filtros" data-cb-filtros><button type="button" class="fc on" data-cb-f="">Todas</button><button type="button" class="fc" data-cb-f="emp">Con rollos empezados</button><button type="button" class="fc" data-cb-f="bajo">Stock bajo</button><button type="button" class="fc" data-cb-f="sin">Sin rollos</button>' +
+    '<select data-cb-orden aria-label="Ordenar"><option value="nombre">Ordenar: A–Z</option><option value="mts-desc">Más metros primero</option><option value="mts-asc">Menos metros primero</option><option value="rollos-desc">Más rollos primero</option></select></div>' +
     '<div class="cb-grid" data-cb-grid></div></div>';
 
   const extras = document.createElement('div');
@@ -184,12 +207,22 @@
   document.body.appendChild(extras);
 
   const q = sel => panel.querySelector(sel) || extras.querySelector(sel);
-  const estado = {items: [], sel: new Set(), selR: new Set(), abiertos: new Set(), rollMap: new Map(), texto: '', cat: '', cargando: false};
+  const estado = {items: [], sel: new Set(), selR: new Set(), abiertos: new Set(), rollMap: new Map(), texto: '', cat: '', cargando: false, filtro: '', orden: 'nombre'};
+  const BAJO_MTS = 100;
+  const empezados = i => (i.detalle_rollos || []).filter(r => r.empezado).length;
   let cargado = false, pendiente = '';
 
   const visibles = () => {
     const t = norm(estado.texto);
-    return estado.items.filter(i => (!estado.cat || i.categoria === estado.cat) && (!t || norm(i.nombre + ' ' + i.codigo).includes(t) || (i.detalle_rollos || []).some(r => compacto(r.codigo).includes(compacto(t)))));
+    const lista = estado.items.filter(i => (!estado.cat || i.categoria === estado.cat) && (!t || norm(i.nombre + ' ' + i.codigo).includes(t) || (i.detalle_rollos || []).some(r => compacto(r.codigo).includes(compacto(t))))
+      && (!estado.filtro || (estado.filtro === 'emp' ? empezados(i) > 0 : estado.filtro === 'bajo' ? Number(i.mts || 0) < BAJO_MTS : !(i.rollos > 0))));
+    const por = {'mts-desc': (a, b) => Number(b.mts || 0) - Number(a.mts || 0), 'mts-asc': (a, b) => Number(a.mts || 0) - Number(b.mts || 0), 'rollos-desc': (a, b) => Number(b.rollos || 0) - Number(a.rollos || 0)}[estado.orden];
+    return por ? lista.slice().sort(por) : lista;
+  };
+  const pintarKpi = () => {
+    const el = q('[data-cb-kpi]'); if (!el) return;
+    const it = estado.items, rollos = it.reduce((a, i) => a + Number(i.rollos || 0), 0), mts = it.reduce((a, i) => a + Number(i.mts || 0), 0), emp = it.reduce((a, i) => a + empezados(i), 0);
+    el.innerHTML = '<div><small>TELAS</small><b>' + it.length + '</b></div><div class="v"><small>METROS EN BODEGA</small><b>' + fmt(mts) + '</b></div><div><small>ROLLOS</small><b>' + rollos + '</b></div><div class="n"><small>ROLLOS EMPEZADOS</small><b>' + emp + '</b></div>';
   };
   const totalSeleccion = () => estado.sel.size + estado.selR.size;
   const pintar = () => {
@@ -198,11 +231,13 @@
       const rollos = i.detalle_rollos || [], abierto = estado.abiertos.has(i.codigo);
       const chips = abierto ? '<div class="cb-lista">' + rollos.map(r => '<span class="cb-chip' + (r.empezado ? ' emp' : '') + (estado.selR.has(r.codigo) ? ' sel' : '') + '" data-roll="' + esc(r.codigo) + '" title="' + esc(r.codigo) + '"><b>' + String(r.n).padStart(3, '0') + '</b>' + esc(fmt(r.valor)) + ' m</span>').join('') + '</div>' : '';
       const botones = rollos.length ? '<div class="cb-rl"><button type="button" data-roll-toggle="' + esc(i.codigo) + '">' + (abierto ? '▾' : '▸') + ' ' + rollos.length + (rollos.length === 1 ? ' rollo' : ' rollos') + '</button>' + (abierto ? '<button type="button" data-roll-todos="' + esc(i.codigo) + '">Seleccionar todos</button>' : '') + '</div>' + chips : '';
-      return '<article class="cb-card' + (estado.sel.has(i.codigo) ? ' sel' : '') + '" data-cod="' + esc(i.codigo) + '"><header><input type="checkbox" tabindex="-1"' + (estado.sel.has(i.codigo) ? ' checked' : '') + '><span class="cod">' + esc(i.codigo) + '</span><span class="cat">' + esc(i.categoria_label) + '</span></header>' +
+      return '<article class="cb-card' + (estado.sel.has(i.codigo) ? ' sel' : '') + '" data-cod="' + esc(i.codigo) + '"><header><input type="checkbox" tabindex="-1"' + (estado.sel.has(i.codigo) ? ' checked' : '') + '><span class="cod">' + esc(i.codigo) + '</span><span class="cat">' + esc(i.categoria_label) + '</span>' + (empezados(i) ? '<span class="emp-badge">' + empezados(i) + (empezados(i) > 1 ? ' empezados' : ' empezado') + '</span>' : '') + '</header>' +
         '<div class="nom">' + esc(i.nombre) + '</div><div class="stk"><span class="cif"><b>' + esc(i.total_label || '—') + '</b><small>' + (i.categoria === 'BODEGA TELA' ? 'MTS' : 'UND') + '</small></span>' + (i.rollos ? '<span class="cif und"><b>' + i.rollos + '</b><small>' + (i.rollos === 1 ? 'ROLLO' : 'ROLLOS') + '</small></span>' : '') + '</div>' +
         '<div class="bar">' + svgBarras(i.codigo, 46, 1, 10) + '</div>' + botones + '</article>';
     }).join('') : '<div class="cb-vacio">' + (estado.cargando ? 'Cargando telas…' : 'No hay telas que coincidan.') + '</div>';
     q('[data-cb-cuenta]').textContent = lista.length + ' de ' + estado.items.length + ' telas';
+    pintarKpi();
+    q('[data-cb-filtros]').querySelectorAll('[data-cb-f]').forEach(b => b.classList.toggle('on', b.dataset.cbF === estado.filtro));
     q('[data-cb-n]').textContent = totalSeleccion();
     q('[data-cb-det]').textContent = totalSeleccion() ? '(' + estado.sel.size + ' telas · ' + estado.selR.size + ' rollos)' : '';
     q('[data-cb-barra]').classList.toggle('on', totalSeleccion() > 0 && panel.classList.contains('active'));
@@ -230,6 +265,18 @@
     const el = q(selector);
     if (el) { el.scrollIntoView({block: 'center', behavior: 'smooth'}); el.classList.add('halo'); setTimeout(() => el.classList.remove('halo'), 1700); }
   }
+  function mostrarResultado(tipo, tela, rollo) {
+    const box = q('[data-cb-res]'); if (!box) return;
+    const nuevos = (tela.detalle_rollos || []).filter(r => !r.empezado).length, ya = empezados(tela);
+    box.className = 'cb-res' + (tipo === 'rollo' && rollo.empezado ? ' emp' : '');
+    box.hidden = false;
+    box.innerHTML = '<div class="top"><span class="cod">' + esc(tipo === 'rollo' ? rollo.codigo : tela.codigo) + '</span><span class="tag">' + (tipo === 'rollo' ? (rollo.empezado ? 'ROLLO EMPEZADO' : 'ROLLO NUEVO') : 'TELA') + '</span></div>' +
+      '<div class="nom">' + esc(tela.nombre) + '</div>' +
+      '<div class="dat">' + (tipo === 'rollo'
+        ? '<span><small>METROS DEL ROLLO</small><b>' + esc(fmt(rollo.valor)) + '</b></span><span><small>TELA EN TOTAL</small><b>' + esc(tela.total_label || '—') + ' MTS</b></span><span><small>ROLLOS DE ESTA TELA</small><b>' + (tela.rollos || 0) + '</b></span>'
+        : '<span><small>METROS EN BODEGA</small><b>' + esc(tela.total_label || '—') + '</b></span><span><small>ROLLOS</small><b>' + (tela.rollos || 0) + '</b></span><span><small>NUEVOS · EMPEZADOS</small><b>' + nuevos + ' · ' + ya + '</b></span>') + '</div>' +
+      '<div class="acc"><button type="button" class="p" data-res-imp="' + esc(tipo === 'rollo' ? rollo.codigo : tela.codigo) + '">🖨 Imprimir esta etiqueta</button><button type="button" data-res-x>Cerrar</button></div>';
+  }
   function escanear(valor) {
     const t = compacto(valor);
     if (!t) return;
@@ -239,6 +286,7 @@
       estado.selR.add(hit.rollo.codigo); estado.abiertos.add(hit.tela.codigo);
       estado.texto = ''; q('[data-cb-q]').value = '';
       pintar();
+      mostrarResultado('rollo', hit.tela, hit.rollo);
       eco('✓ Rollo ' + hit.rollo.codigo + ' · ' + hit.tela.nombre + ' · ' + fmt(hit.rollo.valor) + ' MTS' + (hit.rollo.empezado ? ' (empezado)' : ' (nuevo)'), 'ok');
       enfocar('[data-roll="' + CSS.escape(hit.rollo.codigo) + '"]');
       return;
@@ -250,6 +298,7 @@
     estado.sel.add(item.codigo);
     estado.texto = ''; q('[data-cb-q]').value = '';
     pintar();
+    mostrarResultado('tela', item);
     eco('✓ ' + item.codigo + ' · ' + item.nombre + ' · ' + (item.total_label || '—') + ' MTS · ' + (item.detalle_rollos || []).length + ' rollos', 'ok');
     enfocar('[data-cod="' + CSS.escape(item.codigo) + '"]');
   }
@@ -270,6 +319,16 @@
   };
 
   const alClic = e => {
+    const filtro = e.target.closest('[data-cb-f]');
+    if (filtro) { estado.filtro = filtro.dataset.cbF; pintar(); return; }
+    if (e.target.closest('[data-res-x]')) { q('[data-cb-res]').hidden = true; return; }
+    const imp1 = e.target.closest('[data-res-imp]');
+    if (imp1) {
+      const c = imp1.dataset.resImp, hit = estado.rollMap.get(compacto(c));
+      if (hit) imprimir([{tipo: 'rollo', codigo: hit.rollo.codigo, n: hit.rollo.n, valor: hit.rollo.valor, empezado: hit.rollo.empezado, nombre: hit.tela.nombre, categoria: hit.tela.categoria, categoria_label: hit.tela.categoria_label}]);
+      else { const t = estado.items.find(i => i.codigo === c); if (t) imprimir([{...t, tipo: 'tela'}]); }
+      return;
+    }
     const chip = e.target.closest('[data-roll]');
     if (chip) { const c = chip.dataset.roll; estado.selR.has(c) ? estado.selR.delete(c) : estado.selR.add(c); pintar(); return; }
     const abrirRollos = e.target.closest('[data-roll-toggle]');
@@ -304,6 +363,7 @@
   };
   const alCambiar = e => {
     if (e.target.matches('[data-cb-cat]')) { estado.cat = e.target.value; pintar(); }
+    else if (e.target.matches('[data-cb-orden]')) { estado.orden = e.target.value; pintar(); }
     else if (e.target.matches('[data-cb-tam]')) { cfg.tamano = e.target.value; q('[data-cb-otro]').hidden = cfg.tamano !== 'otro'; guardarCfg(); }
     else if (e.target.matches('[data-cb-op]')) { cfg[e.target.dataset.cbOp] = e.target.checked; guardarCfg(); }
   };
