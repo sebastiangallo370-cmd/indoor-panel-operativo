@@ -108,7 +108,7 @@
 .cb-scan span{font:800 11px Arial;letter-spacing:.1em;color:#d0f44c;white-space:nowrap}
 .cb-scan input{flex:1;min-width:0;padding:12px 14px;border:1px solid #4f6545;border-radius:10px;background:#1b261c;color:#fff;font:700 18px Consolas,monospace;letter-spacing:.06em}
 .cb-scan input:focus{outline:none;border-color:#d0f44c}
-.cb-scan input{flex:1 1 auto!important;width:auto!important;min-width:200px!important}.cb-scan .cb-cam{flex:0 0 auto!important;width:auto!important;min-width:0}
+.cb-scan{width:fit-content;max-width:100%;padding:8px 12px;gap:8px;border-width:1px}.cb-scan input{flex:0 1 380px!important;width:380px!important;min-width:200px!important;padding:8px 12px!important;font-size:14px!important}.cb-scan .cb-cam{flex:0 0 auto!important;width:auto!important;min-width:0;min-height:36px!important;padding:0 12px!important;font-size:12px!important}.cb-scan span{font-size:10px}
 .cb-eco{min-height:22px;padding:0 4px;font-size:14px}.cb-eco.ok{color:#8fe08f}.cb-eco.mal{color:#ff9d8f}
 .cb-tools{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 .cb-tools input[type=search],.cb-tools select,.cb-barra select{width:auto!important}
@@ -165,8 +165,8 @@
 .cb-tools button{flex:1 1 calc(50% - 8px);min-height:44px}.cb-tools .cuenta{margin-left:0;flex:1 1 100%}
 .cb-grid{grid-template-columns:1fr;gap:8px}
 .cb-hero p{display:none}.cb-hero{padding:12px 14px}.cb-hero h2{margin:2px 0 0;font-size:1.25rem}.cb-hero .eyebrow{display:none}
-.cb-scan{flex-wrap:nowrap!important;align-items:center}.cb-scan span{display:none}.cb-scan input{flex:1 1 0!important;min-width:0!important;width:auto!important}
-.cb-scan .cb-cam{flex:0 0 54px!important;width:54px!important;min-height:48px;padding:0!important;font-size:0!important;text-align:center}.cb-scan .cb-cam::before{content:'📷';font-size:24px;line-height:48px}
+.cb-scan{flex-wrap:nowrap!important;align-items:center;width:auto!important;padding:12px!important}.cb-scan span{display:none}.cb-scan input{flex:1 1 0!important;min-width:0!important;width:auto!important;padding:12px 14px!important;font-size:16px!important}
+.cb-scan .cb-cam{flex:0 0 54px!important;width:54px!important;min-height:48px!important;padding:0!important;font-size:0!important;text-align:center}.cb-scan .cb-cam::before{content:'📷';font-size:24px;line-height:48px}
 .cb-eco{min-height:0}.cb-eco:empty{display:none}
 .cb-tools{gap:6px}.cb-tools input[type=search]{flex:1 1 100%}
 .cb-tools button{flex:1 1 calc(33% - 6px);min-height:40px;padding:6px 8px;font-size:12px}
