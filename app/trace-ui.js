@@ -110,12 +110,14 @@
     const assignedToMe = g => g.responsible.split(/[,;·\n]+/).some(name => userTokens.includes(personKey(name)));
     const mine = internal.some(assignedToMe);
     const myPending = internal.some(g => assignedToMe(g) && g.state !== 'finished');
+    const doneSet = new Set(data.finished_today_mine || []);
+    const doneToday = groups.some(g => g.statusColumns.some(i => doneSet.has(row.source_row + ':' + (i + 1))));
     const dueIndex = data.headers.findIndex(h => key(h) === 'FECHA DE ENTREGA'), due = dateValue(row.values[dueIndex]);
     const overdue = !!due && due < today && state !== 'finished';
-    return { groups, finished, total: internal.length, state, focus, mine, myPending, due, overdue, percent: internal.length ? Math.round(finished / internal.length * 100) : 0 };
+    return { groups, finished, total: internal.length, state, focus, mine, myPending, doneToday, due, overdue, percent: internal.length ? Math.round(finished / internal.length * 100) : 0 };
   }
   function matches(summary, filter) {
-    return filter === 'all' || filter === 'pending' && summary.state !== 'finished' || filter === 'work' && summary.myPending || filter === 'mine' && summary.mine || filter === 'late' && summary.overdue || filter === summary.state;
+    return filter === 'all' || filter === 'pending' && summary.state !== 'finished' || filter === 'work' && summary.doneToday || filter === 'mine' && summary.mine || filter === 'late' && summary.overdue || filter === summary.state;
   }
   function processForProfile(profile) {
     return flow.find(p => [p.label, ...p.headers, ...p.aliases].some(label => key(label) === key(profile)));

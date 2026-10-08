@@ -2900,10 +2900,26 @@ agentes_mod.configurar_maquina(_agentes_guardar_maquina)
 agentes_mod.configurar_refs(lambda orden: [c['ref'] for c in _edicion_en_proceso() if c['orden'] == orden and c['ref']])
 
 
+def _finalizados_hoy(usuario: str) -> list:
+    """Procesos que este usuario finalizó hoy (hora Colombia): 'fila:columna'."""
+    hoy = datetime.now(timezone(timedelta(hours=-5))).date().isoformat()
+    db = connect()
+    try:
+        if not db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='production_operator_events'").fetchone():
+            return []
+        return [f"{r['source_row']}:{r['column_number']}" for r in db.execute(
+            "SELECT DISTINCT source_row,column_number FROM production_operator_events WHERE action='finish' AND username=? COLLATE NOCASE AND substr(created_at,1,10)=?",
+            (usuario, hoy))]
+    finally:
+        db.close()
+
+
 @app.get("/api/produccion")
 async def production_data(force: bool = False, _=Depends(authenticate)):
     try:
-        return await asyncio.to_thread(read_local_production)
+        data = dict(await asyncio.to_thread(read_local_production))
+        data['finished_today_mine'] = await asyncio.to_thread(_finalizados_hoy, str(_))
+        return data
     except Exception as exc:
         logging.exception("No se pudo consultar la base local de producción")
         raise HTTPException(503, f"No se pudo abrir Producción: {exc}") from exc
@@ -6299,7 +6315,7 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
 `;document.head.appendChild(traceFigmaStyle);setTraceView();
     const commercialGroup=commercialToggle.closest('.nav-group');commercialGroup.classList.add('collapsed');const productionToggle=document.getElementById('production-toggle');if(productionToggle)productionToggle.addEventListener('click',()=>{{const g=productionToggle.closest('.nav-group');g.classList.toggle('collapsed');if(!g.classList.contains('collapsed')&&window.innerWidth>860)g.querySelector('.nav-children .tab')?.click()}});
     setTimeout(()=>{{if(!document.querySelector('.panel.active'))document.querySelector('.tab[data-kind="inicio"]')?.click()}},0);
-    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/permisos.js?v=20261007-2'></script><script src='/reposiciones.js?v=20261005-4'></script><script src='/agentes.js?v=20261007-49'></script><script src='/promedios.js?v=20261006-7'></script><script src='/capacidad.js?v=20261007-7'></script><script src='/molderia.js?v=20261008-1'></script><script src='/estandar.js?v=20261007-1'></script><script src='/fichas-resumen.js?v=20261007-36'></script><script src='/api/cartera/cartera.js?v=20261002-5'></script><script src='/trace-ui.js?v=20261007-5'></script><script src='/home-dashboard.js?v=20261005-9'></script><script src='/bodega-dashboard.js?v=20261002-10'></script><script src='/bodegas.js?v=20261002-4'></script><script src='/codigos-barras.js?v=20261007-17'></script><script src='/mis-pedidos.js?v=20261008-1'></script><script src='/mobile-nav.js?v=20261006-1'></script><script src='/nav-liquid.js?v=20261003-3'></script><script src='/build-watch.js?v=20261002-1'></script><script src='/salud.js?v=20261002-1'></script><script src='/tema.js?v=20261008-1'></script><script src='/tarjeta-iconos.js?v=20261002-5'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261005-3'></script><script src='/linea-editor.js?v=20261008-1'></script><script src='/menu-cuenta.js?v=20261008-1'></script><script src='/foto-perfil.js?v=20261008-4'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
+    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/permisos.js?v=20261007-2'></script><script src='/reposiciones.js?v=20261005-4'></script><script src='/agentes.js?v=20261007-49'></script><script src='/promedios.js?v=20261006-7'></script><script src='/capacidad.js?v=20261007-7'></script><script src='/molderia.js?v=20261008-1'></script><script src='/estandar.js?v=20261007-1'></script><script src='/fichas-resumen.js?v=20261007-36'></script><script src='/api/cartera/cartera.js?v=20261002-5'></script><script src='/trace-ui.js?v=20261008-1'></script><script src='/home-dashboard.js?v=20261005-9'></script><script src='/bodega-dashboard.js?v=20261002-10'></script><script src='/bodegas.js?v=20261002-4'></script><script src='/codigos-barras.js?v=20261007-17'></script><script src='/mis-pedidos.js?v=20261008-1'></script><script src='/mobile-nav.js?v=20261006-1'></script><script src='/nav-liquid.js?v=20261003-3'></script><script src='/build-watch.js?v=20261002-1'></script><script src='/salud.js?v=20261002-1'></script><script src='/tema.js?v=20261008-1'></script><script src='/tarjeta-iconos.js?v=20261002-5'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261005-3'></script><script src='/linea-editor.js?v=20261008-1'></script><script src='/menu-cuenta.js?v=20261008-1'></script><script src='/foto-perfil.js?v=20261008-4'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
 
 
 def ordered_mockup_uploads(extras, slots):
