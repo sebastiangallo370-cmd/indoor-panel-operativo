@@ -350,7 +350,7 @@ def reiniciar(request: Request, payload: dict | None = None):
         datos = _leer()
         ids = _ids_pcs(datos) if pc == '*' else [_canal(datos, usuario, pc)[0]]
         for pid in ids:
-            _pid, ses = _canal(datos, usuario, '' if pid == PRINCIPAL else pid)
+            _pid, ses = _canal(datos, usuario, pid)
             datos['trabajo'].pop(ses, None)
             _nuevo(datos, ses, 'bot', 'Reiniciando los agentes de ' + _nombre_pc(datos, pid) + '… vuelven solos en unos 30 segundos.',
                    estado='REINICIANDO', botones=[], agentes=['TAVO'], respondido=True)
@@ -571,7 +571,8 @@ def sondeo(request: Request, payload: dict):
     return {'pendientes': pendientes}
 
 
-_escribir_mts: Callable | None = None   # lo registra main.py: guarda el MTS en la tarjeta de producción de la orden
+_escribir_mts: Callable | None = None   # lo registra main.py: guarda el MTS en la tarjeta de producción de la orden
+
 _escribir_maquina: Callable | None = None
 
 
