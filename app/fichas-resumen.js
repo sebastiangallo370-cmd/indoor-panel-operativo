@@ -97,6 +97,7 @@
   .fp-id{font:900 15px Arial;text-anchor:middle;letter-spacing:.06em}.fp-tela{font:700 10.5px Arial;fill:#e9efe3;text-anchor:middle}.fp-n{font:600 9.5px Arial;fill:#8e9a87;text-anchor:middle}
   .fp-lbl{font:800 9px Arial;fill:#8e9a87;text-anchor:middle;letter-spacing:.18em}
   .ft-flat [data-m]{transition:opacity .25s}
+  .fit.fit-movil{min-width:0}.fit-movil .fit-c{font-size:27px}.fit-movil .fit-h{font-size:22px}
   .fit-wrap{overflow-x:auto;border-radius:6px;background:#fff}.fit{display:block;width:100%;min-width:760px;height:auto;font-family:Arial,Helvetica,sans-serif}
   .fit path{stroke:none}.fit-h{font:700 13px Arial}.fit-c{font:700 15px Arial;fill:#000}
   .fp-nodo{opacity:0;animation:fpIn .6s cubic-bezier(.2,1.4,.4,1) forwards var(--d);transform-box:fill-box;transform-origin:left center}
@@ -262,6 +263,7 @@
     socks: { vb: [60, 120], d: 'M10 4 H44 V70 Q44 112 24 116 H10 Q-2 116 4 98 Z' }, otro: { vb: [80, 80], d: 'M6 6 H74 V74 H6 Z' }
   };
   function fitPiezas(mats) {
+    const movil = window.innerWidth <= 700, W = movil ? 742 : 1104;   // en celular solo se ve el recuadro masculino (el grande), a su tamaño
     const claveDe = nom => {
       if (/MEDIA|CALCET/i.test(nom)) return 'socks';
       if (/BISEL|VIVO|CANES/i.test(nom)) return 'strip';
@@ -299,7 +301,7 @@
     const extras = Object.keys(grupos).filter(k => !orden.includes(k)).sort((a, b) => Object.keys(FIT_EXTRA).indexOf(a) - Object.keys(FIT_EXTRA).indexOf(b));
     let franja = '', alto = 483;
     if (extras.length) {
-      const ancho = 1104 / extras.length, base = 483 + 24;
+      const ancho = W / extras.length, base = 483 + 24;
       let hmax = 0;
       extras.forEach((k, i) => {
         const fe = FIT_EXTRA[k], g = grupos[k], c = (k === 'strip' || k === 'side') ? Math.min(g.total, 2) : 1;
@@ -313,15 +315,15 @@
       alto = Math.ceil(base + hmax + 16);
       extras.forEach(k => { franja += lineas(grupos[k], grupos[k]._x, alto + 6, 22); });
       alto += 50;
-      franja = '<line x1="0" y1="483" x2="1104" y2="483" stroke="#000"/>' + franja;
+      franja = '<line x1="0" y1="483" x2="' + W + '" y2="483" stroke="#000"/>' + franja;
     }
-    return '<div class="fit-wrap"><svg class="fit" viewBox="0 0 1104 ' + alto + '" role="img" aria-label="Fit de prenda por piezas">' +
-      '<rect width="1104" height="' + alto + '" fill="#fff"/><rect x="742" y="0" width="362" height="242" fill="#ffe7ff"/><rect x="742" y="0" width="362" height="21" fill="#ffccff"/>' +
+    return '<div class="fit-wrap"><svg class="fit' + (movil ? ' fit-movil' : '') + '" viewBox="0 0 ' + W + ' ' + alto + '" role="img" aria-label="Fit de prenda por piezas">' +
+      '<rect width="' + W + '" height="' + alto + '" fill="#fff"/><rect x="742" y="0" width="362" height="242" fill="#ffe7ff"/><rect x="742" y="0" width="362" height="21" fill="#ffccff"/>' +
       '<rect x="742" y="242" width="362" height="241" fill="#ddebf7"/><rect x="742" y="242" width="362" height="21" fill="#bdd7ee"/>' +
       '<text class="fit-h" x="371" y="15" text-anchor="middle" fill="#548235">FIT DE PRENDA X PIEZAS <tspan fill="#e00000">(MASCULINO)</tspan></text>' +
       '<text class="fit-h" x="923" y="15" text-anchor="middle" fill="#e00000">MOLDERIA FEMENINA</text><text class="fit-h" x="923" y="257" text-anchor="middle" fill="#e00000">MOLDERIA NIÑO(A)</text>' +
       '<g>' + m + '</g><g>' + f + '</g><g>' + n + '</g>' + rotulos + franja +
-      '<path d="M742 0 V483 M742 242 H1104 M0 21 H742" stroke="#000" stroke-width="1" fill="none"/><rect x=".5" y=".5" width="1103" height="' + (alto - 1) + '" fill="none" stroke="#000"/></svg></div>';
+      '<path d="M742 0 V483 M742 242 H1104 M0 21 H742" stroke="#000" stroke-width="1" fill="none"/><rect x=".5" y=".5" width="' + (W - 1) + '" height="' + (alto - 1) + '" fill="none" stroke="#000"/></svg></div>';
   }
   function iconoFila(p, i, color) { return '<span style="--d:' + (0.4 + i * 0.12).toFixed(2) + 's">' + icono(p.n) + esc(p.n) + (p.c > 1 ? '<em>×' + p.c + '</em>' : '') + '</span>'; }
   function mapaTelas(f) {
