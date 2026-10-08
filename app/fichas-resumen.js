@@ -97,13 +97,13 @@
   .fp-id{font:900 15px Arial;text-anchor:middle;letter-spacing:.06em}.fp-tela{font:700 10.5px Arial;fill:#e9efe3;text-anchor:middle}.fp-n{font:600 9.5px Arial;fill:#8e9a87;text-anchor:middle}
   .fp-lbl{font:800 9px Arial;fill:#8e9a87;text-anchor:middle;letter-spacing:.18em}
   .ft-flat [data-m]{transition:opacity .25s}
-  .fit{display:flex;flex-wrap:wrap;gap:18px 30px;justify-content:center;align-items:flex-end;padding:16px 14px 18px;border:1px solid #2c3a1c;border-radius:14px;background:#0d1409}
-  .fit-t{flex:0 0 100%;text-align:center;font:800 11px Arial;letter-spacing:.18em;color:#d7ff3a}
-  .fit-p{margin:0;display:flex;flex-direction:column;align-items:center;gap:8px}.fit-d{display:flex;flex-direction:column;align-items:center;gap:4px}
-  .fit-p svg *{fill:var(--c);stroke:rgba(0,0,0,.45);stroke-width:.6}
-  .fit-p figcaption{font:800 11px Arial;letter-spacing:.05em;color:#e9efe3;text-align:center}.fit-p em{font-style:normal;color:var(--c)}
-  .fit-m{display:inline-block;margin-right:6px;padding:1px 6px;border-radius:5px;background:var(--c);color:#0b1204;font:900 10px Arial}
-  @media(max-width:700px){.fit{gap:14px 18px}.fit-p svg{max-width:96px;height:auto}}
+  .fit{display:flex;flex-wrap:wrap;gap:22px 34px;justify-content:center;align-items:flex-end;padding:16px 18px 20px;border:1px solid #cfd8c4;border-radius:14px;background:#f1f4ec;color:#0b1204}
+  .fit-t{flex:0 0 100%;text-align:center;font:900 11px Arial;letter-spacing:.2em;color:#2f4a12;padding-bottom:4px;border-bottom:1px solid #cfd8c4}
+  .fit-p{margin:0;display:flex;flex-direction:column;align-items:center;gap:9px}.fit-d{display:flex;flex-direction:column;align-items:center;gap:6px}
+  .fit-p svg path{fill:var(--c);stroke:#0b1204;stroke-width:1.6;stroke-linejoin:round}
+  .fit-p figcaption{font:900 11px Arial;letter-spacing:.04em;color:#0b1204;text-align:center;max-width:150px}.fit-p em{font-style:normal;color:#b3261e}
+  .fit-m{display:inline-block;margin-right:6px;padding:1px 6px;border-radius:5px;background:var(--c);color:#0b1204;border:1px solid #0b1204;font:900 10px Arial}
+  @media(max-width:700px){.fit{gap:16px 20px}.fit-p svg{max-width:110px;height:auto}}
   .fp-nodo{opacity:0;animation:fpIn .6s cubic-bezier(.2,1.4,.4,1) forwards var(--d);transform-box:fill-box;transform-origin:left center}
   .fp-nodo rect{fill:#0d1409;stroke:var(--c);stroke-width:1.6}
   .fp-nodo .fp-sil *{fill:var(--c);fill-opacity:.9;stroke:rgba(0,0,0,.55);stroke-width:1}
@@ -256,33 +256,40 @@
     side: '<path d="M8 6 H20 V42 H8 Z M28 6 H40 V42 H28 Z"/>', shorts: '<path d="M8 8 H40 L42 42 H28 L24 24 L20 42 H6 Z"/>',
     otro: '<rect x="8" y="8" width="32" height="32" rx="6"/>'
   };
-  // Siluetas de las piezas del patrón (para reconocer cada pieza de un vistazo en el mapa)
-  const SIL = {
-    back: '<path d="M9 7 L19 5 Q24 10 29 5 L39 7 L41 17 Q37 21 38 26 V43 H10 V26 Q11 21 7 17 Z"/>',
-    front: '<path d="M9 7 L17 5 L24 18 L31 5 L39 7 L41 17 Q37 21 38 26 V43 H10 V26 Q11 21 7 17 Z"/>',
-    sleeve: '<path d="M5 38 Q6 14 24 10 Q38 8 43 22 L40 38 Z"/>',
-    cuff: '<path d="M6 13 H42 V22 H6 Z M6 27 H42 V36 H6 Z"/>',
-    collar: '<path d="M7 13 H41 L37 22 H11 Z M11 27 H37 L41 36 H7 Z"/>',
-    socks: '<path d="M16 6 H30 V30 Q30 42 20 42 H12 Q8 42 10 36 Z"/>'
-  };
-  const silueta = (nom, k) => (kindDe(nom) === 'pocket' ? ICONOS.pocket : (SIL[k] || ICONOS[kindDe(nom)] || ICONOS.otro));
   const icono = n => '<svg class="ft-ico" viewBox="0 0 48 48">' + ICONOS[kindDe(n)] + '</svg>';
-  // FIT DE PRENDA POR PIEZAS: cada pieza del patrón dibujada con su nombre y cantidad, del color de su material (sin animación)
-  const ORDEN_PIEZA = ['back', 'front', 'sleeve', 'cuff', 'collar', 'placket', 'pocket', 'side', 'shorts', 'socks', 'otro'];
+  // FIT DE PRENDA POR PIEZAS: cada pieza del patrón dibujada con su forma, nombre y cantidad, del color de su material (sin animación)
+  const CUERPO = 'V196 Q150 184 128 204 Q100 218 72 204 Q50 184 24 196 V126 Q40 108 28 88 L10 28 Z';
+  const FORMAS = {   // vb: [ancho, alto] del dibujo; e: escala en pantalla
+    back: { vb: [200, 220], e: 0.78, d: 'M78 8 Q100 36 122 8 L190 28 L172 88 Q160 108 176 126 ' + CUERPO },
+    front: { vb: [200, 220], e: 0.78, d: 'M72 10 L100 58 L128 10 L190 28 L172 88 Q160 108 176 126 ' + CUERPO },
+    sleeve: { vb: [150, 90], e: 0.85, d: 'M4 84 Q4 38 44 18 Q74 2 104 14 Q134 28 146 60 L136 84 Q70 70 4 84 Z' },
+    cuff: { vb: [150, 26], e: 0.85, d: 'M2 2 H148 V24 H2 Z' },
+    strip: { vb: [150, 26], e: 0.85, d: 'M2 2 H148 V24 H2 Z' },
+    collar: { vb: [180, 72], e: 0.8, d: 'M2 4 H178 L166 32 H14 Z M14 40 H166 L178 68 H2 Z' },
+    side: { vb: [34, 150], e: 0.8, d: 'M2 2 H32 V148 H2 Z' },
+    placket: { vb: [30, 152], e: 0.8, d: 'M3 2 H27 V150 H3 Z' },
+    pocket: { vb: [72, 80], e: 0.9, d: 'M4 4 H68 V58 L36 74 L4 58 Z' },
+    shorts: { vb: [104, 170], e: 0.8, d: 'M4 4 H92 L98 36 Q82 62 76 94 L72 166 H4 Z' },
+    socks: { vb: [60, 120], e: 0.8, d: 'M10 4 H44 V70 Q44 112 24 116 H10 Q-2 116 4 98 Z' },
+    otro: { vb: [80, 80], e: 0.9, d: 'M6 6 H74 V74 H6 Z' }
+  };
+  const ORDEN_PIEZA = ['back', 'front', 'sleeve', 'cuff', 'strip', 'collar', 'placket', 'pocket', 'side', 'shorts', 'socks', 'otro'];
   function fitPiezas(mats) {
     const claveDe = nom => {
       if (/MEDIA|CALCET/i.test(nom)) return 'socks';
+      if (/BISEL|VIVO|CANES/i.test(nom)) return 'strip';
       const k = kindDe(nom);
       if (k === 'body') return /ESPALDA|TRASERO/i.test(nom) ? 'back' : 'front';
-      return k;
+      return FORMAS[k] ? k : 'otro';
     };
     const lista = [];
     mats.forEach(m => m.piezas.forEach(p => lista.push({ m, p, k: claveDe(p.n) })));
     lista.sort((x, y) => ORDEN_PIEZA.indexOf(x.k) - ORDEN_PIEZA.indexOf(y.k));
-    const ancho = k => (k === 'back' || k === 'front' ? 150 : k === 'shorts' ? 120 : 110);
     const figuras = lista.map(({ m, p, k }) => {
-      const w = ancho(k), copias = Math.min(p.c, 2);
-      const dibujo = '<svg viewBox="0 0 48 48" width="' + w + '" height="' + w + '" aria-hidden="true">' + silueta(p.n, k) + '</svg>';
+      const f = FORMAS[k], w = Math.round(f.vb[0] * f.e), h = Math.round(f.vb[1] * f.e);
+      const espejo = /IZQ/i.test(p.n) ? ' transform="translate(' + f.vb[0] + ' 0) scale(-1 1)"' : '';
+      const copias = (k === 'cuff' || k === 'strip' || k === 'side' || k === 'sleeve') && !/DERECH|IZQ/i.test(p.n) ? Math.min(p.c, 2) : 1;
+      const dibujo = '<svg viewBox="0 0 ' + f.vb[0] + ' ' + f.vb[1] + '" width="' + w + '" height="' + h + '" aria-hidden="true"><path' + espejo + ' d="' + f.d + '"/></svg>';
       return '<figure class="fit-p" style="--c:' + m.color + '"><div class="fit-d">' + dibujo.repeat(copias) + '</div><figcaption>' +
         (mats.length > 1 ? '<b class="fit-m">' + m.id + '</b>' : '') + esc(p.n.toUpperCase()) + (p.c > 1 ? ' <em>×' + p.c + '</em>' : '') + '</figcaption></figure>';
     }).join('');
