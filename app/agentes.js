@@ -370,7 +370,7 @@
   function ajustarAlto() {
     const m = panel && panel.querySelector('[data-main]'); if (!m) return;
     if (window.innerWidth <= 1000 || !panel.classList.contains('active')) { m.style.removeProperty('height'); return; }
-    const alto = window.innerHeight - m.getBoundingClientRect().top - 12;
+    const alto = window.innerHeight - m.getBoundingClientRect().top - 20;
     m.style.setProperty('height', Math.max(420, Math.round(alto)) + 'px', 'important');
   }
   function acomodar() {
