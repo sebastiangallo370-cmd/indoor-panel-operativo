@@ -12,7 +12,7 @@ import urllib.request
 from email.mime.text import MIMEText
 from pathlib import Path
 
-URL = "https://produccion.tech/salud"
+URL = "https://produccion.cloud/salud"
 BASE_DIR = Path(__file__).resolve().parent.parent
 STATE_FILE = BASE_DIR / "monitor_produccion.state"
 TIMEOUT = 10
