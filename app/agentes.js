@@ -266,15 +266,19 @@
     .ag-vtabs{display:flex;gap:6px;padding:0 2px}
     .ag-vt{min-height:34px;padding:0 22px;border:1px solid #34432f;border-radius:10px 10px 0 0;background:#0c110d;color:#aebba7;font:900 12px Arial;letter-spacing:.14em;cursor:pointer}
     .ag-vt:hover{color:#eef4e9}.ag-vt.on{background:#d7ff3a;border-color:#d7ff3a;color:#0b1204}
-    .ag-main{display:grid!important;grid-template-columns:minmax(0,1fr)!important;grid-template-rows:auto minmax(0,1fr)!important;height:max(480px,calc(100vh - 286px))!important}
+    .ag-res{display:flex!important;align-items:center;gap:16px;padding:4px 14px!important;position:relative}
+    .ag-res .ag-res-top{flex:1 1 auto}
+    .ag-res details.ag-det{margin:0}
+    .ag-res details.ag-det[open] .ag-datos{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:30;margin:0!important;padding:12px;border:1px solid #34432f;border-radius:12px;background:#0c110d;box-shadow:0 12px 28px rgba(0,0,0,.55)}
+    .ag-main{position:relative;display:grid!important;grid-template-columns:minmax(0,1fr)!important;grid-template-rows:minmax(0,1fr)!important;height:max(480px,calc(100vh - 250px))!important;margin-top:-4px}
+    .ag-main .ag-orden{position:absolute!important;top:-42px;right:0;height:36px;padding:0 6px!important;border:0!important;background:transparent!important;z-index:5;grid-row:auto!important}
     .ag-main>*,.ag-main .ag-lienzo,.ag-main .ag-live,.ag-main .ag-detalle,.ag-main .ag-chat{grid-column:1!important}
-    .ag-main .ag-orden{grid-row:1!important}
-    .ag-main .ag-chat,.ag-main .ag-lienzo,.ag-main .ag-live,.ag-main .ag-detalle{grid-row:2!important;display:none!important;height:auto!important;min-height:0!important;max-height:none!important}
+    .ag-main .ag-chat,.ag-main .ag-lienzo,.ag-main .ag-live,.ag-main .ag-detalle{grid-row:1!important;display:none!important;height:auto!important;min-height:0!important;max-height:none!important}
     .ag-main[data-vista="chats"] .ag-chat{display:grid!important}
     .ag-main[data-vista="agentes"] .ag-lienzo{display:block!important;height:100%!important}
     .ag-main[data-vista="pdfs"] .ag-live{display:grid!important}
     .ag-main[data-vista="log"] .ag-detalle{display:grid!important}
-    .ag-main[data-vista="chats"] .ag-chat{width:100%;max-width:1100px;justify-self:center}
+    .ag-main[data-vista="chats"] .ag-chat{width:100%}
     .ag-main[data-vista="log"] .ag-detalle header{padding:9px 16px}
   }
   @media(max-width:1000px){.ag-vtabs{display:none!important}}
@@ -359,7 +363,15 @@
     m.dataset.vista = v;
     panel.querySelectorAll('[data-vt]').forEach(b => b.classList.toggle('on', b.dataset.vt === v));
     try { localStorage.setItem('indoor-agentes-vista', v); } catch (er) { /* sin almacenamiento */ }
+    ajustarAlto();
     setTimeout(() => { if (v === 'agentes') acomodar(); if (v === 'log') pintarLog(); if (v === 'chats') { const h = panel.querySelector('[data-hilo]'); if (h) h.scrollTop = h.scrollHeight; } }, 30);
+  }
+  // El módulo ocupa exactamente lo que queda de pantalla (sin scroll de página), con cualquier zoom o barra del navegador
+  function ajustarAlto() {
+    const m = panel && panel.querySelector('[data-main]'); if (!m) return;
+    if (window.innerWidth <= 1000 || !panel.classList.contains('active')) { m.style.removeProperty('height'); return; }
+    const alto = window.innerHeight - m.getBoundingClientRect().top - 12;
+    m.style.setProperty('height', Math.max(420, Math.round(alto)) + 'px', 'important');
   }
   function acomodar() {
     const lienzo = flow.lienzo; if (!lienzo) return;
@@ -968,6 +980,9 @@
       } else if (e.target.closest('[data-conectar]')) conectar();
     });
     try { ponerVista(localStorage.getItem('indoor-agentes-vista') || 'chats'); } catch (er) { /* sin almacenamiento */ }
+    window.addEventListener('resize', ajustarAlto);
+    if (window.ResizeObserver) { const ro2 = new ResizeObserver(ajustarAlto); ['.ag-hd', '.ag-res', '.ag-vtabs'].forEach(q => { const el = panel.querySelector(q); if (el) ro2.observe(el); }); }
+    setInterval(ajustarAlto, 1500);
     panel.addEventListener('click', e => {
       const vt = e.target.closest('[data-vt]');
       if (vt) { ponerVista(vt.dataset.vt); return; }
