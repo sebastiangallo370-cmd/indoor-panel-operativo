@@ -689,13 +689,6 @@
       }
       // Las acciones operativas ya están en el encabezado; no repetimos el botón Producción.
       card.querySelector('.operator-open')?.remove();
-      const refFicha = String(traceField(row, 'REFERENCIA') || '').trim();
-      if (refFicha) {   // ficha técnica resumida de la referencia, para consultarla mientras se trabaja
-        const fb = document.createElement('button');
-        fb.type = 'button'; fb.textContent = 'FICHA TÉCNICA'; fb.className = 'fr-ficha-btn'; fb.dataset.cardFicha = refFicha; fb.dataset.cardFila = String(row.source_row); fb.dataset.cardLinea = (card.querySelector('.trace-line[data-line]') || { dataset: {} }).dataset.line || '';
-        fb.setAttribute('aria-label', 'Ver la ficha técnica de ' + refFicha);
-        card.querySelector('.trace-card-actions').insertBefore(fb, card.querySelector('.trace-card-actions').firstChild);
-      }
       const viewSummary = summaries.get(row.source_row);
       const progressSummary = viewSummary.route || viewSummary;
       const progress = card.querySelector('.trace-progress');
