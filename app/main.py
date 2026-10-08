@@ -45,7 +45,7 @@ DB_PATH = STATE_DIR / "jobs.sqlite3"
 security = HTTPBasic(auto_error=False)
 from app.cartera_api import cartera_router
 from app.inventario_api import inventario_router, start_sublimacion_worker, inventory_alerts
-from app import permisos as permisos_mod, exportar as exportar_mod, reposiciones as reposiciones_mod, agentes_canal as agentes_mod, promedios as promedios_mod
+from app import permisos as permisos_mod, exportar as exportar_mod, reposiciones as reposiciones_mod, agentes_canal as agentes_mod, promedios as promedios_mod, molderia as molderia_mod, fichas_resumen as fichas_resumen_mod
 from app.cartera_externa import externa_router
 app = FastAPI(title="Asistente de Reprogramaciones", version="1.0.0")
 
@@ -829,6 +829,8 @@ agentes_mod.configurar_usuarios(_nombres_usuarios)
 app.include_router(agentes_mod.router, dependencies=[Depends(authenticate), Depends(permisos_mod.exigir('agentes'))])
 promedios_mod.configurar(authenticate)
 app.include_router(promedios_mod.router, dependencies=[Depends(authenticate), Depends(permisos_mod.exigir('promedios'))])
+app.include_router(molderia_mod.router, dependencies=[Depends(authenticate), Depends(permisos_mod.exigir('molderia'))])
+app.include_router(fichas_resumen_mod.router, dependencies=[Depends(authenticate)])
 app.include_router(agentes_mod.pc_router)  # el PC de los agentes entra con su token, sin sesión
 app.include_router(permisos_mod.router)
 app.include_router(exportar_mod.router)
@@ -1463,6 +1465,26 @@ def nav_liquid_js():
 @app.get('/agentes.js')
 def agentes_js():
     return FileResponse(Path(__file__).with_name('agentes.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
+
+
+@app.get('/capacidad.js')
+def capacidad_js():
+    return FileResponse(Path(__file__).with_name('capacidad.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
+
+
+@app.get('/fichas-resumen.js')
+def fichas_resumen_js():
+    return FileResponse(Path(__file__).with_name('fichas-resumen.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
+
+
+@app.get('/estandar.js')
+def estandar_js():
+    return FileResponse(Path(__file__).with_name('estandar.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
+
+
+@app.get('/molderia.js')
+def molderia_js():
+    return FileResponse(Path(__file__).with_name('molderia.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
 
 
 @app.get('/promedios.js')
@@ -2789,7 +2811,71 @@ def _terry_guardar_mts(orden: str, referencia: str, texto: str) -> dict:
     return resultado
 
 
+def _agentes_guardar_maquina(orden: str, referencias: list, maquina: str) -> dict:
+    """Los agentes ponen la máquina de impresión (la que sale de los JPG del maestro) en las tarjetas de la orden. Solo llena las que están vacías:
+    lo que una persona ya eligió no se cambia."""
+    import unicodedata
+    plano = lambda v: re.sub(r'\s+', '', str(v or '')).upper()
+    sin_acentos = lambda v: ''.join(c for c in unicodedata.normalize('NFD', str(v or '')) if unicodedata.category(c) != 'Mn').strip().upper()
+    maquina = re.sub(r'\s+', ' ', str(maquina or '')).strip().upper()
+    if not maquina:
+        return {'ok': False, 'motivo': 'No llegó el nombre de la máquina'}
+    refs = {plano(r) for r in (referencias or []) if str(r).strip()}
+    with connect() as db:
+        meta = {r['key']: r['value'] for r in db.execute('SELECT key, value FROM production_meta')}
+        titulos = [sin_acentos(h) for h in json.loads(meta.get('headers') or '[]')]
+        if 'ORDEN' not in titulos or 'MAQUINA DE IMPRESION' not in titulos:
+            return {'ok': False, 'motivo': 'Producción no tiene las columnas ORDEN y MÁQUINA DE IMPRESIÓN'}
+        i_orden, i_maq = titulos.index('ORDEN'), titulos.index('MAQUINA DE IMPRESION')
+        i_ref = titulos.index('REFERENCIA') if 'REFERENCIA' in titulos else -1
+        llenadas, ya, otras = [], [], []
+        for r in db.execute('SELECT source_row, values_json FROM production_rows ORDER BY source_row').fetchall():
+            valores = json.loads(r['values_json'])
+            if len(valores) <= i_orden or plano(valores[i_orden]) != plano(orden):
+                continue
+            if refs and i_ref >= 0 and (len(valores) <= i_ref or plano(valores[i_ref]) not in refs):
+                continue
+            valores.extend([''] * (i_maq + 1 - len(valores)))
+            actual = str(valores[i_maq]).strip()
+            if not actual:
+                valores[i_maq] = maquina
+                db.execute('UPDATE production_rows SET values_json = ? WHERE source_row = ?', (json.dumps(valores, ensure_ascii=False), r['source_row']))
+                llenadas.append(r['source_row'])
+            elif maquina in sin_acentos(actual):
+                ya.append(r['source_row'])
+            else:
+                otras.append(f"fila {r['source_row']} tiene {actual}")
+        if llenadas:
+            db.execute("INSERT OR REPLACE INTO production_meta(key,value) VALUES ('updated_at',?)", (datetime.now(timezone.utc).isoformat(),))
+    if not (llenadas or ya or otras):
+        return {'ok': False, 'motivo': f'No encontré en Producción la orden {orden}' + (f' con las referencias {", ".join(sorted(refs))}' if refs else '')}
+    return {'ok': True, 'llenadas': llenadas, 'ya_estaban': ya, 'otras': otras}
+
+
+def _agentes_maquinas_de(orden: str) -> list:
+    """Máquinas de impresión que las tarjetas de Producción tienen puestas para la orden (cuando los JPG del maestro no dicen la máquina)."""
+    import unicodedata
+    plano = lambda v: re.sub(r'\s+', '', str(v or '')).upper()
+    sin_acentos = lambda v: ''.join(c for c in unicodedata.normalize('NFD', str(v or '')) if unicodedata.category(c) != 'Mn').strip().upper()
+    with connect() as db:
+        meta = {r['key']: r['value'] for r in db.execute('SELECT key, value FROM production_meta')}
+        titulos = [sin_acentos(h) for h in json.loads(meta.get('headers') or '[]')]
+        if 'ORDEN' not in titulos or 'MAQUINA DE IMPRESION' not in titulos:
+            return []
+        i_orden, i_maq = titulos.index('ORDEN'), titulos.index('MAQUINA DE IMPRESION')
+        encontradas = []
+        for r in db.execute('SELECT values_json FROM production_rows').fetchall():
+            v = json.loads(r['values_json'])
+            if len(v) > max(i_orden, i_maq) and plano(v[i_orden]) == plano(orden) and str(v[i_maq]).strip():
+                for m in re.split(r'\s*[,;]\s*', str(v[i_maq]).strip().upper()):
+                    if m and m not in encontradas and m != 'N/A':
+                        encontradas.append(m)
+        return encontradas
+
+
 agentes_mod.configurar_mts(_terry_guardar_mts)
+agentes_mod.configurar_maquinas_de(_agentes_maquinas_de)
+agentes_mod.configurar_maquina(_agentes_guardar_maquina)
 agentes_mod.configurar_refs(lambda orden: [c['ref'] for c in _edicion_en_proceso() if c['orden'] == orden and c['ref']])
 
 
@@ -6192,7 +6278,7 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
 `;document.head.appendChild(traceFigmaStyle);setTraceView();
     const commercialGroup=commercialToggle.closest('.nav-group');commercialGroup.classList.add('collapsed');const productionToggle=document.getElementById('production-toggle');if(productionToggle)productionToggle.addEventListener('click',()=>{{const g=productionToggle.closest('.nav-group');g.classList.toggle('collapsed');if(!g.classList.contains('collapsed')&&window.innerWidth>860)g.querySelector('.nav-children .tab')?.click()}});
     setTimeout(()=>{{if(!document.querySelector('.panel.active'))document.querySelector('.tab[data-kind="inicio"]')?.click()}},0);
-    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/permisos.js?v=20261007-2'></script><script src='/reposiciones.js?v=20261005-4'></script><script src='/agentes.js?v=20261007-46'></script><script src='/promedios.js?v=20261006-7'></script><script src='/api/cartera/cartera.js?v=20261002-5'></script><script src='/trace-ui.js?v=20261006-2'></script><script src='/home-dashboard.js?v=20261005-9'></script><script src='/bodega-dashboard.js?v=20261002-10'></script><script src='/bodegas.js?v=20261002-4'></script><script src='/codigos-barras.js?v=20261007-17'></script><script src='/mis-pedidos.js?v=20261006-4'></script><script src='/mobile-nav.js?v=20261006-1'></script><script src='/nav-liquid.js?v=20261003-3'></script><script src='/build-watch.js?v=20261002-1'></script><script src='/salud.js?v=20261002-1'></script><script src='/tema.js?v=20261002-3'></script><script src='/tarjeta-iconos.js?v=20261002-5'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261005-3'></script><script src='/linea-editor.js?v=20261003-3'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
+    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/permisos.js?v=20261007-2'></script><script src='/reposiciones.js?v=20261005-4'></script><script src='/agentes.js?v=20261007-49'></script><script src='/promedios.js?v=20261006-7'></script><script src='/capacidad.js?v=20261007-7'></script><script src='/molderia.js?v=20261007-10'></script><script src='/estandar.js?v=20261007-1'></script><script src='/fichas-resumen.js?v=20261007-36'></script><script src='/api/cartera/cartera.js?v=20261002-5'></script><script src='/trace-ui.js?v=20261007-5'></script><script src='/home-dashboard.js?v=20261005-9'></script><script src='/bodega-dashboard.js?v=20261002-10'></script><script src='/bodegas.js?v=20261002-4'></script><script src='/codigos-barras.js?v=20261007-17'></script><script src='/mis-pedidos.js?v=20261006-4'></script><script src='/mobile-nav.js?v=20261006-1'></script><script src='/nav-liquid.js?v=20261003-3'></script><script src='/build-watch.js?v=20261002-1'></script><script src='/salud.js?v=20261002-1'></script><script src='/tema.js?v=20261002-3'></script><script src='/tarjeta-iconos.js?v=20261002-5'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261005-3'></script><script src='/linea-editor.js?v=20261003-3'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
 
 
 def ordered_mockup_uploads(extras, slots):

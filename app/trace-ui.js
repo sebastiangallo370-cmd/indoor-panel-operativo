@@ -1,6 +1,7 @@
 /* Production cards: derived presentation only. Operational writes remain in the existing API. */
 (function () {
   'use strict';
+  let cardMachineOpen = false;   // el diálogo de máquinas lo abrió una tarjeta: al cerrarlo se repintan las tarjetas
   const key = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase();
   const personKey = value => key(value).replace(/[^A-Z0-9]/g, '');
   const operatorInitials = new Map([
@@ -576,7 +577,7 @@
       const due = traceField(row, 'FECHA DE ENTREGA');
       const dueLabel = !summary.due ? 'Sin fecha' : summary.overdue ? 'Atrasado' : summary.state !== 'finished' && summary.due.getTime() === scheduleToday().getTime() ? 'Entrega hoy' : 'Entrega';
       const hasRework = summary.groups.some(group => group.state === 'rework');
-      return '<article class="trace-card state-' + summary.state + '" data-card-row="' + id + '"><div class="trace-media">' + traceAssetsMarkup(id) + '</div><div class="trace-card-body"><div class="trace-card-heading"><h3>' + esc(traceField(row, 'ORDEN') || 'Sin número') + '</h3><button type="button" class="trace-order-rework' + (hasRework ? ' has-rework' : '') + '" data-card-rework="' + esc(traceField(row, 'ORDEN')) + '" aria-label="Registrar reproceso de la orden ' + esc(traceField(row, 'ORDEN')) + '">REPROCESO</button><span class="trace-stage ' + summary.state + '">' + labels[summary.state] + '</span></div><p class="trace-client">' + esc(traceField(row, 'NOMBRE DEL CLIENTE') || 'Sin cliente') + '</p><p class="trace-project">' + esc(traceField(row, 'NOMBRE PROYECTO')) + '</p><div class="trace-mts-row"><button class="trace-mts-btn' + (mtsV ? ' has-value' : '') + '" type="button" data-card-mts="' + id + '"><span class="mts-label">Ingresar MTS REQUERIDOS</span></button><button class="trace-mts-inventory" type="button" data-card-inventory="' + id + '">STOCK TELA ↗</button><div class="trace-mts-display' + (mtsV ? ' has-value' : '') + '"><small>MTS REQUERIDOS</small><strong>' + esc(mtsV || 'Sin registrar') + '</strong></div></div><dl><div><dt>Referencia</dt><dd>' + esc(traceField(row, 'REFERENCIA') || '—') + '</dd></div><div><dt>Cantidad</dt><dd class="trace-quantity">' + esc(traceField(row, 'CANTIDAD') || '0') + ' <small>und.</small></dd></div><div class="trace-due ' + (summary.overdue ? 'late' : '') + '"><dt>' + dueLabel + '</dt><dd>' + esc(summary.due ? displayProductionDate(due) : 'Sin programar') + '</dd></div><div><dt>Responsable del proceso</dt><dd>' + (responsible ? responsible.split(/[,;·\n]+/).filter(x => x.trim()).map(name => '<span class="trace-person">' + esc(name.trim()) + '</span>').join(' ') : '<span class="trace-unassigned">Sin asignar</span>') + '</dd></div></dl><div class="trace-card-meta"><span>' + notes + ' nota' + (notes === 1 ? '' : 's') + '</span><span>Fila ' + id + '</span></div><div class="trace-card-actions"><button type="button" class="operator-open" data-card-edit="' + id + '">PRODUCCIÓN</button><button type="button" data-card-detail="' + id + '">Ver detalle</button><button type="button" data-card-nas="' + id + '" aria-label="Abrir carpeta del pedido">NAS ↗</button></div></div>' + routeMarkup(row, summary) + '</article>';
+      return '<article class="trace-card state-' + summary.state + '" data-card-row="' + id + '"><div class="trace-media">' + traceAssetsMarkup(id) + '</div><div class="trace-card-body"><div class="trace-card-heading"><h3>' + esc(traceField(row, 'ORDEN') || 'Sin número') + '</h3><button type="button" class="trace-order-rework' + (hasRework ? ' has-rework' : '') + '" data-card-rework="' + esc(traceField(row, 'ORDEN')) + '" aria-label="Registrar reproceso de la orden ' + esc(traceField(row, 'ORDEN')) + '">REPROCESO</button><span class="trace-stage ' + summary.state + '">' + labels[summary.state] + '</span></div><p class="trace-client">' + esc(traceField(row, 'NOMBRE DEL CLIENTE') || 'Sin cliente') + '</p><p class="trace-project">' + esc(traceField(row, 'NOMBRE PROYECTO')) + '</p><div class="trace-mts-row"><button class="trace-mts-btn' + (mtsV ? ' has-value' : '') + '" type="button" data-card-mts="' + id + '"><span class="mts-label">Ingresar MTS REQUERIDOS</span></button><button class="trace-mts-inventory" type="button" data-card-inventory="' + id + '">STOCK TELA ↗</button><div class="trace-mts-display' + (mtsV ? ' has-value' : '') + '"><small>MTS REQUERIDOS</small><strong>' + esc(mtsV || 'Sin registrar') + '</strong></div></div><dl><div><dt>Referencia</dt><dd>' + esc(traceField(row, 'REFERENCIA') || '—') + '</dd></div><div class="trace-machine-fact"><dt>Máquina</dt><dd><button type="button" class="trace-machine-btn' + (traceField(row, 'MAQUINA DE IMPRESION').trim() ? ' has-value' : '') + '" data-card-machine="' + id + '" title="Máquina de impresión: clic para elegirla">' + esc(traceField(row, 'MAQUINA DE IMPRESION').trim() || 'Seleccionar') + '</button></dd></div><div><dt>Cantidad</dt><dd class="trace-quantity">' + esc(traceField(row, 'CANTIDAD') || '0') + ' <small>und.</small></dd></div><div class="trace-due ' + (summary.overdue ? 'late' : '') + '"><dt>' + dueLabel + '</dt><dd>' + esc(summary.due ? displayProductionDate(due) : 'Sin programar') + '</dd></div><div><dt>Responsable del proceso</dt><dd>' + (responsible ? responsible.split(/[,;·\n]+/).filter(x => x.trim()).map(name => '<span class="trace-person">' + esc(name.trim()) + '</span>').join(' ') : '<span class="trace-unassigned">Sin asignar</span>') + '</dd></div></dl><div class="trace-card-meta"><span>' + notes + ' nota' + (notes === 1 ? '' : 's') + '</span><span>Fila ' + id + '</span></div><div class="trace-card-actions"><button type="button" class="operator-open" data-card-edit="' + id + '">PRODUCCIÓN</button><button type="button" data-card-detail="' + id + '">Ver detalle</button><button type="button" data-card-nas="' + id + '" aria-label="Abrir carpeta del pedido">NAS ↗</button></div></div>' + routeMarkup(row, summary) + '</article>';
     }).join('') || '<div class="trace-empty"><h3>No hay pedidos en esta vista</h3><p>' + (filter === 'mine' ? 'No hay responsables que coincidan con tu usuario o iniciales. Prueba Todos o revisa la asignación.' : 'Prueba otro estado o cambia la búsqueda.') + '</p><button type="button" data-clear-trace>Ver todos</button></div>';
     traceCards.querySelectorAll('[data-card-row]').forEach(card => traceImageObserver.observe(card));
     if (pageResult.pages > 1) traceCards.insertAdjacentHTML('beforeend', '<nav class="trace-pagination trace-pagination-bottom" aria-label="Páginas de pedidos al final">' + pageMarkup(pageResult) + '</nav>');
@@ -640,6 +641,13 @@
       }
       // Las acciones operativas ya están en el encabezado; no repetimos el botón Producción.
       card.querySelector('.operator-open')?.remove();
+      const refFicha = String(traceField(row, 'REFERENCIA') || '').trim();
+      if (refFicha) {   // ficha técnica resumida de la referencia, para consultarla mientras se trabaja
+        const fb = document.createElement('button');
+        fb.type = 'button'; fb.textContent = 'FICHA TÉCNICA'; fb.className = 'fr-ficha-btn'; fb.dataset.cardFicha = refFicha; fb.dataset.cardFila = String(row.source_row); fb.dataset.cardLinea = (card.querySelector('.trace-line[data-line]') || { dataset: {} }).dataset.line || '';
+        fb.setAttribute('aria-label', 'Ver la ficha técnica de ' + refFicha);
+        card.querySelector('.trace-card-actions').insertBefore(fb, card.querySelector('.trace-card-actions').firstChild);
+      }
       const viewSummary = summaries.get(row.source_row);
       const progressSummary = viewSummary.route || viewSummary;
       const progress = card.querySelector('.trace-progress');
@@ -746,7 +754,7 @@
       const facts = document.createElement('dl');
       facts.className = 'trace-primary-facts';
       body.querySelectorAll(':scope > dl > div').forEach(item => {
-        if (['REFERENCIA', 'CANTIDAD'].includes(key(item.querySelector('dt')?.textContent))) facts.appendChild(item);
+        if (['REFERENCIA', 'MAQUINA', 'CANTIDAD'].includes(key(item.querySelector('dt')?.textContent))) facts.appendChild(item);
       });
       (body.querySelector('.trace-mts-row') || body.querySelector('.trace-project')).after(facts);
       disclosure.className = 'trace-disclosure';
@@ -1102,6 +1110,22 @@
         .then(response => response.ok ? response.json() : response.json().then(data => { throw Error(data.detail || 'No se pudo eliminar MTS REQUERIDOS'); }))
         .then(() => { delete productionData.notes[id + ':' + (ci + 1)]; if (productionData.note_entries) delete productionData.note_entries[id + ':' + (ci + 1)]; renderProduction(); })
         .catch(error => { button.disabled = false; alert(error.message); });
+      return;
+    }
+    const machineBtn = event.target.closest('[data-card-machine]');
+    if (machineBtn) {
+      event.preventDefault();
+      const id = Number(machineBtn.dataset.cardMachine), row = productionData?.rows.find(r => r.source_row === id);
+      const column = productionData ? productionData.headers.findIndex(h => key(h) === 'MAQUINA DE IMPRESION') + 1 : 0;
+      if (!row || !column) return;
+      machineCell = { dataset: { row: String(id), column: String(column) }, classList: { add() {}, remove() {} } };   // el diálogo de la tabla guarda con la misma función
+      machineOriginal = traceField(row, 'MAQUINA DE IMPRESION').trim();
+      const selected = machineOriginal.split(/\s*[,;]\s*/).filter(Boolean), choices = [...new Set([...printingMachines, ...selected])];
+      machineDialog.querySelector('.machine-choices').innerHTML = choices.map(name => '<label style="display:flex;align-items:center;gap:12px;padding:9px 0"><input type="checkbox" style="width:18px;height:18px;flex:none" value="' + esc(name) + '" ' + (selected.includes(name) ? 'checked' : '') + '><span>' + esc(name) + '</span></label>').join('');
+      machineDialog.querySelector('.machine-error').textContent = '';
+      if (!machineDialog.dataset.cardHook) { machineDialog.dataset.cardHook = '1'; machineDialog.addEventListener('close', () => { if (cardMachineOpen) { cardMachineOpen = false; renderTraceCards(); } }); }
+      cardMachineOpen = true;
+      machineDialog.showModal();
       return;
     }
     const mtsBtn = event.target.closest('[data-card-mts]');
@@ -2075,6 +2099,13 @@
   html body.production-mode .trace-card .trace-line{grid-area:badge;justify-self:end;align-self:start;display:inline-flex;align-items:center;gap:6px;max-width:100%;padding:4px 11px;border:1px solid rgba(208,244,76,.5);border-radius:999px;background:rgba(208,244,76,.12);color:#d0f44c;font:800 11px/1.2 Arial,sans-serif;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   html body.production-mode .trace-card .trace-web{display:inline-flex;align-items:center;gap:5px;align-self:flex-start;justify-self:start;width:max-content;margin:0 0 8px;padding:2px 9px;border:1px solid rgba(110,165,255,.4);border-radius:999px;background:rgba(70,120,220,.12);color:#9cc0ff;font:700 9.5px/1.3 Arial,sans-serif;letter-spacing:.1em;text-transform:uppercase;cursor:default}
   html body.production-mode .trace-card .trace-line small{font:700 8px Arial,sans-serif;letter-spacing:.16em;opacity:.7}
+  html body.production-mode .trace-card .trace-primary-facts{grid-template-columns:minmax(0,1fr) minmax(130px,auto) minmax(0,1fr)!important;align-items:end}
+  html body.production-mode .trace-card .trace-primary-facts>div:last-child{justify-self:end;text-align:right}
+  html body.production-mode .trace-card .trace-machine-fact{justify-self:center;width:min(190px,34vw);min-width:130px}
+  html body.production-mode .trace-card .trace-machine-fact{text-align:center}
+  html body.production-mode .trace-card .trace-machine-btn{width:100%;min-height:34px;padding:6px 8px;border-radius:9px;border:1px dashed #6f8a45;background:#16200f;color:#b8c9a0;font:700 13px/1.2 Arial,sans-serif;letter-spacing:.03em;cursor:pointer;overflow-wrap:anywhere}
+  html body.production-mode .trace-card .trace-machine-btn.has-value{border-style:solid;border-color:#9fd24c;background:#1f2e12;color:#e6ffb0}
+  html body.production-mode .trace-card .trace-machine-btn:hover{background:#2a3d17;color:#fff}
   @media(prefers-reduced-motion:reduce){html body.production-mode .trace-card{transition:none}}
   `;
   document.head.appendChild(style);

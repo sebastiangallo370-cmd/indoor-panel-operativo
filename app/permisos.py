@@ -25,6 +25,7 @@ MODULOS = {
     'produccion': ('Producción', ('exportar',)),
     'agentes': ('Agentes de edición', ('ver', 'editar')),
     'promedios': ('Promedios maestros', ('ver', 'editar')),
+    'molderia': ('Moldería', ('ver',)),
 }
 ACCIONES = {'ver': 'Ver', 'editar': 'Editar', 'exportar': 'Exportar a Excel'}
 
@@ -50,6 +51,8 @@ def _defaults() -> dict:
     matriz['comercial']['agentes'] = {'ver': False, 'editar': False}
     matriz['operario']['promedios'] = {'ver': False, 'editar': False}
     matriz['comercial']['promedios'] = {'ver': False, 'editar': False}
+    matriz['operario']['molderia'] = {'ver': False}
+    matriz['comercial']['molderia'] = {'ver': False}
     return matriz
 
 
