@@ -298,6 +298,31 @@
     .mu-pie{color:#aebba7;font:700 12px Arial;display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap}.mu-vacio{display:grid;place-items:center;color:#8f9b8a;font:700 13px Arial;text-align:center;grid-row:1 / -1}
   }
   @media(max-width:1000px){.ag-vtabs,.ag-muestras{display:none!important}}
+
+  /* ---- Celular: todo más pequeño (botones, píldoras, textos) para que no ocupen media pantalla ---- */
+  @media(max-width:700px){
+    .ag{gap:6px!important}
+    .ag-hd{padding:5px 8px!important;gap:6px!important;border-radius:11px!important}.ag-hd h2{font-size:12px!important}
+    .ag-pill{font-size:9.5px!important;padding:2px 7px!important;min-height:0!important}
+    .ag-tab{min-height:28px!important;padding:0 9px!important;font-size:10.5px!important;gap:5px!important}.ag-tab b,.ag-tab em{font-size:10.5px!important}
+    .ag-agbtn{min-height:26px!important;padding:0 8px!important;font-size:10px!important}.ag-agbtn small,.ag-agbtn em{font-size:9px!important}
+    .ag-btn{min-height:30px!important;padding:0 10px!important;font-size:11px!important;border-radius:9px!important}
+    .ag-hacc .ag-btn,.ag-stop,.ag-reiniciar{min-height:28px!important;font-size:10.5px!important;padding:0 9px!important}
+    .ag-ico,.ag-menu>summary{min-width:28px!important;min-height:28px!important;font-size:12px!important}
+    .ag-res{padding:8px 10px!important;gap:6px!important}.ag-res-top .qa b{font-size:.85rem!important}.ag-res-top h3{font-size:9px!important}.ag-res-top .tiempo{font-size:11px!important}
+    .ag-paso{padding:4px 6px!important}.ag-paso b{font-size:.66rem!important}.ag-paso em{font-size:.6rem!important}
+    .ag-ahora{padding:5px 8px!important;font-size:.72rem!important}
+    details.ag-det>summary{font-size:10px!important;padding:4px 8px!important}
+    .ag-ver-flujo{min-height:30px!important;font-size:11px!important;border-radius:9px!important}
+    .ag-orden{padding:5px 8px!important;gap:5px!important}.ag-orden .ag-btn{min-height:30px!important;font-size:11px!important;padding:0 10px!important}
+    .ag-ochip{padding:3px 3px 3px 9px!important;font-size:10.5px!important;gap:4px!important}.ag-ochip b{font-size:11px!important}.ag-ochip .ag-ico{min-width:22px!important;min-height:22px!important;font-size:11px!important}
+    .ag-chat{padding:8px!important;gap:6px!important}
+    .ag-msg{padding:9px 10px!important;font-size:.78rem!important;line-height:1.4!important}
+    .ag-chips button,.ag-chips .reply,.reply{min-height:28px!important;padding:0 12px!important;font-size:11px!important}
+    .ag-form{gap:5px!important}.ag-form .ag-btn{min-height:32px!important;padding:0 12px!important;font-size:11px!important}.ag-form .ag-ico{min-height:32px!important;min-width:32px!important}
+    .ag-file{padding:8px!important;gap:6px!important}.ag-file-head b{font-size:.78rem!important}.ag-file-acc button,.ag-file-acc a{min-height:26px!important;min-width:26px!important;font-size:10.5px!important;padding:0 8px!important}
+    .ag-filtros .ag-pcsel{min-height:28px!important;font-size:11px!important}
+  }
   `;
   document.head.appendChild(css);
 
