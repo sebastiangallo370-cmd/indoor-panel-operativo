@@ -2901,15 +2901,23 @@ agentes_mod.configurar_refs(lambda orden: [c['ref'] for c in _edicion_en_proceso
 
 
 def _finalizados_hoy(usuario: str) -> list:
-    """Procesos que este usuario finalizó hoy (hora Colombia): 'fila:columna'."""
+    """Procesos finalizados hoy (hora Colombia) por este usuario: 'fila:columna'. Cuenta lo que finalizó él mismo y lo que finalizó TERRY
+    (el agente) después de que este usuario lo iniciara."""
     hoy = datetime.now(timezone(timedelta(hours=-5))).date().isoformat()
     db = connect()
     try:
         if not db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='production_operator_events'").fetchone():
             return []
-        return [f"{r['source_row']}:{r['column_number']}" for r in db.execute(
-            "SELECT DISTINCT source_row,column_number FROM production_operator_events WHERE action='finish' AND username=? COLLATE NOCASE AND substr(created_at,1,10)=?",
-            (usuario, hoy))]
+        mios = []
+        for r in db.execute("SELECT source_row,column_number,username FROM production_operator_events WHERE action='finish' AND substr(created_at,1,10)=? ORDER BY id", (hoy,)):
+            if str(r['username']).strip().lower() == usuario.strip().lower():
+                mios.append((r['source_row'], r['column_number']))
+            elif str(r['username']).strip().upper() == 'TERRY':
+                ini = db.execute("SELECT username FROM production_operator_events WHERE source_row=? AND column_number=? AND action='start' ORDER BY id DESC LIMIT 1",
+                                 (r['source_row'], r['column_number'])).fetchone()
+                if ini and str(ini['username']).strip().lower() == usuario.strip().lower():
+                    mios.append((r['source_row'], r['column_number']))
+        return sorted({f"{f}:{c}" for f, c in mios})
     finally:
         db.close()
 
