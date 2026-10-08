@@ -70,6 +70,7 @@
   .ag-live-sec h4{margin:0;font:800 11px Arial;letter-spacing:.1em;color:#aebba7;display:flex;justify-content:space-between;gap:8px}.ag-live-sec h4 span{color:#d7ff3a}
   .ag-live-list{min-height:0;overflow:auto;display:grid;align-content:start;gap:3px;font-size:12px}.ag-live-list div{display:flex;gap:6px;align-items:center;padding:4px 8px;border-radius:7px;background:#121a13;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ag-live-list div::before{content:'✓';color:#8bd450;font-weight:800}.ag-live-list div.nuevo{animation:agnuevo 1s}@keyframes agnuevo{from{background:#2d4a1f}}
   .ag-live-list div{flex-wrap:wrap}.ag-live-list div .gd{flex:0 0 100%;order:9;margin:1px 0 0;font:600 10.5px Arial;color:#9fb394;white-space:normal;word-break:break-all}.ag-live-list div .gd b{font-weight:800;color:#d7ff3a}
+  .ag-live-list{grid-auto-rows:max-content}.ag-live-list div{flex:none;min-height:24px}.ag-live-list .mt-nom{font:700 12px Consolas,ui-monospace,monospace;color:#e9efe3;letter-spacing:.01em;overflow:hidden;text-overflow:ellipsis}
   .ag-live-list div{display:flex;align-items:center;gap:4px}.ag-live-list div .ag-vlink{margin-left:auto;padding:0 8px;border-radius:6px;background:#26361f;color:#b8ff6a;text-decoration:none;font-weight:900}.ag-live-list div .ag-vlink:hover{background:#3a5a28}.ag-live-list div[data-vista]{cursor:pointer}.ag-live-list div[data-vista]:hover{background:#1a2a1a}.ag-live-list div.sel{outline:1px solid #8bd450;background:#1a2a1a}
   .ag-live small.dest{display:block;color:#8fa088;font-size:10.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .ag-lienzo{position:relative;height:auto;min-height:0;overflow:hidden;border:1px solid #2d3b2f;border-radius:16px;background-color:#0c110d;background-image:radial-gradient(#26322a 1.2px,transparent 1.2px);background-size:20px 20px}
@@ -600,7 +601,7 @@
     const q = sel => box.querySelector(sel);
     q('[data-pto]').className = st.esperando ? 'on' : '';
     q('[data-estado]').textContent = st.esperando ? 'Illustrator está trabajando…' : (evs.length ? 'Última ejecución' : 'Sin ejecución en curso');
-    const itemM = a => { const m = /^Talla_([^_]+)_Tipo_(D\d+)_Gen_(\w+)$/.exec(a.nombre || ''); return m ? '<b>' + esc(m[1]) + '</b> · ' + esc(m[2]) + ' · ' + esc(m[3]) : esc(a.nombre); };
+    const itemM = a => '<span class="mt-nom">' + esc(a.nombre || '') + '</span>';   // el MISMO nombre de la mesa exportada (Talla_XS_Tipo_D1_Gen_F)
     q('[data-nm]').textContent = montajes.length + ' exportados';
     q('[data-lm]').innerHTML = montajes.slice().reverse().slice(0, 60).map((a, i) => '<div' + (i === 0 ? ' class="nuevo"' : '') + '>' + itemM(a) + '</div>').join('') || '<div style="opacity:.5">Esperando…</div>';
     const conVista = pdfs.filter(a => a.vista);
