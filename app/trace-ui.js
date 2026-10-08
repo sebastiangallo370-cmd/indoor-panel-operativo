@@ -111,7 +111,8 @@
     const mine = internal.some(assignedToMe);
     const myPending = internal.some(g => assignedToMe(g) && g.state !== 'finished');
     const doneSet = new Set(data.finished_today_mine || []);
-    const doneToday = groups.some(g => g.statusColumns.some(i => doneSet.has(row.source_row + ':' + (i + 1))));
+    const workedToday = (data.worked_today_rows || []).includes(row.source_row);   // iniciada hoy o pedida hoy a los agentes
+    const doneToday = workedToday || groups.some(g => g.statusColumns.some(i => doneSet.has(row.source_row + ':' + (i + 1))));
     const dueIndex = data.headers.findIndex(h => key(h) === 'FECHA DE ENTREGA'), due = dateValue(row.values[dueIndex]);
     const overdue = !!due && due < today && state !== 'finished';
     return { groups, finished, total: internal.length, state, focus, mine, myPending, doneToday, due, overdue, percent: internal.length ? Math.round(finished / internal.length * 100) : 0 };
