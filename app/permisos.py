@@ -49,10 +49,9 @@ def _defaults() -> dict:
     matriz['operario']['produccion']['exportar'] = False
     matriz['operario']['agentes'] = {'ver': False, 'editar': False}
     matriz['comercial']['agentes'] = {'ver': False, 'editar': False}
-    matriz['operario']['promedios'] = {'ver': False, 'editar': False}
-    matriz['comercial']['promedios'] = {'ver': False, 'editar': False}
-    matriz['operario']['molderia'] = {'ver': False}
-    matriz['comercial']['molderia'] = {'ver': False}
+    # Estándar 2026 (Promedios maestros + Fichas técnicas) lo ve todo el mundo; solo Administración y Edición lo editan
+    matriz['operario']['promedios'] = {'ver': True, 'editar': False}
+    matriz['comercial']['promedios'] = {'ver': True, 'editar': False}
     return matriz
 
 
