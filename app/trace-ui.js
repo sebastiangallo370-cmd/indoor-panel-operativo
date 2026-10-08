@@ -622,7 +622,7 @@
     const numero = t => { let v = String(t).trim(); if (v.includes(',') && v.includes('.')) v = v.replace(/\./g, '').replace(',', '.'); else if (v.includes(',')) v = v.replace(',', '.'); return parseFloat(v) || 0; };
     let totUnd = 0, totMts = 0;
     lista.forEach(row => {
-      totUnd += numero(String(traceField(row, 'CANTIDAD') || '0').replace(/[^0-9.,]/g, '') || '0');
+      totUnd += parseInt(String(traceField(row, 'CANTIDAD') || '0').replace(/[^0-9]/g, ''), 10) || 0;
       for (const m of String(productionData.notes?.[row.source_row + ':17'] || '').matchAll(/([0-9]+(?:[.,][0-9]+)*)\s*MTS/gi)) totMts += numero(m[1]);
     });
     totales.querySelector('[data-tot-und]').textContent = totUnd.toLocaleString('es-CO', { maximumFractionDigits: 0 });
