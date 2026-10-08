@@ -2934,7 +2934,7 @@ def _filas_trabajadas_hoy(usuario: str) -> list:
             datos = agentes_mod._leer()
         for m in datos.get('mensajes', []):
             if m.get('rol') == 'yo' and float(m.get('t') or 0) >= inicio and str(agentes_mod._base(m.get('sesion') or '')).strip().lower() == usuario.strip().lower():
-                ordenes.update(re.findall(r'[A-Z]{2}\d{3,5}', str(m.get('texto') or '').upper()))
+                ordenes.update(re.findall(r'\b[A-Z]{2}\d{3,5}\b', str(m.get('texto') or '').upper()))
     except Exception:  # noqa: BLE001
         logging.exception('No se pudieron leer los pedidos a los agentes de hoy')
     db = connect()
