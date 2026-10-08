@@ -47,7 +47,7 @@
   // ---------------------------------------------------------------- ajustes de la etiqueta
   const SOLO_CATEGORIA = 'BODEGA TELA';
   const TAMANOS = {'42x30': [42, 30], '40x40': [40, 40], '45x40': [45, 40], '50x40': [50, 40], '100x50': [100, 50], '100x70': [100, 70], '60x40': [60, 40], '50x30': [50, 30], '40x25': [40, 25]};
-  const POR_DEFECTO = {tamano: '42x30', ancho: 42, alto: 30, copias: 1, nombre: true, stock: true, categoria: true, fecha: false, imagen: true, dx: 0, dy: 0, anchoBarras: 1, hoja: 'igual'};
+  const POR_DEFECTO = {tamano: '42x30', ancho: 42, alto: 30, copias: 1, nombre: true, stock: true, categoria: true, fecha: false, imagen: true, dx: 0, dy: 0, anchoBarras: 1, hoja: 'igual', dpi: 203};
   let cfg = {...POR_DEFECTO};
   try { cfg = {...POR_DEFECTO, ...JSON.parse(localStorage.getItem('codigosBarrasCfg9') || '{}')}; } catch (_) {}
   const guardarCfg = () => { try { localStorage.setItem('codigosBarrasCfg9', JSON.stringify(cfg)); } catch (_) {} };
@@ -95,8 +95,9 @@
 
 
   // ---------------------------------------------------------------- etiqueta como IMAGEN a la medida exacta (203 dpi = 8 puntos por mm)
-  const DPM = 8;
+  // La imagen se dibuja a la resolución REAL de la impresora (203, 300 o 600 dpi): si no coincide, el driver la reescala y las barras salen borrosas y corridas
   function etiquetaCanvas(item, tam) {
+    const DPM = (Number(cfg.dpi) || 203) / 25.4;   // puntos por mm
     const [w, h] = tam, P = paramsEtiqueta(item, tam);
     const W = Math.round(w * DPM), H = Math.round(h * DPM), padPx = Math.round(P.pad * DPM), ancho = W - padPx * 2;
     const c = document.createElement('canvas'); c.width = W; c.height = H;
@@ -138,7 +139,9 @@
         g.font = b.peso + ' ' + b.px + 'px ' + FUENTE;
         b.lineas.forEach((l, i) => g.fillText(l, W / 2, Math.round(y + i * b.px * 1.12)));
       } else {
-        const modulo = Math.max(1, Math.round(P.modulo * DPM)), cod = code128(item.codigo), totalMod = cod.modulos + P.margen * 2;
+        const cod = code128(item.codigo), totalMod = cod.modulos + P.margen * 2;
+        const disponiblePx = (W - padPx * 2) * (Number(cfg.anchoBarras) || 1);
+        const modulo = Math.max(1, Math.min(Math.floor(disponiblePx / totalMod), Math.round(0.625 * DPM)));   // barra más fina = número ENTERO de puntos de la impresora
         let x = Math.round((W - totalMod * modulo) / 2) + P.margen * modulo;
         cod.anchos.forEach((a, i) => { if (i % 2 === 0) g.fillRect(x, Math.round(y), a * modulo, b.h); x += a * modulo; });
       }
@@ -316,7 +319,7 @@
     '<label>Copias <input type="number" min="1" max="200" data-cb-copias></label>' +
     '<label>Papel de la impresora <select data-cb-papel><option value="igual">Igual que la etiqueta</option>' + Object.keys(TAMANOS).map(k => '<option value="' + k + '">' + k.replace('x', ' × ') + ' mm</option>').join('') + '</select></label>' +
     '<label>Mover → <input type="number" step="0.5" min="-10" max="10" data-cb-dx> mm</label><label>↓ <input type="number" step="0.5" min="-10" max="10" data-cb-dy> mm</label>' +
-    '<label>Barras <select data-cb-ab><option value="1">Ancho máximo</option><option value="0.9">90 %</option><option value="0.8">80 %</option><option value="0.7">70 %</option></select></label>' +
+    '<label>Resolución <select data-cb-dpi><option value="203">203 dpi</option><option value="300">300 dpi</option><option value="600">600 dpi</option></select></label><label>Barras <select data-cb-ab><option value="1">Ancho máximo</option><option value="0.9">90 %</option><option value="0.8">80 %</option><option value="0.7">70 %</option></select></label>' +
     '<label><input type="checkbox" data-cb-op="nombre"> Nombre</label><label><input type="checkbox" data-cb-op="categoria"> Categoría</label><label><input type="checkbox" data-cb-op="stock"> Cantidad</label><label><input type="checkbox" data-cb-op="fecha"> Fecha</label><label><input type="checkbox" data-cb-op="imagen"> Como imagen</label></div>' +
     '<button type="button" data-cb-vista>Vista previa</button><button type="button" class="p" data-cb-imprimir>Imprimir etiquetas</button></div>' +
     '<div class="cb-prev" data-cb-prev><div><h3>VISTA PREVIA · tamaño real de la etiqueta</h3><div data-cb-hoja></div><button type="button" data-cb-cerrar>Cerrar</button></div></div>';
@@ -420,7 +423,7 @@
   }
 
   const aplicarCfg = () => {
-    q('[data-cb-tam]').value = cfg.tamano; q('[data-cb-w]').value = cfg.ancho; q('[data-cb-h]').value = cfg.alto; q('[data-cb-copias]').value = cfg.copias; q('[data-cb-dx]').value = cfg.dx; q('[data-cb-dy]').value = cfg.dy; q('[data-cb-ab]').value = String(cfg.anchoBarras); q('[data-cb-papel]').value = cfg.hoja || 'igual';
+    q('[data-cb-tam]').value = cfg.tamano; q('[data-cb-w]').value = cfg.ancho; q('[data-cb-h]').value = cfg.alto; q('[data-cb-copias]').value = cfg.copias; q('[data-cb-dx]').value = cfg.dx; q('[data-cb-dy]').value = cfg.dy; q('[data-cb-ab]').value = String(cfg.anchoBarras); q('[data-cb-dpi]').value = String(cfg.dpi || 203); q('[data-cb-papel]').value = cfg.hoja || 'igual';
     q('[data-cb-otro]').hidden = cfg.tamano !== 'otro';
     extras.querySelectorAll('[data-cb-op]').forEach(c => { c.checked = !!cfg[c.dataset.cbOp]; });
   };
@@ -483,6 +486,7 @@
   const alCambiar = e => {
     if (e.target.matches('[data-cb-cat]')) { estado.cat = e.target.value; pintar(); }
     else if (e.target.matches('[data-cb-papel]')) { cfg.hoja = e.target.value; guardarCfg(); }
+    else if (e.target.matches('[data-cb-dpi]')) { cfg.dpi = Number(e.target.value) || 203; guardarCfg(); }
     else if (e.target.matches('[data-cb-ab]')) { cfg.anchoBarras = Number(e.target.value) || 1; guardarCfg(); }
     else if (e.target.matches('[data-cb-orden]')) { estado.orden = e.target.value; pintar(); }
     else if (e.target.matches('[data-cb-tam]')) { cfg.tamano = e.target.value; q('[data-cb-otro]').hidden = cfg.tamano !== 'otro'; guardarCfg(); }
