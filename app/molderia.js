@@ -521,17 +521,8 @@
     return true;
   }
 
-  function addMenuItem() {
-    const menu = document.querySelector('.user-dropdown');
-    if (!menu || !tab) return !!document.getElementById('open-molderia');
-    if (document.getElementById('open-molderia')) return true;
-    const button = document.createElement('button');
-    button.type = 'button'; button.id = 'open-molderia'; button.textContent = 'Moldería';
-    const anterior = document.getElementById('open-promedios') || document.getElementById('open-agentes') || document.getElementById('open-personal-notes');
-    anterior ? anterior.insertAdjacentElement('afterend', button) : menu.querySelector('p')?.insertAdjacentElement('afterend', button);
-    button.addEventListener('click', () => { document.querySelector('.user-menu')?.removeAttribute('open'); window.molderiaIr('molderia'); });
-    return true;
-  }
+  // El explorador de carpetas ya no tiene entrada propia en el menú del usuario: se llega por Estándar 2026.
+  function addMenuItem() { return !!tab; }
 
   // Solo quien tiene permiso «Moldería» (Administración/Coordinador y Edición).
   fetch('/api/permisos/mi', { cache: 'no-store', credentials: 'same-origin' }).then(r => (r.ok ? r.json() : null)).then(mi => {

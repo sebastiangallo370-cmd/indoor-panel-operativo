@@ -88,7 +88,7 @@
     label();
   }
   apply(saved(),false);
-  addButton();addIcon();
-  new MutationObserver(function(){addButton();addIcon();schedule()}).observe(document.body,{childList:true,subtree:true});
+  addIcon();
+  new MutationObserver(function(){addIcon();schedule()}).observe(document.body,{childList:true,subtree:true});
   setTimeout(scan,1200);
 })();

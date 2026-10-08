@@ -254,12 +254,12 @@
     button.type='button';button.className='li-menu-item';button.textContent='Líneas de producto';
     button.onclick=function(){var details=button.closest('details');if(details)details.open=false;open()};
     var anchor=menu.querySelector('#open-personal-notes')||menu.querySelector('a[href="/logout"]');
-    menu.insertBefore(button,anchor?(anchor.id==='open-personal-notes'?anchor.nextSibling:anchor):null);
+    var host=anchor&&anchor.parentNode?anchor.parentNode:menu;host.insertBefore(button,anchor?(anchor.id==='open-personal-notes'?anchor.nextSibling:anchor):null);
     // Las cuentas nuevas solo las crea la administración (el registro público está cerrado).
     var create=document.createElement('button');
     create.type='button';create.className='li-menu-item li-create-user';create.textContent='Crear usuario';
     create.onclick=function(){location.href='/registro'};
-    menu.insertBefore(create,button.nextSibling);
+    button.parentNode.insertBefore(create,button.nextSibling);
   }
   api('/api/lineas-producto',{cache:'no-store'}).then(function(d){allowed=!!d.puede_editar;addMenu()}).catch(function(){});
   new MutationObserver(addMenu).observe(document.body,{childList:true,subtree:true});
