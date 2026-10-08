@@ -266,7 +266,7 @@
     .ag-vtabs{display:flex;gap:6px;padding:0 2px}
     .ag-vt{min-height:34px;padding:0 22px;border:1px solid #34432f;border-radius:10px 10px 0 0;background:#0c110d;color:#aebba7;font:900 12px Arial;letter-spacing:.14em;cursor:pointer}
     .ag-vt:hover{color:#eef4e9}.ag-vt.on{background:#d7ff3a;border-color:#d7ff3a;color:#0b1204}
-    .ag-main{display:grid!important;grid-template-columns:minmax(0,1fr)!important;grid-template-rows:auto minmax(0,1fr)!important;height:max(480px,calc(100vh - 362px))!important}
+    .ag-main{display:grid!important;grid-template-columns:minmax(0,1fr)!important;grid-template-rows:auto minmax(0,1fr)!important;height:max(480px,calc(100vh - 286px))!important}
     .ag-main>*,.ag-main .ag-lienzo,.ag-main .ag-live,.ag-main .ag-detalle,.ag-main .ag-chat{grid-column:1!important}
     .ag-main .ag-orden{grid-row:1!important}
     .ag-main .ag-chat,.ag-main .ag-lienzo,.ag-main .ag-live,.ag-main .ag-detalle{grid-row:2!important;display:none!important;height:auto!important;min-height:0!important;max-height:none!important}
