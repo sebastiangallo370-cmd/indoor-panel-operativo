@@ -55,6 +55,8 @@
   .ag-live{display:grid;grid-template-rows:auto minmax(0,1fr);gap:10px;min-height:0;border:1px solid #34432f;border-radius:16px;background:#0c110d;padding:12px 14px}
   .ag-live-top{display:flex;align-items:center;gap:10px}.ag-live-top b{font:800 11px Arial;letter-spacing:.12em;color:#d7ff3a}.ag-live-top i{display:inline-block;width:8px;height:8px;border-radius:50%;background:#6f7d6a;margin-right:6px}.ag-live-top i.on{background:#8bd450;animation:agpulso 1.1s infinite}.ag-live-top small{color:#8fa088;font-size:11px}
   .ag-live-top .seguir{margin-left:auto;min-height:0;padding:4px 12px;border:1px solid #8bd450;border-radius:999px;background:transparent;color:#8bd450;font:800 11px Arial;cursor:pointer}
+  .ag-ai-btn{margin-left:auto!important;border-color:#d7ff3a!important;color:#d7ff3a!important}.ag-ai-btn:hover{background:#d7ff3a;color:#0b1204!important}.ag-ai-btn+.ag-live-cnt{margin-left:10px}.ag-live-list .ag-vlink.ag-ai{margin-left:6px;letter-spacing:.04em}
+  @media(max-width:1000px){.ag-ai-btn,.ag-ai{display:none!important}}
   .ag-live-cnt{margin-left:auto;color:#aebba7;font:800 12px Arial}.ag-live-cnt+.seguir{margin-left:8px}
   @keyframes agpulso{50%{opacity:.25}}
   .ag-live-body{display:grid;grid-template-columns:minmax(0,1fr) 270px;gap:14px;min-height:0}
@@ -567,17 +569,26 @@
   // PANTALLA EN VIVO: imagen del PDF de cada jugador (cambia con su nombre y número) + montajes y PDF que van quedando
   function armarLive(box) {
     box.dataset.listo = '1';
-    box.innerHTML = '<div class="ag-live-top"><b><i data-pto></i>PANTALLA EN VIVO</b><small data-estado></small><span class="ag-live-cnt" data-cnt></span><button type="button" class="seguir" data-seguir hidden>Seguir en vivo</button></div>' +
+    box.innerHTML = '<div class="ag-live-top"><b><i data-pto></i>PANTALLA EN VIVO</b><small data-estado></small><button type="button" class="seguir ag-ai-btn" data-ai hidden title="Abre este PDF en el Illustrator de ESTE computador">🎨 Abrir en Illustrator</button><span class="ag-live-cnt" data-cnt></span><button type="button" class="seguir" data-seguir hidden>Seguir en vivo</button></div>' +
       '<div class="ag-live-body"><div class="ag-live-vista" data-vista><button type="button" class="mu-flecha izq" data-pdf-go="-1" title="PDF anterior (←)"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button type="button" class="mu-flecha der" data-pdf-go="1" title="PDF siguiente (→)"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button><img alt="PDF de producción"><div class="ag-live-vacio"><div><b>ESPERANDO LOS PDF</b><br>Aquí verás cada PDF de producción, con el nombre y el número de cada jugador, a medida que se genera.</div></div>' +
       '<div class="ag-live-cap" data-cap><span class="num"></span><div><span class="nom"></span><small class="det"></small></div></div><div class="ag-live-prog"><i></i></div></div>' +
       '<aside class="ag-live-side"><div class="ag-live-sec"><h4>MONTAJES <span data-nm>0</span></h4><div class="ag-live-list" data-lm></div></div>' +
       '<div class="ag-live-sec"><h4>PDF DE PRODUCCIÓN <span data-np>0</span></h4><div class="ag-live-list" data-lp></div><small class="dest" data-dp></small></div></aside></div>';
     box.addEventListener('click', e => {
+      const aiFila = e.target.closest('[data-ai-ruta]');
+      if (aiFila) { e.preventDefault(); e.stopPropagation(); abrirEnIllustrator(aiFila.dataset.aiRuta); return; }
+      const aiBtn = e.target.closest('[data-ai]');
+      if (aiBtn) { abrirEnIllustrator(flow.rutaActual); return; }
       const go = e.target.closest('[data-pdf-go]');
       if (go) { irPdf(Number(go.dataset.pdfGo)); return; }
       const fila = e.target.closest('[data-vista]'); if (fila && fila.dataset.vista) { flow.vistaFija = fila.dataset.vista; pintarLive(); return; }
       if (e.target.closest('[data-seguir]')) { flow.vistaFija = null; pintarLive(); }
     });
+  }
+  // «Abrir en Illustrator»: el navegador entrega indoor-ai:// al programa de ESTE PC (se registra con INSTALAR_AGENTES_EDICION.vbs) y este abre el PDF
+  function abrirEnIllustrator(ruta) {
+    if (!ruta) return;
+    window.location.href = 'indoor-ai://abrir/?ruta=' + encodeURIComponent(ruta);
   }
   // Flechas de la pantalla en vivo: pasan de un PDF a otro mientras se van creando (al llegar al último vuelve a «en vivo»)
   function irPdf(paso) {
@@ -608,14 +619,15 @@
     const fija = flow.vistaFija && conVista.find(a => a.vista === flow.vistaFija);
     if (flow.vistaFija && !fija) flow.vistaFija = null;
     const actual = fija || conVista[conVista.length - 1] || null;
-    flow.conVista = conVista; flow.actualVista = actual && actual.vista;
+    flow.conVista = conVista; flow.actualVista = actual && actual.vista; flow.rutaActual = (actual && actual.ruta) || '';
+    const bAi = q('[data-ai]'); if (bAi) bAi.hidden = !flow.rutaActual;
     const iAct = actual ? conVista.findIndex(a => a.vista === actual.vista) : -1;
     q('[data-cnt]').textContent = conVista.length ? (iAct + 1) + ' / ' + conVista.length : '';
     const bIzq = q('[data-pdf-go="-1"]'), bDer = q('[data-pdf-go="1"]');
     if (bIzq) bIzq.disabled = iAct <= 0;
     if (bDer) bDer.disabled = iAct < 0 || iAct >= conVista.length - 1;
     q('[data-np]').textContent = pdfs.length + (total ? ' de ' + total : '');
-    q('[data-lp]').innerHTML = pdfs.slice().reverse().slice(0, 80).map((a, i) => '<div' + (a.vista ? ' data-vista="' + esc(a.vista) + '"' : '') + ' class="' + (i === 0 ? 'nuevo ' : '') + (actual && a.vista === actual.vista ? 'sel' : '') + '">' + (a.cantidad ? '<b>' + esc(a.cantidad) + ' unds</b> · sin nombre ni número · ' + esc(a.talla) : '<b>' + esc(a.nombre || 'Sin nombre') + '</b> · #' + esc(a.numero || '—') + ' · ' + esc(a.talla)) + (a.vista ? '<a class="ag-vlink" href="/api/agentes/archivo/' + encodeURIComponent(a.vista) + '" target="_blank" rel="noopener" title="Ver este PDF en grande (otra pestaña)">↗</a>' : '') + (a.detalle ? '<small class="gd">💾 Guardado como <b>' + esc(a.detalle) + '</b>' + (a.carpeta ? ' · en ' + esc(a.carpeta) : '') + '</small>' : '') + '</div>').join('') || '<div style="opacity:.5">Esperando…</div>';
+    q('[data-lp]').innerHTML = pdfs.slice().reverse().slice(0, 80).map((a, i) => '<div' + (a.vista ? ' data-vista="' + esc(a.vista) + '"' : '') + ' class="' + (i === 0 ? 'nuevo ' : '') + (actual && a.vista === actual.vista ? 'sel' : '') + '">' + (a.cantidad ? '<b>' + esc(a.cantidad) + ' unds</b> · sin nombre ni número · ' + esc(a.talla) : '<b>' + esc(a.nombre || 'Sin nombre') + '</b> · #' + esc(a.numero || '—') + ' · ' + esc(a.talla)) + (a.vista ? '<a class="ag-vlink" href="/api/agentes/archivo/' + encodeURIComponent(a.vista) + '" target="_blank" rel="noopener" title="Ver este PDF en grande (otra pestaña)">↗</a>' : '') + (a.ruta ? '<a href="#" class="ag-vlink ag-ai" data-ai-ruta="' + esc(a.ruta) + '" title="Abrir este PDF en Illustrator">AI</a>' : '') + (a.detalle ? '<small class="gd">💾 Guardado como <b>' + esc(a.detalle) + '</b>' + (a.carpeta ? ' · en ' + esc(a.carpeta) : '') + '</small>' : '') + '</div>').join('') || '<div style="opacity:.5">Esperando…</div>';
     q('[data-dp]').textContent = dp ? '→ ' + dp : '';
     q('[data-seguir]').hidden = !fija;
     q('.ag-live-prog i').style.width = (total ? Math.min(100, Math.round(pdfs.length / total * 100)) : 0) + '%';

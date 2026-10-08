@@ -670,6 +670,8 @@ def _archivo_evento(valor) -> dict | None:
     if not isinstance(valor, dict) or valor.get('tipo') not in ('montaje', 'pdf', 'plan'):
         return None
     limpio = {k: str(valor.get(k, ''))[:160] for k in ('tipo', 'nombre', 'numero', 'talla', 'diseno', 'genero', 'detalle', 'carpeta')}
+    ruta = str(valor.get('ruta') or '')[:500]   # ruta completa del archivo (para «Abrir en Illustrator»)
+    limpio['ruta'] = ruta if re.match(r'^(\\\\|[A-Za-z]:\\)', ruta) else ''
     vista = str(valor.get('vista') or '')
     limpio['vista'] = vista if re.fullmatch(r'[0-9a-f]{8,32}', vista) else ''
     try:
