@@ -279,6 +279,11 @@
     .ag-main[data-vista="pdfs"] .ag-live{display:grid!important}
     .ag-main[data-vista="log"] .ag-detalle{display:grid!important}
     .ag-main[data-vista="chats"] .ag-chat{width:100%}
+    /* Mensaje con muestra o archivos: texto a la izquierda y vista previa a la derecha, del alto que quede (sin scroll para aprobar) */
+    .ag-main[data-vista="chats"] .ag-msg.bot.con-tabla:has(.ag-files){grid-template-columns:minmax(300px,30%) minmax(0,1fr);column-gap:20px;align-items:start}
+    .ag-main[data-vista="chats"] .ag-msg.bot.con-tabla:has(.ag-files)>*{grid-column:1}
+    .ag-main[data-vista="chats"] .ag-msg.bot.con-tabla:has(.ag-files)>.ag-files{grid-column:2;grid-row:1 / span 8;grid-template-columns:minmax(0,1fr)}
+    .ag-main[data-vista="chats"] .ag-file.abierto .ag-prev{height:max(240px,calc(100vh - 500px))!important;max-height:none!important;object-fit:contain}
     .ag-main[data-vista="log"] .ag-detalle header{padding:9px 16px}
   }
   @media(max-width:1000px){.ag-vtabs{display:none!important}}
