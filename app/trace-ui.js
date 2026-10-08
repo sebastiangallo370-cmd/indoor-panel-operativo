@@ -527,7 +527,7 @@
     button.type = 'button';
     button.className = 'tab process-nav';
     button.dataset.kind = 'produccion';
-    button.innerHTML = '<span class="nav-icon">' + (index + 1) + '</span><strong>' + esc(process.label.toUpperCase()) + '</strong>';
+    button.innerHTML = '<span class="nav-icon">' + (index + 2) + '</span><strong>' + esc(process.label.toUpperCase()) + '</strong>';
     button.onclick = () => {
       productionNav.click();
       navigationProcess = process;
@@ -545,7 +545,7 @@
   comButton.type = 'button';
   comButton.className = 'tab process-nav';
   comButton.dataset.kind = 'produccion';
-  comButton.innerHTML = '<span class="nav-icon">' + (flow.length + 1) + '</span><strong>COMERCIALES</strong>';
+  comButton.innerHTML = '<span class="nav-icon">1</span><strong>COMERCIALES</strong>';
   comButton.onclick = () => {
     productionNav.click();
     document.querySelectorAll('.tab').forEach(tab => tab.classList.toggle('active', tab === comButton));
@@ -556,8 +556,8 @@
     renderProduction();
     cargarComerciales();
   };
-  processNavigation.push(comButton);
-  productionNav.parentElement.appendChild(comButton);
+  processNavigation.unshift(comButton);
+  processNavigation[1].before(comButton);
   toolbar.addEventListener('click', event => {
     const button = event.target.closest('[data-trace-filter]'); if (!button) return;
     filter = button.dataset.traceFilter; traceCards.scrollTop = 0; renderTraceCards();
