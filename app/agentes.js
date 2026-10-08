@@ -637,7 +637,7 @@
   // Los pasos que terminan bien se muestran en verde con un texto claro (muestra creada, mesas exportadas, PDF de producción).
   function logExito(e) {
     if (e.nivel === 'WARN' || e.nivel === 'ERROR') return '';
-    const m = String(e.msg || ''), nom = t => String(t).split(/[\/]/).pop().trim();
+    const m = String(e.msg || ''), nom = t => String(t).split(/[\\/]/).pop().trim();
     let r;
     if ((r = /^Muestra lista: (.+)$/.exec(m))) return 'MUESTRA CREADA CORRECTAMENTE: ' + nom(r[1]);
     if ((r = /^EXPORTADA: (.+)$/.exec(m))) return 'MESA EXPORTADA CORRECTAMENTE: ' + r[1];
