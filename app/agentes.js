@@ -371,6 +371,24 @@
     flow.ro = new ResizeObserver(acomodar); flow.ro.observe(flow.lienzo);
     nuevaEjec(); flow.ejec.n = 0; flow.ejecN = 0; acomodar(); pintarLog();
   }
+  // Botón NAS de la orden: hace EXACTAMENTE lo mismo que el botón NAS de las tarjetas de producción (aviso «Procesando…» y entrega al Explorador)
+  function abrirNas(orden) {
+    const limpia = String(orden || '').trim();
+    if (!limpia) return;
+    let fila = null, cliente = '', proyecto = '';
+    try {
+      const norm = v => String(v || '').replace(/[\s-]+/g, '').toUpperCase();
+      const h = productionData.headers.map(x => String(x || '').trim().toUpperCase());
+      const iO = h.indexOf('ORDEN'), iC = h.indexOf('NOMBRE DEL CLIENTE'), iP = h.indexOf('NOMBRE PROYECTO');
+      fila = productionData.rows.find(r => norm(r.values[iO]) === norm(limpia)) || null;
+      if (fila) { cliente = String(fila.values[iC] || '').trim(); proyecto = iP >= 0 ? String(fila.values[iP] || '').trim() : ''; }
+    } catch (er) { /* Producción aún no cargó: se abre solo con el número de orden */ }
+    const puente = document.createElement('tr'); puente.hidden = true;
+    const celda = document.createElement('td');
+    celda.innerHTML = productionRowButton(fila ? fila.source_row : 0, limpia, cliente, proyecto);
+    puente.appendChild(celda); productionBody.appendChild(puente);
+    try { celda.querySelector('.production-row-open').click(); } finally { puente.remove(); }
+  }
   // Pestañas de escritorio: CHATS · AGENTES (mapa del flujo) · PDFS (pantalla en vivo) · LOG (ejecución)
   const VISTAS = ['chats', 'agentes', 'pdfs'];   // el LOG va dentro de AGENTES
   function ponerVista(v) {
@@ -819,7 +837,7 @@
     if (barra.dataset.clave !== claveOrden) {
       barra.dataset.clave = claveOrden;
       barra.innerHTML = st.orden && !st.cambiandoOrden
-        ? '<span class="ag-ochip" title="Todo lo que pidas se hace con esta orden">Orden <b>' + esc(st.orden) + '</b><button type="button" class="ag-ico" data-orden-cambiar title="Cambiar la orden">✎</button><button type="button" class="ag-ico" data-orden-quitar title="Quitar la orden">✕</button></span><button type="button" class="ag-btn" data-iniciar title="Lee el listado, crea la muestra, te pide aprobarla y sigue con las mesas y los PDF de producción">▶ Iniciar</button><button type="button" class="ag-btn sec" data-reprocesar title="Vuelve a procesar una orden que ya se hizo: tú eliges si reemplazas todo o conservas lo que ya existe">↻ Reprocesar</button><a class="ag-btn sec ag-nas production-row-open" href="/nas/abrir?order=' + encodeURIComponent(st.orden) + '" data-order="' + esc(st.orden) + '" data-client="" title="Abrir la carpeta de la orden ' + esc(st.orden) + ' en el NAS (Explorador de archivos)">📁 NAS <span>↗</span></a>'
+        ? '<span class="ag-ochip" title="Todo lo que pidas se hace con esta orden">Orden <b>' + esc(st.orden) + '</b><button type="button" class="ag-ico" data-orden-cambiar title="Cambiar la orden">✎</button><button type="button" class="ag-ico" data-orden-quitar title="Quitar la orden">✕</button></span><button type="button" class="ag-btn" data-iniciar title="Lee el listado, crea la muestra, te pide aprobarla y sigue con las mesas y los PDF de producción">▶ Iniciar</button><button type="button" class="ag-btn sec" data-reprocesar title="Vuelve a procesar una orden que ya se hizo: tú eliges si reemplazas todo o conservas lo que ya existe">↻ Reprocesar</button><a class="ag-btn sec ag-nas" data-nas-orden href="/nas/abrir?order=' + encodeURIComponent(st.orden) + '" title="Abrir la carpeta de la orden ' + esc(st.orden) + ' en el NAS (Explorador de archivos)">📁 NAS <span>↗</span></a>'
         : '<form data-orden-form><label for="ag-orden-in">Orden</label><input id="ag-orden-in" maxlength="12" autocomplete="off" placeholder="CO6133" value="' + esc(st.orden) + '" title="Escríbela una sola vez y TAVO relaciona todo con ella"><button type="submit" class="ag-btn">Fijar</button>' + (st.orden ? '<button type="button" class="ag-ico" data-orden-cancelar title="Cancelar">✕</button>' : '') + '</form>';
       if (st.cambiandoOrden) panel.querySelector('#ag-orden-in')?.focus();
     }
@@ -1050,6 +1068,8 @@
     if (window.ResizeObserver) { const ro2 = new ResizeObserver(ajustarAlto); ['.ag-hd', '.ag-res', '.ag-vtabs'].forEach(q => { const el = panel.querySelector(q); if (el) ro2.observe(el); }); }
     setInterval(ajustarAlto, 1500);
     panel.addEventListener('click', e => {
+      const nas = e.target.closest('[data-nas-orden]');
+      if (nas) { e.preventDefault(); abrirNas(st.orden); return; }
       const vt = e.target.closest('[data-vt]');
       if (vt) { ponerVista(vt.dataset.vt); return; }
       const mi = e.target.closest('[data-mu-i]');
