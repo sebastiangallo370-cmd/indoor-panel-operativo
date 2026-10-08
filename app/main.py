@@ -6299,7 +6299,7 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
 `;document.head.appendChild(traceFigmaStyle);setTraceView();
     const commercialGroup=commercialToggle.closest('.nav-group');commercialGroup.classList.add('collapsed');const productionToggle=document.getElementById('production-toggle');if(productionToggle)productionToggle.addEventListener('click',()=>{{const g=productionToggle.closest('.nav-group');g.classList.toggle('collapsed');if(!g.classList.contains('collapsed')&&window.innerWidth>860)g.querySelector('.nav-children .tab')?.click()}});
     setTimeout(()=>{{if(!document.querySelector('.panel.active'))document.querySelector('.tab[data-kind="inicio"]')?.click()}},0);
-    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/permisos.js?v=20261007-2'></script><script src='/reposiciones.js?v=20261005-4'></script><script src='/agentes.js?v=20261007-49'></script><script src='/promedios.js?v=20261006-7'></script><script src='/capacidad.js?v=20261007-7'></script><script src='/molderia.js?v=20261008-1'></script><script src='/estandar.js?v=20261007-1'></script><script src='/fichas-resumen.js?v=20261007-36'></script><script src='/api/cartera/cartera.js?v=20261002-5'></script><script src='/trace-ui.js?v=20261007-5'></script><script src='/home-dashboard.js?v=20261005-9'></script><script src='/bodega-dashboard.js?v=20261002-10'></script><script src='/bodegas.js?v=20261002-4'></script><script src='/codigos-barras.js?v=20261007-17'></script><script src='/mis-pedidos.js?v=20261006-4'></script><script src='/mobile-nav.js?v=20261006-1'></script><script src='/nav-liquid.js?v=20261003-3'></script><script src='/build-watch.js?v=20261002-1'></script><script src='/salud.js?v=20261002-1'></script><script src='/tema.js?v=20261008-1'></script><script src='/tarjeta-iconos.js?v=20261002-5'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261005-3'></script><script src='/linea-editor.js?v=20261008-1'></script><script src='/menu-cuenta.js?v=20261008-1'></script><script src='/foto-perfil.js?v=20261008-4'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
+    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/permisos.js?v=20261007-2'></script><script src='/reposiciones.js?v=20261005-4'></script><script src='/agentes.js?v=20261007-49'></script><script src='/promedios.js?v=20261006-7'></script><script src='/capacidad.js?v=20261007-7'></script><script src='/molderia.js?v=20261008-1'></script><script src='/estandar.js?v=20261007-1'></script><script src='/fichas-resumen.js?v=20261007-36'></script><script src='/api/cartera/cartera.js?v=20261002-5'></script><script src='/trace-ui.js?v=20261007-5'></script><script src='/home-dashboard.js?v=20261005-9'></script><script src='/bodega-dashboard.js?v=20261002-10'></script><script src='/bodegas.js?v=20261002-4'></script><script src='/codigos-barras.js?v=20261007-17'></script><script src='/mis-pedidos.js?v=20261008-1'></script><script src='/mobile-nav.js?v=20261006-1'></script><script src='/nav-liquid.js?v=20261003-3'></script><script src='/build-watch.js?v=20261002-1'></script><script src='/salud.js?v=20261002-1'></script><script src='/tema.js?v=20261008-1'></script><script src='/tarjeta-iconos.js?v=20261002-5'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261005-3'></script><script src='/linea-editor.js?v=20261008-1'></script><script src='/menu-cuenta.js?v=20261008-1'></script><script src='/foto-perfil.js?v=20261008-4'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
 
 
 def ordered_mockup_uploads(extras, slots):
@@ -6407,7 +6407,7 @@ def _reject_existing_order(pdf_bytes: bytes, pdf_name: str):
 
 
 @app.get('/api/mis-pedidos')
-def mis_pedidos(usuario=Depends(authenticate)):
+def mis_pedidos(usuario=Depends(authenticate), de: str = ''):
     """Estado de los últimos pedidos subidos: si quedaron en producción o por qué fallaron (para los comerciales)."""
     db = connect()
     try:
@@ -6426,17 +6426,23 @@ def mis_pedidos(usuario=Depends(authenticate)):
                 e = en_prod.setdefault(key, {'cliente': get(ci), 'refs': [], 'entrega': get(di)})
                 if get(ri):
                     e['refs'].append(get(ri))
-        jobs = db.execute("SELECT id,filename,order_number,status,detail,created_at,updated_at,input_summary FROM jobs WHERE kind='pedido' ORDER BY id DESC LIMIT 600").fetchall()
+        jobs = db.execute("SELECT id,filename,order_number,status,detail,created_at,updated_at,input_summary FROM jobs WHERE kind='pedido' ORDER BY id DESC LIMIT 1500").fetchall()
+        cuentas = [r['name'] for r in db.execute('SELECT name FROM users ORDER BY name COLLATE NOCASE')]
     finally:
         db.close()
+    ver_todos = permisos_mod.rol_de(usuario) in ('comercial', 'administracion')
+    comerciales = [n for n in cuentas if permisos_mod.rol_de(n) == 'comercial'] if ver_todos else [str(usuario)]
+    filtro = (de if ver_todos else usuario).strip().lower()
     vistos, salida = set(), []
     for j in jobs:
         try:
             autor = str(json.loads(j['input_summary'] or '{}').get('usuario') or '')
         except ValueError:
             autor = ''
-        if autor.strip().lower() != str(usuario).strip().lower():
-            continue  # cada usuario ve solo los pedidos que él programó
+        if filtro and autor.strip().lower() != filtro:
+            continue  # comerciales y administración ven todos; el resto, solo los suyos
+        if ver_todos and not filtro and autor.strip().lower() not in {c.lower() for c in comerciales} and permisos_mod.rol_de(autor) != 'administracion':
+            continue
         orden = re.sub(r'[\s-]+', '', j['order_number'] or '').upper() or ('#' + str(j['id']))
         if orden in vistos:
             continue
@@ -6450,10 +6456,10 @@ def mis_pedidos(usuario=Depends(authenticate)):
             nivel, titulo = 'proceso', 'PROCESANDO…'
         salida.append({'orden': j['order_number'] or '', 'archivo': j['filename'], 'estado': titulo, 'nivel': nivel, 'detalle': j['detail'] or '',
                        'fecha': j['updated_at'] or j['created_at'], 'cliente': (prod or {}).get('cliente', ''),
-                       'referencias': (prod or {}).get('refs', []), 'entrega': (prod or {}).get('entrega', '')})
-        if len(salida) >= 60:
+                       'referencias': (prod or {}).get('refs', []), 'entrega': (prod or {}).get('entrega', ''), 'usuario': autor})
+        if len(salida) >= 300:
             break
-    return {'pedidos': salida}
+    return {'pedidos': salida, 'comerciales': comerciales, 'ver_todos': ver_todos}
 
 
 @app.get('/mis-pedidos.js')
