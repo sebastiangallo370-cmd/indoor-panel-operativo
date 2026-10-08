@@ -41,7 +41,7 @@
       const r = await fetch('/api/mis-pedidos', { cache: 'no-store', credentials: 'same-origin' });
       if (!r.ok) throw new Error();
       const j = await r.json();
-      datos = j.pedidos || []; comerciales = j.comerciales || []; verTodos = !!j.ver_todos;
+      datos = (j.pedidos || []).sort((a, b) => (Date.parse(b.creado || b.fecha) || 0) - (Date.parse(a.creado || a.fecha) || 0)); comerciales = j.comerciales || []; verTodos = !!j.ver_todos;
       const sel = panel.querySelector('[data-quien]');
       sel.style.display = verTodos ? '' : 'none';
       sel.innerHTML = '<option value="">Todos los comerciales</option>' + comerciales.map(n => `<option value="${esc(n)}"${n === quien ? ' selected' : ''}>${esc(n)}</option>`).join('');
