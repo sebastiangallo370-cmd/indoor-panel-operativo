@@ -672,6 +672,12 @@ def _archivo_evento(valor) -> dict | None:
     limpio = {k: str(valor.get(k, ''))[:160] for k in ('tipo', 'nombre', 'numero', 'talla', 'diseno', 'genero', 'detalle', 'carpeta')}
     vista = str(valor.get('vista') or '')
     limpio['vista'] = vista if re.fullmatch(r'[0-9a-f]{8,32}', vista) else ''
+    try:
+        cant = int(valor.get('cantidad') or 0)
+        if 0 < cant <= 100000:
+            limpio['cantidad'] = cant   # PDF único de una talla sin nombre ni número («…_32unds.pdf»)
+    except (TypeError, ValueError):
+        pass
     if valor.get('tipo') == 'plan':
         try:
             limpio['pdfs'] = max(0, min(int(valor.get('pdfs') or 0), 5000))
