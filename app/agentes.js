@@ -289,7 +289,9 @@
     .mu-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.mu-top h4{margin:0 8px 0 0;font:900 11px Arial;letter-spacing:.14em;color:#d7ff3a}
     .mu-chip{min-height:30px;padding:0 14px;border:1px solid #34432f;border-radius:999px;background:#121a14;color:#aebba7;font:900 12px Arial;letter-spacing:.06em;cursor:pointer}.mu-chip.on{background:#d7ff3a;border-color:#d7ff3a;color:#0b1204}
     .mu-nav{margin-left:auto;display:flex;align-items:center;gap:6px}.mu-nav button,.mu-nav a{min-width:38px;min-height:32px;display:inline-flex;align-items:center;justify-content:center;border:1px solid #60754d;border-radius:10px;background:#142017;color:#d7ff3a;font:900 16px Arial;cursor:pointer;text-decoration:none}.mu-nav button:disabled{opacity:.35;cursor:default}.mu-nav span{color:#aebba7;font:800 12px Arial;min-width:42px;text-align:center}
-    .mu-cuerpo{min-height:0;display:flex;align-items:center;justify-content:center;background:#fff;border-radius:10px;overflow:hidden}.mu-cuerpo img{max-width:100%;max-height:100%;object-fit:contain;display:block}.mu-cuerpo iframe{width:100%;height:100%;border:0}
+    .mu-cuerpo{position:relative;min-height:0;display:flex;align-items:center;justify-content:center;background:#fff;border-radius:10px;overflow:hidden}.mu-cuerpo img{max-width:100%;max-height:100%;object-fit:contain;display:block}.mu-cuerpo iframe{width:100%;height:100%;border:0}
+    .mu-flecha{position:absolute;top:50%;transform:translateY(-50%);z-index:3;width:54px;height:96px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(215,255,58,.55);border-radius:14px;background:rgba(11,18,4,.72);color:#d7ff3a;font:900 26px Arial;cursor:pointer;backdrop-filter:blur(2px)}
+    .mu-flecha:hover:not(:disabled){background:#d7ff3a;color:#0b1204}.mu-flecha:disabled{opacity:.25;cursor:default}.mu-flecha.izq{left:14px}.mu-flecha.der{right:14px}
     .mu-pie{color:#aebba7;font:700 12px Arial;display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap}.mu-vacio{display:grid;place-items:center;color:#8f9b8a;font:700 13px Arial;text-align:center;grid-row:1 / -1}
   }
   @media(max-width:1000px){.ag-vtabs{display:none!important}}
@@ -773,9 +775,9 @@
     if (!lista.length) { box.innerHTML = '<div class="mu-vacio">Aquí aparecen las muestras (D1, D2, D3…)<br>cuando JACK las cree.</div>'; return; }
     const a = lista[st.muIdx], url = '/api/agentes/archivo/' + a.id;
     box.innerHTML = '<div class="mu-top"><h4>MUESTRAS</h4>' + lista.map((x, i) => '<button type="button" class="mu-chip' + (i === st.muIdx ? ' on' : '') + '" data-mu-i="' + i + '">' + esc(etiquetaMuestra(x, i)) + '</button>').join('') +
-      '<div class="mu-nav"><button type="button" data-mu-go="-1" title="Muestra anterior (←)"' + (st.muIdx === 0 ? ' disabled' : '') + '>◀</button><span>' + (st.muIdx + 1) + ' / ' + lista.length + '</span><button type="button" data-mu-go="1" title="Muestra siguiente (→)"' + (st.muIdx === lista.length - 1 ? ' disabled' : '') + '>▶</button>' +
+      '<div class="mu-nav"><span>' + (st.muIdx + 1) + ' / ' + lista.length + '</span>' +
       '<a href="' + url + '" target="_blank" rel="noopener" title="Abrir en otra pestaña">↗</a><a href="' + url + '?descargar=1" download title="Descargar">⬇</a></div></div>' +
-      '<div class="mu-cuerpo">' + (esImagen(a) ? '<img src="' + url + '" alt="' + esc(a.titulo || a.nombre) + '">' : '<iframe src="' + url + '#toolbar=0&navpanes=0&view=Fit" title="' + esc(a.titulo || a.nombre) + '"></iframe>') + '</div>' +
+      '<div class="mu-cuerpo"><button type="button" class="mu-flecha izq" data-mu-go="-1" title="Muestra anterior (←)"' + (st.muIdx === 0 ? ' disabled' : '') + '>◀</button><button type="button" class="mu-flecha der" data-mu-go="1" title="Muestra siguiente (→)"' + (st.muIdx === lista.length - 1 ? ' disabled' : '') + '>▶</button>' + (esImagen(a) ? '<img src="' + url + '" alt="' + esc(a.titulo || a.nombre) + '">' : '<iframe src="' + url + '#toolbar=0&navpanes=0&view=Fit" title="' + esc(a.titulo || a.nombre) + '"></iframe>') + '</div>' +
       '<div class="mu-pie"><span><b>' + esc(a.titulo || a.nombre) + '</b> · ' + esc(a.nombre || '') + '</span></div>';
   }
   function pintar() {
