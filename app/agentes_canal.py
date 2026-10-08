@@ -354,7 +354,7 @@ def reiniciar(request: Request, payload: dict | None = None):
             datos['trabajo'].pop(ses, None)
             _nuevo(datos, ses, 'bot', 'Reiniciando los agentes de ' + _nombre_pc(datos, pid) + '… vuelven solos en unos 30 segundos.',
                    estado='REINICIANDO', botones=[], agentes=['TAVO'], respondido=True)
-            _nuevo(datos, ses, 'yo', '__reiniciar__', t=_ahora(), tomado=False, respondido=False, oculto=True)
+            _nuevo(datos, ses, 'yo', '__reiniciar__', t=_ahora(), tomado=False, respondido=False, oculto=True, pc=pid)
         _guardar(datos)
     return {'ok': True}
 
