@@ -297,7 +297,7 @@
     .mu-flecha:disabled{opacity:0;pointer-events:none}.mu-flecha.izq{left:14px}.mu-flecha.der{right:14px}
     .mu-pie{color:#aebba7;font:700 12px Arial;display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap}.mu-vacio{display:grid;place-items:center;color:#8f9b8a;font:700 13px Arial;text-align:center;grid-row:1 / -1}
   }
-  @media(max-width:1000px){.ag-vtabs{display:none!important}}
+  @media(max-width:1000px){.ag-vtabs,.ag-muestras{display:none!important}}
   `;
   document.head.appendChild(css);
 
