@@ -18,8 +18,8 @@
   .ok .mp-estado{color:#3ddc84}.error .mp-estado{color:#ff7b7b}.aviso .mp-estado{color:#ffb43d}.proceso .mp-estado{color:#9db8ff}
   .mp-meta{color:#aebba7;font-size:.86rem}.mp-detalle{color:#d6dccf;font-size:.84rem;word-break:break-word}
   .mp-vacio{padding:30px;text-align:center;color:#aebba7}
-  .trace-cards:has(+ .comerciales-panel:not([hidden])){display:none!important}.trace-workspace:has(+ .trace-cards:has(+ .comerciales-panel:not([hidden]))){display:none!important}.comerciales-panel{padding:14px}
-  @media(max-width:700px){.mp-head{padding:14px 16px}.mp-head h2{font-size:1.3rem}.mp-head>div:last-child{width:100%}.mp-head input{flex:1 1 100%;min-width:0;font-size:16px}.mp-head button{flex:1 1 100%}.mp-orden{font-size:1.3rem}}`;
+  .trace-cards:has(+ .comerciales-panel:not([hidden])){display:none!important}.trace-workspace:has(+ .trace-cards:has(+ .comerciales-panel:not([hidden]))){display:none!important}.comerciales-panel{padding:14px}body.comerciales-mode .production-process-filter{display:none!important}
+  @media(max-width:700px){.comerciales-panel{padding:10px 0 110px}.mp-head{padding:14px 16px}.mp-head h2{font-size:1.3rem}.mp-head>div:last-child{width:100%}.mp-head input{flex:1 1 100%;min-width:0;font-size:16px}.mp-head button{flex:1 1 100%}.mp-orden{font-size:1.3rem}}`;
   document.head.appendChild(css);
   let panel, datos = [], comerciales = [], verTodos = false, buscar = '', quien = '';
 
@@ -61,8 +61,8 @@
     return true;
   }
   window.indoorComerciales = {
-    show() { if (!build()) return; panel.hidden = false; cargar(); },
-    hide() { if (panel) panel.hidden = true; }
+    show() { if (!build()) return; panel.hidden = false; document.body.classList.add('comerciales-mode'); cargar(); },
+    hide() { document.body.classList.remove('comerciales-mode'); if (panel) panel.hidden = true; }
   };
   let intentos = 0;
   const t = setInterval(() => { if (build() || ++intentos > 40) clearInterval(t); }, 250);
