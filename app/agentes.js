@@ -318,7 +318,7 @@
     .ag-ochip{padding:3px 3px 3px 9px!important;font-size:10.5px!important;gap:4px!important}.ag-ochip b{font-size:11px!important}.ag-ochip .ag-ico{min-width:22px!important;min-height:22px!important;font-size:11px!important}
     .ag-chat{padding:8px!important;gap:6px!important}
     .ag-msg{padding:9px 10px!important;font-size:.78rem!important;line-height:1.4!important}
-    .ag-chips button,.ag-chips .reply,.reply{min-height:28px!important;padding:0 12px!important;font-size:11px!important}
+    .ag-chips button,.ag-chips .reply,.reply{min-height:26px!important;padding:4px 14px!important;font-size:11px!important;flex:0 0 auto!important}.ag-chips{gap:6px!important}
     .ag-form{gap:5px!important}.ag-form .ag-btn{min-height:32px!important;padding:0 12px!important;font-size:11px!important}.ag-form .ag-ico{min-height:32px!important;min-width:32px!important}
     .ag-file{padding:8px!important;gap:6px!important}.ag-file-head b{font-size:.78rem!important}.ag-file-acc button,.ag-file-acc a{min-height:26px!important;min-width:26px!important;font-size:10.5px!important;padding:0 8px!important}
     .ag-filtros .ag-pcsel{min-height:28px!important;font-size:11px!important}
