@@ -293,14 +293,12 @@
     st.ids = lista.map(f => f.id);
     const recientes = (st.rec || []).map(id => idx && (idx.fichas || []).find(f => f.id === id)).filter(Boolean);
     const barra = '<div class="mo-bar"><input type="search" data-buscar placeholder="Buscar REF o prenda (CA02, FUT01, chaqueta…)" value="' + esc(st.buscar) + '">' +
-      '<button type="button" class="mo-btn pri" data-importar' + (imp.importando ? ' disabled' : '') + '>' + (imp.importando ? '⏳ Importando…' : '⬇ Importar fichas del Excel') + '</button>' +
-      '<button type="button" class="mo-btn" data-archivos>📁 Ver archivos Excel</button>' +
       '<select data-orden title="Ordenar"><option value="ref"' + (st.orden === 'ref' ? ' selected' : '') + '>Orden: REF</option><option value="prenda"' + (st.orden === 'prenda' ? ' selected' : '') + '>Orden: prenda</option><option value="imagenes"' + (st.orden === 'imagenes' ? ' selected' : '') + '>Orden: más imágenes</option></select>' +
-      '<button type="button" class="mo-chip' + (st.soloFav ? ' on' : '') + '" data-solo-fav>⭐ Favoritas (' + st.fav.size + ')</button><span class="mo-meta">' + estado + '</span></div>';
+      '<span class="mo-meta">' + estado + '</span></div>';
     const chips = familias.length ? '<div class="mo-chips"><button type="button" class="mo-chip' + (!st.familia ? ' on' : '') + '" data-fam="">TODAS</button>' + familias.map(f => '<button type="button" class="mo-chip' + (st.familia === f ? ' on' : '') + '" data-fam="' + esc(f) + '">' + esc(f) + '</button>').join('') + '</div>' : '';
     let cuerpo;
     if (!idx) cuerpo = '<div class="mo-vacio">Cargando…</div>';
-    else if (!(idx.fichas || []).length) cuerpo = '<div class="mo-vacio">Todavía no hay fichas. Pulsa «Importar fichas del Excel»: lee los libros de la carpeta FICHAS TECNICAS (una hoja por REF) y arma cada ficha con la plantilla de Indoor.</div>';
+    else if (!(idx.fichas || []).length) cuerpo = '<div class="mo-vacio">Todavía no hay fichas.</div>';
     else cuerpo = lista.length ? '<div class="mo-grid">' + lista.map(f => {
       const prom = Object.entries(f.promedio || {}).filter(([, v]) => v !== '' && v !== 'X').map(([k, v]) => '<span>' + esc(NOMBRE_GRUPO[k] || k) + ' ' + esc(v) + '</span>').join('');
       return '<button type="button" class="mo-card mo-ref" data-ficha="' + esc(f.id) + '"><span class="mo-star' + (st.fav.has(f.id) ? ' on' : '') + '" role="button" data-fav="' + esc(f.id) + '" title="Marcar como favorita">' + (st.fav.has(f.id) ? '★' : '☆') + '</span>' + (st.mockups[f.ref] ? '<div class="mo-prev mockup"><img loading="lazy" alt="" src="' + mockUrl(f.ref) + '"><span class="mo-tag">MOCKUP</span></div>' : '<div class="sinimg"><span>SIN MOCKUP</span><span class="mo-nas" role="button" data-nas-ref="' + esc(f.ref) + '">🔎 Buscar en el NAS</span></div>') +
