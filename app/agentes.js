@@ -237,7 +237,7 @@
   .ag-ayuda.err{border-color:rgba(255,106,90,.6);background:rgba(255,106,90,.07);color:#ffc7bf}.ag-ayuda.err b{color:#ff8a7c}.ag-ayuda.err button{border-color:#ff8a7c;color:#ff8a7c}
   details.ag-det{border:1px solid #34432f;border-radius:10px;background:#0c110d;padding:8px 12px}details.ag-det summary{cursor:pointer;color:#ffc95c;font-weight:800;font-size:.84rem}
   details.ag-det div{margin-top:6px;max-height:220px;overflow:auto;color:#c4cfbf;font-size:.8rem;line-height:1.5;white-space:pre-wrap}
-  .ag-log .WARN::before{content:'⚠ ';color:#ffbd66}.ag-log .ERROR::before{content:'✖ ';color:#ff8a8a}
+  .ag-log .OK .m{color:#6dff9a!important;font-weight:700}.ag-log .OK::before{content:'✓ ';color:#6dff9a}.ag-log .WARN::before{content:'⚠ ';color:#ffbd66}.ag-log .ERROR::before{content:'✖ ';color:#ff8a8a}
   @media(max-width:1000px){.ag-pasos{grid-template-columns:repeat(3,minmax(0,1fr))}}
   @media(max-width:700px){.ag-pasos{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.ag-paso{padding:6px 8px}.ag-paso b{font-size:.74rem}.ag-paso em{font-size:.66rem}.ag-datos{grid-template-columns:1fr}.ag-res{padding:12px;gap:10px}.ag-res-top .qa{gap:6px}.ag-res-top h3{flex:1 1 100%}.ag-ahora{font-size:.82rem}details.ag-det div.ag-datos{max-height:none;white-space:normal}}
   @media(max-width:700px){.ag-state{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}.ag-pill{flex:none;white-space:nowrap}.ag-chat{order:1}.ag-res{order:0}.ag-head{padding:10px 12px!important;flex-direction:row!important;align-items:center!important}.ag-head>div:first-child{flex:1 1 auto}.ag-head span.k{display:none}.ag-head h2{font-size:1.1rem!important;margin:0!important}
@@ -509,7 +509,7 @@
       f.innerHTML = '<select class="ag-pcsel" data-filtro-sel aria-label="Qué mostrar">' + [['Todo', ''], ['⚠ Avisos y errores', '!'], ...['TAVO', 'LEO', 'JACK', 'OLVER', 'OLIVER', 'TERRY'].map(x => [x, x])].map(([t, v]) => '<option value="' + v + '"' + (claveFiltro === v ? ' selected' : '') + '>' + t + '</option>').join('') + '</select>';
     }
     const lista = flow.ejec.eventos.filter(e => !flow.filtro || (flow.filtro === '!' ? (e.nivel === 'WARN' || e.nivel === 'ERROR') : e.agente === flow.filtro));
-    l.innerHTML = lista.length ? lista.map(e => '<div class="' + esc(e.nivel) + '"><span class="h">' + esc(e.hora) + '</span><b style="color:' + (COLORES[e.agente] || '#ccc') + '">' + esc(e.agente) + '</b><span class="m">' + esc(e.msg) + '</span></div>').join('')
+    l.innerHTML = lista.length ? lista.map(e => { const ok = logExito(e); return '<div class="' + esc(e.nivel) + (ok ? ' OK' : '') + '"><span class="h">' + esc(e.hora) + '</span><b style="color:' + (COLORES[e.agente] || '#ccc') + '">' + esc(e.agente) + '</b><span class="m">' + esc(ok || e.msg) + '</span></div>'; }).join('')
       : '<div class="vacio2">' + (flow.filtro ? 'Este nodo aún no ha hecho nada en esta ejecución.' : 'Aquí verás lo que hace cada agente, paso a paso.') + '</div>';
     if (abajo) l.scrollTop = l.scrollHeight;
     pintarLive(); pintarResumen();
@@ -634,6 +634,18 @@
 
   const KB = n => (n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB');
   const esImagen = a => ['png', 'jpg', 'jpeg'].includes(a.ext);
+  // Los pasos que terminan bien se muestran en verde con un texto claro (muestra creada, mesas exportadas, PDF de producción).
+  function logExito(e) {
+    if (e.nivel === 'WARN' || e.nivel === 'ERROR') return '';
+    const m = String(e.msg || ''), nom = t => String(t).split(/[\/]/).pop().trim();
+    let r;
+    if ((r = /^Muestra lista: (.+)$/.exec(m))) return 'MUESTRA CREADA CORRECTAMENTE: ' + nom(r[1]);
+    if ((r = /^EXPORTADA: (.+)$/.exec(m))) return 'MESA EXPORTADA CORRECTAMENTE: ' + r[1];
+    if ((r = /^(\d+) archivos exportados$/.exec(m))) return 'MESAS EXPORTADAS CORRECTAMENTE: ' + r[1] + ' archivos';
+    if ((r = /^PDF listo: (.+)$/.exec(m))) return 'PDF DE PRODUCCIÓN CREADO CORRECTAMENTE: ' + r[1];
+    if ((r = /^(\d+) PDF\(s\) de producción en /.exec(m)) && !/con problemas/.test(m)) return 'PDF DE PRODUCCIÓN CREADOS CORRECTAMENTE: ' + r[1];
+    return '';
+  }
   const abierto = (m, i) => { const k = m.id + ':' + i; return st.abiertos[k] !== undefined ? st.abiertos[k] : (m.archivos[i].tipo === 'muestra' && m.archivos.length <= 2); };
   function archivosHtml(m) {
     return '<div class="ag-files">' + m.archivos.map((a, i) => {
