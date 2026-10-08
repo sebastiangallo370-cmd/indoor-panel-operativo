@@ -348,8 +348,8 @@ def _color_texto(nombre: str, sufijo) -> str:
 def _entero_rollo(texto: str) -> float:
     """Metros del rollo como número ENTERO (sin decimales). Una marca a mano pegada al número («1100.57» por «100.57») no es un rollo de 1.100 m: se quita ese «1» de más."""
     valor = int(float(texto))
-    if valor >= 1000 and str(valor)[0] == '1':
-        valor = int(str(valor)[1:])
+    while valor >= 200:   # un rollo no pasa de ~150 m: el primer dígito es una marca a mano pegada («1100» por «100», «395» por «95»)
+        valor = int(str(valor)[1:] or 0)
     return float(valor)
 
 
@@ -396,7 +396,7 @@ def _empaque_grupos(texto: str) -> list[dict]:
             color = _EMPAQUE_COLOR.search(limpia)
             if color:
                 grupo['color'] = _color_texto(color.group(1), color.group(2))
-        grupo['rollos'].append({'mts': _entero_rollo(decimales[0]) if decimales else None, 'rollo_no': identificador.group(0)[:7] if identificador else ''})   # Cant. va antes que Cant.adic (kg)
+        grupo['rollos'].append({'mts': (_entero_rollo(decimales[0]) or None) if decimales else None, 'rollo_no': identificador.group(0)[:7] if identificador else ''})   # Cant. va antes que Cant.adic (kg)
     return [g for g in grupos if g['rollos']]
 
 
@@ -421,11 +421,35 @@ def parse_packing_list_text(texto: str) -> dict | None:
     return _empaque_resultado(_empaque_grupos(texto), texto)
 
 
+def _leer_celda_cant(imagen: Image.Image, top: int, bottom: int, inicio: int, limite: int) -> str:
+    """Lee la cifra de la celda «Cant.» de UNA fila (las marcas a mano de al lado confunden al OCR de la página completa). Prueba varios recortes/umbrales y devuelve el primer decimal con 2 cifras."""
+    alto = bottom - top
+    banda = imagen.convert('L').crop((max(0, inicio - 60), max(0, top - 6), max(inicio, limite), bottom + 6))
+    for ancho_der in (0, -50, 40):
+        base = banda.crop((0, 0, max(40, banda.width + ancho_der), banda.height))
+        for umbral in (None, 150, 110):
+            im = base if umbral is None else base.point(lambda v, u=umbral: 255 if v > u else 0)
+            im = im.resize((im.width * 2, im.height * 2), Image.LANCZOS)
+            im = ImageOps.expand(im, border=20, fill=255)
+            ruta = _save_temp(im)
+            try:
+                texto = _tesseract(ruta, '--psm', '7', '-c', 'tessedit_char_whitelist=0123456789.', timeout=30)
+            except Exception:
+                texto = ''
+            finally:
+                os.unlink(ruta)
+            hallado = re.search(r'\d{2,3}\.\d{2}', texto)
+            if hallado:
+                return hallado.group(0)
+    return ''
+
+
 def _texto_sin_adicional(imagen: Image.Image) -> str:
     """Texto OCR de la lista de empaque SIN la columna «Cant.adic» (kilos): se leen las palabras con su posición y, en las filas de rollos, se descartan las que
     quedan a la derecha del encabezado «Cant.adic». Así nunca se confunde con la columna «Cant.» (metros). Las líneas de subtotal y total conservan ambas cifras."""
     palabras = _words(imagen)
     limite = None
+    inicio_cant = next((w['left'] for w in palabras if w['text'].lower().startswith('cant') and 'adic' not in w['text'].lower()), int(imagen.width * 0.68))
     for w in palabras:
         if 'adic' in w['text'].lower():
             limite = w['left'] - max(4, int(imagen.width * 0.004))
@@ -434,11 +458,24 @@ def _texto_sin_adicional(imagen: Image.Image) -> str:
     for w in palabras:
         lineas.setdefault(w['line'], []).append(w)
     texto = []
+    desfases = []   # el escaneo está algo inclinado: la cifra de Cant. queda más abajo/arriba que «PEN-…» de su fila
+    for ws0 in lineas.values():
+        pen = next((w for w in ws0 if 'PEN' in w['text'].upper()), None)
+        num = next((w for w in ws0 if re.fullmatch(r'\D?\d{2,3}\.\d{2}\D*', w['text']) and (w['left'] + w['right']) / 2 < (limite or 0)), None)
+        if pen and num:
+            desfases.append(((num['top'] + num['bottom']) - (pen['top'] + pen['bottom'])) // 2)
+    desfase = sorted(desfases)[len(desfases) // 2] if desfases else 0
     for _clave, ws in sorted(lineas.items(), key=lambda kv: min(w['top'] for w in kv[1])):
         ws.sort(key=lambda w: w['left'])
         completa = ' '.join(w['text'] for w in ws)
         if limite is not None and re.search(r'\d{7,}|PEN', completa) and not re.search(r'Subt|Tot', completa, re.I):   # solo las filas de rollos (con su ID / pedido)
             ws = [w for w in ws if (w['left'] + w['right']) / 2 < limite]
+            if True:   # SIEMPRE se lee también la celda; si discrepa con la lectura de la página manda la celda   # cifra tapada por marcas a mano: se lee la celda de Cant. recortada a la altura del ID del rollo
+                ancla = next((w for w in ws if 'PEN' in w['text'].upper()), None) or next((w for w in ws if re.fullmatch(r'\d{6,8}\D?', w['text'])), None) or ws[0]   # la fila real la marca «PEN-…» (el ID trae marcas a mano que agrandan su caja)
+                lecturas = [int(float(v)) % 1000 for v in (_leer_celda_cant(imagen, ancla['top'] + d, ancla['bottom'] + d, inicio_cant, limite) for d in (8, 12, 16, 20, desfase)) if v]
+                valor = str(Counter(lecturas).most_common(1)[0][0]) + '.00' if lecturas else ''   # la inclinación del escaneo mueve la fila unos píxeles: se prueban varias alturas y gana la lectura más repetida
+                if valor:
+                    ws = ws + [{'text': valor, 'left': limite - 5, 'right': limite - 4, 'top': ancla['top'], 'bottom': ancla['bottom'], 'line': ws[0]['line']}]
         texto.append(' '.join(w['text'] for w in ws))
     return '\n'.join(texto)
 
