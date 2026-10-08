@@ -363,6 +363,8 @@ def _empaque_grupos(texto: str) -> list[dict]:
         limpia = re.sub(r'(?<=\d),(?=\d{3}\b)', '', linea.strip())   # 3,046.86 -> 3046.86
         if not limpia:
             continue
+        if 'PEN' in limpia:
+            limpia = re.sub(r'(?<=\d),(?=\d)', '.', linea.strip())   # en una fila de rollo una coma es un punto decimal mal leído («49,934»)
         if _EMPAQUE_TOTAL.search(limpia):
             articulo = grupo = None
             continue
@@ -425,9 +427,9 @@ def _leer_celda_cant(imagen: Image.Image, top: int, bottom: int, inicio: int, li
     """Lee la cifra de la celda «Cant.» de UNA fila (las marcas a mano de al lado confunden al OCR de la página completa). Prueba varios recortes/umbrales y devuelve el primer decimal con 2 cifras."""
     alto = bottom - top
     banda = imagen.convert('L').crop((max(0, inicio - 60), max(0, top - 6), max(inicio, limite), bottom + 6))
-    for ancho_der in (0, -50, 40):
+    for ancho_der, umbral in ((0, None), (0, 150)):
         base = banda.crop((0, 0, max(40, banda.width + ancho_der), banda.height))
-        for umbral in (None, 150, 110):
+        for _ in (0,):
             im = base if umbral is None else base.point(lambda v, u=umbral: 255 if v > u else 0)
             im = im.resize((im.width * 2, im.height * 2), Image.LANCZOS)
             im = ImageOps.expand(im, border=20, fill=255)
@@ -444,6 +446,42 @@ def _leer_celda_cant(imagen: Image.Image, top: int, bottom: int, inicio: int, li
     return ''
 
 
+def _leer_celdas_cant(imagen: Image.Image, anclas: list[dict], inicio: int, limite: int) -> list[tuple[int | None, int]]:
+    """Lee la cifra de «Cant.» de varias filas a la vez: apila los recortes de cada celda (a tres alturas, por la inclinación del escaneo) en una sola imagen
+    y la lee con UNA llamada de OCR por altura. Por fila devuelve (lectura más repetida en metros enteros, cuántas veces salió)."""
+    gris = imagen.convert('L')
+    x0 = max(0, inicio - 60)
+    ancho = max(40, limite - x0)
+    alto = 44
+    resultados: list[list[int]] = [[] for _ in anclas]
+    for d in (10, 14, 18):
+        lienzo = Image.new('L', (ancho, alto * len(anclas)), 255)
+        for i, a in enumerate(anclas):
+            y = max(0, (a['top'] + a['bottom']) // 2 + d - alto // 2)
+            lienzo.paste(gris.crop((x0, y, x0 + ancho, y + alto)), (0, i * alto))
+        lienzo = lienzo.resize((lienzo.width * 2, lienzo.height * 2), Image.LANCZOS)
+        ruta = _save_temp(lienzo)
+        try:
+            tsv = _tesseract(ruta, '--psm', '6', '-c', 'tessedit_char_whitelist=0123456789.', 'tsv', timeout=150)
+        except Exception:
+            tsv = ''
+        finally:
+            os.unlink(ruta)
+        for fila in tsv.splitlines()[1:]:
+            c = fila.split('\t')
+            if len(c) < 12 or not c[11].strip():
+                continue
+            hallado = re.search(r'\d{2,3}\.\d{2}', c[11])
+            if hallado:
+                idx = (int(c[7]) + int(c[9]) // 2) // (alto * 2)
+                if 0 <= idx < len(anclas):
+                    resultados[idx].append(int(float(hallado.group(0))) % 1000)
+    salida = []
+    for lecturas in resultados:
+        salida.append(Counter(lecturas).most_common(1)[0] if lecturas else (None, 0))
+    return salida
+
+
 def _texto_sin_adicional(imagen: Image.Image) -> str:
     """Texto OCR de la lista de empaque SIN la columna «Cant.adic» (kilos): se leen las palabras con su posición y, en las filas de rollos, se descartan las que
     quedan a la derecha del encabezado «Cant.adic». Así nunca se confunde con la columna «Cant.» (metros). Las líneas de subtotal y total conservan ambas cifras."""
@@ -458,6 +496,7 @@ def _texto_sin_adicional(imagen: Image.Image) -> str:
     for w in palabras:
         lineas.setdefault(w['line'], []).append(w)
     texto = []
+    pendientes: list = []
     desfases = []   # el escaneo está algo inclinado: la cifra de Cant. queda más abajo/arriba que «PEN-…» de su fila
     for ws0 in lineas.values():
         pen = next((w for w in ws0 if 'PEN' in w['text'].upper()), None)
@@ -470,13 +509,20 @@ def _texto_sin_adicional(imagen: Image.Image) -> str:
         completa = ' '.join(w['text'] for w in ws)
         if limite is not None and re.search(r'\d{7,}|PEN', completa) and not re.search(r'Subt|Tot', completa, re.I):   # solo las filas de rollos (con su ID / pedido)
             ws = [w for w in ws if (w['left'] + w['right']) / 2 < limite]
-            if True:   # SIEMPRE se lee también la celda; si discrepa con la lectura de la página manda la celda   # cifra tapada por marcas a mano: se lee la celda de Cant. recortada a la altura del ID del rollo
-                ancla = next((w for w in ws if 'PEN' in w['text'].upper()), None) or next((w for w in ws if re.fullmatch(r'\d{6,8}\D?', w['text'])), None) or ws[0]   # la fila real la marca «PEN-…» (el ID trae marcas a mano que agrandan su caja)
-                lecturas = [int(float(v)) % 1000 for v in (_leer_celda_cant(imagen, ancla['top'] + d, ancla['bottom'] + d, inicio_cant, limite) for d in (8, 12, 16, 20, desfase)) if v]
-                valor = str(Counter(lecturas).most_common(1)[0][0]) + '.00' if lecturas else ''   # la inclinación del escaneo mueve la fila unos píxeles: se prueban varias alturas y gana la lectura más repetida
-                if valor:
-                    ws = ws + [{'text': valor, 'left': limite - 5, 'right': limite - 4, 'top': ancla['top'], 'bottom': ancla['bottom'], 'line': ws[0]['line']}]
+            ancla = next((w for w in ws if 'PEN' in w['text'].upper()), None) or next((w for w in ws if re.fullmatch(r'\d{6,8}\D?', w['text'])), None) or ws[0]   # la fila real la marca «PEN-…»
+            if not re.search(r'\d{2,3}[.,]\d', ' '.join(w['text'] for w in ws)):   # cifra tapada por marcas a mano: se relee su celda
+                pendientes.append((len(texto), ancla, ws))
         texto.append(' '.join(w['text'] for w in ws))
+    for pos, ancla, ws in pendientes:   # la celda de Cant. de esa fila se lee recortada, a varias alturas (el escaneo está inclinado), hasta que dos lecturas coincidan
+        lecturas: list[int] = []
+        for d in (12, 16, 8, 20, 4, 24, 0):
+            v = _leer_celda_cant(imagen, ancla['top'] + d, ancla['bottom'] + d, inicio_cant, limite) if limite is not None else ''
+            if v:
+                lecturas.append(int(float(v)) % 1000)
+            if lecturas and Counter(lecturas).most_common(1)[0][1] >= 2:
+                break
+        if lecturas:
+            texto[pos] = ' '.join(w['text'] for w in ws if not re.search(r'\d+[.,]\d', w['text'])) + ' %d.00' % Counter(lecturas).most_common(1)[0][0]
     return '\n'.join(texto)
 
 
