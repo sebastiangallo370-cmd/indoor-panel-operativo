@@ -262,14 +262,14 @@
     details.ag-det>summary::-webkit-details-marker{display:none}
     details.ag-det[open]>summary::after{content:' ▴'}details.ag-det:not([open])>summary::after{content:' ▾'}
     .ag-ver-flujo{display:none!important}
-    .ag-main{height:max(520px,calc(100vh - 292px))!important}
+    .ag-main{height:max(520px,calc(100vh - 322px))!important}
     .ag-main:not(.flujo-abierto) .ag-lienzo{display:none!important}
     .ag-main:not(.flujo-abierto){grid-template-rows:auto minmax(0,1fr) 190px!important}
     .ag-main:not(.flujo-abierto) .ag-live{grid-row:1 / span 2!important;grid-column:2!important}
     .ag-main:not(.flujo-abierto) .ag-detalle{grid-row:3!important;height:190px!important}
     .ag-main:not(.flujo-abierto) .ag-orden{grid-row:1!important}
     .ag-main:not(.flujo-abierto) .ag-chat{grid-row:2 / span 2!important}
-    .ag-main.flujo-abierto{height:max(640px,calc(100vh - 292px))!important}
+    .ag-main.flujo-abierto{height:max(640px,calc(100vh - 322px))!important}
     .ag-main.flujo-abierto .ag-detalle{height:170px!important}
   }
   @media(max-width:1000px){.ag-flujo-btn{display:none!important}}
