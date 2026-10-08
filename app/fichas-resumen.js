@@ -313,8 +313,8 @@
         g._x = cx;
       });
       alto = Math.ceil(base + hmax + 16);
-      extras.forEach(k => { franja += lineas(grupos[k], grupos[k]._x, alto + 6, 22); });
-      alto += 50;
+      extras.forEach(k => { franja += lineas(grupos[k], grupos[k]._x, alto + 6, movil ? 13 : 22); });
+      alto += movil ? 78 : 50;
       franja = '<line x1="0" y1="483" x2="' + W + '" y2="483" stroke="#000"/>' + franja;
     }
     return '<div class="fit-wrap"><svg class="fit' + (movil ? ' fit-movil' : '') + '" viewBox="0 0 ' + W + ' ' + alto + '" role="img" aria-label="Fit de prenda por piezas">' +
