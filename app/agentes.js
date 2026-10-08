@@ -247,6 +247,32 @@
     .ag-ver-flujo{display:flex!important}.ag-main:not(.flujo-abierto) .ag-flowcol{display:none}
     .ag-thread{height:52vh!important;min-height:240px!important}
     .ag-state,.ag-chips[data-atajos]{scrollbar-width:none}.ag-state::-webkit-scrollbar,.ag-chips[data-atajos]::-webkit-scrollbar{display:none}}
+
+  /* ---- Escritorio compacto: todo el módulo cabe en la pantalla, sin scroll de página ---- */
+  @media(min-width:1001px){
+    .ag{gap:8px!important}
+    .ag-res{padding:8px 14px!important;gap:6px!important;border-radius:12px!important}
+    .ag-res-top .qa{gap:8px!important}.ag-res-top .qa b{font-size:.95rem!important}.ag-res-top .qa h3{font-size:10px!important}
+    .ag-barra2{height:4px!important}
+    .ag-pasos{gap:6px!important}
+    .ag-paso{display:flex!important;align-items:baseline;justify-content:space-between;gap:8px;padding:4px 10px!important;border-radius:8px!important}
+    .ag-paso b,.ag-paso em{font-size:.74rem!important}
+    .ag-ahora{padding:5px 10px!important;font-size:.8rem!important;line-height:1.3!important}
+    details.ag-det>summary{cursor:pointer;color:#7da4ff;font:800 11px Arial;letter-spacing:.08em;text-transform:uppercase;list-style:none}
+    details.ag-det>summary::-webkit-details-marker{display:none}
+    details.ag-det[open]>summary::after{content:' ▴'}details.ag-det:not([open])>summary::after{content:' ▾'}
+    .ag-ver-flujo{display:none!important}
+    .ag-main{height:max(520px,calc(100vh - 292px))!important}
+    .ag-main:not(.flujo-abierto) .ag-lienzo{display:none!important}
+    .ag-main:not(.flujo-abierto){grid-template-rows:auto minmax(0,1fr) 190px!important}
+    .ag-main:not(.flujo-abierto) .ag-live{grid-row:1 / span 2!important;grid-column:2!important}
+    .ag-main:not(.flujo-abierto) .ag-detalle{grid-row:3!important;height:190px!important}
+    .ag-main:not(.flujo-abierto) .ag-orden{grid-row:1!important}
+    .ag-main:not(.flujo-abierto) .ag-chat{grid-row:2 / span 2!important}
+    .ag-main.flujo-abierto{height:max(640px,calc(100vh - 292px))!important}
+    .ag-main.flujo-abierto .ag-detalle{height:170px!important}
+  }
+  @media(max-width:1000px){.ag-flujo-btn{display:none!important}}
   `;
   document.head.appendChild(css);
 
@@ -578,7 +604,7 @@
       dato('Líneas del listado', d.lineas ? d.lineas + (d.blancos ? ' · ' + d.blancos + ' datos en blanco (nombre/número)' : '') : '', d.blancos > 0) + dato('MTS requeridos', d.mts.join(' · '));
     box.innerHTML = '<div class="ag-res-top"><div class="qa"><h3>Resumen de la orden</h3><b>' + esc(d.orden || st.orden || '') + '</b><small>' + (d.errores ? '✖ ' + d.errores + ' error(es)' : '') + (d.avisos ? ' ⚠ ' + d.avisos + ' aviso(s)' : '') + '</small></div><span class="tiempo">⏱ ' + mmss(total) + (corriendo ? ' en curso' : '') + '</span></div>' +
       '<div class="ag-barra2' + (d.errores ? ' err' : '') + '"><i style="width:' + Math.round(avance) + '%"></i></div><div class="ag-pasos">' + pasosHtml + '</div>' +
-      (ahoraHtml ? '<div class="ag-ahora' + (nota ? ' nota' : '') + '">' + ahoraHtml + '</div>' : '') + (datos ? (pantallaChica() ? '<details class="ag-det" data-resdet' + (st.resAbierto ? ' open' : '') + '><summary>Detalles de la orden</summary><div class="ag-datos" style="margin-top:8px">' + datos + '</div></details>' : '<div class="ag-datos">' + datos + '</div>') : '');
+      (ahoraHtml ? '<div class="ag-ahora' + (nota ? ' nota' : '') + '">' + ahoraHtml + '</div>' : '') + (datos ? ('<details class="ag-det" data-resdet' + (st.resAbierto ? ' open' : '') + '><summary>Detalles de la orden</summary><div class="ag-datos" style="margin-top:8px">' + datos + '</div></details>') : '');
   }
   setInterval(() => { if (panel && panel.classList.contains('active') && st.esperando) pintarResumen(); }, 1000);
 
@@ -620,6 +646,7 @@
       '<nav class="ag-tabs" data-tabs hidden aria-label="PC de los agentes" title="La pestaña activa es el PC donde arranca solo el proceso cuando alguien pone la P en EDICIÓN"></nav>' +
       '<div class="ag-indiv" aria-label="Usar un agente por separado">' + AGENTES_BTN.map(([a, t, p]) => '<button type="button" class="ag-agbtn" style="--c:' + (COLORES[a] || '#c4cfbf') + '" data-atajo="' + esc(p) + '" title="' + esc(a + ': ' + ROLES[a] + ' (usa la orden activa)') + '"><i></i>' + esc(a) + '<small>' + esc(t) + '</small></button>').join('') + '</div>' +
       '<div class="ag-hacc"><button type="button" class="ag-btn danger ag-stop inactivo" data-detener data-txt="⏹ Detener" title="Detiene los agentes de esta pestaña (el PC elegido)">⏹ Detener</button>' +
+      '<button type="button" class="ag-btn sec ag-flujo-btn" data-flujo-desk title="Mostrar u ocultar el mapa animado del flujo de agentes">▾ Flujo</button>' +
       '<button type="button" class="ag-btn ag-reiniciar" data-reiniciar title="Reinicia el programa de los agentes en el PC elegido (se cierra y se vuelve a abrir solo)">↻ Reiniciar</button>' +
       '<details class="ag-menu"><summary class="ag-ico" title="Más opciones">⋯</summary><div class="ag-menu-l"><button type="button" data-detener-todo>⏹ Detener todo (ambos PC)</button><button type="button" data-reiniciar-todo>↻ Reiniciar todos los PC</button><button type="button" data-nueva>Nueva conversación</button><button type="button" data-conectar hidden>PC de los agentes…</button></div></details></div></header>' +
       '<div data-aviso></div><section class="ag-res" data-resumen hidden></section>' +
@@ -926,7 +953,18 @@
         st.msgs = []; st.ultimo = 0; st.evs = []; st.ultimoEv = 0; st.trabajo = null; flow.listo = false; flow.preparado = 0; await cargar(true); pintar();
       } else if (e.target.closest('[data-conectar]')) conectar();
     });
+    try {   // recuerda si dejaste abierto el mapa del flujo
+      if (localStorage.getItem('indoor-agentes-flujo') === '1') { panel.querySelector('[data-main]').classList.add('flujo-abierto'); const bf = panel.querySelector('[data-flujo-desk]'); if (bf) bf.textContent = '▴ Flujo'; }
+    } catch (er) { /* sin almacenamiento */ }
     panel.addEventListener('click', e => {
+      const fd = e.target.closest('[data-flujo-desk]');
+      if (fd) {   // escritorio: el mapa del flujo se muestra solo si se pide (el resumen ya dice en qué paso va)
+        const m = panel.querySelector('[data-main]'), ab = m.classList.toggle('flujo-abierto');
+        fd.textContent = ab ? '▴ Flujo' : '▾ Flujo';
+        try { localStorage.setItem('indoor-agentes-flujo', ab ? '1' : '0'); } catch (er) { /* sin almacenamiento */ }
+        if (ab) { acomodar(); }
+        return;
+      }
       const b = e.target.closest('[data-ver-flujo]'); if (!b) return;
       const main = panel.querySelector('[data-main]'), abierto = main.classList.toggle('flujo-abierto');
       b.textContent = abierto ? '▴ Ocultar flujo, pantalla en vivo y registro' : '▾ Ver flujo, pantalla en vivo y registro';
