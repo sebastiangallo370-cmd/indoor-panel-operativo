@@ -28,7 +28,7 @@
   .tab[data-kind='agentes'] .nav-icon{display:none!important}
   @media(min-width:701px){.nav-group:has(>.tab[data-kind='agentes']){display:none!important}}
   body:has(.panel[data-panel='agentes'].active) main{width:100%!important;max-width:none!important;margin-left:0!important;margin-right:0!important;padding-left:clamp(10px,1.2vw,24px)!important;padding-right:clamp(10px,1.2vw,24px)!important;padding-top:10px!important}
-  .ag{display:grid;gap:12px;width:100%;max-width:none;margin:0}.ag button{width:auto}
+  .ag{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;width:100%;max-width:none;margin:0;min-width:0}.ag>*{min-width:0}.ag button{width:auto}
   .ag-head{width:100%;max-width:none!important;box-sizing:border-box;margin:0;display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;padding:22px;border:1px solid #2d3b4a;border-radius:18px;background:linear-gradient(135deg,#131c27,#11150f)}
   .ag-head span.k{color:#7da4ff;font:900 10px Arial;letter-spacing:.12em}.ag-head h2{margin:4px 0;font-size:1.6rem}.ag-head p{margin:0;color:#aebba7;font-size:.9rem}
   .ag-btn{min-height:40px;padding:0 16px;border:0;border-radius:10px;background:#d0f44c;color:#142017;font:800 13px Arial;cursor:pointer}.ag-btn.sec{background:transparent;border:1px solid #60754d;color:#e3eadc}.ag-btn:disabled{opacity:.6;cursor:progress}
