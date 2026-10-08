@@ -97,6 +97,13 @@
   .fp-id{font:900 15px Arial;text-anchor:middle;letter-spacing:.06em}.fp-tela{font:700 10.5px Arial;fill:#e9efe3;text-anchor:middle}.fp-n{font:600 9.5px Arial;fill:#8e9a87;text-anchor:middle}
   .fp-lbl{font:800 9px Arial;fill:#8e9a87;text-anchor:middle;letter-spacing:.18em}
   .ft-flat [data-m]{transition:opacity .25s}
+  .fit{display:flex;flex-wrap:wrap;gap:18px 30px;justify-content:center;align-items:flex-end;padding:16px 14px 18px;border:1px solid #2c3a1c;border-radius:14px;background:#0d1409}
+  .fit-t{flex:0 0 100%;text-align:center;font:800 11px Arial;letter-spacing:.18em;color:#d7ff3a}
+  .fit-p{margin:0;display:flex;flex-direction:column;align-items:center;gap:8px}.fit-d{display:flex;flex-direction:column;align-items:center;gap:4px}
+  .fit-p svg *{fill:var(--c);stroke:rgba(0,0,0,.45);stroke-width:.6}
+  .fit-p figcaption{font:800 11px Arial;letter-spacing:.05em;color:#e9efe3;text-align:center}.fit-p em{font-style:normal;color:var(--c)}
+  .fit-m{display:inline-block;margin-right:6px;padding:1px 6px;border-radius:5px;background:var(--c);color:#0b1204;font:900 10px Arial}
+  @media(max-width:700px){.fit{gap:14px 18px}.fit-p svg{max-width:96px;height:auto}}
   .fp-nodo{opacity:0;animation:fpIn .6s cubic-bezier(.2,1.4,.4,1) forwards var(--d);transform-box:fill-box;transform-origin:left center}
   .fp-nodo rect{fill:#0d1409;stroke:var(--c);stroke-width:1.6}
   .fp-nodo .fp-sil *{fill:var(--c);fill-opacity:.9;stroke:rgba(0,0,0,.55);stroke-width:1}
@@ -260,111 +267,26 @@
   };
   const silueta = (nom, k) => (kindDe(nom) === 'pocket' ? ICONOS.pocket : (SIL[k] || ICONOS[kindDe(nom)] || ICONOS.otro));
   const icono = n => '<svg class="ft-ico" viewBox="0 0 48 48">' + ICONOS[kindDe(n)] + '</svg>';
-  // Plano técnico: rollo de tela -> nodos de pieza -> prenda, unidos por conectores con paquetes de información
-  function planoTelas(mats) {
-    const quien = re => mats.find(x => x.piezas.some(p => re.test(p.n)));
-    const tipo = k => mats.find(x => x.piezas.some(p => kindDe(p.n) === k));
-    const M1 = mats[0];
-    const frente = quien(/FRENTE|DELANTERO|CUERPO|PETO/i) || tipo('body') || M1;
-    const espalda = quien(/ESPALDA|TRASERO|CUERPO|PETO/i) || tipo('body') || M1;
-    const manga = tipo('sleeve') || M1, puno = tipo('cuff'), cuello = tipo('collar'), lado = tipo('side'), perilla = tipo('placket'), pant = tipo('shorts');
-    const media = quien(/MEDIA|CALCET/i) || M1;
-    const camisa = ['body', 'sleeve', 'cuff', 'collar', 'placket', 'side'].some(k => !!tipo(k)), short = !!pant;
-    const BODY = 'M245 66 L285 52 Q310 78 335 52 L375 66 L379 200 Q310 210 241 200 Z';
-    const items = [];   // { k, m, d, ancla, t, st }
-    if (camisa) {
-      items.push({ k: 'back', m: espalda, d: BODY, ancla: [392, 196], t: 'translate(14 10)' });
-      items.push({ k: 'front', m: frente, d: BODY, ancla: [300, 168], st: '<path class="st" d="M245 66 L285 52 Q310 78 335 52 L375 66 M247 192 Q310 202 373 192"/>' });
-      if (lado) items.push({ k: 'side', m: lado, d: 'M244 104 H270 L268 202 Q255 203 241 200 Z M376 104 H350 L352 202 Q365 203 379 200 Z', ancla: [256, 146] });
-      items.push({ k: 'sleeve', m: manga, d: 'M245 66 L198 92 L211 132 L248 114 Z M375 66 L422 92 L409 132 L372 114 Z', ancla: [222, 92], st: '<path class="st" d="M206 112 L244 96 M414 112 L376 96"/>' });
-      if (puno) items.push({ k: 'cuff', m: puno, d: 'M198 92 L188 98 L201 138 L211 132 Z M422 92 L432 98 L419 138 L409 132 Z', ancla: [196, 126] });
-      if (cuello) items.push({ k: 'collar', m: cuello, d: 'M283 51 Q310 82 337 51 L344 55 Q310 96 276 55 Z', ancla: [310, 60] });
-      if (perilla) items.push({ k: 'placket', m: perilla, d: 'M304 76 H316 V126 H304 Z', ancla: [310, 112], st: '<path class="st" d="M310 80 V122"/>' });
-    }
-    if (short) {
-      items.push({ k: 'shorts', m: pant, d: 'M462 118 Q520 128 578 118 L592 236 H534 L520 178 L506 236 H448 Z', ancla: [520, 188], st: '<path class="st" d="M463 128 Q520 138 577 128 M520 180 V232"/>' });
-      items.push({ k: 'socks', m: media, d: 'M470 252 H496 V292 Q496 306 478 306 H468 Q458 306 462 292 Z M544 252 H570 V292 Q570 306 552 306 H542 Q532 306 536 292 Z', ancla: [482, 280], st: '<path class="st" d="M470 262 H496 M544 262 H570 M470 272 H496 M544 272 H570"/>' });
-    }
-    if (!items.length) return '';
-    const GX = 150, GY = 23, SC = 0.8, T = a => [+(GX + a[0] * SC).toFixed(1), +(GY + a[1] * SC).toFixed(1)];
-    const anclas = {}; items.forEach(it => { anclas[it.k] = T(it.ancla); });
-    const claveNodo = nom => {
+  // FIT DE PRENDA POR PIEZAS: cada pieza del patrón dibujada con su nombre y cantidad, del color de su material (sin animación)
+  const ORDEN_PIEZA = ['back', 'front', 'sleeve', 'cuff', 'collar', 'placket', 'pocket', 'side', 'shorts', 'socks', 'otro'];
+  function fitPiezas(mats) {
+    const claveDe = nom => {
       if (/MEDIA|CALCET/i.test(nom)) return 'socks';
       const k = kindDe(nom);
       if (k === 'body') return /ESPALDA|TRASERO/i.test(nom) ? 'back' : 'front';
-      if (k === 'pocket') return 'front';
       return k;
     };
-    // nodos: una tarjeta por pieza, en columna
-    const nodos = [];
-    mats.forEach(m => m.piezas.forEach(p => nodos.push({ m, p })));
-    const nN = nodos.length, paso = 316 / nN, NH = Math.min(42, Math.max(24, paso - 4)), NX = 142, NW = 150, SI = Math.min(34, NH - 6);
-    const altura = nd => { const a = anclas[claveNodo(nd.p.n)]; return a ? a[1] : 999; };
-    nodos.sort((a, b) => altura(a) - altura(b));
-    nodos.forEach((nd, i) => { nd.y = 7 + paso * (i + 0.5); });
-    // conector: cable + paquetes + puertos en ambos extremos, con onda al llegar
-    const ruta = (sx, sy, ex, ey) => { const dx = Math.max(30, (ex - sx) * 0.5); return 'M' + sx + ' ' + sy + ' C' + (sx + dx) + ' ' + sy + ' ' + (ex - dx) + ' ' + ey + ' ' + ex + ' ' + ey; };
-    const orto = (sx, sy, lx, ex, ey) => {
-      if (Math.abs(ey - sy) < 1) return 'M' + sx + ' ' + sy + ' H' + ex;
-      const dir = ey > sy ? 1 : -1, rr = Math.min(7, Math.abs(ey - sy) / 2);
-      return 'M' + sx + ' ' + sy + ' H' + (lx - rr) + ' Q' + lx + ' ' + sy + ' ' + lx + ' ' + (sy + dir * rr) + ' V' + (ey - dir * rr) + ' Q' + lx + ' ' + ey + ' ' + (lx + rr) + ' ' + ey + ' H' + ex;
-    };
-    const con = (sx, sy, ex, ey, m, b, dur, dd) => {
-      const d = dd || ruta(sx, sy, ex, ey), c = m.color, du = dur.toFixed(2) + 's';
-      let q = '';
-      for (let n3 = 0; n3 < 2; n3++) {
-        const bn = (b + n3 * dur / 2).toFixed(2) + 's';
-        q += '<rect x="-6" y="-3" width="12" height="6" rx="3" fill="' + c + '" stroke="#0b1204" stroke-width="1"><animateMotion dur="' + du + '" begin="' + bn + '" repeatCount="indefinite" rotate="auto" path="' + d + '"/>' +
-          '<animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.1;.88;1" dur="' + du + '" begin="' + bn + '" repeatCount="indefinite"/></rect>';
-      }
-      return ['<g class="fp-con" data-m="' + m.id + '" style="--c:' + c + '"><path class="fp-cab" d="' + d + '"/><path class="fp-flujo" d="' + d + '"/>' + q +
-        '<circle cx="' + sx + '" cy="' + sy + '" r="4.2" fill="#0b1204" stroke="' + c + '" stroke-width="2"/></g>',
-        '<g class="fp-con" data-m="' + m.id + '" style="--c:' + c + '">' +
-        '<circle cx="' + ex + '" cy="' + ey + '" r="4.6" fill="#0b1204" stroke="' + c + '" stroke-width="2"/><circle cx="' + ex + '" cy="' + ey + '" r="2" fill="' + c + '"/>' +
-        '<circle cx="' + ex + '" cy="' + ey + '" r="4.6" fill="none" stroke="' + c + '" stroke-width="2"><animate attributeName="r" values="4.6;15" dur="' + (dur / 2).toFixed(2) + 's" begin="' + (b + dur).toFixed(2) + 's" repeatCount="indefinite"/><animate attributeName="opacity" values=".9;0" dur="' + (dur / 2).toFixed(2) + 's" begin="' + (b + dur).toFixed(2) + 's" repeatCount="indefinite"/></circle></g>'];
-    };
-    const n = mats.length, r = n === 1 ? 44 : n === 2 ? 38 : 30;
-    let rollos = '', nodosSvg = '', cables = '', cablesAtras = '', puertos = '';
-    const sep = 2 * r + 56, cys = mats.map(m => { const su = nodos.filter(nd => nd.m === m); return su.reduce((a, nd) => a + nd.y, 0) / su.length; });
-    const orden = mats.map((m, i) => i).sort((a, b) => cys[a] - cys[b]);
-    orden.forEach((ix, k) => { cys[ix] = Math.max(r + 8, k ? Math.max(cys[ix], cys[orden[k - 1]] + sep) : cys[ix]); });
-    const sobra = Math.max(0, cys[orden[orden.length - 1]] - (330 - r - 52));
-    orden.forEach(ix => { cys[ix] = Math.max(r + 8, cys[ix] - sobra); });
-    mats.forEach((m, i) => {
-      const suyos = nodos.filter(nd => nd.m === m);
-      const cy = cys[i], carril = 106 + i * 12;
-      const cx = 52;
-      let esp = 'M' + cx + ' ' + cy;
-      for (let a = 0; a <= 18.8; a += 0.3) esp += ' L' + (cx + Math.cos(a) * (6 + (r - 8) * a / 18.8)).toFixed(1) + ' ' + (cy + Math.sin(a) * (6 + (r - 8) * a / 18.8)).toFixed(1);
-      const nom = m.tela || 'Tela por definir', cuenta = m.total + (m.total === 1 ? ' pieza' : ' piezas');
-      rollos += '<g class="fp-roll" data-m="' + m.id + '" style="--c:' + m.color + '"><circle class="fp-halo" cx="' + cx + '" cy="' + cy + '" r="' + (r + 6) + '"/><circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="' + m.color + '" stroke="rgba(0,0,0,.55)" stroke-width="1.5"/>' +
-        '<g><path d="' + esp + '" fill="none" stroke="rgba(0,0,0,.38)" stroke-width="1.6"/><animateTransform attributeName="transform" type="rotate" from="0 ' + cx + ' ' + cy + '" to="360 ' + cx + ' ' + cy + '" dur="' + (9 + i * 3) + 's" repeatCount="indefinite"/></g>' +
-        '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="url(#fpRad)"/><circle cx="' + cx + '" cy="' + cy + '" r="7" fill="#0b1204"/><circle cx="' + cx + '" cy="' + cy + '" r="3" fill="#4a5440"/>' +
-        '<text class="fp-id" x="' + cx + '" y="' + (cy + r + 18) + '" fill="' + m.color + '">' + m.id + '</text><text class="fp-tela" x="' + cx + '" y="' + (cy + r + 31) + '">' + esc(nom.length > 17 ? nom.slice(0, 16) + '…' : nom) + '</text><text class="fp-n" x="' + cx + '" y="' + (cy + r + 42) + '">' + cuenta + '</text></g>';
-      suyos.forEach((nd, k) => {
-        const idx = nodos.indexOf(nd), nom2 = nd.p.n.toUpperCase();
-        nodosSvg += '<g class="fp-nodo" data-m="' + m.id + '" style="--c:' + m.color + ';--d:' + (0.2 + idx * 0.1).toFixed(2) + 's"><rect x="' + NX + '" y="' + (nd.y - NH / 2).toFixed(1) + '" width="' + NW + '" height="' + NH.toFixed(1) + '" rx="6"/>' +
-          '<g class="fp-sil" transform="translate(' + (NX + 6) + ' ' + (nd.y - SI / 2).toFixed(1) + ') scale(' + (SI / 48).toFixed(3) + ')">' + silueta(nd.p.n, claveNodo(nd.p.n)) + '</g>' +
-          '<text class="fp-nt" x="' + (NX + SI + 14) + '" y="' + (nd.y + 3.6).toFixed(1) + '">' + esc(nom2.length > 12 ? nom2.slice(0, 11) + '…' : nom2) + '</text>' +
-          (nd.p.c > 1 ? '<text class="fp-nc" x="' + (NX + NW - 8) + '" y="' + (nd.y + 3.6).toFixed(1) + '" fill="' + m.color + '">×' + nd.p.c + '</text>' : '') + '</g>';
-        const durA = 2.4 + (idx % 3) * 0.3, bA = 0.7 + idx * 0.2;
-        const c1 = con(cx + r, cy, NX, nd.y, m, bA, durA, orto(cx + r, cy, carril, NX, nd.y));
-        cables += c1[0] + c1[1];
-        const an = anclas[claveNodo(nd.p.n)];
-        if (an) { const c2 = con(NX + NW, nd.y, an[0], an[1], m, bA + durA * 0.6, durA + 0.4); cablesAtras += c2[0]; puertos += c2[1]; }
-      });
-    });
-    let piezas = '';
-    items.forEach((it, k) => {
-      const g = '<g class="fp" data-m="' + it.m.id + '" style="--c:' + it.m.color + ';--d:' + (0.3 + k * 0.18).toFixed(2) + 's"><path d="' + it.d + '"/><path class="tx" d="' + it.d + '"/><path class="sh" d="' + it.d + '"/>' + (it.st || '') + '</g>';
-      piezas += it.t ? '<g transform="' + it.t + '">' + g + '</g>' : g;
-    });
-    const defs = '<defs><linearGradient id="fpSombra" x1="0" x2="1"><stop offset="0" stop-color="#000" stop-opacity=".32"/><stop offset=".3" stop-color="#000" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".16"/><stop offset=".72" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".36"/></linearGradient>' +
-      '<radialGradient id="fpRad" cx=".35" cy=".3" r=".8"><stop offset="0" stop-color="#fff" stop-opacity=".35"/><stop offset=".6" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".4"/></radialGradient>' +
-      '<pattern id="fpTejido" width="3" height="3" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="3" height="1.3" fill="#000"/></pattern></defs>';
-    const etiq = (x, y, t) => '<text class="fp-lbl" x="' + x + '" y="' + y + '">' + t + '</text>';
-    const prenda = '<g transform="translate(' + GX + ' ' + GY + ') scale(' + SC + ')">' + piezas + (camisa ? etiq(310, 232, 'FRENTE · ESPALDA') : '') + (short ? etiq(520, 326, 'PANTALONETA') : '') + '</g>';
-    return '<svg class="ft-flat" viewBox="0 0 ' + (short ? 650 : 520) + ' 330" role="img" aria-label="Rollos de tela, piezas y prenda">' + defs + rollos + cables + cablesAtras + prenda + puertos + nodosSvg + '</svg>';
+    const lista = [];
+    mats.forEach(m => m.piezas.forEach(p => lista.push({ m, p, k: claveDe(p.n) })));
+    lista.sort((x, y) => ORDEN_PIEZA.indexOf(x.k) - ORDEN_PIEZA.indexOf(y.k));
+    const ancho = k => (k === 'back' || k === 'front' ? 150 : k === 'shorts' ? 120 : 110);
+    const figuras = lista.map(({ m, p, k }) => {
+      const w = ancho(k), copias = Math.min(p.c, 2);
+      const dibujo = '<svg viewBox="0 0 48 48" width="' + w + '" height="' + w + '" aria-hidden="true">' + silueta(p.n, k) + '</svg>';
+      return '<figure class="fit-p" style="--c:' + m.color + '"><div class="fit-d">' + dibujo.repeat(copias) + '</div><figcaption>' +
+        (mats.length > 1 ? '<b class="fit-m">' + m.id + '</b>' : '') + esc(p.n.toUpperCase()) + (p.c > 1 ? ' <em>×' + p.c + '</em>' : '') + '</figcaption></figure>';
+    }).join('');
+    return '<div class="fit"><div class="fit-t">FIT DE PRENDA X PIEZAS</div>' + figuras + '</div>';
   }
   function iconoFila(p, i, color) { return '<span style="--d:' + (0.4 + i * 0.12).toFixed(2) + 's">' + icono(p.n) + esc(p.n) + (p.c > 1 ? '<em>×' + p.c + '</em>' : '') + '</span>'; }
   function mapaTelas(f) {
@@ -398,7 +320,7 @@
       ? '<span class="ft-ban" style="--c:' + mats[0].color + '">● UN SOLO MATERIAL · TODO EN ' + mats[0].id + '</span>'
       : '<span class="ft-ban dos" style="--c1:' + mats[0].color + ';--c2:' + mats[1].color + '">● ' + (mats.length === 2 ? 'DOS' : mats.length) + ' MATERIALES · NO TODO VA EN LA MISMA TELA</span>';
     return '<div class="ft"><div class="ft-top">' + ban + '<span class="ft-sub">' + (uno ? 'Todas las piezas se cortan de la misma tela' : 'Separa las piezas por color de material') + '</span></div>' +
-      planoTelas(mats) + '<div class="ft-mats">' + mats.map(x => '<div class="ft-mat" data-m="' + x.id + '" style="--c:' + x.color + '"><h4><b>' + x.id + '</b>MATERIAL ' + x.id.slice(1) + '</h4><p class="ft-tela">' + esc(x.tela || 'Tela por definir en la ficha') + '</p><div class="ft-piezas">' +
+      fitPiezas(mats) + '<div class="ft-mats">' + mats.map(x => '<div class="ft-mat" data-m="' + x.id + '" style="--c:' + x.color + '"><h4><b>' + x.id + '</b>MATERIAL ' + x.id.slice(1) + '</h4><p class="ft-tela">' + esc(x.tela || 'Tela por definir en la ficha') + '</p><div class="ft-piezas">' +
         x.piezas.map((p, i) => iconoFila(p, i)).join('') + '</div></div>').join('') + '</div></div>';
   }
   function pestanas(f) {
