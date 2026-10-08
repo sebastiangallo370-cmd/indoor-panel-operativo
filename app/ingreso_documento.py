@@ -345,6 +345,14 @@ def _color_texto(nombre: str, sufijo) -> str:
     return f"({nombre.strip()})" + (f" {sufijo}" if sufijo else '')
 
 
+def _entero_rollo(texto: str) -> float:
+    """Metros del rollo como número ENTERO (sin decimales). Una marca a mano pegada al número («1100.57» por «100.57») no es un rollo de 1.100 m: se quita ese «1» de más."""
+    valor = int(float(texto))
+    if valor >= 1000 and str(valor)[0] == '1':
+        valor = int(str(valor)[1:])
+    return float(valor)
+
+
 def _empaque_grupos(texto: str) -> list[dict]:
     """Grupos «tela + color» de una página de lista de empaque. Cada grupo se cierra con su línea «Subt…» (que trae el color y el total de metros).
     Una página de continuación no trae el encabezado de la tela: sus filas quedan en un grupo con `continuacion=True`."""
@@ -371,7 +379,9 @@ def _empaque_grupos(texto: str) -> list[dict]:
             continue
         decimales = _EMPAQUE_DECIMALES.findall(limpia)
         identificador = _EMPAQUE_ID.search(limpia)
-        es_fila = bool(decimales) and (identificador or 'PEN-' in limpia) and not re.search(r'resumen|remision', limpia, re.I)
+        # una fila de rollo con ID y pedido pero SIN la cifra de Cant. legible (marcas a mano encima) entra vacía: se escribe a mano, nunca se toma la de Cant.adic
+        sin_cifra = not decimales and bool(identificador) and 'PEN' in limpia
+        es_fila = (bool(decimales) and (identificador or 'PEN-' in limpia) or sin_cifra) and not re.search(r'resumen|remision', limpia, re.I)
         if not es_fila:
             encabezado = _EMPAQUE_ARTICULO.search(limpia)
             if encabezado and not decimales:
@@ -386,7 +396,7 @@ def _empaque_grupos(texto: str) -> list[dict]:
             color = _EMPAQUE_COLOR.search(limpia)
             if color:
                 grupo['color'] = _color_texto(color.group(1), color.group(2))
-        grupo['rollos'].append({'mts': float(decimales[0]), 'rollo_no': identificador.group(0)[:7] if identificador else ''})   # Cant. va antes que Cant.adic (kg)
+        grupo['rollos'].append({'mts': _entero_rollo(decimales[0]) if decimales else None, 'rollo_no': identificador.group(0)[:7] if identificador else ''})   # Cant. va antes que Cant.adic (kg)
     return [g for g in grupos if g['rollos']]
 
 
@@ -411,13 +421,35 @@ def parse_packing_list_text(texto: str) -> dict | None:
     return _empaque_resultado(_empaque_grupos(texto), texto)
 
 
+def _texto_sin_adicional(imagen: Image.Image) -> str:
+    """Texto OCR de la lista de empaque SIN la columna «Cant.adic» (kilos): se leen las palabras con su posición y, en las filas de rollos, se descartan las que
+    quedan a la derecha del encabezado «Cant.adic». Así nunca se confunde con la columna «Cant.» (metros). Las líneas de subtotal y total conservan ambas cifras."""
+    palabras = _words(imagen)
+    limite = None
+    for w in palabras:
+        if 'adic' in w['text'].lower():
+            limite = w['left'] - max(4, int(imagen.width * 0.004))
+            break
+    lineas: dict = {}
+    for w in palabras:
+        lineas.setdefault(w['line'], []).append(w)
+    texto = []
+    for _clave, ws in sorted(lineas.items(), key=lambda kv: min(w['top'] for w in kv[1])):
+        ws.sort(key=lambda w: w['left'])
+        completa = ' '.join(w['text'] for w in ws)
+        if limite is not None and re.search(r'\d{7,}|PEN', completa) and not re.search(r'Subt|Tot', completa, re.I):   # solo las filas de rollos (con su ID / pedido)
+            ws = [w for w in ws if (w['left'] + w['right']) / 2 < limite]
+        texto.append(' '.join(w['text'] for w in ws))
+    return '\n'.join(texto)
+
+
 def parse_packing_list(data: bytes, filename: str) -> dict | None:
     imagenes = load_images(data, filename)
     textos = []
     for imagen in imagenes:
         ruta = _save_temp(imagen)
         try:
-            textos.append(_tesseract(ruta, '-l', 'spa', '--psm', '6'))
+            textos.append(_texto_sin_adicional(imagen))
         finally:
             try:
                 os.unlink(ruta)
