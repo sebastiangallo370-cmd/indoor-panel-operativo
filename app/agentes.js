@@ -275,9 +275,10 @@
     .ag-main>*,.ag-main .ag-lienzo,.ag-main .ag-live,.ag-main .ag-detalle,.ag-main .ag-chat{grid-column:1!important}
     .ag-main .ag-chat,.ag-main .ag-lienzo,.ag-main .ag-live,.ag-main .ag-detalle{grid-row:1!important;display:none!important;height:auto!important;min-height:0!important;max-height:none!important}
     .ag-main[data-vista="chats"] .ag-chat{display:grid!important}
-    .ag-main[data-vista="agentes"] .ag-lienzo{display:block!important;height:100%!important}
+    .ag-main[data-vista="agentes"]{grid-template-rows:auto minmax(0,1fr)!important;row-gap:12px!important}
+    .ag-main[data-vista="agentes"] .ag-lienzo{display:block!important}
+    .ag-main[data-vista="agentes"] .ag-detalle{display:grid!important;grid-row:2!important}
     .ag-main[data-vista="pdfs"] .ag-live{display:grid!important}
-    .ag-main[data-vista="log"] .ag-detalle{display:grid!important}
     .ag-main[data-vista="chats"] .ag-chat{width:100%}
     /* Cuadro fijo de MUESTRAS (D1, D2, D3…) a la derecha del chat, con flechas para pasar de una a otra */
     .ag-main[data-vista="chats"]{grid-template-columns:minmax(380px,34%) minmax(0,1fr)!important;column-gap:12px!important}
@@ -290,7 +291,6 @@
     .mu-nav{margin-left:auto;display:flex;align-items:center;gap:6px}.mu-nav button,.mu-nav a{min-width:38px;min-height:32px;display:inline-flex;align-items:center;justify-content:center;border:1px solid #60754d;border-radius:10px;background:#142017;color:#d7ff3a;font:900 16px Arial;cursor:pointer;text-decoration:none}.mu-nav button:disabled{opacity:.35;cursor:default}.mu-nav span{color:#aebba7;font:800 12px Arial;min-width:42px;text-align:center}
     .mu-cuerpo{min-height:0;display:flex;align-items:center;justify-content:center;background:#fff;border-radius:10px;overflow:hidden}.mu-cuerpo img{max-width:100%;max-height:100%;object-fit:contain;display:block}.mu-cuerpo iframe{width:100%;height:100%;border:0}
     .mu-pie{color:#aebba7;font:700 12px Arial;display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap}.mu-vacio{display:grid;place-items:center;color:#8f9b8a;font:700 13px Arial;text-align:center;grid-row:1 / -1}
-    .ag-main[data-vista="log"] .ag-detalle header{padding:9px 16px}
   }
   @media(max-width:1000px){.ag-vtabs{display:none!important}}
   `;
@@ -367,15 +367,16 @@
     nuevaEjec(); flow.ejec.n = 0; flow.ejecN = 0; acomodar(); pintarLog();
   }
   // Pestañas de escritorio: CHATS · AGENTES (mapa del flujo) · PDFS (pantalla en vivo) · LOG (ejecución)
-  const VISTAS = ['chats', 'agentes', 'pdfs', 'log'];
+  const VISTAS = ['chats', 'agentes', 'pdfs'];   // el LOG va dentro de AGENTES
   function ponerVista(v) {
+    if (v === 'log') v = 'agentes';
     if (!VISTAS.includes(v)) v = 'chats';
     const m = panel && panel.querySelector('[data-main]'); if (!m) return;
     m.dataset.vista = v;
     panel.querySelectorAll('[data-vt]').forEach(b => b.classList.toggle('on', b.dataset.vt === v));
     try { localStorage.setItem('indoor-agentes-vista', v); } catch (er) { /* sin almacenamiento */ }
     ajustarAlto();
-    setTimeout(() => { if (v === 'agentes') acomodar(); if (v === 'log') pintarLog(); if (v === 'chats') { const h = panel.querySelector('[data-hilo]'); if (h) h.scrollTop = h.scrollHeight; } }, 30);
+    setTimeout(() => { if (v === 'agentes') { acomodar(); pintarLog(); } if (v === 'chats') { const h = panel.querySelector('[data-hilo]'); if (h) h.scrollTop = h.scrollHeight; } }, 30);
   }
   // El módulo ocupa exactamente lo que queda de pantalla (sin scroll de página), con cualquier zoom o barra del navegador
   function ajustarAlto() {
@@ -392,7 +393,7 @@
     const filas = Math.ceil(NODOS.length / porFila);
     const sep = porFila > 1 ? (W - margen * 2 - ancho) / (porFila - 1) : 0;
     const altoFila = tam + 58, y0 = 54;   // el mapa es una tira: su alto se ajusta a las filas que ocupa
-    lienzo.style.height = (y0 + (filas - 1) * altoFila + tam + 46) + 'px';
+    lienzo.style.setProperty('height', (y0 + (filas - 1) * altoFila + tam + 46) + 'px', 'important');
     NODOS.forEach((n, i) => {
       const f = Math.floor(i / porFila), c = i % porFila, x = margen + c * sep, y = y0 + f * altoFila;
       flow.POS[n.id] = { x, y, fila: f, col: i };
@@ -687,7 +688,7 @@
       '<button type="button" class="ag-btn ag-reiniciar" data-reiniciar title="Reinicia el programa de los agentes en el PC elegido (se cierra y se vuelve a abrir solo)">↻ Reiniciar</button>' +
       '<details class="ag-menu"><summary class="ag-ico" title="Más opciones">⋯</summary><div class="ag-menu-l"><button type="button" data-detener-todo>⏹ Detener todo (ambos PC)</button><button type="button" data-reiniciar-todo>↻ Reiniciar todos los PC</button><button type="button" data-nueva>Nueva conversación</button><button type="button" data-conectar hidden>PC de los agentes…</button></div></details></div></header>' +
       '<div data-aviso></div><section class="ag-res" data-resumen hidden></section>' +
-      '<button type="button" class="ag-ver-flujo" data-ver-flujo>▾ Ver flujo, pantalla en vivo y registro</button><nav class="ag-vtabs" data-vtabs aria-label="Secciones de los agentes"><button type="button" class="ag-vt on" data-vt="chats">CHATS</button><button type="button" class="ag-vt" data-vt="agentes">AGENTES</button><button type="button" class="ag-vt" data-vt="pdfs">PDFS</button><button type="button" class="ag-vt" data-vt="log">LOG</button></nav><div class="ag-main" data-main data-vista="chats"><div class="ag-orden" data-orden></div><section class="ag-chat"><div class="ag-thread" data-hilo></div><div class="ag-chips" data-replies></div>' +
+      '<button type="button" class="ag-ver-flujo" data-ver-flujo>▾ Ver flujo, pantalla en vivo y registro</button><nav class="ag-vtabs" data-vtabs aria-label="Secciones de los agentes"><button type="button" class="ag-vt on" data-vt="chats">CHATS</button><button type="button" class="ag-vt" data-vt="agentes">AGENTES</button><button type="button" class="ag-vt" data-vt="pdfs">PDFS</button></nav><div class="ag-main" data-main data-vista="chats"><div class="ag-orden" data-orden></div><section class="ag-chat"><div class="ag-thread" data-hilo></div><div class="ag-chips" data-replies></div>' +
       '<form class="ag-form" data-form><details class="ag-menu ag-atajos"><summary class="ag-ico" title="Acciones rápidas">⚡</summary><div class="ag-menu-l">' + ATAJOS.map(([l, p]) => '<button type="button" data-atajo="' + esc(p) + '">' + esc(l) + '</button>').join('') + '</div></details>' +
       '<textarea rows="1" placeholder="Escribe a TAVO…" maxlength="2000"></textarea><button type="submit" class="ag-btn">Enviar</button></form></section>' +
       '<aside class="ag-muestras" data-muestras></aside><section class="ag-flowcol"><div class="ag-lienzo" data-lienzo><div class="ag-barra"><div class="ag-ftit">Flujo de agentes<small data-ejecnum></small></div><div class="ag-pildora" data-pildora><i></i><span>Listo</span></div></div><svg class="ag-cables" data-cables aria-hidden="true"></svg></div>' +
