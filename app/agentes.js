@@ -279,11 +279,17 @@
     .ag-main[data-vista="pdfs"] .ag-live{display:grid!important}
     .ag-main[data-vista="log"] .ag-detalle{display:grid!important}
     .ag-main[data-vista="chats"] .ag-chat{width:100%}
-    /* Mensaje con muestra o archivos: texto a la izquierda y vista previa a la derecha, del alto que quede (sin scroll para aprobar) */
-    .ag-main[data-vista="chats"] .ag-msg.bot.con-tabla:has(.ag-files){grid-template-columns:minmax(300px,30%) minmax(0,1fr);column-gap:20px;align-items:start}
-    .ag-main[data-vista="chats"] .ag-msg.bot.con-tabla:has(.ag-files)>*{grid-column:1}
-    .ag-main[data-vista="chats"] .ag-msg.bot.con-tabla:has(.ag-files)>.ag-files{grid-column:2;grid-row:1 / span 8;grid-template-columns:minmax(0,1fr)}
-    .ag-main[data-vista="chats"] .ag-file.abierto .ag-prev{height:max(240px,calc(100vh - 500px))!important;max-height:none!important;object-fit:contain}
+    /* Cuadro fijo de MUESTRAS (D1, D2, D3…) a la derecha del chat, con flechas para pasar de una a otra */
+    .ag-main[data-vista="chats"]{grid-template-columns:minmax(380px,34%) minmax(0,1fr)!important;column-gap:12px!important}
+    .ag-main .ag-muestras{display:none!important;grid-row:1!important;grid-column:2!important}
+    .ag-main[data-vista="chats"] .ag-muestras{display:grid!important}
+    .ag-main[data-vista="chats"] .ag-file.muestra .ag-prev{display:none!important}
+    .ag-muestras{grid-template-rows:auto minmax(0,1fr) auto;gap:10px;min-height:0;border:1px solid #34432f;border-radius:16px;background:#0c110d;padding:12px 14px}
+    .mu-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.mu-top h4{margin:0 8px 0 0;font:900 11px Arial;letter-spacing:.14em;color:#d7ff3a}
+    .mu-chip{min-height:30px;padding:0 14px;border:1px solid #34432f;border-radius:999px;background:#121a14;color:#aebba7;font:900 12px Arial;letter-spacing:.06em;cursor:pointer}.mu-chip.on{background:#d7ff3a;border-color:#d7ff3a;color:#0b1204}
+    .mu-nav{margin-left:auto;display:flex;align-items:center;gap:6px}.mu-nav button,.mu-nav a{min-width:38px;min-height:32px;display:inline-flex;align-items:center;justify-content:center;border:1px solid #60754d;border-radius:10px;background:#142017;color:#d7ff3a;font:900 16px Arial;cursor:pointer;text-decoration:none}.mu-nav button:disabled{opacity:.35;cursor:default}.mu-nav span{color:#aebba7;font:800 12px Arial;min-width:42px;text-align:center}
+    .mu-cuerpo{min-height:0;display:flex;align-items:center;justify-content:center;background:#fff;border-radius:10px;overflow:hidden}.mu-cuerpo img{max-width:100%;max-height:100%;object-fit:contain;display:block}.mu-cuerpo iframe{width:100%;height:100%;border:0}
+    .mu-pie{color:#aebba7;font:700 12px Arial;display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap}.mu-vacio{display:grid;place-items:center;color:#8f9b8a;font:700 13px Arial;text-align:center;grid-row:1 / -1}
     .ag-main[data-vista="log"] .ag-detalle header{padding:9px 16px}
   }
   @media(max-width:1000px){.ag-vtabs{display:none!important}}
@@ -684,7 +690,7 @@
       '<button type="button" class="ag-ver-flujo" data-ver-flujo>▾ Ver flujo, pantalla en vivo y registro</button><nav class="ag-vtabs" data-vtabs aria-label="Secciones de los agentes"><button type="button" class="ag-vt on" data-vt="chats">CHATS</button><button type="button" class="ag-vt" data-vt="agentes">AGENTES</button><button type="button" class="ag-vt" data-vt="pdfs">PDFS</button><button type="button" class="ag-vt" data-vt="log">LOG</button></nav><div class="ag-main" data-main data-vista="chats"><div class="ag-orden" data-orden></div><section class="ag-chat"><div class="ag-thread" data-hilo></div><div class="ag-chips" data-replies></div>' +
       '<form class="ag-form" data-form><details class="ag-menu ag-atajos"><summary class="ag-ico" title="Acciones rápidas">⚡</summary><div class="ag-menu-l">' + ATAJOS.map(([l, p]) => '<button type="button" data-atajo="' + esc(p) + '">' + esc(l) + '</button>').join('') + '</div></details>' +
       '<textarea rows="1" placeholder="Escribe a TAVO…" maxlength="2000"></textarea><button type="submit" class="ag-btn">Enviar</button></form></section>' +
-      '<section class="ag-flowcol"><div class="ag-lienzo" data-lienzo><div class="ag-barra"><div class="ag-ftit">Flujo de agentes<small data-ejecnum></small></div><div class="ag-pildora" data-pildora><i></i><span>Listo</span></div></div><svg class="ag-cables" data-cables aria-hidden="true"></svg></div>' +
+      '<aside class="ag-muestras" data-muestras></aside><section class="ag-flowcol"><div class="ag-lienzo" data-lienzo><div class="ag-barra"><div class="ag-ftit">Flujo de agentes<small data-ejecnum></small></div><div class="ag-pildora" data-pildora><i></i><span>Listo</span></div></div><svg class="ag-cables" data-cables aria-hidden="true"></svg></div>' +
       '<div class="ag-live" data-live></div>' +
       '<div class="ag-detalle"><header><h3>Ejecución</h3><div class="ag-filtros" data-filtros></div></header><div class="ag-log" data-log></div></div></section></div></div>';
     panel.dataset.armado = '1';
@@ -746,6 +752,31 @@
     }, 3000);
   }
 
+  // Cuadro fijo de MUESTRAS: las muestras (D1, D2…) de la última respuesta que las trae, con flechas para pasar de una a otra
+  function muestrasActuales() {
+    for (let i = st.msgs.length - 1; i >= 0; i--) {
+      const lista = (st.msgs[i].archivos || []).filter(a => a.tipo === 'muestra' && a.id);
+      if (lista.length) return lista;
+    }
+    return [];
+  }
+  const etiquetaMuestra = (a, i) => { const t = String((a.titulo || '') + ' ' + (a.nombre || '')); const m = /Dise[ñn]o\s*(\d+)/i.exec(t) || /(?:^|[_\s-])D(\d+)(?!\d)/i.exec(t); return m ? 'D' + m[1] : 'M' + (i + 1); };
+  function pintarMuestras() {
+    const box = panel && panel.querySelector('[data-muestras]'); if (!box) return;
+    const lista = muestrasActuales(), firma = lista.map(a => a.id).join(',');
+    if (firma !== st.muFirma) { st.muFirma = firma; st.muIdx = 0; }
+    st.muIdx = Math.max(0, Math.min(st.muIdx || 0, lista.length - 1));
+    const clave = firma + '|' + st.muIdx;
+    if (box.dataset.f === clave) return;
+    box.dataset.f = clave;
+    if (!lista.length) { box.innerHTML = '<div class="mu-vacio">Aquí aparecen las muestras (D1, D2, D3…)<br>cuando JACK las cree.</div>'; return; }
+    const a = lista[st.muIdx], url = '/api/agentes/archivo/' + a.id;
+    box.innerHTML = '<div class="mu-top"><h4>MUESTRAS</h4>' + lista.map((x, i) => '<button type="button" class="mu-chip' + (i === st.muIdx ? ' on' : '') + '" data-mu-i="' + i + '">' + esc(etiquetaMuestra(x, i)) + '</button>').join('') +
+      '<div class="mu-nav"><button type="button" data-mu-go="-1" title="Muestra anterior (←)"' + (st.muIdx === 0 ? ' disabled' : '') + '>◀</button><span>' + (st.muIdx + 1) + ' / ' + lista.length + '</span><button type="button" data-mu-go="1" title="Muestra siguiente (→)"' + (st.muIdx === lista.length - 1 ? ' disabled' : '') + '>▶</button>' +
+      '<a href="' + url + '" target="_blank" rel="noopener" title="Abrir en otra pestaña">↗</a><a href="' + url + '?descargar=1" download title="Descargar">⬇</a></div></div>' +
+      '<div class="mu-cuerpo">' + (esImagen(a) ? '<img src="' + url + '" alt="' + esc(a.titulo || a.nombre) + '">' : '<iframe src="' + url + '#toolbar=0&navpanes=0&view=Fit" title="' + esc(a.titulo || a.nombre) + '"></iframe>') + '</div>' +
+      '<div class="mu-pie"><span><b>' + esc(a.titulo || a.nombre) + '</b> · ' + esc(a.nombre || '') + '</span></div>';
+  }
   function pintar() {
     if (!panel || !panel.dataset.armado) return;
     const e = st.estado, ultimo = st.msgs[st.msgs.length - 1];
@@ -773,6 +804,7 @@
     panel.querySelector('textarea').placeholder = st.orden ? 'Pídele a TAVO (usa la orden ' + st.orden + ')…' : 'Escribe a TAVO…';
     const hiloEl = panel.querySelector('[data-hilo]'), firma = hilo + trabajando;
     if (hiloEl.dataset.firma !== firma) { hiloEl.innerHTML = firma; hiloEl.dataset.firma = firma; hiloEl.scrollTop = hiloEl.scrollHeight; }
+    pintarMuestras();
     panel.querySelector('[data-replies]').innerHTML = botones.map(b => '<button type="button" class="reply" data-send="' + esc(b) + '">' + esc(b) + '</button>').join('');
     panel.querySelectorAll('[data-atajo]').forEach(b => { b.disabled = st.esperando; });
     panel.querySelector('header [data-detener]').classList.toggle('inactivo', !st.esperando);   // el botón siempre está: se ve apagado cuando no hay nada en marcha
@@ -986,11 +1018,20 @@
     });
     try { ponerVista(localStorage.getItem('indoor-agentes-vista') || 'chats'); } catch (er) { /* sin almacenamiento */ }
     window.addEventListener('resize', ajustarAlto);
+    document.addEventListener('keydown', e => {   // ← → pasan de una muestra a otra (si no estás escribiendo)
+      if (!panel.classList.contains('active') || !/^Arrow(Left|Right)$/.test(e.key) || /^(TEXTAREA|INPUT|SELECT)$/.test((e.target.tagName || ''))) return;
+      if (panel.querySelector('[data-main]').dataset.vista !== 'chats') return;
+      st.muIdx = (st.muIdx || 0) + (e.key === 'ArrowRight' ? 1 : -1); pintarMuestras();
+    });
     if (window.ResizeObserver) { const ro2 = new ResizeObserver(ajustarAlto); ['.ag-hd', '.ag-res', '.ag-vtabs'].forEach(q => { const el = panel.querySelector(q); if (el) ro2.observe(el); }); }
     setInterval(ajustarAlto, 1500);
     panel.addEventListener('click', e => {
       const vt = e.target.closest('[data-vt]');
       if (vt) { ponerVista(vt.dataset.vt); return; }
+      const mi = e.target.closest('[data-mu-i]');
+      if (mi) { st.muIdx = Number(mi.dataset.muI); pintarMuestras(); return; }
+      const mg = e.target.closest('[data-mu-go]');
+      if (mg && !mg.disabled) { st.muIdx = (st.muIdx || 0) + Number(mg.dataset.muGo); pintarMuestras(); return; }
       const b = e.target.closest('[data-ver-flujo]'); if (!b) return;
       const main = panel.querySelector('[data-main]'), abierto = main.classList.toggle('flujo-abierto');
       b.textContent = abierto ? '▴ Ocultar flujo, pantalla en vivo y registro' : '▾ Ver flujo, pantalla en vivo y registro';
