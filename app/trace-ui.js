@@ -121,7 +121,7 @@
   }
   const procActual = () => { try { return navigationProcess; } catch (e) { return null; } };   // el proceso elegido en el menú (aún no existe al cargar)
   function matches(summary, filter) {
-    return filter === 'all' || filter === 'pending' && summary.state !== 'finished' || filter === 'work' && (summary.doneToday || (procActual() ? (summary.sheetToday || []).includes(procActual().label) : (summary.sheetToday || []).length > 0)) || filter === 'mine' && summary.mine || filter === 'late' && summary.overdue || filter === summary.state;
+    return filter === 'all' || filter === 'pending' && summary.state !== 'finished' || filter === 'work' && (summary.doneToday || (procActual() ? (summary.sheetToday || []).includes(procActual().label) : false)) || filter === 'mine' && summary.mine || filter === 'late' && summary.overdue || filter === summary.state;
   }
   function processForProfile(profile) {
     return flow.find(p => [p.label, ...p.headers, ...p.aliases].some(label => key(label) === key(profile)));
