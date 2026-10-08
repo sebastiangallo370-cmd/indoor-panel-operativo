@@ -495,6 +495,8 @@
     ownAreaFilter = false;
     filter = 'all';
     selectedProcess = '';
+    window.indoorComerciales?.hide();
+    toolbar.hidden = false;
     processNavigation.forEach(button => button.classList.remove('active'));
   }, true);
   flow.forEach((process, index) => {
@@ -516,6 +518,20 @@
     processNavigation.push(button);
     productionNav.parentElement.appendChild(button);
   });
+  const comButton = document.createElement('button');
+  comButton.type = 'button';
+  comButton.className = 'tab process-nav';
+  comButton.dataset.kind = 'produccion';
+  comButton.innerHTML = '<span class="nav-icon">' + (flow.length + 1) + '</span><strong>COMERCIALES</strong>';
+  comButton.onclick = () => {
+    productionNav.click();
+    document.querySelectorAll('.tab').forEach(tab => tab.classList.toggle('active', tab === comButton));
+    toolbar.hidden = true;
+    traceCards.hidden = true;
+    window.indoorComerciales?.show();
+  };
+  processNavigation.push(comButton);
+  productionNav.parentElement.appendChild(comButton);
   toolbar.addEventListener('click', event => {
     const button = event.target.closest('[data-trace-filter]'); if (!button) return;
     filter = button.dataset.traceFilter; traceCards.scrollTop = 0; renderTraceCards();

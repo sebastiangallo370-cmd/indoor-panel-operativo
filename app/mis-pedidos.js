@@ -18,9 +18,10 @@
   .ok .mp-estado{color:#3ddc84}.error .mp-estado{color:#ff7b7b}.aviso .mp-estado{color:#ffb43d}.proceso .mp-estado{color:#9db8ff}
   .mp-meta{color:#aebba7;font-size:.86rem}.mp-detalle{color:#d6dccf;font-size:.84rem;word-break:break-word}
   .mp-vacio{padding:30px;text-align:center;color:#aebba7}
+  .trace-cards:has(+ .comerciales-panel:not([hidden])){display:none!important}.trace-workspace:has(+ .trace-cards:has(+ .comerciales-panel:not([hidden]))){display:none!important}.comerciales-panel{padding:14px}
   @media(max-width:700px){.mp-head{padding:14px 16px}.mp-head h2{font-size:1.3rem}.mp-head>div:last-child{width:100%}.mp-head input{flex:1 1 100%;min-width:0;font-size:16px}.mp-head button{flex:1 1 100%}.mp-orden{font-size:1.3rem}}`;
   document.head.appendChild(css);
-  let panel, tab, datos = [], comerciales = [], verTodos = false, buscar = '', quien = '';
+  let panel, datos = [], comerciales = [], verTodos = false, buscar = '', quien = '';
 
   function fecha(t) { const d = new Date(t); return isNaN(d) ? '' : d.toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' }); }
   function pintar() {
@@ -48,27 +49,21 @@
     } catch (e) { caja.innerHTML = '<div class="mp-vacio">No fue posible consultar los pedidos. Intenta de nuevo.</div>'; }
   }
   function build() {
-    const base = document.querySelector('nav.tabs .tab[data-kind="pedido"]');
-    const main = document.querySelector('main');
-    if (!base || !main) return false;
-    if (document.querySelector('.tab[data-kind="mispedidos"]')) return true;
-    panel = document.createElement('section'); panel.className = 'panel'; panel.dataset.panel = 'mispedidos';
-    panel.innerHTML = '<div class="mp"><div class="mp-head"><div><small>COMERCIALES</small><h2>PEDIDOS PROGRAMADOS</h2><p>Lo que van programando los comerciales y si quedó subido.</p></div><div style="display:flex;gap:8px;flex-wrap:wrap"><select data-quien style="display:none"></select><input data-buscar type="search" placeholder="Buscar orden o cliente"><button type="button" data-act>↻ Actualizar</button></div></div><div data-lista class="mp-grid"><div class="mp-vacio">Cargando…</div></div></div>';
-    main.appendChild(panel);
-    tab = document.createElement('button'); tab.className = 'tab'; tab.dataset.kind = 'mispedidos'; tab.type = 'button';
-    tab.innerHTML = '<span class="nav-icon">MP</span><strong>PEDIDOS COMERCIALES</strong>';
-    base.insertAdjacentElement('afterend', tab);
-    tab.addEventListener('click', () => {
-      document.querySelectorAll('.tab').forEach(x => x.classList.toggle('active', x === tab));
-      document.querySelectorAll('.panel').forEach(x => x.classList.toggle('active', x === panel));
-      document.body.classList.remove('inicio-mode', 'inventory-mode', 'production-mode', 'schedule-mode', 'operarios-mode', 'cartera-mode', 'trace-cards-mode');
-      cargar();
-    });
+    const cards = document.querySelector('.trace-cards');
+    if (!cards) return false;
+    if (panel) return true;
+    panel = document.createElement('section'); panel.className = 'comerciales-panel'; panel.hidden = true;
+    panel.innerHTML = '<div class="mp"><div class="mp-head"><div><small>PRODUCCIÓN</small><h2>COMERCIALES</h2><p>Lo que van programando los comerciales y si quedó subido.</p></div><div style="display:flex;gap:8px;flex-wrap:wrap"><select data-quien style="display:none"></select><input data-buscar type="search" placeholder="Buscar orden o cliente"><button type="button" data-act>↻ Actualizar</button></div></div><div data-lista class="mp-grid"><div class="mp-vacio">Cargando…</div></div></div>';
+    cards.after(panel);
     panel.querySelector('[data-act]').addEventListener('click', cargar);
     panel.querySelector('[data-quien]').addEventListener('change', e => { quien = e.target.value; pintar(); });
     panel.querySelector('[data-buscar]').addEventListener('input', e => { buscar = e.target.value; pintar(); });
     return true;
   }
+  window.indoorComerciales = {
+    show() { if (!build()) return; panel.hidden = false; cargar(); },
+    hide() { if (panel) panel.hidden = true; }
+  };
   let intentos = 0;
   const t = setInterval(() => { if (build() || ++intentos > 40) clearInterval(t); }, 250);
 })();
