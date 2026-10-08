@@ -450,6 +450,7 @@
   toolbar.setAttribute('aria-label', 'Filtros de trazabilidad');
   toolbar.innerHTML = '<div class="trace-workspace-top"><div><h3>Pedidos en seguimiento</h3></div><span class="trace-live">Actualización automática</span></div><div class="trace-quick-filters" role="group" aria-label="Estado de los pedidos">' + filters.map(([id, label]) => '<button type="button" data-trace-filter="' + id + '" aria-pressed="' + (id === 'all') + '">' + label + '<span>0</span></button>').join('') + '</div><p class="trace-results" role="status" aria-live="polite"></p>';
   traceCards.before(toolbar);
+  toolbar.querySelector('.trace-workspace-top').appendChild(comercialSelect);
   const pager = document.createElement('nav');
   pager.className = 'trace-pagination';
   pager.setAttribute('aria-label', 'Páginas de pedidos');
@@ -485,6 +486,28 @@
     traceCards.scrollTop = 0;
     renderTraceCards();
   };
+  let comercialesMode = false, comercialUser = '';
+  const comercialMap = new Map();
+  const comercialSelect = document.createElement('select');
+  comercialSelect.hidden = true;
+  comercialSelect.setAttribute('aria-label', 'Filtrar por comercial');
+  comercialSelect.style.cssText = 'min-height:40px;padding:0 12px;border:1px solid #34432f;border-radius:10px;background:#0c110d;color:inherit;font-size:16px;max-width:100%';
+  comercialSelect.onchange = () => { comercialUser = comercialSelect.value; renderTraceCards(); };
+  async function cargarComerciales() {
+    try {
+      const r = await fetch('/api/mis-pedidos', { cache: 'no-store', credentials: 'same-origin' });
+      if (!r.ok) throw new Error();
+      const j = await r.json();
+      comercialMap.clear();
+      (j.pedidos || []).forEach(p => {
+        const k = String(p.orden || '').replace(/[\s-]+/g, '').toUpperCase();
+        if (k && !comercialMap.has(k)) comercialMap.set(k, { usuario: p.usuario || '', ts: Date.parse(p.creado || p.fecha) || 0 });
+      });
+      comercialSelect.innerHTML = '<option value="">Todos los comerciales</option>' + (j.comerciales || []).map(n => '<option value="' + esc(n) + '"' + (n === comercialUser ? ' selected' : '') + '>' + esc(n) + '</option>').join('');
+      comercialSelect.hidden = !j.ver_todos;
+    } catch (e) { /* se muestra vacío */ }
+    renderTraceCards();
+  }
   const productionNav = document.querySelector('.production-nav');
   // Retain the internal navigation handler for calendar/admin links, not a menu entry.
   productionNav.hidden = true;
@@ -495,8 +518,8 @@
     ownAreaFilter = false;
     filter = 'all';
     selectedProcess = '';
-    window.indoorComerciales?.hide();
-    toolbar.hidden = false;
+    comercialesMode = false;
+    comercialSelect.hidden = true;
     processNavigation.forEach(button => button.classList.remove('active'));
   }, true);
   flow.forEach((process, index) => {
@@ -526,9 +549,12 @@
   comButton.onclick = () => {
     productionNav.click();
     document.querySelectorAll('.tab').forEach(tab => tab.classList.toggle('active', tab === comButton));
-    toolbar.hidden = true;
-    traceCards.hidden = true;
-    window.indoorComerciales?.show();
+    comercialesMode = true;
+    filter = 'all';
+    comercialSelect.hidden = false;
+    traceCards.scrollTop = 0;
+    renderProduction();
+    cargarComerciales();
   };
   processNavigation.push(comButton);
   productionNav.parentElement.appendChild(comButton);
@@ -556,7 +582,9 @@
     const focusValue = focusAttribute ? focused.getAttribute(focusAttribute) : null;
     traceImageObserver.disconnect();
     const visible = new Set([...productionBody.querySelectorAll('tr')].map(tr => Number(tr.querySelector('td[data-row]')?.dataset.row)));
-    const base = productionData.rows.filter(row => visible.has(row.source_row) && ['ORDEN', 'NOMBRE DEL CLIENTE', 'NOMBRE PROYECTO', 'REFERENCIA'].some(name => traceField(row, name).trim()));
+    const comKey = row => String(traceField(row, 'ORDEN') || '').replace(/[\s-]+/g, '').toUpperCase();
+    const base = productionData.rows.filter(row => visible.has(row.source_row) && ['ORDEN', 'NOMBRE DEL CLIENTE', 'NOMBRE PROYECTO', 'REFERENCIA'].some(name => traceField(row, name).trim())
+      && (!comercialesMode || (comercialMap.has(comKey(row)) && (!comercialUser || comercialMap.get(comKey(row)).usuario.toLowerCase() === comercialUser.toLowerCase()))));
     const fullSummaries = new Map(base.map(row => [row.source_row, summarize(productionData, row, processStatusHeaders, user, scheduleToday())]));
     const forView = (row, stateFilter) => navigationProcess
       ? processQueueSummary(fullSummaries.get(row.source_row), navigationProcess.label, user, scheduleToday())
@@ -564,11 +592,13 @@
     const summaries = new Map(base.map(row => [row.source_row, forView(row, filter)]));
     const match = isAdmin && !ownAreaFilter && !navigationProcess ? matches : queueMatches;
     areaButton.setAttribute('aria-pressed', String(ownAreaFilter));
-    toolbar.querySelector('h3').textContent = navigationProcess ? navigationProcess.label + ' · Producción' : ownAreaFilter || (!isAdmin && filter !== 'all') ? (ownProcess?.label || 'Proceso sin asignar') + ' · Trabajo entre turnos' : 'Todos los pedidos programados';
+    toolbar.querySelector('h3').textContent = comercialesMode ? 'COMERCIALES · Producción' : navigationProcess ? navigationProcess.label + ' · Producción' : ownAreaFilter || (!isAdmin && filter !== 'all') ? (ownProcess?.label || 'Proceso sin asignar') + ' · Trabajo entre turnos' : 'Todos los pedidos programados';
     toolbar.querySelectorAll('[data-trace-filter]').forEach(button => { button.hidden = ownAreaFilter; });
-    const query = JSON.stringify([filter, ownAreaFilter, selectedProcess, productionSearch.value, exactScheduleOrder]);
+    const query = JSON.stringify([filter, ownAreaFilter, selectedProcess, productionSearch.value, exactScheduleOrder, comercialesMode, comercialUser]);
     if (pageQuery !== query) { currentPage = 1; pageQuery = query; scrollTop = 0; }
-    const pageResult = paginate(orderByReadiness(base.filter(row => match(summaries.get(row.source_row), filter)), productionData.headers, summaries), currentPage);
+    const pageResult = paginate(comercialesMode
+      ? base.filter(row => match(summaries.get(row.source_row), filter)).sort((a, b) => (comercialMap.get(comKey(b))?.ts || 0) - (comercialMap.get(comKey(a))?.ts || 0))
+      : orderByReadiness(base.filter(row => match(summaries.get(row.source_row), filter)), productionData.headers, summaries), currentPage);
     currentPage = pageResult.page;
     const rows = pageResult.rows;
     pager.hidden = pageResult.pages <= 1;
@@ -577,7 +607,7 @@
       button.setAttribute('aria-pressed', String(button.dataset.traceFilter === filter));
       button.querySelector('span').textContent = base.filter(row => match(forView(row, button.dataset.traceFilter), button.dataset.traceFilter)).length;
     });
-    toolbar.querySelector('.trace-results').textContent = 'Mostrando ' + pageResult.start + '–' + pageResult.end + ' de ' + pageResult.total + ' tarjetas · Primero las del proceso anterior finalizado y luego por fecha de entrega' + (filter === 'mine' ? ' · Asignadas a tu usuario' : '');
+    toolbar.querySelector('.trace-results').textContent = 'Mostrando ' + pageResult.start + '–' + pageResult.end + ' de ' + pageResult.total + ' tarjetas · ' + (comercialesMode ? 'Primero las programadas más recientes' : 'Primero las del proceso anterior finalizado y luego por fecha de entrega') + (filter === 'mine' ? ' · Asignadas a tu usuario' : '');
     const mtsColi = productionData.headers.findIndex(h => String(h || '').trim().toUpperCase() === 'MTS REQUERIDO');
     const isMtsNoteKey = key => {
       const column = Number(String(key).split(':')[1]);
