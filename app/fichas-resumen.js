@@ -303,9 +303,11 @@
       let hmax = 0;
       extras.forEach((k, i) => {
         const fe = FIT_EXTRA[k], g = grupos[k], c = (k === 'strip' || k === 'side') ? Math.min(g.total, 2) : 1;
-        const esc2 = Math.min(1.5, 150 / fe.vb[1], (ancho - 40) / fe.vb[0]), w = fe.vb[0] * esc2, h = fe.vb[1] * esc2, cx = ancho * (i + 0.5);
+        const par = k === 'shorts' && g.total >= 2;   // pantaloneta derecha + izquierda: dos piezas, la segunda reflejada
+        const esc2 = Math.min(1.1, 120 / fe.vb[1], (ancho - 40) / (fe.vb[0] * (par ? 2.1 : 1))), w = fe.vb[0] * esc2, h = fe.vb[1] * esc2, cx = ancho * (i + 0.5);
         hmax = Math.max(hmax, h * c + 8 * (c - 1));
-        for (let j = 0; j < c; j++) franja += '<g transform="translate(' + (cx - w / 2).toFixed(1) + ' ' + (base + j * (h + 8)).toFixed(1) + ') scale(' + esc2.toFixed(3) + ')"><path d="' + fe.d + '" fill="' + col(g) + '"/></g>';
+        if (par) franja += ['', ' translate(' + fe.vb[0] + ' 0) scale(-1 1)'].map((fl, q) => '<g transform="translate(' + (cx - w - 4 + q * (w + 8)).toFixed(1) + ' ' + base.toFixed(1) + ') scale(' + esc2.toFixed(3) + ')"><path transform="' + fl.trim() + '" d="' + fe.d + '" fill="' + col(g) + '"/></g>').join('');
+        else for (let j = 0; j < c; j++) franja += '<g transform="translate(' + (cx - w / 2).toFixed(1) + ' ' + (base + j * (h + 8)).toFixed(1) + ') scale(' + esc2.toFixed(3) + ')"><path d="' + fe.d + '" fill="' + col(g) + '"/></g>';
         g._x = cx;
       });
       alto = Math.ceil(base + hmax + 16);
