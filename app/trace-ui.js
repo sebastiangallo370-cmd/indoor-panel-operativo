@@ -450,7 +450,6 @@
   toolbar.setAttribute('aria-label', 'Filtros de trazabilidad');
   toolbar.innerHTML = '<div class="trace-workspace-top"><div><h3>Pedidos en seguimiento</h3></div><span class="trace-live">Actualización automática</span></div><div class="trace-quick-filters" role="group" aria-label="Estado de los pedidos">' + filters.map(([id, label]) => '<button type="button" data-trace-filter="' + id + '" aria-pressed="' + (id === 'all') + '">' + label + '<span>0</span></button>').join('') + '</div><p class="trace-results" role="status" aria-live="polite"></p>';
   traceCards.before(toolbar);
-  toolbar.querySelector('.trace-workspace-top').appendChild(comercialSelect);
   const pager = document.createElement('nav');
   pager.className = 'trace-pagination';
   pager.setAttribute('aria-label', 'Páginas de pedidos');
@@ -490,6 +489,7 @@
   const comercialMap = new Map();
   const comercialSelect = document.createElement('select');
   comercialSelect.hidden = true;
+  toolbar.querySelector('.trace-workspace-top').appendChild(comercialSelect);
   comercialSelect.setAttribute('aria-label', 'Filtrar por comercial');
   comercialSelect.style.cssText = 'min-height:40px;padding:0 12px;border:1px solid #34432f;border-radius:10px;background:#0c110d;color:inherit;font-size:16px;max-width:100%';
   comercialSelect.onchange = () => { comercialUser = comercialSelect.value; renderTraceCards(); };
