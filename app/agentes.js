@@ -68,7 +68,7 @@
   .ag-live-sec{display:grid;grid-template-rows:auto minmax(0,1fr);gap:6px;min-height:0}
   .ag-live-sec h4{margin:0;font:800 11px Arial;letter-spacing:.1em;color:#aebba7;display:flex;justify-content:space-between;gap:8px}.ag-live-sec h4 span{color:#d7ff3a}
   .ag-live-list{min-height:0;overflow:auto;display:grid;align-content:start;gap:3px;font-size:12px}.ag-live-list div{display:flex;gap:6px;align-items:center;padding:4px 8px;border-radius:7px;background:#121a13;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ag-live-list div::before{content:'✓';color:#8bd450;font-weight:800}.ag-live-list div.nuevo{animation:agnuevo 1s}@keyframes agnuevo{from{background:#2d4a1f}}
-  .ag-live-list div[data-vista]{cursor:pointer}.ag-live-list div[data-vista]:hover{background:#1a2a1a}.ag-live-list div.sel{outline:1px solid #8bd450;background:#1a2a1a}
+  .ag-live-list div{display:flex;align-items:center;gap:4px}.ag-live-list div .ag-vlink{margin-left:auto;padding:0 8px;border-radius:6px;background:#26361f;color:#b8ff6a;text-decoration:none;font-weight:900}.ag-live-list div .ag-vlink:hover{background:#3a5a28}.ag-live-list div[data-vista]{cursor:pointer}.ag-live-list div[data-vista]:hover{background:#1a2a1a}.ag-live-list div.sel{outline:1px solid #8bd450;background:#1a2a1a}
   .ag-live small.dest{display:block;color:#8fa088;font-size:10.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .ag-lienzo{position:relative;height:auto;min-height:0;overflow:hidden;border:1px solid #2d3b2f;border-radius:16px;background-color:#0c110d;background-image:radial-gradient(#26322a 1.2px,transparent 1.2px);background-size:20px 20px}
   .ag-barra{position:absolute;top:12px;left:14px;right:14px;display:flex;justify-content:space-between;align-items:center;gap:8px;z-index:3;pointer-events:none}
@@ -207,7 +207,7 @@
   .ag-tab.on{background:#d0f44c;border-color:#d0f44c;color:#142017}.ag-tab.on em{color:#33401a}
   .ag-tab.ocupado:not(.on){border-color:#7da4ff;background:rgba(125,164,255,.08)}.ag-tab.ocupado:not(.on) em{color:#9db8ff}.ag-tab.ocupado i{animation:agpul 1s infinite}
   @media(max-width:700px){.ag-tabs{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.ag-tabs::-webkit-scrollbar{display:none}.ag-tab{flex:none}}
-  .ag-stop{font-weight:900!important;letter-spacing:.04em;white-space:nowrap}.ag-stop.inactivo{opacity:.7}
+  .ag-reiniciar{font-weight:800!important;white-space:nowrap}.ag-stop{font-weight:900!important;letter-spacing:.04em;white-space:nowrap}.ag-stop.inactivo{opacity:.7}
   .ag-pcsel{min-height:40px;padding:0 12px;border:1px solid #60754d;border-radius:10px;background:#142017;color:#e3eadc;font:800 13px Arial;cursor:pointer}.ag-pcsel[hidden]{display:none}
   .ag-pcrow{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;border:1px solid #34432f;border-radius:12px;background:#0c110d}
   .ag-pcrow b{display:block;color:#eef4e9}.ag-pcrow small{display:block;color:#8f9b8a;font-size:.78rem}.ag-pcrow span{display:flex;gap:6px}.ag-pcrow .ag-btn{min-height:34px;padding:0 12px;font-size:12px}
@@ -484,7 +484,7 @@
     if (flow.vistaFija && !fija) flow.vistaFija = null;
     const actual = fija || conVista[conVista.length - 1] || null;
     q('[data-np]').textContent = pdfs.length + (total ? ' de ' + total : '');
-    q('[data-lp]').innerHTML = pdfs.slice().reverse().slice(0, 80).map((a, i) => '<div' + (a.vista ? ' data-vista="' + esc(a.vista) + '"' : '') + ' class="' + (i === 0 ? 'nuevo ' : '') + (actual && a.vista === actual.vista ? 'sel' : '') + '"><b>' + esc(a.nombre || 'Sin nombre') + '</b> · #' + esc(a.numero || '—') + ' · ' + esc(a.talla) + '</div>').join('') || '<div style="opacity:.5">Esperando…</div>';
+    q('[data-lp]').innerHTML = pdfs.slice().reverse().slice(0, 80).map((a, i) => '<div' + (a.vista ? ' data-vista="' + esc(a.vista) + '"' : '') + ' class="' + (i === 0 ? 'nuevo ' : '') + (actual && a.vista === actual.vista ? 'sel' : '') + '"><b>' + esc(a.nombre || 'Sin nombre') + '</b> · #' + esc(a.numero || '—') + ' · ' + esc(a.talla) + (a.vista ? '<a class="ag-vlink" href="/api/agentes/archivo/' + encodeURIComponent(a.vista) + '" target="_blank" rel="noopener" title="Ver este PDF en grande (otra pestaña)">↗</a>' : '') + '</div>').join('') || '<div style="opacity:.5">Esperando…</div>';
     q('[data-dp]').textContent = dp ? '→ ' + dp : '';
     q('[data-seguir]').hidden = !fija;
     q('.ag-live-prog i').style.width = (total ? Math.min(100, Math.round(pdfs.length / total * 100)) : 0) + '%';
@@ -619,7 +619,8 @@
       '<nav class="ag-tabs" data-tabs hidden aria-label="PC de los agentes" title="La pestaña activa es el PC donde arranca solo el proceso cuando alguien pone la P en EDICIÓN"></nav>' +
       '<div class="ag-indiv" aria-label="Usar un agente por separado">' + AGENTES_BTN.map(([a, t, p]) => '<button type="button" class="ag-agbtn" style="--c:' + (COLORES[a] || '#c4cfbf') + '" data-atajo="' + esc(p) + '" title="' + esc(a + ': ' + ROLES[a] + ' (usa la orden activa)') + '"><i></i>' + esc(a) + '<small>' + esc(t) + '</small></button>').join('') + '</div>' +
       '<div class="ag-hacc"><button type="button" class="ag-btn danger ag-stop inactivo" data-detener data-txt="⏹ Detener" title="Detiene los agentes de esta pestaña (el PC elegido)">⏹ Detener</button>' +
-      '<details class="ag-menu"><summary class="ag-ico" title="Más opciones">⋯</summary><div class="ag-menu-l"><button type="button" data-detener-todo>⏹ Detener todo (ambos PC)</button><button type="button" data-nueva>Nueva conversación</button><button type="button" data-conectar hidden>PC de los agentes…</button></div></details></div></header>' +
+      '<button type="button" class="ag-btn ag-reiniciar" data-reiniciar title="Reinicia el programa de los agentes en el PC elegido (se cierra y se vuelve a abrir solo)">↻ Reiniciar</button>' +
+      '<details class="ag-menu"><summary class="ag-ico" title="Más opciones">⋯</summary><div class="ag-menu-l"><button type="button" data-detener-todo>⏹ Detener todo (ambos PC)</button><button type="button" data-reiniciar-todo>↻ Reiniciar todos los PC</button><button type="button" data-nueva>Nueva conversación</button><button type="button" data-conectar hidden>PC de los agentes…</button></div></details></div></header>' +
       '<div data-aviso></div><section class="ag-res" data-resumen hidden></section>' +
       '<button type="button" class="ag-ver-flujo" data-ver-flujo>▾ Ver flujo, pantalla en vivo y registro</button><div class="ag-main" data-main><div class="ag-orden" data-orden></div><section class="ag-chat"><div class="ag-thread" data-hilo></div><div class="ag-chips" data-replies></div>' +
       '<form class="ag-form" data-form><details class="ag-menu ag-atajos"><summary class="ag-ico" title="Acciones rápidas">⚡</summary><div class="ag-menu-l">' + ATAJOS.map(([l, p]) => '<button type="button" data-atajo="' + esc(p) + '">' + esc(l) + '</button>').join('') + '</div></details>' +
@@ -644,6 +645,35 @@
     }).join('') + '</div>';
   }
 
+
+  // Tras ↻ Reiniciar: vigila cada PC hasta que vuelve a conectarse (latido nuevo, 8 s o más después del último que dio el programa viejo) y avisa «listo para usarlo».
+  function aviso(texto, ok) {
+    let t = document.getElementById('ag-toast');
+    if (!t) { t = document.createElement('div'); t.id = 'ag-toast'; t.style.cssText = 'position:fixed;right:18px;bottom:18px;z-index:99999;max-width:360px;padding:12px 16px;border-radius:12px;font:700 13px/1.35 system-ui,sans-serif;box-shadow:0 8px 30px rgba(0,0,0,.45);border:1px solid;cursor:pointer'; t.onclick = () => t.remove(); document.body.appendChild(t); }
+    t.style.background = ok ? '#123d1f' : '#3d2a12'; t.style.color = ok ? '#b8ff6a' : '#ffd28a'; t.style.borderColor = ok ? '#7bd13a' : '#c98a2a'; t.textContent = texto;
+    return t;
+  }
+  function esperarReinicio(objetivo) {
+    if (!objetivo.length) return;
+    const t0 = Date.now(), pendientes = new Map(objetivo.map(o => [o.id, o]));
+    aviso('↻ Reiniciando ' + objetivo.map(o => o.nombre).join(' y ') + '… te aviso cuando esté listo.', false);
+    const reloj = setInterval(async () => {
+      try { await cargar(true); } catch (err) { /* se reintenta */ }
+      const lista = st.estado.pcs || [];
+      for (const [id, o] of [...pendientes]) {
+        const p = lista.find(x => x.id === id);
+        if (p && p.conectado && p.visto && p.visto !== o.antes && (!o.antes || Date.parse(p.visto) - Date.parse(o.antes) > 8000)) {
+          pendientes.delete(id);
+          const msg = '✓ ' + o.nombre + ' está listo para usarlo';
+          aviso(msg, true); setTimeout(() => { const t = document.getElementById('ag-toast'); if (t && !pendientes.size) t.remove(); }, 15000);
+          try { if (window.Notification && Notification.permission === 'granted') new Notification('Agentes Indoor', { body: msg }); } catch (err) { /* solo aviso en pantalla */ }
+          pintar();
+        }
+      }
+      if (!pendientes.size) clearInterval(reloj);
+      else if (Date.now() - t0 > 240000) { clearInterval(reloj); aviso('No veo que ' + [...pendientes.values()].map(o => o.nombre).join(' ni ') + ' haya vuelto en 4 minutos. Revisa ese PC.', false); }
+    }, 3000);
+  }
 
   function pintar() {
     if (!panel || !panel.dataset.armado) return;
@@ -863,6 +893,14 @@
       } else if (e.target.closest('[data-detener-todo]')) {
         const ids = (st.estado.pcs || []).map(p => p.id); if (!ids.length) ids.push(st.pc || 'principal');
         for (const id of ids) { try { await api('/api/agentes/detener', { method: 'POST', body: JSON.stringify({ pc: id }) }); } catch (err) { alert(err.message); } }
+        st.esperando = false; st.trabajo = null; await cargar(true); pintar();
+      } else if (e.target.closest('[data-reiniciar]') || e.target.closest('[data-reiniciar-todo]')) {
+        const todos = !!e.target.closest('[data-reiniciar-todo]');
+        if (!confirm(todos ? '¿Reiniciar los agentes de TODOS los PC? Lo que estén haciendo se corta.' : '¿Reiniciar los agentes de este PC? Lo que estén haciendo se corta.')) return;
+        const lista = st.estado.pcs || [], objetivo = todos ? lista : lista.filter(p => p.id === st.pc);
+        try { await api('/api/agentes/reiniciar', { method: 'POST', body: JSON.stringify({ pc: todos ? '*' : st.pc }) }); } catch (err) { alert(err.message); return; }
+        try { if (window.Notification && Notification.permission === 'default') Notification.requestPermission(); } catch (err) { /* sin avisos del navegador: queda el aviso en pantalla */ }
+        esperarReinicio(objetivo.map(p => ({ id: p.id, nombre: p.nombre, antes: p.visto || '' })));
         st.esperando = false; st.trabajo = null; await cargar(true); pintar();
       } else if (e.target.closest('[data-detener]')) {
         const b = e.target.closest('[data-detener]'), orig = b.dataset.txt || 'Detener'; b.disabled = true; b.textContent = 'Deteniendo…';

@@ -28,7 +28,7 @@ _token_file = Path(os.getenv('AGENTES_TOKEN_FILE', '/data/state/agentes_token.tx
 _lock = threading.Lock()
 MAX_MENSAJES = 400
 MAX_EVENTOS = 900
-MAX_VISTAS = 12                   # imágenes de la pantalla en vivo que se conservan
+MAX_VISTAS = 150                  # imágenes de los PDF recién creados que se conservan (pantalla en vivo y flechita ↗ para verlos)
 MAX_ARCHIVOS = 160                 # PDF/imágenes que los agentes suben para verlos en el chat
 MAX_BYTES_ARCHIVO = 25 * 1024 * 1024
 _dir_archivos = Path(os.getenv('AGENTES_ARCHIVOS_DIR', '/data/state/agentes_archivos'))
@@ -258,7 +258,7 @@ def estado(request: Request, pc: str = ''):
         ses = _sesion(usuario, p)
         ocupado = any(m['sesion'] == ses and m['rol'] == 'yo' and not m.get('respondido') and not m.get('oculto') for m in datos['mensajes'])
         trabajo = datos['trabajo'].get(ses) if ocupado else None
-        pcs.append({'id': p, 'nombre': _nombre_pc(datos, p), 'conectado': _conectado(datos, p), 'ocupado': ocupado,
+        pcs.append({'id': p, 'nombre': _nombre_pc(datos, p), 'conectado': _conectado(datos, p), 'ocupado': ocupado, 'visto': _latido_pc(datos, p).get('iso', ''),
                     'trabajo': (f"{trabajo.get('agente', '')}: {trabajo.get('msg', '')}"[:120] if trabajo else '')})
     return {'conectado': _conectado(datos, pid), 'illustrator': latido.get('illustrator', ''), 'sheets': latido.get('sheets', ''),
             'visto': latido.get('iso', ''), 'auto': bool(datos['auto'].get('activo', True)),
@@ -337,6 +337,24 @@ def detener(request: Request, payload: dict | None = None):
         _nuevo(datos, ses, 'bot', 'Detuve los agentes. Lo que estaba en curso se cancela; si Illustrator estaba guardando un archivo, termina ese archivo y no sigue con el resto. Escribe cuando quieras continuar.',
                estado='DETENIDO', botones=[], agentes=['TAVO'], respondido=True)
         _nuevo(datos, ses, 'yo', '__detener__', t=_ahora(), tomado=False, respondido=False, oculto=True)
+        _guardar(datos)
+    return {'ok': True}
+
+
+@router.post('/reiniciar')
+def reiniciar(request: Request, payload: dict | None = None):
+    """Le ordena al PC elegido (o a todos) reiniciar el programa de los agentes: se cierra y vuelve a abrir solo, ya con el código más reciente de la NAS."""
+    usuario = _auth(request)
+    pc = str((payload or {}).get('pc') or '')
+    with _lock:
+        datos = _leer()
+        ids = _ids_pcs(datos) if pc == '*' else [_canal(datos, usuario, pc)[0]]
+        for pid in ids:
+            _pid, ses = _canal(datos, usuario, '' if pid == PRINCIPAL else pid)
+            datos['trabajo'].pop(ses, None)
+            _nuevo(datos, ses, 'bot', 'Reiniciando los agentes de ' + _nombre_pc(datos, pid) + '… vuelven solos en unos 30 segundos.',
+                   estado='REINICIANDO', botones=[], agentes=['TAVO'], respondido=True)
+            _nuevo(datos, ses, 'yo', '__reiniciar__', t=_ahora(), tomado=False, respondido=False, oculto=True)
         _guardar(datos)
     return {'ok': True}
 
@@ -553,7 +571,8 @@ def sondeo(request: Request, payload: dict):
     return {'pendientes': pendientes}
 
 
-_escribir_mts: Callable | None = None   # lo registra main.py: guarda el MTS en la tarjeta de producción de la orden
+_escribir_mts: Callable | None = None   # lo registra main.py: guarda el MTS en la tarjeta de producción de la orden
+_escribir_maquina: Callable | None = None
 
 
 _refs_proceso: Callable | None = None   # lo registra main.py: referencias de una orden cuya tarjeta tiene EDICIÓN en proceso
@@ -562,6 +581,38 @@ _refs_proceso: Callable | None = None   # lo registra main.py: referencias de un
 def configurar_refs(fn: Callable) -> None:
     global _refs_proceso
     _refs_proceso = fn
+
+
+def configurar_maquinas_de(fn: Callable) -> None:
+    global _maquinas_de
+    _maquinas_de = fn
+
+
+_maquinas_de: Callable | None = None
+
+
+@pc_router.post('/maquina-orden')
+def maquina_de_orden(request: Request, payload: dict):
+    """TAVO: máquina(s) de impresión que las tarjetas de Producción tienen puestas para la orden."""
+    _pc(request)
+    orden = re.sub(r'\s+', '', str(payload.get('orden') or '')).upper()
+    return {'maquinas': _maquinas_de(orden) if (_maquinas_de and orden) else []}
+
+
+def configurar_maquina(fn: Callable) -> None:
+    global _escribir_maquina
+    _escribir_maquina = fn
+
+
+@pc_router.post('/maquina')
+def maquina_orden(request: Request, payload: dict):
+    """TAVO: la máquina de impresión de la orden (sale de los JPG del maestro) pasa a la tarjeta de producción. Solo llena las tarjetas que no la tienen."""
+    _pc(request)
+    orden = re.sub(r'\s+', '', str(payload.get('orden') or '')).upper()
+    maquina = str(payload.get('maquina') or '').strip()
+    if not orden or not maquina or not _escribir_maquina:
+        raise HTTPException(400, 'Faltan la orden o la máquina')
+    return _escribir_maquina(orden, [str(h) for h in (payload.get('hojas') or [])], maquina)
 
 
 def configurar_mts(fn: Callable) -> None:
@@ -599,7 +650,9 @@ def mts_orden(request: Request, payload: dict):
     for hoja, lineas in hojas.items():
         calculo = promedios_mod.calcular_hoja(str(hoja), [l for l in (lineas or []) if isinstance(l, dict)])
         calculo['escrito'] = False
-        if calculo['completo'] and _escribir_mts:
+        if payload.get('solo_calcular'):   # stickers: solo se necesita el cálculo, no se escribe nada en la tarjeta
+            pass
+        elif calculo['completo'] and _escribir_mts:
             escrito = _escribir_mts(orden, str(hoja), f"{calculo['mts']:.2f} MTS")
             calculo.update(escrito=bool(escrito.get('ok')), motivo=escrito.get('motivo', ''), fila=escrito.get('fila'),
                            sheet=bool(escrito.get('sheet')), sheet_motivo=escrito.get('sheet_motivo', ''),
