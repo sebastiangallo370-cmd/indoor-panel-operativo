@@ -97,13 +97,8 @@
   .fp-id{font:900 15px Arial;text-anchor:middle;letter-spacing:.06em}.fp-tela{font:700 10.5px Arial;fill:#e9efe3;text-anchor:middle}.fp-n{font:600 9.5px Arial;fill:#8e9a87;text-anchor:middle}
   .fp-lbl{font:800 9px Arial;fill:#8e9a87;text-anchor:middle;letter-spacing:.18em}
   .ft-flat [data-m]{transition:opacity .25s}
-  .fit{display:flex;flex-wrap:wrap;gap:22px 34px;justify-content:center;align-items:flex-end;padding:16px 18px 20px;border:1px solid #cfd8c4;border-radius:14px;background:#f1f4ec;color:#0b1204}
-  .fit-t{flex:0 0 100%;text-align:center;font:900 11px Arial;letter-spacing:.2em;color:#2f4a12;padding-bottom:4px;border-bottom:1px solid #cfd8c4}
-  .fit-p{margin:0;display:flex;flex-direction:column;align-items:center;gap:9px}.fit-d{display:flex;flex-direction:column;align-items:center;gap:6px}
-  .fit-p svg path{fill:var(--c);stroke:#0b1204;stroke-width:1.6;stroke-linejoin:round}
-  .fit-p figcaption{font:900 11px Arial;letter-spacing:.04em;color:#0b1204;text-align:center;max-width:150px}.fit-p em{font-style:normal;color:#b3261e}
-  .fit-m{display:inline-block;margin-right:6px;padding:1px 6px;border-radius:5px;background:var(--c);color:#0b1204;border:1px solid #0b1204;font:900 10px Arial}
-  @media(max-width:700px){.fit{gap:16px 20px}.fit-p svg{max-width:110px;height:auto}}
+  .fit-wrap{overflow-x:auto;border-radius:6px;background:#fff}.fit{display:block;width:100%;min-width:760px;height:auto;font-family:Arial,Helvetica,sans-serif}
+  .fit path{stroke:none}.fit-h{font:700 13px Arial}.fit-c{font:700 15px Arial;fill:#000}
   .fp-nodo{opacity:0;animation:fpIn .6s cubic-bezier(.2,1.4,.4,1) forwards var(--d);transform-box:fill-box;transform-origin:left center}
   .fp-nodo rect{fill:#0d1409;stroke:var(--c);stroke-width:1.6}
   .fp-nodo .fp-sil *{fill:var(--c);fill-opacity:.9;stroke:rgba(0,0,0,.55);stroke-width:1}
@@ -257,43 +252,74 @@
     otro: '<rect x="8" y="8" width="32" height="32" rx="6"/>'
   };
   const icono = n => '<svg class="ft-ico" viewBox="0 0 48 48">' + ICONOS[kindDe(n)] + '</svg>';
-  // FIT DE PRENDA POR PIEZAS: cada pieza del patrón dibujada con su forma, nombre y cantidad, del color de su material (sin animación)
-  const CUERPO = 'V196 Q150 184 128 204 Q100 218 72 204 Q50 184 24 196 V126 Q40 108 28 88 L10 28 Z';
-  const FORMAS = {   // vb: [ancho, alto] del dibujo; e: escala en pantalla
-    back: { vb: [200, 220], e: 0.78, d: 'M78 8 Q100 36 122 8 L190 28 L172 88 Q160 108 176 126 ' + CUERPO },
-    front: { vb: [200, 220], e: 0.78, d: 'M72 10 L100 58 L128 10 L190 28 L172 88 Q160 108 176 126 ' + CUERPO },
-    sleeve: { vb: [150, 90], e: 0.85, d: 'M4 84 Q4 38 44 18 Q74 2 104 14 Q134 28 146 60 L136 84 Q70 70 4 84 Z' },
-    cuff: { vb: [150, 26], e: 0.85, d: 'M2 2 H148 V24 H2 Z' },
-    strip: { vb: [150, 26], e: 0.85, d: 'M2 2 H148 V24 H2 Z' },
-    collar: { vb: [180, 72], e: 0.8, d: 'M2 4 H178 L166 32 H14 Z M14 40 H166 L178 68 H2 Z' },
-    side: { vb: [34, 150], e: 0.8, d: 'M2 2 H32 V148 H2 Z' },
-    placket: { vb: [30, 152], e: 0.8, d: 'M3 2 H27 V150 H3 Z' },
-    pocket: { vb: [72, 80], e: 0.9, d: 'M4 4 H68 V58 L36 74 L4 58 Z' },
-    shorts: { vb: [104, 170], e: 0.8, d: 'M4 4 H92 L98 36 Q82 62 76 94 L72 166 H4 Z' },
-    socks: { vb: [60, 120], e: 0.8, d: 'M10 4 H44 V70 Q44 112 24 116 H10 Q-2 116 4 98 Z' },
-    otro: { vb: [80, 80], e: 0.9, d: 'M6 6 H74 V74 H6 Z' }
+  // FIT DE PRENDA X PIEZAS: mismo dibujo de la hoja de moldería (masculino a la izquierda; femenina y niño(a) a la derecha).
+  // Las formas (REF_FIT) están calculadas sobre esa hoja: m = masculino, f = femenina, n = niño(a); cada pieza lleva su recorte (d) y su caja (b).
+  const REF_FIT = {"f":{"collar":[{"d":"M865 45 L984 45 L984 46 L982 48 L980 52 L869 52 Z","b":[865,45,984,52]},{"d":"M869 57 L980 57 L984 65 L865 65 Z","b":[865,57,984,65]}],"sleeve":[{"d":"M1039 62 L1050 63 L1057 66 L1059 68 L1060 68 L1079 88 L1080 88 L1083 91 L1088 94 L1079 105 L1003 105 L1001 103 L1001 102 L994 94 L999 91 L1002 88 L1003 88 L1022 68 L1029 64 L1031 64 L1032 63 L1038 63 Z","b":[994,62,1088,105]},{"d":"M1039 115 L1050 116 L1057 119 L1059 121 L1060 121 L1079 141 L1080 141 L1083 144 L1088 147 L1079 158 L1003 158 L1001 156 L1001 155 L994 147 L999 144 L1002 141 L1003 141 L1022 121 L1029 117 L1031 117 L1032 116 L1038 116 Z","b":[994,115,1088,158]}],"back":[{"d":"M782 81 L785 81 L789 86 L793 88 L796 88 L797 89 L815 89 L816 88 L819 88 L823 86 L827 81 L830 81 L831 82 L834 82 L838 84 L841 84 L842 85 L845 85 L847 86 L847 88 L846 89 L846 96 L845 97 L845 104 L844 105 L844 116 L845 117 L846 123 L851 128 L855 130 L854 132 L854 137 L853 138 L853 146 L852 147 L851 169 L852 170 L853 192 L854 193 L854 200 L855 201 L855 208 L856 209 L854 210 L851 210 L847 212 L839 213 L838 214 L832 214 L831 215 L819 215 L818 216 L794 216 L793 215 L781 215 L780 214 L774 214 L773 213 L770 213 L769 212 L765 212 L764 211 L761 211 L760 210 L756 209 L757 208 L757 201 L758 200 L758 193 L759 192 L759 183 L760 182 L760 170 L761 169 L760 147 L759 146 L759 139 L758 138 L758 132 L757 130 L761 128 L766 123 L767 117 L768 116 L768 105 L767 104 L767 97 L766 96 L766 90 L765 89 L765 86 L767 85 L770 85 L771 84 L774 84 L778 82 L781 82 Z","b":[756,81,856,216]}],"front":[{"d":"M901 81 L904 81 L905 86 L911 97 L924 109 L929 106 L937 98 L937 97 L940 94 L944 86 L945 81 L948 81 L949 82 L952 82 L953 83 L956 83 L960 85 L966 86 L966 89 L965 90 L965 95 L964 96 L964 103 L963 104 L963 111 L964 112 L964 116 L966 120 L969 123 L976 126 L975 128 L975 133 L974 134 L973 150 L972 151 L972 172 L973 173 L974 193 L975 194 L976 208 L977 209 L971 210 L970 211 L967 211 L966 212 L963 212 L962 213 L958 213 L957 214 L952 214 L951 215 L939 215 L938 216 L911 216 L910 215 L898 215 L897 214 L892 214 L891 213 L887 213 L886 212 L883 212 L882 211 L879 211 L878 210 L872 209 L873 208 L873 201 L874 200 L874 193 L875 192 L875 184 L876 183 L876 172 L877 171 L877 152 L876 151 L876 142 L875 141 L875 134 L874 133 L874 128 L873 126 L880 123 L883 120 L885 116 L886 105 L885 104 L885 96 L884 95 L884 90 L883 89 L883 86 L889 85 L890 84 L896 83 L897 82 L900 82 Z","b":[872,81,977,216]}],"cuff":[{"d":"M1005 181 L1077 181 L1077 192 L1005 192 Z","b":[1005,181,1077,192]},{"d":"M1005 198 L1077 198 L1077 210 L1005 210 Z","b":[1005,198,1077,210]}]},"m":{"collar":[{"d":"M255 85 L429 85 L429 87 L425 96 L259 96 L258 95 L257 90 L255 87 Z","b":[255,85,429,96]},{"d":"M259 102 L425 102 L426 103 L427 108 L429 111 L429 113 L255 113 L256 108 Z","b":[255,102,429,113]}],"back":[{"d":"M89 163 L92 163 L97 173 L103 179 L111 183 L119 184 L120 185 L133 185 L134 184 L141 183 L149 179 L156 172 L160 163 L167 164 L174 167 L177 167 L184 170 L187 170 L191 172 L194 172 L195 173 L197 173 L201 175 L204 175 L205 176 L212 178 L210 185 L209 186 L209 188 L208 189 L208 191 L207 192 L207 194 L206 195 L206 197 L205 198 L205 200 L203 203 L201 211 L199 214 L199 216 L196 223 L196 226 L195 227 L195 232 L194 233 L194 237 L195 238 L195 243 L196 244 L196 246 L199 251 L204 256 L213 259 L213 407 L211 407 L210 408 L202 408 L201 409 L193 411 L180 418 L178 418 L171 421 L164 422 L163 423 L158 423 L157 424 L149 424 L148 425 L131 425 L130 426 L123 426 L122 425 L104 425 L103 424 L95 424 L94 423 L89 423 L88 422 L85 422 L84 421 L81 421 L80 420 L75 419 L59 411 L57 411 L50 408 L43 408 L42 407 L39 407 L39 259 L46 257 L54 250 L56 246 L56 244 L57 243 L57 239 L58 238 L57 226 L56 225 L53 214 L51 211 L49 203 L47 200 L47 198 L46 197 L46 195 L45 194 L45 192 L44 191 L44 189 L43 188 L43 186 L42 185 L40 178 L47 176 L48 175 L51 175 L55 173 L58 173 L65 170 L68 170 L75 167 L78 167 L85 164 L88 164 Z","b":[39,163,213,426]}],"front":[{"d":"M308 179 L310 179 L312 183 L313 188 L316 193 L316 195 L323 207 L327 211 L327 212 L339 223 L340 223 L344 219 L345 219 L356 207 L364 193 L364 191 L366 188 L366 186 L368 183 L369 179 L372 179 L375 181 L378 181 L379 182 L381 182 L382 183 L384 183 L385 184 L387 184 L388 185 L390 185 L391 186 L393 186 L394 187 L396 187 L397 188 L399 188 L400 189 L402 189 L403 190 L405 190 L406 191 L408 191 L409 192 L411 192 L412 193 L414 193 L421 196 L420 201 L418 204 L418 206 L415 213 L414 220 L413 221 L413 236 L414 237 L414 240 L417 246 L423 252 L429 254 L429 407 L421 407 L420 408 L416 408 L415 409 L410 410 L392 419 L390 419 L386 421 L383 421 L382 422 L372 423 L371 424 L363 424 L362 425 L344 425 L343 426 L336 426 L335 425 L317 425 L316 424 L308 424 L307 423 L297 422 L296 421 L290 420 L287 418 L285 418 L280 415 L278 415 L269 410 L267 410 L263 408 L259 408 L258 407 L250 407 L250 254 L256 252 L262 246 L262 245 L264 243 L264 241 L266 237 L266 230 L267 229 L266 227 L266 221 L265 220 L264 213 L263 212 L260 201 L258 198 L258 196 L259 195 L262 195 L263 194 L268 193 L271 191 L274 191 L277 189 L280 189 L281 188 L283 188 L284 187 L286 187 L287 186 L289 186 L290 185 L292 185 L293 184 L295 184 L296 183 L298 183 L299 182 L301 182 Z","b":[250,179,429,426]}],"sleeve":[{"d":"M567 188 L569 188 L570 189 L579 189 L580 190 L584 190 L585 191 L588 191 L591 193 L593 193 L597 195 L604 201 L605 201 L610 206 L611 206 L616 211 L633 222 L630 228 L630 230 L627 235 L627 237 L624 244 L624 247 L623 248 L623 251 L622 252 L622 256 L514 256 L514 252 L513 251 L512 244 L511 243 L509 235 L507 232 L507 230 L503 222 L516 214 L525 206 L526 206 L532 200 L533 200 L539 195 L543 193 L545 193 L548 191 L556 190 L557 189 L566 189 Z","b":[503,188,633,256]},{"d":"M567 265 L569 265 L570 266 L579 266 L580 267 L584 267 L585 268 L591 269 L600 274 L619 290 L620 290 L625 294 L628 295 L630 297 L633 298 L633 300 L628 309 L628 311 L626 314 L626 316 L624 320 L624 323 L623 324 L623 327 L622 328 L622 332 L514 332 L514 328 L513 327 L512 320 L511 319 L509 311 L503 300 L503 298 L506 297 L508 295 L511 294 L513 292 L517 290 L527 281 L528 281 L532 277 L533 277 L539 272 L548 268 L556 267 L557 266 L566 266 Z","b":[503,265,633,332]}],"cuff":[{"d":"M517 388 L616 388 L616 404 L517 404 Z","b":[517,388,616,404]},{"d":"M517 411 L616 411 L616 426 L517 426 Z","b":[517,411,616,426]}]},"n":{"collar":[{"d":"M864 287 L986 287 L986 289 L985 290 L984 295 L866 295 Z","b":[864,287,986,295]},{"d":"M866 301 L984 301 L986 309 L864 309 Z","b":[864,301,986,309]}],"sleeve":[{"d":"M1042 290 L1050 291 L1057 295 L1066 304 L1069 309 L1076 316 L1080 318 L1078 322 L1077 327 L1076 328 L1076 338 L1012 338 L1012 329 L1011 328 L1011 325 L1008 320 L1008 318 L1012 316 L1019 309 L1022 304 L1031 295 L1038 291 L1041 291 Z","b":[1008,290,1080,338]},{"d":"M1042 349 L1050 350 L1057 354 L1066 363 L1069 368 L1076 375 L1080 377 L1078 381 L1077 386 L1076 387 L1076 397 L1012 397 L1012 388 L1011 387 L1011 384 L1008 379 L1008 377 L1012 375 L1019 368 L1022 363 L1031 354 L1038 350 L1041 350 Z","b":[1008,349,1080,397]}],"back":[{"d":"M790 321 L793 321 L794 324 L799 328 L822 328 L827 324 L827 322 L828 321 L831 321 L835 323 L838 323 L839 324 L842 324 L846 326 L849 326 L849 330 L848 331 L848 334 L847 335 L847 340 L846 341 L846 351 L847 352 L847 355 L848 356 L849 360 L851 362 L853 366 L857 370 L857 457 L856 458 L839 459 L838 460 L823 460 L822 461 L799 461 L798 460 L783 460 L782 459 L773 459 L772 458 L765 458 L764 457 L764 370 L768 366 L768 365 L772 360 L773 356 L774 355 L774 351 L775 350 L775 342 L774 341 L774 336 L773 335 L772 326 L775 326 L779 324 L786 323 Z","b":[764,321,857,461]}],"front":[{"d":"M904 321 L907 321 L907 323 L908 324 L908 328 L913 340 L915 342 L915 343 L924 351 L926 351 L929 348 L930 348 L937 340 L941 331 L941 328 L942 327 L943 321 L946 321 L950 323 L957 324 L958 325 L964 326 L965 327 L964 333 L963 334 L963 339 L962 340 L962 349 L963 350 L963 353 L966 359 L973 367 L973 457 L971 458 L954 459 L953 460 L937 460 L936 461 L913 461 L912 460 L897 460 L896 459 L887 459 L886 458 L878 458 L877 457 L877 367 L884 359 L887 353 L887 350 L888 349 L888 340 L887 339 L887 335 L886 334 L886 330 L885 329 L885 327 L886 326 L889 326 L893 324 L900 323 Z","b":[877,321,973,461]}],"cuff":[{"d":"M1007 425 L1081 425 L1081 438 L1007 438 Z","b":[1007,425,1081,438]},{"d":"M1007 444 L1081 444 L1081 456 L1007 456 Z","b":[1007,444,1081,456]}]}};
+  const FIT_COL = ['#009fe3', '#fb923c', '#a78bfa', '#34d399'];
+  const FIT_EXTRA = {   // piezas que no están en la hoja base: formas sencillas (tamaño del dibujo y trazo)
+    strip: { vb: [150, 26], d: 'M2 2 H148 V24 H2 Z' }, side: { vb: [34, 150], d: 'M2 2 H32 V148 H2 Z' }, placket: { vb: [30, 152], d: 'M3 2 H27 V150 H3 Z' },
+    pocket: { vb: [72, 80], d: 'M4 4 H68 V58 L36 74 L4 58 Z' }, shorts: { vb: [104, 170], d: 'M4 4 H92 L98 36 Q82 62 76 94 L72 166 H4 Z' },
+    socks: { vb: [60, 120], d: 'M10 4 H44 V70 Q44 112 24 116 H10 Q-2 116 4 98 Z' }, otro: { vb: [80, 80], d: 'M6 6 H74 V74 H6 Z' }
   };
-  const ORDEN_PIEZA = ['back', 'front', 'sleeve', 'cuff', 'strip', 'collar', 'placket', 'pocket', 'side', 'shorts', 'socks', 'otro'];
   function fitPiezas(mats) {
     const claveDe = nom => {
       if (/MEDIA|CALCET/i.test(nom)) return 'socks';
       if (/BISEL|VIVO|CANES/i.test(nom)) return 'strip';
       const k = kindDe(nom);
       if (k === 'body') return /ESPALDA|TRASERO/i.test(nom) ? 'back' : 'front';
-      return FORMAS[k] ? k : 'otro';
+      return (REF_FIT.m[k] || FIT_EXTRA[k]) ? k : 'otro';
     };
-    const lista = [];
-    mats.forEach(m => m.piezas.forEach(p => lista.push({ m, p, k: claveDe(p.n) })));
-    lista.sort((x, y) => ORDEN_PIEZA.indexOf(x.k) - ORDEN_PIEZA.indexOf(y.k));
-    const figuras = lista.map(({ m, p, k }) => {
-      const f = FORMAS[k], w = Math.round(f.vb[0] * f.e), h = Math.round(f.vb[1] * f.e);
-      const espejo = /IZQ/i.test(p.n) ? ' transform="translate(' + f.vb[0] + ' 0) scale(-1 1)"' : '';
-      const copias = (k === 'cuff' || k === 'strip' || k === 'side' || k === 'sleeve') && !/DERECH|IZQ/i.test(p.n) ? Math.min(p.c, 2) : 1;
-      const dibujo = '<svg viewBox="0 0 ' + f.vb[0] + ' ' + f.vb[1] + '" width="' + w + '" height="' + h + '" aria-hidden="true"><path' + espejo + ' d="' + f.d + '"/></svg>';
-      return '<figure class="fit-p" style="--c:' + m.color + '"><div class="fit-d">' + dibujo.repeat(copias) + '</div><figcaption>' +
-        (mats.length > 1 ? '<b class="fit-m">' + m.id + '</b>' : '') + esc(p.n.toUpperCase()) + (p.c > 1 ? ' <em>×' + p.c + '</em>' : '') + '</figcaption></figure>';
-    }).join('');
-    return '<div class="fit"><div class="fit-t">FIT DE PRENDA X PIEZAS</div>' + figuras + '</div>';
+    const grupos = {};   // clave -> { mat, nombres[], total }
+    mats.forEach((m, mi) => m.piezas.forEach(p => {
+      const k = claveDe(p.n), g = grupos[k] || (grupos[k] = { mat: mi, nombres: [], total: 0 });
+      if (!g.nombres.includes(p.n.toUpperCase())) g.nombres.push(p.n.toUpperCase());
+      g.total += p.c;
+    }));
+    const col = g => FIT_COL[g.mat % FIT_COL.length];
+    const lineas = (g, x, y, ancho) => {   // pie de la pieza: nombre(s) y cantidad, centrado en x
+      const txt = g.nombres.join(' / ') + (g.total > 1 ? ' ×' + g.total : '');
+      const partes = []; let linea = '';
+      txt.split(' ').forEach(w => { if ((linea + ' ' + w).trim().length > ancho && linea) { partes.push(linea); linea = w; } else linea = (linea + ' ' + w).trim(); });
+      if (linea) partes.push(linea);
+      return '<text class="fit-c" x="' + x + '" y="' + y + '" text-anchor="middle">' + partes.map((t, i) => '<tspan x="' + x + '" dy="' + (i ? 17 : 0) + '">' + esc(t) + '</tspan>').join('') + '</text>';
+    };
+    const forma = (panel, k, g, copias) => (REF_FIT[panel][k] || []).slice(0, copias).map(e => '<path d="' + e.d + '" fill="' + col(g) + '"/>').join('');
+    const copias = (k, g) => (k === 'sleeve' || k === 'cuff' || k === 'collar') ? Math.min(g.total, 2) : 1;
+    const orden = ['collar', 'back', 'front', 'sleeve', 'cuff'];
+    let m = '', f = '', n = '';
+    orden.forEach(k => {
+      const g = grupos[k]; if (!g) return;
+      const c = copias(k, g);
+      m += forma('m', k, g, c); f += forma('f', k, g, c); n += forma('n', k, g, c);
+    });
+    const pie = { collar: [342, 134], back: [126, 446], front: [339, 446], sleeve: [568, 352], cuff: [567, 446] };
+    let rotulos = '';
+    orden.forEach(k => { if (grupos[k]) rotulos += lineas(grupos[k], pie[k][0], pie[k][1], 18); });
+    // piezas fuera de la hoja base (pantaloneta, costados, bisel…) en una franja debajo
+    const extras = Object.keys(grupos).filter(k => !orden.includes(k)).sort((a, b) => Object.keys(FIT_EXTRA).indexOf(a) - Object.keys(FIT_EXTRA).indexOf(b));
+    let franja = '', alto = 483;
+    if (extras.length) {
+      const ancho = 1104 / extras.length, base = 483 + 24;
+      let hmax = 0;
+      extras.forEach((k, i) => {
+        const fe = FIT_EXTRA[k], g = grupos[k], c = (k === 'strip' || k === 'side') ? Math.min(g.total, 2) : 1;
+        const esc2 = Math.min(1.5, 150 / fe.vb[1], (ancho - 40) / fe.vb[0]), w = fe.vb[0] * esc2, h = fe.vb[1] * esc2, cx = ancho * (i + 0.5);
+        hmax = Math.max(hmax, h * c + 8 * (c - 1));
+        for (let j = 0; j < c; j++) franja += '<g transform="translate(' + (cx - w / 2).toFixed(1) + ' ' + (base + j * (h + 8)).toFixed(1) + ') scale(' + esc2.toFixed(3) + ')"><path d="' + fe.d + '" fill="' + col(g) + '"/></g>';
+        g._x = cx;
+      });
+      alto = Math.ceil(base + hmax + 16);
+      extras.forEach(k => { franja += lineas(grupos[k], grupos[k]._x, alto + 6, 22); });
+      alto += 50;
+      franja = '<line x1="0" y1="483" x2="1104" y2="483" stroke="#000"/>' + franja;
+    }
+    return '<div class="fit-wrap"><svg class="fit" viewBox="0 0 1104 ' + alto + '" role="img" aria-label="Fit de prenda por piezas">' +
+      '<rect width="1104" height="' + alto + '" fill="#fff"/><rect x="742" y="0" width="362" height="242" fill="#ffe7ff"/><rect x="742" y="0" width="362" height="21" fill="#ffccff"/>' +
+      '<rect x="742" y="242" width="362" height="241" fill="#ddebf7"/><rect x="742" y="242" width="362" height="21" fill="#bdd7ee"/>' +
+      '<text class="fit-h" x="371" y="15" text-anchor="middle" fill="#548235">FIT DE PRENDA X PIEZAS <tspan fill="#e00000">(MASCULINO)</tspan></text>' +
+      '<text class="fit-h" x="923" y="15" text-anchor="middle" fill="#e00000">MOLDERIA FEMENINA</text><text class="fit-h" x="923" y="257" text-anchor="middle" fill="#e00000">MOLDERIA NIÑO(A)</text>' +
+      '<g>' + m + '</g><g>' + f + '</g><g>' + n + '</g>' + rotulos + franja +
+      '<path d="M742 0 V483 M742 242 H1104 M0 21 H742" stroke="#000" stroke-width="1" fill="none"/><rect x=".5" y=".5" width="1103" height="' + (alto - 1) + '" fill="none" stroke="#000"/></svg></div>';
   }
   function iconoFila(p, i, color) { return '<span style="--d:' + (0.4 + i * 0.12).toFixed(2) + 's">' + icono(p.n) + esc(p.n) + (p.c > 1 ? '<em>×' + p.c + '</em>' : '') + '</span>'; }
   function mapaTelas(f) {
