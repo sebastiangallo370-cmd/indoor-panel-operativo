@@ -17,7 +17,7 @@ Este archivo resume el contexto del proyecto para continuar el trabajo desde cua
 - Lee también README.md y CONFIGURACION_INVENTARIO_PROTEGIDA.md.
 
 ## Arquitectura
-- Backend FastAPI (Python) en `app/`. Corre en Docker (contenedor `asistente-reprogramaciones`) en un VPS. Dentro del contenedor la app está en `/app/app/` y los datos persistentes en `/data` (no se versionan). Sitio: https://produccion.tech
+- Backend FastAPI (Python) en `app/`. Corre en Docker (contenedor `asistente-reprogramaciones`) en un VPS (desde 2026-10-08: **179.236.66.149**, Hostinger KVM 2; el VPS anterior 2.25.238.166 quedó detenido como respaldo). Dentro del contenedor la app está en `/app/app/` y los datos persistentes en `/data` (no se versionan). Sitio: https://produccion.cloud (y https://produccion.tech por túnel Cloudflare, que corre en el VPS nuevo)
 - `app/main.py`: panel completo. HTML, CSS y JS van en f-strings: en esas partes las llaves se escriben dobles `{{ }}`. El JS de Inventarios (zona de las líneas ~148-470) va en una cadena normal con llaves simples.
 - `app/trace-ui.js`: tarjetas de producción; se carga con `?v=NUMERO` en main.py (súbelo cuando lo cambies).
 - `app/cartera_api.py` y `app/cartera.js`: módulo Cartera.
@@ -30,12 +30,13 @@ Este archivo resume el contexto del proyecto para continuar el trabajo desde cua
 ## Despliegue (GitHub no publica solo)
 Por cada archivo cambiado, por separado y con nombre destino explícito:
 ```
-scp -i <llave> app/archivo.py root@2.25.238.166:/tmp/archivo_nuevo.py
-ssh -i <llave> root@2.25.238.166 "docker cp /tmp/archivo_nuevo.py asistente-reprogramaciones:/app/app/archivo.py && docker restart asistente-reprogramaciones"
+scp -i <llave> app/archivo.py root@179.236.66.149:/tmp/archivo_nuevo.py
+ssh -i <llave> root@179.236.66.149 "docker cp /tmp/archivo_nuevo.py asistente-reprogramaciones:/app/app/archivo.py && docker restart asistente-reprogramaciones"
 ```
 Espera ~10 s tras reiniciar. Errores pasados a evitar:
 - Con scp de varios archivos a la vez llegan con su nombre original; un `docker cp` posterior falla en silencio y el servidor sigue con código viejo. Súbelos uno por uno.
-- El destino es `/app/app/`, no `/opt/...`.
+- El destino es `/app/app/`, no `/opt/...`. Además copia el mismo archivo a `/opt/asistente-reprogramaciones/app/archivo.py` del VPS (de ahí se reconstruye la imagen; si no, un rebuild vuelve al código viejo).
+- La NAS entra por OpenVPN (`openvpn-client@nasindoor`) y se monta en `/mnt/nas-indoor`; compose y `.env` están en `/opt/asistente-reprogramaciones`.
 - La llave SSH y los accesos no están en el repositorio: pídeselos al usuario.
 
 ## Cómo verificar
