@@ -99,6 +99,7 @@
   .ft-flat [data-m]{transition:opacity .25s}
   .fp-nodo{opacity:0;animation:fpIn .6s cubic-bezier(.2,1.4,.4,1) forwards var(--d);transform-box:fill-box;transform-origin:left center}
   .fp-nodo rect{fill:#0d1409;stroke:var(--c);stroke-width:1.6}
+  .fp-nodo .fp-sil *{fill:var(--c);fill-opacity:.9;stroke:rgba(0,0,0,.55);stroke-width:1}
   .fp-nt{font:800 10px Arial;fill:#e9efe3;letter-spacing:.04em}.fp-nc{font:900 10px Arial;text-anchor:end}
   .ft:has(.ft-mat[data-m="M1"]:hover) .ft-flat [data-m]:not([data-m="M1"]),.ft:has(.ft-mat[data-m="M2"]:hover) .ft-flat [data-m]:not([data-m="M2"]),.ft:has(.ft-mat[data-m="M3"]:hover) .ft-flat [data-m]:not([data-m="M3"]),.ft:has(.ft-mat[data-m="M4"]:hover) .ft-flat [data-m]:not([data-m="M4"]){opacity:.15}
   .ft-mats{margin-top:6px}.ft-mat{padding:9px 12px}.ft-tela{margin:4px 0 7px}
@@ -242,12 +243,22 @@
   ];
   const kindDe = n => { const k = KINDS.find(([, re]) => re.test(n)); return k ? k[0] : 'otro'; };
   const ICONOS = {
-    body: '<path d="M10 6 L19 4 Q24 10 29 4 L38 6 L40 42 H8 Z"/>', sleeve: '<path d="M6 14 L22 6 L28 32 L12 40 Z"/>',
-    collar: '<path d="M8 18 Q24 40 40 18 L34 12 Q24 26 14 12 Z"/>', cuff: '<rect x="8" y="14" width="32" height="20" rx="3"/>',
+    body: '<path d="M10 6 L19 4 Q24 10 29 4 L38 6 L40 42 H8 Z"/>', sleeve: '<path d="M5 38 Q6 14 24 10 Q38 8 43 22 L40 38 Z"/>',
+    collar: '<path d="M7 13 H41 L37 22 H11 Z M11 27 H37 L41 36 H7 Z"/>', cuff: '<path d="M6 13 H42 V22 H6 Z M6 27 H42 V36 H6 Z"/>',
     placket: '<rect x="19" y="4" width="10" height="40" rx="2"/>', pocket: '<path d="M10 12 H38 V40 H10 Z M10 12 L24 22 L38 12" />',
     side: '<path d="M8 6 H20 V42 H8 Z M28 6 H40 V42 H28 Z"/>', shorts: '<path d="M8 8 H40 L42 42 H28 L24 24 L20 42 H6 Z"/>',
     otro: '<rect x="8" y="8" width="32" height="32" rx="6"/>'
   };
+  // Siluetas de las piezas del patrón (para reconocer cada pieza de un vistazo en el mapa)
+  const SIL = {
+    back: '<path d="M9 7 L19 5 Q24 10 29 5 L39 7 L41 17 Q37 21 38 26 V43 H10 V26 Q11 21 7 17 Z"/>',
+    front: '<path d="M9 7 L17 5 L24 18 L31 5 L39 7 L41 17 Q37 21 38 26 V43 H10 V26 Q11 21 7 17 Z"/>',
+    sleeve: '<path d="M5 38 Q6 14 24 10 Q38 8 43 22 L40 38 Z"/>',
+    cuff: '<path d="M6 13 H42 V22 H6 Z M6 27 H42 V36 H6 Z"/>',
+    collar: '<path d="M7 13 H41 L37 22 H11 Z M11 27 H37 L41 36 H7 Z"/>',
+    socks: '<path d="M16 6 H30 V30 Q30 42 20 42 H12 Q8 42 10 36 Z"/>'
+  };
+  const silueta = (nom, k) => (kindDe(nom) === 'pocket' ? ICONOS.pocket : (SIL[k] || ICONOS[kindDe(nom)] || ICONOS.otro));
   const icono = n => '<svg class="ft-ico" viewBox="0 0 48 48">' + ICONOS[kindDe(n)] + '</svg>';
   // Plano técnico: rollo de tela -> nodos de pieza -> prenda, unidos por conectores con paquetes de información
   function planoTelas(mats) {
@@ -287,7 +298,7 @@
     // nodos: una tarjeta por pieza, en columna
     const nodos = [];
     mats.forEach(m => m.piezas.forEach(p => nodos.push({ m, p })));
-    const nN = nodos.length, paso = 316 / nN, NH = Math.min(26, paso - 4), NX = 142, NW = 132;
+    const nN = nodos.length, paso = 316 / nN, NH = Math.min(42, Math.max(24, paso - 4)), NX = 142, NW = 150, SI = Math.min(34, NH - 6);
     const altura = nd => { const a = anclas[claveNodo(nd.p.n)]; return a ? a[1] : 999; };
     nodos.sort((a, b) => altura(a) - altura(b));
     nodos.forEach((nd, i) => { nd.y = 7 + paso * (i + 0.5); });
@@ -333,8 +344,9 @@
       suyos.forEach((nd, k) => {
         const idx = nodos.indexOf(nd), nom2 = nd.p.n.toUpperCase();
         nodosSvg += '<g class="fp-nodo" data-m="' + m.id + '" style="--c:' + m.color + ';--d:' + (0.2 + idx * 0.1).toFixed(2) + 's"><rect x="' + NX + '" y="' + (nd.y - NH / 2).toFixed(1) + '" width="' + NW + '" height="' + NH.toFixed(1) + '" rx="6"/>' +
-          '<circle cx="' + (NX + 11) + '" cy="' + nd.y.toFixed(1) + '" r="3.6" fill="' + m.color + '"/><text class="fp-nt" x="' + (NX + 21) + '" y="' + (nd.y + 3.6).toFixed(1) + '">' + esc(nom2.length > 15 ? nom2.slice(0, 14) + '…' : nom2) + '</text>' +
-          (nd.p.c > 1 ? '<text class="fp-nc" x="' + (NX + NW - 9) + '" y="' + (nd.y + 3.6).toFixed(1) + '" fill="' + m.color + '">×' + nd.p.c + '</text>' : '') + '</g>';
+          '<g class="fp-sil" transform="translate(' + (NX + 6) + ' ' + (nd.y - SI / 2).toFixed(1) + ') scale(' + (SI / 48).toFixed(3) + ')">' + silueta(nd.p.n, claveNodo(nd.p.n)) + '</g>' +
+          '<text class="fp-nt" x="' + (NX + SI + 14) + '" y="' + (nd.y + 3.6).toFixed(1) + '">' + esc(nom2.length > 12 ? nom2.slice(0, 11) + '…' : nom2) + '</text>' +
+          (nd.p.c > 1 ? '<text class="fp-nc" x="' + (NX + NW - 8) + '" y="' + (nd.y + 3.6).toFixed(1) + '" fill="' + m.color + '">×' + nd.p.c + '</text>' : '') + '</g>';
         const durA = 2.4 + (idx % 3) * 0.3, bA = 0.7 + idx * 0.2;
         const c1 = con(cx + r, cy, NX, nd.y, m, bA, durA, orto(cx + r, cy, carril, NX, nd.y));
         cables += c1[0] + c1[1];
