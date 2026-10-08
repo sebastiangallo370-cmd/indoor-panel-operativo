@@ -113,12 +113,15 @@
     const doneSet = new Set(data.finished_today_mine || []);
     const workedToday = (data.worked_today_rows || []).includes(row.source_row);   // iniciada hoy o pedida hoy a los agentes
     const doneToday = workedToday || groups.some(g => g.statusColumns.some(i => doneSet.has(row.source_row + ':' + (i + 1))));
+    // Procesos terminados HOY según el Sheet o la web (la celda lleva la fecha de hoy): sirve para «Mi trabajo del día» aunque se haya hecho directo en Google Sheets
+    const sheetToday = internal.filter(g => g.statusColumns.some(i => { const f = dateValue(row.values[i]); return f && f.getTime() === today.getTime(); })).map(g => g.label);
     const dueIndex = data.headers.findIndex(h => key(h) === 'FECHA DE ENTREGA'), due = dateValue(row.values[dueIndex]);
     const overdue = !!due && due < today && state !== 'finished';
-    return { groups, finished, total: internal.length, state, focus, mine, myPending, doneToday, due, overdue, percent: internal.length ? Math.round(finished / internal.length * 100) : 0 };
+    return { groups, finished, total: internal.length, state, focus, mine, myPending, doneToday, sheetToday, due, overdue, percent: internal.length ? Math.round(finished / internal.length * 100) : 0 };
   }
+  const procActual = () => { try { return navigationProcess; } catch (e) { return null; } };   // el proceso elegido en el menú (aún no existe al cargar)
   function matches(summary, filter) {
-    return filter === 'all' || filter === 'pending' && summary.state !== 'finished' || filter === 'work' && summary.doneToday || filter === 'mine' && summary.mine || filter === 'late' && summary.overdue || filter === summary.state;
+    return filter === 'all' || filter === 'pending' && summary.state !== 'finished' || filter === 'work' && (summary.doneToday || (procActual() ? (summary.sheetToday || []).includes(procActual().label) : (summary.sheetToday || []).length > 0)) || filter === 'mine' && summary.mine || filter === 'late' && summary.overdue || filter === summary.state;
   }
   function processForProfile(profile) {
     return flow.find(p => [p.label, ...p.headers, ...p.aliases].some(label => key(label) === key(profile)));
