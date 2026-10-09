@@ -435,8 +435,8 @@
     return '<section class="dash-stairs' + (compact ? ' compact' : '') + (stairsPlayed ? ' go' : '') + '" data-compact="' + (compact ? 1 : 0) + '">' +
       '<header class="st-head"><div><span class="ar-kicker">CÓMO VA LA PLANTA</span><h3>Escalera de carga por área</h3><p>Cada escalón es un área en el orden del proceso: mientras más alto, más carga. El líquido muestra en qué estado está esa carga y el porcentaje es la parte de los pedidos en producción que pasa por el área.</p></div>' +
       '<div class="st-metric" role="group" aria-label="Medir por"><button type="button" data-st-metric="orders" class="' + (metric === 'orders' ? 'on' : '') + '">Pedidos</button><button type="button" data-st-metric="units" class="' + (metric === 'units' ? 'on' : '') + '">Unidades</button></div></header>' +
-      '<div class="st-sum">' + totals.map(([k, label, n]) => '<span class="st-pill ' + k + '"><i></i>' + label + ' <b>' + n + '</b></span>').join('') +
-      '<span class="st-pill late' + (lateTotal ? ' hot' : '') + '"><i></i>Atrasados <b>' + lateTotal + '</b></span>' +
+      '<div class="st-sum">' + totals.map(([k, label, n]) => '<span class="st-pill ' + k + '" title="' + { proc: 'Verde: pedidos que se están trabajando en esa área ahora', rep: 'Rojo: pedidos devueltos a reproceso', cola: 'Amarillo: pedidos que esperan turno en esa área', prog: 'Azul: pedidos que todavía no llegan, pero tienen esa área programada' }[k] + '"><i></i>' + label + ' <b>' + n + '</b></span>').join('') +
+      '<span class="st-pill late' + (lateTotal ? ' hot' : '') + '" title="Círculo rojo: pedidos que ya pasaron su fecha de entrega (no es una capa de color; sale como «atras.» dentro de cada área)"><i></i>Atrasados <b>' + lateTotal + '</b></span>' +
       (heaviest && heaviest.orders ? '<span class="st-neck">Cuello de botella: <b>' + esc(heaviest.label) + '</b> · ' + plural(heaviest.orders, 'pedido', 'pedidos') + '</span>' : '') + '</div>' +
       '<div class="st-scroll"><div class="st-chart" role="list">' + cols + '</div></div>' +
       '<div class="st-flow" aria-hidden="true"><span>Entrada</span><i></i><span>Salida</span></div></section>';
@@ -703,8 +703,8 @@
   .st-metric{display:inline-flex;padding:3px;border:1px solid rgba(255,255,255,.14);border-radius:999px;background:#0a0e0a;flex:none}
   .st-metric button{width:auto!important;min-height:0!important;padding:6px 14px;border:0;border-radius:999px;background:transparent;color:#aebba7;font:800 .74rem Arial;cursor:pointer;transition:background .15s,color .15s}.st-metric button.on{background:#d0f44c;color:#16200a}
   .st-sum{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-  .st-pill{display:inline-flex;align-items:center;gap:7px;padding:5px 11px;border:1px solid rgba(255,255,255,.12);border-radius:999px;background:rgba(255,255,255,.04);color:#c4cfbf;font:700 .72rem Arial}.st-pill i{width:9px;height:9px;border-radius:3px;background:var(--p)}.st-pill b{color:#fff;font-size:.8rem}
-  .st-pill.proc{--p:#8bd450}.st-pill.rep{--p:#ff6b5c}.st-pill.cola{--p:#ffc95c}.st-pill.prog{--p:#8fb8ff}.st-pill.late{--p:#ff6b5c}.st-pill.late.hot{border-color:rgba(255,107,92,.6);background:rgba(255,107,92,.1)}
+  .st-pill{display:inline-flex;align-items:center;gap:7px;padding:5px 11px;border:1px solid rgba(255,255,255,.12);border-radius:999px;background:rgba(255,255,255,.04);color:#c4cfbf;font:700 .72rem Arial}.st-pill i{width:10px;height:10px;border-radius:3px;background:var(--pc);box-shadow:0 0 0 2px rgba(255,255,255,.08)}.st-pill b{color:#fff;font-size:.8rem}
+  .st-pill.proc{--pc:#8bd450}.st-pill.rep{--pc:#ff6b5c}.st-pill.cola{--pc:#ffc95c}.st-pill.prog{--pc:#8fb8ff}.st-pill.late{--pc:#ff6b5c}.st-pill.late i{border-radius:50%;background:transparent!important;box-shadow:inset 0 0 0 2px #ff6b5c}.st-pill.late.hot{border-color:rgba(255,107,92,.6);background:rgba(255,107,92,.1)}
   .st-neck{margin-left:auto;color:#ffb3a9;font-size:.78rem}.st-neck b{color:#fff}
   .st-scroll{overflow-x:auto;padding:2px 2px 8px;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.25) transparent}
   .st-chart{display:flex;align-items:flex-end;gap:12px;height:calc(var(--base) + var(--span) + 6px);min-width:max(100%,1200px)}
