@@ -78,6 +78,12 @@
 
     const today = startOfToday();
     const list = [...orders.values()];
+    // Áreas que le tocan a un pedido (para saber su carga programada): las que usan casi todos los pedidos ya entregados; las demás
+    // (p. ej. Aplique, Facturación) solo si ese pedido ya las tocó, porque una celda vacía ahí puede ser «no aplica».
+    const wasDelivered = o => { const marks = o.rows.map(v => { const cell = col.delivered >= 0 ? v[col.delivered] : ''; return !!parseDate(cell) || key(cell) === 'SI'; }); return !!marks.length && marks.every(Boolean); };
+    const touched = (o, p) => o.rows.some(v => p.columns.some(i => { const c = key(v[i]); return c !== '' && c !== 'N/A'; }));
+    const deliveredOrders = list.filter(wasDelivered);
+    const standard = new Map(internal.map(p => [p.label, deliveredOrders.length >= 5 ? deliveredOrders.filter(o => touched(o, p)).length / deliveredOrders.length >= .6 : true]));
     list.forEach(o => {
       const marks = o.rows.map(v => {
         const cell = col.delivered >= 0 ? v[col.delivered] : '';
@@ -103,8 +109,9 @@
       // Area donde esta el pedido ahora: reproceso > en proceso > primer proceso sin cerrar.
       const focus = internal.find(p => states[p.label] === 'rework') || [...internal].reverse().find(p => states[p.label] === 'active') || internal.find(p => states[p.label] !== 'finished');
       o.focus = focus ? focus.label : '';
-      // Carga REAL por área, fila por fila (cada fila es una referencia con sus propias unidades): en proceso = celda «P»; reproceso = «R»;
-      // en cola = el área siguiente que ya puede empezar (todas las anteriores de esa fila están terminadas).
+      // Carga REAL y PROGRAMADA por área, fila por fila (cada fila es una referencia con sus propias unidades):
+      //   en proceso = celda «P»; reproceso = «R»; en cola = la primera área que le toca y aún no empieza; programado = las siguientes que le tocan.
+      // Las áreas que quedaron atrás del avance de la fila (vacías pero ya superadas) no cuentan.
       o.areas = {};
       o.rows.forEach(v => {
         const units = col.quantity >= 0 ? num(v[col.quantity]) : 0;
@@ -112,11 +119,17 @@
           const cells = p.columns.map(i => key(v[i]));
           return cells.includes('R') ? 'rework' : cells.includes('P') ? 'active' : cells.length && cells.every(c => c === 'N/A' || !!parseDate(c)) ? 'finished' : 'pending';
         });
+        let frontier = -1;
+        rowStates.forEach((st, i) => { if (st !== 'pending') frontier = i; });
+        let first = true;
         internal.forEach((p, i) => {
           const st = rowStates[i];
-          const kind = st === 'active' ? 'proc' : st === 'rework' ? 'rep' : st === 'pending' && rowStates.slice(0, i).every(x => x === 'finished') && rowStates.slice(i + 1).every(x => x === 'pending') ? 'cola' : null;   // en cola solo si la fila aún no avanzó a un área posterior (una celda vacía de un área que no aplica no es cola)
+          let kind = null;
+          if (st === 'active') kind = 'proc';
+          else if (st === 'rework') kind = 'rep';
+          else if (st === 'pending' && i > frontier && (standard.get(p.label) || touched(o, p))) { kind = first ? 'cola' : 'prog'; first = false; }
           if (!kind) return;
-          const slot = o.areas[p.label] || (o.areas[p.label] = { proc: { rows: 0, units: 0 }, cola: { rows: 0, units: 0 }, rep: { rows: 0, units: 0 } });
+          const slot = o.areas[p.label] || (o.areas[p.label] = { proc: { rows: 0, units: 0 }, cola: { rows: 0, units: 0 }, prog: { rows: 0, units: 0 }, rep: { rows: 0, units: 0 } });
           slot[kind].rows++; slot[kind].units += units;
         });
       });
@@ -169,17 +182,17 @@
     const reworkList = active.filter(o => o.rework).sort((a, b) => (a.due || Infinity) - (b.due || Infinity));
     const load = internal.map(p => {
       const items = [];
-      const total = { proc: { orders: 0, units: 0 }, cola: { orders: 0, units: 0 }, rep: { orders: 0, units: 0 } };
+      const total = { proc: { orders: 0, units: 0 }, cola: { orders: 0, units: 0 }, prog: { orders: 0, units: 0 }, rep: { orders: 0, units: 0 } };
       toMake.forEach(o => {
         const slot = o.areas[p.label];
         if (!slot) return;
-        const kinds = ['proc', 'rep', 'cola'].filter(k => slot[k].rows);
+        const kinds = ['proc', 'rep', 'cola', 'prog'].filter(k => slot[k].rows);
         if (!kinds.length) return;
         kinds.forEach(k => { total[k].orders++; total[k].units += slot[k].units; });
-        items.push({ o, kinds, units: slot.proc.units + slot.cola.units + slot.rep.units });
+        items.push({ o, kinds, units: kinds.reduce((sum, k) => sum + slot[k].units, 0) });
       });
       const orders = items.length;
-      return { label: p.label, orders, units: total.proc.units + total.cola.units + total.rep.units, total, items, late: items.filter(i => i.o.due && i.o.due < today).length };
+      return { label: p.label, orders, units: ['proc', 'cola', 'prog', 'rep'].reduce((sum, k) => sum + total[k].units, 0), total, items, late: items.filter(i => i.o.due && i.o.due < today).length };
     }).filter(item => item.orders);
 
     return {
@@ -264,6 +277,25 @@
     }
   }
 
+  // ---- PESTAÑAS DEL INICIO (para no tener que bajar tanto) ----
+  const TABS = [['resumen', 'Resumen'], ['entregas', 'Entregas y atrasos'], ['tiempo', 'Tiempo por orden'], ['carga', 'Carga por área']];
+  let activeTab = 'resumen';
+  try { const saved = localStorage.getItem('indoor-home-tab'); if (TABS.some(([id]) => id === saved)) activeTab = saved; } catch (e) { /* sin almacenamiento */ }
+  function tabsBar(a) {
+    const badge = { entregas: a.late.length || '', tiempo: a.timing.length || '', carga: a.load.length || '' };
+    return '<nav class="dash-tabs" role="tablist" aria-label="Secciones del resumen">' + TABS.map(([id, label]) =>
+      '<button type="button" role="tab" class="' + (id === activeTab ? 'on' : '') + '" data-dash-tab="' + id + '" aria-selected="' + (id === activeTab) + '">' + label + (badge[id] ? ' <b>' + badge[id] + '</b>' : '') + '</button>').join('') + '</nav>';
+  }
+  root.addEventListener('click', event => {
+    const tab = event.target.closest('[data-dash-tab]');
+    if (!tab) return;
+    activeTab = tab.dataset.dashTab;
+    try { localStorage.setItem('indoor-home-tab', activeTab); } catch (e) { /* sin almacenamiento */ }
+    root.querySelectorAll('[data-dash-tab]').forEach(b => { const on = b.dataset.dashTab === activeTab; b.classList.toggle('on', on); b.setAttribute('aria-selected', String(on)); });
+    root.querySelectorAll('.dash-pane').forEach(pane => pane.classList.toggle('on', pane.dataset.pane === activeTab));
+    countUp();
+  });
+
   // ---- CARGA POR ÁREA (real: filas en proceso, en cola y en reproceso de cada área, en el orden del flujo; cada tarjeta lista todos sus pedidos) ----
   const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
   const openAreas = new Set();   // áreas desplegadas: se conservan cuando el resumen se actualiza solo
@@ -279,14 +311,14 @@
   function loadSection(a) {
     if (!a.load.length) return '';
     const maxOrders = Math.max(...a.load.map(i => i.orders));
-    const heaviest = [...a.load].sort((x, y) => (y.total.proc.orders + y.total.cola.orders) - (x.total.proc.orders + x.total.cola.orders) || y.units - x.units)[0];
+    const heaviest = [...a.load].sort((x, y) => y.orders - x.orders || y.units - x.units)[0];
     const tier = item => { const share = item.orders / maxOrders; return item === heaviest && share >= .5 ? 'hot' : share >= .6 ? 'warm' : 'cool'; };
-    const totalWorking = a.load.reduce((s, i) => s + i.total.proc.orders, 0), totalQueue = a.load.reduce((s, i) => s + i.total.cola.orders, 0);
-    const totalUnits = a.load.reduce((s, i) => s + i.total.proc.units, 0);
-    const label = { proc: 'En proceso', cola: 'En cola', rep: 'Reproceso' };
-    const rank = { rep: 0, proc: 1, cola: 2 };
+    const totalWorking = a.load.reduce((s, i) => s + i.total.proc.orders, 0), totalQueue = a.load.reduce((s, i) => s + i.total.cola.orders, 0), totalProg = a.load.reduce((s, i) => s + i.total.prog.orders, 0);
+    const totalUnits = a.load.reduce((s, i) => s + i.units, 0);
+    const label = { proc: 'En proceso', cola: 'En cola', prog: 'Programado', rep: 'Reproceso' };
+    const rank = { rep: 0, proc: 1, cola: 2, prog: 3 };
     const cards = a.load.map((item, i) => {
-      const t = item.total, sum = Math.max(1, t.proc.orders + t.cola.orders + t.rep.orders);
+      const t = item.total, sum = Math.max(1, t.proc.orders + t.cola.orders + t.prog.orders + t.rep.orders);
       const seg = (k, cls) => t[k].orders ? '<i class="' + cls + '" style="--w:' + (t[k].orders / sum * 100).toFixed(1) + '%" title="' + plural(t[k].orders, 'pedido', 'pedidos') + '"></i>' : '';
       const rows = [...item.items].sort((x, y) => rank[x.kinds[0]] - rank[y.kinds[0]] || (x.o.due || Infinity) - (y.o.due || Infinity)).map(({ o, kinds, units }) => {
         const late = o.due && o.due < a.today;
@@ -297,12 +329,12 @@
         (item === heaviest ? '<em class="dash-bottleneck">Mayor carga</em>' : '') +
         '<div class="dash-load-top"><span class="dash-load-label">' + esc(item.label) + '</span>' + (t.proc.orders ? '<i class="dash-work" title="Trabajando ahora"></i>' : '') + '</div>' +
         '<div class="dash-big"><strong>' + item.orders + '</strong><span>' + (item.orders === 1 ? 'pedido' : 'pedidos') + '</span><small>' + fmtNum(item.units) + ' und.' + (item.late ? ' · <span class="late">' + plural(item.late, 'atrasado', 'atrasados') + '</span>' : '') + '</small></div>' +
-        '<div class="dash-seg">' + seg('proc', 'p') + seg('cola', 'c') + seg('rep', 'r') + '</div>' +
-        '<ul class="dash-load-legend">' + (t.proc.orders ? '<li class="p"><b>' + t.proc.orders + '</b> en proceso</li>' : '') + (t.cola.orders ? '<li class="c"><b>' + t.cola.orders + '</b> en cola</li>' : '') + (t.rep.orders ? '<li class="r"><b>' + t.rep.orders + '</b> reproceso</li>' : '') + '</ul>' +
+        '<div class="dash-seg">' + seg('proc', 'p') + seg('cola', 'c') + seg('prog', 'g') + seg('rep', 'r') + '</div>' +
+        '<ul class="dash-load-legend">' + (t.proc.orders ? '<li class="p"><b>' + t.proc.orders + '</b> en proceso</li>' : '') + (t.cola.orders ? '<li class="c"><b>' + t.cola.orders + '</b> en cola</li>' : '') + (t.prog.orders ? '<li class="g"><b>' + t.prog.orders + '</b> programado</li>' : '') + (t.rep.orders ? '<li class="r"><b>' + t.rep.orders + '</b> reproceso</li>' : '') + '</ul>' +
         '<div class="dash-area-fold"><div><ul class="dash-area-orders">' + rows + '</ul></div></div>' +
         '<button type="button" class="dash-area-toggle" data-area-toggle="' + esc(item.label) + '" aria-expanded="' + openAreas.has(item.label) + '" title="Ver todos los pedidos de esta área"><span>' + plural(item.orders, 'pedido', 'pedidos') + '</span><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button></article>';
     }).join('');
-    return '<section class="dash-load" id="dash-load"><div class="dash-panel-head"><h4>Carga por área</h4><small>' + plural(totalWorking, 'pedido', 'pedidos') + ' en proceso · ' + plural(totalQueue, 'pedido', 'pedidos') + ' en cola · ' + fmtNum(totalUnits) + ' und. trabajándose</small></div>' +
+    return '<section class="dash-load" id="dash-load"><div class="dash-panel-head"><h4>Carga por área</h4><small>' + plural(totalWorking, 'pedido', 'pedidos') + ' en proceso · ' + plural(totalQueue, 'pedido', 'pedidos') + ' en cola · ' + plural(totalProg, 'pedido', 'pedidos') + ' programados · ' + fmtNum(totalUnits) + ' und. en total según lo programado</small></div>' +
       '<div class="dash-load-grid">' + cards + '</div></section>';
   }
 
@@ -439,9 +471,11 @@
 
     root.innerHTML =
       '<div class="dash-head"><div><span class="eyebrow">Resumen operativo</span><h3>Estado de la producción</h3></div><small><i class="dash-live"></i>En vivo · actualizado ' + new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) + '</small></div>' +
-      orderFinder(a.orders) +
-      '<div class="dash-cards">' + time + units + week + pct + '</div>' +
-      '<div class="dash-today">' + today + late + rework + '</div>' + timing + loadHtml;
+      tabsBar(a) +
+      '<div class="dash-pane' + (activeTab === 'resumen' ? ' on' : '') + '" data-pane="resumen">' + orderFinder(a.orders) + '<div class="dash-cards">' + time + units + week + pct + '</div></div>' +
+      '<div class="dash-pane' + (activeTab === 'entregas' ? ' on' : '') + '" data-pane="entregas"><div class="dash-today">' + today + late + rework + '</div></div>' +
+      '<div class="dash-pane' + (activeTab === 'tiempo' ? ' on' : '') + '" data-pane="tiempo">' + (timing || '<p class="dash-none">No hay órdenes con fecha de creación para medir.</p>') + '</div>' +
+      '<div class="dash-pane' + (activeTab === 'carga' ? ' on' : '') + '" data-pane="carga">' + (loadHtml || '<p class="dash-none">No hay pedidos pendientes por área.</p>') + '</div>';
     greet(a);
     bindOrderFinder(a.orders);
     renderTiming(a);
@@ -465,6 +499,13 @@
   .dash-empty{color:var(--muted);font-size:.9rem;padding:10px 0}
   .dash-card.red{--c:#ff6b6b}
   .dash-card h4{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .dash-tabs{display:flex;gap:8px;flex-wrap:wrap;padding:6px;border:1px solid rgba(255,255,255,.1);border-radius:14px;background:#0e130e}
+  .dash-tabs button{width:auto!important;min-height:0!important;display:inline-flex;align-items:center;gap:7px;padding:9px 16px;border:1px solid transparent;border-radius:10px;background:transparent;color:#b9c6b3;font:800 .8rem Arial;letter-spacing:.03em;cursor:pointer;transition:background .15s,color .15s}
+  .dash-tabs button:hover{background:rgba(255,255,255,.06);color:#fff}
+  .dash-tabs button.on{background:#d0f44c;color:#16200a;border-color:#d0f44c}
+  .dash-tabs button b{min-width:20px;padding:1px 7px;border-radius:99px;background:rgba(255,255,255,.12);font-size:.7rem;text-align:center}.dash-tabs button.on b{background:rgba(22,32,10,.18)}
+  .dash-pane{display:none;gap:16px}.dash-pane.on{display:grid;animation:dashRise .3s both}
+  @media(max-width:700px){.dash-tabs{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.dash-tabs button{flex:none;padding:8px 12px;font-size:.74rem}}
   /* tarjetas compactas */
   .dash-cards{grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
   .dash-card{gap:7px;padding:13px 15px 15px;border-radius:14px}
@@ -501,7 +542,7 @@
   .dash-load-card .dash-big{gap:8px;align-items:baseline;flex-wrap:wrap}.dash-load-card .dash-big strong{font-size:2.2rem;line-height:1;color:var(--t)}.dash-load-card .dash-big span{font-size:.8rem;color:#a9b5a3}.dash-load-card .dash-big small{margin-left:auto;color:#8f9b8a;font-size:.76rem}
   .dash-seg{display:flex;gap:3px;height:8px;border-radius:99px;overflow:hidden;background:rgba(255,255,255,.07)}
   .dash-seg i{flex:0 0 var(--w);min-width:6px;border-radius:99px;transform-origin:left;animation:dashGrow .8s cubic-bezier(.2,.8,.2,1) both;animation-delay:.2s}
-  .dash-seg .p,.dash-load-legend .p b{background:#8bd450;color:#10200a}.dash-seg .c,.dash-load-legend .c b{background:#ffc95c;color:#2a1d02}.dash-seg .r,.dash-load-legend .r b{background:#ff6b5c;color:#2a0e0a}
+  .dash-seg .p,.dash-load-legend .p b{background:#8bd450;color:#10200a}.dash-seg .c,.dash-load-legend .c b{background:#ffc95c;color:#2a1d02}.dash-seg .r,.dash-load-legend .r b{background:#ff6b5c;color:#2a0e0a}.dash-seg .g,.dash-load-legend .g b{background:#8fb8ff;color:#0c1a33}
   .dash-load-legend{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:4px 12px;font-size:.74rem;color:#b6c2b0}.dash-load-legend li{display:flex;align-items:center;gap:6px}.dash-load-legend b{min-width:20px;padding:1px 6px;border-radius:99px;text-align:center;font-size:.72rem}
   .dash-load-card .late,.dash-area-orders .late{color:#ff8a7c;font-weight:700}
   .dash-bottleneck{position:absolute;top:-1px;right:12px;font-style:normal;font-size:.6rem;font-weight:800;letter-spacing:.03em;text-transform:uppercase;padding:3px 8px;border-radius:0 0 8px 8px;background:#ff6b5c;color:#2a0e0a}
@@ -510,7 +551,7 @@
   .dash-area-toggle:hover{background:rgba(255,255,255,.07);color:#fff}.dash-area-toggle svg{flex:none;color:var(--t);transition:transform .3s}.dash-load-card.open .dash-area-toggle svg{transform:rotate(180deg)}
   .dash-area-orders{list-style:none;margin:8px 0 6px;padding:0 4px 0 0;display:grid;gap:6px;max-height:330px;overflow:auto;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.22) transparent}
   .dash-area-orders li{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 10px;border:1px solid rgba(255,255,255,.08);border-left:3px solid #8bd450;border-radius:10px;background:rgba(255,255,255,.03)}
-  .dash-area-orders li.cola{border-left-color:#ffc95c}.dash-area-orders li.rep{border-left-color:#ff6b5c;background:rgba(255,107,92,.07)}
+  .dash-area-orders li.cola{border-left-color:#ffc95c}.dash-area-orders li.prog{border-left-color:#8fb8ff}.dash-area-orders li.rep{border-left-color:#ff6b5c;background:rgba(255,107,92,.07)}
   .dash-ao-main{display:grid;min-width:0}.dash-ao-main strong{font-size:.84rem;color:#fff}.dash-ao-main span{font-size:.72rem;color:#9fab99;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .dash-ao-meta{display:grid;justify-items:end;flex:none}.dash-ao-meta b{font-size:.8rem;color:#fff}.dash-ao-meta small{font-size:.68rem;color:#a9b5a3}
   @media(max-width:560px){.dash-load-grid{grid-template-columns:minmax(0,1fr);gap:12px}.dash-area-orders{max-height:300px}}
