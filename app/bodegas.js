@@ -159,14 +159,14 @@
   const placeStyle = document.createElement('style');
   document.head.appendChild(placeStyle);
   const paintPlaces = () => {
-    placeStyle.textContent = '.bg-chip.bgc-indoor{background:' + hexA(CHIP_COLORS['BODEGA INDOOR'][0], .12) + '!important;color:#f4f8f0!important;border-color:' + hexA(CHIP_COLORS['BODEGA INDOOR'][0], .45) + '!important;text-shadow:none!important}' + (data?.bodegas || []).map((name, index) => {
+    placeStyle.textContent = '.bg-chip.bgc-indoor{background:' + hexA(CHIP_COLORS['BODEGA INDOOR'][0], .05) + '!important;color:#f4f8f0!important;border-color:' + hexA(CHIP_COLORS['BODEGA INDOOR'][0], .3) + '!important;text-shadow:none!important}' + (data?.bodegas || []).map((name, index) => {
       const color = placeColor(name);
       if (!color) return '';
       const [bg, fg, border] = color, roll = '.inventory-roll.bgp-' + index + ':not([class*="roll-pick"])';
       const cc = chipColor(name);   // el rollo lleva el mismo color fuerte de su bodega
-      return roll + '{background:radial-gradient(circle at 30% 24%,rgba(255,255,255,.12),rgba(255,255,255,0) 46%),' + hexA(cc[0], .12) + '!important;color:#f4f8f0!important;border-color:' + hexA(cc[0], .45) + '!important;text-shadow:0 1px 1px rgba(0,0,0,.45)!important}' +
+      return roll + '{background:radial-gradient(circle at 30% 24%,rgba(255,255,255,.06),rgba(255,255,255,0) 46%),' + hexA(cc[0], .05) + '!important;color:#f4f8f0!important;border-color:' + hexA(cc[0], .3) + '!important;text-shadow:0 1px 1px rgba(0,0,0,.45)!important}' +
         roll + '.roll-started{border-color:#ff9f1c!important;border-style:dashed!important}' +
-        '.bg-chip.bgp-' + index + '{background:' + hexA(chipColor(name)[0], .12) + '!important;color:#f4f8f0!important;border-color:' + hexA(chipColor(name)[0], .45) + '!important;text-shadow:none!important}';
+        '.bg-chip.bgp-' + index + '{background:' + hexA(chipColor(name)[0], .05) + '!important;color:#f4f8f0!important;border-color:' + hexA(chipColor(name)[0], .3) + '!important;text-shadow:none!important}';
     }).join('');
   };
   const chip = (name, text) => '<span class="bg-chip' + placeClass(name) + (name === 'BODEGA INDOOR' ? ' bgc-indoor' : '') + '">' + esc(text) + '</span>';
