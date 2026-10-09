@@ -125,6 +125,16 @@ def comerciales_permitido(username: str) -> bool:
     return _plano(_lookup(username)) in _PROCESOS_COMERCIALES
 
 
+_PROCESOS_RHUMANO = {'COORDINADOR', 'ADMINISTRACION', 'ADMINISTRATIVA', 'ADMINISTRATIVO'}
+
+
+def rhumano_permitido(username: str) -> bool:
+    """Regla fija: el módulo R.HUMANO (recurso humano) lo ven las cuentas con proceso Coordinador o Administración, más la cuenta maestra."""
+    if username == os.getenv('APP_USER', 'indoor'):
+        return True
+    return _plano(_lookup(username)) in _PROCESOS_RHUMANO
+
+
 _SIN_MODULO = {'cartera': {'AP'}}   # cuentas a las que no se les muestra un módulo aunque su rol lo tenga (excepciones por persona)
 
 
@@ -140,6 +150,8 @@ def puede(username: str, modulo: str, accion: str) -> bool:
     if modulo == 'agentes' and not agentes_permitido(username):
         return False
     if modulo == 'comerciales' and not comerciales_permitido(username):
+        return False
+    if modulo == 'rhumano' and not rhumano_permitido(username):
         return False
     return bool(matriz().get(rol_de(username), {}).get(modulo, {}).get(accion))
 
@@ -189,7 +201,7 @@ def mis_permisos(request: Request):
         if sin_modulo(usuario, modulo):
             permisos[modulo] = {accion: False for accion in permisos[modulo]}
     return {'usuario': usuario, 'rol': rol, 'rol_nombre': ROLES[rol], 'admin': rol == 'administracion',
-            'tesoreria': tesoreria_permitido(usuario), 'comerciales': comerciales_permitido(usuario), 'permisos': permisos}
+            'tesoreria': tesoreria_permitido(usuario), 'comerciales': comerciales_permitido(usuario), 'rhumano': rhumano_permitido(usuario), 'permisos': permisos}
 
 
 # (Se eliminó la pantalla y los endpoints para cambiar la matriz de permisos: rigen los valores por defecto de _defaults().)
