@@ -564,7 +564,7 @@ def _supplier(item: dict[str, Any]) -> str:
 
 _minimos_file = os.getenv('INVENTORY_MINIMOS_FILE', '/data/inventory_minimos.json')
 _minimos_lock = threading.Lock()
-TOP_TELAS_DEFAULT = {'cantidad': 10, 'minimo': 2000.0}
+TOP_TELAS_DEFAULT = {'cantidad': 10, 'minimo': 1200.0}   # mínimo de stock de una tela: 1.200 m (el máximo de referencia es 2.500)
 
 
 def _load_minimos() -> dict[str, Any]:
