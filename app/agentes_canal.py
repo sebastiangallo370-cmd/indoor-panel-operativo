@@ -621,7 +621,9 @@ def configurar_mts(fn: Callable) -> None:
     _escribir_mts = fn
 
 
-_sellar: Callable | None = None   # lo registra main.py: anota HORA INICIO / HORA FINAL / RESPONSABLE=AGENT / MÁQUINA en Producción y en el Google Sheets
+# respuestas de los agentes que no cierran la orden (los mismos estados de espera que muestra agentes.js, más error y detenido)
+ESTADOS_SIN_TERMINAR = {'APROBACION', 'JUGADORES', 'CONFIRMAR_SHEETS', 'CONFIRMAR', 'ELEGIR_PROYECTO', 'ELEGIR_PESTANA', 'ELEGIR_AI', 'ERROR', 'DETENIDO', 'REINICIANDO'}
+_sellar: Callable | None = None  # lo registra main.py: anota HORA INICIO / HORA FINAL / RESPONSABLE=AGENT / MÁQUINA en Producción y en el Google Sheets
 
 
 def configurar_sello(fn: Callable) -> None:
@@ -796,7 +798,8 @@ def respuesta(request: Request, payload: dict):
         if origen.get('oculto'):
             _guardar(datos)
             return {'ok': True}
-        if origen.get('sello'):   # los agentes terminaron este pedido: HORA FINAL
+        # los agentes terminaron este pedido: HORA FINAL. Si solo se detuvieron a preguntar (aprobar, elegir un diseño…), fallaron o los detuvieron, la orden NO terminó
+        if origen.get('sello') and str(payload.get('estado', '')).upper() not in ESTADOS_SIN_TERMINAR:
             _sellar_en_segundo_plano(str(datos['ordenes'].get(origen['sesion']) or ''), 'fin')
         botones = [str(b)[:60] for b in (payload.get('botones') or [])][:8]
         agentes = [str(a).upper()[:10] for a in (payload.get('agentes') or ['TAVO'])][:8]

@@ -2940,11 +2940,14 @@ def _agentes_sellar(orden: str, momento: str) -> dict:
     ahora = datetime.now(timezone(timedelta(hours=-5)))
     hora = ahora.strftime('%H:%M')
     if momento == 'inicio':
+        previa = _AGENTES_CORRIDAS.get(orden)
+        if previa and time.time() - previa.get('t', 0) < 12 * 3600:   # la orden sigue tras una pregunta (aprobación, elegir diseño…): es la misma corrida, no se vuelve a anotar el inicio
+            return {'orden': orden, 'momento': 'continúa', 'filas': previa['filas']}
         filas = [c['fila'] for c in _edicion_en_proceso() if c['orden'] == orden and c.get('fila')]
         reproceso = not filas
         if reproceso:   # nadie la puso «en proceso» (por ejemplo, un reproceso de una orden ya hecha): se anotan todas las tarjetas de la orden
             filas = _filas_de_orden(orden)
-        _AGENTES_CORRIDAS[orden] = {'filas': filas, 'reproceso': reproceso}
+        _AGENTES_CORRIDAS[orden] = {'filas': filas, 'reproceso': reproceso, 't': time.time()}
     else:
         corrida = _AGENTES_CORRIDAS.pop(orden, None) or {}
         filas, reproceso = corrida.get('filas', []), corrida.get('reproceso', False)
