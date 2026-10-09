@@ -165,6 +165,8 @@ def _hoja_a_ficha(ws) -> dict | None:
         if re.fullmatch(r'M\d', t.strip().upper()):
             telas.append({'material': t.strip().upper(), 'tela': datos.get((fila, 28), '')})
     ficha['telas'] = telas
+    comp = next((fila for fila in range(4, 12) if _plano(datos.get((fila, 27), '')).startswith('COMP')), None)
+    ficha['composicion'] = datos.get((comp, 28), '') if comp else ''
     # --- fit y piezas
     fit = []
     for fila in range(8, 12):

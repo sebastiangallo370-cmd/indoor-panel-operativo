@@ -338,7 +338,7 @@
       '<path d="M742 0 V483 M742 242 H1104 M0 21 H742" stroke="#000" stroke-width="1" fill="none"/><rect x=".5" y=".5" width="' + (W - 1) + '" height="' + (alto - 1) + '" fill="none" stroke="#000"/></svg></div>';
   }
   function iconoFila(p, i, color) { return '<span style="--d:' + (0.4 + i * 0.12).toFixed(2) + 's">' + icono(p.n) + esc(p.n) + (p.c > 1 ? '<em>×' + p.c + '</em>' : '') + '</span>'; }
-  function mapaTelas(f) {
+  function materiales(f) {
     const texto = (f.descripcion || []).map(d => (d && d.texto) || d).filter(d => /\bM\d\s*[:\-]/i.test(d)).join(' || ');
     const mats = [];
     const limpia = x => x.replace(/\s+/g, ' ').trim();
@@ -356,14 +356,17 @@
       const cuenta = {};
       (f.piezas || []).forEach(x => { cuenta[x] = (cuenta[x] || 0) + 1; });
       const ps = Object.entries(cuenta).map(([n, c]) => ({ n, c }));
-      if (!ps.length) return '';
-      mats.push({ id: 'M1', piezas: ps });
+      if (ps.length) mats.push({ id: 'M1', piezas: ps });
     }
     mats.forEach((x, i) => {
       x.color = COLORES_MAT[i % COLORES_MAT.length];
       x.tela = (f.telas || []).filter(t => t.material === x.id && t.tela).map(t => t.tela).join(' / ');
       x.total = x.piezas.reduce((a, b) => a + b.c, 0);
     });
+    return mats;
+  }
+  function mapaTelas(mats) {
+    if (!mats.length) return '';
     const uno = mats.length === 1;
     const ban = uno
       ? '<span class="ft-ban" style="--c:' + mats[0].color + '">● UN SOLO MATERIAL · TODO EN ' + mats[0].id + '</span>'
@@ -372,50 +375,69 @@
       fitPiezas(mats) + '<div class="ft-mats">' + mats.map(x => '<div class="ft-mat" data-m="' + x.id + '" style="--c:' + x.color + '"><h4><b>' + x.id + '</b>MATERIAL ' + x.id.slice(1) + '</h4><p class="ft-tela">' + esc(x.tela || 'Tela por definir en la ficha') + '</p><div class="ft-piezas">' +
         x.piezas.map((p, i) => iconoFila(p, i)).join('') + '</div></div>').join('') + '</div></div>';
   }
+  // Una pestaña por cada sección de la ficha original (el Excel de FICHAS TECNICAS), sin mezclar información entre ellas
   function pestanas(f) {
     const cons = S.consumos.find(c => c.ref === f.ref);
-    const t = [];
-    // RESUMEN
-    const res = [];
-    if (f.prenda) res.push(kv('Prenda', f.prenda));
-    res.push(kv('Referencia', (f.referencia || f.ref) + (f.hoja && f.hoja !== f.ref ? ' · ' + f.hoja : '')));
-    (f.telas || []).forEach(x => res.push(kv('Tela ' + x.material, x.tela)));
-    (f.promedios || []).forEach(p => res.push(kv(p.nombre.replace('PROMEDIO', 'Consumo'), Object.entries(p.valores).map(([k, v]) => (NOMBRE[k] || k) + ' ' + v).join(' · ') + ' MTS')));
-    if (f.nota_promedio) res.push(esc(f.nota_promedio));
-    (f.descripcion || []).forEach(d => res.push(esc(d)));
-    if (f.nota) res.push(esc(f.nota));
-    t.push({ id: 'RESUMEN', n: res.length, html: mapaTelas(f) + lista(res) });
-    // MEDIDAS
+    const t = [], sec = x => '<p class="fi-sec">' + x + '</p>', nota = x => '<p class="fi-obs" style="margin:10px 0 0">' + esc(x) + '</p>';
+    const desc = (f.descripcion || []).map(d => String((d && d.texto) || d)), dePiezas = d => /\bM\d\s*[:\-]/i.test(d);
+    const insumo = i => '<strong>' + esc(i.nombre) + '</strong> · ' + esc([i.tipo, i.color, i.medida].filter(Boolean).join(' · ')) + (i.cant ? ' · ×' + esc(i.cant) : '') + (i.observacion ? '<span class="fi-obs">' + esc(i.observacion) + '</span>' : '');
+    // tallas: el mismo selector sirve a las pestañas con tablas por talla
     const todasTallas = tallasDe(f), esNum = x => /^\d+$/.test(String(x));
     const hayAdulto = todasTallas.some(x => !esNum(x)), hayNino = todasTallas.some(esNum);
     if (!S.grupo || (S.grupo === 'adulto' && !hayAdulto) || (S.grupo === 'nino' && !hayNino)) S.grupo = hayAdulto ? 'adulto' : 'nino';
     const enGrupo = tallas => S.grupo === 'todas' || ((tallas || []).length > 0 && (S.grupo === 'nino') === tallas.every(esNum));   // los números (2, 4, 6…) son tallas de niño: salen en su propio grupo
     const ts = todasTallas.filter(x => S.grupo === 'todas' || (S.grupo === 'nino') === esNum(x));
     if (S.talla && !ts.includes(S.talla)) S.talla = '';
-    let med = '';
-    if (hayAdulto && hayNino) med += '<div class="fi-tallas"><small>TALLAS</small>' + [['adulto', 'ADULTO · XS A 4XL'], ['nino', 'NIÑO / NIÑA · 2 A 16'], ['todas', 'TODAS']].map(([k, n]) => '<button type="button" aria-pressed="' + (S.grupo === k) + '" data-fi-grupo="' + k + '">' + n + '</button>').join('') + '</div>';
-    if (ts.length) med += '<div class="fi-tallas"><small>TALLA</small><button type="button" aria-pressed="' + !S.talla + '" data-fi-talla="">Todas</button>' + ts.map(x => '<button type="button" aria-pressed="' + (S.talla === x) + '" data-fi-talla="' + esc(x) + '">' + esc(x) + '</button>').join('') + '</div>';
-    const bloques = [], bloquesCons = [];
-    (f.tallajes || []).filter(g => enGrupo(g.tallas)).forEach(g => {
+    const selector = (hayAdulto && hayNino ? '<div class="fi-tallas"><small>TALLAS</small>' + [['adulto', 'ADULTO · XS A 4XL'], ['nino', 'NIÑO / NIÑA · 2 A 16'], ['todas', 'TODAS']].map(([k, n]) => '<button type="button" aria-pressed="' + (S.grupo === k) + '" data-fi-grupo="' + k + '">' + n + '</button>').join('') + '</div>' : '') +
+      (ts.length ? '<div class="fi-tallas"><small>TALLA</small><button type="button" aria-pressed="' + !S.talla + '" data-fi-talla="">Todas</button>' + ts.map(x => '<button type="button" aria-pressed="' + (S.talla === x) + '" data-fi-talla="' + esc(x) + '">' + esc(x) + '</button>').join('') + '</div>' : '');
+    const rejilla = bloques => bloques.length ? '<div class="fi-grid">' + bloques.join('') + '</div>' : '<p class="fi-vacio">No hay tablas para este grupo de tallas.</p>';
+    // GENERAL: prenda, referencia y descripción de la prenda
+    const gen = [];
+    if (f.prenda) gen.push(kv('Prenda', f.prenda));
+    gen.push(kv('Referencia', (f.referencia || f.ref) + (f.hoja && f.hoja !== f.ref ? ' · ' + f.hoja : '')));
+    if (f.familia) gen.push(kv('Línea', f.familia));
+    const dGen = desc.filter(d => !dePiezas(d)).map(esc);
+    t.push({ id: 'GENERAL', n: gen.length + dGen.length, u: ['dato', 'datos'], html: lista(gen) + (dGen.length ? sec('Descripción de la prenda') + lista(dGen) : '') + (f.nota ? sec('Nota') + nota(f.nota) : '') });
+    // PIEZAS: fit de prenda por piezas y qué pieza va en qué material
+    const mats = materiales(f), dPz = desc.filter(dePiezas).map(esc);
+    t.push({ id: 'PIEZAS', n: mats.reduce((a, m) => a + m.total, 0), u: ['pieza', 'piezas'], html: mapaTelas(mats) + (dPz.length ? sec('Como está en la ficha') + lista(dPz) : '') });
+    // TELA Y CONSUMO: telas recomendadas, promedio de la ficha y consumo por talla del maestro
+    const telas = (f.composicion ? [kv('Composición', f.composicion)] : []).concat((f.telas || []).map(x => kv('Tela ' + x.material, x.tela)));
+    const prom = (f.promedios || []).map(p => kv(p.nombre, Object.entries(p.valores).map(([k, v]) => (NOMBRE[k] || k) + ' ' + v).join(' · ') + ' MTS'));
+    const tCons = ((cons && cons.grupos) || []).filter(g => enGrupo(g.tallas)).map(g => '<div class="fi-bloque"><p class="fi-titulo">' + esc(g.grupo) + ' (MTS por prenda)</p>' + tablaMedidas(g.tallas, [['MTS', g.valores.map(v => v || '—')]], S.talla) + '</div>');
+    const hayCons = !!(cons && cons.grupos.length);
+    t.push({ id: 'TELA Y CONSUMO', n: telas.length + prom.length + (hayCons ? cons.grupos.length : 0), u: ['dato', 'datos'], html:
+      (telas.length ? sec('Telas recomendadas') + lista(telas) : '') +
+      (prom.length || f.nota_promedio ? sec('Promedio de la ficha') + lista(prom) + (f.nota_promedio ? nota(f.nota_promedio) : '') : '') +
+      (hayCons ? sec('Consumo por talla · maestro') + selector + rejilla(tCons) + nota('Promedio del maestro: ' + cons.promedio + ' MTS' + ((cons.plantillas || []).length ? ' · Plantillas: ' + cons.plantillas.join(', ') : '')) : '') });
+    // MEDIDAS: prenda terminada por talla
+    const tMed = [], notasMed = [];
+    let nMed = 0;
+    (f.tallajes || []).forEach(g => {
       const filas = [['Ancho (X)', g.ancho], ['Alto (Y)', g.alto], ['Largo', g.largo]].filter(([, v]) => v && v.some(x => x !== ''));
-      if (filas.length) bloques.push('<div class="fi-bloque"><p class="fi-titulo">' + esc(g.titulo.replace(/^MEDIDAS TALLAJE\s*/i, 'Medidas · ')) + ' (cm)</p>' + tablaMedidas(g.tallas, filas, S.talla) + '</div>');
+      if (!filas.length) return;
+      nMed++;
+      if (g.nota && !notasMed.includes(g.nota)) notasMed.push(g.nota);
+      if (enGrupo(g.tallas)) tMed.push('<div class="fi-bloque"><p class="fi-titulo">' + esc(g.titulo.replace(/^MEDIDAS TALLAJE\s*/i, '')) + ' (cm)</p>' + tablaMedidas(g.tallas, filas, S.talla) + '</div>');
     });
-    if (cons && cons.grupos.length) cons.grupos.filter(g => enGrupo(g.tallas)).forEach(g => bloquesCons.push('<div class="fi-bloque"><p class="fi-titulo">Consumo de tela · ' + esc(g.grupo) + ' (MTS por prenda)</p>' + tablaMedidas(g.tallas, [['MTS', g.valores.map(v => v || '—')]], S.talla) + '</div>'));
-    (f.medidas_insumos || []).filter(m => enGrupo(m.tallas)).forEach(m => bloques.push('<div class="fi-bloque"><p class="fi-titulo">' + esc(m.titulo) + '</p>' + tablaMedidas(m.tallas, [['Medida', m.medidas || []]], S.talla) + '</div>'));
-    if (bloques.length || bloquesCons.length) med += '<div class="fi-dos"><div class="fi-col"><p class="fi-sec">Consumo de tela</p>' + (bloquesCons.join('') || '<p class="fi-vacio">Sin consumo registrado.</p>') +
-      (cons && cons.grupos.length ? '<p class="fi-obs">Promedio del maestro: ' + esc(cons.promedio) + ' MTS' + ((cons.plantillas || []).length ? ' · Plantillas: ' + esc(cons.plantillas.join(', ')) : '') + '</p>' : '') +
-      '</div><div class="fi-col"><p class="fi-sec">Medidas</p>' + (bloques.join('') || '<p class="fi-vacio">Sin medidas registradas.</p>') + '</div></div>';
-    t.push({ id: 'MEDIDAS', n: (f.tallajes || []).length + ((cons && cons.grupos.length) || 0) + (f.medidas_insumos || []).length, html: (med || '<p class="fi-vacio">Esta referencia no tiene medidas registradas.</p>') + mapaTelas(f) });
-    // INSUMOS
-    const ins = (f.insumos || []).map(i => '<strong>' + esc(i.nombre) + '</strong> · ' + esc([i.tipo, i.color, i.medida].filter(Boolean).join(' · ')) + (i.cant ? ' · ×' + esc(i.cant) : '') + (i.observacion ? '<span class="fi-obs">' + esc(i.observacion) + '</span>' : ''));
-    t.push({ id: 'INSUMOS', n: ins.length, html: lista(ins) || '<p class="fi-vacio">Sin insumos registrados.</p>' });
+    t.push({ id: 'MEDIDAS', n: nMed, u: ['tabla', 'tablas'], html: sec('Medidas de la prenda terminada') + selector + rejilla(tMed) + notasMed.map(nota).join('') });
+    // INSUMOS: lo que lleva la prenda y las medidas de cada insumo
+    const ins = (f.insumos || []).map(insumo);
+    let insAnt = '';   // un título sin llenar en el Excel («MEDIDA XXXX FEMENINO») es del mismo insumo que la tabla anterior
+    const mIns = (f.medidas_insumos || []).filter(m => (m.medidas || []).some(x => x !== '')).map(m => {
+      const tit = m.titulo.replace(/^MEDIDA\s*/i, '').replace(/X{3,}/, insAnt || 'INSUMO');
+      insAnt = tit.split(' ')[0];
+      return { ...m, tit };
+    });
+    const tIns = mIns.filter(m => enGrupo(m.tallas)).map(m => '<div class="fi-bloque"><p class="fi-titulo">' + esc(m.tit) + '</p>' + tablaMedidas(m.tallas, [['Medida', m.medidas || []]], S.talla) + '</div>');
+    t.push({ id: 'INSUMOS', n: ins.length, u: ['insumo', 'insumos'], html: (ins.length ? sec('Insumos de la prenda') + lista(ins) : '') + (mIns.length ? sec('Medidas para insumos (cm)') + selector + rejilla(tIns) : '') });
     // CONFECCIÓN
     const conf = (f.confeccion || []).map(c => kv(c.etiqueta, c.valor));
-    t.push({ id: 'CONFECCIÓN', n: conf.length, html: listaChk(conf, f, 'conf') || '<p class="fi-vacio">Sin datos de confección.</p>' });
-    // EMPAQUE
-    const emp = (f.terminacion || []).map(x => esc(x)).concat((f.empaque_insumos || []).map(i => '<strong>' + esc(i.nombre) + '</strong> · ' + esc([i.tipo, i.color, i.medida].filter(Boolean).join(' · ')) + (i.cant ? ' · ×' + esc(i.cant) : '')));
-    t.push({ id: 'EMPAQUE', n: emp.length, html: listaChk(emp, f, 'emp') || '<p class="fi-vacio">Sin datos de empaque.</p>' });
-    return t.filter(x => x.n > 0 || x.id === 'RESUMEN');
+    t.push({ id: 'CONFECCIÓN', n: conf.length, u: ['paso', 'pasos'], html: listaChk(conf, f, 'conf') });
+    // EMPAQUE: revisión y terminación, y aparte sus insumos
+    const term = (f.terminacion || []).map(x => esc(x)), empIns = (f.empaque_insumos || []).map(insumo);
+    t.push({ id: 'EMPAQUE', n: term.length + empIns.length, u: ['punto', 'puntos'], html: (term.length ? sec('Terminación y revisión') + listaChk(term, f, 'emp') : '') + (empIns.length ? sec('Insumos de empaque') + lista(empIns) : '') });
+    return t.filter(x => x.n > 0 || x.id === 'GENERAL');
   }
 
   // ---------------------------------------------------------------- buscador de mockups en el NAS (carpeta CLIENTES)
@@ -520,12 +542,12 @@
         (S.aviso ? '<p class="li-empty">' + S.aviso + '</p>' : '') + '<div class="fi-buscar"><input type="search" data-fi-q placeholder="Escribe la referencia (FUT01, CA02, CH01…) o la prenda" autofocus value="' + esc(S.q || '') + '"></div><div class="fi-res"></div></div>' + foot;
     } else {
       const f = S.fichas[S.i], tabs = pestanas(f);
-      if (!tabs.some(x => x.id === S.tab)) S.tab = 'RESUMEN';
+      if (!tabs.some(x => x.id === S.tab)) S.tab = 'GENERAL';
       const act = tabs.find(x => x.id === S.tab);
       mock = mockPane(f);
       const hojas = S.fichas.length > 1 ? '<div class="fi-hojas">' + S.fichas.map((x, k) => '<button type="button" aria-pressed="' + (k === S.i) + '" data-fi-hoja="' + k + '">' + esc(x.hoja) + '</button>').join('') + '</div>' : '';
       main = top + hojas + '<div class="li-tabs" role="tablist">' + tabs.map(x => '<button type="button" role="tab" data-fi-tab="' + esc(x.id) + '" aria-pressed="' + (x.id === S.tab) + '">' + esc(x.id) + '</button>').join('') + '</div>' +
-        '<div class="li-pane"><div class="li-title"><i class="li-bar"></i><h2 id="li-title">' + esc(f.ref) + '</h2></div><p class="li-sub"><span class="li-count">' + act.n + (act.id === 'MEDIDAS' ? ' tablas' : act.id === 'CALCULADORA' ? ' grupos' : act.id === 'LÍNEAS' ? ' características' : ' característica' + (act.n === 1 ? '' : 's')) + '</span><span>' + esc(f.prenda || f.familia) + ' · ' + esc(f.familia) + '</span></p>' + act.html + '</div>' + foot;
+        '<div class="li-pane"><div class="li-title"><i class="li-bar"></i><h2 id="li-title">' + esc(f.ref) + '</h2></div><p class="li-sub"><span class="li-count">' + act.n + ' ' + act.u[act.n === 1 ? 0 : 1] + '</span><span>' + esc(f.prenda || f.familia) + ' · ' + esc(f.familia) + '</span></p>' + act.html + '</div>' + foot;
     }
     card.classList.toggle('has-mock', !!mock);
     card.innerHTML = '<button type="button" class="li-close" aria-label="Cerrar">×</button><div class="li-split">' + mock + '<div class="li-main">' + main + '</div></div>';
@@ -597,7 +619,7 @@
   async function abrir(ref, fila, hojaId, linea) {
     await Promise.all([lema(), permisos()]);
     abrirOverlay();
-    S = { modo: ref ? 'cargando' : 'buscar', fichas: [], i: 0, tab: 'RESUMEN', talla: '', consumos: [], fila: fila || '', q: '', calc: {}, linea: linea || '' };
+    S = { modo: ref ? 'cargando' : 'buscar', fichas: [], i: 0, tab: 'GENERAL', talla: '', consumos: [], fila: fila || '', q: '', calc: {}, linea: linea || '' };
     const card = overlay.querySelector('.li-card');
     card.style.setProperty('--ac', '#c3ee3f');
     if (!ref) { dibujar(); return; }

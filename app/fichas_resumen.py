@@ -55,16 +55,21 @@ def _resumir(f: dict) -> dict:
         if vals:
             promedios.append({'nombre': p['nombre'], 'valores': vals})
     clave = ('MAQUINA', 'AGUJA', 'HILO', 'RUEDO', 'PESPUNTE', 'DESCRIPCION CONFECCION')
-    confeccion = [{'etiqueta': c['etiqueta'], 'valor': c['valor'] + (' — ' + c['extra'] if c.get('extra') else '')} for c in f.get('confeccion', [])
-                  if c.get('etiqueta') and fichas_mod._plano(c['etiqueta']).startswith(clave)]
+    confeccion, etiqueta = [], ''
+    for c in f.get('confeccion', []):   # las filas sin rótulo (celdas combinadas en el Excel) siguen siendo del rótulo de arriba
+        etiqueta = c.get('etiqueta') or etiqueta
+        valor = (c.get('valor') or '').strip()
+        if not fichas_mod._plano(etiqueta).startswith(clave) or (not c.get('extra') and re.fullmatch(r'\d+/\d+', valor)):
+            continue
+        confeccion.append({'etiqueta': etiqueta, 'valor': valor + (' — ' + c['extra'] if c.get('extra') else '')})
     return {
         'id': f['id'], 'ref': f['ref'], 'hoja': f['hoja'], 'familia': f['familia'], 'prenda': f.get('prenda', ''), 'referencia': f.get('referencia', ''),
-        'nota': f.get('nota_prenda', ''), 'nota_promedio': f.get('nota_promedio', ''), 'telas': telas, 'promedios': promedios,
+        'nota': f.get('nota_prenda', ''), 'nota_promedio': f.get('nota_promedio', ''), 'composicion': f.get('composicion', ''), 'telas': telas, 'promedios': promedios,
         'descripcion': [d['texto'] for d in f.get('descripcion', [])][:24],
         'piezas': [str(p) for p in (f.get('piezas') or [])][:40],
         'tallajes': [t for t in f.get('tallajes', []) if t.get('tallas')],
-        'insumos': f.get('insumos', []), 'medidas_insumos': f.get('medidas_insumos', [])[:4],
-        'confeccion': confeccion[:8], 'terminacion': f.get('terminacion', [])[:6], 'empaque_insumos': f.get('empaque_insumos', []),
+        'insumos': f.get('insumos', []), 'medidas_insumos': f.get('medidas_insumos', [])[:12],
+        'confeccion': confeccion[:20], 'terminacion': f.get('terminacion', [])[:6], 'empaque_insumos': f.get('empaque_insumos', []),
         'imagenes': [i['archivo'] for i in principales[:8]], 'total_imagenes': len(imagenes), 'mockup': fichas_mod.con_mockup().get(f['ref']),
     }
 
