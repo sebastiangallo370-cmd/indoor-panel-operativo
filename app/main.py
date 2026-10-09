@@ -3909,6 +3909,24 @@ def production_operators(refresh: bool = False, _=Depends(authenticate)):
                 person = bucket['by_responsible'].setdefault(responsible_name, {'active_units': 0, 'rework_units': 0})
                 person[state_key] += quantity
 
+        # Los agentes de edición firman RESPONSABLE = «AGENT» en Producción, pero la hoja CONTROL OPERARIOS no tiene esa columna: se agrega
+        # aquí al área de EDICIÓN con las unidades de las filas que AGENT terminó cada día (la misma cuenta que hace la hoja con los demás).
+        sheet_columns = list(sheet_data['columns']) if sheet_data else []
+        sheet_daily = dict(sheet_data['daily']) if sheet_data else {}
+        edition_positions = [i for i, col in enumerate(sheet_columns) if normalize_cell(col['area']) == 'EDICION']
+        edition_cell = next((i for i in process_columns if normalize_group(groups[i] if i < len(groups) else '') == 'EDICION'), -1)
+        edition_resp = (resp_cols_by_group.get('EDICION') or [-1])[0]
+        if edition_positions and edition_cell >= 0 and edition_resp >= 0 and not any(normalize_cell(col['code']) == 'AGENT' for col in sheet_columns):
+            agent_days: dict = {}
+            for values in rows_values.values():
+                if max(edition_cell, edition_resp) >= len(values) or normalize_cell(values[edition_resp]) != 'AGENT':
+                    continue
+                finished = parse_production_date(str(values[edition_cell] or '').strip())
+                if finished:
+                    agent_days[finished.isoformat()] = agent_days.get(finished.isoformat(), 0) + row_quantity(values)
+            sheet_columns.insert(edition_positions[-1] + 1, {'index': -1, 'area': sheet_columns[edition_positions[0]]['area'], 'code': 'AGENT'})
+            sheet_daily['AGENT'] = agent_days
+
         return {
             'today': today.isoformat(),
             'operators': sorted(operators.values(), key=lambda item: item['responsible'].casefold()),
@@ -3921,8 +3939,8 @@ def production_operators(refresh: bool = False, _=Depends(authenticate)):
                 'available': sheet_data is not None,
                 'error': sheet_error,
                 'areas': sheet_data['areas'] if sheet_data else [],
-                'columns': sheet_data['columns'] if sheet_data else [],
-                'daily_by_code': sheet_data['daily'] if sheet_data else {},
+                'columns': sheet_columns,
+                'daily_by_code': sheet_daily,
             },
         }
     finally:
@@ -5854,7 +5872,7 @@ let html='';for(let n=0;n<days;n++){{const date=new Date(start);date.setDate(sta
       ['Sebastian Gallo','SG'],['Stiven Sánchez','SS'],
       ['Dairo Diaz','DD'],['Yenifer Sánchez Arcila','YS'],
       ['Gloria','G'],['David Hincapie','DH'],
-      ['Geovanny Piedrahita','GP'],['AUTOMATIZACION','BOT'],
+      ['Geovanny Piedrahita','GP'],['AUTOMATIZACION','BOT'],['AGENT','AG'],
       ['Daniel Gonzales','DG']
     ].flatMap(([name,initials])=>[[processKey(name),initials],[processKey(initials),initials]]));
     function operatorInitials(name){{
