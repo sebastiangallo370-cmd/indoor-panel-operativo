@@ -6,6 +6,7 @@
   const style = document.createElement('style');
   style.textContent = `
 .mbar,.msheet,.msheet-backdrop{display:none}
+.mf-toggle{display:none}
 .user-menu summary{display:flex;align-items:center;gap:10px;padding:6px 14px 6px 6px!important;border-radius:999px!important;border:1px solid rgba(208,244,76,.22)!important;background:linear-gradient(145deg,#1b2417,#10150e)!important;cursor:pointer;transition:border-color .18s,box-shadow .18s,transform .12s}
 .user-menu summary:hover,.user-menu[open] summary{border-color:rgba(208,244,76,.6)!important;box-shadow:0 0 0 3px rgba(208,244,76,.12)}
 .user-menu summary:active{transform:scale(.98)}
@@ -31,6 +32,19 @@
   html body dialog{max-width:100vw!important;box-sizing:border-box}
   html body main :is(h1,h2){font-size:clamp(1.2rem,6vw,1.6rem)!important;overflow-wrap:anywhere}
   html body main :is(p,span,li,td,th,label,strong,small,b,a,button){overflow-wrap:anywhere}
+  /* Tarjeta de producción: Referencia en su propia fila y Máquina / Cantidad lado a lado (antes quedaban en 3 columnas de 47 px y se partían) */
+  html body.production-mode .trace-card .trace-primary-facts.trace-primary-facts{grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;gap:8px!important;align-items:start!important}
+  html body .trace-primary-facts>div:first-child{grid-column:1/-1}
+  html body .trace-primary-facts .trace-machine-fact{min-width:0!important;max-width:100%}
+  html body .trace-primary-facts .trace-machine-fact :is(button,select,input){max-width:100%!important;width:100%!important;box-sizing:border-box}
+  html body .trace-primary-facts dd,html body .trace-primary-facts dt{overflow-wrap:anywhere;word-break:normal}
+  /* Filtros plegables: un botón «Filtros» y, al abrirlo, los campos de dos en dos */
+  html body .rework-filters,html body .bd-filters,html body .bg-filters{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important}
+  html body .mf-form:not(.mf-open){display:none!important}
+  html body .mf-toggle{display:flex;align-items:center;justify-content:space-between;width:100%;min-height:44px;margin:0 0 8px;padding:0 16px;border:1px solid rgba(208,244,76,.35);border-radius:14px;background:#151d15;color:#e7ff9a;font:800 13px Arial,sans-serif;letter-spacing:.04em;text-transform:uppercase;cursor:pointer}
+  html body .mf-toggle span{color:#d0f44c;font-size:12px;transition:transform .2s}
+  html body .mf-toggle.on span{transform:rotate(180deg)}
+  html body .mf-toggle b{margin-left:8px;padding:1px 8px;border-radius:99px;background:#d0f44c;color:#10150e;font-size:11px}
   html body.top-navigation .sidebar{height:auto!important;min-height:0!important;max-height:none!important}
   html body main{padding-bottom:calc(110px + env(safe-area-inset-bottom))!important}
   /* Barra inferior: píldora con íconos y etiquetas, y un botón central «+» que abre las demás secciones en abanico */
@@ -248,6 +262,27 @@
     });
   };
 
+  // Filtros plegables en celular (Reprocesos y Stock tela): el botón «Filtros» muestra cuántos campos tienen algo escrito
+  const FORMS = '.rework-filters,.bd-filters,.bg-filters';
+  const filtrosActivos = form => [...form.querySelectorAll('input,select')].filter(c => c.type !== 'button' && String(c.value || '').trim() !== '').length;
+  const toggles = () => {
+    document.querySelectorAll(FORMS).forEach(form => {
+      if (!form.classList.contains('mf-form')) {
+        form.classList.add('mf-form');
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'mf-toggle';
+        b.addEventListener('click', () => { const abierto = form.classList.toggle('mf-open'); b.classList.toggle('on', abierto); });
+        form.before(b);
+        form.addEventListener('input', () => toggles());
+      }
+      const b = form.previousElementSibling;
+      if (b && b.classList.contains('mf-toggle')) {
+        const n = filtrosActivos(form);
+        const html = 'Filtros' + (n ? '<b>' + n + '</b>' : '') + '<span>▼</span>';
+        if (b.dataset.h !== html) { b.dataset.h = html; b.innerHTML = html; }
+      }
+    });
+  };
   let lastTop = '';
   const fitHeader = () => {
     const sidebar = document.querySelector('body.top-navigation .sidebar');
@@ -272,6 +307,7 @@
     queued = false;
     if (!bar.isConnected && document.body) document.body.append(backdrop, sheet, bar);
     fixAvatar();
+    toggles();
     build();
     markActive();
     fitHeader();
