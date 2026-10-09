@@ -500,7 +500,7 @@ INVENTORY_CONTROL_SCRIPT = """<script>
       '.inventory-doc-dialog.im-ancho .im-remove-line{width:auto!important;height:32px!important;padding:0 14px!important;border-radius:999px!important;font:800 11px Arial!important;letter-spacing:.05em;text-transform:uppercase;white-space:nowrap}' +
       '.inventory-doc-dialog.im-ancho .im-doc-rolls{grid-template-columns:repeat(auto-fill,minmax(172px,1fr))!important}' +
       '.inventory-doc-dialog.im-ancho .im-doc-roll{grid-template-columns:minmax(0,1fr) 30px!important;grid-template-rows:auto auto!important;row-gap:6px!important;padding:8px 8px 8px 10px!important;min-height:0!important}' +
-      '.inventory-doc-dialog.im-ancho .im-doc-roll input{grid-column:1!important;grid-row:1!important;text-align:left!important;font-size:20px!important}' +
+      '.inventory-doc-dialog.im-ancho .im-doc-roll input{grid-column:1!important;grid-row:1!important;text-align:center!important;font-size:20px!important}' +
       '.inventory-doc-dialog.im-ancho .im-doc-roll button:not(.im-roll-bodega){grid-column:2!important;grid-row:1!important}' +
       '.inventory-doc-dialog.im-ancho .im-doc-roll button.im-roll-bodega{grid-column:1/-1!important;grid-row:2!important;width:100%!important;height:28px!important;min-height:28px!important;font-size:11px!important;line-height:26px!important;padding:0 8px!important;text-align:center;overflow:visible!important;text-overflow:clip!important;white-space:nowrap}';
     document.head.appendChild(docStyle4);
