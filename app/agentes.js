@@ -388,6 +388,7 @@
   .panel[data-panel='agentes'] .ag-live-list div.nuevo{border-left-color:#d0f44c;background:linear-gradient(90deg,rgba(208,244,76,.26),rgba(255,255,255,.04));animation:agNuevo .5s cubic-bezier(.2,.8,.2,1)}
   @keyframes agNuevo{from{opacity:0;transform:translateX(-14px)}}
   .panel[data-panel='agentes'] .ag-live-list div.sel{box-shadow:0 0 0 1px #d0f44c,0 8px 16px -10px rgba(208,244,76,.7)}
+  .panel[data-panel='agentes'] .ag-live-vista:focus{outline:none}.panel[data-panel='agentes'] .ag-keys{margin-left:12px;padding:3px 10px;border:1px solid rgba(255,255,255,.16);border-radius:999px;background:rgba(255,255,255,.05);color:#aebba7;font:700 11px Arial;letter-spacing:.03em;white-space:nowrap}
   @media(prefers-reduced-motion:reduce){.panel[data-panel='agentes'] *{animation:none!important}}
   `;
   document.head.appendChild(css2);
@@ -491,6 +492,15 @@
     try { localStorage.setItem('indoor-agentes-vista', v); } catch (er) { /* sin almacenamiento */ }
     ajustarAlto();
     setTimeout(() => { if (v === 'agentes') { acomodar(); pintarLog(); } if (v === 'chats') { const h = panel.querySelector('[data-hilo]'); if (h) h.scrollTop = h.scrollHeight; } }, 30);
+    if (v === 'pdfs') setTimeout(enfocarVista, 60);
+  }
+  // Las flechas del teclado pasan de un PDF a otro: el visor toma el foco al entrar a PDFS y cada vez que vuelves a esta ventana (p. ej. desde Illustrator)
+  function enfocarVista() {
+    if (!panel || !panel.classList.contains('active')) return;
+    const m = panel.querySelector('[data-main]'); if (!m || m.dataset.vista !== 'pdfs') return;
+    const act = document.activeElement;
+    if (act && /^(TEXTAREA|INPUT|SELECT)$/.test(act.tagName || '')) return;
+    const v = panel.querySelector('.ag-live-vista'); if (v) { v.tabIndex = -1; v.focus({ preventScroll: true }); }
   }
   // El módulo ocupa exactamente lo que queda de pantalla (sin scroll de página), con cualquier zoom o barra del navegador
   function ajustarAlto() {
@@ -632,7 +642,7 @@
   // PANTALLA EN VIVO: imagen del PDF de cada jugador (cambia con su nombre y número) + montajes y PDF que van quedando
   function armarLive(box) {
     box.dataset.listo = '1';
-    box.innerHTML = '<div class="ag-live-top"><b><i data-pto></i>PANTALLA EN VIVO</b><small data-estado></small><button type="button" class="seguir ag-ai-btn" data-ai hidden title="Abre este PDF en el Illustrator de ESTE computador">🎨 Abrir en Illustrator</button><span class="ag-live-cnt" data-cnt></span><button type="button" class="seguir" data-seguir hidden>Seguir en vivo</button></div>' +
+    box.innerHTML = '<div class="ag-live-top"><b><i data-pto></i>PANTALLA EN VIVO</b><small data-estado></small><small class="ag-keys" title="Usa las flechas del teclado">← → pasan los PDF</small><button type="button" class="seguir ag-ai-btn" data-ai hidden title="Abre este PDF en el Illustrator de ESTE computador">🎨 Abrir en Illustrator</button><span class="ag-live-cnt" data-cnt></span><button type="button" class="seguir" data-seguir hidden>Seguir en vivo</button></div>' +
       '<div class="ag-live-body"><div class="ag-live-vista" data-vista><button type="button" class="mu-flecha izq" data-pdf-go="-1" title="PDF anterior (←)"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button type="button" class="mu-flecha der" data-pdf-go="1" title="PDF siguiente (→)"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button><img alt="PDF de producción"><div class="ag-live-vacio"><div><b>ESPERANDO LOS PDF</b><br>Aquí verás cada PDF de producción, con el nombre y el número de cada jugador, a medida que se genera.</div></div>' +
       '<div class="ag-live-cap" data-cap><span class="num"></span><div><span class="nom"></span><small class="det"></small></div></div><div class="ag-live-prog"><i></i></div></div>' +
       '<aside class="ag-live-side"><div class="ag-live-sec"><h4>MONTAJES <span data-nm>0</span></h4><div class="ag-live-list" data-lm></div></div>' +
@@ -1161,10 +1171,13 @@
     });
     try { ponerVista(localStorage.getItem('indoor-agentes-vista') || 'chats'); } catch (er) { /* sin almacenamiento */ }
     window.addEventListener('resize', ajustarAlto);
-    document.addEventListener('keydown', e => {   // ← → pasan de una muestra a otra (si no estás escribiendo)
-      if (!panel.classList.contains('active') || !/^Arrow(Left|Right)$/.test(e.key) || /^(TEXTAREA|INPUT|SELECT)$/.test((e.target.tagName || ''))) return;
+    window.addEventListener('focus', () => setTimeout(enfocarVista, 50));
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) setTimeout(enfocarVista, 50); });
+    document.addEventListener('keydown', e => {   // ← → pasan de una muestra (CHATS) o de un PDF (PDFS) a otro, si no estás escribiendo; en PDFS también ↑ ↓
+      if (!panel.classList.contains('active') || !/^Arrow(Left|Right|Up|Down)$/.test(e.key) || e.altKey || e.ctrlKey || e.metaKey || /^(TEXTAREA|INPUT|SELECT)$/.test((e.target.tagName || '')) || (e.target.isContentEditable)) return;
       const vista = panel.querySelector('[data-main]').dataset.vista;
-      if (vista === 'pdfs') { irPdf(e.key === 'ArrowRight' ? 1 : -1); return; }
+      if (vista === 'pdfs') { e.preventDefault(); irPdf(/^Arrow(Right|Down)$/.test(e.key) ? 1 : -1); return; }
+      if (!/^Arrow(Left|Right)$/.test(e.key)) return;
       if (vista !== 'chats') return;
       st.muIdx = (st.muIdx || 0) + (e.key === 'ArrowRight' ? 1 : -1); pintarMuestras();
     });
