@@ -396,6 +396,14 @@
   .panel[data-panel='agentes'] .ag-live-list .ag-vlink.ag-ai{display:inline-grid;place-items:center;width:16px;height:16px;min-height:0;padding:0;margin-left:6px;border:0;background:none;box-shadow:none;transition:transform .15s,filter .15s}
   .panel[data-panel='agentes'] .ag-live-list .ag-vlink.ag-ai:hover{transform:scale(1.18);filter:drop-shadow(0 0 6px rgba(255,154,0,.8))}
   .panel[data-panel='agentes'] .ag-ailogo{display:block;width:15px;height:15px}.panel[data-panel='agentes'] .ag-ai-btn .ag-ailogo{display:inline-block;vertical-align:middle;width:13px;height:13px;margin-right:5px}
+  .panel[data-panel='agentes'] .ag-live-sec h4 span.ag-gen{display:inline-flex;gap:6px;padding:0;border:0;background:none;box-shadow:none;letter-spacing:0;text-shadow:none}
+  .panel[data-panel='agentes'] .ag-live-sec h4 span.ag-gen[hidden]{display:none}
+  .panel[data-panel='agentes'] .ag-gen button{display:inline-flex;align-items:center;gap:6px;min-height:0;padding:3px 11px;border:1px solid rgba(255,255,255,.18);border-radius:999px;background:rgba(255,255,255,.05);color:#c4cfbf;font:800 10px Arial;letter-spacing:.07em;cursor:pointer;transition:transform .15s,background .15s}
+  .panel[data-panel='agentes'] .ag-gen button:hover{transform:translateY(-1px);background:rgba(255,255,255,.12)}
+  .panel[data-panel='agentes'] .ag-gen button b{padding:0 6px;border-radius:99px;background:rgba(255,255,255,.14);font-size:10px}
+  .panel[data-panel='agentes'] .ag-gen button.m.on{border-color:#8fb8ff;background:linear-gradient(180deg,#a9c8ff,#4f80cf);color:#06142b;box-shadow:0 6px 14px -6px rgba(143,184,255,.8)}
+  .panel[data-panel='agentes'] .ag-gen button.f.on{border-color:#ff9ad5;background:linear-gradient(180deg,#ffb6e2,#e0509f);color:#33001a;box-shadow:0 6px 14px -6px rgba(255,154,213,.8)}
+  .panel[data-panel='agentes'] .ag-gen button.on b{background:rgba(0,0,0,.18)}
   .panel[data-panel='agentes'] .ag-live-vista:focus{outline:none}.panel[data-panel='agentes'] .ag-keys{margin-left:12px;padding:3px 10px;border:1px solid rgba(255,255,255,.16);border-radius:999px;background:rgba(255,255,255,.05);color:#aebba7;font:700 11px Arial;letter-spacing:.03em;white-space:nowrap}
   @media(prefers-reduced-motion:reduce){.panel[data-panel='agentes'] *{animation:none!important}}
   `;
@@ -609,7 +617,7 @@
   function prepararEjecucion(idMensaje) {
     const nueva = !flow.estadoServidor || ['INICIO', 'FIN', 'ERROR'].includes(flow.estadoServidor);
     flow.preparado = idMensaje || flow.preparado;
-    if (nueva) nuevaEjec(); else NODOS.forEach(n => { if (flow.estado[n.id] === 'espera') poner(n.id, 'ok'); });
+    if (nueva) { flow.genTab = null; nuevaEjec(); } else NODOS.forEach(n => { if (flow.estado[n.id] === 'espera') poner(n.id, 'ok'); });
     flow.ejec.pet++;
     pildora('corriendo', 'Ejecutando…');
     if (nueva) { poner('TRIGGER', 'ok'); mover('TAVO'); }
@@ -654,12 +662,14 @@
       '<div class="ag-live-body"><div class="ag-live-vista" data-vista><button type="button" class="mu-flecha izq" data-pdf-go="-1" title="PDF anterior (←)"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button type="button" class="mu-flecha der" data-pdf-go="1" title="PDF siguiente (→)"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button><img alt="PDF de producción"><div class="ag-live-vacio"><div><b>ESPERANDO LOS PDF</b><br>Aquí verás cada PDF de producción, con el nombre y el número de cada jugador, a medida que se genera.</div></div>' +
       '<div class="ag-live-cap" data-cap><span class="num"></span><div><span class="nom"></span><small class="det"></small></div></div><div class="ag-live-prog"><i></i></div></div>' +
       '<aside class="ag-live-side"><div class="ag-live-sec"><h4>MONTAJES <span data-nm>0</span></h4><div class="ag-live-list" data-lm></div></div>' +
-      '<div class="ag-live-sec"><h4>PDF DE PRODUCCIÓN <span data-np>0</span></h4><div class="ag-live-list" data-lp></div><small class="dest" data-dp></small></div></aside></div>';
+      '<div class="ag-live-sec"><h4>PDF DE PRODUCCIÓN <span class="ag-gen" data-gen hidden></span><span data-np>0</span></h4><div class="ag-live-list" data-lp></div><small class="dest" data-dp></small></div></aside></div>';
     box.addEventListener('click', e => {
       const aiFila = e.target.closest('[data-ai-ruta]');
       if (aiFila) { e.preventDefault(); e.stopPropagation(); abrirEnIllustrator(aiFila.dataset.aiRuta); return; }
       const aiBtn = e.target.closest('[data-ai]');
-      if (aiBtn) { abrirEnIllustrator(flow.rutaActual); return; }
+      if (aiBtn) { abrirTodosEnIllustrator(); return; }
+      const gt = e.target.closest('[data-gen-tab]');
+      if (gt) { flow.genTab = gt.dataset.genTab; flow.vistaFija = null; pintarLive(); return; }
       const go = e.target.closest('[data-pdf-go]');
       if (go) { irPdf(Number(go.dataset.pdfGo)); return; }
       const fila = e.target.closest('[data-vista]'); if (fila && fila.dataset.vista) { flow.vistaFija = fila.dataset.vista; pintarLive(); return; }
@@ -685,11 +695,29 @@
     let m = /^(.+?)_(.+?)_(Talla_.+)$/.exec(txt), codigo = m && m[2], resto = m && m[3];
     if (!m) { m = /^(.+?)_(Talla_.+)$/.exec(txt); if (m && mapa.has(m[1].toUpperCase())) { codigo = m[1]; resto = m[2]; } else m = null; }
     if (!m) return '<span class="pdf-rest">' + esc(txt) + '</span>';
-    const nombre = mapa.get(String(codigo).toUpperCase());
+    const nombre = mapa.get(String(codigo).toUpperCase()) || String(codigo).replace(/_/g, ' ');
     const sinColor = nombre ? nombre.replace(/\s+(BLANCO|NEGRO|AMARILLO|AZUL|ROJO|VERDE|GRIS|NARANJA|MORADO|ROSADO|ROSA|BEIGE|CAFE|CAFÉ|CAMO|CAMUFLADO|PLATA|DORADO|FUCSIA|CELESTE|VINO|LILA)\s*$/i, '').trim() : '';   // solo la tela (MONTECATINI), sin el color
     return '<span class="pdf-tela">' + esc(sinColor || nombre || codigo) + '</span><span class="pdf-rest">' + esc(resto) + '</span>';
   }
   const LOGO_AI = '<svg class="ag-ailogo" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><rect x="1" y="1" width="22" height="22" rx="4.5" fill="#330000" stroke="#FF9A00" stroke-width="1.4"/><text x="12" y="16.3" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-weight="700" font-size="11.5" fill="#FF9A00">Ai</text></svg>';
+  // Botón de arriba: abre en Illustrator TODOS los PDF de producción de la orden. Se envían las carpetas donde quedaron (pocas) y el código de la orden;
+  // el lanzador de este PC abre cada PDF de esas carpetas que empiece por ese código.
+  function abrirTodosEnIllustrator() {
+    const rutas = flow.rutasPdf || [];
+    if (!rutas.length) return;
+    const dir = r => r.replace(/[\\/][^\\/]*$/, '');
+    const archivo = r => r.slice(Math.max(r.lastIndexOf('\\'), r.lastIndexOf('/')) + 1);
+    const carpetas = [...new Set(rutas.map(dir))];
+    const prefijo = (archivo(rutas[0]).split('_')[0] || String(st.orden || '')).trim() + '_';
+    let url = 'indoor-ai://abrir/?carpetas=' + encodeURIComponent(carpetas.join('|')) + '&prefijo=' + encodeURIComponent(prefijo);
+    if (url.length > 1800) {   // demasiadas carpetas para un enlace: se manda la carpeta común y el lanzador busca adentro
+      let comun = carpetas.reduce((a, b) => { let i = 0; while (i < a.length && i < b.length && a[i].toLowerCase() === b[i].toLowerCase()) i++; return a.slice(0, i); });
+      const corte = Math.max(comun.lastIndexOf('\\'), comun.lastIndexOf('/'));
+      if (corte > 0) comun = comun.slice(0, corte);
+      url = 'indoor-ai://abrir/?carpetas=' + encodeURIComponent(comun) + '&prefijo=' + encodeURIComponent(prefijo) + '&recursivo=1';
+    }
+    window.location.href = url;
+  }
   function abrirEnIllustrator(ruta) {
     if (!ruta) return;
     window.location.href = 'indoor-ai://abrir/?ruta=' + encodeURIComponent(ruta);
@@ -720,19 +748,39 @@
     const itemM = a => '<span class="mt-nom">' + esc(a.nombre || '') + '</span>';   // el MISMO nombre de la mesa exportada (Talla_XS_Tipo_D1_Gen_F)
     q('[data-nm]').textContent = montajes.length + ' exportados';
     q('[data-lm]').innerHTML = montajes.slice().reverse().slice(0, 60).map((a, i) => '<div' + (i === 0 ? ' class="nuevo"' : '') + '>' + itemM(a) + '</div>').join('') || '<div style="opacity:.5">Esperando…</div>';
-    const conVista = pdfs.filter(a => a.vista);
+    // Masculinos y femeninos: si la orden genera ambos aparecen dos pestañas; por defecto sigue al último PDF creado y, si eliges una, se queda en ella
+    const sexoDe = a => { const m = /_Gen_([MF])(?:_|\.|$)/i.exec(String(a.detalle || a.nombre || '')); return m ? m[1].toUpperCase() : String(a.genero || '').charAt(0).toUpperCase(); };
+    const nM = pdfs.filter(a => sexoDe(a) === 'M').length, nF = pdfs.filter(a => sexoDe(a) === 'F').length, hayAmbos = nM > 0 && nF > 0;
+    const pestana = hayAmbos ? (flow.genTab === 'M' || flow.genTab === 'F' ? flow.genTab : (sexoDe(pdfs[pdfs.length - 1]) || 'M')) : '';
+    const visibles = hayAmbos ? pdfs.filter(a => sexoDe(a) === pestana) : pdfs;
+    const gen = q('[data-gen]');
+    if (gen) {
+      const firma = hayAmbos ? pestana + '|' + nM + '|' + nF : '';
+      if (gen.dataset.firma !== firma) {
+        gen.dataset.firma = firma; gen.hidden = !hayAmbos;
+        gen.innerHTML = hayAmbos ? '<button type="button" class="m' + (pestana === 'M' ? ' on' : '') + '" data-gen-tab="M" title="PDF de producción masculinos">MASCULINOS <b>' + nM + '</b></button><button type="button" class="f' + (pestana === 'F' ? ' on' : '') + '" data-gen-tab="F" title="PDF de producción femeninos">FEMENINOS <b>' + nF + '</b></button>' : '';
+      }
+    }
+    const conVista = visibles.filter(a => a.vista);
     const fija = flow.vistaFija && conVista.find(a => a.vista === flow.vistaFija);
     if (flow.vistaFija && !fija) flow.vistaFija = null;
     const actual = fija || conVista[conVista.length - 1] || null;
     flow.conVista = conVista; flow.actualVista = actual && actual.vista; flow.rutaActual = (actual && actual.ruta) || '';
-    const bAi = q('[data-ai]'); if (bAi) bAi.hidden = !flow.rutaActual;
+    flow.rutasPdf = pdfs.map(a => a.ruta).filter(Boolean);
+    const bAi = q('[data-ai]');
+    if (bAi) {
+      bAi.hidden = !flow.rutasPdf.length;
+      const rotulo = flow.rutasPdf.length === 1 ? 'Abrir el PDF en Illustrator' : 'Abrir los ' + flow.rutasPdf.length + ' PDF en Illustrator';
+      if (bAi.dataset.rotulo !== rotulo) { bAi.dataset.rotulo = rotulo; bAi.innerHTML = LOGO_AI + ' ' + rotulo; }
+      bAi.title = 'Abre en Illustrator, a la vez, todos los PDF de producción de esta orden (los de las carpetas de salida en la NAS)';
+    }
     const iAct = actual ? conVista.findIndex(a => a.vista === actual.vista) : -1;
     q('[data-cnt]').textContent = conVista.length ? (iAct + 1) + ' / ' + conVista.length : '';
     const bIzq = q('[data-pdf-go="-1"]'), bDer = q('[data-pdf-go="1"]');
     if (bIzq) bIzq.disabled = iAct <= 0;
     if (bDer) bDer.disabled = iAct < 0 || iAct >= conVista.length - 1;
     q('[data-np]').textContent = pdfs.length + (total ? ' de ' + total : '');
-    q('[data-lp]').innerHTML = pdfs.slice().reverse().slice(0, 80).map((a, i) => '<div' + (a.vista ? ' data-vista="' + esc(a.vista) + '"' : '') + ' class="' + (i === 0 ? 'nuevo ' : '') + (actual && a.vista === actual.vista ? 'sel' : '') + '">' + (a.detalle ? '<b class="pdf-nom" title="' + esc(a.detalle) + '">' + nombrePdf(a.detalle) + '</b>' : (a.cantidad ? '<b>' + esc(a.cantidad) + ' unds</b> · sin nombre ni número · ' + esc(a.talla) : '<b>' + esc(a.nombre || 'Sin nombre') + '</b> · #' + esc(a.numero || '—') + ' · ' + esc(a.talla))) + (a.vista ? '<a class="ag-vlink" href="/api/agentes/archivo/' + encodeURIComponent(a.vista) + '" target="_blank" rel="noopener" title="Ver este PDF en grande (otra pestaña)">↗</a>' : '') + (a.ruta ? '<a href="#" class="ag-vlink ag-ai" data-ai-ruta="' + esc(a.ruta) + '" title="Abrir este PDF en Illustrator" aria-label="Abrir este PDF en Illustrator">' + LOGO_AI + '</a>' : '') + '</div>').join('') || '<div style="opacity:.5">Esperando…</div>';
+    q('[data-lp]').innerHTML = visibles.slice().reverse().slice(0, 80).map((a, i) => '<div' + (a.vista ? ' data-vista="' + esc(a.vista) + '"' : '') + ' class="' + (i === 0 ? 'nuevo ' : '') + (actual && a.vista === actual.vista ? 'sel' : '') + '">' + (a.detalle ? '<b class="pdf-nom" title="' + esc(a.detalle) + '">' + nombrePdf(a.detalle) + '</b>' : (a.cantidad ? '<b>' + esc(a.cantidad) + ' unds</b> · sin nombre ni número · ' + esc(a.talla) : '<b>' + esc(a.nombre || 'Sin nombre') + '</b> · #' + esc(a.numero || '—') + ' · ' + esc(a.talla))) + (a.vista ? '<a class="ag-vlink" href="/api/agentes/archivo/' + encodeURIComponent(a.vista) + '" target="_blank" rel="noopener" title="Ver este PDF en grande (otra pestaña)">↗</a>' : '') + (a.ruta ? '<a href="#" class="ag-vlink ag-ai" data-ai-ruta="' + esc(a.ruta) + '" title="Abrir este PDF en Illustrator" aria-label="Abrir este PDF en Illustrator">' + LOGO_AI + '</a>' : '') + '</div>').join('') || '<div style="opacity:.5">Esperando…</div>';
     q('[data-dp]').textContent = dp ? '→ ' + dp : '';
     q('[data-seguir]').hidden = !fija;
     q('.ag-live-prog i').style.width = (total ? Math.min(100, Math.round(pdfs.length / total * 100)) : 0) + '%';
@@ -1059,7 +1107,7 @@
     st.pc = id; try { localStorage.setItem('agentes_pc', id); } catch (x) { /* sin almacenamiento */ }
     sincronizarPcAuto(id);
     Object.assign(st, { msgs: [], ultimo: 0, evs: [], ultimoEv: 0, trabajo: null, esperando: false, orden: '', cambiandoOrden: false, enviando: false, resAbierto: false });
-    flow.listo = false; flow.preparado = 0; flow.estadoServidor = null; flow.vistaFija = null;
+    flow.listo = false; flow.preparado = 0; flow.estadoServidor = null; flow.vistaFija = null; flow.genTab = null;
     const h = panel.querySelector('[data-hilo]'); if (h) { h.dataset.firma = ''; h.innerHTML = ''; }
     const b = panel.querySelector('[data-orden]'); if (b) b.dataset.clave = '';
     await cargar(true); pintar(); programar();
