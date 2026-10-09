@@ -621,6 +621,21 @@ def configurar_mts(fn: Callable) -> None:
     _escribir_mts = fn
 
 
+_sellar: Callable | None = None   # lo registra main.py: anota HORA INICIO / HORA FINAL / RESPONSABLE=AGENT / MÁQUINA en Producción y en el Google Sheets
+
+
+def configurar_sello(fn: Callable) -> None:
+    global _sellar
+    _sellar = fn
+
+
+def _sellar_en_segundo_plano(orden: str, momento: str) -> None:
+    """Escribir en el Google Sheets tarda unos segundos: se hace aparte para no frenar a los agentes."""
+    if not _sellar or not orden:
+        return
+    threading.Thread(target=lambda: _sellar(orden, momento), daemon=True).start()
+
+
 @pc_router.post('/referencias-proceso')
 def referencias_proceso(request: Request, payload: dict):
     """TAVO: referencias de la orden que están en proceso de EDICIÓN en Producción (solo esas se ejecutan)."""
@@ -702,6 +717,10 @@ def evento(request: Request, payload: dict):
         origen = next((m for m in datos['mensajes'] if m['id'] == msg_id and m['rol'] == 'yo'), None)
         if origen is not None and (origen.get('oculto') or origen.get('respondido')):
             return {'ok': True}   # reinicio interno de TAVO: no se muestra
+        arranque = ''
+        if origen is not None and not origen.get('sello'):
+            origen['sello'] = True   # primer aviso de este pedido = los agentes empezaron: HORA INICIO
+            arranque = str(datos['ordenes'].get(sesion) or '')
         if origen is not None:
             for e in lista:
                 datos['cont_ev'] += 1
@@ -718,6 +737,8 @@ def evento(request: Request, payload: dict):
         datos['trabajo'][sesion] = {'agente': str(ultimo.get('agente', 'TAVO')).upper()[:10], 'msg': str(ultimo.get('msg', ''))[:300],
                                     'nivel': str(ultimo.get('nivel', 'INFO'))[:8], 'hora': str(ultimo.get('hora', ''))[:8], 'agentes': agentes}
         _guardar(datos)
+    if arranque:
+        _sellar_en_segundo_plano(arranque, 'inicio')
     return {'ok': True}
 
 
@@ -775,6 +796,8 @@ def respuesta(request: Request, payload: dict):
         if origen.get('oculto'):
             _guardar(datos)
             return {'ok': True}
+        if origen.get('sello'):   # los agentes terminaron este pedido: HORA FINAL
+            _sellar_en_segundo_plano(str(datos['ordenes'].get(origen['sesion']) or ''), 'fin')
         botones = [str(b)[:60] for b in (payload.get('botones') or [])][:8]
         agentes = [str(a).upper()[:10] for a in (payload.get('agentes') or ['TAVO'])][:8]
         extra = {'tabla': _tabla(payload.get('tabla'))} if payload.get('tabla') else {}

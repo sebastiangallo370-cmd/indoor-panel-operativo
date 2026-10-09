@@ -2680,7 +2680,7 @@ def _edicion_en_proceso() -> list[dict]:
                 usuario = ev['username'] if ev else ''
                 if usuario and not permisos_mod.puede(usuario, 'agentes', 'ver'):
                     usuario = ''   # quien la puso en proceso no usa los agentes: el aviso va a quien los usó por última vez
-            resultado.append({'clave': f'{orden}|{ref}', 'orden': orden, 'ref': ref, 'usuario': usuario})
+            resultado.append({'clave': f'{orden}|{ref}', 'orden': orden, 'ref': ref, 'usuario': usuario, 'fila': r['source_row']})
         return resultado
 
 
@@ -2809,7 +2809,7 @@ def _terry_finalizar_edicion_web(db, fila: int) -> dict:
         if titulo == 'HORA FINAL':
             valores[i] = ahora.strftime('%H:%M')
         if titulo.startswith('RESP') or titulo == 'CONFECCIONISTA':
-            valores[i] = 'TERRY'
+            valores[i] = 'AGENT'
     ensure_operator_events(db)
     ensure_paused(db)
     db.execute('DELETE FROM production_paused WHERE source_row=? AND column_number=?', (fila, columna))
@@ -2879,6 +2879,82 @@ def _terry_guardar_mts(orden: str, referencia: str, texto: str) -> dict:
     return resultado
 
 
+# Columnas de la hoja de producción que llenan los agentes (las mismas del Google Sheets): R máquina de impresión, AL/AM hora inicio/final de EDICIÓN, AN responsable
+COL_MAQUINA, COL_ED_INICIO, COL_ED_FINAL, COL_ED_RESP = 18, 38, 39, 40
+_AGENTES_CORRIDAS: dict = {}   # orden -> filas de Producción que los agentes están trabajando (se llena al empezar, se usa al terminar)
+
+
+def _agentes_escribir_sheet(fila_local: int, celdas: dict, solo_si_vacia: set) -> dict:
+    """Escribe celdas {columna: valor} en la fila del Google Sheets que corresponde a la tarjeta. Antes comprueba EN VIVO que la fila sea la misma
+    orden y referencia (las filas pueden moverse) y no pisa las columnas de «solo_si_vacia» que ya tengan algo."""
+    import gspread
+    plano = lambda v: re.sub(r'\s+', '', str(v or '')).upper()
+    try:
+        with connect() as db:
+            link = db.execute('SELECT sheet_row FROM production_sheet_links WHERE source_row=?', (fila_local,)).fetchone()
+            rec = db.execute('SELECT values_json FROM production_rows WHERE source_row=?', (fila_local,)).fetchone()
+        if not link or not rec:
+            return {'sheet': False, 'motivo': 'La tarjeta no está enlazada a una fila del Google Sheets'}
+        local = json.loads(rec['values_json'])
+        fila = int(link['sheet_row'])
+        ws = legacy.get_gspread()
+        vivos = ws.row_values(fila)
+        if len(vivos) < 7 or len(local) < 7 or plano(vivos[4]) != plano(local[4]) or plano(vivos[6]) != plano(local[6]):
+            return {'sheet': False, 'motivo': f'La fila {fila} del Google Sheets ya no corresponde a la tarjeta; no escribí nada allá'}
+        datos = []
+        for col, valor in celdas.items():
+            actual = str(vivos[col - 1] if len(vivos) >= col else '').strip()
+            if col in solo_si_vacia and actual:
+                continue
+            if actual == str(valor):
+                continue
+            datos.append({'range': gspread.utils.rowcol_to_a1(fila, col), 'values': [[valor]]})
+        if datos:
+            ws.batch_update(datos, value_input_option='USER_ENTERED')
+        return {'sheet': True, 'fila': fila, 'celdas': len(datos)}
+    except Exception as exc:  # noqa: BLE001
+        logging.exception('Agentes: no se pudo escribir en Google Sheets')
+        return {'sheet': False, 'motivo': f'No pude escribir en Google Sheets: {exc}'}
+
+
+def _agentes_sellar(orden: str, momento: str) -> dict:
+    """Cuando los agentes trabajan una orden: HORA INICIO al empezar, HORA FINAL al terminar, RESPONSABLE siempre «AGENT» y la MÁQUINA de impresión,
+    en Producción y en el Google Sheets. Solo en las tarjetas que tenían EDICIÓN en proceso al empezar. La hora de inicio no pisa una que ya hubiera."""
+    ahora = datetime.now(timezone(timedelta(hours=-5)))
+    hora = ahora.strftime('%H:%M')
+    if momento == 'inicio':
+        filas = [c['fila'] for c in _edicion_en_proceso() if c['orden'] == orden and c.get('fila')]
+        _AGENTES_CORRIDAS[orden] = filas
+    else:
+        filas = _AGENTES_CORRIDAS.pop(orden, [])
+    resultado = {'orden': orden, 'momento': momento, 'filas': filas}
+    for fila in filas:
+        with connect() as db:
+            rec = db.execute('SELECT values_json FROM production_rows WHERE source_row=?', (fila,)).fetchone()
+            if not rec:
+                continue
+            v = json.loads(rec['values_json'])
+            v.extend([''] * max(0, COL_ED_RESP - len(v)))
+            if momento == 'inicio' and not str(v[COL_ED_INICIO - 1]).strip():
+                v[COL_ED_INICIO - 1] = hora
+            if momento == 'fin':
+                v[COL_ED_FINAL - 1] = hora
+            v[COL_ED_RESP - 1] = 'AGENT'
+            maquina = str(v[COL_MAQUINA - 1]).strip()
+            db.execute('UPDATE production_rows SET values_json=? WHERE source_row=?', (json.dumps(v, ensure_ascii=False), fila))
+            db.execute("INSERT OR REPLACE INTO production_meta(key,value) VALUES ('updated_at',?)", (ahora.isoformat(),))
+        celdas = {COL_ED_RESP: 'AGENT'}
+        if momento == 'inicio':
+            celdas[COL_ED_INICIO] = hora
+        else:
+            celdas[COL_ED_FINAL] = hora
+        if maquina:
+            celdas[COL_MAQUINA] = maquina
+        resultado[f'fila_{fila}'] = _agentes_escribir_sheet(fila, celdas, {COL_ED_INICIO, COL_MAQUINA})
+    logging.info('Agentes: %s', resultado)
+    return resultado
+
+
 def _agentes_guardar_maquina(orden: str, referencias: list, maquina: str) -> dict:
     """Los agentes ponen la máquina de impresión (la que sale de los JPG del maestro) en las tarjetas de la orden. Solo llena las que están vacías:
     lo que una persona ya eligió no se cambia."""
@@ -2915,6 +2991,8 @@ def _agentes_guardar_maquina(orden: str, referencias: list, maquina: str) -> dic
                 otras.append(f"fila {r['source_row']} tiene {actual}")
         if llenadas:
             db.execute("INSERT OR REPLACE INTO production_meta(key,value) VALUES ('updated_at',?)", (datetime.now(timezone.utc).isoformat(),))
+    for fila_ll in llenadas:   # la máquina también va al Google Sheets (columna R), solo si allá está vacía
+        _agentes_escribir_sheet(fila_ll, {COL_MAQUINA: maquina}, {COL_MAQUINA})
     if not (llenadas or ya or otras):
         return {'ok': False, 'motivo': f'No encontré en Producción la orden {orden}' + (f' con las referencias {", ".join(sorted(refs))}' if refs else '')}
     return {'ok': True, 'llenadas': llenadas, 'ya_estaban': ya, 'otras': otras}
@@ -2944,6 +3022,7 @@ def _agentes_maquinas_de(orden: str) -> list:
 agentes_mod.configurar_mts(_terry_guardar_mts)
 agentes_mod.configurar_maquinas_de(_agentes_maquinas_de)
 agentes_mod.configurar_maquina(_agentes_guardar_maquina)
+agentes_mod.configurar_sello(_agentes_sellar)
 agentes_mod.configurar_refs(lambda orden: [c['ref'] for c in _edicion_en_proceso() if c['orden'] == orden and c['ref']])
 
 
