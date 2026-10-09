@@ -3,7 +3,7 @@
   // Cuenta los pedidos de Producción cuyo proceso IMPRESIÓN está vacío, en proceso (P) o en reproceso (R) y que aún no se entregaron.
   if (window.__capacidadListo) return;
   window.__capacidadListo = true;
-  const MAQUINAS = ['SHUREZ', 'EPSON', 'GRAPHTEC', 'GT', 'JET', 'M2', 'SNAKE', 'ROLAND', 'SNAKE CE', 'EPSON YEINSON', 'EPSON JESAM', 'M2 DIC 2025',
+  const MAQUINAS = ['SHUREZ', 'EPSON', 'GRAPHTEC', 'GT', 'JET', 'M2', 'SNAKE', 'ROLAND', 'SNAKE CE', 'EPSON YEINSON', 'EPSON JESAM', 'M2 DIC 2025', 'M2 IMAGEN',
     'SNAKE CE OLD NEGRO', 'SNAKE STS INKS', 'SNAKE CE OLD', 'IMPRES. UV', 'DTF'];
   const NO_IMPRESORA = new Set(['N/A', 'BORDADO', 'PLT']);   // no reciben trabajo de impresión
   const st = { datos: null, abiertas: {}, todas: false, cargando: false, error: '', sel: (() => { try { return localStorage.getItem('capacidad_maquina') || ''; } catch (e) { return ''; } })() };
