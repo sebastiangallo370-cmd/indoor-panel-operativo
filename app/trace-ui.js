@@ -1,20 +1,27 @@
 /* Production cards: derived presentation only. Operational writes remain in the existing API. */
 (function () {
   'use strict';
-  // TELA de la tarjeta: la columna TELA de Producción; si está vacía se deduce del código que trae la referencia
-  // («A509PE01» → 509 → «(509) DUNGA AMARILLO» de Stock tela; «A200-500CA16M» → DIAMANTE / LONDON).
+  // TELA de la tarjeta: la columna TELA de Producción más las telas que salen de los códigos de la referencia
+  // («A509PE01» → 509 → «(509) DUNGA AMARILLO» de Stock tela; «A100-11400CA02F-A100-11300PT28» → MONTECATINI / TRIATLHON / JACQUARD GALLINETO).
+  // Si son varias van todas en un solo renglón: la letra se achica lo necesario para que quepan.
   const telaPorCodigo = new Map();
-  function telaDeCodigos(referencia) {
-    const nombres = [], re = /A(\d+(?:-\d+)*)(?=[A-Z]{1,5}\d{2,3})/g, ref = String(referencia || '').toUpperCase();
+  function telasDeFila(directa, referencia) {
+    const plano = v => String(v || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim();
+    const lista = String(directa || '').trim() ? [String(directa).trim()] : [];
+    const re = /A(\d+(?:-\d+)*)(?=[A-Z]{1,5}\d{2,3})/g, ref = String(referencia || '').toUpperCase();
     let m;
-    while ((m = re.exec(ref))) m[1].split('-').forEach(codigo => { const n = telaPorCodigo.get(codigo); if (n && !nombres.includes(n)) nombres.push(n); });
-    return nombres.join(' / ');
+    while ((m = re.exec(ref))) m[1].split('-').forEach(codigo => {
+      const n = telaPorCodigo.get(codigo);
+      // «MONTECATINI» del Sheet ya cubre «MONTECATINI BLANCO» del inventario: no se repite
+      if (n && !lista.some(x => plano(n).includes(plano(x)) || plano(x).includes(plano(n)))) lista.push(n);
+    });
+    return lista.join(' / ');
   }
   function telaMarkup(row) {
     const directa = String(traceField(row, 'TELA') || '').trim(), ref = String(traceField(row, 'REFERENCIA') || '');
-    const tela = directa || telaDeCodigos(ref);
+    const tela = telasDeFila(directa, ref);
     const e = v => String(v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-    return '<dd class="trace-tela"' + (directa ? '' : ' data-tela-ref="' + e(ref) + '"') + (tela ? '' : ' hidden') + ' title="Tela: ' + e(tela) + '"><small>TELA</small><span>' + e(tela) + '</span></dd>';
+    return '<dd class="trace-tela" data-tela-ref="' + e(ref) + '" data-tela-dir="' + e(directa) + '"' + (tela ? '' : ' hidden') + ' title="Tela: ' + e(tela) + '"><small>TELA</small><span style="--n:' + Math.max(1, tela.length) + '">' + e(tela) + '</span></dd>';
   }
   async function cargarTelasPorCodigo() {
     try {
@@ -25,11 +32,11 @@
       items.forEach(i => { const m = /^\s*\((\d+)\)\s*(.+)$/.exec(String(i.nombre || '')); if (m && !nuevo.has(m[1])) nuevo.set(m[1], m[2].replace(/\s+/g, ' ').trim()); });
       if (!nuevo.size) return;
       telaPorCodigo.clear(); nuevo.forEach((v, k) => telaPorCodigo.set(k, v));
-      // tarjetas ya pintadas sin tela en el Sheet: se completan ahora
+      // tarjetas ya pintadas: se completan ahora con las telas de sus códigos
       document.querySelectorAll('.trace-tela[data-tela-ref]').forEach(dd => {
-        const tela = telaDeCodigos(dd.dataset.telaRef);
+        const tela = telasDeFila(dd.dataset.telaDir, dd.dataset.telaRef);
         dd.hidden = !tela; dd.title = 'Tela: ' + tela;
-        const sp = dd.querySelector('span'); if (sp) sp.textContent = tela;
+        const sp = dd.querySelector('span'); if (sp) { sp.textContent = tela; sp.style.setProperty('--n', Math.max(1, tela.length)); }
       });
     } catch (e) { /* sin inventario: la tarjeta queda solo con la tela del Sheet */ }
   }
@@ -2226,7 +2233,8 @@
   html body.production-mode .trace-card .trace-primary-facts .trace-ref{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   /* nombre de la tela debajo de la referencia (columna TELA de Producción) */
   html body.production-mode .trace-card .trace-tela[hidden]{display:none}
-  html body.production-mode .trace-card .trace-tela{display:block;margin:5px 0 0;color:#d0f44c;font:800 12.5px Arial;letter-spacing:.04em;line-height:1.25;overflow-wrap:anywhere}
+  html body.production-mode .trace-card .trace-tela{display:block;margin:5px 0 0;color:#d0f44c;font:800 12.5px Arial;letter-spacing:.04em;line-height:1.25;container-type:inline-size}
+  html body.production-mode .trace-card .trace-tela span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.01em;font-size:clamp(6px,calc(100cqw / (var(--n,12) * .73)),12.5px)}
   html body.production-mode .trace-card .trace-tela small{display:block;margin-bottom:1px;color:#8e9a87;font:800 9px Arial;letter-spacing:.14em}
   /* Con los MTS ya ingresados (se hace una sola vez por tarjeta) la máquina ocupa el lugar del botón «Ingresar MTS» y los MTS quedan al lado */
   html body.production-mode .trace-card .trace-mts-row.con-mts .trace-mts-btn,html body.production-mode .trace-card .trace-mts-row.con-mts .trace-mts-inventory{display:none!important}
