@@ -4624,6 +4624,19 @@ _ASSET_BUSY: set = set()
 _ASSET_LOCK = threading.Lock()
 _IMAGE_CACHE: "collections.OrderedDict" = collections.OrderedDict()
 ASSET_FRESH_SECONDS = 30
+_ASSET_SIG: dict = {}   # fila -> firma (ruta, fecha y tamaño) de los Excel del listado con que se calculó lo guardado
+
+
+def _asset_signature(paths) -> tuple:
+    """Fecha de guardado y tamaño de cada Excel del listado: si alguien lo guarda en la NAS, la firma cambia."""
+    firma = []
+    for path in paths:
+        try:
+            info = Path(path).stat()
+            firma.append((str(path), info.st_mtime_ns, info.st_size))
+        except OSError:
+            firma.append((str(path), 0, 0))
+    return tuple(firma)
 
 
 def _remember_image(source_row, number, digest, mime, data):
@@ -4640,6 +4653,7 @@ def _compute_card_assets(source_row: int):
         designs, status = production_excel_designs(source_row, files)
     except OSError:
         raise HTTPException(503, 'El NAS no está disponible')
+    _ASSET_SIG[source_row] = _asset_signature(sorted(p for p in files if p.suffix.lower() in ('.xlsx', '.xlsm')))
     documents = []
     for path in sorted(files, key=lambda p: p.name.lower()):
         if path.suffix.lower() in ('.xlsx', '.xls', '.pdf', '.csv'):
@@ -4702,7 +4716,17 @@ def _refresh_card_assets(source_row: int):
 
 @app.get('/api/produccion/fila/{source_row}/archivos')
 def production_card_assets(source_row: int, _=Depends(authenticate)):
-    """Los diseños se entregan al instante desde memoria; si ya pasaron 30 s se renuevan en segundo plano."""
+    """Los diseños se entregan al instante desde memoria; si ya pasaron 30 s se renuevan en segundo plano.
+    Si el Excel del listado se guardó después de lo que hay en memoria, se vuelve a leer en este mismo momento (la tarjeta lo muestra enseguida)."""
+    firma = _ASSET_SIG.get(source_row)
+    if firma and source_row in _ASSET_CACHE and _asset_signature(p for p, _m, _t in firma) != firma:
+        try:
+            payload = _compute_card_assets(source_row)
+            with _ASSET_LOCK:
+                _ASSET_CACHE[source_row] = (time.monotonic(), payload)
+            return payload
+        except Exception:   # NAS caída o Excel a medio guardar: se entrega lo que había y se reintenta en la siguiente consulta
+            pass
     with _ASSET_LOCK:
         entry = _ASSET_CACHE.get(source_row)
         stale = bool(entry) and time.monotonic() - entry[0] > ASSET_FRESH_SECONDS and source_row not in _ASSET_BUSY
@@ -6375,7 +6399,7 @@ function paintTraceAssets(sourceRow){{const card=traceCards.querySelector('[data
 async function loadTraceAssets(sourceRow,force=false){{if((traceAssets.has(sourceRow)&&!force)||traceAssetBusy.has(sourceRow))return;traceAssetBusy.add(sourceRow);let changed=false;try{{const response=await fetch('/api/produccion/fila/'+sourceRow+'/archivos',{{cache:'no-store'}});const data=await response.json();if(!response.ok)throw Error(data.detail||'No se pudo consultar el NAS');if(JSON.stringify(traceAssets.get(sourceRow))!==JSON.stringify(data)){{traceAssets.set(sourceRow,data);changed=true}}}}catch(error){{if(!traceAssets.has(sourceRow)){{traceAssets.set(sourceRow,{{error:error.message}});changed=true}}}}finally{{traceAssetBusy.delete(sourceRow);if(changed)paintTraceAssets(sourceRow)}}}}
 let traceSyncBusy=false;
 async function syncTraceMockups(){{if(traceSyncBusy||document.hidden||traceCards.hidden||document.querySelector('.tab.active')?.dataset.kind!=='produccion')return;traceSyncBusy=true;try{{const bounds=traceCards.getBoundingClientRect(),rows=[...traceCards.querySelectorAll('[data-card-row]')].filter(card=>{{const r=card.getBoundingClientRect();return r.bottom>Math.max(0,bounds.top)&&r.top<Math.min(innerHeight,bounds.bottom)}}).map(card=>Number(card.dataset.cardRow));for(let i=0;i<rows.length;i+=2){{if(document.hidden||traceCards.hidden)break;await Promise.all(rows.slice(i,i+2).map(id=>loadTraceAssets(id,true)))}}}}finally{{traceSyncBusy=false}}}}
-setInterval(syncTraceMockups,15000);window.addEventListener('focus',syncTraceMockups);document.addEventListener('visibilitychange',()=>{{if(!document.hidden)syncTraceMockups()}});
+setInterval(syncTraceMockups,5000);window.addEventListener('focus',syncTraceMockups);document.addEventListener('visibilitychange',()=>{{if(!document.hidden)syncTraceMockups()}});
 const traceImageObserver=new IntersectionObserver(entries=>{{entries.filter(e=>e.isIntersecting).forEach(e=>{{loadTraceAssets(Number(e.target.dataset.cardRow));traceImageObserver.unobserve(e.target)}})}},{{root:traceCards,rootMargin:'100px'}});
 const traceExpandedProcesses=new Set();
 traceCards.addEventListener('click',event=>{{const summary=event.target.closest('.trace-process summary');if(!summary)return;const detail=summary.parentElement;traceCards.querySelectorAll('.trace-process[open]').forEach(other=>{{if(other!==detail){{other.open=false;traceExpandedProcesses.delete(other.dataset.processKey)}}}});const info=detail.querySelector('.trace-process-info');if(!info.querySelector('.trace-node-title')){{const title=document.createElement('h4');title.className='trace-node-title';title.textContent=summary.querySelector('strong').textContent+' · '+summary.querySelector('small').textContent;info.prepend(title)}}}});
