@@ -417,6 +417,19 @@
   .panel[data-panel='agentes'] .ag-prog.listo .pct{display:none}
   .panel[data-panel='agentes'] .ag-prog.err{border-color:#ffb84c}.panel[data-panel='agentes'] .ag-prog.err .fill{background:linear-gradient(90deg,#8a5a0a,#ffb84c)}.panel[data-panel='agentes'] .ag-prog.err .chulo{background:#ffb84c;color:#2a1800}
   .panel[data-panel='agentes'] [data-live]{position:relative}
+  /* Barra de la orden ordenada: progreso · orden · acción principal · NAS · menú ⋯ */
+  .panel[data-panel='agentes'] .ag-orden{gap:8px;align-items:center;flex-wrap:nowrap;padding:0;border:0;background:none}
+  .panel[data-panel='agentes'] .ag-orden>*{flex:none}
+  .panel[data-panel='agentes'] .ag-orden .ag-btn,.panel[data-panel='agentes'] .ag-orden .ag-ochip,.panel[data-panel='agentes'] .ag-orden .ag-prog,.panel[data-panel='agentes'] .ag-orden .ag-mas>summary{height:38px;min-height:38px;box-sizing:border-box;display:inline-flex;align-items:center}
+  .panel[data-panel='agentes'] .ag-orden .ag-ochip{gap:8px;padding:0 6px 0 14px;border-radius:12px}
+  .panel[data-panel='agentes'] .ag-orden .ag-nas{padding:0 14px}
+  .panel[data-panel='agentes'] .ag-mas{position:relative}
+  .panel[data-panel='agentes'] .ag-mas>summary{list-style:none;justify-content:center;width:38px;padding:0;cursor:pointer;font:900 18px Arial;letter-spacing:.05em}
+  .panel[data-panel='agentes'] .ag-mas>summary::-webkit-details-marker{display:none}
+  .panel[data-panel='agentes'] .ag-mas-menu{position:absolute;right:0;top:calc(100% + 6px);z-index:30;display:grid;gap:4px;min-width:200px;padding:6px;border:1px solid rgba(255,255,255,.16);border-radius:12px;background:#0d140c;box-shadow:0 18px 40px -12px #000}
+  .panel[data-panel='agentes'] .ag-mas-menu button{display:flex;align-items:center;gap:8px;width:100%;min-height:38px;padding:0 12px;border:0;border-radius:8px;background:transparent;color:#e9f1e3;font:700 13px Arial;text-align:left;cursor:pointer}
+  .panel[data-panel='agentes'] .ag-mas-menu button:hover{background:rgba(255,255,255,.08)}
+  .panel[data-panel='agentes'] .ag-mas-menu button[data-orden-quitar]{color:#ffb3a9}
   .panel[data-panel='agentes'] .ag-ai-inst{margin-left:auto;margin-right:8px;color:#9fb08c;font:700 11px Arial;text-decoration:underline;text-underline-offset:3px;white-space:nowrap}.panel[data-panel='agentes'] .ag-ai-inst:hover{color:#d0f44c}
   .panel[data-panel='agentes'] [data-auto],.panel[data-panel='agentes'] .ag-indiv{display:none!important}
   .panel[data-panel='agentes'] .ag-fin{position:absolute;top:8px;left:10px;right:10px;z-index:6;display:flex;align-items:center;gap:14px;margin:0;padding:12px 16px;border:1px solid rgba(139,212,80,.55);border-radius:14px;background:linear-gradient(120deg,rgba(60,140,40,.38),rgba(12,30,12,.9));box-shadow:0 14px 30px -18px rgba(139,212,80,.7);animation:agFinEntra .5s cubic-bezier(.2,.9,.3,1.2) both}
@@ -1096,7 +1109,12 @@
     if (barra.dataset.clave !== claveOrden) {
       barra.dataset.clave = claveOrden;
       barra.innerHTML = st.orden && !st.cambiandoOrden
-        ? '<span class="ag-ochip" title="Todo lo que pidas se hace con esta orden">Orden <b>' + esc(st.orden) + '</b><button type="button" class="ag-ico" data-orden-cambiar title="Cambiar la orden">✎</button><button type="button" class="ag-ico" data-orden-quitar title="Quitar la orden">✕</button></span><button type="button" class="ag-btn" data-iniciar title="Lee el listado, crea la muestra, te pide aprobarla y sigue con las mesas y los PDF de producción">▶ Iniciar</button><button type="button" class="ag-btn sec" data-reprocesar title="Vuelve a procesar una orden que ya se hizo: tú eliges si reemplazas todo o conservas lo que ya existe">↻ Reprocesar</button><a class="ag-btn sec ag-nas" data-nas-orden href="/nas/abrir?order=' + encodeURIComponent(st.orden) + '" title="Abrir la carpeta de la orden ' + esc(st.orden) + ' en el NAS (Explorador de archivos)">📁 NAS <span>↗</span></a>'
+        ? '<span class="ag-ochip" title="Todo lo que pidas se hace con esta orden">Orden <b>' + esc(st.orden) + '</b><button type="button" class="ag-ico" data-orden-cambiar title="Cambiar la orden">✎</button></span>' +
+          '<button type="button" class="ag-btn" data-iniciar title="Lee el listado, crea la muestra, te pide aprobarla y sigue con las mesas y los PDF de producción">▶ Iniciar</button>' +
+          '<a class="ag-btn sec ag-nas" data-nas-orden href="/nas/abrir?order=' + encodeURIComponent(st.orden) + '" title="Abrir la carpeta de la orden ' + esc(st.orden) + ' en el NAS (Explorador de archivos)">📁 NAS <span>↗</span></a>' +
+          '<details class="ag-mas"><summary class="ag-btn sec" title="Más acciones">⋯</summary><div class="ag-mas-menu">' +
+          '<button type="button" data-reprocesar title="Vuelve a procesar una orden que ya se hizo: tú eliges si reemplazas todo o conservas lo que ya existe">↻ Reprocesar la orden</button>' +
+          '<button type="button" data-orden-quitar title="Quitar la orden">✕ Quitar la orden</button></div></details>'
         : '<form data-orden-form><label for="ag-orden-in">Orden</label><input id="ag-orden-in" maxlength="12" autocomplete="off" placeholder="CO6133" value="' + esc(st.orden) + '" title="Escríbela una sola vez y TAVO relaciona todo con ella"><button type="submit" class="ag-btn">Fijar</button>' + (st.orden ? '<button type="button" class="ag-ico" data-orden-cancelar title="Cancelar">✕</button>' : '') + '</form>';
       if (st.cambiandoOrden) panel.querySelector('#ag-orden-in')?.focus();
     }
@@ -1354,6 +1372,10 @@
       if (!e.target.matches('[data-pc-activo]')) return;
       try { await api('/api/agentes/pc-activo', { method: 'POST', body: JSON.stringify({ pc: e.target.value }) }); } catch (err) { alert(err.message); }
       await cargar(true); pintar();
+    });
+    panel.addEventListener('click', e => {
+      const mas = panel.querySelector('.ag-mas[open]');
+      if (mas && (!e.target.closest('.ag-mas') || e.target.closest('.ag-mas-menu button'))) mas.removeAttribute('open');
     });
     panel.addEventListener('submit', e => { e.preventDefault(); if (e.target.matches('[data-orden-form]')) { fijarOrden(e.target.querySelector('input').value); return; } const caja = panel.querySelector('textarea'); const v = caja.value; caja.value = ''; enviar(v); });
     panel.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && e.target.matches('textarea')) { e.preventDefault(); panel.querySelector('form').requestSubmit(); } });
