@@ -714,8 +714,8 @@
       }
       if (mtsDisplay?.classList.contains('has-value') && !mtsDisplay.querySelector('.trace-mts-actions')) {
         mtsDisplay.style.position = 'relative';
-        mtsDisplay.insertAdjacentHTML('beforeend', '<span class="trace-mts-actions" style="position:absolute;right:7px;top:50%;transform:translateY(-50%);display:flex;gap:4px"><button type="button" style="width:25px!important;min-width:25px!important;height:25px!important;min-height:25px!important;padding:0!important;border-radius:6px!important;font-size:13px!important;line-height:1!important" data-mts-edit="' + row.source_row + '" aria-label="Editar MTS REQUERIDOS">✎</button><button type="button" style="width:25px!important;min-width:25px!important;height:25px!important;min-height:25px!important;padding:0!important;border-radius:6px!important;font-size:13px!important;line-height:1!important" data-mts-delete="' + row.source_row + '" aria-label="Eliminar MTS REQUERIDOS">⌫</button></span>');
-        mtsDisplay.querySelector('strong').style.paddingRight = '62px';
+        mtsDisplay.insertAdjacentHTML('beforeend', '<span class="trace-mts-actions" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:3px"><button type="button" style="width:19px!important;min-width:19px!important;height:19px!important;min-height:19px!important;padding:0!important;border-radius:6px!important;font-size:11px!important;line-height:1!important" data-mts-edit="' + row.source_row + '" aria-label="Editar MTS REQUERIDOS">✎</button><button type="button" style="width:19px!important;min-width:19px!important;height:19px!important;min-height:19px!important;padding:0!important;border-radius:6px!important;font-size:11px!important;line-height:1!important" data-mts-delete="' + row.source_row + '" aria-label="Eliminar MTS REQUERIDOS">⌫</button></span>');
+        mtsDisplay.querySelector('strong').style.paddingRight = '28px';
       }
       if (canDelete) {
         const button = document.createElement('button');
@@ -2192,6 +2192,14 @@
   html body.production-mode .trace-card .trace-primary-facts .trace-ref{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   /* Con los MTS ya ingresados (se hace una sola vez por tarjeta) la máquina ocupa el lugar del botón «Ingresar MTS» y los MTS quedan al lado */
   html body.production-mode .trace-card .trace-mts-row.con-mts .trace-mts-btn,html body.production-mode .trace-card .trace-mts-row.con-mts .trace-mts-inventory{display:none!important}
+  /* Los MTS ocupan la posición del botón (izquierda) y la máquina queda a su lado */
+  html body.production-mode .trace-card .trace-mts-row.con-mts .trace-mts-display{order:1}
+  html body.production-mode .trace-card .trace-mts-row.con-mts .trace-machine-top{order:2}
+  /* Botones de editar / quitar los MTS: más pequeños y en vertical, pegados al borde derecho */
+  html body.production-mode .trace-card .trace-mts-actions{flex-direction:column!important;gap:3px!important;right:6px!important;top:50%!important;bottom:auto!important;transform:translateY(-50%)!important}
+  html body.production-mode .trace-card .trace-mts-actions button{width:20px!important;min-width:20px!important;height:20px!important;min-height:20px!important;padding:0!important;border-radius:6px!important;font-size:11px!important;line-height:1!important}
+  html body.production-mode .trace-card .trace-mts-actions button svg{width:11px!important;height:11px!important}
+  html body.production-mode .trace-card .trace-mts-display.has-value strong{padding-right:28px!important}
   html body.production-mode .trace-card .trace-machine-top{display:grid;gap:3px;align-content:center;min-width:0;padding:7px 10px;border:1px solid #3d4f3d;border-radius:10px;background:rgba(255,255,255,.03)}
   html body.production-mode .trace-card .trace-machine-top small{color:#9fb08c;font:800 9px Arial;letter-spacing:.09em;text-transform:uppercase}
   html body.production-mode .trace-card .trace-machine-top .trace-machine-btn{width:100%!important;height:auto!important;min-height:28px!important;padding:5px 8px!important;font-size:12px!important;line-height:1.2!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important;overflow-wrap:anywhere;text-align:center}
