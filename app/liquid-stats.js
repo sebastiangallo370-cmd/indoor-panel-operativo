@@ -47,7 +47,9 @@
   body .inventory-category span{font-size:.58rem!important}
   @media(max-width:700px){body .inventory-category-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
   /* tarjetas de inventario compactas */
-  body .inventory-cards-grid{grid-template-columns:repeat(auto-fill,minmax(205px,1fr))!important;gap:12px!important}
+  body .inventory-cards-grid{grid-template-columns:repeat(5,minmax(0,1fr))!important;gap:12px!important}
+  @media(max-width:1250px){body .inventory-cards-grid{grid-template-columns:repeat(4,minmax(0,1fr))!important}}
+  @media(max-width:950px){body .inventory-cards-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important}}
   body .inventory-item-card{min-height:0!important;padding:12px 13px 13px!important;gap:5px!important;border-radius:15px!important}
   body .inventory-item-card .inv-name{font-size:.78rem!important;margin-bottom:5px!important;line-height:1.25!important}
   body .inventory-item-card .inv-total{font-size:1.35rem!important}
