@@ -208,8 +208,10 @@
   }
 
   function build() {
+    // CAPACIDAD IMPRESORAS vive en el módulo CONTROL del menú (junto a CRONOGRAMA y CONTROL OPERARIOS); si ese grupo no existe, queda en PRODUCCIÓN como antes
+    const control = document.querySelector('#news-toggle')?.closest('.nav-group')?.querySelector('.nav-children');
     const hijos = [...document.querySelectorAll('nav.tabs .nav-children .tab[data-kind="produccion"]')].map(t => t.parentElement);
-    const contenedor = hijos[0];
+    const contenedor = control || hijos[0];
     const main = document.querySelector('main');
     if (!contenedor || !main) return false;
     if (document.querySelector('.tab[data-kind="capacidad"]')) return true;
@@ -217,10 +219,11 @@
     panel.innerHTML = '<div class="ci"></div>';
     main.appendChild(panel);
     tab = document.createElement('button');
-    tab.type = 'button'; tab.className = 'tab process-nav'; tab.dataset.kind = 'capacidad';
+    tab.type = 'button'; tab.className = control ? 'tab' : 'tab process-nav'; tab.dataset.kind = 'capacidad';
     tab.innerHTML = '<span class="nav-icon">CI</span><strong>CAPACIDAD IMPRESORAS</strong>';
-    const impresion = [...contenedor.querySelectorAll('.tab')].find(t => /IMPRESI/i.test(norm(t.textContent)) && !/MAQUINA/i.test(norm(t.textContent)));
-    (impresion || [...contenedor.querySelectorAll('.tab')].pop()).insertAdjacentElement('afterend', tab);
+    const impresion = control ? null : [...contenedor.querySelectorAll('.tab')].find(t => /IMPRESI/i.test(norm(t.textContent)) && !/MAQUINA/i.test(norm(t.textContent)));
+    const ultima = impresion || [...contenedor.querySelectorAll('.tab')].pop();
+    if (ultima) ultima.insertAdjacentElement('afterend', tab); else contenedor.appendChild(tab);
     tab.addEventListener('click', () => {
       document.querySelectorAll('.tab').forEach(x => x.classList.toggle('active', x === tab));
       document.querySelectorAll('.panel').forEach(x => x.classList.toggle('active', x === panel));
