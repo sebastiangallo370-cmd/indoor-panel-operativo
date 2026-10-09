@@ -162,7 +162,8 @@
       const color = placeColor(name);
       if (!color) return '';
       const [bg, fg, border] = color, roll = '.inventory-roll.bgp-' + index + ':not([class*="roll-pick"])';
-      return roll + '{background:' + bg + '!important;color:' + fg + '!important;border-color:' + border + '!important}' +
+      const cc = chipColor(name);   // el rollo lleva el mismo color fuerte de su bodega
+      return roll + '{background:radial-gradient(circle at 30% 24%,rgba(255,255,255,.5),rgba(255,255,255,0) 46%),' + cc[0] + '!important;color:' + cc[1] + '!important;border-color:rgba(255,255,255,.75)!important;text-shadow:none!important}' +
         roll + '.roll-started{border-color:#ff9f1c!important;border-style:dashed!important}' +
         '.bg-chip.bgp-' + index + '{background:' + chipColor(name)[0] + '!important;color:' + chipColor(name)[1] + '!important;border-color:' + chipColor(name)[0] + '!important;text-shadow:none!important}';
     }).join('');
