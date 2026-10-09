@@ -105,6 +105,7 @@
       const done = internal.filter(p => states[p.label] === 'finished').length;
       o.percent = internal.length ? Math.round(done / internal.length * 100) : 0;
       o.complete = internal.length > 0 && done === internal.length;
+      o.states = states;
       o.rework = internal.some(p => states[p.label] === 'rework');
       // Area donde esta el pedido ahora: reproceso > en proceso > primer proceso sin cerrar.
       const focus = internal.find(p => states[p.label] === 'rework') || [...internal].reverse().find(p => states[p.label] === 'active') || internal.find(p => states[p.label] !== 'finished');
@@ -196,7 +197,7 @@
     }).filter(item => item.orders);
 
     return {
-      orders: list, timing, typical,
+      orders: list, timing, typical, flow: internal.map(p => p.label),
       dueToday, dueTomorrow, late, reworkList, load,
       today, weekStart, weekEnd, activeCount: active.length,
       real, realCount: sample.length, estimated, promised,
@@ -298,15 +299,103 @@
 
   // ---- CARGA POR ÁREA (real: filas en proceso, en cola y en reproceso de cada área, en el orden del flujo; cada tarjeta lista todos sus pedidos) ----
   const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
-  const openAreas = new Set();   // áreas desplegadas: se conservan cuando el resumen se actualiza solo
+  // ---- VENTANA DE UN ÁREA (pantalla completa): cada pedido como barra de proceso según sus fechas ----
+  const KIND = { proc: 'En proceso', cola: 'En cola', prog: 'Programado', rep: 'Reproceso' };
+  const STATE_TEXT = { finished: 'terminado', active: 'en proceso', rework: 'reproceso', pending: 'pendiente' };
+  const dlg = document.createElement('dialog');
+  dlg.className = 'dash-areadlg';
+  dlg.setAttribute('aria-label', 'Pedidos del área');
+  document.body.appendChild(dlg);
+  const view = { label: '', kind: 'all', q: '', sort: 'due' };
+  const dayText = n => n === 0 ? 'hoy' : n === 1 ? 'mañana' : n > 0 ? 'en ' + n + ' d' : 'hace ' + (-n) + ' d';
+
+  // Barra de tiempo del pedido: de la fecha de creación a la de entrega (o al plazo típico si no tiene). La marca «hoy» cae donde va el calendario.
+  function barOf(o, today, typical) {
+    if (!o.created) return null;
+    let end = o.due;
+    if (!end && typical) end = addDays(o.created, Math.max(1, Math.round(typical)));
+    if (!end || end <= o.created) end = addDays(o.created, 1);
+    const total = Math.max(1, daysBetween(o.created, end)), elapsed = daysBetween(o.created, today), ratio = elapsed / total;
+    const late = !!o.due && o.due < today;
+    return { total, elapsed, ratio, late, end, estimated: !o.due, tone: late ? 'late' : ratio >= .8 ? 'warn' : 'ok', left: daysBetween(today, end) };
+  }
+
+  function orderRow(item, a, index) {
+    const o = item.o, b = barOf(o, a.today, a.typical), kind = item.kinds[0], prog = Math.round(o.percent || 0);
+    const fill = b ? Math.max(2, Math.min(100, Math.round(b.ratio * 100))) : 0;
+    const steps = a.flow.map(label => {
+      const st = (o.states || {})[label] || 'pending', when = o.finishedOn && o.finishedOn[label] ? ' · ' + fmtShort(o.finishedOn[label]) : '';
+      return '<i class="st ' + st + (label === view.label ? ' here' : '') + '" title="' + esc(label) + ' · ' + STATE_TEXT[st] + when + '"><b>' + esc(label.slice(0, 3)) + '</b></i>';
+    }).join('');
+    const bar = b
+      ? '<div class="od-bar" title="Barra de tiempo: de la creación a la entrega"><i class="od-fill"></i><i class="od-adv" title="Avance real de procesos: ' + prog + '%"></i><i class="od-today" style="left:' + fill + '%"><u>hoy</u></i></div>' +
+        '<div class="od-dates"><span>Creada ' + fmtShort(o.created) + '</span><span class="od-mid">día ' + Math.max(0, b.elapsed) + ' de ' + b.total + (b.estimated ? ' (estimado)' : '') + ' · avance ' + prog + '%</span>' +
+        '<span class="od-end">' + (b.late ? 'Venció ' + fmtShort(o.due) + ' · ' + dayText(daysBetween(o.due, a.today) * -1) : (o.due ? 'Entrega ' + fmtShort(o.due) : 'Entrega estimada ' + fmtShort(b.end)) + ' · ' + dayText(b.left)) + '</span></div>'
+      : '<div class="od-bar none"></div><div class="od-dates"><span>Sin fecha de creación: no se puede medir el tiempo</span><span class="od-end">' + (o.due ? 'Entrega ' + fmtShort(o.due) : 'Sin fecha de entrega') + '</span></div>';
+    return '<li class="od k-' + kind + ' tone-' + (b ? b.tone : 'none') + '" style="--i:' + Math.min(index, 24) + ';--w:' + fill + '%;--a:' + prog + '%">' +
+      '<div class="od-top"><div class="od-id"><strong>' + esc(o.id) + '</strong><span>' + esc(o.client || 'Sin cliente') + '</span></div>' +
+      '<div class="od-tags">' + item.kinds.map(k => '<em class="od-kind k-' + k + '">' + KIND[k] + '</em>').join('') + '</div><b class="od-units">' + fmtNum(item.units) + ' und.</b></div>' + bar +
+      '<div class="od-steps" aria-label="Procesos del pedido">' + steps + '</div></li>';
+  }
+
+  const currentItem = () => model && model.load.find(i => i.label === view.label);
+  function dlgShell() {
+    dlg.innerHTML =
+      '<div class="od-head"><div class="od-title"><span class="eyebrow">Carga por área</span><h3>' + esc(view.label) + '</h3><small data-od-sub></small></div>' +
+      '<div class="od-kpis" data-od-kpis></div><button type="button" class="od-close" data-od-close aria-label="Cerrar la ventana">✕</button></div>' +
+      '<div class="od-tools"><div class="od-chips" data-od-chips></div><label class="od-search"><input type="search" data-od-q autocomplete="off" placeholder="Buscar orden o cliente" value="' + esc(view.q) + '"></label>' +
+      '<label class="od-sort"><span>Ordenar</span><select data-od-sort><option value="due">Entrega más próxima</option><option value="adv">Menor avance</option><option value="und">Más unidades</option><option value="old">Más antiguos</option></select></label></div>' +
+      '<div class="od-legend"><span><i class="g-ok"></i>A tiempo</span><span><i class="g-warn"></i>Cerca de la entrega</span><span><i class="g-late"></i>Atrasado</span><span><i class="g-adv"></i>Avance real</span><span><i class="g-now"></i>Hoy</span></div>' +
+      '<ul class="od-list" data-od-list></ul>';
+    dlg.querySelector('[data-od-sort]').value = view.sort;
+  }
+  function dlgList() {
+    const item = currentItem(), list = dlg.querySelector('[data-od-list]');
+    if (!list) return;
+    if (!item) { list.innerHTML = '<li class="od-empty">Esta área ya no tiene pedidos pendientes.</li>'; return; }
+    const a = model, t = item.total, today = a.today;
+    const isLate = i => i.o.due && i.o.due < today;
+    const chips = [['all', 'Todos', item.orders], ['proc', 'En proceso', t.proc.orders], ['cola', 'En cola', t.cola.orders], ['prog', 'Programado', t.prog.orders], ['rep', 'Reproceso', t.rep.orders], ['late', 'Atrasados', item.late]];
+    if (view.kind !== 'all' && !chips.some(([k, , n]) => k === view.kind && n)) view.kind = 'all';
+    dlg.querySelector('[data-od-chips]').innerHTML = chips.filter(([k, , n]) => k === 'all' || n).map(([k, label, n]) =>
+      '<button type="button" class="od-chip c-' + k + (view.kind === k ? ' on' : '') + '" data-od-kind="' + k + '">' + label + ' <b>' + n + '</b></button>').join('');
+    const avg = item.items.length ? Math.round(item.items.reduce((s, i) => s + (i.o.percent || 0), 0) / item.items.length) : 0;
+    dlg.querySelector('[data-od-kpis]').innerHTML =
+      '<div class="od-kpi"><b>' + item.orders + '</b><span>pedidos</span></div><div class="od-kpi"><b>' + fmtNum(item.units) + '</b><span>unidades</span></div>' +
+      '<div class="od-kpi' + (item.late ? ' bad' : '') + '"><b>' + item.late + '</b><span>atrasados</span></div><div class="od-kpi"><b>' + avg + '%</b><span>avance prom.</span></div>';
+    dlg.querySelector('[data-od-sub]').textContent = plural(t.proc.orders, 'pedido', 'pedidos') + ' en proceso · ' + plural(t.cola.orders, 'pedido', 'pedidos') + ' en cola · ' + plural(t.prog.orders, 'pedido', 'pedidos') + ' programados · actualizado ' + new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+    const q = key(view.q);
+    let rows = item.items.filter(i => (view.kind === 'all' || (view.kind === 'late' ? isLate(i) : i.kinds.includes(view.kind))) && (!q || key(i.o.id).includes(q) || key(i.o.client).includes(q)));
+    const bySort = {
+      due: (x, y) => (x.o.due || Infinity) - (y.o.due || Infinity),
+      adv: (x, y) => (x.o.percent || 0) - (y.o.percent || 0),
+      und: (x, y) => y.units - x.units,
+      old: (x, y) => (x.o.created || Infinity) - (y.o.created || Infinity)
+    };
+    rows = [...rows].sort(bySort[view.sort] || bySort.due);
+    list.classList.remove('go');
+    list.innerHTML = rows.length ? rows.map((i, n) => orderRow(i, a, n)).join('') : '<li class="od-empty">No hay pedidos con ese filtro.</li>';
+    requestAnimationFrame(() => requestAnimationFrame(() => list.classList.add('go')));
+  }
+  function openArea(label) {
+    view.label = label; view.kind = 'all'; view.q = ''; view.sort = 'due';
+    dlgShell(); dlgList();
+    document.documentElement.style.overflow = 'hidden';
+    if (!dlg.open) dlg.showModal();
+    dlg.querySelector('[data-od-list]').scrollTop = 0;
+  }
+  function closeArea() { if (dlg.open) dlg.close(); }
+  dlg.addEventListener('close', () => { view.label = ''; document.documentElement.style.overflow = ''; });
+  dlg.addEventListener('click', event => {
+    if (event.target === dlg || event.target.closest('[data-od-close]')) return closeArea();
+    const chip = event.target.closest('[data-od-kind]');
+    if (chip) { view.kind = chip.dataset.odKind; dlgList(); }
+  });
+  dlg.addEventListener('input', event => { if (event.target.matches('[data-od-q]')) { view.q = event.target.value; dlgList(); } });
+  dlg.addEventListener('change', event => { if (event.target.matches('[data-od-sort]')) { view.sort = event.target.value; dlgList(); } });
   root.addEventListener('click', event => {
-    const button = event.target.closest('[data-area-toggle]');
-    if (!button) return;
-    const card = button.closest('.dash-load-card'), label = button.dataset.areaToggle;
-    const open = !openAreas.has(label);
-    if (open) openAreas.add(label); else openAreas.delete(label);
-    card.classList.toggle('open', open);
-    button.setAttribute('aria-expanded', String(open));
+    const button = event.target.closest('[data-area-open]');
+    if (button) openArea(button.dataset.areaOpen);
   });
   function loadSection(a) {
     if (!a.load.length) return '';
@@ -320,19 +409,13 @@
     const cards = a.load.map((item, i) => {
       const t = item.total, sum = Math.max(1, t.proc.orders + t.cola.orders + t.prog.orders + t.rep.orders);
       const seg = (k, cls) => t[k].orders ? '<i class="' + cls + '" style="--w:' + (t[k].orders / sum * 100).toFixed(1) + '%" title="' + plural(t[k].orders, 'pedido', 'pedidos') + '"></i>' : '';
-      const rows = [...item.items].sort((x, y) => rank[x.kinds[0]] - rank[y.kinds[0]] || (x.o.due || Infinity) - (y.o.due || Infinity)).map(({ o, kinds, units }) => {
-        const late = o.due && o.due < a.today;
-        return '<li class="' + kinds[0] + '"><div class="dash-ao-main"><strong>' + esc(o.id) + '</strong><span>' + esc(o.client || 'Sin cliente') + '</span></div>' +
-          '<div class="dash-ao-meta"><b>' + fmtNum(units) + ' und.</b><small class="' + (late ? 'late' : '') + '">' + kinds.map(k => label[k]).join(' + ') + ' · ' + (o.due ? (late ? 'venció ' : 'entrega ') + fmtShort(o.due) : 'sin fecha') + '</small></div></li>';
-      }).join('');
-      return '<article class="dash-load-card ' + tier(item) + (openAreas.has(item.label) ? ' open' : '') + '" data-lq="' + Math.round(item.orders / maxOrders * 100) + '" data-lq-tone="' + ({ hot: 'rojo', warm: 'ambar', cool: 'verde' }[tier(item)]) + '" data-lq-nopct style="--i:' + i + ';--m:' + (item.orders / maxOrders * 100).toFixed(1) + '%">' +
+      return '<article class="dash-load-card ' + tier(item) + '" data-lq="' + Math.round(item.orders / maxOrders * 100) + '" data-lq-tone="' + ({ hot: 'rojo', warm: 'ambar', cool: 'verde' }[tier(item)]) + '" data-lq-nopct style="--i:' + i + ';--m:' + (item.orders / maxOrders * 100).toFixed(1) + '%">' +
         (item === heaviest ? '<em class="dash-bottleneck">Mayor carga</em>' : '') +
         '<div class="dash-load-top"><span class="dash-load-label">' + esc(item.label) + '</span>' + (t.proc.orders ? '<i class="dash-work" title="Trabajando ahora"></i>' : '') + '</div>' +
         '<div class="dash-big"><strong>' + item.orders + '</strong><span>' + (item.orders === 1 ? 'pedido' : 'pedidos') + '</span><small>' + fmtNum(item.units) + ' und.' + (item.late ? ' · <span class="late">' + plural(item.late, 'atrasado', 'atrasados') + '</span>' : '') + '</small></div>' +
         '<div class="dash-seg">' + seg('proc', 'p') + seg('cola', 'c') + seg('prog', 'g') + seg('rep', 'r') + '</div>' +
         '<ul class="dash-load-legend">' + (t.proc.orders ? '<li class="p"><b>' + t.proc.orders + '</b> en proceso</li>' : '') + (t.cola.orders ? '<li class="c"><b>' + t.cola.orders + '</b> en cola</li>' : '') + (t.prog.orders ? '<li class="g"><b>' + t.prog.orders + '</b> programado</li>' : '') + (t.rep.orders ? '<li class="r"><b>' + t.rep.orders + '</b> reproceso</li>' : '') + '</ul>' +
-        '<div class="dash-area-fold"><div><ul class="dash-area-orders">' + rows + '</ul></div></div>' +
-        '<button type="button" class="dash-area-toggle" data-area-toggle="' + esc(item.label) + '" aria-expanded="' + openAreas.has(item.label) + '" title="Ver todos los pedidos de esta área"><span>' + plural(item.orders, 'pedido', 'pedidos') + '</span><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button></article>';
+        '<button type="button" class="dash-area-toggle" data-area-open="' + esc(item.label) + '" title="Abrir la ventana con todos los pedidos de esta área"><span>' + plural(item.orders, 'pedido', 'pedidos') + ' · ver detalle</span><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button></article>';
     }).join('');
     return '<section class="dash-load" id="dash-load"><div class="dash-panel-head"><h4>Carga por área</h4><small>' + plural(totalWorking, 'pedido', 'pedidos') + ' en proceso · ' + plural(totalQueue, 'pedido', 'pedidos') + ' en cola · ' + plural(totalProg, 'pedido', 'pedidos') + ' programados · ' + fmtNum(totalUnits) + ' und. en total según lo programado</small></div>' +
       '<div class="dash-load-grid">' + cards + '</div></section>';
@@ -479,6 +562,7 @@
     bindOrderFinder(a.orders);
     renderTiming(a);
     countUp();
+    if (dlg.open && view.label) dlgList();
   }
 
   const style = document.createElement('style');
@@ -505,6 +589,52 @@
   .dash-tabs button b{min-width:20px;padding:1px 7px;border-radius:99px;background:rgba(255,255,255,.12);font-size:.7rem;text-align:center}.dash-tabs button.on b{background:rgba(22,32,10,.18)}
   .dash-pane{display:none;gap:16px}.dash-pane.on{display:grid;animation:dashRise .3s both}
   @media(max-width:700px){.dash-tabs{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.dash-tabs button{flex:none;padding:8px 12px;font-size:.74rem}}
+  /* ventana de pantalla completa de un área */
+  .dash-areadlg{position:fixed;inset:0;width:100vw;height:100dvh;max-width:none;max-height:none;margin:0;padding:0;border:0;background:radial-gradient(1200px 500px at 10% -10%,rgba(139,212,80,.10),transparent 60%),#080b08;color:#eef3e8;font-family:Arial,Helvetica,sans-serif}
+  .dash-areadlg[open]{display:flex;flex-direction:column;animation:odIn .28s cubic-bezier(.2,.8,.2,1) both}
+  .dash-areadlg::backdrop{background:rgba(0,0,0,.75)}
+  @keyframes odIn{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:none}}
+  .od-head{display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:18px clamp(14px,3vw,36px) 12px}
+  .od-title{display:grid;gap:2px;min-width:0;flex:1 1 260px}.od-title h3{margin:0;font-size:clamp(1.5rem,3vw,2.2rem);letter-spacing:.03em;text-transform:uppercase}.od-title small{color:#9fab99;font-size:.8rem}
+  .od-kpis{display:flex;gap:10px;flex-wrap:wrap}.od-kpi{display:grid;justify-items:center;gap:1px;min-width:92px;padding:9px 14px;border:1px solid rgba(255,255,255,.12);border-radius:12px;background:rgba(255,255,255,.04)}
+  .od-kpi b{font-size:1.45rem;line-height:1.1;color:#fff}.od-kpi span{font-size:.66rem;color:#9fab99;text-transform:uppercase;letter-spacing:.07em}.od-kpi.bad b{color:#ff8a7c}
+  .od-close{width:44px!important;height:44px;min-height:0!important;flex:none;display:grid;place-items:center;border:1px solid rgba(255,255,255,.2);border-radius:50%;background:rgba(255,255,255,.06);color:#fff;font:700 1.1rem Arial;cursor:pointer;transition:background .15s,transform .15s}.od-close:hover{background:#ff6b5c;color:#2a0e0a;transform:rotate(90deg)}
+  .od-tools{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:6px clamp(14px,3vw,36px) 10px}
+  .od-chips{display:flex;gap:7px;flex-wrap:wrap;flex:1 1 420px}
+  .od-chip{width:auto!important;min-height:0!important;display:inline-flex;align-items:center;gap:7px;padding:7px 13px;border:1px solid rgba(255,255,255,.15);border-radius:999px;background:transparent;color:#c4cfbf;font:800 .76rem Arial;cursor:pointer;transition:background .15s,color .15s,transform .15s}
+  .od-chip:hover{transform:translateY(-1px);background:rgba(255,255,255,.07)}.od-chip b{padding:1px 7px;border-radius:99px;background:rgba(255,255,255,.12);font-size:.68rem}
+  .od-chip.on{background:#d0f44c;border-color:#d0f44c;color:#16200a}.od-chip.on b{background:rgba(22,32,10,.2)}
+  .od-chip.c-rep:not(.on){border-color:rgba(255,107,92,.5);color:#ffb3a9}.od-chip.c-late:not(.on){border-color:rgba(255,107,92,.5);color:#ffb3a9}.od-chip.c-proc:not(.on){border-color:rgba(139,212,80,.5)}.od-chip.c-cola:not(.on){border-color:rgba(255,201,92,.5)}.od-chip.c-prog:not(.on){border-color:rgba(143,184,255,.5)}
+  .od-search input,.od-sort select{min-height:38px;padding:0 12px;border:1px solid rgba(255,255,255,.18);border-radius:10px;background:#101610;color:#eef3e8;font:700 .82rem Arial}.od-search input{width:min(280px,60vw)}
+  .od-sort{display:flex;align-items:center;gap:8px;color:#9fab99;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em}
+  .od-legend{display:flex;gap:16px;flex-wrap:wrap;padding:0 clamp(14px,3vw,36px) 10px;color:#9fab99;font-size:.7rem}.od-legend span{display:inline-flex;align-items:center;gap:6px}.od-legend i{width:18px;height:7px;border-radius:99px;display:inline-block}
+  .g-ok{background:#8bd450}.g-warn{background:#ffc95c}.g-late{background:#ff6b5c}.g-adv{background:#fff;height:3px!important}.g-now{background:#d0f44c;width:3px!important;height:12px!important}
+  .od-list{list-style:none;margin:0;padding:6px clamp(14px,3vw,36px) 40px;display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,520px),1fr));gap:12px;overflow:auto;flex:1;align-content:start;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.25) transparent}
+  .od{--c:#8bd450;display:grid;gap:8px;padding:13px 15px 12px;border:1px solid rgba(255,255,255,.1);border-left:4px solid var(--k,#8bd450);border-radius:14px;background:linear-gradient(180deg,rgba(255,255,255,.045),rgba(255,255,255,.015));opacity:0;transform:translateY(12px);transition:opacity .4s ease,transform .4s ease,border-color .2s,box-shadow .2s;transition-delay:calc(var(--i,0)*28ms,0ms)}
+  .od-list.go .od{opacity:1;transform:none}.od:hover{border-color:var(--c);box-shadow:0 10px 26px -14px var(--c);transition-delay:0ms}
+  .od.k-proc{--k:#8bd450}.od.k-cola{--k:#ffc95c}.od.k-prog{--k:#8fb8ff}.od.k-rep{--k:#ff6b5c}
+  .od.tone-ok{--c:#8bd450}.od.tone-warn{--c:#ffc95c}.od.tone-late{--c:#ff6b5c}.od.tone-none{--c:#6c7a68}
+  .od-top{display:flex;align-items:center;gap:10px;justify-content:space-between}.od-id{display:grid;min-width:0;flex:1}.od-id strong{font-size:1.02rem;color:#fff}.od-id span{font-size:.74rem;color:#9fab99;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .od-tags{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end}.od-kind{font-style:normal;font-size:.62rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:99px;color:#10200a;background:#8bd450}
+  .od-kind.k-cola{background:#ffc95c;color:#2a1d02}.od-kind.k-prog{background:#8fb8ff;color:#0c1a33}.od-kind.k-rep{background:#ff6b5c;color:#2a0e0a}.od-units{font-size:.9rem;color:#fff;white-space:nowrap}
+  .od-bar{position:relative;margin-top:12px;height:16px;border-radius:99px;background:rgba(255,255,255,.08);overflow:visible}.od-bar.none{height:8px;opacity:.5}
+  .od-fill{position:absolute;left:0;top:0;bottom:0;width:0;border-radius:99px;background:linear-gradient(90deg,color-mix(in srgb,var(--c) 70%,#000),var(--c));box-shadow:0 0 14px -2px var(--c);transition:width 1s cubic-bezier(.2,.8,.2,1);transition-delay:calc(var(--i,0)*28ms + 120ms)}
+  .od-list.go .od-fill{width:var(--w)}
+  .tone-late .od-fill{background-image:repeating-linear-gradient(135deg,rgba(255,255,255,.22) 0 8px,transparent 8px 16px),linear-gradient(90deg,#b8372a,#ff6b5c);background-size:32px 32px,100% 100%;animation:odStripes 1.1s linear infinite}
+  @keyframes odStripes{to{background-position:32px 0,0 0}}
+  .od-adv{position:absolute;left:0;bottom:-6px;height:3px;width:0;border-radius:99px;background:#fff;opacity:.9;transition:width 1.1s cubic-bezier(.2,.8,.2,1);transition-delay:calc(var(--i,0)*28ms + 260ms)}.od-list.go .od-adv{width:var(--a)}
+  .od-today{position:absolute;top:-5px;bottom:-5px;width:3px;margin-left:-1px;border-radius:2px;background:#d0f44c;box-shadow:0 0 0 0 rgba(208,244,76,.7);animation:odNow 1.8s infinite;opacity:0;transition:opacity .4s .9s}.od-list.go .od-today{opacity:1}
+  .od-today u{position:absolute;top:-14px;right:-2px;font-size:.56rem;font-weight:800;letter-spacing:.06em;text-decoration:none;text-transform:uppercase;color:#d0f44c}
+  @keyframes odNow{70%{box-shadow:0 0 0 7px rgba(208,244,76,0)}100%{box-shadow:0 0 0 0 rgba(208,244,76,0)}}
+  .od-dates{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:6px;font-size:.7rem;color:#9fab99}.od-dates .od-mid{color:#c4cfbf}.od-dates .od-end{font-weight:800;color:var(--c)}
+  .od-steps{display:flex;gap:3px}.od-steps .st{flex:1;display:grid;place-items:center;height:20px;border-radius:5px;background:rgba(255,255,255,.07);cursor:help;transition:transform .15s}.od-steps .st:hover{transform:translateY(-2px)}
+  .od-steps .st b{font-size:.54rem;letter-spacing:.03em;color:rgba(255,255,255,.45)}.od-steps .st.finished{background:rgba(139,212,80,.35)}.od-steps .st.finished b{color:#d9f6bd}
+  .od-steps .st.active{background:#8bd450;animation:odStep 1.6s infinite}.od-steps .st.active b{color:#10200a}.od-steps .st.rework{background:#ff6b5c}.od-steps .st.rework b{color:#2a0e0a}
+  .od-steps .st.here{outline:2px solid #fff;outline-offset:1px}
+  @keyframes odStep{50%{filter:brightness(1.35)}}
+  .od-empty{grid-column:1/-1;padding:40px 10px;text-align:center;color:#9fab99;font-size:.95rem}
+  @media(max-width:700px){.od-legend{display:none}.od-title small{display:none}.od-head{gap:8px;padding-bottom:6px}.od-title h3{font-size:1.35rem}.od-close{width:38px!important;height:38px}.od-kpi span{font-size:.56rem;letter-spacing:.03em}.od-tools{gap:8px;padding-bottom:6px}.od-chips{flex-wrap:nowrap;overflow-x:auto;flex:1 1 100%;scrollbar-width:none}.od-chip{flex:none;padding:6px 11px;font-size:.7rem}.od-search input,.od-sort select{min-height:34px}.od-head{padding-top:14px}.od-kpis{order:3;width:100%;display:grid;grid-template-columns:repeat(4,1fr);gap:6px}.od-kpi{min-width:0;padding:7px 4px}.od-kpi b{font-size:1.1rem}.od-search input{width:100%}.od-search{flex:1 1 100%}.od-sort{flex:1 1 100%}.od-sort select{flex:1}.od-list{grid-template-columns:1fr;padding-bottom:30px}.od-steps .st b{display:none}.od-legend{gap:10px}}
+  @media(prefers-reduced-motion:reduce){.od,.od-fill,.od-adv,.od-today,.od-steps .st,.dash-areadlg[open]{transition:none!important;animation:none!important}.od{opacity:1;transform:none}.od-list .od-fill{width:var(--w)}.od-list .od-adv{width:var(--a)}.od-today{opacity:1}}
   /* tarjetas compactas */
   .dash-cards{grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
   .dash-card{gap:7px;padding:13px 15px 15px;border-radius:14px}
@@ -547,7 +677,7 @@
   .dash-bottleneck{position:absolute;top:-1px;right:12px;font-style:normal;font-size:.6rem;font-weight:800;letter-spacing:.03em;text-transform:uppercase;padding:3px 8px;border-radius:0 0 8px 8px;background:#ff6b5c;color:#2a0e0a}
   .dash-area-fold{display:grid;grid-template-rows:0fr;transition:grid-template-rows .35s cubic-bezier(.2,.8,.2,1)}.dash-area-fold>div{min-height:0;overflow:hidden}.dash-load-card.open .dash-area-fold{grid-template-rows:1fr}
   .dash-area-toggle{width:auto!important;min-height:0!important;display:flex;align-items:center;justify-content:space-between;gap:8px;margin:2px -16px -12px;padding:9px 16px;border:0;border-top:1px solid rgba(255,255,255,.09);border-radius:0;background:rgba(255,255,255,.03);color:#b9c6b3;font:700 .74rem Arial;letter-spacing:.03em;cursor:pointer;transition:background .15s,color .15s}
-  .dash-area-toggle:hover{background:rgba(255,255,255,.07);color:#fff}.dash-area-toggle svg{flex:none;color:var(--t);transition:transform .3s}.dash-load-card.open .dash-area-toggle svg{transform:rotate(180deg)}
+  .dash-area-toggle:hover{background:rgba(255,255,255,.07);color:#fff}.dash-area-toggle svg{flex:none;color:var(--t);transition:transform .3s}
   .dash-area-orders{list-style:none;margin:8px 0 6px;padding:0 4px 0 0;display:grid;gap:6px;max-height:330px;overflow:auto;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.22) transparent}
   .dash-area-orders li{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 10px;border:1px solid rgba(255,255,255,.08);border-left:3px solid #8bd450;border-radius:10px;background:rgba(255,255,255,.03)}
   .dash-area-orders li.cola{border-left-color:#ffc95c}.dash-area-orders li.prog{border-left-color:#8fb8ff}.dash-area-orders li.rep{border-left-color:#ff6b5c;background:rgba(255,107,92,.07)}
