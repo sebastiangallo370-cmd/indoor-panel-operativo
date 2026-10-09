@@ -752,8 +752,25 @@
     pintarLive();
   }
   // Aviso de fin: cuando los agentes terminan la orden aparece un cuadro grande en PDFS y un aviso flotante (y una notificación del navegador si ya diste permiso)
+  const ESPERAS = { APROBACION: 'Esperando tu aprobación', JUGADORES: 'Esperando la lista de jugadores', CONFIRMAR_SHEETS: 'Esperando tu confirmación', CONFIRMAR: 'Esperando tu confirmación',
+    ELEGIR_PROYECTO: 'Elige un proyecto', ELEGIR_PESTANA: 'Elige una pestaña', ELEGIR_AI: 'Elige un archivo' };
   function avisarFin() {
     if (st.esperando) return;
+    // Si los agentes se detuvieron para preguntarte algo (aprobar, elegir un diseño…) la orden NO terminó: se avisa que esperan tu respuesta
+    const ultimoBot = [...(st.msgs || [])].reverse().find(m => m.rol === 'bot');
+    const motivo = ultimoBot && ESPERAS[ultimoBot.estado];
+    if (motivo) {
+      flow.fin = { orden: st.orden || '', espera: motivo, errores: 0, pdfs: 0, montajes: 0, hora: '' };
+      pintarProg();
+      document.querySelectorAll('.ag-toast-fin').forEach(x => x.remove());
+      const t = document.createElement('div');
+      t.className = 'ag-toast-fin err';
+      t.innerHTML = '<i>?</i><div>Los agentes esperan tu respuesta<small>' + esc(motivo) + ' · orden ' + esc(st.orden || '') + '</small></div>';
+      t.addEventListener('click', () => t.remove());
+      document.body.appendChild(t);
+      setTimeout(() => t.remove(), 14000);
+      return;
+    }
     const evs = flow.ejec ? flow.ejec.eventos : [];
     const arch = evs.filter(e => e.archivo).map(e => e.archivo);
     const pdfs = new Set(arch.filter(a => a.tipo === 'pdf').map(a => a.detalle || (a.nombre + a.numero + a.talla))).size;
@@ -801,9 +818,10 @@
       b.addEventListener('click', () => ponerVista('pdfs'));
       barra.insertBefore(b, barra.firstChild);
     }
-    const pct = trabajando ? progreso() : 100;
-    const clase = 'ag-prog' + (fin ? (fin.errores ? ' listo err' : ' listo') : '');
-    const rotulo = trabajando ? 'Ejecutando agentes' : (fin.errores ? 'Terminó con errores' : 'Orden terminada');
+    const espera = !!(fin && fin.espera);
+    const pct = trabajando ? progreso() : (espera ? progreso() : 100);
+    const clase = 'ag-prog' + (espera ? ' err' : (fin ? (fin.errores ? ' listo err' : ' listo') : ''));
+    const rotulo = trabajando ? 'Ejecutando agentes' : (espera ? fin.espera : (fin.errores ? 'Terminó con errores' : 'Orden terminada'));
     const html = '<i class="fill"></i><span>' + rotulo + '</span><span class="pct">' + pct + '%</span><i class="chulo">' + (fin && fin.errores ? '!' : '✓') + '</i>';
     if (b.className !== clase) b.className = clase;
     if (b.dataset.h !== html) { b.dataset.h = html; b.innerHTML = html; }
@@ -1215,7 +1233,11 @@
       if (evs.length) st.evs = st.evs.concat(evs);
       st.ultimoEv = Math.max(st.ultimoEv, datos.ultimo_ev || 0);
       pintarProg();
-      if (primera) reconstruir();
+      if (primera) {
+        reconstruir();
+        const ub = [...st.msgs].reverse().find(m => m.rol === 'bot');   // al abrir la página con los agentes esperando tu respuesta, el botón lo dice
+        if (ub && ESPERAS[ub.estado] && !st.esperando) { flow.fin = { orden: st.orden || '', espera: ESPERAS[ub.estado], errores: 0, pdfs: 0, montajes: 0, hora: '' }; pintarProg(); }
+      }
       else {
         // pedidos hechos desde otra pestaña o dispositivo también abren su ejecución; luego el avance y por último el resultado
         nuevos.filter(m => m.rol === 'yo' && m.id > flow.preparado).forEach(m => flow.cola.push({ tipo: 'nueva', id: m.id }));
