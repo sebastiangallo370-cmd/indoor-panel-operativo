@@ -404,6 +404,9 @@
   .panel[data-panel='agentes'] .ag-gen button.m.on{border-color:#8fb8ff;background:linear-gradient(180deg,#a9c8ff,#4f80cf);color:#06142b;box-shadow:0 6px 14px -6px rgba(143,184,255,.8)}
   .panel[data-panel='agentes'] .ag-gen button.f.on{border-color:#ff9ad5;background:linear-gradient(180deg,#ffb6e2,#e0509f);color:#33001a;box-shadow:0 6px 14px -6px rgba(255,154,213,.8)}
   .panel[data-panel='agentes'] .ag-gen button.on b{background:rgba(0,0,0,.18)}
+  .panel[data-panel='agentes'] .ag-gen.ag-dis{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 2px}
+  .panel[data-panel='agentes'] .ag-gen.ag-dis[hidden]{display:none}
+  .panel[data-panel='agentes'] .ag-gen button.d.on{border-color:#d7ff3a;background:linear-gradient(180deg,#e4ff7a,#a8d42a);color:#141c05;box-shadow:0 6px 14px -6px rgba(215,255,58,.8)}
   .panel[data-panel='agentes'] .ag-prog{position:relative;overflow:hidden;flex:none;display:inline-flex;align-items:center;gap:9px;min-width:200px;height:38px;padding:0 14px;border:1px solid rgba(139,212,80,.55);border-radius:12px;background:#0f170d;color:#f3ffe0;font:800 12px Arial;letter-spacing:.03em;cursor:pointer;box-shadow:0 10px 22px -16px rgba(139,212,80,.9);transition:border-color .3s,box-shadow .3s}
   .panel[data-panel='agentes'] .ag-prog .fill{position:absolute;left:0;top:0;bottom:0;width:0;background:linear-gradient(90deg,#2f7d1c,#8bd450);opacity:.6;transition:width .6s cubic-bezier(.2,.8,.2,1)}
   .panel[data-panel='agentes'] .ag-prog .fill::after{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent 30%,rgba(255,255,255,.35) 50%,transparent 70%);background-size:200% 100%;animation:agBrillo 1.4s linear infinite}
@@ -660,7 +663,7 @@
   function prepararEjecucion(idMensaje) {
     const nueva = !flow.estadoServidor || ['INICIO', 'FIN', 'ERROR'].includes(flow.estadoServidor);
     flow.preparado = idMensaje || flow.preparado;
-    if (nueva) { flow.genTab = null; nuevaEjec(); } else NODOS.forEach(n => { if (flow.estado[n.id] === 'espera') poner(n.id, 'ok'); });
+    if (nueva) { flow.genTab = null; flow.disTab = null; nuevaEjec(); } else NODOS.forEach(n => { if (flow.estado[n.id] === 'espera') poner(n.id, 'ok'); });
     flow.ejec.pet++;
     pildora('corriendo', 'Ejecutando…');
     if (nueva) { poner('TRIGGER', 'ok'); mover('TAVO'); }
@@ -705,7 +708,7 @@
       '<div class="ag-live-body"><div class="ag-live-vista" data-vista><button type="button" class="mu-flecha izq" data-pdf-go="-1" title="PDF anterior (←)"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button type="button" class="mu-flecha der" data-pdf-go="1" title="PDF siguiente (→)"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button><img alt="PDF de producción"><div class="ag-live-vacio"><div><b>ESPERANDO LOS PDF</b><br>Aquí verás cada PDF de producción, con el nombre y el número de cada jugador, a medida que se genera.</div></div>' +
       '<div class="ag-live-cap" data-cap><span class="num"></span><div><span class="nom"></span><small class="det"></small></div></div><div class="ag-live-prog"><i></i></div></div>' +
       '<aside class="ag-live-side"><div class="ag-live-sec"><h4>MONTAJES <span data-nm>0</span></h4><div class="ag-live-list" data-lm></div></div>' +
-      '<div class="ag-live-sec"><h4>PDF DE PRODUCCIÓN <span class="ag-gen" data-gen hidden></span><span data-np>0</span></h4><div class="ag-live-list" data-lp></div><small class="dest" data-dp></small></div></aside></div>';
+      '<div class="ag-live-sec"><h4>PDF DE PRODUCCIÓN <span class="ag-gen" data-gen hidden></span><span data-np>0</span></h4><div class="ag-gen ag-dis" data-dis hidden></div><div class="ag-live-list" data-lp></div><small class="dest" data-dp></small></div></aside></div>';
     box.addEventListener('click', e => {
       const aiFila = e.target.closest('[data-ai-ruta]');
       if (aiFila) { e.preventDefault(); e.stopPropagation(); abrirEnIllustrator(aiFila.dataset.aiRuta); return; }
@@ -713,6 +716,8 @@
       if (aiBtn) { abrirTodosEnIllustrator(); return; }
       const gt = e.target.closest('[data-gen-tab]');
       if (gt) { flow.genTab = gt.dataset.genTab; flow.vistaFija = null; pintarLive(); return; }
+      const dt = e.target.closest('[data-dis-tab]');
+      if (dt) { flow.disTab = dt.dataset.disTab; flow.vistaFija = null; pintarLive(); return; }
       const go = e.target.closest('[data-pdf-go]');
       if (go) { irPdf(Number(go.dataset.pdfGo)); return; }
       const fila = e.target.closest('[data-vista]'); if (fila && fila.dataset.vista) { flow.vistaFija = fila.dataset.vista; pintarLive(); return; }
@@ -847,9 +852,23 @@
     q('[data-lm]').innerHTML = montajes.slice().reverse().slice(0, 60).map((a, i) => '<div' + (i === 0 ? ' class="nuevo"' : '') + '>' + itemM(a) + '</div>').join('') || '<div style="opacity:.5">Esperando…</div>';
     // Masculinos y femeninos: si la orden genera ambos aparecen dos pestañas; por defecto sigue al último PDF creado y, si eliges una, se queda en ella
     const sexoDe = a => { const m = /_Gen_([MF])(?:_|\.|$)/i.exec(String(a.detalle || a.nombre || '')); return m ? m[1].toUpperCase() : String(a.genero || '').charAt(0).toUpperCase(); };
-    const nM = pdfs.filter(a => sexoDe(a) === 'M').length, nF = pdfs.filter(a => sexoDe(a) === 'F').length, hayAmbos = nM > 0 && nF > 0;
-    const pestana = hayAmbos ? (flow.genTab === 'M' || flow.genTab === 'F' ? flow.genTab : (sexoDe(pdfs[pdfs.length - 1]) || 'M')) : '';
-    const visibles = hayAmbos ? pdfs.filter(a => sexoDe(a) === pestana) : pdfs;
+    // Diseños: si la orden trae varios (D1, D2, D3…) cada uno va en su pestaña; igual que con el género, sigue al último PDF creado hasta que elijas una
+    const disDe = a => { const m = /_Tipo_(D\d+)(?:_|\.|$)/i.exec(String(a.detalle || a.nombre || '')) || /DISE[ÑN]O\s*(\d+)/i.exec(String(a.diseno || '')); return m ? 'D' + String(m[1]).replace(/\D/g, '') : ''; };
+    const disenos = [...new Set(pdfs.map(disDe).filter(Boolean))].sort((a, b) => Number(a.slice(1)) - Number(b.slice(1)));
+    const hayDis = disenos.length > 1;
+    const pesDis = hayDis ? (disenos.includes(flow.disTab) ? flow.disTab : (disDe(pdfs[pdfs.length - 1]) || disenos[0])) : '';
+    const delDis = hayDis ? pdfs.filter(a => disDe(a) === pesDis) : pdfs;
+    const dis = q('[data-dis]');
+    if (dis) {
+      const firmaD = hayDis ? pesDis + '|' + disenos.map(d => d + ':' + pdfs.filter(a => disDe(a) === d).length).join(',') : '';
+      if (dis.dataset.firma !== firmaD) {
+        dis.dataset.firma = firmaD; dis.hidden = !hayDis;
+        dis.innerHTML = hayDis ? disenos.map(d => '<button type="button" class="d' + (d === pesDis ? ' on' : '') + '" data-dis-tab="' + d + '" title="PDF de producción del diseño ' + d.slice(1) + '">' + d + ' <b>' + pdfs.filter(a => disDe(a) === d).length + '</b></button>').join('') : '';
+      }
+    }
+    const nM = delDis.filter(a => sexoDe(a) === 'M').length, nF = delDis.filter(a => sexoDe(a) === 'F').length, hayAmbos = nM > 0 && nF > 0;
+    const pestana = hayAmbos ? (flow.genTab === 'M' || flow.genTab === 'F' ? flow.genTab : (sexoDe(delDis[delDis.length - 1]) || 'M')) : '';
+    const visibles = hayAmbos ? delDis.filter(a => sexoDe(a) === pestana) : delDis;
     const gen = q('[data-gen]');
     if (gen) {
       const firma = hayAmbos ? pestana + '|' + nM + '|' + nF : '';
@@ -1210,7 +1229,7 @@
     st.pc = id; try { localStorage.setItem('agentes_pc', id); } catch (x) { /* sin almacenamiento */ }
     sincronizarPcAuto(id);
     Object.assign(st, { msgs: [], ultimo: 0, evs: [], ultimoEv: 0, trabajo: null, esperando: false, orden: '', cambiandoOrden: false, enviando: false, resAbierto: false });
-    flow.listo = false; flow.preparado = 0; flow.estadoServidor = null; flow.vistaFija = null; flow.genTab = null;
+    flow.listo = false; flow.preparado = 0; flow.estadoServidor = null; flow.vistaFija = null; flow.genTab = null; flow.disTab = null;
     const h = panel.querySelector('[data-hilo]'); if (h) { h.dataset.firma = ''; h.innerHTML = ''; }
     const b = panel.querySelector('[data-orden]'); if (b) b.dataset.clave = '';
     await cargar(true); pintar(); programar();
