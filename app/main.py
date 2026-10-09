@@ -6513,7 +6513,7 @@ const rhumanoGroup=document.createElement('div');rhumanoGroup.className='nav-gro
 /* Submódulos de R.HUMANO (cada uno es una pestaña con su panel): CONTRATOS y C.LABORAL */
 const rhumanoTabs=['rh-contratos','rh-claboral'].map(kind=>document.querySelector('.tab[data-kind="'+kind+'"]')).filter(Boolean);
 if(canViewRHumano&&rhumanoTabs.length){{document.querySelector('nav.tabs').appendChild(rhumanoGroup);rhumanoTabs.forEach(tab=>rhumanoGroup.querySelector('.nav-children').appendChild(tab));rhumanoGroup.querySelector('.nav-parent').onclick=()=>{{rhumanoGroup.classList.toggle('collapsed');if(!rhumanoGroup.classList.contains('collapsed'))rhumanoGroup.querySelector('.nav-children .tab')?.click()}}}}else{{rhumanoTabs.forEach(tab=>tab.remove());document.querySelectorAll('.panel.rhumano-panel').forEach(panel=>panel.remove())}}
-/* COMERCIALES: módulo propio en el menú (solo Comercial y Coordinador) */
+/* COMERCIALES: módulo propio en el menú (solo Comercial, Coordinador y Administración) */
 const comercialesGroup=document.createElement('div');comercialesGroup.className='nav-group collapsed';comercialesGroup.innerHTML='<button class="nav-parent" type="button"><span class="nav-icon">CM</span><span>COMERCIALES</span></button><div class="nav-children"></div>';
 /* Sus pestañas son las herramientas del equipo comercial: REPROGRAMACIONES, PROGRAMAR y EXCEL (antes estaban en ADMINISTRACIÓN) */
 const comercialesTabs=['reprogramacion','pedido','creador'].map(kind=>document.querySelector('.tab[data-kind="'+kind+'"]')).filter(Boolean);
