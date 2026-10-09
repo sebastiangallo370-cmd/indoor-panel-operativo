@@ -39,9 +39,28 @@
   body .inventory-item-card .inventory-roll:hover{transform:translateY(-4px) scale(1.1);box-shadow:0 16px 18px -8px rgba(0,0,0,.95),0 0 16px -2px var(--rc,currentColor),inset 0 -7px 10px rgba(0,0,0,.4),inset 0 2px 3px rgba(255,255,255,.35)!important}
   body .inventory-item-card .inventory-roll.roll-left{animation:rollFill .9s cubic-bezier(.2,.8,.2,1) both,rollPulse 2.4s ease-in-out .9s infinite}
   @keyframes rollPulse{50%{filter:brightness(1.3)}}
+  /* tarjetas de categorías de Inventarios (Bodega tela, Insumos, Materia prima…) más pequeñas */
+  body .inventory-category-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))!important;gap:8px!important}
+  body .inventory-category{min-height:0!important;padding:9px 12px!important;gap:1px!important;border-radius:12px!important}
+  body .inventory-category small{font-size:.58rem!important;letter-spacing:.06em;text-transform:uppercase}
+  body .inventory-category b{font-size:1.05rem!important;line-height:1.15}
+  body .inventory-category span{font-size:.58rem!important}
+  @media(max-width:700px){body .inventory-category-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+  /* tarjetas de inventario compactas */
+  body .inventory-cards-grid{grid-template-columns:repeat(auto-fill,minmax(205px,1fr))!important;gap:12px!important}
+  body .inventory-item-card{min-height:0!important;padding:12px 13px 13px!important;gap:5px!important;border-radius:15px!important}
+  body .inventory-item-card .inv-name{font-size:.78rem!important;margin-bottom:5px!important;line-height:1.25!important}
+  body .inventory-item-card .inv-total{font-size:1.35rem!important}
+  body .inventory-item-card .inv-unit{font-size:.64rem!important}
+  body .inventory-item-card .inv-badge{font-size:.52rem!important;padding:2px 8px!important}
+  body .inventory-item-card .inventory-rolls{gap:6px;margin:5px 0 3px}
+  body .inventory-item-card .inventory-roll{width:38px;min-width:38px;height:38px;font-size:11.5px}
+  body .inventory-item-card .inventory-roll::before{padding:3px}
+  .inventory-item-card .stock-min em{display:none}.stock-legend{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:0 0 10px;color:#aebba7;font:700 .72rem Arial}.stock-legend i{display:inline-block;vertical-align:middle;margin-right:6px}.stock-legend .l-min{width:22px;border-top:1px dashed #fff}.stock-legend .l-tone{width:10px;height:10px;border-radius:3px}
+  @media(max-width:700px){body .inventory-cards-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:9px!important}body .inventory-item-card{padding:10px!important}body .inventory-item-card .inventory-roll{width:34px;min-width:34px;height:34px;font-size:10.5px}}
   .inventory-item-card .stock-min{position:absolute;left:0;right:0;z-index:1;height:0;border-top:1px dashed rgba(255,255,255,.65);pointer-events:none}.inventory-item-card .stock-min em{position:absolute;right:10px;top:-13px;font:800 .54rem Arial;font-style:normal;letter-spacing:.04em;text-transform:uppercase;color:#fff;opacity:.85;text-shadow:0 1px 2px rgba(0,0,0,.7)}
   body .inventory-item-card.lq{--liquid:#12a58f}body .inventory-item-card.lq>.lq-fill{opacity:.5}body .inventory-item-card.lq>.lq-wave{opacity:.62}
-  body .inventory-item-card.lq .inv-total{color:#fff!important;font-size:1.7rem;text-shadow:0 2px 6px rgba(0,0,0,.55)}
+  body .inventory-item-card.lq .inv-total{color:#fff!important;font-size:1.35rem!important;text-shadow:0 2px 6px rgba(0,0,0,.55)}
   body .inventory-item-card.lq .inv-badge{background:rgba(0,0,0,.35)!important;color:#fff!important;border:1px solid rgba(255,255,255,.2)}
   @media(prefers-reduced-motion:reduce){body .inventory-item-card .inventory-roll,body .inventory-item-card .inventory-roll.roll-left{transition:none;animation:none}}
   `;
