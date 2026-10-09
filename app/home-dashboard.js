@@ -838,10 +838,13 @@
       render(model);
     } catch (error) {
       if (!model) root.innerHTML = '<div class="dash-empty">No fue posible cargar el resumen: ' + esc(error.message) + '</div>';
-    } finally { busy = false; }
+    } finally {
+      busy = false;
+      if (root.querySelector('.dash-skel') === null) root.closest('.home-page')?.classList.add('dash-ready');   // ya hay resumen (o su aviso de error): se muestran las galerías
+    }
   }
 
-  root.innerHTML = '<div class="dash-empty">Cargando resumen…</div>';
+  if (!root.firstElementChild) root.innerHTML = '<div class="dash-empty">Cargando resumen…</div>';   // la página ya trae un esqueleto de carga
   refresh(true);
   document.querySelectorAll('.tab[data-kind="inicio"]').forEach(tab => tab.addEventListener('click', () => refresh(false)));
   setInterval(() => { if (!document.hidden && document.querySelector('.panel.active')?.dataset.panel === 'inicio') refresh(false); }, 30000);
