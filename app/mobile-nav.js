@@ -41,13 +41,16 @@
   .mfab:active{transform:scale(.93)}
   .mfab.has-active::after{content:'';position:absolute;right:2px;top:2px;width:11px;height:11px;border-radius:50%;background:#fff;border:2.5px solid var(--mb-fab)}
   .mbar.fan-open .mfab svg{transform:rotate(45deg)}
-  .mfan{position:absolute;left:50%;top:3px;width:0;height:0;z-index:2}
-  .mfan button{position:absolute;left:-27px;top:-27px;width:54px;height:54px;display:grid;place-items:center;padding:0;border:1.5px solid var(--mb-on);border-radius:50%;background:var(--mb-chip);color:var(--mb-on);cursor:pointer;box-shadow:0 8px 18px rgba(0,0,0,.4);opacity:0;pointer-events:none;transform:translate(0,0) scale(.3);transition:transform .34s cubic-bezier(.3,1.35,.5,1) var(--d,0s),opacity .18s ease var(--d,0s);-webkit-tap-highlight-color:transparent}
-  .mfan button svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-  .mfan button span{position:absolute;top:100%;left:50%;margin-top:5px;transform:translateX(-50%);padding:2px 7px;border-radius:999px;background:rgba(10,14,9,.82);color:#f1f7e8;font:700 9.5px/1.2 Arial,sans-serif;white-space:nowrap;pointer-events:none}
-  html.theme-light .mfan button span{background:rgba(255,255,255,.92);color:#1b2517}
-  .mfan button.on{background:var(--mb-on);color:var(--mb-fab-fg)}
-  .mbar.fan-open .mfan button{opacity:1;pointer-events:auto;transform:translate(var(--x),var(--y)) scale(1)}
+  /* Las demás secciones salen en una cuadrícula de íconos con su nombre (antes eran círculos en abanico que se montaban entre sí) */
+  .mfan{position:absolute;left:0;right:0;bottom:calc(100% + 16px);top:auto;width:auto;height:auto;z-index:2;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:12px;border:1px solid var(--mb-line);border-radius:22px;background:var(--mb-bg);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 14px 36px rgba(0,0,0,.5);opacity:0;pointer-events:none;transform:translateY(14px) scale(.96);transform-origin:50% 100%;transition:transform .28s cubic-bezier(.3,1.3,.5,1),opacity .18s ease}
+  .mbar.fan-open .mfan{opacity:1;pointer-events:auto;transform:none}
+  .mfan button{position:static;width:auto;height:78px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;padding:6px 4px;border:1px solid var(--mb-line);border-radius:16px;background:var(--mb-chip);color:var(--mb-on);cursor:pointer;-webkit-tap-highlight-color:transparent;transition:background .15s,transform .15s}
+  .mfan button:active{transform:scale(.95)}
+  .mfan button svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .mfan button span{position:static;margin:0;transform:none;padding:0;background:none;color:var(--mb-fg);font:700 11px/1.15 Arial,sans-serif;text-align:center;white-space:normal;max-width:100%;overflow-wrap:anywhere}
+  html.theme-light .mfan button span{background:none;color:var(--mb-fg)}
+  .mfan button.on{background:var(--mb-on);color:var(--mb-fab-fg);border-color:var(--mb-on)}
+  .mfan button.on span{color:var(--mb-fab-fg)}
   body.mfan-open .msheet-backdrop{display:block;background:rgba(0,0,0,.45)}
   @media(prefers-reduced-motion:reduce){.mbar>.mitem svg,.mfab svg,.mfan button{transition:none!important}.mbar>.mitem.on::after{animation:none}}
   .msheet-backdrop{position:fixed;inset:0;z-index:96;background:rgba(0,0,0,.55)}
