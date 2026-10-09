@@ -39,6 +39,7 @@
   body .inventory-item-card .inventory-roll:hover{transform:translateY(-4px) scale(1.1);box-shadow:0 16px 18px -8px rgba(0,0,0,.95),0 0 16px -2px var(--rc,currentColor),inset 0 -7px 10px rgba(0,0,0,.4),inset 0 2px 3px rgba(255,255,255,.35)!important}
   body .inventory-item-card .inventory-roll.roll-left{animation:rollFill .9s cubic-bezier(.2,.8,.2,1) both,rollPulse 2.4s ease-in-out .9s infinite}
   @keyframes rollPulse{50%{filter:brightness(1.3)}}
+  .inventory-item-card .stock-min{position:absolute;left:0;right:0;z-index:1;height:0;border-top:1px dashed rgba(255,255,255,.65);pointer-events:none}.inventory-item-card .stock-min em{position:absolute;right:10px;top:-13px;font:800 .54rem Arial;font-style:normal;letter-spacing:.04em;text-transform:uppercase;color:#fff;opacity:.85;text-shadow:0 1px 2px rgba(0,0,0,.7)}
   body .inventory-item-card.lq{--liquid:#12a58f}body .inventory-item-card.lq>.lq-fill{opacity:.5}body .inventory-item-card.lq>.lq-wave{opacity:.62}
   body .inventory-item-card.lq .inv-total{color:#fff!important;font-size:1.7rem;text-shadow:0 2px 6px rgba(0,0,0,.55)}
   body .inventory-item-card.lq .inv-badge{background:rgba(0,0,0,.35)!important;color:#fff!important;border:1px solid rgba(255,255,255,.2)}
