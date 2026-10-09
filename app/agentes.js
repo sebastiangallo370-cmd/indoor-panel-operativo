@@ -869,7 +869,7 @@
     q('.ag-live-cap .num').textContent = '#' + (actual.numero || '—');
     q('.ag-live-cap .nom').textContent = actual.nombre || 'Sin nombre';
     q('.ag-live-cap .det').textContent = ['Talla ' + actual.talla, actual.diseno, actual.genero].filter(Boolean).join(' · ');
-    cap.classList.add('ok');
+    cap.classList.toggle('ok', !!(actual.nombre || actual.numero));   // sin nombre ni número no se muestra el rótulo «SIN NOMBRE»
     if (img.dataset.id !== actual.vista) {   // se precarga para cambiar de imagen sin parpadeo
       const url = '/api/agentes/archivo/' + encodeURIComponent(actual.vista), pre = new Image();
       pre.onload = () => { img.src = url; img.dataset.id = actual.vista; img.classList.add('ok'); vista.querySelector('.ag-live-vacio').style.display = 'none'; vista.classList.remove('cambio'); void vista.offsetWidth; vista.classList.add('cambio'); };
