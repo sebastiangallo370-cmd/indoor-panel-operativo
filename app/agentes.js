@@ -417,6 +417,7 @@
   .panel[data-panel='agentes'] .ag-prog.listo .pct{display:none}
   .panel[data-panel='agentes'] .ag-prog.err{border-color:#ffb84c}.panel[data-panel='agentes'] .ag-prog.err .fill{background:linear-gradient(90deg,#8a5a0a,#ffb84c)}.panel[data-panel='agentes'] .ag-prog.err .chulo{background:#ffb84c;color:#2a1800}
   .panel[data-panel='agentes'] [data-live]{position:relative}
+  .panel[data-panel='agentes'] [data-auto],.panel[data-panel='agentes'] .ag-indiv{display:none!important}
   .panel[data-panel='agentes'] .ag-fin{position:absolute;top:8px;left:10px;right:10px;z-index:6;display:flex;align-items:center;gap:14px;margin:0;padding:12px 16px;border:1px solid rgba(139,212,80,.55);border-radius:14px;background:linear-gradient(120deg,rgba(60,140,40,.38),rgba(12,30,12,.9));box-shadow:0 14px 30px -18px rgba(139,212,80,.7);animation:agFinEntra .5s cubic-bezier(.2,.9,.3,1.2) both}
   .panel[data-panel='agentes'] .ag-fin[hidden]{display:none}
   .panel[data-panel='agentes'] .ag-fin.err{border-color:rgba(255,184,76,.65);background:linear-gradient(120deg,rgba(150,95,10,.38),rgba(30,20,8,.9))}
@@ -760,13 +761,18 @@
   }
   // Botón de progreso junto a la orden: se va llenando con su porcentaje mientras los agentes trabajan y al terminar bien muestra un chulo
   function progreso() {
-    const e = flow.estado || {}, evs = flow.ejec ? flow.ejec.eventos : [];
+    // Se calcula con los avisos reales de la ejecución en curso (el último pedido), no con la animación del flujo: sube con cada PDF que se crea
+    const todos = st.evs || [], ult = todos.length ? todos[todos.length - 1].msg_id : null;
+    const evs = ult == null ? [] : todos.filter(ev => ev.msg_id === ult);
     let total = 0; const pdfs = new Set();
     evs.forEach(ev => { const a = ev.archivo; if (!a) return; if (a.tipo === 'plan') total += Number(a.pdfs) || 0; else if (a.tipo === 'pdf') pdfs.add(a.detalle || (a.nombre + a.numero + a.talla)); });
+    const etapas = [['LEO', 12], ['JACK', 12], ['OLVER', 26], ['OLIVER', 40], ['TERRY', 10]];
+    const visto = id => evs.some(ev => ev.agente === id);
+    let actual = -1; etapas.forEach(([id], i) => { if (visto(id)) actual = i; });
     let p = 0;
-    [['LEO', 12], ['JACK', 12], ['OLVER', 26], ['OLIVER', 40], ['TERRY', 10]].forEach(([id, w]) => {
-      if (e[id] === 'ok') p += w;
-      else if (e[id] === 'corriendo') p += w * (id === 'OLIVER' && total ? Math.min(1, pdfs.size / total) : 0.5);
+    etapas.forEach(([id, w], i) => {
+      if (i < actual) p += w;
+      else if (i === actual) p += w * (id === 'OLIVER' && total ? Math.min(1, pdfs.size / total) : 0.5);
     });
     return Math.max(st.esperando ? 3 : 0, Math.min(99, Math.round(p)));
   }
@@ -1075,7 +1081,7 @@
     const botones = ultimo && ultimo.rol === 'bot' && !st.esperando ? (ultimo.botones || []) : [];
     const pill = (clase, texto) => '<span class="ag-pill ' + clase + '"><i></i>' + esc(texto) + '</span>';
     const modo = v => !v ? '' : v === 'real' ? 'ok' : /^error/.test(v) ? 'mal' : 'sim';
-    panel.querySelector('[data-estado]').innerHTML = pill(e.conectado ? 'ok' : 'mal', (e.pc && e.pc.nombre ? e.pc.nombre + ' · ' : '') + (e.conectado ? 'PC conectado' : 'PC desconectado')) + (e.conectado && e.illustrator ? pill(modo(e.illustrator), 'Illustrator: ' + e.illustrator) : '') + (e.conectado && e.sheets ? pill(modo(e.sheets), 'Sheets: ' + e.sheets) : '') +
+    panel.querySelector('[data-estado]').innerHTML = pill(e.conectado ? 'ok' : 'mal', (e.pc && e.pc.nombre ? e.pc.nombre + ' · ' : '') + (e.conectado ? 'PC conectado' : 'PC desconectado')) + 
       '<button type="button" class="ag-pill ' + (e.auto ? 'ok' : 'sim') + '" data-auto title="Cuando una tarjeta de EDICIÓN pasa a «en proceso», los agentes arrancan solos con esa orden. Toca para ' + (e.auto ? 'apagar' : 'encender') + '" style="cursor:pointer"><i></i>Auto ' + (e.auto ? 'ON' : 'OFF') + '</button>';
     panel.querySelector('[data-aviso]').innerHTML = !e.conectado ? '<div class="ag-warn">El PC «' + esc((e.pc && e.pc.nombre) || 'de los agentes') + '» no está conectado. Tu mensaje queda en cola y se atiende cuando ese PC esté encendido con los agentes iniciados' + ((e.pcs || []).some(p => p.conectado && p.id !== (e.pc && e.pc.id)) ? '; también puedes elegir otro PC conectado arriba.' : '.') + '</div>' : '';
     const trabajo = st.trabajo;
@@ -1185,11 +1191,11 @@
       st.esperando = datos.esperando; st.trabajo = datos.trabajo; st.estado = estado;
       if (estabaTrabajando && !st.esperando && !primera) setTimeout(avisarFin, 600);   // dejar que lleguen los últimos eventos y archivos
       if (st.esperando) flow.fin = null;
-      pintarProg();
       if (!st.cambiandoOrden) st.orden = datos.orden || '';
       if (nuevos.length) { st.msgs = st.msgs.concat(nuevos); st.ultimo = Math.max(...nuevos.map(m => m.id), st.ultimo); }
       if (evs.length) st.evs = st.evs.concat(evs);
       st.ultimoEv = Math.max(st.ultimoEv, datos.ultimo_ev || 0);
+      pintarProg();
       if (primera) reconstruir();
       else {
         // pedidos hechos desde otra pestaña o dispositivo también abren su ejecución; luego el avance y por último el resultado
@@ -1205,7 +1211,7 @@
   function programar() {
     clearTimeout(timer);
     if (!panel || !panel.classList.contains('active')) return;
-    timer = setTimeout(async () => { if (!document.hidden) await cargar(false); programar(); }, st.esperando ? 1500 : 4000);
+    timer = setTimeout(async () => { if (!document.hidden) await cargar(false); programar(); }, st.esperando ? 1000 : 4000);
   }
 
   // Administración de los PC con Illustrator (EDICION y AUTOMATIZACION): estado, agregar, código nuevo, quitar
