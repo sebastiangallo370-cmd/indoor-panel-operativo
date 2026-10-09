@@ -22,6 +22,15 @@
 }
 @media ${MOBILE}{
   html body.top-navigation .sidebar nav.tabs{display:none!important}
+  /* Todo un poco más pequeño y nunca más ancho que la pantalla: sin scroll horizontal de la página */
+  html,body{overflow-x:hidden!important;max-width:100vw!important}
+  html body main{zoom:.88;max-width:100%!important;box-sizing:border-box;overflow-x:clip}
+  html body main *,html body main *::before,html body main *::after{min-width:0}
+  html body main img,html body main svg,html body main video,html body main canvas,html body main iframe{max-width:100%}
+  html body main :is(input,select,textarea){max-width:100%;box-sizing:border-box}
+  html body dialog{max-width:100vw!important;box-sizing:border-box}
+  html body main :is(h1,h2){font-size:clamp(1.2rem,6vw,1.6rem)!important;overflow-wrap:anywhere}
+  html body main :is(p,span,li,td,th,label,strong,small,b,a,button){overflow-wrap:anywhere}
   html body.top-navigation .sidebar{height:auto!important;min-height:0!important;max-height:none!important}
   html body main{padding-bottom:calc(110px + env(safe-area-inset-bottom))!important}
   /* Barra inferior: píldora con íconos y etiquetas, y un botón central «+» que abre las demás secciones en abanico */
@@ -94,6 +103,7 @@
   };
   const plain = text => String(text || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/\s+/g, ' ').trim();
   const labelOf = node => (node?.querySelector('strong')?.textContent || node?.querySelector('span:not(.nav-icon)')?.textContent || node?.textContent || '').trim();
+  const EN_MENU_USUARIO = "[data-kind='agentes'],[data-kind='promedios'],[data-kind='molderia']";
   const isMobile = () => window.matchMedia(MOBILE).matches;
 
   // Secciones del menú superior: botón directo (INICIO, REPROCESO) o grupo con subpáginas.
@@ -102,6 +112,8 @@
     if (!nav) return [];
     return [...nav.children].map(node => {
       if (getComputedStyle(node).display === 'none') return null;
+      // Igual que en computador: Agentes, Promedios maestros y Moldería viven en el menú del usuario (la cajita de arriba), no en la barra
+      if (node.matches(EN_MENU_USUARIO) || node.querySelector(EN_MENU_USUARIO)) return null;
       if (node.matches('.tab')) return {label: labelOf(node), direct: node, node};
       if (!node.matches('.nav-group')) return null;
       const parent = node.querySelector(':scope > .nav-parent');
