@@ -465,6 +465,13 @@
   .dash-empty{color:var(--muted);font-size:.9rem;padding:10px 0}
   .dash-card.red{--c:#ff6b6b}
   .dash-card h4{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  /* tarjetas compactas */
+  .dash-cards{grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
+  .dash-card{gap:7px;padding:13px 15px 15px;border-radius:14px}
+  .dash-card h4{font-size:.72rem;letter-spacing:.07em}
+  .dash-card .dash-big{gap:6px}.dash-card .dash-big strong{font-size:2.2rem}.dash-card .dash-big span{font-size:.8rem}
+  .dash-card ul{gap:4px}.dash-card li{padding:4px 9px;border-radius:7px;font-size:.74rem}.dash-card li b{font-size:.82rem}.dash-card li.note{font-size:.72rem;padding:0 1px}
+  .dash-badge{font-size:.6rem;padding:2px 7px}
   .dash-badge{font-style:normal;font-size:.68rem;letter-spacing:.02em;text-transform:none;padding:3px 9px;border-radius:999px;background:rgba(255,107,107,.16);color:#ff9b9b;border:1px solid rgba(255,107,107,.4)}
   .dash-today{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
   .dash-panel{display:grid;align-content:start;gap:12px;padding:18px;border:1px solid rgba(255,255,255,.12);border-left:4px solid var(--c);border-radius:16px;background:#111611}
