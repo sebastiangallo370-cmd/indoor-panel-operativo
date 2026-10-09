@@ -631,11 +631,11 @@ def configurar_sello(fn: Callable) -> None:
     _sellar = fn
 
 
-def _sellar_en_segundo_plano(orden: str, momento: str) -> None:
+def _sellar_en_segundo_plano(orden: str, momento: str, referencia: str = '') -> None:
     """Escribir en el Google Sheets tarda unos segundos: se hace aparte para no frenar a los agentes."""
     if not _sellar or not orden:
         return
-    threading.Thread(target=lambda: _sellar(orden, momento), daemon=True).start()
+    threading.Thread(target=lambda: _sellar(orden, momento, referencia), daemon=True).start()
 
 
 @pc_router.post('/referencias-proceso')
@@ -720,6 +720,9 @@ def evento(request: Request, payload: dict):
         if origen is not None and (origen.get('oculto') or origen.get('respondido')):
             return {'ok': True}   # reinicio interno de TAVO: no se muestra
         arranque = ''
+        # «Pestaña elegida para RM7643: A100PE01»: los agentes dicen qué referencia de la orden ejecutan; las horas van solo a esa tarjeta
+        pestana = next((m.group(1).strip() for m in (re.search(r'Pestaña elegida para \S+: (.+?)\s*$', str(e.get('msg', ''))) for e in lista) if m), '') if origen is not None else ''
+        orden_sesion = str(datos['ordenes'].get(sesion) or '')
         if origen is not None and not origen.get('sello'):
             origen['sello'] = True   # primer aviso de este pedido = los agentes empezaron: HORA INICIO
             arranque = str(datos['ordenes'].get(sesion) or '')
@@ -739,7 +742,9 @@ def evento(request: Request, payload: dict):
         datos['trabajo'][sesion] = {'agente': str(ultimo.get('agente', 'TAVO')).upper()[:10], 'msg': str(ultimo.get('msg', ''))[:300],
                                     'nivel': str(ultimo.get('nivel', 'INFO'))[:8], 'hora': str(ultimo.get('hora', ''))[:8], 'agentes': agentes}
         _guardar(datos)
-    if arranque:
+    if pestana and orden_sesion:
+        _sellar_en_segundo_plano(orden_sesion, 'inicio', pestana)
+    elif arranque:
         _sellar_en_segundo_plano(arranque, 'inicio')
     return {'ok': True}
 

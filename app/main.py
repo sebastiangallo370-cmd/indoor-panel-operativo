@@ -2934,24 +2934,80 @@ def _filas_de_orden(orden: str) -> list:
         return filas
 
 
-def _agentes_sellar(orden: str, momento: str) -> dict:
+def _filas_de_referencia(filas: list, referencia: str) -> list:
+    """De las tarjetas de una orden, las de la referencia (pestaña del listado) que ejecutan los agentes. La referencia de Producción no siempre está
+    escrita igual que la pestaña («A100PE01F» / «A100PE01», «…PT28» / «…PT02»): primero la igual, luego la misma prenda y, si no, la más parecida."""
+    plano = lambda v: re.sub(r'[^A-Z0-9]', '', str(v or '').upper())
+    buscada = plano(referencia)
+    if not buscada or not filas:
+        return []
+    with connect() as db:
+        meta = {r['key']: r['value'] for r in db.execute('SELECT key, value FROM production_meta')}
+        titulos = [str(h or '').strip().upper() for h in json.loads(meta.get('headers') or '[]')]
+        if 'REFERENCIA' not in titulos:
+            return []
+        i_ref = titulos.index('REFERENCIA')
+        refs = {}
+        for fila in filas:
+            rec = db.execute('SELECT values_json FROM production_rows WHERE source_row=?', (fila,)).fetchone()
+            v = json.loads(rec['values_json']) if rec else []
+            refs[fila] = str(v[i_ref]).strip() if len(v) > i_ref else ''
+    iguales = [f for f, r in refs.items() if plano(r) == buscada]
+    if iguales:
+        return iguales
+    prendas = set(fichas_resumen_mod.refs_de(referencia))
+    mismas = [f for f, r in refs.items() if prendas and set(fichas_resumen_mod.refs_de(r)) == prendas]
+    if len(mismas) == 1:
+        return mismas
+    parecidas = sorted(((SequenceMatcher(None, plano(r), buscada).ratio(), f) for f, r in refs.items() if r), reverse=True)
+    if parecidas and parecidas[0][0] >= 0.8 and (len(parecidas) == 1 or parecidas[0][0] - parecidas[1][0] >= 0.05):
+        return [parecidas[0][1]]
+    return []
+
+
+def _agentes_sellar(orden: str, momento: str, referencia: str = '') -> dict:
     """Cuando los agentes trabajan una orden: HORA INICIO al empezar, HORA FINAL al terminar, RESPONSABLE siempre «AGENT» y la MÁQUINA de impresión,
-    en Producción y en el Google Sheets. Solo en las tarjetas que tenían EDICIÓN en proceso al empezar. La hora de inicio no pisa una que ya hubiera."""
+    en Producción y en el Google Sheets. Solo en las tarjetas que tenían EDICIÓN en proceso al empezar. Si ninguna lo estaba (reproceso) y la orden
+    tiene varias tarjetas, se espera a que los agentes digan qué pestaña del listado ejecutan y solo se anota esa, no todas las de la orden.
+    La hora de inicio no pisa una que ya hubiera."""
     ahora = datetime.now(timezone(timedelta(hours=-5)))
     hora = ahora.strftime('%H:%M')
+    inicio_tardio = ''   # hora real de inicio cuando se anota después (al conocer la pestaña o al terminar)
     if momento == 'inicio':
         previa = _AGENTES_CORRIDAS.get(orden)
-        if previa and time.time() - previa.get('t', 0) < 12 * 3600:   # la orden sigue tras una pregunta (aprobación, elegir diseño…): es la misma corrida, no se vuelve a anotar el inicio
-            return {'orden': orden, 'momento': 'continúa', 'filas': previa['filas']}
-        filas = [c['fila'] for c in _edicion_en_proceso() if c['orden'] == orden and c.get('fila')]
-        reproceso = not filas
-        if reproceso:   # nadie la puso «en proceso» (por ejemplo, un reproceso de una orden ya hecha): se anotan todas las tarjetas de la orden
-            filas = _filas_de_orden(orden)
-        _AGENTES_CORRIDAS[orden] = {'filas': filas, 'reproceso': reproceso, 't': time.time()}
+        if previa and time.time() - previa.get('t', 0) < 12 * 3600:
+            if not (referencia and previa.get('pendiente')):
+                # la orden sigue tras una pregunta (aprobación, elegir diseño…): es la misma corrida, no se vuelve a anotar el inicio
+                return {'orden': orden, 'momento': 'continúa', 'filas': previa['filas']}
+            elegidas = _filas_de_referencia(previa['filas'], referencia)
+            if not elegidas:   # la pestaña no corresponde a ninguna tarjeta de Producción: no se anota nada (mejor ninguna que todas)
+                previa.update(filas=[], pendiente=False)
+                resultado = {'orden': orden, 'momento': 'pestaña sin tarjeta: no anoto horas', 'referencia': referencia, 'filas': []}
+                logging.info('Agentes: %s', resultado)
+                return resultado
+            previa.update(filas=elegidas, pendiente=False)
+            filas, reproceso, hora = elegidas, previa['reproceso'], previa.get('hora') or hora
+        else:
+            filas = [c['fila'] for c in _edicion_en_proceso() if c['orden'] == orden and c.get('fila')]
+            reproceso = not filas
+            if reproceso:   # nadie la puso «en proceso» (por ejemplo, un reproceso de una orden ya hecha)
+                filas = _filas_de_orden(orden)
+                if referencia and len(filas) > 1:
+                    filas = _filas_de_referencia(filas, referencia) or filas
+            pendiente = reproceso and len(filas) > 1   # varias tarjetas y aún no se sabe cuál se ejecuta
+            _AGENTES_CORRIDAS[orden] = {'filas': filas, 'reproceso': reproceso, 'pendiente': pendiente, 'hora': hora, 't': time.time()}
+            if pendiente:
+                resultado = {'orden': orden, 'momento': 'inicio: espero la pestaña', 'filas': filas}
+                logging.info('Agentes: %s', resultado)
+                return resultado
     else:
         corrida = _AGENTES_CORRIDAS.pop(orden, None) or {}
         filas, reproceso = corrida.get('filas', []), corrida.get('reproceso', False)
+        if corrida.get('pendiente'):   # terminaron sin decir la pestaña (ejecutaron toda la orden): se anota en todas, con su hora de inicio real
+            inicio_tardio = corrida.get('hora', '')
     resultado = {'orden': orden, 'momento': momento, 'filas': filas, 'reproceso': reproceso}
+    if referencia:
+        resultado['referencia'] = referencia
     for fila in filas:
         with connect() as db:
             rec = db.execute('SELECT values_json FROM production_rows WHERE source_row=?', (fila,)).fetchone()
@@ -2963,6 +3019,8 @@ def _agentes_sellar(orden: str, momento: str) -> dict:
                 v[COL_ED_INICIO - 1] = hora
             if momento == 'fin':
                 v[COL_ED_FINAL - 1] = hora
+                if inicio_tardio:
+                    v[COL_ED_INICIO - 1] = inicio_tardio
             v[COL_ED_RESP - 1] = 'AGENT'
             maquina = str(v[COL_MAQUINA - 1]).strip()
             db.execute('UPDATE production_rows SET values_json=? WHERE source_row=?', (json.dumps(v, ensure_ascii=False), fila))
@@ -2972,6 +3030,8 @@ def _agentes_sellar(orden: str, momento: str) -> dict:
             celdas[COL_ED_INICIO] = hora
         else:
             celdas[COL_ED_FINAL] = hora
+            if inicio_tardio:
+                celdas[COL_ED_INICIO] = inicio_tardio
         if maquina:
             celdas[COL_MAQUINA] = maquina
         solo_vacias = {COL_MAQUINA} if reproceso else {COL_ED_INICIO, COL_MAQUINA}
