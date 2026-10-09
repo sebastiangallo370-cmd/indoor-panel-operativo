@@ -297,24 +297,36 @@
     const pie = { collar: [342, 134], back: [126, 446], front: [339, 446], sleeve: [568, 352], cuff: [567, 446] };
     let rotulos = '';
     orden.forEach(k => { if (grupos[k]) rotulos += lineas(grupos[k], pie[k][0], pie[k][1], 18); });
-    // piezas fuera de la hoja base (pantaloneta, costados, bisel…) en una franja debajo
+    // piezas fuera de la hoja base (pantaloneta, costados, bisel…): una franja debajo con LAS TRES moldería (masculino, femenina y niño(a)), cada una con sus propias piezas
     const extras = Object.keys(grupos).filter(k => !orden.includes(k)).sort((a, b) => Object.keys(FIT_EXTRA).indexOf(a) - Object.keys(FIT_EXTRA).indexOf(b));
+    const paneles = movil ? ['m'] : ['m', 'f', 'n'], PAN = { m: ['#fff', 'MASCULINO', '#548235'], f: ['#ffe7ff', 'FEMENINA', '#e00000'], n: ['#ddebf7', 'NIÑO(A)', '#e00000'] };
+    const ESC = { m: [1, 1], f: [0.92, 0.97], n: [0.8, 0.8] };   // ancho y alto relativos del molde (la femenina es más angosta; la de niño(a), más pequeña)
     let franja = '', alto = 483;
     if (extras.length) {
-      const ancho = W / extras.length, base = 483 + 24;
-      let hmax = 0;
-      extras.forEach((k, i) => {
-        const fe = FIT_EXTRA[k], g = grupos[k], c = (k === 'strip' || k === 'side') ? Math.min(g.total, 2) : 1;
-        const par = k === 'shorts' && g.total >= 2;   // pantaloneta derecha + izquierda: dos piezas, la segunda reflejada
-        const esc2 = Math.min(1.1, 120 / fe.vb[1], (ancho - 40) / (fe.vb[0] * (par ? 2.1 : 1))), w = fe.vb[0] * esc2, h = fe.vb[1] * esc2, cx = ancho * (i + 0.5);
-        hmax = Math.max(hmax, h * c + 8 * (c - 1));
-        if (par) franja += ['', ' translate(' + fe.vb[0] + ' 0) scale(-1 1)'].map((fl, q) => '<g transform="translate(' + (cx - w - 4 + q * (w + 8)).toFixed(1) + ' ' + base.toFixed(1) + ') scale(' + esc2.toFixed(3) + ')"><path transform="' + fl.trim() + '" d="' + fe.d + '" fill="' + col(g) + '"/></g>').join('');
-        else for (let j = 0; j < c; j++) franja += '<g transform="translate(' + (cx - w / 2).toFixed(1) + ' ' + (base + j * (h + 8)).toFixed(1) + ') scale(' + esc2.toFixed(3) + ')"><path d="' + fe.d + '" fill="' + col(g) + '"/></g>';
-        g._x = cx;
+      const cw = W / paneles.length, ancho = cw / extras.length, base = 483 + 30;
+      let hmax = 0, rot = '';
+      extras.forEach(k => {
+        const fe = FIT_EXTRA[k], c = (k === 'strip' || k === 'side') ? Math.min(grupos[k].total, 2) : 1, par = k === 'shorts' && grupos[k].total >= 2;
+        hmax = Math.max(hmax, Math.min(1.1, 120 / fe.vb[1]) * fe.vb[1] * c + 8 * (c - 1));
       });
-      alto = Math.ceil(base + hmax + 16);
-      extras.forEach(k => { franja += lineas(grupos[k], grupos[k]._x, alto + 6, movil ? 13 : 22); });
-      alto += movil ? 78 : 50;
+      paneles.forEach((pn, pi) => {
+        const x0 = cw * pi;
+        franja += (pn === 'm' ? '' : '<rect x="' + x0 + '" y="483" width="' + cw + '" height="' + (hmax + 140) + '" fill="' + PAN[pn][0] + '"/>') +
+          '<text class="fit-h" x="' + (x0 + cw / 2) + '" y="500" text-anchor="middle" fill="' + PAN[pn][2] + '">' + (movil ? 'PIEZAS ' : 'MOLDERIA ') + PAN[pn][1] + '</text>';
+        if (pi) franja += '<line x1="' + x0 + '" y1="483" x2="' + x0 + '" y2="' + (483 + hmax + 140) + '" stroke="#000"/>';
+        extras.forEach((k, i) => {
+          const fe = FIT_EXTRA[k], g = grupos[k], c = (k === 'strip' || k === 'side') ? Math.min(g.total, 2) : 1;
+          const par = k === 'shorts' && g.total >= 2;   // pantaloneta derecha + izquierda: dos piezas, la segunda reflejada
+          const e0 = Math.min(1.1, 120 / fe.vb[1], (ancho - 24) / (fe.vb[0] * (par ? 2.1 : 1)));
+          const sx = e0 * ESC[pn][0], sy = e0 * ESC[pn][1], w = fe.vb[0] * sx, h = fe.vb[1] * sy, cx = x0 + ancho * (i + 0.5), ty = base + 14;
+          if (par) franja += ['', ' translate(' + fe.vb[0] + ' 0) scale(-1 1)'].map((fl, q) => '<g transform="translate(' + (cx - w - 4 + q * (w + 8)).toFixed(1) + ' ' + ty.toFixed(1) + ') scale(' + sx.toFixed(3) + ' ' + sy.toFixed(3) + ')"><path transform="' + fl.trim() + '" d="' + fe.d + '" fill="' + col(g) + '"/></g>').join('');
+          else for (let j = 0; j < c; j++) franja += '<g transform="translate(' + (cx - w / 2).toFixed(1) + ' ' + (ty + j * (h + 8)).toFixed(1) + ') scale(' + sx.toFixed(3) + ' ' + sy.toFixed(3) + ')"><path d="' + fe.d + '" fill="' + col(g) + '"/></g>';
+          g._x = x0 + ancho * (i + 0.5);
+          rot += lineas(g, cx, base + 14 + hmax + 22, movil ? 13 : Math.max(8, Math.floor(ancho / 10.5)));
+        });
+      });
+      franja += rot;
+      alto = Math.ceil(base + 14 + hmax + 22 + (movil ? 78 : 56));
       franja = '<line x1="0" y1="483" x2="' + W + '" y2="483" stroke="#000"/>' + franja;
     }
     return '<div class="fit-wrap"><svg class="fit' + (movil ? ' fit-movil' : '') + '" viewBox="0 0 ' + W + ' ' + alto + '" role="img" aria-label="Fit de prenda por piezas">' +
