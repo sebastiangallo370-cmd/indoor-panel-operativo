@@ -404,6 +404,34 @@
   .panel[data-panel='agentes'] .ag-gen button.m.on{border-color:#8fb8ff;background:linear-gradient(180deg,#a9c8ff,#4f80cf);color:#06142b;box-shadow:0 6px 14px -6px rgba(143,184,255,.8)}
   .panel[data-panel='agentes'] .ag-gen button.f.on{border-color:#ff9ad5;background:linear-gradient(180deg,#ffb6e2,#e0509f);color:#33001a;box-shadow:0 6px 14px -6px rgba(255,154,213,.8)}
   .panel[data-panel='agentes'] .ag-gen button.on b{background:rgba(0,0,0,.18)}
+  .panel[data-panel='agentes'] .ag-prog{position:relative;overflow:hidden;flex:none;display:inline-flex;align-items:center;gap:9px;min-width:200px;height:38px;padding:0 14px;border:1px solid rgba(139,212,80,.55);border-radius:12px;background:#0f170d;color:#f3ffe0;font:800 12px Arial;letter-spacing:.03em;cursor:pointer;box-shadow:0 10px 22px -16px rgba(139,212,80,.9);transition:border-color .3s,box-shadow .3s}
+  .panel[data-panel='agentes'] .ag-prog .fill{position:absolute;left:0;top:0;bottom:0;width:0;background:linear-gradient(90deg,#2f7d1c,#8bd450);opacity:.6;transition:width .6s cubic-bezier(.2,.8,.2,1)}
+  .panel[data-panel='agentes'] .ag-prog .fill::after{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent 30%,rgba(255,255,255,.35) 50%,transparent 70%);background-size:200% 100%;animation:agBrillo 1.4s linear infinite}
+  .panel[data-panel='agentes'] .ag-prog.listo .fill::after{animation:none;background:none}
+  @keyframes agBrillo{from{background-position:200% 0}to{background-position:-200% 0}}
+  .panel[data-panel='agentes'] .ag-prog>*:not(.fill){position:relative;z-index:1}
+  .panel[data-panel='agentes'] .ag-prog .pct{margin-left:auto;font:900 13px Arial;font-variant-numeric:tabular-nums}
+  .panel[data-panel='agentes'] .ag-prog .chulo{display:none;place-items:center;width:22px;height:22px;border-radius:50%;background:#8bd450;color:#10200a;font:900 14px Arial}
+  .panel[data-panel='agentes'] .ag-prog.listo{border-color:#8bd450;box-shadow:0 0 0 3px rgba(139,212,80,.2),0 10px 22px -12px rgba(139,212,80,.9)}
+  .panel[data-panel='agentes'] .ag-prog.listo .chulo{display:grid;animation:agFinEntra .45s cubic-bezier(.2,.9,.3,1.4) both}
+  .panel[data-panel='agentes'] .ag-prog.listo .pct{display:none}
+  .panel[data-panel='agentes'] .ag-prog.err{border-color:#ffb84c}.panel[data-panel='agentes'] .ag-prog.err .fill{background:linear-gradient(90deg,#8a5a0a,#ffb84c)}.panel[data-panel='agentes'] .ag-prog.err .chulo{background:#ffb84c;color:#2a1800}
+  .panel[data-panel='agentes'] [data-live]{position:relative}
+  .panel[data-panel='agentes'] .ag-fin{position:absolute;top:8px;left:10px;right:10px;z-index:6;display:flex;align-items:center;gap:14px;margin:0;padding:12px 16px;border:1px solid rgba(139,212,80,.55);border-radius:14px;background:linear-gradient(120deg,rgba(60,140,40,.38),rgba(12,30,12,.9));box-shadow:0 14px 30px -18px rgba(139,212,80,.7);animation:agFinEntra .5s cubic-bezier(.2,.9,.3,1.2) both}
+  .panel[data-panel='agentes'] .ag-fin[hidden]{display:none}
+  .panel[data-panel='agentes'] .ag-fin.err{border-color:rgba(255,184,76,.65);background:linear-gradient(120deg,rgba(150,95,10,.38),rgba(30,20,8,.9))}
+  .panel[data-panel='agentes'] .ag-fin .ok{flex:none;display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:#8bd450;color:#10200a;font:900 20px Arial}
+  .panel[data-panel='agentes'] .ag-fin.err .ok{background:#ffb84c;color:#2a1800}
+  .panel[data-panel='agentes'] .ag-fin div{flex:1;min-width:0}
+  .panel[data-panel='agentes'] .ag-fin b{display:block;font:900 15px Arial;letter-spacing:.02em;color:#f3ffe0}
+  .panel[data-panel='agentes'] .ag-fin small{display:block;margin-top:2px;color:#c9dcb6;font:600 12px Arial}
+  .panel[data-panel='agentes'] .ag-fin button{flex:none;width:30px;height:30px;padding:0;border:1px solid rgba(255,255,255,.2);border-radius:50%;background:rgba(0,0,0,.25);color:#fff;font:700 16px Arial;cursor:pointer}
+  @keyframes agFinEntra{from{opacity:0;transform:translateY(-10px) scale(.97)}to{opacity:1;transform:none}}
+  .ag-toast-fin{position:fixed;z-index:2000;top:84px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:12px;max-width:min(92vw,520px);padding:13px 18px;border:1px solid rgba(139,212,80,.7);border-radius:16px;background:#0f1a0c;color:#f3ffe0;font:800 14px Arial;box-shadow:0 24px 50px -16px #000,0 0 0 4px rgba(139,212,80,.18);animation:agFinEntra .45s cubic-bezier(.2,.9,.3,1.2) both}
+  .ag-toast-fin.err{border-color:rgba(255,184,76,.8);box-shadow:0 24px 50px -16px #000,0 0 0 4px rgba(255,184,76,.18)}
+  .ag-toast-fin i{flex:none;display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:#8bd450;color:#10200a;font:900 17px Arial;font-style:normal}
+  .ag-toast-fin.err i{background:#ffb84c;color:#2a1800}
+  .ag-toast-fin small{display:block;margin-top:2px;color:#b9cbaa;font:600 12px Arial}
   .panel[data-panel='agentes'] .ag-live-vista:focus{outline:none}.panel[data-panel='agentes'] .ag-keys{margin-left:12px;padding:3px 10px;border:1px solid rgba(255,255,255,.16);border-radius:999px;background:rgba(255,255,255,.05);color:#aebba7;font:700 11px Arial;letter-spacing:.03em;white-space:nowrap}
   @media(prefers-reduced-motion:reduce){.panel[data-panel='agentes'] *{animation:none!important}}
   `;
@@ -708,6 +736,59 @@
     flow.vistaFija = i === l.length - 1 ? null : l[i].vista;
     pintarLive();
   }
+  // Aviso de fin: cuando los agentes terminan la orden aparece un cuadro grande en PDFS y un aviso flotante (y una notificación del navegador si ya diste permiso)
+  function avisarFin() {
+    if (st.esperando) return;
+    const evs = flow.ejec ? flow.ejec.eventos : [];
+    const arch = evs.filter(e => e.archivo).map(e => e.archivo);
+    const pdfs = new Set(arch.filter(a => a.tipo === 'pdf').map(a => a.detalle || (a.nombre + a.numero + a.talla))).size;
+    const montajes = new Set(arch.filter(a => a.tipo === 'montaje').map(a => a.nombre)).size;
+    const errores = evs.filter(e => e.nivel === 'ERROR').length;
+    const d = new Date();
+    flow.fin = { orden: st.orden || '', pdfs, montajes, errores, hora: String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') };
+    pintarLive(); pintarProg();
+    const titulo = errores ? 'Los agentes terminaron la orden ' + flow.fin.orden + ' con errores' : 'Orden ' + flow.fin.orden + ' terminada';
+    const detalle = pdfs + ' PDF de producción · ' + montajes + ' montajes';
+    document.querySelectorAll('.ag-toast-fin').forEach(x => x.remove());
+    const t = document.createElement('div');
+    t.className = 'ag-toast-fin' + (errores ? ' err' : '');
+    t.innerHTML = '<i>' + (errores ? '!' : '✓') + '</i><div>' + esc(titulo) + '<small>' + esc(detalle) + '</small></div>';
+    t.addEventListener('click', () => t.remove());
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 14000);
+    try { if ('Notification' in window && Notification.permission === 'granted') new Notification(titulo, { body: detalle }); } catch (e) { /* sin notificaciones */ }
+  }
+  // Botón de progreso junto a la orden: se va llenando con su porcentaje mientras los agentes trabajan y al terminar bien muestra un chulo
+  function progreso() {
+    const e = flow.estado || {}, evs = flow.ejec ? flow.ejec.eventos : [];
+    let total = 0; const pdfs = new Set();
+    evs.forEach(ev => { const a = ev.archivo; if (!a) return; if (a.tipo === 'plan') total += Number(a.pdfs) || 0; else if (a.tipo === 'pdf') pdfs.add(a.detalle || (a.nombre + a.numero + a.talla)); });
+    let p = 0;
+    [['LEO', 12], ['JACK', 12], ['OLVER', 26], ['OLIVER', 40], ['TERRY', 10]].forEach(([id, w]) => {
+      if (e[id] === 'ok') p += w;
+      else if (e[id] === 'corriendo') p += w * (id === 'OLIVER' && total ? Math.min(1, pdfs.size / total) : 0.5);
+    });
+    return Math.max(st.esperando ? 3 : 0, Math.min(99, Math.round(p)));
+  }
+  function pintarProg() {
+    const barra = panel && panel.querySelector('[data-orden]'); if (!barra) return;
+    let b = barra.querySelector('[data-prog]');
+    const trabajando = !!st.esperando, fin = !trabajando ? flow.fin : null;
+    if (!trabajando && !fin) { if (b) b.remove(); return; }
+    if (!b) {
+      b = document.createElement('button'); b.type = 'button'; b.className = 'ag-prog'; b.setAttribute('data-prog', '');
+      b.title = 'Progreso de los agentes: toca para ver los PDF';
+      b.addEventListener('click', () => ponerVista('pdfs'));
+      barra.insertBefore(b, barra.firstChild);
+    }
+    const pct = trabajando ? progreso() : 100;
+    const clase = 'ag-prog' + (fin ? (fin.errores ? ' listo err' : ' listo') : '');
+    const rotulo = trabajando ? 'Ejecutando agentes' : (fin.errores ? 'Terminó con errores' : 'Orden terminada');
+    const html = '<i class="fill"></i><span>' + rotulo + '</span><span class="pct">' + pct + '%</span><i class="chulo">' + (fin && fin.errores ? '!' : '✓') + '</i>';
+    if (b.className !== clase) b.className = clase;
+    if (b.dataset.h !== html) { b.dataset.h = html; b.innerHTML = html; }
+    const f = b.querySelector('.fill'); if (f) f.style.width = pct + '%';
+  }
   function pintarLive() {
     const box = panel && panel.querySelector('[data-live]'); if (!box) return;
     if (!box.dataset.listo) armarLive(box);
@@ -720,6 +801,7 @@
       else if (a.tipo === 'pdf') { const k = a.detalle || (a.nombre + a.numero + a.talla); if (!vp.has(k)) { vp.add(k); pdfs.push(a); dp = a.carpeta || dp; } }
     });
     const q = sel => box.querySelector(sel);
+    pintarProg();
     q('[data-pto]').className = st.esperando ? 'on' : '';
     q('[data-estado]').textContent = st.esperando ? 'Illustrator está trabajando…' : (evs.length ? 'Última ejecución' : 'Sin ejecución en curso');
     const itemM = a => '<span class="mt-nom">' + esc(a.nombre || '') + '</span>';   // el MISMO nombre de la mesa exportada (Talla_XS_Tipo_D1_Gen_F)
@@ -1011,6 +1093,7 @@
         : '<form data-orden-form><label for="ag-orden-in">Orden</label><input id="ag-orden-in" maxlength="12" autocomplete="off" placeholder="CO6133" value="' + esc(st.orden) + '" title="Escríbela una sola vez y TAVO relaciona todo con ella"><button type="submit" class="ag-btn">Fijar</button>' + (st.orden ? '<button type="button" class="ag-ico" data-orden-cancelar title="Cancelar">✕</button>' : '') + '</form>';
       if (st.cambiandoOrden) panel.querySelector('#ag-orden-in')?.focus();
     }
+    pintarProg();
     panel.querySelector('textarea').placeholder = st.orden ? 'Pídele a TAVO (usa la orden ' + st.orden + ')…' : 'Escribe a TAVO…';
     const hiloEl = panel.querySelector('[data-hilo]'), firma = hilo + trabajando;
     if (hiloEl.dataset.firma !== firma) { hiloEl.innerHTML = firma; hiloEl.dataset.firma = firma; hiloEl.scrollTop = hiloEl.scrollHeight; }
@@ -1098,7 +1181,11 @@
       if (!st.pc) { st.pc = elegirPcInicial(estado); try { localStorage.setItem('agentes_pc', st.pc); } catch (e) { /* sin almacenamiento */ } if (st.pc !== (estado.pc_activo || '')) sincronizarPcAuto(st.pc); st.cargando = false; return cargar(true); }
       if (canal !== st.pc) { st.cargando = false; return; }   // cambiaste de pestaña mientras se consultaba: se descarta
       const nuevos = datos.mensajes || [], evs = datos.eventos || [], primera = !flow.listo;
+      const estabaTrabajando = !!st.esperando;
       st.esperando = datos.esperando; st.trabajo = datos.trabajo; st.estado = estado;
+      if (estabaTrabajando && !st.esperando && !primera) setTimeout(avisarFin, 600);   // dejar que lleguen los últimos eventos y archivos
+      if (st.esperando) flow.fin = null;
+      pintarProg();
       if (!st.cambiandoOrden) st.orden = datos.orden || '';
       if (nuevos.length) { st.msgs = st.msgs.concat(nuevos); st.ultimo = Math.max(...nuevos.map(m => m.id), st.ultimo); }
       if (evs.length) st.evs = st.evs.concat(evs);
