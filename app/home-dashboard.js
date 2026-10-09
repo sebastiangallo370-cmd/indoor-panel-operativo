@@ -265,6 +265,16 @@
 
   // ---- CARGA POR ÁREA (real: filas en proceso, en cola y en reproceso de cada área, en el orden del flujo; cada tarjeta lista todos sus pedidos) ----
   const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
+  const openAreas = new Set();   // áreas desplegadas: se conservan cuando el resumen se actualiza solo
+  root.addEventListener('click', event => {
+    const button = event.target.closest('[data-area-toggle]');
+    if (!button) return;
+    const card = button.closest('.dash-load-card'), label = button.dataset.areaToggle;
+    const open = !openAreas.has(label);
+    if (open) openAreas.add(label); else openAreas.delete(label);
+    card.classList.toggle('open', open);
+    button.setAttribute('aria-expanded', String(open));
+  });
   function loadSection(a) {
     if (!a.load.length) return '';
     const maxOrders = Math.max(...a.load.map(i => i.orders));
@@ -282,13 +292,14 @@
         return '<li class="' + kinds[0] + '"><div class="dash-ao-main"><strong>' + esc(o.id) + '</strong><span>' + esc(o.client || 'Sin cliente') + '</span></div>' +
           '<div class="dash-ao-meta"><b>' + fmtNum(units) + ' und.</b><small class="' + (late ? 'late' : '') + '">' + kinds.map(k => label[k]).join(' + ') + ' · ' + (o.due ? (late ? 'venció ' : 'entrega ') + fmtShort(o.due) : 'sin fecha') + '</small></div></li>';
       }).join('');
-      return '<article class="dash-load-card ' + tier(item) + '" style="--i:' + i + ';--m:' + (item.orders / maxOrders * 100).toFixed(1) + '%">' +
+      return '<article class="dash-load-card ' + tier(item) + (openAreas.has(item.label) ? ' open' : '') + '" style="--i:' + i + ';--m:' + (item.orders / maxOrders * 100).toFixed(1) + '%">' +
         (item === heaviest ? '<em class="dash-bottleneck">Mayor carga</em>' : '') +
         '<div class="dash-load-top"><span class="dash-load-label">' + esc(item.label) + '</span>' + (t.proc.orders ? '<i class="dash-work" title="Trabajando ahora"></i>' : '') + '</div>' +
         '<div class="dash-big"><strong>' + item.orders + '</strong><span>' + (item.orders === 1 ? 'pedido' : 'pedidos') + '</span><small>' + fmtNum(item.units) + ' und.' + (item.late ? ' · <span class="late">' + plural(item.late, 'atrasado', 'atrasados') + '</span>' : '') + '</small></div>' +
         '<div class="dash-seg">' + seg('proc', 'p') + seg('cola', 'c') + seg('rep', 'r') + '</div>' +
         '<ul class="dash-load-legend">' + (t.proc.orders ? '<li class="p"><b>' + t.proc.orders + '</b> en proceso</li>' : '') + (t.cola.orders ? '<li class="c"><b>' + t.cola.orders + '</b> en cola</li>' : '') + (t.rep.orders ? '<li class="r"><b>' + t.rep.orders + '</b> reproceso</li>' : '') + '</ul>' +
-        '<ul class="dash-area-orders">' + rows + '</ul></article>';
+        '<div class="dash-area-fold"><div><ul class="dash-area-orders">' + rows + '</ul></div></div>' +
+        '<button type="button" class="dash-area-toggle" data-area-toggle="' + esc(item.label) + '" aria-expanded="' + openAreas.has(item.label) + '" title="Ver todos los pedidos de esta área"><span>' + plural(item.orders, 'pedido', 'pedidos') + '</span><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button></article>';
     }).join('');
     return '<section class="dash-load" id="dash-load"><div class="dash-panel-head"><h4>Carga por área</h4><small>' + plural(totalWorking, 'pedido', 'pedidos') + ' en proceso · ' + plural(totalQueue, 'pedido', 'pedidos') + ' en cola · ' + fmtNum(totalUnits) + ' und. trabajándose</small></div>' +
       '<div class="dash-load-grid">' + cards + '</div></section>';
@@ -468,7 +479,7 @@
   .dash-none{margin:0;padding:10px 2px;font-size:.84rem;color:#8f9b8a}.dash-more{margin:0;font-size:.76rem;color:#a9b5a3;text-align:right}
   .dash-load{display:grid;gap:10px;padding:18px;border:1px solid rgba(255,255,255,.12);border-radius:16px;background:#111611}
   .dash-load .dash-panel-head{align-items:baseline;flex-wrap:wrap}.dash-load h4{margin:0;font-size:.9rem;color:#e3eadc;text-transform:uppercase;letter-spacing:.05em}.dash-load .dash-panel-head small{color:#8f9b8a;font-size:.76rem}
-  .dash-load-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:14px;align-items:start}
+  .dash-load-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px;align-items:start}
   .dash-load-card{--t:#7ecf8a;position:relative;display:grid;align-content:start;gap:10px;padding:16px 16px 12px;border:1px solid rgba(255,255,255,.13);border-top:5px solid var(--t);border-radius:16px;background:linear-gradient(180deg,rgba(255,255,255,.035),#121712 60%);overflow:hidden;transition:transform .18s,border-color .18s,box-shadow .18s;animation:dashRise .5s both;animation-delay:calc(var(--i,0)*55ms)}
   .dash-load-card::after{content:"";position:absolute;left:0;bottom:0;height:3px;width:var(--m,0%);background:var(--t);opacity:.85;border-radius:0 3px 0 0;transform-origin:left;animation:dashGrow .9s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--i,0)*55ms + 150ms)}
   .dash-load-card:hover{transform:translateY(-3px);border-color:var(--t);box-shadow:0 10px 26px -12px var(--t)}
@@ -486,13 +497,16 @@
   .dash-load-legend{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:4px 12px;font-size:.74rem;color:#b6c2b0}.dash-load-legend li{display:flex;align-items:center;gap:6px}.dash-load-legend b{min-width:20px;padding:1px 6px;border-radius:99px;text-align:center;font-size:.72rem}
   .dash-load-card .late,.dash-area-orders .late{color:#ff8a7c;font-weight:700}
   .dash-bottleneck{position:absolute;top:-1px;right:12px;font-style:normal;font-size:.6rem;font-weight:800;letter-spacing:.03em;text-transform:uppercase;padding:3px 8px;border-radius:0 0 8px 8px;background:#ff6b5c;color:#2a0e0a}
-  .dash-area-orders{list-style:none;margin:2px 0 0;padding:0 4px 0 0;display:grid;gap:6px;max-height:330px;overflow:auto;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.22) transparent}
+  .dash-area-fold{display:grid;grid-template-rows:0fr;transition:grid-template-rows .35s cubic-bezier(.2,.8,.2,1)}.dash-area-fold>div{min-height:0;overflow:hidden}.dash-load-card.open .dash-area-fold{grid-template-rows:1fr}
+  .dash-area-toggle{width:auto!important;min-height:0!important;display:flex;align-items:center;justify-content:space-between;gap:8px;margin:2px -16px -12px;padding:9px 16px;border:0;border-top:1px solid rgba(255,255,255,.09);border-radius:0;background:rgba(255,255,255,.03);color:#b9c6b3;font:700 .74rem Arial;letter-spacing:.03em;cursor:pointer;transition:background .15s,color .15s}
+  .dash-area-toggle:hover{background:rgba(255,255,255,.07);color:#fff}.dash-area-toggle svg{flex:none;color:var(--t);transition:transform .3s}.dash-load-card.open .dash-area-toggle svg{transform:rotate(180deg)}
+  .dash-area-orders{list-style:none;margin:8px 0 6px;padding:0 4px 0 0;display:grid;gap:6px;max-height:330px;overflow:auto;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.22) transparent}
   .dash-area-orders li{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 10px;border:1px solid rgba(255,255,255,.08);border-left:3px solid #8bd450;border-radius:10px;background:rgba(255,255,255,.03)}
   .dash-area-orders li.cola{border-left-color:#ffc95c}.dash-area-orders li.rep{border-left-color:#ff6b5c;background:rgba(255,107,92,.07)}
   .dash-ao-main{display:grid;min-width:0}.dash-ao-main strong{font-size:.84rem;color:#fff}.dash-ao-main span{font-size:.72rem;color:#9fab99;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .dash-ao-meta{display:grid;justify-items:end;flex:none}.dash-ao-meta b{font-size:.8rem;color:#fff}.dash-ao-meta small{font-size:.68rem;color:#a9b5a3}
   @media(max-width:560px){.dash-load-grid{grid-template-columns:minmax(0,1fr);gap:12px}.dash-area-orders{max-height:300px}}
-  @media(prefers-reduced-motion:reduce){.dash-load-card,.dash-load-card::after,.dash-seg i,.dash-work{animation:none!important}}
+  @media(prefers-reduced-motion:reduce){.dash-load-card,.dash-load-card::after,.dash-seg i,.dash-work{animation:none!important}.dash-area-fold,.dash-area-toggle svg{transition:none!important}}
   .dash-time-chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-start}.dash-time-chips button{width:auto!important;flex:0 0 auto;min-height:0!important}
   .dash-time-chips button{--t:#7ecf8a;padding:7px 14px;border:1px solid rgba(255,255,255,.15);border-radius:999px;background:transparent;color:#c4cfbf;font:700 .78rem Arial;cursor:pointer}
   .dash-time-chips .late{--t:#ff6b5c}.dash-time-chips .warn{--t:#ffc95c}
