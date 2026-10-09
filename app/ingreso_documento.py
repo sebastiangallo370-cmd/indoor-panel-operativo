@@ -12,6 +12,7 @@ import subprocess
 import tempfile
 import unicodedata
 from collections import Counter, defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from difflib import SequenceMatcher
 
 import pdfplumber
@@ -27,8 +28,18 @@ def norm(value) -> str:
     return re.sub(r'\s+', ' ', text.upper()).strip()
 
 
-# El servidor tiene un solo procesador: con varios hilos tesseract compite consigo mismo y tarda ~4 veces más.
+# Cada tesseract usa 1 hilo (varios hilos dentro de un mismo tesseract compiten entre sí); el trabajo se reparte entre procesos, uno por CPU del servidor.
+_CPUS = max(1, os.cpu_count() or 1)
 _TESSERACT_ENV = {**os.environ, 'OMP_THREAD_LIMIT': '1'}
+
+
+def _paralelo(funcion, elementos: list) -> list:
+    """Aplica `funcion` a cada elemento usando todas las CPU (cada tesseract es un proceso aparte, así que los hilos sí corren a la vez). Conserva el orden."""
+    elementos = list(elementos)
+    if len(elementos) <= 1 or _CPUS <= 1:
+        return [funcion(e) for e in elementos]
+    with ThreadPoolExecutor(max_workers=min(len(elementos), _CPUS)) as pool:
+        return list(pool.map(funcion, elementos))
 
 
 def _tesseract(path: str, *args: str, timeout: int = 180) -> str:
@@ -45,11 +56,13 @@ def _save_temp(image: Image.Image) -> str:
 
 def load_images(data: bytes, filename: str) -> list[Image.Image]:
     if data[:4] == b'%PDF' or filename.lower().endswith('.pdf'):
-        images = []
         with pdfplumber.open(io.BytesIO(data)) as pdf:
-            for page in pdf.pages[:MAX_PAGES]:
-                images.append(page.to_image(resolution=250).original.convert('RGB'))
-        return images
+            total = min(len(pdf.pages), MAX_PAGES)
+
+        def pagina(indice: int) -> Image.Image:   # cada hilo abre su propio lector: pdfplumber no se comparte entre hilos
+            with pdfplumber.open(io.BytesIO(data)) as doc:
+                return doc.pages[indice].to_image(resolution=250).original.convert('RGB')
+        return _paralelo(pagina, list(range(total)))
     image = ImageOps.exif_transpose(Image.open(io.BytesIO(data))).convert('RGB')
     if image.width < 1800:
         factor = 1800 / image.width
@@ -513,7 +526,8 @@ def _texto_sin_adicional(imagen: Image.Image) -> str:
             if not re.search(r'\d{2,3}[.,]\d', ' '.join(w['text'] for w in ws)):   # cifra tapada por marcas a mano: se relee su celda
                 pendientes.append((len(texto), ancla, ws))
         texto.append(' '.join(w['text'] for w in ws))
-    for pos, ancla, ws in pendientes:   # la celda de Cant. de esa fila se lee recortada, a varias alturas (el escaneo está inclinado), hasta que dos lecturas coincidan
+    def leer_fila(item) -> int | None:   # la celda de Cant. de esa fila se lee recortada, a varias alturas (el escaneo está inclinado), hasta que dos lecturas coincidan
+        ancla = item[1]
         lecturas: list[int] = []
         for d in (12, 16, 8, 20, 4, 24, 0):
             v = _leer_celda_cant(imagen, ancla['top'] + d, ancla['bottom'] + d, inicio_cant, limite) if limite is not None else ''
@@ -521,23 +535,15 @@ def _texto_sin_adicional(imagen: Image.Image) -> str:
                 lecturas.append(int(float(v)) % 1000)
             if lecturas and Counter(lecturas).most_common(1)[0][1] >= 2:
                 break
-        if lecturas:
-            texto[pos] = ' '.join(w['text'] for w in ws if not re.search(r'\d+[.,]\d', w['text'])) + ' %d.00' % Counter(lecturas).most_common(1)[0][0]
+        return Counter(lecturas).most_common(1)[0][0] if lecturas else None
+    for (pos, _ancla, ws), valor in zip(pendientes, _paralelo(leer_fila, pendientes)):   # las filas se leen a la vez, una por CPU
+        if valor is not None:
+            texto[pos] = ' '.join(w['text'] for w in ws if not re.search(r'\d+[.,]\d', w['text'])) + ' %d.00' % valor
     return '\n'.join(texto)
 
 
 def parse_packing_list(data: bytes, filename: str) -> dict | None:
-    imagenes = load_images(data, filename)
-    textos = []
-    for imagen in imagenes:
-        ruta = _save_temp(imagen)
-        try:
-            textos.append(_texto_sin_adicional(imagen))
-        finally:
-            try:
-                os.unlink(ruta)
-            except OSError:
-                pass
+    textos = _paralelo(_texto_sin_adicional, load_images(data, filename))   # las páginas se leen a la vez, una por CPU
     validos = [t for t in textos if 'LISTA DE EMPAQUE' in t.upper() and 'LINDATEXTIL' in t.upper()]
     if not validos:
         return None
@@ -589,7 +595,7 @@ def parse_document(data: bytes, filename: str, formato: str = 'lindatextil') -> 
 
 
 def parse_eliot(data: bytes, filename: str) -> dict:
-    pages = [parse_page(image) for image in load_images(data, filename)]
+    pages = _paralelo(parse_page, load_images(data, filename))
     merged = {'proveedor': '', 'fecha': '', 'total_documento': None, 'filas': []}
     for page in pages:
         merged['proveedor'] = merged['proveedor'] or page['proveedor']
