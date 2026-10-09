@@ -105,6 +105,16 @@ def agentes_permitido(username: str) -> bool:
     return _plano(_lookup(username)) in _PROCESOS_AGENTES
 
 
+_TESORERIA_EXTRA = {'INDOOR SPORT'}   # además de los comerciales, solo esta cuenta entra a Tesorería (donde vive Cartera)
+
+
+def tesoreria_permitido(username: str) -> bool:
+    """Regla fija (no se cambia desde /permisos): Tesorería, y con ella Cartera, son solo para las cuentas con proceso Comercial y la cuenta «Indoor Sport»."""
+    if _plano(username) in _TESORERIA_EXTRA:
+        return True
+    return _plano(_lookup(username)) in _COMERCIAL
+
+
 _SIN_MODULO = {'cartera': {'AP'}}   # cuentas a las que no se les muestra un módulo aunque su rol lo tenga (excepciones por persona)
 
 
@@ -114,6 +124,8 @@ def sin_modulo(username: str, modulo: str) -> bool:
 
 def puede(username: str, modulo: str, accion: str) -> bool:
     if sin_modulo(username, modulo):
+        return False
+    if modulo in ('cartera', 'tesoreria') and not tesoreria_permitido(username):
         return False
     if modulo == 'agentes' and not agentes_permitido(username):
         return False
@@ -159,11 +171,13 @@ def mis_permisos(request: Request):
     permisos = json.loads(json.dumps(matriz()[rol]))
     if not agentes_permitido(usuario):
         permisos['agentes'] = {'ver': False, 'editar': False}
+    if not tesoreria_permitido(usuario):
+        permisos['cartera'] = {accion: False for accion in permisos['cartera']}
     for modulo in list(permisos):
         if sin_modulo(usuario, modulo):
             permisos[modulo] = {accion: False for accion in permisos[modulo]}
     return {'usuario': usuario, 'rol': rol, 'rol_nombre': ROLES[rol], 'admin': rol == 'administracion',
-            'permisos': permisos}
+            'tesoreria': tesoreria_permitido(usuario), 'permisos': permisos}
 
 
 # (Se eliminó la pantalla y los endpoints para cambiar la matriz de permisos: rigen los valores por defecto de _defaults().)

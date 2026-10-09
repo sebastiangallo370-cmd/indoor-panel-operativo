@@ -6158,6 +6158,7 @@ document.querySelector('.production-process-filter').appendChild(traceViewBar);
 const traceScheduleButton=document.createElement('button');traceScheduleButton.type='button';traceScheduleButton.className='production-refresh';traceScheduleButton.id='trace-schedule-order';traceScheduleButton.textContent='+ Programar pedido';traceScheduleButton.onclick=()=>{{document.getElementById('commercial-toggle').closest('.nav-group').classList.remove('collapsed');document.querySelector('.tab[data-kind="pedido"]').click();document.getElementById('order-form').scrollIntoView({{block:'start',behavior:'smooth'}})}};traceViewBar.after(traceScheduleButton);
 const traceCards=document.createElement('div');traceCards.className='trace-cards';traceCards.hidden=true;productionTableWrap.after(traceCards);
 const traceDetail=document.createElement('dialog');traceDetail.className='trace-detail';traceDetail.innerHTML='<button type="button" class="trace-close" aria-label="Cerrar detalle">×</button><div class="trace-detail-content"></div>';document.body.appendChild(traceDetail);traceDetail.querySelector('.trace-close').onclick=()=>traceDetail.close();
+const canViewTesoreria={json.dumps(permisos_mod.tesoreria_permitido(_))};
 const canViewAdministration={json.dumps(' '.join(str(user_process).casefold().split()) in ('administración', 'administracion', 'administrativa', 'administrativo', 'coordinador', 'comercial', 'comerciales', 'asistente comercial', 'asistentes comerciales'))};
 let traceView='cards';
 const traceAssets=new Map(),traceAssetBusy=new Set();
@@ -6183,6 +6184,10 @@ traceNav.addEventListener('click',()=>{{traceView='cards';setTraceView();documen
 adminNav.onclick=()=>{{if(!canViewAdministration)return;traceNav.click();document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===adminNav));traceView='table';setTraceView();document.body.classList.add('admin-summary-mode');adminGroup.classList.remove('collapsed')}};
 const commercialMenu=commercialToggle.closest('.nav-group');
 commercialMenu.querySelectorAll('.nav-children > .tab').forEach(tab=>adminGroup.querySelector('.nav-children').appendChild(tab));
+const tesoreriaGroup=document.createElement('div');tesoreriaGroup.className='nav-group collapsed';tesoreriaGroup.innerHTML='<button class="nav-parent" type="button"><span class="nav-icon">TS</span><span>TESORERÍA</span></button><div class="nav-children"></div>';document.querySelector('nav.tabs').appendChild(tesoreriaGroup);
+const carteraTab=document.querySelector('.tab[data-kind="cartera"]');if(carteraTab)tesoreriaGroup.querySelector('.nav-children').appendChild(carteraTab);
+tesoreriaGroup.querySelector('.nav-parent').onclick=()=>{{tesoreriaGroup.classList.toggle('collapsed');if(!tesoreriaGroup.classList.contains('collapsed'))tesoreriaGroup.querySelector('.nav-children .tab')?.click()}};
+if(!canViewTesoreria){{tesoreriaGroup.remove();carteraTab?.remove()}}
 let carteraLoaded=false;
 commercialMenu.hidden=true;commercialMenu.style.display='none';
 traceScheduleButton.hidden=!canViewAdministration;
