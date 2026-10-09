@@ -614,7 +614,7 @@
     root.innerHTML =
       '<div class="dash-head"><div><span class="eyebrow">Resumen operativo</span><h3>Estado de la producción</h3></div><small><i class="dash-live"></i>En vivo · actualizado ' + new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) + '</small></div>' +
       tabsBar(a) +
-      '<div class="dash-pane' + (activeTab === 'resumen' ? ' on' : '') + '" data-pane="resumen">' + stairs(a, true) + orderFinder(a.orders) + '<div class="dash-cards">' + time + units + week + pct + '</div><div class="dash-today">' + today + late + rework + '</div></div>' +
+      '<div class="dash-pane' + (activeTab === 'resumen' ? ' on' : '') + '" data-pane="resumen">' + orderFinder(a.orders) + '<div class="dash-cards">' + time + units + week + pct + '</div><div class="dash-today">' + today + late + rework + '</div></div>' +
       '<div class="dash-pane' + (activeTab === 'tiempo' ? ' on' : '') + '" data-pane="tiempo">' + (timing || '<p class="dash-none">No hay órdenes con fecha de creación para medir.</p>') + '</div>' +
       '<div class="dash-pane' + (activeTab === 'carga' ? ' on' : '') + '" data-pane="carga">' + stairs(a, false) + (loadHtml || '<p class="dash-none">No hay pedidos pendientes por área.</p>') + '</div>';
     greet(a);
