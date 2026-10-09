@@ -407,27 +407,34 @@
   const STAIR_KINDS = [['proc', 'En proceso'], ['rep', 'Reproceso'], ['cola', 'En cola'], ['prog', 'Programado']];   // de abajo hacia arriba
   function stairs(a, compact) {
     const byLabel = new Map(a.load.map(i => [i.label, i]));
-    const steps = a.flow.map(label => byLabel.get(label) || { label, orders: 0, units: 0, late: 0, total: { proc: { orders: 0, units: 0 }, cola: { orders: 0, units: 0 }, prog: { orders: 0, units: 0 }, rep: { orders: 0, units: 0 } } });
-    const metric = stairMetric;
+    const none = () => ({ proc: { orders: 0, units: 0 }, cola: { orders: 0, units: 0 }, prog: { orders: 0, units: 0 }, rep: { orders: 0, units: 0 } });
+    const steps = a.flow.map(label => byLabel.get(label) || { label, orders: 0, units: 0, late: 0, total: none() });
+    const metric = stairMetric, active = Math.max(1, a.ordersToMake);
     const sumOf = s => STAIR_KINDS.reduce((n, [k]) => n + s.total[k][metric], 0);
     const max = Math.max(1, ...steps.map(sumOf));
     const heaviest = [...steps].sort((x, y) => y.orders - x.orders || y.units - x.units)[0];
+    const span = compact ? 96 : 190;
     const totals = STAIR_KINDS.map(([k, label]) => [k, label, a.load.reduce((n, i) => n + i.total[k].orders, 0)]);
     const lateTotal = a.load.reduce((n, i) => n + i.late, 0);
     const word = metric === 'orders' ? 'pedidos' : 'und.';
     const cols = steps.map((s, i) => {
-      const total = sumOf(s), h = total ? Math.max(6, total / max * 100) : 0;
+      const total = sumOf(s), rise = total ? Math.round(total / max * span) : 0;
+      const share = Math.min(100, Math.round(s.orders / active * 100));
       const segs = STAIR_KINDS.filter(([k]) => s.total[k][metric]).map(([k, label]) => '<i class="sg ' + k + '" style="flex:' + s.total[k][metric] + '" title="' + label + ': ' + fmtNum(s.total[k][metric]) + ' ' + word + '"></i>').join('');
       const detail = STAIR_KINDS.filter(([k]) => s.total[k].orders).map(([k, label]) => label + ' ' + s.total[k].orders).join(' · ') || 'Sin pedidos';
       const value = metric === 'orders' ? s.orders : fmtNum(s.units);
-      const topKind = [...STAIR_KINDS].reverse().find(([k]) => s.total[k][metric]);
-      return '<button type="button" class="st-col' + (s === heaviest && s.orders ? ' top' : '') + (s.orders ? '' : ' empty') + '" data-area-open="' + esc(s.label) + '" style="--h:' + h.toFixed(1) + '%;--i:' + i + '" title="' + esc(s.label) + ' · ' + esc(detail) + '" aria-label="' + esc(s.label) + ': ' + s.orders + ' pedidos. Abrir detalle">' +
-        '<span class="st-val">' + (s === heaviest && s.orders ? '<em>Mayor carga</em>' : '') + (s.late ? '<u title="Atrasados">' + s.late + '</u>' : '') + '<b>' + value + '</b></span>' +
-        '<span class="st-slot" style="--wc:' + (topKind ? WAVE[topKind[0]] : '#fff') + '"><span class="st-bar">' + segs + '</span><i class="st-wave" aria-hidden="true"></i></span><span class="st-name">' + esc(SHORT[s.label] || s.label) + '</span></button>';
+      const other = metric === 'orders' ? fmtNum(s.units) + ' und.' : plural(s.orders, 'pedido', 'pedidos');
+      const isTop = s === heaviest && s.orders;
+      return '<button type="button" class="st-col' + (isTop ? ' top' : '') + (s.orders ? '' : ' empty') + '" data-area-open="' + esc(s.label) + '" style="--i:' + i + ';--rise:' + rise + 'px;--lv:' + Math.min(94, share) + '%" title="' + esc(s.label) + ' · ' + esc(detail) + '" aria-label="' + esc(s.label) + ': ' + s.orders + ' pedidos. Abrir detalle">' +
+        (isTop ? '<em class="ar-ribbon">Mayor carga</em>' : '') +
+        '<span class="st-slot"><span class="st-bar">' + segs + '</span></span>' +
+        '<b class="st-name">' + esc(SHORT[s.label] || s.label) + '</b><span class="st-val">' + value + '</span>' +
+        '<small class="st-sub">' + other + (s.late ? ' · <i class="st-late">' + s.late + ' atras.</i>' : '') + '</small>' +
+        '<em class="st-pct">' + share + '%</em></button>';
     }).join('');
     return '<section class="dash-stairs' + (compact ? ' compact' : '') + (stairsPlayed ? ' go' : '') + '" data-compact="' + (compact ? 1 : 0) + '">' +
-      '<div class="st-head"><div><span class="eyebrow">Cómo va la planta</span><h4>Escalera de carga por área</h4></div>' +
-      '<div class="st-metric" role="group" aria-label="Medir por"><button type="button" data-st-metric="orders" class="' + (metric === 'orders' ? 'on' : '') + '">Pedidos</button><button type="button" data-st-metric="units" class="' + (metric === 'units' ? 'on' : '') + '">Unidades</button></div></div>' +
+      '<header class="st-head"><div><span class="ar-kicker">CÓMO VA LA PLANTA</span><h3>Escalera de carga por área</h3><p>Cada escalón es un área en el orden del proceso: mientras más alto, más carga. El líquido muestra en qué estado está esa carga y el porcentaje es la parte de los pedidos en producción que pasa por el área.</p></div>' +
+      '<div class="st-metric" role="group" aria-label="Medir por"><button type="button" data-st-metric="orders" class="' + (metric === 'orders' ? 'on' : '') + '">Pedidos</button><button type="button" data-st-metric="units" class="' + (metric === 'units' ? 'on' : '') + '">Unidades</button></div></header>' +
       '<div class="st-sum">' + totals.map(([k, label, n]) => '<span class="st-pill ' + k + '"><i></i>' + label + ' <b>' + n + '</b></span>').join('') +
       '<span class="st-pill late' + (lateTotal ? ' hot' : '') + '"><i></i>Atrasados <b>' + lateTotal + '</b></span>' +
       (heaviest && heaviest.orders ? '<span class="st-neck">Cuello de botella: <b>' + esc(heaviest.label) + '</b> · ' + plural(heaviest.orders, 'pedido', 'pedidos') + '</span>' : '') + '</div>' +
@@ -688,60 +695,43 @@
   .od-empty{grid-column:1/-1;padding:40px 10px;text-align:center;color:#9fab99;font-size:.95rem}
   @media(max-width:700px){.od-legend{display:none}.od-title small{display:none}.od-head{gap:8px;padding-bottom:6px}.od-title h3{font-size:1.35rem}.od-close{width:38px!important;height:38px}.od-kpi span{font-size:.56rem;letter-spacing:.03em}.od-tools{gap:8px;padding-bottom:6px}.od-chips{flex-wrap:nowrap;overflow-x:auto;flex:1 1 100%;scrollbar-width:none}.od-chip{flex:none;padding:6px 11px;font-size:.7rem}.od-search input,.od-sort select{min-height:34px}.od-head{padding-top:14px}.od-kpis{order:3;width:100%;display:grid;grid-template-columns:repeat(4,1fr);gap:6px}.od-kpi{min-width:0;padding:7px 4px}.od-kpi b{font-size:1.1rem}.od-search input{width:100%}.od-search{flex:1 1 100%}.od-sort{flex:1 1 100%}.od-sort select{flex:1}.od-list{grid-template-columns:1fr;padding-bottom:30px}.od-steps .st b{display:none}.od-legend{gap:10px}}
   @media(prefers-reduced-motion:reduce){.od,.od-fill,.od-adv,.od-today,.od-steps .st,.dash-areadlg[open]{transition:none!important;animation:none!important}.od{opacity:1;transform:none}.od-list .od-fill{width:var(--w)}.od-list .od-adv{width:var(--a)}.od-today{opacity:1}}
-  /* escalera de la planta */
-  .dash-stairs{display:grid;gap:12px;padding:16px clamp(12px,2vw,22px) 12px;border:1px solid rgba(255,255,255,.12);border-radius:18px;background:radial-gradient(900px 260px at 0% 0%,rgba(139,212,80,.09),transparent 65%),#0e130e;--ch:260px}
-  .dash-stairs.compact{--ch:190px}
-  .st-head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}.st-head h4{margin:2px 0 0;font-size:1.05rem;letter-spacing:.03em;text-transform:uppercase;color:#f2f6ec}
-  .st-metric{display:inline-flex;padding:3px;border:1px solid rgba(255,255,255,.14);border-radius:999px;background:#0a0e0a}
+  /* Escalera de la planta con el diseño de «Vencimiento de la cartera»: panel + tarjetas de líquido en escalones */
+  .dash-stairs{--base:132px;--span:190px;display:grid;gap:16px;padding:22px 24px 18px;border:1px solid rgba(255,255,255,.12);border-radius:18px;background:linear-gradient(130deg,rgba(35,48,25,.72),rgba(9,12,9,.95) 52%,rgba(16,28,16,.84))}
+  .dash-stairs.compact{--base:112px;--span:96px}
+  .dash-stairs>.st-head{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;flex-wrap:wrap}
+  .dash-stairs h3{margin:0 0 6px;font-size:1.15rem;color:#fff}.dash-stairs p{margin:0;max-width:640px;color:#98a692;font-size:.76rem;line-height:1.4}
+  .st-metric{display:inline-flex;padding:3px;border:1px solid rgba(255,255,255,.14);border-radius:999px;background:#0a0e0a;flex:none}
   .st-metric button{width:auto!important;min-height:0!important;padding:6px 14px;border:0;border-radius:999px;background:transparent;color:#aebba7;font:800 .74rem Arial;cursor:pointer;transition:background .15s,color .15s}.st-metric button.on{background:#d0f44c;color:#16200a}
   .st-sum{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
   .st-pill{display:inline-flex;align-items:center;gap:7px;padding:5px 11px;border:1px solid rgba(255,255,255,.12);border-radius:999px;background:rgba(255,255,255,.04);color:#c4cfbf;font:700 .72rem Arial}.st-pill i{width:9px;height:9px;border-radius:3px;background:var(--p)}.st-pill b{color:#fff;font-size:.8rem}
   .st-pill.proc{--p:#8bd450}.st-pill.rep{--p:#ff6b5c}.st-pill.cola{--p:#ffc95c}.st-pill.prog{--p:#8fb8ff}.st-pill.late{--p:#ff6b5c}.st-pill.late.hot{border-color:rgba(255,107,92,.6);background:rgba(255,107,92,.1)}
   .st-neck{margin-left:auto;color:#ffb3a9;font-size:.78rem}.st-neck b{color:#fff}
-  .st-scroll{overflow-x:auto;padding-bottom:4px;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.25) transparent}
-  .st-chart{display:flex;align-items:stretch;gap:7px;height:var(--ch);padding-top:20px;box-sizing:content-box;min-width:max(100%,820px);border-bottom:3px solid rgba(255,255,255,.14)}
-  .st-col{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:stretch;gap:5px;padding:0;border:0;background:none;color:inherit;font:inherit;cursor:pointer;text-align:center;position:relative}
-  .st-col:focus-visible{outline:2px solid #d0f44c;outline-offset:2px;border-radius:8px}
-  .st-val{display:grid;justify-items:center;gap:1px;min-height:34px;align-content:end;position:relative}.st-val b{font-size:1.25rem;line-height:1;color:#fff;transition:transform .2s}.st-col:hover .st-val b{transform:scale(1.15)}
-  .st-val em{position:absolute;bottom:100%;left:50%;transform:translate(-50%,-2px);font-style:normal;font-size:.5rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase;white-space:nowrap;padding:2px 7px;border-radius:99px;background:#ff6b5c;color:#2a0e0a}
-  .st-val u{position:absolute;top:0;right:4px;min-width:17px;padding:1px 5px;border-radius:99px;background:#ff6b5c;color:#2a0e0a;font:800 .6rem Arial;text-decoration:none;animation:stPulse 1.8s infinite}
-  @keyframes stPulse{0%{box-shadow:0 0 0 0 rgba(255,107,92,.6)}70%{box-shadow:0 0 0 7px rgba(255,107,92,0)}100%{box-shadow:0 0 0 0 rgba(255,107,92,0)}}
-  .st-slot{flex:1 1 0;min-height:0;display:flex;align-items:flex-end;position:relative;border:1px solid rgba(255,255,255,.1);border-bottom:0;border-radius:11px 11px 0 0;background:linear-gradient(90deg,rgba(255,255,255,.07),rgba(255,255,255,.015) 45%,rgba(255,255,255,.05));box-shadow:inset 0 0 16px rgba(0,0,0,.35)}
-  .st-wave{position:absolute;z-index:2;left:-8%;width:116%;bottom:-20px;height:20px;border-radius:50%;background:var(--wc,#fff);opacity:0;pointer-events:none;animation:lq-wave 4s ease-in-out infinite;transition:bottom .9s cubic-bezier(.2,.8,.2,1),opacity .3s;transition-delay:calc(var(--i,0)*60ms),calc(var(--i,0)*60ms + 600ms)}
-  .dash-stairs.go .st-wave{bottom:calc(var(--h) - 10px);opacity:.95}.st-col.empty .st-wave{display:none}
-  @keyframes lq-wave{0%,100%{transform:translateX(-3%) scaleY(.9)}50%{transform:translateX(3%) scaleY(1.15)}}
-  .st-bar{width:100%;height:0;display:flex;flex-direction:column-reverse;gap:2px;border-radius:9px 9px 0 0;overflow:hidden;position:relative;transition:height .9s cubic-bezier(.2,.8,.2,1);transition-delay:calc(var(--i,0)*60ms)}
-  .st-bar::before{content:"";position:absolute;inset:0;z-index:1;pointer-events:none;background:radial-gradient(circle at 22% 92%,rgba(255,255,255,.35) 2px,transparent 3px),radial-gradient(circle at 68% 96%,rgba(255,255,255,.28) 3px,transparent 4px),radial-gradient(circle at 44% 99%,rgba(255,255,255,.3) 2px,transparent 3px),linear-gradient(90deg,rgba(255,255,255,.18),transparent 35%,rgba(0,0,0,.12));background-size:100% 160px,100% 190px,100% 140px,100% 100%;background-repeat:repeat-y,repeat-y,repeat-y,no-repeat;animation:stBubbles 6s linear infinite}
+  .st-scroll{overflow-x:auto;padding:2px 2px 8px;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.25) transparent}
+  .st-chart{display:flex;align-items:flex-end;gap:12px;height:calc(var(--base) + var(--span) + 6px);min-width:max(100%,1200px)}
+  .st-col{--rise:0px;--lv:0%;position:relative;flex:1 1 0;min-width:94px;height:var(--base);display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:0;padding:14px 12px;text-align:left;font:inherit;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.16);border-radius:17px;background:linear-gradient(160deg,rgba(255,255,255,.10),rgba(0,0,0,.18));overflow:hidden;cursor:pointer;transition:height 1s cubic-bezier(.2,.8,.2,1),transform .22s ease,border-color .22s ease,box-shadow .22s ease;transition-delay:calc(var(--i,0)*55ms),0s,0s,0s}
+  .dash-stairs.go .st-col{height:calc(var(--base) + var(--rise))}
+  .st-col:hover,.st-col:focus-visible{transform:translateY(-4px);border-color:#d0f44c;box-shadow:0 16px 30px rgba(208,244,76,.16);outline:none;transition-delay:0s}
+  .st-col.top{border-color:#ff6b5c}
+  .st-col .ar-ribbon{right:8px;font-size:.5rem;white-space:nowrap;padding:2px 7px}.st-col.top .st-name{margin-top:14px}
+  .st-name{position:relative;z-index:3;display:block;font-size:.62rem;font-weight:900;letter-spacing:.07em;text-transform:uppercase;line-height:1.2;word-break:keep-all}
+  .st-val{position:relative;z-index:3;display:block;margin-top:14px;font-size:1.6rem;line-height:1;font-weight:900;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .st-sub{position:relative;z-index:3;display:block;max-width:calc(100% - 34px);margin-top:5px;font-size:.6rem;opacity:.92;line-height:1.3}.st-late{font-style:normal;font-weight:800;color:#ffd7cf}
+  .st-pct{position:absolute;z-index:3;right:-16px;bottom:-16px;width:70px;height:70px;box-sizing:border-box;padding:14px 0 0 16px;border:1px solid rgba(255,255,255,.24);border-radius:50%;font:900 .66rem Arial;font-style:normal;text-shadow:none}
+  .st-col.empty .st-val{opacity:.55}.st-col.empty .st-bar{display:none}
+  .st-slot{position:absolute;z-index:1;inset:0;display:flex;align-items:flex-end;pointer-events:none}
+  .st-bar{width:100%;height:0;display:flex;flex-direction:column-reverse;gap:0;position:relative;transition:height 1.1s cubic-bezier(.2,.8,.2,1);transition-delay:calc(var(--i,0)*55ms + 150ms)}
+  .dash-stairs.go .st-bar{height:var(--lv)}
+  .st-bar::before{content:"";position:absolute;inset:0;z-index:2;pointer-events:none;background:radial-gradient(circle at 22% 92%,rgba(255,255,255,.35) 2px,transparent 3px),radial-gradient(circle at 68% 96%,rgba(255,255,255,.28) 3px,transparent 4px),radial-gradient(circle at 44% 99%,rgba(255,255,255,.3) 2px,transparent 3px),linear-gradient(90deg,rgba(255,255,255,.14),transparent 40%,rgba(0,0,0,.12));background-size:100% 160px,100% 190px,100% 140px,100% 100%;background-repeat:repeat-y,repeat-y,repeat-y,no-repeat;animation:stBubbles 6s linear infinite}
   @keyframes stBubbles{from{background-position:0 0,0 0,0 0,0 0}to{background-position:0 -160px,0 -190px,0 -140px,0 0}}
-  .dash-stairs.go .st-bar{height:var(--h)}
-  .st-bar .sg{display:block;min-height:5px;transition:filter .2s}.st-bar .sg.proc{background:linear-gradient(180deg,#a7e56a,#4f9f2a)}.st-bar .sg.rep{background:repeating-linear-gradient(135deg,#ff8a7c 0 6px,#d9402f 6px 12px)}.st-bar .sg.cola{background:linear-gradient(180deg,#ffd987,#d9961a)}.st-bar .sg.prog{background:linear-gradient(180deg,#b6d1ff,#5f8ed8)}
-  .st-col:hover .st-bar .sg{filter:brightness(1.18)}
-  .st-col.top .st-slot{border-color:#ff6b5c;box-shadow:inset 0 0 16px rgba(0,0,0,.35),0 0 0 2px rgba(255,107,92,.55),0 -12px 30px -10px rgba(255,107,92,.8);animation:stTop 2.2s ease-in-out infinite}
-  @keyframes stTop{50%{box-shadow:inset 0 0 16px rgba(0,0,0,.35),0 0 0 2px #ff6b5c,0 -16px 36px -8px rgba(255,107,92,.95)}}
-  .st-col.empty .st-bar{display:none}.st-col.empty .st-val b{color:#6c7a68}.st-col.empty .st-slot::after{content:"";width:100%;height:4px;border-radius:4px;background:rgba(255,255,255,.08)}
-  .st-name{display:block;min-height:24px;padding-top:6px;font:800 .56rem Arial;letter-spacing:0;word-break:keep-all;text-transform:uppercase;color:#aebba7;line-height:1.15;word-break:break-word}.st-col:hover .st-name{color:#fff}
-  .st-flow{display:flex;align-items:center;gap:10px;color:#6c7a68;font-size:.62rem;text-transform:uppercase;letter-spacing:.1em}.st-flow i{flex:1;height:2px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.25));position:relative}.st-flow i::after{content:"";position:absolute;right:0;top:-4px;border:5px solid transparent;border-left:8px solid rgba(255,255,255,.35)}
-  @media(max-width:700px){.dash-stairs{--ch:230px}.dash-stairs.compact{--ch:170px}.st-chart{min-width:640px}.st-neck{margin-left:0;flex:1 1 100%}.st-val b{font-size:1.05rem}}
-  @media(prefers-reduced-motion:reduce){.st-bar,.st-bar::before,.st-wave,.st-val u,.st-col.top .st-slot{transition:none!important;animation:none!important}.st-bar{height:var(--h)}.st-wave{bottom:calc(var(--h) - 10px);opacity:.95}}
-  /* escalera: líquido realista (ola que fluye, capas con borde ondulado, vidrio con reflejo) */
-  .st-wave{display:none!important}
-  .st-chart{gap:9px}
-  .st-slot{padding:0 3px 4px;border:1.5px solid rgba(255,255,255,.3);border-top-color:rgba(255,255,255,.16);border-radius:10px 10px 7px 7px;background:linear-gradient(90deg,rgba(255,255,255,.13),rgba(255,255,255,.015) 24%,rgba(255,255,255,.015) 76%,rgba(255,255,255,.11));box-shadow:inset 0 -16px 20px rgba(255,255,255,.05),inset 0 0 20px rgba(0,0,0,.5),0 12px 14px -10px rgba(0,0,0,.9)}
-  .st-slot::after{content:"";position:absolute;z-index:4;left:11%;top:7%;width:8%;height:74%;border-radius:8px;background:linear-gradient(180deg,rgba(255,255,255,.4),rgba(255,255,255,.05));pointer-events:none}
-  .st-slot::before{content:"";position:absolute;z-index:4;right:10%;top:7%;width:3%;height:52%;border-radius:6px;background:linear-gradient(180deg,rgba(255,255,255,.22),rgba(255,255,255,0));pointer-events:none}
-  .st-bar{gap:0;border-radius:3px 3px 5px 5px;overflow:visible;box-shadow:none!important}
-  .dash-stairs.go .st-bar{height:calc(var(--h) * .92)}
-  .st-bar::before{border-radius:3px 3px 5px 5px;overflow:hidden;z-index:2}
-  .st-bar .sg{position:relative;min-height:6px;background:linear-gradient(180deg,var(--c1),var(--c2))!important;opacity:.96!important}
+  .st-bar .sg{position:relative;display:block;min-height:6px;background:linear-gradient(180deg,var(--c1),var(--c2));opacity:.96}
   .st-bar .sg.proc{--c1:#9be058;--c2:#3f8f22}.st-bar .sg.rep{--c1:#ff8f80;--c2:#c93a2b}.st-bar .sg.cola{--c1:#ffd27a;--c2:#d28f14}.st-bar .sg.prog{--c1:#a9c8ff;--c2:#4f80cf}
   .st-bar .sg:last-child::before,.st-bar .sg:not(:first-child)::after{content:"";position:absolute;left:0;right:0;height:12px;-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 12' preserveAspectRatio='none'%3E%3Cpath d='M0 6 C8 0 16 0 24 6 S40 12 48 6 V12 H0Z' fill='%23000'/%3E%3C/svg%3E") repeat-x 0 0/48px 12px;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 12' preserveAspectRatio='none'%3E%3Cpath d='M0 6 C8 0 16 0 24 6 S40 12 48 6 V12 H0Z' fill='%23000'/%3E%3C/svg%3E") repeat-x 0 0/48px 12px;animation:stFlow 3.4s linear infinite;pointer-events:none}
   .st-bar .sg:last-child::before{top:-6px;background:var(--c1);z-index:3;filter:drop-shadow(0 -1px 0 rgba(255,255,255,.55))}
   .st-bar .sg:not(:first-child)::after{bottom:-6px;background:var(--c2);transform:scaleY(-1);animation-direction:reverse;animation-duration:4.4s;z-index:1}
-  .st-bar .sg:not(:first-child):nth-child(odd)::after{animation-duration:5.2s}
   @keyframes stFlow{from{-webkit-mask-position:0 0;mask-position:0 0}to{-webkit-mask-position:48px 0;mask-position:48px 0}}
-  .st-bar .sg:last-child{box-shadow:inset 0 10px 14px -8px rgba(255,255,255,.45)}
-  .st-col.top .st-slot{border-color:#ff7a6b}
-  @media(prefers-reduced-motion:reduce){.st-bar .sg::before,.st-bar .sg::after{animation:none!important}}
+  .st-flow{display:flex;align-items:center;gap:10px;color:#6c7a68;font-size:.62rem;text-transform:uppercase;letter-spacing:.1em}.st-flow i{flex:1;height:2px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.25));position:relative}.st-flow i::after{content:"";position:absolute;right:0;top:-4px;border:5px solid transparent;border-left:8px solid rgba(255,255,255,.35)}
+  @media(max-width:700px){.dash-stairs{padding:16px 14px 14px}.dash-stairs.compact{--base:100px;--span:80px}.dash-stairs{--base:116px;--span:150px}.st-chart{gap:8px;min-width:900px}.st-val{font-size:1.6rem}.st-neck{margin-left:0;flex:1 1 100%}}
+  @media(prefers-reduced-motion:reduce){.st-col,.st-bar,.st-bar::before,.st-bar .sg::before,.st-bar .sg::after{transition:none!important;animation:none!important}.st-col{height:calc(var(--base) + var(--rise))}.st-bar{height:var(--lv)}}
   /* Carga por área con el mismo diseño de «Vencimiento de la cartera» */
   .ar-panel{display:grid;gap:22px;padding:22px 24px 26px;border:1px solid rgba(255,255,255,.12);border-radius:18px;background:linear-gradient(130deg,rgba(35,48,25,.72),rgba(9,12,9,.95) 52%,rgba(16,28,16,.84))}
   .ar-panel>header{display:flex;justify-content:space-between;gap:18px;align-items:flex-start}
