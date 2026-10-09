@@ -2917,6 +2917,23 @@ def _agentes_escribir_sheet(fila_local: int, celdas: dict, solo_si_vacia: set) -
         return {'sheet': False, 'motivo': f'No pude escribir en Google Sheets: {exc}'}
 
 
+def _filas_de_orden(orden: str) -> list:
+    """Todas las tarjetas de Producción (filas) de una orden."""
+    plano = lambda v: re.sub(r'\s+', '', str(v or '')).upper()
+    with connect() as db:
+        meta = {r['key']: r['value'] for r in db.execute('SELECT key, value FROM production_meta')}
+        titulos = [str(h or '').strip().upper() for h in json.loads(meta.get('headers') or '[]')]
+        if 'ORDEN' not in titulos:
+            return []
+        i_orden = titulos.index('ORDEN')
+        filas = []
+        for r in db.execute('SELECT source_row, values_json FROM production_rows ORDER BY source_row'):
+            v = json.loads(r['values_json'])
+            if len(v) > i_orden and plano(v[i_orden]) == plano(orden):
+                filas.append(r['source_row'])
+        return filas
+
+
 def _agentes_sellar(orden: str, momento: str) -> dict:
     """Cuando los agentes trabajan una orden: HORA INICIO al empezar, HORA FINAL al terminar, RESPONSABLE siempre «AGENT» y la MÁQUINA de impresión,
     en Producción y en el Google Sheets. Solo en las tarjetas que tenían EDICIÓN en proceso al empezar. La hora de inicio no pisa una que ya hubiera."""
@@ -2924,10 +2941,14 @@ def _agentes_sellar(orden: str, momento: str) -> dict:
     hora = ahora.strftime('%H:%M')
     if momento == 'inicio':
         filas = [c['fila'] for c in _edicion_en_proceso() if c['orden'] == orden and c.get('fila')]
-        _AGENTES_CORRIDAS[orden] = filas
+        reproceso = not filas
+        if reproceso:   # nadie la puso «en proceso» (por ejemplo, un reproceso de una orden ya hecha): se anotan todas las tarjetas de la orden
+            filas = _filas_de_orden(orden)
+        _AGENTES_CORRIDAS[orden] = {'filas': filas, 'reproceso': reproceso}
     else:
-        filas = _AGENTES_CORRIDAS.pop(orden, [])
-    resultado = {'orden': orden, 'momento': momento, 'filas': filas}
+        corrida = _AGENTES_CORRIDAS.pop(orden, None) or {}
+        filas, reproceso = corrida.get('filas', []), corrida.get('reproceso', False)
+    resultado = {'orden': orden, 'momento': momento, 'filas': filas, 'reproceso': reproceso}
     for fila in filas:
         with connect() as db:
             rec = db.execute('SELECT values_json FROM production_rows WHERE source_row=?', (fila,)).fetchone()
@@ -2935,7 +2956,7 @@ def _agentes_sellar(orden: str, momento: str) -> dict:
                 continue
             v = json.loads(rec['values_json'])
             v.extend([''] * max(0, COL_ED_RESP - len(v)))
-            if momento == 'inicio' and not str(v[COL_ED_INICIO - 1]).strip():
+            if momento == 'inicio' and (reproceso or not str(v[COL_ED_INICIO - 1]).strip()):
                 v[COL_ED_INICIO - 1] = hora
             if momento == 'fin':
                 v[COL_ED_FINAL - 1] = hora
@@ -2950,7 +2971,8 @@ def _agentes_sellar(orden: str, momento: str) -> dict:
             celdas[COL_ED_FINAL] = hora
         if maquina:
             celdas[COL_MAQUINA] = maquina
-        resultado[f'fila_{fila}'] = _agentes_escribir_sheet(fila, celdas, {COL_ED_INICIO, COL_MAQUINA})
+        solo_vacias = {COL_MAQUINA} if reproceso else {COL_ED_INICIO, COL_MAQUINA}
+        resultado[f'fila_{fila}'] = _agentes_escribir_sheet(fila, celdas, solo_vacias)
     logging.info('Agentes: %s', resultado)
     return resultado
 
