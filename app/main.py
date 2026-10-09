@@ -4255,6 +4255,51 @@ def delete_production_row(row: int, payload: dict = Body(...), _=Depends(authent
         db.close()
 
 
+@app.get("/descargar-conector-illustrator")
+def download_illustrator_connector(_=Depends(authenticate)):
+    """Instalador (.cmd) del botón «Abrir en Illustrator»: registra el protocolo indoor-ai: en el PC de quien lo descarga, para que el botón
+    abra los PDF en el Illustrator de ESE computador (no en el de los agentes). A nivel de equipo (HKLM + ProgramData), como el conector del NAS.
+    Los dos archivos viajan al final del .cmd en líneas cortas «::P:…» y «::V:…» (una línea de comandos de Windows no admite más de ~8000 caracteres)."""
+    carpeta = Path(__file__).resolve().parent / "conectores"
+
+    def lineas(prefijo: str, contenido: bytes) -> str:
+        b64 = base64.b64encode(contenido).decode("ascii")
+        return "\r\n".join(prefijo + b64[i:i + 76] for i in range(0, len(b64), 76))
+
+    cuerpo = fr"""@echo off
+setlocal
+title Instalador Indoor Illustrator
+net session >nul 2>&1
+if %errorlevel% neq 0 (
+  echo Se necesitan permisos de Administrador para instalarlo en todos los usuarios de este equipo.
+  echo Se abrira un aviso de Windows para confirmarlo.
+  powershell -NoProfile -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
+  exit /b
+)
+set "INDOOR_DIR=%ProgramData%\IndoorAI"
+if not exist "%INDOOR_DIR%" mkdir "%INDOOR_DIR%"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$t=Get-Content -LiteralPath '%~f0'; $p=[Convert]::FromBase64String((($t|Where-Object{{$_ -like '::P:*'}}|ForEach-Object{{$_.Substring(4)}}) -join '')); $v=[Convert]::FromBase64String((($t|Where-Object{{$_ -like '::V:*'}}|ForEach-Object{{$_.Substring(4)}}) -join '')); [IO.File]::WriteAllBytes($env:ProgramData+'\IndoorAI\abrir_en_illustrator.ps1',$p); [IO.File]::WriteAllBytes($env:ProgramData+'\IndoorAI\abrir_en_illustrator.vbs',$v); $key='HKLM:\Software\Classes\indoor-ai'; New-Item -Path $key -Force | Out-Null; Set-Item -Path $key -Value 'URL:Indoor Illustrator'; New-ItemProperty -Path $key -Name 'URL Protocol' -Value '' -Force | Out-Null; $ck=$key+'\shell\open\command'; New-Item -Path $ck -Force | Out-Null; Set-Item -Path $ck -Value ('wscript.exe \"'+$env:ProgramData+'\IndoorAI\abrir_en_illustrator.vbs\" \"%%1\"')"
+if errorlevel 1 (
+  echo No fue posible instalar el boton de Illustrator.
+  pause
+  exit /b 1
+)
+echo.
+echo Listo: el boton "Abrir en Illustrator" del panel ahora abre los PDF en el Illustrator de ESTE computador.
+echo Necesitas tener Adobe Illustrator instalado y acceso a la NAS de Indoor.
+echo Ya puedes cerrar esta ventana.
+echo.
+pause
+exit /b 0
+"""
+    contenido = cuerpo.replace("\n", "\r\n") + "\r\n" + lineas("::P:", (carpeta / "abrir_en_illustrator.ps1").read_bytes()) + "\r\n" + lineas("::V:", (carpeta / "abrir_en_illustrator.vbs").read_bytes()) + "\r\n"
+    return Response(
+        content=contenido.encode("utf-8"),
+        media_type="application/octet-stream",
+        headers={"Content-Disposition": 'attachment; filename="Instalar-Boton-Illustrator-Indoor.cmd"'},
+    )
+
+
 @app.get("/descargar-conector-nas")
 def download_nas_connector(_=Depends(authenticate)):
     handler = r'''param([string]$Uri)
@@ -6481,7 +6526,7 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
 `;document.head.appendChild(traceFigmaStyle);setTraceView();
     const commercialGroup=commercialToggle.closest('.nav-group');commercialGroup.classList.add('collapsed');const productionToggle=document.getElementById('production-toggle');if(productionToggle)productionToggle.addEventListener('click',()=>{{const g=productionToggle.closest('.nav-group');g.classList.toggle('collapsed');if(!g.classList.contains('collapsed')&&window.innerWidth>860)g.querySelector('.nav-children .tab')?.click()}});
     setTimeout(()=>{{if(!document.querySelector('.panel.active'))document.querySelector('.tab[data-kind="inicio"]')?.click()}},0);
-    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/liquid-stats.js?v=20261009-10'></script><script src='/permisos.js?v=20261007-2'></script><script src='/reposiciones.js?v=20261005-4'></script><script src='/agentes.js?v=20261009-11'></script><script src='/promedios.js?v=20261006-7'></script><script src='/capacidad.js?v=20261009-1'></script><script src='/molderia.js?v=20261008-2'></script><script src='/estandar.js?v=20261007-1'></script><script src='/fichas-resumen.js?v=20261009-1'></script><script src='/api/cartera/cartera.js?v=20261009-1'></script><script src='/trace-ui.js?v=20261009-10'></script><script src='/home-dashboard.js?v=20261009-14'></script><script src='/bodega-dashboard.js?v=20261009-5'></script><script src='/bodegas.js?v=20261009-7'></script><script src='/codigos-barras.js?v=20261008-1'></script><script src='/mis-pedidos.js?v=20261008-4'></script><script src='/mobile-nav.js?v=20261009-7'></script><script src='/nav-liquid.js?v=20261003-3'></script><script src='/build-watch.js?v=20261002-1'></script><script src='/salud.js?v=20261002-1'></script><script src='/tema.js?v=20261008-1'></script><script src='/tarjeta-iconos.js?v=20261002-5'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261005-3'></script><script src='/linea-editor.js?v=20261008-1'></script><script src='/menu-cuenta.js?v=20261008-1'></script><script src='/foto-perfil.js?v=20261008-4'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
+    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/liquid-stats.js?v=20261009-10'></script><script src='/permisos.js?v=20261007-2'></script><script src='/reposiciones.js?v=20261005-4'></script><script src='/agentes.js?v=20261009-12'></script><script src='/promedios.js?v=20261006-7'></script><script src='/capacidad.js?v=20261009-1'></script><script src='/molderia.js?v=20261008-2'></script><script src='/estandar.js?v=20261007-1'></script><script src='/fichas-resumen.js?v=20261009-1'></script><script src='/api/cartera/cartera.js?v=20261009-1'></script><script src='/trace-ui.js?v=20261009-10'></script><script src='/home-dashboard.js?v=20261009-14'></script><script src='/bodega-dashboard.js?v=20261009-5'></script><script src='/bodegas.js?v=20261009-7'></script><script src='/codigos-barras.js?v=20261008-1'></script><script src='/mis-pedidos.js?v=20261008-4'></script><script src='/mobile-nav.js?v=20261009-7'></script><script src='/nav-liquid.js?v=20261003-3'></script><script src='/build-watch.js?v=20261002-1'></script><script src='/salud.js?v=20261002-1'></script><script src='/tema.js?v=20261008-1'></script><script src='/tarjeta-iconos.js?v=20261002-5'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261005-3'></script><script src='/linea-editor.js?v=20261008-1'></script><script src='/menu-cuenta.js?v=20261008-1'></script><script src='/foto-perfil.js?v=20261008-4'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
 
 
 def ordered_mockup_uploads(extras, slots):
