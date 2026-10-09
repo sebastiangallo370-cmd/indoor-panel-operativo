@@ -4547,6 +4547,9 @@ def find_nas_order(order: str) -> Path:
     raise HTTPException(404, f"No se encontró la orden {clean} en el NAS")
 
 
+_ORDER_FOLDER_CACHE: dict = {}   # (cliente, orden) -> carpeta de la orden hallada en una carpeta de cliente de nombre parecido
+
+
 def production_row_files(source_row: int, excel_only=False):
     with connect() as db:
         record = db.execute("SELECT values_json FROM production_rows WHERE source_row = ?", (source_row,)).fetchone()
@@ -4564,9 +4567,32 @@ def production_row_files(source_row: int, excel_only=False):
     order = field('ORDEN').upper()
     if not client_name or not re.fullmatch(r'[A-Z0-9_-]{2,40}', order):
         raise HTTPException(404, "La fila no tiene cliente u orden válidos")
-    client = resolve_nas_client(root, client_name)
-    matches = [p.resolve() for p in client.iterdir() if p.is_dir() and
-               (p.name.upper() == order or any(p.name.upper().startswith(order + s) for s in ('_', ' ', '-')))]
+    try:
+        client = resolve_nas_client(root, client_name)
+        matches = [p.resolve() for p in client.iterdir() if p.is_dir() and
+                   (p.name.upper() == order or any(p.name.upper().startswith(order + s) for s in ('_', ' ', '-')))]
+    except HTTPException as error:
+        if error.status_code != 404:
+            raise
+        client, matches = None, []
+    if len(matches) != 1:
+        # El cliente no está escrito igual que su carpeta de la NAS («CUBI FUTBOL CLUB» / «CUBIC FC»): la orden se busca por su número
+        # en las carpetas de cliente con nombre parecido (lo mismo que hace el botón NAS). Se recuerda 10 minutos.
+        guardada = _ORDER_FOLDER_CACHE.get((client_name, order))
+        if guardada and time.monotonic() - guardada[0] < 600:
+            folder = guardada[1]
+        else:
+            try:
+                folder = resolve_nas_order_path(root, order, client_name)[1]
+            except HTTPException as error:
+                if error.status_code not in (404, 409) or client is None:
+                    raise
+                folder = None
+            _ORDER_FOLDER_CACHE[(client_name, order)] = (time.monotonic(), folder)
+        if folder is not None:
+            client, matches = folder.parent, [folder]
+    if client is None:
+        raise HTTPException(404, f'No se encontró la carpeta del cliente {client_name} ni la orden {order} en carpetas de nombre parecido.')
     files = []
     if len(matches) == 1 and matches[0].parent == client:
         files = [p for p in matches[0].iterdir() if p.is_file() and p.resolve().parent == matches[0]]
@@ -4895,7 +4921,8 @@ def resolve_nas_order_path(root_raw: Path, clean: str, client_name: str):
                 continue
             tokens = _nas_name_tokens(folder.name)
             # Palabras casi iguales cuentan igual (TRASFORMEMOS ~ TRANSFORMEMOS).
-            common = sum(1 for w in wanted if any(w == t or (len(w) >= 5 and SequenceMatcher(None, w, t).ratio() >= 0.85) for t in tokens))
+            common = sum(1 for w in wanted if any(w == t or (len(w) >= 5 and SequenceMatcher(None, w, t).ratio() >= 0.85)
+                                                  or (min(len(w), len(t)) >= 4 and (w.startswith(t) or t.startswith(w))) for t in tokens))
             if not tokens or not common:
                 continue
             score = common / len(wanted)
