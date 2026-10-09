@@ -87,6 +87,9 @@
     ADMINISTRACION: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/><path d="M3 13h18"/>',
     AGENTES: '<rect x="5" y="8" width="14" height="11" rx="3"/><path d="M12 4v4M9 13h.01M15 13h.01M9.5 16.5h5"/><circle cx="12" cy="3.5" r="1"/>',
     PERMISOS: '<path d="M12 3l8 3v6c0 5-3.4 8.2-8 9-4.6-.8-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/>',
+    MOLDERIA: '<circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.1 15.9M14.5 14.5 20 20M8.1 8.1 12 12"/>',
+    'PROMEDIOS MAESTROS': '<path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/>',
+    TESORERIA: '<circle cx="12" cy="12" r="9"/><path d="M14.8 9.2c-.5-1-1.5-1.5-2.8-1.5-1.7 0-2.8.9-2.8 2.1 0 3 5.8 1.6 5.8 4.6 0 1.2-1.2 2.1-3 2.1-1.4 0-2.5-.6-3-1.7M12 6v1.7M12 16.3V18"/>',
     OTRO: '<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>'
   };
   const plain = text => String(text || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/\s+/g, ' ').trim();

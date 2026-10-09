@@ -2129,7 +2129,7 @@
   html body.production-mode #trace-schedule-order{background:var(--lime,#d0f44c);color:#10140d;border-color:var(--lime,#d0f44c);font-weight:800}
   html body.production-mode #trace-schedule-order:hover{filter:brightness(1.06)}
   @media(max-width:600px){html body.production-mode .trace-card:not(.details-expanded),html body.production-mode .trace-card.details-expanded{grid-template-rows:220px auto auto}}
-  @media(max-width:860px){html body.production-mode .trace-quick-filters{display:flex!important;flex-wrap:nowrap;overflow-x:auto;gap:8px;padding-bottom:4px;scrollbar-width:none;-webkit-overflow-scrolling:touch}html body.production-mode .trace-quick-filters::-webkit-scrollbar{display:none}html body.production-mode .trace-quick-filters button{flex:0 0 auto;white-space:nowrap;min-height:40px;padding:8px 14px}}
+  @media(max-width:860px){html body.production-mode .trace-quick-filters{display:flex!important;flex-wrap:wrap;align-items:flex-start;overflow:visible;gap:8px;padding-bottom:4px}html body.production-mode .trace-quick-filters .trace-totales{flex:0 0 100%;order:9;min-width:0}html body.production-mode .trace-quick-filters::-webkit-scrollbar{display:none}html body.production-mode .trace-quick-filters button{flex:0 0 auto;white-space:nowrap;min-height:40px;padding:8px 14px}}
   /* Zona de diseños de la tarjeta */
   html body.production-mode .trace-card .trace-media,html body.production-mode.trace-density-compact .trace-card .trace-media{padding:0!important;background:linear-gradient(180deg,#f4f6f2,#e3e8df)!important;display:flex;flex-direction:column}
   html body.production-mode .trace-card .trace-design-view{gap:0;height:100%;min-height:0;position:relative}
