@@ -146,20 +146,28 @@
     const index = extra.indexOf(name);
     return index < 0 ? null : EXTRA_COLORS[index % EXTRA_COLORS.length];
   };
+  // Etiquetas de bodega (en las tarjetas): colores fuertes y texto de alto contraste para leerlas de un vistazo
+  const CHIP_COLORS = {'BODEGA GLORIA': ['#2f80ed', '#ffffff'], 'BODEGA CASA': ['#ffb020', '#2b1b00'], 'BODEGA SEGUNDO PISO': ['#9b5cf6', '#ffffff'], 'BODEGA INDOOR': ['#27c46b', '#06210f']};
+  const EXTRA_CHIPS = [['#14b8a6', '#032b27'], ['#ec4899', '#ffffff'], ['#f97316', '#2b1200']];
+  const chipColor = name => {
+    if (name in CHIP_COLORS) return CHIP_COLORS[name];
+    const extra = (data?.bodegas || []).filter(item => !(item in CHIP_COLORS));
+    return EXTRA_CHIPS[Math.max(0, extra.indexOf(name)) % EXTRA_CHIPS.length];
+  };
   const placeClass = name => (data?.bodegas || []).includes(name) && placeColor(name) ? ' bgp-' + data.bodegas.indexOf(name) : '';
   const placeStyle = document.createElement('style');
   document.head.appendChild(placeStyle);
   const paintPlaces = () => {
-    placeStyle.textContent = (data?.bodegas || []).map((name, index) => {
+    placeStyle.textContent = '.bg-chip.bgc-indoor{background:' + CHIP_COLORS['BODEGA INDOOR'][0] + '!important;color:' + CHIP_COLORS['BODEGA INDOOR'][1] + '!important;border-color:' + CHIP_COLORS['BODEGA INDOOR'][0] + '!important;text-shadow:none!important}' + (data?.bodegas || []).map((name, index) => {
       const color = placeColor(name);
       if (!color) return '';
       const [bg, fg, border] = color, roll = '.inventory-roll.bgp-' + index + ':not([class*="roll-pick"])';
       return roll + '{background:' + bg + '!important;color:' + fg + '!important;border-color:' + border + '!important}' +
         roll + '.roll-started{border-color:#ff9f1c!important;border-style:dashed!important}' +
-        '.bg-chip.bgp-' + index + '{background:' + bg + ';color:' + fg + ';border-color:' + border + '}';
+        '.bg-chip.bgp-' + index + '{background:' + chipColor(name)[0] + '!important;color:' + chipColor(name)[1] + '!important;border-color:' + chipColor(name)[0] + '!important;text-shadow:none!important}';
     }).join('');
   };
-  const chip = (name, text) => '<span class="bg-chip' + placeClass(name) + '">' + esc(text) + '</span>';
+  const chip = (name, text) => '<span class="bg-chip' + placeClass(name) + (name === 'BODEGA INDOOR' ? ' bgc-indoor' : '') + '">' + esc(text) + '</span>';
   const usage = tela => tela.uso_pedidos ? '<span class="bg-uso" title="Pedidos de Producción que usan esta tela · ' + esc(num(tela.uso_mts)) + ' MTS requeridos">★ ' + num(tela.uso_pedidos) + (tela.uso_pedidos === 1 ? ' pedido' : ' pedidos') + '</span>' : '';
   const fetchData = async () => { data = await api('/api/inventarios/bodegas'); data.at = Date.now(); paintPlaces(); return data; };
   const load = async () => {
