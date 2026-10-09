@@ -196,8 +196,9 @@
     };
   }
 
-  const card = (tone, title, value, unit, lines, badge) =>
-    '<article class="dash-card ' + tone + '"><h4>' + title + (badge ? '<em class="dash-badge">' + badge + '</em>' : '') + '</h4><div class="dash-big"><strong>' + value + '</strong><span>' + unit + '</span></div>' +
+  const LQ_TONE = { lime: 'oliva', blue: 'azul', orange: 'ambar', green: 'verde', red: 'rojo' };
+  const card = (tone, title, value, unit, lines, badge, level) =>
+    '<article class="dash-card ' + tone + '" data-lq="' + Math.max(0, Math.min(100, Math.round(level === undefined || level === null ? 100 : level))) + '" data-lq-tone="' + (LQ_TONE[tone] || 'verde') + '"' + (level === undefined || level === null ? ' data-lq-nopct' : '') + '><h4>' + title + (badge ? '<em class="dash-badge">' + badge + '</em>' : '') + '</h4><div class="dash-big"><strong>' + value + '</strong><span>' + unit + '</span></div>' +
     '<ul>' + lines.filter(Boolean).map(([label, val]) => val === '' ? '<li class="note">' + label + '</li>' : '<li><span>' + label + '</span><b>' + val + '</b></li>').join('') + '</ul></article>';
 
   const fmtDue = d => d ? fmtShort(d) : 'Sin fecha';
@@ -292,7 +293,7 @@
         return '<li class="' + kinds[0] + '"><div class="dash-ao-main"><strong>' + esc(o.id) + '</strong><span>' + esc(o.client || 'Sin cliente') + '</span></div>' +
           '<div class="dash-ao-meta"><b>' + fmtNum(units) + ' und.</b><small class="' + (late ? 'late' : '') + '">' + kinds.map(k => label[k]).join(' + ') + ' · ' + (o.due ? (late ? 'venció ' : 'entrega ') + fmtShort(o.due) : 'sin fecha') + '</small></div></li>';
       }).join('');
-      return '<article class="dash-load-card ' + tier(item) + (openAreas.has(item.label) ? ' open' : '') + '" style="--i:' + i + ';--m:' + (item.orders / maxOrders * 100).toFixed(1) + '%">' +
+      return '<article class="dash-load-card ' + tier(item) + (openAreas.has(item.label) ? ' open' : '') + '" data-lq="' + Math.round(item.orders / maxOrders * 100) + '" data-lq-tone="' + ({ hot: 'rojo', warm: 'ambar', cool: 'verde' }[tier(item)]) + '" data-lq-nopct style="--i:' + i + ';--m:' + (item.orders / maxOrders * 100).toFixed(1) + '%">' +
         (item === heaviest ? '<em class="dash-bottleneck">Mayor carga</em>' : '') +
         '<div class="dash-load-top"><span class="dash-load-label">' + esc(item.label) + '</span>' + (t.proc.orders ? '<i class="dash-work" title="Trabajando ahora"></i>' : '') + '</div>' +
         '<div class="dash-big"><strong>' + item.orders + '</strong><span>' + (item.orders === 1 ? 'pedido' : 'pedidos') + '</span><small>' + fmtNum(item.units) + ' und.' + (item.late ? ' · <span class="late">' + plural(item.late, 'atrasado', 'atrasados') + '</span>' : '') + '</small></div>' +
@@ -368,7 +369,7 @@
           const d = duration(o, a.today);
           const tone = o.delivered || o.complete ? 'ok' : o.due && o.due < a.today ? 'late' : 'warn';
           const sub = d.end ? 'Terminó el ' + fmtShort(d.end) : 'Creada el ' + (o.created ? fmtShort(o.created) : '—');
-          return '<article class="dash-time-card ' + tone + '"><div class="dash-time-id"><strong>' + esc(o.id) + '</strong><span>' + esc(o.client || 'Sin cliente') + '</span></div>' +
+          return '<article class="dash-time-card ' + tone + '" data-lq="' + Math.round(o.percent || 0) + '" data-lq-tone="' + ({ ok: 'verde', warn: 'ambar', late: 'rojo' }[tone] || 'verde') + '"><div class="dash-time-id"><strong>' + esc(o.id) + '</strong><span>' + esc(o.client || 'Sin cliente') + '</span></div>' +
             '<div class="dash-big"><strong>' + (d.days === null ? '—' : d.days) + '</strong><span>días</span></div><em>' + esc(d.state) + '</em><small class="dash-time-sub">' + sub + '</small></article>';
         }).join('') + '</div>' + (found.length > visible.length ? '<button type="button" class="dash-time-more">Ver más (' + (found.length - visible.length) + ')</button>' : '')
           : '<p class="dash-none">No encontramos órdenes con esa búsqueda.</p>';
@@ -382,7 +383,7 @@
       body.innerHTML = '<div class="dash-time-chips">' + TONES.map(([tone, label]) => '<button type="button" class="' + tone + (tone === timeFilter ? ' on' : '') + '" data-tone="' + tone + '">' + label + ' <b>' + count(tone) + '</b></button>').join('') + '</div>' +
         '<div class="dash-time-list">' + visible.map(t => {
           const note = t.left === null ? '' : t.left < 0 ? 'Atrasada ' + (-t.left) + ' d' : t.left === 0 ? 'Entrega hoy' : 'Quedan ' + t.left + ' d';
-          return '<article class="dash-time-card ' + t.tone + '"><div class="dash-time-id"><strong>' + esc(t.o.id) + '</strong><span>' + esc(t.o.client || 'Sin cliente') + '</span></div>' +
+          return '<article class="dash-time-card ' + t.tone + '" data-lq="' + Math.min(100, Math.round(t.ratio * 100)) + '" data-lq-tone="' + ({ ok: 'verde', warn: 'ambar', late: 'rojo' }[t.tone] || 'verde') + '"><div class="dash-time-id"><strong>' + esc(t.o.id) + '</strong><span>' + esc(t.o.client || 'Sin cliente') + '</span></div>' +
             '<div class="dash-big"><strong>' + t.elapsed + '</strong><span>' + (t.plazo ? 'de ~' + t.plazo + ' días' : 'días') + '</span></div>' +
             '<div class="dash-time-bar"><i><b style="width:' + Math.min(100, Math.round(t.ratio * 100)) + '%"></b></i></div><em>' + note + '</em></article>';
         }).join('') + '</div>' + (shown.length > visible.length ? '<button type="button" class="dash-time-more">Ver más (' + (shown.length - visible.length) + ')</button>' : '');
@@ -412,17 +413,17 @@
   function render(a) {
     const time = a.real !== null
       ? card('lime', 'Promedio de producción', fmtNum(a.real, 1), 'días', [
-        ['Tiempo real, de la creación a la entrega', ''], ['Pedidos medidos', a.realCount], a.promised !== null ? ['Plazo prometido', fmtNum(a.promised, 1) + ' d'] : null])
+        ['Tiempo real, de la creación a la entrega', ''], ['Pedidos medidos', a.realCount], a.promised !== null ? ['Plazo prometido', fmtNum(a.promised, 1) + ' d'] : null], '', a.promised ? a.real / a.promised * 100 : null)
       : card('lime', 'Promedio de producción', fmtNum(a.estimated, 1), 'días', [
-        ['Estimado sumando lo que tarda cada proceso', ''], a.promised !== null ? ['Plazo prometido', fmtNum(a.promised, 1) + ' d'] : null, ['Se vuelve real al registrar entregas', '']]);
+        ['Estimado sumando lo que tarda cada proceso', ''], a.promised !== null ? ['Plazo prometido', fmtNum(a.promised, 1) + ' d'] : null, ['Se vuelve real al registrar entregas', '']], '', a.promised && a.estimated !== null ? a.estimated / a.promised * 100 : null);
     const units = card('blue', 'Unidades por fabricar', fmtNum(a.unitsToMake), 'unidades', [
-      ['Pedidos con procesos pendientes', a.ordersToMake], ['Unidades en pedidos activos', fmtNum(a.unitsAll)]]);
+      ['Pedidos con procesos pendientes', a.ordersToMake], ['Unidades en pedidos activos', fmtNum(a.unitsAll)]], '', a.unitsAll ? a.unitsToMake / a.unitsAll * 100 : 0);
     const week = card(a.lateBefore ? 'red' : 'orange', 'Entregas de la semana', String(a.weekCount), a.weekCount === 1 ? 'pedido' : 'pedidos', [
       ['Del ' + fmtShort(a.weekStart) + ' al ' + fmtShort(a.weekEnd), ''], ['Unidades a entregar', fmtNum(a.weekUnits)],
       a.weekProgress !== null ? ['Avance de estos pedidos', Math.round(a.weekProgress) + '%'] : null, a.lateBefore ? ['Vencidos de semanas anteriores', a.lateBefore] : null],
-      a.lateBefore ? a.lateBefore + ' vencidos' : '');
+      a.lateBefore ? a.lateBefore + ' vencidos' : '', a.weekProgress !== null ? a.weekProgress : 0);
     const pct = card('green', 'Porcentaje de avance', a.progress === null ? '—' : String(Math.round(a.progress)), '%', [
-      ['Procesos terminados por pedido', ''], ['Pedidos activos', a.activeCount], a.progressUnits !== null ? ['Avance por unidades', Math.round(a.progressUnits) + '%'] : null]);
+      ['Procesos terminados por pedido', ''], ['Pedidos activos', a.activeCount], a.progressUnits !== null ? ['Avance por unidades', Math.round(a.progressUnits) + '%'] : null], '', a.progress === null ? 0 : a.progress);
 
     const soon = [...a.dueToday.map(o => ({ ...o, when: 'Hoy' })), ...a.dueTomorrow.map(o => ({ ...o, when: 'Mañana' }))];
     const today = todayPanel('orange', 'Entregas hoy y mañana', soon.length,

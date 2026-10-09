@@ -620,11 +620,18 @@
     const lista = maquinaFiltro ? visibles.filter(row => maqDe(row) === maquinaFiltro) : visibles;
     // unidades = columna CANTIDAD; MTS = lo que dice la nota de la columna Q (MTS REQUERIDOS), sumando todas las referencias de la orden
     const numero = t => { let v = String(t).trim(); if (v.includes(',') && v.includes('.')) v = v.replace(/\./g, '').replace(',', '.'); else if (v.includes(',')) v = v.replace(',', '.'); return parseFloat(v) || 0; };
-    let totUnd = 0, totMts = 0;
-    lista.forEach(row => {
-      totUnd += parseInt(String(traceField(row, 'CANTIDAD') || '0').replace(/[^0-9]/g, ''), 10) || 0;
-      for (const m of String(productionData.notes?.[row.source_row + ':17'] || '').matchAll(/([0-9]+(?:[.,][0-9]+)*)\s*MTS/gi)) totMts += numero(m[1]);
-    });
+    const sumar = filas => {
+      let und = 0, mts = 0;
+      filas.forEach(row => {
+        und += parseInt(String(traceField(row, 'CANTIDAD') || '0').replace(/[^0-9]/g, ''), 10) || 0;
+        for (const m of String(productionData.notes?.[row.source_row + ':17'] || '').matchAll(/([0-9]+(?:[.,][0-9]+)*)\s*MTS/gi)) mts += numero(m[1]);
+      });
+      return [und, mts];
+    };
+    const [totUnd, totMts] = sumar(lista), [allUnd, allMts] = maquinaFiltro ? sumar(visibles) : [totUnd, totMts];
+    const cajas = totales.querySelectorAll('.trace-tot');   // estilo líquido: el nivel es la parte de la lista visible que corresponde al filtro de máquina
+    if (cajas[0]) { cajas[0].setAttribute('data-lq', allUnd ? Math.round(totUnd / allUnd * 100) : 100); cajas[0].setAttribute('data-lq-tone', 'azul'); }
+    if (cajas[1]) { cajas[1].setAttribute('data-lq', allMts ? Math.round(totMts / allMts * 100) : 100); cajas[1].setAttribute('data-lq-tone', 'teal'); }
     totales.querySelector('[data-tot-und]').textContent = totUnd.toLocaleString('es-CO', { maximumFractionDigits: 0 });
     totales.querySelector('[data-tot-mts]').textContent = totMts.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const pageResult = paginate(comercialesMode

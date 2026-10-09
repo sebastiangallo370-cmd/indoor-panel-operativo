@@ -79,8 +79,8 @@
 
   const circles = (values, states) => values && values.length ? '<div class="inventory-rolls">' + values.map((value, index) => '<span class="inventory-roll ' + (states?.[index] === 'started' ? 'roll-started' : 'roll-new') + '">' + esc(num(value)) + '</span>').join('') + '</div>' : '';
   const codes = names => names.map(name => (String(name).match(/^\s*\(([^)]+)\)/) || [])[1]).filter(Boolean);
-  const card = ({badge, badgeClass = '', name, total, unit, extra = '', cls = '', title = '', telas = null, fecha = ''}) =>
-    '<article class="inventory-item-card ' + cls + '"' + (title ? ' title="' + esc(title) + '"' : '') +
+  const card = ({badge, badgeClass = '', name, total, unit, extra = '', cls = '', title = '', telas = null, fecha = '', level = null, tone = 'verde'}) =>
+    '<article class="inventory-item-card ' + cls + '"' + (level !== null ? ' data-lq="' + Math.max(0, Math.min(100, Math.round(level))) + '" data-lq-tone="' + tone + '"' : '') + (title ? ' title="' + esc(title) + '"' : '') +
       (telas ? ' data-tela="' + esc(norm(telas.join(' | '))) + '" data-codigo="' + esc(codes(telas).join('|')) + '"' : ' data-sinfiltro="true"') + (fecha ? ' data-fecha="' + esc(day(fecha)) + '"' : '') + '><span class="inv-badge ' + badgeClass + '">' + esc(badge) + '</span><strong class="inv-name">' + esc(name) + '</strong>' + extra + '<span class="inv-total">' + total + '</span>' + (unit ? '<span class="inv-unit">' + esc(unit) + '</span>' : '') + '</article>';
   const section = (title, note, cards, fit) => '<section class="bd-section"' + (fit ? ' data-fijo="true"' : '') + '><h3>' + esc(title) + (note ? ' <small>· ' + esc(note) + '</small>' : '') + '</h3>' + (cards ? '<div class="bd-cards' + (fit ? ' fit' : '') + '">' + cards + '</div>' : '') + '</section>';
   const meter = (value, max) => '<div class="bd-meter"><i style="width:' + Math.max(1, value / (max || 1) * 100) + '%"></i></div>';
@@ -91,14 +91,14 @@
     const alerts = sub.no_alcanzan + (data.listas_no_alcanzan || 0);
     panel.querySelector('.bd-updated').textContent = 'Inventario leído del Sheet: ' + when(data.updated_at);
     const resumen =
-      card({badge: 'Stock tela', name: 'Metros en bodega', total: num(k.mts) + '<small>MTS</small>', unit: 'Suma de todas las telas'}) +
-      card({badge: 'Telas', name: 'Telas con stock', total: num(k.telas_con_stock) + '<small>de ' + num(k.telas) + '</small>', unit: num(k.telas_sin_stock) + ' telas en cero', extra: meter(k.telas_con_stock, k.telas)}) +
-      card({badge: 'Rollos', name: 'Rollos en bodega', total: num(k.rollos), unit: num(k.rollos_nuevos) + ' nuevos · ' + num(k.rollos_empezados) + ' empezados',
+      card({badge: 'Stock tela', name: 'Metros en bodega', total: num(k.mts) + '<small>MTS</small>', unit: 'Suma de todas las telas · ' + num(k.mts_nuevos) + ' en rollos nuevos', level: k.mts_nuevos / split * 100, tone: 'azul'}) +
+      card({badge: 'Telas', name: 'Telas con stock', total: num(k.telas_con_stock) + '<small>de ' + num(k.telas) + '</small>', unit: num(k.telas_sin_stock) + ' telas en cero', extra: meter(k.telas_con_stock, k.telas), level: k.telas ? k.telas_con_stock / k.telas * 100 : 0, tone: 'verde'}) +
+      card({badge: 'Rollos', name: 'Rollos en bodega', total: num(k.rollos), level: k.rollos ? k.rollos_nuevos / k.rollos * 100 : 0, tone: 'teal', unit: num(k.rollos_nuevos) + ' nuevos · ' + num(k.rollos_empezados) + ' empezados',
         extra: '<div class="bd-split" role="img" aria-label="Nuevos ' + num(k.mts_nuevos) + ' MTS, empezados ' + num(k.mts_empezados) + ' MTS"><i class="n" style="width:' + (k.mts_nuevos / split * 100) + '%" title="Nuevos: ' + num(k.mts_nuevos) + ' MTS"></i><i class="s" style="width:' + (k.mts_empezados / split * 100) + '%" title="Empezados: ' + num(k.mts_empezados) + ' MTS"></i></div>' +
           '<div class="inventory-rolls"><span class="inventory-roll roll-new">' + num(k.rollos_nuevos) + '</span><span class="bd-line" style="align-self:center">Nuevos · ' + num(k.mts_nuevos) + ' MTS</span></div><div class="inventory-rolls"><span class="inventory-roll roll-started">' + num(k.rollos_empezados) + '</span><span class="bd-line" style="align-self:center">Empezados · ' + num(k.mts_empezados) + ' MTS</span></div>'}) +
-      card({badge: 'Sublimación', name: 'Reservado para Sublimación', total: num(sub.mts) + '<small>MTS</small>', unit: num(sub.ordenes) + ' órdenes en curso'}) +
-      card({badge: alerts ? 'Atención' : 'Al día', badgeClass: alerts ? 'bad' : 'ok', cls: alerts ? 'bad' : '', name: 'Órdenes que no alcanzan', total: num(alerts), unit: alerts ? num(sub.no_alcanzan) + ' en Sublimación · ' + num(data.listas_no_alcanzan || 0) + ' con Edición finalizada' : 'Todas las órdenes alcanzan'}) +
-      card({badge: 'Consumo', name: 'Consumido en Sublimación', total: num(con.mts_30d) + '<small>MTS</small>', unit: 'Últimos 30 días · ' + num(con.ordenes_30d) + ' órdenes'});
+      card({badge: 'Sublimación', name: 'Reservado para Sublimación', total: num(sub.mts) + '<small>MTS</small>', unit: num(sub.ordenes) + ' órdenes en curso', level: k.mts ? sub.mts / k.mts * 100 : 0, tone: 'violeta'}) +
+      card({badge: alerts ? 'Atención' : 'Al día', badgeClass: alerts ? 'bad' : 'ok', cls: alerts ? 'bad' : '', level: alerts ? Math.min(100, alerts / Math.max(1, sub.ordenes + (data.listas || []).length) * 100) : 0, tone: alerts ? 'rojo' : 'verde', name: 'Órdenes que no alcanzan', total: num(alerts), unit: alerts ? num(sub.no_alcanzan) + ' en Sublimación · ' + num(data.listas_no_alcanzan || 0) + ' con Edición finalizada' : 'Todas las órdenes alcanzan'}) +
+      card({badge: 'Consumo', name: 'Consumido en Sublimación', total: num(con.mts_30d) + '<small>MTS</small>', unit: 'Últimos 30 días · ' + num(con.ordenes_30d) + ' órdenes', level: (con.mts_30d + k.mts) ? con.mts_30d / (con.mts_30d + k.mts) * 100 : 0, tone: 'ambar'});
 
     const maxTop = data.top[0]?.mts || 1;
     const top = data.top.map((row, index) => card({badge: 'Top ' + (index + 1), telas: [row.nombre], name: row.nombre, total: num(row.mts) + '<small>MTS</small>', unit: rolls(row.rollos), extra: circles(row.valores, row.estados) + meter(row.mts, maxTop)})).join('');
