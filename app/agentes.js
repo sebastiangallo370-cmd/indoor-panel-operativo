@@ -677,28 +677,6 @@
     });
   }
   // «Abrir en Illustrator»: el navegador entrega indoor-ai:// al programa de ESTE PC (se registra con INSTALAR_AGENTES_EDICION.vbs) y este abre el PDF
-  // El PDF se llama «ORDEN_TELA_Talla_…»: en la lista se muestra el nombre de la tela (no el código de la orden ni el de la tela)
-  const telas = { mapa: null, cargando: false };
-  function cargarTelas() {
-    if (telas.mapa || telas.cargando) return;
-    telas.cargando = true;
-    fetch('/api/inventarios', { cache: 'no-store', credentials: 'same-origin' }).then(r => (r.ok ? r.json() : null)).then(d => {
-      const m = new Map();
-      ((d && d.items) || []).forEach(it => { const x = /^\s*\(([^)]+)\)\s*(.+)$/.exec(String(it.nombre || '')); if (x && String(it.categoria || '').toUpperCase() === 'BODEGA TELA') m.set(x[1].trim().toUpperCase(), x[2].trim()); });
-      telas.mapa = m;
-      if (panel && panel.classList.contains('active')) pintarLive();
-    }).catch(() => { telas.mapa = new Map(); }).finally(() => { telas.cargando = false; });
-  }
-  function nombrePdf(detalle) {
-    const txt = String(detalle || '');
-    const mapa = telas.mapa || new Map();
-    let m = /^(.+?)_(.+?)_(Talla_.+)$/.exec(txt), codigo = m && m[2], resto = m && m[3];
-    if (!m) { m = /^(.+?)_(Talla_.+)$/.exec(txt); if (m && mapa.has(m[1].toUpperCase())) { codigo = m[1]; resto = m[2]; } else m = null; }
-    if (!m) return '<span class="pdf-rest">' + esc(txt) + '</span>';
-    const nombre = mapa.get(String(codigo).toUpperCase()) || String(codigo).replace(/_/g, ' ');
-    const sinColor = nombre ? nombre.replace(/\s+(BLANCO|NEGRO|AMARILLO|AZUL|ROJO|VERDE|GRIS|NARANJA|MORADO|ROSADO|ROSA|BEIGE|CAFE|CAFÉ|CAMO|CAMUFLADO|PLATA|DORADO|FUCSIA|CELESTE|VINO|LILA)\s*$/i, '').trim() : '';   // solo la tela (MONTECATINI), sin el color
-    return '<span class="pdf-tela">' + esc(sinColor || nombre || codigo) + '</span><span class="pdf-rest">' + esc(resto) + '</span>';
-  }
   const LOGO_AI = '<svg class="ag-ailogo" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><rect x="1" y="1" width="22" height="22" rx="4.5" fill="#330000" stroke="#FF9A00" stroke-width="1.4"/><text x="12" y="16.3" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-weight="700" font-size="11.5" fill="#FF9A00">Ai</text></svg>';
   // Botón de arriba: abre en Illustrator TODOS los PDF de producción de la orden. Se envían las carpetas donde quedaron (pocas) y el código de la orden;
   // el lanzador de este PC abre cada PDF de esas carpetas que empiece por ese código.
@@ -732,7 +710,6 @@
   }
   function pintarLive() {
     const box = panel && panel.querySelector('[data-live]'); if (!box) return;
-    cargarTelas();
     if (!box.dataset.listo) armarLive(box);
     const evs = flow.ejec ? flow.ejec.eventos.filter(e => e.archivo) : [];
     const montajes = [], pdfs = [], vm = new Set(), vp = new Set(); let total = 0, dm = '', dp = '';
@@ -780,7 +757,7 @@
     if (bIzq) bIzq.disabled = iAct <= 0;
     if (bDer) bDer.disabled = iAct < 0 || iAct >= conVista.length - 1;
     q('[data-np]').textContent = pdfs.length + (total ? ' de ' + total : '');
-    q('[data-lp]').innerHTML = visibles.slice().reverse().slice(0, 80).map((a, i) => '<div' + (a.vista ? ' data-vista="' + esc(a.vista) + '"' : '') + ' class="' + (i === 0 ? 'nuevo ' : '') + (actual && a.vista === actual.vista ? 'sel' : '') + '">' + (a.detalle ? '<b class="pdf-nom" title="' + esc(a.detalle) + '">' + nombrePdf(a.detalle) + '</b>' : (a.cantidad ? '<b>' + esc(a.cantidad) + ' unds</b> · sin nombre ni número · ' + esc(a.talla) : '<b>' + esc(a.nombre || 'Sin nombre') + '</b> · #' + esc(a.numero || '—') + ' · ' + esc(a.talla))) + (a.vista ? '<a class="ag-vlink" href="/api/agentes/archivo/' + encodeURIComponent(a.vista) + '" target="_blank" rel="noopener" title="Ver este PDF en grande (otra pestaña)">↗</a>' : '') + (a.ruta ? '<a href="#" class="ag-vlink ag-ai" data-ai-ruta="' + esc(a.ruta) + '" title="Abrir este PDF en Illustrator" aria-label="Abrir este PDF en Illustrator">' + LOGO_AI + '</a>' : '') + '</div>').join('') || '<div style="opacity:.5">Esperando…</div>';
+    q('[data-lp]').innerHTML = visibles.slice().reverse().slice(0, 80).map((a, i) => '<div' + (a.vista ? ' data-vista="' + esc(a.vista) + '"' : '') + ' class="' + (i === 0 ? 'nuevo ' : '') + (actual && a.vista === actual.vista ? 'sel' : '') + '">' + (a.detalle ? '<b class="pdf-nom" title="' + esc(a.detalle) + '">' + esc(a.detalle) + '</b>' : (a.cantidad ? '<b>' + esc(a.cantidad) + ' unds</b> · sin nombre ni número · ' + esc(a.talla) : '<b>' + esc(a.nombre || 'Sin nombre') + '</b> · #' + esc(a.numero || '—') + ' · ' + esc(a.talla))) + (a.vista ? '<a class="ag-vlink" href="/api/agentes/archivo/' + encodeURIComponent(a.vista) + '" target="_blank" rel="noopener" title="Ver este PDF en grande (otra pestaña)">↗</a>' : '') + (a.ruta ? '<a href="#" class="ag-vlink ag-ai" data-ai-ruta="' + esc(a.ruta) + '" title="Abrir este PDF en Illustrator" aria-label="Abrir este PDF en Illustrator">' + LOGO_AI + '</a>' : '') + '</div>').join('') || '<div style="opacity:.5">Esperando…</div>';
     q('[data-dp]').textContent = dp ? '→ ' + dp : '';
     q('[data-seguir]').hidden = !fija;
     q('.ag-live-prog i').style.width = (total ? Math.min(100, Math.round(pdfs.length / total * 100)) : 0) + '%';
