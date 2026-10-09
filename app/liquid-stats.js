@@ -24,6 +24,19 @@
   .lq .dash-bottleneck{color:#2a0e0a!important;text-shadow:none}
   @keyframes lq-wave{0%,100%{transform:translateX(-2%) scaleY(.9)}50%{transform:translateX(3%) scaleY(1.12)}}
   @media(prefers-reduced-motion:reduce){.lq>.lq-wave{animation:none}.lq>.lq-fill,.lq>.lq-wave{transition:none}}
+  /* Rollos de tela: el círculo se conserva, ahora como el extremo de un rollo (capas de tela, centro hueco con el número y relieve) */
+  body .inventory-item-card .inventory-rolls{gap:9px;margin:10px 0 6px}
+  body .inventory-item-card .inventory-roll{position:relative;min-width:42px;width:auto;height:42px;padding:0 6px;border-width:2px!important;box-sizing:border-box;text-shadow:0 1px 2px rgba(0,0,0,.7);font:900 12px Arial;
+    background-image:radial-gradient(circle at 50% 50%,rgba(6,9,6,.94) 0 34%,transparent 35%),radial-gradient(circle at 32% 24%,rgba(255,255,255,.42),transparent 42%),repeating-radial-gradient(circle at 50% 50%,color-mix(in srgb,currentColor 52%,transparent) 0 1.5px,transparent 1.5px 4.5px)!important;
+    box-shadow:0 8px 12px -5px rgba(0,0,0,.85),inset 0 -5px 7px rgba(0,0,0,.45),inset 0 3px 4px rgba(255,255,255,.22)!important;transition:transform .2s cubic-bezier(.2,.8,.2,1),box-shadow .2s;cursor:default}
+  body .inventory-item-card .inventory-roll:hover{transform:translateY(-4px) scale(1.12) rotate(-8deg);box-shadow:0 14px 16px -6px rgba(0,0,0,.9),0 0 14px -2px currentColor,inset 0 -5px 7px rgba(0,0,0,.45),inset 0 3px 4px rgba(255,255,255,.3)!important}
+  body .inventory-item-card .inventory-roll:nth-child(odd):hover{transform:translateY(-4px) scale(1.12) rotate(8deg)}
+  body .inventory-item-card .inventory-roll.roll-left{animation:rollPulse 2.2s ease-in-out infinite}
+  @keyframes rollPulse{50%{filter:brightness(1.25)}}
+  body .inventory-item-card.lq{--liquid:#12a58f}body .inventory-item-card.lq>.lq-fill{opacity:.5}body .inventory-item-card.lq>.lq-wave{opacity:.62}
+  body .inventory-item-card.lq .inv-total{color:#fff!important;font-size:1.7rem;text-shadow:0 2px 6px rgba(0,0,0,.55)}
+  body .inventory-item-card.lq .inv-badge{background:rgba(0,0,0,.35)!important;color:#fff!important;border:1px solid rgba(255,255,255,.2)}
+  @media(prefers-reduced-motion:reduce){body .inventory-item-card .inventory-roll{transition:none}body .inventory-item-card .inventory-roll.roll-left{animation:none}}
   `;
   document.head.appendChild(css);
 
