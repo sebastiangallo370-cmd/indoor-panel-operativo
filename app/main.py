@@ -6504,7 +6504,7 @@ const tesoreriaGroup=document.createElement('div');tesoreriaGroup.className='nav
 const carteraTab=document.querySelector('.tab[data-kind="cartera"]');if(carteraTab)tesoreriaGroup.querySelector('.nav-children').appendChild(carteraTab);
 tesoreriaGroup.querySelector('.nav-parent').onclick=()=>{{tesoreriaGroup.classList.toggle('collapsed');if(!tesoreriaGroup.classList.contains('collapsed'))tesoreriaGroup.querySelector('.nav-children .tab')?.click()}};
 if(!canViewTesoreria){{tesoreriaGroup.remove();carteraTab?.remove()}}
-/* R.HUMANO: módulo propio al final del menú (solo Coordinador y Administración) */
+/* R.HUMANO: módulo propio al final del menú (lo ven todos los usuarios) */
 const rhumanoGroup=document.createElement('div');rhumanoGroup.className='nav-group collapsed';rhumanoGroup.innerHTML='<button class="nav-parent" type="button"><span class="nav-icon">RH</span><span>R.HUMANO</span></button><div class="nav-children"></div>';
 /* Submódulos de R.HUMANO (cada uno es una pestaña con su panel): CONTRATOS Y C.LABORAL */
 const rhumanoTabs=['rh-contratos'].map(kind=>document.querySelector('.tab[data-kind="'+kind+'"]')).filter(Boolean);

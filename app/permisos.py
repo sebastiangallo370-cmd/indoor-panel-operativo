@@ -125,14 +125,9 @@ def comerciales_permitido(username: str) -> bool:
     return _plano(_lookup(username)) in _PROCESOS_COMERCIALES
 
 
-_PROCESOS_RHUMANO = {'COORDINADOR', 'ADMINISTRACION', 'ADMINISTRATIVA', 'ADMINISTRATIVO'}
-
-
 def rhumano_permitido(username: str) -> bool:
-    """Regla fija: el módulo R.HUMANO (recurso humano) lo ven las cuentas con proceso Coordinador o Administración, más la cuenta maestra."""
-    if username == os.getenv('APP_USER', 'indoor'):
-        return True
-    return _plano(_lookup(username)) in _PROCESOS_RHUMANO
+    """El módulo R.HUMANO (recurso humano) y su submódulo CONTRATOS Y C.LABORAL los ven TODOS los usuarios con sesión (pedido del usuario, 2026-10-09)."""
+    return True
 
 
 _SIN_MODULO = {'cartera': {'AP'}}   # cuentas a las que no se les muestra un módulo aunque su rol lo tenga (excepciones por persona)
