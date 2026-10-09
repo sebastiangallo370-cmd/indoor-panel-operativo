@@ -278,11 +278,11 @@
   }
 
   // ---- PESTAÑAS DEL INICIO (para no tener que bajar tanto) ----
-  const TABS = [['resumen', 'Resumen'], ['entregas', 'Entregas y atrasos'], ['tiempo', 'Tiempo por orden'], ['carga', 'Carga por área']];
+  const TABS = [['resumen', 'Resumen'], ['tiempo', 'Tiempo por orden'], ['carga', 'Carga por área']];
   let activeTab = 'resumen';
   try { const saved = localStorage.getItem('indoor-home-tab'); if (TABS.some(([id]) => id === saved)) activeTab = saved; } catch (e) { /* sin almacenamiento */ }
   function tabsBar(a) {
-    const badge = { entregas: a.late.length || '', tiempo: a.timing.length || '', carga: a.load.length || '' };
+    const badge = { tiempo: a.timing.length || '', carga: a.load.length || '' };
     return '<nav class="dash-tabs" role="tablist" aria-label="Secciones del resumen">' + TABS.map(([id, label]) =>
       '<button type="button" role="tab" class="' + (id === activeTab ? 'on' : '') + '" data-dash-tab="' + id + '" aria-selected="' + (id === activeTab) + '">' + label + (badge[id] ? ' <b>' + badge[id] + '</b>' : '') + '</button>').join('') + '</nav>';
   }
@@ -472,8 +472,7 @@
     root.innerHTML =
       '<div class="dash-head"><div><span class="eyebrow">Resumen operativo</span><h3>Estado de la producción</h3></div><small><i class="dash-live"></i>En vivo · actualizado ' + new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) + '</small></div>' +
       tabsBar(a) +
-      '<div class="dash-pane' + (activeTab === 'resumen' ? ' on' : '') + '" data-pane="resumen">' + orderFinder(a.orders) + '<div class="dash-cards">' + time + units + week + pct + '</div></div>' +
-      '<div class="dash-pane' + (activeTab === 'entregas' ? ' on' : '') + '" data-pane="entregas"><div class="dash-today">' + today + late + rework + '</div></div>' +
+      '<div class="dash-pane' + (activeTab === 'resumen' ? ' on' : '') + '" data-pane="resumen">' + orderFinder(a.orders) + '<div class="dash-cards">' + time + units + week + pct + '</div><div class="dash-today">' + today + late + rework + '</div></div>' +
       '<div class="dash-pane' + (activeTab === 'tiempo' ? ' on' : '') + '" data-pane="tiempo">' + (timing || '<p class="dash-none">No hay órdenes con fecha de creación para medir.</p>') + '</div>' +
       '<div class="dash-pane' + (activeTab === 'carga' ? ' on' : '') + '" data-pane="carga">' + (loadHtml || '<p class="dash-none">No hay pedidos pendientes por área.</p>') + '</div>';
     greet(a);
