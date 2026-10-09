@@ -1,6 +1,40 @@
 /* Production cards: derived presentation only. Operational writes remain in the existing API. */
 (function () {
   'use strict';
+  // TELA de la tarjeta: la columna TELA de Producción; si está vacía se deduce del código que trae la referencia
+  // («A509PE01» → 509 → «(509) DUNGA AMARILLO» de Stock tela; «A200-500CA16M» → DIAMANTE / LONDON).
+  const telaPorCodigo = new Map();
+  function telaDeCodigos(referencia) {
+    const nombres = [], re = /A(\d+(?:-\d+)*)(?=[A-Z]{1,5}\d{2,3})/g, ref = String(referencia || '').toUpperCase();
+    let m;
+    while ((m = re.exec(ref))) m[1].split('-').forEach(codigo => { const n = telaPorCodigo.get(codigo); if (n && !nombres.includes(n)) nombres.push(n); });
+    return nombres.join(' / ');
+  }
+  function telaMarkup(row) {
+    const directa = String(traceField(row, 'TELA') || '').trim(), ref = String(traceField(row, 'REFERENCIA') || '');
+    const tela = directa || telaDeCodigos(ref);
+    const e = v => String(v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+    return '<dd class="trace-tela"' + (directa ? '' : ' data-tela-ref="' + e(ref) + '"') + (tela ? '' : ' hidden') + ' title="Tela: ' + e(tela) + '"><small>TELA</small><span>' + e(tela) + '</span></dd>';
+  }
+  async function cargarTelasPorCodigo() {
+    try {
+      const r = await fetch('/api/inventarios', { cache: 'no-store', credentials: 'same-origin' });
+      if (!r.ok) return;
+      const items = ((await r.json()).items || []).filter(i => String(i.categoria || '').toUpperCase() === 'BODEGA TELA');
+      const nuevo = new Map();
+      items.forEach(i => { const m = /^\s*\((\d+)\)\s*(.+)$/.exec(String(i.nombre || '')); if (m && !nuevo.has(m[1])) nuevo.set(m[1], m[2].replace(/\s+/g, ' ').trim()); });
+      if (!nuevo.size) return;
+      telaPorCodigo.clear(); nuevo.forEach((v, k) => telaPorCodigo.set(k, v));
+      // tarjetas ya pintadas sin tela en el Sheet: se completan ahora
+      document.querySelectorAll('.trace-tela[data-tela-ref]').forEach(dd => {
+        const tela = telaDeCodigos(dd.dataset.telaRef);
+        dd.hidden = !tela; dd.title = 'Tela: ' + tela;
+        const sp = dd.querySelector('span'); if (sp) sp.textContent = tela;
+      });
+    } catch (e) { /* sin inventario: la tarjeta queda solo con la tela del Sheet */ }
+  }
+  cargarTelasPorCodigo();
+  setInterval(() => { if (!document.hidden) cargarTelasPorCodigo(); }, 600000);
   let cardMachineOpen = false;   // el diálogo de máquinas lo abrió una tarjeta: al cerrarlo se repintan las tarjetas
   const key = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase();
   const personKey = value => key(value).replace(/[^A-Z0-9]/g, '');
@@ -663,7 +697,7 @@
       const due = traceField(row, 'FECHA DE ENTREGA');
       const dueLabel = !summary.due ? 'Sin fecha' : summary.overdue ? 'Atrasado' : summary.state !== 'finished' && summary.due.getTime() === scheduleToday().getTime() ? 'Entrega hoy' : 'Entrega';
       const hasRework = summary.groups.some(group => group.state === 'rework');
-      return '<article class="trace-card state-' + summary.state + '" data-card-row="' + id + '"><div class="trace-media">' + traceAssetsMarkup(id) + '</div><div class="trace-card-body"><div class="trace-card-heading"><h3>' + esc(traceField(row, 'ORDEN') || 'Sin número') + '</h3><button type="button" class="trace-order-rework' + (hasRework ? ' has-rework' : '') + '" data-card-rework="' + esc(traceField(row, 'ORDEN')) + '" aria-label="Registrar reproceso de la orden ' + esc(traceField(row, 'ORDEN')) + '">REPROCESO</button><span class="trace-stage ' + summary.state + '">' + labels[summary.state] + '</span></div><p class="trace-client">' + esc(traceField(row, 'NOMBRE DEL CLIENTE') || 'Sin cliente') + '</p><p class="trace-project">' + esc(traceField(row, 'NOMBRE PROYECTO')) + '</p><div class="trace-mts-row' + (mtsV ? ' con-mts' : ' sin-mts') + '">' + ('<div class="trace-machine-top"><small>MÁQUINA DE IMPRESIÓN</small><button type="button" class="trace-machine-btn' + (traceField(row, 'MAQUINA DE IMPRESION').trim() ? ' has-value' : '') + '" data-card-machine="' + id + '" title="Máquina de impresión: clic para elegirla">' + esc(traceField(row, 'MAQUINA DE IMPRESION').trim() || 'Seleccionar') + '</button></div>') + '<button class="trace-mts-btn' + (mtsV ? ' has-value' : '') + '" type="button" data-card-mts="' + id + '"><span class="mts-label">Ingresar MTS REQUERIDOS</span></button><button class="trace-mts-inventory" type="button" data-card-inventory="' + id + '">STOCK TELA ↗</button><div class="trace-mts-display' + (mtsV ? ' has-value' : '') + '"><small>MTS REQUERIDOS</small><strong>' + esc(mtsV || 'Sin registrar') + '</strong></div></div><dl><div><dt>Referencia</dt><dd class="trace-ref" title="' + esc(traceField(row, 'REFERENCIA') || '') + '">' + esc(traceField(row, 'REFERENCIA') || '—') + '</dd>' + (traceField(row, 'TELA') ? '<dd class="trace-tela" title="Tela: ' + esc(traceField(row, 'TELA')) + '"><small>TELA</small>' + esc(traceField(row, 'TELA')) + '</dd>' : '') + '</div>' + '<div><dt>Cantidad</dt><dd class="trace-quantity">' + esc(traceField(row, 'CANTIDAD') || '0') + ' <small>und.</small></dd></div><div class="trace-due ' + (summary.overdue ? 'late' : '') + '"><dt>' + dueLabel + '</dt><dd>' + esc(summary.due ? displayProductionDate(due) : 'Sin programar') + '</dd></div><div><dt>Responsable del proceso</dt><dd>' + (responsible ? responsible.split(/[,;·\n]+/).filter(x => x.trim()).map(name => '<span class="trace-person">' + esc(name.trim()) + '</span>').join(' ') : '<span class="trace-unassigned">Sin asignar</span>') + '</dd></div></dl><div class="trace-card-meta"><span>' + notes + ' nota' + (notes === 1 ? '' : 's') + '</span><span>Fila ' + id + '</span></div><div class="trace-card-actions"><button type="button" class="operator-open" data-card-edit="' + id + '">PRODUCCIÓN</button><button type="button" data-card-detail="' + id + '">Ver detalle</button><button type="button" data-card-nas="' + id + '" aria-label="Abrir carpeta del pedido">NAS ↗</button></div></div>' + routeMarkup(row, summary) + '</article>';
+      return '<article class="trace-card state-' + summary.state + '" data-card-row="' + id + '"><div class="trace-media">' + traceAssetsMarkup(id) + '</div><div class="trace-card-body"><div class="trace-card-heading"><h3>' + esc(traceField(row, 'ORDEN') || 'Sin número') + '</h3><button type="button" class="trace-order-rework' + (hasRework ? ' has-rework' : '') + '" data-card-rework="' + esc(traceField(row, 'ORDEN')) + '" aria-label="Registrar reproceso de la orden ' + esc(traceField(row, 'ORDEN')) + '">REPROCESO</button><span class="trace-stage ' + summary.state + '">' + labels[summary.state] + '</span></div><p class="trace-client">' + esc(traceField(row, 'NOMBRE DEL CLIENTE') || 'Sin cliente') + '</p><p class="trace-project">' + esc(traceField(row, 'NOMBRE PROYECTO')) + '</p><div class="trace-mts-row' + (mtsV ? ' con-mts' : ' sin-mts') + '">' + ('<div class="trace-machine-top"><small>MÁQUINA DE IMPRESIÓN</small><button type="button" class="trace-machine-btn' + (traceField(row, 'MAQUINA DE IMPRESION').trim() ? ' has-value' : '') + '" data-card-machine="' + id + '" title="Máquina de impresión: clic para elegirla">' + esc(traceField(row, 'MAQUINA DE IMPRESION').trim() || 'Seleccionar') + '</button></div>') + '<button class="trace-mts-btn' + (mtsV ? ' has-value' : '') + '" type="button" data-card-mts="' + id + '"><span class="mts-label">Ingresar MTS REQUERIDOS</span></button><button class="trace-mts-inventory" type="button" data-card-inventory="' + id + '">STOCK TELA ↗</button><div class="trace-mts-display' + (mtsV ? ' has-value' : '') + '"><small>MTS REQUERIDOS</small><strong>' + esc(mtsV || 'Sin registrar') + '</strong></div></div><dl><div><dt>Referencia</dt><dd class="trace-ref" title="' + esc(traceField(row, 'REFERENCIA') || '') + '">' + esc(traceField(row, 'REFERENCIA') || '—') + '</dd>' + telaMarkup(row) + '</div>' + '<div><dt>Cantidad</dt><dd class="trace-quantity">' + esc(traceField(row, 'CANTIDAD') || '0') + ' <small>und.</small></dd></div><div class="trace-due ' + (summary.overdue ? 'late' : '') + '"><dt>' + dueLabel + '</dt><dd>' + esc(summary.due ? displayProductionDate(due) : 'Sin programar') + '</dd></div><div><dt>Responsable del proceso</dt><dd>' + (responsible ? responsible.split(/[,;·\n]+/).filter(x => x.trim()).map(name => '<span class="trace-person">' + esc(name.trim()) + '</span>').join(' ') : '<span class="trace-unassigned">Sin asignar</span>') + '</dd></div></dl><div class="trace-card-meta"><span>' + notes + ' nota' + (notes === 1 ? '' : 's') + '</span><span>Fila ' + id + '</span></div><div class="trace-card-actions"><button type="button" class="operator-open" data-card-edit="' + id + '">PRODUCCIÓN</button><button type="button" data-card-detail="' + id + '">Ver detalle</button><button type="button" data-card-nas="' + id + '" aria-label="Abrir carpeta del pedido">NAS ↗</button></div></div>' + routeMarkup(row, summary) + '</article>';
     }).join('') || '<div class="trace-empty"><h3>No hay pedidos en esta vista</h3><p>' + (filter === 'mine' ? 'No hay responsables que coincidan con tu usuario o iniciales. Prueba Todos o revisa la asignación.' : 'Prueba otro estado o cambia la búsqueda.') + '</p><button type="button" data-clear-trace>Ver todos</button></div>';
     traceCards.querySelectorAll('[data-card-row]').forEach(card => traceImageObserver.observe(card));
     if (pageResult.pages > 1) traceCards.insertAdjacentHTML('beforeend', '<nav class="trace-pagination trace-pagination-bottom" aria-label="Páginas de pedidos al final">' + pageMarkup(pageResult) + '</nav>');
@@ -2191,6 +2225,7 @@
   html body.production-mode .trace-card .trace-primary-facts{grid-template-columns:minmax(0,1fr) 104px auto!important;align-items:end}
   html body.production-mode .trace-card .trace-primary-facts .trace-ref{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   /* nombre de la tela debajo de la referencia (columna TELA de Producción) */
+  html body.production-mode .trace-card .trace-tela[hidden]{display:none}
   html body.production-mode .trace-card .trace-tela{display:block;margin:5px 0 0;color:#d0f44c;font:800 12.5px Arial;letter-spacing:.04em;line-height:1.25;overflow-wrap:anywhere}
   html body.production-mode .trace-card .trace-tela small{display:block;margin-bottom:1px;color:#8e9a87;font:800 9px Arial;letter-spacing:.14em}
   /* Con los MTS ya ingresados (se hace una sola vez por tarjeta) la máquina ocupa el lugar del botón «Ingresar MTS» y los MTS quedan al lado */
