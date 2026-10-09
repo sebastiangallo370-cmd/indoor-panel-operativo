@@ -685,7 +685,9 @@
     let m = /^(.+?)_(.+?)_(Talla_.+)$/.exec(txt), codigo = m && m[2], resto = m && m[3];
     if (!m) { m = /^(.+?)_(Talla_.+)$/.exec(txt); if (m && mapa.has(m[1].toUpperCase())) { codigo = m[1]; resto = m[2]; } else m = null; }
     if (!m) return '<span class="pdf-rest">' + esc(txt) + '</span>';
-    return '<span class="pdf-tela">' + esc(mapa.get(String(codigo).toUpperCase()) || codigo) + '</span><span class="pdf-rest">' + esc(resto) + '</span>';
+    const nombre = mapa.get(String(codigo).toUpperCase());
+    const sinColor = nombre ? nombre.replace(/\s+(BLANCO|NEGRO|AMARILLO|AZUL|ROJO|VERDE|GRIS|NARANJA|MORADO|ROSADO|ROSA|BEIGE|CAFE|CAFÉ|CAMO|CAMUFLADO|PLATA|DORADO|FUCSIA|CELESTE|VINO|LILA)\s*$/i, '').trim() : '';   // solo la tela (MONTECATINI), sin el color
+    return '<span class="pdf-tela">' + esc(sinColor || nombre || codigo) + '</span><span class="pdf-rest">' + esc(resto) + '</span>';
   }
   const LOGO_AI = '<svg class="ag-ailogo" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><rect x="1" y="1" width="22" height="22" rx="4.5" fill="#330000" stroke="#FF9A00" stroke-width="1.4"/><text x="12" y="16.3" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-weight="700" font-size="11.5" fill="#FF9A00">Ai</text></svg>';
   function abrirEnIllustrator(ruta) {
