@@ -404,7 +404,8 @@
   .panel[data-panel='agentes'] .ag-gen button.m.on{border-color:#8fb8ff;background:linear-gradient(180deg,#a9c8ff,#4f80cf);color:#06142b;box-shadow:0 6px 14px -6px rgba(143,184,255,.8)}
   .panel[data-panel='agentes'] .ag-gen button.f.on{border-color:#ff9ad5;background:linear-gradient(180deg,#ffb6e2,#e0509f);color:#33001a;box-shadow:0 6px 14px -6px rgba(255,154,213,.8)}
   .panel[data-panel='agentes'] .ag-gen button.on b{background:rgba(0,0,0,.18)}
-  .panel[data-panel='agentes'] .ag-gen.ag-dis{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 2px}
+  .panel[data-panel='agentes'] .ag-live-sec:has(.ag-dis:not([hidden])){grid-template-rows:auto auto minmax(0,1fr)}
+  .panel[data-panel='agentes'] .ag-gen.ag-dis{display:flex;flex-wrap:wrap;align-items:center;align-self:start;gap:6px;margin:2px 0}
   .panel[data-panel='agentes'] .ag-gen.ag-dis[hidden]{display:none}
   .panel[data-panel='agentes'] .ag-gen button.d.on{border-color:#d7ff3a;background:linear-gradient(180deg,#e4ff7a,#a8d42a);color:#141c05;box-shadow:0 6px 14px -6px rgba(215,255,58,.8)}
   .panel[data-panel='agentes'] .ag-prog{position:relative;overflow:hidden;flex:none;display:inline-flex;align-items:center;gap:9px;min-width:200px;height:38px;padding:0 14px;border:1px solid rgba(139,212,80,.55);border-radius:12px;background:#0f170d;color:#f3ffe0;font:800 12px Arial;letter-spacing:.03em;cursor:pointer;box-shadow:0 10px 22px -16px rgba(139,212,80,.9);transition:border-color .3s,box-shadow .3s}
