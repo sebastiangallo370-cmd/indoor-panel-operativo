@@ -4179,31 +4179,24 @@ function Get-ViewIdentity($view) {
     finally { [Runtime.InteropServices.Marshal]::Release($pointer) | Out-Null }
 }
 function Open-OrderAndMasters([string]$OrderPath) {
-    $masters = Join-Path ([System.IO.Path]::GetDirectoryName($OrderPath.TrimEnd('\'))) "MAESTROS"
-    Start-Process explorer.exe -ArgumentList ('"' + $OrderPath + '"')
-    if (-not (Test-Path -LiteralPath $masters -PathType Container)) {
-        [System.Windows.MessageBox]::Show("Se abrió la orden. Este cliente no tiene una carpeta MAESTROS disponible.", "Indoor NAS") | Out-Null
-        return
-    }
+    # Abre SOLO la carpeta de la orden (sin MAESTROS), como pestaña nueva de la ventana del Explorador que ya esté abierta;
+    # si no hay ninguna ventana abierta (o Windows no permite pestañas) se abre una ventana normal.
     try {
         $shellApp = New-Object -ComObject Shell.Application
-        $orderView = $null
-        for ($attempt = 0; $attempt -lt 40 -and $null -eq $orderView; $attempt++) {
-            foreach ($view in @($shellApp.Windows())) {
-                try {
-                    if ($view.Document.Folder.Self.Path.TrimEnd('\') -ieq $OrderPath.TrimEnd('\')) { $orderView = $view; break }
-                } catch {}
-            }
-            if ($null -eq $orderView) { Start-Sleep -Milliseconds 200 }
+        $host_ = $null
+        foreach ($view in @($shellApp.Windows())) {
+            try {
+                if ([System.IO.Path]::GetFileName($view.FullName) -ieq "explorer.exe" -and $null -ne $view.Document.Folder) { $host_ = $view; break }
+            } catch {}
         }
-        if ($null -eq $orderView) { throw "No se identificó la ventana de la orden." }
-        $windowHandle = [IntPtr]([long]$orderView.HWND)
+        if ($null -eq $host_) { throw "No hay ventana del Explorador abierta." }
+        $windowHandle = [IntPtr]([long]$host_.HWND)
         $before = @($shellApp.Windows() | ForEach-Object { Get-ViewIdentity $_ })
         [IndoorExplorerWindow]::ShowWindow($windowHandle, 9) | Out-Null
         [IndoorExplorerWindow]::SetForegroundWindow($windowHandle) | Out-Null
         Start-Sleep -Milliseconds 250
-        if ([IndoorExplorerWindow]::GetForegroundWindow() -ne $windowHandle) { throw "No se pudo activar la ventana de la orden." }
-        # Only the shortcut is sent to the verified Explorer window; paths use COM, never keystrokes.
+        if ([IndoorExplorerWindow]::GetForegroundWindow() -ne $windowHandle) { throw "No se pudo activar la ventana del Explorador." }
+        # Solo se envía el atajo de nueva pestaña a la ventana verificada; la ruta se entrega por COM, nunca por teclado.
         [System.Windows.Forms.SendKeys]::SendWait("^t")
         $newTab = $null
         for ($attempt = 0; $attempt -lt 30 -and $null -eq $newTab; $attempt++) {
@@ -4215,10 +4208,9 @@ function Open-OrderAndMasters([string]$OrderPath) {
             }
         }
         if ($null -eq $newTab) { throw "Windows no expuso la nueva pestaña." }
-        $newTab.Navigate2($masters)
+        $newTab.Navigate2($OrderPath)
     } catch {
-        # Compatibility fallback: still provide both folders without navigating an unrelated tab.
-        Start-Process explorer.exe -ArgumentList ('"' + $masters + '"')
+        Start-Process explorer.exe -ArgumentList ('"' + $OrderPath + '"')
     }
 }
 try {
