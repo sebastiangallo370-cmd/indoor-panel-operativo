@@ -35,6 +35,8 @@
   /* Tarjeta de producción: Referencia en su propia fila y Máquina / Cantidad lado a lado (antes quedaban en 3 columnas de 47 px y se partían) */
   html body.production-mode .trace-card .trace-primary-facts.trace-primary-facts{grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;gap:8px!important;align-items:start!important}
   html body .trace-primary-facts>div:first-child{grid-column:1/-1}
+  html body.production-mode .trace-card .trace-primary-facts .trace-ref{white-space:normal!important;overflow:visible!important;text-overflow:clip!important}
+  html body.production-mode .trace-card .trace-primary-facts .trace-machine-btn{height:auto!important;min-height:34px!important;font-size:13px!important}
   html body .trace-primary-facts .trace-machine-fact{min-width:0!important;max-width:100%}
   html body .trace-primary-facts .trace-machine-fact :is(button,select,input){max-width:100%!important;width:100%!important;box-sizing:border-box}
   html body .trace-primary-facts dd,html body .trace-primary-facts dt{overflow-wrap:anywhere;word-break:normal}
