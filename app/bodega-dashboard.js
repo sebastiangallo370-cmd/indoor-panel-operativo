@@ -64,7 +64,7 @@
 .bd-count:empty{display:none}
 @media (max-width:900px){.bd-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.bd-filters label:first-child{grid-column:1/-1}}
 @media (max-width:700px){.bd,.bd-filters{min-width:0;max-width:100%;box-sizing:border-box}.bd{overflow-x:clip}.bd-filters{padding:12px}.bd-filters label{min-width:0}.bd-filters input,.bd-filters input[type=date]{min-width:0;max-width:100%;width:100%;min-height:42px;font-size:16px;-webkit-appearance:none;appearance:none}.bd-filters input[type=date]{display:block;text-align:left}}
-@media (max-width:520px){.bd-head{flex-direction:column;align-items:stretch}.bd-cards{grid-template-columns:1fr}}
+@media (max-width:520px){.bd-head{flex-direction:column;align-items:stretch}.bd-cards,.bd-cards.fit{grid-template-columns:minmax(0,1fr)}.bd-cards{min-width:0!important;width:100%;max-width:100%}.bd-section,.bd-body{min-width:0;max-width:100%}.bd-cards>*{min-width:0;max-width:100%;overflow:hidden}}
 `;
   document.head.appendChild(style);
 
