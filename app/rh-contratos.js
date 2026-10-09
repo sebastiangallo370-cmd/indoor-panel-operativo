@@ -1,6 +1,6 @@
 (() => {
-  // R.HUMANO > CONTRATOS: el empleado escribe nombre completo, cédula y cargo y descarga la copia de SU contrato.
-  // La validación se hace en el servidor (/api/rhumano/contrato); aquí nunca llega la lista de empleados ni sus cédulas.
+  // R.HUMANO: CONTRATOS (copia del contrato) y C.LABORAL (carta laboral generada al momento).
+  // En los dos el empleado escribe nombre completo, cédula y cargo; la validación se hace en el servidor y aquí nunca llega la lista de empleados ni sus cédulas.
   if (window.__rhContratosListo) return;
   window.__rhContratosListo = true;
 
@@ -22,36 +22,45 @@
   `;
   document.head.appendChild(css);
 
-  function montar() {
-    const panel = document.querySelector('.panel[data-panel="rh-contratos"]');
+  const FORMULARIOS = [
+    { panel: 'rh-contratos', api: '/api/rhumano/contrato', rotulo: 'R.HUMANO · CONTRATOS', titulo: 'Copia de mi contrato',
+      texto: 'Escribe tus datos tal como aparecen en tu contrato de trabajo para descargar tu copia en PDF.', boton: 'DESCARGAR MI CONTRATO',
+      buscando: 'Buscando tu contrato…', listo: 'Listo: tu contrato se descargó.', archivo: 'Contrato.pdf',
+      nota: 'Solo puedes descargar tu propio contrato. Si tus datos no coinciden o cambiaste de cargo, acércate a Administración.' },
+    { panel: 'rh-claboral', api: '/api/rhumano/carta-laboral', rotulo: 'R.HUMANO · C.LABORAL', titulo: 'Mi carta laboral',
+      texto: 'Escribe tus datos tal como aparecen en tu contrato de trabajo y el panel genera tu carta laboral en PDF, con la fecha de hoy.', boton: 'GENERAR MI CARTA LABORAL',
+      buscando: 'Generando tu carta laboral…', listo: 'Listo: tu carta laboral se descargó.', archivo: 'Carta laboral.pdf',
+      nota: 'La carta certifica tu cargo actual y la fecha desde la que trabajas en la empresa. Si necesitas que incluya otro dato (por ejemplo el salario), pídela en Administración.' }
+  ];
+
+  function montar(f) {
+    const panel = document.querySelector('.panel[data-panel="' + f.panel + '"]');
     if (!panel) return false;
     if (panel.dataset.listo) return true;
     panel.dataset.listo = '1';
-    panel.innerHTML = '<div class="rhc"><span class="eyebrow">R.HUMANO · CONTRATOS</span><h2>Copia de mi contrato</h2>' +
-      '<p>Escribe tus datos tal como aparecen en tu contrato de trabajo para descargar tu copia en PDF.</p>' +
+    panel.innerHTML = '<div class="rhc"><span class="eyebrow">' + f.rotulo + '</span><h2>' + f.titulo + '</h2><p>' + f.texto + '</p>' +
       '<form novalidate autocomplete="off">' +
       '<label>NOMBRE COMPLETO<input name="nombre" type="text" maxlength="90" required placeholder="Nombres y apellidos"></label>' +
       '<label>CÉDULA<input name="cedula" type="text" inputmode="numeric" maxlength="14" required placeholder="Solo números"></label>' +
       '<label>CARGO<input name="cargo" type="text" maxlength="80" required placeholder="Tu cargo en la empresa"></label>' +
-      '<button type="submit">DESCARGAR MI CONTRATO</button><p class="msg" role="status" aria-live="polite"></p></form>' +
-      '<small>Solo puedes descargar tu propio contrato. Si tus datos no coinciden o cambiaste de cargo, acércate a Administración.</small></div>';
+      '<button type="submit">' + f.boton + '</button><p class="msg" role="status" aria-live="polite"></p></form><small>' + f.nota + '</small></div>';
     const form = panel.querySelector('form'), msg = panel.querySelector('.msg'), boton = panel.querySelector('button');
     const decir = (texto, clase) => { msg.textContent = texto; msg.className = 'msg' + (clase ? ' ' + clase : ''); };
     form.addEventListener('submit', async e => {
       e.preventDefault();
       const datos = { nombre: form.nombre.value.trim(), cedula: form.cedula.value.replace(/\D/g, ''), cargo: form.cargo.value.trim() };
       if (!datos.nombre || !datos.cedula || !datos.cargo) { decir('Completa los tres datos: nombre completo, cédula y cargo.', 'err'); return; }
-      boton.disabled = true; decir('Buscando tu contrato…');
+      boton.disabled = true; decir(f.buscando);
       try {
-        const r = await fetch('/api/rhumano/contrato', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(datos) });
-        if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.detail || 'No fue posible descargar el contrato.'); }
+        const r = await fetch(f.api, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(datos) });
+        if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.detail || 'No fue posible generar el documento.'); }
         const blob = await r.blob();
         const nombre = (/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(r.headers.get('Content-Disposition') || '') || [])[1];
         const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob); a.download = nombre ? decodeURIComponent(nombre) : 'Contrato.pdf';
+        a.href = URL.createObjectURL(blob); a.download = nombre ? decodeURIComponent(nombre) : f.archivo;
         document.body.appendChild(a); a.click(); a.remove();
         setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-        decir('Listo: tu contrato se descargó.', 'ok');
+        decir(f.listo, 'ok');
         form.cedula.value = '';
       } catch (error) { decir(error.message, 'err'); }
       boton.disabled = false;
@@ -59,5 +68,5 @@
     return true;
   }
   let n = 0;
-  const espera = setInterval(() => { if (montar() || ++n > 80) clearInterval(espera); }, 250);
+  const espera = setInterval(() => { if (FORMULARIOS.map(montar).every(Boolean) || ++n > 80) clearInterval(espera); }, 250);
 })();
