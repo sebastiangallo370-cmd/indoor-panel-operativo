@@ -6513,15 +6513,15 @@ const rhumanoGroup=document.createElement('div');rhumanoGroup.className='nav-gro
 /* Submódulos de R.HUMANO (cada uno es una pestaña con su panel): CONTRATOS y C.LABORAL */
 const rhumanoTabs=['rh-contratos','rh-claboral'].map(kind=>document.querySelector('.tab[data-kind="'+kind+'"]')).filter(Boolean);
 if(canViewRHumano&&rhumanoTabs.length){{document.querySelector('nav.tabs').appendChild(rhumanoGroup);rhumanoTabs.forEach(tab=>rhumanoGroup.querySelector('.nav-children').appendChild(tab));rhumanoGroup.querySelector('.nav-parent').onclick=()=>{{rhumanoGroup.classList.toggle('collapsed');if(!rhumanoGroup.classList.contains('collapsed'))rhumanoGroup.querySelector('.nav-children .tab')?.click()}}}}else{{rhumanoTabs.forEach(tab=>tab.remove());document.querySelectorAll('.panel.rhumano-panel').forEach(panel=>panel.remove())}}
-/* COMERCIALES: módulo propio en el menú (solo Comercial, Coordinador y Administración) */
+/* COMERCIALES: módulo propio en el menú (solo Comercial y Coordinador) */
 const comercialesGroup=document.createElement('div');comercialesGroup.className='nav-group collapsed';comercialesGroup.innerHTML='<button class="nav-parent" type="button"><span class="nav-icon">CM</span><span>COMERCIALES</span></button><div class="nav-children"></div>';
 /* Sus pestañas son las herramientas del equipo comercial: REPROGRAMACIONES, PROGRAMAR y EXCEL (antes estaban en ADMINISTRACIÓN) */
 const comercialesTabs=['reprogramacion','pedido','creador'].map(kind=>document.querySelector('.tab[data-kind="'+kind+'"]')).filter(Boolean);
-if(canViewComerciales&&comercialesTabs.length){{const navTabs=document.querySelector('nav.tabs');navTabs.insertBefore(comercialesGroup,tesoreriaGroup.parentNode===navTabs?tesoreriaGroup:null);comercialesTabs.forEach(tab=>comercialesGroup.querySelector('.nav-children').appendChild(tab));comercialesGroup.querySelector('.nav-parent').onclick=()=>{{comercialesGroup.classList.toggle('collapsed');if(!comercialesGroup.classList.contains('collapsed'))comercialesGroup.querySelector('.nav-children .tab')?.click()}}}}
+if(canViewComerciales&&comercialesTabs.length){{const navTabs=document.querySelector('nav.tabs');navTabs.insertBefore(comercialesGroup,tesoreriaGroup.parentNode===navTabs?tesoreriaGroup:null);comercialesTabs.forEach(tab=>comercialesGroup.querySelector('.nav-children').appendChild(tab));comercialesGroup.querySelector('.nav-parent').onclick=()=>{{comercialesGroup.classList.toggle('collapsed');if(!comercialesGroup.classList.contains('collapsed'))comercialesGroup.querySelector('.nav-children .tab')?.click()}}}}else{{comercialesTabs.forEach(tab=>tab.remove())}}   /* quien no ve COMERCIALES tampoco ve sus herramientas en otro módulo */
 if(!adminGroup.querySelector('.nav-children .tab'))adminGroup.remove();   /* ADMINISTRACIÓN quedó sin pestañas: no se muestra vacía */
 let carteraLoaded=false;
 commercialMenu.hidden=true;commercialMenu.style.display='none';
-traceScheduleButton.hidden=!canViewAdministration;
+traceScheduleButton.hidden=!canViewAdministration||!document.querySelector('.tab[data-kind="pedido"]');
 traceScheduleButton.onclick=()=>{{if(!canViewAdministration)return;const pedidoTab=document.querySelector('.tab[data-kind="pedido"]');if(!pedidoTab)return;pedidoTab.closest('.nav-group')?.classList.remove('collapsed');pedidoTab.click();document.getElementById('order-form').scrollIntoView({{block:'start',behavior:'smooth'}})}};
 if(!canViewAdminModulo)adminGroup.remove();   /* ADMINISTRACIÓN (y con ella CRONOGRAMA): solo Coordinador y Administración */
 const inventoryRenderSummaryTable=inventoryRender;

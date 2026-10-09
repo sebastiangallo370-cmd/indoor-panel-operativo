@@ -115,11 +115,11 @@ def tesoreria_permitido(username: str) -> bool:
     return _plano(_lookup(username)) in _COMERCIAL
 
 
-_PROCESOS_COMERCIALES = _COMERCIAL | {'COORDINADOR', 'ADMINISTRACION', 'ADMINISTRATIVA', 'ADMINISTRATIVO'}
+_PROCESOS_COMERCIALES = _COMERCIAL | {'COORDINADOR'}
 
 
 def comerciales_permitido(username: str) -> bool:
-    """Regla fija: el módulo COMERCIALES lo ven las cuentas con proceso Comercial, Coordinador o Administración, más la cuenta maestra."""
+    """Regla fija: el módulo COMERCIALES (REPROGRAMACIONES, PROGRAMAR y EXCEL) lo ven solo las cuentas con proceso Comercial o Coordinador, más la cuenta maestra."""
     if username == os.getenv('APP_USER', 'indoor'):
         return True
     return _plano(_lookup(username)) in _PROCESOS_COMERCIALES
