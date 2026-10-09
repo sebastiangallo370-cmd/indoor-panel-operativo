@@ -1,5 +1,5 @@
 """R.HUMANO > CONTRATOS y C.LABORAL: cada empleado descarga la copia de SU contrato, o su carta (certificación) laboral generada al momento,
-escribiendo nombre completo, cédula y cargo.
+escribiendo nombre completo y cédula (el cargo ya no se pide: pedido del usuario, 2026-10-09).
 
 Los PDF y el índice viven en /data/state/rh_contratos (no se versionan; se suben desde el PC de administración porque el servidor no tiene permiso
 sobre la carpeta de nómina de la NAS). El índice no guarda la cédula en claro, solo su huella. Nunca se entrega la lista de empleados: solo se
@@ -25,7 +25,7 @@ DATOS = Path(os.getenv('RH_CONTRATOS_DIR', '/data/state/rh_contratos'))
 MAX_FALLOS, VENTANA = 5, 15 * 60   # intentos fallidos permitidos por cuenta en 15 minutos
 _fallos: dict = {}
 _lock = threading.Lock()
-_NO_COINCIDE = 'Los datos no coinciden con ningún contrato. Revisa el nombre completo, la cédula y el cargo tal como están en tu contrato.'
+_NO_COINCIDE = 'Los datos no coinciden con ningún contrato. Revisa el nombre completo y la cédula tal como están en tu contrato.'
 
 
 def _plano(texto) -> str:
@@ -67,20 +67,20 @@ def _cargo_ok(escrito: str, cargos: list) -> bool:
     return False
 
 
-def _buscar(nombre: str, cedula: str, cargo: str):
+def _buscar(nombre: str, cedula: str):
     datos = _indice()
     digitos = re.sub(r'\D', '', str(cedula or ''))
     if not 6 <= len(digitos) <= 10:
         return None
     huella = hashlib.sha256((datos.get('sal', '') + digitos).encode()).hexdigest()
     for e in datos.get('empleados', []):
-        if e.get('cedula_sha') == huella and _nombre_ok(nombre, e.get('nombre', '')) and _cargo_ok(cargo, e.get('cargos', [])):
+        if e.get('cedula_sha') == huella and _nombre_ok(nombre, e.get('nombre', '')):
             return e
     return None
 
 
 def _validar(usuario: str, payload: dict, para: str):
-    """Empleado activo cuyos tres datos coinciden; si no, 403 sin decir qué dato falló. Tras varios fallos la cuenta queda bloqueada un rato."""
+    """Empleado activo cuyo nombre completo y cédula coinciden; si no, 403 sin decir qué dato falló. Tras varios fallos la cuenta queda bloqueada un rato."""
     ahora = time.time()
     with _lock:
         recientes = [t for t in _fallos.get(usuario, []) if ahora - t < VENTANA]
@@ -88,7 +88,7 @@ def _validar(usuario: str, payload: dict, para: str):
         if len(recientes) >= MAX_FALLOS:
             espera = int((VENTANA - (ahora - recientes[0])) / 60) + 1
             raise HTTPException(429, f'Demasiados intentos. Vuelve a intentarlo en {espera} minutos o pide ayuda en Administración.')
-    empleado = _buscar(payload.get('nombre', ''), payload.get('cedula', ''), payload.get('cargo', ''))
+    empleado = _buscar(payload.get('nombre', ''), payload.get('cedula', ''))
     if not empleado:
         with _lock:
             _fallos.setdefault(usuario, []).append(ahora)

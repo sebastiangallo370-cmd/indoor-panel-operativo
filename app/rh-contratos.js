@@ -1,6 +1,6 @@
 (() => {
   // R.HUMANO: CONTRATOS (copia del contrato) y C.LABORAL (carta laboral generada al momento).
-  // En los dos el empleado escribe nombre completo, cédula y cargo; la validación se hace en el servidor y aquí nunca llega la lista de empleados ni sus cédulas.
+  // En los dos el empleado escribe nombre completo y cédula; la validación se hace en el servidor y aquí nunca llega la lista de empleados ni sus cédulas.
   if (window.__rhContratosListo) return;
   window.__rhContratosListo = true;
 
@@ -26,7 +26,7 @@
     { panel: 'rh-contratos', api: '/api/rhumano/contrato', rotulo: 'R.HUMANO · CONTRATOS', titulo: 'Copia de mi contrato',
       texto: 'Escribe tus datos tal como aparecen en tu contrato de trabajo para descargar tu copia en PDF.', boton: 'DESCARGAR MI CONTRATO',
       buscando: 'Buscando tu contrato…', listo: 'Listo: tu contrato se descargó.', archivo: 'Contrato.pdf',
-      nota: 'Solo puedes descargar tu propio contrato. Si tus datos no coinciden o cambiaste de cargo, acércate a Administración.' },
+      nota: 'Solo puedes descargar tu propio contrato. Si tus datos no coinciden, acércate a Administración.' },
     { panel: 'rh-claboral', api: '/api/rhumano/carta-laboral', rotulo: 'R.HUMANO · C.LABORAL', titulo: 'Mi carta laboral',
       texto: 'Escribe tus datos tal como aparecen en tu contrato de trabajo y el panel genera tu carta laboral en PDF, con la fecha de hoy.', boton: 'GENERAR MI CARTA LABORAL',
       buscando: 'Generando tu carta laboral…', listo: 'Listo: tu carta laboral se descargó.', archivo: 'Carta laboral.pdf',
@@ -42,14 +42,13 @@
       '<form novalidate autocomplete="off">' +
       '<label>NOMBRE COMPLETO<input name="nombre" type="text" maxlength="90" required placeholder="Nombres y apellidos"></label>' +
       '<label>CÉDULA<input name="cedula" type="text" inputmode="numeric" maxlength="14" required placeholder="Solo números"></label>' +
-      '<label>CARGO<input name="cargo" type="text" maxlength="80" required placeholder="Tu cargo en la empresa"></label>' +
       '<button type="submit">' + f.boton + '</button><p class="msg" role="status" aria-live="polite"></p></form><small>' + f.nota + '</small></div>';
     const form = panel.querySelector('form'), msg = panel.querySelector('.msg'), boton = panel.querySelector('button');
     const decir = (texto, clase) => { msg.textContent = texto; msg.className = 'msg' + (clase ? ' ' + clase : ''); };
     form.addEventListener('submit', async e => {
       e.preventDefault();
-      const datos = { nombre: form.nombre.value.trim(), cedula: form.cedula.value.replace(/\D/g, ''), cargo: form.cargo.value.trim() };
-      if (!datos.nombre || !datos.cedula || !datos.cargo) { decir('Completa los tres datos: nombre completo, cédula y cargo.', 'err'); return; }
+      const datos = { nombre: form.nombre.value.trim(), cedula: form.cedula.value.replace(/\D/g, '') };
+      if (!datos.nombre || !datos.cedula) { decir('Completa los dos datos: nombre completo y cédula.', 'err'); return; }
       boton.disabled = true; decir(f.buscando);
       try {
         const r = await fetch(f.api, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(datos) });
