@@ -263,8 +263,7 @@
     }
   }
 
-  // ---- CARGA POR ÁREA (real: filas en proceso, en cola y en reproceso de cada área, en el orden del flujo) ----
-  let selectedArea = '';
+  // ---- CARGA POR ÁREA (real: filas en proceso, en cola y en reproceso de cada área, en el orden del flujo; cada tarjeta lista todos sus pedidos) ----
   const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
   function loadSection(a) {
     if (!a.load.length) return '';
@@ -273,48 +272,27 @@
     const tier = item => { const share = item.orders / maxOrders; return item === heaviest && share >= .5 ? 'hot' : share >= .6 ? 'warm' : 'cool'; };
     const totalWorking = a.load.reduce((s, i) => s + i.total.proc.orders, 0), totalQueue = a.load.reduce((s, i) => s + i.total.cola.orders, 0);
     const totalUnits = a.load.reduce((s, i) => s + i.total.proc.units, 0);
+    const label = { proc: 'En proceso', cola: 'En cola', rep: 'Reproceso' };
+    const rank = { rep: 0, proc: 1, cola: 2 };
     const cards = a.load.map((item, i) => {
       const t = item.total, sum = Math.max(1, t.proc.orders + t.cola.orders + t.rep.orders);
       const seg = (k, cls) => t[k].orders ? '<i class="' + cls + '" style="--w:' + (t[k].orders / sum * 100).toFixed(1) + '%" title="' + plural(t[k].orders, 'pedido', 'pedidos') + '"></i>' : '';
-      return '<article class="dash-load-card ' + tier(item) + (selectedArea === item.label ? ' sel' : '') + '" data-area="' + esc(item.label) + '" tabindex="0" role="button" aria-pressed="' + (selectedArea === item.label) + '" style="--i:' + i + ';--m:' + (item.orders / maxOrders * 100).toFixed(1) + '%">' +
+      const rows = [...item.items].sort((x, y) => rank[x.kinds[0]] - rank[y.kinds[0]] || (x.o.due || Infinity) - (y.o.due || Infinity)).map(({ o, kinds, units }) => {
+        const late = o.due && o.due < a.today;
+        return '<li class="' + kinds[0] + '"><div class="dash-ao-main"><strong>' + esc(o.id) + '</strong><span>' + esc(o.client || 'Sin cliente') + '</span></div>' +
+          '<div class="dash-ao-meta"><b>' + fmtNum(units) + ' und.</b><small class="' + (late ? 'late' : '') + '">' + kinds.map(k => label[k]).join(' + ') + ' · ' + (o.due ? (late ? 'venció ' : 'entrega ') + fmtShort(o.due) : 'sin fecha') + '</small></div></li>';
+      }).join('');
+      return '<article class="dash-load-card ' + tier(item) + '" style="--i:' + i + ';--m:' + (item.orders / maxOrders * 100).toFixed(1) + '%">' +
         (item === heaviest ? '<em class="dash-bottleneck">Mayor carga</em>' : '') +
         '<div class="dash-load-top"><span class="dash-load-label">' + esc(item.label) + '</span>' + (t.proc.orders ? '<i class="dash-work" title="Trabajando ahora"></i>' : '') + '</div>' +
-        '<div class="dash-big"><strong>' + item.orders + '</strong><span>' + (item.orders === 1 ? 'pedido' : 'pedidos') + '</span></div>' +
+        '<div class="dash-big"><strong>' + item.orders + '</strong><span>' + (item.orders === 1 ? 'pedido' : 'pedidos') + '</span><small>' + fmtNum(item.units) + ' und.' + (item.late ? ' · <span class="late">' + plural(item.late, 'atrasado', 'atrasados') + '</span>' : '') + '</small></div>' +
         '<div class="dash-seg">' + seg('proc', 'p') + seg('cola', 'c') + seg('rep', 'r') + '</div>' +
         '<ul class="dash-load-legend">' + (t.proc.orders ? '<li class="p"><b>' + t.proc.orders + '</b> en proceso</li>' : '') + (t.cola.orders ? '<li class="c"><b>' + t.cola.orders + '</b> en cola</li>' : '') + (t.rep.orders ? '<li class="r"><b>' + t.rep.orders + '</b> reproceso</li>' : '') + '</ul>' +
-        '<small>' + fmtNum(item.units) + ' und.' + (item.late ? ' · <span class="late">' + plural(item.late, 'atrasado', 'atrasados') + '</span>' : '') + '</small></article>';
+        '<ul class="dash-area-orders">' + rows + '</ul></article>';
     }).join('');
-    return '<section class="dash-load" id="dash-load"><div class="dash-panel-head"><h4>Carga por área</h4><small>' + plural(totalWorking, 'pedido', 'pedidos') + ' en proceso · ' + plural(totalQueue, 'pedido', 'pedidos') + ' en cola · ' + fmtNum(totalUnits) + ' und. trabajándose · toca un área para ver sus pedidos</small></div>' +
-      '<div class="dash-load-grid">' + cards + '</div><div class="dash-load-detail" id="dash-load-detail">' + loadDetail(a) + '</div></section>';
+    return '<section class="dash-load" id="dash-load"><div class="dash-panel-head"><h4>Carga por área</h4><small>' + plural(totalWorking, 'pedido', 'pedidos') + ' en proceso · ' + plural(totalQueue, 'pedido', 'pedidos') + ' en cola · ' + fmtNum(totalUnits) + ' und. trabajándose</small></div>' +
+      '<div class="dash-load-grid">' + cards + '</div></section>';
   }
-  function loadDetail(a) {
-    const item = a.load.find(i => i.label === selectedArea);
-    if (!item) return '';
-    const label = { proc: 'En proceso', cola: 'En cola', rep: 'Reproceso' };
-    const rank = { rep: 0, proc: 1, cola: 2 };
-    const rows = [...item.items].sort((x, y) => rank[x.kinds[0]] - rank[y.kinds[0]] || (x.o.due || Infinity) - (y.o.due || Infinity)).map(({ o, kinds, units }) => {
-      const late = o.due && o.due < a.today;
-      return '<li class="' + kinds[0] + '"><div><strong>' + esc(o.id) + '</strong><span>' + esc(o.client || 'Sin cliente') + '</span></div><div class="dash-order-meta"><b>' + fmtNum(units) + ' und.</b>' +
-        '<small class="' + (late ? 'late' : '') + '">' + kinds.map(k => label[k]).join(' + ') + ' · ' + (o.due ? (late ? 'venció ' : 'entrega ') + fmtShort(o.due) : 'sin fecha') + '</small></div></li>';
-    }).join('');
-    return '<div class="dash-panel-head"><h4>' + esc(item.label) + ' · ' + plural(item.orders, 'pedido', 'pedidos') + '</h4><button type="button" class="dash-detail-close" data-close-area>Cerrar</button></div><ul class="dash-orders dash-load-orders">' + rows + '</ul>';
-  }
-  function toggleArea(label) {
-    selectedArea = selectedArea === label ? '' : label;
-    root.querySelectorAll('.dash-load-card').forEach(card => { const on = card.dataset.area === selectedArea; card.classList.toggle('sel', on); card.setAttribute('aria-pressed', String(on)); });
-    const box = root.querySelector('#dash-load-detail');
-    if (box && model) { box.innerHTML = loadDetail(model); if (selectedArea) box.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
-  }
-  root.addEventListener('click', event => {
-    if (event.target.closest('[data-close-area]')) return toggleArea(selectedArea);
-    const card = event.target.closest('.dash-load-card');
-    if (card) toggleArea(card.dataset.area);
-  });
-  root.addEventListener('keydown', event => {
-    const card = event.target.closest && event.target.closest('.dash-load-card');
-    if (card && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); toggleArea(card.dataset.area); }
-  });
-
 
   function countUp() {
     if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
@@ -490,31 +468,31 @@
   .dash-none{margin:0;padding:10px 2px;font-size:.84rem;color:#8f9b8a}.dash-more{margin:0;font-size:.76rem;color:#a9b5a3;text-align:right}
   .dash-load{display:grid;gap:10px;padding:18px;border:1px solid rgba(255,255,255,.12);border-radius:16px;background:#111611}
   .dash-load .dash-panel-head{align-items:baseline;flex-wrap:wrap}.dash-load h4{margin:0;font-size:.9rem;color:#e3eadc;text-transform:uppercase;letter-spacing:.05em}.dash-load .dash-panel-head small{color:#8f9b8a;font-size:.76rem}
-  .dash-load-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
-  .dash-load-card{--t:#7ecf8a;position:relative;display:grid;align-content:start;gap:8px;padding:16px 16px 14px;border:1px solid rgba(255,255,255,.13);border-top:5px solid var(--t);border-radius:16px;background:linear-gradient(180deg,rgba(255,255,255,.035),#121712 60%);cursor:pointer;overflow:hidden;outline:none;transition:transform .18s,border-color .18s,box-shadow .18s;animation:dashRise .5s both;animation-delay:calc(var(--i,0)*55ms)}
+  .dash-load-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:14px;align-items:start}
+  .dash-load-card{--t:#7ecf8a;position:relative;display:grid;align-content:start;gap:10px;padding:16px 16px 12px;border:1px solid rgba(255,255,255,.13);border-top:5px solid var(--t);border-radius:16px;background:linear-gradient(180deg,rgba(255,255,255,.035),#121712 60%);overflow:hidden;transition:transform .18s,border-color .18s,box-shadow .18s;animation:dashRise .5s both;animation-delay:calc(var(--i,0)*55ms)}
   .dash-load-card::after{content:"";position:absolute;left:0;bottom:0;height:3px;width:var(--m,0%);background:var(--t);opacity:.85;border-radius:0 3px 0 0;transform-origin:left;animation:dashGrow .9s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--i,0)*55ms + 150ms)}
-  .dash-load-card:hover,.dash-load-card:focus-visible{transform:translateY(-4px);border-color:var(--t);box-shadow:0 10px 26px -12px var(--t)}
-  .dash-load-card.sel{border-color:var(--t);box-shadow:0 0 0 2px var(--t),0 12px 30px -12px var(--t);background:linear-gradient(180deg,rgba(255,255,255,.06),#141b14 60%)}
+  .dash-load-card:hover{transform:translateY(-3px);border-color:var(--t);box-shadow:0 10px 26px -12px var(--t)}
   .dash-load-card.cool{--t:#7ecf8a}.dash-load-card.warm{--t:#ffc95c}.dash-load-card.hot{--t:#ff6b5c;background:linear-gradient(180deg,rgba(255,107,92,.1),#161110 70%)}
   .dash-load-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
-  .dash-load-label{font-size:.78rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#e3eadc}
+  .dash-load-label{font-size:.82rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#e3eadc}
   .dash-work{flex:none;width:9px;height:9px;border-radius:50%;background:var(--t);animation:dashWork 1.8s infinite}
   @keyframes dashWork{0%{box-shadow:0 0 0 0 rgba(255,255,255,.35)}70%{box-shadow:0 0 0 8px rgba(255,255,255,0)}100%{box-shadow:0 0 0 0 rgba(255,255,255,0)}}
   @keyframes dashRise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
   @keyframes dashGrow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
-  .dash-load-card .dash-big{gap:6px;align-items:baseline}.dash-load-card .dash-big strong{font-size:2.1rem;line-height:1;color:var(--t)}.dash-load-card .dash-big span{font-size:.78rem;color:#a9b5a3}
+  .dash-load-card .dash-big{gap:8px;align-items:baseline;flex-wrap:wrap}.dash-load-card .dash-big strong{font-size:2.2rem;line-height:1;color:var(--t)}.dash-load-card .dash-big span{font-size:.8rem;color:#a9b5a3}.dash-load-card .dash-big small{margin-left:auto;color:#8f9b8a;font-size:.76rem}
   .dash-seg{display:flex;gap:3px;height:8px;border-radius:99px;overflow:hidden;background:rgba(255,255,255,.07)}
   .dash-seg i{flex:0 0 var(--w);min-width:6px;border-radius:99px;transform-origin:left;animation:dashGrow .8s cubic-bezier(.2,.8,.2,1) both;animation-delay:.2s}
   .dash-seg .p,.dash-load-legend .p b{background:#8bd450;color:#10200a}.dash-seg .c,.dash-load-legend .c b{background:#ffc95c;color:#2a1d02}.dash-seg .r,.dash-load-legend .r b{background:#ff6b5c;color:#2a0e0a}
-  .dash-load-legend{list-style:none;margin:0;padding:0;display:grid;gap:3px;font-size:.74rem;color:#b6c2b0}.dash-load-legend li{display:flex;align-items:center;gap:6px}.dash-load-legend b{min-width:20px;padding:1px 6px;border-radius:99px;text-align:center;font-size:.72rem}
-  .dash-load-card>small{color:#8f9b8a;font-size:.76rem}.dash-load-card>small .late,.dash-load-orders .late{color:#ff8a7c;font-weight:700}
+  .dash-load-legend{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:4px 12px;font-size:.74rem;color:#b6c2b0}.dash-load-legend li{display:flex;align-items:center;gap:6px}.dash-load-legend b{min-width:20px;padding:1px 6px;border-radius:99px;text-align:center;font-size:.72rem}
+  .dash-load-card .late,.dash-area-orders .late{color:#ff8a7c;font-weight:700}
   .dash-bottleneck{position:absolute;top:-1px;right:12px;font-style:normal;font-size:.6rem;font-weight:800;letter-spacing:.03em;text-transform:uppercase;padding:3px 8px;border-radius:0 0 8px 8px;background:#ff6b5c;color:#2a0e0a}
-  .dash-load-detail:empty{display:none}.dash-load-detail{display:grid;gap:8px;padding:14px;border:1px solid rgba(255,255,255,.12);border-radius:14px;background:#0e130e;animation:dashRise .3s both}
-  .dash-load-detail .dash-panel-head{align-items:center}.dash-load-detail h4{margin:0;font-size:.86rem;color:#e3eadc;text-transform:uppercase;letter-spacing:.05em}
-  .dash-detail-close{width:auto!important;min-height:0!important;padding:5px 12px;border:1px solid rgba(255,255,255,.18);border-radius:999px;background:transparent;color:#c4cfbf;font:700 .74rem Arial;cursor:pointer}
-  .dash-load-orders{max-height:340px;overflow:auto}.dash-load-orders li{border-left:3px solid #8bd450}.dash-load-orders li.cola{border-left-color:#ffc95c}.dash-load-orders li.rep{border-left-color:#ff6b5c}
-  @media(max-width:560px){.dash-load-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.dash-load-card{padding:13px 12px 12px}.dash-load-card .dash-big strong{font-size:1.8rem}.dash-load-label{font-size:.72rem}.dash-load-detail{padding:11px}}
-  @media(prefers-reduced-motion:reduce){.dash-load-card,.dash-load-card::after,.dash-seg i,.dash-work,.dash-load-detail{animation:none!important}}
+  .dash-area-orders{list-style:none;margin:2px 0 0;padding:0 4px 0 0;display:grid;gap:6px;max-height:330px;overflow:auto;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.22) transparent}
+  .dash-area-orders li{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 10px;border:1px solid rgba(255,255,255,.08);border-left:3px solid #8bd450;border-radius:10px;background:rgba(255,255,255,.03)}
+  .dash-area-orders li.cola{border-left-color:#ffc95c}.dash-area-orders li.rep{border-left-color:#ff6b5c;background:rgba(255,107,92,.07)}
+  .dash-ao-main{display:grid;min-width:0}.dash-ao-main strong{font-size:.84rem;color:#fff}.dash-ao-main span{font-size:.72rem;color:#9fab99;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .dash-ao-meta{display:grid;justify-items:end;flex:none}.dash-ao-meta b{font-size:.8rem;color:#fff}.dash-ao-meta small{font-size:.68rem;color:#a9b5a3}
+  @media(max-width:560px){.dash-load-grid{grid-template-columns:minmax(0,1fr);gap:12px}.dash-area-orders{max-height:300px}}
+  @media(prefers-reduced-motion:reduce){.dash-load-card,.dash-load-card::after,.dash-seg i,.dash-work{animation:none!important}}
   .dash-time-chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-start}.dash-time-chips button{width:auto!important;flex:0 0 auto;min-height:0!important}
   .dash-time-chips button{--t:#7ecf8a;padding:7px 14px;border:1px solid rgba(255,255,255,.15);border-radius:999px;background:transparent;color:#c4cfbf;font:700 .78rem Arial;cursor:pointer}
   .dash-time-chips .late{--t:#ff6b5c}.dash-time-chips .warn{--t:#ffc95c}
