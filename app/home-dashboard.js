@@ -457,26 +457,20 @@
 
   function loadSection(a) {
     if (!a.load.length) return '';
-    const maxOrders = Math.max(...a.load.map(i => i.orders));
+    const active = Math.max(1, a.ordersToMake);   // pedidos que todavía están en producción: el 100 % de cada tarjeta
     const heaviest = [...a.load].sort((x, y) => y.orders - x.orders || y.units - x.units)[0];
-    const tier = item => { const share = item.orders / maxOrders; return item === heaviest && share >= .5 ? 'hot' : share >= .6 ? 'warm' : 'cool'; };
-    const totalWorking = a.load.reduce((s, i) => s + i.total.proc.orders, 0), totalQueue = a.load.reduce((s, i) => s + i.total.cola.orders, 0), totalProg = a.load.reduce((s, i) => s + i.total.prog.orders, 0);
-    const totalUnits = a.load.reduce((s, i) => s + i.units, 0);
-    const label = { proc: 'En proceso', cola: 'En cola', prog: 'Programado', rep: 'Reproceso' };
-    const rank = { rep: 0, proc: 1, cola: 2, prog: 3 };
+    const colorOf = share => share >= 75 ? '#eb5a3d' : share >= 50 ? '#d38800' : share >= 25 ? '#3153e2' : '#12a58f';
     const cards = a.load.map((item, i) => {
-      const t = item.total, sum = Math.max(1, t.proc.orders + t.cola.orders + t.prog.orders + t.rep.orders);
-      const seg = (k, cls) => t[k].orders ? '<i class="' + cls + '" style="--w:' + (t[k].orders / sum * 100).toFixed(1) + '%" title="' + plural(t[k].orders, 'pedido', 'pedidos') + '"></i>' : '';
-      return '<article class="dash-load-card ' + tier(item) + '" data-lq="' + Math.round(item.orders / maxOrders * 100) + '" data-lq-tone="' + ({ hot: 'rojo', warm: 'ambar', cool: 'verde' }[tier(item)]) + '" data-lq-nopct style="--i:' + i + ';--m:' + (item.orders / maxOrders * 100).toFixed(1) + '%">' +
-        (item === heaviest ? '<em class="dash-bottleneck">Mayor carga</em>' : '') +
-        '<div class="dash-load-top"><span class="dash-load-label">' + esc(item.label) + '</span>' + (t.proc.orders ? '<i class="dash-work" title="Trabajando ahora"></i>' : '') + '</div>' +
-        '<div class="dash-big"><strong>' + item.orders + '</strong><span>' + (item.orders === 1 ? 'pedido' : 'pedidos') + '</span><small>' + fmtNum(item.units) + ' und.' + (item.late ? ' · <span class="late">' + plural(item.late, 'atrasado', 'atrasados') + '</span>' : '') + '</small></div>' +
-        '<div class="dash-seg">' + seg('proc', 'p') + seg('cola', 'c') + seg('prog', 'g') + seg('rep', 'r') + '</div>' +
-        '<ul class="dash-load-legend">' + (t.proc.orders ? '<li class="p"><b>' + t.proc.orders + '</b> en proceso</li>' : '') + (t.cola.orders ? '<li class="c"><b>' + t.cola.orders + '</b> en cola</li>' : '') + (t.prog.orders ? '<li class="g"><b>' + t.prog.orders + '</b> programado</li>' : '') + (t.rep.orders ? '<li class="r"><b>' + t.rep.orders + '</b> reproceso</li>' : '') + '</ul>' +
-        '<button type="button" class="dash-area-toggle" data-area-open="' + esc(item.label) + '" title="Abrir la ventana con todos los pedidos de esta área"><span>' + plural(item.orders, 'pedido', 'pedidos') + ' · ver detalle</span><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button></article>';
+      const share = Math.min(100, Math.round(item.orders / active * 100)), t = item.total;
+      const parts = [t.proc.orders ? t.proc.orders + ' en proceso' : '', t.cola.orders ? t.cola.orders + ' en cola' : '', t.prog.orders ? t.prog.orders + (t.prog.orders === 1 ? ' programado' : ' programados') : '', t.rep.orders ? t.rep.orders + ' reproceso' : ''].filter(Boolean).join(' · ');
+      return '<button type="button" class="ar-card' + (item === heaviest ? ' top' : '') + '" data-area-open="' + esc(item.label) + '" data-lq="' + share + '" data-lq-color="' + colorOf(share) + '" style="--i:' + i + '" aria-label="' + esc(item.label) + ': ' + plural(item.orders, 'pedido', 'pedidos') + '. Ver detalle">' +
+        (item === heaviest ? '<em class="ar-ribbon">Mayor carga</em>' : '') +
+        '<b>' + esc(item.label) + '</b><span>' + item.orders + '</span>' +
+        '<small>' + (item.orders === 1 ? 'pedido' : 'pedidos') + ' · ' + fmtNum(item.units) + ' und.' + (item.late ? ' · <i class="ar-late">' + plural(item.late, 'atrasado', 'atrasados') + '</i>' : '') + '</small>' +
+        '<small class="ar-brk">' + parts + '</small></button>';
     }).join('');
-    return '<section class="dash-load" id="dash-load"><div class="dash-panel-head"><h4>Carga por área</h4><small>' + plural(totalWorking, 'pedido', 'pedidos') + ' en proceso · ' + plural(totalQueue, 'pedido', 'pedidos') + ' en cola · ' + plural(totalProg, 'pedido', 'pedidos') + ' programados · ' + fmtNum(totalUnits) + ' und. en total según lo programado</small></div>' +
-      '<div class="dash-load-grid">' + cards + '</div></section>';
+    return '<section class="ar-panel" id="dash-load"><header><div><span class="ar-kicker">ESTADO DE LA PLANTA</span><h3>Carga por área</h3><p>Seleccione un área para ver todos sus pedidos. El porcentaje es la parte de los pedidos en producción que pasa por esa área, según lo programado.</p></div>' +
+      '<b class="ar-total">' + a.ordersToMake + '<small>pedidos en producción</small></b></header><div class="ar-grid">' + cards + '</div></section>';
   }
 
   function countUp() {
@@ -748,6 +742,24 @@
   .st-bar .sg:last-child{box-shadow:inset 0 10px 14px -8px rgba(255,255,255,.45)}
   .st-col.top .st-slot{border-color:#ff7a6b}
   @media(prefers-reduced-motion:reduce){.st-bar .sg::before,.st-bar .sg::after{animation:none!important}}
+  /* Carga por área con el mismo diseño de «Vencimiento de la cartera» */
+  .ar-panel{display:grid;gap:22px;padding:22px 24px 26px;border:1px solid rgba(255,255,255,.12);border-radius:18px;background:linear-gradient(130deg,rgba(35,48,25,.72),rgba(9,12,9,.95) 52%,rgba(16,28,16,.84))}
+  .ar-panel>header{display:flex;justify-content:space-between;gap:18px;align-items:flex-start}
+  .ar-kicker{display:block;margin-bottom:5px;color:#d0f44c;font-size:.61rem;letter-spacing:.13em;font-weight:900}
+  .ar-panel h3{margin:0 0 6px;font-size:1.15rem;color:#fff}.ar-panel p{margin:0;max-width:560px;color:#98a692;font-size:.76rem;line-height:1.4}
+  .ar-total{display:grid;gap:2px;min-width:120px;padding:10px 13px;border:1px solid rgba(208,244,76,.28);border-radius:12px;background:rgba(208,244,76,.07);color:#d0f44c;font-size:1.35rem;text-align:right;flex:none}
+  .ar-total small{font-size:.58rem;letter-spacing:.07em;text-transform:uppercase;color:#aebba7}
+  .ar-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(205px,1fr));gap:12px}
+  .ar-card{--liquid:#3153e2;display:flex!important;flex-direction:column;justify-content:flex-start;align-items:stretch;width:auto!important;min-height:152px;padding:16px;text-align:left;font:inherit;cursor:pointer;animation:dashRise .5s both;animation-delay:calc(var(--i,0)*45ms)}
+  .ar-card b{display:block;font-size:.7rem;letter-spacing:.07em;text-transform:uppercase}
+  .ar-card span{display:block;margin-top:26px;font-size:2.1rem;line-height:1;font-weight:900;font-variant-numeric:tabular-nums}
+  .ar-card small{display:block;margin-top:6px;font-size:.66rem;opacity:.95}.ar-card small.ar-brk{margin-top:3px;opacity:.78;max-width:calc(100% - 52px);line-height:1.35}
+  .ar-card .ar-late{font-style:normal;font-weight:800;color:#ffe1da!important}
+  .ar-ribbon{position:absolute;top:-1px;right:12px;font-style:normal;font-size:.56rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:0 0 8px 8px;background:#ff6b5c;color:#2a0e0a!important;text-shadow:none;z-index:3}
+  .ar-card.top{border-color:#ff6b5c!important}
+  .ar-card>.lq-pct{right:-16px;bottom:-16px;width:76px;height:76px;padding:16px 0 0 18px;box-sizing:border-box;border:1px solid rgba(255,255,255,.24);border-radius:50%;font:900 .7rem Arial}
+  @media(max-width:700px){.ar-panel{padding:16px 14px 20px}.ar-panel>header{flex-direction:column}.ar-total{text-align:left}.ar-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.ar-card{min-height:138px;padding:13px}.ar-card span{font-size:1.8rem;margin-top:20px}.ar-card small.ar-brk{max-width:100%}}
+  @media(prefers-reduced-motion:reduce){.ar-card{animation:none!important}}
   /* tarjetas compactas */
   .dash-cards{grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
   .dash-card{gap:7px;padding:13px 15px 15px;border-radius:14px}
