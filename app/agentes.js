@@ -686,7 +686,7 @@
   function acomodar() {
     const lienzo = flow.lienzo; if (!lienzo) return;
     const W = lienzo.clientWidth, H = lienzo.clientHeight; if (!W) return;
-    const tam = W > 1000 ? 88 : 60, margen = 44, ancho = tam; flow.tam = tam;
+    const tam = W > 1000 ? 62 : 48, margen = 44, ancho = tam; flow.tam = tam;
     const porFila = Math.max(3, Math.min(NODOS.length, Math.floor((W - margen * 2 + 40) / (W > 1000 ? 130 : 112))));
     const filas = Math.ceil(NODOS.length / porFila);
     const sep = porFila > 1 ? (W - margen * 2 - ancho) / (porFila - 1) : 0;
