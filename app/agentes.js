@@ -157,6 +157,36 @@
   .ag-hist-cab{display:flex;gap:10px;align-items:center;flex-wrap:wrap;color:#aebba7;font:700 12px Arial}.ag-hist-hilo{overflow:visible}
   @media(max-width:700px){.ag-hist{padding:0;align-items:flex-end}.ag-hist-card{height:92vh;border-radius:20px 20px 0 0;padding:14px}.ag-msg{max-width:94%}.ag-sug button small{display:none}}
   @media(prefers-reduced-motion:reduce){.ag-entra{animation:none}}
+  /* ===== vista AGENTES: flujo y registro con acabado más sobrio ===== */
+  .ag .ag-lienzo{border-color:#263226;background-color:#0b100c;background-image:linear-gradient(180deg,rgba(208,244,76,.035),transparent 55%),radial-gradient(rgba(255,255,255,.055) 1px,transparent 1px);background-size:auto,22px 22px;box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
+  .ag .ag-ftit{padding:0;border:0;background:none;font:800 11px Arial;letter-spacing:.18em;text-transform:uppercase;color:#cfd9c7}.ag .ag-ftit small{margin-left:10px;padding:3px 9px;border:1px solid #2d3b2f;border-radius:999px;color:#8f9b8a;font:700 10px Arial;letter-spacing:.06em;text-transform:none}
+  .ag .ag-pildora{padding:5px 13px;border-color:#2d3b2f;background:rgba(255,255,255,.03);font:800 10.5px Arial;letter-spacing:.1em;text-transform:uppercase}
+  .ag .ag-nodo .cj{border:1.5px solid #2f3d30;border-radius:18px;background:linear-gradient(160deg,#182019,#0e130f);color:var(--c);box-shadow:0 10px 22px -12px rgba(0,0,0,.9),inset 0 1px 0 rgba(255,255,255,.06)}
+  .ag .ag-nodo .cj::before{left:22%;right:22%;top:auto;bottom:-1.5px;width:auto;height:3px;border-radius:3px 3px 0 0;background:var(--c);opacity:.85}
+  .ag .ag-nodo .cj svg{width:46%;height:46%;display:block}
+  .ag .ag-nodo:hover .cj,.ag .ag-nodo:focus-visible .cj{border-color:color-mix(in srgb,var(--c) 60%,#2f3d30);transform:translateY(-2px)}
+  .ag .ag-nodo.sel .cj{border-color:var(--c);box-shadow:0 0 0 3px color-mix(in srgb,var(--c) 28%,transparent),0 10px 22px -12px rgba(0,0,0,.9)}
+  .ag .ag-nodo .paso{position:absolute;left:-7px;top:-7px;z-index:1;display:grid;place-items:center;width:20px;height:20px;border-radius:50%;border:1px solid #2f3d30;background:#0b100c;color:#8f9b8a;font:800 10px Arial;font-style:normal}
+  .ag .ag-nodo.ok .paso,.ag .ag-nodo.corriendo .paso{border-color:var(--c);color:var(--c)}
+  .ag .ag-nodo .puerto{width:7px;height:7px;background:#3a4a3a;border-color:#0b100c}
+  .ag .ag-nodo .et b{font:800 12.5px Arial;letter-spacing:.08em;color:#eef4e9}.ag .ag-nodo .et small{margin-top:2px;font:600 10.5px Arial;color:#8f9b8a}.ag .ag-nodo .et em{margin-top:2px;font:700 10.5px Arial}
+  .ag .ag-nodo.inactivo{opacity:1}.ag .ag-nodo.inactivo .cj{color:color-mix(in srgb,var(--c) 55%,#56635a)}
+  .ag .ag-detalle{border-color:#263226;background:#0b100c;box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
+  .ag .ag-detalle>header{display:flex!important;align-items:center;justify-content:flex-start!important;gap:12px;flex-wrap:wrap;width:auto!important;margin:0!important;padding:12px 16px!important;border:0!important;border-bottom:1px solid #1f2a20!important;border-radius:0!important;background:rgba(255,255,255,.02)!important;position:static!important;box-shadow:none!important}
+  .ag .ag-detalle h3{font:800 11px Arial;letter-spacing:.18em;color:#cfd9c7}
+  .ag .ag-logcnt{display:flex;gap:6px;flex-wrap:wrap}.ag .ag-logcnt i{padding:3px 9px;border:1px solid #2d3b2f;border-radius:999px;color:#aebba7;font:700 10.5px Arial;font-style:normal}.ag .ag-logcnt i.av{border-color:rgba(255,189,102,.5);color:#ffbd66}.ag .ag-logcnt i.er{border-color:rgba(255,138,138,.5);color:#ff8a8a}
+  .ag .ag-detalle .ag-filtros{margin-left:auto}.ag .ag-detalle .ag-filtros .ag-pcsel{min-height:32px;font-size:12px}
+  .ag .ag-log{margin:0;padding:6px 8px 10px;border-radius:0;background:transparent;font:500 12.5px/1.5 Inter,Arial,sans-serif;color:#dfe7d6}
+  .ag .ag-log .fila{display:grid;grid-template-columns:18px 62px 74px minmax(0,1fr);gap:0 10px;align-items:baseline;padding:7px 10px;border-radius:9px;white-space:normal}
+  .ag .ag-log .fila:nth-child(even){background:rgba(255,255,255,.022)}.ag .ag-log .fila:hover{background:rgba(255,255,255,.05)}
+  .ag .ag-log .fila::before{content:'•';color:#4a5a47;font-weight:800;text-align:center}
+  .ag .ag-log .fila.OK::before{content:'✓';color:#6dff9a}.ag .ag-log .fila.WARN::before{content:'⚠';color:#ffbd66}.ag .ag-log .fila.ERROR::before{content:'✖';color:#ff8a8a}
+  .ag .ag-log .fila .h{margin:0;opacity:1;color:#77836f;font:600 11.5px Consolas,ui-monospace,monospace}
+  .ag .ag-log .fila b{margin:0;justify-self:start;padding:1px 8px;border-radius:999px;border:1px solid color-mix(in srgb,var(--c) 45%,transparent);background:color-mix(in srgb,var(--c) 14%,transparent);color:var(--c);font:900 9.5px Arial;letter-spacing:.06em}
+  .ag .ag-log .fila .m{overflow-wrap:anywhere}.ag .ag-log .fila.ERROR{background:rgba(255,107,92,.07)}.ag .ag-log .fila.WARN{background:rgba(255,189,102,.05)}
+  .ag .ag-log.sin{display:grid;place-items:center}
+  .ag .ag-log .vacio2{display:grid;justify-items:center;gap:6px;padding:26px 16px;opacity:1;text-align:center;color:#8f9b8a;font:500 12.5px/1.5 Arial}.ag .ag-log .vacio2 svg{width:34px;height:34px;color:#3d4f3d}.ag .ag-log .vacio2 b{color:#dfe7d6;font:800 13px Arial}
+  @media(max-width:700px){.ag .ag-log .fila{grid-template-columns:16px 52px minmax(0,1fr);row-gap:3px}.ag .ag-log .fila .m{grid-column:2/-1}.ag .ag-detalle .ag-filtros{margin-left:0}}
   .ag-dia{display:flex;align-items:center;gap:10px;margin:4px 0;color:#8f9b8a;font:800 10px Arial;letter-spacing:.14em;text-transform:uppercase}.ag-dia::before,.ag-dia::after{content:'';flex:1;height:1px;background:rgba(255,255,255,.1)}
   .ag-sis{justify-self:center;max-width:100%;padding:4px 12px;border:1px solid rgba(255,255,255,.1);border-radius:999px;color:#8f9b8a;font:600 11px Arial;text-align:center;overflow-wrap:anywhere}.ag-sis.auto{border-color:rgba(208,244,76,.3);color:#c9dc8a}
   .ag-kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:6px 14px;margin:6px 0;padding:10px 12px;border:1px solid rgba(255,255,255,.08);border-radius:12px;background:rgba(255,255,255,.03);white-space:normal}
@@ -547,14 +577,14 @@
 
   // ================================================================== mapa de agentes (estilo n8n)
   const NODOS = [
-    { id: 'TRIGGER', ico: '💬', tit: 'Chat', sub: 'Tu mensaje', c: '#8f9b8a' },
-    { id: 'TAVO', ico: '🧭', tit: 'TAVO', sub: 'Coordinador', c: '#7da4ff' },
-    { id: 'LEO', ico: '📖', tit: 'LEO', sub: 'Lee el listado', c: '#b794ff' },
-    { id: 'JACK', ico: '📄', tit: 'JACK', sub: 'PDF de muestra', c: '#ffcf5c' },
-    { id: 'APROB', ico: '✋', tit: 'Aprobación', sub: 'Tú apruebas', c: '#ff9a4d' },
-    { id: 'OLVER', ico: '🖼️', tit: 'OLVER', sub: 'Exporta mesas', c: '#6fe39a' },
-    { id: 'OLIVER', ico: '👕', tit: 'OLIVER', sub: 'Tallas y números', c: '#ff8fd0' },
-    { id: 'TERRY', ico: '📊', tit: 'TERRY', sub: 'Google Sheets', c: '#6ee0e0' }
+    { id: 'TRIGGER', ico: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg>', tit: 'Chat', sub: 'Tu mensaje', c: '#8f9b8a' },
+    { id: 'TAVO', ico: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/></svg>', tit: 'TAVO', sub: 'Coordinador', c: '#7da4ff' },
+    { id: 'LEO', ico: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19V5a2 2 0 0 1 2-2h13v14H6a2 2 0 0 0 0 4h13"/><path d="M9 7h6M9 10h4"/></svg>', tit: 'LEO', sub: 'Lee el listado', c: '#b794ff' },
+    { id: 'JACK', ico: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>', tit: 'JACK', sub: 'PDF de muestra', c: '#ffcf5c' },
+    { id: 'APROB', ico: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5 1.6 0 3 .5 4.1 1.4"/><path d="M15.5 17l2 2 4-4.5"/></svg>', tit: 'Aprobación', sub: 'Tú apruebas', c: '#ff9a4d' },
+    { id: 'OLVER', ico: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9" r="1.4"/><path d="M3 16l5-4 4 3 3-2 6 4"/></svg>', tit: 'OLVER', sub: 'Exporta mesas', c: '#6fe39a' },
+    { id: 'OLIVER', ico: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3l4 2 4-2 5 4-3 3-2-1v11H8V9l-2 1-3-3z"/></svg>', tit: 'OLIVER', sub: 'Tallas y números', c: '#ff8fd0' },
+    { id: 'TERRY', ico: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>', tit: 'TERRY', sub: 'Google Sheets', c: '#6ee0e0' }
   ];
   const CADENA = NODOS.map(n => n.id);
   const dormir = ms => new Promise(r => setTimeout(r, ms));
@@ -563,10 +593,10 @@
 
   function crearNodos() {
     flow.lienzo = panel.querySelector('[data-lienzo]'); flow.svg = panel.querySelector('[data-cables]'); flow.el = {};
-    NODOS.forEach(n => {
+    NODOS.forEach((n, k) => {
       const d = document.createElement('div');
       d.className = 'ag-nodo'; d.dataset.n = n.id; d.tabIndex = 0; d.setAttribute('role', 'button'); d.setAttribute('aria-label', n.tit + ': ' + n.sub); d.style.setProperty('--c', n.c);
-      d.innerHTML = '<i class="anillo"></i><div class="cj">' + n.ico + '</div><i class="puerto in"></i><i class="puerto out"></i><i class="ins"></i><div class="et"><b>' + esc(n.tit) + '</b><small>' + esc(n.sub) + '</small><em></em></div>';
+      d.innerHTML = '<i class="anillo"></i><div class="cj">' + n.ico + '</div><i class="paso">' + (k + 1) + '</i><i class="puerto in"></i><i class="puerto out"></i><i class="ins"></i><div class="et"><b>' + esc(n.tit) + '</b><small>' + esc(n.sub) + '</small><em></em></div>';
       d.onclick = () => filtrar(flow.filtro === n.id ? null : n.id);
       d.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); d.click(); } };
       flow.lienzo.appendChild(d); flow.el[n.id] = d;
@@ -972,8 +1002,11 @@
       f.innerHTML = '<select class="ag-pcsel" data-filtro-sel aria-label="Qué mostrar">' + [['Todo', ''], ['⚠ Avisos y errores', '!'], ...['TAVO', 'LEO', 'JACK', 'OLVER', 'OLIVER', 'TERRY'].map(x => [x, x])].map(([t, v]) => '<option value="' + v + '"' + (claveFiltro === v ? ' selected' : '') + '>' + t + '</option>').join('') + '</select>';
     }
     const lista = flow.ejec.eventos.filter(e => !flow.filtro || (flow.filtro === '!' ? (e.nivel === 'WARN' || e.nivel === 'ERROR') : e.agente === flow.filtro));
-    l.innerHTML = lista.length ? lista.map(e => { const ok = logExito(e); return '<div class="' + esc(e.nivel) + (ok ? ' OK' : '') + '"><span class="h">' + esc(e.hora) + '</span><b style="color:' + (COLORES[e.agente] || '#ccc') + '">' + esc(e.agente) + '</b><span class="m">' + esc(ok || e.msg) + '</span></div>'; }).join('')
-      : '<div class="vacio2">' + (flow.filtro ? 'Este nodo aún no ha hecho nada en esta ejecución.' : 'Aquí verás lo que hace cada agente, paso a paso.') + '</div>';
+    const todos = flow.ejec.eventos, nAv = todos.filter(e => e.nivel === 'WARN').length, nEr = todos.filter(e => e.nivel === 'ERROR').length, cnt = panel.querySelector('[data-logcnt]');
+    if (cnt) cnt.innerHTML = todos.length ? '<i>' + todos.length + (todos.length === 1 ? ' paso' : ' pasos') + '</i>' + (nAv ? '<i class="av">' + nAv + (nAv === 1 ? ' aviso' : ' avisos') + '</i>' : '') + (nEr ? '<i class="er">' + nEr + (nEr === 1 ? ' error' : ' errores') + '</i>' : '') : '';
+    l.classList.toggle('sin', !lista.length);
+    l.innerHTML = lista.length ? lista.map(e => { const ok = logExito(e); return '<div class="fila ' + esc(e.nivel) + (ok ? ' OK' : '') + '"><span class="h">' + esc(e.hora) + '</span><b style="--c:' + (COLORES[e.agente] || '#c4cfbf') + '">' + esc(e.agente) + '</b><span class="m">' + esc(ok || e.msg) + '</span></div>'; }).join('')
+      : '<div class="vacio2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h13"/><circle cx="19" cy="12" r="1.2"/></svg><b>' + (flow.filtro ? 'Sin actividad para este filtro' : 'Sin actividad todavía') + '</b><span>' + (flow.filtro ? 'Este agente aún no ha hecho nada en esta ejecución.' : 'Cuando inicies la orden, aquí verás cada paso de los agentes con su hora.') + '</span></div>';
     if (abajo) l.scrollTop = l.scrollHeight;
     pintarLive(); pintarResumen();
   }
@@ -1128,7 +1161,7 @@
       '<div class="ag-sug" data-sug hidden role="listbox" aria-label="Sugerencias"></div><textarea rows="1" placeholder="Escribe a TAVO…" maxlength="2000" aria-autocomplete="list"></textarea><button type="submit" class="ag-btn">Enviar</button></form></section>' +
       '<aside class="ag-muestras" data-muestras></aside><section class="ag-flowcol"><div class="ag-lienzo" data-lienzo><div class="ag-barra"><div class="ag-ftit">Flujo de agentes<small data-ejecnum></small></div><div class="ag-pildora" data-pildora><i></i><span>Listo</span></div></div><svg class="ag-cables" data-cables aria-hidden="true"></svg></div>' +
       '<div class="ag-live" data-live></div>' +
-      '<div class="ag-detalle"><header><h3>Ejecución</h3><div class="ag-filtros" data-filtros></div></header><div class="ag-log" data-log></div></div></section></div></div>';
+      '<div class="ag-detalle"><header><h3>Registro de ejecución</h3><span class="ag-logcnt" data-logcnt></span><div class="ag-filtros" data-filtros></div></header><div class="ag-log" data-log></div></div></section></div></div>';
     panel.dataset.armado = '1';
     crearNodos(); pintarLive();
   }
