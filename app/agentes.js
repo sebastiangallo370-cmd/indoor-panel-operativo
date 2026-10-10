@@ -21,6 +21,8 @@
     return data;
   }
   const hora = iso => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }); };
+  const avatar = a => '<span class="ag-av" style="--c:' + (COLORES[a] || '#c4cfbf') + '" aria-hidden="true">' + esc(String(a || 'T')[0]) + '</span>';
+  const sinTildes = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   const tag = a => '<span class="ag-tag" style="--c:' + (COLORES[a] || '#c4cfbf') + '">' + esc(a) + '</span>';
 
   const css = document.createElement('style');
@@ -122,6 +124,39 @@
   .ag-who{display:flex;gap:6px;flex-wrap:wrap;align-items:center}.ag-tag{padding:2px 9px;border-radius:999px;font:900 10px Arial;letter-spacing:.06em;color:var(--c);background:color-mix(in srgb,var(--c) 15%,transparent);border:1px solid color-mix(in srgb,var(--c) 45%,transparent)}
   .ag-txt{white-space:pre-wrap;overflow-wrap:anywhere;margin:0;color:#eef4e9}
   .ag-chat{position:relative}
+  /* chat: avatar y color por agente, burbujas con cola, estado del mensaje y entrada suave */
+  .ag-av{display:inline-grid;place-items:center;flex:0 0 auto;width:24px;height:24px;border-radius:50%;background:color-mix(in srgb,var(--c) 22%,#0c110d);border:1.5px solid var(--c);color:var(--c);font:900 11px Arial}
+  .ag-msg.bot{border-left-color:var(--c,#7da4ff);border-top-left-radius:5px}.ag-msg.yo{border-bottom-right-radius:5px}
+  .ag-msg .ag-time{color:#8f9b8a;font:600 10.5px Arial}.ag-msg.yo .ag-time{justify-self:end}
+  .ag-est{font-style:normal;margin-left:4px;color:#8f9b8a;letter-spacing:-.12em}.ag-est.ok{color:#d0f44c}.ag-est.cola{letter-spacing:0;color:#ffcf5c}
+  .ag-entra{animation:ag-entra .28s ease-out}@keyframes ag-entra{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .ag-hallado{outline:2px solid #d0f44c;outline-offset:3px;transition:outline-color .4s}
+  .ag-empty-av{display:flex;justify-content:center;margin-bottom:14px}.ag-empty-av .ag-av{width:34px;height:34px;margin-left:-7px;font-size:13px;box-shadow:0 0 0 3px #0f1410}.ag-empty-av .ag-av:first-child{margin-left:0}
+  .ag-empty p b{color:#d0f44c}.ag-empty-acc{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:16px}
+  .ag-empty-acc button,.ag-chips button.rap{width:auto!important;min-height:0!important;padding:8px 14px!important;border:1px solid #3d4f3d!important;border-radius:999px!important;background:rgba(255,255,255,.03)!important;color:#dfe7d6!important;font:700 12px Arial!important;cursor:pointer;white-space:nowrap}
+  .ag-empty-acc button:hover:not(:disabled),.ag-chips button.rap:hover:not(:disabled){border-color:#d0f44c!important;color:#d0f44c!important}
+  .ag-chips.rapidas{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding-bottom:1px}.ag-chips.rapidas::-webkit-scrollbar{display:none}.ag-chips.rapidas:empty{display:none}
+  /* sugerencias al escribir */
+  .ag-form{position:relative}
+  .ag-sug{position:absolute;left:0;right:0;bottom:calc(100% + 8px);z-index:25;display:grid;gap:2px;padding:6px;border:1px solid #3d4f3d;border-radius:14px;background:#111611;box-shadow:0 -12px 30px rgba(0,0,0,.55)}.ag-sug[hidden]{display:none}
+  .ag-sug button{display:flex!important;gap:10px;align-items:baseline;justify-content:space-between;width:100%!important;min-height:0!important;padding:9px 12px!important;border:0!important;border-radius:9px!important;background:transparent!important;color:#eef4e9!important;font:700 13px Arial!important;text-align:left!important;cursor:pointer}
+  .ag-sug button span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ag-sug button small{flex:0 0 auto;color:#8f9b8a;font:600 10.5px Arial}
+  .ag-sug button[aria-selected=true],.ag-sug button:hover{background:#1f2c1c!important}.ag-sug button[aria-selected=true] span{color:#d0f44c}
+  .ag-sug p{margin:2px 0 0;padding:5px 12px 2px;border-top:1px solid rgba(255,255,255,.07);color:#77836f;font:600 10px Arial}
+  .ag-campana.on{border-color:#d0f44c}
+  /* historial */
+  .ag-hist{position:fixed;inset:0;z-index:100030;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(4,6,4,.78);backdrop-filter:blur(5px)}
+  .ag-hist-card{width:min(720px,100%);height:min(86vh,780px);display:flex;flex-direction:column;gap:12px;padding:18px;box-sizing:border-box;border:1px solid #2d3b2f;border-radius:20px;background:#0f1410;color:#eef4e9;box-shadow:0 40px 90px rgba(0,0,0,.65)}
+  .ag-hist .ag-ico,.ag-hist .ag-btn{width:auto!important;flex:0 0 auto;margin:0!important}
+  .ag-hist-card header{display:flex!important;align-items:center;justify-content:space-between!important;gap:12px;width:100%;margin:0;padding:0;border:0;background:none}.ag-hist-card header b{font:800 11px Arial;letter-spacing:.2em;color:#cfd9c7}
+  .ag-hist-card input[type=search]{width:100%!important;box-sizing:border-box!important;min-height:44px;margin:0!important;padding:0 14px!important;border:1px solid #3d4f3d!important;border-radius:12px!important;background:#0c110d!important;color:#f1f7ed!important;font:600 14px Arial!important;outline:none;color-scheme:dark}.ag-hist-card input[type=search]:focus{border-color:#d0f44c!important}
+  .ag-hist-cuerpo{flex:1;min-height:0;overflow-y:auto;display:grid;gap:6px;align-content:start;padding-right:4px}
+  .ag-hist-sec{margin:8px 0 2px;color:#8f9b8a;font:800 10px Arial;letter-spacing:.16em;text-transform:uppercase}.ag-hist-vacio{margin:4px 0;color:#8f9b8a;font:500 13px/1.5 Arial}
+  .ag-hist-item{display:grid!important;grid-template-columns:auto minmax(0,1fr);gap:2px 10px;width:100%!important;min-height:0!important;padding:10px 12px!important;border:1px solid #2d3b2f!important;border-radius:12px!important;background:rgba(255,255,255,.025)!important;color:#eef4e9!important;text-align:left!important;cursor:pointer}
+  .ag-hist-item:hover{border-color:#d0f44c!important}.ag-hist-item b{color:#d0f44c;font:800 12px Arial}.ag-hist-item span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:600 12.5px Arial}.ag-hist-item small{grid-column:1/-1;color:#8f9b8a;font:600 10.5px Arial}
+  .ag-hist-cab{display:flex;gap:10px;align-items:center;flex-wrap:wrap;color:#aebba7;font:700 12px Arial}.ag-hist-hilo{overflow:visible}
+  @media(max-width:700px){.ag-hist{padding:0;align-items:flex-end}.ag-hist-card{height:92vh;border-radius:20px 20px 0 0;padding:14px}.ag-msg{max-width:94%}.ag-sug button small{display:none}}
+  @media(prefers-reduced-motion:reduce){.ag-entra{animation:none}}
   .ag-dia{display:flex;align-items:center;gap:10px;margin:4px 0;color:#8f9b8a;font:800 10px Arial;letter-spacing:.14em;text-transform:uppercase}.ag-dia::before,.ag-dia::after{content:'';flex:1;height:1px;background:rgba(255,255,255,.1)}
   .ag-sis{justify-self:center;max-width:100%;padding:4px 12px;border:1px solid rgba(255,255,255,.1);border-radius:999px;color:#8f9b8a;font:600 11px Arial;text-align:center;overflow-wrap:anywhere}.ag-sis.auto{border-color:rgba(208,244,76,.3);color:#c9dc8a}
   .ag-kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:6px 14px;margin:6px 0;padding:10px 12px;border:1px solid rgba(255,255,255,.08);border-radius:12px;background:rgba(255,255,255,.03);white-space:normal}
@@ -1062,7 +1097,8 @@
   function hiloHtml() {
     const out = []; let dia = '', cancelados = 0, ultCancel = '';
     const soltar = () => { if (cancelados) out.push('<div class="ag-sis">✕ Se canceló lo anterior' + (cancelados > 1 ? ' (' + cancelados + ' veces)' : '') + ' · ' + hora(ultCancel) + '</div>'); cancelados = 0; };
-    st.msgs.forEach(m => {
+    const estadoMio = k => st.msgs.slice(k + 1).some(x => x.rol === 'bot') ? '<i class="ag-est ok" title="Atendido">✓✓</i>' : st.estado.conectado ? '<i class="ag-est" title="Enviado: los agentes lo están atendiendo">✓</i>' : '<i class="ag-est cola" title="En cola: el PC de los agentes no está conectado">🕓 en cola</i>';
+    st.msgs.forEach((m, k) => {
       if (m.rol === 'yo' && m.texto === '__detener__') return;
       const dm = diaDe(m.creado);
       if (dm && dm !== dia) { soltar(); dia = dm; out.push('<div class="ag-dia"><span>' + esc(rotuloDia(m.creado)) + '</span></div>'); }
@@ -1071,8 +1107,8 @@
       const auto = m.rol === 'yo' && /^(.*?)\s*\(inicio automático[^)]*\)\s*$/i.exec(m.texto);
       if (auto) { out.push('<div class="ag-sis auto">⚡ Inicio automático · ' + esc(auto[1]) + ' · ' + hora(m.creado) + '</div>'); return; }
       out.push(m.rol === 'yo'
-        ? '<div class="ag-msg yo"><div class="ag-txt">' + esc(m.texto) + '</div><span class="ag-time">' + hora(m.creado) + '</span></div>'
-        : '<div class="ag-msg bot' + (m.estado === 'ERROR' ? ' err' : '') + (m.tabla || (m.archivos && m.archivos.length) ? ' con-tabla' : '') + '"><div class="ag-who">' + (m.agentes && m.agentes.length ? m.agentes : ['TAVO']).map(tag).join('') + '<button type="button" class="ag-copiar" data-copiar="' + esc(m.id) + '" title="Copiar el mensaje">⧉ Copiar</button></div><div class="ag-txt">' + textoHtml(m.tabla ? m.texto.split(/\n\nDesglose del listado/)[0] : m.texto) + '</div>' + (m.estado === 'ERROR' || /^[A-Z]+: /.test(m.texto) ? ayudaDe(m.texto, m.estado === 'ERROR' || /no pude|no pudo|falt|no aparece|no está/i.test(m.texto)) : '') + (m.tabla ? tablaHtml(m) : '') + (m.archivos && m.archivos.length ? archivosHtml(m) : '') + '<span class="ag-time">' + hora(m.creado) + '</span></div>');
+        ? '<div class="ag-msg yo" data-mid="' + esc(m.id) + '"><div class="ag-txt">' + esc(m.texto) + '</div><span class="ag-time">' + hora(m.creado) + ' ' + estadoMio(k) + '</span></div>'
+        : '<div class="ag-msg bot' + (m.estado === 'ERROR' ? ' err' : '') + (m.tabla || (m.archivos && m.archivos.length) ? ' con-tabla' : '') + '" data-mid="' + esc(m.id) + '" style="--c:' + (COLORES[(m.agentes && m.agentes[0]) || 'TAVO'] || '#7da4ff') + '"><div class="ag-who">' + avatar((m.agentes && m.agentes[0]) || 'TAVO') + (m.agentes && m.agentes.length ? m.agentes : ['TAVO']).map(tag).join('') + '<button type="button" class="ag-copiar" data-copiar="' + esc(m.id) + '" title="Copiar el mensaje">⧉ Copiar</button></div><div class="ag-txt">' + textoHtml(m.tabla ? m.texto.split(/\n\nDesglose del listado/)[0] : m.texto) + '</div>' + (m.estado === 'ERROR' || /^[A-Z]+: /.test(m.texto) ? ayudaDe(m.texto, m.estado === 'ERROR' || /no pude|no pudo|falt|no aparece|no está/i.test(m.texto)) : '') + (m.tabla ? tablaHtml(m) : '') + (m.archivos && m.archivos.length ? archivosHtml(m) : '') + '<span class="ag-time">' + hora(m.creado) + '</span></div>');
     });
     soltar();
     return out.join('');
@@ -1083,13 +1119,13 @@
     panel.innerHTML = '<div class="ag"><header class="ag-hd"><h2>AGENTES</h2><div class="ag-state" data-estado></div>' +
       '<nav class="ag-tabs" data-tabs hidden aria-label="PC de los agentes" title="La pestaña activa es el PC donde arranca solo el proceso cuando alguien pone la P en EDICIÓN"></nav>' +
       '<div class="ag-indiv" aria-label="Usar un agente por separado">' + AGENTES_BTN.map(([a, t, p]) => '<button type="button" class="ag-agbtn" style="--c:' + (COLORES[a] || '#c4cfbf') + '" data-atajo="' + esc(p) + '" title="' + esc(a + ': ' + ROLES[a] + ' (usa la orden activa)') + '"><i></i>' + esc(a) + '<small>' + esc(t) + '</small></button>').join('') + '</div>' +
-      '<div class="ag-hacc"><button type="button" class="ag-btn danger ag-stop inactivo" data-detener data-txt="⏹ Detener" title="Detiene los agentes de esta pestaña (el PC elegido)">⏹ Detener</button>' +
+      '<div class="ag-hacc"><button type="button" class="ag-ico ag-campana" data-avisos aria-label="Avisos del chat">🔔</button><button type="button" class="ag-ico" data-historial title="Historial: busca en el chat y vuelve a leer conversaciones anteriores" aria-label="Historial del chat">🕘</button><button type="button" class="ag-btn danger ag-stop inactivo" data-detener data-txt="⏹ Detener" title="Detiene los agentes de esta pestaña (el PC elegido)">⏹ Detener</button>' +
       '<button type="button" class="ag-btn ag-reiniciar" data-reiniciar title="Reinicia el programa de los agentes en el PC elegido (se cierra y se vuelve a abrir solo)">↻ Reiniciar</button>' +
-      '<details class="ag-menu"><summary class="ag-ico" title="Más opciones">⋯</summary><div class="ag-menu-l"><button type="button" data-detener-todo>⏹ Detener todo (ambos PC)</button><button type="button" data-reiniciar-todo>↻ Reiniciar todos los PC</button><button type="button" data-nueva>Nueva conversación</button><button type="button" data-conectar hidden>PC de los agentes…</button></div></details></div></header>' +
+      '<details class="ag-menu"><summary class="ag-ico" title="Más opciones">⋯</summary><div class="ag-menu-l"><button type="button" data-detener-todo>⏹ Detener todo (ambos PC)</button><button type="button" data-reiniciar-todo>↻ Reiniciar todos los PC</button><button type="button" data-nueva>Nueva conversación</button><button type="button" data-historial>🕘 Historial del chat</button><button type="button" data-conectar hidden>PC de los agentes…</button></div></details></div></header>' +
       '<div data-aviso></div><section class="ag-res" data-resumen hidden></section>' +
       '<button type="button" class="ag-ver-flujo" data-ver-flujo>▾ Ver flujo, pantalla en vivo y registro</button><nav class="ag-vtabs" data-vtabs aria-label="Secciones de los agentes"><button type="button" class="ag-vt on" data-vt="chats">CHATS</button><button type="button" class="ag-vt" data-vt="agentes">AGENTES</button><button type="button" class="ag-vt" data-vt="pdfs">PDFS</button></nav><div class="ag-main" data-main data-vista="chats"><div class="ag-orden" data-orden></div><section class="ag-chat"><div class="ag-thread" data-hilo></div><button type="button" class="ag-bajar" data-bajar hidden>↓ Mensajes nuevos</button><div class="ag-chips" data-replies></div>' +
       '<form class="ag-form" data-form><details class="ag-menu ag-atajos"><summary class="ag-ico" title="Acciones rápidas">⚡</summary><div class="ag-menu-l">' + ATAJOS.map(([l, p]) => '<button type="button" data-atajo="' + esc(p) + '">' + esc(l) + '</button>').join('') + '</div></details>' +
-      '<textarea rows="1" placeholder="Escribe a TAVO…" maxlength="2000"></textarea><button type="submit" class="ag-btn">Enviar</button></form></section>' +
+      '<div class="ag-sug" data-sug hidden role="listbox" aria-label="Sugerencias"></div><textarea rows="1" placeholder="Escribe a TAVO…" maxlength="2000" aria-autocomplete="list"></textarea><button type="submit" class="ag-btn">Enviar</button></form></section>' +
       '<aside class="ag-muestras" data-muestras></aside><section class="ag-flowcol"><div class="ag-lienzo" data-lienzo><div class="ag-barra"><div class="ag-ftit">Flujo de agentes<small data-ejecnum></small></div><div class="ag-pildora" data-pildora><i></i><span>Listo</span></div></div><svg class="ag-cables" data-cables aria-hidden="true"></svg></div>' +
       '<div class="ag-live" data-live></div>' +
       '<div class="ag-detalle"><header><h3>Ejecución</h3><div class="ag-filtros" data-filtros></div></header><div class="ag-log" data-log></div></div></section></div></div>';
@@ -1188,7 +1224,8 @@
     panel.querySelector('[data-aviso]').innerHTML = !e.conectado ? '<div class="ag-warn">El PC «' + esc((e.pc && e.pc.nombre) || 'de los agentes') + '» no está conectado. Tu mensaje queda en cola y se atiende cuando ese PC esté encendido con los agentes iniciados' + ((e.pcs || []).some(p => p.conectado && p.id !== (e.pc && e.pc.id)) ? '; también puedes elegir otro PC conectado arriba.' : '.') + '</div>' : '';
     const trabajo = st.trabajo;
     const hilo = st.msgs.length ? hiloHtml()
-      : '<div class="ag-empty"><h3>¿Qué necesitas hoy?</h3><p>Fija la orden arriba y pídele lo que necesites, por ejemplo «exporta las mesas». TAVO decide qué agente actúa.</p></div>';
+      : '<div class="ag-empty"><div class="ag-empty-av">' + ['TAVO', 'LEO', 'JACK', 'OLVER', 'OLIVER', 'TERRY'].map(avatar).join('') + '</div><h3>¿Qué necesitas hoy?</h3><p>' + (st.orden ? 'Trabajando con la orden <b>' + esc(st.orden) + '</b>. Elige una acción o escríbele a TAVO.' : 'Fija la orden arriba y pídele lo que necesites. TAVO decide qué agente actúa.') + '</p>' +
+        '<div class="ag-empty-acc">' + ATAJOS.filter(([l]) => l !== 'Reiniciar').map(([l, t]) => '<button type="button" data-atajo="' + esc(t) + '">' + esc(l) + '</button>').join('') + '</div></div>';
     const trabajando = st.esperando ? '<div class="ag-work"><div class="ag-who">' + ((trabajo && trabajo.agentes) || ['TAVO']).map(a => tag(a)).join('') + '<span class="ag-dots"><i></i><i></i><i></i></span></div><b>' +
       esc(trabajo && trabajo.msg ? trabajo.agente + ': ' + trabajo.msg : e.conectado ? 'TAVO está trabajando…' : 'Esperando al PC de los agentes…') + '</b><button type="button" class="ag-btn danger" data-detener>Detener</button></div>' : '';
     const barra = panel.querySelector('[data-orden]'), claveOrden = st.orden + '|' + st.cambiandoOrden;
@@ -1209,12 +1246,17 @@
     const hiloEl = panel.querySelector('[data-hilo]'), firma = hilo + trabajando;
     if (hiloEl.dataset.firma !== firma) {
       const abajo = !hiloEl.dataset.firma || hiloEl.scrollHeight - hiloEl.scrollTop - hiloEl.clientHeight < 90, antes = hiloEl.scrollTop, mio = ultimo && ultimo.rol === 'yo' && String(ultimo.id) !== hiloEl.dataset.ult;
+      const llegaNuevo = !!hiloEl.dataset.firma && ultimo && String(ultimo.id) !== hiloEl.dataset.ult;
       hiloEl.innerHTML = firma; hiloEl.dataset.firma = firma; hiloEl.dataset.ult = ultimo ? String(ultimo.id) : '';
+      if (llegaNuevo) { const ms = hiloEl.querySelectorAll('.ag-msg'); if (ms.length) ms[ms.length - 1].classList.add('ag-entra'); }
       if (abajo || mio) hiloEl.scrollTop = hiloEl.scrollHeight; else hiloEl.scrollTop = antes;
       const bajar = panel.querySelector('[data-bajar]'); if (bajar) bajar.hidden = abajo || mio;
     }
     pintarMuestras();
-    panel.querySelector('[data-replies]').innerHTML = botones.map(b => '<button type="button" class="reply" data-send="' + esc(b) + '">' + esc(b) + '</button>').join('');
+    panel.querySelector('[data-replies]').innerHTML = botones.length ? botones.map(b => '<button type="button" class="reply" data-send="' + esc(b) + '">' + esc(b) + '</button>').join('')
+      : st.msgs.length ? ATAJOS.filter(([l]) => l !== 'Reiniciar').map(([l, t]) => '<button type="button" class="rap" data-atajo="' + esc(t) + '"' + (st.esperando ? ' disabled' : '') + '>' + esc(l) + '</button>').join('') : '';
+    panel.querySelector('[data-replies]').classList.toggle('rapidas', !botones.length);
+    const btnAv = panel.querySelector('[data-avisos]'); if (btnAv) { btnAv.textContent = st.avisos ? '🔔' : '🔕'; btnAv.title = st.avisos ? 'Avisos encendidos: sonido y notificación cuando los agentes responden. Toca para apagarlos' : 'Avisos apagados. Toca para que suene y te notifique cuando los agentes respondan'; btnAv.classList.toggle('on', !!st.avisos); }
     panel.querySelectorAll('[data-atajo]').forEach(b => { b.disabled = st.esperando; });
     panel.querySelector('header [data-detener]').classList.toggle('inactivo', !st.esperando);   // el botón siempre está: se ve apagado cuando no hay nada en marcha
     const ini = panel.querySelector('[data-iniciar]'); if (ini) ini.disabled = st.esperando || st.enviando;
@@ -1244,6 +1286,123 @@
     }
   }
   function render() { pintar(); }
+
+  // ---- sugerencias al escribir y recuperar mensajes anteriores
+  const sug = { lista: [], i: -1, rec: -1 };
+  const mios = () => [...new Set(st.msgs.filter(m => m.rol === 'yo' && !/^(cancelar|__detener__)$/i.test(String(m.texto).trim()) && !/\(inicio automático/i.test(m.texto)).map(m => String(m.texto).trim()).reverse())];
+  const conOrden = t => (t.endsWith(' ') ? t.trim() + (st.orden ? ' ' + st.orden : ' ') : t);
+  function opcionesSug(texto) {
+    const q = sinTildes(texto).trim(); if (!q) return [];
+    const base = ATAJOS.filter(([l]) => l !== 'Reiniciar').map(([l, t]) => ({ t: conOrden(t), n: l, k: 'Acción' })).concat(AGENTES_BTN.filter(([a]) => a === 'TERRY').map(([a, l, t]) => ({ t: conOrden(t), n: 'MTS requeridos', k: 'Acción' })))
+      .concat([{ t: 'cancelar', n: 'Cancelar lo que estaba haciendo', k: 'Acción' }]).concat(mios().slice(0, 12).map(t => ({ t, n: '', k: 'Ya lo enviaste' })));
+    const vistos = new Set();
+    return base.filter(o => { const c = sinTildes(o.t).trim(); if (c === q || vistos.has(c)) return false; if (!(sinTildes(o.t).includes(q) || sinTildes(o.n).includes(q))) return false; vistos.add(c); return true; }).slice(0, 6);
+  }
+  function pintarSug() {
+    const caja = panel.querySelector('[data-sug]'), ta = panel.querySelector('[data-form] textarea'); if (!caja) return;
+    sug.lista = document.activeElement === ta && !st.esperando ? opcionesSug(ta.value) : [];
+    if (sug.i >= sug.lista.length) sug.i = -1;
+    caja.hidden = !sug.lista.length;
+    caja.innerHTML = sug.lista.map((o, i) => '<button type="button" role="option" data-sug-i="' + i + '" aria-selected="' + (i === sug.i) + '"><span>' + esc(o.t.trim()) + '</span><small>' + esc(o.n ? o.n : o.k) + '</small></button>').join('') + (sug.lista.length ? '<p>↑ ↓ para elegir · Tab o Enter para usarla · Esc para cerrar</p>' : '');
+  }
+  function usarSug(i) {
+    const o = sug.lista[i], ta = panel.querySelector('[data-form] textarea'); if (!o) return;
+    ta.value = o.t; ta.focus(); ta.setSelectionRange(o.t.length, o.t.length); sug.i = -1; ta.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  function teclaChat(e) {   // devuelve true si la tecla ya se atendió
+    const ta = e.target;
+    if (sug.lista.length && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) { e.preventDefault(); const n = sug.lista.length; sug.i = e.key === 'ArrowDown' ? (sug.i + 1) % n : (sug.i <= 0 ? n - 1 : sug.i - 1); pintarSug(); return true; }
+    if (sug.lista.length && (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey && sug.i >= 0))) { e.preventDefault(); usarSug(sug.i >= 0 ? sug.i : 0); return true; }
+    if (e.key === 'Escape' && sug.lista.length) { e.preventDefault(); sug.lista = []; sug.i = -1; const c = panel.querySelector('[data-sug]'); if (c) c.hidden = true; return true; }
+    if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && (!ta.value || sug.rec >= 0)) {   // ↑ con la caja vacía: lo último que enviaste
+      const l = mios(); if (!l.length) return false;
+      e.preventDefault(); sug.rec = e.key === 'ArrowUp' ? Math.min(sug.rec + 1, l.length - 1) : sug.rec - 1;
+      ta.value = sug.rec >= 0 ? l[sug.rec] : ''; ta.setSelectionRange(ta.value.length, ta.value.length); ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 140) + 'px';
+      return true;
+    }
+    return false;
+  }
+
+  // ---- avisos: sonido, notificación del navegador y contador en el título cuando los agentes responden y no estás mirando el chat
+  try { st.avisos = localStorage.getItem('agentes_avisos') !== '0'; } catch (e) { st.avisos = true; }
+  let audioCtx = null, sinLeer = 0; const tituloBase = document.title;
+  function sonar(tipo) {
+    try {
+      audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      const notas = tipo === 'error' ? [330, 247] : tipo === 'pregunta' ? [660, 880, 660] : [660, 880], t0 = audioCtx.currentTime;
+      notas.forEach((f, i) => { const o = audioCtx.createOscillator(), g = audioCtx.createGain(); o.type = 'sine'; o.frequency.value = f; g.gain.setValueAtTime(0.0001, t0 + i * 0.16); g.gain.exponentialRampToValueAtTime(0.16, t0 + i * 0.16 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + i * 0.16 + 0.15); o.connect(g); g.connect(audioCtx.destination); o.start(t0 + i * 0.16); o.stop(t0 + i * 0.16 + 0.17); });
+    } catch (e) { /* sin sonido */ }
+  }
+  const mirando = () => !document.hidden && panel && panel.classList.contains('active');
+  function avisarMensajes(nuevos) {
+    const bots = nuevos.filter(m => m.rol === 'bot'); if (!bots.length || !st.avisos) return;
+    const m = bots[bots.length - 1], tipo = m.estado === 'ERROR' ? 'error' : ESPERAS[m.estado] ? 'pregunta' : 'ok';
+    if (mirando() && tipo === 'ok') return;   // lo estás viendo y no hay nada que resolver: no se molesta
+    sonar(tipo);
+    if (mirando()) return;
+    sinLeer += bots.length; document.title = '(' + sinLeer + ') ' + tituloBase;
+    try {
+      if (window.Notification && Notification.permission === 'granted') {
+        const n = new Notification((tipo === 'error' ? '✖ Error' : tipo === 'pregunta' ? '⏸ ' + ESPERAS[m.estado] : '✓ Los agentes respondieron') + (st.orden ? ' · ' + st.orden : ''), { body: String(m.texto || '').split('\n').filter(Boolean)[0].slice(0, 140), tag: 'agentes-indoor', renotify: true });
+        n.onclick = () => { window.focus(); if (tab) tab.click(); n.close(); };
+      }
+    } catch (e) { /* sin notificaciones */ }
+  }
+  function leido() { if (sinLeer && mirando()) { sinLeer = 0; document.title = tituloBase; } }
+  document.addEventListener('visibilitychange', leido);
+  async function cambiarAvisos() {
+    st.avisos = !st.avisos; try { localStorage.setItem('agentes_avisos', st.avisos ? '1' : '0'); } catch (e) { /* sin almacenamiento */ }
+    if (st.avisos) { sonar('ok'); try { if (window.Notification && Notification.permission === 'default') await Notification.requestPermission(); } catch (e) { /* el navegador no las permite */ }
+      if (window.Notification && Notification.permission === 'denied') aviso('El navegador tiene bloqueadas las notificaciones de esta página: igual sonará, pero no saldrá el aviso emergente.', false); }
+    pintar();
+  }
+
+  // ---- historial: buscar en esta conversación y volver a leer las anteriores (las que se cerraron con «Nueva conversación»)
+  const hist = { q: '', lista: null, ver: null, error: '', t: 0 };
+  let histEl = null;
+  const fechaCorta = iso => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString('es-CO', { day: 'numeric', month: 'short' }) + ' · ' + hora(iso); };
+  function pintarHist() {
+    if (!histEl) return;
+    const cuerpo = histEl.querySelector('[data-hist-cuerpo]'), q = sinTildes(hist.q).trim();
+    if (hist.ver) {
+      const c = hist.ver; let dia = '';
+      cuerpo.innerHTML = '<div class="ag-hist-cab"><button type="button" class="ag-btn sec" data-hist-volver>← Volver</button><span>' + esc((c.ordenes || []).join(', ') || 'Sin orden') + ' · ' + esc(c.pc) + ' · ' + esc(fechaCorta(c.inicio)) + '</span></div><div class="ag-thread ag-hist-hilo">' +
+        (c.mensajes || []).map(m => { const d = diaDe(m.creado), sep = d !== dia ? '<div class="ag-dia"><span>' + esc(rotuloDia(m.creado)) + '</span></div>' : ''; dia = d;
+          return sep + (m.rol === 'yo' ? '<div class="ag-msg yo"><div class="ag-txt">' + esc(m.texto) + '</div><span class="ag-time">' + hora(m.creado) + '</span></div>'
+            : '<div class="ag-msg bot' + (m.estado === 'ERROR' ? ' err' : '') + '" style="--c:' + (COLORES[(m.agentes || [])[0] || 'TAVO'] || '#7da4ff') + '"><div class="ag-who">' + avatar((m.agentes || [])[0] || 'TAVO') + ((m.agentes || []).length ? m.agentes : ['TAVO']).map(tag).join('') + '</div><div class="ag-txt">' + textoHtml(m.texto) + '</div><span class="ag-time">' + hora(m.creado) + '</span></div>'); }).join('') + '</div>';
+      return;
+    }
+    const aqui = q ? st.msgs.filter(m => m.texto !== '__detener__' && sinTildes(m.texto).includes(q)).slice(-30).reverse() : [];
+    const actual = q ? '<p class="ag-hist-sec">En esta conversación (' + aqui.length + ')</p>' + (aqui.length ? aqui.map(m => '<button type="button" class="ag-hist-item" data-hist-ir="' + esc(m.id) + '"><b>' + (m.rol === 'yo' ? 'Tú' : esc(((m.agentes || [])[0]) || 'TAVO')) + '</b><span>' + esc(String(m.texto).replace(/\s+/g, ' ').slice(0, 150)) + '</span><small>' + esc(fechaCorta(m.creado)) + '</small></button>').join('') : '<p class="ag-hist-vacio">Nada coincide en la conversación actual.</p>') : '';
+    const l = hist.lista;
+    const viejas = '<p class="ag-hist-sec">Conversaciones anteriores' + (l ? ' (' + l.length + ')' : '') + '</p>' + (hist.error ? '<p class="ag-hist-vacio">' + esc(hist.error) + '</p>' : !l ? '<p class="ag-hist-vacio">Cargando…</p>' : l.length ? l.map(c => '<button type="button" class="ag-hist-item" data-hist-ver="' + esc(c.id) + '"><b>' + esc((c.ordenes || []).join(', ') || 'Sin orden') + '</b><span>' + esc(String(c.resumen).replace(/\s+/g, ' ')) + '</span><small>' + esc(fechaCorta(c.inicio)) + ' · ' + esc(c.pc) + ' · ' + c.n + ' mensajes</small></button>').join('')
+      : '<p class="ag-hist-vacio">' + (q ? 'Ninguna conversación anterior coincide.' : 'Todavía no hay conversaciones guardadas. Cada vez que pulses «Nueva conversación», la anterior queda aquí.') + '</p>');
+    cuerpo.innerHTML = actual + viejas;
+  }
+  async function cargarHist() {
+    const q = hist.q.trim();
+    try { const r = await api('/api/agentes/historial' + (q ? '?q=' + encodeURIComponent(q) : '')); if (q === hist.q.trim()) { hist.lista = r.conversaciones || []; hist.error = ''; } }
+    catch (e) { hist.lista = []; hist.error = e.message; }
+    pintarHist();
+  }
+  function cerrarHist() { if (histEl) histEl.remove(); histEl = null; }
+  function abrirHistorial() {
+    if (histEl) return;
+    hist.q = ''; hist.lista = null; hist.ver = null; hist.error = '';
+    histEl = document.createElement('div'); histEl.className = 'ag-hist'; histEl.setAttribute('role', 'dialog'); histEl.setAttribute('aria-modal', 'true'); histEl.setAttribute('aria-label', 'Historial de conversaciones');
+    histEl.innerHTML = '<div class="ag-hist-card"><header><b>HISTORIAL DEL CHAT</b><button type="button" class="ag-ico" data-hist-cerrar aria-label="Cerrar">✕</button></header><input type="search" data-hist-q placeholder="Busca por orden (CO6133) o por una palabra…" autocomplete="off"><div class="ag-hist-cuerpo" data-hist-cuerpo></div></div>';
+    histEl.addEventListener('click', async e => {
+      if (e.target === histEl || e.target.closest('[data-hist-cerrar]')) { cerrarHist(); return; }
+      if (e.target.closest('[data-hist-volver]')) { hist.ver = null; histEl.querySelector('[data-hist-q]').hidden = false; pintarHist(); return; }
+      const ir = e.target.closest('[data-hist-ir]'), ver = e.target.closest('[data-hist-ver]');
+      if (ir) { cerrarHist(); ponerVista('chats'); const el = panel.querySelector('[data-mid="' + ir.dataset.histIr + '"]'); if (el) { el.scrollIntoView({ block: 'center' }); el.classList.add('ag-hallado'); setTimeout(() => el.classList.remove('ag-hallado'), 2600); } return; }
+      if (ver) { try { hist.ver = await api('/api/agentes/historial/' + encodeURIComponent(ver.dataset.histVer)); histEl.querySelector('[data-hist-q]').hidden = true; } catch (er) { hist.error = er.message; } pintarHist(); }
+    });
+    histEl.addEventListener('input', e => { if (!e.target.matches('[data-hist-q]')) return; hist.q = e.target.value; pintarHist(); clearTimeout(hist.t); hist.t = setTimeout(cargarHist, 300); });
+    histEl.addEventListener('keydown', e => { if (e.key === 'Escape') cerrarHist(); });
+    document.body.appendChild(histEl); pintarHist(); cargarHist(); histEl.querySelector('[data-hist-q]').focus();
+  }
 
   async function fijarOrden(codigo) {
     try {
@@ -1302,7 +1461,7 @@
       if (estabaTrabajando && !st.esperando && !primera) setTimeout(avisarFin, 600);   // dejar que lleguen los últimos eventos y archivos
       if (st.esperando) flow.fin = null;
       if (!st.cambiandoOrden) st.orden = datos.orden || '';
-      if (nuevos.length) { st.msgs = st.msgs.concat(nuevos); st.ultimo = Math.max(...nuevos.map(m => m.id), st.ultimo); }
+      if (nuevos.length) { st.msgs = st.msgs.concat(nuevos); st.ultimo = Math.max(...nuevos.map(m => m.id), st.ultimo); if (!primera) avisarMensajes(nuevos); }
       if (evs.length) st.evs = st.evs.concat(evs);
       st.ultimoEv = Math.max(st.ultimoEv, datos.ultimo_ev || 0);
       pintarProg();
@@ -1324,8 +1483,10 @@
   }
   function programar() {
     clearTimeout(timer);
-    if (!panel || !panel.classList.contains('active')) return;
-    timer = setTimeout(async () => { if (!document.hidden) await cargar(false); programar(); }, st.esperando ? 1000 : 4000);
+    if (!panel) return;
+    const activo = panel.classList.contains('active'), pendiente = st.esperando && st.avisos;   // con un trabajo en marcha se sigue consultando aunque mires otra cosa, para poder avisarte
+    if (!activo && !pendiente) return;
+    timer = setTimeout(async () => { if (!document.hidden || pendiente) await cargar(false); leido(); programar(); }, document.hidden || !activo ? 5000 : st.esperando ? 1000 : 4000);
   }
 
   // Administración de los PC con Illustrator (EDICION y AUTOMATIZACION): estado, agregar, código nuevo, quitar
@@ -1428,13 +1589,16 @@
         st.esperando = false; st.trabajo = null; await cargar(true); pintar();
         b.disabled = false; b.textContent = orig;
       } else if (e.target.closest('[data-nueva]')) {
-        if (st.msgs.length && !confirm('¿Borrar esta conversación? Los agentes empiezan de cero.')) return;
+        if (st.msgs.length && !confirm('¿Empezar una conversación nueva? Los agentes empiezan de cero y esta queda guardada en el historial (🕘).')) return;
         try { await api('/api/agentes/limpiar', { method: 'POST', body: JSON.stringify({ pc: st.pc }) }); } catch (err) { alert(err.message); return; }
         st.msgs = []; st.ultimo = 0; st.evs = []; st.ultimoEv = 0; st.trabajo = null; flow.listo = false; flow.preparado = 0; await cargar(true); pintar();
-      } else if (e.target.closest('[data-conectar]')) conectar();
+      } else if (e.target.closest('[data-avisos]')) cambiarAvisos();
+      else if (e.target.closest('[data-historial]')) abrirHistorial();
+      else if (e.target.closest('[data-conectar]')) conectar();
     });
     try { ponerVista(localStorage.getItem('indoor-agentes-vista') || 'chats'); } catch (er) { /* sin almacenamiento */ }
-    panel.querySelector('[data-hilo]').addEventListener('scroll', e => { const h = e.target, b = panel.querySelector('[data-bajar]'); if (b && !b.hidden && h.scrollHeight - h.scrollTop - h.clientHeight < 40) b.hidden = true; }, { passive: true });
+    // delegado en el panel (en captura): cuando se registra esto el chat todavía no está armado; antes se buscaba el hilo aquí, fallaba y dejaba sin registrar todo lo de abajo (Enter, Enviar, copiar…)
+    panel.addEventListener('scroll', e => { if (!e.target.matches || !e.target.matches('[data-hilo]')) return; const h = e.target, b = panel.querySelector('[data-bajar]'); if (b && !b.hidden && h.scrollHeight - h.scrollTop - h.clientHeight < 40) b.hidden = true; }, { passive: true, capture: true });
     window.addEventListener('resize', ajustarAlto);
     window.addEventListener('focus', () => setTimeout(enfocarVista, 50));
     document.addEventListener('visibilitychange', () => { if (!document.hidden) setTimeout(enfocarVista, 50); });
@@ -1476,9 +1640,12 @@
       const mas = panel.querySelector('.ag-mas[open]');
       if (mas && (!e.target.closest('.ag-mas') || e.target.closest('.ag-mas-menu button'))) mas.removeAttribute('open');
     });
-    panel.addEventListener('submit', e => { e.preventDefault(); if (e.target.matches('[data-orden-form]')) { fijarOrden(e.target.querySelector('input').value); return; } const caja = panel.querySelector('textarea'); const v = caja.value; caja.value = ''; enviar(v); });
-    panel.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && e.target.matches('textarea')) { e.preventDefault(); panel.querySelector('form').requestSubmit(); } });
-    panel.addEventListener('input', e => { if (e.target.matches('textarea')) { e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 140) + 'px'; } });
+    panel.addEventListener('submit', e => { e.preventDefault(); if (e.target.matches('[data-orden-form]')) { fijarOrden(e.target.querySelector('input').value); return; } const caja = panel.querySelector('textarea'); const v = caja.value; caja.value = ''; caja.style.height = 'auto'; sug.rec = -1; sug.i = -1; pintarSug(); enviar(v); });
+    panel.addEventListener('keydown', e => { if (!e.target.matches('[data-form] textarea')) return; if (teclaChat(e)) return; if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); panel.querySelector('[data-form]').requestSubmit(); } });
+    panel.addEventListener('focusout', e => { if (e.target.matches('[data-form] textarea')) setTimeout(pintarSug, 160); });
+    panel.addEventListener('focusin', e => { if (e.target.matches('[data-form] textarea')) pintarSug(); });
+    panel.addEventListener('mousedown', e => { const b = e.target.closest('[data-sug-i]'); if (b) { e.preventDefault(); usarSug(+b.dataset.sugI); } });
+    panel.addEventListener('input', e => { if (e.target.matches('textarea')) { e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 140) + 'px'; sug.rec = -1; sug.i = -1; pintarSug(); } });
     return true;
   }
   // Acceso desde el menú del usuario (en computador sale del menú superior; en celular sigue en la barra inferior).

@@ -26,6 +26,8 @@ pc_router = APIRouter(prefix='/api/agentes/pc', tags=['agentes-pc'])   # el PC c
 _file = Path(os.getenv('AGENTES_FILE', '/data/state/agentes_canal.json'))
 _token_file = Path(os.getenv('AGENTES_TOKEN_FILE', '/data/state/agentes_token.txt'))
 _lock = threading.Lock()
+_hist_file = Path(os.getenv('AGENTES_HIST_FILE', '/data/state/agentes_historial.json'))   # conversaciones cerradas con «Nueva conversación»
+MAX_HISTORIAL = 300              # conversaciones guardadas (entre todas las personas)
 MAX_MENSAJES = 400
 MAX_EVENTOS = 900
 MAX_VISTAS = 150                  # imágenes de los PDF recién creados que se conservan (pantalla en vivo y flechita ↗ para verlos)
@@ -376,13 +378,72 @@ def auto_cambiar(payload: dict):
     return {'activo': datos['auto']['activo']}
 
 
+def _leer_historial() -> list:
+    try:
+        d = json.loads(_hist_file.read_text(encoding='utf-8'))
+        return d if isinstance(d, list) else []
+    except (OSError, ValueError):
+        return []
+
+
+def _archivar(datos: dict, ses: str, pid: str) -> None:
+    """Guarda en el historial la conversación visible de esa sesión (solo texto: sin archivos ni tablas). Se llama con el candado tomado."""
+    visibles = [m for m in datos['mensajes'] if m['sesion'] == ses and not m.get('oculto') and m.get('texto') not in ('__detener__', 'cancelar')]
+    if not any(m['rol'] == 'bot' for m in visibles):
+        return   # nada que valga la pena guardar
+    ordenes = []
+    for cod in [datos['ordenes'].get(ses, '')] + re.findall(r'\b[A-Z]{2}\d{3,5}\b', ' '.join(str(m.get('texto') or '')[:400] for m in visibles)):
+        if cod and cod not in ordenes:
+            ordenes.append(cod)
+    hist = _leer_historial()
+    hist.append({'id': uuid.uuid4().hex[:12], 'usuario': _base(ses), 'pc': pid, 'pc_nombre': _nombre_pc(datos, pid), 'ordenes': ordenes[:8],
+                 'inicio': visibles[0]['creado'], 'fin': visibles[-1]['creado'], 'guardado': _iso(),
+                 'mensajes': [{'rol': m['rol'], 'texto': str(m.get('texto') or '')[:6000], 'creado': m['creado'], 'agentes': m.get('agentes') or [], 'estado': m.get('estado') or ''} for m in visibles]})
+    _hist_file.parent.mkdir(parents=True, exist_ok=True)
+    tmp = _hist_file.with_suffix('.tmp')
+    tmp.write_text(json.dumps(hist[-MAX_HISTORIAL:], ensure_ascii=False), encoding='utf-8')
+    tmp.replace(_hist_file)
+
+
+@router.get('/historial')
+def historial(request: Request, q: str = ''):
+    """Conversaciones anteriores de esta persona (en cualquier PC), de la más reciente a la más vieja; `q` busca en las órdenes y en el texto."""
+    usuario = _auth(request)
+    q = str(q or '').strip().lower()[:80]
+    salida = []
+    for c in reversed(_leer_historial()):
+        if str(c.get('usuario')) != str(usuario):
+            continue
+        msgs = c.get('mensajes') or []
+        hallado = next((m for m in msgs if q and q in str(m.get('texto') or '').lower()), None)
+        if q and not hallado and q not in ' '.join(c.get('ordenes') or []).lower():
+            continue
+        primero = next((m for m in msgs if m.get('rol') == 'yo'), msgs[0] if msgs else {})
+        salida.append({'id': c['id'], 'pc': c.get('pc_nombre') or '', 'ordenes': c.get('ordenes') or [], 'inicio': c.get('inicio', ''), 'fin': c.get('fin', ''),
+                       'n': len(msgs), 'resumen': str((hallado or primero).get('texto') or '')[:160]})
+    return {'conversaciones': salida[:100]}
+
+
+@router.get('/historial/{hid}')
+def historial_ver(request: Request, hid: str):
+    usuario = _auth(request)
+    c = next((c for c in _leer_historial() if c.get('id') == hid and str(c.get('usuario')) == str(usuario)), None)
+    if not c:
+        raise HTTPException(404, 'Esa conversación ya no está en el historial')
+    return {'id': c['id'], 'pc': c.get('pc_nombre') or '', 'ordenes': c.get('ordenes') or [], 'inicio': c.get('inicio', ''), 'fin': c.get('fin', ''), 'mensajes': c.get('mensajes') or []}
+
+
 @router.post('/limpiar')
 def limpiar(request: Request, payload: dict | None = None):
-    """Borra la conversación de quien la pide en ese PC (no toca la de otras personas ni la del otro PC)."""
+    """Cierra la conversación de quien la pide en ese PC (no toca la de otras personas ni la del otro PC): la guarda en el historial y empieza otra."""
     usuario = _auth(request)
     with _lock:
         datos = _leer()
         _pid, ses = _canal(datos, usuario, str((payload or {}).get('pc') or ''))
+        try:
+            _archivar(datos, ses, _pid)   # la conversación que se cierra queda en el historial
+        except OSError:
+            pass   # si no se pudo guardar el historial, la limpieza sigue
         datos['mensajes'] = [m for m in datos['mensajes'] if m['sesion'] != ses]
         datos['eventos'] = [e for e in datos['eventos'] if e['sesion'] != ses]
         for aid in [k for k, v in datos['archivos'].items() if v['sesion'] == ses]:
