@@ -49,7 +49,23 @@ def _consumos(ref: str) -> dict | None:
 
 
 # ------------------------------------------------------------------ textos corregidos a mano (no se pierden al volver a importar el Excel)
-SECCIONES = {'descripcion': 'Descripción', 'nota': 'Nota', 'confeccion': 'Confección', 'terminacion': 'Terminación y revisión'}
+_INSUMO = ('nombre', 'tipo', 'color', 'medida', 'cant', 'observacion')
+# sección -> 'texto' (un solo texto), 'lista' (líneas) o las columnas de su tabla. Con esto se puede corregir TODA la ficha y agregarle especificaciones.
+SECCIONES = {
+    'prenda': 'texto', 'nota': 'texto', 'nota_promedio': 'texto', 'composicion': 'texto',
+    'descripcion': 'lista', 'terminacion': 'lista',
+    'confeccion': ('etiqueta', 'valor'), 'especificaciones': ('etiqueta', 'valor'), 'telas': ('material', 'tela'),
+    'promedios': ('nombre', 'masc', 'feme', 'nino'), 'insumos': _INSUMO, 'empaque_insumos': _INSUMO,
+    'tallajes': ('titulo', 'tallas', 'ancho', 'alto', 'largo'), 'medidas_insumos': ('titulo', 'tallas', 'medidas'),
+}
+
+
+def _serie(texto, cuantos: int | None = None) -> list:
+    """«XS S M L» -> ['XS', 'S', 'M', 'L']; «60 - 64» -> ['60', '', '64'] (el guion es un valor vacío). Con `cuantos`, se ajusta a ese largo."""
+    valores = ['' if v == '-' else v for v in re.split(r'[\s;|]+', str(texto or '').strip()) if v]
+    if cuantos is not None:
+        valores = (valores + [''] * cuantos)[:cuantos]
+    return valores
 _lock_ed = threading.Lock()
 
 
@@ -82,12 +98,15 @@ def guardar_texto(usuario: str, ident: str, seccion: str, lineas) -> dict:
             de_ficha.pop(seccion, None)
         else:
             if not isinstance(lineas, list) or len(lineas) > 60:
-                raise HTTPException(400, 'Máximo 60 líneas por sección')
-            if seccion == 'confeccion':
-                valor = [{'etiqueta': _limpio(x.get('etiqueta'), 80), 'valor': _limpio(x.get('valor'))} for x in lineas if isinstance(x, dict)]
-                valor = [x for x in valor if x['etiqueta'] or x['valor']]
+                raise HTTPException(400, 'Máximo 60 filas por sección')
+            tipo = SECCIONES[seccion]
+            if tipo == 'texto':
+                valor = [_limpio(' '.join(str(x) for x in lineas if isinstance(x, str)), 1200)]
+            elif tipo == 'lista':
+                valor = [t for t in (_limpio(x) for x in lineas if isinstance(x, str)) if t]
             else:
-                valor = [t for t in (_limpio(x) for x in lineas) if t]
+                valor = [{c: _limpio(x.get(c), 300 if c in ('etiqueta', 'material', 'titulo') else 600) for c in tipo} for x in lineas if isinstance(x, dict)]
+                valor = [x for x in valor if any(x.values())]
             ahora = datetime.now(timezone(timedelta(hours=-5))).strftime('%Y-%m-%d %H:%M')
             de_ficha[seccion] = {'lineas': valor, 'por': str(usuario)[:60], 'fecha': ahora}
         if not de_ficha:
@@ -132,11 +151,22 @@ def _resumir(f: dict) -> dict:
         if seccion not in SECCIONES or not isinstance(e, dict):
             continue
         lineas = e.get('lineas') or []
-        if seccion == 'nota':
-            res['nota'] = ' '.join(lineas)
+        tipo = SECCIONES[seccion]
+        if tipo == 'texto':
+            res[seccion] = ' '.join(str(x) for x in lineas)
+        elif seccion == 'promedios':
+            res[seccion] = [{'nombre': x.get('nombre', ''), 'valores': {k: x[k] for k in ('masc', 'feme', 'nino') if x.get(k)}} for x in lineas]
+        elif seccion == 'tallajes':
+            res[seccion] = []
+            for x in lineas:
+                tallas = _serie(x.get('tallas'))
+                res[seccion].append({'titulo': x.get('titulo', ''), 'tallas': tallas, 'nota': '', **{k: _serie(x.get(k), len(tallas)) for k in ('ancho', 'alto', 'largo')}})
+        elif seccion == 'medidas_insumos':
+            res[seccion] = [{'titulo': x.get('titulo', ''), 'tallas': _serie(x.get('tallas')), 'medidas': _serie(x.get('medidas'), len(_serie(x.get('tallas'))))} for x in lineas]
         else:
             res[seccion] = lineas
         editado[seccion] = {'por': e.get('por', ''), 'fecha': e.get('fecha', '')}
+    res.setdefault('especificaciones', [])
     res['editado'] = editado
     return res
 
