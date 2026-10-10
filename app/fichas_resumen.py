@@ -2,7 +2,10 @@
 
 Sale de las fichas ya importadas por app/fichas.py. Es de solo lectura y la puede ver cualquier usuario con sesión (no exige el permiso de Moldería).
 """
+import json
 import re
+import threading
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
@@ -45,6 +48,57 @@ def _consumos(ref: str) -> dict | None:
     return {'ref': ref, 'promedio': pm.promedio(m), 'grupos': grupos, 'plantillas': plantillas}
 
 
+# ------------------------------------------------------------------ textos corregidos a mano (no se pierden al volver a importar el Excel)
+SECCIONES = {'descripcion': 'Descripción', 'nota': 'Nota', 'confeccion': 'Confección', 'terminacion': 'Terminación y revisión'}
+_lock_ed = threading.Lock()
+
+
+def _archivo_ediciones():
+    return fichas_mod.DATOS.parent / 'fichas_ediciones.json'
+
+
+def _ediciones() -> dict:
+    try:
+        return json.loads(_archivo_ediciones().read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return {}
+
+
+def _limpio(texto, largo: int = 600) -> str:
+    return re.sub(r'[ \t]+', ' ', str(texto or '').replace('\r', '')).strip()[:largo]
+
+
+def guardar_texto(usuario: str, ident: str, seccion: str, lineas) -> dict:
+    """Guarda el texto corregido de una sección de la ficha (o lo quita, con lineas=None, para volver al del Excel). Devuelve la ficha resumida."""
+    f = fichas_mod.ficha(ident)
+    if not f:
+        raise HTTPException(404, 'Ficha no encontrada')
+    if seccion not in SECCIONES:
+        raise HTTPException(400, 'Esa sección no se puede editar')
+    with _lock_ed:
+        todo = _ediciones()
+        de_ficha = todo.setdefault(ident, {})
+        if lineas is None:
+            de_ficha.pop(seccion, None)
+        else:
+            if not isinstance(lineas, list) or len(lineas) > 60:
+                raise HTTPException(400, 'Máximo 60 líneas por sección')
+            if seccion == 'confeccion':
+                valor = [{'etiqueta': _limpio(x.get('etiqueta'), 80), 'valor': _limpio(x.get('valor'))} for x in lineas if isinstance(x, dict)]
+                valor = [x for x in valor if x['etiqueta'] or x['valor']]
+            else:
+                valor = [t for t in (_limpio(x) for x in lineas) if t]
+            ahora = datetime.now(timezone(timedelta(hours=-5))).strftime('%Y-%m-%d %H:%M')
+            de_ficha[seccion] = {'lineas': valor, 'por': str(usuario)[:60], 'fecha': ahora}
+        if not de_ficha:
+            todo.pop(ident, None)
+        destino = _archivo_ediciones()
+        tmp = destino.with_suffix('.tmp')
+        tmp.write_text(json.dumps(todo, ensure_ascii=False, indent=1), encoding='utf-8')
+        tmp.replace(destino)
+    return _resumir(f)
+
+
 def _resumir(f: dict) -> dict:
     imagenes = sorted(f.get('imagenes', []), key=lambda i: i['ancho'] * i['alto'], reverse=True)
     principales = [i for i in imagenes if i['zona'] in ('mockup', 'fisica')] + [i for i in imagenes if i['zona'] not in ('mockup', 'fisica')]
@@ -62,7 +116,7 @@ def _resumir(f: dict) -> dict:
         if not fichas_mod._plano(etiqueta).startswith(clave) or (not c.get('extra') and re.fullmatch(r'\d+/\d+', valor)):
             continue
         confeccion.append({'etiqueta': etiqueta, 'valor': valor + (' — ' + c['extra'] if c.get('extra') else '')})
-    return {
+    res = {
         'id': f['id'], 'ref': f['ref'], 'hoja': f['hoja'], 'familia': f['familia'], 'prenda': f.get('prenda', ''), 'referencia': f.get('referencia', ''),
         'nota': f.get('nota_prenda', ''), 'nota_promedio': f.get('nota_promedio', ''), 'composicion': f.get('composicion', ''), 'fit': f.get('fit'), 'telas': telas, 'promedios': promedios,
         'descripcion': [d['texto'] for d in f.get('descripcion', [])][:24],
@@ -72,6 +126,19 @@ def _resumir(f: dict) -> dict:
         'confeccion': confeccion[:20], 'terminacion': f.get('terminacion', [])[:6], 'empaque_insumos': f.get('empaque_insumos', []),
         'imagenes': [i['archivo'] for i in principales[:8]], 'total_imagenes': len(imagenes), 'mockup': fichas_mod.con_mockup().get(f['ref']),
     }
+    # textos corregidos a mano desde el panel: reemplazan a los del Excel en su sección
+    editado = {}
+    for seccion, e in (_ediciones().get(f['id']) or {}).items():
+        if seccion not in SECCIONES or not isinstance(e, dict):
+            continue
+        lineas = e.get('lineas') or []
+        if seccion == 'nota':
+            res['nota'] = ' '.join(lineas)
+        else:
+            res[seccion] = lineas
+        editado[seccion] = {'por': e.get('por', ''), 'fecha': e.get('fecha', '')}
+    res['editado'] = editado
+    return res
 
 
 @router.get('/resumen')

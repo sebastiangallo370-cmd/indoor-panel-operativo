@@ -15,7 +15,7 @@
   function guardado(k, d) { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } }
   function guardar(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* sin almacenamiento */ } }
   const CHK = guardado('mo_chk', {});
-  const E = { lineas: [], puede: false, lista: null, lema: 'Nos inspira vestir a los ganadores', edicion: '' };
+  const E = { lineas: [], puede: false, editar: false, lista: null, lema: 'Nos inspira vestir a los ganadores', edicion: '' };
   let overlay = null, S = null;   // S: estado de la ficha abierta
 
   const css = document.createElement('style');
@@ -101,6 +101,23 @@
   .fit-wrap{overflow-x:auto;border-radius:6px;background:#fff}.fit{display:block;width:100%;min-width:760px;height:auto;font-family:Arial,Helvetica,sans-serif}
   .fit path{stroke:none}.fit-real text{font-family:Arial,Helvetica,sans-serif}
   /* MOLDE DINÁMICO: las piezas reales sobre un escenario con volumen (sombra y brillo en su propia silueta) */
+  /* editar textos de la ficha (solo cuentas autorizadas) */
+  .fi-edbtn{width:auto!important;min-height:0!important;margin-left:10px;padding:3px 10px!important;border:1px solid rgba(208,244,76,.45)!important;border-radius:999px!important;background:transparent!important;color:#d0f44c!important;font:700 10px Arial!important;letter-spacing:.06em;cursor:pointer;vertical-align:middle;text-transform:none}
+  .fi-edbtn:hover{background:rgba(208,244,76,.12)!important}
+  .fi-edmarca{margin-left:8px;color:#8e9a87;font:italic 400 10.5px Arial;letter-spacing:0;text-transform:none}
+  .fi-ed{display:grid;gap:7px;margin:8px 0 4px}
+  .fi-ed-fila{display:grid;grid-template-columns:22px minmax(0,1fr) 30px;gap:7px;align-items:start}
+  .fi-ed-fila.dos{grid-template-columns:22px minmax(0,.42fr) minmax(0,1fr) 30px}
+  .fi-ed-fila>b{padding-top:9px;color:#8e9a87;font:800 10px Arial;text-align:right}
+  .fi-ed textarea,.fi-ed input{width:100%;box-sizing:border-box;min-height:36px;padding:8px 10px;border:1px solid #3d4c3b;border-radius:9px;background:#142017;color:#f5faef;font:500 13px/1.4 Arial;outline:none;resize:vertical}
+  .fi-ed textarea:focus,.fi-ed input:focus{border-color:#d0f44c}
+  .fi-ed-fila>button{width:30px!important;min-height:36px!important;padding:0!important;border:1px solid rgba(255,120,120,.4)!important;border-radius:9px!important;background:transparent!important;color:#ff9a9a!important;font:700 14px Arial!important;cursor:pointer}
+  .fi-ed-acc{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:4px}
+  .fi-ed-acc button{width:auto!important;min-height:0!important;padding:7px 14px!important;border:1px solid rgba(255,255,255,.18)!important;border-radius:999px!important;background:transparent!important;color:#c9d3c1!important;font:700 11px Arial!important;cursor:pointer}
+  .fi-ed-acc button.pri{background:#d0f44c!important;border-color:#d0f44c!important;color:#142017!important}
+  .fi-ed-acc button:disabled{opacity:.55;cursor:progress}
+  .fi-ed-msg{color:#ff9a9a;font:700 11.5px Arial}
+  @media(max-width:700px){.fi-ed-fila.dos{grid-template-columns:22px minmax(0,1fr) 30px}.fi-ed-fila.dos input{grid-column:2}.fi-ed-fila.dos textarea{grid-column:2}.fi-ed-fila.dos>button{grid-row:1;grid-column:3}}
   /* encabezado de materiales */
   .ft-cab{position:relative;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px 14px;padding:11px 14px 14px;border-radius:14px;border:1px solid rgba(255,255,255,.1);background:linear-gradient(120deg,color-mix(in srgb,var(--c1) 13%,transparent),rgba(255,255,255,.02) 45%,color-mix(in srgb,var(--c2) 13%,transparent));overflow:hidden}
   .ft-cab:before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,var(--c1),var(--c2))}
@@ -246,7 +263,7 @@
   async function permisos() {
     if (E.permCargado) return;
     E.permCargado = true;
-    try { const m = await api('/api/permisos/mi'); E.puede = !!(m.permisos && m.permisos.molderia && m.permisos.molderia.ver); } catch (e) { E.puede = false; }
+    try { const m = await api('/api/permisos/mi'); E.puede = !!(m.permisos && m.permisos.molderia && m.permisos.molderia.ver); E.editar = !!m.fichas_editar; } catch (e) { E.puede = false; E.editar = false; }
   }
   async function lema() {
     if (E.lemaCargado) return E.promesaLema;
@@ -592,6 +609,34 @@
       (hayFitReal(f) ? fitDinamico(f) : fitPiezas(mats)) + '<div class="ft-mats">' + mats.map(x => '<div class="ft-mat" data-m="' + x.id + '" style="--c:' + x.color + '"><h4><b>' + x.id + '</b>MATERIAL ' + x.id.slice(1) + '</h4><p class="ft-tela">' + esc(x.tela || 'Tela por definir en la ficha') + '</p><div class="ft-piezas">' +
         x.piezas.map((p, i) => iconoFila(p, i)).join('') + '</div></div>').join('') + '</div></div>';
   }
+  const ED_TITULO = { descripcion: 'Descripción', nota: 'Nota', confeccion: 'Confección', terminacion: 'Terminación y revisión' };
+  const lineasDe = (f, sec) => sec === 'confeccion' ? (f.confeccion || []).map(c => ({ etiqueta: c.etiqueta || '', valor: c.valor || '' })) : sec === 'nota' ? (f.nota ? [f.nota] : []) : ((sec === 'descripcion' ? f.descripcion : f.terminacion) || []).map(d => String((d && d.texto) || d));
+  // título de sección con «✎ Editar» para quien puede, y la marca de quién la corrigió
+  const secEd = (f, titulo, sec) => { const e = (f.editado || {})[sec]; return '<p class="fi-sec">' + titulo + (e ? '<span class="fi-edmarca">corregido por ' + esc(e.por) + ' · ' + esc(e.fecha) + '</span>' : '') + (E.editar ? '<button type="button" class="fi-edbtn" data-fi-editar="' + sec + '">✎ Editar</button>' : '') + '</p>'; };
+  function editor(f, sec) {
+    const filas = S.borrador || [], dos = sec === 'confeccion';
+    return '<p class="fi-sec">Editando · ' + ED_TITULO[sec] + '</p>' + (sec === 'descripcion' ? '<p class="fi-obs" style="margin:0 0 6px">Aquí están todas las líneas de la descripción, también las de materiales («M1: FRENTE X1, …»): de esas líneas salen las piezas y los colores del molde.</p>' : '') +
+      '<div class="fi-ed" data-fi-ed="' + sec + '">' + filas.map((x, i) => '<div class="fi-ed-fila' + (dos ? ' dos' : '') + '"><b>' + pad(i + 1) + '</b>' +
+        (dos ? '<input type="text" maxlength="80" data-ed-et placeholder="Rótulo (MÁQUINA, AGUJA…)" value="' + esc(x.etiqueta) + '"><textarea rows="2" maxlength="600" data-ed-va placeholder="Texto">' + esc(x.valor) + '</textarea>'
+             : '<textarea rows="2" maxlength="600" data-ed-va placeholder="Texto de la línea">' + esc(x) + '</textarea>') +
+        '<button type="button" data-fi-ed-del="' + i + '" title="Quitar esta línea">×</button></div>').join('') +
+      '<div class="fi-ed-acc"><button type="button" data-fi-ed-add>+ Agregar línea</button><button type="button" class="pri" data-fi-ed-guardar>Guardar</button><button type="button" data-fi-ed-cancelar>Cancelar</button>' +
+      ((f.editado || {})[sec] ? '<button type="button" data-fi-ed-restaurar title="Quita la corrección y vuelve al texto del Excel">Restaurar el del Excel</button>' : '') + '<span class="fi-ed-msg" data-fi-ed-msg></span></div></div>';
+  }
+  function leerEditor() {   // lo que hay escrito ahora mismo en el editor
+    const caja = overlay && overlay.querySelector('[data-fi-ed]'); if (!caja) return S.borrador || [];
+    return [...caja.querySelectorAll('.fi-ed-fila')].map(fila => caja.dataset.fiEd === 'confeccion' ? { etiqueta: fila.querySelector('[data-ed-et]').value, valor: fila.querySelector('[data-ed-va]').value } : fila.querySelector('[data-ed-va]').value);
+  }
+  async function guardarEditor(lineas) {
+    const f = S.fichas[S.i], msg = overlay.querySelector('[data-fi-ed-msg]');
+    overlay.querySelectorAll('.fi-ed-acc button').forEach(b => { b.disabled = true; });
+    try {
+      const r = await fetch('/api/fichas/texto', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: f.id, seccion: S.edit, lineas }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.detail || 'No pude guardar el cambio');
+      S.fichas[S.i] = j.ficha; S.edit = null; S.borrador = null; dibujar();
+    } catch (e) { if (msg) msg.textContent = e.message; overlay.querySelectorAll('.fi-ed-acc button').forEach(b => { b.disabled = false; }); }
+  }
   // Una pestaña por cada sección de la ficha original (el Excel de FICHAS TECNICAS), sin mezclar información entre ellas
   function pestanas(f) {
     const cons = S.consumos.find(c => c.ref === f.ref);
@@ -614,7 +659,8 @@
     gen.push(kv('Referencia', (f.referencia || f.ref) + (f.hoja && f.hoja !== f.ref ? ' · ' + f.hoja : '')));
     if (f.familia) gen.push(kv('Línea', f.familia));
     const dGen = desc.filter(d => !dePiezas(d)).map(esc);
-    t.push({ id: 'GENERAL', n: gen.length + dGen.length, u: ['dato', 'datos'], html: lista(gen) + (dGen.length ? sec('Descripción de la prenda') + lista(dGen) : '') + (f.nota ? sec('Nota') + nota(f.nota) : '') });
+    t.push({ id: 'GENERAL', n: gen.length + dGen.length, u: ['dato', 'datos'], html: lista(gen) + (S.edit === 'descripcion' ? editor(f, 'descripcion') : (dGen.length || E.editar ? secEd(f, 'Descripción de la prenda', 'descripcion') + (lista(dGen) || '<p class="fi-vacio">Sin descripción.</p>') : '')) +
+      (S.edit === 'nota' ? editor(f, 'nota') : (f.nota || E.editar ? secEd(f, 'Nota', 'nota') + (f.nota ? nota(f.nota) : '<p class="fi-vacio">Sin nota.</p>') : '')) });
     // PIEZAS: fit de prenda por piezas y qué pieza va en qué material
     const mats = materiales(f), dPz = desc.filter(dePiezas).map(esc);
     t.push({ id: 'PIEZAS', n: mats.reduce((a, m) => a + m.total, 0) || (hayFitReal(f) ? f.fit.imagenes.length : 0), u: ['pieza', 'piezas'], html: mapaTelas(mats, f) + (dPz.length ? sec('Como está en la ficha') + lista(dPz) : '') });
@@ -650,10 +696,10 @@
     t.push({ id: 'INSUMOS', n: ins.length, u: ['insumo', 'insumos'], html: (ins.length ? sec('Insumos de la prenda') + lista(ins) : '') + (mIns.length ? sec('Medidas para insumos (cm)') + selector + rejilla(tIns) : '') });
     // CONFECCIÓN
     const conf = (f.confeccion || []).map(c => kv(c.etiqueta, c.valor));
-    t.push({ id: 'CONFECCIÓN', n: conf.length, u: ['paso', 'pasos'], html: lista(conf) });   // solo informativo: sin casillas para marcar
+    t.push({ id: 'CONFECCIÓN', n: conf.length || (E.editar ? 1 : 0), u: ['paso', 'pasos'], html: S.edit === 'confeccion' ? editor(f, 'confeccion') : (E.editar || (f.editado || {}).confeccion ? secEd(f, 'Confección', 'confeccion') : '') + (lista(conf) || '<p class="fi-vacio">Sin datos de confección.</p>') });   // solo informativo: sin casillas para marcar
     // EMPAQUE: revisión y terminación, y aparte sus insumos
     const term = (f.terminacion || []).map(x => esc(x)), empIns = (f.empaque_insumos || []).map(insumo);
-    t.push({ id: 'EMPAQUE', n: term.length + empIns.length, u: ['punto', 'puntos'], html: (term.length ? sec('Terminación y revisión') + lista(term) : '') + (empIns.length ? sec('Insumos de empaque') + lista(empIns) : '') });
+    t.push({ id: 'EMPAQUE', n: term.length + empIns.length || (E.editar ? 1 : 0), u: ['punto', 'puntos'], html: (S.edit === 'terminacion' ? editor(f, 'terminacion') : (term.length || E.editar ? secEd(f, 'Terminación y revisión', 'terminacion') + (lista(term) || '<p class="fi-vacio">Sin datos de terminación.</p>') : '')) + (empIns.length ? sec('Insumos de empaque') + lista(empIns) : '') });
     return t.filter(x => x.n > 0 || x.id === 'GENERAL');
   }
 
@@ -812,12 +858,19 @@
         if (caja) { caja.hidden = era; if (!era) { caja.innerHTML = infoPieza(S.fichas[S.i], pieza.dataset.fitNombre || '', pieza.dataset.fitEn || '', pieza.dataset.fitHer || '', pieza.dataset.fitMat || ''); caja.style.animation = 'none'; void caja.offsetWidth; caja.style.animation = ''; } }
         return;
       }
+      if ((tab || hoja) && S.edit) { if (!confirm('Estás editando un texto. ¿Salir sin guardar?')) return; S.edit = null; S.borrador = null; }
       if (tab) { S.tab = tab.dataset.fiTab; dibujar(); }
       else if (hoja) { S.i = +hoja.dataset.fiHoja; dibujar(); }
       else if (talla) { S.talla = talla.dataset.fiTalla; dibujar(); }
       else if (abrir_) abrir(abrir_.dataset.fiAbrir);
       else if (e.target.closest('[data-fi-grupo]')) { S.grupo = e.target.closest('[data-fi-grupo]').dataset.fiGrupo; S.talla = ''; dibujar(); }
       else if (e.target.closest('[data-fi-linea]')) { S.linea = e.target.closest('[data-fi-linea]').dataset.fiLinea; dibujar(); }
+      else if (e.target.closest('[data-fi-editar]')) { if (!E.editar) return; S.edit = e.target.closest('[data-fi-editar]').dataset.fiEditar; S.borrador = lineasDe(S.fichas[S.i], S.edit); if (!S.borrador.length) S.borrador = [S.edit === 'confeccion' ? { etiqueta: '', valor: '' } : '']; dibujar(); }
+      else if (e.target.closest('[data-fi-ed-add]')) { S.borrador = leerEditor().concat([S.edit === 'confeccion' ? { etiqueta: '', valor: '' } : '']); dibujar(); const a = overlay.querySelectorAll('.fi-ed-fila [data-ed-va]'); if (a.length) a[a.length - 1].focus(); }
+      else if (e.target.closest('[data-fi-ed-del]')) { const k = +e.target.closest('[data-fi-ed-del]').dataset.fiEdDel; S.borrador = leerEditor().filter((_, i) => i !== k); dibujar(); }
+      else if (e.target.closest('[data-fi-ed-cancelar]')) { S.edit = null; S.borrador = null; dibujar(); }
+      else if (e.target.closest('[data-fi-ed-guardar]')) guardarEditor(leerEditor());
+      else if (e.target.closest('[data-fi-ed-restaurar]')) { if (confirm('¿Quitar la corrección y volver al texto del Excel?')) guardarEditor(null); }
       else if (e.target.closest('[data-fi-imp]')) window.print();
       else if (e.target.closest('[data-fi-nas]')) buscarMockupNas(e.target.closest('[data-fi-nas]').dataset.fiNas, recargar);
       else if (e.target.closest('[data-fi-mock]')) elegirMockup(e.target.closest('[data-fi-mock]').dataset.fiMock);

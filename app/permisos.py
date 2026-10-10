@@ -135,6 +135,16 @@ def administracion_permitido(username: str) -> bool:
     return _plano(_lookup(username)) in _PROCESOS_ADMINISTRACION
 
 
+_EDITAN_FICHAS = {'INDOOR SPORT'}   # cuentas que pueden corregir los textos de las fichas técnicas, además de las de proceso Patronaje
+
+
+def fichas_editar_permitido(username: str) -> bool:
+    """Regla fija: los textos de las fichas técnicas los editan la cuenta «Indoor Sport», las cuentas con proceso Patronaje y la cuenta maestra."""
+    if username == os.getenv('APP_USER', 'indoor') or _plano(username) in _EDITAN_FICHAS:
+        return True
+    return _plano(_lookup(username)) == 'PATRONAJE'
+
+
 def rhumano_permitido(username: str) -> bool:
     """El módulo R.HUMANO (recurso humano) y su submódulo CONTRATOS Y C.LABORAL los ven TODOS los usuarios con sesión (pedido del usuario, 2026-10-09)."""
     return True
@@ -208,7 +218,7 @@ def mis_permisos(request: Request):
         if sin_modulo(usuario, modulo):
             permisos[modulo] = {accion: False for accion in permisos[modulo]}
     return {'usuario': usuario, 'rol': rol, 'rol_nombre': ROLES[rol], 'admin': rol == 'administracion',
-            'tesoreria': tesoreria_permitido(usuario), 'comerciales': comerciales_permitido(usuario), 'rhumano': rhumano_permitido(usuario), 'administracion': administracion_permitido(usuario), 'permisos': permisos}
+            'tesoreria': tesoreria_permitido(usuario), 'comerciales': comerciales_permitido(usuario), 'rhumano': rhumano_permitido(usuario), 'administracion': administracion_permitido(usuario), 'fichas_editar': fichas_editar_permitido(usuario), 'permisos': permisos}
 
 
 # (Se eliminó la pantalla y los endpoints para cambiar la matriz de permisos: rigen los valores por defecto de _defaults().)
