@@ -27,18 +27,18 @@
   @keyframes ftIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
   @keyframes ftPulso{0%,100%{box-shadow:0 0 0 0 var(--c)}50%{box-shadow:0 0 0 7px transparent}}
   .ft-top{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
-  .ft-ban{display:inline-flex;align-items:center;gap:10px;padding:9px 18px;border-radius:999px;font:900 clamp(15px,1.6vw,21px) Arial;letter-spacing:.06em;color:#0b1204;background:var(--c);animation:ftPulso 2.2s ease-in-out infinite}
+  .ft-ban{display:inline-flex;align-items:center;gap:8px;padding:6px 13px;border-radius:999px;font:800 clamp(11px,1vw,13px) Arial;letter-spacing:.06em;color:#0b1204;background:var(--c);animation:ftPulso 2.2s ease-in-out infinite}
   .ft-ban.dos{background:linear-gradient(90deg,var(--c1) 0 50%,var(--c2) 50% 100%)}
-  .ft-sub{color:#aab5a2;font:700 13px Arial;letter-spacing:.04em}
+  .ft-sub{color:#aab5a2;font:600 11.5px Arial;letter-spacing:.03em}
   .ft-barra{display:flex;height:34px;border-radius:10px;overflow:hidden;margin:14px 0 12px;gap:3px}
   .ft-barra i{flex:var(--n);display:flex;align-items:center;justify-content:center;background:var(--c);color:#0b1204;font:900 13px Arial;letter-spacing:.05em;transition:flex .4s}
   .ft-mats{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:14px}
   .ft-mat{border-radius:14px;border:2px solid var(--c);background:color-mix(in srgb,var(--c) 11%,transparent);padding:12px 14px}
-  .ft-mat h4{margin:0;display:flex;align-items:center;gap:10px;font:900 16px Arial;letter-spacing:.05em;color:var(--c)}
-  .ft-mat h4 b{display:inline-grid;place-items:center;min-width:34px;height:34px;border-radius:9px;background:var(--c);color:#0b1204;font-size:15px}
-  .ft-tela{margin:6px 0 10px;color:#e9efe3;font:700 13px Arial;letter-spacing:.03em}
+  .ft-mat h4{margin:0;display:flex;align-items:center;gap:8px;font:800 12.5px Arial;letter-spacing:.05em;color:var(--c)}
+  .ft-mat h4 b{display:inline-grid;place-items:center;min-width:26px;height:26px;border-radius:7px;background:var(--c);color:#0b1204;font-size:12px}
+  .ft-tela{margin:6px 0 10px;color:#e9efe3;font:600 11.5px Arial;letter-spacing:.03em}
   .ft-piezas{display:flex;flex-wrap:wrap;gap:7px}
-  .ft-piezas span{padding:6px 11px;border-radius:999px;background:var(--c);color:#0b1204;font:800 12.5px Arial;letter-spacing:.03em;cursor:default;transition:transform .15s}
+  .ft-piezas span{padding:4px 9px;border-radius:999px;background:var(--c);color:#0b1204;font:700 10.5px Arial;letter-spacing:.03em;cursor:default;transition:transform .15s}
   .ft-piezas span:hover{transform:translateY(-2px) scale(1.05)}
   .ft-piezas em{font-style:normal;opacity:.7;margin-left:5px}
   /* dibujo animado de la prenda */
@@ -73,9 +73,9 @@
   .ft-lbl{fill:#aab5a2;font:800 8px Arial;text-anchor:middle;letter-spacing:.16em}
   .ft-part.sin{--c:#59625a}
   .ft-det{fill:none;stroke:rgba(0,0,0,.45);stroke-width:1.5;stroke-linecap:round;stroke-dasharray:4 3;animation:ftMarcha 1.2s linear infinite}
-  .ft-ico{width:26px;height:26px;flex:0 0 26px}
+  .ft-ico{width:18px;height:18px;flex:0 0 18px}
   .ft-ico *{fill:#0b1204;fill-opacity:.85;stroke:none}
-  .ft-piezas span{display:inline-flex;align-items:center;gap:7px;padding:5px 12px 5px 7px;opacity:0;transform:scale(.6);animation:ftPop .45s cubic-bezier(.2,1.5,.4,1) forwards var(--d)}
+  .ft-piezas span{display:inline-flex;align-items:center;gap:5px;padding:3px 9px 3px 5px;opacity:0;transform:scale(.6);animation:ftPop .45s cubic-bezier(.2,1.5,.4,1) forwards var(--d)}
   @keyframes ftPop{to{opacity:1;transform:none}}
   .ft-leyenda{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
   .ft-leyenda b{display:inline-flex;align-items:center;gap:6px;font:800 11.5px Arial;color:#cfd8c7;letter-spacing:.05em}
@@ -99,7 +99,34 @@
   .ft-flat [data-m]{transition:opacity .25s}
   .fit.fit-movil{min-width:0}.fit-movil .fit-c{font-size:27px}.fit-movil .fit-h{font-size:22px}
   .fit-wrap{overflow-x:auto;border-radius:6px;background:#fff}.fit{display:block;width:100%;min-width:760px;height:auto;font-family:Arial,Helvetica,sans-serif}
-  .fit path{stroke:none}.fit-real text{font-family:Arial,Helvetica,sans-serif}.fit-h{font:700 13px Arial}.fit-c{font:700 15px Arial;fill:#000}
+  .fit path{stroke:none}.fit-real text{font-family:Arial,Helvetica,sans-serif}
+  /* MOLDE DINÁMICO: las piezas reales sobre un escenario con volumen (sombra y brillo en su propia silueta) */
+  .fitd{margin:14px 0 12px}
+  .fitd-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 8px}
+  .fitd-tabs button{width:auto!important;min-height:0!important;display:inline-flex;align-items:center;gap:8px;padding:5px 11px!important;border:1px solid rgba(255,255,255,.16)!important;border-radius:999px!important;background:rgba(255,255,255,.04)!important;color:#c9d3c1!important;font:700 10px Arial!important;letter-spacing:.09em;cursor:pointer;transition:transform .15s,background .15s}
+  .fitd-tabs button:hover{transform:translateY(-1px);background:rgba(255,255,255,.1)!important}
+  .fitd-tabs button b{padding:0 6px;border-radius:99px;background:rgba(255,255,255,.14);font-size:9.5px}
+  .fitd-tabs button[aria-pressed=true]{background:linear-gradient(180deg,#e4ff7a,#a8d42a)!important;border-color:#d7ff3a!important;color:#141c05!important;box-shadow:0 8px 18px -8px rgba(215,255,58,.8)}
+  .fitd-tabs button[aria-pressed=true] b{background:rgba(0,0,0,.18)}
+  .fitd-escena{position:relative;border-radius:18px;border:1px solid rgba(160,220,255,.18);overflow:hidden;background:radial-gradient(120% 90% at 50% 0%,rgba(0,159,227,.20),transparent 60%),radial-gradient(90% 70% at 50% 110%,rgba(182,242,58,.10),transparent 60%),linear-gradient(180deg,#0e1620,#070b10)}
+  .fitd-escena:before{content:'';position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);background-size:34px 34px;mask-image:radial-gradient(80% 80% at 50% 45%,#000,transparent);pointer-events:none}
+  .fitd svg{position:relative;display:block;width:100%;height:auto;max-height:min(62vh,560px);overflow:visible}
+  .fitd .pz{cursor:pointer;transform-box:fill-box;transform-origin:50% 60%;opacity:0;animation:fitdEntra .6s cubic-bezier(.2,1.2,.3,1) forwards var(--d,0s);transition:transform .22s cubic-bezier(.2,1.3,.4,1),filter .22s,opacity .22s}
+  @keyframes fitdEntra{from{opacity:0;transform:translateY(26px) scale(.86)}to{opacity:1;transform:none}}
+  .fitd .pz image{filter:drop-shadow(0 14px 14px rgba(0,0,0,.55)) drop-shadow(0 2px 2px rgba(0,0,0,.5))}
+  .fitd .pz .brillo{mix-blend-mode:soft-light;pointer-events:none}
+  .fitd .pz .chip rect{fill:rgba(8,14,20,.82);stroke:rgba(160,220,255,.35);stroke-width:1;transition:fill .2s,stroke .2s}
+  .fitd .pz .chip text{fill:#e9f4ff;font-family:Arial,Helvetica,sans-serif;font-weight:700;letter-spacing:.03em;transition:fill .2s}
+  .fitd svg:has(.pz:hover) .pz:not(:hover),.fitd svg:has(.pz.sel) .pz:not(.sel):not(:hover){opacity:.38;filter:saturate(.5)}
+  .fitd .pz:hover,.fitd .pz.sel{transform:translateY(-8px) scale(1.045)}
+  .fitd .pz:hover image,.fitd .pz.sel image{filter:drop-shadow(0 22px 20px rgba(0,0,0,.6)) drop-shadow(0 0 14px rgba(0,159,227,.75)) brightness(1.12)}
+  .fitd .pz:hover .chip rect,.fitd .pz.sel .chip rect{fill:#d7ff3a;stroke:#d7ff3a}
+  .fitd .pz:hover .chip text,.fitd .pz.sel .chip text{fill:#141c05}
+  .fitd-pie{display:flex;gap:6px 14px;flex-wrap:wrap;align-items:center;margin:8px 2px 0;color:#8e9a87;font:600 10.5px Arial;letter-spacing:.04em}
+  .fitd-pie b{color:#d7ff3a;font:800 11.5px Arial}.fitd-pie i{font-style:normal;color:#aab5a2}
+  .fitd-nota{margin:6px 2px 0;color:#ffb86b;font:600 11px/1.45 Arial;letter-spacing:.02em}
+  @media(prefers-reduced-motion:reduce){.fitd .pz{animation:none;opacity:1;transition:none}}
+  @media(max-width:700px){.fitd svg{max-height:none}}.fit-h{font:700 13px Arial}.fit-c{font:700 15px Arial;fill:#000}
   .fp-nodo{opacity:0;animation:fpIn .6s cubic-bezier(.2,1.4,.4,1) forwards var(--d);transform-box:fill-box;transform-origin:left center}
   .fp-nodo rect{fill:#0d1409;stroke:var(--c);stroke-width:1.6}
   .fp-nodo .fp-sil *{fill:var(--c);fill-opacity:.9;stroke:rgba(0,0,0,.55);stroke-width:1}
@@ -351,6 +378,71 @@
       '<rect width="' + W + '" height="' + H + '" fill="#fff"/>' + fondos + imgs + rot + '<rect x=".5" y=".5" width="' + (W - 1) + '" height="' + (H - 1) + '" fill="none" stroke="#000"/></svg></div>';
   }
   const hayFitReal = f => !!(f && f.fit && (f.fit.imagenes || []).length);
+  // MOLDE DINÁMICO: mismas piezas y formas del fit real, pero repartidas en moldes (masculino, femenina, niño…) que se ven de a uno, en grande,
+  // con volumen (sombra + brillo recortado por la silueta de la pieza), cada pieza con su nombre y resaltado al pasar o tocar.
+  const esTituloFit = t => /^(FIT|MOLDER[IÍ]A)\b/i.test(String(t || '').trim());
+  const nombreMolde = t => { const x = String(t || '').toUpperCase(); const m = /\(([^)]+)\)\s*$/.exec(x); return (/FORRO/.test(x) ? 'FORRO' : m && /FIT/.test(x) ? m[1] : x.replace(/^FIT DE PRENDA( X PIEZAS)?/, '').replace(/^MOLDER[IÍ]A/, '')).trim() || 'MOLDE'; };
+  function moldesDe(f) {
+    const t = f.fit, titulos = (t.rotulos || []).filter(r => esTituloFit(r.t)).map(r => ({ ...r, nombre: nombreMolde(r.t), imgs: [], labs: [], notas: [] }));
+    if (!titulos.length) titulos.push({ x: 0, y: 0, w: t.w, h: 0, nombre: 'PIEZAS', imgs: [], labs: [], notas: [] });
+    // cada cosa pertenece al título que tiene encima más cerca y que cubre su centro a lo ancho (si ninguno lo cubre, el más cercano a lo ancho)
+    const duenio = (cx, cy) => {
+      const arriba = titulos.filter(T => T.y <= cy + 2);
+      const cubren = arriba.filter(T => cx >= T.x - 4 && cx <= T.x + T.w + 4);
+      const lista = cubren.length ? cubren : (arriba.length ? arriba : titulos);
+      return lista.reduce((a, b) => { const da = (cubren.length ? 0 : Math.abs(cx - (a.x + a.w / 2))) + (cy - a.y) * (cubren.length ? 1 : .2), db = (cubren.length ? 0 : Math.abs(cx - (b.x + b.w / 2))) + (cy - b.y) * (cubren.length ? 1 : .2); return db < da ? b : a; });
+    };
+    (t.imagenes || []).forEach(i => duenio(i.x + i.w / 2, i.y + i.h / 2).imgs.push({ ...i }));
+    (t.rotulos || []).filter(r => !esTituloFit(r.t)).forEach(r => { const T = duenio(r.x + r.w / 2, r.y + r.h / 2); (String(r.t).trim().length > 34 ? T.notas : T.labs).push({ ...r, cx: r.al === 'c' ? r.x + r.w / 2 : r.x + Math.min(r.w, String(r.t).length * r.p * .6) / 2 }); });
+    titulos.forEach(T => {
+      // rótulos en dos renglones («PANTALONETA» / «DERECHA») se unen en uno
+      T.labs.sort((a, b) => a.y - b.y);
+      const unidos = [];
+      T.labs.forEach(b => { const a = unidos.find(u => Math.abs(u.cx - b.cx) < 26 && b.y - (u.y + u.h) < 8 && b.y > u.y); if (a) { a.t += ' ' + b.t; a.h = b.y + b.h - a.y; } else unidos.push({ ...b }); });
+      T.labs = unidos;
+      // cada rótulo va con la pieza que tiene justo encima
+      T.imgs.forEach(i => { i.lab = null; });
+      T.labs.forEach(L => {
+        let mejor = null, dm = 1e9;
+        T.imgs.forEach(i => { if (i.lab) return; const dx = Math.max(0, i.x - L.cx, L.cx - (i.x + i.w)), dy = L.y - (i.y + i.h); const d = Math.abs(dy) + dx * 2; if (dy > -i.h * .45 && dy < 110 && dx < 40 && d < dm) { dm = d; mejor = i; } });
+        if (mejor) mejor.lab = L; else L.suelto = true;
+      });
+    });
+    return titulos.filter(T => T.imgs.length);
+  }
+  function fitDinamico(f) {
+    const moldes = moldesDe(f);
+    if (!moldes.length) return fitReal(f);
+    let k = moldes.findIndex(m => m.nombre === S.molde); if (k < 0) k = 0;
+    const completo = S.molde === '__todo';
+    const M = moldes[k];
+    const tabs = '<div class="fitd-tabs">' + moldes.map((m, i) => '<button type="button" aria-pressed="' + (!completo && i === k) + '" data-fit-molde="' + esc(m.nombre) + '">' + esc(m.nombre) + ' <b>' + m.imgs.length + '</b></button>').join('') +
+      '<button type="button" aria-pressed="' + completo + '" data-fit-molde="__todo" title="El recuadro completo, como está en el Excel">HOJA COMPLETA</button></div>';
+    if (completo) return '<div class="fitd">' + tabs + fitReal(f) + '</div>';
+    // caja del molde elegido (piezas + rótulos) con margen para la sombra y el realce
+    const cajas = M.imgs.map(i => [i.x, i.y, i.x + i.w, i.y + i.h]).concat(M.labs.map(L => { const medio = String(L.t).length * 4.8 + 12; return [L.cx - medio, L.y, L.cx + medio, L.y + L.h + 8]; }));   // el chip del rótulo es más ancho que su celda
+    const x0 = Math.min(...cajas.map(c => c[0])) - 30, y0 = Math.min(...cajas.map(c => c[1])) - 30, x1 = Math.max(...cajas.map(c => c[2])) + 30, y1 = Math.max(...cajas.map(c => c[3])) + 52;
+    const W = x1 - x0, H = y1 - y0, uid = 'fd' + String(f.id).replace(/[^a-z0-9]/gi, '') + k;
+    const tam = Math.max(9.5, Math.min(14, W / 100));   // letra de los rótulos: pequeña y proporcional al molde
+    const chip = (L, cx, y) => { const txt = String(L.t).replace(/\s+/g, ' ').trim(), w = txt.length * tam * .62 + 16, h = tam + 8; return '<g class="chip"><rect x="' + (cx - w / 2).toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + w.toFixed(1) + '" height="' + h + '" rx="' + (h / 2) + '"/><text x="' + cx.toFixed(1) + '" y="' + (y + h / 2 + tam * .35).toFixed(1) + '" font-size="' + tam + '" text-anchor="middle">' + esc(txt) + '</text></g>'; };
+    const orden = M.imgs.slice().sort((a, b) => b.w * b.h - a.w * a.h);   // las piezas grandes al fondo, las pequeñas encima
+    let defs = '<linearGradient id="' + uid + 'g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".85"/><stop offset=".45" stop-color="#fff" stop-opacity=".08"/><stop offset="1" stop-color="#000" stop-opacity=".55"/></linearGradient>', piezas = '';
+    const puestos = [];
+    const lugar = (L, cx, y) => { const w = String(L.t).replace(/\s+/g, ' ').trim().length * tam * .62 + 16, h = tam + 8; let yy = y, n = 0; while (n++ < 4 && puestos.some(q => Math.abs(q.cx - cx) < (q.w + w) / 2 + 4 && Math.abs(q.y - yy) < h + 2)) yy += h + 3; puestos.push({ cx, y: yy, w }); return yy; };
+    orden.slice().sort((a, b) => a.x - b.x).forEach(i => { if (i.lab) { i.chipCx = Math.max(i.x, Math.min(i.x + i.w, i.lab.cx)); i.chipY = lugar(i.lab, i.chipCx, Math.max(i.y + i.h + 6, i.lab.y)); } });
+    orden.forEach((i, n) => {
+      const url = img(f.id, i.a), mid = uid + 'm' + n;
+      defs += '<mask id="' + mid + '" style="mask-type:alpha" maskUnits="userSpaceOnUse" x="' + i.x + '" y="' + i.y + '" width="' + i.w + '" height="' + i.h + '"><image href="' + url + '" x="' + i.x + '" y="' + i.y + '" width="' + i.w + '" height="' + i.h + '" preserveAspectRatio="none"/></mask>';
+      piezas += '<g class="pz" style="--d:' + (0.05 + n * 0.045).toFixed(2) + 's" data-fit-pz="' + n + '"' + (i.lab ? ' aria-label="' + esc(i.lab.t) + '"' : '') + '><image href="' + url + '" x="' + i.x + '" y="' + i.y + '" width="' + i.w + '" height="' + i.h + '" preserveAspectRatio="none"/>' +
+        '<rect class="brillo" x="' + i.x + '" y="' + i.y + '" width="' + i.w + '" height="' + i.h + '" fill="url(#' + uid + 'g)" mask="url(#' + mid + ')"/>' +
+        (i.lab ? chip(i.lab, i.chipCx, i.chipY) : '') + '</g>';
+    });
+    const sueltos = M.labs.filter(L => L.suelto).map(L => '<g class="pz" style="--d:.3s">' + chip(L, L.cx, L.y) + '</g>').join('');
+    const nombres = [...new Set(M.imgs.filter(i => i.lab).map(i => String(i.lab.t).replace(/\s+/g, ' ').trim()))];
+    return '<div class="fitd">' + tabs + '<div class="fitd-escena"><svg viewBox="' + x0.toFixed(1) + ' ' + y0.toFixed(1) + ' ' + W.toFixed(1) + ' ' + H.toFixed(1) + '" role="img" aria-label="Molde ' + esc(M.nombre) + ' de ' + esc(f.ref) + '"><defs>' + defs + '</defs>' + piezas + sueltos + '</svg></div>' +
+      '<div class="fitd-pie"><span><b>' + M.imgs.length + '</b> piezas en el molde ' + esc(M.nombre) + '</span>' + (nombres.length ? '<i>' + nombres.map(esc).join(' · ') + '</i>' : '') + '<span>Pasa el cursor o toca una pieza para resaltarla</span></div>' +
+      M.notas.map(n => '<p class="fitd-nota">⚠ ' + esc(n.t) + '</p>').join('') + '</div>';
+  }
   function iconoFila(p, i, color) { return '<span style="--d:' + (0.4 + i * 0.12).toFixed(2) + 's">' + icono(p.n) + esc(p.n) + (p.c > 1 ? '<em>×' + p.c + '</em>' : '') + '</span>'; }
   function materiales(f) {
     const texto = (f.descripcion || []).map(d => (d && d.texto) || d).filter(d => /\bM\d\s*[:\-]/i.test(d)).join(' || ');
@@ -380,13 +472,13 @@
     return mats;
   }
   function mapaTelas(mats, f) {
-    if (!mats.length) return hayFitReal(f) ? '<div class="ft">' + fitReal(f) + '</div>' : '';
+    if (!mats.length) return hayFitReal(f) ? '<div class="ft">' + fitDinamico(f) + '</div>' : '';
     const uno = mats.length === 1;
     const ban = uno
       ? '<span class="ft-ban" style="--c:' + mats[0].color + '">● UN SOLO MATERIAL · TODO EN ' + mats[0].id + '</span>'
       : '<span class="ft-ban dos" style="--c1:' + mats[0].color + ';--c2:' + mats[1].color + '">● ' + (mats.length === 2 ? 'DOS' : mats.length) + ' MATERIALES · NO TODO VA EN LA MISMA TELA</span>';
     return '<div class="ft"><div class="ft-top">' + ban + '<span class="ft-sub">' + (uno ? 'Todas las piezas se cortan de la misma tela' : 'Separa las piezas por color de material') + '</span></div>' +
-      (hayFitReal(f) ? fitReal(f) : fitPiezas(mats)) + '<div class="ft-mats">' + mats.map(x => '<div class="ft-mat" data-m="' + x.id + '" style="--c:' + x.color + '"><h4><b>' + x.id + '</b>MATERIAL ' + x.id.slice(1) + '</h4><p class="ft-tela">' + esc(x.tela || 'Tela por definir en la ficha') + '</p><div class="ft-piezas">' +
+      (hayFitReal(f) ? fitDinamico(f) : fitPiezas(mats)) + '<div class="ft-mats">' + mats.map(x => '<div class="ft-mat" data-m="' + x.id + '" style="--c:' + x.color + '"><h4><b>' + x.id + '</b>MATERIAL ' + x.id.slice(1) + '</h4><p class="ft-tela">' + esc(x.tela || 'Tela por definir en la ficha') + '</p><div class="ft-piezas">' +
         x.piezas.map((p, i) => iconoFila(p, i)).join('') + '</div></div>').join('') + '</div></div>';
   }
   // Una pestaña por cada sección de la ficha original (el Excel de FICHAS TECNICAS), sin mezclar información entre ellas
@@ -600,6 +692,9 @@
     overlay.addEventListener('click', e => {
       if (e.target === overlay || e.target.closest('.li-close')) { cerrar(); return; }
       const tab = e.target.closest('[data-fi-tab]'), hoja = e.target.closest('[data-fi-hoja]'), talla = e.target.closest('[data-fi-talla]'), abrir_ = e.target.closest('[data-fi-abrir]');
+      const molde = e.target.closest('[data-fit-molde]'), pieza = e.target.closest('[data-fit-pz]');
+      if (molde) { S.molde = molde.dataset.fitMolde; dibujar(); return; }
+      if (pieza) { const era = pieza.classList.contains('sel'); pieza.closest('svg').querySelectorAll('.pz.sel').forEach(x => x.classList.remove('sel')); if (!era) pieza.classList.add('sel'); return; }
       if (tab) { S.tab = tab.dataset.fiTab; dibujar(); }
       else if (hoja) { S.i = +hoja.dataset.fiHoja; dibujar(); }
       else if (talla) { S.talla = talla.dataset.fiTalla; dibujar(); }
