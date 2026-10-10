@@ -118,6 +118,8 @@
   .fi-ed.sucio{border-color:rgba(208,244,76,.4);border-left-color:#d0f44c;background:rgba(208,244,76,.05)}
   .fi-ed-aviso{display:none;color:#d0f44c;font:800 10.5px Arial;letter-spacing:.04em}.fi-ed.sucio .fi-ed-aviso{display:inline}
   .fi-ed:not(.sucio) .fi-ed-acc button.pri{background:transparent!important;border-color:rgba(255,255,255,.18)!important;color:#8e9a87!important}.fi-ed:not(.sucio) .fi-ed-acc button.des{display:none}
+  .fi-libre{margin:8px 0 14px;padding:10px 13px;border-left:3px solid rgba(208,244,76,.5);border-radius:0 10px 10px 0;background:rgba(255,255,255,.03);color:#dfe7d6;font:400 13.5px/1.6 Arial;white-space:pre-wrap;overflow-wrap:anywhere}
+  @media print{.fi-libre{color:#000!important}}
   .fi-ed-ok{color:#b9e86a;font:700 11.5px Arial}
   .fi-desbloq{display:flex;gap:10px 14px;align-items:center;justify-content:space-between;flex-wrap:wrap;position:sticky;top:0;z-index:5;backdrop-filter:blur(8px);background:rgba(20,28,16,.92)!important}
   .fi-desbloq-acc{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
@@ -657,10 +659,11 @@
   const AYUDA_TALLAS = 'Una fila por tabla. Escribe las tallas y sus valores separados por espacios y en el mismo orden (usa un guion «-» donde no haya valor).';
   const ED = {
     prenda: { t: 'Nombre de la prenda', tipo: 'texto' }, referencia: { t: 'Referencia', tipo: 'texto' }, familia: { t: 'Línea', tipo: 'texto' }, nota: { t: 'Nota', tipo: 'texto' }, nota_promedio: { t: 'Nota del promedio', tipo: 'texto' }, composicion: { t: 'Composición de la tela', tipo: 'texto' },
+    libre_general: { t: 'Especificaciones adicionales', tipo: 'lista', mas: '+ Agregar especificación', ayuda: 'Agrega aquí lo que quieras, escrito libremente: cada línea es una especificación nueva.' }, libre_piezas: { t: 'Especificaciones adicionales', tipo: 'lista', mas: '+ Agregar especificación', ayuda: 'Agrega aquí lo que quieras, escrito libremente: cada línea es una especificación nueva.' }, libre_tela: { t: 'Especificaciones adicionales', tipo: 'lista', mas: '+ Agregar especificación', ayuda: 'Agrega aquí lo que quieras, escrito libremente: cada línea es una especificación nueva.' }, libre_medidas: { t: 'Especificaciones adicionales', tipo: 'lista', mas: '+ Agregar especificación', ayuda: 'Agrega aquí lo que quieras, escrito libremente: cada línea es una especificación nueva.' }, libre_insumos: { t: 'Especificaciones adicionales', tipo: 'lista', mas: '+ Agregar especificación', ayuda: 'Agrega aquí lo que quieras, escrito libremente: cada línea es una especificación nueva.' }, libre_confeccion: { t: 'Especificaciones adicionales', tipo: 'lista', mas: '+ Agregar especificación', ayuda: 'Agrega aquí lo que quieras, escrito libremente: cada línea es una especificación nueva.' }, libre_empaque: { t: 'Especificaciones adicionales', tipo: 'lista', mas: '+ Agregar especificación', ayuda: 'Agrega aquí lo que quieras, escrito libremente: cada línea es una especificación nueva.' },
     descripcion: { t: 'Descripción', tipo: 'lista', ayuda: 'Aquí están todas las líneas de la descripción, también las de materiales («M1: FRENTE X1, …»): de esas líneas salen las piezas y los colores del molde.' },
     terminacion: { t: 'Terminación y revisión', tipo: 'lista' },
     confeccion: { t: 'Confección', cols: [['etiqueta', 'Rótulo (MÁQUINA, AGUJA…)', 1], ['valor', 'Texto', 3]] },
-    especificaciones: { t: 'Especificaciones adicionales', cols: [['etiqueta', 'Nombre de la especificación', 1], ['valor', 'Detalle', 3]], ayuda: 'Agrega aquí cualquier dato que la ficha no tenga: cada fila es una especificación nueva.' },
+    especificaciones: { t: 'Datos adicionales (nombre y detalle)', cols: [['etiqueta', 'Nombre de la especificación', 1], ['valor', 'Detalle', 3]], ayuda: 'Agrega aquí cualquier dato que la ficha no tenga: cada fila es una especificación nueva.' },
     telas: { t: 'Telas recomendadas', cols: [['material', 'Material (M1, M2…)', 1], ['tela', 'Tela', 3]] },
     promedios: { t: 'Promedio de la ficha', cols: [['nombre', 'Nombre (PROMEDIO M1)', 2], ['masc', 'Masculino', 1], ['feme', 'Femenino', 1], ['nino', 'Niño', 1]] },
     insumos: { t: 'Insumos de la prenda', cols: COLS_INSUMO }, empaque_insumos: { t: 'Insumos de empaque', cols: COLS_INSUMO },
@@ -699,9 +702,9 @@
       : '<input type="text" maxlength="300" data-ed-col="' + c[0] + '" placeholder="' + esc(c[1]) + '" title="' + esc(c[1]) + '" value="' + esc(x[c[0]]) + '">';
     return '<p class="fi-sec">' + d.t + (e ? '<span class="fi-edmarca">corregido por ' + esc(e.por) + ' · ' + esc(e.fecha) + '</span>' : '') + '</p>' + (d.ayuda ? '<p class="fi-obs" style="margin:0 0 6px">' + d.ayuda + '</p>' : '') +
       '<div class="fi-ed' + (pend ? ' sucio' : '') + '" data-fi-ed="' + sec + '">' + filas.map((x, i) => '<div class="fi-ed-fila' + (d.cols ? ' tabla' : '') + '"' + (d.cols ? ' style="--cols:' + plantilla + '"' : '') + '><b>' + (d.tipo === 'texto' ? '' : pad(i + 1)) + '</b>' +
-        (d.cols ? d.cols.map(c => campo(x, c)).join('') : '<textarea rows="' + (d.tipo === 'texto' ? 2 : 2) + '" maxlength="600" data-ed-va placeholder="' + (d.tipo === 'texto' ? 'Escribe aquí' : 'Texto de la línea') + '">' + esc(x) + '</textarea>') +
+        (d.cols ? d.cols.map(c => campo(x, c)).join('') : '<textarea rows="2" maxlength="600" data-ed-va placeholder="' + (d.tipo === 'texto' ? 'Escribe aquí' : d.mas ? 'Escribe la especificación' : 'Texto de la línea') + '">' + esc(x) + '</textarea>') +
         (d.tipo === 'texto' ? '<i></i>' : '<button type="button" data-fi-ed-del="' + i + '" title="Quitar esta fila">×</button>') + '</div>').join('') +
-      '<div class="fi-ed-acc">' + (d.tipo === 'texto' ? '' : '<button type="button" data-fi-ed-add>+ Agregar ' + (d.cols ? 'fila' : 'línea') + '</button>') + '<button type="button" class="pri" data-fi-ed-guardar>Guardar</button><button type="button" class="des" data-fi-ed-cancelar title="Descarta lo escrito y vuelve a lo guardado">Deshacer</button>' +
+      '<div class="fi-ed-acc">' + (d.tipo === 'texto' ? '' : '<button type="button" data-fi-ed-add>' + (d.mas || '+ Agregar ' + (d.cols ? 'fila' : 'línea')) + '</button>') + '<button type="button" class="pri" data-fi-ed-guardar>Guardar</button><button type="button" class="des" data-fi-ed-cancelar title="Descarta lo escrito y vuelve a lo guardado">Deshacer</button>' +
       (e ? '<button type="button" data-fi-ed-restaurar title="Quita la corrección y vuelve a lo que dice el Excel">Restaurar el del Excel</button>' : '') + '<span class="fi-ed-aviso">● sin guardar</span><span class="fi-ed-msg" data-fi-ed-msg></span></div></div>';
   }
   async function enviar(f, sec, lineas) {
@@ -735,6 +738,8 @@
     const cons = S.consumos.find(c => c.ref === f.ref);
     const t = [], sec = x => '<p class="fi-sec">' + x + '</p>', nota = x => '<p class="fi-obs" style="margin:10px 0 0">' + esc(x) + '</p>';
     // una sección: su contenido, o su editor si se está corrigiendo; quien puede editar la ve aunque esté vacía (para poder llenarla)
+    const libre = k => { const v = (f['libre_' + k] || []).map(x => esc(String(x))); return E.editar ? editor(f, 'libre_' + k) : (v.length ? secEd(f, 'Especificaciones adicionales', 'libre_' + k) + lista(v) : ''); };
+    const hayL = k => (f['libre_' + k] || []).length;
     const bloque = (clave, titulo, contenido, vacio) => E.editar ? editor(f, clave) : (contenido || (f.editado || {})[clave] ? secEd(f, titulo, clave) + (contenido || '<p class="fi-vacio">' + (vacio || 'Sin información.') + '</p>') : '');
     const desc = (f.descripcion || []).map(d => String((d && d.texto) || d)), dePiezas = d => /\bM\d\s*(?:\([^)]*\))?\s*[:\-]/i.test(d);
     const insumo = i => '<strong>' + esc(i.nombre) + '</strong> · ' + esc([i.tipo, i.color, i.medida].filter(Boolean).join(' · ')) + (i.cant ? ' · ×' + esc(i.cant) : '') + (i.observacion ? '<span class="fi-obs">' + esc(i.observacion) + '</span>' : '');
@@ -760,11 +765,11 @@
       (E.editar ? bloque('referencia', 'Referencia', nota(f.referencia || f.ref), '') : '') +
       (E.editar ? bloque('familia', 'Línea', f.familia ? nota(f.familia) : '', 'Sin línea.') : '') +
       bloque('descripcion', 'Descripción de la prenda', lista(dGen), 'Sin descripción.') +
-      bloque('especificaciones', 'Especificaciones adicionales', lista(espec), 'Todavía no hay especificaciones adicionales. Con «Editar» puedes agregar las que hagan falta.') +
-      bloque('nota', 'Nota', f.nota ? nota(f.nota) : '', 'Sin nota.') });
+      bloque('especificaciones', 'Datos adicionales', lista(espec), '') +
+      bloque('nota', 'Nota', f.nota ? nota(f.nota) : '', 'Sin nota.') + libre('general') });
     // PIEZAS: fit de prenda por piezas y qué pieza va en qué material
     const mats = materiales(f), dPz = desc.filter(dePiezas).map(esc);
-    t.push({ id: 'PIEZAS', n: mats.reduce((a, m) => a + m.total, 0) || (hayFitReal(f) ? f.fit.imagenes.length : 0), u: ['pieza', 'piezas'], html: mapaTelas(mats, f) + (dPz.length ? sec('Como está en la ficha') + lista(dPz) : '') });
+    t.push({ id: 'PIEZAS', n: mats.reduce((a, m) => a + m.total, 0) || (hayFitReal(f) ? f.fit.imagenes.length : 0), u: ['pieza', 'piezas'], html: mapaTelas(mats, f) + (dPz.length ? sec('Como está en la ficha') + lista(dPz) : '') + libre('piezas') });
     // TELA Y CONSUMO: telas recomendadas, promedio de la ficha y consumo por talla del maestro
     const telas = (f.telas || []).map(x => kv('Tela ' + x.material, x.tela));
     const prom = (f.promedios || []).map(p => kv(p.nombre, Object.entries(p.valores || {}).map(([k, v]) => (NOMBRE[k] || k) + ' ' + v).join(' · ') + ' MTS'));
@@ -775,7 +780,7 @@
       bloque('composicion', 'Composición de la tela', f.composicion ? nota(f.composicion) : '', 'Sin composición.') +
       bloque('promedios', 'Promedio de la ficha', lista(prom), 'Sin promedio.') +
       bloque('nota_promedio', 'Nota del promedio', f.nota_promedio ? nota(f.nota_promedio) : '', 'Sin nota.') +
-      (hayCons ? sec('Consumo por talla · maestro') + selector + rejilla(tCons) + nota('Promedio del maestro: ' + cons.promedio + ' MTS' + ((cons.plantillas || []).length ? ' · Plantillas: ' + cons.plantillas.join(', ') : '')) : '') });
+      (hayCons ? sec('Consumo por talla · maestro') + selector + rejilla(tCons) + nota('Promedio del maestro: ' + cons.promedio + ' MTS' + ((cons.plantillas || []).length ? ' · Plantillas: ' + cons.plantillas.join(', ') : '')) : '') + libre('tela') });
     // MEDIDAS: prenda terminada por talla
     const tMed = [], notasMed = [];
     let nMed = 0;
@@ -786,7 +791,7 @@
       if (g.nota && !notasMed.includes(g.nota)) notasMed.push(g.nota);
       if (enGrupo(g.tallas)) tMed.push('<div class="fi-bloque"><p class="fi-titulo">' + esc(String(g.titulo || '').replace(/^MEDIDAS TALLAJE\s*/i, '')) + ' (cm)</p>' + tablaMedidas(g.tallas, filas, S.talla) + '</div>');
     });
-    t.push({ id: 'MEDIDAS', n: nMed, u: ['tabla', 'tablas'], html: bloque('tallajes', 'Medidas de la prenda terminada', nMed ? selector + rejilla(tMed) + notasMed.map(nota).join('') : '', 'Esta referencia no tiene medidas registradas.') });
+    t.push({ id: 'MEDIDAS', n: nMed, u: ['tabla', 'tablas'], html: bloque('tallajes', 'Medidas de la prenda terminada', nMed ? selector + rejilla(tMed) + notasMed.map(nota).join('') : '', 'Esta referencia no tiene medidas registradas.') + libre('medidas') });
     // INSUMOS: lo que lleva la prenda y las medidas de cada insumo
     const ins = (f.insumos || []).map(insumo);
     let insAnt = '';   // un título sin llenar en el Excel («MEDIDA XXXX FEMENINO») es del mismo insumo que la tabla anterior
@@ -797,14 +802,15 @@
     });
     const tIns = mIns.filter(m => enGrupo(m.tallas)).map(m => '<div class="fi-bloque"><p class="fi-titulo">' + esc(m.tit) + '</p>' + tablaMedidas(m.tallas, [['Medida', m.medidas || []]], S.talla) + '</div>');
     t.push({ id: 'INSUMOS', n: ins.length + mIns.length, u: ['insumo o tabla', 'insumos y tablas'], html: bloque('insumos', 'Insumos de la prenda', lista(ins), 'Sin insumos registrados.') +
-      bloque('medidas_insumos', 'Medidas para insumos (cm)', mIns.length ? selector + rejilla(tIns) : '', 'Sin medidas de insumos.') });
+      bloque('medidas_insumos', 'Medidas para insumos (cm)', mIns.length ? selector + rejilla(tIns) : '', 'Sin medidas de insumos.') + libre('insumos') });
     // CONFECCIÓN (solo informativo: sin casillas para marcar)
     const conf = (f.confeccion || []).map(c => kv(c.etiqueta, c.valor));
-    t.push({ id: 'CONFECCIÓN', n: conf.length, u: ['paso', 'pasos'], html: bloque('confeccion', 'Confección', lista(conf), 'Sin datos de confección.') || lista(conf) });
+    t.push({ id: 'CONFECCIÓN', n: conf.length, u: ['paso', 'pasos'], html: (bloque('confeccion', 'Confección', lista(conf), 'Sin datos de confección.') || lista(conf)) + libre('confeccion') });
     // EMPAQUE: revisión y terminación, y aparte sus insumos
     const term = (f.terminacion || []).map(x => esc(x)), empIns = (f.empaque_insumos || []).map(insumo);
-    t.push({ id: 'EMPAQUE', n: term.length + empIns.length, u: ['punto', 'puntos'], html: bloque('terminacion', 'Terminación y revisión', lista(term), 'Sin datos de terminación.') + bloque('empaque_insumos', 'Insumos de empaque', lista(empIns), 'Sin insumos de empaque.') });
-    return t.filter(x => x.n > 0 || x.id === 'GENERAL' || E.editar);   // quien puede editar ve todas las pestañas, también las vacías, para poder llenarlas
+    t.push({ id: 'EMPAQUE', n: term.length + empIns.length, u: ['punto', 'puntos'], html: bloque('terminacion', 'Terminación y revisión', lista(term), 'Sin datos de terminación.') + bloque('empaque_insumos', 'Insumos de empaque', lista(empIns), 'Sin insumos de empaque.') + libre('empaque') });
+    const claveL = { 'GENERAL': 'general', 'PIEZAS': 'piezas', 'TELA Y CONSUMO': 'tela', 'MEDIDAS': 'medidas', 'INSUMOS': 'insumos', 'CONFECCIÓN': 'confeccion', 'EMPAQUE': 'empaque' };
+    return t.filter(x => x.n > 0 || x.id === 'GENERAL' || E.editar || hayL(claveL[x.id]));   // quien puede editar ve todas las pestañas, también las vacías, para poder llenarlas
   }
 
   // ---------------------------------------------------------------- buscador de mockups en el NAS (carpeta CLIENTES)

@@ -58,6 +58,8 @@ SECCIONES = {
     'confeccion': ('etiqueta', 'valor'), 'especificaciones': ('etiqueta', 'valor'), 'telas': ('material', 'tela'),
     'promedios': ('nombre', 'masc', 'feme', 'nino'), 'insumos': _INSUMO, 'empaque_insumos': _INSUMO,
     'tallajes': ('titulo', 'tallas', 'ancho', 'alto', 'largo'), 'medidas_insumos': ('titulo', 'tallas', 'medidas'),
+    # especificaciones libres de cada pestaña: líneas que se agregan abiertamente, sin formato fijo (como las características de «Líneas de producto»)
+    **{'libre_' + x: 'lista' for x in ('general', 'piezas', 'tela', 'medidas', 'insumos', 'confeccion', 'empaque')},
 }
 
 
