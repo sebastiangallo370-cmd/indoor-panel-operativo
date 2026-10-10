@@ -877,6 +877,29 @@
         if (['REFERENCIA', 'MAQUINA', 'CANTIDAD'].includes(key(item.querySelector('dt')?.textContent))) facts.appendChild(item);
       });
       (body.querySelector('.trace-mts-row') || body.querySelector('.trace-project')).after(facts);
+      // HORA INICIO y HORA FINAL del proceso en contexto (las columnas del Sheet), debajo de la cantidad. Si ese proceso no lleva horas, las del último que sí las tenga.
+      {
+        const horasDe = group => {
+          if (!group) return null;
+          const hi = (group.columns || []).find(i => key(productionData.headers[i]) === 'HORA INICIO'), hf = (group.columns || []).find(i => key(productionData.headers[i]) === 'HORA FINAL');
+          if (hi === undefined && hf === undefined) return null;
+          return { label: group.label, ini: hi === undefined ? '' : String(row.values[hi] || '').trim(), fin: hf === undefined ? '' : String(row.values[hf] || '').trim() };
+        };
+        let horas = horasDe(activeGroup);
+        if (!horas) { const conHora = (progressSummary.groups || []).map(horasDe).filter(h => h && (h.ini || h.fin)); horas = conHora[conHora.length - 1] || null; }
+        if (horas) {
+          const min = v => { const m = /^(\d{1,2}):(\d{2})/.exec(v); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
+          const a = min(horas.ini), b = min(horas.fin); let dur = a !== null && b !== null ? b - a : null; if (dur !== null && dur < 0) dur += 1440;
+          const und = parseInt(String(traceField(row, 'CANTIDAD') || '').replace(/[^0-9]/g, ''), 10) || 0;
+          const durTxt = dur === null || dur > 720 ? '' : (dur >= 60 ? Math.floor(dur / 60) + ' h ' + (dur % 60) + ' min' : dur + ' min');
+          const caja = document.createElement('div');
+          caja.className = 'trace-horas' + (horas.ini && !horas.fin ? ' en-curso' : '');
+          caja.title = 'Horas del proceso ' + horas.label + (durTxt && und ? ' · ' + (dur / und >= 1 ? (Math.round(dur / und * 10) / 10).toLocaleString('es-CO') + ' min' : Math.round(dur / und * 60) + ' s') + ' por unidad' : '');
+          caja.title += (durTxt ? ' · duró ' + durTxt : horas.ini && !horas.fin ? ' · en curso' : '');
+          caja.innerHTML = '<span><small>INICIO</small><b>' + esc(horas.ini || '—') + '</b></span><span><small>FINAL</small><b>' + esc(horas.fin || '—') + '</b></span>';
+          facts.appendChild(caja);
+        }
+      }
       disclosure.className = 'trace-disclosure';
       disclosure.id = 'trace-disclosure-' + row.source_row;
       body.querySelectorAll(':scope > .trace-manufacture,:scope > dl:not(.trace-primary-facts),:scope > .trace-card-meta').forEach(item => disclosure.appendChild(item));
@@ -1150,7 +1173,7 @@
     + '.trace-order-pause{border-color:#ff8a80!important;color:#ffb3ad!important}'
     + '.trace-order-resume{border-color:#79d66f!important;color:#c9f7c3!important;background:#1d4922!important}';
   document.head.appendChild(pauseStyle);
-  const inventoryQuickStyle = document.createElement('style'); inventoryQuickStyle.textContent = '.trace-mts-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.trace-mts-inventory{width:auto!important;min-height:32px;padding:7px 10px;border:1px solid #6ca8c7!important;border-radius:8px;background:#19303b!important;color:#c3edff!important;font:800 10px Arial!important}'; document.head.appendChild(inventoryQuickStyle);
+  const inventoryQuickStyle = document.createElement('style'); inventoryQuickStyle.textContent = '.trace-card .trace-primary-facts .trace-horas{grid-column:1/-1;display:flex;justify-content:flex-end;gap:8px;margin-top:-2px}.trace-horas span{display:flex;align-items:baseline;gap:6px;min-width:74px;justify-content:space-between;padding:4px 9px;border:1px solid rgba(255,255,255,.14);border-radius:8px;background:rgba(255,255,255,.03)}.trace-horas small{color:#8e9c8f;font:800 8.5px Arial;letter-spacing:.08em}.trace-horas b{color:#f1f7ed;font:800 12.5px Arial}.trace-horas.en-curso span:first-child{border-color:rgba(208,244,76,.55)}.trace-horas.en-curso span:first-child b{color:#d0f44c}.trace-mts-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.trace-mts-inventory{width:auto!important;min-height:32px;padding:7px 10px;border:1px solid #6ca8c7!important;border-radius:8px;background:#19303b!important;color:#c3edff!important;font:800 10px Arial!important}'; document.head.appendChild(inventoryQuickStyle);
   traceCards.addEventListener('click', event => {
     const button = event.target.closest('[data-card-nas]');
     if (!button) return;

@@ -278,8 +278,50 @@
     }
   }
 
+  // ---- TIEMPO POR UNIDAD (real): minutos por prenda en cada área, con la HORA INICIO y la HORA FINAL que ya están registradas en el Sheet ----
+  // Las filas de una misma orden que empezaron a la misma hora son un solo lote (se trabajaron juntas): duración del lote ÷ unidades del lote.
+  function unitTimes(data) {
+    const headers = data.headers || [], flow = typeof indoorProcessFlow !== 'undefined' ? indoorProcessFlow : [];
+    const deProceso = new Set(flow.flatMap(p => p.headers)), iOrden = headers.findIndex(h => key(h) === 'ORDEN'), iCant = headers.findIndex(h => key(h) === 'CANTIDAD');
+    const mins = v => { const m = /^\s*(\d{1,2}):(\d{2})/.exec(String(v == null ? '' : v)); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
+    const mediana = l => { const o = l.slice().sort((x, y) => x - y); return o.length ? (o.length % 2 ? o[(o.length - 1) / 2] : (o[o.length / 2 - 1] + o[o.length / 2]) / 2) : null; };
+    const out = [];
+    flow.forEach(p => {
+      const inicio = p.headers.map(h => headers.findIndex(x => key(x) === h)).filter(i => i >= 0).sort((x, y) => x - y)[0];
+      if (inicio === undefined) return;
+      let hi = -1, hf = -1;
+      for (let i = inicio + 1; i < Math.min(headers.length, inicio + 7); i++) { const k = key(headers[i]); if (deProceso.has(k) && !p.headers.includes(k)) break; if (k === 'HORA INICIO' && hi < 0) hi = i; if (k === 'HORA FINAL' && hf < 0) hf = i; }
+      if (hi < 0 || hf < 0) return;   // esta área no lleva horas en el Sheet
+      const lotes = new Map();
+      (data.rows || []).forEach(row => {
+        const v = row.values || [], a = mins(v[hi]), b = mins(v[hf]), und = parseInt(String(v[iCant] == null ? '' : v[iCant]).replace(/[^0-9]/g, ''), 10) || 0;
+        if (a === null || b === null || !und) return;
+        const k = key(v[iOrden]) + '|' + a, l = lotes.get(k) || { ini: a, fin: b, und: 0 };
+        l.fin = Math.max(l.fin, b); l.und += und; lotes.set(k, l);
+      });
+      let minutos = 0, unidades = 0, descartados = 0; const porUnd = [], duraciones = [];
+      lotes.forEach(l => { let d = l.fin - l.ini; if (d < 0) d += 1440; if (d <= 0 || d > 720) { descartados++; return; } minutos += d; unidades += l.und; porUnd.push(d / l.und); duraciones.push(d); });
+      out.push({ label: p.label, lotes: duraciones.length, unidades, minutos, porUnidad: unidades ? minutos / unidades : null, tipico: mediana(porUnd), lote: mediana(duraciones), rapido: porUnd.length ? Math.min(...porUnd) : null, lento: porUnd.length ? Math.max(...porUnd) : null, descartados });
+    });
+    return out;
+  }
+  const fmtDur = m => m === null ? '—' : m >= 60 ? Math.floor(m / 60) + ' h ' + Math.round(m % 60) + ' min' : m >= 1 ? fmtNum(m, 1) + ' min' : Math.round(m * 60) + ' s';
+  function unitSection(a) {
+    const l = a.unitTime || [], con = l.filter(x => x.porUnidad !== null);
+    if (!l.length) return '<p class="dash-none">El Sheet no trae columnas de HORA INICIO y HORA FINAL para medir.</p>';
+    const mayor = Math.max(1e-9, ...con.map(x => x.porUnidad)), total = con.reduce((t, x) => t + x.porUnidad, 0), TONOS = ['lime', 'blue', 'green', 'orange', 'lime', 'blue', 'green'];
+    const valor = m => m === null ? ['—', ''] : m >= 1 ? [fmtNum(m, 1), 'min / unidad'] : [String(Math.round(m * 60)), 'seg / unidad'];
+    const resumen = con.length ? card('green', 'Total por unidad', valor(total)[0], valor(total)[1], [['Suma de las áreas con registro', ''], ['Áreas medidas', con.length + ' de ' + l.length],
+      ['Unidades medidas', fmtNum(Math.max(...con.map(x => x.unidades)))], ['Área que más tarda', con.slice().sort((x, y) => y.porUnidad - x.porUnidad)[0].label]], '', null) : '';
+    return '<section class="dash-load"><div class="dash-panel-head"><h4>Tiempo por unidad</h4><small>Minutos por prenda en cada área · con la HORA INICIO y la HORA FINAL registradas en el Sheet · las filas de una orden que empezaron a la misma hora cuentan como un solo lote</small></div>' +
+      '<div class="dash-cards dash-unit">' + resumen + l.map((x, i) => { const [v, u] = valor(x.porUnidad); return x.porUnidad === null
+        ? card('orange', esc(x.label), '—', '', [['Todavía no hay registros con hora de inicio y final', '']], '', 0)
+        : card(x.porUnidad === mayor && con.length > 1 ? 'orange' : TONOS[i % TONOS.length], esc(x.label), v, u, [['Unidades medidas', fmtNum(x.unidades)], ['Lotes medidos', x.lotes], ['Lo típico por unidad', fmtDur(x.tipico)], ['Duración típica del lote', fmtDur(x.lote)],
+          ['Más rápido · más lento', fmtDur(x.rapido) + ' · ' + fmtDur(x.lento)], x.descartados ? ['Lotes sin contar (horas ilógicas)', x.descartados] : null], '', x.porUnidad / mayor * 100); }).join('') + '</div></section>';
+  }
+
   // ---- PESTAÑAS DEL INICIO (para no tener que bajar tanto) ----
-  const TABS = [['resumen', 'Resumen'], ['tiempo', 'Tiempo por orden'], ['carga', 'Carga por área']];
+  const TABS = [['resumen', 'Resumen'], ['tiempo', 'Tiempo por orden'], ['unidad', 'Tiempo por unidad'], ['carga', 'Carga por área']];
   let activeTab = 'resumen';
   try { const saved = localStorage.getItem('indoor-home-tab'); if (TABS.some(([id]) => id === saved)) activeTab = saved; } catch (e) { /* sin almacenamiento */ }
   function tabsBar(a) {
@@ -616,6 +658,7 @@
       tabsBar(a) +
       '<div class="dash-pane' + (activeTab === 'resumen' ? ' on' : '') + '" data-pane="resumen">' + orderFinder(a.orders) + '<div class="dash-cards">' + time + units + week + pct + '</div><div class="dash-today">' + today + late + rework + '</div></div>' +
       '<div class="dash-pane' + (activeTab === 'tiempo' ? ' on' : '') + '" data-pane="tiempo">' + (timing || '<p class="dash-none">No hay órdenes con fecha de creación para medir.</p>') + '</div>' +
+      '<div class="dash-pane' + (activeTab === 'unidad' ? ' on' : '') + '" data-pane="unidad">' + unitSection(a) + '</div>' +
       '<div class="dash-pane' + (activeTab === 'carga' ? ' on' : '') + '" data-pane="carga">' + stairs(a, false) + (loadHtml || '<p class="dash-none">No hay pedidos pendientes por área.</p>') + '</div>';
     greet(a);
     bindOrderFinder(a.orders);
@@ -834,7 +877,9 @@
       if (!response.ok) { let detail = ''; try { detail = JSON.parse(text).detail; } catch (e) { /* respuesta no JSON */ } throw new Error(detail || 'No se pudo cargar'); }
       if (!force && text === lastText && model) return;   // sin cambios: no se redibuja
       lastText = text;
-      model = analyse(JSON.parse(text));
+      const crudo = JSON.parse(text);
+      model = analyse(crudo);
+      model.unitTime = unitTimes(crudo);
       render(model);
     } catch (error) {
       if (!model) root.innerHTML = '<div class="dash-empty">No fue posible cargar el resumen: ' + esc(error.message) + '</div>';
