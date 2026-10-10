@@ -64,7 +64,7 @@ def _resumir(f: dict) -> dict:
         confeccion.append({'etiqueta': etiqueta, 'valor': valor + (' — ' + c['extra'] if c.get('extra') else '')})
     return {
         'id': f['id'], 'ref': f['ref'], 'hoja': f['hoja'], 'familia': f['familia'], 'prenda': f.get('prenda', ''), 'referencia': f.get('referencia', ''),
-        'nota': f.get('nota_prenda', ''), 'nota_promedio': f.get('nota_promedio', ''), 'composicion': f.get('composicion', ''), 'telas': telas, 'promedios': promedios,
+        'nota': f.get('nota_prenda', ''), 'nota_promedio': f.get('nota_promedio', ''), 'composicion': f.get('composicion', ''), 'fit': f.get('fit'), 'telas': telas, 'promedios': promedios,
         'descripcion': [d['texto'] for d in f.get('descripcion', [])][:24],
         'piezas': [str(p) for p in (f.get('piezas') or [])][:40],
         'tallajes': [t for t in f.get('tallajes', []) if t.get('tallas')],
@@ -107,7 +107,7 @@ def imagen(id: str, archivo: str):
     p = fichas_mod.ruta_imagen(id, archivo)
     if not p:
         raise HTTPException(404, 'Imagen no encontrada')
-    return FileResponse(p, media_type='image/jpeg', headers={'Cache-Control': 'private, max-age=86400'})
+    return FileResponse(p, media_type='image/png' if p.suffix == '.png' else 'image/jpeg', headers={'Cache-Control': 'private, max-age=86400'})
 
 
 @router.get('/mockup')

@@ -264,6 +264,204 @@ def _hoja_a_ficha(ws) -> dict | None:
     return ficha
 
 
+# ------------------------------------------------------------------ FIT REAL: las piezas de cada referencia tal como están dibujadas en su hoja
+_XDR = '{http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing}'
+_DML = '{http://schemas.openxmlformats.org/drawingml/2006/main}'
+_REL = '{http://schemas.openxmlformats.org/officeDocument/2006/relationships}'
+
+
+def _rels(z, ruta: str) -> dict:
+    """{Id: (tipo, destino absoluto dentro del zip)} del archivo de relaciones de `ruta`."""
+    import posixpath
+    from xml.etree import ElementTree as ET
+    carpeta, nombre = posixpath.split(ruta)
+    try:
+        raiz = ET.fromstring(z.read(f'{carpeta}/_rels/{nombre}.rels'))
+    except KeyError:
+        return {}
+    salida = {}
+    for r in raiz:
+        destino = r.get('Target', '')
+        destino = destino.lstrip('/') if destino.startswith('/') else posixpath.normpath(posixpath.join(carpeta, destino))
+        salida[r.get('Id')] = (r.get('Type', '').rsplit('/', 1)[-1], destino)
+    return salida
+
+
+def _tema(z) -> list:
+    """Colores del tema del libro en el orden que usa Excel (0 = claro 1, 1 = oscuro 1, 2 = claro 2, 3 = oscuro 2, 4… = énfasis)."""
+    try:
+        xml = z.read('xl/theme/theme1.xml').decode('utf-8', 'replace')
+    except KeyError:
+        return []
+    orden = {}
+    for nombre, cuerpo in re.findall(r'<a:(dk1|lt1|dk2|lt2|accent\d|hlink|folHlink)>(.*?)</a:\1>', xml, flags=re.S):
+        m = re.search(r'(?:lastClr|val)="([0-9A-Fa-f]{6})"', cuerpo)
+        orden[nombre] = m.group(1).upper() if m else '000000'
+    return [orden.get(k, '000000') for k in ('lt1', 'dk1', 'lt2', 'dk2', 'accent1', 'accent2', 'accent3', 'accent4', 'accent5', 'accent6', 'hlink', 'folHlink')]
+
+
+def _color(c, tema: list) -> str:
+    """Color de una celda (relleno o letra) como RRGGBB; '' si es automático o no se puede saber."""
+    if c is None:
+        return ''
+    try:
+        if c.type == 'rgb' and isinstance(c.rgb, str) and len(c.rgb) >= 6 and c.rgb != '00000000':
+            return c.rgb[-6:].upper()
+        if c.type == 'theme' and tema and 0 <= int(c.theme) < len(tema):
+            r, g, b = (int(tema[int(c.theme)][i:i + 2], 16) for i in (0, 2, 4))
+            t = float(c.tint or 0)
+            mezcla = (lambda v: v + (255 - v) * t) if t > 0 else (lambda v: v * (1 + t))
+            return '%02X%02X%02X' % tuple(max(0, min(255, round(mezcla(v)))) for v in (r, g, b))
+    except (TypeError, ValueError):
+        pass
+    return ''
+
+
+def _pics_de_grupo(grupo, gx: float, gy: float, gw: float, gh: float) -> list:
+    """Imágenes dentro de un grupo de Excel con su caja en píxeles: [(pic, x, y, ancho, alto)]. El grupo ocupa (gx, gy, gw, gh) en la hoja y sus hijos
+    vienen en las coordenadas internas del grupo (chOff/chExt); los grupos anidados se resuelven igual."""
+    xf = grupo.find(f'{_XDR}grpSpPr/{_DML}xfrm')
+    ch_off, ch_ext = (xf.find(_DML + 'chOff'), xf.find(_DML + 'chExt')) if xf is not None else (None, None)
+    if ch_off is None or ch_ext is None or not int(ch_ext.get('cx') or 0) or not int(ch_ext.get('cy') or 0):
+        return []
+    ox, oy = int(ch_off.get('x') or 0), int(ch_off.get('y') or 0)
+    sx, sy = gw / int(ch_ext.get('cx')), gh / int(ch_ext.get('cy'))
+    salida = []
+    for hijo in grupo:
+        es_pic, es_grupo = hijo.tag == _XDR + 'pic', hijo.tag == _XDR + 'grpSp'
+        if not (es_pic or es_grupo):
+            continue
+        hx = hijo.find(f'{_XDR}spPr/{_DML}xfrm') if es_pic else hijo.find(f'{_XDR}grpSpPr/{_DML}xfrm')
+        off, ext = (hx.find(_DML + 'off'), hx.find(_DML + 'ext')) if hx is not None else (None, None)
+        if off is None or ext is None:
+            continue
+        caja = (gx + (int(off.get('x') or 0) - ox) * sx, gy + (int(off.get('y') or 0) - oy) * sy, int(ext.get('cx') or 0) * sx, int(ext.get('cy') or 0) * sy)
+        salida += [(hijo, *caja)] if es_pic else _pics_de_grupo(hijo, *caja)
+    return salida
+
+
+def _fit_real(z, ws, datos: dict, carpeta: Path, prefijo: str, tema: list) -> dict | None:
+    """Reconstruye el recuadro «FIT DE PRENDA X PIEZAS» de la hoja: cada imagen de pieza en su sitio y con su tamaño, los rótulos de las celdas y los
+    fondos de color (moldería femenina, niño…). Así la ficha muestra las piezas que de verdad lleva ESA referencia, no un dibujo genérico."""
+    from xml.etree import ElementTree as ET
+    from PIL import Image, ImageOps
+    titulo = next(((r, c) for (r, c), t in sorted(datos.items()) if 8 <= r <= 14 and c < 32 and _plano(t).startswith('FIT')), None)
+    fin = _buscar(datos, 'DESCRIPCION', col=2, desde=12, hasta=70, exacto=True)
+    if not titulo:
+        return None
+    r0, r1, c0, c1 = titulo[0], (fin[0] if fin else titulo[0] + 22), 2, 32      # filas [r0, r1) y columnas B…AF (1-based)
+    # medidas de columnas y filas en píxeles
+    anchos = {}
+    for cd in ws.column_dimensions.values():
+        for i in range(cd.min or 0, (cd.max or 0) + 1):
+            anchos[i] = 0 if cd.hidden else cd.width
+    ancho_def = ws.sheet_format.defaultColWidth or 8.43
+    xs = [0.0]
+    for i in range(1, 60):
+        w = anchos.get(i)
+        xs.append(xs[-1] + (0 if w == 0 else int((w or ancho_def) * 7 + 5)))
+    alto_def = ws.sheet_format.defaultRowHeight or 15
+    ys = [0.0]
+    for i in range(1, r1 + 3):
+        rd = ws.row_dimensions[i] if i in ws.row_dimensions else None
+        ys.append(ys[-1] + (0 if (rd is not None and rd.hidden) else ((rd.height if rd is not None and rd.height else alto_def) * 96 / 72)))
+    x0, y0, x1, y1 = xs[c0 - 1], ys[r0 - 1], xs[c1], ys[r1 - 1]
+    # hoja -> dibujo -> imágenes
+    libro = ET.fromstring(z.read('xl/workbook.xml'))
+    rid = next((h.get(_REL + 'id') for h in libro.iter('{http://schemas.openxmlformats.org/spreadsheetml/2006/main}sheet') if h.get('name') == ws.title), None)
+    hoja = _rels(z, 'xl/workbook.xml').get(rid, ('', ''))[1]
+    dibujo = next((d for t, d in _rels(z, hoja).values() if t == 'drawing'), '') if hoja else ''
+    if not dibujo:
+        return None
+    medios = _rels(z, dibujo)
+    imagenes = []
+    carpeta.mkdir(parents=True, exist_ok=True)
+    formas = []   # rectángulos de color dibujados como formas (los recuadros rosados/azules de la moldería femenina y de niño)
+    for ancla in ET.fromstring(z.read(dibujo)):
+        pic, forma, grupo = ancla.find(_XDR + 'pic'), ancla.find(_XDR + 'sp'), ancla.find(_XDR + 'grpSp')
+        desde = ancla.find(_XDR + 'from')
+        if (pic is None and forma is None and grupo is None) or desde is None:
+            continue
+        col, fila = int(desde.findtext(_XDR + 'col')), int(desde.findtext(_XDR + 'row'))
+        if not (c0 - 1 <= col < c1 and r0 - 1 <= fila < r1 - 1):
+            continue
+        px = xs[col] + int(desde.findtext(_XDR + 'colOff') or 0) / 9525
+        py = ys[fila] + int(desde.findtext(_XDR + 'rowOff') or 0) / 9525
+        hasta, ext = ancla.find(_XDR + 'to'), ancla.find(_XDR + 'ext')
+        if hasta is not None:
+            w = xs[int(hasta.findtext(_XDR + 'col'))] + int(hasta.findtext(_XDR + 'colOff') or 0) / 9525 - px
+            h = ys[min(int(hasta.findtext(_XDR + 'row')), len(ys) - 1)] + int(hasta.findtext(_XDR + 'rowOff') or 0) / 9525 - py
+        elif ext is not None:
+            w, h = int(ext.get('cx')) / 9525, int(ext.get('cy')) / 9525
+        else:
+            continue
+        if pic is None and grupo is None:
+            relleno = forma.find(f'{_XDR}spPr/{_DML}solidFill/{_DML}srgbClr')
+            if relleno is not None and relleno.get('val') and w > 8 and h > 8:
+                formas.append({'x': round(px - x0, 1), 'y': round(py - y0, 1), 'w': round(w, 1), 'h': round(h, 1), 'c': relleno.get('val').upper()})
+            continue
+        # una imagen suelta, o todas las imágenes de un grupo (piezas agrupadas en el Excel), cada una en su sitio
+        for pic, px, py, w, h in ([(pic, px, py, w, h)] if pic is not None else _pics_de_grupo(grupo, px, py, w, h)):
+            blip = pic.find(f'{_XDR}blipFill/{_DML}blip')
+            destino = medios.get(blip.get(_REL + 'embed') if blip is not None else '', ('', ''))[1]
+            if not destino or w < 4 or h < 4:
+                continue
+            try:
+                img = Image.open(io.BytesIO(z.read(destino)))
+                img.load()
+                rec = pic.find(f'{_XDR}blipFill/{_DML}srcRect')
+                if rec is not None:
+                    l, t, r, b = (int(rec.get(k) or 0) / 100000 for k in 'ltrb')
+                    img = img.crop((round(img.width * l), round(img.height * t), round(img.width * (1 - r)), round(img.height * (1 - b))))
+                xf = pic.find(f'{_XDR}spPr/{_DML}xfrm')
+                img = img.convert('RGBA')
+                if xf is not None:
+                    if xf.get('flipH') == '1':
+                        img = ImageOps.mirror(img)
+                    if xf.get('flipV') == '1':
+                        img = ImageOps.flip(img)
+                    if int(xf.get('rot') or 0):
+                        img = img.rotate(-int(xf.get('rot')) / 60000, expand=True)
+                if max(img.size) > 900:
+                    img.thumbnail((900, 900))
+                nombre = f'{prefijo}_fit{len(imagenes)}.png'
+                img.save(carpeta / nombre, 'PNG', optimize=True)
+            except Exception:  # noqa: BLE001  una imagen que no se puede leer no frena la ficha
+                continue
+            imagenes.append({'a': nombre, 'x': round(px - x0, 1), 'y': round(py - y0, 1), 'w': round(w, 1), 'h': round(h, 1)})
+    if not imagenes:
+        return None
+    combinadas = {(m.min_row, m.min_col): m for m in ws.merged_cells.ranges}
+    rotulos, fondos = [], []
+    for r in range(r0, r1):
+        tramo = None
+        for c in range(c0, c1 + 1):
+            celda = ws.cell(row=r, column=c)
+            relleno = _color(celda.fill.fgColor, tema) if celda.fill is not None and celda.fill.fill_type == 'solid' else ''
+            if relleno in ('FFFFFF', ''):
+                relleno = ''
+            comb = combinadas.get((r, c))
+            if relleno and comb is not None:   # celda combinada: el color cubre toda la combinación, no solo su primera celda
+                fondos.append({'x': round(xs[c - 1] - x0, 1), 'y': round(ys[r - 1] - y0, 1), 'w': round(xs[min(comb.max_col, c1)] - xs[c - 1], 1),
+                               'h': round(ys[min(comb.max_row, r1 - 1)] - ys[r - 1], 1), 'c': relleno})
+                tramo = None
+            elif tramo and tramo['c'] == relleno:
+                tramo['w'] = round(xs[c] - x0 - tramo['x'], 1)
+            else:
+                tramo = {'x': round(xs[c - 1] - x0, 1), 'y': round(ys[r - 1] - y0, 1), 'w': round(xs[c] - xs[c - 1], 1), 'h': round(ys[r] - ys[r - 1], 1), 'c': relleno}
+                if relleno:
+                    fondos.append(tramo)
+            texto = datos.get((r, c), '')
+            if texto:
+                m = combinadas.get((r, c))
+                cf, ff = (min(m.max_col, c1), min(m.max_row, r1 - 1)) if m else (c, r)
+                rotulos.append({'t': texto[:80], 'x': round(xs[c - 1] - x0, 1), 'y': round(ys[r - 1] - y0, 1), 'w': round(xs[cf] - xs[c - 1], 1), 'h': round(ys[ff] - ys[r - 1], 1),
+                                'al': 'c' if (celda.alignment is not None and celda.alignment.horizontal in ('center', 'centerContinuous')) else 'i',
+                                'n': bool(celda.font is not None and celda.font.bold), 'p': round(float(celda.font.sz or 11) * 96 / 72, 1) if celda.font is not None else 14.7,
+                                'c': _color(celda.font.color, tema) if celda.font is not None else ''})
+    return {'w': round(x1 - x0, 1), 'h': round(y1 - y0, 1), 'imagenes': imagenes, 'rotulos': rotulos, 'fondos': fondos + formas}
+
+
 def _zona(col0: int, fila0: int) -> str:
     """Dónde cae una imagen en la plantilla (0-based)."""
     if col0 >= 32:
@@ -331,6 +529,12 @@ def importar(carpeta_excel: Path) -> dict:
             continue
         libros += 1
         familia = re.sub(r'\s*\([A-Z]{1,5}\)\s*$', '', libro.stem.replace('_', ' ')).strip()
+        try:
+            import zipfile
+            zlibro = zipfile.ZipFile(libro)
+            tema = _tema(zlibro)
+        except Exception:  # noqa: BLE001
+            zlibro, tema = None, []
         for ws in wb.worksheets[1:]:
             try:
                 ficha = _hoja_a_ficha(ws)
@@ -338,6 +542,11 @@ def importar(carpeta_excel: Path) -> dict:
                     continue
                 ident = f'{_slug(libro.stem)}__{_slug(ws.title)}'
                 imagenes = _guardar_imagenes(ws, DATOS / 'img' / _slug(libro.stem), _slug(ws.title))
+                try:   # el fit real de la referencia (si algo falla, la ficha queda con el dibujo genérico)
+                    ficha['fit'] = _fit_real(zlibro, ws, _celdas(ws), DATOS / 'img' / _slug(libro.stem), _slug(ws.title), tema) if zlibro else None
+                except Exception as e:  # noqa: BLE001
+                    ficha['fit'] = None
+                    estado['error'] = f'{libro.name} / {ws.title} (fit): {e}'
                 ficha.update(id=ident, archivo=libro.name, familia=familia, ref=_ref_de(ws.title, ficha.get('referencia', '')), imagenes=imagenes)
                 (DATOS / f'{ident}.json').write_text(json.dumps(ficha, ensure_ascii=False), encoding='utf-8')
                 grandes = sorted(imagenes, key=lambda i: i['ancho'] * i['alto'], reverse=True)
@@ -396,7 +605,7 @@ def ficha(ident: str) -> dict | None:
 
 
 def ruta_imagen(ident: str, archivo: str) -> Path | None:
-    if not re.fullmatch(r'[a-z0-9-]+__[a-z0-9-]+', ident or '') or not re.fullmatch(r'[a-z0-9-]+_\d+\.jpg', archivo or ''):
+    if not re.fullmatch(r'[a-z0-9-]+__[a-z0-9-]+', ident or '') or not re.fullmatch(r'[a-z0-9-]+_(?:\d+\.jpg|fit\d+\.png)', archivo or ''):
         return None
     libro = ident.split('__')[0]
     p = DATOS / 'img' / libro / archivo

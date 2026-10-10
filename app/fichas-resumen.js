@@ -99,7 +99,7 @@
   .ft-flat [data-m]{transition:opacity .25s}
   .fit.fit-movil{min-width:0}.fit-movil .fit-c{font-size:27px}.fit-movil .fit-h{font-size:22px}
   .fit-wrap{overflow-x:auto;border-radius:6px;background:#fff}.fit{display:block;width:100%;min-width:760px;height:auto;font-family:Arial,Helvetica,sans-serif}
-  .fit path{stroke:none}.fit-h{font:700 13px Arial}.fit-c{font:700 15px Arial;fill:#000}
+  .fit path{stroke:none}.fit-real text{font-family:Arial,Helvetica,sans-serif}.fit-h{font:700 13px Arial}.fit-c{font:700 15px Arial;fill:#000}
   .fp-nodo{opacity:0;animation:fpIn .6s cubic-bezier(.2,1.4,.4,1) forwards var(--d);transform-box:fill-box;transform-origin:left center}
   .fp-nodo rect{fill:#0d1409;stroke:var(--c);stroke-width:1.6}
   .fp-nodo .fp-sil *{fill:var(--c);fill-opacity:.9;stroke:rgba(0,0,0,.55);stroke-width:1}
@@ -337,6 +337,20 @@
       '<g>' + m + '</g><g>' + f + '</g><g>' + n + '</g>' + rotulos + franja +
       '<path d="M742 0 V483 M742 242 H1104 M0 21 H742" stroke="#000" stroke-width="1" fill="none"/><rect x=".5" y=".5" width="' + (W - 1) + '" height="' + (alto - 1) + '" fill="none" stroke="#000"/></svg></div>';
   }
+  // FIT REAL de la referencia: el recuadro «FIT DE PRENDA X PIEZAS» de su hoja del Excel, con cada imagen de pieza en su sitio, sus rótulos y los fondos
+  // de color (moldería femenina, niño…). Lo arma el importador (fichas.py); si una ficha no lo trae, se usa el dibujo genérico de arriba.
+  function fitReal(f) {
+    const t = f.fit, W = Math.max(1, t.w), H = Math.max(1, t.h);
+    const fondos = (t.fondos || []).map(r => '<rect x="' + r.x + '" y="' + r.y + '" width="' + (r.w + .6) + '" height="' + (r.h + .6) + '" fill="#' + esc(r.c) + '"/>').join('');
+    const imgs = (t.imagenes || []).map(i => '<image href="' + img(f.id, i.a) + '" x="' + i.x + '" y="' + i.y + '" width="' + i.w + '" height="' + i.h + '" preserveAspectRatio="none"/>').join('');
+    const rot = (t.rotulos || []).map(r => {
+      const centro = r.al === 'c', x = centro ? r.x + r.w / 2 : r.x + 4, y = r.y + r.h / 2 + r.p * 0.36;
+      return '<text x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" font-size="' + r.p + '" font-weight="' + (r.n ? 700 : 400) + '" fill="#' + (r.c || '000000') + '"' + (centro ? ' text-anchor="middle"' : '') + '>' + esc(r.t) + '</text>';
+    }).join('');
+    return '<div class="fit-wrap"><svg class="fit fit-real" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Fit de prenda por piezas de ' + esc(f.ref) + '">' +
+      '<rect width="' + W + '" height="' + H + '" fill="#fff"/>' + fondos + imgs + rot + '<rect x=".5" y=".5" width="' + (W - 1) + '" height="' + (H - 1) + '" fill="none" stroke="#000"/></svg></div>';
+  }
+  const hayFitReal = f => !!(f && f.fit && (f.fit.imagenes || []).length);
   function iconoFila(p, i, color) { return '<span style="--d:' + (0.4 + i * 0.12).toFixed(2) + 's">' + icono(p.n) + esc(p.n) + (p.c > 1 ? '<em>×' + p.c + '</em>' : '') + '</span>'; }
   function materiales(f) {
     const texto = (f.descripcion || []).map(d => (d && d.texto) || d).filter(d => /\bM\d\s*[:\-]/i.test(d)).join(' || ');
@@ -365,14 +379,14 @@
     });
     return mats;
   }
-  function mapaTelas(mats) {
-    if (!mats.length) return '';
+  function mapaTelas(mats, f) {
+    if (!mats.length) return hayFitReal(f) ? '<div class="ft">' + fitReal(f) + '</div>' : '';
     const uno = mats.length === 1;
     const ban = uno
       ? '<span class="ft-ban" style="--c:' + mats[0].color + '">● UN SOLO MATERIAL · TODO EN ' + mats[0].id + '</span>'
       : '<span class="ft-ban dos" style="--c1:' + mats[0].color + ';--c2:' + mats[1].color + '">● ' + (mats.length === 2 ? 'DOS' : mats.length) + ' MATERIALES · NO TODO VA EN LA MISMA TELA</span>';
     return '<div class="ft"><div class="ft-top">' + ban + '<span class="ft-sub">' + (uno ? 'Todas las piezas se cortan de la misma tela' : 'Separa las piezas por color de material') + '</span></div>' +
-      fitPiezas(mats) + '<div class="ft-mats">' + mats.map(x => '<div class="ft-mat" data-m="' + x.id + '" style="--c:' + x.color + '"><h4><b>' + x.id + '</b>MATERIAL ' + x.id.slice(1) + '</h4><p class="ft-tela">' + esc(x.tela || 'Tela por definir en la ficha') + '</p><div class="ft-piezas">' +
+      (hayFitReal(f) ? fitReal(f) : fitPiezas(mats)) + '<div class="ft-mats">' + mats.map(x => '<div class="ft-mat" data-m="' + x.id + '" style="--c:' + x.color + '"><h4><b>' + x.id + '</b>MATERIAL ' + x.id.slice(1) + '</h4><p class="ft-tela">' + esc(x.tela || 'Tela por definir en la ficha') + '</p><div class="ft-piezas">' +
         x.piezas.map((p, i) => iconoFila(p, i)).join('') + '</div></div>').join('') + '</div></div>';
   }
   // Una pestaña por cada sección de la ficha original (el Excel de FICHAS TECNICAS), sin mezclar información entre ellas
@@ -400,7 +414,7 @@
     t.push({ id: 'GENERAL', n: gen.length + dGen.length, u: ['dato', 'datos'], html: lista(gen) + (dGen.length ? sec('Descripción de la prenda') + lista(dGen) : '') + (f.nota ? sec('Nota') + nota(f.nota) : '') });
     // PIEZAS: fit de prenda por piezas y qué pieza va en qué material
     const mats = materiales(f), dPz = desc.filter(dePiezas).map(esc);
-    t.push({ id: 'PIEZAS', n: mats.reduce((a, m) => a + m.total, 0), u: ['pieza', 'piezas'], html: mapaTelas(mats) + (dPz.length ? sec('Como está en la ficha') + lista(dPz) : '') });
+    t.push({ id: 'PIEZAS', n: mats.reduce((a, m) => a + m.total, 0) || (hayFitReal(f) ? f.fit.imagenes.length : 0), u: ['pieza', 'piezas'], html: mapaTelas(mats, f) + (dPz.length ? sec('Como está en la ficha') + lista(dPz) : '') });
     // TELA Y CONSUMO: telas recomendadas, promedio de la ficha y consumo por talla del maestro
     const telas = (f.composicion ? [kv('Composición', f.composicion)] : []).concat((f.telas || []).map(x => kv('Tela ' + x.material, x.tela)));
     const prom = (f.promedios || []).map(p => kv(p.nombre, Object.entries(p.valores).map(([k, v]) => (NOMBRE[k] || k) + ' ' + v).join(' · ') + ' MTS'));
