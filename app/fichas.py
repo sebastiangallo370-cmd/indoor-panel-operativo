@@ -160,10 +160,10 @@ def _hoja_a_ficha(ws) -> dict | None:
             ficha['nota_promedio'] = _derecha(datos, fila, 15, 27)
     ficha['promedios'] = promedios
     telas = []
-    for fila in range(4, 12):
-        t = datos.get((fila, 27), '')
-        if re.fullmatch(r'M\d', t.strip().upper()):
-            telas.append({'material': t.strip().upper(), 'tela': datos.get((fila, 28), '')})
+    for fila in range(4, 12):   # «M1 | tela»: casi siempre en la columna AA, pero algunos libros (voleibol) la traen unas columnas a la derecha
+        col = next((c for c in range(27, 33) if re.fullmatch(r'M\d', str(datos.get((fila, c), '')).strip().upper())), None)
+        if col:
+            telas.append({'material': str(datos.get((fila, col), '')).strip().upper(), 'tela': datos.get((fila, col + 1), '')})
     ficha['telas'] = telas
     comp = next((fila for fila in range(4, 12) if _plano(datos.get((fila, 27), '')).startswith('COMP')), None)
     ficha['composicion'] = datos.get((comp, 28), '') if comp else ''
@@ -346,6 +346,8 @@ def _fit_real(z, ws, datos: dict, carpeta: Path, prefijo: str, tema: list) -> di
     from xml.etree import ElementTree as ET
     from PIL import Image, ImageOps
     titulo = next(((r, c) for (r, c), t in sorted(datos.items()) if 8 <= r <= 14 and c < 32 and _plano(t).startswith('FIT')), None)
+    if not titulo:   # hojas cuyo recuadro no dice «FIT DE PRENDA…» sino directamente el molde («MOLDERIA FEMENINA» en VOL01 FEMENINO)
+        titulo = next(((r, c) for (r, c), t in sorted(datos.items(), key=lambda x: (x[0][1], x[0][0])) if 8 <= r <= 14 and c < 32 and _plano(t).startswith('MOLDER')), None)
     fin = _buscar(datos, 'DESCRIPCION', col=2, desde=12, hasta=70, exacto=True)
     if not titulo:
         return None
