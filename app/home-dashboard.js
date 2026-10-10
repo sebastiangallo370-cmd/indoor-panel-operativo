@@ -304,7 +304,9 @@
         if (!und) return;
         if (a !== null && b !== null) {
           const k = key(v[iOrden]) + '|' + a, l = lotes.get(k) || { ini: a, fin: b, und: 0, orden: key(v[iOrden]) };
-          l.fin = Math.max(l.fin, b); l.und += und; lotes.set(k, l); return;
+          l.fin = Math.max(l.fin, b); l.und += und; lotes.set(k, l);
+          const f = parseDate(v[inicio]); if (f && !isNaN(f)) l.dia = Math.max(l.dia || 0, Date.UTC(f.getFullYear(), f.getMonth(), f.getDate()) / 60000 + 300);   // día en que se terminó el área (hora de Colombia)
+          return;
         }
         // sin horas en el Sheet: vale el inicio y el final que se marcaron en la web para esta área
         const t = cols.map(c => tiempos[row.source_row + ':' + (c + 1)]).find(Boolean);
@@ -312,15 +314,16 @@
         const k = key(v[iOrden]), l = web.get(k) || []; l.push({ ini: t[0], fin: t[1], und }); web.set(k, l);
       });
       let minutos = 0, unidades = 0, descartados = 0; const porUnd = [], duraciones = [];
-      const medir = (d, und, orden) => { if (d <= 0 || d > 720) { descartados++; return; } minutos += d; unidades += und; porUnd.push(d / und); duraciones.push(d);
-        const o = ordenes.get(orden); if (!o) return; let ar = o.areas.find(x => x.label === p.label); if (!ar) { ar = { label: p.label, min: 0, und: 0 }; o.areas.push(ar); } ar.min += d; ar.und += und; };
-      lotes.forEach(l => { let d = l.fin - l.ini; if (d < 0) d += 1440; medir(d, l.und, l.orden); });
+      const medir = (d, und, orden, ini, fin) => { if (d <= 0 || d > 720) { descartados++; return; } minutos += d; unidades += und; porUnd.push(d / und); duraciones.push(d);
+        const o = ordenes.get(orden); if (!o) return; let ar = o.areas.find(x => x.label === p.label); if (!ar) { ar = { label: p.label, min: 0, und: 0 }; o.areas.push(ar); } ar.min += d; ar.und += und;
+        if (fin != null) { o.ini = o.ini == null ? ini : Math.min(o.ini, ini); o.fin = o.fin == null ? fin : Math.max(o.fin, fin); } };
+      lotes.forEach(l => { let d = l.fin - l.ini; if (d < 0) d += 1440; const fin = l.dia ? l.dia + l.fin : null; medir(d, l.und, l.orden, fin === null ? null : fin - d, fin); });
       // las filas de una orden que se trabajaron a la vez (sus tiempos se cruzan) son un solo lote
-      web.forEach((l, orden) => { let lote = null; l.sort((x, y) => x.ini - y.ini).forEach(x => { if (lote && x.ini <= lote.fin) { lote.fin = Math.max(lote.fin, x.fin); lote.und += x.und; } else { if (lote) medir(lote.fin - lote.ini, lote.und, orden); lote = { ini: x.ini, fin: x.fin, und: x.und }; } }); if (lote) medir(lote.fin - lote.ini, lote.und, orden); });
+      web.forEach((l, orden) => { let lote = null; l.sort((x, y) => x.ini - y.ini).forEach(x => { if (lote && x.ini <= lote.fin) { lote.fin = Math.max(lote.fin, x.fin); lote.und += x.und; } else { if (lote) medir(lote.fin - lote.ini, lote.und, orden, lote.ini, lote.fin); lote = { ini: x.ini, fin: x.fin, und: x.und }; } }); if (lote) medir(lote.fin - lote.ini, lote.und, orden, lote.ini, lote.fin); });
       out.push({ label: p.label, lotes: duraciones.length, unidades, minutos, porUnidad: unidades ? minutos / unidades : null, tipico: mediana(porUnd), lote: mediana(duraciones), rapido: porUnd.length ? Math.min(...porUnd) : null, lento: porUnd.length ? Math.max(...porUnd) : null, descartados });
     });
-    // minutos por unidad de la orden = suma de lo que tardó cada prenda en cada área medida
-    out.ordenes = [...ordenes.values()].filter(o => o.areas.length).map(o => Object.assign(o, { minutos: o.areas.reduce((t, x) => t + x.min, 0), porUnidad: o.areas.reduce((t, x) => t + x.min / x.und, 0) })).sort((x, y) => y.porUnidad - x.porUnidad);
+    // minutos por unidad de la orden = (dato de cuando termina − dato de cuando empieza) ÷ cantidad
+    out.ordenes = [...ordenes.values()].filter(o => o.unidades && o.ini != null && o.fin > o.ini).map(o => Object.assign(o, { trabajado: o.areas.reduce((t, x) => t + x.min, 0), minutos: o.fin - o.ini, porUnidad: (o.fin - o.ini) / o.unidades })).sort((x, y) => y.porUnidad - x.porUnidad);
     return out;
   }
   const fmtDur = m => m === null ? '—' : m >= 60 ? Math.floor(m / 60) + ' h ' + Math.round(m % 60) + ' min' : m >= 1 ? fmtNum(m, 1) + ' min' : Math.round(m * 60) + ' s';
@@ -357,15 +360,17 @@
     const l = (a.unitTime || []).ordenes || [], q = key(unitQ), lista = q ? l.filter(o => key(o.id + ' ' + o.cliente).includes(q)) : l, ver = unitAll || q ? lista : lista.slice(0, 6);
     const mayor = Math.max(1e-9, ...l.map(o => o.porUnidad)), TONOS = ['lime', 'blue', 'green'];
     if (!ver.length) return '<p class="dash-none">Ninguna orden coincide con la búsqueda.</p>';
-    return '<div class="dash-cards dash-unit">' + ver.map((o, i) => { const m = o.porUnidad, lenta = o.areas.slice().sort((x, y) => y.min / y.und - x.min / x.und)[0];
+    const cuando = m => new Date(m * 60000).toLocaleString('es-CO', { timeZone: 'America/Bogota', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+    const largo = m => m >= 1440 ? Math.floor(m / 1440) + ' d ' + Math.round(m % 1440 / 60) + ' h' : fmtDur(m);
+    return '<div class="dash-cards dash-unit">' + ver.map((o, i) => { const m = o.porUnidad;
       return card(o === l[0] && l.length > 1 ? 'orange' : TONOS[i % TONOS.length], esc(o.id), m >= 1 ? fmtNum(m, 1) : String(Math.round(m * 60)), m >= 1 ? 'min / unidad' : 'seg / unidad',
-        [[esc(o.cliente || 'Sin cliente'), ''], ['Unidades de la orden', fmtNum(o.unidades)], ['Tiempo total medido', fmtDur(o.minutos)], ['Áreas medidas', o.areas.length], ['Área que más tardó', esc(lenta.label) + ' · ' + fmtDur(lenta.min / lenta.und)]]
-          .concat(o.areas.map(x => [esc(x.label), fmtDur(x.min / x.und) + ' / und.'])), '', m / mayor * 100); }).join('') + '</div>' +
+        [[esc(o.cliente || 'Sin cliente'), ''], ['Empezó', cuando(o.ini)], ['Terminó', cuando(o.fin)], ['De inicio a final', largo(o.minutos)], ['Cantidad', fmtNum(o.unidades) + ' und.'],
+          ['Trabajado en las áreas', fmtDur(o.trabajado)], ['Áreas con registro', o.areas.map(x => esc(SHORT[x.label] || x.label)).join(' · ')]], '', m / mayor * 100); }).join('') + '</div>' +
       (!q && l.length > 6 ? '<button type="button" class="ut-more" data-ut-all>' + (unitAll ? 'Ver solo las 6 más lentas' : 'Ver las ' + l.length + ' órdenes') + '</button>' : '');
   }
   function unitOrders(a) {
     const l = (a.unitTime || []).ordenes || []; if (!l.length) return '';
-    return '<section class="dash-load"><div class="dash-panel-head"><h4>Minutos por unidad en cada orden</h4><small>Lo que tardó cada prenda de la orden sumando las áreas que tienen inicio y final · primero las más lentas</small></div>' +
+    return '<section class="dash-load"><div class="dash-panel-head"><h4>Minutos por unidad en cada orden</h4><small>Dato de cuando empieza la orden y dato de cuando termina, dividido entre la cantidad · primero las más lentas</small></div>' +
       '<input class="ut-q" type="search" data-ut-q placeholder="Buscar orden o cliente" aria-label="Buscar orden o cliente" value="' + esc(unitQ) + '"><div data-ut-list>' + unitOrdersList(a) + '</div></section>';
   }
   const unitOrdersRedraw = () => { const caja = root.querySelector('[data-ut-list]'); if (caja && model) caja.innerHTML = unitOrdersList(model); };
