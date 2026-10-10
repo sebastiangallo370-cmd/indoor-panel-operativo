@@ -340,6 +340,7 @@
     // la cantidad es la de las filas que tienen inicio y final (una fila N/A de la misma orden no se fabricó en esas áreas)
     out.ordenes = [...ordenes.values()].map(o => Object.assign(o, { medidas: [...o.filas.values()].reduce((t, x) => t + x, 0) })).filter(o => o.medidas && o.ini != null && o.fin > o.ini)
       .map(o => Object.assign(o, { trabajado: o.areas.reduce((t, x) => t + x.min, 0), minutos: o.fin - o.ini, porUnidad: (o.fin - o.ini) / o.medidas })).sort((x, y) => y.porUnidad - x.porUnidad);
+    out.todas = [...ordenes.values()].filter(o => o.areas.length);   // para el buscador: toda orden con algún inicio y final
     return out;
   }
   const fmtDur = m => m === null ? '—' : m >= 60 ? Math.floor(m / 60) + ' h ' + Math.round(m % 60) + ' min' : m >= 1 ? fmtNum(m, 1) + ' min' : Math.round(m * 60) + ' s';
@@ -412,6 +413,26 @@
   });
   // ---- MINUTOS POR UNIDAD EN CADA ORDEN (buscador + las más lentas primero; el resto se despliega) ----
   let unitQ = '', unitAll = false;
+  // ---- BUSCADOR DE ÓRDENES: al escribir aparece de una vez la tarjeta de la orden, con lo que se demoró en cada área ----
+  let unitFindQ = '';
+  const utTardo = m => { m = Math.round(m); const h = Math.floor(m / 60), r = m % 60; return h ? h + ':' + String(r).padStart(2, '0') + ' HRS' : r + ' MIN'; };
+  function unitFound(a) {
+    const q = key(unitFindQ); if (!q) return '';
+    const l = ((a.unitTime || []).todas || []).filter(o => key(o.id + ' ' + o.cliente).includes(q)).sort((x, y) => (key(x.id) === q ? 0 : 1) - (key(y.id) === q ? 0 : 1) || (y.fin || 0) - (x.fin || 0));
+    if (!l.length) return '<p class="dash-none">Ninguna orden con inicio y final registrados coincide con «' + esc(unitFindQ) + '».</p>';
+    const cuando = m => new Date(m * 60000).toLocaleString('es-CO', { timeZone: 'America/Bogota', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+    const porUnd = m => m >= 60 ? fmtNum(m / 60, 1) + ' hrs' : m >= 1 ? fmtNum(m, 1) + ' min' : Math.round(m * 60) + ' seg';
+    return '<div class="dash-cards dash-unit">' + l.slice(0, 8).map((o, i) => { const total = o.areas.reduce((t, x) => t + x.min, 0), [v, u] = utTardo(total).split(' ');
+      return card(['lime', 'blue', 'green'][i % 3], esc(o.id), v, u === 'HRS' ? 'hrs trabajadas' : 'min trabajados',
+        [[esc(o.cliente || 'Sin cliente'), ''], ['Cantidad', fmtNum(o.medidas || o.unidades) + (o.medidas && o.medidas < o.unidades ? ' de ' + fmtNum(o.unidades) : '') + ' und.'],
+          o.ini != null ? ['Empezó', cuando(o.ini)] : null, o.fin != null ? ['Terminó', cuando(o.fin)] : null]
+          .concat(o.areas.map(x => [esc(x.label), utTardo(x.min) + ' · ' + porUnd(x.min / x.und) + ' / und.'])), '', null); }).join('') + '</div>' +
+      (l.length > 8 ? '<p class="dash-none">Hay ' + l.length + ' órdenes que coinciden; escribe más para afinar.</p>' : '');
+  }
+  function unitFind(a) {
+    return '<section class="dash-load ut-find"><input class="ut-q" type="search" data-ut-find placeholder="Buscar una orden o cliente para ver su tarjeta" aria-label="Buscar una orden" value="' + esc(unitFindQ) + '"><div data-ut-found>' + unitFound(a) + '</div></section>';
+  }
+  root.addEventListener('input', event => { if (!event.target.matches('[data-ut-find]')) return; unitFindQ = event.target.value; const caja = root.querySelector('[data-ut-found]'); if (caja && model) caja.innerHTML = unitFound(model); });
   function unitOrdersList(a) {
     const l = (a.unitTime || []).ordenes || [], q = key(unitQ), lista = q ? l.filter(o => key(o.id + ' ' + o.cliente).includes(q)) : l, ver = unitAll || q ? lista : lista.slice(0, 6);
     const mayor = Math.max(1e-9, ...l.map(o => o.porUnidad)), TONOS = ['lime', 'blue', 'green'];
@@ -440,7 +461,7 @@
     const valor = m => m === null ? ['—', ''] : m >= 60 ? [fmtNum(m / 60, 1), 'hrs / unidad'] : m >= 1 ? [fmtNum(m, 1), 'min / unidad'] : [String(Math.round(m * 60)), 'seg / unidad'];
     const resumen = con.length ? card('green', 'Total por unidad', valor(total)[0], valor(total)[1], [['Suma de las áreas con registro', ''], ['Áreas medidas', con.length + ' de ' + l.length],
       ['Unidades medidas', fmtNum(Math.max(...con.map(x => x.unidades)))], ['Área que más tarda', con.slice().sort((x, y) => y.porUnidad - x.porUnidad)[0].label]], '', null) : '';
-    return unitStairs(a) + unitOrders(a) + '<section class="dash-load"><div class="dash-panel-head"><h4>Detalle por área</h4><small>Minutos por prenda en todas las áreas · con las horas del Sheet o, si el área no las lleva, con el inicio y el final marcados en la página · las filas de una orden que se trabajaron juntas cuentan como un solo lote</small></div>' +
+    return unitFind(a) + unitStairs(a) + unitOrders(a) + '<section class="dash-load"><div class="dash-panel-head"><h4>Detalle por área</h4><small>Minutos por prenda en todas las áreas · con las horas del Sheet o, si el área no las lleva, con el inicio y el final marcados en la página · las filas de una orden que se trabajaron juntas cuentan como un solo lote</small></div>' +
       '<div class="dash-cards dash-unit">' + resumen + l.map((x, i) => { const [v, u] = valor(x.porUnidad); return x.porUnidad === null
         ? card('orange', esc(x.label), '—', '', [['Todavía no hay registros con hora de inicio y final', '']], '', 0)
         : card(x.porUnidad === mayor && con.length > 1 ? 'orange' : TONOS[i % TONOS.length], esc(x.label), v, u, [['Unidades medidas', fmtNum(x.unidades)], ['Lotes medidos', x.lotes], ['Lo típico por unidad', fmtDur(x.tipico)], ['Duración típica del lote', fmtDur(x.lote)],
@@ -941,6 +962,7 @@
   .dash-order-meta{display:grid;justify-items:end;flex-shrink:0}.dash-order-meta b{font-size:.86rem;color:#fff}.dash-order-meta small{font-size:.7rem;color:var(--c)}
   .dash-none{margin:0;padding:10px 2px;font-size:.84rem;color:#8f9b8a}
 .st-chart.st-week{height:auto;min-height:calc(var(--base) + var(--span) + 6px);align-items:flex-end;min-width:max(100%,980px)}.st-week .st-col,.dash-stairs.go .st-week .st-col{height:auto;min-width:0;cursor:default;padding:14px 8px}.st-week .st-col{min-height:var(--base);transition:min-height 1s cubic-bezier(.2,.8,.2,1)}.dash-stairs.go .st-week .st-col{min-height:calc(var(--base) + var(--rise))}.st-week .st-col:hover{transform:none}.st-week .st-sub{max-width:none}.st-week .st-pct{right:10px;top:13px;bottom:auto;width:auto;height:auto;padding:0;border:0;font-size:.7rem}.st-week .st-col.top .st-pct{top:26px}.ut-daylist{position:relative;z-index:3;width:100%;display:grid;gap:3px;margin-top:10px;text-shadow:none}.st-week .st-col{container-type:inline-size}.ut-o{display:grid;grid-template-columns:minmax(0,1fr) 30px 68px 40px;gap:4px;align-items:baseline;padding:4px 5px;border-radius:7px;background:rgba(0,0,0,.42);font-size:.68rem;line-height:1.25}.ut-o b{font-weight:800;color:#e3ff8a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ut-o span{text-align:right;color:#e6ede0;font-variant-numeric:tabular-nums}.ut-o strong{text-align:right;font-weight:800;color:#fff;white-space:nowrap;font-size:.64rem}.ut-o i{font-style:normal;text-align:right;font-weight:800;color:#e3ff8a;font-variant-numeric:tabular-nums}@container (max-width:226px){.ut-o{grid-template-columns:minmax(0,1fr) 62px 36px}.ut-o b{grid-column:1/-1}.ut-o span{text-align:left}.ut-o-h span:first-child{display:none}}.ut-o-h{background:none;padding:0 5px;font-size:.5rem;letter-spacing:.02em;text-transform:uppercase;opacity:.8}.ut-o-h span{color:#fff}.ut-o-h span:first-child{text-align:left}@media(max-width:700px){.st-chart.st-week{flex-direction:column;align-items:stretch;min-width:0;min-height:0;gap:6px}.st-scroll:has(.st-week)+.st-flow{display:none}.st-week .st-col,.dash-stairs.go .st-week .st-col{flex:none;width:100%;min-height:50px;flex-direction:row;flex-wrap:wrap;align-items:center;gap:4px 10px;padding:9px 12px;border-radius:13px;cursor:pointer;background:linear-gradient(90deg,rgba(110,150,245,.5) var(--lv),rgba(255,255,255,.05) var(--lv))}.st-week .st-col.top,.dash-stairs.go .st-week .st-col.top{background:linear-gradient(90deg,rgba(226,160,40,.68) var(--lv),rgba(255,255,255,.05) var(--lv))}.st-week .st-col.empty,.dash-stairs.go .st-week .st-col.empty{min-height:38px;opacity:.6;cursor:default}.st-week .st-slot,.st-week .ar-ribbon{display:none}.st-week .st-name,.st-week .st-col.top .st-name{margin:0;flex:0 0 62px;font-size:.66rem}.st-week .st-val{margin:0;font-size:1.15rem}.st-week .st-sub{margin:0;flex:1;font-size:.64rem;padding-right:52px}.st-week .st-pct,.st-week .st-col.top .st-pct{top:17px;font-size:.72rem}.st-week .ut-daylist{flex:0 0 100%;margin-top:6px}.st-week .ut-o{grid-template-columns:minmax(0,1fr) 40px 86px 50px;font-size:.76rem;padding:6px 9px}.st-week .ut-o strong{font-size:.76rem}.st-week .ut-o-h{font-size:.58rem;padding:0 9px}.st-week .st-col.cerrado .ut-daylist{display:none}.st-week .st-col.cerrado:not(.empty)::after{content:'▾';position:absolute;right:46px;top:16px;font-size:.8rem;opacity:.85}}
+.ut-find{padding:12px}.ut-find [data-ut-found]:empty{display:none}
 .ut-q{width:100%;min-height:44px;padding:10px 14px;border:1px solid rgba(255,255,255,.16);border-radius:12px;background:#0e130e;color:#fff;font:600 16px Arial;box-sizing:border-box}.ut-q:focus{outline:none;border-color:#d0f44c}[data-ut-list]{display:grid;gap:12px}.ut-more{width:auto!important;justify-self:center;min-height:42px;padding:9px 18px;border:1px solid rgba(208,244,76,.4);border-radius:12px;background:rgba(208,244,76,.1);color:#e7ff9a;font:800 .78rem Arial;box-shadow:none;cursor:pointer}.dash-more{margin:0;font-size:.76rem;color:#a9b5a3;text-align:right}
   .dash-load{display:grid;gap:10px;padding:18px;border:1px solid rgba(255,255,255,.12);border-radius:16px;background:#111611}
   .dash-load .dash-panel-head{align-items:baseline;flex-wrap:wrap}.dash-load h4{margin:0;font-size:.9rem;color:#e3eadc;text-transform:uppercase;letter-spacing:.05em}.dash-load .dash-panel-head small{color:#8f9b8a;font-size:.76rem}
