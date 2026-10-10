@@ -133,6 +133,17 @@
   .fitd .pz:hover .chip text,.fitd .pz.sel .chip text{fill:#141c05}
   .fitd-pie{display:flex;gap:6px 14px;flex-wrap:wrap;align-items:center;margin:8px 2px 0;color:#8e9a87;font:600 10.5px Arial;letter-spacing:.04em}
   .fitd-pie b{color:#d7ff3a;font:800 11.5px Arial}.fitd-pie i{font-style:normal;color:#aab5a2}
+  .fitd-info{margin:8px 0 0;padding:11px 13px;border:1px solid rgba(160,220,255,.22);border-radius:14px;background:linear-gradient(160deg,rgba(0,159,227,.10),rgba(0,0,0,.25));animation:fitdChip .3s ease both}
+  .fitd-info[hidden]{display:none}
+  .fitd-info h5{margin:0 0 8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;color:#f1f7ff;font:800 13px Arial;letter-spacing:.05em}
+  .fitd-info h5 small{padding:2px 8px;border-radius:99px;border:1px solid rgba(255,255,255,.2);color:#aab5a2;font:700 9.5px Arial;letter-spacing:.1em}
+  .fitd-datos{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+  .fitd-datos div{padding:7px 9px;border-radius:10px;background:rgba(255,255,255,.045);min-width:0}
+  .fitd-datos dt{margin:0 0 3px;color:#8e9a87;font:800 9px Arial;letter-spacing:.14em}
+  .fitd-datos dd{margin:0;color:#e9efe3;font:700 11.5px/1.35 Arial;overflow-wrap:anywhere}
+  .fitd-datos dd i{font-style:normal;display:inline-block;margin:0 5px 2px 0;padding:1px 7px;border-radius:99px;background:var(--c,#b6f23a);color:#0b1204;font:800 10px Arial}
+  .fitd-rel{margin:9px 0 0}.fitd-rel b{display:block;margin:0 0 3px;color:#8e9a87;font:800 9px Arial;letter-spacing:.14em}
+  .fitd-rel p{margin:0 0 3px;padding-left:10px;border-left:2px solid rgba(215,255,58,.5);color:#cfd8c7;font:500 11px/1.45 Arial}
   .fitd-nota{margin:6px 2px 0;color:#ffb86b;font:600 11px/1.45 Arial;letter-spacing:.02em}
   @media(prefers-reduced-motion:reduce){.fitd .pz{transition:none}.fitd .pz .mov,.fitd .pz .chip{animation:none;opacity:1}.fitd .pz .destello{display:none}}
   @media(max-width:700px){.fitd svg{max-height:none}}.fit-h{font:700 13px Arial}.fit-c{font:700 15px Arial;fill:#000}
@@ -419,6 +430,28 @@
     });
     return titulos.filter(T => T.imgs.length);
   }
+  const RAIZ_PIEZA = t => { const w = plano(t).toUpperCase().split(/[^A-Z0-9]+/).filter(x => x.length >= 4 && !/^(DERECH|IZQUIERD|CENTRO|PIEZAS?$|DOBLE|LADO)/.test(x)); return w.map(x => x.replace(/(ES|S)$/, '').slice(0, 6)); };
+  function infoPieza(f, nombre, molde) {
+    const raices = RAIZ_PIEZA(nombre), mats = materiales(f), casa = n => { const r = RAIZ_PIEZA(n); return raices.length && r.some(a => raices.some(b => a.startsWith(b) || b.startsWith(a))); };
+    // materiales donde va esta pieza (si no tiene rótulo, o la ficha es de un solo material, se dice el material de la prenda)
+    let en = mats.map(m => ({ m, ps: m.piezas.filter(p => casa(p.n)) })).filter(x => x.ps.length);
+    const general = !en.length;
+    if (general) en = mats.map(m => ({ m, ps: [] }));
+    const cant = en.reduce((a, x) => a + x.ps.reduce((b, p) => b + p.c, 0), 0);
+    const dato = (k, v) => v ? '<div><dt>' + k + '</dt><dd>' + v + '</dd></div>' : '';
+    const matHtml = en.map(x => '<i style="--c:' + x.m.color + '">' + x.m.id + '</i>' + esc(x.m.tela || 'Tela por definir') + (x.ps.length && en.length > 1 ? ' <span style="color:#8e9a87">×' + x.ps.reduce((b, p) => b + p.c, 0) + '</span>' : '')).join('<br>');
+    const lineas = (lista, tope) => lista.filter(t => raices.some(r => plano(t).toUpperCase().includes(r))).slice(0, tope);
+    const desc = raices.length ? lineas((f.descripcion || []).map(d => String((d && d.texto) || d)).filter(d => !/\bM\d\s*(?:\([^)]*\))?\s*[:\-]/i.test(d)), 2) : [];
+    const conf = raices.length ? lineas((f.confeccion || []).map(c => c.etiqueta + ': ' + c.valor), 3) : [];
+    const ins = raices.length ? (f.insumos || []).filter(i => raices.some(r => plano(i.nombre + ' ' + (i.observacion || '')).toUpperCase().includes(r))).slice(0, 2).map(i => i.nombre + ' · ' + [i.tipo, i.color, i.medida].filter(Boolean).join(' · ') + (i.observacion ? ' — ' + i.observacion : '')) : [];
+    const rel = (t, l) => l.length ? '<div class="fitd-rel"><b>' + t + '</b>' + l.map(x => '<p>' + esc(x) + '</p>').join('') + '</div>' : '';
+    return '<h5>' + esc(nombre || 'Pieza sin rótulo en la ficha') + '<small>MOLDE ' + esc(molde) + '</small></h5><dl class="fitd-datos">' +
+      dato('SE CORTAN POR PRENDA', cant ? '<b style="color:#d7ff3a;font-size:14px">×' + cant + '</b>' + (en.length > 1 ? ' (sumando los materiales)' : '') : '') +
+      dato(general ? 'MATERIAL DE LA PRENDA' : 'VA EN', matHtml || 'Sin material definido en la ficha') +
+      dato('REFERENCIA', esc(f.ref) + (f.prenda ? ' · ' + esc(f.prenda) : '')) + '</dl>' +
+      rel('EN LA DESCRIPCIÓN', desc) + rel('EN CONFECCIÓN', conf) + rel('INSUMO RELACIONADO', ins) +
+      (general && nombre ? '<div class="fitd-rel"><p style="border-color:rgba(255,184,107,.6)">La descripción de la ficha no nombra esta pieza por material; se muestra el material de la prenda.</p></div>' : '');
+  }
   function fitDinamico(f) {
     const moldes = moldesDe(f);
     if (!moldes.length) return fitReal(f);
@@ -447,26 +480,26 @@
       // de dónde llega cada pieza y cómo flota: distinto para cada una (pero siempre igual para la misma), así el armado no se ve mecánico
       const vuelo = '--d:' + (0.05 + n * 0.07).toFixed(2) + 's;--x:' + ((n * 53) % 320 - 160) + 'px;--y:' + (70 + (n * 37) % 120) * (n % 3 === 0 ? -1 : 1) + 'px;--r:' + ((n * 29) % 40 - 20) + 'deg;--t:' + (4.2 + (n * 7 % 5) * 0.45).toFixed(2) + 's;--g:' + (n % 2 ? '.5deg' : '-.5deg');
       const caja = 'x="' + i.x + '" y="' + i.y + '" width="' + i.w + '" height="' + i.h + '"';
-      piezas += '<g class="pz" style="' + vuelo + '" data-fit-pz="' + n + '"' + (i.lab ? ' aria-label="' + esc(i.lab.t) + '"' : '') + '><g class="mov"><image href="' + url + '" ' + caja + ' preserveAspectRatio="none"/>' +
+      piezas += '<g class="pz" style="' + vuelo + '" data-fit-pz="' + n + '" data-fit-nombre="' + esc(i.lab ? String(i.lab.t).replace(/\s+/g, ' ').trim() : '') + '" data-fit-en="' + esc(M.nombre) + '"' + (i.lab ? ' aria-label="' + esc(i.lab.t) + '"' : '') + '><g class="mov"><image href="' + url + '" ' + caja + ' preserveAspectRatio="none"/>' +
         '<rect class="brillo" ' + caja + ' fill="url(#' + uid + 'g)" mask="url(#' + mid + ')"/><rect class="destello" ' + caja + ' fill="url(#' + uid + 'd)" mask="url(#' + mid + ')"/></g>' +
         (i.lab ? chip(i.lab, i.chipCx, i.chipY) : '') + '</g>';
     });
     const sueltos = M.labs.filter(L => L.suelto).map(L => '<g class="pz" style="--d:.3s">' + chip(L, L.cx, L.y) + '</g>').join('');
     const nombres = [...new Set(M.imgs.filter(i => i.lab).map(i => String(i.lab.t).replace(/\s+/g, ' ').trim()))];
     return '<div class="fitd">' + tabs + '<div class="fitd-escena"><svg viewBox="' + x0.toFixed(1) + ' ' + y0.toFixed(1) + ' ' + W.toFixed(1) + ' ' + H.toFixed(1) + '" role="img" aria-label="Molde ' + esc(M.nombre) + ' de ' + esc(f.ref) + '"><defs>' + defs + '</defs>' + piezas + sueltos + '</svg></div>' +
-      '<div class="fitd-pie"><span><b>' + M.imgs.length + '</b> piezas en el molde ' + esc(M.nombre) + '</span>' + (nombres.length ? '<i>' + nombres.map(esc).join(' · ') + '</i>' : '') + '<span>Pasa el cursor o toca una pieza para resaltarla</span></div>' +
+      '<div class="fitd-pie"><span><b>' + M.imgs.length + '</b> piezas en el molde ' + esc(M.nombre) + '</span>' + (nombres.length ? '<i>' + nombres.map(esc).join(' · ') + '</i>' : '') + '<span>Toca una pieza para ver su información</span></div><div class="fitd-info" data-fit-info hidden></div>' +
       M.notas.map(n => '<p class="fitd-nota">⚠ ' + esc(n.t) + '</p>').join('') + '</div>';
   }
   function iconoFila(p, i, color) { return '<span style="--d:' + (0.4 + i * 0.12).toFixed(2) + 's">' + icono(p.n) + esc(p.n) + (p.c > 1 ? '<em>×' + p.c + '</em>' : '') + '</span>'; }
   function materiales(f) {
-    const texto = (f.descripcion || []).map(d => (d && d.texto) || d).filter(d => /\bM\d\s*[:\-]/i.test(d)).join(' || ');
+    const texto = (f.descripcion || []).map(d => (d && d.texto) || d).filter(d => /\bM\d\s*(?:\([^)]*\))?\s*[:\-]/i.test(d)).join(' || ');
     const mats = [];
     const limpia = x => x.replace(/\s+/g, ' ').trim();
-    const piezasDe = trozo => limpia(trozo).replace(/\([^)]*\)/g, '').split(/[,;]/).map(limpia).filter(Boolean).map(x => {
+    const piezasDe = trozo => limpia(trozo).replace(/\([^)]*\)/g, '').split(/[,;]/).map(limpia).map(x => x.replace(/\s*\.\s*\/[^]*$/, '')).filter(Boolean).map(x => {   // «BOLSILLOS X2. / OJO…»: la nota que sigue al punto no es parte de la pieza
       const m = x.match(/^(.*?)\s*[xX]\s*(\d+)\s*\.?$/);
       return m ? { n: limpia(m[1]).replace(/^(Y|Y\/O|E)\s+/i, ''), c: +m[2] } : { n: x.replace(/\.$/, ''), c: 1 };
     }).filter(x => x.n);
-    const re = /\bM(\d)\s*[:\-]\s*([^]*?)(?=\bM\d\s*[:\-]|$)/gi;
+    const re = /\bM(\d)\s*(?:\([^)]*\))?\s*[:\-]\s*([^]*?)(?=\bM\d\s*(?:\([^)]*\))?\s*[:\-]|$)/gi;
     let m;
     while ((m = re.exec(texto))) {
       const ps = piezasDe(m[2].replace(/\s*[\/7]\s*$/, '').replace(/\s*\|\|[^]*$/, ''));
@@ -499,7 +532,7 @@
   function pestanas(f) {
     const cons = S.consumos.find(c => c.ref === f.ref);
     const t = [], sec = x => '<p class="fi-sec">' + x + '</p>', nota = x => '<p class="fi-obs" style="margin:10px 0 0">' + esc(x) + '</p>';
-    const desc = (f.descripcion || []).map(d => String((d && d.texto) || d)), dePiezas = d => /\bM\d\s*[:\-]/i.test(d);
+    const desc = (f.descripcion || []).map(d => String((d && d.texto) || d)), dePiezas = d => /\bM\d\s*(?:\([^)]*\))?\s*[:\-]/i.test(d);
     const insumo = i => '<strong>' + esc(i.nombre) + '</strong> · ' + esc([i.tipo, i.color, i.medida].filter(Boolean).join(' · ')) + (i.cant ? ' · ×' + esc(i.cant) : '') + (i.observacion ? '<span class="fi-obs">' + esc(i.observacion) + '</span>' : '');
     // tallas: el mismo selector sirve a las pestañas con tablas por talla
     const todasTallas = tallasDe(f), esNum = x => /^\d+$/.test(String(x));
@@ -708,7 +741,13 @@
       const tab = e.target.closest('[data-fi-tab]'), hoja = e.target.closest('[data-fi-hoja]'), talla = e.target.closest('[data-fi-talla]'), abrir_ = e.target.closest('[data-fi-abrir]');
       const molde = e.target.closest('[data-fit-molde]'), pieza = e.target.closest('[data-fit-pz]');
       if (molde) { S.molde = molde.dataset.fitMolde; dibujar(); return; }
-      if (pieza) { const era = pieza.classList.contains('sel'); pieza.closest('svg').querySelectorAll('.pz.sel').forEach(x => x.classList.remove('sel')); if (!era) pieza.classList.add('sel'); return; }
+      if (pieza) {
+        const era = pieza.classList.contains('sel'), caja = pieza.closest('.fitd').querySelector('[data-fit-info]');
+        pieza.closest('svg').querySelectorAll('.pz.sel').forEach(x => x.classList.remove('sel'));
+        if (!era) pieza.classList.add('sel');
+        if (caja) { caja.hidden = era; if (!era) { caja.innerHTML = infoPieza(S.fichas[S.i], pieza.dataset.fitNombre || '', pieza.dataset.fitEn || ''); caja.style.animation = 'none'; void caja.offsetWidth; caja.style.animation = ''; } }
+        return;
+      }
       if (tab) { S.tab = tab.dataset.fiTab; dibujar(); }
       else if (hoja) { S.i = +hoja.dataset.fiHoja; dibujar(); }
       else if (talla) { S.talla = talla.dataset.fiTalla; dibujar(); }
