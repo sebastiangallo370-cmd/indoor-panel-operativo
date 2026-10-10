@@ -192,7 +192,8 @@
   .ag .mu-doble{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:12px;min-height:0}
   .ag .mu-espera{display:grid!important;place-items:center;border:1px dashed #2d3b2f!important;background:#0c110d!important;text-align:center;color:#8f9b8a;font:600 12.5px/1.5 Arial}.ag .mu-espera b{display:block;margin-bottom:6px;color:#cfd9c7;font:900 11px Arial;letter-spacing:.16em}
   .ag .mu-listado:not(.mu-espera){padding:12px 14px}.ag .mu-ltabla table{font-size:13px!important}.ag .mu-ltabla td{padding:7px 9px!important}.ag .mu-ltabla th{padding:7px 9px!important}
-  .ag .mu-ltabla th:nth-child(3){width:64px!important}.ag .mu-ltabla th:nth-child(4){width:54px!important}.ag .mu-ltabla th:first-child{width:30px!important}.ag .mu-doble .mu-cuerpo{min-width:0}
+  .ag .mu-ltabla th:first-child{width:30px!important}.ag .mu-ltabla th:nth-child(3){width:58px!important}.ag .mu-ltabla th:nth-child(4){width:72px!important}.ag .mu-ltabla th:nth-child(5){width:62px!important}.ag .mu-ltabla th:nth-child(6){width:96px!important}.ag .mu-ltabla th:nth-child(7){width:26%}
+  .ag .mu-ltabla td.d{font-weight:800;color:#cfd9c7}.ag .mu-ltabla td.g{font-size:11.5px;color:#cfd9c7;overflow-wrap:anywhere}.ag .mu-doble .mu-cuerpo{min-width:0}
   .ag .mu-listado{display:grid;grid-template-rows:auto auto minmax(0,1fr);gap:8px;min-height:0;min-width:0;padding:10px;border:1px solid #2d3b2f;border-radius:12px;background:#0f1410}
   .ag .mu-listado>header{display:flex!important;align-items:center;justify-content:flex-start!important;gap:8px;flex-wrap:wrap;width:auto!important;margin:0!important;padding:0!important;border:0!important;background:none!important;position:static!important;box-shadow:none!important}
   .ag .mu-listado header b{font:900 11px Arial;letter-spacing:.14em;color:#d7ff3a}.ag .mu-ldis{padding:2px 9px;border-radius:999px;background:#d0f44c;color:#111;font:900 10.5px Arial}
@@ -1375,8 +1376,8 @@
     return '<section class="mu-listado"><header><b>LISTADO</b>' + (delDis.length ? '<span class="mu-ldis">' + esc(filtra ? etiqueta : 'Todos') + '</span>' : '') + '<i>' + filas.length + (filas.length === 1 ? ' pieza' : ' piezas') + '</i>' +
       (delDis.length && delDis.length < t.filas.length ? '<button type="button" data-mu-todo title="' + (st.muTodo ? 'Ver solo las piezas de este diseño' : 'Ver todo el listado de la orden') + '">' + (st.muTodo ? 'Solo ' + esc(etiqueta) : 'Ver todo') + '</button>' : '') + '</header>' +
       '<div class="mu-ltallas">' + tallas.map(x => '<span><b>' + esc(x) + '</b>×' + cuenta[x] + '</span>').join('') + '</div>' +
-      '<div class="mu-ltabla"><table><thead><tr><th>#</th><th>Nombre</th><th>Talla</th><th>Nº</th>' + (!filtra && cD >= 0 ? '<th>Dis.</th>' : '') + (hayGen ? '<th>Gén.</th>' : '') + (hayObs ? '<th>Observ.</th>' : '') + '</tr></thead><tbody>' +
-      filas.map((f, i) => '<tr><td>' + (i + 1) + '</td><td class="n">' + esc(v(f, cN)) + '</td><td class="t">' + esc(String(v(f, cT)).toUpperCase()) + '</td><td class="u">' + esc(v(f, cNu)) + '</td>' + (!filtra && cD >= 0 ? '<td>' + esc(v(f, cD)) + '</td>' : '') + (hayGen ? '<td>' + esc(String(v(f, cG)).charAt(0)) + '</td>' : '') + (hayObs ? '<td class="o">' + esc(v(f, cO)) + '</td>' : '') + '</tr>').join('') + '</tbody></table></div></section>';
+      '<div class="mu-ltabla"><table><thead><tr><th>#</th><th>Nombre</th><th>Talla</th><th>Número</th><th>Diseño</th><th>Género</th><th>Observaciones</th></tr></thead><tbody>' +   // siempre las seis columnas del listado
+      filas.map((f, i) => '<tr><td>' + (i + 1) + '</td><td class="n">' + esc(v(f, cN)) + '</td><td class="t">' + esc(String(v(f, cT)).toUpperCase()) + '</td><td class="u">' + esc(v(f, cNu)) + '</td><td class="d">' + esc(String(v(f, cD)).toUpperCase()) + '</td><td class="g">' + esc(String(v(f, cG)).toUpperCase()) + '</td><td class="o">' + esc(v(f, cO)) + '</td></tr>').join('') + '</tbody></table></div></section>';
   }
   function pintarMuestras() {
     const box = panel && panel.querySelector('[data-muestras]'); if (!box) return;
