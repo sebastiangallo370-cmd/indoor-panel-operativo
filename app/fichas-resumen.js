@@ -114,29 +114,37 @@
   .fi-edbtn{width:auto!important;min-height:0!important;margin-left:10px;padding:3px 10px!important;border:1px solid rgba(208,244,76,.45)!important;border-radius:999px!important;background:transparent!important;color:#d0f44c!important;font:700 10px Arial!important;letter-spacing:.06em;cursor:pointer;vertical-align:middle;text-transform:none}
   .fi-edbtn:hover{background:rgba(208,244,76,.12)!important}
   .fi-edmarca{margin-left:8px;color:#8e9a87;font:italic 400 10.5px Arial;letter-spacing:0;text-transform:none}
-  .fi-ed{display:grid;gap:7px;margin:8px 0 14px;padding:9px 10px;border:1px solid rgba(255,255,255,.08);border-left:3px solid rgba(255,255,255,.14);border-radius:12px;background:rgba(255,255,255,.025)}
-  .fi-ed.sucio{border-color:rgba(208,244,76,.4);border-left-color:#d0f44c;background:rgba(208,244,76,.05)}
-  .fi-ed-aviso{display:none;color:#d0f44c;font:800 10.5px Arial;letter-spacing:.04em}.fi-ed.sucio .fi-ed-aviso{display:inline}
-  .fi-ed:not(.sucio) .fi-ed-acc button.pri{background:transparent!important;border-color:rgba(255,255,255,.18)!important;color:#8e9a87!important}.fi-ed:not(.sucio) .fi-ed-acc button.des{display:none}
-  .fi-libre{margin:8px 0 14px;padding:10px 13px;border-left:3px solid rgba(208,244,76,.5);border-radius:0 10px 10px 0;background:rgba(255,255,255,.03);color:#dfe7d6;font:400 13.5px/1.6 Arial;white-space:pre-wrap;overflow-wrap:anywhere}
-  @media print{.fi-libre{color:#000!important}}
-  .fi-ed-ok{color:#b9e86a;font:700 11.5px Arial}
-  .fi-desbloq{display:flex;gap:10px 14px;align-items:center;justify-content:space-between;flex-wrap:wrap;position:sticky;top:0;z-index:5;backdrop-filter:blur(8px);background:rgba(20,28,16,.92)!important}
-  .fi-desbloq-acc{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-  .fi-desbloq-acc button{width:auto!important;min-height:0!important;padding:7px 14px!important;border:1px solid #d0f44c!important;border-radius:999px!important;background:#d0f44c!important;color:#142017!important;font:800 11px Arial!important;cursor:pointer;white-space:nowrap}
-  .fi-desbloq-acc button:disabled{opacity:.55;cursor:progress}
-  .fi-ed-fila{display:grid;grid-template-columns:22px minmax(0,1fr) 30px;gap:7px;align-items:start}
-  .fi-ed-fila.tabla{grid-template-columns:var(--cols)}.fi-ed-fila>i{display:block}
-  .fi-ed-fila>b{padding-top:9px;color:#8e9a87;font:800 10px Arial;text-align:right}
-  .fi-ed textarea,.fi-ed input{width:100%;box-sizing:border-box;min-height:36px;padding:8px 10px;border:1px solid #3d4c3b;border-radius:9px;background:#142017;color:#f5faef;font:500 13px/1.4 Arial;outline:none;resize:vertical}
-  .fi-ed textarea:focus,.fi-ed input:focus{border-color:#d0f44c}
-  .fi-ed-fila>button{width:30px!important;min-height:36px!important;padding:0!important;border:1px solid rgba(255,120,120,.4)!important;border-radius:9px!important;background:transparent!important;color:#ff9a9a!important;font:700 14px Arial!important;cursor:pointer}
-  .fi-ed-acc{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:4px}
-  .fi-ed-acc button{width:auto!important;min-height:0!important;padding:7px 14px!important;border:1px solid rgba(255,255,255,.18)!important;border-radius:999px!important;background:transparent!important;color:#c9d3c1!important;font:700 11px Arial!important;cursor:pointer}
-  .fi-ed-acc button.pri{background:#d0f44c!important;border-color:#d0f44c!important;color:#142017!important}
-  .fi-ed-acc button:disabled{opacity:.55;cursor:progress}
+  .fi-ed{display:grid;gap:8px;margin:20px 0 6px}
+  .fi-ed-cab{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:34px}
+  .fi-ed-cab>span{color:#8e9a87;font:800 10px Arial;letter-spacing:.2em;text-transform:uppercase}
+  .fi-ed-aviso{display:none;margin-left:10px;color:#d0f44c;font:800 10px Arial;letter-spacing:.04em;font-style:normal;text-transform:none}.fi-ed.sucio .fi-ed-aviso{display:inline}
+  .fi-ed button.fi-ed-mas{width:auto!important;min-height:0!important;padding:8px 15px!important;border:1px solid rgba(255,255,255,.2)!important;border-radius:999px!important;background:transparent!important;color:#e6ede0!important;font:800 10.5px Arial!important;letter-spacing:.12em;text-transform:uppercase;cursor:pointer;white-space:nowrap}
+  .fi-ed button.fi-ed-mas:hover{border-color:#d0f44c!important;color:#d0f44c!important}
+  .fi-ed-fila{display:grid;grid-template-columns:24px minmax(0,1fr) auto;gap:8px;align-items:center}
+  .fi-ed-fila.uno{grid-template-columns:minmax(0,1fr)}.fi-ed-fila.tabla{grid-template-columns:var(--cols)}
+  .fi-ed-fila>b{color:#d0f44c;font:800 12px Arial;letter-spacing:.08em}
+  .fi-ed-fila input[type=text],.fi-ed-fila textarea{width:100%!important;box-sizing:border-box!important;min-height:40px;margin:0!important;padding:10px 13px!important;border:1px solid rgba(255,255,255,.14)!important;border-radius:10px!important;background:#10160f!important;box-shadow:none!important;color:#f2f6ee!important;font:700 13.5px Inter,Arial,sans-serif!important;outline:none;color-scheme:dark}
+  .fi-ed-fila textarea{resize:vertical;line-height:1.45}
+  .fi-ed-fila input[type=text]:focus,.fi-ed-fila textarea:focus{border-color:#d0f44c!important;box-shadow:0 0 0 3px rgba(208,244,76,.16)!important}
+  .fi-ed.sucio .fi-ed-fila input[type=text],.fi-ed.sucio .fi-ed-fila textarea{border-color:rgba(208,244,76,.35)!important}
+  .fi-ed-mov{display:flex;gap:5px}
+  .fi-ed-mov button{display:inline-flex!important;align-items:center;justify-content:center;width:28px!important;height:28px!important;min-height:0!important;margin:0!important;padding:0!important;border:1px solid rgba(255,255,255,.14)!important;border-radius:8px!important;background:transparent!important;box-shadow:none!important;color:#b9c4b1!important;font:700 13px Arial!important;cursor:pointer}
+  .fi-ed-mov button:hover:not(:disabled){background:rgba(255,255,255,.12)!important;color:#fff!important}.fi-ed-mov button:disabled{opacity:.25;cursor:default}
+  .fi-ed-acc{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .fi-ed-acc button:not(.fi-ed-mas){width:auto!important;min-height:0!important;padding:6px 12px!important;border:1px solid rgba(255,255,255,.14)!important;border-radius:999px!important;background:transparent!important;color:#aab5a2!important;font:700 10.5px Arial!important;cursor:pointer}
+  .fi-ed:not(.sucio) .fi-ed-acc button.des{display:none}
+  .fi-ed-acc .fi-edmarca{margin-left:0}
+  .fi-ed button:disabled{opacity:.5}
+  .fi-pie-ed{position:sticky;bottom:-1px;z-index:6;display:flex;gap:10px;align-items:center;justify-content:flex-end;flex-wrap:wrap;margin:18px -4px 0;padding:12px 4px;border-top:1px solid rgba(255,255,255,.1);background:linear-gradient(180deg,rgba(10,14,9,.86),#0a0e09 40%);backdrop-filter:blur(6px)}
+  .fi-pie-ed>span{flex:1;min-width:120px}
+  .fi-pie-ed button{width:auto!important;min-height:0!important;padding:10px 18px!important;border:1px solid rgba(255,255,255,.2)!important;border-radius:999px!important;background:transparent!important;color:#e6ede0!important;font:800 11px Arial!important;letter-spacing:.12em;text-transform:uppercase;cursor:pointer;white-space:nowrap}
+  .fi-pie-ed button.pri{background:rgba(208,244,76,.28)!important;border-color:transparent!important;color:#dfe9c4!important}
+  .fi-pie-ed.sucio button.pri{background:#d0f44c!important;color:#111!important;box-shadow:0 8px 20px -8px rgba(208,244,76,.8)}
+  .fi-pie-ed button:disabled{opacity:.55;cursor:progress}
+  @media(max-width:700px){.fi-ed-fila.tabla{grid-template-columns:24px minmax(0,1fr);row-gap:5px}.fi-ed-fila.tabla>input{grid-column:2}.fi-ed-fila.tabla>.fi-ed-mov{grid-column:2;justify-content:flex-end}.fi-ed-mov button{width:32px!important;height:32px!important}.fi-pie-ed button{flex:1;padding:11px 10px!important}.fi-pie-ed>span{flex:1 1 100%}}
+  @media print{.fi-pie-ed{display:none!important}}
   .fi-ed-msg{color:#ff9a9a;font:700 11.5px Arial}
-  @media(max-width:900px){.fi-ed-fila.tabla{grid-template-columns:22px minmax(0,1fr) 30px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,.08)}.fi-ed-fila.tabla input,.fi-ed-fila.tabla textarea{grid-column:2}.fi-ed-fila.tabla>button{grid-row:1;grid-column:3}}
+  @media(max-width:900px){.fi-ed-fila.tabla{grid-template-columns:24px minmax(0,1fr);row-gap:5px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,.08)}.fi-ed-fila.tabla>input{grid-column:2}.fi-ed-fila.tabla>.fi-ed-mov{grid-column:2;justify-content:flex-end}}
   /* encabezado de materiales */
   .ft-cab{position:relative;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px 14px;padding:11px 14px 14px;border-radius:14px;border:1px solid rgba(255,255,255,.1);background:linear-gradient(120deg,color-mix(in srgb,var(--c1) 13%,transparent),rgba(255,255,255,.02) 45%,color-mix(in srgb,var(--c2) 13%,transparent));overflow:hidden}
   .ft-cab:before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,var(--c1),var(--c2))}
@@ -657,16 +665,19 @@
   // tablas con columnas [campo, ayuda, ancho]. Las tablas por talla se escriben con los valores separados por espacios («XS S M L» / «60 62 64 68»).
   const COLS_INSUMO = [['nombre', 'Nombre', 2], ['tipo', 'Tipo', 2], ['color', 'Color', 1], ['medida', 'Medida', 1], ['cant', 'Cant.', 1], ['observacion', 'Observación', 3]];
   const AYUDA_TALLAS = 'Una fila por tabla. Escribe las tallas y sus valores separados por espacios y en el mismo orden (usa un guion «-» donde no haya valor).';
+  // Secciones de un solo renglón libre: lo que no se toca conserva sus datos tal cual; lo que se escribe o cambia se guarda como texto libre.
+  const LIN_KV = (a, b) => ({ une: x => (x[a] ? x[a] + ': ' : '') + (x[b] || ''), parte: t => { const m = /^([^:]{1,40}):\s*(.*)$/.exec(t); return m ? { [a]: m[1].trim(), [b]: m[2] } : { [a]: '', [b]: t }; } });
+  const LIN_INS = { une: x => [x.nombre, x.tipo, x.color, x.medida, x.cant ? '×' + x.cant : '', x.observacion].filter(Boolean).join(' · '), parte: t => ({ nombre: t, tipo: '', color: '', medida: '', cant: '', observacion: '' }) };
   const ED = {
     prenda: { t: 'Nombre de la prenda', tipo: 'texto' }, referencia: { t: 'Referencia', tipo: 'texto' }, familia: { t: 'Línea', tipo: 'texto' }, nota: { t: 'Nota', tipo: 'texto' }, nota_promedio: { t: 'Nota del promedio', tipo: 'texto' }, composicion: { t: 'Composición de la tela', tipo: 'texto' },
-    libre_general: { t: 'Especificaciones adicionales', tipo: 'lista', mas: '+ Agregar especificación', ayuda: 'Agrega aquí lo que quieras, escrito libremente: cada línea es una especificación nueva.' }, libre_piezas: { t: 'Especificaciones adicionales', tipo: 'lista', mas: '+ Agregar especificación', ayuda: 'Agrega aquí lo que quieras, escrito libremente: cada línea es una especificación nueva.' }, libre_tela: { t: 'Especificaciones adicionales', tipo: 'lista', mas: '+ Agregar especificación', ayuda: 'Agrega aquí lo que quieras, escrito libremente: cada línea es una especificación nueva.' }, libre_medidas: { t: 'Especificaciones adicionales', tipo: 'lista', mas: '+ Agregar especificación', ayuda: 'Agrega aquí lo que quieras, escrito libremente: cada línea es una especificación nueva.' }, libre_insumos: { t: 'Especificaciones adicionales', tipo: 'lista', mas: '+ Agregar especificación', ayuda: 'Agrega aquí lo que quieras, escrito libremente: cada línea es una especificación nueva.' }, libre_confeccion: { t: 'Especificaciones adicionales', tipo: 'lista', mas: '+ Agregar especificación', ayuda: 'Agrega aquí lo que quieras, escrito libremente: cada línea es una especificación nueva.' }, libre_empaque: { t: 'Especificaciones adicionales', tipo: 'lista', mas: '+ Agregar especificación', ayuda: 'Agrega aquí lo que quieras, escrito libremente: cada línea es una especificación nueva.' },
+    libre_general: { t: 'Especificaciones adicionales', tipo: 'lista', mas: '+ Agregar otra especificación' }, libre_piezas: { t: 'Especificaciones adicionales', tipo: 'lista', mas: '+ Agregar otra especificación' }, libre_tela: { t: 'Especificaciones adicionales', tipo: 'lista', mas: '+ Agregar otra especificación' }, libre_medidas: { t: 'Especificaciones adicionales', tipo: 'lista', mas: '+ Agregar otra especificación' }, libre_insumos: { t: 'Especificaciones adicionales', tipo: 'lista', mas: '+ Agregar otra especificación' }, libre_confeccion: { t: 'Especificaciones adicionales', tipo: 'lista', mas: '+ Agregar otra especificación' }, libre_empaque: { t: 'Especificaciones adicionales', tipo: 'lista', mas: '+ Agregar otra especificación' },
     descripcion: { t: 'Descripción', tipo: 'lista', ayuda: 'Aquí están todas las líneas de la descripción, también las de materiales («M1: FRENTE X1, …»): de esas líneas salen las piezas y los colores del molde.' },
     terminacion: { t: 'Terminación y revisión', tipo: 'lista' },
-    confeccion: { t: 'Confección', cols: [['etiqueta', 'Rótulo (MÁQUINA, AGUJA…)', 1], ['valor', 'Texto', 3]] },
-    especificaciones: { t: 'Datos adicionales (nombre y detalle)', cols: [['etiqueta', 'Nombre de la especificación', 1], ['valor', 'Detalle', 3]], ayuda: 'Agrega aquí cualquier dato que la ficha no tenga: cada fila es una especificación nueva.' },
-    telas: { t: 'Telas recomendadas', cols: [['material', 'Material (M1, M2…)', 1], ['tela', 'Tela', 3]] },
+    confeccion: { t: 'Confección', linea: LIN_KV('etiqueta', 'valor'), mas: '+ Agregar otro paso', cols: [['etiqueta', 'Rótulo (MÁQUINA, AGUJA…)', 1], ['valor', 'Texto', 3]] },
+    especificaciones: { t: 'Datos adicionales', linea: LIN_KV('etiqueta', 'valor'), mas: '+ Agregar otro dato', cols: [['etiqueta', 'Nombre de la especificación', 1], ['valor', 'Detalle', 3]] },
+    telas: { t: 'Telas recomendadas', linea: LIN_KV('material', 'tela'), mas: '+ Agregar otra tela', cols: [['material', 'Material (M1, M2…)', 1], ['tela', 'Tela', 3]] },
     promedios: { t: 'Promedio de la ficha', cols: [['nombre', 'Nombre (PROMEDIO M1)', 2], ['masc', 'Masculino', 1], ['feme', 'Femenino', 1], ['nino', 'Niño', 1]] },
-    insumos: { t: 'Insumos de la prenda', cols: COLS_INSUMO }, empaque_insumos: { t: 'Insumos de empaque', cols: COLS_INSUMO },
+    insumos: { t: 'Insumos de la prenda', linea: LIN_INS, mas: '+ Agregar otro insumo', cols: COLS_INSUMO }, empaque_insumos: { t: 'Insumos de empaque', linea: LIN_INS, mas: '+ Agregar otro insumo', cols: COLS_INSUMO },
     tallajes: { t: 'Medidas de la prenda terminada', ayuda: AYUDA_TALLAS, cols: [['titulo', 'Título (MASCULINO (M))', 2], ['tallas', 'Tallas: XS S M L', 3], ['ancho', 'Ancho (X)', 3], ['alto', 'Alto (Y)', 3], ['largo', 'Largo', 3]] },
     medidas_insumos: { t: 'Medidas para insumos', ayuda: AYUDA_TALLAS, cols: [['titulo', 'Título (ELASTICO MASCULINO)', 2], ['tallas', 'Tallas: XS S M L', 3], ['medidas', 'Medidas', 3]] }
   };
@@ -691,21 +702,26 @@
     const f = S.fichas[S.i]; S.bor = S.bor || {};
     overlay.querySelectorAll('[data-fi-ed]').forEach(caja => {
       const sec = caja.dataset.fiEd, d = ED[sec];
-      const filas = [...caja.querySelectorAll('.fi-ed-fila')].map(fila => d.cols ? Object.fromEntries(d.cols.map(c => [c[0], fila.querySelector('[data-ed-col="' + c[0] + '"]').value])) : fila.querySelector('[data-ed-va]').value);
+      let filas = [...caja.querySelectorAll('.fi-ed-fila')].map(fila => d.cols && !d.linea ? Object.fromEntries(d.cols.map(c => [c[0], fila.querySelector('[data-ed-col="' + c[0] + '"]').value])) : fila.querySelector('[data-ed-va]').value);
+      if (d.linea) {   // el renglón que sigue igual conserva sus datos; el que cambió se toma como texto libre
+        const antes = (S.bor[sec] || []).concat(baseDe(f, sec)), usados = new Set();
+        filas = filas.map(t => { const k = antes.findIndex((b, n) => !usados.has(n) && d.linea.une(b) === t); if (k >= 0) { usados.add(k); return antes[k]; } return d.linea.parte(t); });
+      }
       if (JSON.stringify(filas) === JSON.stringify(baseDe(f, sec))) delete S.bor[sec]; else S.bor[sec] = filas;
     });
   }
   function editor(f, sec) {
-    const d = ED[sec], pend = (S.bor || {})[sec], filas = pend || baseDe(f, sec), e = (f.editado || {})[sec];
-    const plantilla = d.cols ? '22px ' + d.cols.map(c => 'minmax(0,' + c[2] + 'fr)').join(' ') + ' 30px' : '';
-    const campo = (x, c) => c[0] === 'valor' || c[0] === 'observacion' ? '<textarea rows="2" maxlength="600" data-ed-col="' + c[0] + '" placeholder="' + esc(c[1]) + '" title="' + esc(c[1]) + '">' + esc(x[c[0]]) + '</textarea>'
-      : '<input type="text" maxlength="300" data-ed-col="' + c[0] + '" placeholder="' + esc(c[1]) + '" title="' + esc(c[1]) + '" value="' + esc(x[c[0]]) + '">';
-    return '<p class="fi-sec">' + d.t + (e ? '<span class="fi-edmarca">corregido por ' + esc(e.por) + ' · ' + esc(e.fecha) + '</span>' : '') + '</p>' + (d.ayuda ? '<p class="fi-obs" style="margin:0 0 6px">' + d.ayuda + '</p>' : '') +
-      '<div class="fi-ed' + (pend ? ' sucio' : '') + '" data-fi-ed="' + sec + '">' + filas.map((x, i) => '<div class="fi-ed-fila' + (d.cols ? ' tabla' : '') + '"' + (d.cols ? ' style="--cols:' + plantilla + '"' : '') + '><b>' + (d.tipo === 'texto' ? '' : pad(i + 1)) + '</b>' +
-        (d.cols ? d.cols.map(c => campo(x, c)).join('') : '<textarea rows="2" maxlength="600" data-ed-va placeholder="' + (d.tipo === 'texto' ? 'Escribe aquí' : d.mas ? 'Escribe la especificación' : 'Texto de la línea') + '">' + esc(x) + '</textarea>') +
-        (d.tipo === 'texto' ? '<i></i>' : '<button type="button" data-fi-ed-del="' + i + '" title="Quitar esta fila">×</button>') + '</div>').join('') +
-      '<div class="fi-ed-acc">' + (d.tipo === 'texto' ? '' : '<button type="button" data-fi-ed-add>' + (d.mas || '+ Agregar ' + (d.cols ? 'fila' : 'línea')) + '</button>') + '<button type="button" class="pri" data-fi-ed-guardar>Guardar</button><button type="button" class="des" data-fi-ed-cancelar title="Descarta lo escrito y vuelve a lo guardado">Deshacer</button>' +
-      (e ? '<button type="button" data-fi-ed-restaurar title="Quita la corrección y vuelve a lo que dice el Excel">Restaurar el del Excel</button>' : '') + '<span class="fi-ed-aviso">● sin guardar</span><span class="fi-ed-msg" data-fi-ed-msg></span></div></div>';
+    const d = ED[sec], pend = (S.bor || {})[sec], filas = pend || baseDe(f, sec), e = (f.editado || {})[sec], uno = d.tipo === 'texto', una = uno || !d.cols || !!d.linea;
+    const plantilla = !una ? '24px ' + d.cols.map(c => 'minmax(0,' + c[2] + 'fr)').join(' ') + ' auto' : '';
+    const texto = x => d.linea ? d.linea.une(x) : x, llenas = filas.filter(x => String(una ? texto(x) : Object.values(x).join('')).trim()).length;
+    const mover = i => '<span class="fi-ed-mov"><button type="button" data-fi-ed-sube="' + i + '" title="Subir"' + (i === 0 ? ' disabled' : '') + '>↑</button><button type="button" data-fi-ed-baja="' + i + '" title="Bajar"' + (i === filas.length - 1 ? ' disabled' : '') + '>↓</button><button type="button" class="x" data-fi-ed-del="' + i + '" title="Quitar">×</button></span>';
+    const fila = (x, i) => uno ? '<div class="fi-ed-fila uno"><textarea rows="' + (String(x).length > 70 ? 3 : 1) + '" maxlength="1200" data-ed-va placeholder="Escribe aquí">' + esc(x) + '</textarea></div>'
+      : una ? '<div class="fi-ed-fila"><b>' + pad(i + 1) + '</b><input type="text" maxlength="600" data-ed-va placeholder="Escribe aquí" value="' + esc(texto(x)) + '">' + mover(i) + '</div>'
+      : '<div class="fi-ed-fila tabla" style="--cols:' + plantilla + '"><b>' + pad(i + 1) + '</b>' + d.cols.map(c => '<input type="text" maxlength="300" data-ed-col="' + c[0] + '" placeholder="' + esc(c[1]) + '" title="' + esc(c[1]) + '" value="' + esc(x[c[0]]) + '">').join('') + mover(i) + '</div>';
+    return '<div class="fi-ed' + (pend ? ' sucio' : '') + '" data-fi-ed="' + sec + '"><div class="fi-ed-cab"><span>' + esc(d.t) + (uno ? '' : ' (' + llenas + ')') + '<i class="fi-ed-aviso">● sin guardar</i></span>' + (uno ? '' : '<button type="button" class="fi-ed-mas" data-fi-ed-add>+ Agregar</button>') + '</div>' +
+      (d.ayuda ? '<p class="fi-obs" style="margin:0 0 2px">' + d.ayuda + '</p>' : '') + filas.map(fila).join('') +
+      '<div class="fi-ed-acc">' + (uno ? '' : '<button type="button" class="fi-ed-mas" data-fi-ed-add>' + (d.mas || '+ Agregar otro renglón') + '</button>') + '<button type="button" class="des" data-fi-ed-cancelar title="Descarta lo escrito y vuelve a lo guardado">Deshacer</button>' +
+      (e ? '<button type="button" data-fi-ed-restaurar title="Quita la corrección y vuelve a lo que dice el Excel">Restaurar el del Excel</button><span class="fi-edmarca">corregido por ' + esc(e.por) + ' · ' + esc(e.fecha) + '</span>' : '') + '<span class="fi-ed-msg" data-fi-ed-msg></span></div></div>';
   }
   async function enviar(f, sec, lineas) {
     const r = await fetch('/api/fichas/texto', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: f.id, seccion: sec, lineas }) });
@@ -730,7 +746,7 @@
     for (const sec of pendientes) {
       try { S.fichas[S.i] = await enviar(S.fichas[S.i], sec, S.bor[sec]); delete S.bor[sec]; hechas++; } catch (e) { error = ED[sec].t + ': ' + e.message; break; }
     }
-    S.aviso_ed = error ? { mal: true, t: error } : { mal: false, t: 'Guardado: ' + hechas + (hechas === 1 ? ' sección.' : ' secciones.') };
+    S.aviso_ed = error ? { mal: true, t: error } : { mal: false, t: 'Guardado: ' + hechas + (hechas === 1 ? ' sección.' : ' secciones.') + ' ✓' };
     dibujar();
   }
   // Una pestaña por cada sección de la ficha original (el Excel de FICHAS TECNICAS), sin mezclar información entre ellas
@@ -742,7 +758,7 @@
     const hayL = k => (f['libre_' + k] || []).length;
     const bloque = (clave, titulo, contenido, vacio) => E.editar ? editor(f, clave) : (contenido || (f.editado || {})[clave] ? secEd(f, titulo, clave) + (contenido || '<p class="fi-vacio">' + (vacio || 'Sin información.') + '</p>') : '');
     const desc = (f.descripcion || []).map(d => String((d && d.texto) || d)), dePiezas = d => /\bM\d\s*(?:\([^)]*\))?\s*[:\-]/i.test(d);
-    const insumo = i => '<strong>' + esc(i.nombre) + '</strong> · ' + esc([i.tipo, i.color, i.medida].filter(Boolean).join(' · ')) + (i.cant ? ' · ×' + esc(i.cant) : '') + (i.observacion ? '<span class="fi-obs">' + esc(i.observacion) + '</span>' : '');
+    const insumo = i => '<strong>' + esc(i.nombre) + '</strong>' + ([i.tipo, i.color, i.medida].some(Boolean) ? ' · ' + esc([i.tipo, i.color, i.medida].filter(Boolean).join(' · ')) : '') + (i.cant ? ' · ×' + esc(i.cant) : '') + (i.observacion ? '<span class="fi-obs">' + esc(i.observacion) + '</span>' : '');
     // tallas: el mismo selector sirve a las pestañas con tablas por talla
     const todasTallas = tallasDe(f), esNum = x => /^\d+$/.test(String(x));
     const hayAdulto = todasTallas.some(x => !esNum(x)), hayNino = todasTallas.some(esNum);
@@ -921,7 +937,7 @@
       mock = mockPane(f);
       const hojas = S.fichas.length > 1 ? '<div class="fi-hojas">' + S.fichas.map((x, k) => '<button type="button" aria-pressed="' + (k === S.i) + '" data-fi-hoja="' + k + '">' + esc(x.hoja) + '</button>').join('') + '</div>' : '';
       main = top + hojas + '<div class="li-tabs" role="tablist">' + tabs.map(x => '<button type="button" role="tab" data-fi-tab="' + esc(x.id) + '" aria-pressed="' + (x.id === S.tab) + '">' + esc(x.id) + '</button>').join('') + '</div>' +
-        '<div class="li-pane"><div class="li-title"><i class="li-bar"></i><h2 id="li-title">' + esc(f.ref) + '</h2></div><p class="li-sub"><span class="li-count">' + act.n + ' ' + act.u[act.n === 1 ? 0 : 1] + '</span><span>' + esc(f.prenda || f.familia) + ' · ' + esc(f.familia) + '</span></p>' + (E.editar ? '<div class="fi-desbloq"><span>🔓 <b>Ficha desbloqueada.</b> Escribe directo sobre cualquier campo, en todas las pestañas; agrega filas con «+». En PIEZAS toca una pieza para cambiarla.</span><span class="fi-desbloq-acc"><button type="button" data-fi-ed-todo>💾 Guardar todo' + (sucio() ? ' (' + Object.keys(S.bor).length + ')' : '') + '</button><span data-fi-todo-msg class="' + (S.aviso_ed && S.aviso_ed.mal ? 'fi-ed-msg' : 'fi-ed-ok') + '">' + esc((S.aviso_ed || {}).t || '') + '</span></span></div>' : '') + act.html + '</div>' + foot;
+        '<div class="li-pane"><div class="li-title"><i class="li-bar"></i><h2 id="li-title">' + esc(f.ref) + '</h2></div><p class="li-sub"><span class="li-count">' + act.n + ' ' + act.u[act.n === 1 ? 0 : 1] + '</span><span>' + esc(f.prenda || f.familia) + ' · ' + esc(f.familia) + '</span></p>' + (E.editar ? '<p class="fi-desbloq">🔓 <b>Ficha desbloqueada.</b> Cambia cualquier renglón, agrégale los que quieras con «+ Agregar» y ordénalos con las flechas, en todas las pestañas. En PIEZAS toca una pieza para cambiarla. Al final pulsa «Guardar cambios».</p>' : '') + act.html + '</div>' + (E.editar ? '<div class="fi-pie-ed' + (sucio() ? ' sucio' : '') + '" data-fi-pie><span data-fi-todo-msg class="' + (S.aviso_ed && S.aviso_ed.mal ? 'fi-ed-msg' : 'fi-ed-ok') + '">' + esc((S.aviso_ed || {}).t || (sucio() ? 'Tienes cambios sin guardar.' : '')) + '</span><button type="button" data-fi-modificar>Cerrar edición</button><button type="button" class="pri" data-fi-ed-todo>Guardar cambios' + (sucio() ? ' (' + Object.keys(S.bor).length + ')' : '') + '</button></div>' : '') + foot;
     }
     card.classList.toggle('has-mock', !!mock);
     card.innerHTML = '<button type="button" class="li-close" aria-label="Cerrar">×</button><div class="li-split">' + mock + '<div class="li-main">' + main + '</div></div>';
@@ -999,6 +1015,10 @@
           S.bor[sec] = filas.concat([vacia(sec)]); dibujar();
           const nuevas = overlay.querySelectorAll('[data-fi-ed="' + sec + '"] .fi-ed-fila'), campo = nuevas.length && nuevas[nuevas.length - 1].querySelector('input,textarea'); if (campo) campo.focus();
         }
+        else if (e.target.closest('[data-fi-ed-sube],[data-fi-ed-baja]')) {
+          const b = e.target.closest('[data-fi-ed-sube],[data-fi-ed-baja]'), sube = b.dataset.fiEdSube != null, k = +(sube ? b.dataset.fiEdSube : b.dataset.fiEdBaja), o = sube ? k - 1 : k + 1;
+          if (o >= 0 && o < filas.length) { const l = filas.slice(); [l[k], l[o]] = [l[o], l[k]]; S.bor[sec] = l; dibujar(); }
+        }
         else if (e.target.closest('[data-fi-ed-del]')) { const k = +e.target.closest('[data-fi-ed-del]').dataset.fiEdDel; S.bor[sec] = filas.filter((_, n) => n !== k); dibujar(); }
         else if (e.target.closest('[data-fi-ed-cancelar]')) { delete S.bor[sec]; dibujar(); }
         else if (e.target.closest('[data-fi-ed-guardar]')) guardarEditor(sec, filas);
@@ -1021,7 +1041,7 @@
       }
       else if (e.target.closest('[data-fi-pagina]')) { const f = S.fichas[S.i]; cerrar(); window.molderiaAbrirPagina(f.id); }
     });
-    overlay.addEventListener('input', e => { const ed = e.target.closest('[data-fi-ed]'); if (ed) { ed.classList.add('sucio'); return; } if (e.target.matches('[data-fi-q]')) { S.q = e.target.value; pintarBusqueda(); } else if (e.target.matches('[data-fi-calc]')) recalcular(); });
+    overlay.addEventListener('input', e => { const ed = e.target.closest('[data-fi-ed]'); if (ed) { ed.classList.add('sucio'); const pie = overlay.querySelector('[data-fi-pie]'); if (pie) pie.classList.add('sucio'); return; } if (e.target.matches('[data-fi-q]')) { S.q = e.target.value; pintarBusqueda(); } else if (e.target.matches('[data-fi-calc]')) recalcular(); });
     overlay.addEventListener('change', e => {
       if (!e.target.matches('[data-fi-chk]')) return;
       const k = e.target.dataset.fiChk; if (e.target.checked) CHK[k] = 1; else delete CHK[k]; guardar('mo_chk', CHK);
