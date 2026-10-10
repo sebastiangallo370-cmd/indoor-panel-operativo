@@ -188,6 +188,21 @@
   .ag .ag-nodo.inactivo .et b{color:#aab5a2}.ag .ag-nodo.corriendo .et b{color:var(--c)}
   @keyframes agNodoVivo{50%{box-shadow:0 0 0 9px color-mix(in srgb,var(--c) 8%,transparent),0 0 44px 0 color-mix(in srgb,var(--c) 75%,transparent)}}
   @keyframes agIcoVivo{50%{transform:scale(1.1)}}@keyframes agInsEntra{from{transform:scale(0)}}
+  /* aprobación de la muestra: el listado del diseño a la izquierda y la muestra a la derecha (como la plantilla de Excel) */
+  .ag .mu-doble{display:grid;grid-template-columns:minmax(250px,36%) minmax(0,1fr);gap:10px;min-height:0}.ag .mu-doble .mu-cuerpo{min-width:0}
+  .ag .mu-listado{display:grid;grid-template-rows:auto auto minmax(0,1fr);gap:8px;min-height:0;min-width:0;padding:10px;border:1px solid #2d3b2f;border-radius:12px;background:#0f1410}
+  .ag .mu-listado>header{display:flex!important;align-items:center;justify-content:flex-start!important;gap:8px;flex-wrap:wrap;width:auto!important;margin:0!important;padding:0!important;border:0!important;background:none!important;position:static!important;box-shadow:none!important}
+  .ag .mu-listado header b{font:900 11px Arial;letter-spacing:.14em;color:#d7ff3a}.ag .mu-ldis{padding:2px 9px;border-radius:999px;background:#d0f44c;color:#111;font:900 10.5px Arial}
+  .ag .mu-listado header i{color:#aebba7;font:700 11px Arial;font-style:normal}
+  .ag .mu-listado header button{margin-left:auto!important;width:auto!important;min-height:0!important;padding:4px 10px!important;border:1px solid #3d4f3d!important;border-radius:999px!important;background:transparent!important;color:#dfe7d6!important;font:700 10.5px Arial!important;cursor:pointer}
+  .ag .mu-ltallas{display:flex;gap:5px;flex-wrap:wrap}.ag .mu-ltallas span{padding:3px 8px;border:1px solid #2d3b2f;border-radius:8px;background:rgba(255,255,255,.03);color:#cfd9c7;font:700 11px Arial}.ag .mu-ltallas b{color:#d0f44c;margin-right:1px}
+  .ag .mu-ltabla{min-height:0;overflow:auto;border-radius:8px;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.2) transparent}
+  .ag .mu-ltabla table{width:100%!important;min-width:0!important;max-width:100%;table-layout:fixed;border-collapse:collapse;font:600 12px Arial;color:#eef4e9}
+  .ag .mu-ltabla th:first-child{width:24px}.ag .mu-ltabla th:nth-child(3){width:50px}.ag .mu-ltabla th:nth-child(4){width:38px}.ag .mu-ltabla th,.ag .mu-ltabla td{min-width:0!important;white-space:normal}
+  .ag .mu-ltabla th{position:sticky;top:0;z-index:1;padding:6px 7px;background:#182019;color:#8f9b8a;font:800 9.5px Arial;letter-spacing:.1em;text-transform:uppercase;text-align:left}
+  .ag .mu-ltabla td{padding:6px 7px;border-bottom:1px solid rgba(255,255,255,.06);vertical-align:top}.ag .mu-ltabla tr:nth-child(even) td{background:rgba(255,255,255,.022)}
+  .ag .mu-ltabla td:first-child{color:#77836f;font-size:10.5px}.ag .mu-ltabla td.n{font-weight:800;overflow-wrap:anywhere}.ag .mu-ltabla td.t{color:#d0f44c;font-weight:800;white-space:nowrap}.ag .mu-ltabla td.u{font-weight:800;white-space:nowrap}.ag .mu-ltabla td.o{color:#aebba7;font-size:11px;overflow-wrap:anywhere}
+  @media(max-width:1300px){.ag .mu-doble{grid-template-columns:minmax(210px,34%) minmax(0,1fr)}}
   /* ventana PDFS: pantalla + tira de miniaturas a la izquierda; listas en tarjetas a la derecha */
   .ag .ag-live-col{display:grid;grid-template-rows:minmax(0,1fr) auto;gap:10px;min-width:0;min-height:0}
   .ag .ag-live-tira{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 6px;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.2) transparent;scroll-behavior:smooth}.ag .ag-live-tira[hidden]{display:none}
@@ -613,6 +628,7 @@
       '<div class="ag-tbl-wrap"><table><colgroup><col class="n">' + anchos(t) + '</colgroup><thead><tr><th class="n">#</th>' + t.columnas.map(c => '<th>' + esc(cabecera(c)) + '</th>').join('') + '</tr></thead><tbody>' +
       t.filas.map((f, i) => '<tr><td class="n">' + (i + 1) + '</td>' + t.columnas.map((c, k) => '<td>' + celda(vista(c, f[k])) + '</td>').join('') + '</tr>').join('') + '</tbody></table></div></div>';
   }
+  const tablaChat = m => (m.estado === 'APROBACION' && !(window.matchMedia && matchMedia('(max-width:1000px)').matches) ? null : m.tabla);
   function tablaDe(id) { const m = st.msgs.find(x => String(x.id) === String(id)); return m && m.tabla; }
   async function copiarTabla(id) {
     const t = tablaDe(id); if (!t) return;
@@ -1249,7 +1265,7 @@
       if (auto) { out.push('<div class="ag-sis auto">⚡ Inicio automático · ' + esc(auto[1]) + ' · ' + hora(m.creado) + '</div>'); return; }
       out.push(m.rol === 'yo'
         ? '<div class="ag-msg yo" data-mid="' + esc(m.id) + '"><div class="ag-txt">' + esc(m.texto) + '</div><span class="ag-time">' + hora(m.creado) + ' ' + estadoMio(k) + '</span></div>'
-        : '<div class="ag-msg bot' + (m.estado === 'ERROR' ? ' err' : '') + (m.tabla || (m.archivos && m.archivos.length) ? ' con-tabla' : '') + '" data-mid="' + esc(m.id) + '" style="--c:' + (COLORES[(m.agentes && m.agentes[0]) || 'TAVO'] || '#7da4ff') + '"><div class="ag-who">' + avatar((m.agentes && m.agentes[0]) || 'TAVO') + (m.agentes && m.agentes.length ? m.agentes : ['TAVO']).map(tag).join('') + '<button type="button" class="ag-copiar" data-copiar="' + esc(m.id) + '" title="Copiar el mensaje">⧉ Copiar</button></div><div class="ag-txt">' + textoHtml(m.tabla ? m.texto.split(/\n\nDesglose del listado/)[0] : m.texto) + '</div>' + (m.estado === 'ERROR' || /^[A-Z]+: /.test(m.texto) ? ayudaDe(m.texto, m.estado === 'ERROR' || /no pude|no pudo|falt|no aparece|no está/i.test(m.texto)) : '') + (m.tabla ? tablaHtml(m) : '') + (m.archivos && m.archivos.length ? archivosHtml(m) : '') + '<span class="ag-time">' + hora(m.creado) + '</span></div>');
+        : '<div class="ag-msg bot' + (m.estado === 'ERROR' ? ' err' : '') + (tablaChat(m) || (m.archivos && m.archivos.length) ? ' con-tabla' : '') + '" data-mid="' + esc(m.id) + '" style="--c:' + (COLORES[(m.agentes && m.agentes[0]) || 'TAVO'] || '#7da4ff') + '"><div class="ag-who">' + avatar((m.agentes && m.agentes[0]) || 'TAVO') + (m.agentes && m.agentes.length ? m.agentes : ['TAVO']).map(tag).join('') + '<button type="button" class="ag-copiar" data-copiar="' + esc(m.id) + '" title="Copiar el mensaje">⧉ Copiar</button></div><div class="ag-txt">' + textoHtml(tablaChat(m) ? m.texto.split(/\n\nDesglose del listado/)[0] : m.texto) + '</div>' + (m.estado === 'ERROR' || /^[A-Z]+: /.test(m.texto) ? ayudaDe(m.texto, m.estado === 'ERROR' || /no pude|no pudo|falt|no aparece|no está/i.test(m.texto)) : '') + (tablaChat(m) ? tablaHtml(m) : '') + (m.archivos && m.archivos.length ? archivosHtml(m) : '') + '<span class="ag-time">' + hora(m.creado) + '</span></div>');
     });
     soltar();
     return out.join('');
@@ -1338,12 +1354,31 @@
     return [];
   }
   const etiquetaMuestra = (a, i) => { const t = String((a.titulo || '') + ' ' + (a.nombre || '')); const m = /Dise[ñn]o\s*(\d+)/i.exec(t) || /(?:^|[_\s-])D(\d+)(?!\d)/i.exec(t); return m ? 'D' + m[1] : 'M' + (i + 1); };
+  // Listado más reciente que hayan enviado los agentes (LEO al leerlo, o TAVO al pedir la aprobación)
+  function listadoActual() { for (let i = st.msgs.length - 1; i >= 0; i--) if (st.msgs[i].tabla && (st.msgs[i].tabla.filas || []).length) return st.msgs[i]; return null; }
+  function listadoHtml(m, etiqueta) {
+    const t = m.tabla, col = n => t.columnas.findIndex(c => sinTildes(c).startsWith(n));
+    const cN = col('nombre'), cT = col('talla'), cNu = col('numero'), cD = col('diseno'), cG = col('genero'), cO = col('observ');
+    const numD = v => (/\d+/.exec(String(v || '')) || [''])[0], dAct = numD(etiqueta);
+    const delDis = cD >= 0 && dAct ? t.filas.filter(f => numD(f[cD]) === dAct) : [];
+    const filtra = delDis.length > 0 && !st.muTodo, filas = filtra ? delDis : t.filas;
+    const cuenta = {}; filas.forEach(f => { const x = String((cT >= 0 && f[cT]) || '—').toUpperCase(); cuenta[x] = (cuenta[x] || 0) + 1; });
+    const ORD = ['2', '4', '6', '8', '10', '12', '14', '16', 'XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '2XL', '3XL', '4XL', '5XL'], pos = x => { const i = ORD.indexOf(x); return i < 0 ? 99 : i; };
+    const tallas = Object.keys(cuenta).sort((a, b) => pos(a) - pos(b) || a.localeCompare(b));
+    const hayObs = cO >= 0 && filas.some(f => String(f[cO] || '').trim()), hayGen = cG >= 0 && new Set(filas.map(f => String(f[cG] || '').toUpperCase())).size > 1, v = (f, c) => (c >= 0 && String(f[c] || '').trim()) || '—';
+    return '<section class="mu-listado"><header><b>LISTADO</b>' + (delDis.length ? '<span class="mu-ldis">' + esc(filtra ? etiqueta : 'Todos') + '</span>' : '') + '<i>' + filas.length + (filas.length === 1 ? ' pieza' : ' piezas') + '</i>' +
+      (delDis.length && delDis.length < t.filas.length ? '<button type="button" data-mu-todo title="' + (st.muTodo ? 'Ver solo las piezas de este diseño' : 'Ver todo el listado de la orden') + '">' + (st.muTodo ? 'Solo ' + esc(etiqueta) : 'Ver todo') + '</button>' : '') + '</header>' +
+      '<div class="mu-ltallas">' + tallas.map(x => '<span><b>' + esc(x) + '</b>×' + cuenta[x] + '</span>').join('') + '</div>' +
+      '<div class="mu-ltabla"><table><thead><tr><th>#</th><th>Nombre</th><th>Talla</th><th>Nº</th>' + (st.muTodo && cD >= 0 ? '<th>Dis.</th>' : '') + (hayGen ? '<th>Gén.</th>' : '') + (hayObs ? '<th>Observ.</th>' : '') + '</tr></thead><tbody>' +
+      filas.map((f, i) => '<tr><td>' + (i + 1) + '</td><td class="n">' + esc(v(f, cN)) + '</td><td class="t">' + esc(String(v(f, cT)).toUpperCase()) + '</td><td class="u">' + esc(v(f, cNu)) + '</td>' + (st.muTodo && cD >= 0 ? '<td>' + esc(v(f, cD)) + '</td>' : '') + (hayGen ? '<td>' + esc(String(v(f, cG)).charAt(0)) + '</td>' : '') + (hayObs ? '<td class="o">' + esc(v(f, cO)) + '</td>' : '') + '</tr>').join('') + '</tbody></table></div></section>';
+  }
   function pintarMuestras() {
     const box = panel && panel.querySelector('[data-muestras]'); if (!box) return;
     const lista = muestrasActuales(), firma = lista.map(a => a.id).join(',');
     if (firma !== st.muFirma) { st.muFirma = firma; st.muIdx = 0; }
     st.muIdx = Math.max(0, Math.min(st.muIdx || 0, lista.length - 1));
-    const clave = firma + '|' + st.muIdx;
+    const mList = lista.length ? listadoActual() : null;
+    const clave = firma + '|' + st.muIdx + '|' + (mList ? mList.id + (st.muTodo ? 't' : 'd') : '');
     if (box.dataset.f === clave) return;
     box.dataset.f = clave;
     if (!lista.length) { box.innerHTML = '<div class="mu-vacio">Aquí aparecen las muestras (D1, D2, D3…)<br>cuando JACK las cree.</div>'; return; }
@@ -1351,7 +1386,7 @@
     box.innerHTML = '<div class="mu-top"><h4>MUESTRAS</h4>' + lista.map((x, i) => '<button type="button" class="mu-chip' + (i === st.muIdx ? ' on' : '') + '" data-mu-i="' + i + '">' + esc(etiquetaMuestra(x, i)) + '</button>').join('') +
       '<div class="mu-nav"><span>' + (st.muIdx + 1) + ' / ' + lista.length + '</span>' +
       '<a href="' + url + '" target="_blank" rel="noopener" title="Abrir en otra pestaña">↗</a><a href="' + url + '?descargar=1" download title="Descargar">⬇</a></div></div>' +
-      '<div class="mu-cuerpo"><button type="button" class="mu-flecha izq" data-mu-go="-1" title="Muestra anterior (←)"' + (st.muIdx === 0 ? ' disabled' : '') + '><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button type="button" class="mu-flecha der" data-mu-go="1" title="Muestra siguiente (→)"' + (st.muIdx === lista.length - 1 ? ' disabled' : '') + '><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>' + (esImagen(a) ? '<img src="' + url + '" alt="' + esc(a.titulo || a.nombre) + '">' : '<iframe src="' + url + '#toolbar=0&navpanes=0&view=Fit" title="' + esc(a.titulo || a.nombre) + '"></iframe>') + '</div>' +
+      (mList ? '<div class="mu-doble">' + listadoHtml(mList, etiquetaMuestra(a, st.muIdx)) : '') + '<div class="mu-cuerpo"><button type="button" class="mu-flecha izq" data-mu-go="-1" title="Muestra anterior (←)"' + (st.muIdx === 0 ? ' disabled' : '') + '><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button type="button" class="mu-flecha der" data-mu-go="1" title="Muestra siguiente (→)"' + (st.muIdx === lista.length - 1 ? ' disabled' : '') + '><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>' + (esImagen(a) ? '<img src="' + url + '" alt="' + esc(a.titulo || a.nombre) + '">' : '<iframe src="' + url + '#toolbar=0&navpanes=0&view=Fit" title="' + esc(a.titulo || a.nombre) + '"></iframe>') + '</div>' + (mList ? '</div>' : '') +
       '<div class="mu-pie"><span><b>' + esc(a.titulo || a.nombre) + '</b> · ' + esc(a.nombre || '') + '</span></div>';
   }
   function pintar() {
@@ -1777,6 +1812,7 @@
     panel.addEventListener('click', e => {
       const cop = e.target.closest('[data-copiar]');
       if (cop) { const m = st.msgs.find(x => String(x.id) === cop.dataset.copiar); if (m && navigator.clipboard) navigator.clipboard.writeText(m.texto).then(() => { cop.textContent = '✓ Copiado'; setTimeout(() => { cop.textContent = '⧉ Copiar'; }, 1400); }).catch(() => {}); return; }
+      if (e.target.closest('[data-mu-todo]')) { st.muTodo = !st.muTodo; pintarMuestras(); return; }
       if (e.target.closest('[data-bajar]')) { const h = panel.querySelector('[data-hilo]'); h.scrollTop = h.scrollHeight; e.target.closest('[data-bajar]').hidden = true; return; }
       const mas = panel.querySelector('.ag-mas[open]');
       if (mas && (!e.target.closest('.ag-mas') || e.target.closest('.ag-mas-menu button'))) mas.removeAttribute('open');
