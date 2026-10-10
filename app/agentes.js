@@ -632,7 +632,8 @@
       '<div class="ag-tbl-wrap"><table><colgroup><col class="n">' + anchos(t) + '</colgroup><thead><tr><th class="n">#</th>' + t.columnas.map(c => '<th>' + esc(cabecera(c)) + '</th>').join('') + '</tr></thead><tbody>' +
       t.filas.map((f, i) => '<tr><td class="n">' + (i + 1) + '</td>' + t.columnas.map((c, k) => '<td>' + celda(vista(c, f[k])) + '</td>').join('') + '</tr>').join('') + '</tbody></table></div></div>';
   }
-  const tablaChat = m => (m.estado === 'APROBACION' && !(window.matchMedia && matchMedia('(max-width:1000px)').matches) ? null : m.tabla);
+  // En computador el listado va siempre en la zona del centro, nunca dentro del mensaje; en móvil (sin esa zona) solo cuando se pidió el listado
+  const tablaChat = m => (!(window.matchMedia && matchMedia('(max-width:1000px)').matches) ? null : (/Desglose del listado/.test(m.texto || '') ? m.tabla : null));
   function tablaDe(id) { const m = st.msgs.find(x => String(x.id) === String(id)); return m && m.tabla; }
   async function copiarTabla(id) {
     const t = tablaDe(id); if (!t) return;
@@ -1269,7 +1270,7 @@
       if (auto) { out.push('<div class="ag-sis auto">⚡ Inicio automático · ' + esc(auto[1]) + ' · ' + hora(m.creado) + '</div>'); return; }
       out.push(m.rol === 'yo'
         ? '<div class="ag-msg yo" data-mid="' + esc(m.id) + '"><div class="ag-txt">' + esc(m.texto) + '</div><span class="ag-time">' + hora(m.creado) + ' ' + estadoMio(k) + '</span></div>'
-        : '<div class="ag-msg bot' + (m.estado === 'ERROR' ? ' err' : '') + (tablaChat(m) || (m.archivos && m.archivos.length) ? ' con-tabla' : '') + '" data-mid="' + esc(m.id) + '" style="--c:' + (COLORES[(m.agentes && m.agentes[0]) || 'TAVO'] || '#7da4ff') + '"><div class="ag-who">' + avatar((m.agentes && m.agentes[0]) || 'TAVO') + (m.agentes && m.agentes.length ? m.agentes : ['TAVO']).map(tag).join('') + '<button type="button" class="ag-copiar" data-copiar="' + esc(m.id) + '" title="Copiar el mensaje">⧉ Copiar</button></div><div class="ag-txt">' + textoHtml(tablaChat(m) ? m.texto.split(/\n\nDesglose del listado/)[0] : m.texto) + '</div>' + (m.estado === 'ERROR' || /^[A-Z]+: /.test(m.texto) ? ayudaDe(m.texto, m.estado === 'ERROR' || /no pude|no pudo|falt|no aparece|no está/i.test(m.texto)) : '') + (tablaChat(m) ? tablaHtml(m) : '') + (m.archivos && m.archivos.length ? archivosHtml(m) : '') + '<span class="ag-time">' + hora(m.creado) + '</span></div>');
+        : '<div class="ag-msg bot' + (m.estado === 'ERROR' ? ' err' : '') + (tablaChat(m) || (m.archivos && m.archivos.length) ? ' con-tabla' : '') + '" data-mid="' + esc(m.id) + '" style="--c:' + (COLORES[(m.agentes && m.agentes[0]) || 'TAVO'] || '#7da4ff') + '"><div class="ag-who">' + avatar((m.agentes && m.agentes[0]) || 'TAVO') + (m.agentes && m.agentes.length ? m.agentes : ['TAVO']).map(tag).join('') + '<button type="button" class="ag-copiar" data-copiar="' + esc(m.id) + '" title="Copiar el mensaje">⧉ Copiar</button></div><div class="ag-txt">' + textoHtml(m.tabla ? m.texto.split(/\n\nDesglose del listado/)[0] : m.texto) + '</div>' + (m.estado === 'ERROR' || /^[A-Z]+: /.test(m.texto) ? ayudaDe(m.texto, m.estado === 'ERROR' || /no pude|no pudo|falt|no aparece|no está/i.test(m.texto)) : '') + (tablaChat(m) ? tablaHtml(m) : '') + (m.archivos && m.archivos.length ? archivosHtml(m) : '') + '<span class="ag-time">' + hora(m.creado) + '</span></div>');
     });
     soltar();
     return out.join('');
