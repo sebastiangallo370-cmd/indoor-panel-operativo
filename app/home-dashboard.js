@@ -718,7 +718,7 @@
   .dash-tabs button.on{background:#d0f44c;color:#16200a;border-color:#d0f44c}
   .dash-tabs button b{min-width:20px;padding:1px 7px;border-radius:99px;background:rgba(255,255,255,.12);font-size:.7rem;text-align:center}.dash-tabs button.on b{background:rgba(22,32,10,.18)}
   .dash-pane{display:none;gap:16px}.dash-pane.on{display:grid;animation:dashRise .3s both}
-  @media(max-width:700px){.dash-tabs{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.dash-tabs button{flex:none;padding:8px 12px;font-size:.74rem}}
+  @media(max-width:700px){.dash-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.dash-tabs button{width:100%!important;min-width:0;min-height:42px!important;justify-content:center;padding:8px 6px;font-size:.74rem;line-height:1.15;text-align:center;white-space:normal}}
   /* ventana de pantalla completa de un área */
   .dash-areadlg{position:fixed;inset:0;width:100vw;height:100dvh;max-width:none;max-height:none;margin:0;padding:0;border:0;background:radial-gradient(1200px 500px at 10% -10%,rgba(139,212,80,.10),transparent 60%),#080b08;color:#eef3e8;font-family:Arial,Helvetica,sans-serif}
   .dash-areadlg[open]{display:flex;flex-direction:column;animation:odIn .28s cubic-bezier(.2,.8,.2,1) both}
