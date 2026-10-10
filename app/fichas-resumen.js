@@ -15,7 +15,7 @@
   function guardado(k, d) { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } }
   function guardar(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* sin almacenamiento */ } }
   const CHK = guardado('mo_chk', {});
-  const E = { lineas: [], puede: false, editar: false, lista: null, lema: 'Nos inspira vestir a los ganadores', edicion: '' };
+  const E = { lineas: [], puede: false, puedeEditar: false, editar: false, lista: null, lema: 'Nos inspira vestir a los ganadores', edicion: '' };
   let overlay = null, S = null;   // S: estado de la ficha abierta
 
   const css = document.createElement('style');
@@ -101,6 +101,12 @@
   .fit-wrap{overflow-x:auto;border-radius:6px;background:#fff}.fit{display:block;width:100%;min-width:760px;height:auto;font-family:Arial,Helvetica,sans-serif}
   .fit path{stroke:none}.fit-real text{font-family:Arial,Helvetica,sans-serif}
   /* MOLDE DINÁMICO: las piezas reales sobre un escenario con volumen (sombra y brillo en su propia silueta) */
+  /* botón «Modificar ficha técnica»: desbloquea toda la ficha para quien tiene permiso */
+  .fi-acc button.fi-modif{border-color:rgba(208,244,76,.6)!important;color:#d0f44c!important;font-weight:800!important}
+  .fi-acc button.fi-modif.on{background:#d0f44c!important;border-color:#d0f44c!important;color:#142017!important;box-shadow:0 6px 16px -6px rgba(208,244,76,.8)}
+  .fi-desbloq{margin:10px 0 2px;padding:8px 12px;border:1px dashed rgba(208,244,76,.55);border-radius:12px;background:rgba(208,244,76,.07);color:#cfd8c7;font:500 11.5px/1.5 Arial}
+  .fi-desbloq b{color:#d0f44c}
+  @media print{.fi-desbloq{display:none!important}}
   /* editar textos de la ficha (solo cuentas autorizadas) */
   .fi-edbtn{width:auto!important;min-height:0!important;margin-left:10px;padding:3px 10px!important;border:1px solid rgba(208,244,76,.45)!important;border-radius:999px!important;background:transparent!important;color:#d0f44c!important;font:700 10px Arial!important;letter-spacing:.06em;cursor:pointer;vertical-align:middle;text-transform:none}
   .fi-edbtn:hover{background:rgba(208,244,76,.12)!important}
@@ -219,7 +225,7 @@
   .fi-tabla td{padding:10px 8px;text-align:center;border-bottom:1px solid rgba(255,255,255,.07)}.fi-tabla td.l{text-align:left;color:#8e9a87;font:800 10px Arial;letter-spacing:.1em}
   .fi-tabla .hl{background:rgba(208,244,76,.16);color:#fff;box-shadow:inset 0 0 0 1px var(--ac)}
   .fi-scroll{overflow-x:auto}.fi-titulo{margin:18px 0 2px;color:#dfe7d8;font:800 11px Arial;letter-spacing:.14em;text-transform:uppercase}
-  .fi-acc{display:flex;gap:8px;align-items:center;margin-left:auto;padding-right:48px}.fi-acc button{width:auto!important;min-height:0!important;padding:6px 12px!important;border:1px solid rgba(255,255,255,.16)!important;border-radius:999px!important;background:transparent!important;color:#c9d3c1!important;font:700 11px Arial!important;cursor:pointer}
+  .fi-acc{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;margin-left:auto;padding-right:48px}.fi-acc button{width:auto!important;min-height:0!important;padding:6px 12px!important;border:1px solid rgba(255,255,255,.16)!important;border-radius:999px!important;background:transparent!important;color:#c9d3c1!important;font:700 11px Arial!important;cursor:pointer}
   .li-top span.fi-acc{padding-left:0;border-left:0}
   .fi-buscar input{width:100%;min-height:48px;padding:0 16px;border:1px solid rgba(255,255,255,.2);border-radius:14px;background:rgba(255,255,255,.05);color:#fff;font:500 15px Arial;margin-top:18px}
   .fi-res{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));margin-top:14px}
@@ -272,7 +278,7 @@
   async function permisos() {
     if (E.permCargado) return;
     E.permCargado = true;
-    try { const m = await api('/api/permisos/mi'); E.puede = !!(m.permisos && m.permisos.molderia && m.permisos.molderia.ver); E.editar = !!m.fichas_editar; } catch (e) { E.puede = false; E.editar = false; }
+    try { const m = await api('/api/permisos/mi'); E.puede = !!(m.permisos && m.permisos.molderia && m.permisos.molderia.ver); E.puedeEditar = !!m.fichas_editar; } catch (e) { E.puede = false; E.puedeEditar = false; E.editar = false; }
   }
   async function lema() {
     if (E.lemaCargado) return E.promesaLema;
@@ -861,7 +867,7 @@
   function dibujar() {
     const card = overlay.querySelector('.li-card');
     card.style.setProperty('--ac', '#c3ee3f');
-    const top = '<div class="li-top"><span class="li-logo" role="img" aria-label="Indoor"></span><span>FICHA TÉCNICA</span><span class="fi-acc">' + (E.puede && window.molderiaAbrirPagina && S.modo === 'ficha' ? '<button type="button" data-fi-pagina>Vista completa</button>' : '') + '<button type="button" data-fi-imp>🖨 Imprimir</button></span></div>';
+    const top = '<div class="li-top"><span class="li-logo" role="img" aria-label="Indoor"></span><span>FICHA TÉCNICA</span><span class="fi-acc">' + (E.puedeEditar && S.modo === 'ficha' ? '<button type="button" class="fi-modif' + (E.editar ? ' on' : '') + '" data-fi-modificar title="' + (E.editar ? 'Vuelve a bloquear la ficha' : 'Desbloquea toda la ficha para corregirla o agregarle datos') + '">' + (E.editar ? '🔓 Terminar edición' : '✎ Modificar ficha técnica') + '</button>' : '') + (E.puede && window.molderiaAbrirPagina && S.modo === 'ficha' ? '<button type="button" data-fi-pagina>Vista completa</button>' : '') + '<button type="button" data-fi-imp>🖨 Imprimir</button></span></div>';
     const foot = '<div class="li-foot"><span class="li-foot-l"><img class="li-iso" src="/favicon.svg" alt=""><i>' + esc(E.lema) + '</i></span><span>Documento interno · Indoor Sport</span></div>';
     let mock = '', main = '';
     if (S.modo === 'buscar') {
@@ -874,7 +880,7 @@
       mock = mockPane(f);
       const hojas = S.fichas.length > 1 ? '<div class="fi-hojas">' + S.fichas.map((x, k) => '<button type="button" aria-pressed="' + (k === S.i) + '" data-fi-hoja="' + k + '">' + esc(x.hoja) + '</button>').join('') + '</div>' : '';
       main = top + hojas + '<div class="li-tabs" role="tablist">' + tabs.map(x => '<button type="button" role="tab" data-fi-tab="' + esc(x.id) + '" aria-pressed="' + (x.id === S.tab) + '">' + esc(x.id) + '</button>').join('') + '</div>' +
-        '<div class="li-pane"><div class="li-title"><i class="li-bar"></i><h2 id="li-title">' + esc(f.ref) + '</h2></div><p class="li-sub"><span class="li-count">' + act.n + ' ' + act.u[act.n === 1 ? 0 : 1] + '</span><span>' + esc(f.prenda || f.familia) + ' · ' + esc(f.familia) + '</span></p>' + act.html + '</div>' + foot;
+        '<div class="li-pane"><div class="li-title"><i class="li-bar"></i><h2 id="li-title">' + esc(f.ref) + '</h2></div><p class="li-sub"><span class="li-count">' + act.n + ' ' + act.u[act.n === 1 ? 0 : 1] + '</span><span>' + esc(f.prenda || f.familia) + ' · ' + esc(f.familia) + '</span></p>' + (E.editar ? '<p class="fi-desbloq">🔓 <b>Ficha desbloqueada.</b> En cada sección tienes «✎ Editar» para corregirla o agregarle filas, y en PIEZAS puedes tocar una pieza para cambiarle el nombre, el material u ocultarla. Recorre todas las pestañas; al terminar pulsa «Terminar edición».</p>' : '') + act.html + '</div>' + foot;
     }
     card.classList.toggle('has-mock', !!mock);
     card.innerHTML = '<button type="button" class="li-close" aria-label="Cerrar">×</button><div class="li-split">' + mock + '<div class="li-main">' + main + '</div></div>';
@@ -946,6 +952,11 @@
       else if (e.target.closest('[data-fi-ed-cancelar]')) { S.edit = null; S.borrador = null; dibujar(); }
       else if (e.target.closest('[data-fi-ed-guardar]')) guardarEditor(leerEditor());
       else if (e.target.closest('[data-fi-ed-restaurar]')) { if (confirm('¿Quitar la corrección y volver a lo que dice el Excel?')) guardarEditor(null); }
+      else if (e.target.closest('[data-fi-modificar]')) {
+        if (!E.puedeEditar) return;
+        if (E.editar && S.edit && !confirm('Estás editando una sección. ¿Salir sin guardar?')) return;
+        E.editar = !E.editar; S.edit = null; S.borrador = null; dibujar();
+      }
       else if (e.target.closest('[data-fi-imp]')) window.print();
       else if (e.target.closest('[data-fi-nas]')) buscarMockupNas(e.target.closest('[data-fi-nas]').dataset.fiNas, recargar);
       else if (e.target.closest('[data-fi-mock]')) elegirMockup(e.target.closest('[data-fi-mock]').dataset.fiMock);
