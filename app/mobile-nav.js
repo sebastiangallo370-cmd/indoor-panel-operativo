@@ -99,6 +99,28 @@
   .inventory-toolbar .inventory-movement-actions button{width:100%!important;min-width:0!important;height:44px!important;min-height:44px!important;max-height:44px!important;padding:0 4px!important;margin:0!important;writing-mode:horizontal-tb!important;display:flex!important;align-items:center!important;justify-content:center!important;text-align:center!important;font-size:10px!important;line-height:1.15!important;letter-spacing:0!important;white-space:normal!important;overflow:hidden!important;word-break:normal!important;overflow-wrap:normal!important;border-radius:10px!important}
   .inventory-toolbar .inventory-movement-actions button[data-inventory-doc]{font-size:8.5px!important;letter-spacing:-.02em!important}
   .inventory-toolbar .inventory-movement-actions button.inventory-refresh-btn{grid-column:1/-1!important;height:38px!important;min-height:38px!important;max-height:38px!important;font-size:11px!important;letter-spacing:.03em!important;padding:0 8px!important;white-space:nowrap!important}
+  /* Aviso de salud (NAS, etc.): por encima de la barra inferior y del botón «+», sin taparlos */
+  #salud-aviso{bottom:calc(max(12px,env(safe-area-inset-bottom)) + 112px)!important;width:max-content!important;max-width:calc(100vw - 24px)!important;font-size:11.5px!important;line-height:1.3!important}
+  /* Producción: los puntos del flujo y los botones de MTS se tocan con el dedo sin cambiar su tamaño visible */
+  .trace-card:not(.details-expanded) .trace-node::after{content:'';position:absolute;inset:-10px 0}
+  .trace-mts-actions button{position:relative!important}
+  .trace-mts-actions button::after{content:'';position:absolute;inset:-3px -12px}
+  .trace-order-rework-edit,.trace-order-rework-remove{min-height:34px!important;font-size:10.5px!important}
+  /* Cronograma: cliente completo, letra legible y palabras sin partir */
+  .schedule-daycard-fields>div:first-child{grid-column:1/-1!important}
+  .schedule-daycard-fields>div:first-child b{white-space:normal!important;overflow:hidden!important;display:-webkit-box!important;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.2!important}
+  .schedule-daycard-fields span{font-size:10.5px!important}
+  .schedule-stat{padding-left:6px!important;padding-right:6px!important}
+  .schedule-stat span{font-size:10px!important;letter-spacing:0!important;overflow-wrap:normal!important;word-break:normal!important;hyphens:none!important}
+  .schedule-card-client{font-size:11.5px!important;line-height:1.25!important}
+  .schedule-card-item .schedule-card-focus,#schedule-count,.sch-chart-title,.sch-cal-legend,.sch-progress-label{font-size:11px!important}
+  .sch-day-picks button{position:relative!important}
+  .sch-day-picks button::after{content:'';position:absolute;inset:-9px -4px}
+  #schedule-days-prev,#schedule-days-next{min-width:40px!important;min-height:40px!important}
+  .schedule-daycard-pager button{min-width:34px!important;min-height:34px!important}
+  /* Control operarios: etiquetas legibles y flechas cómodas */
+  .op-filter-field,#operarios-goal-label,#operarios-goal-pct,.operarios-legend-source,.operarios-badge{font-size:11px!important}
+  #operarios-hover-prev,#operarios-hover-next{min-width:40px!important;min-height:40px!important}
 }`;
   document.head.appendChild(style);
 
