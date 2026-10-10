@@ -114,7 +114,15 @@
   .fi-edbtn{width:auto!important;min-height:0!important;margin-left:10px;padding:3px 10px!important;border:1px solid rgba(208,244,76,.45)!important;border-radius:999px!important;background:transparent!important;color:#d0f44c!important;font:700 10px Arial!important;letter-spacing:.06em;cursor:pointer;vertical-align:middle;text-transform:none}
   .fi-edbtn:hover{background:rgba(208,244,76,.12)!important}
   .fi-edmarca{margin-left:8px;color:#8e9a87;font:italic 400 10.5px Arial;letter-spacing:0;text-transform:none}
-  .fi-ed{display:grid;gap:7px;margin:8px 0 4px}
+  .fi-ed{display:grid;gap:7px;margin:8px 0 14px;padding:9px 10px;border:1px solid rgba(255,255,255,.08);border-left:3px solid rgba(255,255,255,.14);border-radius:12px;background:rgba(255,255,255,.025)}
+  .fi-ed.sucio{border-color:rgba(208,244,76,.4);border-left-color:#d0f44c;background:rgba(208,244,76,.05)}
+  .fi-ed-aviso{display:none;color:#d0f44c;font:800 10.5px Arial;letter-spacing:.04em}.fi-ed.sucio .fi-ed-aviso{display:inline}
+  .fi-ed:not(.sucio) .fi-ed-acc button.pri{background:transparent!important;border-color:rgba(255,255,255,.18)!important;color:#8e9a87!important}.fi-ed:not(.sucio) .fi-ed-acc button.des{display:none}
+  .fi-ed-ok{color:#b9e86a;font:700 11.5px Arial}
+  .fi-desbloq{display:flex;gap:10px 14px;align-items:center;justify-content:space-between;flex-wrap:wrap;position:sticky;top:0;z-index:5;backdrop-filter:blur(8px);background:rgba(20,28,16,.92)!important}
+  .fi-desbloq-acc{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .fi-desbloq-acc button{width:auto!important;min-height:0!important;padding:7px 14px!important;border:1px solid #d0f44c!important;border-radius:999px!important;background:#d0f44c!important;color:#142017!important;font:800 11px Arial!important;cursor:pointer;white-space:nowrap}
+  .fi-desbloq-acc button:disabled{opacity:.55;cursor:progress}
   .fi-ed-fila{display:grid;grid-template-columns:22px minmax(0,1fr) 30px;gap:7px;align-items:start}
   .fi-ed-fila.tabla{grid-template-columns:var(--cols)}.fi-ed-fila>i{display:block}
   .fi-ed-fila>b{padding-top:9px;color:#8e9a87;font:800 10px Arial;text-align:right}
@@ -671,40 +679,63 @@
     return (f[sec] || []).map(x => Object.fromEntries(d.cols.map(c => [c[0], String(x[c[0]] == null ? '' : x[c[0]])])));
   }
   // título de sección con «✎ Editar» para quien puede, y la marca de quién la corrigió
-  const secEd = (f, titulo, sec) => { const e = (f.editado || {})[sec]; return '<p class="fi-sec">' + titulo + (e ? '<span class="fi-edmarca">corregido por ' + esc(e.por) + ' · ' + esc(e.fecha) + '</span>' : '') + (E.editar ? '<button type="button" class="fi-edbtn" data-fi-editar="' + sec + '">✎ Editar</button>' : '') + '</p>'; };
+  const secEd = (f, titulo, sec) => { const e = (f.editado || {})[sec]; return '<p class="fi-sec">' + titulo + (e ? '<span class="fi-edmarca">corregido por ' + esc(e.por) + ' · ' + esc(e.fecha) + '</span>' : '') + '</p>'; };
+  // FICHA DESBLOQUEADA: todas las secciones quedan abiertas para escribir encima. Lo escrito y aún no guardado vive en S.bor[sección] (sobrevive a cambiar de pestaña).
+  const baseDe = (f, sec) => { const l = lineasDe(f, sec); return l.length ? l : [vacia(sec)]; };
+  const sucio = () => Object.keys((S && S.bor) || {}).length > 0;
+  function capturar() {   // pasa a S.bor lo que hay escrito en los editores visibles; lo que quedó igual a lo guardado no cuenta como cambio
+    if (!overlay || !S || !E.editar || S.modo !== 'ficha') return;
+    const f = S.fichas[S.i]; S.bor = S.bor || {};
+    overlay.querySelectorAll('[data-fi-ed]').forEach(caja => {
+      const sec = caja.dataset.fiEd, d = ED[sec];
+      const filas = [...caja.querySelectorAll('.fi-ed-fila')].map(fila => d.cols ? Object.fromEntries(d.cols.map(c => [c[0], fila.querySelector('[data-ed-col="' + c[0] + '"]').value])) : fila.querySelector('[data-ed-va]').value);
+      if (JSON.stringify(filas) === JSON.stringify(baseDe(f, sec))) delete S.bor[sec]; else S.bor[sec] = filas;
+    });
+  }
   function editor(f, sec) {
-    const d = ED[sec], filas = S.borrador || [];
+    const d = ED[sec], pend = (S.bor || {})[sec], filas = pend || baseDe(f, sec), e = (f.editado || {})[sec];
     const plantilla = d.cols ? '22px ' + d.cols.map(c => 'minmax(0,' + c[2] + 'fr)').join(' ') + ' 30px' : '';
     const campo = (x, c) => c[0] === 'valor' || c[0] === 'observacion' ? '<textarea rows="2" maxlength="600" data-ed-col="' + c[0] + '" placeholder="' + esc(c[1]) + '" title="' + esc(c[1]) + '">' + esc(x[c[0]]) + '</textarea>'
       : '<input type="text" maxlength="300" data-ed-col="' + c[0] + '" placeholder="' + esc(c[1]) + '" title="' + esc(c[1]) + '" value="' + esc(x[c[0]]) + '">';
-    return '<p class="fi-sec">Editando · ' + d.t + '</p>' + (d.ayuda ? '<p class="fi-obs" style="margin:0 0 6px">' + d.ayuda + '</p>' : '') +
-      '<div class="fi-ed" data-fi-ed="' + sec + '">' + filas.map((x, i) => '<div class="fi-ed-fila' + (d.cols ? ' tabla' : '') + '"' + (d.cols ? ' style="--cols:' + plantilla + '"' : '') + '><b>' + (d.tipo === 'texto' ? '' : pad(i + 1)) + '</b>' +
-        (d.cols ? d.cols.map(c => campo(x, c)).join('') : '<textarea rows="' + (d.tipo === 'texto' ? 3 : 2) + '" maxlength="600" data-ed-va placeholder="' + (d.tipo === 'texto' ? 'Texto' : 'Texto de la línea') + '">' + esc(x) + '</textarea>') +
+    return '<p class="fi-sec">' + d.t + (e ? '<span class="fi-edmarca">corregido por ' + esc(e.por) + ' · ' + esc(e.fecha) + '</span>' : '') + '</p>' + (d.ayuda ? '<p class="fi-obs" style="margin:0 0 6px">' + d.ayuda + '</p>' : '') +
+      '<div class="fi-ed' + (pend ? ' sucio' : '') + '" data-fi-ed="' + sec + '">' + filas.map((x, i) => '<div class="fi-ed-fila' + (d.cols ? ' tabla' : '') + '"' + (d.cols ? ' style="--cols:' + plantilla + '"' : '') + '><b>' + (d.tipo === 'texto' ? '' : pad(i + 1)) + '</b>' +
+        (d.cols ? d.cols.map(c => campo(x, c)).join('') : '<textarea rows="' + (d.tipo === 'texto' ? 2 : 2) + '" maxlength="600" data-ed-va placeholder="' + (d.tipo === 'texto' ? 'Escribe aquí' : 'Texto de la línea') + '">' + esc(x) + '</textarea>') +
         (d.tipo === 'texto' ? '<i></i>' : '<button type="button" data-fi-ed-del="' + i + '" title="Quitar esta fila">×</button>') + '</div>').join('') +
-      '<div class="fi-ed-acc">' + (d.tipo === 'texto' ? '' : '<button type="button" data-fi-ed-add>+ Agregar ' + (d.cols ? 'fila' : 'línea') + '</button>') + '<button type="button" class="pri" data-fi-ed-guardar>Guardar</button><button type="button" data-fi-ed-cancelar>Cancelar</button>' +
-      ((f.editado || {})[sec] ? '<button type="button" data-fi-ed-restaurar title="Quita la corrección y vuelve a lo que dice el Excel">Restaurar el del Excel</button>' : '') + '<span class="fi-ed-msg" data-fi-ed-msg></span></div></div>';
+      '<div class="fi-ed-acc">' + (d.tipo === 'texto' ? '' : '<button type="button" data-fi-ed-add>+ Agregar ' + (d.cols ? 'fila' : 'línea') + '</button>') + '<button type="button" class="pri" data-fi-ed-guardar>Guardar</button><button type="button" class="des" data-fi-ed-cancelar title="Descarta lo escrito y vuelve a lo guardado">Deshacer</button>' +
+      (e ? '<button type="button" data-fi-ed-restaurar title="Quita la corrección y vuelve a lo que dice el Excel">Restaurar el del Excel</button>' : '') + '<span class="fi-ed-aviso">● sin guardar</span><span class="fi-ed-msg" data-fi-ed-msg></span></div></div>';
   }
-  function leerEditor() {   // lo que hay escrito ahora mismo en el editor
-    const caja = overlay && overlay.querySelector('[data-fi-ed]'); if (!caja) return S.borrador || [];
-    const d = ED[caja.dataset.fiEd];
-    return [...caja.querySelectorAll('.fi-ed-fila')].map(fila => d.cols ? Object.fromEntries(d.cols.map(c => [c[0], fila.querySelector('[data-ed-col="' + c[0] + '"]').value])) : fila.querySelector('[data-ed-va]').value);
+  async function enviar(f, sec, lineas) {
+    const r = await fetch('/api/fichas/texto', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: f.id, seccion: sec, lineas }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.detail || (r.status === 401 ? 'La sesión se cerró: vuelve a iniciar sesión' : 'No pude guardar el cambio'));
+    return j.ficha;
   }
-  async function guardarEditor(lineas) {
-    const f = S.fichas[S.i], msg = overlay.querySelector('[data-fi-ed-msg]');
-    overlay.querySelectorAll('.fi-ed-acc button').forEach(b => { b.disabled = true; });
+  async function guardarEditor(sec, lineas) {   // guarda UNA sección (lineas null = restaurar la del Excel)
+    const caja = overlay.querySelector('[data-fi-ed="' + sec + '"]'), msg = caja && caja.querySelector('[data-fi-ed-msg]');
+    if (caja) caja.querySelectorAll('.fi-ed-acc button').forEach(b => { b.disabled = true; });
     try {
-      const r = await fetch('/api/fichas/texto', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: f.id, seccion: S.edit, lineas }) });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(j.detail || 'No pude guardar el cambio');
-      S.fichas[S.i] = j.ficha; S.edit = null; S.borrador = null; dibujar();
-    } catch (e) { if (msg) msg.textContent = e.message; overlay.querySelectorAll('.fi-ed-acc button').forEach(b => { b.disabled = false; }); }
+      const ficha = await enviar(S.fichas[S.i], sec, lineas);
+      capturar(); S.fichas[S.i] = ficha; delete S.bor[sec]; dibujar();
+    } catch (e) { if (msg) msg.textContent = e.message; if (caja) caja.querySelectorAll('.fi-ed-acc button').forEach(b => { b.disabled = false; }); }
+  }
+  async function guardarTodo() {   // guarda de una vez todas las secciones con cambios, de cualquier pestaña
+    const msg = overlay.querySelector('[data-fi-todo-msg]'), boton = overlay.querySelector('[data-fi-ed-todo]');
+    const pendientes = Object.keys(S.bor || {});
+    if (!pendientes.length) { if (msg) { msg.className = 'fi-ed-ok'; msg.textContent = 'No hay cambios por guardar.'; } return; }
+    if (boton) boton.disabled = true;
+    let hechas = 0, error = '';
+    for (const sec of pendientes) {
+      try { S.fichas[S.i] = await enviar(S.fichas[S.i], sec, S.bor[sec]); delete S.bor[sec]; hechas++; } catch (e) { error = ED[sec].t + ': ' + e.message; break; }
+    }
+    S.aviso_ed = error ? { mal: true, t: error } : { mal: false, t: 'Guardado: ' + hechas + (hechas === 1 ? ' sección.' : ' secciones.') };
+    dibujar();
   }
   // Una pestaña por cada sección de la ficha original (el Excel de FICHAS TECNICAS), sin mezclar información entre ellas
   function pestanas(f) {
     const cons = S.consumos.find(c => c.ref === f.ref);
     const t = [], sec = x => '<p class="fi-sec">' + x + '</p>', nota = x => '<p class="fi-obs" style="margin:10px 0 0">' + esc(x) + '</p>';
     // una sección: su contenido, o su editor si se está corrigiendo; quien puede editar la ve aunque esté vacía (para poder llenarla)
-    const bloque = (clave, titulo, contenido, vacio) => S.edit === clave ? editor(f, clave) : (contenido || E.editar || (f.editado || {})[clave] ? secEd(f, titulo, clave) + (contenido || '<p class="fi-vacio">' + (vacio || 'Sin información.') + '</p>') : '');
+    const bloque = (clave, titulo, contenido, vacio) => E.editar ? editor(f, clave) : (contenido || (f.editado || {})[clave] ? secEd(f, titulo, clave) + (contenido || '<p class="fi-vacio">' + (vacio || 'Sin información.') + '</p>') : '');
     const desc = (f.descripcion || []).map(d => String((d && d.texto) || d)), dePiezas = d => /\bM\d\s*(?:\([^)]*\))?\s*[:\-]/i.test(d);
     const insumo = i => '<strong>' + esc(i.nombre) + '</strong> · ' + esc([i.tipo, i.color, i.medida].filter(Boolean).join(' · ')) + (i.cant ? ' · ×' + esc(i.cant) : '') + (i.observacion ? '<span class="fi-obs">' + esc(i.observacion) + '</span>' : '');
     // tallas: el mismo selector sirve a las pestañas con tablas por talla
@@ -724,10 +755,10 @@
     if (f.familia) gen.push(kv('Línea', f.familia));
     const dGen = desc.filter(d => !dePiezas(d)).map(esc);
     const espec = (f.especificaciones || []).map(x => kv(x.etiqueta, x.valor));
-    t.push({ id: 'GENERAL', n: gen.length + dGen.length + espec.length, u: ['dato', 'datos'], html: lista(gen) +
-      (E.editar || S.edit === 'prenda' ? bloque('prenda', 'Nombre de la prenda', f.prenda ? nota(f.prenda) : '', 'Sin nombre.') : '') +
-      (E.editar || S.edit === 'referencia' ? bloque('referencia', 'Referencia', nota(f.referencia || f.ref), '') : '') +
-      (E.editar || S.edit === 'familia' ? bloque('familia', 'Línea', f.familia ? nota(f.familia) : '', 'Sin línea.') : '') +
+    t.push({ id: 'GENERAL', n: gen.length + dGen.length + espec.length, u: ['dato', 'datos'], html: (E.editar ? '' : lista(gen)) +
+      (E.editar ? bloque('prenda', 'Nombre de la prenda', f.prenda ? nota(f.prenda) : '', 'Sin nombre.') : '') +
+      (E.editar ? bloque('referencia', 'Referencia', nota(f.referencia || f.ref), '') : '') +
+      (E.editar ? bloque('familia', 'Línea', f.familia ? nota(f.familia) : '', 'Sin línea.') : '') +
       bloque('descripcion', 'Descripción de la prenda', lista(dGen), 'Sin descripción.') +
       bloque('especificaciones', 'Especificaciones adicionales', lista(espec), 'Todavía no hay especificaciones adicionales. Con «Editar» puedes agregar las que hagan falta.') +
       bloque('nota', 'Nota', f.nota ? nota(f.nota) : '', 'Sin nota.') });
@@ -869,6 +900,7 @@
 
   function dibujar() {
     const card = overlay.querySelector('.li-card');
+    const paneAntes = card.querySelector('.li-pane'), bajada = paneAntes && card.dataset.tab === (S.modo + '|' + S.i + '|' + S.tab) ? paneAntes.scrollTop : 0;
     card.style.setProperty('--ac', '#c3ee3f');
     const top = '<div class="li-top"><span class="li-logo" role="img" aria-label="Indoor"></span><span>FICHA TÉCNICA</span><span class="fi-acc">' + (E.puedeEditar && S.modo === 'ficha' ? '<button type="button" class="fi-modif' + (E.editar ? ' on' : '') + '" data-fi-modificar title="' + (E.editar ? 'Vuelve a bloquear la ficha' : 'Desbloquea toda la ficha para corregirla o agregarle datos') + '">' + (E.editar ? '🔓 Terminar edición' : '✎ Modificar ficha técnica') + '</button>' : '') + (window.molderiaAbrirMolde && S.modo === 'ficha' ? '<button type="button" class="fi-mold" data-fi-molderia title="Abre la carpeta con los moldes de Illustrator de esta referencia">📐 Moldería</button>' : '') + (E.puede && window.molderiaAbrirPagina && S.modo === 'ficha' ? '<button type="button" data-fi-pagina>Vista completa</button>' : '') + '<button type="button" data-fi-imp>🖨 Imprimir</button></span></div>';
     const foot = '<div class="li-foot"><span class="li-foot-l"><img class="li-iso" src="/favicon.svg" alt=""><i>' + esc(E.lema) + '</i></span><span>Documento interno · Indoor Sport</span></div>';
@@ -883,10 +915,12 @@
       mock = mockPane(f);
       const hojas = S.fichas.length > 1 ? '<div class="fi-hojas">' + S.fichas.map((x, k) => '<button type="button" aria-pressed="' + (k === S.i) + '" data-fi-hoja="' + k + '">' + esc(x.hoja) + '</button>').join('') + '</div>' : '';
       main = top + hojas + '<div class="li-tabs" role="tablist">' + tabs.map(x => '<button type="button" role="tab" data-fi-tab="' + esc(x.id) + '" aria-pressed="' + (x.id === S.tab) + '">' + esc(x.id) + '</button>').join('') + '</div>' +
-        '<div class="li-pane"><div class="li-title"><i class="li-bar"></i><h2 id="li-title">' + esc(f.ref) + '</h2></div><p class="li-sub"><span class="li-count">' + act.n + ' ' + act.u[act.n === 1 ? 0 : 1] + '</span><span>' + esc(f.prenda || f.familia) + ' · ' + esc(f.familia) + '</span></p>' + (E.editar ? '<p class="fi-desbloq">🔓 <b>Ficha desbloqueada.</b> En cada sección tienes «✎ Editar» para corregirla o agregarle filas, y en PIEZAS puedes tocar una pieza para cambiarle el nombre, el material u ocultarla. Recorre todas las pestañas; al terminar pulsa «Terminar edición».</p>' : '') + act.html + '</div>' + foot;
+        '<div class="li-pane"><div class="li-title"><i class="li-bar"></i><h2 id="li-title">' + esc(f.ref) + '</h2></div><p class="li-sub"><span class="li-count">' + act.n + ' ' + act.u[act.n === 1 ? 0 : 1] + '</span><span>' + esc(f.prenda || f.familia) + ' · ' + esc(f.familia) + '</span></p>' + (E.editar ? '<div class="fi-desbloq"><span>🔓 <b>Ficha desbloqueada.</b> Escribe directo sobre cualquier campo, en todas las pestañas; agrega filas con «+». En PIEZAS toca una pieza para cambiarla.</span><span class="fi-desbloq-acc"><button type="button" data-fi-ed-todo>💾 Guardar todo' + (sucio() ? ' (' + Object.keys(S.bor).length + ')' : '') + '</button><span data-fi-todo-msg class="' + (S.aviso_ed && S.aviso_ed.mal ? 'fi-ed-msg' : 'fi-ed-ok') + '">' + esc((S.aviso_ed || {}).t || '') + '</span></span></div>' : '') + act.html + '</div>' + foot;
     }
     card.classList.toggle('has-mock', !!mock);
     card.innerHTML = '<button type="button" class="li-close" aria-label="Cerrar">×</button><div class="li-split">' + mock + '<div class="li-main">' + main + '</div></div>';
+    card.dataset.tab = S.modo + '|' + S.i + '|' + S.tab; S.aviso_ed = null;
+    if (bajada) { const pn = card.querySelector('.li-pane'); if (pn) pn.scrollTop = bajada; }
     if (S.modo === 'ficha') recalcular();
     const imgMock = card.querySelector('.li-stage img');
     if (imgMock) imgMock.addEventListener('error', () => { if (E.puede) return; const m = card.querySelector('.li-mock'); if (m) m.style.display = 'none'; card.classList.remove('has-mock'); });
@@ -908,8 +942,9 @@
     overlay = null; document.removeEventListener('keydown', teclas);
   }
   function teclas(e) {
-    if (e.key === 'Escape') { cerrar(); return; }
-    if ((e.key === 'ArrowRight' || e.key === 'ArrowLeft') && S && S.modo === 'ficha' && !e.target.matches('input')) {
+    if (e.key === 'Escape') { capturar(); if (sucio() && !confirm('Tienes cambios sin guardar. ¿Cerrar la ficha sin guardarlos?')) return; cerrar(); return; }
+    if ((e.key === 'ArrowRight' || e.key === 'ArrowLeft') && S && S.modo === 'ficha' && !e.target.matches('input,textarea,select')) {
+      capturar();
       const ids = [...overlay.querySelectorAll('[data-fi-tab]')].map(b => b.dataset.fiTab), k = ids.indexOf(S.tab);
       S.tab = ids[(k + (e.key === 'ArrowRight' ? 1 : ids.length - 1)) % ids.length]; e.preventDefault(); dibujar();
     }
@@ -920,7 +955,8 @@
     overlay.className = 'li-overlay'; overlay.setAttribute('role', 'dialog'); overlay.setAttribute('aria-modal', 'true'); overlay.setAttribute('aria-labelledby', 'li-title');
     overlay.innerHTML = '<div class="li-card fi theme-reinvert"></div>';
     overlay.addEventListener('click', e => {
-      if (e.target === overlay || e.target.closest('.li-close')) { cerrar(); return; }
+      capturar();
+      if (e.target === overlay || e.target.closest('.li-close')) { if (sucio() && !confirm('Tienes cambios sin guardar. ¿Cerrar la ficha sin guardarlos?')) return; cerrar(); return; }
       const tab = e.target.closest('[data-fi-tab]'), hoja = e.target.closest('[data-fi-hoja]'), talla = e.target.closest('[data-fi-talla]'), abrir_ = e.target.closest('[data-fi-abrir]');
       const molde = e.target.closest('[data-fit-molde]'), pieza = e.target.closest('[data-fit-pz]');
       if (molde) { S.molde = molde.dataset.fitMolde; dibujar(); return; }
@@ -942,23 +978,30 @@
         if (caja) { caja.hidden = era; if (!era) { caja.innerHTML = infoPieza(S.fichas[S.i], pieza.dataset.fitNombre || '', pieza.dataset.fitEn || '', pieza.dataset.fitHer || '', pieza.dataset.fitMat || '', pieza.dataset.fitA || '', !!pieza.dataset.fitOculta); caja.style.animation = 'none'; void caja.offsetWidth; caja.style.animation = ''; } }
         return;
       }
-      if ((tab || hoja) && S.edit) { if (!confirm('Estás editando un texto. ¿Salir sin guardar?')) return; S.edit = null; S.borrador = null; }
+      if ((hoja || abrir_) && sucio()) { if (!confirm('Tienes cambios sin guardar en esta ficha. ¿Cambiar sin guardarlos?')) return; S.bor = {}; }
       if (tab) { S.tab = tab.dataset.fiTab; dibujar(); }
       else if (hoja) { S.i = +hoja.dataset.fiHoja; dibujar(); }
       else if (talla) { S.talla = talla.dataset.fiTalla; dibujar(); }
       else if (abrir_) abrir(abrir_.dataset.fiAbrir);
       else if (e.target.closest('[data-fi-grupo]')) { S.grupo = e.target.closest('[data-fi-grupo]').dataset.fiGrupo; S.talla = ''; dibujar(); }
       else if (e.target.closest('[data-fi-linea]')) { S.linea = e.target.closest('[data-fi-linea]').dataset.fiLinea; dibujar(); }
-      else if (e.target.closest('[data-fi-editar]')) { if (!E.editar) return; S.edit = e.target.closest('[data-fi-editar]').dataset.fiEditar; S.borrador = lineasDe(S.fichas[S.i], S.edit); if (!S.borrador.length) S.borrador = [vacia(S.edit)]; dibujar(); const caja = overlay.querySelector('[data-fi-ed]'); if (caja && caja.scrollIntoView) caja.scrollIntoView({ block: 'nearest' }); }
-      else if (e.target.closest('[data-fi-ed-add]')) { S.borrador = leerEditor().concat([vacia(S.edit)]); dibujar(); const filas = overlay.querySelectorAll('.fi-ed-fila'), campo = filas.length && filas[filas.length - 1].querySelector('input,textarea'); if (campo) campo.focus(); }
-      else if (e.target.closest('[data-fi-ed-del]')) { const k = +e.target.closest('[data-fi-ed-del]').dataset.fiEdDel; S.borrador = leerEditor().filter((_, i) => i !== k); dibujar(); }
-      else if (e.target.closest('[data-fi-ed-cancelar]')) { S.edit = null; S.borrador = null; dibujar(); }
-      else if (e.target.closest('[data-fi-ed-guardar]')) guardarEditor(leerEditor());
-      else if (e.target.closest('[data-fi-ed-restaurar]')) { if (confirm('¿Quitar la corrección y volver a lo que dice el Excel?')) guardarEditor(null); }
+      else if (e.target.closest('[data-fi-ed-todo]')) guardarTodo();
+      else if (e.target.closest('[data-fi-ed]') && e.target.closest('button')) {   // botones de una sección abierta
+        const caja = e.target.closest('[data-fi-ed]'), sec = caja.dataset.fiEd, f = S.fichas[S.i], filas = (S.bor || {})[sec] || baseDe(f, sec);
+        S.bor = S.bor || {};
+        if (e.target.closest('[data-fi-ed-add]')) {
+          S.bor[sec] = filas.concat([vacia(sec)]); dibujar();
+          const nuevas = overlay.querySelectorAll('[data-fi-ed="' + sec + '"] .fi-ed-fila'), campo = nuevas.length && nuevas[nuevas.length - 1].querySelector('input,textarea'); if (campo) campo.focus();
+        }
+        else if (e.target.closest('[data-fi-ed-del]')) { const k = +e.target.closest('[data-fi-ed-del]').dataset.fiEdDel; S.bor[sec] = filas.filter((_, n) => n !== k); dibujar(); }
+        else if (e.target.closest('[data-fi-ed-cancelar]')) { delete S.bor[sec]; dibujar(); }
+        else if (e.target.closest('[data-fi-ed-guardar]')) guardarEditor(sec, filas);
+        else if (e.target.closest('[data-fi-ed-restaurar]')) { if (confirm('¿Quitar la corrección y volver a lo que dice el Excel?')) guardarEditor(sec, null); }
+      }
       else if (e.target.closest('[data-fi-modificar]')) {
         if (!E.puedeEditar) return;
-        if (E.editar && S.edit && !confirm('Estás editando una sección. ¿Salir sin guardar?')) return;
-        E.editar = !E.editar; S.edit = null; S.borrador = null; dibujar();
+        if (E.editar && sucio() && !confirm('Tienes cambios sin guardar. ¿Terminar la edición sin guardarlos?')) return;
+        E.editar = !E.editar; S.bor = {}; dibujar();
       }
       else if (e.target.closest('[data-fi-imp]')) window.print();
       else if (e.target.closest('[data-fi-nas]')) buscarMockupNas(e.target.closest('[data-fi-nas]').dataset.fiNas, recargar);
@@ -967,12 +1010,12 @@
       else if (e.target.closest('[data-fi-limpiar]')) { const f = S.fichas[S.i]; S.calc[f.ref] = {}; overlay.querySelectorAll('[data-fi-calc]').forEach(x => { x.value = ''; }); recalcular(); }
       else if (e.target.closest('[data-fi-reset]')) { const sec = e.target.closest('[data-fi-reset]').dataset.fiReset, f = S.fichas[S.i]; Object.keys(CHK).filter(k => k.startsWith(f.id + '|' + sec + '|')).forEach(k => delete CHK[k]); guardar('mo_chk', CHK); dibujar(); }
       else if (e.target.closest('[data-fi-molderia]')) {
-        if (E.editar && S.edit && !confirm('Estás editando una sección. ¿Salir sin guardar?')) return;
+        if (sucio() && !confirm('Tienes cambios sin guardar. ¿Salir sin guardarlos?')) return;
         const f = S.fichas[S.i]; cerrar(); window.molderiaAbrirMolde(f.ref);
       }
       else if (e.target.closest('[data-fi-pagina]')) { const f = S.fichas[S.i]; cerrar(); window.molderiaAbrirPagina(f.id); }
     });
-    overlay.addEventListener('input', e => { if (e.target.matches('[data-fi-q]')) { S.q = e.target.value; pintarBusqueda(); } else if (e.target.matches('[data-fi-calc]')) recalcular(); });
+    overlay.addEventListener('input', e => { const ed = e.target.closest('[data-fi-ed]'); if (ed) { ed.classList.add('sucio'); return; } if (e.target.matches('[data-fi-q]')) { S.q = e.target.value; pintarBusqueda(); } else if (e.target.matches('[data-fi-calc]')) recalcular(); });
     overlay.addEventListener('change', e => {
       if (!e.target.matches('[data-fi-chk]')) return;
       const k = e.target.dataset.fiChk; if (e.target.checked) CHK[k] = 1; else delete CHK[k]; guardar('mo_chk', CHK);
