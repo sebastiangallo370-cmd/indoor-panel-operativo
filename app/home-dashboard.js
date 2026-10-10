@@ -278,29 +278,37 @@
     }
   }
 
-  // ---- TIEMPO POR UNIDAD (real): minutos por prenda en cada área, con la HORA INICIO y la HORA FINAL que ya están registradas en el Sheet ----
+  // ---- TIEMPO POR UNIDAD (real): minutos por prenda en TODAS las áreas, con la HORA INICIO y la HORA FINAL del Sheet y, donde no las hay, con el inicio y el final marcados en la web ----
   // Las filas de una misma orden que empezaron a la misma hora son un solo lote (se trabajaron juntas): duración del lote ÷ unidades del lote.
   function unitTimes(data) {
     const headers = data.headers || [], flow = typeof indoorProcessFlow !== 'undefined' ? indoorProcessFlow : [];
     const deProceso = new Set(flow.flatMap(p => p.headers)), iOrden = headers.findIndex(h => key(h) === 'ORDEN'), iCant = headers.findIndex(h => key(h) === 'CANTIDAD');
     const mins = v => { const m = /^\s*(\d{1,2}):(\d{2})/.exec(String(v == null ? '' : v)); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
     const mediana = l => { const o = l.slice().sort((x, y) => x - y); return o.length ? (o.length % 2 ? o[(o.length - 1) / 2] : (o[o.length / 2 - 1] + o[o.length / 2]) / 2) : null; };
-    const out = [];
+    const out = [], tiempos = data.process_times || {};
     flow.forEach(p => {
-      const inicio = p.headers.map(h => headers.findIndex(x => key(x) === h)).filter(i => i >= 0).sort((x, y) => x - y)[0];
+      const cols = p.headers.map(h => headers.findIndex(x => key(x) === h)).filter(i => i >= 0).sort((x, y) => x - y), inicio = cols[0];
       if (inicio === undefined) return;
       let hi = -1, hf = -1;
       for (let i = inicio + 1; i < Math.min(headers.length, inicio + 7); i++) { const k = key(headers[i]); if (deProceso.has(k) && !p.headers.includes(k)) break; if (k === 'HORA INICIO' && hi < 0) hi = i; if (k === 'HORA FINAL' && hf < 0) hf = i; }
-      if (hi < 0 || hf < 0) return;   // esta área no lleva horas en el Sheet
-      const lotes = new Map();
+      const conHoras = hi >= 0 && hf >= 0, lotes = new Map(), web = new Map();
       (data.rows || []).forEach(row => {
-        const v = row.values || [], a = mins(v[hi]), b = mins(v[hf]), und = parseInt(String(v[iCant] == null ? '' : v[iCant]).replace(/[^0-9]/g, ''), 10) || 0;
-        if (a === null || b === null || !und) return;
-        const k = key(v[iOrden]) + '|' + a, l = lotes.get(k) || { ini: a, fin: b, und: 0 };
-        l.fin = Math.max(l.fin, b); l.und += und; lotes.set(k, l);
+        const v = row.values || [], a = conHoras ? mins(v[hi]) : null, b = conHoras ? mins(v[hf]) : null, und = parseInt(String(v[iCant] == null ? '' : v[iCant]).replace(/[^0-9]/g, ''), 10) || 0;
+        if (!und) return;
+        if (a !== null && b !== null) {
+          const k = key(v[iOrden]) + '|' + a, l = lotes.get(k) || { ini: a, fin: b, und: 0 };
+          l.fin = Math.max(l.fin, b); l.und += und; lotes.set(k, l); return;
+        }
+        // sin horas en el Sheet: vale el inicio y el final que se marcaron en la web para esta área
+        const t = cols.map(c => tiempos[row.source_row + ':' + (c + 1)]).find(Boolean);
+        if (!t) return;
+        const k = key(v[iOrden]), l = web.get(k) || []; l.push({ ini: t[0], fin: t[1], und }); web.set(k, l);
       });
       let minutos = 0, unidades = 0, descartados = 0; const porUnd = [], duraciones = [];
-      lotes.forEach(l => { let d = l.fin - l.ini; if (d < 0) d += 1440; if (d <= 0 || d > 720) { descartados++; return; } minutos += d; unidades += l.und; porUnd.push(d / l.und); duraciones.push(d); });
+      const medir = (d, und) => { if (d <= 0 || d > 720) { descartados++; return; } minutos += d; unidades += und; porUnd.push(d / und); duraciones.push(d); };
+      lotes.forEach(l => { let d = l.fin - l.ini; if (d < 0) d += 1440; medir(d, l.und); });
+      // las filas de una orden que se trabajaron a la vez (sus tiempos se cruzan) son un solo lote
+      web.forEach(l => { let lote = null; l.sort((x, y) => x.ini - y.ini).forEach(x => { if (lote && x.ini <= lote.fin) { lote.fin = Math.max(lote.fin, x.fin); lote.und += x.und; } else { if (lote) medir(lote.fin - lote.ini, lote.und); lote = { ini: x.ini, fin: x.fin, und: x.und }; } }); if (lote) medir(lote.fin - lote.ini, lote.und); });
       out.push({ label: p.label, lotes: duraciones.length, unidades, minutos, porUnidad: unidades ? minutos / unidades : null, tipico: mediana(porUnd), lote: mediana(duraciones), rapido: porUnd.length ? Math.min(...porUnd) : null, lento: porUnd.length ? Math.max(...porUnd) : null, descartados });
     });
     return out;
@@ -313,13 +321,13 @@
     const mayor = Math.max(1e-9, ...con.map(dato)), total = con.reduce((t, x) => t + dato(x), 0), lento = con.slice().sort((x, y) => dato(y) - dato(x))[0];
     const cols = l.map((x, i) => {
       const v = dato(x), hay = v !== null, rise = hay ? Math.max(18, Math.round(v / mayor * 190)) : 0, share = hay && total ? Math.round(v / total * 100) : 0, top = hay && x === lento && con.length > 1;
-      const numero = !hay ? '—' : v >= 60 ? fmtNum(v / 60, 1) : v >= 1 ? fmtNum(v, 1) : String(Math.round(v * 60)), unidad = !hay ? 'sin registros' : (v >= 60 ? 'h' : v >= 1 ? 'min' : 'seg') + (porLote ? ' por lote' : ' / und.');
-      return '<button type="button" class="st-col' + (top ? ' top' : '') + (hay ? '' : ' empty') + '" style="--i:' + i + ';--rise:' + rise + 'px;--lv:' + Math.min(94, Math.max(share, hay ? 8 : 0)) + '%" title="' + esc(x.label) + (hay ? ' · ' + fmtDur(x.porUnidad) + ' por unidad · lote típico ' + fmtDur(x.lote) + ' · ' + fmtNum(x.unidades) + ' unidades en ' + x.lotes + ' lotes' : ' · todavía sin horas en el Sheet') + '">' +
+      const numero = !hay ? '—' : v >= 60 ? fmtNum(v / 60, 1) : v >= 1 ? fmtNum(v, 1) : String(Math.round(v * 60)), unidad = !hay ? 'sin datos' : (v >= 60 ? 'h' : v >= 1 ? 'min' : 'seg') + (porLote ? ' por lote' : ' / und.');
+      return '<button type="button" class="st-col' + (top ? ' top' : '') + (hay ? '' : ' empty') + '" style="--i:' + i + ';--rise:' + rise + 'px;--lv:' + Math.min(94, Math.max(share, hay ? 8 : 0)) + '%" title="' + esc(x.label) + (hay ? ' · ' + fmtDur(x.porUnidad) + ' por unidad · lote típico ' + fmtDur(x.lote) + ' · ' + fmtNum(x.unidades) + ' unidades en ' + x.lotes + ' lotes' : ' · todavía sin inicio y final registrados') + '">' +
         (top ? '<em class="ar-ribbon">Más lento</em>' : '') + '<span class="st-slot"><span class="st-bar">' + (hay ? '<i class="sg ' + (top ? 'cola' : 'prog') + '" style="flex:1"></i>' : '') + '</span></span>' +
         '<b class="st-name">' + esc(SHORT[x.label] || x.label) + '</b><span class="st-val">' + numero + '</span><small class="st-sub">' + unidad + (hay ? ' · ' + fmtNum(x.unidades) + ' und.' : '') + '</small><em class="st-pct">' + share + '%</em></button>';
     }).join('');
     return '<section class="dash-stairs de-unidad' + (stairsPlayed ? ' go' : '') + '" data-compact="0">' +
-      '<header class="st-head"><div><span class="ar-kicker">CUÁNTO TARDA CADA PRENDA</span><h3>Escalera de tiempo por unidad</h3><p>Cada escalón es un área en el orden del proceso: mientras más alto, más tarda. Se calcula con la HORA INICIO y la HORA FINAL registradas en el Sheet; el porcentaje es la parte del tiempo total que se lleva esa área.</p></div>' +
+      '<header class="st-head"><div><span class="ar-kicker">CUÁNTO TARDA CADA PRENDA</span><h3>Escalera de tiempo por unidad</h3><p>Cada escalón es un área en el orden del proceso: mientras más alto, más tarda. Se calcula con la HORA INICIO y la HORA FINAL del Sheet y, en las áreas que no las llevan, con el inicio y el final marcados en la página; el porcentaje es la parte del tiempo total que se lleva esa área.</p></div>' +
       '<div class="st-metric" role="group" aria-label="Medir por"><button type="button" data-ut-metric="unidad" class="' + (porLote ? '' : 'on') + '">Por unidad</button><button type="button" data-ut-metric="lote" class="' + (porLote ? 'on' : '') + '">Por lote</button></div></header>' +
       '<div class="st-sum"><span class="st-pill proc" title="Suma de las áreas que tienen registro"><i></i>' + (porLote ? 'Suma de lotes típicos' : 'Total por unidad') + ' <b>' + (con.length ? fmtDur(total) : '—') + '</b></span>' +
       '<span class="st-pill prog"><i></i>Áreas medidas <b>' + con.length + ' de ' + l.length + '</b></span><span class="st-pill cola"><i></i>Lotes medidos <b>' + fmtNum(l.reduce((t, x) => t + x.lotes, 0)) + '</b></span>' +
@@ -335,12 +343,12 @@
   });
   function unitSection(a) {
     const l = a.unitTime || [], con = l.filter(x => x.porUnidad !== null);
-    if (!l.length) return '<p class="dash-none">El Sheet no trae columnas de HORA INICIO y HORA FINAL para medir.</p>';
+    if (!l.length) return '<p class="dash-none">Todavía no hay áreas de producción para medir.</p>';
     const mayor = Math.max(1e-9, ...con.map(x => x.porUnidad)), total = con.reduce((t, x) => t + x.porUnidad, 0), TONOS = ['lime', 'blue', 'green', 'orange', 'lime', 'blue', 'green'];
     const valor = m => m === null ? ['—', ''] : m >= 1 ? [fmtNum(m, 1), 'min / unidad'] : [String(Math.round(m * 60)), 'seg / unidad'];
     const resumen = con.length ? card('green', 'Total por unidad', valor(total)[0], valor(total)[1], [['Suma de las áreas con registro', ''], ['Áreas medidas', con.length + ' de ' + l.length],
       ['Unidades medidas', fmtNum(Math.max(...con.map(x => x.unidades)))], ['Área que más tarda', con.slice().sort((x, y) => y.porUnidad - x.porUnidad)[0].label]], '', null) : '';
-    return unitStairs(a) + '<section class="dash-load"><div class="dash-panel-head"><h4>Detalle por área</h4><small>Minutos por prenda en cada área · con la HORA INICIO y la HORA FINAL registradas en el Sheet · las filas de una orden que empezaron a la misma hora cuentan como un solo lote</small></div>' +
+    return unitStairs(a) + '<section class="dash-load"><div class="dash-panel-head"><h4>Detalle por área</h4><small>Minutos por prenda en todas las áreas · con las horas del Sheet o, si el área no las lleva, con el inicio y el final marcados en la página · las filas de una orden que se trabajaron juntas cuentan como un solo lote</small></div>' +
       '<div class="dash-cards dash-unit">' + resumen + l.map((x, i) => { const [v, u] = valor(x.porUnidad); return x.porUnidad === null
         ? card('orange', esc(x.label), '—', '', [['Todavía no hay registros con hora de inicio y final', '']], '', 0)
         : card(x.porUnidad === mayor && con.length > 1 ? 'orange' : TONOS[i % TONOS.length], esc(x.label), v, u, [['Unidades medidas', fmtNum(x.unidades)], ['Lotes medidos', x.lotes], ['Lo típico por unidad', fmtDur(x.tipico)], ['Duración típica del lote', fmtDur(x.lote)],

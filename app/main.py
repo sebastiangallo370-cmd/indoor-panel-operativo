@@ -3246,10 +3246,43 @@ def _filas_trabajadas_hoy(usuario: str) -> list:
         db.close()
 
 
+def _tiempos_proceso() -> dict:
+    """Inicio y final registrados en la web de cada proceso: 'fila:columna' -> [minuto de inicio, minuto final] (minutos desde 1970).
+    Se toma el último final y el inicio más reciente anterior a él. Sirve para medir el tiempo de las áreas que no llevan horas en el Sheet."""
+    def minuto(texto):
+        try:
+            momento = datetime.fromisoformat(str(texto))
+        except ValueError:
+            return None
+        if momento.tzinfo is None:
+            momento = momento.replace(tzinfo=timezone.utc)
+        return int(momento.timestamp() // 60)
+    db = connect()
+    try:
+        inicios, finales = {}, {}
+        for r in db.execute("SELECT source_row,column_number,created_at FROM production_started ORDER BY id"):
+            m = minuto(r["created_at"])
+            if m is not None:
+                inicios.setdefault((r["source_row"], r["column_number"]), []).append(m)
+        for r in db.execute("SELECT source_row,column_number,created_at FROM production_finished ORDER BY id"):
+            m = minuto(r["created_at"])
+            if m is not None:
+                finales[(r["source_row"], r["column_number"])] = m
+        tiempos = {}
+        for clave, fin in finales.items():
+            previos = [m for m in inicios.get(clave, []) if m <= fin]
+            if previos:
+                tiempos[f"{clave[0]}:{clave[1]}"] = [max(previos), fin]
+        return tiempos
+    finally:
+        db.close()
+
+
 @app.get("/api/produccion")
 async def production_data(force: bool = False, _=Depends(authenticate)):
     try:
         data = dict(await asyncio.to_thread(read_local_production))
+        data['process_times'] = await asyncio.to_thread(_tiempos_proceso)
         data['finished_today_mine'] = await asyncio.to_thread(_finalizados_hoy, str(_))
         data['worked_today_rows'] = await asyncio.to_thread(_filas_trabajadas_hoy, str(_))
         return data
@@ -6777,7 +6810,7 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
 `;document.head.appendChild(traceFigmaStyle);setTraceView();
     const commercialGroup=commercialToggle.closest('.nav-group');commercialGroup.classList.add('collapsed');const productionToggle=document.getElementById('production-toggle');if(productionToggle)productionToggle.addEventListener('click',()=>{{const g=productionToggle.closest('.nav-group');g.classList.toggle('collapsed');if(!g.classList.contains('collapsed')&&window.innerWidth>860)g.querySelector('.nav-children .tab')?.click()}});
     setTimeout(()=>{{if(!document.querySelector('.panel.active'))document.querySelector('.tab[data-kind="inicio"]')?.click()}},0);
-    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/liquid-stats.js?v=20261009-10'></script><script src='/permisos.js?v=20261007-2'></script><script src='/reposiciones.js?v=20261005-4'></script><script src='/agentes.js?v=20261010-14'></script><script src='/promedios.js?v=20261006-7'></script><script src='/capacidad.js?v=20261009-2'></script><script src='/molderia.js?v=20261010-2'></script><script src='/estandar.js?v=20261007-1'></script><script src='/terminos.js?v=20261010-1'></script><script src='/cookies-aviso.js?v=20261010-1'></script><script src='/rh-contratos.js?v=20261009-3'></script><script src='/fichas-resumen.js?v=20261010-16'></script><script src='/api/cartera/cartera.js?v=20261009-1'></script><script src='/trace-ui.js?v=20261010-1'></script><script src='/home-dashboard.js?v=20261010-3'></script><script src='/bodega-dashboard.js?v=20261009-5'></script><script src='/bodegas.js?v=20261009-7'></script><script src='/codigos-barras.js?v=20261008-1'></script><script src='/mis-pedidos.js?v=20261008-4'></script><script src='/mobile-nav.js?v=20261010-1'></script><script src='/nav-liquid.js?v=20261003-3'></script><script src='/build-watch.js?v=20261002-1'></script><script src='/salud.js?v=20261002-1'></script><script src='/tema.js?v=20261008-1'></script><script src='/tarjeta-iconos.js?v=20261002-5'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261005-3'></script><script src='/linea-editor.js?v=20261008-1'></script><script src='/menu-cuenta.js?v=20261008-1'></script><script src='/foto-perfil.js?v=20261008-4'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
+    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/liquid-stats.js?v=20261009-10'></script><script src='/permisos.js?v=20261007-2'></script><script src='/reposiciones.js?v=20261005-4'></script><script src='/agentes.js?v=20261010-14'></script><script src='/promedios.js?v=20261006-7'></script><script src='/capacidad.js?v=20261009-2'></script><script src='/molderia.js?v=20261010-2'></script><script src='/estandar.js?v=20261007-1'></script><script src='/terminos.js?v=20261010-1'></script><script src='/cookies-aviso.js?v=20261010-1'></script><script src='/rh-contratos.js?v=20261009-3'></script><script src='/fichas-resumen.js?v=20261010-16'></script><script src='/api/cartera/cartera.js?v=20261009-1'></script><script src='/trace-ui.js?v=20261010-1'></script><script src='/home-dashboard.js?v=20261010-4'></script><script src='/bodega-dashboard.js?v=20261009-5'></script><script src='/bodegas.js?v=20261009-7'></script><script src='/codigos-barras.js?v=20261008-1'></script><script src='/mis-pedidos.js?v=20261008-4'></script><script src='/mobile-nav.js?v=20261010-1'></script><script src='/nav-liquid.js?v=20261003-3'></script><script src='/build-watch.js?v=20261002-1'></script><script src='/salud.js?v=20261002-1'></script><script src='/tema.js?v=20261008-1'></script><script src='/tarjeta-iconos.js?v=20261002-5'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261005-3'></script><script src='/linea-editor.js?v=20261008-1'></script><script src='/menu-cuenta.js?v=20261008-1'></script><script src='/foto-perfil.js?v=20261008-4'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
 
 
 def ordered_mockup_uploads(extras, slots):
