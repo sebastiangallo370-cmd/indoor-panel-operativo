@@ -306,6 +306,33 @@
     return out;
   }
   const fmtDur = m => m === null ? '—' : m >= 60 ? Math.floor(m / 60) + ' h ' + Math.round(m % 60) + ' min' : m >= 1 ? fmtNum(m, 1) + ' min' : Math.round(m * 60) + ' s';
+  let unitMetric = 'unidad';
+  try { if (localStorage.getItem('indoor-unit-metric') === 'lote') unitMetric = 'lote'; } catch (e) { /* sin almacenamiento */ }
+  function unitStairs(a) {
+    const l = a.unitTime || [], porLote = unitMetric === 'lote', dato = x => (porLote ? x.lote : x.porUnidad), con = l.filter(x => dato(x) !== null);
+    const mayor = Math.max(1e-9, ...con.map(dato)), total = con.reduce((t, x) => t + dato(x), 0), lento = con.slice().sort((x, y) => dato(y) - dato(x))[0];
+    const cols = l.map((x, i) => {
+      const v = dato(x), hay = v !== null, rise = hay ? Math.max(18, Math.round(v / mayor * 190)) : 0, share = hay && total ? Math.round(v / total * 100) : 0, top = hay && x === lento && con.length > 1;
+      const numero = !hay ? '—' : v >= 60 ? fmtNum(v / 60, 1) : v >= 1 ? fmtNum(v, 1) : String(Math.round(v * 60)), unidad = !hay ? 'sin registros' : (v >= 60 ? 'h' : v >= 1 ? 'min' : 'seg') + (porLote ? ' por lote' : ' / und.');
+      return '<button type="button" class="st-col' + (top ? ' top' : '') + (hay ? '' : ' empty') + '" style="--i:' + i + ';--rise:' + rise + 'px;--lv:' + Math.min(94, Math.max(share, hay ? 8 : 0)) + '%" title="' + esc(x.label) + (hay ? ' · ' + fmtDur(x.porUnidad) + ' por unidad · lote típico ' + fmtDur(x.lote) + ' · ' + fmtNum(x.unidades) + ' unidades en ' + x.lotes + ' lotes' : ' · todavía sin horas en el Sheet') + '">' +
+        (top ? '<em class="ar-ribbon">Más lento</em>' : '') + '<span class="st-slot"><span class="st-bar">' + (hay ? '<i class="sg ' + (top ? 'cola' : 'prog') + '" style="flex:1"></i>' : '') + '</span></span>' +
+        '<b class="st-name">' + esc(SHORT[x.label] || x.label) + '</b><span class="st-val">' + numero + '</span><small class="st-sub">' + unidad + (hay ? ' · ' + fmtNum(x.unidades) + ' und.' : '') + '</small><em class="st-pct">' + share + '%</em></button>';
+    }).join('');
+    return '<section class="dash-stairs de-unidad' + (stairsPlayed ? ' go' : '') + '" data-compact="0">' +
+      '<header class="st-head"><div><span class="ar-kicker">CUÁNTO TARDA CADA PRENDA</span><h3>Escalera de tiempo por unidad</h3><p>Cada escalón es un área en el orden del proceso: mientras más alto, más tarda. Se calcula con la HORA INICIO y la HORA FINAL registradas en el Sheet; el porcentaje es la parte del tiempo total que se lleva esa área.</p></div>' +
+      '<div class="st-metric" role="group" aria-label="Medir por"><button type="button" data-ut-metric="unidad" class="' + (porLote ? '' : 'on') + '">Por unidad</button><button type="button" data-ut-metric="lote" class="' + (porLote ? 'on' : '') + '">Por lote</button></div></header>' +
+      '<div class="st-sum"><span class="st-pill proc" title="Suma de las áreas que tienen registro"><i></i>' + (porLote ? 'Suma de lotes típicos' : 'Total por unidad') + ' <b>' + (con.length ? fmtDur(total) : '—') + '</b></span>' +
+      '<span class="st-pill prog"><i></i>Áreas medidas <b>' + con.length + ' de ' + l.length + '</b></span><span class="st-pill cola"><i></i>Lotes medidos <b>' + fmtNum(l.reduce((t, x) => t + x.lotes, 0)) + '</b></span>' +
+      (lento ? '<span class="st-neck">Área que más tarda: <b>' + esc(lento.label) + '</b> · ' + fmtDur(dato(lento)) + (porLote ? ' por lote' : ' por unidad') + '</span>' : '') + '</div>' +
+      '<div class="st-scroll"><div class="st-chart" role="list">' + cols + '</div></div><div class="st-flow" aria-hidden="true"><span>Entrada</span><i></i><span>Salida</span></div></section>';
+  }
+  root.addEventListener('click', event => {
+    const b = event.target.closest('[data-ut-metric]'); if (!b || !model) return;
+    unitMetric = b.dataset.utMetric; try { localStorage.setItem('indoor-unit-metric', unitMetric); } catch (e) { /* sin almacenamiento */ }
+    const viejo = root.querySelector('.dash-stairs.de-unidad'), caja = document.createElement('div'); if (!viejo) return;
+    caja.innerHTML = unitStairs(model); const nuevo = caja.firstElementChild; viejo.replaceWith(nuevo);
+    requestAnimationFrame(() => requestAnimationFrame(() => nuevo.classList.add('go')));
+  });
   function unitSection(a) {
     const l = a.unitTime || [], con = l.filter(x => x.porUnidad !== null);
     if (!l.length) return '<p class="dash-none">El Sheet no trae columnas de HORA INICIO y HORA FINAL para medir.</p>';
@@ -313,7 +340,7 @@
     const valor = m => m === null ? ['—', ''] : m >= 1 ? [fmtNum(m, 1), 'min / unidad'] : [String(Math.round(m * 60)), 'seg / unidad'];
     const resumen = con.length ? card('green', 'Total por unidad', valor(total)[0], valor(total)[1], [['Suma de las áreas con registro', ''], ['Áreas medidas', con.length + ' de ' + l.length],
       ['Unidades medidas', fmtNum(Math.max(...con.map(x => x.unidades)))], ['Área que más tarda', con.slice().sort((x, y) => y.porUnidad - x.porUnidad)[0].label]], '', null) : '';
-    return '<section class="dash-load"><div class="dash-panel-head"><h4>Tiempo por unidad</h4><small>Minutos por prenda en cada área · con la HORA INICIO y la HORA FINAL registradas en el Sheet · las filas de una orden que empezaron a la misma hora cuentan como un solo lote</small></div>' +
+    return unitStairs(a) + '<section class="dash-load"><div class="dash-panel-head"><h4>Detalle por área</h4><small>Minutos por prenda en cada área · con la HORA INICIO y la HORA FINAL registradas en el Sheet · las filas de una orden que empezaron a la misma hora cuentan como un solo lote</small></div>' +
       '<div class="dash-cards dash-unit">' + resumen + l.map((x, i) => { const [v, u] = valor(x.porUnidad); return x.porUnidad === null
         ? card('orange', esc(x.label), '—', '', [['Todavía no hay registros con hora de inicio y final', '']], '', 0)
         : card(x.porUnidad === mayor && con.length > 1 ? 'orange' : TONOS[i % TONOS.length], esc(x.label), v, u, [['Unidades medidas', fmtNum(x.unidades)], ['Lotes medidos', x.lotes], ['Lo típico por unidad', fmtDur(x.tipico)], ['Duración típica del lote', fmtDur(x.lote)],
@@ -495,7 +522,7 @@
     if (!button || !model) return;
     stairMetric = button.dataset.stMetric;
     try { localStorage.setItem('indoor-stairs-metric', stairMetric); } catch (e) { /* sin almacenamiento */ }
-    root.querySelectorAll('.dash-stairs').forEach(el => {
+    root.querySelectorAll('.dash-stairs:not(.de-unidad)').forEach(el => {
       const holder = document.createElement('div');
       holder.innerHTML = stairs(model, el.dataset.compact === '1');
       const fresh = holder.firstElementChild;
