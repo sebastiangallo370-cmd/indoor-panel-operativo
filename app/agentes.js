@@ -120,7 +120,21 @@
   .ag-nas{display:inline-flex;align-items:center;gap:6px;text-decoration:none;white-space:nowrap}.ag-nas span{font-weight:900}
   .ag-orden .ag-btn{min-height:36px;padding:0 14px}
   .ag-who{display:flex;gap:6px;flex-wrap:wrap;align-items:center}.ag-tag{padding:2px 9px;border-radius:999px;font:900 10px Arial;letter-spacing:.06em;color:var(--c);background:color-mix(in srgb,var(--c) 15%,transparent);border:1px solid color-mix(in srgb,var(--c) 45%,transparent)}
-  .ag-txt{white-space:pre-wrap;overflow-wrap:anywhere;margin:0;color:#eef4e9}.ag-time{color:#8f9b8a;font-size:.7rem}
+  .ag-txt{white-space:pre-wrap;overflow-wrap:anywhere;margin:0;color:#eef4e9}
+  .ag-chat{position:relative}
+  .ag-dia{display:flex;align-items:center;gap:10px;margin:4px 0;color:#8f9b8a;font:800 10px Arial;letter-spacing:.14em;text-transform:uppercase}.ag-dia::before,.ag-dia::after{content:'';flex:1;height:1px;background:rgba(255,255,255,.1)}
+  .ag-sis{justify-self:center;max-width:100%;padding:4px 12px;border:1px solid rgba(255,255,255,.1);border-radius:999px;color:#8f9b8a;font:600 11px Arial;text-align:center;overflow-wrap:anywhere}.ag-sis.auto{border-color:rgba(208,244,76,.3);color:#c9dc8a}
+  .ag-kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:6px 14px;margin:6px 0;padding:10px 12px;border:1px solid rgba(255,255,255,.08);border-radius:12px;background:rgba(255,255,255,.03);white-space:normal}
+  .ag-msg.bot:has(.ag-kv){width:min(100%,760px);box-sizing:border-box}
+  .ag-kv>div{min-width:0}.ag-kv dt{color:#8f9b8a;font:800 9.5px Arial;letter-spacing:.12em;text-transform:uppercase}.ag-kv dd{margin:1px 0 0;color:#f2f6ee;font-weight:700;overflow-wrap:anywhere}
+  .ag-parte{display:grid;gap:2px;margin:6px 0;padding:8px 11px;border-left:3px solid #8f9b8a;border-radius:0 10px 10px 0;background:rgba(255,255,255,.04);white-space:normal}
+  .ag-parte b{font:800 10px Arial;letter-spacing:.12em;text-transform:uppercase;color:#aab5a2}.ag-parte.e{border-left-color:#ff6b5c;background:rgba(255,107,92,.08)}.ag-parte.e b{color:#ff9d94}.ag-parte.q{border-left-color:#d0f44c;background:rgba(208,244,76,.07)}.ag-parte.q b{color:#d0f44c}
+  .ag-who .ag-copiar{margin-left:auto;width:auto!important;min-height:0!important;padding:2px 8px!important;border:1px solid transparent!important;border-radius:999px!important;background:transparent!important;box-shadow:none!important;color:#8f9b8a!important;font:700 10px Arial!important;cursor:pointer;opacity:.55}
+  .ag-msg:hover .ag-copiar,.ag-copiar:focus-visible{opacity:1;border-color:rgba(255,255,255,.16)!important}
+  .ag-bajar{position:absolute;left:50%;bottom:118px;z-index:3;transform:translateX(-50%);width:auto!important;min-height:0!important;padding:7px 14px!important;border:1px solid #d0f44c!important;border-radius:999px!important;background:#d0f44c!important;color:#111!important;font:800 11px Arial!important;box-shadow:0 10px 24px rgba(0,0,0,.5);cursor:pointer}
+  .ag-bajar[hidden]{display:none!important}
+  html.theme-light .ag-kv,html.theme-light .ag-parte{background:#f4f7f0;border-color:#d5dfcd}html.theme-light .ag-kv dd{color:#18210f}html.theme-light .ag-sis,html.theme-light .ag-dia{color:#5d6b55}
+  @media(max-width:700px){.ag-kv{grid-template-columns:1fr 1fr;padding:8px 9px;gap:5px 10px}.ag-copiar{opacity:1}}.ag-time{color:#8f9b8a;font-size:.7rem}
   .ag-btn.danger{border:1px solid #e5484d;background:rgba(229,72,77,.14);color:#ff9a9d}.ag-btn.danger:hover{background:rgba(229,72,77,.28)}.ag-work .ag-btn.danger{justify-self:start;min-height:34px;padding:0 14px}
   .ag-work{display:grid;gap:10px;justify-self:start;max-width:86%;padding:14px 16px;border:1px solid rgba(125,164,255,.45);border-radius:16px;background:rgba(125,164,255,.07)}
   .ag-work b{font-size:.9rem}.ag-work small{color:#aebba7;font-size:.8rem}.ag-flow{display:flex;gap:6px;flex-wrap:wrap}
@@ -1017,15 +1031,51 @@
   // Los bloques largos de «datos en blanco» se pliegan en un solo renglón
   function textoHtml(texto) {
     const lineas = String(texto || '').split('\n'), out = [];
+    const dato = l => /^([A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ .\/]{1,24}):\s+(\S.*)$/.exec(l), parte = l => /^(ERROR|Causa|Qué hacer):\s*(.*)$/i.exec(l);
     for (let i = 0; i < lineas.length; i++) {
+      const pe = parte(lineas[i]);
       if (/datos? en blanco/i.test(lineas[i]) && /^•/.test(lineas[i + 1] || '')) {
         let j = i + 1; const det = [];
         while (j < lineas.length && /^•/.test(lineas[j])) det.push(lineas[j++]);
         out.push('<details class="ag-det"><summary>' + esc(lineas[i].replace(/^[^A-Za-zÁ-ú0-9]+/, '').replace(/\(no los invento.*?\)/i, '').trim().replace(/:$/, '')) + ' · ' + det.length + ' avisos · ver detalle</summary><div>' + esc(det.join('\n')) + '</div></details>');
         i = j - 1;
+      } else if (pe) {   // «ERROR: … / Causa: … / Qué hacer: …»: cada parte con su rótulo
+        const k = pe[1].toLowerCase().startsWith('error') ? 'e' : pe[1].toLowerCase().startsWith('causa') ? 'c' : 'q';
+        out.push('<div class="ag-parte ' + k + '"><b>' + (k === 'e' ? '✖ Error' : k === 'c' ? 'Causa' : '💡 Qué hacer') + '</b><span>' + esc(pe[2]) + '</span></div>');
+      } else if (dato(lineas[i]) && dato(lineas[i + 1] || '') && dato(lineas[i + 2] || '')) {   // tres o más renglones «Etiqueta: valor» seguidos
+        let j = i; const filas = [];
+        while (j < lineas.length && dato(lineas[j]) && !parte(lineas[j])) { const d = dato(lineas[j++]); filas.push('<div><dt>' + esc(d[1]) + '</dt><dd>' + esc(d[2]) + '</dd></div>'); }
+        out.push('<dl class="ag-kv">' + filas.join('') + '</dl>');
+        i = j - 1;
       } else out.push(esc(lineas[i]));
     }
-    return out.join('\n').replace(/\n(<details)/g, '$1').replace(/(<\/details>)\n/g, '$1');
+    return out.join('\n').replace(/\n(<details|<dl|<div class="ag-parte)/g, '$1').replace(/(<\/details>|<\/dl>|<\/span><\/div>)\n/g, '$1');
+  }
+  // Renglones de sistema del chat: órdenes internas (cancelar, detener, inicio automático) no se muestran como si alguien las hubiera escrito
+  const diaDe = iso => { const d = new Date(iso); return isNaN(d) ? '' : d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate(); };
+  function rotuloDia(iso) {
+    const d = new Date(iso), hoy = new Date(), ayer = new Date(Date.now() - 864e5);
+    if (diaDe(iso) === diaDe(hoy)) return 'Hoy';
+    if (diaDe(iso) === diaDe(ayer)) return 'Ayer';
+    return d.toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' });
+  }
+  function hiloHtml() {
+    const out = []; let dia = '', cancelados = 0, ultCancel = '';
+    const soltar = () => { if (cancelados) out.push('<div class="ag-sis">✕ Se canceló lo anterior' + (cancelados > 1 ? ' (' + cancelados + ' veces)' : '') + ' · ' + hora(ultCancel) + '</div>'); cancelados = 0; };
+    st.msgs.forEach(m => {
+      if (m.rol === 'yo' && m.texto === '__detener__') return;
+      const dm = diaDe(m.creado);
+      if (dm && dm !== dia) { soltar(); dia = dm; out.push('<div class="ag-dia"><span>' + esc(rotuloDia(m.creado)) + '</span></div>'); }
+      if (m.rol === 'yo' && /^cancelar$/i.test(String(m.texto).trim())) { cancelados++; ultCancel = m.creado; return; }
+      soltar();
+      const auto = m.rol === 'yo' && /^(.*?)\s*\(inicio automático[^)]*\)\s*$/i.exec(m.texto);
+      if (auto) { out.push('<div class="ag-sis auto">⚡ Inicio automático · ' + esc(auto[1]) + ' · ' + hora(m.creado) + '</div>'); return; }
+      out.push(m.rol === 'yo'
+        ? '<div class="ag-msg yo"><div class="ag-txt">' + esc(m.texto) + '</div><span class="ag-time">' + hora(m.creado) + '</span></div>'
+        : '<div class="ag-msg bot' + (m.estado === 'ERROR' ? ' err' : '') + (m.tabla || (m.archivos && m.archivos.length) ? ' con-tabla' : '') + '"><div class="ag-who">' + (m.agentes && m.agentes.length ? m.agentes : ['TAVO']).map(tag).join('') + '<button type="button" class="ag-copiar" data-copiar="' + esc(m.id) + '" title="Copiar el mensaje">⧉ Copiar</button></div><div class="ag-txt">' + textoHtml(m.tabla ? m.texto.split(/\n\nDesglose del listado/)[0] : m.texto) + '</div>' + (m.estado === 'ERROR' || /^[A-Z]+: /.test(m.texto) ? ayudaDe(m.texto, m.estado === 'ERROR' || /no pude|no pudo|falt|no aparece|no está/i.test(m.texto)) : '') + (m.tabla ? tablaHtml(m) : '') + (m.archivos && m.archivos.length ? archivosHtml(m) : '') + '<span class="ag-time">' + hora(m.creado) + '</span></div>');
+    });
+    soltar();
+    return out.join('');
   }
 
   // ================================================================== pantalla
@@ -1037,7 +1087,7 @@
       '<button type="button" class="ag-btn ag-reiniciar" data-reiniciar title="Reinicia el programa de los agentes en el PC elegido (se cierra y se vuelve a abrir solo)">↻ Reiniciar</button>' +
       '<details class="ag-menu"><summary class="ag-ico" title="Más opciones">⋯</summary><div class="ag-menu-l"><button type="button" data-detener-todo>⏹ Detener todo (ambos PC)</button><button type="button" data-reiniciar-todo>↻ Reiniciar todos los PC</button><button type="button" data-nueva>Nueva conversación</button><button type="button" data-conectar hidden>PC de los agentes…</button></div></details></div></header>' +
       '<div data-aviso></div><section class="ag-res" data-resumen hidden></section>' +
-      '<button type="button" class="ag-ver-flujo" data-ver-flujo>▾ Ver flujo, pantalla en vivo y registro</button><nav class="ag-vtabs" data-vtabs aria-label="Secciones de los agentes"><button type="button" class="ag-vt on" data-vt="chats">CHATS</button><button type="button" class="ag-vt" data-vt="agentes">AGENTES</button><button type="button" class="ag-vt" data-vt="pdfs">PDFS</button></nav><div class="ag-main" data-main data-vista="chats"><div class="ag-orden" data-orden></div><section class="ag-chat"><div class="ag-thread" data-hilo></div><div class="ag-chips" data-replies></div>' +
+      '<button type="button" class="ag-ver-flujo" data-ver-flujo>▾ Ver flujo, pantalla en vivo y registro</button><nav class="ag-vtabs" data-vtabs aria-label="Secciones de los agentes"><button type="button" class="ag-vt on" data-vt="chats">CHATS</button><button type="button" class="ag-vt" data-vt="agentes">AGENTES</button><button type="button" class="ag-vt" data-vt="pdfs">PDFS</button></nav><div class="ag-main" data-main data-vista="chats"><div class="ag-orden" data-orden></div><section class="ag-chat"><div class="ag-thread" data-hilo></div><button type="button" class="ag-bajar" data-bajar hidden>↓ Mensajes nuevos</button><div class="ag-chips" data-replies></div>' +
       '<form class="ag-form" data-form><details class="ag-menu ag-atajos"><summary class="ag-ico" title="Acciones rápidas">⚡</summary><div class="ag-menu-l">' + ATAJOS.map(([l, p]) => '<button type="button" data-atajo="' + esc(p) + '">' + esc(l) + '</button>').join('') + '</div></details>' +
       '<textarea rows="1" placeholder="Escribe a TAVO…" maxlength="2000"></textarea><button type="submit" class="ag-btn">Enviar</button></form></section>' +
       '<aside class="ag-muestras" data-muestras></aside><section class="ag-flowcol"><div class="ag-lienzo" data-lienzo><div class="ag-barra"><div class="ag-ftit">Flujo de agentes<small data-ejecnum></small></div><div class="ag-pildora" data-pildora><i></i><span>Listo</span></div></div><svg class="ag-cables" data-cables aria-hidden="true"></svg></div>' +
@@ -1137,9 +1187,7 @@
       '<button type="button" class="ag-pill ' + (e.auto ? 'ok' : 'sim') + '" data-auto title="Cuando una tarjeta de EDICIÓN pasa a «en proceso», los agentes arrancan solos con esa orden. Toca para ' + (e.auto ? 'apagar' : 'encender') + '" style="cursor:pointer"><i></i>Auto ' + (e.auto ? 'ON' : 'OFF') + '</button>';
     panel.querySelector('[data-aviso]').innerHTML = !e.conectado ? '<div class="ag-warn">El PC «' + esc((e.pc && e.pc.nombre) || 'de los agentes') + '» no está conectado. Tu mensaje queda en cola y se atiende cuando ese PC esté encendido con los agentes iniciados' + ((e.pcs || []).some(p => p.conectado && p.id !== (e.pc && e.pc.id)) ? '; también puedes elegir otro PC conectado arriba.' : '.') + '</div>' : '';
     const trabajo = st.trabajo;
-    const hilo = st.msgs.length ? st.msgs.map(m => m.rol === 'yo'
-      ? '<div class="ag-msg yo"><p class="ag-txt">' + esc(m.texto) + '</p><span class="ag-time">' + hora(m.creado) + '</span></div>'
-      : '<div class="ag-msg bot' + (m.estado === 'ERROR' ? ' err' : '') + (m.tabla || (m.archivos && m.archivos.length) ? ' con-tabla' : '') + '"><div class="ag-who">' + (m.agentes && m.agentes.length ? m.agentes : ['TAVO']).map(tag).join('') + '</div><p class="ag-txt">' + textoHtml(m.tabla ? m.texto.split(/\n\nDesglose del listado/)[0] : m.texto) + '</p>' + (m.estado === 'ERROR' || /^[A-Z]+: /.test(m.texto) ? ayudaDe(m.texto, m.estado === 'ERROR' || /no pude|no pudo|falt|no aparece|no está/i.test(m.texto)) : '') + (m.tabla ? tablaHtml(m) : '') + (m.archivos && m.archivos.length ? archivosHtml(m) : '') + '<span class="ag-time">' + hora(m.creado) + '</span></div>').join('')
+    const hilo = st.msgs.length ? hiloHtml()
       : '<div class="ag-empty"><h3>¿Qué necesitas hoy?</h3><p>Fija la orden arriba y pídele lo que necesites, por ejemplo «exporta las mesas». TAVO decide qué agente actúa.</p></div>';
     const trabajando = st.esperando ? '<div class="ag-work"><div class="ag-who">' + ((trabajo && trabajo.agentes) || ['TAVO']).map(a => tag(a)).join('') + '<span class="ag-dots"><i></i><i></i><i></i></span></div><b>' +
       esc(trabajo && trabajo.msg ? trabajo.agente + ': ' + trabajo.msg : e.conectado ? 'TAVO está trabajando…' : 'Esperando al PC de los agentes…') + '</b><button type="button" class="ag-btn danger" data-detener>Detener</button></div>' : '';
@@ -1159,7 +1207,12 @@
     pintarProg();
     panel.querySelector('textarea').placeholder = st.orden ? 'Pídele a TAVO (usa la orden ' + st.orden + ')…' : 'Escribe a TAVO…';
     const hiloEl = panel.querySelector('[data-hilo]'), firma = hilo + trabajando;
-    if (hiloEl.dataset.firma !== firma) { hiloEl.innerHTML = firma; hiloEl.dataset.firma = firma; hiloEl.scrollTop = hiloEl.scrollHeight; }
+    if (hiloEl.dataset.firma !== firma) {
+      const abajo = !hiloEl.dataset.firma || hiloEl.scrollHeight - hiloEl.scrollTop - hiloEl.clientHeight < 90, antes = hiloEl.scrollTop, mio = ultimo && ultimo.rol === 'yo' && String(ultimo.id) !== hiloEl.dataset.ult;
+      hiloEl.innerHTML = firma; hiloEl.dataset.firma = firma; hiloEl.dataset.ult = ultimo ? String(ultimo.id) : '';
+      if (abajo || mio) hiloEl.scrollTop = hiloEl.scrollHeight; else hiloEl.scrollTop = antes;
+      const bajar = panel.querySelector('[data-bajar]'); if (bajar) bajar.hidden = abajo || mio;
+    }
     pintarMuestras();
     panel.querySelector('[data-replies]').innerHTML = botones.map(b => '<button type="button" class="reply" data-send="' + esc(b) + '">' + esc(b) + '</button>').join('');
     panel.querySelectorAll('[data-atajo]').forEach(b => { b.disabled = st.esperando; });
@@ -1381,6 +1434,7 @@
       } else if (e.target.closest('[data-conectar]')) conectar();
     });
     try { ponerVista(localStorage.getItem('indoor-agentes-vista') || 'chats'); } catch (er) { /* sin almacenamiento */ }
+    panel.querySelector('[data-hilo]').addEventListener('scroll', e => { const h = e.target, b = panel.querySelector('[data-bajar]'); if (b && !b.hidden && h.scrollHeight - h.scrollTop - h.clientHeight < 40) b.hidden = true; }, { passive: true });
     window.addEventListener('resize', ajustarAlto);
     window.addEventListener('focus', () => setTimeout(enfocarVista, 50));
     document.addEventListener('visibilitychange', () => { if (!document.hidden) setTimeout(enfocarVista, 50); });
@@ -1416,6 +1470,9 @@
       await cargar(true); pintar();
     });
     panel.addEventListener('click', e => {
+      const cop = e.target.closest('[data-copiar]');
+      if (cop) { const m = st.msgs.find(x => String(x.id) === cop.dataset.copiar); if (m && navigator.clipboard) navigator.clipboard.writeText(m.texto).then(() => { cop.textContent = '✓ Copiado'; setTimeout(() => { cop.textContent = '⧉ Copiar'; }, 1400); }).catch(() => {}); return; }
+      if (e.target.closest('[data-bajar]')) { const h = panel.querySelector('[data-hilo]'); h.scrollTop = h.scrollHeight; e.target.closest('[data-bajar]').hidden = true; return; }
       const mas = panel.querySelector('.ag-mas[open]');
       if (mas && (!e.target.closest('.ag-mas') || e.target.closest('.ag-mas-menu button'))) mas.removeAttribute('open');
     });
