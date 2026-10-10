@@ -539,7 +539,7 @@
     t.push({ id: 'INSUMOS', n: ins.length, u: ['insumo', 'insumos'], html: (ins.length ? sec('Insumos de la prenda') + lista(ins) : '') + (mIns.length ? sec('Medidas para insumos (cm)') + selector + rejilla(tIns) : '') });
     // CONFECCIÓN
     const conf = (f.confeccion || []).map(c => kv(c.etiqueta, c.valor));
-    t.push({ id: 'CONFECCIÓN', n: conf.length, u: ['paso', 'pasos'], html: listaChk(conf, f, 'conf') });
+    t.push({ id: 'CONFECCIÓN', n: conf.length, u: ['paso', 'pasos'], html: lista(conf) });   // solo informativo: sin casillas para marcar
     // EMPAQUE: revisión y terminación, y aparte sus insumos
     const term = (f.terminacion || []).map(x => esc(x)), empIns = (f.empaque_insumos || []).map(insumo);
     t.push({ id: 'EMPAQUE', n: term.length + empIns.length, u: ['punto', 'puntos'], html: (term.length ? sec('Terminación y revisión') + listaChk(term, f, 'emp') : '') + (empIns.length ? sec('Insumos de empaque') + lista(empIns) : '') });
