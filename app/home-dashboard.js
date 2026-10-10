@@ -313,40 +313,70 @@
         if (!t) return;
         const k = key(v[iOrden]), l = web.get(k) || []; l.push({ ini: t[0], fin: t[1], und }); web.set(k, l);
       });
-      let minutos = 0, unidades = 0, descartados = 0; const porUnd = [], duraciones = [];
-      const medir = (d, und, orden, ini, fin) => { if (d <= 0 || d > 720) { descartados++; return; } minutos += d; unidades += und; porUnd.push(d / und); duraciones.push(d);
+      let minutos = 0, unidades = 0, descartados = 0; const porUnd = [], duraciones = [], reg = [];
+      const medir = (d, und, orden, ini, fin) => { if (d <= 0 || d > 720) { descartados++; return; } minutos += d; unidades += und; porUnd.push(d / und); duraciones.push(d); if (fin != null) reg.push({ fin, d, und });
         const o = ordenes.get(orden); if (!o) return; let ar = o.areas.find(x => x.label === p.label); if (!ar) { ar = { label: p.label, min: 0, und: 0 }; o.areas.push(ar); } ar.min += d; ar.und += und;
         if (fin != null) { o.ini = o.ini == null ? ini : Math.min(o.ini, ini); o.fin = o.fin == null ? fin : Math.max(o.fin, fin); } };
       lotes.forEach(l => { let d = l.fin - l.ini; if (d < 0) d += 1440; const fin = l.dia ? l.dia + l.fin : null; medir(d, l.und, l.orden, fin === null ? null : fin - d, fin); });
       // las filas de una orden que se trabajaron a la vez (sus tiempos se cruzan) son un solo lote
       web.forEach((l, orden) => { let lote = null; l.sort((x, y) => x.ini - y.ini).forEach(x => { if (lote && x.ini <= lote.fin) { lote.fin = Math.max(lote.fin, x.fin); lote.und += x.und; } else { if (lote) medir(lote.fin - lote.ini, lote.und, orden, lote.ini, lote.fin); lote = { ini: x.ini, fin: x.fin, und: x.und }; } }); if (lote) medir(lote.fin - lote.ini, lote.und, orden, lote.ini, lote.fin); });
-      out.push({ label: p.label, lotes: duraciones.length, unidades, minutos, porUnidad: unidades ? minutos / unidades : null, tipico: mediana(porUnd), lote: mediana(duraciones), rapido: porUnd.length ? Math.min(...porUnd) : null, lento: porUnd.length ? Math.max(...porUnd) : null, descartados });
+      out.push({ label: p.label, lotes: duraciones.length, unidades, minutos, porUnidad: unidades ? minutos / unidades : null, tipico: mediana(porUnd), lote: mediana(duraciones), rapido: porUnd.length ? Math.min(...porUnd) : null, lento: porUnd.length ? Math.max(...porUnd) : null, descartados, reg });
     });
     // minutos por unidad de la orden = (dato de cuando termina − dato de cuando empieza) ÷ cantidad
     out.ordenes = [...ordenes.values()].filter(o => o.unidades && o.ini != null && o.fin > o.ini).map(o => Object.assign(o, { trabajado: o.areas.reduce((t, x) => t + x.min, 0), minutos: o.fin - o.ini, porUnidad: (o.fin - o.ini) / o.unidades })).sort((x, y) => y.porUnidad - x.porUnidad);
     return out;
   }
   const fmtDur = m => m === null ? '—' : m >= 60 ? Math.floor(m / 60) + ' h ' + Math.round(m % 60) + ' min' : m >= 1 ? fmtNum(m, 1) + ' min' : Math.round(m * 60) + ' s';
-  let unitMetric = 'unidad';
+  let unitMetric = 'unidad', unitArea = '';
+  // Escalera de la ÚLTIMA SEMANA de un área: un escalón por día con (final − inicio) ÷ cantidad de lo que se terminó ese día
+  function unitWeek(x, porLote) {
+    const hoy = Math.floor((Date.now() / 60000 - 300) / 1440), dias = [];
+    for (let k = 6; k >= 0; k--) { const n = hoy - k, r = (x.reg || []).filter(t => Math.floor((t.fin - 300) / 1440) === n), min = r.reduce((t, y) => t + y.d, 0), und = r.reduce((t, y) => t + y.und, 0);
+      dias.push({ n, lotes: r.length, und, min, v: !r.length ? null : porLote ? min / r.length : min / und,
+        nombre: new Date((n * 1440 + 300 + 720) * 60000).toLocaleDateString('es-CO', { timeZone: 'America/Bogota', weekday: 'short', day: 'numeric' }).replace('.', '').toUpperCase() + (k === 0 ? ' · HOY' : '') }); }
+    const con = dias.filter(d => d.v !== null), mayor = Math.max(1e-9, ...con.map(d => d.v)), lento = con.slice().sort((a, b) => b.v - a.v)[0];
+    const min = con.reduce((t, d) => t + d.min, 0), und = con.reduce((t, d) => t + d.und, 0), lotes = con.reduce((t, d) => t + d.lotes, 0), prom = !con.length ? null : porLote ? min / lotes : min / und;
+    const cols = dias.map((d, i) => { const hay = d.v !== null, v = d.v, pct = hay ? Math.round(v / mayor * 100) : 0, rise = hay ? Math.max(18, Math.round(v / mayor * 190)) : 0, top = hay && d === lento && con.length > 1;
+      const numero = !hay ? '—' : v >= 60 ? fmtNum(v / 60, 1) : v >= 1 ? fmtNum(v, 1) : String(Math.round(v * 60)), unidad = !hay ? 'sin datos' : (v >= 60 ? 'h' : v >= 1 ? 'min' : 'seg') + (porLote ? ' por lote' : ' / und.');
+      return '<div class="st-col' + (top ? ' top' : '') + (hay ? '' : ' empty') + '" role="listitem" style="--i:' + i + ';--rise:' + rise + 'px;--lv:' + Math.min(94, Math.max(pct, hay ? 8 : 0)) + '%" title="' + esc(d.nombre) + (hay ? ' · ' + fmtDur(d.min) + ' ÷ ' + fmtNum(d.und) + ' und. · ' + d.lotes + ' lotes' : ' · sin inicio y final ese día') + '">' +
+        (top ? '<em class="ar-ribbon">Más lento</em>' : '') + '<span class="st-slot"><span class="st-bar">' + (hay ? '<i class="sg ' + (top ? 'cola' : 'prog') + '" style="flex:1"></i>' : '') + '</span></span>' +
+        '<b class="st-name">' + esc(d.nombre) + '</b><span class="st-val">' + numero + '</span><small class="st-sub">' + unidad + (hay ? ' · ' + fmtNum(d.und) + ' und.' : '') + '</small><em class="st-pct">' + pct + '%</em></div>'; }).join('');
+    return '<section class="dash-stairs de-unidad' + (stairsPlayed ? ' go' : '') + '" data-compact="0">' +
+      '<header class="st-head"><div><span class="ar-kicker">ÚLTIMA SEMANA · ' + esc(x.label) + '</span><h3>Escalera de ' + esc(x.label) + ' por día</h3><p>Cada escalón es un día: dato de cuando termina menos dato de cuando empieza, dividido entre la cantidad, de lo que se terminó ese día en esta área. El porcentaje compara cada día con el más lento.</p></div>' +
+      '<div class="st-metric" role="group" aria-label="Medir por"><button type="button" data-ut-metric="unidad" class="' + (porLote ? '' : 'on') + '">Por unidad</button><button type="button" data-ut-metric="lote" class="' + (porLote ? 'on' : '') + '">Por lote</button></div></header>' +
+      '<div class="st-sum"><button type="button" class="ut-more" data-unit-back>← Todas las áreas</button><span class="st-pill proc"><i></i>' + (porLote ? 'Lote promedio' : 'Promedio de la semana') + ' <b>' + (prom === null ? '—' : fmtDur(prom) + (porLote ? '' : ' / und.')) + '</b></span>' +
+      '<span class="st-pill prog"><i></i>Unidades <b>' + fmtNum(und) + '</b></span><span class="st-pill cola"><i></i>Lotes <b>' + fmtNum(lotes) + '</b></span>' +
+      (lento ? '<span class="st-neck">Día más lento: <b>' + esc(lento.nombre) + '</b> · ' + fmtDur(lento.v) + (porLote ? ' por lote' : ' por unidad') + '</span>' : '<span class="st-neck">Esta semana no hay inicio y final registrados en esta área.</span>') + '</div>' +
+      '<div class="st-scroll"><div class="st-chart" role="list">' + cols + '</div></div><div class="st-flow" aria-hidden="true"><span>Hace 7 días</span><i></i><span>Hoy</span></div></section>';
+  }
   try { if (localStorage.getItem('indoor-unit-metric') === 'lote') unitMetric = 'lote'; } catch (e) { /* sin almacenamiento */ }
   function unitStairs(a) {
     const l = a.unitTime || [], porLote = unitMetric === 'lote', dato = x => (porLote ? x.lote : x.porUnidad), con = l.filter(x => dato(x) !== null);
+    const abierta = unitArea && l.find(x => x.label === unitArea); if (abierta) return unitWeek(abierta, porLote);
     const mayor = Math.max(1e-9, ...con.map(dato)), total = con.reduce((t, x) => t + dato(x), 0), lento = con.slice().sort((x, y) => dato(y) - dato(x))[0];
     const cols = l.map((x, i) => {
       const v = dato(x), hay = v !== null, rise = hay ? Math.max(18, Math.round(v / mayor * 190)) : 0, share = hay && total ? Math.round(v / total * 100) : 0, top = hay && x === lento && con.length > 1;
       const numero = !hay ? '—' : v >= 60 ? fmtNum(v / 60, 1) : v >= 1 ? fmtNum(v, 1) : String(Math.round(v * 60)), unidad = !hay ? 'sin datos' : (v >= 60 ? 'h' : v >= 1 ? 'min' : 'seg') + (porLote ? ' por lote' : ' / und.');
-      return '<button type="button" class="st-col' + (top ? ' top' : '') + (hay ? '' : ' empty') + '" style="--i:' + i + ';--rise:' + rise + 'px;--lv:' + Math.min(94, Math.max(share, hay ? 8 : 0)) + '%" title="' + esc(x.label) + (hay ? ' · ' + fmtDur(x.porUnidad) + ' por unidad · lote típico ' + fmtDur(x.lote) + ' · ' + fmtNum(x.unidades) + ' unidades en ' + x.lotes + ' lotes' : ' · todavía sin inicio y final registrados') + '">' +
+      return '<button type="button" class="st-col' + (top ? ' top' : '') + (hay ? '' : ' empty') + '" data-unit-open="' + esc(x.label) + '" style="--i:' + i + ';--rise:' + rise + 'px;--lv:' + Math.min(94, Math.max(share, hay ? 8 : 0)) + '%" title="' + esc(x.label) + (hay ? ' · ' + fmtDur(x.porUnidad) + ' por unidad · lote típico ' + fmtDur(x.lote) + ' · ' + fmtNum(x.unidades) + ' unidades en ' + x.lotes + ' lotes' : ' · todavía sin inicio y final registrados') + '">' +
         (top ? '<em class="ar-ribbon">Más lento</em>' : '') + '<span class="st-slot"><span class="st-bar">' + (hay ? '<i class="sg ' + (top ? 'cola' : 'prog') + '" style="flex:1"></i>' : '') + '</span></span>' +
         '<b class="st-name">' + esc(SHORT[x.label] || x.label) + '</b><span class="st-val">' + numero + '</span><small class="st-sub">' + unidad + (hay ? ' · ' + fmtNum(x.unidades) + ' und.' : '') + '</small><em class="st-pct">' + share + '%</em></button>';
     }).join('');
     return '<section class="dash-stairs de-unidad' + (stairsPlayed ? ' go' : '') + '" data-compact="0">' +
-      '<header class="st-head"><div><span class="ar-kicker">CUÁNTO TARDA CADA PRENDA</span><h3>Escalera de tiempo por unidad</h3><p>Cada escalón es un área en el orden del proceso: mientras más alto, más tarda. Se calcula con la HORA INICIO y la HORA FINAL del Sheet y, en las áreas que no las llevan, con el inicio y el final marcados en la página; el porcentaje es la parte del tiempo total que se lleva esa área.</p></div>' +
+      '<header class="st-head"><div><span class="ar-kicker">CUÁNTO TARDA CADA PRENDA</span><h3>Escalera de tiempo por unidad</h3><p>Cada escalón es un área en el orden del proceso: mientras más alto, más tarda. Se calcula con la HORA INICIO y la HORA FINAL del Sheet y, en las áreas que no las llevan, con el inicio y el final marcados en la página; el porcentaje es la parte del tiempo total que se lleva esa área. Toca un área para ver su escalera de la última semana.</p></div>' +
       '<div class="st-metric" role="group" aria-label="Medir por"><button type="button" data-ut-metric="unidad" class="' + (porLote ? '' : 'on') + '">Por unidad</button><button type="button" data-ut-metric="lote" class="' + (porLote ? 'on' : '') + '">Por lote</button></div></header>' +
       '<div class="st-sum"><span class="st-pill proc" title="Suma de las áreas que tienen registro"><i></i>' + (porLote ? 'Suma de lotes típicos' : 'Total por unidad') + ' <b>' + (con.length ? fmtDur(total) : '—') + '</b></span>' +
       '<span class="st-pill prog"><i></i>Áreas medidas <b>' + con.length + ' de ' + l.length + '</b></span><span class="st-pill cola"><i></i>Lotes medidos <b>' + fmtNum(l.reduce((t, x) => t + x.lotes, 0)) + '</b></span>' +
       (lento ? '<span class="st-neck">Área que más tarda: <b>' + esc(lento.label) + '</b> · ' + fmtDur(dato(lento)) + (porLote ? ' por lote' : ' por unidad') + '</span>' : '') + '</div>' +
       '<div class="st-scroll"><div class="st-chart" role="list">' + cols + '</div></div><div class="st-flow" aria-hidden="true"><span>Entrada</span><i></i><span>Salida</span></div></section>';
   }
+  root.addEventListener('click', event => {
+    const abrir = event.target.closest('[data-unit-open]'), volver = event.target.closest('[data-unit-back]'); if ((!abrir && !volver) || !model) return;
+    unitArea = abrir ? abrir.dataset.unitOpen : '';
+    const viejo = root.querySelector('.dash-stairs.de-unidad'), caja = document.createElement('div'); if (!viejo) return;
+    caja.innerHTML = unitStairs(model); const nuevo = caja.firstElementChild; viejo.replaceWith(nuevo); nuevo.scrollIntoView({ block: 'nearest' });
+    const sc = nuevo.querySelector('.st-scroll'); if (sc && unitArea) sc.scrollLeft = sc.scrollWidth;   // en celular queda a la vista el día de hoy
+    requestAnimationFrame(() => requestAnimationFrame(() => nuevo.classList.add('go')));
+  });
   root.addEventListener('click', event => {
     const b = event.target.closest('[data-ut-metric]'); if (!b || !model) return;
     unitMetric = b.dataset.utMetric; try { localStorage.setItem('indoor-unit-metric', unitMetric); } catch (e) { /* sin almacenamiento */ }
