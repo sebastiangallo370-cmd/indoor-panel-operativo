@@ -280,8 +280,8 @@
 
   // ---- TIEMPO POR UNIDAD (real): minutos por prenda en TODAS las áreas, con la HORA INICIO y la HORA FINAL del Sheet y, donde no las hay, con el inicio y el final marcados en la web ----
   // Las filas de una misma orden que empezaron a la misma hora son un solo lote (se trabajaron juntas): duración del lote ÷ unidades del lote.
-  // Horario de trabajo por área (minutos del día): solo ese tramo cuenta como tiempo demorado. Edición e Impresión trabajan de 7:00 a. m. a 4:30 p. m.
-  const HORARIO = { EDICION: [7 * 60, 16 * 60 + 30], IMPRESION: [7 * 60, 16 * 60 + 30] };
+  // Horario de trabajo por área (minutos del día): solo ese tramo cuenta como tiempo demorado. Sublimación y Corte láser trabajan de 5:30 a. m. a 10:00 p. m.; todos los demás procesos, de 7:00 a. m. a 4:30 p. m.
+  const HORARIO_BASE = [7 * 60, 16 * 60 + 30], HORARIO = { SUBLIMACION: [5 * 60 + 30, 22 * 60], 'CORTE LASER': [5 * 60 + 30, 22 * 60] };
   // minutos dentro del horario entre un inicio y un final (minutos locales corridos); si todo quedó por fuera del horario (trabajo extra), vale el tiempo real
   function laboral(ini, fin, h) {
     let t = 0;
@@ -306,7 +306,7 @@
       if (inicio === undefined) return;
       let hi = -1, hf = -1;
       for (let i = inicio + 1; i < Math.min(headers.length, inicio + 7); i++) { const k = key(headers[i]); if (deProceso.has(k) && !p.headers.includes(k)) break; if (k === 'HORA INICIO' && hi < 0) hi = i; if (k === 'HORA FINAL' && hf < 0) hf = i; }
-      const conHoras = hi >= 0 && hf >= 0, lotes = new Map(), web = new Map(), horario = HORARIO[key(p.label)];
+      const conHoras = hi >= 0 && hf >= 0, lotes = new Map(), web = new Map(), horario = HORARIO[key(p.label)] || HORARIO_BASE;
       (data.rows || []).forEach(row => {
         const v = row.values || [], a = conHoras ? mins(v[hi]) : null, b = conHoras ? mins(v[hf]) : null, und = parseInt(String(v[iCant] == null ? '' : v[iCant]).replace(/[^0-9]/g, ''), 10) || 0;
         if (!und) return;
@@ -315,7 +315,7 @@
           medida();
           const k = key(v[iOrden]) + '|' + a, l = lotes.get(k) || { ini: a, fin: b, und: 0, orden: key(v[iOrden]) };
           l.fin = Math.max(l.fin, b); l.und += und; lotes.set(k, l);
-          const f = parseDate(v[inicio]), tw = f && !isNaN(f) ? null : cols.map(c => tiempos[row.source_row + ':' + (c + 1)]).find(Boolean);   // día en que se terminó el área (hora de Colombia); sin fecha en la celda, el del final marcado en la web
+          const f = cols.map(c => parseDate(v[c])).find(z => z && !isNaN(z)) || null, tw = f && !isNaN(f) ? null : cols.map(c => tiempos[row.source_row + ':' + (c + 1)]).find(Boolean);   // día en que se terminó el área (hora de Colombia); sin fecha en la celda, el del final marcado en la web
           const dia = f && !isNaN(f) ? Date.UTC(f.getFullYear(), f.getMonth(), f.getDate()) / 60000 + 300 : tw ? Math.floor((tw[1] - 300) / 1440) * 1440 + 300 : 0;
           if (dia) l.dia = Math.max(l.dia || 0, dia);
           return;
