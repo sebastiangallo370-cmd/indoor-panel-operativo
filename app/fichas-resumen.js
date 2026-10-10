@@ -101,6 +101,21 @@
   .fit-wrap{overflow-x:auto;border-radius:6px;background:#fff}.fit{display:block;width:100%;min-width:760px;height:auto;font-family:Arial,Helvetica,sans-serif}
   .fit path{stroke:none}.fit-real text{font-family:Arial,Helvetica,sans-serif}
   /* MOLDE DINÁMICO: las piezas reales sobre un escenario con volumen (sombra y brillo en su propia silueta) */
+  /* encabezado de materiales */
+  .ft-cab{position:relative;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px 14px;padding:11px 14px 14px;border-radius:14px;border:1px solid rgba(255,255,255,.1);background:linear-gradient(120deg,color-mix(in srgb,var(--c1) 13%,transparent),rgba(255,255,255,.02) 45%,color-mix(in srgb,var(--c2) 13%,transparent));overflow:hidden}
+  .ft-cab:before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,var(--c1),var(--c2))}
+  .ft-cab-ico{width:38px;height:32px;flex:none;filter:drop-shadow(0 4px 6px rgba(0,0,0,.45))}
+  .ft-cab-txt{min-width:0;display:grid;gap:2px}
+  .ft-cab-txt b{color:#f3f8ee;font:800 13.5px Arial;letter-spacing:.02em}
+  .ft-cab-txt span{color:#9aa693;font:500 11px/1.35 Arial}
+  .ft-cab-mats{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+  .ft-cab-mats span{display:inline-flex;align-items:center;gap:6px;padding:4px 9px 4px 4px;border-radius:999px;border:1px solid color-mix(in srgb,var(--c) 45%,transparent);background:color-mix(in srgb,var(--c) 10%,transparent);max-width:100%}
+  .ft-cab-mats i{font-style:normal;padding:2px 7px;border-radius:999px;background:var(--c);color:#0b1204;font:800 10px Arial}
+  .ft-cab-mats u{text-decoration:none;color:#e9efe3;font:700 10.5px Arial;letter-spacing:.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:190px}
+  .ft-cab-mats em{font-style:normal;color:#8e9a87;font:600 10px Arial;white-space:nowrap}
+  .ft-cab-bar{position:absolute;left:0;right:0;bottom:0;display:flex;height:4px;gap:2px}
+  .ft-cab-bar i{background:var(--c);opacity:.9}
+  @media(max-width:700px){.ft-cab{grid-template-columns:auto minmax(0,1fr)}.ft-cab-mats{grid-column:1/-1;justify-content:flex-start}}
   .fitd{margin:14px 0 12px}
   .fitd-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 8px}
   .fitd-tabs button{width:auto!important;min-height:0!important;display:inline-flex;align-items:center;gap:8px;padding:5px 11px!important;border:1px solid rgba(255,255,255,.16)!important;border-radius:999px!important;background:rgba(255,255,255,.04)!important;color:#c9d3c1!important;font:700 10px Arial!important;letter-spacing:.09em;cursor:pointer;transition:transform .15s,background .15s}
@@ -566,10 +581,14 @@
   function mapaTelas(mats, f) {
     if (!mats.length) return hayFitReal(f) ? '<div class="ft">' + fitDinamico(f) + '</div>' : '';
     const uno = mats.length === 1;
-    const ban = uno
-      ? '<span class="ft-ban" style="--c:' + mats[0].color + '">● UN SOLO MATERIAL · TODO EN ' + mats[0].id + '</span>'
-      : '<span class="ft-ban dos" style="--c1:' + mats[0].color + ';--c2:' + mats[1].color + '">● ' + (mats.length === 2 ? 'DOS' : mats.length) + ' MATERIALES · NO TODO VA EN LA MISMA TELA</span>';
-    return '<div class="ft"><div class="ft-top">' + ban + '<span class="ft-sub">' + (uno ? 'Todas las piezas se cortan de la misma tela' : 'Separa las piezas por color de material') + '</span></div>' +
+    // Encabezado de materiales: cuántas telas lleva la prenda, cuál es cada una y qué parte de las piezas va en cada tela
+    const capas = mats.slice(0, 3).map((m, k) => '<rect x="' + (5 + k * 7) + '" y="' + (17 - k * 6) + '" width="26" height="17" rx="4" fill="' + m.color + '" stroke="#0b1204" stroke-width="1.5"/>').join('');
+    const cab = '<div class="ft-cab' + (uno ? ' uno' : '') + '" style="--c1:' + mats[0].color + ';--c2:' + (mats[1] || mats[0]).color + '">' +
+      '<svg class="ft-cab-ico" viewBox="0 0 48 40" aria-hidden="true">' + capas + '</svg>' +
+      '<div class="ft-cab-txt"><b>' + (uno ? 'Un solo material' : (mats.length === 2 ? 'Dos' : mats.length) + ' materiales') + '</b><span>' + (uno ? 'Todas las piezas se cortan de la misma tela' : 'No todo va en la misma tela: separa las piezas por color') + '</span></div>' +
+      '<div class="ft-cab-mats">' + mats.map(m => '<span style="--c:' + m.color + '"><i>' + m.id + '</i><u>' + esc(m.tela || 'Tela por definir') + '</u><em>' + m.total + (m.total === 1 ? ' pieza' : ' piezas') + '</em></span>').join('') + '</div>' +
+      (uno ? '' : '<div class="ft-cab-bar" title="Parte de las piezas que va en cada tela">' + mats.map(m => '<i style="--c:' + m.color + ';flex:' + Math.max(1, m.total) + '"></i>').join('') + '</div>') + '</div>';
+    return '<div class="ft">' + cab +
       (hayFitReal(f) ? fitDinamico(f) : fitPiezas(mats)) + '<div class="ft-mats">' + mats.map(x => '<div class="ft-mat" data-m="' + x.id + '" style="--c:' + x.color + '"><h4><b>' + x.id + '</b>MATERIAL ' + x.id.slice(1) + '</h4><p class="ft-tela">' + esc(x.tela || 'Tela por definir en la ficha') + '</p><div class="ft-piezas">' +
         x.piezas.map((p, i) => iconoFila(p, i)).join('') + '</div></div>').join('') + '</div></div>';
   }
