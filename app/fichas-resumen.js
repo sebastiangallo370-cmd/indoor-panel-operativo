@@ -101,6 +101,9 @@
   .fit-wrap{overflow-x:auto;border-radius:6px;background:#fff}.fit{display:block;width:100%;min-width:760px;height:auto;font-family:Arial,Helvetica,sans-serif}
   .fit path{stroke:none}.fit-real text{font-family:Arial,Helvetica,sans-serif}
   /* MOLDE DINÁMICO: las piezas reales sobre un escenario con volumen (sombra y brillo en su propia silueta) */
+  .fi-acc button.fi-mold{border-color:rgba(56,189,248,.55)!important;color:#7dd3fc!important}
+  /* en móvil el encabezado ocultaba estos botones: se muestran en su propia fila */
+  @media(max-width:700px){.li-top{flex-wrap:wrap}.li-top span.fi-acc{display:flex!important;flex:1 1 100%;justify-content:flex-start;margin-left:0;padding-right:0;gap:6px}.fi-acc button{padding:6px 10px!important;font-size:10.5px!important}}
   /* botón «Modificar ficha técnica»: desbloquea toda la ficha para quien tiene permiso */
   .fi-acc button.fi-modif{border-color:rgba(208,244,76,.6)!important;color:#d0f44c!important;font-weight:800!important}
   .fi-acc button.fi-modif.on{background:#d0f44c!important;border-color:#d0f44c!important;color:#142017!important;box-shadow:0 6px 16px -6px rgba(208,244,76,.8)}
@@ -867,7 +870,7 @@
   function dibujar() {
     const card = overlay.querySelector('.li-card');
     card.style.setProperty('--ac', '#c3ee3f');
-    const top = '<div class="li-top"><span class="li-logo" role="img" aria-label="Indoor"></span><span>FICHA TÉCNICA</span><span class="fi-acc">' + (E.puedeEditar && S.modo === 'ficha' ? '<button type="button" class="fi-modif' + (E.editar ? ' on' : '') + '" data-fi-modificar title="' + (E.editar ? 'Vuelve a bloquear la ficha' : 'Desbloquea toda la ficha para corregirla o agregarle datos') + '">' + (E.editar ? '🔓 Terminar edición' : '✎ Modificar ficha técnica') + '</button>' : '') + (E.puede && window.molderiaAbrirPagina && S.modo === 'ficha' ? '<button type="button" data-fi-pagina>Vista completa</button>' : '') + '<button type="button" data-fi-imp>🖨 Imprimir</button></span></div>';
+    const top = '<div class="li-top"><span class="li-logo" role="img" aria-label="Indoor"></span><span>FICHA TÉCNICA</span><span class="fi-acc">' + (E.puedeEditar && S.modo === 'ficha' ? '<button type="button" class="fi-modif' + (E.editar ? ' on' : '') + '" data-fi-modificar title="' + (E.editar ? 'Vuelve a bloquear la ficha' : 'Desbloquea toda la ficha para corregirla o agregarle datos') + '">' + (E.editar ? '🔓 Terminar edición' : '✎ Modificar ficha técnica') + '</button>' : '') + (window.molderiaAbrirMolde && S.modo === 'ficha' ? '<button type="button" class="fi-mold" data-fi-molderia title="Abre la carpeta con los moldes de Illustrator de esta referencia">📐 Moldería</button>' : '') + (E.puede && window.molderiaAbrirPagina && S.modo === 'ficha' ? '<button type="button" data-fi-pagina>Vista completa</button>' : '') + '<button type="button" data-fi-imp>🖨 Imprimir</button></span></div>';
     const foot = '<div class="li-foot"><span class="li-foot-l"><img class="li-iso" src="/favicon.svg" alt=""><i>' + esc(E.lema) + '</i></span><span>Documento interno · Indoor Sport</span></div>';
     let mock = '', main = '';
     if (S.modo === 'buscar') {
@@ -963,6 +966,10 @@
       else if (e.target.closest('[data-fi-mock-quitar]')) quitarMockup(e.target.closest('[data-fi-mock-quitar]').dataset.fiMockQuitar);
       else if (e.target.closest('[data-fi-limpiar]')) { const f = S.fichas[S.i]; S.calc[f.ref] = {}; overlay.querySelectorAll('[data-fi-calc]').forEach(x => { x.value = ''; }); recalcular(); }
       else if (e.target.closest('[data-fi-reset]')) { const sec = e.target.closest('[data-fi-reset]').dataset.fiReset, f = S.fichas[S.i]; Object.keys(CHK).filter(k => k.startsWith(f.id + '|' + sec + '|')).forEach(k => delete CHK[k]); guardar('mo_chk', CHK); dibujar(); }
+      else if (e.target.closest('[data-fi-molderia]')) {
+        if (E.editar && S.edit && !confirm('Estás editando una sección. ¿Salir sin guardar?')) return;
+        const f = S.fichas[S.i]; cerrar(); window.molderiaAbrirMolde(f.ref);
+      }
       else if (e.target.closest('[data-fi-pagina]')) { const f = S.fichas[S.i]; cerrar(); window.molderiaAbrirPagina(f.id); }
     });
     overlay.addEventListener('input', e => { if (e.target.matches('[data-fi-q]')) { S.q = e.target.value; pintarBusqueda(); } else if (e.target.matches('[data-fi-calc]')) recalcular(); });

@@ -354,6 +354,17 @@
     st.rec = [id, ...(st.rec || []).filter(x => x !== id)].slice(0, 8); guardar('mo_rec', st.rec);
     if (e && window.abrirFichaResumen) window.abrirFichaResumen(e.ref, '', id); else abrirFicha(id);
   }
+  // Desde la ficha técnica: abre el explorador en la carpeta de moldes (Illustrator) de esa referencia, ya filtrada
+  window.molderiaAbrirMolde = async ref => {
+    if (!tab) return;
+    let j = { ruta: 'ILLUSTRATOR (EDICION)', archivos: [] };
+    st.ctx = 'molderia'; st.tab = 'molderia'; st.modo = 'refs'; st.ruta = j.ruta; st.buscar = ''; st.datos = null; st.error = ''; st.espera = true;
+    tab.click();
+    try { j = await api('/api/molderia/molde-ref?ref=' + encodeURIComponent(ref)); } catch (e) { /* se abre la carpeta general */ }
+    st.espera = false; st.ruta = j.ruta; st.buscar = j.archivos.length ? ref : '';
+    await cargar();
+    if (!j.archivos.length) alert('No encontré el molde de ' + ref + ' en ILLUSTRATOR (EDICION). Te dejo en la carpeta para que lo busques.');
+  };
   window.molderiaAbrirPagina = id => { if (!tab) return; if (st.ctx !== 'estandar') window.molderiaIr('estandar'); abrirFicha(id); };
   window.addEventListener('fichas-mockup', () => { if (panel && st.tab === 'fichas') cargarFichas(); });
 
@@ -401,6 +412,7 @@
 
   async function cargar() {
     if (st.tab === 'fichas' && st.modo !== 'archivos') return cargarFichas();
+    if (st.espera) { st.cargando = true; pintar(); return; }   // se está ubicando el molde de una referencia
     st.cargando = true; st.error = '';
     try {
       const r = await fetch('/api/molderia/lista?tab=' + encodeURIComponent(st.tab) + '&ruta=' + encodeURIComponent(st.ruta), { cache: 'no-store', credentials: 'same-origin' });

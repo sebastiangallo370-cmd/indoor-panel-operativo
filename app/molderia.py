@@ -30,7 +30,8 @@ TABS = {
     },
     'molderia': {
         'titulo': 'MOLDERIA',
-        'raices': {'MAESTROS DE MOLDERIA': _PRODUCCION / 'MAESTROS DE MOLDERIA', 'MOLDERIA': _PRODUCCION / 'MOLDERIA'},
+        'raices': {'ILLUSTRATOR (EDICION)': _PRODUCCION / 'ESTANDAR 2026' / 'ILLUSTRATOR (EDICION)',
+                   'MAESTROS DE MOLDERIA': _PRODUCCION / 'MAESTROS DE MOLDERIA', 'MOLDERIA': _PRODUCCION / 'MOLDERIA'},
     },
 }
 _VISIBLES_INLINE = {'.pdf', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'}
@@ -102,6 +103,25 @@ def lista(tab: str, ruta: str = ''):
         raise HTTPException(503, 'El NAS no está disponible') from e
     entradas.sort(key=lambda x: (not x['carpeta'], x['nombre'].casefold()))
     return {'ruta': base, 'partes': base.split('/'), 'entradas': entradas, 'unica_raiz': len(raices) == 1}
+
+
+@router.get('/molde-ref')
+def molde_de_referencia(ref: str):
+    """Carpeta de ILLUSTRATOR (EDICION) donde están los moldes de una referencia (FUT03 -> FUT03F.ai, FUT03M.ai, FUT03N.ai)."""
+    ref = re.sub(r'[^A-Z0-9]', '', str(ref or '').upper())[:20]
+    nombre = 'ILLUSTRATOR (EDICION)'
+    base = TABS['molderia']['raices'][nombre]
+    if not ref:
+        return {'ruta': nombre, 'archivos': []}
+    patron = re.compile(re.escape(ref) + r'(?!\d)', re.I)   # FUT03 no debe coger FUT030
+    try:
+        for carpeta in sorted((c for c in base.iterdir() if c.is_dir()), key=lambda c: c.name):
+            hallados = sorted(a.name for a in carpeta.iterdir() if a.is_file() and patron.match(a.name))
+            if hallados:
+                return {'ruta': nombre + '/' + carpeta.name, 'archivos': hallados}
+    except OSError as e:
+        raise HTTPException(503, 'El NAS no está disponible') from e
+    return {'ruta': nombre, 'archivos': []}
 
 
 @router.get('/archivo')
