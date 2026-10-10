@@ -280,6 +280,14 @@
 
   // ---- TIEMPO POR UNIDAD (real): minutos por prenda en TODAS las áreas, con la HORA INICIO y la HORA FINAL del Sheet y, donde no las hay, con el inicio y el final marcados en la web ----
   // Las filas de una misma orden que empezaron a la misma hora son un solo lote (se trabajaron juntas): duración del lote ÷ unidades del lote.
+  // Horario de trabajo por área (minutos del día): solo ese tramo cuenta como tiempo demorado. Edición e Impresión trabajan de 7:00 a. m. a 4:30 p. m.
+  const HORARIO = { EDICION: [7 * 60, 16 * 60 + 30], IMPRESION: [7 * 60, 16 * 60 + 30] };
+  // minutos dentro del horario entre un inicio y un final (minutos locales corridos); si todo quedó por fuera del horario (trabajo extra), vale el tiempo real
+  function laboral(ini, fin, h) {
+    let t = 0;
+    for (let dia = Math.floor(ini / 1440); dia <= Math.floor(fin / 1440); dia++) t += Math.max(0, Math.min(fin, dia * 1440 + h[1]) - Math.max(ini, dia * 1440 + h[0]));
+    return t || fin - ini;
+  }
   function unitTimes(data) {
     const headers = data.headers || [], flow = typeof indoorProcessFlow !== 'undefined' ? indoorProcessFlow : [];
     const deProceso = new Set(flow.flatMap(p => p.headers)), iOrden = headers.findIndex(h => key(h) === 'ORDEN'), iCant = headers.findIndex(h => key(h) === 'CANTIDAD');
@@ -298,7 +306,7 @@
       if (inicio === undefined) return;
       let hi = -1, hf = -1;
       for (let i = inicio + 1; i < Math.min(headers.length, inicio + 7); i++) { const k = key(headers[i]); if (deProceso.has(k) && !p.headers.includes(k)) break; if (k === 'HORA INICIO' && hi < 0) hi = i; if (k === 'HORA FINAL' && hf < 0) hf = i; }
-      const conHoras = hi >= 0 && hf >= 0, lotes = new Map(), web = new Map();
+      const conHoras = hi >= 0 && hf >= 0, lotes = new Map(), web = new Map(), horario = HORARIO[key(p.label)];
       (data.rows || []).forEach(row => {
         const v = row.values || [], a = conHoras ? mins(v[hi]) : null, b = conHoras ? mins(v[hf]) : null, und = parseInt(String(v[iCant] == null ? '' : v[iCant]).replace(/[^0-9]/g, ''), 10) || 0;
         if (!und) return;
@@ -322,10 +330,11 @@
       const medir = (d, und, orden, ini, fin) => { if (d <= 0 || d > 720) { descartados++; return; } minutos += d; unidades += und; porUnd.push(d / und); duraciones.push(d); if (fin != null) reg.push({ fin, d, und, o: ordenes.get(orden) });
         const o = ordenes.get(orden); if (!o) return; let ar = o.areas.find(x => x.label === p.label); if (!ar) { ar = { label: p.label, min: 0, und: 0 }; o.areas.push(ar); } ar.min += d; ar.und += und;
         if (fin != null) { o.ini = o.ini == null ? ini : Math.min(o.ini, ini); o.fin = o.fin == null ? fin : Math.max(o.fin, fin); } };
-      lotes.forEach(l => { let d = l.fin - l.ini; if (d < 0) d += 1440; const fin = l.dia ? l.dia + l.fin : null; medir(d, l.und, l.orden, fin === null ? null : fin - d, fin); });
+      lotes.forEach(l => { let d = l.fin - l.ini; if (d < 0) d += 1440; const fin = l.dia ? l.dia + l.fin : null; medir(horario ? laboral(l.ini, l.ini + d, horario) : d, l.und, l.orden, fin === null ? null : fin - d, fin); });
+      const durWeb = l => horario ? laboral(l.ini - 300, l.fin - 300, horario) : l.fin - l.ini;   // hora de Colombia
       // las filas de una orden que se trabajaron a la vez (sus tiempos se cruzan) son un solo lote
-      web.forEach((l, orden) => { let lote = null; l.sort((x, y) => x.ini - y.ini).forEach(x => { if (lote && x.ini <= lote.fin) { lote.fin = Math.max(lote.fin, x.fin); lote.und += x.und; } else { if (lote) medir(lote.fin - lote.ini, lote.und, orden, lote.ini, lote.fin); lote = { ini: x.ini, fin: x.fin, und: x.und }; } }); if (lote) medir(lote.fin - lote.ini, lote.und, orden, lote.ini, lote.fin); });
-      out.push({ label: p.label, lotes: duraciones.length, unidades, minutos, porUnidad: unidades ? minutos / unidades : null, tipico: mediana(porUnd), lote: mediana(duraciones), rapido: porUnd.length ? Math.min(...porUnd) : null, lento: porUnd.length ? Math.max(...porUnd) : null, descartados, reg });
+      web.forEach((l, orden) => { let lote = null; l.sort((x, y) => x.ini - y.ini).forEach(x => { if (lote && x.ini <= lote.fin) { lote.fin = Math.max(lote.fin, x.fin); lote.und += x.und; } else { if (lote) medir(durWeb(lote), lote.und, orden, lote.ini, lote.fin); lote = { ini: x.ini, fin: x.fin, und: x.und }; } }); if (lote) medir(durWeb(lote), lote.und, orden, lote.ini, lote.fin); });
+      out.push({ label: p.label, lotes: duraciones.length, unidades, minutos, porUnidad: unidades ? minutos / unidades : null, tipico: mediana(porUnd), lote: mediana(duraciones), rapido: porUnd.length ? Math.min(...porUnd) : null, lento: porUnd.length ? Math.max(...porUnd) : null, descartados, reg, horario });
     });
     // minutos por unidad de la orden = (dato de cuando termina − dato de cuando empieza) ÷ cantidad
     // la cantidad es la de las filas que tienen inicio y final (una fila N/A de la misma orden no se fabricó en esas áreas)
@@ -350,6 +359,7 @@
         (top ? '<em class="ar-ribbon">Más lento</em>' : '') + '<span class="st-slot"><span class="st-bar">' + (hay ? '<i class="sg ' + (top ? 'cola' : 'prog') + '" style="flex:1"></i>' : '') + '</span></span>' +
         '<b class="st-name">' + esc(d.nombre) + '</b><span class="st-val">' + numero + '</span><small class="st-sub">' + unidad + (hay ? ' · ' + fmtNum(d.und) + ' und. · ' + plural(d.lotes, 'orden', 'órdenes') : '') + '</small>' + ordDia(d) + '<em class="st-pct">' + pct + '%</em></div>'; }).join('');
     // dentro de la tarjeta de cada día van sus órdenes con ORDEN, CANTIDAD, lo que se DEMORÓ (horas y minutos) y MINUTOS POR UNIDAD
+    function hhmm(m) { const h = Math.floor(m / 60); return (h % 12 || 12) + ':' + String(m % 60).padStart(2, '0') + (h < 12 ? ' a. m.' : ' p. m.'); }
     function tardo(m) { m = Math.round(m); const h = Math.floor(m / 60), r = m % 60; return h ? h + ':' + String(r).padStart(2, '0') + ' HRS' : r + ' MIN'; }   // tiempo demorado: termina en MIN o en HRS (horas:minutos)
     function ordDia(d) {
       const r = (x.reg || []).filter(t => Math.floor((t.fin - 300) / 1440) === d.n).sort((a, b) => a.fin - b.fin);
@@ -357,7 +367,7 @@
       return '<div class="ut-daylist"><div class="ut-o ut-o-h"><span>Orden</span><span>Cant.</span><span>Demoró</span><span>Min/und</span></div>' + r.map(t => '<div class="ut-o" title="' + esc(t.o && t.o.cliente ? t.o.cliente : 'Sin cliente') + '"><b>' + esc(t.o ? t.o.id : 'Sin orden') + '</b><span>' + fmtNum(t.und) + '</span><strong>' + tardo(t.d) + '</strong><i>' + (t.d / t.und >= 1 ? fmtNum(t.d / t.und, 1) : fmtNum(t.d / t.und, 2)) + '</i></div>').join('') + '</div>';
     }
     return '<section class="dash-stairs de-unidad' + (stairsPlayed ? ' go' : '') + '" data-compact="0">' +
-      '<header class="st-head"><div><span class="ar-kicker">ÚLTIMA SEMANA · ' + esc(x.label) + '</span><h3>Escalera de ' + esc(x.label) + ' por día</h3><p>Cada escalón es un día: dato de cuando termina menos dato de cuando empieza, dividido entre la cantidad, de lo que se terminó ese día en esta área. El porcentaje compara cada día con el más lento. Dentro de cada día están sus órdenes (la que terminó ese día) con la cantidad, el tiempo que se demoró y los minutos por unidad.</p></div>' +
+      '<header class="st-head"><div><span class="ar-kicker">ÚLTIMA SEMANA · ' + esc(x.label) + '</span><h3>Escalera de ' + esc(x.label) + ' por día</h3><p>Cada escalón es un día: dato de cuando termina menos dato de cuando empieza, dividido entre la cantidad, de lo que se terminó ese día en esta área. El porcentaje compara cada día con el más lento. Dentro de cada día están sus órdenes (la que terminó ese día) con la cantidad, el tiempo que se demoró y los minutos por unidad.' + (x.horario ? ' En esta área solo cuenta el horario de trabajo, de ' + hhmm(x.horario[0]) + ' a ' + hhmm(x.horario[1]) : '') + '</p></div>' +
       '<div class="st-metric" role="group" aria-label="Medir por"><button type="button" data-ut-metric="unidad" class="' + (porLote ? '' : 'on') + '">Por unidad</button><button type="button" data-ut-metric="lote" class="' + (porLote ? 'on' : '') + '">Por lote</button></div></header>' +
       '<div class="st-sum"><button type="button" class="ut-more" data-unit-back>← Todas las áreas</button><span class="st-pill proc"><i></i>' + (porLote ? 'Lote promedio' : 'Promedio de la semana') + ' <b>' + (prom === null ? '—' : fmtDur(prom) + (porLote ? '' : ' / und.')) + '</b></span>' +
       '<span class="st-pill prog"><i></i>Unidades <b>' + fmtNum(und) + '</b></span><span class="st-pill cola"><i></i>Lotes <b>' + fmtNum(lotes) + '</b></span>' +
