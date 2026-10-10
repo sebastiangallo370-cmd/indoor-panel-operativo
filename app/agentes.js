@@ -188,6 +188,27 @@
   .ag .ag-nodo.inactivo .et b{color:#aab5a2}.ag .ag-nodo.corriendo .et b{color:var(--c)}
   @keyframes agNodoVivo{50%{box-shadow:0 0 0 9px color-mix(in srgb,var(--c) 8%,transparent),0 0 44px 0 color-mix(in srgb,var(--c) 75%,transparent)}}
   @keyframes agIcoVivo{50%{transform:scale(1.1)}}@keyframes agInsEntra{from{transform:scale(0)}}
+  /* ventana PDFS: pantalla + tira de miniaturas a la izquierda; listas en tarjetas a la derecha */
+  .ag .ag-live-col{display:grid;grid-template-rows:minmax(0,1fr) auto;gap:10px;min-width:0;min-height:0}
+  .ag .ag-live-tira{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 6px;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.2) transparent;scroll-behavior:smooth}.ag .ag-live-tira[hidden]{display:none}
+  .ag .ag-live-tira button{position:relative;flex:0 0 auto;width:86px!important;height:62px!important;min-height:0!important;margin:0!important;padding:0!important;border:2px solid #2d3b2f!important;border-radius:10px!important;background:#fff!important;box-shadow:none!important;overflow:hidden;cursor:pointer;opacity:.72;transition:opacity .15s,border-color .15s,transform .15s}
+  .ag .ag-live-tira button:hover{opacity:1;transform:translateY(-2px)}.ag .ag-live-tira button.sel{opacity:1;border-color:#d0f44c!important;box-shadow:0 0 0 3px rgba(208,244,76,.22)!important}
+  .ag .ag-live-tira img{display:block;width:100%;height:100%;object-fit:cover}
+  .ag .ag-live-tira span{position:absolute;left:0;right:0;bottom:0;padding:2px 4px;background:rgba(8,12,8,.82);color:#eef4e9;font:800 9.5px Arial;letter-spacing:.04em;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ag .ag-live-tira button.sel span{background:#d0f44c;color:#111}
+  .ag .ag-live-side{display:flex!important;flex-direction:column;gap:10px}
+  .ag .ag-live-side .ag-live-sec:first-child{flex:0 1 auto;max-height:50%}.ag .ag-live-side .ag-live-sec:last-child{flex:1 1 0}
+  .ag .ag-live-sec h4{align-items:center;font:800 10.5px Arial;letter-spacing:.16em;color:#cfd9c7}
+  .ag .ag-live-sec h4>span[data-nm],.ag .ag-live-sec h4>span[data-np]{margin-left:auto;padding:2px 10px;border:1px solid #3d4f3d;border-radius:999px;color:#d7ff3a;font:800 11px Arial;letter-spacing:0}
+  .ag .ag-live-list{gap:4px}
+  .ag .ag-live-list>div{min-height:32px;padding:5px 9px;border:1px solid transparent;border-radius:9px;background:rgba(255,255,255,.03);transition:background .15s,border-color .15s}
+  .ag .ag-live-list>div[data-vista]:hover{background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.12)}
+  .ag .ag-live-list>div.sel{outline:none;background:rgba(208,244,76,.12);border-color:rgba(208,244,76,.6)}
+  .ag .ag-live-cap{left:14px;bottom:16px;padding:8px 14px;gap:12px;backdrop-filter:blur(6px)}.ag .ag-live-cap .num{font-size:28px}.ag .ag-live-cap .nom{font-size:16px}
+  @media(max-width:1000px){.ag .ag-live-side .ag-live-sec:first-child{max-height:none}.ag .ag-live-tira button{width:72px!important;height:54px!important}}
+  /* pantalla en vivo: rótulo de lo que se ve (mesa exportada o PDF) y mesas que se pueden abrir */
+  .ag .ag-live-tipo{position:absolute;left:12px;top:12px;z-index:2;max-width:calc(100% - 24px);box-sizing:border-box;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:5px 11px;border-radius:999px;background:rgba(11,17,11,.88);border:1px solid #3a4b36;color:#d7ff3a;font:800 10px Arial;letter-spacing:.14em}.ag .ag-live-tipo[hidden]{display:none}
+  .ag .ag-live-tipo.mesa{color:#6fe39a;border-color:rgba(111,227,154,.55)}.ag .ag-live-tipo.pdf{color:#ff8fd0;border-color:rgba(255,143,208,.55)}
   /* conectadores */
   .ag .ag-cable.ramal{stroke:#33422f;stroke-dasharray:1 7}
   .ag .ag-ramal-rot rect{fill:#0b100c;stroke:#2c3a2d;stroke-width:1}.ag .ag-ramal-rot text{fill:#77836f;font:800 8.5px Arial;letter-spacing:.12em}
@@ -852,9 +873,9 @@
   function armarLive(box) {
     box.dataset.listo = '1';
     box.innerHTML = '<div class="ag-live-top"><b><i data-pto></i>PANTALLA EN VIVO</b><small data-estado></small><small class="ag-keys" title="Usa las flechas del teclado">← → pasan los PDF</small><a class="ag-ai-inst" href="/descargar-conector-illustrator" title="Instala el botón en ESTE computador (una sola vez). Si al tocar «Abrir en Illustrator» no pasa nada, hazlo">¿No abre? Instalar en este PC</a><button type="button" class="seguir ag-ai-btn" data-ai hidden title="Abre este PDF en el Illustrator de ESTE computador">' + LOGO_AI + ' Abrir en Illustrator</button><span class="ag-live-cnt" data-cnt></span><button type="button" class="seguir" data-seguir hidden>Seguir en vivo</button></div>' +
-      '<div class="ag-live-body"><div class="ag-live-vista" data-vista><button type="button" class="mu-flecha izq" data-pdf-go="-1" title="PDF anterior (←)"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button type="button" class="mu-flecha der" data-pdf-go="1" title="PDF siguiente (→)"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button><img alt="PDF de producción"><div class="ag-live-vacio"><div><b>ESPERANDO LOS PDF</b><br>Aquí verás cada PDF de producción, con el nombre y el número de cada jugador, a medida que se genera.</div></div>' +
-      '<div class="ag-live-cap" data-cap><span class="num"></span><div><span class="nom"></span><small class="det"></small></div></div><div class="ag-live-prog"><i></i></div></div>' +
-      '<aside class="ag-live-side"><div class="ag-live-sec"><h4>MONTAJES <span data-nm>0</span></h4><div class="ag-live-list" data-lm></div></div>' +
+      '<div class="ag-live-body"><div class="ag-live-col"><div class="ag-live-vista" data-vista><button type="button" class="mu-flecha izq" data-pdf-go="-1" title="PDF anterior (←)"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button type="button" class="mu-flecha der" data-pdf-go="1" title="PDF siguiente (→)"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button><img alt="PDF de producción"><div class="ag-live-vacio"><div><b>ESPERANDO LOS PDF</b><br>Aquí verás cada PDF de producción, con el nombre y el número de cada jugador, a medida que se genera.</div></div>' +
+      '<span class="ag-live-tipo" data-tipo hidden></span><div class="ag-live-cap" data-cap><span class="num"></span><div><span class="nom"></span><small class="det"></small></div></div><div class="ag-live-prog"><i></i></div></div><div class="ag-live-tira" data-tira hidden></div></div>' +
+      '<aside class="ag-live-side"><div class="ag-live-sec"><h4>MESAS EXPORTADAS <span data-nm>0</span></h4><div class="ag-live-list" data-lm></div></div>' +
       '<div class="ag-live-sec"><h4>PDF DE PRODUCCIÓN <span class="ag-gen" data-gen hidden></span><span data-np>0</span></h4><div class="ag-gen ag-dis" data-dis hidden></div><div class="ag-live-list" data-lp></div><small class="dest" data-dp></small></div></aside></div>';
     box.addEventListener('click', e => {
       const aiFila = e.target.closest('[data-ai-ruta]');
@@ -984,8 +1005,8 @@
     if (!box.dataset.listo) armarLive(box);
     const evs = flow.ejec ? flow.ejec.eventos.filter(e => e.archivo) : [];
     const montajes = [], pdfs = [], vm = new Set(), vp = new Set(); let total = 0, dm = '', dp = '';
-    evs.forEach(e => {
-      const a = e.archivo;
+    evs.forEach((e, idx) => {
+      const a = e.archivo; a._i = idx;
       if (a.tipo === 'plan') total += Number(a.pdfs) || 0;
       else if (a.tipo === 'montaje' && !vm.has(a.nombre)) { vm.add(a.nombre); montajes.push(a); dm = a.carpeta || dm; }
       else if (a.tipo === 'pdf') { const k = a.detalle || (a.nombre + a.numero + a.talla); if (!vp.has(k)) { vp.add(k); pdfs.push(a); dp = a.carpeta || dp; } }
@@ -995,8 +1016,7 @@
     q('[data-pto]').className = st.esperando ? 'on' : '';
     q('[data-estado]').textContent = st.esperando ? 'Illustrator está trabajando…' : (evs.length ? 'Última ejecución' : 'Sin ejecución en curso');
     const itemM = a => '<span class="mt-nom">' + esc(a.nombre || '') + '</span>';   // el MISMO nombre de la mesa exportada (Talla_XS_Tipo_D1_Gen_F)
-    q('[data-nm]').textContent = montajes.length + ' exportados';
-    q('[data-lm]').innerHTML = montajes.slice().reverse().slice(0, 60).map((a, i) => '<div' + (i === 0 ? ' class="nuevo"' : '') + '>' + itemM(a) + '</div>').join('') || '<div style="opacity:.5">Esperando…</div>';
+    q('[data-nm]').textContent = String(montajes.length);
     // Masculinos y femeninos: si la orden genera ambos aparecen dos pestañas; por defecto sigue al último PDF creado y, si eliges una, se queda en ella
     const sexoDe = a => { const m = /_Gen_([MF])(?:_|\.|$)/i.exec(String(a.detalle || a.nombre || '')); return m ? m[1].toUpperCase() : String(a.genero || '').charAt(0).toUpperCase(); };
     // Diseños: si la orden trae varios (D1, D2, D3…) cada uno va en su pestaña; igual que con el género, sigue al último PDF creado hasta que elijas una
@@ -1025,10 +1045,31 @@
       }
     }
     const conVista = visibles.filter(a => a.vista);
-    const fija = flow.vistaFija && conVista.find(a => a.vista === flow.vistaFija);
+    // La pantalla en vivo muestra lo último que se creó, sea una MESA exportada (OLVER) o un PDF de producción (OLIVER); si eliges una fila, se queda en ella
+    const mesasV = montajes.filter(a => a.vista);
+    const fija = flow.vistaFija && (mesasV.find(a => a.vista === flow.vistaFija) || conVista.find(a => a.vista === flow.vistaFija));
     if (flow.vistaFija && !fija) flow.vistaFija = null;
-    const actual = fija || conVista[conVista.length - 1] || null;
-    flow.conVista = conVista; flow.actualVista = actual && actual.vista; flow.rutaActual = (actual && actual.ruta) || '';
+    const ultP = conVista[conVista.length - 1], ultM = mesasV[mesasV.length - 1];
+    const actual = fija || (ultM && (!ultP || ultM._i > ultP._i) ? ultM : ultP) || null;
+    const esMesa = !!(actual && actual.tipo === 'montaje'), lista = esMesa ? mesasV : conVista;
+    flow.conVista = lista; flow.actualVista = actual && actual.vista; flow.rutaActual = (actual && !esMesa && actual.ruta) || '';
+    q('[data-lm]').innerHTML = montajes.slice().reverse().slice(0, 80).map((a, i) => '<div' + (a.vista ? ' data-vista="' + esc(a.vista) + '" title="Ver esta mesa en la pantalla"' : '') + ' class="' + (i === 0 ? 'nuevo ' : '') + (actual && a.vista && a.vista === actual.vista ? 'sel' : '') + '">' + itemM(a) +
+      (a.vista ? '<a class="ag-vlink" href="/api/agentes/archivo/' + encodeURIComponent(a.vista) + '" target="_blank" rel="noopener" title="Ver esta mesa en grande (otra pestaña)">↗</a>' : '') + '</div>').join('') || '<div style="opacity:.5">Esperando…</div>';
+    const tipoEl = q('[data-tipo]'); if (tipoEl) { tipoEl.hidden = !actual; tipoEl.textContent = esMesa ? 'MESA EXPORTADA · ' + (actual.nombre || '') : 'PDF DE PRODUCCIÓN'; tipoEl.className = 'ag-live-tipo ' + (esMesa ? 'mesa' : 'pdf'); }
+    const tira = q('[data-tira]');
+    if (tira) {
+      const rot = a => esMesa ? ((/Talla_([^_]+)/i.exec(a.nombre || '') || [])[1] || a.nombre || '') : (a.numero ? '#' + a.numero : a.cantidad ? a.cantidad + ' u' : (a.talla || ''));
+      const firmaT = (esMesa ? 'm' : 'p') + '|' + lista.map(a => a.vista).join(',');
+      tira.hidden = lista.length < 2;
+      if (tira.dataset.firma !== firmaT) {
+        tira.dataset.firma = firmaT;
+        tira.innerHTML = lista.map(a => '<button type="button" data-vista="' + esc(a.vista) + '" title="' + esc(a.detalle || a.nombre || '') + '"><img loading="lazy" alt="" src="/api/agentes/archivo/' + encodeURIComponent(a.vista) + '"><span>' + esc(String(rot(a)).toUpperCase()) + '</span></button>').join('');
+      }
+      let elegido = null;
+      tira.querySelectorAll('button').forEach(b => { const on = !!actual && b.dataset.vista === actual.vista; b.classList.toggle('sel', on); if (on) elegido = b; });
+      if (elegido && tira.dataset.sel !== elegido.dataset.vista) { tira.dataset.sel = elegido.dataset.vista; tira.scrollLeft = Math.max(0, elegido.offsetLeft - (tira.clientWidth - elegido.offsetWidth) / 2); }
+    }
+    const teclas = q('.ag-keys'); if (teclas) teclas.textContent = esMesa ? '← → pasan las mesas' : '← → pasan los PDF';
     flow.rutasPdf = pdfs.map(a => a.ruta).filter(Boolean);
     const bAi = q('[data-ai]');
     if (bAi) {
@@ -1037,11 +1078,11 @@
       if (bAi.dataset.rotulo !== rotulo) { bAi.dataset.rotulo = rotulo; bAi.innerHTML = LOGO_AI + ' ' + rotulo; }
       bAi.title = 'Abre en Illustrator, a la vez, todos los PDF de producción de esta orden (los de las carpetas de salida en la NAS)';
     }
-    const iAct = actual ? conVista.findIndex(a => a.vista === actual.vista) : -1;
-    q('[data-cnt]').textContent = conVista.length ? (iAct + 1) + ' / ' + conVista.length : '';
+    const iAct = actual ? lista.findIndex(a => a.vista === actual.vista) : -1;
+    q('[data-cnt]').textContent = lista.length ? (esMesa ? 'Mesa ' : 'PDF ') + (iAct + 1) + ' / ' + lista.length : '';
     const bIzq = q('[data-pdf-go="-1"]'), bDer = q('[data-pdf-go="1"]');
     if (bIzq) bIzq.disabled = iAct <= 0;
-    if (bDer) bDer.disabled = iAct < 0 || iAct >= conVista.length - 1;
+    if (bDer) bDer.disabled = iAct < 0 || iAct >= lista.length - 1;
     q('[data-np]').textContent = pdfs.length + (total ? ' de ' + total : '');
     q('[data-lp]').innerHTML = visibles.slice().reverse().slice(0, 80).map((a, i) => '<div' + (a.vista ? ' data-vista="' + esc(a.vista) + '"' : '') + ' class="' + (i === 0 ? 'nuevo ' : '') + (actual && a.vista === actual.vista ? 'sel' : '') + '">' + (a.detalle ? '<b class="pdf-nom" title="' + esc(a.detalle) + '">' + esc(a.detalle) + '</b>' : (a.cantidad ? '<b>' + esc(a.cantidad) + ' unds</b> · sin nombre ni número · ' + esc(a.talla) : '<b>' + esc(a.nombre || 'Sin nombre') + '</b> · #' + esc(a.numero || '—') + ' · ' + esc(a.talla))) + (a.vista ? '<a class="ag-vlink" href="/api/agentes/archivo/' + encodeURIComponent(a.vista) + '" target="_blank" rel="noopener" title="Ver este PDF en grande (otra pestaña)">↗</a>' : '') + (a.ruta ? '<a href="#" class="ag-vlink ag-ai" data-ai-ruta="' + esc(a.ruta) + '" title="Abrir este PDF en Illustrator" aria-label="Abrir este PDF en Illustrator">' + LOGO_AI + '</a>' : '') + '</div>').join('') || '<div style="opacity:.5">Esperando…</div>';
     q('[data-dp]').textContent = dp ? '→ ' + dp : '';
@@ -1053,7 +1094,7 @@
     q('.ag-live-cap .num').textContent = '#' + (actual.numero || '—');
     q('.ag-live-cap .nom').textContent = actual.nombre || 'Sin nombre';
     q('.ag-live-cap .det').textContent = ['Talla ' + actual.talla, actual.diseno, actual.genero].filter(Boolean).join(' · ');
-    cap.classList.toggle('ok', !!(actual.nombre || actual.numero));   // sin nombre ni número no se muestra el rótulo «SIN NOMBRE»
+    cap.classList.toggle('ok', !esMesa && !!(actual.nombre || actual.numero));   // sin nombre ni número (y en las mesas) no se muestra el rótulo
     if (img.dataset.id !== actual.vista) {   // se precarga para cambiar de imagen sin parpadeo
       const url = '/api/agentes/archivo/' + encodeURIComponent(actual.vista), pre = new Image();
       pre.onload = () => { img.src = url; img.dataset.id = actual.vista; img.classList.add('ok'); vista.querySelector('.ag-live-vacio').style.display = 'none'; vista.classList.remove('cambio'); void vista.offsetWidth; vista.classList.add('cambio'); };
