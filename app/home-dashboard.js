@@ -290,7 +290,7 @@
     const iCliente = headers.findIndex(h => key(h) === 'NOMBRE DEL CLIENTE'), ordenes = new Map(), cant = v => parseInt(String(v[iCant] == null ? '' : v[iCant]).replace(/[^0-9]/g, ''), 10) || 0;
     (data.rows || []).forEach(row => {
       const v = row.values || [], id = String(v[iOrden] == null ? '' : v[iOrden]).trim(); if (!id) return;
-      const o = ordenes.get(key(id)) || { id, cliente: '', unidades: 0, areas: [] };
+      const o = ordenes.get(key(id)) || { id, cliente: '', unidades: 0, areas: [], filas: new Map() };
       o.unidades += cant(v); if (!o.cliente && iCliente >= 0) o.cliente = String(v[iCliente] || '').trim(); ordenes.set(key(id), o);
     });
     flow.forEach(p => {
@@ -302,7 +302,9 @@
       (data.rows || []).forEach(row => {
         const v = row.values || [], a = conHoras ? mins(v[hi]) : null, b = conHoras ? mins(v[hf]) : null, und = parseInt(String(v[iCant] == null ? '' : v[iCant]).replace(/[^0-9]/g, ''), 10) || 0;
         if (!und) return;
+        const medida = () => { const o = ordenes.get(key(v[iOrden])); if (o) o.filas.set(row.source_row, und); };   // esta fila sí tiene inicio y final
         if (a !== null && b !== null) {
+          medida();
           const k = key(v[iOrden]) + '|' + a, l = lotes.get(k) || { ini: a, fin: b, und: 0, orden: key(v[iOrden]) };
           l.fin = Math.max(l.fin, b); l.und += und; lotes.set(k, l);
           const f = parseDate(v[inicio]); if (f && !isNaN(f)) l.dia = Math.max(l.dia || 0, Date.UTC(f.getFullYear(), f.getMonth(), f.getDate()) / 60000 + 300);   // día en que se terminó el área (hora de Colombia)
@@ -311,6 +313,7 @@
         // sin horas en el Sheet: vale el inicio y el final que se marcaron en la web para esta área
         const t = cols.map(c => tiempos[row.source_row + ':' + (c + 1)]).find(Boolean);
         if (!t) return;
+        medida();
         const k = key(v[iOrden]), l = web.get(k) || []; l.push({ ini: t[0], fin: t[1], und }); web.set(k, l);
       });
       let minutos = 0, unidades = 0, descartados = 0; const porUnd = [], duraciones = [], reg = [];
@@ -323,7 +326,9 @@
       out.push({ label: p.label, lotes: duraciones.length, unidades, minutos, porUnidad: unidades ? minutos / unidades : null, tipico: mediana(porUnd), lote: mediana(duraciones), rapido: porUnd.length ? Math.min(...porUnd) : null, lento: porUnd.length ? Math.max(...porUnd) : null, descartados, reg });
     });
     // minutos por unidad de la orden = (dato de cuando termina − dato de cuando empieza) ÷ cantidad
-    out.ordenes = [...ordenes.values()].filter(o => o.unidades && o.ini != null && o.fin > o.ini).map(o => Object.assign(o, { trabajado: o.areas.reduce((t, x) => t + x.min, 0), minutos: o.fin - o.ini, porUnidad: (o.fin - o.ini) / o.unidades })).sort((x, y) => y.porUnidad - x.porUnidad);
+    // la cantidad es la de las filas que tienen inicio y final (una fila N/A de la misma orden no se fabricó en esas áreas)
+    out.ordenes = [...ordenes.values()].map(o => Object.assign(o, { medidas: [...o.filas.values()].reduce((t, x) => t + x, 0) })).filter(o => o.medidas && o.ini != null && o.fin > o.ini)
+      .map(o => Object.assign(o, { trabajado: o.areas.reduce((t, x) => t + x.min, 0), minutos: o.fin - o.ini, porUnidad: (o.fin - o.ini) / o.medidas })).sort((x, y) => y.porUnidad - x.porUnidad);
     return out;
   }
   const fmtDur = m => m === null ? '—' : m >= 60 ? Math.floor(m / 60) + ' h ' + Math.round(m % 60) + ' min' : m >= 1 ? fmtNum(m, 1) + ' min' : Math.round(m * 60) + ' s';
@@ -336,7 +341,7 @@
         nombre: new Date((n * 1440 + 300 + 720) * 60000).toLocaleDateString('es-CO', { timeZone: 'America/Bogota', weekday: 'short', day: 'numeric' }).replace('.', '').toUpperCase() + (k === 0 ? ' · HOY' : '') }); }
     const con = dias.filter(d => d.v !== null), mayor = Math.max(1e-9, ...con.map(d => d.v)), lento = con.slice().sort((a, b) => b.v - a.v)[0];
     const min = con.reduce((t, d) => t + d.min, 0), und = con.reduce((t, d) => t + d.und, 0), lotes = con.reduce((t, d) => t + d.lotes, 0), prom = !con.length ? null : porLote ? min / lotes : min / und;
-    const cols = dias.map((d, i) => { const hay = d.v !== null, v = d.v, pct = hay ? Math.round(v / mayor * 100) : 0, rise = hay ? Math.max(18, Math.round(v / mayor * 190)) : 0, top = hay && d === lento && con.length > 1;
+    const cols = dias.map((d, i) => { const hay = d.v !== null, v = d.v, pct = hay ? Math.round(v / mayor * 100) : 0, rise = hay ? Math.max(18, Math.round(v / mayor * 150)) : 0, top = hay && d === lento && con.length > 1;
       const numero = !hay ? '—' : v >= 60 ? fmtNum(v / 60, 1) : v >= 1 ? fmtNum(v, 1) : String(Math.round(v * 60)), unidad = !hay ? 'sin datos' : (v >= 60 ? 'h' : v >= 1 ? 'min' : 'seg') + (porLote ? ' por lote' : ' / und.');
       return '<div class="st-col' + (top ? ' top' : '') + (hay ? '' : ' empty') + '" role="listitem" style="--i:' + i + ';--rise:' + rise + 'px;--lv:' + Math.min(94, Math.max(pct, hay ? 8 : 0)) + '%" title="' + esc(d.nombre) + (hay ? ' · ' + fmtDur(d.min) + ' ÷ ' + fmtNum(d.und) + ' und. · ' + d.lotes + ' lotes' : ' · sin inicio y final ese día') + '">' +
         (top ? '<em class="ar-ribbon">Más lento</em>' : '') + '<span class="st-slot"><span class="st-bar">' + (hay ? '<i class="sg ' + (top ? 'cola' : 'prog') + '" style="flex:1"></i>' : '') + '</span></span>' +
@@ -394,7 +399,7 @@
     const largo = m => m >= 1440 ? Math.floor(m / 1440) + ' d ' + Math.round(m % 1440 / 60) + ' h' : fmtDur(m);
     return '<div class="dash-cards dash-unit">' + ver.map((o, i) => { const m = o.porUnidad;
       return card(o === l[0] && l.length > 1 ? 'orange' : TONOS[i % TONOS.length], esc(o.id), m >= 1 ? fmtNum(m, 1) : String(Math.round(m * 60)), m >= 1 ? 'min / unidad' : 'seg / unidad',
-        [[esc(o.cliente || 'Sin cliente'), ''], ['Empezó', cuando(o.ini)], ['Terminó', cuando(o.fin)], ['De inicio a final', largo(o.minutos)], ['Cantidad', fmtNum(o.unidades) + ' und.'],
+        [[esc(o.cliente || 'Sin cliente'), ''], ['Empezó', cuando(o.ini)], ['Terminó', cuando(o.fin)], ['De inicio a final', largo(o.minutos)], ['Cantidad', fmtNum(o.medidas) + (o.medidas < o.unidades ? ' de ' + fmtNum(o.unidades) : '') + ' und.'],
           ['Trabajado en las áreas', fmtDur(o.trabajado)], ['Áreas con registro', o.areas.map(x => esc(SHORT[x.label] || x.label)).join(' · ')]], '', m / mayor * 100); }).join('') + '</div>' +
       (!q && l.length > 6 ? '<button type="button" class="ut-more" data-ut-all>' + (unitAll ? 'Ver solo las 6 más lentas' : 'Ver las ' + l.length + ' órdenes') + '</button>' : '');
   }
