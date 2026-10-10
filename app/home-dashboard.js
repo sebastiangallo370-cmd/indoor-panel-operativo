@@ -350,7 +350,7 @@
         (top ? '<em class="ar-ribbon">Más lento</em>' : '') + '<span class="st-slot"><span class="st-bar">' + (hay ? '<i class="sg ' + (top ? 'cola' : 'prog') + '" style="flex:1"></i>' : '') + '</span></span>' +
         '<b class="st-name">' + esc(d.nombre) + '</b><span class="st-val">' + numero + '</span><small class="st-sub">' + unidad + (hay ? ' · ' + fmtNum(d.und) + ' und. · ' + plural(d.lotes, 'orden', 'órdenes') : '') + '</small>' + ordDia(d) + '<em class="st-pct">' + pct + '%</em></div>'; }).join('');
     // dentro de la tarjeta de cada día van sus órdenes con ORDEN, CANTIDAD, lo que se DEMORÓ (horas y minutos) y MINUTOS POR UNIDAD
-    function tardo(m) { const h = Math.floor(m / 60), r = Math.round(m % 60); return h ? h + ' h ' + r + ' min' : r + ' min'; }   // tiempo demorado en horas y minutos
+    function tardo(m) { m = Math.round(m); const h = Math.floor(m / 60), r = m % 60; return h ? h + ':' + String(r).padStart(2, '0') + ' HRS' : r + ' MIN'; }   // tiempo demorado: termina en MIN o en HRS (horas:minutos)
     function ordDia(d) {
       const r = (x.reg || []).filter(t => Math.floor((t.fin - 300) / 1440) === d.n).sort((a, b) => a.fin - b.fin);
       if (!r.length) return '';
