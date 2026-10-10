@@ -18,8 +18,6 @@ MAX_TEXTO = 40000
 
 TEXTO_BASE = """TÉRMINOS Y CONDICIONES DE USO DEL PANEL OPERATIVO · INDOOR SPORT S.A.S.
 
-Borrador inicial: debe ser revisado y ajustado por la empresa antes de tomarlo como definitivo.
-
 1. OBJETO
 El panel operativo es una herramienta interna de Indoor Sport S.A.S. para programar, seguir y controlar la producción, los inventarios, la cartera y la información del personal. Al ingresar, el usuario acepta estos términos.
 
