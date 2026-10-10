@@ -364,7 +364,7 @@
     function ordDia(d) {
       const r = (x.reg || []).filter(t => Math.floor((t.fin - 300) / 1440) === d.n).sort((a, b) => a.fin - b.fin);
       if (!r.length) return '';
-      return '<div class="ut-daylist"><div class="ut-o ut-o-h"><span>Orden</span><span>Cant.</span><span>Demoró</span><span>Min/und</span></div>' + r.map(t => '<div class="ut-o" title="' + esc(t.o && t.o.cliente ? t.o.cliente : 'Sin cliente') + '"><b>' + esc(t.o ? t.o.id : 'Sin orden') + '</b><span>' + fmtNum(t.und) + '</span><strong>' + tardo(t.d) + '</strong><i>' + (t.d / t.und >= 1 ? fmtNum(t.d / t.und, 1) : fmtNum(t.d / t.und, 2)) + '</i></div>').join('') + '</div>';
+      return '<div class="ut-daylist"><div class="ut-o ut-o-h"><span>Orden</span><span>Cant.</span><span>Demoró</span><span>Min/und</span></div>' + r.map(t => '<div class="ut-o" title="' + esc(t.o && t.o.cliente ? t.o.cliente : 'Sin cliente') + '"><b>' + esc(t.o ? t.o.id : 'Sin orden') + '</b><span>' + fmtNum(t.und) + '</span><strong>' + tardo(t.d) + '</strong><i>' + (t.d / t.und >= 60 ? fmtNum(t.d / t.und / 60, 1) + ' h' : t.d / t.und >= 1 ? fmtNum(t.d / t.und, 1) : fmtNum(t.d / t.und, 2)) + '</i></div>').join('') + '</div>';
     }
     return '<section class="dash-stairs de-unidad' + (stairsPlayed ? ' go' : '') + '" data-compact="0">' +
       '<header class="st-head"><div><span class="ar-kicker">ÚLTIMA SEMANA · ' + esc(x.label) + '</span><h3>Escalera de ' + esc(x.label) + ' por día</h3><p>Cada escalón es un día: dato de cuando termina menos dato de cuando empieza, dividido entre la cantidad, de lo que se terminó ese día en esta área. El porcentaje compara cada día con el más lento. Dentro de cada día están sus órdenes (la que terminó ese día) con la cantidad, el tiempo que se demoró y los minutos por unidad.' + (x.horario ? ' En esta área solo cuenta el horario de trabajo, de ' + hhmm(x.horario[0]) + ' a ' + hhmm(x.horario[1]) : '') + '</p></div>' +
@@ -419,7 +419,7 @@
     const cuando = m => new Date(m * 60000).toLocaleString('es-CO', { timeZone: 'America/Bogota', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
     const largo = m => m >= 1440 ? Math.floor(m / 1440) + ' d ' + Math.round(m % 1440 / 60) + ' h' : fmtDur(m);
     return '<div class="dash-cards dash-unit">' + ver.map((o, i) => { const m = o.porUnidad;
-      return card(o === l[0] && l.length > 1 ? 'orange' : TONOS[i % TONOS.length], esc(o.id), m >= 1 ? fmtNum(m, 1) : String(Math.round(m * 60)), m >= 1 ? 'min / unidad' : 'seg / unidad',
+      return card(o === l[0] && l.length > 1 ? 'orange' : TONOS[i % TONOS.length], esc(o.id), m >= 60 ? fmtNum(m / 60, 1) : m >= 1 ? fmtNum(m, 1) : String(Math.round(m * 60)), m >= 60 ? 'hrs / unidad' : m >= 1 ? 'min / unidad' : 'seg / unidad',
         [[esc(o.cliente || 'Sin cliente'), ''], ['Empezó', cuando(o.ini)], ['Terminó', cuando(o.fin)], ['De inicio a final', largo(o.minutos)], ['Cantidad', fmtNum(o.medidas) + (o.medidas < o.unidades ? ' de ' + fmtNum(o.unidades) : '') + ' und.'],
           ['Trabajado en las áreas', fmtDur(o.trabajado)], ['Áreas con registro', o.areas.map(x => esc(SHORT[x.label] || x.label)).join(' · ')]], '', m / mayor * 100); }).join('') + '</div>' +
       (!q && l.length > 6 ? '<button type="button" class="ut-more" data-ut-all>' + (unitAll ? 'Ver solo las 6 más lentas' : 'Ver las ' + l.length + ' órdenes') + '</button>' : '');
@@ -437,7 +437,7 @@
     const l = a.unitTime || [], con = l.filter(x => x.porUnidad !== null);
     if (!l.length) return '<p class="dash-none">Todavía no hay áreas de producción para medir.</p>';
     const mayor = Math.max(1e-9, ...con.map(x => x.porUnidad)), total = con.reduce((t, x) => t + x.porUnidad, 0), TONOS = ['lime', 'blue', 'green', 'orange', 'lime', 'blue', 'green'];
-    const valor = m => m === null ? ['—', ''] : m >= 1 ? [fmtNum(m, 1), 'min / unidad'] : [String(Math.round(m * 60)), 'seg / unidad'];
+    const valor = m => m === null ? ['—', ''] : m >= 60 ? [fmtNum(m / 60, 1), 'hrs / unidad'] : m >= 1 ? [fmtNum(m, 1), 'min / unidad'] : [String(Math.round(m * 60)), 'seg / unidad'];
     const resumen = con.length ? card('green', 'Total por unidad', valor(total)[0], valor(total)[1], [['Suma de las áreas con registro', ''], ['Áreas medidas', con.length + ' de ' + l.length],
       ['Unidades medidas', fmtNum(Math.max(...con.map(x => x.unidades)))], ['Área que más tarda', con.slice().sort((x, y) => y.porUnidad - x.porUnidad)[0].label]], '', null) : '';
     return unitStairs(a) + unitOrders(a) + '<section class="dash-load"><div class="dash-panel-head"><h4>Detalle por área</h4><small>Minutos por prenda en todas las áreas · con las horas del Sheet o, si el área no las lleva, con el inicio y el final marcados en la página · las filas de una orden que se trabajaron juntas cuentan como un solo lote</small></div>' +
