@@ -227,6 +227,7 @@
   /* pantalla en vivo: rótulo de lo que se ve (mesa exportada o PDF) y mesas que se pueden abrir */
   .ag .ag-live-tipo{position:absolute;left:12px;top:12px;z-index:2;max-width:calc(100% - 24px);box-sizing:border-box;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:5px 11px;border-radius:999px;background:rgba(11,17,11,.88);border:1px solid #3a4b36;color:#d7ff3a;font:800 10px Arial;letter-spacing:.14em}.ag .ag-live-tipo[hidden]{display:none}
   .ag .ag-live-tipo.mesa{color:#6fe39a;border-color:rgba(111,227,154,.55)}.ag .ag-live-tipo.pdf{color:#ff8fd0;border-color:rgba(255,143,208,.55)}
+  .ag .ag-fico.txt{display:inline-grid;place-items:center;min-width:34px;height:26px;padding:0 6px;border:1px solid #3d4f3d;border-radius:7px;background:#121a13;color:#d0f44c;font:900 9.5px Arial;letter-spacing:.06em}
   /* conectadores */
   .ag .ag-cable.ramal{stroke:#33422f;stroke-dasharray:1 7}
   .ag .ag-ramal-rot rect{fill:#0b100c;stroke:#2c3a2d;stroke-width:1}.ag .ag-ramal-rot text{fill:#77836f;font:800 8.5px Arial;letter-spacing:.12em}
@@ -1307,13 +1308,14 @@
     if ((r = /^(\d+) PDF\(s\) de producción en /.exec(m)) && !/con problemas/.test(m)) return 'PDF DE PRODUCCIÓN CREADOS CORRECTAMENTE: ' + r[1];
     return '';
   }
-  const abierto = (m, i) => { const k = m.id + ':' + i; return st.abiertos[k] !== undefined ? st.abiertos[k] : (m.archivos[i].tipo === 'muestra' && m.archivos.length <= 2); };
+  const abierto = (m, i) => { const k = m.id + ':' + i; return st.abiertos[k] === true; };
+  const sinImagenEnChat = () => !(window.matchMedia && matchMedia('(max-width:1000px)').matches);   // en computador el chat nunca muestra imágenes
   function archivosHtml(m) {
     return '<div class="ag-files">' + m.archivos.map((a, i) => {
-      const url = a.id ? '/api/agentes/archivo/' + a.id : '', ver = a.id && abierto(m, i);
+      const url = a.id ? '/api/agentes/archivo/' + a.id : '', soloTexto = sinImagenEnChat(), ver = !soloTexto && a.id && abierto(m, i);
       const previa = ver ? (esImagen(a) ? '<img class="ag-prev" src="' + url + '" alt="' + esc(a.titulo) + '">' : '<iframe class="ag-prev" src="' + url + '#toolbar=0&navpanes=0&view=FitH" loading="lazy" title="' + esc(a.titulo) + '"></iframe>') : '';
-      return '<article class="ag-file ' + esc(a.tipo) + (ver ? ' abierto' : '') + '"><div class="ag-file-head"><span class="ag-fico">' + (esImagen(a) ? '🖼️' : /\.ai$/i.test(a.nombre) ? '🎨' : '📄') + '</span><div><b>' + esc(a.titulo || a.nombre) + '</b><small>' + esc(a.nombre) + (a.size ? ' · ' + KB(a.size) : '') + '</small></div></div>' + previa +
-        '<div class="ag-file-acc">' + (a.id ? '<button type="button" data-f-ver="' + m.id + ':' + i + '">' + (ver ? 'Ocultar' : 'Ver') + '</button><a href="' + url + '" target="_blank" rel="noopener" title="Abrir en otra pestaña">↗</a><a href="' + url + '?descargar=1" download title="Descargar">⬇</a>' : '<span class="nopre">Sin vista previa</span>') +
+      return '<article class="ag-file ' + esc(a.tipo) + (ver ? ' abierto' : '') + '"><div class="ag-file-head"><span class="ag-fico txt">' + esc(String(a.ext || (a.nombre || '').split('.').pop() || 'ARCH').toUpperCase().slice(0, 4)) + '</span><div><b>' + esc(a.titulo || a.nombre) + '</b><small>' + esc(a.nombre) + (a.size ? ' · ' + KB(a.size) : '') + '</small></div></div>' + previa +
+        '<div class="ag-file-acc">' + (a.id ? (soloTexto ? (a.tipo === 'muestra' ? '<button type="button" data-f-derecha="' + esc(a.id) + '" title="Ver esta muestra en la zona de la derecha">Ver a la derecha →</button>' : '') : '<button type="button" data-f-ver="' + m.id + ':' + i + '">' + (ver ? 'Ocultar' : 'Ver') + '</button>') + '<a href="' + url + '" target="_blank" rel="noopener" title="Abrir en otra pestaña">↗</a><a href="' + url + '?descargar=1" download title="Descargar">⬇</a>' : '<span class="nopre">Sin vista previa</span>') +
         (a.ruta ? '<button type="button" data-f-ruta="' + m.id + ':' + i + '" title="Copiar la ruta del archivo">⧉</button>' : '') + '</div></article>';
     }).join('') + '</div>';
   }
@@ -1817,6 +1819,7 @@
     panel.addEventListener('click', e => {
       const cop = e.target.closest('[data-copiar]');
       if (cop) { const m = st.msgs.find(x => String(x.id) === cop.dataset.copiar); if (m && navigator.clipboard) navigator.clipboard.writeText(m.texto).then(() => { cop.textContent = '✓ Copiado'; setTimeout(() => { cop.textContent = '⧉ Copiar'; }, 1400); }).catch(() => {}); return; }
+      const fd = e.target.closest('[data-f-derecha]'); if (fd) { const k = muestrasActuales().findIndex(x => x.id === fd.dataset.fDerecha); if (k >= 0) { st.muIdx = k; pintarMuestras(); } return; }
       if (e.target.closest('[data-mu-todo]')) { st.muTodo = !st.muTodo; pintarMuestras(); return; }
       if (e.target.closest('[data-bajar]')) { const h = panel.querySelector('[data-hilo]'); h.scrollTop = h.scrollHeight; e.target.closest('[data-bajar]').hidden = true; return; }
       const mas = panel.querySelector('.ag-mas[open]');
