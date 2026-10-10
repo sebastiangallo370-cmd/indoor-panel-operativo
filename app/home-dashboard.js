@@ -286,6 +286,13 @@
     const mins = v => { const m = /^\s*(\d{1,2}):(\d{2})/.exec(String(v == null ? '' : v)); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
     const mediana = l => { const o = l.slice().sort((x, y) => x - y); return o.length ? (o.length % 2 ? o[(o.length - 1) / 2] : (o[o.length / 2 - 1] + o[o.length / 2]) / 2) : null; };
     const out = [], tiempos = data.process_times || {};
+    // por orden: unidades de la orden y lo que tardó en cada área medida
+    const iCliente = headers.findIndex(h => key(h) === 'NOMBRE DEL CLIENTE'), ordenes = new Map(), cant = v => parseInt(String(v[iCant] == null ? '' : v[iCant]).replace(/[^0-9]/g, ''), 10) || 0;
+    (data.rows || []).forEach(row => {
+      const v = row.values || [], id = String(v[iOrden] == null ? '' : v[iOrden]).trim(); if (!id) return;
+      const o = ordenes.get(key(id)) || { id, cliente: '', unidades: 0, areas: [] };
+      o.unidades += cant(v); if (!o.cliente && iCliente >= 0) o.cliente = String(v[iCliente] || '').trim(); ordenes.set(key(id), o);
+    });
     flow.forEach(p => {
       const cols = p.headers.map(h => headers.findIndex(x => key(x) === h)).filter(i => i >= 0).sort((x, y) => x - y), inicio = cols[0];
       if (inicio === undefined) return;
@@ -296,7 +303,7 @@
         const v = row.values || [], a = conHoras ? mins(v[hi]) : null, b = conHoras ? mins(v[hf]) : null, und = parseInt(String(v[iCant] == null ? '' : v[iCant]).replace(/[^0-9]/g, ''), 10) || 0;
         if (!und) return;
         if (a !== null && b !== null) {
-          const k = key(v[iOrden]) + '|' + a, l = lotes.get(k) || { ini: a, fin: b, und: 0 };
+          const k = key(v[iOrden]) + '|' + a, l = lotes.get(k) || { ini: a, fin: b, und: 0, orden: key(v[iOrden]) };
           l.fin = Math.max(l.fin, b); l.und += und; lotes.set(k, l); return;
         }
         // sin horas en el Sheet: vale el inicio y el final que se marcaron en la web para esta área
@@ -305,12 +312,15 @@
         const k = key(v[iOrden]), l = web.get(k) || []; l.push({ ini: t[0], fin: t[1], und }); web.set(k, l);
       });
       let minutos = 0, unidades = 0, descartados = 0; const porUnd = [], duraciones = [];
-      const medir = (d, und) => { if (d <= 0 || d > 720) { descartados++; return; } minutos += d; unidades += und; porUnd.push(d / und); duraciones.push(d); };
-      lotes.forEach(l => { let d = l.fin - l.ini; if (d < 0) d += 1440; medir(d, l.und); });
+      const medir = (d, und, orden) => { if (d <= 0 || d > 720) { descartados++; return; } minutos += d; unidades += und; porUnd.push(d / und); duraciones.push(d);
+        const o = ordenes.get(orden); if (!o) return; let ar = o.areas.find(x => x.label === p.label); if (!ar) { ar = { label: p.label, min: 0, und: 0 }; o.areas.push(ar); } ar.min += d; ar.und += und; };
+      lotes.forEach(l => { let d = l.fin - l.ini; if (d < 0) d += 1440; medir(d, l.und, l.orden); });
       // las filas de una orden que se trabajaron a la vez (sus tiempos se cruzan) son un solo lote
-      web.forEach(l => { let lote = null; l.sort((x, y) => x.ini - y.ini).forEach(x => { if (lote && x.ini <= lote.fin) { lote.fin = Math.max(lote.fin, x.fin); lote.und += x.und; } else { if (lote) medir(lote.fin - lote.ini, lote.und); lote = { ini: x.ini, fin: x.fin, und: x.und }; } }); if (lote) medir(lote.fin - lote.ini, lote.und); });
+      web.forEach((l, orden) => { let lote = null; l.sort((x, y) => x.ini - y.ini).forEach(x => { if (lote && x.ini <= lote.fin) { lote.fin = Math.max(lote.fin, x.fin); lote.und += x.und; } else { if (lote) medir(lote.fin - lote.ini, lote.und, orden); lote = { ini: x.ini, fin: x.fin, und: x.und }; } }); if (lote) medir(lote.fin - lote.ini, lote.und, orden); });
       out.push({ label: p.label, lotes: duraciones.length, unidades, minutos, porUnidad: unidades ? minutos / unidades : null, tipico: mediana(porUnd), lote: mediana(duraciones), rapido: porUnd.length ? Math.min(...porUnd) : null, lento: porUnd.length ? Math.max(...porUnd) : null, descartados });
     });
+    // minutos por unidad de la orden = suma de lo que tardó cada prenda en cada área medida
+    out.ordenes = [...ordenes.values()].filter(o => o.areas.length).map(o => Object.assign(o, { minutos: o.areas.reduce((t, x) => t + x.min, 0), porUnidad: o.areas.reduce((t, x) => t + x.min / x.und, 0) })).sort((x, y) => y.porUnidad - x.porUnidad);
     return out;
   }
   const fmtDur = m => m === null ? '—' : m >= 60 ? Math.floor(m / 60) + ' h ' + Math.round(m % 60) + ' min' : m >= 1 ? fmtNum(m, 1) + ' min' : Math.round(m * 60) + ' s';
@@ -341,6 +351,26 @@
     caja.innerHTML = unitStairs(model); const nuevo = caja.firstElementChild; viejo.replaceWith(nuevo);
     requestAnimationFrame(() => requestAnimationFrame(() => nuevo.classList.add('go')));
   });
+  // ---- MINUTOS POR UNIDAD EN CADA ORDEN (buscador + las más lentas primero; el resto se despliega) ----
+  let unitQ = '', unitAll = false;
+  function unitOrdersList(a) {
+    const l = (a.unitTime || []).ordenes || [], q = key(unitQ), lista = q ? l.filter(o => key(o.id + ' ' + o.cliente).includes(q)) : l, ver = unitAll || q ? lista : lista.slice(0, 6);
+    const mayor = Math.max(1e-9, ...l.map(o => o.porUnidad)), TONOS = ['lime', 'blue', 'green'];
+    if (!ver.length) return '<p class="dash-none">Ninguna orden coincide con la búsqueda.</p>';
+    return '<div class="dash-cards dash-unit">' + ver.map((o, i) => { const m = o.porUnidad, lenta = o.areas.slice().sort((x, y) => y.min / y.und - x.min / x.und)[0];
+      return card(o === l[0] && l.length > 1 ? 'orange' : TONOS[i % TONOS.length], esc(o.id), m >= 1 ? fmtNum(m, 1) : String(Math.round(m * 60)), m >= 1 ? 'min / unidad' : 'seg / unidad',
+        [[esc(o.cliente || 'Sin cliente'), ''], ['Unidades de la orden', fmtNum(o.unidades)], ['Tiempo total medido', fmtDur(o.minutos)], ['Áreas medidas', o.areas.length], ['Área que más tardó', esc(lenta.label) + ' · ' + fmtDur(lenta.min / lenta.und)]]
+          .concat(o.areas.map(x => [esc(x.label), fmtDur(x.min / x.und) + ' / und.'])), '', m / mayor * 100); }).join('') + '</div>' +
+      (!q && l.length > 6 ? '<button type="button" class="ut-more" data-ut-all>' + (unitAll ? 'Ver solo las 6 más lentas' : 'Ver las ' + l.length + ' órdenes') + '</button>' : '');
+  }
+  function unitOrders(a) {
+    const l = (a.unitTime || []).ordenes || []; if (!l.length) return '';
+    return '<section class="dash-load"><div class="dash-panel-head"><h4>Minutos por unidad en cada orden</h4><small>Lo que tardó cada prenda de la orden sumando las áreas que tienen inicio y final · primero las más lentas</small></div>' +
+      '<input class="ut-q" type="search" data-ut-q placeholder="Buscar orden o cliente" aria-label="Buscar orden o cliente" value="' + esc(unitQ) + '"><div data-ut-list>' + unitOrdersList(a) + '</div></section>';
+  }
+  const unitOrdersRedraw = () => { const caja = root.querySelector('[data-ut-list]'); if (caja && model) caja.innerHTML = unitOrdersList(model); };
+  root.addEventListener('click', event => { if (!event.target.closest('[data-ut-all]')) return; unitAll = !unitAll; unitOrdersRedraw(); });
+  root.addEventListener('input', event => { if (!event.target.matches('[data-ut-q]')) return; unitQ = event.target.value; unitOrdersRedraw(); });
   function unitSection(a) {
     const l = a.unitTime || [], con = l.filter(x => x.porUnidad !== null);
     if (!l.length) return '<p class="dash-none">Todavía no hay áreas de producción para medir.</p>';
@@ -348,7 +378,7 @@
     const valor = m => m === null ? ['—', ''] : m >= 1 ? [fmtNum(m, 1), 'min / unidad'] : [String(Math.round(m * 60)), 'seg / unidad'];
     const resumen = con.length ? card('green', 'Total por unidad', valor(total)[0], valor(total)[1], [['Suma de las áreas con registro', ''], ['Áreas medidas', con.length + ' de ' + l.length],
       ['Unidades medidas', fmtNum(Math.max(...con.map(x => x.unidades)))], ['Área que más tarda', con.slice().sort((x, y) => y.porUnidad - x.porUnidad)[0].label]], '', null) : '';
-    return unitStairs(a) + '<section class="dash-load"><div class="dash-panel-head"><h4>Detalle por área</h4><small>Minutos por prenda en todas las áreas · con las horas del Sheet o, si el área no las lleva, con el inicio y el final marcados en la página · las filas de una orden que se trabajaron juntas cuentan como un solo lote</small></div>' +
+    return unitStairs(a) + unitOrders(a) + '<section class="dash-load"><div class="dash-panel-head"><h4>Detalle por área</h4><small>Minutos por prenda en todas las áreas · con las horas del Sheet o, si el área no las lleva, con el inicio y el final marcados en la página · las filas de una orden que se trabajaron juntas cuentan como un solo lote</small></div>' +
       '<div class="dash-cards dash-unit">' + resumen + l.map((x, i) => { const [v, u] = valor(x.porUnidad); return x.porUnidad === null
         ? card('orange', esc(x.label), '—', '', [['Todavía no hay registros con hora de inicio y final', '']], '', 0)
         : card(x.porUnidad === mayor && con.length > 1 ? 'orange' : TONOS[i % TONOS.length], esc(x.label), v, u, [['Unidades medidas', fmtNum(x.unidades)], ['Lotes medidos', x.lotes], ['Lo típico por unidad', fmtDur(x.tipico)], ['Duración típica del lote', fmtDur(x.lote)],
@@ -847,7 +877,8 @@
   .dash-orders li>div:first-child{display:grid;min-width:0}.dash-orders strong{font-size:.9rem;color:#f2f7ea}
   .dash-orders span{font-size:.76rem;color:#a9b5a3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .dash-order-meta{display:grid;justify-items:end;flex-shrink:0}.dash-order-meta b{font-size:.86rem;color:#fff}.dash-order-meta small{font-size:.7rem;color:var(--c)}
-  .dash-none{margin:0;padding:10px 2px;font-size:.84rem;color:#8f9b8a}.dash-more{margin:0;font-size:.76rem;color:#a9b5a3;text-align:right}
+  .dash-none{margin:0;padding:10px 2px;font-size:.84rem;color:#8f9b8a}
+.ut-q{width:100%;min-height:44px;padding:10px 14px;border:1px solid rgba(255,255,255,.16);border-radius:12px;background:#0e130e;color:#fff;font:600 16px Arial;box-sizing:border-box}.ut-q:focus{outline:none;border-color:#d0f44c}[data-ut-list]{display:grid;gap:12px}.ut-more{width:auto!important;justify-self:center;min-height:42px;padding:9px 18px;border:1px solid rgba(208,244,76,.4);border-radius:12px;background:rgba(208,244,76,.1);color:#e7ff9a;font:800 .78rem Arial;box-shadow:none;cursor:pointer}.dash-more{margin:0;font-size:.76rem;color:#a9b5a3;text-align:right}
   .dash-load{display:grid;gap:10px;padding:18px;border:1px solid rgba(255,255,255,.12);border-radius:16px;background:#111611}
   .dash-load .dash-panel-head{align-items:baseline;flex-wrap:wrap}.dash-load h4{margin:0;font-size:.9rem;color:#e3eadc;text-transform:uppercase;letter-spacing:.05em}.dash-load .dash-panel-head small{color:#8f9b8a;font-size:.76rem}
   .dash-load-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px;align-items:start}
