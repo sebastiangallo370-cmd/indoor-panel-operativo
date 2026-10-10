@@ -52,7 +52,8 @@ def _consumos(ref: str) -> dict | None:
 _INSUMO = ('nombre', 'tipo', 'color', 'medida', 'cant', 'observacion')
 # sección -> 'texto' (un solo texto), 'lista' (líneas) o las columnas de su tabla. Con esto se puede corregir TODA la ficha y agregarle especificaciones.
 SECCIONES = {
-    'prenda': 'texto', 'nota': 'texto', 'nota_promedio': 'texto', 'composicion': 'texto',
+    'prenda': 'texto', 'referencia': 'texto', 'familia': 'texto', 'nota': 'texto', 'nota_promedio': 'texto', 'composicion': 'texto',
+    'piezas': ('a', 'nombre', 'material', 'oculta'),   # correcciones por pieza del molde: nombre, material (M1, M2…) y si se oculta; `a` es su imagen
     'descripcion': 'lista', 'terminacion': 'lista',
     'confeccion': ('etiqueta', 'valor'), 'especificaciones': ('etiqueta', 'valor'), 'telas': ('material', 'tela'),
     'promedios': ('nombre', 'masc', 'feme', 'nino'), 'insumos': _INSUMO, 'empaque_insumos': _INSUMO,
@@ -107,6 +108,8 @@ def guardar_texto(usuario: str, ident: str, seccion: str, lineas) -> dict:
             else:
                 valor = [{c: _limpio(x.get(c), 300 if c in ('etiqueta', 'material', 'titulo') else 600) for c in tipo} for x in lineas if isinstance(x, dict)]
                 valor = [x for x in valor if any(x.values())]
+                if seccion == 'piezas':   # solo imágenes del fit, y solo las que traen alguna corrección
+                    valor = [x for x in valor if re.fullmatch(r'[a-z0-9-]+_fit\d+\.png', x['a']) and (x['nombre'] or x['material'] or x['oculta'])]
             ahora = datetime.now(timezone(timedelta(hours=-5))).strftime('%Y-%m-%d %H:%M')
             de_ficha[seccion] = {'lineas': valor, 'por': str(usuario)[:60], 'fecha': ahora}
         if not de_ficha:
@@ -154,6 +157,8 @@ def _resumir(f: dict) -> dict:
         tipo = SECCIONES[seccion]
         if tipo == 'texto':
             res[seccion] = ' '.join(str(x) for x in lineas)
+        elif seccion == 'piezas':   # no pisa `piezas` (los rótulos del Excel): va aparte
+            res['piezas_man'] = lineas
         elif seccion == 'promedios':
             res[seccion] = [{'nombre': x.get('nombre', ''), 'valores': {k: x[k] for k in ('masc', 'feme', 'nino') if x.get(k)}} for x in lineas]
         elif seccion == 'tallajes':
@@ -167,6 +172,7 @@ def _resumir(f: dict) -> dict:
             res[seccion] = lineas
         editado[seccion] = {'por': e.get('por', ''), 'fecha': e.get('fecha', '')}
     res.setdefault('especificaciones', [])
+    res.setdefault('piezas_man', [])
     res['editado'] = editado
     return res
 

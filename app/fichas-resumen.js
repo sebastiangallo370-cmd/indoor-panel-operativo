@@ -177,6 +177,15 @@
   .fitd-rel{margin:9px 0 0}.fitd-rel b{display:block;margin:0 0 3px;color:#8e9a87;font:800 9px Arial;letter-spacing:.14em}
   .fitd-rel p{margin:0 0 3px;padding-left:10px;border-left:2px solid rgba(215,255,58,.5);color:#cfd8c7;font:500 11px/1.45 Arial}
   .fitd-ley{display:inline-flex;align-items:center;gap:6px;color:#cfd8c7}.fitd-ley:before{content:'';width:11px;height:11px;border-radius:3px;background:var(--c)}
+  .fitd .pz[data-fit-oculta] .mov{opacity:.22!important}
+  .fitd-pzed{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) auto;gap:8px;align-items:end;margin:10px 0 0;padding-top:10px;border-top:1px dashed rgba(208,244,76,.35)}
+  .fitd-pzed label{display:grid;gap:3px;color:#8e9a87;font:800 9px Arial;letter-spacing:.12em}
+  .fitd-pzed input[type=text],.fitd-pzed select{min-height:34px;padding:0 9px;border:1px solid #3d4c3b;border-radius:9px;background:#142017;color:#f5faef;font:600 12.5px Arial;color-scheme:dark}
+  .fitd-pzed .op{display:flex;align-items:center;gap:6px;min-height:34px;color:#cfd8c7;font:600 11.5px Arial;letter-spacing:0}
+  .fitd-pzed .acc{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .fitd-pzed .acc button{width:auto!important;min-height:0!important;padding:6px 13px!important;border:1px solid rgba(255,255,255,.18)!important;border-radius:999px!important;background:transparent!important;color:#c9d3c1!important;font:700 11px Arial!important;cursor:pointer}
+  .fitd-pzed .acc button.pri{background:#d0f44c!important;border-color:#d0f44c!important;color:#142017!important}
+  @media(max-width:700px){.fitd-pzed{grid-template-columns:1fr}}
   .fitd-nota{margin:6px 2px 0;color:#ffb86b;font:600 11px/1.45 Arial;letter-spacing:.02em}
   @media(prefers-reduced-motion:reduce){.fitd .pz{transition:none}.fitd .pz .mov,.fitd .pz .chip{animation:none;opacity:1}.fitd .pz .destello{display:none}}
   @media(max-width:700px){.fitd svg{max-height:none}}.fit-h{font:700 13px Arial}.fit-c{font:700 15px Arial;fill:#000}
@@ -482,6 +491,16 @@
         });
       });
     }
+    const man = Object.fromEntries((f.piezas_man || []).map(x => [x.a, x]));
+    titulos.forEach(T => {
+      T.imgs = T.imgs.filter(i => { i.man = man[i.a] || null; i.oculta = !!(i.man && i.man.oculta); return !i.oculta || E.editar; });
+      T.imgs.forEach(i => {
+        if (!i.man || !i.man.nombre) return;
+        if (i.lab) i.lab = { ...i.lab, t: i.man.nombre };
+        else { i.lab = { t: i.man.nombre, cx: i.x + i.w / 2, x: i.x, y: i.y + i.h + 6, w: i.w, h: 14 }; T.labs.push(i.lab); }
+        i.her = ''; i.herDe = '';
+      });
+    });
     return titulos.filter(T => T.imgs.length);
   }
   const RAIZ_PIEZA = t => { const w = plano(t).toUpperCase().split(/[^A-Z0-9]+/).filter(x => x.length >= 4 && !/^(DERECH|IZQUIERD|CENTRO|PIEZAS?$|DOBLE|LADO)/.test(x)); return w.map(x => x.replace(/(ES|S)$/, '').slice(0, 6)); };
@@ -498,7 +517,7 @@
     const exactas = lista.map(x => ({ ...x, ps: x.ps.filter(p => plano(p.n) === plano(nombre)) })).filter(x => x.ps.length);
     return exactas.length ? exactas : lista;
   }
-  function infoPieza(f, nombre, molde, heredado, mat) {
+  function infoPieza(f, nombre, molde, heredado, mat, a, oculta) {
     const raices = RAIZ_PIEZA(nombre), mats = materiales(f), casa = n => { const r = RAIZ_PIEZA(n); return raices.length && r.some(a => raices.some(b => a.startsWith(b) || b.startsWith(a))); };
     // materiales donde va esta pieza (si no tiene rótulo, o la ficha es de un solo material, se dice el material de la prenda)
     let en = materialesDePieza(mats, nombre);
@@ -519,7 +538,11 @@
       dato('REFERENCIA', esc(f.ref) + (f.prenda ? ' · ' + esc(f.prenda) : '')) + '</dl>' +
       rel('EN LA DESCRIPCIÓN', desc) + rel('EN CONFECCIÓN', conf) + rel('INSUMO RELACIONADO', ins) +
       (general && nombre ? '<div class="fitd-rel"><p style="border-color:rgba(255,184,107,.6)">La descripción de la ficha no nombra esta pieza por material; se muestra el material de la prenda.</p></div>' : '') +
-      (heredado ? '<div class="fitd-rel"><p style="border-color:rgba(160,220,255,.6)">Este molde no trae rótulos en la ficha: el nombre se tomó de la pieza equivalente del molde ' + esc(heredado) + '.</p></div>' : '');
+      (heredado ? '<div class="fitd-rel"><p style="border-color:rgba(160,220,255,.6)">Este molde no trae rótulos en la ficha: el nombre se tomó de la pieza equivalente del molde ' + esc(heredado) + '.</p></div>' : '') +
+      (E.editar && a ? (() => { const m = (f.piezas_man || []).find(x => x.a === a) || {}; return '<div class="fitd-pzed" data-fit-pzed="' + esc(a) + '"><label>NOMBRE DE ESTA PIEZA<input type="text" maxlength="60" data-pz-nombre value="' + esc(m.nombre || nombre || '') + '" placeholder="Ej. MANGA DERECHA"></label>' +
+        '<label>MATERIAL<select data-pz-mat><option value="">Automático (' + esc(mat || 'M1') + ')</option>' + ['M1', 'M2', 'M3', 'M4'].map(x => '<option value="' + x + '"' + (m.material === x ? ' selected' : '') + '>' + x + '</option>').join('') + '</select></label>' +
+        '<label class="op"><input type="checkbox" data-pz-oculta' + (oculta || m.oculta ? ' checked' : '') + '> Ocultar esta pieza</label>' +
+        '<div class="acc"><button type="button" class="pri" data-fit-pz-guardar>Guardar pieza</button>' + (m.a ? '<button type="button" data-fit-pz-quitar>Quitar corrección</button>' : '') + '<span class="fi-ed-msg" data-fit-pz-msg></span></div></div>'; })() : '');
   }
   function fitDinamico(f) {
     const moldes = moldesDe(f);
@@ -540,6 +563,8 @@
     const mats = materiales(f), COL_OTRA = ['', '#b6f23a', '#fb923c', '#f472b6'];
     const nombreDe = i => String(i.lab ? i.lab.t : (i.her || '')).replace(/\s+/g, ' ').trim();
     const matDe = i => {   // índice del material de la pieza (0 = M1)
+      const fijo = i.man && /^M[1-4]$/.test(i.man.material || '') ? Number(i.man.material[1]) - 1 : -1;
+      if (fijo >= 0) return fijo;   // material puesto a mano
       if (mats.length < 2) return 0;
       if (/FORRO/.test(M.nombre)) return 1;   // el molde del forro va completo en la otra tela
       const en = materialesDePieza(mats, nombreDe(i)).map(x => x.k);
@@ -557,7 +582,7 @@
       // de dónde llega cada pieza y cómo flota: distinto para cada una (pero siempre igual para la misma), así el armado no se ve mecánico
       const vuelo = '--d:' + (0.05 + n * 0.07).toFixed(2) + 's;--x:' + ((n * 53) % 320 - 160) + 'px;--y:' + (70 + (n * 37) % 120) * (n % 3 === 0 ? -1 : 1) + 'px;--r:' + ((n * 29) % 40 - 20) + 'deg;--t:' + (4.2 + (n * 7 % 5) * 0.45).toFixed(2) + 's;--g:' + (n % 2 ? '.5deg' : '-.5deg');
       const caja = 'x="' + i.x + '" y="' + i.y + '" width="' + i.w + '" height="' + i.h + '"';
-      piezas += '<g class="pz" style="' + vuelo + '" data-fit-pz="' + n + '" data-fit-nombre="' + esc(nombreDe(i)) + '" data-fit-en="' + esc(M.nombre) + '" data-fit-her="' + esc(i.lab ? '' : (i.herDe || '')) + '" data-fit-mat="' + (mats[matDe(i)] ? mats[matDe(i)].id : '') + '"' + (i.lab ? ' aria-label="' + esc(i.lab.t) + '"' : '') + '><g class="mov">' + (COL_OTRA[matDe(i)] ? '<rect class="base" ' + caja + ' fill="' + COL_OTRA[matDe(i)] + '" mask="url(#' + mid + ')"/>' : '<image class="base" href="' + url + '" ' + caja + ' preserveAspectRatio="none"/>') +
+      piezas += '<g class="pz" style="' + vuelo + '" data-fit-pz="' + n + '" data-fit-nombre="' + esc(nombreDe(i)) + '" data-fit-en="' + esc(M.nombre) + '" data-fit-her="' + esc(i.lab ? '' : (i.herDe || '')) + '" data-fit-mat="M' + (matDe(i) + 1) + '" data-fit-a="' + esc(i.a) + '"' + (i.oculta ? ' data-fit-oculta="1"' : '') + (i.lab ? ' aria-label="' + esc(i.lab.t) + '"' : '') + '><g class="mov">' + (COL_OTRA[matDe(i)] ? '<rect class="base" ' + caja + ' fill="' + COL_OTRA[matDe(i)] + '" mask="url(#' + mid + ')"/>' : '<image class="base" href="' + url + '" ' + caja + ' preserveAspectRatio="none"/>') +
         '<rect class="brillo" ' + caja + ' fill="url(#' + uid + 'g)" mask="url(#' + mid + ')"/><rect class="destello" ' + caja + ' fill="url(#' + uid + 'd)" mask="url(#' + mid + ')"/></g>' +
         (i.lab ? chip(i.lab, i.chipCx, i.chipY) : '') + '</g>';
     });
@@ -614,7 +639,7 @@
   const COLS_INSUMO = [['nombre', 'Nombre', 2], ['tipo', 'Tipo', 2], ['color', 'Color', 1], ['medida', 'Medida', 1], ['cant', 'Cant.', 1], ['observacion', 'Observación', 3]];
   const AYUDA_TALLAS = 'Una fila por tabla. Escribe las tallas y sus valores separados por espacios y en el mismo orden (usa un guion «-» donde no haya valor).';
   const ED = {
-    prenda: { t: 'Nombre de la prenda', tipo: 'texto' }, nota: { t: 'Nota', tipo: 'texto' }, nota_promedio: { t: 'Nota del promedio', tipo: 'texto' }, composicion: { t: 'Composición de la tela', tipo: 'texto' },
+    prenda: { t: 'Nombre de la prenda', tipo: 'texto' }, referencia: { t: 'Referencia', tipo: 'texto' }, familia: { t: 'Línea', tipo: 'texto' }, nota: { t: 'Nota', tipo: 'texto' }, nota_promedio: { t: 'Nota del promedio', tipo: 'texto' }, composicion: { t: 'Composición de la tela', tipo: 'texto' },
     descripcion: { t: 'Descripción', tipo: 'lista', ayuda: 'Aquí están todas las líneas de la descripción, también las de materiales («M1: FRENTE X1, …»): de esas líneas salen las piezas y los colores del molde.' },
     terminacion: { t: 'Terminación y revisión', tipo: 'lista' },
     confeccion: { t: 'Confección', cols: [['etiqueta', 'Rótulo (MÁQUINA, AGUJA…)', 1], ['valor', 'Texto', 3]] },
@@ -692,6 +717,8 @@
     const espec = (f.especificaciones || []).map(x => kv(x.etiqueta, x.valor));
     t.push({ id: 'GENERAL', n: gen.length + dGen.length + espec.length, u: ['dato', 'datos'], html: lista(gen) +
       (E.editar || S.edit === 'prenda' ? bloque('prenda', 'Nombre de la prenda', f.prenda ? nota(f.prenda) : '', 'Sin nombre.') : '') +
+      (E.editar || S.edit === 'referencia' ? bloque('referencia', 'Referencia', nota(f.referencia || f.ref), '') : '') +
+      (E.editar || S.edit === 'familia' ? bloque('familia', 'Línea', f.familia ? nota(f.familia) : '', 'Sin línea.') : '') +
       bloque('descripcion', 'Descripción de la prenda', lista(dGen), 'Sin descripción.') +
       bloque('especificaciones', 'Especificaciones adicionales', lista(espec), 'Todavía no hay especificaciones adicionales. Con «Editar» puedes agregar las que hagan falta.') +
       bloque('nota', 'Nota', f.nota ? nota(f.nota) : '', 'Sin nota.') });
@@ -888,11 +915,22 @@
       const tab = e.target.closest('[data-fi-tab]'), hoja = e.target.closest('[data-fi-hoja]'), talla = e.target.closest('[data-fi-talla]'), abrir_ = e.target.closest('[data-fi-abrir]');
       const molde = e.target.closest('[data-fit-molde]'), pieza = e.target.closest('[data-fit-pz]');
       if (molde) { S.molde = molde.dataset.fitMolde; dibujar(); return; }
+      const pzG = e.target.closest('[data-fit-pz-guardar]'), pzQ = e.target.closest('[data-fit-pz-quitar]');
+      if (pzG || pzQ) {   // corregir una pieza del molde: se guarda la lista de correcciones de la ficha con esta pieza cambiada
+        const cajaPz = (pzG || pzQ).closest('[data-fit-pzed]'), a = cajaPz.dataset.fitPzed, f = S.fichas[S.i], msg = cajaPz.querySelector('[data-fit-pz-msg]');
+        const resto = (f.piezas_man || []).filter(x => x.a !== a);
+        const nueva = pzQ ? [] : [{ a, nombre: cajaPz.querySelector('[data-pz-nombre]').value.trim().toUpperCase(), material: cajaPz.querySelector('[data-pz-mat]').value, oculta: cajaPz.querySelector('[data-pz-oculta]').checked ? '1' : '' }];
+        cajaPz.querySelectorAll('button').forEach(b => { b.disabled = true; });
+        fetch('/api/fichas/texto', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: f.id, seccion: 'piezas', lineas: resto.concat(nueva) }) })
+          .then(r => r.json().then(j => { if (!r.ok) throw new Error(j.detail || 'No pude guardar la pieza'); S.fichas[S.i] = j.ficha; dibujar(); }))
+          .catch(er => { if (msg) msg.textContent = er.message; cajaPz.querySelectorAll('button').forEach(b => { b.disabled = false; }); });
+        return;
+      }
       if (pieza) {
         const era = pieza.classList.contains('sel'), caja = pieza.closest('.fitd').querySelector('[data-fit-info]');
         pieza.closest('svg').querySelectorAll('.pz.sel').forEach(x => x.classList.remove('sel'));
         if (!era) pieza.classList.add('sel');
-        if (caja) { caja.hidden = era; if (!era) { caja.innerHTML = infoPieza(S.fichas[S.i], pieza.dataset.fitNombre || '', pieza.dataset.fitEn || '', pieza.dataset.fitHer || '', pieza.dataset.fitMat || ''); caja.style.animation = 'none'; void caja.offsetWidth; caja.style.animation = ''; } }
+        if (caja) { caja.hidden = era; if (!era) { caja.innerHTML = infoPieza(S.fichas[S.i], pieza.dataset.fitNombre || '', pieza.dataset.fitEn || '', pieza.dataset.fitHer || '', pieza.dataset.fitMat || '', pieza.dataset.fitA || '', !!pieza.dataset.fitOculta); caja.style.animation = 'none'; void caja.offsetWidth; caja.style.animation = ''; } }
         return;
       }
       if ((tab || hoja) && S.edit) { if (!confirm('Estás editando un texto. ¿Salir sin guardar?')) return; S.edit = null; S.borrador = null; }
