@@ -317,7 +317,7 @@
         const k = key(v[iOrden]), l = web.get(k) || []; l.push({ ini: t[0], fin: t[1], und }); web.set(k, l);
       });
       let minutos = 0, unidades = 0, descartados = 0; const porUnd = [], duraciones = [], reg = [];
-      const medir = (d, und, orden, ini, fin) => { if (d <= 0 || d > 720) { descartados++; return; } minutos += d; unidades += und; porUnd.push(d / und); duraciones.push(d); if (fin != null) reg.push({ fin, d, und });
+      const medir = (d, und, orden, ini, fin) => { if (d <= 0 || d > 720) { descartados++; return; } minutos += d; unidades += und; porUnd.push(d / und); duraciones.push(d); if (fin != null) reg.push({ fin, d, und, o: ordenes.get(orden) });
         const o = ordenes.get(orden); if (!o) return; let ar = o.areas.find(x => x.label === p.label); if (!ar) { ar = { label: p.label, min: 0, und: 0 }; o.areas.push(ar); } ar.min += d; ar.und += und;
         if (fin != null) { o.ini = o.ini == null ? ini : Math.min(o.ini, ini); o.fin = o.fin == null ? fin : Math.max(o.fin, fin); } };
       lotes.forEach(l => { let d = l.fin - l.ini; if (d < 0) d += 1440; const fin = l.dia ? l.dia + l.fin : null; medir(d, l.und, l.orden, fin === null ? null : fin - d, fin); });
@@ -332,7 +332,7 @@
     return out;
   }
   const fmtDur = m => m === null ? '—' : m >= 60 ? Math.floor(m / 60) + ' h ' + Math.round(m % 60) + ' min' : m >= 1 ? fmtNum(m, 1) + ' min' : Math.round(m * 60) + ' s';
-  let unitMetric = 'unidad', unitArea = '';
+  let unitMetric = 'unidad', unitArea = '', unitDay = null;
   // Escalera de la ÚLTIMA SEMANA de un área: un escalón por día con (final − inicio) ÷ cantidad de lo que se terminó ese día
   function unitWeek(x, porLote) {
     const hoy = Math.floor((Date.now() / 60000 - 300) / 1440), dias = [];
@@ -343,16 +343,26 @@
     const min = con.reduce((t, d) => t + d.min, 0), und = con.reduce((t, d) => t + d.und, 0), lotes = con.reduce((t, d) => t + d.lotes, 0), prom = !con.length ? null : porLote ? min / lotes : min / und;
     const cols = dias.map((d, i) => { const hay = d.v !== null, v = d.v, pct = hay ? Math.round(v / mayor * 100) : 0, rise = hay ? Math.max(18, Math.round(v / mayor * 150)) : 0, top = hay && d === lento && con.length > 1;
       const numero = !hay ? '—' : v >= 60 ? fmtNum(v / 60, 1) : v >= 1 ? fmtNum(v, 1) : String(Math.round(v * 60)), unidad = !hay ? 'sin datos' : (v >= 60 ? 'h' : v >= 1 ? 'min' : 'seg') + (porLote ? ' por lote' : ' / und.');
-      return '<div class="st-col' + (top ? ' top' : '') + (hay ? '' : ' empty') + '" role="listitem" style="--i:' + i + ';--rise:' + rise + 'px;--lv:' + Math.min(94, Math.max(pct, hay ? 8 : 0)) + '%" title="' + esc(d.nombre) + (hay ? ' · ' + fmtDur(d.min) + ' ÷ ' + fmtNum(d.und) + ' und. · ' + d.lotes + ' lotes' : ' · sin inicio y final ese día') + '">' +
+      return '<button type="button" class="st-col' + (top ? ' top' : '') + (hay ? '' : ' empty') + (unitDay === d.n ? ' sel' : '') + '"' + (hay ? ' data-unit-day="' + d.n + '"' : '') + ' style="--i:' + i + ';--rise:' + rise + 'px;--lv:' + Math.min(94, Math.max(pct, hay ? 8 : 0)) + '%" title="' + esc(d.nombre) + (hay ? ' · ' + fmtDur(d.min) + ' ÷ ' + fmtNum(d.und) + ' und. · ' + d.lotes + ' lotes' : ' · sin inicio y final ese día') + '">' +
         (top ? '<em class="ar-ribbon">Más lento</em>' : '') + '<span class="st-slot"><span class="st-bar">' + (hay ? '<i class="sg ' + (top ? 'cola' : 'prog') + '" style="flex:1"></i>' : '') + '</span></span>' +
-        '<b class="st-name">' + esc(d.nombre) + '</b><span class="st-val">' + numero + '</span><small class="st-sub">' + unidad + (hay ? ' · ' + fmtNum(d.und) + ' und.' : '') + '</small><em class="st-pct">' + pct + '%</em></div>'; }).join('');
+        '<b class="st-name">' + esc(d.nombre) + '</b><span class="st-val">' + numero + '</span><small class="st-sub">' + unidad + (hay ? ' · ' + fmtNum(d.und) + ' und.' : '') + '</small><em class="st-pct">' + pct + '%</em></button>'; }).join('');
+    // las órdenes de la semana (o del día tocado) en esta área y cuánto se demoró cada una
+    const hora = m => new Date(m * 60000).toLocaleTimeString('es-CO', { timeZone: 'America/Bogota', hour: '2-digit', minute: '2-digit' });
+    const elDia = unitDay === null ? null : dias.find(d => d.n === unitDay && d.lotes), nDia = t => Math.floor((t.fin - 300) / 1440);
+    const regs = (x.reg || []).filter(t => elDia ? nDia(t) === elDia.n : nDia(t) > hoy - 7 && nDia(t) <= hoy).sort((a, b) => b.fin - a.fin);
+    const lista = '<div class="ut-ords"><div class="dash-panel-head"><h4>Órdenes de ' + esc(x.label) + ' · ' + (elDia ? esc(elDia.nombre) : 'última semana') + '</h4><small>' + plural(regs.length, 'orden', 'órdenes') + ' · de la más reciente a la más antigua' +
+      (elDia ? ' · <button type="button" class="ut-link" data-unit-day="' + elDia.n + '">ver toda la semana</button>' : '') + '</small></div>' +
+      (regs.length ? '<ul class="dash-orders">' + regs.map(t => { const pu = t.d / t.und, d = dias.find(y => y.n === nDia(t));
+        return '<li><div><strong>' + esc(t.o ? t.o.id : 'Sin orden') + '</strong><span>' + esc(t.o && t.o.cliente ? t.o.cliente : 'Sin cliente') + '</span></div><div class="dash-order-meta"><b>' + fmtDur(t.d) + ' · ' + fmtDur(pu) + ' / und.</b><small>' +
+          esc(d ? d.nombre.replace(' · HOY', '') : '') + ' · ' + hora(t.fin - t.d) + ' → ' + hora(t.fin) + ' · ' + fmtNum(t.und) + ' und.</small></div></li>'; }).join('') + '</ul>'
+        : '<p class="dash-none">No hay órdenes con inicio y final en esta área esta semana.</p>') + '</div>';
     return '<section class="dash-stairs de-unidad' + (stairsPlayed ? ' go' : '') + '" data-compact="0">' +
-      '<header class="st-head"><div><span class="ar-kicker">ÚLTIMA SEMANA · ' + esc(x.label) + '</span><h3>Escalera de ' + esc(x.label) + ' por día</h3><p>Cada escalón es un día: dato de cuando termina menos dato de cuando empieza, dividido entre la cantidad, de lo que se terminó ese día en esta área. El porcentaje compara cada día con el más lento.</p></div>' +
+      '<header class="st-head"><div><span class="ar-kicker">ÚLTIMA SEMANA · ' + esc(x.label) + '</span><h3>Escalera de ' + esc(x.label) + ' por día</h3><p>Cada escalón es un día: dato de cuando termina menos dato de cuando empieza, dividido entre la cantidad, de lo que se terminó ese día en esta área. El porcentaje compara cada día con el más lento. Abajo salen las órdenes y cuánto se demoró cada una; toca un día para ver solo las de ese día.</p></div>' +
       '<div class="st-metric" role="group" aria-label="Medir por"><button type="button" data-ut-metric="unidad" class="' + (porLote ? '' : 'on') + '">Por unidad</button><button type="button" data-ut-metric="lote" class="' + (porLote ? 'on' : '') + '">Por lote</button></div></header>' +
       '<div class="st-sum"><button type="button" class="ut-more" data-unit-back>← Todas las áreas</button><span class="st-pill proc"><i></i>' + (porLote ? 'Lote promedio' : 'Promedio de la semana') + ' <b>' + (prom === null ? '—' : fmtDur(prom) + (porLote ? '' : ' / und.')) + '</b></span>' +
       '<span class="st-pill prog"><i></i>Unidades <b>' + fmtNum(und) + '</b></span><span class="st-pill cola"><i></i>Lotes <b>' + fmtNum(lotes) + '</b></span>' +
       (lento ? '<span class="st-neck">Día más lento: <b>' + esc(lento.nombre) + '</b> · ' + fmtDur(lento.v) + (porLote ? ' por lote' : ' por unidad') + '</span>' : '<span class="st-neck">Esta semana no hay inicio y final registrados en esta área.</span>') + '</div>' +
-      '<div class="st-scroll"><div class="st-chart" role="list">' + cols + '</div></div><div class="st-flow" aria-hidden="true"><span>Hace 7 días</span><i></i><span>Hoy</span></div></section>';
+      '<div class="st-scroll"><div class="st-chart" role="list">' + cols + '</div></div><div class="st-flow" aria-hidden="true"><span>Hace 7 días</span><i></i><span>Hoy</span></div>' + lista + '</section>';
   }
   try { if (localStorage.getItem('indoor-unit-metric') === 'lote') unitMetric = 'lote'; } catch (e) { /* sin almacenamiento */ }
   function unitStairs(a) {
@@ -375,11 +385,12 @@
       '<div class="st-scroll"><div class="st-chart" role="list">' + cols + '</div></div><div class="st-flow" aria-hidden="true"><span>Entrada</span><i></i><span>Salida</span></div></section>';
   }
   root.addEventListener('click', event => {
-    const abrir = event.target.closest('[data-unit-open]'), volver = event.target.closest('[data-unit-back]'); if ((!abrir && !volver) || !model) return;
-    unitArea = abrir ? abrir.dataset.unitOpen : '';
+    const abrir = event.target.closest('[data-unit-open]'), volver = event.target.closest('[data-unit-back]'), dia = event.target.closest('[data-unit-day]'); if ((!abrir && !volver && !dia) || !model) return;
+    if (dia) { const n = Number(dia.dataset.unitDay); unitDay = unitDay === n ? null : n; } else { unitArea = abrir ? abrir.dataset.unitOpen : ''; unitDay = null; }
     const viejo = root.querySelector('.dash-stairs.de-unidad'), caja = document.createElement('div'); if (!viejo) return;
-    caja.innerHTML = unitStairs(model); const nuevo = caja.firstElementChild; viejo.replaceWith(nuevo); nuevo.scrollIntoView({ block: 'nearest' });
-    const sc = nuevo.querySelector('.st-scroll'); if (sc && unitArea) sc.scrollLeft = sc.scrollWidth;   // en celular queda a la vista el día de hoy
+    const antes = viejo.querySelector('.st-scroll'), x0 = antes ? antes.scrollLeft : 0;
+    caja.innerHTML = unitStairs(model); const nuevo = caja.firstElementChild; viejo.replaceWith(nuevo); if (!dia) nuevo.scrollIntoView({ block: 'nearest' });
+    const sc = nuevo.querySelector('.st-scroll'); if (sc && unitArea) sc.scrollLeft = dia ? x0 : sc.scrollWidth;   // al abrir, en celular queda a la vista el día de hoy
     requestAnimationFrame(() => requestAnimationFrame(() => nuevo.classList.add('go')));
   });
   root.addEventListener('click', event => {
@@ -918,6 +929,7 @@
   .dash-orders span{font-size:.76rem;color:#a9b5a3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .dash-order-meta{display:grid;justify-items:end;flex-shrink:0}.dash-order-meta b{font-size:.86rem;color:#fff}.dash-order-meta small{font-size:.7rem;color:var(--c)}
   .dash-none{margin:0;padding:10px 2px;font-size:.84rem;color:#8f9b8a}
+.st-col.sel{border-color:#d0f44c!important;box-shadow:0 0 0 2px #d0f44c}.ut-ords{display:grid;gap:10px;margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,.1)}.ut-ords .dash-orders{max-height:420px;overflow-y:auto}.ut-link{width:auto!important;min-height:0!important;padding:0;border:0;background:none;box-shadow:none;color:#d0f44c;font:inherit;font-weight:800;text-decoration:underline;cursor:pointer}
 .ut-q{width:100%;min-height:44px;padding:10px 14px;border:1px solid rgba(255,255,255,.16);border-radius:12px;background:#0e130e;color:#fff;font:600 16px Arial;box-sizing:border-box}.ut-q:focus{outline:none;border-color:#d0f44c}[data-ut-list]{display:grid;gap:12px}.ut-more{width:auto!important;justify-self:center;min-height:42px;padding:9px 18px;border:1px solid rgba(208,244,76,.4);border-radius:12px;background:rgba(208,244,76,.1);color:#e7ff9a;font:800 .78rem Arial;box-shadow:none;cursor:pointer}.dash-more{margin:0;font-size:.76rem;color:#a9b5a3;text-align:right}
   .dash-load{display:grid;gap:10px;padding:18px;border:1px solid rgba(255,255,255,.12);border-radius:16px;background:#111611}
   .dash-load .dash-panel-head{align-items:baseline;flex-wrap:wrap}.dash-load h4{margin:0;font-size:.9rem;color:#e3eadc;text-transform:uppercase;letter-spacing:.05em}.dash-load .dash-panel-head small{color:#8f9b8a;font-size:.76rem}
