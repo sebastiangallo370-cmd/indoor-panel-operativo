@@ -168,7 +168,34 @@
   .ag .ag-nodo.sel .cj{border-color:var(--c);box-shadow:0 0 0 3px color-mix(in srgb,var(--c) 28%,transparent),0 10px 22px -12px rgba(0,0,0,.9)}
   .ag .ag-nodo .paso{position:absolute;left:-7px;top:-7px;z-index:1;display:grid;place-items:center;width:20px;height:20px;border-radius:50%;border:1px solid #2f3d30;background:#0b100c;color:#8f9b8a;font:800 10px Arial;font-style:normal}
   .ag .ag-nodo.ok .paso,.ag .ag-nodo.corriendo .paso{border-color:var(--c);color:var(--c)}
-  .ag .ag-nodo .puerto{width:7px;height:7px;background:#3a4a3a;border-color:#0b100c}
+  .ag .ag-nodo .puerto{width:9px;height:9px;top:calc(var(--tam,68px)/2 - 4.5px);background:#0b100c;border:2px solid #3a4a3a;transition:border-color .3s,background .3s,box-shadow .3s}.ag .ag-nodo .puerto.in{left:-5.5px}.ag .ag-nodo .puerto.out{right:-5.5px}
+  .ag .ag-nodo.ok .puerto,.ag .ag-nodo.corriendo .puerto.in{border-color:var(--c);background:var(--c)}.ag .ag-nodo.corriendo .puerto.in{box-shadow:0 0 0 4px color-mix(in srgb,var(--c) 25%,transparent)}
+  /* estados del nodo con el color de cada agente */
+  .ag .ag-nodo .cj{transition:border-color .3s,box-shadow .3s,transform .25s,background .3s,color .3s}
+  .ag .ag-nodo.inactivo .cj{background:linear-gradient(160deg,#141b15,#0d120e);border-style:dashed;border-color:#2a372b}.ag .ag-nodo.inactivo .cj::before{opacity:.35}
+  .ag .ag-nodo.ok .cj{border-color:color-mix(in srgb,var(--c) 75%,#0b100c);background:linear-gradient(160deg,color-mix(in srgb,var(--c) 20%,#121812),color-mix(in srgb,var(--c) 7%,#0d120e));box-shadow:0 12px 26px -14px color-mix(in srgb,var(--c) 70%,transparent),inset 0 1px 0 rgba(255,255,255,.08)}
+  .ag .ag-nodo.corriendo .cj{border-color:var(--c);background:linear-gradient(160deg,color-mix(in srgb,var(--c) 26%,#121812),color-mix(in srgb,var(--c) 9%,#0d120e));box-shadow:0 0 0 5px color-mix(in srgb,var(--c) 18%,transparent),0 0 34px -4px color-mix(in srgb,var(--c) 65%,transparent);animation:agNodoVivo 1.6s ease-in-out infinite}
+  .ag .ag-nodo.corriendo .cj svg{animation:agIcoVivo 1.6s ease-in-out infinite}
+  .ag .ag-nodo .anillo{inset:-7px;border-radius:24px;border-width:2px;border-top-color:var(--c);border-right-color:color-mix(in srgb,var(--c) 35%,transparent)}
+  .ag .ag-nodo.espera .cj{border-color:#ffc95c;background:linear-gradient(160deg,rgba(255,201,92,.2),rgba(255,201,92,.05));color:#ffc95c}
+  .ag .ag-nodo.error .cj{border-color:#ff6b5c;background:linear-gradient(160deg,rgba(255,107,92,.2),rgba(255,107,92,.05));color:#ff8a7d;box-shadow:0 12px 26px -14px rgba(255,107,92,.8)}
+  .ag .ag-nodo .ins{right:-7px;top:-7px;bottom:auto;width:20px;height:20px;border:2px solid #0b100c;font:900 11px Arial;box-shadow:0 4px 10px -3px rgba(0,0,0,.8);animation:agInsEntra .3s cubic-bezier(.2,.9,.3,1.4)}
+  .ag .ag-nodo.ok .ins{background:var(--c)}
+  .ag .ag-nodo.ok .paso,.ag .ag-nodo.corriendo .paso{background:color-mix(in srgb,var(--c) 18%,#0b100c)}
+  .ag .ag-nodo .et em:not(:empty){display:inline-block;min-height:0;margin-top:4px;padding:2px 8px;border-radius:999px;background:rgba(255,255,255,.06);color:#cfd9c7;font:800 10px Arial;letter-spacing:.02em}
+  .ag .ag-nodo.ok .et em:not(:empty){background:color-mix(in srgb,var(--c) 16%,transparent);color:var(--c)}.ag .ag-nodo.corriendo .et em{background:color-mix(in srgb,var(--c) 20%,transparent)!important;color:var(--c)!important}
+  .ag .ag-nodo.espera .et em{background:rgba(255,201,92,.16)!important;color:#ffc95c!important}.ag .ag-nodo.error .et em:not(:empty){background:rgba(255,107,92,.16);color:#ff8a7d}
+  .ag .ag-nodo.inactivo .et b{color:#aab5a2}.ag .ag-nodo.corriendo .et b{color:var(--c)}
+  @keyframes agNodoVivo{50%{box-shadow:0 0 0 9px color-mix(in srgb,var(--c) 8%,transparent),0 0 44px 0 color-mix(in srgb,var(--c) 75%,transparent)}}
+  @keyframes agIcoVivo{50%{transform:scale(1.1)}}@keyframes agInsEntra{from{transform:scale(0)}}
+  /* conectadores */
+  .ag .ag-cable{stroke:#2c3a2d;stroke-width:2;stroke-dasharray:1 7;stroke-linecap:round;animation:none}
+  .ag .ag-cable.halo{stroke-width:10;stroke-dasharray:none;opacity:.16;filter:blur(3px)}
+  .ag .ag-cable.hecho{stroke-width:3;stroke-dasharray:none}
+  .ag .ag-cable.vivo{stroke-width:3;stroke-dasharray:7 8;animation:agfluir .55s linear infinite}
+  .ag .ag-flecha{fill:none;stroke:#3d4f3d;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}.ag .ag-flecha.on{stroke-width:2.4;filter:drop-shadow(0 0 4px currentColor)}
+  .ag .ag-paq{filter:drop-shadow(0 0 7px currentColor)}
+  @media(prefers-reduced-motion:reduce){.ag .ag-nodo.corriendo .cj,.ag .ag-nodo.corriendo .cj svg,.ag .ag-cable.vivo{animation:none}}
   .ag .ag-nodo .et b{font:800 12.5px Arial;letter-spacing:.08em;color:#eef4e9}.ag .ag-nodo .et small{margin-top:2px;font:600 10.5px Arial;color:#8f9b8a}.ag .ag-nodo .et em{margin-top:2px;font:700 10.5px Arial}
   .ag .ag-nodo.inactivo{opacity:1}.ag .ag-nodo.inactivo .cj{color:color-mix(in srgb,var(--c) 55%,#56635a)}
   .ag .ag-detalle{border-color:#263226;background:#0b100c;box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
@@ -674,12 +701,25 @@
     if (A.fila === B.fila) return 'M' + ax + ',' + ay + ' C' + (ax + 36) + ',' + (ay - 95) + ' ' + (bx - 36) + ',' + (by - 95) + ' ' + bx + ',' + by;
     return 'M' + ax + ',' + ay + ' C' + (ax + 80) + ',' + ay + ' ' + (bx - 80) + ',' + by + ' ' + bx + ',' + by;
   }
+  const colorNodo = id => (NODOS.find(n => n.id === id) || {}).c || '#8bd450';
   function dibujar() {
     if (!flow.svg || !flow.ejec) return;
-    let h = '';
-    for (let i = 0; i < CADENA.length - 1; i++) h += '<path class="ag-cable" d="' + ruta(CADENA[i], CADENA[i + 1]) + '"/>';
-    flow.ejec.pares.forEach(p => { const [a, b] = p.split('>'); h += '<path class="ag-cable ' + (flow.estado[b] === 'corriendo' ? 'vivo' : 'hecho') + '" d="' + ruta(a, b) + '"/>'; });
-    flow.svg.innerHTML = h;
+    const T = flow.tam || 68, hechos = new Set(flow.ejec.pares);
+    let defs = '', h = '';
+    for (let i = 0; i < CADENA.length - 1; i++) {
+      const a = CADENA[i], b = CADENA[i + 1], A = flow.POS[a], B = flow.POS[b]; if (!A || !B) continue;
+      h += '<path class="ag-cable" d="' + ruta(a, b) + '"/>';
+      if (A.fila === B.fila && !hechos.has(a + '>' + b)) { const mx = (A.x + T + B.x) / 2, my = A.y + T / 2; h += '<path class="ag-flecha" d="M' + (mx - 3) + ',' + (my - 5) + ' l5,5 l-5,5"/>'; }
+    }
+    flow.ejec.pares.forEach((p, k) => {
+      const [a, b] = p.split('>'), A = flow.POS[a], B = flow.POS[b]; if (!A || !B) return;
+      const d = ruta(a, b), vivo = flow.estado[b] === 'corriendo', ca = colorNodo(a), cb = colorNodo(b), id = 'agdeg' + k;
+      defs += '<linearGradient id="' + id + '" gradientUnits="userSpaceOnUse" x1="' + (A.x + T) + '" y1="' + (A.y + T / 2) + '" x2="' + B.x + '" y2="' + (B.y + T / 2 + 0.01) + '"><stop offset="0" stop-color="' + ca + '"/><stop offset="1" stop-color="' + cb + '"/></linearGradient>';
+      h += '<path class="ag-cable halo" style="stroke:url(#' + id + ')" d="' + d + '"/><path class="ag-cable ' + (vivo ? 'vivo' : 'hecho') + '" style="stroke:url(#' + id + ')" d="' + d + '"/>';
+      if (vivo) h += '<circle class="ag-paq" r="4.5" style="color:' + cb + '" fill="' + cb + '"><animateMotion dur="1.15s" repeatCount="indefinite" path="' + d + '"/></circle>';
+      else if (A.fila === B.fila) { const mx = (A.x + T + B.x) / 2, my = A.y + T / 2; h += '<path class="ag-flecha on" style="stroke:' + cb + '" d="M' + (mx - 3) + ',' + (my - 5) + ' l5,5 l-5,5"/>'; }
+    });
+    flow.svg.innerHTML = '<defs>' + defs + '</defs>' + h;
   }
   function nuevaEjec() {
     flow.ejecN = (flow.ejec ? flow.ejec.n : 0) + 1;
