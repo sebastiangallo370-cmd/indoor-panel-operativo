@@ -120,15 +120,15 @@
   .fitd .pz .chip{opacity:0;animation:fitdChip .45s ease forwards calc(var(--d,0s) + .55s)}
   @keyframes fitdChip{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
   .fitd .pz .destello{mix-blend-mode:screen;pointer-events:none}
-  .fitd .pz.sel .mov image{animation:fitdPulso 1.6s ease-in-out infinite}
+  .fitd .pz.sel .mov .base{animation:fitdPulso 1.6s ease-in-out infinite}
   @keyframes fitdPulso{0%,100%{filter:drop-shadow(0 22px 20px rgba(0,0,0,.6)) drop-shadow(0 0 10px rgba(0,159,227,.6)) brightness(1.1)}50%{filter:drop-shadow(0 22px 20px rgba(0,0,0,.6)) drop-shadow(0 0 26px rgba(120,220,255,.95)) brightness(1.22)}}
-  .fitd .pz image{filter:drop-shadow(0 14px 14px rgba(0,0,0,.55)) drop-shadow(0 2px 2px rgba(0,0,0,.5))}
+  .fitd .pz .base{filter:drop-shadow(0 14px 14px rgba(0,0,0,.55)) drop-shadow(0 2px 2px rgba(0,0,0,.5))}
   .fitd .pz .brillo{mix-blend-mode:soft-light;pointer-events:none}
   .fitd .pz .chip rect{fill:rgba(8,14,20,.82);stroke:rgba(160,220,255,.35);stroke-width:1;transition:fill .2s,stroke .2s}
   .fitd .pz .chip text{fill:#e9f4ff;font-family:Arial,Helvetica,sans-serif;font-weight:700;letter-spacing:.03em;transition:fill .2s}
   .fitd svg:has(.pz:hover) .pz:not(:hover),.fitd svg:has(.pz.sel) .pz:not(.sel):not(:hover){opacity:.38;filter:saturate(.5)}
   .fitd .pz:hover,.fitd .pz.sel{transform:translateY(-8px) scale(1.045)}
-  .fitd .pz:hover image,.fitd .pz.sel image{filter:drop-shadow(0 22px 20px rgba(0,0,0,.6)) drop-shadow(0 0 14px rgba(0,159,227,.75)) brightness(1.12)}
+  .fitd .pz:hover .base,.fitd .pz.sel .base{filter:drop-shadow(0 22px 20px rgba(0,0,0,.6)) drop-shadow(0 0 14px rgba(0,159,227,.75)) brightness(1.12)}
   .fitd .pz:hover .chip rect,.fitd .pz.sel .chip rect{fill:#d7ff3a;stroke:#d7ff3a}
   .fitd .pz:hover .chip text,.fitd .pz.sel .chip text{fill:#141c05}
   .fitd-pie{display:flex;gap:6px 14px;flex-wrap:wrap;align-items:center;margin:8px 2px 0;color:#8e9a87;font:600 10.5px Arial;letter-spacing:.04em}
@@ -144,6 +144,7 @@
   .fitd-datos dd i{font-style:normal;display:inline-block;margin:0 5px 2px 0;padding:1px 7px;border-radius:99px;background:var(--c,#b6f23a);color:#0b1204;font:800 10px Arial}
   .fitd-rel{margin:9px 0 0}.fitd-rel b{display:block;margin:0 0 3px;color:#8e9a87;font:800 9px Arial;letter-spacing:.14em}
   .fitd-rel p{margin:0 0 3px;padding-left:10px;border-left:2px solid rgba(215,255,58,.5);color:#cfd8c7;font:500 11px/1.45 Arial}
+  .fitd-ley{display:inline-flex;align-items:center;gap:6px;color:#cfd8c7}.fitd-ley:before{content:'';width:11px;height:11px;border-radius:3px;background:var(--c)}
   .fitd-nota{margin:6px 2px 0;color:#ffb86b;font:600 11px/1.45 Arial;letter-spacing:.02em}
   @media(prefers-reduced-motion:reduce){.fitd .pz{transition:none}.fitd .pz .mov,.fitd .pz .chip{animation:none;opacity:1}.fitd .pz .destello{display:none}}
   @media(max-width:700px){.fitd svg{max-height:none}}.fit-h{font:700 13px Arial}.fit-c{font:700 15px Arial;fill:#000}
@@ -285,7 +286,7 @@
   };
 
   // Mapa de telas: qué piezas lleva cada material (M1, M2…), leído de la descripción de la ficha
-  const COLORES_MAT = ['#b6f23a', '#38bdf8', '#fb923c', '#f472b6'];
+  const COLORES_MAT = ['#38bdf8', '#b6f23a', '#fb923c', '#f472b6'];   // M1 azul (como el molde), M2 verde lima, M3 naranja, M4 rosado
   // Dibujo de la prenda: cada parte se pinta con el color de su material
   const KINDS = [
     ['cuff', /PU[ÑN]O/i], ['sleeve', /MANGA/i], ['collar', /CUELLO|TORTUGA|CAPOTA|TAPACUELLO/i], ['placket', /PERILLA|CIERRE|BOTON/i],
@@ -428,13 +429,48 @@
         if (mejor) mejor.lab = L; else L.suelto = true;
       });
     });
+    titulos.forEach(T => T.imgs.forEach(i => {
+      if (i.lab) return;
+      let gemela = null, dm = 1e9;
+      T.imgs.forEach(g => { if (!g.lab || Math.abs(g.w - i.w) / i.w > .08 || Math.abs(g.h - i.h) / i.h > .08) return; const d = Math.hypot(g.x - i.x, g.y - i.y); if (d < dm && d < Math.max(i.w, i.h) * 1.6) { dm = d; gemela = g; } });
+      if (gemela) { i.her = String(gemela.lab.t); i.herDe = ''; }
+    }));
+    const guia = titulos.filter(T => T.imgs.some(i => i.lab)).sort((a, b) => b.imgs.filter(i => i.lab).length - a.imgs.filter(i => i.lab).length)[0];
+    const caja = T => { const x0 = Math.min(...T.imgs.map(i => i.x)), y0 = Math.min(...T.imgs.map(i => i.y)); return { x0, y0, w: Math.max(...T.imgs.map(i => i.x + i.w)) - x0 || 1, h: Math.max(...T.imgs.map(i => i.y + i.h)) - y0 || 1 }; };
+    if (guia) {
+      const cg = caja(guia);
+      titulos.forEach(T => {
+        if (T === guia || !T.imgs.length) return;
+        const ct = caja(T);
+        T.imgs.forEach(i => {
+          if (i.lab || i.her) return;
+          let mejor = null, dm = 1e9;
+          guia.imgs.forEach(g => { if (!g.lab && !g.her) return; const d = Math.hypot((i.x + i.w / 2 - ct.x0) / ct.w - (g.x + g.w / 2 - cg.x0) / cg.w, (i.y + i.h / 2 - ct.y0) / ct.h - (g.y + g.h / 2 - cg.y0) / cg.h) + Math.abs(Math.log((i.w / i.h) / (g.w / g.h))) * .35; if (d < dm) { dm = d; mejor = g; } });
+          if (mejor && dm < .42) { i.her = String(mejor.lab ? mejor.lab.t : mejor.her); i.herDe = guia.nombre; }
+        });
+      });
+    }
     return titulos.filter(T => T.imgs.length);
   }
   const RAIZ_PIEZA = t => { const w = plano(t).toUpperCase().split(/[^A-Z0-9]+/).filter(x => x.length >= 4 && !/^(DERECH|IZQUIERD|CENTRO|PIEZAS?$|DOBLE|LADO)/.test(x)); return w.map(x => x.replace(/(ES|S)$/, '').slice(0, 6)); };
-  function infoPieza(f, nombre, molde) {
+  function materialesDePieza(mats, nombre) {
+    const r = RAIZ_PIEZA(nombre);
+    if (!r.length) return [];
+    const igual = (a, b) => a.startsWith(b) || b.startsWith(a);
+    const parecido = n => { const q = RAIZ_PIEZA(n); if (!q.length) return 0; const comunes = r.filter(a => q.some(b => igual(a, b))).length; return comunes / (r.length + q.length - comunes); };
+    const puntos = mats.map(m => m.piezas.map(p => ({ p, v: parecido(p.n) })).filter(x => x.v > 0));
+    const tope = Math.max(0, ...puntos.map(l => Math.max(0, ...l.map(x => x.v))));
+    if (!tope) return [];
+    const lista = mats.map((m, k) => ({ k, m, ps: puntos[k].filter(x => x.v >= tope - 1e-9).map(x => x.p) })).filter(x => x.ps.length);
+    // si la ficha nombra la pieza exactamente igual («MANGA DERECHA X1»), se cuenta solo esa y no su pareja («MANGA IZQUIERDA X1»)
+    const exactas = lista.map(x => ({ ...x, ps: x.ps.filter(p => plano(p.n) === plano(nombre)) })).filter(x => x.ps.length);
+    return exactas.length ? exactas : lista;
+  }
+  function infoPieza(f, nombre, molde, heredado, mat) {
     const raices = RAIZ_PIEZA(nombre), mats = materiales(f), casa = n => { const r = RAIZ_PIEZA(n); return raices.length && r.some(a => raices.some(b => a.startsWith(b) || b.startsWith(a))); };
     // materiales donde va esta pieza (si no tiene rótulo, o la ficha es de un solo material, se dice el material de la prenda)
-    let en = mats.map(m => ({ m, ps: m.piezas.filter(p => casa(p.n)) })).filter(x => x.ps.length);
+    let en = materialesDePieza(mats, nombre);
+    if (mat && /FORRO/.test(molde) && en.some(x => x.m.id === mat)) en = en.filter(x => x.m.id === mat);   // en el molde del forro la pieza es la de la otra tela
     const general = !en.length;
     if (general) en = mats.map(m => ({ m, ps: [] }));
     const cant = en.reduce((a, x) => a + x.ps.reduce((b, p) => b + p.c, 0), 0);
@@ -450,7 +486,8 @@
       dato(general ? 'MATERIAL DE LA PRENDA' : 'VA EN', matHtml || 'Sin material definido en la ficha') +
       dato('REFERENCIA', esc(f.ref) + (f.prenda ? ' · ' + esc(f.prenda) : '')) + '</dl>' +
       rel('EN LA DESCRIPCIÓN', desc) + rel('EN CONFECCIÓN', conf) + rel('INSUMO RELACIONADO', ins) +
-      (general && nombre ? '<div class="fitd-rel"><p style="border-color:rgba(255,184,107,.6)">La descripción de la ficha no nombra esta pieza por material; se muestra el material de la prenda.</p></div>' : '');
+      (general && nombre ? '<div class="fitd-rel"><p style="border-color:rgba(255,184,107,.6)">La descripción de la ficha no nombra esta pieza por material; se muestra el material de la prenda.</p></div>' : '') +
+      (heredado ? '<div class="fitd-rel"><p style="border-color:rgba(160,220,255,.6)">Este molde no trae rótulos en la ficha: el nombre se tomó de la pieza equivalente del molde ' + esc(heredado) + '.</p></div>' : '');
   }
   function fitDinamico(f) {
     const moldes = moldesDe(f);
@@ -468,6 +505,14 @@
     const tam = Math.max(9.5, Math.min(14, W / 100));   // letra de los rótulos: pequeña y proporcional al molde
     const chip = (L, cx, y) => { const txt = String(L.t).replace(/\s+/g, ' ').trim(), w = txt.length * tam * .62 + 16, h = tam + 8; return '<g class="chip"><rect x="' + (cx - w / 2).toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + w.toFixed(1) + '" height="' + h + '" rx="' + (h / 2) + '"/><text x="' + cx.toFixed(1) + '" y="' + (y + h / 2 + tam * .35).toFixed(1) + '" font-size="' + tam + '" text-anchor="middle">' + esc(txt) + '</text></g>'; };
     const orden = M.imgs.slice().sort((a, b) => b.w * b.h - a.w * a.h);   // las piezas grandes al fondo, las pequeñas encima
+    const mats = materiales(f), COL_OTRA = ['', '#b6f23a', '#fb923c', '#f472b6'];
+    const nombreDe = i => String(i.lab ? i.lab.t : (i.her || '')).replace(/\s+/g, ' ').trim();
+    const matDe = i => {   // índice del material de la pieza (0 = M1)
+      if (mats.length < 2) return 0;
+      if (/FORRO/.test(M.nombre)) return 1;   // el molde del forro va completo en la otra tela
+      const en = materialesDePieza(mats, nombreDe(i)).map(x => x.k);
+      return !en.length || en.includes(0) ? 0 : en[0];
+    };
     let defs = '<linearGradient id="' + uid + 'g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".85"/><stop offset=".45" stop-color="#fff" stop-opacity=".08"/><stop offset="1" stop-color="#000" stop-opacity=".55"/></linearGradient>' +
       '<linearGradient id="' + uid + 'd" x1="0" y1="0" x2="1" y2=".35"><stop offset=".40" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".5"/><stop offset=".60" stop-color="#fff" stop-opacity="0"/>' +
       '<animateTransform attributeName="gradientTransform" type="translate" values="-1.1 0;1.1 0;1.1 0" keyTimes="0;.4;1" dur="5.5s" repeatCount="indefinite"/></linearGradient>', piezas = '';
@@ -480,14 +525,14 @@
       // de dónde llega cada pieza y cómo flota: distinto para cada una (pero siempre igual para la misma), así el armado no se ve mecánico
       const vuelo = '--d:' + (0.05 + n * 0.07).toFixed(2) + 's;--x:' + ((n * 53) % 320 - 160) + 'px;--y:' + (70 + (n * 37) % 120) * (n % 3 === 0 ? -1 : 1) + 'px;--r:' + ((n * 29) % 40 - 20) + 'deg;--t:' + (4.2 + (n * 7 % 5) * 0.45).toFixed(2) + 's;--g:' + (n % 2 ? '.5deg' : '-.5deg');
       const caja = 'x="' + i.x + '" y="' + i.y + '" width="' + i.w + '" height="' + i.h + '"';
-      piezas += '<g class="pz" style="' + vuelo + '" data-fit-pz="' + n + '" data-fit-nombre="' + esc(i.lab ? String(i.lab.t).replace(/\s+/g, ' ').trim() : '') + '" data-fit-en="' + esc(M.nombre) + '"' + (i.lab ? ' aria-label="' + esc(i.lab.t) + '"' : '') + '><g class="mov"><image href="' + url + '" ' + caja + ' preserveAspectRatio="none"/>' +
+      piezas += '<g class="pz" style="' + vuelo + '" data-fit-pz="' + n + '" data-fit-nombre="' + esc(nombreDe(i)) + '" data-fit-en="' + esc(M.nombre) + '" data-fit-her="' + esc(i.lab ? '' : (i.herDe || '')) + '" data-fit-mat="' + (mats[matDe(i)] ? mats[matDe(i)].id : '') + '"' + (i.lab ? ' aria-label="' + esc(i.lab.t) + '"' : '') + '><g class="mov">' + (COL_OTRA[matDe(i)] ? '<rect class="base" ' + caja + ' fill="' + COL_OTRA[matDe(i)] + '" mask="url(#' + mid + ')"/>' : '<image class="base" href="' + url + '" ' + caja + ' preserveAspectRatio="none"/>') +
         '<rect class="brillo" ' + caja + ' fill="url(#' + uid + 'g)" mask="url(#' + mid + ')"/><rect class="destello" ' + caja + ' fill="url(#' + uid + 'd)" mask="url(#' + mid + ')"/></g>' +
         (i.lab ? chip(i.lab, i.chipCx, i.chipY) : '') + '</g>';
     });
     const sueltos = M.labs.filter(L => L.suelto).map(L => '<g class="pz" style="--d:.3s">' + chip(L, L.cx, L.y) + '</g>').join('');
     const nombres = [...new Set(M.imgs.filter(i => i.lab).map(i => String(i.lab.t).replace(/\s+/g, ' ').trim()))];
     return '<div class="fitd">' + tabs + '<div class="fitd-escena"><svg viewBox="' + x0.toFixed(1) + ' ' + y0.toFixed(1) + ' ' + W.toFixed(1) + ' ' + H.toFixed(1) + '" role="img" aria-label="Molde ' + esc(M.nombre) + ' de ' + esc(f.ref) + '"><defs>' + defs + '</defs>' + piezas + sueltos + '</svg></div>' +
-      '<div class="fitd-pie"><span><b>' + M.imgs.length + '</b> piezas en el molde ' + esc(M.nombre) + '</span>' + (nombres.length ? '<i>' + nombres.map(esc).join(' · ') + '</i>' : '') + '<span>Toca una pieza para ver su información</span></div><div class="fitd-info" data-fit-info hidden></div>' +
+      '<div class="fitd-pie"><span><b>' + M.imgs.length + '</b> piezas en el molde ' + esc(M.nombre) + '</span>' + (nombres.length ? '<i>' + nombres.map(esc).join(' · ') + '</i>' : '') + (mats.length > 1 ? '<span class="fitd-ley" style="--c:#009fe3">' + mats[0].id + ' ' + esc(mats[0].tela || '') + '</span>' + mats.slice(1).map((m, k) => '<span class="fitd-ley" style="--c:' + (COL_OTRA[k + 1] || '#b6f23a') + '">' + m.id + ' ' + esc(m.tela || 'otra tela') + '</span>').join('') : '') + '<span>Toca una pieza para ver su información</span></div><div class="fitd-info" data-fit-info hidden></div>' +
       M.notas.map(n => '<p class="fitd-nota">⚠ ' + esc(n.t) + '</p>').join('') + '</div>';
   }
   function iconoFila(p, i, color) { return '<span style="--d:' + (0.4 + i * 0.12).toFixed(2) + 's">' + icono(p.n) + esc(p.n) + (p.c > 1 ? '<em>×' + p.c + '</em>' : '') + '</span>'; }
@@ -589,7 +634,7 @@
     t.push({ id: 'CONFECCIÓN', n: conf.length, u: ['paso', 'pasos'], html: lista(conf) });   // solo informativo: sin casillas para marcar
     // EMPAQUE: revisión y terminación, y aparte sus insumos
     const term = (f.terminacion || []).map(x => esc(x)), empIns = (f.empaque_insumos || []).map(insumo);
-    t.push({ id: 'EMPAQUE', n: term.length + empIns.length, u: ['punto', 'puntos'], html: (term.length ? sec('Terminación y revisión') + listaChk(term, f, 'emp') : '') + (empIns.length ? sec('Insumos de empaque') + lista(empIns) : '') });
+    t.push({ id: 'EMPAQUE', n: term.length + empIns.length, u: ['punto', 'puntos'], html: (term.length ? sec('Terminación y revisión') + lista(term) : '') + (empIns.length ? sec('Insumos de empaque') + lista(empIns) : '') });
     return t.filter(x => x.n > 0 || x.id === 'GENERAL');
   }
 
@@ -745,7 +790,7 @@
         const era = pieza.classList.contains('sel'), caja = pieza.closest('.fitd').querySelector('[data-fit-info]');
         pieza.closest('svg').querySelectorAll('.pz.sel').forEach(x => x.classList.remove('sel'));
         if (!era) pieza.classList.add('sel');
-        if (caja) { caja.hidden = era; if (!era) { caja.innerHTML = infoPieza(S.fichas[S.i], pieza.dataset.fitNombre || '', pieza.dataset.fitEn || ''); caja.style.animation = 'none'; void caja.offsetWidth; caja.style.animation = ''; } }
+        if (caja) { caja.hidden = era; if (!era) { caja.innerHTML = infoPieza(S.fichas[S.i], pieza.dataset.fitNombre || '', pieza.dataset.fitEn || '', pieza.dataset.fitHer || '', pieza.dataset.fitMat || ''); caja.style.animation = 'none'; void caja.offsetWidth; caja.style.animation = ''; } }
         return;
       }
       if (tab) { S.tab = tab.dataset.fiTab; dibujar(); }
