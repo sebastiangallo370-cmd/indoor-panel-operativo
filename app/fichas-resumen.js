@@ -111,8 +111,17 @@
   .fitd-escena{position:relative;border-radius:18px;border:1px solid rgba(160,220,255,.18);overflow:hidden;background:radial-gradient(120% 90% at 50% 0%,rgba(0,159,227,.20),transparent 60%),radial-gradient(90% 70% at 50% 110%,rgba(182,242,58,.10),transparent 60%),linear-gradient(180deg,#0e1620,#070b10)}
   .fitd-escena:before{content:'';position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);background-size:34px 34px;mask-image:radial-gradient(80% 80% at 50% 45%,#000,transparent);pointer-events:none}
   .fitd svg{position:relative;display:block;width:100%;height:auto;max-height:min(62vh,560px);overflow:visible}
-  .fitd .pz{cursor:pointer;transform-box:fill-box;transform-origin:50% 60%;opacity:0;animation:fitdEntra .6s cubic-bezier(.2,1.2,.3,1) forwards var(--d,0s);transition:transform .22s cubic-bezier(.2,1.3,.4,1),filter .22s,opacity .22s}
-  @keyframes fitdEntra{from{opacity:0;transform:translateY(26px) scale(.86)}to{opacity:1;transform:none}}
+  .fitd .pz{cursor:pointer;transform-box:fill-box;transform-origin:50% 60%;transition:transform .22s cubic-bezier(.2,1.3,.4,1),filter .22s,opacity .22s}
+  /* animación: cada pieza llega volando desde fuera y se acomoda en su sitio (armado del molde); luego flota suave y le pasa un destello de luz.
+     El movimiento va en .mov (dentro de la pieza) para que el realce al pasar el cursor, que va en .pz, no se pise con la animación. */
+  .fitd .pz .mov{transform-box:fill-box;transform-origin:center;opacity:0;animation:fitdEntra .85s cubic-bezier(.2,1.15,.3,1) forwards var(--d,0s),fitdFlota var(--t,5s) ease-in-out infinite calc(var(--d,0s) + .95s)}
+  @keyframes fitdEntra{0%{opacity:0;transform:translate(var(--x,0px),var(--y,40px)) rotate(var(--r,0deg)) scale(.62)}70%{opacity:1}100%{opacity:1;transform:none}}
+  @keyframes fitdFlota{0%,100%{transform:translateY(0) rotate(0deg)}50%{transform:translateY(-7px) rotate(var(--g,.4deg))}}
+  .fitd .pz .chip{opacity:0;animation:fitdChip .45s ease forwards calc(var(--d,0s) + .55s)}
+  @keyframes fitdChip{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .fitd .pz .destello{mix-blend-mode:screen;pointer-events:none}
+  .fitd .pz.sel .mov image{animation:fitdPulso 1.6s ease-in-out infinite}
+  @keyframes fitdPulso{0%,100%{filter:drop-shadow(0 22px 20px rgba(0,0,0,.6)) drop-shadow(0 0 10px rgba(0,159,227,.6)) brightness(1.1)}50%{filter:drop-shadow(0 22px 20px rgba(0,0,0,.6)) drop-shadow(0 0 26px rgba(120,220,255,.95)) brightness(1.22)}}
   .fitd .pz image{filter:drop-shadow(0 14px 14px rgba(0,0,0,.55)) drop-shadow(0 2px 2px rgba(0,0,0,.5))}
   .fitd .pz .brillo{mix-blend-mode:soft-light;pointer-events:none}
   .fitd .pz .chip rect{fill:rgba(8,14,20,.82);stroke:rgba(160,220,255,.35);stroke-width:1;transition:fill .2s,stroke .2s}
@@ -125,7 +134,7 @@
   .fitd-pie{display:flex;gap:6px 14px;flex-wrap:wrap;align-items:center;margin:8px 2px 0;color:#8e9a87;font:600 10.5px Arial;letter-spacing:.04em}
   .fitd-pie b{color:#d7ff3a;font:800 11.5px Arial}.fitd-pie i{font-style:normal;color:#aab5a2}
   .fitd-nota{margin:6px 2px 0;color:#ffb86b;font:600 11px/1.45 Arial;letter-spacing:.02em}
-  @media(prefers-reduced-motion:reduce){.fitd .pz{animation:none;opacity:1;transition:none}}
+  @media(prefers-reduced-motion:reduce){.fitd .pz{transition:none}.fitd .pz .mov,.fitd .pz .chip{animation:none;opacity:1}.fitd .pz .destello{display:none}}
   @media(max-width:700px){.fitd svg{max-height:none}}.fit-h{font:700 13px Arial}.fit-c{font:700 15px Arial;fill:#000}
   .fp-nodo{opacity:0;animation:fpIn .6s cubic-bezier(.2,1.4,.4,1) forwards var(--d);transform-box:fill-box;transform-origin:left center}
   .fp-nodo rect{fill:#0d1409;stroke:var(--c);stroke-width:1.6}
@@ -426,15 +435,20 @@
     const tam = Math.max(9.5, Math.min(14, W / 100));   // letra de los rótulos: pequeña y proporcional al molde
     const chip = (L, cx, y) => { const txt = String(L.t).replace(/\s+/g, ' ').trim(), w = txt.length * tam * .62 + 16, h = tam + 8; return '<g class="chip"><rect x="' + (cx - w / 2).toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + w.toFixed(1) + '" height="' + h + '" rx="' + (h / 2) + '"/><text x="' + cx.toFixed(1) + '" y="' + (y + h / 2 + tam * .35).toFixed(1) + '" font-size="' + tam + '" text-anchor="middle">' + esc(txt) + '</text></g>'; };
     const orden = M.imgs.slice().sort((a, b) => b.w * b.h - a.w * a.h);   // las piezas grandes al fondo, las pequeñas encima
-    let defs = '<linearGradient id="' + uid + 'g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".85"/><stop offset=".45" stop-color="#fff" stop-opacity=".08"/><stop offset="1" stop-color="#000" stop-opacity=".55"/></linearGradient>', piezas = '';
+    let defs = '<linearGradient id="' + uid + 'g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".85"/><stop offset=".45" stop-color="#fff" stop-opacity=".08"/><stop offset="1" stop-color="#000" stop-opacity=".55"/></linearGradient>' +
+      '<linearGradient id="' + uid + 'd" x1="0" y1="0" x2="1" y2=".35"><stop offset=".40" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".5"/><stop offset=".60" stop-color="#fff" stop-opacity="0"/>' +
+      '<animateTransform attributeName="gradientTransform" type="translate" values="-1.1 0;1.1 0;1.1 0" keyTimes="0;.4;1" dur="5.5s" repeatCount="indefinite"/></linearGradient>', piezas = '';
     const puestos = [];
     const lugar = (L, cx, y) => { const w = String(L.t).replace(/\s+/g, ' ').trim().length * tam * .62 + 16, h = tam + 8; let yy = y, n = 0; while (n++ < 4 && puestos.some(q => Math.abs(q.cx - cx) < (q.w + w) / 2 + 4 && Math.abs(q.y - yy) < h + 2)) yy += h + 3; puestos.push({ cx, y: yy, w }); return yy; };
     orden.slice().sort((a, b) => a.x - b.x).forEach(i => { if (i.lab) { i.chipCx = Math.max(i.x, Math.min(i.x + i.w, i.lab.cx)); i.chipY = lugar(i.lab, i.chipCx, Math.max(i.y + i.h + 6, i.lab.y)); } });
     orden.forEach((i, n) => {
       const url = img(f.id, i.a), mid = uid + 'm' + n;
       defs += '<mask id="' + mid + '" style="mask-type:alpha" maskUnits="userSpaceOnUse" x="' + i.x + '" y="' + i.y + '" width="' + i.w + '" height="' + i.h + '"><image href="' + url + '" x="' + i.x + '" y="' + i.y + '" width="' + i.w + '" height="' + i.h + '" preserveAspectRatio="none"/></mask>';
-      piezas += '<g class="pz" style="--d:' + (0.05 + n * 0.045).toFixed(2) + 's" data-fit-pz="' + n + '"' + (i.lab ? ' aria-label="' + esc(i.lab.t) + '"' : '') + '><image href="' + url + '" x="' + i.x + '" y="' + i.y + '" width="' + i.w + '" height="' + i.h + '" preserveAspectRatio="none"/>' +
-        '<rect class="brillo" x="' + i.x + '" y="' + i.y + '" width="' + i.w + '" height="' + i.h + '" fill="url(#' + uid + 'g)" mask="url(#' + mid + ')"/>' +
+      // de dónde llega cada pieza y cómo flota: distinto para cada una (pero siempre igual para la misma), así el armado no se ve mecánico
+      const vuelo = '--d:' + (0.05 + n * 0.07).toFixed(2) + 's;--x:' + ((n * 53) % 320 - 160) + 'px;--y:' + (70 + (n * 37) % 120) * (n % 3 === 0 ? -1 : 1) + 'px;--r:' + ((n * 29) % 40 - 20) + 'deg;--t:' + (4.2 + (n * 7 % 5) * 0.45).toFixed(2) + 's;--g:' + (n % 2 ? '.5deg' : '-.5deg');
+      const caja = 'x="' + i.x + '" y="' + i.y + '" width="' + i.w + '" height="' + i.h + '"';
+      piezas += '<g class="pz" style="' + vuelo + '" data-fit-pz="' + n + '"' + (i.lab ? ' aria-label="' + esc(i.lab.t) + '"' : '') + '><g class="mov"><image href="' + url + '" ' + caja + ' preserveAspectRatio="none"/>' +
+        '<rect class="brillo" ' + caja + ' fill="url(#' + uid + 'g)" mask="url(#' + mid + ')"/><rect class="destello" ' + caja + ' fill="url(#' + uid + 'd)" mask="url(#' + mid + ')"/></g>' +
         (i.lab ? chip(i.lab, i.chipCx, i.chipY) : '') + '</g>';
     });
     const sueltos = M.labs.filter(L => L.suelto).map(L => '<g class="pz" style="--d:.3s">' + chip(L, L.cx, L.y) + '</g>').join('');
