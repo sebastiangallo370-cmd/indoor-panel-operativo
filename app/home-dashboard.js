@@ -288,6 +288,7 @@
     for (let dia = Math.floor(ini / 1440); dia <= Math.floor(fin / 1440); dia++) t += Math.max(0, Math.min(fin, dia * 1440 + h[1]) - Math.max(ini, dia * 1440 + h[0]));
     return t || fin - ini;
   }
+  let unitDesde = null, unitHasta = null, unitRaw = null;
   function unitTimes(data) {
     const headers = data.headers || [], flow = typeof indoorProcessFlow !== 'undefined' ? indoorProcessFlow : [];
     const deProceso = new Set(flow.flatMap(p => p.headers)), iOrden = headers.findIndex(h => key(h) === 'ORDEN'), iCant = headers.findIndex(h => key(h) === 'CANTIDAD');
@@ -327,7 +328,9 @@
         const k = key(v[iOrden]), l = web.get(k) || []; l.push({ ini: t[0], fin: t[1], und }); web.set(k, l);
       });
       let minutos = 0, unidades = 0, descartados = 0; const porUnd = [], duraciones = [], reg = [];
-      const medir = (d, und, orden, ini, fin) => { if (d <= 0 || d > 720) { descartados++; return; } minutos += d; unidades += und; porUnd.push(d / und); duraciones.push(d); if (fin != null) reg.push({ fin, d, und, o: ordenes.get(orden) });
+      const medir = (d, und, orden, ini, fin) => {
+        if (unitDesde !== null || unitHasta !== null) { if (fin == null) return; const n = Math.floor((fin - 300) / 1440); if ((unitDesde !== null && n < unitDesde) || (unitHasta !== null && n > unitHasta)) return; }   // filtro entre fechas: por el día en que terminó
+        if (d <= 0 || d > 720) { descartados++; return; } minutos += d; unidades += und; porUnd.push(d / und); duraciones.push(d); if (fin != null) reg.push({ fin, d, und, o: ordenes.get(orden) });
         const o = ordenes.get(orden); if (!o) return; let ar = o.areas.find(x => x.label === p.label); if (!ar) { ar = { label: p.label, min: 0, und: 0 }; o.areas.push(ar); } ar.min += d; ar.und += und;
         if (fin != null) { o.ini = o.ini == null ? ini : Math.min(o.ini, ini); o.fin = o.fin == null ? fin : Math.max(o.fin, fin); } };
       lotes.forEach(l => { let d = l.fin - l.ini; if (d < 0) d += 1440; const fin = l.dia ? l.dia + l.fin : null; medir(horario ? laboral(l.ini, l.ini + d, horario) : d, l.und, l.orden, fin === null ? null : fin - d, fin); });
@@ -347,10 +350,11 @@
   let unitMetric = 'unidad', unitArea = '', unitDay = null;
   // Escalera de la ÚLTIMA SEMANA de un área: un escalón por día con (final − inicio) ÷ cantidad de lo que se terminó ese día
   function unitWeek(x, porLote) {
-    const hoy = Math.floor((Date.now() / 60000 - 300) / 1440), dias = [];
-    for (let k = 6; k >= 0; k--) { const n = hoy - k, r = (x.reg || []).filter(t => Math.floor((t.fin - 300) / 1440) === n), min = r.reduce((t, y) => t + y.d, 0), und = r.reduce((t, y) => t + y.und, 0);
+    const hoy = Math.floor((Date.now() / 60000 - 300) / 1440), dias = [], base = unitHasta !== null ? unitHasta : hoy, n0 = unitDesde !== null && base - unitDesde < 7 && unitDesde <= base ? unitDesde : base - 6;
+    const diaCorto = n => new Date((n * 1440 + 300 + 720) * 60000).toLocaleDateString('es-CO', { timeZone: 'America/Bogota', day: 'numeric', month: 'short' }).replace('.', '').toUpperCase();
+    for (let n = n0; n <= base; n++) { const r = (x.reg || []).filter(t => Math.floor((t.fin - 300) / 1440) === n), min = r.reduce((t, y) => t + y.d, 0), und = r.reduce((t, y) => t + y.und, 0);
       dias.push({ n, lotes: r.length, und, min, v: !r.length ? null : porLote ? min / r.length : min / und,
-        nombre: new Date((n * 1440 + 300 + 720) * 60000).toLocaleDateString('es-CO', { timeZone: 'America/Bogota', weekday: 'short', day: 'numeric' }).replace('.', '').toUpperCase() + (k === 0 ? ' · HOY' : '') }); }
+        nombre: new Date((n * 1440 + 300 + 720) * 60000).toLocaleDateString('es-CO', { timeZone: 'America/Bogota', weekday: 'short', day: 'numeric' }).replace('.', '').toUpperCase() + (n === hoy ? ' · HOY' : '') }); }
     const con = dias.filter(d => d.v !== null), mayor = Math.max(1e-9, ...con.map(d => d.v)), lento = con.slice().sort((a, b) => b.v - a.v)[0];
     const min = con.reduce((t, d) => t + d.min, 0), und = con.reduce((t, d) => t + d.und, 0), lotes = con.reduce((t, d) => t + d.lotes, 0), prom = !con.length ? null : porLote ? min / lotes : min / und;
     const ultimo = con[con.length - 1];   // en celular solo este día viene abierto; los demás se abren al tocarlos
@@ -368,7 +372,7 @@
       return '<div class="ut-daylist"><div class="ut-o ut-o-h"><span>Orden</span><span>Cant.</span><span>Demoró</span><span>Min/und</span></div>' + r.map(t => '<div class="ut-o" title="' + esc(t.o && t.o.cliente ? t.o.cliente : 'Sin cliente') + '"><b>' + esc(t.o ? t.o.id : 'Sin orden') + '</b><span>' + fmtNum(t.und) + '</span><strong>' + tardo(t.d) + '</strong><i>' + (t.d / t.und >= 60 ? fmtNum(t.d / t.und / 60, 1) + ' h' : t.d / t.und >= 1 ? fmtNum(t.d / t.und, 1) : fmtNum(t.d / t.und, 2)) + '</i></div>').join('') + '</div>';
     }
     return '<section class="dash-stairs de-unidad' + (stairsPlayed ? ' go' : '') + '" data-compact="0">' +
-      '<header class="st-head"><div><span class="ar-kicker">ÚLTIMA SEMANA · ' + esc(x.label) + '</span><h3>Escalera de ' + esc(x.label) + ' por día</h3><p>Cada escalón es un día: dato de cuando termina menos dato de cuando empieza, dividido entre la cantidad, de lo que se terminó ese día en esta área. El porcentaje compara cada día con el más lento. Dentro de cada día están sus órdenes (la que terminó ese día) con la cantidad, el tiempo que se demoró y los minutos por unidad.' + (x.horario ? ' En esta área solo cuenta el horario de trabajo, de ' + hhmm(x.horario[0]) + ' a ' + hhmm(x.horario[1]) : '') + '</p></div>' +
+      '<header class="st-head"><div><span class="ar-kicker">' + (unitDesde !== null || unitHasta !== null ? 'DEL ' + diaCorto(n0) + ' AL ' + diaCorto(base) : 'ÚLTIMA SEMANA') + ' · ' + esc(x.label) + '</span><h3>Escalera de ' + esc(x.label) + ' por día</h3><p>Cada escalón es un día: dato de cuando termina menos dato de cuando empieza, dividido entre la cantidad, de lo que se terminó ese día en esta área. El porcentaje compara cada día con el más lento. Dentro de cada día están sus órdenes (la que terminó ese día) con la cantidad, el tiempo que se demoró y los minutos por unidad.' + (x.horario ? ' En esta área solo cuenta el horario de trabajo, de ' + hhmm(x.horario[0]) + ' a ' + hhmm(x.horario[1]) : '') + '</p></div>' +
       '<div class="st-metric" role="group" aria-label="Medir por"><button type="button" data-ut-metric="unidad" class="' + (porLote ? '' : 'on') + '">Por unidad</button><button type="button" data-ut-metric="lote" class="' + (porLote ? 'on' : '') + '">Por lote</button></div></header>' +
       '<div class="st-sum"><button type="button" class="ut-more" data-unit-back>← Todas las áreas</button><span class="st-pill proc"><i></i>' + (porLote ? 'Lote promedio' : 'Promedio de la semana') + ' <b>' + (prom === null ? '—' : fmtDur(prom) + (porLote ? '' : ' / und.')) + '</b></span>' +
       '<span class="st-pill prog"><i></i>Unidades <b>' + fmtNum(und) + '</b></span><span class="st-pill cola"><i></i>Lotes <b>' + fmtNum(lotes) + '</b></span>' +
@@ -430,8 +434,16 @@
       (l.length > 8 ? '<p class="dash-none">Hay ' + l.length + ' órdenes que coinciden; escribe más para afinar.</p>' : '');
   }
   function unitFind(a) {
-    return '<section class="dash-load ut-find"><input class="ut-q" type="search" data-ut-find placeholder="Buscar una orden o cliente para ver su tarjeta" aria-label="Buscar una orden" value="' + esc(unitFindQ) + '"><div data-ut-found>' + unitFound(a) + '</div></section>';
+    const iso = n => n === null ? '' : new Date(n * 86400000).toISOString().slice(0, 10);
+    return '<section class="dash-load ut-find"><div class="ut-bar"><input class="ut-q" type="search" data-ut-find placeholder="Buscar orden" aria-label="Buscar una orden" value="' + esc(unitFindQ) + '">' +
+      '<label class="ut-f"><span>Desde</span><input type="date" data-ut-desde value="' + iso(unitDesde) + '"></label><label class="ut-f"><span>Hasta</span><input type="date" data-ut-hasta value="' + iso(unitHasta) + '"></label>' +
+      (unitDesde !== null || unitHasta !== null ? '<button type="button" class="ut-more" data-ut-nofecha>Quitar fechas</button>' : '') + '</div><div data-ut-found>' + unitFound(a) + '</div></section>';
   }
+  // filtro entre fechas: recalcula todo «Tiempo por unidad» con lo que terminó en ese rango
+  function unitRefiltrar() { if (!model || !unitRaw) return; model.unitTime = unitTimes(unitRaw); const pane = root.querySelector('[data-pane="unidad"]'); if (pane) pane.innerHTML = unitSection(model); }
+  const diaDe = v => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v || ''); return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) / 86400000 : null; };
+  root.addEventListener('change', event => { const d = event.target.matches('[data-ut-desde]'), h = event.target.matches('[data-ut-hasta]'); if (!d && !h) return; if (d) unitDesde = diaDe(event.target.value); else unitHasta = diaDe(event.target.value); unitRefiltrar(); });
+  root.addEventListener('click', event => { if (!event.target.closest('[data-ut-nofecha]')) return; unitDesde = unitHasta = null; unitRefiltrar(); });
   root.addEventListener('input', event => { if (!event.target.matches('[data-ut-find]')) return; unitFindQ = event.target.value; const caja = root.querySelector('[data-ut-found]'); if (caja && model) caja.innerHTML = unitFound(model); });
   function unitOrdersList(a) {
     const l = (a.unitTime || []).ordenes || [], q = key(unitQ), lista = q ? l.filter(o => key(o.id + ' ' + o.cliente).includes(q)) : l, ver = unitAll || q ? lista : lista.slice(0, 6);
@@ -962,7 +974,7 @@
   .dash-order-meta{display:grid;justify-items:end;flex-shrink:0}.dash-order-meta b{font-size:.86rem;color:#fff}.dash-order-meta small{font-size:.7rem;color:var(--c)}
   .dash-none{margin:0;padding:10px 2px;font-size:.84rem;color:#8f9b8a}
 .st-chart.st-week{height:auto;min-height:calc(var(--base) + var(--span) + 6px);align-items:flex-end;min-width:max(100%,980px)}.st-week .st-col,.dash-stairs.go .st-week .st-col{height:auto;min-width:0;cursor:default;padding:14px 8px}.st-week .st-col{min-height:var(--base);transition:min-height 1s cubic-bezier(.2,.8,.2,1)}.dash-stairs.go .st-week .st-col{min-height:calc(var(--base) + var(--rise))}.st-week .st-col:hover{transform:none}.st-week .st-sub{max-width:none}.st-week .st-pct{right:10px;top:13px;bottom:auto;width:auto;height:auto;padding:0;border:0;font-size:.7rem}.st-week .st-col.top .st-pct{top:26px}.ut-daylist{position:relative;z-index:3;width:100%;display:grid;gap:3px;margin-top:10px;text-shadow:none}.st-week .st-col{container-type:inline-size}.ut-o{display:grid;grid-template-columns:minmax(0,1fr) 30px 68px 40px;gap:4px;align-items:baseline;padding:4px 5px;border-radius:7px;background:rgba(0,0,0,.42);font-size:.68rem;line-height:1.25}.ut-o b{font-weight:800;color:#e3ff8a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ut-o span{text-align:right;color:#e6ede0;font-variant-numeric:tabular-nums}.ut-o strong{text-align:right;font-weight:800;color:#fff;white-space:nowrap;font-size:.64rem}.ut-o i{font-style:normal;text-align:right;font-weight:800;color:#e3ff8a;font-variant-numeric:tabular-nums}@container (max-width:226px){.ut-o{grid-template-columns:minmax(0,1fr) 62px 36px}.ut-o b{grid-column:1/-1}.ut-o span{text-align:left}.ut-o-h span:first-child{display:none}}.ut-o-h{background:none;padding:0 5px;font-size:.5rem;letter-spacing:.02em;text-transform:uppercase;opacity:.8}.ut-o-h span{color:#fff}.ut-o-h span:first-child{text-align:left}@media(max-width:700px){.st-chart.st-week{flex-direction:column;align-items:stretch;min-width:0;min-height:0;gap:6px}.st-scroll:has(.st-week)+.st-flow{display:none}.st-week .st-col,.dash-stairs.go .st-week .st-col{flex:none;width:100%;min-height:50px;flex-direction:row;flex-wrap:wrap;align-items:center;gap:4px 10px;padding:9px 12px;border-radius:13px;cursor:pointer;background:linear-gradient(90deg,rgba(110,150,245,.5) var(--lv),rgba(255,255,255,.05) var(--lv))}.st-week .st-col.top,.dash-stairs.go .st-week .st-col.top{background:linear-gradient(90deg,rgba(226,160,40,.68) var(--lv),rgba(255,255,255,.05) var(--lv))}.st-week .st-col.empty,.dash-stairs.go .st-week .st-col.empty{min-height:38px;opacity:.6;cursor:default}.st-week .st-slot,.st-week .ar-ribbon{display:none}.st-week .st-name,.st-week .st-col.top .st-name{margin:0;flex:0 0 62px;font-size:.66rem}.st-week .st-val{margin:0;font-size:1.15rem}.st-week .st-sub{margin:0;flex:1;font-size:.64rem;padding-right:52px}.st-week .st-pct,.st-week .st-col.top .st-pct{top:17px;font-size:.72rem}.st-week .ut-daylist{flex:0 0 100%;margin-top:6px}.st-week .ut-o{grid-template-columns:minmax(0,1fr) 40px 86px 50px;font-size:.76rem;padding:6px 9px}.st-week .ut-o strong{font-size:.76rem}.st-week .ut-o-h{font-size:.58rem;padding:0 9px}.st-week .st-col.cerrado .ut-daylist{display:none}.st-week .st-col.cerrado:not(.empty)::after{content:'▾';position:absolute;right:46px;top:16px;font-size:.8rem;opacity:.85}}
-.ut-find{padding:12px}.ut-find [data-ut-found]:empty{display:none}
+.ut-find{padding:0;border:0;background:none;gap:8px}.ut-bar{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center}.ut-f{display:flex;align-items:center;gap:6px;font:800 .64rem Arial;letter-spacing:.05em;color:#a9b5a3;text-transform:uppercase}.ut-f input{min-height:34px;padding:4px 8px;border:1px solid rgba(255,255,255,.16);border-radius:10px;background:#0e130e;color:#fff;font:600 13px Arial;color-scheme:dark;box-sizing:border-box}.ut-f input:focus{outline:none;border-color:#d0f44c}.ut-bar .ut-more{min-height:34px;padding:5px 12px;font-size:.7rem}@media(max-width:700px){.ut-f{flex:1 1 130px}.ut-f input{flex:1;min-width:0;font-size:16px;min-height:36px}}.ut-find [data-ut-found]:empty{display:none}.ut-find .ut-q{width:min(100%,300px);min-height:34px;padding:5px 12px;border-radius:10px;font-size:13px}@media(max-width:700px){.ut-find .ut-q{width:min(100%,240px);font-size:16px;min-height:36px}}
 .ut-q{width:100%;min-height:44px;padding:10px 14px;border:1px solid rgba(255,255,255,.16);border-radius:12px;background:#0e130e;color:#fff;font:600 16px Arial;box-sizing:border-box}.ut-q:focus{outline:none;border-color:#d0f44c}[data-ut-list]{display:grid;gap:12px}.ut-more{width:auto!important;justify-self:center;min-height:42px;padding:9px 18px;border:1px solid rgba(208,244,76,.4);border-radius:12px;background:rgba(208,244,76,.1);color:#e7ff9a;font:800 .78rem Arial;box-shadow:none;cursor:pointer}.dash-more{margin:0;font-size:.76rem;color:#a9b5a3;text-align:right}
   .dash-load{display:grid;gap:10px;padding:18px;border:1px solid rgba(255,255,255,.12);border-radius:16px;background:#111611}
   .dash-load .dash-panel-head{align-items:baseline;flex-wrap:wrap}.dash-load h4{margin:0;font-size:.9rem;color:#e3eadc;text-transform:uppercase;letter-spacing:.05em}.dash-load .dash-panel-head small{color:#8f9b8a;font-size:.76rem}
@@ -1030,7 +1042,7 @@
       lastText = text;
       const crudo = JSON.parse(text);
       model = analyse(crudo);
-      model.unitTime = unitTimes(crudo);
+      unitRaw = crudo; model.unitTime = unitTimes(crudo);
       render(model);
     } catch (error) {
       if (!model) root.innerHTML = '<div class="dash-empty">No fue posible cargar el resumen: ' + esc(error.message) + '</div>';
