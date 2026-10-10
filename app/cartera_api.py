@@ -147,6 +147,55 @@ def eliminar_pdf_pendiente(archivo:str):
     if not path.is_file(): raise HTTPException(404,"PDF pendiente no encontrado")
     path.unlink()
     return {"ok":True,"mensaje":"PDF pendiente eliminado"}
+def _datos_cotizacion_pdf(content:bytes)->dict:
+    """Lo que se alcanza a leer del PDF de la cotización (cliente, vendedor, fechas, forma de pago y total). Nunca falla: lo que no se lee queda vacío."""
+    try:
+        import pdfplumber
+        with pdfplumber.open(io.BytesIO(content)) as pdf:
+            text="\n".join((page.extract_text() or "") for page in pdf.pages[:3])
+    except Exception:
+        return {}
+    def match(*patterns):
+        for pattern in patterns:
+            found=re.search(pattern,text,re.I)
+            if found: return found.group(1).strip(" .:-")
+        return ""
+    forma=re.sub(r"\s*-\s*(?:valor|neto).*","",match(r"forma\s+de\s+pago\s*[:#-]?\s*\n?([^\n]+)"),flags=re.I).strip()
+    if not re.search(r"contado|cr[eé]dito|d[ií]as?|anticipo",forma,re.I): forma=""   # a veces esa línea trae otra cosa («No registran impuestos…»)
+    total=""
+    for pat in (r"(?:gran\s+total|total\s+(?:neto|a\s+pagar|pedido|orden|general|cotizaci[oó]n)|valor\s+total(?:\s+\w+)?)\s*[:\s$]*(\$?\s*\d[\d.,]{2,})",
+                r"(?<!\w)total\s*[:\s$]+(\$?\s*\d[\d.,]{2,})", r"(?<!\w)total[\s\S]{0,60}?(\$\s*\d[\d.,]{2,})"):
+        hits=re.findall(pat,text,re.I)
+        if hits: total=hits[-1].strip(); break
+    return {"cliente":match(r"(?:cliente|señor(?:es)?)\s*[:#-]?\s*([^\n]{3,100}?)(?=\s*(?:\.?\s*(?:CC|C\.C\.|NIT|creaci[oó]n|tel[eé]fono|email)\b|$))"),
+            "vendedor":match(r"vendedor\s*[:#-]?\s*([^\n]{3,80})",r"elabor[oó]\s*[:#-]?\s*([^\n]{3,80})"),
+            "fecha":match(r"(?:fecha|emisi[oó]n|creaci[oó]n)\s*[:#-]?\s*(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4})"),
+            "fechaEntrega":match(r"entrega\s*[:#-]?\s*(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4})"),"formaPago":forma,"total":total}
+
+def registrar_programado(orden,pdf_bytes:bytes|None=None,usuario:str="",registro:dict|None=None):
+    """Al programar un pedido: si es una COTIZACIÓN (CO####) entra a Cartera; si es una REMISIÓN (RM####) no entra nunca.
+    Si la cotización ya estaba en Cartera no se le cambian los valores: solo se anota que quedó programada y se le adjunta el PDF si no lo tenía."""
+    m=re.fullmatch(r"\s*CO[\s_-]*(\d{3,})\s*",str(orden or ""),re.I)
+    if not m: return None
+    numero=m.group(1); reg=registro or {}; leido=_datos_cotizacion_pdf(pdf_bytes) if pdf_bytes else {}
+    fecha=lambda v:(lambda x:x if re.fullmatch(r"\d{4}-\d{2}-\d{2}",x or "") else "")(_date(v))
+    data=_load(); doc=next((x for x in data["documentos"] if x["numero"]==numero),None); creado=doc is None
+    entrega=fecha(reg.get("fecha_entrega")) or fecha(leido.get("fechaEntrega"))
+    if creado:
+        forma=leido.get("formaPago",""); dias=re.search(r"(\d+)\s*d[ií]a",forma,re.I); total=_amount(leido.get("total"))
+        doc={"numero":numero,"cliente":" ".join(str(leido.get("cliente") or reg.get("cliente") or "SIN CLIENTE").split()),"vendedor":" ".join(str(leido.get("vendedor") or reg.get("vendedor") or usuario or "").split()),
+             "fechaCreacion":fecha(leido.get("fecha")) or fecha(reg.get("fecha_creacion")) or datetime.now().date().isoformat(),"fechaEntrega":entrega or None,"formaPago":forma,
+             "plazoDias":min(int(dias.group(1)),365) if dias else 0,"total":total,"pagadoImportado":0,"estado":"pedido","items":[],"historial":[],"origen":"programacion","revisar":total<=0}
+        _audit(doc,"Cotización agregada a Cartera al programar el pedido",usuario or "Sistema"); data["documentos"].append(doc)
+    else:
+        if entrega and not doc.get("fechaEntrega"): doc["fechaEntrega"]=entrega
+        _audit(doc,"Pedido programado en Producción",usuario or "Sistema")
+    doc["programado"]=True
+    if pdf_bytes and pdf_bytes.startswith(b"%PDF"):
+        _PDF_DIR.mkdir(parents=True,exist_ok=True); destino=_PDF_DIR/f"{_safe(numero)}.pdf"
+        if not destino.exists(): destino.write_bytes(pdf_bytes)
+    _save(data); return {"numero":numero,"creado":creado,"total":doc.get("total",0)}
+
 @cartera_router.get("/pendientes/{archivo}/resumen")
 def resumen_pendiente(archivo:str):
     path=(_PDF_DIR/"pendientes"/_safe(Path(archivo).stem)).with_suffix(".pdf")

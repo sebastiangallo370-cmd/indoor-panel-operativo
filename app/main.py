@@ -1156,6 +1156,8 @@ def process_order_job(job_id: int, job_dir: Path, pdf_path: Path, excel_path: Pa
         if (pdf_prefix, pdf_number) != (xls_prefix, xls_number):
             raise ValueError("El PDF y el Excel no corresponden a la misma orden")
         order_number = f"{pdf_prefix}{pdf_number}"
+        # Cotización (CO) -> al quedar programada entra a Cartera; remisión (RM) -> no. El PDF se lee ya: el procesador lo mueve a la NAS.
+        pdf_cartera = pdf_path.read_bytes() if order_number.upper().startswith('CO') else None
         update_job(job_id, "PROCESANDO", "Orden identificada. Preparando archivos", order_number)
         update_job_progress(job_id, 18, "Preparando la orden " + order_number)
         ok = run_with_live_progress(
@@ -1190,6 +1192,15 @@ def process_order_job(job_id: int, job_dir: Path, pdf_path: Path, excel_path: Pa
                 if overrides:
                     record.update(overrides)
                 append_local_production(record, pedidos._fila_produccion, observations, author, linea)
+            if pdf_cartera is not None:
+                try:   # nunca debe dañar un pedido ya programado
+                    from app import cartera_api as cartera_mod
+                    en_cartera = cartera_mod.registrar_programado(order_number, pdf_cartera, author, pending_records[0] if pending_records else None)
+                    if en_cartera:
+                        detail += f". Cotización {en_cartera['numero']} " + ('agregada a Cartera' if en_cartera['creado'] else 'ya estaba en Cartera: quedó marcada como programada')
+                except Exception:
+                    logging.exception("No se pudo registrar en Cartera la cotización %s", order_number)
+                    detail += ". No se pudo agregar a Cartera: agrégala a mano en Tesorería"
             update_job(job_id, "COMPLETADO", detail, order_number)
         else:
             motivos = pedidos.MOTIVOS_RECHAZO.pop(order_number, [])

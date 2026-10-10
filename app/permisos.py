@@ -106,13 +106,14 @@ def agentes_permitido(username: str) -> bool:
 
 
 _TESORERIA_EXTRA = {'INDOOR SPORT'}   # además de los comerciales, solo esta cuenta entra a Tesorería (donde vive Cartera)
+_TESORERIA_ADMINISTRATIVOS = {'ADMINISTRACION', 'ADMINISTRATIVA', 'ADMINISTRATIVO'}   # las cuentas administrativas también ven Tesorería (pedido del usuario, 2026-10-10)
 
 
 def tesoreria_permitido(username: str) -> bool:
-    """Regla fija (no se cambia desde /permisos): Tesorería, y con ella Cartera, son solo para las cuentas con proceso Comercial y la cuenta «Indoor Sport»."""
+    """Regla fija (no se cambia desde /permisos): Tesorería, y con ella Cartera, son para las cuentas con proceso Comercial o Administración (administrativos) y la cuenta «Indoor Sport»."""
     if _plano(username) in _TESORERIA_EXTRA:
         return True
-    return _plano(_lookup(username)) in _COMERCIAL
+    return _plano(_lookup(username)) in (_COMERCIAL | _TESORERIA_ADMINISTRATIVOS)
 
 
 _PROCESOS_COMERCIALES = _COMERCIAL | {'COORDINADOR', 'ADMINISTRACION', 'ADMINISTRATIVA', 'ADMINISTRATIVO'}
