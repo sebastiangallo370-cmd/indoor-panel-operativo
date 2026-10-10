@@ -192,6 +192,7 @@
   .ag .ag-cable.ramal{stroke:#33422f;stroke-dasharray:1 7}
   .ag .ag-ramal-rot rect{fill:#0b100c;stroke:#2c3a2d;stroke-width:1}.ag .ag-ramal-rot text{fill:#77836f;font:800 8.5px Arial;letter-spacing:.12em}
   .ag .ag-ramal-rot.on rect{stroke:var(--c);fill:color-mix(in srgb,var(--c) 14%,#0b100c)}.ag .ag-ramal-rot.on text{fill:var(--c)}
+  .ag .ag-ramal-rot.paso rect{stroke-dasharray:3 4}.ag .ag-ramal-rot.paso.on rect{stroke-dasharray:none}.ag .ag-ramal-rot text.sub{font:600 8.5px Arial;letter-spacing:0;fill:#5d6a58}.ag .ag-ramal-rot.on text.sub{fill:color-mix(in srgb,var(--c) 75%,#fff)}
   .ag .ag-ramal-rot.bajo text{font-size:7.5px;fill:#5d6a58}.ag .ag-ramal-rot.bajo.on text{fill:var(--c)}
   .ag .ag-cable{stroke:#2c3a2d;stroke-width:2;stroke-dasharray:1 7;stroke-linecap:round;animation:none}
   .ag .ag-cable.halo{stroke-width:10;stroke-dasharray:none;opacity:.16;filter:blur(3px)}
@@ -689,10 +690,13 @@
     const porFila = Math.max(3, Math.min(NODOS.length, Math.floor((W - margen * 2 + 40) / (W > 1000 ? 130 : 112))));
     const filas = Math.ceil(NODOS.length / porFila);
     const sep = porFila > 1 ? (W - margen * 2 - ancho) / (porFila - 1) : 0;
-    const altoFila = tam + 58, y0 = W > 1000 ? 74 : 62;   // el mapa es una tira: su alto se ajusta a las filas que ocupa
-    lienzo.style.setProperty('height', (y0 + (filas - 1) * altoFila + tam + 46) + 'px', 'important');
+    flow.ramas = filas === 1;   // los dos carriles solo caben cuando todos los nodos van en una fila
+    const sube = flow.ramas ? Math.round(tam * 0.66) : 0, baja = flow.ramas ? Math.round(tam * 0.5) + 44 : 0;
+    const altoFila = tam + 58, y0 = (W > 1000 ? 62 : 56) + sube;   // el mapa es una tira: su alto se ajusta a las filas que ocupa
+    flow.yDirecto = y0 + tam / 2 + baja;
+    lienzo.style.setProperty('height', (y0 + (filas - 1) * altoFila + tam + 46 + (flow.ramas ? Math.max(0, baja + 26 - (tam / 2 + 46)) : 0)) + 'px', 'important');
     NODOS.forEach((n, i) => {
-      const f = Math.floor(i / porFila), c = i % porFila, x = margen + c * sep, y = y0 + f * altoFila;
+      const f = Math.floor(i / porFila), c = i % porFila, x = margen + c * sep, y = y0 + f * altoFila - (flow.ramas && n.id === 'OLVER' ? sube : 0);
       flow.POS[n.id] = { x, y, fila: f, col: i };
       flow.el[n.id].style.left = x + 'px'; flow.el[n.id].style.top = y + 'px'; flow.el[n.id].style.setProperty('--tam', tam + 'px');
     });
@@ -700,6 +704,10 @@
   }
   function ruta(a, b) {
     const A = flow.POS[a], B = flow.POS[b]; if (!A || !B) return '';
+    if (flow.ramas && a === 'APROB' && b === 'OLIVER') {
+      const T0 = flow.tam || 68, x1 = A.x + T0, y1 = A.y + T0 / 2, x2 = B.x, y2 = B.y + T0 / 2, yL = flow.yDirecto, r = Math.min(70, (x2 - x1) / 4);
+      return 'M' + x1 + ',' + y1 + ' C' + (x1 + r * 0.7) + ',' + y1 + ' ' + (x1 + r * 0.3) + ',' + yL + ' ' + (x1 + r) + ',' + yL + ' L' + (x2 - r) + ',' + yL + ' C' + (x2 - r * 0.3) + ',' + yL + ' ' + (x2 - r * 0.7) + ',' + y2 + ' ' + x2 + ',' + y2;
+    }
     const T = flow.tam || 68, ax = A.x + T, ay = A.y + T / 2, bx = B.x, by = B.y + T / 2, adj = Math.abs(A.col - B.col) === 1;
     if (A.fila === B.fila && adj) { const k = (bx - ax) / 2; return 'M' + ax + ',' + ay + ' C' + (ax + k) + ',' + ay + ' ' + (bx - k) + ',' + by + ' ' + bx + ',' + by; }
     if (A.fila === B.fila) { const k = (T / 2 + 20) / 0.75; return 'M' + ax + ',' + ay + ' C' + (ax + 30) + ',' + (ay - k) + ' ' + (bx - 30) + ',' + (by - k) + ' ' + bx + ',' + by; }
@@ -713,12 +721,16 @@
     for (let i = 0; i < CADENA.length - 1; i++) {
       const a = CADENA[i], b = CADENA[i + 1], A = flow.POS[a], B = flow.POS[b]; if (!A || !B) continue;
       h += '<path class="ag-cable" d="' + ruta(a, b) + '"/>';
-      if (A.fila === B.fila && !hechos.has(a + '>' + b)) { const mx = (A.x + T + B.x) / 2, my = A.y + T / 2; h += '<path class="ag-flecha" d="M' + (mx - 3) + ',' + (my - 5) + ' l5,5 l-5,5"/>'; }
+      if (A.fila === B.fila && A.y === B.y && !hechos.has(a + '>' + b)) { const mx = (A.x + T + B.x) / 2, my = A.y + T / 2; h += '<path class="ag-flecha" d="M' + (mx - 3) + ',' + (my - 5) + ' l5,5 l-5,5"/>'; }
     }
     const RA = flow.POS.APROB, RO = flow.POS.OLIVER, directo = [...hechos].some(x => x.endsWith('>OLIVER') && x !== 'OLVER>OLIVER'), porOlver = hechos.has('OLVER>OLIVER');
     if (RA && RO) {
       if (!directo) h += '<path class="ag-cable ramal" d="' + ruta('APROB', 'OLIVER') + '"/>';
-      if (RA.fila === RO.fila) {   // rótulos de los dos caminos
+      if (flow.ramas && flow.POS.OLVER) {   // dos carriles: arriba exporta, abajo va directo
+        const PV = flow.POS.OLVER, cx = PV.x + T / 2, yL = flow.yDirecto;
+        h += '<g class="ag-ramal-rot' + (porOlver ? ' on' : '') + '" style="--c:' + colorNodo('OLVER') + '"><rect x="' + (cx - 58) + '" y="' + (PV.y - 30) + '" width="116" height="18" rx="9"/><text x="' + cx + '" y="' + (PV.y - 17) + '" text-anchor="middle">CON EXPORTACIÓN</text></g>';
+        h += '<g class="ag-ramal-rot paso' + (directo ? ' on' : '') + '" style="--c:' + colorNodo('OLIVER') + '"><rect x="' + (cx - 62) + '" y="' + (yL - 15) + '" width="124" height="30" rx="15"/><text x="' + cx + '" y="' + (yL - 2) + '" text-anchor="middle">SIN EXPORTAR</text><text class="sub" x="' + cx + '" y="' + (yL + 9) + '" text-anchor="middle">PDF directo</text></g>';
+      } else if (RA.fila === RO.fila) {   // rótulos de los dos caminos
         const mx = (RA.x + T + RO.x) / 2, cy = RA.y + T / 2, arriba = cy - (T / 2 + 20);
         h += '<g class="ag-ramal-rot' + (directo ? ' on' : '') + '" style="--c:' + colorNodo('OLIVER') + '"><rect x="' + (mx - 46) + '" y="' + (arriba - 10) + '" width="92" height="18" rx="9"/><text x="' + mx + '" y="' + (arriba + 3) + '" text-anchor="middle">PDF DIRECTO</text></g>';
         const ox = flow.POS.OLVER ? (flow.POS.OLVER.x + T + RO.x) / 2 : 0;
@@ -726,12 +738,13 @@
       }
     }
     flow.ejec.pares.forEach((p, k) => {
-      const [a, b] = p.split('>'), A = flow.POS[a], B = flow.POS[b]; if (!A || !B) return;
+      let [a, b] = p.split('>'); if (flow.ramas && b === 'OLIVER' && a !== 'OLVER') a = 'APROB';   // llegó sin exportar: va por el carril de abajo
+      const A = flow.POS[a], B = flow.POS[b]; if (!A || !B) return;
       const d = ruta(a, b), vivo = flow.estado[b] === 'corriendo', ca = colorNodo(a), cb = colorNodo(b), id = 'agdeg' + k;
       defs += '<linearGradient id="' + id + '" gradientUnits="userSpaceOnUse" x1="' + (A.x + T) + '" y1="' + (A.y + T / 2) + '" x2="' + B.x + '" y2="' + (B.y + T / 2 + 0.01) + '"><stop offset="0" stop-color="' + ca + '"/><stop offset="1" stop-color="' + cb + '"/></linearGradient>';
       h += '<path class="ag-cable halo" style="stroke:url(#' + id + ')" d="' + d + '"/><path class="ag-cable ' + (vivo ? 'vivo' : 'hecho') + '" style="stroke:url(#' + id + ')" d="' + d + '"/>';
       if (vivo) h += '<circle class="ag-paq" r="4.5" style="color:' + cb + '" fill="' + cb + '"><animateMotion dur="1.15s" repeatCount="indefinite" path="' + d + '"/></circle>';
-      else if (A.fila === B.fila && Math.abs(A.col - B.col) === 1) { const mx = (A.x + T + B.x) / 2, my = A.y + T / 2; h += '<path class="ag-flecha on" style="stroke:' + cb + '" d="M' + (mx - 3) + ',' + (my - 5) + ' l5,5 l-5,5"/>'; }
+      else if (A.fila === B.fila && A.y === B.y && Math.abs(A.col - B.col) === 1) { const mx = (A.x + T + B.x) / 2, my = A.y + T / 2; h += '<path class="ag-flecha on" style="stroke:' + cb + '" d="M' + (mx - 3) + ',' + (my - 5) + ' l5,5 l-5,5"/>'; }
     });
     flow.svg.innerHTML = '<defs>' + defs + '</defs>' + h;
   }
