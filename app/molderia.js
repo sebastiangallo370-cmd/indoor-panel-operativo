@@ -54,7 +54,7 @@
   .mo-ico{display:grid;place-items:center;flex:none;width:46px;height:46px;border-radius:14px;background:#17211a;font-size:.72rem;font-weight:900;letter-spacing:.04em}
   .mo-ico.dir{font-size:1.35rem;background:#26361f}.mo-card b{font-size:.92rem;word-break:break-word;line-height:1.25}
   .mo-meta{font-size:.72rem;color:#8fa088}.mo-prev{height:130px;border-radius:12px;background:#e9ece6;overflow:hidden}.mo-prev img{width:100%;height:100%;object-fit:contain;display:block}
-  .mo-acc{display:flex;gap:8px;flex-wrap:wrap}.mo-acc a{padding:6px 12px;border-radius:10px;border:1px solid #34432f;background:#17211a;color:#d7ff3a;font-weight:800;font-size:.72rem;text-decoration:none;letter-spacing:.05em}
+  .mo-acc{display:flex;gap:8px;flex-wrap:wrap}.mo-nota{margin:14px 2px 0;color:#8f9b8a;font-size:.76rem}.mo-nota a{color:#d7ff3a;font-weight:700}.mo-acc a{padding:6px 12px;border-radius:10px;border:1px solid #34432f;background:#17211a;color:#d7ff3a;font-weight:800;font-size:.72rem;text-decoration:none;letter-spacing:.05em}
   .mo-acc a:hover{background:#223018}
   .mo-vacio{padding:34px;text-align:center;color:#8fa088;border:1px dashed #34432f;border-radius:14px;font-size:.88rem}
   .mo-chips{display:flex;gap:8px;flex-wrap:wrap}.mo-chip{min-height:34px;padding:0 14px;border:1px solid #34432f;border-radius:999px;background:#101710;color:#c5d1bf;font-weight:700;font-size:.76rem;cursor:pointer;width:auto!important}
@@ -394,8 +394,8 @@
         const ic = ICONO[e.ext] || [(e.ext || 'ARCH').toUpperCase().slice(0, 4), '#9fb09a'];
         return '<div class="mo-card" data-file="' + esc(e.ruta) + '"><div class="mo-top"><span class="mo-ico" style="color:' + ic[1] + '">' + esc(ic[0]) + '</span><b>' + esc(e.nombre) + '</b></div>' +
           (IMG.has(e.ext) && e.bytes < 4194304 ? '<div class="mo-prev"><img loading="lazy" alt="" src="' + url(e.ruta) + '"></div>' : '') +
-          '<span class="mo-meta">' + peso(e.bytes) + ' · ' + fecha(e.modificado) + '</span><div class="mo-acc"><a href="' + url(e.ruta) + '" target="_blank" rel="noopener">ABRIR ↗</a><a href="' + url(e.ruta, true) + '" download>DESCARGAR ⬇</a></div></div>';
-      }).join('') + '</div>' : '<div class="mo-vacio">' + (q ? 'Nada coincide con la búsqueda.' : 'Esta carpeta está vacía.') + '</div>';
+          '<span class="mo-meta">' + peso(e.bytes) + ' · ' + fecha(e.modificado) + '</span><div class="mo-acc">' + (e.red ? '<a href="indoor-ai://abrir/?ruta=' + encodeURIComponent(e.red) + '" title="Abre este archivo directo en Illustrator, sin descargarlo">ABRIR EN ILLUSTRATOR ↗</a>' : '<a href="' + url(e.ruta) + '" target="_blank" rel="noopener">ABRIR ↗</a>') + '<a href="' + url(e.ruta, true) + '" download>DESCARGAR ⬇</a></div></div>';
+      }).join('') + '</div>' + (lista.some(e => e.red) ? '<p class="mo-nota">Los archivos .ai se abren directo en Illustrator desde la NAS. ¿No abre? <a href="/descargar-conector-illustrator">Instala el botón de Illustrator</a> en este computador (una sola vez).</p>' : '') : '<div class="mo-vacio">' + (q ? 'Nada coincide con la búsqueda.' : 'Esta carpeta está vacía.') + '</div>';
     }
     return barra + cuerpo;
   }

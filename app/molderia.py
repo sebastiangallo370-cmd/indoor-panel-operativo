@@ -66,8 +66,15 @@ def _info(p: Path, ruta: str) -> dict | None:
     except OSError:
         return None
     es_dir = p.is_dir()
-    return {'nombre': p.name, 'ruta': ruta, 'carpeta': es_dir, 'ext': '' if es_dir else p.suffix.lower().lstrip('.'),
+    info = {'nombre': p.name, 'ruta': ruta, 'carpeta': es_dir, 'ext': '' if es_dir else p.suffix.lower().lstrip('.'),
             'bytes': 0 if es_dir else st.st_size, 'modificado': datetime.fromtimestamp(st.st_mtime, timezone.utc).isoformat()}
+    if info['ext'] == 'ai':
+        # ruta de red del archivo, para abrirlo directo en el Illustrator del PC (protocolo indoor-ai:) en vez de descargarlo
+        try:
+            info['red'] = '\\\\192.168.0.120\\NAS INDOOR\\' + '\\'.join(p.relative_to(_NAS).parts)
+        except ValueError:
+            pass
+    return info
 
 
 @router.get('/pestanas')
