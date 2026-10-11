@@ -49,6 +49,7 @@ from app import perfil_foto as perfil_foto_mod
 from app import terminos as terminos_mod
 from app import permisos as permisos_mod, exportar as exportar_mod, reposiciones as reposiciones_mod, agentes_canal as agentes_mod, promedios as promedios_mod, molderia as molderia_mod, fichas_resumen as fichas_resumen_mod, rh_contratos as rh_contratos_mod
 from app.cartera_externa import externa_router
+from app import diseno_versiones as versiones_mod
 app = FastAPI(title="Asistente de Reprogramaciones", version="1.0.0")
 
 
@@ -4844,6 +4845,52 @@ def _remember_image(source_row, number, digest, mime, data):
             _IMAGE_CACHE.popitem(last=False)
 
 
+def _fila_diseno(source_row: int):
+    """Orden y referencia de una fila de producción (la llave del historial de versiones de sus diseños)."""
+    with connect() as db:
+        record = db.execute('SELECT values_json FROM production_rows WHERE source_row = ?', (source_row,)).fetchone()
+        meta = db.execute("SELECT value FROM production_meta WHERE key = 'headers'").fetchone()
+    if not record or not meta:
+        return None
+    campos = {str(h).strip().upper(): str(v or '').strip() for h, v in zip(json.loads(meta['value']), json.loads(record['values_json']))}
+    return {'orden': campos.get('ORDEN', ''), 'referencia': campos.get('REFERENCIA', '')}
+
+
+def _filas_diseno():
+    """(fila, orden, referencia, va_para_impresión) de toda la producción. «Va para impresión» = Impresión en proceso, o Edición ya terminada
+    e Impresión todavía vacía: ahí es donde un diseño sin aprobar debe avisar."""
+    with connect() as db:
+        meta = db.execute("SELECT value FROM production_meta WHERE key = 'headers'").fetchone()
+        filas = db.execute('SELECT source_row, values_json FROM production_rows').fetchall()
+    if not meta:
+        return []
+    headers = json.loads(meta['value'])
+    titulos = [str(h or '').strip().upper() for h in headers]
+
+    def columna(etiqueta):
+        return next((i for i, h in enumerate(headers) if (official_process(h) is not None and PROCESS_FLOW[official_process(h)]['label'] == etiqueta)), -1)
+    i_orden = titulos.index('ORDEN') if 'ORDEN' in titulos else -1
+    i_ref = titulos.index('REFERENCIA') if 'REFERENCIA' in titulos else -1
+    i_imp, i_ed = columna('IMPRESIÓN'), columna('EDICIÓN')
+    salida = []
+    for fila in filas:
+        valores = json.loads(fila['values_json'])
+        celda = lambda i: str(valores[i] or '').strip() if 0 <= i < len(valores) else ''
+        impresion = celda(i_imp).upper()
+        va = impresion == 'P' or (not impresion and bool(parse_production_date(celda(i_ed))))
+        salida.append((fila['source_row'], celda(i_orden), celda(i_ref), va))
+    return salida
+
+
+versiones_mod.configurar(authenticate, lambda usuario: permisos_mod.rol_de(usuario) in ('comercial', 'administracion'), _fila_diseno, _filas_diseno)
+app.include_router(versiones_mod.router)
+
+
+@app.get('/diseno-versiones.js')
+def diseno_versiones_js():
+    return FileResponse(Path(__file__).with_name('diseno-versiones.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
+
+
 def _compute_card_assets(source_row: int):
     try:
         files, mockups, client = production_row_files(source_row, excel_only=True)
@@ -4859,6 +4906,12 @@ def _compute_card_assets(source_row: int):
     if designs:
         for number, mime, data in designs:
             _remember_image(source_row, number, hashlib.sha256(data).hexdigest()[:20], mime, data)
+        try:   # historial de versiones: si un diseño cambió, la imagen nueva queda guardada como versión (nunca debe frenar la tarjeta)
+            fila_diseno = _fila_diseno(source_row)
+            if fila_diseno:
+                versiones_mod.registrar(fila_diseno['orden'], fila_diseno['referencia'], designs)
+        except Exception:
+            logging.exception('No se pudo registrar la versión del diseño de la fila %s', source_row)
         images = [{'name': f'D{number} · imagen del listado Excel', 'design': number,
                    'url': f'/api/produccion/fila/{source_row}/mockup-excel/{number}?v=' + hashlib.sha256(data).hexdigest()[:20]}
                   for number, mime, data in designs]
@@ -6810,7 +6863,7 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
 `;document.head.appendChild(traceFigmaStyle);setTraceView();
     const commercialGroup=commercialToggle.closest('.nav-group');commercialGroup.classList.add('collapsed');const productionToggle=document.getElementById('production-toggle');if(productionToggle)productionToggle.addEventListener('click',()=>{{const g=productionToggle.closest('.nav-group');g.classList.toggle('collapsed');if(!g.classList.contains('collapsed')&&window.innerWidth>860)g.querySelector('.nav-children .tab')?.click()}});
     setTimeout(()=>{{if(!document.querySelector('.panel.active'))document.querySelector('.tab[data-kind="inicio"]')?.click()}},0);
-    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/liquid-stats.js?v=20261009-10'></script><script src='/permisos.js?v=20261007-2'></script><script src='/reposiciones.js?v=20261005-4'></script><script src='/agentes.js?v=20261010-14'></script><script src='/promedios.js?v=20261006-7'></script><script src='/capacidad.js?v=20261009-2'></script><script src='/molderia.js?v=20261010-3'></script><script src='/estandar.js?v=20261007-1'></script><script src='/terminos.js?v=20261010-1'></script><script src='/cookies-aviso.js?v=20261010-1'></script><script src='/rh-contratos.js?v=20261009-3'></script><script src='/fichas-resumen.js?v=20261010-16'></script><script src='/api/cartera/cartera.js?v=20261009-1'></script><script src='/trace-ui.js?v=20261010-1'></script><script src='/home-dashboard.js?v=20261010-23'></script><script src='/bodega-dashboard.js?v=20261009-5'></script><script src='/bodegas.js?v=20261009-7'></script><script src='/codigos-barras.js?v=20261008-1'></script><script src='/mis-pedidos.js?v=20261008-4'></script><script src='/mobile-nav.js?v=20261010-1'></script><script src='/nav-liquid.js?v=20261003-3'></script><script src='/build-watch.js?v=20261002-1'></script><script src='/salud.js?v=20261002-1'></script><script src='/tema.js?v=20261008-1'></script><script src='/tarjeta-iconos.js?v=20261002-5'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261005-3'></script><script src='/linea-editor.js?v=20261008-1'></script><script src='/menu-cuenta.js?v=20261008-1'></script><script src='/foto-perfil.js?v=20261008-4'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
+    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/liquid-stats.js?v=20261009-10'></script><script src='/permisos.js?v=20261007-2'></script><script src='/reposiciones.js?v=20261005-4'></script><script src='/agentes.js?v=20261010-14'></script><script src='/promedios.js?v=20261006-7'></script><script src='/capacidad.js?v=20261009-2'></script><script src='/molderia.js?v=20261010-3'></script><script src='/estandar.js?v=20261007-1'></script><script src='/terminos.js?v=20261010-1'></script><script src='/cookies-aviso.js?v=20261010-1'></script><script src='/rh-contratos.js?v=20261009-3'></script><script src='/fichas-resumen.js?v=20261010-16'></script><script src='/api/cartera/cartera.js?v=20261009-1'></script><script src='/trace-ui.js?v=20261010-1'></script><script src='/home-dashboard.js?v=20261010-23'></script><script src='/bodega-dashboard.js?v=20261009-5'></script><script src='/bodegas.js?v=20261009-7'></script><script src='/codigos-barras.js?v=20261008-1'></script><script src='/mis-pedidos.js?v=20261008-4'></script><script src='/diseno-versiones.js?v=20261010-1'></script><script src='/mobile-nav.js?v=20261010-1'></script><script src='/nav-liquid.js?v=20261003-3'></script><script src='/build-watch.js?v=20261002-1'></script><script src='/salud.js?v=20261002-1'></script><script src='/tema.js?v=20261008-1'></script><script src='/tarjeta-iconos.js?v=20261002-5'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261005-3'></script><script src='/linea-editor.js?v=20261008-1'></script><script src='/menu-cuenta.js?v=20261008-1'></script><script src='/foto-perfil.js?v=20261008-4'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
 
 
 def ordered_mockup_uploads(extras, slots):
