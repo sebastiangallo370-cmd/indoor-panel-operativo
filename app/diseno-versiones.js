@@ -1,22 +1,20 @@
 /* Versiones de los diseños (mockups) de cada orden.
-   - En cada tarjeta de Producción pone una etiqueta con el estado del diseño: aprobado, sin aprobar o cambiado después de aprobar,
-     y avisa en rojo si la orden va para Impresión con el diseño sin aprobar.
-   - Al tocarla abre el historial: todas las versiones de cada diseño (V1, V2…), cuál está en uso, cuál aprobó el cliente,
-     comparación lado a lado y descarga. Comercial y Administración marcan la versión aprobada.
+   Regla: lo que está en el listado ES el diseño aprobado por el cliente; la versión en uso siempre es la aprobada.
+   - En cada tarjeta de Producción pone una etiqueta: «✓ Diseño aprobado» o, si el diseño se reemplazó, «Diseño actualizado · V2».
+     Si el cambio es reciente y la orden va para Impresión, avisa en rojo para que se imprima la versión nueva.
+   - Al tocarla abre el historial: todas las versiones de cada diseño (V1, V2…), cuál es la aprobada (en uso), comparación lado a lado y descarga.
    Las versiones las guarda el servidor solo, cada vez que la imagen del listado cambia (app/diseno_versiones.py). */
 (function () {
   if (window.__disenoVersiones) return; window.__disenoVersiones = true;
   const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const TEXTO = { aprobado: '✓ Diseño aprobado', pendiente: 'Diseño sin aprobar', cambio: '⚠ Diseño cambió tras aprobar' };
-  const NOMBRE = { aprobado: 'Aprobado', pendiente: 'Sin aprobar', cambio: 'Cambió después de aprobar', retirado: 'Ya no está en el listado' };
+  const NOMBRE = { aprobado: 'Aprobado', cambio: 'Aprobado · se actualizó', retirado: 'Ya no está en el listado' };
   let estados = {}, abierta = null, comparar = [];
 
   const style = document.createElement('style');
   style.textContent = `
 .dv-chip{position:absolute;top:12px;left:12px;z-index:2;width:auto!important;min-height:0!important;max-width:calc(100% - 70px);padding:5px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.2);background:rgba(15,21,17,.82);color:#e8efe2;font:800 10.5px/1.2 Arial;letter-spacing:.03em;text-align:left;cursor:pointer;box-shadow:0 4px 12px #0005;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
 .dv-chip.aprobado{color:#d0f44c;border-color:rgba(208,244,76,.55)}
-.dv-chip.pendiente{color:#ffd27a;border-color:rgba(255,210,122,.55)}
-.dv-chip.cambio{color:#ffb4a8;border-color:rgba(255,107,92,.7)}
+.dv-chip.cambio{color:#ffd27a;border-color:rgba(255,210,122,.6)}
 .dv-chip.alerta{background:#b3261e;color:#fff;border-color:#ff8f80;animation:dvPulso 1.8s ease-in-out infinite}
 @keyframes dvPulso{50%{box-shadow:0 0 0 5px rgba(255,107,92,.28)}}
 @media(prefers-reduced-motion:reduce){.dv-chip.alerta{animation:none}}
@@ -32,9 +30,9 @@
 .dv-dlg button:disabled{opacity:.5;cursor:wait}
 .dv-body{padding:14px 18px 18px;overflow-y:auto;display:grid;gap:16px}
 .dv-dis{display:grid;gap:10px;padding:14px;border:1px solid rgba(255,255,255,.1);border-radius:14px;background:#141b13}
-.dv-dis>header{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.dv-dis>header b{font-size:.95rem}
+.dv-tit{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.dv-tit b{font-size:.95rem}
 .dv-est{padding:3px 9px;border-radius:999px;font:800 .66rem Arial;letter-spacing:.04em;text-transform:uppercase;background:rgba(255,255,255,.08)}
-.dv-est.aprobado{background:rgba(208,244,76,.16);color:#e3ff8a}.dv-est.pendiente{background:rgba(255,210,122,.16);color:#ffd27a}.dv-est.cambio{background:rgba(255,107,92,.18);color:#ffb4a8}
+.dv-est.aprobado{background:rgba(208,244,76,.16);color:#e3ff8a}.dv-est.cambio{background:rgba(255,210,122,.16);color:#ffd27a}
 .dv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px}
 .dv-ver{display:grid;gap:7px;align-content:start;padding:9px;border:1px solid rgba(255,255,255,.12);border-radius:12px;background:#0e130e}
 .dv-ver.vigente{border-color:rgba(208,244,76,.6)}.dv-ver.sel{box-shadow:0 0 0 2px #7fb0ff}
@@ -49,7 +47,7 @@
 .dv-cmp>div{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;gap:10px;color:#a9b5a3;font-size:.76rem}
 .dv-nota{margin:0;color:#8f9b8a;font-size:.74rem;line-height:1.45}
 .dv-zoom{position:fixed;inset:0;z-index:2147483000;display:grid;place-items:center;background:rgba(0,0,0,.9);cursor:zoom-out}.dv-zoom img{max-width:96vw;max-height:94dvh;object-fit:contain;background:#e9ece6;border-radius:8px}
-@media(max-width:700px){.dv-chip{font-size:10px;padding:5px 9px}.dv-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.dv-cmp{grid-template-columns:1fr}.dv-head{padding:14px}.dv-body{padding:12px 12px 16px}.dv-dis{padding:10px}.dv-acc{display:grid;grid-template-columns:1fr 1fr;gap:5px}.dv-dlg .dv-acc button,.dv-dlg .dv-acc a{min-height:36px!important;padding:5px 4px!important;font-size:11px!important;white-space:nowrap;justify-content:center;text-align:center}.dv-dlg .dv-acc .pri{grid-column:1/-1}}
+@media(max-width:700px){.dv-chip{font-size:10px;padding:5px 9px}.dv-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.dv-cmp{grid-template-columns:1fr}.dv-head{padding:14px}.dv-body{padding:12px 12px 16px}.dv-dis{padding:10px}.dv-acc{display:grid;grid-template-columns:1fr 1fr;gap:5px}.dv-dlg .dv-acc button,.dv-dlg .dv-acc a{min-height:36px!important;padding:5px 4px!important;font-size:11px!important;white-space:nowrap;justify-content:center;text-align:center}}
 `;
   document.head.appendChild(style);
 
@@ -65,7 +63,7 @@
     document.querySelectorAll('.trace-card[data-card-row]').forEach(card => {
       const e = estados[card.dataset.cardRow], viejo = card.querySelector(':scope > .dv-chip');
       if (!e) { if (viejo) viejo.remove(); return; }
-      const clase = 'dv-chip ' + e.estado + (e.alerta ? ' alerta' : ''), texto = e.alerta ? '⚠ Va para impresión: ' + (e.estado === 'cambio' ? 'el diseño cambió tras aprobar' : 'diseño sin aprobar') : TEXTO[e.estado];
+      const clase = 'dv-chip ' + e.estado + (e.alerta ? ' alerta' : ''), texto = e.alerta ? '⚠ El diseño cambió (V' + e.version + '): imprime la versión nueva' : e.estado === 'cambio' ? 'Diseño actualizado · V' + e.version : '✓ Diseño aprobado';
       if (viejo) { if (viejo.className !== clase) viejo.className = clase; if (viejo.textContent !== texto) viejo.textContent = texto; return; }
       const b = document.createElement('button');
       b.type = 'button'; b.className = clase; b.dataset.dvRow = card.dataset.cardRow; b.textContent = texto; b.title = 'Ver las versiones del diseño';
@@ -91,23 +89,22 @@
   // ---- ventana del historial ----
   function pintar() {
     const d = abierta; if (!d) return;
-    const cmp = comparar.length === 2 ? comparar.map(k => { const [n, digest] = k.split(':'), dis = d.disenos.find(x => String(x.diseno) === n), v = dis && dis.versiones.find(x => x.digest === digest); return v ? { n, v } : null; }).filter(Boolean) : [];
+    const cmp = comparar.length === 2 ? comparar.map(k => { const [n, digest] = k.split(':'), dis = d.disenos.find(x => String(x.diseno) === n), v = dis && dis.versiones.find(x => x.digest === digest); return v ? { n, v, uso: v.vigente && dis.enUso } : null; }).filter(Boolean) : [];
     dlg.innerHTML = '<div class="dv-head"><div><small>Versiones del diseño</small><h3>' + esc(d.orden) + (d.referencia ? ' · ' + esc(d.referencia) : '') + '</h3>' +
-      '<p>Cada vez que la imagen del listado cambia, la anterior queda guardada aquí. ' + (d.puede_aprobar ? 'Marca la versión que aprobó el cliente.' : 'Solo Comercial y Administración marcan la versión aprobada.') + '</p></div>' +
+      '<p>La imagen que está en el listado es la aprobada por el cliente. Cada vez que se cambia, la anterior queda guardada aquí.</p></div>' +
       '<button type="button" data-dv-cerrar aria-label="Cerrar">✕</button></div><div class="dv-body">' +
       (cmp.length === 2 ? '<section class="dv-cmp"><div><span>Comparando dos versiones</span><button type="button" data-dv-nocmp>Quitar comparación</button></div>' +
-        cmp.map(c => '<figure><figcaption>D' + esc(c.n) + ' · V' + c.v.v + (c.v.aprobada ? ' · aprobada' : '') + (c.v.vigente ? ' · en uso' : '') + '</figcaption><img alt="" src="' + esc(c.v.url) + '" data-dv-zoom></figure>').join('') + '</section>' : '') +
+        cmp.map(c => '<figure><figcaption>D' + esc(c.n) + ' · V' + c.v.v + (c.uso ? ' · aprobada (en uso)' : ' · anterior') + '</figcaption><img alt="" src="' + esc(c.v.url) + '" data-dv-zoom></figure>').join('') + '</section>' : '') +
       (d.disenos.length ? d.disenos.map(dis =>
-        '<section class="dv-dis"><header><b>Diseño D' + dis.diseno + '</b><span class="dv-est ' + dis.estado + '">' + NOMBRE[dis.estado] + '</span><small style="color:#a9b5a3">' + dis.versiones.length + (dis.versiones.length === 1 ? ' versión' : ' versiones') + '</small>' +
-        (d.puede_aprobar && dis.versiones.some(v => v.aprobada) ? '<button type="button" class="rojo" data-dv-quitar="' + dis.diseno + '" style="margin-left:auto">Quitar aprobación</button>' : '') + '</header>' +
+        '<section class="dv-dis"><div class="dv-tit"><b>Diseño D' + dis.diseno + '</b><span class="dv-est ' + dis.estado + '">' + NOMBRE[dis.estado] + '</span><small style="color:#a9b5a3">' + dis.versiones.length + (dis.versiones.length === 1 ? ' versión' : ' versiones') + '</small>' +
+        '</div>' +
         '<div class="dv-grid">' + dis.versiones.slice().reverse().map(v => { const k = dis.diseno + ':' + v.digest;
           return '<article class="dv-ver' + (v.vigente ? ' vigente' : '') + (comparar.includes(k) ? ' sel' : '') + '"><img loading="lazy" alt="Versión ' + v.v + '" src="' + esc(v.url) + '" data-dv-zoom>' +
-            '<strong>V' + v.v + '</strong><div class="dv-marcas">' + (v.vigente ? '<i class="uso">En uso</i>' : '<i class="ant">Anterior</i>') + (v.aprobada ? '<i class="ok">Aprobada</i>' : '') + '</div>' +
-            '<small>Guardada el ' + esc(fecha(v.creado)) + (v.aprobada ? '<br>Aprobó ' + esc(v.aprobada_por) + ' · ' + esc(fecha(v.aprobada_en)) : '') + '</small>' +
-            '<div class="dv-acc">' + (d.puede_aprobar && !v.aprobada && dis.estado !== 'retirado' ? '<button type="button" class="pri" data-dv-aprobar="' + k + '">Aprobar</button>' : '') +
-            '<button type="button" data-dv-cmp="' + k + '">' + (comparar.includes(k) ? 'Quitar' : 'Comparar') + '</button><a href="' + esc(v.url) + '" download="' + esc(d.orden + '_D' + dis.diseno + '_V' + v.v) + '">Descargar</a></div></article>'; }).join('') + '</div></section>').join('')
+            '<strong>V' + v.v + '</strong><div class="dv-marcas">' + (v.vigente && dis.enUso ? '<i class="ok">Aprobada</i><i class="uso">En uso</i>' : '<i class="ant">Anterior</i>') + '</div>' +
+            '<small>Guardada el ' + esc(fecha(v.creado)) + (v.vigente && dis.enUso && v.desde && v.desde !== v.creado ? '<br>En uso desde ' + esc(fecha(v.desde)) : '') + '</small>' +
+            '<div class="dv-acc"><button type="button" data-dv-cmp="' + k + '">' + (comparar.includes(k) ? 'Quitar' : 'Comparar') + '</button><a href="' + esc(v.url) + '" download="' + esc(d.orden + '_D' + dis.diseno + '_V' + v.v) + '">Descargar</a></div></article>'; }).join('') + '</div></section>').join('')
         : '<p class="dv-nota">Esta orden todavía no tiene diseños registrados. Aparecen solos cuando el listado en Excel de la orden tiene sus imágenes.</p>') +
-      '<p class="dv-nota">«En uso» es la imagen que hoy está en el listado de la orden. Para volver a una versión anterior, descárgala y ponla de nuevo en el Excel del listado: el panel la reconoce y vuelve a marcarla en uso (si era la aprobada, queda aprobada).</p></div>';
+      '<p class="dv-nota">La versión «Aprobada · En uso» es la imagen que hoy está en el listado de la orden. Para volver a una versión anterior, descárgala y ponla de nuevo en el Excel del listado: el panel la reconoce y la marca otra vez como la aprobada.</p></div>';
   }
   async function abrir(fila) {
     comparar = []; abierta = null;
@@ -120,25 +117,12 @@
       abierta = j; pintar();
     } catch (e) { dlg.querySelector('h3').textContent = e.message; }
   }
-  async function enviar(ruta, cuerpo, boton) {
-    if (boton) boton.disabled = true;
-    try {
-      const r = await fetch(ruta, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo) });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(j.detail || 'No se pudo guardar');
-      const fila = abierta.fila, sel = comparar.slice();
-      const nuevo = await (await fetch('/api/disenos/versiones?fila=' + fila, { cache: 'no-store' })).json();
-      abierta = nuevo; comparar = sel; pintar(); cargarEstados();
-    } catch (e) { alert(e.message); if (boton) boton.disabled = false; }
-  }
   dlg.addEventListener('click', event => {
     const t = event.target;
     if (t === dlg || t.closest('[data-dv-cerrar]')) return dlg.close();
     if (!abierta) return;
-    const ap = t.closest('[data-dv-aprobar]'), q = t.closest('[data-dv-quitar]'), c = t.closest('[data-dv-cmp]'), z = t.closest('[data-dv-zoom]');
-    if (ap) { const [n, digest] = ap.dataset.dvAprobar.split(':'); if (confirm('¿Marcar la versión como la aprobada por el cliente para el diseño D' + n + '?')) enviar('/api/disenos/aprobar', { fila: abierta.fila, diseno: Number(n), digest }, ap); }
-    else if (q) { if (confirm('¿Quitar la aprobación del diseño D' + q.dataset.dvQuitar + '?')) enviar('/api/disenos/desaprobar', { fila: abierta.fila, diseno: Number(q.dataset.dvQuitar) }, q); }
-    else if (c) { const k = c.dataset.dvCmp; comparar = comparar.includes(k) ? comparar.filter(x => x !== k) : comparar.concat(k).slice(-2); pintar(); if (comparar.length === 2) dlg.querySelector('.dv-body').scrollTop = 0; }
+    const c = t.closest('[data-dv-cmp]'), z = t.closest('[data-dv-zoom]');
+    if (c) { const k = c.dataset.dvCmp; comparar = comparar.includes(k) ? comparar.filter(x => x !== k) : comparar.concat(k).slice(-2); pintar(); if (comparar.length === 2) dlg.querySelector('.dv-body').scrollTop = 0; }
     else if (t.closest('[data-dv-nocmp]')) { comparar = []; pintar(); }
     else if (z) { const capa = document.createElement('div'); capa.className = 'dv-zoom'; capa.innerHTML = '<img alt="" src="' + esc(z.getAttribute('src')) + '">'; capa.addEventListener('click', () => capa.remove()); dlg.appendChild(capa); }
   });
