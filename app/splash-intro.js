@@ -1,5 +1,5 @@
 // Entrada animada al abrir la página: el logo de Indoor se dibuja, se rellena y da paso al panel.
-// Al iniciar sesión: el logo se llena como un líquido (el mismo lenguaje de las tarjetas) y abre el panel.
+// Al iniciar sesión: una bienvenida distinta, con el nombre de la persona (lo deja el panel en window.__indoorNombre).
 // Sale cada vez que se abre o se recarga la página (pedido del usuario, 2026-10-12). Clic, toque o tecla la saltan.
 (function () {
   if (window.__indoorSplash) return; window.__indoorSplash = true;
@@ -15,9 +15,13 @@
     '#indoor-splash .is-linea{width:0;height:2px;border-radius:2px;background:linear-gradient(90deg,transparent,#d0f44c,transparent);animation:isLinea .6s ease 1.7s forwards}' +
     '#indoor-splash .is-texto{color:#f4f7ee;font:800 clamp(11px,2.6vw,14px)/1 Inter,"Segoe UI",system-ui,Arial,sans-serif;letter-spacing:.42em;text-indent:.42em;text-transform:uppercase;opacity:0;transform:translateY(8px);animation:isTexto .6s ease 1.85s forwards}' +
     '#indoor-splash.is-fuera{opacity:0;pointer-events:none}#indoor-splash.is-fuera .is-caja{animation:none;transform:translateY(-14px) scale(1.5);opacity:0;transition:transform .6s cubic-bezier(.5,0,.8,.4),opacity .45s ease}' +
-    '#indoor-splash.is-sesion path{fill:url(#isLiquido);fill-opacity:1;stroke:none;animation:none}' +
-    '#indoor-splash.is-sesion .is-caja{animation:isPop .55s cubic-bezier(.2,1.4,.4,1) both}#indoor-splash.is-sesion .is-linea{animation-delay:1.15s}' +
-    '@keyframes isPop{from{transform:scale(.82);opacity:0}to{transform:none;opacity:1}}' +
+    '#indoor-splash.is-sesion path{fill:#fefdfb;fill-opacity:1;stroke:none;animation:none}' +
+    '#indoor-splash.is-sesion svg{width:min(30vw,150px);opacity:0;animation:isTexto .5s ease .05s forwards}' +
+    '#indoor-splash.is-sesion .is-caja{animation:none;gap:16px;padding:0 18px;text-align:center}#indoor-splash.is-sesion .is-linea{animation-delay:1.25s}' +
+    '#indoor-splash .is-saludo{margin-top:10px;color:#d0f44c;font:800 clamp(11px,2.8vw,15px)/1 Inter,"Segoe UI",system-ui,Arial,sans-serif;letter-spacing:.34em;text-indent:.34em;text-transform:uppercase;opacity:0;transform:translateY(8px);animation:isTexto .5s ease .35s forwards}' +
+    '#indoor-splash .is-nombre{max-width:92vw;color:#fefdfb;font:900 clamp(32px,8vw,72px)/1.05 Inter,"Segoe UI",system-ui,Arial,sans-serif;letter-spacing:-.02em;overflow-wrap:anywhere}' +
+    '#indoor-splash .is-nombre span{display:inline-block;opacity:0;transform:translateY(.55em) rotate(4deg);animation:isLetra .55s cubic-bezier(.2,1.3,.4,1) forwards;animation-delay:calc(.55s + var(--i) * .04s)}' +
+    '@keyframes isLetra{to{opacity:1;transform:none}}' +
     '@keyframes isTrazo{to{stroke-dashoffset:0}}@keyframes isRelleno{to{fill-opacity:1;stroke-opacity:0}}' +
     '@keyframes isSube{from{transform:translateY(18px)}to{transform:translateY(-14px)}}' +
     '@keyframes isLinea{to{width:min(46vw,300px)}}@keyframes isTexto{to{opacity:1;transform:none}}' +
@@ -25,13 +29,19 @@
   var estilo = document.createElement('style'); estilo.textContent = css;
   var capa = document.createElement('div'); capa.id = 'indoor-splash'; capa.setAttribute('aria-hidden', 'true');
   if (recien) capa.className = 'is-sesion';
-  var alto = CAJA.split(' ')[3], sube = function (inicio) { return '<animate attributeName="offset" values="0;1" keyTimes="0;1" dur="1.2s" begin="' + inicio + 's" fill="freeze" calcMode="spline" keySplines=".5 0 .2 1"/>'; };
-  var liquido = '<defs><linearGradient id="isLiquido" gradientUnits="userSpaceOnUse" x1="0" y1="' + alto + '" x2="0" y2="0">' +
-    '<stop offset="0" stop-color="#fefdfb">' + sube('0.42') + '</stop><stop offset="0" stop-color="#d0f44c">' + sube('0.25') + '</stop>' +
-    '<stop offset="0" stop-color="#fefdfb" stop-opacity=".13">' + sube('0.25') + '</stop></linearGradient></defs>';
-  capa.innerHTML = '<div class="is-caja"><svg viewBox="' + CAJA + '" role="img" aria-label="Indoor">' + (recien ? liquido : '') +
+  capa.innerHTML = '<div class="is-caja"><svg viewBox="' + CAJA + '" role="img" aria-label="Indoor">' +
     TRAZOS.map(function (d, i) { return '<path pathLength="1" style="animation-delay:' + (i * 0.07).toFixed(2) + 's,' + (1.15 + i * 0.04).toFixed(2) + 's" d="' + d + '"/>'; }).join('') +
-    '</svg><span class="is-linea"></span></div>';
+    '</svg>' + (recien ? '<span class="is-saludo">Te damos la bienvenida</span><strong class="is-nombre"></strong>' : '') + '<span class="is-linea"></span></div>';
+  if (recien) {
+    var nombre = String(window.__indoorNombre || '').trim().slice(0, 40), destino = capa.querySelector('.is-nombre');
+    nombre.split(' ').forEach(function (palabra, k, todas) {   // cada letra sube por separado; las palabras no se parten al cambiar de renglón
+      var bloque = document.createElement('span'); bloque.style.cssText = 'opacity:1;transform:none;animation:none;white-space:nowrap';
+      Array.from(palabra).forEach(function (letra) { var l = document.createElement('span'); l.textContent = letra; l.style.setProperty('--i', destino.querySelectorAll('span span').length); bloque.appendChild(l); });
+      destino.appendChild(bloque);
+      if (k < todas.length - 1) destino.appendChild(document.createTextNode(' '));
+    });
+    if (!nombre) destino.remove();
+  }
   // Va colgada de <html> para verse desde el primer instante, aunque el <body> aún no exista o esté oculto mientras carga.
   document.documentElement.appendChild(estilo);
   document.documentElement.appendChild(capa);
@@ -44,5 +54,5 @@
   }
   capa.addEventListener('click', salir);
   addEventListener('keydown', salir, true);
-  setTimeout(salir, recien ? 2300 : 3000);
+  setTimeout(salir, recien ? 3200 : 3000);
 })();
