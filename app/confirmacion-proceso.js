@@ -203,14 +203,68 @@
   }
   window.indoorAnimarAgentes = animarModulo;
 
+  // Aviso que permanece en pantalla mientras los agentes trabajan: quién va, qué está haciendo y cuánto lleva.
+  var estiloEp = document.createElement('style');
+  estiloEp.textContent =
+    '#am-enproceso{position:fixed;z-index:2147481200;right:22px;bottom:22px;display:grid;grid-template-columns:50px 1fr;gap:12px;align-items:center;width:min(350px,calc(100vw - 24px));padding:12px 16px 12px 12px;border-radius:18px;background:rgba(10,14,10,.95);border:1px solid #d0f44c;box-shadow:0 18px 50px rgba(0,0,0,.6),0 0 30px rgba(208,244,76,.22);color:#f4f7ee;pointer-events:none;overflow:hidden;animation:amSube .5s cubic-bezier(.2,1.2,.3,1) both}' +
+    '#am-enproceso[hidden]{display:none}' +
+    '#am-enproceso svg{width:50px;height:50px;color:#d0f44c;overflow:visible}' +
+    '#am-enproceso .am-orbita{fill:none;stroke:currentColor;stroke-width:3;stroke-linecap:round;stroke-dasharray:40 150;transform-origin:32px 32px;animation:amGira 1.1s linear infinite}' +
+    '#am-enproceso .am-latido{transform-origin:32px 34px;animation:amLatido 1.2s ease-in-out infinite}' +
+    '#am-enproceso small{display:flex;justify-content:space-between;gap:10px;color:#d0f44c;font:800 10px/1 Inter,"Segoe UI",system-ui,Arial,sans-serif;letter-spacing:.14em;margin-bottom:5px}' +
+    '#am-enproceso small b{color:#f4f7ee;font-variant-numeric:tabular-nums;letter-spacing:.04em}' +
+    '#am-enproceso strong{display:block;font:900 14px/1.2 Inter,"Segoe UI",system-ui,Arial,sans-serif}' +
+    '#am-enproceso span{display:block;margin-top:3px;color:#a7b0a0;font:600 11.5px/1.3 Inter,"Segoe UI",system-ui,Arial,sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
+    '#am-enproceso u{position:absolute;left:0;bottom:0;height:3px;width:40%;background:linear-gradient(90deg,transparent,#d0f44c,transparent);animation:amCorre 1.5s linear infinite}' +
+    '#am-enproceso.sale{animation:amBaja .35s ease forwards}' +
+    '@keyframes amSube{from{transform:translateY(130%);opacity:0}to{transform:none;opacity:1}}@keyframes amBaja{to{transform:translateY(130%);opacity:0}}' +
+    '@keyframes amLatido{50%{transform:scale(1.08)}}@keyframes amCorre{from{transform:translateX(-100%)}to{transform:translateX(250%)}}' +
+    '@media(max-width:700px){#am-enproceso{right:12px;bottom:calc(86px + env(safe-area-inset-bottom))}}' +
+    '@media(prefers-reduced-motion:reduce){#am-enproceso,#am-enproceso *{animation:none!important}}';
+  document.head.appendChild(estiloEp);
+  var limpio = function (t) { return String(t == null ? '' : t).replace(/[<>&"]/g, ''); };
+  var panelAgentes = function () { var p = document.querySelector('.panel[data-panel="agentes"]'); return !!p && p.classList.contains('active'); };
+  var desdeTrabajo = 0, relojEp = 0;
+  function avisoEnProceso(d, demora) {
+    var chip = document.getElementById('am-enproceso');
+    if (!chip) {
+      desdeTrabajo = desdeTrabajo || Date.now();
+      chip = document.createElement('div'); chip.id = 'am-enproceso'; chip.setAttribute('role', 'status'); chip.hidden = true;
+      chip.innerHTML = '<svg viewBox="0 0 64 64" aria-hidden="true"><circle class="am-orbita" cx="32" cy="32" r="30"/><g class="am-latido"><path d="M32 12 V18" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><circle cx="32" cy="10" r="3" fill="currentColor"/>' +
+        '<rect x="15" y="18" width="34" height="28" rx="9" fill="currentColor"/><circle cx="25" cy="30" r="3.6" fill="#0b0f0a"/><circle cx="39" cy="30" r="3.6" fill="#0b0f0a"/><path d="M25 39 H39" stroke="#0b0f0a" stroke-width="3" stroke-linecap="round"/></g></svg>' +
+        '<div><small><em style="font-style:normal">AGENTES EN PROCESO</em><b data-ep-tiempo>0:00</b></small><strong data-ep-titulo></strong><span data-ep-detalle></span></div><u></u>';
+      document.body.appendChild(chip);
+      var visible = function () { chip.hidden = !panelAgentes(); };   // solo dentro del módulo AGENTES
+      setTimeout(visible, demora || 0);
+      clearInterval(relojEp);
+      relojEp = setInterval(function () {
+        if (!chip.isConnected) return clearInterval(relojEp);
+        if (Date.now() - desdeTrabajo >= (demora || 0)) visible();
+        var s = Math.floor((Date.now() - desdeTrabajo) / 1000);
+        chip.querySelector('[data-ep-tiempo]').textContent = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+      }, 1000);
+    }
+    var t = d.trabajo || {};
+    chip.querySelector('[data-ep-titulo]').textContent = d.orden ? 'Orden ' + limpio(d.orden) : 'Trabajando…';
+    chip.querySelector('[data-ep-detalle]').textContent = (t.agente ? limpio(t.agente) + ': ' : '') + (limpio(t.msg) || 'trabajando…');
+  }
+  function quitarAvisoEnProceso() {
+    var chip = document.getElementById('am-enproceso');
+    desdeTrabajo = 0; clearInterval(relojEp);
+    if (!chip) return;
+    chip.classList.add('sale'); setTimeout(function () { chip.remove(); }, 380);
+  }
+
   var canalPrevio = null;   // {trabajando, esperando} de la consulta anterior del módulo
   function revisarModuloAgentes(d) {
     if (!d || typeof d !== 'object') return;
     var ahora = { trabajando: !!(d.esperando && d.trabajo), esperando: !!d.esperando };
     var antes = canalPrevio; canalPrevio = ahora;
-    var panel = document.querySelector('.panel[data-panel="agentes"]');
-    if (!antes || !panel || !panel.classList.contains('active')) return;   // la primera consulta solo deja la referencia
-    if (ahora.trabajando && !antes.trabajando) return animarModulo('inicio', d.orden, d.trabajo && d.trabajo.agentes && d.trabajo.agentes.length > 1 ? d.trabajo.agentes : null);
+    var arranca = !!antes && ahora.trabajando && !antes.trabajando;
+    // Aviso fijo mientras dura el trabajo (también si se abre la página con los agentes ya trabajando); se quita al terminar.
+    if (ahora.trabajando) avisoEnProceso(d, arranca && panelAgentes() ? 2500 : 0); else quitarAvisoEnProceso();
+    if (!antes || !panelAgentes()) return;   // la primera consulta solo deja la referencia
+    if (arranca) return animarModulo('inicio', d.orden, d.trabajo && d.trabajo.agentes && d.trabajo.agentes.length > 1 ? d.trabajo.agentes : null);
     if (antes.trabajando && !ahora.esperando) {
       var respuestas = (d.mensajes || []).filter(function (x) { return x && x.rol !== 'yo'; }), ultima = respuestas[respuestas.length - 1] || {};
       var estado = plano(ultima.estado);
