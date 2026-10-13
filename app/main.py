@@ -3056,44 +3056,56 @@ def _filas_de_referencia(filas: list, referencia: str) -> list:
 
 def _agentes_sellar(orden: str, momento: str, referencia: str = '') -> dict:
     """Cuando los agentes trabajan una orden: HORA INICIO al empezar, HORA FINAL al terminar, RESPONSABLE siempre «AGENT» y la MÁQUINA de impresión,
-    en Producción y en el Google Sheets. Solo en las tarjetas que tenían EDICIÓN en proceso al empezar. Si ninguna lo estaba (reproceso) y la orden
-    tiene varias tarjetas, se espera a que los agentes digan qué pestaña del listado ejecutan y solo se anota esa, no todas las de la orden.
-    La hora de inicio no pisa una que ya hubiera."""
+    en Producción y en el Google Sheets. SOLO en la fila (tarjeta) que ejecutan, nunca en todas las de la orden (pedido del usuario, 2026-10-13):
+    si la orden tiene una sola tarjeta candidata se anota de una vez; si tiene varias, se espera a que los agentes digan qué pestaña del listado
+    ejecutan («Pestaña elegida para…») y se anota solo esa. Si luego ejecutan otra pestaña de la misma orden, se suma esa fila. Si terminan sin
+    haber dicho ninguna, no se anota nada (mejor ninguna que todas). Candidatas: las que tenían EDICIÓN en proceso; si ninguna, todas las de la orden.
+    La hora de inicio no pisa una que ya hubiera (salvo en reproceso)."""
     ahora = datetime.now(timezone(timedelta(hours=-5)))
     hora = ahora.strftime('%H:%M')
-    inicio_tardio = ''   # hora real de inicio cuando se anota después (al conocer la pestaña o al terminar)
+    inicio_tardio = ''   # se conserva por compatibilidad: ya no se anota el inicio al terminar
     if momento == 'inicio':
         previa = _AGENTES_CORRIDAS.get(orden)
         if previa and time.time() - previa.get('t', 0) < 12 * 3600:
-            if not (referencia and previa.get('pendiente')):
+            if not referencia:
                 # la orden sigue tras una pregunta (aprobación, elegir diseño…): es la misma corrida, no se vuelve a anotar el inicio
                 return {'orden': orden, 'momento': 'continúa', 'filas': previa['filas']}
-            elegidas = _filas_de_referencia(previa['filas'], referencia)
-            if not elegidas:   # la pestaña no corresponde a ninguna tarjeta de Producción: no se anota nada (mejor ninguna que todas)
-                previa.update(filas=[], pendiente=False)
-                resultado = {'orden': orden, 'momento': 'pestaña sin tarjeta: no anoto horas', 'referencia': referencia, 'filas': []}
-                logging.info('Agentes: %s', resultado)
-                return resultado
-            previa.update(filas=elegidas, pendiente=False)
-            filas, reproceso, hora = elegidas, previa['reproceso'], previa.get('hora') or hora
+            candidatas = previa.get('candidatas') or previa['filas']
+            elegidas = _filas_de_referencia(candidatas, referencia) or _filas_de_referencia(_filas_de_orden(orden), referencia)
+            if previa.get('pendiente'):
+                if not elegidas:   # la pestaña no corresponde a ninguna tarjeta de Producción: no se anota nada (mejor ninguna que todas)
+                    previa.update(filas=[], pendiente=False)
+                    resultado = {'orden': orden, 'momento': 'pestaña sin tarjeta: no anoto horas', 'referencia': referencia, 'filas': []}
+                    logging.info('Agentes: %s', resultado)
+                    return resultado
+                previa.update(filas=elegidas, pendiente=False)
+                filas, hora = elegidas, previa.get('hora') or hora
+            else:
+                filas = [f for f in elegidas if f not in previa['filas']]   # otra pestaña de la misma orden: se suma solo esa fila
+                if not filas:
+                    return {'orden': orden, 'momento': 'continúa', 'filas': previa['filas']}
+                previa['filas'] = previa['filas'] + filas
+            reproceso = previa['reproceso']
         else:
-            filas = [c['fila'] for c in _edicion_en_proceso() if c['orden'] == orden and c.get('fila')]
-            reproceso = not filas
-            if reproceso:   # nadie la puso «en proceso» (por ejemplo, un reproceso de una orden ya hecha)
-                filas = _filas_de_orden(orden)
-                if referencia and len(filas) > 1:
-                    filas = _filas_de_referencia(filas, referencia) or filas
-            pendiente = reproceso and len(filas) > 1   # varias tarjetas y aún no se sabe cuál se ejecuta
-            _AGENTES_CORRIDAS[orden] = {'filas': filas, 'reproceso': reproceso, 'pendiente': pendiente, 'hora': hora, 't': time.time()}
-            if pendiente:
-                resultado = {'orden': orden, 'momento': 'inicio: espero la pestaña', 'filas': filas}
+            en_proceso = [c['fila'] for c in _edicion_en_proceso() if c['orden'] == orden and c.get('fila')]
+            reproceso = not en_proceso   # nadie la puso «en proceso» (por ejemplo, un reproceso de una orden ya hecha)
+            candidatas = en_proceso or _filas_de_orden(orden)
+            filas, pendiente = candidatas, False
+            if len(candidatas) > 1:
+                if referencia:
+                    filas = _filas_de_referencia(candidatas, referencia) or _filas_de_referencia(_filas_de_orden(orden), referencia)
+                else:
+                    filas, pendiente = [], True   # varias tarjetas y aún no se sabe cuál se ejecuta: no se toca ninguna
+            _AGENTES_CORRIDAS[orden] = {'filas': filas, 'candidatas': candidatas, 'reproceso': reproceso, 'pendiente': pendiente, 'hora': hora, 't': time.time()}
+            if pendiente or not filas:
+                resultado = {'orden': orden, 'momento': 'inicio: espero la pestaña' if pendiente else 'pestaña sin tarjeta: no anoto horas', 'filas': [], 'candidatas': candidatas}
                 logging.info('Agentes: %s', resultado)
                 return resultado
     else:
         corrida = _AGENTES_CORRIDAS.pop(orden, None) or {}
         filas, reproceso = corrida.get('filas', []), corrida.get('reproceso', False)
-        if corrida.get('pendiente'):   # terminaron sin decir la pestaña (ejecutaron toda la orden): se anota en todas, con su hora de inicio real
-            inicio_tardio = corrida.get('hora', '')
+        if corrida.get('pendiente'):   # terminaron sin decir qué pestaña ejecutaron: no se sabe la fila, no se anota en ninguna
+            filas = []
     resultado = {'orden': orden, 'momento': momento, 'filas': filas, 'reproceso': reproceso}
     if referencia:
         resultado['referencia'] = referencia
