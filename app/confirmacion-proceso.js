@@ -148,6 +148,77 @@
   }
   window.__revisarAgentes = revisarAgentes;
 
+  // ---------- Módulo AGENTES: animación cuando los agentes arrancan un trabajo y cuando lo terminan ----------
+  // Se apoya en lo que el propio módulo consulta (/api/agentes/mensajes): «trabajo» aparece cuando el PC toma el pedido
+  // y «esperando» vuelve a falso cuando responden. Solo se muestra con el módulo AGENTES abierto.
+  var EQUIPO = ['TAVO', 'LEO', 'JACK', 'OLVER', 'OLIVER', 'TERRY'];
+  var MODOS = {
+    inicio:   { titulo: 'AGENTES EN MARCHA',  color: '#d0f44c' },
+    fin:      { titulo: 'TRABAJO FINALIZADO', color: '#6fe07a' },
+    error:    { titulo: 'TERMINÓ CON ERROR',  color: '#ff6b61' },
+    detenido: { titulo: 'TRABAJO DETENIDO',   color: '#ffbd4a' }
+  };
+  var estiloAm = document.createElement('style');
+  estiloAm.textContent =
+    '#am-capa{position:fixed;inset:0;z-index:2147481500;display:grid;place-items:center;pointer-events:none;background:radial-gradient(circle at 50% 50%,rgba(5,6,5,.72),rgba(5,6,5,.15) 60%);animation:amCapa 2.9s ease forwards}' +
+    '#am-capa .am-caja{position:relative;display:grid;justify-items:center;gap:14px;padding:30px 44px 26px;border-radius:26px;background:rgba(10,14,10,.95);border:1px solid var(--am);box-shadow:0 26px 80px rgba(0,0,0,.65),0 0 70px color-mix(in srgb,var(--am) 30%,transparent);color:var(--am);overflow:hidden;animation:amCaja 2.9s cubic-bezier(.2,1.25,.35,1) forwards;max-width:calc(100vw - 28px)}' +
+    '#am-capa svg{width:112px;height:112px;overflow:visible}' +
+    '#am-capa .am-orbita{fill:none;stroke:currentColor;stroke-width:3;stroke-linecap:round;stroke-dasharray:40 150;transform-origin:32px 32px;animation:amGira 1s linear infinite}' +
+    '#am-capa .am-orbita.b{stroke-dasharray:16 190;stroke-width:2;opacity:.6;animation-duration:1.7s;animation-direction:reverse}' +
+    '#am-capa.fija .am-orbita{stroke-dasharray:1;stroke-dashoffset:1;animation:amDibuja .55s ease-out .1s forwards}#am-capa.fija .am-orbita.b{display:none}' +
+    '#am-capa .am-cara{transform-origin:32px 34px;animation:amDespierta .7s cubic-bezier(.2,1.6,.4,1) both}' +
+    '#am-capa .am-marca{fill:none;stroke:#0b0f0a;stroke-width:4;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1;stroke-dashoffset:1;animation:amDibuja .4s ease-out .6s forwards}' +
+    '#am-capa .am-chispa{stroke:currentColor;stroke-width:3;stroke-linecap:round;opacity:0;animation:amChispa .65s ease-out .75s forwards}' +
+    '#am-capa strong{font:900 21px/1 Inter,"Segoe UI",system-ui,Arial,sans-serif;letter-spacing:.14em;text-indent:.14em;text-align:center}' +
+    '#am-capa .am-orden{color:#f4f7ee;font:700 13px/1.2 Inter,"Segoe UI",system-ui,Arial,sans-serif;letter-spacing:.05em}' +
+    '#am-capa .am-equipo{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;max-width:330px}' +
+    '#am-capa .am-equipo b{padding:5px 10px;border-radius:99px;border:1px solid rgba(255,255,255,.16);color:#7d8778;font:800 10px/1 Inter,"Segoe UI",system-ui,Arial,sans-serif;letter-spacing:.1em;animation:amEnciende .4s ease forwards;animation-delay:calc(.45s + var(--i) * .13s)}' +
+    '#am-capa .am-barrido{position:absolute;inset:0;background:linear-gradient(100deg,transparent 32%,color-mix(in srgb,var(--am) 18%,transparent) 50%,transparent 68%);transform:translateX(-100%);animation:amBarrido 1.3s ease-in-out .35s 2}' +
+    '@keyframes amCapa{0%{opacity:0}8%,86%{opacity:1}100%{opacity:0}}' +
+    '@keyframes amCaja{0%{transform:scale(.72);opacity:0}10%{transform:scale(1);opacity:1}87%{transform:scale(1);opacity:1}100%{transform:scale(.95) translateY(-12px);opacity:0}}' +
+    '@keyframes amGira{to{transform:rotate(360deg)}}@keyframes amDibuja{to{stroke-dashoffset:0}}' +
+    '@keyframes amDespierta{from{transform:scale(.35) rotate(-14deg);opacity:0}to{transform:none;opacity:1}}' +
+    '@keyframes amEnciende{to{color:#0b0f0a;background:var(--am);border-color:var(--am);box-shadow:0 0 16px color-mix(in srgb,var(--am) 55%,transparent)}}' +
+    '@keyframes amChispa{0%{opacity:1;stroke-dasharray:0 30;stroke-dashoffset:0}100%{opacity:0;stroke-dasharray:9 30;stroke-dashoffset:-14}}' +
+    '@keyframes amBarrido{to{transform:translateX(100%)}}' +
+    '@media(prefers-reduced-motion:reduce){#am-capa *{animation-duration:.01s!important;animation-delay:0s!important;animation-iteration-count:1!important}#am-capa,#am-capa .am-caja{animation:amCapa 2.4s steps(1,end) forwards!important}}';
+  document.head.appendChild(estiloAm);
+  function animarModulo(modo, orden, agentes) {
+    var m = MODOS[modo]; if (!m) return;
+    var vieja = document.getElementById('am-capa'); if (vieja) vieja.remove();
+    var inicio = modo === 'inicio', capa = document.createElement('div'), chispas = '';
+    if (modo === 'fin') for (var i = 0; i < 12; i++) chispas += '<path class="am-chispa" d="M32 -3 V-13" transform="rotate(' + i * 30 + ' 32 32)"/>';
+    var marca = modo === 'fin' ? 'M23 33 L30 40 L42 26' : modo === 'error' ? 'M25 26 L39 40 M39 26 L25 40' : 'M26 26 V40 M38 26 V40';
+    var lista = (agentes && agentes.length ? agentes : EQUIPO).slice(0, 6);
+    capa.id = 'am-capa'; capa.className = inicio ? '' : 'fija'; capa.setAttribute('role', 'status'); capa.style.setProperty('--am', m.color);
+    capa.innerHTML = '<div class="am-caja">' + (inicio ? '<span class="am-barrido"></span>' : '') +
+      '<svg viewBox="0 0 64 64" aria-hidden="true"><circle class="am-orbita" ' + (inicio ? '' : 'pathLength="1" ') + 'cx="32" cy="32" r="30"/><circle class="am-orbita b" cx="32" cy="32" r="35"/>' +
+      '<g class="am-cara"><path d="M32 12 V18" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><circle cx="32" cy="10" r="3" fill="currentColor"/><rect x="15" y="18" width="34" height="28" rx="9" fill="currentColor"/>' +
+      (inicio ? '<circle cx="25" cy="30" r="3.6" fill="#0b0f0a"/><circle cx="39" cy="30" r="3.6" fill="#0b0f0a"/><path d="M25 39 Q32 44 39 39" fill="none" stroke="#0b0f0a" stroke-width="3" stroke-linecap="round"/>'
+              : '<path class="am-marca" pathLength="1" d="' + marca + '"/>') + '</g>' + chispas + '</svg>' +
+      '<strong>' + m.titulo + '</strong>' + (orden ? '<span class="am-orden">Orden ' + String(orden).replace(/[<>&"]/g, '') + '</span>' : '') +
+      (inicio ? '<div class="am-equipo">' + lista.map(function (a, k) { return '<b style="--i:' + k + '">' + String(a).replace(/[<>&"]/g, '') + '</b>'; }).join('') + '</div>' : '') + '</div>';
+    document.body.appendChild(capa);
+    setTimeout(function () { capa.remove(); }, 2950);
+  }
+  window.indoorAnimarAgentes = animarModulo;
+
+  var canalPrevio = null;   // {trabajando, esperando} de la consulta anterior del módulo
+  function revisarModuloAgentes(d) {
+    if (!d || typeof d !== 'object') return;
+    var ahora = { trabajando: !!(d.esperando && d.trabajo), esperando: !!d.esperando };
+    var antes = canalPrevio; canalPrevio = ahora;
+    var panel = document.querySelector('.panel[data-panel="agentes"]');
+    if (!antes || !panel || !panel.classList.contains('active')) return;   // la primera consulta solo deja la referencia
+    if (ahora.trabajando && !antes.trabajando) return animarModulo('inicio', d.orden, d.trabajo && d.trabajo.agentes && d.trabajo.agentes.length > 1 ? d.trabajo.agentes : null);
+    if (antes.trabajando && !ahora.esperando) {
+      var respuestas = (d.mensajes || []).filter(function (x) { return x && x.rol !== 'yo'; }), ultima = respuestas[respuestas.length - 1] || {};
+      var estado = plano(ultima.estado);
+      animarModulo(estado === 'ERROR' ? 'error' : (estado === 'DETENIDO' || estado === 'REINICIANDO') ? 'detenido' : 'fin', d.orden, null);
+    }
+  }
+  window.__revisarModuloAgentes = revisarModuloAgentes;
+
   var original = window.fetch;
   window.fetch = function (entrada, opciones) {
     var promesa = original.apply(this, arguments);
@@ -158,6 +229,8 @@
         promesa.then(function (respuesta) { if (respuesta.ok) mostrar(cuerpo.action, cuerpo.row, orden); }).catch(function () {});
       } else if ((!opciones || !opciones.method || String(opciones.method).toUpperCase() === 'GET') && /\/api\/produccion$/.test(url)) {
         promesa.then(function (respuesta) { if (respuesta.ok) return respuesta.clone().json().then(revisarAgentes); }).catch(function () {});
+      } else if ((!opciones || !opciones.method || String(opciones.method).toUpperCase() === 'GET') && /\/api\/agentes\/mensajes$/.test(url)) {
+        promesa.then(function (respuesta) { if (respuesta.ok) return respuesta.clone().json().then(revisarModuloAgentes); }).catch(function () {});
       }
     } catch (e) { /* la confirmación nunca debe estorbar la operación */ }
     return promesa;
