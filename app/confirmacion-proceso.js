@@ -62,6 +62,92 @@
   }
   window.indoorConfirmarProceso = mostrar;
 
+  // ---------- Agentes de edición: aviso animado cuando empiezan y cuando terminan un proceso ----------
+  // Los agentes anotan su trabajo en el servidor (HORA INICIO / HORA FINAL con responsable «AGENT», o el estado del proceso a su nombre).
+  // Aquí se compara cada actualización de /api/produccion con la anterior y se avisa de lo que cambió.
+  var AGENTES = ['AGENT', 'AGENTE', 'AGENTES', 'TAVO', 'LEO', 'JACK', 'OLVER', 'OLIVER', 'TERRY'];
+  var plano = function (t) { return String(t == null ? '' : t).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim().toUpperCase(); };
+  var esAgente = function (t) { var p = plano(t); return !!p && AGENTES.some(function (a) { return p === a || p.indexOf(a + ' ') === 0 || p.indexOf(' ' + a) > 0; }); };
+  var esFecha = function (v) { var p = plano(v); return !!p && p !== 'P' && p !== 'R' && p !== 'N/A' && /\d/.test(p); };
+  var estiloAg = document.createElement('style');
+  estiloAg.textContent =
+    '#ag-pila{position:fixed;z-index:2147481000;right:18px;top:84px;display:grid;gap:10px;pointer-events:none;width:min(360px,calc(100vw - 24px))}' +
+    '.ag-aviso{--ag:#d0f44c;position:relative;display:grid;grid-template-columns:58px 1fr;gap:12px;align-items:center;padding:13px 16px 15px 13px;border-radius:18px;background:rgba(10,14,10,.95);border:1px solid var(--ag);box-shadow:0 18px 50px rgba(0,0,0,.55),0 0 34px color-mix(in srgb,var(--ag) 26%,transparent);color:#f4f7ee;overflow:hidden;animation:agEntra .55s cubic-bezier(.2,1.2,.3,1) both,agSale .45s ease 5.2s forwards}' +
+    '.ag-aviso svg{width:58px;height:58px;color:var(--ag);overflow:visible}' +
+    '.ag-aviso .ag-orbita{fill:none;stroke:currentColor;stroke-width:3;stroke-linecap:round;stroke-dasharray:38 120;transform-origin:32px 32px;animation:agGira 1.1s linear infinite}' +
+    '.ag-aviso.fin .ag-orbita{stroke-dasharray:1;stroke-dashoffset:1;animation:agDibuja .5s ease-out .15s forwards}' +
+    '.ag-aviso .ag-cara{transform-origin:32px 34px;animation:agLate 1.1s ease-in-out infinite}' +
+    '.ag-aviso.fin .ag-cara{animation:agSalta .5s cubic-bezier(.2,1.6,.4,1) .2s both}' +
+    '.ag-aviso .ag-ojo{animation:agParpadea 2.6s steps(1,end) infinite}' +
+    '.ag-aviso .ag-chulo{fill:none;stroke:#0b0f0a;stroke-width:4;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1;stroke-dashoffset:1;animation:agDibuja .35s ease-out .55s forwards}' +
+    '.ag-aviso small{display:block;color:var(--ag);font:800 10px/1 Inter,"Segoe UI",system-ui,Arial,sans-serif;letter-spacing:.16em;margin-bottom:5px}' +
+    '.ag-aviso strong{display:block;font:900 15px/1.2 Inter,"Segoe UI",system-ui,Arial,sans-serif}' +
+    '.ag-aviso span{display:block;margin-top:3px;color:#a7b0a0;font:600 12px/1.3 Inter,"Segoe UI",system-ui,Arial,sans-serif}' +
+    '.ag-aviso i{position:absolute;left:0;bottom:0;height:3px;width:100%;background:var(--ag);transform-origin:left;animation:agTiempo 5.2s linear forwards}' +
+    '.ag-aviso:not(.fin):after{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent 30%,color-mix(in srgb,var(--ag) 16%,transparent) 50%,transparent 70%);transform:translateX(-100%);animation:agBarrido 1.6s ease-in-out .3s 2}' +
+    '@keyframes agEntra{from{transform:translateX(120%);opacity:0}to{transform:none;opacity:1}}@keyframes agSale{to{transform:translateX(120%);opacity:0}}' +
+    '@keyframes agGira{to{transform:rotate(360deg)}}@keyframes agDibuja{to{stroke-dashoffset:0}}' +
+    '@keyframes agLate{50%{transform:scale(1.07)}}@keyframes agSalta{from{transform:scale(.5)}to{transform:none}}' +
+    '@keyframes agParpadea{0%,92%{transform:none}94%,98%{transform:scaleY(.1)}}' +
+    '@keyframes agTiempo{to{transform:scaleX(0)}}@keyframes agBarrido{to{transform:translateX(100%)}}' +
+    '@media(max-width:700px){#ag-pila{top:auto;bottom:calc(84px + env(safe-area-inset-bottom));right:12px}}' +
+    '@media(prefers-reduced-motion:reduce){.ag-aviso,.ag-aviso *{animation-duration:.01s!important;animation-iteration-count:1!important}.ag-aviso{animation:agSale .01s linear 5.2s forwards!important}}';
+  document.head.appendChild(estiloAg);
+  function avisoAgente(tipo, orden, area, fila) {
+    var pila = document.getElementById('ag-pila');
+    if (!pila) { pila = document.createElement('div'); pila.id = 'ag-pila'; pila.setAttribute('aria-live', 'polite'); document.body.appendChild(pila); }
+    while (pila.children.length >= 3) pila.firstChild.remove();
+    var fin = tipo === 'fin', aviso = document.createElement('div');
+    aviso.className = 'ag-aviso' + (fin ? ' fin' : ''); aviso.style.setProperty('--ag', fin ? '#6fe07a' : '#d0f44c');
+    aviso.innerHTML = '<svg viewBox="0 0 64 64" aria-hidden="true"><circle class="ag-orbita" ' + (fin ? 'pathLength="1" ' : '') + 'cx="32" cy="32" r="29"/>' +
+      '<g class="ag-cara"><path d="M32 12 V18" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><circle cx="32" cy="10" r="3" fill="currentColor"/>' +
+      '<rect x="15" y="18" width="34" height="28" rx="9" fill="currentColor"/>' +
+      (fin ? '<path class="ag-chulo" pathLength="1" d="M23 33 L30 40 L42 26"/>'
+           : '<g class="ag-ojo" style="transform-origin:32px 30px"><circle cx="25" cy="30" r="3.6" fill="#0b0f0a"/><circle cx="39" cy="30" r="3.6" fill="#0b0f0a"/></g><path d="M25 39 H39" stroke="#0b0f0a" stroke-width="3" stroke-linecap="round"/>') +
+      '</g></svg><div><small>AGENTES DE EDICIÓN</small><strong>' + (fin ? 'Finalizaron' : 'Empezaron') + (area ? ' ' + area : ' un proceso') + '</strong><span>' + (orden ? 'Orden ' + orden : 'Producción') + '</span></div><i></i>';
+    pila.appendChild(aviso);
+    setTimeout(function () { aviso.remove(); }, 5750);
+    var t = fila != null && tarjeta(fila);
+    if (t) { t.style.setProperty('--cp', fin ? '#6fe07a' : '#d0f44c'); t.classList.add('cp-destello'); setTimeout(function () { t.classList.remove('cp-destello'); }, 1600); }
+  }
+  window.indoorAvisoAgente = avisoAgente;
+
+  var anterior = null;   // fila -> {celda: valor} de la última actualización
+  function revisarAgentes(datos) {
+    if (!datos || !Array.isArray(datos.rows) || !Array.isArray(datos.headers)) return;
+    var cab = datos.headers.map(plano), grupos = (datos.groups || []).map(plano), iOrden = cab.indexOf('ORDEN');
+    var flujo = (typeof indoorProcessFlow !== 'undefined' && indoorProcessFlow) || [];
+    var etiquetaDe = function (i) { for (var k = 0; k < flujo.length; k++) if ((flujo[k].headers || []).indexOf(cab[i]) >= 0) return flujo[k].label; return ''; };
+    var procesos = [], horas = [];
+    cab.forEach(function (h, i) {
+      if (etiquetaDe(i)) procesos.push(i);
+      if (h === 'HORA INICIO' || h === 'HORA FINAL') {
+        var resp = -1, proc = -1;
+        cab.forEach(function (h2, j) { if (grupos[j] && grupos[j] === grupos[i]) { if (h2.indexOf('RESP') === 0) resp = j; if (etiquetaDe(j)) proc = j; } });
+        horas.push({ i: i, fin: h === 'HORA FINAL', resp: resp, area: proc >= 0 ? etiquetaDe(proc) : (datos.groups || [])[i] || '' });
+      }
+    });
+    var responsables = datos.process_responsibles || {}, actual = {}, avisos = [];
+    datos.rows.forEach(function (fila) {
+      var v = fila.values || [], id = fila.source_row, foto = {}, antes = anterior && anterior[id], vistos = {};
+      var avisar = function (tipo, area) { var clave = tipo + area; if (!vistos[clave]) { vistos[clave] = 1; avisos.push([tipo, plano(v[iOrden]) ? String(v[iOrden]).trim() : '', area, id]); } };
+      horas.forEach(function (h) {
+        var valor = plano(v[h.i]); foto['h' + h.i] = valor;
+        if (antes && valor && !antes['h' + h.i] && h.resp >= 0 && esAgente(v[h.resp])) avisar(h.fin ? 'fin' : 'inicio', h.area);
+      });
+      procesos.forEach(function (i) {
+        var valor = plano(v[i]); foto['p' + i] = valor;
+        if (!antes || antes['p' + i] === valor || !esAgente(responsables[id + ':' + (i + 1)])) return;
+        if (valor === 'P' && antes['p' + i] !== 'P') avisar('inicio', etiquetaDe(i));
+        else if (esFecha(valor) && !esFecha(antes['p' + i])) avisar('fin', etiquetaDe(i));
+      });
+      actual[id] = foto;
+    });
+    anterior = actual;   // la primera lectura solo deja la referencia: no se avisa de lo que ya estaba
+    avisos.slice(0, 3).forEach(function (a, k) { setTimeout(function () { avisoAgente(a[0], a[1], a[2], a[3]); }, k * 450); });
+  }
+  window.__revisarAgentes = revisarAgentes;
+
   var original = window.fetch;
   window.fetch = function (entrada, opciones) {
     var promesa = original.apply(this, arguments);
@@ -70,6 +156,8 @@
       if (opciones && String(opciones.method || '').toUpperCase() === 'POST' && /\/api\/produccion\/operacion$/.test(url) && typeof opciones.body === 'string') {
         var cuerpo = JSON.parse(opciones.body), orden = ordenDe(cuerpo.row);
         promesa.then(function (respuesta) { if (respuesta.ok) mostrar(cuerpo.action, cuerpo.row, orden); }).catch(function () {});
+      } else if ((!opciones || !opciones.method || String(opciones.method).toUpperCase() === 'GET') && /\/api\/produccion$/.test(url)) {
+        promesa.then(function (respuesta) { if (respuesta.ok) return respuesta.clone().json().then(revisarAgentes); }).catch(function () {});
       }
     } catch (e) { /* la confirmación nunca debe estorbar la operación */ }
     return promesa;
