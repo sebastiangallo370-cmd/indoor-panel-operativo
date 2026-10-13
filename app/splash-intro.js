@@ -1,5 +1,5 @@
 // Entrada animada con estilo de transmisión deportiva: barridos diagonales, el logo de Indoor que "golpea" la pantalla,
-// sello EN VIVO con reloj y un rótulo inferior. Sale cada vez que se abre o se recarga la página; clic, toque o tecla la saltan.
+// sello EN VIVO con reloj y un rótulo inferior; al final se desvanece y aparece la página. Sale cada vez que se abre o se recarga la página; clic, toque o tecla la saltan.
 // Al iniciar sesión cambia a una presentación tipo "jugador": «Te damos la bienvenida» + el nombre (window.__indoorNombre).
 // En /login añade además el sello EN VIVO y la cinta de titulares, para que toda la página se sienta como una transmisión.
 (function () {
@@ -53,7 +53,7 @@
     '#indoor-splash .tx-barra.a{background:#d0f44c;animation:txBarrido .75s cubic-bezier(.7,0,.2,1) forwards}' +
     '#indoor-splash .tx-barra.b{background:#f4f7ee;animation:txBarrido .75s cubic-bezier(.7,0,.2,1) .08s forwards}' +
     '#indoor-splash .tx-barra.c{background:#1b2613;animation:txBarrido .75s cubic-bezier(.7,0,.2,1) .16s forwards}' +
-    '#indoor-splash .tx-centro{position:absolute;inset:0;display:grid;place-items:center;transition:opacity .22s ease}' +
+    '#indoor-splash .tx-centro{position:absolute;inset:0;display:grid;place-items:center}' +
     '#indoor-splash .tx-caja{display:flex;flex-direction:column;align-items:center;gap:20px;padding:0 20px;text-align:center}' +
     '#indoor-splash svg{display:block;width:min(66vw,470px);height:auto;overflow:visible;opacity:0;animation:txGolpe .55s cubic-bezier(.2,1.5,.35,1) .42s forwards}' +
     '#indoor-splash path{fill:#fefdfb}' +
@@ -68,16 +68,11 @@
     '#indoor-splash .tx-saludo{display:inline-block;padding:9px 20px;background:#d0f44c;color:#0b0f0a;font-weight:900;font-style:italic;font-size:clamp(12px,2.6vw,17px);letter-spacing:.2em;text-transform:uppercase;transform:skewX(-12deg) translateX(-60px);opacity:0;animation:txEntraSesgo .45s cubic-bezier(.2,1,.3,1) .78s forwards}' +
     '#indoor-splash .tx-nombre{max-width:94vw;color:#fefdfb;font-weight:900;font-style:italic;font-size:clamp(38px,10vw,104px);line-height:.98;letter-spacing:-.02em;text-transform:uppercase;overflow-wrap:anywhere;text-shadow:0 10px 40px rgba(0,0,0,.6);opacity:0;transform:translateX(90px) skewX(-10deg);filter:blur(10px);animation:txNombre .6s cubic-bezier(.15,1,.3,1) .98s forwards}' +
     '#indoor-splash.tx-sesion .tx-raya{animation-delay:1.35s;width:min(60vw,420px)}' +
-    // Salida: un barrido cruza la pantalla y deja la página a la vista
-    '#indoor-splash.tx-fuera{pointer-events:none;background:transparent;transition:background 0s linear .34s}' +
-    '#indoor-splash.tx-fuera .tx-fondo,#indoor-splash.tx-fuera .tx-foco{opacity:0!important;animation:none;transition:opacity 0s linear .34s}' +
-    '#indoor-splash.tx-fuera .tx-centro,#indoor-splash.tx-fuera .tx-sello,#indoor-splash.tx-fuera .tx-rotulo{opacity:0!important;animation:none;transition:opacity .2s ease .14s}' +
-    '#indoor-splash.tx-fuera .tx-rotulo{transform:none}#indoor-splash.tx-fuera .tx-sello{transform:none}' +
-    '#indoor-splash.tx-fuera .tx-barra.a{animation:txCierre .8s cubic-bezier(.7,0,.2,1) forwards}' +
-    '#indoor-splash.tx-fuera .tx-barra.b{animation:txCierre .8s cubic-bezier(.7,0,.2,1) .07s forwards}' +
-    '#indoor-splash.tx-fuera .tx-barra.c{animation:txCierre .8s cubic-bezier(.7,0,.2,1) .14s forwards}' +
+    // Salida: Indoor se desvanece poco a poco y la página aparece debajo (fundido, sin cortinilla)
+    '#indoor-splash{opacity:1;transition:opacity .9s ease}' +
+    '#indoor-splash.tx-fuera{opacity:0;pointer-events:none}' +
+    '#indoor-splash.tx-fuera .tx-centro{transform:scale(1.06);transition:transform .9s ease}' +
     '@keyframes txBarrido{from{transform:translateX(-170%) skewX(-18deg)}to{transform:translateX(120%) skewX(-18deg)}}' +
-    '@keyframes txCierre{from{transform:translateX(-170%) skewX(-18deg)}to{transform:translateX(120%) skewX(-18deg)}}' +
     '@keyframes txFondo{to{background-position:60px 0,0 0}}@keyframes txAparece{to{opacity:1}}' +
     '@keyframes txGolpe{0%{opacity:0;transform:scale(1.9);filter:blur(14px) brightness(3)}60%{opacity:1;filter:blur(0) brightness(1.6)}100%{opacity:1;transform:none;filter:none}}' +
     '@keyframes txRaya{to{transform:skewX(-24deg) scaleX(1)}}@keyframes txEntraIzq{to{opacity:1;transform:none}}' +
@@ -104,7 +99,7 @@
   function salir() {
     if (fuera) return; fuera = true;
     capa.classList.add('tx-fuera');
-    setTimeout(function () { capa.remove(); estilo.remove(); }, 1000);
+    setTimeout(function () { capa.remove(); estilo.remove(); }, 950);
     removeEventListener('keydown', salir, true);
   }
   capa.addEventListener('click', salir);
