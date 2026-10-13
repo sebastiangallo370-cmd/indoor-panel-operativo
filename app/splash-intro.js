@@ -25,7 +25,7 @@
   var capa = document.createElement('div'); capa.id = 'indoor-splash'; capa.setAttribute('aria-hidden', 'true');
   capa.innerHTML = '<div class="is-caja"><svg viewBox="' + CAJA + '" role="img" aria-label="Indoor">' +
     TRAZOS.map(function (d, i) { return '<path pathLength="1" style="animation-delay:' + (i * 0.07).toFixed(2) + 's,' + (1.15 + i * 0.04).toFixed(2) + 's" d="' + d + '"/>'; }).join('') +
-    '</svg><span class="is-linea"></span><span class="is-texto">Panel operativo</span></div>';
+    '</svg><span class="is-linea"></span></div>';
   // Va colgada de <html> para verse desde el primer instante, aunque el <body> aún no exista o esté oculto mientras carga.
   document.documentElement.appendChild(estilo);
   document.documentElement.appendChild(capa);
