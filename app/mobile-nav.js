@@ -1,5 +1,5 @@
-// Solo celular (hasta 700 px): el menú superior se reemplaza por una barra inferior flotante con íconos.
-// Las secciones con subpáginas abren un panel desde abajo. En computador no cambia nada.
+// Solo celular (hasta 700 px): el menú superior se reemplaza por una barra inferior flotante con 4 accesos y «Menú».
+// «Menú» abre una hoja con todas las secciones y subpáginas y un buscador; una sección con una sola página va directo. En computador no cambia nada.
 // También: el avatar muestra iniciales en lugar del nombre completo.
 (() => {
   const MOBILE = '(max-width:700px)';
@@ -49,42 +49,54 @@
   html body .mf-toggle b{margin-left:8px;padding:1px 8px;border-radius:99px;background:#d0f44c;color:#10150e;font-size:11px}
   html body.top-navigation .sidebar{height:auto!important;min-height:0!important;max-height:none!important}
   html body main{padding-bottom:calc(110px + env(safe-area-inset-bottom))!important}
-  /* Barra inferior: píldora con íconos y etiquetas, y un botón central «+» que abre las demás secciones en abanico */
-  .mbar{--mb-bg:rgba(17,23,16,.96);--mb-line:rgba(208,244,76,.2);--mb-fg:#aebba7;--mb-on:#d0f44c;--mb-fab:#d0f44c;--mb-fab-fg:#10150e;--mb-chip:#1b2417;display:flex;position:fixed;z-index:98;left:12px;right:12px;bottom:max(12px,env(safe-area-inset-bottom));height:68px;padding:0 6px;align-items:stretch;border:1px solid var(--mb-line);border-radius:26px;background:var(--mb-bg);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 14px 36px rgba(0,0,0,.5);-webkit-tap-highlight-color:transparent}
-  html.theme-light .mbar{--mb-bg:rgba(255,255,255,.97);--mb-line:#d3dcc8;--mb-fg:#5d6a55;--mb-on:#3f6a10;--mb-fab:#3f6a10;--mb-fab-fg:#fff;--mb-chip:#f3f7ec;box-shadow:0 12px 30px rgba(40,60,20,.22)}
+  /* Barra inferior: 4 accesos + «Menú». «Menú» abre la hoja con TODAS las secciones y subpáginas (con buscador); los grupos con una sola página van directo */
+  .mbar,.msheet{--mb-bg:rgba(17,23,16,.96);--mb-line:rgba(208,244,76,.2);--mb-fg:#aebba7;--mb-on:#d0f44c;--mb-on-bg:rgba(208,244,76,.14);--ms-bg:#10160f;--ms-row:#151d15;--ms-line:#26321f;--ms-fg:#f0f4eb;--ms-mute:#7f8b79;--ms-on-bg:#1d2a14;--ms-code-bg:rgba(208,244,76,.12)}
+  html.theme-light .mbar,html.theme-light .msheet{--mb-bg:rgba(255,255,255,.97);--mb-line:#d3dcc8;--mb-fg:#5d6a55;--mb-on:#3f6a10;--mb-on-bg:rgba(63,106,16,.12);--ms-bg:#fff;--ms-row:#f3f7ec;--ms-line:#d3dcc8;--ms-fg:#1f2a17;--ms-mute:#7b8872;--ms-on-bg:#e6f0d4;--ms-code-bg:rgba(63,106,16,.1)}
+  .mbar{display:flex;position:fixed;z-index:98;left:12px;right:12px;bottom:max(12px,env(safe-area-inset-bottom));height:66px;padding:0 6px;align-items:stretch;border:1px solid var(--mb-line);border-radius:24px;background:var(--mb-bg);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 14px 36px rgba(0,0,0,.5);-webkit-tap-highlight-color:transparent}
+  html.theme-light .mbar{box-shadow:0 12px 30px rgba(40,60,20,.22)}
+  .mbar[hidden]{display:none!important}
   .mbar>.mitem{position:relative;flex:1 1 0;min-width:0;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:0;margin:0;border:0;border-radius:18px;background:transparent;color:var(--mb-fg);cursor:pointer;-webkit-tap-highlight-color:transparent;transition:color .18s}
-  .mbar>.mitem svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;transition:transform .25s cubic-bezier(.3,1.4,.5,1)}
+  .mbar>.mitem .mi{width:52px;height:30px;display:grid;place-items:center;border-radius:15px;transition:background .2s,transform .2s cubic-bezier(.3,1.4,.5,1)}
+  .mbar>.mitem svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
   .mbar>.mitem small{font:700 10px/1 Arial,sans-serif;letter-spacing:.01em;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
   .mbar>.mitem.on{color:var(--mb-on)}
-  .mbar>.mitem.on svg{transform:translateY(-1px) scale(1.08)}
-  .mbar>.mitem.on::after{content:'';position:absolute;bottom:6px;left:50%;width:18px;height:3px;margin-left:-9px;border-radius:3px;background:var(--mb-on);animation:mbar-dot .25s ease-out both}
-  @keyframes mbar-dot{from{transform:scaleX(.2);opacity:0}to{transform:scaleX(1);opacity:1}}
-  .mbar>.mitem:active svg{transform:scale(.88)}
-  .mspacer{flex:0 0 76px}
-  .mfab{position:absolute;left:50%;top:-26px;z-index:3;width:58px;height:58px;margin-left:-29px;display:grid;place-items:center;padding:0;border:5px solid var(--mb-bg);border-radius:50%;background:var(--mb-fab);color:var(--mb-fab-fg);cursor:pointer;box-shadow:0 8px 20px rgba(0,0,0,.35);-webkit-tap-highlight-color:transparent;transition:transform .2s}
-  .mfab svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:2.6;stroke-linecap:round;transition:transform .32s cubic-bezier(.3,1.4,.5,1)}
-  .mfab:active{transform:scale(.93)}
-  .mfab.has-active::after{content:'';position:absolute;right:2px;top:2px;width:11px;height:11px;border-radius:50%;background:#fff;border:2.5px solid var(--mb-fab)}
-  .mbar.fan-open .mfab svg{transform:rotate(45deg)}
-  /* Las demás secciones salen en una cuadrícula de íconos con su nombre (antes eran círculos en abanico que se montaban entre sí) */
-  .mfan{position:absolute;left:0;right:0;bottom:calc(100% + 16px);top:auto;width:auto;height:auto;z-index:2;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:12px;border:1px solid var(--mb-line);border-radius:22px;background:var(--mb-bg);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 14px 36px rgba(0,0,0,.5);opacity:0;pointer-events:none;transform:translateY(14px) scale(.96);transform-origin:50% 100%;transition:transform .28s cubic-bezier(.3,1.3,.5,1),opacity .18s ease}
-  .mbar.fan-open .mfan{opacity:1;pointer-events:auto;transform:none}
-  .mfan button{position:static;width:auto;height:78px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;padding:6px 4px;border:1px solid var(--mb-line);border-radius:16px;background:var(--mb-chip);color:var(--mb-on);cursor:pointer;-webkit-tap-highlight-color:transparent;transition:background .15s,transform .15s}
-  .mfan button:active{transform:scale(.95)}
-  .mfan button svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-  .mfan button span{position:static;margin:0;transform:none;padding:0;background:none;color:var(--mb-fg);font:700 11px/1.15 Arial,sans-serif;text-align:center;white-space:normal;max-width:100%;overflow-wrap:anywhere}
-  html.theme-light .mfan button span{background:none;color:var(--mb-fg)}
-  .mfan button.on{background:var(--mb-on);color:var(--mb-fab-fg);border-color:var(--mb-on)}
-  .mfan button.on span{color:var(--mb-fab-fg)}
-  body.mfan-open .msheet-backdrop{display:block;background:rgba(0,0,0,.45)}
-  @media(prefers-reduced-motion:reduce){.mbar>.mitem svg,.mfab svg,.mfan button{transition:none!important}.mbar>.mitem.on::after{animation:none}}
-  .msheet-backdrop{position:fixed;inset:0;z-index:96;background:rgba(0,0,0,.55)}
-  .msheet{position:fixed;z-index:97;left:10px;right:10px;bottom:calc(max(12px,env(safe-area-inset-bottom)) + 82px);max-height:min(70dvh,560px);overflow-y:auto;padding:14px 12px 10px;border:1px solid rgba(208,244,76,.3);border-radius:22px;background:#10160f;box-shadow:0 20px 60px rgba(0,0,0,.6)}
-  body.msheet-open .msheet,body.msheet-open .msheet-backdrop{display:block}
-  .msheet h3{margin:0 6px 10px;color:#d0f44c;font:850 .7rem Arial;letter-spacing:.1em;text-transform:uppercase}
-  .msheet button{display:flex;width:100%;align-items:center;gap:10px;min-height:46px;margin:0 0 6px;padding:10px 14px;border:1px solid #26321f;border-radius:14px;background:#151d15;color:#f0f4eb;font:700 .86rem Arial;text-align:left;cursor:pointer}
-  .msheet button.on{border-color:#d0f44c;background:#1d2a14;color:#e7ff9a}
-  .msheet button::after{content:'›';margin-left:auto;color:#6f7b6a;font-size:1.2rem}
+  .mbar>.mitem.on .mi{background:var(--mb-on-bg)}
+  .mbar>.mitem.on small{font-weight:800}
+  .mbar>.mitem:active .mi{transform:scale(.9)}
+  .mbar .g-x{display:none}
+  .mbar>.mitem.open .g-menu{display:none}
+  .mbar>.mitem.open .g-x{display:inline}
+  /* Hoja inferior: el Menú completo (con buscador) o las subpáginas de una sección */
+  .msheet-backdrop{display:block;position:fixed;inset:0;z-index:96;background:rgba(0,0,0,.5);opacity:0;visibility:hidden;transition:opacity .22s ease,visibility 0s linear .22s}
+  body.msheet-open .msheet-backdrop{opacity:1;visibility:visible;transition:opacity .22s ease}
+  html.msheet-lock{overflow:hidden!important}
+  .msheet{display:flex;flex-direction:column;position:fixed;z-index:97;left:10px;right:10px;bottom:calc(max(12px,env(safe-area-inset-bottom)) + 76px);max-height:min(72dvh,600px);padding:0;border:1px solid var(--mb-line);border-radius:24px;background:var(--ms-bg);color:var(--ms-fg);box-shadow:0 20px 60px rgba(0,0,0,.6);overflow:hidden;outline:none;opacity:0;visibility:hidden;pointer-events:none;transform:translateY(18px) scale(.98);transform-origin:50% 100%;transition:transform .26s cubic-bezier(.3,1.2,.5,1),opacity .18s ease,visibility 0s linear .26s}
+  body.msheet-open .msheet{opacity:1;visibility:visible;pointer-events:auto;transform:none;transition:transform .26s cubic-bezier(.3,1.2,.5,1),opacity .18s ease}
+  .msheet [hidden]{display:none!important}
+  .msheet .ms-grab{flex:0 0 auto;display:grid;place-items:center;height:22px;touch-action:none}
+  .msheet .ms-grab::before{content:'';width:38px;height:4px;border-radius:4px;background:var(--ms-line)}
+  .msheet .ms-head{flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:0 10px 8px 18px;touch-action:none}
+  .msheet .ms-head h3{margin:0;flex:1;color:var(--mb-on);font:850 .74rem Arial,sans-serif;letter-spacing:.1em;text-transform:uppercase}
+  .msheet .ms-x{flex:0 0 auto;width:36px;height:36px;display:grid;place-items:center;padding:0;border:0;border-radius:50%;background:var(--ms-row);color:var(--ms-fg);cursor:pointer;-webkit-tap-highlight-color:transparent}
+  .msheet .ms-x svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2.4;stroke-linecap:round}
+  .msheet .ms-search{flex:0 0 auto;position:relative;margin:0 12px 8px}
+  .msheet .ms-search svg{position:absolute;left:13px;top:50%;width:18px;height:18px;margin-top:-9px;stroke:var(--ms-mute);fill:none;stroke-width:2;stroke-linecap:round;pointer-events:none}
+  .msheet .ms-search input{width:100%;box-sizing:border-box;height:44px;margin:0;padding:0 14px 0 40px;border:1px solid var(--ms-line);border-radius:14px;background:var(--ms-row);color:var(--ms-fg);font:600 16px Arial,sans-serif;outline:none;-webkit-appearance:none;appearance:none}
+  .msheet .ms-search input:focus{border-color:var(--mb-on)}
+  .msheet .ms-body{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:0 12px 12px}
+  .msheet .ms-sec{margin:0 0 10px}
+  .msheet .ms-sec>h4{display:flex;align-items:center;gap:8px;margin:6px 6px 6px;color:var(--ms-mute);font:800 10.5px Arial,sans-serif;letter-spacing:.09em;text-transform:uppercase}
+  .msheet .ms-sec>h4 svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .msheet .ms-row{display:flex;width:100%;box-sizing:border-box;align-items:center;gap:12px;min-height:48px;margin:0 0 6px;padding:8px 12px;border:1px solid var(--ms-line);border-radius:14px;background:var(--ms-row);color:var(--ms-fg);font:700 .88rem Arial,sans-serif;text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .12s,background .15s}
+  .msheet .ms-row:active{transform:scale(.98)}
+  .msheet .ms-code{flex:0 0 32px;height:32px;display:grid;place-items:center;border-radius:10px;background:var(--ms-code-bg);color:var(--mb-on);font:900 10.5px Arial,sans-serif;letter-spacing:.02em}
+  .msheet .ms-code svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .msheet .ms-name{flex:1;min-width:0;overflow-wrap:anywhere}
+  .msheet .ms-row::after{content:'›';margin-left:auto;color:var(--ms-mute);font-size:1.2rem}
+  .msheet .ms-row.on{border-color:var(--mb-on);background:var(--ms-on-bg)}
+  .msheet .ms-row.on::after{content:'●';color:var(--mb-on);font-size:.55rem}
+  .msheet .ms-empty{margin:18px 8px;color:var(--ms-mute);font:700 13px Arial,sans-serif;text-align:center}
+  @media(prefers-reduced-motion:reduce){.mbar>.mitem .mi,.msheet,.msheet-backdrop,.msheet .ms-row{transition:none!important}}
   /* Control operarios y Reproceso: campos y botones cómodos para el dedo (44 px, letra 16 px para que no haga zoom) */
   .operarios-day-filter-row{display:grid!important;grid-template-columns:1fr 1fr!important;gap:8px!important;width:100%!important}
   .operarios-day-filter-row>.op-filter-field:first-child{grid-column:1/-1!important}
@@ -144,114 +156,203 @@
     }).filter(Boolean);
   };
 
+  ICONS['ASISTENTES COMERCIALES'] = ICONS.COMERCIALES;
   const bar = document.createElement('nav');
   bar.className = 'mbar';
   bar.setAttribute('aria-label', 'Menú principal');
   const sheet = document.createElement('div');
   sheet.className = 'msheet';
   sheet.setAttribute('role', 'dialog');
+  sheet.setAttribute('aria-modal', 'true');
+  sheet.tabIndex = -1;
   const backdrop = document.createElement('div');
   backdrop.className = 'msheet-backdrop';
-  let list = [];
+  backdrop.setAttribute('aria-hidden', 'true');
+  let list = [], moreList = [], items = [], menuButton = null, opener = null, mode = null;
 
-  const closeSheet = () => document.body.classList.remove('msheet-open');
-  const openSheet = section => {
-    const items = section.children();
-    if (!items.length) { section.node.querySelector('.nav-parent')?.click(); return; }
-    sheet.innerHTML = '<h3></h3>';
-    sheet.querySelector('h3').textContent = section.label;
-    items.forEach(tab => {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.textContent = labelOf(tab);
-      if (tab.classList.contains('active')) button.classList.add('on');
-      button.onclick = () => { closeSheet(); tab.click(); window.scrollTo({top: 0}); };
-      sheet.appendChild(button);
-    });
-    document.body.classList.add('msheet-open');
-  };
-  const closeFan = () => { bar.classList.remove('fan-open'); document.body.classList.remove('mfan-open'); fab && fab.setAttribute('aria-expanded', 'false'); };
-  backdrop.onclick = () => { closeSheet(); closeFan(); };
-
-  const PRIORITY = ['INICIO', 'PRODUCCION', 'REPROCESOS', 'INVENTARIOS'];
+  const PRIORITY = [['INICIO'], ['PRODUCCION'], ['REPROCESOS', 'REPROCESO'], ['INVENTARIOS']];
   const pretty = label => { const t = String(label || '').trim().toLowerCase(); return t.charAt(0).toUpperCase() + t.slice(1).replace('produccion', 'producción').replace('administracion', 'administración'); };
-  const PLUS = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
-  let fab = null, items = [], fanItems = [];
-
-  const activate = section => {
-    if (navigator.vibrate) navigator.vibrate(8);
-    closeFan();
-    if (section.direct) { closeSheet(); section.direct.click(); window.scrollTo({top: 0}); return; }
-    if (document.body.classList.contains('msheet-open') && sheet.querySelector('h3')?.textContent === section.label) closeSheet();
-    else openSheet(section);
-  };
+  const svg = path => '<svg viewBox="0 0 24 24" aria-hidden="true">' + path + '</svg>';
+  const MENU_ICON = svg('<g class="g-menu"><path d="M4 7h16M4 12h16M4 17h16"/></g><g class="g-x"><path d="M6 6l12 12M18 6 6 18"/></g>');
+  const iconOf = section => svg(ICONS[plain(section.label)] || ICONS.OTRO);
+  const el = (tag, cls, text) => { const node = document.createElement(tag); if (cls) node.className = cls; if (text != null) node.textContent = text; return node; };
+  const pagesOf = section => section.direct ? [section.direct] : section.children();
   const isOn = section => !!section && (section.direct ? section.direct.classList.contains('active') : !!section.node.querySelector('.nav-children .tab.active'));
+  const sheetOpen = () => document.body.classList.contains('msheet-open');
+
   const markActive = () => {
-    items.forEach(({section, button}) => button.classList.toggle('on', isOn(section)));
-    fanItems.forEach(({section, button}) => button.classList.toggle('on', isOn(section)));
-    if (fab) fab.classList.toggle('has-active', fanItems.some(({section}) => isOn(section)));
+    const open = sheetOpen();
+    items.forEach(({section, button}) => {
+      const on = isOn(section);
+      button.classList.toggle('on', on);
+      if (on) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current');
+      if (button.hasAttribute('aria-expanded')) button.setAttribute('aria-expanded', String(open && mode === section.label));
+    });
+    if (menuButton) {
+      const menuOpen = open && mode === 'menu';
+      // «Menú» se enciende si estás en una sección que no tiene botón en la barra (Administración, Tesorería…)
+      menuButton.classList.toggle('on', menuOpen || moreList.some(isOn));
+      menuButton.classList.toggle('open', menuOpen);
+      menuButton.setAttribute('aria-expanded', String(menuOpen));
+    }
+  };
+  const closeSheet = restoreFocus => {
+    if (!sheetOpen()) return;
+    document.body.classList.remove('msheet-open');
+    document.documentElement.classList.remove('msheet-lock');
+    sheet.style.removeProperty('transform');
+    sheet.style.removeProperty('transition');
+    mode = null;
+    markActive();
+    if (restoreFocus && opener && opener.isConnected) opener.focus({preventScroll: true});
+    opener = null;
+  };
+  const goTo = tab => { closeSheet(); tab.click(); window.scrollTo({top: 0}); };
+
+  const makeRow = (section, tab, withIcon) => {
+    const name = labelOf(tab);
+    const row = el('button', 'ms-row');
+    row.type = 'button';
+    row.dataset.q = plain(section.label + ' ' + name);
+    const code = el('span', 'ms-code');
+    if (withIcon) code.innerHTML = iconOf(section);
+    else code.textContent = (tab.querySelector('.nav-icon')?.textContent || name).trim().slice(0, 3).toUpperCase();
+    row.append(code, el('span', 'ms-name', pretty(name)));
+    if (tab.classList.contains('active')) { row.classList.add('on'); row.setAttribute('aria-current', 'page'); }
+    row.onclick = () => goTo(tab);
+    return row;
+  };
+
+  // Menú completo: todas las secciones con sus subpáginas; con buscador. Hoja de sección: solo las subpáginas de esa sección.
+  const renderSheet = (title, sections, full) => {
+    sheet.textContent = '';
+    sheet.setAttribute('aria-label', title);
+    const head = el('div', 'ms-head');
+    const close = el('button', 'ms-x');
+    close.type = 'button'; close.setAttribute('aria-label', 'Cerrar'); close.innerHTML = svg('<path d="M6 6l12 12M18 6 6 18"/>');
+    close.onclick = () => closeSheet(true);
+    head.append(el('h3', '', title), close);
+    sheet.append(el('div', 'ms-grab'), head);
+    const body = el('div', 'ms-body');
+    sections.forEach(section => {
+      const pages = pagesOf(section);
+      if (!pages.length) return;
+      const box = el('div', 'ms-sec');
+      if (section.direct) box.append(makeRow(section, section.direct, true));
+      else {
+        if (full) { const h = el('h4'); h.innerHTML = iconOf(section); h.append(pretty(section.label)); box.append(h); }
+        pages.forEach(tab => box.append(makeRow(section, tab, false)));
+      }
+      body.append(box);
+    });
+    if (full) {
+      const wrap = el('div', 'ms-search');
+      const input = el('input');
+      input.type = 'search'; input.placeholder = 'Buscar sección…'; input.setAttribute('aria-label', 'Buscar sección');
+      input.autocomplete = 'off'; input.autocapitalize = 'off'; input.spellcheck = false; input.enterKeyHint = 'go';
+      wrap.innerHTML = svg('<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>');
+      wrap.append(input);
+      const empty = el('p', 'ms-empty', 'No hay secciones con ese nombre.');
+      empty.hidden = true;
+      input.addEventListener('input', () => {
+        const q = plain(input.value);
+        let shown = 0;
+        body.querySelectorAll('.ms-sec').forEach(box => {
+          let any = false;
+          box.querySelectorAll('.ms-row').forEach(row => { const ok = !q || row.dataset.q.includes(q); row.hidden = !ok; if (ok) any = true; });
+          box.hidden = !any;
+          if (any) shown++;
+        });
+        empty.hidden = shown > 0;
+      });
+      input.addEventListener('keydown', event => {
+        if (event.key !== 'Enter') return;
+        const rows = [...body.querySelectorAll('.ms-row:not([hidden])')];
+        if (rows.length === 1) rows[0].click();   // una sola coincidencia: Enter te lleva directo
+      });
+      sheet.append(wrap);
+      body.append(empty);
+    }
+    sheet.append(body);
+  };
+  const openSheet = (kind, section, trigger) => {
+    opener = trigger || null;
+    if (kind === 'menu') renderSheet('Menú', list, true);
+    else renderSheet(pretty(section.label), [section], false);
+    mode = kind === 'menu' ? 'menu' : section.label;
+    document.body.classList.add('msheet-open');
+    document.documentElement.classList.add('msheet-lock');
+    markActive();
+    sheet.focus({preventScroll: true});
+  };
+  backdrop.onclick = () => closeSheet();
+  document.addEventListener('keydown', event => { if (event.key === 'Escape') closeSheet(true); });
+
+  // Deslizar hacia abajo desde la manija o el título cierra la hoja
+  let drag = null;
+  sheet.addEventListener('touchstart', event => {
+    if (!event.target.closest('.ms-grab,.ms-head')) return;
+    drag = {y: event.touches[0].clientY, dy: 0};
+    sheet.style.transition = 'none';
+  }, {passive: true});
+  sheet.addEventListener('touchmove', event => {
+    if (!drag) return;
+    drag.dy = Math.max(0, event.touches[0].clientY - drag.y);
+    sheet.style.transform = 'translateY(' + drag.dy + 'px)';
+  }, {passive: true});
+  const endDrag = () => {
+    if (!drag) return;
+    const far = drag.dy > 70;
+    drag = null;
+    sheet.style.removeProperty('transition');
+    if (far) closeSheet(); else sheet.style.removeProperty('transform');
+  };
+  sheet.addEventListener('touchend', endDrag);
+  sheet.addEventListener('touchcancel', endDrag);
+
+  const activate = (section, button) => {
+    if (navigator.vibrate) navigator.vibrate(8);
+    const pages = pagesOf(section);
+    // Una sola página (Inicio, Tesorería…): directo, sin hoja intermedia
+    if (pages.length === 1) { goTo(pages[0]); return; }
+    if (!pages.length) { closeSheet(); section.node.querySelector('.nav-parent')?.click(); return; }
+    if (sheetOpen() && mode === section.label) closeSheet();
+    else openSheet('section', section, button);
   };
 
   const build = () => {
     list = sections();
+    bar.hidden = !list.length;
     const signature = list.map(item => item.label).join('|');
     if (bar.dataset.signature === signature) return;
     bar.dataset.signature = signature;
-    closeFan();
-    bar.innerHTML = '';
-    items = []; fanItems = []; fab = null;
-    const wanted = PRIORITY.map(key => list.find(section => plain(section.label) === key)).filter(Boolean);
+    closeSheet();
+    bar.textContent = '';
+    items = []; menuButton = null;
+    const wanted = PRIORITY.map(keys => list.find(section => keys.includes(plain(section.label)))).filter(Boolean);
     const main = wanted.length >= 2 ? wanted : list.slice(0, 4);
-    const more = list.filter(section => !main.includes(section));
-    const makeItem = section => {
-      const button = document.createElement('button');
-      button.type = 'button'; button.className = 'mitem';
-      button.setAttribute('aria-label', section.label);
-      button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true">' + (ICONS[plain(section.label)] || ICONS.OTRO) + '</svg><small></small>';
-      button.querySelector('small').textContent = pretty(section.label);
-      button.onclick = () => activate(section);
-      items.push({section, button});
-      return button;
-    };
-    const half = more.length ? Math.ceil(main.length / 2) : main.length;
-    main.slice(0, half).forEach(section => bar.appendChild(makeItem(section)));
-    if (more.length) {
-      const spacer = document.createElement('span');
-      spacer.className = 'mspacer'; spacer.setAttribute('aria-hidden', 'true');
-      bar.appendChild(spacer);
-    }
-    main.slice(half).forEach(section => bar.appendChild(makeItem(section)));
-    if (!more.length) return;
-    fab = document.createElement('button');
-    fab.type = 'button'; fab.className = 'mfab';
-    fab.setAttribute('aria-label', 'Más secciones'); fab.setAttribute('aria-expanded', 'false');
-    fab.innerHTML = PLUS;
-    fab.onclick = () => {
-      if (navigator.vibrate) navigator.vibrate(8);
-      closeSheet();
-      const open = !bar.classList.contains('fan-open');
-      bar.classList.toggle('fan-open', open);
-      document.body.classList.toggle('mfan-open', open);
-      fab.setAttribute('aria-expanded', String(open));
-    };
-    const fan = document.createElement('div');
-    fan.className = 'mfan';
-    const spread = more.length > 1 ? Math.min(55 * (more.length - 1), 150) : 0;
-    more.forEach((section, index) => {
-      const angle = more.length > 1 ? (-spread / 2 + spread * index / (more.length - 1)) * Math.PI / 180 : 0;
-      const button = document.createElement('button');
+    moreList = list.filter(section => !main.includes(section));
+    main.forEach(section => {
+      const button = el('button', 'mitem');
       button.type = 'button';
       button.setAttribute('aria-label', section.label);
-      button.style.setProperty('--x', Math.round(Math.sin(angle) * 88) + 'px');
-      button.style.setProperty('--y', Math.round(-Math.cos(angle) * 88 - 4) + 'px');
-      button.style.setProperty('--d', (index * 0.04) + 's');
-      button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true">' + (ICONS[plain(section.label)] || ICONS.OTRO) + '</svg><span></span>';
-      button.querySelector('span').textContent = pretty(section.label);
-      button.onclick = () => activate(section);
-      fan.appendChild(button);
-      fanItems.push({section, button});
+      button.innerHTML = '<span class="mi">' + iconOf(section) + '</span><small></small>';
+      button.querySelector('small').textContent = pretty(section.label);
+      if (!section.direct && pagesOf(section).length > 1) { button.setAttribute('aria-haspopup', 'dialog'); button.setAttribute('aria-expanded', 'false'); }
+      button.onclick = () => activate(section, button);
+      items.push({section, button});
+      bar.appendChild(button);
     });
-    bar.append(fan, fab);
+    if (!list.length) return;
+    menuButton = el('button', 'mitem menu');
+    menuButton.type = 'button';
+    menuButton.setAttribute('aria-label', 'Menú completo'); menuButton.setAttribute('aria-haspopup', 'dialog'); menuButton.setAttribute('aria-expanded', 'false');
+    menuButton.innerHTML = '<span class="mi">' + MENU_ICON + '</span><small>Menú</small>';
+    menuButton.onclick = () => {
+      if (navigator.vibrate) navigator.vibrate(8);
+      if (sheetOpen() && mode === 'menu') closeSheet(); else openSheet('menu', null, menuButton);
+    };
+    bar.appendChild(menuButton);
   };
 
   const initials = name => String(name || '').trim().split(/\s+/).filter(Boolean).slice(0, 2).map(word => word[0]).join('').toUpperCase();
@@ -319,7 +420,7 @@
   };
   const schedule = () => { if (!queued) { queued = true; setTimeout(run, 60); } };
   run();
-  window.addEventListener('resize', () => { lastTop = ''; if (!isMobile()) { closeSheet(); closeFan(); } schedule(); });
+  window.addEventListener('resize', () => { lastTop = ''; if (!isMobile()) { closeSheet(); } schedule(); });
   new MutationObserver(schedule).observe(document.body, {childList: true, subtree: true, attributes: true, attributeFilter: ['class']});
   setTimeout(run, 600);
   setTimeout(run, 2000);
