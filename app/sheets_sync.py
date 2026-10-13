@@ -16,6 +16,23 @@ def identity(values):
     return json.dumps([str(values[i] or '').strip().upper() for i in (4, 6)], ensure_ascii=False)
 
 
+def claves(lista_de_valores):
+    """Clave de cada fila, en el mismo orden. Una orden puede traer la MISMA referencia en varias filas (así se programa a veces: RM7644 con
+    A11400CP07 de 27 y de 6 unidades): la primera conserva la clave de siempre [orden, referencia] y las siguientes llevan su número de aparición
+    [orden, referencia, 2], [orden, referencia, 3]… Así cada fila del Sheet queda enlazada a su propia tarjeta."""
+    vistas, salida = collections.Counter(), []
+    for valores in lista_de_valores:
+        base = identity(valores)
+        vistas[base] += 1
+        salida.append(base if vistas[base] == 1 else json.dumps(json.loads(base) + [vistas[base]], ensure_ascii=False))
+    return salida
+
+
+def _base(clave):
+    """[orden, referencia] de una clave, tenga o no número de aparición."""
+    return json.dumps(json.loads(clave)[:2], ensure_ascii=False)
+
+
 def fetch(worksheet):
     if worksheet.spreadsheet.id != SPREADSHEET_ID or worksheet.id != SHEET_ID:
         raise ValueError('La conexión no corresponde a la hoja autorizada')
@@ -46,9 +63,7 @@ def fetch(worksheet):
         rows.append({'sheet_row': number, 'values': values,
                      'notes': {str(i+1): c['note'] for i, c in enumerate(cell_row) if c.get('note')},
                      'cells': cell_row})
-    duplicates = [k for k, count in collections.Counter(identity(r['values']) for r in rows).items() if count > 1]
-    if duplicates:
-        raise ValueError('Órdenes/referencias repetidas; sincronización pausada para evitar una asociación incorrecta')
+    # Antes una orden con la misma referencia en dos filas pausaba toda la sincronización; ahora se aceptan (ver claves()).
     try:
         line_colors = line_color_map(rows, fetch_line_colors(worksheet, title, prop['gridProperties']['rowCount']))
     except Exception:
@@ -114,14 +129,27 @@ def apply(db, snapshot, force=False):
             old == new or new == f'COLUMNA {i+1}' for i, (old, new) in enumerate(zip(headers, snapshot['headers'])))
         if not same:
             raise ValueError('Las columnas de Google Sheets cambiaron; no se importó nada')
-        local = {}
-        for number, raw in db.execute('SELECT source_row,values_json FROM production_rows'):
+        # Clave de cada tarjeta local: la de su enlace con el Sheet (que ya trae el número de aparición si la referencia está repetida);
+        # las que aún no tienen enlace toman la primera aparición libre de su [orden, referencia].
+        enlaces = {numero: clave for clave, numero in db.execute('SELECT identity,source_row FROM production_sheet_links')}
+        local, sin_enlace = {}, []
+        for number, raw in db.execute('SELECT source_row,values_json FROM production_rows ORDER BY source_row'):
             values = json.loads(raw)
             if len(values)>6 and str(values[4]).strip():
                 k = identity(values)
-                if k in local:
+                enlace = enlaces.get(number)
+                if not enlace or _base(enlace) != k:
+                    sin_enlace.append((number, values, k))
+                    continue
+                if enlace in local:
                     raise ValueError('Identidad duplicada en la web; requiere revisión')
-                local[k] = (number, values)
+                local[enlace] = (number, values)
+        for number, values, k in sin_enlace:
+            clave, aparicion = k, 1
+            while clave in local:
+                aparicion += 1
+                clave = json.dumps(json.loads(k) + [aparicion], ensure_ascii=False)
+            local[clave] = (number, values)
         deleted = set()
         if db.execute("SELECT 1 FROM sqlite_master WHERE name='production_deleted_rows'").fetchone():
             for (raw,) in db.execute('SELECT payload FROM production_deleted_rows'):
@@ -130,8 +158,8 @@ def apply(db, snapshot, force=False):
                       int((db.execute("SELECT value FROM production_meta WHERE key='last_allocated_row'").fetchone() or [0])[0]))
         now = datetime.now(timezone.utc).isoformat()
         counts = {'new': 0, 'updated': 0, 'linked': 0, 'skipped_deleted': 0, 'notes': 0}
-        for item in snapshot['rows']:
-            key = identity(item['values'])
+        claves_sheet = claves([item['values'] for item in snapshot['rows']])
+        for item, key in zip(snapshot['rows'], claves_sheet):
             link = db.execute('SELECT source_row,snapshot FROM production_sheet_links WHERE identity=?', (key,)).fetchone()
             if key in deleted or (link and not db.execute('SELECT 1 FROM production_rows WHERE source_row=?',(link[0],)).fetchone()):
                 counts['skipped_deleted'] += 1
@@ -174,7 +202,7 @@ def apply(db, snapshot, force=False):
         # Eliminar del app las filas que ya no existen en la hoja de Google Sheets.
         # Solo se eliminan las que fueron importadas desde Sheets (tienen entrada en
         # production_sheet_links); las creadas localmente no se tocan.
-        sheet_keys = {identity(item['values']) for item in snapshot['rows']}
+        sheet_keys = set(claves_sheet)
         linked_rows = db.execute('SELECT identity,source_row FROM production_sheet_links').fetchall()
         counts['removed'] = 0
         for link_identity, link_source_row in linked_rows:
