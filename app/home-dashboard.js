@@ -629,7 +629,7 @@
   // ---- ESCALERA DE LA PLANTA: las áreas en el orden del flujo, cada escalón con su carga (a simple vista se ve dónde se acumula todo) ----
   let stairMetric = 'orders';
   try { if (localStorage.getItem('indoor-stairs-metric') === 'units') stairMetric = 'units'; } catch (e) { /* sin almacenamiento */ }
-  let stairsPlayed = false;
+  let stairsPlayed = false, quietTimer = 0;
   const SHORT = { 'MATERIALES': 'MATERIAL.', 'MTS REQUERIDOS': 'MTS REQ.', 'SUBLIMACIÓN': 'SUBLIM.', 'CONFECCIÓN': 'CONFEC.', 'FACTURACIÓN': 'FACTURA', 'IMPRESIÓN': 'IMPRES.' };
   const WAVE = { proc: '#b9f07e', rep: '#ff9a8d', cola: '#ffe0a0', prog: '#c6dbff' };   // color de la ola según lo que queda arriba de cada escalón
   const STAIR_KINDS = [['proc', 'En proceso'], ['rep', 'Reproceso'], ['cola', 'En cola'], ['prog', 'Programado']];   // de abajo hacia arriba
@@ -839,6 +839,10 @@
 
     const timing = a.timing.length ? '<section class="dash-load dash-timing"></section>' : '';
 
+    // Al actualizar datos ya mostrados no se repiten las animaciones de entrada (números desde 0, barras desde vacío): eso era el parpadeo
+    const primera = !root.querySelector('.dash-head');
+    clearTimeout(quietTimer);
+    if (!primera) { root.classList.add('dash-redraw'); quietTimer = setTimeout(() => root.classList.remove('dash-redraw'), 1200); }
     root.innerHTML =
       '<div class="dash-head"><div><span class="eyebrow">Resumen operativo</span><h3>Estado de la producción</h3></div><small><i class="dash-live"></i>En vivo · actualizado ' + new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) + '</small></div>' +
       tabsBar(a) +
@@ -849,7 +853,7 @@
     greet(a);
     bindOrderFinder(a.orders);
     renderTiming(a);
-    countUp();
+    if (primera) countUp();
     if (dlg.open && view.label) dlgList();
     if (!stairsPlayed) playStairs(root.querySelector('.dash-pane.on'));
   }
@@ -876,6 +880,9 @@
   .dash-tabs button:hover{background:rgba(255,255,255,.06);color:#fff}
   .dash-tabs button.on{background:#d0f44c;color:#16200a;border-color:#d0f44c}
   .dash-tabs button b{min-width:20px;padding:1px 7px;border-radius:99px;background:rgba(255,255,255,.12);font-size:.7rem;text-align:center}.dash-tabs button.on b{background:rgba(22,32,10,.18)}
+  .dash-redraw .dash-pane.on,.dash-redraw .dash-load-card::after,.dash-redraw .dash-seg i{animation:none!important}
+  .dash-redraw .od{transition:none!important;opacity:1;transform:none}.dash-redraw .od-fill{transition:none!important;width:var(--w)}.dash-redraw .od-adv{transition:none!important;width:var(--a)}
+  .dash-redraw .st-col,.dash-redraw .st-bar{transition:none!important}
   .dash-pane{display:none;gap:16px}.dash-pane.on{display:grid;animation:dashRise .3s both}
   @media(max-width:700px){.dash-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.dash-tabs button{width:100%!important;min-width:0;min-height:42px!important;justify-content:center;padding:8px 6px;font-size:.74rem;line-height:1.15;text-align:center;white-space:normal}}
   /* ventana de pantalla completa de un área */
