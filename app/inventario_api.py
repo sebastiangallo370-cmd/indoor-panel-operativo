@@ -389,6 +389,7 @@ def _finish_inventory(categories: list[dict[str, Any]], all_records: list[dict[s
         for category in categories:
             if category['key'] == 'BODEGA TELA':
                 category['items'] += added
+    _apply_counts(categories, all_records)
     for movement in _load_movements():
         target = next((record for record in all_records if record['nombre'] == movement.get('name') or (movement.get('code') and f"({movement.get('code')})" in record['nombre'])), None)
         if not target:
@@ -427,6 +428,38 @@ def _finish_inventory(categories: list[dict[str, Any]], all_records: list[dict[s
         "items": all_records,
         "summary": {"items": len(all_records), "units": total_units, "units_label": _display_total(total_units), "sources": len([category for category in categories if category["available"]])},
     }
+
+
+_count_file = os.getenv('INVENTORY_COUNT_FILE', '/data/inventory_conteo_impresion.json')
+
+
+def _apply_counts(categories: list[dict[str, Any]], all_records: list[dict[str, Any]]) -> None:
+    """Conteo físico de Materia prima impresión: fija la cantidad de cada artículo (o lo crea si no está en el Sheet)."""
+    try:
+        with open(_count_file, encoding='utf-8') as handle:
+            counts = json.load(handle).get('items', [])
+    except (OSError, ValueError):
+        return
+    tab_key, tab_label = 'MATERIA PRIMA IMPRESION', 'Materia prima impresión'
+    for index, entry in enumerate(counts):
+        name, total = str(entry.get('nombre') or '').strip(), float(entry.get('total') or 0)
+        if not name:
+            continue
+        target = next((record for record in all_records if record['categoria'] == tab_key and _normalized(record['nombre']) == _normalized(name)), None)
+        if target is None:
+            target = {"id": f"{tab_key}:CONTEO:{index}", "categoria": tab_key, "categoria_label": tab_label, "nombre": name,
+                      "mts": 0.0, "rolls": 0, "roll_values": [], "roll_statuses": [], "campos": {}}
+            all_records.append(target)
+        target.update({"total": total, "total_label": _display_total(total), "mts": total})
+        if entry.get('proveedor'):
+            target['proveedor'] = entry['proveedor']
+        target['campos'] = {"Proveedor": target.get('proveedor', ''), "NOMBRE INSUMO": name, **({"Detalle": entry['detalle']} if entry.get('detalle') else {}), "TOTAL": _display_total(total), "Conteo físico": str(entry.get('fecha') or '')}
+    for category in categories:
+        if category['key'] == tab_key:
+            rows = [record for record in all_records if record['categoria'] == tab_key]
+            category['items'] = len(rows)
+            category['units'] = sum(record['total'] for record in rows)
+            category['units_label'] = _display_total(category['units'])
 
 
 def _alpha_key(item: dict[str, Any]) -> tuple[str, str, str]:
