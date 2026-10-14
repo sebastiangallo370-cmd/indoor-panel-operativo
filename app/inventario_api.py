@@ -439,7 +439,7 @@ def _apply_counts(categories: list[dict[str, Any]], all_records: list[dict[str, 
         with open(_count_file, encoding='utf-8') as handle:
             counts = json.load(handle).get('items', [])
     except (OSError, ValueError):
-        return
+        counts = []
     tab_key, tab_label = 'MATERIA PRIMA IMPRESION', 'Materia prima impresión'
     for index, entry in enumerate(counts):
         name, total = str(entry.get('nombre') or '').strip(), float(entry.get('total') or 0)
@@ -454,6 +454,22 @@ def _apply_counts(categories: list[dict[str, Any]], all_records: list[dict[str, 
         if entry.get('proveedor'):
             target['proveedor'] = entry['proveedor']
         target['campos'] = {"Proveedor": target.get('proveedor', ''), "NOMBRE INSUMO": name, **({"Detalle": entry['detalle']} if entry.get('detalle') else {}), "TOTAL": _display_total(total), "Conteo físico": str(entry.get('fecha') or '')}
+    for record in all_records:
+        if record['categoria'] != tab_key or record.get('unidad'):
+            continue
+        name, units = _normalized(record['nombre']), record['total']
+        per_roll = re.search(r'(\d+)\s*MTS', name) or (re.search(r'(\d+)\s*MTS', _normalized(record.get('campos', {}).get('Detalle', ''))) if 'TPU' in name else None)
+        if per_roll and ('PAPEL' in name or 'TPU' in name):
+            size = int(per_roll.group(1))
+            record.update({"unidad": "MTS", "total": units * size, "mts": units * size, "rolls": int(units)})
+            record['campos']['Detalle'] = f"{_display_total(units)} {'rollo' if units == 1 else 'rollos'} de {size} MTS"
+        elif 'TINTA' in name:
+            record['unidad'] = 'LT'
+            record['campos']['Detalle'] = f"{_display_total(units)} {'unidad' if units == 1 else 'unidades'} de 1 litro"
+        else:
+            continue
+        record['total_label'] = _display_total(record['total'])
+        record['campos']['TOTAL'] = f"{record['total_label']} {record['unidad']}"
     for category in categories:
         if category['key'] == tab_key:
             rows = [record for record in all_records if record['categoria'] == tab_key]
