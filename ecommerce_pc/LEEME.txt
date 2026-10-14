@@ -10,14 +10,14 @@ Desde el panel se inicia/detiene a cada agente (es el mismo trabajo que hace PAN
   DARIO  órdenes de venta             (bot_ordenes_venta.py)
 ALMA, BRISA y CIRO usan Illustrator: el panel no deja correr dos a la vez.
 
-Primera vez
-  1. En el panel: Ecommerce -> «Conectar PC». Copia la dirección y el código (se muestran una sola vez).
-  2. En este PC: conectar_ecommerce.bat y pega ambos.
-  3. iniciar_ecommerce.bat (o iniciar_ecommerce_oculto.vbs para que corra en segundo plano).
+UN SOLO ARCHIVO: INICIAR_ECOMMERCE.bat
+  · Primera vez: te pide la dirección y el código (en el panel: Ecommerce -> «Conectar PC»), los guarda y arranca solo.
+    También te pregunta si quieres que se abra solo al iniciar sesión en Windows.
+  · Siguientes veces: doble clic y listo. Déjalo abierto (puedes minimizarlo).
 
 Requisitos: Python 3 instalado y el acceso a la carpeta de los bots en la NAS. Si los bots están en otra ruta,
 crea datos\config.json con {"ruta_bots": "D:\\ruta\\AUTOMATIZACION_PAGINA WEB"}.
 Probar sin tocar Effi ni Illustrator: python puente_ecommerce.py --simulado
 
 NO guardes en esta carpeta las claves de Effi ni de Google: esas siguen en los .env de cada bot.
-Si hay que cambiar el código de enlace: «Conectar PC» otra vez y repetir el paso 2 (el anterior deja de servir).
+Si cambias el código de enlace en el panel: borra datos\panel.json y vuelve a abrir INICIAR_ECOMMERCE.bat.

@@ -110,7 +110,7 @@
   function conexion() {
     if (!st.token) return '';
     return '<div class="ec-conn"><b>Código de enlace (se muestra una sola vez)</b><code>' + esc(st.token.url) + '</code><code>' + esc(st.token.token) + '</code>' +
-      'En el PC de los bots abre <b>ecommerce_pc → conectar_ecommerce.bat</b> y pega primero la dirección y luego el código. Si generas otro código, el anterior deja de servir.</div>';
+      'En el PC de los bots abre <b>ecommerce_pc → INICIAR_ECOMMERCE.bat</b> y pega primero la dirección y luego el código (solo la primera vez). Si generas otro código, borra <b>datos\panel.json</b> y vuelve a abrir ese archivo.</div>';
   }
   function pintar() {
     const l0 = panel.querySelector('[data-log]'), pegado = !l0 || l0.scrollHeight - l0.scrollTop - l0.clientHeight < 40, y = l0 ? l0.scrollTop : 0;

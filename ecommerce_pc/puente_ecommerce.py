@@ -7,8 +7,8 @@ Hace lo mismo que PANEL_CONTROL\\worker.py, pero las órdenes llegan desde el pa
 Cada pocos segundos avisa al panel que está vivo, le manda el estado de cada bot y las líneas nuevas de su log.
 No abre puertos: solo hace peticiones salientes a la dirección del panel.
 
-Uso:
-    python puente_ecommerce.py                 normal (arranca/detiene los bots de verdad)
+Uso (normalmente basta con abrir INICIAR_ECOMMERCE.bat):
+    python puente_ecommerce.py                 normal (la primera vez pide el enlace; arranca/detiene los bots de verdad)
     python puente_ecommerce.py --simulado      PRUEBA: no toca Effi ni Illustrator; los «bots» solo imprimen líneas de ejemplo
     python puente_ecommerce.py --conectar      pide la dirección y el código que muestra el panel y los guarda
 Config en datos\\panel.json (dirección y código) y datos\\config.json (carpeta de los bots).
@@ -160,8 +160,31 @@ def conectar():
         print('Dirección o código no válidos.')
         return 1
     (DATOS / 'panel.json').write_text(json.dumps({'url': url, 'token': token}), encoding='utf-8')
-    print('Guardado. Ahora ejecuta iniciar_ecommerce.bat')
+    print('Guardado. Iniciando…')
     return 0
+
+
+def inicio_automatico():
+    """Pregunta (una sola vez) si este archivo debe abrirse solo al iniciar sesión en Windows."""
+    marca = DATOS / 'inicio_auto.txt'
+    if marca.exists() or os.name != 'nt' or not sys.stdin or not sys.stdin.isatty():
+        return
+    DATOS.mkdir(exist_ok=True)
+    try:
+        r = input('¿Abrir ECOMMERCE solo cada vez que inicies sesión en este PC? (S/N): ').strip().upper()
+    except EOFError:
+        return
+    marca.write_text(r or 'N', encoding='utf-8')
+    if r != 'S':
+        return
+    inicio = Path(os.environ.get('APPDATA', '')) / 'Microsoft' / 'Windows' / 'Start Menu' / 'Programs' / 'Startup'
+    ps = ("$s=(New-Object -ComObject WScript.Shell).CreateShortcut('%s'); $s.TargetPath='%s'; $s.WorkingDirectory='%s'; $s.WindowStyle=7; $s.Save()"
+          % (inicio / 'ECOMMERCE.lnk', AQUI / 'INICIAR_ECOMMERCE.bat', AQUI))
+    try:
+        subprocess.run(['powershell', '-NoProfile', '-Command', ps], check=True, capture_output=True, timeout=30)
+        print('Listo: arrancará solo al iniciar sesión (para quitarlo, borra ECOMMERCE de la carpeta Inicio de Windows).')
+    except Exception as e:  # noqa: BLE001
+        print(f'No pude crear el arranque automático: {e}')
 
 
 def main():
@@ -173,9 +196,13 @@ def main():
     if args.conectar:
         sys.exit(conectar())
     panel = leer_json(DATOS / 'panel.json', {})
-    if not panel.get('url') or not panel.get('token'):
-        print('Falta enlazar este PC: ejecuta conectar_ecommerce.bat')
-        sys.exit(1)
+    if not panel.get('url') or not panel.get('token'):   # primera vez: se pide el enlace aquí mismo y se sigue
+        print('Primera vez en este PC: falta enlazarlo con el panel (ECOMMERCE → Conectar PC).')
+        if conectar() != 0:
+            sys.exit(1)
+        panel = leer_json(DATOS / 'panel.json', {})
+    if not args.simulado and not args.una_vez:
+        inicio_automatico()
     config = leer_json(DATOS / 'config.json', {})
     base = Path(config.get('ruta_bots') or RUTA_BOTS)
     salida: 'queue.Queue' = queue.Queue()
@@ -216,7 +243,7 @@ def main():
                         resultados.append({'orden': orden['id'], 'ok': False, 'detalle': str(e)[:250]})
                         print(f'[{time.strftime("%H:%M:%S")}] {orden["agente"]} · {orden["accion"]} · ERROR {e}')
             except urllib.error.HTTPError as e:
-                print(f'[{time.strftime("%H:%M:%S")}] El panel respondió {e.code} (¿código de enlace vencido? usa conectar_ecommerce.bat)')
+                print(f'[{time.strftime("%H:%M:%S")}] El panel respondió {e.code} (¿código de enlace vencido? borra datos\panel.json y vuelve a abrir INICIAR_ECOMMERCE.bat)')
                 for l in lineas:   # no se pierden las líneas del log
                     salida.put((l['agente'], l['texto']))
             except Exception as e:  # noqa: BLE001

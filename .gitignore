@@ -17,3 +17,6 @@ config.json
 
 usuarios_panel.html
 FORMATO_EXCEL.xlsx
+
+ecommerce_pc/datos/
+ecommerce_pc/*.log

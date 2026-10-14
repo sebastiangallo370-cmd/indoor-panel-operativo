@@ -36,13 +36,14 @@ req = urllib.request.Request(URL + '/api/ecommerce/pc/sondeo', data=b'{}', heade
 try: urllib.request.urlopen(req, timeout=5)
 except urllib.error.HTTPError as e: print('5 token falso ->', e.code)
 # puente simulado
-(RAIZ / 'ecommerce_pc' / 'datos').mkdir(exist_ok=True)
 backup = (RAIZ / 'ecommerce_pc' / 'datos' / 'panel.json')
-backup.write_text(json.dumps({'url': URL, 'token': tok['token']}), encoding='utf-8')
-puente = subprocess.Popen([sys.executable, str(RAIZ / 'ecommerce_pc' / 'puente_ecommerce.py'), '--simulado'], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding='utf-8')
+backup.unlink(missing_ok=True)
+# primera vez: el puente pide la dirección y el código por teclado y sigue solo (un solo archivo)
+puente = subprocess.Popen([sys.executable, str(RAIZ / 'ecommerce_pc' / 'puente_ecommerce.py'), '--simulado'], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding='utf-8')
+puente.stdin.write(URL + chr(10) + tok['token'] + chr(10)); puente.stdin.flush()
 try:
     time.sleep(5)
-    e = llamar('GET', '/api/ecommerce/estado')[1]; print('6 PC conectado:', e['pc']['conectado'], '| simulado:', e['pc']['simulado'])
+    e = llamar('GET', '/api/ecommerce/estado')[1]; print('6 primer arranque pidió el enlace y conectó solo; panel.json guardado:', backup.exists()); print('6b PC conectado:', e['pc']['conectado'], '| simulado:', e['pc']['simulado'])
     print('7 iniciar ALMA ->', llamar('POST', '/api/ecommerce/agentes/alma/iniciar'))
     time.sleep(8)
     e = llamar('GET', '/api/ecommerce/estado')[1]; print('8 estados:', {a['id']: a['estado'] for a in e['agentes']}, '| órdenes:', [(o['agente'], o['accion'], o['estado']) for o in e['ordenes']])
