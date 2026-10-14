@@ -1043,7 +1043,7 @@
   function prepararEjecucion(idMensaje) {
     const nueva = !flow.estadoServidor || ['INICIO', 'FIN', 'ERROR'].includes(flow.estadoServidor);
     flow.preparado = idMensaje || flow.preparado;
-    if (nueva) { flow.genTab = null; flow.disTab = null; nuevaEjec(); } else NODOS.forEach(n => { if (flow.estado[n.id] === 'espera') poner(n.id, 'ok'); });
+    if (nueva) { flow.genTab = null; flow.disTab = null; flow.mgenTab = null; flow.mdisTab = null; nuevaEjec(); } else NODOS.forEach(n => { if (flow.estado[n.id] === 'espera') poner(n.id, 'ok'); });
     flow.ejec.pet++;
     pildora('corriendo', 'Ejecutando…');
     if (nueva) { poner('TRIGGER', 'ok'); mover('TAVO'); }
@@ -1087,7 +1087,7 @@
     box.innerHTML = '<div class="ag-live-top"><b><i data-pto></i>PANTALLA EN VIVO</b><small data-estado></small><small class="ag-keys" title="Usa las flechas del teclado">← → pasan los PDF</small><a class="ag-ai-inst" href="/descargar-conector-illustrator" title="Instala el botón en ESTE computador (una sola vez). Si al tocar «Abrir en Illustrator» no pasa nada, hazlo">¿No abre? Instalar en este PC</a><button type="button" class="seguir ag-ai-btn" data-ai hidden title="Abre este PDF en el Illustrator de ESTE computador">' + LOGO_AI + ' Abrir en Illustrator</button><span class="ag-live-cnt" data-cnt></span><button type="button" class="seguir" data-seguir hidden>Seguir en vivo</button></div>' +
       '<div class="ag-live-body"><div class="ag-live-col"><div class="ag-live-vista" data-vista><button type="button" class="mu-flecha izq" data-pdf-go="-1" title="PDF anterior (←)"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button type="button" class="mu-flecha der" data-pdf-go="1" title="PDF siguiente (→)"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button><img alt="PDF de producción"><div class="ag-live-vacio"><div><b>ESPERANDO LOS PDF</b><br>Aquí verás cada PDF de producción, con el nombre y el número de cada jugador, a medida que se genera.</div></div>' +
       '<span class="ag-live-tipo" data-tipo hidden></span><div class="ag-live-cap" data-cap><span class="num"></span><div><span class="nom"></span><small class="det"></small></div></div><div class="ag-live-prog"><i></i></div></div><div class="ag-live-tira" data-tira hidden></div></div>' +
-      '<aside class="ag-live-side"><div class="ag-live-sec"><h4>MESAS EXPORTADAS <span data-nm>0</span></h4><div class="ag-live-list" data-lm></div></div>' +
+      '<aside class="ag-live-side"><div class="ag-live-sec"><h4>MESAS EXPORTADAS <span class="ag-gen" data-mgen hidden></span><span data-nm>0</span></h4><div class="ag-gen ag-dis" data-mdis hidden></div><div class="ag-live-list" data-lm></div></div>' +
       '<div class="ag-live-sec"><h4>PDF DE PRODUCCIÓN <span class="ag-gen" data-gen hidden></span><span data-np>0</span></h4><div class="ag-gen ag-dis" data-dis hidden></div><div class="ag-live-list" data-lp></div><small class="dest" data-dp></small></div></aside></div>';
     box.addEventListener('click', e => {
       const aiFila = e.target.closest('[data-ai-ruta]');
@@ -1096,6 +1096,10 @@
       if (aiBtn) { abrirTodosEnIllustrator(); return; }
       const gt = e.target.closest('[data-gen-tab]');
       if (gt) { flow.genTab = gt.dataset.genTab; flow.vistaFija = null; pintarLive(); return; }
+      const mgt = e.target.closest('[data-mgen-tab]');
+      if (mgt) { flow.mgenTab = mgt.dataset.mgenTab; flow.vistaFija = null; pintarLive(); return; }
+      const mdt = e.target.closest('[data-mdis-tab]');
+      if (mdt) { flow.mdisTab = mdt.dataset.mdisTab; flow.vistaFija = null; pintarLive(); return; }
       const dt = e.target.closest('[data-dis-tab]');
       if (dt) { flow.disTab = dt.dataset.disTab; flow.vistaFija = null; pintarLive(); return; }
       const go = e.target.closest('[data-pdf-go]');
@@ -1228,11 +1232,35 @@
     q('[data-pto]').className = st.esperando ? 'on' : '';
     q('[data-estado]').textContent = st.esperando ? 'Illustrator está trabajando…' : (evs.length ? 'Última ejecución' : 'Sin ejecución en curso');
     const itemM = a => '<span class="mt-nom">' + esc(a.nombre || '') + '</span>';   // el MISMO nombre de la mesa exportada (Talla_XS_Tipo_D1_Gen_F)
-    q('[data-nm]').textContent = String(montajes.length);
     // Masculinos y femeninos: si la orden genera ambos aparecen dos pestañas; por defecto sigue al último PDF creado y, si eliges una, se queda en ella
     const sexoDe = a => { const m = /_Gen_([MF])(?:_|\.|$)/i.exec(String(a.detalle || a.nombre || '')); return m ? m[1].toUpperCase() : String(a.genero || '').charAt(0).toUpperCase(); };
     // Diseños: si la orden trae varios (D1, D2, D3…) cada uno va en su pestaña; igual que con el género, sigue al último PDF creado hasta que elijas una
     const disDe = a => { const m = /_Tipo_(D\d+)(?:_|\.|$)/i.exec(String(a.detalle || a.nombre || '')) || /DISE[ÑN]O\s*(\d+)/i.exec(String(a.diseno || '')); return m ? 'D' + String(m[1]).replace(/\D/g, '') : ''; };
+    // Mesas exportadas: mismo filtro por diseño y género que los PDF (por defecto TODAS)
+    const disM = [...new Set(montajes.map(disDe).filter(Boolean))].sort((a, b) => Number(a.slice(1)) - Number(b.slice(1)));
+    const hayMDis = disM.length > 1;
+    const pesMDis = hayMDis ? (flow.mdisTab === 'T' || disM.includes(flow.mdisTab) ? flow.mdisTab : 'T') : '';
+    const delMDis = hayMDis && pesMDis !== 'T' ? montajes.filter(a => disDe(a) === pesMDis) : montajes;
+    const mM = delMDis.filter(a => sexoDe(a) === 'M').length, mF = delMDis.filter(a => sexoDe(a) === 'F').length, hayMAmbos = mM > 0 && mF > 0;
+    const pesMGen = hayMAmbos ? (flow.mgenTab === 'M' || flow.mgenTab === 'F' ? flow.mgenTab : 'T') : '';
+    const montVis = hayMAmbos && pesMGen !== 'T' ? delMDis.filter(a => sexoDe(a) === pesMGen) : delMDis;
+    const mdisEl = q('[data-mdis]');
+    if (mdisEl) {
+      const firmaMD = hayMDis ? pesMDis + '|' + disM.map(d => d + ':' + montajes.filter(a => disDe(a) === d).length).join(',') : '';
+      if (mdisEl.dataset.firma !== firmaMD) {
+        mdisEl.dataset.firma = firmaMD; mdisEl.hidden = !hayMDis;
+        mdisEl.innerHTML = hayMDis ? '<button type="button" class="d' + (pesMDis === 'T' ? ' on' : '') + '" data-mdis-tab="T" title="Todas las mesas">TODOS <b>' + montajes.length + '</b></button>' + disM.map(d => '<button type="button" class="d' + (d === pesMDis ? ' on' : '') + '" data-mdis-tab="' + d + '" title="Mesas del diseño ' + d.slice(1) + '">' + d + ' <b>' + montajes.filter(a => disDe(a) === d).length + '</b></button>').join('') : '';
+      }
+    }
+    const mgenEl = q('[data-mgen]');
+    if (mgenEl) {
+      const firmaMG = hayMAmbos ? pesMGen + '|' + mM + '|' + mF : '';
+      if (mgenEl.dataset.firma !== firmaMG) {
+        mgenEl.dataset.firma = firmaMG; mgenEl.hidden = !hayMAmbos;
+        mgenEl.innerHTML = hayMAmbos ? '<button type="button" class="t' + (pesMGen === 'T' ? ' on' : '') + '" data-mgen-tab="T" title="Mesas masculinas y femeninas">TODOS <b>' + (mM + mF) + '</b></button><button type="button" class="m' + (pesMGen === 'M' ? ' on' : '') + '" data-mgen-tab="M" title="Mesas masculinas">MASCULINOS <b>' + mM + '</b></button><button type="button" class="f' + (pesMGen === 'F' ? ' on' : '') + '" data-mgen-tab="F" title="Mesas femeninas">FEMENINOS <b>' + mF + '</b></button>' : '';
+      }
+    }
+    q('[data-nm]').textContent = montVis.length === montajes.length ? String(montajes.length) : montVis.length + ' de ' + montajes.length;
     const disenos = [...new Set(pdfs.map(disDe).filter(Boolean))].sort((a, b) => Number(a.slice(1)) - Number(b.slice(1)));
     const hayDis = disenos.length > 1;
     // Por defecto se ven TODOS los PDF que generaron los agentes; las pestañas de diseño y género (con «TODOS») solo filtran si las eliges
@@ -1259,14 +1287,14 @@
     }
     const conVista = visibles.filter(a => a.vista);
     // La pantalla en vivo muestra lo último que se creó, sea una MESA exportada (OLVER) o un PDF de producción (OLIVER); si eliges una fila, se queda en ella
-    const mesasV = montajes.filter(a => a.vista);
+    const mesasV = montVis.filter(a => a.vista);
     const fija = flow.vistaFija && (mesasV.find(a => a.vista === flow.vistaFija) || conVista.find(a => a.vista === flow.vistaFija));
     if (flow.vistaFija && !fija) flow.vistaFija = null;
     const ultP = conVista[conVista.length - 1], ultM = mesasV[mesasV.length - 1];
     const actual = fija || (ultM && (!ultP || ultM._i > ultP._i) ? ultM : ultP) || null;
     const esMesa = !!(actual && actual.tipo === 'montaje'), lista = esMesa ? mesasV : conVista;
     flow.conVista = lista; flow.actualVista = actual && actual.vista; flow.rutaActual = (actual && !esMesa && actual.ruta) || '';
-    q('[data-lm]').innerHTML = montajes.slice().reverse().slice(0, 80).map((a, i) => '<div' + (a.vista ? ' data-vista="' + esc(a.vista) + '" title="Ver esta mesa en la pantalla"' : '') + ' class="' + (i === 0 ? 'nuevo ' : '') + (actual && a.vista && a.vista === actual.vista ? 'sel' : '') + '">' + itemM(a) +
+    q('[data-lm]').innerHTML = montVis.slice().reverse().slice(0, 80).map((a, i) => '<div' + (a.vista ? ' data-vista="' + esc(a.vista) + '" title="Ver esta mesa en la pantalla"' : '') + ' class="' + (i === 0 ? 'nuevo ' : '') + (actual && a.vista && a.vista === actual.vista ? 'sel' : '') + '">' + itemM(a) +
       (a.vista ? '<a class="ag-vlink" href="/api/agentes/archivo/' + encodeURIComponent(a.vista) + '" target="_blank" rel="noopener" title="Ver esta mesa en grande (otra pestaña)">↗</a>' : '') + '</div>').join('') || '<div style="opacity:.5">Esperando…</div>';
     const tipoEl = q('[data-tipo]'); if (tipoEl) { tipoEl.hidden = !actual; tipoEl.textContent = esMesa ? 'MESA EXPORTADA · ' + (actual.nombre || '') : 'PDF DE PRODUCCIÓN'; tipoEl.className = 'ag-live-tipo ' + (esMesa ? 'mesa' : 'pdf'); }
     const tira = q('[data-tira]');
@@ -1839,7 +1867,7 @@
     st.pc = id; try { localStorage.setItem('agentes_pc', id); } catch (x) { /* sin almacenamiento */ }
     sincronizarPcAuto(id);
     Object.assign(st, { msgs: [], ultimo: 0, evs: [], ultimoEv: 0, trabajo: null, esperando: false, orden: '', cambiandoOrden: false, enviando: false, resAbierto: false });
-    flow.listo = false; flow.preparado = 0; flow.estadoServidor = null; flow.vistaFija = null; flow.genTab = null; flow.disTab = null;
+    flow.listo = false; flow.preparado = 0; flow.estadoServidor = null; flow.vistaFija = null; flow.genTab = null; flow.disTab = null; flow.mgenTab = null; flow.mdisTab = null;
     const h = panel.querySelector('[data-hilo]'); if (h) { h.dataset.firma = ''; h.innerHTML = ''; }
     const b = panel.querySelector('[data-orden]'); if (b) b.dataset.clave = '';
     await cargar(true); pintar(); programar();
