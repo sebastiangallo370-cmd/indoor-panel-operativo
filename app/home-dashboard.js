@@ -1061,7 +1061,7 @@
     if (busy) return;
     busy = true;
     try {
-      const response = await fetch('/api/produccion', { cache: 'no-store' });
+      const response = await fetch('/api/produccion', { cache: 'no-cache' });
       const text = await response.text();
       if (!response.ok) { let detail = ''; try { detail = JSON.parse(text).detail; } catch (e) { /* respuesta no JSON */ } throw new Error(detail || 'No se pudo cargar'); }
       if (!force && text === lastText && model) return;   // sin cambios: no se redibuja

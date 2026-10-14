@@ -11,5 +11,5 @@
       else bar.style.display='none';
     }).catch(function(){});
   }
-  check();setInterval(check,60000);
+  check();setInterval(function(){if(!document.hidden)check()},60000);document.addEventListener('visibilitychange',function(){if(!document.hidden)check()});
 })();

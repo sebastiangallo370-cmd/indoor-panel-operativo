@@ -59,5 +59,5 @@
     if((document.querySelector('.inventory-shell')&&!document.getElementById('stock-alertas'))||(document.querySelector('.bd-body > .bd-section')&&!document.getElementById('stock-alertas-bd')))render();
   }).observe(document.body||document.documentElement,{childList:true,subtree:true});
   refresh();
-  setInterval(refresh,60000);
+  setInterval(function(){if(!document.hidden)refresh()},60000);document.addEventListener('visibilitychange',function(){if(!document.hidden)refresh()});
 })();
