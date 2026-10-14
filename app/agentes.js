@@ -555,6 +555,7 @@
   .panel[data-panel='agentes'] .ag-gen button b{padding:0 6px;border-radius:99px;background:rgba(255,255,255,.14);font-size:10px}
   .panel[data-panel='agentes'] .ag-gen button.m.on{border-color:#8fb8ff;background:linear-gradient(180deg,#a9c8ff,#4f80cf);color:#06142b;box-shadow:0 6px 14px -6px rgba(143,184,255,.8)}
   .panel[data-panel='agentes'] .ag-gen button.f.on{border-color:#ff9ad5;background:linear-gradient(180deg,#ffb6e2,#e0509f);color:#33001a;box-shadow:0 6px 14px -6px rgba(255,154,213,.8)}
+  .panel[data-panel='agentes'] .ag-gen button.t.on{border-color:#e8efe3;background:linear-gradient(180deg,#f3f7ef,#b9c4b2);color:#10170c;box-shadow:0 6px 14px -6px rgba(232,239,227,.7)}
   .panel[data-panel='agentes'] .ag-gen button.on b{background:rgba(0,0,0,.18)}
   .panel[data-panel='agentes'] .ag-live-sec:has(.ag-dis:not([hidden])){grid-template-rows:auto auto minmax(0,1fr)}
   .panel[data-panel='agentes'] .ag-gen.ag-dis{display:flex;flex-wrap:wrap;align-items:center;align-self:start;gap:6px;margin:2px 0}
@@ -1234,25 +1235,26 @@
     const disDe = a => { const m = /_Tipo_(D\d+)(?:_|\.|$)/i.exec(String(a.detalle || a.nombre || '')) || /DISE[ÑN]O\s*(\d+)/i.exec(String(a.diseno || '')); return m ? 'D' + String(m[1]).replace(/\D/g, '') : ''; };
     const disenos = [...new Set(pdfs.map(disDe).filter(Boolean))].sort((a, b) => Number(a.slice(1)) - Number(b.slice(1)));
     const hayDis = disenos.length > 1;
-    const pesDis = hayDis ? (disenos.includes(flow.disTab) ? flow.disTab : (disDe(pdfs[pdfs.length - 1]) || disenos[0])) : '';
-    const delDis = hayDis ? pdfs.filter(a => disDe(a) === pesDis) : pdfs;
+    // Por defecto se ven TODOS los PDF que generaron los agentes; las pestañas de diseño y género (con «TODOS») solo filtran si las eliges
+    const pesDis = hayDis ? (flow.disTab === 'T' || disenos.includes(flow.disTab) ? flow.disTab : 'T') : '';
+    const delDis = hayDis && pesDis !== 'T' ? pdfs.filter(a => disDe(a) === pesDis) : pdfs;
     const dis = q('[data-dis]');
     if (dis) {
       const firmaD = hayDis ? pesDis + '|' + disenos.map(d => d + ':' + pdfs.filter(a => disDe(a) === d).length).join(',') : '';
       if (dis.dataset.firma !== firmaD) {
         dis.dataset.firma = firmaD; dis.hidden = !hayDis;
-        dis.innerHTML = hayDis ? disenos.map(d => '<button type="button" class="d' + (d === pesDis ? ' on' : '') + '" data-dis-tab="' + d + '" title="PDF de producción del diseño ' + d.slice(1) + '">' + d + ' <b>' + pdfs.filter(a => disDe(a) === d).length + '</b></button>').join('') : '';
+        dis.innerHTML = hayDis ? '<button type="button" class="d' + (pesDis === 'T' ? ' on' : '') + '" data-dis-tab="T" title="Todos los PDF de producción">TODOS <b>' + pdfs.length + '</b></button>' + disenos.map(d => '<button type="button" class="d' + (d === pesDis ? ' on' : '') + '" data-dis-tab="' + d + '" title="PDF de producción del diseño ' + d.slice(1) + '">' + d + ' <b>' + pdfs.filter(a => disDe(a) === d).length + '</b></button>').join('') : '';
       }
     }
     const nM = delDis.filter(a => sexoDe(a) === 'M').length, nF = delDis.filter(a => sexoDe(a) === 'F').length, hayAmbos = nM > 0 && nF > 0;
-    const pestana = hayAmbos ? (flow.genTab === 'M' || flow.genTab === 'F' ? flow.genTab : (sexoDe(delDis[delDis.length - 1]) || 'M')) : '';
-    const visibles = hayAmbos ? delDis.filter(a => sexoDe(a) === pestana) : delDis;
+    const pestana = hayAmbos ? (flow.genTab === 'M' || flow.genTab === 'F' ? flow.genTab : 'T') : '';
+    const visibles = hayAmbos && pestana !== 'T' ? delDis.filter(a => sexoDe(a) === pestana) : delDis;
     const gen = q('[data-gen]');
     if (gen) {
       const firma = hayAmbos ? pestana + '|' + nM + '|' + nF : '';
       if (gen.dataset.firma !== firma) {
         gen.dataset.firma = firma; gen.hidden = !hayAmbos;
-        gen.innerHTML = hayAmbos ? '<button type="button" class="m' + (pestana === 'M' ? ' on' : '') + '" data-gen-tab="M" title="PDF de producción masculinos">MASCULINOS <b>' + nM + '</b></button><button type="button" class="f' + (pestana === 'F' ? ' on' : '') + '" data-gen-tab="F" title="PDF de producción femeninos">FEMENINOS <b>' + nF + '</b></button>' : '';
+        gen.innerHTML = hayAmbos ? '<button type="button" class="t' + (pestana === 'T' ? ' on' : '') + '" data-gen-tab="T" title="Masculinos y femeninos">TODOS <b>' + (nM + nF) + '</b></button><button type="button" class="m' + (pestana === 'M' ? ' on' : '') + '" data-gen-tab="M" title="PDF de producción masculinos">MASCULINOS <b>' + nM + '</b></button><button type="button" class="f' + (pestana === 'F' ? ' on' : '') + '" data-gen-tab="F" title="PDF de producción femeninos">FEMENINOS <b>' + nF + '</b></button>' : '';
       }
     }
     const conVista = visibles.filter(a => a.vista);
