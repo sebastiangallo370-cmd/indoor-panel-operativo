@@ -14,3 +14,6 @@ __pycache__/
 *.pyc
 *.xlsx
 config.json
+
+usuarios_panel.html
+FORMATO_EXCEL.xlsx
