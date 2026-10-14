@@ -647,6 +647,8 @@
   § .ag-vt:hover{transform:none;color:#eef4e9}
   § .ag-vt.on{background:#d0f44c;color:#142017;box-shadow:none}
   § .ag-vt.solo-movil{display:none}
+  § .ag-chat-tg{display:none;align-items:center;min-height:32px;margin-left:6px;padding:0 14px;border:1px solid rgba(255,255,255,.14);border-radius:9px;background:transparent;color:#cfd9c7;font:800 11.5px Arial;white-space:nowrap;cursor:pointer}
+  § .ag-chat-tg:hover{border-color:#d0f44c;color:#d0f44c}§ .ag-chat-tg.on{border-color:#d0f44c;color:#d0f44c}§ .ag-chat-tg.nuevo{background:#d0f44c;color:#142017}
   /* cuadros planos */
   § .ag-chat,§ .ag-muestras,§ .ag-live,§ .ag-detalle{border:1px solid rgba(255,255,255,.08)!important;border-radius:16px;background:#0d120e!important;box-shadow:none!important}
   § .ag-lienzo{border-color:rgba(255,255,255,.08);box-shadow:none}
@@ -707,6 +709,10 @@
     § .ag-main[data-vista="chats"]{grid-template-columns:minmax(380px,36%) minmax(0,1fr)!important}
     § .ag-main[data-vista="chats"][data-muestra="0"]{grid-template-columns:minmax(440px,48%) minmax(0,1fr)!important}
     § .ag-muestras.sin-muestra .mu-doble{grid-template-columns:minmax(0,1fr)!important}
+    § .ag-vtabs:has(.ag-vt[data-vt="chats"].on) .ag-chat-tg{display:inline-flex}
+    § .ag-main.sin-chat[data-vista="chats"]{grid-template-columns:minmax(0,1fr)!important}
+    § .ag-main.sin-chat[data-vista="chats"] .ag-chat{display:none!important}
+    § .ag-main.sin-chat[data-vista="chats"] .ag-muestras{grid-column:1!important}
   }
   @media(min-width:1001px) and (max-width:1320px){§ .ag-res{gap:12px}§ .ag-res-top h3{display:none}§ .ag-paso b{white-space:normal;overflow-wrap:normal;line-height:1.15}§ .ag-paso em{display:none!important}}
   @media(max-width:1000px){
@@ -1470,7 +1476,7 @@
       '<button type="button" class="ag-btn ag-reiniciar" data-reiniciar title="Reinicia el programa de los agentes en el PC elegido (se cierra y se vuelve a abrir solo)">↻ Reiniciar</button>' +
       '<details class="ag-menu"><summary class="ag-ico" title="Más opciones">⋯</summary><div class="ag-menu-l"><button type="button" class="solo-movil" data-reiniciar>↻ Reiniciar este PC</button><button type="button" data-detener-todo>⏹ Detener todo (ambos PC)</button><button type="button" data-reiniciar-todo>↻ Reiniciar todos los PC</button><button type="button" data-nueva>Nueva conversación</button><button type="button" data-historial>🕘 Historial del chat</button><button type="button" data-conectar hidden>PC de los agentes…</button></div></details></div></header>' +
       '<div data-aviso></div><section class="ag-res" data-resumen hidden></section>' +
-      '<button type="button" class="ag-ver-flujo" data-ver-flujo>▾ Ver flujo, pantalla en vivo y registro</button><nav class="ag-vtabs" data-vtabs aria-label="Secciones de los agentes"><button type="button" class="ag-vt on" data-vt="chats">CHAT</button><button type="button" class="ag-vt solo-movil" data-vt="listado">LISTADO</button><button type="button" class="ag-vt" data-vt="agentes">AGENTES</button><button type="button" class="ag-vt" data-vt="pdfs">PDFS</button></nav><div class="ag-main" data-main data-vista="chats"><div class="ag-orden" data-orden></div><section class="ag-chat"><div class="ag-thread" data-hilo></div><button type="button" class="ag-bajar" data-bajar hidden>↓ Mensajes nuevos</button><div class="ag-chips" data-replies></div>' +
+      '<button type="button" class="ag-ver-flujo" data-ver-flujo>▾ Ver flujo, pantalla en vivo y registro</button><nav class="ag-vtabs" data-vtabs aria-label="Secciones de los agentes"><button type="button" class="ag-vt on" data-vt="chats">CHAT</button><button type="button" class="ag-vt solo-movil" data-vt="listado">LISTADO</button><button type="button" class="ag-vt" data-vt="agentes">AGENTES</button><button type="button" class="ag-vt" data-vt="pdfs">PDFS</button><button type="button" class="ag-chat-tg" data-chat-toggle title="Oculta el chat para darle todo el ancho al listado y la muestra"></button></nav><div class="ag-main" data-main data-vista="chats"><div class="ag-orden" data-orden></div><section class="ag-chat"><div class="ag-thread" data-hilo></div><button type="button" class="ag-bajar" data-bajar hidden>↓ Mensajes nuevos</button><div class="ag-chips" data-replies></div>' +
       '<form class="ag-form" data-form><details class="ag-menu ag-atajos"><summary class="ag-ico" title="Acciones rápidas">⚡</summary><div class="ag-menu-l">' + ATAJOS.map(([l, p]) => '<button type="button" data-atajo="' + esc(p) + '">' + esc(l) + '</button>').join('') + '</div></details>' +
       '<div class="ag-sug" data-sug hidden role="listbox" aria-label="Sugerencias"></div><textarea rows="1" placeholder="Escribe a TAVO…" maxlength="2000" aria-autocomplete="list"></textarea><button type="submit" class="ag-btn">Enviar</button></form></section>' +
       '<aside class="ag-muestras" data-muestras></aside><section class="ag-flowcol"><div class="ag-lienzo" data-lienzo><div class="ag-barra"><div class="ag-ftit">Flujo de agentes<small data-ejecnum></small></div><div class="ag-pildora" data-pildora><i></i><span>Listo</span></div></div><svg class="ag-cables" data-cables aria-hidden="true"></svg></div>' +
@@ -1628,6 +1634,8 @@
       if (abajo || mio) hiloEl.scrollTop = hiloEl.scrollHeight; else hiloEl.scrollTop = antes;
       const bajar = panel.querySelector('[data-bajar]'); if (bajar) bajar.hidden = abajo || mio;
     }
+    if (st.sinChat && (botones.length || (ultimo && ultimo.rol === 'bot' && ultimo.estado === 'ERROR' && ultimo.id !== st.chatVisto))) st.sinChat = false;   // preguntan algo o hubo un error: el chat vuelve a verse
+    aplicarChat();
     pintarMuestras();
     panel.querySelector('[data-replies]').innerHTML = botones.length ? botones.map(b => '<button type="button" class="reply" data-send="' + esc(b) + '">' + esc(b) + '</button>').join('')
       : st.msgs.length ? ATAJOS.filter(([l]) => l !== 'Reiniciar').map(([l, t]) => '<button type="button" class="rap" data-atajo="' + esc(t) + '"' + (st.esperando ? ' disabled' : '') + '>' + esc(l) + '</button>').join('') : '';
@@ -1660,6 +1668,17 @@
         selPc.value = e.pc_activo || ''; selPc.dataset.firma = firma;
       }
     }
+  }
+  // Ocultar el chat (solo computador): el listado y la muestra usan todo el ancho. Vuelve solo si los agentes preguntan algo.
+  try { st.sinChat = localStorage.getItem('indoor-agentes-sin-chat') === '1'; } catch (er) { /* sin almacenamiento */ }
+  function aplicarChat() {
+    const m = panel && panel.querySelector('[data-main]'), b = panel && panel.querySelector('[data-chat-toggle]'); if (!m || !b) return;
+    const ultimo = st.msgs[st.msgs.length - 1];
+    if (!st.sinChat) st.chatVisto = ultimo ? ultimo.id : 0;
+    const nuevo = st.sinChat && ultimo && ultimo.rol === 'bot' && ultimo.id !== st.chatVisto;
+    m.classList.toggle('sin-chat', !!st.sinChat);
+    b.classList.toggle('on', !!st.sinChat); b.classList.toggle('nuevo', !!nuevo);
+    b.textContent = st.sinChat ? '▸ Mostrar chat' + (nuevo ? ' · mensaje nuevo' : '') : '◂ Ocultar chat';
   }
   function render() { pintar(); }
 
@@ -1991,6 +2010,7 @@
     panel.addEventListener('click', e => {
       const nas = e.target.closest('[data-nas-orden]');
       if (nas) { e.preventDefault(); abrirNas(st.orden); return; }
+      if (e.target.closest('[data-chat-toggle]')) { st.sinChat = !st.sinChat; try { localStorage.setItem('indoor-agentes-sin-chat', st.sinChat ? '1' : '0'); } catch (er) { /* sin almacenamiento */ } aplicarChat(); if (!st.sinChat) { const h = panel.querySelector('[data-hilo]'); if (h) h.scrollTop = h.scrollHeight; } return; }
       const vt = e.target.closest('[data-vt]');
       if (vt) { ponerVista(vt.dataset.vt); return; }
       const mi = e.target.closest('[data-mu-i]');
