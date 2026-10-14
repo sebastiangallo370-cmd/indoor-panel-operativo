@@ -1,0 +1,83 @@
+<script>
+(() => {
+  const refresh = document.getElementById('rework-refresh');
+  const board = document.getElementById('rework-cards');
+  const tab = document.querySelector('.tab[data-kind="reproceso"]');
+  if (!refresh || !board || !tab) return;
+  let rows = [];
+  const reworkCanDelete = ['ADMINISTRACION', 'ADMINISTRATIVA', 'ADMINISTRATIVO', 'COORDINADOR'].includes(
+    String(document.querySelector('.user-info small')?.textContent || '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toUpperCase()
+  );
+  const filters = document.createElement('section');
+  filters.className = 'rework-filters';
+  filters.innerHTML = '<label>Cliente<input type="search" data-rework-filter="client" placeholder="Buscar cliente"></label><label>Orden<input type="search" data-rework-filter="order" placeholder="N° de orden"></label><label>Referencia<input type="search" data-rework-filter="reference" placeholder="Referencia"></label><label>Observaciones<input type="search" data-rework-filter="reason" placeholder="Buscar observación"></label><label>Operario<input type="search" data-rework-filter="username" placeholder="Usuario responsable"></label><label>Fecha desde<input type="date" data-rework-filter="from"></label><label>Fecha hasta<input type="date" data-rework-filter="to"></label><button type="button" data-rework-clear>Limpiar</button>';
+  refresh.closest('.rework-module')?.insertBefore(filters, refresh.closest('.rework-module')?.querySelector('.rework-summary'));
+  const normalize = value => String(value || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase();
+  const applyFilters = () => {
+    const values = Object.fromEntries([...filters.querySelectorAll('[data-rework-filter]')].map(input => [input.dataset.reworkFilter, normalize(input.value)]));
+    board.querySelectorAll('.rework-card').forEach((card, index) => {
+      const row = rows[index];
+      if (!row) return;
+      const date = String(row.created_at || '').slice(0, 10);
+      // Rango de fechas: desde y/o hasta (cualquiera de los dos puede quedar vacío).
+      const outOfRange = (values.from && date < values.from) || (values.to && date > values.to);
+      card.hidden = !['client','order','reference','reason','username'].every(field => !values[field] || normalize(row[field]).includes(values[field])) || !!outOfRange;
+    });
+  };
+  filters.addEventListener('input', applyFilters);
+  filters.querySelector('[data-rework-clear]').onclick = () => { filters.querySelectorAll('input').forEach(input => input.value = ''); applyFilters(); };
+  const decorate = async () => {
+    try {
+      const response = await fetch('/api/reproceso', {cache: 'no-store'});
+      if (!response.ok) return;
+      rows = await response.json();
+      const cards = [...board.querySelectorAll('.rework-card')];
+      cards.forEach((card, index) => {
+        const row = rows[index];
+        if (!row || card.querySelector('.rework-card-actions')) return;
+        const actions = document.createElement('div');
+        actions.className = 'rework-card-actions';
+        actions.innerHTML = '<button type="button" data-rework-edit="' + row.id + '">Editar</button>' + (reworkCanDelete ? '<button type="button" data-rework-delete="' + row.id + '">Eliminar</button>' : '');
+        card.appendChild(actions);
+      });
+      applyFilters();
+    } catch (_) {}
+  };
+  const afterLoad = () => setTimeout(decorate, 350);
+  tab.addEventListener('click', afterLoad);
+  refresh.addEventListener('click', afterLoad);
+  const observer = new MutationObserver(() => { if (board.children.length) decorate(); });
+  observer.observe(board, {childList: true});
+  board.addEventListener('click', async event => {
+    const edit = event.target.closest('[data-rework-edit]');
+    const remove = event.target.closest('[data-rework-delete]');
+    const button = edit || remove;
+    if (!button) return;
+    const id = Number(button.dataset.reworkEdit || button.dataset.reworkDelete);
+    const row = rows.find(item => Number(item.id) === id);
+    if (!id || !row) return;
+    if (edit) {
+      const reason = prompt('Editar observación de reproceso:', row.reason || '');
+      if (reason === null) return;
+      const value = reason.trim();
+      if (!value || value.length > 2000) { alert('Escribe una observación entre 1 y 2000 caracteres.'); return; }
+      button.disabled = true;
+      try {
+        const response = await fetch('/api/produccion/operaciones/evento/' + id, {method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({reason: value})});
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw Error(data.detail || 'No fue posible editar el reproceso');
+        refresh.click();
+      } catch (error) { alert(error.message); button.disabled = false; }
+      return;
+    }
+    if (!confirm('¿Eliminar este registro de reproceso?')) return;
+    button.disabled = true;
+    try {
+      const response = await fetch('/api/produccion/operaciones/evento/' + id, {method: 'DELETE'});
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw Error(data.detail || 'No fue posible eliminar el reproceso');
+      refresh.click();
+    } catch (error) { alert(error.message); button.disabled = false; }
+  });
+})();
+</script>
