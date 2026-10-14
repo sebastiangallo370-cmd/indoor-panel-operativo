@@ -218,10 +218,18 @@ def _records_for_tab(values: list[list[str]], tab_key: str, tab_label: str, grid
     active_total: int | None = None
     active_headers: list[str] = []
     seen: set[tuple[str, str, float]] = set()
+    section_title = ''  # título del bloque (en MATERIA PRIMA IMPRESION es el proveedor: SUBLINK HD, RITUAL...)
+    active_section = ''
     for row_index, row in enumerate(values, start=1):
         if _is_header(row):
+            active_section, section_title = section_title, ''
             active_name, active_total = _header_positions(row)
             active_headers = [str(value or "").strip() or f"Campo {index + 1}" for index, value in enumerate(row)]
+            last_record = None
+            continue
+        filled = [str(value).strip() for value in row if str(value or '').strip()]
+        if len(filled) == 1 and not _number(filled[0]) and _normalized(filled[0]) not in {"TOTAL", "SUBTOTAL"}:
+            section_title = filled[0]
             last_record = None
             continue
         if active_name is None or active_total is None:
@@ -270,6 +278,9 @@ def _records_for_tab(values: list[list[str]], tab_key: str, tab_label: str, grid
             roll_statuses.append(roll_status(row_index, index))
             roll_bodegas.append(roll_place(row_index, index))
         supplier = active_headers[active_name + 1] if active_name + 1 < len(active_headers) else ''
+        if tab_key == "MATERIA PRIMA IMPRESION" and active_section:
+            supplier = active_section
+            fields = {"Proveedor": active_section, **fields}
         records.append({
             "id": f"{tab_key}:{row_index}:{len(records)}",
             "categoria": tab_key,
