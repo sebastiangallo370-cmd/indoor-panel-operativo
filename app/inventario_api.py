@@ -464,10 +464,11 @@ def _apply_counts(categories: list[dict[str, Any]], all_records: list[dict[str, 
         per_roll = re.search(r'(\d+)\s*MTS', name) or (re.search(r'(\d+)\s*MTS', _normalized(record.get('campos', {}).get('Detalle', ''))) if 'TPU' in name else None)
         if per_roll and ('PAPEL' in name or 'TPU' in name):
             size = int(per_roll.group(1))
-            record.update({"unidad": "MTS", "total": units * size, "mts": units * size, "rolls": int(units)})
+            record.update({"unidad": "MTS", "total": units * size, "mts": units * size, "rolls": int(units),
+                           "roll_values": [int(units)], "roll_statuses": ['new'], "roll_bodegas": ['']})
             record['campos']['Detalle'] = f"{_display_total(units)} {'rollo' if units == 1 else 'rollos'} de {size} MTS"
         elif 'TINTA' in name:
-            record['unidad'] = 'LT'
+            record.update({"unidad": "LT", "roll_values": [], "roll_statuses": [], "rolls": 0})
             record['campos']['Detalle'] = f"{_display_total(units)} {'unidad' if units == 1 else 'unidades'} de 1 litro"
         else:
             continue
