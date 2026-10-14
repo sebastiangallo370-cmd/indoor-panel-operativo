@@ -243,7 +243,7 @@ def main():
                         resultados.append({'orden': orden['id'], 'ok': False, 'detalle': str(e)[:250]})
                         print(f'[{time.strftime("%H:%M:%S")}] {orden["agente"]} · {orden["accion"]} · ERROR {e}')
             except urllib.error.HTTPError as e:
-                print(f'[{time.strftime("%H:%M:%S")}] El panel respondió {e.code} (¿código de enlace vencido? borra datos\panel.json y vuelve a abrir INICIAR_ECOMMERCE.bat)')
+                print(f'[{time.strftime("%H:%M:%S")}] El panel respondió {e.code} (¿código de enlace vencido? borra datos/panel.json y vuelve a abrir INICIAR_ECOMMERCE.bat)')
                 for l in lineas:   # no se pierden las líneas del log
                     salida.put((l['agente'], l['texto']))
             except Exception as e:  # noqa: BLE001
