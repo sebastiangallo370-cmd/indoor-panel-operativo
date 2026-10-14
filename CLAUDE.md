@@ -27,6 +27,7 @@ Léelo completo antes de tocar código. Última actualización grande: 2026-10-0
 
 ## Arquitectura del código
 - `app/main.py` (~6900 líneas): casi todo el panel. Rutas FastAPI, HTML, CSS y JS embebidos. **El HTML/CSS/JS van en f-strings: las llaves se escriben dobles `{{ }}`**. El JS de Inventarios (cadena `INVENTORY_CONTROL_SCRIPT`, líneas ~148-470) va en una cadena normal con llaves simples (no dobles).
+- Los bloques fijos de HTML/CSS/JS (sin variables) viven en `app/fragmentos/*.html` y main.py los carga con `_fragmento('archivo.html')`; el JS de Inventarios está en `app/fragmentos/inventory-control-script.html`.
 - Cada módulo de interfaz es un `app/<nombre>.js` servido por una ruta propia en main.py (`@app.get("/<nombre>.js")`) y cargado con `<script src='/<nombre>.js?v=AAAAMMDD-N'>` en la plantilla de la página. **Si cambias un .js, sube su `?v=` en main.py** (el navegador cachea). Si creas un .js nuevo: agrega la ruta Y la etiqueta script.
 - Módulos de la interfaz: `home-dashboard.js` (Inicio), `trace-ui.js` (producción: tarjetas, filtros, totales), `bodega-dashboard.js` + `bodegas.js` (stock de tela), `cartera.js` (Cartera), `agentes.js` (Agentes de edición), `molderia.js`, `promedios.js`/`estandar.js`/`fichas-resumen.js` (Estándar 2026), `codigos-barras.js`, `reposiciones.js`, `mis-pedidos.js`, `permisos.js`, `liquid-stats.js` (estilo de estadísticas), `mobile-nav.js`, `nav-liquid.js`, `tema.js`, etc.
 - Backend por tema: `cartera_api.py` (Cartera), `inventario_api.py` (inventario; lee un Google Sheet en SOLO LECTURA), `sublimacion_stock.py` (plan de rollos y descuento), `ingreso_documento.py` (OCR de PDFs de tela), `sheets_sync.py` (producción desde Google Sheets cada 30 s), `agentes_canal.py` (canal de los agentes), `permisos.py`, `molderia.py`, `promedios.py`, `fichas*.py`, `exportar.py`, `respaldo.py`/`db_backup.py`.
@@ -46,6 +47,10 @@ Léelo completo antes de tocar código. Última actualización grande: 2026-10-0
 - Las tablas/tarjetas largas se parten en pestañas o secciones plegables para evitar scroll; el usuario lo pide seguido.
 
 ## Despliegue (GitHub no publica solo)
+Opción automática: GitHub Actions → «Desplegar a produccion.cloud» (`.github/workflows/desplegar.yml`), solo a mano escribiendo PUBLICAR. Necesita los secretos `VPS_HOST`, `VPS_SSH_KEY` y `VPS_KNOWN_HOSTS`, y publica lo que esté en main de GitHub: úsalo solo si main ya tiene todos los commits locales.
+Respaldo: `respaldo.py` hace un .tar.gz diario de /data (14 en el servidor) y lo copia a la NAS en `RESPALDOS PANEL` (30 copias; `RESPALDO_NAS_DIR` vacío lo apaga). Si falla, aparece en salud.
+
+Opción manual:
 Por cada archivo cambiado, **uno por uno**, con nombre destino explícito. Dos destinos: el contenedor (lo que corre ya) y la carpeta del host (de donde se reconstruye la imagen):
 ```
 scp -i <llave> app/archivo.py root@179.236.66.149:/tmp/archivo_nuevo
