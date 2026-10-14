@@ -5,7 +5,7 @@
 
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
   const norm = value => String(value ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/\s+/g, ' ').trim();
-  const compacto = value => norm(value).replace(/\s+/g, '');
+  const compacto = value => norm(value).replace(/[^A-Z0-9]/g, '');   // sin espacios ni guiones: T100-003 y T100003 son el mismo rollo
   const fmt = value => Number(value || 0).toLocaleString('es-CO', {maximumFractionDigits: 2});
 
   // ---------------------------------------------------------------- Code128 (juego B: letras, números y signos)
@@ -16,19 +16,41 @@
     '111242', '121142', '121241', '114212', '124112', '124211', '411212', '421112', '421211', '212141', '214121', '412121', '111143', '111341', '131141', '114113', '114311', '411113', '411311', '113141',
     '114131', '311141', '411131', '211412', '211214', '211232', '2331112'];
 
+  // Lo que va en las barras: el código sin guion (T100-003 -> T100003) para que los números vayan en juego C (2 cifras por barra)
+  // y la barra más fina pueda ser de 3 puntos en la etiqueta de 42 mm (con guion solo cabían 2 y la térmica las empastaba)
+  const contenidoBarras = codigo => String(codigo ?? '').replace(/-/g, '');
   function code128(texto) {
     const limpio = String(texto ?? '').split('').map(c => (c.charCodeAt(0) >= 32 && c.charCodeAt(0) <= 126 ? c : '?')).join('');
-    const codigos = limpio.split('').map(c => c.charCodeAt(0) - 32);
-    let suma = 104;
-    codigos.forEach((c, i) => { suma += c * (i + 1); });
-    const secuencia = [104, ...codigos, suma % 103, 106];
+    const secuencia = [];
+    let i = 0, juego = '';
+    const corrida = desde => { let n = 0; while (desde + n < limpio.length && /[0-9]/.test(limpio[desde + n])) n++; return n; };
+    while (i < limpio.length) {
+      const n = corrida(i);
+      // juego C para 4 o más cifras seguidas (o 2+ si es todo el código / el final)
+      const usarC = n >= 4 || (n >= 2 && n % 2 === 0 && i === 0 && n === limpio.length);
+      if (usarC) {
+        const pares = Math.floor(n / 2) * 2;
+        const ini = i;   // si son impares, la cifra sobrante sigue en juego B
+        if (!juego) { secuencia.push(105); juego = 'C'; } else if (juego !== 'C') { secuencia.push(99); juego = 'C'; }
+        for (let k = 0; k < pares; k += 2) secuencia.push(Number(limpio.substr(ini + k, 2)));
+        i += pares;
+      } else {
+        if (!juego) { secuencia.push(104); juego = 'B'; } else if (juego !== 'B') { secuencia.push(100); juego = 'B'; }
+        secuencia.push(limpio.charCodeAt(i) - 32);
+        i++;
+      }
+    }
+    if (!secuencia.length) secuencia.push(104);
+    let suma = secuencia[0];
+    for (let k = 1; k < secuencia.length; k++) suma += secuencia[k] * k;
+    secuencia.push(suma % 103, 106);
     const anchos = secuencia.flatMap(v => PATRONES[v].split('').map(Number));
     return {texto: limpio, anchos, modulos: anchos.reduce((a, b) => a + b, 0)};
   }
 
   // SVG: una barra por cada ancho impar (barra) y un hueco por cada par; viewBox en módulos para que escale exacto
   function svgBarras(texto, altoMm, moduloMm, margenModulos = 10) {
-    const c = code128(texto);
+    const c = code128(contenidoBarras(texto));
     let x = margenModulos, barras = '';
     c.anchos.forEach((ancho, i) => {
       if (i % 2 === 0) barras += '<rect x="' + x + '" y="0" width="' + ancho + '" height="1"/>';
@@ -37,7 +59,7 @@
     const total = c.modulos + margenModulos * 2;
     return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + total + ' 1" preserveAspectRatio="none" shape-rendering="crispEdges" style="display:block;width:' + (total * moduloMm).toFixed(3) + 'mm;height:' + altoMm + 'mm" fill="#000">' + barras + '</svg>';
   }
-  const modulosDe = (texto, margen = 10) => code128(texto).modulos + margen * 2;
+  const modulosDe = (texto, margen = 10) => code128(contenidoBarras(texto)).modulos + margen * 2;
   // El módulo (barra más fina) es múltiplo del punto de la impresora (203 dpi = 0,125 mm) para que las barras salgan nítidas
   function moduloMm(texto, anchoDisponibleMm, margen = 10) {
     const k = Math.max(1, Math.min(5, Math.floor(anchoDisponibleMm / modulosDe(texto, margen) / 0.125)));
@@ -139,7 +161,7 @@
         g.font = b.peso + ' ' + b.px + 'px ' + FUENTE;
         b.lineas.forEach((l, i) => g.fillText(l, W / 2, Math.round(y + i * b.px * 1.12)));
       } else {
-        const cod = code128(item.codigo), totalMod = cod.modulos + P.margen * 2;
+        const cod = code128(contenidoBarras(item.codigo)), totalMod = cod.modulos + P.margen * 2;
         const disponiblePx = (W - padPx * 2) * (Number(cfg.anchoBarras) || 1);
         const modulo = Math.max(1, Math.min(Math.floor(disponiblePx / totalMod), Math.round(0.625 * DPM)));   // barra más fina = número ENTERO de puntos de la impresora
         let x = Math.round((W - totalMod * modulo) / 2) + P.margen * modulo;
