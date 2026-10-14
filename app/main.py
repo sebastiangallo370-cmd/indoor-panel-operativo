@@ -70,7 +70,10 @@ FAVICON_SVG_FILE = Path(__file__).resolve().parent / "favicon.svg"
 
 # Bloques grandes de HTML/CSS/JS fijos (sin variables): viven en app/fragmentos/ para que main.py sea más corto.
 def _fragmento(nombre: str) -> str:
-    return (Path(__file__).with_name('fragmentos') / nombre).read_text(encoding='utf-8')
+    ruta = Path(__file__).with_name('fragmentos') / nombre
+    if not ruta.is_file():
+        raise RuntimeError(f'Falta el fragmento app/fragmentos/{nombre}: despliegue incompleto (suba app/fragmentos/ antes que main.py)')
+    return ruta.read_text(encoding='utf-8')
 
 
 REWORK_MODULE_SCRIPT = _fragmento('rework-module-script.html')
@@ -1084,52 +1087,94 @@ def salud_panel(_=Depends(authenticate)):
     return {'problemas': problemas}
 
 
+_ALERTAS_CACHE = {'at': 0.0, 'prod': None, 'tela': None}
+_ALERTAS_LOCK = threading.Lock()
+_ALERTAS_SEGUNDOS = 45
+
+
+def _alertas_produccion() -> dict:
+    """Atrasados y reprocesos (lo mismo para todos los usuarios)."""
+    data = read_local_production()
+    headers = [str(h or '').strip().upper() for h in data['headers']]
+    col = lambda *names: next((i for i, h in enumerate(headers) if h in names), -1)
+    i_orden, i_cli, i_due, i_ref = col('ORDEN'), col('NOMBRE DEL CLIENTE'), col('FECHA DE ENTREGA'), col('REFERENCIA')
+    if i_orden < 0 or i_due < 0:
+        raise RuntimeError('No se encontraron las columnas ORDEN / FECHA DE ENTREGA')
+    stages = {i: PROCESS_FLOW[official_process(h)]['label'] for i, h in enumerate(data['headers']) if official_process(h) is not None}
+    i_fin = [i for i, label in stages.items() if label.startswith('ENV')]
+    hoy = datetime.now(timezone(timedelta(hours=-5))).date()
+    atrasados, reprocesos = {}, {}
+    for row in data['rows']:
+        v = row['values']
+        get = lambda i: str(v[i]).strip() if 0 <= i < len(v) and v[i] is not None else ''
+        orden = get(i_orden)
+        if not orden:
+            continue
+        cliente = get(i_cli) or 'Sin cliente'
+        # Entregado = ENVÍO con una fecha real (una P, R o N/A no cuenta)
+        entregado = any(parse_production_date(get(i)) for i in i_fin)
+        if entregado:
+            continue
+        due = parse_production_date(get(i_due))
+        if due and due < hoy:
+            dias = (hoy - due).days
+            if orden not in atrasados or dias > atrasados[orden]['dias']:
+                atrasados[orden] = {'tipo': 'atrasado', 'orden': orden, 'dias': dias,
+                                    'texto': f'{orden} · {cliente} · atrasado {dias} día' + ('s' if dias != 1 else '')}
+        for i, label in stages.items():
+            if get(i).upper() == 'R':
+                reprocesos.setdefault((orden, label), {'tipo': 'reproceso', 'orden': orden, 'refs': [], 'cliente': cliente, 'label': label})
+                if get(i_ref):
+                    reprocesos[(orden, label)]['refs'].append(get(i_ref))
+    lista_rep = []
+    for r in reprocesos.values():
+        refs = sorted(set(r['refs']))
+        detalle = f" ({', '.join(refs[:2])}{'…' if len(refs) > 2 else ''})" if refs else ''
+        lista_rep.append({'tipo': 'reproceso', 'orden': r['orden'], 'texto': f"{r['orden']} · {r['cliente']} · reproceso en {r['label']}{detalle}"})
+    return {'alertas': sorted(atrasados.values(), key=lambda a: -a['dias']) + lista_rep}
+
+
+def _alertas_tela() -> list:
+    from app import inventario_api
+    dash = inventario_api.inventory_dashboard()
+    vistos, lista = set(), []
+    for plan in (dash.get('sublimacion') or {}).get('lista') or []:
+        if plan.get('short') and plan.get('label') not in vistos:
+            vistos.add(plan.get('label'))
+            lista.append({'tipo': 'tela', 'orden': plan.get('label', ''), 'texto': f"{plan.get('label', 'Orden')} · NO ALCANZA la tela · faltan {plan.get('missing')} mts"})
+    for plan in dash.get('listas') or []:
+        if plan.get('short') and plan.get('label') not in vistos:
+            vistos.add(plan.get('label'))
+            lista.append({'tipo': 'tela', 'orden': plan.get('label', ''), 'texto': f"{plan.get('label', 'Orden')} · la tela no alcanzará al entrar a Sublimación (hay {plan.get('disponible')} de {plan.get('mts')} mts)"})
+    return lista
+
+
 @app.get('/api/alertas-panel')
-def alertas_panel(_=Depends(authenticate)):
-    """Alertas operativas para la campana: pedidos atrasados, reprocesos y telas que no alcanzan."""
-    alertas = []
-    try:
-        data = read_local_production()
-        headers = [str(h or '').strip().upper() for h in data['headers']]
-        col = lambda *names: next((i for i, h in enumerate(headers) if h in names), -1)
-        i_orden, i_cli, i_due, i_ref = col('ORDEN'), col('NOMBRE DEL CLIENTE'), col('FECHA DE ENTREGA'), col('REFERENCIA')
-        stages = {i: PROCESS_FLOW[official_process(h)]['label'] for i, h in enumerate(data['headers']) if official_process(h) is not None}
-        i_fin = [i for i, label in stages.items() if label.startswith('ENV')]
-        hoy = datetime.now(timezone(timedelta(hours=-5))).date()
-        atrasados = {}
-        for row in data['rows']:
-            v = row['values']
-            get = lambda i: str(v[i]).strip() if 0 <= i < len(v) and v[i] is not None else ''
-            orden = get(i_orden)
-            if not orden:
-                continue
-            cliente = get(i_cli) or 'Sin cliente'
-            entregado = any(get(i) for i in i_fin)
-            due = parse_production_date(get(i_due))
-            if due and due < hoy and not entregado:
-                dias = (hoy - due).days
-                if orden not in atrasados or dias > atrasados[orden]['dias']:
-                    atrasados[orden] = {'tipo': 'atrasado', 'orden': orden, 'dias': dias,
-                                        'texto': f'{orden} · {cliente} · atrasado {dias} día' + ('s' if dias != 1 else '')}
-            for i, label in stages.items():
-                if get(i).upper() == 'R':
-                    alertas.append({'tipo': 'reproceso', 'orden': orden,
-                                    'texto': f'{orden} · {cliente} · reproceso en {label}' + (f' ({get(i_ref)})' if get(i_ref) else '')})
-        alertas = sorted(atrasados.values(), key=lambda a: -a['dias']) + alertas
-    except Exception:
-        logging.exception('alertas: no se pudo leer producción')
-    try:
-        from app import inventario_api
-        dash = inventario_api.inventory_dashboard()
-        for plan in (dash.get('sublimacion') or {}).get('lista') or []:
-            if plan.get('short'):
-                alertas.append({'tipo': 'tela', 'orden': plan.get('label', ''), 'texto': f"{plan.get('label', 'Orden')} · NO ALCANZA la tela · faltan {plan.get('missing')} mts"})
-        for plan in dash.get('listas') or []:
-            if plan.get('short'):
-                alertas.append({'tipo': 'tela', 'orden': plan.get('label', ''), 'texto': f"{plan.get('label', 'Orden')} · la tela no alcanzará al entrar a Sublimación (hay {plan.get('disponible')} de {plan.get('mts')} mts)"})
-    except Exception:
-        logging.exception('alertas: no se pudo leer inventario')
-    return {'alertas': alertas, 'total': len(alertas)}
+def alertas_panel(usuario=Depends(authenticate)):
+    """Alertas operativas para la campana: pedidos atrasados, reprocesos y telas que no alcanzan.
+    Se calcula una vez cada 45 s y se comparte entre usuarios; las de tela solo con permiso de Inventarios."""
+    with _ALERTAS_LOCK:
+        if time.monotonic() - _ALERTAS_CACHE['at'] > _ALERTAS_SEGUNDOS or _ALERTAS_CACHE['prod'] is None:
+            try:
+                _ALERTAS_CACHE['prod'] = _alertas_produccion()
+            except Exception as exc:
+                logging.exception('alertas: no se pudo leer producción')
+                _ALERTAS_CACHE['prod'] = {'alertas': [], 'error': 'No se pudo leer Producción: ' + str(exc)[:80]}
+            try:
+                _ALERTAS_CACHE['tela'] = _alertas_tela()
+            except Exception:
+                logging.exception('alertas: no se pudo leer inventario')
+                _ALERTAS_CACHE['tela'] = None
+            _ALERTAS_CACHE['at'] = time.monotonic()
+        prod, tela = _ALERTAS_CACHE['prod'], _ALERTAS_CACHE['tela']
+    alertas = list(prod['alertas'])
+    error = prod.get('error')
+    if permisos_mod.puede(str(usuario), 'inventario', 'ver'):
+        if tela is None:
+            error = error or 'No se pudo leer Inventario'
+        else:
+            alertas += tela
+    return {'alertas': alertas, 'total': len(alertas), 'error': error}
 
 
 @app.get('/alertas.js')
@@ -6303,7 +6348,7 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
 `;document.head.appendChild(traceFigmaStyle);setTraceView();
     const commercialGroup=commercialToggle.closest('.nav-group');commercialGroup.classList.add('collapsed');const productionToggle=document.getElementById('production-toggle');if(productionToggle)productionToggle.addEventListener('click',()=>{{const g=productionToggle.closest('.nav-group');g.classList.toggle('collapsed');if(!g.classList.contains('collapsed')&&window.innerWidth>860)g.querySelector('.nav-children .tab')?.click()}});
     setTimeout(()=>{{if(!document.querySelector('.panel.active'))document.querySelector('.tab[data-kind="inicio"]')?.click()}},0);
-    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/liquid-stats.js?v=20261009-10'></script><script src='/permisos.js?v=20261007-2'></script><script src='/reposiciones.js?v=20261005-4'></script><script src='/agentes.js?v=20261010-14'></script><script src='/promedios.js?v=20261006-7'></script><script src='/capacidad.js?v=20261009-2'></script><script src='/molderia.js?v=20261010-2'></script><script src='/estandar.js?v=20261007-1'></script><script src='/terminos.js?v=20261010-1'></script><script src='/cookies-aviso.js?v=20261010-1'></script><script src='/rh-contratos.js?v=20261009-3'></script><script src='/fichas-resumen.js?v=20261010-16'></script><script src='/api/cartera/cartera.js?v=20261009-1'></script><script src='/trace-ui.js?v=20261009-13'></script><script src='/home-dashboard.js?v=20261009-15'></script><script src='/bodega-dashboard.js?v=20261009-5'></script><script src='/bodegas.js?v=20261009-7'></script><script src='/codigos-barras.js?v=20261014-3'></script><script src='/mis-pedidos.js?v=20261008-4'></script><script src='/mobile-nav.js?v=20261012-1'></script><script src='/nav-liquid.js?v=20261003-3'></script><script src='/build-watch.js?v=20261002-1'></script><script src='/salud.js?v=20261002-1'></script><script src='/alertas.js?v=20261014-1'></script><script src='/tema.js?v=20261008-1'></script><script src='/tarjeta-iconos.js?v=20261002-5'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261005-3'></script><script src='/linea-editor.js?v=20261008-1'></script><script src='/menu-cuenta.js?v=20261008-1'></script><script src='/foto-perfil.js?v=20261008-4'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
+    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/liquid-stats.js?v=20261009-10'></script><script src='/permisos.js?v=20261007-2'></script><script src='/reposiciones.js?v=20261005-4'></script><script src='/agentes.js?v=20261010-14'></script><script src='/promedios.js?v=20261006-7'></script><script src='/capacidad.js?v=20261009-2'></script><script src='/molderia.js?v=20261010-2'></script><script src='/estandar.js?v=20261007-1'></script><script src='/terminos.js?v=20261010-1'></script><script src='/cookies-aviso.js?v=20261010-1'></script><script src='/rh-contratos.js?v=20261009-3'></script><script src='/fichas-resumen.js?v=20261010-16'></script><script src='/api/cartera/cartera.js?v=20261009-1'></script><script src='/trace-ui.js?v=20261009-13'></script><script src='/home-dashboard.js?v=20261009-15'></script><script src='/bodega-dashboard.js?v=20261009-5'></script><script src='/bodegas.js?v=20261009-7'></script><script src='/codigos-barras.js?v=20261014-3'></script><script src='/mis-pedidos.js?v=20261008-4'></script><script src='/mobile-nav.js?v=20261012-1'></script><script src='/nav-liquid.js?v=20261003-3'></script><script src='/build-watch.js?v=20261002-1'></script><script src='/salud.js?v=20261002-1'></script><script src='/alertas.js?v=20261014-2'></script><script src='/tema.js?v=20261008-1'></script><script src='/tarjeta-iconos.js?v=20261002-5'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261005-3'></script><script src='/linea-editor.js?v=20261008-1'></script><script src='/menu-cuenta.js?v=20261008-1'></script><script src='/foto-perfil.js?v=20261008-4'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
 
 
 def ordered_mockup_uploads(extras, slots):

@@ -8,22 +8,24 @@
    +'#al-box{display:none;position:fixed;right:14px;bottom:'+(movil?'142px':'68px')+';z-index:93;width:min(380px,calc(100vw - 28px));max-height:min(70vh,520px);overflow:auto;background:#151a12;color:#e9efe5;border:1px solid #ffffff25;border-radius:14px;padding:12px;font:13px Arial;box-shadow:0 8px 28px #000b}'
    +'#al-box h4{margin:10px 0 6px;font-size:12px;letter-spacing:.06em}#al-box h4:first-child{margin-top:0}#al-box div{padding:7px 9px;margin-bottom:5px;border-radius:8px;background:#ffffff0d;border-left:3px solid var(--c)}';
   document.head.appendChild(css);
-  var btn=document.createElement('button');btn.id='al-btn';btn.type='button';btn.title='Alertas';btn.innerHTML='🔔<b style="display:none"></b>';
-  var box=document.createElement('section');box.id='al-box';
+  var btn=document.createElement('button');btn.id='al-btn';btn.type='button';btn.title='Alertas';btn.setAttribute('aria-label','Alertas');btn.setAttribute('aria-expanded','false');btn.innerHTML='🔔<b style="display:none"></b>';
+  var box=document.createElement('section');box.id='al-box';box.setAttribute('aria-live','polite');
   document.body.appendChild(btn);document.body.appendChild(box);
   var esc=function(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})};
   var last='';
   function draw(d){
-    var key=JSON.stringify(d.alertas);if(key===last)return;last=key;
+    var key=JSON.stringify([d.alertas,d.error||'']);if(key===last)return;last=key;
     var n=d.total,b=btn.querySelector('b');b.textContent=n>99?'99+':n;b.style.display=n?'block':'none';
     var html='';
     Object.keys(tipos).forEach(function(t){
       var l=d.alertas.filter(function(a){return a.tipo===t});if(!l.length)return;
       html+='<h4 style="color:'+tipos[t][1]+'">'+tipos[t][0].toUpperCase()+' · '+l.length+'</h4>'+l.map(function(a){return '<div style="--c:'+tipos[t][1]+'">'+esc(a.texto)+'</div>'}).join('');
     });
+    if(d.error)html='<p style="margin:0 0 8px;padding:7px 9px;border-radius:8px;background:#5a2a12;color:#ffd9b0">⚠ '+esc(d.error)+'</p>'+html;
     box.innerHTML=html||'<p style="margin:0;text-align:center;color:#9fb094">Sin alertas. Todo en orden.</p>';
   }
-  function check(){fetch('/api/alertas-panel',{cache:'no-store'}).then(function(r){return r.ok?r.json():null}).then(function(d){if(d)draw(d)}).catch(function(){})}
-  btn.onclick=function(){box.style.display=box.style.display==='block'?'none':'block'};
+  function check(){if(document.hidden)return;fetch('/api/alertas-panel',{cache:'no-store'}).then(function(r){return r.ok?r.json():null}).then(function(d){if(d)draw(d)}).catch(function(){})}
+  btn.onclick=function(){var open=box.style.display!=='block';box.style.display=open?'block':'none';btn.setAttribute('aria-expanded',open)};
+  document.addEventListener('visibilitychange',function(){if(!document.hidden)check()});
   check();setInterval(check,60000);
 })();
