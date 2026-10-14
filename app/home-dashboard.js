@@ -1064,9 +1064,11 @@
       const response = await fetch('/api/produccion', { cache: 'no-cache' });
       const text = await response.text();
       if (!response.ok) { let detail = ''; try { detail = JSON.parse(text).detail; } catch (e) { /* respuesta no JSON */ } throw new Error(detail || 'No se pudo cargar'); }
-      if (!force && text === lastText && model) return;   // sin cambios: no se redibuja
-      lastText = text;
       const crudo = JSON.parse(text);
+      // Huella sin los campos que cambian en cada sincronización (hora de revisión): solo se redibuja si cambió algo real
+      const huella = JSON.stringify(Object.assign({}, crudo, { updated_at: 0, sheets_sync: 0 }));
+      if (!force && huella === lastText && model) return;   // sin cambios: no se redibuja (evita el parpadeo)
+      lastText = huella;
       model = analyse(crudo);
       unitRaw = crudo; model.unitTime = unitTimes(crudo);
       render(model);
