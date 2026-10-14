@@ -7,6 +7,7 @@ la pagina para tener una copia fuera del servidor.
 """
 import json
 import logging
+import os
 import shutil
 import sqlite3
 import tarfile
@@ -21,7 +22,11 @@ INTERVAL_SEGUNDOS = 24 * 60 * 60
 MIN_FREE_BYTES = 1_500_000_000
 SKIP_NAMES = {'excel_mockup_cache.sqlite3', 'backup-tmp', 'backups', 'jobs.sqlite3', 'jobs.sqlite3-wal',
               'jobs.sqlite3-shm', 'generated', 'asistente.log'}
-status = {'last_ok_at': None, 'last_error': None, 'last_name': None, 'last_size': 0}
+# Copia fuera del servidor: la NAS (montada en el contenedor en /mnt/nas). Vacío = no copiar.
+NAS_DIR = os.environ.get('RESPALDO_NAS_DIR', '/mnt/nas/RESPALDOS PANEL')
+NAS_KEEP_LAST = 30
+status = {'last_ok_at': None, 'last_error': None, 'last_name': None, 'last_size': 0,
+          'nas_ok_at': None, 'nas_error': None, 'nas_name': None}
 _lock = threading.Lock()
 
 
@@ -111,9 +116,36 @@ def run_once(data_dir: Path, db_path: Path) -> str:
                       last_size=final.stat().st_size)
         for old in sorted(folder.glob('respaldo-*.tar.gz'))[:-KEEP_LAST]:
             old.unlink(missing_ok=True)
+        _copiar_a_nas(final)
         _save(data_dir)
         logging.info('respaldo: %s (%d bytes)', final.name, final.stat().st_size)
         return final.name
+
+
+def _copiar_a_nas(final: Path):
+    """Copia el respaldo a la NAS. Si falla, el respaldo local sigue valiendo: solo se anota el error."""
+    if not NAS_DIR:
+        return
+    destino_dir = Path(NAS_DIR)
+    parcial = destino_dir / ('.' + final.name + '.partial')
+    try:
+        if not destino_dir.parent.is_dir() or not any(destino_dir.parent.iterdir()):
+            raise RuntimeError('La NAS no está montada (' + str(destino_dir.parent) + ' vacía): revisar la VPN de la NAS')
+        destino_dir.mkdir(exist_ok=True)
+        shutil.copyfile(final, parcial)
+        if parcial.stat().st_size != final.stat().st_size:
+            raise RuntimeError('La copia en la NAS quedó incompleta')
+        parcial.replace(destino_dir / final.name)
+        for old in sorted(destino_dir.glob('respaldo-*.tar.gz'))[:-NAS_KEEP_LAST]:
+            old.unlink(missing_ok=True)
+        status.update(nas_ok_at=datetime.now(timezone.utc).isoformat(), nas_error=None, nas_name=final.name)
+    except Exception as error:
+        try:
+            parcial.unlink(missing_ok=True)
+        except Exception:
+            pass
+        status['nas_error'] = str(error)[:300]
+        logging.warning('respaldo: no se pudo copiar a la NAS: %s', error)
 
 
 def start(data_dir: Path, db_path: Path):

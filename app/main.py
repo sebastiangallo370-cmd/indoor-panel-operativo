@@ -1068,6 +1068,8 @@ def salud_panel(_=Depends(authenticate)):
         problemas.append('Falló el último respaldo: ' + info['last_error'][:100])
     elif seconds is not None and seconds > 36 * 3600:
         problemas.append('El último respaldo tiene más de un día y medio')
+    if info.get('nas_error'):
+        problemas.append('El respaldo no se pudo copiar a la NAS: ' + info['nas_error'][:100])
     return {'problemas': problemas}
 
 
