@@ -442,9 +442,8 @@ def _apply_counts(categories: list[dict[str, Any]], all_records: list[dict[str, 
     except (OSError, ValueError):
         counts, only_count = [], False
     tab_key, tab_label = 'MATERIA PRIMA IMPRESION', 'Materia prima impresión'
-    if only_count and counts:  # el conteo es la lista completa: lo que no esté en él se quita
-        names = {_normalized(entry.get('nombre')) for entry in counts}
-        all_records[:] = [record for record in all_records if record['categoria'] != tab_key or _normalized(record['nombre']) in names]
+    if only_count and counts:  # el conteo reemplaza por completo lo leído del Sheet
+        all_records[:] = [record for record in all_records if record['categoria'] != tab_key]
     for index, entry in enumerate(counts):
         name, total = str(entry.get('nombre') or '').strip(), float(entry.get('total') or 0)
         if not name:
