@@ -68,6 +68,8 @@ ETIQUETAS = [
     ('DELETE', r'^/api/lineas-producto/mockup/.+$', 'Líneas de producto', 'Quitó un mockup de línea'),
     ('POST', r'^/api/estudio/.+$', 'Estudio', 'Cambió el estudio de una orden'),
     ('DELETE', r'^/api/estudio/.+$', 'Estudio', 'Quitó el enlace del estudio'),
+    ('POST', r'^/api/ecommerce/agentes/.+$', 'Ecommerce', 'Dio una orden a un agente de ECOMMERCE (iniciar / detener / reiniciar)'),
+    ('POST', r'^/api/ecommerce/conexion/regenerar$', 'Ecommerce', 'Generó un código nuevo para enlazar el PC de ECOMMERCE'),
     ('POST', r'^/api/reposiciones.*$', 'Reposiciones', 'Cambió reposiciones'),
     ('POST', r'^/api/molderia.*$', 'Moldería', 'Cambió algo de moldería'),
     ('POST', r'^/api/rhumano/.+$', 'Recursos humanos', 'Generó un documento de RR. HH.'),
