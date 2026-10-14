@@ -223,3 +223,8 @@ def mis_permisos(request: Request):
 
 
 # (Se eliminó la pantalla y los endpoints para cambiar la matriz de permisos: rigen los valores por defecto de _defaults().)
+
+
+def bitacora_permitido(username: str) -> bool:
+    """Regla fija: la bitácora de cambios solo la ve la cuenta «Indoor Sport»."""
+    return _plano(username) == 'INDOOR SPORT'

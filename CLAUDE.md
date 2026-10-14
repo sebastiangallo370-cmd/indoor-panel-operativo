@@ -84,6 +84,8 @@ Espera ~15 s tras reiniciar (el contenedor pasa por "health: starting"). Comprue
 
 **Agentes de edición** (TAVO, LEO, JACK, OLVER, OLIVER, TERRY): corren en los PC de edición (fuera de este repo, carpeta `agentes_uniformes`, distribuida por la NAS) y hablan con el servidor por `agentes_canal.py` (sondeo con token por PC). Generan PDFs de producción con Illustrator (COM). La dirección del panel está en `datos/panel.json` de cada PC (ya `https://produccion.cloud`; el puente migra solo desde la vieja). El módulo AGENTES del panel es su canal (chats, agentes, PDFs, log).
 
+**Bitácora de cambios** (`bitacora.py` + `bitacora.js`): un middleware ASGI guarda en la tabla `bitacora` de jobs.sqlite3 cada POST/PUT/PATCH/DELETE exitoso hecho con sesión (usuario, módulo, acción, detalle; sin contraseñas; 365 días). Solo la cuenta «Indoor Sport» la consulta (`permisos.bitacora_permitido`, 403 al resto) y se abre desde el menú de usuario. Para que una ruta nueva salga con nombre legible, añádela a `ETIQUETAS` en bitacora.py.
+
 **Importante**: los ingresos y salidas hechos en la web se guardan en el servidor y NO se escriben al Google Sheet (es de solo lectura). Si el equipo también los digita en el Sheet, se contarían dos veces.
 
 ## Cosas que NO debes hacer
