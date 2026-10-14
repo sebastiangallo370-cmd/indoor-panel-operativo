@@ -607,6 +607,173 @@
   @media(prefers-reduced-motion:reduce){.panel[data-panel='agentes'] *{animation:none!important}}
   `;
   document.head.appendChild(css2);
+  const css3 = document.createElement('style');
+  css3.textContent = `
+  /* ===== Rediseño (oct 2026): superficies planas, pestañas segmentadas, pasos de la orden en línea, chat más ancho y, en celular, las mismas pestañas con LISTADO ===== */
+  § .ag{gap:10px!important}
+  /* cabecera liviana */
+  § .ag-hd{padding:8px 12px;gap:8px 12px;border:1px solid rgba(255,255,255,.08);border-radius:14px;background:#0d120e;box-shadow:none}
+  § .ag-hd h2{font-size:.9rem;letter-spacing:.18em;color:#d0f44c;text-shadow:none}
+  § .ag-pill{padding:5px 11px;border-color:rgba(255,255,255,.1);background:rgba(255,255,255,.04);box-shadow:none}
+  § .ag-hd .ag-tabs{gap:3px;padding:3px;border:0;border-radius:12px;background:rgba(255,255,255,.05)}
+  § .ag-tab{min-height:32px;padding:4px 14px;border:0;border-radius:9px;background:transparent;box-shadow:none}
+  § .ag-tab:hover{transform:none;background:rgba(255,255,255,.07)}
+  § .ag-tab.on{background:#d0f44c;color:#142017;box-shadow:none}
+  § .ag-tab.ocupado:not(.on){background:rgba(125,164,255,.14)}
+  § .ag-hacc .ag-btn{border-radius:10px;box-shadow:none}§ .ag-hacc .ag-btn:hover{transform:none}
+  § .ag-reiniciar{border:1px solid #60754d!important;background:transparent!important;color:#e3eadc!important;box-shadow:none!important}
+  § .ag-reiniciar:hover{border-color:#d0f44c!important;color:#d0f44c!important}
+  § .ag-menu-l .solo-movil{display:none}
+  /* resumen de la orden: línea de pasos (punto por paso, unidos por una raya que se pinta al avanzar) */
+  § .ag-res{overflow:visible;z-index:20;border:1px solid rgba(255,255,255,.08);border-radius:14px;background:#0d120e;box-shadow:none}
+  § .ag-res::before{border-radius:inherit;border-right:0;background:linear-gradient(90deg,rgba(139,212,80,.13),rgba(139,212,80,.02))}
+  § .ag-res-top .qa b{font-size:1.05rem;text-shadow:none}
+  § .ag-res .tiempo{padding:4px 11px;white-space:nowrap}
+  § .ag-res .ag-pasos{display:flex!important;gap:0!important;align-items:flex-start}
+  § .ag-paso{position:relative;flex:1 1 0;min-width:0;display:grid!important;justify-items:center;align-content:start;gap:3px;padding:0 3px!important;border:0!important;border-radius:0!important;background:none!important;box-shadow:none!important;animation:none!important;text-align:center}
+  § .ag-paso::before{content:"";position:absolute;top:9px;left:-50%;right:50%;height:2px;background:#2a372b}
+  § .ag-paso:first-child::before{display:none}
+  § .ag-paso .pt{position:relative;z-index:1;display:grid;place-items:center;width:20px;height:20px;box-sizing:border-box;border:2px solid #3a4a3a;border-radius:50%;background:#0d120e;color:#10200a;font:900 11px Arial;font-style:normal}
+  § .ag-paso b{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:800 10.5px Arial!important;letter-spacing:.02em;color:#aebba7}
+  § .ag-paso em{display:block!important;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:600 10px Arial!important;font-style:normal;color:#77836f}
+  § .ag-paso.ok::before,§ .ag-paso.corriendo::before,§ .ag-paso.espera::before,§ .ag-paso.error::before{background:#8bd450}
+  § .ag-paso.ok .pt{border-color:#8bd450;background:#8bd450}§ .ag-paso.ok .pt::after{content:"✓"}§ .ag-paso.ok b{color:#dfe7d6}
+  § .ag-paso.corriendo .pt{border-color:#7da4ff;box-shadow:0 0 0 4px rgba(125,164,255,.22);animation:agpul 1s infinite}§ .ag-paso.corriendo b,§ .ag-paso.corriendo em{color:#9db8ff}
+  § .ag-paso.espera .pt{border-color:#ffc95c;box-shadow:0 0 0 4px rgba(255,201,92,.2)}§ .ag-paso.espera b,§ .ag-paso.espera em{color:#ffc95c}
+  § .ag-paso.error .pt{border-color:#ff6b5c;background:#ff6b5c;color:#fff}§ .ag-paso.error .pt::after{content:"!"}§ .ag-paso.error b,§ .ag-paso.error em{color:#ff8a7d}
+  /* pestañas CHAT / AGENTES / PDFS como control segmentado */
+  § .ag-vtabs{display:inline-flex!important;justify-self:start;gap:3px;width:max-content;max-width:100%;box-sizing:border-box;padding:3px;border-radius:12px;background:rgba(255,255,255,.05)}
+  § .ag-vt{min-height:32px;padding:0 20px;border:0;border-radius:9px;background:transparent;color:#aebba7;font:900 11.5px Arial;letter-spacing:.12em;box-shadow:none;cursor:pointer}
+  § .ag-vt:hover{transform:none;color:#eef4e9}
+  § .ag-vt.on{background:#d0f44c;color:#142017;box-shadow:none}
+  § .ag-vt.solo-movil{display:none}
+  /* cuadros planos */
+  § .ag-chat,§ .ag-muestras,§ .ag-live,§ .ag-detalle{border:1px solid rgba(255,255,255,.08)!important;border-radius:16px;background:#0d120e!important;box-shadow:none!important}
+  § .ag-lienzo{border-color:rgba(255,255,255,.08);box-shadow:none}
+  § .ag-detalle header{background:rgba(255,255,255,.03)!important}
+  /* chat */
+  § .ag-msg{border:1px solid rgba(255,255,255,.07);border-radius:14px;background:#141b15}
+  § .ag-msg.yo{border-color:rgba(208,244,76,.28);background:#1f2b14}
+  § .ag-msg.bot{border-left:3px solid var(--c,#7da4ff)}
+  § .ag-txt.recortado{max-height:15.5em;overflow:hidden;-webkit-mask-image:linear-gradient(#000 68%,transparent);mask-image:linear-gradient(#000 68%,transparent)}
+  § .ag-vermas{justify-self:start;width:auto!important;min-height:0!important;margin:0!important;padding:5px 12px!important;border:1px solid #3d4f3d!important;border-radius:999px!important;background:transparent!important;box-shadow:none!important;color:#d0f44c!important;font:800 11px Arial!important;cursor:pointer}
+  § .ag-vermas:hover{border-color:#d0f44c!important}
+  § .ag-grupo{border:1px solid rgba(255,255,255,.08);border-radius:12px;background:rgba(255,255,255,.03)}
+  § .ag-grupo>summary{display:flex;align-items:center;gap:10px;padding:9px 12px;list-style:none;cursor:pointer;color:#dfe7d6;font:800 12px Arial}
+  § .ag-grupo>summary::-webkit-details-marker{display:none}
+  § .ag-grupo>summary span{margin-left:auto;color:#d0f44c;font:700 11px Arial}§ .ag-grupo>summary span::after{content:" ▾"}§ .ag-grupo[open]>summary span::after{content:" ▴"}
+  § .ag-grupo-l{display:grid;gap:3px;max-height:230px;overflow:auto;padding:0 8px 8px}
+  § .ag-grupo-l div{display:flex;align-items:center;gap:8px;min-width:0;padding:5px 8px;border-radius:8px;background:rgba(255,255,255,.03);color:#dfe7d6;font:600 11.5px Consolas,ui-monospace,monospace}
+  § .ag-grupo-l span{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  § .ag-grupo-l button{flex:none;width:auto!important;min-height:0!important;margin:0!important;padding:2px 8px!important;border:1px solid #3d4f3d!important;border-radius:7px!important;background:transparent!important;box-shadow:none!important;color:#d0f44c!important;font:800 11px Arial!important;cursor:pointer}
+  § .ag-chips.rapidas{flex-wrap:wrap!important;overflow:visible!important}
+  § .ag-thread,§ .ag-log,§ .ag-live-list,§ .mu-ltabla,§ .ag-grupo-l{scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.22) transparent}
+  .ag-hist-cuerpo{scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.22) transparent}
+  § .ag-pildora{white-space:nowrap}
+  /* listado: la columna NOMBRE manda; si no cabe, la tabla se desliza de lado en vez de aplastarla */
+  § .mu-ltabla table{table-layout:auto!important;width:100%!important;min-width:540px!important}
+  § .mu-ltabla th,§ .mu-ltabla td{white-space:nowrap!important}
+  § .mu-ltabla th:nth-child(n){width:auto!important}
+  § .mu-ltabla th:nth-child(2){width:36%!important;min-width:140px!important}
+  § .mu-ltabla td.n{min-width:140px!important;white-space:normal!important}
+  § .mu-ltabla td.o{white-space:normal!important}
+  § .mu-ltabla th{font-size:10.5px!important}
+  § .mu-nota{color:#8f9b8a;font:600 12px Arial}§ .mu-nota b{margin-right:8px;color:#cfd9c7;font:900 10.5px Arial;letter-spacing:.14em}
+  /* piezas del cuadro de muestras (antes solo existían en computador) */
+  § .mu-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}§ .mu-top h4{margin:0 8px 0 0;font:900 11px Arial;letter-spacing:.14em;color:#d7ff3a}
+  § .mu-chip{width:auto!important;min-height:30px;padding:0 14px;border:1px solid #34432f;border-radius:999px;background:#121a14;color:#aebba7;font:900 12px Arial;letter-spacing:.06em;cursor:pointer}§ .mu-chip.on{background:#d7ff3a;border-color:#d7ff3a;color:#0b1204}
+  § .mu-nav{margin-left:auto;display:flex;align-items:center;gap:6px}§ .mu-nav a{min-width:38px;min-height:32px;display:inline-flex;align-items:center;justify-content:center;border:1px solid #60754d;border-radius:10px;background:#142017;color:#d7ff3a;font:900 16px Arial;text-decoration:none}§ .mu-nav span{min-width:42px;color:#aebba7;font:800 12px Arial;text-align:center}
+  § .mu-cuerpo{position:relative;min-height:0;display:flex;align-items:center;justify-content:center;border-radius:10px;background:#fff;overflow:hidden}§ .mu-cuerpo img{display:block;max-width:100%;max-height:100%;object-fit:contain}§ .mu-cuerpo iframe{width:100%;height:100%;border:0}
+  § .mu-flecha{position:absolute;top:calc(50% - 21px);z-index:3;box-sizing:border-box;margin:0;padding:0;width:42px!important;min-width:42px!important;height:42px!important;min-height:42px!important;flex:none;display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.55);border-radius:50%;background:rgba(14,22,8,.62);color:#e9ffa0;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.35)}
+  § .mu-flecha:disabled{opacity:0;pointer-events:none}§ .mu-flecha.izq{left:14px}§ .mu-flecha.der{right:14px}
+  § .mu-pie{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;color:#aebba7;font:700 12px Arial}
+  /* PDFS: las dos listas se reparten el alto por igual */
+  @media(min-width:1001px){§ .ag-live-side .ag-live-sec:first-child{flex:1 1 0;max-height:none}}
+  /* historial: cada conversación ocupa lo que necesita (antes los renglones quedaban montados) */
+  .ag-hist-cuerpo{grid-auto-rows:max-content}
+  .ag-hist-item{height:auto!important;max-height:none!important;line-height:1.35!important;align-content:start}
+  .ag-hist-item b,.ag-hist-item span,.ag-hist-item small{line-height:1.35!important}
+  @media(min-width:1001px){
+    § .ag-res{display:flex!important;align-items:center;gap:18px;padding:9px 16px!important}
+    § .ag-res .ag-res-top{display:contents}
+    § .ag-res .qa{order:1;flex:0 0 auto}
+    § .ag-res .ag-pasos{order:2;flex:1 1 auto;max-width:760px;margin:0 auto}
+    § .ag-res .ag-ahora{display:none!important}
+    § .ag-res .ag-ahora.nota{display:block!important;order:3;flex:0 1 320px;min-width:0;padding:6px 10px!important;font-size:.78rem!important}
+    § .ag-res .tiempo{order:4;flex:none}
+    § .ag-res details.ag-det{order:5;flex:none}
+    § .ag-main{margin-top:0!important}
+    § .ag-main .ag-orden{top:-48px!important;height:38px!important}
+    § .ag-main[data-vista="chats"]{grid-template-columns:minmax(380px,36%) minmax(0,1fr)!important}
+    § .ag-main[data-vista="chats"][data-muestra="0"]{grid-template-columns:minmax(440px,48%) minmax(0,1fr)!important}
+    § .ag-muestras.sin-muestra .mu-doble{grid-template-columns:minmax(0,1fr)!important}
+  }
+  @media(min-width:1001px) and (max-width:1320px){§ .ag-res{gap:12px}§ .ag-res-top h3{display:none}§ .ag-paso b{white-space:normal;overflow-wrap:normal;line-height:1.15}§ .ag-paso em{display:none!important}}
+  @media(max-width:1000px){
+    /* celular y tablet: las mismas pestañas del computador, más LISTADO (listado de jugadores y muestra) */
+    § .ag-vtabs{display:flex!important;width:auto;justify-self:stretch}
+    § .ag-vt{flex:1 1 auto;min-height:38px;padding:0 4px;font-size:10.5px;letter-spacing:.04em;white-space:nowrap}
+    § .ag-vt.solo-movil{display:block}
+    § .ag-ver-flujo{display:none!important}
+    § .ag-main{display:block!important;height:auto!important}
+    § .ag-main .ag-flowcol{display:contents!important}
+    § .ag-main .ag-chat,§ .ag-main .ag-muestras,§ .ag-main .ag-lienzo,§ .ag-main .ag-live,§ .ag-main .ag-detalle{display:none!important}
+    § .ag-main[data-vista="chats"] .ag-chat{display:grid!important}
+    § .ag-main[data-vista="listado"] .ag-muestras{display:grid!important}
+    § .ag-main[data-vista="agentes"] .ag-lienzo{display:block!important}
+    § .ag-main[data-vista="agentes"] .ag-detalle{display:grid!important;margin-top:10px}
+    § .ag-main[data-vista="pdfs"] .ag-live{display:grid!important}
+    § .ag-main .ag-orden{margin-bottom:8px;flex-wrap:wrap}
+    § .ag-thread{height:calc(100dvh - 430px)!important;min-height:250px!important}
+    § .ag-muestras{gap:10px;padding:10px}
+    § .mu-doble{display:grid;grid-template-columns:minmax(0,1fr)!important;gap:10px}
+    § .mu-cuerpo:not(.mu-espera){order:-1;height:66vw;min-height:250px}
+    § .mu-cuerpo.mu-espera,§ .mu-listado.mu-espera{padding:26px 12px}
+    § .mu-ltabla{max-height:none;overflow-y:visible}
+    § .mu-flecha.izq{left:8px}§ .mu-flecha.der{right:8px}
+    § .ag-res{cursor:default}§ .ag-res-top{cursor:pointer}§ .ag-res .tiempo::after{content:"  ▾"}§ .ag-res.ver-pasos .tiempo::after{content:"  ▴"}
+    § .ag-res:not(.ver-pasos) .ag-pasos,§ .ag-res:not(.ver-pasos) .ag-ahora:not(.nota),§ .ag-res:not(.ver-pasos) details.ag-det{display:none!important}
+    § .ag-res{padding:8px 12px!important;gap:7px!important}§ .ag-res-top h3{display:none}§ .ag-res .ag-barra2{height:6px}
+    § .ag-hd:has(.ag-tabs:not([hidden])) .ag-state{display:none}§ .ag-hd .ag-hacc{margin-left:auto}§ .ag-hd .ag-tabs{order:5}
+    § .ag-chips.rapidas{flex-wrap:nowrap!important;overflow-x:auto!important}
+    § .ag-ftit small{display:none}
+    § .ag-paso b{white-space:normal;overflow-wrap:normal;word-break:keep-all;line-height:1.15;font-size:9px!important;letter-spacing:0}§ .ag-paso em{font-size:8.5px!important}
+    /* botones que se tocan con el dedo: más altos, y Reiniciar pasa al menú ⋯ para no tocarlo por error junto a Detener */
+    § .ag-hacc{gap:10px}
+    § .ag-hacc .ag-btn,§ .ag-stop{height:46px!important;min-height:46px!important;padding:0 12px!important;font-size:11.5px!important}
+    § .ag-ico,§ .ag-menu>summary{box-sizing:border-box;min-width:46px!important;min-height:46px!important;font-size:14px!important}
+    § .ag-hacc .ag-menu-l{min-width:240px}
+    § .ag-reiniciar{display:none!important}§ .ag-menu-l .solo-movil{display:block}
+    § .ag-menu-l button{height:auto!important;min-height:44px!important;padding:8px 12px!important;white-space:normal;line-height:1.25}
+    § .ag-orden .ag-btn,§ .ag-orden .ag-ochip,§ .ag-orden .ag-prog,§ .ag-orden .ag-mas>summary{height:38px!important;min-height:38px!important}
+    § .ag-form .ag-btn{min-height:42px!important;padding:0 16px!important;font-size:12.5px!important}
+    § .ag-form .ag-ico{min-width:42px!important;min-height:42px!important}
+    § .ag-form textarea{min-height:42px}
+    § .ag-chips button,§ .ag-chips .reply{min-height:36px!important}
+    § .ag-grupo-l button{padding:6px 12px!important}
+    § .ag-who .ag-copiar{padding:6px 10px!important;font-size:11px!important}
+    § .ag-file-acc button,§ .ag-file-acc a{min-height:34px!important;min-width:34px!important}
+    § .ag-keys,§ .ag-ai-inst{display:none!important}
+    § .ag-live-top{flex-wrap:wrap;row-gap:6px}
+    § .ag-live-side .ag-live-sec{flex:0 0 auto!important;max-height:none!important}§ .ag-live-list{max-height:230px}
+  }
+  @media(max-width:700px){
+    /* flujo de agentes en lista (los cables no caben en una pantalla angosta) */
+    § .ag-lienzo.lista{height:auto!important;padding:46px 10px 10px;background-image:none}
+    § .ag-main[data-vista="agentes"] .ag-lienzo.lista{display:grid!important;gap:6px}
+    § .ag-lienzo.lista svg.ag-cables{display:none}
+    § .ag-lienzo.lista .ag-nodo{position:relative!important;left:auto!important;top:auto!important;width:auto!important;height:auto!important;display:grid;grid-template-columns:40px minmax(0,1fr);align-items:center;gap:10px;padding:8px 40px 8px 10px;border:1px solid rgba(255,255,255,.08);border-radius:12px;background:rgba(255,255,255,.03)}
+    § .ag-lienzo.lista .ag-nodo .cj{position:relative;inset:auto;width:40px;height:40px;border-radius:12px}
+    § .ag-lienzo.lista .ag-nodo .et{position:static;transform:none;width:auto;display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px;text-align:left}
+    § .ag-lienzo.lista .ag-nodo .et b,§ .ag-lienzo.lista .ag-nodo .et small{display:inline}
+    § .ag-lienzo.lista .ag-nodo .et em:not(:empty){margin:0 0 0 auto}
+    § .ag-lienzo.lista .ag-nodo .puerto,§ .ag-lienzo.lista .ag-nodo .anillo,§ .ag-lienzo.lista .ag-nodo .paso{display:none!important}
+    § .ag-lienzo.lista .ag-nodo .ins{left:auto;right:10px;top:calc(50% - 10px)}
+    § .ag-lienzo.lista .ag-nodo.inactivo{opacity:.6}
+    § .ag-thread{height:calc(100dvh - 455px)!important}
+  }
+  `.replace(/§/g, ".panel[data-panel='agentes']");
+  document.head.appendChild(css3);
 
   const celda = v => (String(v || '').trim() ? esc(v) : '<span class="v">—</span>');
   // Ancho de cada columna proporcional a lo que trae (en celular la tabla es de ancho fijo y cabe completa, sin scroll)
@@ -699,10 +866,11 @@
     try { celda.querySelector('.production-row-open').click(); } finally { puente.remove(); }
   }
   // Pestañas de escritorio: CHATS · AGENTES (mapa del flujo) · PDFS (pantalla en vivo) · LOG (ejecución)
-  const VISTAS = ['chats', 'agentes', 'pdfs'];   // el LOG va dentro de AGENTES
+  const VISTAS = ['chats', 'listado', 'agentes', 'pdfs'];   // el LOG va dentro de AGENTES; LISTADO es pestaña solo en celular (en computador va junto al chat)
+  const angosto = () => window.innerWidth <= 1000;
   function ponerVista(v) {
     if (v === 'log') v = 'agentes';
-    if (!VISTAS.includes(v)) v = 'chats';
+    if (!VISTAS.includes(v) || (v === 'listado' && !angosto())) v = 'chats';
     const m = panel && panel.querySelector('[data-main]'); if (!m) return;
     m.dataset.vista = v;
     panel.querySelectorAll('[data-vt]').forEach(b => b.classList.toggle('on', b.dataset.vt === v));
@@ -722,12 +890,27 @@
   // El módulo ocupa exactamente lo que queda de pantalla (sin scroll de página), con cualquier zoom o barra del navegador
   function ajustarAlto() {
     const m = panel && panel.querySelector('[data-main]'); if (!m) return;
-    if (window.innerWidth <= 1000 || !panel.classList.contains('active')) { m.style.removeProperty('height'); return; }
+    if (!angosto() && m.dataset.vista === 'listado') { ponerVista('chats'); return; }
+    const hilo = panel.querySelector('[data-hilo]');
+    if (angosto() || !panel.classList.contains('active')) {
+      m.style.removeProperty('height');
+      // celular: el chat llena justo lo que queda de pantalla, para que el campo de escribir quede visible encima de la barra inferior
+      if (hilo && angosto() && panel.classList.contains('active') && m.dataset.vista === 'chats') {
+        const chat = hilo.closest('.ag-chat'), barra = document.querySelector('nav.mbar'), bt = barra ? barra.getBoundingClientRect() : null;
+        const abajo = bt && bt.height && bt.top > window.innerHeight / 2 ? window.innerHeight - bt.top + 20 : 12;
+        const libre = window.innerHeight - abajo - (hilo.getBoundingClientRect().top + window.scrollY) - (chat.getBoundingClientRect().bottom - hilo.getBoundingClientRect().bottom);
+        hilo.style.setProperty('height', Math.max(230, Math.round(libre)) + 'px', 'important');
+      }
+      return;
+    }
+    if (hilo) hilo.style.removeProperty('height');
     const alto = window.innerHeight - m.getBoundingClientRect().top - 20;
     m.style.setProperty('height', Math.max(420, Math.round(alto)) + 'px', 'important');
   }
   function acomodar() {
     const lienzo = flow.lienzo; if (!lienzo) return;
+    const lista = window.innerWidth <= 700; lienzo.classList.toggle('lista', lista);
+    if (lista) { lienzo.style.removeProperty('height'); flow.POS = {}; if (flow.svg) flow.svg.innerHTML = ''; return; }
     const W = lienzo.clientWidth, H = lienzo.clientHeight; if (!W) return;
     const tam = W > 1000 ? 62 : 48, margen = 44, ancho = tam; flow.tam = tam;
     const porFila = Math.max(3, Math.min(NODOS.length, Math.floor((W - margen * 2 + 40) / (W > 1000 ? 130 : 112))));
@@ -1194,7 +1377,7 @@
       let extra = '';
       if (id === 'OLVER' && d.montajes) extra = ' · ' + d.montajes + ' tallas';
       if (id === 'OLIVER' && d.pdfs) extra = ' · ' + d.pdfs + (d.pdfsPlan ? '/' + d.pdfsPlan : '') + ' PDF';
-      return '<div class="ag-paso ' + e + '"><b>' + esc(nom) + '</b><em>' + txt + extra + '</em></div>';
+      return '<div class="ag-paso ' + e + '"><i class="pt"></i><b>' + esc(nom) + '</b><em>' + txt + extra + '</em></div>';
     }).join('');
     const dato = (k, v, aviso) => v ? '<div class="ag-dato' + (aviso ? ' aviso' : '') + '"><small>' + esc(k) + '</small><span>' + esc(v) + '</span></div>' : '';
     const datos = dato('Cliente · proyecto', d.cliente ? d.cliente + ' · ' + d.proyecto : '') + dato('Referencias en proceso', d.enProceso.join(', ')) +
@@ -1257,6 +1440,7 @@
     if (diaDe(iso) === diaDe(ayer)) return 'Ayer';
     return d.toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' });
   }
+  const esLargo = t => { const x = String(t || ''); return x.length > 1500 || x.split('\n').length > 18; };
   function hiloHtml() {
     const out = []; let dia = '', cancelados = 0, ultCancel = '';
     const soltar = () => { if (cancelados) out.push('<div class="ag-sis">✕ Se canceló lo anterior' + (cancelados > 1 ? ' (' + cancelados + ' veces)' : '') + ' · ' + hora(ultCancel) + '</div>'); cancelados = 0; };
@@ -1271,7 +1455,7 @@
       if (auto) { out.push('<div class="ag-sis auto">⚡ Inicio automático · ' + esc(auto[1]) + ' · ' + hora(m.creado) + '</div>'); return; }
       out.push(m.rol === 'yo'
         ? '<div class="ag-msg yo" data-mid="' + esc(m.id) + '"><div class="ag-txt">' + esc(m.texto) + '</div><span class="ag-time">' + hora(m.creado) + ' ' + estadoMio(k) + '</span></div>'
-        : '<div class="ag-msg bot' + (m.estado === 'ERROR' ? ' err' : '') + (tablaChat(m) || (m.archivos && m.archivos.length) ? ' con-tabla' : '') + '" data-mid="' + esc(m.id) + '" style="--c:' + (COLORES[(m.agentes && m.agentes[0]) || 'TAVO'] || '#7da4ff') + '"><div class="ag-who">' + avatar((m.agentes && m.agentes[0]) || 'TAVO') + (m.agentes && m.agentes.length ? m.agentes : ['TAVO']).map(tag).join('') + '<button type="button" class="ag-copiar" data-copiar="' + esc(m.id) + '" title="Copiar el mensaje">⧉ Copiar</button></div><div class="ag-txt">' + textoHtml(m.tabla ? m.texto.split(/\n\nDesglose del listado/)[0] : m.texto) + '</div>' + (m.estado === 'ERROR' || /^[A-Z]+: /.test(m.texto) ? ayudaDe(m.texto, m.estado === 'ERROR' || /no pude|no pudo|falt|no aparece|no está/i.test(m.texto)) : '') + (tablaChat(m) ? tablaHtml(m) : '') + (m.archivos && m.archivos.length ? archivosHtml(m) : '') + '<span class="ag-time">' + hora(m.creado) + '</span></div>');
+        : '<div class="ag-msg bot' + (m.estado === 'ERROR' ? ' err' : '') + (tablaChat(m) || (m.archivos && m.archivos.length) ? ' con-tabla' : '') + '" data-mid="' + esc(m.id) + '" style="--c:' + (COLORES[(m.agentes && m.agentes[0]) || 'TAVO'] || '#7da4ff') + '"><div class="ag-who">' + avatar((m.agentes && m.agentes[0]) || 'TAVO') + (m.agentes && m.agentes.length ? m.agentes : ['TAVO']).map(tag).join('') + '<button type="button" class="ag-copiar" data-copiar="' + esc(m.id) + '" title="Copiar el mensaje">⧉ Copiar</button></div><div class="ag-txt' + (esLargo(m.texto) && !st.abiertos['txt:' + m.id] ? ' recortado' : '') + '">' + textoHtml(m.tabla ? m.texto.split(/\n\nDesglose del listado/)[0] : m.texto) + '</div>' + (esLargo(m.texto) ? '<button type="button" class="ag-vermas" data-txt-ver="' + esc(m.id) + '">' + (st.abiertos['txt:' + m.id] ? '▴ Ver menos' : '▾ Ver todo el mensaje') + '</button>' : '') + (m.estado === 'ERROR' || /^[A-Z]+: /.test(m.texto) ? ayudaDe(m.texto, m.estado === 'ERROR' || /no pude|no pudo|falt|no aparece|no está/i.test(m.texto)) : '') + (tablaChat(m) ? tablaHtml(m) : '') + (m.archivos && m.archivos.length ? archivosHtml(m) : '') + '<span class="ag-time">' + hora(m.creado) + '</span></div>');
     });
     soltar();
     return out.join('');
@@ -1284,9 +1468,9 @@
       '<div class="ag-indiv" aria-label="Usar un agente por separado">' + AGENTES_BTN.map(([a, t, p]) => '<button type="button" class="ag-agbtn" style="--c:' + (COLORES[a] || '#c4cfbf') + '" data-atajo="' + esc(p) + '" title="' + esc(a + ': ' + ROLES[a] + ' (usa la orden activa)') + '"><i></i>' + esc(a) + '<small>' + esc(t) + '</small></button>').join('') + '</div>' +
       '<div class="ag-hacc"><button type="button" class="ag-ico ag-campana" data-avisos aria-label="Avisos del chat">🔔</button><button type="button" class="ag-ico" data-historial title="Historial: busca en el chat y vuelve a leer conversaciones anteriores" aria-label="Historial del chat">🕘</button><button type="button" class="ag-btn danger ag-stop inactivo" data-detener data-txt="⏹ Detener" title="Detiene los agentes de esta pestaña (el PC elegido)">⏹ Detener</button>' +
       '<button type="button" class="ag-btn ag-reiniciar" data-reiniciar title="Reinicia el programa de los agentes en el PC elegido (se cierra y se vuelve a abrir solo)">↻ Reiniciar</button>' +
-      '<details class="ag-menu"><summary class="ag-ico" title="Más opciones">⋯</summary><div class="ag-menu-l"><button type="button" data-detener-todo>⏹ Detener todo (ambos PC)</button><button type="button" data-reiniciar-todo>↻ Reiniciar todos los PC</button><button type="button" data-nueva>Nueva conversación</button><button type="button" data-historial>🕘 Historial del chat</button><button type="button" data-conectar hidden>PC de los agentes…</button></div></details></div></header>' +
+      '<details class="ag-menu"><summary class="ag-ico" title="Más opciones">⋯</summary><div class="ag-menu-l"><button type="button" class="solo-movil" data-reiniciar>↻ Reiniciar este PC</button><button type="button" data-detener-todo>⏹ Detener todo (ambos PC)</button><button type="button" data-reiniciar-todo>↻ Reiniciar todos los PC</button><button type="button" data-nueva>Nueva conversación</button><button type="button" data-historial>🕘 Historial del chat</button><button type="button" data-conectar hidden>PC de los agentes…</button></div></details></div></header>' +
       '<div data-aviso></div><section class="ag-res" data-resumen hidden></section>' +
-      '<button type="button" class="ag-ver-flujo" data-ver-flujo>▾ Ver flujo, pantalla en vivo y registro</button><nav class="ag-vtabs" data-vtabs aria-label="Secciones de los agentes"><button type="button" class="ag-vt on" data-vt="chats">CHATS</button><button type="button" class="ag-vt" data-vt="agentes">AGENTES</button><button type="button" class="ag-vt" data-vt="pdfs">PDFS</button></nav><div class="ag-main" data-main data-vista="chats"><div class="ag-orden" data-orden></div><section class="ag-chat"><div class="ag-thread" data-hilo></div><button type="button" class="ag-bajar" data-bajar hidden>↓ Mensajes nuevos</button><div class="ag-chips" data-replies></div>' +
+      '<button type="button" class="ag-ver-flujo" data-ver-flujo>▾ Ver flujo, pantalla en vivo y registro</button><nav class="ag-vtabs" data-vtabs aria-label="Secciones de los agentes"><button type="button" class="ag-vt on" data-vt="chats">CHAT</button><button type="button" class="ag-vt solo-movil" data-vt="listado">LISTADO</button><button type="button" class="ag-vt" data-vt="agentes">AGENTES</button><button type="button" class="ag-vt" data-vt="pdfs">PDFS</button></nav><div class="ag-main" data-main data-vista="chats"><div class="ag-orden" data-orden></div><section class="ag-chat"><div class="ag-thread" data-hilo></div><button type="button" class="ag-bajar" data-bajar hidden>↓ Mensajes nuevos</button><div class="ag-chips" data-replies></div>' +
       '<form class="ag-form" data-form><details class="ag-menu ag-atajos"><summary class="ag-ico" title="Acciones rápidas">⚡</summary><div class="ag-menu-l">' + ATAJOS.map(([l, p]) => '<button type="button" data-atajo="' + esc(p) + '">' + esc(l) + '</button>').join('') + '</div></details>' +
       '<div class="ag-sug" data-sug hidden role="listbox" aria-label="Sugerencias"></div><textarea rows="1" placeholder="Escribe a TAVO…" maxlength="2000" aria-autocomplete="list"></textarea><button type="submit" class="ag-btn">Enviar</button></form></section>' +
       '<aside class="ag-muestras" data-muestras></aside><section class="ag-flowcol"><div class="ag-lienzo" data-lienzo><div class="ag-barra"><div class="ag-ftit">Flujo de agentes<small data-ejecnum></small></div><div class="ag-pildora" data-pildora><i></i><span>Listo</span></div></div><svg class="ag-cables" data-cables aria-hidden="true"></svg></div>' +
@@ -1315,13 +1499,17 @@
   function archivosHtml(m) {
     const enChat = m.archivos.map((a, i) => [a, i]).filter(([a]) => !(sinImagenEnChat() && a.tipo === 'muestra'));
     if (!enChat.length) return '';
-    return '<div class="ag-files">' + enChat.map(([a, i]) => {
+    const sueltos = enChat.filter(([a]) => !a.id), agrupar = sueltos.length > 3, kg = 'grp:' + m.id;   // muchas mesas sin vista previa: una sola línea plegable
+    const grupo = !agrupar ? '' : '<details class="ag-grupo" data-grupo="' + esc(kg) + '"' + (st.abiertos[kg] ? ' open' : '') + '><summary><b>' + sueltos.length + ' archivos exportados</b><span>ver la lista</span></summary><div class="ag-grupo-l">' +
+      sueltos.map(([a, i]) => '<div><span title="' + esc(a.nombre || a.titulo) + '">' + esc(a.titulo || a.nombre) + '</span>' + (a.ruta ? '<button type="button" data-f-ruta="' + m.id + ':' + i + '" title="Copiar la ruta del archivo">⧉</button>' : '') + '</div>').join('') + '</div></details>';
+    const tarjetas = agrupar ? enChat.filter(([a]) => a.id) : enChat;
+    return grupo + (!tarjetas.length ? '' : '<div class="ag-files">' + tarjetas.map(([a, i]) => {
       const url = a.id ? '/api/agentes/archivo/' + a.id : '', soloTexto = sinImagenEnChat(), ver = !soloTexto && a.id && abierto(m, i);
       const previa = ver ? (esImagen(a) ? '<img class="ag-prev" src="' + url + '" alt="' + esc(a.titulo) + '">' : '<iframe class="ag-prev" src="' + url + '#toolbar=0&navpanes=0&view=FitH" loading="lazy" title="' + esc(a.titulo) + '"></iframe>') : '';
       return '<article class="ag-file ' + esc(a.tipo) + (ver ? ' abierto' : '') + '"><div class="ag-file-head"><span class="ag-fico txt">' + esc(String(a.ext || (a.nombre || '').split('.').pop() || 'ARCH').toUpperCase().slice(0, 4)) + '</span><div><b>' + esc(a.titulo || a.nombre) + '</b><small>' + esc(a.nombre) + (a.size ? ' · ' + KB(a.size) : '') + '</small></div></div>' + previa +
         '<div class="ag-file-acc">' + (a.id ? (soloTexto ? (a.tipo === 'muestra' ? '<button type="button" data-f-derecha="' + esc(a.id) + '" title="Ver esta muestra en la zona de la derecha">Ver a la derecha →</button>' : '') : '<button type="button" data-f-ver="' + m.id + ':' + i + '">' + (ver ? 'Ocultar' : 'Ver') + '</button>') + '<a href="' + url + '" target="_blank" rel="noopener" title="Abrir en otra pestaña">↗</a><a href="' + url + '?descargar=1" download title="Descargar">⬇</a>' : '<span class="nopre">Sin vista previa</span>') +
         (a.ruta ? '<button type="button" data-f-ruta="' + m.id + ':' + i + '" title="Copiar la ruta del archivo">⧉</button>' : '') + '</div></article>';
-    }).join('') + '</div>';
+    }).join('') + '</div>');
   }
 
 
@@ -1386,13 +1574,14 @@
     const lista = muestrasActuales(), firma = lista.map(a => a.id).join(',');
     if (firma !== st.muFirma) { st.muFirma = firma; st.muIdx = 0; }
     st.muIdx = Math.max(0, Math.min(st.muIdx || 0, lista.length - 1));
-    const mList = listadoActual();
+    const mList = listadoActual(), mainEl = panel.querySelector('[data-main]');
+    box.classList.toggle('sin-muestra', !lista.length); if (mainEl) mainEl.dataset.muestra = lista.length ? '1' : '0';
     const clave = firma + '|' + st.muIdx + '|' + (mList ? mList.id + (st.muTodo ? 't' : 'd') : '');
     if (box.dataset.f === clave) return;
     box.dataset.f = clave;
     const sinListado = '<section class="mu-listado mu-espera"><span><b>LISTADO</b>Aquí aparece el listado de la orden<br>cuando el agente lo lea.</span></section>';
     const sinMuestra = '<div class="mu-cuerpo mu-espera"><span><b>MUESTRA</b>Aquí aparecen las muestras (D1, D2, D3…)<br>cuando JACK las cree.</span></div>';
-    if (!lista.length) { box.innerHTML = '<div class="mu-top"><h4>LISTADO Y MUESTRA</h4></div><div class="mu-doble">' + (mList ? listadoHtml(mList, '') : sinListado) + sinMuestra + '</div><div class="mu-pie"></div>'; return; }
+    if (!lista.length) { box.innerHTML = '<div class="mu-top"><h4>LISTADO Y MUESTRA</h4></div><div class="mu-doble">' + (mList ? listadoHtml(mList, '') : sinListado) + (mList ? '' : sinMuestra) + '</div><div class="mu-pie">' + (mList ? '<span class="mu-nota"><b>MUESTRA</b> Aparece aquí (D1, D2, D3…) cuando JACK la cree.</span>' : '') + '</div>'; return; }
     const a = lista[st.muIdx], url = '/api/agentes/archivo/' + a.id;
     box.innerHTML = '<div class="mu-top"><h4>MUESTRAS</h4>' + lista.map((x, i) => '<button type="button" class="mu-chip' + (i === st.muIdx ? ' on' : '') + '" data-mu-i="' + i + '">' + esc(etiquetaMuestra(x, i)) + '</button>').join('') +
       '<div class="mu-nav"><span>' + (st.muIdx + 1) + ' / ' + lista.length + '</span>' +
@@ -1429,7 +1618,7 @@
       if (st.cambiandoOrden) panel.querySelector('#ag-orden-in')?.focus();
     }
     pintarProg();
-    panel.querySelector('textarea').placeholder = st.orden ? 'Pídele a TAVO (usa la orden ' + st.orden + ')…' : 'Escribe a TAVO…';
+    panel.querySelector('textarea').placeholder = st.orden && !pantallaChica() ? 'Pídele a TAVO (usa la orden ' + st.orden + ')…' : 'Escribe a TAVO…';
     const hiloEl = panel.querySelector('[data-hilo]'), firma = hilo + trabajando;
     if (hiloEl.dataset.firma !== firma) {
       const abajo = !hiloEl.dataset.firma || hiloEl.scrollHeight - hiloEl.scrollTop - hiloEl.clientHeight < 90, antes = hiloEl.scrollTop, mio = ultimo && ultimo.rol === 'yo' && String(ultimo.id) !== hiloEl.dataset.ult;
@@ -1794,7 +1983,7 @@
       const vista = panel.querySelector('[data-main]').dataset.vista;
       if (vista === 'pdfs') { e.preventDefault(); irPdf(/^Arrow(Right|Down)$/.test(e.key) ? 1 : -1); return; }
       if (!/^Arrow(Left|Right)$/.test(e.key)) return;
-      if (vista !== 'chats') return;
+      if (vista !== 'chats' && vista !== 'listado') return;
       st.muIdx = (st.muIdx || 0) + (e.key === 'ArrowRight' ? 1 : -1); pintarMuestras();
     });
     if (window.ResizeObserver) { const ro2 = new ResizeObserver(ajustarAlto); ['.ag-hd', '.ag-res', '.ag-vtabs'].forEach(q => { const el = panel.querySelector(q); if (el) ro2.observe(el); }); }
@@ -1813,7 +2002,13 @@
       b.textContent = abierto ? '▴ Ocultar flujo, pantalla en vivo y registro' : '▾ Ver flujo, pantalla en vivo y registro';
       if (abierto) { acomodar(); pintarLog(); }
     });
-    panel.addEventListener('toggle', e => { if (e.target.matches && e.target.matches('[data-resdet]')) st.resAbierto = e.target.open; }, true);
+    panel.addEventListener('toggle', e => { if (!e.target.matches) return; if (e.target.matches('[data-resdet]')) st.resAbierto = e.target.open; if (e.target.matches('[data-grupo]')) st.abiertos[e.target.dataset.grupo] = e.target.open; }, true);
+    panel.addEventListener('click', e => {
+      const vm = e.target.closest('[data-txt-ver]');
+      if (vm) { const k = 'txt:' + vm.dataset.txtVer; st.abiertos[k] = !st.abiertos[k]; pintar(); return; }
+      if (e.target.closest('.ag-res-top') && angosto()) { st.verPasos = !st.verPasos; const r = panel.querySelector('[data-resumen]'); if (r) r.classList.toggle('ver-pasos', st.verPasos); ajustarAlto(); }   // en celular los pasos se despliegan al tocar el resumen
+    });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && panel.classList.contains('active')) panel.querySelectorAll('details.ag-menu[open],details.ag-mas[open],details.ag-det[open]').forEach(d => d.removeAttribute('open')); });
     panel.addEventListener('change', async e => {
       if (e.target.matches('[data-filtro-sel]')) { filtrar(e.target.value || null); return; }
       if (!e.target.matches('[data-pc-activo]')) return;
