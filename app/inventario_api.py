@@ -805,6 +805,20 @@ def inventory_dashboard():
     }
 
 
+def _serial_sources(items: list[dict[str, Any]], codes: list[str | None]) -> list[tuple[str, dict[str, Any]]]:
+    """Artículos cuyos rollos llevan serial: telas con rollos y papel/TPU de impresión (N rollos iguales de X metros)."""
+    sources = []
+    for item, code in zip(items, codes):
+        if not code:
+            continue
+        if item.get('categoria') == 'BODEGA TELA' and item.get('roll_values'):
+            sources.append((code, item))
+        elif item.get('categoria') == 'MATERIA PRIMA IMPRESION' and item.get('unidad') == 'MTS' and item.get('rolls'):
+            count = int(item['rolls'])
+            sources.append((code, {'roll_values': [float(item.get('mts') or 0) / count] * count, 'roll_statuses': ['new'] * count}))
+    return sources
+
+
 def _sincronizar_codigos() -> int:
     """Guarda los códigos de las telas y los seriales de los rollos que haya en el inventario (sin esperar a que alguien abra la pantalla).
     Devuelve cuántos rollos tiene Stock tela."""
@@ -814,7 +828,7 @@ def _sincronizar_codigos() -> int:
     payload = _with_sublimacion(payload)
     items = [i for i in payload.get('items', []) if i.get('categoria') in _CODE_PREFIX]
     codes = _assign_codes(items)
-    rolls = _assign_roll_serials([(code, item) for item, code in zip(items, codes) if code and item.get('categoria') == 'BODEGA TELA' and item.get('roll_values')])
+    rolls = _assign_roll_serials(_serial_sources(items, codes))
     return sum(len(v) for v in rolls.values())
 
 
@@ -1043,14 +1057,15 @@ def _code_rows() -> tuple[list[dict[str, Any]], Any]:
     payload = _with_sublimacion(payload)   # metros ya descontados por los consumos de Sublimación, igual que en Bodega tela
     items = [i for i in payload.get('items', []) if i.get('categoria') in _CODE_PREFIX]
     codes = _assign_codes(items)
-    rolls = _assign_roll_serials([(code, item) for item, code in zip(items, codes) if code and item.get('categoria') == 'BODEGA TELA' and item.get('roll_values')])
+    rolls = _assign_roll_serials(_serial_sources(items, codes))
     rows = []
     for item, code in zip(items, codes):
         if not code:
             continue
         rows.append({'codigo': code, 'nombre': item.get('nombre', ''), 'categoria': item['categoria'],
                      'categoria_label': item.get('categoria_label', ''), 'total_label': item.get('total_label', ''),
-                     'mts': item.get('mts'), 'rollos': len(item.get('roll_values') or []) or item.get('rolls') or 0,
+                     'mts': item.get('mts'), 'unidad': item.get('unidad') or ('MTS' if item['categoria'] == 'BODEGA TELA' else 'UND'),
+                     'rollos': len(rolls.get(code) or item.get('roll_values') or []) or item.get('rolls') or 0,
                      'detalle_rollos': rolls.get(code, [])})
     rows.sort(key=lambda r: (r['categoria_label'], r['nombre'].casefold()))
     return rows, payload.get('updated_at')

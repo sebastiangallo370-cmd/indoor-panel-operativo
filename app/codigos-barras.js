@@ -45,7 +45,8 @@
   }
 
   // ---------------------------------------------------------------- ajustes de la etiqueta
-  const SOLO_CATEGORIA = 'BODEGA TELA';
+  const CATEGORIAS = ['BODEGA TELA', 'MATERIA PRIMA IMPRESION'];   // Stock tela y Materia prima impresión
+  const unidadDe = i => i.unidad || (i.categoria === 'BODEGA TELA' ? 'MTS' : 'UND');
   const TAMANOS = {'42x30': [42, 30], '40x40': [40, 40], '45x40': [45, 40], '50x40': [50, 40], '100x50': [100, 50], '100x70': [100, 70], '60x40': [60, 40], '50x30': [50, 30], '40x25': [40, 25]};
   const POR_DEFECTO = {tamano: '42x30', ancho: 42, alto: 30, copias: 1, nombre: true, stock: true, categoria: true, fecha: false, imagen: true, dx: 0, dy: 0, anchoBarras: 1, hoja: 'igual', dpi: 203};
   let cfg = {...POR_DEFECTO};
@@ -72,7 +73,7 @@
     const fecha = cfg.fecha ? new Date().toLocaleDateString('es-CO') : '';
     const pie = rollo
       ? ['Rollo ' + item.n + (item.empezado ? ' · EMPEZADO' : ''), fecha].filter(Boolean).join(' · ')
-      : [cfg.categoria ? item.categoria_label : '', cfg.stock && item.total_label ? item.total_label + (item.categoria === 'BODEGA TELA' ? ' MTS' : ' UND') : '', cfg.stock && item.rollos ? item.rollos + (item.rollos === 1 ? ' ROLLO' : ' ROLLOS') : '', fecha].filter(Boolean).join(' · ');
+      : [cfg.categoria ? item.categoria_label : '', cfg.stock && item.total_label ? item.total_label + ' ' + unidadDe(item) : '', cfg.stock && item.rollos ? item.rollos + (item.rollos === 1 ? ' ROLLO' : ' ROLLOS') : '', fecha].filter(Boolean).join(' · ');
     return {rollo, compacta, pad, margen, nombreImpreso, nombreMm, codigoMm, metrosMm, pieMm, modulo, altoBarras, fecha, pie};
   }
   function etiquetaHTML(item, tam) {
@@ -302,10 +303,10 @@
   panel.dataset.panel = 'codigos-barras';
   panel.innerHTML = '<div class="cb">' +
     '<section class="cb-hero"><div><span class="eyebrow">Producción · Inventarios</span><h2>CÓDIGOS DE BARRAS</h2>' +
-    '<p>Cada tela de Stock tela tiene su código permanente y cada <b>rollo</b> tiene el suyo (por ejemplo T100-007). Búscalos, escanéalos con el lector o selecciona los que quieras e imprime sus etiquetas.</p></div></section>' +
+    '<p>Cada tela de Stock tela y cada artículo de Materia prima impresión tiene su código permanente; cada <b>rollo</b> (tela, papel y TPU) tiene el suyo (por ejemplo T100-007 o P0001-003). Las tintas llevan un código por producto. Búscalos, escanéalos con el lector o selecciona los que quieras e imprime sus etiquetas.</p></div></section>' +
     '<div class="cb-kpi" data-cb-kpi></div>' +
     '<div class="cb-scan"><span>ESCANEAR / BUSCAR CÓDIGO</span><input type="text" data-cb-scan autocomplete="off" spellcheck="false" placeholder="Pasa el lector o escribe, por ejemplo T100 o T100-007"><button type="button" class="cb-cam" data-cb-cam aria-label="Escanear con la cámara">📷 Escanear con la cámara</button></div><div class="cb-eco" data-cb-eco></div><section class="cb-res" data-cb-res hidden></section>' +
-    '<div class="cb-tools"><input type="search" data-cb-q placeholder="Buscar tela por nombre o código"><select data-cb-cat hidden><option value="">Todas las categorías</option></select>' +
+    '<div class="cb-tools"><input type="search" data-cb-q placeholder="Buscar tela o insumo por nombre o código"><select data-cb-cat hidden><option value="">Todas las categorías</option></select>' +
     '<button type="button" class="cb-mas" data-cb-mas>⋯ Más</button><button type="button" class="cb-sec" data-cb-todos>Seleccionar las telas visibles</button><button type="button" class="cb-sec" data-cb-todosrollos>Seleccionar todos los rollos visibles</button><button type="button" data-cb-ninguno>Quitar selección</button><button type="button" data-cb-prueba title="Imprime una etiqueta de prueba con un recuadro en el borde para comprobar la medida del papel">🧪 Etiqueta de prueba</button><button type="button" data-cb-recargar>Actualizar</button><span class="cuenta" data-cb-cuenta></span></div>' +
     '<div class="cb-filtros" data-cb-filtros><button type="button" class="fc on" data-cb-f="">Todas</button><button type="button" class="fc" data-cb-f="emp">Con rollos empezados</button><button type="button" class="fc" data-cb-f="bajo">Stock bajo</button><button type="button" class="fc" data-cb-f="sin">Sin rollos</button>' +
     '<select data-cb-orden aria-label="Ordenar"><option value="nombre">Ordenar: A–Z</option><option value="mts-desc">Más metros primero</option><option value="mts-asc">Menos metros primero</option><option value="rollos-desc">Más rollos primero</option></select></div>' +
@@ -340,8 +341,8 @@
   };
   const pintarKpi = () => {
     const el = q('[data-cb-kpi]'); if (!el) return;
-    const it = estado.items, rollos = it.reduce((a, i) => a + Number(i.rollos || 0), 0), mts = it.reduce((a, i) => a + Number(i.mts || 0), 0), emp = it.reduce((a, i) => a + empezados(i), 0);
-    el.innerHTML = '<div><small>TELAS</small><b>' + it.length + '</b></div><div class="v"><small>METROS EN BODEGA</small><b>' + fmt(mts) + '</b></div><div><small>ROLLOS</small><b>' + rollos + '</b></div><div class="n"><small>ROLLOS EMPEZADOS</small><b>' + emp + '</b></div>';
+    const it = estado.items, rollos = it.reduce((a, i) => a + Number(i.rollos || 0), 0), mts = it.reduce((a, i) => a + (unidadDe(i) === 'MTS' ? Number(i.mts || 0) : 0), 0), emp = it.reduce((a, i) => a + empezados(i), 0);
+    el.innerHTML = '<div><small>ARTÍCULOS</small><b>' + it.length + '</b></div><div class="v"><small>METROS EN BODEGA</small><b>' + fmt(mts) + '</b></div><div><small>ROLLOS</small><b>' + rollos + '</b></div><div class="n"><small>ROLLOS EMPEZADOS</small><b>' + emp + '</b></div>';
   };
   const totalSeleccion = () => estado.sel.size + estado.selR.size;
   const pintar = () => {
@@ -351,10 +352,10 @@
       const chips = abierto ? '<div class="cb-lista">' + rollos.map(r => '<span class="cb-chip' + (r.empezado ? ' emp' : '') + (estado.selR.has(r.codigo) ? ' sel' : '') + '" data-roll="' + esc(r.codigo) + '" title="' + esc(r.codigo) + '"><b>' + String(r.n).padStart(3, '0') + '</b>' + esc(fmt(r.valor)) + ' m</span>').join('') + '</div>' : '';
       const botones = rollos.length ? '<div class="cb-rl"><button type="button" data-roll-toggle="' + esc(i.codigo) + '">' + (abierto ? '▾' : '▸') + ' ' + rollos.length + (rollos.length === 1 ? ' rollo' : ' rollos') + '</button>' + (abierto ? '<button type="button" data-roll-todos="' + esc(i.codigo) + '">Seleccionar todos</button>' : '') + '</div>' + chips : '';
       return '<article class="cb-card' + (estado.sel.has(i.codigo) ? ' sel' : '') + '" data-cod="' + esc(i.codigo) + '"><header><input type="checkbox" tabindex="-1"' + (estado.sel.has(i.codigo) ? ' checked' : '') + '><span class="cod">' + esc(i.codigo) + '</span><span class="cat">' + esc(i.categoria_label) + '</span>' + (empezados(i) ? '<span class="emp-badge">' + empezados(i) + (empezados(i) > 1 ? ' empezados' : ' empezado') + '</span>' : '') + '</header>' +
-        '<div class="nom">' + esc(i.nombre) + '</div><div class="stk"><span class="cif"><b>' + esc(i.total_label || '—') + '</b><small>' + (i.categoria === 'BODEGA TELA' ? 'MTS' : 'UND') + '</small></span>' + (i.rollos ? '<span class="cif und"><b>' + i.rollos + '</b><small>' + (i.rollos === 1 ? 'ROLLO' : 'ROLLOS') + '</small></span>' : '') + '</div>' +
+        '<div class="nom">' + esc(i.nombre) + '</div><div class="stk"><span class="cif"><b>' + esc(i.total_label || '—') + '</b><small>' + unidadDe(i) + '</small></span>' + (i.rollos ? '<span class="cif und"><b>' + i.rollos + '</b><small>' + (i.rollos === 1 ? 'ROLLO' : 'ROLLOS') + '</small></span>' : '') + '</div>' +
         '<div class="bar">' + svgBarras(i.codigo, 46, 1, 10) + '</div>' + botones + '</article>';
-    }).join('') : '<div class="cb-vacio">' + (estado.cargando ? 'Cargando telas…' : 'No hay telas que coincidan.') + '</div>';
-    q('[data-cb-cuenta]').textContent = lista.length + ' de ' + estado.items.length + ' telas';
+    }).join('') : '<div class="cb-vacio">' + (estado.cargando ? 'Cargando telas…' : 'No hay artículos que coincidan.') + '</div>';
+    q('[data-cb-cuenta]').textContent = lista.length + ' de ' + estado.items.length + ' artículos';
     pintarKpi();
     q('[data-cb-filtros]').querySelectorAll('[data-cb-f]').forEach(b => b.classList.toggle('on', b.dataset.cbF === estado.filtro));
     q('[data-cb-n]').textContent = totalSeleccion();
@@ -369,7 +370,9 @@
       const r = await fetch('/api/inventarios/codigos', {cache: 'no-store'});
       const d = await r.json();
       if (!r.ok) throw Error(d.detail || 'No se pudieron cargar los códigos');
-      estado.items = (d.codigos || []).filter(i => i.categoria === SOLO_CATEGORIA);   // por ahora solo Stock tela
+      estado.items = (d.codigos || []).filter(i => CATEGORIAS.includes(i.categoria));
+      const sc = q('[data-cb-cat]'), cats = [...new Map(estado.items.map(i => [i.categoria, i.categoria_label])).entries()];
+      if (sc) { sc.innerHTML = '<option value="">Todas las categorías</option>' + cats.map(([k, l]) => '<option value="' + esc(k) + '"' + (k === estado.cat ? ' selected' : '') + '>' + esc(l) + '</option>').join(''); sc.hidden = cats.length < 2; }
       estado.rollMap = new Map();
       estado.items.forEach(i => (i.detalle_rollos || []).forEach(rl => estado.rollMap.set(compacto(rl.codigo), {rollo: rl, tela: i})));
       const vivos = new Set(estado.items.flatMap(i => (i.detalle_rollos || []).map(rl => rl.codigo)));
@@ -392,8 +395,8 @@
     box.innerHTML = '<div class="top"><span class="cod">' + esc(tipo === 'rollo' ? rollo.codigo : tela.codigo) + '</span><span class="tag">' + (tipo === 'rollo' ? (rollo.empezado ? 'ROLLO EMPEZADO' : 'ROLLO NUEVO') : 'TELA') + '</span></div>' +
       '<div class="nom">' + esc(tela.nombre) + '</div>' +
       '<div class="dat">' + (tipo === 'rollo'
-        ? '<span><small>METROS DEL ROLLO</small><b>' + esc(fmt(rollo.valor)) + '</b></span><span><small>TELA EN TOTAL</small><b>' + esc(tela.total_label || '—') + ' MTS</b></span><span><small>ROLLOS DE ESTA TELA</small><b>' + (tela.rollos || 0) + '</b></span>'
-        : '<span><small>METROS EN BODEGA</small><b>' + esc(tela.total_label || '—') + '</b></span><span><small>ROLLOS</small><b>' + (tela.rollos || 0) + '</b></span><span><small>NUEVOS · EMPEZADOS</small><b>' + nuevos + ' · ' + ya + '</b></span>') + '</div>' +
+        ? '<span><small>METROS DEL ROLLO</small><b>' + esc(fmt(rollo.valor)) + '</b></span><span><small>TOTAL REFERENCIA</small><b>' + esc(tela.total_label || '—') + ' ' + unidadDe(tela) + '</b></span><span><small>ROLLOS DE ESTA REFERENCIA</small><b>' + (tela.rollos || 0) + '</b></span>'
+        : '<span><small>' + (unidadDe(tela) === 'LT' ? 'LITROS EN BODEGA' : 'METROS EN BODEGA') + '</small><b>' + esc(tela.total_label || '—') + '</b></span><span><small>ROLLOS</small><b>' + (tela.rollos || 0) + '</b></span><span><small>NUEVOS · EMPEZADOS</small><b>' + nuevos + ' · ' + ya + '</b></span>') + '</div>' +
       '<div class="acc"><button type="button" class="p" data-res-imp="' + esc(tipo === 'rollo' ? rollo.codigo : tela.codigo) + '">🖨 Imprimir esta etiqueta</button><button type="button" data-res-x>Cerrar</button></div>';
   }
   function escanear(valor) {
@@ -418,7 +421,7 @@
     estado.texto = ''; q('[data-cb-q]').value = '';
     pintar();
     mostrarResultado('tela', item);
-    eco('✓ ' + item.codigo + ' · ' + item.nombre + ' · ' + (item.total_label || '—') + ' MTS · ' + (item.detalle_rollos || []).length + ' rollos', 'ok');
+    eco('✓ ' + item.codigo + ' · ' + item.nombre + ' · ' + (item.total_label || '—') + ' ' + unidadDe(item) + ' · ' + (item.detalle_rollos || []).length + ' rollos', 'ok');
     enfocar('[data-cod="' + CSS.escape(item.codigo) + '"]');
   }
 
