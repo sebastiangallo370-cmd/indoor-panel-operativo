@@ -437,10 +437,14 @@ def _apply_counts(categories: list[dict[str, Any]], all_records: list[dict[str, 
     """Conteo físico de Materia prima impresión: fija la cantidad de cada artículo (o lo crea si no está en el Sheet)."""
     try:
         with open(_count_file, encoding='utf-8') as handle:
-            counts = json.load(handle).get('items', [])
+            data = json.load(handle)
+            counts, only_count = data.get('items', []), bool(data.get('solo_conteo'))
     except (OSError, ValueError):
-        counts = []
+        counts, only_count = [], False
     tab_key, tab_label = 'MATERIA PRIMA IMPRESION', 'Materia prima impresión'
+    if only_count and counts:  # el conteo es la lista completa: lo que no esté en él se quita
+        names = {_normalized(entry.get('nombre')) for entry in counts}
+        all_records[:] = [record for record in all_records if record['categoria'] != tab_key or _normalized(record['nombre']) in names]
     for index, entry in enumerate(counts):
         name, total = str(entry.get('nombre') or '').strip(), float(entry.get('total') or 0)
         if not name:
