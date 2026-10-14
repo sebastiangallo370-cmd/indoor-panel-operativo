@@ -1,0 +1,486 @@
+<script>
+(() => {
+  const group = [...document.querySelectorAll('.nav-group')].find(item => /INVENTARIOS/i.test(item.querySelector('.nav-parent')?.textContent || ''));
+  const children = group?.querySelector('.nav-children');
+  if (!children || children.querySelector('[data-inventory-control]')) return;
+  const panel = document.createElement('section');
+  panel.className = 'panel';
+  panel.dataset.panel = 'panel-control';
+  panel.innerHTML = '<div class="control-panel"><div class="control-panel-head"><div><span>RESUMEN</span><h2>PANEL DE CONTROL</h2></div><button type="button" class="control-panel-refresh">Actualizar</button></div><div class="control-panel-cards">Cargando resumen…</div></div>';
+  const control = document.createElement('button');
+  control.type = 'button';
+  control.className = 'tab inventory-control-nav';
+  control.dataset.inventoryControl = 'true';
+  control.innerHTML = '<span class="nav-icon">PC</span><strong>PANEL DE CONTROL</strong>';
+  const cards = panel.querySelector('.control-panel-cards');
+  const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+  const load = async () => {
+    cards.textContent = 'Actualizando resumen…';
+    try {
+      const [stockResponse, productionResponse, reworkResponse] = await Promise.all([fetch('/api/inventarios', {cache:'no-store'}), fetch('/api/produccion', {cache:'no-store'}), fetch('/api/reproceso', {cache:'no-store'})]);
+      const [stock, production, rework] = await Promise.all([stockResponse.json(), productionResponse.json(), reworkResponse.json()]);
+      if (!stockResponse.ok || !productionResponse.ok || !reworkResponse.ok) throw Error('No fue posible cargar el resumen');
+      const orderIndex = (production.headers || []).findIndex(header => String(header || '').trim().toUpperCase() === 'ORDEN');
+      const orders = new Set((production.rows || []).map(row => String((row.values || [])[orderIndex] || '').trim()).filter(Boolean)).size;
+      const categories = (stock.categories || []).filter(category => category.available && category.key !== 'DOCUMENTACION PROCESO').length;
+      cards.innerHTML = '<article><small>ÓRDENES ACTIVAS</small><strong>' + orders.toLocaleString('es-CO') + '</strong><span>Pedidos cargados en producción</span></article><article><small>REFERENCIAS EN STOCK</small><strong>' + Number(stock.summary?.items || 0).toLocaleString('es-CO') + '</strong><span>' + categories + ' categorías disponibles</span></article><article><small>REPROCESOS</small><strong>' + rework.length.toLocaleString('es-CO') + '</strong><span>Registros pendientes de seguimiento</span></article>';
+    } catch (error) { cards.innerHTML = '<p>' + esc(error.message) + '</p>'; }
+  };
+  control.onclick = () => {
+    document.querySelectorAll('.tab').forEach(tab => tab.classList.toggle('active', tab === control));
+    document.querySelectorAll('.panel').forEach(item => item.classList.toggle('active', item === panel));
+    document.body.classList.remove('inicio-mode','inventory-mode','production-mode','schedule-mode','operarios-mode','cartera-mode');
+    load();
+  };
+  panel.querySelector('.control-panel-refresh').onclick = load;
+  const inventoryToolbar = document.querySelector('.inventory-toolbar');
+  if (inventoryToolbar) {
+    const movementActions = document.createElement('div');
+    movementActions.className = 'inventory-movement-actions';
+    movementActions.innerHTML = '<input type="file" class="inventory-doc-input" accept="application/pdf,image/*" hidden><button type="button" class="inventory-new-btn" data-inventory-newtela title="Registrar una tela que todavía no existe en el inventario">+ TELA NUEVA</button><button type="button" class="inventory-doc-btn" data-inventory-doc title="Sube una nota de entrega en PDF o imagen">📎 SUBIR DOCUMENTO</button><button type="button" data-inventory-movement="INGRESO">INGRESO</button><button type="button" data-inventory-movement="SALIDA">SALIDA</button>';
+    inventoryToolbar.appendChild(movementActions);
+    const movementDialog = document.createElement('dialog');
+    movementDialog.className = 'inventory-movement-dialog';
+    movementDialog.innerHTML = '<form method="dialog" novalidate><button type="button" class="inventory-movement-close" aria-label="Cerrar">×</button><header class="im-head"><span class="im-badge">MOVIMIENTO</span><h2></h2><p class="im-sub"></p></header><div class="im-grid"><label class="im-wide">Nombre tela<input name="name" list="inventory-telas-list" autocomplete="off" required placeholder="Escribe para buscar la tela"><datalist id="inventory-telas-list"></datalist></label><label class="im-wide">Código<input name="code" autocomplete="off" inputmode="numeric" placeholder="Escribe el código y se completa el nombre"></label><div class="im-lines im-wide"><div class="im-lines-head"><span>MTS</span><span>Rollos</span><span></span></div><div class="im-line im-line-first"><input name="mts" data-mts type="number" inputmode="decimal" min="0" max="999999" step="0.01" required placeholder="0,00" aria-label="MTS"><div class="im-stepper"><button type="button" data-step="-1" aria-label="Menos un rollo">−</button><input name="rolls" data-rolls type="number" min="1" max="9999" step="1" value="1" required aria-label="Rollos"><button type="button" data-step="1" aria-label="Más un rollo">+</button></div><span></span><div data-line-bodega class="im-line-bodega im-chips" role="group" aria-label="Bodega de estos rollos"></div></div><button type="button" class="im-add" title="Agregar otra línea de MTS y rollos">+ Agregar otra línea</button></div></div><section class="inventory-movement-preview im-preview"><div class="im-prev-main"><small>RESUMEN</small><strong>Selecciona una tela</strong><span>1 rollo(s) · 0 MTS</span></div><div class="im-stock"><small>STOCK ACTUAL</small><b class="im-now">—</b></div><div class="im-stock im-after"><small>QUEDARÍA</small><b class="im-next">—</b></div></section><p class="inventory-movement-message" role="status"></p><div class="inventory-movement-form-actions"><button type="button" value="cancel">Cancelar</button><button type="submit" disabled>Guardar movimiento</button></div></form>';
+    document.body.appendChild(movementDialog);
+    const movementForm = movementDialog.querySelector('form'), nameSelect = movementForm.elements.name, codeInput = movementForm.elements.code, telaList = movementDialog.querySelector('#inventory-telas-list');
+    let movementType = 'INGRESO';
+    const movementItems = new Map(), fmtN = n => Number(n).toLocaleString('es-CO', {maximumFractionDigits: 2});
+    const loadMovementNames = async () => { const response = await fetch('/api/inventarios', {cache:'no-store'}); const data = await response.json(); const allowed = new Set(['BODEGA TELA','RETAL CANASTAS']); movementItems.clear(); const list = (data.items || []).filter(item => allowed.has(String(item.categoria || '').toUpperCase())); list.forEach(item => { if (!movementItems.has(item.nombre)) movementItems.set(item.nombre, item); }); telaList.innerHTML = list.map(item => { const match = String(item.nombre || '').match(/^\s*\(([^)]+)\)\s*(.*)$/); return '<option value="' + esc(item.nombre) + '" label="' + esc(fmtN(item.total ?? item.mts ?? 0) + ' MTS') + '" data-code="' + esc(match ? match[1] : '') + '"></option>'; }).join(''); nameSelect.value = ''; codeInput.value = ''; movementForm.elements.rolls.value = '1'; };
+    const normMov = v => String(v || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/\s+/g, ' ').trim();
+    const resolveMovementItem = () => {
+      const typed = nameSelect.value.trim();
+      if (!typed) return {item: null, count: 0};
+      const exact = movementItems.get(typed);
+      if (exact) return {item: exact, count: 1};
+      const query = normMov(typed);
+      const codeMatch = [...movementItems.values()].filter(candidate => (normMov(candidate.nombre).match(/^\((\d+)\)/) || [])[1] === query);
+      if (codeMatch.length === 1) return {item: codeMatch[0], count: 1};
+      const found = [...movementItems.values()].filter(candidate => { const name = normMov(candidate.nombre), code = name.match(/^\((\d+)\)/); return name.includes(query) || (code && code[1] === query); });
+      return {item: found.length === 1 ? found[0] : null, count: found.length};
+    };
+    const movementLines = () => [...movementForm.querySelectorAll('.im-line')].map(line => ({mts: Number(line.querySelector('[data-mts]').value || 0), rolls: Number(line.querySelector('[data-rolls]').value || 1), bodega: line.querySelector('[data-line-bodega] .im-chip.on')?.dataset.bodegaValue || ''}));
+    const updateMovementPreview = () => {
+      const preview = movementDialog.querySelector('.inventory-movement-preview'), submitButton = movementForm.querySelector('[type=submit]'), message = movementForm.querySelector('.inventory-movement-message');
+      const {item, count} = resolveMovementItem(), lines = movementLines(), mts = lines.reduce((sum, line) => sum + line.mts, 0), rolls = lines.reduce((sum, line) => sum + line.rolls, 0);
+      preview.querySelector('strong').textContent = item ? item.nombre : (nameSelect.value || 'Selecciona una tela'); if (item) codeInput.value = (String(item.nombre).match(/^\s*\(([^)]+)\)/) || [])[1] || ''; else if (document.activeElement !== codeInput) codeInput.value = '';
+      preview.querySelector('.im-prev-main span').textContent = rolls + ' rollo(s) · ' + fmtN(mts) + ' MTS' + (lines.length > 1 ? ' · ' + lines.length + ' líneas' : '');
+      const stock = item ? Number(item.total ?? item.mts ?? 0) : null, after = stock === null ? null : stock + (movementType === 'INGRESO' ? mts : -mts);
+      preview.querySelector('.im-now').textContent = stock === null ? '—' : fmtN(stock) + ' MTS';
+      const next = preview.querySelector('.im-next'); next.textContent = after === null ? '—' : fmtN(after) + ' MTS';
+      const tooMuch = movementType === 'SALIDA' && stock !== null && mts > stock;
+      next.classList.toggle('im-bad', tooMuch);
+      const typed = nameSelect.value.trim();
+      message.classList.toggle('im-error', tooMuch || (!!typed && !item));
+      if (!movementForm.dataset.saving) message.textContent = tooMuch ? 'La salida supera el stock disponible (' + fmtN(stock) + ' MTS).' : (typed && !item ? (count > 1 ? count + ' telas coinciden: sigue escribiendo o elige una de la lista.' : 'No hay una tela con ese nombre.') : '');
+      submitButton.disabled = !item || !lines.length || lines.some(line => !(line.mts > 0) || !(line.rolls >= 1)) || tooMuch;
+    };
+    codeInput.oninput = () => { const typed = codeInput.value.trim(), match = [...movementItems.values()].find(candidate => (String(candidate.nombre).match(/^\s*\(([^)]+)\)/) || [])[1] === typed); if (match) nameSelect.value = match.nombre; updateMovementPreview(); };
+    nameSelect.oninput = updateMovementPreview;
+    nameSelect.onchange = () => { const {item} = resolveMovementItem(); if (item) nameSelect.value = item.nombre; updateMovementPreview(); };
+    movementForm.elements.mts.oninput = updateMovementPreview; movementForm.elements.rolls.oninput = updateMovementPreview;
+    movementDialog.addEventListener('click', event => {
+      if (event.target === movementDialog) { movementDialog.close(); return; }
+      const step = event.target.closest('[data-step]');
+      if (step) { const input = step.parentElement.querySelector('[data-rolls]'); input.value = Math.max(1, Math.min(9999, Number(input.value || 1) + Number(step.dataset.step))); updateMovementPreview(); return; }
+      const remove = event.target.closest('.im-remove');
+      if (remove) { remove.closest('.im-line').remove(); updateMovementPreview(); return; }
+      if (event.target.closest('.im-add')) {
+        const box = movementForm.querySelector('.im-lines');
+        if (box.querySelectorAll('.im-line').length >= 20) return;
+        const line = document.createElement('div');
+        line.className = 'im-line';
+        line.innerHTML = '<input data-mts type="number" inputmode="decimal" min="0" max="999999" step="0.01" placeholder="0,00" aria-label="MTS"><div class="im-stepper"><button type="button" data-step="-1" aria-label="Menos un rollo">−</button><input data-rolls type="number" min="1" max="9999" step="1" value="1" aria-label="Rollos"><button type="button" data-step="1" aria-label="Más un rollo">+</button></div><button type="button" class="im-remove" aria-label="Quitar línea" title="Quitar línea">×</button><div data-line-bodega class="im-line-bodega im-chips" role="group" aria-label="Bodega de estos rollos">' + bodegaChipsHtml('') + '</div>';
+        box.insertBefore(line, box.querySelector('.im-add'));
+        line.querySelector('[data-mts]').focus();
+        updateMovementPreview();
+      }
+    });
+    movementDialog.addEventListener('click', event => { const chip = event.target.closest('[data-line-bodega] .im-chip'); if (!chip) return; chip.parentElement.querySelectorAll('.im-chip').forEach(other => other.classList.toggle('on', other === chip)); });
+    movementDialog.addEventListener('input', updateMovementPreview);
+    movementActions.onclick = async event => { const button = event.target.closest('[data-inventory-movement]'); if (!button) return; movementType = button.dataset.inventoryMovement; movementDialog.dataset.type = movementType; movementForm.reset(); movementForm.querySelectorAll('.im-line:not(.im-line-first)').forEach(line => line.remove()); delete movementForm.dataset.saving; movementForm.querySelector('h2').textContent = movementType === 'INGRESO' ? 'Ingreso de tela' : 'Salida de tela'; movementForm.querySelector('.im-sub').textContent = movementType === 'INGRESO' ? 'Suma metros y rollos al inventario de la bodega.' : 'Resta metros y rollos del inventario de la bodega.'; movementForm.querySelector('.inventory-movement-message').textContent = 'Cargando telas…'; try { await loadBodegaOptions(); movementForm.querySelectorAll('[data-line-bodega]').forEach(box => { box.innerHTML = bodegaChipsHtml(''); }); await loadMovementNames(); movementDialog.showModal(); updateMovementPreview(); setTimeout(() => nameSelect.focus(), 50); } catch (_) { movementForm.querySelector('.inventory-movement-message').textContent = 'No se pudieron cargar las telas.'; movementDialog.showModal(); } };
+    movementDialog.querySelector('.inventory-movement-close').onclick = () => movementDialog.close();
+    movementForm.querySelector('[value="cancel"]').onclick = () => movementDialog.close();
+    movementForm.onsubmit = async event => { event.preventDefault(); movementForm.dataset.saving = '1'; const message = movementForm.querySelector('.inventory-movement-message'), name = resolveMovementItem().item?.nombre || nameSelect.value, code = codeInput.value; message.classList.remove('im-error'); message.textContent = 'Guardando…'; try { const etiquetasNuevas = []; for (const line of movementLines()) { const response = await fetch('/api/inventarios/movimiento', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name, code, type:movementType, mts:line.mts, rolls:line.rolls, bodega: movementType === 'INGRESO' ? line.bodega : ''})}); const body = await response.json().catch(() => ({})); if (!response.ok) throw Error(body.detail || 'No se pudo guardar el movimiento.'); if (Array.isArray(body.etiquetas)) etiquetasNuevas.push(...body.etiquetas); } if (etiquetasNuevas.length) { try { sessionStorage.setItem('cbPend', JSON.stringify(etiquetasNuevas)); } catch (e) {} } message.textContent = 'Movimiento registrado correctamente.'; setTimeout(() => { movementDialog.close(); location.reload(); }, 700); } catch (error) { delete movementForm.dataset.saving; message.classList.add('im-error'); message.textContent = error.message; } };
+    const movementStyle = document.createElement('style'); movementStyle.textContent = '.inventory-movement-actions{display:flex;gap:8px;margin-left:auto}.inventory-movement-actions button{width:auto;padding:9px 14px;border:1px solid #718c4a;border-radius:9px;background:#26351d;color:#e8f8c8;font-weight:900}.inventory-movement-actions button:last-child{border-color:#a45c58;background:#3b211f;color:#ffd0cc}.inventory-movement-dialog{--im:#d0f44c;box-sizing:border-box;width:min(720px,94vw);max-width:none;max-height:92vh;margin:auto;padding:0;border:1px solid #3f553d;border-radius:22px;background:linear-gradient(160deg,#18231a,#0f160f);color:#f1f7ec;box-shadow:0 30px 80px #000c;overflow:auto}.inventory-movement-dialog[data-type=SALIDA]{--im:#ff7a70;border-color:#6b3a36}.inventory-movement-dialog::backdrop{background:#000b;backdrop-filter:blur(3px)}.inventory-movement-dialog form{display:grid;gap:18px;box-sizing:border-box;padding:30px 32px 26px}.im-head{display:grid;gap:6px;padding-right:44px}.im-badge{justify-self:start;padding:4px 10px;border-radius:999px;background:color-mix(in srgb,var(--im) 18%,transparent);border:1px solid var(--im);color:var(--im);font:800 10px Arial;letter-spacing:.12em}.inventory-movement-dialog h2{margin:0;font-size:clamp(24px,3vw,32px)}.im-sub{margin:0;color:#a9b8a3;font-size:13px}.im-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.im-wide{grid-column:1/-1}.inventory-movement-dialog label{display:grid;gap:7px;padding:13px 14px;border:1px solid #344934;border-radius:12px;background:#101811;color:#b8c7b1;font:800 11px Arial;letter-spacing:.06em;text-transform:uppercase}.inventory-movement-dialog label:focus-within{border-color:var(--im);box-shadow:0 0 0 3px color-mix(in srgb,var(--im) 22%,transparent)}.inventory-movement-dialog input{padding:13px;border:1px solid #4f6545;border-radius:9px;background:#202d22;color:#fff;font:16px Arial;min-width:0;width:100%;box-sizing:border-box}.inventory-movement-dialog input:focus{outline:none;border-color:var(--im)}.inventory-movement-dialog input[readonly]{opacity:.7}.im-stepper{display:grid;grid-template-columns:52px 1fr 52px;gap:8px}.im-stepper button{border:1px solid #4f6545;border-radius:9px;background:#26351d;color:#fff;font:700 22px Arial;cursor:pointer}.im-stepper button:hover{border-color:var(--im);color:var(--im)}.im-stepper input{text-align:center;font-weight:700}.im-lines{display:grid;gap:8px;padding:13px 14px;border:1px solid #344934;border-radius:12px;background:#101811}.im-lines-head,.im-line{display:grid;grid-template-columns:1fr 1.3fr 40px;gap:8px;align-items:stretch}.im-lines-head span{color:#b8c7b1;font:800 11px Arial;letter-spacing:.06em;text-transform:uppercase}.im-line .im-stepper{grid-template-columns:44px 1fr 44px}.im-line-bodega{grid-column:1/-1}dialog[data-type="SALIDA"] .im-line-bodega{display:none}.im-remove{border:1px solid #6b3a36;border-radius:9px;background:#3b211f;color:#ffd0cc;cursor:pointer;font:700 20px Arial}.im-remove:hover{background:#5a2a27}.im-add{justify-self:start;margin-top:2px;padding:10px 16px;border:1px dashed var(--im);border-radius:10px;background:color-mix(in srgb,var(--im) 10%,transparent);color:var(--im);font:800 13px Arial;cursor:pointer}.im-add:hover{background:color-mix(in srgb,var(--im) 20%,transparent)}.im-preview{display:grid;grid-template-columns:1.6fr 1fr 1fr;gap:12px;padding:14px;border:1px solid #344934;border-radius:14px;background:#0d140e}.im-preview small{display:block;color:#8fa088;font:800 10px Arial;letter-spacing:.1em}.im-prev-main strong{display:block;margin:5px 0 3px;font-size:15px;overflow-wrap:anywhere}.im-prev-main span{color:#a9b8a3;font-size:12px}.im-stock{padding:4px 12px;border-left:1px solid #2a3a2b}.im-stock b{display:block;margin-top:6px;font:800 20px Arial;color:#f1f7ec}.im-after b{color:var(--im)}.im-after b.im-bad{color:#ff6b6b}.inventory-movement-close{position:absolute;top:18px;right:18px;width:38px!important;min-height:38px;padding:4px!important;background:#29352b!important;color:#fff;border:1px solid #66775f!important;border-radius:9px;cursor:pointer}.inventory-movement-form-actions{display:flex;justify-content:flex-end;gap:10px}.inventory-movement-form-actions button{width:auto;padding:13px 22px;border:1px solid #64795b;border-radius:10px;background:#293629;color:#fff;font-weight:800;cursor:pointer}.inventory-movement-form-actions button[type=submit]{background:var(--im);border-color:var(--im);color:#17210f}.inventory-movement-form-actions button[type=submit]:disabled{opacity:.35;cursor:not-allowed}.inventory-movement-message{min-height:18px;margin:0;color:var(--im);font-size:13px}.inventory-movement-message.im-error{color:#ff8a80}@media(max-width:600px){.inventory-toolbar .inventory-movement-actions{margin-top:10px}.inventory-movement-actions{width:100%}.inventory-movement-actions button{flex:1}.inventory-movement-dialog{width:100vw;max-height:100vh;border-radius:0}.inventory-movement-dialog form{padding:26px 18px 22px}.im-grid{grid-template-columns:1fr}.im-preview{grid-template-columns:1fr 1fr}.im-prev-main{grid-column:1/-1}.im-stock:first-of-type{border-left:0}.inventory-movement-form-actions{flex-direction:column-reverse}.inventory-movement-form-actions button{width:100%}}'; document.head.appendChild(movementStyle);
+    const newDialog = document.createElement('dialog');
+    newDialog.className = 'inventory-movement-dialog inventory-new-dialog';
+    newDialog.dataset.type = 'INGRESO';
+    newDialog.innerHTML = '<form method="dialog" novalidate><button type="button" class="inventory-movement-close" aria-label="Cerrar">×</button><header class="im-head"><span class="im-badge">TELA NUEVA</span><h2>Registrar tela nueva</h2><p class="im-sub">Crea la tela en Stock tela. Si quieres, registra también su primer ingreso.</p></header><div class="im-grid"><label>Código<input name="codigo" autocomplete="off" required maxlength="12" placeholder="Ej. 1250"></label><label>Nombre de la tela<input name="nombre" autocomplete="off" required maxlength="80" placeholder="Ej. MONTECATINI VERDE" style="text-transform:uppercase"></label></div><section class="im-new-initial"><small>INGRESO INICIAL (OPCIONAL)</small><div class="im-grid"><label>MTS<input name="mts" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0,00"></label><label>Rollos<input name="rolls" type="number" min="1" max="9999" step="1" value="1"></label></div></section><section class="inventory-movement-preview im-preview im-new-preview"><div class="im-prev-main"><small>SE CREARÁ COMO</small><strong>(código) NOMBRE</strong><span></span></div></section><p class="inventory-movement-message" role="status"></p><div class="inventory-movement-form-actions"><button type="button" value="cancel">Cancelar</button><button type="submit" disabled>Registrar tela</button></div></form>';
+    document.body.appendChild(newDialog);
+    const newForm = newDialog.querySelector('form'), newMessage = newForm.querySelector('.inventory-movement-message'), newSubmit = newForm.querySelector('[type=submit]');
+    const updateNewFabric = () => {
+      const code = newForm.elements.codigo.value.trim(), name = newForm.elements.nombre.value.trim().replace(/\s+/g, ' ').toUpperCase(), mts = Number(newForm.elements.mts.value || 0), rolls = Number(newForm.elements.rolls.value || 1);
+      newForm.querySelector('.im-new-preview strong').textContent = '(' + (code || 'código') + ') ' + (name || 'NOMBRE');
+      newForm.querySelector('.im-new-preview .im-prev-main span').textContent = mts > 0 ? 'Con ingreso inicial: ' + rolls + ' rollo(s) · ' + fmtN(mts) + ' MTS' : 'Sin ingreso inicial (0 MTS)';
+      const names = [...movementItems.keys()];
+      const sameCode = names.find(item => (item.match(/^\s*\(([^)]+)\)/) || [])[1] === code);
+      const sameName = names.find(item => normMov(item.replace(/^\s*\([^)]*\)\s*/, '')) === normMov(name));
+      let problem = '';
+      if (code && !/^[A-Za-z0-9-]+$/.test(code)) problem = 'El código solo puede tener letras, números o guion.';
+      else if (code && sameCode) problem = 'El código ' + code + ' ya existe: ' + sameCode;
+      else if (name && sameName) problem = 'Ya existe una tela con ese nombre: ' + sameName;
+      newMessage.classList.toggle('im-error', !!problem);
+      if (!newForm.dataset.saving) newMessage.textContent = problem;
+      newSubmit.disabled = !!problem || !code || name.length < 2 || (mts > 0 && !(rolls >= 1));
+    };
+    newDialog.addEventListener('input', updateNewFabric);
+    newDialog.addEventListener('click', event => { if (event.target === newDialog) newDialog.close(); });
+    newDialog.querySelector('.inventory-movement-close').onclick = () => newDialog.close();
+    newForm.querySelector('[value="cancel"]').onclick = () => newDialog.close();
+    movementActions.addEventListener('click', async event => {
+      if (!event.target.closest('[data-inventory-newtela]')) return;
+      newForm.reset(); delete newForm.dataset.saving; newMessage.classList.remove('im-error'); newMessage.textContent = 'Cargando telas…'; newSubmit.disabled = true;
+      newDialog.showModal();
+      try { await loadMovementNames(); newMessage.textContent = ''; } catch (_) { newMessage.textContent = 'No se pudo comprobar si la tela ya existe.'; }
+      updateNewFabric();
+      setTimeout(() => newForm.elements.codigo.focus(), 50);
+    });
+    newForm.onsubmit = async event => {
+      event.preventDefault();
+      if (newSubmit.disabled) return;
+      newForm.dataset.saving = '1'; newSubmit.disabled = true; newMessage.classList.remove('im-error'); newMessage.textContent = 'Registrando tela…';
+      const codigo = newForm.elements.codigo.value.trim(), nombre = newForm.elements.nombre.value.trim().replace(/\s+/g, ' ').toUpperCase(), mts = Number(newForm.elements.mts.value || 0), rolls = Number(newForm.elements.rolls.value || 1);
+      try {
+        const response = await fetch('/api/inventarios/tela', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({codigo, nombre})});
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) throw Error(typeof body.detail === 'string' ? body.detail : 'No se pudo registrar la tela.');
+        if (mts > 0) {
+          const move = await fetch('/api/inventarios/movimiento', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name: body.nombre, code: codigo, type: 'INGRESO', mts, rolls})});
+          if (!move.ok) throw Error('La tela se creó, pero no se pudo registrar el ingreso inicial. Regístralo con INGRESO.');
+          try { const moveBody = await move.json(); if (moveBody.etiquetas && moveBody.etiquetas.length) sessionStorage.setItem('cbPend', JSON.stringify(moveBody.etiquetas)); } catch (e) {}
+        }
+        newMessage.textContent = '✓ Tela registrada: ' + body.nombre;
+        setTimeout(() => { newDialog.close(); location.reload(); }, 900);
+      } catch (error) { delete newForm.dataset.saving; newMessage.classList.add('im-error'); newMessage.textContent = error.message; updateNewFabric(); }
+    };
+    const newStyle = document.createElement('style');
+    newStyle.textContent = '.inventory-movement-actions .inventory-new-btn{border-color:#d0f44c;background:#1f2b12;color:#d0f44c}.im-new-initial{display:grid;gap:8px}.im-new-initial small{color:#8fa088;font:800 10px Arial;letter-spacing:.1em}@media(max-width:600px){.inventory-movement-actions .inventory-new-btn{flex-basis:100%}}';
+    document.head.appendChild(newStyle);
+    const docDialog = document.createElement('dialog');
+    docDialog.className = 'inventory-movement-dialog inventory-doc-dialog';
+    docDialog.dataset.type = 'INGRESO';
+    docDialog.innerHTML = '<form method="dialog" novalidate><button type="button" class="inventory-movement-close" aria-label="Cerrar">×</button><header class="im-head"><span class="im-badge">INGRESO DESDE DOCUMENTO</span><h2>Revisa el documento</h2><p class="im-sub"></p></header><section class="im-doc-detect"></section><div class="im-doc-body"></div><section class="im-doc-total"></section><p class="inventory-movement-message" role="status"></p><div class="inventory-movement-form-actions"><button type="button" value="cancel">Cancelar</button><button type="submit" disabled>Registrar ingreso</button></div></form>';
+    document.body.appendChild(docDialog);
+    const docForm = docDialog.querySelector('form'), docBody = docDialog.querySelector('.im-doc-body'), docTotal = docDialog.querySelector('.im-doc-total'), docDetect = docDialog.querySelector('.im-doc-detect'), docMessage = docDialog.querySelector('.inventory-movement-message'), docSubmit = docForm.querySelector('[type=submit]'), docInput = movementActions.querySelector('.inventory-doc-input');
+    let docState = null;
+    let bodegaNames = [];
+    const loadBodegaOptions = async () => { try { const response = await fetch('/api/inventarios/bodegas', {cache: 'no-store'}); const data = await response.json(); bodegaNames = data.bodegas || []; } catch (error) { bodegaNames = bodegaNames.length ? bodegaNames : ['BODEGA INDOOR']; } };
+    loadBodegaOptions();
+    const rollBodega = (line, r) => (line.bodegas && line.bodegas[r]) || line.bodega || defaultBodega();
+    const defaultBodega = () => bodegaNames.includes('BODEGA INDOOR') ? 'BODEGA INDOOR' : (bodegaNames[0] || '');
+    const BODEGA_COLORS = {'BODEGA GLORIA': ['#dde9f5', '#12335c', '#8fb3d9'], 'BODEGA CASA': ['#fff2cc', '#5a4500', '#e0c060'], 'BODEGA SEGUNDO PISO': ['#d9d2e9', '#3b2a63', '#a593cf'], 'BODEGA INDOOR': ['#26351d', '#d0f44c', '#718c4a']};
+    const bodegaStyle = name => { const c = BODEGA_COLORS[name] || ['#26351d', '#d0f44c', '#718c4a']; return '--c-bg:' + c[0] + ';--c-fg:' + c[1] + ';--c-bd:' + c[2]; };
+    const bodegaShort = name => String(name).replace(/^BODEGA /, '');
+    const bodegaChipsHtml = selected => bodegaNames.map(name => '<button type="button" class="im-chip' + (name === (selected || defaultBodega()) ? ' on' : '') + '" data-bodega-value="' + esc(name) + '" style="' + bodegaStyle(name) + '">' + esc(bodegaShort(name)) + '</button>').join('');
+    const docSum = line => line.rollos.reduce((sum, value) => sum + (Number(value) || 0), 0);
+    const docOptions = () => [...movementItems.values()].map(item => '<option value="' + esc(item.nombre) + '"></option>').join('');
+    const resolveDocTela = text => { const typed = String(text || '').trim(); if (!typed) return null; const exact = movementItems.get(typed); if (exact) return exact; const query = normMov(typed), found = [...movementItems.values()].filter(item => normMov(item.nombre).includes(query)); return found.length === 1 ? found[0] : null; };
+    const updateDoc = () => {
+      if (!docState) return;
+      let totalMts = 0, totalRolls = 0, problem = '';
+      docState.lineas.forEach((line, lineIndex) => {
+        const sum = docSum(line), box = docBody.querySelector('[data-doc-sum="' + lineIndex + '"]');
+        if (box) box.textContent = fmtN(sum) + ' MTS · ' + line.rollos.length + ' rollo(s)' + (line.esperado ? (Math.abs(sum - line.esperado) <= Math.max(0.5, line.rollos.length) ? ' · ✓ coincide con el subtotal del documento (' + fmtN(line.esperado) + ', la diferencia son los decimales)' : ' · ⚠ el documento dice ' + fmtN(line.esperado) + ' MTS: revisa los rollos') : '');
+        const tile = docBody.querySelector('[data-doc-tile="' + lineIndex + '"]');
+        if (tile) {
+          const ok = line.esperado ? Math.abs(sum - line.esperado) <= Math.max(0.5, line.rollos.length) : true, ratio = line.esperado ? sum / line.esperado : 1;
+          tile.setAttribute('data-lq', String(Math.round(Math.min(100, ratio * 100))));
+          tile.setAttribute('data-lq-tone', ok ? 'verde' : (ratio > 1 ? 'rojo' : 'ambar'));
+          tile.querySelector('b').textContent = fmtN(sum) + ' MTS';
+          tile.querySelector('small').textContent = line.rollos.length + (line.rollos.length === 1 ? ' rollo' : ' rollos') + (line.esperado ? ' · documento ' + fmtN(line.esperado) : '');
+          tile.querySelector('.im-doc-state').textContent = line.esperado ? (ok ? '✓ Coincide con el documento' : (ratio > 1 ? '⚠ Se pasa del documento' : '⚠ Falta para el documento')) : '';
+        }
+        totalMts += sum; totalRolls += line.rollos.length;
+        const hint = docBody.querySelector('[data-doc-hint="' + lineIndex + '"]');
+        if (hint) { const typed = String(line.telaText ?? line.tela ?? '').trim(); hint.textContent = line.tela ? '✓ Tela del inventario' : (typed ? 'No coincide con una tela del inventario: elige una de la lista.' : 'Escribe o elige una tela de la lista.'); hint.className = 'im-doc-hint ' + (line.tela ? 'im-hint-ok' : 'im-hint-bad'); }
+        if (!line.tela) problem = problem || 'Elige la tela del inventario en cada línea.';
+        if (!line.rollos.length) problem = problem || 'Hay una tela sin rollos.';
+        if (line.rollos.some(value => !(Number(value) > 0))) problem = problem || 'Hay rollos sin metros: completa o quita esos rollos.';
+      });
+      docDetect.innerHTML = '<small>DETECTADO EN EL DOCUMENTO</small><table><thead><tr><th>TELA</th><th>CANTIDAD</th><th>ROLLOS</th></tr></thead><tbody>' + docState.lineas.map(line => '<tr><td>' + esc(line.referencia || line.descripcion) + (line.referencia && line.descripcion ? '<em>' + esc(line.descripcion) + '</em>' : '') + '</td><td>' + fmtN(docSum(line)) + ' MTS</td><td>' + line.rollos.length + '<em>' + line.rollos.map(value => fmtN(Number(value) || 0)).join(' · ') + '</em></td></tr>').join('') + '</tbody></table>';
+      const expected = docState.total_documento;
+      let check = '';
+      if (expected) check = Math.abs(totalMts - expected) < 0.5 ? '<span class="im-ok">✓ Coincide con el total del documento (' + fmtN(expected) + ' MTS)</span>' : '<span class="im-warn">⚠ La suma (' + fmtN(totalMts) + ' MTS) no coincide con el total del documento (' + fmtN(expected) + ' MTS). Revisa los rollos.</span>';
+      docTotal.innerHTML = '<div><small>TOTAL A INGRESAR</small><strong>' + fmtN(totalMts) + ' MTS</strong><span>' + totalRolls + ' rollo(s) · ' + docState.lineas.length + ' tela(s)</span></div><div>' + check + '</div>';
+      if (docState.duplicado) problem = 'Este documento ya fue registrado el ' + new Date(docState.duplicado.fecha).toLocaleDateString('es-CO') + '.';
+      docMessage.classList.toggle('im-error', !!problem);
+      if (!docForm.dataset.saving) docMessage.textContent = problem;
+      docSubmit.disabled = !!problem || !docState.lineas.length || totalMts <= 0;
+    };
+    const docTabLabel = line => { const name = String(line.descripcion || '').replace(/\s*\(.*$/, '').trim(), color = (String(line.descripcion || '').match(/\(([^)]+)\)/) || [])[1] || '', word = color.split(/\s+/).pop() === 'NIEVE' ? color.split(/\s+/)[0] : color.split(/\s+/).pop(); return (name + (word ? ' · ' + word : '')).slice(0, 26) || 'Tela'; };
+    const docTabsHtml = () => '<div class="im-tabs"><span class="im-tabs-tit" data-doc-tit></span><span class="im-tabs-pills">' + docState.lineas.map((line, i) => '<button type="button" class="im-pill" data-doc-tab="' + i + '">' + esc(docTabLabel(line)) + '</button>').join('') + '</span><span class="im-tabs-arrows"><button type="button" class="im-arrow" data-doc-step="-1" aria-label="Tela anterior">‹</button><button type="button" class="im-arrow" data-doc-step="1" aria-label="Tela siguiente">›</button></span></div>';
+    const setDocActive = index => {
+      if (!docState) return;
+      docState.activa = index;
+      docBody.querySelectorAll('.im-doc-line').forEach((section, i) => section.classList.toggle('im-activa', i === index));
+      docBody.querySelectorAll('[data-doc-tab]').forEach((button, i) => button.classList.toggle('on', i === index));
+      const title = docBody.querySelector('[data-doc-tit]'); if (title) title.textContent = 'TELA ' + (index + 1) + ' · ' + (index + 1) + '/' + docState.lineas.length;
+    };
+    const renderDoc = () => {
+      docDialog.classList.add('im-ancho');
+      docBody.innerHTML = '<datalist id="im-doc-telas">' + docOptions() + '</datalist>' + docState.lineas.map((line, lineIndex) => '<section class="im-doc-line"><div class="im-doc-head"><div><strong>' + esc(line.descripcion) + '</strong><small>' + esc(line.referencia || '') + '</small></div><div class="im-doc-tile" data-doc-tile="' + lineIndex + '" data-lq="0" data-lq-nopct><b></b><small></small><span class="im-doc-state"></span></div></div><label>Tela del inventario<input type="text" list="im-doc-telas" autocomplete="off" spellcheck="false" data-doc-tela="' + lineIndex + '" value="' + esc(line.telaText ?? line.tela) + '" placeholder="Escribe o pega el nombre de la tela"><small class="im-doc-hint" data-doc-hint="' + lineIndex + '"></small></label><div class="im-doc-bodega"><span>Bodega de todos los rollos</span><div class="im-chips" data-doc-bodega="' + lineIndex + '">' + bodegaChipsHtml(line.bodega) + '</div><button type="button" class="im-remove im-remove-line" data-doc-del="' + lineIndex + '" title="Quitar esta tela del documento" aria-label="Quitar esta tela">✕ Quitar tela</button></div><div class="im-doc-rolls">' + line.rollos.map((value, rollIndex) => '<span class="im-doc-roll"><input type="number" inputmode="numeric" min="0" step="1" data-doc-roll="' + lineIndex + ':' + rollIndex + '" placeholder="?" value="' + (value ?? '') + '" aria-label="Metros del rollo ' + (rollIndex + 1) + '"><button type="button" class="im-roll-bodega" data-doc-roll-bodega="' + lineIndex + ':' + rollIndex + '" style="' + bodegaStyle(rollBodega(line, rollIndex)) + '" title="Toca para cambiar la bodega de este rollo" aria-label="Bodega del rollo ' + (rollIndex + 1) + '">' + esc(bodegaShort(rollBodega(line, rollIndex))) + '</button><button type="button" data-doc-roll-del="' + lineIndex + ':' + rollIndex + '" aria-label="Quitar rollo">×</button></span>').join('') + '<button type="button" class="im-add im-add-roll" data-doc-roll-add="' + lineIndex + '">+ Rollo</button></div><div class="im-doc-sum" data-doc-sum="' + lineIndex + '"></div></section>').join('') || '<p class="im-sub">No se encontraron telas en el documento.</p>';
+      if (docState.lineas.length > 1) { docBody.dataset.multi = '1'; docBody.insertAdjacentHTML('afterbegin', docTabsHtml()); setDocActive(Math.min(docState.activa || 0, docState.lineas.length - 1)); }
+      else { delete docBody.dataset.multi; }
+      updateDoc();
+    };
+    docDialog.addEventListener('click', event => {
+      const tabBtn = event.target.closest?.('[data-doc-tab]'), step = event.target.closest?.('[data-doc-step]');
+      if (tabBtn) { setDocActive(Number(tabBtn.dataset.docTab)); return; }
+      if (step && docState) { const n = docState.lineas.length; setDocActive((((docState.activa || 0) + Number(step.dataset.docStep)) % n + n) % n); return; }
+      if (event.target === docDialog) { docDialog.close(); return; }
+      const groupChip = event.target.closest('[data-doc-bodega] .im-chip'), rollBodegaBtn = event.target.closest('[data-doc-roll-bodega]');
+      if (groupChip && docState) { const line = docState.lineas[Number(groupChip.parentElement.dataset.docBodega)]; line.bodega = groupChip.dataset.bodegaValue; line.bodegas = []; renderDoc(); return; }
+      if (rollBodegaBtn && docState) { const [l, r] = rollBodegaBtn.dataset.docRollBodega.split(':').map(Number), line = docState.lineas[l], at = Math.max(0, bodegaNames.indexOf(rollBodega(line, r))); (line.bodegas = line.bodegas || [])[r] = bodegaNames[(at + 1) % bodegaNames.length]; renderDoc(); return; }
+      const del = event.target.closest('[data-doc-del]'), rollDel = event.target.closest('[data-doc-roll-del]'), rollAdd = event.target.closest('[data-doc-roll-add]');
+      if (del) { docState.lineas.splice(Number(del.dataset.docDel), 1); renderDoc(); }
+      else if (rollDel) { const [l, r] = rollDel.dataset.docRollDel.split(':').map(Number); docState.lineas[l].rollos.splice(r, 1); if (docState.lineas[l].bodegas) docState.lineas[l].bodegas.splice(r, 1); renderDoc(); }
+      else if (rollAdd) { docState.lineas[Number(rollAdd.dataset.docRollAdd)].rollos.push(''); renderDoc(); }
+    });
+    docDialog.addEventListener('input', event => {
+      const roll = event.target.closest('[data-doc-roll]');
+      if (roll) { const [l, r] = roll.dataset.docRoll.split(':').map(Number); docState.lineas[l].rollos[r] = roll.value; updateDoc(); return; }
+      const tela = event.target.closest('[data-doc-tela]');
+      if (tela) { const line = docState.lineas[Number(tela.dataset.docTela)]; line.telaText = tela.value; line.tela = resolveDocTela(tela.value)?.nombre || ''; updateDoc(); }
+    });
+    docDialog.addEventListener('change', event => {
+      const tela = event.target.closest('[data-doc-tela]');
+      if (!tela) return;
+      const line = docState.lineas[Number(tela.dataset.docTela)], item = resolveDocTela(tela.value);
+      if (item) { tela.value = item.nombre; line.telaText = item.nombre; line.tela = item.nombre; }
+      updateDoc();
+    });
+    docDialog.querySelector('.inventory-movement-close').onclick = () => docDialog.close();
+    docForm.querySelector('[value="cancel"]').onclick = () => docDialog.close();
+    const processDocFile = async file => {
+      if (!(file.type === 'application/pdf' || file.type.startsWith('image/') || /[.](pdf|png|jpe?g|webp)$/i.test(file.name))) {
+        docMessage.classList.add('im-error'); docMessage.textContent = 'Sube un PDF o una imagen (JPG, PNG).'; return;
+      }
+      docState = null; delete docForm.dataset.saving; docDialog.classList.remove('im-ancho');
+      docBody.innerHTML = '<div class="im-doc-loading"><span class="im-spinner"></span><p>Leyendo el documento… puede tardar hasta 30 segundos.</p></div>';
+      docTotal.innerHTML = ''; docMessage.textContent = ''; docMessage.classList.remove('im-error'); docSubmit.disabled = true;
+      docForm.querySelector('.im-sub').textContent = file.name;
+      if (!docDialog.open) docDialog.showModal();
+      try {
+        await loadMovementNames();
+        const form = new FormData(); form.append('file', file); form.append('formato', docFormat);
+        const response = await fetch('/api/inventarios/documento', {method: 'POST', body: form});
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw Error(data.detail || 'No se pudo leer el documento.');
+        docState = {hash: data.hash, nombre: data.nombre, total_documento: data.total_documento, duplicado: data.duplicado, proveedor: data.proveedor, fecha: data.fecha,
+          lineas: (data.lineas || []).map(line => ({descripcion: line.descripcion, referencia: line.referencia, esperado: line.total_esperado, rollos: line.rollos.map(roll => roll.mts), tela: (line.sugerencias?.[0]?.score >= 1 && movementItems.has(line.sugerencias[0].nombre)) ? line.sugerencias[0].nombre : '', telaText: undefined}))};
+        docForm.querySelector('.im-sub').textContent = [file.name, data.proveedor, data.fecha].filter(Boolean).join(' · ');
+        renderDoc();
+      } catch (error) {
+        docBody.innerHTML = '<p class="im-sub">' + esc(error.message) + '</p>';
+        docMessage.classList.add('im-error'); docMessage.textContent = 'No se pudo procesar el documento. Puedes cargar los datos manualmente con INGRESO.';
+      }
+    };
+    let docFormats = [{id: 'lindatextil', nombre: 'Lindatextil', disponible: true, ayuda: ''}], docFormat = 'lindatextil';
+    try { docFormat = localStorage.getItem('inv_doc_formato') || 'lindatextil'; } catch (error) { /* sin almacenamiento */ }
+    fetch('/api/inventarios/documento/formatos', {cache: 'no-store', credentials: 'same-origin'}).then(r => r.ok ? r.json() : null).then(d => { if (d && d.formatos && d.formatos.length) docFormats = d.formatos; }).catch(() => {});
+    const formatPickerMarkup = () => {
+      const current = docFormats.find(f => f.id === docFormat && f.disponible) || docFormats.find(f => f.disponible) || docFormats[0];
+      docFormat = current.id;
+      return '<label class="im-format">Formato del proveedor<select data-doc-format>' + docFormats.map(f => '<option value="' + esc(f.id) + '"' + (f.id === current.id ? ' selected' : '') + (f.disponible ? '' : ' disabled') + '>' + esc(f.nombre) + '</option>').join('') + '</select><small>' + esc(current.ayuda || '') + '</small></label>';
+    };
+    const dropzoneHtml = () => formatPickerMarkup() + dropzoneMarkup;
+    const dropzoneMarkup = '<div class="im-dropzone" tabindex="0" role="button" aria-label="Seleccionar documento"><span class="im-drop-icon">⇧</span><strong>Arrastra el documento aquí</strong><small>o haz clic para seleccionar · PDF, JPG o PNG</small></div>';
+    const openDocDialog = () => {
+      docState = null; delete docForm.dataset.saving; docInput.value = ''; docDialog.classList.remove('im-ancho');
+      docBody.innerHTML = dropzoneHtml(); docDetect.innerHTML = ''; docTotal.innerHTML = '';
+      docMessage.textContent = ''; docMessage.classList.remove('im-error'); docSubmit.disabled = true;
+      docForm.querySelector('.im-sub').textContent = 'Sube la nota de entrega del proveedor y se leerán la tela, los metros y los rollos.';
+      docDialog.showModal();
+    };
+    movementActions.addEventListener('click', event => { if (event.target.closest('[data-inventory-doc]')) openDocDialog(); });
+    docDialog.addEventListener('change', event => {
+      const picker = event.target.closest?.('[data-doc-format]');
+      if (!picker) return;
+      docFormat = picker.value;
+      try { localStorage.setItem('inv_doc_formato', docFormat); } catch (error) { /* sin almacenamiento */ }
+      const current = docFormats.find(f => f.id === docFormat);
+      const hint = picker.parentElement.querySelector('small'); if (hint) hint.textContent = current ? (current.ayuda || '') : '';
+    });
+    docInput.onchange = () => { if (docInput.files[0]) processDocFile(docInput.files[0]); };
+    docDialog.addEventListener('click', event => { if (event.target.closest('.im-dropzone')) { docInput.value = ''; docInput.click(); } });
+    docDialog.addEventListener('keydown', event => { if ((event.key === 'Enter' || event.key === ' ') && event.target.closest('.im-dropzone')) { event.preventDefault(); docInput.value = ''; docInput.click(); } });
+    docDialog.addEventListener('dragover', event => { const zone = event.target.closest('.im-dropzone'); if (zone) { event.preventDefault(); zone.classList.add('im-over'); } });
+    docDialog.addEventListener('dragleave', event => { event.target.closest?.('.im-dropzone')?.classList.remove('im-over'); });
+    docDialog.addEventListener('drop', event => { const zone = event.target.closest('.im-dropzone'); if (!zone) return; event.preventDefault(); zone.classList.remove('im-over'); if (event.dataTransfer.files[0]) processDocFile(event.dataTransfer.files[0]); });
+    docForm.onsubmit = async event => {
+      event.preventDefault();
+      if (!docState || docSubmit.disabled) return;
+      docForm.dataset.saving = '1'; docSubmit.disabled = true; docMessage.classList.remove('im-error'); docMessage.textContent = 'Registrando ingreso…';
+      const movements = [];
+      docState.lineas.forEach(line => line.rollos.forEach((value, rollIndex) => { const code = (String(line.tela).match(/^\s*\(([^)]+)\)/) || [])[1] || ''; movements.push({name: line.tela, code, type: 'INGRESO', mts: Number(value), rolls: 1, bodega: rollBodega(line, rollIndex)}); }));
+      try {
+        const response = await fetch('/api/inventarios/movimientos', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({movements, doc_hash: docState.hash, doc_name: docState.nombre})});
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) throw Error(body.detail || 'No se pudo registrar el ingreso.');
+        if (Array.isArray(body.etiquetas) && body.etiquetas.length) { try { sessionStorage.setItem('cbPend', JSON.stringify(body.etiquetas)); } catch (e) {} }
+        docMessage.textContent = '✓ Ingreso registrado: ' + movements.length + ' rollo(s).';
+        setTimeout(() => { docDialog.close(); location.reload(); }, 900);
+      } catch (error) { delete docForm.dataset.saving; docMessage.classList.add('im-error'); docMessage.textContent = error.message; updateDoc(); }
+    };
+    const docStyle = document.createElement('style');
+    docStyle.textContent = '.inventory-doc-dialog.im-ancho{width:98vw;max-height:97vh}.inventory-doc-dialog.im-ancho .im-doc-body{grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}@media(max-width:1000px){.inventory-doc-dialog.im-ancho .im-doc-body{grid-template-columns:minmax(0,1fr)}}.inventory-doc-dialog.im-ancho .im-doc-detect table{width:100%}.inventory-doc-dialog.im-ancho .im-doc-detect td em{display:none}.inventory-doc-dialog.im-ancho .im-doc-detect td{padding:5px 8px}.inventory-doc-dialog.im-ancho .im-doc-body{gap:10px}.inventory-doc-dialog.im-ancho .im-doc-line{padding:10px;gap:7px}.inventory-doc-dialog.im-ancho .im-doc-rolls{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:5px}.inventory-doc-dialog.im-ancho .im-doc-roll{display:flex}.inventory-doc-dialog.im-ancho .im-doc-roll input{width:100%!important;min-width:0;flex:1 1 auto;padding:6px 4px!important;font-size:13px!important}.inventory-doc-dialog.im-ancho .im-doc-roll button.im-roll-bodega{min-width:0;padding:0 4px;font-size:8px}.inventory-doc-dialog.im-ancho .im-doc-roll button:not(.im-roll-bodega){width:22px}.inventory-doc-dialog.im-ancho .im-add-roll{grid-column:1/-1}.inventory-doc-dialog.im-ancho .im-doc-detect{display:none}.im-tabs{display:none;grid-column:1/-1;align-items:center;gap:10px;flex-wrap:wrap;padding-right:46px}.im-tabs-tit{padding:7px 14px;border-radius:999px;background:#2b3326;color:#d7ff3a;font:800 12px Arial;letter-spacing:.08em}.im-tabs-pills{display:flex;gap:6px;flex-wrap:wrap;flex:1}.im-tabs .im-pill{width:auto;min-height:0;padding:7px 14px;border:1px solid #4f6545;border-radius:999px;background:#1a2218;color:#e9f1e3;font:800 12px Arial;cursor:pointer}.im-tabs .im-pill.on{background:#0c0f0b;border-color:#d7ff3a;color:#d7ff3a}.im-tabs .im-arrow{width:36px;min-height:0;height:36px;padding:0;border:0;border-radius:50%;background:#2a2f27;color:#fff;font:700 20px Arial;cursor:pointer}@media(max-width:1000px){.im-doc-body[data-multi] .im-tabs{display:flex}.im-doc-body[data-multi] .im-doc-line:not(.im-activa){display:none}}.inventory-doc-dialog.im-ancho .im-doc-roll input,.inventory-doc-dialog.im-ancho .im-doc-roll button{height:30px!important;min-height:30px!important;padding-top:0!important;padding-bottom:0!important;line-height:30px}.inventory-doc-dialog.im-ancho .im-add-roll{height:30px!important;min-height:30px!important;padding:0!important}.inventory-doc-dialog.im-ancho .im-doc-line label input{height:36px!important;min-height:36px!important;padding-top:0!important;padding-bottom:0!important}.inventory-doc-dialog.im-ancho .im-doc-bodega{padding:6px 10px}.im-format{display:grid;gap:6px;margin-bottom:14px;font:800 11px Arial;letter-spacing:.08em;text-transform:uppercase;color:#aebba7}.im-format select{min-height:42px;padding:0 12px;border:1px solid #34432f;border-radius:10px;background:#101710;color:inherit;font:600 14px Arial;text-transform:none;letter-spacing:0}.im-format small{font:600 11px Arial;letter-spacing:0;text-transform:none;color:#8fa08a;line-height:1.4}.im-doc-hint{text-transform:none;letter-spacing:0;font:600 11px Arial}.im-hint-ok{color:#8fe08f}.im-hint-bad{color:#ffb86b}.inventory-doc-dialog input[data-doc-tela]{user-select:text}.im-dropzone{display:grid;justify-items:center;gap:10px;padding:54px 20px;border:2px dashed var(--im);border-radius:26px;background:radial-gradient(circle at 50% 70%,color-mix(in srgb,var(--im) 14%,transparent),transparent 62%),#0d140e;text-align:center;cursor:pointer;transition:background .15s,box-shadow .15s}.im-dropzone:hover,.im-dropzone:focus-visible,.im-dropzone.im-over{outline:none;box-shadow:0 0 0 4px color-mix(in srgb,var(--im) 25%,transparent);background:radial-gradient(circle at 50% 70%,color-mix(in srgb,var(--im) 26%,transparent),transparent 66%),#101a11}.im-drop-icon{display:grid;place-items:center;width:62px;height:62px;border-radius:18px;border:1px solid color-mix(in srgb,var(--im) 55%,transparent);background:color-mix(in srgb,var(--im) 18%,transparent);color:var(--im);font:700 30px Arial}.im-dropzone strong{font-size:20px;color:#fff}.im-dropzone small{color:#a9b8a3;font-size:13px}.im-doc-detect{display:grid;gap:8px;padding:14px 16px;border:1px solid #3f553d;border-radius:14px;background:#142016}.im-doc-detect:empty{display:none}.im-doc-detect small{color:#8fa088;font:800 10px Arial;letter-spacing:.1em}.im-doc-detect table{width:100%;border-collapse:collapse}.im-doc-detect th{padding:6px 8px;text-align:left;color:var(--im);font:800 11px Arial;letter-spacing:.08em;border-bottom:1px solid #3f553d}.im-doc-detect td{padding:9px 8px;font:700 14px Arial;border-bottom:1px solid #243424;vertical-align:top}.im-doc-detect td em{display:block;margin-top:2px;color:#8fa088;font:400 11px Arial;font-style:normal;overflow-wrap:anywhere}.inventory-movement-actions .inventory-doc-btn{border-color:#4da3ff;background:#12335c;color:#d6e9ff}.inventory-doc-dialog{width:min(900px,95vw)}.im-doc-body{display:grid;gap:12px}.im-doc-line{display:grid;gap:10px;padding:14px;border:1px solid #344934;border-radius:14px;background:#101811}.im-doc-head{display:flex;align-items:flex-start;gap:10px;justify-content:space-between}.im-doc-head strong{display:block;font-size:15px}.im-doc-head small{color:#8fa088;font-size:11px}.im-doc-head .im-remove{width:36px;height:36px}.inventory-doc-dialog select{padding:13px;border:1px solid #4f6545;border-radius:9px;background:#202d22;color:#fff;font:15px Arial;width:100%;box-sizing:border-box}.inventory-doc-dialog select:focus{outline:none;border-color:var(--im)}.im-doc-rolls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.im-doc-roll{display:inline-flex;align-items:stretch}.im-doc-roll input{width:96px!important;padding:10px 8px!important;text-align:center;border-radius:9px 0 0 9px!important}.im-chips{display:flex;flex-wrap:wrap;gap:4px}.im-chip{display:inline-flex;align-items:center;gap:5px;width:auto;min-height:0;height:24px;padding:0 9px;border:1px solid #344934;border-radius:999px;background:#101811;color:#9fb08c;font:800 9.5px Arial;letter-spacing:.04em;text-transform:uppercase;cursor:pointer;opacity:.8;transition:all .15s}.im-chip::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--c-bg);border:1px solid var(--c-bd)}.im-chip:hover{opacity:1;border-color:var(--c-bd)}.im-chip.on{opacity:1;background:var(--c-bg);color:var(--c-fg);border-color:var(--c-bd);box-shadow:0 0 0 2px color-mix(in srgb,var(--c-bd) 30%,transparent)}.im-chip.on::before{background:var(--c-fg);border-color:var(--c-fg)}@media(max-width:700px){.im-chip{height:34px;padding:0 13px;font-size:10.5px}.im-doc-roll button.im-roll-bodega{min-width:56px;font-size:10px}.im-chips{gap:6px}}.im-doc-bodega{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:8px 12px;border:1px solid #344934;border-radius:12px;background:#101811}.im-doc-bodega>span{font:800 10px Arial;letter-spacing:.08em;text-transform:uppercase;color:#b8c7b1}.im-doc-roll button.im-roll-bodega{display:inline-flex;align-items:center;justify-content:center;width:auto;min-width:0;padding:0 7px;border:1px solid var(--c-bd);border-left:0;border-radius:0;background:var(--c-bg);color:var(--c-fg);font:800 9px Arial;letter-spacing:.06em;text-transform:uppercase;cursor:pointer}.im-doc-roll button.im-roll-bodega:hover{filter:brightness(1.12)}.im-doc-roll button{width:30px;border:1px solid #6b3a36;border-left:0;border-radius:0 9px 9px 0;background:#3b211f;color:#ffd0cc;cursor:pointer}.im-add-roll{margin:0;padding:9px 14px}.im-doc-sum{color:var(--im);font:800 12px Arial;letter-spacing:.04em}.im-doc-total{display:flex;justify-content:space-between;gap:16px;align-items:center;padding:14px 16px;border:1px solid #344934;border-radius:14px;background:#0d140e}.im-doc-total small{display:block;color:#8fa088;font:800 10px Arial;letter-spacing:.1em}.im-doc-total strong{display:block;margin:4px 0 2px;font:800 24px Arial;color:var(--im)}.im-doc-total span{font-size:12px;color:#a9b8a3}.im-doc-total .im-ok{color:#8fe08f}.im-doc-total .im-warn{color:#ffb86b;font-weight:700}.im-doc-loading{display:grid;justify-items:center;gap:12px;padding:40px 10px;color:#a9b8a3}.im-spinner{width:36px;height:36px;border:4px solid #344934;border-top-color:var(--im);border-radius:50%;animation:im-spin 0.9s linear infinite}@keyframes im-spin{to{transform:rotate(360deg)}}@media(max-width:600px){.im-doc-total{flex-direction:column;align-items:flex-start}.inventory-movement-actions .inventory-doc-btn{flex-basis:100%}}@media(max-width:700px){.im-doc-rolls{display:grid!important;grid-template-columns:1fr!important;gap:8px!important}.im-doc-roll{display:flex!important;width:100%!important}.im-doc-roll input{flex:1 1 auto!important;min-width:0!important;font-size:16px!important}.im-doc-roll button.im-roll-bodega{flex:0 0 auto!important;min-width:96px!important;width:auto!important;padding:0 10px!important;font-size:12px!important;letter-spacing:.04em!important;white-space:nowrap!important;line-height:1!important;writing-mode:horizontal-tb!important;overflow:hidden}.im-doc-roll button:not(.im-roll-bodega){flex:0 0 44px!important;width:44px!important}.im-doc-roll input,.im-doc-roll button{height:44px!important;min-height:44px!important;line-height:1!important}}';
+    document.head.appendChild(docStyle);
+    // Cada rollo: arriba los metros (entero) y la ×; debajo, la BODEGA con su nombre completo y legible (antes quedaba cortada: «INDOO»)
+    const docStyle2 = document.createElement('style');
+    docStyle2.textContent = '.im-doc-rolls{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(188px,1fr))!important;gap:6px!important}.im-doc-roll{display:grid!important;grid-template-columns:58px minmax(0,1fr) 28px;grid-template-rows:auto;align-items:center;gap:4px!important}.im-doc-roll input{grid-column:1;grid-row:1;width:100%!important;min-width:0;border-radius:9px!important;text-align:center;font:800 14px Arial!important;padding:0 2px!important}.im-doc-roll button.im-roll-bodega{grid-column:2;grid-row:1;width:100%!important;min-width:0;min-height:30px!important;height:30px!important;padding:0 6px!important;border:1px solid var(--c-bd)!important;border-radius:9px!important;font:800 11px Arial!important;letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.im-doc-roll button:not(.im-roll-bodega){grid-column:3;grid-row:1;width:28px!important;min-width:0;height:30px!important;border-radius:9px!important;padding:0!important}.im-doc-roll input[value=""]{border-color:#ff6b5c!important;background:#3a1f1c!important}';
+    document.head.appendChild(docStyle2);
+    const docStyle3 = document.createElement('style');
+    docStyle3.textContent = '.inventory-doc-dialog.im-ancho{background:radial-gradient(1000px 420px at 8% -8%,rgba(139,212,80,.12),transparent 62%),radial-gradient(800px 380px at 100% 0%,rgba(49,83,226,.10),transparent 60%),#090d09!important;border:1px solid rgba(255,255,255,.14)!important;border-radius:22px!important;box-shadow:0 40px 90px -30px #000,inset 0 1px 0 rgba(255,255,255,.08)!important}.inventory-doc-dialog.im-ancho .im-doc-line{position:relative;overflow:hidden;gap:10px;padding:16px 16px 14px;border:1px solid rgba(255,255,255,.14)!important;border-radius:20px!important;background:linear-gradient(165deg,rgba(255,255,255,.075),rgba(255,255,255,.015) 40%,rgba(0,0,0,.22)),#0e140e!important;box-shadow:0 22px 44px -26px #000,inset 0 1px 0 rgba(255,255,255,.07);animation:imRise .5s both}.inventory-doc-dialog.im-ancho .im-doc-line:nth-of-type(2){animation-delay:.08s}.inventory-doc-dialog.im-ancho .im-doc-line:nth-of-type(3){animation-delay:.16s}.inventory-doc-dialog.im-ancho .im-doc-line:nth-of-type(n+4){animation-delay:.24s}.inventory-doc-dialog.im-ancho .im-doc-line::before{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:linear-gradient(90deg,#d0f44c,#8bd450 40%,transparent)}@keyframes imRise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}.inventory-doc-dialog.im-ancho .im-doc-head{display:grid!important;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:12px}.im-doc-head>div:first-child strong{font-size:1.08rem}.im-doc-head>div:first-child small{display:inline-block;margin-top:4px;padding:2px 9px;border-radius:99px;background:rgba(208,244,76,.12);color:#d0f44c;font-size:.64rem}.im-doc-tile{--liquid:#2f9e4f;min-width:190px;padding:10px 16px 12px;display:grid;gap:1px;border-radius:15px;text-align:left}.im-doc-tile b{font-size:1.45rem;line-height:1.1;font-variant-numeric:tabular-nums}.im-doc-tile small{font-size:.66rem}.im-doc-tile .im-doc-state{font-size:.62rem;font-weight:800}.inventory-doc-dialog.im-ancho .im-doc-sum{display:none}.inventory-doc-dialog.im-ancho .im-doc-line label input{background:linear-gradient(180deg,rgba(0,0,0,.4),rgba(255,255,255,.03))!important;border:1px solid rgba(255,255,255,.16)!important;border-radius:12px!important;box-shadow:inset 0 2px 8px rgba(0,0,0,.55);transition:border-color .2s,box-shadow .2s}.inventory-doc-dialog.im-ancho .im-doc-line label input:focus{border-color:#d0f44c!important;box-shadow:inset 0 2px 8px rgba(0,0,0,.55),0 0 0 3px rgba(208,244,76,.18)}.inventory-doc-dialog.im-ancho .im-doc-bodega{border:1px solid rgba(255,255,255,.1)!important;border-radius:14px!important;background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(0,0,0,.18))!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}.inventory-doc-dialog.im-ancho .im-chip{transition:transform .15s,box-shadow .15s}.inventory-doc-dialog.im-ancho .im-chip:hover{transform:translateY(-1px)}.inventory-doc-dialog.im-ancho .im-chip.on{box-shadow:0 0 0 2px rgba(208,244,76,.45),0 8px 18px -8px rgba(208,244,76,.7)}.inventory-doc-dialog.im-ancho .im-doc-rolls{gap:9px!important}.inventory-doc-dialog.im-ancho .im-doc-roll{--liquid:#2f9e4f;position:relative;isolation:isolate;overflow:hidden;min-height:48px;padding:6px 7px 6px 9px;border:1px solid rgba(255,255,255,.16)!important;border-radius:14px!important;background:linear-gradient(160deg,rgba(255,255,255,.09),rgba(0,0,0,.22))!important;box-shadow:0 10px 18px -12px #000;transition:transform .18s,box-shadow .18s,border-color .18s}.inventory-doc-dialog.im-ancho .im-doc-roll:hover{transform:translateY(-2px);border-color:var(--liquid)!important;box-shadow:0 14px 22px -12px var(--liquid)}.inventory-doc-dialog.im-ancho .im-doc-roll input{background:transparent!important;border:0!important;box-shadow:none!important;color:#fff!important;font:900 18px Arial!important;text-shadow:0 1px 2px rgba(0,0,0,.55)}.inventory-doc-dialog.im-ancho .im-doc-roll input::placeholder{color:#ff9d90}.inventory-doc-dialog.im-ancho .im-doc-roll button{position:relative;z-index:1}.inventory-doc-dialog.im-ancho .im-add-roll{border:1px dashed rgba(208,244,76,.6)!important;border-radius:14px!important;background:linear-gradient(180deg,rgba(208,244,76,.16),rgba(208,244,76,.04))!important;color:#e6ff7a!important;transition:box-shadow .2s,transform .2s}.inventory-doc-dialog.im-ancho .im-add-roll:hover{transform:translateY(-1px);box-shadow:0 10px 22px -10px rgba(208,244,76,.8)}@media(max-width:700px){.inventory-doc-dialog.im-ancho .im-doc-head{grid-template-columns:minmax(0,1fr) auto}.im-doc-tile{grid-column:1/-1;order:3}}@media(prefers-reduced-motion:reduce){.inventory-doc-dialog.im-ancho .im-doc-line{animation:none}}';
+    document.head.appendChild(docStyle3);
+    // Rediseño: título grande y centrado; debajo, el total, y en la fila de bodegas el botón para quitar la tela. Cada rollo: metros arriba y la bodega con su nombre completo debajo (antes «SEGUNDO PISO» quedaba cortado).
+    const docStyle4 = document.createElement('style');
+    docStyle4.textContent = '.inventory-doc-dialog.im-ancho .im-doc-head{display:flex!important;flex-direction:column;align-items:center;text-align:center;gap:10px}' +
+      '.inventory-doc-dialog.im-ancho .im-doc-head>div:first-child{display:grid;justify-items:center;gap:6px;width:100%}' +
+      '.inventory-doc-dialog.im-ancho .im-doc-head>div:first-child strong{display:block;font-size:1.75rem;line-height:1.15;font-weight:900;letter-spacing:.01em;text-align:center;overflow-wrap:anywhere}' +
+      '.inventory-doc-dialog.im-ancho .im-doc-head>div:first-child small{margin:0}' +
+      '.inventory-doc-dialog.im-ancho .im-doc-tile{min-width:230px;justify-items:center;text-align:center}' +
+      '.inventory-doc-dialog.im-ancho .im-doc-bodega{display:grid!important;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px 12px}' +
+      '.inventory-doc-dialog.im-ancho .im-doc-bodega>span{grid-column:1/-1;text-align:center}' +
+      '.inventory-doc-dialog.im-ancho .im-doc-bodega .im-chips{justify-content:flex-start}' +
+      '.inventory-doc-dialog.im-ancho .im-remove-line{width:auto!important;height:32px!important;padding:0 14px!important;border-radius:999px!important;font:800 11px Arial!important;letter-spacing:.05em;text-transform:uppercase;white-space:nowrap}' +
+      '.inventory-doc-dialog.im-ancho .im-doc-rolls{grid-template-columns:repeat(auto-fill,minmax(172px,1fr))!important}' +
+      '.inventory-doc-dialog.im-ancho .im-doc-roll{grid-template-columns:minmax(0,1fr) 30px!important;grid-template-rows:auto auto!important;row-gap:6px!important;padding:8px 8px 8px 10px!important;min-height:0!important}' +
+      '.inventory-doc-dialog.im-ancho .im-doc-roll input{grid-column:1!important;grid-row:1!important;text-align:center!important;font-size:20px!important}' +
+      '.inventory-doc-dialog.im-ancho .im-doc-roll button:not(.im-roll-bodega){grid-column:2!important;grid-row:1!important}' +
+      '.inventory-doc-dialog.im-ancho .im-doc-roll button.im-roll-bodega{grid-column:1/-1!important;grid-row:2!important;width:100%!important;height:28px!important;min-height:28px!important;font-size:11px!important;line-height:26px!important;padding:0 8px!important;text-align:center;overflow:visible!important;text-overflow:clip!important;white-space:nowrap}';
+    document.head.appendChild(docStyle4);
+  }
+  const style = document.createElement('style');
+  style.textContent = '.control-panel{display:grid;gap:16px;max-width:1100px;margin:auto}.control-panel-head{display:flex;align-items:center;justify-content:space-between;gap:14px}.control-panel-head span{color:#d0f44c;font:800 10px Arial;letter-spacing:.1em}.control-panel-head h2{margin:4px 0 0;font-size:1.4rem}.control-panel-refresh{width:auto!important;padding:9px 13px!important;border:1px solid #60754d!important;border-radius:9px!important;background:#233020!important;color:#eff9df!important;font-weight:800}.control-panel-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px}.control-panel-cards article{display:grid;gap:8px;min-height:115px;padding:17px;border:1px solid #3d4f3d;border-radius:14px;background:linear-gradient(145deg,#182118,#101510)}.control-panel-cards small{color:#aebba7;font:800 10px Arial;letter-spacing:.07em}.control-panel-cards strong{color:#d0f44c;font:800 28px Arial}.control-panel-cards span,.control-panel-cards p{color:#bdc8b8;font-size:12px;margin:0}@media(max-width:700px){.control-panel-cards{grid-template-columns:1fr}.control-panel-head{align-items:flex-start}.control-panel-refresh{min-height:40px}}';
+  document.head.appendChild(style);
+  let inventoryRetryCount = 0;
+  const retryInventoryIfStuck = () => {
+    const body = document.getElementById('inventory-body');
+    if (body && body.textContent.includes('Cargando inventario local') && inventoryRetryCount < 3) {
+      inventoryRetryCount += 1;
+      document.getElementById('inventory-refresh')?.click();
+    }
+  };
+  setInterval(retryInventoryIfStuck, 10000);
+  const renderLocalInventory = async () => {
+    const body = document.getElementById('inventory-body');
+    const status = document.getElementById('inventory-status');
+    if (!body || body.dataset.localRendered === 'true') return;
+    try {
+      const response = await fetch('/api/inventarios', {cache:'no-store'});
+      const data = await response.json();
+      if (!response.ok) throw Error(data.detail || 'No fue posible cargar Inventarios');
+      const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+      const activeCategory = [...document.querySelectorAll('.nav-children .tab.active strong')].map(node => node.textContent.trim().toUpperCase()).find(Boolean)?.replace(/^STOCK TELA$/, 'BODEGA TELA') || 'BODEGA TELA';
+      const plainCategory = value => String(value || '').normalize('NFD').replace(/\p{M}/gu, '').trim().toUpperCase();
+      const visibleItems = (data.items || []).filter(item => plainCategory(item.categoria) === plainCategory(activeCategory));
+      const pickRolls = new Map(), pickNotes = new Map();
+      if (activeCategory === 'BODEGA TELA') {
+        (data.sublimacion || []).forEach(plan => {
+          plan.rolls.forEach(roll => {
+            if (!pickRolls.has(roll.id)) pickRolls.set(roll.id, new Map());
+            pickRolls.get(roll.id).set(roll.index, plan.short ? 'short' : String(plan.color));
+          });
+          const note = {label: plan.label, short: plan.short, missing: plan.missing, color: plan.color, mts: Number(plan.mts) || 0, orden: plan.orden};
+          (plan.owners || []).forEach(id => pickNotes.set(id, [...(pickNotes.get(id) || []), note]));
+        });
+      }
+      if (!document.getElementById('inventory-pick-style-v2')) {
+        const pickStyle = document.createElement('style');
+        pickStyle.id = 'inventory-pick-style-v2';
+        const palette = [['#4da3ff','#12335c','#d6e9ff'],['#b57bff','#2f1b57','#ecdcff'],['#27d3c3','#0f3d3a','#cffaf5'],['#ff6fb5','#4a1634','#ffd9ec'],['#e6e6e6','#3a3a3a','#ffffff'],['#ff3b3b','#6b0f0f','#ffe0e0']];
+        const names = ['0','1','2','3','4','short'];
+        pickStyle.textContent = palette.map(([border, bg, fg], n) => '.inventory-roll.roll-pick-'+names[n]+'{border-color:'+border+'!important;background:'+bg+'!important;color:'+fg+'!important;box-shadow:0 0 0 2px '+border+'66}.inv-pick.pick-'+names[n]+'{background:'+bg+';border:1px solid '+border+';color:'+fg+'}').join('') + '.inv-pick{display:block;margin-top:6px;padding:4px 8px;border-radius:6px;font:600 10px Arial;letter-spacing:.03em}.inv-pick.pick-short{font-weight:800}.inventory-roll.roll-left.roll-started{outline:0!important;box-shadow:none!important;border-color:#ff9f1c!important;background:#4d3410!important;color:#ffd9a0!important}.inv-left{display:block;margin-top:6px;padding:4px 8px;border:1px dashed #ff9f1c;border-radius:6px;background:#2a1a05;color:#ffd9a0;font:800 10px Arial;letter-spacing:.04em}.inv-pick-group{display:grid;gap:3px;margin-top:6px;padding:6px;border:1px solid #3d5a8a;border-radius:9px;background:#0f1b2e}.inv-pick-group .inv-pick{margin-top:0}.inv-pick-total{display:block;padding:2px 4px 4px;color:#d6e9ff;font:850 10px Arial;letter-spacing:.05em}';
+        document.head.appendChild(pickStyle);
+      }
+      const fmtPick = n => Number(n).toLocaleString('es-CO', {maximumFractionDigits: 2});
+      const pickLine = n => '<span class="inv-pick pick-'+(n.short?'short':n.color)+'">'+(n.short?'⚠ NO ALCANZA · '+esc(n.label)+' · FALTAN '+esc(fmtPick(n.missing))+' MTS':'SUBLIMACIÓN: '+esc(n.label))+'</span>';
+      // Varias referencias de la MISMA ORDEN sobre la misma tela se unifican: un solo total y debajo el detalle.
+      // Órdenes distintas se muestran por separado.
+      const pickBlock = notes => {
+        const byOrder = new Map();
+        notes.forEach(n => { const key = n.orden || n.label.split(' · ')[0]; byOrder.set(key, [...(byOrder.get(key) || []), n]); });
+        return [...byOrder.entries()].map(([order, group]) => {
+          if (group.length < 2) return pickLine(group[0]);
+          const total = group.reduce((sum, n) => sum + (n.mts || 0), 0), missing = group.reduce((sum, n) => sum + (n.short ? Number(n.missing) || 0 : 0), 0);
+          return '<div class="inv-pick-group"><span class="inv-pick-total">'+(missing?'⚠ ':'')+'SUBLIMACIÓN · '+esc(order)+' · '+group.length+' REFERENCIAS · TOTAL '+esc(fmtPick(total))+' MTS'+(missing?' · FALTAN '+esc(fmtPick(missing))+' MTS':'')+'</span>'+group.map(pickLine).join('')+'</div>';
+        }).join('');
+      };
+      body.innerHTML = visibleItems.map(item => '<article class="inventory-item-card"><span class="inv-badge">'+esc(item.categoria_label)+'</span><strong class="inv-name">'+esc(item.nombre)+'</strong><div class="inventory-rolls">'+(() => { const left = [...(item.sobrantes || [])]; return (item.roll_values || []).map((value,index) => { const k = left.findIndex(x => item.roll_statuses?.[index]==='started' && Math.abs(Number(x.valor) - Number(value)) < 0.011); const mark = k >= 0 ? left.splice(k,1)[0] : null; return '<span class="inventory-roll '+(item.roll_statuses?.[index]==='started'?'roll-started':'roll-new')+(mark?' roll-left':'')+(pickRolls.get(item.id)?.has(index)?' roll-pick roll-pick-'+pickRolls.get(item.id).get(index):'')+'"'+'>'+esc(value)+'</span>'; }).join(''); })()+'</div>'+'<span class="inv-total">'+esc(item.mts ?? item.total ?? 0)+' MTS</span><span class="inv-unit">'+esc(item.rolls || (item.roll_values || []).length)+' rollos</span>'+pickBlock(pickNotes.get(item.id)||[])+'</article>').join('') || '<div class="inventory-empty">No hay referencias en el inventario local.</div>';
+      if (status) status.textContent = (data.summary?.items || data.items?.length || 0) + ' referencias disponibles · inventario local';
+      body.dataset.localRendered = 'true';
+    } catch (error) { body.innerHTML = '<div class="inventory-empty">'+String(error.message || error)+'</div>'; }
+  };
+  renderLocalInventory();
+  document.addEventListener('click', event => {
+    const tab = event.target.closest('.nav-children .tab');
+    if (!tab || tab.dataset.bodegaDashboard || tab.dataset.bodegasNav || !/INVENTARIOS/i.test(tab.closest('.nav-group')?.querySelector('.nav-parent')?.textContent || '')) return;
+    setTimeout(() => {
+      const inventoryBody = document.getElementById('inventory-body');
+      if (inventoryBody) { inventoryBody.dataset.localRendered = 'false'; renderLocalInventory(); }
+    }, 60);
+  });
+  setInterval(() => {
+    const inventoryBody = document.getElementById('inventory-body');
+    if (inventoryBody && !inventoryBody.querySelector('.inventory-rolls')) {
+      inventoryBody.dataset.localRendered = 'false';
+      renderLocalInventory();
+    }
+  }, 1200);
+  setInterval(() => {
+    const inventoryBody = document.getElementById('inventory-body'), search = document.getElementById('inventory-search');
+    if (inventoryBody && inventoryBody.offsetParent && !(search && search.value.trim())) { inventoryBody.dataset.localRendered = 'false'; renderLocalInventory(); }
+  }, 60000);
+  const inventorySearchBox = document.getElementById('inventory-search');
+  if (inventorySearchBox) inventorySearchBox.addEventListener('input', event => {
+    event.stopImmediatePropagation();
+    const query = String(event.target.value || '').trim().toLocaleLowerCase('es');
+    document.querySelectorAll('#inventory-body .inventory-item-card').forEach(card => {
+      card.hidden = false;
+      card.style.display = !query || String(card.querySelector('.inv-name')?.textContent || '').toLocaleLowerCase('es').includes(query) ? '' : 'none';
+    });
+  }, true);
+  const rollStyle = document.createElement('style');
+  rollStyle.textContent = '.inventory-category-grid{display:grid!important;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px!important}.inventory-category{display:grid!important;gap:6px;min-height:92px;padding:15px!important;border-radius:15px!important;background:linear-gradient(145deg,#182319,#0d130e)!important;text-align:left!important}.inventory-category small{font-size:.68rem}.inventory-category b{font-size:1.35rem!important}.inventory-category span{margin-left:0!important}.inventory-rolls{display:flex;flex-wrap:wrap;gap:7px;margin:7px 0 3px}.inventory-roll{display:inline-grid;place-items:center;min-width:34px;height:34px;padding:0 7px;border:2px solid #b5e834;border-radius:50%;background:#182719;color:#e8ff9b;font:800 12px Arial;box-sizing:border-box}.inventory-roll.roll-started{border-color:#ff9f1c;background:#4d3410;color:#ffd9a0}.inventory-roll.roll-new{border-color:#79d66f;background:#1d4922;color:#d9ffd4}.inventory-item-card .inv-total{margin-top:3px}';
+  document.head.appendChild(rollStyle);
+  const inventoryCategoryStrip = document.getElementById('inventory-categories');
+  if (inventoryCategoryStrip) inventoryCategoryStrip.style.setProperty('display', 'none', 'important');
+  const inventoryGroup = [...document.querySelectorAll('.nav-group')].find(item => /STOCK TELA|BODEGA TELA/i.test(item.textContent));
+  if (inventoryGroup) {
+    inventoryGroup.classList.add('inventory-hover-group', 'collapsed');
+    inventoryGroup.addEventListener('mouseenter', () => inventoryGroup.classList.remove('collapsed'));
+    inventoryGroup.addEventListener('mouseleave', () => inventoryGroup.classList.add('collapsed'));
+  }
+  const decorateRollCards = async () => {
+    const body = document.getElementById('inventory-body');
+    if (!body) return;
+    try {
+      const response = await fetch('/api/inventarios', {cache:'no-store'});
+      const data = await response.json();
+      const byName = new Map((data.items || []).map(item => [String(item.nombre), item]));
+      if (!document.querySelector('.stock-legend') && [...body.querySelectorAll('.inventory-item-card')].some(c => String(byName.get(c.querySelector('.inv-name')?.textContent?.trim())?.categoria || '').toUpperCase() === 'BODEGA TELA')) body.insertAdjacentHTML('beforebegin', '<div class="stock-legend"><span>Tarjeta llena = 2.500 MTS</span><span><i class="l-tone" style="background:#d94430"></i>menos de 600</span><span><i class="l-tone" style="background:#d38800"></i>bajo el mínimo</span><span><i class="l-tone" style="background:#12a58f"></i>1.200 a 2.500</span><span><i class="l-tone" style="background:#3a2f9e"></i>más de 2.500</span></div>');
+      body.querySelectorAll('.inventory-item-card').forEach(card => {
+        const name = card.querySelector('.inv-name')?.textContent?.trim();
+        const item = byName.get(name);
+        if (item && String(item.categoria || '').toUpperCase() === 'BODEGA TELA') {
+          const STOCK_MIN = 1200, STOCK_MAX = 2500, total = Number(item.total) || 0;
+          card.setAttribute('data-lq', String(Math.round(Math.min(100, total / STOCK_MAX * 100))));
+          if (total > STOCK_MAX) { card.removeAttribute('data-lq-tone'); card.setAttribute('data-lq-color', '#3a2f9e'); }   // índigo oscuro: distinto del azul de los rollos de Sublimación y de la bodega Gloria
+          else { card.removeAttribute('data-lq-color'); card.setAttribute('data-lq-tone', total < STOCK_MIN * 0.5 ? 'rojo' : total < STOCK_MIN ? 'ambar' : 'teal'); }
+          card.setAttribute('data-lq-nopct', '');
+          card.title = 'Nivel de stock: mínimo 1.200 MTS · máximo 2.500 MTS';
+        }
+        if (!item || card.querySelector('.inventory-rolls')) return;
+        const rolls = document.createElement('div');
+        rolls.className = 'inventory-rolls';
+        rolls.innerHTML = (item.roll_values || []).map(value => '<span class="inventory-roll">' + String(value) + '</span>').join('');
+        card.querySelector('.inv-total')?.before(rolls);
+        const unit = card.querySelector('.inv-unit');
+        if (unit) unit.textContent = (item.rolls || (item.roll_values || []).length) + ' rollos';
+      });
+    } catch (_) {}
+  };
+  setInterval(decorateRollCards, 700);
+})();
+</script>

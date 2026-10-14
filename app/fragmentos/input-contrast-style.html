@@ -1,0 +1,19 @@
+<style id="indoor-input-contrast">
+/* Keep typed and autofilled text legible, including focused browser autofill. */
+input:not([type=file]):not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=hidden]):not([type=submit]):not([type=button]), textarea, select {
+  color-scheme:dark; background-color:#25312a!important; color:#f4f7f2!important;
+  -webkit-text-fill-color:#f4f7f2!important; caret-color:#e0fc82!important;
+}
+input::placeholder,textarea::placeholder {color:#b8c4bb!important;-webkit-text-fill-color:#b8c4bb!important;opacity:1}
+input:autofill,input:autofill:hover,input:autofill:focus,input:autofill:active {
+  background-color:#25312a!important;color:#f4f7f2!important;
+  box-shadow:0 0 0 1000px #25312a inset!important;
+}
+input:-webkit-autofill,input:-webkit-autofill:hover,input:-webkit-autofill:focus,input:-webkit-autofill:active {
+  -webkit-text-fill-color:#f4f7f2!important;caret-color:#e0fc82!important;
+  -webkit-box-shadow:0 0 0 1000px #25312a inset!important;box-shadow:0 0 0 1000px #25312a inset!important;
+}
+input:focus-visible,textarea:focus-visible,select:focus-visible {outline:2px solid #d4ec98!important;outline-offset:2px}
+input::selection,textarea::selection {background:#d4ec98;color:#142014;-webkit-text-fill-color:#142014}
+select option {background:#25312a;color:#f4f7f2}
+</style>
