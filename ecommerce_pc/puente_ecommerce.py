@@ -131,6 +131,8 @@ class Bot:
                     self.estado = 'ERROR'
                 elif self.estado == 'EN_FILA':
                     self.estado = 'CORRIENDO'
+                elif self.estado == 'ERROR' and 'Reintentando' not in linea:
+                    self.estado = 'CORRIENDO'   # el agente se recuperó solo (por ejemplo volvió a entrar a Effi) y sigue trabajando
         except Exception:
             pass
 
