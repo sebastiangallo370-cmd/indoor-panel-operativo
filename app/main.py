@@ -1158,7 +1158,11 @@ def _alertas_produccion() -> dict:
         if due and due < hoy:
             dias = (hoy - due).days
             if orden not in atrasados or dias > atrasados[orden]['dias']:
-                atrasados[orden] = {'tipo': 'atrasado', 'orden': orden, 'dias': dias,
+                proceso = ((row.get('current_process') or {}).get('label') or '')
+                atrasados[orden] = {'tipo': 'atrasado', 'orden': orden, 'cliente': cliente, 'dias': dias, 'entrega': due.isoformat(), 'proceso': proceso,
+                                    'severidad': 'alta' if dias >= 3 else 'media',
+                                    'titulo': f'{orden} · atrasado {dias} día' + ('s' if dias != 1 else ''),
+                                    'detalle': cliente + (f' · va en {proceso}' if proceso else '') + f' · debía entregarse el {due.strftime("%d/%m")}',
                                     'texto': f'{orden} · {cliente} · atrasado {dias} día' + ('s' if dias != 1 else '')}
         for i, label in stages.items():
             if get(i).upper() == 'R':
@@ -1169,7 +1173,9 @@ def _alertas_produccion() -> dict:
     for r in reprocesos.values():
         refs = sorted(set(r['refs']))
         detalle = f" ({', '.join(refs[:2])}{'…' if len(refs) > 2 else ''})" if refs else ''
-        lista_rep.append({'tipo': 'reproceso', 'orden': r['orden'], 'texto': f"{r['orden']} · {r['cliente']} · reproceso en {r['label']}{detalle}"})
+        lista_rep.append({'tipo': 'reproceso', 'orden': r['orden'], 'cliente': r['cliente'], 'etapa': r['label'], 'severidad': 'media',
+                          'titulo': f"{r['orden']} · reproceso en {r['label']}", 'detalle': r['cliente'] + (f' · referencia {", ".join(refs[:2])}' if refs else ''),
+                          'texto': f"{r['orden']} · {r['cliente']} · reproceso en {r['label']}{detalle}"})
     return {'alertas': sorted(atrasados.values(), key=lambda a: -a['dias']) + lista_rep}
 
 
@@ -1180,11 +1186,15 @@ def _alertas_tela() -> list:
     for plan in (dash.get('sublimacion') or {}).get('lista') or []:
         if plan.get('short') and plan.get('label') not in vistos:
             vistos.add(plan.get('label'))
-            lista.append({'tipo': 'tela', 'orden': plan.get('label', ''), 'texto': f"{plan.get('label', 'Orden')} · NO ALCANZA la tela · faltan {plan.get('missing')} mts"})
+            lista.append({'tipo': 'tela', 'orden': plan.get('label', ''), 'cliente': '', 'severidad': 'alta', 'faltan': plan.get('missing'),
+                          'titulo': f"{plan.get('label', 'Orden')} · no alcanza la tela", 'detalle': f"Faltan {plan.get('missing')} mts para sublimar esta orden.",
+                          'texto': f"{plan.get('label', 'Orden')} · NO ALCANZA la tela · faltan {plan.get('missing')} mts"})
     for plan in dash.get('listas') or []:
         if plan.get('short') and plan.get('label') not in vistos:
             vistos.add(plan.get('label'))
-            lista.append({'tipo': 'tela', 'orden': plan.get('label', ''), 'texto': f"{plan.get('label', 'Orden')} · la tela no alcanzará al entrar a Sublimación (hay {plan.get('disponible')} de {plan.get('mts')} mts)"})
+            lista.append({'tipo': 'tela', 'orden': plan.get('label', ''), 'cliente': '', 'severidad': 'media', 'faltan': None,
+                          'titulo': f"{plan.get('label', 'Orden')} · la tela no alcanzará", 'detalle': f"Al entrar a Sublimación habrá {plan.get('disponible')} de {plan.get('mts')} mts.",
+                          'texto': f"{plan.get('label', 'Orden')} · la tela no alcanzará al entrar a Sublimación (hay {plan.get('disponible')} de {plan.get('mts')} mts)"})
     return lista
 
 
@@ -1213,6 +1223,13 @@ def alertas_panel(usuario=Depends(authenticate)):
             error = error or 'No se pudo leer Inventario'
         else:
             alertas += tela
+    if permisos_mod.administracion_permitido(str(usuario)):
+        try:
+            alertas += ecommerce_mod.alertas()
+        except Exception:
+            logging.exception('alertas: no se pudo leer ECOMMERCE')
+    orden_sev = {'alta': 0, 'media': 1, 'info': 2}
+    alertas.sort(key=lambda a: (orden_sev.get(a.get('severidad'), 1), -(a.get('dias') or 0)))
     return {'alertas': alertas, 'total': len(alertas), 'error': error}
 
 
@@ -6422,7 +6439,7 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
 `;document.head.appendChild(traceFigmaStyle);setTraceView();
     const commercialGroup=commercialToggle.closest('.nav-group');commercialGroup.classList.add('collapsed');const productionToggle=document.getElementById('production-toggle');if(productionToggle)productionToggle.addEventListener('click',()=>{{const g=productionToggle.closest('.nav-group');g.classList.toggle('collapsed');if(!g.classList.contains('collapsed')&&window.innerWidth>860)g.querySelector('.nav-children .tab')?.click()}});
     setTimeout(()=>{{if(!document.querySelector('.panel.active'))document.querySelector('.tab[data-kind="inicio"]')?.click()}},0);
-    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/liquid-stats.js?v=20261009-10'></script><script src='/permisos.js?v=20261007-2'></script><script src='/reposiciones.js?v=20261005-4'></script><script src='/agentes.js?v=20261014-19'></script><script src='/promedios.js?v=20261006-7'></script><script src='/capacidad.js?v=20261009-2'></script><script src='/molderia.js?v=20261010-2'></script><script src='/estandar.js?v=20261007-1'></script><script src='/terminos.js?v=20261010-1'></script><script src='/cookies-aviso.js?v=20261010-1'></script><script src='/rh-contratos.js?v=20261009-3'></script><script src='/fichas-resumen.js?v=20261010-16'></script><script src='/api/cartera/cartera.js?v=20261009-1'></script><script src='/trace-ui.js?v=20261009-13'></script><script src='/home-dashboard.js?v=20261014-26'></script><script src='/bodega-dashboard.js?v=20261009-5'></script><script src='/bodegas.js?v=20261009-7'></script><script src='/codigos-barras.js?v=20261014-3'></script><script src='/mis-pedidos.js?v=20261008-4'></script><script src='/mobile-nav.js?v=20261012-1'></script><script src='/nav-liquid.js?v=20261003-3'></script><script src='/build-watch.js?v=20261002-1'></script><script src='/salud.js?v=20261014-2'></script><script src='/alertas.js?v=20261014-2'></script><script src='/bitacora.js?v=20261014-1'></script><script src='/ecommerce.js?v=20261014-8'></script><script src='/tema.js?v=20261008-1'></script><script src='/tarjeta-iconos.js?v=20261002-5'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261014-4'></script><script src='/linea-editor.js?v=20261008-1'></script><script src='/menu-cuenta.js?v=20261008-1'></script><script src='/foto-perfil.js?v=20261008-4'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
+    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/liquid-stats.js?v=20261009-10'></script><script src='/permisos.js?v=20261007-2'></script><script src='/reposiciones.js?v=20261005-4'></script><script src='/agentes.js?v=20261014-19'></script><script src='/promedios.js?v=20261006-7'></script><script src='/capacidad.js?v=20261009-2'></script><script src='/molderia.js?v=20261010-2'></script><script src='/estandar.js?v=20261007-1'></script><script src='/terminos.js?v=20261010-1'></script><script src='/cookies-aviso.js?v=20261010-1'></script><script src='/rh-contratos.js?v=20261009-3'></script><script src='/fichas-resumen.js?v=20261010-16'></script><script src='/api/cartera/cartera.js?v=20261009-1'></script><script src='/trace-ui.js?v=20261009-13'></script><script src='/home-dashboard.js?v=20261014-26'></script><script src='/bodega-dashboard.js?v=20261009-5'></script><script src='/bodegas.js?v=20261009-7'></script><script src='/codigos-barras.js?v=20261014-3'></script><script src='/mis-pedidos.js?v=20261008-4'></script><script src='/mobile-nav.js?v=20261012-1'></script><script src='/nav-liquid.js?v=20261003-3'></script><script src='/build-watch.js?v=20261002-1'></script><script src='/salud.js?v=20261014-2'></script><script src='/alertas.js?v=20261014-3'></script><script src='/bitacora.js?v=20261014-1'></script><script src='/ecommerce.js?v=20261014-9'></script><script src='/tema.js?v=20261008-1'></script><script src='/tarjeta-iconos.js?v=20261002-5'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261014-4'></script><script src='/linea-editor.js?v=20261008-1'></script><script src='/menu-cuenta.js?v=20261008-1'></script><script src='/foto-perfil.js?v=20261008-4'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
 
 
 def ordered_mockup_uploads(extras, slots):

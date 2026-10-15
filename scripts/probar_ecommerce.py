@@ -3,6 +3,7 @@ import json, os, subprocess, sys, tempfile, threading, time, urllib.request, url
 from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parent.parent
+os.environ['ECOMMERCE_PUERTO_GUARDIA'] = '8791'   # no chocar con el puente real de este PC
 tmp = Path(tempfile.mkdtemp())
 os.environ['ECOMMERCE_FILE'] = str(tmp / 'ecommerce.json')
 os.environ['ECOMMERCE_TOKEN_FILE'] = str(tmp / 'tok.txt')

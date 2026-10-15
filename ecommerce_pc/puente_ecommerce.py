@@ -153,6 +153,44 @@ def cola_actual() -> dict:
     return {nombre: len(list((AQUI / 'cola' / carpeta).glob('OV*.json'))) for nombre, carpeta in ETAPAS.items()}
 
 
+def latidos_actuales() -> dict:
+    """Estado en vivo de cada agente (lo escribe agente_ov.py): qué hace ahora y cuánto falta para su próxima revisión."""
+    salida, ahora = {}, time.time()
+    for aid, spec in AGENTES.items():
+        d = leer_json(AQUI / 'cola' / f"estado_{spec['rol']}.json", {})
+        if not d:
+            continue
+        salida[aid] = {'actividad': str(d.get('actividad', ''))[:120], 'hace_seg': max(0, round(ahora - float(d.get('at', ahora)))),
+                       'ultima_hace': round(ahora - float(d['ultima'])) if d.get('ultima') else None,
+                       'proxima_en': round(float(d['proxima']) - ahora) if d.get('proxima') else None, 'intervalo': d.get('intervalo')}
+    return salida
+
+
+def trabajos_actuales() -> list:
+    """Las órdenes que hay en cada etapa de la cola (con lo necesario para dibujarlas en el panel)."""
+    lista = []
+    for etapa, carpeta in ETAPAS.items():
+        archivos = sorted((AQUI / 'cola' / carpeta).glob('OV*.json'), key=lambda p: p.stat().st_mtime, reverse=True)[:25]
+        for p in archivos:
+            j = leer_json(p, {})
+            if not j.get('numero'):
+                continue
+            lista.append({'numero': str(j['numero']), 'etapa': etapa, 'cliente': str(j.get('cliente', ''))[:60], 'unidades': str(j.get('unidades', '')),
+                          'descargada': j.get('descargada', ''), 'terminada': j.get('terminada', ''), 'resultado': str(j.get('resultado', ''))[:120],
+                          'avisos': [str(a)[:140] for a in (j.get('avisos') or [])][:6], 'intentos': j.get('intentos', 0),
+                          'eventos': (j.get('eventos') or [])[-10:],
+                          'items': [{k: str(it.get(k, ''))[:30] for k in ('ref', 'diseno', 'talla', 'nombre', 'numero')} | {'maestro': bool(it.get('maestro'))}
+                                    for it in (j.get('items') or [])][:20],
+                          'modificada': time.strftime('%Y-%m-%dT%H:%M:%S', time.localtime(p.stat().st_mtime))})
+    return lista[:90]
+
+
+def pedir_revision_ahora():
+    """Botón «Revisar Effi ahora» del panel: ALMA lo atiende en menos de 1 segundo."""
+    (AQUI / 'cola').mkdir(parents=True, exist_ok=True)
+    (AQUI / 'cola' / 'revisar_ahora.flag').write_text(str(time.time()), encoding='utf-8')
+
+
 def peticion(url: str, token: str, cuerpo: dict):
     datos = json.dumps(cuerpo, ensure_ascii=False).encode('utf-8')
     req = urllib.request.Request(url, data=datos, headers={'Content-Type': 'application/json', 'X-Ecommerce-Token': token}, method='POST')
@@ -196,7 +234,7 @@ def una_sola_copia():
     """Evita dos puentes a la vez (los dos ejecutarían cada orden del panel): el primero reserva un puerto local."""
     guardia = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
-        guardia.bind(('127.0.0.1', 8764))
+        guardia.bind(('127.0.0.1', int(os.getenv('ECOMMERCE_PUERTO_GUARDIA', '8764'))))   # las pruebas usan otro puerto para no chocar con el puente real
     except OSError:
         return None
     return guardia
@@ -264,6 +302,7 @@ def main():
                 time.sleep(SONDEO_SEG)
                 continue
             cuerpo = {'equipo': equipo, 'simulado': args.simulado, 'lineas': lineas, 'resultados': resultados, 'cola': cola_actual(),
+                      'latidos': latidos_actuales(), 'trabajos': trabajos_actuales(),
                       'agentes': {aid: {'estado': b.estado, 'pid': b.proc.pid if b.corriendo() else None, 'ultima': b.ultima} for aid, b in bots.items()}}
             try:
                 resp = peticion(url, panel['token'], cuerpo)
@@ -280,6 +319,8 @@ def main():
                             detalle = bot.detener()
                         elif orden['accion'] == 'reiniciar':
                             bot.detener(); time.sleep(2); detalle = bot.iniciar()
+                        elif orden['accion'] == 'revisar':
+                            pedir_revision_ahora(); detalle = 'revisión pedida'
                         else:
                             raise RuntimeError('acción desconocida')
                         resultados.append({'orden': orden['id'], 'ok': True, 'detalle': detalle})

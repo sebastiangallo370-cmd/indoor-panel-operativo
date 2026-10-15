@@ -35,6 +35,45 @@ def log(texto: str):
     print(texto, flush=True)
 
 
+def latido(rol: str, actividad: str = '', ultima=None, proxima=None, intervalo=None):
+    """Estado en vivo del agente para el panel (cola/estado_<rol>.json): qué está haciendo y cuándo vuelve a revisar."""
+    try:
+        COLA.mkdir(parents=True, exist_ok=True)
+        ruta = COLA / f'estado_{rol}.json'
+        try:
+            datos = json.loads(ruta.read_text(encoding='utf-8'))
+        except (OSError, ValueError):
+            datos = {}
+        datos.update({'actividad': actividad, 'at': time.time()})
+        for clave, valor in (('ultima', ultima), ('proxima', proxima), ('intervalo', intervalo)):
+            if valor is not None:
+                datos[clave] = valor
+        tmp = ruta.with_suffix('.tmp')
+        tmp.write_text(json.dumps(datos), encoding='utf-8')
+        tmp.replace(ruta)
+    except OSError:
+        pass
+
+
+def evento(job: dict, agente: str, texto: str):
+    """Línea de la historia de la orden (se ve en el panel al abrir la orden)."""
+    eventos = job.setdefault('eventos', [])
+    eventos.append({'at': datetime.now().isoformat(timespec='seconds'), 'agente': agente, 'texto': texto})
+    del eventos[:-30]
+
+
+def dormir_vigilando(segundos: float):
+    """Espera hasta la próxima revisión, pero atiende el botón «Revisar ahora» del panel (archivo cola/revisar_ahora.flag)."""
+    bandera = COLA / 'revisar_ahora.flag'
+    fin = time.time() + segundos
+    while time.time() < fin:
+        if bandera.exists():
+            bandera.unlink(missing_ok=True)
+            log('Revisión pedida desde el panel.')
+            return
+        time.sleep(1)
+
+
 # ------------------------------------------------------------------ cola de trabajo (carpetas con un .json por orden)
 def carpeta(etapa: str) -> Path:
     ruta = COLA / etapa
@@ -178,6 +217,7 @@ def ciclo_descarga(bov, ruta: Path, driver, wait, fallos: dict) -> bool:
     candidatos.sort(key=lambda c: (c[0], c[1]))
     _, numero, row = candidatos[0]
     log(f'Nueva orden de venta: OV{numero}')
+    latido('descarga', f'Descargando OV{numero}')
     pdf = None
     existente = bov.DOWNLOAD_DIR / f'OV_{numero}.pdf'
     if existente.exists() and existente.stat().st_size > 0:
@@ -190,7 +230,9 @@ def ciclo_descarga(bov, ruta: Path, driver, wait, fallos: dict) -> bool:
         fallos[numero] = (n, time.time())
         log(f'[Error] No pude descargar el PDF de OV{numero} (intento {n} de {INTENTOS_MAX}).')
         return True
-    guardar_trabajo('1_descargadas', {'numero': numero, 'pdf': pdf, 'descargada': datetime.now().isoformat(timespec='seconds'), 'intentos': 0})
+    job = {'numero': numero, 'pdf': pdf, 'descargada': datetime.now().isoformat(timespec='seconds'), 'intentos': 0}
+    evento(job, 'ALMA', 'Descargó el PDF de Effi')
+    guardar_trabajo('1_descargadas', job)
     log(f'  [OK] OV{numero} descargada: pasa a BRISA (tallas).')
     return True
 
@@ -207,8 +249,15 @@ def rol_descarga():
             wait = WebDriverWait(driver, 30)
             bov.login(driver, wait)
             while True:
-                if not ciclo_descarga(bov, ruta, driver, wait, fallos):
-                    time.sleep(bov.INTERVALO_REVISION)
+                latido('descarga', 'Revisando las órdenes de venta de Effi…')
+                hizo = ciclo_descarga(bov, ruta, driver, wait, fallos)
+                ahora = time.time()
+                if not hizo:
+                    espera = bov.INTERVALO_REVISION
+                    latido('descarga', 'Vigilando Effi', ultima=ahora, proxima=ahora + espera, intervalo=espera)
+                    dormir_vigilando(espera)
+                else:
+                    latido('descarga', 'Orden descargada', ultima=ahora)
         except KeyboardInterrupt:
             break
         except Exception as e:  # noqa: BLE001
@@ -225,7 +274,14 @@ def ciclo_tallas(mo, ruta_job: Path) -> None:
     job = leer_trabajo(ruta_job)
     numero, pdf = job['numero'], job['pdf']
     log(f'OV{numero}: leyendo el PDF y buscando los maestros…')
+    latido('tallas', f'Leyendo OV{numero} y buscando sus maestros')
     items = mo.leer_items(pdf)
+    try:
+        enc = mo.leer_encabezado(pdf)
+        job['cliente'], job['unidades'] = enc.get('cliente', ''), enc.get('unidades', '')
+    except Exception:  # noqa: BLE001
+        pass
+    evento(job, 'BRISA', f'Leyó el PDF: {len(items)} prenda(s)')
     for it in items:
         m = mo.buscar_maestro(it)
         it['maestro'] = str(m) if m else ''
@@ -245,6 +301,7 @@ def ciclo_tallas(mo, ruta_job: Path) -> None:
                 continue
             hechos.add(clave)
             log(f"OV{numero}: exportando las tallas de {Path(it['maestro']).name}…")
+            latido('tallas', f"Exportando tallas de OV{numero} ({Path(it['maestro']).name})")
             try:
                 destino = mo.desempacar_tallas(Path(it['maestro']), it)
                 log(f'  [OK] Tallas en {destino}')
@@ -262,7 +319,9 @@ def ciclo_tallas(mo, ruta_job: Path) -> None:
         guardar_trabajo('errores', job, quitar=ruta_job)
         log(f'[Error] OV{numero}: {job["resultado"]}. Revisa Illustrator y mueve el archivo de la carpeta cola/errores a cola/1_descargadas para reintentar.')
         return
+    evento(job, 'BRISA', 'Tallas exportadas' if not avisos else 'Tallas exportadas con avisos')
     guardar_trabajo('2_tallas', job, quitar=ruta_job)
+    latido('tallas', 'Esperando órdenes descargadas')
     log(f'  OV{numero} lista para CIRO (PDF por jugador y Google Sheets).')
 
 
@@ -275,6 +334,7 @@ def rol_tallas():
             if pendientes:
                 ciclo_tallas(mo, pendientes[0])
             else:
+                latido('tallas', 'Esperando órdenes descargadas', ultima=None)
                 time.sleep(ESPERA_COLA_SEG)
         except KeyboardInterrupt:
             break
@@ -288,6 +348,7 @@ def ciclo_pdfs(mo, ruta: Path, ruta_job: Path) -> None:
     job = leer_trabajo(ruta_job)
     numero, pdf, items = job['numero'], job['pdf'], job.get('items') or []
     avisos = []
+    latido('pdfs', f'Generando los PDF de OV{numero}')
     abrir = os.getenv('ABRIR_ILLUSTRATOR', '1') == '1'
     if items and abrir:
         orden = mo.leer_encabezado(pdf)['orden']
@@ -313,6 +374,7 @@ def ciclo_pdfs(mo, ruta: Path, ruta_job: Path) -> None:
             avisos.append(f'Listado: {e}')
             log(f'  [Error] {avisos[-1]}')
     log(f'OV{numero}: llenando Google Sheets…')
+    latido('pdfs', f'Llenando Google Sheets (OV{numero})')
     try:
         en_sheets = mo.registrar_en_sheets(pdf, items)
     except Exception as e:  # noqa: BLE001
@@ -321,6 +383,7 @@ def ciclo_pdfs(mo, ruta: Path, ruta_job: Path) -> None:
     if not en_sheets:
         avisos.append('No se registró en Google Sheets')
     registrar_procesada(ruta, numero, pdf)
+    evento(job, 'CIRO', 'PDF por jugador, listado y Google Sheets' + (' con avisos' if avisos else ' listos'))
     job.update(avisos=avisos, items=items, terminada=datetime.now().isoformat(timespec='seconds'))
     if not items:
         job['resultado'] = 'Sin maestro: la orden no trae referencias de INTERCLASES'
@@ -345,7 +408,9 @@ def rol_pdfs():
             pendientes = trabajos('2_tallas')
             if pendientes:
                 ciclo_pdfs(mo, ruta, pendientes[0])
+                latido('pdfs', 'Esperando órdenes con tallas')
             else:
+                latido('pdfs', 'Esperando órdenes con tallas')
                 time.sleep(ESPERA_COLA_SEG)
         except KeyboardInterrupt:
             break
