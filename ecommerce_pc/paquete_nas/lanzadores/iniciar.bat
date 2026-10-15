@@ -8,7 +8,7 @@ if not exist ".venv\Scripts\activate.bat" (
 )
 call .venv\Scripts\activate
 rem ECOMMERCE (bots de Effi) arranca junto con los agentes: la primera vez pide el enlace con el panel.
-if exist ecommerce\puente_ecommerce.py if not exist ecommerce\datos\panel.json python ecommerce\puente_ecommerce.py --conectar
+if exist ecommerce\puente_ecommerce.py if not exist ecommerce\datos\panel.json if not exist ecommerce\datos\sin_enlace.txt python ecommerce\puente_ecommerce.py --conectar
 if exist ecommerce\puente_ecommerce.py if exist ecommerce\datos\panel.json start "" /min python ecommerce\puente_ecommerce.py
 start "" http://127.0.0.1:8000
 python server.py

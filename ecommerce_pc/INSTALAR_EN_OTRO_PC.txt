@@ -1,0 +1,29 @@
+INSTALAR ECOMMERCE EN OTRO PC (igual que los agentes de edición)
+================================================================
+ECOMMERCE viaja con los agentes de edición: el instalador de siempre ya lo trae. La NAS tiene todo publicado en
+\\192.168.0.120\nas indoor\DIRECCION PRODUCCION\CARPETAS PERSONALES\GALLO\AGENTES_INDOOR  (codigo\ecommerce, lanzadores, instalador).
+
+En el PC nuevo (o en uno que ya tiene los agentes de edición: se «actualiza»):
+  1. Doble clic en  INSTALAR_AGENTES_EDICION.vbs  (de esa carpeta de la NAS). Pulsa SÍ al permiso de administrador.
+     Instala / actualiza los agentes de edición y además:
+       · copia ECOMMERCE a  <carpeta de los agentes>\ecommerce
+       · crea el entorno de Python de las órdenes de venta (selenium, pdfplumber, gspread, pywin32…) en
+         %LOCALAPPDATA%\IndoorBot_OrdenesVenta\venv
+  2. Te pide el código de AGENTES (el de siempre) y después el de ECOMMERCE:
+       panel -> menú de usuario -> Ecommerce -> «Conectar PC»  -> copia el código y pégalo.
+     Haz esto de ECOMMERCE SOLO en el PC donde correrán ALMA, BRISA y CIRO: el panel atiende un solo PC
+     (si lo dejas vacío no se conecta y no vuelve a preguntar; después: ecommerce\ENLAZAR_ECOMMERCE.bat).
+  3. Termina solo: arranca los agentes de edición y el puente de ECOMMERCE. En el panel: Ecommerce debe decir «PC conectado»;
+     desde ahí se inicia cada agente (ALMA, BRISA, CIRO).
+
+Después, cada vez que los agentes arrancan (inicio de sesión) se actualizan solos desde la NAS, incluido ECOMMERCE, sin tocar
+ecommerce\datos (enlace) ni ecommerce\cola (órdenes en curso).
+
+Para publicar cambios de ECOMMERCE o de los agentes en la NAS desde el PC donde se editan: publicar_en_nas.bat.
+En este repositorio, la copia de lo publicado está en ecommerce_pc\paquete_nas.
+
+Respaldo de lo que había en la NAS antes de ECOMMERCE:  AGENTES_INDOOR\_respaldos_antes_ecommerce_20261014
+(INSTALAR_AGENTES_EDICION.vbs, codigo\ y lanzadores\ con configurar_instalacion.py, actualizar_desde_nas.bat, iniciar_oculto.vbs, iniciar.bat).
+
+Para no dejar dos PC haciendo lo mismo: si el puente de ECOMMERCE ya corre en otro PC, deténlo allí (cerrar sesión / borrar su
+ecommerce\datos\panel.json) antes de enlazar el nuevo, y no corras INICIAR_BOT_OV.bat a la vez.

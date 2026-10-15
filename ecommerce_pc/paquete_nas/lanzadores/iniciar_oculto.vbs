@@ -21,7 +21,7 @@ sh.Run "cmd /c ""set AGENTES_LOCAL=" & local & "&& set PYTHONDONTWRITEBYTECODE=1
 ' --- ECOMMERCE (bots de Effi): arranca junto con los agentes de edicion, desde la carpeta "ecommerce" de aqui mismo.
 ' La primera vez pide la direccion del panel y el codigo (panel > menu de usuario > Ecommerce > Conectar PC).
 If fso.FileExists("ecommerce\puente_ecommerce.py") Then
-  If Not fso.FileExists("ecommerce\datos\panel.json") Then
+  If Not fso.FileExists("ecommerce\datos\panel.json") And Not fso.FileExists("ecommerce\datos\sin_enlace.txt") Then
     url = InputBox("ECOMMERCE - primera vez en este PC." & vbCrLf & "Direccion del panel:", "ECOMMERCE", "https://produccion.cloud")
     If url <> "" Then
       cod = InputBox("En el panel: menu de usuario > Ecommerce > Conectar PC." & vbCrLf & "Pega aqui el codigo:", "ECOMMERCE")
@@ -31,6 +31,10 @@ If fso.FileExists("ecommerce\puente_ecommerce.py") Then
         f.Write "{""url"": """ & Trim(url) & """, ""token"": """ & Trim(cod) & """}"
         f.Close
       End If
+    End If
+    If Not fso.FileExists("ecommerce\datos\panel.json") Then
+      If Not fso.FolderExists("ecommerce\datos") Then fso.CreateFolder "ecommerce\datos"
+      fso.CreateTextFile("ecommerce\datos\sin_enlace.txt", True).Close
     End If
   End If
   If fso.FileExists("ecommerce\datos\panel.json") Then
