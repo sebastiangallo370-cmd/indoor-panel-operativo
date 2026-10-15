@@ -14,15 +14,14 @@ Los agentes usan el código de BOT_ORDENES_VENTA (maestros_ov.py, bot_ordenes_ve
 en la NAS: aquí no se copia ninguna clave. NO corras a la vez INICIAR_BOT_OV.bat: haría lo mismo dos veces.
 
 MISMA CARPETA Y MISMO ARCHIVO QUE LOS AGENTES DE EDICIÓN
-  Viven en  agentes_uniformes\ecommerce  (junto a los agentes de edición) y arrancan con el mismo archivo:
-    · iniciar_oculto.vbs  (segundo plano)   · iniciar.bat  (con ventana)
-  Eso arranca el PUENTE (puente_ecommerce.py), que no hace nada por sí solo: espera las órdenes del panel (Iniciar / Detener de cada agente).
-  Primera vez: pide la dirección del panel y el código (panel: Ecommerce -> «Conectar PC»), los guarda en ecommerce\datos\panel.json
-  y sigue solo. Si los agentes de edición ya están corriendo: detener_agentes.bat y luego iniciar_oculto.vbs.
-  El inicio automático de los agentes (instalar_inicio_automatico.bat) también arranca el puente. Registro: logs\ecommerce.txt.
-
-  Instalar en otro PC de agentes: copiar la carpeta  ecommerce  (puente_ecommerce.py y agente_ov.py) dentro de agentes_uniformes
-  y reemplazar iniciar_oculto.vbs / iniciar.bat por los de  lanzadores_agentes  (traen el bloque de ECOMMERCE al final).
+  Viven en  agentes_uniformes\ecommerce  (junto a los agentes de edición) y los arranca el mismo archivo:
+    · iniciar_oculto.vbs  (segundo plano; también lo ejecuta la tarea programada «Agentes Indoor»)   · iniciar.bat  (con ventana)
+  Ese archivo arranca los dos: los agentes de edición y, en el PC enlazado con el panel, el PUENTE (puente_ecommerce.py --iniciar-agentes),
+  que a su vez inicia BRISA, CIRO y ALMA (en ese orden) y atiende los botones Iniciar / Detener del panel.
+  detener_agentes.bat detiene los dos. Registro: logs\ecommerce.txt.
+  Primera vez: pide la dirección del panel y el código (panel: Ecommerce -> «Conectar PC»), los guarda en ecommerce\datos\panel.json.
+  Sin enlace (o con «sin_enlace.txt») ECOMMERCE no arranca en ese PC: solo debe correr en UN PC.
+  Instalar en otro PC: ver INSTALAR_EN_OTRO_PC.txt (INSTALAR_AGENTES_EDICION.vbs de la NAS lo hace todo).
 
 PRIMERA VEZ EN UN PC: abre  ecommerce\PREPARAR_ENTORNO.bat  (crea el entorno de Python con selenium, pdfplumber, gspread, pywin32…;
 no arranca ningún bot). Sin eso BRISA y CIRO no pueden leer los PDF.

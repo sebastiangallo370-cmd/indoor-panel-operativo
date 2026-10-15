@@ -9,8 +9,9 @@ Cada pocos segundos avisa al panel que está vivo, le manda el estado de cada ag
 órdenes hay en cada etapa de la cola.
 Solo hace peticiones salientes al panel (reserva el puerto local 8764 únicamente para no correr dos copias a la vez).
 
-Uso (normalmente lo arranca solo iniciar_oculto.vbs / iniciar.bat de los agentes de edición, en la misma carpeta):
-    python puente_ecommerce.py                 normal (la primera vez pide el enlace; arranca/detiene los bots de verdad)
+Uso (normalmente lo arranca iniciar_oculto.vbs / iniciar.bat de los agentes de edición, en la misma carpeta, con --iniciar-agentes):
+    python puente_ecommerce.py --iniciar-agentes   arranca BRISA, CIRO y ALMA y atiende al panel (con o sin panel enlazado)
+    python puente_ecommerce.py                 solo atiende al panel (los agentes se inician desde la página)
     python puente_ecommerce.py --simulado      PRUEBA: no toca Effi ni Illustrator; los «bots» solo imprimen líneas de ejemplo
     python puente_ecommerce.py --conectar      pide la dirección y el código que muestra el panel y los guarda
 Config en datos\\panel.json (dirección y código) y datos\\config.json (carpeta de los bots).
@@ -173,6 +174,22 @@ def conectar():
     return 0
 
 
+def limpiar_huerfanos():
+    """Si un puente anterior se cerró a la fuerza, sus agentes (procesos hijos) siguen vivos: se cierran antes de arrancar los nuevos,
+    para no tener dos ALMA descargando lo mismo de Effi ni dos CIRO escribiendo en Google Sheets."""
+    if os.name != 'nt':
+        return
+    ps = ("Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match 'agente_ov\\.py' -and $_.ProcessId -ne %d } | "
+          "ForEach-Object { taskkill /PID $_.ProcessId /T /F | Out-Null; $_.ProcessId }" % os.getpid())
+    try:
+        r = subprocess.run(['powershell', '-NoProfile', '-Command', ps], capture_output=True, text=True, timeout=40, creationflags=CREATE_NO_WINDOW)
+        cerrados = [x for x in (r.stdout or '').split() if x.isdigit()]
+        if cerrados:
+            print(f'Cerré {len(cerrados)} proceso(s) de agentes que quedaron de una sesión anterior.')
+    except Exception as e:  # noqa: BLE001
+        print(f'No pude revisar procesos viejos de los agentes: {e}')
+
+
 def una_sola_copia():
     """Evita dos puentes a la vez (los dos ejecutarían cada orden del panel): el primero reserva un puerto local."""
     guardia = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -192,6 +209,7 @@ def main():
     ap.add_argument('--simulado', action='store_true')
     ap.add_argument('--conectar', action='store_true')
     ap.add_argument('--una-vez', action='store_true', help='un solo sondeo y salir (prueba de conexión)')
+    ap.add_argument('--iniciar-agentes', action='store_true', help='arranca BRISA, CIRO y ALMA al abrir el puente (así los arranca iniciar_oculto.vbs)')
     args = ap.parse_args()
     if args.conectar:
         sys.exit(conectar())
@@ -199,32 +217,55 @@ def main():
     if guardia is None:
         print('El puente de ECOMMERCE ya está corriendo en este PC.')
         return
+    if not args.simulado:
+        limpiar_huerfanos()
     panel = leer_json(DATOS / 'panel.json', {})
     if not panel.get('url') or not panel.get('token'):   # primera vez: se pide el enlace aquí mismo y se sigue
         print('Primera vez en este PC: falta enlazarlo con el panel (ECOMMERCE → Conectar PC).')
-        if conectar() != 0:
+        codigo = conectar()
+        if codigo == 2:   # sin teclado (arrancó en segundo plano): los agentes trabajan igual, solo que sin panel
+            print('Sigo SIN panel: los agentes funcionan, pero no se controlan ni se ven desde la página hasta enlazar (ecommerce\\ENLAZAR_ECOMMERCE.bat).')
+            panel = {}
+        elif codigo != 0:
             sys.exit(1)
-        panel = leer_json(DATOS / 'panel.json', {})
+        else:
+            panel = leer_json(DATOS / 'panel.json', {})
     config = leer_json(DATOS / 'config.json', {})
     base = Path(config.get('ruta_bots') or RUTA_BOTS)
     salida: 'queue.Queue' = queue.Queue()
     bots = {aid: Bot(aid, spec, base, args.simulado, salida) for aid, spec in AGENTES.items()}
     equipo = socket.gethostname()
-    resultados, url = [], panel['url'].rstrip('/') + '/api/ecommerce/pc/sondeo'
-    print(f'ECOMMERCE_PUENTE · {equipo} · panel {panel["url"]}' + (' · MODO PRUEBA' if args.simulado else ''))
+    resultados, pendientes, url = [], [], (panel.get('url') or '').rstrip('/') + '/api/ecommerce/pc/sondeo'
+    print(f'ECOMMERCE_PUENTE · {equipo} · panel {panel.get("url") or "(sin enlazar)"}' + (' · MODO PRUEBA' if args.simulado else ''))
+    if args.iniciar_agentes:
+        # primero los que esperan trabajo (BRISA y CIRO) y al final ALMA, que es la que trae órdenes nuevas de Effi
+        for aid in ('brisa', 'ciro', 'alma'):
+            try:
+                print(f'[{time.strftime("%H:%M:%S")}] {aid} · inicio automático · {bots[aid].iniciar()}')
+            except Exception as e:  # noqa: BLE001
+                print(f'[{time.strftime("%H:%M:%S")}] {aid} · inicio automático · ERROR {e}')
+            time.sleep(3)
     try:
         while True:
-            lineas = []
-            while len(lineas) < 150:
+            while True:   # lo que escribieron los agentes: se guarda en el registro y se manda al panel
                 try:
                     aid, texto = salida.get_nowait()
-                    lineas.append({'agente': aid, 'texto': texto[:500]})
                 except queue.Empty:
                     break
+                pendientes.append({'agente': aid, 'texto': texto[:500]})
+                print(f'[{aid}] {texto[:300]}')
+            del pendientes[:-2000]   # si el panel no responde mucho rato, solo se guardan las últimas 2000 líneas
+            lineas = pendientes[:150]
+            if not panel.get('token'):   # sin panel: solo se mantienen vivos los agentes y se guarda su salida
+                if args.una_vez:
+                    break
+                time.sleep(SONDEO_SEG)
+                continue
             cuerpo = {'equipo': equipo, 'simulado': args.simulado, 'lineas': lineas, 'resultados': resultados, 'cola': cola_actual(),
                       'agentes': {aid: {'estado': b.estado, 'pid': b.proc.pid if b.corriendo() else None, 'ultima': b.ultima} for aid, b in bots.items()}}
             try:
                 resp = peticion(url, panel['token'], cuerpo)
+                del pendientes[:len(lineas)]
                 resultados = []
                 for orden in resp.get('ordenes', []):
                     bot = bots.get(orden['agente'])
@@ -245,13 +286,9 @@ def main():
                         resultados.append({'orden': orden['id'], 'ok': False, 'detalle': str(e)[:250]})
                         print(f'[{time.strftime("%H:%M:%S")}] {orden["agente"]} · {orden["accion"]} · ERROR {e}')
             except urllib.error.HTTPError as e:
-                print(f'[{time.strftime("%H:%M:%S")}] El panel respondió {e.code} (¿código de enlace vencido? borra datos/panel.json y vuelve a abrir INICIAR_TODO.bat)')
-                for l in lineas:   # no se pierden las líneas del log
-                    salida.put((l['agente'], l['texto']))
+                print(f'[{time.strftime("%H:%M:%S")}] El panel respondió {e.code} (¿código de enlace vencido? vuelve a enlazar con ecommerce/ENLAZAR_ECOMMERCE.bat)')
             except Exception as e:  # noqa: BLE001
                 print(f'[{time.strftime("%H:%M:%S")}] Sin conexión con el panel: {e}')
-                for l in lineas:
-                    salida.put((l['agente'], l['texto']))
             if args.una_vez:
                 break
             time.sleep(SONDEO_SEG)

@@ -5,6 +5,7 @@
 ' - Conecta el PC con el panel (te pide el codigo de AGENTES > Conectar PC, solo si aun no esta conectado).
 ' - Crea la tarea programada "Agentes Indoor" (arranca al iniciar sesion y se reintenta sola).
 ' - Arranca los agentes y muestra "Agentes_Edicion Ha Iniciado Correctamente".
+' - ECOMMERCE arranca con los mismos archivos (iniciar_oculto.vbs / tarea programada) en el PC donde se conecte.
 ' - Tambien instala ECOMMERCE (agentes de las ordenes de venta de Effi) en la subcarpeta ecommerce, con su entorno de Python.
 ' No toca datos, logs, credenciales ni salidas de este PC.
 Option Explicit
@@ -62,6 +63,7 @@ reg = instal & "\logs\instalacion.txt"
 
 ' ---- 2. Detener los agentes que esten corriendo ----
 Ejecutar "powershell -NoProfile -Command ""Get-NetTCPConnection -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }"""
+Ejecutar "powershell -NoProfile -Command ""Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match 'puente_ecommerce|agente_ov' -and $_.ProcessId -ne $PID } | ForEach-Object { taskkill /PID $_.ProcessId /T /F | Out-Null }"""
 WScript.Sleep 2500
 
 ' ---- 3. Codigo y lanzadores desde la NAS ----

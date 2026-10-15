@@ -18,7 +18,8 @@ If fso.FileExists(nas & "\server.py") Then
 End If
 sh.Run "cmd /c ""set AGENTES_LOCAL=" & local & "&& set PYTHONDONTWRITEBYTECODE=1&& .venv\Scripts\python.exe " & servidor & " >> logs\servidor.txt 2>&1""", 0, False
 
-' --- ECOMMERCE (bots de Effi): arranca junto con los agentes de edicion, desde la carpeta "ecommerce" de aqui mismo.
+' --- ECOMMERCE (ordenes de venta de Effi): este mismo archivo arranca TAMBIEN a ALMA, BRISA y CIRO (carpeta "ecommerce" de aqui mismo).
+' Solo en el PC que esta enlazado con el panel (ecommerce\datos\panel.json); en los demas PC no hace nada.
 ' La primera vez pide la direccion del panel y el codigo (panel > menu de usuario > Ecommerce > Conectar PC).
 If fso.FileExists("ecommerce\puente_ecommerce.py") Then
   If Not fso.FileExists("ecommerce\datos\panel.json") And Not fso.FileExists("ecommerce\datos\sin_enlace.txt") Then
@@ -38,6 +39,6 @@ If fso.FileExists("ecommerce\puente_ecommerce.py") Then
     End If
   End If
   If fso.FileExists("ecommerce\datos\panel.json") Then
-    sh.Run "cmd /c "".venv\Scripts\python.exe ecommerce\puente_ecommerce.py >> logs\ecommerce.txt 2>&1""", 0, False
+    sh.Run "cmd /c "".venv\Scripts\python.exe ecommerce\puente_ecommerce.py --iniciar-agentes >> logs\ecommerce.txt 2>&1""", 0, False
   End If
 End If
