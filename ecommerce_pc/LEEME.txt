@@ -24,6 +24,8 @@ MISMA CARPETA Y MISMO ARCHIVO QUE LOS AGENTES DE EDICIÓN
   Instalar en otro PC de agentes: copiar la carpeta  ecommerce  (puente_ecommerce.py y agente_ov.py) dentro de agentes_uniformes
   y reemplazar iniciar_oculto.vbs / iniciar.bat por los de  lanzadores_agentes  (traen el bloque de ECOMMERCE al final).
 
+PRIMERA VEZ EN UN PC: abre  ecommerce\PREPARAR_ENTORNO.bat  (crea el entorno de Python con selenium, pdfplumber, gspread, pywin32…;
+no arranca ningún bot). Sin eso BRISA y CIRO no pueden leer los PDF.
 Requisitos: Python 3 y acceso a la carpeta de los bots en la NAS. Los agentes usan el entorno de Python de INICIAR_BOT_OV.bat
 (%LOCALAPPDATA%\IndoorBot_OrdenesVenta\venv: selenium, pdfplumber, gspread, pywin32…); si no existe, el de los agentes de edición, que
 tendría que tener esos paquetes. Si los bots están en otra ruta: ecommerce\datos\config.json con
