@@ -1,23 +1,32 @@
-ECOMMERCE_PUENTE
-================
-Conecta el PC donde corren los bots de Effi (carpeta AUTOMATIZACION_PAGINA WEB) con el panel
-https://produccion.cloud -> menú de usuario -> Ecommerce.
+ECOMMERCE · agentes de las ÓRDENES DE VENTA
+============================================
+Es el flujo de BOT_ORDENES_VENTA (carpeta AUTOMATIZACION_PAGINA WEB) repartido en tres agentes que se pasan cada orden por una cola.
+Se controlan desde el panel: menú de usuario -> Ecommerce (debajo de «Agentes»).
 
-Desde el panel se inicia/detiene a cada agente (es el mismo trabajo que hace PANEL_CONTROL de escritorio):
-  ALMA   remisiones de venta         (coordinador --tipo remision)
-  BRISA  cotizaciones, impresión      (coordinador --tipo cotizacion)
-  CIRO   cotizaciones, edición        (coordinador --tipo cotizacion_edicion)
-  DARIO  órdenes de venta             (bot_ordenes_venta.py)
-ALMA, BRISA y CIRO usan Illustrator: el panel no deja correr dos a la vez.
+  1. ALMA   Descarga      Entra a Effi, vigila las órdenes de venta nuevas y baja el PDF (OV_<n>.pdf)
+  2. BRISA  Tallas        Lee el PDF, busca el maestro en MAESTROS\INTERCLASES 2027 y exporta las tallas en Illustrator
+  3. CIRO   PDF + Sheets  Pone nombre y número (un PDF por jugador), arma el listado Excel, llena Google Sheets y marca la orden procesada
 
-UN SOLO ARCHIVO: INICIAR_ECOMMERCE.bat
-  · Primera vez: te pide la dirección y el código (en el panel: Ecommerce -> «Conectar PC»), los guarda y arranca solo.
-    También te pregunta si quieres que se abra solo al iniciar sesión en Windows.
-  · Siguientes veces: doble clic y listo. Déjalo abierto (puedes minimizarlo).
+La cola está en  ecommerce\cola\  (carpetas 1_descargadas -> 2_tallas -> 3_terminadas, y «errores» para las que terminaron con avisos).
+Si una orden queda en «errores» (por ejemplo Illustrator no respondió), arréglalo y mueve su archivo OV<n>.json a  cola\1_descargadas
+para que BRISA y CIRO la repitan. BRISA y CIRO se turnan Illustrator con un candado (cola\illustrator.lock).
+Los agentes usan el código de BOT_ORDENES_VENTA (maestros_ov.py, bot_ordenes_venta.py) y su .env (claves de Effi y Google) tal como están
+en la NAS: aquí no se copia ninguna clave. NO corras a la vez INICIAR_BOT_OV.bat: haría lo mismo dos veces.
 
-Requisitos: Python 3 instalado y el acceso a la carpeta de los bots en la NAS. Si los bots están en otra ruta,
-crea datos\config.json con {"ruta_bots": "D:\\ruta\\AUTOMATIZACION_PAGINA WEB"}.
+MISMA CARPETA Y MISMO ARCHIVO QUE LOS AGENTES DE EDICIÓN
+  Viven en  agentes_uniformes\ecommerce  (junto a los agentes de edición) y arrancan con el mismo archivo:
+    · iniciar_oculto.vbs  (segundo plano)   · iniciar.bat  (con ventana)
+  Eso arranca el PUENTE (puente_ecommerce.py), que no hace nada por sí solo: espera las órdenes del panel (Iniciar / Detener de cada agente).
+  Primera vez: pide la dirección del panel y el código (panel: Ecommerce -> «Conectar PC»), los guarda en ecommerce\datos\panel.json
+  y sigue solo. Si los agentes de edición ya están corriendo: detener_agentes.bat y luego iniciar_oculto.vbs.
+  El inicio automático de los agentes (instalar_inicio_automatico.bat) también arranca el puente. Registro: logs\ecommerce.txt.
+
+  Instalar en otro PC de agentes: copiar la carpeta  ecommerce  (puente_ecommerce.py y agente_ov.py) dentro de agentes_uniformes
+  y reemplazar iniciar_oculto.vbs / iniciar.bat por los de  lanzadores_agentes  (traen el bloque de ECOMMERCE al final).
+
+Requisitos: Python 3 y acceso a la carpeta de los bots en la NAS. Los agentes usan el entorno de Python de INICIAR_BOT_OV.bat
+(%LOCALAPPDATA%\IndoorBot_OrdenesVenta\venv: selenium, pdfplumber, gspread, pywin32…); si no existe, el de los agentes de edición, que
+tendría que tener esos paquetes. Si los bots están en otra ruta: ecommerce\datos\config.json con
+  {"ruta_bots": "D:\\ruta\\AUTOMATIZACION_PAGINA WEB"}   (o "ruta_ov" con la carpeta BOT_ORDENES_VENTA).
 Probar sin tocar Effi ni Illustrator: python puente_ecommerce.py --simulado
-
-NO guardes en esta carpeta las claves de Effi ni de Google: esas siguen en los .env de cada bot.
-Si cambias el código de enlace en el panel: borra datos\panel.json y vuelve a abrir INICIAR_ECOMMERCE.bat.
+Si cambias el código de enlace en el panel: borra ecommerce\datos\panel.json y reinicia los agentes (iniciar_oculto.vbs).

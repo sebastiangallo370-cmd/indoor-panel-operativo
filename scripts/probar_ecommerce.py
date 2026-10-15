@@ -47,14 +47,14 @@ try:
     print('7 iniciar ALMA ->', llamar('POST', '/api/ecommerce/agentes/alma/iniciar'))
     time.sleep(8)
     e = llamar('GET', '/api/ecommerce/estado')[1]; print('8 estados:', {a['id']: a['estado'] for a in e['agentes']}, '| órdenes:', [(o['agente'], o['accion'], o['estado']) for o in e['ordenes']])
-    c, d = llamar('POST', '/api/ecommerce/agentes/brisa/iniciar'); print('9 BRISA mientras corre ALMA ->', c, d.get('detail', '')[:80])
-    print('10 DARIO (independiente) ->', llamar('POST', '/api/ecommerce/agentes/dario/iniciar')[0])
+    c, d = llamar('POST', '/api/ecommerce/agentes/brisa/iniciar'); print('9 BRISA mientras corre ALMA (ahora los 3 pueden correr juntos) ->', c)
+    print('10 CIRO ->', llamar('POST', '/api/ecommerce/agentes/ciro/iniciar')[0])
     time.sleep(8)
     log = llamar('GET', '/api/ecommerce/log?limite=30')[1]['lineas']; print('11 líneas de log:', len(log)); [print('   ', l['agente'], l['nivel'], l['texto'][:70]) for l in log[-4:]]
     print('12 detener ALMA ->', llamar('POST', '/api/ecommerce/agentes/alma/detener')[0]); time.sleep(8)
     e = llamar('GET', '/api/ecommerce/estado')[1]; print('13 estados:', {a['id']: a['estado'] for a in e['agentes']})
-    c, d = llamar('POST', '/api/ecommerce/agentes/brisa/iniciar'); print('14 BRISA tras detener ALMA ->', c)
-    print('15 detener a todos:', [llamar('POST', f'/api/ecommerce/agentes/{i}/detener')[0] for i in ('brisa', 'dario')]); time.sleep(8)
+    c, d = llamar('POST', '/api/ecommerce/agentes/alma/detener'); print('14 detener ALMA otra vez (ya detenida) ->', c)
+    print('15 detener a todos:', [llamar('POST', f'/api/ecommerce/agentes/{i}/detener')[0] for i in ('brisa', 'ciro')]); time.sleep(8)
     e = llamar('GET', '/api/ecommerce/estado')[1]; print('16 final:', {a['id']: a['estado'] for a in e['agentes']})
 finally:
     puente.terminate()

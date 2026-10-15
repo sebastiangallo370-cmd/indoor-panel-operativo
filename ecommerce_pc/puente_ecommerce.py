@@ -1,13 +1,15 @@
 """ECOMMERCE_PUENTE: conecta el PC de los bots de Effi con el panel (https://produccion.cloud → ECOMMERCE).
 
-Hace lo mismo que PANEL_CONTROL\\worker.py, pero las órdenes llegan desde el panel web:
-  · iniciar  → lanza el bot sin ventana, con su salida capturada (IndoorSportBot.exe si existe; si no, el venv + el .py de siempre)
-  · detener  → termina el proceso del bot (y sus hijos)
+Maneja los tres agentes de las ÓRDENES DE VENTA (agente_ov.py): ALMA descarga los PDF de Effi, BRISA exporta las tallas en
+Illustrator y CIRO genera los PDF por jugador y llena Google Sheets. Las órdenes llegan desde el panel web:
+  · iniciar  → lanza el agente sin ventana, con su salida capturada
+  · detener  → termina el proceso del agente (y sus hijos)
   · reiniciar
-Cada pocos segundos avisa al panel que está vivo, le manda el estado de cada bot y las líneas nuevas de su log.
-No abre puertos: solo hace peticiones salientes a la dirección del panel.
+Cada pocos segundos avisa al panel que está vivo, le manda el estado de cada agente, las líneas nuevas de su log y cuántas
+órdenes hay en cada etapa de la cola.
+Solo hace peticiones salientes al panel (reserva el puerto local 8764 únicamente para no correr dos copias a la vez).
 
-Uso (normalmente basta con abrir INICIAR_ECOMMERCE.bat):
+Uso (normalmente lo arranca solo iniciar_oculto.vbs / iniciar.bat de los agentes de edición, en la misma carpeta):
     python puente_ecommerce.py                 normal (la primera vez pide el enlace; arranca/detiene los bots de verdad)
     python puente_ecommerce.py --simulado      PRUEBA: no toca Effi ni Illustrator; los «bots» solo imprimen líneas de ejemplo
     python puente_ecommerce.py --conectar      pide la dirección y el código que muestra el panel y los guarda
@@ -32,13 +34,13 @@ SONDEO_SEG = 3
 CREATE_NO_WINDOW = 0x08000000
 RUTA_BOTS = r'\\192.168.0.120\nas indoor\DIRECCION PRODUCCION\CARPETAS PERSONALES\GALLO\Automatizacion\AUTOMATIZACION_PAGINA WEB'
 
-# id del agente en el panel -> cómo se lanza (igual que worker.py y los .bat de cada bot)
+# id del agente en el panel -> rol de agente_ov.py (el flujo de órdenes de venta repartido en tres agentes)
 AGENTES = {
-    'alma': {'tipo': 'coordinador', 'arg': 'remision'},
-    'brisa': {'tipo': 'coordinador', 'arg': 'cotizacion'},
-    'ciro': {'tipo': 'coordinador', 'arg': 'cotizacion_edicion'},
-    'dario': {'tipo': 'ov', 'arg': ''},
+    'alma': {'rol': 'descarga'},    # descarga el PDF de cada orden de venta de Effi
+    'brisa': {'rol': 'tallas'},     # lee el PDF y exporta las tallas del maestro en Illustrator
+    'ciro': {'rol': 'pdfs'},        # nombre y número (PDF por jugador), listado, Google Sheets
 }
+ETAPAS = {'descargadas': '1_descargadas', 'tallas': '2_tallas', 'terminadas': '3_terminadas', 'errores': 'errores'}
 MARCA_FILA, MARCA_ERROR = '[Fila]', '[Error'
 
 
@@ -65,27 +67,25 @@ class Bot:
 
     def comando(self):
         if self.simulado:
-            codigo = ("import time,sys\nsys.stdout.reconfigure(encoding='utf-8')\n"
-                      "print('[Simulado] %s listo, vigilando Effi (prueba, no toca nada)',flush=True)\n"
-                      "n=0\nwhile True:\n    time.sleep(6); n+=1\n    print('[Simulado] revisión %%d: sin documentos nuevos'%%n,flush=True)\n" % self.aid.upper())
+            codigo = ("import time,sys\n"
+                      "sys.stdout.reconfigure(encoding='utf-8')\n"
+                      "print('[Simulado] %s listo (prueba, no toca nada)',flush=True)\n"
+                      "n=0\n"
+                      "while True:\n"
+                      "    time.sleep(6); n+=1\n"
+                      "    print('[Simulado] revisión %%d: sin trabajo pendiente'%%n,flush=True)\n" % self.aid.upper())
             return [sys.executable, '-c', codigo], str(AQUI)
-        exe = self.base / 'BOT_EXE' / 'dist' / 'IndoorSportBot.exe'
-        if self.spec['tipo'] == 'coordinador':
-            if exe.exists():
-                return [str(exe), '--rol', 'coordinador', '--tipo', self.spec['arg']], str(self.base)
-            py = self.base / 'BOT_COORDINADOR' / 'venv' / 'Scripts' / 'python.exe'
-            return [str(py if py.exists() else sys.executable), 'bot_remisiones.py', '--tipo', self.spec['arg']], str(self.base / 'BOT_COORDINADOR')
-        carpeta = self.base / 'BOT_ORDENES_VENTA'   # DARIO: igual que INICIAR_BOT_OV.bat (su propio entorno en LOCALAPPDATA)
+        # mismo entorno de Python que INICIAR_BOT_OV.bat (trae selenium, pdfplumber, gspread, pywin32…); si no existe, el de los agentes
         py = Path(os.environ.get('LOCALAPPDATA', '')) / 'IndoorBot_OrdenesVenta' / 'venv' / 'Scripts' / 'python.exe'
-        return [str(py if py.exists() else sys.executable), 'bot_ordenes_venta.py'], str(carpeta)
+        return [str(py if py.exists() else sys.executable), str(AQUI / 'agente_ov.py'), '--rol', self.spec['rol']], str(AQUI)
 
     def iniciar(self) -> str:
         with self.lock:
             if self.corriendo():
                 return 'ya estaba corriendo'
             cmd, cwd = self.comando()
-            if not self.simulado and not Path(cwd).exists():
-                raise RuntimeError(f'No encuentro la carpeta del bot: {cwd}')
+            if not self.simulado and not (self.base / 'BOT_ORDENES_VENTA').exists():
+                raise RuntimeError(f'No encuentro BOT_ORDENES_VENTA en {self.base} (pon "ruta_bots" en datos/config.json)')
             self.manual = False
             entorno = dict(os.environ, PYTHONIOENCODING='utf-8', PYTHONUNBUFFERED='1')
             self.proc = subprocess.Popen(cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, creationflags=CREATE_NO_WINDOW if os.name == 'nt' else 0,
@@ -145,6 +145,11 @@ class Bot:
             self.estado = 'INACTIVO'
 
 
+def cola_actual() -> dict:
+    """Cuántas órdenes hay en cada etapa de la cola de agente_ov.py."""
+    return {nombre: len(list((AQUI / 'cola' / carpeta).glob('OV*.json'))) for nombre, carpeta in ETAPAS.items()}
+
+
 def peticion(url: str, token: str, cuerpo: dict):
     datos = json.dumps(cuerpo, ensure_ascii=False).encode('utf-8')
     req = urllib.request.Request(url, data=datos, headers={'Content-Type': 'application/json', 'X-Ecommerce-Token': token}, method='POST')
@@ -154,8 +159,12 @@ def peticion(url: str, token: str, cuerpo: dict):
 
 def conectar():
     DATOS.mkdir(exist_ok=True)
-    url = input('Dirección del panel (ej. https://produccion.cloud): ').strip().rstrip('/')
-    token = input('Código que muestra el panel en ECOMMERCE → Conectar PC: ').strip()
+    try:
+        url = input('Dirección del panel (ej. https://produccion.cloud): ').strip().rstrip('/')
+        token = input('Código que muestra el panel en ECOMMERCE → Conectar PC: ').strip()
+    except (EOFError, OSError):   # arrancó en segundo plano, sin teclado: el enlace lo pide iniciar_oculto.vbs
+        print('Falta enlazar este PC con el panel (ecommerce/datos/panel.json): abre iniciar_oculto.vbs de los agentes o ejecuta este archivo con una ventana.')
+        return 2
     if not url.startswith('http') or len(token) < 20:
         print('Dirección o código no válidos.')
         return 1
@@ -164,30 +173,21 @@ def conectar():
     return 0
 
 
-def inicio_automatico():
-    """Pregunta (una sola vez) si este archivo debe abrirse solo al iniciar sesión en Windows."""
-    marca = DATOS / 'inicio_auto.txt'
-    if marca.exists() or os.name != 'nt' or not sys.stdin or not sys.stdin.isatty():
-        return
-    DATOS.mkdir(exist_ok=True)
+def una_sola_copia():
+    """Evita dos puentes a la vez (los dos ejecutarían cada orden del panel): el primero reserva un puerto local."""
+    guardia = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
-        r = input('¿Abrir ECOMMERCE solo cada vez que inicies sesión en este PC? (S/N): ').strip().upper()
-    except EOFError:
-        return
-    marca.write_text(r or 'N', encoding='utf-8')
-    if r != 'S':
-        return
-    inicio = Path(os.environ.get('APPDATA', '')) / 'Microsoft' / 'Windows' / 'Start Menu' / 'Programs' / 'Startup'
-    ps = ("$s=(New-Object -ComObject WScript.Shell).CreateShortcut('%s'); $s.TargetPath='%s'; $s.WorkingDirectory='%s'; $s.WindowStyle=7; $s.Save()"
-          % (inicio / 'ECOMMERCE.lnk', AQUI / 'INICIAR_ECOMMERCE.bat', AQUI))
-    try:
-        subprocess.run(['powershell', '-NoProfile', '-Command', ps], check=True, capture_output=True, timeout=30)
-        print('Listo: arrancará solo al iniciar sesión (para quitarlo, borra ECOMMERCE de la carpeta Inicio de Windows).')
-    except Exception as e:  # noqa: BLE001
-        print(f'No pude crear el arranque automático: {e}')
+        guardia.bind(('127.0.0.1', 8764))
+    except OSError:
+        return None
+    return guardia
 
 
 def main():
+    try:   # la salida va a un archivo de registro: que cada línea quede escrita al momento
+        sys.stdout.reconfigure(line_buffering=True, encoding='utf-8', errors='replace')
+    except Exception:
+        pass
     ap = argparse.ArgumentParser()
     ap.add_argument('--simulado', action='store_true')
     ap.add_argument('--conectar', action='store_true')
@@ -195,14 +195,16 @@ def main():
     args = ap.parse_args()
     if args.conectar:
         sys.exit(conectar())
+    guardia = una_sola_copia()
+    if guardia is None:
+        print('El puente de ECOMMERCE ya está corriendo en este PC.')
+        return
     panel = leer_json(DATOS / 'panel.json', {})
     if not panel.get('url') or not panel.get('token'):   # primera vez: se pide el enlace aquí mismo y se sigue
         print('Primera vez en este PC: falta enlazarlo con el panel (ECOMMERCE → Conectar PC).')
         if conectar() != 0:
             sys.exit(1)
         panel = leer_json(DATOS / 'panel.json', {})
-    if not args.simulado and not args.una_vez:
-        inicio_automatico()
     config = leer_json(DATOS / 'config.json', {})
     base = Path(config.get('ruta_bots') or RUTA_BOTS)
     salida: 'queue.Queue' = queue.Queue()
@@ -219,7 +221,7 @@ def main():
                     lineas.append({'agente': aid, 'texto': texto[:500]})
                 except queue.Empty:
                     break
-            cuerpo = {'equipo': equipo, 'simulado': args.simulado, 'lineas': lineas, 'resultados': resultados,
+            cuerpo = {'equipo': equipo, 'simulado': args.simulado, 'lineas': lineas, 'resultados': resultados, 'cola': cola_actual(),
                       'agentes': {aid: {'estado': b.estado, 'pid': b.proc.pid if b.corriendo() else None, 'ultima': b.ultima} for aid, b in bots.items()}}
             try:
                 resp = peticion(url, panel['token'], cuerpo)
@@ -243,7 +245,7 @@ def main():
                         resultados.append({'orden': orden['id'], 'ok': False, 'detalle': str(e)[:250]})
                         print(f'[{time.strftime("%H:%M:%S")}] {orden["agente"]} · {orden["accion"]} · ERROR {e}')
             except urllib.error.HTTPError as e:
-                print(f'[{time.strftime("%H:%M:%S")}] El panel respondió {e.code} (¿código de enlace vencido? borra datos/panel.json y vuelve a abrir INICIAR_ECOMMERCE.bat)')
+                print(f'[{time.strftime("%H:%M:%S")}] El panel respondió {e.code} (¿código de enlace vencido? borra datos/panel.json y vuelve a abrir INICIAR_TODO.bat)')
                 for l in lineas:   # no se pierden las líneas del log
                     salida.put((l['agente'], l['texto']))
             except Exception as e:  # noqa: BLE001

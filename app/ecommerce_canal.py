@@ -1,17 +1,12 @@
-"""ECOMMERCE: control web de los bots de Effi (carpeta «AUTOMATIZACION_PAGINA WEB»).
+"""ECOMMERCE: control web de los agentes de las ÓRDENES DE VENTA (flujo de la carpeta «AUTOMATIZACION_PAGINA WEB» · BOT_ORDENES_VENTA).
 
-Hace desde el panel lo mismo que el PANEL_CONTROL de escritorio: iniciar, detener y vigilar los bots que corren
-en el PC de la oficina (descargan documentos de Effi ERP, los convierten en filas de Google Sheets, listados de
-producción, stickers y PDF de Illustrator). El panel no se conecta al PC: el PC pregunta cada pocos segundos
-(sondeo saliente, sin abrir puertos), recibe las órdenes pendientes (iniciar / detener / reiniciar) y devuelve
-el estado y las últimas líneas del log de cada bot.
-
-Agentes (nombres propios, distintos de los de AGENTES):
-  ALMA   remisiones de venta         (coordinador --tipo remision)
-  BRISA  cotizaciones, impresión      (coordinador --tipo cotizacion)
-  CIRO   cotizaciones, edición        (coordinador --tipo cotizacion_edicion)
-  DARIO  órdenes de venta             (bot_ordenes_venta.py)
-ALMA, BRISA y CIRO comparten Illustrator: el panel no deja correr dos a la vez (igual que el bot original).
+El bot original hace todo seguido con cada orden; aquí el trabajo se reparte en tres agentes que se pasan las órdenes por una cola:
+  ALMA   descarga el PDF de cada orden de venta nueva de Effi ERP
+  BRISA  lee el PDF, busca el maestro y exporta las tallas en Illustrator
+  CIRO   pone nombre y número (un PDF por jugador), arma el listado de producción, llena Google Sheets y marca la orden como procesada
+Los agentes corren en el PC de la oficina, en la misma carpeta que los de edición (agentes_uniformes\ecommerce). El panel no se conecta
+al PC: el PC pregunta cada pocos segundos (sondeo saliente, sin abrir puertos), recibe las órdenes pendientes (iniciar / detener /
+reiniciar) y devuelve el estado de cada agente, las últimas líneas de su log y cuántas órdenes hay en cada etapa de la cola.
 Datos en /data/state/ecommerce.json y el token del PC en /data/state/ecommerce_token.txt.
 """
 import hashlib
@@ -39,29 +34,25 @@ _auth: Callable = lambda request: None
 _permitido: Callable[[str], bool] = lambda usuario: False
 
 AGENTES = [
-    {'id': 'alma', 'nombre': 'ALMA', 'titulo': 'Remisiones de venta', 'tipo': 'coordinador', 'arg': 'remision', 'color': '#8bd450',
-     'funciones': ['Entra a Effi ERP con la cuenta de la empresa y vigila las REMISIONES DE VENTA nuevas (no anuladas, desde la fecha mínima)',
-                   'Descarga cada remisión como RM_<número>.pdf a la bandeja PDF',
-                   'Lanza al agente de producción: lee el PDF, escribe una fila por referencia en Google Sheets y arma el listado de producción (Excel)',
-                   'Genera los stickers y los PDF de producción en Illustrator']},
-    {'id': 'brisa', 'nombre': 'BRISA', 'titulo': 'Cotizaciones · Impresión', 'tipo': 'coordinador', 'arg': 'cotizacion', 'color': '#6cb6ff',
-     'funciones': ['Vigila las COTIZACIONES de Effi del centro de costos 4-Impresión',
-                   'Descarga cada una como COT_<id>.pdf a la bandeja PDF',
-                   'Lanza al agente de producción: fila por referencia en Google Sheets, listado de producción, stickers y PDF de Illustrator']},
-    {'id': 'ciro', 'nombre': 'CIRO', 'titulo': 'Cotizaciones · Edición', 'tipo': 'coordinador', 'arg': 'cotizacion_edicion', 'color': '#ffb04a',
-     'funciones': ['Vigila las COTIZACIONES de Effi del centro de costos 5-Edición',
-                   'Descarga cada una como COT_<id>.pdf a la bandeja PDF (historial propio, separado del de BRISA)',
-                   'Lanza al agente de producción con el mismo flujo de cotizaciones']},
-    {'id': 'dario', 'nombre': 'DARIO', 'titulo': 'Órdenes de venta', 'tipo': 'ov', 'arg': '', 'color': '#b794f4',
-     'funciones': ['Entra a Effi ERP y vigila las ÓRDENES DE VENTA nuevas',
-                   'Descarga el PDF de cada orden (carpeta PDF_OV)',
-                   'Busca el maestro en MAESTROS\\INTERCLASES 2027 y lo abre en Illustrator',
-                   'Registra la orden en Google Sheets (ORDENES DE PRODUCCION)']},
+    {'id': 'alma', 'nombre': 'ALMA', 'titulo': 'Descarga las órdenes', 'tipo': 'ov', 'arg': 'descarga', 'color': '#8bd450', 'paso': 1,
+     'funciones': ['Entra a Effi ERP con la cuenta de la empresa y vigila las ÓRDENES DE VENTA nuevas (no anuladas, desde la fecha mínima)',
+                   'Descarga el PDF de cada orden (OV_<número>.pdf) y la deja en la cola para BRISA',
+                   'No repite órdenes que ya están en la cola o en el historial de procesadas']},
+    {'id': 'brisa', 'nombre': 'BRISA', 'titulo': 'Exporta las tallas', 'tipo': 'ov', 'arg': 'tallas', 'color': '#6cb6ff', 'paso': 2,
+     'funciones': ['Lee el PDF de la orden: referencia, diseño, talla, nombre y número de cada prenda',
+                   'Busca el maestro en MAESTROS\INTERCLASES 2027 y lo abre en Illustrator',
+                   'Exporta (desempaca) las mesas de cada talla en Montajes y deja la orden lista para CIRO',
+                   'Si Illustrator falla reintenta; a los 3 intentos la orden pasa a «con avisos»']},
+    {'id': 'ciro', 'nombre': 'CIRO', 'titulo': 'PDF por jugador + Google Sheets', 'tipo': 'ov', 'arg': 'pdfs', 'color': '#ffb04a', 'paso': 3,
+     'funciones': ['Abre cada talla exportada y pone el nombre y el número de cada jugador: un PDF por jugador',
+                   'Arma el listado de producción (Excel) de la orden',
+                   'Llena la fila de la orden en Google Sheets (ORDENES DE PRODUCCION)',
+                   'Marca la orden como procesada; si algo falló queda en «con avisos» para revisarla']},
 ]
 POR_ID = {a['id']: a for a in AGENTES}
-COORDINADORES = [a['id'] for a in AGENTES if a['tipo'] == 'coordinador']
 ACCIONES = ('iniciar', 'detener', 'reiniciar')
 ESTADOS_ACTIVOS = ('CORRIENDO', 'EN_FILA')
+ETAPAS_COLA = ('descargadas', 'tallas', 'terminadas', 'errores')   # órdenes en cada etapa: esperan a BRISA / esperan a CIRO / terminadas / con avisos
 
 
 def configurar(autenticar: Callable, permitido: Callable[[str], bool]) -> None:
@@ -87,6 +78,7 @@ def _leer() -> dict:
     datos.setdefault('agentes', {})   # id -> {estado, desde, pid, ultima}
     datos.setdefault('ordenes', [])   # órdenes iniciar/detener/reiniciar para el PC
     datos.setdefault('log', [])
+    datos.setdefault('cola', {})   # órdenes en cada etapa de la cola del PC
     return datos
 
 
@@ -136,10 +128,6 @@ def _vencer(datos: dict) -> None:
             o['estado'], o['detalle'] = 'vencida', 'El PC la recibió pero no confirmó el resultado'
 
 
-def _activos(datos: dict) -> list:
-    return [i for i in COORDINADORES if (datos['agentes'].get(i) or {}).get('estado') in ESTADOS_ACTIVOS]
-
-
 def _pendiente_de(datos: dict, agente: str, accion: str | None = None) -> bool:
     return any(o['estado'] in ('pendiente', 'entregada') and o['agente'] == agente and (accion is None or o['accion'] == accion) for o in datos['ordenes'])
 
@@ -171,7 +159,7 @@ def estado(request: Request):
         return {'agentes': agentes, 'pc': {'conectado': _conectado(datos), 'equipo': latido.get('equipo', ''), 'hace': round(_ahora() - float(latido.get('at') or 0)) if latido.get('at') else None,
                                           'hay_token': bool(_token_hash()), 'simulado': bool(latido.get('simulado'))},
                 'ordenes': [{k: o[k] for k in ('id', 'agente', 'accion', 'por', 'estado', 'detalle', 'iso')} for o in datos['ordenes'][-8:]][::-1],
-                'ultimo_log': datos['seq']}
+                'cola': {e: int((datos.get('cola') or {}).get(e, 0)) for e in ETAPAS_COLA}, 'ultimo_log': datos['seq']}
 
 
 @router.post('/agentes/{agente}/{accion}')
@@ -187,10 +175,6 @@ def ordenar(request: Request, agente: str, accion: str):
         if _pendiente_de(datos, agente):
             raise HTTPException(409, f'{POR_ID[agente]["nombre"]} ya tiene una orden en curso: espera a que el PC la termine.')
         actual = (datos['agentes'].get(agente) or {}).get('estado', 'INACTIVO')
-        if accion in ('iniciar', 'reiniciar') and POR_ID[agente]['tipo'] == 'coordinador':
-            otros = [i for i in _activos(datos) if i != agente] + [o['agente'] for o in datos['ordenes'] if o['estado'] in ('pendiente', 'entregada') and o['accion'] in ('iniciar', 'reiniciar') and o['agente'] in COORDINADORES and o['agente'] != agente]
-            if otros:
-                raise HTTPException(409, f'{POR_ID[otros[0]]["nombre"]} está trabajando con Illustrator. No corras dos de ALMA / BRISA / CIRO a la vez: detén a {POR_ID[otros[0]]["nombre"]} primero.')
         if accion == 'iniciar' and actual in ESTADOS_ACTIVOS:
             raise HTTPException(409, f'{POR_ID[agente]["nombre"]} ya está corriendo.')
         if accion == 'detener' and actual not in ESTADOS_ACTIVOS and actual != 'ERROR':
@@ -244,6 +228,8 @@ def sondeo(request: Request, payload: dict):
             if nuevo['estado'] != previo.get('estado') and previo:
                 _nota(datos, aid, 'error' if nuevo['estado'] == 'ERROR' else 'info', f'{POR_ID[aid]["nombre"]}: {previo.get("estado", "—")} → {nuevo["estado"]}')
             datos['agentes'][aid] = nuevo
+        if isinstance(payload.get('cola'), dict):
+            datos['cola'] = {e: max(0, min(99999, int(payload['cola'].get(e) or 0))) for e in ETAPAS_COLA}
         for l in (payload.get('lineas') or [])[:200]:
             if isinstance(l, dict) and l.get('agente') in POR_ID:
                 _nota(datos, l['agente'], 'error' if '[Error' in str(l.get('texto', '')) else 'log', l.get('texto', ''))

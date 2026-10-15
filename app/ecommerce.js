@@ -1,4 +1,4 @@
-/* ECOMMERCE: control de los bots de Effi (ALMA, BRISA, CIRO y DARIO) desde el panel, con la misma pantalla que AGENTES
+/* ECOMMERCE: control de los agentes de las ÓRDENES DE VENTA (ALMA descarga, BRISA exporta las tallas, CIRO genera los PDF y llena Google Sheets) desde el panel, con la misma pantalla que AGENTES
    (encabezado con estados, botones Detener / Reiniciar, resumen con pasos, pestañas y registro de ejecución).
    Solo Administración / Coordinación (el servidor responde 403 al resto y entonces no se crea nada).
    Se abre desde el menú de usuario, justo debajo de «Agentes». Los estilos de AGENTES se reutilizan tal cual. */
@@ -6,7 +6,7 @@
   if (window.__ecommercePanel) return;
   window.__ecommercePanel = true;
   const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const st = { agentes: [], pc: null, ordenes: [], log: [], ultimo: 0, filtro: '', token: null, abierto: {}, ocupado: false, aviso: '', vista: 'agentes' };
+  const st = { agentes: [], pc: null, cola: {}, ordenes: [], log: [], ultimo: 0, filtro: '', token: null, abierto: {}, ocupado: false, aviso: '', vista: 'agentes' };
   let panel = null, tab = null, timer = 0;
 
   const ETIQUETA = { INACTIVO: 'Detenido', CORRIENDO: 'Vigilando', EN_FILA: 'Esperando Illustrator', ERROR: 'Con error' };
@@ -30,6 +30,7 @@
   const css = document.createElement('style');
   css.textContent = `
   .ec-vtabs{display:flex!important}
+  .ec-cola{display:flex;flex-wrap:wrap;gap:8px}.ec-cola .ag-pill b{color:#eef4e9}
   .ec-body{display:grid;gap:14px;padding:14px;border:1px solid rgba(255,255,255,.1);border-radius:6px 16px 16px 16px;background:linear-gradient(160deg,#0d120e,#0a0e08)}
   .ec-conn{padding:14px 16px;border:1px solid #d0f44c;border-radius:12px;background:rgba(208,244,76,.06);font-size:.85rem;line-height:1.6}
   .ec-conn code{display:block;margin:8px 0;padding:9px 11px;border-radius:8px;background:#0b0f09;color:#d0f44c;font:12px Consolas,monospace;overflow-wrap:anywhere;user-select:all}
@@ -70,19 +71,26 @@
       '<button type="button" class="ag-btn ag-reiniciar" data-reiniciar-todo title="Reinicia a los agentes que estén corriendo"' + (!ok || !hayVivos ? ' disabled' : '') + '>↻ Reiniciar</button>' +
       '<details class="ag-menu"><summary class="ag-ico" title="Más opciones">⋯</summary><div class="ag-menu-l"><button type="button" class="solo-movil" data-reiniciar-todo>↻ Reiniciar los que están corriendo</button><button type="button" class="solo-movil" data-detener-todo>⏹ Detener los que están corriendo</button><button type="button" data-conectar>PC de los bots… (código de enlace)</button></div></details></div></header>';
   }
+  function colaChips() {
+    const c = st.cola || {}, chip = (clase, n, texto, tip) => '<span class="ag-pill ' + clase + '" title="' + esc(tip) + '"><i></i><b>' + (n || 0) + '</b>&nbsp;' + esc(texto) + '</span>';
+    return chip(c.descargadas ? 'sim' : '', c.descargadas, 'esperan tallas (BRISA)', 'Órdenes descargadas por ALMA que BRISA todavía no exportó') +
+      chip(c.tallas ? 'sim' : '', c.tallas, 'esperan PDF y Sheets (CIRO)', 'Órdenes con tallas exportadas que CIRO todavía no termina') +
+      chip(c.terminadas ? 'ok' : '', c.terminadas, 'terminadas', 'Órdenes completas: PDF por jugador, listado y Google Sheets') +
+      chip(c.errores ? 'mal' : '', c.errores, 'con avisos', 'Órdenes que terminaron con algún problema: revisa el REGISTRO');
+  }
   function resumen() {
     const n = st.agentes.length, corriendo = st.agentes.filter(vivo).length, errores = st.agentes.filter(a => a.estado === 'ERROR').length;
-    const pasos = st.agentes.map(a => { const [clase, txt] = PASO[a.estado] || PASO.INACTIVO; return '<div class="ag-paso ' + clase + '"><i class="pt"></i><b>' + esc(a.nombre) + '</b><em>' + esc(a.pendiente ? ({ iniciar: 'Iniciando…', detener: 'Deteniendo…', reiniciar: 'Reiniciando…' }[a.pendiente] || txt) : txt) + '</em></div>'; }).join('');
+    const pasos = st.agentes.map(a => { const [clase, txt] = PASO[a.estado] || PASO.INACTIVO; return '<div class="ag-paso ' + clase + '" title="' + esc('Paso ' + (a.paso || '') + ': ' + a.titulo) + '"><i class="pt"></i><b>' + esc((a.paso ? a.paso + '. ' : '') + a.nombre) + '</b><em>' + esc(a.pendiente ? ({ iniciar: 'Iniciando…', detener: 'Deteniendo…', reiniciar: 'Reiniciando…' }[a.pendiente] || txt) : txt) + '</em></div>'; }).join('');
     const ult = st.log.filter(l => l.nivel !== 'info').slice(-1)[0], pc = st.pc || {};
     const ahora = ult ? '<b>' + esc(((st.agentes.find(a => a.id === ult.agente) || {}).nombre) || ult.agente) + '</b> · ' + esc(ult.texto) + ' <span style="color:#8f9b8a">(' + hora(ult.at) + ')</span>' : (pc.conectado ? 'Todo en orden: elige un agente arriba y pulsa iniciar.' : 'El PC de los bots no está conectado: no se puede iniciar nada todavía.');
     return '<section class="ag-res" style="--respct:' + Math.round(corriendo / Math.max(1, n) * 100) + '%"><div class="ag-res-top"><div class="qa"><h3>Resumen de ECOMMERCE</h3><b>' + corriendo + ' de ' + n + ' agentes trabajando</b><small>' + (errores ? '✖ ' + errores + ' con error' : '') + '</small></div><span class="tiempo">' + (pc.conectado ? '● PC conectado · hace ' + (pc.hace ?? 0) + ' s' : '○ PC sin conexión') + '</span></div>' +
       '<div class="ag-barra2' + (errores ? ' err' : '') + '"><i style="width:' + Math.round(corriendo / Math.max(1, n) * 100) + '%"></i></div><div class="ag-pasos" style="grid-template-columns:repeat(' + Math.max(1, n) + ',minmax(0,1fr))">' + pasos + '</div>' +
-      '<div class="ag-ahora">' + ahora + '</div></section>';
+      '<div class="ec-cola" aria-label="Órdenes en cada etapa">' + colaChips() + '</div><div class="ag-ahora">' + ahora + '</div></section>';
   }
   function tarjeta(a) {
     const e = a.estado, v = vivo(a), ocup = !!a.pendiente || !st.pc || !st.pc.conectado;
     const [clase] = PASO[e] || PASO.INACTIVO;
-    return '<article class="ec-card" style="--c:' + a.color + '"><div class="ec-top"><div><h3>' + esc(a.nombre) + '</h3><small>' + esc(a.titulo) + '</small></div>' +
+    return '<article class="ec-card" style="--c:' + a.color + '"><div class="ec-top"><div><h3>' + esc(a.nombre) + '</h3><small>Paso ' + (a.paso || '') + ' de ' + st.agentes.length + ' · ' + esc(a.titulo) + '</small></div>' +
       '<span class="ag-pill ' + (e === 'ERROR' ? 'mal' : e === 'EN_FILA' ? 'sim' : v ? 'ok' : '') + '"><i></i>' + esc(a.pendiente ? ({ iniciar: 'Iniciando…', detener: 'Deteniendo…', reiniciar: 'Reiniciando…' }[a.pendiente] || '…') : (ETIQUETA[e] || e)) + '</span></div>' +
       '<div class="ec-ult">' + (a.ultima ? esc(a.ultima) : '<span style="opacity:.5">Sin actividad todavía</span>') + '</div>' +
       '<div class="ec-desde">' + (a.desde && e !== 'INACTIVO' ? 'Desde las ' + horaIso(a.desde) : '') + '</div>' +
@@ -110,7 +118,7 @@
   function conexion() {
     if (!st.token) return '';
     return '<div class="ec-conn"><b>Código de enlace (se muestra una sola vez)</b><code>' + esc(st.token.url) + '</code><code>' + esc(st.token.token) + '</code>' +
-      'En el PC de los bots abre <b>ecommerce_pc → INICIAR_ECOMMERCE.bat</b> y pega primero la dirección y luego el código (solo la primera vez). Si generas otro código, borra <b>datos\panel.json</b> y vuelve a abrir ese archivo.</div>';
+      'En el PC de los agentes de edición abre <b>iniciar_oculto.vbs</b> (si ya estaban corriendo: primero <b>detener_agentes.bat</b>). La primera vez te pide esta dirección y el código; el puente de ECOMMERCE arranca junto con los agentes. Si generas otro código, borra <b>ecommerce\datos\panel.json</b> y vuelve a abrir ese archivo.</div>';
   }
   function pintar() {
     const l0 = panel.querySelector('[data-log]'), pegado = !l0 || l0.scrollHeight - l0.scrollTop - l0.clientHeight < 40, y = l0 ? l0.scrollTop : 0;
@@ -125,7 +133,7 @@
   async function cargar() {
     try {
       const e = await api('/api/ecommerce/estado');
-      st.agentes = e.agentes; st.pc = e.pc; st.ordenes = e.ordenes;
+      st.agentes = e.agentes; st.pc = e.pc; st.ordenes = e.ordenes; st.cola = e.cola || {};
       const l = await api('/api/ecommerce/log?desde=' + st.ultimo + '&limite=300');
       if (l.lineas.length) st.log = st.log.concat(l.lineas).slice(-600);
       st.ultimo = l.ultimo;
