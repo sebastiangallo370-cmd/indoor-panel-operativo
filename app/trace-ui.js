@@ -692,7 +692,7 @@
       const column = Number(String(key).split(':')[1]);
       return mtsColi >= 0 && column === mtsColi + 1;
     };
-    traceCards.innerHTML = rows.map(row => {
+    const cardHtmls = rows.map(row => {
       const summary = summaries.get(row.source_row), id = row.source_row;
       const _rowNotes = Object.entries(productionData.notes || {}).filter(([key, value]) => key.startsWith(id + ':') && String(value || '').trim());
       const _reference = String(traceField(row, 'REFERENCIA') || '').trim().toUpperCase();
@@ -705,14 +705,45 @@
       const dueLabel = !summary.due ? 'Sin fecha' : summary.overdue ? 'Atrasado' : summary.state !== 'finished' && summary.due.getTime() === scheduleToday().getTime() ? 'Entrega hoy' : 'Entrega';
       const hasRework = summary.groups.some(group => group.state === 'rework');
       return '<article class="trace-card state-' + summary.state + '" data-card-row="' + id + '"><div class="trace-media">' + traceAssetsMarkup(id) + '</div><div class="trace-card-body"><div class="trace-card-heading"><h3>' + esc(traceField(row, 'ORDEN') || 'Sin número') + '</h3><button type="button" class="trace-order-rework' + (hasRework ? ' has-rework' : '') + '" data-card-rework="' + esc(traceField(row, 'ORDEN')) + '" aria-label="Registrar reproceso de la orden ' + esc(traceField(row, 'ORDEN')) + '">REPROCESO</button><span class="trace-stage ' + summary.state + '">' + labels[summary.state] + '</span></div><p class="trace-client">' + esc(traceField(row, 'NOMBRE DEL CLIENTE') || 'Sin cliente') + '</p><p class="trace-project">' + esc(traceField(row, 'NOMBRE PROYECTO')) + '</p><div class="trace-mts-row' + (mtsV ? ' con-mts' : ' sin-mts') + '">' + ('<div class="trace-machine-top"><small>MÁQUINA DE IMPRESIÓN</small><button type="button" class="trace-machine-btn' + (traceField(row, 'MAQUINA DE IMPRESION').trim() ? ' has-value' : '') + '" data-card-machine="' + id + '" title="Máquina de impresión: clic para elegirla">' + esc(traceField(row, 'MAQUINA DE IMPRESION').trim() || 'Seleccionar') + '</button></div>') + '<button class="trace-mts-btn' + (mtsV ? ' has-value' : '') + '" type="button" data-card-mts="' + id + '"><span class="mts-label">Ingresar MTS REQUERIDOS</span></button><button class="trace-mts-inventory" type="button" data-card-inventory="' + id + '">STOCK TELA ↗</button><div class="trace-mts-display' + (mtsV ? ' has-value' : '') + '"><small>MTS REQUERIDOS</small><strong>' + esc(mtsV || 'Sin registrar') + '</strong></div></div><dl><div><dt>Referencia</dt><dd class="trace-ref" title="' + esc(traceField(row, 'REFERENCIA') || '') + '">' + esc(traceField(row, 'REFERENCIA') || '—') + '</dd>' + telaMarkup(row) + '</div>' + '<div><dt>Cantidad</dt><dd class="trace-quantity">' + esc(traceField(row, 'CANTIDAD') || '0') + ' <small>und.</small></dd></div><div class="trace-due ' + (summary.overdue ? 'late' : '') + '"><dt>' + dueLabel + '</dt><dd>' + esc(summary.due ? displayProductionDate(due) : 'Sin programar') + '</dd></div><div><dt>Responsable del proceso</dt><dd>' + (responsible ? responsible.split(/[,;·\n]+/).filter(x => x.trim()).map(name => '<span class="trace-person">' + esc(name.trim()) + '</span>').join(' ') : '<span class="trace-unassigned">Sin asignar</span>') + '</dd></div></dl><div class="trace-card-meta"><span>' + notes + ' nota' + (notes === 1 ? '' : 's') + '</span><span>Fila ' + id + '</span></div><div class="trace-card-actions"><button type="button" class="operator-open" data-card-edit="' + id + '">PRODUCCIÓN</button><button type="button" data-card-detail="' + id + '">Ver detalle</button><button type="button" data-card-nas="' + id + '" aria-label="Abrir carpeta del pedido">NAS ↗</button></div></div>' + routeMarkup(row, summary) + '</article>';
-    }).join('') || '<div class="trace-empty"><h3>No hay pedidos en esta vista</h3><p>' + (filter === 'mine' ? 'No hay responsables que coincidan con tu usuario o iniciales. Prueba Todos o revisa la asignación.' : 'Prueba otro estado o cambia la búsqueda.') + '</p><button type="button" data-clear-trace>Ver todos</button></div>';
-    traceCards.querySelectorAll('[data-card-row]').forEach(card => traceImageObserver.observe(card));
+    });
+    // Sin parpadeo: solo se vuelven a dibujar las tarjetas que cambiaron; las demás se conservan tal cual (con su imagen y su scroll).
+    if (!rows.length) {
+      traceCards.innerHTML = '<div class="trace-empty"><h3>No hay pedidos en esta vista</h3><p>' + (filter === 'mine' ? 'No hay responsables que coincidan con tu usuario o iniciales. Prueba Todos o revisa la asignación.' : 'Prueba otro estado o cambia la búsqueda.') + '</p><button type="button" data-clear-trace>Ver todos</button></div>';
+    } else {
+      const existentes = new Map([...traceCards.querySelectorAll(':scope > article[data-card-row]')].map(card => [card.dataset.cardRow, card]));
+      traceCards.querySelectorAll(':scope > :not(article[data-card-row])').forEach(node => node.remove());
+      const delFila = (obj, id) => Object.entries(obj || {}).filter(([k]) => k.startsWith(id + ':'));
+      let previa = null;
+      rows.forEach((row, i) => {
+        const id = row.source_row, linea = String(traceField(row, 'LINEA') || '').trim().toUpperCase();
+        const firma = cardHtmls[i] + JSON.stringify([row.values, delFila(productionData.notes, id), delFila(productionData.note_entries, id), delFila(productionData.paused, id),
+          (productionData.web_orders || []).includes(String(traceField(row, 'ORDEN') || '').replace(/[\s-]+/g, '').toUpperCase()), (productionData.line_colors || {})[linea] || '',
+          filter, selectedProcess, ownAreaFilter, canDelete, deletingRows.has(Number(id))]);
+        let card = existentes.get(String(id));
+        existentes.delete(String(id));
+        if (!card || card._firma !== firma) {
+          const plantilla = document.createElement('template');
+          plantilla.innerHTML = cardHtmls[i];
+          const nueva = plantilla.content.firstElementChild;
+          nueva._firma = firma; nueva._pendiente = true;
+          if (card) card.replaceWith(nueva);
+          card = nueva;
+        }
+        const lugar = previa ? previa.nextSibling : traceCards.firstChild;
+        if (card !== lugar) traceCards.insertBefore(card, lugar);
+        previa = card;
+      });
+      existentes.forEach(card => card.remove());
+    }
+    traceCards.querySelectorAll(':scope > article[data-card-row]').forEach(card => { traceImageObserver.observe(card); });
     if (pageResult.pages > 1) traceCards.insertAdjacentHTML('beforeend', '<nav class="trace-pagination trace-pagination-bottom" aria-label="Páginas de pedidos al final">' + pageMarkup(pageResult) + '</nav>');
     if (ownAreaFilter && !rows.length) {
       traceCards.querySelector('.trace-empty p').textContent = ownProcess ? 'No hay pendientes para tu área. Desactiva PROCESO AL QUE PERTENECES para consultar todos los pedidos.' : 'Administración debe asignar un proceso de Indoor a tu cuenta.';
       traceCards.querySelector('[data-clear-trace]').textContent = 'Limpiar búsqueda';
     }
-    traceCards.querySelectorAll('[data-card-row]').forEach(card => {
+    traceCards.querySelectorAll(':scope > article[data-card-row]').forEach(card => {
+      if (!card._pendiente) return;   // tarjeta sin cambios: ya quedó armada, no se toca
+      card._pendiente = false;
       const row = rows.find(r => r.source_row === Number(card.dataset.cardRow));
       card.querySelector('.trace-mts-inventory')?.remove();
       // Línea de producto (columna B del Sheet)
