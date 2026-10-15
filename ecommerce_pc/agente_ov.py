@@ -164,12 +164,45 @@ def cargar_ov(con_effi: bool):
     except ImportError:
         pass
     import maestros_ov
+    if not getattr(maestros_ov, '_atajo_tallas', False):
+        instalar_atajo_tallas(maestros_ov)
+        maestros_ov._atajo_tallas = True
     bov = None
     if con_effi:
         salida, errores = sys.stdout, sys.stderr
         import bot_ordenes_venta as bov   # su registro a archivo duplica la salida: se devuelve la salida normal
         sys.stdout, sys.stderr = salida, errores
     return maestros_ov, bov, ruta
+
+
+def talla_ya_exportada(mo, maestro: Path, item: dict):
+    """Carpeta de las mesas exportadas del maestro si la talla pedida YA está ahí; si no, None.
+    Misma ruta y mismo criterio que usan desempacar_tallas / aplicar_bot_jsx de maestros_ov.py."""
+    try:
+        carpeta_ref = Path(maestro).parent
+        maquina = mo.obtener_maquina(carpeta_ref, item)
+        destino = carpeta_ref / (f'Montajes ({maquina})' if maquina else 'Montajes') / f"D{item['diseno']}" / f"{item['prenda']}{item['linea']}"
+        prefijo = f"TALLA_{item['talla']}_TIPO_D{item['diseno']}_"
+        if destino.is_dir() and any(f.stem.upper().startswith(prefijo) for f in destino.glob('*.ai')):
+            return destino
+    except OSError:
+        pass
+    return None
+
+
+def instalar_atajo_tallas(mo):
+    """Atajo de velocidad: el maestro de tallas es un .ai enorme que Illustrator tarda ~8 minutos en abrir desde la NAS, y el bot original lo
+    abre DOS veces por orden (al exportar las tallas y otra vez al generar el PDF) solo para comprobar que las mesas ya existen.
+    Si la talla pedida ya está exportada, no se abre el maestro: la orden pasa de ~20 minutos a ~2. Si falta, se hace como siempre."""
+    original = mo.desempacar_tallas
+
+    def rapido(maestro, item):
+        destino = talla_ya_exportada(mo, maestro, item)
+        if destino is not None:
+            log(f"  Talla {item['talla']} ya exportada en {destino}: no abro el maestro.")
+            return destino
+        return original(maestro, item)
+    mo.desempacar_tallas = rapido
 
 
 def registrar_procesada(ruta: Path, numero: str, pdf: str):
@@ -296,7 +329,7 @@ def ciclo_tallas(mo, ruta_job: Path) -> None:
         for it in items:
             if not it['maestro']:
                 continue
-            clave = (it['maestro'], it['prenda'], it['linea'], it['diseno'])
+            clave = (it['maestro'], it['prenda'], it['linea'], it['diseno'], it['talla'])
             if clave in hechos:
                 continue
             hechos.add(clave)
