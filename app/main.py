@@ -673,6 +673,8 @@ def startup():
     db_backup.start(DB_PATH, STATE_DIR, legacy.get_supabase)
     respaldo.start(DATA_ROOT, DB_PATH)
     alertas_correo.start(_problemas_salud, STATE_DIR)
+    from app import inventario_api as _inv_api
+    alertas_correo.start_tela(_inv_api.tela_faltante, STATE_DIR)
     threading.Thread(target=_warm_card_assets, name='precarga-disenos', daemon=True).start()
     threading.Thread(target=_vigilar_edicion, name='agentes-auto-edicion', daemon=True).start()
 

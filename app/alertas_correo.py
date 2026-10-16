@@ -88,3 +88,33 @@ def start(get_problemas: Callable[[], list[str]], state_dir: Path) -> None:
         log.info('Alertas por correo apagadas (faltan ALERTA_EMAIL_A / ALERTA_SMTP_USER / ALERTA_SMTP_PASSWORD)')
         return
     threading.Thread(target=_bucle, args=(get_problemas, Vigia(Path(state_dir) / 'alertas_correo.json')), name='alertas-correo', daemon=True).start()
+
+
+# ---- Aviso por correo cuando la tela de un pedido programado NO ALCANZA (pestaña «Tela programada») ----
+def _bucle_tela(get_faltantes: Callable[[], list[dict]], vigia: Vigia) -> None:
+    time.sleep(90)
+    while True:
+        try:
+            faltantes = {f"{o['orden']} · {o['referencia']} · {o['tela']}": o for o in get_faltantes()}
+            nuevos, _resueltos = vigia.revisar(list(faltantes))
+            if nuevos:
+                lineas = []
+                for clave in nuevos:
+                    o = faltantes[clave]
+                    razon = 'la tela no está en Bodega' if o.get('situacion') == 'sin_tela' else f"faltan {o['falta']:g} MTS (en Bodega quedan {o['disponible']:g})"
+                    lineas.append(f"- Orden {o['orden']} · {o['tela']} · referencia {o['referencia']} · entrega {o.get('entrega') or 'sin fecha'}: "
+                                  f"necesita {o['mts']:g} MTS y {razon}.")
+                enviar(f"⚠ Tela que no alcanza: {', '.join(sorted({faltantes[c]['orden'] for c in nuevos}))}",
+                       'Pedidos programados cuya tela no alcanza:\n\n' + '\n'.join(lineas) +
+                       '\n\nVer: https://produccion.cloud (Inventarios > Panel de control > Tela programada)')
+        except Exception:
+            log.exception('Falló la revisión de tela que no alcanza')
+        time.sleep(INTERVALO)
+
+
+def start_tela(get_faltantes: Callable[[], list[dict]], state_dir: Path) -> None:
+    """get_faltantes() -> órdenes con situacion 'no_alcanza' o 'sin_tela' (cada una con orden, referencia, tela, mts, falta, disponible, entrega)."""
+    if not configurado():
+        log.info('Aviso de tela que no alcanza apagado (faltan ALERTA_EMAIL_A / ALERTA_SMTP_USER / ALERTA_SMTP_PASSWORD)')
+        return
+    threading.Thread(target=_bucle_tela, args=(get_faltantes, Vigia(Path(state_dir) / 'alertas_tela_correo.json')), name='alertas-tela-correo', daemon=True).start()

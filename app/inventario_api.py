@@ -721,6 +721,13 @@ def inventory_set_top_rule(rule: MinimoTop):
     return {'ok': True}
 
 
+def tela_faltante() -> list[dict]:
+    """Órdenes programadas cuya tela no alcanza (o no está en Bodega), para el aviso por correo."""
+    payload = _with_sublimacion(_inventory_payload())
+    datos = tela_necesaria.calcular(payload.get('items') or [])
+    return [o for o in datos.get('ordenes', []) if o.get('situacion') in ('no_alcanza', 'sin_tela')]
+
+
 @inventario_router.get("/tela-necesaria")
 def inventory_tela_necesaria():
     """Tela que piden los pedidos programados (promedio general del maestro × cantidad), por tela y frente a Bodega. Solo lectura."""
