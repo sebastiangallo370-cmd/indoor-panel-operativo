@@ -37,6 +37,7 @@
 .bd .inv-badge.ok{background:rgba(121,214,111,.16);color:#c9f7c3}
 .bd .inventory-item-card.bad{border-color:#a8433d;background:linear-gradient(155deg,#2a1513,#140c0b)}
 .bd .inventory-item-card.bad .inv-total{color:#ff8a80}
+.bd .inventory-item-card.bad .inv-unit{color:#ff8a80;font-weight:850;letter-spacing:.03em}
 .bd .inv-total small{font-size:.9rem;margin-left:5px;color:#bdc8b8}
 .bd .inventory-rolls{display:flex;flex-wrap:wrap;gap:6px}
 .bd-meter{height:8px;border-radius:0 4px 4px 0;background:#0b100b;overflow:hidden}
@@ -315,7 +316,7 @@
         badge: o.orden, badgeClass: cls, cls: cls === 'bad' ? 'bad' : '', level, tone: o.situacion === 'alcanza' ? 'verde' : 'rojo',
         name: o.tela,
         total: sinPromedio ? 'Sin promedio' : num(o.mts) + '<small>MTS</small>',
-        unit: '',
+        unit: o.situacion === 'no_alcanza' ? 'NO ALCANZA · FALTAN ' + num(o.falta) + ' MTS' : o.situacion === 'sin_tela' ? 'NO ALCANZA · LA TELA NO ESTÁ EN BODEGA' : '',
         extra: '<div class="bd-line"><span>Referencia</span><b>' + esc(o.referencia) + '</b></div>' +
           '<div class="bd-line"><span>Entrega</span><b>' + (o.entrega ? esc(shortDay(o.entrega)) : 'Sin fecha') + '</b></div>'});
       const attrs = ' data-q="' + esc(norm([o.orden, o.cliente, o.proyecto, o.referencia, o.tela].join(' '))) + '" data-tela="' + esc(o.tela) + '" data-sit="' + o.situacion + '" data-sub="' + (o.estado === 'P' ? 'P' : 'pend') + '" data-fecha="' + esc(o.entrega || '') + '" data-sinfiltro="false"';
