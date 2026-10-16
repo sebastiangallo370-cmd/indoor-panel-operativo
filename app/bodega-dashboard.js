@@ -46,6 +46,9 @@
 .bd-split .n{background:#3a9f55}.bd-split .s{background:repeating-linear-gradient(45deg,#d9772b 0 6px,#b8611f 6px 9px)}
 .bd-line{display:flex;justify-content:space-between;gap:10px;color:#bdc8b8;font-size:.74rem}
 .bd-line b{color:#f0f4eb;white-space:nowrap}
+.bd-tfilters{grid-template-columns:minmax(0,2fr) repeat(3,minmax(0,1fr)) repeat(2,minmax(0,1fr)) auto}
+.bd-tfilters select{width:100%;box-sizing:border-box;border:1px solid #46563f;border-radius:9px;background:#0b100b;color:#fff;padding:9px 11px;font:500 .85rem Arial;outline:none;color-scheme:dark}
+@media (max-width:1100px){.bd-tfilters{grid-template-columns:repeat(2,minmax(0,1fr))}.bd-tfilters label:first-child{grid-column:1/-1}}
 .bd-note{margin:0;color:#8a9485;font-size:.78rem}
 .bd-head-actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
 .bd-switch{display:inline-flex;align-items:center;gap:10px;padding:6px 12px;border:1px solid #46563f;border-radius:12px;background:#151d15;cursor:pointer;user-select:none}
@@ -92,23 +95,6 @@
       (telas ? ' data-tela="' + esc(norm(telas.join(' | '))) + '" data-codigo="' + esc(codes(telas).join('|')) + '"' : ' data-sinfiltro="true"') + (fecha ? ' data-fecha="' + esc(day(fecha)) + '"' : '') + '><span class="inv-badge ' + badgeClass + '">' + esc(badge) + '</span><strong class="inv-name">' + esc(name) + '</strong>' + extra + '<span class="inv-total">' + total + '</span>' + (unit ? '<span class="inv-unit">' + esc(unit) + '</span>' : '') + '</article>';
   const section = (title, note, cards, fit) => '<section class="bd-section"' + (fit ? ' data-fijo="true"' : '') + '><h3>' + esc(title) + (note ? ' <small>· ' + esc(note) + '</small>' : '') + '</h3>' + (cards ? '<div class="bd-cards' + (fit ? ' fit' : '') + '">' + cards + '</div>' : '') + '</section>';
   const meter = (value, max) => '<div class="bd-meter"><i style="width:' + Math.max(1, value / (max || 1) * 100) + '%"></i></div>';
-
-  // Tela necesaria por los pedidos programados (pestaña TELA PROGRAMADA)
-  const necesidadHtml = nec => {
-    const needCard = row => card({
-      badge: !row.encontrada ? 'Tela no encontrada' : row.alcanza ? 'Alcanza' : 'No alcanza', badgeClass: row.alcanza ? 'ok' : 'bad', cls: row.alcanza ? '' : 'bad',
-      level: row.encontrada ? Math.min(100, row.disponible / (row.mts || 1) * 100) : 0, tone: row.alcanza ? 'verde' : 'rojo', telas: [row.tela, ...(row.telas || [])],
-      name: row.tela, total: num(row.mts) + '<small>MTS</small>',
-      unit: 'Necesita ' + num(row.mts) + ' MTS · ' + (row.encontrada ? 'Bodega ' + num(row.disponible) + ' MTS' + (row.alcanza ? '' : ' · FALTAN ' + num(row.faltan) + ' MTS') : 'no hay una tela con ese nombre en Bodega') + ' · ' + num(row.prendas) + ' prendas · ' + row.pedidos.length + (row.pedidos.length === 1 ? ' pedido' : ' pedidos'),
-      extra: row.pedidos.map(p => '<div class="bd-line" title="' + esc(p.referencia + ' · promedio general ' + p.promedio + ' MTS por prenda' + (p.entrega ? ' · entrega ' + p.entrega : '')) + '"><span>' + esc(p.orden) + ' · ' + esc(p.referencia) + ' · ' + num(p.cantidad) + ' × ' + num(p.promedio) + (p.estado === 'P' ? ' · en Sublimación' : '') + '</span><b>' + num(p.mts) + ' MTS</b></div>').join('')});
-    const needTotal = nec.disponible === false ? '' : card({badge: nec.telas_no_alcanzan ? 'Atención' : 'Al día', badgeClass: nec.telas_no_alcanzan ? 'bad' : 'ok', cls: nec.telas_no_alcanzan ? 'bad' : '',
-      level: nec.mts ? Math.max(0, 100 - nec.faltan / nec.mts * 100) : 100, tone: nec.telas_no_alcanzan ? 'rojo' : 'verde', name: 'Tela necesaria programada',
-      total: num(nec.mts) + '<small>MTS</small>', unit: num(nec.pedidos) + ' pedidos en ' + num((nec.telas || []).length) + ' telas · ' + (nec.telas_no_alcanzan ? num(nec.telas_no_alcanzan) + ' telas no alcanzan · faltan ' + num(nec.faltan) + ' MTS' : 'toda la tela alcanza')});
-    const needMissing = (nec.sin_promedio || []).map(p => card({badge: 'Sin promedio', badgeClass: 'warn', telas: [p.tela], name: p.orden + ' · ' + p.referencia, total: num(p.cantidad) + '<small>prendas</small>', unit: p.tela + ' · ' + p.motivo + ' · agrégalo en Promedios maestros'})).join('');
-    const needHtml = nec.disponible === false ? '<p class="bd-note">No se pudo leer Producción para calcular la tela necesaria.</p>'
-      : (nec.telas || []).length ? '' : '<p class="bd-note">No hay pedidos programados pendientes de Sublimación.</p>';
-    return section('Tela necesaria · pedidos programados', 'promedio general × cantidad de cada orden', needTotal + (nec.telas || []).map(needCard).join('') + needMissing) + needHtml;
-  };
 
   const render = data => {
     const k = data.kpis, sub = data.sublimacion, mov = data.movimientos, con = data.consumos;
@@ -277,19 +263,82 @@
 
   // ---- Sub-pestaña «Tela programada»: la tela que piden los pedidos programados (promedio general del maestro × cantidad) frente a Bodega ----
   const body2 = panel.querySelector('.bd-body2');
-  body2.style.display = 'grid';
-  body2.style.gap = '26px';
-  const filtersBox = panel.querySelector('.bd-filters');
+  const filtersBox = panel.querySelector('.bd-filters:not(.bd-tfilters)');
   let subTab = 'resumen';
+  body2.style.display = 'grid';
+  body2.style.gap = '22px';
+  body2.innerHTML =
+    '<div class="bd-cards fit bd-tkpi"></div>' +
+    '<form class="bd-filters bd-tfilters" autocomplete="off" onsubmit="return false">' +
+      '<label>Buscar<input name="q" type="search" placeholder="Orden, cliente, referencia o tela"></label>' +
+      '<label>Tela<select name="tela"><option value="">Todas</option></select></label>' +
+      '<label>Estado<select name="sit"><option value="">Todos</option><option value="alcanza">Alcanza</option><option value="no_alcanza">No alcanza</option><option value="sin_tela">Tela no encontrada</option><option value="sin_promedio">Sin promedio</option></select></label>' +
+      '<label>Sublimación<select name="sub"><option value="">Todas</option><option value="P">En Sublimación</option><option value="pend">Por entrar</option></select></label>' +
+      '<label>Entrega desde<input name="desde" type="date"></label><label>Entrega hasta<input name="hasta" type="date"></label>' +
+      '<button type="button" class="bd-clear">Limpiar</button><p class="bd-count"></p></form>' +
+    '<div class="bd-cards bd-tcards"><p class="bd-note">Calculando la tela de los pedidos…</p></div>';
+  const tFilters = body2.querySelector('.bd-tfilters'), tCards = body2.querySelector('.bd-tcards'), tKpi = body2.querySelector('.bd-tkpi');
+  const SITUACION = {alcanza: ['Alcanza', 'ok'], no_alcanza: ['No alcanza', 'bad'], sin_tela: ['Tela no encontrada', 'bad'], sin_promedio: ['Sin promedio', 'warn']};
+  const filterTela = () => {
+    const f = tFilters.elements, q = norm(f.q.value), desde = f.desde.value, hasta = f.hasta.value;
+    let shown = 0;
+    tCards.querySelectorAll('.inventory-item-card').forEach(node => {
+      const d = node.dataset, fecha = d.fecha || '';
+      const ok = (!q || (d.q || '').includes(q)) && (!f.tela.value || d.tela === f.tela.value) && (!f.sit.value || d.sit === f.sit.value)
+        && (!f.sub.value || d.sub === f.sub.value) && (!desde || (fecha && fecha >= desde)) && (!hasta || (fecha && fecha <= hasta));
+      node.hidden = !ok;
+      if (ok) shown += 1;
+    });
+    const total = tCards.querySelectorAll('.inventory-item-card').length;
+    body2.querySelector('.bd-count').textContent = total ? shown + ' de ' + total + (total === 1 ? ' orden' : ' órdenes') : '';
+    let vacio = tCards.querySelector('.bd-vacio');
+    if (total && !shown) { if (!vacio) tCards.insertAdjacentHTML('beforeend', '<p class="bd-note bd-vacio">Ninguna orden coincide con los filtros.</p>'); }
+    else vacio?.remove();
+  };
+  const renderTela = data => {
+    if (data.disponible === false) { tKpi.innerHTML = ''; tCards.innerHTML = '<p class="bd-note">No se pudo leer Producción para calcular la tela necesaria.</p>'; return; }
+    const ordenes = data.ordenes || [];
+    tKpi.innerHTML = card({badge: data.telas_no_alcanzan ? 'Atención' : 'Al día', badgeClass: data.telas_no_alcanzan ? 'bad' : 'ok', cls: data.telas_no_alcanzan ? 'bad' : '',
+      level: data.mts ? Math.max(0, 100 - data.faltan / data.mts * 100) : 100, tone: data.telas_no_alcanzan ? 'rojo' : 'verde', name: 'Tela necesaria programada',
+      total: num(data.mts) + '<small>MTS</small>', unit: num(data.pedidos) + ' pedidos en ' + num((data.telas || []).length) + ' telas · ' + (data.telas_no_alcanzan ? num(data.telas_no_alcanzan) + ' telas no alcanzan · faltan ' + num(data.faltan) + ' MTS' : 'toda la tela alcanza')}) +
+      (data.telas || []).map(t => card({badge: !t.encontrada ? 'Tela no encontrada' : t.alcanza ? 'Alcanza' : 'No alcanza', badgeClass: t.alcanza ? 'ok' : 'bad', cls: t.alcanza ? '' : 'bad',
+        level: t.encontrada ? Math.min(100, t.disponible / (t.mts || 1) * 100) : 0, tone: t.alcanza ? 'verde' : 'rojo', name: t.tela, total: num(t.mts) + '<small>MTS</small>',
+        unit: t.pedidos.length + (t.pedidos.length === 1 ? ' pedido' : ' pedidos') + ' · ' + (t.encontrada ? 'Bodega ' + num(t.disponible) + ' MTS' + (t.alcanza ? '' : ' · FALTAN ' + num(t.faltan)) : 'no está en Bodega')})).join('');
+    const telas = [...new Set(ordenes.map(o => o.tela))].sort();
+    const selTela = tFilters.elements.tela, actual = selTela.value;
+    selTela.innerHTML = '<option value="">Todas</option>' + telas.map(t => '<option value="' + esc(t) + '"' + (t === actual ? ' selected' : '') + '>' + esc(t) + '</option>').join('');
+    const orderCard = o => {
+      const [label, cls] = SITUACION[o.situacion] || ['', ''];
+      const sinPromedio = o.situacion === 'sin_promedio';
+      const level = sinPromedio ? null : o.situacion === 'alcanza' ? 100 : o.mts ? Math.min(100, (o.disponible || 0) / o.mts * 100) : 0;
+      const html = card({
+        badge: label, badgeClass: cls, cls: cls === 'bad' ? 'bad' : '', level, tone: o.situacion === 'alcanza' ? 'verde' : 'rojo',
+        name: o.orden + ' · ' + o.referencia,
+        total: sinPromedio ? num(o.cantidad) + '<small>prendas</small>' : num(o.mts) + '<small>MTS</small>',
+        unit: sinPromedio ? o.motivo + ' · agrégalo en Promedios maestros'
+          : o.situacion === 'alcanza' ? 'Bodega tras los pedidos anteriores: ' + num(o.disponible) + ' MTS'
+          : o.situacion === 'no_alcanza' ? 'FALTAN ' + num(o.falta) + ' MTS · quedan ' + num(o.disponible) + ' MTS en Bodega'
+          : 'No hay una tela con ese nombre en Bodega',
+        extra: '<div class="bd-line"><span>' + esc(o.cliente || 'Sin cliente') + '</span></div>' + (o.proyecto ? '<div class="bd-line"><span>' + esc(o.proyecto) + '</span></div>' : '') +
+          '<div class="bd-line"><span>Tela</span><b>' + esc(o.tela) + '</b></div>' +
+          (sinPromedio ? '' : '<div class="bd-line"><span>' + num(o.cantidad) + ' prendas × ' + num(o.promedio) + ' MTS</span><b>' + esc((o.maestros || []).join(' + ')) + '</b></div>') +
+          '<div class="bd-line"><span>' + (o.estado === 'P' ? 'En Sublimación' : 'Por entrar a Sublimación') + '</span><b>' + (o.entrega ? 'Entrega ' + shortDay(o.entrega) : 'Sin fecha') + '</b></div>'});
+      const attrs = ' data-q="' + esc(norm([o.orden, o.cliente, o.proyecto, o.referencia, o.tela].join(' '))) + '" data-tela="' + esc(o.tela) + '" data-sit="' + o.situacion + '" data-sub="' + (o.estado === 'P' ? 'P' : 'pend') + '" data-fecha="' + esc(o.entrega || '') + '" data-sinfiltro="false"';
+      return html.replace('<article ', '<article' + attrs + ' ');
+    };
+    tCards.innerHTML = ordenes.length ? ordenes.map(orderCard).join('') : '<p class="bd-note">No hay pedidos programados pendientes de Sublimación.</p>';
+    filterTela();
+  };
+  tFilters.addEventListener('input', filterTela);
+  tFilters.querySelector('.bd-clear').onclick = () => { tFilters.reset(); filterTela(); };
   const load2 = async (silencioso) => {
-    if (!silencioso) body2.innerHTML = '<p class="bd-note">Calculando la tela de los pedidos…</p>';
     try {
       const response = await fetch('/api/inventarios/tela-necesaria', {cache: 'no-store'});
       const data = await response.json();
       if (!response.ok) throw Error(data.detail || 'No fue posible calcular la tela necesaria');
       panel.querySelector('.bd-updated').textContent = 'Tela calculada: ' + when(new Date().toISOString()) + ' · se actualiza sola cada minuto';
-      body2.innerHTML = necesidadHtml(data);
-    } catch (error) { if (!silencioso) body2.innerHTML = '<p class="bd-note">' + esc(error.message) + '</p>'; }
+      renderTela(data);
+    } catch (error) { if (!silencioso) tCards.innerHTML = '<p class="bd-note">' + esc(error.message) + '</p>'; }
   };
   const showSubTab = name => {
     subTab = name;
