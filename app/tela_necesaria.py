@@ -44,6 +44,29 @@ def _consumo(referencia: str, maestros: dict, plantillas: dict) -> tuple[float, 
     return round(total, 2), usados, faltan
 
 
+def _codigo_tela(referencia: str) -> str:
+    """«A700CA00» -> '700' (código de tela que va delante de la referencia); «A4403-4400-…» -> '4403'."""
+    m = re.match(r'\s*A(\d+)', str(referencia or '').upper())
+    return m.group(1) if m else ''
+
+
+def _telas_de_bodega(items: list[dict], tela: str, codigos: set[str]) -> list[dict]:
+    """Telas de Bodega que corresponden a la de Producción: por nombre y, si el nombre no coincide («TOUR BUNGAI» vs «(700) TOUR»), por el código de la referencia."""
+    encontradas = _telas_de_bodega(items, tela, entrada['codigos'])
+    if encontradas:
+        return encontradas
+    por_codigo = []
+    for i in items:
+        if i.get('categoria') != 'BODEGA TELA':
+            continue
+        nombre = ' ' + sublimacion_stock.norm(i.get('nombre')) + ' '
+        m = re.match(r'\s*\((\d+)\)', nombre)
+        if m and m.group(1) in codigos and not any(x in nombre for x in sublimacion_stock.EXCLUDED_NAMES) and ' RIB ' not in nombre:
+            por_codigo.append(i)
+    blancas = [i for i in por_codigo if ' BLANCO ' in ' ' + sublimacion_stock.norm(i.get('nombre')) + ' ']
+    return blancas or por_codigo
+
+
 def _pedidos() -> list[dict] | None:
     try:
         db = sqlite3.connect(f'file:{DB_FILE}?mode=ro', uri=True, timeout=5)
@@ -116,7 +139,8 @@ def calcular(items: list[dict]) -> dict:
                                  'motivo': ('Sin promedio para ' + ', '.join(faltan)) if faltan else 'La referencia no dice qué maestro es'})
             continue
         mts = round(consumo * p['cantidad'], 2)
-        entrada = por_tela.setdefault(p['tela'], {'tela': p['tela'], 'mts': 0.0, 'prendas': 0, 'pedidos': []})
+        entrada = por_tela.setdefault(p['tela'], {'tela': p['tela'], 'mts': 0.0, 'prendas': 0, 'pedidos': [], 'codigos': set()})
+        entrada['codigos'].add(_codigo_tela(p['referencia']))
         entrada['mts'] += mts
         entrada['prendas'] += p['cantidad']
         entrada['pedidos'].append({**base, 'promedio': consumo, 'mts': mts, 'maestros': usados, 'parcial': bool(faltan)})
@@ -137,6 +161,7 @@ def calcular(items: list[dict]) -> dict:
                 restante = max(0.0, restante - ped['mts'])
             ped['telas'] = [i['nombre'] for i in encontradas]
             por_orden.append(ped)
+        entrada.pop('codigos', None)
         resultado.append({**entrada, 'mts': mts, 'disponible': disponible, 'encontrada': bool(encontradas),
                           'telas': [i['nombre'] for i in encontradas], 'faltan': round(max(0.0, mts - disponible), 2) if encontradas else mts,
                           'alcanza': bool(encontradas) and disponible >= mts})
