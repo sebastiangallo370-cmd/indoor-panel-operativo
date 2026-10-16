@@ -86,6 +86,23 @@
   const section = (title, note, cards, fit) => '<section class="bd-section"' + (fit ? ' data-fijo="true"' : '') + '><h3>' + esc(title) + (note ? ' <small>· ' + esc(note) + '</small>' : '') + '</h3>' + (cards ? '<div class="bd-cards' + (fit ? ' fit' : '') + '">' + cards + '</div>' : '') + '</section>';
   const meter = (value, max) => '<div class="bd-meter"><i style="width:' + Math.max(1, value / (max || 1) * 100) + '%"></i></div>';
 
+  // Tela necesaria por los pedidos programados (pestaña TELA PROGRAMADA)
+  const necesidadHtml = nec => {
+    const needCard = row => card({
+      badge: !row.encontrada ? 'Tela no encontrada' : row.alcanza ? 'Alcanza' : 'No alcanza', badgeClass: row.alcanza ? 'ok' : 'bad', cls: row.alcanza ? '' : 'bad',
+      level: row.encontrada ? Math.min(100, row.disponible / (row.mts || 1) * 100) : 0, tone: row.alcanza ? 'verde' : 'rojo', telas: [row.tela, ...(row.telas || [])],
+      name: row.tela, total: num(row.mts) + '<small>MTS</small>',
+      unit: 'Necesita ' + num(row.mts) + ' MTS · ' + (row.encontrada ? 'Bodega ' + num(row.disponible) + ' MTS' + (row.alcanza ? '' : ' · FALTAN ' + num(row.faltan) + ' MTS') : 'no hay una tela con ese nombre en Bodega') + ' · ' + num(row.prendas) + ' prendas · ' + row.pedidos.length + (row.pedidos.length === 1 ? ' pedido' : ' pedidos'),
+      extra: row.pedidos.map(p => '<div class="bd-line" title="' + esc(p.referencia + ' · promedio general ' + p.promedio + ' MTS por prenda' + (p.entrega ? ' · entrega ' + p.entrega : '')) + '"><span>' + esc(p.orden) + ' · ' + esc(p.referencia) + ' · ' + num(p.cantidad) + ' × ' + num(p.promedio) + (p.estado === 'P' ? ' · en Sublimación' : '') + '</span><b>' + num(p.mts) + ' MTS</b></div>').join('')});
+    const needTotal = nec.disponible === false ? '' : card({badge: nec.telas_no_alcanzan ? 'Atención' : 'Al día', badgeClass: nec.telas_no_alcanzan ? 'bad' : 'ok', cls: nec.telas_no_alcanzan ? 'bad' : '',
+      level: nec.mts ? Math.max(0, 100 - nec.faltan / nec.mts * 100) : 100, tone: nec.telas_no_alcanzan ? 'rojo' : 'verde', name: 'Tela necesaria programada',
+      total: num(nec.mts) + '<small>MTS</small>', unit: num(nec.pedidos) + ' pedidos en ' + num((nec.telas || []).length) + ' telas · ' + (nec.telas_no_alcanzan ? num(nec.telas_no_alcanzan) + ' telas no alcanzan · faltan ' + num(nec.faltan) + ' MTS' : 'toda la tela alcanza')});
+    const needMissing = (nec.sin_promedio || []).map(p => card({badge: 'Sin promedio', badgeClass: 'warn', telas: [p.tela], name: p.orden + ' · ' + p.referencia, total: num(p.cantidad) + '<small>prendas</small>', unit: p.tela + ' · ' + p.motivo + ' · agrégalo en Promedios maestros'})).join('');
+    const needHtml = nec.disponible === false ? '<p class="bd-note">No se pudo leer Producción para calcular la tela necesaria.</p>'
+      : (nec.telas || []).length ? '' : '<p class="bd-note">No hay pedidos programados pendientes de Sublimación.</p>';
+    return section('Tela necesaria · pedidos programados', 'promedio general × cantidad de cada orden', needTotal + (nec.telas || []).map(needCard).join('') + needMissing) + needHtml;
+  };
+
   const render = data => {
     const k = data.kpis, sub = data.sublimacion, mov = data.movimientos, con = data.consumos;
     const split = (k.mts_nuevos + k.mts_empezados) || 1;
@@ -115,20 +132,6 @@
           total: row.short ? num(row.missing) + '<small>MTS FALTAN</small>' : num(row.mts) + '<small>MTS</small>',
           telas: [row.tela, ...row.telas], fecha: row.fecha,
           unit: (row.fecha ? 'Edición ' + shortDay(row.fecha) + ' · ' : '') + 'Disponible ' + num(row.disponible) + ' MTS · ' + row.telas.join(', ')});
-    // Tela necesaria por los pedidos programados: promedio general del maestro de cada referencia × cantidad de la orden, acumulado por tela
-    const nec = data.necesidad || {telas: [], sin_promedio: []};
-    const needCard = row => card({
-      badge: !row.encontrada ? 'Tela no encontrada' : row.alcanza ? 'Alcanza' : 'No alcanza', badgeClass: row.alcanza ? 'ok' : 'bad', cls: row.alcanza ? '' : 'bad',
-      level: row.encontrada ? Math.min(100, row.disponible / (row.mts || 1) * 100) : 0, tone: row.alcanza ? 'verde' : 'rojo', telas: [row.tela, ...(row.telas || [])],
-      name: row.tela, total: num(row.mts) + '<small>MTS</small>',
-      unit: 'Necesita ' + num(row.mts) + ' MTS · ' + (row.encontrada ? 'Bodega ' + num(row.disponible) + ' MTS' + (row.alcanza ? '' : ' · FALTAN ' + num(row.faltan) + ' MTS') : 'no hay una tela con ese nombre en Bodega') + ' · ' + num(row.prendas) + ' prendas · ' + row.pedidos.length + (row.pedidos.length === 1 ? ' pedido' : ' pedidos'),
-      extra: row.pedidos.map(p => '<div class="bd-line" title="' + esc(p.referencia + ' · promedio general ' + p.promedio + ' MTS por prenda' + (p.entrega ? ' · entrega ' + p.entrega : '')) + '"><span>' + esc(p.orden) + ' · ' + esc(p.referencia) + ' · ' + num(p.cantidad) + ' × ' + num(p.promedio) + (p.estado === 'P' ? ' · en Sublimación' : '') + '</span><b>' + num(p.mts) + ' MTS</b></div>').join('')});
-    const needTotal = nec.disponible === false ? '' : card({badge: nec.telas_no_alcanzan ? 'Atención' : 'Al día', badgeClass: nec.telas_no_alcanzan ? 'bad' : 'ok', cls: nec.telas_no_alcanzan ? 'bad' : '',
-      level: nec.mts ? Math.max(0, 100 - nec.faltan / nec.mts * 100) : 100, tone: nec.telas_no_alcanzan ? 'rojo' : 'verde', name: 'Tela necesaria programada',
-      total: num(nec.mts) + '<small>MTS</small>', unit: num(nec.pedidos) + ' pedidos en ' + num((nec.telas || []).length) + ' telas · ' + (nec.telas_no_alcanzan ? num(nec.telas_no_alcanzan) + ' telas no alcanzan · faltan ' + num(nec.faltan) + ' MTS' : 'toda la tela alcanza')});
-    const needMissing = (nec.sin_promedio || []).map(p => card({badge: 'Sin promedio', badgeClass: 'warn', telas: [p.tela], name: p.orden + ' · ' + p.referencia, total: num(p.cantidad) + '<small>prendas</small>', unit: p.tela + ' · ' + p.motivo + ' · agrégalo en Promedios maestros'})).join('');
-    const needHtml = nec.disponible === false ? '<p class="bd-note">No se pudo leer Producción para calcular la tela necesaria.</p>'
-      : (nec.telas || []).length ? '' : '<p class="bd-note">No hay pedidos programados pendientes de Sublimación.</p>';
     const orders = sub.lista.map(orderCard).join('');
     const ready = (data.listas || []).slice().sort((a, b) => (b.short - a.short)).map(readyCard).join('');
 
@@ -147,7 +150,6 @@
 
     body.innerHTML =
       section('Resumen', '', resumen, true) +
-      section('Tela necesaria · pedidos programados', 'promedio general × cantidad de cada orden', needTotal + (nec.telas || []).map(needCard).join('') + needMissing) + needHtml +
       section('Lista para imprimir', 'Edición finalizada · ' + num((data.listas || []).length) + ' referencias · se revisa si alcanza la tela', ready || '') + (ready ? '' : '<p class="bd-note">No hay referencias con Edición finalizada pendientes de Sublimación.</p>') +
       section('Sublimación en curso', num(sub.ordenes) + ' órdenes', orders || '') + (orders ? '' : '<p class="bd-note">No hay órdenes en Sublimación (P).</p>') +
       section('Bajo stock', 'menos de ' + num(data.umbral_bajo) + ' MTS', low || '') + (low ? '' : '<p class="bd-note">Ninguna tela por debajo del umbral.</p>') +
@@ -265,11 +267,33 @@
   new MutationObserver(mountHome).observe(document.body, {childList: true, subtree: true});
   setInterval(() => { if (homeRow.offsetParent) showProd(); }, 30000);
 
-  const open = button => {
+
+  // ---- Pestaña TELA PROGRAMADA: la tela que piden los pedidos programados (promedio general del maestro × cantidad) frente a Bodega ----
+  const panel2 = document.createElement('section');
+  panel2.className = 'panel';
+  panel2.dataset.panel = 'tela-programada';
+  panel2.innerHTML = '<div class="bd"><div class="bd-head"><div><h2>Tela programada · según los pedidos</h2><p class="bd-updated2">Cargando…</p></div><div class="bd-head-actions"><button type="button" class="bd-refresh2 bd-refresh">Actualizar</button></div></div><div class="bd-body2"></div></div>';
+  const body2 = panel2.querySelector('.bd-body2');
+  body2.style.display = 'grid';
+  body2.style.gap = '26px';
+  const load2 = async (silencioso) => {
+    if (!silencioso) body2.innerHTML = '<p class="bd-note">Calculando la tela de los pedidos…</p>';
+    try {
+      const response = await fetch('/api/inventarios/tela-necesaria', {cache: 'no-store'});
+      const data = await response.json();
+      if (!response.ok) throw Error(data.detail || 'No fue posible calcular la tela necesaria');
+      panel2.querySelector('.bd-updated2').textContent = 'Calculado: ' + when(new Date().toISOString()) + ' · se actualiza solo cada minuto';
+      body2.innerHTML = necesidadHtml(data);
+    } catch (error) { if (!silencioso) body2.innerHTML = '<p class="bd-note">' + esc(error.message) + '</p>'; }
+  };
+  panel2.querySelector('.bd-refresh2').onclick = () => load2(false);
+  setInterval(() => { if (!document.hidden && panel2.classList.contains('active')) load2(true); }, 60000);
+
+  const open = (button, destino = panel, cargar = load) => {
     document.querySelectorAll('.tab').forEach(tab => tab.classList.toggle('active', tab === button));
-    document.querySelectorAll('.panel').forEach(item => item.classList.toggle('active', item === panel));
+    document.querySelectorAll('.panel').forEach(item => item.classList.toggle('active', item === destino));
     document.body.classList.remove('inicio-mode','inventory-mode','production-mode','schedule-mode','operarios-mode','cartera-mode');
-    load();
+    cargar();
   };
 
   const mount = () => {
@@ -286,6 +310,14 @@
     button.innerHTML = '<span class="nav-icon">PC</span><strong>PANEL DE CONTROL</strong>';
     button.onclick = () => open(button);
     children.prepend(button);
+    main.appendChild(panel2);
+    const button2 = document.createElement('button');
+    button2.type = 'button';
+    button2.className = 'tab inventory-control-nav';
+    button2.dataset.telaProgramada = 'true';
+    button2.innerHTML = '<span class="nav-icon">TP</span><strong>TELA PROGRAMADA</strong>';
+    button2.onclick = () => open(button2, panel2, () => load2(false));
+    button.after(button2);
     return true;
   };
   if (!mount()) { const timer = setInterval(() => { if (mount()) clearInterval(timer); }, 300); setTimeout(() => clearInterval(timer), 15000); }

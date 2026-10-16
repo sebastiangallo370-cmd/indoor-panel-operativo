@@ -721,6 +721,17 @@ def inventory_set_top_rule(rule: MinimoTop):
     return {'ok': True}
 
 
+@inventario_router.get("/tela-necesaria")
+def inventory_tela_necesaria():
+    """Tela que piden los pedidos programados (promedio general del maestro × cantidad), por tela y frente a Bodega. Solo lectura."""
+    payload = _with_sublimacion(_inventory_payload())
+    try:
+        return tela_necesaria.calcular(payload.get('items') or [])
+    except Exception:
+        logging.getLogger(__name__).exception('No se pudo calcular la tela necesaria por pedidos')
+        raise HTTPException(500, 'No se pudo calcular la tela necesaria de los pedidos')
+
+
 @inventario_router.get("/dashboard")
 def inventory_dashboard():
     """Estadísticas de Bodega tela para el dashboard."""
@@ -750,11 +761,6 @@ def inventory_dashboard():
         ready = sublimacion_stock.forecast(payload.get('items') or [])
     except Exception:
         ready = []
-    try:
-        necesidad = tela_necesaria.calcular(payload.get('items') or [])
-    except Exception:
-        logging.getLogger(__name__).exception('No se pudo calcular la tela necesaria por pedidos')
-        necesidad = {'disponible': False, 'telas': [], 'sin_promedio': [], 'mts': 0.0, 'pedidos': 0, 'faltan': 0.0, 'telas_no_alcanzan': 0}
     plan_card = lambda plan: {'label': plan.get('label', ''), 'mts': plan.get('mts', 0), 'short': plan.get('short', False),
                               'missing': plan.get('missing', 0), 'rollos': len(plan.get('rolls') or []),
                               'encontrada': bool(plan.get('owners')), 'tela': plan.get('tela', ''), 'fecha': plan.get('fecha', ''),
@@ -791,7 +797,6 @@ def inventory_dashboard():
         'proveedores_telas': {name: sorted(((item['nombre'], round(float(item.get('total') or 0), 2)) for item in items if _supplier(item) == name), key=lambda pair: -pair[1])[:3] for name in suppliers},
         'proveedores': [{**entry, 'mts': round(entry['mts'], 2)} for entry in sorted(suppliers.values(), key=lambda entry: -entry['mts'])],
         'listas': [plan_card(plan) for plan in ready],
-        'necesidad': necesidad,
         'listas_no_alcanzan': sum(1 for plan in ready if plan.get('short')),
         'sublimacion': {
             'ordenes': len(plans),
