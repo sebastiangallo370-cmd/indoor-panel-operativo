@@ -63,6 +63,8 @@ Espera ~15 s tras reiniciar (el contenedor pasa por "health: starting"). Comprue
 - La llave SSH no está en el repo: ver la memoria `reference_ssh_vps` o pídesela al usuario. No crees llaves.
 
 ## Cómo verificar (hazlo siempre antes de decir "listo")
+- Pruebas automáticas (permisos y plan de rollos de Sublimación): `python -m unittest discover -s tests -v`. Córrelas antes de desplegar y añade pruebas al tocar esas reglas.
+- Despliegue en un paso: `scripts/desplegar.sh --cambiados` (o con archivos explícitos); sube uno por uno al contenedor y al host, reinicia y espera /salud.
 - Python: `python -c "import ast;ast.parse(open('app/main.py',encoding='utf-8').read())"`. JS sueltos: `node --check app/archivo.js`. Para el JS embebido en main.py, genera la página real y revisa cada `<script>`: en el contenedor, `TestClient(main.app)` con `main.app.dependency_overrides[main.authenticate]=lambda: 'Usuario'` devuelve `GET /` (y `/api/produccion`, `/api/permisos/mi`, etc.) como ese usuario; luego `node --check` de cada bloque. Así se prueban también los permisos por usuario.
 - Para la interfaz con datos reales sin iniciar sesión: baja `/api/produccion` con ese mismo truco, arma una página local (`test.html` con `indoorProcessFlow`, un `fetch` falso y el .js) y ábrela con el navegador integrado (`python -m http.server` en 127.0.0.1). Revisa también el ancho móvil. Restaura el tamaño de ventana al terminar.
 - Los cambios que escriban datos o inventario se prueban primero con una copia aislada (variables `INVENTORY_*` apuntando a /tmp), nunca sobre `/data` real.
