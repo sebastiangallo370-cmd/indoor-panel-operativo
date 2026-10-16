@@ -11,6 +11,9 @@
   const style = document.createElement('style');
   style.textContent = `
 .bd{display:grid;gap:22px;width:100%;padding-bottom:40px}
+.bd-tabs{display:flex;flex-wrap:wrap;gap:8px}
+.bd-tabs button{width:auto!important;padding:10px 18px!important;border:1px solid #46563f!important;border-radius:999px!important;background:#151d15!important;color:#dfe8d9!important;font:850 .74rem Arial!important;letter-spacing:.07em;cursor:pointer}
+.bd-tabs button[aria-selected=true]{background:#d0f44c!important;border-color:#d0f44c!important;color:#10150e!important}
 .bd-head{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:15px 18px;border:1px solid #46563f;border-radius:18px;background:linear-gradient(155deg,#1a2418,#0e140f)}
 .bd-head h2{margin:0;font-size:1.05rem;color:#f0f4eb}
 .bd-head p{margin:3px 0 0;color:#8a9485;font-size:.72rem}
@@ -71,7 +74,7 @@
   const panel = document.createElement('section');
   panel.className = 'panel';
   panel.dataset.panel = 'bodega-dashboard';
-  panel.innerHTML = '<div class="bd"><div class="bd-head"><div><h2>Panel de control · Stock tela</h2><p class="bd-updated">Cargando…</p></div><div class="bd-head-actions"><label class="bd-switch" title="Conecta o desvincula el inventario del Google Sheets"><span class="bd-switch-text"><b>Inventario</b><small data-bd-link-state>Cargando…</small></span><input type="checkbox" role="switch" data-bd-link><i class="bd-switch-track"><i class="bd-switch-dot"></i></i></label><button type="button" class="bd-refresh">Actualizar</button></div></div>' +
+  panel.innerHTML = '<div class="bd"><div class="bd-tabs" role="tablist"><button type="button" role="tab" data-bd-go="panel" aria-selected="true">PANEL DE CONTROL</button><button type="button" role="tab" data-bd-go="tela" aria-selected="false">TELA PROGRAMADA</button></div><div class="bd-head"><div><h2>Panel de control · Stock tela</h2><p class="bd-updated">Cargando…</p></div><div class="bd-head-actions"><label class="bd-switch" title="Conecta o desvincula el inventario del Google Sheets"><span class="bd-switch-text"><b>Inventario</b><small data-bd-link-state>Cargando…</small></span><input type="checkbox" role="switch" data-bd-link><i class="bd-switch-track"><i class="bd-switch-dot"></i></i></label><button type="button" class="bd-refresh">Actualizar</button></div></div>' +
     '<form class="bd-filters" autocomplete="off" onsubmit="return false"><label>Nombre tela<input name="tela" type="search" list="bd-telas" placeholder="Ej. MONTECATINI"><datalist id="bd-telas"></datalist></label><label>Código tela<input name="codigo" type="search" inputmode="numeric" placeholder="Ej. 100"></label><label>Fecha desde<input name="desde" type="date"></label><label>Fecha hasta<input name="hasta" type="date"></label><button type="button" class="bd-clear">Limpiar</button><p class="bd-count"></p></form>' +
     '<div class="bd-body"></div></div>';
   const body = panel.querySelector('.bd-body');
@@ -272,7 +275,7 @@
   const panel2 = document.createElement('section');
   panel2.className = 'panel';
   panel2.dataset.panel = 'tela-programada';
-  panel2.innerHTML = '<div class="bd"><div class="bd-head"><div><h2>Tela programada · según los pedidos</h2><p class="bd-updated2">Cargando…</p></div><div class="bd-head-actions"><button type="button" class="bd-refresh2 bd-refresh">Actualizar</button></div></div><div class="bd-body2"></div></div>';
+  panel2.innerHTML = '<div class="bd"><div class="bd-tabs" role="tablist"><button type="button" role="tab" data-bd-go="panel" aria-selected="false">PANEL DE CONTROL</button><button type="button" role="tab" data-bd-go="tela" aria-selected="true">TELA PROGRAMADA</button></div><div class="bd-head"><div><h2>Tela programada · según los pedidos</h2><p class="bd-updated2">Cargando…</p></div><div class="bd-head-actions"><button type="button" class="bd-refresh2 bd-refresh">Actualizar</button></div></div><div class="bd-body2"></div></div>';
   const body2 = panel2.querySelector('.bd-body2');
   body2.style.display = 'grid';
   body2.style.gap = '26px';
@@ -289,6 +292,11 @@
   panel2.querySelector('.bd-refresh2').onclick = () => load2(false);
   setInterval(() => { if (!document.hidden && panel2.classList.contains('active')) load2(true); }, 60000);
 
+  document.addEventListener('click', event => {
+    const go = event.target.closest('[data-bd-go]');
+    if (!go) return;
+    document.querySelector(go.dataset.bdGo === 'tela' ? '[data-tela-programada]' : '[data-bodega-dashboard]')?.click();
+  });
   const open = (button, destino = panel, cargar = load) => {
     document.querySelectorAll('.tab').forEach(tab => tab.classList.toggle('active', tab === button));
     document.querySelectorAll('.panel').forEach(item => item.classList.toggle('active', item === destino));
