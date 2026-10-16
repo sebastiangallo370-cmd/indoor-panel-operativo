@@ -30,7 +30,7 @@ from app.excel_linux import crear_excel_listado
 from app.excel_mockups import listing_designs
 from app import excel_mockups
 from app.uploaded_mockups import sync_order_uploads, require_mockup_upload
-from app import sheets_sync, db_backup, respaldo
+from app import sheets_sync, db_backup, respaldo, alertas_correo
 from app.creator_xlsx import _data_from_source, create_from_images, create_from_sheet_bundle, normalize_output_name
 from app.settings import STATE_DIR, UPLOAD_DIR, prepare_pedidos_runtime, prepare_runtime
 
@@ -672,6 +672,7 @@ def startup():
     start_sublimacion_worker()
     db_backup.start(DB_PATH, STATE_DIR, legacy.get_supabase)
     respaldo.start(DATA_ROOT, DB_PATH)
+    alertas_correo.start(_problemas_salud, STATE_DIR)
     threading.Thread(target=_warm_card_assets, name='precarga-disenos', daemon=True).start()
     threading.Thread(target=_vigilar_edicion, name='agentes-auto-edicion', daemon=True).start()
 
@@ -1085,6 +1086,10 @@ def salud_js():
 
 @app.get('/api/salud-panel')
 def salud_panel(_=Depends(authenticate)):
+    return {'problemas': _problemas_salud()}
+
+
+def _problemas_salud() -> list:
     """Problemas visibles para el usuario: sincronizacion detenida, NAS caido, respaldo atrasado."""
     problemas = []
     now = datetime.now(timezone.utc)
@@ -1123,7 +1128,7 @@ def salud_panel(_=Depends(authenticate)):
         problemas.append('El último respaldo tiene más de un día y medio')
     if info.get('nas_error'):
         problemas.append('El respaldo no se pudo copiar a la NAS: ' + info['nas_error'][:100])
-    return {'problemas': problemas}
+    return problemas
 
 
 _ALERTAS_CACHE = {'at': 0.0, 'prod': None, 'tela': None}
