@@ -11,9 +11,12 @@
   const style = document.createElement('style');
   style.textContent = `
 .bd{display:grid;gap:22px;width:100%;padding-bottom:40px}
-.bd-tabs{display:flex;flex-wrap:wrap;gap:8px}
-.bd-tabs button{width:auto!important;padding:10px 18px!important;border:1px solid #46563f!important;border-radius:999px!important;background:#151d15!important;color:#dfe8d9!important;font:850 .74rem Arial!important;letter-spacing:.07em;cursor:pointer}
-.bd-tabs button[aria-selected=true]{background:#d0f44c!important;border-color:#d0f44c!important;color:#10150e!important}
+.bd [hidden]{display:none!important}
+.bd .dash-tabs{display:flex;gap:8px;flex-wrap:wrap;padding:6px;border:1px solid rgba(255,255,255,.1);border-radius:14px;background:#0e130e}
+.bd .dash-tabs button{width:auto!important;min-height:0!important;display:inline-flex;align-items:center;gap:7px;padding:9px 16px!important;border:1px solid transparent!important;border-radius:10px!important;background:transparent!important;color:#b9c6b3!important;font:800 .8rem Arial!important;letter-spacing:.03em;cursor:pointer;transition:background .15s,color .15s}
+.bd .dash-tabs button:hover{background:rgba(255,255,255,.06)!important;color:#fff!important}
+.bd .dash-tabs button.on{background:#d0f44c!important;color:#16200a!important;border-color:#d0f44c!important}
+@media(max-width:700px){.bd .dash-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.bd .dash-tabs button{width:100%!important;justify-content:center}}
 .bd-head{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:15px 18px;border:1px solid #46563f;border-radius:18px;background:linear-gradient(155deg,#1a2418,#0e140f)}
 .bd-head h2{margin:0;font-size:1.05rem;color:#f0f4eb}
 .bd-head p{margin:3px 0 0;color:#8a9485;font-size:.72rem}
@@ -74,9 +77,10 @@
   const panel = document.createElement('section');
   panel.className = 'panel';
   panel.dataset.panel = 'bodega-dashboard';
-  panel.innerHTML = '<div class="bd"><div class="bd-tabs" role="tablist"><button type="button" role="tab" data-bd-go="panel" aria-selected="true">PANEL DE CONTROL</button><button type="button" role="tab" data-bd-go="tela" aria-selected="false">TELA PROGRAMADA</button></div><div class="bd-head"><div><h2>Panel de control · Stock tela</h2><p class="bd-updated">Cargando…</p></div><div class="bd-head-actions"><label class="bd-switch" title="Conecta o desvincula el inventario del Google Sheets"><span class="bd-switch-text"><b>Inventario</b><small data-bd-link-state>Cargando…</small></span><input type="checkbox" role="switch" data-bd-link><i class="bd-switch-track"><i class="bd-switch-dot"></i></i></label><button type="button" class="bd-refresh">Actualizar</button></div></div>' +
+  panel.innerHTML = '<div class="bd"><div class="bd-head"><div><h2>Panel de control · Stock tela</h2><p class="bd-updated">Cargando…</p></div><div class="bd-head-actions"><label class="bd-switch" title="Conecta o desvincula el inventario del Google Sheets"><span class="bd-switch-text"><b>Inventario</b><small data-bd-link-state>Cargando…</small></span><input type="checkbox" role="switch" data-bd-link><i class="bd-switch-track"><i class="bd-switch-dot"></i></i></label><button type="button" class="bd-refresh">Actualizar</button></div></div>' +
+    '<nav class="dash-tabs bd-subtabs" role="tablist" aria-label="Secciones del panel de control"><button type="button" role="tab" class="on" data-bd-tab="resumen" aria-selected="true">Resumen</button><button type="button" role="tab" data-bd-tab="tela" aria-selected="false">Tela programada</button></nav>' +
     '<form class="bd-filters" autocomplete="off" onsubmit="return false"><label>Nombre tela<input name="tela" type="search" list="bd-telas" placeholder="Ej. MONTECATINI"><datalist id="bd-telas"></datalist></label><label>Código tela<input name="codigo" type="search" inputmode="numeric" placeholder="Ej. 100"></label><label>Fecha desde<input name="desde" type="date"></label><label>Fecha hasta<input name="hasta" type="date"></label><button type="button" class="bd-clear">Limpiar</button><p class="bd-count"></p></form>' +
-    '<div class="bd-body"></div></div>';
+    '<div class="bd-body"></div><div class="bd-body2" hidden></div></div>';
   const body = panel.querySelector('.bd-body');
   body.style.display = 'grid';
   body.style.gap = '26px';
@@ -271,33 +275,34 @@
   setInterval(() => { if (homeRow.offsetParent) showProd(); }, 30000);
 
 
-  // ---- Pestaña TELA PROGRAMADA: la tela que piden los pedidos programados (promedio general del maestro × cantidad) frente a Bodega ----
-  const panel2 = document.createElement('section');
-  panel2.className = 'panel';
-  panel2.dataset.panel = 'tela-programada';
-  panel2.innerHTML = '<div class="bd"><div class="bd-tabs" role="tablist"><button type="button" role="tab" data-bd-go="panel" aria-selected="false">PANEL DE CONTROL</button><button type="button" role="tab" data-bd-go="tela" aria-selected="true">TELA PROGRAMADA</button></div><div class="bd-head"><div><h2>Tela programada · según los pedidos</h2><p class="bd-updated2">Cargando…</p></div><div class="bd-head-actions"><button type="button" class="bd-refresh2 bd-refresh">Actualizar</button></div></div><div class="bd-body2"></div></div>';
-  const body2 = panel2.querySelector('.bd-body2');
+  // ---- Sub-pestaña «Tela programada»: la tela que piden los pedidos programados (promedio general del maestro × cantidad) frente a Bodega ----
+  const body2 = panel.querySelector('.bd-body2');
   body2.style.display = 'grid';
   body2.style.gap = '26px';
+  const filtersBox = panel.querySelector('.bd-filters');
+  let subTab = 'resumen';
   const load2 = async (silencioso) => {
     if (!silencioso) body2.innerHTML = '<p class="bd-note">Calculando la tela de los pedidos…</p>';
     try {
       const response = await fetch('/api/inventarios/tela-necesaria', {cache: 'no-store'});
       const data = await response.json();
       if (!response.ok) throw Error(data.detail || 'No fue posible calcular la tela necesaria');
-      panel2.querySelector('.bd-updated2').textContent = 'Calculado: ' + when(new Date().toISOString()) + ' · se actualiza solo cada minuto';
+      panel.querySelector('.bd-updated').textContent = 'Tela calculada: ' + when(new Date().toISOString()) + ' · se actualiza sola cada minuto';
       body2.innerHTML = necesidadHtml(data);
     } catch (error) { if (!silencioso) body2.innerHTML = '<p class="bd-note">' + esc(error.message) + '</p>'; }
   };
-  panel2.querySelector('.bd-refresh2').onclick = () => load2(false);
-  setInterval(() => { if (!document.hidden && panel2.classList.contains('active')) load2(true); }, 60000);
+  const showSubTab = name => {
+    subTab = name;
+    panel.querySelectorAll('[data-bd-tab]').forEach(b => { const on = b.dataset.bdTab === name; b.classList.toggle('on', on); b.setAttribute('aria-selected', String(on)); });
+    body.hidden = name !== 'resumen';
+    filtersBox.hidden = name !== 'resumen';
+    body2.hidden = name !== 'tela';
+    if (name === 'tela') load2(false); else load();
+  };
+  panel.addEventListener('click', event => { const tab = event.target.closest('[data-bd-tab]'); if (tab) showSubTab(tab.dataset.bdTab); });
+  setInterval(() => { if (!document.hidden && panel.classList.contains('active') && subTab === 'tela') load2(true); }, 60000);
 
-  document.addEventListener('click', event => {
-    const go = event.target.closest('[data-bd-go]');
-    if (!go) return;
-    document.querySelector(go.dataset.bdGo === 'tela' ? '[data-tela-programada]' : '[data-bodega-dashboard]')?.click();
-  });
-  const open = (button, destino = panel, cargar = load) => {
+  const open = (button, destino = panel, cargar = () => (subTab === 'tela' ? load2(false) : load())) => {
     document.querySelectorAll('.tab').forEach(tab => tab.classList.toggle('active', tab === button));
     document.querySelectorAll('.panel').forEach(item => item.classList.toggle('active', item === destino));
     document.body.classList.remove('inicio-mode','inventory-mode','production-mode','schedule-mode','operarios-mode','cartera-mode');
@@ -318,14 +323,6 @@
     button.innerHTML = '<span class="nav-icon">PC</span><strong>PANEL DE CONTROL</strong>';
     button.onclick = () => open(button);
     children.prepend(button);
-    main.appendChild(panel2);
-    const button2 = document.createElement('button');
-    button2.type = 'button';
-    button2.className = 'tab inventory-control-nav';
-    button2.dataset.telaProgramada = 'true';
-    button2.innerHTML = '<span class="nav-icon">TP</span><strong>TELA PROGRAMADA</strong>';
-    button2.onclick = () => open(button2, panel2, () => load2(false));
-    button.after(button2);
     return true;
   };
   if (!mount()) { const timer = setInterval(() => { if (mount()) clearInterval(timer); }, 300); setTimeout(() => clearInterval(timer), 15000); }
