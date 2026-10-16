@@ -20,7 +20,7 @@ from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 from google.oauth2.service_account import Credentials
 
-from app import ingreso_documento, sublimacion_stock
+from app import ingreso_documento, sublimacion_stock, tela_necesaria
 
 
 inventario_router = APIRouter(prefix="/api/inventarios", tags=["inventarios"])
@@ -750,6 +750,11 @@ def inventory_dashboard():
         ready = sublimacion_stock.forecast(payload.get('items') or [])
     except Exception:
         ready = []
+    try:
+        necesidad = tela_necesaria.calcular(payload.get('items') or [])
+    except Exception:
+        logging.getLogger(__name__).exception('No se pudo calcular la tela necesaria por pedidos')
+        necesidad = {'disponible': False, 'telas': [], 'sin_promedio': [], 'mts': 0.0, 'pedidos': 0, 'faltan': 0.0, 'telas_no_alcanzan': 0}
     plan_card = lambda plan: {'label': plan.get('label', ''), 'mts': plan.get('mts', 0), 'short': plan.get('short', False),
                               'missing': plan.get('missing', 0), 'rollos': len(plan.get('rolls') or []),
                               'encontrada': bool(plan.get('owners')), 'tela': plan.get('tela', ''), 'fecha': plan.get('fecha', ''),
@@ -786,6 +791,7 @@ def inventory_dashboard():
         'proveedores_telas': {name: sorted(((item['nombre'], round(float(item.get('total') or 0), 2)) for item in items if _supplier(item) == name), key=lambda pair: -pair[1])[:3] for name in suppliers},
         'proveedores': [{**entry, 'mts': round(entry['mts'], 2)} for entry in sorted(suppliers.values(), key=lambda entry: -entry['mts'])],
         'listas': [plan_card(plan) for plan in ready],
+        'necesidad': necesidad,
         'listas_no_alcanzan': sum(1 for plan in ready if plan.get('short')),
         'sublimacion': {
             'ordenes': len(plans),

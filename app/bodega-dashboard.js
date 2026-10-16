@@ -115,6 +115,20 @@
           total: row.short ? num(row.missing) + '<small>MTS FALTAN</small>' : num(row.mts) + '<small>MTS</small>',
           telas: [row.tela, ...row.telas], fecha: row.fecha,
           unit: (row.fecha ? 'Edición ' + shortDay(row.fecha) + ' · ' : '') + 'Disponible ' + num(row.disponible) + ' MTS · ' + row.telas.join(', ')});
+    // Tela necesaria por los pedidos programados: promedio general del maestro de cada referencia × cantidad de la orden, acumulado por tela
+    const nec = data.necesidad || {telas: [], sin_promedio: []};
+    const needCard = row => card({
+      badge: !row.encontrada ? 'Tela no encontrada' : row.alcanza ? 'Alcanza' : 'No alcanza', badgeClass: row.alcanza ? 'ok' : 'bad', cls: row.alcanza ? '' : 'bad',
+      level: row.encontrada ? Math.min(100, row.disponible / (row.mts || 1) * 100) : 0, tone: row.alcanza ? 'verde' : 'rojo', telas: [row.tela, ...(row.telas || [])],
+      name: row.tela, total: num(row.mts) + '<small>MTS</small>',
+      unit: 'Necesita ' + num(row.mts) + ' MTS · ' + (row.encontrada ? 'Bodega ' + num(row.disponible) + ' MTS' + (row.alcanza ? '' : ' · FALTAN ' + num(row.faltan) + ' MTS') : 'no hay una tela con ese nombre en Bodega') + ' · ' + num(row.prendas) + ' prendas · ' + row.pedidos.length + (row.pedidos.length === 1 ? ' pedido' : ' pedidos'),
+      extra: row.pedidos.map(p => '<div class="bd-line" title="' + esc(p.referencia + ' · promedio general ' + p.promedio + ' MTS por prenda' + (p.entrega ? ' · entrega ' + p.entrega : '')) + '"><span>' + esc(p.orden) + ' · ' + esc(p.referencia) + ' · ' + num(p.cantidad) + ' × ' + num(p.promedio) + (p.estado === 'P' ? ' · en Sublimación' : '') + '</span><b>' + num(p.mts) + ' MTS</b></div>').join('')});
+    const needTotal = nec.disponible === false ? '' : card({badge: nec.telas_no_alcanzan ? 'Atención' : 'Al día', badgeClass: nec.telas_no_alcanzan ? 'bad' : 'ok', cls: nec.telas_no_alcanzan ? 'bad' : '',
+      level: nec.mts ? Math.max(0, 100 - nec.faltan / nec.mts * 100) : 100, tone: nec.telas_no_alcanzan ? 'rojo' : 'verde', name: 'Tela necesaria programada',
+      total: num(nec.mts) + '<small>MTS</small>', unit: num(nec.pedidos) + ' pedidos en ' + num((nec.telas || []).length) + ' telas · ' + (nec.telas_no_alcanzan ? num(nec.telas_no_alcanzan) + ' telas no alcanzan · faltan ' + num(nec.faltan) + ' MTS' : 'toda la tela alcanza')});
+    const needMissing = (nec.sin_promedio || []).map(p => card({badge: 'Sin promedio', badgeClass: 'warn', telas: [p.tela], name: p.orden + ' · ' + p.referencia, total: num(p.cantidad) + '<small>prendas</small>', unit: p.tela + ' · ' + p.motivo + ' · agrégalo en Promedios maestros'})).join('');
+    const needHtml = nec.disponible === false ? '<p class="bd-note">No se pudo leer Producción para calcular la tela necesaria.</p>'
+      : (nec.telas || []).length ? '' : '<p class="bd-note">No hay pedidos programados pendientes de Sublimación.</p>';
     const orders = sub.lista.map(orderCard).join('');
     const ready = (data.listas || []).slice().sort((a, b) => (b.short - a.short)).map(readyCard).join('');
 
@@ -133,6 +147,7 @@
 
     body.innerHTML =
       section('Resumen', '', resumen, true) +
+      section('Tela necesaria · pedidos programados', 'promedio general × cantidad de cada orden', needTotal + (nec.telas || []).map(needCard).join('') + needMissing) + needHtml +
       section('Lista para imprimir', 'Edición finalizada · ' + num((data.listas || []).length) + ' referencias · se revisa si alcanza la tela', ready || '') + (ready ? '' : '<p class="bd-note">No hay referencias con Edición finalizada pendientes de Sublimación.</p>') +
       section('Sublimación en curso', num(sub.ordenes) + ' órdenes', orders || '') + (orders ? '' : '<p class="bd-note">No hay órdenes en Sublimación (P).</p>') +
       section('Bajo stock', 'menos de ' + num(data.umbral_bajo) + ' MTS', low || '') + (low ? '' : '<p class="bd-note">Ninguna tela por debajo del umbral.</p>') +
