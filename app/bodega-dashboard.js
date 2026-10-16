@@ -312,17 +312,12 @@
       const sinPromedio = o.situacion === 'sin_promedio';
       const level = sinPromedio ? null : o.situacion === 'alcanza' ? 100 : o.mts ? Math.min(100, (o.disponible || 0) / o.mts * 100) : 0;
       const html = card({
-        badge: label, badgeClass: cls, cls: cls === 'bad' ? 'bad' : '', level, tone: o.situacion === 'alcanza' ? 'verde' : 'rojo',
-        name: o.orden + ' · ' + o.referencia,
-        total: sinPromedio ? num(o.cantidad) + '<small>prendas</small>' : num(o.mts) + '<small>MTS</small>',
-        unit: sinPromedio ? o.motivo + ' · agrégalo en Promedios maestros'
-          : o.situacion === 'alcanza' ? 'Bodega tras los pedidos anteriores: ' + num(o.disponible) + ' MTS'
-          : o.situacion === 'no_alcanza' ? 'FALTAN ' + num(o.falta) + ' MTS · quedan ' + num(o.disponible) + ' MTS en Bodega'
-          : 'No hay una tela con ese nombre en Bodega',
-        extra: '<div class="bd-line"><span>' + esc(o.cliente || 'Sin cliente') + '</span></div>' + (o.proyecto ? '<div class="bd-line"><span>' + esc(o.proyecto) + '</span></div>' : '') +
-          '<div class="bd-line"><span>Tela</span><b>' + esc(o.tela) + '</b></div>' +
-          (sinPromedio ? '' : '<div class="bd-line"><span>' + num(o.cantidad) + ' prendas × ' + num(o.promedio) + ' MTS</span><b>' + esc((o.maestros || []).join(' + ')) + '</b></div>') +
-          '<div class="bd-line"><span>' + (o.estado === 'P' ? 'En Sublimación' : 'Por entrar a Sublimación') + '</span><b>' + (o.entrega ? 'Entrega ' + shortDay(o.entrega) : 'Sin fecha') + '</b></div>'});
+        badge: o.orden, badgeClass: cls, cls: cls === 'bad' ? 'bad' : '', level, tone: o.situacion === 'alcanza' ? 'verde' : 'rojo',
+        name: o.tela,
+        total: sinPromedio ? 'Sin promedio' : num(o.mts) + '<small>MTS</small>',
+        unit: '',
+        extra: '<div class="bd-line"><span>Referencia</span><b>' + esc(o.referencia) + '</b></div>' +
+          '<div class="bd-line"><span>Entrega</span><b>' + (o.entrega ? esc(shortDay(o.entrega)) : 'Sin fecha') + '</b></div>'});
       const attrs = ' data-q="' + esc(norm([o.orden, o.cliente, o.proyecto, o.referencia, o.tela].join(' '))) + '" data-tela="' + esc(o.tela) + '" data-sit="' + o.situacion + '" data-sub="' + (o.estado === 'P' ? 'P' : 'pend') + '" data-fecha="' + esc(o.entrega || '') + '" data-sinfiltro="false"';
       return html.replace('<article ', '<article' + attrs + ' ');
     };
