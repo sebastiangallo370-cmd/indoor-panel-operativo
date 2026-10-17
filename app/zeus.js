@@ -7,7 +7,7 @@
   const cuando = () => new Date().toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
   const ESTADO = { SIN_CONECTAR: ['Sin conectar', 'bad'], ESPERANDO_EFFI: ['Esperando acceso a Effi', 'warn'], LIBRE: ['Libre', 'ok'], TRABAJANDO: ['Creando orden de compra…', 'ok'], ERROR: ['Con error', 'bad'] };
   const COMPRA = { pendiente: ['Por comprar', 'warn'], entregada: ['Creándola en Effi…', 'warn'], creada: ['Orden creada', 'ok'], error: ['Con error', 'bad'], cancelada: ['Ya alcanza', ''] };
-  let panel = null, tab = null, cuerpo = null, timer = null, correos = [], editando = false;
+  let panel = null, tab = null, cuerpo = null, timer = null, correos = [], cuentaEnvia = '';
 
   const card = ({ badge, badgeClass = '', name, total, unit = '', extra = '', cls = '' }) =>
     '<article class="inventory-item-card ' + cls + '"><span class="inv-badge ' + badgeClass + '">' + esc(badge) + '</span><strong class="inv-name">' + esc(name) + '</strong>' + extra +
@@ -24,7 +24,7 @@
     return '<section class="bd-section"><h3>Correos que reciben la orden de compra <small>· solo los confirmados reciben órdenes</small></h3>' +
       '<div class="zeus-correos">' + (correos.length ? correos.map(chip).join('') : '<p class="bd-note">Todavía no hay correos. Agrega al encargado de pedir la tela.</p>') + '</div>' +
       '<form class="zeus-form" data-zeus-form autocomplete="off"><input type="email" name="correo" placeholder="correo@ejemplo.com" aria-label="Correo nuevo" required><button type="submit" class="bd-clear">Agregar y verificar</button></form>' +
-      '<p class="bd-note zeus-msg" data-zeus-msg>Al agregar un correo le enviamos un mensaje; su dueño tiene que abrirlo y confirmar. Hasta entonces no recibe órdenes.</p></section>';
+      '<p class="bd-note zeus-msg" data-zeus-msg>Al agregar un correo le enviamos un mensaje' + (cuentaEnvia ? ' desde ' + esc(cuentaEnvia) : '') + '; su dueño tiene que abrirlo y confirmar. Hasta entonces no recibe órdenes.</p></section>';
   }
 
   function pintar(d) {
@@ -32,7 +32,7 @@
     const avisos = [];
     if (!a.conectado) avisos.push('El AGENTE INVENTARIO del PC todavía no está conectado: las compras quedan en la lista y se crean cuando se conecte.');
     if (a.conectado && a.estado === 'ESPERANDO_EFFI') avisos.push('El AGENTE INVENTARIO no puede iniciar sesión en Effi (el ingreso de Effi está fallando). Cuando funcione, crea las órdenes de la lista.');
-    if (d.correo && !d.correo.configurado) avisos.push('Falta configurar el correo del servidor para avisar al encargado de pedir la tela.');
+    if (d.correo && !d.correo.configurado) avisos.push('Falta configurar la cuenta de correo del servidor: sin ella no salen los mensajes de verificación ni las órdenes de compra.');
     const r = d.resumen || {};
     const agente = card({
       badge: 'Agente de inventario', badgeClass: cls, cls: cls === 'bad' ? 'bad' : '', name: 'AGENTE INVENTARIO', total: esc(etq), unit: a.titulo || '',
@@ -48,6 +48,7 @@
       });
     }).join('');
     correos = d.correos || [];
+    cuentaEnvia = (d.correo && d.correo.configurado && d.correo.cuenta) || '';
     cuerpo.innerHTML = (avisos.length ? '<p class="bd-note">' + avisos.map(esc).join('<br>') + '</p>' : '') +
       '<div class="bd-cards fit">' + agente + '</div>' + correosHtml() +
       '<section class="bd-section"><h3>Órdenes de compra <small>· la tela que falta, por tela</small> <button type="button" class="bd-clear" data-zeus-revisar style="margin-left:auto;padding:6px 12px!important">Revisar ahora</button></h3>' +

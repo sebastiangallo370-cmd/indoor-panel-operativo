@@ -150,5 +150,25 @@ class ZeusTest(unittest.TestCase):
         self.assertEqual(self.pc.delete('/api/zeus/correos', params={'correo': 'a@b.co'}).status_code, 403)
 
 
+class CuentaCorreoTest(unittest.TestCase):
+    def test_usa_la_cuenta_que_el_panel_ya_tiene_si_no_hay_otra(self):
+        from app import alertas_correo
+        viejo = dict(os.environ)
+        try:
+            for k in ('ALERTA_SMTP_USER', 'ALERTA_SMTP_PASSWORD', 'ALERTA_SMTP_HOST', 'ALERTA_SMTP_PORT'):
+                os.environ.pop(k, None)
+            os.environ.update({'SMTP_EMAIL': 'panel@indoor.co', 'SMTP_PASSWORD': 'clave-del-panel', 'SMTP_SERVER': 'smtp.ejemplo.co', 'SMTP_PORT': '587',
+                               'CORREO_CUENTA_FILE': str(Path(tempfile.mkdtemp()) / 'no-existe.json')})
+            alertas_correo.CUENTA_FILE = Path(os.environ['CORREO_CUENTA_FILE'])
+            self.assertEqual(alertas_correo.cuenta(), ('panel@indoor.co', 'clave-del-panel'))
+            self.assertTrue(alertas_correo.puede_enviar())
+            self.assertEqual(alertas_correo.servidor(), ('smtp.ejemplo.co', 587))
+            os.environ.update({'ALERTA_SMTP_USER': 'agente@indoor.co', 'ALERTA_SMTP_PASSWORD': 'otra'})   # lo del .env de alertas manda
+            self.assertEqual(alertas_correo.cuenta(), ('agente@indoor.co', 'otra'))
+        finally:
+            os.environ.clear()
+            os.environ.update(viejo)
+
+
 if __name__ == '__main__':
     unittest.main()

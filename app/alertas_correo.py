@@ -21,18 +21,82 @@ INTERVALO = 300
 CONFIRMAR = 2
 
 
+CUENTA_FILE = Path(os.getenv('CORREO_CUENTA_FILE', '/data/state/correo_cuenta.json'))
+
+
+def cuenta() -> tuple[str, str]:
+    """(usuario, contraseña de aplicación) con que se envían los correos: primero el .env y, si no hay, lo guardado desde el panel del agente."""
+    usuario, clave = os.getenv('ALERTA_SMTP_USER', ''), os.getenv('ALERTA_SMTP_PASSWORD', '')
+    if usuario and clave:
+        return usuario, clave
+    try:
+        d = json.loads(CUENTA_FILE.read_text(encoding='utf-8'))
+        if d.get('usuario') and d.get('clave'):
+            return str(d['usuario']), str(d['clave'])
+    except (OSError, ValueError):
+        pass
+    # la cuenta que el panel YA usa para sus correos (SMTP_EMAIL / SMTP_PASSWORD del .env): no hay que configurar nada nuevo
+    return os.getenv('SMTP_EMAIL', ''), os.getenv('SMTP_PASSWORD', '')
+
+
+def puede_enviar() -> bool:
+    return all(cuenta())
+
+
 def configurado() -> bool:
-    return bool(os.getenv('ALERTA_EMAIL_A') and os.getenv('ALERTA_SMTP_USER') and os.getenv('ALERTA_SMTP_PASSWORD'))
+    """Avisos de salud: necesitan además el destinatario fijo (ALERTA_EMAIL_A)."""
+    return bool(os.getenv('ALERTA_EMAIL_A') and puede_enviar())
+
+
+def servidor() -> tuple[str, int]:
+    if os.getenv('ALERTA_SMTP_USER'):
+        return os.getenv('ALERTA_SMTP_HOST', 'smtp.gmail.com'), int(os.getenv('ALERTA_SMTP_PORT', '465'))
+    return os.getenv('SMTP_SERVER', 'smtp.gmail.com'), int(os.getenv('SMTP_PORT', '465'))
+
+
+def _conexion():
+    """Conexión segura: puerto 465 = SSL directo; 587 = STARTTLS."""
+    host, puerto = servidor()
+    if puerto == 587:
+        s = smtplib.SMTP(host, puerto, timeout=30)
+        s.starttls()
+        return s
+    return smtplib.SMTP_SSL(host, puerto, timeout=30)
+
+
+def probar_cuenta(usuario: str, clave: str) -> None:
+    """Solo inicia sesión en el servidor de correo (no envía nada). Lanza el error de Google si rechaza la cuenta o la contraseña."""
+    with _conexion() as s:
+        s.login(usuario, clave)
+
+
+def guardar_cuenta(usuario: str, clave: str) -> None:
+    CUENTA_FILE.parent.mkdir(parents=True, exist_ok=True)
+    tmp = CUENTA_FILE.with_suffix('.tmp')
+    tmp.write_text(json.dumps({'usuario': usuario, 'clave': clave}), encoding='utf-8')
+    try:
+        os.chmod(tmp, 0o600)
+    except OSError:
+        pass
+    tmp.replace(CUENTA_FILE)
+
+
+def borrar_cuenta() -> None:
+    try:
+        CUENTA_FILE.unlink()
+    except OSError:
+        pass
 
 
 def enviar(asunto: str, cuerpo: str, para: str | None = None) -> None:
+    usuario, clave = cuenta()
     msg = EmailMessage()
     msg['Subject'] = asunto
-    msg['From'] = os.environ['ALERTA_SMTP_USER']
+    msg['From'] = usuario
     msg['To'] = para or os.environ['ALERTA_EMAIL_A']
     msg.set_content(cuerpo)
-    with smtplib.SMTP_SSL(os.getenv('ALERTA_SMTP_HOST', 'smtp.gmail.com'), int(os.getenv('ALERTA_SMTP_PORT', '465')), timeout=30) as s:
-        s.login(os.environ['ALERTA_SMTP_USER'], os.environ['ALERTA_SMTP_PASSWORD'])
+    with _conexion() as s:
+        s.login(usuario, clave)
         s.send_message(msg)
 
 

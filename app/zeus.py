@@ -140,7 +140,7 @@ def destinatarios() -> str:
 def _correo_creada(item: dict) -> None:
     try:
         from app import alertas_correo
-        if not alertas_correo.configurado():
+        if not alertas_correo.puede_enviar():
             return
         para = destinatarios()
         lineas = [f"- {o['orden']} · {o['referencia']} · {o.get('cliente', '')}: falta {o['falta']:g} MTS (entrega {o.get('entrega') or 'sin fecha'})" for o in item['ordenes']]
@@ -186,7 +186,7 @@ def estado():
         from app import alertas_correo
         return {'agente': _agente(d), 'items': d['items'][-60:][::-1],
                 'resumen': {e: sum(1 for i in d['items'] if i['estado'] == e) for e in ('pendiente', 'entregada', 'creada', 'error', 'cancelada')},
-                'correo': {'configurado': alertas_correo.configurado(), 'encargado': bool(any(c.get('estado') == 'verificado' for c in d['config']['correos']) or os.getenv('ZEUS_EMAIL_A') or os.getenv('ALERTA_EMAIL_A'))},
+                'correo': {'configurado': alertas_correo.puede_enviar(), 'cuenta': alertas_correo.cuenta()[0], 'encargado': bool(any(c.get('estado') == 'verificado' for c in d['config']['correos']) or os.getenv('ZEUS_EMAIL_A') or os.getenv('ALERTA_EMAIL_A'))},
                 'correos': _correos_vista(d)}
 
 
@@ -217,7 +217,7 @@ def _validar(correo: str) -> str:
 def _enviar_verificacion(correo: str, token: str, pidio: str) -> str:
     """Manda el mensaje con el enlace de confirmación. Devuelve '' si salió o el motivo si no pudo."""
     from app import alertas_correo
-    if not alertas_correo.configurado():
+    if not alertas_correo.puede_enviar():
         return 'Falta configurar la cuenta de correo del servidor: no se pudo enviar el mensaje de verificación.'
     enlace = f'{URL_PUBLICA}/api/zeus/confirmar?c={correo}&t={token}'
     try:
