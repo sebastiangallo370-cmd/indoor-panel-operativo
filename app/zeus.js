@@ -84,13 +84,14 @@
     const menu = document.querySelector('.user-dropdown');
     if (!menu || !tab) return false;
     let boton = document.getElementById('open-zeus');
-    const previo = document.getElementById('open-ecommerce') || document.getElementById('open-agentes') || document.getElementById('open-personal-notes');
+    const previo = document.getElementById('open-bitacora') || document.getElementById('open-ecommerce') || document.getElementById('open-agentes') || document.getElementById('open-personal-notes');
     if (!boton) {
       boton = document.createElement('button');
       boton.type = 'button'; boton.id = 'open-zeus'; boton.textContent = 'Inventario · ZEUS';
       boton.addEventListener('click', () => { document.querySelector('.user-menu')?.removeAttribute('open'); tab.click(); });
     }
-    if (previo) { if (boton.previousElementSibling !== previo) previo.insertAdjacentElement('afterend', boton); }
+    if (boton.isConnected) return true;   // una sola vez: si cada módulo reacomodara su botón, se pelearían y el menú se vería moviéndose
+    if (previo) previo.insertAdjacentElement('afterend', boton);
     else if (!boton.isConnected) menu.querySelector('p')?.insertAdjacentElement('afterend', boton);
     return true;
   }

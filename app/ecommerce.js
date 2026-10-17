@@ -466,7 +466,8 @@
       boton.type = 'button'; boton.id = 'open-ecommerce'; boton.textContent = 'Ecommerce';
       boton.addEventListener('click', () => { document.querySelector('.user-menu')?.removeAttribute('open'); tab.click(); });
     }
-    if (previo) { if (boton.previousElementSibling !== previo) previo.insertAdjacentElement('afterend', boton); }
+    if (boton.isConnected) return true;   // una sola vez: si cada módulo reacomodara su botón, se pelearían y el menú se vería moviéndose
+    if (previo) previo.insertAdjacentElement('afterend', boton);
     else if (!boton.isConnected) menu.querySelector('p')?.insertAdjacentElement('afterend', boton);
     return true;
   }
