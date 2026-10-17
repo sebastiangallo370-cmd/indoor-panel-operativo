@@ -106,6 +106,26 @@
 .bd .ot-sinprom{font:900 1.15rem Arial;color:#d0f44c!important}
 .bd .ot-alerta{font:850 .6rem Arial;letter-spacing:.06em;text-transform:uppercase;line-height:1.3}
 .bd .ot.bad .ot-alerta{color:#ffd9d4!important}
+/* tarjeta de orden más tranquila: menos color, menos cajas y una sola línea por dato */
+.bd .ot.lq{background:radial-gradient(120% 80% at 12% 0%,rgba(255,255,255,.16),rgba(255,255,255,0) 55%),linear-gradient(160deg,color-mix(in srgb,var(--liquid) 36%,transparent),color-mix(in srgb,var(--liquid) 14%,rgba(8,12,8,.72)))!important}
+.bd .ot{gap:8px!important;padding:13px 14px 12px!important}
+.bd .ot-fecha{background:none!important;border:0!important;padding:0!important;font:700 .62rem Arial!important;letter-spacing:.04em;text-transform:none!important;opacity:.78}
+.bd .ot-head .inv-badge{background:rgba(255,255,255,.14)!important;border:0!important}
+.bd .ot-tela{font:900 1rem Arial!important}
+.bd .ot-ref{font:600 .64rem Arial!important;opacity:.65!important}
+.bd .ot-cliente-linea{font:700 .74rem Arial;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bd .ot-cliente-linea b{font-weight:800}
+.bd .ot-cliente-linea span{opacity:.7;font-weight:600}
+.bd .ot-tallas-txt{font:600 .64rem Arial;opacity:.62;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.02em}
+.bd .ot-tiempo{background:none!important;border:0!important;box-shadow:none!important;border-left:3px solid #cdeccb!important;border-radius:0!important;padding:1px 0 1px 9px!important;gap:7px!important}
+.bd .ot-tiempo.urgente{border-left-color:#ff9d92!important}
+.bd .ot-tiempo.pronto{border-left-color:#ffd08a!important}
+.bd .ot-tiempo.ya{border-left-color:#9fe3a0!important}
+.bd .ot-reloj{display:none}
+.bd .ot-tiempo b{font:800 .7rem Arial!important}
+.bd .ot-tiempo small{font:600 .6rem Arial!important;opacity:.7!important}
+.bd .ot-consumo{font:900 1.4rem Arial!important}
+.bd .ot-alerta{font:800 .58rem Arial!important}
 @media (max-width:700px){.bd .ot{padding:12px!important}.bd .ot-pie{padding-right:46px}}
 .bd .bd-tcards .inventory-item-card .bd-line{flex-wrap:wrap;align-items:baseline}
 .bd .bd-tcards .inventory-item-card .bd-line b{white-space:normal;text-align:right;overflow-wrap:anywhere;min-width:0;margin-left:auto}
@@ -417,7 +437,7 @@
         const d = Math.max(1, Math.ceil(e.dias));
         const cambio = cambioLlegada(o, e.llega);
         const nota = cambio ? (cambio.dias > 0 ? '▲ Se atrasó ' + cambio.dias + (cambio.dias === 1 ? ' día' : ' días') : '▼ Se adelantó ' + Math.abs(cambio.dias) + (Math.abs(cambio.dias) === 1 ? ' día' : ' días')) + ' desde ' + fechaCorta(cambio.desde).replace(/( de)? \d{4}$/, '') : '';
-        return [d <= 1 ? 'urgente' : d <= 3 ? 'pronto' : 'ok', (e.total < MIN_DIA ? 'Llega a Sublimación en menos de 1 día' : 'Llega a Sublimación en ≈ ' + d + (d === 1 ? ' día' : ' días')), 'faltan ' + e.partes.map(x => x.label.toLowerCase()).join(' + ') + ' · ' + horasTxt(e.total) + ' · estimado ' + cuando, ayuda + (cambio ? '\n' + nota + ' (antes: ' + fechaCorta(cambio.antes) + ')' : ''), nota, cambio ? (cambio.dias > 0 ? 'atraso' : 'adelanto') : ''];
+        return [d <= 1 ? 'urgente' : d <= 3 ? 'pronto' : 'ok', (e.total < MIN_DIA ? 'Llega a Sublimación en menos de 1 día' : 'Llega a Sublimación en ≈ ' + d + (d === 1 ? ' día' : ' días')), 'faltan ' + e.partes.map(x => x.label.toLowerCase()).join(' + ') + ' · ' + horasTxt(e.total), ayuda + '\nEstimado: ' + cuando + (cambio ? '\n' + nota + ' (antes: ' + fechaCorta(cambio.antes) + ')' : ''), nota, cambio ? (cambio.dias > 0 ? 'atraso' : 'adelanto') : ''];
       }
       if (typeof o.dias_sublim !== 'number') return null;
       const d = o.dias_sublim, cuando = fechaCorta(o.sublim_est).replace(/( de)? \d{4}$/, '');
@@ -434,13 +454,13 @@
       const pares = !sinPromedio && o.exacto ? tallasPares(o) : [];
       const tiempo = tiempoSublim(o);
       const attrs = ' data-q="' + esc(norm([o.orden, o.cliente, o.proyecto, o.referencia, o.tela].join(' '))) + '" data-tela="' + esc(o.tela) + '" data-sit="' + o.situacion + '" data-sub="' + (o.estado === 'P' ? 'P' : 'pend') + '" data-fecha="' + esc(o.entrega || '') + '" data-sinfiltro="false"';
+      const titTiempo = tiempo ? (tiempo[3] || 'Estimado: fecha de entrega menos los ' + (brechaDias || 14) + ' días que suelen pasar entre Sublimación y la entrega') : '';
       return '<article class="inventory-item-card ot ' + (cls === 'bad' ? 'bad' : '') + '"' + attrs + (level !== null ? ' data-lq="' + Math.round(level) + '" data-lq-tone="' + tono + '"' : '') + '>' +
-        '<div class="ot-head"><span class="inv-badge ' + cls + '">' + esc(o.orden) + '</span><span class="ot-fecha" title="Fecha de entrega">Entrega · ' + esc(fechaCorta(o.entrega)) + '</span></div>' +
+        '<div class="ot-head"><span class="inv-badge ' + cls + '">' + esc(o.orden) + '</span><span class="ot-fecha" title="Fecha de entrega">Entrega ' + esc(fechaCorta(o.entrega)) + '</span></div>' +
         '<div class="ot-titulo"><strong class="ot-tela">' + esc(o.tela) + '</strong><span class="ot-ref">' + esc(o.referencia) + '</span></div>' +
-        '<div class="ot-sep"></div>' +
-        '<div class="ot-cliente-bloque"><strong class="ot-cliente">' + esc(o.cliente || 'Sin cliente') + '</strong><span class="ot-proyecto">' + esc(o.proyecto || 'Sin proyecto') + '</span></div>' +
-        (pares.length ? '<div class="ot-tallas" aria-label="Tallas">' + pares.map(([t, n]) => '<span class="ot-t">' + esc(t) + ' <b>' + num(n) + '</b></span>').join('') + '</div>' : '') +
-        (tiempo ? '<div class="ot-tiempo ' + tiempo[0] + '" title="' + esc(tiempo[3] || 'Estimado: fecha de entrega menos los ' + (brechaDias || 14) + ' días que suelen pasar entre Sublimación y la entrega') + '"><span class="ot-reloj" aria-hidden="true">⏱</span><span><b>' + esc(tiempo[1]) + '</b>' + (tiempo[2] ? '<small>' + esc(tiempo[2]) + '</small>' : '') + (tiempo[4] ? '<small class="ot-cambio ' + tiempo[5] + '">' + esc(tiempo[4]) + '</small>' : '') + '</span></div>' : '') +
+        '<div class="ot-cliente-linea" title="' + esc((o.cliente || 'Sin cliente') + ' · ' + (o.proyecto || 'Sin proyecto')) + '"><b>' + esc(o.cliente || 'Sin cliente') + '</b><span> · ' + esc(o.proyecto || 'Sin proyecto') + '</span></div>' +
+        (pares.length ? '<div class="ot-tallas-txt" title="Prendas por talla">' + esc(pares.map(([t, n]) => t + ' ' + num(n)).join(' · ')) + '</div>' : '') +
+        (tiempo ? '<div class="ot-tiempo ' + tiempo[0] + '" title="' + esc(titTiempo) + '"><span class="ot-reloj" aria-hidden="true">⏱</span><span><b>' + esc(tiempo[1]) + '</b>' + (tiempo[2] ? '<small>' + esc(tiempo[2]) + '</small>' : '') + (tiempo[4] ? '<small class="ot-cambio ' + tiempo[5] + '">' + esc(tiempo[4]) + '</small>' : '') + '</span></div>' : '') +
         '<div class="ot-pie">' + (sinPromedio ? '<span class="ot-sinprom">Sin promedio</span>' : '<span class="ot-consumo">' + num(o.mts) + '<small>MTS</small></span>') +
         (alerta ? '<span class="ot-alerta">' + esc(alerta) + '</span>' : '') + '</div></article>';
     };
