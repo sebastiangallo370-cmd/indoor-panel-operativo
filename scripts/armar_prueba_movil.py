@@ -13,14 +13,14 @@ for nombre in ('bodega-dashboard.js', 'liquid-stats.js'):
     shutil.copy(repo / 'app' / nombre, destino / nombre)
 datos = r"""
 <script>
-const mk=(o,r,t,c,p,e,est)=>({orden:o,cliente:'INDUSTRIA COLOMBIANA DE MOTOCICLETAS YAMAHA S.A.S',proyecto:'50 AÑOS',referencia:r,tela:t,cantidad:c,promedio:p,mts:+(c*p).toFixed(2),entrega:e,estado:est||'',maestros:['CA00'],telas:[t],exacto:true,tallas:[{talla:'XS',cantidad:3},{talla:'S',cantidad:30},{talla:'M',cantidad:54},{talla:'L',cantidad:55},{talla:'XL',cantidad:39},{talla:'2XL',cantidad:14},{talla:'3XL',cantidad:1},{talla:'4XL',cantidad:4}]});
+const mk=(o,r,t,c,p,e,est)=>({orden:o,cliente:'INDUSTRIA COLOMBIANA DE MOTOCICLETAS YAMAHA S.A.S',proyecto:'50 AÑOS',referencia:r,tela:t,cantidad:c,promedio:p,mts:+(c*p).toFixed(2),entrega:e,estado:est||'',sublim_est:'2026-10-20',dias_sublim:4,en_sublim:false,maestros:['CA00'],telas:[t],exacto:true,tallas:[{talla:'XS',cantidad:3},{talla:'S',cantidad:30},{talla:'M',cantidad:54},{talla:'L',cantidad:55},{talla:'XL',cantidad:39},{talla:'2XL',cantidad:14},{talla:'3XL',cantidad:1},{talla:'4XL',cantidad:4}]});
 const ord=[
- Object.assign(mk('RM7658','A200CA01','DIAMANTE',4,0.78,'2026-10-23'),{situacion:'alcanza',falta:0,disponible:4056}),
+ Object.assign(mk('RM7658','A200CA01','DIAMANTE',4,0.78,'2026-10-23'),{situacion:'alcanza',falta:0,disponible:4056,dias_sublim:-7,sublim_est:'2026-10-09'}),
  Object.assign(mk('CO6190','A300CA03-A300PT01','HYDROTECH',25,1.43,'2026-10-31'),{situacion:'alcanza',falta:0,disponible:574}),
  Object.assign(mk('RM7648','A700CA00','TOUR',200,0.78,'2026-11-03'),{situacion:'no_alcanza',falta:26,disponible:130}),
- Object.assign(mk('RM9999','A800CA00','TELA SIN STOCK',10,1,'2026-11-05'),{situacion:'sin_tela',falta:10,disponible:0}),
+ Object.assign(mk('RM9999','A800CA00','TELA SIN STOCK',10,1,'2026-11-05'),{situacion:'sin_tela',falta:10,disponible:0,dias_sublim:1,sublim_est:'2026-10-17'}),
  {orden:'RM7631',cliente:'ZUS',proyecto:'LAB',referencia:'A4403-4400-8103BS01ZUSM',tela:'VIOTO',cantidad:102,promedio:0,mts:0,entrega:'2026-10-23',estado:'',situacion:'sin_promedio',falta:0,maestros:[],telas:[],motivo:'Sin promedio'}];
-const nec={disponible:true,mts:239.6,pedidos:4,faltan:36,telas_no_alcanzan:2,ordenes:ord,
+const nec={disponible:true,brecha_sublimacion:14,mts:239.6,pedidos:4,faltan:36,telas_no_alcanzan:2,ordenes:ord,
  telas:[{tela:'TOUR',mts:156,prendas:200,disponible:130,encontrada:true,telas:['(700) TOUR'],faltan:26,alcanza:false,pedidos:[ord[2]]},
         {tela:'HYDROTECH',mts:35.75,prendas:25,disponible:574,encontrada:true,telas:['(300) HYDROTECH'],faltan:0,alcanza:true,pedidos:[ord[1]]},
         {tela:'DIAMANTE',mts:3.12,prendas:4,disponible:4056,encontrada:true,telas:['(200) DIAMANTE'],faltan:0,alcanza:true,pedidos:[ord[0]]}]};

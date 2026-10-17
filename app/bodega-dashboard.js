@@ -89,6 +89,14 @@
 .bd .ot-tallas{display:flex;flex-wrap:wrap;gap:5px}
 .bd .ot-t{display:inline-flex;align-items:baseline;gap:4px;padding:2px 8px;border-radius:999px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);font:800 .6rem Arial;letter-spacing:.04em}
 .bd .ot-t b{font:900 .72rem Arial}
+.bd .ot-tiempo{display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:12px;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.22);box-shadow:inset 0 1px 0 rgba(255,255,255,.22)}
+.bd .ot-tiempo>span:last-child{display:grid;gap:1px;min-width:0}
+.bd .ot-tiempo b{font:850 .72rem Arial;line-height:1.2}
+.bd .ot-tiempo small{font:600 .62rem Arial;opacity:.8;letter-spacing:.03em}
+.bd .ot-reloj{font-size:1rem;line-height:1}
+.bd .ot-tiempo.urgente{background:rgba(255,70,50,.28);border-color:rgba(255,160,150,.6)}
+.bd .ot-tiempo.pronto{background:rgba(255,176,40,.24);border-color:rgba(255,200,110,.55)}
+.bd .ot-tiempo.ya{background:rgba(120,214,111,.20);border-color:rgba(160,230,150,.5)}
 .bd .ot-pie{margin-top:auto;display:grid;gap:4px;padding-right:50px;padding-top:2px}
 .bd .ot-consumo{font:900 1.6rem Arial;line-height:1;letter-spacing:-.01em}
 .bd .ot-consumo small{font:800 .7rem Arial;margin-left:5px;opacity:.85;letter-spacing:.05em}
@@ -304,6 +312,7 @@
       '<button type="button" class="bd-clear">Limpiar</button><p class="bd-count"></p></form>' +
     '<div class="bd-cards bd-tcards"><p class="bd-note">Calculando la tela de los pedidos…</p></div>';
   const tFilters = body2.querySelector('.bd-tfilters'), tCards = body2.querySelector('.bd-tcards'), tKpi = body2.querySelector('.bd-tkpi');
+  let brechaDias = 14;
   const SITUACION = {alcanza: ['Alcanza', 'ok'], no_alcanza: ['No alcanza', 'bad'], sin_tela: ['Tela no encontrada', 'bad'], sin_promedio: ['Sin promedio', 'warn']};
   const filterTela = () => {
     const f = tFilters.elements, q = norm(f.q.value), desde = f.desde.value, hasta = f.hasta.value;
@@ -324,6 +333,7 @@
   const renderTela = data => {
     if (data.disponible === false) { tKpi.innerHTML = ''; tCards.innerHTML = '<p class="bd-note">No se pudo leer Producción para calcular la tela necesaria.</p>'; return; }
     const ordenes = data.ordenes || [];
+    brechaDias = data.brecha_sublimacion || 14;
     tKpi.innerHTML = card({badge: data.telas_no_alcanzan ? 'Atención' : 'Al día', badgeClass: data.telas_no_alcanzan ? 'bad' : 'ok', cls: data.telas_no_alcanzan ? 'bad' : '',
       level: data.mts ? Math.max(0, 100 - data.faltan / data.mts * 100) : 100, tone: data.telas_no_alcanzan ? 'rojo' : 'verde', name: 'Tela necesaria programada',
       total: num(data.mts) + '<small>MTS</small>', unit: num(data.pedidos) + ' pedidos en ' + num((data.telas || []).length) + ' telas · ' + (data.telas_no_alcanzan ? num(data.telas_no_alcanzan) + ' telas no alcanzan · faltan ' + num(data.faltan) + ' MTS' : 'toda la tela alcanza')}) +
@@ -347,6 +357,15 @@
       return Object.keys(m).sort((x, y) => rank(x) - rank(y)).map(t => [t, m[t]]);
     };
     const fechaCorta = v => { const d = v ? new Date(v + 'T12:00:00') : null; return d && !isNaN(d) ? d.toLocaleDateString('es-CO', {day: 'numeric', month: 'short', year: 'numeric'}).replace(/\./g, '') : 'Sin fecha'; };
+    // tiempo que queda para que la orden llegue a Sublimación (estimado: fecha de entrega menos lo que suele pasar entre Sublimación y entrega)
+    const tiempoSublim = o => {
+      if (o.en_sublim) return ['ya', 'En Sublimación ahora', ''];
+      if (typeof o.dias_sublim !== 'number') return null;
+      const d = o.dias_sublim, cuando = fechaCorta(o.sublim_est).replace(/( de)? \d{4}$/, '');
+      if (d < 0) return ['urgente', 'Ya debería estar en Sublimación · hace ' + Math.abs(d) + (Math.abs(d) === 1 ? ' día' : ' días'), 'estimado ' + cuando];
+      if (d === 0) return ['urgente', 'Llega a Sublimación hoy', 'estimado ' + cuando];
+      return [d <= 3 ? 'pronto' : 'ok', 'Llega a Sublimación en ' + d + (d === 1 ? ' día' : ' días'), 'estimado ' + cuando];
+    };
     const orderCard = o => {
       const [, cls] = SITUACION[o.situacion] || ['', ''];
       const sinPromedio = o.situacion === 'sin_promedio';
@@ -354,6 +373,7 @@
       const tono = o.situacion === 'alcanza' ? 'verde' : 'rojo';
       const alerta = o.situacion === 'no_alcanza' ? 'No alcanza · faltan ' + num(o.falta) + ' MTS' : o.situacion === 'sin_tela' ? 'No alcanza · la tela no está en Bodega' : '';
       const pares = !sinPromedio && o.exacto ? tallasPares(o) : [];
+      const tiempo = tiempoSublim(o);
       const attrs = ' data-q="' + esc(norm([o.orden, o.cliente, o.proyecto, o.referencia, o.tela].join(' '))) + '" data-tela="' + esc(o.tela) + '" data-sit="' + o.situacion + '" data-sub="' + (o.estado === 'P' ? 'P' : 'pend') + '" data-fecha="' + esc(o.entrega || '') + '" data-sinfiltro="false"';
       return '<article class="inventory-item-card ot ' + (cls === 'bad' ? 'bad' : '') + '"' + attrs + (level !== null ? ' data-lq="' + Math.round(level) + '" data-lq-tone="' + tono + '"' : '') + '>' +
         '<div class="ot-head"><span class="inv-badge ' + cls + '">' + esc(o.orden) + '</span><span class="ot-fecha" title="Fecha de entrega">Entrega · ' + esc(fechaCorta(o.entrega)) + '</span></div>' +
@@ -361,6 +381,7 @@
         '<div class="ot-sep"></div>' +
         '<div class="ot-cliente-bloque"><strong class="ot-cliente">' + esc(o.cliente || 'Sin cliente') + '</strong><span class="ot-proyecto">' + esc(o.proyecto || 'Sin proyecto') + '</span></div>' +
         (pares.length ? '<div class="ot-tallas" aria-label="Tallas">' + pares.map(([t, n]) => '<span class="ot-t">' + esc(t) + ' <b>' + num(n) + '</b></span>').join('') + '</div>' : '') +
+        (tiempo ? '<div class="ot-tiempo ' + tiempo[0] + '" title="Estimado: fecha de entrega menos los ' + (brechaDias || 14) + ' días que suelen pasar entre Sublimación y la entrega"><span class="ot-reloj" aria-hidden="true">⏱</span><span><b>' + esc(tiempo[1]) + '</b>' + (tiempo[2] ? '<small>' + esc(tiempo[2]) + '</small>' : '') + '</span></div>' : '') +
         '<div class="ot-pie">' + (sinPromedio ? '<span class="ot-sinprom">Sin promedio</span>' : '<span class="ot-consumo">' + num(o.mts) + '<small>MTS</small></span>') +
         (alerta ? '<span class="ot-alerta">' + esc(alerta) + '</span>' : '') + '</div></article>';
     };

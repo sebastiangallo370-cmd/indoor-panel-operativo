@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 import os
 import threading
@@ -23,6 +23,7 @@ from app import listado_tallas, promedios, sublimacion_stock
 from app.sublimacion_stock import DB_FILE, norm, parse_date
 
 DIAS_GRACIA = 7
+BRECHA_POR_DEFECTO = 14   # días entre Sublimación y entrega si aún no hay historial suficiente
 INTERVALO_TALLAS = 600
 _STATE = Path(os.getenv('STATE_DIR', '/data/state'))
 _tallas_lock = threading.Lock()
@@ -104,6 +105,47 @@ def _exacto(orden: str, referencia: str, datos: dict) -> dict | None:
     return {'mts': r['mts'], 'prendas': r['prendas'], 'detalle': r['detalle'], 'partes': r['partes']}
 
 
+_brecha_cache: dict = {'at': 0.0, 'dias': BRECHA_POR_DEFECTO}
+
+
+def brecha_sublimacion() -> int:
+    """Días que suelen pasar entre que una orden entra a Sublimación y su fecha de entrega: la mediana de las órdenes ya sublimadas (se recalcula cada hora).
+    Con eso se estima cuándo le toca a una orden pendiente: fecha de entrega menos esa brecha."""
+    if time.time() - _brecha_cache['at'] < 3600:
+        return _brecha_cache['dias']
+    try:
+        db = sqlite3.connect(f'file:{DB_FILE}?mode=ro', uri=True, timeout=5)
+        try:
+            raw = db.execute("SELECT value FROM production_meta WHERE key='headers'").fetchone()
+            headers = [norm(h) for h in json.loads(raw[0])]
+            si, ei = headers.index('SUBLIMACION'), headers.index('FECHA DE ENTREGA')
+            brechas = []
+            for (valores_json,) in db.execute('SELECT values_json FROM production_rows'):
+                v = json.loads(valores_json)
+                if len(v) <= max(si, ei):
+                    continue
+                sub, ent = parse_date(v[si]), parse_date(v[ei])
+                if sub and ent:
+                    dias = (date.fromisoformat(ent) - date.fromisoformat(sub)).days
+                    if 0 <= dias <= 45:   # fuera de ese rango son fechas mal digitadas o casos raros
+                        brechas.append(dias)
+        finally:
+            db.close()
+        if len(brechas) >= 10:
+            brechas.sort()
+            _brecha_cache.update(at=time.time(), dias=round(brechas[len(brechas) // 2]))
+            return _brecha_cache['dias']
+    except Exception:   # noqa: BLE001
+        pass
+    _brecha_cache['at'] = time.time() - 3000   # reintenta en ~10 min
+    return _brecha_cache['dias']
+
+
+def _hoy() -> date:
+    """Hoy en Colombia (el servidor está en UTC y de noche ya marcaría el día siguiente)."""
+    return datetime.now(timezone(timedelta(hours=-5))).date()
+
+
 def _cantidad(valor) -> int:
     digitos = re.sub(r'[^0-9]', '', str(valor or ''))
     return int(digitos) if digitos else 0
@@ -169,7 +211,7 @@ def _pedidos() -> list[dict] | None:
         ki = headers.index('NOMBRE DEL CLIENTE') if 'NOMBRE DEL CLIENTE' in headers else None
         pi = headers.index('NOMBRE PROYECTO') if 'NOMBRE PROYECTO' in headers else None
         texto = lambda v, i: str(v[i]).strip() if i is not None and i < len(v) else ''
-        limite = (date.today() - timedelta(days=DIAS_GRACIA)).isoformat()
+        limite = (_hoy() - timedelta(days=DIAS_GRACIA)).isoformat()
         pedidos = []
         for fila, valores_json in db.execute('SELECT source_row, values_json FROM production_rows'):
             v = json.loads(valores_json)
@@ -214,11 +256,16 @@ def calcular(items: list[dict]) -> dict:
                 plantillas.setdefault(codigo, m)
     por_tela: dict[str, dict] = {}
     sin_promedio = []
+    brecha = brecha_sublimacion()
     for p in sorted(pedidos, key=lambda x: (x['entrega'] or '9999', x['orden'])):
         consumo, usados, faltan = _consumo(p['referencia'], maestros, plantillas)
         exacto = _exacto(p['orden'], p['referencia'], datos)
         base = {'orden': p['orden'], 'cliente': p['cliente'], 'proyecto': p['proyecto'], 'referencia': p['referencia'], 'tela': p['tela'],
                 'cantidad': p['cantidad'], 'estado': p['estado'], 'entrega': p['entrega']}
+        if p['estado'] != 'P' and p['entrega']:
+            est = date.fromisoformat(p['entrega']) - timedelta(days=brecha)
+            base.update(sublim_est=est.isoformat(), dias_sublim=(est - _hoy()).days)
+        base['en_sublim'] = p['estado'] == 'P'
         if not consumo and not exacto:
             sin_promedio.append({**base, 'situacion': 'sin_promedio', 'promedio': 0, 'mts': 0, 'falta': 0, 'maestros': [], 'telas': [],
                                  'motivo': ('Sin promedio para ' + ', '.join(faltan)) if faltan else 'La referencia no dice qué maestro es'})
@@ -258,6 +305,6 @@ def calcular(items: list[dict]) -> dict:
                           'alcanza': bool(encontradas) and disponible >= mts})
     resultado.sort(key=lambda r: (r['alcanza'], -r['mts']))
     por_orden.sort(key=lambda o: (o['entrega'] or '9999', o['orden']))
-    return {'disponible': True, 'telas': resultado, 'ordenes': por_orden + sin_promedio, 'sin_promedio': sin_promedio,
+    return {'disponible': True, 'brecha_sublimacion': brecha, 'telas': resultado, 'ordenes': por_orden + sin_promedio, 'sin_promedio': sin_promedio,
             'mts': round(sum(r['mts'] for r in resultado), 2), 'pedidos': sum(len(r['pedidos']) for r in resultado),
             'faltan': round(sum(r['faltan'] for r in resultado), 2), 'telas_no_alcanzan': sum(1 for r in resultado if not r['alcanza'])}
