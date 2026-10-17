@@ -43,6 +43,9 @@
   html body.production-mode .trace-card.trace-paused{background:radial-gradient(120% 80% at 10% 0%,rgba(255,255,255,.14),rgba(255,255,255,0) 55%),linear-gradient(160deg,rgba(255,255,255,.11),rgba(255,255,255,.035))!important}
   html body.production-mode .trace-card .trace-card-body{background:transparent!important}
   html body.production-mode .trace-card:hover{box-shadow:inset 0 1.5px 0 rgba(255,255,255,.5),0 0 0 1px var(--r),0 0 24px -2px var(--r),0 14px 30px -10px #000c!important}
+  /* el porcentaje de la esquina no se monta sobre el último texto: la tarjeta reserva su espacio abajo */
+  html body .lq:not([data-lq-nopct]),html body .bd .lq:not([data-lq-nopct]),html body .bd .bd-tkpi .inventory-item-card.lq:not([data-lq-nopct]){padding-bottom:32px!important}
+  .lq:not([data-lq-nopct])>.lq-pct{bottom:7px}
   @keyframes lq-giro{to{--lq-ang:360deg}}
   @media(prefers-reduced-motion:reduce){.lq::before{animation:none}}
   .lq:hover{transform:translateY(-4px);border-color:rgba(255,255,255,.5)!important;box-shadow:inset 0 1.5px 0 rgba(255,255,255,.65),inset 0 -1px 0 rgba(255,255,255,.18),inset 0 0 26px rgba(255,255,255,.1),0 18px 34px rgba(0,0,0,.45)!important}

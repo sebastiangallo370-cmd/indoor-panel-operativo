@@ -35,6 +35,7 @@
 .bd .inv-badge.bad{background:rgba(255,90,80,.16);color:#ffb3ad}
 .bd .inv-badge.warn{background:rgba(255,159,28,.16);color:#ffd9a0}
 .bd .inv-badge.ok{background:rgba(121,214,111,.16);color:#c9f7c3}
+.bd .ot-cliente-linea{text-overflow:ellipsis}
 .bd .inventory-item-card.bad{border-color:#a8433d;background:linear-gradient(155deg,#2a1513,#140c0b)}
 .bd .inventory-item-card.bad .inv-total{color:#ff8a80}
 .bd .inventory-item-card.bad .inv-unit{color:#ff8a80;font-weight:850;letter-spacing:.03em}

@@ -18,7 +18,7 @@
   .es-tab{min-height:34px!important;padding:0 16px!important;font-size:.68rem!important;letter-spacing:.08em!important;border:0!important;background:transparent!important;color:#c5d1bf;flex:none!important;white-space:nowrap}
   .es-tab:hover{background:rgba(255,255,255,.12)!important}
   .es-tab.on{background:rgba(255,255,255,.92)!important;color:#10140a!important;box-shadow:0 2px 10px rgba(255,255,255,.25)}
-  @media(max-width:700px){.es-tabs{width:100%!important;overflow-x:auto}.es-tab{padding:0 12px!important;flex:1 1 auto!important}}
+  @media(max-width:700px){.es-franja{box-sizing:border-box;max-width:100%!important;padding:12px 10px 14px!important}.es-tabs{width:100%!important;max-width:100%;box-sizing:border-box;overflow:visible}.es-tab{flex:1 1 0!important;min-width:0!important;padding:4px 6px!important;min-height:40px!important;font-size:.58rem!important;letter-spacing:.04em!important;white-space:normal!important;line-height:1.15;text-align:center}}
   /* mismo formato de vidrio (liquid glass) que el resto del panel */
   .es-franja,.pm-head,.pm-form,.pm-card,.pm-prom,.pm-vacio{background:radial-gradient(120% 90% at 10% 0%,rgba(255,255,255,.15),rgba(255,255,255,0) 55%),linear-gradient(160deg,rgba(255,255,255,.11),rgba(255,255,255,.035))!important;border:1px solid rgba(255,255,255,.22)!important;-webkit-backdrop-filter:blur(22px) saturate(1.4);backdrop-filter:blur(22px) saturate(1.4);box-shadow:inset 0 1.5px 0 rgba(255,255,255,.4),inset 0 -1px 0 rgba(255,255,255,.1),0 12px 30px rgba(0,0,0,.35)!important}
   .pm-prom{box-shadow:inset 0 1px 0 rgba(255,255,255,.25)!important;backdrop-filter:none}
