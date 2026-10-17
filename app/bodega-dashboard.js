@@ -130,6 +130,13 @@
 .bd .bd-tkpi .lq{background:radial-gradient(120% 80% at 12% 0%,rgba(255,255,255,.14),rgba(255,255,255,0) 55%),linear-gradient(160deg,color-mix(in srgb,var(--liquid) 34%,transparent),color-mix(in srgb,var(--liquid) 13%,rgba(8,12,8,.74)))!important}
 .bd .ot.lq,.bd .bd-tkpi .lq{box-shadow:inset 0 1px 0 rgba(255,255,255,.35),inset 0 0 18px rgba(255,255,255,.04),0 8px 22px rgba(0,0,0,.34)!important}
 .bd .ot.lq>.lq-wave,.bd .bd-tkpi .lq>.lq-wave{display:none}
+/* tarjetas limpias: vidrio sin color (el estado va en el aro de luz) y menos texto */
+html body .bd .inventory-item-card.lq,html body .bd .bd-tkpi .lq{background:radial-gradient(120% 80% at 12% 0%,rgba(255,255,255,.15),rgba(255,255,255,0) 55%),linear-gradient(160deg,rgba(255,255,255,.12),rgba(255,255,255,.04))!important}
+.bd .ot-tiempo,.bd .ot-tiempo.urgente,.bd .ot-tiempo.pronto,.bd .ot-tiempo.ya{border-left:0!important;padding:0!important}
+.bd .ot-tiempo b{font:700 .72rem Arial!important;color:#e7eee2}
+.bd .ot-tiempo::before{content:"⏱";margin-right:6px;font-size:.8rem;opacity:.85}
+.bd .ot{gap:8px!important}
+.bd .ot-ref{opacity:.6}
 @media (max-width:700px){.bd .ot{padding:12px!important}.bd .ot-pie{padding-right:46px}}
 .bd .bd-tcards .inventory-item-card .bd-line{flex-wrap:wrap;align-items:baseline}
 .bd .bd-tcards .inventory-item-card .bd-line b{white-space:normal;text-align:right;overflow-wrap:anywhere;min-width:0;margin-left:auto}
@@ -495,7 +502,7 @@
         const momento = cuandoTxt(e.llega);
         if (!e.partes.length) return ['urgente', 'Lista para entrar a Sublimación', 'no le falta ningún área antes', ayuda];
         const d = Math.max(1, Math.round(e.dias));
-        const titulo = e.total < 60 ? 'Llega a Sublimación en menos de 1 hora de trabajo' : e.total < MIN_DIA ? 'Llega a Sublimación en ≈ ' + horasTxt(e.total) + ' de trabajo' : 'Llega a Sublimación en ≈ ' + d + (d === 1 ? ' día' : ' días');
+        const titulo = 'Llega a Sublimación · ' + momento;
         const detalleCorto = momento + ' · faltan ' + e.partes.map(x => x.label.toLowerCase()).join(' + ') + ' · ' + horasTxt(e.propio) + (e.espera >= 1 ? ' + ' + horasTxt(e.espera) + ' de espera' : '');
         const cambio = cambioLlegada(o, e.llega);
         const nota = cambio ? (cambio.dias > 0 ? '▲ Se atrasó ' + cambio.dias + (cambio.dias === 1 ? ' día' : ' días') : '▼ Se adelantó ' + Math.abs(cambio.dias) + (Math.abs(cambio.dias) === 1 ? ' día' : ' días')) + ' desde ' + fechaCorta(cambio.desde).replace(/( de)? \d{4}$/, '') : '';
@@ -516,14 +523,12 @@
       const alerta = o.situacion === 'no_alcanza' ? 'No alcanza · faltan ' + num(o.falta) + ' MTS' : o.situacion === 'sin_tela' ? 'No alcanza · la tela no está en Bodega' : '';
       const pares = !sinPromedio && o.exacto ? tallasPares(o) : [];
       const tiempo = tiempoSublim(o);
-      const attrs = ' data-q="' + esc(norm([o.orden, o.cliente, o.proyecto, o.referencia, o.tela].join(' '))) + '" data-tela="' + esc(o.tela) + '" data-sit="' + o.situacion + '" data-sub="' + (o.estado === 'P' ? 'P' : 'pend') + '" data-fecha="' + esc(o.entrega || '') + '" data-sinfiltro="false"';
+      const attrs = ' data-q="' + esc(norm([o.orden, o.cliente, o.proyecto, o.referencia, o.tela].join(' '))) + '" data-tela="' + esc(o.tela) + '" data-sit="' + o.situacion + '" data-sub="' + (o.estado === 'P' ? 'P' : 'pend') + '" data-fecha="' + esc(o.entrega || '') + '" data-sinfiltro="false" title="' + esc([o.cliente || 'Sin cliente', o.proyecto || 'Sin proyecto', pares.length ? 'Tallas: ' + pares.map(([t, n]) => t + ' ' + num(n)).join(' · ') : '', tiempo && tiempo[2] ? tiempo[2] : '', tiempo && tiempo[4] ? tiempo[4] : ''].filter(Boolean).join('\n')) + '"';
       const titTiempo = tiempo ? (tiempo[3] || 'Estimado: fecha de entrega menos los ' + (brechaDias || 14) + ' días que suelen pasar entre Sublimación y la entrega') : '';
       return '<article class="inventory-item-card ot ' + (cls === 'bad' ? 'bad' : '') + '"' + attrs + (level !== null ? ' data-lq="' + Math.round(level) + '" data-lq-tone="' + tono + '"' : '') + '>' +
         '<div class="ot-head"><span class="inv-badge ' + cls + '">' + esc(o.orden) + '</span><span class="ot-fecha" title="Fecha de entrega">Entrega ' + esc(fechaCorta(o.entrega)) + '</span></div>' +
         '<div class="ot-titulo"><strong class="ot-tela">' + esc(o.tela) + '</strong><span class="ot-ref">' + esc(o.referencia) + '</span></div>' +
-        '<div class="ot-cliente-linea" title="' + esc((o.cliente || 'Sin cliente') + ' · ' + (o.proyecto || 'Sin proyecto')) + '"><b>' + esc(o.cliente || 'Sin cliente') + '</b><span> · ' + esc(o.proyecto || 'Sin proyecto') + '</span></div>' +
-        (pares.length ? '<div class="ot-tallas-txt" title="Prendas por talla">' + esc(pares.map(([t, n]) => t + ' ' + num(n)).join(' · ')) + '</div>' : '') +
-        (tiempo ? '<div class="ot-tiempo ' + tiempo[0] + '" title="' + esc(titTiempo) + '"><span class="ot-reloj" aria-hidden="true">⏱</span><span><b>' + esc(tiempo[1]) + '</b>' + (tiempo[2] ? '<small>' + esc(tiempo[2]) + '</small>' : '') + (tiempo[4] ? '<small class="ot-cambio ' + tiempo[5] + '">' + esc(tiempo[4]) + '</small>' : '') + '</span></div>' : '') +
+        (tiempo ? '<div class="ot-tiempo ' + tiempo[0] + '" title="' + esc(titTiempo) + '"><span class="ot-reloj" aria-hidden="true">⏱</span><span><b>' + esc(tiempo[1]) + '</b>' + (false ? '<small class="ot-cambio ' + tiempo[5] + '">' + esc(tiempo[4]) + '</small>' : '') + '</span></div>' : '') +
         '<div class="ot-pie">' + (sinPromedio ? '<span class="ot-sinprom">Sin promedio</span>' : '<span class="ot-consumo">' + num(o.mts) + '<small>MTS</small></span>') +
         (alerta ? '<span class="ot-alerta">' + esc(alerta) + '</span>' : '') + '</div></article>';
     };
