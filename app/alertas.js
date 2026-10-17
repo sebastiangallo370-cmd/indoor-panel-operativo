@@ -59,7 +59,11 @@
   #al-box{background:radial-gradient(120% 60% at 10% 0%,rgba(255,255,255,.16),rgba(255,255,255,0) 55%),linear-gradient(180deg,rgba(28,34,26,.82),rgba(12,16,11,.88))!important}
   .al-card{border-left-width:1px!important;box-shadow:inset 0 1.5px 0 rgba(255,255,255,.35),0 0 0 1px color-mix(in srgb,var(--r) 55%,transparent),0 0 14px -4px var(--r)}
   .al-card.sev-alta{--r:#ff4b3e}.al-card.sev-media{--r:#ff9a1f}.al-card.sev-info{--r:#35d46a}
-  #al-btn{--r:#35d46a}#al-btn:has(b.nuevas){--r:#ff9a1f}
+  /* la campana va sola, sin el círculo de vidrio alrededor */
+  #al-btn,#al-btn:hover,#al-btn:focus-visible{background:transparent!important;border:0!important;box-shadow:none!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;width:46px;height:46px}
+  #al-btn svg{width:28px;height:28px;filter:drop-shadow(0 2px 6px rgba(0,0,0,.65))}
+  #al-btn:hover{transform:translateY(-2px) scale(1.08)}
+  #al-btn:focus-visible{outline:2px solid rgba(255,255,255,.6);outline-offset:2px;border-radius:50%}
   .al-buscar input,.al-chip{background:rgba(0,0,0,.28)!important;border-color:rgba(255,255,255,.2)!important}
   .al-chip.on{background:rgba(255,255,255,.92)!important;color:#10170c!important;border-color:#fff!important}
   .al-acc button{background:rgba(255,255,255,.1)!important;border-color:rgba(255,255,255,.3)!important}
