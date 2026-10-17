@@ -9,6 +9,8 @@ Uso: python agente_zeus.py            (bucle normal)
      python agente_zeus.py --una-vez  (un sondeo y salir)"""
 import argparse
 import json
+import os
+import tempfile
 import socket
 import sys
 import time
@@ -35,7 +37,9 @@ def leer_json(ruta: Path, defecto):
 
 
 def credenciales() -> dict:
-    d = {}
+    d = {k: os.environ[k] for k in ('ZEUS_EFFI_USERNAME', 'ZEUS_EFFI_PASSWORD') if os.environ.get(k)}
+    if len(d) == 2:
+        return d
     try:
         for linea in ENV.read_text(encoding='utf-8').splitlines():
             if '=' in linea and not linea.lstrip().startswith('#'):
@@ -61,6 +65,26 @@ JS_CHOSEN = """
 const s = document.getElementById(arguments[0]); const t = arguments[1];
 const o = [...s.options].find(o => o.text.trim().startsWith(t));
 if (!o) return null; s.value = o.value; $(s).trigger('chosen:updated').trigger('change'); return o.text.trim();"""
+
+
+class _Bov:
+    """Lo mínimo que se usa del bot de órdenes de venta: dirección de entrada de Effi y un Chrome sin ventana."""
+    URL_LOGIN = 'https://effi.com.co/ingreso'
+
+    @staticmethod
+    def setup_driver():
+        from selenium import webdriver
+        from selenium.webdriver.chrome.options import Options
+        from selenium.webdriver.chrome.service import Service
+        o = Options()
+        o.add_argument(f'--user-data-dir={tempfile.mkdtemp(prefix="zeus_chrome_")}')
+        for arg in ('--headless=new', '--disable-gpu', '--no-sandbox', '--disable-dev-shm-usage', '--remote-debugging-port=0',
+                    '--no-first-run', '--no-default-browser-check', '--window-size=1920,1080'):
+            o.add_argument(arg)
+        if os.environ.get('CHROME_BIN'):
+            o.binary_location = os.environ['CHROME_BIN']
+        servicio = Service(executable_path=os.environ['CHROMEDRIVER']) if os.environ.get('CHROMEDRIVER') else None
+        return webdriver.Chrome(options=o, service=servicio) if servicio else webdriver.Chrome(options=o)
 
 
 class Effi:
@@ -172,12 +196,41 @@ class Effi:
             raise RuntimeError('Effi no aceptó la orden: ' + (msg or 'el formulario sigue abierto')[:200])
         time.sleep(2)
         fila = d.execute_script("""
-          const tr = [...document.querySelectorAll('table tbody tr')].find(t => t.children.length >= 6 && t.getBoundingClientRect().width > 0);
-          return tr ? {id: (tr.children[2].innerText||'').trim(), proveedor: (tr.children[3].innerText||'').replace(/\\s+/g,' ').trim(), total: (tr.children[4].innerText||'').replace(/\\s+/g,' ').trim(), estado: (tr.children[5].innerText||'').trim()} : null;""")
+          const tr = [...document.querySelectorAll('table tbody tr')].find(t => t.children.length >= 7 && t.getBoundingClientRect().width > 0);
+          return tr ? {id: (tr.children[3].innerText||'').trim(), proveedor: (tr.children[4].innerText||'').replace(/\\s+/g,' ').trim(), total: (tr.children[5].innerText||'').replace(/\\s+/g,' ').trim(), estado: (tr.children[6].innerText||'').trim()} : null;""")
         despues = d.execute_script("return ((document.body.innerText.match(/(\\d+) órdenes de compra encontradas/i)||[])[1])||''")
         if not fila or not fila['id'].isdigit() or (antes.isdigit() and despues.isdigit() and int(despues) <= int(antes)):
             raise RuntimeError('No pude confirmar el número de la orden creada; revisa Compras > Órdenes de compra en Effi')
         return {'oc': fila['id'], 'detalle': f"Effi {fila['id']} · {fila['proveedor'][:40]} · {f['cant']} MTS · {f['pago']} · {fila['estado']}"}
+
+
+def _enviar_por_correo(effi: 'Effi', oc: str, correos: list) -> str:
+    """En Effi: menú de la orden > «Enviar por correo electrónico». Effi trae escrito el correo del PROVEEDOR; se cambia por cada correo
+    confirmado del panel (así la orden le llega al encargado y no se manda sola al proveedor)."""
+    d = effi.driver
+    enviados = []
+    for correo in correos:
+        d.get('https://effi.com.co/app/orden_c')
+        time.sleep(4)
+        ok = d.execute_script("""
+          const tr = [...document.querySelectorAll('table tbody tr')].find(t => t.children.length >= 7 && (t.children[3].innerText||'').trim() === arguments[0]);
+          if (!tr) return false;
+          const b = tr.querySelector('.dropdown-toggle, [data-toggle="dropdown"]'); if (!b) return false; b.click(); return true;""", oc)
+        if not ok:
+            raise RuntimeError(f'No encontré la orden {oc} en la lista para enviarla por correo')
+        time.sleep(1)
+        if not d.execute_script("const a = [...document.querySelectorAll('.dropdown-menu a')].find(a => a.getBoundingClientRect().width > 0 && /enviar por correo/i.test(a.textContent)); if (!a) return false; a.click(); return true;"):
+            raise RuntimeError('No encontré «Enviar por correo electrónico» en el menú de la orden')
+        time.sleep(3)
+        d.execute_script("""
+          const e = document.getElementById('email_EE'); e.value = arguments[0];
+          ['input','keyup','change','blur'].forEach(n => e.dispatchEvent(new Event(n, {bubbles: true})));""", correo)
+        if d.execute_script("return document.getElementById('email_EE').value") != correo:
+            raise RuntimeError('No pude escribir el correo en la ventana de Effi')
+        d.execute_script("document.getElementById('btnValidarEnviarEmail').click()")
+        time.sleep(5)
+        enviados.append(correo)
+    return ', '.join(enviados)
 
 
 def main():
@@ -194,18 +247,14 @@ def main():
     except OSError:
         print('El AGENTE INVENTARIO ya está corriendo en este PC.')
         return
-    panel = leer_json(DATOS / 'panel.json', {})
+    panel = {'url': os.environ['ZEUS_PANEL_URL'], 'token': os.environ['ZEUS_AGENT_TOKEN']} if os.environ.get('ZEUS_PANEL_URL') and os.environ.get('ZEUS_AGENT_TOKEN') else leer_json(DATOS / 'panel.json', {})
     if not panel.get('url') or not panel.get('token'):
         print('Falta enlazar este PC con el panel (ecommerce\\ENLAZAR_ECOMMERCE.bat).')
         sys.exit(1)
     cred = credenciales()
     tiene_cred = bool(cred.get('ZEUS_EFFI_USERNAME') and cred.get('ZEUS_EFFI_PASSWORD'))
     url = panel['url'].rstrip('/') + '/api/zeus/pc/sondeo'
-    import importlib.util
-    spec = importlib.util.spec_from_file_location('agente_ov', AQUI / 'agente_ov.py')
-    ag = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(ag)
-    mo, bov, ruta = ag.cargar_ov(con_effi=True)
+    bov = _Bov
     from selenium.webdriver.common.by import By
     from selenium.webdriver.support import expected_conditions as EC
     from selenium.webdriver.support.ui import WebDriverWait
@@ -229,6 +278,10 @@ def main():
                         log(f'Creando orden de compra: {nombre} · {job["proveedor"]}')
                         effi.abrir()
                         r = effi.crear_orden(str(job['codigo']), float(job['falta']), str(job['proveedor']))
+                        try:
+                            r['detalle'] += ' · enviada a ' + _enviar_por_correo(effi, r['oc'], job.get('correos') or [])
+                        except Exception as e:  # noqa: BLE001   (la orden ya existe: se informa, no se repite)
+                            r['detalle'] += ' · NO se pudo enviar por Effi: ' + str(e)[:120]
                         resultados.append({'id': job['id'], 'ok': True, 'oc': r['oc'], 'detalle': r['detalle']})
                         ultima = f"Orden {r['oc']} creada ({nombre})"
                         log(ultima)

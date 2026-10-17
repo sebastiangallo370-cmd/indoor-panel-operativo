@@ -48,6 +48,17 @@ URL_PUBLICA = os.getenv('PUBLIC_URL', 'https://produccion.cloud').rstrip('/')
 _CORREO = re.compile(r'^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$')
 
 
+def auth_agente(pc_auth: Callable[[Request], None]) -> Callable[[Request], None]:
+    """El agente instalado en el VPS usa ZEUS_AGENT_TOKEN (variable del .env del servidor); los PC siguen usando su código de ECOMMERCE."""
+    def comprobar(request: Request) -> None:
+        esperado = os.getenv('ZEUS_AGENT_TOKEN', '')
+        recibido = request.headers.get('x-ecommerce-token', '')
+        if esperado and recibido and len(esperado) >= 32 and secrets.compare_digest(recibido, esperado):
+            return
+        pc_auth(request)
+    return comprobar
+
+
 def configurar(get_faltantes: Callable[[], list[dict]], pc_auth: Callable[[Request], None], auth: Callable | None = None,
                permitido: Callable[[str], bool] | None = None) -> None:
     global _faltantes, _pc_auth, _auth, _permitido
@@ -365,7 +376,8 @@ def sondeo(request: Request, payload: dict):
                     codigo = next((c for c in (proveedores_tela.codigo_de(b) for b in i.get('bodega', [])) if c), '')
                     prov = proveedores_tela.proveedor_de(codigo) if codigo else {}
                     entregar.append({'id': i['id'], 'tela': i['tela'], 'falta': i['falta'], 'ordenes': [o['orden'] for o in i['ordenes']], 'bodega': i.get('bodega', []),
-                                     'codigo': codigo, 'proveedor': prov.get('proveedor', ''), 'nit': prov.get('nit', '')})
+                                     'codigo': codigo, 'proveedor': prov.get('proveedor', ''), 'nit': prov.get('nit', ''),
+                                     'correos': [c.strip() for c in destinatarios().split(',') if c.strip()]})
         _guardar(d)
     for item in avisos:
         _correo_creada(item)

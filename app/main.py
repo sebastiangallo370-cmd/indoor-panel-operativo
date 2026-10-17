@@ -302,7 +302,7 @@ app.include_router(exportar_mod.router)
 app.include_router(cartera_router, dependencies=[Depends(authenticate), Depends(permisos_mod.exigir('cartera'))])
 app.include_router(inventario_router, dependencies=[Depends(authenticate), Depends(permisos_mod.exigir('inventario'))])
 from app import zeus as zeus_mod
-zeus_mod.configurar(lambda: __import__('app.inventario_api', fromlist=['x']).tela_faltante(), ecommerce_mod._pc, authenticate, permisos_mod.administracion_permitido)
+zeus_mod.configurar(lambda: __import__('app.inventario_api', fromlist=['x']).tela_faltante(), zeus_mod.auth_agente(ecommerce_mod._pc), authenticate, permisos_mod.administracion_permitido)
 app.include_router(zeus_mod.router, dependencies=[Depends(authenticate), Depends(permisos_mod.exigir('inventario'))])
 app.include_router(zeus_mod.pc_router)
 app.include_router(zeus_mod.public_router)
