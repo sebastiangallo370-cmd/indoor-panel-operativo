@@ -84,9 +84,9 @@
   panel.className = 'panel';
   panel.dataset.panel = 'bodega-dashboard';
   panel.innerHTML = '<div class="bd"><div class="bd-head"><div><h2>Panel de control · Stock tela</h2><p class="bd-updated">Cargando…</p></div><div class="bd-head-actions"><label class="bd-switch" title="Conecta o desvincula el inventario del Google Sheets"><span class="bd-switch-text"><b>Inventario</b><small data-bd-link-state>Cargando…</small></span><input type="checkbox" role="switch" data-bd-link><i class="bd-switch-track"><i class="bd-switch-dot"></i></i></label><button type="button" class="bd-refresh">Actualizar</button></div></div>' +
-    '<nav class="dash-tabs bd-subtabs" role="tablist" aria-label="Secciones del panel de control"><button type="button" role="tab" class="on" data-bd-tab="resumen" aria-selected="true">Resumen</button><button type="button" role="tab" data-bd-tab="tela" aria-selected="false">Tela programada</button></nav>' +
+    '<nav class="dash-tabs bd-subtabs" role="tablist" aria-label="Secciones del panel de control"><button type="button" role="tab" class="on" data-bd-tab="resumen" aria-selected="true">Resumen</button><button type="button" role="tab" data-bd-tab="tela" aria-selected="false">Tela programada</button><button type="button" role="tab" data-bd-tab="zeus" aria-selected="false">ZEUS · Compras</button></nav>' +
     '<form class="bd-filters" autocomplete="off" onsubmit="return false"><label>Nombre tela<input name="tela" type="search" list="bd-telas" placeholder="Ej. MONTECATINI"><datalist id="bd-telas"></datalist></label><label>Código tela<input name="codigo" type="search" inputmode="numeric" placeholder="Ej. 100"></label><label>Fecha desde<input name="desde" type="date"></label><label>Fecha hasta<input name="hasta" type="date"></label><button type="button" class="bd-clear">Limpiar</button><p class="bd-count"></p></form>' +
-    '<div class="bd-body"></div><div class="bd-body2" hidden></div></div>';
+    '<div class="bd-body"></div><div class="bd-body2" hidden></div><div class="bd-body3" hidden></div></div>';
   const body = panel.querySelector('.bd-body');
   body.style.display = 'grid';
   body.style.gap = '26px';
@@ -349,18 +349,63 @@
       renderTela(data);
     } catch (error) { if (!silencioso) tCards.innerHTML = '<p class="bd-note">' + esc(error.message) + '</p>'; }
   };
+  // ---- Sub-pestaña «ZEUS · Compras»: el agente de inventario que crea las órdenes de compra de la tela que falta ----
+  const body3 = panel.querySelector('.bd-body3');
+  body3.style.display = 'grid';
+  body3.style.gap = '22px';
+  const ZEUS_ESTADO = {SIN_CONECTAR: ['Sin conectar', 'bad'], ESPERANDO_EFFI: ['Esperando acceso a Effi', 'warn'], LIBRE: ['Libre', 'ok'], TRABAJANDO: ['Creando orden de compra…', 'ok'], ERROR: ['Con error', 'bad']};
+  const COMPRA_ESTADO = {pendiente: ['Por comprar', 'warn'], entregada: ['Creándola en Effi…', 'warn'], creada: ['Orden creada', 'ok'], error: ['Con error', 'bad'], cancelada: ['Ya alcanza', '']};
+  const renderZeus = data => {
+    const a = data.agente || {}, [etq, cls] = ZEUS_ESTADO[a.estado] || [a.estado || '—', ''];
+    const aviso = [];
+    if (!a.conectado) aviso.push('El agente ZEUS del PC todavía no está conectado: las compras quedan en la lista y se crean cuando se conecte.');
+    if (a.conectado && a.estado === 'ESPERANDO_EFFI') aviso.push('ZEUS no puede iniciar sesión en Effi (el ingreso de Effi está fallando). Cuando funcione, crea las órdenes de la lista.');
+    if (data.correo && !data.correo.configurado) aviso.push('Falta configurar el correo del servidor para avisar al encargado de pedir la tela.');
+    const agente = card({badge: 'Agente de inventario', badgeClass: cls, cls: cls === 'bad' ? 'bad' : '', name: 'ZEUS', level: null,
+      total: esc(etq), unit: a.titulo || '', extra: (a.ultima ? '<div class="bd-line"><span>' + esc(a.ultima) + '</span></div>' : '') + (a.funciones || []).map(f => '<div class="bd-line"><span>· ' + esc(f) + '</span></div>').join('') +
+        '<div class="bd-line"><span>Compras</span><b>' + num((data.resumen || {}).pendiente || 0) + ' por comprar · ' + num((data.resumen || {}).creada || 0) + ' creadas</b></div>'});
+    const compras = (data.items || []).map(i => {
+      const [label, c] = COMPRA_ESTADO[i.estado] || [i.estado, ''];
+      return card({badge: label, badgeClass: c, cls: c === 'bad' ? 'bad' : '', name: i.tela, level: null,
+        total: num(i.falta) + '<small>MTS</small>',
+        unit: i.estado === 'creada' ? 'Orden de compra ' + (i.oc || '(sin número)') : (i.detalle || ''),
+        extra: (i.ordenes || []).map(o => '<div class="bd-line"><span>' + esc(o.orden) + ' · ' + esc(o.referencia) + '</span><b>' + num(o.falta) + ' MTS</b></div>').join('')});
+    }).join('');
+    body3.innerHTML = (aviso.length ? '<p class="bd-note">' + aviso.map(esc).join('<br>') + '</p>' : '') +
+      '<div class="bd-cards fit">' + agente + '</div>' +
+      '<section class="bd-section"><h3>Órdenes de compra <small>· la tela que falta, por tela</small> <button type="button" class="bd-clear" data-zeus-revisar style="margin-left:auto;padding:6px 12px!important">Revisar ahora</button></h3>' +
+      (compras ? '<div class="bd-cards">' + compras + '</div>' : '<p class="bd-note">No hay tela por comprar: todos los pedidos programados alcanzan.</p>') + '</section>';
+  };
+  const load3 = async (silencioso) => {
+    try {
+      const response = await fetch('/api/zeus/estado', {cache: 'no-store'});
+      const data = await response.json();
+      if (!response.ok) throw Error(data.detail || 'No fue posible consultar a ZEUS');
+      panel.querySelector('.bd-updated').textContent = 'ZEUS · actualizado ' + when(new Date().toISOString()) + ' · se actualiza solo cada 30 s';
+      renderZeus(data);
+    } catch (error) { if (!silencioso) body3.innerHTML = '<p class="bd-note">' + esc(error.message) + '</p>'; }
+  };
+  body3.addEventListener('click', async event => {
+    if (!event.target.closest('[data-zeus-revisar]')) return;
+    event.target.closest('button').disabled = true;
+    try { await fetch('/api/zeus/sincronizar', {method: 'POST'}); } catch (_) {}
+    load3(false);
+  });
+  setInterval(() => { if (!document.hidden && panel.classList.contains('active') && subTab === 'zeus') load3(true); }, 30000);
+
   const showSubTab = name => {
     subTab = name;
     panel.querySelectorAll('[data-bd-tab]').forEach(b => { const on = b.dataset.bdTab === name; b.classList.toggle('on', on); b.setAttribute('aria-selected', String(on)); });
     body.hidden = name !== 'resumen';
     filtersBox.hidden = name !== 'resumen';
     body2.hidden = name !== 'tela';
-    if (name === 'tela') load2(false); else load();
+    body3.hidden = name !== 'zeus';
+    if (name === 'tela') load2(false); else if (name === 'zeus') load3(false); else load();
   };
   panel.addEventListener('click', event => { const tab = event.target.closest('[data-bd-tab]'); if (tab) showSubTab(tab.dataset.bdTab); });
   setInterval(() => { if (!document.hidden && panel.classList.contains('active') && subTab === 'tela') load2(true); }, 60000);
 
-  const open = (button, destino = panel, cargar = () => (subTab === 'tela' ? load2(false) : load())) => {
+  const open = (button, destino = panel, cargar = () => (subTab === 'tela' ? load2(false) : subTab === 'zeus' ? load3(false) : load())) => {
     document.querySelectorAll('.tab').forEach(tab => tab.classList.toggle('active', tab === button));
     document.querySelectorAll('.panel').forEach(item => item.classList.toggle('active', item === destino));
     document.body.classList.remove('inicio-mode','inventory-mode','production-mode','schedule-mode','operarios-mode','cartera-mode');

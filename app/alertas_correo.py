@@ -25,11 +25,11 @@ def configurado() -> bool:
     return bool(os.getenv('ALERTA_EMAIL_A') and os.getenv('ALERTA_SMTP_USER') and os.getenv('ALERTA_SMTP_PASSWORD'))
 
 
-def enviar(asunto: str, cuerpo: str) -> None:
+def enviar(asunto: str, cuerpo: str, para: str | None = None) -> None:
     msg = EmailMessage()
     msg['Subject'] = asunto
     msg['From'] = os.environ['ALERTA_SMTP_USER']
-    msg['To'] = os.environ['ALERTA_EMAIL_A']
+    msg['To'] = para or os.environ['ALERTA_EMAIL_A']
     msg.set_content(cuerpo)
     with smtplib.SMTP_SSL(os.getenv('ALERTA_SMTP_HOST', 'smtp.gmail.com'), int(os.getenv('ALERTA_SMTP_PORT', '465')), timeout=30) as s:
         s.login(os.environ['ALERTA_SMTP_USER'], os.environ['ALERTA_SMTP_PASSWORD'])
