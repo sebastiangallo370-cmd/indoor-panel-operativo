@@ -68,6 +68,28 @@
   .al-chip.on{background:rgba(255,255,255,.92)!important;color:#10170c!important;border-color:#fff!important}
   .al-acc button{background:rgba(255,255,255,.1)!important;border-color:rgba(255,255,255,.3)!important}
   .al-acc button.pri{background:rgba(255,255,255,.92)!important;color:#10170c!important;border-color:#fff!important}
+  /* ---- mejora visual de la campana ---- */
+  #al-box{width:min(450px,calc(100vw - 24px));border-radius:24px;overflow:hidden}
+  .al-cab{padding:18px 18px 12px;gap:8px}.al-cab h3{display:flex;align-items:center;gap:10px;font-size:1.15rem;letter-spacing:.02em}
+  .al-n{display:inline-grid;place-items:center;min-width:26px;height:22px;padding:0 8px;border-radius:999px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.28);font:800 .72rem Arial;letter-spacing:0}
+  .al-cab small{margin-top:3px;color:#a9b6a2;font-size:.7rem}
+  .al-ic{width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);transition:background .2s,transform .2s}.al-ic:hover{background:rgba(255,255,255,.2);transform:translateY(-1px)}
+  .al-filtros{flex-wrap:nowrap;overflow-x:auto;padding:2px 18px 12px;gap:7px;scrollbar-width:none;-webkit-mask:linear-gradient(90deg,#000 92%,transparent);mask:linear-gradient(90deg,#000 92%,transparent)}.al-filtros::-webkit-scrollbar{display:none}
+  .al-chip{padding:6px 13px;font-size:11.5px;white-space:nowrap;transition:background .2s,transform .2s}.al-chip:hover{background:rgba(255,255,255,.14)!important;transform:translateY(-1px)}.al-chip em{margin-left:2px;font-weight:800}
+  .al-buscar{padding:0 18px 12px;position:relative}.al-buscar input{padding:10px 14px 10px 38px;border-radius:14px;font-size:13px;background:rgba(0,0,0,.3) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23b8c4b0' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M20 20l-3.5-3.5'/%3E%3C/svg%3E") no-repeat 13px 50%/17px!important;outline:none;transition:border-color .2s,box-shadow .2s}
+  .al-buscar input:focus{border-color:rgba(255,255,255,.55)!important;box-shadow:0 0 0 3px rgba(255,255,255,.1)}
+  .al-lista{padding:2px 14px 16px;gap:10px;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.25) transparent}
+  .al-grupo{display:flex;align-items:center;gap:10px;margin:8px 4px 0;color:#b7c4af;font-size:.64rem;letter-spacing:.16em}.al-grupo::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,rgba(255,255,255,.22),transparent)}
+  .al-card{grid-template-columns:42px 1fr;gap:12px;padding:14px 14px 12px;border-radius:18px;transition:transform .2s,box-shadow .2s}
+  .al-card:hover{transform:translateY(-2px)}
+  .al-tipo{width:42px;height:42px;border-radius:14px;background:radial-gradient(circle at 30% 25%,color-mix(in srgb,var(--c) 40%,rgba(255,255,255,.25)),color-mix(in srgb,var(--c) 14%,transparent));border:1px solid color-mix(in srgb,var(--c) 45%,rgba(255,255,255,.2));box-shadow:0 0 14px -4px var(--c),inset 0 1px 0 rgba(255,255,255,.35)}.al-tipo svg{width:21px;height:21px}
+  .al-tit{font-size:.92rem;line-height:1.3;padding-right:56px}.al-det{margin-top:4px;color:#b9c6b1;font-size:.78rem;line-height:1.45}
+  .al-tags{margin-top:8px;gap:6px}.al-tag{padding:3px 10px;border:1px solid rgba(255,255,255,.14);font-size:.66rem;letter-spacing:.02em}.al-tag.sev{border-color:color-mix(in srgb,var(--c) 50%,transparent)}
+  .al-acc{margin-top:10px;gap:7px}.al-acc button{padding:6px 12px;border-radius:999px;font-size:11px;transition:background .2s,transform .2s}.al-acc button:hover{background:rgba(255,255,255,.22)!important;transform:translateY(-1px)}
+  .al-card.nueva::after{top:12px;right:12px;padding:3px 9px;background:rgba(255,255,255,.92);color:#10170c;box-shadow:0 0 12px -2px rgba(255,255,255,.7)}
+  .al-vacio{padding:42px 24px}.al-vacio b{display:grid;place-items:center;width:54px;height:54px;margin:0 auto 12px;border-radius:50%;background:rgba(53,212,106,.14);border:1px solid rgba(53,212,106,.5);box-shadow:0 0 22px -4px #35d46a;color:#6be69a;font-size:1.5rem}
+  #al-btn b{top:-4px;right:-6px;min-width:22px;height:22px;border-radius:999px;background:rgba(214,54,54,.92);border:1.5px solid rgba(255,255,255,.85);box-shadow:0 4px 10px -2px #000b;font-size:11px;line-height:19px}
+  #al-btn b.nuevas{background:rgba(255,138,31,.95)}
   @media(max-width:700px){#al-btn{bottom:86px;right:12px}#al-box{right:8px;left:8px;width:auto;bottom:148px;max-height:68vh}}
   @media(prefers-reduced-motion:reduce){#al-btn.suena svg,#al-btn b.nuevas,.al-card,#al-box.on{animation:none}}`;
   document.head.appendChild(css);
@@ -77,7 +99,7 @@
   btn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg><b hidden></b>';
   const box = document.createElement('section');
   box.id = 'al-box'; box.setAttribute('role', 'dialog'); box.setAttribute('aria-label', 'Alertas');
-  box.innerHTML = '<div class="al-cab"><div><h3>Alertas</h3><small data-sub></small></div>' +
+  box.innerHTML = '<div class="al-cab"><div><h3>Alertas <span class="al-n" data-n>0</span></h3><small data-sub></small></div>' +
     '<button type="button" class="al-ic" data-refrescar title="Actualizar ahora" aria-label="Actualizar"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></svg></button>' +
     '<button type="button" class="al-ic" data-vistas title="Marcar todas como vistas" aria-label="Marcar todas como vistas"><svg viewBox="0 0 24 24"><path d="M4 12l5 5L20 6"/></svg></button>' +
     '<button type="button" class="al-ic" data-cerrar title="Cerrar" aria-label="Cerrar"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>' +
@@ -116,6 +138,7 @@
   function pintar(forzar) {
     const todas = activas(), nuevasN = nuevas().length;
     const b = btn.querySelector('b');
+    const nTit = box.querySelector('[data-n]'); if (nTit) nTit.textContent = todas.length;
     b.hidden = !todas.length; b.textContent = todas.length > 99 ? '99+' : todas.length;
     b.classList.toggle('nuevas', nuevasN > 0);
     btn.title = todas.length ? todas.length + ' alerta' + (todas.length === 1 ? '' : 's') + (nuevasN ? ' · ' + nuevasN + ' nueva' + (nuevasN === 1 ? '' : 's') : '') : 'Sin alertas';
