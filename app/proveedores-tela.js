@@ -17,7 +17,7 @@
 
   const css = document.createElement('style');
   css.textContent = `
-  .pv{display:grid;gap:16px;width:100%;max-width:1180px;margin:0 auto}
+  .pv{display:grid;gap:16px;width:100%;max-width:none;margin:0}
   .pv *{box-sizing:border-box}
   .pv-glass{border:1px solid rgba(255,255,255,.22);border-radius:18px;background:radial-gradient(120% 90% at 10% 0%,rgba(255,255,255,.16),rgba(255,255,255,0) 55%),linear-gradient(160deg,rgba(255,255,255,.12),rgba(255,255,255,.04));-webkit-backdrop-filter:blur(22px) saturate(1.4);backdrop-filter:blur(22px) saturate(1.4);box-shadow:inset 0 1.5px 0 rgba(255,255,255,.4),inset 0 -1px 0 rgba(255,255,255,.1),0 12px 30px rgba(0,0,0,.35)}
   .pv-head{display:flex;justify-content:space-between;align-items:center;gap:18px;flex-wrap:wrap;padding:20px 24px}

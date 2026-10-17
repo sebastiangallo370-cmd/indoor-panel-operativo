@@ -11,6 +11,21 @@
   .es-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-left:auto}
   .es-tab{min-height:44px;padding:0 22px;border:1px solid #34432f;border-radius:999px;background:#101710;color:#c5d1bf;font-weight:800;letter-spacing:.06em;cursor:pointer;width:auto!important}
   .pm[hidden],.pv[hidden]{display:none!important}
+  /* mismo formato de vidrio (liquid glass) que el resto del panel */
+  .es-franja,.pm-head,.pm-form,.pm-card,.pm-prom,.pm-vacio{background:radial-gradient(120% 90% at 10% 0%,rgba(255,255,255,.15),rgba(255,255,255,0) 55%),linear-gradient(160deg,rgba(255,255,255,.11),rgba(255,255,255,.035))!important;border:1px solid rgba(255,255,255,.22)!important;-webkit-backdrop-filter:blur(22px) saturate(1.4);backdrop-filter:blur(22px) saturate(1.4);box-shadow:inset 0 1.5px 0 rgba(255,255,255,.4),inset 0 -1px 0 rgba(255,255,255,.1),0 12px 30px rgba(0,0,0,.35)!important}
+  .pm-prom{box-shadow:inset 0 1px 0 rgba(255,255,255,.25)!important;backdrop-filter:none}
+  .pm input,.pm select{background:rgba(0,0,0,.28)!important;border:1px solid rgba(255,255,255,.2)!important;outline:none}
+  .pm input:focus,.pm select:focus{border-color:rgba(255,255,255,.55)!important;box-shadow:0 0 0 3px rgba(255,255,255,.1)}
+  .pm-head input{background:rgba(0,0,0,.28)!important}
+  .es-franja small,.pm-head small,.pm-form h3{color:#c9d3c4!important}
+  .es-tab{background:rgba(255,255,255,.06)!important;border-color:rgba(255,255,255,.2)!important;color:#d3dccf}
+  .es-tab:hover{background:rgba(255,255,255,.14)!important;border-color:rgba(255,255,255,.4)!important}
+  .es-tab.on{background:rgba(255,255,255,.92)!important;color:#10140a!important;border-color:#fff!important}
+  .pm-btn{background:rgba(255,255,255,.1)!important;border-color:rgba(255,255,255,.3)!important}
+  .pm-btn.pri{background:rgba(255,255,255,.92)!important;color:#10140a!important;border-color:#fff!important}
+  .pm-chip span{background:rgba(255,255,255,.08)!important}
+  body:has(.panel[data-panel="promedios"].active) main,body:has(.panel[data-panel="molderia"].active) main{width:100%!important;max-width:none!important;margin-left:0!important;margin-right:0!important;padding-left:clamp(10px,1.2vw,24px)!important;padding-right:clamp(10px,1.2vw,24px)!important}
+  .panel[data-panel="promedios"],.panel[data-panel="promedios"]>.pm,.panel[data-panel="promedios"]>.pv,.panel[data-panel="promedios"]>.es-franja,.panel[data-panel="molderia"]>.es-franja{width:100%!important;max-width:none!important;margin-left:0!important;margin-right:0!important}
   .es-tab:hover{border-color:#9fd24c}.es-tab.on{background:#d7ff3a;color:#10140a;border-color:#d7ff3a}
   @media(max-width:700px){.es-franja{padding:12px 14px}.es-tabs{margin-left:0;width:100%}.es-tab{flex:1;padding:0 12px}}
   @media print{.es-franja{display:none!important}}
