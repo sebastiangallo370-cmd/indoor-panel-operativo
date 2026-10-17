@@ -45,7 +45,7 @@
       const cuerpo = grupo.querySelector('.mc-cuerpo');
       // herramientas: arriba, en este orden
       const herramientas = [
-        m.querySelector('.li-menu-item:not(.li-create-user)'), porId('open-agentes'), porId('open-promedios'), porId('open-molderia'), fichas
+        m.querySelector('.li-menu-item:not(.li-create-user)'), porId('open-agentes'), porId('open-ecommerce'), porId('open-zeus'), porId('open-promedios'), porId('open-molderia'), fichas
       ].filter(Boolean);
       // cuenta: dentro de la sección
       const cuenta = [porId('open-profile'), porId('open-name'), porId('open-password'), porId('open-personal-notes'), m.querySelector('.li-create-user'), m.querySelector('.theme-toggle')].filter(Boolean);
