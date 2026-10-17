@@ -387,11 +387,24 @@
     // ---- cuánto falta para que la orden llegue a Sublimación: por cada área que aún le falta antes de Sublimación, unidades × minutos por unidad (el de la escalera de Inicio) ----
     const MIN_DIA = 570;   // jornada de 7:00 a. m. a 4:30 p. m. (la misma que usa Inicio para medir)
     const hoyCo = () => new Date(Date.now() - 5 * 3600 * 1000);   // hoy en Colombia (UTC-5)
-    const sumarDiasHabiles = (dias) => {   // de lunes a sábado: los domingos no se trabaja
-      const f = hoyCo(); let falta = Math.ceil(dias);
-      while (falta > 0) { f.setUTCDate(f.getUTCDate() + 1); if (f.getUTCDay() !== 0) falta -= 1; }
+    // Lunes a viernes, de 7:00 a. m. a 4:30 p. m. (fin de semana no se trabaja). Devuelve el momento (hora de Colombia) en que se cumplen `min`
+    // minutos de trabajo contados desde ahora: si es de noche o fin de semana, se empieza a contar el siguiente día hábil a las 7:00 a. m.
+    const INI_JORNADA = 7 * 60, FIN_JORNADA = 16 * 60 + 30;
+    const esHabil = d => { const w = d.getUTCDay(); return w >= 1 && w <= 5; };
+    const siguienteHabil = d => { do { d.setUTCDate(d.getUTCDate() + 1); } while (!esHabil(d)); };
+    const llegadaEn = min => {
+      const f = hoyCo(); let t = f.getUTCHours() * 60 + f.getUTCMinutes();
+      if (!esHabil(f) || t >= FIN_JORNADA) { siguienteHabil(f); t = INI_JORNADA; } else if (t < INI_JORNADA) t = INI_JORNADA;
+      let falta = Math.max(0, min);
+      for (;;) {
+        const resto = FIN_JORNADA - t;
+        if (falta <= resto) { t += falta; break; }
+        falta -= resto; siguienteHabil(f); t = INI_JORNADA;
+      }
+      f.setUTCHours(0, 0, 0, 0); f.setUTCMinutes(Math.round(t));
       return f;
     };
+    const cuandoTxt = d => d.toLocaleString('es-CO', {weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', timeZone: 'UTC'}).replace(/\./g, '');
     // áreas que le faltan a una orden antes de Sublimación, con sus minutos (unidades × minutos por unidad de la escalera de Inicio)
     const partesDe = o => {
       if (!prodData || !unitData) return null;
@@ -429,7 +442,7 @@
           libre[p.label] = fin; propio += p.min; t = fin;
         });
         const dias = t / MIN_DIA;
-        colaLlegada.set(o.fila, {total: t, propio, espera: Math.max(0, t - propio), dias, partes, delante: i, llega: dias > 0 ? sumarDiasHabiles(dias) : hoyCo()});
+        colaLlegada.set(o.fila, {total: t, propio, espera: Math.max(0, t - propio), dias, partes, delante: i, llega: llegadaEn(t)});
       });
     };
     const estimarLlegada = o => (o.en_sublim ? null : colaLlegada.get(o.fila) || null);
@@ -458,13 +471,14 @@
         const detalle = e.partes.map(x => x.label + ': ' + num(o.cantidad) + ' und × ' + num(x.porUnidad) + ' min = ' + horasTxt(x.min)).join('\n');
         const ayuda = (detalle || 'No le falta ningún área antes de Sublimación') + '\nTrabajo propio: ' + horasTxt(e.propio) + (e.espera ? '\nEspera por las órdenes de adelante: ' + horasTxt(e.espera) : '') + '\nTotal hasta Sublimación: ' + horasTxt(e.total) + ' ≈ ' + num(e.dias) + ' días de trabajo (jornada de ' + horasTxt(MIN_DIA) + ', lunes a sábado)\nSe atienden por fecha de entrega: delante de esta hay ' + e.delante + (e.delante === 1 ? ' orden.' : ' órdenes.');
         const cuando = fechaCorta(e.llega.toISOString().slice(0, 10)).replace(/( de)? \d{4}$/, '');
+        const momento = cuandoTxt(e.llega);
         if (!e.partes.length) return ['urgente', 'Lista para entrar a Sublimación', 'no le falta ningún área antes', ayuda];
         const d = Math.max(1, Math.round(e.dias));
         const titulo = e.total < 60 ? 'Llega a Sublimación en menos de 1 hora de trabajo' : e.total < MIN_DIA ? 'Llega a Sublimación en ≈ ' + horasTxt(e.total) + ' de trabajo' : 'Llega a Sublimación en ≈ ' + d + (d === 1 ? ' día' : ' días');
-        const detalleCorto = 'faltan ' + e.partes.map(x => x.label.toLowerCase()).join(' + ') + ' · ' + horasTxt(e.propio) + (e.espera >= 1 ? ' + ' + horasTxt(e.espera) + ' de espera' : '');
+        const detalleCorto = momento + ' · faltan ' + e.partes.map(x => x.label.toLowerCase()).join(' + ') + ' · ' + horasTxt(e.propio) + (e.espera >= 1 ? ' + ' + horasTxt(e.espera) + ' de espera' : '');
         const cambio = cambioLlegada(o, e.llega);
         const nota = cambio ? (cambio.dias > 0 ? '▲ Se atrasó ' + cambio.dias + (cambio.dias === 1 ? ' día' : ' días') : '▼ Se adelantó ' + Math.abs(cambio.dias) + (Math.abs(cambio.dias) === 1 ? ' día' : ' días')) + ' desde ' + fechaCorta(cambio.desde).replace(/( de)? \d{4}$/, '') : '';
-        return [d <= 1 ? 'urgente' : d <= 3 ? 'pronto' : 'ok', titulo, detalleCorto, ayuda + '\nEstimado: ' + cuando + (cambio ? '\n' + nota + ' (antes: ' + fechaCorta(cambio.antes) + ')' : ''), nota, cambio ? (cambio.dias > 0 ? 'atraso' : 'adelanto') : ''];
+        return [d <= 1 ? 'urgente' : d <= 3 ? 'pronto' : 'ok', titulo, detalleCorto, ayuda + '\nEstimado: ' + momento + ' (lunes a viernes, 7:00 a. m. a 4:30 p. m.)' + (cambio ? '\n' + nota + ' (antes: ' + fechaCorta(cambio.antes) + ')' : ''), nota, cambio ? (cambio.dias > 0 ? 'atraso' : 'adelanto') : ''];
       }
       if (typeof o.dias_sublim !== 'number') return null;
       const d = o.dias_sublim, cuando = fechaCorta(o.sublim_est).replace(/( de)? \d{4}$/, '');
