@@ -332,8 +332,7 @@
           '<div class="bd-line"><span>Proyecto</span><b>' + esc(o.proyecto || 'Sin proyecto') + '</b></div>' +
           '<div class="bd-line"><span>Referencia</span><b>' + esc(o.referencia) + '</b></div>' +
           '<div class="bd-line"><span>Entrega</span><b>' + (o.entrega ? esc(shortDay(o.entrega)) : 'Sin fecha') + '</b></div>' +
-          (sinPromedio ? '' : o.exacto ? '<div class="bd-line"><span>Consumo</span><b>Talla por talla</b></div><div class="bd-line"><span>Tallas</span><b>' + esc(tallasTxt(o)) + '</b></div>'
-            : '<div class="bd-line"><span>Consumo</span><b>Estimado (promedio general)</b></div>')});
+          (!sinPromedio && o.exacto ? '<div class="bd-line"><span>Tallas</span><b>' + esc(tallasTxt(o)) + '</b></div>' : '')});
       const attrs = ' data-q="' + esc(norm([o.orden, o.cliente, o.proyecto, o.referencia, o.tela].join(' '))) + '" data-tela="' + esc(o.tela) + '" data-sit="' + o.situacion + '" data-sub="' + (o.estado === 'P' ? 'P' : 'pend') + '" data-fecha="' + esc(o.entrega || '') + '" data-sinfiltro="false"';
       return html.replace('<article ', '<article' + attrs + ' ');
     };
