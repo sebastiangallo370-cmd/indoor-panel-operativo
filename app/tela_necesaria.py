@@ -193,6 +193,48 @@ def _telas_de_bodega(items: list[dict], tela: str, codigos: set[str]) -> list[di
     return blancas or por_codigo
 
 
+USUARIO_NOTA = 'AGENTE INVENTARIO'
+
+
+def autollenar_mts(ordenes: list[dict]) -> dict:
+    """Anota «NN.NN MTS» en MTS REQUERIDOS (nota de la columna 17) de las tarjetas que todavía no la tienen, con los MTS calculados con el promedio.
+    Solo toca el panel: nunca escribe en el Google Sheets. No pisa lo que puso una persona ni lo que ya trae el Sheet; sí actualiza sus propias notas
+    cuando el cálculo mejora (por ejemplo al leer el listado de tallas)."""
+    # las que ya están en Sublimación (P) no se tocan: con la nota puesta el servidor les asignaría rollos y descontaría inventario con un cálculo aproximado
+    candidatas = [o for o in ordenes if o.get('fila') and float(o.get('mts') or 0) > 0 and o.get('situacion') != 'sin_promedio' and o.get('estado') != 'P']
+    if not candidatas:
+        return {'escritas': 0}
+    try:
+        db = sqlite3.connect(str(DB_FILE), timeout=10)
+    except sqlite3.Error:
+        return {'escritas': 0}
+    escritas = 0
+    try:
+        hay_sheet = bool(db.execute("SELECT 1 FROM sqlite_master WHERE name='production_sheet_notes'").fetchone())
+        ahora = datetime.now(timezone.utc).isoformat()
+        for o in candidatas:
+            fila, texto = int(o['fila']), f"{float(o['mts']):.2f} MTS"
+            if hay_sheet:
+                sh = db.execute('SELECT note FROM production_sheet_notes WHERE source_row=? AND column_number=17', (fila,)).fetchone()
+                if sh and re.search(r'\d+(?:[.,]\d+)?\s*MTS', str(sh[0]), re.I):
+                    continue   # el equipo ya los registró en el Sheet
+            previa = db.execute('SELECT note, username FROM production_notes WHERE source_row=? AND column_number=17', (fila,)).fetchone()
+            if previa and str(previa[0]).strip() and previa[1] != USUARIO_NOTA:
+                continue   # una persona (o TERRY) ya puso los MTS
+            if previa and str(previa[0]).strip() == texto:
+                continue
+            db.execute('INSERT OR REPLACE INTO production_notes(source_row, column_number, note, username, updated_at) VALUES (?,?,?,?,?)', (fila, 17, texto, USUARIO_NOTA, ahora))
+            escritas += 1
+        if escritas:
+            db.execute("INSERT OR REPLACE INTO production_meta(key, value) VALUES ('updated_at', ?)", (ahora,))
+        db.commit()
+    except sqlite3.Error:
+        pass
+    finally:
+        db.close()
+    return {'escritas': escritas}
+
+
 def _pedidos() -> list[dict] | None:
     try:
         db = sqlite3.connect(f'file:{DB_FILE}?mode=ro', uri=True, timeout=5)

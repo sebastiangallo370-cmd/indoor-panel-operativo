@@ -728,6 +728,13 @@ def tela_faltante() -> list[dict]:
     return [o for o in datos.get('ordenes', []) if o.get('situacion') in ('no_alcanza', 'sin_tela')]
 
 
+def autollenar_mts() -> dict:
+    """Pone en las tarjetas de Producción los MTS REQUERIDOS calculados con el promedio (donde nadie los ha escrito)."""
+    payload = _with_sublimacion(_inventory_payload())
+    datos = tela_necesaria.calcular(payload.get('items') or [])
+    return tela_necesaria.autollenar_mts(datos.get('ordenes', []))
+
+
 @inventario_router.get("/tela-necesaria")
 def inventory_tela_necesaria():
     """Tela que piden los pedidos programados (promedio general del maestro × cantidad), por tela y frente a Bodega. Solo lectura."""

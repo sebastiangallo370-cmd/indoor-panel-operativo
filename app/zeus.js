@@ -96,7 +96,6 @@
     const peds = (i.ordenes || []).slice(0, 5).map(o => '<li><span>' + esc(o.orden) + ' · ' + esc(o.referencia) + (o.cliente ? ' <em>' + esc(String(o.cliente).slice(0, 26)) + '</em>' : '') + '</span><b>' + num(o.falta) + ' MTS</b></li>').join('');
     const datos = kv('Código de tela', esc(i.codigo)) + kv('Proveedor', esc(i.proveedor) || (i.estado === 'error' ? '<em class="zo-sin">sin elegir</em>' : '')) +
       kv('Creada', fechaCorta(i.creada || i.creado)) +
-      (i.estado === 'creada' ? kv('Al encargado', i.encargado_enviado ?? /enviada a/i.test(i.detalle || '') ? esc(verificados[0] || 'enviada') + (verificados.length > 1 ? ' +' + (verificados.length - 1) : '') : 'pendiente', verificados.join(', ')) : '') +
       (e.estado === 'enviada' ? kv('Al proveedor', esc(e.correo || 'enviada'), e.correo) + kv('Enviada', fechaCorta(e.at)) : '');
     return '<article class="zo ' + ring + '" style="--i:' + Math.min(n, 12) + '"><header><div><h4>' + esc(i.tela) + '</h4>' +
       '<span class="zo-badge">' + (i.estado === 'creada' && i.oc ? 'Orden ' + esc(i.oc) : esc(label)) + '</span></div>' +
