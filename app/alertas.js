@@ -54,6 +54,16 @@
   .al-acc button:hover{background:rgba(255,255,255,.14)}.al-acc button.pri{background:var(--c);border-color:var(--c);color:#10170c}
   .al-vacio{padding:34px 20px;text-align:center;color:#9fb094}.al-vacio b{display:block;font-size:1.6rem;color:#8bd450;margin-bottom:6px}
   .al-error{margin:0 16px 10px;padding:8px 12px;border-radius:9px;background:#5a2a12;color:#ffd9b0;font-size:.78rem}
+  /* vidrio sin color; el estado se ve en el aro de luz: rojo alta, naranja media, verde informativa */
+  #al-box,#al-btn,.al-card{--r:#ffffff;background:radial-gradient(120% 90% at 10% 0%,rgba(255,255,255,.16),rgba(255,255,255,0) 55%),linear-gradient(160deg,rgba(255,255,255,.12),rgba(255,255,255,.04))!important;-webkit-backdrop-filter:blur(22px) saturate(1.4);backdrop-filter:blur(22px) saturate(1.4);border:1px solid rgba(255,255,255,.22)!important;box-shadow:inset 0 1.5px 0 rgba(255,255,255,.4),0 0 0 1px color-mix(in srgb,var(--r) 45%,transparent),0 0 16px -4px var(--r),0 22px 50px -12px #000c}
+  #al-box{background:radial-gradient(120% 60% at 10% 0%,rgba(255,255,255,.16),rgba(255,255,255,0) 55%),linear-gradient(180deg,rgba(28,34,26,.82),rgba(12,16,11,.88))!important}
+  .al-card{border-left-width:1px!important;box-shadow:inset 0 1.5px 0 rgba(255,255,255,.35),0 0 0 1px color-mix(in srgb,var(--r) 55%,transparent),0 0 14px -4px var(--r)}
+  .al-card.sev-alta{--r:#ff4b3e}.al-card.sev-media{--r:#ff9a1f}.al-card.sev-info{--r:#35d46a}
+  #al-btn{--r:#35d46a}#al-btn:has(b.nuevas){--r:#ff9a1f}
+  .al-buscar input,.al-chip{background:rgba(0,0,0,.28)!important;border-color:rgba(255,255,255,.2)!important}
+  .al-chip.on{background:rgba(255,255,255,.92)!important;color:#10170c!important;border-color:#fff!important}
+  .al-acc button{background:rgba(255,255,255,.1)!important;border-color:rgba(255,255,255,.3)!important}
+  .al-acc button.pri{background:rgba(255,255,255,.92)!important;color:#10170c!important;border-color:#fff!important}
   @media(max-width:700px){#al-btn{bottom:86px;right:12px}#al-box{right:8px;left:8px;width:auto;bottom:148px;max-height:68vh}}
   @media(prefers-reduced-motion:reduce){#al-btn.suena svg,#al-btn b.nuevas,.al-card,#al-box.on{animation:none}}`;
   document.head.appendChild(css);
@@ -93,7 +103,7 @@
     const verOrden = a.tipo === 'atrasado' || a.tipo === 'reproceso';
     const ir = verOrden ? '<button type="button" class="pri" data-ver="' + esc(a.orden) + '">Ver en Producción</button>' : (a.tipo === 'ecommerce' ? '<button type="button" class="pri" data-ecom>Abrir ECOMMERCE</button>' : '');
     const copiar = a.orden ? '<button type="button" data-copiar="' + esc(a.orden) + '">Copiar ' + esc(String(a.orden).slice(0, 14)) + '</button>' : '';
-    return '<article class="al-card' + (esNueva ? ' nueva' : '') + '" style="--c:' + t.color + ';animation-delay:' + Math.min(i * 25, 250) + 'ms"><div class="al-tipo" title="' + esc(t.nombre) + '"><svg viewBox="0 0 24 24">' + t.icono + '</svg></div>' +
+    return '<article class="al-card sev-' + esc(a.severidad || 'media') + (esNueva ? ' nueva' : '') + '" style="--c:' + t.color + ';animation-delay:' + Math.min(i * 25, 250) + 'ms"><div class="al-tipo" title="' + esc(t.nombre) + '"><svg viewBox="0 0 24 24">' + t.icono + '</svg></div>' +
       '<div><div class="al-tit">' + esc(a.titulo || a.texto) + '</div>' + (a.detalle ? '<div class="al-det">' + esc(a.detalle) + '</div>' : '') +
       (etiquetas.length ? '<div class="al-tags">' + etiquetas.join('') + '</div>' : '') +
       '<div class="al-acc">' + ir + copiar + '<button type="button" data-silenciar="' + esc(clave(a)) + '" title="No la muestres más hoy">Silenciar hoy</button></div></div></article>';
