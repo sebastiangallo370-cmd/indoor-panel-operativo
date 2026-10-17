@@ -14,6 +14,9 @@ from fastapi.testclient import TestClient  # noqa: E402
 from app import zeus  # noqa: E402
 
 
+ORIGINAL_ENVIO = zeus._enviar_verificacion
+
+
 def falta(orden, tela, mts, ref='A700CA00'):
     return {'orden': orden, 'cliente': 'CLIENTE', 'proyecto': 'PROY', 'referencia': ref, 'tela': tela, 'mts': mts + 10, 'falta': mts,
             'entrega': '2026-11-03', 'situacion': 'no_alcanza', 'telas': ['(700) TOUR']}
@@ -21,6 +24,7 @@ def falta(orden, tela, mts, ref='A700CA00'):
 
 class ZeusTest(unittest.TestCase):
     def setUp(self):
+        zeus._enviar_verificacion = ORIGINAL_ENVIO
         zeus._file.unlink(missing_ok=True)
         self.lista = []
         self.correos = []
@@ -29,6 +33,7 @@ class ZeusTest(unittest.TestCase):
         app = FastAPI()
         app.include_router(zeus.pc_router)
         app.include_router(zeus.router)
+        app.include_router(zeus.public_router)
         self.pc = TestClient(app)
         self.permitido = True
         zeus.configurar(lambda: self.lista, lambda request: None, lambda request: 'Indoor Sport', lambda u: self.permitido)
@@ -87,18 +92,62 @@ class ZeusTest(unittest.TestCase):
         self.assertEqual((item['estado'], item['intentos']), ('error', 1))
         self.assertIn('Effi', item['detalle'])
 
-    def test_correos_se_validan_y_se_guardan(self):
-        r = self.pc.post('/api/zeus/config', json={'correos': ['Compras@Indoor.com ', 'compras@indoor.com', 'otro@x.co']})
+    def _con_envio_falso(self):
+        self.enviados = []
+        zeus._enviar_verificacion = lambda correo, token, pidio: self.enviados.append((correo, token)) or ''
+
+    def test_correo_nuevo_queda_pendiente_hasta_que_su_dueno_confirma(self):
+        self._con_envio_falso()
+        r = self.pc.post('/api/zeus/correos', json={'correo': ' Compras@Indoor.com '})
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(r.json()['correos'], ['compras@indoor.com', 'otro@x.co'])
-        self.assertEqual(self.pc.get('/api/zeus/config').json()['correos'], ['compras@indoor.com', 'otro@x.co'])
-        self.assertEqual(zeus.destinatarios(), 'compras@indoor.com, otro@x.co')
-        self.assertEqual(self.pc.post('/api/zeus/config', json={'correos': ['no-es-correo']}).status_code, 400)
-        self.assertEqual(self.pc.post('/api/zeus/config', json={'correos': ['a@b.co'] * 3 + [f'x{i}@b.co' for i in range(11)]}).status_code, 400)
+        self.assertTrue(r.json()['enviado'])
+        self.assertEqual([(c['correo'], c['estado']) for c in r.json()['correos']], [('compras@indoor.com', 'pendiente')])
+        self.assertNotIn('token', str(r.json()))                       # el navegador nunca recibe el token
+        self.assertNotIn('compras@indoor.com', zeus.destinatarios())   # sin confirmar no recibe ordenes
+        (correo, token), = self.enviados
+        malo = self.pc.get('/api/zeus/confirmar', params={'c': correo, 't': 'otro-token'})
+        self.assertEqual(malo.status_code, 400)
+        bueno = self.pc.get('/api/zeus/confirmar', params={'c': correo, 't': token})
+        self.assertEqual(bueno.status_code, 200)
+        self.assertIn('compras@indoor.com', zeus.destinatarios())
+        self.assertEqual(self.pc.get('/api/zeus/confirmar', params={'c': correo, 't': token}).status_code, 400)   # el enlace sirve una sola vez
+
+    def test_enlace_vencido_no_confirma(self):
+        self._con_envio_falso()
+        self.pc.post('/api/zeus/correos', json={'correo': 'a@b.co'})
+        (correo, token), = self.enviados
+        d = zeus._leer()
+        d['config']['correos'][0]['enviado_at'] -= zeus.CONFIRMA_VENCE_SEG + 5
+        zeus._guardar(d)
+        self.assertEqual(self.pc.get('/api/zeus/confirmar', params={'c': correo, 't': token}).status_code, 400)
+        self.assertEqual(zeus._leer()['config']['correos'][0]['estado'], 'pendiente')
+
+    def test_validaciones_duplicados_reenvio_y_quitar(self):
+        self._con_envio_falso()
+        self.assertEqual(self.pc.post('/api/zeus/correos', json={'correo': 'no-es-correo'}).status_code, 400)
+        self.pc.post('/api/zeus/correos', json={'correo': 'a@b.co'})
+        self.assertEqual(self.pc.post('/api/zeus/correos', json={'correo': 'A@B.co'}).status_code, 409)
+        self.assertEqual(self.pc.post('/api/zeus/correos/reenviar', json={'correo': 'a@b.co'}).status_code, 429)   # hay que esperar un minuto
+        d = zeus._leer()
+        d['config']['correos'][0]['enviado_at'] -= 120
+        zeus._guardar(d)
+        self.assertEqual(self.pc.post('/api/zeus/correos/reenviar', json={'correo': 'a@b.co'}).status_code, 200)
+        self.assertEqual(len(self.enviados), 2)
+        self.assertNotEqual(self.enviados[0][1], self.enviados[1][1])   # cada mensaje trae un enlace nuevo
+        self.assertEqual(self.pc.delete('/api/zeus/correos', params={'correo': 'a@b.co'}).status_code, 200)
+        self.assertEqual(self.pc.get('/api/zeus/config').json()['correos'], [])
+
+    def test_sin_cuenta_de_correo_queda_pendiente_con_el_motivo(self):
+        r = self.pc.post('/api/zeus/correos', json={'correo': 'a@b.co'}).json()
+        self.assertFalse(r['enviado'])
+        self.assertIn('correo', r['detalle'].lower())
+        self.assertEqual(r['correos'][0]['estado'], 'pendiente')
 
     def test_solo_administracion_cambia_los_correos(self):
+        self._con_envio_falso()
         self.permitido = False
-        self.assertEqual(self.pc.post('/api/zeus/config', json={'correos': ['a@b.co']}).status_code, 403)
+        self.assertEqual(self.pc.post('/api/zeus/correos', json={'correo': 'a@b.co'}).status_code, 403)
+        self.assertEqual(self.pc.delete('/api/zeus/correos', params={'correo': 'a@b.co'}).status_code, 403)
 
 
 if __name__ == '__main__':

@@ -14,11 +14,17 @@
     '<span class="inv-total">' + total + '</span>' + (unit ? '<span class="inv-unit">' + esc(unit) + '</span>' : '') + '</article>';
 
   function correosHtml() {
-    return '<section class="bd-section"><h3>Correos que reciben la orden de compra <small>· cuando el agente la crea en Effi</small></h3>' +
-      '<div class="zeus-correos">' + (correos.length ? correos.map(c => '<span class="zeus-chip"><span>' + esc(c) + '</span><button type="button" data-zeus-quitar="' + esc(c) + '" aria-label="Quitar ' + esc(c) + '">✕</button></span>').join('') :
-        '<p class="bd-note">Todavía no hay correos. Agrega al encargado de pedir la tela.</p>') + '</div>' +
-      '<form class="zeus-form" data-zeus-form autocomplete="off"><input type="email" name="correo" placeholder="correo@ejemplo.com" aria-label="Correo nuevo" required><button type="submit" class="bd-clear">Agregar</button></form>' +
-      '<p class="bd-note zeus-msg" data-zeus-msg></p></section>';
+    const chip = c => {
+      const ok = c.estado === 'verificado';
+      return '<span class="zeus-chip ' + (ok ? 'ok' : 'pend') + '"><span class="zeus-estado">' + (ok ? '✔' : '⏳') + '</span><span>' + esc(c.correo) + '<small>' +
+        (ok ? 'Confirmado' : 'Pendiente de confirmar' + (c.detalle ? ' · ' + esc(c.detalle) : ' · el mensaje de verificación ya salió')) + '</small></span>' +
+        (ok ? '' : '<button type="button" class="zeus-reenviar" data-zeus-reenviar="' + esc(c.correo) + '">Reenviar</button>') +
+        '<button type="button" data-zeus-quitar="' + esc(c.correo) + '" aria-label="Quitar ' + esc(c.correo) + '">✕</button></span>';
+    };
+    return '<section class="bd-section"><h3>Correos que reciben la orden de compra <small>· solo los confirmados reciben órdenes</small></h3>' +
+      '<div class="zeus-correos">' + (correos.length ? correos.map(chip).join('') : '<p class="bd-note">Todavía no hay correos. Agrega al encargado de pedir la tela.</p>') + '</div>' +
+      '<form class="zeus-form" data-zeus-form autocomplete="off"><input type="email" name="correo" placeholder="correo@ejemplo.com" aria-label="Correo nuevo" required><button type="submit" class="bd-clear">Agregar y verificar</button></form>' +
+      '<p class="bd-note zeus-msg" data-zeus-msg>Al agregar un correo le enviamos un mensaje; su dueño tiene que abrirlo y confirmar. Hasta entonces no recibe órdenes.</p></section>';
   }
 
   function pintar(d) {
@@ -59,28 +65,38 @@
     } catch (e) { if (!silencioso) cuerpo.innerHTML = '<p class="bd-note">' + esc(e.message) + '</p>'; }
   }
 
-  async function guardarCorreos(nuevos, msg) {
-    const aviso = panel.querySelector('[data-zeus-msg]');
+  async function llamar(url, metodo, cuerpo) {
+    const r = await fetch(url, { method: metodo, credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: cuerpo ? JSON.stringify(cuerpo) : undefined });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw Error(d.detail || 'No se pudo completar');
+    return d;
+  }
+  async function accionCorreo(url, metodo, cuerpo, mensaje) {
     try {
-      const r = await fetch('/api/zeus/config', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ correos: nuevos }) });
-      const d = await r.json();
-      if (!r.ok) throw Error(d.detail || 'No se pudo guardar');
-      correos = d.correos;
+      const d = await llamar(url, metodo, cuerpo);
       await cargar(false);
-      const m = panel.querySelector('[data-zeus-msg]'); if (m) m.textContent = msg;
-    } catch (e) { if (aviso) aviso.textContent = e.message; }
+      const m = panel.querySelector('[data-zeus-msg]');
+      if (m) m.textContent = d.enviado === false ? 'Quedó pendiente, pero ' + String(d.detalle || 'no se pudo enviar el mensaje de verificación').replace(/^./, ch => ch.toLowerCase()) : mensaje;
+    } catch (e) { const m = panel.querySelector('[data-zeus-msg]'); if (m) m.textContent = e.message; }
   }
 
-  const estilo = document.createElement('style'); estilo.textContent = `
+  const estilo = document.createElement('style');
+  estilo.textContent = `
 .zeus-correos{display:flex;flex-wrap:wrap;gap:8px}
-.zeus-chip{display:inline-flex;align-items:center;gap:8px;padding:6px 8px 6px 12px;border:1px solid #46563f;border-radius:999px;background:#151d15;color:#dfe8d9;font:700 .8rem Arial;max-width:100%}
-.zeus-chip span{overflow-wrap:anywhere}
-.zeus-chip button{width:22px!important;height:22px!important;min-height:0!important;padding:0!important;border-radius:50%!important;border:0!important;background:rgba(255,255,255,.1)!important;color:#fff!important;cursor:pointer;line-height:1}
+.zeus-chip{display:inline-flex;align-items:center;gap:10px;padding:6px 8px 6px 12px;border:1px solid #46563f;border-radius:16px;background:#151d15;color:#dfe8d9;font:700 .8rem Arial;max-width:100%}
+.zeus-chip>span{overflow-wrap:anywhere}
+.zeus-chip small{display:block;font:600 .66rem Arial;color:#8a9485;letter-spacing:.03em}
+.zeus-chip.ok{border-color:#3a9f55}.zeus-chip.ok .zeus-estado{color:#79d66f}
+.zeus-chip.pend{border-color:#a8782b}.zeus-chip.pend .zeus-estado{color:#ffb04a}
+.zeus-chip button{width:22px!important;height:22px!important;min-height:0!important;padding:0!important;border-radius:50%!important;border:0!important;background:rgba(255,255,255,.1)!important;color:#fff!important;cursor:pointer;line-height:1;flex:none}
+.zeus-chip button.zeus-reenviar{width:auto!important;height:auto!important;padding:4px 10px!important;border-radius:999px!important;font:800 .68rem Arial!important;background:#1d2a14!important;color:#e7ff9a!important;border:1px solid #d0f44c!important}
 .zeus-form{display:flex;gap:10px;flex-wrap:wrap}
 .zeus-form input{flex:1 1 240px;min-width:0;box-sizing:border-box;border:1px solid #46563f;border-radius:9px;background:#0b100b;color:#fff;padding:10px 12px;font:500 16px Arial;outline:none;color-scheme:dark}
 .zeus-form input:focus{border-color:#d0f44c}
 .zeus-form .bd-clear{width:auto!important;padding:10px 18px!important}
-`; document.head.appendChild(estilo);
+@media (max-width:700px){.zeus-chip{width:100%;box-sizing:border-box;flex-wrap:wrap}.zeus-chip>span:nth-child(2){flex:1 1 140px}}
+`;
+  document.head.appendChild(estilo);
 
   function construir() {
     const main = document.querySelector('main'), nav = document.querySelector('nav.tabs');
@@ -109,11 +125,18 @@
       e.preventDefault();
       const c = f.elements.correo.value.trim().toLowerCase();
       if (!c) return;
-      guardarCorreos(correos.includes(c) ? correos : correos.concat(c), 'Guardado: ' + c);
+      if (!confirm('Vamos a enviar un mensaje de verificación a ' + c + '.\nSu dueño tiene que abrirlo y confirmar; hasta entonces no recibirá órdenes de compra.\n\n¿Enviar el mensaje?')) return;
+      accionCorreo('/api/zeus/correos', 'POST', { correo: c }, 'Enviamos un mensaje a ' + c + '. Pídele que lo abra y confirme.');
     });
     panel.addEventListener('click', async e => {
+      const re = e.target.closest('[data-zeus-reenviar]');
+      if (re) { accionCorreo('/api/zeus/correos/reenviar', 'POST', { correo: re.dataset.zeusReenviar }, 'Reenviamos el mensaje a ' + re.dataset.zeusReenviar + '.'); return; }
       const q = e.target.closest('[data-zeus-quitar]');
-      if (q) { guardarCorreos(correos.filter(c => c !== q.dataset.zeusQuitar), 'Quitado: ' + q.dataset.zeusQuitar); return; }
+      if (q) {
+        if (!confirm('¿Quitar ' + q.dataset.zeusQuitar + ' de las órdenes de compra?')) return;
+        accionCorreo('/api/zeus/correos?correo=' + encodeURIComponent(q.dataset.zeusQuitar), 'DELETE', null, 'Quitado: ' + q.dataset.zeusQuitar);
+        return;
+      }
       const b = e.target.closest('[data-zeus-revisar]');
       if (!b) return;
       b.disabled = true;

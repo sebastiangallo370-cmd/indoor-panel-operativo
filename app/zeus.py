@@ -10,10 +10,13 @@ Datos en /data/state/zeus.json.
 """
 from __future__ import annotations
 
+import hashlib
+import html
 import json
 import logging
 import os
 import re
+import secrets
 import threading
 import time
 from datetime import datetime, timedelta, timezone
@@ -21,10 +24,12 @@ from pathlib import Path
 from typing import Callable
 
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import HTMLResponse
 
 log = logging.getLogger('zeus')
 router = APIRouter(prefix='/api/zeus', tags=['zeus'])
 pc_router = APIRouter(prefix='/api/zeus/pc', tags=['zeus-pc'])
+public_router = APIRouter(prefix='/api/zeus', tags=['zeus-publico'])   # solo el enlace de confirmación del correo (sin sesión)
 _file = Path(os.getenv('ZEUS_FILE', '/data/state/zeus.json'))
 _lock = threading.Lock()
 INTERVALO = 300
@@ -36,6 +41,9 @@ _pc_auth: Callable[[Request], None] = lambda request: None
 _auth: Callable = lambda request: ''
 _permitido: Callable[[str], bool] = lambda usuario: True
 MAX_CORREOS = 10
+CONFIRMA_VENCE_SEG = 48 * 3600   # el enlace del mensaje de verificación dura 48 horas
+REENVIO_MIN_SEG = 60
+URL_PUBLICA = os.getenv('PUBLIC_URL', 'https://produccion.cloud').rstrip('/')
 _CORREO = re.compile(r'^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$')
 
 
@@ -67,6 +75,7 @@ def _leer() -> dict:
     d.setdefault('latido', {})
     d.setdefault('pedido_por_tela', {})
     d.setdefault('config', {}).setdefault('correos', [])
+    d['config']['correos'] = [c if isinstance(c, dict) else {'correo': str(c), 'estado': 'verificado'} for c in d['config']['correos']]
     return d
 
 
@@ -124,7 +133,7 @@ def _vencer(d: dict) -> None:
 def destinatarios() -> str:
     """Correos que reciben la orden de compra: los del panel del agente; si no hay ninguno, los del .env (ZEUS_EMAIL_A / ALERTA_EMAIL_A)."""
     with _lock:
-        correos = list(_leer()['config']['correos'])
+        correos = [c['correo'] for c in _leer()['config']['correos'] if c.get('estado') == 'verificado']
     return ', '.join(correos) or os.getenv('ZEUS_EMAIL_A') or os.getenv('ALERTA_EMAIL_A') or ''
 
 
@@ -177,8 +186,8 @@ def estado():
         from app import alertas_correo
         return {'agente': _agente(d), 'items': d['items'][-60:][::-1],
                 'resumen': {e: sum(1 for i in d['items'] if i['estado'] == e) for e in ('pendiente', 'entregada', 'creada', 'error', 'cancelada')},
-                'correo': {'configurado': alertas_correo.configurado(), 'encargado': bool(d['config']['correos'] or os.getenv('ZEUS_EMAIL_A') or os.getenv('ALERTA_EMAIL_A'))},
-                'correos': d['config']['correos']}
+                'correo': {'configurado': alertas_correo.configurado(), 'encargado': bool(any(c.get('estado') == 'verificado' for c in d['config']['correos']) or os.getenv('ZEUS_EMAIL_A') or os.getenv('ALERTA_EMAIL_A'))},
+                'correos': _correos_vista(d)}
 
 
 def _usuario(request: Request) -> str:
@@ -188,35 +197,132 @@ def _usuario(request: Request) -> str:
     return usuario
 
 
+def _hash(token: str) -> str:
+    return hashlib.sha256(token.encode('utf-8')).hexdigest()
+
+
+def _correos_vista(d: dict) -> list[dict]:
+    """Lo que ve el navegador: nunca el token."""
+    return [{'correo': c['correo'], 'estado': c.get('estado', 'pendiente'), 'enviado': c.get('enviado_iso', ''), 'verificado': c.get('verificado_iso', ''),
+             'detalle': c.get('detalle', '')} for c in d['config']['correos']]
+
+
+def _validar(correo: str) -> str:
+    c = str(correo or '').strip().lower()
+    if not c or not _CORREO.match(c) or len(c) > 120:
+        raise HTTPException(400, f'«{c[:60]}» no es un correo válido')
+    return c
+
+
+def _enviar_verificacion(correo: str, token: str, pidio: str) -> str:
+    """Manda el mensaje con el enlace de confirmación. Devuelve '' si salió o el motivo si no pudo."""
+    from app import alertas_correo
+    if not alertas_correo.configurado():
+        return 'Falta configurar la cuenta de correo del servidor: no se pudo enviar el mensaje de verificación.'
+    enlace = f'{URL_PUBLICA}/api/zeus/confirmar?c={correo}&t={token}'
+    try:
+        alertas_correo.enviar('Confirma tu correo para recibir las órdenes de compra de tela',
+                              f'{pidio or "Alguien"} agregó este correo en el panel de Indoor Sport para recibir las órdenes de compra de tela que crea el AGENTE INVENTARIO.\n\n'
+                              f'Para activarlo, confirma que es tuyo abriendo este enlace (vale 48 horas):\n\n{enlace}\n\n'
+                              'Si no esperabas este mensaje, ignóralo: sin tu confirmación no recibirás nada.', para=correo)
+    except Exception as e:   # noqa: BLE001
+        log.exception('No se pudo enviar el mensaje de verificación')
+        return f'No se pudo enviar el mensaje: {str(e)[:120]}'
+    return ''
+
+
 @router.get('/config')
 def ver_config():
     with _lock:
-        return {'correos': _leer()['config']['correos']}
+        return {'correos': _correos_vista(_leer())}
 
 
-@router.post('/config')
-def guardar_config(request: Request, payload: dict):
-    """Lista de correos que reciben la orden de compra. Se reemplaza completa (se valida cada dirección)."""
-    _usuario(request)
-    crudos = payload.get('correos')
-    if not isinstance(crudos, list):
-        raise HTTPException(400, 'Falta la lista de correos')
-    limpios: list[str] = []
-    for c in crudos:
-        c = str(c or '').strip().lower()
-        if not c:
-            continue
-        if not _CORREO.match(c) or len(c) > 120:
-            raise HTTPException(400, f'«{c[:60]}» no es un correo válido')
-        if c not in limpios:
-            limpios.append(c)
-    if len(limpios) > MAX_CORREOS:
-        raise HTTPException(400, f'Máximo {MAX_CORREOS} correos')
+@router.post('/correos')
+def agregar_correo(request: Request, payload: dict):
+    """Agrega un correo en estado «pendiente» y le manda un mensaje de verificación; solo recibe órdenes cuando su dueño confirma."""
+    usuario = _usuario(request)
+    correo = _validar(payload.get('correo'))
+    token = secrets.token_urlsafe(24)
     with _lock:
         d = _leer()
-        d['config']['correos'] = limpios
+        lista = d['config']['correos']
+        if any(c['correo'] == correo for c in lista):
+            raise HTTPException(409, 'Ese correo ya está en la lista')
+        if len(lista) >= MAX_CORREOS:
+            raise HTTPException(400, f'Máximo {MAX_CORREOS} correos')
+        lista.append({'correo': correo, 'estado': 'pendiente', 'token': _hash(token), 'enviado_at': _ahora(), 'enviado_iso': _iso(), 'pidio': usuario})
         _guardar(d)
-    return {'ok': True, 'correos': limpios}
+    motivo = _enviar_verificacion(correo, token, usuario)
+    with _lock:
+        d = _leer()
+        c = next(x for x in d['config']['correos'] if x['correo'] == correo)
+        c['detalle'] = motivo
+        _guardar(d)
+        return {'ok': True, 'enviado': not motivo, 'detalle': motivo, 'correos': _correos_vista(d)}
+
+
+@router.post('/correos/reenviar')
+def reenviar_correo(request: Request, payload: dict):
+    usuario = _usuario(request)
+    correo = _validar(payload.get('correo'))
+    token = secrets.token_urlsafe(24)
+    with _lock:
+        d = _leer()
+        c = next((x for x in d['config']['correos'] if x['correo'] == correo), None)
+        if not c:
+            raise HTTPException(404, 'Ese correo no está en la lista')
+        if c.get('estado') == 'verificado':
+            raise HTTPException(409, 'Ese correo ya está confirmado')
+        if _ahora() - float(c.get('enviado_at') or 0) < REENVIO_MIN_SEG:
+            raise HTTPException(429, 'Espera un minuto antes de reenviar el mensaje')
+        c.update(token=_hash(token), enviado_at=_ahora(), enviado_iso=_iso(), pidio=usuario)
+        _guardar(d)
+    motivo = _enviar_verificacion(correo, token, usuario)
+    with _lock:
+        d = _leer()
+        next(x for x in d['config']['correos'] if x['correo'] == correo)['detalle'] = motivo
+        _guardar(d)
+        return {'ok': True, 'enviado': not motivo, 'detalle': motivo, 'correos': _correos_vista(d)}
+
+
+@router.delete('/correos')
+def quitar_correo(request: Request, correo: str):
+    _usuario(request)
+    c = _validar(correo)
+    with _lock:
+        d = _leer()
+        antes = len(d['config']['correos'])
+        d['config']['correos'] = [x for x in d['config']['correos'] if x['correo'] != c]
+        if len(d['config']['correos']) == antes:
+            raise HTTPException(404, 'Ese correo no está en la lista')
+        _guardar(d)
+        return {'ok': True, 'correos': _correos_vista(d)}
+
+
+def _pagina(titulo: str, texto: str, ok: bool) -> HTMLResponse:
+    color = '#d0f44c' if ok else '#ff8a80'
+    return HTMLResponse(f'<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Indoor Sport</title>'
+                        f'<body style="margin:0;min-height:100vh;display:grid;place-items:center;background:#0b100b;color:#eef3ea;font-family:Arial,sans-serif;padding:24px">'
+                        f'<main style="max-width:440px;text-align:center"><div style="font-size:3rem;color:{color}">{"✔" if ok else "✕"}</div>'
+                        f'<h1 style="font-size:1.4rem">{html.escape(titulo)}</h1><p style="color:#b9c6b3;line-height:1.5">{html.escape(texto)}</p></main></body></html>',
+                        status_code=200 if ok else 400)
+
+
+@public_router.get('/confirmar')
+def confirmar_correo(c: str = '', t: str = ''):
+    """Enlace del mensaje de verificación: lo abre el dueño del correo (no necesita sesión). Sirve una sola vez y vence a las 48 h."""
+    correo = str(c or '').strip().lower()
+    with _lock:
+        d = _leer()
+        item = next((x for x in d['config']['correos'] if x['correo'] == correo), None)
+        if not item or not t or not item.get('token') or not secrets.compare_digest(item['token'], _hash(t)):
+            return _pagina('Enlace no válido', 'Este enlace ya se usó o no corresponde a ningún correo pendiente. Pide que te reenvíen el mensaje desde el panel.', False)
+        if _ahora() - float(item.get('enviado_at') or 0) > CONFIRMA_VENCE_SEG:
+            return _pagina('Enlace vencido', 'El enlace duró 48 horas. Pide que te reenvíen el mensaje desde el panel.', False)
+        item.update(estado='verificado', verificado_iso=_iso(), detalle='')
+        item.pop('token', None)
+        _guardar(d)
+    return _pagina('Correo confirmado', f'{correo} recibirá las órdenes de compra de tela que cree el AGENTE INVENTARIO.', True)
 
 
 @router.post('/sincronizar')
