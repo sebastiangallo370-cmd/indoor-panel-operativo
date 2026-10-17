@@ -60,6 +60,17 @@
     const b = panel.querySelector('[data-zeus-nbuscar]'); if (b && document.activeElement === document.body && notBuscar) { b.focus(); b.setSelectionRange(notBuscar.length, notBuscar.length); }
   }
 
+  function envioHtml(i) {
+    if (i.estado !== 'creada' || !i.oc) return '';
+    const e = i.envio_proveedor || {};
+    const fecha = e.at ? String(e.at).replace('T', ' ').slice(0, 16) : '';
+    if (e.estado === 'pendiente' || e.estado === 'entregada') return '<div class="zeus-envio"><span class="zeus-envio-est">⏳ Enviando al proveedor…</span></div>';
+    if (e.estado === 'enviada') return '<div class="zeus-envio"><span class="zeus-envio-est ok">✔ Enviada a ' + esc(e.correo || 'el proveedor') + (fecha ? ' · ' + esc(fecha) : '') + '</span>' +
+      '<button type="button" class="zeus-envio-btn suave" data-zeus-prov="' + i.id + '" data-otra="1">Enviar otra vez</button></div>';
+    return '<div class="zeus-envio">' + (e.estado === 'error' ? '<span class="zeus-envio-est mal">⚠ ' + esc(e.detalle || 'No se pudo enviar') + '</span>' : '') +
+      '<button type="button" class="zeus-envio-btn" data-zeus-prov="' + i.id + '" data-oc="' + esc(i.oc) + '">✉ Enviar orden al proveedor</button></div>';
+  }
+
   function pintar(d) {
     const a = d.agente || {}, [etq, cls] = ESTADO[a.estado] || [a.estado || '—', ''];
     const avisos = [];
@@ -77,7 +88,7 @@
       return card({
         badge: label, badgeClass: c, cls: c === 'bad' ? 'bad' : '', name: i.tela, total: num(i.falta) + '<small>MTS</small>',
         unit: i.estado === 'creada' ? 'Orden de compra ' + (i.oc || '(sin número)') : (i.detalle || ''),
-        extra: (i.ordenes || []).map(o => '<div class="bd-line"><span>' + esc(o.orden) + ' · ' + esc(o.referencia) + '</span><b>' + num(o.falta) + ' MTS</b></div>').join('')
+        extra: (i.ordenes || []).map(o => '<div class="bd-line"><span>' + esc(o.orden) + ' · ' + esc(o.referencia) + '</span><b>' + num(o.falta) + ' MTS</b></div>').join('') + envioHtml(i)
       });
     }).join('');
     correos = d.correos || [];
@@ -140,6 +151,10 @@
 .panel[data-panel="zeus"] .bd-refresh,.panel[data-panel="zeus"] .bd-clear{background:rgba(255,255,255,.1)!important;border:1px solid rgba(255,255,255,.3)!important;color:#fff!important}
 .zeus-chip.ok,.zeus-chip.pend{border-color:rgba(255,255,255,.22)!important}
 .zeus-form input{background:rgba(0,0,0,.28)!important;border:1px solid rgba(255,255,255,.2)!important}.zeus-form input:focus{border-color:rgba(255,255,255,.55)!important;box-shadow:0 0 0 3px rgba(255,255,255,.1)}
+.zeus-envio{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.14)}
+.zeus-envio-est{flex:1 1 100%;font:700 .72rem Arial;color:#d3dccf}.zeus-envio-est.ok{color:#8bd450}.zeus-envio-est.mal{color:#ff9a9d}
+.zeus-envio-btn{min-height:38px;padding:0 14px;border:1px solid rgba(255,255,255,.3);border-radius:12px;background:rgba(255,255,255,.92);color:#10140a;font:800 .74rem Arial;letter-spacing:.04em;cursor:pointer;width:100%!important;transition:transform .2s,background .2s}
+.zeus-envio-btn:hover{transform:translateY(-1px);background:#fff}.zeus-envio-btn:disabled{opacity:.5;cursor:default}.zeus-envio-btn.suave{background:rgba(255,255,255,.1);color:#fff}
 .zeus-sel{position:relative;max-width:460px}
 .zeus-sel-btn{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%!important;min-height:44px;padding:0 16px;border:1px solid rgba(255,255,255,.25);border-radius:14px;background:rgba(255,255,255,.08);color:#fff;font:800 .82rem Arial;cursor:pointer;transition:background .2s}
 .zeus-sel-btn:hover,.zeus-sel.abierto .zeus-sel-btn{background:rgba(255,255,255,.16)}.zeus-sel-btn i{font-style:normal;transition:transform .2s}.zeus-sel.abierto .zeus-sel-btn i{transform:rotate(180deg)}
@@ -202,6 +217,14 @@
       if (notAbierto && panel && !e.target.closest('.zeus-sel') && !e.target.closest('[data-zeus-quitar-user]')) { notAbierto = false; notBuscar = ''; repintarNotificar(''); }
     });
     panel.addEventListener('click', async e => {
+      const ep = e.target.closest('[data-zeus-prov]');
+      if (ep) {
+        const otra = !!ep.dataset.otra;
+        if (!confirm((otra ? 'Esta orden ya se envió. ¿Enviarla otra vez' : '¿Enviar la orden de compra' + (ep.dataset.oc ? ' ' + ep.dataset.oc : '')) + ' al correo del proveedor?\nEl proveedor recibirá la orden de Effi y un mensaje de Indoor Sport.')) return;
+        ep.disabled = true;
+        try { await llamar('/api/zeus/enviar-proveedor', 'POST', { id: Number(ep.dataset.zeusProv), otra_vez: otra }); } catch (err) { alert(err.message); }
+        cargar(false); return;
+      }
       const ab = e.target.closest('[data-zeus-abrir]');
       if (ab) { notAbierto = !notAbierto; if (!notAbierto) notBuscar = ''; repintarNotificar(''); const b = panel.querySelector('[data-zeus-nbuscar]'); if (b) b.focus(); return; }
       const qu = e.target.closest('[data-zeus-quitar-user]');

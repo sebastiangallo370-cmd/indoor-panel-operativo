@@ -198,6 +198,32 @@ def _correo_creada(item: dict) -> None:
         log.exception('No se pudo enviar el correo de la orden de compra')
 
 
+MENSAJE_PROVEEDOR = (
+    'Cordial saludo,\n\n'
+    'Desde INDOOR SPORT SAS le enviamos la orden de compra N.° {oc}:\n\n'
+    '  · Tela: {tela}\n'
+    '  · Cantidad: {falta:g} metros\n\n'
+    'La orden oficial le llega adjunta en el mensaje de nuestro sistema (Effi). '
+    'Por favor confirme la recepción de este pedido y la fecha estimada de despacho respondiendo a este correo.\n\n'
+    'Muchas gracias por su atención.\n\n'
+    'INDOOR SPORT SAS\nÁrea de Compras e Inventario\nhttps://produccion.cloud'
+)
+
+
+def _correo_proveedor(item: dict, correo: str) -> str:
+    """Mensaje predeterminado de Indoor para el proveedor (acompaña la orden que Effi le envía). Devuelve '' si salió o el motivo si no."""
+    try:
+        from app import alertas_correo
+        if not alertas_correo.puede_enviar():
+            return 'Falta configurar la cuenta de correo del servidor.'
+        alertas_correo.enviar(f"INDOOR SPORT SAS · Orden de compra {item['oc']} · {item['tela']}",
+                              MENSAJE_PROVEEDOR.format(oc=item['oc'], tela=item['tela'], falta=float(item['falta'])), para=correo)
+        return ''
+    except Exception as e:   # noqa: BLE001
+        log.exception('No se pudo enviar el mensaje de Indoor al proveedor')
+        return str(e)[:120]
+
+
 def _bucle() -> None:
     time.sleep(100)
     while True:
@@ -283,6 +309,25 @@ def ver_config():
     with _lock:
         d = _leer()
         return {'correos': _correos_vista(d), 'notificar': d['config']['notificar'], 'usuarios': _usuarios()}
+
+
+@router.post('/enviar-proveedor')
+def enviar_proveedor(request: Request, payload: dict):
+    """Botón de la página: el agente envía la orden de compra al correo del proveedor desde Effi (más el mensaje de Indoor)."""
+    usuario = _usuario(request)
+    with _lock:
+        d = _leer()
+        item = next((i for i in d['items'] if i['id'] == payload.get('id')), None)
+        if not item or item.get('estado') != 'creada' or not item.get('oc'):
+            raise HTTPException(404, 'Esa orden de compra todavía no está creada en Effi')
+        e = item.get('envio_proveedor') or {}
+        if e.get('estado') in ('pendiente', 'entregada'):
+            raise HTTPException(409, 'Ya hay un envío en curso para esta orden')
+        if e.get('estado') == 'enviada' and not payload.get('otra_vez'):
+            raise HTTPException(409, 'Esta orden ya se envió al proveedor')
+        item['envio_proveedor'] = {'estado': 'pendiente', 'por': usuario, 'pedido_at': _ahora(), 'at': _iso()}
+        _guardar(d)
+    return {'ok': True}
 
 
 @router.put('/notificar')
@@ -414,6 +459,15 @@ def sondeo(request: Request, payload: dict):
             if not item:
                 continue
             item['actualizado'] = _iso()
+            if r.get('tipo') == 'enviar_proveedor':
+                correo = str(r.get('correo', ''))[:120]
+                envio = {'estado': 'enviada' if r.get('ok') else 'error', 'correo': correo, 'detalle': str(r.get('detalle', ''))[:200], 'at': _iso(),
+                         'por': (item.get('envio_proveedor') or {}).get('por', '')}
+                item['envio_proveedor'] = envio
+                if r.get('ok') and correo:
+                    motivo = _correo_proveedor(item, correo)
+                    envio['mensaje'] = 'enviado' if not motivo else 'no salió: ' + motivo
+                continue
             if r.get('ok'):
                 item.update(estado='creada', oc=str(r.get('oc', ''))[:40], detalle=str(r.get('detalle', ''))[:300], creada=_iso())
                 d['pedido_por_tela'][item['tela']] = round(float(d['pedido_por_tela'].get(item['tela'], 0)) + float(item['falta']), 2)
@@ -431,6 +485,16 @@ def sondeo(request: Request, payload: dict):
                     entregar.append({'id': i['id'], 'tela': i['tela'], 'falta': i['falta'], 'ordenes': [o['orden'] for o in i['ordenes']], 'bodega': i.get('bodega', []),
                                      'codigo': codigo, 'proveedor': prov.get('proveedor', ''), 'nit': prov.get('nit', ''),
                                      'correos': correos_envio})
+        if payload.get('puede_trabajar'):
+            for i in d['items']:
+                e = i.get('envio_proveedor') or {}
+                if e.get('estado') == 'pendiente' and i.get('oc'):
+                    e['estado'], e['entregada_at'] = 'entregada', _ahora()
+                    entregar.append({'tipo': 'enviar_proveedor', 'id': i['id'], 'oc': i['oc'], 'tela': i['tela'], 'falta': i['falta']})
+        for i in d['items']:   # un envío que el agente recibió y nunca confirmó no queda colgado
+            e = i.get('envio_proveedor') or {}
+            if e.get('estado') in ('pendiente', 'entregada') and _ahora() - float(e.get('entregada_at') or e.get('pedido_at') or 0) > 900:
+                e.update(estado='error', detalle='El agente no confirmó el envío (¿estaba apagado?). Puedes intentarlo otra vez.')
         _guardar(d)
     for item in avisos:
         _correo_creada(item)

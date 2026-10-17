@@ -233,6 +233,29 @@ def _enviar_por_correo(effi: 'Effi', oc: str, correos: list) -> str:
     return ', '.join(enviados)
 
 
+def _enviar_a_proveedor(effi: 'Effi', oc: str) -> str:
+    """En Effi: menú de la orden > «Enviar por correo electrónico» y se envía al correo del PROVEEDOR que Effi ya trae escrito. Devuelve ese correo."""
+    d = effi.driver
+    d.get('https://effi.com.co/app/orden_c')
+    time.sleep(4)
+    ok = d.execute_script("""
+      const tr = [...document.querySelectorAll('table tbody tr')].find(t => t.children.length >= 7 && (t.children[3].innerText||'').trim() === arguments[0]);
+      if (!tr) return false;
+      const b = tr.querySelector('.dropdown-toggle, [data-toggle="dropdown"]'); if (!b) return false; b.click(); return true;""", oc)
+    if not ok:
+        raise RuntimeError(f'No encontré la orden {oc} en la lista de Effi')
+    time.sleep(1)
+    if not d.execute_script("const a = [...document.querySelectorAll('.dropdown-menu a')].find(a => a.getBoundingClientRect().width > 0 && /enviar por correo/i.test(a.textContent)); if (!a) return false; a.click(); return true;"):
+        raise RuntimeError('No encontré «Enviar por correo electrónico» en el menú de la orden')
+    time.sleep(3)
+    correo = (d.execute_script("return (document.getElementById('email_EE')||{}).value||''") or '').strip()
+    if '@' not in correo:
+        raise RuntimeError('El proveedor no tiene un correo guardado en Effi: agrégalo en su ficha y vuelve a intentar')
+    d.execute_script("document.getElementById('btnValidarEnviarEmail').click()")
+    time.sleep(5)
+    return correo
+
+
 def main():
     try:
         sys.stdout.reconfigure(line_buffering=True, encoding='utf-8', errors='replace')
@@ -269,6 +292,20 @@ def main():
                 resultados = []
                 for job in resp.get('trabajos', []):
                     estado = 'TRABAJANDO'
+                    if job.get('tipo') == 'enviar_proveedor':
+                        try:
+                            log(f"Enviando la orden {job['oc']} al proveedor")
+                            effi.abrir()
+                            correo = _enviar_a_proveedor(effi, str(job['oc']))
+                            resultados.append({'id': job['id'], 'tipo': 'enviar_proveedor', 'ok': True, 'correo': correo, 'detalle': 'Enviada desde Effi'})
+                            ultima = f"Orden {job['oc']} enviada al proveedor ({correo})"
+                        except Exception as e:  # noqa: BLE001
+                            resultados.append({'id': job['id'], 'tipo': 'enviar_proveedor', 'ok': False, 'detalle': str(e)[:190]})
+                            ultima = f"No pude enviar la orden {job['oc']} al proveedor: {str(e)[:140]}"
+                            effi.cerrar()
+                        log(ultima)
+                        estado = 'LIBRE'
+                        continue
                     nombre = f"{job.get('tela')} · {job.get('falta')} MTS"
                     try:
                         if not job.get('proveedor'):
