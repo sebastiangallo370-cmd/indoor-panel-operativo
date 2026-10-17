@@ -7,11 +7,19 @@
   const cuando = () => new Date().toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
   const ESTADO = { SIN_CONECTAR: ['Sin conectar', 'bad'], ESPERANDO_EFFI: ['Esperando acceso a Effi', 'warn'], LIBRE: ['Libre', 'ok'], TRABAJANDO: ['Creando orden de compra…', 'ok'], ERROR: ['Con error', 'bad'] };
   const COMPRA = { pendiente: ['Por comprar', 'warn'], entregada: ['Creándola en Effi…', 'warn'], creada: ['Orden creada', 'ok'], error: ['Con error', 'bad'], cancelada: ['Ya alcanza', ''] };
-  let panel = null, tab = null, cuerpo = null, timer = null;
+  let panel = null, tab = null, cuerpo = null, timer = null, correos = [], editando = false;
 
   const card = ({ badge, badgeClass = '', name, total, unit = '', extra = '', cls = '' }) =>
     '<article class="inventory-item-card ' + cls + '"><span class="inv-badge ' + badgeClass + '">' + esc(badge) + '</span><strong class="inv-name">' + esc(name) + '</strong>' + extra +
     '<span class="inv-total">' + total + '</span>' + (unit ? '<span class="inv-unit">' + esc(unit) + '</span>' : '') + '</article>';
+
+  function correosHtml() {
+    return '<section class="bd-section"><h3>Correos que reciben la orden de compra <small>· cuando el agente la crea en Effi</small></h3>' +
+      '<div class="zeus-correos">' + (correos.length ? correos.map(c => '<span class="zeus-chip"><span>' + esc(c) + '</span><button type="button" data-zeus-quitar="' + esc(c) + '" aria-label="Quitar ' + esc(c) + '">✕</button></span>').join('') :
+        '<p class="bd-note">Todavía no hay correos. Agrega al encargado de pedir la tela.</p>') + '</div>' +
+      '<form class="zeus-form" data-zeus-form autocomplete="off"><input type="email" name="correo" placeholder="correo@ejemplo.com" aria-label="Correo nuevo" required><button type="submit" class="bd-clear">Agregar</button></form>' +
+      '<p class="bd-note zeus-msg" data-zeus-msg></p></section>';
+  }
 
   function pintar(d) {
     const a = d.agente || {}, [etq, cls] = ESTADO[a.estado] || [a.estado || '—', ''];
@@ -33,13 +41,15 @@
         extra: (i.ordenes || []).map(o => '<div class="bd-line"><span>' + esc(o.orden) + ' · ' + esc(o.referencia) + '</span><b>' + num(o.falta) + ' MTS</b></div>').join('')
       });
     }).join('');
+    correos = d.correos || [];
     cuerpo.innerHTML = (avisos.length ? '<p class="bd-note">' + avisos.map(esc).join('<br>') + '</p>' : '') +
-      '<div class="bd-cards fit">' + agente + '</div>' +
+      '<div class="bd-cards fit">' + agente + '</div>' + correosHtml() +
       '<section class="bd-section"><h3>Órdenes de compra <small>· la tela que falta, por tela</small> <button type="button" class="bd-clear" data-zeus-revisar style="margin-left:auto;padding:6px 12px!important">Revisar ahora</button></h3>' +
       (compras ? '<div class="bd-cards">' + compras + '</div>' : '<p class="bd-note">No hay tela por comprar: todos los pedidos programados alcanzan.</p>') + '</section>';
   }
 
   async function cargar(silencioso) {
+    if (silencioso === true && panel && panel.contains(document.activeElement) && document.activeElement.matches('input')) return;   // no se pisa lo que se está escribiendo
     try {
       const r = await fetch('/api/zeus/estado', { cache: 'no-store', credentials: 'same-origin' });
       const d = await r.json();
@@ -48,6 +58,29 @@
       pintar(d);
     } catch (e) { if (!silencioso) cuerpo.innerHTML = '<p class="bd-note">' + esc(e.message) + '</p>'; }
   }
+
+  async function guardarCorreos(nuevos, msg) {
+    const aviso = panel.querySelector('[data-zeus-msg]');
+    try {
+      const r = await fetch('/api/zeus/config', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ correos: nuevos }) });
+      const d = await r.json();
+      if (!r.ok) throw Error(d.detail || 'No se pudo guardar');
+      correos = d.correos;
+      await cargar(false);
+      const m = panel.querySelector('[data-zeus-msg]'); if (m) m.textContent = msg;
+    } catch (e) { if (aviso) aviso.textContent = e.message; }
+  }
+
+  const estilo = document.createElement('style'); estilo.textContent = `
+.zeus-correos{display:flex;flex-wrap:wrap;gap:8px}
+.zeus-chip{display:inline-flex;align-items:center;gap:8px;padding:6px 8px 6px 12px;border:1px solid #46563f;border-radius:999px;background:#151d15;color:#dfe8d9;font:700 .8rem Arial;max-width:100%}
+.zeus-chip span{overflow-wrap:anywhere}
+.zeus-chip button{width:22px!important;height:22px!important;min-height:0!important;padding:0!important;border-radius:50%!important;border:0!important;background:rgba(255,255,255,.1)!important;color:#fff!important;cursor:pointer;line-height:1}
+.zeus-form{display:flex;gap:10px;flex-wrap:wrap}
+.zeus-form input{flex:1 1 240px;min-width:0;box-sizing:border-box;border:1px solid #46563f;border-radius:9px;background:#0b100b;color:#fff;padding:10px 12px;font:500 16px Arial;outline:none;color-scheme:dark}
+.zeus-form input:focus{border-color:#d0f44c}
+.zeus-form .bd-clear{width:auto!important;padding:10px 18px!important}
+`; document.head.appendChild(estilo);
 
   function construir() {
     const main = document.querySelector('main'), nav = document.querySelector('nav.tabs');
@@ -70,7 +103,17 @@
       timer = setInterval(() => { if (panel.classList.contains('active') && !document.hidden) cargar(true); }, 30000);
     });
     panel.querySelector('.bd-refresh').addEventListener('click', () => cargar(false));
+    panel.addEventListener('submit', e => {
+      const f = e.target.closest('[data-zeus-form]');
+      if (!f) return;
+      e.preventDefault();
+      const c = f.elements.correo.value.trim().toLowerCase();
+      if (!c) return;
+      guardarCorreos(correos.includes(c) ? correos : correos.concat(c), 'Guardado: ' + c);
+    });
     panel.addEventListener('click', async e => {
+      const q = e.target.closest('[data-zeus-quitar]');
+      if (q) { guardarCorreos(correos.filter(c => c !== q.dataset.zeusQuitar), 'Quitado: ' + q.dataset.zeusQuitar); return; }
       const b = e.target.closest('[data-zeus-revisar]');
       if (!b) return;
       b.disabled = true;

@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import threading
 import time
 from datetime import datetime, timedelta, timezone
@@ -32,11 +33,20 @@ ENTREGADA_VENCE_SEG = 900
 MARGEN_MTS = 0.5           # diferencias menores no generan otra compra
 _faltantes: Callable[[], list[dict]] = lambda: []
 _pc_auth: Callable[[Request], None] = lambda request: None
+_auth: Callable = lambda request: ''
+_permitido: Callable[[str], bool] = lambda usuario: True
+MAX_CORREOS = 10
+_CORREO = re.compile(r'^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$')
 
 
-def configurar(get_faltantes: Callable[[], list[dict]], pc_auth: Callable[[Request], None]) -> None:
-    global _faltantes, _pc_auth
+def configurar(get_faltantes: Callable[[], list[dict]], pc_auth: Callable[[Request], None], auth: Callable | None = None,
+               permitido: Callable[[str], bool] | None = None) -> None:
+    global _faltantes, _pc_auth, _auth, _permitido
     _faltantes, _pc_auth = get_faltantes, pc_auth
+    if auth:
+        _auth = auth
+    if permitido:
+        _permitido = permitido
 
 
 def _ahora() -> float:
@@ -56,6 +66,7 @@ def _leer() -> dict:
     d.setdefault('seq', 0)
     d.setdefault('latido', {})
     d.setdefault('pedido_por_tela', {})
+    d.setdefault('config', {}).setdefault('correos', [])
     return d
 
 
@@ -110,12 +121,19 @@ def _vencer(d: dict) -> None:
             i['estado'], i['detalle'] = 'pendiente', 'El agente la recibió pero no confirmó; se vuelve a ofrecer.'
 
 
+def destinatarios() -> str:
+    """Correos que reciben la orden de compra: los del panel del agente; si no hay ninguno, los del .env (ZEUS_EMAIL_A / ALERTA_EMAIL_A)."""
+    with _lock:
+        correos = list(_leer()['config']['correos'])
+    return ', '.join(correos) or os.getenv('ZEUS_EMAIL_A') or os.getenv('ALERTA_EMAIL_A') or ''
+
+
 def _correo_creada(item: dict) -> None:
     try:
         from app import alertas_correo
         if not alertas_correo.configurado():
             return
-        para = os.getenv('ZEUS_EMAIL_A') or os.getenv('ALERTA_EMAIL_A')
+        para = destinatarios()
         lineas = [f"- {o['orden']} · {o['referencia']} · {o.get('cliente', '')}: falta {o['falta']:g} MTS (entrega {o.get('entrega') or 'sin fecha'})" for o in item['ordenes']]
         alertas_correo.enviar(f"Orden de compra de tela creada en Effi: {item['tela']}",
                               f"El AGENTE INVENTARIO creó la orden de compra {item['oc'] or '(sin número)'} en Effi.\n\nTela: {item['tela']}\nMetros pedidos: {item['falta']:g} MTS\n\n"
@@ -159,7 +177,46 @@ def estado():
         from app import alertas_correo
         return {'agente': _agente(d), 'items': d['items'][-60:][::-1],
                 'resumen': {e: sum(1 for i in d['items'] if i['estado'] == e) for e in ('pendiente', 'entregada', 'creada', 'error', 'cancelada')},
-                'correo': {'configurado': alertas_correo.configurado(), 'encargado': bool(os.getenv('ZEUS_EMAIL_A') or os.getenv('ALERTA_EMAIL_A'))}}
+                'correo': {'configurado': alertas_correo.configurado(), 'encargado': bool(d['config']['correos'] or os.getenv('ZEUS_EMAIL_A') or os.getenv('ALERTA_EMAIL_A'))},
+                'correos': d['config']['correos']}
+
+
+def _usuario(request: Request) -> str:
+    usuario = str(_auth(request) or '')
+    if not _permitido(usuario):
+        raise HTTPException(403, 'Solo Administración / Coordinación puede cambiar los correos del agente')
+    return usuario
+
+
+@router.get('/config')
+def ver_config():
+    with _lock:
+        return {'correos': _leer()['config']['correos']}
+
+
+@router.post('/config')
+def guardar_config(request: Request, payload: dict):
+    """Lista de correos que reciben la orden de compra. Se reemplaza completa (se valida cada dirección)."""
+    _usuario(request)
+    crudos = payload.get('correos')
+    if not isinstance(crudos, list):
+        raise HTTPException(400, 'Falta la lista de correos')
+    limpios: list[str] = []
+    for c in crudos:
+        c = str(c or '').strip().lower()
+        if not c:
+            continue
+        if not _CORREO.match(c) or len(c) > 120:
+            raise HTTPException(400, f'«{c[:60]}» no es un correo válido')
+        if c not in limpios:
+            limpios.append(c)
+    if len(limpios) > MAX_CORREOS:
+        raise HTTPException(400, f'Máximo {MAX_CORREOS} correos')
+    with _lock:
+        d = _leer()
+        d['config']['correos'] = limpios
+        _guardar(d)
+    return {'ok': True, 'correos': limpios}
 
 
 @router.post('/sincronizar')

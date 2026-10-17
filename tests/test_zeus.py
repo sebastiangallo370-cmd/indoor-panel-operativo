@@ -28,7 +28,10 @@ class ZeusTest(unittest.TestCase):
         zeus._correo_creada = lambda item: self.correos.append(item)
         app = FastAPI()
         app.include_router(zeus.pc_router)
+        app.include_router(zeus.router)
         self.pc = TestClient(app)
+        self.permitido = True
+        zeus.configurar(lambda: self.lista, lambda request: None, lambda request: 'Indoor Sport', lambda u: self.permitido)
 
     def test_agrupa_por_tela_y_no_duplica(self):
         self.lista = [falta('RM1', 'TOUR', 30), falta('RM2', 'TOUR', 20), falta('RM3', 'DIAMANTE', 5)]
@@ -83,6 +86,19 @@ class ZeusTest(unittest.TestCase):
         item = zeus._leer()['items'][0]
         self.assertEqual((item['estado'], item['intentos']), ('error', 1))
         self.assertIn('Effi', item['detalle'])
+
+    def test_correos_se_validan_y_se_guardan(self):
+        r = self.pc.post('/api/zeus/config', json={'correos': ['Compras@Indoor.com ', 'compras@indoor.com', 'otro@x.co']})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()['correos'], ['compras@indoor.com', 'otro@x.co'])
+        self.assertEqual(self.pc.get('/api/zeus/config').json()['correos'], ['compras@indoor.com', 'otro@x.co'])
+        self.assertEqual(zeus.destinatarios(), 'compras@indoor.com, otro@x.co')
+        self.assertEqual(self.pc.post('/api/zeus/config', json={'correos': ['no-es-correo']}).status_code, 400)
+        self.assertEqual(self.pc.post('/api/zeus/config', json={'correos': ['a@b.co'] * 3 + [f'x{i}@b.co' for i in range(11)]}).status_code, 400)
+
+    def test_solo_administracion_cambia_los_correos(self):
+        self.permitido = False
+        self.assertEqual(self.pc.post('/api/zeus/config', json={'correos': ['a@b.co']}).status_code, 403)
 
 
 if __name__ == '__main__':

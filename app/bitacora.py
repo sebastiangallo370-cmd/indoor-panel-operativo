@@ -38,6 +38,7 @@ ETIQUETAS = [
     ('DELETE', r'^/api/produccion/fila/\d+$', 'Producción', 'Eliminó una fila de producción'),
     ('PATCH', r'^/api/produccion/operaciones/evento/\d+$', 'Producción', 'Corrigió un evento de operario'),
     ('DELETE', r'^/api/produccion/operaciones/evento/\d+$', 'Producción', 'Borró un evento de operario'),
+    ('POST', r'^/api/zeus/config$', 'Agente inventario', 'Cambió los correos que reciben la orden de compra'),
     ('POST', r'^/api/programar-pedido$', 'Pedidos', 'Programó un pedido'),
     ('POST', r'^/api/repetir-pedido$', 'Pedidos', 'Repitió un pedido'),
     ('POST', r'^/procesar(/pedido)?$', 'Pedidos', 'Procesó un pedido o reprogramación'),
