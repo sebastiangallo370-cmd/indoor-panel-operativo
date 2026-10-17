@@ -200,8 +200,7 @@ def autollenar_mts(ordenes: list[dict]) -> dict:
     """Anota «NN.NN MTS» en MTS REQUERIDOS (nota de la columna 17) de las tarjetas que todavía no la tienen, con los MTS calculados con el promedio.
     Solo toca el panel: nunca escribe en el Google Sheets. No pisa lo que puso una persona ni lo que ya trae el Sheet; sí actualiza sus propias notas
     cuando el cálculo mejora (por ejemplo al leer el listado de tallas)."""
-    # las que ya están en Sublimación (P) no se tocan: con la nota puesta el servidor les asignaría rollos y descontaría inventario con un cálculo aproximado
-    candidatas = [o for o in ordenes if o.get('fila') and float(o.get('mts') or 0) > 0 and o.get('situacion') != 'sin_promedio' and o.get('estado') != 'P']
+    candidatas = [o for o in ordenes if o.get('fila') and float(o.get('mts') or 0) > 0 and o.get('situacion') != 'sin_promedio']
     if not candidatas:
         return {'escritas': 0}
     try:
@@ -223,6 +222,8 @@ def autollenar_mts(ordenes: list[dict]) -> dict:
                 continue   # una persona (o TERRY) ya puso los MTS
             if previa and str(previa[0]).strip() == texto:
                 continue
+            if previa and str(previa[0]).strip() and not o.get('exacto'):
+                continue   # ya hay un valor del agente: solo se cambia por uno exacto (por talla), nunca por el aproximado
             db.execute('INSERT OR REPLACE INTO production_notes(source_row, column_number, note, username, updated_at) VALUES (?,?,?,?,?)', (fila, 17, texto, USUARIO_NOTA, ahora))
             escritas += 1
         if escritas:

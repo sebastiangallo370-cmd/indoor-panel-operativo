@@ -39,19 +39,24 @@ class AutollenarMts(unittest.TestCase):
 
     def test_solo_llena_donde_nadie_escribio(self):
         ordenes = [{'fila': 1, 'mts': 12.345, 'situacion': 'alcanza'}, {'fila': 2, 'mts': 99, 'situacion': 'alcanza'},
-                   {'fila': 3, 'mts': 99, 'situacion': 'alcanza'}, {'fila': 4, 'mts': 7.5, 'situacion': 'alcanza'},
+                   {'fila': 3, 'mts': 99, 'situacion': 'alcanza'}, {'fila': 4, 'mts': 7.5, 'situacion': 'alcanza', 'exacto': True},
                    {'fila': 5, 'mts': 0, 'situacion': 'sin_promedio'}, {'fila': 6, 'mts': 8, 'situacion': 'sin_promedio'},
                    {'fila': 7, 'mts': 20, 'situacion': 'alcanza', 'estado': 'P'}]
         r = tela_necesaria.autollenar_mts(ordenes)
         n = self.notas()
-        self.assertEqual(r['escritas'], 2)
+        self.assertEqual(r['escritas'], 3)
         self.assertEqual(n[1], ('12.35 MTS', 'AGENTE INVENTARIO'))   # fila libre: se llena
         self.assertEqual(n[2], ('10.00 MTS', 'MARIA'))              # persona: intacta
         self.assertNotIn(3, n)                                       # Sheet: no se escribe
         self.assertEqual(n[4], ('7.50 MTS', 'AGENTE INVENTARIO'))   # su propia nota se actualiza
         self.assertNotIn(5, n)
         self.assertNotIn(6, n)                                       # sin promedio: nada
-        self.assertNotIn(7, n)                                       # ya en Sublimación (P): no se toca
+        self.assertEqual(n[7], ('20.00 MTS', 'AGENTE INVENTARIO'))  # en Sublimación (P) también se llena
+
+    def test_no_cambia_un_valor_por_uno_aproximado(self):
+        r = tela_necesaria.autollenar_mts([{'fila': 4, 'mts': 9, 'situacion': 'alcanza', 'exacto': False}])
+        self.assertEqual(r['escritas'], 0)
+        self.assertEqual(self.notas()[4], ('5.00 MTS', 'AGENTE INVENTARIO'))
 
     def test_no_repite(self):
         o = [{'fila': 1, 'mts': 3, 'situacion': 'alcanza'}]
