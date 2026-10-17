@@ -126,6 +126,9 @@
 .bd .ot-tiempo small{font:600 .6rem Arial!important;opacity:.7!important}
 .bd .ot-consumo{font:900 1.4rem Arial!important}
 .bd .ot-alerta{font:800 .58rem Arial!important}
+.bd .bd-tkpi .lq{background:radial-gradient(120% 80% at 12% 0%,rgba(255,255,255,.14),rgba(255,255,255,0) 55%),linear-gradient(160deg,color-mix(in srgb,var(--liquid) 34%,transparent),color-mix(in srgb,var(--liquid) 13%,rgba(8,12,8,.74)))!important}
+.bd .ot.lq,.bd .bd-tkpi .lq{box-shadow:inset 0 1px 0 rgba(255,255,255,.35),inset 0 0 18px rgba(255,255,255,.04),0 8px 22px rgba(0,0,0,.34)!important}
+.bd .ot.lq>.lq-wave,.bd .bd-tkpi .lq>.lq-wave{display:none}
 @media (max-width:700px){.bd .ot{padding:12px!important}.bd .ot-pie{padding-right:46px}}
 .bd .bd-tcards .inventory-item-card .bd-line{flex-wrap:wrap;align-items:baseline}
 .bd .bd-tcards .inventory-item-card .bd-line b{white-space:normal;text-align:right;overflow-wrap:anywhere;min-width:0;margin-left:auto}
@@ -388,8 +391,9 @@
       while (falta > 0) { f.setUTCDate(f.getUTCDate() + 1); if (f.getUTCDay() !== 0) falta -= 1; }
       return f;
     };
-    const estimarLlegada = o => {
-      if (o.en_sublim || !prodData || !unitData) return null;
+    // áreas que le faltan a una orden antes de Sublimación, con sus minutos (unidades × minutos por unidad de la escalera de Inicio)
+    const partesDe = o => {
+      if (!prodData || !unitData) return null;
       const fila = (prodData.rows || []).find(r => r.source_row === o.fila);
       if (!fila) return null;
       const flow = typeof indoorProcessFlow !== 'undefined' ? indoorProcessFlow : [];
@@ -402,12 +406,32 @@
         const v = norm(fila.values[col]);
         if (v === 'N/A' || (v && v !== 'P' && v !== 'R' && /\d/.test(v))) return;   // no aplica o ya terminada
         const u = unitData.find(x => norm(x.label) === norm(area.label));
-        if (!u || !u.porUnidad || u.unidades < 50) return;   // sin suficientes unidades medidas (p. ej. Diseño, que casi no se mide) el promedio no es confiable
+        if (!u || !u.porUnidad || u.unidades < 50) return;   // sin suficientes unidades medidas (p. ej. Diseño) el promedio no es confiable
         partes.push({label: area.label, min: o.cantidad * u.porUnidad, porUnidad: u.porUnidad, enProceso: v === 'P'});
       });
-      const total = partes.reduce((t, x) => t + x.min, 0), dias = total / MIN_DIA;
-      return {total, dias, partes, llega: dias > 0 ? sumarDiasHabiles(dias) : hoyCo()};
+      return partes;
     };
+    // La planta no hace todas las órdenes a la vez: cada área atiende una orden tras otra. Se ordenan por fecha de entrega y cada orden espera a que
+    // el área termine las de adelante (y a que ella misma salga del área anterior). Así dos órdenes no llegan juntas a Sublimación.
+    let colaLlegada = new Map();
+    const calcularCola = ordenes => {
+      colaLlegada = new Map();
+      const libre = {};   // minuto en que cada área queda libre
+      const pend = ordenes.filter(o => !o.en_sublim).sort((x, y) => String(x.entrega || '9999').localeCompare(String(y.entrega || '9999')) || String(x.orden).localeCompare(String(y.orden)));
+      pend.forEach((o, i) => {
+        const partes = partesDe(o);
+        if (!partes) return;
+        let t = 0, propio = 0;
+        partes.forEach(p => {
+          const ini = Math.max(t, libre[p.label] || 0);
+          const fin = ini + p.min;
+          libre[p.label] = fin; propio += p.min; t = fin;
+        });
+        const dias = t / MIN_DIA;
+        colaLlegada.set(o.fila, {total: t, propio, espera: Math.max(0, t - propio), dias, partes, delante: i, llega: dias > 0 ? sumarDiasHabiles(dias) : hoyCo()});
+      });
+    };
+    const estimarLlegada = o => (o.en_sublim ? null : colaLlegada.get(o.fila) || null);
     const CLAVE_LLEGADA = 'indoor-llegada-sublimacion';
     let memoriaLlegada = null;
     const leerMemoria = () => { if (memoriaLlegada) return memoriaLlegada; try { memoriaLlegada = JSON.parse(localStorage.getItem(CLAVE_LLEGADA) || '{}') || {}; } catch (_) { memoriaLlegada = {}; } return memoriaLlegada; };
@@ -431,13 +455,15 @@
       const e = estimarLlegada(o);
       if (e) {
         const detalle = e.partes.map(x => x.label + ': ' + num(o.cantidad) + ' und × ' + num(x.porUnidad) + ' min = ' + horasTxt(x.min)).join('\n');
-        const ayuda = (detalle || 'No le falta ningún área antes de Sublimación') + '\nTotal: ' + horasTxt(e.total) + ' ≈ ' + num(e.dias) + ' días de trabajo (jornada de ' + horasTxt(MIN_DIA) + ', lunes a sábado)\nNo cuenta las órdenes que están antes en la fila.';
+        const ayuda = (detalle || 'No le falta ningún área antes de Sublimación') + '\nTrabajo propio: ' + horasTxt(e.propio) + (e.espera ? '\nEspera por las órdenes de adelante: ' + horasTxt(e.espera) : '') + '\nTotal hasta Sublimación: ' + horasTxt(e.total) + ' ≈ ' + num(e.dias) + ' días de trabajo (jornada de ' + horasTxt(MIN_DIA) + ', lunes a sábado)\nSe atienden por fecha de entrega: delante de esta hay ' + e.delante + (e.delante === 1 ? ' orden.' : ' órdenes.');
         const cuando = fechaCorta(e.llega.toISOString().slice(0, 10)).replace(/( de)? \d{4}$/, '');
         if (!e.partes.length) return ['urgente', 'Lista para entrar a Sublimación', 'no le falta ningún área antes', ayuda];
-        const d = Math.max(1, Math.ceil(e.dias));
+        const d = Math.max(1, Math.round(e.dias));
+        const titulo = e.total < 60 ? 'Llega a Sublimación en menos de 1 hora de trabajo' : e.total < MIN_DIA ? 'Llega a Sublimación en ≈ ' + horasTxt(e.total) + ' de trabajo' : 'Llega a Sublimación en ≈ ' + d + (d === 1 ? ' día' : ' días');
+        const detalleCorto = 'faltan ' + e.partes.map(x => x.label.toLowerCase()).join(' + ') + ' · ' + horasTxt(e.propio) + (e.espera >= 1 ? ' + ' + horasTxt(e.espera) + ' de espera' : '');
         const cambio = cambioLlegada(o, e.llega);
         const nota = cambio ? (cambio.dias > 0 ? '▲ Se atrasó ' + cambio.dias + (cambio.dias === 1 ? ' día' : ' días') : '▼ Se adelantó ' + Math.abs(cambio.dias) + (Math.abs(cambio.dias) === 1 ? ' día' : ' días')) + ' desde ' + fechaCorta(cambio.desde).replace(/( de)? \d{4}$/, '') : '';
-        return [d <= 1 ? 'urgente' : d <= 3 ? 'pronto' : 'ok', (e.total < MIN_DIA ? 'Llega a Sublimación en menos de 1 día' : 'Llega a Sublimación en ≈ ' + d + (d === 1 ? ' día' : ' días')), 'faltan ' + e.partes.map(x => x.label.toLowerCase()).join(' + ') + ' · ' + horasTxt(e.total), ayuda + '\nEstimado: ' + cuando + (cambio ? '\n' + nota + ' (antes: ' + fechaCorta(cambio.antes) + ')' : ''), nota, cambio ? (cambio.dias > 0 ? 'atraso' : 'adelanto') : ''];
+        return [d <= 1 ? 'urgente' : d <= 3 ? 'pronto' : 'ok', titulo, detalleCorto, ayuda + '\nEstimado: ' + cuando + (cambio ? '\n' + nota + ' (antes: ' + fechaCorta(cambio.antes) + ')' : ''), nota, cambio ? (cambio.dias > 0 ? 'atraso' : 'adelanto') : ''];
       }
       if (typeof o.dias_sublim !== 'number') return null;
       const d = o.dias_sublim, cuando = fechaCorta(o.sublim_est).replace(/( de)? \d{4}$/, '');
@@ -445,6 +471,7 @@
       if (d === 0) return ['urgente', 'Llega a Sublimación hoy', 'estimado ' + cuando, ''];
       return [d <= 3 ? 'pronto' : 'ok', 'Llega a Sublimación en ' + d + (d === 1 ? ' día' : ' días'), 'estimado ' + cuando, ''];
     };
+    calcularCola(ordenes);
     const orderCard = o => {
       const [, cls] = SITUACION[o.situacion] || ['', ''];
       const sinPromedio = o.situacion === 'sin_promedio';
