@@ -79,7 +79,7 @@
     if (d.correo && !d.correo.configurado) avisos.push('Falta configurar el correo del servidor.');
     const r = d.resumen || {};
     const agente = card({
-      badge: 'Agente de inventario', badgeClass: cls, cls: cls === 'bad' ? 'bad' : '', name: 'AGENTE INVENTARIO', total: esc(etq), unit: '',
+      badge: 'Agente de inventario', badgeClass: cls, cls: cls === 'bad' ? 'bad' : '', name: 'AGENTE INVENTARIO', total: a.estado === 'LIBRE' ? '' : esc(etq), unit: '',
       extra: '<div class="bd-line"><span>Compras</span><b>' + num(r.pendiente) + ' por comprar · ' + num(r.creada) + ' creadas</b></div>' +
         (a.ultima && (cls === 'bad' || a.estado === 'TRABAJANDO') ? '<div class="bd-line"><span>' + esc(String(a.ultima).slice(0, 110)) + '</span></div>' : '') +
         ((a.funciones || []).length ? '<details class="zeus-que"><summary>¿Qué hace?</summary>' + a.funciones.map(f => '<div class="bd-line"><span>· ' + esc(f) + '</span></div>').join('') + '</details>' : '')
@@ -156,6 +156,7 @@
 .zeus-envio-est{flex:1 1 100%;font:700 .72rem Arial;color:#d3dccf}.zeus-envio-est.ok{color:#8bd450}.zeus-envio-est.mal{color:#ff9a9d}
 .zeus-envio-btn{min-height:38px;padding:0 14px;border:1px solid rgba(255,255,255,.3);border-radius:12px;background:rgba(255,255,255,.92);color:#10140a;font:800 .74rem Arial;letter-spacing:.04em;cursor:pointer;width:100%!important;transition:transform .2s,background .2s}
 .zeus-envio-btn:hover{transform:translateY(-1px);background:#fff}.zeus-envio-btn:disabled{opacity:.5;cursor:default}.zeus-envio-btn.suave{background:rgba(255,255,255,.1);color:#fff}
+.panel[data-panel="zeus"] .inventory-item-card .inv-total:empty{display:none}
 .zeus-que{margin-top:6px}.zeus-que summary{cursor:pointer;font:700 .7rem Arial;color:#b9c6b1;list-style:none}.zeus-que summary::-webkit-details-marker{display:none}.zeus-que summary::before{content:'ⓘ ';opacity:.8}.zeus-que[open] summary{margin-bottom:4px}
 .zeus-msg:empty,[data-zeus-notmsg]:empty{display:none}
 .zeus-sel{position:relative;max-width:460px}
