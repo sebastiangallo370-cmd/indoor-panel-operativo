@@ -431,6 +431,7 @@ html body .bd .inventory-item-card.lq,html body .bd .bd-tkpi .lq{background:radi
       if (inicio > ahora) inicio.setUTCDate(inicio.getUTCDate() - 1);   // la hora es de ayer
       return Math.max(0, minLaborales(inicio, ahora));
     };
+    const diaTxt = d => d.toLocaleDateString('es-CO', {weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC'}).replace(/\./g, '');
     const cuandoTxt = d => d.toLocaleString('es-CO', {weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', timeZone: 'UTC'}).replace(/\./g, '');
     // áreas que le faltan a una orden antes de Sublimación, con sus minutos (unidades × minutos por unidad de la escalera de Inicio)
     const partesDe = o => {
@@ -502,7 +503,7 @@ html body .bd .inventory-item-card.lq,html body .bd .bd-tkpi .lq{background:radi
         const momento = cuandoTxt(e.llega);
         if (!e.partes.length) return ['urgente', 'Lista para entrar a Sublimación', 'no le falta ningún área antes', ayuda];
         const d = Math.max(1, Math.round(e.dias));
-        const titulo = 'Llega a Sublimación · ' + momento;
+        const titulo = 'Llega a Sublimación el ' + diaTxt(e.llega);
         const detalleCorto = momento + ' · faltan ' + e.partes.map(x => x.label.toLowerCase()).join(' + ') + ' · ' + horasTxt(e.propio) + (e.espera >= 1 ? ' + ' + horasTxt(e.espera) + ' de espera' : '');
         const cambio = cambioLlegada(o, e.llega);
         const nota = cambio ? (cambio.dias > 0 ? '▲ Se atrasó ' + cambio.dias + (cambio.dias === 1 ? ' día' : ' días') : '▼ Se adelantó ' + Math.abs(cambio.dias) + (Math.abs(cambio.dias) === 1 ? ' día' : ' días')) + ' desde ' + fechaCorta(cambio.desde).replace(/( de)? \d{4}$/, '') : '';
