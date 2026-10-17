@@ -1,0 +1,22 @@
+<style>
+/* Login con el mismo vidrio (liquid glass) del resto del panel: tarjeta translúcida, campos de vidrio y aro de luz */
+body{background:radial-gradient(60% 50% at 18% 12%,rgba(208,244,76,.10),transparent 60%),radial-gradient(55% 55% at 88% 78%,rgba(120,180,255,.10),transparent 62%),#080e0b;background-attachment:fixed}
+.login-header{background:rgba(255,255,255,.04);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);border-bottom:1px solid rgba(255,255,255,.18)}
+@property --lg-ang{syntax:"<angle>";inherits:false;initial-value:0deg}
+.form-panel{position:relative;isolation:isolate;padding:34px 32px 30px;border:1px solid rgba(255,255,255,.22);border-radius:26px;background:radial-gradient(120% 70% at 10% 0%,rgba(255,255,255,.16),rgba(255,255,255,0) 55%),linear-gradient(160deg,rgba(255,255,255,.12),rgba(255,255,255,.035));-webkit-backdrop-filter:blur(24px) saturate(1.4);backdrop-filter:blur(24px) saturate(1.4);box-shadow:inset 0 1.5px 0 rgba(255,255,255,.45),inset 0 -1px 0 rgba(255,255,255,.1),0 24px 60px -16px #000d}
+.form-panel::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1.5px;pointer-events:none;z-index:2;background:conic-gradient(from var(--lg-ang),rgba(255,255,255,.12),rgba(255,255,255,.9) 12%,rgba(255,255,255,.12) 28%,rgba(255,255,255,.12) 60%,rgba(255,255,255,.7) 74%,rgba(255,255,255,.12) 90%);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0);animation:lg-giro 8s linear infinite;filter:drop-shadow(0 0 6px rgba(255,255,255,.4))}
+@keyframes lg-giro{to{--lg-ang:360deg}}
+.brand-photo{border-radius:26px!important;border:1px solid rgba(255,255,255,.22);box-shadow:inset 0 1.5px 0 rgba(255,255,255,.35),0 24px 60px -16px #000d}
+input{background:rgba(0,0,0,.3)!important;border:1px solid rgba(255,255,255,.22)!important;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+input:focus{border-color:rgba(255,255,255,.6)!important;box-shadow:0 0 0 3px rgba(255,255,255,.12)}
+.submit{background:rgba(255,255,255,.92)!important;color:#10140a!important;box-shadow:0 10px 30px -10px rgba(255,255,255,.45),inset 0 1px 0 #fff}
+.submit:hover:not(:disabled){background:#fff!important}
+.register a,.track .eyebrow,.track-form button,.t-more summary{color:#e8efe2}
+.track-form button{border-color:rgba(255,255,255,.4)!important;background:rgba(255,255,255,.08)!important}
+.track-form button:hover:not(:disabled),.track-form button.alt{background:rgba(255,255,255,.92)!important;color:#10140a!important}
+.t-card,.rc,.t-msg,.t-newform,.res-modal,.t-ref{background:radial-gradient(120% 80% at 10% 0%,rgba(255,255,255,.14),rgba(255,255,255,0) 55%),linear-gradient(160deg,rgba(255,255,255,.11),rgba(255,255,255,.035))!important;border:1px solid rgba(255,255,255,.22)!important;-webkit-backdrop-filter:blur(22px) saturate(1.3);backdrop-filter:blur(22px) saturate(1.3);box-shadow:inset 0 1.5px 0 rgba(255,255,255,.35),0 12px 30px -10px #000c}
+.res-modal{background:linear-gradient(160deg,rgba(34,42,32,.9),rgba(12,16,11,.93))!important}
+.t-badge{border-color:rgba(255,255,255,.5)!important;color:#fff!important}.t-badge.finished{background:rgba(255,255,255,.92)!important;color:#10140a!important}
+@media(max-width:680px){.form-panel{padding:26px 20px 22px;border-radius:22px}}
+@media(prefers-reduced-motion:reduce){.form-panel::before{animation:none}}
+</style>

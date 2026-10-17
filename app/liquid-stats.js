@@ -34,6 +34,15 @@
   .od{--lq-ring:var(--c);border-left-width:1px!important;border:1px solid rgba(255,255,255,.22)!important;background:radial-gradient(120% 90% at 10% 0%,rgba(255,255,255,.14),rgba(255,255,255,0) 55%),linear-gradient(160deg,rgba(255,255,255,.10),rgba(255,255,255,.03))!important;-webkit-backdrop-filter:blur(18px) saturate(1.3);backdrop-filter:blur(18px) saturate(1.3);box-shadow:inset 0 1.5px 0 rgba(255,255,255,.35),0 0 0 1px color-mix(in srgb,var(--lq-ring) 55%,transparent),0 0 14px -4px var(--lq-ring)}
   .od.tone-ok{--c:#35d46a}.od.tone-warn{--c:#ff9a1f}.od.tone-late{--c:#ff4b3e}.od.tone-none{--c:rgba(255,255,255,.6)}
   .od:hover{box-shadow:inset 0 1.5px 0 rgba(255,255,255,.5),0 0 0 1px var(--lq-ring),0 0 22px -2px var(--lq-ring)!important}
+  /* Tarjetas de Producción: vidrio sin color, el estado se ve en el aro (verde terminado, naranja en proceso, rojo reproceso/pausada) */
+  html body.production-mode .trace-card{--r:rgba(255,255,255,.7);background:radial-gradient(120% 80% at 10% 0%,rgba(255,255,255,.14),rgba(255,255,255,0) 55%),linear-gradient(160deg,rgba(255,255,255,.11),rgba(255,255,255,.035))!important;-webkit-backdrop-filter:blur(20px) saturate(1.3);backdrop-filter:blur(20px) saturate(1.3);border:1px solid rgba(255,255,255,.22)!important;border-top:1px solid rgba(255,255,255,.22)!important;box-shadow:inset 0 1.5px 0 rgba(255,255,255,.38),0 0 0 1px color-mix(in srgb,var(--r) 55%,transparent),0 0 16px -4px var(--r),0 10px 26px -10px #000c!important}
+  html body.production-mode .trace-card.state-finished{--r:#35d46a}
+  html body.production-mode .trace-card.state-active{--r:#ff9a1f}
+  html body.production-mode .trace-card.state-rework,html body.production-mode .trace-card.trace-paused{--r:#ff4b3e}
+  html body.production-mode .trace-card.trace-running{--r:#35d46a}
+  html body.production-mode .trace-card.trace-paused{background:radial-gradient(120% 80% at 10% 0%,rgba(255,255,255,.14),rgba(255,255,255,0) 55%),linear-gradient(160deg,rgba(255,255,255,.11),rgba(255,255,255,.035))!important}
+  html body.production-mode .trace-card .trace-card-body{background:transparent!important}
+  html body.production-mode .trace-card:hover{box-shadow:inset 0 1.5px 0 rgba(255,255,255,.5),0 0 0 1px var(--r),0 0 24px -2px var(--r),0 14px 30px -10px #000c!important}
   @keyframes lq-giro{to{--lq-ang:360deg}}
   @media(prefers-reduced-motion:reduce){.lq::before{animation:none}}
   .lq:hover{transform:translateY(-4px);border-color:rgba(255,255,255,.5)!important;box-shadow:inset 0 1.5px 0 rgba(255,255,255,.65),inset 0 -1px 0 rgba(255,255,255,.18),inset 0 0 26px rgba(255,255,255,.1),0 18px 34px rgba(0,0,0,.45)!important}
