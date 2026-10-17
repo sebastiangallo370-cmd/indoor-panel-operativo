@@ -7,7 +7,7 @@
   const cuando = () => new Date().toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
   const ESTADO = { SIN_CONECTAR: ['Sin conectar', 'bad'], ESPERANDO_EFFI: ['Esperando acceso a Effi', 'warn'], LIBRE: ['Libre', 'ok'], TRABAJANDO: ['Creando orden de compra…', 'ok'], ERROR: ['Con error', 'bad'] };
   const COMPRA = { pendiente: ['Por comprar', 'warn'], entregada: ['Creándola en Effi…', 'warn'], creada: ['Orden creada', 'ok'], error: ['Con error', 'bad'], cancelada: ['Ya alcanza', ''] };
-  let panel = null, tab = null, cuerpo = null, timer = null, correos = [], cuentaEnvia = '', notificar = [], usuariosPanel = [];
+  let panel = null, tab = null, cuerpo = null, timer = null, correos = [], cuentaEnvia = '', notificar = [], usuariosPanel = [], notAbierto = false, notBuscar = '';
 
   const card = ({ badge, badgeClass = '', name, total, unit = '', extra = '', cls = '' }) =>
     '<article class="inventory-item-card ' + cls + '"><span class="inv-badge ' + badgeClass + '">' + esc(badge) + '</span><strong class="inv-name">' + esc(name) + '</strong>' + extra +
@@ -29,9 +29,34 @@
 
   function notificarHtml() {
     const marcados = new Set((notificar || []).map(u => u.toLowerCase()));
+    const q = notBuscar.trim().toLowerCase();
+    const lista = usuariosPanel.filter(u => !q || u.toLowerCase().includes(q));
+    const elegidos = usuariosPanel.filter(u => marcados.has(u.toLowerCase()));
     return '<section class="bd-section"><h3>Quién recibe la notificación en la página <small>· suena la campana cuando se envía una orden de compra</small></h3>' +
-      '<div class="zeus-usuarios">' + (usuariosPanel.length ? usuariosPanel.map(u => '<label class="zeus-uchip' + (marcados.has(u.toLowerCase()) ? ' on' : '') + '"><input type="checkbox" data-zeus-notificar value="' + esc(u) + '"' + (marcados.has(u.toLowerCase()) ? ' checked' : '') + '><span>' + esc(u) + '</span></label>').join('') : '<p class="bd-note">No hay cuentas para elegir.</p>') + '</div>' +
-      '<p class="bd-note" data-zeus-notmsg>Marca las cuentas que deben enterarse. La notificación dura 7 días en la campana.</p></section>';
+      '<div class="zeus-sel' + (notAbierto ? ' abierto' : '') + '">' +
+      '<button type="button" class="zeus-sel-btn" data-zeus-abrir aria-expanded="' + (notAbierto ? 'true' : 'false') + '"><span>' + (elegidos.length ? elegidos.length + ' usuario' + (elegidos.length === 1 ? '' : 's') + ' elegido' + (elegidos.length === 1 ? '' : 's') : 'Elegir usuarios…') + '</span><i>▾</i></button>' +
+      (notAbierto ? '<div class="zeus-sel-menu"><input type="search" data-zeus-nbuscar placeholder="Buscar usuario…" value="' + esc(notBuscar) + '" aria-label="Buscar usuario">' +
+        '<div class="zeus-sel-lista">' + (lista.length ? lista.map(u => '<label class="zeus-opt' + (marcados.has(u.toLowerCase()) ? ' on' : '') + '"><input type="checkbox" data-zeus-notificar value="' + esc(u) + '"' + (marcados.has(u.toLowerCase()) ? ' checked' : '') + '><span>' + esc(u) + '</span></label>').join('') : '<p class="bd-note">Ningún usuario coincide.</p>') + '</div></div>' : '') + '</div>' +
+      '<div class="zeus-usuarios">' + (elegidos.length ? elegidos.map(u => '<span class="zeus-uchip on"><span>' + esc(u) + '</span><button type="button" data-zeus-quitar-user="' + esc(u) + '" aria-label="Quitar ' + esc(u) + '">✕</button></span>').join('') : '<p class="bd-note">Nadie recibe la notificación todavía.</p>') + '</div>' +
+      '<p class="bd-note" data-zeus-notmsg>La notificación dura 7 días en la campana de cada usuario elegido.</p></section>';
+  }
+
+  async function guardarNotificar(elegidos) {
+    try {
+      const d = await llamar('/api/zeus/notificar', 'PUT', { usuarios: elegidos });
+      notificar = d.notificar;
+      repintarNotificar('✓ Guardado: ' + (d.notificar.length ? d.notificar.join(', ') : 'nadie recibe la notificación'));
+    } catch (err) { repintarNotificar(err.message); }
+  }
+  function repintarNotificar(mensaje) {
+    const viejo = panel.querySelector('[data-zeus-notificar]')?.closest('.bd-section') || panel.querySelector('.zeus-sel')?.closest('.bd-section');
+    if (!viejo) return;
+    const lista = viejo.querySelector('.zeus-sel-lista'), scroll = lista ? lista.scrollTop : 0;
+    const caja = document.createElement('div'); caja.innerHTML = notificarHtml();
+    viejo.replaceWith(caja.firstElementChild);
+    const nuevaLista = panel.querySelector('.zeus-sel-lista'); if (nuevaLista) nuevaLista.scrollTop = scroll;
+    const m = panel.querySelector('[data-zeus-notmsg]'); if (m && mensaje) m.textContent = mensaje;
+    const b = panel.querySelector('[data-zeus-nbuscar]'); if (b && document.activeElement === document.body && notBuscar) { b.focus(); b.setSelectionRange(notBuscar.length, notBuscar.length); }
   }
 
   function pintar(d) {
@@ -114,6 +139,15 @@
 .panel[data-panel="zeus"] .bd-refresh,.panel[data-panel="zeus"] .bd-clear{background:rgba(255,255,255,.1)!important;border:1px solid rgba(255,255,255,.3)!important;color:#fff!important}
 .zeus-chip.ok,.zeus-chip.pend{border-color:rgba(255,255,255,.22)!important}
 .zeus-form input{background:rgba(0,0,0,.28)!important;border:1px solid rgba(255,255,255,.2)!important}.zeus-form input:focus{border-color:rgba(255,255,255,.55)!important;box-shadow:0 0 0 3px rgba(255,255,255,.1)}
+.zeus-sel{position:relative;max-width:460px}
+.zeus-sel-btn{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%!important;min-height:44px;padding:0 16px;border:1px solid rgba(255,255,255,.25);border-radius:14px;background:rgba(255,255,255,.08);color:#fff;font:800 .82rem Arial;cursor:pointer;transition:background .2s}
+.zeus-sel-btn:hover,.zeus-sel.abierto .zeus-sel-btn{background:rgba(255,255,255,.16)}.zeus-sel-btn i{font-style:normal;transition:transform .2s}.zeus-sel.abierto .zeus-sel-btn i{transform:rotate(180deg)}
+.zeus-sel-menu{position:absolute;z-index:20;left:0;right:0;top:calc(100% + 6px);padding:10px;border:1px solid rgba(255,255,255,.25);border-radius:16px;background:linear-gradient(160deg,rgba(40,48,38,.96),rgba(14,18,13,.97));-webkit-backdrop-filter:blur(22px);backdrop-filter:blur(22px);box-shadow:0 18px 40px -10px #000d,inset 0 1.5px 0 rgba(255,255,255,.3)}
+.zeus-sel-menu input[type=search]{width:100%;box-sizing:border-box;min-height:40px;padding:0 12px;border:1px solid rgba(255,255,255,.2);border-radius:10px;background:rgba(0,0,0,.3);color:#fff;font:500 16px Arial;outline:none;margin-bottom:8px}
+.zeus-sel-lista{max-height:260px;overflow-y:auto;display:grid;gap:2px}
+.zeus-opt{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:10px;cursor:pointer;font:700 .8rem Arial;color:#dfe8d9}
+.zeus-opt:hover{background:rgba(255,255,255,.1)}.zeus-opt.on{background:rgba(53,212,106,.14);color:#fff}.zeus-opt input{accent-color:#35d46a;width:17px;height:17px;margin:0}
+.zeus-uchip button{width:20px!important;height:20px!important;min-height:0!important;padding:0!important;border:0!important;border-radius:50%!important;background:rgba(255,255,255,.14)!important;color:#fff!important;cursor:pointer;line-height:1;margin-left:4px}
 .zeus-usuarios{display:flex;flex-wrap:wrap;gap:8px}
 .zeus-uchip{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border:1px solid rgba(255,255,255,.22);border-radius:999px;background:rgba(255,255,255,.06);cursor:pointer;font:700 .78rem Arial;transition:background .2s,box-shadow .2s;color:#dfe8d9}
 .zeus-uchip input{accent-color:#35d46a;width:16px;height:16px;margin:0}
@@ -152,15 +186,24 @@
       if (!confirm('Vamos a enviar un mensaje de verificación a ' + c + '.\nSu dueño tiene que abrirlo y confirmar; hasta entonces no recibirá órdenes de compra.\n\n¿Enviar el mensaje?')) return;
       accionCorreo('/api/zeus/correos', 'POST', { correo: c }, 'Enviamos un mensaje a ' + c + '. Pídele que lo abra y confirme.');
     });
-    panel.addEventListener('change', async e => {
+    panel.addEventListener('change', e => {
       if (!e.target.matches('[data-zeus-notificar]')) return;
-      const elegidos = [...panel.querySelectorAll('[data-zeus-notificar]:checked')].map(x => x.value);
-      e.target.closest('.zeus-uchip').classList.toggle('on', e.target.checked);
-      const m = panel.querySelector('[data-zeus-notmsg]');
-      try { const d = await llamar('/api/zeus/notificar', 'PUT', { usuarios: elegidos }); notificar = d.notificar; if (m) m.textContent = '✓ Guardado: ' + (d.notificar.length ? d.notificar.join(', ') : 'nadie recibe la notificación'); }
-      catch (err) { if (m) m.textContent = err.message; }
+      guardarNotificar([...panel.querySelectorAll('[data-zeus-notificar]:checked')].map(x => x.value).concat(
+        notificar.filter(u => !panel.querySelector('[data-zeus-notificar][value="' + CSS.escape(u) + '"]'))));   // los que el buscador esconde se conservan
+    });
+    panel.addEventListener('input', e => {
+      if (!e.target.matches('[data-zeus-nbuscar]')) return;
+      notBuscar = e.target.value; repintarNotificar('');
+      const b = panel.querySelector('[data-zeus-nbuscar]'); if (b) { b.focus(); b.setSelectionRange(notBuscar.length, notBuscar.length); }
+    });
+    document.addEventListener('click', e => {
+      if (notAbierto && panel && !e.target.closest('.zeus-sel') && !e.target.closest('[data-zeus-quitar-user]')) { notAbierto = false; notBuscar = ''; repintarNotificar(''); }
     });
     panel.addEventListener('click', async e => {
+      const ab = e.target.closest('[data-zeus-abrir]');
+      if (ab) { notAbierto = !notAbierto; if (!notAbierto) notBuscar = ''; repintarNotificar(''); const b = panel.querySelector('[data-zeus-nbuscar]'); if (b) b.focus(); return; }
+      const qu = e.target.closest('[data-zeus-quitar-user]');
+      if (qu) { guardarNotificar(notificar.filter(u => u.toLowerCase() !== qu.dataset.zeusQuitarUser.toLowerCase())); return; }
       const re = e.target.closest('[data-zeus-reenviar]');
       if (re) { accionCorreo('/api/zeus/correos/reenviar', 'POST', { correo: re.dataset.zeusReenviar }, 'Reenviamos el mensaje a ' + re.dataset.zeusReenviar + '.'); return; }
       const q = e.target.closest('[data-zeus-quitar]');
