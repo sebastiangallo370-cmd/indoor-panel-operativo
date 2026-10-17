@@ -251,13 +251,20 @@ def _agente(d: dict) -> dict:
 
 
 # ------------------------------------------------------------------ personas
+def _enriquecer(i: dict) -> dict:
+    """Para dibujar la tarjeta: código de la tela y proveedor elegido en Estándar 2026."""
+    codigo = next((c for c in (proveedores_tela.codigo_de(b) for b in i.get('bodega', [])) if c), '')
+    prov = proveedores_tela.proveedor_de(codigo) if codigo else {}
+    return {**i, 'codigo': codigo, 'proveedor': prov.get('proveedor', '')}
+
+
 @router.get('/estado')
 def estado():
     with _lock:
         d = _leer()
         _vencer(d)
         from app import alertas_correo
-        return {'agente': _agente(d), 'items': d['items'][-60:][::-1],
+        return {'agente': _agente(d), 'items': [_enriquecer(i) for i in d['items'][-60:][::-1]],
                 'resumen': {e: sum(1 for i in d['items'] if i['estado'] == e) for e in ('pendiente', 'entregada', 'creada', 'error', 'cancelada')},
                 'correo': {'configurado': alertas_correo.puede_enviar(), 'cuenta': alertas_correo.cuenta()[0], 'encargado': bool(any(c.get('estado') == 'verificado' for c in d['config']['correos']) or os.getenv('ZEUS_EMAIL_A') or os.getenv('ALERTA_EMAIL_A'))},
                 'correos': _correos_vista(d), 'notificar': d['config']['notificar'], 'usuarios': _usuarios()}

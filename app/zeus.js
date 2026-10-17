@@ -84,17 +84,26 @@
     return { hecho: encargado ? 2 : 1, actual: -1 };
   }
   const corto = t => { t = String(t || ''); return /Falta elegir el proveedor/i.test(t) ? 'Falta elegir el proveedor' : t.length > 60 ? t.slice(0, 57) + '…' : t; };
+  const fechaCorta = v => { if (!v) return ''; const d = new Date(String(v).length <= 19 ? String(v) + 'Z' : v); return isNaN(d) ? String(v).slice(0, 16).replace('T', ' ') : d.toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'America/Bogota' }); };
+  const kv = (k, v, t) => v ? '<div class="zo-kv"><span>' + k + '</span><b' + (t ? ' title="' + esc(t) + '"' : '') + '>' + v + '</b></div>' : '';
   function ordenHtml(i, n) {
     const [label, c] = COMPRA[i.estado] || [i.estado, ''];
     const p = paso(i), ring = c === 'bad' ? 'bad' : c === 'warn' ? 'warn' : 'ok';
+    const e = i.envio_proveedor || {};
     const pasos = !p ? '' : '<ol class="zo-pasos" style="--p:' + Math.max(p.hecho, p.actual, 0) + '">' + PASOS.map((t, k) => '<li title="' + esc(t) + '" class="' + (k === p.actual ? 'actual' : k <= p.hecho ? 'hecho' : '') + '"><i></i></li>').join('') + '</ol>' +
       '<div class="zo-paso-txt">' + esc(PASOS[p.actual >= 0 ? p.actual : p.hecho]) + '</div>';
-    const peds = (i.ordenes || []).map(o => o.orden + ' · ' + o.referencia + ' · ' + num(o.falta) + ' MTS').join('\n');
-    return '<article class="zo ' + ring + '" style="--i:' + Math.min(n, 12) + '"' + (peds ? ' title="' + esc(peds) + '"' : '') + '><header><div><h4>' + esc(i.tela) + '</h4>' +
+    const verificados = (correos || []).filter(x => x.estado === 'verificado').map(x => x.correo);
+    const peds = (i.ordenes || []).slice(0, 5).map(o => '<li><span>' + esc(o.orden) + ' · ' + esc(o.referencia) + (o.cliente ? ' <em>' + esc(String(o.cliente).slice(0, 26)) + '</em>' : '') + '</span><b>' + num(o.falta) + ' MTS</b></li>').join('');
+    const datos = kv('Código de tela', esc(i.codigo)) + kv('Proveedor', esc(i.proveedor) || (i.estado === 'error' ? '<em class="zo-sin">sin elegir</em>' : '')) +
+      kv('Creada', fechaCorta(i.creada || i.creado)) +
+      (i.estado === 'creada' ? kv('Al encargado', i.encargado_enviado ?? /enviada a/i.test(i.detalle || '') ? esc(verificados[0] || 'enviada') + (verificados.length > 1 ? ' +' + (verificados.length - 1) : '') : 'pendiente', verificados.join(', ')) : '') +
+      (e.estado === 'enviada' ? kv('Al proveedor', esc(e.correo || 'enviada'), e.correo) + kv('Enviada', fechaCorta(e.at)) : '');
+    return '<article class="zo ' + ring + '" style="--i:' + Math.min(n, 12) + '"><header><div><h4>' + esc(i.tela) + '</h4>' +
       '<span class="zo-badge">' + (i.estado === 'creada' && i.oc ? 'Orden ' + esc(i.oc) : esc(label)) + '</span></div>' +
       '<div class="zo-mts"><b data-n="' + Number(i.falta || 0) + '">' + num(i.falta) + '</b><small>MTS</small></div></header>' +
       (i.estado === 'error' || i.estado === 'cancelada' ? '<div class="zo-err">' + esc(corto(i.detalle)) + '</div>' : '') +
-      pasos + envioHtml(i) + '</article>';
+      pasos + (datos ? '<div class="zo-datos">' + datos + '</div>' : '') +
+      (peds ? '<div class="zo-peds-t">Pedidos que la necesitan</div><ul class="zo-peds">' + peds + '</ul>' : '') + envioHtml(i) + '</article>';
   }
   function haceTxt(seg) {
     if (seg == null) return 'sin señal';
@@ -139,7 +148,7 @@
     if (vista === 'correos') contenido = correosHtml();
     else if (vista === 'notificar') contenido = notificarHtml();
     else contenido = '<section class="bd-section">' + (items.length ? '<div class="zo-lista">' + (visibles.length ? visibles.map(ordenHtml).join('') : '<p class="bd-note">Sin órdenes aquí.</p>') + '</div>' : '<p class="bd-note">Nada por comprar.</p>') + '</section>';
-    cuerpo.innerHTML = (avisos.length ? '<p class="bd-note zeus-aviso">' + avisos.map(esc).join('<br>') + '</p>' : '') + hero + kpis + tabs + '<div class="zv-vista' + (animarVista ? ' anima' : '') + '">' + contenido + '</div>';
+    cuerpo.innerHTML = (avisos.length ? '<p class="bd-note zeus-aviso">' + avisos.map(esc).join('<br>') + '</p>' : '') + '<div class="zrow">' + hero + kpis + '</div>' + tabs + '<div class="zv-vista' + (animarVista ? ' anima' : '') + '">' + contenido + '</div>';
     animarVista = false;
     cuerpo.querySelectorAll('.zk b[data-k]').forEach(el => contar(el, Number(el.dataset.v)));
     cuerpo.querySelectorAll('.zo-mts b[data-n]').forEach(el => { el.textContent = num(el.dataset.n); });
@@ -212,21 +221,23 @@
 @keyframes zPulso{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--zc) 70%,transparent)}70%{box-shadow:0 0 0 12px transparent}100%{box-shadow:0 0 0 0 transparent}}
 @keyframes zEntra{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
 @keyframes zFade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-.zh{--zc:#35d46a;position:relative;display:flex;flex-wrap:wrap;align-items:center;gap:12px 18px;padding:16px 20px;border-radius:20px;border:1px solid rgba(255,255,255,.22);background:radial-gradient(120% 90% at 8% 0%,rgba(255,255,255,.15),rgba(255,255,255,0) 55%),linear-gradient(160deg,rgba(255,255,255,.11),rgba(255,255,255,.035));-webkit-backdrop-filter:blur(22px);backdrop-filter:blur(22px);box-shadow:inset 0 1.5px 0 rgba(255,255,255,.4),0 0 0 1px color-mix(in srgb,var(--zc) 45%,transparent),0 0 22px -6px var(--zc)}
+.zh{--zc:#35d46a;position:relative;display:flex;flex-wrap:nowrap;align-items:center;gap:12px 14px;padding:8px 10px 8px 16px;border-radius:16px;border:1px solid rgba(255,255,255,.22);background:radial-gradient(120% 90% at 8% 0%,rgba(255,255,255,.15),rgba(255,255,255,0) 55%),linear-gradient(160deg,rgba(255,255,255,.11),rgba(255,255,255,.035));-webkit-backdrop-filter:blur(22px);backdrop-filter:blur(22px);box-shadow:inset 0 1.5px 0 rgba(255,255,255,.4),0 0 0 1px color-mix(in srgb,var(--zc) 45%,transparent),0 0 22px -6px var(--zc)}
 .zh.warn{--zc:#ff9a1f}.zh.bad{--zc:#ff4b3e}.zh.trab{--zc:#6cb6ff}
-.zh-estado{display:flex;align-items:center;gap:14px;flex:1 1 220px}.zh-estado strong{display:block;font-size:1.2rem;letter-spacing:.01em}.zh-estado small{display:block;margin-top:2px;color:#b9c6b1;font:600 .74rem Arial}
-.zh-punto{width:14px;height:14px;border-radius:50%;background:var(--zc);animation:zPulso 1.8s infinite;flex:none}
+.zh-estado{display:flex;align-items:center;gap:10px;flex:0 1 auto}.zh-estado strong{display:block;font-size:.95rem;letter-spacing:.01em}.zh-estado small{display:block;margin-top:1px;color:#b9c6b1;font:600 .68rem Arial}
+.zh-punto{width:11px;height:11px;border-radius:50%;background:var(--zc);animation:zPulso 1.8s infinite;flex:none}
 .zh.bad .zh-punto{animation-duration:1s}.zh.trab .zh-punto{animation-duration:.9s}
-.zh-ultima{flex:1 1 100%;margin:0;color:#d3dccf;font:600 .78rem Arial}
-.zh-acc{display:flex;gap:8px}.zh-acc .bd-clear{padding:9px 16px!important;border-radius:999px!important}
+.zh-ultima{flex:1 1 100%;display:none;margin:0;color:#d3dccf;font:600 .78rem Arial}
+.zh-acc{display:flex;gap:8px}.zh-acc .bd-clear{padding:7px 14px!important;border-radius:999px!important;min-height:0!important;font-size:.74rem!important}
 .zh .zeus-que{flex:1 1 100%}
-.zks{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
-.zk{--zc:#fff;display:grid;gap:2px;justify-items:start;padding:14px 18px;border-radius:18px;border:1px solid rgba(255,255,255,.2);background:radial-gradient(120% 90% at 10% 0%,rgba(255,255,255,.13),rgba(255,255,255,0) 55%),linear-gradient(160deg,rgba(255,255,255,.1),rgba(255,255,255,.03));color:#fff;cursor:pointer;text-align:left;width:auto!important;transition:transform .2s,box-shadow .2s;box-shadow:inset 0 1.5px 0 rgba(255,255,255,.35),0 0 0 1px color-mix(in srgb,var(--zc) 40%,transparent)}
+.panel[data-panel="zeus"] .bd-head{padding:10px 18px!important;min-height:0!important}.panel[data-panel="zeus"] .bd-head h2{font-size:1.05rem!important;margin:0!important}.panel[data-panel="zeus"] .bd-refresh{padding:6px 14px!important;min-height:0!important;font-size:.76rem!important}
+.zrow{display:flex;flex-wrap:wrap;align-items:stretch;gap:10px}
+.zks{display:flex;flex-wrap:wrap;gap:10px}
+.zk{--zc:#fff;display:grid;gap:0;justify-items:start;padding:7px 52px 7px 14px;min-width:132px;border-radius:16px;border:1px solid rgba(255,255,255,.2);background:radial-gradient(120% 90% at 10% 0%,rgba(255,255,255,.13),rgba(255,255,255,0) 55%),linear-gradient(160deg,rgba(255,255,255,.1),rgba(255,255,255,.03));color:#fff;cursor:pointer;text-align:left;width:auto!important;transition:transform .2s,box-shadow .2s;box-shadow:inset 0 1.5px 0 rgba(255,255,255,.35),0 0 0 1px color-mix(in srgb,var(--zc) 40%,transparent)}
 .zk.warn{--zc:#ff9a1f}.zk.ok{--zc:#35d46a}.zk.bad{--zc:#ff4b3e}
-.zk{position:relative;overflow:hidden}.zk::after{content:'';position:absolute;right:16px;top:50%;width:46px;height:46px;transform:translateY(-50%);border-radius:50%;background:color-mix(in srgb,var(--zc) 16%,transparent);border:1px solid color-mix(in srgb,var(--zc) 45%,transparent);display:grid;place-items:center;font:900 1.2rem Arial;color:var(--zc);text-align:center;line-height:44px}
+.zk{position:relative;overflow:hidden}.zk::after{content:'';position:absolute;right:10px;top:50%;width:30px;height:30px;transform:translateY(-50%);border-radius:50%;background:color-mix(in srgb,var(--zc) 16%,transparent);border:1px solid color-mix(in srgb,var(--zc) 45%,transparent);display:grid;place-items:center;font:900 .85rem Arial;color:var(--zc);text-align:center;line-height:28px}
 .zk.warn::after{content:'⏳'}.zk.ok::after{content:'✓'}.zk.bad::after{content:'!'}
 .zk:hover{transform:translateY(-3px);box-shadow:inset 0 1.5px 0 rgba(255,255,255,.5),0 0 0 1px var(--zc),0 0 22px -4px var(--zc)}.zk.on{box-shadow:inset 0 1.5px 0 rgba(255,255,255,.5),0 0 0 2px var(--zc),0 0 24px -3px var(--zc)}
-.zk b{font-size:2rem;line-height:1.05;font-variant-numeric:tabular-nums}.zk span{font:800 .62rem Arial;letter-spacing:.14em;text-transform:uppercase;color:#c9d3c4}
+.zk b{font-size:1.25rem;line-height:1.1;font-variant-numeric:tabular-nums}.zk span{font:800 .56rem Arial;letter-spacing:.12em;text-transform:uppercase;color:#c9d3c4}
 .zv-tabs{display:inline-flex;gap:2px;padding:3px;border-radius:999px;background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.2);justify-self:start;max-width:100%;overflow-x:auto}
 .zv-tab{min-height:38px;padding:0 18px;border:0;border-radius:999px;background:transparent;color:#c5d1bf;font:800 .74rem Arial;letter-spacing:.06em;cursor:pointer;width:auto!important;white-space:nowrap;transition:background .2s,color .2s}
 .zv-tab:hover{background:rgba(255,255,255,.12)}.zv-tab.on{background:rgba(255,255,255,.92);color:#10140a}.zv-tab em{font-style:normal;margin-left:4px;opacity:.7}
@@ -237,6 +248,9 @@
 .zo header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.zo h4{margin:6px 0 0;font-size:1rem;letter-spacing:.01em}
 .zo-badge{display:inline-block;padding:3px 10px;border-radius:999px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.28);font:800 .6rem Arial;letter-spacing:.1em;text-transform:uppercase}
 .zo-mts{text-align:right}.zo-mts b{display:block;font-size:1.7rem;line-height:1;font-variant-numeric:tabular-nums}.zo-mts small{font:800 .6rem Arial;letter-spacing:.12em;color:#c9d3c4}
+.zo-datos{display:grid;gap:5px;padding-top:8px;border-top:1px solid rgba(255,255,255,.12)}
+.zo-kv{display:flex;justify-content:space-between;gap:12px;font:600 .72rem Arial;color:#b9c6b1}.zo-kv b{color:#fff;text-align:right;overflow-wrap:anywhere}.zo-sin{color:#ffb3ad;font-style:normal}
+.zo-peds-t{font:800 .58rem Arial;letter-spacing:.14em;text-transform:uppercase;color:#a9b6a2;margin-top:2px}.zo-peds li em{font-style:normal;color:#9fb094;margin-left:4px}
 .zo-paso-txt{margin-top:-2px;text-align:center;font:800 .66rem Arial;letter-spacing:.1em;text-transform:uppercase;color:#d3dccf}.panel[data-panel="zeus"] .bd-updated:empty{display:none}
 .zo-oc{font:600 .78rem Arial;color:#d3dccf}.zo-oc b{font-size:.95rem;color:#fff}.zo-err{font:700 .74rem Arial;color:#ffb3ad;line-height:1.4}
 .zo-pasos{list-style:none;margin:0;padding:10px 0 2px;display:grid;grid-template-columns:repeat(4,1fr);position:relative;overflow:hidden;
@@ -247,7 +261,7 @@
 .zo-pasos li.actual{color:#fff}.zo-pasos li.actual i{background:#fff;border-color:var(--r);animation:zPulso 1.6s infinite;--zc:var(--r)}
 .zo-peds{list-style:none;margin:0;padding:8px 0 0;border-top:1px solid rgba(255,255,255,.12);display:grid;gap:4px}.zo-peds li{display:flex;justify-content:space-between;gap:10px;font:600 .72rem Arial;color:#c1ceb9}.zo-peds b{color:#fff;white-space:nowrap}
 .zo .zeus-envio{margin-top:2px}
-@media(max-width:700px){.zks{gap:8px}.zk{padding:12px 12px}.zk b{font-size:1.6rem}.zo-lista{grid-template-columns:1fr}.zh{padding:14px 14px}.zv-tab{padding:0 14px}}
+@media(max-width:700px){.zrow{flex-direction:column}.zh{flex-wrap:wrap}.zks{gap:8px}.zk{flex:1 1 0;min-width:0;padding:7px 40px 7px 12px}.zk::after{right:8px;width:26px;height:26px;line-height:24px}.zo-lista{grid-template-columns:1fr}.zh{padding:14px 14px}.zv-tab{padding:0 14px}}
 @media(prefers-reduced-motion:reduce){.zo,.zv-vista.anima,.zh-punto,.zo-pasos li.actual i{animation:none}}
 .zeus-que{margin-top:6px}.zeus-que summary{cursor:pointer;font:700 .7rem Arial;color:#b9c6b1;list-style:none}.zeus-que summary::-webkit-details-marker{display:none}.zeus-que summary::before{content:'ⓘ ';opacity:.8}.zeus-que[open] summary{margin-bottom:4px}
 .zeus-msg:empty,[data-zeus-notmsg]:empty{display:none}
