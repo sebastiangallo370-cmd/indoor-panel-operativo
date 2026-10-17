@@ -124,12 +124,13 @@
       Object.keys(TIPOS).filter(k => conteo[k]).map(k => '<button type="button" class="al-chip' + (st.filtro === k ? ' on' : '') + '" style="--c:' + TIPOS[k].color + '" data-filtro="' + k + '"><i></i>' + TIPOS[k].nombre + ' <em>' + conteo[k] + '</em></button>').join('');
     const texto = st.q.trim().toLowerCase();
     const lista = todas.filter(a => (st.filtro === 'todas' || a.tipo === st.filtro) && (!texto || [a.orden, a.cliente, a.titulo, a.detalle].join(' ').toLowerCase().includes(texto)));
-    const urgentes = lista.filter(a => a.severidad === 'alta'), resto = lista.filter(a => a.severidad !== 'alta');
+    const compras = lista.filter(a => a.tipo === 'compra'), urgentes = lista.filter(a => a.tipo !== 'compra' && a.severidad === 'alta'), resto = lista.filter(a => a.tipo !== 'compra' && a.severidad !== 'alta');
     let i = 0;
     const caja = q('[data-lista]');
     caja.classList.toggle('anima', !!st.animar);   // las tarjetas «entran» solo al abrir la campana, no en cada actualización
     caja.innerHTML = lista.length
-      ? (urgentes.length ? '<div class="al-grupo">URGENTES · ' + urgentes.length + '</div>' + urgentes.map(a => tarjeta(a, i++)).join('') : '') +
+      ? (compras.length ? '<div class="al-grupo">COMPRAS ENVIADAS · ' + compras.length + '</div>' + compras.map(a => tarjeta(a, i++)).join('') : '') +
+        (urgentes.length ? '<div class="al-grupo">URGENTES · ' + urgentes.length + '</div>' + urgentes.map(a => tarjeta(a, i++)).join('') : '') +
         (resto.length ? '<div class="al-grupo">PARA REVISAR · ' + resto.length + '</div>' + resto.map(a => tarjeta(a, i++)).join('') : '')
       : '<div class="al-vacio"><b>✓</b>' + (todas.length ? 'Ninguna alerta coincide con el filtro.' : 'Todo en orden. No hay alertas pendientes.') + '</div>';
     if (st.animar) { clearTimeout(pintar.t); pintar.t = setTimeout(() => { st.animar = false; caja.classList.remove('anima'); }, 700); }
