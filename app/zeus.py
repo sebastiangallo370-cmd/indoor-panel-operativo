@@ -470,6 +470,7 @@ def sondeo(request: Request, payload: dict):
                 continue
             if r.get('ok'):
                 item.update(estado='creada', oc=str(r.get('oc', ''))[:40], detalle=str(r.get('detalle', ''))[:300], creada=_iso())
+                item['encargado_enviado'] = ' · enviada a ' in str(r.get('detalle', ''))   # Effi mandó la orden a los correos del encargado
                 d['pedido_por_tela'][item['tela']] = round(float(d['pedido_por_tela'].get(item['tela'], 0)) + float(item['falta']), 2)
                 avisos.append(dict(item))
             else:

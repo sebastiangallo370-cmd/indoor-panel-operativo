@@ -72,18 +72,21 @@
       '<button type="button" class="zeus-envio-btn" data-zeus-prov="' + i.id + '" data-oc="' + esc(i.oc) + '">✉ Enviar orden al proveedor</button></div>';
   }
 
-  const PASOS = ['En cola', 'Creando', 'Creada', 'Enviada'];
+  const PASOS = ['En cola', 'Creada', 'Enviada a encargado', 'Enviada a proveedor'];
+  // {hecho: último punto cumplido (-1 ninguno), actual: punto en curso (-1 ninguno)}
   function paso(i) {
     const e = i.envio_proveedor || {};
-    if (i.estado === 'pendiente') return 0;
-    if (i.estado === 'entregada') return 1;
-    if (i.estado === 'creada') return e.estado === 'enviada' ? 3 : 2;
-    return -1;
+    if (i.estado === 'pendiente' || i.estado === 'entregada') return { hecho: -1, actual: 0 };
+    if (i.estado !== 'creada') return null;
+    const encargado = i.encargado_enviado ?? /enviada a/i.test(i.detalle || '');
+    if (e.estado === 'enviada') return { hecho: 3, actual: -1 };
+    if (e.estado === 'pendiente' || e.estado === 'entregada') return { hecho: encargado ? 2 : 1, actual: 3 };
+    return { hecho: encargado ? 2 : 1, actual: -1 };
   }
   function ordenHtml(i, n) {
     const [label, c] = COMPRA[i.estado] || [i.estado, ''];
     const p = paso(i), ring = c === 'bad' ? 'bad' : c === 'warn' ? 'warn' : 'ok';
-    const pasos = p < 0 ? '' : '<ol class="zo-pasos" style="--p:' + p + '">' + PASOS.map((t, k) => '<li class="' + (k < p ? 'hecho' : k === p ? 'actual' : '') + '"><i></i><span>' + t + '</span></li>').join('') + '</ol>';
+    const pasos = !p ? '' : '<ol class="zo-pasos" style="--p:' + Math.max(p.hecho, p.actual, 0) + '">' + PASOS.map((t, k) => '<li class="' + (k === p.actual ? 'actual' : k <= p.hecho ? 'hecho' : '') + '"><i></i><span>' + t + '</span></li>').join('') + '</ol>';
     return '<article class="zo ' + ring + '" style="--i:' + Math.min(n, 12) + '"><header><div><span class="zo-badge">' + esc(label) + '</span><h4>' + esc(i.tela) + '</h4></div>' +
       '<div class="zo-mts"><b data-n="' + Number(i.falta || 0) + '">' + num(i.falta) + '</b><small>MTS</small></div></header>' +
       (i.estado === 'creada' ? '<div class="zo-oc">Orden de compra <b>' + esc(i.oc || '—') + '</b></div>' : (i.estado === 'error' || i.estado === 'cancelada' ? '<div class="zo-err">' + esc(i.detalle || '') + '</div>' : '')) +
@@ -234,7 +237,7 @@
 .zo-pasos{list-style:none;margin:2px 0 0;padding:0;display:grid;grid-template-columns:repeat(4,1fr);position:relative}
 .zo-pasos::before{content:"";position:absolute;left:12.5%;right:12.5%;top:6px;height:2px;background:rgba(255,255,255,.18);border-radius:2px}
 .zo-pasos::after{content:"";position:absolute;left:12.5%;top:6px;height:2px;border-radius:2px;background:var(--r);width:calc(75% * var(--p) / 3);transition:width .9s cubic-bezier(.2,.8,.2,1);box-shadow:0 0 8px var(--r)}
-.zo-pasos li{position:relative;display:grid;justify-items:center;gap:5px;font:700 .58rem Arial;letter-spacing:.06em;text-transform:uppercase;color:#8f9d88}
+.zo-pasos li{position:relative;display:grid;justify-items:center;gap:5px;font:700 .56rem Arial;letter-spacing:.05em;text-transform:uppercase;color:#8f9d88;text-align:center;line-height:1.2}
 .zo-pasos i{width:14px;height:14px;border-radius:50%;background:#1b241a;border:2px solid rgba(255,255,255,.3);z-index:1;transition:background .4s,border-color .4s}
 .zo-pasos li.hecho{color:#d3dccf}.zo-pasos li.hecho i{background:var(--r);border-color:var(--r)}
 .zo-pasos li.actual{color:#fff}.zo-pasos li.actual i{background:#fff;border-color:var(--r);animation:zPulso 1.6s infinite;--zc:var(--r)}
