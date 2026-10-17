@@ -127,7 +127,7 @@
     if (a.etapa) etiquetas.push('<span class="al-tag">' + esc(a.etapa) + '</span>');
     if (a.faltan) etiquetas.push('<span class="al-tag sev">faltan ' + esc(a.faltan) + ' mts</span>');
     const verOrden = a.tipo === 'atrasado' || a.tipo === 'reproceso';
-    const ir = verOrden ? '<button type="button" class="pri" data-ver="' + esc(a.orden) + '">Ver en Producción</button>' : (a.tipo === 'ecommerce' ? '<button type="button" class="pri" data-ecom>Abrir ECOMMERCE</button>' : '');
+    const ir = verOrden ? '<button type="button" class="pri" data-ver="' + esc(a.orden) + '">Ver en Producción</button>' : (a.tipo === 'ecommerce' ? '<button type="button" class="pri" data-ecom>Abrir ECOMMERCE</button>' : (a.tipo === 'compra' ? '<button type="button" class="pri" data-zeus>Abrir Agente inventario</button>' : ''));
     const copiar = a.orden ? '<button type="button" data-copiar="' + esc(a.orden) + '">Copiar ' + esc(String(a.orden).slice(0, 14)) + '</button>' : '';
     return '<article class="al-card sev-' + esc(a.severidad || 'media') + (esNueva ? ' nueva' : '') + '" style="--c:' + t.color + ';animation-delay:' + Math.min(i * 25, 250) + 'ms"><div class="al-tipo" title="' + esc(t.nombre) + '"><svg viewBox="0 0 24 24">' + t.icono + '</svg></div>' +
       '<div><div class="al-tit">' + esc(a.titulo || a.texto) + '</div>' + (a.detalle ? '<div class="al-det">' + esc(a.detalle) + '</div>' : '') +
@@ -213,6 +213,7 @@
     const ver = e.target.closest('[data-ver]');
     if (ver) { irAProduccion(ver.dataset.ver); return; }
     if (e.target.closest('[data-ecom]')) { cerrar(); document.getElementById('open-ecommerce')?.click(); return; }
+    if (e.target.closest('[data-zeus]')) { cerrar(); document.getElementById('open-zeus')?.click(); return; }
     const c = e.target.closest('[data-copiar]');
     if (c) { try { await navigator.clipboard.writeText(c.dataset.copiar); const t = c.textContent; c.textContent = '¡Copiado!'; setTimeout(() => { c.textContent = t; }, 1200); } catch (err) { /* sin portapapeles */ } return; }
     const s = e.target.closest('[data-silenciar]');
