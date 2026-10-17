@@ -404,6 +404,26 @@
       f.setUTCHours(0, 0, 0, 0); f.setUTCMinutes(Math.round(t));
       return f;
     };
+    const minLaborales = (a, b) => {
+      let tot = 0;
+      for (const dia = new Date(Date.UTC(a.getUTCFullYear(), a.getUTCMonth(), a.getUTCDate())); dia <= b; dia.setUTCDate(dia.getUTCDate() + 1)) {
+        if (!esHabil(dia)) continue;
+        const ini = Math.max(a.getTime(), dia.getTime() + INI_JORNADA * 60000), fin = Math.min(b.getTime(), dia.getTime() + FIN_JORNADA * 60000);
+        if (fin > ini) tot += (fin - ini) / 60000;
+      }
+      return tot;
+    };
+    // si el área está en proceso y el Sheet trae su HORA INICIO (sin HORA FINAL), ya se avanzó: se descuenta lo trabajado desde esa hora
+    const llevaEnArea = (area, col, valores, headers) => {
+      let hi = -1, hf = -1;
+      for (let k = col + 1; k < Math.min(headers.length, col + 7); k++) { if (headers[k] === 'HORA INICIO' && hi < 0) hi = k; if (headers[k] === 'HORA FINAL' && hf < 0) hf = k; }
+      if (hi < 0) return 0;
+      const m = /^\s*(\d{1,2}):(\d{2})/.exec(String(valores[hi] == null ? '' : valores[hi]));
+      if (!m || (hf >= 0 && /\d/.test(String(valores[hf] == null ? '' : valores[hf])))) return 0;
+      const ahora = hoyCo(), inicio = new Date(Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth(), ahora.getUTCDate(), Number(m[1]), Number(m[2])));
+      if (inicio > ahora) inicio.setUTCDate(inicio.getUTCDate() - 1);   // la hora es de ayer
+      return Math.max(0, minLaborales(inicio, ahora));
+    };
     const cuandoTxt = d => d.toLocaleString('es-CO', {weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', timeZone: 'UTC'}).replace(/\./g, '');
     // áreas que le faltan a una orden antes de Sublimación, con sus minutos (unidades × minutos por unidad de la escalera de Inicio)
     const partesDe = o => {
@@ -421,7 +441,8 @@
         if (v === 'N/A' || (v && v !== 'P' && v !== 'R' && /\d/.test(v))) return;   // no aplica o ya terminada
         const u = unitData.find(x => norm(x.label) === norm(area.label));
         if (!u || !u.porUnidad || u.unidades < 50) return;   // sin suficientes unidades medidas (p. ej. Diseño) el promedio no es confiable
-        partes.push({label: area.label, min: o.cantidad * u.porUnidad, porUnidad: u.porUnidad, enProceso: v === 'P'});
+        const base = o.cantidad * u.porUnidad, lleva = v === 'P' ? llevaEnArea(area, col, fila.values, headers) : 0;
+        partes.push({label: area.label, base, lleva, min: lleva > 0 ? Math.max(base * 0.1, base - lleva) : base, porUnidad: u.porUnidad, enProceso: v === 'P'});
       });
       return partes;
     };
@@ -468,7 +489,7 @@
       if (o.en_sublim) return ['ya', 'En Sublimación ahora', '', 'La orden ya está en Sublimación.'];
       const e = estimarLlegada(o);
       if (e) {
-        const detalle = e.partes.map(x => x.label + ': ' + num(o.cantidad) + ' und × ' + num(x.porUnidad) + ' min = ' + horasTxt(x.min)).join('\n');
+        const detalle = e.partes.map(x => x.label + ': ' + num(o.cantidad) + ' und × ' + num(x.porUnidad) + ' min = ' + horasTxt(x.base) + (x.lleva > 0 ? ' · ya lleva ' + horasTxt(x.lleva) + ' → quedan ' + horasTxt(x.min) : '')).join('\n');
         const ayuda = (detalle || 'No le falta ningún área antes de Sublimación') + '\nTrabajo propio: ' + horasTxt(e.propio) + (e.espera ? '\nEspera por las órdenes de adelante: ' + horasTxt(e.espera) : '') + '\nTotal hasta Sublimación: ' + horasTxt(e.total) + ' ≈ ' + num(e.dias) + ' días de trabajo (jornada de ' + horasTxt(MIN_DIA) + ', lunes a sábado)\nSe atienden por fecha de entrega: delante de esta hay ' + e.delante + (e.delante === 1 ? ' orden.' : ' órdenes.');
         const cuando = fechaCorta(e.llega.toISOString().slice(0, 10)).replace(/( de)? \d{4}$/, '');
         const momento = cuandoTxt(e.llega);
