@@ -95,6 +95,16 @@
 .zeus-form input{flex:1 1 240px;min-width:0;box-sizing:border-box;border:1px solid #46563f;border-radius:9px;background:#0b100b;color:#fff;padding:10px 12px;font:500 16px Arial;outline:none;color-scheme:dark}
 .zeus-form input:focus{border-color:#d0f44c}
 .zeus-form .bd-clear{width:auto!important;padding:10px 18px!important}
+/* vidrio sin color; el estado se ve en el aro de luz (rojo alerta, naranja intermedio, verde al día) */
+.panel[data-panel="zeus"] .bd-head,.panel[data-panel="zeus"] .inventory-item-card,.zeus-chip{--r:#ffffff;background:radial-gradient(120% 90% at 10% 0%,rgba(255,255,255,.15),rgba(255,255,255,0) 55%),linear-gradient(160deg,rgba(255,255,255,.11),rgba(255,255,255,.035))!important;border:1px solid rgba(255,255,255,.22)!important;-webkit-backdrop-filter:blur(22px) saturate(1.4);backdrop-filter:blur(22px) saturate(1.4);box-shadow:inset 0 1.5px 0 rgba(255,255,255,.4),0 0 0 1px color-mix(in srgb,var(--r) 55%,transparent),0 0 16px -4px var(--r)!important;color:#fff}
+.panel[data-panel="zeus"] .inventory-item-card.ok,.zeus-chip.ok{--r:#35d46a}
+.panel[data-panel="zeus"] .inventory-item-card.warn,.zeus-chip.pend{--r:#ff9a1f}
+.panel[data-panel="zeus"] .inventory-item-card.bad{--r:#ff4b3e}
+.panel[data-panel="zeus"] .inventory-item-card .inv-badge{background:rgba(255,255,255,.14)!important;border:1px solid rgba(255,255,255,.3)!important;color:#fff!important}
+.panel[data-panel="zeus"] .inventory-item-card .inv-total,.panel[data-panel="zeus"] .inventory-item-card .inv-unit{color:#fff!important}
+.panel[data-panel="zeus"] .bd-refresh,.panel[data-panel="zeus"] .bd-clear{background:rgba(255,255,255,.1)!important;border:1px solid rgba(255,255,255,.3)!important;color:#fff!important}
+.zeus-chip.ok,.zeus-chip.pend{border-color:rgba(255,255,255,.22)!important}
+.zeus-form input{background:rgba(0,0,0,.28)!important;border:1px solid rgba(255,255,255,.2)!important}.zeus-form input:focus{border-color:rgba(255,255,255,.55)!important;box-shadow:0 0 0 3px rgba(255,255,255,.1)}
 @media (max-width:700px){.zeus-chip{width:100%;box-sizing:border-box;flex-wrap:wrap}.zeus-chip>span:nth-child(2){flex:1 1 140px}}
 `;
   document.head.appendChild(estilo);
