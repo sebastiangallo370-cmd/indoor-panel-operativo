@@ -310,6 +310,13 @@
     const telas = [...new Set(ordenes.map(o => o.tela))].sort();
     const selTela = tFilters.elements.tela, actual = selTela.value;
     selTela.innerHTML = '<option value="">Todas</option>' + telas.map(t => '<option value="' + esc(t) + '"' + (t === actual ? ' selected' : '') + '>' + esc(t) + '</option>').join('');
+    const ORD_TALLAS = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL'];
+    const tallasTxt = o => {
+      const m = {};
+      (o.tallas || []).forEach(t => { m[t.talla] = (m[t.talla] || 0) + t.cantidad; });
+      const rank = t => { const i = ORD_TALLAS.indexOf(t); return i >= 0 ? i : 100 + (Number(t) || 0); };
+      return Object.keys(m).sort((a, b) => rank(a) - rank(b)).map(t => t + ' ' + m[t]).join(' · ');
+    };
     const orderCard = o => {
       const [label, cls] = SITUACION[o.situacion] || ['', ''];
       const sinPromedio = o.situacion === 'sin_promedio';
@@ -322,7 +329,9 @@
         extra: '<div class="bd-line"><span>Cliente</span><b>' + esc(o.cliente || 'Sin cliente') + '</b></div>' +
           '<div class="bd-line"><span>Proyecto</span><b>' + esc(o.proyecto || 'Sin proyecto') + '</b></div>' +
           '<div class="bd-line"><span>Referencia</span><b>' + esc(o.referencia) + '</b></div>' +
-          '<div class="bd-line"><span>Entrega</span><b>' + (o.entrega ? esc(shortDay(o.entrega)) : 'Sin fecha') + '</b></div>'});
+          '<div class="bd-line"><span>Entrega</span><b>' + (o.entrega ? esc(shortDay(o.entrega)) : 'Sin fecha') + '</b></div>' +
+          (sinPromedio ? '' : o.exacto ? '<div class="bd-line"><span>Consumo</span><b>Talla por talla</b></div><div class="bd-line"><span>Tallas</span><b>' + esc(tallasTxt(o)) + '</b></div>'
+            : '<div class="bd-line"><span>Consumo</span><b>Estimado (promedio general)</b></div>')});
       const attrs = ' data-q="' + esc(norm([o.orden, o.cliente, o.proyecto, o.referencia, o.tela].join(' '))) + '" data-tela="' + esc(o.tela) + '" data-sit="' + o.situacion + '" data-sub="' + (o.estado === 'P' ? 'P' : 'pend') + '" data-fecha="' + esc(o.entrega || '') + '" data-sinfiltro="false"';
       return html.replace('<article ', '<article' + attrs + ' ');
     };

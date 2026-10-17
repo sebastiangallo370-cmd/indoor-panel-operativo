@@ -14,10 +14,94 @@ import re
 import sqlite3
 from datetime import date, timedelta
 
-from app import promedios, sublimacion_stock
+import os
+import threading
+import time
+from pathlib import Path
+
+from app import listado_tallas, promedios, sublimacion_stock
 from app.sublimacion_stock import DB_FILE, norm, parse_date
 
 DIAS_GRACIA = 7
+INTERVALO_TALLAS = 600
+_STATE = Path(os.getenv('STATE_DIR', '/data/state'))
+_tallas_lock = threading.Lock()
+_tallas: dict[str, dict] = {}   # orden -> {'ruta', 'mtime', 'hojas': {hoja: [líneas]}, 'ts'}
+
+
+def _cargar_tallas() -> None:
+    try:
+        with _tallas_lock:
+            _tallas.update(json.loads((_STATE / 'tela_tallas.json').read_text(encoding='utf-8')))
+    except (OSError, ValueError):
+        pass
+
+
+def _guardar_tallas() -> None:
+    try:
+        tmp = _STATE / 'tela_tallas.tmp'
+        tmp.write_text(json.dumps(_tallas, ensure_ascii=False), encoding='utf-8')
+        tmp.replace(_STATE / 'tela_tallas.json')
+    except OSError:
+        pass
+
+
+def refrescar_tallas() -> int:
+    """Lee (solo si cambió) el listado Excel de cada orden programada para tener sus tallas. Va en segundo plano: la NAS por VPN es lenta."""
+    cambios = 0
+    pedidos = _pedidos() or []
+    por_orden = {}
+    for p in pedidos:
+        por_orden.setdefault(p['orden'], p['cliente'])
+    for orden, cliente in por_orden.items():
+        try:
+            previo = _tallas.get(orden)
+            carpeta = Path(previo['ruta']).parent if previo and Path(previo['ruta']).exists() else listado_tallas.carpeta_de_orden(cliente, orden)
+            ruta = listado_tallas.excel_de_orden(carpeta, orden) if carpeta else None
+            if not ruta:
+                continue
+            mtime = ruta.stat().st_mtime
+            if previo and previo.get('ruta') == str(ruta) and previo.get('mtime') == mtime:
+                continue
+            hojas = listado_tallas.leer_hojas(ruta)
+            with _tallas_lock:
+                _tallas[orden] = {'ruta': str(ruta), 'mtime': mtime, 'hojas': hojas, 'ts': time.time()}
+            cambios += 1
+        except Exception:   # noqa: BLE001 - una orden con Excel raro no debe frenar a las demás
+            continue
+    if cambios:
+        _guardar_tallas()
+    return cambios
+
+
+def _bucle_tallas() -> None:
+    time.sleep(45)
+    while True:
+        try:
+            refrescar_tallas()
+        except Exception:   # noqa: BLE001
+            pass
+        time.sleep(INTERVALO_TALLAS)
+
+
+def start() -> None:
+    _cargar_tallas()
+    threading.Thread(target=_bucle_tallas, name='tela-tallas', daemon=True).start()
+
+
+def _exacto(orden: str, referencia: str, datos: dict) -> dict | None:
+    """Consumo talla por talla (promedio del maestro de cada talla × prendas de esa talla) si el listado de la orden tiene la hoja de esa referencia."""
+    entrada = _tallas.get(orden)
+    if not entrada:
+        return None
+    clave = listado_tallas._codigo(referencia)
+    titulo = next((t for t in entrada['hojas'] if listado_tallas._codigo(t) == clave), None)
+    if not titulo:
+        return None
+    r = promedios.calcular_hoja(titulo, entrada['hojas'][titulo], datos)
+    if not r.get('completo') or r['mts'] <= 0:
+        return None
+    return {'mts': r['mts'], 'prendas': r['prendas'], 'detalle': r['detalle'], 'partes': r['partes']}
 
 
 def _cantidad(valor) -> int:
@@ -132,18 +216,25 @@ def calcular(items: list[dict]) -> dict:
     sin_promedio = []
     for p in sorted(pedidos, key=lambda x: (x['entrega'] or '9999', x['orden'])):
         consumo, usados, faltan = _consumo(p['referencia'], maestros, plantillas)
+        exacto = _exacto(p['orden'], p['referencia'], datos)
         base = {'orden': p['orden'], 'cliente': p['cliente'], 'proyecto': p['proyecto'], 'referencia': p['referencia'], 'tela': p['tela'],
                 'cantidad': p['cantidad'], 'estado': p['estado'], 'entrega': p['entrega']}
-        if not consumo:
+        if not consumo and not exacto:
             sin_promedio.append({**base, 'situacion': 'sin_promedio', 'promedio': 0, 'mts': 0, 'falta': 0, 'maestros': [], 'telas': [],
                                  'motivo': ('Sin promedio para ' + ', '.join(faltan)) if faltan else 'La referencia no dice qué maestro es'})
             continue
-        mts = round(consumo * p['cantidad'], 2)
+        if exacto:
+            mts, consumo, usados = exacto['mts'], round(exacto['mts'] / max(1, exacto['prendas']), 2), exacto['partes']
+        else:
+            mts = round(consumo * p['cantidad'], 2)
         entrada = por_tela.setdefault(p['tela'], {'tela': p['tela'], 'mts': 0.0, 'prendas': 0, 'pedidos': [], 'codigos': set()})
         entrada['codigos'].add(_codigo_tela(p['referencia']))
         entrada['mts'] += mts
         entrada['prendas'] += p['cantidad']
-        entrada['pedidos'].append({**base, 'promedio': consumo, 'mts': mts, 'maestros': usados, 'parcial': bool(faltan)})
+        entrada['pedidos'].append({**base, 'promedio': consumo, 'mts': mts, 'maestros': usados, 'parcial': bool(faltan) and not exacto,
+                                   'exacto': bool(exacto), 'prendas_talla': (exacto or {}).get('prendas', 0),
+                                   'tallas': [{'grupo': d['grupo'], 'talla': d['talla'], 'cantidad': d['cantidad'], 'promedio': d['promedio'], 'mts': d['subtotal']}
+                                              for d in (exacto or {}).get('detalle', [])]})
     resultado, por_orden = [], []
     for tela, entrada in por_tela.items():
         encontradas = sublimacion_stock._matched(items, tela)
