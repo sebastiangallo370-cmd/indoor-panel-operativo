@@ -23,6 +23,17 @@
   .lq[data-lq-tone="verde"],.lq[data-lq-tone="oliva"],.lq[data-lq-tone="teal"],.lq[data-lq-tone="azul"],.lq[data-lq-tone="violeta"]{--lq-ring:#35d46a}
   .lq[data-lq-tone="ambar"]{--lq-ring:#ff9a1f}
   .lq[data-lq-tone="rojo"],.lq[data-lq-tone="coral"],.lq[data-lq-tone="rosa"]{--lq-ring:#ff4b3e}
+  .lq[data-lq-color]{--lq-ring:#35d46a}
+  /* Escalera de Inicio y tarjetas de orden: vidrio sin color, el estado se ve en el anillo de luz */
+  .st-col{--lq-ring:#35d46a;background:radial-gradient(120% 90% at 12% 0%,rgba(255,255,255,.16),rgba(255,255,255,0) 55%),linear-gradient(160deg,rgba(255,255,255,.12),rgba(255,255,255,.04))!important;border:1px solid rgba(255,255,255,.22)!important;-webkit-backdrop-filter:blur(22px) saturate(1.4);backdrop-filter:blur(22px) saturate(1.4);box-shadow:inset 0 1.5px 0 rgba(255,255,255,.4),0 0 0 1px color-mix(in srgb,var(--lq-ring) 55%,transparent),0 0 16px -3px var(--lq-ring)}
+  .st-col.top{--lq-ring:#ff4b3e;border-color:rgba(255,255,255,.22)!important}
+  .st-col.empty{--lq-ring:rgba(255,255,255,.7)}
+  .st-col:hover,.st-col:focus-visible{border-color:rgba(255,255,255,.5)!important;box-shadow:inset 0 1.5px 0 rgba(255,255,255,.5),0 0 0 1px var(--lq-ring),0 0 24px -2px var(--lq-ring)}
+  .st-bar .sg,.st-bar .sg.proc,.st-bar .sg.rep,.st-bar .sg.cola,.st-bar .sg.prog{--c1:rgba(255,255,255,.34);--c2:rgba(255,255,255,.10);opacity:1}
+  .st-bar .sg:last-child::before{filter:drop-shadow(0 -1px 0 rgba(255,255,255,.7))}
+  .od{--lq-ring:var(--c);border-left-width:1px!important;border:1px solid rgba(255,255,255,.22)!important;background:radial-gradient(120% 90% at 10% 0%,rgba(255,255,255,.14),rgba(255,255,255,0) 55%),linear-gradient(160deg,rgba(255,255,255,.10),rgba(255,255,255,.03))!important;-webkit-backdrop-filter:blur(18px) saturate(1.3);backdrop-filter:blur(18px) saturate(1.3);box-shadow:inset 0 1.5px 0 rgba(255,255,255,.35),0 0 0 1px color-mix(in srgb,var(--lq-ring) 55%,transparent),0 0 14px -4px var(--lq-ring)}
+  .od.tone-ok{--c:#35d46a}.od.tone-warn{--c:#ff9a1f}.od.tone-late{--c:#ff4b3e}.od.tone-none{--c:rgba(255,255,255,.6)}
+  .od:hover{box-shadow:inset 0 1.5px 0 rgba(255,255,255,.5),0 0 0 1px var(--lq-ring),0 0 22px -2px var(--lq-ring)!important}
   @keyframes lq-giro{to{--lq-ang:360deg}}
   @media(prefers-reduced-motion:reduce){.lq::before{animation:none}}
   .lq:hover{transform:translateY(-4px);border-color:rgba(255,255,255,.5)!important;box-shadow:inset 0 1.5px 0 rgba(255,255,255,.65),inset 0 -1px 0 rgba(255,255,255,.18),inset 0 0 26px rgba(255,255,255,.1),0 18px 34px rgba(0,0,0,.45)!important}
