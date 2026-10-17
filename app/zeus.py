@@ -48,6 +48,40 @@ URL_PUBLICA = os.getenv('PUBLIC_URL', 'https://produccion.cloud').rstrip('/')
 _CORREO = re.compile(r'^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$')
 
 
+_usuarios: Callable[[], list[str]] = lambda: []
+NOTIFICA_DIAS = 7
+
+
+def configurar_usuarios(fn: Callable[[], list[str]]) -> None:
+    global _usuarios
+    _usuarios = fn
+
+
+def alertas_para(usuario: str) -> list[dict]:
+    """Avisos de la campana: «se envió un requerimiento de compra». Solo para las cuentas elegidas en el panel del agente."""
+    with _lock:
+        d = _leer()
+    elegidos = {u.lower() for u in d['config']['notificar']}
+    if usuario.lower() not in elegidos:
+        return []
+    limite = _ahora() - NOTIFICA_DIAS * 86400
+    salida = []
+    for i in reversed(d['items']):
+        if i.get('estado') != 'creada' or not i.get('oc'):
+            continue
+        try:
+            if time.mktime(time.strptime(str(i.get('creada') or i.get('actualizado'))[:19], '%Y-%m-%dT%H:%M:%S')) < limite - 5 * 3600:
+                continue
+        except (ValueError, TypeError):
+            pass
+        pedidos = ', '.join(o.get('orden', '') for o in i.get('ordenes', [])[:4] if o.get('orden'))
+        salida.append({'tipo': 'compra', 'orden': 'OC ' + str(i['oc']), 'cliente': '', 'severidad': 'media',
+                       'titulo': f"Se envió un requerimiento de compra: {i['tela']}",
+                       'detalle': f"{i['falta']:g} MTS · orden de compra {i['oc']} en Effi" + (f' · pedidos {pedidos}' if pedidos else ''),
+                       'texto': f"Requerimiento de compra {i['tela']} {i['falta']:g} MTS · OC {i['oc']}"})
+    return salida[:15]
+
+
 def auth_agente(pc_auth: Callable[[Request], None]) -> Callable[[Request], None]:
     """El agente instalado en el VPS usa ZEUS_AGENT_TOKEN (variable del .env del servidor); los PC siguen usando su código de ECOMMERCE."""
     def comprobar(request: Request) -> None:
@@ -87,6 +121,7 @@ def _leer() -> dict:
     d.setdefault('latido', {})
     d.setdefault('pedido_por_tela', {})
     d.setdefault('config', {}).setdefault('correos', [])
+    d['config'].setdefault('notificar', [])   # cuentas del panel a las que les suena la campana cuando se envía una orden de compra
     d['config']['correos'] = [c if isinstance(c, dict) else {'correo': str(c), 'estado': 'verificado'} for c in d['config']['correos']]
     return d
 
@@ -246,7 +281,24 @@ def _enviar_verificacion(correo: str, token: str, pidio: str) -> str:
 @router.get('/config')
 def ver_config():
     with _lock:
-        return {'correos': _correos_vista(_leer())}
+        d = _leer()
+        return {'correos': _correos_vista(d), 'notificar': d['config']['notificar'], 'usuarios': _usuarios()}
+
+
+@router.put('/notificar')
+def elegir_notificar(payload: dict):
+    """Cuentas del panel a las que les llega la notificación (campana) cuando el agente envía una orden de compra."""
+    validos = {u.lower(): u for u in _usuarios()}
+    elegidos = []
+    for u in payload.get('usuarios') or []:
+        real = validos.get(str(u).strip().lower())
+        if real and real not in elegidos:
+            elegidos.append(real)
+    with _lock:
+        d = _leer()
+        d['config']['notificar'] = elegidos
+        _guardar(d)
+    return {'notificar': elegidos}
 
 
 @router.post('/correos')

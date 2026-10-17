@@ -39,6 +39,7 @@ ETIQUETAS = [
     ('PATCH', r'^/api/produccion/operaciones/evento/\d+$', 'Producción', 'Corrigió un evento de operario'),
     ('DELETE', r'^/api/produccion/operaciones/evento/\d+$', 'Producción', 'Borró un evento de operario'),
     ('PUT', r'^/api/proveedores-tela$', 'Estándar 2026', 'Eligió el proveedor de una tela'),
+    ('PUT', r'^/api/zeus/notificar$', 'Agente inventario', 'Cambió quién recibe la notificación de las órdenes de compra'),
     ('POST', r'^/api/zeus/correos$', 'Agente inventario', 'Agregó un correo para recibir las órdenes de compra (queda pendiente de confirmar)'),
     ('POST', r'^/api/zeus/correos/reenviar$', 'Agente inventario', 'Reenvió el mensaje de verificación de un correo'),
     ('DELETE', r'^/api/zeus/correos$', 'Agente inventario', 'Quitó un correo de las órdenes de compra'),

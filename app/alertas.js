@@ -9,6 +9,7 @@
     atrasado: { nombre: 'Atrasados', color: '#ff6b6b', icono: '<path d="M12 7v5l3 2"/><circle cx="12" cy="12" r="9"/>' },
     reproceso: { nombre: 'Reprocesos', color: '#ffb04a', icono: '<path d="M4 12a8 8 0 0 1 14-5l2 2M20 12a8 8 0 0 1-14 5l-2-2"/><path d="M20 4v5h-5M4 20v-5h5"/>' },
     tela: { nombre: 'Tela', color: '#6cb6ff', icono: '<path d="M4 6h16v4H4zM6 10v8h12v-8M9 14h6"/>' },
+    compra: { nombre: 'Compras', color: '#7ee0c3', icono: '<path d="M4 7h16l-1.5 11H5.5zM8 7a4 4 0 0 1 8 0"/>' },
     ecommerce: { nombre: 'ECOMMERCE', color: '#d0f44c', icono: '<circle cx="9" cy="19" r="1.5"/><circle cx="17" cy="19" r="1.5"/><path d="M3 4h2l2.4 10h10.2L20 7H6.2"/>' }
   };
   const store = { get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* sin almacenamiento */ } } };

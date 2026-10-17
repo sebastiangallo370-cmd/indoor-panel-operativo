@@ -7,7 +7,7 @@
   const cuando = () => new Date().toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
   const ESTADO = { SIN_CONECTAR: ['Sin conectar', 'bad'], ESPERANDO_EFFI: ['Esperando acceso a Effi', 'warn'], LIBRE: ['Libre', 'ok'], TRABAJANDO: ['Creando orden de compra…', 'ok'], ERROR: ['Con error', 'bad'] };
   const COMPRA = { pendiente: ['Por comprar', 'warn'], entregada: ['Creándola en Effi…', 'warn'], creada: ['Orden creada', 'ok'], error: ['Con error', 'bad'], cancelada: ['Ya alcanza', ''] };
-  let panel = null, tab = null, cuerpo = null, timer = null, correos = [], cuentaEnvia = '';
+  let panel = null, tab = null, cuerpo = null, timer = null, correos = [], cuentaEnvia = '', notificar = [], usuariosPanel = [];
 
   const card = ({ badge, badgeClass = '', name, total, unit = '', extra = '', cls = '' }) =>
     '<article class="inventory-item-card ' + cls + '"><span class="inv-badge ' + badgeClass + '">' + esc(badge) + '</span><strong class="inv-name">' + esc(name) + '</strong>' + extra +
@@ -25,6 +25,13 @@
       '<div class="zeus-correos">' + (correos.length ? correos.map(chip).join('') : '<p class="bd-note">Todavía no hay correos. Agrega al encargado de pedir la tela.</p>') + '</div>' +
       '<form class="zeus-form" data-zeus-form autocomplete="off"><input type="email" name="correo" placeholder="correo@ejemplo.com" aria-label="Correo nuevo" required><button type="submit" class="bd-clear">Agregar y verificar</button></form>' +
       '<p class="bd-note zeus-msg" data-zeus-msg>Al agregar un correo le enviamos un mensaje' + (cuentaEnvia ? ' desde ' + esc(cuentaEnvia) : '') + '; su dueño tiene que abrirlo y confirmar. Hasta entonces no recibe órdenes.</p></section>';
+  }
+
+  function notificarHtml() {
+    const marcados = new Set((notificar || []).map(u => u.toLowerCase()));
+    return '<section class="bd-section"><h3>Quién recibe la notificación en la página <small>· suena la campana cuando se envía una orden de compra</small></h3>' +
+      '<div class="zeus-usuarios">' + (usuariosPanel.length ? usuariosPanel.map(u => '<label class="zeus-uchip' + (marcados.has(u.toLowerCase()) ? ' on' : '') + '"><input type="checkbox" data-zeus-notificar value="' + esc(u) + '"' + (marcados.has(u.toLowerCase()) ? ' checked' : '') + '><span>' + esc(u) + '</span></label>').join('') : '<p class="bd-note">No hay cuentas para elegir.</p>') + '</div>' +
+      '<p class="bd-note" data-zeus-notmsg>Marca las cuentas que deben enterarse. La notificación dura 7 días en la campana.</p></section>';
   }
 
   function pintar(d) {
@@ -48,9 +55,11 @@
       });
     }).join('');
     correos = d.correos || [];
+    notificar = d.notificar || [];
+    usuariosPanel = d.usuarios || [];
     cuentaEnvia = (d.correo && d.correo.configurado && d.correo.cuenta) || '';
     cuerpo.innerHTML = (avisos.length ? '<p class="bd-note">' + avisos.map(esc).join('<br>') + '</p>' : '') +
-      '<div class="bd-cards fit">' + agente + '</div>' + correosHtml() +
+      '<div class="bd-cards fit">' + agente + '</div>' + correosHtml() + notificarHtml() +
       '<section class="bd-section"><h3>Órdenes de compra <small>· la tela que falta, por tela</small> <button type="button" class="bd-clear" data-zeus-revisar style="margin-left:auto;padding:6px 12px!important">Revisar ahora</button></h3>' +
       (compras ? '<div class="bd-cards">' + compras + '</div>' : '<p class="bd-note">No hay tela por comprar: todos los pedidos programados alcanzan.</p>') + '</section>';
   }
@@ -105,6 +114,10 @@
 .panel[data-panel="zeus"] .bd-refresh,.panel[data-panel="zeus"] .bd-clear{background:rgba(255,255,255,.1)!important;border:1px solid rgba(255,255,255,.3)!important;color:#fff!important}
 .zeus-chip.ok,.zeus-chip.pend{border-color:rgba(255,255,255,.22)!important}
 .zeus-form input{background:rgba(0,0,0,.28)!important;border:1px solid rgba(255,255,255,.2)!important}.zeus-form input:focus{border-color:rgba(255,255,255,.55)!important;box-shadow:0 0 0 3px rgba(255,255,255,.1)}
+.zeus-usuarios{display:flex;flex-wrap:wrap;gap:8px}
+.zeus-uchip{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border:1px solid rgba(255,255,255,.22);border-radius:999px;background:rgba(255,255,255,.06);cursor:pointer;font:700 .78rem Arial;transition:background .2s,box-shadow .2s;color:#dfe8d9}
+.zeus-uchip input{accent-color:#35d46a;width:16px;height:16px;margin:0}
+.zeus-uchip.on{background:rgba(255,255,255,.16);box-shadow:0 0 0 1px #35d46a,0 0 14px -4px #35d46a;color:#fff}
 @media (max-width:700px){.zeus-chip{width:100%;box-sizing:border-box;flex-wrap:wrap}.zeus-chip>span:nth-child(2){flex:1 1 140px}}
 `;
   document.head.appendChild(estilo);
@@ -138,6 +151,14 @@
       if (!c) return;
       if (!confirm('Vamos a enviar un mensaje de verificación a ' + c + '.\nSu dueño tiene que abrirlo y confirmar; hasta entonces no recibirá órdenes de compra.\n\n¿Enviar el mensaje?')) return;
       accionCorreo('/api/zeus/correos', 'POST', { correo: c }, 'Enviamos un mensaje a ' + c + '. Pídele que lo abra y confirme.');
+    });
+    panel.addEventListener('change', async e => {
+      if (!e.target.matches('[data-zeus-notificar]')) return;
+      const elegidos = [...panel.querySelectorAll('[data-zeus-notificar]:checked')].map(x => x.value);
+      e.target.closest('.zeus-uchip').classList.toggle('on', e.target.checked);
+      const m = panel.querySelector('[data-zeus-notmsg]');
+      try { const d = await llamar('/api/zeus/notificar', 'PUT', { usuarios: elegidos }); notificar = d.notificar; if (m) m.textContent = '✓ Guardado: ' + (d.notificar.length ? d.notificar.join(', ') : 'nadie recibe la notificación'); }
+      catch (err) { if (m) m.textContent = err.message; }
     });
     panel.addEventListener('click', async e => {
       const re = e.target.closest('[data-zeus-reenviar]');
