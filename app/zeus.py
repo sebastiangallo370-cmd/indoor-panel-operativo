@@ -353,6 +353,7 @@ def sondeo(request: Request, payload: dict):
     _pc_auth(request)
     entregar = []
     avisos = []
+    correos_envio = [c.strip() for c in destinatarios().split(',') if c.strip()]   # fuera del candado: destinatarios() lo usa
     with _lock:
         d = _leer()
         d['latido'] = {'at': _ahora(), 'estado': str(payload.get('estado', 'LIBRE'))[:24], 'ultima': str(payload.get('ultima', ''))[:300], 'equipo': str(payload.get('equipo', ''))[:60]}
@@ -377,7 +378,7 @@ def sondeo(request: Request, payload: dict):
                     prov = proveedores_tela.proveedor_de(codigo) if codigo else {}
                     entregar.append({'id': i['id'], 'tela': i['tela'], 'falta': i['falta'], 'ordenes': [o['orden'] for o in i['ordenes']], 'bodega': i.get('bodega', []),
                                      'codigo': codigo, 'proveedor': prov.get('proveedor', ''), 'nit': prov.get('nit', ''),
-                                     'correos': [c.strip() for c in destinatarios().split(',') if c.strip()]})
+                                     'correos': correos_envio})
         _guardar(d)
     for item in avisos:
         _correo_creada(item)
