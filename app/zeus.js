@@ -7,6 +7,7 @@
   const cuando = () => new Date().toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
   const ESTADO = { SIN_CONECTAR: ['Sin conectar', 'bad'], ESPERANDO_EFFI: ['Esperando acceso a Effi', 'warn'], LIBRE: ['Libre', 'ok'], TRABAJANDO: ['Creando orden de compra…', 'ok'], ERROR: ['Con error', 'bad'] };
   const COMPRA = { pendiente: ['Por comprar', 'warn'], entregada: ['Creándola en Effi…', 'warn'], creada: ['Orden creada', 'ok'], error: ['Con error', 'bad'], cancelada: ['Ya alcanza', ''] };
+  let vista = 'ordenes', filtroOrd = 'todas', datosZ = null, firmaZ = '', animarVista = false, kpiPrev = {}, tickZ = 0, baseHace = null, baseAt = 0;
   let panel = null, tab = null, cuerpo = null, timer = null, correos = [], cuentaEnvia = '', notificar = [], usuariosPanel = [], notAbierto = false, notBuscar = '';
 
   const card = ({ badge, badgeClass = '', name, total, unit = '', extra = '', cls = '' }) =>
@@ -71,35 +72,77 @@
       '<button type="button" class="zeus-envio-btn" data-zeus-prov="' + i.id + '" data-oc="' + esc(i.oc) + '">✉ Enviar orden al proveedor</button></div>';
   }
 
+  const PASOS = ['En cola', 'Creando', 'Creada', 'Enviada'];
+  function paso(i) {
+    const e = i.envio_proveedor || {};
+    if (i.estado === 'pendiente') return 0;
+    if (i.estado === 'entregada') return 1;
+    if (i.estado === 'creada') return e.estado === 'enviada' ? 3 : 2;
+    return -1;
+  }
+  function ordenHtml(i, n) {
+    const [label, c] = COMPRA[i.estado] || [i.estado, ''];
+    const p = paso(i), ring = c === 'bad' ? 'bad' : c === 'warn' ? 'warn' : 'ok';
+    const pasos = p < 0 ? '' : '<ol class="zo-pasos" style="--p:' + p + '">' + PASOS.map((t, k) => '<li class="' + (k < p ? 'hecho' : k === p ? 'actual' : '') + '"><i></i><span>' + t + '</span></li>').join('') + '</ol>';
+    return '<article class="zo ' + ring + '" style="--i:' + Math.min(n, 12) + '"><header><div><span class="zo-badge">' + esc(label) + '</span><h4>' + esc(i.tela) + '</h4></div>' +
+      '<div class="zo-mts"><b data-n="' + Number(i.falta || 0) + '">' + num(i.falta) + '</b><small>MTS</small></div></header>' +
+      (i.estado === 'creada' ? '<div class="zo-oc">Orden de compra <b>' + esc(i.oc || '—') + '</b></div>' : (i.estado === 'error' || i.estado === 'cancelada' ? '<div class="zo-err">' + esc(i.detalle || '') + '</div>' : '')) +
+      pasos +
+      ((i.ordenes || []).length ? '<ul class="zo-peds">' + i.ordenes.slice(0, 4).map(o => '<li><span>' + esc(o.orden) + ' · ' + esc(o.referencia) + '</span><b>' + num(o.falta) + ' MTS</b></li>').join('') + '</ul>' : '') +
+      envioHtml(i) + '</article>';
+  }
+  function haceTxt(seg) {
+    if (seg == null) return 'sin señal';
+    if (seg < 5) return 'ahora mismo';
+    if (seg < 60) return 'hace ' + seg + ' s';
+    if (seg < 3600) return 'hace ' + Math.floor(seg / 60) + ' min';
+    return 'hace ' + Math.floor(seg / 3600) + ' h';
+  }
+  function contar(el, hasta) {
+    const desde = Number(kpiPrev[el.dataset.k] ?? 0); kpiPrev[el.dataset.k] = hasta;
+    if (desde === hasta || matchMedia('(prefers-reduced-motion: reduce)').matches) { el.textContent = hasta; return; }
+    const t0 = performance.now(), dur = 600;
+    (function paso(t) { const f = Math.min(1, (t - t0) / dur); el.textContent = Math.round(desde + (hasta - desde) * (1 - Math.pow(1 - f, 3))); if (f < 1) requestAnimationFrame(paso); })(t0);
+  }
+
   function pintar(d) {
+    datosZ = d;
     const a = d.agente || {}, [etq, cls] = ESTADO[a.estado] || [a.estado || '—', ''];
-    const avisos = [];
-    if (!a.conectado) avisos.push('El agente no está conectado: las compras esperan en la lista.');
-    if (a.conectado && a.estado === 'ESPERANDO_EFFI') avisos.push('El agente no puede entrar a Effi por ahora.');
-    if (d.correo && !d.correo.configurado) avisos.push('Falta configurar el correo del servidor.');
     const r = d.resumen || {};
-    const agente = card({
-      badge: 'Agente de inventario', badgeClass: cls, cls: cls === 'bad' ? 'bad' : '', name: 'AGENTE INVENTARIO', total: a.estado === 'LIBRE' ? '' : esc(etq), unit: '',
-      extra: '<div class="bd-line"><span>Compras</span><b>' + num(r.pendiente) + ' por comprar · ' + num(r.creada) + ' creadas</b></div>' +
-        (a.ultima && (cls === 'bad' || a.estado === 'TRABAJANDO') ? '<div class="bd-line"><span>' + esc(String(a.ultima).slice(0, 110)) + '</span></div>' : '') +
-        ((a.funciones || []).length ? '<details class="zeus-que"><summary>¿Qué hace?</summary>' + a.funciones.map(f => '<div class="bd-line"><span>· ' + esc(f) + '</span></div>').join('') + '</details>' : '')
-    });
-    const compras = (d.items || []).map(i => {
-      const [label, c] = COMPRA[i.estado] || [i.estado, ''];
-      return card({
-        badge: label, badgeClass: c, cls: c === 'bad' ? 'bad' : '', name: i.tela, total: num(i.falta) + '<small>MTS</small>',
-        unit: i.estado === 'creada' ? 'Orden de compra ' + (i.oc || '(sin número)') : (i.detalle || ''),
-        extra: (i.ordenes || []).map(o => '<div class="bd-line"><span>' + esc(o.orden) + ' · ' + esc(o.referencia) + '</span><b>' + num(o.falta) + ' MTS</b></div>').join('') + envioHtml(i)
-      });
-    }).join('');
     correos = d.correos || [];
     notificar = d.notificar || [];
     usuariosPanel = d.usuarios || [];
     cuentaEnvia = (d.correo && d.correo.configurado && d.correo.cuenta) || '';
-    cuerpo.innerHTML = (avisos.length ? '<p class="bd-note">' + avisos.map(esc).join('<br>') + '</p>' : '') +
-      '<div class="bd-cards fit">' + agente + '</div>' + correosHtml() + notificarHtml() +
-      '<section class="bd-section"><h3>Órdenes de compra <button type="button" class="bd-clear" data-zeus-revisar style="margin-left:auto;padding:6px 12px!important">Revisar ahora</button></h3>' +
-      (compras ? '<div class="bd-cards">' + compras + '</div>' : '<p class="bd-note">Nada por comprar: la tela alcanza.</p>') + '</section>';
+    baseHace = a.hace; baseAt = Date.now();
+    const avisos = [];
+    if (!a.conectado) avisos.push('El agente no está conectado: las compras esperan en la lista.');
+    if (a.conectado && a.estado === 'ESPERANDO_EFFI') avisos.push('El agente no puede entrar a Effi por ahora.');
+    if (d.correo && !d.correo.configurado) avisos.push('Falta configurar el correo del servidor.');
+    const items = d.items || [];
+    const visibles = items.filter(i => filtroOrd === 'todas' || (filtroOrd === 'pendiente' && (i.estado === 'pendiente' || i.estado === 'entregada')) || (filtroOrd === 'creada' && i.estado === 'creada') || (filtroOrd === 'error' && i.estado === 'error'));
+    const estadoPill = a.estado === 'TRABAJANDO' ? 'trab' : cls === 'bad' ? 'bad' : cls === 'warn' ? 'warn' : 'ok';
+    const etiqueta = a.estado === 'LIBRE' ? 'En línea' : etq;
+    const kpi = (k, v, txt, f, tono) => '<button type="button" class="zk ' + tono + (filtroOrd === f && vista === 'ordenes' ? ' on' : '') + '" data-zeus-filtro="' + f + '"><b data-k="' + k + '" data-v="' + v + '">' + v + '</b><span>' + txt + '</span></button>';
+    const hero = '<section class="zh ' + estadoPill + '"><div class="zh-estado"><span class="zh-punto"></span><div><strong>' + esc(etiqueta) + '</strong><small><span data-zeus-hace>' + haceTxt(a.hace) + '</span>' + (a.equipo ? ' · ' + esc(String(a.equipo).slice(0, 18)) : '') + '</small></div></div>' +
+      (a.ultima && (cls === 'bad' || a.estado === 'TRABAJANDO') ? '<p class="zh-ultima">' + esc(String(a.ultima).slice(0, 120)) + '</p>' : '') +
+      '<div class="zh-acc"><button type="button" class="bd-clear" data-zeus-revisar>↻ Revisar ahora</button></div>' +
+      ((a.funciones || []).length ? '<details class="zeus-que"><summary>¿Qué hace?</summary>' + a.funciones.map(f => '<div class="bd-line"><span>· ' + esc(f) + '</span></div>').join('') + '</details>' : '') + '</section>';
+    const kpis = '<div class="zks">' + kpi('pend', (r.pendiente || 0) + (r.entregada || 0), 'Por comprar', 'pendiente', 'warn') + kpi('cre', r.creada || 0, 'Creadas', 'creada', 'ok') + kpi('err', r.error || 0, 'Con error', 'error', 'bad') + '</div>';
+    const tabs = '<div class="zv-tabs" role="tablist">' + [['ordenes', 'Órdenes', items.length], ['correos', 'Correos', correos.length], ['notificar', 'Notificar', notificar.length]].map(([k, t, n]) =>
+      '<button type="button" role="tab" class="zv-tab' + (vista === k ? ' on' : '') + '" data-zeus-vista="' + k + '">' + t + (n ? ' <em>' + n + '</em>' : '') + '</button>').join('') + '</div>';
+    let contenido;
+    if (vista === 'correos') contenido = correosHtml();
+    else if (vista === 'notificar') contenido = notificarHtml();
+    else contenido = '<section class="bd-section">' + (items.length ? '<div class="zo-lista">' + (visibles.length ? visibles.map(ordenHtml).join('') : '<p class="bd-note">Ninguna orden en este filtro.</p>') + '</div>' : '<p class="bd-note">Nada por comprar: la tela alcanza.</p>') + '</section>';
+    cuerpo.innerHTML = (avisos.length ? '<p class="bd-note zeus-aviso">' + avisos.map(esc).join('<br>') + '</p>' : '') + hero + kpis + tabs + '<div class="zv-vista' + (animarVista ? ' anima' : '') + '">' + contenido + '</div>';
+    animarVista = false;
+    cuerpo.querySelectorAll('.zk b[data-k]').forEach(el => contar(el, Number(el.dataset.v)));
+    cuerpo.querySelectorAll('.zo-mts b[data-n]').forEach(el => { el.textContent = num(el.dataset.n); });
+  }
+  function repintarZ() { if (datosZ && panel) pintar(datosZ); }
+  function tickHace() {
+    if (!panel || !panel.classList.contains('active') || baseHace == null) return;
+    const el = panel.querySelector('[data-zeus-hace]'); if (el) el.textContent = haceTxt(baseHace + Math.round((Date.now() - baseAt) / 1000));
   }
 
   async function cargar(silencioso) {
@@ -109,6 +152,9 @@
       const d = await r.json();
       if (!r.ok) throw Error(d.detail || 'No fue posible consultar al agente de inventario');
       panel.querySelector('.bd-updated').textContent = 'Actualizado ' + cuando();
+      const firma = JSON.stringify([d.items, d.resumen, d.correos, d.notificar, (d.agente || {}).estado, (d.agente || {}).conectado, (d.agente || {}).ultima]);
+      if (silencioso === true && firma === firmaZ) { datosZ = d; baseHace = (d.agente || {}).hace; baseAt = Date.now(); return; }   // nada cambió: no se redibuja
+      firmaZ = firma;
       pintar(d);
     } catch (e) { if (!silencioso) cuerpo.innerHTML = '<p class="bd-note">' + esc(e.message) + '</p>'; }
   }
@@ -157,6 +203,45 @@
 .zeus-envio-btn{min-height:38px;padding:0 14px;border:1px solid rgba(255,255,255,.3);border-radius:12px;background:rgba(255,255,255,.92);color:#10140a;font:800 .74rem Arial;letter-spacing:.04em;cursor:pointer;width:100%!important;transition:transform .2s,background .2s}
 .zeus-envio-btn:hover{transform:translateY(-1px);background:#fff}.zeus-envio-btn:disabled{opacity:.5;cursor:default}.zeus-envio-btn.suave{background:rgba(255,255,255,.1);color:#fff}
 .panel[data-panel="zeus"] .inventory-item-card .inv-total:empty{display:none}
+/* ---- panel dinámico ---- */
+@keyframes zPulso{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--zc) 70%,transparent)}70%{box-shadow:0 0 0 12px transparent}100%{box-shadow:0 0 0 0 transparent}}
+@keyframes zEntra{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
+@keyframes zFade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.zh{--zc:#35d46a;position:relative;display:flex;flex-wrap:wrap;align-items:center;gap:12px 18px;padding:16px 20px;border-radius:20px;border:1px solid rgba(255,255,255,.22);background:radial-gradient(120% 90% at 8% 0%,rgba(255,255,255,.15),rgba(255,255,255,0) 55%),linear-gradient(160deg,rgba(255,255,255,.11),rgba(255,255,255,.035));-webkit-backdrop-filter:blur(22px);backdrop-filter:blur(22px);box-shadow:inset 0 1.5px 0 rgba(255,255,255,.4),0 0 0 1px color-mix(in srgb,var(--zc) 45%,transparent),0 0 22px -6px var(--zc)}
+.zh.warn{--zc:#ff9a1f}.zh.bad{--zc:#ff4b3e}.zh.trab{--zc:#6cb6ff}
+.zh-estado{display:flex;align-items:center;gap:14px;flex:1 1 220px}.zh-estado strong{display:block;font-size:1.2rem;letter-spacing:.01em}.zh-estado small{display:block;margin-top:2px;color:#b9c6b1;font:600 .74rem Arial}
+.zh-punto{width:14px;height:14px;border-radius:50%;background:var(--zc);animation:zPulso 1.8s infinite;flex:none}
+.zh.bad .zh-punto{animation-duration:1s}.zh.trab .zh-punto{animation-duration:.9s}
+.zh-ultima{flex:1 1 100%;margin:0;color:#d3dccf;font:600 .78rem Arial}
+.zh-acc{display:flex;gap:8px}.zh-acc .bd-clear{padding:9px 16px!important;border-radius:999px!important}
+.zh .zeus-que{flex:1 1 100%}
+.zks{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.zk{--zc:#fff;display:grid;gap:2px;justify-items:start;padding:14px 18px;border-radius:18px;border:1px solid rgba(255,255,255,.2);background:radial-gradient(120% 90% at 10% 0%,rgba(255,255,255,.13),rgba(255,255,255,0) 55%),linear-gradient(160deg,rgba(255,255,255,.1),rgba(255,255,255,.03));color:#fff;cursor:pointer;text-align:left;width:auto!important;transition:transform .2s,box-shadow .2s;box-shadow:inset 0 1.5px 0 rgba(255,255,255,.35),0 0 0 1px color-mix(in srgb,var(--zc) 40%,transparent)}
+.zk.warn{--zc:#ff9a1f}.zk.ok{--zc:#35d46a}.zk.bad{--zc:#ff4b3e}
+.zk:hover{transform:translateY(-3px);box-shadow:inset 0 1.5px 0 rgba(255,255,255,.5),0 0 0 1px var(--zc),0 0 22px -4px var(--zc)}.zk.on{box-shadow:inset 0 1.5px 0 rgba(255,255,255,.5),0 0 0 2px var(--zc),0 0 24px -3px var(--zc)}
+.zk b{font-size:2rem;line-height:1.05;font-variant-numeric:tabular-nums}.zk span{font:800 .62rem Arial;letter-spacing:.14em;text-transform:uppercase;color:#c9d3c4}
+.zv-tabs{display:inline-flex;gap:2px;padding:3px;border-radius:999px;background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.2);justify-self:start;max-width:100%;overflow-x:auto}
+.zv-tab{min-height:38px;padding:0 18px;border:0;border-radius:999px;background:transparent;color:#c5d1bf;font:800 .74rem Arial;letter-spacing:.06em;cursor:pointer;width:auto!important;white-space:nowrap;transition:background .2s,color .2s}
+.zv-tab:hover{background:rgba(255,255,255,.12)}.zv-tab.on{background:rgba(255,255,255,.92);color:#10140a}.zv-tab em{font-style:normal;margin-left:4px;opacity:.7}
+.zv-vista.anima{animation:zFade .32s both}
+.zo-lista{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.zo{--r:#35d46a;display:grid;gap:10px;align-content:start;padding:16px 16px 14px;border-radius:20px;border:1px solid rgba(255,255,255,.22);background:radial-gradient(120% 80% at 10% 0%,rgba(255,255,255,.14),rgba(255,255,255,0) 55%),linear-gradient(160deg,rgba(255,255,255,.11),rgba(255,255,255,.035));-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);box-shadow:inset 0 1.5px 0 rgba(255,255,255,.38),0 0 0 1px color-mix(in srgb,var(--r) 50%,transparent),0 0 16px -5px var(--r);animation:zEntra .45s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--i,0)*55ms);transition:transform .2s,box-shadow .2s}
+.zo.warn{--r:#ff9a1f}.zo.bad{--r:#ff4b3e}.zo:hover{transform:translateY(-3px);box-shadow:inset 0 1.5px 0 rgba(255,255,255,.5),0 0 0 1px var(--r),0 0 24px -3px var(--r)}
+.zo header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.zo h4{margin:6px 0 0;font-size:1rem;letter-spacing:.01em}
+.zo-badge{display:inline-block;padding:3px 10px;border-radius:999px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.28);font:800 .6rem Arial;letter-spacing:.1em;text-transform:uppercase}
+.zo-mts{text-align:right}.zo-mts b{display:block;font-size:1.7rem;line-height:1;font-variant-numeric:tabular-nums}.zo-mts small{font:800 .6rem Arial;letter-spacing:.12em;color:#c9d3c4}
+.zo-oc{font:600 .78rem Arial;color:#d3dccf}.zo-oc b{font-size:.95rem;color:#fff}.zo-err{font:700 .74rem Arial;color:#ffb3ad;line-height:1.4}
+.zo-pasos{list-style:none;margin:2px 0 0;padding:0;display:grid;grid-template-columns:repeat(4,1fr);position:relative}
+.zo-pasos::before{content:"";position:absolute;left:12.5%;right:12.5%;top:6px;height:2px;background:rgba(255,255,255,.18);border-radius:2px}
+.zo-pasos::after{content:"";position:absolute;left:12.5%;top:6px;height:2px;border-radius:2px;background:var(--r);width:calc(75% * var(--p) / 3);transition:width .9s cubic-bezier(.2,.8,.2,1);box-shadow:0 0 8px var(--r)}
+.zo-pasos li{position:relative;display:grid;justify-items:center;gap:5px;font:700 .58rem Arial;letter-spacing:.06em;text-transform:uppercase;color:#8f9d88}
+.zo-pasos i{width:14px;height:14px;border-radius:50%;background:#1b241a;border:2px solid rgba(255,255,255,.3);z-index:1;transition:background .4s,border-color .4s}
+.zo-pasos li.hecho{color:#d3dccf}.zo-pasos li.hecho i{background:var(--r);border-color:var(--r)}
+.zo-pasos li.actual{color:#fff}.zo-pasos li.actual i{background:#fff;border-color:var(--r);animation:zPulso 1.6s infinite;--zc:var(--r)}
+.zo-peds{list-style:none;margin:0;padding:8px 0 0;border-top:1px solid rgba(255,255,255,.12);display:grid;gap:4px}.zo-peds li{display:flex;justify-content:space-between;gap:10px;font:600 .72rem Arial;color:#c1ceb9}.zo-peds b{color:#fff;white-space:nowrap}
+.zo .zeus-envio{margin-top:2px}
+@media(max-width:700px){.zks{gap:8px}.zk{padding:12px 12px}.zk b{font-size:1.6rem}.zo-lista{grid-template-columns:1fr}.zh{padding:14px 14px}.zv-tab{padding:0 14px}}
+@media(prefers-reduced-motion:reduce){.zo,.zv-vista.anima,.zh-punto,.zo-pasos li.actual i{animation:none}}
 .zeus-que{margin-top:6px}.zeus-que summary{cursor:pointer;font:700 .7rem Arial;color:#b9c6b1;list-style:none}.zeus-que summary::-webkit-details-marker{display:none}.zeus-que summary::before{content:'ⓘ ';opacity:.8}.zeus-que[open] summary{margin-bottom:4px}
 .zeus-msg:empty,[data-zeus-notmsg]:empty{display:none}
 .zeus-sel{position:relative;max-width:460px}
@@ -195,7 +280,8 @@
       document.body.classList.remove('inicio-mode', 'inventory-mode', 'production-mode', 'schedule-mode', 'operarios-mode', 'cartera-mode', 'trace-cards-mode');
       cargar(false);
       clearInterval(timer);
-      timer = setInterval(() => { if (panel.classList.contains('active') && !document.hidden) cargar(true); }, 30000);
+      timer = setInterval(() => { if (panel.classList.contains('active') && !document.hidden) cargar(true); }, 10000);
+      clearInterval(tickZ); tickZ = setInterval(tickHace, 1000);
     });
     panel.querySelector('.bd-refresh').addEventListener('click', () => cargar(false));
     panel.addEventListener('submit', e => {
@@ -206,6 +292,12 @@
       if (!c) return;
       if (!confirm('Vamos a enviar un mensaje de verificación a ' + c + '.\nSu dueño tiene que abrirlo y confirmar; hasta entonces no recibirá órdenes de compra.\n\n¿Enviar el mensaje?')) return;
       accionCorreo('/api/zeus/correos', 'POST', { correo: c }, 'Enviamos un mensaje a ' + c + '. Pídele que lo abra y confirme.');
+    });
+    panel.addEventListener('click', e => {
+      const v = e.target.closest('[data-zeus-vista]');
+      if (v && v.dataset.zeusVista !== vista) { vista = v.dataset.zeusVista; animarVista = true; repintarZ(); return; }
+      const f = e.target.closest('[data-zeus-filtro]');
+      if (f) { filtroOrd = filtroOrd === f.dataset.zeusFiltro ? 'todas' : f.dataset.zeusFiltro; if (vista !== 'ordenes') vista = 'ordenes'; animarVista = true; repintarZ(); }
     });
     panel.addEventListener('change', e => {
       if (!e.target.matches('[data-zeus-notificar]')) return;
