@@ -38,6 +38,13 @@ class ZeusTest(unittest.TestCase):
         self.assertEqual(items['TOUR']['falta'], 50.0)
         self.assertEqual(len(items['TOUR']['ordenes']), 2)
 
+    def test_actualiza_lo_que_falta_de_una_compra_pendiente(self):
+        self.lista = [falta('RM1', 'TOUR', 26)]
+        zeus.sincronizar()
+        self.lista = [falta('RM1', 'TOUR', 60)]   # el cálculo se afinó (talla por talla)
+        zeus.sincronizar()
+        self.assertEqual(zeus._leer()['items'][0]['falta'], 60.0)
+
     def test_cancela_si_ya_alcanza(self):
         self.lista = [falta('RM1', 'TOUR', 30)]
         zeus.sincronizar()

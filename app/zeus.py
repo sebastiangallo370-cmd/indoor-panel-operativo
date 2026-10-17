@@ -100,8 +100,7 @@ def sincronizar() -> dict:
                 item['estado'], item['detalle'], item['actualizado'] = 'cancelada', 'Ya alcanza la tela: no hace falta comprar.', _iso()
                 canceladas += 1
         d['items'] = d['items'][-200:]
-        if nuevas or canceladas:
-            _guardar(d)
+        _guardar(d)   # también cuando solo cambió lo que falta de una compra pendiente
     return {'nuevas': nuevas, 'canceladas': canceladas}
 
 
