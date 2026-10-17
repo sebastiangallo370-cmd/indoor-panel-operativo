@@ -1,4 +1,4 @@
-// ZEUS · agente de inventario: pantalla propia, se abre desde el menú de la cuenta (junto a Agentes y Ecommerce).
+// AGENTE INVENTARIO: pantalla propia, se abre desde el menú de la cuenta (junto a Agentes y Ecommerce).
 // Muestra al agente (estado, qué hace) y la lista de órdenes de compra de la tela que falta, por tela. Lee /api/zeus/estado.
 (function () {
   'use strict';
@@ -16,12 +16,12 @@
   function pintar(d) {
     const a = d.agente || {}, [etq, cls] = ESTADO[a.estado] || [a.estado || '—', ''];
     const avisos = [];
-    if (!a.conectado) avisos.push('El agente ZEUS del PC todavía no está conectado: las compras quedan en la lista y se crean cuando se conecte.');
-    if (a.conectado && a.estado === 'ESPERANDO_EFFI') avisos.push('ZEUS no puede iniciar sesión en Effi (el ingreso de Effi está fallando). Cuando funcione, crea las órdenes de la lista.');
+    if (!a.conectado) avisos.push('El AGENTE INVENTARIO del PC todavía no está conectado: las compras quedan en la lista y se crean cuando se conecte.');
+    if (a.conectado && a.estado === 'ESPERANDO_EFFI') avisos.push('El AGENTE INVENTARIO no puede iniciar sesión en Effi (el ingreso de Effi está fallando). Cuando funcione, crea las órdenes de la lista.');
     if (d.correo && !d.correo.configurado) avisos.push('Falta configurar el correo del servidor para avisar al encargado de pedir la tela.');
     const r = d.resumen || {};
     const agente = card({
-      badge: 'Agente de inventario', badgeClass: cls, cls: cls === 'bad' ? 'bad' : '', name: 'ZEUS', total: esc(etq), unit: a.titulo || '',
+      badge: 'Agente de inventario', badgeClass: cls, cls: cls === 'bad' ? 'bad' : '', name: 'AGENTE INVENTARIO', total: esc(etq), unit: a.titulo || '',
       extra: (a.ultima ? '<div class="bd-line"><span>' + esc(a.ultima) + '</span></div>' : '') + (a.funciones || []).map(f => '<div class="bd-line"><span>· ' + esc(f) + '</span></div>').join('') +
         '<div class="bd-line"><span>Compras</span><b>' + num(r.pendiente) + ' por comprar · ' + num(r.creada) + ' creadas</b></div>'
     });
@@ -43,7 +43,7 @@
     try {
       const r = await fetch('/api/zeus/estado', { cache: 'no-store', credentials: 'same-origin' });
       const d = await r.json();
-      if (!r.ok) throw Error(d.detail || 'No fue posible consultar a ZEUS');
+      if (!r.ok) throw Error(d.detail || 'No fue posible consultar al agente de inventario');
       panel.querySelector('.bd-updated').textContent = 'Actualizado ' + cuando() + ' · se actualiza solo cada 30 s';
       pintar(d);
     } catch (e) { if (!silencioso) cuerpo.innerHTML = '<p class="bd-note">' + esc(e.message) + '</p>'; }
@@ -54,11 +54,11 @@
     if (!main || !nav) return false;
     if (document.querySelector('.panel[data-panel="zeus"]')) return true;
     panel = document.createElement('section'); panel.className = 'panel'; panel.dataset.panel = 'zeus';
-    panel.innerHTML = '<div class="bd"><div class="bd-head"><div><h2>ZEUS · Agente de inventario</h2><p class="bd-updated">Cargando…</p></div><div class="bd-head-actions"><button type="button" class="bd-refresh">Actualizar</button></div></div><div class="bd-zeus-body"></div></div>';
+    panel.innerHTML = '<div class="bd"><div class="bd-head"><div><h2>AGENTE INVENTARIO</h2><p class="bd-updated">Cargando…</p></div><div class="bd-head-actions"><button type="button" class="bd-refresh">Actualizar</button></div></div><div class="bd-zeus-body"></div></div>';
     main.appendChild(panel);
     cuerpo = panel.querySelector('.bd-zeus-body'); cuerpo.style.display = 'grid'; cuerpo.style.gap = '22px';
     const grupo = document.createElement('div'); grupo.className = 'nav-group'; grupo.hidden = true; grupo.style.display = 'none';
-    grupo.innerHTML = '<button class="tab" data-kind="zeus" type="button"><span class="nav-icon">ZE</span><strong>ZEUS</strong></button>';
+    grupo.innerHTML = '<button class="tab" data-kind="zeus" type="button"><span class="nav-icon">AI</span><strong>AGENTE INVENTARIO</strong></button>';
     nav.appendChild(grupo);
     tab = grupo.querySelector('.tab');
     tab.addEventListener('click', () => {
@@ -87,7 +87,7 @@
     const previo = document.getElementById('open-bitacora') || document.getElementById('open-ecommerce') || document.getElementById('open-agentes') || document.getElementById('open-personal-notes');
     if (!boton) {
       boton = document.createElement('button');
-      boton.type = 'button'; boton.id = 'open-zeus'; boton.textContent = 'Inventario · ZEUS';
+      boton.type = 'button'; boton.id = 'open-zeus'; boton.textContent = 'Agente inventario';
       boton.addEventListener('click', () => { document.querySelector('.user-menu')?.removeAttribute('open'); tab.click(); });
     }
     if (boton.isConnected) return true;   // una sola vez: si cada módulo reacomodara su botón, se pelearían y el menú se vería moviéndose

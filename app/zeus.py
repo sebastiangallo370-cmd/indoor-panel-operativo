@@ -118,8 +118,8 @@ def _correo_creada(item: dict) -> None:
         para = os.getenv('ZEUS_EMAIL_A') or os.getenv('ALERTA_EMAIL_A')
         lineas = [f"- {o['orden']} · {o['referencia']} · {o.get('cliente', '')}: falta {o['falta']:g} MTS (entrega {o.get('entrega') or 'sin fecha'})" for o in item['ordenes']]
         alertas_correo.enviar(f"Orden de compra de tela creada en Effi: {item['tela']}",
-                              f"ZEUS creó la orden de compra {item['oc'] or '(sin número)'} en Effi.\n\nTela: {item['tela']}\nMetros pedidos: {item['falta']:g} MTS\n\n"
-                              'Pedidos que la necesitan:\n' + '\n'.join(lineas) + '\n\nVer: https://produccion.cloud (Inventarios > Panel de control > ZEUS)', para=para)
+                              f"El AGENTE INVENTARIO creó la orden de compra {item['oc'] or '(sin número)'} en Effi.\n\nTela: {item['tela']}\nMetros pedidos: {item['falta']:g} MTS\n\n"
+                              'Pedidos que la necesitan:\n' + '\n'.join(lineas) + '\n\nVer: https://produccion.cloud (menú de la cuenta > Agente inventario)', para=para)
     except Exception:   # noqa: BLE001
         log.exception('No se pudo enviar el correo de la orden de compra')
 
@@ -141,7 +141,7 @@ def start() -> None:
 def _agente(d: dict) -> dict:
     l = d.get('latido') or {}
     vivo = _ahora() - float(l.get('at') or 0) < LATIDO_SEG
-    return {'nombre': 'ZEUS', 'titulo': 'Inventario · órdenes de compra de tela', 'color': '#c9a6ff', 'conectado': vivo,
+    return {'nombre': 'AGENTE INVENTARIO', 'titulo': 'Órdenes de compra de la tela que falta', 'color': '#c9a6ff', 'conectado': vivo,
             'estado': (l.get('estado') or 'LIBRE') if vivo else 'SIN_CONECTAR', 'ultima': l.get('ultima', '') if vivo else '', 'equipo': l.get('equipo', ''),
             'hace': round(_ahora() - float(l['at'])) if l.get('at') else None,
             'funciones': ['Junta lo que falta de cada tela según los pedidos programados (Tela programada)',
