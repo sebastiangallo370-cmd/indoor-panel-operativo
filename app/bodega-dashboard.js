@@ -319,7 +319,9 @@
         name: o.tela,
         total: sinPromedio ? 'Sin promedio' : num(o.mts) + '<small>MTS</small>',
         unit: o.situacion === 'no_alcanza' ? 'NO ALCANZA · FALTAN ' + num(o.falta) + ' MTS' : o.situacion === 'sin_tela' ? 'NO ALCANZA · LA TELA NO ESTÁ EN BODEGA' : '',
-        extra: '<div class="bd-line"><span>Referencia</span><b>' + esc(o.referencia) + '</b></div>' +
+        extra: '<div class="bd-line"><span>Cliente</span><b>' + esc(o.cliente || 'Sin cliente') + '</b></div>' +
+          '<div class="bd-line"><span>Proyecto</span><b>' + esc(o.proyecto || 'Sin proyecto') + '</b></div>' +
+          '<div class="bd-line"><span>Referencia</span><b>' + esc(o.referencia) + '</b></div>' +
           '<div class="bd-line"><span>Entrega</span><b>' + (o.entrega ? esc(shortDay(o.entrega)) : 'Sin fecha') + '</b></div>'});
       const attrs = ' data-q="' + esc(norm([o.orden, o.cliente, o.proyecto, o.referencia, o.tela].join(' '))) + '" data-tela="' + esc(o.tela) + '" data-sit="' + o.situacion + '" data-sub="' + (o.estado === 'P' ? 'P' : 'pend') + '" data-fecha="' + esc(o.entrega || '') + '" data-sinfiltro="false"';
       return html.replace('<article ', '<article' + attrs + ' ');
