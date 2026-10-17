@@ -345,6 +345,8 @@
       .map(o => Object.assign(o, { trabajado: o.areas.reduce((t, x) => t + x.min, 0), minutos: o.fin - o.ini, porUnidad: (o.fin - o.ini) / o.medidas })).sort((x, y) => y.porUnidad - x.porUnidad);
     return out;
   }
+  // otros módulos (Tela programada) usan el mismo tiempo por unidad que la escalera de Inicio, sin los filtros de fecha de esta pantalla
+  window.indoorUnitTimes = data => { const d = unitDesde, hasta = unitHasta; unitDesde = unitHasta = null; try { return unitTimes(data); } finally { unitDesde = d; unitHasta = hasta; } };
   const fmtDur = m => m === null ? '—' : m >= 60 ? Math.floor(m / 60) + ' h ' + Math.round(m % 60) + ' min' : m >= 1 ? fmtNum(m, 1) + ' min' : Math.round(m * 60) + ' s';
   let unitMetric = 'unidad', unitArea = '', unitDay = null;
   // Escalera de la ÚLTIMA SEMANA de un área: un escalón por día con (final − inicio) ÷ cantidad de lo que se terminó ese día

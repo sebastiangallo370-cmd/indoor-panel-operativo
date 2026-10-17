@@ -92,7 +92,10 @@
 .bd .ot-tiempo{display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:12px;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.22);box-shadow:inset 0 1px 0 rgba(255,255,255,.22)}
 .bd .ot-tiempo>span:last-child{display:grid;gap:1px;min-width:0}
 .bd .ot-tiempo b{font:850 .72rem Arial;line-height:1.2}
-.bd .ot-tiempo small{font:600 .62rem Arial;opacity:.8;letter-spacing:.03em}
+.bd .ot-tiempo small{font:600 .62rem Arial;opacity:.82;letter-spacing:.02em;line-height:1.3;overflow-wrap:anywhere}
+.bd .ot-cambio{font:800 .62rem Arial!important;opacity:1!important}
+.bd .ot-cambio.atraso{color:#ffd9a0!important}
+.bd .ot-cambio.adelanto{color:#c9f7c3!important}
 .bd .ot-reloj{font-size:1rem;line-height:1}
 .bd .ot-tiempo.urgente{background:rgba(255,70,50,.28);border-color:rgba(255,160,150,.6)}
 .bd .ot-tiempo.pronto{background:rgba(255,176,40,.24);border-color:rgba(255,200,110,.55)}
@@ -312,7 +315,7 @@
       '<button type="button" class="bd-clear">Limpiar</button><p class="bd-count"></p></form>' +
     '<div class="bd-cards bd-tcards"><p class="bd-note">Calculando la tela de los pedidos…</p></div>';
   const tFilters = body2.querySelector('.bd-tfilters'), tCards = body2.querySelector('.bd-tcards'), tKpi = body2.querySelector('.bd-tkpi');
-  let brechaDias = 14;
+  let brechaDias = 14, prodData = null, unitData = null;
   const SITUACION = {alcanza: ['Alcanza', 'ok'], no_alcanza: ['No alcanza', 'bad'], sin_tela: ['Tela no encontrada', 'bad'], sin_promedio: ['Sin promedio', 'warn']};
   const filterTela = () => {
     const f = tFilters.elements, q = norm(f.q.value), desde = f.desde.value, hasta = f.hasta.value;
@@ -357,14 +360,70 @@
       return Object.keys(m).sort((x, y) => rank(x) - rank(y)).map(t => [t, m[t]]);
     };
     const fechaCorta = v => { const d = v ? new Date(v + 'T12:00:00') : null; return d && !isNaN(d) ? d.toLocaleDateString('es-CO', {day: 'numeric', month: 'short', year: 'numeric'}).replace(/\./g, '') : 'Sin fecha'; };
+    // ---- cuánto falta para que la orden llegue a Sublimación: por cada área que aún le falta antes de Sublimación, unidades × minutos por unidad (el de la escalera de Inicio) ----
+    const MIN_DIA = 570;   // jornada de 7:00 a. m. a 4:30 p. m. (la misma que usa Inicio para medir)
+    const hoyCo = () => new Date(Date.now() - 5 * 3600 * 1000);   // hoy en Colombia (UTC-5)
+    const sumarDiasHabiles = (dias) => {   // de lunes a sábado: los domingos no se trabaja
+      const f = hoyCo(); let falta = Math.ceil(dias);
+      while (falta > 0) { f.setUTCDate(f.getUTCDate() + 1); if (f.getUTCDay() !== 0) falta -= 1; }
+      return f;
+    };
+    const estimarLlegada = o => {
+      if (o.en_sublim || !prodData || !unitData) return null;
+      const fila = (prodData.rows || []).find(r => r.source_row === o.fila);
+      if (!fila) return null;
+      const flow = typeof indoorProcessFlow !== 'undefined' ? indoorProcessFlow : [];
+      const hasta = flow.findIndex(a => norm(a.label) === 'SUBLIMACION');
+      if (hasta < 0) return null;
+      const headers = (prodData.headers || []).map(norm), partes = [];
+      flow.slice(0, hasta).forEach(area => {
+        const col = area.headers.map(x => headers.indexOf(norm(x))).find(i => i >= 0);
+        if (col === undefined) return;
+        const v = norm(fila.values[col]);
+        if (v === 'N/A' || (v && v !== 'P' && v !== 'R' && /\d/.test(v))) return;   // no aplica o ya terminada
+        const u = unitData.find(x => norm(x.label) === norm(area.label));
+        if (!u || !u.porUnidad || u.unidades < 50) return;   // sin suficientes unidades medidas (p. ej. Diseño, que casi no se mide) el promedio no es confiable
+        partes.push({label: area.label, min: o.cantidad * u.porUnidad, porUnidad: u.porUnidad, enProceso: v === 'P'});
+      });
+      const total = partes.reduce((t, x) => t + x.min, 0), dias = total / MIN_DIA;
+      return {total, dias, partes, llega: dias > 0 ? sumarDiasHabiles(dias) : hoyCo()};
+    };
+    const CLAVE_LLEGADA = 'indoor-llegada-sublimacion';
+    let memoriaLlegada = null;
+    const leerMemoria = () => { if (memoriaLlegada) return memoriaLlegada; try { memoriaLlegada = JSON.parse(localStorage.getItem(CLAVE_LLEGADA) || '{}') || {}; } catch (_) { memoriaLlegada = {}; } return memoriaLlegada; };
+    const guardarMemoria = () => { try { localStorage.setItem(CLAVE_LLEGADA, JSON.stringify(memoriaLlegada)); } catch (_) { /* sin almacenamiento: solo no se recuerda */ } };
+    // compara la fecha estimada de hoy con la del día anterior y devuelve la diferencia en días (+ = se atrasó, − = se adelantó) o null si no hay con qué comparar
+    const cambioLlegada = (o, llega) => {
+      const memo = leerMemoria(), id = o.orden + '|' + o.referencia, hoy = hoyCo().toISOString().slice(0, 10), iso = llega.toISOString().slice(0, 10);
+      let m = memo[id];
+      if (!m) m = memo[id] = {dia: hoy, llega: iso, prev: null};
+      else if (m.dia !== hoy) { m.prev = {dia: m.dia, llega: m.llega}; m.dia = hoy; m.llega = iso; }
+      else m.llega = iso;
+      guardarMemoria();
+      if (!m.prev) return null;
+      const dias = Math.round((new Date(iso + 'T12:00:00') - new Date(m.prev.llega + 'T12:00:00')) / 86400000);
+      return dias === 0 ? null : {dias, antes: m.prev.llega, desde: m.prev.dia};
+    };
+    const horasTxt = m => m >= 60 ? Math.floor(m / 60) + ' h ' + Math.round(m % 60) + ' min' : Math.round(m) + ' min';
     // tiempo que queda para que la orden llegue a Sublimación (estimado: fecha de entrega menos lo que suele pasar entre Sublimación y entrega)
     const tiempoSublim = o => {
-      if (o.en_sublim) return ['ya', 'En Sublimación ahora', ''];
+      if (o.en_sublim) return ['ya', 'En Sublimación ahora', '', 'La orden ya está en Sublimación.'];
+      const e = estimarLlegada(o);
+      if (e) {
+        const detalle = e.partes.map(x => x.label + ': ' + num(o.cantidad) + ' und × ' + num(x.porUnidad) + ' min = ' + horasTxt(x.min)).join('\n');
+        const ayuda = (detalle || 'No le falta ningún área antes de Sublimación') + '\nTotal: ' + horasTxt(e.total) + ' ≈ ' + num(e.dias) + ' días de trabajo (jornada de ' + horasTxt(MIN_DIA) + ', lunes a sábado)\nNo cuenta las órdenes que están antes en la fila.';
+        const cuando = fechaCorta(e.llega.toISOString().slice(0, 10)).replace(/( de)? \d{4}$/, '');
+        if (!e.partes.length) return ['urgente', 'Lista para entrar a Sublimación', 'no le falta ningún área antes', ayuda];
+        const d = Math.max(1, Math.ceil(e.dias));
+        const cambio = cambioLlegada(o, e.llega);
+        const nota = cambio ? (cambio.dias > 0 ? '▲ Se atrasó ' + cambio.dias + (cambio.dias === 1 ? ' día' : ' días') : '▼ Se adelantó ' + Math.abs(cambio.dias) + (Math.abs(cambio.dias) === 1 ? ' día' : ' días')) + ' desde ' + fechaCorta(cambio.desde).replace(/( de)? \d{4}$/, '') : '';
+        return [d <= 1 ? 'urgente' : d <= 3 ? 'pronto' : 'ok', 'Llega a Sublimación en ≈ ' + d + (d === 1 ? ' día' : ' días'), 'faltan ' + e.partes.map(x => x.label.toLowerCase()).join(' + ') + ' · ' + horasTxt(e.total) + ' · estimado ' + cuando, ayuda + (cambio ? '\n' + nota + ' (antes: ' + fechaCorta(cambio.antes) + ')' : ''), nota, cambio ? (cambio.dias > 0 ? 'atraso' : 'adelanto') : ''];
+      }
       if (typeof o.dias_sublim !== 'number') return null;
       const d = o.dias_sublim, cuando = fechaCorta(o.sublim_est).replace(/( de)? \d{4}$/, '');
-      if (d < 0) return ['urgente', 'Ya debería estar en Sublimación · hace ' + Math.abs(d) + (Math.abs(d) === 1 ? ' día' : ' días'), 'estimado ' + cuando];
-      if (d === 0) return ['urgente', 'Llega a Sublimación hoy', 'estimado ' + cuando];
-      return [d <= 3 ? 'pronto' : 'ok', 'Llega a Sublimación en ' + d + (d === 1 ? ' día' : ' días'), 'estimado ' + cuando];
+      if (d < 0) return ['urgente', 'Ya debería estar en Sublimación · hace ' + Math.abs(d) + (Math.abs(d) === 1 ? ' día' : ' días'), 'estimado ' + cuando, ''];
+      if (d === 0) return ['urgente', 'Llega a Sublimación hoy', 'estimado ' + cuando, ''];
+      return [d <= 3 ? 'pronto' : 'ok', 'Llega a Sublimación en ' + d + (d === 1 ? ' día' : ' días'), 'estimado ' + cuando, ''];
     };
     const orderCard = o => {
       const [, cls] = SITUACION[o.situacion] || ['', ''];
@@ -381,7 +440,7 @@
         '<div class="ot-sep"></div>' +
         '<div class="ot-cliente-bloque"><strong class="ot-cliente">' + esc(o.cliente || 'Sin cliente') + '</strong><span class="ot-proyecto">' + esc(o.proyecto || 'Sin proyecto') + '</span></div>' +
         (pares.length ? '<div class="ot-tallas" aria-label="Tallas">' + pares.map(([t, n]) => '<span class="ot-t">' + esc(t) + ' <b>' + num(n) + '</b></span>').join('') + '</div>' : '') +
-        (tiempo ? '<div class="ot-tiempo ' + tiempo[0] + '" title="Estimado: fecha de entrega menos los ' + (brechaDias || 14) + ' días que suelen pasar entre Sublimación y la entrega"><span class="ot-reloj" aria-hidden="true">⏱</span><span><b>' + esc(tiempo[1]) + '</b>' + (tiempo[2] ? '<small>' + esc(tiempo[2]) + '</small>' : '') + '</span></div>' : '') +
+        (tiempo ? '<div class="ot-tiempo ' + tiempo[0] + '" title="' + esc(tiempo[3] || 'Estimado: fecha de entrega menos los ' + (brechaDias || 14) + ' días que suelen pasar entre Sublimación y la entrega') + '"><span class="ot-reloj" aria-hidden="true">⏱</span><span><b>' + esc(tiempo[1]) + '</b>' + (tiempo[2] ? '<small>' + esc(tiempo[2]) + '</small>' : '') + (tiempo[4] ? '<small class="ot-cambio ' + tiempo[5] + '">' + esc(tiempo[4]) + '</small>' : '') + '</span></div>' : '') +
         '<div class="ot-pie">' + (sinPromedio ? '<span class="ot-sinprom">Sin promedio</span>' : '<span class="ot-consumo">' + num(o.mts) + '<small>MTS</small></span>') +
         (alerta ? '<span class="ot-alerta">' + esc(alerta) + '</span>' : '') + '</div></article>';
     };
@@ -392,9 +451,13 @@
   tFilters.querySelector('.bd-clear').onclick = () => { tFilters.reset(); filterTela(); };
   const load2 = async (silencioso) => {
     try {
-      const response = await fetch('/api/inventarios/tela-necesaria', {cache: 'no-store'});
+      const [response, prodResp] = await Promise.all([fetch('/api/inventarios/tela-necesaria', {cache: 'no-store'}), fetch('/api/produccion', {cache: 'no-store'}).catch(() => null)]);
       const data = await response.json();
       if (!response.ok) throw Error(data.detail || 'No fue posible calcular la tela necesaria');
+      try {   // el tiempo por unidad de cada área sale de Producción, igual que la escalera de Inicio
+        prodData = prodResp && prodResp.ok ? await prodResp.json() : null;
+        unitData = prodData && window.indoorUnitTimes ? window.indoorUnitTimes(prodData) : null;
+      } catch (_) { prodData = unitData = null; }
       panel.querySelector('.bd-updated').textContent = 'Tela calculada: ' + when(new Date().toISOString()) + ' · se actualiza sola cada minuto';
       renderTela(data);
     } catch (error) { if (!silencioso) tCards.innerHTML = '<p class="bd-note">' + esc(error.message) + '</p>'; }

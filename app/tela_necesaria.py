@@ -260,7 +260,7 @@ def calcular(items: list[dict]) -> dict:
     for p in sorted(pedidos, key=lambda x: (x['entrega'] or '9999', x['orden'])):
         consumo, usados, faltan = _consumo(p['referencia'], maestros, plantillas)
         exacto = _exacto(p['orden'], p['referencia'], datos)
-        base = {'orden': p['orden'], 'cliente': p['cliente'], 'proyecto': p['proyecto'], 'referencia': p['referencia'], 'tela': p['tela'],
+        base = {'fila': p['fila'], 'orden': p['orden'], 'cliente': p['cliente'], 'proyecto': p['proyecto'], 'referencia': p['referencia'], 'tela': p['tela'],
                 'cantidad': p['cantidad'], 'estado': p['estado'], 'entrega': p['entrega']}
         if p['estado'] != 'P' and p['entrega']:
             est = date.fromisoformat(p['entrega']) - timedelta(days=brecha)
