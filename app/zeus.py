@@ -48,11 +48,11 @@ URL_PUBLICA = os.getenv('PUBLIC_URL', 'https://produccion.cloud').rstrip('/')
 _CORREO = re.compile(r'^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$')
 
 
-_usuarios: Callable[[], list[str]] = lambda: []
+_usuarios: Callable[[], list[dict]] = lambda: []
 NOTIFICA_DIAS = 7
 
 
-def configurar_usuarios(fn: Callable[[], list[str]]) -> None:
+def configurar_usuarios(fn: Callable[[], list[dict]]) -> None:
     global _usuarios
     _usuarios = fn
 
@@ -234,7 +234,7 @@ def estado():
         return {'agente': _agente(d), 'items': d['items'][-60:][::-1],
                 'resumen': {e: sum(1 for i in d['items'] if i['estado'] == e) for e in ('pendiente', 'entregada', 'creada', 'error', 'cancelada')},
                 'correo': {'configurado': alertas_correo.puede_enviar(), 'cuenta': alertas_correo.cuenta()[0], 'encargado': bool(any(c.get('estado') == 'verificado' for c in d['config']['correos']) or os.getenv('ZEUS_EMAIL_A') or os.getenv('ALERTA_EMAIL_A'))},
-                'correos': _correos_vista(d)}
+                'correos': _correos_vista(d), 'notificar': d['config']['notificar'], 'usuarios': _usuarios()}
 
 
 def _usuario(request: Request) -> str:
@@ -288,7 +288,7 @@ def ver_config():
 @router.put('/notificar')
 def elegir_notificar(payload: dict):
     """Cuentas del panel a las que les llega la notificación (campana) cuando el agente envía una orden de compra."""
-    validos = {u.lower(): u for u in _usuarios()}
+    validos = {u['nombre'].lower(): u['nombre'] for u in _usuarios()}
     elegidos = []
     for u in payload.get('usuarios') or []:
         real = validos.get(str(u).strip().lower())

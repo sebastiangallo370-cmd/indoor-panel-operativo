@@ -27,17 +27,18 @@
       '<p class="bd-note zeus-msg" data-zeus-msg>Al agregar un correo le enviamos un mensaje' + (cuentaEnvia ? ' desde ' + esc(cuentaEnvia) : '') + '; su dueño tiene que abrirlo y confirmar. Hasta entonces no recibe órdenes.</p></section>';
   }
 
+  const nombreDe = u => (usuariosPanel.find(x => x.nombre.toLowerCase() === String(u).toLowerCase()) || { completo: u }).completo;
   function notificarHtml() {
     const marcados = new Set((notificar || []).map(u => u.toLowerCase()));
     const q = notBuscar.trim().toLowerCase();
-    const lista = usuariosPanel.filter(u => !q || u.toLowerCase().includes(q));
-    const elegidos = usuariosPanel.filter(u => marcados.has(u.toLowerCase()));
+    const lista = usuariosPanel.filter(u => !q || (u.completo + ' ' + u.nombre + ' ' + u.proceso).toLowerCase().includes(q));
+    const elegidos = usuariosPanel.filter(u => marcados.has(u.nombre.toLowerCase()));
     return '<section class="bd-section"><h3>Quién recibe la notificación en la página <small>· suena la campana cuando se envía una orden de compra</small></h3>' +
       '<div class="zeus-sel' + (notAbierto ? ' abierto' : '') + '">' +
-      '<button type="button" class="zeus-sel-btn" data-zeus-abrir aria-expanded="' + (notAbierto ? 'true' : 'false') + '"><span>' + (elegidos.length ? elegidos.length + ' usuario' + (elegidos.length === 1 ? '' : 's') + ' elegido' + (elegidos.length === 1 ? '' : 's') : 'Elegir usuarios…') + '</span><i>▾</i></button>' +
-      (notAbierto ? '<div class="zeus-sel-menu"><input type="search" data-zeus-nbuscar placeholder="Buscar usuario…" value="' + esc(notBuscar) + '" aria-label="Buscar usuario">' +
-        '<div class="zeus-sel-lista">' + (lista.length ? lista.map(u => '<label class="zeus-opt' + (marcados.has(u.toLowerCase()) ? ' on' : '') + '"><input type="checkbox" data-zeus-notificar value="' + esc(u) + '"' + (marcados.has(u.toLowerCase()) ? ' checked' : '') + '><span>' + esc(u) + '</span></label>').join('') : '<p class="bd-note">Ningún usuario coincide.</p>') + '</div></div>' : '') + '</div>' +
-      '<div class="zeus-usuarios">' + (elegidos.length ? elegidos.map(u => '<span class="zeus-uchip on"><span>' + esc(u) + '</span><button type="button" data-zeus-quitar-user="' + esc(u) + '" aria-label="Quitar ' + esc(u) + '">✕</button></span>').join('') : '<p class="bd-note">Nadie recibe la notificación todavía.</p>') + '</div>' +
+      '<button type="button" class="zeus-sel-btn" data-zeus-abrir aria-expanded="' + (notAbierto ? 'true' : 'false') + '"><span>' + (elegidos.length ? elegidos.length + ' usuario' + (elegidos.length === 1 ? '' : 's') + ' elegido' + (elegidos.length === 1 ? '' : 's') : 'Elegir usuarios…') + ' <em>de ' + usuariosPanel.length + '</em></span><i>▾</i></button>' +
+      (notAbierto ? '<div class="zeus-sel-menu"><input type="text" name="zeus-filtro-usuarios" data-zeus-nbuscar autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="Buscar por nombre o proceso…" value="' + esc(notBuscar) + '" aria-label="Buscar usuario">' +
+        '<div class="zeus-sel-lista">' + (lista.length ? lista.map(u => '<label class="zeus-opt' + (marcados.has(u.nombre.toLowerCase()) ? ' on' : '') + '"><input type="checkbox" data-zeus-notificar value="' + esc(u.nombre) + '"' + (marcados.has(u.nombre.toLowerCase()) ? ' checked' : '') + '><span>' + esc(u.completo) + (u.nombre !== u.completo ? ' <small>(' + esc(u.nombre) + ')</small>' : '') + (u.proceso ? '<small class="zeus-proc">' + esc(u.proceso) + '</small>' : '') + '</span></label>').join('') : '<p class="bd-note">Ningún usuario coincide.</p>') + '</div></div>' : '') + '</div>' +
+      '<div class="zeus-usuarios">' + (elegidos.length ? elegidos.map(u => '<span class="zeus-uchip on"><span>' + esc(u.completo) + '</span><button type="button" data-zeus-quitar-user="' + esc(u.nombre) + '" aria-label="Quitar ' + esc(u.completo) + '">✕</button></span>').join('') : '<p class="bd-note">Nadie recibe la notificación todavía.</p>') + '</div>' +
       '<p class="bd-note" data-zeus-notmsg>La notificación dura 7 días en la campana de cada usuario elegido.</p></section>';
   }
 
@@ -45,7 +46,7 @@
     try {
       const d = await llamar('/api/zeus/notificar', 'PUT', { usuarios: elegidos });
       notificar = d.notificar;
-      repintarNotificar('✓ Guardado: ' + (d.notificar.length ? d.notificar.join(', ') : 'nadie recibe la notificación'));
+      repintarNotificar('✓ Guardado: ' + (d.notificar.length ? d.notificar.map(nombreDe).join(', ') : 'nadie recibe la notificación'));
     } catch (err) { repintarNotificar(err.message); }
   }
   function repintarNotificar(mensaje) {
@@ -144,8 +145,9 @@
 .zeus-sel-btn:hover,.zeus-sel.abierto .zeus-sel-btn{background:rgba(255,255,255,.16)}.zeus-sel-btn i{font-style:normal;transition:transform .2s}.zeus-sel.abierto .zeus-sel-btn i{transform:rotate(180deg)}
 .zeus-sel-menu{position:absolute;z-index:20;left:0;right:0;top:calc(100% + 6px);padding:10px;border:1px solid rgba(255,255,255,.25);border-radius:16px;background:linear-gradient(160deg,rgba(40,48,38,.96),rgba(14,18,13,.97));-webkit-backdrop-filter:blur(22px);backdrop-filter:blur(22px);box-shadow:0 18px 40px -10px #000d,inset 0 1.5px 0 rgba(255,255,255,.3)}
 .zeus-sel-menu input[type=search]{width:100%;box-sizing:border-box;min-height:40px;padding:0 12px;border:1px solid rgba(255,255,255,.2);border-radius:10px;background:rgba(0,0,0,.3);color:#fff;font:500 16px Arial;outline:none;margin-bottom:8px}
-.zeus-sel-lista{max-height:260px;overflow-y:auto;display:grid;gap:2px}
+.zeus-sel-lista{max-height:min(380px,52vh);overflow-y:auto;display:grid;gap:2px}
 .zeus-opt{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:10px;cursor:pointer;font:700 .8rem Arial;color:#dfe8d9}
+.zeus-opt>span{display:flex;flex-direction:column;gap:1px;min-width:0}.zeus-opt small{font:600 .66rem Arial;color:#9fb094}.zeus-opt small.zeus-proc{text-transform:uppercase;letter-spacing:.06em}.zeus-sel-btn em{font-style:normal;font-weight:600;opacity:.7}
 .zeus-opt:hover{background:rgba(255,255,255,.1)}.zeus-opt.on{background:rgba(53,212,106,.14);color:#fff}.zeus-opt input{accent-color:#35d46a;width:17px;height:17px;margin:0}
 .zeus-uchip button{width:20px!important;height:20px!important;min-height:0!important;padding:0!important;border:0!important;border-radius:50%!important;background:rgba(255,255,255,.14)!important;color:#fff!important;cursor:pointer;line-height:1;margin-left:4px}
 .zeus-usuarios{display:flex;flex-wrap:wrap;gap:8px}
