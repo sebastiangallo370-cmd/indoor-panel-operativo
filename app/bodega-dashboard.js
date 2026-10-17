@@ -417,7 +417,7 @@
         const d = Math.max(1, Math.ceil(e.dias));
         const cambio = cambioLlegada(o, e.llega);
         const nota = cambio ? (cambio.dias > 0 ? '▲ Se atrasó ' + cambio.dias + (cambio.dias === 1 ? ' día' : ' días') : '▼ Se adelantó ' + Math.abs(cambio.dias) + (Math.abs(cambio.dias) === 1 ? ' día' : ' días')) + ' desde ' + fechaCorta(cambio.desde).replace(/( de)? \d{4}$/, '') : '';
-        return [d <= 1 ? 'urgente' : d <= 3 ? 'pronto' : 'ok', 'Llega a Sublimación en ≈ ' + d + (d === 1 ? ' día' : ' días'), 'faltan ' + e.partes.map(x => x.label.toLowerCase()).join(' + ') + ' · ' + horasTxt(e.total) + ' · estimado ' + cuando, ayuda + (cambio ? '\n' + nota + ' (antes: ' + fechaCorta(cambio.antes) + ')' : ''), nota, cambio ? (cambio.dias > 0 ? 'atraso' : 'adelanto') : ''];
+        return [d <= 1 ? 'urgente' : d <= 3 ? 'pronto' : 'ok', (e.total < MIN_DIA ? 'Llega a Sublimación en menos de 1 día' : 'Llega a Sublimación en ≈ ' + d + (d === 1 ? ' día' : ' días')), 'faltan ' + e.partes.map(x => x.label.toLowerCase()).join(' + ') + ' · ' + horasTxt(e.total) + ' · estimado ' + cuando, ayuda + (cambio ? '\n' + nota + ' (antes: ' + fechaCorta(cambio.antes) + ')' : ''), nota, cambio ? (cambio.dias > 0 ? 'atraso' : 'adelanto') : ''];
       }
       if (typeof o.dias_sublim !== 'number') return null;
       const d = o.dias_sublim, cuando = fechaCorta(o.sublim_est).replace(/( de)? \d{4}$/, '');
