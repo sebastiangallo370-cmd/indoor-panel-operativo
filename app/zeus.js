@@ -65,11 +65,11 @@
     if (i.estado !== 'creada' || !i.oc) return '';
     const e = i.envio_proveedor || {};
     const fecha = e.at ? String(e.at).replace('T', ' ').slice(0, 16) : '';
-    if (e.estado === 'pendiente' || e.estado === 'entregada') return '<div class="zeus-envio"><span class="zeus-envio-est">⏳ Enviando al proveedor…</span></div>';
-    if (e.estado === 'enviada') return '<div class="zeus-envio"><span class="zeus-envio-est ok">✔ Enviada a ' + esc(e.correo || 'el proveedor') + (fecha ? ' · ' + esc(fecha) : '') + '</span>' +
-      '<button type="button" class="zeus-envio-btn suave" data-zeus-prov="' + i.id + '" data-otra="1">Enviar otra vez</button></div>';
-    return '<div class="zeus-envio">' + (e.estado === 'error' ? '<span class="zeus-envio-est mal">⚠ ' + esc(e.detalle || 'No se pudo enviar') + '</span>' : '') +
-      '<button type="button" class="zeus-envio-btn" data-zeus-prov="' + i.id + '" data-oc="' + esc(i.oc) + '">✉ Enviar orden al proveedor</button></div>';
+    if (e.estado === 'pendiente' || e.estado === 'entregada') return '<div class="zeus-envio"><span class="zeus-envio-est">⏳ Enviando…</span></div>';
+    if (e.estado === 'enviada') return '<div class="zeus-envio"><span class="zeus-envio-est ok" title="' + esc('Enviada a ' + (e.correo || 'el proveedor') + (fecha ? ' · ' + fecha : '')) + '">✔ Enviada al proveedor</span>' +
+      '<button type="button" class="zeus-envio-btn suave" data-zeus-prov="' + i.id + '" data-otra="1">Reenviar</button></div>';
+    return '<div class="zeus-envio">' + (e.estado === 'error' ? '<span class="zeus-envio-est mal" title="' + esc(e.detalle || '') + '">⚠ No se pudo enviar</span>' : '') +
+      '<button type="button" class="zeus-envio-btn" data-zeus-prov="' + i.id + '" data-oc="' + esc(i.oc) + '">✉ Enviar al proveedor</button></div>';
   }
 
   const PASOS = ['En cola', 'Creada', 'Enviada a encargado', 'Enviada a proveedor'];
@@ -83,16 +83,18 @@
     if (e.estado === 'pendiente' || e.estado === 'entregada') return { hecho: encargado ? 2 : 1, actual: 3 };
     return { hecho: encargado ? 2 : 1, actual: -1 };
   }
+  const corto = t => { t = String(t || ''); return /Falta elegir el proveedor/i.test(t) ? 'Falta elegir el proveedor' : t.length > 60 ? t.slice(0, 57) + '…' : t; };
   function ordenHtml(i, n) {
     const [label, c] = COMPRA[i.estado] || [i.estado, ''];
     const p = paso(i), ring = c === 'bad' ? 'bad' : c === 'warn' ? 'warn' : 'ok';
-    const pasos = !p ? '' : '<ol class="zo-pasos" style="--p:' + Math.max(p.hecho, p.actual, 0) + '">' + PASOS.map((t, k) => '<li class="' + (k === p.actual ? 'actual' : k <= p.hecho ? 'hecho' : '') + '"><i></i><span>' + t + '</span></li>').join('') + '</ol>';
-    return '<article class="zo ' + ring + '" style="--i:' + Math.min(n, 12) + '"><header><div><span class="zo-badge">' + esc(label) + '</span><h4>' + esc(i.tela) + '</h4></div>' +
+    const pasos = !p ? '' : '<ol class="zo-pasos" style="--p:' + Math.max(p.hecho, p.actual, 0) + '">' + PASOS.map((t, k) => '<li title="' + esc(t) + '" class="' + (k === p.actual ? 'actual' : k <= p.hecho ? 'hecho' : '') + '"><i></i></li>').join('') + '</ol>' +
+      '<div class="zo-paso-txt">' + esc(PASOS[p.actual >= 0 ? p.actual : p.hecho]) + '</div>';
+    const peds = (i.ordenes || []).map(o => o.orden + ' · ' + o.referencia + ' · ' + num(o.falta) + ' MTS').join('\n');
+    return '<article class="zo ' + ring + '" style="--i:' + Math.min(n, 12) + '"' + (peds ? ' title="' + esc(peds) + '"' : '') + '><header><div><h4>' + esc(i.tela) + '</h4>' +
+      '<span class="zo-badge">' + (i.estado === 'creada' && i.oc ? 'Orden ' + esc(i.oc) : esc(label)) + '</span></div>' +
       '<div class="zo-mts"><b data-n="' + Number(i.falta || 0) + '">' + num(i.falta) + '</b><small>MTS</small></div></header>' +
-      (i.estado === 'creada' ? '<div class="zo-oc">Orden de compra <b>' + esc(i.oc || '—') + '</b></div>' : (i.estado === 'error' || i.estado === 'cancelada' ? '<div class="zo-err">' + esc(i.detalle || '') + '</div>' : '')) +
-      pasos +
-      ((i.ordenes || []).length ? '<ul class="zo-peds">' + i.ordenes.slice(0, 4).map(o => '<li><span>' + esc(o.orden) + ' · ' + esc(o.referencia) + '</span><b>' + num(o.falta) + ' MTS</b></li>').join('') + '</ul>' : '') +
-      envioHtml(i) + '</article>';
+      (i.estado === 'error' || i.estado === 'cancelada' ? '<div class="zo-err">' + esc(corto(i.detalle)) + '</div>' : '') +
+      pasos + envioHtml(i) + '</article>';
   }
   function haceTxt(seg) {
     if (seg == null) return 'sin señal';
@@ -126,17 +128,17 @@
     const estadoPill = a.estado === 'TRABAJANDO' ? 'trab' : cls === 'bad' ? 'bad' : cls === 'warn' ? 'warn' : 'ok';
     const etiqueta = a.estado === 'LIBRE' ? 'En línea' : etq;
     const kpi = (k, v, txt, f, tono) => '<button type="button" class="zk ' + tono + (filtroOrd === f && vista === 'ordenes' ? ' on' : '') + '" data-zeus-filtro="' + f + '"><b data-k="' + k + '" data-v="' + v + '">' + v + '</b><span>' + txt + '</span></button>';
-    const hero = '<section class="zh ' + estadoPill + '"><div class="zh-estado"><span class="zh-punto"></span><div><strong>' + esc(etiqueta) + '</strong><small><span data-zeus-hace>' + haceTxt(a.hace) + '</span>' + (a.equipo ? ' · ' + esc(String(a.equipo).slice(0, 18)) : '') + '</small></div></div>' +
+    const hero = '<section class="zh ' + estadoPill + '"><div class="zh-estado"><span class="zh-punto"></span><div><strong' + ((a.funciones || []).length ? ' title="' + esc(a.funciones.join('\n')) + '"' : '') + '>' + esc(etiqueta) + '</strong><small><span data-zeus-hace>' + haceTxt(a.hace) + '</span></small></div></div>' +
       (a.ultima && (cls === 'bad' || a.estado === 'TRABAJANDO') ? '<p class="zh-ultima">' + esc(String(a.ultima).slice(0, 120)) + '</p>' : '') +
-      '<div class="zh-acc"><button type="button" class="bd-clear" data-zeus-revisar>↻ Revisar ahora</button></div>' +
-      ((a.funciones || []).length ? '<details class="zeus-que"><summary>¿Qué hace?</summary>' + a.funciones.map(f => '<div class="bd-line"><span>· ' + esc(f) + '</span></div>').join('') + '</details>' : '') + '</section>';
+      '<div class="zh-acc"><button type="button" class="bd-clear" data-zeus-revisar>↻ Revisar</button></div>' +
+      '</section>';
     const kpis = '<div class="zks">' + kpi('pend', (r.pendiente || 0) + (r.entregada || 0), 'Por comprar', 'pendiente', 'warn') + kpi('cre', r.creada || 0, 'Creadas', 'creada', 'ok') + kpi('err', r.error || 0, 'Con error', 'error', 'bad') + '</div>';
     const tabs = '<div class="zv-tabs" role="tablist">' + [['ordenes', 'Órdenes', items.length], ['correos', 'Correos', correos.length], ['notificar', 'Notificar', notificar.length]].map(([k, t, n]) =>
       '<button type="button" role="tab" class="zv-tab' + (vista === k ? ' on' : '') + '" data-zeus-vista="' + k + '">' + t + (n ? ' <em>' + n + '</em>' : '') + '</button>').join('') + '</div>';
     let contenido;
     if (vista === 'correos') contenido = correosHtml();
     else if (vista === 'notificar') contenido = notificarHtml();
-    else contenido = '<section class="bd-section">' + (items.length ? '<div class="zo-lista">' + (visibles.length ? visibles.map(ordenHtml).join('') : '<p class="bd-note">Ninguna orden en este filtro.</p>') + '</div>' : '<p class="bd-note">Nada por comprar: la tela alcanza.</p>') + '</section>';
+    else contenido = '<section class="bd-section">' + (items.length ? '<div class="zo-lista">' + (visibles.length ? visibles.map(ordenHtml).join('') : '<p class="bd-note">Sin órdenes aquí.</p>') + '</div>' : '<p class="bd-note">Nada por comprar.</p>') + '</section>';
     cuerpo.innerHTML = (avisos.length ? '<p class="bd-note zeus-aviso">' + avisos.map(esc).join('<br>') + '</p>' : '') + hero + kpis + tabs + '<div class="zv-vista' + (animarVista ? ' anima' : '') + '">' + contenido + '</div>';
     animarVista = false;
     cuerpo.querySelectorAll('.zk b[data-k]').forEach(el => contar(el, Number(el.dataset.v)));
@@ -154,7 +156,7 @@
       const r = await fetch('/api/zeus/estado', { cache: 'no-store', credentials: 'same-origin' });
       const d = await r.json();
       if (!r.ok) throw Error(d.detail || 'No fue posible consultar al agente de inventario');
-      panel.querySelector('.bd-updated').textContent = 'Actualizado ' + cuando();
+      panel.querySelector('.bd-updated').textContent = '';
       const firma = JSON.stringify([d.items, d.resumen, d.correos, d.notificar, (d.agente || {}).estado, (d.agente || {}).conectado, (d.agente || {}).ultima]);
       if (silencioso === true && firma === firmaZ) { datosZ = d; baseHace = (d.agente || {}).hace; baseAt = Date.now(); return; }   // nada cambió: no se redibuja
       firmaZ = firma;
@@ -235,10 +237,11 @@
 .zo header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.zo h4{margin:6px 0 0;font-size:1rem;letter-spacing:.01em}
 .zo-badge{display:inline-block;padding:3px 10px;border-radius:999px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.28);font:800 .6rem Arial;letter-spacing:.1em;text-transform:uppercase}
 .zo-mts{text-align:right}.zo-mts b{display:block;font-size:1.7rem;line-height:1;font-variant-numeric:tabular-nums}.zo-mts small{font:800 .6rem Arial;letter-spacing:.12em;color:#c9d3c4}
+.zo-paso-txt{margin-top:-2px;text-align:center;font:800 .66rem Arial;letter-spacing:.1em;text-transform:uppercase;color:#d3dccf}.panel[data-panel="zeus"] .bd-updated:empty{display:none}
 .zo-oc{font:600 .78rem Arial;color:#d3dccf}.zo-oc b{font-size:.95rem;color:#fff}.zo-err{font:700 .74rem Arial;color:#ffb3ad;line-height:1.4}
 .zo-pasos{list-style:none;margin:0;padding:10px 0 2px;display:grid;grid-template-columns:repeat(4,1fr);position:relative;overflow:hidden;
   background:linear-gradient(var(--r),var(--r)) 12.5% 16px/calc(75% * var(--p) / 3) 2px no-repeat,linear-gradient(rgba(255,255,255,.18),rgba(255,255,255,.18)) 12.5% 16px/75% 2px no-repeat}
-.zo-pasos li{position:relative;z-index:1;display:grid;justify-items:center;gap:5px;font:700 .56rem Arial;letter-spacing:.05em;text-transform:uppercase;color:#8f9d88;text-align:center;line-height:1.2}
+.zo-pasos li{position:relative;z-index:1;display:grid;justify-items:center;gap:0;font:700 .56rem Arial;letter-spacing:.05em;text-transform:uppercase;color:#8f9d88;text-align:center;line-height:1.2}
 .zo-pasos i{width:14px;height:14px;border-radius:50%;background:#1b241a;border:2px solid rgba(255,255,255,.3);z-index:1;transition:background .4s,border-color .4s}
 .zo-pasos li.hecho{color:#d3dccf}.zo-pasos li.hecho i{background:var(--r);border-color:var(--r)}
 .zo-pasos li.actual{color:#fff}.zo-pasos li.actual i{background:#fff;border-color:var(--r);animation:zPulso 1.6s infinite;--zc:var(--r)}
