@@ -7,7 +7,7 @@
   const cuando = () => new Date().toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
   const ESTADO = { SIN_CONECTAR: ['Sin conectar', 'bad'], ESPERANDO_EFFI: ['Esperando acceso a Effi', 'warn'], LIBRE: ['Libre', 'ok'], TRABAJANDO: ['Creando orden de compra…', 'ok'], ERROR: ['Con error', 'bad'] };
   const COMPRA = { pendiente: ['Por comprar', 'warn'], entregada: ['Creándola en Effi…', 'warn'], creada: ['Orden creada', 'ok'], error: ['Con error', 'bad'], cancelada: ['Ya alcanza', ''] };
-  let vista = 'ordenes', filtroOrd = 'todas', datosZ = null, firmaZ = '', animarVista = false, kpiPrev = {}, tickZ = 0, baseHace = null, baseAt = 0;
+  let pintadoUna = false, vista = 'ordenes', filtroOrd = 'todas', datosZ = null, firmaZ = '', animarVista = false, kpiPrev = {}, tickZ = 0, baseHace = null, baseAt = 0;
   let panel = null, tab = null, cuerpo = null, timer = null, correos = [], cuentaEnvia = '', notificar = [], usuariosPanel = [], notAbierto = false, notBuscar = '';
 
   const card = ({ badge, badgeClass = '', name, total, unit = '', extra = '', cls = '' }) =>
@@ -113,6 +113,7 @@
   }
   function contar(el, hasta) {
     const desde = Number(kpiPrev[el.dataset.k] ?? 0); kpiPrev[el.dataset.k] = hasta;
+    if (desde === hasta) { el.textContent = hasta; return; }
     if (desde === hasta || matchMedia('(prefers-reduced-motion: reduce)').matches) { el.textContent = hasta; return; }
     const t0 = performance.now(), dur = 600;
     (function paso(t) { const f = Math.min(1, (t - t0) / dur); el.textContent = Math.round(desde + (hasta - desde) * (1 - Math.pow(1 - f, 3))); if (f < 1) requestAnimationFrame(paso); })(t0);
@@ -147,8 +148,12 @@
     if (vista === 'correos') contenido = correosHtml();
     else if (vista === 'notificar') contenido = notificarHtml();
     else contenido = '<section class="bd-section">' + (items.length ? '<div class="zo-lista">' + (visibles.length ? visibles.map(ordenHtml).join('') : '<p class="bd-note">Sin órdenes aquí.</p>') + '</div>' : '<p class="bd-note">Nada por comprar.</p>') + '</section>';
+    const quieto = pintadoUna && !animarVista, alto = cuerpo.offsetHeight, scrollY0 = window.scrollY;
+    cuerpo.classList.toggle('zeus-quieto', quieto);
+    if (alto) cuerpo.style.minHeight = alto + 'px';
     cuerpo.innerHTML = (avisos.length ? '<p class="bd-note zeus-aviso">' + avisos.map(esc).join('<br>') + '</p>' : '') + '<div class="zrow">' + hero + kpis + '</div>' + tabs + '<div class="zv-vista' + (animarVista ? ' anima' : '') + '">' + contenido + '</div>';
-    animarVista = false;
+    animarVista = false; pintadoUna = true;
+    requestAnimationFrame(() => { cuerpo.style.minHeight = ''; if (quieto && Math.abs(window.scrollY - scrollY0) > 2) window.scrollTo(0, scrollY0); });
     cuerpo.querySelectorAll('.zk b[data-k]').forEach(el => contar(el, Number(el.dataset.v)));
     cuerpo.querySelectorAll('.zo-mts b[data-n]').forEach(el => { el.textContent = num(el.dataset.n); });
   }
@@ -241,6 +246,8 @@
 .zv-tab{min-height:38px;padding:0 18px;border:0;border-radius:999px;background:transparent;color:#c5d1bf;font:800 .74rem Arial;letter-spacing:.06em;cursor:pointer;width:auto!important;white-space:nowrap;transition:background .2s,color .2s}
 .zv-tab:hover{background:rgba(255,255,255,.12)}.zv-tab.on{background:rgba(255,255,255,.92);color:#10140a}.zv-tab em{font-style:normal;margin-left:4px;opacity:.7}
 .zv-vista.anima{animation:zFade .32s both}
+.zeus-quieto .zo,.zeus-quieto .zv-vista,.zeus-quieto .zk,.zeus-quieto .zh{animation:none!important}
+.zeus-quieto .zo-pasos li.actual i{animation:none}
 .zo-lista{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
 .zo{--r:#35d46a;display:grid;gap:10px;align-content:start;padding:16px 16px 14px;border-radius:20px;border:1px solid rgba(255,255,255,.22);background:radial-gradient(120% 80% at 10% 0%,rgba(255,255,255,.14),rgba(255,255,255,0) 55%),linear-gradient(160deg,rgba(255,255,255,.11),rgba(255,255,255,.035));-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);box-shadow:inset 0 1.5px 0 rgba(255,255,255,.38),0 0 0 1px color-mix(in srgb,var(--r) 50%,transparent),0 0 16px -5px var(--r);animation:zEntra .45s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--i,0)*55ms);transition:transform .2s,box-shadow .2s}
 .zo.warn{--r:#ff9a1f}.zo.bad{--r:#ff4b3e}.zo:hover{transform:translateY(-3px);box-shadow:inset 0 1.5px 0 rgba(255,255,255,.5),0 0 0 1px var(--r),0 0 24px -3px var(--r)}
