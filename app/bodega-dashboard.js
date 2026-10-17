@@ -75,6 +75,27 @@
 @media (max-width:900px){.bd-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.bd-filters label:first-child{grid-column:1/-1}}
 @media (max-width:700px){.bd-cards{min-width:0!important;width:100%;max-width:100%}.bd-section,.bd-body{min-width:0;max-width:100%}.bd-cards>*{min-width:0;max-width:100%;overflow:hidden}.bd,.bd-filters{min-width:0;max-width:100%;box-sizing:border-box}.bd{overflow-x:clip}.bd-filters{padding:12px}.bd-filters label{min-width:0}.bd-filters input,.bd-filters input[type=date]{min-width:0;max-width:100%;width:100%;min-height:42px;font-size:16px;-webkit-appearance:none;appearance:none}.bd-filters input[type=date]{display:block;text-align:left}}
 @media (max-width:520px){.bd-head{flex-direction:column;align-items:stretch}.bd-cards,.bd-cards.fit{grid-template-columns:minmax(0,1fr)}.bd-cards{min-width:0!important;width:100%;max-width:100%}.bd-section,.bd-body{min-width:0;max-width:100%}.bd-cards>*{min-width:0;max-width:100%;overflow:hidden}}
+.bd .ot{display:flex!important;flex-direction:column;gap:11px;padding:14px 15px 13px!important}
+.bd .ot-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.bd .ot-head .inv-badge{margin:0;font-size:.62rem!important;padding:3px 10px!important;letter-spacing:.06em}
+.bd .ot-fecha{font:800 .62rem Arial;letter-spacing:.05em;text-transform:uppercase;padding:3px 10px;border-radius:999px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.22);white-space:nowrap}
+.bd .ot-titulo{display:grid;gap:3px}
+.bd .ot-tela{font:900 1.12rem Arial;letter-spacing:.01em;line-height:1.12;overflow-wrap:anywhere}
+.bd .ot-ref{font:700 .68rem Arial;letter-spacing:.09em;opacity:.78;overflow-wrap:anywhere}
+.bd .ot-sep{height:1px;background:linear-gradient(90deg,rgba(255,255,255,.34),rgba(255,255,255,0))}
+.bd .ot-cliente-bloque{display:grid;gap:2px}
+.bd .ot-cliente{font:800 .8rem Arial;line-height:1.25;overflow-wrap:anywhere}
+.bd .ot-proyecto{font:600 .72rem Arial;opacity:.78;overflow-wrap:anywhere}
+.bd .ot-tallas{display:flex;flex-wrap:wrap;gap:5px}
+.bd .ot-t{display:inline-flex;align-items:baseline;gap:4px;padding:2px 8px;border-radius:999px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);font:800 .6rem Arial;letter-spacing:.04em}
+.bd .ot-t b{font:900 .72rem Arial}
+.bd .ot-pie{margin-top:auto;display:grid;gap:4px;padding-right:50px;padding-top:2px}
+.bd .ot-consumo{font:900 1.6rem Arial;line-height:1;letter-spacing:-.01em}
+.bd .ot-consumo small{font:800 .7rem Arial;margin-left:5px;opacity:.85;letter-spacing:.05em}
+.bd .ot-sinprom{font:900 1.15rem Arial;color:#d0f44c!important}
+.bd .ot-alerta{font:850 .6rem Arial;letter-spacing:.06em;text-transform:uppercase;line-height:1.3}
+.bd .ot.bad .ot-alerta{color:#ffd9d4!important}
+@media (max-width:700px){.bd .ot{padding:12px!important}.bd .ot-pie{padding-right:46px}}
 .bd .bd-tcards .inventory-item-card .bd-line{flex-wrap:wrap;align-items:baseline}
 .bd .bd-tcards .inventory-item-card .bd-line b{white-space:normal;text-align:right;overflow-wrap:anywhere;min-width:0;margin-left:auto}
 @media (max-width:700px){.bd .bd-tkpi.bd-cards.fit{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px}.bd .bd-tkpi .inventory-item-card{padding:12px!important}.bd .bd-tkpi .inv-total{font-size:1.25rem!important}.bd .bd-tkpi .inv-unit{font-size:.62rem!important;line-height:1.25}.bd .bd-tfilters{grid-template-columns:repeat(2,minmax(0,1fr))!important;padding:12px}.bd .bd-tfilters .bd-clear{grid-column:1/-1}.bd .bd-tfilters label:first-child{grid-column:1/-1}.bd .bd-tfilters input,.bd .bd-tfilters select{min-width:0;font-size:16px}.bd .bd-tcards.bd-cards{gap:10px}.bd .bd-tcards .inventory-item-card .bd-line b{white-space:normal;text-align:right;overflow-wrap:anywhere}.bd-head h2{font-size:.95rem}}
@@ -319,22 +340,29 @@
       const rank = t => { const i = ORD_TALLAS.indexOf(t); return i >= 0 ? i : 100 + (Number(t) || 0); };
       return Object.keys(m).sort((a, b) => rank(a) - rank(b)).map(t => t + ' ' + m[t]).join(' · ');
     };
+    const tallasPares = o => {
+      const m = {};
+      (o.tallas || []).forEach(t => { m[t.talla] = (m[t.talla] || 0) + t.cantidad; });
+      const rank = t => { const i = ORD_TALLAS.indexOf(t); return i >= 0 ? i : 100 + (Number(t) || 0); };
+      return Object.keys(m).sort((x, y) => rank(x) - rank(y)).map(t => [t, m[t]]);
+    };
+    const fechaCorta = v => { const d = v ? new Date(v + 'T12:00:00') : null; return d && !isNaN(d) ? d.toLocaleDateString('es-CO', {day: 'numeric', month: 'short', year: 'numeric'}).replace(/\./g, '') : 'Sin fecha'; };
     const orderCard = o => {
-      const [label, cls] = SITUACION[o.situacion] || ['', ''];
+      const [, cls] = SITUACION[o.situacion] || ['', ''];
       const sinPromedio = o.situacion === 'sin_promedio';
       const level = sinPromedio ? null : o.situacion === 'alcanza' ? 100 : o.mts ? Math.min(100, (o.disponible || 0) / o.mts * 100) : 0;
-      const html = card({
-        badge: o.orden, badgeClass: cls, cls: cls === 'bad' ? 'bad' : '', level, tone: o.situacion === 'alcanza' ? 'verde' : 'rojo',
-        name: o.tela,
-        total: sinPromedio ? 'Sin promedio' : num(o.mts) + '<small>MTS</small>',
-        unit: o.situacion === 'no_alcanza' ? 'NO ALCANZA · FALTAN ' + num(o.falta) + ' MTS' : o.situacion === 'sin_tela' ? 'NO ALCANZA · LA TELA NO ESTÁ EN BODEGA' : '',
-        extra: '<div class="bd-line"><span>Cliente</span><b>' + esc(o.cliente || 'Sin cliente') + '</b></div>' +
-          '<div class="bd-line"><span>Proyecto</span><b>' + esc(o.proyecto || 'Sin proyecto') + '</b></div>' +
-          '<div class="bd-line"><span>Referencia</span><b>' + esc(o.referencia) + '</b></div>' +
-          '<div class="bd-line"><span>Entrega</span><b>' + (o.entrega ? esc(shortDay(o.entrega)) : 'Sin fecha') + '</b></div>' +
-          (!sinPromedio && o.exacto ? '<div class="bd-line"><span>Tallas</span><b>' + esc(tallasTxt(o)) + '</b></div>' : '')});
+      const tono = o.situacion === 'alcanza' ? 'verde' : 'rojo';
+      const alerta = o.situacion === 'no_alcanza' ? 'No alcanza · faltan ' + num(o.falta) + ' MTS' : o.situacion === 'sin_tela' ? 'No alcanza · la tela no está en Bodega' : '';
+      const pares = !sinPromedio && o.exacto ? tallasPares(o) : [];
       const attrs = ' data-q="' + esc(norm([o.orden, o.cliente, o.proyecto, o.referencia, o.tela].join(' '))) + '" data-tela="' + esc(o.tela) + '" data-sit="' + o.situacion + '" data-sub="' + (o.estado === 'P' ? 'P' : 'pend') + '" data-fecha="' + esc(o.entrega || '') + '" data-sinfiltro="false"';
-      return html.replace('<article ', '<article' + attrs + ' ');
+      return '<article class="inventory-item-card ot ' + (cls === 'bad' ? 'bad' : '') + '"' + attrs + (level !== null ? ' data-lq="' + Math.round(level) + '" data-lq-tone="' + tono + '"' : '') + '>' +
+        '<div class="ot-head"><span class="inv-badge ' + cls + '">' + esc(o.orden) + '</span><span class="ot-fecha" title="Fecha de entrega">Entrega · ' + esc(fechaCorta(o.entrega)) + '</span></div>' +
+        '<div class="ot-titulo"><strong class="ot-tela">' + esc(o.tela) + '</strong><span class="ot-ref">' + esc(o.referencia) + '</span></div>' +
+        '<div class="ot-sep"></div>' +
+        '<div class="ot-cliente-bloque"><strong class="ot-cliente">' + esc(o.cliente || 'Sin cliente') + '</strong><span class="ot-proyecto">' + esc(o.proyecto || 'Sin proyecto') + '</span></div>' +
+        (pares.length ? '<div class="ot-tallas" aria-label="Tallas">' + pares.map(([t, n]) => '<span class="ot-t">' + esc(t) + ' <b>' + num(n) + '</b></span>').join('') + '</div>' : '') +
+        '<div class="ot-pie">' + (sinPromedio ? '<span class="ot-sinprom">Sin promedio</span>' : '<span class="ot-consumo">' + num(o.mts) + '<small>MTS</small></span>') +
+        (alerta ? '<span class="ot-alerta">' + esc(alerta) + '</span>' : '') + '</div></article>';
     };
     tCards.innerHTML = ordenes.length ? ordenes.map(orderCard).join('') : '<p class="bd-note">No hay pedidos programados pendientes de Sublimación.</p>';
     filterTela();

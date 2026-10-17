@@ -13,7 +13,7 @@ for nombre in ('bodega-dashboard.js', 'liquid-stats.js'):
     shutil.copy(repo / 'app' / nombre, destino / nombre)
 datos = r"""
 <script>
-const mk=(o,r,t,c,p,e,est)=>({orden:o,cliente:'CLIENTE',proyecto:'PROYECTO',referencia:r,tela:t,cantidad:c,promedio:p,mts:+(c*p).toFixed(2),entrega:e,estado:est||'',maestros:['CA00'],telas:[t]});
+const mk=(o,r,t,c,p,e,est)=>({orden:o,cliente:'INDUSTRIA COLOMBIANA DE MOTOCICLETAS YAMAHA S.A.S',proyecto:'50 AÑOS',referencia:r,tela:t,cantidad:c,promedio:p,mts:+(c*p).toFixed(2),entrega:e,estado:est||'',maestros:['CA00'],telas:[t],exacto:true,tallas:[{talla:'XS',cantidad:3},{talla:'S',cantidad:30},{talla:'M',cantidad:54},{talla:'L',cantidad:55},{talla:'XL',cantidad:39},{talla:'2XL',cantidad:14},{talla:'3XL',cantidad:1},{talla:'4XL',cantidad:4}]});
 const ord=[
  Object.assign(mk('RM7658','A200CA01','DIAMANTE',4,0.78,'2026-10-23'),{situacion:'alcanza',falta:0,disponible:4056}),
  Object.assign(mk('CO6190','A300CA03-A300PT01','HYDROTECH',25,1.43,'2026-10-31'),{situacion:'alcanza',falta:0,disponible:574}),
@@ -29,7 +29,7 @@ const zeus={agente:{nombre:'ZEUS',titulo:'Inventario · órdenes de compra de te
 window.fetch=async(u)=>({ok:true,json:async()=>String(u).includes('/api/zeus')?zeus:String(u).includes('tela-necesaria')?nec:String(u).includes('dashboard')?dash:{vinculado:true,activo:true}});
 const g0=document.querySelector('.nav-group'); const g=document.createElement('div'); g.className='nav-group'; g.innerHTML='<button type="button" class="nav-parent"><span class="nav-icon">IV</span>INVENTARIOS</button><div class="nav-children"></div>'; g0.parentElement.appendChild(g);
 </script><script src="bodega-dashboard.js"></script><script src="liquid-stats.js"></script>
-<script>document.documentElement.classList.add('ui-ready');setTimeout(()=>{const g=[...document.querySelectorAll('.nav-group')].find(x=>/INVENTARIOS/i.test(x.textContent));document.querySelector('[data-bodega-dashboard]')?.click();setTimeout(()=>document.querySelector('[data-bd-tab=zeus]')?.click(),500)},600)</script>
+<script>document.documentElement.classList.add('ui-ready');setTimeout(()=>{const g=[...document.querySelectorAll('.nav-group')].find(x=>/INVENTARIOS/i.test(x.textContent));document.querySelector('[data-bodega-dashboard]')?.click();setTimeout(()=>document.querySelector('[data-bd-tab=tela]')?.click(),500)},600)</script>
 """
 html = html.replace('</body>', datos + '</body>') if '</body>' in html else html + datos
 (destino / 'test.html').write_text(html, encoding='utf-8')
