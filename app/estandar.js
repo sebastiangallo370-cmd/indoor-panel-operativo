@@ -10,6 +10,7 @@
   .es-franja small{display:block;color:#d7ff3a;letter-spacing:.18em;font-weight:800;font-size:.64rem}.es-franja h2{margin:2px 0 0;font-size:1.5rem;letter-spacing:.02em}
   .es-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-left:auto}
   .es-tab{min-height:44px;padding:0 22px;border:1px solid #34432f;border-radius:999px;background:#101710;color:#c5d1bf;font-weight:800;letter-spacing:.06em;cursor:pointer;width:auto!important}
+  .pm[hidden],.pv[hidden]{display:none!important}
   .es-tab:hover{border-color:#9fd24c}.es-tab.on{background:#d7ff3a;color:#10140a;border-color:#d7ff3a}
   @media(max-width:700px){.es-franja{padding:12px 14px}.es-tabs{margin-left:0;width:100%}.es-tab{flex:1;padding:0 12px}}
   @media print{.es-franja{display:none!important}}
@@ -19,15 +20,24 @@
   const PANELES = { promedios: 'promedios', fichas: 'molderia' };
   const franja = activa => '<div class="es-franja" data-es><div><small>MÓDULO</small><h2>ESTÁNDAR 2026</h2></div><div class="es-tabs">' +
     '<button type="button" class="es-tab' + (activa === 'promedios' ? ' on' : '') + '" data-es-tab="promedios">PROMEDIOS MAESTROS</button>' +
-    '<button type="button" class="es-tab' + (activa === 'fichas' ? ' on' : '') + '" data-es-tab="fichas">FICHAS TÉCNICAS</button></div></div>';
+    '<button type="button" class="es-tab' + (activa === 'fichas' ? ' on' : '') + '" data-es-tab="fichas">FICHAS TÉCNICAS</button>' +
+    '<button type="button" class="es-tab' + (activa === 'proveedores' ? ' on' : '') + '" data-es-tab="proveedores">PROVEEDORES DE TELA</button></div></div>';
 
   // Pone (o quita) la franja arriba de cada panel según corresponda
   function sincronizar() {
     const pp = document.querySelector('.panel[data-panel="promedios"]');
     const pm = document.querySelector('.panel[data-panel="molderia"]');
     if (pp) {
+      const v = window.__esVista === 'proveedores' ? 'proveedores' : 'promedios';
       let f = pp.querySelector(':scope > [data-es]');
-      if (!f) { pp.insertAdjacentHTML('afterbegin', franja('promedios')); f = pp.firstElementChild; }
+      if (!f) { pp.insertAdjacentHTML('afterbegin', franja(v)); f = pp.firstElementChild; }
+      f.querySelectorAll('[data-es-tab]').forEach(b => b.classList.toggle('on', b.dataset.esTab === v));
+      let pv = pp.querySelector(':scope > .pv');
+      if (!pv) { pv = document.createElement('div'); pv.className = 'pv'; f.insertAdjacentElement('afterend', pv); }
+      const pm = pp.querySelector(':scope > .pm');
+      if (pm) pm.hidden = v === 'proveedores';
+      pv.hidden = v !== 'proveedores';
+      if (v === 'proveedores' && window.proveedoresTelaPintar) window.proveedoresTelaPintar(pv);
     }
     if (pm) {
       const enFichas = window.__estandarCtx !== 'molderia' && (typeof window.molderiaCtx !== 'function' || window.molderiaCtx() === 'estandar');
@@ -38,8 +48,9 @@
   }
 
   function ir(que) {
-    if (que === 'promedios') {
-      document.querySelector('.tab[data-kind="promedios"]')?.click();
+    if (que === 'promedios' || que === 'proveedores') {
+      window.__esVista = que;
+      if (!document.querySelector('.panel[data-panel="promedios"].active')) document.querySelector('.tab[data-kind="promedios"]')?.click();
     } else if (window.molderiaIr) {
       window.molderiaIr('estandar');
     }

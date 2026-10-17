@@ -23,6 +23,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Callable
 
+from app import proveedores_tela
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
@@ -361,7 +362,10 @@ def sondeo(request: Request, payload: dict):
             for i in d['items']:
                 if i['estado'] in ('pendiente',) or (i['estado'] == 'error' and int(i.get('intentos', 0)) < 3 and _ahora() - float(i.get('entregada_at') or 0) > 600):
                     i['estado'], i['entregada_at'] = 'entregada', _ahora()
-                    entregar.append({'id': i['id'], 'tela': i['tela'], 'falta': i['falta'], 'ordenes': [o['orden'] for o in i['ordenes']], 'bodega': i.get('bodega', [])})
+                    codigo = next((c for c in (proveedores_tela.codigo_de(b) for b in i.get('bodega', [])) if c), '')
+                    prov = proveedores_tela.proveedor_de(codigo) if codigo else {}
+                    entregar.append({'id': i['id'], 'tela': i['tela'], 'falta': i['falta'], 'ordenes': [o['orden'] for o in i['ordenes']], 'bodega': i.get('bodega', []),
+                                     'codigo': codigo, 'proveedor': prov.get('proveedor', ''), 'nit': prov.get('nit', '')})
         _guardar(d)
     for item in avisos:
         _correo_creada(item)
