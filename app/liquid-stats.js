@@ -14,7 +14,13 @@
     -webkit-backdrop-filter:blur(22px) saturate(1.4);backdrop-filter:blur(22px) saturate(1.4);
     box-shadow:inset 0 1.5px 0 rgba(255,255,255,.55),inset 0 -1px 0 rgba(255,255,255,.14),inset 0 0 26px rgba(255,255,255,.07),0 12px 30px rgba(0,0,0,.40)!important;
     color:#fff!important;text-shadow:0 1px 2px rgba(0,0,0,.4);transition:transform .22s ease,border-color .22s ease,box-shadow .22s ease}
-  .lq::before{content:"";position:absolute;left:14px;right:14px;top:0;height:2px;border-radius:0 0 4px 4px;background:var(--liquid);opacity:.9;pointer-events:none}
+  @property --lq-ang{syntax:"<angle>";inherits:false;initial-value:0deg}
+  .lq::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1.5px;pointer-events:none;z-index:2;
+    background:conic-gradient(from var(--lq-ang),rgba(255,255,255,.15),rgba(255,255,255,.95) 12%,rgba(255,255,255,.15) 28%,rgba(255,255,255,.15) 60%,rgba(255,255,255,.8) 74%,rgba(255,255,255,.15) 90%);
+    -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0);
+    animation:lq-giro 7s linear infinite;filter:drop-shadow(0 0 5px rgba(255,255,255,.45))}
+  @keyframes lq-giro{to{--lq-ang:360deg}}
+  @media(prefers-reduced-motion:reduce){.lq::before{animation:none}}
   .lq:hover{transform:translateY(-4px);border-color:rgba(255,255,255,.5)!important;box-shadow:inset 0 1.5px 0 rgba(255,255,255,.65),inset 0 -1px 0 rgba(255,255,255,.18),inset 0 0 26px rgba(255,255,255,.1),0 18px 34px rgba(0,0,0,.45)!important}
   .lq>.lq-fill{position:absolute;z-index:-2;inset:0;height:auto;background:linear-gradient(118deg,rgba(255,255,255,.24) 0%,rgba(255,255,255,.05) 34%,rgba(255,255,255,0) 54%),linear-gradient(0deg,rgba(0,0,0,.20),rgba(0,0,0,0) 42%);opacity:1;pointer-events:none}
   .lq>.lq-wave{position:absolute;z-index:-1;top:-25%;left:-55%;width:42%;height:150%;border-radius:0;background:linear-gradient(90deg,rgba(255,255,255,0),rgba(255,255,255,.20),rgba(255,255,255,0));transform:rotate(18deg);opacity:0;pointer-events:none;animation:lq-shine 9s ease-in-out infinite}
