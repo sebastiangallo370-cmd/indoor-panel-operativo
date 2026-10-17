@@ -21,10 +21,10 @@
         (ok ? '' : '<button type="button" class="zeus-reenviar" data-zeus-reenviar="' + esc(c.correo) + '">Reenviar</button>') +
         '<button type="button" data-zeus-quitar="' + esc(c.correo) + '" aria-label="Quitar ' + esc(c.correo) + '">✕</button></span>';
     };
-    return '<section class="bd-section"><h3>Correos que reciben la orden de compra <small>· solo los confirmados reciben órdenes</small></h3>' +
-      '<div class="zeus-correos">' + (correos.length ? correos.map(chip).join('') : '<p class="bd-note">Todavía no hay correos. Agrega al encargado de pedir la tela.</p>') + '</div>' +
+    return '<section class="bd-section"><h3 title="Solo los correos confirmados reciben las órdenes">Correos que reciben la orden</h3>' +
+      '<div class="zeus-correos">' + (correos.length ? correos.map(chip).join('') : '<p class="bd-note">Sin correos todavía.</p>') + '</div>' +
       '<form class="zeus-form" data-zeus-form autocomplete="off"><input type="email" name="correo" placeholder="correo@ejemplo.com" aria-label="Correo nuevo" required><button type="submit" class="bd-clear">Agregar y verificar</button></form>' +
-      '<p class="bd-note zeus-msg" data-zeus-msg>Al agregar un correo le enviamos un mensaje' + (cuentaEnvia ? ' desde ' + esc(cuentaEnvia) : '') + '; su dueño tiene que abrirlo y confirmar. Hasta entonces no recibe órdenes.</p></section>';
+      '<p class="bd-note zeus-msg" data-zeus-msg title="' + esc('Al agregar un correo se le envía un mensaje' + (cuentaEnvia ? ' desde ' + cuentaEnvia : '') + '; hasta que su dueño lo confirme no recibe órdenes.') + '"></p></section>';
   }
 
   const nombreDe = u => (usuariosPanel.find(x => x.nombre.toLowerCase() === String(u).toLowerCase()) || { completo: u }).completo;
@@ -33,13 +33,13 @@
     const q = notBuscar.trim().toLowerCase();
     const lista = usuariosPanel.filter(u => !q || (u.completo + ' ' + u.nombre + ' ' + u.proceso).toLowerCase().includes(q));
     const elegidos = usuariosPanel.filter(u => marcados.has(u.nombre.toLowerCase()));
-    return '<section class="bd-section"><h3>Quién recibe la notificación en la página <small>· suena la campana cuando se envía una orden de compra</small></h3>' +
+    return '<section class="bd-section"><h3 title="Les suena la campana cuando se envía una orden de compra (7 días)">Notificar en la página</h3>' +
       '<div class="zeus-sel' + (notAbierto ? ' abierto' : '') + '">' +
       '<button type="button" class="zeus-sel-btn" data-zeus-abrir aria-expanded="' + (notAbierto ? 'true' : 'false') + '"><span>' + (elegidos.length ? elegidos.length + ' usuario' + (elegidos.length === 1 ? '' : 's') + ' elegido' + (elegidos.length === 1 ? '' : 's') : 'Elegir usuarios…') + ' <em>de ' + usuariosPanel.length + '</em></span><i>▾</i></button>' +
       (notAbierto ? '<div class="zeus-sel-menu"><input type="text" name="zeus-filtro-usuarios" data-zeus-nbuscar autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="Buscar por nombre o proceso…" value="' + esc(notBuscar) + '" aria-label="Buscar usuario">' +
         '<div class="zeus-sel-lista">' + (lista.length ? lista.map(u => '<label class="zeus-opt' + (marcados.has(u.nombre.toLowerCase()) ? ' on' : '') + '"><input type="checkbox" data-zeus-notificar value="' + esc(u.nombre) + '"' + (marcados.has(u.nombre.toLowerCase()) ? ' checked' : '') + '><span>' + esc(u.completo) + (u.nombre !== u.completo ? ' <small>(' + esc(u.nombre) + ')</small>' : '') + (u.proceso ? '<small class="zeus-proc">' + esc(u.proceso) + '</small>' : '') + '</span></label>').join('') : '<p class="bd-note">Ningún usuario coincide.</p>') + '</div></div>' : '') + '</div>' +
-      '<div class="zeus-usuarios">' + (elegidos.length ? elegidos.map(u => '<span class="zeus-uchip on"><span>' + esc(u.completo) + '</span><button type="button" data-zeus-quitar-user="' + esc(u.nombre) + '" aria-label="Quitar ' + esc(u.completo) + '">✕</button></span>').join('') : '<p class="bd-note">Nadie recibe la notificación todavía.</p>') + '</div>' +
-      '<p class="bd-note" data-zeus-notmsg>La notificación dura 7 días en la campana de cada usuario elegido.</p></section>';
+      '<div class="zeus-usuarios">' + (elegidos.length ? elegidos.map(u => '<span class="zeus-uchip on"><span>' + esc(u.completo) + '</span><button type="button" data-zeus-quitar-user="' + esc(u.nombre) + '" aria-label="Quitar ' + esc(u.completo) + '">✕</button></span>').join('') : '<p class="bd-note">Nadie elegido.</p>') + '</div>' +
+      '<p class="bd-note" data-zeus-notmsg></p></section>';
   }
 
   async function guardarNotificar(elegidos) {
@@ -74,14 +74,15 @@
   function pintar(d) {
     const a = d.agente || {}, [etq, cls] = ESTADO[a.estado] || [a.estado || '—', ''];
     const avisos = [];
-    if (!a.conectado) avisos.push('El AGENTE INVENTARIO del PC todavía no está conectado: las compras quedan en la lista y se crean cuando se conecte.');
-    if (a.conectado && a.estado === 'ESPERANDO_EFFI') avisos.push('El AGENTE INVENTARIO no puede iniciar sesión en Effi (el ingreso de Effi está fallando). Cuando funcione, crea las órdenes de la lista.');
-    if (d.correo && !d.correo.configurado) avisos.push('Falta configurar la cuenta de correo del servidor: sin ella no salen los mensajes de verificación ni las órdenes de compra.');
+    if (!a.conectado) avisos.push('El agente no está conectado: las compras esperan en la lista.');
+    if (a.conectado && a.estado === 'ESPERANDO_EFFI') avisos.push('El agente no puede entrar a Effi por ahora.');
+    if (d.correo && !d.correo.configurado) avisos.push('Falta configurar el correo del servidor.');
     const r = d.resumen || {};
     const agente = card({
-      badge: 'Agente de inventario', badgeClass: cls, cls: cls === 'bad' ? 'bad' : '', name: 'AGENTE INVENTARIO', total: esc(etq), unit: a.titulo || '',
-      extra: (a.ultima ? '<div class="bd-line"><span>' + esc(a.ultima) + '</span></div>' : '') + (a.funciones || []).map(f => '<div class="bd-line"><span>· ' + esc(f) + '</span></div>').join('') +
-        '<div class="bd-line"><span>Compras</span><b>' + num(r.pendiente) + ' por comprar · ' + num(r.creada) + ' creadas</b></div>'
+      badge: 'Agente de inventario', badgeClass: cls, cls: cls === 'bad' ? 'bad' : '', name: 'AGENTE INVENTARIO', total: esc(etq), unit: '',
+      extra: '<div class="bd-line"><span>Compras</span><b>' + num(r.pendiente) + ' por comprar · ' + num(r.creada) + ' creadas</b></div>' +
+        (a.ultima && (cls === 'bad' || a.estado === 'TRABAJANDO') ? '<div class="bd-line"><span>' + esc(String(a.ultima).slice(0, 110)) + '</span></div>' : '') +
+        ((a.funciones || []).length ? '<details class="zeus-que"><summary>¿Qué hace?</summary>' + a.funciones.map(f => '<div class="bd-line"><span>· ' + esc(f) + '</span></div>').join('') + '</details>' : '')
     });
     const compras = (d.items || []).map(i => {
       const [label, c] = COMPRA[i.estado] || [i.estado, ''];
@@ -97,8 +98,8 @@
     cuentaEnvia = (d.correo && d.correo.configurado && d.correo.cuenta) || '';
     cuerpo.innerHTML = (avisos.length ? '<p class="bd-note">' + avisos.map(esc).join('<br>') + '</p>' : '') +
       '<div class="bd-cards fit">' + agente + '</div>' + correosHtml() + notificarHtml() +
-      '<section class="bd-section"><h3>Órdenes de compra <small>· la tela que falta, por tela</small> <button type="button" class="bd-clear" data-zeus-revisar style="margin-left:auto;padding:6px 12px!important">Revisar ahora</button></h3>' +
-      (compras ? '<div class="bd-cards">' + compras + '</div>' : '<p class="bd-note">No hay tela por comprar: todos los pedidos programados alcanzan.</p>') + '</section>';
+      '<section class="bd-section"><h3>Órdenes de compra <button type="button" class="bd-clear" data-zeus-revisar style="margin-left:auto;padding:6px 12px!important">Revisar ahora</button></h3>' +
+      (compras ? '<div class="bd-cards">' + compras + '</div>' : '<p class="bd-note">Nada por comprar: la tela alcanza.</p>') + '</section>';
   }
 
   async function cargar(silencioso) {
@@ -107,7 +108,7 @@
       const r = await fetch('/api/zeus/estado', { cache: 'no-store', credentials: 'same-origin' });
       const d = await r.json();
       if (!r.ok) throw Error(d.detail || 'No fue posible consultar al agente de inventario');
-      panel.querySelector('.bd-updated').textContent = 'Actualizado ' + cuando() + ' · se actualiza solo cada 30 s';
+      panel.querySelector('.bd-updated').textContent = 'Actualizado ' + cuando();
       pintar(d);
     } catch (e) { if (!silencioso) cuerpo.innerHTML = '<p class="bd-note">' + esc(e.message) + '</p>'; }
   }
@@ -155,6 +156,8 @@
 .zeus-envio-est{flex:1 1 100%;font:700 .72rem Arial;color:#d3dccf}.zeus-envio-est.ok{color:#8bd450}.zeus-envio-est.mal{color:#ff9a9d}
 .zeus-envio-btn{min-height:38px;padding:0 14px;border:1px solid rgba(255,255,255,.3);border-radius:12px;background:rgba(255,255,255,.92);color:#10140a;font:800 .74rem Arial;letter-spacing:.04em;cursor:pointer;width:100%!important;transition:transform .2s,background .2s}
 .zeus-envio-btn:hover{transform:translateY(-1px);background:#fff}.zeus-envio-btn:disabled{opacity:.5;cursor:default}.zeus-envio-btn.suave{background:rgba(255,255,255,.1);color:#fff}
+.zeus-que{margin-top:6px}.zeus-que summary{cursor:pointer;font:700 .7rem Arial;color:#b9c6b1;list-style:none}.zeus-que summary::-webkit-details-marker{display:none}.zeus-que summary::before{content:'ⓘ ';opacity:.8}.zeus-que[open] summary{margin-bottom:4px}
+.zeus-msg:empty,[data-zeus-notmsg]:empty{display:none}
 .zeus-sel{position:relative;max-width:460px}
 .zeus-sel-btn{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%!important;min-height:44px;padding:0 16px;border:1px solid rgba(255,255,255,.25);border-radius:14px;background:rgba(255,255,255,.08);color:#fff;font:800 .82rem Arial;cursor:pointer;transition:background .2s}
 .zeus-sel-btn:hover,.zeus-sel.abierto .zeus-sel-btn{background:rgba(255,255,255,.16)}.zeus-sel-btn i{font-style:normal;transition:transform .2s}.zeus-sel.abierto .zeus-sel-btn i{transform:rotate(180deg)}
