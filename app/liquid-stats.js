@@ -10,11 +10,12 @@
   const css = document.createElement('style');
   css.textContent = `
   .lq{--liquid:#2f9e4f;--level:0%;position:relative!important;isolation:isolate;overflow:hidden!important;border:1px solid rgba(255,255,255,.30)!important;border-radius:17px!important;
-    background:radial-gradient(120% 85% at 14% 0%,rgba(255,255,255,.30),rgba(255,255,255,0) 52%),linear-gradient(160deg,color-mix(in srgb,var(--liquid) 66%,transparent),color-mix(in srgb,var(--liquid) 34%,rgba(8,12,8,.62)))!important;
-    -webkit-backdrop-filter:blur(16px) saturate(1.55);backdrop-filter:blur(16px) saturate(1.55);
+    background:radial-gradient(120% 85% at 14% 0%,rgba(255,255,255,.30),rgba(255,255,255,0) 52%),linear-gradient(160deg,rgba(255,255,255,.16),rgba(255,255,255,.05) 55%,rgba(255,255,255,.09))!important;
+    -webkit-backdrop-filter:blur(22px) saturate(1.4);backdrop-filter:blur(22px) saturate(1.4);
     box-shadow:inset 0 1.5px 0 rgba(255,255,255,.55),inset 0 -1px 0 rgba(255,255,255,.14),inset 0 0 26px rgba(255,255,255,.07),0 12px 30px rgba(0,0,0,.40)!important;
     color:#fff!important;text-shadow:0 1px 2px rgba(0,0,0,.4);transition:transform .22s ease,border-color .22s ease,box-shadow .22s ease}
-  .lq:hover{transform:translateY(-4px);border-color:rgba(255,255,255,.5)!important;box-shadow:inset 0 1.5px 0 rgba(255,255,255,.65),inset 0 -1px 0 rgba(255,255,255,.18),inset 0 0 26px rgba(255,255,255,.1),0 18px 34px color-mix(in srgb,var(--liquid) 34%,rgba(0,0,0,.4))!important}
+  .lq::before{content:"";position:absolute;left:14px;right:14px;top:0;height:2px;border-radius:0 0 4px 4px;background:var(--liquid);opacity:.9;pointer-events:none}
+  .lq:hover{transform:translateY(-4px);border-color:rgba(255,255,255,.5)!important;box-shadow:inset 0 1.5px 0 rgba(255,255,255,.65),inset 0 -1px 0 rgba(255,255,255,.18),inset 0 0 26px rgba(255,255,255,.1),0 18px 34px rgba(0,0,0,.45)!important}
   .lq>.lq-fill{position:absolute;z-index:-2;inset:0;height:auto;background:linear-gradient(118deg,rgba(255,255,255,.24) 0%,rgba(255,255,255,.05) 34%,rgba(255,255,255,0) 54%),linear-gradient(0deg,rgba(0,0,0,.20),rgba(0,0,0,0) 42%);opacity:1;pointer-events:none}
   .lq>.lq-wave{position:absolute;z-index:-1;top:-25%;left:-55%;width:42%;height:150%;border-radius:0;background:linear-gradient(90deg,rgba(255,255,255,0),rgba(255,255,255,.20),rgba(255,255,255,0));transform:rotate(18deg);opacity:0;pointer-events:none;animation:lq-shine 9s ease-in-out infinite}
   .lq>.lq-pct{position:absolute;right:9px;bottom:8px;z-index:1;margin:0;padding:1px 7px;font:900 .6rem Arial;font-style:normal;opacity:1;pointer-events:none;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.30);border-radius:999px;width:auto;height:auto;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);box-shadow:inset 0 1px 0 rgba(255,255,255,.35)}
