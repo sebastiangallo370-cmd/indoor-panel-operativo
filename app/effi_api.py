@@ -152,9 +152,19 @@ def construir_pedido(item_id, referencia: str, metros: float, nombre_proveedor: 
     imp_valor = sum((subtotal * _d(i.get('valor')) / 100 for i in imps), Decimal(0))
     ret_valor = Decimal(0)
     for r in rets:
-        if str(r.get('tipo_calculo') or '').lower() not in ('porcentaje', 'sobre impuesto principal'):
-            raise EffiError(f"La retención «{r.get('etiqueta')}» no es de porcentaje: no sé calcularla")
-        base = subtotal if str(r.get('tipo_calculo')).lower() == 'porcentaje' else imp_valor
+        tipo = str(r.get('tipo_calculo') or '').lower()
+        if tipo not in ('porcentaje', 'sobre base', 'sobre impuesto principal'):
+            raise EffiError(f"La retención «{r.get('etiqueta')}» ({r.get('tipo_calculo')}) no es de porcentaje: no sé calcularla")
+        if tipo == 'sobre base':
+            # «Sobre base»: el porcentaje se aplica a lo gravable (subtotal menos lo excluido) y solo si llega a la base mínima de la retención
+            if _d(r.get('base_maxima')) > 0:
+                raise EffiError(f"La retención «{r.get('etiqueta')}» tiene base máxima: no sé calcularla; elige otra")
+            gravable = subtotal - _d(r.get('base_excluida'))
+            if gravable < _d(r.get('base')):
+                continue
+            base = gravable
+        else:
+            base = imp_valor if tipo == 'sobre impuesto principal' else subtotal
         ret_valor += base * _d(r.get('valor')) / 100
     total = _redondear(subtotal + imp_valor - ret_valor)
     forma = prov['forma_pago'] or os.getenv('EFFI_FORMA_PAGO')

@@ -19,7 +19,7 @@ def lista_falsa(ruta, params=None):
     if ruta == 'impuesto':
         return [{'id': '16', 'nombre': 'IVA 19% compras', 'etiqueta': 'IVA 19%', 'tipo_calculo': 'Porcentaje', 'valor': '19.000'}]
     if ruta == 'retencion':
-        return [{'id': '5', 'nombre': 'Retefuente 2.5%', 'etiqueta': 'Retefuente 2.5%', 'tipo_calculo': 'Porcentaje', 'valor': '2.500'}]
+        return [{'id': '5', 'nombre': 'Retefuente 2.5%', 'etiqueta': 'Retefuente 2.5%', 'tipo_calculo': 'Sobre base', 'valor': '2.500', 'base': '524000.00', 'base_excluida': '0.00', 'base_maxima': '0.00'}]
     return []
 
 
@@ -55,6 +55,11 @@ class PedidoEffi(unittest.TestCase):
         self.assertEqual(r['impuestos'], 132589.6)
         self.assertEqual(r['retenciones'], 17446.0)
         self.assertAlmostEqual(r['total'], 812983.6, places=2)
+
+    def test_la_retencion_no_aplica_si_no_llega_a_la_base_minima(self):
+        with mock.patch.dict(os.environ, {'EFFI_DESCUENTO_PCT': '12', 'EFFI_RETENCIONES': '5'}):
+            r = effi_api.construir_pedido(1, '100', 50, 'LINDATEXTIL')['resumen']   # subtotal 348.920 < 524.000
+        self.assertEqual(r['retenciones'], 0.0)
 
     def test_sin_referencia_exacta_falla(self):
         with self.assertRaises(effi_api.EffiError):

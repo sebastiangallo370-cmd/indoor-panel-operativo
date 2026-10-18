@@ -127,7 +127,7 @@
       ? '<span class="za-chip ok">✔ Conectada · termina en ••••' + esc(a.ultimos4) + (a.vence_en_dias != null ? ' · vence en ' + a.vence_en_dias + ' días' : '') + '</span>'
       : '<span class="za-chip pend">Sin conectar: las órdenes se crean por el navegador</span>';
     return '<section class="bd-section zeus-apibox"><h3 title="Solo la ve la cuenta Indoor Sport">API de Effi</h3>' + chip +
-      '<form class="za-form" data-za-form autocomplete="off"><input type="password" name="za-llave-effi" data-za-llave autocomplete="new-password" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="' + (a.configurada ? 'Pega una llave nueva para reemplazarla' : 'Pega aquí la API key de Effi') + '" aria-label="API key de Effi">' +
+      '<form class="za-form" data-za-form autocomplete="off"><input type="text" name="za-llave-effi" data-za-llave autocomplete="off" inputmode="text" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="' + (a.configurada ? 'Pega una llave nueva para reemplazarla' : 'Pega aquí la API key de Effi') + '" aria-label="API key de Effi">' +
       '<button type="submit" class="bd-clear">Guardar y probar</button>' + (a.configurada ? '<button type="button" class="bd-clear za-quitar" data-za-quitar>Quitar</button>' : '') + '</form>' +
       (a.configurada ? '<div class="za-ajustes"><label>Descuento a cada orden (%)<input type="number" min="0" max="100" step="0.1" data-za-desc value="' + esc(a.descuento_pct) + '"></label>' +
         '<label>Retención<select data-za-ret><option value="">Sin retención</option>' + ret.map(r => '<option value="' + r.id + '"' + ((a.retenciones || []).includes(r.id) ? ' selected' : '') + '>' + esc(r.etiqueta) + ' (' + esc(r.valor) + ')</option>').join('') + '</select></label>' +
@@ -303,6 +303,7 @@
 .zeus-apibox{display:grid;gap:12px;max-width:640px}
 .za-chip{justify-self:start;padding:6px 14px;border-radius:999px;border:1px solid rgba(255,255,255,.25);font:800 .72rem Arial;letter-spacing:.04em}.za-chip.ok{border-color:#35d46a;color:#8bd450;box-shadow:0 0 14px -4px #35d46a}.za-chip.pend{border-color:#ff9a1f;color:#ffc98a}
 .za-form{display:flex;gap:10px;flex-wrap:wrap}.za-form input{flex:1 1 280px;min-width:0;box-sizing:border-box;min-height:44px;padding:0 14px;border:1px solid rgba(255,255,255,.22);border-radius:12px;background:rgba(0,0,0,.3);color:#fff;font:500 16px Arial;outline:none}
+.za-form input[data-za-llave]{-webkit-text-security:disc;text-security:disc;letter-spacing:.12em}
 .za-form input:focus{border-color:rgba(255,255,255,.6);box-shadow:0 0 0 3px rgba(255,255,255,.1)}.za-form .bd-clear{width:auto!important;min-height:44px;padding:0 18px!important;border-radius:12px!important}
 .za-ajustes{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;padding-top:6px;border-top:1px solid rgba(255,255,255,.14)}.za-ajustes label{display:grid;gap:5px;font:800 .62rem Arial;letter-spacing:.12em;text-transform:uppercase;color:#c9d3c4}
 .za-ajustes input,.za-ajustes select{min-height:42px;min-width:150px;padding:0 12px;border:1px solid rgba(255,255,255,.22);border-radius:10px;background:rgba(0,0,0,.3);color:#fff;font:600 .9rem Arial}
