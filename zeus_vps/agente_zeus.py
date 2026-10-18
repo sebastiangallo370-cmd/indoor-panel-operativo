@@ -318,6 +318,9 @@ def main():
                         if not job.get('codigo'):
                             raise RuntimeError('No pude saber el código de la tela (no está en Bodega tela)')
                         log(f'Creando orden de compra: {nombre} · {job["proveedor"]}')
+                        if effi_api is not None and job.get('api'):   # la llave y los ajustes los guarda el panel (solo la ve la cuenta Indoor Sport)
+                            effi_api.usar_llave(job['api'].get('llave', ''))
+                            effi_api.configurar(job['api'].get('descuento_pct'), job['api'].get('retenciones'))
                         if effi_api is not None and effi_api.disponible():
                             r = effi_api.crear_orden(job['id'], str(job['codigo']), float(job['falta']), str(job['proveedor']))   # por la API: sin abrir Effi
                             r['detalle'] += ' · por API'

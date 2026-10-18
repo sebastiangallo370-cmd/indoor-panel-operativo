@@ -7,7 +7,7 @@
   const cuando = () => new Date().toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
   const ESTADO = { SIN_CONECTAR: ['Sin conectar', 'bad'], ESPERANDO_EFFI: ['Esperando acceso a Effi', 'warn'], LIBRE: ['Libre', 'ok'], TRABAJANDO: ['Creando orden de compra…', 'ok'], ERROR: ['Con error', 'bad'] };
   const COMPRA = { pendiente: ['Por comprar', 'warn'], entregada: ['Creándola en Effi…', 'warn'], creada: ['Orden creada', 'ok'], error: ['Con error', 'bad'], cancelada: ['Ya alcanza', ''] };
-  let pintadoUna = false, vista = 'ordenes', filtroOrd = 'todas', datosZ = null, firmaZ = '', animarVista = false, kpiPrev = {}, tickZ = 0, baseHace = null, baseAt = 0;
+  let apiEstado = null, apiMsg = '', apiRetenciones = null, pintadoUna = false, vista = 'ordenes', filtroOrd = 'todas', datosZ = null, firmaZ = '', animarVista = false, kpiPrev = {}, tickZ = 0, baseHace = null, baseAt = 0;
   let panel = null, tab = null, cuerpo = null, timer = null, correos = [], cuentaEnvia = '', notificar = [], usuariosPanel = [], notAbierto = false, notBuscar = '';
 
   const card = ({ badge, badgeClass = '', name, total, unit = '', extra = '', cls = '' }) =>
@@ -119,6 +119,34 @@
     (function paso(t) { const f = Math.min(1, (t - t0) / dur); el.textContent = Math.round(desde + (hasta - desde) * (1 - Math.pow(1 - f, 3))); if (f < 1) requestAnimationFrame(paso); })(t0);
   }
 
+  function apiHtml() {
+    const a = apiEstado;
+    if (!a) return '<section class="bd-section"><p class="bd-note">Cargando…</p></section>';
+    const ret = apiRetenciones || [];
+    const chip = a.configurada
+      ? '<span class="za-chip ok">✔ Conectada · termina en ••••' + esc(a.ultimos4) + (a.vence_en_dias != null ? ' · vence en ' + a.vence_en_dias + ' días' : '') + '</span>'
+      : '<span class="za-chip pend">Sin conectar: las órdenes se crean por el navegador</span>';
+    return '<section class="bd-section zeus-apibox"><h3 title="Solo la ve la cuenta Indoor Sport">API de Effi</h3>' + chip +
+      '<form class="za-form" data-za-form autocomplete="off"><input type="password" name="za-llave-effi" data-za-llave autocomplete="new-password" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="' + (a.configurada ? 'Pega una llave nueva para reemplazarla' : 'Pega aquí la API key de Effi') + '" aria-label="API key de Effi">' +
+      '<button type="submit" class="bd-clear">Guardar y probar</button>' + (a.configurada ? '<button type="button" class="bd-clear za-quitar" data-za-quitar>Quitar</button>' : '') + '</form>' +
+      (a.configurada ? '<div class="za-ajustes"><label>Descuento a cada orden (%)<input type="number" min="0" max="100" step="0.1" data-za-desc value="' + esc(a.descuento_pct) + '"></label>' +
+        '<label>Retención<select data-za-ret><option value="">Sin retención</option>' + ret.map(r => '<option value="' + r.id + '"' + ((a.retenciones || []).includes(r.id) ? ' selected' : '') + '>' + esc(r.etiqueta) + ' (' + esc(r.valor) + ')</option>').join('') + '</select></label>' +
+        '<button type="button" class="bd-clear" data-za-ajustes>Guardar ajustes</button></div>' : '') +
+      '<p class="bd-note za-msg" data-za-msg>' + esc(apiMsg) + '</p></section>';
+  }
+  async function cargarApi() {
+    try {
+      const r = await fetch('/api/zeus/api', { cache: 'no-store', credentials: 'same-origin' });
+      if (!r.ok) { apiEstado = null; return; }
+      apiEstado = await r.json();
+      if (apiEstado.configurada && !apiRetenciones) {
+        const c = await fetch('/api/zeus/api/catalogo', { cache: 'no-store', credentials: 'same-origin' });
+        apiRetenciones = c.ok ? ((await c.json()).retenciones || []) : [];
+      }
+      repintarZ();
+    } catch (e) { /* sin acceso: la pestaña no aparece */ }
+  }
+
   function pintar(d) {
     datosZ = d;
     const a = d.agente || {}, [etq, cls] = ESTADO[a.estado] || [a.estado || '—', ''];
@@ -142,11 +170,12 @@
       '<div class="zh-acc"><button type="button" class="bd-clear" data-zeus-revisar>↻ Revisar</button></div>' +
       '</section>';
     const kpis = '<div class="zks">' + kpi('pend', (r.pendiente || 0) + (r.entregada || 0), 'Por comprar', 'pendiente', 'warn') + kpi('cre', r.creada || 0, 'Creadas', 'creada', 'ok') + kpi('err', r.error || 0, 'Con error', 'error', 'bad') + '</div>';
-    const tabs = '<div class="zv-tabs" role="tablist">' + [['ordenes', 'Órdenes', items.length], ['correos', 'Correos', correos.length], ['notificar', 'Notificar', notificar.length]].map(([k, t, n]) =>
+    const tabs = '<div class="zv-tabs" role="tablist">' + [['ordenes', 'Órdenes', items.length], ['correos', 'Correos', correos.length], ['notificar', 'Notificar', notificar.length]].concat(apiEstado ? [['api', 'API Effi', 0]] : []).map(([k, t, n]) =>
       '<button type="button" role="tab" class="zv-tab' + (vista === k ? ' on' : '') + '" data-zeus-vista="' + k + '">' + t + (n ? ' <em>' + n + '</em>' : '') + '</button>').join('') + '</div>';
     let contenido;
     if (vista === 'correos') contenido = correosHtml();
     else if (vista === 'notificar') contenido = notificarHtml();
+    else if (vista === 'api') contenido = apiHtml();
     else contenido = '<section class="bd-section">' + (items.length ? '<div class="zo-lista">' + (visibles.length ? visibles.map(ordenHtml).join('') : '<p class="bd-note">Sin órdenes aquí.</p>') + '</div>' : '<p class="bd-note">Nada por comprar.</p>') + '</section>';
     const quieto = pintadoUna && !animarVista, alto = cuerpo.offsetHeight, scrollY0 = window.scrollY;
     cuerpo.classList.toggle('zeus-quieto', quieto);
@@ -271,6 +300,13 @@
 @media(prefers-reduced-motion:reduce){.zo,.zv-vista.anima,.zh-punto,.zo-pasos li.actual i{animation:none}}
 .zeus-que{margin-top:6px}.zeus-que summary{cursor:pointer;font:700 .7rem Arial;color:#b9c6b1;list-style:none}.zeus-que summary::-webkit-details-marker{display:none}.zeus-que summary::before{content:'ⓘ ';opacity:.8}.zeus-que[open] summary{margin-bottom:4px}
 .zeus-msg:empty,[data-zeus-notmsg]:empty{display:none}
+.zeus-apibox{display:grid;gap:12px;max-width:640px}
+.za-chip{justify-self:start;padding:6px 14px;border-radius:999px;border:1px solid rgba(255,255,255,.25);font:800 .72rem Arial;letter-spacing:.04em}.za-chip.ok{border-color:#35d46a;color:#8bd450;box-shadow:0 0 14px -4px #35d46a}.za-chip.pend{border-color:#ff9a1f;color:#ffc98a}
+.za-form{display:flex;gap:10px;flex-wrap:wrap}.za-form input{flex:1 1 280px;min-width:0;box-sizing:border-box;min-height:44px;padding:0 14px;border:1px solid rgba(255,255,255,.22);border-radius:12px;background:rgba(0,0,0,.3);color:#fff;font:500 16px Arial;outline:none}
+.za-form input:focus{border-color:rgba(255,255,255,.6);box-shadow:0 0 0 3px rgba(255,255,255,.1)}.za-form .bd-clear{width:auto!important;min-height:44px;padding:0 18px!important;border-radius:12px!important}
+.za-ajustes{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;padding-top:6px;border-top:1px solid rgba(255,255,255,.14)}.za-ajustes label{display:grid;gap:5px;font:800 .62rem Arial;letter-spacing:.12em;text-transform:uppercase;color:#c9d3c4}
+.za-ajustes input,.za-ajustes select{min-height:42px;min-width:150px;padding:0 12px;border:1px solid rgba(255,255,255,.22);border-radius:10px;background:rgba(0,0,0,.3);color:#fff;font:600 .9rem Arial}
+.za-msg:empty{display:none}
 .zeus-sel{position:relative;max-width:460px}
 .zeus-sel-btn{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%!important;min-height:44px;padding:0 16px;border:1px solid rgba(255,255,255,.25);border-radius:14px;background:rgba(255,255,255,.08);color:#fff;font:800 .82rem Arial;cursor:pointer;transition:background .2s}
 .zeus-sel-btn:hover,.zeus-sel.abierto .zeus-sel-btn{background:rgba(255,255,255,.16)}.zeus-sel-btn i{font-style:normal;transition:transform .2s}.zeus-sel.abierto .zeus-sel-btn i{transform:rotate(180deg)}
@@ -306,6 +342,7 @@
       document.querySelectorAll('.panel').forEach(x => x.classList.toggle('active', x === panel));
       document.body.classList.remove('inicio-mode', 'inventory-mode', 'production-mode', 'schedule-mode', 'operarios-mode', 'cartera-mode', 'trace-cards-mode');
       cargar(false);
+      if (apiEstado === null) cargarApi();
       clearInterval(timer);
       timer = setInterval(() => { if (panel.classList.contains('active') && !document.hidden) cargar(true); }, 10000);
       clearInterval(tickZ); tickZ = setInterval(tickHace, 1000);
@@ -320,9 +357,33 @@
       if (!confirm('Vamos a enviar un mensaje de verificación a ' + c + '.\nSu dueño tiene que abrirlo y confirmar; hasta entonces no recibirá órdenes de compra.\n\n¿Enviar el mensaje?')) return;
       accionCorreo('/api/zeus/correos', 'POST', { correo: c }, 'Enviamos un mensaje a ' + c + '. Pídele que lo abra y confirme.');
     });
+    panel.addEventListener('submit', async e => {
+      const f = e.target.closest('[data-za-form]'); if (!f) return;
+      e.preventDefault(); e.stopPropagation();
+      const campo = f.querySelector('[data-za-llave]'), llave = campo.value.trim();
+      if (!llave) { apiMsg = 'Pega la llave primero.'; repintarZ(); return; }
+      apiMsg = 'Probando la llave con Effi…'; repintarZ();
+      try {
+        const j = await llamar('/api/zeus/api/llave', 'PUT', { llave });
+        apiEstado = j; apiRetenciones = null; apiMsg = '✓ Llave guardada y comprobada con Effi.';
+        await cargarApi();
+      } catch (err) { apiMsg = err.message; }
+      repintarZ();
+      const c2 = panel.querySelector('[data-za-llave]'); if (c2) c2.value = '';   // la llave nunca queda escrita en la pantalla
+    }, true);
+    panel.addEventListener('click', async e => {
+      const q = e.target.closest('[data-za-quitar]');
+      if (q) { if (!confirm('¿Quitar la API key de Effi? Las órdenes volverán a crearse por el navegador.')) return; try { apiEstado = await llamar('/api/zeus/api/llave', 'DELETE'); apiRetenciones = null; apiMsg = 'Llave quitada.'; } catch (err) { apiMsg = err.message; } repintarZ(); return; }
+      const aj = e.target.closest('[data-za-ajustes]');
+      if (aj) {
+        const desc = panel.querySelector('[data-za-desc]').value, ret = panel.querySelector('[data-za-ret]').value;
+        try { apiEstado = await llamar('/api/zeus/api/ajustes', 'PUT', { descuento_pct: desc, retenciones: ret ? [Number(ret)] : [] }); apiMsg = '✓ Ajustes guardados.'; } catch (err) { apiMsg = err.message; }
+        repintarZ(); return;
+      }
+    });
     panel.addEventListener('click', e => {
       const v = e.target.closest('[data-zeus-vista]');
-      if (v && v.dataset.zeusVista !== vista) { vista = v.dataset.zeusVista; animarVista = true; repintarZ(); return; }
+      if (v && v.dataset.zeusVista !== vista) { vista = v.dataset.zeusVista; animarVista = true; if (vista === 'api') cargarApi(); repintarZ(); return; }
       const f = e.target.closest('[data-zeus-filtro]');
       if (f) { filtroOrd = filtroOrd === f.dataset.zeusFiltro ? 'todas' : f.dataset.zeusFiltro; if (vista !== 'ordenes') vista = 'ordenes'; animarVista = true; repintarZ(); }
     });

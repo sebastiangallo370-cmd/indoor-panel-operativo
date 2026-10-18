@@ -23,7 +23,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Callable
 
-from app import memoria_agentes, proveedores_tela
+from app import effi_api, memoria_agentes, proveedores_tela
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
@@ -225,6 +225,54 @@ def _correo_proveedor(item: dict, correo: str) -> str:
 
 
 _llenar_mts: Callable[[], dict] = lambda: {}
+_llave_ok: Callable[[str], bool] = lambda usuario: False
+_secreto = Path(os.getenv('ZEUS_SECRETO_FILE', '/data/state/zeus_secreto.json'))
+
+
+def configurar_llave(fn: Callable[[str], bool]) -> None:
+    global _llave_ok
+    _llave_ok = fn
+
+
+def _leer_secreto() -> dict:
+    try:
+        return json.loads(_secreto.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return {}
+
+
+def _guardar_secreto(d: dict) -> None:
+    _secreto.parent.mkdir(parents=True, exist_ok=True)
+    tmp = _secreto.with_suffix('.tmp')
+    tmp.write_text(json.dumps(d), encoding='utf-8')
+    try:
+        os.chmod(tmp, 0o600)
+    except OSError:
+        pass
+    tmp.replace(_secreto)
+
+
+def _api_vista(d: dict) -> dict:
+    """Estado de la API de Effi para la pantalla: NUNCA incluye la llave, solo si existe y sus 4 últimas letras."""
+    sec = _leer_secreto()
+    k = sec.get('llave', '')
+    cfg = d['config'].get('api') or {}
+    dias = None
+    if sec.get('guardada_at'):
+        try:
+            dias = max(0, 360 - int((time.time() - time.mktime(time.strptime(sec['guardada_at'][:19], '%Y-%m-%dT%H:%M:%S'))) // 86400))
+        except ValueError:
+            pass
+    return {'configurada': bool(k), 'ultimos4': k[-4:] if k else '', 'guardada_at': sec.get('guardada_at', ''), 'vence_en_dias': dias,
+            'descuento_pct': cfg.get('descuento_pct', 0), 'retenciones': cfg.get('retenciones', [])}
+
+
+def api_para_agente(d: dict) -> dict | None:
+    sec = _leer_secreto()
+    if not sec.get('llave'):
+        return None
+    cfg = d['config'].get('api') or {}
+    return {'llave': sec['llave'], 'descuento_pct': cfg.get('descuento_pct', 0), 'retenciones': cfg.get('retenciones', [])}
 
 
 def configurar_mts(fn: Callable[[], dict]) -> None:
@@ -349,6 +397,80 @@ def enviar_proveedor(request: Request, payload: dict):
         item['envio_proveedor'] = {'estado': 'pendiente', 'por': usuario, 'pedido_at': _ahora(), 'at': _iso()}
         _guardar(d)
     return {'ok': True}
+
+
+def _usuario_llave(request: Request) -> str:
+    usuario = str(_auth(request) or '')
+    if not _llave_ok(usuario):
+        raise HTTPException(403, 'Solo la cuenta Indoor Sport puede ver y cambiar la API de Effi')
+    return usuario
+
+
+@router.get('/api')
+def api_estado(request: Request):
+    _usuario_llave(request)
+    with _lock:
+        return _api_vista(_leer())
+
+
+@router.put('/api/llave')
+def api_guardar_llave(request: Request, payload: dict):
+    """Guarda la API key de Effi (solo en el servidor) después de comprobar que funciona con una consulta de solo lectura."""
+    _usuario_llave(request)
+    k = str(payload.get('llave', '')).strip()
+    if not re.fullmatch(r'[A-Za-z0-9]{32,40}', k):
+        raise HTTPException(400, 'La API key debe tener entre 32 y 40 letras y números, sin espacios')
+    previa = effi_api.llave()
+    effi_api.usar_llave(k)
+    try:
+        effi_api._lista('sucursal')
+    except effi_api.EffiError as e:
+        effi_api.usar_llave(previa)
+        raise HTTPException(400, 'Effi no aceptó la llave: ' + str(e))
+    with _lock:
+        _guardar_secreto({'llave': k, 'guardada_at': _iso()})
+        return _api_vista(_leer())
+
+
+@router.delete('/api/llave')
+def api_quitar_llave(request: Request):
+    _usuario_llave(request)
+    effi_api.usar_llave('')
+    with _lock:
+        _guardar_secreto({})
+        return _api_vista(_leer())
+
+
+@router.get('/api/catalogo')
+def api_catalogo(request: Request):
+    """Retenciones de Effi (para elegir cuál lleva cada orden). Usa la llave guardada; solo lectura."""
+    _usuario_llave(request)
+    sec = _leer_secreto()
+    if not sec.get('llave'):
+        raise HTTPException(400, 'Primero guarda la API key')
+    effi_api.usar_llave(sec['llave'])
+    try:
+        rets = effi_api._lista('retencion')
+    except effi_api.EffiError as e:
+        raise HTTPException(400, str(e))
+    return {'retenciones': [{'id': int(r['id']), 'etiqueta': r.get('etiqueta') or r.get('nombre'), 'valor': r.get('valor'), 'tipo': r.get('tipo_calculo')} for r in rets]}
+
+
+@router.put('/api/ajustes')
+def api_ajustes(request: Request, payload: dict):
+    _usuario_llave(request)
+    try:
+        desc = float(str(payload.get('descuento_pct', 0)).replace(',', '.') or 0)
+        rets = [int(x) for x in (payload.get('retenciones') or [])]
+    except ValueError:
+        raise HTTPException(400, 'Descuento o retenciones no válidos')
+    if not 0 <= desc <= 100:
+        raise HTTPException(400, 'El descuento debe estar entre 0 y 100')
+    with _lock:
+        d = _leer()
+        d['config']['api'] = {'descuento_pct': desc, 'retenciones': rets}
+        _guardar(d)
+        return _api_vista(d)
 
 
 @router.put('/notificar')
@@ -507,7 +629,7 @@ def sondeo(request: Request, payload: dict):
                     prov = proveedores_tela.proveedor_de(codigo) if codigo else {}
                     entregar.append({'id': i['id'], 'tela': i['tela'], 'falta': i['falta'], 'ordenes': [o['orden'] for o in i['ordenes']], 'bodega': i.get('bodega', []),
                                      'codigo': codigo, 'proveedor': prov.get('proveedor', ''), 'nit': prov.get('nit', ''),
-                                     'correos': correos_envio})
+                                     'correos': correos_envio, 'api': api_para_agente(d)})
         if payload.get('puede_trabajar'):
             for i in d['items']:
                 e = i.get('envio_proveedor') or {}

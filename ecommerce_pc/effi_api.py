@@ -23,8 +23,21 @@ class EffiError(Exception):
         self.estado, self.cuerpo = estado, cuerpo or {}
 
 
+_rt: dict = {'llave': '', 'descuento': None, 'retenciones': None}   # los envía el panel (pantalla «API Effi» del Agente inventario); el entorno queda de respaldo
+
+
+def usar_llave(k: str) -> None:
+    _rt['llave'] = (k or '').strip()
+
+
+def configurar(descuento_pct=None, retenciones=None) -> None:
+    """Ajustes que manda el panel a cada compra: porcentaje de descuento y ids de retenciones (None = lo del entorno)."""
+    _rt['descuento'] = None if descuento_pct in (None, '') else descuento_pct
+    _rt['retenciones'] = None if retenciones is None else [int(x) for x in retenciones]
+
+
 def llave() -> str:
-    return (os.getenv('EFFI_API_KEY') or '').strip()
+    return _rt['llave'] or (os.getenv('EFFI_API_KEY') or '').strip()
 
 
 def disponible() -> bool:
@@ -130,10 +143,10 @@ def construir_pedido(item_id, referencia: str, metros: float, nombre_proveedor: 
     for i in imps:
         if str(i.get('tipo_calculo') or '').lower() != 'porcentaje':
             raise EffiError(f"El impuesto «{i.get('etiqueta')}» no es de porcentaje: no sé calcularlo")
-    rets = retenciones_de([int(x) for x in re.findall(r'\d+', os.getenv('EFFI_RETENCIONES', ''))])
+    rets = retenciones_de(_rt['retenciones'] if _rt['retenciones'] is not None else [int(x) for x in re.findall(r'\d+', os.getenv('EFFI_RETENCIONES', ''))])
     cantidad = _d(metros)
     bruto = precio * cantidad
-    desc_pct = _d(os.getenv('EFFI_DESCUENTO_PCT', '0'))
+    desc_pct = _d(_rt['descuento'] if _rt['descuento'] is not None else os.getenv('EFFI_DESCUENTO_PCT', '0'))
     descuento = _redondear(bruto * desc_pct / 100)
     subtotal = bruto - descuento
     imp_valor = sum((subtotal * _d(i.get('valor')) / 100 for i in imps), Decimal(0))
