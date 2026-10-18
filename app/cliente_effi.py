@@ -99,14 +99,14 @@ def _solo_digitos(s: str) -> str:
 
 
 RE_EMAIL = re.compile(r'[\w.+\-]+@[\w\-]+(?:\.[\w\-]+)+')
-RE_NIT = re.compile(r'\bN\.?\s?I\.?\s?T\.?\s*[:#.\-]?\s*([\d][\d.\s]{6,13}\d)(?:\s*[-–]\s*\d)?', re.I)
-RE_CC = re.compile(r'(?:\bC\.?\s?C\.?\b|c[eé]dula(?: de ciudadan[ií]a)?|\bidentificaci[oó]n|\bdocumento|\bCED\.?)\s*(?:No\.?|N[°º]|n[uú]mero|#)?\s*[:#.\-]?\s*([\d][\d.\s]{5,12}\d)', re.I)
+RE_NIT = re.compile(r'\bN\.?\s?I\.?\s?T\.?\s*[:#.\-]?\s*(\d[\d.]{6,12}\d)(?:\s*[-–]\s*\d)?(?![\d])', re.I)
+RE_CC = re.compile(r'(?:\bC\.?\s?C\.?\b|c[eé]dula(?: de ciudadan[ií]a)?|\bidentificaci[oó]n|\bdocumento|\bCED\.?)\s*(?:No\.?|N[°º]|n[uú]mero|#)?\s*[:#.\-]?\s*(\d[\d.]{5,11}\d)(?![\d])', re.I)
 RE_CE = re.compile(r'c[eé]dula de extranjer[ií]a\s*(?:No\.?|N[°º])?\s*[:#.\-]?\s*([\d][\d.\s]{5,12}\d)', re.I)
 RE_CALLE = re.compile(r'\b(calle|cl\.?|carrera|cra\.?|kr\.?|cr\.?|avenida|av\.?|diagonal|dg\.?|transversal|tv\.?|circular|autopista|manzana|mz\.?|vereda|kil[oó]metro|km)\b\s*[\w#\-°º. ]*\d', re.I)
 ETIQUETAS_NOMBRE = re.compile(r'^\s*(?:nombre(?: completo)?|raz[oó]n social|cliente|se[ñn]or(?:es)?|empresa|titular)\s*[:\-]\s*(.+)$', re.I)
 ETIQUETAS_CIUDAD = re.compile(r'^\s*(?:ciudad|municipio|ciudad/municipio)\s*[:\-]\s*(.+)$', re.I)
 ETIQUETAS_DIR = re.compile(r'^\s*(?:direcci[oó]n(?: de (?:env[ií]o|entrega|residencia))?|dir\.?|domicilio)\s*[:\-]\s*(.+)$', re.I)
-PALABRAS_NO_NOMBRE = re.compile(r'\b(nit|c\.?c\.?|c[eé]dula|tel[eé]fono|tel|celular|cel|whatsapp|correo|email|direcci[oó]n|ciudad|barrio|http|www|factura|cotizaci[oó]n|orden|fecha|total|valor)\b', re.I)
+PALABRAS_NO_NOMBRE = re.compile(r'\b(formulario|registro|tributario|concepto|actualizaci[oó]n|dian|espacio|impuestos|aduanas|apellido|nombres?|raz[oó]n|social|contribuyente|persona|natural|jur[ií]dica|responsabilidades|actividad|econ[oó]mica|nit|c\.?c\.?|c[eé]dula|tel[eé]fono|tel|celular|cel|whatsapp|correo|email|direcci[oó]n|ciudad|barrio|http|www|factura|cotizaci[oó]n|orden|fecha|total|valor)\b', re.I)
 
 
 SIGLAS = {'SAS', 'S.A.S', 'S.A.S.', 'SA', 'S.A', 'S.A.', 'LTDA', 'LTDA.', 'EU', 'E.U', 'E.U.', 'ESP', 'IPS', 'EPS', 'CIA', 'Y', 'DE', 'DEL', 'LA', 'LAS', 'LOS', 'EL', 'E'}
@@ -129,18 +129,66 @@ def _quitar_sufijo_dv(nit: str) -> str:
     return _solo_digitos(nit)
 
 
+def _tras_etiqueta(lineas: list[str], etiqueta: str, valido=None) -> str:
+    """Valor de una casilla del RUT: lo que sigue a la etiqueta en su misma línea o, si no hay, la línea de abajo."""
+    rx = re.compile(etiqueta, re.I)
+    for i, l in enumerate(lineas):
+        m = rx.search(l)
+        if not m:
+            continue
+        resto = re.sub(r'^[\s:.\-|)]+', '', l[m.end():]).strip()
+        candidatos = ([resto] if resto else []) + lineas[i + 1:i + 3]
+        for cand in candidatos:
+            if cand and (valido is None or valido(cand)):
+                return cand.strip()
+    return ''
+
+
+def _rut(lineas: list[str], t: str) -> dict:
+    """Si el texto es un RUT de la DIAN, saca de sus casillas: NIT, razón social o nombres y apellidos, dirección, correo y teléfonos."""
+    c: dict = {}
+    solo_letras = lambda v: bool(re.fullmatch(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ.&' \-]{3,120}", v)) and not PALABRAS_NO_NOMBRE.search(v)
+    nit = _tras_etiqueta(lineas, r'n[uú]mero de identificaci[oó]n tributaria|\b5\.?\s*n[uú]mero de identif', lambda v: bool(re.search(r'\d{6,}', v)) and len(_solo_digitos(v)) <= 11)
+    if nit:
+        d = _solo_digitos(nit)
+        c['numero'] = d[:-1] if len(d) in (10, 11) and re.search(r'\d[\s\-|]+\d$', nit) else d[:10]
+    juridica = bool(re.search(r'persona jur[ií]dica', t, re.I)) and not re.search(r'persona natural', t, re.I)
+    razon = _tras_etiqueta(lineas, r'35\.?\s*raz[oó]n social|\braz[oó]n social', lambda v: bool(re.search(r'[A-Za-zÁÉÍÓÚÑ]{3}', v)) and len(_solo_digitos(v)) < 6 and not PALABRAS_NO_NOMBRE.search(v) and '@' not in v)
+    if razon and juridica or (razon and not re.search(r'primer apellido', t, re.I)):
+        c['nombre'] = razon
+        c['t_dni'], c['t_persona'] = 1, 2
+    else:
+        pal = _tras_etiqueta(lineas, r'primer apellido', lambda v: len(v.split()) >= 2 and solo_letras(v))
+        w = pal.split()
+        if 2 <= len(w) <= 6:
+            ap, no = (w[:2], w[2:]) if len(w) >= 4 else ((w[:2], w[2:]) if len(w) == 3 else (w[:1], w[1:]))
+            c['nombre'] = ' '.join(no + ap)
+            c['t_dni'], c['t_persona'] = 2, 1
+    for etiqueta, clave in ((r'41\.?\s*direcci[oó]n principal|\bdirecci[oó]n principal', 'direccion'),):
+        v = _tras_etiqueta(lineas, etiqueta, lambda v: bool(re.search(r'\d', v)) and not PALABRAS_NO_NOMBRE.search(v))
+        if v:
+            c[clave] = v
+    tel = _tras_etiqueta(lineas, r'tel[eé]fono\s*1', lambda v: 7 <= len(_solo_digitos(v)) <= 10)
+    if tel:
+        d = _solo_digitos(tel)
+        c['celular' if d.startswith('3') and len(d) == 10 else 'telefono1'] = d
+    return c
+
+
 def interpretar(texto: str) -> dict:
     """Saca del texto lo que se reconoce: tipo y número de identificación, nombre, correo, teléfonos, dirección y ciudad (sin tocar Effi)."""
     t = (texto or '').replace('\r', '')
     lineas = [re.sub(r'\s+', ' ', l).strip() for l in t.split('\n')]
     lineas = [l for l in lineas if l]
     c: dict = {}
+    es_rut = bool(re.search(r'registro [uú]nico tributario|\bRUT\b', t, re.I))
+    rut = _rut(lineas, t) if es_rut else {}
 
     m = RE_EMAIL.search(t)
     if m:
         c['email'] = m.group(0).lower().strip('.,;')
 
-    m = RE_NIT.search(t)
+    m = RE_NIT.search(t) if not rut.get('numero') else None
     if m:
         c['t_dni'] = 1
         c['t_persona'] = 2
@@ -153,7 +201,9 @@ def interpretar(texto: str) -> dict:
             m = RE_CC.search(t)
             if m:
                 c['t_dni'], c['numero'] = 2, _solo_digitos(m.group(1))
-    if not c.get('numero'):
+    if rut.get('numero'):
+        c['numero'] = rut['numero']
+    if not c.get('numero') and not es_rut:
         sueltos = [x for x in re.findall(r'(?<![\d.])(\d{1,3}(?:\.\d{3}){2}|\d{8,10})(?![\d.])', t) if not _solo_digitos(x).startswith('3') or len(_solo_digitos(x)) != 10]
         if sueltos:
             c['t_dni'], c['numero'] = 2, _solo_digitos(sueltos[0])
@@ -168,7 +218,7 @@ def interpretar(texto: str) -> dict:
         if len(d) == 10 and d.startswith('3'):
             if d not in celulares:
                 celulares.append(d)
-        elif len(d) in (7, 10) and (d.startswith('60') or len(d) == 7) and d not in fijos:
+        elif len(d) in (7, 10) and d.startswith('60') and d not in fijos:
             fijos.append(d)
     if celulares:
         c['celular'] = celulares[0]
@@ -211,6 +261,11 @@ def interpretar(texto: str) -> dict:
         c['nombre'] = _titulo(re.sub(r'\s+', ' ', c['nombre']))[:120]
         if c.get('t_persona') != 2 and re.search(r'\b(s\.?a\.?s?\.?|ltda\.?|s\.?a\.?|e\.?u\.?|& ?cia|sas)\b', c['nombre'], re.I):
             c['t_persona'] = 2
+    for k, v in rut.items():
+        if k != 'numero':
+            c[k] = v
+    if c.get('nombre'):
+        c['nombre'] = _titulo(c['nombre'])[:120]
     if c.get('direccion'):
         cola = re.match(r'^(.*\d.*),\s*([A-Za-zÁÉÍÓÚÑáéíóúñ .]{3,30})$', c['direccion'])
         if cola:   # «Carrera 7 # 45-12, Bogotá»: lo último es la ciudad

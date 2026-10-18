@@ -36,6 +36,45 @@ class Interpretar(unittest.TestCase):
 DATOS = {'t_dni': 2, 'numero': '1020304050', 'nombre': 'Ana Pérez', 'email': 'ana@x.co', 'direccion': 'Calle 1 # 2-3', 'id_ciudad': 12601, 'id_provincia': 776}
 
 
+RUT_NATURAL = """. ) | Js Nj Formulario del Registro Unico Tributario O
+2. Concepto 0 |2| Actualización
+4. Número de formulario 141172216952
+5. Número de Identificación Tributaria (NIT) 6. DV
+1035852152 7
+24. Tipo de contribuyente Persona natural
+31. Primer apellido 32. Segundo apellido 33. Primer nombre 34. Otros nombres
+GOMEZ PEREZ JUAN CARLOS
+41. Dirección principal
+CL 10 20 30 BRR CENTRO
+42. Correo electrónico
+juan@correo.com
+44. Teléfono 1
+3136589522"""
+RUT_EMPRESA = """Formulario del Registro Único Tributario
+5. Número de Identificación Tributaria (NIT) 6. DV
+900123456 7
+24. Tipo de contribuyente Persona jurídica
+35. Razón social
+CONFECCIONES LA 80 S A S
+42. Correo electrónico
+ventas@la80.com"""
+
+
+class Rut(unittest.TestCase):
+    def test_persona_natural_no_toma_el_numero_de_formulario_ni_el_encabezado(self):
+        c = ce.interpretar(RUT_NATURAL)
+        self.assertEqual((c['t_dni'], c['t_persona'], c['numero']), (2, 1, '1035852152'))
+        self.assertEqual(c['nombre'], 'Juan Carlos Gomez Perez')
+        self.assertEqual(c['direccion'], 'CL 10 20 30 BRR CENTRO')
+        self.assertEqual((c['email'], c['celular']), ('juan@correo.com', '3136589522'))
+        self.assertNotIn('telefono1', c)
+
+    def test_empresa(self):
+        c = ce.interpretar(RUT_EMPRESA)
+        self.assertEqual((c['t_dni'], c['t_persona'], c['numero']), (1, 2, '900123456'))
+        self.assertEqual(c['nombre'], 'Confecciones la 80 S A S')
+
+
 class Crear(unittest.TestCase):
     def test_cuerpo_minimo_y_direccion(self):
         cuerpo = ce._cuerpo_cliente({'t_dni': '1', 'numero': '900.123.456', 'nombre': 'La 80 SAS', 't_persona': '2', 'email': 'a@b.co', 'celular': '300 123 4567', 'id_ciudad': 12601, 'id_provincia': 776, 'direccion': 'Calle 10 # 20-30'})
