@@ -12,7 +12,7 @@ class Interpretar(unittest.TestCase):
     def test_empresa_con_nit(self):
         c = ce.interpretar('CONFECCIONES LA 80 S.A.S.\nNIT: 900.123.456-7\nDirección: Calle 10 # 20-30 Barrio Centro\nCiudad: Medellín\nTel 604 321 4455 Cel 300 123 4567\nventas@la80.com')
         self.assertEqual((c['t_dni'], c['t_persona'], c['numero']), (1, 2, '900123456'))
-        self.assertEqual(c['nombre'], 'CONFECCIONES LA 80 S.A.S.')
+        self.assertEqual(c['nombre'], 'Confecciones la 80 S.A.S.')
         self.assertEqual(c['celular'], '3001234567')
         self.assertEqual(c['telefono1'], '6043214455')
         self.assertEqual(c['email'], 'ventas@la80.com')
@@ -33,9 +33,12 @@ class Interpretar(unittest.TestCase):
         self.assertEqual(ce.interpretar(''), {})
 
 
+DATOS = {'t_dni': 2, 'numero': '1020304050', 'nombre': 'Ana Pérez', 'email': 'ana@x.co', 'direccion': 'Calle 1 # 2-3', 'id_ciudad': 12601, 'id_provincia': 776}
+
+
 class Crear(unittest.TestCase):
     def test_cuerpo_minimo_y_direccion(self):
-        cuerpo = ce._cuerpo_cliente({'t_dni': '1', 'numero': '900.123.456', 'nombre': 'La 80 SAS', 't_persona': '2', 'celular': '300 123 4567', 'id_ciudad': 12601, 'id_provincia': 776, 'direccion': 'Calle 10 # 20-30'})
+        cuerpo = ce._cuerpo_cliente({'t_dni': '1', 'numero': '900.123.456', 'nombre': 'La 80 SAS', 't_persona': '2', 'email': 'a@b.co', 'celular': '300 123 4567', 'id_ciudad': 12601, 'id_provincia': 776, 'direccion': 'Calle 10 # 20-30'})
         self.assertEqual((cuerpo['t_dni'], cuerpo['numero'], cuerpo['t_persona']), (1, '900123456', 2))
         self.assertEqual(cuerpo['celular'], '3001234567')
         self.assertEqual(cuerpo['direcciones'], [{'id_provincia': 776, 'id_ciudad': 12601, 'direccion': 'Calle 10 # 20-30'}])
@@ -50,7 +53,7 @@ class Crear(unittest.TestCase):
         respuesta = {'ok': True, 'data': {'tercero': '6490', 'nombre': 'Ana Pérez', 'abreviacion': 'CC', 'id': '1020304050', 'dv': None}}
         try:
             with mock.patch.object(effi_api, '_peticion', return_value=respuesta) as llamada:
-                r = ce.crear(None, {'t_dni': 2, 'numero': '1020304050', 'nombre': 'Ana Pérez'})
+                r = ce.crear(None, DATOS)
             args, kwargs = llamada.call_args
             self.assertEqual(args[:2], ('POST', 'cliente'))
             self.assertIn('Laura', kwargs['cuerpo']['observacion'])
@@ -63,11 +66,27 @@ class Crear(unittest.TestCase):
         try:
             with mock.patch.object(effi_api, '_peticion', side_effect=effi_api.EffiError('El Número de identificación ingresado corresponde a un cliente vigente de la empresa.', 400)):
                 with self.assertRaises(HTTPException) as e:
-                    ce.crear(None, {'t_dni': 2, 'numero': '1020304050', 'nombre': 'Ana Pérez'})
+                    ce.crear(None, DATOS)
             self.assertEqual(e.exception.status_code, 400)
             self.assertIn('cliente vigente', e.exception.detail)
         finally:
             effi_api.usar_llave('')
+
+    def test_exige_correo_y_direccion(self):
+        for quitar in ('email', 'direccion', 'id_ciudad'):
+            d = {k: v for k, v in DATOS.items() if k != quitar}
+            with self.assertRaises(HTTPException) as e:
+                ce._cuerpo_cliente(d)
+            self.assertEqual(e.exception.status_code, 400)
+
+    def test_nombre_en_formato_titulo_y_regimen(self):
+        c = ce.interpretar('CONFECCIONES LA 80 S.A.S.\nNIT 900123456-7\n49 - No responsable de IVA')
+        self.assertEqual(c['nombre'], 'Confecciones la 80 S.A.S.')
+        self.assertEqual(c['t_regimen_iva'], 5)
+
+    def test_fuentes_que_se_contradicen(self):
+        avisos = ce.conflictos(['Ana Pérez C.C. 1020304050', 'Ana Pérez C.C. 1020304051'])
+        self.assertTrue(any('identificación' in a for a in avisos))
 
     def test_sin_permiso_comercial(self):
         ce.configurar(lambda request: 'Operario', lambda u: False, lambda: 'K' * 40)

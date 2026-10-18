@@ -109,6 +109,22 @@ ETIQUETAS_DIR = re.compile(r'^\s*(?:direcci[oó]n(?: de (?:env[ií]o|entrega|res
 PALABRAS_NO_NOMBRE = re.compile(r'\b(nit|c\.?c\.?|c[eé]dula|tel[eé]fono|tel|celular|cel|whatsapp|correo|email|direcci[oó]n|ciudad|barrio|http|www|factura|cotizaci[oó]n|orden|fecha|total|valor)\b', re.I)
 
 
+SIGLAS = {'SAS', 'S.A.S', 'S.A.S.', 'SA', 'S.A', 'S.A.', 'LTDA', 'LTDA.', 'EU', 'E.U', 'E.U.', 'ESP', 'IPS', 'EPS', 'CIA', 'Y', 'DE', 'DEL', 'LA', 'LAS', 'LOS', 'EL', 'E'}
+
+
+def _titulo(nombre: str) -> str:
+    """Formato título («JUAN PEREZ» → «Juan Perez»); las siglas de sociedad (S.A.S., LTDA) quedan en mayúsculas y los conectores en minúscula."""
+    out = []
+    for i, w in enumerate(nombre.split(' ')):
+        if w.upper() in ('SAS', 'S.A.S', 'S.A.S.', 'SA', 'S.A', 'S.A.', 'LTDA', 'LTDA.', 'E.U', 'E.U.', 'EU', 'ESP', 'IPS', 'EPS'):
+            out.append(w.upper())
+        elif i and w.lower() in ('y', 'de', 'del', 'la', 'las', 'los', 'el', 'e'):
+            out.append(w.lower())
+        else:
+            out.append(w[:1].upper() + w[1:].lower())
+    return ' '.join(out)
+
+
 def _quitar_sufijo_dv(nit: str) -> str:
     return _solo_digitos(nit)
 
@@ -185,8 +201,14 @@ def interpretar(texto: str) -> dict:
             if 2 <= len(palabras) <= 7:
                 c['nombre'] = l.strip(' ,;:-|')
                 break
+    if re.search(r'\b49\b\s*[-–]?\s*no responsable', t, re.I) or re.search(r'no responsable de iva', t, re.I):
+        c['t_regimen_iva'] = 5
+    elif re.search(r'r[eé]gimen simple|responsable del impuesto nacional al consumo|\bsimple de tributaci[oó]n', t, re.I):
+        c['t_regimen_iva'] = 3
+    elif re.search(r'responsable de iva|\b48\b\s*[-–]?\s*impuesto sobre las ventas', t, re.I):
+        c['t_regimen_iva'] = 4
     if c.get('nombre'):
-        c['nombre'] = re.sub(r'\s+', ' ', c['nombre'])[:120]
+        c['nombre'] = _titulo(re.sub(r'\s+', ' ', c['nombre']))[:120]
         if c.get('t_persona') != 2 and re.search(r'\b(s\.?a\.?s?\.?|ltda\.?|s\.?a\.?|e\.?u\.?|& ?cia|sas)\b', c['nombre'], re.I):
             c['t_persona'] = 2
     if c.get('direccion'):
@@ -230,6 +252,37 @@ def resolver_ciudad(candidatos: list[str]) -> dict | None:
     return None
 
 
+def existentes(numero: str, nombre: str) -> list[dict]:
+    """Clientes que ya están en Effi con ese número o con un nombre parecido (para no duplicar)."""
+    vistos: dict = {}
+    consultas = []
+    if numero:
+        consultas.append({'numero': numero})
+    palabras = [w for w in re.findall(r'\w+', nombre or '') if len(w) > 2][:4]
+    if palabras:
+        consultas.append({'nombre': ' '.join(palabras)})
+    for params in consultas:
+        try:
+            for x in effi_api._lista('cliente', params)[:8]:
+                vistos.setdefault(str(x.get('tercero')), {'tercero': str(x.get('tercero')), 'nombre': x.get('nombre', ''), 'documento': f"{x.get('abreviacion') or ''} {x.get('id') or ''}".strip(), 'mismo_numero': bool(numero) and _solo_digitos(str(x.get('id'))) == numero})
+        except effi_api.EffiError:
+            continue
+    return list(vistos.values())[:6]
+
+
+def conflictos(fuentes: list[str]) -> list[str]:
+    """Si dos fuentes dicen cosas distintas (otro número, otro correo, otro celular) se avisa en vez de elegir por cuenta propia."""
+    if len(fuentes) < 2:
+        return []
+    datos = [interpretar(f) for f in fuentes]
+    avisos = []
+    for k, etiqueta in (('numero', 'número de identificación'), ('email', 'correo'), ('celular', 'celular')):
+        valores = sorted({d[k] for d in datos if d.get(k)})
+        if len(valores) > 1:
+            avisos.append(f'Las fuentes no coinciden en el {etiqueta}: ' + ' / '.join(valores) + '. Revisa cuál es el correcto.')
+    return avisos
+
+
 # ---------------------------------------------------------------- rutas
 @router.get('/estado')
 def estado(request: Request):
@@ -262,6 +315,7 @@ async def leer(request: Request, texto: str = Form(''), archivos: list[UploadFil
     if not leido.strip():
         raise HTTPException(422, 'No se encontró texto en lo que subiste. Prueba con una foto más clara o escribe los datos.')
     campos = interpretar(leido)
+    avisos += conflictos(partes)
     ciudad = None
     if effi_api.disponible() or (_llave() or '').strip():
         try:
@@ -273,7 +327,14 @@ async def leer(request: Request, texto: str = Form(''), archivos: list[UploadFil
         campos.update(ciudad)
     elif campos.get('ciudad_texto') or campos.get('direccion'):
         avisos.append('No pude identificar la ciudad: escríbela en el cuadro de ciudad.')
-    return {'texto': leido[:6000], 'campos': campos, 'avisos': avisos}
+    ya = []
+    if (campos.get('numero') or campos.get('nombre')) and ((_llave() or '').strip() or effi_api.disponible()):
+        try:
+            _con_llave()
+            ya = existentes(campos.get('numero', ''), campos.get('nombre', ''))
+        except HTTPException:
+            pass
+    return {'texto': leido[:6000], 'campos': campos, 'avisos': avisos, 'existentes': ya}
 
 
 @router.get('/ciudades')
@@ -318,6 +379,13 @@ def _cuerpo_cliente(p: dict) -> dict:
         d = _solo_digitos(texto(k, 25))
         if d:
             cuerpo[k] = d[:15]
+    if not re.fullmatch(r"[\w.+\-]+@[\w\-]+(?:\.[\w\-]+)+(?:\s*,\s*[\w.+\-]+@[\w\-]+(?:\.[\w\-]+)+)*", cuerpo.get('email', '')):
+        raise HTTPException(400, 'Falta el correo electrónico del cliente (o no es válido): Effi lo exige. No lo inventes: pídeselo al cliente.')
+    if not (texto('direccion', 200) and p.get('id_ciudad') and p.get('id_provincia')):
+        raise HTTPException(400, 'Falta la dirección completa (departamento, ciudad y dirección): elige la ciudad de la lista y escribe la dirección.')
+    if str(p.get('t_regimen_iva') or '') in ('3', '4', '5'):
+        cuerpo['t_regimen_iva'] = int(p['t_regimen_iva'])
+    cuerpo.update({'t_cliente': 1, 'divisa': 'COP', 'permitir_venta': 1})
     direccion = {}
     for k_in, k_out in (('id_provincia', 'id_provincia'), ('id_ciudad', 'id_ciudad')):
         try:

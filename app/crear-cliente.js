@@ -36,7 +36,7 @@
   `;
   document.head.appendChild(css);
 
-  let panel = null, archivos = [], ciudadSel = null, ocupado = false, timerCiudad = 0;
+  let panel = null, confirmado = false, archivos = [], ciudadSel = null, ocupado = false, timerCiudad = 0;
   const q = s => panel.querySelector(s);
 
   function pintarArchivos() {
@@ -56,10 +56,11 @@
       ciudadSel = { id: c.id_ciudad, id_provincia: c.id_provincia, nombre: c.ciudad, provincia: c.provincia };
       campo('ciudad').value = `${c.ciudad} (${c.provincia})`;
     } else if (c.ciudad_texto) { campo('ciudad').value = c.ciudad_texto; ciudadSel = null; }
+    campo('t_regimen_iva').value = c.t_regimen_iva ? String(c.t_regimen_iva) : '';
     marcarFaltantes();
   }
   function marcarFaltantes() {
-    ['numero', 'nombre'].forEach(k => campo(k).classList.toggle('falta', !campo(k).value.trim()));
+    ['numero', 'nombre', 'email', 'direccion', 'ciudad'].forEach(k => campo(k).classList.toggle('falta', !campo(k).value.trim()));
   }
 
   async function leer() {
@@ -75,6 +76,9 @@
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(j.detail || 'No se pudo leer');
       llenar(j.campos || {});
+      const ya = j.existentes || [];
+      q('[data-ya]').hidden = !ya.length;
+      q('[data-ya]').innerHTML = ya.length ? '<b>⚠ Ya hay clientes parecidos en Effi:</b><br>' + ya.map(x => `${esc(x.nombre)} · ${esc(x.documento)} · código ${esc(x.tercero)}${x.mismo_numero ? ' <b>(MISMO NÚMERO)</b>' : ''}`).join('<br>') + '<br><small>Si es el mismo cliente, no lo crees otra vez; úsalo en la orden de venta.</small>' : '';
       q('[data-leido]').textContent = j.texto || '';
       q('[data-form]').hidden = false;
       mensaje('[data-msg-leer]', (j.avisos || []).join(' ') || 'Listo: revisa los datos de abajo y corrige lo que haga falta.', (j.avisos || []).length ? 'err' : 'ok');
@@ -102,10 +106,19 @@
     if (ocupado) return;
     marcarFaltantes();
     const body = {};
-    ['t_dni', 'numero', 'nombre', 't_persona', 'email', 'celular', 'telefono1', 'direccion', 'referencia'].forEach(k => { body[k] = campo(k).value.trim(); });
+    ['t_dni', 'numero', 'nombre', 't_persona', 't_regimen_iva', 'email', 'celular', 'telefono1', 'direccion', 'referencia'].forEach(k => { body[k] = campo(k).value.trim(); });
     if (ciudadSel) { body.id_ciudad = ciudadSel.id; body.id_provincia = ciudadSel.id_provincia; }
     else if (campo('ciudad').value.trim()) { mensaje('[data-msg-crear]', 'Elige la ciudad de la lista que se despliega al escribir.', 'err'); return; }
-    if (!body.numero || !body.nombre) { mensaje('[data-msg-crear]', 'Faltan el número de identificación y el nombre.', 'err'); return; }
+    const faltan = [['numero', 'el número de identificación'], ['nombre', 'el nombre'], ['email', 'el correo'], ['direccion', 'la dirección'], ['ciudad', 'la ciudad']].filter(([k]) => !campo(k).value.trim()).map(([, t]) => t);
+    if (faltan.length) { mensaje('[data-msg-crear]', 'Faltan ' + faltan.join(', ') + '. Effi los exige: pídeselos al cliente.', 'err'); return; }
+    if (!confirmado) {
+      const tipo = campo('t_dni').selectedOptions[0].textContent;
+      q('[data-resumen]').hidden = false;
+      q('[data-resumen]').innerHTML = `<b>¿Confirmas crear este cliente en Effi?</b><br>${esc(body.nombre)}<br>${esc(tipo)} ${esc(body.numero)}<br>${esc(body.email)}${body.celular ? ' · ' + esc(body.celular) : ''}<br>${esc(body.direccion)}, ${esc(campo('ciudad').value)}`;
+      q('[data-crear]').textContent = 'SÍ, CONFIRMAR Y CREAR';
+      confirmado = true; mensaje('[data-msg-crear]', ''); return;
+    }
+    confirmado = false; q('[data-resumen]').hidden = true; q('[data-crear]').textContent = 'CREAR CLIENTE EN EFFI';
     ocupado = true; q('[data-crear]').disabled = true; mensaje('[data-msg-crear]', 'Creando el cliente en Effi…');
     try {
       const r = await fetch('/api/cliente-effi/crear', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), credentials: 'same-origin' });
@@ -120,7 +133,8 @@
   }
 
   function nuevo() {
-    archivos = []; ciudadSel = null; pintarArchivos();
+    archivos = []; ciudadSel = null; confirmado = false; pintarArchivos();
+    q('[data-resumen]').hidden = true; q('[data-ya]').hidden = true; q('[data-crear]').textContent = 'CREAR CLIENTE EN EFFI';
     panel.querySelectorAll('input,textarea').forEach(i => { i.value = ''; });
     campo('t_dni').value = '2'; campo('t_persona').value = '1';
     q('[data-form]').hidden = true; q('[data-ok]').hidden = true; mensaje('[data-msg-leer]', ''); mensaje('[data-msg-crear]', '');
@@ -141,21 +155,24 @@
         <div class="cc-fila"><button class="cc-btn" type="button" data-leer>LEER DATOS</button></div>
         <div class="cc-msg" data-msg-leer></div>
       </div>
-      <div class="cc-card" data-form hidden><span class="eyebrow">REVISA Y CONFIRMA</span><h2>Datos del cliente</h2><p>Corrige lo que el panel no leyó bien. Los marcados en naranja son obligatorios.</p>
+      <div class="cc-card" data-form hidden><span class="eyebrow">REVISA Y CONFIRMA</span><h2>Datos del cliente</h2><p>Corrige lo que el panel no leyó bien. Los marcados en naranja (*) son obligatorios en Effi: si falta alguno, pídeselo al cliente; no se inventa.</p>
         <div class="cc-grid">
           <label>TIPO DE IDENTIFICACIÓN<select name="t_dni"><option value="2">Cédula de ciudadanía</option><option value="1">NIT</option><option value="4">Cédula de extranjería</option><option value="3">Pasaporte</option></select></label>
           <label>NÚMERO (SIN DÍGITO DE VERIFICACIÓN)<input name="numero" inputmode="numeric" autocomplete="off"></label>
           <label class="cc-ancho">NOMBRE O RAZÓN SOCIAL<input name="nombre" autocomplete="off" maxlength="120"></label>
           <label>TIPO DE PERSONA<select name="t_persona"><option value="1">Natural</option><option value="2">Jurídica</option></select></label>
-          <label>CORREO<input name="email" type="email" autocomplete="off"></label>
+          <label>RÉGIMEN TRIBUTARIO (OPCIONAL)<select name="t_regimen_iva"><option value="">Sin definir</option><option value="5">Ordinario · No responsable de IVA</option><option value="4">Ordinario · Responsable de IVA</option><option value="3">Régimen simple</option></select></label>
+          <label>CORREO *<input name="email" type="email" autocomplete="off"></label>
           <label>CELULAR / WHATSAPP<input name="celular" inputmode="tel" autocomplete="off"></label>
           <label>TELÉFONO FIJO<input name="telefono1" inputmode="tel" autocomplete="off"></label>
-          <label class="cc-ancho">DIRECCIÓN<input name="direccion" autocomplete="off" maxlength="200"></label>
-          <label>CIUDAD<input name="ciudad" list="cc-ciudades" autocomplete="off" placeholder="Escribe y elige de la lista"></label>
+          <label class="cc-ancho">DIRECCIÓN *<input name="direccion" autocomplete="off" maxlength="200"></label>
+          <label>CIUDAD *<input name="ciudad" list="cc-ciudades" autocomplete="off" placeholder="Escribe y elige de la lista"></label>
           <datalist id="cc-ciudades"></datalist>
           <label>REFERENCIA DE LA DIRECCIÓN<input name="referencia" autocomplete="off" maxlength="200" placeholder="Barrio, local, torre…"></label>
         </div>
+        <div class="cc-listo" data-ya hidden style="border-color:#ffb43d;background:rgba(255,180,61,.1);margin-top:12px"></div>
         <div class="cc-leido" data-leido></div>
+        <div class="cc-listo" data-resumen hidden style="margin-top:12px"></div>
         <div class="cc-fila"><button class="cc-btn" type="button" data-crear>CREAR CLIENTE EN EFFI</button><button class="cc-btn sec" type="button" data-nuevo>EMPEZAR DE NUEVO</button></div>
         <div class="cc-msg" data-msg-crear></div>
       </div>
@@ -173,9 +190,10 @@
     q('[data-archivos]').addEventListener('click', e => { const b = e.target.closest('[data-quitar]'); if (b) { archivos.splice(+b.dataset.quitar, 1); pintarArchivos(); } });
     q('[data-leer]').addEventListener('click', leer);
     q('[data-crear]').addEventListener('click', crear);
+    q('[data-form]').addEventListener('input', () => { if (confirmado) { confirmado = false; q('[data-resumen]').hidden = true; q('[data-crear]').textContent = 'CREAR CLIENTE EN EFFI'; } });
     panel.querySelectorAll('[data-nuevo]').forEach(b => b.addEventListener('click', nuevo));
     campo('ciudad').addEventListener('input', () => { clearTimeout(timerCiudad); timerCiudad = setTimeout(buscarCiudad, 350); });
-    ['numero', 'nombre'].forEach(k => campo(k).addEventListener('input', marcarFaltantes));
+    ['numero', 'nombre', 'email', 'direccion', 'ciudad'].forEach(k => campo(k).addEventListener('input', marcarFaltantes));
     const verOk = new MutationObserver(() => { q('[data-otro]').hidden = q('[data-ok]').hidden; });
     verOk.observe(q('[data-ok]'), { attributes: true, attributeFilter: ['hidden'] });
     return true;
