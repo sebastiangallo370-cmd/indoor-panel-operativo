@@ -10,6 +10,6 @@ RUN apt-get update \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY agente_zeus.py .
+COPY agente_zeus.py effi_api.py ./
 
 CMD ["python", "agente_zeus.py"]

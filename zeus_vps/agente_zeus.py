@@ -19,6 +19,11 @@ import urllib.request
 from pathlib import Path
 
 AQUI = Path(__file__).resolve().parent
+sys.path.insert(0, str(AQUI))
+try:
+    import effi_api   # creación de órdenes por la API de Effi (si hay EFFI_API_KEY); sin ella se usa el navegador
+except Exception:   # noqa: BLE001
+    effi_api = None
 DATOS = AQUI / 'datos'
 ENV = DATOS / 'zeus_effi.env'
 SONDEO_SEG = 20
@@ -275,7 +280,7 @@ def main():
         print('Falta enlazar este PC con el panel (ecommerce\\ENLAZAR_ECOMMERCE.bat).')
         sys.exit(1)
     cred = credenciales()
-    tiene_cred = bool(cred.get('ZEUS_EFFI_USERNAME') and cred.get('ZEUS_EFFI_PASSWORD'))
+    tiene_cred = bool(cred.get('ZEUS_EFFI_USERNAME') and cred.get('ZEUS_EFFI_PASSWORD')) or bool(effi_api is not None and effi_api.disponible())
     url = panel['url'].rstrip('/') + '/api/zeus/pc/sondeo'
     bov = _Bov
     from selenium.webdriver.common.by import By
@@ -313,9 +318,14 @@ def main():
                         if not job.get('codigo'):
                             raise RuntimeError('No pude saber el código de la tela (no está en Bodega tela)')
                         log(f'Creando orden de compra: {nombre} · {job["proveedor"]}')
-                        effi.abrir()
-                        r = effi.crear_orden(str(job['codigo']), float(job['falta']), str(job['proveedor']))
+                        if effi_api is not None and effi_api.disponible():
+                            r = effi_api.crear_orden(job['id'], str(job['codigo']), float(job['falta']), str(job['proveedor']))   # por la API: sin abrir Effi
+                            r['detalle'] += ' · por API'
+                        else:
+                            effi.abrir()
+                            r = effi.crear_orden(str(job['codigo']), float(job['falta']), str(job['proveedor']))
                         try:
+                            effi.abrir()   # el envío por correo de Effi sigue siendo por la web (la API no lo trae)
                             r['detalle'] += ' · enviada a ' + _enviar_por_correo(effi, r['oc'], job.get('correos') or [])
                         except Exception as e:  # noqa: BLE001   (la orden ya existe: se informa, no se repite)
                             r['detalle'] += ' · NO se pudo enviar por Effi: ' + str(e)[:120]
