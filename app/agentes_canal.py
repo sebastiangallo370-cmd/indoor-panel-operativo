@@ -18,6 +18,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
+from app import memoria_agentes
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
 
@@ -774,6 +775,8 @@ def evento(request: Request, payload: dict):
     lista = [e for e in (payload.get('eventos') or []) if isinstance(e, dict)][-40:]
     if not sesion or not lista:
         return {'ok': True}
+    for e in lista:   # memoria de los agentes: los errores se recuerdan y, si uno ya corregido vuelve, se avisa
+        memoria_agentes.registrar(str(e.get('agente', 'TAVO')), str(e.get('msg', '')), str(e.get('nivel', 'INFO')))
     with _lock:
         datos = _leer()
         msg_id = payload.get('msg_id')

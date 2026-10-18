@@ -19,6 +19,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Callable
 
+from app import memoria_agentes
 from fastapi import APIRouter, HTTPException, Request
 
 router = APIRouter(prefix='/api/ecommerce', tags=['ecommerce'])            # personas (con sesión)
@@ -141,6 +142,8 @@ def _pendiente_de(datos: dict, agente: str, accion: str | None = None) -> bool:
 def _nota(datos: dict, agente: str, nivel: str, texto: str) -> None:
     datos['seq'] += 1
     datos['log'].append({'id': datos['seq'], 'at': _ahora(), 'agente': agente, 'nivel': nivel, 'texto': str(texto)[:600]})
+    if nivel == 'error':
+        memoria_agentes.registrar(agente, str(texto), 'ERROR')
 
 
 # ------------------------------------------------------------------ personas

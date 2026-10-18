@@ -48,6 +48,7 @@ from app.inventario_api import inventario_router, start_sublimacion_worker, inve
 from app import perfil_foto as perfil_foto_mod
 from app import terminos as terminos_mod
 from app import proveedores_tela as proveedores_tela_mod
+from app import memoria_agentes as memoria_mod
 from app import permisos as permisos_mod, exportar as exportar_mod, reposiciones as reposiciones_mod, agentes_canal as agentes_mod, promedios as promedios_mod, molderia as molderia_mod, fichas_resumen as fichas_resumen_mod, rh_contratos as rh_contratos_mod
 from app.cartera_externa import externa_router
 from app import diseno_versiones as versiones_mod
@@ -295,6 +296,8 @@ def _nombres_usuarios() -> list:
 agentes_mod.configurar_usuarios(_nombres_usuarios)
 app.include_router(agentes_mod.router, dependencies=[Depends(authenticate), Depends(permisos_mod.exigir('agentes'))])
 promedios_mod.configurar(authenticate)
+memoria_mod.configurar(authenticate, permisos_mod.administracion_permitido)
+app.include_router(memoria_mod.router)
 proveedores_tela_mod.configurar(lambda: (__import__('app.inventario_api', fromlist=['x'])._inventory_payload().get('items') or []))
 app.include_router(proveedores_tela_mod.router, dependencies=[Depends(authenticate), Depends(permisos_mod.exigir('promedios'))])
 app.include_router(promedios_mod.router, dependencies=[Depends(authenticate), Depends(permisos_mod.exigir('promedios'))])
@@ -1103,6 +1106,11 @@ def sin_parpadeo_js():
     return FileResponse(Path(__file__).with_name('sin-parpadeo.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
 
 
+@app.get('/memoria.js')
+def memoria_js():
+    return FileResponse(Path(__file__).with_name('memoria.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
+
+
 @app.get('/bitacora.js')
 def bitacora_js():
     return FileResponse(Path(__file__).with_name('bitacora.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
@@ -1272,6 +1280,11 @@ def alertas_panel(usuario=Depends(authenticate)):
             alertas += ecommerce_mod.alertas()
         except Exception:
             logging.exception('alertas: no se pudo leer ECOMMERCE')
+    if permisos_mod.administracion_permitido(str(usuario)):
+        try:
+            alertas += memoria_mod.alertas()
+        except Exception:
+            logging.exception('alertas: no se pudo leer la memoria de los agentes')
     try:
         alertas += zeus_mod.alertas_para(str(usuario))
     except Exception:
@@ -6488,7 +6501,7 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
 `;document.head.appendChild(traceFigmaStyle);setTraceView();
     const commercialGroup=commercialToggle.closest('.nav-group');commercialGroup.classList.add('collapsed');const productionToggle=document.getElementById('production-toggle');if(productionToggle)productionToggle.addEventListener('click',()=>{{const g=productionToggle.closest('.nav-group');g.classList.toggle('collapsed');if(!g.classList.contains('collapsed')&&window.innerWidth>860)g.querySelector('.nav-children .tab')?.click()}});
     setTimeout(()=>{{if(!document.querySelector('.panel.active'))document.querySelector('.tab[data-kind="inicio"]')?.click()}},0);
-    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/liquid-stats.js?v=20261017-2'></script><script src='/permisos.js?v=20261007-2'></script><script src='/reposiciones.js?v=20261005-4'></script><script src='/agentes.js?v=20261014-19'></script><script src='/promedios.js?v=20261006-7'></script><script src='/capacidad.js?v=20261009-2'></script><script src='/molderia.js?v=20261010-2'></script><script src='/estandar.js?v=20261017-1'></script><script src='/proveedores-tela.js?v=20261016-3'></script><script src='/terminos.js?v=20261010-1'></script><script src='/cookies-aviso.js?v=20261010-1'></script><script src='/rh-contratos.js?v=20261009-3'></script><script src='/fichas-resumen.js?v=20261010-16'></script><script src='/api/cartera/cartera.js?v=20261009-1'></script><script src='/trace-ui.js?v=20261015-1'></script><script src='/home-dashboard.js?v=20261016-27'></script><script src='/bodega-dashboard.js?v=20261018-1'></script><script src='/bodegas.js?v=20261009-7'></script><script src='/codigos-barras.js?v=20261014-3'></script><script src='/mis-pedidos.js?v=20261008-4'></script><script src='/mobile-nav.js?v=20261012-1'></script><script src='/nav-liquid.js?v=20261003-3'></script><script src='/build-watch.js?v=20261002-1'></script><script src='/salud.js?v=20261014-2'></script><script src='/alertas.js?v=20261017-6'></script><script src='/bitacora.js?v=20261016-2'></script><script src='/ecommerce.js?v=20261016-10'></script><script src='/zeus.js?v=20261017-14'></script><script src='/tema.js?v=20261008-1'></script><script src='/tarjeta-iconos.js?v=20261002-5'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261018-1'></script><script src='/linea-editor.js?v=20261008-1'></script><script src='/menu-cuenta.js?v=20261016-2'></script><script src='/foto-perfil.js?v=20261008-4'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
+    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/liquid-stats.js?v=20261017-2'></script><script src='/permisos.js?v=20261007-2'></script><script src='/reposiciones.js?v=20261005-4'></script><script src='/agentes.js?v=20261014-19'></script><script src='/promedios.js?v=20261006-7'></script><script src='/capacidad.js?v=20261009-2'></script><script src='/molderia.js?v=20261010-2'></script><script src='/estandar.js?v=20261017-1'></script><script src='/proveedores-tela.js?v=20261016-3'></script><script src='/terminos.js?v=20261010-1'></script><script src='/cookies-aviso.js?v=20261010-1'></script><script src='/rh-contratos.js?v=20261009-3'></script><script src='/fichas-resumen.js?v=20261010-16'></script><script src='/api/cartera/cartera.js?v=20261009-1'></script><script src='/trace-ui.js?v=20261015-1'></script><script src='/home-dashboard.js?v=20261016-27'></script><script src='/bodega-dashboard.js?v=20261018-1'></script><script src='/bodegas.js?v=20261009-7'></script><script src='/codigos-barras.js?v=20261014-3'></script><script src='/mis-pedidos.js?v=20261008-4'></script><script src='/mobile-nav.js?v=20261012-1'></script><script src='/nav-liquid.js?v=20261003-3'></script><script src='/build-watch.js?v=20261002-1'></script><script src='/salud.js?v=20261014-2'></script><script src='/alertas.js?v=20261018-2'></script><script src='/bitacora.js?v=20261016-2'></script><script src='/memoria.js?v=20261018-1'></script><script src='/ecommerce.js?v=20261016-10'></script><script src='/zeus.js?v=20261017-14'></script><script src='/tema.js?v=20261008-1'></script><script src='/tarjeta-iconos.js?v=20261002-5'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261018-1'></script><script src='/linea-editor.js?v=20261008-1'></script><script src='/menu-cuenta.js?v=20261016-2'></script><script src='/foto-perfil.js?v=20261008-4'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
 
 
 def ordered_mockup_uploads(extras, slots):

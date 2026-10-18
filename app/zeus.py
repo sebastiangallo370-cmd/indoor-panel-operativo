@@ -23,7 +23,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Callable
 
-from app import proveedores_tela
+from app import memoria_agentes, proveedores_tela
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
@@ -497,6 +497,7 @@ def sondeo(request: Request, payload: dict):
             else:
                 item['intentos'] = int(item.get('intentos', 0)) + 1
                 item.update(estado='error', detalle=str(r.get('detalle', ''))[:300])
+                memoria_agentes.registrar('ZEUS', str(r.get('detalle', '')), 'ERROR')
         _vencer(d)
         if payload.get('puede_trabajar'):
             for i in d['items']:
