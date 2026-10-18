@@ -106,7 +106,7 @@ RE_CALLE = re.compile(r'\b(calle|cl\.?|carrera|cra\.?|kr\.?|cr\.?|avenida|av\.?|
 ETIQUETAS_NOMBRE = re.compile(r'^\s*(?:nombre(?: completo)?|raz[oó]n social|cliente|se[ñn]or(?:es)?|empresa|titular)\s*[:\-]\s*(.+)$', re.I)
 ETIQUETAS_CIUDAD = re.compile(r'^\s*(?:ciudad|municipio|ciudad/municipio)\s*[:\-]\s*(.+)$', re.I)
 ETIQUETAS_DIR = re.compile(r'^\s*(?:direcci[oó]n(?: de (?:env[ií]o|entrega|residencia))?|dir\.?|domicilio)\s*[:\-]\s*(.+)$', re.I)
-PALABRAS_NO_NOMBRE = re.compile(r'\b(formulario|registro|tributario|concepto|actualizaci[oó]n|dian|espacio|impuestos|aduanas|apellido|nombres?|raz[oó]n|social|contribuyente|persona|natural|jur[ií]dica|responsabilidades|actividad|econ[oó]mica|nit|c\.?c\.?|c[eé]dula|tel[eé]fono|tel|celular|cel|whatsapp|correo|email|direcci[oó]n|ciudad|barrio|http|www|factura|cotizaci[oó]n|orden|fecha|total|valor)\b', re.I)
+PALABRAS_NO_NOMBRE = re.compile(r'\b(ubicaci[oó]n|seccional|lugar|dv|pa[ií]s|departamento|municipio|formulario|registro|tributario|concepto|actualizaci[oó]n|dian|espacio|impuestos|aduanas|apellido|nombres?|raz[oó]n|social|contribuyente|persona|natural|jur[ií]dica|responsabilidades|actividad|econ[oó]mica|nit|c\.?c\.?|c[eé]dula|tel[eé]fono|tel|celular|cel|whatsapp|correo|email|direcci[oó]n|ciudad|barrio|http|www|factura|cotizaci[oó]n|orden|fecha|total|valor)\b', re.I)
 
 
 SIGLAS = {'SAS', 'S.A.S', 'S.A.S.', 'SA', 'S.A', 'S.A.', 'LTDA', 'LTDA.', 'EU', 'E.U', 'E.U.', 'ESP', 'IPS', 'EPS', 'CIA', 'Y', 'DE', 'DEL', 'LA', 'LAS', 'LOS', 'EL', 'E'}
@@ -149,6 +149,13 @@ def _rut(lineas: list[str], t: str) -> dict:
     c: dict = {}
     solo_letras = lambda v: bool(re.fullmatch(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ.&' \-]{3,120}", v)) and not PALABRAS_NO_NOMBRE.search(v)
     nit = _tras_etiqueta(lineas, r'n[uú]mero de identificaci[oó]n tributaria|\b5\.?\s*n[uú]mero de identif', lambda v: bool(re.search(r'\d{6,}', v)) and len(_solo_digitos(v)) <= 11)
+    if not nit:   # OCR desordenado: se busca un número de 9-10 dígitos en las líneas que siguen a «Identificación Tributaria»
+        for i, l in enumerate(lineas):
+            if re.search(r'identi\w*ci\w*n tributaria|\bNIT\b', l, re.I):
+                m = re.search(r'(?<![\d])(\d{8,10})(?![\d])(?:\s*[|\-]?\s*\d)?', ' '.join(lineas[i:i + 3]))
+                if m:
+                    nit = m.group(0)
+                    break
     if nit:
         d = _solo_digitos(nit)
         c['numero'] = d[:-1] if len(d) in (10, 11) and re.search(r'\d[\s\-|]+\d$', nit) else d[:10]

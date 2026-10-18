@@ -32,7 +32,23 @@
   .cc-leido{margin-top:12px;color:#8f9d88;font:12px/1.5 Consolas,monospace;white-space:pre-wrap;max-height:150px;overflow:auto}
   .cc-listo{padding:18px;border:1px solid #d0f44c;border-radius:16px;background:rgba(208,244,76,.08);font:700 15px/1.5 Arial;color:#f5faef}
   .cc-faltan input.falta,.cc-faltan select.falta{border-color:#ffb43d}
-  @media(max-width:700px){.cc{margin:10px auto 110px}.cc-card{padding:16px}.cc-btn{width:100%}}
+  .cc-sub{display:none;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .cc-sub b{font:800 15px Arial;color:#f5faef}.cc-sub small{color:#a9b5a3;font:600 12.5px Arial}
+  .cc-up.plegada .cc-cuerpo{display:none}.cc-up.plegada .cc-sub{display:flex}
+  .cc-resumen{display:flex;flex-wrap:wrap;gap:8px;margin:2px 0 14px}
+  .cc-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:99px;font:800 11.5px Arial;border:1px solid rgba(255,255,255,.16)}
+  .cc-chip.ok{color:#bff26a;border-color:rgba(191,242,106,.5);background:rgba(191,242,106,.08)}
+  .cc-chip.falta{color:#ffc46b;border-color:rgba(255,180,61,.6);background:rgba(255,180,61,.1)}
+  .cc-grid label.leido input,.cc-grid label.leido select{border-color:rgba(191,242,106,.55);background:#16251a}
+  .cc-grid label.leido::after{content:"✓ leído";color:#bff26a;font:800 10px Arial;letter-spacing:.08em}
+  .cc-grid label.pendiente input,.cc-grid label.pendiente select{border-color:#ffb43d}
+  .cc-grid label.pendiente::after{content:"⚠ completar";color:#ffc46b;font:800 10px Arial;letter-spacing:.08em}
+  .cc-det{margin-top:14px;border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:10px 14px}
+  .cc-det summary{cursor:pointer;color:#a9b5a3;font:800 12px Arial;letter-spacing:.08em}
+  .cc-det .cc-leido{max-height:260px}
+  .cc-acciones{position:sticky;bottom:10px;z-index:3;padding:10px;border-radius:16px;background:rgba(11,15,9,.88);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.12)}
+  .cc-acciones .cc-fila{margin-top:0}
+  @media(max-width:700px){.cc-acciones{position:static;background:none;border:0;padding:0}.cc{margin:10px auto 110px}.cc-card{padding:16px}.cc-btn{width:100%}}
   `;
   document.head.appendChild(css);
 
@@ -59,7 +75,21 @@
     campo('t_regimen_iva').value = c.t_regimen_iva ? String(c.t_regimen_iva) : '';
     marcarFaltantes();
   }
+  const OBLIG = ['numero', 'nombre', 'email', 'direccion', 'ciudad'];
+  const ROTULO = { numero: 'Identificación', nombre: 'Nombre', email: 'Correo', celular: 'Celular', telefono1: 'Teléfono', direccion: 'Dirección', ciudad: 'Ciudad' };
+  function estados(leidos) {
+    Object.keys(ROTULO).forEach(k => {
+      const lab = campo(k).closest('label'), lleno = !!campo(k).value.trim();
+      lab.classList.toggle('leido', lleno && (!leidos || leidos.has(k)));
+      lab.classList.toggle('pendiente', !lleno && OBLIG.includes(k));
+    });
+    q('[data-chips]').innerHTML = Object.keys(ROTULO).filter(k => OBLIG.includes(k) || campo(k).value.trim()).map(k => {
+      const lleno = !!campo(k).value.trim();
+      return `<span class="cc-chip ${lleno ? 'ok' : 'falta'}">${lleno ? '✓' : '⚠'} ${ROTULO[k]}${lleno ? '' : ' · falta'}</span>`;
+    }).join('');
+  }
   function marcarFaltantes() {
+    estados(null);
     ['numero', 'nombre', 'email', 'direccion', 'ciudad'].forEach(k => campo(k).classList.toggle('falta', !campo(k).value.trim()));
   }
 
@@ -81,6 +111,9 @@
       q('[data-ya]').innerHTML = ya.length ? '<b>⚠ Ya hay clientes parecidos en Effi:</b><br>' + ya.map(x => `${esc(x.nombre)} · ${esc(x.documento)} · código ${esc(x.tercero)}${x.mismo_numero ? ' <b>(MISMO NÚMERO)</b>' : ''}`).join('<br>') + '<br><small>Si es el mismo cliente, no lo crees otra vez; úsalo en la orden de venta.</small>' : '';
       q('[data-leido]').textContent = j.texto || '';
       q('[data-form]').hidden = false;
+      q('[data-up]').classList.add('plegada');
+      q('[data-sub-t]').textContent = 'Datos leídos de ' + (archivos.length ? archivos.length + ' archivo' + (archivos.length > 1 ? 's' : '') : 'tu texto');
+      q('[data-sub-s]').textContent = OBLIG.filter(k => !campo(k).value.trim()).length ? 'Faltan datos obligatorios: completa los que salen en naranja.' : 'Revisa los datos y crea el cliente.';
       mensaje('[data-msg-leer]', (j.avisos || []).join(' ') || 'Listo: revisa los datos de abajo y corrige lo que haga falta.', (j.avisos || []).length ? 'err' : 'ok');
       q('[data-form]').scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch (e) { mensaje('[data-msg-leer]', e.message, 'err'); }
@@ -137,7 +170,7 @@
     q('[data-resumen]').hidden = true; q('[data-ya]').hidden = true; q('[data-crear]').textContent = 'CREAR CLIENTE EN EFFI';
     panel.querySelectorAll('input,textarea').forEach(i => { i.value = ''; });
     campo('t_dni').value = '2'; campo('t_persona').value = '1';
-    q('[data-form]').hidden = true; q('[data-ok]').hidden = true; mensaje('[data-msg-leer]', ''); mensaje('[data-msg-crear]', '');
+    q('[data-up]').classList.remove('plegada'); q('[data-form]').hidden = true; q('[data-ok]').hidden = true; mensaje('[data-msg-leer]', ''); mensaje('[data-msg-crear]', '');
   }
 
   function build() {
@@ -146,7 +179,7 @@
     if (panel.dataset.listo) return true;
     panel.dataset.listo = '1';
     panel.innerHTML = `<div class="cc cc-faltan">
-      <div class="cc-card"><span class="eyebrow">COMERCIALES</span><h2>CREAR CLIENTE</h2>
+      <div class="cc-card cc-up" data-up><div class="cc-sub"><div><b data-sub-t>Datos leídos</b><br><small data-sub-s></small></div><button class="cc-btn sec" type="button" data-cambiar>CAMBIAR ARCHIVOS</button></div><div class="cc-cuerpo"><span class="eyebrow">COMERCIALES</span><h2>CREAR CLIENTE</h2>
         <p>Sube una foto, un PDF (RUT, cédula, cámara de comercio, chat…) o pega el texto con los datos. El panel los lee, tú revisas y se crea en Effi.</p>
         <div class="cc-drop" data-drop tabindex="0"><b>Toca para subir fotos o PDFs</b><span>o arrástralos aquí · también puedes pegar una imagen con Ctrl+V</span><small>JPG, PNG, PDF · hasta 8 archivos</small></div>
         <input type="file" data-file accept="image/*,application/pdf,.txt" multiple hidden>
@@ -154,8 +187,9 @@
         <textarea data-texto placeholder="O pega aquí el texto: nombre, cédula o NIT, teléfono, correo, dirección y ciudad…"></textarea>
         <div class="cc-fila"><button class="cc-btn" type="button" data-leer>LEER DATOS</button></div>
         <div class="cc-msg" data-msg-leer></div>
-      </div>
+      </div></div>
       <div class="cc-card" data-form hidden><span class="eyebrow">REVISA Y CONFIRMA</span><h2>Datos del cliente</h2><p>Corrige lo que el panel no leyó bien. Los marcados en naranja (*) son obligatorios en Effi: si falta alguno, pídeselo al cliente; no se inventa.</p>
+        <div class="cc-resumen" data-chips></div>
         <div class="cc-grid">
           <label>TIPO DE IDENTIFICACIÓN<select name="t_dni"><option value="2">Cédula de ciudadanía</option><option value="1">NIT</option><option value="4">Cédula de extranjería</option><option value="3">Pasaporte</option></select></label>
           <label>NÚMERO (SIN DÍGITO DE VERIFICACIÓN)<input name="numero" inputmode="numeric" autocomplete="off"></label>
@@ -171,10 +205,10 @@
           <label>REFERENCIA DE LA DIRECCIÓN<input name="referencia" autocomplete="off" maxlength="200" placeholder="Barrio, local, torre…"></label>
         </div>
         <div class="cc-listo" data-ya hidden style="border-color:#ffb43d;background:rgba(255,180,61,.1);margin-top:12px"></div>
-        <div class="cc-leido" data-leido></div>
-        <div class="cc-listo" data-resumen hidden style="margin-top:12px"></div>
+        <details class="cc-det"><summary>VER EL TEXTO QUE SE LEYÓ</summary><div class="cc-leido" data-leido></div></details>
+        <div class="cc-acciones"><div class="cc-listo" data-resumen hidden style="margin-bottom:10px"></div>
         <div class="cc-fila"><button class="cc-btn" type="button" data-crear>CREAR CLIENTE EN EFFI</button><button class="cc-btn sec" type="button" data-nuevo>EMPEZAR DE NUEVO</button></div>
-        <div class="cc-msg" data-msg-crear></div>
+        <div class="cc-msg" data-msg-crear></div></div>
       </div>
       <div class="cc-listo" data-ok hidden></div>
       <div class="cc-fila" data-otro hidden><button class="cc-btn sec" type="button" data-nuevo>CREAR OTRO CLIENTE</button></div>
@@ -189,6 +223,7 @@
     panel.addEventListener('paste', e => { const fs = [...(e.clipboardData?.files || [])]; if (fs.length) { agregar(fs); e.preventDefault(); } });
     q('[data-archivos]').addEventListener('click', e => { const b = e.target.closest('[data-quitar]'); if (b) { archivos.splice(+b.dataset.quitar, 1); pintarArchivos(); } });
     q('[data-leer]').addEventListener('click', leer);
+    q('[data-cambiar]').addEventListener('click', () => { q('[data-up]').classList.remove('plegada'); q('[data-up]').scrollIntoView({ behavior: 'smooth', block: 'start' }); });
     q('[data-crear]').addEventListener('click', crear);
     q('[data-form]').addEventListener('input', () => { if (confirmado) { confirmado = false; q('[data-resumen]').hidden = true; q('[data-crear]').textContent = 'CREAR CLIENTE EN EFFI'; } });
     panel.querySelectorAll('[data-nuevo]').forEach(b => b.addEventListener('click', nuevo));
