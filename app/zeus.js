@@ -6,7 +6,7 @@
   const num = v => Number(v || 0).toLocaleString('es-CO', { maximumFractionDigits: 2 });
   const cuando = () => new Date().toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
   const ESTADO = { SIN_CONECTAR: ['Sin conectar', 'bad'], ESPERANDO_EFFI: ['Esperando acceso a Effi', 'warn'], LIBRE: ['Libre', 'ok'], TRABAJANDO: ['Creando orden de compra…', 'ok'], ERROR: ['Con error', 'bad'] };
-  const COMPRA = { pendiente: ['Por comprar', 'warn'], entregada: ['Creándola en Effi…', 'warn'], creada: ['Orden creada', 'ok'], error: ['Con error', 'bad'], cancelada: ['Ya alcanza', ''] };
+  const COMPRA = { pendiente: ['Por comprar', 'warn'], entregada: ['Creándola en Effi…', 'warn'], creada: ['Orden creada', 'ok'], error: ['Con error', 'bad'], cancelada: ['Ya alcanza', ''], anulada: ['Anulada', ''] };
   let apiEstado = null, apiMsg = '', apiRetenciones = null, pintadoUna = false, vista = 'ordenes', filtroOrd = 'todas', datosZ = null, firmaZ = '', animarVista = false, kpiPrev = {}, tickZ = 0, baseHace = null, baseAt = 0;
   let panel = null, tab = null, cuerpo = null, timer = null, correos = [], cuentaEnvia = '', notificar = [], usuariosPanel = [], notAbierto = false, notBuscar = '';
 
@@ -61,7 +61,7 @@
     const b = panel.querySelector('[data-zeus-nbuscar]'); if (b && document.activeElement === document.body && notBuscar) { b.focus(); b.setSelectionRange(notBuscar.length, notBuscar.length); }
   }
 
-  function envioHtml(i) {
+  function envioBase(i) {
     if (i.estado !== 'creada' || !i.oc) return '';
     const e = i.envio_proveedor || {};
     const pdf = i.pdf ? '<a class="zeus-pdf" href="/api/zeus/pdf/' + i.id + '" target="_blank" rel="noopener">📄 Ver PDF de la orden</a>' : '';
@@ -71,6 +71,16 @@
       '<button type="button" class="zeus-envio-btn suave" data-zeus-prov="' + i.id + '" data-otra="1">Reenviar</button></div>';
     return '<div class="zeus-envio">' + pdf + (e.estado === 'error' ? '<span class="zeus-envio-est mal" title="' + esc(e.detalle || '') + '">⚠ No se pudo enviar</span>' : '') +
       '<button type="button" class="zeus-envio-btn" data-zeus-prov="' + i.id + '" data-oc="' + esc(i.oc) + '">✉ Enviar al proveedor</button></div>';
+  }
+
+  function envioHtml(i) {
+    if (i.estado === 'anulada') {
+      const pdf = i.pdf ? '<a class="zeus-pdf" href="/api/zeus/pdf/' + i.id + '" target="_blank" rel="noopener">📄 Ver PDF de la orden</a>' : '';
+      return '<div class="zeus-envio">' + pdf + '<span class="zeus-envio-est mal" title="' + esc(i.motivo_anulada || '') + '">Anulada en Effi' + (i.anulada_por ? ' por ' + esc(i.anulada_por) : '') + (i.anulada_at ? ' · ' + esc(String(i.anulada_at).replace('T', ' ').slice(0, 16)) : '') + '</span></div>';
+    }
+    const base = envioBase(i);
+    if (!base || i.estado !== 'creada') return base;
+    return base.replace(/<\/div>$/, '<button type="button" class="zeus-anular" data-zeus-anular="' + i.id + '" data-oc="' + esc(i.oc) + '">Anular orden</button></div>');
   }
 
   const PASOS = ['En cola', 'Creada', 'Enviada a encargado', 'Enviada a proveedor'];
@@ -89,7 +99,7 @@
   const kv = (k, v, t) => v ? '<div class="zo-kv"><span>' + k + '</span><b' + (t ? ' title="' + esc(t) + '"' : '') + '>' + v + '</b></div>' : '';
   function ordenHtml(i, n) {
     const [label, c] = COMPRA[i.estado] || [i.estado, ''];
-    const p = paso(i), ring = c === 'bad' ? 'bad' : c === 'warn' ? 'warn' : 'ok';
+    const p = paso(i), ring = i.estado === 'anulada' ? 'gris' : c === 'bad' ? 'bad' : c === 'warn' ? 'warn' : 'ok';
     const e = i.envio_proveedor || {};
     const pasos = !p ? '' : '<ol class="zo-pasos" style="--p:' + Math.max(p.hecho, p.actual, 0) + '">' + PASOS.map((t, k) => '<li title="' + esc(t) + '" class="' + (k === p.actual ? 'actual' : k <= p.hecho ? 'hecho' : '') + '"><i></i></li>').join('') + '</ol>' +
       '<div class="zo-paso-txt">' + esc(PASOS[p.actual >= 0 ? p.actual : p.hecho]) + '</div>';
@@ -249,6 +259,8 @@
 .zeus-envio{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.14)}
 .zeus-pdf{flex:1 1 100%;text-align:center;padding:8px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.08);color:#fff;font:800 .72rem Arial;letter-spacing:.04em;text-decoration:none}.zeus-pdf:hover{background:rgba(255,255,255,.18)}
 .zeus-envio-est{flex:1 1 100%;font:700 .72rem Arial;color:#d3dccf}.zeus-envio-est.ok{color:#8bd450}.zeus-envio-est.mal{color:#ff9a9d}
+.zeus-anular{width:100%!important;min-height:34px;padding:0 14px;border:1px solid rgba(255,75,62,.55);border-radius:12px;background:transparent;color:#ffb3ad;font:800 .7rem Arial;letter-spacing:.04em;cursor:pointer;transition:background .2s}.zeus-anular:hover{background:rgba(255,75,62,.16)}.zeus-anular:disabled{opacity:.5}
+.zo.gris{--r:rgba(255,255,255,.5);opacity:.78}
 .zeus-envio-btn{min-height:38px;padding:0 14px;border:1px solid rgba(255,255,255,.3);border-radius:12px;background:rgba(255,255,255,.92);color:#10140a;font:800 .74rem Arial;letter-spacing:.04em;cursor:pointer;width:100%!important;transition:transform .2s,background .2s}
 .zeus-envio-btn:hover{transform:translateY(-1px);background:#fff}.zeus-envio-btn:disabled{opacity:.5;cursor:default}.zeus-envio-btn.suave{background:rgba(255,255,255,.1);color:#fff}
 .panel[data-panel="zeus"] .inventory-item-card .inv-total:empty{display:none}
@@ -404,6 +416,14 @@
       if (notAbierto && panel && !e.target.closest('.zeus-sel') && !e.target.closest('[data-zeus-quitar-user]')) { notAbierto = false; notBuscar = ''; repintarNotificar(''); }
     });
     panel.addEventListener('click', async e => {
+      const an = e.target.closest('[data-zeus-anular]');
+      if (an) {
+        const motivo = prompt('Se anulará la orden de compra ' + (an.dataset.oc || '') + ' en Effi.\n\nMotivo de la anulación:', 'Orden anulada desde el panel');
+        if (motivo === null) return;
+        an.disabled = true;
+        try { await llamar('/api/zeus/anular', 'POST', { id: Number(an.dataset.zeusAnular), motivo: motivo.trim() }); } catch (err) { alert(err.message); }
+        cargar(false); return;
+      }
       const ep = e.target.closest('[data-zeus-prov]');
       if (ep) {
         const otra = !!ep.dataset.otra;

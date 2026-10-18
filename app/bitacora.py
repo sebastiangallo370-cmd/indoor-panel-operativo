@@ -39,6 +39,7 @@ ETIQUETAS = [
     ('PATCH', r'^/api/produccion/operaciones/evento/\d+$', 'Producción', 'Corrigió un evento de operario'),
     ('DELETE', r'^/api/produccion/operaciones/evento/\d+$', 'Producción', 'Borró un evento de operario'),
     ('PUT', r'^/api/proveedores-tela$', 'Estándar 2026', 'Eligió el proveedor de una tela'),
+    ('POST', r'^/api/zeus/anular$', 'Agente inventario', 'Anuló una orden de compra en Effi'),
     ('POST', r'^/api/zeus/enviar-proveedor$', 'Agente inventario', 'Pidió enviar una orden de compra al correo del proveedor'),
     ('POST', r'^/api/memoria/corregir$', 'Memoria de agentes', 'Marcó un error de los agentes como corregido'),
     ('POST', r'^/api/memoria/reabrir$', 'Memoria de agentes', 'Reabrió un error de los agentes'),

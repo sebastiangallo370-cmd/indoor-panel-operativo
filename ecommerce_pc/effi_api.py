@@ -207,6 +207,12 @@ def crear_orden(item_id, referencia: str, metros: float, nombre_proveedor: str, 
     return {'oc': str(data.get('id')), 'detalle': f"API Effi {data.get('id_transaccion') or data.get('id')} · {res['proveedor'][:40]} · {metros:g} MTS · total ${data.get('total') or res['total']}"}
 
 
+def anular_orden(oc_id, motivo: str) -> dict:
+    """Anula una orden de compra vigente (DELETE /orden_c). Si ya estaba anulada lo dice Effi con un 400: el llamador lo trata como anulada."""
+    cuerpo = {'sucursal': int(os.getenv('EFFI_SUCURSAL', '1')), 'id': int(oc_id), 'observacion_anular': str(motivo or 'Anulada desde el panel')[:255]}
+    return (_peticion('DELETE', 'orden_c', cuerpo=cuerpo).get('data') or {})
+
+
 if __name__ == '__main__':
     if len(sys.argv) >= 5 and sys.argv[1] == 'prueba':
         if not disponible():

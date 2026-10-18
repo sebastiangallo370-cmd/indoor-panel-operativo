@@ -358,7 +358,7 @@ def estado():
         _vencer(d)
         from app import alertas_correo
         return {'agente': _agente(d), 'items': [_enriquecer(i) for i in d['items'][-60:][::-1]],
-                'resumen': {e: sum(1 for i in d['items'] if i['estado'] == e) for e in ('pendiente', 'entregada', 'creada', 'error', 'cancelada')},
+                'resumen': {e: sum(1 for i in d['items'] if i['estado'] == e) for e in ('pendiente', 'entregada', 'creada', 'error', 'cancelada', 'anulada')},
                 'correo': {'configurado': alertas_correo.puede_enviar(), 'cuenta': alertas_correo.cuenta()[0], 'encargado': bool(any(c.get('estado') == 'verificado' for c in d['config']['correos']) or os.getenv('ZEUS_EMAIL_A') or os.getenv('ALERTA_EMAIL_A'))},
                 'correos': _correos_vista(d), 'notificar': d['config']['notificar'], 'usuarios': _usuarios()}
 
@@ -409,6 +409,37 @@ def ver_config():
     with _lock:
         d = _leer()
         return {'correos': _correos_vista(d), 'notificar': d['config']['notificar'], 'usuarios': _usuarios()}
+
+
+@router.post('/anular')
+def anular_orden(request: Request, payload: dict):
+    """Botón «Anular orden» de la tarjeta: anula la orden de compra en Effi por la API (DELETE /orden_c) y la marca anulada aquí."""
+    usuario = _usuario(request)
+    motivo = str(payload.get('motivo', '')).strip() or 'Orden anulada desde el panel de Indoor Sport'
+    sec = _leer_secreto()
+    if not sec.get('llave'):
+        raise HTTPException(400, 'Para anular desde aquí conecta la API de Effi (pestaña «API Effi»).')
+    with _lock:
+        item = next((i for i in _leer()['items'] if i['id'] == payload.get('id')), None)
+    if not item or item.get('estado') != 'creada' or not item.get('oc'):
+        raise HTTPException(404, 'Esa orden de compra no está creada en Effi (o ya se anuló)')
+    effi_api.usar_llave(sec['llave'])
+    ya = False
+    try:
+        effi_api.anular_orden(item['oc'], motivo)
+    except effi_api.EffiError as e:
+        if e.estado == 400 and 'anulada' in str(e).lower():
+            ya = True   # Effi dice que ya estaba anulada (por ejemplo desde su web): se refleja igual aquí
+        else:
+            raise HTTPException(400, 'Effi no la anuló: ' + str(e))
+    with _lock:
+        d = _leer()
+        it = next((i for i in d['items'] if i['id'] == item['id']), None)
+        if it:
+            it.update(estado='anulada', anulada_at=_iso(), anulada_por=usuario, motivo_anulada=motivo[:255], actualizado=_iso())
+            d['pedido_por_tela'][it['tela']] = max(0.0, round(float(d['pedido_por_tela'].get(it['tela'], 0)) - float(it['falta']), 2))   # esa tela vuelve a faltar si sigue sin alcanzar
+            _guardar(d)
+    return {'ok': True, 'ya_anulada': ya}
 
 
 @router.post('/enviar-proveedor')
