@@ -13,10 +13,11 @@
   const css = document.createElement('style');
   css.textContent = `
   #agentes-hub{display:none;gap:10px;flex-wrap:wrap;align-items:stretch;margin:0 0 14px;padding:10px;border:1px solid rgba(255,255,255,.14);border-radius:20px;background:linear-gradient(160deg,rgba(255,255,255,.08),rgba(255,255,255,.02));backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 10px 26px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.12)}
-  body:has(.panel[data-panel='agentes'].active) #agentes-hub,body:has(.panel[data-panel='ecommerce'].active) #agentes-hub,body:has(.panel[data-panel='zeus'].active) #agentes-hub,body:has(.panel[data-panel='memoria'].active) #agentes-hub{display:flex}
+  body:has(.panel[data-panel='agentes'].active) #agentes-hub,body:has(.panel[data-panel='ecommerce'].active) #agentes-hub,body:has(.panel[data-panel='zeus'].active) #agentes-hub,body:has(.panel[data-panel='memoria'].active) #agentes-hub{display:flex!important;flex-direction:row!important;flex-wrap:wrap!important}
   #agentes-hub .ah-t{display:grid;align-content:center;padding:0 12px 0 8px;font:900 11px Arial;letter-spacing:.16em;color:#d0f44c}
   #agentes-hub .ah-t small{margin-top:2px;font:600 10.5px Arial;letter-spacing:.04em;color:#8f9b8a;text-transform:none}
-  #agentes-hub button{display:grid;gap:1px;min-width:128px;padding:9px 16px;border:1px solid rgba(255,255,255,.14);border-radius:14px;background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(0,0,0,.25));color:#e8f0e0;text-align:left;cursor:pointer;transition:transform .15s,border-color .15s,box-shadow .15s}
+  #agentes-hub{flex-direction:row!important;align-items:stretch!important}
+  #agentes-hub button{width:auto!important;max-width:none!important;flex:0 0 auto!important;margin:0!important;display:grid;gap:1px;min-width:128px;padding:9px 16px;border:1px solid rgba(255,255,255,.14);border-radius:14px;background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(0,0,0,.25));color:#e8f0e0;text-align:left;cursor:pointer;transition:transform .15s,border-color .15s,box-shadow .15s}
   #agentes-hub button b{font:900 12.5px Arial;letter-spacing:.1em}
   #agentes-hub button small{font:600 10.5px Arial;color:#9aa893}
   #agentes-hub button:hover{transform:translateY(-2px);border-color:rgba(208,244,76,.5)}
