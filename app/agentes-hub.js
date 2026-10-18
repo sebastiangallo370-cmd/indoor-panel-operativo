@@ -1,5 +1,5 @@
 (() => {
-  // AGENTES unificado: una sola entrada en el menú y una barra con las ÁREAS (Edición, Ecommerce, Inventario, Memoria).
+  // AGENTES unificado: una sola entrada en el menú y una barra con las ÁREAS (Edición, Ecommerce, Inventario; Memoria de agentes queda aparte, en el menú de la cuenta).
   // Cada área sigue siendo su propio panel (agentes.js, ecommerce.js, zeus.js, memoria.js); esta barra solo cambia de uno a otro.
   // Solo salen las áreas a las que la cuenta tiene acceso (si el módulo no creó su pestaña, el área no aparece).
   if (window.__agentesHub) return;
@@ -8,12 +8,11 @@
     { kind: 'agentes', nombre: 'EDICIÓN', sub: 'TAVO, LEO, JACK…' },
     { kind: 'ecommerce', nombre: 'ECOMMERCE', sub: 'ALMA · BRISA · CIRO' },
     { kind: 'zeus', nombre: 'INVENTARIO', sub: 'Tela y compras' },
-    { kind: 'memoria', nombre: 'MEMORIA', sub: 'Errores y lecciones' },
   ];
   const css = document.createElement('style');
   css.textContent = `
   #agentes-hub{display:none;gap:6px;flex-wrap:wrap;align-items:center;margin:0 0 10px;padding:5px 8px;border:1px solid rgba(255,255,255,.14);border-radius:999px;background:linear-gradient(160deg,rgba(255,255,255,.08),rgba(255,255,255,.02));backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 10px 26px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.12)}
-  body:has(.panel[data-panel='agentes'].active) #agentes-hub,body:has(.panel[data-panel='ecommerce'].active) #agentes-hub,body:has(.panel[data-panel='zeus'].active) #agentes-hub,body:has(.panel[data-panel='memoria'].active) #agentes-hub{display:flex!important;flex-direction:row!important;flex-wrap:wrap!important}
+  body:has(.panel[data-panel='agentes'].active) #agentes-hub,body:has(.panel[data-panel='ecommerce'].active) #agentes-hub,body:has(.panel[data-panel='zeus'].active) #agentes-hub{display:flex!important;flex-direction:row!important;flex-wrap:wrap!important}
   #agentes-hub .ah-t{display:grid;align-content:center;padding:0 10px 0 8px;font:900 10.5px Arial;letter-spacing:.16em;color:#d0f44c}
   #agentes-hub .ah-t small{display:none}
   #agentes-hub{flex-direction:row!important;align-items:stretch!important}
@@ -21,7 +20,7 @@
   #agentes-hub button b{font:900 11px Arial;letter-spacing:.1em}
   #agentes-hub button:hover{transform:translateY(-1px);border-color:rgba(208,244,76,.5)}
   #agentes-hub button.on{border-color:#d0f44c;background:linear-gradient(180deg,#e2ff6a,#a9d21f);color:#16200a;box-shadow:0 10px 22px -8px rgba(208,244,76,.6),inset 0 1px 0 rgba(255,255,255,.5)}
-  #open-ecommerce,#open-zeus,#open-memoria{display:none!important}
+  #open-ecommerce,#open-zeus{display:none!important}
   @media(max-width:700px){#agentes-hub{flex-wrap:nowrap;overflow-x:auto;margin:0 0 8px;padding:5px 6px;-webkit-overflow-scrolling:touch}#agentes-hub .ah-t{display:none}#agentes-hub button{flex:0 0 auto}}
   `;
   document.head.appendChild(css);
