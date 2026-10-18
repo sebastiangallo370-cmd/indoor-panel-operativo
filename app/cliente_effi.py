@@ -47,8 +47,8 @@ def _con_llave() -> None:
 
 
 # ---------------------------------------------------------------- lectura de archivos
-def _tesseract(ruta: str) -> str:
-    r = subprocess.run(['tesseract', ruta, 'stdout', '-l', 'spa', '--psm', '6'], capture_output=True, text=True, timeout=120)
+def _tesseract(ruta: str, *args: str) -> str:
+    r = subprocess.run(['tesseract', ruta, 'stdout', *(args or ('-l', 'spa', '--psm', '6'))], capture_output=True, text=True, timeout=120)
     return r.stdout or ''
 
 
@@ -87,6 +87,108 @@ def leer_archivo(nombre: str, datos: bytes) -> str:
     if n.endswith(('.txt', '.csv', '.md')):
         return datos.decode('utf-8', 'replace')
     return _ocr_imagen(datos)
+
+
+# ---------------------------------------------------------------- RUT por casillas
+# El formulario 001 de la DIAN siempre tiene la misma forma: cada casilla se lee recortada (mucho más fiable que el OCR de toda la página).
+# Cajas en fracción de la página: (izquierda, arriba, derecha, abajo).
+ZONAS_RUT = {
+    'nit': (.05, .221, .31, .242), 'tipo': (.05, .262, .34, .280),
+    'ap1': (.05, .322, .27, .344), 'ap2': (.255, .322, .455, .344), 'nom1': (.46, .322, .65, .344), 'nom2': (.655, .322, .97, .344),
+    'razon': (.05, .356, .97, .375), 'depto': (.33, .433, .61, .450), 'ciudad': (.64, .433, .90, .450),
+    'dir': (.05, .466, .60, .482), 'mail': (.17, .477, .50, .499), 'tel1': (.49, .493, .645, .515),
+}
+
+
+def _ocr_zona(img, caja, solo_digitos: bool = False) -> str:
+    w, h = img.size
+    x0, y0, x1, y1 = caja
+    z = img.crop((int(x0 * w), int(y0 * h), int(x1 * w), int(y1 * h))).convert('L')
+    z = z.resize((z.width * 3, z.height * 3))
+    with tempfile.TemporaryDirectory() as d:
+        ruta = os.path.join(d, 'z.png')
+        z.save(ruta)
+        args = ('--psm', '7', '-c', 'tessedit_char_whitelist=0123456789') if solo_digitos else ('-l', 'spa', '--psm', '7')
+        return re.sub(r'\s+', ' ', _tesseract(ruta, *args)).strip()
+
+
+def _ocr_correo(img, caja) -> str:
+    from PIL import Image, ImageOps
+    w, h = img.size
+    x0, y0, x1, y1 = caja
+    base = img.crop((int(x0 * w), int(y0 * h), int(x1 * w), int(y1 * h))).convert('L')
+    for escala in (2, 6):
+        z = base.resize((base.width * escala, base.height * escala), Image.LANCZOS).point(lambda px: 255 if px > 150 else 0)
+        z = ImageOps.expand(z, 20, 255)
+        with tempfile.TemporaryDirectory() as d:
+            ruta = os.path.join(d, 'z.png')
+            z.save(ruta)
+            t = _tesseract(ruta, '--psm', '7', '-c', 'tessedit_char_whitelist=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@._-').strip().strip('_.- ')
+        m = RE_EMAIL.search(t.lower())
+        if m:
+            return m.group(0)
+    return ''
+
+
+def _arreglar_correo(t: str) -> str:
+    t = (t or '').strip().replace(' ', '').strip('.,;|')
+    if '@' not in t:   # el OCR suele leer la arroba como 0, O, © o a
+        t = re.sub(r'(?i)^(.{3,}?)[0o©@a]?((?:gmail|hotmail|outlook|yahoo|icloud|live|msn)\.[a-z.]{2,})$', r'\1@\2', t)
+    return t.lower() if RE_EMAIL.fullmatch(t.lower()) else ''
+
+
+def rut_por_zonas(img) -> dict:
+    """Lee un RUT (formulario 001 de la DIAN) casilla por casilla. Devuelve los campos que pudo leer con sentido."""
+    z = {k: (_ocr_correo(img, caja) if k == 'mail' else _ocr_zona(img, caja, solo_digitos=(k in ('nit', 'tel1')))) for k, caja in ZONAS_RUT.items()}
+    c: dict = {}
+    nit = _solo_digitos(z['nit'])
+    if 6 <= len(nit) <= 10:
+        c['numero'] = nit
+    razon = z['razon'] if re.search(r'[A-Za-zÁÉÍÓÚÑáéíóúñ]{3}', z['razon']) and len(z['razon']) >= 3 else ''
+    letras = lambda v: ' '.join(w for w in re.sub(r"[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ' ]", ' ', v).split() if len(w) > 2)
+    ap = [letras(z['ap1']), letras(z['ap2'])]
+    no = [letras(z['nom1']), letras(z['nom2'])]
+    if razon:
+        c['nombre'], c['t_dni'], c['t_persona'] = _titulo(razon), 1, 2
+    elif any(ap) and any(no):
+        c['nombre'] = _titulo(' '.join(x for x in no + ap if x))
+        c['t_dni'], c['t_persona'] = 2, 1
+    d = _solo_digitos(z['tel1'])
+    if len(d) > 10 and d.startswith('3'):
+        d = d[:10]
+    if len(d) == 10 and d.startswith('3'):
+        c['celular'] = d
+    elif 7 <= len(d) <= 10:
+        c['telefono1'] = d
+    if z['dir'] and re.search(r'\d', z['dir']):
+        partes_dir = [w for w in z['dir'].split() if re.fullmatch(r'[\w#\-.,°º]+', w)]
+        while len(partes_dir) > 2 and partes_dir[-1].isalpha() and len(partes_dir[-1]) <= 4 and any(ch.isdigit() for ch in ' '.join(partes_dir[:-1])) and any(ch.isdigit() for ch in partes_dir[-2]):
+            partes_dir.pop()   # restos de la marca de agua o del borde de la casilla
+        c['direccion'] = ' '.join(partes_dir)[:200]
+    correo = _arreglar_correo(z['mail'])
+    if correo:
+        c['email'] = correo
+    if letras(z['ciudad']):
+        c['ciudad_texto'] = letras(z['ciudad'])
+    if letras(z['depto']):
+        c['provincia_texto'] = letras(z['depto'])   # solo palabras de más de 2 letras
+    return c
+
+
+def _imagen_primera_pagina(nombre: str, datos: bytes):
+    n = (nombre or '').lower()
+    if n.endswith('.pdf') or datos[:4] == b'%PDF':
+        import pdfplumber
+        with pdfplumber.open(io.BytesIO(datos)) as pdf:
+            return pdf.pages[0].to_image(resolution=200).original.convert('RGB')
+    if n.endswith(('.txt', '.csv', '.md')):
+        return None
+    from PIL import Image, ImageOps
+    return ImageOps.exif_transpose(Image.open(io.BytesIO(datos))).convert('RGB')
+
+
+def _es_rut(texto: str) -> bool:
+    return bool(re.search(r'registro\s+[uú]nico\s+tributar|\bRUT\b|formulario del registro', texto or '', re.I))
 
 
 # ---------------------------------------------------------------- interpretación del texto
@@ -299,7 +401,7 @@ def _candidatos_ciudad(c: dict, texto: str) -> list[str]:
     return res[:5]
 
 
-def resolver_ciudad(candidatos: list[str]) -> dict | None:
+def resolver_ciudad(candidatos: list[str], provincia: str = '') -> dict | None:
     """Busca la ciudad en Effi (tabla global). Gana la que coincide exacta (sin tildes); si no, la primera parcial."""
     for nombre in candidatos:
         try:
@@ -308,8 +410,10 @@ def resolver_ciudad(candidatos: list[str]) -> dict | None:
             continue
         if not lista:
             continue
-        exacta = [x for x in lista if _plano(x.get('nombre', '')) == _plano(nombre)]
-        elegida = (exacta or lista)[0]
+        palabras_prov = [w for w in _plano(provincia).split() if len(w) >= 4]
+        de_la_provincia = [x for x in lista if palabras_prov and any(w in _plano(x.get('nombre_provincia', '')) for w in palabras_prov)] or lista
+        exacta = [x for x in de_la_provincia if _plano(x.get('nombre', '')) == _plano(nombre)]
+        elegida = (exacta or de_la_provincia)[0]
         return {'id_ciudad': int(elegida['id']), 'id_provincia': int(elegida['provincia']), 'ciudad': elegida.get('nombre', ''), 'provincia': elegida.get('nombre_provincia', '')}
     return None
 
@@ -357,7 +461,7 @@ async def leer(request: Request, texto: str = Form(''), archivos: list[UploadFil
     _usuario(request)
     if len(archivos) > MAX_ARCHIVOS:
         raise HTTPException(400, f'Máximo {MAX_ARCHIVOS} archivos por vez')
-    partes, avisos = [], []
+    partes, avisos, zonas = [], [], {}
     if texto.strip():
         partes.append(texto.strip())
     for a in archivos:
@@ -370,6 +474,13 @@ async def leer(request: Request, texto: str = Form(''), archivos: list[UploadFil
         except Exception:   # archivo dañado o formato no soportado: se avisa y se sigue con los demás
             avisos.append(f'No se pudo leer «{a.filename}».')
             continue
+        if _es_rut(t):
+            try:
+                img = _imagen_primera_pagina(a.filename or '', datos)
+                if img is not None:
+                    zonas = rut_por_zonas(img)
+            except Exception:   # si la lectura por casillas falla se sigue con el texto completo
+                zonas = {}
         if not t:
             avisos.append(f'«{a.filename}» no tiene texto legible.')
         partes.append(t)
@@ -377,12 +488,19 @@ async def leer(request: Request, texto: str = Form(''), archivos: list[UploadFil
     if not leido.strip():
         raise HTTPException(422, 'No se encontró texto en lo que subiste. Prueba con una foto más clara o escribe los datos.')
     campos = interpretar(leido)
+    if zonas:   # las casillas del RUT leídas una a una mandan sobre el texto corrido
+        for k in ('t_dni', 't_persona', 'numero', 'nombre', 'celular', 'telefono1', 'direccion', 'email', 'ciudad_texto'):
+            if zonas.get(k):
+                campos[k] = zonas[k]
+        if zonas.get('celular'):
+            campos['whatsapp'] = zonas['celular']
+        campos['provincia_texto'] = zonas.get('provincia_texto', '')
     avisos += conflictos(partes)
     ciudad = None
     if effi_api.disponible() or (_llave() or '').strip():
         try:
             _con_llave()
-            ciudad = resolver_ciudad(_candidatos_ciudad(campos, leido))
+            ciudad = resolver_ciudad(_candidatos_ciudad(campos, leido), campos.pop('provincia_texto', ''))
         except HTTPException:
             pass
     if ciudad:
