@@ -77,10 +77,21 @@ def _guardar(d: dict) -> None:
         log.exception('memoria: no se pudo guardar')
 
 
+_FALLO = re.compile(r'no pude|no se pudo|falló|fallo|error|excepci|no encontr|sin respuesta|tiempo agotado|cancel', re.I)
+
+
+def _es_error(nivel: str, texto: str) -> bool:
+    """Los agentes avisan sus fallos como ERROR, pero muchos los dejan en WARN («No pude hacer los stickers»): también cuentan si el texto dice que algo falló."""
+    n, t = str(nivel or '').upper(), str(texto or '').strip()
+    if not t:
+        return False
+    return n.startswith('ERR') or (n.startswith('WARN') and bool(_FALLO.search(t)))
+
+
 def registrar(agente: str, texto: str, nivel: str = 'ERROR') -> None:
     """Llamada desde los puntos donde el servidor recibe errores de agentes. Nunca lanza excepciones."""
     try:
-        if not str(nivel or '').upper().startswith('ERR') or not str(texto or '').strip():
+        if not _es_error(nivel, texto):
             return
         agente = str(agente or '?').upper()[:12]
         with _lock:

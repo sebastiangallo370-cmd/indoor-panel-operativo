@@ -37,6 +37,13 @@ class Memoria(unittest.TestCase):
         mem.registrar('OLVER', 'Falló la exportación de la mesa 6 de RM7000')
         self.assertEqual(d['items'][iid]['veces_despues'], 2)
 
+    def test_avisos_que_dicen_que_algo_fallo_tambien_cuentan(self):
+        mem.registrar('STICKERS', 'No pude hacer los stickers: falta la fuente', 'WARN')
+        mem.registrar('STICKERS', 'Sin imagen en pantalla en vivo de x.pdf', 'WARN')        # aviso normal: no es un fallo
+        vistos = [i for i in mem._cargar()['items'].values() if i['origen'] == 'visto']
+        self.assertEqual(len(vistos), 1)
+        self.assertEqual(vistos[0]['agente'], 'STICKERS')
+
     def test_solo_cuentan_los_errores(self):
         mem.registrar('TAVO', 'Todo bien', 'INFO')
         mem.registrar('TAVO', '', 'ERROR')
