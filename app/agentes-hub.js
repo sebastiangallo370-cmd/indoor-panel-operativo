@@ -1,7 +1,7 @@
 (() => {
-  // AGENTES unificado: una sola entrada en el menú y una barra con las ÁREAS (Edición, Ecommerce, Inventario; Memoria de agentes queda aparte, en el menú de la cuenta).
-  // Cada área sigue siendo su propio panel (agentes.js, ecommerce.js, zeus.js, memoria.js); esta barra solo cambia de uno a otro.
-  // Solo salen las áreas a las que la cuenta tiene acceso (si el módulo no creó su pestaña, el área no aparece).
+  // AGENTES unificado: una sola entrada en el menú y, junto al título de cada pantalla de agentes, una flecha desplegable para elegir qué área ver
+  // (Edición, Ecommerce, Inventario). Cada área sigue siendo su propio panel (agentes.js, ecommerce.js, zeus.js); esto solo cambia de uno a otro.
+  // Solo salen las áreas a las que la cuenta tiene acceso. «Memoria de agentes» queda aparte, en el menú de la cuenta.
   if (window.__agentesHub) return;
   window.__agentesHub = true;
   const AREAS = [
@@ -11,49 +11,71 @@
   ];
   const css = document.createElement('style');
   css.textContent = `
-  #agentes-hub{display:none;gap:6px;flex-wrap:wrap;align-items:center;margin:0 0 10px;padding:5px 8px;border:1px solid rgba(255,255,255,.14);border-radius:999px;background:linear-gradient(160deg,rgba(255,255,255,.08),rgba(255,255,255,.02));backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 10px 26px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.12)}
-  body:has(.panel[data-panel='agentes'].active) #agentes-hub,body:has(.panel[data-panel='ecommerce'].active) #agentes-hub,body:has(.panel[data-panel='zeus'].active) #agentes-hub{display:flex!important;flex-direction:row!important;flex-wrap:wrap!important}
-  #agentes-hub .ah-t{display:grid;align-content:center;padding:0 10px 0 8px;font:900 10.5px Arial;letter-spacing:.16em;color:#d0f44c}
-  #agentes-hub .ah-t small{display:none}
-  #agentes-hub{flex-direction:row!important;align-items:stretch!important}
-  #agentes-hub button{width:auto!important;max-width:none!important;flex:0 0 auto!important;margin:0!important;display:block;min-width:0!important;padding:6px 14px!important;border:1px solid rgba(255,255,255,.14);border-radius:999px!important;background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(0,0,0,.25));color:#e8f0e0;text-align:left;cursor:pointer;transition:transform .15s,border-color .15s,box-shadow .15s}
-  #agentes-hub button b{font:900 11px Arial;letter-spacing:.1em}
-  #agentes-hub button:hover{transform:translateY(-1px);border-color:rgba(208,244,76,.5)}
-  #agentes-hub button.on{border-color:#d0f44c;background:linear-gradient(180deg,#e2ff6a,#a9d21f);color:#16200a;box-shadow:0 10px 22px -8px rgba(208,244,76,.6),inset 0 1px 0 rgba(255,255,255,.5)}
+  #agentes-hub{position:relative;display:none;align-items:center;margin:0 8px;vertical-align:middle;z-index:60}
+  body:has(.panel[data-panel='agentes'].active) #agentes-hub,body:has(.panel[data-panel='ecommerce'].active) #agentes-hub,body:has(.panel[data-panel='zeus'].active) #agentes-hub{display:inline-flex!important}
+  #agentes-hub.suelto{display:flex!important;margin:0 0 10px}
+  #agentes-hub summary{display:inline-flex;align-items:center;gap:8px;list-style:none;cursor:pointer;padding:6px 12px 6px 14px;border:1px solid rgba(208,244,76,.55);border-radius:999px;background:linear-gradient(180deg,rgba(255,255,255,.12),rgba(0,0,0,.28));color:#e8ff8a;font:900 11px Arial;letter-spacing:.1em;box-shadow:0 6px 16px -8px #000,inset 0 1px 0 rgba(255,255,255,.2);transition:border-color .15s,transform .15s}
+  #agentes-hub summary::-webkit-details-marker{display:none}
+  #agentes-hub summary:hover{transform:translateY(-1px);border-color:#d0f44c}
+  #agentes-hub summary i{display:inline-block;width:8px;height:8px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(45deg) translateY(-2px);transition:transform .18s}
+  #agentes-hub[open] summary i{transform:rotate(-135deg) translate(-2px,-2px)}
+  #agentes-hub .ah-lista{position:absolute;left:0;top:calc(100% + 8px);min-width:220px;padding:6px;border:1px solid rgba(255,255,255,.18);border-radius:16px;background:linear-gradient(160deg,rgba(32,42,28,.97),rgba(12,16,10,.98));box-shadow:0 18px 44px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.14);animation:ahIn .14s ease-out}
+  #agentes-hub .ah-lista button{display:grid!important;gap:1px;width:100%!important;min-width:0!important;margin:0!important;padding:9px 12px!important;border:0!important;border-radius:11px!important;background:transparent!important;color:#e8f0e0!important;text-align:left;box-shadow:none!important;cursor:pointer;transition:background .12s}
+  #agentes-hub .ah-lista button:hover{background:rgba(208,244,76,.14)!important}
+  #agentes-hub .ah-lista button.on{background:rgba(208,244,76,.2)!important}
+  #agentes-hub .ah-lista b{font:900 12px Arial;letter-spacing:.1em}
+  #agentes-hub .ah-lista small{font:600 10.5px Arial;color:#9aa893}
+  @keyframes ahIn{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:none}}
   #open-ecommerce,#open-zeus{display:none!important}
-  @media(max-width:700px){#agentes-hub{flex-wrap:nowrap;overflow-x:auto;margin:0 0 8px;padding:5px 6px;-webkit-overflow-scrolling:touch}#agentes-hub .ah-t{display:none}#agentes-hub button{flex:0 0 auto}}
   `;
   document.head.appendChild(css);
 
-  let barra = null;
+  let caja = null;
   const tabDe = kind => document.querySelector('.tab[data-kind="' + kind + '"]');
   const activa = kind => !!document.querySelector('.panel[data-panel="' + kind + '"].active');
   const disponibles = () => AREAS.filter(a => tabDe(a.kind));
 
   function pintar() {
     const lista = disponibles();
-    if (!barra || !lista.length) return;
-    const clave = lista.map(a => a.kind + (activa(a.kind) ? '*' : '')).join('|');
-    if (barra.dataset.clave === clave) return;
-    barra.dataset.clave = clave;
-    barra.innerHTML = '<div class="ah-t">AGENTES</div>' + lista.map(a =>
-      `<button type="button" data-area="${a.kind}" title="${a.sub}" class="${activa(a.kind) ? 'on' : ''}"><b>${a.nombre}</b></button>`).join('');
+    if (!caja || !lista.length) return;
+    const actual = lista.find(a => activa(a.kind)) || lista[0];
+    const clave = lista.map(a => a.kind).join('|') + '>' + actual.kind;
+    if (caja.dataset.clave === clave) return;
+    caja.dataset.clave = clave;
+    caja.innerHTML = `<summary title="Elegir qué agentes ver">${actual.nombre}<i></i></summary><div class="ah-lista">` +
+      lista.map(a => `<button type="button" data-area="${a.kind}" class="${a.kind === actual.kind ? 'on' : ''}"><b>${a.nombre}</b><small>${a.sub}</small></button>`).join('') + '</div>';
+  }
+
+  function ubicar() {
+    // junto al título de la pantalla activa (el panel se redibuja y se lleva la caja: se vuelve a poner); si no hay título, arriba de todo
+    const panel = document.querySelector('.panel.active[data-panel="agentes"],.panel.active[data-panel="ecommerce"],.panel.active[data-panel="zeus"]');
+    const titulo = panel && panel.querySelector('.ag-hd h2,.bd-head h2');
+    if (titulo) {
+      if (caja.previousElementSibling !== titulo) titulo.insertAdjacentElement('afterend', caja);
+      caja.classList.remove('suelto');
+    } else if (panel) {
+      const main = document.querySelector('main');
+      if (main && caja.parentElement !== main) main.prepend(caja);
+      caja.classList.add('suelto');
+    }
   }
 
   function montar() {
-    const main = document.querySelector('main');
-    if (!main) return false;
-    if (!barra) {
-      barra = document.createElement('div');
-      barra.id = 'agentes-hub';
-      barra.addEventListener('click', e => {
+    if (!document.querySelector('main')) return;
+    if (!caja) {
+      caja = document.createElement('details');
+      caja.id = 'agentes-hub';
+      caja.addEventListener('click', e => {
         const b = e.target.closest('[data-area]');
-        const t = b && tabDe(b.dataset.area);
+        if (!b) return;
+        caja.removeAttribute('open');
+        const t = tabDe(b.dataset.area);
         if (t) t.click();
       });
+      document.addEventListener('click', e => { if (caja.open && !caja.contains(e.target)) caja.removeAttribute('open'); });
     }
-    if (barra.parentElement !== main) main.prepend(barra);
     pintar();
+    ubicar();
     // una sola entrada «Agentes» en el menú de la cuenta (las demás se ocultan por CSS); si la cuenta no ve Edición, se crea aquí
     const menu = document.querySelector('.user-dropdown');
     const lista = disponibles();
@@ -64,8 +86,7 @@
       const previo = document.getElementById('open-personal-notes');
       previo ? previo.insertAdjacentElement('afterend', boton) : menu.querySelector('p')?.insertAdjacentElement('afterend', boton);
     }
-    return true;
   }
-  setInterval(montar, 600);
-  document.addEventListener('click', () => setTimeout(pintar, 50), true);
+  setInterval(montar, 400);
+  document.addEventListener('click', () => setTimeout(() => { pintar(); ubicar(); }, 60), true);
 })();
