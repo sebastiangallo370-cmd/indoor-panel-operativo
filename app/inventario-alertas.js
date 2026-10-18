@@ -7,12 +7,12 @@
   function fmt(n){return new Intl.NumberFormat('es-CO',{maximumFractionDigits:1}).format(Number(n)||0)}
   var css=[
     '.sa-box{margin:0 0 14px}',
-    '.sa-card{padding:16px 18px;border:1px solid rgba(255,138,122,.5);border-radius:18px;background:linear-gradient(180deg,#1b1210,#0f1710 60%)}',
+    '.sa-card{padding:16px 18px;border:1px solid rgba(255,255,255,.22);border-radius:18px;background:radial-gradient(120% 80% at 10% 0%,rgba(255,255,255,.14),rgba(255,255,255,0) 55%),linear-gradient(160deg,rgba(255,255,255,.1),rgba(255,255,255,.035));-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);box-shadow:inset 0 1.5px 0 rgba(255,255,255,.35),0 0 0 1px rgba(255,154,31,.45),0 0 18px -6px #ff9a1f}',
     '.sa-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:12px}',
     '.sa-head b{font-size:16px;color:#eef2e9}.sa-head span{font-size:12.5px;color:#aebba9}',
     '.sa-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px}',
-    '.sa-item{display:grid;gap:6px;padding:12px 14px;border:1px solid #2d3b2f;border-radius:14px;background:#0f1710}',
-    '.sa-item.agotado{border-color:rgba(255,106,90,.45)}',
+    '.sa-item{display:grid;gap:6px;padding:12px 14px;border:1px solid rgba(255,255,255,.16);border-radius:14px;background:rgba(255,255,255,.06)}',
+    '.sa-item.agotado{border-color:rgba(255,106,90,.55)}',
     '.sa-name{font-weight:700;font-size:14px;color:#eef2e9;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
     '.sa-line{display:flex;align-items:center;justify-content:space-between;gap:8px}',
     '.sa-num{font-variant-numeric:tabular-nums;font-size:13px;color:#dfe8da}.sa-num em{font-style:normal;color:#93a28f;font-size:11px;margin-left:6px}',
@@ -25,7 +25,7 @@
 
   function cardHtml(list){
     var out=list.filter(function(a){return a.nivel==='agotado'}).length;
-    return '<div class="sa-card"><div class="sa-head"><b>⚠ '+list.length+(list.length===1?' TELA CON FALTA DE STOCK':' TELAS CON FALTA DE STOCK')+'</b><span>'+(out?out+' agotada'+(out===1?'':'s')+' · ':'')+'por debajo de su stock mínimo</span></div><div class="sa-grid">'+
+    return '<div class="sa-card"><div class="sa-head"><b>Telas por reponer · '+list.length+'</b><span>'+(out?out+' agotada'+(out===1?'':'s')+' · ':'')+'por debajo de su stock mínimo</span></div><div class="sa-grid">'+
       list.map(function(a){return '<div class="sa-item '+esc(a.nivel)+'"><div class="sa-name" title="'+esc(a.nombre)+'">'+esc(a.nombre)+'</div><div class="sa-line"><span class="sa-num">'+fmt(a.total)+' MTS<em>mín '+fmt(a.minimo)+' · faltan '+fmt(a.faltan)+'</em></span><span class="sa-chip '+esc(a.nivel)+'">'+(a.nivel==='agotado'?'Agotada':'Baja')+'</span></div></div>'}).join('')+'</div></div>';
   }
   function mount(host,id,list){
