@@ -16,6 +16,21 @@
 .user-menu .user-info small{font:700 10.5px/1.2 Arial,sans-serif!important;color:#9fb08c!important;letter-spacing:.06em;text-transform:uppercase}
 .user-menu summary>span[aria-hidden]{color:#d0f44c;font-size:15px;line-height:1;margin-left:2px;transition:transform .18s}
 .user-menu[open] summary>span[aria-hidden]{transform:rotate(180deg)}
+/* Zona de cuenta (arriba a la derecha): vidrio, aro de color y menú más cuidado */
+.systems{gap:12px!important;align-items:center}
+.theme-icon{position:relative;width:44px!important;height:44px!important;flex:0 0 44px!important;border:1px solid rgba(255,255,255,.2)!important;background:linear-gradient(145deg,rgba(255,255,255,.14),rgba(255,255,255,.03))!important;backdrop-filter:blur(14px) saturate(1.4);-webkit-backdrop-filter:blur(14px) saturate(1.4);box-shadow:0 6px 18px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.25)!important;color:#e8ff8a!important;transition:transform .2s,box-shadow .2s,border-color .2s!important}
+.theme-icon:hover{border-color:rgba(208,244,76,.65)!important;box-shadow:0 8px 22px rgba(0,0,0,.4),0 0 0 4px rgba(208,244,76,.14),inset 0 1px 0 rgba(255,255,255,.3)!important}
+.theme-icon svg{transition:transform .5s cubic-bezier(.3,1.4,.5,1)}.theme-icon:hover svg{transform:rotate(90deg) scale(1.08)}
+.user-menu summary{padding:6px 16px 6px 6px!important;border:1px solid rgba(255,255,255,.2)!important;background:linear-gradient(145deg,rgba(255,255,255,.13),rgba(255,255,255,.03))!important;backdrop-filter:blur(14px) saturate(1.4);-webkit-backdrop-filter:blur(14px) saturate(1.4);box-shadow:0 6px 18px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.22)!important}
+.user-menu summary:hover,.user-menu[open] summary{border-color:rgba(208,244,76,.65)!important;box-shadow:0 8px 22px rgba(0,0,0,.4),0 0 0 4px rgba(208,244,76,.12),inset 0 1px 0 rgba(255,255,255,.28)!important}
+.user-menu .user-avatar{box-shadow:0 0 0 2px rgba(11,15,9,.9),0 0 0 4px rgba(208,244,76,.75),0 4px 10px rgba(0,0,0,.4)!important}
+.user-menu .user-info strong{font-size:13.5px!important}
+.user-menu .user-info small{color:#c6ee55!important}
+.user-dropdown{width:250px!important;padding:8px!important;border:1px solid rgba(255,255,255,.18)!important;border-radius:18px!important;background:linear-gradient(160deg,rgba(32,42,28,.92),rgba(12,16,10,.94))!important;backdrop-filter:blur(18px) saturate(1.3);-webkit-backdrop-filter:blur(18px) saturate(1.3);box-shadow:0 18px 44px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.14)!important;animation:menuCuentaIn .16s ease-out}
+.user-dropdown p{margin:2px 8px 8px!important;padding:2px 0 8px;border-bottom:1px solid rgba(255,255,255,.1);font:800 10.5px Arial!important;letter-spacing:.12em;text-transform:uppercase;color:#c6ee55!important}
+.user-dropdown button,.user-dropdown a{border-radius:11px!important;transition:background .15s,transform .12s}
+.user-dropdown button:hover,.user-dropdown a:hover{background:rgba(208,244,76,.12)!important}
+@keyframes menuCuentaIn{from{opacity:0;transform:translateY(-6px) scale(.98)}to{opacity:1;transform:none}}
 /* Computador: botones de Stock tela más pequeños */
 @media (min-width:701px){
   .inventory-toolbar .inventory-movement-actions{gap:6px!important}
