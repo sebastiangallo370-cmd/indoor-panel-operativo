@@ -51,6 +51,15 @@
 .bd-tfilters{grid-template-columns:minmax(0,2fr) repeat(3,minmax(0,1fr)) repeat(2,minmax(0,1fr)) auto}
 .bd-tfilters select{width:100%;box-sizing:border-box;border:1px solid #46563f;border-radius:9px;background:#0b100b;color:#fff;padding:9px 11px;font:500 .85rem Arial;outline:none;color-scheme:dark}
 @media (max-width:1100px){.bd-tfilters{grid-template-columns:repeat(2,minmax(0,1fr))}.bd-tfilters label:first-child{grid-column:1/-1}}
+/* Filtros de tela programada: una sola fila en computador, vidrio, botón alineado */
+@media (min-width:1101px){.bd .bd-tfilters{grid-template-columns:minmax(0,2.2fr) repeat(3,minmax(0,1.1fr)) repeat(2,minmax(0,1.15fr)) auto!important}}
+.bd .bd-tfilters{padding:14px 16px!important;border:1px solid rgba(255,255,255,.16)!important;border-radius:20px!important;background:linear-gradient(160deg,rgba(255,255,255,.08),rgba(255,255,255,.02))!important;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 10px 28px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.14)}
+.bd .bd-tfilters input,.bd .bd-tfilters select{min-height:42px;border-radius:12px!important;border-color:rgba(255,255,255,.18)!important;background:rgba(8,12,7,.7)!important}
+.bd .bd-tfilters input:focus,.bd .bd-tfilters select:focus{border-color:#d0f44c!important;box-shadow:0 0 0 3px rgba(208,244,76,.15)}
+.bd .bd-tfilters .bd-clear{min-height:42px;border-radius:12px!important;padding:0 18px!important;background:rgba(255,255,255,.08)!important;border-color:rgba(255,255,255,.2)!important}
+.bd .bd-tfilters .bd-clear:hover{background:rgba(208,244,76,.14)!important;border-color:rgba(208,244,76,.6)!important}
+.bd .bd-tcards .inventory-item-card{transition:transform .18s,box-shadow .18s}
+.bd .bd-tcards .inventory-item-card:hover{transform:translateY(-3px)}
 .bd-note{margin:0;color:#8a9485;font-size:.78rem}
 .bd-head-actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
 .bd-switch{display:inline-flex;align-items:center;gap:10px;padding:6px 12px;border:1px solid #46563f;border-radius:12px;background:#151d15;cursor:pointer;user-select:none}
