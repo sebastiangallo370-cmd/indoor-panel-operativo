@@ -450,6 +450,22 @@ def verify_order_mockups(order_dir, records):
                              'Sube la imagen con la referencia correcta en el nombre y vuelve a procesar.')
 
 
+def _verificar_listado(pdf_path: Path, items_pdf, excel_path: Path) -> str:
+    """Paso 4 de la skill de remisión: vuelve a leer el Excel del listado y lo compara con el PDF. Nunca bloquea la orden: solo deja el resultado (o la alerta) en el detalle."""
+    try:
+        import pdfplumber
+        from app import verificar_remision
+        with pdfplumber.open(str(pdf_path)) as pdf:
+            texto = '\n'.join(page.extract_text() or '' for page in pdf.pages)
+        resultado = verificar_remision.verificar(texto, items_pdf, excel_path)
+        return ('' if resultado['ok'] else '⚠ ') + resultado['mensaje']
+    except FileNotFoundError:
+        return '⚠ No se pudo verificar: el Excel del listado no se creó'
+    except Exception as error:   # la verificación nunca debe tumbar la programación
+        logging.warning('Verificación del listado: %s', error)
+        return '⚠ No se pudo verificar el Excel contra el PDF'
+
+
 def process_job(job_id: int, pdf_path: Path, extra_paths: list[Path], observations: str = '', author: str = ''):
     try:
         pending_records = []
@@ -457,7 +473,7 @@ def process_job(job_id: int, pdf_path: Path, extra_paths: list[Path], observatio
             job_id, 8, 34, "Leyendo y verificando el PDF",
             lambda: legacy.extraer_info_pdf(str(pdf_path)),
         )
-        _, header, _, warnings = parsed
+        _, header, items_pdf, warnings = parsed
         order_number = header.get("orden") or legacy.extraer_prefijo_numero_nombre(pdf_path.name)[1]
         if not order_number:
             raise ValueError("No se pudo identificar el número de orden")
@@ -494,6 +510,7 @@ def process_job(job_id: int, pdf_path: Path, extra_paths: list[Path], observatio
                 detail += ". Avisos: " + " | ".join(warnings)
             if image_issues:
                 raise ValueError('No se programó: ' + ' | '.join(image_issues))
+            detail += '. ' + _verificar_listado(pdf_path, items_pdf, order_dir / f'{pdf_path.stem}.xlsx')
             verify_order_mockups(order_dir, pending_records)
             for record in pending_records:
                 append_local_production(record, legacy._fila_produccion, observations, author)
