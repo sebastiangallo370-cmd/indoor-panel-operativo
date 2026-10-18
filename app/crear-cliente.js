@@ -46,13 +46,13 @@
   .cc-det{margin-top:14px;border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:10px 14px}
   .cc-det summary{cursor:pointer;color:#a9b5a3;font:800 12px Arial;letter-spacing:.08em}
   .cc-det .cc-leido{max-height:260px}
-  .cc-acciones{position:sticky;bottom:10px;z-index:3;padding:10px;border-radius:16px;background:rgba(11,15,9,.88);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.12)}
+  .cc-acciones{position:sticky;bottom:10px;z-index:3;padding:10px;border-radius:16px;background:#0b0f09;border:1px solid rgba(255,255,255,.14)}
   .cc-acciones .cc-fila{margin-top:0}
   @media(max-width:700px){.cc-acciones{position:static;background:none;border:0;padding:0}.cc{margin:10px auto 110px}.cc-card{padding:16px}.cc-btn{width:100%}}
   `;
   document.head.appendChild(css);
 
-  let panel = null, confirmado = false, archivos = [], ciudadSel = null, ocupado = false, timerCiudad = 0;
+  let panel = null, yaExiste = false, confirmado = false, archivos = [], ciudadSel = null, ocupado = false, timerCiudad = 0;
   const q = s => panel.querySelector(s);
 
   function pintarArchivos() {
@@ -108,6 +108,9 @@
       llenar(j.campos || {});
       const ya = j.existentes || [];
       q('[data-ya]').hidden = !ya.length;
+      yaExiste = ya.some(x => x.mismo_numero);
+      q('[data-crear]').disabled = yaExiste;
+      q('[data-crear]').textContent = yaExiste ? 'YA ES CLIENTE EN EFFI' : 'CREAR CLIENTE EN EFFI';
       q('[data-ya]').innerHTML = ya.length ? '<b>⚠ Ya hay clientes parecidos en Effi:</b><br>' + ya.map(x => `${esc(x.nombre)} · ${esc(x.documento)} · código ${esc(x.tercero)}${x.mismo_numero ? ' <b>(MISMO NÚMERO)</b>' : ''}`).join('<br>') + '<br><small>Si es el mismo cliente, no lo crees otra vez; úsalo en la orden de venta.</small>' : '';
       q('[data-leido]').textContent = j.texto || '';
       q('[data-form]').hidden = false;
@@ -117,7 +120,7 @@
       mensaje('[data-msg-leer]', (j.avisos || []).join(' ') || 'Listo: revisa los datos de abajo y corrige lo que haga falta.', (j.avisos || []).length ? 'err' : 'ok');
       q('[data-form]').scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch (e) { mensaje('[data-msg-leer]', e.message, 'err'); }
-    ocupado = false; q('[data-leer]').disabled = false;
+    ocupado = false; q('[data-leer]').disabled = false; if (yaExiste) q('[data-crear]').disabled = true;
   }
 
   async function buscarCiudad() {
@@ -189,6 +192,7 @@
         <div class="cc-msg" data-msg-leer></div>
       </div></div>
       <div class="cc-card" data-form hidden><span class="eyebrow">REVISA Y CONFIRMA</span><h2>Datos del cliente</h2><p>Corrige lo que el panel no leyó bien. Los marcados en naranja (*) son obligatorios en Effi: si falta alguno, pídeselo al cliente; no se inventa.</p>
+        <div class="cc-listo" data-ya hidden style="border-color:#ffb43d;background:rgba(255,180,61,.1);margin:0 0 14px"></div>
         <div class="cc-resumen" data-chips></div>
         <div class="cc-grid">
           <label>TIPO DE IDENTIFICACIÓN<select name="t_dni"><option value="2">Cédula de ciudadanía</option><option value="1">NIT</option><option value="4">Cédula de extranjería</option><option value="3">Pasaporte</option></select></label>
@@ -204,7 +208,6 @@
           <datalist id="cc-ciudades"></datalist>
           <label>REFERENCIA DE LA DIRECCIÓN<input name="referencia" autocomplete="off" maxlength="200" placeholder="Barrio, local, torre…"></label>
         </div>
-        <div class="cc-listo" data-ya hidden style="border-color:#ffb43d;background:rgba(255,180,61,.1);margin-top:12px"></div>
         <details class="cc-det"><summary>VER EL TEXTO QUE SE LEYÓ</summary><div class="cc-leido" data-leido></div></details>
         <div class="cc-acciones"><div class="cc-listo" data-resumen hidden style="margin-bottom:10px"></div>
         <div class="cc-fila"><button class="cc-btn" type="button" data-crear>CREAR CLIENTE EN EFFI</button><button class="cc-btn sec" type="button" data-nuevo>EMPEZAR DE NUEVO</button></div>
@@ -227,6 +230,7 @@
     q('[data-crear]').addEventListener('click', crear);
     q('[data-form]').addEventListener('input', () => { if (confirmado) { confirmado = false; q('[data-resumen]').hidden = true; q('[data-crear]').textContent = 'CREAR CLIENTE EN EFFI'; } });
     panel.querySelectorAll('[data-nuevo]').forEach(b => b.addEventListener('click', nuevo));
+    campo('numero').addEventListener('input', () => { if (yaExiste) { yaExiste = false; q('[data-crear]').disabled = false; q('[data-crear]').textContent = 'CREAR CLIENTE EN EFFI'; } });
     campo('ciudad').addEventListener('input', () => { clearTimeout(timerCiudad); timerCiudad = setTimeout(buscarCiudad, 350); });
     ['numero', 'nombre', 'email', 'direccion', 'ciudad'].forEach(k => campo(k).addEventListener('input', marcarFaltantes));
     const verOk = new MutationObserver(() => { q('[data-otro]').hidden = q('[data-ok]').hidden; });
