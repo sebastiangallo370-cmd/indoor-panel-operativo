@@ -282,7 +282,9 @@ def _bucle_vigia() -> None:
 
 
 def start() -> None:
-    threading.Thread(target=_bucle_vigia, name='ecommerce-effi', daemon=True).start()
+    # ALMA ya no revisa por tiempo: solo actúa cuando Effi envía el aviso (webhook). La consulta periódica a la API queda apagada salvo ECOMMERCE_VIGIA=1.
+    if os.getenv('ECOMMERCE_VIGIA') == '1':
+        threading.Thread(target=_bucle_vigia, name='ecommerce-effi', daemon=True).start()
 
 
 def _hoy_iso() -> str:

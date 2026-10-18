@@ -249,7 +249,8 @@
     const cuenta = flujo.querySelector('[data-cuenta]'), n = flujo.querySelector('[data-nodo="alma"]');
     const a = agente('alma');
     if (n && cuenta) {
-      if (!vivo(a) || !st.proxima) { cuenta.textContent = vivo(a) ? 'revisando…' : 'detenida'; }
+      const escucha = /aviso de Effi/i.test(((st.latidos || {}).alma || {}).actividad || '');
+      if (!vivo(a) || !st.proxima || escucha) { cuenta.textContent = vivo(a) ? (escucha ? 'esperando a Effi' : 'revisando…') : 'detenida'; }
       else {
         const restan = Math.max(0, Math.ceil((st.proxima - Date.now()) / 1000));
         cuenta.textContent = restan > 0 ? restan + ' s' : 'revisando…';
