@@ -64,11 +64,12 @@
   function envioHtml(i) {
     if (i.estado !== 'creada' || !i.oc) return '';
     const e = i.envio_proveedor || {};
+    const pdf = i.pdf ? '<a class="zeus-pdf" href="/api/zeus/pdf/' + i.id + '" target="_blank" rel="noopener">📄 Ver PDF de la orden</a>' : '';
     const fecha = e.at ? String(e.at).replace('T', ' ').slice(0, 16) : '';
-    if (e.estado === 'pendiente' || e.estado === 'entregada') return '<div class="zeus-envio"><span class="zeus-envio-est">⏳ Enviando…</span></div>';
-    if (e.estado === 'enviada') return '<div class="zeus-envio"><span class="zeus-envio-est ok" title="' + esc('Enviada a ' + (e.correo || 'el proveedor') + (fecha ? ' · ' + fecha : '')) + '">✔ Enviada al proveedor</span>' +
+    if (e.estado === 'pendiente' || e.estado === 'entregada') return '<div class="zeus-envio">' + pdf + '<span class="zeus-envio-est">⏳ Enviando…</span></div>';
+    if (e.estado === 'enviada') return '<div class="zeus-envio">' + pdf + '<span class="zeus-envio-est ok" title="' + esc('Enviada a ' + (e.correo || 'el proveedor') + (fecha ? ' · ' + fecha : '')) + '">✔ Enviada al proveedor</span>' +
       '<button type="button" class="zeus-envio-btn suave" data-zeus-prov="' + i.id + '" data-otra="1">Reenviar</button></div>';
-    return '<div class="zeus-envio">' + (e.estado === 'error' ? '<span class="zeus-envio-est mal" title="' + esc(e.detalle || '') + '">⚠ No se pudo enviar</span>' : '') +
+    return '<div class="zeus-envio">' + pdf + (e.estado === 'error' ? '<span class="zeus-envio-est mal" title="' + esc(e.detalle || '') + '">⚠ No se pudo enviar</span>' : '') +
       '<button type="button" class="zeus-envio-btn" data-zeus-prov="' + i.id + '" data-oc="' + esc(i.oc) + '">✉ Enviar al proveedor</button></div>';
   }
 
@@ -246,6 +247,7 @@
 .zeus-chip.ok,.zeus-chip.pend{border-color:rgba(255,255,255,.22)!important}
 .zeus-form input{background:rgba(0,0,0,.28)!important;border:1px solid rgba(255,255,255,.2)!important}.zeus-form input:focus{border-color:rgba(255,255,255,.55)!important;box-shadow:0 0 0 3px rgba(255,255,255,.1)}
 .zeus-envio{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.14)}
+.zeus-pdf{flex:1 1 100%;text-align:center;padding:8px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.08);color:#fff;font:800 .72rem Arial;letter-spacing:.04em;text-decoration:none}.zeus-pdf:hover{background:rgba(255,255,255,.18)}
 .zeus-envio-est{flex:1 1 100%;font:700 .72rem Arial;color:#d3dccf}.zeus-envio-est.ok{color:#8bd450}.zeus-envio-est.mal{color:#ff9a9d}
 .zeus-envio-btn{min-height:38px;padding:0 14px;border:1px solid rgba(255,255,255,.3);border-radius:12px;background:rgba(255,255,255,.92);color:#10140a;font:800 .74rem Arial;letter-spacing:.04em;cursor:pointer;width:100%!important;transition:transform .2s,background .2s}
 .zeus-envio-btn:hover{transform:translateY(-1px);background:#fff}.zeus-envio-btn:disabled{opacity:.5;cursor:default}.zeus-envio-btn.suave{background:rgba(255,255,255,.1);color:#fff}

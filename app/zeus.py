@@ -25,6 +25,7 @@ from typing import Callable
 
 from app import effi_api, memoria_agentes, proveedores_tela
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import FileResponse
 from fastapi.responses import HTMLResponse
 
 log = logging.getLogger('zeus')
@@ -184,6 +185,32 @@ def destinatarios() -> str:
     return ', '.join(correos) or os.getenv('ZEUS_EMAIL_A') or os.getenv('ALERTA_EMAIL_A') or ''
 
 
+def _pdf_de(item: dict) -> list:
+    """[(nombre, bytes)] con el PDF de la orden (el que bajó el agente de Effi), o [] si no hay."""
+    try:
+        ruta = _pdfs / str(item.get('pdf') or '')
+        if item.get('pdf') and ruta.is_file():
+            return [(f"Orden de compra {item['oc']}.pdf", ruta.read_bytes())]
+    except OSError:
+        pass
+    return []
+
+
+def _guardar_pdf(oc: str, b64: str) -> str:
+    """Valida y guarda el PDF que manda el agente. Devuelve el nombre del archivo o ''."""
+    import base64
+    try:
+        raw = base64.b64decode(b64, validate=False)
+        if raw[:4] != b'%PDF' or len(raw) > MAX_PDF:
+            return ''
+        nombre = 'OC-' + re.sub(r'[^0-9A-Za-z_-]', '', str(oc))[:20] + '.pdf'
+        _pdfs.mkdir(parents=True, exist_ok=True)
+        (_pdfs / nombre).write_bytes(raw)
+        return nombre
+    except (ValueError, OSError):
+        return ''
+
+
 def _correo_creada(item: dict) -> None:
     try:
         from app import alertas_correo
@@ -191,9 +218,11 @@ def _correo_creada(item: dict) -> None:
             return
         para = destinatarios()
         lineas = [f"- {o['orden']} · {o['referencia']} · {o.get('cliente', '')}: falta {o['falta']:g} MTS (entrega {o.get('entrega') or 'sin fecha'})" for o in item['ordenes']]
+        adj = _pdf_de(item)
         alertas_correo.enviar(f"Orden de compra de tela creada en Effi: {item['tela']}",
                               f"El AGENTE INVENTARIO creó la orden de compra {item['oc'] or '(sin número)'} en Effi.\n\nTela: {item['tela']}\nMetros pedidos: {item['falta']:g} MTS\n\n"
-                              'Pedidos que la necesitan:\n' + '\n'.join(lineas) + '\n\nVer: https://produccion.cloud (menú de la cuenta > Agente inventario)', para=para)
+                              'Pedidos que la necesitan:\n' + '\n'.join(lineas) + ('\n\nAdjunto el PDF de la orden.' if adj else '\n\n(El PDF de la orden no se pudo descargar de Effi: está en Compras > Órdenes de compra.)') +
+                              '\n\nVer: https://produccion.cloud (menú de la cuenta > Agente inventario)', para=para, adjuntos=adj)
     except Exception:   # noqa: BLE001
         log.exception('No se pudo enviar el correo de la orden de compra')
 
@@ -217,7 +246,7 @@ def _correo_proveedor(item: dict, correo: str) -> str:
         if not alertas_correo.puede_enviar():
             return 'Falta configurar la cuenta de correo del servidor.'
         alertas_correo.enviar(f"INDOOR SPORT SAS · Orden de compra {item['oc']} · {item['tela']}",
-                              MENSAJE_PROVEEDOR.format(oc=item['oc'], tela=item['tela'], falta=float(item['falta'])), para=correo)
+                              MENSAJE_PROVEEDOR.format(oc=item['oc'], tela=item['tela'], falta=float(item['falta'])), para=correo, adjuntos=_pdf_de(item))
         return ''
     except Exception as e:   # noqa: BLE001
         log.exception('No se pudo enviar el mensaje de Indoor al proveedor')
@@ -227,6 +256,8 @@ def _correo_proveedor(item: dict, correo: str) -> str:
 _llenar_mts: Callable[[], dict] = lambda: {}
 _llave_ok: Callable[[str], bool] = lambda usuario: False
 _secreto = Path(os.getenv('ZEUS_SECRETO_FILE', '/data/state/zeus_secreto.json'))
+_pdfs = Path(os.getenv('ZEUS_PDF_DIR', '/data/state/zeus_pdf'))
+MAX_PDF = 8 * 1024 * 1024
 
 
 def configurar_llave(fn: Callable[[str], bool]) -> None:
@@ -473,6 +504,17 @@ def api_ajustes(request: Request, payload: dict):
         return _api_vista(d)
 
 
+@router.get('/pdf/{item_id}')
+def ver_pdf(request: Request, item_id: int):
+    _usuario(request)
+    with _lock:
+        item = next((i for i in _leer()['items'] if i['id'] == item_id), None)
+    ruta = _pdfs / str((item or {}).get('pdf') or '')
+    if not item or not item.get('pdf') or not ruta.is_file():
+        raise HTTPException(404, 'Esa orden no tiene PDF guardado')
+    return FileResponse(ruta, media_type='application/pdf', filename=f"Orden de compra {item['oc']}.pdf")
+
+
 @router.put('/notificar')
 def elegir_notificar(payload: dict):
     """Cuentas del panel a las que les llega la notificación (campana) cuando el agente envía una orden de compra."""
@@ -613,6 +655,7 @@ def sondeo(request: Request, payload: dict):
                 continue
             if r.get('ok'):
                 item.update(estado='creada', oc=str(r.get('oc', ''))[:40], detalle=str(r.get('detalle', ''))[:300], creada=_iso())
+                item['pdf'] = _guardar_pdf(item['oc'], str(r.get('pdf_b64') or '')) if r.get('pdf_b64') else ''
                 item['encargado_enviado'] = ' · enviada a ' in str(r.get('detalle', ''))   # Effi mandó la orden a los correos del encargado
                 d['pedido_por_tela'][item['tela']] = round(float(d['pedido_por_tela'].get(item['tela'], 0)) + float(item['falta']), 2)
                 avisos.append(dict(item))

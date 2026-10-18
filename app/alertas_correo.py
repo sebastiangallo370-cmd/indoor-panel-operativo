@@ -88,13 +88,16 @@ def borrar_cuenta() -> None:
         pass
 
 
-def enviar(asunto: str, cuerpo: str, para: str | None = None) -> None:
+def enviar(asunto: str, cuerpo: str, para: str | None = None, adjuntos: list | None = None) -> None:
+    """adjuntos: lista de (nombre, bytes) en PDF."""
     usuario, clave = cuenta()
     msg = EmailMessage()
     msg['Subject'] = asunto
     msg['From'] = usuario
     msg['To'] = para or os.environ['ALERTA_EMAIL_A']
     msg.set_content(cuerpo)
+    for nombre, datos in (adjuntos or []):
+        msg.add_attachment(datos, maintype='application', subtype='pdf', filename=nombre)
     with _conexion() as s:
         s.login(usuario, clave)
         s.send_message(msg)

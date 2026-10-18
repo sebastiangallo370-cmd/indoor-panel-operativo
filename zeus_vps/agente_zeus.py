@@ -8,6 +8,7 @@ Seguridad: sin proveedor elegido NO crea nada (avisa); nunca borra ni anula; una
 Uso: python agente_zeus.py            (bucle normal)
      python agente_zeus.py --una-vez  (un sondeo y salir)"""
 import argparse
+import base64
 import json
 import os
 import tempfile
@@ -261,6 +262,26 @@ def _enviar_a_proveedor(effi: 'Effi', oc: str) -> str:
     return correo
 
 
+def _pdf_de_orden(effi: 'Effi', oc: str) -> str:
+    """Baja el PDF de la orden desde Effi (Ver PDF) con la sesión abierta. Devuelve el PDF en base64 o lanza RuntimeError."""
+    d = effi.driver
+    d.get('https://effi.com.co/app/orden_c')
+    time.sleep(4)
+    href = d.execute_script("""
+      const tr = [...document.querySelectorAll('table tbody tr')].find(t => t.children.length >= 7 && (t.children[3].innerText||'').trim() === arguments[0]);
+      if (!tr) return '';
+      const a = [...tr.querySelectorAll('a')].find(x => /consultar_pdf/.test(x.getAttribute('href') || '')); return a ? a.href : '';""", oc)
+    if not href:
+        raise RuntimeError('No encontré el enlace «Ver PDF» de la orden')
+    d.set_script_timeout(60)
+    b64 = d.execute_async_script("""
+      const fin = arguments[arguments.length - 1];
+      fetch(arguments[0], {credentials: 'include'}).then(r => r.blob()).then(b => { const f = new FileReader(); f.onloadend = () => fin(String(f.result).split(',')[1] || ''); f.readAsDataURL(b); }).catch(() => fin(''));""", href)
+    if not b64 or base64.b64decode(b64)[:4] != b'%PDF':
+        raise RuntimeError('Effi no devolvió un PDF válido')
+    return b64
+
+
 def main():
     try:
         sys.stdout.reconfigure(line_buffering=True, encoding='utf-8', errors='replace')
@@ -332,7 +353,13 @@ def main():
                             r['detalle'] += ' · enviada a ' + _enviar_por_correo(effi, r['oc'], job.get('correos') or [])
                         except Exception as e:  # noqa: BLE001   (la orden ya existe: se informa, no se repite)
                             r['detalle'] += ' · NO se pudo enviar por Effi: ' + str(e)[:120]
-                        resultados.append({'id': job['id'], 'ok': True, 'oc': r['oc'], 'detalle': r['detalle']})
+                        pdf_b64 = ''
+                        try:
+                            effi.abrir()
+                            pdf_b64 = _pdf_de_orden(effi, r['oc'])
+                        except Exception as e:  # noqa: BLE001   (el PDF es un adjunto: si falla, la orden y el correo siguen)
+                            r['detalle'] += ' · sin PDF: ' + str(e)[:80]
+                        resultados.append({'id': job['id'], 'ok': True, 'oc': r['oc'], 'detalle': r['detalle'], 'pdf_b64': pdf_b64})
                         ultima = f"Orden {r['oc']} creada ({nombre})"
                         log(ultima)
                     except Exception as e:  # noqa: BLE001
