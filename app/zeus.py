@@ -512,7 +512,8 @@ def ver_pdf(request: Request, item_id: int):
     ruta = _pdfs / str((item or {}).get('pdf') or '')
     if not item or not item.get('pdf') or not ruta.is_file():
         raise HTTPException(404, 'Esa orden no tiene PDF guardado')
-    return FileResponse(ruta, media_type='application/pdf', filename=f"Orden de compra {item['oc']}.pdf")
+    # inline: el navegador muestra el PDF en la pestaña en vez de descargarlo
+    return FileResponse(ruta, media_type='application/pdf', headers={'Content-Disposition': f'inline; filename="orden-de-compra-{item["oc"]}.pdf"', 'Cache-Control': 'private, no-store'})
 
 
 @router.put('/notificar')
