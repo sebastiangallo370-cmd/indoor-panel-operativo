@@ -1,5 +1,5 @@
 (() => {
-  // AGENTES unificado: las áreas listadas en el menú de la cuenta y, junto al título de cada pantalla de agentes, una flecha desplegable para elegir qué área ver
+  // AGENTES unificado: una sola entrada «Agentes» en el menú de la cuenta y, junto al título de cada pantalla de agentes, una flecha desplegable para elegir qué área ver
   // (Edición, Ecommerce, Inventario). Cada área sigue siendo su propio panel (agentes.js, ecommerce.js, zeus.js); esto solo cambia de uno a otro.
   // Solo salen las áreas a las que la cuenta tiene acceso. «Memoria de agentes» queda aparte, en el menú de la cuenta.
   if (window.__agentesHub) return;
@@ -26,7 +26,7 @@
   #agentes-hub .ah-lista b{font:900 12px Arial;letter-spacing:.1em}
   #agentes-hub .ah-lista small{font:600 10.5px Arial;color:#9aa893}
   @keyframes ahIn{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:none}}
-  #open-agentes,#open-ecommerce,#open-zeus{display:block!important}
+  #open-ecommerce,#open-zeus{display:none!important}
   `;
   document.head.appendChild(css);
 
@@ -76,9 +76,19 @@
     }
     pintar();
     ubicar();
-    // el menú de la cuenta lista las áreas directamente: «Agentes · Edición», «Agentes · Ecommerce», «Agentes · Inventario»
-    const NOMBRES = { 'open-agentes': 'Agentes · Edición', 'open-ecommerce': 'Agentes · Ecommerce', 'open-zeus': 'Agentes · Inventario' };
-    Object.keys(NOMBRES).forEach(id => { const el = document.getElementById(id); if (el && el.textContent !== NOMBRES[id]) el.textContent = NOMBRES[id]; });
+    // una sola entrada «Agentes» en el menú de la cuenta (Ecommerce e Inventario se ocultan: se eligen con la flecha junto al título);
+    // si la cuenta no ve Edición, la entrada se crea aquí y abre la primera área disponible
+    const menu = document.querySelector('.user-dropdown');
+    const lista = disponibles();
+    const viejo = document.getElementById('open-agentes');
+    if (viejo && viejo.textContent !== 'Agentes') viejo.textContent = 'Agentes';
+    if (menu && lista.length && !viejo && !document.getElementById('open-agentes-hub')) {
+      const boton = document.createElement('button');
+      boton.type = 'button'; boton.id = 'open-agentes-hub'; boton.textContent = 'Agentes';
+      boton.addEventListener('click', () => { document.querySelector('.user-menu')?.removeAttribute('open'); const t = tabDe(disponibles()[0].kind); if (t) t.click(); });
+      const previo = document.getElementById('open-personal-notes');
+      previo ? previo.insertAdjacentElement('afterend', boton) : menu.querySelector('p')?.insertAdjacentElement('afterend', boton);
+    }
   }
   setInterval(montar, 400);
   document.addEventListener('click', () => setTimeout(() => { pintar(); ubicar(); }, 60), true);
