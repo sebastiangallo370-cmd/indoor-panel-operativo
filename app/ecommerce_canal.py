@@ -19,7 +19,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Callable
 
-from app import memoria_agentes
+from app import effi_api, memoria_agentes
 from fastapi import APIRouter, HTTPException, Request
 
 router = APIRouter(prefix='/api/ecommerce', tags=['ecommerce'])            # personas (con sesión)
@@ -32,6 +32,11 @@ MAX_LOG = 1500
 MAX_ORDENES = 120
 ORDEN_VENCE_SEG = 120   # una orden que el PC no tomó en este tiempo se descarta (el PC estaba apagado)
 _auth: Callable = lambda request: None
+_llave_effi: Callable[[], str] = lambda: ''
+_vigia_file = Path(os.getenv('ECOMMERCE_EFFI_FILE', '/data/state/ecommerce_effi.json'))
+VIGIA_SEG_RESPALDO = 900   # con el webhook funcionando, la consulta a la API queda solo como respaldo
+VIGIA_SEG = 60          # cada cuánto el panel pregunta a la API de Effi si entró una orden de venta nueva
+_vigia_est: dict = {'ultimo_ok': 0.0, 'fallos': 0, 'activo': False}
 _permitido: Callable[[str], bool] = lambda usuario: False
 
 AGENTES = [
@@ -153,6 +158,133 @@ def mi_acceso(request: Request):
     return {'ok': True}
 
 
+webhook_router = APIRouter(prefix='/api/ecommerce/effi', tags=['ecommerce-effi-webhook'])   # lo llama Effi (sin sesión)
+_wh_token_file = Path(os.getenv('ECOMMERCE_WEBHOOK_TOKEN_FILE', '/data/state/ecommerce_webhook_token.txt'))
+_wh_estado: dict = {'ultimo': 0.0}
+
+
+def token_webhook() -> str:
+    """Código secreto de la dirección del webhook (se crea la primera vez y no cambia)."""
+    try:
+        t = _wh_token_file.read_text(encoding='utf-8').strip()
+        if len(t) >= 32:
+            return t
+    except OSError:
+        pass
+    t = secrets.token_urlsafe(32)
+    _wh_token_file.parent.mkdir(parents=True, exist_ok=True)
+    _wh_token_file.write_text(t, encoding='utf-8')
+    try:
+        os.chmod(_wh_token_file, 0o600)
+    except OSError:
+        pass
+    return t
+
+
+def _resumen_aviso(cuerpo: bytes) -> str:
+    """Qué orden anuncia Effi (sin guardar el contenido completo)."""
+    try:
+        j = json.loads(cuerpo.decode('utf-8', 'replace'))
+    except ValueError:
+        return ''
+    cand = j.get('data') if isinstance(j.get('data'), dict) else j
+    for k in ('id_transaccion', 'id', 'numero', 'orden'):
+        if isinstance(cand, dict) and cand.get(k):
+            return str(cand[k])[:30]
+    return ''
+
+
+@webhook_router.post('/webhook/{token}')
+async def webhook_effi(token: str, request: Request):
+    """Effi avisa aquí cuando se CREA una orden de venta: se despierta a ALMA al instante para que descargue su PDF (ya no entra a Effi por tiempo)."""
+    if not secrets.compare_digest(token, token_webhook()):
+        raise HTTPException(404, 'No encontrado')
+    cuerpo = (await request.body())[:65536]
+    _wh_estado['ultimo'] = _ahora()
+    detalle = _resumen_aviso(cuerpo)
+    with _lock:
+        datos = _leer()
+        despierta = _despertar_alma(datos, 'Effi (webhook)')
+        datos['webhook'] = {'at': _ahora(), 'iso': _iso(), 'orden': detalle}
+        _nota(datos, 'alma', 'info', f'Effi avisó por webhook de una orden de venta nueva{(" (" + detalle + ")") if detalle else ""}: ' + ('ALMA la descarga ahora' if despierta else 'ALMA la tomará en su próxima revisión'))
+        _guardar(datos)
+    return {'ok': True}
+
+
+def configurar_effi(llave: Callable[[], str]) -> None:
+    """La API key de Effi la guarda zeus (pantalla «API Effi»); aquí solo se lee para preguntar por órdenes de venta nuevas."""
+    global _llave_effi
+    _llave_effi = llave
+
+
+def _leer_vigia() -> dict:
+    try:
+        return json.loads(_vigia_file.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return {}
+
+
+def _despertar_alma(datos: dict, por: str) -> bool:
+    """Pide a ALMA que revise Effi YA (la descarga de la orden nueva). Solo si el PC está conectado, ALMA vigilando y sin otra revisión en espera."""
+    actual = (datos['agentes'].get('alma') or {}).get('estado', 'INACTIVO')
+    if _conectado(datos) and actual in ESTADOS_ACTIVOS and not _pendiente_de(datos, 'alma', 'revisar'):
+        datos['seq'] += 1
+        datos['ordenes'].append({'id': datos['seq'], 'agente': 'alma', 'accion': 'revisar', 'por': por, 'estado': 'pendiente', 'detalle': '', 'at': _ahora(), 'iso': _iso()})
+        return True
+    return False
+
+
+def revisar_ordenes_venta() -> list[str]:
+    """Pregunta a la API de Effi por las órdenes de venta de los últimos días (una consulta liviana, sin abrir Effi en el navegador).
+    La primera vez solo toma nota de las que ya existen. Si hay una nueva vigente, despierta a ALMA (orden «revisar») para que la descargue."""
+    llave = _llave_effi()
+    if not llave:
+        _vigia_est['activo'] = False
+        return []
+    _vigia_est['activo'] = True
+    effi_api.usar_llave(llave)
+    desde = time.strftime('%Y-%m-%d', time.gmtime(time.time() - 5 * 3600 - 3 * 86400))
+    filas = effi_api._lista('orden_v', {'desde': desde})
+    estado = _leer_vigia()
+    vistas = set(estado.get('vistas') or [])
+    claves = {f"{f.get('sucursal')}-{f.get('id')}": f for f in filas if f.get('id') is not None}
+    nuevas = [] if not estado.get('base') else [k for k, f in claves.items() if k not in vistas and str(f.get('vigente', '1')) != '0']
+    estado.update(base=True, vistas=sorted(vistas | set(claves))[-600:], ultimo_ok=_iso())
+    _vigia_file.parent.mkdir(parents=True, exist_ok=True)
+    _vigia_file.write_text(json.dumps(estado), encoding='utf-8')
+    _vigia_est.update(ultimo_ok=_ahora(), fallos=0)
+    if nuevas:
+        nombres = ', '.join(str(claves[k].get('id_transaccion') or k) for k in nuevas[:5])
+        with _lock:
+            datos = _leer()
+            _nota(datos, 'alma', 'info', f'Effi tiene {len(nuevas)} orden(es) de venta nueva(s) ({nombres}): se avisa a ALMA para que la(s) descargue')
+            _despertar_alma(datos, 'Effi (aviso automático)')
+            _guardar(datos)
+    return nuevas
+
+
+def _bucle_vigia() -> None:
+    time.sleep(45)
+    seguidos = 0
+    while True:
+        try:
+            revisar_ordenes_venta()
+            seguidos = 0
+        except Exception as e:   # noqa: BLE001
+            seguidos += 1
+            _vigia_est['fallos'] = seguidos
+            if seguidos == 3:   # un solo aviso por racha de fallos
+                with _lock:
+                    datos = _leer()
+                    _nota(datos, 'alma', 'error', f'No pude preguntar a Effi por órdenes de venta nuevas (API): {str(e)[:160]}')
+                    _guardar(datos)
+        time.sleep(VIGIA_SEG_RESPALDO if (_ahora() - _wh_estado['ultimo'] < 3 * 86400 or _leer().get('webhook')) else VIGIA_SEG)
+
+
+def start() -> None:
+    threading.Thread(target=_bucle_vigia, name='ecommerce-effi', daemon=True).start()
+
+
 def _hoy_iso() -> str:
     return datetime.now(timezone(timedelta(hours=-5))).date().isoformat()
 
@@ -191,6 +323,7 @@ def estado(request: Request):
         latido = datos.get('latido') or {}
         return {'agentes': agentes, 'pc': {'conectado': _conectado(datos), 'equipo': latido.get('equipo', ''), 'hace': round(_ahora() - float(latido.get('at') or 0)) if latido.get('at') else None,
                                           'hay_token': bool(_token_hash()), 'simulado': bool(latido.get('simulado'))},
+                'effi_avisa': {'webhook': (datos.get('webhook') or {}).get('iso', ''), 'activo': _vigia_est['activo'], 'hace': round(_ahora() - _vigia_est['ultimo_ok']) if _vigia_est['ultimo_ok'] else None, 'fallos': _vigia_est['fallos']},
                 'ordenes': [{k: o[k] for k in ('id', 'agente', 'accion', 'por', 'estado', 'detalle', 'iso')} for o in datos['ordenes'][-8:]][::-1],
                 'cola': {e: int((datos.get('cola') or {}).get(e, 0)) for e in ETAPAS_COLA}, 'ultimo_log': datos['seq'],
                 'latidos': _latidos_vivos(datos), 'trabajos': datos.get('trabajos') or [], 'hoy': _hoy(datos), 'historial': datos['historial'][-40:][::-1]}

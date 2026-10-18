@@ -268,8 +268,10 @@ bitacora_mod.configurar(connect, lambda token: session_username(token), authenti
 app.add_middleware(bitacora_mod.BitacoraMiddleware)
 bitacora_mod.montar(app, authenticate)
 ecommerce_mod.configurar(authenticate, permisos_mod.administracion_permitido)
+ecommerce_mod.configurar_effi(lambda: zeus_mod._leer_secreto().get('llave', ''))
 app.include_router(ecommerce_mod.router)
 app.include_router(ecommerce_mod.pc_router)
+app.include_router(ecommerce_mod.webhook_router)   # Effi llama aquí cuando entra una orden de venta (código secreto en la dirección)
 agentes_mod.configurar(authenticate, lambda u: permisos_mod.rol_de(u) == 'administracion')
 def _usuarios_detalle() -> list:
     """Todas las cuentas del panel (más la cuenta maestra) con su nombre completo y proceso, para elegirlas en listas."""
@@ -706,6 +708,7 @@ def startup():
     from app import tela_necesaria as _tela_nec
     _tela_nec.start()
     zeus_mod.start()
+    ecommerce_mod.start()   # pregunta a la API de Effi si entró una orden de venta nueva (ALMA ya no entra a Effi cada cierto tiempo)
     threading.Thread(target=_warm_card_assets, name='precarga-disenos', daemon=True).start()
     threading.Thread(target=_vigilar_edicion, name='agentes-auto-edicion', daemon=True).start()
 

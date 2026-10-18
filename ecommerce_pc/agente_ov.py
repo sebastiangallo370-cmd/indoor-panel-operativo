@@ -287,7 +287,10 @@ def rol_descarga():
                 ahora = time.time()
                 if not hizo:
                     espera = bov.INTERVALO_REVISION
-                    latido('descarga', 'Vigilando Effi', ultima=ahora, proxima=ahora + espera, intervalo=espera)
+                    avisa = bool(config().get('effi_avisa'))
+                    if avisa:   # el panel despierta a ALMA cuando Effi avisa de una orden nueva: el tiempo es solo un respaldo largo
+                        espera = max(300, int(config().get('intervalo_revision_seg') or 1800))
+                    latido('descarga', 'Esperando aviso de Effi' if avisa else 'Vigilando Effi', ultima=ahora, proxima=ahora + espera, intervalo=espera)
                     dormir_vigilando(espera)
                 else:
                     latido('descarga', 'Orden descargada', ultima=ahora)
