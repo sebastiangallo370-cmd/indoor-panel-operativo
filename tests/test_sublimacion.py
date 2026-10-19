@@ -38,6 +38,14 @@ class PlanTest(unittest.TestCase):
         self.assertTrue(plan['short'])
         self.assertEqual(plan['missing'], 25.0)
 
+    def test_montecatini_faltan_35_mts(self):
+        items = [tela(1, 'MONTECATINI BLANCO', [40, 25, 10], ['started', 'new', 'new'])]
+        plan = s.build_plan(items, [(5, orden('OP1', 'MONTECATINI', 110))])[0]
+        self.assertTrue(plan['short'])
+        self.assertEqual(plan['missing'], 35.0)
+        self.assertEqual(sum(r['value'] for r in plan['rolls']), 75.0)
+        self.assertIn('110 MTS', plan['label'])
+
     def test_rollos_no_se_repiten_entre_ordenes(self):
         items = [tela(1, 'LYCRA BLANCO', [30, 30])]
         planes = s.build_plan(items, [(5, orden('OP1', 'LYCRA', 25)), (6, orden('OP2', 'LYCRA', 25))])

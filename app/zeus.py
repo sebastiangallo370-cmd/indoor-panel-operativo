@@ -156,7 +156,7 @@ def sincronizar() -> dict:
             necesita = round(f['falta'] - ya_pedido, 2)
             item = activas.get(tela)
             if item:
-                if item['estado'] != 'entregada':   # lo que ya tiene el agente no se cambia a media creación
+                if item['estado'] != 'entregada' and not item.get('manual'):   # lo que ya tiene el agente (o lo que pidió una persona a mano) no se cambia
                     item.update(falta=max(necesita, 0.0), ordenes=f['ordenes'], bodega=f['bodega'], actualizado=_iso())
             elif necesita > MARGEN_MTS:
                 d['seq'] += 1
@@ -164,7 +164,7 @@ def sincronizar() -> dict:
                                    'oc': '', 'detalle': '', 'intentos': 0, 'creado': _iso(), 'actualizado': _iso()})
                 nuevas += 1
         for item in d['items']:
-            if item['estado'] in ('pendiente', 'error') and (item['tela'] not in faltantes or item['falta'] <= MARGEN_MTS):
+            if item['estado'] in ('pendiente', 'error') and not item.get('manual') and (item['tela'] not in faltantes or item['falta'] <= MARGEN_MTS):
                 item['estado'], item['detalle'], item['actualizado'] = 'cancelada', 'Ya alcanza la tela: no hace falta comprar.', _iso()
                 canceladas += 1
         d['items'] = d['items'][-200:]
@@ -346,9 +346,9 @@ def _agente(d: dict) -> dict:
 # ------------------------------------------------------------------ personas
 def _enriquecer(i: dict) -> dict:
     """Para dibujar la tarjeta: código de la tela y proveedor elegido en Estándar 2026."""
-    codigo = next((c for c in (proveedores_tela.codigo_de(b) for b in i.get('bodega', [])) if c), '')
+    codigo = i.get('codigo_forzado') or next((c for c in (proveedores_tela.codigo_de(b) for b in i.get('bodega', [])) if c), '')
     prov = proveedores_tela.proveedor_de(codigo) if codigo else {}
-    return {**i, 'codigo': codigo, 'proveedor': prov.get('proveedor', '')}
+    return {**i, 'codigo': codigo, 'proveedor': i.get('proveedor_forzado') or i.get('proveedor_usado') or prov.get('proveedor', '')}
 
 
 @router.get('/estado')
@@ -440,6 +440,65 @@ def anular_orden(request: Request, payload: dict):
             d['pedido_por_tela'][it['tela']] = max(0.0, round(float(d['pedido_por_tela'].get(it['tela'], 0)) - float(it['falta']), 2))   # esa tela vuelve a faltar si sigue sin alcanzar
             _guardar(d)
     return {'ok': True, 'ya_anulada': ya}
+
+
+@router.post('/modificar')
+def modificar_orden(request: Request, payload: dict):
+    """Botón «Modificar orden»: la persona elige qué cambia (proveedor, referencia y/o cantidad); se anula la orden en Effi y el agente crea una nueva con los cambios."""
+    usuario = _usuario(request)
+    cambiar = {c for c in (payload.get('cambiar') or []) if c in ('proveedor', 'referencia', 'cantidad')}
+    if not cambiar:
+        raise HTTPException(400, 'Elige qué quieres modificar: proveedor, referencia o cantidad.')
+    sec = _leer_secreto()
+    if not sec.get('llave'):
+        raise HTTPException(400, 'Para modificar desde aquí conecta la API de Effi (pestaña «API Effi»).')
+    with _lock:
+        d0 = _leer()
+        viejo = next((i for i in d0['items'] if i['id'] == payload.get('id')), None)
+        actual = _enriquecer(viejo) if viejo else None
+    if not viejo or viejo.get('estado') != 'creada' or not viejo.get('oc'):
+        raise HTTPException(404, 'Esa orden de compra no está creada en Effi (o ya se anuló)')
+    proveedor = str(payload.get('proveedor') or '').strip()[:120] if 'proveedor' in cambiar else actual['proveedor']
+    codigo = str(payload.get('codigo') or '').strip()[:30] if 'referencia' in cambiar else actual['codigo']
+    if 'cantidad' in cambiar:
+        try:
+            cantidad = round(float(str(payload.get('cantidad')).replace(',', '.')), 2)
+        except (TypeError, ValueError):
+            raise HTTPException(400, 'La cantidad no es un número.')
+        if cantidad <= 0 or cantidad > 100000:
+            raise HTTPException(400, 'La cantidad debe ser mayor que 0 metros.')
+    else:
+        cantidad = float(viejo['falta'])
+    if not proveedor:
+        raise HTTPException(400, 'Falta el proveedor.')
+    if not codigo:
+        raise HTTPException(400, 'Falta la referencia (código de la tela).')
+    effi_api.usar_llave(sec['llave'])
+    try:   # se comprueba en Effi ANTES de anular: si el proveedor o la referencia no existen, la orden original queda intacta
+        effi_api.articulo(codigo)
+        effi_api.proveedor(proveedor)
+    except effi_api.EffiError as e:
+        raise HTTPException(400, str(e))
+    motivo = f'Modificada desde el panel por {usuario}: ' + ', '.join(sorted(cambiar))
+    try:
+        effi_api.anular_orden(viejo['oc'], motivo)
+    except effi_api.EffiError as e:
+        if not (e.estado == 400 and 'anulada' in str(e).lower()):
+            raise HTTPException(400, 'Effi no anuló la orden original: ' + str(e))
+    with _lock:
+        d = _leer()
+        it = next((i for i in d['items'] if i['id'] == viejo['id']), None)
+        if it:
+            it.update(estado='anulada', anulada_at=_iso(), anulada_por=usuario, motivo_anulada=motivo[:255], actualizado=_iso())
+            d['pedido_por_tela'][it['tela']] = max(0.0, round(float(d['pedido_por_tela'].get(it['tela'], 0)) - float(it['falta']), 2))
+        nombre = next((t.get('nombre') for t in proveedores_tela.telas() if str(t.get('codigo')) == codigo), '') if 'referencia' in cambiar else ''
+        d['seq'] += 1
+        d['items'].append({'id': d['seq'], 'tela': nombre or viejo['tela'], 'falta': cantidad, 'ordenes': viejo.get('ordenes', []), 'bodega': viejo.get('bodega', []) if 'referencia' not in cambiar else [],
+                           'estado': 'pendiente', 'oc': '', 'detalle': f'Reemplaza la orden {viejo["oc"]} (modificada por {usuario})', 'intentos': 0, 'manual': True,
+                           'codigo_forzado': codigo, 'proveedor_forzado': proveedor, 'modifica_a': viejo['id'], 'creado': _iso(), 'actualizado': _iso()})
+        nuevo = d['seq']
+        _guardar(d)
+    return {'ok': True, 'nuevo_id': nuevo}
 
 
 @router.post('/enviar-proveedor')
@@ -700,10 +759,12 @@ def sondeo(request: Request, payload: dict):
             for i in d['items']:
                 if i['estado'] in ('pendiente',) or (i['estado'] == 'error' and int(i.get('intentos', 0)) < 3 and _ahora() - float(i.get('entregada_at') or 0) > 600):
                     i['estado'], i['entregada_at'] = 'entregada', _ahora()
-                    codigo = next((c for c in (proveedores_tela.codigo_de(b) for b in i.get('bodega', [])) if c), '')
+                    codigo = i.get('codigo_forzado') or next((c for c in (proveedores_tela.codigo_de(b) for b in i.get('bodega', [])) if c), '')
                     prov = proveedores_tela.proveedor_de(codigo) if codigo else {}
+                    proveedor = i.get('proveedor_forzado') or prov.get('proveedor', '')
+                    i['codigo_usado'], i['proveedor_usado'] = codigo, proveedor
                     entregar.append({'id': i['id'], 'tela': i['tela'], 'falta': i['falta'], 'ordenes': [o['orden'] for o in i['ordenes']], 'bodega': i.get('bodega', []),
-                                     'codigo': codigo, 'proveedor': prov.get('proveedor', ''), 'nit': prov.get('nit', ''),
+                                     'codigo': codigo, 'proveedor': proveedor, 'nit': prov.get('nit', ''),
                                      'correos': correos_envio, 'api': api_para_agente(d)})
         if payload.get('puede_trabajar'):
             for i in d['items']:
