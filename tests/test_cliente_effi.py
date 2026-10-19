@@ -141,8 +141,7 @@ if __name__ == '__main__':
 class RutDigitosSeparados(unittest.TestCase):
     """RUT en PDF con texto real, pero con cada dígito de las casillas separado (caso MARATHON)."""
     TEXTO = (
-        'Formulario del Registro Único Tributario
-'
+        'Formulario del Registro Único Tributario\n'
         '5. Número de Identificación Tributaria (NIT) 6. DV 12. Dirección seccional 14. Buzón electrónico\n'
         '9 0 0 1 6 3 0 4 6 2 Impuestos de Bogotá 3 2\n'
         '24. Tipo de contribuyente 25. Tipo de documento 26. Número de Identificación\nPersona jurídica 1\n'
