@@ -1,40 +1,43 @@
-// Si se cierra la página (todas las pestañas del panel) y se vuelve a abrir, pide iniciar sesión otra vez.
-// Recargar o abrir otra pestaña mientras el panel sigue abierto NO cierra la sesión.
+// La sesión solo se cierra por INACTIVIDAD: 20 minutos sin tocar el panel (mouse, teclado, toque o desplazamiento) y se pide iniciar sesión otra vez.
+// Recargar, cerrar y volver a abrir el panel antes de esos 20 minutos NO pide iniciar sesión (y recordar-vista.js vuelve a la página en la que estabas).
+// La actividad se comparte entre las pestañas del panel (localStorage): si una está en uso, ninguna se cierra.
 (function(){
   if(window.__sessionGuard)return;window.__sessionGuard=true;
-  var FLAG='indoor_tab_ok',HB='indoor_hb_',id=Math.random().toString(36).slice(2),ALIVE=15000;
+  var KEY='indoor_last_activity',IDLE=20*60*1000;
+  function now(){return Date.now()}
+  function last(){try{var v=parseInt(localStorage.getItem(KEY),10);return isNaN(v)?0:v}catch(e){return -1}}
   function out(){
     try{document.documentElement.style.visibility='hidden'}catch(e){}
+    try{localStorage.removeItem(KEY)}catch(e){}
     location.replace('/logout');
   }
+  function mark(){try{localStorage.setItem(KEY,String(now()))}catch(e){}}
   try{
     var fresh=/(?:^|;\s*)indoor_fresh=1/.test(document.cookie);
     if(fresh){
-      // acaba de iniciar sesión: esta pestaña queda autorizada
+      // acaba de iniciar sesión: la cuenta regresiva de inactividad empieza ahora
       document.cookie='indoor_fresh=; Max-Age=0; path=/';
-      sessionStorage.setItem(FLAG,'1');
-    }else if(!sessionStorage.getItem(FLAG)){
-      var alive=false,now=Date.now();
-      Object.keys(localStorage).forEach(function(k){if(k.indexOf(HB)===0&&now-parseInt(localStorage.getItem(k),10)<ALIVE)alive=true});
-      if(alive)sessionStorage.setItem(FLAG,'1');   // otra pestaña del panel sigue abierta
-      else if(window.BroadcastChannel){
-        // el latido puede estar viejo si la otra pestaña está en segundo plano (el navegador frena sus temporizadores): se le pregunta directo
-        var ch=new BroadcastChannel('indoor_guard'),done=false;
-        ch.onmessage=function(e){if(e.data==='pong'&&!done){done=true;sessionStorage.setItem(FLAG,'1');ch.close();start()}};
-        ch.postMessage('ping');
-        setTimeout(function(){if(!done){done=true;ch.close();out()}},800);
-        return;
-      }else{out();return}                          // se cerró todo: hay que iniciar sesión de nuevo
+      mark();
+    }else{
+      var l=last();
+      if(l>0&&now()-l>IDLE){out();return}   // pasaron más de 20 minutos sin actividad
+      mark();   // (sin registro previo: la cuenta regresiva empieza ahora)
     }
-    start();
-  }catch(e){}
-  function start(){
-    try{
-      function beat(){try{localStorage.setItem(HB+id,String(Date.now()))}catch(e){}}
-      beat();setInterval(beat,5000);
-      document.addEventListener('visibilitychange',beat);
-      if(window.BroadcastChannel){var me=new BroadcastChannel('indoor_guard');me.onmessage=function(e){if(e.data==='ping')me.postMessage('pong')}}
-      window.addEventListener('pagehide',function(){try{localStorage.removeItem(HB+id)}catch(e){}});
-    }catch(e){}
+  }catch(e){return}
+  var pend=0;
+  function activity(){
+    var t=now();
+    if(t-pend<5000)return;   // basta con anotarlo cada 5 segundos
+    pend=t;mark();
   }
+  ['mousemove','mousedown','keydown','touchstart','scroll','click','wheel'].forEach(function(ev){window.addEventListener(ev,activity,{passive:true,capture:true})});
+  setInterval(function(){
+    var l=last();
+    if(l>0&&now()-l>IDLE)out();
+  },30000);
+  document.addEventListener('visibilitychange',function(){
+    if(document.hidden)return;
+    var l=last();
+    if(l>0&&now()-l>IDLE)out();else activity();
+  });
 })();
