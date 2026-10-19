@@ -2313,6 +2313,15 @@
   html body.production-mode .trace-card .trace-machine-btn.has-value{border-style:solid;border-color:#9fd24c;background:#1f2e12;color:#e6ffb0}
   html body.production-mode .trace-card .trace-machine-btn:hover{background:#2a3d17;color:#fff}
   @media(prefers-reduced-motion:reduce){html body.production-mode .trace-card{transition:none}}
+  /* Filtros de estado (Todos, Por fabricar, Mi trabajo del día…): más compactos, en una sola línea de botones pequeños */
+  html body.production-mode .trace-quick-filters{gap:6px!important;align-items:center}
+  html body.production-mode .trace-quick-filters button{min-height:30px!important;height:auto;padding:4px 11px!important;font-size:12.5px!important;line-height:1.2!important;gap:6px!important;border-radius:999px!important}
+  html body.production-mode .trace-quick-filters button:before{width:6px!important;height:6px!important}
+  html body.production-mode .trace-quick-filters button span{font-size:11px!important;line-height:1.2!important;padding:1px 6px!important;border-radius:999px!important}
+  html body.production-mode .trace-quick-filters button[aria-pressed=true]{box-shadow:none!important}
+  @media(max-width:860px){
+    html body.production-mode .trace-quick-filters button{min-height:40px!important;padding:6px 12px!important;white-space:nowrap}
+  }
   `;
   document.head.appendChild(style);
 })();
