@@ -298,6 +298,12 @@ def _records_for_tab(values: list[list[str]], tab_key: str, tab_label: str, grid
             "campos": fields,
         })
         last_record = records[-1]
+    if tab_key == 'BODEGA TELA':   # el TOTAL del Sheet a veces tiene la fórmula incompleta (DIAMANTE: 251 en vez de 1.389): mandan los rollos
+        for record in records:
+            rollos = round(sum(record['roll_values']), 2)
+            if record['roll_values'] and abs(rollos - float(record['total'])) > 0.5:
+                record['total_sheet'] = record['total']
+                record.update(total=rollos, mts=rollos, total_label=_display_total(rollos))
     return records
 
 

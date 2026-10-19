@@ -20,3 +20,14 @@ class RollosDeTela(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class TotalDeLaHoja(unittest.TestCase):
+    def test_total_con_formula_incompleta_manda_la_suma_de_rollos(self):
+        values = [['', 'NOMBRE TELA', 'R1', 'R2', 'R3', 'TOTAL'],
+                  ['', '(200) DIAMANTE BLANCO', '108', '43', '100', '251'],
+                  ['', '', '106', '106', '107', '300']]
+        rec = inv._records_for_tab(values, 'BODEGA TELA', 'Bodega tela', None)[0]
+        self.assertEqual(rec['roll_values'], [108.0, 43.0, 100.0, 106.0, 106.0, 107.0])
+        self.assertEqual(rec['total'], 570.0)
+        self.assertEqual(rec['total_sheet'], 551.0)   # 251 + 300 (lo que decía el Sheet)
