@@ -23,5 +23,8 @@
    "nota": "Si cambias un .js sube su ?v= en main.py (el navegador lo guarda). Los .js se sirven desde disco: scripts/desplegar.sh no reinicia si solo son .js."},
   {"id": "leccion-edicion-diseno-nombre", "agente": "TAVO", "titulo": "Maestros con nombre «DISEÑO1» en vez de «D1»", "fecha": "2026-10-19T14:30:00", "por": "Claude",
    "regex": "no encontré en MAESTROS el archivo para",
-   "nota": "CO6190 (A300PT01) falló con «El maestro no tiene la referencia PT01 (solo trae CA03)»: los archivos de MAESTROS/UNIFORMES 2026/PT01_D1_D2 se llamaban «DISEÑO1 PT01M XS A 4XL.ai» y MESA_AI (core/ordenes.py), _RE_MAESTRO (agents/olver.py) y diseno_en_archivo solo entendían «D1 PT01M…». Ahora aceptan D1 y DISEÑO1. Si un maestro nuevo no se encuentra, compara primero el NOMBRE del archivo con esas expresiones."}
+   "nota": "CO6190 (A300PT01) falló con «El maestro no tiene la referencia PT01 (solo trae CA03)»: los archivos de MAESTROS/UNIFORMES 2026/PT01_D1_D2 se llamaban «DISEÑO1 PT01M XS A 4XL.ai» y MESA_AI (core/ordenes.py), _RE_MAESTRO (agents/olver.py) y diseno_en_archivo solo entendían «D1 PT01M…». Ahora aceptan D1 y DISEÑO1. Si un maestro nuevo no se encuentra, compara primero el NOMBRE del archivo con esas expresiones."},
+  {"id": "leccion-oliver-talla-2", "agente": "OLIVER", "titulo": "Talla 2 de niño rechazada", "fecha": "2026-10-19T14:40:00", "por": "Claude",
+   "regex": "talla no permitida: 2",
+   "nota": "CO6190: OLIVER decía «talla no permitida: 2» porque config.TALLAS_PERMITIDAS (config.py) empezaba en la 4 de niño. Se agregó la «2». Si aparece «talla no permitida: X» con una talla real del listado, revisa esa lista (y datos/config.json de cada PC, que puede reemplazarla) y que el maestro cubra el rango (p. ej. «PT01N 2 A 16»)."}
 ]
