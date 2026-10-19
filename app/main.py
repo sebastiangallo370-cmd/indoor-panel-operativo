@@ -768,6 +768,37 @@ def inventario_alertas_js():
 
 # Personas que reciben el aviso de telas por reponer (se compara el usuario y su nombre, sin tildes ni mayúsculas).
 TELA_ALERT_USERS = {'ALEJANDRO PADILLA', 'STIVEN SANCHEZ', 'INDOOR SPORT'}
+# Aviso INMEDIATO de «falta tela»: destinatarios finales = ALEJANDRO PADILLA, JEISON PADILLA, STIVEN SANCHEZ e INDOOR SPORT.
+# En PRUEBA solo INDOOR SPORT hasta que se confirme (al confirmar: poner aquí los cuatro y agregar JEISON PADILLA a TELA_ALERT_USERS).
+TELA_FALTANTES_USERS = {'INDOOR SPORT'}
+
+_FALTANTES = {'t': 0.0, 'v': []}
+
+
+def _telas_faltantes() -> list[dict]:
+    """Telas que NO hay: agotadas en Bodega, o que no alcanzan (o no están) para los pedidos programados. Alimenta el aviso inmediato en pantalla.
+    Se calcula con el mismo inventario de «Tela necesaria»; el resultado se reutiliza 20 s para no recalcular en cada consulta."""
+    if time.monotonic() - _FALTANTES['t'] < 20:
+        return _FALTANTES['v']
+    eventos: list[dict] = []
+    try:
+        from app import inventario_api as _inv, tela_necesaria as _tn
+        for a in inventory_alerts().get('alertas', []):
+            if a.get('categoria') == 'BODEGA TELA' and a.get('nivel') == 'agotado':
+                eventos.append({'clave': 'agotada|' + a['nombre'], 'tipo': 'agotada', 'tela': a['nombre'], 'bodega': 0, 'faltan': a.get('faltan', 0),
+                                'ordenes': [], 'pedidos': a.get('pedidos', 0)})
+        calc = _tn.calcular(_inv._with_sublimacion(_inv._inventory_payload()).get('items') or [])
+        for r in calc.get('telas', []):
+            if r.get('alcanza'):
+                continue
+            ordenes = sorted({p['orden'] for p in r.get('pedidos', []) if p.get('situacion') in ('no_alcanza', 'sin_tela')})
+            eventos.append({'clave': 'no_alcanza|' + r['tela'] + '|' + ','.join(ordenes), 'tipo': 'no_alcanza' if r.get('encontrada') else 'sin_tela',
+                            'tela': r['tela'], 'bodega': r.get('disponible', 0), 'faltan': r.get('faltan', 0), 'ordenes': ordenes, 'pedidos': len(r.get('pedidos', []))})
+    except Exception:
+        logging.exception('No se pudo calcular las telas faltantes')
+        return _FALTANTES['v']
+    _FALTANTES.update(t=time.monotonic(), v=eventos)
+    return eventos
 
 
 @app.get('/confirmacion-proceso.js')
@@ -801,7 +832,7 @@ def alertas_telas(request: Request, _=Depends(authenticate)):
     data = inventory_alerts()
     # Identifica este inicio de sesión (cambia cada vez que la persona entra con su usuario)
     session = hashlib.sha256((request.cookies.get('indoor_login', '') + '|' + request.cookies.get('indoor_session', '')).encode()).hexdigest()[:16]
-    return {'aplica': True, 'sesion': session, 'alertas': [a for a in data['alertas'] if a.get('categoria') == 'BODEGA TELA']}
+    return {'aplica': True, 'sesion': session, 'alertas': [a for a in data['alertas'] if a.get('categoria') == 'BODEGA TELA'], 'faltantes': _telas_faltantes() if names & TELA_FALTANTES_USERS else []}
 
 
 @app.get('/linea-info.js')

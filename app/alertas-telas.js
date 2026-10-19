@@ -65,4 +65,45 @@
 
   // 1) cada vez que la persona inicia sesión
   check('sesion');
+
+  // 2) AVISO INMEDIATO cuando una tela no hay (agotada) o no alcanza para los pedidos programados.
+  // Se consulta cada 30 s mientras la página está abierta; cada faltante avisa una vez y, si se resuelve y vuelve a faltar, avisa de nuevo.
+  var KF='at_faltantes',fmodal=null;
+  function ent(n,f){return f(Number(n)||0).toLocaleString('es-CO',{maximumFractionDigits:0})}
+  function vistas(){try{return JSON.parse(get('localStorage',KF)||'[]')}catch(e){return []}}
+  function filaFaltante(a){
+    var chip=a.tipo==='agotada'?'<span class="at-chip agotado">Agotada</span>':a.tipo==='sin_tela'?'<span class="at-chip agotado">No está en Bodega</span>':'<span class="at-chip agotado">No alcanza</span>';
+    var detalle=a.tipo==='agotada'?'Stock en 0 MTS'+(a.pedidos?' · '+a.pedidos+(a.pedidos===1?' pedido':' pedidos'):''):(a.ordenes&&a.ordenes.length?'Órdenes: '+a.ordenes.map(esc).join(', '):'');
+    var num=a.tipo==='agotada'?'<em>MTS</em>0':a.tipo==='sin_tela'?'':'Bodega '+ent(a.bodega,Math.round)+' MTS<em>faltan '+ent(a.faltan,Math.ceil)+' MTS</em>';
+    return '<div class="at-row"><div><b title="'+esc(a.tela)+'">'+esc(a.tela)+'</b><small>'+detalle+'</small></div><div class="at-num">'+chip+(num?'<div style="margin-top:6px">'+num+'</div>':'')+'</div></div>';
+  }
+  function showFaltantes(lista){
+    if(fmodal||modal||!lista.length)return;
+    var ov=fmodal=document.createElement('div');ov.className='at-overlay';
+    ov.innerHTML='<div class="at-card" role="alertdialog" aria-modal="true"><div class="at-head"><small>AVISO INMEDIATO · TELA</small>'+
+      '<h3>Falta tela <i>'+lista.length+'</i></h3><p>Estas telas no hay o no alcanzan para los pedidos programados.</p></div>'+
+      '<div class="at-list">'+lista.map(filaFaltante).join('')+'</div>'+
+      '<div class="at-foot"><button type="button" class="at-btn" data-close>Entendido</button><button type="button" class="at-btn main" data-go>Ver tela necesaria</button></div></div>';
+    (document.body||document.documentElement).appendChild(ov);
+    set('localStorage',KF,JSON.stringify(lista.map(function(a){return a.clave})));   // ya se avisó de todas las que faltan ahora
+    function close(){fmodal=null;ov.remove()}
+    ov.addEventListener('click',function(e){
+      if(e.target.closest('[data-close]')||e.target===ov)close();
+      else if(e.target.closest('[data-go]')){close();var t=document.querySelector('[data-bodega-dashboard]');if(t){var g=t.closest('.nav-group');if(g)g.classList.remove('collapsed');t.click();setTimeout(function(){var s2=document.querySelector('[data-bd-tab="tela"]');if(s2)s2.click()},700)}}
+    });
+    document.addEventListener('keydown',function onKey(e){if(e.key==='Escape'&&fmodal===ov){close();document.removeEventListener('keydown',onKey)}});
+  }
+  function checkFaltantes(){
+    if(document.hidden||fmodal||modal)return;
+    fetch('/api/alertas-telas',{cache:'no-store',credentials:'same-origin'}).then(function(r){return r.ok?r.json():null}).then(function(d){
+      if(!d||!d.aplica)return;
+      var activas=d.faltantes||[],claves=activas.map(function(a){return a.clave}),prev=vistas();
+      var vigentes=prev.filter(function(k){return claves.indexOf(k)>=0});   // las que ya se resolvieron se olvidan: si vuelven a faltar, avisan otra vez
+      if(vigentes.length!==prev.length)set('localStorage',KF,JSON.stringify(vigentes));
+      if(activas.some(function(a){return vigentes.indexOf(a.clave)<0}))showFaltantes(activas);
+    }).catch(function(){});
+  }
+  setTimeout(checkFaltantes,6000);
+  setInterval(checkFaltantes,30000);
+  document.addEventListener('visibilitychange',function(){if(!document.hidden)setTimeout(checkFaltantes,800)});
 })();
