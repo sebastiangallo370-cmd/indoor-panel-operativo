@@ -124,7 +124,7 @@ from PIL import Image as PILImage, ImageOps
 import pdfplumber
 import gspread
 from google.oauth2.service_account import Credentials
-from app.catalogo_local import create_client   # catálogos en SQLite del VPS (antes Supabase)
+from supabase import create_client
 # PollingObserver en vez de Observer: la carpeta monitoreada vive en la NAS
 # (ruta UNC \\192.168.0.120\...). watchdog.Observer usa ReadDirectoryChangesW,
 # que NO recibe notificaciones sobre recursos de red/SMB, asi que los archivos
@@ -164,6 +164,7 @@ PARES_PENDIENTES_PATH = PID_DIR / "pares_pendientes.json"  # PDFs esperando (re)
 ORDENES_PROCESADAS_PATH = PID_DIR / "ordenes_procesadas.json"  # anti-duplicado tras archivar
 DIAS_MEMORIA_PROCESADAS = 21      # cuanto se recuerda una orden ya procesada
 DNS_HOSTS = [
+    "oolxeihvydqnszmnthzs.supabase.co",
     "sheets.googleapis.com",
     "www.googleapis.com",
 ]

@@ -115,7 +115,7 @@ import openpyxl
 import pdfplumber
 import gspread
 from google.oauth2.service_account import Credentials
-from app.catalogo_local import create_client   # catálogos en SQLite del VPS (antes Supabase)
+from supabase import create_client
 # PollingObserver en vez de Observer: la carpeta monitoreada vive en la NAS
 # (ruta UNC \\192.168.0.120\...). watchdog.Observer usa ReadDirectoryChangesW,
 # que NO recibe notificaciones sobre recursos de red/SMB, asi que los archivos
@@ -152,6 +152,7 @@ ORDENES_PROCESADAS_PATH = PID_DIR / "ordenes_procesadas.json"  # anti-duplicado 
 PAREJA_TIMEOUT_MIN_DEFAULT = 45   # aviso al comercial si una orden queda sin su pareja
 DIAS_MEMORIA_PROCESADAS = 21      # cuanto se recuerda una orden ya procesada
 DNS_HOSTS = [
+    "oolxeihvydqnszmnthzs.supabase.co",
     "sheets.googleapis.com",
     "www.googleapis.com",
 ]
@@ -2480,7 +2481,7 @@ def main():
     logging.info("=" * 60)
     logging.info(f"Vigilando pedidos en : {carpeta}")
     logging.info(f"Vigilando clientes en: {carpeta_clientes}")
-    logging.info('Catálogos             : SQLite local (catalogo.sqlite3)')
+    logging.info(f"Supabase             : {config['supabase_url']}")
     logging.info("=" * 60)
 
     # --- autotest inicial: confirmar que el observer VE la carpeta ------

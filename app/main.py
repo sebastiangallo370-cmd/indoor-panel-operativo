@@ -735,7 +735,7 @@ def startup():
         flag.touch(exist_ok=True)
     sheets_sync.start(connect, legacy.get_gspread, STATE_DIR, al_haber_filas_nuevas=lambda: senal_orden_programada('fila nueva en el Sheet'))
     start_sublimacion_worker()
-    db_backup.start(DB_PATH, STATE_DIR)
+    db_backup.start(DB_PATH, STATE_DIR, legacy.get_supabase)
     respaldo.start(DATA_ROOT, DB_PATH)
     alertas_correo.start(_problemas_salud, STATE_DIR)
     from app import inventario_api as _inv_api
@@ -3266,7 +3266,7 @@ def backup_estado(_=Depends(authenticate)):
 @app.post('/api/produccion/backup/ahora')
 def backup_ahora(_=Depends(authenticate)):
     try:
-        db_backup.run_once(DB_PATH, STATE_DIR)
+        db_backup.run_once(DB_PATH, STATE_DIR, legacy.get_supabase)
     except Exception as error:
         raise HTTPException(500, f"No se pudo hacer la copia de seguridad: {error}")
     return {'ok': True, **db_backup.status}
