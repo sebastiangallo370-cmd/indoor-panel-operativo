@@ -149,7 +149,7 @@ def rut_por_zonas(img) -> dict:
     ap = [letras(z['ap1']), letras(z['ap2'])]
     no = [letras(z['nom1']), letras(z['nom2'])]
     if razon:
-        c['nombre'], c['t_dni'], c['t_persona'] = _titulo(razon), 1, 2
+        c['nombre'], c['t_dni'], c['t_persona'] = re.sub(r'\s+', ' ', razon).strip(), 1, 2   # razón social: tal cual el documento
     elif any(ap) and any(no):
         c['nombre'] = _titulo(' '.join(x for x in no + ap if x))
         c['t_dni'], c['t_persona'] = 2, 1
@@ -185,6 +185,14 @@ def _imagen_primera_pagina(nombre: str, datos: bytes):
         return None
     from PIL import Image, ImageOps
     return ImageOps.exif_transpose(Image.open(io.BytesIO(datos))).convert('RGB')
+
+
+def _pdf_con_texto(nombre: str, datos: bytes) -> bool:
+    if not ((nombre or '').lower().endswith('.pdf') or datos[:4] == b'%PDF'):
+        return False
+    import pdfplumber
+    with pdfplumber.open(io.BytesIO(datos)) as pdf:
+        return len((pdf.pages[0].extract_text() or '').strip()) >= 200
 
 
 def _es_rut(texto: str) -> bool:
@@ -340,7 +348,7 @@ def interpretar(texto: str) -> dict:
     for l in lineas:
         m = ETIQUETAS_NOMBRE.match(l)
         if m and not c.get('nombre'):
-            c['nombre'] = m.group(1).strip(' .,;')
+            c['nombre'] = m.group(1).strip(' ,;')
         m = ETIQUETAS_DIR.match(l)
         if m and not c.get('direccion'):
             c['direccion'] = m.group(1).strip(' .,;')
@@ -367,13 +375,14 @@ def interpretar(texto: str) -> dict:
     elif re.search(r'responsable de iva|\b48\b\s*[-–]?\s*impuesto sobre las ventas', t, re.I):
         c['t_regimen_iva'] = 4
     if c.get('nombre'):
-        c['nombre'] = _titulo(re.sub(r'\s+', ' ', c['nombre']))[:120]
+        c['nombre'] = re.sub(r'\s+', ' ', c['nombre']).strip()[:120]
         if c.get('t_persona') != 2 and re.search(r'\b(s\.?a\.?s?\.?|ltda\.?|s\.?a\.?|e\.?u\.?|& ?cia|sas)\b', c['nombre'], re.I):
             c['t_persona'] = 2
     for k, v in rut.items():
         if k != 'numero':
             c[k] = v
-    if c.get('nombre'):
+    # Persona jurídica: la razón social se deja EXACTAMENTE como en el documento. Solo las personas naturales pasan a formato título.
+    if c.get('nombre') and c.get('t_persona') != 2:
         c['nombre'] = _titulo(c['nombre'])[:120]
     if c.get('direccion'):
         cola = re.match(r'^(.*\d.*),\s*([A-Za-zÁÉÍÓÚÑáéíóúñ .]{3,30})$', c['direccion'])
@@ -479,6 +488,8 @@ async def leer(request: Request, texto: str = Form(''), archivos: list[UploadFil
                 img = _imagen_primera_pagina(a.filename or '', datos)
                 if img is not None:
                     zonas = rut_por_zonas(img)
+                    if _pdf_con_texto(a.filename or '', datos):
+                        zonas['texto_exacto'] = True   # el PDF trae texto real: ahí el nombre es exacto, el OCR de la casilla no
             except Exception:   # si la lectura por casillas falla se sigue con el texto completo
                 zonas = {}
         if not t:
@@ -490,6 +501,8 @@ async def leer(request: Request, texto: str = Form(''), archivos: list[UploadFil
     campos = interpretar(leido)
     if zonas:   # las casillas del RUT leídas una a una mandan sobre el texto corrido
         for k in ('t_dni', 't_persona', 'numero', 'nombre', 'celular', 'telefono1', 'direccion', 'email', 'ciudad_texto'):
+            if k in ('nombre', 'direccion', 'email') and zonas.get('texto_exacto') and campos.get(k):
+                continue
             if zonas.get(k):
                 campos[k] = zonas[k]
         if zonas.get('celular'):

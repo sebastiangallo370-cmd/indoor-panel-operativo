@@ -12,7 +12,7 @@ class Interpretar(unittest.TestCase):
     def test_empresa_con_nit(self):
         c = ce.interpretar('CONFECCIONES LA 80 S.A.S.\nNIT: 900.123.456-7\nDirección: Calle 10 # 20-30 Barrio Centro\nCiudad: Medellín\nTel 604 321 4455 Cel 300 123 4567\nventas@la80.com')
         self.assertEqual((c['t_dni'], c['t_persona'], c['numero']), (1, 2, '900123456'))
-        self.assertEqual(c['nombre'], 'Confecciones la 80 S.A.S.')
+        self.assertEqual(c['nombre'], 'CONFECCIONES LA 80 S.A.S.')
         self.assertEqual(c['celular'], '3001234567')
         self.assertEqual(c['telefono1'], '6043214455')
         self.assertEqual(c['email'], 'ventas@la80.com')
@@ -72,7 +72,7 @@ class Rut(unittest.TestCase):
     def test_empresa(self):
         c = ce.interpretar(RUT_EMPRESA)
         self.assertEqual((c['t_dni'], c['t_persona'], c['numero']), (1, 2, '900123456'))
-        self.assertEqual(c['nombre'], 'Confecciones la 80 S A S')
+        self.assertEqual(c['nombre'], 'CONFECCIONES LA 80 S A S')
 
 
 class Crear(unittest.TestCase):
@@ -118,9 +118,9 @@ class Crear(unittest.TestCase):
                 ce._cuerpo_cliente(d)
             self.assertEqual(e.exception.status_code, 400)
 
-    def test_nombre_en_formato_titulo_y_regimen(self):
+    def test_razon_social_exacta_y_regimen(self):
         c = ce.interpretar('CONFECCIONES LA 80 S.A.S.\nNIT 900123456-7\n49 - No responsable de IVA')
-        self.assertEqual(c['nombre'], 'Confecciones la 80 S.A.S.')
+        self.assertEqual(c['nombre'], 'CONFECCIONES LA 80 S.A.S.')
         self.assertEqual(c['t_regimen_iva'], 5)
 
     def test_fuentes_que_se_contradicen(self):
