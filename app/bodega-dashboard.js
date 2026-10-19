@@ -111,6 +111,9 @@
 .bd .ot-tiempo.pronto{background:rgba(255,176,40,.24);border-color:rgba(255,200,110,.55)}
 .bd .ot-tiempo.ya{background:rgba(120,214,111,.20);border-color:rgba(160,230,150,.5)}
 .bd .ot-pie{margin-top:auto;display:grid;gap:4px;padding-right:50px;padding-top:2px}
+.bd .ot-bodega{font:800 .68rem Arial;letter-spacing:.03em;line-height:1.3;opacity:.95}
+.bd .ot-bodega b{font-weight:900}
+.bd .ot-bodega.mal{color:#ffd9d4}
 .bd .ot-consumo{font:900 1.6rem Arial;line-height:1;letter-spacing:-.01em}
 .bd .ot-consumo small{font:800 .7rem Arial;margin-left:5px;opacity:.85;letter-spacing:.05em}
 .bd .ot-sinprom{font:900 1.15rem Arial;color:#d0f44c!important}
@@ -525,6 +528,15 @@ html body .bd .inventory-item-card.lq,html body .bd .bd-tkpi .lq{background:radi
       return [d <= 3 ? 'pronto' : 'ok', 'Llega a Sublimación en ' + d + (d === 1 ? ' día' : ' días'), 'estimado ' + cuando, ''];
     };
     calcularCola(ordenes);
+    // cuánta tela hay en Bodega para esta orden y cuánto queda después de servirla (las órdenes se sirven por fecha de entrega)
+    const bodegaLinea = o => {
+      if (o.situacion === 'sin_tela' || (o.bodega === null && !o.disponible)) return '<div class="ot-bodega mal" title="No se encontró esta tela en el inventario de Bodega">Tela no encontrada en Bodega</div>';
+      if (typeof o.bodega !== 'number') return '';
+      const tit = 'Bodega tiene ' + num(o.bodega) + ' MTS de esta tela en total. Las órdenes se sirven por fecha de entrega: para esta orden quedan disponibles ' + num(o.disponible || 0) + ' MTS.';
+      if (o.situacion === 'sin_promedio') return '<div class="ot-bodega" title="' + esc(tit) + '">Bodega <b>' + num(o.bodega) + '</b> MTS</div>';
+      if (o.situacion === 'no_alcanza') return '<div class="ot-bodega mal" title="' + esc(tit) + '">Bodega <b>' + num(o.bodega) + '</b> MTS · faltan <b>' + num(o.falta) + '</b></div>';
+      return '<div class="ot-bodega" title="' + esc(tit) + '">Bodega <b>' + num(o.bodega) + '</b> MTS · quedan <b>' + num(o.quedan) + '</b></div>';
+    };
     const orderCard = o => {
       const [, cls] = SITUACION[o.situacion] || ['', ''];
       const sinPromedio = o.situacion === 'sin_promedio';
@@ -540,6 +552,7 @@ html body .bd .inventory-item-card.lq,html body .bd .bd-tkpi .lq{background:radi
         '<div class="ot-titulo"><strong class="ot-tela">' + esc(o.tela) + '</strong><span class="ot-ref">' + esc(o.referencia) + '</span></div>' +
         '<div class="ot-cliente-linea" title="' + esc((o.cliente || 'Sin cliente') + (o.proyecto ? ' · ' + o.proyecto : '')) + '"><b>' + esc(o.cliente || 'Sin cliente') + '</b></div>' +
         (tiempo ? '<div class="ot-tiempo ' + tiempo[0] + '" title="' + esc(titTiempo) + '"><span class="ot-reloj" aria-hidden="true">⏱</span><span><b>' + esc(tiempo[1]) + '</b>' + (false ? '<small class="ot-cambio ' + tiempo[5] + '">' + esc(tiempo[4]) + '</small>' : '') + '</span></div>' : '') +
+        bodegaLinea(o) +
         '<div class="ot-pie">' + (sinPromedio ? '<span class="ot-sinprom">Sin promedio</span>' : '<span class="ot-consumo">' + num(o.mts) + '<small>MTS</small></span>') +
         (alerta ? '<span class="ot-alerta">' + esc(alerta) + '</span>' : '') + '</div></article>';
     };

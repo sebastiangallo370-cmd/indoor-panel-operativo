@@ -341,11 +341,16 @@ def calcular(items: list[dict]) -> dict:
                 ped.update(situacion='no_alcanza', falta=round(ped['mts'] - max(restante, 0.0), 2), disponible=round(max(restante, 0.0), 2))
                 restante = max(0.0, restante - ped['mts'])
             ped['telas'] = [i['nombre'] for i in encontradas]
+            ped['bodega'] = disponible   # todo lo que hay en Bodega de esa tela (antes de servir las órdenes)
+            ped['quedan'] = round(max(restante, 0.0), 2)   # lo que sobra en Bodega después de esta orden
             por_orden.append(ped)
         entrada.pop('codigos', None)
         resultado.append({**entrada, 'mts': mts, 'disponible': disponible, 'encontrada': bool(encontradas),
                           'telas': [i['nombre'] for i in encontradas], 'faltan': round(max(0.0, mts - disponible), 2) if encontradas else mts,
                           'alcanza': bool(encontradas) and disponible >= mts})
+    for sp in sin_promedio:   # aunque no tenga promedio, se muestra cuánta tela hay en Bodega
+        enc = sublimacion_stock._matched(items, sp['tela'])
+        sp['bodega'] = round(sum(sum(float(x) for x in (i.get('roll_values') or [])) for i in enc), 2) if enc else None
     resultado.sort(key=lambda r: (r['alcanza'], -r['mts']))
     por_orden.sort(key=lambda o: (o['entrega'] or '9999', o['orden']))
     return {'disponible': True, 'brecha_sublimacion': brecha, 'telas': resultado, 'ordenes': por_orden + sin_promedio, 'sin_promedio': sin_promedio,
