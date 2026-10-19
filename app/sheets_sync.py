@@ -260,7 +260,7 @@ def decorate(db, data):
     return data
 
 
-def start(connect, worksheet_provider, state_dir):
+def start(connect, worksheet_provider, state_dir, al_haber_filas_nuevas=None):
     """The worker thread always runs; it re-checks the flag file on every tick, so
     activating/deactivating the sync from the app takes effect within one poll
     interval, without needing to restart the server."""
@@ -290,6 +290,11 @@ def start(connect, worksheet_provider, state_dir):
                         resync.unlink(missing_ok=True)
                         logging.info('Sheets sync (igualado completo al Sheet): %s', counts)
                     logging.info('Sheets sync: %s', counts)
+                    if al_haber_filas_nuevas and counts.get('new') and not force:   # señal: llegó una orden nueva al Sheet
+                        try:
+                            al_haber_filas_nuevas()
+                        except Exception:
+                            logging.exception('No se pudo avisar de las filas nuevas')
                 except Exception as error:
                     logging.exception('Google Sheets sync failed; local production preserved')
                     with connect() as db:

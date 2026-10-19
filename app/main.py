@@ -335,6 +335,19 @@ app.include_router(externa_router, dependencies=[Depends(authenticate)])
 
 
 
+def senal_orden_programada(origen: str = ''):
+    """La página le avisa a los agentes que entró una orden nueva: TERRY calcula sus MTS de inmediato. Se llama solo cuando ocurre el hecho
+    (el pedido se programó en el panel o el Sheet trajo filas nuevas); no hay ningún reloj que revise. Corre en segundo plano para no demorar a quien programa."""
+    def correr():
+        try:
+            lanzadas = agentes_mod.auto_mts(_edicion_finalizada_sin_mts(False), 'vistos_mts_prog', 'orden programada')
+            if lanzadas:
+                logging.info('Agentes: señal de orden nueva (%s) → cálculo de MTS para %s', origen or 'panel', ', '.join(lanzadas))
+        except Exception:
+            logging.exception('No se pudo avisar a los agentes de la orden nueva')
+    threading.Thread(target=correr, name='senal-orden-programada', daemon=True).start()
+
+
 def update_job(job_id: int, state: str, detail: str = "", order_number: str = ""):
     now = datetime.now(timezone.utc).isoformat()
     detail_lower = detail.lower()
@@ -356,6 +369,8 @@ def update_job(job_id: int, state: str, detail: str = "", order_number: str = ""
             "progress=MAX(COALESCE(progress,0),?), updated_at=? WHERE id=?",
             (state, detail, order_number, progress, now, job_id),
         )
+    if state == "COMPLETADO":   # el pedido ya está programado (tarjetas creadas y archivos listos): se avisa a los agentes
+        senal_orden_programada('pedido programado')
 
 
 def update_job_progress(job_id: int, progress: int, detail: str):
@@ -718,7 +733,7 @@ def startup():
         flag.unlink(missing_ok=True)
     else:
         flag.touch(exist_ok=True)
-    sheets_sync.start(connect, legacy.get_gspread, STATE_DIR)
+    sheets_sync.start(connect, legacy.get_gspread, STATE_DIR, al_haber_filas_nuevas=lambda: senal_orden_programada('fila nueva en el Sheet'))
     start_sublimacion_worker()
     db_backup.start(DB_PATH, STATE_DIR, legacy.get_supabase)
     respaldo.start(DATA_ROOT, DB_PATH)
@@ -2439,10 +2454,6 @@ def _vigilar_edicion():
             lanzadas = agentes_mod.auto_procesar(_edicion_en_proceso())
             if lanzadas:
                 logging.info('Agentes: inicio automático para %s (EDICIÓN en proceso)', ', '.join(lanzadas))
-            # apenas la orden queda PROGRAMADA en Producción (sin esperar a EDICIÓN) se calculan sus MTS; las que ya estaban se anotan como vistas la primera vez
-            programadas = agentes_mod.auto_mts(_edicion_finalizada_sin_mts(False), 'vistos_mts_prog', 'orden programada')
-            if programadas:
-                logging.info('Agentes: cálculo automático de MTS para %s (orden programada)', ', '.join(programadas))
             con_mts = agentes_mod.auto_mts(_edicion_finalizada_sin_mts())
             if con_mts:
                 logging.info('Agentes: cálculo automático de MTS para %s (EDICIÓN finalizada)', ', '.join(con_mts))
