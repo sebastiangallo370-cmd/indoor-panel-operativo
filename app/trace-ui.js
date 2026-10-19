@@ -495,6 +495,34 @@
   toolbar.setAttribute('aria-label', 'Filtros de trazabilidad');
   toolbar.innerHTML = '<div class="trace-workspace-top"><div><h3>Pedidos en seguimiento</h3></div><span class="trace-live">Actualización automática</span></div><div class="trace-quick-filters" role="group" aria-label="Estado de los pedidos">' + filters.map(([id, label]) => '<button type="button" data-trace-filter="' + id + '" aria-pressed="' + (id === 'all') + '">' + label + '<span>0</span></button>').join('') + '</div><p class="trace-results" role="status" aria-live="polite"></p>';
   traceCards.before(toolbar);
+  // Tela que queda en Bodega (inventario real, el mismo cálculo de «Tela necesaria»): se muestra bajo MTS REQUERIDOS de cada tarjeta.
+  // Las órdenes se descuentan de Bodega por fecha de entrega, así que «quedan» es lo que sobra de esa tela después de hacer la orden.
+  const telaPorFila = new Map(), numTela = v => Number(v || 0).toLocaleString('es-CO', {maximumFractionDigits: 2});
+  const pintarTelaTarjetas = () => {
+    traceCards.querySelectorAll(':scope > article[data-card-row]').forEach(card => {
+      const caja = card.querySelector('.trace-mts-display.has-value'); if (!caja) return;
+      const o = telaPorFila.get(Number(card.dataset.cardRow));
+      let html = '', clase = '';
+      if (o && o.situacion === 'sin_tela') { html = 'Tela no encontrada en Bodega'; clase = ' mal'; }
+      else if (o && typeof o.bodega === 'number' && o.situacion === 'no_alcanza') { html = 'Bodega <b class="hay">' + numTela(o.bodega) + '</b> MTS · faltan <b class="falta">' + numTela(o.falta) + '</b>'; clase = ' mal'; }
+      else if (o && typeof o.bodega === 'number' && o.situacion === 'alcanza') html = 'Bodega <b class="hay">' + numTela(o.bodega) + '</b> MTS · quedan <b class="queda">' + numTela(o.quedan) + '</b>';
+      let el = caja.querySelector('.trace-tela-quedan');
+      if (!html) { if (el) el.remove(); return; }
+      if (!el) { el = document.createElement('span'); caja.appendChild(el); }
+      if (el.__h !== html + clase) { el.__h = html + clase; el.className = 'trace-tela-quedan' + clase; el.innerHTML = html; el.title = 'Tela que hay en Bodega y la que queda después de esta orden (las órdenes se descuentan por fecha de entrega).'; }
+    });
+  };
+  const cargarTelaTarjetas = async () => {
+    try {
+      const r = await fetch('/api/inventarios/tela-necesaria', {cache: 'no-store'}); if (!r.ok) return;
+      const d = await r.json(); telaPorFila.clear(); (d.ordenes || []).forEach(o => telaPorFila.set(Number(o.fila), o));
+      pintarTelaTarjetas();
+    } catch (_) { /* sin datos de tela: las tarjetas quedan como estaban */ }
+  };
+  let timerTela = 0;
+  new MutationObserver(() => { clearTimeout(timerTela); timerTela = setTimeout(pintarTelaTarjetas, 150); }).observe(traceCards, {childList: true});
+  cargarTelaTarjetas();
+  setInterval(() => { if (!document.hidden && document.querySelector('.tab.active')?.dataset.kind === 'produccion') cargarTelaTarjetas(); }, 60000);
   // Totales de la lista que se está viendo (unidades y MTS) y filtro por máquina
   let maquinaFiltro = '';
   const totales = document.createElement('div');
@@ -2322,6 +2350,12 @@
   @media(max-width:860px){
     html body.production-mode .trace-quick-filters button{min-height:40px!important;padding:6px 12px!important;white-space:nowrap}
   }
+  /* Tela que queda en Bodega bajo MTS REQUERIDOS */
+  html body.production-mode .trace-card .trace-tela-quedan{display:block;margin-top:5px;font:800 11px Arial;letter-spacing:.02em;line-height:1.3;color:#e7eee2;text-transform:none;white-space:normal}
+  html body.production-mode .trace-card .trace-tela-quedan b{font-weight:900}
+  html body.production-mode .trace-card .trace-tela-quedan .hay{color:#7cc9ff}
+  html body.production-mode .trace-card .trace-tela-quedan .queda{color:#d6f55a}
+  html body.production-mode .trace-card .trace-tela-quedan .falta,html body.production-mode .trace-card .trace-tela-quedan.mal{color:#ff9a8f}
   `;
   document.head.appendChild(style);
 })();
