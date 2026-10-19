@@ -95,8 +95,8 @@ def leer_archivo(nombre: str, datos: bytes) -> str:
 ZONAS_RUT = {
     'nit': (.05, .221, .31, .242), 'tipo': (.05, .262, .34, .280),
     'ap1': (.05, .322, .27, .344), 'ap2': (.255, .322, .455, .344), 'nom1': (.46, .322, .65, .344), 'nom2': (.655, .322, .97, .344),
-    'razon': (.05, .356, .97, .375), 'depto': (.33, .433, .61, .450), 'ciudad': (.64, .433, .90, .450),
-    'dir': (.05, .466, .60, .482), 'mail': (.17, .477, .50, .499), 'tel1': (.49, .493, .645, .515),
+    'razon': (.035, .356, .97, .375), 'depto': (.33, .433, .61, .450), 'ciudad': (.64, .433, .90, .450),
+    'dir': (.035, .466, .60, .482), 'mail': (.17, .477, .50, .499), 'tel1': (.49, .493, .645, .515),
 }
 
 
@@ -310,8 +310,8 @@ def _rut(lineas: list[str], t: str) -> dict:
                     break
     for i, l in enumerate(lineas):   # casillas 39/40: «COLOMBIA 1 6 9 Bogotá D.C. 1 1 Bogotá, D.C. 0 0 1» → departamento y ciudad
         if re.search(r'40\.?\s*ciudad', l, re.I):
-            trozos = [x.strip() for x in re.split(r'(?:\s\d){1,3}(?=\s|$)', ' ' + (lineas[i + 1] if i + 1 < len(lineas) else '')) if re.search(r'[A-Za-zÁÉÍÓÚÑáéíóúñ]{3}', x)]
-            trozos = [x for x in trozos if x.upper() != 'COLOMBIA']
+            trozos = [x.strip(' |,;') for x in re.split(r'[\s|]*\d[\d\s.|]*', ' ' + (lineas[i + 1] if i + 1 < len(lineas) else '')) if re.search(r'[A-Za-zÁÉÍÓÚÑáéíóúñ]{3}', x)]
+            trozos = [x for x in trozos if not _plano(x).startswith('colombia')]
             if len(trozos) >= 2:
                 c['provincia_texto'], c['ciudad_texto'] = trozos[0], trozos[-1]
             elif trozos:
@@ -560,14 +560,21 @@ async def leer(request: Request, texto: str = Form(''), archivos: list[UploadFil
         raise HTTPException(422, 'No se encontró texto en lo que subiste. Prueba con una foto más clara o escribe los datos.')
     campos = interpretar(leido)
     if zonas:   # las casillas del RUT leídas una a una mandan sobre el texto corrido
+        # Números y correo: la casilla recortada se lee mejor que la página entera. Nombre, dirección y ciudad: manda el texto de la página
+        # (el recorte puede cortar letras) y la casilla solo rellena lo que falte. Si el PDF trae texto real, este siempre manda.
         for k in ('t_dni', 't_persona', 'numero', 'nombre', 'celular', 'telefono1', 'direccion', 'email', 'ciudad_texto'):
+            if not zonas.get(k):
+                continue
             if zonas.get('texto_exacto') and campos.get(k):
                 continue
-            if zonas.get(k):
-                campos[k] = zonas[k]
+            if k in ('nombre', 'direccion', 'ciudad_texto') and campos.get(k):
+                if k == 'nombre' and _plano(campos[k]) != _plano(zonas[k]):
+                    avisos.append(f'Revisa la razón social/nombre: una lectura dice «{campos[k]}» y otra «{zonas[k]}».')
+                continue
+            campos[k] = zonas[k]
         if zonas.get('celular'):
             campos['whatsapp'] = zonas['celular']
-        campos['provincia_texto'] = zonas.get('provincia_texto', '')
+        campos['provincia_texto'] = campos.get('provincia_texto') or zonas.get('provincia_texto', '')
     avisos += conflictos(partes)
     ciudad = None
     if effi_api.disponible() or (_llave() or '').strip():
