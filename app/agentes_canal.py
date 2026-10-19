@@ -926,20 +926,21 @@ def auto_procesar(candidatos: list[dict]) -> list[str]:
 
 
 # ------------------------------------------------------------------ MTS automáticos (EDICIÓN finalizada)
-def auto_mts(candidatos: list[dict]) -> list[str]:
+def auto_mts(candidatos: list[dict], vistos_clave: str = 'vistos_mts', motivo: str = 'EDICIÓN finalizada') -> list[str]:
     """candidatos: tarjetas con EDICIÓN finalizada y SIN MTS REQUERIDOS: [{'clave', 'orden', 'ref', 'usuario'}].
     Cuando una tarjeta termina EDICIÓN, TERRY calcula cuánta tela se necesita (Promedios maestros) y la anota en la tarjeta, sin pedir
     autorización. La primera vez solo se anotan las que ya estaban así (el historial no se toca). Si el PC no está conectado o la persona está
-    esperando una respuesta, se reintenta en la siguiente vuelta. Devuelve las órdenes lanzadas."""
+    esperando una respuesta, se reintenta en la siguiente vuelta. Devuelve las órdenes lanzadas.
+    `vistos_clave` y `motivo` permiten usar la misma lógica con otro disparador (p. ej. «orden programada», apenas aparece en Producción)."""
     lanzadas = []
     with _lock:
         datos = _leer()
         auto = datos['auto']
-        if auto.get('vistos_mts') is None:
-            auto['vistos_mts'] = [c['clave'] for c in candidatos]
+        if auto.get(vistos_clave) is None:
+            auto[vistos_clave] = [c['clave'] for c in candidatos]
             _guardar(datos)
             return lanzadas
-        vistos = set(auto['vistos_mts'])
+        vistos = set(auto[vistos_clave])
         cambio = False
         for c in candidatos:
             if c['clave'] in vistos:
@@ -955,11 +956,12 @@ def auto_mts(candidatos: list[dict]) -> list[str]:
             orden = c['orden']
             datos['ordenes'][sesion] = orden
             _nuevo(datos, sesion, 'yo', 'cancelar', t=_ahora(), tomado=False, respondido=False, oculto=True)
-            _nuevo(datos, sesion, 'yo', f"Calcula los MTS requeridos de la orden {orden} (automático: EDICIÓN finalizada)", t=_ahora(),
+            _nuevo(datos, sesion, 'yo', f"Calcula los MTS requeridos de la orden {orden} (automático: {motivo})", t=_ahora(),
                    tomado=False, respondido=False, auto=True)
             vistos.add(c['clave']); cambio = True
+            vistos |= {x['clave'] for x in candidatos if x['orden'] == orden}   # las otras referencias de la misma orden las calcula el mismo pedido
             lanzadas.append(orden)
         if cambio:
-            auto['vistos_mts'] = sorted(vistos)[-3000:]
+            auto[vistos_clave] = sorted(vistos)[-3000:]
             _guardar(datos)
     return lanzadas

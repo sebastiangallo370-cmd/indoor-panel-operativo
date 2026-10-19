@@ -2387,9 +2387,10 @@ def _edicion_en_proceso() -> list[dict]:
         return resultado
 
 
-def _edicion_finalizada_sin_mts() -> list[dict]:
+def _edicion_finalizada_sin_mts(solo_finalizada: bool = True) -> list[dict]:
     """Tarjetas cuyo proceso EDICIÓN ya está finalizado (fecha) y que todavía no tienen MTS REQUERIDOS (nota de la columna 17):
-    [{'clave', 'orden', 'ref', 'usuario'}]. Al terminar EDICIÓN los agentes calculan y anotan la tela necesaria."""
+    [{'clave', 'orden', 'ref', 'usuario'}]. Al terminar EDICIÓN los agentes calculan y anotan la tela necesaria.
+    Con solo_finalizada=False devuelve TODAS las tarjetas programadas (con orden y referencia) que aún no tienen MTS, sin esperar a EDICIÓN."""
     plano = lambda v: re.sub(r'\s+', '', str(v or '')).upper()
     with connect() as db:
         meta = {r['key']: r['value'] for r in db.execute('SELECT key, value FROM production_meta')}
@@ -2408,7 +2409,7 @@ def _edicion_finalizada_sin_mts() -> list[dict]:
         resultado = []
         for r in db.execute('SELECT source_row, values_json FROM production_rows ORDER BY source_row'):
             v = json.loads(r['values_json'])
-            if estado >= len(v) or not parse_production_date(str(v[estado])):
+            if solo_finalizada and (estado >= len(v) or not parse_production_date(str(v[estado]))):
                 continue   # EDICIÓN no está finalizada (vacía, en proceso, reproceso o N/A)
             orden, ref = plano(v[i_orden] if i_orden < len(v) else ''), plano(v[i_ref] if i_ref < len(v) else '')
             if not orden or not ref:
@@ -2438,6 +2439,10 @@ def _vigilar_edicion():
             lanzadas = agentes_mod.auto_procesar(_edicion_en_proceso())
             if lanzadas:
                 logging.info('Agentes: inicio automático para %s (EDICIÓN en proceso)', ', '.join(lanzadas))
+            # apenas la orden queda PROGRAMADA en Producción (sin esperar a EDICIÓN) se calculan sus MTS; las que ya estaban se anotan como vistas la primera vez
+            programadas = agentes_mod.auto_mts(_edicion_finalizada_sin_mts(False), 'vistos_mts_prog', 'orden programada')
+            if programadas:
+                logging.info('Agentes: cálculo automático de MTS para %s (orden programada)', ', '.join(programadas))
             con_mts = agentes_mod.auto_mts(_edicion_finalizada_sin_mts())
             if con_mts:
                 logging.info('Agentes: cálculo automático de MTS para %s (EDICIÓN finalizada)', ', '.join(con_mts))
