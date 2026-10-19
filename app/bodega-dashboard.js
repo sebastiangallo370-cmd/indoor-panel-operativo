@@ -533,20 +533,22 @@ html body .bd .inventory-item-card.lq,html body .bd .bd-tkpi .lq{background:radi
     };
     calcularCola(ordenes);
     // cuánta tela hay en Bodega para esta orden y cuánto queda después de servirla (las órdenes se sirven por fecha de entrega)
+    // Metros ENTEROS: «Bodega» redondeado, «quedan» hacia abajo y «faltan» hacia arriba
+    const entero = (v, f) => f(Number(v) || 0).toLocaleString('es-CO', {maximumFractionDigits: 0});
     const bodegaLinea = o => {
       if (o.situacion === 'sin_tela' || (o.bodega === null && !o.disponible)) return '<div class="ot-bodega mal" title="No se encontró esta tela en el inventario de Bodega">Tela no encontrada en Bodega</div>';
       if (typeof o.bodega !== 'number') return '';
-      const tit = 'Bodega tiene ' + num(o.bodega) + ' MTS de esta tela en total. Las órdenes se sirven por fecha de entrega: para esta orden quedan disponibles ' + num(o.disponible || 0) + ' MTS.';
-      if (o.situacion === 'sin_promedio') return '<div class="ot-bodega" title="' + esc(tit) + '">Bodega <b class="hay">' + num(o.bodega) + '</b> MTS</div>';
-      if (o.situacion === 'no_alcanza') return '<div class="ot-bodega mal" title="' + esc(tit) + '">Bodega <b class="hay">' + num(o.bodega) + '</b> MTS · faltan <b class="falta">' + num(o.falta) + '</b></div>';
-      return '<div class="ot-bodega" title="' + esc(tit) + '">Bodega <b class="hay">' + num(o.bodega) + '</b> MTS · quedan <b class="queda">' + num(o.quedan) + '</b></div>';
+      const tit = 'Bodega tiene ' + entero(o.bodega, Math.round) + ' MTS de esta tela en total. Las órdenes se sirven por fecha de entrega: para esta orden quedan disponibles ' + entero(o.disponible || 0, Math.floor) + ' MTS.';
+      if (o.situacion === 'sin_promedio') return '<div class="ot-bodega" title="' + esc(tit) + '">Bodega <b class="hay">' + entero(o.bodega, Math.round) + '</b> MTS</div>';
+      if (o.situacion === 'no_alcanza') return '<div class="ot-bodega mal" title="' + esc(tit) + '">Bodega <b class="hay">' + entero(o.bodega, Math.round) + '</b> MTS · faltan <b class="falta">' + entero(o.falta, Math.ceil) + '</b></div>';
+      return '<div class="ot-bodega" title="' + esc(tit) + '">Bodega <b class="hay">' + entero(o.bodega, Math.round) + '</b> MTS · quedan <b class="queda">' + entero(o.quedan, Math.floor) + '</b></div>';
     };
     const orderCard = o => {
       const [, cls] = SITUACION[o.situacion] || ['', ''];
       const sinPromedio = o.situacion === 'sin_promedio';
       const level = sinPromedio ? null : o.situacion === 'alcanza' ? 100 : o.mts ? Math.min(100, (o.disponible || 0) / o.mts * 100) : 0;
       const tono = o.situacion === 'alcanza' ? 'verde' : 'rojo';
-      const alerta = o.situacion === 'no_alcanza' ? 'No alcanza · faltan ' + num(o.falta) + ' MTS' : o.situacion === 'sin_tela' ? 'No alcanza · la tela no está en Bodega' : '';
+      const alerta = o.situacion === 'no_alcanza' ? 'No alcanza · faltan ' + entero(o.falta, Math.ceil) + ' MTS' : o.situacion === 'sin_tela' ? 'No alcanza · la tela no está en Bodega' : '';
       const pares = !sinPromedio && o.exacto ? tallasPares(o) : [];
       const tiempo = tiempoSublim(o);
       const attrs = ' data-q="' + esc(norm([o.orden, o.cliente, o.proyecto, o.referencia, o.tela].join(' '))) + '" data-tela="' + esc(o.tela) + '" data-sit="' + o.situacion + '" data-sub="' + (o.estado === 'P' ? 'P' : 'pend') + '" data-fecha="' + esc(o.entrega || '') + '" data-sinfiltro="false" title="' + esc([o.cliente || 'Sin cliente', o.proyecto || 'Sin proyecto', pares.length ? 'Tallas: ' + pares.map(([t, n]) => t + ' ' + num(n)).join(' · ') : '', tiempo && tiempo[2] ? tiempo[2] : '', tiempo && tiempo[4] ? tiempo[4] : ''].filter(Boolean).join('\n')) + '"';

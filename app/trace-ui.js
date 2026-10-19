@@ -497,15 +497,16 @@
   traceCards.before(toolbar);
   // Tela que queda en Bodega (inventario real, el mismo cálculo de «Tela necesaria»): se muestra bajo MTS REQUERIDOS de cada tarjeta.
   // Las órdenes se descuentan de Bodega por fecha de entrega, así que «quedan» es lo que sobra de esa tela después de hacer la orden.
-  const telaPorFila = new Map(), numTela = v => Number(v || 0).toLocaleString('es-CO', {maximumFractionDigits: 2});
+  // Metros ENTEROS: «Bodega» redondeado, «quedan» hacia abajo (no se promete tela de más) y «faltan» hacia arriba.
+  const telaPorFila = new Map(), enteroTela = (v, f) => f(Number(v) || 0).toLocaleString('es-CO', {maximumFractionDigits: 0});
   const pintarTelaTarjetas = () => {
     traceCards.querySelectorAll(':scope > article[data-card-row]').forEach(card => {
       const caja = card.querySelector('.trace-mts-display.has-value'); if (!caja) return;
       const o = telaPorFila.get(Number(card.dataset.cardRow));
       let html = '', clase = '';
       if (o && o.situacion === 'sin_tela') { html = 'Tela no encontrada en Bodega'; clase = ' mal'; }
-      else if (o && typeof o.bodega === 'number' && o.situacion === 'no_alcanza') { html = 'Bodega <b class="hay">' + numTela(o.bodega) + '</b> MTS · faltan <b class="falta">' + numTela(o.falta) + '</b>'; clase = ' mal'; }
-      else if (o && typeof o.bodega === 'number' && o.situacion === 'alcanza') html = 'Bodega <b class="hay">' + numTela(o.bodega) + '</b> MTS · quedan <b class="queda">' + numTela(o.quedan) + '</b>';
+      else if (o && typeof o.bodega === 'number' && o.situacion === 'no_alcanza') { html = 'Bodega <b class="hay">' + enteroTela(o.bodega, Math.round) + '</b> MTS · faltan <b class="falta">' + enteroTela(o.falta, Math.ceil) + '</b>'; clase = ' mal'; }
+      else if (o && typeof o.bodega === 'number' && o.situacion === 'alcanza') html = 'Bodega <b class="hay">' + enteroTela(o.bodega, Math.round) + '</b> MTS · quedan <b class="queda">' + enteroTela(o.quedan, Math.floor) + '</b>';
       let el = caja.querySelector('.trace-tela-quedan');
       if (!html) { if (el) el.remove(); return; }
       if (!el) { el = document.createElement('span'); caja.appendChild(el); }
