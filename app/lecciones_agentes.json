@@ -20,5 +20,8 @@
   {"id": "leccion-sticker-glifos", "agente": "STICKERS", "titulo": "Fuentes del sticker", "fecha": "2026-10-15T17:00:00", "por": "Claude",
    "nota": "En STICKER_BOT.jsx faltaban glifos (tildes, ñ, símbolos) con ciertas fuentes: usar una fuente que tenga todos los caracteres del nombre."},
   {"id": "leccion-panel-js-version", "agente": "PANEL", "titulo": "Cambios de JavaScript que no se ven", "fecha": "2026-10-10T12:00:00", "por": "Claude",
-   "nota": "Si cambias un .js sube su ?v= en main.py (el navegador lo guarda). Los .js se sirven desde disco: scripts/desplegar.sh no reinicia si solo son .js."}
+   "nota": "Si cambias un .js sube su ?v= en main.py (el navegador lo guarda). Los .js se sirven desde disco: scripts/desplegar.sh no reinicia si solo son .js."},
+  {"id": "leccion-edicion-diseno-nombre", "agente": "TAVO", "titulo": "Maestros con nombre «DISEÑO1» en vez de «D1»", "fecha": "2026-10-19T14:30:00", "por": "Claude",
+   "regex": "no encontré en MAESTROS el archivo para",
+   "nota": "CO6190 (A300PT01) falló con «El maestro no tiene la referencia PT01 (solo trae CA03)»: los archivos de MAESTROS/UNIFORMES 2026/PT01_D1_D2 se llamaban «DISEÑO1 PT01M XS A 4XL.ai» y MESA_AI (core/ordenes.py), _RE_MAESTRO (agents/olver.py) y diseno_en_archivo solo entendían «D1 PT01M…». Ahora aceptan D1 y DISEÑO1. Si un maestro nuevo no se encuentra, compara primero el NOMBRE del archivo con esas expresiones."}
 ]
