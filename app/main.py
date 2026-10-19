@@ -793,7 +793,7 @@ def _telas_faltantes() -> list[dict]:
                 continue
             ordenes = sorted({p['orden'] for p in r.get('pedidos', []) if p.get('situacion') in ('no_alcanza', 'sin_tela')})
             eventos.append({'clave': 'no_alcanza|' + r['tela'] + '|' + ','.join(ordenes), 'tipo': 'no_alcanza' if r.get('encontrada') else 'sin_tela',
-                            'tela': r['tela'], 'bodega': r.get('disponible', 0), 'faltan': r.get('faltan', 0), 'ordenes': ordenes, 'pedidos': len(r.get('pedidos', []))})
+                            'tela': r['tela'], 'bodega': r.get('disponible', 0), 'faltan': r.get('faltan', 0), 'necesaria': r.get('mts', 0), 'ordenes': ordenes, 'pedidos': len(r.get('pedidos', []))})
     except Exception:
         logging.exception('No se pudo calcular las telas faltantes')
         return _FALTANTES['v']
