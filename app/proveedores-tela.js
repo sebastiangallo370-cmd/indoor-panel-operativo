@@ -5,7 +5,8 @@
   // y todo se actualiza en el sitio (sin redibujar ni perder el cursor).
   if (window.__proveedoresTelaListo) return;
   window.__proveedoresTelaListo = true;
-  const st = { datos: null, buscar: '', solo: 'todas', prov: '', cargando: false, sel: new Set(), kpi: { total: 0, con: 0, sin: 0 } };
+  const st = { datos: null, buscar: '', solo: 'todas', prov: '', cargando: false, sel: new Set(), vista: 'tablero', pend: '', reciente: '', menu: '' };
+  try { st.vista = localStorage.getItem('indoor-pv-vista') === 'lista' ? 'lista' : 'tablero'; } catch (e) { /* sin almacenamiento */ }
   let host = null;
   const timers = new Map();
 
@@ -59,6 +60,34 @@
   .pv-est.guardando i{background:#7da4ff;animation:pvPulso .8s ease-in-out infinite}.pv-est.ok{color:#9be05a}.pv-est.err{color:#ff9a9d}.pv-est.err i{background:#ff6b6b}
   @keyframes pvPulso{50%{transform:scale(1.6);opacity:.5}}
   .pv-vacio{padding:30px;text-align:center;color:#b6c2b0;border-radius:16px}
+  .pv.v-tablero .pv-cols,.pv.v-tablero .pv-lista,.pv.v-tablero .pv-masa,.pv.v-tablero .pv-chips,.pv.v-tablero .pv-solo-lista{display:none!important}
+  .pv.v-lista .pv-tablero{display:none}
+  .pv-vistas{display:inline-flex;gap:4px;padding:3px;border:1px solid rgba(255,255,255,.2);border-radius:999px;background:rgba(0,0,0,.25)}
+  .pv-vistas .pv-fil{min-height:32px;border:0;background:transparent}.pv-vistas .pv-fil.on{background:#d0f44c;color:#16200a}
+  .pv-tablero{display:flex;gap:14px;align-items:flex-start;overflow-x:auto;padding:4px 2px 16px;scroll-snap-type:x proximity}
+  .pv-col{flex:0 0 272px;scroll-snap-align:start;display:flex;flex-direction:column;gap:9px;max-height:68vh;padding:12px;border-radius:20px;transition:box-shadow .2s,border-color .2s,transform .2s}
+  .pv-col.sobre{border-color:#d0f44c!important;box-shadow:0 0 0 3px rgba(208,244,76,.25),0 14px 34px rgba(0,0,0,.32);transform:translateY(-3px)}
+  .pv-col-cab{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:2px 4px 8px;border-bottom:1px solid rgba(255,255,255,.14)}
+  .pv-col-cab b{font-size:.78rem;letter-spacing:.08em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pv-col-cab em{flex:0 0 auto;min-width:26px;padding:2px 9px;border-radius:99px;background:rgba(139,212,80,.2);color:#b6f27a;font:900 .72rem Arial;font-style:normal;text-align:center}
+  .pv-col.sin .pv-col-cab em{background:rgba(224,164,55,.22);color:#ffc86b}.pv-col.sin{border-color:rgba(224,164,55,.5)}
+  .pv-col-sub{padding:0 4px;font-size:.62rem;letter-spacing:.06em;color:#aab6a5}
+  .pv-col-cuerpo{display:flex;flex-direction:column;gap:8px;overflow-y:auto;min-height:56px;padding:2px}
+  .pv-tar{position:relative;display:grid;gap:2px;padding:10px 12px;border:1px solid rgba(255,255,255,.2);border-left:3px solid #8bd450;border-radius:13px;background:linear-gradient(160deg,rgba(255,255,255,.12),rgba(255,255,255,.04));cursor:grab;user-select:none;transition:transform .18s,box-shadow .18s,opacity .18s}
+  .pv-col.sin .pv-tar{border-left-color:#e0a437}
+  .pv-tar:hover{transform:translateY(-2px);box-shadow:0 10px 20px -10px #000}
+  .pv-tar.arrastrando{opacity:.35;transform:scale(.97)}
+  .pv-tar.nueva{animation:pvEntra .55s cubic-bezier(.2,.9,.3,1.2)}
+  @keyframes pvEntra{0%{opacity:0;transform:translateY(-14px) scale(.92)}100%{opacity:1;transform:none}}
+  .pv-tar b{font-size:1.05rem;letter-spacing:.02em}.pv-tar span{font-size:.74rem;color:#d3dccf;line-height:1.25}.pv-tar small{font-size:.64rem;color:#9aa893}
+  .pv-vaciocol{padding:18px 8px;border:2px dashed rgba(255,255,255,.18);border-radius:13px;text-align:center;font-size:.72rem;color:#8f9b8a}
+  .pv-col.nuevo{border-style:dashed;background:rgba(255,255,255,.03)}
+  .pv-col.nuevo input{min-height:40px}
+  .pv-col.nuevo p{margin:0;font-size:.72rem;color:#aab6a5;line-height:1.4}
+  .pv-mover{position:absolute;z-index:30;left:6px;right:6px;top:calc(100% - 4px);display:grid;gap:2px;padding:6px;border:1px solid rgba(255,255,255,.25);border-radius:13px;background:rgba(18,24,16,.97);box-shadow:0 16px 36px rgba(0,0,0,.6);animation:pvIn .14s ease-out}
+  .pv-mover button{all:unset;display:block;padding:8px 10px;border-radius:9px;font:700 .74rem Arial;color:#e8f0e0;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pv-mover button:hover{background:rgba(208,244,76,.16)}
+  @media(max-width:700px){.pv-col{flex-basis:84vw}}
   @media(max-width:900px){.pv-cols{display:none}.pv-fila{grid-template-columns:24px 58px 1fr;gap:10px;padding:14px 16px}.pv-fila>.pv-nom{grid-column:3}.pv-fila>input[data-pv-prov]{grid-column:1/-1}.pv-fila>.pv-est{grid-column:1/-1;justify-self:start}}
   @media(max-width:700px){.pv-head{padding:16px}.pv-head h2{font-size:1.2rem}.pv-kpis{width:100%}.pv-kpi{flex:1;min-width:0;padding:8px}.pv-bar input[type=search]{min-width:0;width:100%;flex-basis:100%}.pv input{font-size:16px}.pv-chips{flex-wrap:nowrap}}
   `;
@@ -96,7 +125,27 @@
       `<input type="text" list="pv-proveedores" data-pv-prov placeholder="Proveedor (como está en Effi)" value="${esc(t.proveedor)}" autocomplete="off">` +
       `<div class="pv-est" data-pv-est><i></i><span>${t.proveedor ? 'Con proveedor' : 'Sin proveedor'}</span></div></div>`;
   }
+  function pintarTablero() {
+    const q = plano(st.buscar);
+    const lista = telas().filter(t => !q || plano(t.codigo + ' ' + t.nombre + ' ' + t.proveedor).includes(q));
+    const grupos = new Map();
+    lista.forEach(t => { const k = t.proveedor || ''; if (!grupos.has(k)) grupos.set(k, []); grupos.get(k).push(t); });
+    const todos = [...new Set(telas().map(t => t.proveedor).filter(Boolean))];
+    const orden = todos.sort((a, b) => ((grupos.get(b) || []).length - (grupos.get(a) || []).length) || a.localeCompare(b));
+    const tarjeta = t => `<div class="pv-tar${st.reciente === t.codigo ? ' nueva' : ''}" draggable="true" data-cod="${esc(t.codigo)}"><b>${esc(t.codigo)}</b><span>${esc(t.nombre)}</span><small>${t.rollos} rollo${t.rollos === 1 ? '' : 's'} en Bodega</small></div>`;
+    const columna = (k, titulo, cls) => {
+      const its = grupos.get(k) || [], rollos = its.reduce((a, t) => a + (t.rollos || 0), 0);
+      return `<div class="pv-col pv-glass ${cls}" data-col="${esc(k)}"><div class="pv-col-cab"><b title="${esc(titulo)}">${esc(titulo)}</b><em>${its.length}</em></div><div class="pv-col-sub">${rollos} ROLLO${rollos === 1 ? '' : 'S'} EN BODEGA</div><div class="pv-col-cuerpo">` +
+        (its.length ? its.map(tarjeta).join('') : '<div class="pv-vaciocol">Suelta aquí una tela</div>') + '</div></div>';
+    };
+    q1('.pv-tablero').innerHTML = columna('', 'SIN PROVEEDOR', 'sin') + orden.map(n => columna(n, n, '')).join('') +
+      `<div class="pv-col pv-glass nuevo" data-col="__nuevo"><div class="pv-col-cab"><b>+ PROVEEDOR NUEVO</b></div><p>${st.pend ? 'Escribe el nombre para la tela <b>' + esc(st.pend) + '</b> y pulsa Enter.' : 'Suelta aquí una tela y escribe el nombre del proveedor (como está en Effi).'}</p>` +
+      `<input type="text" data-pv-nuevo placeholder="Nombre del proveedor" autocomplete="off"></div>`;
+    st.reciente = '';
+    if (st.pend) q1('[data-pv-nuevo]').focus();
+  }
   function pintarLista() {
+    if (st.vista === 'tablero') { pintarTablero(); return; }
     const l = visibles();
     q1('.pv-lista').innerHTML = l.length ? l.map(filaHtml).join('') : '<div class="pv-vacio pv-glass">No hay telas con ese filtro.</div>';
     pintarMasa();
@@ -113,11 +162,14 @@
       host.innerHTML = '<div class="pv-head pv-glass"><div><small>ESTÁNDAR 2026</small><h2>PROVEEDORES DE TELA</h2><p>Elige el proveedor de cada tela: se guarda solo. El agente de inventario lo usa al crear la orden de compra.</p></div>' +
         '<div class="pv-kpis"><div class="pv-kpi pv-glass" data-kpi="total"><b>0</b><span>TELAS</span></div><div class="pv-kpi pv-glass" data-kpi="con"><b>0</b><span>CON PROVEEDOR</span></div><div class="pv-kpi pv-glass sin" data-kpi="sin"><b>0</b><span>SIN PROVEEDOR</span></div></div></div>' +
         '<div class="pv-bar pv-glass"><input type="search" data-pv-buscar placeholder="Buscar código, tela o proveedor" value="' + esc(st.buscar) + '">' +
-        '<button type="button" class="pv-fil" data-pv-fil="todas">TODAS<em></em></button><button type="button" class="pv-fil" data-pv-fil="sin">SIN PROVEEDOR<em></em></button><button type="button" class="pv-fil" data-pv-fil="con">CON PROVEEDOR<em></em></button></div>' +
+        '<div class="pv-vistas"><button type="button" class="pv-fil" data-pv-vista="tablero">TABLERO</button><button type="button" class="pv-fil" data-pv-vista="lista">LISTA</button></div>' +
+        '<button type="button" class="pv-fil pv-solo-lista" data-pv-fil="todas">TODAS<em></em></button><button type="button" class="pv-fil pv-solo-lista" data-pv-fil="sin">SIN PROVEEDOR<em></em></button><button type="button" class="pv-fil pv-solo-lista" data-pv-fil="con">CON PROVEEDOR<em></em></button></div>' +
         '<div class="pv-chips"></div>' +
         '<div class="pv-masa pv-glass"><b data-pv-nsel></b><input type="text" list="pv-proveedores" data-pv-masa placeholder="Proveedor para todas las seleccionadas" autocomplete="off"><button type="button" class="pv-fil on" data-pv-masa-ok>ASIGNAR</button><button type="button" class="pv-fil" data-pv-masa-no>QUITAR SELECCIÓN</button></div>' +
-        '<datalist id="pv-proveedores"></datalist><div class="pv-cols"><span></span><span>CÓDIGO</span><span>TELA</span><span>PROVEEDOR</span><span></span></div><div class="pv-lista"></div>';
+        '<datalist id="pv-proveedores"></datalist><div class="pv-cols"><span></span><span>CÓDIGO</span><span>TELA</span><span>PROVEEDOR</span><span></span></div><div class="pv-lista"></div><div class="pv-tablero"></div>';
     }
+    host.classList.toggle('v-tablero', st.vista === 'tablero'); host.classList.toggle('v-lista', st.vista === 'lista');
+    host.querySelectorAll('[data-pv-vista]').forEach(b => b.classList.toggle('on', b.dataset.pvVista === st.vista));
     host.querySelectorAll('[data-pv-fil]').forEach(b => b.classList.toggle('on', b.dataset.pvFil === st.solo));
     pintarKpis(); pintarChips(); pintarLista();
   }
@@ -138,12 +190,13 @@
   async function guardar(cod, prov, fila) {
     prov = String(prov || '').trim();
     const t = telas().find(x => x.codigo === cod);
+    if (st.vista === 'tablero' && t && t.proveedor !== prov) { /* la tarjeta ya se mueve en pantalla al terminar */ }
     if (!t || t.proveedor === prov) { if (fila) estado(fila, '', t && t.proveedor ? 'Con proveedor' : 'Sin proveedor'); return true; }
     estado(fila, 'guardando', 'Guardando…');
     try {
       await api('/api/proveedores-tela', { method: 'PUT', body: JSON.stringify({ codigo: cod, proveedor: prov }) });
       t.proveedor = prov;
-      const f = host.querySelector('[data-cod="' + CSS.escape(cod) + '"]');
+      const f = host.querySelector('.pv-fila[data-cod="' + CSS.escape(cod) + '"]');
       if (f) {
         f.classList.toggle('sin', !prov);
         estado(f, 'ok', prov ? '✓ Guardado' : '✓ Quitado');
@@ -152,6 +205,7 @@
         setTimeout(() => estado(f, '', prov ? 'Con proveedor' : 'Sin proveedor'), 2200);
       }
       pintarKpis(); pintarChips();
+      if (st.vista === 'tablero') { st.reciente = cod; pintarTablero(); return true; }
       if (st.solo !== 'todas' || st.prov) setTimeout(() => { if (!host.querySelector('[data-pv-prov]:focus')) pintarLista(); }, 900);   // si el filtro la deja fuera, se retira con calma
       return true;
     } catch (e) { estado(fila, 'err', e.message); return false; }
@@ -163,11 +217,21 @@
     estado(fila, '', 'Escribiendo…');
     timers.set(cod, setTimeout(() => guardar(cod, inp.value, fila), 900));
   }
+  function abrirMenu() {
+    host.querySelectorAll('.pv-mover').forEach(m => m.remove());
+    if (!st.menu) return;
+    const tar = host.querySelector('.pv-tar[data-cod="' + CSS.escape(st.menu) + '"]'); if (!tar) return;
+    const t = telas().find(x => x.codigo === st.menu);
+    const nombres = [...new Set(telas().map(x => x.proveedor).filter(Boolean))].filter(n => n !== (t && t.proveedor)).sort();
+    const m = document.createElement('div'); m.className = 'pv-mover';
+    m.innerHTML = (t && t.proveedor ? '<button type="button" data-pv-mover-a="">✕ Quitar proveedor</button>' : '') + nombres.map(n => '<button type="button" data-pv-mover-a="' + esc(n) + '">→ ' + esc(n) + '</button>').join('') + '<button type="button" data-pv-mover-a="__nuevo">+ Proveedor nuevo…</button>';
+    tar.appendChild(m);
+  }
   async function aplicarMasa() {
     const prov = q1('[data-pv-masa]').value.trim(); if (!prov) { q1('[data-pv-masa]').focus(); return; }
     const codigos = [...st.sel]; const boton = q1('[data-pv-masa-ok]'); boton.disabled = true;
     let ok = 0;
-    for (const c of codigos) { const f = host.querySelector('[data-cod="' + CSS.escape(c) + '"]'); if (f) f.querySelector('[data-pv-prov]').value = prov; if (await guardar(c, prov, f)) { ok++; st.sel.delete(c); } }
+    for (const c of codigos) { const f = host.querySelector('.pv-fila[data-cod="' + CSS.escape(c) + '"]'); if (f) f.querySelector('[data-pv-prov]').value = prov; if (await guardar(c, prov, f)) { ok++; st.sel.delete(c); } }
     boton.disabled = false; q1('[data-pv-masa]').value = '';
     pintarLista();
   }
@@ -178,8 +242,23 @@
       host.addEventListener('click', e => {
         const f = e.target.closest('[data-pv-fil]'); if (f) { st.solo = f.dataset.pvFil; st.prov = ''; pintar(); return; }
         const c = e.target.closest('[data-pv-prov-fil]'); if (c) { st.prov = st.prov === c.dataset.pvProvFil ? '' : c.dataset.pvProvFil; st.solo = 'todas'; pintar(); return; }
+        const v = e.target.closest('[data-pv-vista]'); if (v) { st.vista = v.dataset.pvVista; try { localStorage.setItem('indoor-pv-vista', st.vista); } catch (er) { /* sin almacenamiento */ } pintar(); return; }
+        const tar = e.target.closest('.pv-tar');
+        const op = e.target.closest('[data-pv-mover-a]');
+        if (op) { const cod = op.closest('.pv-tar').dataset.cod, a = op.dataset.pvMoverA; if (a === '__nuevo') { st.pend = cod; st.menu = ''; pintarTablero(); } else { st.menu = ''; guardar(cod, a, null); } return; }
+        if (tar) { st.menu = st.menu === tar.dataset.cod ? '' : tar.dataset.cod; abrirMenu(); return; }
+        if (st.menu) { st.menu = ''; abrirMenu(); }
         if (e.target.closest('[data-pv-masa-ok]')) { aplicarMasa(); return; }
         if (e.target.closest('[data-pv-masa-no]')) { st.sel.clear(); pintarLista(); return; }
+      });
+      host.addEventListener('dragstart', e => { const t = e.target.closest && e.target.closest('.pv-tar'); if (!t) return; st.menu = ''; abrirMenu(); e.dataTransfer.setData('text/plain', t.dataset.cod); e.dataTransfer.effectAllowed = 'move'; setTimeout(() => t.classList.add('arrastrando'), 0); });
+      host.addEventListener('dragend', e => { host.querySelectorAll('.arrastrando,.sobre').forEach(x => x.classList.remove('arrastrando', 'sobre')); });
+      host.addEventListener('dragover', e => { const c = e.target.closest && e.target.closest('.pv-col'); if (!c) return; e.preventDefault(); host.querySelectorAll('.pv-col.sobre').forEach(x => { if (x !== c) x.classList.remove('sobre'); }); c.classList.add('sobre'); });
+      host.addEventListener('drop', e => {
+        const c = e.target.closest && e.target.closest('.pv-col'); if (!c) return; e.preventDefault(); c.classList.remove('sobre');
+        const cod = e.dataTransfer.getData('text/plain'); if (!cod) return;
+        if (c.dataset.col === '__nuevo') { st.pend = cod; pintarTablero(); return; }
+        guardar(cod, c.dataset.col, null);
       });
       host.addEventListener('change', e => {
         const fila = e.target.closest('[data-cod]');
@@ -190,6 +269,10 @@
         if (e.target.matches('[data-pv-buscar]')) { st.buscar = e.target.value; pintarLista(); return; }
         const fila = e.target.closest('[data-cod]');
         if (e.target.matches('[data-pv-prov]') && fila) programar(fila, false);
+      });
+      host.addEventListener('keydown', e => {
+        if (e.key === 'Enter' && e.target.matches('[data-pv-nuevo]')) { const n = e.target.value.trim(); if (n && st.pend) { const cod = st.pend; st.pend = ''; guardar(cod, n, null); } else if (n) { e.target.value = ''; } return; }
+        if (e.key === 'Escape' && st.pend) { st.pend = ''; pintarTablero(); }
       });
       host.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('[data-pv-prov]')) { e.preventDefault(); programar(e.target.closest('[data-cod]'), true); e.target.blur(); } });
     }
