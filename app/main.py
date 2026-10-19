@@ -776,26 +776,22 @@ _FALTANTES = {'t': 0.0, 'v': []}
 
 
 def _telas_faltantes() -> list[dict]:
-    """Telas que NO hay: agotadas en Bodega, o que no alcanzan (o no están) para los pedidos programados. Alimenta el aviso inmediato en pantalla.
-    Se calcula con el mismo inventario de «Tela necesaria»; el resultado se reutiliza 20 s para no recalcular en cada consulta."""
+    """Producciones programadas cuya tela NO alcanza o no está en el inventario: una por tarjeta, con cliente, proyecto, referencia, tela y MTS.
+    Alimenta el aviso inmediato en pantalla. Usa el mismo cálculo de «Tela necesaria»; el resultado se reutiliza 20 s."""
     if time.monotonic() - _FALTANTES['t'] < 20:
         return _FALTANTES['v']
     eventos: list[dict] = []
     try:
         from app import inventario_api as _inv, tela_necesaria as _tn
-        for a in inventory_alerts().get('alertas', []):
-            if a.get('categoria') == 'BODEGA TELA' and a.get('nivel') == 'agotado':
-                eventos.append({'clave': 'agotada|' + a['nombre'], 'tipo': 'agotada', 'tela': a['nombre'], 'bodega': 0, 'faltan': a.get('faltan', 0),
-                                'ordenes': [], 'pedidos': a.get('pedidos', 0)})
         calc = _tn.calcular(_inv._with_sublimacion(_inv._inventory_payload()).get('items') or [])
-        for r in calc.get('telas', []):
-            if r.get('alcanza'):
+        for o in calc.get('ordenes', []):
+            if o.get('situacion') not in ('no_alcanza', 'sin_tela'):
                 continue
-            ordenes = sorted({p['orden'] for p in r.get('pedidos', []) if p.get('situacion') in ('no_alcanza', 'sin_tela')})
-            eventos.append({'clave': 'no_alcanza|' + r['tela'] + '|' + ','.join(ordenes), 'tipo': 'no_alcanza' if r.get('encontrada') else 'sin_tela',
-                            'tela': r['tela'], 'bodega': r.get('disponible', 0), 'faltan': r.get('faltan', 0), 'necesaria': r.get('mts', 0), 'ordenes': ordenes, 'pedidos': len(r.get('pedidos', []))})
+            eventos.append({'clave': f"prod|{o.get('fila')}|{o.get('orden')}|{o.get('referencia')}", 'tipo': o['situacion'], 'cliente': o.get('cliente') or '',
+                            'proyecto': o.get('proyecto') or '', 'referencia': o.get('referencia') or '', 'tela': o.get('tela') or '', 'mts': o.get('mts') or 0,
+                            'orden': o.get('orden') or ''})
     except Exception:
-        logging.exception('No se pudo calcular las telas faltantes')
+        logging.exception('No se pudo calcular las producciones sin tela')
         return _FALTANTES['v']
     _FALTANTES.update(t=time.monotonic(), v=eventos)
     return eventos

@@ -121,12 +121,13 @@
     '.ia-tela{font:900 17px/1.2 Arial;overflow:hidden;text-overflow:ellipsis}',
     '.ia-chip{flex:0 0 auto;padding:4px 11px;border-radius:999px;border:1px solid rgba(208,244,76,.7);background:rgba(208,244,76,.14);color:#e9ffa0;font:900 10px Arial;letter-spacing:.12em;text-transform:uppercase;animation:ia-blink 1.2s ease-in-out infinite}',
     '@keyframes ia-blink{50%{background:rgba(208,244,76,.4);color:#fff;box-shadow:0 0 14px rgba(208,244,76,.6)}}',
-    '.ia-ord{margin-top:5px;font:700 11.5px Arial;color:rgba(244,248,239,.62)}',
-    '.ia-ord u{text-decoration:none;display:inline-block;margin:2px 4px 0 0;padding:2px 9px;border-radius:999px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.1);color:#f4f8ef}',
-    '.ia-bar{position:relative;height:12px;margin-top:11px;border-radius:999px;background:rgba(255,255,255,.1);box-shadow:inset 0 1px 3px rgba(0,0,0,.35);overflow:hidden}',
-    '.ia-bar i{position:absolute;left:0;top:0;bottom:0;width:0;border-radius:999px;background:linear-gradient(90deg,#8bb82a,#d0f44c);box-shadow:0 0 14px rgba(208,244,76,.75);transition:width 1.4s cubic-bezier(.2,.8,.2,1) .5s}',
-    '.ia-nums{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:4px 10px;margin-top:8px;font:700 12px Arial;color:rgba(244,248,239,.68)}',
-    '.ia-nums b{font:900 15px Arial;color:#fff}.ia-nums .f{font:900 21px Arial;color:#d0f44c;text-shadow:0 0 16px rgba(208,244,76,.65)}.ia-nums .f small{font:800 11px Arial;margin-left:3px}',
+    '.ia-datos{display:grid;grid-template-columns:1fr 1fr;gap:10px 16px;margin:0}',
+    '.ia-datos div{min-width:0}.ia-datos .full{grid-column:1/-1}',
+    '.ia-datos dt{margin:0;font:800 9.5px Arial;letter-spacing:.16em;text-transform:uppercase;color:rgba(208,244,76,.85)}',
+    '.ia-datos dd{margin:3px 0 0;font:800 14.5px/1.25 Arial;color:#fff;overflow-wrap:anywhere}',
+    '.ia-datos .cli dd{font-size:17px}',
+    '.ia-chip-sola{position:absolute;top:13px;right:14px}.ia-item{padding-top:14px}.ia-datos .cli{padding-right:120px}',
+    '.ia-datos .cli{padding-right:118px}.ia-datos .mts dd{font:900 24px/1.1 Arial;color:#d0f44c;text-shadow:0 0 16px rgba(208,244,76,.65)}.ia-datos .mts dd small{font:800 11px Arial;margin-left:4px}',
     '.ia-foot{position:relative;display:flex;gap:10px;padding:12px 22px 20px;flex-wrap:wrap}',
     '.ia-btn{flex:1 1 150px;min-height:48px;white-space:nowrap;padding:0 10px;border-radius:16px;border:1px solid rgba(255,255,255,.34);background:linear-gradient(145deg,rgba(255,255,255,.2),rgba(255,255,255,.06));box-shadow:inset 0 1px 0 rgba(255,255,255,.45);color:#fff;font:900 12px Arial;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;transition:transform .15s,background .15s}',
     '.ia-btn:hover{transform:translateY(-2px);background:linear-gradient(145deg,rgba(255,255,255,.3),rgba(255,255,255,.1))}',
@@ -139,23 +140,21 @@
 
   var RM=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   function contar(el,hasta,ms,delay){
-    if(RM){el.textContent=ent(hasta,Math.ceil);return}
-    setTimeout(function(){var t0=performance.now();(function paso(t){var p=Math.min(1,(t-t0)/ms),e=1-Math.pow(1-p,3);el.textContent=ent(hasta*e,Math.ceil);if(p<1)requestAnimationFrame(paso)})(t0)},delay||0);
+    if(RM){el.textContent=dec2(hasta);return}
+    setTimeout(function(){var t0=performance.now();(function paso(t){var p=Math.min(1,(t-t0)/ms),e=1-Math.pow(1-p,3);el.textContent=dec2(hasta*e);if(p<1)requestAnimationFrame(paso)})(t0)},delay||0);
   }
   function mensaje(lista){
-    var soloAgotadas=lista.every(function(a){return a.tipo==='agotada'});
-    var partes=soloAgotadas?[['El agente de inventarios',1],['acaba de detectar que',0],['se agotó una tela',1],['en el inventario.',0]]
-      :[['El agente de inventarios',1],['acaba de detectar',1],['una nueva producción',1],['que la tela necesaria',0],['no la tenemos en el inventario.',1]];
+    var partes=[['El agente de inventarios',1],['acaba de detectar',1],[lista.length>1?'nuevas producciones':'una nueva producción',1],[lista.length>1?'que la tela necesaria':'que la tela necesaria',0],['no la tenemos en el inventario.',1]];
     var n=0;return partes.map(function(pt){return pt[0].split(' ').map(function(w){return '<span class="w'+(pt[1]?' b':'')+'" style="animation-delay:'+(450+(n++)*90)+'ms">'+esc(w)+'</span>'}).join('')}).join('');
   }
+  function dec2(n){return (Number(n)||0).toLocaleString('es-CO',{maximumFractionDigits:2})}
   function itemFaltante(a,i){
-    var chip=a.tipo==='agotada'?'Agotada':a.tipo==='sin_tela'?'No está en Bodega':'No alcanza';
-    var ord=a.ordenes&&a.ordenes.length?'<div class="ia-ord">'+a.ordenes.map(function(o){return '<u>'+esc(o)+'</u>'}).join('')+'</div>':(a.pedidos?'<div class="ia-ord">'+a.pedidos+(a.pedidos===1?' pedido':' pedidos')+' de clientes usan esta tela</div>':'');
-    var necesaria=Number(a.necesaria)||0,bodega=Number(a.bodega)||0,pct=a.tipo==='agotada'||!necesaria?0:Math.max(2,Math.min(98,bodega/necesaria*100));
-    var nums=a.tipo==='agotada'?'<span>Stock en bodega</span><span class="f"><span data-n="0">0</span><small>MTS</small></span>'
-      :'<span>Bodega <b>'+ent(bodega,Math.round)+' MTS</b>'+(necesaria?' de '+ent(necesaria,Math.ceil)+' que se necesitan':'')+'</span><span class="f">faltan <span data-n="'+Math.ceil(Number(a.faltan)||0)+'">0</span><small>MTS</small></span>';
-    return '<div class="ia-item" style="animation-delay:'+(1200+i*220)+'ms"><div class="ia-fila"><div class="ia-tela" title="'+esc(a.tela)+'">'+esc(a.tela)+'</div><span class="ia-chip">'+chip+'</span></div>'+ord+
-      '<div class="ia-bar"><i data-w="'+pct+'"></i></div><div class="ia-nums">'+nums+'</div></div>';
+    var chip=a.tipo==='sin_tela'?'No está en Bodega':'No alcanza';
+    return '<div class="ia-item" style="animation-delay:'+(1200+i*220)+'ms"><span class="ia-chip ia-chip-sola">'+chip+'</span>'+
+      '<dl class="ia-datos"><div class="cli full"><dt>Nombre cliente</dt><dd>'+esc(a.cliente||'—')+'</dd></div>'+
+      '<div><dt>Proyecto</dt><dd>'+esc(a.proyecto||'—')+'</dd></div><div><dt>Referencia</dt><dd>'+esc(a.referencia||'—')+'</dd></div>'+
+      '<div><dt>Tela</dt><dd>'+esc(a.tela||'—')+'</dd></div>'+
+      '<div class="mts"><dt>MTS</dt><dd><span data-n="'+(Number(a.mts)||0)+'">0</span><small>MTS</small></dd></div></dl></div>';
   }
   var TAPE='<span>ALERTA DE TELA</span>ALERTA DE TELA · SIN INVENTARIO <span>ALERTA DE TELA</span>ALERTA DE TELA · SIN INVENTARIO ';
   var SIRENA='<span><svg viewBox="0 0 48 48" aria-hidden="true"><path d="M24 5 45 41H3z" fill="rgba(208,244,76,.18)" stroke="#d0f44c" stroke-width="3" stroke-linejoin="round"/><rect x="21.8" y="17" width="4.4" height="13" rx="2.2" fill="#fff"/><circle cx="24" cy="35" r="2.7" fill="#fff"/></svg></span>';
@@ -170,7 +169,6 @@
     (document.body||document.documentElement).appendChild(ov);
     set('localStorage',KF,JSON.stringify(lista.map(function(a){return a.clave})));   // ya se avisó de todas las que faltan ahora
     requestAnimationFrame(function(){requestAnimationFrame(function(){
-      ov.querySelectorAll('.ia-bar i').forEach(function(b){b.style.width=(b.getAttribute('data-w')||0)+'%'});
       ov.querySelectorAll('[data-n]').forEach(function(n,i){contar(n,Number(n.getAttribute('data-n'))||0,1300,1500+i*220)});
     })});
     function close(){fmodal=null;ov.remove()}
@@ -195,7 +193,7 @@
     setTimeout(function(){
       fetch('/api/alertas-telas',{cache:'no-store',credentials:'same-origin'}).then(function(r){return r.ok?r.json():null}).then(function(d){
         if(!d||!d.aplica)return;
-        var lista=(d.faltantes&&d.faltantes.length)?d.faltantes:[{clave:'prueba|1',tipo:'no_alcanza',tela:'DIAMANTE',bodega:1200,necesaria:3500,faltan:2300,ordenes:['RM7700','CO6300'],pedidos:2},{clave:'prueba|2',tipo:'agotada',tela:'(201) SUDAFRICA BLANCO',bodega:0,faltan:1200,ordenes:[],pedidos:8}];
+        var lista=(d.faltantes&&d.faltantes.length)?d.faltantes:[{clave:'prueba|1',tipo:'no_alcanza',cliente:'SANTIAGO JARAMILLO CORREA',proyecto:'CAMISETAS',referencia:'A700CA00',tela:'TOUR',mts:189.99},{clave:'prueba|2',tipo:'sin_tela',cliente:'JOHNATAN STIVEN LOPEZ CUADROS',proyecto:'HALCONES 20026',referencia:'A100PT01',tela:'MONTECATINI',mts:42.5}];
         if(modal){modal.remove();modal=null}
         if(fmodal){fmodal.remove();fmodal=null}
         showFaltantes(lista);
