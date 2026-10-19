@@ -365,6 +365,7 @@
   .ag-tab.on{background:#d0f44c;border-color:#d0f44c;color:#142017}.ag-tab.on em{color:#33401a}
   .ag-tab.ocupado:not(.on){border-color:#7da4ff;background:rgba(125,164,255,.08)}.ag-tab.ocupado:not(.on) em{color:#9db8ff}.ag-tab.ocupado i{animation:agpul 1s infinite}
   @media(max-width:700px){.ag-tabs{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.ag-tabs::-webkit-scrollbar{display:none}.ag-tab{flex:none}}
+  .ag-dissel{display:inline-flex;align-items:center;gap:4px;padding:3px 4px 3px 10px;border:1px solid #34432f;border-radius:999px;background:#0c110d}.ag-dissel i{font:800 10px Arial;letter-spacing:.08em;text-transform:uppercase;color:#9fb08e;font-style:normal;margin-right:2px}.ag-dissel button{min-height:26px;padding:0 10px;border:0;border-radius:999px;background:transparent;color:#e3eadc;font:800 12px Arial;cursor:pointer}.ag-dissel button.on{background:#d0f44c;color:#12200a}
   .ag-reiniciar{font-weight:800!important;white-space:nowrap}.ag-stop{font-weight:900!important;letter-spacing:.04em;white-space:nowrap}.ag-stop.inactivo{opacity:.7}
   .ag-pcsel{min-height:40px;padding:0 12px;border:1px solid #60754d;border-radius:10px;background:#142017;color:#e3eadc;font:800 13px Arial;cursor:pointer}.ag-pcsel[hidden]{display:none}
   .ag-pcrow{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;border:1px solid #34432f;border-radius:12px;background:#0c110d}
@@ -1587,6 +1588,15 @@
     return [];
   }
   const etiquetaMuestra = (a, i) => { const t = String((a.titulo || '') + ' ' + (a.nombre || '')); const m = /Dise[ñn]o\s*(\d+)/i.exec(t) || /(?:^|[_\s-])D(\d+)(?!\d)/i.exec(t); return m ? 'D' + m[1] : 'M' + (i + 1); };
+  // Diseño elegido (pestaña D1, D2…): la muestra se crea SOLO de ese diseño. Vale para la orden fijada; «Todas» = sin filtro.
+  const disSel = () => (st.disOrden === st.orden ? String(st.disSel || '') : '');
+  function disenosDeOrden() {
+    const set = new Set();
+    muestrasActuales().forEach((a, i) => { const m = /^D(\d+)$/.exec(etiquetaMuestra(a, i)); if (m) set.add(m[1]); });
+    const l = listadoActual();
+    if (l && l.tabla) { const c = l.tabla.columnas.findIndex(x => sinTildes(x).startsWith('diseno')); if (c >= 0) l.tabla.filas.forEach(f => { const m = /\d+/.exec(String(f[c] || '')); if (m) set.add(m[0]); }); }
+    return [...set].sort((a, b) => a - b);
+  }
   // Listado más reciente que hayan enviado los agentes (LEO al leerlo, o TAVO al pedir la aprobación)
   function listadoActual() { for (let i = st.msgs.length - 1; i >= 0; i--) if (st.msgs[i].tabla && (st.msgs[i].tabla.filas || []).length) return st.msgs[i]; return null; }
   function listadoHtml(m, etiqueta) {
@@ -1640,12 +1650,13 @@
         '<div class="ag-empty-acc">' + ATAJOS.filter(([l]) => l !== 'Reiniciar').map(([l, t]) => '<button type="button" data-atajo="' + esc(t) + '">' + esc(l) + '</button>').join('') + '</div></div>';
     const trabajando = st.esperando ? '<div class="ag-work"><div class="ag-who">' + ((trabajo && trabajo.agentes) || ['TAVO']).map(a => tag(a)).join('') + '<span class="ag-dots"><i></i><i></i><i></i></span></div><b>' +
       esc(trabajo && trabajo.msg ? trabajo.agente + ': ' + trabajo.msg : e.conectado ? 'TAVO está trabajando…' : 'Esperando al PC de los agentes…') + '</b><button type="button" class="ag-btn danger" data-detener>Detener</button></div>' : '';
-    const barra = panel.querySelector('[data-orden]'), claveOrden = st.orden + '|' + st.cambiandoOrden;
+    const barra = panel.querySelector('[data-orden]'), claveOrden = st.orden + '|' + st.cambiandoOrden + '|' + disSel() + '|' + disenosDeOrden().join(',');
     if (barra.dataset.clave !== claveOrden) {
       barra.dataset.clave = claveOrden;
       barra.innerHTML = st.orden && !st.cambiandoOrden
         ? '<span class="ag-ochip" title="Todo lo que pidas se hace con esta orden">Orden <b>' + esc(st.orden) + '</b><button type="button" class="ag-ico" data-orden-cambiar title="Cambiar la orden">✎</button></span>' +
           '<button type="button" class="ag-btn" data-iniciar title="Lee el listado, crea la muestra, te pide aprobarla y sigue con las mesas y los PDF de producción">▶ Iniciar</button>' +
+          (disenosDeOrden().length > 1 ? '<span class="ag-dissel" title="Elige de qué diseño se crea la muestra. «Todas» = todos los diseños del listado"><i>Muestra</i><button type="button" data-dis-sel=""' + (!disSel() ? ' class="on"' : '') + '>Todas</button>' + disenosDeOrden().map(d => '<button type="button" data-dis-sel="' + d + '"' + (disSel() === d ? ' class="on"' : '') + '>D' + d + '</button>').join('') + '</span>' : '') +
           '<a class="ag-btn sec ag-nas" data-nas-orden href="/nas/abrir?order=' + encodeURIComponent(st.orden) + '" title="Abrir la carpeta de la orden ' + esc(st.orden) + ' en el NAS (Explorador de archivos)">📁 NAS <span>↗</span></a>' +
           '<details class="ag-mas"><summary class="ag-btn sec" title="Más acciones">⋯</summary><div class="ag-mas-menu">' +
           '<button type="button" data-reprocesar title="Vuelve a procesar una orden que ya se hizo: tú eliges si reemplazas todo o conservas lo que ya existe">↻ Reprocesar la orden</button>' +
@@ -1840,6 +1851,8 @@
   async function enviar(texto) {
     texto = String(texto || '').trim();
     if (!texto || st.esperando || st.enviando) return;
+    const dSel = disSel();
+    if (dSel && /muestra|completo/i.test(texto) && !/sin\s+(la\s+|las\s+)?muestras?/i.test(texto) && !/solo\s+(el\s+|la\s+)?(dise|d\s*\d)/i.test(texto)) texto += ' solo diseño ' + dSel;
     st.enviando = true; pintar();
     try {
       if (!flow.listo) reconstruir();
@@ -2044,7 +2057,13 @@
       const vt = e.target.closest('[data-vt]');
       if (vt) { ponerVista(vt.dataset.vt); return; }
       const mi = e.target.closest('[data-mu-i]');
-      if (mi) { st.muIdx = Number(mi.dataset.muI); pintarMuestras(); return; }
+      if (mi) {
+        st.muIdx = Number(mi.dataset.muI);
+        const dm = /^D(\d+)$/.exec(etiquetaMuestra(muestrasActuales()[st.muIdx] || {}, st.muIdx)); if (dm) { st.disSel = dm[1]; st.disOrden = st.orden; }   // la pestaña que eliges es el diseño de la muestra
+        pintarMuestras(); pintar(); return;
+      }
+      const ds = e.target.closest('[data-dis-sel]');
+      if (ds) { st.disSel = ds.dataset.disSel; st.disOrden = st.orden; pintar(); return; }
       const mg = e.target.closest('[data-mu-go]');
       if (mg && !mg.disabled) { st.muIdx = (st.muIdx || 0) + Number(mg.dataset.muGo); pintarMuestras(); return; }
       const b = e.target.closest('[data-ver-flujo]'); if (!b) return;
