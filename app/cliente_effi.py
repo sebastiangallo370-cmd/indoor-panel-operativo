@@ -269,6 +269,33 @@ def _rut(lineas: list[str], t: str) -> dict:
     if nit:
         d = _solo_digitos(nit)
         c['numero'] = d[:-1] if len(d) in (10, 11) and re.search(r'\d[\s\-|]+\d$', nit) else d[:10]
+    if not c.get('numero'):   # PDF con los dígitos de la casilla separados: «9 0 0 1 6 3 0 4 6 2» = NIT 900163046 + DV 2
+        for i, l in enumerate(lineas):
+            if re.search(r'identificaci[oó]n tributaria', l, re.I):
+                m = re.search(r'(?<!\d)((?:\d ){8,10}\d)(?!\d)', ' '.join(lineas[i + 1:i + 3]))
+                if m:
+                    d = m.group(1).replace(' ', '')
+                    c['numero'] = d[:-1] if len(d) in (10, 11) else d
+                    break
+    for i, l in enumerate(lineas):   # casillas 39/40: «COLOMBIA 1 6 9 Bogotá D.C. 1 1 Bogotá, D.C. 0 0 1» → departamento y ciudad
+        if re.search(r'40\.?\s*ciudad', l, re.I):
+            trozos = [x.strip() for x in re.split(r'(?:\s\d){1,3}(?=\s|$)', ' ' + (lineas[i + 1] if i + 1 < len(lineas) else '')) if re.search(r'[A-Za-zÁÉÍÓÚÑáéíóúñ]{3}', x)]
+            trozos = [x for x in trozos if x.upper() != 'COLOMBIA']
+            if len(trozos) >= 2:
+                c['provincia_texto'], c['ciudad_texto'] = trozos[0], trozos[-1]
+            elif trozos:
+                c['ciudad_texto'] = trozos[0]
+            break
+    for l in lineas:   # casillas 44/45: teléfonos con los dígitos separados
+        m = re.search(r'44\.?\s*tel[eé]fono 1((?:\s\d)+)\s*45\.?\s*tel[eé]fono 2((?:\s\d)*)', l, re.I)
+        if m:
+            t1, t2 = _solo_digitos(m.group(1)), _solo_digitos(m.group(2))
+            for d in (t1, t2):
+                if len(d) == 10 and d.startswith('3') and 'celular' not in c:
+                    c['celular'] = d
+                elif 7 <= len(d) <= 10 and 'telefono1' not in c:
+                    c['telefono1'] = d
+            break
     juridica = bool(re.search(r'persona jur[ií]dica', t, re.I)) and not re.search(r'persona natural', t, re.I)
     razon = _tras_etiqueta(lineas, r'35\.?\s*raz[oó]n social|\braz[oó]n social', lambda v: bool(re.search(r'[A-Za-zÁÉÍÓÚÑ]{3}', v)) and len(_solo_digitos(v)) < 6 and not PALABRAS_NO_NOMBRE.search(v) and '@' not in v)
     if razon and juridica or (razon and not re.search(r'primer apellido', t, re.I)):
@@ -285,7 +312,7 @@ def _rut(lineas: list[str], t: str) -> dict:
         v = _tras_etiqueta(lineas, etiqueta, lambda v: bool(re.search(r'\d', v)) and not PALABRAS_NO_NOMBRE.search(v))
         if v:
             c[clave] = v
-    tel = _tras_etiqueta(lineas, r'tel[eé]fono\s*1', lambda v: 7 <= len(_solo_digitos(v)) <= 10)
+    tel = _tras_etiqueta(lineas, r'tel[eé]fono\s*1', lambda v: 7 <= len(_solo_digitos(v)) <= 10) if not (c.get('celular') or c.get('telefono1')) else ''
     if tel:
         d = _solo_digitos(tel)
         c['celular' if d.startswith('3') and len(d) == 10 else 'telefono1'] = d
@@ -381,6 +408,8 @@ def interpretar(texto: str) -> dict:
     for k, v in rut.items():
         if k != 'numero':
             c[k] = v
+    if rut.get('celular'):
+        c['whatsapp'] = rut['celular']
     # Persona jurídica: la razón social se deja EXACTAMENTE como en el documento. Solo las personas naturales pasan a formato título.
     if c.get('nombre') and c.get('t_persona') != 2:
         c['nombre'] = _titulo(c['nombre'])[:120]
@@ -501,7 +530,7 @@ async def leer(request: Request, texto: str = Form(''), archivos: list[UploadFil
     campos = interpretar(leido)
     if zonas:   # las casillas del RUT leídas una a una mandan sobre el texto corrido
         for k in ('t_dni', 't_persona', 'numero', 'nombre', 'celular', 'telefono1', 'direccion', 'email', 'ciudad_texto'):
-            if k in ('nombre', 'direccion', 'email') and zonas.get('texto_exacto') and campos.get(k):
+            if zonas.get('texto_exacto') and campos.get(k):
                 continue
             if zonas.get(k):
                 campos[k] = zonas[k]

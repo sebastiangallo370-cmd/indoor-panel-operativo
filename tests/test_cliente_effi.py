@@ -136,3 +136,24 @@ class Crear(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class RutDigitosSeparados(unittest.TestCase):
+    """RUT en PDF con texto real, pero con cada dígito de las casillas separado (caso MARATHON)."""
+    TEXTO = (
+        '5. Número de Identificación Tributaria (NIT) 6. DV 12. Dirección seccional 14. Buzón electrónico\n'
+        '9 0 0 1 6 3 0 4 6 2 Impuestos de Bogotá 3 2\n'
+        '24. Tipo de contribuyente 25. Tipo de documento 26. Número de Identificación\nPersona jurídica 1\n'
+        '35. Razón social\nMARATHON DISTRIBUCIONES S A S\n'
+        '38. País 39. Departamento 40. Ciudad/Municipio\nCOLOMBIA 1 6 9 Bogotá D.C. 1 1 Bogotá, D.C. 0 0 1\n'
+        '41. Dirección principal\nCL 75 29 A 33\n42. Correo electrónico carseq@marathondistribuciones.com\n'
+        '43. Código postal 1 1 1 2 1 1 44. Teléfono 1 6 0 1 7 5 6 4 2 3 5 45. Teléfono 2 3 2 0 3 0 5 7 1 3 5\n'
+        '48 - Impuesto sobre las ventas - IVA\n')
+
+    def test_campos(self):
+        c = ce.interpretar(self.TEXTO)
+        self.assertEqual((c['t_dni'], c['t_persona'], c['numero']), (1, 2, '900163046'))
+        self.assertEqual(c['nombre'], 'MARATHON DISTRIBUCIONES S A S')
+        self.assertEqual((c['telefono1'], c['celular']), ('6017564235', '3203057135'))
+        self.assertEqual(c['ciudad_texto'], 'Bogotá, D.C.')
+        self.assertEqual(c['direccion'], 'CL 75 29 A 33')
