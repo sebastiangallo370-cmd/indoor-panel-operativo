@@ -113,7 +113,9 @@
 .bd .ot-pie{margin-top:auto;display:grid;gap:4px;padding-right:50px;padding-top:2px}
 .bd .ot-bodega{font:800 .68rem Arial;letter-spacing:.03em;line-height:1.3;opacity:.95}
 .bd .ot-bodega b{font-weight:900}
-.bd .ot-bodega.mal{color:#ffd9d4}
+.bd .ot-bodega .hay{color:#7cc9ff}
+.bd .ot-bodega .queda{color:#d6f55a}
+.bd .ot-bodega .falta{color:#ff9a8f}
 .bd .ot-consumo{font:900 1.6rem Arial;line-height:1;letter-spacing:-.01em}
 .bd .ot-consumo small{font:800 .7rem Arial;margin-left:5px;opacity:.85;letter-spacing:.05em}
 .bd .ot-sinprom{font:900 1.15rem Arial;color:#d0f44c!important}
@@ -533,9 +535,9 @@ html body .bd .inventory-item-card.lq,html body .bd .bd-tkpi .lq{background:radi
       if (o.situacion === 'sin_tela' || (o.bodega === null && !o.disponible)) return '<div class="ot-bodega mal" title="No se encontró esta tela en el inventario de Bodega">Tela no encontrada en Bodega</div>';
       if (typeof o.bodega !== 'number') return '';
       const tit = 'Bodega tiene ' + num(o.bodega) + ' MTS de esta tela en total. Las órdenes se sirven por fecha de entrega: para esta orden quedan disponibles ' + num(o.disponible || 0) + ' MTS.';
-      if (o.situacion === 'sin_promedio') return '<div class="ot-bodega" title="' + esc(tit) + '">Bodega <b>' + num(o.bodega) + '</b> MTS</div>';
-      if (o.situacion === 'no_alcanza') return '<div class="ot-bodega mal" title="' + esc(tit) + '">Bodega <b>' + num(o.bodega) + '</b> MTS · faltan <b>' + num(o.falta) + '</b></div>';
-      return '<div class="ot-bodega" title="' + esc(tit) + '">Bodega <b>' + num(o.bodega) + '</b> MTS · quedan <b>' + num(o.quedan) + '</b></div>';
+      if (o.situacion === 'sin_promedio') return '<div class="ot-bodega" title="' + esc(tit) + '">Bodega <b class="hay">' + num(o.bodega) + '</b> MTS</div>';
+      if (o.situacion === 'no_alcanza') return '<div class="ot-bodega mal" title="' + esc(tit) + '">Bodega <b class="hay">' + num(o.bodega) + '</b> MTS · faltan <b class="falta">' + num(o.falta) + '</b></div>';
+      return '<div class="ot-bodega" title="' + esc(tit) + '">Bodega <b class="hay">' + num(o.bodega) + '</b> MTS · quedan <b class="queda">' + num(o.quedan) + '</b></div>';
     };
     const orderCard = o => {
       const [, cls] = SITUACION[o.situacion] || ['', ''];
