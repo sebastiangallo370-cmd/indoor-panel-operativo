@@ -532,8 +532,8 @@
     return true;
   }
 
-  fetch('/api/ecommerce/mi', { cache: 'no-store', credentials: 'same-origin' }).then(r => (r.ok ? r.json() : null)).then(ok => {
-    if (!ok) return;   // mismo público que Agentes / Ecommerce: Administración y Coordinación
+  fetch('/api/zeus/mi', { cache: 'no-store', credentials: 'same-origin' }).then(r => (r.ok ? r.json() : null)).then(ok => {
+    if (!ok) return;   // Administración, Coordinación y las cuentas autorizadas aparte (SS)
     let intentos = 0;
     const espera = setInterval(() => {
       if (construir()) ponerEnMenu();

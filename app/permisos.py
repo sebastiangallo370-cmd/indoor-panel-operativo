@@ -136,6 +136,14 @@ def administracion_permitido(username: str) -> bool:
     return _plano(_lookup(username)) in _PROCESOS_ADMINISTRACION
 
 
+_ZEUS_EXTRA = {'SS'}   # cuentas que ven y usan el AGENTE INVENTARIO además de Administración/Coordinación (SS = Stiven Sánchez)
+
+
+def zeus_permitido(username: str) -> bool:
+    """AGENTE INVENTARIO: Administración y Coordinación, más las cuentas de _ZEUS_EXTRA. (La pestaña «API Effi» sigue solo para «Indoor Sport».)"""
+    return administracion_permitido(username) or str(username or '').strip().upper() in _ZEUS_EXTRA
+
+
 _EDITAN_FICHAS = {'INDOOR SPORT'}   # cuentas que pueden corregir los textos de las fichas técnicas, además de las de proceso Patronaje
 
 

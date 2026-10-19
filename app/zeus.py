@@ -351,6 +351,13 @@ def _enriquecer(i: dict) -> dict:
     return {**i, 'codigo': codigo, 'proveedor': i.get('proveedor_forzado') or i.get('proveedor_usado') or prov.get('proveedor', '')}
 
 
+@router.get('/mi')
+def mi_acceso(request: Request):
+    """La pantalla pregunta aquí si esta cuenta puede ver el AGENTE INVENTARIO."""
+    _usuario(request)
+    return {'ok': True}
+
+
 @router.get('/estado')
 def estado():
     with _lock:
