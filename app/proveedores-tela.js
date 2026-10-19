@@ -31,7 +31,7 @@
   .pv-bar input[type=search]{flex:1;min-width:220px;width:auto}
   .pv-fil{min-height:40px;padding:0 16px;border:1px solid rgba(255,255,255,.2);border-radius:999px;background:rgba(255,255,255,.06);color:#d3dccf;font-weight:800;font-size:.7rem;letter-spacing:.08em;cursor:pointer;width:auto!important;transition:background .2s}
   .pv-fil:hover{background:rgba(255,255,255,.14)}.pv-fil.on{background:rgba(255,255,255,.92);color:#10140a;border-color:#fff}
-  .pv-cols,.pv-fila{display:grid;grid-template-columns:70px minmax(170px,1.3fr) minmax(210px,1.5fr) minmax(130px,.6fr) 118px;gap:14px;align-items:center}
+  .pv-cols,.pv-fila{display:grid;grid-template-columns:70px minmax(170px,1.3fr) minmax(240px,1.8fr) 118px;gap:14px;align-items:center}
   .pv-cols{padding:0 20px;font-size:.58rem;letter-spacing:.16em;font-weight:800;color:#aab6a5}
   .pv-lista{display:grid;gap:10px}
   .pv-fila{padding:12px 20px;border-radius:16px;position:relative}
@@ -61,13 +61,12 @@
       '<div class="pv-bar pv-glass"><input type="search" data-pv-buscar placeholder="Buscar código, tela o proveedor" value="' + esc(st.buscar) + '">' +
       filtro('todas', 'TODAS') + filtro('sin', 'SIN PROVEEDOR') + filtro('con', 'CON PROVEEDOR') + '</div>' +
       '<datalist id="pv-proveedores">' + d.proveedores.map(p => '<option value="' + esc(p) + '">').join('') + '</datalist>' +
-      '<div class="pv-cols"><span>CÓDIGO</span><span>TELA</span><span>PROVEEDOR</span><span>NIT</span><span></span></div>' +
+      '<div class="pv-cols"><span>CÓDIGO</span><span>TELA</span><span>PROVEEDOR</span><span></span></div>' +
       '<div class="pv-lista">' + (lista.length ? lista.map(t => {
         const m = st.msg[t.codigo];
         return '<div class="pv-fila pv-glass' + (t.proveedor ? '' : ' sin') + '" data-cod="' + esc(t.codigo) + '"><div class="pv-cod">' + esc(t.codigo) + '</div>' +
           '<div class="pv-nom"><b>' + esc(t.nombre) + '</b><span>' + t.rollos + ' rollo' + (t.rollos === 1 ? '' : 's') + ' en Bodega</span></div>' +
           '<input type="text" list="pv-proveedores" data-pv-prov placeholder="Proveedor (como está en Effi)" value="' + esc(t.proveedor) + '">' +
-          '<input type="text" inputmode="numeric" data-pv-nit placeholder="NIT (opcional)" value="' + esc(t.nit) + '">' +
           '<button type="button" class="pv-btn" data-pv-guardar>GUARDAR</button>' +
           '<div class="pv-msg' + (m ? (m.ok ? ' ok' : ' err') : '') + '">' + esc(m ? m.texto : '') + '</div></div>';
       }).join('') : '<div class="pv-vacio pv-glass">No hay telas con ese filtro.</div>') + '</div>';
@@ -84,11 +83,11 @@
 
   async function guardar(fila) {
     const cod = fila.dataset.cod;
-    const prov = fila.querySelector('[data-pv-prov]').value.trim(), nit = fila.querySelector('[data-pv-nit]').value.trim();
+    const prov = fila.querySelector('[data-pv-prov]').value.trim();
     const boton = fila.querySelector('[data-pv-guardar]'); boton.disabled = true;
     try {
-      await api('/api/proveedores-tela', { method: 'PUT', body: JSON.stringify({ codigo: cod, proveedor: prov, nit }) });
-      const t = st.datos.telas.find(x => x.codigo === cod); if (t) { t.proveedor = prov; t.nit = nit; }
+      await api('/api/proveedores-tela', { method: 'PUT', body: JSON.stringify({ codigo: cod, proveedor: prov }) });
+      const t = st.datos.telas.find(x => x.codigo === cod); if (t) { t.proveedor = prov; }
       st.datos.proveedores = [...new Set(st.datos.telas.map(x => x.proveedor).filter(Boolean))].sort();
       st.msg[cod] = { ok: true, texto: prov ? '✓ Guardado' : '✓ Proveedor quitado' };
     } catch (e) { st.msg[cod] = { ok: false, texto: e.message }; }
