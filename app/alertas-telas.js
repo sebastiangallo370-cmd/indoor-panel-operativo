@@ -158,11 +158,12 @@
   }
   var TAPE='<span>ALERTA DE TELA</span>ALERTA DE TELA · SIN INVENTARIO <span>ALERTA DE TELA</span>ALERTA DE TELA · SIN INVENTARIO ';
   var SIRENA='<span><svg viewBox="0 0 48 48" aria-hidden="true"><path d="M24 5 45 41H3z" fill="rgba(208,244,76,.18)" stroke="#d0f44c" stroke-width="3" stroke-linejoin="round"/><rect x="21.8" y="17" width="4.4" height="13" rx="2.2" fill="#fff"/><circle cx="24" cy="35" r="2.7" fill="#fff"/></svg></span>';
+  function hora(){try{return new Date().toLocaleTimeString('es-CO',{hour:'numeric',minute:'2-digit'}).toUpperCase().replace(/\s+/g,' ')}catch(e){return ''}}
   function showFaltantes(lista){
     if(fmodal||modal||!lista.length)return;
     var ov=fmodal=document.createElement('div');ov.className='ia-overlay';
     ov.innerHTML='<div class="ia-card" role="alertdialog" aria-modal="true" aria-labelledby="ia-t"><div class="ia-tape"><div class="ia-tape-in">'+TAPE+TAPE+'</div></div>'+
-      '<div class="ia-head"><img class="ia-logo" src="/marca-indoor.svg" alt="Indoor"><span class="ia-bot"><i></i>AGENTE DE INVENTARIOS<em class="ia-vivo"> · EN VIVO</em></span></div>'+
+      '<div class="ia-head"><img class="ia-logo" src="/marca-indoor.svg" alt="Indoor"><span class="ia-bot"><i></i>PRODUCCIÓN SIN TELA<em class="ia-vivo"> · HOY '+hora()+'</em></span></div>'+
       '<div class="ia-body"><div class="ia-top"><div class="ia-siren"><b></b><b></b><b></b>'+SIRENA+'</div><h2 class="ia-titulo" id="ia-t">¡Muchachos!</h2></div>'+
       '<p class="ia-msg">'+mensaje(lista)+'</p><div class="ia-list">'+lista.map(itemFaltante).join('')+'</div></div>'+
       '<div class="ia-foot"><button type="button" class="ia-btn" data-close>Entendido</button><button type="button" class="ia-btn main" data-go>Ver tela necesaria</button></div></div>';
