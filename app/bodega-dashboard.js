@@ -540,8 +540,8 @@ html body .bd .inventory-item-card.lq,html body .bd .bd-tkpi .lq{background:radi
       if (typeof o.bodega !== 'number') return '';
       const tit = 'Bodega tiene ' + entero(o.bodega, Math.round) + ' MTS de esta tela en total. Las órdenes se sirven por fecha de entrega: para esta orden quedan disponibles ' + entero(o.disponible || 0, Math.floor) + ' MTS.';
       if (o.situacion === 'sin_promedio') return '<div class="ot-bodega" title="' + esc(tit) + '">Bodega <b class="hay">' + entero(o.bodega, Math.round) + '</b> MTS</div>';
-      if (o.situacion === 'no_alcanza') return '<div class="ot-bodega mal" title="' + esc(tit) + '">Bodega <b class="hay">' + entero(o.bodega, Math.round) + '</b> MTS · faltan <b class="falta">' + entero(o.falta, Math.ceil) + '</b></div>';
-      return '<div class="ot-bodega" title="' + esc(tit) + '">Bodega <b class="hay">' + entero(o.bodega, Math.round) + '</b> MTS · quedan <b class="queda">' + entero(o.quedan, Math.floor) + '</b></div>';
+      if (o.situacion === 'no_alcanza') return '<div class="ot-bodega mal" title="' + esc(tit) + '">Bodega <b class="hay">' + entero(o.bodega, Math.round) + '</b> MTS · faltan <b class="falta">' + entero(o.falta, Math.ceil) + '</b> MTS</div>';
+      return '<div class="ot-bodega" title="' + esc(tit) + '">Bodega <b class="hay">' + entero(o.bodega, Math.round) + '</b> MTS · quedan <b class="queda">' + entero(o.quedan, Math.floor) + '</b> MTS</div>';
     };
     const orderCard = o => {
       const [, cls] = SITUACION[o.situacion] || ['', ''];

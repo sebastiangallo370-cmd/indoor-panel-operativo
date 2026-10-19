@@ -505,8 +505,8 @@
       const o = telaPorFila.get(Number(card.dataset.cardRow));
       let html = '', clase = '';
       if (o && o.situacion === 'sin_tela') { html = 'Tela no encontrada en Bodega'; clase = ' mal'; }
-      else if (o && typeof o.bodega === 'number' && o.situacion === 'no_alcanza') { html = 'Bodega <b class="hay">' + enteroTela(o.bodega, Math.round) + '</b> MTS · faltan <b class="falta">' + enteroTela(o.falta, Math.ceil) + '</b>'; clase = ' mal'; }
-      else if (o && typeof o.bodega === 'number' && o.situacion === 'alcanza') html = 'Bodega <b class="hay">' + enteroTela(o.bodega, Math.round) + '</b> MTS · quedan <b class="queda">' + enteroTela(o.quedan, Math.floor) + '</b>';
+      else if (o && typeof o.bodega === 'number' && o.situacion === 'no_alcanza') { html = 'Bodega <b class="hay">' + enteroTela(o.bodega, Math.round) + '</b> MTS · faltan <b class="falta">' + enteroTela(o.falta, Math.ceil) + '</b> MTS'; clase = ' mal'; }
+      else if (o && typeof o.bodega === 'number' && o.situacion === 'alcanza') html = 'Bodega <b class="hay">' + enteroTela(o.bodega, Math.round) + '</b> MTS · quedan <b class="queda">' + enteroTela(o.quedan, Math.floor) + '</b> MTS';
       let el = caja.querySelector('.trace-tela-quedan');
       if (!html) { if (el) el.remove(); return; }
       if (!el) { el = document.createElement('span'); caja.appendChild(el); }
