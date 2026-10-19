@@ -355,16 +355,16 @@
         '<nav class="ag-vtabs ec-vtabs" aria-label="Secciones de ECOMMERCE"></nav><div class="ec-body"><div data-vista-flujo>' + esqueletoFlujo() + '</div><div data-vista-ordenes hidden></div><div data-vista-agentes hidden></div><div data-vista-registro hidden></div></div>' +
         '<div class="ec-velo" data-velo></div><aside class="ec-drawer" data-drawer aria-label="Detalle del agente"></aside>';
     }
-    raiz.querySelector('[data-cabecera]').innerHTML = encabezado();
-    raiz.querySelector('[data-aviso]').innerHTML = st.aviso ? '<div class="ec-aviso">' + esc(st.aviso) + '</div>' : '';
-    raiz.querySelector('[data-conexion]').innerHTML = conexion();
+    { const __el = raiz.querySelector('[data-cabecera]'), __h = encabezado(); if (__el && __el.__h !== __h) { __el.__h = __h; __el.innerHTML = __h; } }
+    { const __el = raiz.querySelector('[data-aviso]'), __h = st.aviso ? '<div class="ec-aviso">' + esc(st.aviso) + '</div>' : ''; if (__el && __el.__h !== __h) { __el.__h = __h; __el.innerHTML = __h; } }
+    { const __el = raiz.querySelector('[data-conexion]'), __h = conexion(); if (__el && __el.__h !== __h) { __el.__h = __h; __el.innerHTML = __h; } }
     const sobre = st.trabajos.filter(t => t.etapa === 'errores').length;
-    raiz.querySelector('.ec-vtabs').innerHTML = [['flujo', 'FLUJO'], ['ordenes', 'ÓRDENES' + (sobre ? ' ⚠' : '')], ['agentes', 'AGENTES'], ['registro', 'REGISTRO']].map(([id, n]) => '<button type="button" class="ag-vt' + (st.vista === id ? ' on' : '') + '" data-vt="' + id + '">' + n + '</button>').join('');
+    { const __el = raiz.querySelector('.ec-vtabs'), __h = [['flujo', 'FLUJO'], ['ordenes', 'ÓRDENES' + (sobre ? ' ⚠' : '')], ['agentes', 'AGENTES'], ['registro', 'REGISTRO']].map(([id, n]) => '<button type="button" class="ag-vt' + (st.vista === id ? ' on' : '') + '" data-vt="' + id + '">' + n + '</button>').join(''); if (__el && __el.__h !== __h) { __el.__h = __h; __el.innerHTML = __h; } }
     ['flujo', 'ordenes', 'agentes', 'registro'].forEach(id => { raiz.querySelector('[data-vista-' + id + ']').hidden = st.vista !== id; });
     const l0 = raiz.querySelector('[data-log]'), pegado = !l0 || l0.scrollHeight - l0.scrollTop - l0.clientHeight < 40, y = l0 ? l0.scrollTop : 0;
     if (st.vista === 'flujo') { actualizarFlujo(raiz.querySelector('[data-vista-flujo]')); actualizarFeed(raiz.querySelector('[data-vista-flujo]')); }
     else if (st.vista === 'ordenes') { const c = raiz.querySelector('[data-vista-ordenes]'); const bo = c.querySelector('[data-bo]'), enfocado = bo && document.activeElement === bo; c.innerHTML = vistaOrdenes(); if (enfocado) { const n = c.querySelector('[data-bo]'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); } }
-    else if (st.vista === 'agentes') raiz.querySelector('[data-vista-agentes]').innerHTML = vistaAgentes();
+    else if (st.vista === 'agentes') { const __el = raiz.querySelector('[data-vista-agentes]'), __h = vistaAgentes(); if (__el.__h !== __h) { __el.__h = __h; __el.innerHTML = __h; } }
     else raiz.querySelector('[data-vista-registro]').innerHTML = vistaRegistro();
     const l = raiz.querySelector('[data-log]'); if (l) l.scrollTop = pegado ? l.scrollHeight : y;
     pintarDrawer();

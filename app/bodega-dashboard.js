@@ -2,6 +2,8 @@
 (() => {
   const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
   const num = value => Number(value || 0).toLocaleString('es-CO', {maximumFractionDigits: 2});
+  // Pinta solo si el contenido cambió: redibujar lo mismo cada minuto reinicia animaciones y hace parpadear las tarjetas.
+  const poner = (el, html) => { if (!el || el.__h === html) return false; el.__h = html; el.innerHTML = html; return true; };
   const rolls = n => num(n) + (Number(n) === 1 ? ' rollo' : ' rollos');
   const norm = value => String(value ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/\s+/g, ' ').trim();
   const day = value => { if (!value) return ''; if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value; const date = new Date(value); return isNaN(date) ? '' : date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0'); };
@@ -379,18 +381,18 @@ html body .bd .inventory-item-card.lq,html body .bd .bd-tkpi .lq{background:radi
     else vacio?.remove();
   };
   const renderTela = data => {
-    if (data.disponible === false) { tKpi.innerHTML = ''; tCards.innerHTML = '<p class="bd-note">No se pudo leer Producción para calcular la tela necesaria.</p>'; return; }
+    if (data.disponible === false) { tKpi.__h = tCards.__h = null; tKpi.innerHTML = ''; tCards.innerHTML = '<p class="bd-note">No se pudo leer Producción para calcular la tela necesaria.</p>'; return; }
     const ordenes = data.ordenes || [];
     brechaDias = data.brecha_sublimacion || 14;
-    tKpi.innerHTML = card({badge: data.telas_no_alcanzan ? 'Atención' : 'Al día', badgeClass: data.telas_no_alcanzan ? 'bad' : 'ok', cls: data.telas_no_alcanzan ? 'bad' : '',
+    poner(tKpi, card({badge: data.telas_no_alcanzan ? 'Atención' : 'Al día', badgeClass: data.telas_no_alcanzan ? 'bad' : 'ok', cls: data.telas_no_alcanzan ? 'bad' : '',
       level: data.mts ? Math.max(0, 100 - data.faltan / data.mts * 100) : 100, tone: data.telas_no_alcanzan ? 'rojo' : 'verde', name: 'Tela necesaria programada',
       total: num(data.mts) + '<small>MTS</small>', unit: num(data.pedidos) + ' pedidos en ' + num((data.telas || []).length) + ' telas · ' + (data.telas_no_alcanzan ? num(data.telas_no_alcanzan) + ' telas no alcanzan · faltan ' + num(data.faltan) + ' MTS' : 'toda la tela alcanza')}) +
       (data.telas || []).map(t => card({badge: !t.encontrada ? 'Tela no encontrada' : t.alcanza ? 'Alcanza' : 'No alcanza', badgeClass: t.alcanza ? 'ok' : 'bad', cls: t.alcanza ? '' : 'bad',
         level: t.encontrada ? Math.min(100, t.disponible / (t.mts || 1) * 100) : 0, tone: t.alcanza ? 'verde' : 'rojo', name: t.tela, total: num(t.mts) + '<small>MTS</small>',
-        unit: t.pedidos.length + (t.pedidos.length === 1 ? ' pedido' : ' pedidos') + ' · ' + (t.encontrada ? 'Bodega ' + num(t.disponible) + ' MTS' + (t.alcanza ? '' : ' · FALTAN ' + num(t.faltan)) : 'no está en Bodega')})).join('');
+        unit: t.pedidos.length + (t.pedidos.length === 1 ? ' pedido' : ' pedidos') + ' · ' + (t.encontrada ? 'Bodega ' + num(t.disponible) + ' MTS' + (t.alcanza ? '' : ' · FALTAN ' + num(t.faltan)) : 'no está en Bodega')})).join(''));
     const telas = [...new Set(ordenes.map(o => o.tela))].sort();
     const selTela = tFilters.elements.tela, actual = selTela.value;
-    selTela.innerHTML = '<option value="">Todas</option>' + telas.map(t => '<option value="' + esc(t) + '"' + (t === actual ? ' selected' : '') + '>' + esc(t) + '</option>').join('');
+    poner(selTela, '<option value="">Todas</option>' + telas.map(t => '<option value="' + esc(t) + '"' + (t === actual ? ' selected' : '') + '>' + esc(t) + '</option>').join(''));
     const ORD_TALLAS = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL'];
     const tallasTxt = o => {
       const m = {};
@@ -558,7 +560,7 @@ html body .bd .inventory-item-card.lq,html body .bd .bd-tkpi .lq{background:radi
         '<div class="ot-pie">' + (sinPromedio ? '<span class="ot-sinprom">Sin promedio</span>' : '<span class="ot-consumo">' + num(o.mts) + '<small>MTS</small></span>') +
         (alerta ? '<span class="ot-alerta">' + esc(alerta) + '</span>' : '') + '</div></article>';
     };
-    tCards.innerHTML = ordenes.length ? ordenes.map(orderCard).join('') : '<p class="bd-note">No hay pedidos programados pendientes de Sublimación.</p>';
+    poner(tCards, ordenes.length ? ordenes.map(orderCard).join('') : '<p class="bd-note">No hay pedidos programados pendientes de Sublimación.</p>');
     filterTela();
   };
   tFilters.addEventListener('input', filterTela);
@@ -574,7 +576,7 @@ html body .bd .inventory-item-card.lq,html body .bd .bd-tkpi .lq{background:radi
       } catch (_) { prodData = unitData = null; }
       panel.querySelector('.bd-updated').textContent = 'Tela calculada: ' + when(new Date().toISOString()) + ' · se actualiza sola cada minuto';
       renderTela(data);
-    } catch (error) { if (!silencioso) tCards.innerHTML = '<p class="bd-note">' + esc(error.message) + '</p>'; }
+    } catch (error) { if (!silencioso) { tCards.__h = null; tCards.innerHTML = '<p class="bd-note">' + esc(error.message) + '</p>'; } }
   };
   const showSubTab = name => {
     subTab = name;

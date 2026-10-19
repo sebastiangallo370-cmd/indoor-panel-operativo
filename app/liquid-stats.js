@@ -121,7 +121,7 @@
     const color = el.getAttribute('data-lq-color') || TONES[el.getAttribute('data-lq-tone')] || '';
     if (color) el.style.setProperty('--liquid', color);
     el.style.setProperty('--level', level + '%');
-    const label = el.querySelector(':scope>.lq-pct'); if (label) label.textContent = Math.round(level) + '%';
+    const label = el.querySelector(':scope>.lq-pct'), txt = Math.round(level) + '%'; if (label && label.textContent !== txt) label.textContent = txt;   // solo si cambió: reescribirlo igual repinta la tarjeta
   }
   function scan(root) {
     if (root.nodeType !== 1) return;

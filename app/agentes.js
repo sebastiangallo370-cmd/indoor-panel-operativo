@@ -1641,9 +1641,9 @@
     const botones = ultimo && ultimo.rol === 'bot' && !st.esperando ? (ultimo.botones || []) : [];
     const pill = (clase, texto) => '<span class="ag-pill ' + clase + '"><i></i>' + esc(texto) + '</span>';
     const modo = v => !v ? '' : v === 'real' ? 'ok' : /^error/.test(v) ? 'mal' : 'sim';
-    panel.querySelector('[data-estado]').innerHTML = pill(e.conectado ? 'ok' : 'mal', (e.pc && e.pc.nombre ? e.pc.nombre + ' · ' : '') + (e.conectado ? 'PC conectado' : 'PC desconectado')) + 
-      '<button type="button" class="ag-pill ' + (e.auto ? 'ok' : 'sim') + '" data-auto title="Cuando una tarjeta de EDICIÓN pasa a «en proceso», los agentes arrancan solos con esa orden. Toca para ' + (e.auto ? 'apagar' : 'encender') + '" style="cursor:pointer"><i></i>Auto ' + (e.auto ? 'ON' : 'OFF') + '</button>';
-    panel.querySelector('[data-aviso]').innerHTML = !e.conectado ? '<div class="ag-warn">El PC «' + esc((e.pc && e.pc.nombre) || 'de los agentes') + '» no está conectado. Tu mensaje queda en cola y se atiende cuando ese PC esté encendido con los agentes iniciados' + ((e.pcs || []).some(p => p.conectado && p.id !== (e.pc && e.pc.id)) ? '; también puedes elegir otro PC conectado arriba.' : '.') + '</div>' : '';
+    { const __el = panel.querySelector('[data-estado]'), __h = pill(e.conectado ? 'ok' : 'mal', (e.pc && e.pc.nombre ? e.pc.nombre + ' · ' : '') + (e.conectado ? 'PC conectado' : 'PC desconectado')) + 
+      '<button type="button" class="ag-pill ' + (e.auto ? 'ok' : 'sim') + '" data-auto title="Cuando una tarjeta de EDICIÓN pasa a «en proceso», los agentes arrancan solos con esa orden. Toca para ' + (e.auto ? 'apagar' : 'encender') + '" style="cursor:pointer"><i></i>Auto ' + (e.auto ? 'ON' : 'OFF') + '</button>'; if (__el && __el.__h !== __h) { __el.__h = __h; __el.innerHTML = __h; } }
+    { const __el = panel.querySelector('[data-aviso]'), __h = !e.conectado ? '<div class="ag-warn">El PC «' + esc((e.pc && e.pc.nombre) || 'de los agentes') + '» no está conectado. Tu mensaje queda en cola y se atiende cuando ese PC esté encendido con los agentes iniciados' + ((e.pcs || []).some(p => p.conectado && p.id !== (e.pc && e.pc.id)) ? '; también puedes elegir otro PC conectado arriba.' : '.') + '</div>' : ''; if (__el && __el.__h !== __h) { __el.__h = __h; __el.innerHTML = __h; } }
     const trabajo = st.trabajo;
     const hilo = st.msgs.length ? hiloHtml()
       : '<div class="ag-empty"><div class="ag-empty-av">' + ['TAVO', 'LEO', 'JACK', 'OLVER', 'OLIVER', 'TERRY'].map(avatar).join('') + '</div><h3>¿Qué necesitas hoy?</h3><p>' + (st.orden ? 'Trabajando con la orden <b>' + esc(st.orden) + '</b>. Elige una acción o escríbele a TAVO.' : 'Fija la orden arriba y pídele lo que necesites. TAVO decide qué agente actúa.') + '</p>' +
@@ -1678,8 +1678,8 @@
     if (st.sinChat && (botones.length || (ultimo && ultimo.rol === 'bot' && ultimo.estado === 'ERROR' && ultimo.id !== st.chatVisto))) st.sinChat = false;   // preguntan algo o hubo un error: el chat vuelve a verse
     aplicarChat();
     pintarMuestras();
-    panel.querySelector('[data-replies]').innerHTML = botones.length ? botones.map(b => '<button type="button" class="reply" data-send="' + esc(b) + '">' + esc(b) + '</button>').join('')
-      : st.msgs.length ? ATAJOS.filter(([l]) => l !== 'Reiniciar').map(([l, t]) => '<button type="button" class="rap" data-atajo="' + esc(t) + '"' + (st.esperando ? ' disabled' : '') + '>' + esc(l) + '</button>').join('') : '';
+    { const __el = panel.querySelector('[data-replies]'), __h = botones.length ? botones.map(b => '<button type="button" class="reply" data-send="' + esc(b) + '">' + esc(b) + '</button>').join('')
+      : st.msgs.length ? ATAJOS.filter(([l]) => l !== 'Reiniciar').map(([l, t]) => '<button type="button" class="rap" data-atajo="' + esc(t) + '"' + (st.esperando ? ' disabled' : '') + '>' + esc(l) + '</button>').join('') : ''; if (__el && __el.__h !== __h) { __el.__h = __h; __el.innerHTML = __h; } }
     panel.querySelector('[data-replies]').classList.toggle('rapidas', !botones.length);
     const btnAv = panel.querySelector('[data-avisos]'); if (btnAv) { btnAv.textContent = st.avisos ? '🔔' : '🔕'; btnAv.title = st.avisos ? 'Avisos encendidos: sonido y notificación cuando los agentes responden. Toca para apagarlos' : 'Avisos apagados. Toca para que suene y te notifique cuando los agentes respondan'; btnAv.classList.toggle('on', !!st.avisos); }
     panel.querySelectorAll('[data-atajo]').forEach(b => { b.disabled = st.esperando; });

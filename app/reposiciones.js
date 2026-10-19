@@ -153,12 +153,12 @@
     const count = f => all.filter(c => f(c)).length;
     const list = all.filter(matches);
     const chip = (key, label, n) => '<button type="button" data-estado="' + key + '" class="' + (st.estado === key ? 'on' : '') + '">' + label + '<b>' + n + '</b></button>';
-    view.querySelector('.rp-kpis').innerHTML = [['Sin terminar', count(c => c.estado === 'en_proceso' || c.estado === 'sin_iniciar')], ['Terminadas', count(c => c.estado === 'terminada')], ['Garantías', count(c => c.tipo === 'garantia')], ['Unidades', all.reduce((s, c) => s + c.unidades, 0)]]
-      .map(([l, n]) => '<div class="rp-kpi"><small>' + l.toUpperCase() + '</small><strong>' + n.toLocaleString('es-CO') + '</strong></div>').join('');
-    view.querySelector('.rp-chips').innerHTML = chip('todas', 'Todas', all.length) + chip('activas', 'Sin terminar', count(c => c.estado === 'en_proceso' || c.estado === 'sin_iniciar')) + chip('terminada', 'Terminadas', count(c => c.estado === 'terminada'));
+    { const __el = view.querySelector('.rp-kpis'), __h = [['Sin terminar', count(c => c.estado === 'en_proceso' || c.estado === 'sin_iniciar')], ['Terminadas', count(c => c.estado === 'terminada')], ['Garantías', count(c => c.tipo === 'garantia')], ['Unidades', all.reduce((s, c) => s + c.unidades, 0)]]
+      .map(([l, n]) => '<div class="rp-kpi"><small>' + l.toUpperCase() + '</small><strong>' + n.toLocaleString('es-CO') + '</strong></div>').join(''); if (__el && __el.__h !== __h) { __el.__h = __h; __el.innerHTML = __h; } }
+    { const __el = view.querySelector('.rp-chips'), __h = chip('todas', 'Todas', all.length) + chip('activas', 'Sin terminar', count(c => c.estado === 'en_proceso' || c.estado === 'sin_iniciar')) + chip('terminada', 'Terminadas', count(c => c.estado === 'terminada')); if (__el && __el.__h !== __h) { __el.__h = __h; __el.innerHTML = __h; } }
     view.querySelector('.rp-stamp').textContent = !d ? 'Cargando…' : (d.error ? '⚠ ' + d.error + ' · ' : '') + 'Hoja actualizada ' + (d.updated_at ? new Date(d.updated_at).toLocaleTimeString('es-CO', {timeZone: 'America/Bogota', hour: '2-digit', minute: '2-digit'}) : '—');
     const grid = view.querySelector('.rp-grid');
-    grid.innerHTML = list.length ? list.slice(0, st.shown).map(card).join('') : '<div class="rp-empty">' + (d ? 'No hay casos con estos filtros.' : 'Cargando reposiciones…') + '</div>';
+    { const __el = grid, __h = list.length ? list.slice(0, st.shown).map(card).join('') : '<div class="rp-empty">' + (d ? 'No hay casos con estos filtros.' : 'Cargando reposiciones…') + '</div>'; if (__el && __el.__h !== __h) { __el.__h = __h; __el.innerHTML = __h; } }
     const more = view.querySelector('.rp-more');
     more.hidden = list.length <= st.shown;
     more.textContent = 'Ver más (' + (list.length - st.shown) + ')';

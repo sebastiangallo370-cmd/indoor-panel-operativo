@@ -407,10 +407,18 @@
           return '<div class="inv-pick-group"><span class="inv-pick-total">'+(missing?'⚠ ':'')+'SUBLIMACIÓN · '+esc(order)+' · '+group.length+' REFERENCIAS · TOTAL '+esc(fmtPick(total))+' MTS'+(missing?' · FALTAN '+esc(fmtPick(missing))+' MTS':'')+'</span>'+group.map(pickLine).join('')+'</div>';
         }).join('');
       };
+      // Si lo que se va a mostrar es idéntico a lo que ya hay, no se redibuja (redibujar cada minuto hace parpadear todas las tarjetas)
+      const firmaStock = JSON.stringify([activeCategory, visibleItems, activeCategory === 'BODEGA TELA' ? (data.sublimacion || []) : null]);
+      if (body.dataset.firma === firmaStock && body.querySelector('.inventory-item-card')) {
+        if (status) status.textContent = (data.summary?.items || data.items?.length || 0) + ' referencias disponibles · inventario local';
+        body.dataset.localRendered = 'true';
+        return;
+      }
+      body.dataset.firma = firmaStock;
       body.innerHTML = visibleItems.map(item => '<article class="inventory-item-card"><span class="inv-badge">'+esc(item.categoria_label)+'</span><strong class="inv-name">'+esc(item.nombre)+'</strong><div class="inventory-rolls">'+(item.unidad === 'LT' ? '<span class="inventory-can" title="'+esc(item.total)+' litros"><svg viewBox="0 0 24 28" aria-hidden="true"><rect x="4" y="5" width="16" height="21" rx="3" fill="currentColor" opacity=".25" stroke="currentColor" stroke-width="1.6"/><rect x="7" y="1.5" width="10" height="4" rx="1.2" fill="currentColor"/><rect x="4" y="12" width="16" height="7" fill="currentColor" opacity=".55"/></svg><b>'+esc(item.total)+'</b></span>' : '')+(() => { const left = [...(item.sobrantes || [])]; return (item.roll_values || []).map((value,index) => { const k = left.findIndex(x => item.roll_statuses?.[index]==='started' && Math.abs(Number(x.valor) - Number(value)) < 0.011); const mark = k >= 0 ? left.splice(k,1)[0] : null; return '<span class="inventory-roll '+(item.roll_statuses?.[index]==='started'?'roll-started':'roll-new')+(mark?' roll-left':'')+(pickRolls.get(item.id)?.has(index)?' roll-pick roll-pick-'+pickRolls.get(item.id).get(index):'')+'"'+'>'+esc(value)+'</span>'; }).join(''); })()+'</div>'+'<span class="inv-total">'+esc(item.unidad === 'LT' ? item.total : (item.mts ?? item.total ?? 0))+' '+esc(item.unidad || 'MTS')+'</span><span class="inv-unit">'+(item.unidad === 'LT' ? esc(item.total)+(Number(item.total) === 1 ? ' tarro de 1 litro' : ' tarros de 1 litro') : esc(item.rolls || (item.roll_values || []).length)+' rollos'+(item.unidad === 'MTS' && item.campos?.Detalle ? ' '+esc(String(item.campos.Detalle).replace(/^.*? de /, 'de ')) : ''))+'</span>'+pickBlock(pickNotes.get(item.id)||[])+'</article>').join('') || '<div class="inventory-empty">No hay referencias en el inventario local.</div>';
       if (status) status.textContent = (data.summary?.items || data.items?.length || 0) + ' referencias disponibles · inventario local';
       body.dataset.localRendered = 'true';
-    } catch (error) { body.innerHTML = '<div class="inventory-empty">'+String(error.message || error)+'</div>'; }
+    } catch (error) { body.dataset.firma = ''; body.innerHTML = '<div class="inventory-empty">'+String(error.message || error)+'</div>'; }
   };
   renderLocalInventory();
   document.addEventListener('click', event => {
@@ -455,14 +463,20 @@
   const decorateRollCards = async () => {
     const body = document.getElementById('inventory-body');
     if (!body) return;
+    // Solo se decoran (y se pide el inventario) cuando hay tarjetas nuevas sin decorar: antes se descargaban 180 KB y se reescribían los atributos de
+    // TODAS las tarjetas cada 0,7 s, lo que hacía repintar el estilo líquido sin parar (parpadeo).
+    if (![...body.querySelectorAll('.inventory-item-card')].some(c => c.dataset.decorada !== '1')) return;
     try {
       const response = await fetch('/api/inventarios', {cache:'no-store'});
       const data = await response.json();
       const byName = new Map((data.items || []).map(item => [String(item.nombre), item]));
       if (!document.querySelector('.stock-legend') && [...body.querySelectorAll('.inventory-item-card')].some(c => String(byName.get(c.querySelector('.inv-name')?.textContent?.trim())?.categoria || '').toUpperCase() === 'BODEGA TELA')) body.insertAdjacentHTML('beforebegin', '<div class="stock-legend"><span>Tarjeta llena = 2.500 MTS</span><span><i class="l-tone" style="background:#d94430"></i>menos de 600</span><span><i class="l-tone" style="background:#d38800"></i>bajo el mínimo</span><span><i class="l-tone" style="background:#12a58f"></i>1.200 a 2.500</span><span><i class="l-tone" style="background:#3a2f9e"></i>más de 2.500</span></div>');
       body.querySelectorAll('.inventory-item-card').forEach(card => {
+        if (card.dataset.decorada === '1') return;
         const name = card.querySelector('.inv-name')?.textContent?.trim();
         const item = byName.get(name);
+        card.dataset.intentos = String((Number(card.dataset.intentos) || 0) + 1);
+        if (item || Number(card.dataset.intentos) >= 5) card.dataset.decorada = '1';
         if (item && String(item.categoria || '').toUpperCase() === 'BODEGA TELA') {
           const STOCK_MIN = 1200, STOCK_MAX = 2500, total = Number(item.total) || 0;
           card.setAttribute('data-lq', String(Math.round(Math.min(100, total / STOCK_MAX * 100))));
