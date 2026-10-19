@@ -1,7 +1,7 @@
 (() => {
   // Al recargar (F5) el panel vuelve a la página en la que estabas, en vez de irse a Inicio.
   // Guarda la última pestaña del menú que se abrió; al cargar espera a que exista (los módulos crean sus pestañas poco a poco) y la abre,
-  // salvo que ya hayas tocado otra cosa. La sesión se cierra solo tras 20 minutos de inactividad (session-guard.js).
+  // salvo que ya hayas tocado otra cosa. La sesión se cierra solo tras 2 horas de inactividad (session-guard.js).
   if (window.__recordarVista) return;
   window.__recordarVista = true;
   const CLAVE = 'indoor-ultima-vista';
