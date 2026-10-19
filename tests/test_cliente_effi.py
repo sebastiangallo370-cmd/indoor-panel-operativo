@@ -158,3 +158,28 @@ class RutDigitosSeparados(unittest.TestCase):
         self.assertEqual((c['telefono1'], c['celular']), ('6017564235', '3203057135'))
         self.assertEqual(c['ciudad_texto'], 'Bogotá, D.C.')
         self.assertEqual(c['direccion'], 'CL 75 29 A 33')
+
+
+class RutVariantes(unittest.TestCase):
+    """El NIT, la ciudad y los teléfonos se leen igual sin importar cómo vengan escritos los dígitos en el PDF."""
+    def _rut(self, nit, razon='', nat=''):
+        return ('Formulario del Registro Único Tributario\n5. Número de Identificación Tributaria (NIT) 6. DV 12. Dirección seccional\n' + nit +
+                '\n24. Tipo de contribuyente\n' + ('Persona jurídica 1\n' if razon else 'Persona natural 13\n') +
+                '31. Primer apellido 32. Segundo apellido 33. Primer nombre 34. Otros nombres\n' + nat + '\n35. Razón social\n' + razon +
+                '\n36. Nombre comercial 37. Sigla\n38. País 39. Departamento 40. Ciudad/Municipio\nCOLOMBIA 1 6 9 Antioquia 0 5 Medellín 0 0 1\n'
+                '41. Dirección principal\nCra 43A # 1-50 Of 301\n42. Correo electrónico ventas@empresa.co\n'
+                '43. Código postal 050021 44. Teléfono 1 6017564235 45. Teléfono 2 3203057135\n')
+
+    def test_nit_en_todas_las_formas(self):
+        for nit in ('9 0 0 1 6 3 0 4 6 2 Impuestos de Medellín 3 2', '9001630462 Impuestos de Medellín', '900163046 2'):
+            c = ce.interpretar(self._rut(nit, 'ACME CONFECCIONES S.A.S.'))
+            self.assertEqual((c['numero'], c['t_dni'], c['t_persona'], c['nombre']), ('900163046', 1, 2, 'ACME CONFECCIONES S.A.S.'), nit)
+            self.assertEqual((c['ciudad_texto'], c['telefono1'], c['celular']), ('Medellín', '6017564235', '3203057135'))
+
+    def test_persona_natural_con_dv_pegado(self):
+        for nit in ('1 0 2 0 3 0 4 0 5 0 8', '10203040508 Bogotá'):
+            c = ce.interpretar(self._rut(nit, '', 'PEREZ GOMEZ JUAN CARLOS'))
+            self.assertEqual((c['numero'], c['t_dni'], c['t_persona'], c['nombre']), ('1020304050', 2, 1, 'Juan Carlos Perez Gomez'), nit)
+
+    def test_dv_oficial(self):
+        self.assertEqual(ce._dv('900163046'), 2)

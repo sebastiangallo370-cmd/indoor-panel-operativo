@@ -254,12 +254,43 @@ def _tras_etiqueta(lineas: list[str], etiqueta: str, valido=None) -> str:
     return ''
 
 
+def _dv(nit: str) -> int:
+    """Dígito de verificación oficial de la DIAN para un NIT (sirve para saber dónde termina el número y empieza el DV)."""
+    pesos = (3, 7, 13, 17, 19, 23, 29, 37, 41, 43, 47, 53, 59, 67, 71)
+    r = sum(int(d) * p for d, p in zip(reversed(nit), pesos)) % 11
+    return r if r < 2 else 11 - r
+
+
+def _nit_rut(lineas: list[str]) -> str:
+    """NIT (sin DV) de la casilla 5 del RUT, venga como venga: «900163046 2», «9001630462» o «9 0 0 1 6 3 0 4 6 2 Impuestos de Bogotá»."""
+    for i, l in enumerate(lineas):
+        if not re.search(r'identificaci[oó]n tributaria|\(NIT\)|\bNIT\b', l, re.I):
+            continue
+        bloque = ' '.join([re.sub(r'.*?\(NIT\)', '', l, flags=re.I)] + lineas[i + 1:i + 3]).strip()
+        bloque = re.sub(r'(?<!\d)((?:\d ){5,}\d)(?!\d)', lambda m: m.group(1).replace(' ', ''), bloque)   # dígitos separados → junto
+        m = re.search(r'(?<!\d)(\d{7,11})(?!\d)(?:\s+(\d)(?!\d))?', bloque)
+        if not m:
+            continue
+        n, suelto = m.group(1), m.group(2)
+        if suelto:   # número y DV en casillas separadas: el número ya viene completo
+            return n
+        if len(n) >= 8 and _dv(n[:-1]) == int(n[-1]):   # el DV viene pegado al final
+            return n[:-1]
+        if len(n) >= 10:   # el RUT siempre trae la casilla del DV: si es largo, el último dígito es el DV
+            return n[:-1]
+        return n
+    return ''
+
+
 def _rut(lineas: list[str], t: str) -> dict:
     """Si el texto es un RUT de la DIAN, saca de sus casillas: NIT, razón social o nombres y apellidos, dirección, correo y teléfonos."""
     c: dict = {}
     solo_letras = lambda v: bool(re.fullmatch(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ.&' \-]{3,120}", v)) and not PALABRAS_NO_NOMBRE.search(v)
-    nit = _tras_etiqueta(lineas, r'n[uú]mero de identificaci[oó]n tributaria|\b5\.?\s*n[uú]mero de identif', lambda v: bool(re.search(r'\d{6,}', v)) and len(_solo_digitos(v)) <= 11)
-    if not nit:   # OCR desordenado: se busca un número de 9-10 dígitos en las líneas que siguen a «Identificación Tributaria»
+    nit_limpio = _nit_rut(lineas)
+    nit = '' if nit_limpio else _tras_etiqueta(lineas, r'n[uú]mero de identificaci[oó]n tributaria|\b5\.?\s*n[uú]mero de identif', lambda v: bool(re.search(r'\d{6,}', v)) and len(_solo_digitos(v)) <= 11)
+    if nit_limpio:
+        c['numero'] = nit_limpio
+    elif not nit:   # OCR desordenado: se busca un número de 9-10 dígitos en las líneas que siguen a «Identificación Tributaria»
         for i, l in enumerate(lineas):
             if re.search(r'identi\w*ci\w*n tributaria|\bNIT\b', l, re.I):
                 m = re.search(r'(?<![\d])(\d{8,10})(?![\d])(?:\s*[|\-]?\s*\d)?', ' '.join(lineas[i:i + 3]))
@@ -287,7 +318,7 @@ def _rut(lineas: list[str], t: str) -> dict:
                 c['ciudad_texto'] = trozos[0]
             break
     for l in lineas:   # casillas 44/45: teléfonos con los dígitos separados
-        m = re.search(r'44\.?\s*tel[eé]fono 1((?:\s\d)+)\s*45\.?\s*tel[eé]fono 2((?:\s\d)*)', l, re.I)
+        m = re.search(r'44\.?\s*tel[eé]fono 1([\d ]*?)\s*45\.?\s*tel[eé]fono 2([\d ]*)', l, re.I)
         if m:
             t1, t2 = _solo_digitos(m.group(1)), _solo_digitos(m.group(2))
             for d in (t1, t2):
