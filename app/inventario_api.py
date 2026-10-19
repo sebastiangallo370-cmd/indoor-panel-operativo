@@ -272,7 +272,8 @@ def _records_for_tab(values: list[list[str]], tab_key: str, tab_label: str, grid
         roll_statuses = []
         roll_bodegas = []
         for index, value in enumerate(row):
-            if index in {active_name, active_total} or not str(value or '').strip() or _number(value) <= 0:
+            # Solo cuentan las columnas entre el nombre y el total: un número en la columna A (código/anotación) o después del total NO es un rollo.
+            if not (active_name < index < active_total) or not str(value or '').strip() or _number(value) <= 0:
                 continue
             roll_values.append(_number(value))
             roll_statuses.append(roll_status(row_index, index))
