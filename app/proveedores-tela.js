@@ -185,26 +185,40 @@
   /* TARJETA DE TELA: ficha ordenada (nombre, filas etiqueta + dato y existencias abajo) */
   .pv-card.pv-t,.pv-ftelas .pv-card.pv-t{gap:0;padding:0;border-radius:14px;background:#16231b!important;border:1px solid #33463a!important;border-top:3px solid #8bdbaf!important;overflow:hidden}
   .pv-card.pv-t.sin{border-top-color:#f3b852!important}
-  .pt-head{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid #28382e}
-  .pt-nom{margin:0;flex:1;min-width:0;font:700 16px/1.25 Arial;color:#f3f8ee;text-transform:uppercase;overflow-wrap:anywhere}
-  .pt-n{flex:0 0 auto;font:800 12px/1 Arial;padding:6px 10px;border-radius:999px;background:#f3b852;color:#332306}.pt-n.ok{background:#8bdbaf;color:#103423}
-  .pt-form{display:grid;padding:6px 16px}
-  .pt-row{display:grid;grid-template-columns:96px minmax(0,1fr);align-items:center;gap:10px;min-height:46px;margin:0;border-bottom:1px solid #223128}
+  .pv-grid{grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:20px}
+  .pv-card.pv-t{transition:transform .22s cubic-bezier(.2,.8,.2,1),box-shadow .25s,border-color .25s}
+  .pv-card.pv-t:hover{transform:translateY(-5px)!important;box-shadow:0 22px 40px -18px #000!important;border-color:#55705c!important}
+  .pv-card.pv-t:focus-within{border-color:#d0ec93!important;box-shadow:0 0 0 2px rgba(208,236,147,.18),0 22px 40px -18px #000!important}
+  .pt-head{display:flex;align-items:center;gap:12px;padding:20px 22px;border-bottom:1px solid #28382e}
+  .pt-nom{margin:0;flex:1;min-width:0;font:800 21px/1.2 Arial;color:#f3f8ee;text-transform:uppercase;overflow-wrap:anywhere}
+  .pt-n{flex:0 0 auto;font:800 14px/1 Arial;padding:8px 13px;border-radius:999px;background:#f3b852;color:#332306}.pt-n.ok{background:#8bdbaf;color:#103423}
+  .pt-form{display:grid;padding:8px 22px}
+  .pt-row{display:grid;grid-template-columns:112px minmax(0,1fr);align-items:center;gap:12px;min-height:62px;margin:0;border-bottom:1px solid #223128;transition:background .2s}
+  .pt-row:hover{background:rgba(255,255,255,.03)}
+  .pt-chips{display:none;flex-wrap:wrap;gap:6px;padding:0 0 12px 124px}
+  .pt-row:focus-within+.pt-chips,.pt-chips:hover{display:flex;animation:ptIn .18s ease-out}
+  .pt-chips button{font:700 12px/1 Arial;padding:8px 12px;border-radius:999px;border:1px solid #3f5a46;background:#122018;color:#cfe8d3;cursor:pointer;transition:background .15s,transform .15s}
+  .pt-chips button:hover{background:#d0ec93;color:#14210f;transform:translateY(-1px)}
+  @media(max-width:700px){.pt-nom{font-size:18px}.pt-head{padding:16px}.pt-form{padding:6px 16px}.pt-stats b{font-size:clamp(17px,6vw,24px)}.pt-nom{overflow-wrap:break-word;hyphens:auto}}
+  @keyframes ptIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
   .pt-row:last-child{border-bottom:0}
-  @media(max-width:360px){.pt-row{grid-template-columns:1fr;gap:4px;padding:8px 0}.pt-row.fijo{grid-template-columns:1fr auto}}
-  .pt-lbl{font:600 12px/1.2 Arial;color:#a4b7aa}.pt-lbl b{color:#ffc86b;margin-left:3px}
+  @media(max-width:360px){.pt-row{grid-template-columns:1fr;gap:4px;padding:8px 0}.pt-row.fijo{grid-template-columns:1fr auto}.pt-chips{padding-left:0}}
+  .pt-lbl{font:700 14px/1.2 Arial;color:#a4b7aa}.pt-lbl b{color:#ffc86b;margin-left:3px}
   .pt-row.falta .pt-lbl{color:#ffc86b}
-  .pt-cod{font:800 18px/1 Arial;color:#d0ec93;letter-spacing:.03em}
-  .pt-row input{width:100%;box-sizing:border-box;height:34px;padding:0 10px;border-radius:8px;border:1px solid #3a4a40;background:#0e1812;color:#eef5ed;font:600 14px Arial;outline:0}
+  .pt-cod{justify-self:start;font:800 26px/1 Arial;color:#d0ec93;letter-spacing:.04em;background:transparent;border:1px dashed transparent;border-radius:8px;padding:4px 8px;margin-left:-8px;cursor:copy;transition:border-color .2s,background .2s}
+  .pt-cod:hover{border-color:#5f8f69;background:#0e1812}.pt-cod.copiado{background:#8bdbaf;color:#103423}.pt-cod.copiado::after{content:" ✓ copiado";font:700 11px Arial}
+  .pt-row input{width:100%;box-sizing:border-box;height:44px;padding:0 13px;border-radius:10px;border:1px solid #3a4a40;background:#0e1812;color:#eef5ed;font:700 16px Arial;outline:0;transition:border-color .2s,box-shadow .2s}
   .pt-row input::placeholder{color:#6f8276;font-weight:400}
   .pt-row input:focus{border-color:#d0ec93;box-shadow:0 0 0 2px rgba(208,236,147,.15)}
   .pt-row.falta input{border-color:#b9824a}
   .pt-row:not(.falta):not(.fijo) input:not([data-pv-ide]){border-color:#4d7a58;color:#d9ffd4}
   .pt-stats{display:grid;grid-template-columns:repeat(3,1fr);background:#0e1812;border-top:1px solid #28382e}
-  .pt-stats>div{padding:12px 10px 10px;text-align:center;border-right:1px solid #223128}.pt-stats>div:last-child{border-right:0}
-  .pt-stats b{display:block;font:800 20px/1.1 Arial;color:#f3f8ee;font-variant-numeric:tabular-nums}
-  .pt-stats span{display:block;margin-top:4px;font:600 10px/1.3 Arial;letter-spacing:.06em;text-transform:uppercase;color:#8fa596}
-  .pv-card.pv-t .pv-progress{height:3px;margin:0;border-radius:0;background:#223128}
+  .pt-stats>div{padding:18px 10px 14px;text-align:center;border-right:1px solid #223128;transition:background .2s}.pt-stats>div:last-child{border-right:0}
+  .pt-stats>div:hover{background:#142218}
+  .pt-stats b{display:block;font:800 30px/1.1 Arial;color:#f3f8ee;font-variant-numeric:tabular-nums}
+  .pt-stats span{display:block;margin-top:6px;font:700 11px/1.3 Arial;letter-spacing:.06em;text-transform:uppercase;color:#8fa596}
+  .pv-card.pv-t .pv-progress>span{transition:width .8s cubic-bezier(.2,.8,.2,1)}
+  .pv-card.pv-t .pv-progress{height:5px;margin:0;border-radius:0;background:#223128}
   .pv-card.pv-t .pv-est{padding:0 16px}.pv-card.pv-t .pv-est:not(:empty){padding:8px 16px}
   @media(max-width:700px){.pv-grupos{columns:1}.pv-head{padding:16px}.pv-head h2{font-size:1.2rem}.pv-kpis{width:100%}.pv-kpi{flex:1;min-width:0;padding:8px}.pv-bar input[type=search]{min-width:0;width:100%;flex-basis:100%}.pv input{font-size:16px}.pv-grid{grid-template-columns:1fr}.pv-cod{font-size:1.6rem}.pv-herr{width:100%}.pv-herr .pv-fil,.pv-masa-chips .pv-fil{white-space:normal;flex:1 1 100%;text-align:center;line-height:1.2;padding:8px 12px}.pv-masa{bottom:8px}}
   `;
@@ -239,6 +253,13 @@
     const ag = q1('[data-pv-agrupar]'), co = q1('[data-pv-compacto]'); if (ag) ag.classList.toggle('on', st.agrupar); if (co) co.classList.toggle('on', st.compacto);
     const ns = q1('[data-pv-selsin]'); if (ns) ns.textContent = 'SELECCIONAR LAS SIN PROVEEDOR (' + visibles().filter(t => !t.proveedor).length + ')';
   }
+  const anchosHabituales = () => {
+    const c = {}; telas().forEach(t => { if (t.ancho) c[t.ancho] = (c[t.ancho] || 0) + 1; });
+    const usados = Object.keys(c).sort((a, b) => c[b] - c[a]);
+    return [...new Set([...usados, '150', '160', '170', '180'])].slice(0, 5);
+  };
+  // Atajos que aparecen al tocar el campo (proveedores y anchos más usados): un toque llena y guarda
+  const sugerencias = (tipo, lista) => lista.length ? `<div class="pt-chips">${lista.map(v => `<button type="button" data-pv-chip="${tipo}" data-v="${esc(v)}">${esc(v)}${tipo === 'ancho' ? ' cm' : ''}</button>`).join('')}</div>` : '';
   function tarjetaHtml(t) {
     const e = st.estado[t.codigo] || {};
     const editando = st.edit.has(t.codigo) || !t.proveedor;
@@ -254,9 +275,11 @@
       `<input type="text" ${atrib} value="${esc(valor || '')}" placeholder="${esc(ayuda)}" autocomplete="off"${req ? ' required' : ''}></label>`;
     return `<div class="pv-card pv-t${falta ? ' sin' : ''}${st.reciente === t.codigo ? ' nueva' : ''}" data-cod="${esc(t.codigo)}">` +
       `<div class="pt-head"><h3 class="pt-nom">${esc(t.nombre)}</h3><span class="pt-n${falta ? '' : ' ok'}" title="${falta ? esc(falta) : 'Los 4 datos obligatorios están completos'}">${listos}/4</span></div>` +
-      `<div class="pt-form"><div class="pt-row fijo"><span class="pt-lbl">Código<b>*</b></span><span class="pt-cod">${esc(t.codigo)}</span></div>` +
+      `<div class="pt-form"><div class="pt-row fijo"><span class="pt-lbl">Código<b>*</b></span><button type="button" class="pt-cod" data-pv-copiar title="Tocar para copiar el código">${esc(t.codigo)}</button></div>` +
       fila(t.codigo, 'Proveedor', t.proveedor, 'list="pv-proveedores" data-pv-input', true, !t.proveedor, 'Escribe el proveedor…') +
+      sugerencias('prov', habituales().slice(0, 5)) +
       fila(t.codigo, 'Ancho (cm)', t.ancho, 'inputmode="decimal" data-pv-ancho', true, !t.ancho, 'Ej. 150') +
+      sugerencias('ancho', anchosHabituales()) +
       fila(t.codigo, 'ID Effi', t.id_effi, 'inputmode="numeric" data-pv-ide', false, false, 'Opcional') + '</div>' +
       `<div class="pt-stats"><div><b>${f0(mts)}</b><span>MTS en bodega</span></div><div><b>${f0(rollos)}</b><span>Rollos</span></div><div><b>${f0(uso)}</b><span>MTS en ${f0(ped)} pedidos</span></div></div>` +
       (uso > 0 ? `<div class="pv-progress" title="${pct}% de la bodega está comprometida en pedidos"><span style="width:${pct}%"></span></div>` : '') +
@@ -411,8 +434,11 @@
     if (host !== el) {
       host = el;
       const cod = e => { const c = e.target.closest('.pv-card'); return c && c.dataset.cod; };
+      host.addEventListener('mousedown', e => { if (e.target.closest('.pt-chips button')) e.preventDefault(); });   // el campo no pierde el foco al tocar un atajo
       host.addEventListener('click', e => {
         const f = e.target.closest('[data-pv-filtro]'); if (f) { st.filtro = f.dataset.pvFiltro; pintarChips(); pintarGrid(); return; }
+        const ch = e.target.closest('[data-pv-chip]'); if (ch) { const c = cod(e); if (ch.dataset.pvChip === 'ancho') guardarAncho(c, ch.dataset.v); else guardar(c, ch.dataset.v); return; }
+        const cp = e.target.closest('[data-pv-copiar]'); if (cp) { try { navigator.clipboard.writeText(cp.textContent.trim()); } catch (x) { /* sin portapapeles */ } cp.classList.add('copiado'); setTimeout(() => cp.classList.remove('copiado'), 1200); return; }
         const p = e.target.closest('[data-pv-poner]'); if (p) { guardar(cod(e), p.dataset.pvPoner); return; }
         if (e.target.closest('[data-pv-quitar]')) { guardar(cod(e), ''); return; }
         if (e.target.closest('[data-pv-cambiar]')) { const c = cod(e); st.edit.add(c); cambiarTarjeta(c); host.querySelector('.pv-card[data-cod="' + CSS.escape(c) + '"] [data-pv-input]')?.focus(); return; }
