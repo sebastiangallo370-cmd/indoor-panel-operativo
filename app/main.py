@@ -348,6 +348,20 @@ def senal_orden_programada(origen: str = ''):
     threading.Thread(target=correr, name='senal-orden-programada', daemon=True).start()
 
 
+def avisar_zeus(origen: str = ''):
+    """Cuando una tarjeta recibe sus MTS REQUERIDOS, el panel le avisa a ZEUS: recalcula la tela que falta y, si no alcanza, deja la compra lista para que el
+    agente cree el requerimiento en Effi. ZEUS ya no revisa por reloj. Corre en segundo plano."""
+    def correr():
+        try:
+            _FALTANTES['t'] = 0.0
+            r = zeus_mod.sincronizar()
+            if r.get('nuevas') or r.get('canceladas'):
+                logging.info('ZEUS avisado (%s): %s compra(s) nueva(s), %s cancelada(s)', origen or 'panel', r['nuevas'], r['canceladas'])
+        except Exception:
+            logging.exception('No se pudo avisar a ZEUS')
+    threading.Thread(target=correr, name='aviso-zeus', daemon=True).start()
+
+
 def update_job(job_id: int, state: str, detail: str = "", order_number: str = ""):
     now = datetime.now(timezone.utc).isoformat()
     detail_lower = detail.lower()
@@ -2620,6 +2634,7 @@ def _terry_guardar_mts(orden: str, referencia: str, texto: str) -> dict:
         db.execute("INSERT OR REPLACE INTO production_meta(key,value) VALUES ('updated_at',?)", (ahora,))
         final = _terry_finalizar_edicion_web(db, fila)   # con los MTS puestos, el trabajo de EDICIÓN queda finalizado
     resultado = {'ok': True, 'fila': fila, **final}
+    avisar_zeus('MTS requeridos anotados')
     resultado.update(_terry_nota_en_sheet(fila, orden, referencia, texto.replace('.', ',')))   # también en el Google Sheets (por ahora)
     if final.get('finalizado'):
         resultado.update(_terry_finalizar_edicion_sheet(fila, orden, referencia, final['columna'], final['fecha']))

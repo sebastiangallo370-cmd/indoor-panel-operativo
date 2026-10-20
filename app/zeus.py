@@ -324,24 +324,9 @@ def configurar_mts(fn: Callable[[], dict]) -> None:
     _llenar_mts = fn
 
 
-def _bucle() -> None:
-    time.sleep(100)
-    while True:
-        try:
-            sincronizar()
-        except Exception:   # noqa: BLE001
-            log.exception('ZEUS: falló la revisión de la tela que falta')
-        try:
-            r = _llenar_mts()
-            if r.get('escritas'):
-                log.info('ZEUS: anotó los MTS REQUERIDOS en %s tarjeta(s) de Producción', r['escritas'])
-        except Exception:   # noqa: BLE001
-            log.exception('ZEUS: no pudo anotar los MTS en Producción')
-        time.sleep(INTERVALO)
-
-
 def start() -> None:
-    threading.Thread(target=_bucle, name='zeus', daemon=True).start()
+    """ZEUS no revisa por reloj: el panel lo avisa (main.avisar_zeus) cuando una tarjeta recibe sus MTS REQUERIDOS, y el botón «Revisar» sigue disponible."""
+    return
 
 
 def _agente(d: dict) -> dict:
