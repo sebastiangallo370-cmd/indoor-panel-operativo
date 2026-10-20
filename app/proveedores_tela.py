@@ -46,6 +46,17 @@ def proveedor_de(codigo: str) -> dict:
     return _leer().get(str(codigo), {})
 
 
+_NO_PROVEEDOR = {'VARIAS', 'DON ALVEIRO', ''}   # «VARIAS» no es un proveedor y DON ALVEIRO es otra empresa: no se sugieren
+
+
+def _prov_inventario(texto) -> str:
+    """Proveedor que dice el inventario (el encabezado de columna del Sheet), con el nombre como se guarda en Effi."""
+    t = re.sub(r'\s+', ' ', str(texto or '')).strip().upper()
+    if t in _NO_PROVEEDOR or t.startswith('CAMPO '):
+        return ''
+    return {'LINDA TEXTIL': 'LINDATEXTIL'}.get(t, t)
+
+
 def telas() -> list[dict]:
     guardado = _leer()
     por_codigo: dict[str, dict] = {}
@@ -61,6 +72,15 @@ def telas() -> list[dict]:
             t['mts'] = round(t['mts'] + float(i.get('mts') or i.get('total') or 0), 1)   # metros en bodega, para que la tarjeta informe cuánta tela hay
         except (TypeError, ValueError):
             pass
+        # datos de la ficha de la tela: rollos reales, uso en pedidos y el proveedor que ya dice el inventario (la columna del Sheet donde está la tela)
+        try:
+            t['rollos_reales'] = t.get('rollos_reales', 0) + int(i.get('rolls') or 0)
+            t['uso_pedidos'] = t.get('uso_pedidos', 0) + int(i.get('uso_pedidos') or 0)
+            t['uso_mts'] = round(t.get('uso_mts', 0.0) + float(i.get('uso_mts') or 0), 1)
+        except (TypeError, ValueError):
+            pass
+        if not t.get('prov_inventario'):
+            t['prov_inventario'] = _prov_inventario(i.get('proveedor'))
     for c, t in por_codigo.items():
         g = guardado.get(c) or {}
         t.update(proveedor=g.get('proveedor', ''), nit=g.get('nit', ''))

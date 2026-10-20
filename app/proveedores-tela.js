@@ -68,7 +68,7 @@
   .pv-prov input{min-height:38px;font-size:.84rem}
   .pv-est{min-height:14px;font-size:.62rem;font-weight:800;letter-spacing:.06em;color:#b6c2b0}.pv-est.ok{color:#9be05a}.pv-est.err{color:#ff9a9d}.pv-est.guardando{color:#9db8ff}
   .pv-vacio{grid-column:1/-1;padding:30px;text-align:center;color:#b6c2b0;border-radius:16px}
-  .pv-masa{position:sticky;bottom:14px;z-index:6;box-shadow:0 18px 40px rgba(0,0,0,.55)}
+  .pv-masa{display:none!important}   /* sin casillas de selección: el proveedor se asigna por tela, por familia o con una lista pegada */
   .pv-masa-chips{display:flex;gap:6px;flex-wrap:wrap}
   .pv-herr{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
   .pv-herr .pv-fil{min-height:34px}.pv-herr .pv-fil.on{background:rgba(208,244,76,.92);border-color:#d0f44c}
@@ -114,6 +114,11 @@
   .pv-card .pv-cod{font-size:1.4rem;flex:0 0 auto}
   .pv-card .pv-nom{flex:1;min-width:0;min-height:0;font-size:.88rem;line-height:1.25}
   .pv-card .pv-sub{display:none}
+  .pv-datos{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+  .pv-datos div{padding:6px 4px 5px;border-radius:10px;background:rgba(0,0,0,.24);text-align:center;min-width:0}
+  .pv-datos b{display:block;font-size:.98rem;line-height:1.1;font-variant-numeric:tabular-nums;color:#f3f8ee}
+  .pv-datos small{display:block;margin-top:2px;font:800 .5rem Arial;letter-spacing:.08em;color:#9fae9a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pv-meta .pv-inv{background:rgba(120,170,255,.16);color:#bcd3ff}
   .pv-meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
   .pv-meta span{padding:2px 9px;border-radius:99px;background:rgba(255,255,255,.09);font:700 .66rem Arial;letter-spacing:.05em;color:#c9d3c4}
   .pv-meta .pv-ins{margin-left:auto;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:800}
@@ -168,8 +173,12 @@
         `<input type="text" list="pv-proveedores" data-pv-input placeholder="${t.proveedor ? 'Otro proveedor…' : 'Escribir proveedor…'}" autocomplete="off">` +
         (t.proveedor ? '<button type="button" class="pv-mini" data-pv-listo>LISTO</button>' : '') + '</div>';
     return `<div class="pv-card pv-glass${t.proveedor ? '' : ' sin'}${st.sel.has(t.codigo) ? ' sel' : ''}${st.reciente === t.codigo ? ' nueva' : ''}" data-cod="${esc(t.codigo)}">` +
-      `<div class="pv-top"><span class="pv-cod">${esc(t.codigo)}</span><span class="pv-nom">${esc(t.nombre)}</span><input type="checkbox" data-pv-sel aria-label="Seleccionar"${st.sel.has(t.codigo) ? ' checked' : ''}></div>` +
-      `<div class="pv-meta"><span>${t.rollos} ${t.rollos === 1 ? 'rollo' : 'rollos'}</span>${mts ? `<span>${Math.round(mts).toLocaleString('es-CO')} MTS</span>` : ''}${insignia}</div>` +
+      `<div class="pv-top"><span class="pv-cod">${esc(t.codigo)}</span><span class="pv-nom">${esc(t.nombre)}</span></div>` +
+      `<div class="pv-datos"><div><b>${(t.rollos_reales || t.rollos || 0).toLocaleString('es-CO')}</b><small>${(t.rollos_reales || t.rollos) === 1 ? 'ROLLO' : 'ROLLOS'}</small></div>` +
+      `<div><b>${Math.round(mts).toLocaleString('es-CO')}</b><small>MTS EN BODEGA</small></div>` +
+      `<div><b>${(t.uso_pedidos || 0).toLocaleString('es-CO')}</b><small>PEDIDOS</small></div>` +
+      `<div><b>${Math.round(t.uso_mts || 0).toLocaleString('es-CO')}</b><small>MTS EN PEDIDOS</small></div></div>` +
+      `<div class="pv-meta"><span class="pv-inv" title="Proveedor que dice el inventario (Sheet)">INVENTARIO: ${t.prov_inventario ? esc(t.prov_inventario) : '—'}</span>${insignia}</div>` +
       `<div class="pv-prov">${cuerpo}</div><div class="pv-est ${esc(e.c || '')}" data-pv-est>${esc(e.t || '')}</div></div>`;
   }
   const familia = n => (String(n || '').toUpperCase().replace(/\(.*?\)/g, ' ').trim().split(/\s+/)[0]) || 'OTRAS';
@@ -178,7 +187,6 @@
     const todas = lista.every(t => st.sel.has(t.codigo));
     return `<div class="pv-fam pv-glass${cerrada ? ' cerrada' : ''}" data-fam="${esc(f)}"><button type="button" class="pv-fam-t" data-pv-plegar="${esc(f)}"><i>▾</i>${esc(f)}<em>${lista.length} ${lista.length === 1 ? 'tela' : 'telas'}</em></button>` +
       `<div class="pv-fam-est"><div class="pv-fam-barra"><b style="width:${Math.round(con / lista.length * 100)}%"></b></div>${con ? `<span>${con} CON</span>` : ''}${sin ? `<span class="sin">${sin} SIN</span>` : ''}</div>` +
-      (lista.length > 1 ? `<button type="button" class="pv-mini" data-pv-selfam="${esc(f)}">${todas ? 'QUITAR' : 'SELECCIONAR'}</button>` : '') +
       (lista.length > 1 ? `<div class="pv-fam-asig"><input type="text" list="pv-proveedores" data-pv-fam-input="${esc(f)}" placeholder="Proveedor para las ${lista.length} telas…" autocomplete="off"><button type="button" class="pv-mini" data-pv-fam-aplicar="${esc(f)}">APLICAR A TODAS</button></div>` : '') + '</div>';
   }
   function refrescarCabeceras() {
@@ -215,7 +223,7 @@
     if (!q1('#pv-cont')) {
       host.innerHTML = '<div class="pv-head pv-glass"><div><small>ESTÁNDAR 2026</small><h2>PROVEEDORES DE TELA</h2><p>Una tarjeta por tela: elige su proveedor con un toque o escribe otro. Se guarda solo y el agente de inventario lo usa al crear la orden de compra.</p></div>' +
         '<div class="pv-kpis"><div class="pv-kpi pv-glass" data-kpi="total"><b>0</b><span>TELAS</span></div><div class="pv-kpi pv-glass" data-kpi="con"><b>0</b><span>CON PROVEEDOR</span></div><div class="pv-kpi pv-glass sin" data-kpi="sin"><b>0</b><span>SIN PROVEEDOR</span></div></div></div>' +
-        '<div class="pv-bar pv-glass"><input type="search" data-pv-buscar placeholder="Buscar código, tela o proveedor" value="' + esc(st.buscar) + '"><div class="pv-herr"><button type="button" class="pv-fil" data-pv-agrupar>AGRUPAR POR TELA</button><button type="button" class="pv-fil" data-pv-compacto>VISTA COMPACTA</button><button type="button" class="pv-fil ambar" data-pv-selsin>SELECCIONAR LAS SIN PROVEEDOR</button><button type="button" class="pv-fil" data-pv-pegar>PEGAR LISTA DE PROVEEDORES</button></div></div>' +
+        '<div class="pv-bar pv-glass"><input type="search" data-pv-buscar placeholder="Buscar código, tela o proveedor" value="' + esc(st.buscar) + '"><div class="pv-herr"><button type="button" class="pv-fil" data-pv-agrupar>AGRUPAR POR TELA</button><button type="button" class="pv-fil" data-pv-compacto>VISTA COMPACTA</button><button type="button" class="pv-fil ambar" data-pv-inv>TRAER LOS PROVEEDORES DEL INVENTARIO</button><button type="button" class="pv-fil" data-pv-pegar>PEGAR LISTA DE PROVEEDORES</button></div></div>' +
         '<div class="pv-lista pv-glass"><h3>Pegar lista de proveedores</h3><p>Una línea por tela o familia, con dos puntos: <b>MONTECATINI: LINDATEXTIL</b> o <b>100: LINDATEXTIL</b>. Puedes pegarla desde Excel (dos columnas).</p><textarea data-pv-texto placeholder="MONTECATINI: LINDATEXTIL&#10;DIAMANTE: OTRO PROVEEDOR&#10;700: OTRO"></textarea><div class="pv-lista-res" data-pv-res></div><div class="pv-herr"><button type="button" class="pv-fil" data-pv-lista-ver>VER LOS CAMBIOS</button><button type="button" class="pv-fil on" data-pv-lista-ok disabled>APLICAR</button></div></div>' +
         '<div class="pv-chips"></div>' +
         '<div class="pv-masa pv-glass"><b data-pv-nsel></b><div class="pv-masa-chips"></div><input type="text" list="pv-proveedores" data-pv-masa placeholder="…o escribe otro proveedor" autocomplete="off"><button type="button" class="pv-fil on" data-pv-masa-ok>ASIGNAR</button><button type="button" class="pv-fil" data-pv-masa-no>QUITAR SELECCIÓN</button></div>' +
@@ -313,6 +321,13 @@
         if (e.target.closest('[data-pv-cambiar]')) { const c = cod(e); st.edit.add(c); cambiarTarjeta(c); host.querySelector('.pv-card[data-cod="' + CSS.escape(c) + '"] [data-pv-input]')?.focus(); return; }
         if (e.target.closest('[data-pv-listo]')) { const c = cod(e); st.edit.delete(c); cambiarTarjeta(c); return; }
         const fa = e.target.closest('[data-pv-fam-aplicar]'); if (fa) { aplicarFamilia(fa.dataset.pvFamAplicar, fa); return; }
+        if (e.target.closest('[data-pv-inv]')) {   // propone el proveedor que ya dice el inventario para las telas sin proveedor; se revisa y se aplica
+          const claro = t => t.prov_inventario && !/\s-\s/.test(t.prov_inventario);   // «ELIOT - TEKS - PATPRIMO» son varios proveedores juntos: no se sabe cuál es
+          const prop = telas().filter(t => !t.proveedor && claro(t)), sin = telas().filter(t => !t.proveedor && !claro(t)).length;
+          q1('.pv-lista').classList.add('on'); q1('[data-pv-texto]').value = prop.map(t => t.codigo + ': ' + t.prov_inventario).join('\n'); analizarLista();
+          q1('[data-pv-res]').insertAdjacentHTML('beforeend', '<br>Viene del inventario (columna del Sheet donde está cada tela). <span class="no">' + sin + ' telas quedan sin sugerencia (VARIAS u otra empresa).</span> Puedes editar la lista antes de aplicar.');
+          q1('.pv-lista').scrollIntoView({ block: 'center', behavior: 'smooth' }); return;
+        }
         if (e.target.closest('[data-pv-pegar]')) { q1('.pv-lista').classList.toggle('on'); q1('[data-pv-texto]').focus(); return; }
         if (e.target.closest('[data-pv-lista-ver]')) { analizarLista(); return; }
         const lo = e.target.closest('[data-pv-lista-ok]'); if (lo) { aplicarLista(lo); return; }
