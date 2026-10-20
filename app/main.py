@@ -768,10 +768,10 @@ def inventario_alertas_js():
 
 
 # Personas que reciben el aviso de telas por reponer (se compara el usuario y su nombre, sin tildes ni mayúsculas).
-TELA_ALERT_USERS = {'ALEJANDRO PADILLA', 'STIVEN SANCHEZ', 'INDOOR SPORT'}
+TELA_ALERT_USERS = {'ALEJANDRO PADILLA', 'JEISON PADILLA', 'STIVEN SANCHEZ', 'INDOOR SPORT'}
 # Aviso INMEDIATO de «falta tela»: destinatarios finales = ALEJANDRO PADILLA, JEISON PADILLA, STIVEN SANCHEZ e INDOOR SPORT.
 # En PRUEBA solo INDOOR SPORT hasta que se confirme (al confirmar: poner aquí los cuatro y agregar JEISON PADILLA a TELA_ALERT_USERS).
-TELA_FALTANTES_USERS = {'INDOOR SPORT'}
+TELA_FALTANTES_USERS = TELA_ALERT_USERS
 
 _FALTANTES = {'t': 0.0, 'v': []}
 
