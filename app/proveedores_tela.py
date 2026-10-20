@@ -83,7 +83,8 @@ def telas() -> list[dict]:
             t['prov_inventario'] = _prov_inventario(i.get('proveedor'))
     for c, t in por_codigo.items():
         g = guardado.get(c) or {}
-        t.update(proveedor=g.get('proveedor', ''), nit=g.get('nit', ''))
+        t.update(proveedor=g.get('proveedor', ''), nit=g.get('nit', ''), ancho=g.get('ancho', ''))
+        t['faltan'] = [n for n, v in (('proveedor', t['proveedor']), ('ancho', t['ancho'])) if not v]   # los 4 datos obligatorios: nombre y código siempre vienen del inventario
     return sorted(por_codigo.values(), key=lambda t: (int(t['codigo']), t['nombre']))
 
 
@@ -96,14 +97,28 @@ def listar():
 @router.put('')
 def guardar(payload: dict, request: Request):
     codigo = str(payload.get('codigo', '')).strip()
-    proveedor = str(payload.get('proveedor', '')).strip()[:120]
-    nit = str(payload.get('nit', '')).strip()[:30]
     if not re.fullmatch(r'\d{1,6}', codigo):
         raise HTTPException(400, 'Código de tela no válido')
     with _lock:
         d = _leer()
-        if proveedor:
-            d[codigo] = {'proveedor': proveedor, 'nit': nit, 'actualizado': time.strftime('%Y-%m-%d %H:%M:%S')}
+        g = dict(d.get(codigo) or {})
+        if 'proveedor' in payload:   # lo que no viene en la petición se conserva (el ancho y el proveedor se guardan por separado)
+            g['proveedor'] = str(payload.get('proveedor') or '').strip()[:120]
+            g['nit'] = str(payload.get('nit', g.get('nit', '')) or '').strip()[:30]
+        if 'ancho' in payload:
+            texto = str(payload.get('ancho') or '').strip().replace(',', '.')
+            if texto:
+                try:
+                    valor = float(texto)
+                except ValueError:
+                    raise HTTPException(400, 'El ancho debe ser un número (en centímetros)')
+                if not 10 <= valor <= 400:
+                    raise HTTPException(400, 'El ancho debe estar entre 10 y 400 cm')
+                texto = f'{valor:g}'
+            g['ancho'] = texto
+        if g.get('proveedor') or g.get('ancho'):
+            g['actualizado'] = time.strftime('%Y-%m-%d %H:%M:%S')
+            d[codigo] = g
         else:
             d.pop(codigo, None)
         _guardar(d)

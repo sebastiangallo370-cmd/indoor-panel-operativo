@@ -26,6 +26,8 @@
   .pv-glass{border:1px solid rgba(255,255,255,.22);border-radius:18px;background:radial-gradient(120% 90% at 10% 0%,rgba(255,255,255,.16),rgba(255,255,255,0) 55%),linear-gradient(160deg,rgba(255,255,255,.12),rgba(255,255,255,.04));-webkit-backdrop-filter:blur(22px) saturate(1.4);backdrop-filter:blur(22px) saturate(1.4);box-shadow:0 14px 34px rgba(0,0,0,.32),inset 0 1px 0 rgba(255,255,255,.2)}
   .pv-head{display:flex;justify-content:space-between;align-items:center;gap:18px;flex-wrap:wrap;padding:18px 22px}
   .pv-head small{display:block;color:#c9d3c4;letter-spacing:.2em;font-weight:800;font-size:.62rem}.pv-head h2{margin:4px 0 2px;font-size:1.4rem;letter-spacing:.02em}.pv-head p{margin:0;color:#b6c2b0;font-size:.82rem;max-width:560px}
+  .pv-campos{display:grid;grid-template-columns:minmax(0,1fr) 120px;gap:10px;margin-top:12px}
+  .pv-campos .pv-campo{margin-top:0}.pv-campo.falta input{border-color:#b9824a}.pv-campo.falta span{color:#ffc86b}
   .pv-kpis{display:flex;gap:10px;flex-wrap:wrap}
   .pv-kpi{position:relative;overflow:hidden;min-width:108px;padding:10px 16px;border-radius:14px;text-align:center}
   .pv-kpi b{position:relative;display:block;font-size:1.5rem;line-height:1.1;font-variant-numeric:tabular-nums}.pv-kpi span{position:relative;font-size:.58rem;letter-spacing:.14em;font-weight:800;color:#c9d3c4}
@@ -189,7 +191,7 @@
   const habituales = () => { const c = cuentaProv(); return Object.keys(c).sort((a, b) => c[b] - c[a] || a.localeCompare(b)); };
   const visibles = () => {
     const q = plano(st.buscar);
-    return telas().filter(t => (!st.filtro || (st.filtro === '__sin' ? !t.proveedor : t.proveedor === st.filtro)) && (!q || plano(t.codigo + ' ' + t.nombre + ' ' + t.proveedor).includes(q)));
+    return telas().filter(t => (!st.filtro || (st.filtro === '__sin' ? !(t.proveedor && t.ancho) : t.proveedor === st.filtro)) && (!q || plano(t.codigo + ' ' + t.nombre + ' ' + t.proveedor).includes(q)));
   };
   const q1 = s => host.querySelector(s);
 
@@ -200,14 +202,14 @@
     (function paso(t) { const p = Math.min(1, (t - t0) / 450); el.textContent = Math.round(desde + (hasta - desde) * (1 - Math.pow(1 - p, 3))); if (p < 1) requestAnimationFrame(paso); })(t0);
   }
   function pintarKpis() {
-    const total = telas().length, sin = telas().filter(t => !t.proveedor).length, con = total - sin;
+    const total = telas().length, sin = telas().filter(t => !(t.proveedor && t.ancho)).length, con = total - sin;
     const f = (k, n) => { const c = q1('[data-kpi="' + k + '"]'); if (!c) return; contar(c.querySelector('b'), n); c.style.setProperty('--n', total ? Math.round(n / total * 100) + '%' : '0%'); };
     f('total', total); f('con', con); f('sin', sin);
   }
   function pintarChips() {
-    const c = cuentaProv(), total = telas().length, sin = telas().filter(t => !t.proveedor).length;
+    const c = cuentaProv(), total = telas().length, sin = telas().filter(t => !(t.proveedor && t.ancho)).length;
     const chip = (k, txt, n, extra) => `<button type="button" class="pv-fil${extra || ''}${st.filtro === k ? ' on' : ''}" data-pv-filtro="${esc(k)}">${esc(txt)}<em>${n}</em></button>`;
-    q1('.pv-chips').innerHTML = chip('', 'TODAS', total) + chip('__sin', 'SIN PROVEEDOR', sin, ' ambar') + habituales().map(n => chip(n, n, c[n])).join('');
+    q1('.pv-chips').innerHTML = chip('', 'TODAS', total) + chip('__sin', 'INCOMPLETAS', sin, ' ambar') + habituales().map(n => chip(n, n, c[n])).join('');
     q1('#pv-proveedores').innerHTML = habituales().map(n => `<option value="${esc(n)}">`).join('');
     q1('.pv-masa-chips').innerHTML = habituales().slice(0, 6).map(n => `<button type="button" class="pv-fil on" data-pv-masa-poner="${esc(n)}">ASIGNAR ${esc(n)}</button>`).join('');
     const ag = q1('[data-pv-agrupar]'), co = q1('[data-pv-compacto]'); if (ag) ag.classList.toggle('on', st.agrupar); if (co) co.classList.toggle('on', st.compacto);
@@ -221,13 +223,15 @@
     const pct = mts > 0 ? Math.min(100, Math.round(uso / mts * 100)) : 0, f0 = n => Number(n).toLocaleString('es-CO');
     const sugInv = t.prov_inventario && !/\s-\s/.test(t.prov_inventario) ? t.prov_inventario : '';   // lo que dice el inventario (si no son varios juntos)
     const rapidos = [...new Set([sugInv, ...sug].filter(n => n && n !== t.proveedor))].slice(0, 3);
-    const etapa = t.proveedor ? '<span class="pv-stage fin">CON PROVEEDOR</span>' : '<span class="pv-stage act">SIN PROVEEDOR</span>';
-    return `<div class="pv-card${t.proveedor ? '' : ' sin'}${st.reciente === t.codigo ? ' nueva' : ''}" data-cod="${esc(t.codigo)}">` +
+    const falta = !t.proveedor ? (t.ancho ? 'FALTA PROVEEDOR' : 'FALTAN PROVEEDOR Y ANCHO') : (!t.ancho ? 'FALTA ANCHO' : '');
+    const etapa = falta ? `<span class="pv-stage act">${falta}</span>` : '<span class="pv-stage fin">COMPLETA</span>';
+    return `<div class="pv-card${falta ? ' sin' : ''}${st.reciente === t.codigo ? ' nueva' : ''}" data-cod="${esc(t.codigo)}">` +
       `<div class="pv-th"><h3>${esc(t.nombre)}</h3>${etapa}</div><div class="pv-cod-line">Código ${esc(t.codigo)}</div>` +
       `<dl class="pv-dl"><div><dt>Rollos</dt><dd>${f0(rollos)}</dd></div><div><dt>MTS en bodega</dt><dd>${f0(mts)}</dd></div>` +
       `<div><dt>Pedidos</dt><dd>${f0(ped)}</dd></div><div><dt>MTS en pedidos</dt><dd>${f0(uso)}</dd></div></dl>` +
       (uso > 0 ? `<div class="pv-progress" title="MTS comprometidos en pedidos frente a lo que hay en bodega"><span style="width:${pct}%"></span></div><div class="pv-cap">${pct}% de la bodega está comprometida en pedidos</div>` : '') +
-      `<label class="pv-campo"><span>Proveedor</span><input type="text" list="pv-proveedores" data-pv-input value="${esc(t.proveedor || '')}" placeholder="Escribe el proveedor…" autocomplete="off"></label>` +
+      `<div class="pv-campos"><label class="pv-campo${t.proveedor ? '' : ' falta'}"><span>Proveedor *</span><input type="text" list="pv-proveedores" data-pv-input value="${esc(t.proveedor || '')}" placeholder="Escribe el proveedor…" autocomplete="off" required></label>` +
+      `<label class="pv-campo pv-ancho${t.ancho ? '' : ' falta'}"><span>Ancho (cm) *</span><input type="text" inputmode="decimal" data-pv-ancho value="${esc(t.ancho || '')}" placeholder="Ej. 150" autocomplete="off" required></label></div>` +
       `<div class="pv-est ${esc(e.c || '')}" data-pv-est>${esc(e.t || '')}</div></div>`;
   }
   const familia = n => (String(n || '').toUpperCase().replace(/\(.*?\)/g, ' ').trim().split(/\s+/)[0]) || 'OTRAS';
@@ -271,7 +275,7 @@
     if (!st.datos) { host.innerHTML = '<div class="pv-vacio">Cargando telas…</div>'; return; }
     if (!q1('#pv-cont')) {
       host.innerHTML = '<div class="pv-head pv-glass"><div><small>ESTÁNDAR 2026</small><h2>INFORMACIÓN TELA</h2><p>Una tarjeta por tela: elige su proveedor con un toque o escribe otro. Se guarda solo y el agente de inventario lo usa al crear la orden de compra.</p></div>' +
-        '<div class="pv-kpis"><div class="pv-kpi pv-glass" data-kpi="total"><b>0</b><span>TELAS</span></div><div class="pv-kpi pv-glass" data-kpi="con"><b>0</b><span>CON PROVEEDOR</span></div><div class="pv-kpi pv-glass sin" data-kpi="sin"><b>0</b><span>SIN PROVEEDOR</span></div></div></div>' +
+        '<div class="pv-kpis"><div class="pv-kpi pv-glass" data-kpi="total"><b>0</b><span>TELAS</span></div><div class="pv-kpi pv-glass" data-kpi="con"><b>0</b><span>COMPLETAS</span></div><div class="pv-kpi pv-glass sin" data-kpi="sin"><b>0</b><span>INCOMPLETAS</span></div></div></div>' +
         '<div class="pv-bar pv-glass"><input type="search" data-pv-buscar placeholder="Buscar código, tela o proveedor" value="' + esc(st.buscar) + '"><div class="pv-herr"><button type="button" class="pv-fil" data-pv-agrupar>AGRUPAR POR TELA</button><button type="button" class="pv-fil" data-pv-compacto>VISTA COMPACTA</button><button type="button" class="pv-fil ambar" data-pv-inv>TRAER LOS PROVEEDORES DEL INVENTARIO</button><button type="button" class="pv-fil" data-pv-pegar>PEGAR LISTA DE PROVEEDORES</button></div></div>' +
         '<div class="pv-lista pv-glass"><h3>Pegar lista de proveedores</h3><p>Una línea por tela o familia, con dos puntos: <b>MONTECATINI: LINDATEXTIL</b> o <b>100: LINDATEXTIL</b>. Puedes pegarla desde Excel (dos columnas).</p><textarea data-pv-texto placeholder="MONTECATINI: LINDATEXTIL&#10;DIAMANTE: OTRO PROVEEDOR&#10;700: OTRO"></textarea><div class="pv-lista-res" data-pv-res></div><div class="pv-herr"><button type="button" class="pv-fil" data-pv-lista-ver>VER LOS CAMBIOS</button><button type="button" class="pv-fil on" data-pv-lista-ok disabled>APLICAR</button></div></div>' +
         '<div class="pv-chips"></div>' +
@@ -306,6 +310,20 @@
       t.proveedor = prov; st.edit.delete(cod); st.reciente = cod;
       st.estado[cod] = { c: 'ok', t: prov ? '✓ Guardado' : '✓ Proveedor quitado' };
       cambiarTarjeta(cod); pintarKpis(); pintarChips(); if (st.agrupar) refrescarCabeceras();
+      setTimeout(() => { if ((st.estado[cod] || {}).c === 'ok') { delete st.estado[cod]; const e = host.querySelector('.pv-card[data-cod="' + CSS.escape(cod) + '"] [data-pv-est]'); if (e) { e.className = 'pv-est'; e.textContent = ''; } } }, 2200);
+      return true;
+    } catch (e) { estado(cod, 'err', e.message); return false; }
+  }
+  async function guardarAncho(cod, ancho) {
+    ancho = String(ancho || '').trim().replace(',', '.');
+    const t = telas().find(x => x.codigo === cod);
+    if (!t || (t.ancho || '') === ancho.replace(/\.0+$/, '')) return true;
+    estado(cod, 'guardando', 'Guardando…');
+    try {
+      await api('/api/proveedores-tela', { method: 'PUT', body: JSON.stringify({ codigo: cod, ancho }) });
+      t.ancho = ancho ? String(Number(ancho)) : ''; st.reciente = cod;
+      st.estado[cod] = { c: 'ok', t: ancho ? '✓ Ancho guardado' : '✓ Ancho quitado' };
+      cambiarTarjeta(cod); pintarKpis(); pintarChips();
       setTimeout(() => { if ((st.estado[cod] || {}).c === 'ok') { delete st.estado[cod]; const e = host.querySelector('.pv-card[data-cod="' + CSS.escape(cod) + '"] [data-pv-est]'); if (e) { e.className = 'pv-est'; e.textContent = ''; } } }, 2200);
       return true;
     } catch (e) { estado(cod, 'err', e.message); return false; }
@@ -392,10 +410,11 @@
       host.addEventListener('change', e => {
         const c = cod(e);
         if (e.target.matches('[data-pv-sel]') && c) { e.target.checked ? st.sel.add(c) : st.sel.delete(c); e.target.closest('.pv-card').classList.toggle('sel', e.target.checked); pintarMasa(); return; }
+        if (e.target.matches('[data-pv-ancho]') && c) guardarAncho(c, e.target.value);
         if (e.target.matches('[data-pv-input]') && c) guardar(c, e.target.value);   // vacío = quitar el proveedor;   // al elegir de la lista o salir de la casilla
       });
       host.addEventListener('input', e => { if (e.target.matches('[data-pv-buscar]')) { st.buscar = e.target.value; pintarGrid(); } });
-      host.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('[data-pv-fam-input]')) { e.preventDefault(); const b = e.target.parentElement.querySelector('[data-pv-fam-aplicar]'); if (b) aplicarFamilia(e.target.dataset.pvFamInput, b); return; } if (e.key === 'Enter' && e.target.matches('[data-pv-input]')) { e.preventDefault(); const c = cod(e); if (c) guardar(c, e.target.value); } });
+      host.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('[data-pv-fam-input]')) { e.preventDefault(); const b = e.target.parentElement.querySelector('[data-pv-fam-aplicar]'); if (b) aplicarFamilia(e.target.dataset.pvFamInput, b); return; } if (e.key === 'Enter' && e.target.matches('[data-pv-ancho]')) { e.preventDefault(); const c = cod(e); if (c) guardarAncho(c, e.target.value); } if (e.key === 'Enter' && e.target.matches('[data-pv-input]')) { e.preventDefault(); const c = cod(e); if (c) guardar(c, e.target.value); } });
     }
     if (!st.datos) { pintar(); cargar(); }
     else if (!host.firstElementChild) pintar();
