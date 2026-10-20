@@ -101,24 +101,21 @@
     '.pf .at-foot{padding:16px 26px 24px}.pf .at-btn{min-height:50px;font-size:13.5px}',
     '@media(max-width:560px){.pf .at-head{padding:16px 18px 12px}.pf .at-head:after{left:18px;right:18px}.pf-logo{height:30px}.pf .at-head h3{font-size:22px}.pf .at-head p{font-size:14.5px;line-height:1.42}.pf-logo{height:26px;margin-bottom:8px}.pf .at-head h3{font-size:20px;margin:4px 0 7px}.pf .at-list{padding:10px 18px 4px}.pf .at-row.at-prod{padding:12px 14px 14px}.pf .at-chip{margin-bottom:8px;font-size:11px}.pf .at-datos{gap:9px 14px}.pf .at-datos dt{font-size:11px}.pf .at-datos dd{font-size:15.5px}.pf .at-datos .cli dd{font-size:17.5px}.pf .at-datos .mts dd{font-size:26px}.pf .at-foot{padding:10px 18px 16px}.pf .at-btn{min-height:44px}}',
     '@media(prefers-reduced-motion:reduce){.at-card.pf,.pf .at-head:after,.pf-logo,.pf .at-head h3 i,.pf .at-chip{animation:none!important}.pf .at-row.at-prod{opacity:1!important;transform:none!important;animation:none!important}}',
-    /* tipografía deportiva: Barlow Condensed (cursiva, como el logo) en títulos, etiquetas y cifras; Barlow en el texto */
-    '.at-card.pf{font-family:Barlow,"Segoe UI",Arial,sans-serif}',
-    '.at-card.pf .at-head small,.at-card.pf .at-head h3,.at-card.pf .at-head h3 i,.at-card.pf .at-chip,.at-card.pf .at-datos dt,.at-card.pf .at-datos .cli dd,.at-card.pf .at-datos .mts dd,.at-card.pf .at-btn{font-family:"Barlow Condensed",Barlow,"Segoe UI",Arial,sans-serif;font-style:italic}',
-    '.at-card.pf .at-head small{font-weight:700;font-size:15px;letter-spacing:.2em}',
-    '.at-card.pf .at-head h3{font-weight:800;font-size:50px;line-height:1;text-transform:uppercase;letter-spacing:.01em;margin:6px 0 4px}',
-    '.at-card.pf .at-head h3 i{font-weight:800;font-size:19px;font-style:normal}',
-    '.at-card.pf .at-head p{font-family:"Barlow Condensed",Barlow,"Segoe UI",Arial,sans-serif;font-style:italic;font-weight:800;font-size:34px;line-height:1.05;text-transform:uppercase;color:#e4ff6b;text-shadow:0 0 18px rgba(208,244,76,.5);margin:0 0 6px}',
-    '.at-card.pf .at-chip{font-weight:800;font-size:15px;letter-spacing:.1em}',
-    '.at-card.pf .at-datos dt{font-weight:700;font-size:15px;letter-spacing:.14em}',
-    '.at-card.pf .at-datos dd{font-family:Barlow,"Segoe UI",Arial,sans-serif;font-weight:700;font-size:22px}',
-    '.at-card.pf .at-datos .cli dd{font-weight:800;font-size:30px;line-height:1.1;text-transform:uppercase}',
-    '.at-card.pf .at-datos .mts dd{font-weight:800;font-size:50px;line-height:1}.at-card.pf .at-datos .mts dd small{font-size:20px;font-style:italic}',
-    '.at-card.pf .at-btn{font-weight:800;font-size:17px;letter-spacing:.08em}',
-    '@media(max-width:560px){.at-card.pf .at-head h3{font-size:36px}.at-card.pf .at-head small{font-size:13px}.at-card.pf .at-head p{font-size:25px}.at-card.pf .at-datos dd{font-size:18px}.at-card.pf .at-datos .cli dd{font-size:24px}.at-card.pf .at-datos .mts dd{font-size:40px}.at-card.pf .at-datos dt{font-size:13px}.at-card.pf .at-chip{font-size:13px}.at-card.pf .at-btn{font-size:15.5px}}',
+    /* tipografía corporativa: Inter (sobria, sin cursiva) y tamaños contenidos */
+    '.at-card.pf,.at-card.pf .at-head small,.at-card.pf .at-head h3,.at-card.pf .at-head h3 i,.at-card.pf .at-head p,.at-card.pf .at-chip,.at-card.pf .at-datos dt,.at-card.pf .at-datos dd,.at-card.pf .at-datos .cli dd,.at-card.pf .at-datos .mts dd,.at-card.pf .at-btn{font-family:Inter,"Segoe UI",Arial,sans-serif;font-style:normal}',
+    '.at-card.pf .at-head h3{font-weight:800;font-size:28px;line-height:1.1;letter-spacing:-.01em;text-transform:uppercase;margin:6px 0 4px}',
+    '.at-card.pf .at-head p{font-weight:700;font-size:17px;line-height:1.3;letter-spacing:.01em;text-transform:uppercase;color:#e4ff6b;text-shadow:none;margin:0 0 4px}',
+    '.at-card.pf .at-chip{font-weight:700;font-size:11px;letter-spacing:.08em}',
+    '.at-card.pf .at-datos dt{font-weight:700;font-size:11px;letter-spacing:.12em}',
+    '.at-card.pf .at-datos dd{font-weight:600;font-size:16px;line-height:1.3}',
+    '.at-card.pf .at-datos .cli dd{font-weight:700;font-size:19px;line-height:1.2;text-transform:uppercase}',
+    '.at-card.pf .at-datos .mts dd{font-weight:800;font-size:30px;line-height:1.05;letter-spacing:-.01em}.at-card.pf .at-datos .mts dd small{font-size:13px;font-style:normal}',
+    '.at-card.pf .at-btn{font-weight:700;font-size:12.5px;letter-spacing:.06em}',
+    '@media(max-width:560px){.at-card.pf .at-head h3{font-size:23px}.at-card.pf .at-head p{font-size:14.5px}.at-card.pf .at-datos dd{font-size:15px}.at-card.pf .at-datos .cli dd{font-size:17px}.at-card.pf .at-datos .mts dd{font-size:26px}.at-card.pf .at-datos dt{font-size:10.5px}.at-card.pf .at-chip{font-size:10.5px}.at-card.pf .at-btn{font-size:12px}}'
   ].join('');
   var st2=document.createElement('style');st2.textContent=css2;document.head.appendChild(st2);
   // la fuente se pide una sola vez (si no llega, se usa Arial y todo sigue igual)
-  function cargarFuente(){if(document.getElementById('at-fuente'))return;var l=document.createElement('link');l.id='at-fuente';l.rel='stylesheet';l.href='https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700;800&family=Barlow+Condensed:ital,wght@1,600;1,700;1,800&display=swap';document.head.appendChild(l)}
+  function cargarFuente(){if(document.getElementById('at-fuente'))return;var l=document.createElement('link');l.id='at-fuente';l.rel='stylesheet';l.href='https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800&display=swap';document.head.appendChild(l)}
 
   var RM=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   function dec2(n){return (Number(n)||0).toLocaleString('es-CO',{maximumFractionDigits:2})}
