@@ -357,12 +357,13 @@ def mi_acceso(request: Request):
 
 
 @router.get('/estado')
-def estado():
+def estado(ocultas: int = 0):
     with _lock:
         d = _leer()
         _vencer(d)
         from app import alertas_correo
-        return {'agente': _agente(d), 'items': [_enriquecer(i) for i in d['items'][-60:][::-1]],
+        visibles = [i for i in d['items'] if bool(i.get('oculta')) == bool(ocultas)]
+        return {'agente': _agente(d), 'items': [_enriquecer(i) for i in visibles[-60:][::-1]], 'ocultas': sum(1 for i in d['items'] if i.get('oculta')),
                 'resumen': {e: sum(1 for i in d['items'] if i['estado'] == e) for e in ('pendiente', 'entregada', 'creada', 'error', 'cancelada', 'anulada')},
                 'correo': {'google': __import__('app.google_correo', fromlist=['x']).estado(), 'configurado': alertas_correo.puede_enviar(), 'cuenta': alertas_correo.cuenta()[0], 'encargado': bool(any(c.get('estado') == 'verificado' for c in d['config']['correos']) or os.getenv('ZEUS_EMAIL_A') or os.getenv('ALERTA_EMAIL_A'))},
                 'correos': _correos_vista(d), 'notificar': d['config']['notificar'], 'usuarios': _usuarios()}
@@ -414,6 +415,24 @@ def ver_config():
     with _lock:
         d = _leer()
         return {'correos': _correos_vista(d), 'notificar': d['config']['notificar'], 'usuarios': _usuarios()}
+
+
+@router.post('/ocultar')
+def ocultar_ordenes(request: Request, payload: dict):
+    """Quita de la lista las órdenes que ya no se quieren ver (anuladas, canceladas o con error). NO borra nada: queda en el historial y se pueden volver a mostrar.
+    Las órdenes vigentes (creadas, en cola) no se pueden quitar."""
+    usuario = _usuario(request)
+    ids = {int(x) for x in (payload.get('ids') or [])[:200]}
+    oculta = bool(payload.get('oculta', True))
+    n = 0
+    with _lock:
+        d = _leer()
+        for i in d['items']:
+            if i['id'] in ids and (not oculta or i.get('estado') in ('anulada', 'cancelada', 'error')):
+                i['oculta'], i['oculta_por'] = oculta, usuario
+                n += 1
+        _guardar(d)
+    return {'ok': True, 'cambiadas': n}
 
 
 @router.post('/anular')

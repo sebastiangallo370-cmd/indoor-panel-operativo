@@ -7,7 +7,7 @@
   const cuando = () => new Date().toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
   const ESTADO = { SIN_CONECTAR: ['Sin conectar', 'bad'], ESPERANDO_EFFI: ['Esperando acceso a Effi', 'warn'], LIBRE: ['Libre', 'ok'], TRABAJANDO: ['Creando orden de compra…', 'ok'], ERROR: ['Con error', 'bad'] };
   const COMPRA = { pendiente: ['Por comprar', 'warn'], entregada: ['Creándola en Effi…', 'warn'], creada: ['Orden creada', 'ok'], error: ['Con error', 'bad'], cancelada: ['Ya alcanza', ''], anulada: ['Anulada', ''] };
-  let apiEstado = null, apiMsg = '', apiRetenciones = null, pintadoUna = false, vista = 'ordenes', filtroOrd = 'todas', datosZ = null, firmaZ = '', animarVista = false, kpiPrev = {}, tickZ = 0, baseHace = null, baseAt = 0;
+  let verOcultas = false, apiEstado = null, apiMsg = '', apiRetenciones = null, pintadoUna = false, vista = 'ordenes', filtroOrd = 'todas', datosZ = null, firmaZ = '', animarVista = false, kpiPrev = {}, tickZ = 0, baseHace = null, baseAt = 0;
   let panel = null, tab = null, cuerpo = null, timer = null, correos = [], cuentaEnvia = '', notificar = [], usuariosPanel = [], notAbierto = false, notBuscar = '';
 
   const card = ({ badge, badgeClass = '', name, total, unit = '', extra = '', cls = '' }) =>
@@ -78,6 +78,20 @@
       '<button type="button" class="zeus-envio-btn" data-zeus-prov="' + i.id + '" data-oc="' + esc(i.oc) + '">✉ Enviar al proveedor</button></div>';
   }
 
+  const OCULTABLES = ['anulada', 'cancelada', 'error'];
+  function barraQuitar(items, nOcultas) {
+    const quitables = items.filter(i => !i.oculta && OCULTABLES.includes(i.estado));
+    if (!quitables.length && !nOcultas && !verOcultas) return '';
+    return '<div class="zeus-barra">' +
+      (!verOcultas && quitables.length ? '<button type="button" class="zeus-quitar" data-zeus-ocultar-todas="1">Quitar de la lista las anuladas, canceladas y con error (' + quitables.length + ')</button>' : '') +
+      (nOcultas || verOcultas ? '<button type="button" class="zeus-quitar suave" data-zeus-ver-ocultas="1">' + (verOcultas ? '← Volver a las órdenes' : 'Ver ocultas (' + nOcultas + ')') + '</button>' : '') + '</div>';
+  }
+  // «Quitar de la lista»: oculta la orden que ya no se quiere ver (no borra el historial; se puede volver a mostrar)
+  function quitarHtml(i) {
+    if (i.oculta) return '<button type="button" class="zeus-quitar" data-zeus-ocultar="' + i.id + '" data-mostrar="1">Volver a mostrar</button>';
+    return OCULTABLES.includes(i.estado) ? '<button type="button" class="zeus-quitar" data-zeus-ocultar="' + i.id + '">Quitar de la lista</button>' : '';
+  }
+
   function envioHtml(i) {
     if (i.estado === 'anulada') {
       const pdf = i.pdf ? '<a class="zeus-pdf" href="/api/zeus/pdf/' + i.id + '" target="_blank" rel="noopener">📄 Ver PDF de la orden</a>' : '';
@@ -119,7 +133,7 @@
       '<div class="zo-mts"><b data-n="' + Number(i.falta || 0) + '">' + num(i.falta) + '</b><small>MTS</small></div></header>' +
       (i.estado === 'error' || i.estado === 'cancelada' ? '<div class="zo-err">' + esc(corto(i.detalle)) + '</div>' : '') +
       pasos + (datos ? '<div class="zo-datos">' + datos + '</div>' : '') +
-      (peds ? '<div class="zo-peds-t">Pedidos que la necesitan</div><ul class="zo-peds">' + peds + '</ul>' : '') + envioHtml(i) + '</article>';
+      (peds ? '<div class="zo-peds-t">Pedidos que la necesitan</div><ul class="zo-peds">' + peds + '</ul>' : '') + envioHtml(i) + quitarHtml(i) + '</article>';
   }
   function haceTxt(seg) {
     if (seg == null) return 'sin señal';
@@ -193,7 +207,7 @@
     if (vista === 'correos') contenido = correosHtml();
     else if (vista === 'notificar') contenido = notificarHtml();
     else if (vista === 'api') contenido = apiHtml();
-    else contenido = '<section class="bd-section">' + (items.length ? '<div class="zo-lista">' + (visibles.length ? visibles.map(ordenHtml).join('') : '<p class="bd-note">Sin órdenes aquí.</p>') + '</div>' : '<p class="bd-note">Nada por comprar.</p>') + '</section>';
+    else contenido = '<section class="bd-section">' + barraQuitar(items, d.ocultas || 0) + (items.length ? '<div class="zo-lista">' + (visibles.length ? visibles.map(ordenHtml).join('') : '<p class="bd-note">Sin órdenes aquí.</p>') + '</div>' : '<p class="bd-note">Nada por comprar.</p>') + '</section>';
     const quieto = pintadoUna && !animarVista, alto = cuerpo.offsetHeight, scrollY0 = window.scrollY;
     cuerpo.classList.toggle('zeus-quieto', quieto);
     if (alto) cuerpo.style.minHeight = alto + 'px';
@@ -212,11 +226,11 @@
   async function cargar(silencioso) {
     if (silencioso === true && panel && panel.contains(document.activeElement) && document.activeElement.matches('input')) return;   // no se pisa lo que se está escribiendo
     try {
-      const r = await fetch('/api/zeus/estado', { cache: 'no-store', credentials: 'same-origin' });
+      const r = await fetch('/api/zeus/estado' + (verOcultas ? '?ocultas=1' : ''), { cache: 'no-store', credentials: 'same-origin' });
       const d = await r.json();
       if (!r.ok) throw Error(d.detail || 'No fue posible consultar al agente de inventario');
       panel.querySelector('.bd-updated').textContent = '';
-      const firma = JSON.stringify([d.items, d.resumen, d.correos, d.notificar, (d.agente || {}).estado, (d.agente || {}).conectado, (d.agente || {}).ultima]);
+      const firma = JSON.stringify([verOcultas, d.ocultas, d.items, d.resumen, d.correos, d.notificar, (d.agente || {}).estado, (d.agente || {}).conectado, (d.agente || {}).ultima]);
       if (silencioso === true && firma === firmaZ) { datosZ = d; baseHace = (d.agente || {}).hace; baseAt = Date.now(); return; }   // nada cambió: no se redibuja
       firmaZ = firma;
       pintar(d);
@@ -308,6 +322,8 @@
   const estilo = document.createElement('style');
   estilo.textContent = `
 .zeus-correos{display:flex;flex-wrap:wrap;gap:8px}
+.zeus-barra{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 14px}
+.zeus-quitar{margin-top:8px;padding:9px 14px;border:1px solid rgba(255,155,143,.55);border-radius:12px;background:rgba(255,155,143,.08);color:#ffb6af;font:800 .78rem Arial;cursor:pointer}.zeus-quitar:hover{background:rgba(255,155,143,.18)}.zeus-quitar.suave{border-color:rgba(255,255,255,.25);background:rgba(255,255,255,.06);color:#d9e3d2}.zeus-barra .zeus-quitar{margin-top:0}
 .zeus-cuenta{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:14px 0 4px;font:600 .82rem Arial;color:#cfd8c9}.zeus-cuenta b{color:#e4ff6b;overflow-wrap:anywhere}
 .zeus-chip{display:inline-flex;align-items:center;gap:10px;padding:6px 8px 6px 12px;border:1px solid #46563f;border-radius:16px;background:#151d15;color:#dfe8d9;font:700 .8rem Arial;max-width:100%}
 .zeus-chip>span{overflow-wrap:anywhere}
@@ -509,6 +525,22 @@
       if (notAbierto && panel && !e.target.closest('.zeus-sel') && !e.target.closest('[data-zeus-quitar-user]')) { notAbierto = false; notBuscar = ''; repintarNotificar(''); }
     });
     panel.addEventListener('click', async e => {
+      const oc1 = e.target.closest('[data-zeus-ocultar]');
+      if (oc1) {
+        oc1.disabled = true;
+        try { await llamar('/api/zeus/ocultar', 'POST', { ids: [Number(oc1.dataset.zeusOcultar)], oculta: !oc1.dataset.mostrar }); } catch (err) { alert(err.message); }
+        cargar(false); return;
+      }
+      const ocT = e.target.closest('[data-zeus-ocultar-todas]');
+      if (ocT) {
+        const ids = ((datosZ || {}).items || []).filter(i => !i.oculta && OCULTABLES.includes(i.estado)).map(i => i.id);
+        if (!ids.length || !confirm('Se quitarán de la lista ' + ids.length + ' órdenes (anuladas, canceladas y con error).\nNo se borra nada: puedes volver a verlas en «Ver ocultas».')) return;
+        ocT.disabled = true;
+        try { await llamar('/api/zeus/ocultar', 'POST', { ids, oculta: true }); } catch (err) { alert(err.message); }
+        cargar(false); return;
+      }
+      const ocV = e.target.closest('[data-zeus-ver-ocultas]');
+      if (ocV) { verOcultas = !verOcultas; cargar(false); return; }
       const mod = e.target.closest('[data-zeus-modificar]');
       if (mod) { abrirModificar(mod); return; }
       const an = e.target.closest('[data-zeus-anular]');
