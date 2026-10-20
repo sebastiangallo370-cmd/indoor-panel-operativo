@@ -30,6 +30,13 @@ class AnchoTelaTest(unittest.TestCase):
         pt.guardar({'codigo': '100', 'proveedor': ''}, None)
         self.assertEqual(pt.telas()[0]['ancho'], '150.5')
 
+    def test_id_effi_opcional_y_numerico(self):
+        pt.guardar({'codigo': '100', 'id_effi': '4821'}, None)
+        t = pt.telas()[0]
+        self.assertEqual((t['id_effi'], t['faltan']), ('4821', ['proveedor', 'ancho']))   # no cuenta como dato obligatorio
+        with self.assertRaises(HTTPException):
+            pt.guardar({'codigo': '100', 'id_effi': 'abc'}, None)
+
     def test_ancho_no_valido(self):
         with self.assertRaises(HTTPException):
             pt.guardar({'codigo': '100', 'ancho': 'abc'}, None)

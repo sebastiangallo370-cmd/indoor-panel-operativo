@@ -185,6 +185,7 @@
   /* TARJETA DE TELA (rediseño): código grande, 4 datos obligatorios, existencias y los dos campos a llenar */
   .pv-card.pv-t,.pv-ftelas .pv-card.pv-t{gap:14px;padding:16px;border-radius:18px;background:#16231b!important;border:1px solid #33463a!important;border-left:5px solid #8bdbaf!important;border-top:1px solid #33463a!important}
   .pv-card.pv-t.sin{border-left-color:#f3b852!important}
+  .pv-ide em{font-style:normal;font-weight:400;color:#8fa596;text-transform:none;letter-spacing:0}
   .pt-head{display:flex;flex-wrap:wrap;align-items:flex-start;gap:8px 12px}
   .pv-card.pv-t .pv-campos{grid-template-columns:repeat(auto-fit,minmax(130px,1fr))}.pv-card.pv-t .pv-campos .pv-ancho{grid-column:auto}
   .pt-cod{flex:0 0 auto;min-width:56px;text-align:center;font:800 20px/1 Arial;letter-spacing:.02em;color:#d0ec93;background:#0e1812;border:1px solid #3f5a46;border-radius:10px;padding:10px 10px}
@@ -248,7 +249,8 @@
       `<div class="pt-stock"><div class="pt-big"><b>${f0(mts)}</b><span>MTS EN BODEGA</span></div><div class="pt-mini"><span><b>${f0(rollos)}</b> rollos</span><span><b>${f0(ped)}</b> pedidos</span><span><b>${f0(uso)}</b> MTS en pedidos</span></div>` +
       (uso > 0 ? `<div class="pv-progress" title="${pct}% de la bodega está comprometida en pedidos"><span style="width:${pct}%"></span></div>` : '') + '</div>' +
       `<div class="pv-campos"><label class="pv-campo${t.proveedor ? '' : ' falta'}"><span>Proveedor *</span><input type="text" list="pv-proveedores" data-pv-input value="${esc(t.proveedor || '')}" placeholder="Escribe el proveedor…" autocomplete="off" required></label>` +
-      `<label class="pv-campo pv-ancho${t.ancho ? '' : ' falta'}"><span>Ancho (cm) *</span><input type="text" inputmode="decimal" data-pv-ancho value="${esc(t.ancho || '')}" placeholder="Ej. 150" autocomplete="off" required></label></div>` +
+      `<label class="pv-campo pv-ancho${t.ancho ? '' : ' falta'}"><span>Ancho (cm) *</span><input type="text" inputmode="decimal" data-pv-ancho value="${esc(t.ancho || '')}" placeholder="Ej. 150" autocomplete="off" required></label>` +
+      `<label class="pv-campo pv-ide"><span>ID Effi <em>(opcional)</em></span><input type="text" inputmode="numeric" data-pv-ide value="${esc(t.id_effi || '')}" placeholder="Ej. 4821" autocomplete="off"></label></div>` +
       `<div class="pv-est ${esc(e.c || '')}" data-pv-est>${esc(e.t || '')}</div></div>`;
   }
   const familia = n => (String(n || '').toUpperCase().replace(/\(.*?\)/g, ' ').trim().split(/\s+/)[0]) || 'OTRAS';
@@ -331,15 +333,17 @@
       return true;
     } catch (e) { estado(cod, 'err', e.message); return false; }
   }
-  async function guardarAncho(cod, ancho) {
-    ancho = String(ancho || '').trim().replace(',', '.');
+  const guardarAncho = (cod, v) => guardarCampo(cod, 'ancho', v);
+  async function guardarCampo(cod, campo, valor) {
+    const nom = campo === 'ancho' ? 'Ancho' : 'ID Effi';
+    let ancho = String(valor || '').trim(); if (campo === 'ancho') ancho = ancho.replace(',', '.');
     const t = telas().find(x => x.codigo === cod);
-    if (!t || (t.ancho || '') === ancho.replace(/\.0+$/, '')) return true;
+    if (!t || (t[campo] || '') === ancho.replace(campo === 'ancho' ? /\.0+$/ : /$^/, '')) return true;
     estado(cod, 'guardando', 'Guardando…');
     try {
-      await api('/api/proveedores-tela', { method: 'PUT', body: JSON.stringify({ codigo: cod, ancho }) });
-      t.ancho = ancho ? String(Number(ancho)) : ''; st.reciente = cod;
-      st.estado[cod] = { c: 'ok', t: ancho ? '✓ Ancho guardado' : '✓ Ancho quitado' };
+      await api('/api/proveedores-tela', { method: 'PUT', body: JSON.stringify({ codigo: cod, [campo]: ancho }) });
+      t[campo] = ancho && campo === 'ancho' ? String(Number(ancho)) : ancho; st.reciente = cod;
+      st.estado[cod] = { c: 'ok', t: ancho ? '✓ ' + nom + ' guardado' : '✓ ' + nom + ' quitado' };
       cambiarTarjeta(cod); pintarKpis(); pintarChips();
       setTimeout(() => { if ((st.estado[cod] || {}).c === 'ok') { delete st.estado[cod]; const e = host.querySelector('.pv-card[data-cod="' + CSS.escape(cod) + '"] [data-pv-est]'); if (e) { e.className = 'pv-est'; e.textContent = ''; } } }, 2200);
       return true;
@@ -428,10 +432,11 @@
         const c = cod(e);
         if (e.target.matches('[data-pv-sel]') && c) { e.target.checked ? st.sel.add(c) : st.sel.delete(c); e.target.closest('.pv-card').classList.toggle('sel', e.target.checked); pintarMasa(); return; }
         if (e.target.matches('[data-pv-ancho]') && c) guardarAncho(c, e.target.value);
+        if (e.target.matches('[data-pv-ide]') && c) guardarCampo(c, 'id_effi', e.target.value);
         if (e.target.matches('[data-pv-input]') && c) guardar(c, e.target.value);   // vacío = quitar el proveedor;   // al elegir de la lista o salir de la casilla
       });
       host.addEventListener('input', e => { if (e.target.matches('[data-pv-buscar]')) { st.buscar = e.target.value; pintarGrid(); } });
-      host.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('[data-pv-fam-input]')) { e.preventDefault(); const b = e.target.parentElement.querySelector('[data-pv-fam-aplicar]'); if (b) aplicarFamilia(e.target.dataset.pvFamInput, b); return; } if (e.key === 'Enter' && e.target.matches('[data-pv-ancho]')) { e.preventDefault(); const c = cod(e); if (c) guardarAncho(c, e.target.value); } if (e.key === 'Enter' && e.target.matches('[data-pv-input]')) { e.preventDefault(); const c = cod(e); if (c) guardar(c, e.target.value); } });
+      host.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('[data-pv-fam-input]')) { e.preventDefault(); const b = e.target.parentElement.querySelector('[data-pv-fam-aplicar]'); if (b) aplicarFamilia(e.target.dataset.pvFamInput, b); return; } if (e.key === 'Enter' && e.target.matches('[data-pv-ide]')) { e.preventDefault(); const c = cod(e); if (c) guardarCampo(c, 'id_effi', e.target.value); } if (e.key === 'Enter' && e.target.matches('[data-pv-ancho]')) { e.preventDefault(); const c = cod(e); if (c) guardarAncho(c, e.target.value); } if (e.key === 'Enter' && e.target.matches('[data-pv-input]')) { e.preventDefault(); const c = cod(e); if (c) guardar(c, e.target.value); } });
     }
     if (!st.datos) { pintar(); cargar(); }
     else if (!host.firstElementChild) pintar();

@@ -83,7 +83,7 @@ def telas() -> list[dict]:
             t['prov_inventario'] = _prov_inventario(i.get('proveedor'))
     for c, t in por_codigo.items():
         g = guardado.get(c) or {}
-        t.update(proveedor=g.get('proveedor', ''), nit=g.get('nit', ''), ancho=g.get('ancho', ''))
+        t.update(proveedor=g.get('proveedor', ''), nit=g.get('nit', ''), ancho=g.get('ancho', ''), id_effi=g.get('id_effi', ''))
         t['faltan'] = [n for n, v in (('proveedor', t['proveedor']), ('ancho', t['ancho'])) if not v]   # los 4 datos obligatorios: nombre y código siempre vienen del inventario
     return sorted(por_codigo.values(), key=lambda t: (int(t['codigo']), t['nombre']))
 
@@ -116,7 +116,12 @@ def guardar(payload: dict, request: Request):
                     raise HTTPException(400, 'El ancho debe estar entre 10 y 400 cm')
                 texto = f'{valor:g}'
             g['ancho'] = texto
-        if g.get('proveedor') or g.get('ancho'):
+        if 'id_effi' in payload:   # opcional: el id del artículo en Effi, se va llenando de a poco
+            ide = str(payload.get('id_effi') or '').strip()
+            if ide and not re.fullmatch(r'\d{1,12}', ide):
+                raise HTTPException(400, 'El ID de Effi son solo números')
+            g['id_effi'] = ide
+        if g.get('proveedor') or g.get('ancho') or g.get('id_effi'):
             g['actualizado'] = time.strftime('%Y-%m-%d %H:%M:%S')
             d[codigo] = g
         else:
