@@ -146,6 +146,35 @@
   .pv-aviso{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:.7rem;color:#bcd3ff}.pv-aviso b{color:#dbe8ff}
   .pv-mini.inv{border-color:rgba(120,170,255,.65);color:#c9dcff}
   .pv-card .pv-prov{margin-top:0;padding-top:7px;border-top:1px solid rgba(255,255,255,.1)}
+  /* ---- MISMO ESTILO QUE LAS TARJETAS DE PRODUCCIÓN: fondo plano verde oscuro, borde superior de estado, etiqueta rectangular, datos en lista y botones de acción ---- */
+  .pv-glass{background:#18251d!important;border:1px solid #3a4a40!important;box-shadow:none!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+  .pv-fcard{background:#121d17!important;border-color:#35473b!important;border-radius:22px}
+  .pv-fcard .pv-fam{background:transparent!important;border:0!important;border-bottom:1px solid #35473b!important}
+  .pv-kpi::before{display:none}.pv-kpi{background:#1d2b23!important}
+  .pv-fil{border-radius:8px;background:#1d2b23;border-color:#4a5b4e;color:#e0eddf}.pv-fil.on{background:#d0ec93;color:#1c2b13;border-color:#d0ec93}.pv-fil.ambar.on{background:#f3b852;border-color:#f3b852;color:#332306}
+  .pv-fam-est span{border-radius:6px;background:#8bdbaf;color:#103423;font-weight:700}.pv-fam-est span.sin{background:#f3b852;color:#332306}
+  .pv-fam-asig .pv-mini{border-radius:8px;background:#d0ec93;border-color:#d0ec93;color:#1c2b13}
+  .pv-card,.pv-ftelas .pv-card{display:flex;flex-direction:column;gap:12px;padding:18px;border-radius:16px;background:#18251d!important;border:1px solid #3a4a40!important;border-top:3px solid #8bdbaf!important;box-shadow:none!important;font-family:Arial,sans-serif}
+  .pv-card.sin,.pv-ftelas .pv-card.sin{border-top-color:#f3b852!important}
+  .pv-card::before,.pv-ftelas .pv-card::before{display:none!important}
+  .pv-card:hover,.pv-ftelas .pv-card:hover{transform:none;box-shadow:none!important;border-color:#4a5b4e!important}
+  .pv-th{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}
+  .pv-th h3{margin:0;font:700 19px/1.2 Arial;letter-spacing:-.4px;flex:1 1 150px;min-width:0;overflow-wrap:anywhere;color:#f3f8ee}
+  .pv-stage{display:inline-block;font:600 12px/1.4 Arial;border-radius:6px;padding:5px 9px;border:1px solid transparent;white-space:nowrap}
+  .pv-stage.fin{background:#8bdbaf;color:#103423;border-color:#8bdbaf}.pv-stage.act{background:#f3b852;color:#332306;border-color:#f3b852}
+  .pv-cod-line{font:13px/1.4 Arial;color:#a4b7aa;margin-top:-6px}
+  .pv-dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(86px,1fr));gap:12px 14px;margin:0}
+  .pv-acciones>*{min-width:0}.pv-card{min-width:0;overflow:hidden}
+  .pv-dl>div{min-width:0}.pv-dl dt{font:12px/1.5 Arial;color:#a6b7ab;margin:0 0 3px}.pv-dl dd{margin:0;font:500 14px/1.4 Arial;color:#eef5ed;overflow-wrap:anywhere}
+  .pv-dl .pv-full{grid-column:1/-1}.pv-dl .pv-nada{color:#afbbb3}.pv-dl .pv-prov-n{font-weight:700;color:#d9ffd4}
+  .pv-progress{height:3px;border-radius:4px;background:#334238}.pv-progress>span{display:block;height:100%;background:#83dca4;border-radius:inherit}
+  .pv-cap{font:12px/1.4 Arial;color:#a4b7aa;margin-top:-6px}
+  .pv-acciones{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:6px;margin-top:auto}
+  .pv-acciones input{grid-column:1/-1;box-sizing:border-box;max-width:100%;min-width:0;min-height:42px;border:1px solid #4a5b4e;border-radius:8px;background:#1d2b23;color:#e0eddf;font:600 13px Arial;padding:0 12px;width:100%}
+  .pv-btn{min-height:42px;padding:10px 9px;border:1px solid #4a5b4e;border-radius:8px;background:#1d2b23;color:#e0eddf;font:600 12px Arial;cursor:pointer;width:auto!important}
+  .pv-btn:hover{border-color:#6f8a76}.pv-btn.pri{background:#d0ec93;color:#1c2b13;border-color:#d0ec93}.pv-btn.rojo:hover{background:#542a2a;border-color:#f47d78}
+  .pv-acciones .full{grid-column:1/-1}
+  .pv-card .pv-est{min-height:0;font:600 12px Arial}.pv-card .pv-est:empty{display:none}
   @media(max-width:700px){.pv-grupos{columns:1}.pv-head{padding:16px}.pv-head h2{font-size:1.2rem}.pv-kpis{width:100%}.pv-kpi{flex:1;min-width:0;padding:8px}.pv-bar input[type=search]{min-width:0;width:100%;flex-basis:100%}.pv input{font-size:16px}.pv-grid{grid-template-columns:1fr}.pv-cod{font-size:1.6rem}.pv-herr{width:100%}.pv-herr .pv-fil,.pv-masa-chips .pv-fil{white-space:normal;flex:1 1 100%;text-align:center;line-height:1.2;padding:8px 12px}.pv-masa{bottom:8px}}
   `;
   document.head.appendChild(css);
@@ -187,21 +216,22 @@
     const pct = mts > 0 ? Math.min(100, Math.round(uso / mts * 100)) : 0, f0 = n => Number(n).toLocaleString('es-CO');
     const sugInv = t.prov_inventario && !/\s-\s/.test(t.prov_inventario) ? t.prov_inventario : '';   // lo que dice el inventario (si no son varios juntos)
     const rapidos = [...new Set([sugInv, ...sug].filter(n => n && n !== t.proveedor))].slice(0, 3);
-    const estado = t.proveedor && !editando
-      ? `<span class="pv-pill ok" title="${esc(t.proveedor)}">✓ ${esc(t.proveedor)}</span><button type="button" class="pv-ico" data-pv-cambiar title="Cambiar proveedor">✎</button><button type="button" class="pv-ico rojo" data-pv-quitar title="Quitar proveedor">✕</button>`
-      : (t.proveedor ? `<span class="pv-pill ok" title="${esc(t.proveedor)}">✓ ${esc(t.proveedor)}</span>` : '<span class="pv-pill sin">⚠ SIN PROVEEDOR</span>');
-    const editor = (t.proveedor && !editando) ? '' :
-      '<div class="pv-fila-in">' + rapidos.map(n => `<button type="button" class="pv-mini${n === sugInv ? ' inv' : ''}" data-pv-poner="${esc(n)}"${n === sugInv ? ' title="Es el que dice el inventario"' : ''}>${esc(n)}</button>`).join('') +
-      `<input type="text" list="pv-proveedores" data-pv-input placeholder="${t.proveedor ? 'Otro proveedor…' : 'Escribir proveedor…'}" autocomplete="off">` +
-      (t.proveedor ? '<button type="button" class="pv-mini" data-pv-listo>LISTO</button>' : '') + '</div>';
-    const distinto = t.proveedor && sugInv && sugInv !== t.proveedor && !editando
-      ? `<div class="pv-aviso">El inventario dice <b>${esc(sugInv)}</b><button type="button" class="pv-mini inv" data-pv-poner="${esc(sugInv)}">USAR</button></div>` : '';
-    return `<div class="pv-card pv-glass${t.proveedor ? '' : ' sin'}${st.reciente === t.codigo ? ' nueva' : ''}" data-cod="${esc(t.codigo)}">` +
-      `<div class="pv-top"><span class="pv-cod">${esc(t.codigo)}</span><span class="pv-nom">${esc(t.nombre)}</span><span class="pv-estado">${estado}</span></div>` +
-      `<div class="pv-stats"><span><b>${f0(rollos)}</b> ${rollos === 1 ? 'rollo' : 'rollos'}</span><span><b>${f0(mts)}</b> MTS</span><span><b>${f0(ped)}</b> ${ped === 1 ? 'pedido' : 'pedidos'}</span></div>` +
-      (uso > 0 ? `<div class="pv-uso" title="MTS comprometidos en pedidos frente a lo que hay en bodega"><i><b style="width:${pct}%"></b></i><small>${f0(uso)} MTS en pedidos · ${pct}% de la bodega</small></div>` : '') +
-      distinto + (editor ? `<div class="pv-prov">${editor}</div>` : '') +
-      `<div class="pv-est ${esc(e.c || '')}" data-pv-est>${esc(e.t || '')}</div></div>`;
+    const distinto = t.proveedor && sugInv && sugInv !== t.proveedor;
+    const etapa = t.proveedor ? '<span class="pv-stage fin">CON PROVEEDOR</span>' : '<span class="pv-stage act">SIN PROVEEDOR</span>';
+    const acciones = (t.proveedor && !editando)
+      ? `<div class="pv-acciones"><button type="button" class="pv-btn" data-pv-cambiar>CAMBIAR PROVEEDOR</button><button type="button" class="pv-btn rojo" data-pv-quitar title="Quitar proveedor">QUITAR</button>` +
+        (distinto ? `<button type="button" class="pv-btn pri full" data-pv-poner="${esc(sugInv)}">USAR EL DEL INVENTARIO: ${esc(sugInv)}</button>` : '') + '</div>'
+      : '<div class="pv-acciones">' + rapidos.map(n => `<button type="button" class="pv-btn${n === sugInv ? ' pri' : ''}" data-pv-poner="${esc(n)}"${n === sugInv ? ' title="Es el que dice el inventario"' : ''}>${esc(n)}</button>`).join('') +
+        `<input type="text" list="pv-proveedores" data-pv-input placeholder="${t.proveedor ? 'Otro proveedor…' : 'Escribir el proveedor…'}" autocomplete="off">` +
+        (t.proveedor ? '<button type="button" class="pv-btn full" data-pv-listo>LISTO</button>' : '') + '</div>';
+    return `<div class="pv-card${t.proveedor ? '' : ' sin'}${st.reciente === t.codigo ? ' nueva' : ''}" data-cod="${esc(t.codigo)}">` +
+      `<div class="pv-th"><h3>${esc(t.nombre)}</h3>${etapa}</div><div class="pv-cod-line">Código ${esc(t.codigo)}</div>` +
+      `<dl class="pv-dl"><div><dt>Rollos</dt><dd>${f0(rollos)}</dd></div><div><dt>MTS en bodega</dt><dd>${f0(mts)}</dd></div>` +
+      `<div><dt>Pedidos</dt><dd>${f0(ped)}</dd></div><div><dt>MTS en pedidos</dt><dd>${f0(uso)}</dd></div>` +
+      `<div class="pv-full"><dt>Proveedor</dt>${t.proveedor ? `<dd class="pv-prov-n">${esc(t.proveedor)}</dd>` : '<dd class="pv-nada">Sin asignar</dd>'}</div>` +
+      `<div class="pv-full"><dt>Según el inventario</dt><dd>${t.prov_inventario ? esc(t.prov_inventario) : '—'}</dd></div></dl>` +
+      (uso > 0 ? `<div class="pv-progress" title="MTS comprometidos en pedidos frente a lo que hay en bodega"><span style="width:${pct}%"></span></div><div class="pv-cap">${pct}% de la bodega está comprometida en pedidos</div>` : '') +
+      acciones + `<div class="pv-est ${esc(e.c || '')}" data-pv-est>${esc(e.t || '')}</div></div>`;
   }
   const familia = n => (String(n || '').toUpperCase().replace(/\(.*?\)/g, ' ').trim().split(/\s+/)[0]) || 'OTRAS';
   function cabeceraFam(f, lista) {
