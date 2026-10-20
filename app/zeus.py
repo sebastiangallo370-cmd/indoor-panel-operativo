@@ -38,6 +38,7 @@ INTERVALO = 300
 LATIDO_SEG = 60
 ENTREGADA_VENCE_SEG = 900
 MARGEN_MTS = 0.5           # diferencias menores no generan otra compra
+_ult_sync = 0.0            # última vez que la alerta pidió sincronizar por no encontrar la compra
 _faltantes: Callable[[], list[dict]] = lambda: []
 _pc_auth: Callable[[Request], None] = lambda request: None
 _auth: Callable = lambda request: ''
@@ -85,9 +86,20 @@ def alertas_para(usuario: str) -> list[dict]:
 
 def estado_tela(tela: str) -> dict:
     """Lo que la alerta de falta de tela muestra del requerimiento de ZEUS: pendiente (Effi aún no lo crea) · creada (OC en Effi y PDF enviado a los correos) · error."""
-    with _lock:
-        d = _leer()
-    item = next((i for i in reversed(d['items']) if i.get('tela') == tela and i.get('estado') != 'cancelada'), None)
+    def buscar():
+        with _lock:
+            d = _leer()
+        return d, next((i for i in reversed(d['items']) if i.get('tela') == tela and i.get('estado') != 'cancelada'), None)
+    d, item = buscar()
+    if not item:   # la alerta ya la ve la persona pero ZEUS aún no tiene la compra: se sincroniza ya (sin esperar otro aviso) y se vuelve a buscar
+        global _ult_sync
+        if _ahora() - _ult_sync > 15:
+            _ult_sync = _ahora()
+            try:
+                sincronizar()
+            except Exception:  # noqa: BLE001
+                pass
+            d, item = buscar()
     if not item:
         return {'estado': 'pendiente'}
     if item['estado'] == 'creada' and item.get('oc'):
