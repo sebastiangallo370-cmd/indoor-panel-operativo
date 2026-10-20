@@ -83,6 +83,19 @@ def alertas_para(usuario: str) -> list[dict]:
     return salida[:15]
 
 
+def estado_tela(tela: str) -> dict:
+    """Lo que la alerta de falta de tela muestra del requerimiento de ZEUS: pendiente (Effi aún no lo crea) · creada (OC en Effi y PDF enviado a los correos) · error."""
+    with _lock:
+        d = _leer()
+    item = next((i for i in reversed(d['items']) if i.get('tela') == tela and i.get('estado') != 'cancelada'), None)
+    if not item:
+        return {'estado': 'pendiente'}
+    if item['estado'] == 'creada' and item.get('oc'):
+        masc = [re.sub(r'^(.).*?(@.*)$', r'***', c['correo']) for c in d['config']['correos'] if c.get('estado') == 'verificado']
+        return {'estado': 'enviado', 'oc': str(item['oc']), 'para': ', '.join(masc), 'hora': str(item.get('creada') or item.get('actualizado') or '')[11:16]}
+    return {'estado': 'error' if item['estado'] == 'error' else 'pendiente'}
+
+
 def auth_agente(pc_auth: Callable[[Request], None]) -> Callable[[Request], None]:
     """El agente instalado en el VPS usa ZEUS_AGENT_TOKEN (variable del .env del servidor); los PC siguen usando su código de ECOMMERCE."""
     def comprobar(request: Request) -> None:
