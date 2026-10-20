@@ -27,7 +27,12 @@ from fastapi import APIRouter, Request
 from app import effi_api, memoria_agentes
 
 log = logging.getLogger('effitron')
-ACTIVO = os.getenv('EFFITRON_ACTIVO', '') == '1'   # APAGADO por defecto: sin esto no se crea ninguna cotización
+ACTIVO_ARCHIVO = Path(os.getenv('EFFITRON_ACTIVO_FILE', '/data/state/effitron_activo'))
+
+
+def activo() -> bool:
+    """APAGADO por defecto: sin el archivo /data/state/effitron_activo (o EFFITRON_ACTIVO=1) no se crea ninguna cotización. Borrar el archivo lo apaga al instante."""
+    return os.getenv('EFFITRON_ACTIVO', '') == '1' or ACTIVO_ARCHIVO.exists()
 pc_router = APIRouter(prefix='/api/effitron/pc', tags=['effitron-pc'])
 COT_DIR = Path(os.getenv('CLUB_COT_DIR', '/data/state/club_cotizaciones'))
 COL = timezone(timedelta(hours=-5))

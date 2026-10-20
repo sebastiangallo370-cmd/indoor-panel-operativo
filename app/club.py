@@ -306,7 +306,7 @@ def vista_cotizacion(request: Request, pedido_id: int):
 def reintentar_cotizacion(request: Request, pedido_id: int):
     _usuario(request)
     from app import effitron
-    if not effitron.ACTIVO:
+    if not effitron.activo():
         raise HTTPException(409, 'EFFITRON está apagado: no se crean cotizaciones todavía')
     effitron.reintentar(pedido_id)
     return {'ok': True}
@@ -316,7 +316,18 @@ def reintentar_cotizacion(request: Request, pedido_id: int):
 def estado_effitron(request: Request):
     _usuario(request)
     from app import effitron
-    return {**effitron.agente(), 'activo': effitron.ACTIVO}
+    return {**effitron.agente(), 'activo': effitron.activo()}
+
+
+@router.get('/pedidos/{pedido_id}/cotizacion.pdf')
+def pdf_comercial(request: Request, pedido_id: int):
+    """La cotización que creó EFFITRON, para comercial."""
+    _usuario(request)
+    from app import effitron
+    datos = effitron.pdf_bytes(pedido_id)
+    if not datos:
+        raise HTTPException(404, 'La cotización todavía no está lista')
+    return Response(datos, media_type='application/pdf', headers={'Content-Disposition': f'inline; filename="Cotizacion_{pedido_id}.pdf"', 'Cache-Control': 'no-store'})
 
 
 @router.get('/pedidos/{pedido_id}/excel')
@@ -425,7 +436,7 @@ def enviar_pedido(request: Request, token: str, payload: dict = Body(...)):
     cotiza = False
     try:   # EFFITRON (apagado por defecto: EFFITRON_ACTIVO=1 lo enciende) crea la cotización en Effi
         from app import effitron
-        if effitron.ACTIVO:
+        if effitron.activo():
             effitron.encolar(numero)
             cotiza = True
     except Exception:   # noqa: BLE001

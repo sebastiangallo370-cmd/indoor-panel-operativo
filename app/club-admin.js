@@ -3,7 +3,7 @@
   if (window.__clubAdminListo) return;
   window.__clubAdminListo = true;
   const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  let panel = null, enlaces = [], pedidos = [], filtro = 'pendiente', aviso = '', ultimo = '', cargando = false, abiertos = new Set();
+  let panel = null, effi = null, enlaces = [], pedidos = [], filtro = 'pendiente', aviso = '', ultimo = '', cargando = false, abiertos = new Set();
 
   const css = document.createElement('style');
   css.textContent = `
@@ -45,6 +45,15 @@
       (p.nota_comercial ? '<div>Nota: ' + esc(p.nota_comercial) + '</div>' : '') + '</div>';
   }
 
+  const COT = { preparando: 'Preparando la cotización…', pendiente: 'Esperando a EFFITRON…', entregada: 'EFFITRON está creando la cotización en Effi…', sin_pdf: 'Creada en Effi, bajando el PDF…', lista: 'Cotización lista', error: 'EFFITRON no pudo crear la cotización' };
+  function cotInfo(p) {
+    if (!p.cot_estado) return '';
+    const ok = p.cot_estado === 'lista', mal = p.cot_estado === 'error';
+    return '<small style="color:' + (ok ? '#d0f44c' : mal ? '#ff9b8f' : '#ffd08a') + '">' + esc(COT[p.cot_estado] || p.cot_estado) + (p.cot_numero ? ' · N° ' + esc(p.cot_numero) : '') + (p.cot_detalle ? ' · ' + esc(p.cot_detalle) : '') + '</small>' +
+      (p.cot_pdf ? '<a class="tc-btn mini" style="display:inline-flex;margin-top:6px;margin-right:6px;text-decoration:none" target="_blank" href="/api/club/pedidos/' + p.id + '/cotizacion.pdf">Ver cotización PDF</a>' : '') +
+      (mal || p.cot_estado === 'sin_pdf' ? '<button class="tc-btn mini sec" style="margin-top:6px" data-cotreint="' + p.id + '">Reintentar</button>' : '');
+  }
+
   function pintar() {
     if (!panel) return;
     const lista = pedidos.filter(p => !filtro || p.estado === filtro);
@@ -54,8 +63,8 @@
       '<label style="flex:0 1 150px">VIGENCIA<select id="tc-dias"><option value="15">15 días</option><option value="30" selected>30 días</option><option value="90">90 días</option><option value="365">1 año</option></select></label>' +
       '<button class="tc-btn" id="tc-crear" type="button">Generar enlace</button></div>' + (aviso ? '<p class="tc-aviso" style="margin-top:12px">' + aviso + '</p>' : '') + '</section>' +
       '<section class="tc-card"><h2>Enlaces activos</h2>' + (enlaces.length ? '<div class="tc-lista">' + enlaces.map(e => '<div class="tc-fila"><span><strong>' + esc(e.cliente) + '</strong><small>Vence ' + fecha(e.vence) + ' · ' + e.pedidos + (e.pedidos === 1 ? ' reposición' : ' reposiciones') + (e.vencido ? ' · VENCIDO' : '') + '</small></span><span class="tc-acc"><button class="tc-btn mini" data-copiar="' + esc(e.token) + '">Copiar enlace</button><button class="tc-btn mini bad" data-revocar="' + e.id + '">Revocar</button></span></div>').join('') + '</div>' : '<div class="tc-vacio">Todavía no hay enlaces.</div>') + '</section>' +
-      '<section class="tc-card"><h2>Reposiciones de los clubes</h2><div class="tc-chips">' + [['pendiente', 'Pendientes'], ['aprobada', 'Aprobadas'], ['rechazada', 'Rechazadas'], ['', 'Todas']].map(([k, t]) => '<button type="button" data-filtro="' + k + '" class="' + (filtro === k ? 'on' : '') + '">' + t + '</button>').join('') + '</div>' +
-      (lista.length ? '<div class="tc-lista">' + lista.map(p => '<div class="tc-fila tc-ped ' + p.estado + '" style="display:block"><div style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px;align-items:center"><span><strong>#' + p.id + ' · ' + esc(p.cliente) + '</strong><small>' + esc(p.contacto) + ' · ' + p.prendas + ' prendas · ' + fecha(p.creado) + ' · ' + p.estado + '</small></span><span class="tc-acc"><button class="tc-btn mini sec" data-ver="' + p.id + '">' + (abiertos.has(p.id) ? 'Ocultar' : 'Ver detalle') + '</button><a class="tc-btn mini" style="display:inline-flex;align-items:center;text-decoration:none" href="/api/club/pedidos/' + p.id + '/excel">Descargar listado</a>' +
+      '<section class="tc-card"><h2>Reposiciones de los clubes</h2>' + (effi ? '<p class="tc-aviso" style="margin-bottom:12px">EFFITRON · ' + (effi.activo ? (effi.conectado ? 'en línea' : 'SIN CONEXIÓN') : 'apagado') + (effi.ultima ? ' · ' + esc(effi.ultima) : '') + '</p>' : '') + '<div class="tc-chips">' + [['pendiente', 'Pendientes'], ['aprobada', 'Aprobadas'], ['rechazada', 'Rechazadas'], ['', 'Todas']].map(([k, t]) => '<button type="button" data-filtro="' + k + '" class="' + (filtro === k ? 'on' : '') + '">' + t + '</button>').join('') + '</div>' +
+      (lista.length ? '<div class="tc-lista">' + lista.map(p => '<div class="tc-fila tc-ped ' + p.estado + '" style="display:block"><div style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px;align-items:center"><span><strong>#' + p.id + ' · ' + esc(p.cliente) + '</strong><small>' + esc(p.contacto) + ' · ' + p.prendas + ' prendas · ' + fecha(p.creado) + ' · ' + p.estado + '</small>' + cotInfo(p) + '</span><span class="tc-acc"><button class="tc-btn mini sec" data-ver="' + p.id + '">' + (abiertos.has(p.id) ? 'Ocultar' : 'Ver detalle') + '</button><a class="tc-btn mini" style="display:inline-flex;align-items:center;text-decoration:none" href="/api/club/pedidos/' + p.id + '/excel">Descargar listado</a>' +
         (p.estado === 'pendiente' ? '<button class="tc-btn mini" data-res="aprobada" data-id="' + p.id + '">Aprobar</button><button class="tc-btn mini bad" data-res="rechazada" data-id="' + p.id + '">Rechazar</button>' : '<button class="tc-btn mini sec" data-res="pendiente" data-id="' + p.id + '">Volver a pendiente</button>') + '</span></div>' + (abiertos.has(p.id) ? detalle(p) : '') + '</div>').join('') + '</div>' : '<div class="tc-vacio">No hay reposiciones en esta vista.</div>') +
       '<p style="margin-top:12px">El Excel usa la plantilla de listado de Indoor (una hoja con el nombre de la referencia; si son varias referencias, vienen en un .zip) y trae la tela del pedido anterior con su código. Si una tela aparece con varios códigos (colores), elige el correcto antes de programar.</p></section></div>';
     if (html === ultimo) return;   // sin cambios: no se redibuja (evita parpadeo)
@@ -70,8 +79,8 @@
     if (cargando || !panel) return;
     cargando = true;
     try {
-      const [a, p] = await Promise.all([api('/api/club/enlaces'), api('/api/club/pedidos')]);
-      enlaces = a.enlaces; pedidos = p.pedidos; pintar();
+      const [a, p, e] = await Promise.all([api('/api/club/enlaces'), api('/api/club/pedidos'), api('/api/club/effitron').catch(() => null)]);
+      enlaces = a.enlaces; pedidos = p.pedidos; effi = e; pintar();
     } catch (e) { panel.innerHTML = '<div class="tc"><div class="tc-card"><p>' + esc(e.message) + '</p></div></div>'; ultimo = ''; }
     finally { cargando = false; }
   }
@@ -96,6 +105,7 @@
         }
         if (b.dataset.copiar) { try { await navigator.clipboard.writeText(url(b.dataset.copiar)); aviso = 'Enlace copiado: ' + esc(url(b.dataset.copiar)); } catch (er) { aviso = 'Copia este enlace: ' + esc(url(b.dataset.copiar)); } pintar(); return; }
         if (b.dataset.revocar) { if (!confirm('¿Revocar este enlace? El cliente ya no podrá abrirlo.')) return; await api('/api/club/enlaces/' + b.dataset.revocar, 'DELETE'); aviso = 'Enlace revocado.'; await cargar(); return; }
+        if (b.dataset.cotreint) { await api('/api/club/pedidos/' + b.dataset.cotreint + '/cotizacion/reintentar', 'POST'); aviso = 'Reintentando la cotización…'; await cargar(); return; }
         if (b.dataset.filtro !== undefined) { filtro = b.dataset.filtro; pintar(); return; }
         if (b.dataset.ver) { const id = Number(b.dataset.ver); abiertos.has(id) ? abiertos.delete(id) : abiertos.add(id); pintar(); return; }
         if (b.dataset.res) { await api('/api/club/pedidos/' + b.dataset.id + '/resolver', 'POST', { estado: b.dataset.res }); await cargar(); }
