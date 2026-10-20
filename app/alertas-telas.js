@@ -111,7 +111,10 @@
     '.at-card.pf .at-datos .cli dd{font-weight:700;font-size:19px;line-height:1.2;text-transform:uppercase}',
     '.at-card.pf .at-datos .mts dd{font-weight:800;font-size:30px;line-height:1.05;letter-spacing:-.01em}.at-card.pf .at-datos .mts dd small{font-size:13px;font-style:normal}',
     '.at-card.pf .at-btn{font-weight:700;font-size:12.5px;letter-spacing:.06em}',
-    '@media(max-width:560px){.at-card.pf .at-head h3{font-size:23px}.at-card.pf .at-head p{font-size:14.5px}.at-card.pf .at-datos dd{font-size:15px}.at-card.pf .at-datos .cli dd{font-size:17px}.at-card.pf .at-datos .mts dd{font-size:26px}.at-card.pf .at-datos dt{font-size:10.5px}.at-card.pf .at-chip{font-size:10.5px}.at-card.pf .at-btn{font-size:12px}}'
+    '@media(max-width:560px){.at-card.pf .at-head h3{font-size:23px}.at-card.pf .at-head p{font-size:14.5px}.at-card.pf .at-datos dd{font-size:15px}.at-card.pf .at-datos .cli dd{font-size:17px}.at-card.pf .at-datos .mts dd{font-size:26px}.at-card.pf .at-datos dt{font-size:10.5px}.at-card.pf .at-chip{font-size:10.5px}.at-card.pf .at-btn{font-size:12px}}',
+    '.pf .at-datos .falta{margin-top:2px;padding:11px 14px;border-radius:12px;background:rgba(208,244,76,.13);border:1px solid rgba(208,244,76,.55)}',
+    '.at-card.pf .at-datos .falta dd{font-weight:800;font-size:30px;line-height:1.05;letter-spacing:-.01em;color:#fff}.at-card.pf .at-datos .falta dd small{font-size:13px;font-weight:700;margin-left:6px;color:#e4ff6b;letter-spacing:.08em}',
+    '@media(max-width:560px){.at-card.pf .at-datos .falta dd{font-size:26px}}'
   ].join('');
   var st2=document.createElement('style');st2.textContent=css2;document.head.appendChild(st2);
   // la fuente se pide una sola vez (si no llega, se usa Arial y todo sigue igual)
@@ -130,7 +133,8 @@
     return '<div class="at-row at-prod" style="animation-delay:'+(250+i*200)+'ms"><span class="at-chip">'+chip+'</span>'+
       '<dl class="at-datos"><div class="cli full"><dt>Nombre cliente</dt><dd>'+esc(a.cliente||'—')+'</dd></div>'+
       '<div><dt>Proyecto</dt><dd>'+esc(a.proyecto||'—')+'</dd></div><div><dt>Referencia</dt><dd>'+esc(a.referencia||'—')+'</dd></div>'+
-      '<div><dt>Tela</dt><dd>'+esc(a.tela||'—')+'</dd></div><div class="mts"><dt>MTS</dt><dd><span data-n="'+(Number(a.mts)||0)+'">0</span></dd></div></dl></div>';
+      '<div><dt>Tela</dt><dd>'+esc(a.tela||'—')+'</dd></div><div class="mts"><dt>MTS</dt><dd><span data-n="'+(Number(a.mts)||0)+'">0</span></dd></div>'+
+      '<div class="falta full"><dt>Tela que falta</dt><dd><span data-n="'+Math.ceil(Number(a.falta)||0)+'">0</span><small>MTS</small></dd></div></dl></div>';
   }
   function showFaltantes(lista){
     if(fmodal||modal||!lista.length)return;
