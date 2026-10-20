@@ -163,6 +163,10 @@
   .pv-stage{display:inline-block;font:600 12px/1.4 Arial;border-radius:6px;padding:5px 9px;border:1px solid transparent;white-space:nowrap}
   .pv-stage.fin{background:#8bdbaf;color:#103423;border-color:#8bdbaf}.pv-stage.act{background:#f3b852;color:#332306;border-color:#f3b852}
   .pv-cod-line{font:13px/1.4 Arial;color:#a4b7aa;margin-top:-6px}
+  .pv-campo{display:grid;gap:5px;margin-top:auto}.pv-campo span{font:12px/1.5 Arial;color:#a6b7ab}
+  .pv-campo input{box-sizing:border-box;width:100%;min-width:0;min-height:42px;padding:0 12px;border:1px solid #4a5b4e;border-radius:8px;background:#1d2b23;color:#e0eddf;font:600 14px Arial;outline:none}
+  .pv-campo input:focus{border-color:#d0ec93;box-shadow:0 0 0 2px rgba(208,236,147,.18)}
+  .pv-card:not(.sin) .pv-campo input{border-color:#5f8f69;color:#d9ffd4}
   .pv-dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(86px,1fr));gap:12px 14px;margin:0}
   .pv-acciones>*{min-width:0}.pv-card{min-width:0;overflow:hidden}
   .pv-dl>div{min-width:0}.pv-dl dt{font:12px/1.5 Arial;color:#a6b7ab;margin:0 0 3px}.pv-dl dd{margin:0;font:500 14px/1.4 Arial;color:#eef5ed;overflow-wrap:anywhere}
@@ -216,22 +220,14 @@
     const pct = mts > 0 ? Math.min(100, Math.round(uso / mts * 100)) : 0, f0 = n => Number(n).toLocaleString('es-CO');
     const sugInv = t.prov_inventario && !/\s-\s/.test(t.prov_inventario) ? t.prov_inventario : '';   // lo que dice el inventario (si no son varios juntos)
     const rapidos = [...new Set([sugInv, ...sug].filter(n => n && n !== t.proveedor))].slice(0, 3);
-    const distinto = t.proveedor && sugInv && sugInv !== t.proveedor;
     const etapa = t.proveedor ? '<span class="pv-stage fin">CON PROVEEDOR</span>' : '<span class="pv-stage act">SIN PROVEEDOR</span>';
-    const acciones = (t.proveedor && !editando)
-      ? `<div class="pv-acciones"><button type="button" class="pv-btn" data-pv-cambiar>CAMBIAR PROVEEDOR</button><button type="button" class="pv-btn rojo" data-pv-quitar title="Quitar proveedor">QUITAR</button>` +
-        (distinto ? `<button type="button" class="pv-btn pri full" data-pv-poner="${esc(sugInv)}">USAR EL DEL INVENTARIO: ${esc(sugInv)}</button>` : '') + '</div>'
-      : '<div class="pv-acciones">' + rapidos.map(n => `<button type="button" class="pv-btn${n === sugInv ? ' pri' : ''}" data-pv-poner="${esc(n)}"${n === sugInv ? ' title="Es el que dice el inventario"' : ''}>${esc(n)}</button>`).join('') +
-        `<input type="text" list="pv-proveedores" data-pv-input placeholder="${t.proveedor ? 'Otro proveedor…' : 'Escribir el proveedor…'}" autocomplete="off">` +
-        (t.proveedor ? '<button type="button" class="pv-btn full" data-pv-listo>LISTO</button>' : '') + '</div>';
     return `<div class="pv-card${t.proveedor ? '' : ' sin'}${st.reciente === t.codigo ? ' nueva' : ''}" data-cod="${esc(t.codigo)}">` +
       `<div class="pv-th"><h3>${esc(t.nombre)}</h3>${etapa}</div><div class="pv-cod-line">Código ${esc(t.codigo)}</div>` +
       `<dl class="pv-dl"><div><dt>Rollos</dt><dd>${f0(rollos)}</dd></div><div><dt>MTS en bodega</dt><dd>${f0(mts)}</dd></div>` +
-      `<div><dt>Pedidos</dt><dd>${f0(ped)}</dd></div><div><dt>MTS en pedidos</dt><dd>${f0(uso)}</dd></div>` +
-      `<div class="pv-full"><dt>Proveedor</dt>${t.proveedor ? `<dd class="pv-prov-n">${esc(t.proveedor)}</dd>` : '<dd class="pv-nada">Sin asignar</dd>'}</div>` +
-      `<div class="pv-full"><dt>Según el inventario</dt><dd>${t.prov_inventario ? esc(t.prov_inventario) : '—'}</dd></div></dl>` +
+      `<div><dt>Pedidos</dt><dd>${f0(ped)}</dd></div><div><dt>MTS en pedidos</dt><dd>${f0(uso)}</dd></div></dl>` +
       (uso > 0 ? `<div class="pv-progress" title="MTS comprometidos en pedidos frente a lo que hay en bodega"><span style="width:${pct}%"></span></div><div class="pv-cap">${pct}% de la bodega está comprometida en pedidos</div>` : '') +
-      acciones + `<div class="pv-est ${esc(e.c || '')}" data-pv-est>${esc(e.t || '')}</div></div>`;
+      `<label class="pv-campo"><span>Proveedor</span><input type="text" list="pv-proveedores" data-pv-input value="${esc(t.proveedor || '')}" placeholder="Escribe el proveedor…" autocomplete="off"></label>` +
+      `<div class="pv-est ${esc(e.c || '')}" data-pv-est>${esc(e.t || '')}</div></div>`;
   }
   const familia = n => (String(n || '').toUpperCase().replace(/\(.*?\)/g, ' ').trim().split(/\s+/)[0]) || 'OTRAS';
   function cabeceraFam(f, lista) {
@@ -395,10 +391,10 @@
       host.addEventListener('change', e => {
         const c = cod(e);
         if (e.target.matches('[data-pv-sel]') && c) { e.target.checked ? st.sel.add(c) : st.sel.delete(c); e.target.closest('.pv-card').classList.toggle('sel', e.target.checked); pintarMasa(); return; }
-        if (e.target.matches('[data-pv-input]') && c && e.target.value.trim()) guardar(c, e.target.value);   // al elegir de la lista o salir de la casilla
+        if (e.target.matches('[data-pv-input]') && c) guardar(c, e.target.value);   // vacío = quitar el proveedor;   // al elegir de la lista o salir de la casilla
       });
       host.addEventListener('input', e => { if (e.target.matches('[data-pv-buscar]')) { st.buscar = e.target.value; pintarGrid(); } });
-      host.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('[data-pv-fam-input]')) { e.preventDefault(); const b = e.target.parentElement.querySelector('[data-pv-fam-aplicar]'); if (b) aplicarFamilia(e.target.dataset.pvFamInput, b); return; } if (e.key === 'Enter' && e.target.matches('[data-pv-input]')) { e.preventDefault(); const c = cod(e); if (c && e.target.value.trim()) guardar(c, e.target.value); } });
+      host.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('[data-pv-fam-input]')) { e.preventDefault(); const b = e.target.parentElement.querySelector('[data-pv-fam-aplicar]'); if (b) aplicarFamilia(e.target.dataset.pvFamInput, b); return; } if (e.key === 'Enter' && e.target.matches('[data-pv-input]')) { e.preventDefault(); const c = cod(e); if (c) guardar(c, e.target.value); } });
     }
     if (!st.datos) { pintar(); cargar(); }
     else if (!host.firstElementChild) pintar();
