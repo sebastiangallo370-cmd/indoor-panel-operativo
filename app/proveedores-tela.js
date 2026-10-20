@@ -89,7 +89,26 @@
   .pv-grid.compacto .pv-card{padding:10px 12px;border-radius:14px}.pv-grid.compacto .pv-card::before{height:3px}
   .pv-grid.compacto .pv-cod{font-size:1.15rem}.pv-grid.compacto .pv-nom{font-size:.78rem;min-height:0}.pv-grid.compacto .pv-sub{display:none}
   .pv-grid.compacto .pv-prov{margin-top:2px;padding-top:6px;gap:5px}.pv-grid.compacto .pv-prov input{min-height:32px;font-size:.78rem}.pv-grid.compacto .pv-est{min-height:0}.pv-grid.compacto .pv-sin-txt{display:none}
-  @media(max-width:700px){.pv-head{padding:16px}.pv-head h2{font-size:1.2rem}.pv-kpis{width:100%}.pv-kpi{flex:1;min-width:0;padding:8px}.pv-bar input[type=search]{min-width:0;width:100%;flex-basis:100%}.pv input{font-size:16px}.pv-grid{grid-template-columns:1fr}.pv-cod{font-size:1.6rem}.pv-herr{width:100%}.pv-herr .pv-fil,.pv-masa-chips .pv-fil{white-space:normal;flex:1 1 100%;text-align:center;line-height:1.2;padding:8px 12px}.pv-masa{bottom:8px}}
+  /* cada familia es UNA tarjeta con sus telas dentro; las familias se acomodan en columnas y llenan toda la pantalla */
+  .pv-grupos{display:block;columns:380px;column-gap:18px}
+  .pv-fcard{display:inline-block;width:100%;margin:0 0 18px;padding:14px;border-radius:22px;break-inside:avoid;overflow:hidden}
+  .pv-fcard .pv-fam{margin:0 0 12px;padding:0 0 12px;border:0;border-bottom:1px solid rgba(255,255,255,.14);border-radius:0;background:transparent;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;flex-wrap:wrap;gap:8px 10px}
+  .pv-fcard .pv-fam-t{font-size:1.1rem}
+  .pv-fcard .pv-fam-est{flex:1 1 140px}
+  .pv-fcard .pv-fam-asig{flex:1 1 100%;max-width:none;order:5}
+  .pv-fcard .pv-fam-asig input{flex:1;min-width:0}
+  .pv-ftelas{display:grid;gap:10px}
+  .pv-ftelas .pv-card{padding:12px 14px 10px;border-radius:16px;background:linear-gradient(160deg,rgba(255,255,255,.09),rgba(255,255,255,.03));border:1px solid rgba(255,255,255,.12);box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none}
+  .pv-ftelas .pv-card::before{height:3px}
+  .pv-ftelas .pv-card:hover{transform:none;box-shadow:0 10px 24px -14px #000;border-color:rgba(255,255,255,.28)}
+  .pv-ftelas .pv-cod{font-size:1.5rem}.pv-ftelas .pv-nom{font-size:.9rem;min-height:0}
+  .pv-ftelas .pv-prov{margin-top:4px;padding-top:8px}
+  .pv-ftelas .pv-sin-txt{display:none}
+  .pv-ftelas .pv-card.sin .pv-sub::after{content:"  ·  SIN PROVEEDOR";color:#ffc86b;font-weight:800}
+  .pv-ftelas .pv-ficha{padding:9px 10px 9px 14px}
+  .pv-ftelas.compacto .pv-card{padding:9px 12px 8px}.pv-ftelas.compacto .pv-sub,.pv-ftelas.compacto .pv-est{display:none}.pv-ftelas.compacto .pv-cod{font-size:1.15rem}
+  .pv-fam-t em{margin-left:2px}
+  @media(max-width:700px){.pv-grupos{columns:1}.pv-head{padding:16px}.pv-head h2{font-size:1.2rem}.pv-kpis{width:100%}.pv-kpi{flex:1;min-width:0;padding:8px}.pv-bar input[type=search]{min-width:0;width:100%;flex-basis:100%}.pv input{font-size:16px}.pv-grid{grid-template-columns:1fr}.pv-cod{font-size:1.6rem}.pv-herr{width:100%}.pv-herr .pv-fil,.pv-masa-chips .pv-fil{white-space:normal;flex:1 1 100%;text-align:center;line-height:1.2;padding:8px 12px}.pv-masa{bottom:8px}}
   `;
   document.head.appendChild(css);
 
@@ -156,7 +175,7 @@
     else if (!st.agrupar) cont.innerHTML = `<div class="pv-grid${st.compacto ? ' compacto' : ''}">` + l.map(tarjetaHtml).join('') + '</div>';
     else {
       const g = {}; l.forEach(t => { (g[familia(t.nombre)] = g[familia(t.nombre)] || []).push(t); });
-      cont.innerHTML = '<div class="pv-grupos">' + Object.keys(g).sort().map(f => '<section>' + cabeceraFam(f, g[f]) + (st.plegadas.has(f) ? '' : `<div class="pv-grid${st.compacto ? ' compacto' : ''}">` + g[f].map(tarjetaHtml).join('') + '</div>') + '</section>').join('') + '</div>';
+      cont.innerHTML = '<div class="pv-grupos">' + Object.keys(g).sort().map(f => '<section class="pv-fcard pv-glass">' + cabeceraFam(f, g[f]) + (st.plegadas.has(f) ? '' : `<div class="pv-ftelas${st.compacto ? ' compacto' : ''}">` + g[f].map(tarjetaHtml).join('') + '</div>') + '</section>').join('') + '</div>';
     }
     st.reciente = '';
     pintarMasa();
