@@ -55,8 +55,12 @@ def telas() -> list[dict]:
         c = codigo_de(i.get('nombre'))
         if not c:
             continue
-        t = por_codigo.setdefault(c, {'codigo': c, 'nombre': re.sub(r'^\s*\(\d+\)\s*', '', str(i.get('nombre') or '')).strip(), 'rollos': 0})
+        t = por_codigo.setdefault(c, {'codigo': c, 'nombre': re.sub(r'^\s*\(\d+\)\s*', '', str(i.get('nombre') or '')).strip(), 'rollos': 0, 'mts': 0.0})
         t['rollos'] += 1
+        try:
+            t['mts'] = round(t['mts'] + float(i.get('mts') or i.get('total') or 0), 1)   # metros en bodega, para que la tarjeta informe cuánta tela hay
+        except (TypeError, ValueError):
+            pass
     for c, t in por_codigo.items():
         g = guardado.get(c) or {}
         t.update(proveedor=g.get('proveedor', ''), nit=g.get('nit', ''))

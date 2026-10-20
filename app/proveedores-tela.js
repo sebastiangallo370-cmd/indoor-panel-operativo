@@ -96,7 +96,7 @@
   .pv-fcard .pv-fam-t{font-size:1.1rem}
   .pv-fcard .pv-fam-est{flex:1 1 140px}
   .pv-fcard .pv-fam-asig{flex:1 1 100%;max-width:none;order:5}
-  .pv-fcard .pv-fam-asig input{flex:1;min-width:0}
+  .pv-fcard .pv-fam-asig{flex-wrap:wrap}.pv-fcard .pv-fam-asig input{flex:1 1 150px;min-width:0}
   .pv-ftelas{display:grid;gap:10px}
   .pv-ftelas .pv-card{padding:12px 14px 10px;border-radius:16px;background:linear-gradient(160deg,rgba(255,255,255,.09),rgba(255,255,255,.03));border:1px solid rgba(255,255,255,.12);box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none}
   .pv-ftelas .pv-card::before{height:3px}
@@ -108,6 +108,21 @@
   .pv-ftelas .pv-ficha{padding:9px 10px 9px 14px}
   .pv-ftelas.compacto .pv-card{padding:9px 12px 8px}.pv-ftelas.compacto .pv-sub,.pv-ftelas.compacto .pv-est{display:none}.pv-ftelas.compacto .pv-cod{font-size:1.15rem}
   .pv-fam-t em{margin-left:2px}
+  /* tarjeta de tela compacta e informativa: código + nombre en una línea, datos (rollos, MTS, estado) y el proveedor al pie */
+  .pv-card{padding:12px 14px 10px;gap:6px}
+  .pv-card .pv-top{display:flex;align-items:baseline;gap:10px}
+  .pv-card .pv-cod{font-size:1.4rem;flex:0 0 auto}
+  .pv-card .pv-nom{flex:1;min-width:0;min-height:0;font-size:.88rem;line-height:1.25}
+  .pv-card .pv-sub{display:none}
+  .pv-meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+  .pv-meta span{padding:2px 9px;border-radius:99px;background:rgba(255,255,255,.09);font:700 .66rem Arial;letter-spacing:.05em;color:#c9d3c4}
+  .pv-meta .pv-ins{margin-left:auto;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:800}
+  .pv-meta .pv-ins.sin{background:rgba(224,164,55,.22);color:#ffc86b}.pv-meta .pv-ins.ok{background:rgba(139,212,80,.22);color:#c6f59a}
+  .pv-card .pv-prov{margin-top:2px;padding-top:8px;gap:6px}
+  .pv-fila-in{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.pv-fila-in input{flex:1 1 120px;min-width:0;min-height:34px;font-size:.82rem;padding:0 12px}
+  .pv-acc{display:flex;gap:6px}
+  .pv-card .pv-est{min-height:0}.pv-card .pv-est:empty{display:none}
+  .pv-card.sin{border-color:rgba(224,164,55,.35)}.pv-card:not(.sin){border-color:rgba(139,212,80,.35)}
   @media(max-width:700px){.pv-grupos{columns:1}.pv-head{padding:16px}.pv-head h2{font-size:1.2rem}.pv-kpis{width:100%}.pv-kpi{flex:1;min-width:0;padding:8px}.pv-bar input[type=search]{min-width:0;width:100%;flex-basis:100%}.pv input{font-size:16px}.pv-grid{grid-template-columns:1fr}.pv-cod{font-size:1.6rem}.pv-herr{width:100%}.pv-herr .pv-fil,.pv-masa-chips .pv-fil{white-space:normal;flex:1 1 100%;text-align:center;line-height:1.2;padding:8px 12px}.pv-masa{bottom:8px}}
   `;
   document.head.appendChild(css);
@@ -144,16 +159,17 @@
   function tarjetaHtml(t) {
     const e = st.estado[t.codigo] || {};
     const editando = st.edit.has(t.codigo) || !t.proveedor;
-    const sug = habituales().filter(n => n !== t.proveedor).slice(0, 4);
+    const sug = habituales().filter(n => n !== t.proveedor).slice(0, 2);
+    const mts = Number(t.mts) || 0;
+    const insignia = t.proveedor ? `<span class="pv-ins ok" title="${esc(t.proveedor)}">✓ ${esc(t.proveedor)}</span>` : '<span class="pv-ins sin">⚠ SIN PROVEEDOR</span>';
     const cuerpo = (t.proveedor && !editando)
-      ? `<div class="pv-ficha"><b title="${esc(t.proveedor)}">${esc(t.proveedor)}</b><div><button type="button" class="pv-mini" data-pv-cambiar>CAMBIAR</button><button type="button" class="pv-mini rojo" data-pv-quitar title="Quitar proveedor">✕</button></div></div>`
-      : (t.proveedor ? '' : '<span class="pv-sin-txt">⚠ SIN PROVEEDOR</span>') +
-        (sug.length ? '<div class="pv-sug">' + sug.map(n => `<button type="button" class="pv-mini" data-pv-poner="${esc(n)}">${esc(n)}</button>`).join('') + '</div>' : '') +
-        `<input type="text" list="pv-proveedores" data-pv-input placeholder="${t.proveedor ? 'Otro proveedor…' : 'Escribe el proveedor…'}" autocomplete="off">` +
-        (t.proveedor ? '<div class="pv-sug"><button type="button" class="pv-mini" data-pv-listo>LISTO</button></div>' : '');
+      ? `<div class="pv-acc"><button type="button" class="pv-mini" data-pv-cambiar>CAMBIAR</button><button type="button" class="pv-mini rojo" data-pv-quitar title="Quitar proveedor">✕ QUITAR</button></div>`
+      : '<div class="pv-fila-in">' + sug.map(n => `<button type="button" class="pv-mini" data-pv-poner="${esc(n)}">${esc(n)}</button>`).join('') +
+        `<input type="text" list="pv-proveedores" data-pv-input placeholder="${t.proveedor ? 'Otro proveedor…' : 'Escribir proveedor…'}" autocomplete="off">` +
+        (t.proveedor ? '<button type="button" class="pv-mini" data-pv-listo>LISTO</button>' : '') + '</div>';
     return `<div class="pv-card pv-glass${t.proveedor ? '' : ' sin'}${st.sel.has(t.codigo) ? ' sel' : ''}${st.reciente === t.codigo ? ' nueva' : ''}" data-cod="${esc(t.codigo)}">` +
-      `<div class="pv-top"><span class="pv-cod">${esc(t.codigo)}</span><input type="checkbox" data-pv-sel aria-label="Seleccionar"${st.sel.has(t.codigo) ? ' checked' : ''}></div>` +
-      `<div class="pv-nom">${esc(t.nombre)}</div><div class="pv-sub">${t.rollos} ROLLO${t.rollos === 1 ? '' : 'S'} EN BODEGA</div>` +
+      `<div class="pv-top"><span class="pv-cod">${esc(t.codigo)}</span><span class="pv-nom">${esc(t.nombre)}</span><input type="checkbox" data-pv-sel aria-label="Seleccionar"${st.sel.has(t.codigo) ? ' checked' : ''}></div>` +
+      `<div class="pv-meta"><span>${t.rollos} ${t.rollos === 1 ? 'rollo' : 'rollos'}</span>${mts ? `<span>${Math.round(mts).toLocaleString('es-CO')} MTS</span>` : ''}${insignia}</div>` +
       `<div class="pv-prov">${cuerpo}</div><div class="pv-est ${esc(e.c || '')}" data-pv-est>${esc(e.t || '')}</div></div>`;
   }
   const familia = n => (String(n || '').toUpperCase().replace(/\(.*?\)/g, ' ').trim().split(/\s+/)[0]) || 'OTRAS';
@@ -162,8 +178,8 @@
     const todas = lista.every(t => st.sel.has(t.codigo));
     return `<div class="pv-fam pv-glass${cerrada ? ' cerrada' : ''}" data-fam="${esc(f)}"><button type="button" class="pv-fam-t" data-pv-plegar="${esc(f)}"><i>▾</i>${esc(f)}<em>${lista.length} ${lista.length === 1 ? 'tela' : 'telas'}</em></button>` +
       `<div class="pv-fam-est"><div class="pv-fam-barra"><b style="width:${Math.round(con / lista.length * 100)}%"></b></div>${con ? `<span>${con} CON</span>` : ''}${sin ? `<span class="sin">${sin} SIN</span>` : ''}</div>` +
-      `<div class="pv-fam-asig"><input type="text" list="pv-proveedores" data-pv-fam-input="${esc(f)}" placeholder="Proveedor de toda la familia…" autocomplete="off"><button type="button" class="pv-mini" data-pv-fam-aplicar="${esc(f)}">APLICAR A LAS ${lista.length}</button></div>` +
-      `<button type="button" class="pv-mini" data-pv-selfam="${esc(f)}">${todas ? 'QUITAR SELECCIÓN' : 'SELECCIONAR'}</button></div>`;
+      (lista.length > 1 ? `<button type="button" class="pv-mini" data-pv-selfam="${esc(f)}">${todas ? 'QUITAR' : 'SELECCIONAR'}</button>` : '') +
+      (lista.length > 1 ? `<div class="pv-fam-asig"><input type="text" list="pv-proveedores" data-pv-fam-input="${esc(f)}" placeholder="Proveedor para las ${lista.length} telas…" autocomplete="off"><button type="button" class="pv-mini" data-pv-fam-aplicar="${esc(f)}">APLICAR A TODAS</button></div>` : '') + '</div>';
   }
   function refrescarCabeceras() {
     const g = {}; visibles().forEach(t => { (g[familia(t.nombre)] = g[familia(t.nombre)] || []).push(t); });
