@@ -44,7 +44,7 @@
   const franja = activa => '<div class="es-franja" data-es><div><small>MÓDULO</small><h2>ESTÁNDAR 2026</h2></div><div class="es-tabs">' +
     '<button type="button" class="es-tab' + (activa === 'promedios' ? ' on' : '') + '" data-es-tab="promedios">PROMEDIOS MAESTROS</button>' +
     '<button type="button" class="es-tab' + (activa === 'fichas' ? ' on' : '') + '" data-es-tab="fichas">FICHAS TÉCNICAS</button>' +
-    '<button type="button" class="es-tab' + (activa === 'proveedores' ? ' on' : '') + '" data-es-tab="proveedores">PROVEEDORES DE TELA</button></div></div>';
+    '<button type="button" class="es-tab' + (activa === 'proveedores' ? ' on' : '') + '" data-es-tab="proveedores">INFORMACIÓN TELA</button></div></div>';
 
   // Pone (o quita) la franja arriba de cada panel según corresponda
   function sincronizar() {
