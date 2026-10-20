@@ -510,10 +510,13 @@
 
   // ---- PESTAÑAS DEL INICIO (para no tener que bajar tanto) ----
   const TABS = [['resumen', 'Resumen'], ['tiempo', 'Tiempo por orden'], ['unidad', 'Tiempo por unidad'], ['carga', 'Carga por área']];
+  let telaData = null;   // compras de tela de ZEUS (solo quien puede ver Agente Inventario)
+  function telaTabs() { if (telaData && !TABS.some(([id]) => id === 'tela')) TABS.push(['tela', 'Tela']); }
   let activeTab = 'resumen';
   try { const saved = localStorage.getItem('indoor-home-tab'); if (TABS.some(([id]) => id === saved)) activeTab = saved; } catch (e) { /* sin almacenamiento */ }
   function tabsBar(a) {
-    const badge = { tiempo: a.timing.length || '', carga: a.load.length || '' };
+    telaTabs();
+    const badge = { tiempo: a.timing.length || '', carga: a.load.length || '', tela: telaData && (telaData.por_pedir.length + telaData.errores.length) || '' };
     return '<nav class="dash-tabs" role="tablist" aria-label="Secciones del resumen">' + TABS.map(([id, label]) =>
       '<button type="button" role="tab" class="' + (id === activeTab ? 'on' : '') + '" data-dash-tab="' + id + '" aria-selected="' + (id === activeTab) + '">' + label + (badge[id] ? ' <b>' + badge[id] + '</b>' : '') + '</button>').join('') + '</nav>';
   }
@@ -527,6 +530,22 @@
     countUp();
     playStairs(root.querySelector('.dash-pane.on'));
   });
+
+  // ---- TELA: lo que falta por pedir y lo que ZEUS ya pidió en Effi ----
+  function telaPane() {
+    const t = telaData;
+    if (!t) return '';
+    const fila = (x, cls, der) => '<li class="dash-tela-row ' + cls + '"><span><strong>' + esc(x.tela) + '</strong><small>' + plural(x.pedidos, 'pedido', 'pedidos') + (x.detalle ? ' · ' + esc(x.detalle) : '') + '</small></span><span class="dash-tela-der"><b>' + fmtNum(x.falta) + ' MTS</b><small>' + der + '</small></span></li>';
+    const lista = (titulo, arr, cls, der, vacio) => '<section class="dash-tela-box"><h4>' + titulo + '</h4>' + (arr.length ? '<ul>' + arr.map(x => fila(x, cls, der(x))).join('') + '</ul>' : '<p class="dash-none">' + vacio + '</p>') + '</section>';
+    const total = Math.max(1, t.mts_por_pedir + t.mts_creadas);
+    return '<div class="dash-cards">' +
+      card('orange', 'Tela por pedir', fmtNum(t.mts_por_pedir), 'MTS', [['Telas esperando al agente', t.por_pedir.length], ['Agente', t.agente ? 'en línea' : 'sin conexión']], '', t.mts_por_pedir / total * 100) +
+      card('green', 'Pedida en 7 días', fmtNum(t.mts_creadas), 'MTS', [['Órdenes de compra creadas', t.creadas.length]], '', t.mts_creadas / total * 100) +
+      card(t.errores.length ? 'red' : 'green', 'Con error', String(t.errores.length), t.errores.length === 1 ? 'orden' : 'órdenes', [['Revisa Agente Inventario', t.errores.length ? 'sí' : 'todo bien']], '', t.errores.length ? 100 : 0) + '</div>' +
+      '<div class="dash-tela-grid">' + lista('Por pedir', t.por_pedir, 'pend', () => 'esperando a ZEUS', 'No falta tela por pedir.') +
+      lista('Órdenes creadas en Effi', t.creadas, 'ok', x => 'OC ' + esc(x.oc) + ' · ' + esc(x.fecha), 'Todavía no hay órdenes en los últimos 7 días.') +
+      (t.errores.length ? lista('Con error', t.errores, 'err', () => 'se reintenta', '') : '') + '</div>';
+  }
 
   // ---- CARGA POR ÁREA (real: filas en proceso, en cola y en reproceso de cada área, en el orden del flujo; cada tarjeta lista todos sus pedidos) ----
   const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
@@ -851,7 +870,8 @@
       '<div class="dash-pane' + (activeTab === 'resumen' ? ' on' : '') + '" data-pane="resumen">' + orderFinder(a.orders) + '<div class="dash-cards">' + time + units + week + pct + '</div><div class="dash-today">' + today + late + rework + '</div></div>' +
       '<div class="dash-pane' + (activeTab === 'tiempo' ? ' on' : '') + '" data-pane="tiempo">' + (timing || '<p class="dash-none">No hay órdenes con fecha de creación para medir.</p>') + '</div>' +
       '<div class="dash-pane' + (activeTab === 'unidad' ? ' on' : '') + '" data-pane="unidad">' + unitSection(a) + '</div>' +
-      '<div class="dash-pane' + (activeTab === 'carga' ? ' on' : '') + '" data-pane="carga">' + stairs(a, false) + (loadHtml || '<p class="dash-none">No hay pedidos pendientes por área.</p>') + '</div>';
+      '<div class="dash-pane' + (activeTab === 'carga' ? ' on' : '') + '" data-pane="carga">' + stairs(a, false) + (loadHtml || '<p class="dash-none">No hay pedidos pendientes por área.</p>') + '</div>' +
+      (telaData ? '<div class="dash-pane' + (activeTab === 'tela' ? ' on' : '') + '" data-pane="tela">' + telaPane() + '</div>' : '');
     greet(a);
     bindOrderFinder(a.orders);
     renderTiming(a);
@@ -1061,6 +1081,8 @@
   @media(max-width:700px){.dash-time-search{flex-basis:100%}.dash-time-export{display:grid;grid-template-columns:1fr 1fr;width:100%}.dash-time-export label:first-child,.dash-time-csv{grid-column:1/-1}.dash-time-export input,.dash-time-export select{width:100%;box-sizing:border-box}}
   .dash-time-body{display:grid;gap:12px}.dash-time-sub{font-size:.72rem;color:#b3c0ad}
   .dash-time-more{justify-self:center;width:auto!important;padding:9px 22px;border:1px solid rgba(208,244,76,.45);border-radius:999px;background:transparent;color:#d0f44c;font:800 .78rem Arial;cursor:pointer}
+  .dash-tela-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;margin-top:16px}.dash-tela-box{padding:16px;border:1px solid rgba(255,255,255,.13);border-radius:16px;background:#121712}.dash-tela-box h4{margin:0 0 10px;font-size:.95rem}.dash-tela-box ul{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+  .dash-tela-row{display:flex;justify-content:space-between;gap:12px;padding:10px 12px;border-left:4px solid #8bd450;border-radius:10px;background:#172018}.dash-tela-row.pend{border-color:#ffc95c}.dash-tela-row.err{border-color:#ff6b5c}.dash-tela-row strong{display:block;font-size:.88rem;color:#f2f7ea;overflow-wrap:anywhere}.dash-tela-row small{display:block;font-size:.72rem;color:#a9b5a3}.dash-tela-der{text-align:right;flex:none}.dash-tela-der b{font-size:.9rem;color:#fff}
   @media(max-width:1050px) and (min-width:701px){.dash-order-results{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:700px){.dash-order-finder{grid-template-columns:1fr;padding:15px}.dash-order-results{grid-column:auto;grid-template-columns:1fr}.dash-order-result{min-height:260px}}
   `;
   document.head.appendChild(style);
@@ -1075,7 +1097,8 @@
       if (!response.ok) { let detail = ''; try { detail = JSON.parse(text).detail; } catch (e) { /* respuesta no JSON */ } throw new Error(detail || 'No se pudo cargar'); }
       const crudo = JSON.parse(text);
       // Huella sin los campos que cambian en cada sincronización (hora de revisión): solo se redibuja si cambió algo real
-      const huella = JSON.stringify(Object.assign({}, crudo, { updated_at: 0, sheets_sync: 0 }));
+      try { const rt = await fetch('/api/zeus/resumen', { cache: 'no-cache' }); telaData = rt.ok ? await rt.json() : null; } catch (e) { /* sin permiso o sin red: no hay pestaña Tela */ }
+      const huella = JSON.stringify(Object.assign({}, crudo, { updated_at: 0, sheets_sync: 0 })) + JSON.stringify(telaData);
       if (!force && huella === lastText && model) return;   // sin cambios: no se redibuja (evita el parpadeo)
       lastText = huella;
       model = analyse(crudo);

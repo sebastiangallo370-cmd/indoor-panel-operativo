@@ -532,6 +532,32 @@ def _usuario_llave(request: Request) -> str:
     return usuario
 
 
+@router.get('/resumen')
+def resumen_compras(request: Request):
+    """Para la pestaña «Tela» de Inicio: lo que falta por pedir, lo que ZEUS ya pidió (últimos 7 días) y lo que falló. Mismos permisos que Agente Inventario."""
+    _usuario(request)
+    with _lock:
+        d = _leer()
+    limite = _ahora() - 7 * 86400
+    por_pedir, creadas, errores = [], [], []
+    for i in reversed(d['items']):
+        est = i.get('estado')
+        base = {'tela': i.get('tela', ''), 'falta': round(float(i.get('falta') or 0)), 'pedidos': len(i.get('ordenes') or [])}
+        if est in ('pendiente', 'entregada'):
+            por_pedir.append(base)
+        elif est == 'error':
+            errores.append({**base, 'detalle': str(i.get('detalle') or '')[:160]})
+        elif est == 'creada' and i.get('oc'):
+            try:
+                t = time.mktime(time.strptime(str(i.get('creada') or i.get('actualizado'))[:19], '%Y-%m-%dT%H:%M:%S')) + 5 * 3600
+            except (ValueError, TypeError):
+                t = _ahora()
+            if t >= limite:
+                creadas.append({**base, 'oc': str(i['oc']), 'fecha': str(i.get('creada') or i.get('actualizado') or '')[:16].replace('T', ' ')})
+    return {'por_pedir': por_pedir, 'creadas': creadas[:30], 'errores': errores, 'mts_por_pedir': sum(x['falta'] for x in por_pedir),
+            'mts_creadas': sum(x['falta'] for x in creadas), 'agente': (_agente(d) or {}).get('conectado', False)}
+
+
 @router.get('/google')
 def google_estado(request: Request):
     from app import google_correo
