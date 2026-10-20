@@ -33,7 +33,7 @@ _too_many: Callable = lambda bucket, request, limit, seconds=60: False
 _mockups: Callable[[int], dict] = lambda row: {'mockups': [], 'mockups_lista': None}
 COL = timezone(timedelta(hours=-5))
 TALLAS = ['2', '4', '6', '8', '10', '12', '14', '16', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL']
-MAX_JUGADORES = 60
+MAX_JUGADORES = 300
 
 
 def configurar(connect: Callable, auth: Callable, permitido: Callable[[str], bool], too_many: Callable, mockups: Callable[[int], dict]) -> None:

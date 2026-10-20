@@ -8,32 +8,48 @@
 <style>
 :root{--bg:#080b08;--card:#121712;--line:#2c372f;--ink:#f1f6ec;--mut:#a9b5a3;--lima:#d0f44c;--err:#ff8f80}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 Arial,Helvetica,sans-serif}
 body{min-height:100vh;padding:0 16px 120px}
-.wrap{max-width:1040px;margin:0 auto}
+.wrap{max-width:980px;margin:0 auto}
 header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:20px 0 6px}
 header img{height:34px}
 header small{color:var(--mut)}
 h1{margin:14px 0 4px;font-size:1.7rem;line-height:1.15}
 h1 span{color:var(--lima)}
-.sub{margin:0 0 20px;color:var(--mut)}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:16px}
-.card{display:grid;align-content:start;gap:10px;padding:14px;border:1px solid var(--line);border-top:4px solid var(--lima);border-radius:16px;background:var(--card)}
-.card.on{border-color:var(--lima);box-shadow:0 0 0 2px rgba(208,244,76,.25)}
-.img{aspect-ratio:4/3;border-radius:12px;background:#0d120d;display:grid;place-items:center;overflow:hidden;color:var(--mut);font-size:.8rem}
-.img img{width:100%;height:100%;object-fit:contain;background:#fff}
-.card h3{margin:0;font-size:1rem;overflow-wrap:anywhere}
-.card small{color:var(--mut)}
+.sub{margin:0 0 18px;color:var(--mut)}
+.paso{margin:0 0 18px;padding:18px;border:1px solid var(--line);border-radius:18px;background:var(--card)}
+.paso>h2{display:flex;align-items:center;gap:10px;margin:0 0 12px;font-size:1.05rem}
+.paso>h2 b{display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:var(--lima);color:#142017;font-size:.9rem}
+select,input,textarea{font:inherit;color:var(--ink);background:#0f150f;border:1px solid #3d4c3b;border-radius:10px;min-height:44px;padding:8px 10px;width:100%}
+select:focus,input:focus,textarea:focus{outline:none;border-color:var(--lima)}
 button{font:inherit;cursor:pointer}
 .btn{border:0;border-radius:12px;padding:12px 16px;background:var(--lima);color:#142017;font-weight:800;min-height:46px}
 .btn.sec{background:transparent;color:var(--lima);border:1px solid var(--lima)}
+.btn.mini{min-height:38px;padding:8px 12px;font-size:.85rem}
 .btn:disabled{opacity:.5;cursor:default}
-.lista{display:grid;gap:8px;margin-top:4px}
-.fila{display:grid;grid-template-columns:1fr 70px 82px 62px 36px;gap:6px;align-items:center}
-.fila input,.fila select,.campos input,.campos textarea{width:100%;min-height:42px;padding:8px 10px;border:1px solid #3d4c3b;border-radius:10px;background:#0f150f;color:var(--ink);font:inherit}
-.fila button{min-height:42px;border:1px solid #3d4c3b;border-radius:10px;background:transparent;color:var(--mut)}
-.encab{display:grid;grid-template-columns:1fr 70px 82px 62px 36px;gap:6px;font-size:.7rem;color:var(--mut);text-transform:uppercase;letter-spacing:.05em}
-.barra{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:center;padding:12px 16px;background:linear-gradient(0deg,#080b08 70%,transparent)}
+.galeria{display:grid;gap:10px;margin-top:14px}
+.grande{aspect-ratio:16/10;border-radius:14px;background:#fff;display:grid;place-items:center;overflow:hidden;color:#555}
+.grande img{width:100%;height:100%;object-fit:contain}
+.mini-tira{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
+.mini-tira button{flex:0 0 92px;height:66px;padding:0;border:2px solid transparent;border-radius:10px;background:#fff;overflow:hidden}
+.mini-tira button.on{border-color:var(--lima)}
+.mini-tira img{width:100%;height:100%;object-fit:contain}
+.info{margin:10px 0 0;color:var(--mut);font-size:.85rem}
+.tabla{width:100%;border-collapse:collapse}
+.tabla th{padding:6px 6px;text-align:left;color:var(--mut);font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--line)}
+.tabla td{padding:4px 4px;vertical-align:middle}
+.tabla td.n{width:34px;color:var(--mut);text-align:center;font-size:.8rem}
+.tabla td.cn{width:84px}.tabla td.ct{width:92px}.tabla td.cc{width:78px}.tabla td.cx{width:42px}
+.tabla button{min-height:40px;width:38px;border:1px solid #3d4c3b;border-radius:10px;background:transparent;color:var(--mut)}
+.acciones{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}
+.pegar{margin-top:12px;display:none}
+.pegar.on{display:block}
+.pegar textarea{min-height:110px;font-family:Consolas,monospace;font-size:.85rem}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.chip{display:inline-flex;align-items:center;gap:8px;padding:7px 12px;border:1px solid var(--lima);border-radius:999px;font-size:.82rem;background:rgba(208,244,76,.1)}
+.chip button{border:0;background:transparent;color:var(--err);padding:0 2px;font-weight:900}
+.barra{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:center;padding:12px 16px;background:linear-gradient(0deg,#080b08 70%,transparent);z-index:3}
 .barra .btn{width:min(520px,100%)}
 .modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.7);z-index:5}
 .modal.on{display:flex}
@@ -42,18 +58,48 @@ button{font:inherit;cursor:pointer}
 .campos label{display:grid;gap:4px;font-size:.8rem;color:var(--mut)}
 .msg{padding:12px;border-radius:10px;background:#1b2a1b;color:var(--lima);font-weight:700}
 .msg.err{background:#3a1d1a;color:var(--err)}
-.vacio{padding:40px;text-align:center;border:1px dashed var(--line);border-radius:14px;color:var(--mut)}
 .hp{position:absolute;left:-9999px;opacity:0}
-@media(max-width:560px){h1{font-size:1.4rem}.fila,.encab{grid-template-columns:1fr 56px 74px 52px 32px}}
+@media(max-width:620px){h1{font-size:1.4rem}.paso{padding:14px}.tabla td.cn{width:54px}.tabla td.ct{width:60px}.tabla td.cc{width:48px}.tabla td.cx{width:30px}.tabla button{width:28px}.tabla input,.tabla select{padding:8px 4px;font-size:.9rem}.tabla td{padding:3px 2px}.tabla td.n{display:none}.tabla th:first-child{display:none}.mini-tira button{flex-basis:76px;height:56px}}
 </style>
 </head>
 <body data-token="__TOKEN__">
 <div class="wrap">
   <header><img src="/marca-indoor.svg" alt="Indoor Sport"><small>Reposiciones</small></header>
   <h1 id="titulo">Cargando…</h1>
-  <p class="sub">Elige el diseño que quieres volver a pedir, agrega los jugadores con su nombre, número y talla, y envía la reposición. Tu asesor comercial la revisa y te confirma.</p>
+  <p class="sub" id="intro">Sigue los 2 pasos: elige el diseño que quieres volver a pedir y llena el listado de jugadores. Puedes agregar varios diseños en un mismo pedido. Tu asesor comercial lo revisa y te confirma.</p>
   <div id="msg"></div>
-  <div class="grid" id="grid"></div>
+
+  <div id="app" hidden>
+    <section class="paso">
+      <h2><b>1</b> Selecciona el diseño</h2>
+      <select id="sel" aria-label="Seleccionar diseño"></select>
+      <div class="galeria" id="galeria" hidden>
+        <div class="grande" id="grande"></div>
+        <div class="mini-tira" id="tira"></div>
+      </div>
+      <p class="info" id="info"></p>
+    </section>
+
+    <section class="paso" id="paso2" hidden>
+      <h2><b>2</b> Llena el listado de jugadores</h2>
+      <div class="chips" id="chips"></div>
+      <table class="tabla">
+        <thead><tr><th>#</th><th>N° camiseta</th><th>Nombre en la prenda</th><th>Talla</th><th>Cant.</th><th></th></tr></thead>
+        <tbody id="filas"></tbody>
+      </table>
+      <div class="acciones">
+        <button class="btn sec mini" id="mas1" type="button">+ Agregar fila</button>
+        <button class="btn sec mini" id="mas5" type="button">+ 5 filas</button>
+        <button class="btn sec mini" id="verpegar" type="button">Pegar desde Excel</button>
+      </div>
+      <div class="pegar" id="pegar">
+        <p class="info">Copia las filas de tu Excel con estas 4 columnas, en este orden: <b>N° camiseta · Nombre · Talla · Cantidad</b>. Luego pégalas aquí.</p>
+        <textarea id="texto" placeholder="10&#9;MESSI&#9;M&#9;1&#10;7&#9;RONALDO&#9;L&#9;2"></textarea>
+        <div class="acciones"><button class="btn mini" id="aplicar" type="button">Pasar al listado</button></div>
+      </div>
+      <p class="info" id="aviso"></p>
+    </section>
+  </div>
 </div>
 <div class="barra"><button class="btn" id="enviar" disabled>Revisar y enviar (0 prendas)</button></div>
 
@@ -72,59 +118,99 @@ button{font:inherit;cursor:pointer}
 
 <script>
 (function(){
-  var token=document.body.dataset.token,tallas=[],disenos=[],carro={};   // carro[row]=[{nombre,numero,talla,cantidad}]
+  var token=document.body.dataset.token,tallas=[],disenos=[],carro={},sel=0,foto=0,fotos={};   // carro[row]=[{numero,nombre,talla,cantidad}]
   var $=function(i){return document.getElementById(i)};
   var esc=function(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})};
-  function prendas(){var n=0;Object.keys(carro).forEach(function(k){carro[k].forEach(function(j){n+=Math.max(1,Number(j.cantidad)||1)})});return n}
+  var vacia=function(j){return !String(j.numero||'').trim()&&!String(j.nombre||'').trim()};
+  function llenas(r){return (carro[r]||[]).filter(function(j){return !vacia(j)})}
+  function prendas(){var n=0;Object.keys(carro).forEach(function(r){llenas(r).forEach(function(j){n+=Math.max(1,Number(j.cantidad)||1)})});return n}
   function barra(){var n=prendas();$('enviar').disabled=!n;$('enviar').textContent='Revisar y enviar ('+n+(n===1?' prenda)':' prendas)');}
-  function img(d,nodo){
+  function actual(){return disenos.filter(function(d){return d.row===sel})[0]}
+  function nueva(){return {numero:'',nombre:'',talla:tallas.indexOf('M')>=0?'M':tallas[0],cantidad:1}}
+
+  function opciones(){
+    $('sel').innerHTML='<option value="0">— Selecciona un diseño —</option>'+disenos.map(function(d){
+      var n=llenas(d.row).length;
+      return '<option value="'+d.row+'"'+(d.row===sel?' selected':'')+'>'+esc((d.proyecto||d.referencia)+' · Ref. '+d.referencia+' · pedido '+d.orden+(n?'  ✓ ('+n+' jugadores)':''))+'</option>';
+    }).join('');
+  }
+  function cargaFotos(d){
     var m=d.mockups||{};
-    if(m.mockups&&m.mockups.length){nodo.innerHTML='<img alt="Diseño '+esc(d.referencia)+'" loading="lazy" src="'+esc(m.mockups[0])+'">';return}
-    if(m.mockups_lista){fetch(m.mockups_lista).then(function(r){return r.ok?r.json():null}).then(function(x){if(x&&x.mockups&&x.mockups.length)nodo.innerHTML='<img alt="Diseño '+esc(d.referencia)+'" loading="lazy" src="'+esc(x.mockups[0])+'">';else nodo.textContent='Sin imagen'}).catch(function(){nodo.textContent='Sin imagen'});return}
-    nodo.textContent='Sin imagen';
+    if(m.mockups&&m.mockups.length){fotos[d.row]=m.mockups;galeria();return}
+    if(m.mockups_lista){fetch(m.mockups_lista).then(function(r){return r.ok?r.json():null}).then(function(x){fotos[d.row]=(x&&x.mockups)||[];galeria()}).catch(function(){fotos[d.row]=[];galeria()});return}
+    fotos[d.row]=[];galeria();
   }
-  function filaHtml(row,i,j){
-    return '<div class="fila" data-row="'+row+'" data-i="'+i+'"><input data-f="nombre" placeholder="Nombre" maxlength="40" value="'+esc(j.nombre)+'">'
-      +'<input data-f="numero" placeholder="N°" inputmode="numeric" maxlength="4" value="'+esc(j.numero)+'">'
-      +'<select data-f="talla">'+tallas.map(function(t){return '<option'+(t===j.talla?' selected':'')+'>'+t+'</option>'}).join('')+'</select>'
-      +'<input data-f="cantidad" type="number" min="1" max="50" value="'+(j.cantidad||1)+'"><button type="button" data-del aria-label="Quitar">✕</button></div>';
+  function galeria(){
+    var d=actual();if(!d){$('galeria').hidden=true;return}
+    var f=fotos[d.row];$('galeria').hidden=false;
+    if(!f){$('grande').textContent='Cargando diseño…';$('tira').innerHTML='';return}
+    if(!f.length){$('grande').textContent='Este diseño no tiene imagen disponible';$('tira').innerHTML='';return}
+    foto=Math.min(foto,f.length-1);
+    $('grande').innerHTML='<img alt="Diseño '+esc(d.referencia)+'" src="'+esc(f[foto])+'">';
+    $('tira').innerHTML=f.length>1?f.map(function(u,i){return '<button type="button" data-foto="'+i+'" class="'+(i===foto?'on':'')+'" aria-label="Ver diseño '+(i+1)+'"><img alt="" src="'+esc(u)+'"></button>'}).join(''):'';
   }
-  function pinta(){
-    $('grid').innerHTML=disenos.map(function(d){
-      var js=carro[d.row]||[],on=js.length>0;
-      return '<article class="card'+(on?' on':'')+'" data-card="'+d.row+'"><div class="img" data-img="'+d.row+'">Cargando…</div>'
-        +'<div><h3>'+esc(d.proyecto||d.referencia)+'</h3><small>Ref. '+esc(d.referencia)+' · pedido '+esc(d.orden)+(d.fecha?' · '+esc(d.fecha):'')+'</small></div>'
-        +(on?'<div class="encab"><span>Nombre</span><span>N°</span><span>Talla</span><span>Cant.</span><span></span></div><div class="lista">'+js.map(function(j,i){return filaHtml(d.row,i,j)}).join('')+'</div>':'')
-        +'<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn'+(on?' sec':'')+'" data-add="'+d.row+'">'+(on?'+ Agregar jugador':'Reponer este diseño')+'</button></div></article>';
-    }).join('')||'<div class="vacio">Todavía no hay diseños disponibles para reponer. Escríbele a tu asesor comercial.</div>';
-    disenos.forEach(function(d){var n=document.querySelector('[data-img="'+d.row+'"]');if(n)img(d,n)});
-    barra();
+  function tabla(){
+    var d=actual();$('paso2').hidden=!d;if(!d)return;
+    var js=carro[d.row]=carro[d.row]||[];if(!js.length){for(var k=0;k<5;k++)js.push(nueva())}
+    $('filas').innerHTML=js.map(function(j,i){
+      return '<tr data-i="'+i+'"><td class="n">'+(i+1)+'</td><td class="cn"><input data-f="numero" inputmode="numeric" maxlength="4" placeholder="N°" value="'+esc(j.numero)+'" aria-label="Número de camiseta"></td>'
+        +'<td><input data-f="nombre" maxlength="40" placeholder="Nombre" value="'+esc(j.nombre)+'" aria-label="Nombre en la prenda"></td>'
+        +'<td class="ct"><select data-f="talla" aria-label="Talla">'+tallas.map(function(t){return '<option'+(t===j.talla?' selected':'')+'>'+t+'</option>'}).join('')+'</select></td>'
+        +'<td class="cc"><input data-f="cantidad" type="number" min="1" max="50" value="'+(j.cantidad||1)+'" aria-label="Cantidad"></td>'
+        +'<td class="cx"><button type="button" data-del="'+i+'" aria-label="Quitar fila">✕</button></td></tr>';
+    }).join('');
+    $('chips').innerHTML=disenos.filter(function(x){return llenas(x.row).length}).map(function(x){return '<span class="chip">'+esc(x.referencia)+' · '+llenas(x.row).length+' jugadores<button type="button" data-quitar="'+x.row+'" aria-label="Quitar este diseño del pedido">✕</button></span>'}).join('');
+    $('info').textContent='Ref. '+d.referencia+' · pedido anterior '+d.orden+(d.fecha?' · '+d.fecha:'');
+    $('aviso').textContent='Las filas vacías no se envían. Puedes cambiar de diseño arriba y tu listado se conserva.';
   }
-  // para no perder lo escrito al volver a dibujar, se lee del formulario antes de cada cambio
-  function leer(){document.querySelectorAll('.fila').forEach(function(f){var r=f.dataset.row,i=Number(f.dataset.i);if(!carro[r]||!carro[r][i])return;f.querySelectorAll('[data-f]').forEach(function(c){carro[r][i][c.dataset.f]=c.value})})}
+  function leer(){
+    var d=actual();if(!d)return;
+    document.querySelectorAll('#filas tr').forEach(function(tr){var j=(carro[d.row]||[])[Number(tr.dataset.i)];if(!j)return;tr.querySelectorAll('[data-f]').forEach(function(c){j[c.dataset.f]=c.value})});
+  }
+  function todo(){opciones();galeria();tabla();barra()}
+
+  $('sel').addEventListener('change',function(){leer();sel=Number($('sel').value)||0;foto=0;var d=actual();if(d&&!fotos[d.row])cargaFotos(d);todo()});
+  document.addEventListener('input',function(e){if(e.target.closest('#filas')){leer();barra();opciones()}});
   document.addEventListener('click',function(e){
-    var a=e.target.closest('[data-add]');
-    if(a){leer();var r=a.dataset.add;(carro[r]=carro[r]||[]).push({nombre:'',numero:'',talla:tallas[tallas.indexOf('M')>=0?tallas.indexOf('M'):0],cantidad:1});pinta();return}
-    var x=e.target.closest('[data-del]');
-    if(x){leer();var f=x.closest('.fila');carro[f.dataset.row].splice(Number(f.dataset.i),1);if(!carro[f.dataset.row].length)delete carro[f.dataset.row];pinta();return}
+    var t=e.target.closest('[data-foto]');if(t){foto=Number(t.dataset.foto);galeria();return}
+    var x=e.target.closest('[data-del]');if(x){leer();var d=actual();carro[d.row].splice(Number(x.dataset.del),1);tabla();barra();opciones();return}
+    var q=e.target.closest('[data-quitar]');if(q){delete carro[q.dataset.quitar];todo();return}
   });
-  document.addEventListener('input',function(){leer();barra()});
-  $('enviar').addEventListener('click',function(){leer();var n=prendas();$('resumen').textContent=n+(n===1?' prenda':' prendas')+' en '+Object.keys(carro).length+(Object.keys(carro).length===1?' diseño.':' diseños.');$('msg2').innerHTML='';$('modal').classList.add('on')});
+  function mas(n){leer();var d=actual();if(!d)return;for(var i=0;i<n;i++)carro[d.row].push(nueva());tabla();var f=document.querySelectorAll('#filas tr');if(f.length)f[f.length-1].scrollIntoView({block:'center',behavior:'smooth'})}
+  $('mas1').addEventListener('click',function(){mas(1)});
+  $('mas5').addEventListener('click',function(){mas(5)});
+  $('verpegar').addEventListener('click',function(){$('pegar').classList.toggle('on')});
+  $('aplicar').addEventListener('click',function(){
+    leer();var d=actual();if(!d)return;var js=carro[d.row].filter(function(j){return !vacia(j)}),malas=0;
+    $('texto').value.split(/\r?\n/).forEach(function(linea){
+      if(!linea.trim())return;var p=linea.split(/\t|;/).map(function(s){return s.trim()});
+      if(p.length<2){p=linea.trim().split(/\s{2,}/)}
+      var talla=String(p[2]||'').toUpperCase();if(tallas.indexOf(talla)<0){malas++;talla=tallas.indexOf('M')>=0?'M':tallas[0]}
+      js.push({numero:String(p[0]||'').replace(/[^0-9A-Za-z]/g,'').slice(0,4),nombre:String(p[1]||'').slice(0,40),talla:talla,cantidad:Math.max(1,Math.min(50,parseInt(p[3],10)||1))});
+    });
+    carro[d.row]=js.concat([nueva()]);$('texto').value='';$('pegar').classList.remove('on');tabla();barra();opciones();
+    $('aviso').textContent=malas?malas+' fila(s) tenían una talla no válida y quedaron en M: revísalas.':'Listado pasado. Revisa que todo esté bien.';
+  });
+  $('enviar').addEventListener('click',function(){leer();var n=prendas(),k=Object.keys(carro).filter(function(r){return llenas(r).length}).length;$('resumen').textContent=n+(n===1?' prenda':' prendas')+' en '+k+(k===1?' diseño.':' diseños.');$('msg2').innerHTML='';$('modal').classList.add('on')});
   $('cerrar').addEventListener('click',function(){$('modal').classList.remove('on')});
   $('confirmar').addEventListener('click',function(){
     leer();var b=$('confirmar');b.disabled=true;
-    var lineas=Object.keys(carro).map(function(r){return {row:Number(r),jugadores:carro[r]}});
+    var lineas=Object.keys(carro).filter(function(r){return llenas(r).length}).map(function(r){return {row:Number(r),jugadores:llenas(r)}});
     fetch('/api/club/'+encodeURIComponent(token)+'/pedido',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lineas:lineas,contacto:$('contacto').value,telefono:$('telefono').value,notas:$('notas').value,website:$('website').value})})
       .then(function(r){return r.json().catch(function(){return {}}).then(function(d){return {ok:r.ok,d:d}})})
       .then(function(x){
         if(!x.ok){$('msg2').innerHTML='<div class="msg err">'+esc(x.d.detail||'No se pudo enviar. Intenta de nuevo.')+'</div>';b.disabled=false;return}
-        $('modal').classList.remove('on');carro={};pinta();
+        $('modal').classList.remove('on');carro={};sel=0;todo();
         $('msg').innerHTML='<div class="msg">✓ Reposición #'+esc(x.d.numero)+' enviada ('+esc(x.d.prendas)+' prendas). Tu asesor comercial la revisará y te contactará.</div>';window.scrollTo({top:0,behavior:'smooth'});b.disabled=false;
       }).catch(function(){$('msg2').innerHTML='<div class="msg err">Sin conexión. Intenta de nuevo.</div>';b.disabled=false});
   });
   fetch('/api/club/'+encodeURIComponent(token)+'/disenos',{cache:'no-store'}).then(function(r){return r.json().catch(function(){return {}}).then(function(d){return {ok:r.ok,d:d}})}).then(function(x){
-    if(!x.ok){$('titulo').textContent='Enlace no disponible';document.querySelector('.sub').hidden=true;document.querySelector('.barra').hidden=true;$('msg').innerHTML='<div class="msg err">'+esc(x.d.detail||'No se pudo abrir este enlace.')+'</div>';return}
-    tallas=x.d.tallas;disenos=x.d.disenos;$('titulo').innerHTML='Reposiciones de <span>'+esc(x.d.cliente)+'</span>';pinta();
+    if(!x.ok){$('titulo').textContent='Enlace no disponible';$('intro').hidden=true;document.querySelector('.barra').hidden=true;$('msg').innerHTML='<div class="msg err">'+esc(x.d.detail||'No se pudo abrir este enlace.')+'</div>';return}
+    tallas=x.d.tallas;disenos=x.d.disenos;$('titulo').innerHTML='Reposiciones de <span>'+esc(x.d.cliente)+'</span>';
+    if(!disenos.length){$('msg').innerHTML='<div class="msg err">Todavía no hay diseños disponibles para reponer. Escríbele a tu asesor comercial.</div>';document.querySelector('.barra').hidden=true;return}
+    $('app').hidden=false;
+    disenos.forEach(function(d){var m=d.mockups||{};if(m.mockups&&m.mockups.length)fotos[d.row]=m.mockups});
+    opciones();
   }).catch(function(){$('titulo').textContent='Sin conexión';});
 })();
 </script>
