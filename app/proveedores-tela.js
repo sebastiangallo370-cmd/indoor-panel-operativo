@@ -221,7 +221,7 @@
   .pv-card.pv-t .pt-head,.pv-card.pv-t .pt-stats{border-color:rgba(255,255,255,.1)}
   .pv-card.pv-t .pt-row{border-bottom-color:rgba(255,255,255,.08)}
   .pv-card.pv-t .pt-stats{background:rgba(0,0,0,.26);position:relative;overflow:hidden}
-  .pv-card.pv-t .pt-stats{gap:8px;padding:10px;border-top:0}
+  .pv-card.pv-t .pt-stats{gap:8px;padding:10px;border-top:0;grid-template-columns:1fr}
   .pv-card.pv-t .pt-stats>div{position:relative;overflow:hidden;border:0;padding:14px 6px 10px;min-width:0}
   .pv-card.pv-t .pt-stats b{font-size:clamp(16px,5.4vw,28px)}
   .pv-card.pv-t .pt-head{flex-wrap:wrap}.pt-nom{hyphens:manual!important}
@@ -335,9 +335,7 @@
       (edit ? sugerencias('ancho', anchosHabituales()) : '') +
       fila(t.codigo, 'ID Effi', t.id_effi, 'inputmode="numeric" data-pv-ide', false, false, 'Opcional') + '</div>' + acciones +
       `<div class="pt-stats"><div data-lq="${Math.min(100, Math.round(mts / 25))}" data-lq-tone="teal" data-lq-nopct><b data-n="${mts}">${f0(mts)}</b><span>MTS en bodega</span></div>` +
-      `<div data-lq="${Math.min(100, rollos * 10)}" data-lq-tone="azul" data-lq-nopct><b data-n="${rollos}">${f0(rollos)}</b><span>Rollos</span></div>` +
-      `<div data-lq="${pct}" data-lq-tone="${pct >= 80 ? 'rojo' : 'ambar'}" data-lq-nopct><b data-n="${uso}">${f0(uso)}</b><span>MTS en ${f0(ped)} pedidos</span></div></div>` +
-      (uso > 0 ? `<div class="pv-progress" title="${pct}% de la bodega está comprometida en pedidos"><span style="width:${pct}%"></span></div>` : '') +
+      '</div>' +
       `<div class="pv-est ${esc(e.c || '')}" data-pv-est>${esc(e.t || '')}</div></div>`;
   }
   const familia = n => (String(n || '').toUpperCase().replace(/\(.*?\)/g, ' ').trim().split(/\s+/)[0]) || 'OTRAS';
