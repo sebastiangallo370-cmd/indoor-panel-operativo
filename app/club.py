@@ -154,6 +154,8 @@ def construir_excels(p: dict) -> list[tuple[str, bytes]]:
                 maximo = max(maximo, d)
                 if d <= 6:   # la plantilla trae las columnas DISEÑO 1 a 6 en la tabla
                     ws.cell(row=fila, column=9 + d, value='X')
+                else:   # más de 6 diseños: no hay columna en la tabla (ahí van MASC y FEM); queda escrito en OBSERVACIONES para que no se pierda
+                    ws.cell(row=fila, column=18, value=f'DISEÑO {d}')
                 if j.get('genero') == 'MASC':
                     ws.cell(row=fila, column=16, value='X')
                 elif j.get('genero') == 'FEM':
