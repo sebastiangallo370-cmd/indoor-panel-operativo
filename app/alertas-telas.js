@@ -110,14 +110,13 @@
     if(RM){el.textContent=dec2(hasta);return}
     setTimeout(function(){var t0=performance.now();(function paso(t){var p=Math.min(1,(t-t0)/ms),e=1-Math.pow(1-p,3);el.textContent=dec2(hasta*e);if(p<1)requestAnimationFrame(paso)})(t0)},delay||0);
   }
-  // Mensaje personalizado: cada aviso nombra al cliente, la tela y los MTS, y habla como un cuerpo técnico a su equipo (somos una empresa de uniformes deportivos)
+  // Mensaje corto y personalizado (el cliente, la tela y los MTS ya van en la ficha de abajo)
   function mensajeEquipo(lista){
-    var ini='¡Muchachos, atención equipo! El <b>agente de inventarios</b> acaba de detectar ';
-    if(lista.length>1)return ini+'<b>'+lista.length+' nuevas producciones</b> de uniformes a las que <b>les falta tela</b> en el inventario. ¡Hay que conseguirla para que cada equipo salga a jugar a tiempo!';
-    var a=lista[0],cli='<b>'+esc(a.cliente||'un cliente')+'</b>'+(a.proyecto?' ('+esc(a.proyecto)+')':''),mts='<b>'+dec2(a.mts)+' MTS</b> de <b>'+esc(a.tela||'tela')+'</b>';
-    if(a.tipo==='sin_tela'||!(Number(a.disponible)>0))
-      return ini+'una nueva producción de uniformes para '+cli+': necesita '+mts+' y esa tela <b>no está en el inventario</b>. ¡Hay que conseguirla para que el equipo salga a jugar a tiempo!';
-    return ini+'una nueva producción de uniformes para '+cli+': necesita '+mts+' y en el inventario <b>solo tenemos '+ent(a.disponible,Math.round)+' MTS</b>. ¡Hay que conseguir <b>'+ent(a.falta,Math.ceil)+' MTS</b> para que el equipo salga a jugar a tiempo!';
+    var ini='¡Muchachos! El <b>agente de inventarios</b> detectó ';
+    if(lista.length>1)return ini+'<b>'+lista.length+' nuevas producciones</b> sin tela suficiente en el inventario.';
+    var a=lista[0];
+    if(a.tipo==='sin_tela'||!(Number(a.disponible)>0))return ini+'una nueva producción y la tela <b>'+esc(a.tela||'')+'</b> no está en el inventario.';
+    return ini+'una nueva producción y no hay tela suficiente: faltan <b>'+ent(a.falta,Math.ceil)+' MTS</b> de <b>'+esc(a.tela||'tela')+'</b>.';
   }
   function filaProd(a,i){
     var chip=a.tipo==='sin_tela'?'No está en Bodega':'No alcanza';
