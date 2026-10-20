@@ -1412,6 +1412,30 @@ def respaldos_descargar(name: str, _=Depends(authenticate)):
     return FileResponse(path, media_type='application/gzip', filename=name)
 
 
+_LEGAL = ("<!doctype html><html lang='es'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>{t} · Indoor Sport</title>"
+          "<style>body{{font:16px/1.6 Arial,sans-serif;max-width:720px;margin:40px auto;padding:0 18px;color:#1d2a1d}}h1{{font-size:1.5rem}}</style></head><body>"
+          "<h1>{t} · Indoor Sport SAS</h1>{c}<p><small>Indoor Sport SAS · https://produccion.cloud</small></p></body></html>")
+
+
+@app.get('/privacidad', response_class=HTMLResponse)
+def privacidad():
+    return _LEGAL.format(t='Política de privacidad', c=(
+        "<p>El panel operativo de Indoor Sport SAS es de uso interno de la empresa. Solo lo usan personas autorizadas por la empresa.</p>"
+        "<p>Si una persona autorizada conecta su cuenta de Google, el panel solo pide permiso para <b>enviar correos</b> desde esa cuenta "
+        "(alertas, órdenes de compra y avisos del sistema). No lee, no borra ni consulta los correos recibidos, los contactos ni otros datos de la cuenta.</p>"
+        "<p>Se guarda únicamente la dirección de correo conectada y un permiso de envío, en el servidor de la empresa. Los datos no se venden ni se comparten con terceros. "
+        "Quien conectó la cuenta puede retirar el permiso en cualquier momento desde la configuración de su cuenta de Google o desde el panel.</p>"
+        "<p>Contacto: comercial2indoor@gmail.com</p>"))
+
+
+@app.get('/condiciones', response_class=HTMLResponse)
+def condiciones():
+    return _LEGAL.format(t='Condiciones del servicio', c=(
+        "<p>El panel operativo de Indoor Sport SAS es una herramienta interna para gestionar producción, inventario, compras y comunicaciones de la empresa.</p>"
+        "<p>El acceso es solo para personal autorizado. Los correos enviados desde el panel (alertas y órdenes de compra) son comunicaciones propias de la operación de Indoor Sport SAS.</p>"
+        "<p>La empresa puede modificar o suspender el servicio en cualquier momento.</p><p>Contacto: comercial2indoor@gmail.com</p>"))
+
+
 @app.get("/salud")
 def health():
     nas = Path(CONFIG["ruta_nas_clientes"])
