@@ -67,7 +67,7 @@ header small{padding:6px 12px;border:1px solid var(--line);border-radius:999px;b
 .tabla th{padding:4px 6px;text-align:left;color:var(--mut);font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em}
 .tabla td{padding:0 3px;vertical-align:middle}
 .tabla td.n{width:30px;color:var(--mut);text-align:center;font-size:.78rem;font-weight:700}
-.tabla td.cn{width:76px}.tabla td.ct{width:78px}.tabla td.cg{width:96px}.tabla td.cc{width:66px}.tabla td.cx{width:42px}
+.tabla td.cm{width:26%}.tabla td.ct{width:84px}.tabla td.cn{width:84px}.tabla td.cg{width:130px}.tabla td.co{width:auto}.tabla td.cc{width:70px}.tabla td.cx{width:42px}
 select,input,textarea{font:inherit;color:var(--ink);background:rgba(0,0,0,.35);border:1.5px solid rgba(255,255,255,.16);border-radius:12px;min-height:46px;padding:8px 10px;width:100%;transition:border-color .2s,box-shadow .2s}
 select:focus,input:focus,textarea:focus{outline:none;border-color:var(--lima);box-shadow:0 0 0 3px rgba(208,244,76,.18)}
 .tabla tr.llena input,.tabla tr.llena select{border-color:rgba(208,244,76,.4)}
@@ -117,8 +117,8 @@ button{font:inherit}
 .tabla tr.llena{border-color:rgba(208,244,76,.4)}
 .tabla td{display:block;width:auto!important;padding:0!important;min-width:0}.tabla td.n{display:none}
 .tabla td::before{content:attr(data-l);display:block;margin:0 0 3px 2px;color:var(--mut);font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em}.tabla td.cx::before{content:none}
-.tabla td.cn{grid-column:span 4}.tabla td.cm{grid-column:span 8}
-.tabla td.ct{grid-column:span 4}.tabla td.cg{grid-column:span 5}.tabla td.cc{grid-column:span 3}.tabla td.cx{grid-column:span 12;text-align:right}
+.tabla td.cm{grid-column:span 12}.tabla td.ct{grid-column:span 4}.tabla td.cn{grid-column:span 4}.tabla td.cg{grid-column:span 4}
+.tabla td.co{grid-column:span 9}.tabla td.cc{grid-column:span 3}.tabla td.cx{grid-column:span 12;text-align:right}
 .tabla button{width:auto;padding:0 14px;min-height:36px}.tabla td.cx button::after{content:" Quitar";font-size:.8rem}}
 @media(max-width:420px){.disenos,.mgrid{grid-template-columns:1fr}}
 </style>
@@ -162,7 +162,7 @@ button{font:inherit}
           <h3 id="nomdis"></h3>
           <p id="info"></p>
           <table class="tabla">
-            <thead><tr><th>#</th><th>Número</th><th>Nombre en la camiseta</th><th>Talla</th><th>Hombre / Mujer</th><th>Cant.</th><th></th></tr></thead>
+            <thead><tr><th>#</th><th>Nombre dorsal</th><th>Talla</th><th>Número</th><th>Género</th><th>Observación</th><th>Cant.</th><th></th></tr></thead>
             <tbody id="filas"></tbody>
           </table>
           <div class="acciones">
@@ -171,8 +171,8 @@ button{font:inherit}
             <button class="btn sec mini" id="verpegar" type="button">Pegar desde Excel</button>
           </div>
           <div class="pegar" id="pegar">
-            <p class="info" style="margin-top:0">¿Ya tienes la lista en Excel? Copia las filas con estas columnas, en este orden, y pégalas aquí: <b>Número · Nombre · Talla · H o M · Cantidad</b>. Entran en el diseño que tienes abierto.</p>
-            <textarea id="texto" placeholder="10&#9;MESSI&#9;M&#9;H&#9;1&#10;7&#9;ANA&#9;S&#9;M&#9;2"></textarea>
+            <p class="info" style="margin-top:0">¿Ya tienes la lista en Excel? Copia las filas con estas columnas, en este orden, y pégalas aquí: <b>Nombre dorsal · Talla · Número · Género (M o F) · Observación · Cantidad</b>. Entran en el diseño que tienes abierto.</p>
+            <textarea id="texto" placeholder="MESSI&#9;M&#9;10&#9;M&#9;&#9;1&#10;ANA&#9;S&#9;7&#9;F&#9;capitana&#9;2"></textarea>
             <div class="acciones"><button class="btn mini" id="aplicar" type="button">Pasar a la lista</button></div>
           </div>
           <p class="info" id="aviso">Las filas vacías no se envían. Tu lista se guarda sola mientras la escribes.</p>
@@ -212,7 +212,7 @@ button{font:inherit}
   function nPedidos(){return Object.keys(carro).filter(function(r){return llenas(r).length}).length}
   function actual(){return disenos.filter(function(d){return d.row===sel})[0]}
   function nDis(d){var f=fotos[d.row];return Math.max(1,Math.min((f&&f.length)||1,20))}
-  function nueva(n){return {numero:'',nombre:'',talla:tallas.indexOf('M')>=0?'M':tallas[0],diseno:n||1,genero:'',cantidad:1}}
+  function nueva(n){return {nombre:'',talla:tallas.indexOf('M')>=0?'M':tallas[0],numero:'',genero:'',observacion:'',diseno:n||1,cantidad:1}}
   function lista(r){return Object.keys(eleg[r]||{}).map(Number).sort(function(a,b){return a-b})}
 
   function guardar(){try{var v={};Object.keys(carro).forEach(function(r){var l=llenas(r);if(l.length)v[r]=l});if(Object.keys(v).length)localStorage.setItem(KEY,JSON.stringify(v));else localStorage.removeItem(KEY)}catch(e){}}
@@ -265,10 +265,12 @@ button{font:inherit}
     var js=carro[d.row]=carro[d.row]||[],mios=delDis(d.row,tab);
     if(!mios.length){for(var k=0;k<5;k++)js.push(nueva(tab))}
     $('filas').innerHTML=js.map(function(j,i){return {j:j,i:i}}).filter(function(x){return (Number(x.j.diseno)||1)===tab}).map(function(x,pos){var j=x.j,i=x.i;
-      return '<tr data-i="'+i+'" class="'+(vacia(j)?'':'llena')+'"><td class="n">'+(pos+1)+'</td><td class="cn" data-l="Número"><input data-f="numero" inputmode="numeric" maxlength="4" placeholder="N°" value="'+esc(j.numero)+'" aria-label="Número"></td>'
-        +'<td class="cm" data-l="Nombre en la camiseta"><input data-f="nombre" maxlength="40" placeholder="Nombre" value="'+esc(j.nombre)+'" aria-label="Nombre en la camiseta"></td>'
+      return '<tr data-i="'+i+'" class="'+(vacia(j)?'':'llena')+'"><td class="n">'+(pos+1)+'</td>'
+        +'<td class="cm" data-l="Nombre dorsal"><input data-f="nombre" maxlength="40" placeholder="Nombre dorsal" value="'+esc(j.nombre)+'" aria-label="Nombre dorsal"></td>'
         +'<td class="ct" data-l="Talla"><select data-f="talla" aria-label="Talla">'+tallas.map(function(t){return '<option'+(t===j.talla?' selected':'')+'>'+t+'</option>'}).join('')+'</select></td>'
-        +'<td class="cg" data-l="Hombre / Mujer"><select data-f="genero" aria-label="Hombre o mujer"><option value="">—</option><option'+(j.genero==='MASC'?' selected':'')+' value="MASC">Hombre</option><option'+(j.genero==='FEM'?' selected':'')+' value="FEM">Mujer</option></select></td>'
+        +'<td class="cn" data-l="Número"><input data-f="numero" inputmode="numeric" maxlength="4" placeholder="N°" value="'+esc(j.numero)+'" aria-label="Número"></td>'
+        +'<td class="cg" data-l="Género"><select data-f="genero" aria-label="Género"><option value="">—</option><option'+(j.genero==='MASC'?' selected':'')+' value="MASC">Masculino</option><option'+(j.genero==='FEM'?' selected':'')+' value="FEM">Femenino</option></select></td>'
+        +'<td class="co" data-l="Observación"><input data-f="observacion" maxlength="80" placeholder="Observación (opcional)" value="'+esc(j.observacion||'')+'" aria-label="Observación"></td>'
         +'<td class="cc" data-l="Cant."><input data-f="cantidad" type="number" min="1" max="50" value="'+(j.cantidad||1)+'" aria-label="Cantidad"></td>'
         +'<td class="cx"><button type="button" data-del="'+i+'" aria-label="Quitar jugador">✕</button></td></tr>';
     }).join('');
@@ -309,9 +311,9 @@ button{font:inherit}
     $('texto').value.split(/\r?\n/).forEach(function(linea){
       if(!linea.trim())return;var p=linea.split(/\t|;/).map(function(s){return s.trim()});
       if(p.length<2){p=linea.trim().split(/\s{2,}/)}
-      var talla=String(p[2]||'').toUpperCase();if(tallas.indexOf(talla)<0){malas++;talla=tallas.indexOf('M')>=0?'M':tallas[0]}
+      var talla=String(p[1]||'').toUpperCase();if(tallas.indexOf(talla)<0){malas++;talla=tallas.indexOf('M')>=0?'M':tallas[0]}
       var g=String(p[3]||'').toUpperCase().charAt(0);
-      nuevos.push({numero:String(p[0]||'').replace(/[^0-9A-Za-z]/g,'').slice(0,4),nombre:String(p[1]||'').slice(0,40),talla:talla,diseno:tab,genero:(g==='H'||g==='M')?'MASC':g==='F'?'FEM':'',cantidad:Math.max(1,Math.min(50,parseInt(p[4],10)||1))});
+      nuevos.push({nombre:String(p[0]||'').slice(0,40),talla:talla,numero:String(p[2]||'').replace(/[^0-9A-Za-z]/g,'').slice(0,4),genero:(g==='M'||g==='H')?'MASC':g==='F'?'FEM':'',observacion:String(p[4]||'').slice(0,80),diseno:tab,cantidad:Math.max(1,Math.min(50,parseInt(p[5],10)||1))});
     });
     carro[d.row]=carro[d.row].filter(function(j){return (Number(j.diseno)||1)!==tab||!vacia(j)}).concat(nuevos,[nueva(tab)]);
     $('texto').value='';$('pegar').classList.remove('on');paso3();cuadricula();barra();tarjetas();

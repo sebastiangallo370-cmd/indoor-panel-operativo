@@ -40,8 +40,8 @@
 
   function detalle(p) {
     return '<div class="tc-det"><div><b>' + esc(p.contacto) + '</b> · ' + esc(p.telefono) + (p.notas ? ' · ' + esc(p.notas) : '') + '</div>' + p.lineas.map(l =>
-      '<div><b>' + esc(l.proyecto || l.referencia) + '</b> · Ref. ' + esc(l.referencia) + ' · base ' + esc(l.orden_base) + ' · tela ' + esc(l.tela || '—') + (l.codigo_tela ? ' (código ' + esc(l.codigo_tela) + ')' : '') + '<table><tr><th>Nombre</th><th>N°</th><th>Talla</th><th>Diseño</th><th>Género</th><th>Cant.</th></tr>' +
-      l.jugadores.map(j => '<tr><td>' + esc(j.nombre || '—') + '</td><td>' + esc(j.numero || '—') + '</td><td>' + esc(j.talla) + '</td><td>D' + esc(j.diseno || 1) + '</td><td>' + esc(j.genero || '—') + '</td><td>' + esc(j.cantidad) + '</td></tr>').join('') + '</table></div>').join('') +
+      '<div><b>' + esc(l.proyecto || l.referencia) + '</b> · Ref. ' + esc(l.referencia) + ' · base ' + esc(l.orden_base) + ' · tela ' + esc(l.tela || '—') + (l.codigo_tela ? ' (código ' + esc(l.codigo_tela) + ')' : '') + '<table><tr><th>Nombre dorsal</th><th>Talla</th><th>Número</th><th>Género</th><th>Observación</th><th>Diseño</th><th>Cant.</th></tr>' +
+      l.jugadores.map(j => '<tr><td>' + esc(j.nombre || '—') + '</td><td>' + esc(j.talla) + '</td><td>' + esc(j.numero || '—') + '</td><td>' + esc(j.genero || '—') + '</td><td>' + esc(j.observacion || '') + '</td><td>D' + esc(j.diseno || 1) + '</td><td>' + esc(j.cantidad) + '</td></tr>').join('') + '</table></div>').join('') +
       (p.nota_comercial ? '<div>Nota: ' + esc(p.nota_comercial) + '</div>' : '') + '</div>';
   }
 

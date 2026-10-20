@@ -154,8 +154,9 @@ def construir_excels(p: dict) -> list[tuple[str, bytes]]:
                 maximo = max(maximo, d)
                 if d <= 6:   # la plantilla trae las columnas DISEÑO 1 a 6 en la tabla
                     ws.cell(row=fila, column=9 + d, value='X')
-                else:   # más de 6 diseños: no hay columna en la tabla (ahí van MASC y FEM); queda escrito en OBSERVACIONES para que no se pierda
-                    ws.cell(row=fila, column=18, value=f'DISEÑO {d}')
+                obs = (f'DISEÑO {d}' if d > 6 else '') + (' · ' if d > 6 and j.get('observacion') else '') + (j.get('observacion') or '')   # más de 6 diseños: no hay columna en la tabla, el número va en OBSERVACIONES
+                if obs:
+                    ws.cell(row=fila, column=18, value=obs)
                 if j.get('genero') == 'MASC':
                     ws.cell(row=fila, column=16, value='X')
                 elif j.get('genero') == 'FEM':
@@ -417,7 +418,8 @@ def enviar_pedido(request: Request, token: str, payload: dict = Body(...)):
                 raise HTTPException(400, 'Revisa las tallas y las cantidades (de 1 a 50 por jugador)')
             genero = str(j.get('genero') or '').upper()
             jugadores.append({'nombre': re.sub(r'\s+', ' ', str(j.get('nombre') or '')).strip()[:40], 'numero': re.sub(r'[^0-9A-Za-z]', '', str(j.get('numero') or ''))[:4],
-                              'talla': talla, 'cantidad': cant, 'diseno': max(1, min(int(j.get('diseno') or 1), 20)), 'genero': genero if genero in ('MASC', 'FEM') else ''})
+                              'talla': talla, 'cantidad': cant, 'diseno': max(1, min(int(j.get('diseno') or 1), 20)), 'genero': genero if genero in ('MASC', 'FEM') else '',
+                              'observacion': re.sub(r'\s+', ' ', str(j.get('observacion') or '')).strip()[:80]})
             total += cant
         if jugadores:
             tela, codigo = tela_de(d['row'])
