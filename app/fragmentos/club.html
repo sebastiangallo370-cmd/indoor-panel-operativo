@@ -171,7 +171,7 @@ button{font:inherit}
   </div>
 </div>
 
-<div class="barra" id="barra"><div class="in"><div class="tot" id="tot"><b>0 prendas</b>Elige un diseño para empezar</div><button class="btn" id="enviar" disabled>Revisar y enviar</button></div></div>
+<div class="barra" id="barra"><div class="in"><div class="tot" id="tot"><b>0 prendas</b>Elige un diseño para empezar</div><button class="btn" id="enviar" disabled>Confirmar pedido</button></div></div>
 
 <div class="modal" id="modal"><div class="hoja">
   <h2>Último paso</h2>
@@ -184,7 +184,7 @@ button{font:inherit}
     <input class="hp" id="website" tabindex="-1" autocomplete="off" aria-hidden="true">
   </div>
   <div id="msg2"></div>
-  <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn" id="confirmar">Enviar mi pedido</button><button class="btn sec" id="cerrar">Volver a editar</button></div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn" id="confirmar">Confirmar pedido</button><button class="btn sec" id="cerrar">Volver a editar</button></div>
 </div></div>
 
 <script>
@@ -292,13 +292,13 @@ button{font:inherit}
     fetch('/api/club/'+encodeURIComponent(token)+'/pedido',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lineas:lineas,contacto:$('contacto').value,telefono:$('telefono').value,notas:$('notas').value,website:$('website').value})})
       .then(function(r){return r.json().catch(function(){return {}}).then(function(d){return {ok:r.ok,d:d}})})
       .then(function(x){
-        b.disabled=false;b.textContent='Enviar mi pedido';
+        b.disabled=false;b.textContent='Confirmar pedido';
         if(!x.ok){$('msg2').innerHTML='<div class="msg err">'+esc(x.d.detail||'No se pudo enviar. Intenta de nuevo.')+'</div>';return}
         $('modal').classList.remove('on');carro={};sel=0;try{localStorage.removeItem(KEY)}catch(e){}
         $('app').hidden=true;$('barra').hidden=true;$('pasos').hidden=true;$('intro').hidden=true;
         $('msg').innerHTML='<div class="card gracias"><div class="ok">✓</div><h2>¡Listo, recibimos tu pedido!</h2><p>Tu pedido <b>#'+esc(x.d.numero)+'</b> ('+esc(x.d.prendas)+' prendas) ya está con tu asesor comercial. Lo revisará y te contactará muy pronto para confirmártelo.</p><button class="btn" id="otro" type="button">Hacer otro pedido</button></div>';
         $('otro').addEventListener('click',function(){location.reload()});window.scrollTo({top:0,behavior:'smooth'});
-      }).catch(function(){b.disabled=false;b.textContent='Enviar mi pedido';$('msg2').innerHTML='<div class="msg err">Sin conexión. Intenta de nuevo.</div>'});
+      }).catch(function(){b.disabled=false;b.textContent='Confirmar pedido';$('msg2').innerHTML='<div class="msg err">Sin conexión. Intenta de nuevo.</div>'});
   });
   fetch('/api/club/'+encodeURIComponent(token)+'/disenos',{cache:'no-store'}).then(function(r){return r.json().catch(function(){return {}}).then(function(d){return {ok:r.ok,d:d}})}).then(function(x){
     if(!x.ok){$('titulo').textContent='Este enlace no está disponible';$('pasos').hidden=true;$('intro').textContent='';$('barra').hidden=true;$('msg').innerHTML='<div class="msg err">'+esc(x.d.detail||'No se pudo abrir este enlace.')+'</div>';return}
