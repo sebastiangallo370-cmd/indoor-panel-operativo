@@ -182,6 +182,22 @@
   .pv-btn:hover{border-color:#6f8a76}.pv-btn.pri{background:#d0ec93;color:#1c2b13;border-color:#d0ec93}.pv-btn.rojo:hover{background:#542a2a;border-color:#f47d78}
   .pv-acciones .full{grid-column:1/-1}
   .pv-card .pv-est{min-height:0;font:600 12px Arial}.pv-card .pv-est:empty{display:none}
+  /* TARJETA DE TELA (rediseño): código grande, 4 datos obligatorios, existencias y los dos campos a llenar */
+  .pv-card.pv-t,.pv-ftelas .pv-card.pv-t{gap:14px;padding:16px;border-radius:18px;background:#16231b!important;border:1px solid #33463a!important;border-left:5px solid #8bdbaf!important;border-top:1px solid #33463a!important}
+  .pv-card.pv-t.sin{border-left-color:#f3b852!important}
+  .pt-head{display:flex;flex-wrap:wrap;align-items:flex-start;gap:8px 12px}
+  .pv-card.pv-t .pv-campos{grid-template-columns:repeat(auto-fit,minmax(130px,1fr))}.pv-card.pv-t .pv-campos .pv-ancho{grid-column:auto}
+  .pt-cod{flex:0 0 auto;min-width:56px;text-align:center;font:800 20px/1 Arial;letter-spacing:.02em;color:#d0ec93;background:#0e1812;border:1px solid #3f5a46;border-radius:10px;padding:10px 10px}
+  .pt-nom{margin:0;flex:1 1 150px;min-width:0;font:700 17px/1.2 Arial;color:#f3f8ee;text-transform:uppercase;overflow-wrap:anywhere;padding-top:2px}
+  .pt-n{flex:0 0 auto;font:800 12px/1 Arial;padding:6px 9px;border-radius:999px;background:#f3b852;color:#332306}.pt-n.ok{background:#8bdbaf;color:#103423}
+  .pt-req{display:flex;flex-wrap:wrap;gap:6px}
+  .pt-chip{display:inline-flex;align-items:center;gap:5px;font:700 11px/1 Arial;letter-spacing:.04em;text-transform:uppercase;padding:6px 9px;border-radius:999px;border:1px solid #b9824a;color:#ffc86b;background:rgba(243,184,82,.08)}
+  .pt-chip i{font-style:normal;font-weight:900}.pt-chip.ok{border-color:#3f6a4c;color:#9fe0b6;background:rgba(139,219,175,.08)}
+  .pt-stock{background:#0e1812;border:1px solid #28382e;border-radius:12px;padding:12px 14px;display:grid;gap:8px}
+  .pt-big{display:flex;align-items:baseline;gap:8px}.pt-big b{font:800 28px/1 Arial;color:#f3f8ee;font-variant-numeric:tabular-nums}.pt-big span{font:700 11px/1 Arial;letter-spacing:.1em;color:#8fa596}
+  .pt-mini{display:flex;flex-wrap:wrap;gap:4px 14px;font:12px/1.4 Arial;color:#a4b7aa}.pt-mini b{color:#eef5ed;font-weight:700}
+  .pt-stock .pv-progress{height:4px;margin:0}
+  @media(max-width:700px){.pt-nom{font-size:15px}.pt-cod{font-size:18px;min-width:52px}}
   @media(max-width:700px){.pv-grupos{columns:1}.pv-head{padding:16px}.pv-head h2{font-size:1.2rem}.pv-kpis{width:100%}.pv-kpi{flex:1;min-width:0;padding:8px}.pv-bar input[type=search]{min-width:0;width:100%;flex-basis:100%}.pv input{font-size:16px}.pv-grid{grid-template-columns:1fr}.pv-cod{font-size:1.6rem}.pv-herr{width:100%}.pv-herr .pv-fil,.pv-masa-chips .pv-fil{white-space:normal;flex:1 1 100%;text-align:center;line-height:1.2;padding:8px 12px}.pv-masa{bottom:8px}}
   `;
   document.head.appendChild(css);
@@ -224,12 +240,13 @@
     const sugInv = t.prov_inventario && !/\s-\s/.test(t.prov_inventario) ? t.prov_inventario : '';   // lo que dice el inventario (si no son varios juntos)
     const rapidos = [...new Set([sugInv, ...sug].filter(n => n && n !== t.proveedor))].slice(0, 3);
     const falta = !t.proveedor ? (t.ancho ? 'FALTA PROVEEDOR' : 'FALTAN PROVEEDOR Y ANCHO') : (!t.ancho ? 'FALTA ANCHO' : '');
-    const etapa = falta ? `<span class="pv-stage act">${falta}</span>` : '<span class="pv-stage fin">COMPLETA</span>';
-    return `<div class="pv-card${falta ? ' sin' : ''}${st.reciente === t.codigo ? ' nueva' : ''}" data-cod="${esc(t.codigo)}">` +
-      `<div class="pv-th"><h3>${esc(t.nombre)}</h3>${etapa}</div><div class="pv-cod-line">Código ${esc(t.codigo)}</div>` +
-      `<dl class="pv-dl"><div><dt>Rollos</dt><dd>${f0(rollos)}</dd></div><div><dt>MTS en bodega</dt><dd>${f0(mts)}</dd></div>` +
-      `<div><dt>Pedidos</dt><dd>${f0(ped)}</dd></div><div><dt>MTS en pedidos</dt><dd>${f0(uso)}</dd></div></dl>` +
-      (uso > 0 ? `<div class="pv-progress" title="MTS comprometidos en pedidos frente a lo que hay en bodega"><span style="width:${pct}%"></span></div><div class="pv-cap">${pct}% de la bodega está comprometida en pedidos</div>` : '') +
+    const datos = [['Nombre', true], ['Código', true], ['Proveedor', !!t.proveedor], ['Ancho', !!t.ancho]], listos = datos.filter(d => d[1]).length;
+    const chips = datos.map(d => `<span class="pt-chip${d[1] ? ' ok' : ''}"><i>${d[1] ? '✓' : '!'}</i>${d[0]}</span>`).join('');
+    return `<div class="pv-card pv-t${falta ? ' sin' : ''}${st.reciente === t.codigo ? ' nueva' : ''}" data-cod="${esc(t.codigo)}">` +
+      `<div class="pt-head"><span class="pt-cod" title="Código de la tela">${esc(t.codigo)}</span><h3 class="pt-nom">${esc(t.nombre)}</h3><span class="pt-n${falta ? '' : ' ok'}" title="${falta ? esc(falta) : 'Los 4 datos obligatorios están completos'}">${listos}/4</span></div>` +
+      `<div class="pt-req">${chips}</div>` +
+      `<div class="pt-stock"><div class="pt-big"><b>${f0(mts)}</b><span>MTS EN BODEGA</span></div><div class="pt-mini"><span><b>${f0(rollos)}</b> rollos</span><span><b>${f0(ped)}</b> pedidos</span><span><b>${f0(uso)}</b> MTS en pedidos</span></div>` +
+      (uso > 0 ? `<div class="pv-progress" title="${pct}% de la bodega está comprometida en pedidos"><span style="width:${pct}%"></span></div>` : '') + '</div>' +
       `<div class="pv-campos"><label class="pv-campo${t.proveedor ? '' : ' falta'}"><span>Proveedor *</span><input type="text" list="pv-proveedores" data-pv-input value="${esc(t.proveedor || '')}" placeholder="Escribe el proveedor…" autocomplete="off" required></label>` +
       `<label class="pv-campo pv-ancho${t.ancho ? '' : ' falta'}"><span>Ancho (cm) *</span><input type="text" inputmode="decimal" data-pv-ancho value="${esc(t.ancho || '')}" placeholder="Ej. 150" autocomplete="off" required></label></div>` +
       `<div class="pv-est ${esc(e.c || '')}" data-pv-est>${esc(e.t || '')}</div></div>`;
