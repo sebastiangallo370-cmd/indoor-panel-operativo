@@ -182,23 +182,30 @@
   .pv-btn:hover{border-color:#6f8a76}.pv-btn.pri{background:#d0ec93;color:#1c2b13;border-color:#d0ec93}.pv-btn.rojo:hover{background:#542a2a;border-color:#f47d78}
   .pv-acciones .full{grid-column:1/-1}
   .pv-card .pv-est{min-height:0;font:600 12px Arial}.pv-card .pv-est:empty{display:none}
-  /* TARJETA DE TELA (rediseño): código grande, 4 datos obligatorios, existencias y los dos campos a llenar */
-  .pv-card.pv-t,.pv-ftelas .pv-card.pv-t{gap:14px;padding:16px;border-radius:18px;background:#16231b!important;border:1px solid #33463a!important;border-left:5px solid #8bdbaf!important;border-top:1px solid #33463a!important}
-  .pv-card.pv-t.sin{border-left-color:#f3b852!important}
-  .pv-ide em{font-style:normal;font-weight:400;color:#8fa596;text-transform:none;letter-spacing:0}
-  .pt-head{display:flex;flex-wrap:wrap;align-items:flex-start;gap:8px 12px}
-  .pv-card.pv-t .pv-campos{grid-template-columns:repeat(auto-fit,minmax(130px,1fr))}.pv-card.pv-t .pv-campos .pv-ancho{grid-column:auto}
-  .pt-cod{flex:0 0 auto;min-width:56px;text-align:center;font:800 20px/1 Arial;letter-spacing:.02em;color:#d0ec93;background:#0e1812;border:1px solid #3f5a46;border-radius:10px;padding:10px 10px}
-  .pt-nom{margin:0;flex:1 1 150px;min-width:0;font:700 17px/1.2 Arial;color:#f3f8ee;text-transform:uppercase;overflow-wrap:anywhere;padding-top:2px}
-  .pt-n{flex:0 0 auto;font:800 12px/1 Arial;padding:6px 9px;border-radius:999px;background:#f3b852;color:#332306}.pt-n.ok{background:#8bdbaf;color:#103423}
-  .pt-req{display:flex;flex-wrap:wrap;gap:6px}
-  .pt-chip{display:inline-flex;align-items:center;gap:5px;font:700 11px/1 Arial;letter-spacing:.04em;text-transform:uppercase;padding:6px 9px;border-radius:999px;border:1px solid #b9824a;color:#ffc86b;background:rgba(243,184,82,.08)}
-  .pt-chip i{font-style:normal;font-weight:900}.pt-chip.ok{border-color:#3f6a4c;color:#9fe0b6;background:rgba(139,219,175,.08)}
-  .pt-stock{background:#0e1812;border:1px solid #28382e;border-radius:12px;padding:12px 14px;display:grid;gap:8px}
-  .pt-big{display:flex;align-items:baseline;gap:8px}.pt-big b{font:800 28px/1 Arial;color:#f3f8ee;font-variant-numeric:tabular-nums}.pt-big span{font:700 11px/1 Arial;letter-spacing:.1em;color:#8fa596}
-  .pt-mini{display:flex;flex-wrap:wrap;gap:4px 14px;font:12px/1.4 Arial;color:#a4b7aa}.pt-mini b{color:#eef5ed;font-weight:700}
-  .pt-stock .pv-progress{height:4px;margin:0}
-  @media(max-width:700px){.pt-nom{font-size:15px}.pt-cod{font-size:18px;min-width:52px}}
+  /* TARJETA DE TELA: ficha ordenada (nombre, filas etiqueta + dato y existencias abajo) */
+  .pv-card.pv-t,.pv-ftelas .pv-card.pv-t{gap:0;padding:0;border-radius:14px;background:#16231b!important;border:1px solid #33463a!important;border-top:3px solid #8bdbaf!important;overflow:hidden}
+  .pv-card.pv-t.sin{border-top-color:#f3b852!important}
+  .pt-head{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid #28382e}
+  .pt-nom{margin:0;flex:1;min-width:0;font:700 16px/1.25 Arial;color:#f3f8ee;text-transform:uppercase;overflow-wrap:anywhere}
+  .pt-n{flex:0 0 auto;font:800 12px/1 Arial;padding:6px 10px;border-radius:999px;background:#f3b852;color:#332306}.pt-n.ok{background:#8bdbaf;color:#103423}
+  .pt-form{display:grid;padding:6px 16px}
+  .pt-row{display:grid;grid-template-columns:96px minmax(0,1fr);align-items:center;gap:10px;min-height:46px;margin:0;border-bottom:1px solid #223128}
+  .pt-row:last-child{border-bottom:0}
+  @media(max-width:360px){.pt-row{grid-template-columns:1fr;gap:4px;padding:8px 0}.pt-row.fijo{grid-template-columns:1fr auto}}
+  .pt-lbl{font:600 12px/1.2 Arial;color:#a4b7aa}.pt-lbl b{color:#ffc86b;margin-left:3px}
+  .pt-row.falta .pt-lbl{color:#ffc86b}
+  .pt-cod{font:800 18px/1 Arial;color:#d0ec93;letter-spacing:.03em}
+  .pt-row input{width:100%;box-sizing:border-box;height:34px;padding:0 10px;border-radius:8px;border:1px solid #3a4a40;background:#0e1812;color:#eef5ed;font:600 14px Arial;outline:0}
+  .pt-row input::placeholder{color:#6f8276;font-weight:400}
+  .pt-row input:focus{border-color:#d0ec93;box-shadow:0 0 0 2px rgba(208,236,147,.15)}
+  .pt-row.falta input{border-color:#b9824a}
+  .pt-row:not(.falta):not(.fijo) input:not([data-pv-ide]){border-color:#4d7a58;color:#d9ffd4}
+  .pt-stats{display:grid;grid-template-columns:repeat(3,1fr);background:#0e1812;border-top:1px solid #28382e}
+  .pt-stats>div{padding:12px 10px 10px;text-align:center;border-right:1px solid #223128}.pt-stats>div:last-child{border-right:0}
+  .pt-stats b{display:block;font:800 20px/1.1 Arial;color:#f3f8ee;font-variant-numeric:tabular-nums}
+  .pt-stats span{display:block;margin-top:4px;font:600 10px/1.3 Arial;letter-spacing:.06em;text-transform:uppercase;color:#8fa596}
+  .pv-card.pv-t .pv-progress{height:3px;margin:0;border-radius:0;background:#223128}
+  .pv-card.pv-t .pv-est{padding:0 16px}.pv-card.pv-t .pv-est:not(:empty){padding:8px 16px}
   @media(max-width:700px){.pv-grupos{columns:1}.pv-head{padding:16px}.pv-head h2{font-size:1.2rem}.pv-kpis{width:100%}.pv-kpi{flex:1;min-width:0;padding:8px}.pv-bar input[type=search]{min-width:0;width:100%;flex-basis:100%}.pv input{font-size:16px}.pv-grid{grid-template-columns:1fr}.pv-cod{font-size:1.6rem}.pv-herr{width:100%}.pv-herr .pv-fil,.pv-masa-chips .pv-fil{white-space:normal;flex:1 1 100%;text-align:center;line-height:1.2;padding:8px 12px}.pv-masa{bottom:8px}}
   `;
   document.head.appendChild(css);
@@ -241,16 +248,18 @@
     const sugInv = t.prov_inventario && !/\s-\s/.test(t.prov_inventario) ? t.prov_inventario : '';   // lo que dice el inventario (si no son varios juntos)
     const rapidos = [...new Set([sugInv, ...sug].filter(n => n && n !== t.proveedor))].slice(0, 3);
     const falta = !t.proveedor ? (t.ancho ? 'FALTA PROVEEDOR' : 'FALTAN PROVEEDOR Y ANCHO') : (!t.ancho ? 'FALTA ANCHO' : '');
-    const datos = [['Nombre', true], ['Código', true], ['Proveedor', !!t.proveedor], ['Ancho', !!t.ancho]], listos = datos.filter(d => d[1]).length;
-    const chips = datos.map(d => `<span class="pt-chip${d[1] ? ' ok' : ''}"><i>${d[1] ? '✓' : '!'}</i>${d[0]}</span>`).join('');
+    const listos = 2 + (t.proveedor ? 1 : 0) + (t.ancho ? 1 : 0);
+    const fila = (cod, etiqueta, valor, atrib, req, falto, ayuda) =>
+      `<label class="pt-row${falto ? ' falta' : ''}"><span class="pt-lbl">${etiqueta}${req ? '<b>*</b>' : ''}</span>` +
+      `<input type="text" ${atrib} value="${esc(valor || '')}" placeholder="${esc(ayuda)}" autocomplete="off"${req ? ' required' : ''}></label>`;
     return `<div class="pv-card pv-t${falta ? ' sin' : ''}${st.reciente === t.codigo ? ' nueva' : ''}" data-cod="${esc(t.codigo)}">` +
-      `<div class="pt-head"><span class="pt-cod" title="Código de la tela">${esc(t.codigo)}</span><h3 class="pt-nom">${esc(t.nombre)}</h3><span class="pt-n${falta ? '' : ' ok'}" title="${falta ? esc(falta) : 'Los 4 datos obligatorios están completos'}">${listos}/4</span></div>` +
-      `<div class="pt-req">${chips}</div>` +
-      `<div class="pt-stock"><div class="pt-big"><b>${f0(mts)}</b><span>MTS EN BODEGA</span></div><div class="pt-mini"><span><b>${f0(rollos)}</b> rollos</span><span><b>${f0(ped)}</b> pedidos</span><span><b>${f0(uso)}</b> MTS en pedidos</span></div>` +
-      (uso > 0 ? `<div class="pv-progress" title="${pct}% de la bodega está comprometida en pedidos"><span style="width:${pct}%"></span></div>` : '') + '</div>' +
-      `<div class="pv-campos"><label class="pv-campo${t.proveedor ? '' : ' falta'}"><span>Proveedor *</span><input type="text" list="pv-proveedores" data-pv-input value="${esc(t.proveedor || '')}" placeholder="Escribe el proveedor…" autocomplete="off" required></label>` +
-      `<label class="pv-campo pv-ancho${t.ancho ? '' : ' falta'}"><span>Ancho (cm) *</span><input type="text" inputmode="decimal" data-pv-ancho value="${esc(t.ancho || '')}" placeholder="Ej. 150" autocomplete="off" required></label>` +
-      `<label class="pv-campo pv-ide"><span>ID Effi <em>(opcional)</em></span><input type="text" inputmode="numeric" data-pv-ide value="${esc(t.id_effi || '')}" placeholder="Ej. 4821" autocomplete="off"></label></div>` +
+      `<div class="pt-head"><h3 class="pt-nom">${esc(t.nombre)}</h3><span class="pt-n${falta ? '' : ' ok'}" title="${falta ? esc(falta) : 'Los 4 datos obligatorios están completos'}">${listos}/4</span></div>` +
+      `<div class="pt-form"><div class="pt-row fijo"><span class="pt-lbl">Código<b>*</b></span><span class="pt-cod">${esc(t.codigo)}</span></div>` +
+      fila(t.codigo, 'Proveedor', t.proveedor, 'list="pv-proveedores" data-pv-input', true, !t.proveedor, 'Escribe el proveedor…') +
+      fila(t.codigo, 'Ancho (cm)', t.ancho, 'inputmode="decimal" data-pv-ancho', true, !t.ancho, 'Ej. 150') +
+      fila(t.codigo, 'ID Effi', t.id_effi, 'inputmode="numeric" data-pv-ide', false, false, 'Opcional') + '</div>' +
+      `<div class="pt-stats"><div><b>${f0(mts)}</b><span>MTS en bodega</span></div><div><b>${f0(rollos)}</b><span>Rollos</span></div><div><b>${f0(uso)}</b><span>MTS en ${f0(ped)} pedidos</span></div></div>` +
+      (uso > 0 ? `<div class="pv-progress" title="${pct}% de la bodega está comprometida en pedidos"><span style="width:${pct}%"></span></div>` : '') +
       `<div class="pv-est ${esc(e.c || '')}" data-pv-est>${esc(e.t || '')}</div></div>`;
   }
   const familia = n => (String(n || '').toUpperCase().replace(/\(.*?\)/g, ' ').trim().split(/\s+/)[0]) || 'OTRAS';
