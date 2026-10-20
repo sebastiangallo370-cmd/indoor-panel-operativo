@@ -6,7 +6,7 @@
   if (window.__proveedoresTelaListo) return;
   window.__proveedoresTelaListo = true;
   let pref = {}; try { pref = JSON.parse(localStorage.getItem('pv-vista') || '{}'); } catch (e) { /* sin almacenamiento */ }
-  const st = { datos: null, buscar: '', filtro: '', cargando: false, sel: new Set(), edit: new Set(), estado: {}, reciente: '', agrupar: pref.agrupar !== false, compacto: !!pref.compacto, plegadas: new Set() };
+  const st = { datos: null, buscar: '', filtro: '', cargando: false, sel: new Set(), edit: new Set(), estado: {}, reciente: '', agrupar: false, compacto: !!pref.compacto, plegadas: new Set() };
   const guardarVista = () => { try { localStorage.setItem('pv-vista', JSON.stringify({ agrupar: st.agrupar, compacto: st.compacto })); } catch (e) { /* sin almacenamiento */ } };
   let host = null;
 
@@ -73,6 +73,7 @@
   .pv-herr{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
   .pv-herr .pv-fil{min-height:34px}.pv-herr .pv-fil.on{background:rgba(208,244,76,.92);border-color:#d0f44c}
   .pv-grupos{display:grid;gap:18px}
+  [data-pv-agrupar]{display:none!important}
   .pv-fam{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 10px;padding:10px 14px;border-radius:14px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.16)}
   .pv-fam-t{display:flex;align-items:center;gap:10px;padding:0;border:0;background:transparent;color:#f3f8ee;font:900 1rem Arial;letter-spacing:.06em;cursor:pointer;width:auto!important}
   .pv-fam-t i{display:inline-block;transition:transform .2s;font-style:normal;color:#d0f44c}.pv-fam.cerrada .pv-fam-t i{transform:rotate(-90deg)}
