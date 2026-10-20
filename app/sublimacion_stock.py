@@ -178,6 +178,12 @@ def _base(item: dict) -> str:
 def _matched(items: list[dict], tela: str) -> list[dict]:
     matched = [i for i in items if i.get('categoria') == 'BODEGA TELA' and f' {tela} ' in _base(i)
                and not any(name in _base(i) for name in EXCLUDED_NAMES) and ' RIB ' not in _base(i)]
+    if not matched:   # si no hay coincidencia exacta: mismas palabras sin contar números ni género (NEGRO = NEGRA, «POLILICRA PESADA 972 NEGRA» = «POLILICRA PESADA NEGRO»)
+        raiz = lambda texto: {re.sub(r'(OS|AS|O|A|S)$', '', w) if len(w) > 4 else w for w in texto.split() if not w.isdigit()}
+        buscada = raiz(tela)
+        if buscada:
+            matched = [i for i in items if i.get('categoria') == 'BODEGA TELA' and raiz(_base(i)) == buscada
+                       and not any(name in _base(i) for name in EXCLUDED_NAMES) and ' RIB ' not in _base(i)]
     white = [i for i in matched if ' BLANCO ' in _base(i)]
     return white or matched
 
