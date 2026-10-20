@@ -246,6 +246,22 @@
   @keyframes ptAro{from{stroke-dasharray:0 100}}
   @keyframes ptDestello{0%{box-shadow:0 0 0 0 rgba(208,236,147,.7)}100%{box-shadow:0 0 0 22px rgba(208,236,147,0)}}
   @media(prefers-reduced-motion:reduce){.pv-card.pv-t,.pv-card.pv-t::before,.pv-card.pv-t .pv-progress>span,.pt-ring .fg{animation:none!important;transition:none!important}.pv-card.pv-t:hover{transform:none!important}}
+  /* VIDRIO SIN COLORES: todo el acento de la tarjeta es blanco/gris (solo el vidrio, el brillo y los textos) */
+  .pv-card.pv-t::before,.pv-card.pv-t.sin::before{background:radial-gradient(circle,rgba(255,255,255,.2),transparent 66%)!important}
+  .pv-card.pv-t.sin,.pv-card.pv-t:not(.sin){border-top-color:rgba(255,255,255,.42)!important}
+  .pv-card.pv-t:focus-within,.pv-card.pv-t.editando{border-color:rgba(255,255,255,.7)!important;box-shadow:0 0 0 2px rgba(255,255,255,.16),0 26px 48px -18px rgba(0,0,0,.9)!important}
+  .pv-card.pv-t .pt-lbl b,.pv-card.pv-t .pt-row.falta .pt-lbl{color:#fff}
+  .pv-card.pv-t .pt-val.vacio{color:rgba(255,255,255,.62);font-style:italic;font-weight:600}
+  .pv-card.pv-t .pt-cod{color:#fff}.pv-card.pv-t .pt-cod.copiado{background:#fff;color:#111}
+  .pv-card.pv-t .pt-row.falta input{border:1px dashed rgba(255,255,255,.55)}
+  .pv-card.pv-t .pt-row:not(.falta):not(.fijo) input:not([data-pv-ide]){border-color:rgba(255,255,255,.18);color:#fff}
+  .pv-card.pv-t .pt-row input:focus{border-color:rgba(255,255,255,.85);box-shadow:0 0 0 2px rgba(255,255,255,.14)}
+  .pt-ring .fg,.pt-ring.ok .fg,.pv-card.pv-t.editando .pt-ring .fg{stroke:#fff}.pt-ring:not(.ok) .fg{stroke:rgba(255,255,255,.55)}
+  .pv-card.pv-t .pt-lapiz.pri{border-color:rgba(255,255,255,.7);color:#fff}
+  .pv-card.pv-t .pt-lapiz:hover,.pv-card.pv-t .pt-chips button:hover,.pv-card.pv-t .pt-b.pri{background:#fff;border-color:#fff;color:#111}
+  .pv-card.pv-t .pt-b.pri:hover{background:#f1f1f1;box-shadow:0 10px 22px -10px #fff}
+  .pv-card.pv-t.nueva{animation:ptDestelloBlanco 1.1s ease-out}
+  @keyframes ptDestelloBlanco{0%{box-shadow:0 0 0 0 rgba(255,255,255,.55)}100%{box-shadow:0 0 0 22px rgba(255,255,255,0)}}
   @keyframes ptIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
   .pt-row:last-child{border-bottom:0}
   @media(max-width:360px){.pt-row{grid-template-columns:1fr;gap:4px;padding:8px 0}.pt-row.fijo{grid-template-columns:1fr auto}.pt-chips{padding-left:0}}
@@ -334,7 +350,7 @@
       fila(t.codigo, 'Ancho (cm)', t.ancho, 'inputmode="decimal" data-pv-ancho', true, !t.ancho, 'Ej. 150', ' cm') +
       (edit ? sugerencias('ancho', anchosHabituales()) : '') +
       fila(t.codigo, 'ID Effi', t.id_effi, 'inputmode="numeric" data-pv-ide', false, false, 'Opcional') + '</div>' + acciones +
-      `<div class="pt-stats"><div data-lq="${Math.min(100, Math.round(mts / 25))}" data-lq-tone="teal" data-lq-nopct><b data-n="${mts}">${f0(mts)}</b><span>MTS en bodega</span></div>` +
+      `<div class="pt-stats"><div data-lq="${Math.min(100, Math.round(mts / 25))}" data-lq-tone="gris" data-lq-nopct><b data-n="${mts}">${f0(mts)}</b><span>MTS en bodega</span></div>` +
       '</div>' +
       `<div class="pv-est ${esc(e.c || '')}" data-pv-est>${esc(e.t || '')}</div></div>`;
   }
