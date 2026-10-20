@@ -100,9 +100,25 @@
     '.pf .at-datos .mts dd{font:900 34px/1.05 Arial;color:#e4ff6b;text-shadow:0 0 16px rgba(208,244,76,.55)}.pf .at-datos .mts dd small{font:900 14px Arial;margin-left:6px;letter-spacing:.08em}',
     '.pf .at-foot{padding:16px 26px 24px}.pf .at-btn{min-height:50px;font-size:13.5px}',
     '@media(max-width:560px){.pf .at-head{padding:16px 18px 12px}.pf .at-head:after{left:18px;right:18px}.pf-logo{height:30px}.pf .at-head h3{font-size:22px}.pf .at-head p{font-size:14.5px;line-height:1.42}.pf-logo{height:26px;margin-bottom:8px}.pf .at-head h3{font-size:20px;margin:4px 0 7px}.pf .at-list{padding:10px 18px 4px}.pf .at-row.at-prod{padding:12px 14px 14px}.pf .at-chip{margin-bottom:8px;font-size:11px}.pf .at-datos{gap:9px 14px}.pf .at-datos dt{font-size:11px}.pf .at-datos dd{font-size:15.5px}.pf .at-datos .cli dd{font-size:17.5px}.pf .at-datos .mts dd{font-size:26px}.pf .at-foot{padding:10px 18px 16px}.pf .at-btn{min-height:44px}}',
-    '@media(prefers-reduced-motion:reduce){.at-card.pf,.pf .at-head:after,.pf-logo,.pf .at-head h3 i,.pf .at-chip{animation:none!important}.pf .at-row.at-prod{opacity:1!important;transform:none!important;animation:none!important}}'
+    '@media(prefers-reduced-motion:reduce){.at-card.pf,.pf .at-head:after,.pf-logo,.pf .at-head h3 i,.pf .at-chip{animation:none!important}.pf .at-row.at-prod{opacity:1!important;transform:none!important;animation:none!important}}',
+    /* tipografía deportiva: Barlow Condensed (cursiva, como el logo) en títulos, etiquetas y cifras; Barlow en el texto */
+    '.at-card.pf{font-family:Barlow,"Segoe UI",Arial,sans-serif}',
+    '.at-card.pf .at-head small,.at-card.pf .at-head h3,.at-card.pf .at-head h3 i,.at-card.pf .at-chip,.at-card.pf .at-datos dt,.at-card.pf .at-datos .cli dd,.at-card.pf .at-datos .mts dd,.at-card.pf .at-btn{font-family:"Barlow Condensed",Barlow,"Segoe UI",Arial,sans-serif;font-style:italic}',
+    '.at-card.pf .at-head small{font-weight:700;font-size:15px;letter-spacing:.2em}',
+    '.at-card.pf .at-head h3{font-weight:800;font-size:50px;line-height:1;text-transform:uppercase;letter-spacing:.01em;margin:6px 0 4px}',
+    '.at-card.pf .at-head h3 i{font-weight:800;font-size:19px;font-style:normal}',
+    '.at-card.pf .at-head p{font-family:"Barlow Condensed",Barlow,"Segoe UI",Arial,sans-serif;font-style:italic;font-weight:800;font-size:34px;line-height:1.05;text-transform:uppercase;color:#e4ff6b;text-shadow:0 0 18px rgba(208,244,76,.5);margin:0 0 6px}',
+    '.at-card.pf .at-chip{font-weight:800;font-size:15px;letter-spacing:.1em}',
+    '.at-card.pf .at-datos dt{font-weight:700;font-size:15px;letter-spacing:.14em}',
+    '.at-card.pf .at-datos dd{font-family:Barlow,"Segoe UI",Arial,sans-serif;font-weight:700;font-size:22px}',
+    '.at-card.pf .at-datos .cli dd{font-weight:800;font-size:30px;line-height:1.1;text-transform:uppercase}',
+    '.at-card.pf .at-datos .mts dd{font-weight:800;font-size:50px;line-height:1}.at-card.pf .at-datos .mts dd small{font-size:20px;font-style:italic}',
+    '.at-card.pf .at-btn{font-weight:800;font-size:17px;letter-spacing:.08em}',
+    '@media(max-width:560px){.at-card.pf .at-head h3{font-size:36px}.at-card.pf .at-head small{font-size:13px}.at-card.pf .at-head p{font-size:25px}.at-card.pf .at-datos dd{font-size:18px}.at-card.pf .at-datos .cli dd{font-size:24px}.at-card.pf .at-datos .mts dd{font-size:40px}.at-card.pf .at-datos dt{font-size:13px}.at-card.pf .at-chip{font-size:13px}.at-card.pf .at-btn{font-size:15.5px}}',
   ].join('');
   var st2=document.createElement('style');st2.textContent=css2;document.head.appendChild(st2);
+  // la fuente se pide una sola vez (si no llega, se usa Arial y todo sigue igual)
+  function cargarFuente(){if(document.getElementById('at-fuente'))return;var l=document.createElement('link');l.id='at-fuente';l.rel='stylesheet';l.href='https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700;800&family=Barlow+Condensed:ital,wght@1,600;1,700;1,800&display=swap';document.head.appendChild(l)}
 
   var RM=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   function dec2(n){return (Number(n)||0).toLocaleString('es-CO',{maximumFractionDigits:2})}
@@ -110,14 +126,8 @@
     if(RM){el.textContent=dec2(hasta);return}
     setTimeout(function(){var t0=performance.now();(function paso(t){var p=Math.min(1,(t-t0)/ms),e=1-Math.pow(1-p,3);el.textContent=dec2(hasta*e);if(p<1)requestAnimationFrame(paso)})(t0)},delay||0);
   }
-  // Mensaje corto y personalizado (el cliente, la tela y los MTS ya van en la ficha de abajo)
-  function mensajeEquipo(lista){
-    var ini='¡Muchachos! El <b>agente de inventarios</b> detectó ';
-    if(lista.length>1)return ini+'<b>'+lista.length+' nuevas producciones</b> sin tela suficiente en el inventario.';
-    var a=lista[0];
-    if(a.tipo==='sin_tela'||!(Number(a.disponible)>0))return ini+'una nueva producción y la tela <b>'+esc(a.tela||'')+'</b> no está en el inventario.';
-    return ini+'una nueva producción y no hay tela suficiente: faltan <b>'+ent(a.falta,Math.ceil)+' MTS</b> de <b>'+esc(a.tela||'tela')+'</b>.';
-  }
+  // Mensaje único: «ATENCIÓN PRODUCCIÓN, NO HAY TELA PARA ESTA PRODUCCIÓN» (la ficha de abajo dice cuál es)
+  function mensajeEquipo(lista){return lista.length>1?'NO HAY TELA PARA ESTAS PRODUCCIONES':'NO HAY TELA PARA ESTA PRODUCCIÓN'}
   function filaProd(a,i){
     var chip=a.tipo==='sin_tela'?'No está en Bodega':'No alcanza';
     return '<div class="at-row at-prod" style="animation-delay:'+(250+i*200)+'ms"><span class="at-chip">'+chip+'</span>'+
@@ -127,10 +137,10 @@
   }
   function showFaltantes(lista){
     if(fmodal||modal||!lista.length)return;
+    cargarFuente();
     var ov=fmodal=document.createElement('div');ov.className='at-overlay';
     var plural=lista.length>1;
-    ov.innerHTML='<div class="at-card pf" role="alertdialog" aria-modal="true" aria-label="Producción sin tela"><div class="at-head"><img class="pf-logo" src="/marca-indoor.svg" alt="Indoor"><small>AVISO DE INVENTARIO</small>'+
-      '<h3>Producción sin tela <i>'+lista.length+'</i></h3>'+
+    ov.innerHTML='<div class="at-card pf" role="alertdialog" aria-modal="true" aria-label="Producción sin tela"><div class="at-head"><img class="pf-logo" src="/marca-indoor.svg" alt="Indoor"><h3>ATENCIÓN PRODUCCIÓN</h3>'+
       '<p>'+mensajeEquipo(lista)+'</p></div>'+
       '<div class="at-list">'+lista.map(filaProd).join('')+'</div>'+
       '<div class="at-foot"><button type="button" class="at-btn" data-close>Entendido</button><button type="button" class="at-btn main" data-go>Ver tela necesaria</button></div></div>';
@@ -148,6 +158,7 @@
     if(document.hidden||fmodal||modal)return;
     fetch('/api/alertas-telas',{cache:'no-store',credentials:'same-origin'}).then(function(r){return r.ok?r.json():null}).then(function(d){
       if(!d||!d.aplica)return;
+      cargarFuente();
       var activas=d.faltantes||[],claves=activas.map(function(a){return a.clave}),prev=vistas();
       var vigentes=prev.filter(function(k){return claves.indexOf(k)>=0});   // las que ya se resolvieron se olvidan: si vuelven a faltar, avisan otra vez
       if(vigentes.length!==prev.length)set('localStorage',KF,JSON.stringify(vigentes));
@@ -159,6 +170,7 @@
     setTimeout(function(){
       fetch('/api/alertas-telas',{cache:'no-store',credentials:'same-origin'}).then(function(r){return r.ok?r.json():null}).then(function(d){
         if(!d||!d.aplica)return;
+        cargarFuente();
         var lista=(d.faltantes&&d.faltantes.length)?d.faltantes:[{clave:'prueba|1',tipo:'no_alcanza',cliente:'SANTIAGO JARAMILLO CORREA',proyecto:'CAMISETAS',referencia:'A700CA00',tela:'TOUR',mts:189.99},{clave:'prueba|2',tipo:'sin_tela',cliente:'JOHNATAN STIVEN LOPEZ CUADROS',proyecto:'HALCONES 20026',referencia:'A100PT01',tela:'MONTECATINI',mts:42.5}];
         if(modal){modal.remove();modal=null}
         if(fmodal){fmodal.remove();fmodal=null}
