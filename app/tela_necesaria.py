@@ -177,10 +177,8 @@ def _codigo_tela(referencia: str) -> str:
 
 
 def _telas_de_bodega(items: list[dict], tela: str, codigos: set[str]) -> list[dict]:
-    """Telas de Bodega que corresponden a la de Producción: por nombre y, si el nombre no coincide («TOUR BUNGAI» vs «(700) TOUR»), por el código de la referencia."""
-    encontradas = _telas_de_bodega(items, tela, entrada['codigos'])
-    if encontradas:
-        return encontradas
+    """Telas de Bodega que corresponden a la de Producción: primero por el CÓDIGO de la referencia («A7202SHT01» -> (7202)) y, si no hay, por nombre."""
+    codigos = {c for c in codigos if c}
     por_codigo = []
     for i in items:
         if i.get('categoria') != 'BODEGA TELA':
@@ -190,7 +188,7 @@ def _telas_de_bodega(items: list[dict], tela: str, codigos: set[str]) -> list[di
         if m and m.group(1) in codigos and not any(x in nombre for x in sublimacion_stock.EXCLUDED_NAMES) and ' RIB ' not in nombre:
             por_codigo.append(i)
     blancas = [i for i in por_codigo if ' BLANCO ' in ' ' + sublimacion_stock.norm(i.get('nombre')) + ' ']
-    return blancas or por_codigo
+    return blancas or por_codigo or sublimacion_stock._matched(items, tela)
 
 
 USUARIO_NOTA = 'AGENTE INVENTARIO'
@@ -327,7 +325,7 @@ def calcular(items: list[dict]) -> dict:
                                               for d in (exacto or {}).get('detalle', [])]})
     resultado, por_orden = [], []
     for tela, entrada in por_tela.items():
-        encontradas = sublimacion_stock._matched(items, tela)
+        encontradas = _telas_de_bodega(items, tela, entrada['codigos'])
         disponible = round(sum(sum(float(x) for x in (i.get('roll_values') or [])) for i in encontradas), 2)
         mts = round(entrada['mts'], 2)
         restante = disponible
