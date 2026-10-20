@@ -114,7 +114,13 @@
     '@media(max-width:560px){.at-card.pf .at-head h3{font-size:23px}.at-card.pf .at-head p{font-size:14.5px}.at-card.pf .at-datos dd{font-size:15px}.at-card.pf .at-datos .cli dd{font-size:17px}.at-card.pf .at-datos .mts dd{font-size:26px}.at-card.pf .at-datos dt{font-size:10.5px}.at-card.pf .at-chip{font-size:10.5px}.at-card.pf .at-btn{font-size:12px}}',
     '.pf .at-datos .falta{margin-top:2px;padding:11px 14px;border-radius:12px;background:rgba(208,244,76,.13);border:1px solid rgba(208,244,76,.55)}',
     '.at-card.pf .at-datos .falta dd{font-weight:800;font-size:30px;line-height:1.05;letter-spacing:-.01em;color:#fff}.at-card.pf .at-datos .falta dd small{font-size:13px;font-weight:700;margin-left:6px;color:#e4ff6b;letter-spacing:.08em}',
-    '@media(max-width:560px){.at-card.pf .at-datos .falta dd{font-size:26px}}'
+    '@media(max-width:560px){.at-card.pf .at-datos .falta dd{font-size:26px}}',
+    '.pf .at-datos .req{grid-column:1/-1;display:flex;align-items:center;gap:9px;margin-top:2px;padding:9px 12px;border-radius:10px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.18);font:600 13px/1.35 Inter,"Segoe UI",Arial,sans-serif;color:#eef2e9}',
+    '.pf .req .ico{flex:0 0 auto;display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:#d0f44c;color:#12200a;font:900 12px Arial}',
+    '.pf .req.pend .ico{background:transparent;border:2px solid #d0f44c;border-right-color:transparent;animation:pf-giro .8s linear infinite}',
+    '@keyframes pf-giro{to{transform:rotate(360deg)}}',
+    '.pf .req.err .ico{background:#ffb4a8}.pf .req b{color:#e4ff6b;font-weight:700}',
+    '@media(prefers-reduced-motion:reduce){.pf .req.pend .ico{animation:none!important}}'
   ].join('');
   var st2=document.createElement('style');st2.textContent=css2;document.head.appendChild(st2);
   // la fuente se pide una sola vez (si no llega, se usa Arial y todo sigue igual)
@@ -128,13 +134,28 @@
   }
   // Mensaje único: «ATENCIÓN PRODUCCIÓN, NO HAY TELA PARA ESTA PRODUCCIÓN» (la ficha de abajo dice cuál es)
   function mensajeEquipo(lista){return lista.length>1?'NO HAY TELA PARA ESTAS PRODUCCIONES':'NO HAY TELA PARA ESTA PRODUCCIÓN'}
+  // confirmación del requerimiento por correo: enviado / enviando / no se pudo
+  function reqHtml(r){
+    r=r||{estado:'pendiente'};
+    if(r.estado==='enviado')return '<span class="ico">✓</span><span>Requerimiento <b>enviado</b> al correo '+esc(r.para||'del encargado')+(r.hora?' · '+esc(r.hora):'')+'</span>';
+    if(r.estado==='error')return '<span class="ico">!</span><span>No se pudo enviar el requerimiento al correo. Se reintenta solo.</span>';
+    return '<span class="ico"></span><span>Enviando requerimiento al correo del encargado…</span>';
+  }
+  function pintaReq(ov,lista){
+    lista.forEach(function(a){
+      var el=ov.querySelector('[data-req="'+(window.CSS&&CSS.escape?CSS.escape(a.clave||''):a.clave)+'"]');if(!el)return;
+      var r=a.requerimiento||{estado:'pendiente'};
+      el.className='req '+(r.estado==='enviado'?'':r.estado==='error'?'err':'pend');el.innerHTML=reqHtml(r);
+    });
+  }
   function filaProd(a,i){
     var chip=a.tipo==='sin_tela'?'No está en Bodega':'No alcanza';
     return '<div class="at-row at-prod" style="animation-delay:'+(250+i*200)+'ms"><span class="at-chip">'+chip+'</span>'+
       '<dl class="at-datos"><div class="cli full"><dt>Nombre cliente</dt><dd>'+esc(a.cliente||'—')+'</dd></div>'+
       '<div><dt>Proyecto</dt><dd>'+esc(a.proyecto||'—')+'</dd></div><div><dt>Referencia</dt><dd>'+esc(a.referencia||'—')+'</dd></div>'+
       '<div><dt>Tela</dt><dd>'+esc(a.tela||'—')+'</dd></div><div class="mts"><dt>MTS</dt><dd><span data-n="'+(Number(a.mts)||0)+'">0</span></dd></div>'+
-      '<div class="falta full"><dt>Tela que falta</dt><dd><span data-n="'+Math.ceil(Number(a.falta)||0)+'">0</span><small>MTS</small></dd></div></dl></div>';
+      '<div class="falta full"><dt>Tela que falta</dt><dd><span data-n="'+Math.ceil(Number(a.falta)||0)+'">0</span><small>MTS</small></dd></div>'+
+      '<div class="req pend" data-req="'+esc(a.clave||'')+'">'+reqHtml(a.requerimiento)+'</div></dl></div>';
   }
   function showFaltantes(lista){
     if(fmodal||modal||!lista.length)return;
@@ -148,7 +169,17 @@
     (document.body||document.documentElement).appendChild(ov);
     set('localStorage',KF,JSON.stringify(lista.map(function(a){return a.clave})));   // ya se avisó de todas las que faltan ahora
     requestAnimationFrame(function(){ov.querySelectorAll('[data-n]').forEach(function(n,i){contar(n,Number(n.getAttribute('data-n'))||0,1300,700+i*200)})});
-    function close(){fmodal=null;ov.remove()}
+    var tReq=0,vueltas=0;
+    function sondeaReq(){
+      if(fmodal!==ov||++vueltas>45)return;
+      fetch('/api/alertas-telas',{cache:'no-store',credentials:'same-origin'}).then(function(r){return r.ok?r.json():null}).then(function(d){
+        if(fmodal!==ov||!d||!d.faltantes)return;
+        pintaReq(ov,d.faltantes);
+        if(!d.faltantes.every(function(a){return a.requerimiento&&a.requerimiento.estado==='enviado'}))tReq=setTimeout(sondeaReq,4000);
+      }).catch(function(){tReq=setTimeout(sondeaReq,6000)});
+    }
+    tReq=setTimeout(sondeaReq,2500);
+    function close(){clearTimeout(tReq);fmodal=null;ov.remove()}
     ov.addEventListener('click',function(e){
       if(e.target.closest('[data-close]')||e.target===ov)close();
       else if(e.target.closest('[data-go]')){close();var t=document.querySelector('[data-bodega-dashboard]');if(t){var g=t.closest('.nav-group');if(g)g.classList.remove('collapsed');t.click();setTimeout(function(){var s2=document.querySelector('[data-bd-tab="tela"]');if(s2)s2.click()},700)}}
