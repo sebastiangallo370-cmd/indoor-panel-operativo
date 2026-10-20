@@ -9,8 +9,10 @@ Los diseños salen de Producción (mismos mockups firmados de la consulta públi
 """
 from __future__ import annotations
 
+import io
 import json
 import logging
+import os
 import re
 import secrets
 import time
@@ -20,7 +22,7 @@ from pathlib import Path
 from typing import Callable
 
 from fastapi import APIRouter, Body, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 
 log = logging.getLogger('club')
 router = APIRouter(prefix='/api/club', tags=['club'])            # comercial (con sesión)
@@ -34,6 +36,7 @@ _mockups: Callable[[int], dict] = lambda row: {'mockups': [], 'mockups_lista': N
 COL = timezone(timedelta(hours=-5))
 TALLAS = ['2', '4', '6', '8', '10', '12', '14', '16', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL']
 MAX_JUGADORES = 300
+EXCEL_DIR = Path(os.getenv('CLUB_EXCEL_DIR', '/data/state/club_excel'))
 
 
 def configurar(connect: Callable, auth: Callable, permitido: Callable[[str], bool], too_many: Callable, mockups: Callable[[int], dict]) -> None:
@@ -66,6 +69,79 @@ def _enlace(token: str) -> dict:
     if not r or not r['activo'] or (r['vence'] and r['vence'] < _ahora()):
         raise HTTPException(404, 'Este enlace no existe o ya venció. Pídele uno nuevo a tu asesor comercial.')
     return dict(r)
+
+
+# ------------------------------------------------------------------ tela y código de tela de la vez pasada
+def tela_de(row: int) -> tuple[str, str]:
+    """(nombre de la tela, código) del pedido anterior: la TELA sale de la tarjeta de Producción y el código de la Bodega tela del inventario.
+    Si el nombre coincide con varias telas (colores), se listan todos los códigos para que comercial elija."""
+    with _connect() as db:
+        meta = db.execute("SELECT value FROM production_meta WHERE key='headers'").fetchone()
+        r = db.execute('SELECT values_json FROM production_rows WHERE source_row=?', (row,)).fetchone()
+    if not meta or not r:
+        return '', ''
+    h = [str(x or '').strip().upper() for x in json.loads(meta['value'])]
+    v = json.loads(r['values_json'])
+    tela = str(v[h.index('TELA')] or '').strip() if 'TELA' in h and h.index('TELA') < len(v) else ''
+    if not tela:
+        return '', ''
+    try:
+        from app import proveedores_tela
+        buscada = _plano(tela)
+        coincide = [t for t in proveedores_tela.telas() if buscada and buscada in _plano(t['nombre'])]
+    except Exception:   # noqa: BLE001
+        coincide = []
+    exactas = [t for t in coincide if _plano(t['nombre']) == buscada]
+    elegidas = exactas or coincide
+    return tela, ' / '.join(dict.fromkeys(str(t['codigo']) for t in elegidas))
+
+
+def construir_excel(p: dict) -> bytes:
+    """Listado de la reposición en un formato fijo: cada fila repite la REFERENCIA y el CÓDIGO DE TELA del pedido anterior."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font, PatternFill
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'LISTADO'
+    negrita, lima = Font(bold=True), PatternFill('solid', fgColor='D0F44C')
+    ws.append(['REPOSICIÓN CLUB #%s' % p['id'], '', '', '', '', '', ''])
+    ws['A1'].font = Font(bold=True, size=14)
+    for etiqueta, valor in (('CLIENTE', p['cliente']), ('CONTACTO', p['contacto']), ('TELÉFONO', p['telefono']), ('FECHA', str(p['creado'])[:16].replace('T', ' ')), ('NOTAS', p.get('notas') or '')):
+        ws.append([etiqueta, valor])
+        ws.cell(row=ws.max_row, column=1).font = negrita
+    ws.append([])
+    cab = ['REFERENCIA', 'CÓDIGO TELA', 'TELA', 'PEDIDO BASE', 'N° CAMISETA', 'NOMBRE EN LA PRENDA', 'TALLA', 'CANTIDAD']
+    ws.append(cab)
+    for c in range(1, len(cab) + 1):
+        ws.cell(row=ws.max_row, column=c).font = negrita
+        ws.cell(row=ws.max_row, column=c).fill = lima
+    total = 0
+    for l in p['lineas']:
+        for j in l['jugadores']:
+            ws.append([l['referencia'], l.get('codigo_tela', ''), l.get('tela', ''), l.get('orden_base', ''), j.get('numero', ''), j.get('nombre', ''), j.get('talla', ''), int(j.get('cantidad') or 1)])
+            total += int(j.get('cantidad') or 1)
+    ws.append([])
+    ws.append(['TOTAL PRENDAS', '', '', '', '', '', '', total])
+    ws.cell(row=ws.max_row, column=1).font = negrita
+    ws.cell(row=ws.max_row, column=8).font = negrita
+    for col, ancho in zip('ABCDEFGH', (16, 14, 20, 14, 14, 30, 8, 10)):
+        ws.column_dimensions[col].width = ancho
+    for fila in ws.iter_rows():
+        for celda in fila:
+            celda.alignment = Alignment(vertical='center')
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def _pedido(pedido_id: int) -> dict:
+    with _connect() as db:
+        r = db.execute('SELECT * FROM club_pedidos WHERE id=?', (pedido_id,)).fetchone()
+    if not r:
+        raise HTTPException(404, 'No existe esa reposición')
+    p = dict(r)
+    p['lineas'] = json.loads(p['lineas'] or '[]')
+    return p
 
 
 # ------------------------------------------------------------------ diseños del cliente (desde Producción)
@@ -175,6 +251,17 @@ def resolver_pedido(request: Request, pedido_id: int, payload: dict = Body(...))
     return {'ok': True}
 
 
+@router.get('/pedidos/{pedido_id}/excel')
+def excel_pedido(request: Request, pedido_id: int):
+    _usuario(request)
+    p = _pedido(pedido_id)
+    guardado = EXCEL_DIR / f'reposicion-{pedido_id}.xlsx'
+    datos = guardado.read_bytes() if guardado.is_file() else construir_excel(p)
+    nombre = re.sub(r'[^A-Za-z0-9_-]+', '_', p['cliente'])[:40]
+    return Response(datos, media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    headers={'Content-Disposition': f'attachment; filename="Reposicion_{pedido_id}_{nombre}.xlsx"', 'Cache-Control': 'no-store'})
+
+
 # ------------------------------------------------------------------ cliente (enlace privado)
 @public.get('/{token}/disenos')
 def disenos(request: Request, token: str):
@@ -214,7 +301,8 @@ def enviar_pedido(request: Request, token: str, payload: dict = Body(...)):
                               'talla': talla, 'cantidad': cant})
             total += cant
         if jugadores:
-            lineas.append({'row': d['row'], 'referencia': d['referencia'], 'proyecto': d['proyecto'], 'orden_base': d['orden'], 'jugadores': jugadores})
+            tela, codigo = tela_de(d['row'])
+            lineas.append({'row': d['row'], 'referencia': d['referencia'], 'proyecto': d['proyecto'], 'orden_base': d['orden'], 'tela': tela, 'codigo_tela': codigo, 'jugadores': jugadores})
     if not lineas:
         raise HTTPException(400, 'Agrega al menos una prenda')
     contacto = re.sub(r'\s+', ' ', str(payload.get('contacto') or '')).strip()[:80]
@@ -226,6 +314,11 @@ def enviar_pedido(request: Request, token: str, payload: dict = Body(...)):
                          (link['id'], link['cliente'], contacto, telefono, str(payload.get('notas') or '')[:400], json.dumps(lineas, ensure_ascii=False), _ahora()))
         numero = cur.lastrowid
     log.info('Reposición de club #%s (%s): %s prendas', numero, link['cliente'], total)
+    try:   # al confirmar se arma el listado en Excel (referencia y código de tela de la vez pasada) y queda guardado
+        EXCEL_DIR.mkdir(parents=True, exist_ok=True)
+        (EXCEL_DIR / f'reposicion-{numero}.xlsx').write_bytes(construir_excel(_pedido(numero)))
+    except Exception:   # noqa: BLE001
+        log.exception('No se pudo guardar el Excel de la reposición %s', numero)
     return {'ok': True, 'numero': numero, 'prendas': total}
 
 
