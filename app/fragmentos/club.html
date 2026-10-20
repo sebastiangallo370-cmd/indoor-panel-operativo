@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Reposiciones · Indoor Sport</title>
+<style>
+:root{--bg:#080b08;--card:#121712;--line:#2c372f;--ink:#f1f6ec;--mut:#a9b5a3;--lima:#d0f44c;--err:#ff8f80}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 Arial,Helvetica,sans-serif}
+body{min-height:100vh;padding:0 16px 120px}
+.wrap{max-width:1040px;margin:0 auto}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:20px 0 6px}
+header img{height:34px}
+header small{color:var(--mut)}
+h1{margin:14px 0 4px;font-size:1.7rem;line-height:1.15}
+h1 span{color:var(--lima)}
+.sub{margin:0 0 20px;color:var(--mut)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:16px}
+.card{display:grid;align-content:start;gap:10px;padding:14px;border:1px solid var(--line);border-top:4px solid var(--lima);border-radius:16px;background:var(--card)}
+.card.on{border-color:var(--lima);box-shadow:0 0 0 2px rgba(208,244,76,.25)}
+.img{aspect-ratio:4/3;border-radius:12px;background:#0d120d;display:grid;place-items:center;overflow:hidden;color:var(--mut);font-size:.8rem}
+.img img{width:100%;height:100%;object-fit:contain;background:#fff}
+.card h3{margin:0;font-size:1rem;overflow-wrap:anywhere}
+.card small{color:var(--mut)}
+button{font:inherit;cursor:pointer}
+.btn{border:0;border-radius:12px;padding:12px 16px;background:var(--lima);color:#142017;font-weight:800;min-height:46px}
+.btn.sec{background:transparent;color:var(--lima);border:1px solid var(--lima)}
+.btn:disabled{opacity:.5;cursor:default}
+.lista{display:grid;gap:8px;margin-top:4px}
+.fila{display:grid;grid-template-columns:1fr 70px 82px 62px 36px;gap:6px;align-items:center}
+.fila input,.fila select,.campos input,.campos textarea{width:100%;min-height:42px;padding:8px 10px;border:1px solid #3d4c3b;border-radius:10px;background:#0f150f;color:var(--ink);font:inherit}
+.fila button{min-height:42px;border:1px solid #3d4c3b;border-radius:10px;background:transparent;color:var(--mut)}
+.encab{display:grid;grid-template-columns:1fr 70px 82px 62px 36px;gap:6px;font-size:.7rem;color:var(--mut);text-transform:uppercase;letter-spacing:.05em}
+.barra{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:center;padding:12px 16px;background:linear-gradient(0deg,#080b08 70%,transparent)}
+.barra .btn{width:min(520px,100%)}
+.modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.7);z-index:5}
+.modal.on{display:flex}
+.hoja{width:min(560px,100%);max-height:92vh;overflow:auto;padding:20px;border:1px solid var(--line);border-radius:18px;background:#101610}
+.campos{display:grid;gap:10px;margin:12px 0}
+.campos label{display:grid;gap:4px;font-size:.8rem;color:var(--mut)}
+.msg{padding:12px;border-radius:10px;background:#1b2a1b;color:var(--lima);font-weight:700}
+.msg.err{background:#3a1d1a;color:var(--err)}
+.vacio{padding:40px;text-align:center;border:1px dashed var(--line);border-radius:14px;color:var(--mut)}
+.hp{position:absolute;left:-9999px;opacity:0}
+@media(max-width:560px){h1{font-size:1.4rem}.fila,.encab{grid-template-columns:1fr 56px 74px 52px 32px}}
+</style>
+</head>
+<body data-token="__TOKEN__">
+<div class="wrap">
+  <header><img src="/marca-indoor.svg" alt="Indoor Sport"><small>Reposiciones</small></header>
+  <h1 id="titulo">Cargando…</h1>
+  <p class="sub">Elige el diseño que quieres volver a pedir, agrega los jugadores con su nombre, número y talla, y envía la reposición. Tu asesor comercial la revisa y te confirma.</p>
+  <div id="msg"></div>
+  <div class="grid" id="grid"></div>
+</div>
+<div class="barra"><button class="btn" id="enviar" disabled>Revisar y enviar (0 prendas)</button></div>
+
+<div class="modal" id="modal"><div class="hoja">
+  <h2 style="margin:0 0 6px">Confirma tu reposición</h2>
+  <p class="sub" id="resumen" style="margin:0"></p>
+  <div class="campos">
+    <label>Tu nombre<input id="contacto" maxlength="80" autocomplete="name"></label>
+    <label>Teléfono de contacto<input id="telefono" inputmode="tel" maxlength="25" autocomplete="tel"></label>
+    <label>Notas (opcional)<textarea id="notas" rows="2" maxlength="400" placeholder="Ejemplo: necesitamos todo antes del 15"></textarea></label>
+    <input class="hp" id="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+  </div>
+  <div id="msg2"></div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn" id="confirmar">Enviar reposición</button><button class="btn sec" id="cerrar">Volver</button></div>
+</div></div>
+
+<script>
+(function(){
+  var token=document.body.dataset.token,tallas=[],disenos=[],carro={};   // carro[row]=[{nombre,numero,talla,cantidad}]
+  var $=function(i){return document.getElementById(i)};
+  var esc=function(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})};
+  function prendas(){var n=0;Object.keys(carro).forEach(function(k){carro[k].forEach(function(j){n+=Math.max(1,Number(j.cantidad)||1)})});return n}
+  function barra(){var n=prendas();$('enviar').disabled=!n;$('enviar').textContent='Revisar y enviar ('+n+(n===1?' prenda)':' prendas)');}
+  function img(d,nodo){
+    var m=d.mockups||{};
+    if(m.mockups&&m.mockups.length){nodo.innerHTML='<img alt="Diseño '+esc(d.referencia)+'" loading="lazy" src="'+esc(m.mockups[0])+'">';return}
+    if(m.mockups_lista){fetch(m.mockups_lista).then(function(r){return r.ok?r.json():null}).then(function(x){if(x&&x.mockups&&x.mockups.length)nodo.innerHTML='<img alt="Diseño '+esc(d.referencia)+'" loading="lazy" src="'+esc(x.mockups[0])+'">';else nodo.textContent='Sin imagen'}).catch(function(){nodo.textContent='Sin imagen'});return}
+    nodo.textContent='Sin imagen';
+  }
+  function filaHtml(row,i,j){
+    return '<div class="fila" data-row="'+row+'" data-i="'+i+'"><input data-f="nombre" placeholder="Nombre" maxlength="40" value="'+esc(j.nombre)+'">'
+      +'<input data-f="numero" placeholder="N°" inputmode="numeric" maxlength="4" value="'+esc(j.numero)+'">'
+      +'<select data-f="talla">'+tallas.map(function(t){return '<option'+(t===j.talla?' selected':'')+'>'+t+'</option>'}).join('')+'</select>'
+      +'<input data-f="cantidad" type="number" min="1" max="50" value="'+(j.cantidad||1)+'"><button type="button" data-del aria-label="Quitar">✕</button></div>';
+  }
+  function pinta(){
+    $('grid').innerHTML=disenos.map(function(d){
+      var js=carro[d.row]||[],on=js.length>0;
+      return '<article class="card'+(on?' on':'')+'" data-card="'+d.row+'"><div class="img" data-img="'+d.row+'">Cargando…</div>'
+        +'<div><h3>'+esc(d.proyecto||d.referencia)+'</h3><small>Ref. '+esc(d.referencia)+' · pedido '+esc(d.orden)+(d.fecha?' · '+esc(d.fecha):'')+'</small></div>'
+        +(on?'<div class="encab"><span>Nombre</span><span>N°</span><span>Talla</span><span>Cant.</span><span></span></div><div class="lista">'+js.map(function(j,i){return filaHtml(d.row,i,j)}).join('')+'</div>':'')
+        +'<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn'+(on?' sec':'')+'" data-add="'+d.row+'">'+(on?'+ Agregar jugador':'Reponer este diseño')+'</button></div></article>';
+    }).join('')||'<div class="vacio">Todavía no hay diseños disponibles para reponer. Escríbele a tu asesor comercial.</div>';
+    disenos.forEach(function(d){var n=document.querySelector('[data-img="'+d.row+'"]');if(n)img(d,n)});
+    barra();
+  }
+  // para no perder lo escrito al volver a dibujar, se lee del formulario antes de cada cambio
+  function leer(){document.querySelectorAll('.fila').forEach(function(f){var r=f.dataset.row,i=Number(f.dataset.i);if(!carro[r]||!carro[r][i])return;f.querySelectorAll('[data-f]').forEach(function(c){carro[r][i][c.dataset.f]=c.value})})}
+  document.addEventListener('click',function(e){
+    var a=e.target.closest('[data-add]');
+    if(a){leer();var r=a.dataset.add;(carro[r]=carro[r]||[]).push({nombre:'',numero:'',talla:tallas[tallas.indexOf('M')>=0?tallas.indexOf('M'):0],cantidad:1});pinta();return}
+    var x=e.target.closest('[data-del]');
+    if(x){leer();var f=x.closest('.fila');carro[f.dataset.row].splice(Number(f.dataset.i),1);if(!carro[f.dataset.row].length)delete carro[f.dataset.row];pinta();return}
+  });
+  document.addEventListener('input',function(){leer();barra()});
+  $('enviar').addEventListener('click',function(){leer();var n=prendas();$('resumen').textContent=n+(n===1?' prenda':' prendas')+' en '+Object.keys(carro).length+(Object.keys(carro).length===1?' diseño.':' diseños.');$('msg2').innerHTML='';$('modal').classList.add('on')});
+  $('cerrar').addEventListener('click',function(){$('modal').classList.remove('on')});
+  $('confirmar').addEventListener('click',function(){
+    leer();var b=$('confirmar');b.disabled=true;
+    var lineas=Object.keys(carro).map(function(r){return {row:Number(r),jugadores:carro[r]}});
+    fetch('/api/club/'+encodeURIComponent(token)+'/pedido',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lineas:lineas,contacto:$('contacto').value,telefono:$('telefono').value,notas:$('notas').value,website:$('website').value})})
+      .then(function(r){return r.json().catch(function(){return {}}).then(function(d){return {ok:r.ok,d:d}})})
+      .then(function(x){
+        if(!x.ok){$('msg2').innerHTML='<div class="msg err">'+esc(x.d.detail||'No se pudo enviar. Intenta de nuevo.')+'</div>';b.disabled=false;return}
+        $('modal').classList.remove('on');carro={};pinta();
+        $('msg').innerHTML='<div class="msg">✓ Reposición #'+esc(x.d.numero)+' enviada ('+esc(x.d.prendas)+' prendas). Tu asesor comercial la revisará y te contactará.</div>';window.scrollTo({top:0,behavior:'smooth'});b.disabled=false;
+      }).catch(function(){$('msg2').innerHTML='<div class="msg err">Sin conexión. Intenta de nuevo.</div>';b.disabled=false});
+  });
+  fetch('/api/club/'+encodeURIComponent(token)+'/disenos',{cache:'no-store'}).then(function(r){return r.json().catch(function(){return {}}).then(function(d){return {ok:r.ok,d:d}})}).then(function(x){
+    if(!x.ok){$('titulo').textContent='Enlace no disponible';document.querySelector('.sub').hidden=true;document.querySelector('.barra').hidden=true;$('msg').innerHTML='<div class="msg err">'+esc(x.d.detail||'No se pudo abrir este enlace.')+'</div>';return}
+    tallas=x.d.tallas;disenos=x.d.disenos;$('titulo').innerHTML='Reposiciones de <span>'+esc(x.d.cliente)+'</span>';pinta();
+  }).catch(function(){$('titulo').textContent='Sin conexión';});
+})();
+</script>
+</body>
+</html>
