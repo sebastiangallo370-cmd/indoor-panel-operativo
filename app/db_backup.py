@@ -8,6 +8,7 @@ sigue viviendo en la base real, esto es solo la red de seguridad por si el disco
 falla o alguien borra algo por error.
 """
 import logging
+import os
 import sqlite3
 import threading
 import time
@@ -16,6 +17,10 @@ from datetime import datetime, timezone
 BUCKET = "db-backups"
 KEEP_LAST = 30
 INTERVAL_SEGUNDOS = 6 * 60 * 60  # cada 6 horas
+
+# APAGADO por defecto: la base trae las contraseñas (cifradas) de las cuentas y ya no se sube a un servicio externo.
+# El respaldo diario va a la NAS (respaldo.py). Solo se enciende con DB_BACKUP_SUPABASE=1 en el .env.
+ACTIVO = os.getenv("DB_BACKUP_SUPABASE", "") == "1"
 
 status = {"last_ok_at": None, "last_error": None, "last_name": None}
 
@@ -68,6 +73,8 @@ def _prune(supabase, keep_last):
 
 
 def run_once(db_path, state_dir, supabase_provider):
+    if not ACTIVO:
+        raise RuntimeError("La copia a Supabase está apagada (los respaldos van a la NAS). Se enciende con DB_BACKUP_SUPABASE=1.")
     supabase = supabase_provider()
     _ensure_bucket(supabase)
     tmp_path, stamp = _snapshot(db_path, state_dir)
@@ -91,6 +98,8 @@ def run_once(db_path, state_dir, supabase_provider):
 def start(db_path, state_dir, supabase_provider):
     """Arranca el respaldo periodico en un hilo de fondo. No hace nada si Supabase
     no esta configurado (por ejemplo, en desarrollo local sin esas variables)."""
+    if not ACTIVO:
+        return {"ok": True, "enabled": False}
     def worker():
         # Una primera copia poco despues de arrancar, y luego cada INTERVAL_SEGUNDOS.
         time.sleep(120)
