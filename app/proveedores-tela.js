@@ -128,6 +128,24 @@
   .pv-acc{display:flex;gap:6px}
   .pv-card .pv-est{min-height:0}.pv-card .pv-est:empty{display:none}
   .pv-card.sin{border-color:rgba(224,164,55,.35)}.pv-card:not(.sin){border-color:rgba(139,212,80,.35)}
+  /* ---- tarjeta de tela (rediseño): barra lateral de estado, código en etiqueta, proveedor a la derecha y una sola fila de datos ---- */
+  .pv-card,.pv-ftelas .pv-card{padding:10px 12px 10px 17px;gap:7px;border-radius:14px}
+  .pv-card::before,.pv-ftelas .pv-card::before{top:0;bottom:0;left:0;right:auto;width:5px;height:auto;background:linear-gradient(180deg,#9be05a,#4f9f2a)}
+  .pv-card.sin::before,.pv-ftelas .pv-card.sin::before{background:linear-gradient(180deg,#ffc86b,#c9821a)}
+  .pv-card .pv-top{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}
+  .pv-card .pv-cod{font-size:.82rem;font-weight:900;padding:3px 9px;border-radius:8px;background:rgba(255,255,255,.13);letter-spacing:.04em;line-height:1.3}
+  .pv-card .pv-nom{flex:1 1 140px;min-width:0;font-size:.92rem;font-weight:800;line-height:1.2}
+  .pv-estado{display:flex;align-items:center;gap:5px;margin-left:auto;max-width:100%}
+  .pv-pill{padding:4px 11px;border-radius:99px;font:800 .64rem Arial;letter-spacing:.06em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px}
+  .pv-pill.ok{background:rgba(139,212,80,.2);color:#c6f59a}.pv-pill.sin{background:rgba(224,164,55,.22);color:#ffc86b}
+  .pv-ico{width:26px!important;height:26px;min-height:26px;padding:0;border-radius:8px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.07);color:#dfe8d9;font-size:.78rem;line-height:1;cursor:pointer}
+  .pv-ico:hover{background:rgba(255,255,255,.2)}.pv-ico.rojo:hover{background:rgba(255,106,90,.3)}
+  .pv-stats{display:flex;flex-wrap:wrap;gap:3px 16px;font-size:.72rem;color:#9fae9a}.pv-stats b{color:#f3f8ee;font-size:.85rem}
+  .pv-uso{display:grid;gap:3px}.pv-uso i{display:block;height:5px;border-radius:99px;background:rgba(255,255,255,.12);overflow:hidden}
+  .pv-uso i b{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#6aa8ff,#9cc4ff)}.pv-uso small{font-size:.62rem;color:#9fb4d6;letter-spacing:.03em}
+  .pv-aviso{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:.7rem;color:#bcd3ff}.pv-aviso b{color:#dbe8ff}
+  .pv-mini.inv{border-color:rgba(120,170,255,.65);color:#c9dcff}
+  .pv-card .pv-prov{margin-top:0;padding-top:7px;border-top:1px solid rgba(255,255,255,.1)}
   @media(max-width:700px){.pv-grupos{columns:1}.pv-head{padding:16px}.pv-head h2{font-size:1.2rem}.pv-kpis{width:100%}.pv-kpi{flex:1;min-width:0;padding:8px}.pv-bar input[type=search]{min-width:0;width:100%;flex-basis:100%}.pv input{font-size:16px}.pv-grid{grid-template-columns:1fr}.pv-cod{font-size:1.6rem}.pv-herr{width:100%}.pv-herr .pv-fil,.pv-masa-chips .pv-fil{white-space:normal;flex:1 1 100%;text-align:center;line-height:1.2;padding:8px 12px}.pv-masa{bottom:8px}}
   `;
   document.head.appendChild(css);
@@ -165,21 +183,25 @@
     const e = st.estado[t.codigo] || {};
     const editando = st.edit.has(t.codigo) || !t.proveedor;
     const sug = habituales().filter(n => n !== t.proveedor).slice(0, 2);
-    const mts = Number(t.mts) || 0;
-    const insignia = t.proveedor ? `<span class="pv-ins ok" title="${esc(t.proveedor)}">✓ ${esc(t.proveedor)}</span>` : '<span class="pv-ins sin">⚠ SIN PROVEEDOR</span>';
-    const cuerpo = (t.proveedor && !editando)
-      ? `<div class="pv-acc"><button type="button" class="pv-mini" data-pv-cambiar>CAMBIAR</button><button type="button" class="pv-mini rojo" data-pv-quitar title="Quitar proveedor">✕ QUITAR</button></div>`
-      : '<div class="pv-fila-in">' + sug.map(n => `<button type="button" class="pv-mini" data-pv-poner="${esc(n)}">${esc(n)}</button>`).join('') +
-        `<input type="text" list="pv-proveedores" data-pv-input placeholder="${t.proveedor ? 'Otro proveedor…' : 'Escribir proveedor…'}" autocomplete="off">` +
-        (t.proveedor ? '<button type="button" class="pv-mini" data-pv-listo>LISTO</button>' : '') + '</div>';
-    return `<div class="pv-card pv-glass${t.proveedor ? '' : ' sin'}${st.sel.has(t.codigo) ? ' sel' : ''}${st.reciente === t.codigo ? ' nueva' : ''}" data-cod="${esc(t.codigo)}">` +
-      `<div class="pv-top"><span class="pv-cod">${esc(t.codigo)}</span><span class="pv-nom">${esc(t.nombre)}</span></div>` +
-      `<div class="pv-datos"><div><b>${(t.rollos_reales || t.rollos || 0).toLocaleString('es-CO')}</b><small>${(t.rollos_reales || t.rollos) === 1 ? 'ROLLO' : 'ROLLOS'}</small></div>` +
-      `<div><b>${Math.round(mts).toLocaleString('es-CO')}</b><small>MTS EN BODEGA</small></div>` +
-      `<div><b>${(t.uso_pedidos || 0).toLocaleString('es-CO')}</b><small>PEDIDOS</small></div>` +
-      `<div><b>${Math.round(t.uso_mts || 0).toLocaleString('es-CO')}</b><small>MTS EN PEDIDOS</small></div></div>` +
-      `<div class="pv-meta"><span class="pv-inv" title="Proveedor que dice el inventario (Sheet)">INVENTARIO: ${t.prov_inventario ? esc(t.prov_inventario) : '—'}</span>${insignia}</div>` +
-      `<div class="pv-prov">${cuerpo}</div><div class="pv-est ${esc(e.c || '')}" data-pv-est>${esc(e.t || '')}</div></div>`;
+    const rollos = t.rollos_reales || t.rollos || 0, mts = Math.round(Number(t.mts) || 0), ped = t.uso_pedidos || 0, uso = Math.round(t.uso_mts || 0);
+    const pct = mts > 0 ? Math.min(100, Math.round(uso / mts * 100)) : 0, f0 = n => Number(n).toLocaleString('es-CO');
+    const sugInv = t.prov_inventario && !/\s-\s/.test(t.prov_inventario) ? t.prov_inventario : '';   // lo que dice el inventario (si no son varios juntos)
+    const rapidos = [...new Set([sugInv, ...sug].filter(n => n && n !== t.proveedor))].slice(0, 3);
+    const estado = t.proveedor && !editando
+      ? `<span class="pv-pill ok" title="${esc(t.proveedor)}">✓ ${esc(t.proveedor)}</span><button type="button" class="pv-ico" data-pv-cambiar title="Cambiar proveedor">✎</button><button type="button" class="pv-ico rojo" data-pv-quitar title="Quitar proveedor">✕</button>`
+      : (t.proveedor ? `<span class="pv-pill ok" title="${esc(t.proveedor)}">✓ ${esc(t.proveedor)}</span>` : '<span class="pv-pill sin">⚠ SIN PROVEEDOR</span>');
+    const editor = (t.proveedor && !editando) ? '' :
+      '<div class="pv-fila-in">' + rapidos.map(n => `<button type="button" class="pv-mini${n === sugInv ? ' inv' : ''}" data-pv-poner="${esc(n)}"${n === sugInv ? ' title="Es el que dice el inventario"' : ''}>${esc(n)}</button>`).join('') +
+      `<input type="text" list="pv-proveedores" data-pv-input placeholder="${t.proveedor ? 'Otro proveedor…' : 'Escribir proveedor…'}" autocomplete="off">` +
+      (t.proveedor ? '<button type="button" class="pv-mini" data-pv-listo>LISTO</button>' : '') + '</div>';
+    const distinto = t.proveedor && sugInv && sugInv !== t.proveedor && !editando
+      ? `<div class="pv-aviso">El inventario dice <b>${esc(sugInv)}</b><button type="button" class="pv-mini inv" data-pv-poner="${esc(sugInv)}">USAR</button></div>` : '';
+    return `<div class="pv-card pv-glass${t.proveedor ? '' : ' sin'}${st.reciente === t.codigo ? ' nueva' : ''}" data-cod="${esc(t.codigo)}">` +
+      `<div class="pv-top"><span class="pv-cod">${esc(t.codigo)}</span><span class="pv-nom">${esc(t.nombre)}</span><span class="pv-estado">${estado}</span></div>` +
+      `<div class="pv-stats"><span><b>${f0(rollos)}</b> ${rollos === 1 ? 'rollo' : 'rollos'}</span><span><b>${f0(mts)}</b> MTS</span><span><b>${f0(ped)}</b> ${ped === 1 ? 'pedido' : 'pedidos'}</span></div>` +
+      (uso > 0 ? `<div class="pv-uso" title="MTS comprometidos en pedidos frente a lo que hay en bodega"><i><b style="width:${pct}%"></b></i><small>${f0(uso)} MTS en pedidos · ${pct}% de la bodega</small></div>` : '') +
+      distinto + (editor ? `<div class="pv-prov">${editor}</div>` : '') +
+      `<div class="pv-est ${esc(e.c || '')}" data-pv-est>${esc(e.t || '')}</div></div>`;
   }
   const familia = n => (String(n || '').toUpperCase().replace(/\(.*?\)/g, ' ').trim().split(/\s+/)[0]) || 'OTRAS';
   function cabeceraFam(f, lista) {
