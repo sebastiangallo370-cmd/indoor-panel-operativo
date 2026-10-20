@@ -789,6 +789,7 @@ def _telas_faltantes() -> list[dict]:
                 continue
             eventos.append({'clave': f"prod|{o.get('fila')}|{o.get('orden')}|{o.get('referencia')}", 'tipo': o['situacion'], 'cliente': o.get('cliente') or '',
                             'proyecto': o.get('proyecto') or '', 'referencia': o.get('referencia') or '', 'tela': o.get('tela') or '', 'mts': o.get('mts') or 0,
+                            'disponible': o.get('disponible') or 0, 'falta': o.get('falta') or 0,
                             'orden': o.get('orden') or ''})
     except Exception:
         logging.exception('No se pudo calcular las producciones sin tela')

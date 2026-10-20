@@ -99,7 +99,7 @@
     '.pf .at-datos .cli dd{font-size:22px}',
     '.pf .at-datos .mts dd{font:900 34px/1.05 Arial;color:#e4ff6b;text-shadow:0 0 16px rgba(208,244,76,.55)}.pf .at-datos .mts dd small{font:900 14px Arial;margin-left:6px;letter-spacing:.08em}',
     '.pf .at-foot{padding:16px 26px 24px}.pf .at-btn{min-height:50px;font-size:13.5px}',
-    '@media(max-width:560px){.pf .at-head{padding:16px 18px 12px}.pf .at-head:after{left:18px;right:18px}.pf-logo{height:30px}.pf .at-head h3{font-size:22px}.pf .at-head p{font-size:16.5px}.pf .at-list{padding:12px 18px 4px}.pf .at-datos dd{font-size:16.5px}.pf .at-datos .cli dd{font-size:19px}.pf .at-datos .mts dd{font-size:30px}.pf .at-foot{padding:12px 18px 18px}}',
+    '@media(max-width:560px){.pf .at-head{padding:16px 18px 12px}.pf .at-head:after{left:18px;right:18px}.pf-logo{height:30px}.pf .at-head h3{font-size:22px}.pf .at-head p{font-size:14.5px;line-height:1.42}.pf-logo{height:26px;margin-bottom:8px}.pf .at-head h3{font-size:20px;margin:4px 0 7px}.pf .at-list{padding:10px 18px 4px}.pf .at-row.at-prod{padding:12px 14px 14px}.pf .at-chip{margin-bottom:8px;font-size:11px}.pf .at-datos{gap:9px 14px}.pf .at-datos dt{font-size:11px}.pf .at-datos dd{font-size:15.5px}.pf .at-datos .cli dd{font-size:17.5px}.pf .at-datos .mts dd{font-size:26px}.pf .at-foot{padding:10px 18px 16px}.pf .at-btn{min-height:44px}}',
     '@media(prefers-reduced-motion:reduce){.at-card.pf,.pf .at-head:after,.pf-logo,.pf .at-head h3 i,.pf .at-chip{animation:none!important}.pf .at-row.at-prod{opacity:1!important;transform:none!important;animation:none!important}}'
   ].join('');
   var st2=document.createElement('style');st2.textContent=css2;document.head.appendChild(st2);
@@ -109,6 +109,15 @@
   function contar(el,hasta,ms,delay){
     if(RM){el.textContent=dec2(hasta);return}
     setTimeout(function(){var t0=performance.now();(function paso(t){var p=Math.min(1,(t-t0)/ms),e=1-Math.pow(1-p,3);el.textContent=dec2(hasta*e);if(p<1)requestAnimationFrame(paso)})(t0)},delay||0);
+  }
+  // Mensaje personalizado: cada aviso nombra al cliente, la tela y los MTS, y habla como un cuerpo técnico a su equipo (somos una empresa de uniformes deportivos)
+  function mensajeEquipo(lista){
+    var ini='¡Muchachos, atención equipo! El <b>agente de inventarios</b> acaba de detectar ';
+    if(lista.length>1)return ini+'<b>'+lista.length+' nuevas producciones</b> de uniformes a las que <b>les falta tela</b> en el inventario. ¡Hay que conseguirla para que cada equipo salga a jugar a tiempo!';
+    var a=lista[0],cli='<b>'+esc(a.cliente||'un cliente')+'</b>'+(a.proyecto?' ('+esc(a.proyecto)+')':''),mts='<b>'+dec2(a.mts)+' MTS</b> de <b>'+esc(a.tela||'tela')+'</b>';
+    if(a.tipo==='sin_tela'||!(Number(a.disponible)>0))
+      return ini+'una nueva producción de uniformes para '+cli+': necesita '+mts+' y esa tela <b>no está en el inventario</b>. ¡Hay que conseguirla para que el equipo salga a jugar a tiempo!';
+    return ini+'una nueva producción de uniformes para '+cli+': necesita '+mts+' y en el inventario <b>solo tenemos '+ent(a.disponible,Math.round)+' MTS</b>. ¡Hay que conseguir <b>'+ent(a.falta,Math.ceil)+' MTS</b> para que el equipo salga a jugar a tiempo!';
   }
   function filaProd(a,i){
     var chip=a.tipo==='sin_tela'?'No está en Bodega':'No alcanza';
@@ -123,7 +132,7 @@
     var plural=lista.length>1;
     ov.innerHTML='<div class="at-card pf" role="alertdialog" aria-modal="true" aria-label="Producción sin tela"><div class="at-head"><img class="pf-logo" src="/marca-indoor.svg" alt="Indoor"><small>AVISO DE INVENTARIO</small>'+
       '<h3>Producción sin tela <i>'+lista.length+'</i></h3>'+
-      '<p>Muchachos, el <b>agente de inventarios</b> acaba de detectar '+(plural?'<b>nuevas producciones</b>':'<b>una nueva producción</b>')+' que la tela necesaria <b>no tenemos en el inventario</b>.</p></div>'+
+      '<p>'+mensajeEquipo(lista)+'</p></div>'+
       '<div class="at-list">'+lista.map(filaProd).join('')+'</div>'+
       '<div class="at-foot"><button type="button" class="at-btn" data-close>Entendido</button><button type="button" class="at-btn main" data-go>Ver tela necesaria</button></div></div>';
     (document.body||document.documentElement).appendChild(ov);
