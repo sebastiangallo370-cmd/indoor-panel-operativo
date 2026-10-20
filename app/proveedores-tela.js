@@ -80,6 +80,11 @@
   .pv-fam-est{flex:1;display:flex;gap:6px;align-items:center;min-width:120px}
   .pv-fam-est span{padding:2px 9px;border-radius:99px;font:800 .62rem Arial;letter-spacing:.06em;background:rgba(139,212,80,.18);color:#b9f08a}.pv-fam-est span.sin{background:rgba(224,164,55,.2);color:#ffc86b}
   .pv-fam-barra{flex:1 1 90px;max-width:220px;height:6px;border-radius:99px;background:rgba(255,255,255,.12);overflow:hidden}.pv-fam-barra b{display:block;height:100%;background:linear-gradient(90deg,#4f9f2a,#8bd450);border-radius:inherit;transition:width .4s}
+  .pv-fam-asig{display:flex;gap:6px;align-items:center;flex:1 1 280px;max-width:430px}.pv-fam-asig input{min-height:34px;font-size:.8rem;padding:0 12px}.pv-fam-asig .pv-mini{min-height:34px;white-space:nowrap;background:rgba(208,244,76,.9);color:#12200a;border-color:#d0f44c}
+  .pv-lista{display:none;gap:10px;padding:14px;border-color:rgba(208,244,76,.5)!important;animation:pvIn .2s ease-out}.pv-lista.on{display:grid}
+  .pv-lista h3{margin:0;font-size:.95rem}.pv-lista p{margin:0;color:#b6c2b0;font-size:.78rem}
+  .pv-lista textarea{width:100%;min-height:130px;padding:10px 12px;border:1px solid rgba(255,255,255,.2);border-radius:12px;background:rgba(0,0,0,.28);color:inherit;font:600 .85rem Consolas,monospace;outline:none;resize:vertical}
+  .pv-lista-res{font-size:.8rem;line-height:1.45;color:#dfe8d9}.pv-lista-res b{color:#d0f44c}.pv-lista-res .no{color:#ffb6af}
   .pv-grid.compacto{grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
   .pv-grid.compacto .pv-card{padding:10px 12px;border-radius:14px}.pv-grid.compacto .pv-card::before{height:3px}
   .pv-grid.compacto .pv-cod{font-size:1.15rem}.pv-grid.compacto .pv-nom{font-size:.78rem;min-height:0}.pv-grid.compacto .pv-sub{display:none}
@@ -138,7 +143,8 @@
     const todas = lista.every(t => st.sel.has(t.codigo));
     return `<div class="pv-fam pv-glass${cerrada ? ' cerrada' : ''}" data-fam="${esc(f)}"><button type="button" class="pv-fam-t" data-pv-plegar="${esc(f)}"><i>▾</i>${esc(f)}<em>${lista.length} ${lista.length === 1 ? 'tela' : 'telas'}</em></button>` +
       `<div class="pv-fam-est"><div class="pv-fam-barra"><b style="width:${Math.round(con / lista.length * 100)}%"></b></div>${con ? `<span>${con} CON</span>` : ''}${sin ? `<span class="sin">${sin} SIN</span>` : ''}</div>` +
-      `<button type="button" class="pv-mini" data-pv-selfam="${esc(f)}">${todas ? 'QUITAR SELECCIÓN' : 'SELECCIONAR TODAS'}</button></div>`;
+      `<div class="pv-fam-asig"><input type="text" list="pv-proveedores" data-pv-fam-input="${esc(f)}" placeholder="Proveedor de toda la familia…" autocomplete="off"><button type="button" class="pv-mini" data-pv-fam-aplicar="${esc(f)}">APLICAR A LAS ${lista.length}</button></div>` +
+      `<button type="button" class="pv-mini" data-pv-selfam="${esc(f)}">${todas ? 'QUITAR SELECCIÓN' : 'SELECCIONAR'}</button></div>`;
   }
   function refrescarCabeceras() {
     const g = {}; visibles().forEach(t => { (g[familia(t.nombre)] = g[familia(t.nombre)] || []).push(t); });
@@ -174,7 +180,8 @@
     if (!q1('#pv-cont')) {
       host.innerHTML = '<div class="pv-head pv-glass"><div><small>ESTÁNDAR 2026</small><h2>PROVEEDORES DE TELA</h2><p>Una tarjeta por tela: elige su proveedor con un toque o escribe otro. Se guarda solo y el agente de inventario lo usa al crear la orden de compra.</p></div>' +
         '<div class="pv-kpis"><div class="pv-kpi pv-glass" data-kpi="total"><b>0</b><span>TELAS</span></div><div class="pv-kpi pv-glass" data-kpi="con"><b>0</b><span>CON PROVEEDOR</span></div><div class="pv-kpi pv-glass sin" data-kpi="sin"><b>0</b><span>SIN PROVEEDOR</span></div></div></div>' +
-        '<div class="pv-bar pv-glass"><input type="search" data-pv-buscar placeholder="Buscar código, tela o proveedor" value="' + esc(st.buscar) + '"><div class="pv-herr"><button type="button" class="pv-fil" data-pv-agrupar>AGRUPAR POR TELA</button><button type="button" class="pv-fil" data-pv-compacto>VISTA COMPACTA</button><button type="button" class="pv-fil ambar" data-pv-selsin>SELECCIONAR LAS SIN PROVEEDOR</button></div></div>' +
+        '<div class="pv-bar pv-glass"><input type="search" data-pv-buscar placeholder="Buscar código, tela o proveedor" value="' + esc(st.buscar) + '"><div class="pv-herr"><button type="button" class="pv-fil" data-pv-agrupar>AGRUPAR POR TELA</button><button type="button" class="pv-fil" data-pv-compacto>VISTA COMPACTA</button><button type="button" class="pv-fil ambar" data-pv-selsin>SELECCIONAR LAS SIN PROVEEDOR</button><button type="button" class="pv-fil" data-pv-pegar>PEGAR LISTA DE PROVEEDORES</button></div></div>' +
+        '<div class="pv-lista pv-glass"><h3>Pegar lista de proveedores</h3><p>Una línea por tela o familia, con dos puntos: <b>MONTECATINI: LINDATEXTIL</b> o <b>100: LINDATEXTIL</b>. Puedes pegarla desde Excel (dos columnas).</p><textarea data-pv-texto placeholder="MONTECATINI: LINDATEXTIL&#10;DIAMANTE: OTRO PROVEEDOR&#10;700: OTRO"></textarea><div class="pv-lista-res" data-pv-res></div><div class="pv-herr"><button type="button" class="pv-fil" data-pv-lista-ver>VER LOS CAMBIOS</button><button type="button" class="pv-fil on" data-pv-lista-ok disabled>APLICAR</button></div></div>' +
         '<div class="pv-chips"></div>' +
         '<div class="pv-masa pv-glass"><b data-pv-nsel></b><div class="pv-masa-chips"></div><input type="text" list="pv-proveedores" data-pv-masa placeholder="…o escribe otro proveedor" autocomplete="off"><button type="button" class="pv-fil on" data-pv-masa-ok>ASIGNAR</button><button type="button" class="pv-fil" data-pv-masa-no>QUITAR SELECCIÓN</button></div>' +
         '<datalist id="pv-proveedores"></datalist><div id="pv-cont"></div>';
@@ -219,6 +226,47 @@
     pintarGrid();
   }
 
+  // ---- asignar a toda una familia y cargar una lista pegada ----
+  const telasDe = f => telas().filter(t => familia(t.nombre) === f);
+  async function asignarVarias(lista, prov, boton) {
+    let hechas = 0;
+    for (const t of lista) { if (await guardar(t.codigo, prov)) hechas++; if (boton) boton.textContent = hechas + ' / ' + lista.length; }
+    return hechas;
+  }
+  async function aplicarFamilia(f, boton) {
+    const campo = host.querySelector('[data-pv-fam-input="' + CSS.escape(f) + '"]'), prov = String((campo && campo.value) || '').trim().toUpperCase();
+    if (!prov) { if (campo) campo.focus(); return; }
+    const lista = telasDe(f), otros = lista.filter(t => t.proveedor && t.proveedor !== prov);
+    if (otros.length && !confirm(otros.length + (otros.length === 1 ? ' tela de ' : ' telas de ') + f + ' ya tiene otro proveedor y quedará con ' + prov + '.\n¿Continuar?')) return;
+    boton.disabled = true;
+    await asignarVarias(lista.filter(t => t.proveedor !== prov), prov, boton);
+    pintarGrid();
+  }
+  function analizarLista() {
+    const res = q1('[data-pv-res]'), ok = q1('[data-pv-lista-ok]'), cambios = new Map(), noHalladas = [];
+    q1('[data-pv-texto]').value.split(/\r?\n/).map(l => l.trim()).filter(Boolean).forEach(l => {
+      const m = l.match(/^(.+?)\s*(?::|\t|;|=|\s-\s)\s*(.+)$/);
+      const clave = m ? plano(m[1]).trim() : '', prov = m ? m[2].trim().toUpperCase() : '';
+      const halladas = clave ? telas().filter(t => plano(t.codigo) === clave || plano(familia(t.nombre)) === clave || plano(t.nombre) === clave) : [];
+      if (!m || !prov || !halladas.length) { noHalladas.push(l); return; }
+      halladas.forEach(t => cambios.set(t.codigo, prov));
+    });
+    st.pendientes = [...cambios.entries()].filter(([cod, prov]) => (telas().find(t => t.codigo === cod) || {}).proveedor !== prov);
+    const pisan = st.pendientes.filter(([cod]) => (telas().find(t => t.codigo === cod) || {}).proveedor).length;
+    res.innerHTML = (st.pendientes.length ? 'Se asignará proveedor a <b>' + st.pendientes.length + ' telas</b>' + (pisan ? ' (' + pisan + ' ya tenían otro y se cambian)' : '') + '.' : 'No hay cambios por hacer.') +
+      (noHalladas.length ? '<br><span class="no">No encontré: ' + noHalladas.map(esc).join(' · ') + '</span>' : '');
+    ok.disabled = !st.pendientes.length;
+  }
+  async function aplicarLista(boton) {
+    const lista = st.pendientes || [];
+    if (!lista.length) return;
+    boton.disabled = true; let n = 0;
+    for (const [cod, prov] of lista) { if (await guardar(cod, prov)) n++; boton.textContent = n + ' / ' + lista.length; }
+    st.pendientes = null; boton.textContent = 'APLICAR';
+    q1('[data-pv-texto]').value = ''; q1('[data-pv-res]').innerHTML = '<b>' + n + '</b> telas actualizadas.';
+    pintarGrid();
+  }
+
   window.proveedoresTelaPintar = el => {
     if (host !== el) {
       host = el;
@@ -229,6 +277,10 @@
         if (e.target.closest('[data-pv-quitar]')) { guardar(cod(e), ''); return; }
         if (e.target.closest('[data-pv-cambiar]')) { const c = cod(e); st.edit.add(c); cambiarTarjeta(c); host.querySelector('.pv-card[data-cod="' + CSS.escape(c) + '"] [data-pv-input]')?.focus(); return; }
         if (e.target.closest('[data-pv-listo]')) { const c = cod(e); st.edit.delete(c); cambiarTarjeta(c); return; }
+        const fa = e.target.closest('[data-pv-fam-aplicar]'); if (fa) { aplicarFamilia(fa.dataset.pvFamAplicar, fa); return; }
+        if (e.target.closest('[data-pv-pegar]')) { q1('.pv-lista').classList.toggle('on'); q1('[data-pv-texto]').focus(); return; }
+        if (e.target.closest('[data-pv-lista-ver]')) { analizarLista(); return; }
+        const lo = e.target.closest('[data-pv-lista-ok]'); if (lo) { aplicarLista(lo); return; }
         const mp = e.target.closest('[data-pv-masa-poner]'); if (mp) { aplicarMasa(mp.dataset.pvMasaPoner); return; }
         if (e.target.closest('[data-pv-agrupar]')) { st.agrupar = !st.agrupar; guardarVista(); pintarChips(); pintarGrid(); return; }
         if (e.target.closest('[data-pv-compacto]')) { st.compacto = !st.compacto; guardarVista(); pintarChips(); pintarGrid(); return; }
@@ -244,7 +296,7 @@
         if (e.target.matches('[data-pv-input]') && c && e.target.value.trim()) guardar(c, e.target.value);   // al elegir de la lista o salir de la casilla
       });
       host.addEventListener('input', e => { if (e.target.matches('[data-pv-buscar]')) { st.buscar = e.target.value; pintarGrid(); } });
-      host.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('[data-pv-input]')) { e.preventDefault(); const c = cod(e); if (c && e.target.value.trim()) guardar(c, e.target.value); } });
+      host.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('[data-pv-fam-input]')) { e.preventDefault(); const b = e.target.parentElement.querySelector('[data-pv-fam-aplicar]'); if (b) aplicarFamilia(e.target.dataset.pvFamInput, b); return; } if (e.key === 'Enter' && e.target.matches('[data-pv-input]')) { e.preventDefault(); const c = cod(e); if (c && e.target.value.trim()) guardar(c, e.target.value); } });
     }
     if (!st.datos) { pintar(); cargar(); }
     else if (!host.firstElementChild) pintar();
