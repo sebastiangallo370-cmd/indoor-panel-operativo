@@ -5,182 +5,268 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
 <title>Reposiciones · Indoor Sport</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap">
 <style>
-:root{--bg:#080b08;--card:#121712;--line:#2c372f;--ink:#f1f6ec;--mut:#a9b5a3;--lima:#d0f44c;--err:#ff8f80}
+:root{--bg:#070a07;--glass:rgba(255,255,255,.06);--glass2:rgba(255,255,255,.1);--line:rgba(255,255,255,.14);--ink:#f4f8ef;--mut:#aab6a4;--lima:#d0f44c;--lima2:#8bd450;--err:#ff8f80;--f:Inter,"Segoe UI",Arial,sans-serif}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
-html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 Arial,Helvetica,sans-serif}
-body{min-height:100vh;padding:0 16px 120px}
-.wrap{max-width:980px;margin:0 auto}
-header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:20px 0 6px}
-header img{height:34px}
-header small{color:var(--mut)}
-h1{margin:14px 0 4px;font-size:1.7rem;line-height:1.15}
-h1 span{color:var(--lima)}
-.sub{margin:0 0 18px;color:var(--mut)}
-.paso{margin:0 0 18px;padding:18px;border:1px solid var(--line);border-radius:18px;background:var(--card)}
-.paso>h2{display:flex;align-items:center;gap:10px;margin:0 0 12px;font-size:1.05rem}
-.paso>h2 b{display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:var(--lima);color:#142017;font-size:.9rem}
-select,input,textarea{font:inherit;color:var(--ink);background:#0f150f;border:1px solid #3d4c3b;border-radius:10px;min-height:44px;padding:8px 10px;width:100%}
-select:focus,input:focus,textarea:focus{outline:none;border-color:var(--lima)}
-button{font:inherit;cursor:pointer}
-.btn{border:0;border-radius:12px;padding:12px 16px;background:var(--lima);color:#142017;font-weight:800;min-height:46px}
-.btn.sec{background:transparent;color:var(--lima);border:1px solid var(--lima)}
-.btn.mini{min-height:38px;padding:8px 12px;font-size:.85rem}
-.btn:disabled{opacity:.5;cursor:default}
-.galeria{display:grid;gap:10px;margin-top:14px}
-.grande{aspect-ratio:16/10;border-radius:14px;background:#fff;display:grid;place-items:center;overflow:hidden;color:#555}
-.grande img{width:100%;height:100%;object-fit:contain}
-.mini-tira{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
-.mini-tira button{flex:0 0 92px;height:66px;padding:0;border:2px solid transparent;border-radius:10px;background:#fff;overflow:hidden}
-.mini-tira button.on{border-color:var(--lima)}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 var(--f)}
+body{min-height:100vh;padding:0 16px 130px;position:relative;overflow-x:hidden}
+body::before{content:"";position:fixed;inset:0;z-index:-2;background:radial-gradient(900px 520px at 12% -8%,rgba(208,244,76,.22),transparent 60%),radial-gradient(800px 560px at 100% 8%,rgba(60,140,90,.28),transparent 62%),radial-gradient(700px 500px at 50% 110%,rgba(208,244,76,.12),transparent 60%),#070a07}
+body::after{content:"";position:fixed;inset:0;z-index:-1;opacity:.5;background-image:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);background-size:46px 46px;mask-image:radial-gradient(ellipse at 50% 20%,#000,transparent 75%);-webkit-mask-image:radial-gradient(ellipse at 50% 20%,#000,transparent 75%)}
+.wrap{max-width:1000px;margin:0 auto}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:20px 0 4px}
+header img{height:36px;filter:drop-shadow(0 4px 14px rgba(208,244,76,.25))}
+header small{padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--glass);color:var(--mut);font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;backdrop-filter:blur(10px)}
+.hero{position:relative;margin:14px 0 18px;padding:26px 24px;border:1px solid var(--line);border-radius:26px;background:linear-gradient(135deg,rgba(208,244,76,.14),rgba(255,255,255,.04) 45%,rgba(60,140,90,.12));backdrop-filter:blur(18px);overflow:hidden;animation:sube .6s ease both}
+.hero::after{content:"";position:absolute;right:-60px;top:-60px;width:220px;height:220px;border-radius:50%;background:radial-gradient(circle,rgba(208,244,76,.35),transparent 65%);animation:flota 7s ease-in-out infinite}
+.hero h1{margin:0 0 6px;font-size:clamp(1.5rem,4.5vw,2.3rem);line-height:1.12;font-weight:900;letter-spacing:-.02em}
+.hero h1 span{color:var(--lima)}
+.hero p{margin:0;max-width:640px;color:#cdd8c6;font-size:1rem}
+.pasos{display:flex;gap:10px;margin:18px 0 0;flex-wrap:wrap}
+.pasos li{list-style:none;display:flex;align-items:center;gap:9px;padding:8px 14px 8px 8px;border:1px solid var(--line);border-radius:999px;background:rgba(0,0,0,.25);color:var(--mut);font-size:.85rem;font-weight:600;transition:.3s}
+.pasos li b{display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,.12);color:#fff;font-size:.8rem;transition:.3s}
+.pasos li.on{color:#fff;border-color:var(--lima);background:rgba(208,244,76,.1);box-shadow:0 0 22px rgba(208,244,76,.18)}
+.pasos li.on b,.pasos li.hecho b{background:var(--lima);color:#12200a}
+.pasos li.hecho{color:#dfe9d6}
+.pasos ol,.pasos{padding:0}
+.card{position:relative;margin:0 0 18px;padding:20px;border:1px solid var(--line);border-radius:24px;background:linear-gradient(160deg,var(--glass2),rgba(255,255,255,.03));backdrop-filter:blur(16px);box-shadow:0 18px 50px rgba(0,0,0,.35);animation:sube .55s ease both}
+.card>h2{display:flex;align-items:center;gap:12px;margin:0 0 4px;font-size:1.2rem;font-weight:800}
+.card>h2 b{display:grid;place-items:center;width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--lima),var(--lima2));color:#12200a;font-size:.95rem;box-shadow:0 6px 18px rgba(208,244,76,.35)}
+.card>.ayuda{margin:0 0 16px 44px;color:var(--mut);font-size:.92rem}
+.disenos{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px}
+.dis{position:relative;display:grid;gap:10px;padding:10px;text-align:left;border:1.5px solid var(--line);border-radius:20px;background:rgba(0,0,0,.22);color:inherit;font:inherit;cursor:pointer;transition:transform .25s,border-color .25s,box-shadow .25s,background .25s}
+.dis:hover{transform:translateY(-5px);border-color:rgba(208,244,76,.6);box-shadow:0 16px 36px rgba(0,0,0,.45),0 0 0 1px rgba(208,244,76,.25)}
+.dis.on{border-color:var(--lima);background:rgba(208,244,76,.1);box-shadow:0 0 0 2px rgba(208,244,76,.35),0 18px 40px rgba(0,0,0,.45)}
+.dis .im{aspect-ratio:4/3;border-radius:14px;background:#fff;display:grid;place-items:center;overflow:hidden;color:#777;font-size:.78rem}
+.dis .im img{width:100%;height:100%;object-fit:contain;transition:transform .4s}
+.dis:hover .im img{transform:scale(1.06)}
+.dis strong{display:block;font-size:.98rem;line-height:1.25}
+.dis small{color:var(--mut);font-size:.78rem}
+.dis .ins{position:absolute;top:16px;right:16px;padding:5px 11px;border-radius:999px;background:var(--lima);color:#12200a;font-size:.72rem;font-weight:800;box-shadow:0 6px 16px rgba(0,0,0,.4);animation:pop .3s ease}
+.galeria{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:16px;align-items:start;margin-bottom:16px}
+.grande{aspect-ratio:16/10;border-radius:18px;background:#fff;display:grid;place-items:center;overflow:hidden;color:#555;box-shadow:0 14px 36px rgba(0,0,0,.4)}
+.grande img{width:100%;height:100%;object-fit:contain;animation:aparece .4s ease}
+.lado{display:grid;gap:10px}
+.lado h3{margin:0;font-size:1.05rem}
+.lado p{margin:0;color:var(--mut);font-size:.88rem}
+.mini-tira{display:flex;flex-wrap:wrap;gap:8px}
+.mini-tira button{width:86px;height:62px;padding:0;border:2px solid transparent;border-radius:12px;background:#fff;overflow:hidden;cursor:pointer;transition:.2s;position:relative}
+.mini-tira button:hover{transform:translateY(-2px)}
+.mini-tira button.on{border-color:var(--lima);box-shadow:0 0 0 3px rgba(208,244,76,.3)}
 .mini-tira img{width:100%;height:100%;object-fit:contain}
-.info{margin:10px 0 0;color:var(--mut);font-size:.85rem}
-.tabla{width:100%;border-collapse:collapse}
-.tabla th{padding:6px 6px;text-align:left;color:var(--mut);font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--line)}
-.tabla td{padding:4px 4px;vertical-align:middle}
-.tabla td.n{width:34px;color:var(--mut);text-align:center;font-size:.8rem}
-.tabla td.cn{width:84px}.tabla td.ct{width:92px}.tabla td.cd{width:74px}.tabla td.cg{width:84px}.tabla td.cc{width:78px}.tabla td.cx{width:42px}
-.tabla button{min-height:40px;width:38px;border:1px solid #3d4c3b;border-radius:10px;background:transparent;color:var(--mut)}
-.acciones{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}
-.pegar{margin-top:12px;display:none}
-.pegar.on{display:block}
+.mini-tira i{position:absolute;left:4px;bottom:3px;padding:1px 6px;border-radius:6px;background:#12200a;color:var(--lima);font:800 .62rem var(--f)}
+.tabla{width:100%;border-collapse:separate;border-spacing:0 6px}
+.tabla th{padding:4px 6px;text-align:left;color:var(--mut);font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em}
+.tabla td{padding:0 3px;vertical-align:middle}
+.tabla td.n{width:30px;color:var(--mut);text-align:center;font-size:.78rem;font-weight:700}
+.tabla td.cn{width:84px}.tabla td.ct{width:92px}.tabla td.cd{width:74px}.tabla td.cg{width:98px}.tabla td.cc{width:78px}.tabla td.cx{width:42px}
+select,input,textarea{font:inherit;color:var(--ink);background:rgba(0,0,0,.35);border:1.5px solid rgba(255,255,255,.16);border-radius:12px;min-height:46px;padding:8px 10px;width:100%;transition:border-color .2s,box-shadow .2s}
+select:focus,input:focus,textarea:focus{outline:none;border-color:var(--lima);box-shadow:0 0 0 3px rgba(208,244,76,.18)}
+.tabla tr.llena input,.tabla tr.llena select{border-color:rgba(208,244,76,.4)}
+.tabla button{width:40px;min-height:40px;border:1px solid rgba(255,255,255,.16);border-radius:12px;background:transparent;color:var(--mut);cursor:pointer}
+.tabla button:hover{color:var(--err);border-color:var(--err)}
+button{font:inherit}
+.btn{border:0;border-radius:14px;padding:12px 20px;min-height:48px;background:linear-gradient(135deg,var(--lima),var(--lima2));color:#12200a;font-weight:800;cursor:pointer;box-shadow:0 10px 26px rgba(208,244,76,.28);transition:transform .2s,box-shadow .2s}
+.btn:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 14px 32px rgba(208,244,76,.4)}
+.btn:disabled{opacity:.45;cursor:default;box-shadow:none}
+.btn.sec{background:rgba(255,255,255,.06);color:var(--lima);border:1.5px solid rgba(208,244,76,.55);box-shadow:none}
+.btn.mini{min-height:40px;padding:8px 14px;font-size:.86rem}
+.acciones{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+.pegar{display:none;margin-top:14px;padding:14px;border:1px dashed rgba(208,244,76,.5);border-radius:16px;background:rgba(0,0,0,.2)}
+.pegar.on{display:block;animation:sube .3s ease}
 .pegar textarea{min-height:110px;font-family:Consolas,monospace;font-size:.85rem}
-.chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
-.chip{display:inline-flex;align-items:center;gap:8px;padding:7px 12px;border:1px solid var(--lima);border-radius:999px;font-size:.82rem;background:rgba(208,244,76,.1)}
-.chip button{border:0;background:transparent;color:var(--err);padding:0 2px;font-weight:900}
-.barra{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:center;padding:12px 16px;background:linear-gradient(0deg,#080b08 70%,transparent);z-index:3}
-.barra .btn{width:min(520px,100%)}
-.modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.7);z-index:5}
+.info{margin:12px 0 0;color:var(--mut);font-size:.86rem}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px}
+.chip{display:inline-flex;align-items:center;gap:8px;padding:7px 8px 7px 14px;border:1px solid rgba(208,244,76,.5);border-radius:999px;font-size:.82rem;font-weight:600;background:rgba(208,244,76,.1)}
+.chip button{display:grid;place-items:center;width:22px;height:22px;border:0;border-radius:50%;background:rgba(255,255,255,.12);color:var(--err);cursor:pointer;font-weight:900}
+.barra{position:fixed;left:0;right:0;bottom:0;z-index:4;display:flex;justify-content:center;padding:14px 16px 16px;background:linear-gradient(0deg,#070a07 55%,transparent)}
+.barra .in{display:flex;align-items:center;gap:14px;width:min(640px,100%);padding:8px 8px 8px 20px;border:1px solid var(--line);border-radius:999px;background:rgba(20,28,18,.85);backdrop-filter:blur(18px);box-shadow:0 14px 40px rgba(0,0,0,.55)}
+.barra .tot{flex:1;font-size:.9rem;color:#dbe6d2;line-height:1.2}.barra .tot b{display:block;font-size:1.15rem;color:var(--lima)}
+.modal{position:fixed;inset:0;z-index:6;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.72);backdrop-filter:blur(6px)}
 .modal.on{display:flex}
-.hoja{width:min(560px,100%);max-height:92vh;overflow:auto;padding:20px;border:1px solid var(--line);border-radius:18px;background:#101610}
-.campos{display:grid;gap:10px;margin:12px 0}
-.campos label{display:grid;gap:4px;font-size:.8rem;color:var(--mut)}
-.msg{padding:12px;border-radius:10px;background:#1b2a1b;color:var(--lima);font-weight:700}
-.msg.err{background:#3a1d1a;color:var(--err)}
+.hoja{width:min(560px,100%);max-height:92vh;overflow:auto;padding:22px;border:1px solid var(--line);border-radius:26px;background:linear-gradient(160deg,#18211a,#0e140e);box-shadow:0 30px 80px rgba(0,0,0,.6);animation:pop .3s ease}
+.hoja h2{margin:0 0 4px;font-size:1.3rem}
+.resumen{margin:10px 0;padding:12px;border-radius:14px;background:rgba(0,0,0,.28);font-size:.88rem}
+.resumen div{display:flex;justify-content:space-between;gap:10px;padding:3px 0}
+.resumen b{color:var(--lima)}
+.campos{display:grid;gap:12px;margin:14px 0}
+.campos label{display:grid;gap:5px;font-size:.82rem;font-weight:600;color:var(--mut)}
+.msg{padding:12px 14px;border-radius:14px;background:rgba(208,244,76,.12);border:1px solid rgba(208,244,76,.4);color:var(--lima);font-weight:700;margin-bottom:14px}
+.msg.err{background:rgba(255,143,128,.1);border-color:rgba(255,143,128,.5);color:var(--err)}
+.gracias{display:grid;justify-items:center;gap:10px;padding:34px 18px;text-align:center;animation:sube .5s ease}
+.gracias .ok{display:grid;place-items:center;width:84px;height:84px;border-radius:50%;background:linear-gradient(135deg,var(--lima),var(--lima2));color:#12200a;font-size:2.6rem;font-weight:900;box-shadow:0 0 0 12px rgba(208,244,76,.12),0 0 50px rgba(208,244,76,.4);animation:pop .5s ease}
+.gracias h2{margin:6px 0 0;font-size:1.6rem}
+.gracias p{margin:0;max-width:460px;color:#cdd8c6}
 .hp{position:absolute;left:-9999px;opacity:0}
-@media(max-width:620px){h1{font-size:1.4rem}.paso{padding:14px}.tabla td.cn{width:50px}.tabla td.ct{width:54px}.tabla td.cd{width:50px}.tabla td.cg{width:56px}.tabla td.cc{width:44px}.tabla td.cx{width:28px}.tabla button{width:28px}.tabla input,.tabla select{padding:8px 4px;font-size:.9rem}.tabla td{padding:3px 2px}.tabla td.n{display:none}.tabla th:first-child{display:none}.mini-tira button{flex-basis:76px;height:56px}}
+@keyframes sube{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+@keyframes aparece{from{opacity:0}to{opacity:1}}
+@keyframes pop{0%{transform:scale(.8);opacity:0}100%{transform:scale(1);opacity:1}}
+@keyframes flota{50%{transform:translate(-20px,16px) scale(1.08)}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+@media(max-width:760px){.galeria{grid-template-columns:1fr}.disenos{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:620px){.hero{padding:20px 18px}.card{padding:14px;border-radius:20px}.card>.ayuda{margin-left:0}.barra .in{padding-left:16px}.pasos li{font-size:.78rem;padding-right:10px}
+.tabla,.tabla tbody{display:block}.tabla thead{display:none}
+.tabla tr{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:8px 6px;margin:0 0 12px;padding:12px;border:1px solid rgba(255,255,255,.12);border-radius:16px;background:rgba(0,0,0,.2)}
+.tabla tr.llena{border-color:rgba(208,244,76,.4)}
+.tabla td{display:block;width:auto!important;padding:0!important;min-width:0}.tabla td.n{display:none}
+.tabla td::before{content:attr(data-l);display:block;margin:0 0 3px 2px;color:var(--mut);font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em}.tabla td.cx::before{content:none}
+.tabla td.cn{grid-column:span 4}.tabla td.cm{grid-column:span 8}
+.tabla td.ct{grid-column:span 3}.tabla td.cd{grid-column:span 3}.tabla td.cg{grid-column:span 4}.tabla td.cc{grid-column:span 2}.tabla td.cx{grid-column:span 12;text-align:right}
+.tabla button{width:auto;padding:0 14px;min-height:36px}.tabla td.cx button::after{content:" Quitar";font-size:.8rem}}
+@media(max-width:420px){.disenos{grid-template-columns:1fr}}
 </style>
 </head>
 <body data-token="__TOKEN__">
 <div class="wrap">
   <header><img src="/marca-indoor.svg" alt="Indoor Sport"><small>Reposiciones</small></header>
-  <h1 id="titulo">Cargando…</h1>
-  <p class="sub" id="intro">Sigue los 2 pasos: elige el diseño que quieres volver a pedir y llena el listado de jugadores. Puedes agregar varios diseños en un mismo pedido. Tu asesor comercial lo revisa y te confirma.</p>
+
+  <section class="hero">
+    <h1 id="titulo">Cargando…</h1>
+    <p id="intro">Vuelve a pedir tus uniformes en minutos: elige el diseño que ya conoces, escribe tus jugadores y envía. Nosotros nos encargamos del resto.</p>
+    <ol class="pasos" id="pasos">
+      <li class="on" data-p="1"><b>1</b>Elige el diseño</li>
+      <li data-p="2"><b>2</b>Escribe tus jugadores</li>
+      <li data-p="3"><b>3</b>Envía el pedido</li>
+    </ol>
+  </section>
   <div id="msg"></div>
 
   <div id="app" hidden>
-    <section class="paso">
-      <h2><b>1</b> Selecciona el diseño</h2>
-      <select id="sel" aria-label="Seleccionar diseño"></select>
-      <div class="galeria" id="galeria" hidden>
-        <div class="grande" id="grande"></div>
-        <div class="mini-tira" id="tira"></div>
-      </div>
-      <p class="info" id="info"></p>
+    <section class="card" id="c1">
+      <h2><b>1</b> ¿Cuál diseño quieres volver a pedir?</h2>
+      <p class="ayuda">Toca el diseño. Puedes elegir uno o varios, uno después del otro.</p>
+      <div class="disenos" id="disenos"></div>
     </section>
 
-    <section class="paso" id="paso2" hidden>
-      <h2><b>2</b> Llena el listado de jugadores</h2>
+    <section class="card" id="c2" hidden>
+      <h2><b>2</b> <span id="t2">Escribe tus jugadores</span></h2>
+      <p class="ayuda">Un jugador por fila. Si es la misma prenda varias veces, usa la cantidad.</p>
+      <div class="galeria" id="galeria">
+        <div class="grande" id="grande"></div>
+        <div class="lado">
+          <h3 id="nomdis"></h3>
+          <p id="info"></p>
+          <p id="pista" hidden>Estos son los diseños de esta referencia. En cada fila elige cuál lleva ese jugador.</p>
+          <div class="mini-tira" id="tira"></div>
+        </div>
+      </div>
       <div class="chips" id="chips"></div>
       <table class="tabla">
-        <thead><tr><th>#</th><th>N° camiseta</th><th>Nombre en la prenda</th><th>Talla</th><th>Diseño</th><th>Género</th><th>Cant.</th><th></th></tr></thead>
+        <thead><tr><th>#</th><th>Número</th><th>Nombre en la camiseta</th><th>Talla</th><th class="hd">Diseño</th><th>Hombre / Mujer</th><th>Cant.</th><th></th></tr></thead>
         <tbody id="filas"></tbody>
       </table>
       <div class="acciones">
-        <button class="btn sec mini" id="mas1" type="button">+ Agregar fila</button>
-        <button class="btn sec mini" id="mas5" type="button">+ 5 filas</button>
+        <button class="btn sec mini" id="mas1" type="button">+ Agregar jugador</button>
+        <button class="btn sec mini" id="mas5" type="button">+ 5 más</button>
         <button class="btn sec mini" id="verpegar" type="button">Pegar desde Excel</button>
       </div>
       <div class="pegar" id="pegar">
-        <p class="info">Copia las filas de tu Excel con estas 4 columnas, en este orden: <b>N° camiseta · Nombre · Talla · Diseño (1, 2…) · Género (M o F) · Cantidad</b>. Luego pégalas aquí.</p>
-        <textarea id="texto" placeholder="10&#9;MESSI&#9;M&#9;1&#9;M&#9;1&#10;7&#9;RONALDO&#9;L&#9;2&#9;M&#9;2"></textarea>
-        <div class="acciones"><button class="btn mini" id="aplicar" type="button">Pasar al listado</button></div>
+        <p class="info" style="margin-top:0">¿Ya tienes la lista en Excel? Copia las filas con estas columnas, en este orden, y pégalas aquí: <b>Número · Nombre · Talla · Diseño · H o M · Cantidad</b>.</p>
+        <textarea id="texto" placeholder="10&#9;MESSI&#9;M&#9;1&#9;H&#9;1&#10;7&#9;ANA&#9;S&#9;1&#9;M&#9;2"></textarea>
+        <div class="acciones"><button class="btn mini" id="aplicar" type="button">Pasar a la lista</button></div>
       </div>
-      <p class="info" id="aviso"></p>
+      <p class="info" id="aviso">Las filas vacías no se envían. Tu lista se guarda sola mientras la escribes.</p>
     </section>
   </div>
 </div>
-<div class="barra"><button class="btn" id="enviar" disabled>Revisar y enviar (0 prendas)</button></div>
+
+<div class="barra" id="barra"><div class="in"><div class="tot" id="tot"><b>0 prendas</b>Elige un diseño para empezar</div><button class="btn" id="enviar" disabled>Revisar y enviar</button></div></div>
 
 <div class="modal" id="modal"><div class="hoja">
-  <h2 style="margin:0 0 6px">Confirma tu reposición</h2>
-  <p class="sub" id="resumen" style="margin:0"></p>
+  <h2>Último paso</h2>
+  <p class="info" style="margin:0 0 6px">Revisa tu pedido y déjanos tus datos para confirmarte.</p>
+  <div class="resumen" id="resumen"></div>
   <div class="campos">
-    <label>Tu nombre<input id="contacto" maxlength="80" autocomplete="name"></label>
-    <label>Teléfono de contacto<input id="telefono" inputmode="tel" maxlength="25" autocomplete="tel"></label>
-    <label>Notas (opcional)<textarea id="notas" rows="2" maxlength="400" placeholder="Ejemplo: necesitamos todo antes del 15"></textarea></label>
+    <label>Tu nombre<input id="contacto" maxlength="80" autocomplete="name" placeholder="¿Quién hace el pedido?"></label>
+    <label>Teléfono o WhatsApp<input id="telefono" inputmode="tel" maxlength="25" autocomplete="tel" placeholder="Para confirmarte el pedido"></label>
+    <label>¿Algo más que debamos saber? (opcional)<textarea id="notas" rows="2" maxlength="400" placeholder="Ejemplo: lo necesitamos antes del 15"></textarea></label>
     <input class="hp" id="website" tabindex="-1" autocomplete="off" aria-hidden="true">
   </div>
   <div id="msg2"></div>
-  <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn" id="confirmar">Enviar reposición</button><button class="btn sec" id="cerrar">Volver</button></div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn" id="confirmar">Enviar mi pedido</button><button class="btn sec" id="cerrar">Volver a editar</button></div>
 </div></div>
 
 <script>
 (function(){
-  var token=document.body.dataset.token,tallas=[],disenos=[],carro={},sel=0,foto=0,fotos={};   // carro[row]=[{numero,nombre,talla,cantidad}]
+  var token=document.body.dataset.token,tallas=[],disenos=[],carro={},sel=0,foto=0,fotos={},KEY='club:'+token;
   var $=function(i){return document.getElementById(i)};
   var esc=function(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})};
   var vacia=function(j){return !String(j.numero||'').trim()&&!String(j.nombre||'').trim()};
   function llenas(r){return (carro[r]||[]).filter(function(j){return !vacia(j)})}
   function prendas(){var n=0;Object.keys(carro).forEach(function(r){llenas(r).forEach(function(j){n+=Math.max(1,Number(j.cantidad)||1)})});return n}
-  function barra(){var n=prendas();$('enviar').disabled=!n;$('enviar').textContent='Revisar y enviar ('+n+(n===1?' prenda)':' prendas)');}
+  function nDisenos(){return Object.keys(carro).filter(function(r){return llenas(r).length}).length}
   function actual(){return disenos.filter(function(d){return d.row===sel})[0]}
   function nueva(){return {numero:'',nombre:'',talla:tallas.indexOf('M')>=0?'M':tallas[0],diseno:1,genero:'',cantidad:1}}
   function nDis(){var d=actual(),f=d&&fotos[d.row];return Math.max(1,Math.min((f&&f.length)||1,20))}
 
-  function opciones(){
-    $('sel').innerHTML='<option value="0">— Selecciona un diseño —</option>'+disenos.map(function(d){
-      var n=llenas(d.row).length;
-      return '<option value="'+d.row+'"'+(d.row===sel?' selected':'')+'>'+esc((d.proyecto||d.referencia)+' · Ref. '+d.referencia+' · pedido '+d.orden+(n?'  ✓ ('+n+' jugadores)':''))+'</option>';
+  function guardar(){try{var v={};Object.keys(carro).forEach(function(r){var l=llenas(r);if(l.length)v[r]=l});if(Object.keys(v).length)localStorage.setItem(KEY,JSON.stringify(v));else localStorage.removeItem(KEY)}catch(e){}}
+  function pasoActual(){var p=sel?2:1;if(!$('modal').classList.contains('on')&&prendas()&&sel)p=2;return p}
+  function pasos(modal){var p=modal?3:(sel?2:1);document.querySelectorAll('#pasos li').forEach(function(li){var n=Number(li.dataset.p);li.classList.toggle('on',n===p);li.classList.toggle('hecho',n<p)})}
+  function barra(){var n=prendas(),k=nDisenos();$('enviar').disabled=!n;$('tot').innerHTML='<b>'+n+(n===1?' prenda':' prendas')+'</b>'+(n?'en '+k+(k===1?' diseño':' diseños'):'Elige un diseño para empezar');guardar()}
+
+  function foto0(d){var f=fotos[d.row];return f&&f.length?'<img alt="" src="'+esc(f[0])+'">':(f?'Sin imagen':'Cargando…')}
+  function tarjetas(){
+    $('disenos').innerHTML=disenos.map(function(d){var n=llenas(d.row).length;
+      return '<button type="button" class="dis'+(d.row===sel?' on':'')+'" data-dis="'+d.row+'">'+(n?'<span class="ins">✓ '+n+' jugadores</span>':'')+'<div class="im">'+foto0(d)+'</div><div><strong>'+esc(d.proyecto||d.referencia)+'</strong><small>Ref. '+esc(d.referencia)+' · pedido '+esc(d.orden)+(d.fecha?' · '+esc(d.fecha):'')+'</small></div></button>';
     }).join('');
   }
   function cargaFotos(d){
     var m=d.mockups||{};
-    if(m.mockups&&m.mockups.length){fotos[d.row]=m.mockups;galeria();return}
-    if(m.mockups_lista){fetch(m.mockups_lista).then(function(r){return r.ok?r.json():null}).then(function(x){fotos[d.row]=(x&&x.mockups)||[];galeria()}).catch(function(){fotos[d.row]=[];galeria()});return}
-    fotos[d.row]=[];galeria();
+    if(m.mockups&&m.mockups.length){fotos[d.row]=m.mockups;repinta();return}
+    if(m.mockups_lista){fetch(m.mockups_lista).then(function(r){return r.ok?r.json():null}).then(function(x){fotos[d.row]=(x&&x.mockups)||[];repinta()}).catch(function(){fotos[d.row]=[];repinta()});return}
+    fotos[d.row]=[];repinta();
   }
+  function repinta(){tarjetas();galeria();if(actual())tabla(true)}
   function galeria(){
-    var d=actual();if(!d){$('galeria').hidden=true;return}
-    var f=fotos[d.row];$('galeria').hidden=false;
-    if(!f){$('grande').textContent='Cargando diseño…';$('tira').innerHTML='';return}
-    if(!f.length){$('grande').textContent='Este diseño no tiene imagen disponible';$('tira').innerHTML='';return}
+    var d=actual();if(!d)return;
+    var f=fotos[d.row];$('nomdis').textContent=d.proyecto||d.referencia;$('info').textContent='Ref. '+d.referencia+' · pedido anterior '+d.orden+(d.fecha?' · '+d.fecha:'');
+    if(!f){$('grande').textContent='Cargando diseño…';$('tira').innerHTML='';$('pista').hidden=true;return}
+    if(!f.length){$('grande').textContent='Este diseño no tiene imagen disponible';$('tira').innerHTML='';$('pista').hidden=true;return}
     foto=Math.min(foto,f.length-1);
     $('grande').innerHTML='<img alt="Diseño '+esc(d.referencia)+'" src="'+esc(f[foto])+'">';
-    $('tira').innerHTML=f.length>1?f.map(function(u,i){return '<button type="button" data-foto="'+i+'" class="'+(i===foto?'on':'')+'" aria-label="Ver diseño '+(i+1)+'"><img alt="" src="'+esc(u)+'"></button>'}).join(''):'';
+    $('pista').hidden=f.length<2;
+    $('tira').innerHTML=f.length>1?f.map(function(u,i){return '<button type="button" data-foto="'+i+'" class="'+(i===foto?'on':'')+'" aria-label="Ver diseño '+(i+1)+'"><img alt="" src="'+esc(u)+'"><i>D'+(i+1)+'</i></button>'}).join(''):'';
   }
-  function tabla(){
-    var d=actual();$('paso2').hidden=!d;if(!d)return;
+  function tabla(sinLeer){
+    var d=actual();$('c2').hidden=!d;if(!d)return;
+    if(!sinLeer)leer();
     var js=carro[d.row]=carro[d.row]||[];if(!js.length){for(var k=0;k<5;k++)js.push(nueva())}
+    var multi=nDis()>1;document.querySelectorAll('.hd').forEach(function(h){h.hidden=!multi});
     $('filas').innerHTML=js.map(function(j,i){
-      return '<tr data-i="'+i+'"><td class="n">'+(i+1)+'</td><td class="cn"><input data-f="numero" inputmode="numeric" maxlength="4" placeholder="N°" value="'+esc(j.numero)+'" aria-label="Número de camiseta"></td>'
-        +'<td><input data-f="nombre" maxlength="40" placeholder="Nombre" value="'+esc(j.nombre)+'" aria-label="Nombre en la prenda"></td>'
-        +'<td class="ct"><select data-f="talla" aria-label="Talla">'+tallas.map(function(t){return '<option'+(t===j.talla?' selected':'')+'>'+t+'</option>'}).join('')+'</select></td>'
-        +'<td class="cd"><select data-f="diseno" aria-label="Diseño">'+Array.apply(null,Array(nDis())).map(function(_,k){return '<option value="'+(k+1)+'"'+((Number(j.diseno)||1)===k+1?' selected':'')+'>D'+(k+1)+'</option>'}).join('')+'</select></td>'
-        +'<td class="cg"><select data-f="genero" aria-label="Género"><option value="">—</option><option'+(j.genero==='MASC'?' selected':'')+' value="MASC">Masc</option><option'+(j.genero==='FEM'?' selected':'')+' value="FEM">Fem</option></select></td>'
-        +'<td class="cc"><input data-f="cantidad" type="number" min="1" max="50" value="'+(j.cantidad||1)+'" aria-label="Cantidad"></td>'
-        +'<td class="cx"><button type="button" data-del="'+i+'" aria-label="Quitar fila">✕</button></td></tr>';
+      return '<tr data-i="'+i+'" class="'+(vacia(j)?'':'llena')+'"><td class="n">'+(i+1)+'</td><td class="cn" data-l="Número"><input data-f="numero" inputmode="numeric" maxlength="4" placeholder="N°" value="'+esc(j.numero)+'" aria-label="Número"></td>'
+        +'<td class="cm" data-l="Nombre en la camiseta"><input data-f="nombre" maxlength="40" placeholder="Nombre" value="'+esc(j.nombre)+'" aria-label="Nombre en la camiseta"></td>'
+        +'<td class="ct" data-l="Talla"><select data-f="talla" aria-label="Talla">'+tallas.map(function(t){return '<option'+(t===j.talla?' selected':'')+'>'+t+'</option>'}).join('')+'</select></td>'
+        +(multi?'<td class="cd" data-l="Diseño"><select data-f="diseno" aria-label="Diseño">'+Array.apply(null,Array(nDis())).map(function(_,q){return '<option value="'+(q+1)+'"'+((Number(j.diseno)||1)===q+1?' selected':'')+'>D'+(q+1)+'</option>'}).join('')+'</select></td>':'')
+        +'<td class="cg" data-l="Hombre / Mujer"><select data-f="genero" aria-label="Hombre o mujer"><option value="">—</option><option'+(j.genero==='MASC'?' selected':'')+' value="MASC">Hombre</option><option'+(j.genero==='FEM'?' selected':'')+' value="FEM">Mujer</option></select></td>'
+        +'<td class="cc" data-l="Cant."><input data-f="cantidad" type="number" min="1" max="50" value="'+(j.cantidad||1)+'" aria-label="Cantidad"></td>'
+        +'<td class="cx"><button type="button" data-del="'+i+'" aria-label="Quitar jugador">✕</button></td></tr>';
     }).join('');
     $('chips').innerHTML=disenos.filter(function(x){return llenas(x.row).length}).map(function(x){return '<span class="chip">'+esc(x.referencia)+' · '+llenas(x.row).length+' jugadores<button type="button" data-quitar="'+x.row+'" aria-label="Quitar este diseño del pedido">✕</button></span>'}).join('');
-    $('info').textContent='Ref. '+d.referencia+' · pedido anterior '+d.orden+(d.fecha?' · '+d.fecha:'');
-    $('aviso').textContent='Las filas vacías no se envían. Puedes cambiar de diseño arriba y tu listado se conserva.';
   }
   function leer(){
     var d=actual();if(!d)return;
-    document.querySelectorAll('#filas tr').forEach(function(tr){var j=(carro[d.row]||[])[Number(tr.dataset.i)];if(!j)return;tr.querySelectorAll('[data-f]').forEach(function(c){j[c.dataset.f]=c.value})});
+    document.querySelectorAll('#filas tr').forEach(function(tr){var j=(carro[d.row]||[])[Number(tr.dataset.i)];if(!j)return;tr.querySelectorAll('[data-f]').forEach(function(c){j[c.dataset.f]=c.value;});tr.classList.toggle('llena',!vacia(j))});
   }
-  function todo(){opciones();galeria();tabla();barra()}
+  function todo(){tarjetas();galeria();tabla();barra();pasos(false)}
 
-  $('sel').addEventListener('change',function(){leer();sel=Number($('sel').value)||0;foto=0;var d=actual();if(d&&!fotos[d.row])cargaFotos(d);todo()});
-  document.addEventListener('input',function(e){if(e.target.closest('#filas')){leer();barra();opciones()}});
   document.addEventListener('click',function(e){
+    var c=e.target.closest('[data-dis]');
+    if(c){leer();sel=Number(c.dataset.dis);foto=0;var d=actual();if(d&&!fotos[d.row])cargaFotos(d);todo();$('c2').scrollIntoView({behavior:'smooth',block:'start'});return}
     var t=e.target.closest('[data-foto]');if(t){foto=Number(t.dataset.foto);galeria();return}
-    var x=e.target.closest('[data-del]');if(x){leer();var d=actual();carro[d.row].splice(Number(x.dataset.del),1);tabla();barra();opciones();return}
+    var x=e.target.closest('[data-del]');if(x){leer();var dd=actual();carro[dd.row].splice(Number(x.dataset.del),1);tabla(true);barra();tarjetas();return}
     var q=e.target.closest('[data-quitar]');if(q){delete carro[q.dataset.quitar];todo();return}
   });
-  function mas(n){leer();var d=actual();if(!d)return;for(var i=0;i<n;i++)carro[d.row].push(nueva());tabla();var f=document.querySelectorAll('#filas tr');if(f.length)f[f.length-1].scrollIntoView({block:'center',behavior:'smooth'})}
-  $('mas1').addEventListener('click',function(){mas(1)});
+  document.addEventListener('input',function(e){if(e.target.closest('#filas')){leer();barra();tarjetas();var d=actual();$('chips').innerHTML=disenos.filter(function(x){return llenas(x.row).length}).map(function(x){return '<span class="chip">'+esc(x.referencia)+' · '+llenas(x.row).length+' jugadores<button type="button" data-quitar="'+x.row+'" aria-label="Quitar este diseño del pedido">✕</button></span>'}).join('')}});
+  // Enter pasa a la fila de abajo (y agrega una si era la última), para llenar rápido
+  document.addEventListener('keydown',function(e){
+    if(e.key!=='Enter')return;var inp=e.target.closest('#filas input');if(!inp)return;e.preventDefault();
+    var tr=inp.closest('tr'),f=inp.dataset.f,sig=tr.nextElementSibling;
+    if(!sig){mas(1);sig=document.querySelector('#filas tr:last-child')}
+    var next=sig&&sig.querySelector('[data-f="'+f+'"]');if(next)next.focus();
+  });
+  function mas(n){leer();var d=actual();if(!d)return;for(var i=0;i<n;i++)carro[d.row].push(nueva());tabla(true);barra()}
+  $('mas1').addEventListener('click',function(){mas(1);var f=document.querySelectorAll('#filas tr');if(f.length)f[f.length-1].scrollIntoView({block:'center',behavior:'smooth'})});
   $('mas5').addEventListener('click',function(){mas(5)});
   $('verpegar').addEventListener('click',function(){$('pegar').classList.toggle('on')});
   $('aplicar').addEventListener('click',function(){
@@ -189,31 +275,39 @@ button{font:inherit;cursor:pointer}
       if(!linea.trim())return;var p=linea.split(/\t|;/).map(function(s){return s.trim()});
       if(p.length<2){p=linea.trim().split(/\s{2,}/)}
       var talla=String(p[2]||'').toUpperCase();if(tallas.indexOf(talla)<0){malas++;talla=tallas.indexOf('M')>=0?'M':tallas[0]}
-      var g=String(p[4]||'').toUpperCase().charAt(0);js.push({numero:String(p[0]||'').replace(/[^0-9A-Za-z]/g,'').slice(0,4),nombre:String(p[1]||'').slice(0,40),talla:talla,diseno:Math.max(1,Math.min(nDis(),parseInt(p[3],10)||1)),genero:g==='M'?'MASC':g==='F'?'FEM':'',cantidad:Math.max(1,Math.min(50,parseInt(p[5],10)||1))});
+      var g=String(p[4]||'').toUpperCase().charAt(0);
+      js.push({numero:String(p[0]||'').replace(/[^0-9A-Za-z]/g,'').slice(0,4),nombre:String(p[1]||'').slice(0,40),talla:talla,diseno:Math.max(1,Math.min(nDis(),parseInt(p[3],10)||1)),genero:(g==='H'||g==='M')?'MASC':g==='F'?'FEM':'',cantidad:Math.max(1,Math.min(50,parseInt(p[5],10)||1))});
     });
-    carro[d.row]=js.concat([nueva()]);$('texto').value='';$('pegar').classList.remove('on');tabla();barra();opciones();
-    $('aviso').textContent=malas?malas+' fila(s) tenían una talla no válida y quedaron en M: revísalas.':'Listado pasado. Revisa que todo esté bien.';
+    carro[d.row]=js.concat([nueva()]);$('texto').value='';$('pegar').classList.remove('on');tabla(true);barra();tarjetas();
+    $('aviso').textContent=malas?malas+' fila(s) tenían una talla que no existe y quedaron en M: revísalas.':'Lista pasada. Revisa que todo esté bien.';
   });
-  $('enviar').addEventListener('click',function(){leer();var n=prendas(),k=Object.keys(carro).filter(function(r){return llenas(r).length}).length;$('resumen').textContent=n+(n===1?' prenda':' prendas')+' en '+k+(k===1?' diseño.':' diseños.');$('msg2').innerHTML='';$('modal').classList.add('on')});
-  $('cerrar').addEventListener('click',function(){$('modal').classList.remove('on')});
+  $('enviar').addEventListener('click',function(){
+    leer();var n=prendas();
+    $('resumen').innerHTML=disenos.filter(function(d){return llenas(d.row).length}).map(function(d){var c=0;llenas(d.row).forEach(function(j){c+=Math.max(1,Number(j.cantidad)||1)});return '<div><span>'+esc(d.proyecto||d.referencia)+' · '+esc(d.referencia)+'</span><b>'+c+(c===1?' prenda':' prendas')+'</b></div>'}).join('')+'<div style="border-top:1px solid rgba(255,255,255,.12);margin-top:6px;padding-top:8px"><span>Total</span><b>'+n+(n===1?' prenda':' prendas')+'</b></div>';
+    $('msg2').innerHTML='';$('modal').classList.add('on');pasos(true)});
+  $('cerrar').addEventListener('click',function(){$('modal').classList.remove('on');pasos(false)});
   $('confirmar').addEventListener('click',function(){
-    leer();var b=$('confirmar');b.disabled=true;
+    leer();var b=$('confirmar');b.disabled=true;b.textContent='Enviando…';
     var lineas=Object.keys(carro).filter(function(r){return llenas(r).length}).map(function(r){return {row:Number(r),jugadores:llenas(r)}});
     fetch('/api/club/'+encodeURIComponent(token)+'/pedido',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lineas:lineas,contacto:$('contacto').value,telefono:$('telefono').value,notas:$('notas').value,website:$('website').value})})
       .then(function(r){return r.json().catch(function(){return {}}).then(function(d){return {ok:r.ok,d:d}})})
       .then(function(x){
-        if(!x.ok){$('msg2').innerHTML='<div class="msg err">'+esc(x.d.detail||'No se pudo enviar. Intenta de nuevo.')+'</div>';b.disabled=false;return}
-        $('modal').classList.remove('on');carro={};sel=0;todo();
-        $('msg').innerHTML='<div class="msg">✓ Reposición #'+esc(x.d.numero)+' enviada ('+esc(x.d.prendas)+' prendas). Tu asesor comercial la revisará y te contactará.</div>';window.scrollTo({top:0,behavior:'smooth'});b.disabled=false;
-      }).catch(function(){$('msg2').innerHTML='<div class="msg err">Sin conexión. Intenta de nuevo.</div>';b.disabled=false});
+        b.disabled=false;b.textContent='Enviar mi pedido';
+        if(!x.ok){$('msg2').innerHTML='<div class="msg err">'+esc(x.d.detail||'No se pudo enviar. Intenta de nuevo.')+'</div>';return}
+        $('modal').classList.remove('on');carro={};sel=0;try{localStorage.removeItem(KEY)}catch(e){}
+        $('app').hidden=true;$('barra').hidden=true;$('pasos').hidden=true;$('intro').hidden=true;
+        $('msg').innerHTML='<div class="card gracias"><div class="ok">✓</div><h2>¡Listo, recibimos tu pedido!</h2><p>Tu pedido <b>#'+esc(x.d.numero)+'</b> ('+esc(x.d.prendas)+' prendas) ya está con tu asesor comercial. Lo revisará y te contactará muy pronto para confirmártelo.</p><button class="btn" id="otro" type="button">Hacer otro pedido</button></div>';
+        $('otro').addEventListener('click',function(){location.reload()});window.scrollTo({top:0,behavior:'smooth'});
+      }).catch(function(){b.disabled=false;b.textContent='Enviar mi pedido';$('msg2').innerHTML='<div class="msg err">Sin conexión. Intenta de nuevo.</div>'});
   });
   fetch('/api/club/'+encodeURIComponent(token)+'/disenos',{cache:'no-store'}).then(function(r){return r.json().catch(function(){return {}}).then(function(d){return {ok:r.ok,d:d}})}).then(function(x){
-    if(!x.ok){$('titulo').textContent='Enlace no disponible';$('intro').hidden=true;document.querySelector('.barra').hidden=true;$('msg').innerHTML='<div class="msg err">'+esc(x.d.detail||'No se pudo abrir este enlace.')+'</div>';return}
-    tallas=x.d.tallas;disenos=x.d.disenos;$('titulo').innerHTML='Reposiciones de <span>'+esc(x.d.cliente)+'</span>';
-    if(!disenos.length){$('msg').innerHTML='<div class="msg err">Todavía no hay diseños disponibles para reponer. Escríbele a tu asesor comercial.</div>';document.querySelector('.barra').hidden=true;return}
+    if(!x.ok){$('titulo').textContent='Este enlace no está disponible';$('pasos').hidden=true;$('intro').textContent='';$('barra').hidden=true;$('msg').innerHTML='<div class="msg err">'+esc(x.d.detail||'No se pudo abrir este enlace.')+'</div>';return}
+    tallas=x.d.tallas;disenos=x.d.disenos;$('titulo').innerHTML='Hola, <span>'+esc(x.d.cliente)+'</span> 👋';
+    if(!disenos.length){$('pasos').hidden=true;$('msg').innerHTML='<div class="msg err">Todavía no hay diseños disponibles para reponer. Escríbele a tu asesor comercial.</div>';$('barra').hidden=true;return}
     $('app').hidden=false;
-    disenos.forEach(function(d){var m=d.mockups||{};if(m.mockups&&m.mockups.length)fotos[d.row]=m.mockups});
-    opciones();
+    disenos.forEach(function(d){cargaFotos(d)});
+    try{var g=JSON.parse(localStorage.getItem(KEY)||'null');if(g){Object.keys(g).forEach(function(r){if(disenos.some(function(d){return String(d.row)===r}))carro[r]=g[r]});if(prendas()){$('msg').innerHTML='<div class="msg">Recuperamos el pedido que dejaste sin enviar. <button type="button" id="nuevo" class="btn sec mini" style="margin-left:8px">Empezar de nuevo</button></div>';$('nuevo').addEventListener('click',function(){carro={};sel=0;try{localStorage.removeItem(KEY)}catch(e){}$('msg').innerHTML='';$('c2').hidden=true;todo()})}}}catch(e){}
+    todo();
   }).catch(function(){$('titulo').textContent='Sin conexión';});
 })();
 </script>
