@@ -33,11 +33,12 @@ header small{padding:6px 12px;border:1px solid var(--line);border-radius:999px;b
 .card>h2{display:flex;align-items:center;gap:12px;margin:0 0 4px;font-size:1.2rem;font-weight:800}
 .card>h2 b{display:grid;place-items:center;width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--lima),var(--lima2));color:#12200a;font-size:.95rem;box-shadow:0 6px 18px rgba(208,244,76,.35)}
 .card>.ayuda{margin:0 0 16px 44px;color:var(--mut);font-size:.92rem}
-.disenos,.mgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:18px}
+.disenos{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,210px),1fr));gap:14px}
+.mgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:18px}
 .dis{position:relative;display:grid;gap:10px;padding:10px;text-align:left;border:1.5px solid var(--line);border-radius:20px;background:rgba(0,0,0,.22);color:inherit;font:inherit;cursor:pointer;transition:transform .25s,border-color .25s,box-shadow .25s,background .25s}
 .dis:hover{transform:translateY(-5px);border-color:rgba(208,244,76,.6);box-shadow:0 16px 36px rgba(0,0,0,.45),0 0 0 1px rgba(208,244,76,.25)}
 .dis.on{border-color:var(--lima);background:rgba(208,244,76,.1);box-shadow:0 0 0 2px rgba(208,244,76,.35),0 18px 40px rgba(0,0,0,.45)}
-.dis .im{aspect-ratio:4/3;border-radius:14px;background:#fff;display:grid;place-items:center;overflow:hidden;color:#777;font-size:.78rem}
+.dis .im{aspect-ratio:16/10;max-height:150px;border-radius:14px;background:#fff;display:grid;place-items:center;overflow:hidden;color:#777;font-size:.78rem}
 .dis .im img{width:100%;height:100%;object-fit:contain;transition:transform .4s}
 .dis:hover .im img{transform:scale(1.06)}
 .dis strong{display:block;font-size:.98rem;line-height:1.25}
@@ -333,10 +334,28 @@ button{font:inherit}
         if(!x.ok){$('msg2').innerHTML='<div class="msg err">'+esc(x.d.detail||'No se pudo enviar. Intenta de nuevo.')+'</div>';return}
         $('modal').classList.remove('on');carro={};eleg={};sel=0;try{localStorage.removeItem(KEY)}catch(e){}
         $('app').hidden=true;$('barra').hidden=true;$('pasos').hidden=true;$('intro').hidden=true;
+        if(x.d.cotizacion){espera(x.d.numero,x.d.prendas);return}
         $('msg').innerHTML='<div class="card gracias"><div class="ok">✓</div><h2>¡Listo, recibimos tu pedido!</h2><p>Tu pedido <b>#'+esc(x.d.numero)+'</b> ('+esc(x.d.prendas)+' prendas) ya está con tu asesor comercial. Lo revisará y te contactará muy pronto para confirmártelo.</p><button class="btn" id="otro" type="button">Hacer otro pedido</button></div>';
         $('otro').addEventListener('click',function(){location.reload()});window.scrollTo({top:0,behavior:'smooth'});
       }).catch(function(){b.disabled=false;b.textContent='Confirmar pedido';$('msg2').innerHTML='<div class="msg err">Sin conexión. Intenta de nuevo.</div>'});
   });
+  // EFFITRON crea la cotización en Effi: se espera aquí y, cuando el PDF está listo, el cliente lo ve y lo puede compartir
+  function espera(numero,n){
+    var t0=Date.now(),url='/api/club/'+encodeURIComponent(token)+'/pedido/'+numero;
+    $('msg').innerHTML='<div class="card gracias" id="esp"><div class="ok" style="animation:flota 2s ease-in-out infinite">⏳</div><h2>Estamos creando tu cotización…</h2><p>Recibimos tu pedido <b>#'+esc(numero)+'</b> ('+esc(n)+' prendas). En unos segundos verás aquí tu cotización lista para compartir.</p></div>';
+    window.scrollTo({top:0,behavior:'smooth'});
+    (function sonda(){
+      fetch(url,{cache:'no-store'}).then(function(r){return r.json()}).then(function(e){
+        if(e.estado==='lista'&&e.url){
+          var abs=location.origin+e.url,wa='https://wa.me/?text='+encodeURIComponent('Cotización de mi pedido en Indoor Sport: '+abs);
+          $('msg').innerHTML='<div class="card gracias"><div class="ok">✓</div><h2>¡Tu cotización está lista!</h2><p>Cotización <b>'+esc(e.numero)+'</b> de tu pedido <b>#'+esc(numero)+'</b>. Tu asesor comercial también la recibió.</p><div class="acciones" style="justify-content:center"><a class="btn" style="text-decoration:none;display:inline-flex;align-items:center" href="'+esc(e.url)+'" target="_blank" rel="noopener">Ver cotización (PDF)</a><a class="btn sec" style="text-decoration:none;display:inline-flex;align-items:center" href="'+esc(wa)+'" target="_blank" rel="noopener">Compartir por WhatsApp</a><button class="btn sec" id="cop" type="button">Copiar enlace</button></div></div>';
+          $('cop').addEventListener('click',function(){var b=this;(navigator.clipboard?navigator.clipboard.writeText(abs):Promise.reject()).then(function(){b.textContent='¡Copiado!'}).catch(function(){prompt('Copia este enlace:',abs)})});
+          return}
+        if(e.estado==='error'||Date.now()-t0>600000){$('msg').innerHTML='<div class="card gracias"><div class="ok">✓</div><h2>¡Recibimos tu pedido!</h2><p>Tu pedido <b>#'+esc(numero)+'</b> ya está con tu asesor comercial. Te enviará la cotización en breve.</p></div>';return}
+        setTimeout(sonda,4000);
+      }).catch(function(){setTimeout(sonda,6000)});
+    })();
+  }
   fetch('/api/club/'+encodeURIComponent(token)+'/disenos',{cache:'no-store'}).then(function(r){return r.json().catch(function(){return {}}).then(function(d){return {ok:r.ok,d:d}})}).then(function(x){
     if(!x.ok){$('titulo').textContent='Este enlace no está disponible';$('pasos').hidden=true;$('intro').textContent='';$('barra').hidden=true;$('msg').innerHTML='<div class="msg err">'+esc(x.d.detail||'No se pudo abrir este enlace.')+'</div>';return}
     tallas=x.d.tallas;disenos=x.d.disenos;$('titulo').innerHTML='Hola, <span>'+esc(x.d.cliente)+'</span> 👋';
