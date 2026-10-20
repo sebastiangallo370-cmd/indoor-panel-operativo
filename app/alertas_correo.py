@@ -26,6 +26,9 @@ CUENTA_FILE = Path(os.getenv('CORREO_CUENTA_FILE', '/data/state/correo_cuenta.js
 
 def cuenta() -> tuple[str, str]:
     """(usuario, contraseña de aplicación) con que se envían los correos: primero el .env y, si no hay, lo guardado desde el panel del agente."""
+    from app import google_correo
+    if google_correo.activo():   # cuenta conectada con «Iniciar sesión con Google»: sin contraseña (se envía por la API de Gmail)
+        return google_correo.correo(), 'google'
     try:
         d = json.loads(CUENTA_FILE.read_text(encoding='utf-8'))
         if d.get('usuario') and d.get('clave'):
@@ -90,6 +93,9 @@ def borrar_cuenta() -> None:
 
 def enviar(asunto: str, cuerpo: str, para: str | None = None, adjuntos: list | None = None) -> None:
     """adjuntos: lista de (nombre, bytes) en PDF."""
+    from app import google_correo
+    if google_correo.activo():
+        return google_correo.enviar(asunto, cuerpo, para or os.environ['ALERTA_EMAIL_A'], adjuntos)
     usuario, clave = cuenta()
     msg = EmailMessage()
     msg['Subject'] = asunto

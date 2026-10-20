@@ -271,18 +271,29 @@
     if (!r.ok) throw Error(d.detail || 'No se pudo completar');
     return d;
   }
+  // «Cambiar correo de envío»: abre el inicio de sesión de Google (la primera vez pide el ID de cliente y el secreto de Google Cloud)
   async function cambiarCuenta() {
     const m = panel.querySelector('[data-zeus-msg]');
-    const usuario = (prompt('Correo de Gmail que enviará todos los mensajes del panel (ahora: ' + (cuentaEnvia || 'ninguno') + '):') || '').trim().toLowerCase();
-    if (!usuario) return;
-    const clave = (prompt('Contraseña de aplicación de ' + usuario + ' (16 letras que genera Google; no es la contraseña normal):') || '').trim();
-    if (!clave) return;
-    if (m) m.textContent = 'Comprobando la cuenta con Google…';
+    const decir = t => { const x = panel.querySelector('[data-zeus-msg]'); if (x) x.textContent = t; };
     try {
-      const d = await llamar('/api/zeus/cuenta', 'PUT', { usuario, clave });
-      await cargar(false);
-      const m2 = panel.querySelector('[data-zeus-msg]'); if (m2) m2.textContent = 'Listo: ahora los mensajes salen desde ' + d.cuenta + '.';
-    } catch (e) { const m2 = panel.querySelector('[data-zeus-msg]'); if (m2) m2.textContent = e.message; }
+      let g = await llamar('/api/zeus/google', 'GET');
+      if (!g.cliente) {
+        const cid = (prompt('Primera vez: pega el ID de cliente de Google (termina en .apps.googleusercontent.com).\nEn Google Cloud, la dirección de retorno autorizada debe ser:\n' + g.redirect) || '').trim();
+        if (!cid) return;
+        const sec = (prompt('Pega el secreto de cliente de Google:') || '').trim();
+        if (!sec) return;
+        g = await llamar('/api/zeus/google/cliente', 'PUT', { cliente_id: cid, secreto: sec });
+      }
+      const w = window.open('/api/zeus/google/inicio', 'google-correo', 'width=520,height=680');
+      if (!w) { decir('El navegador bloqueó la ventana. Permite las ventanas emergentes de esta página y vuelve a pulsar.'); return; }
+      decir('Elige la cuenta en la ventana de Google…');
+      const t = setInterval(async () => {
+        if (!w.closed) return;
+        clearInterval(t);
+        await cargar(false);
+        decir('Cuenta de envío: ' + (cuentaEnvia || 'sin conectar'));
+      }, 1000);
+    } catch (e) { decir(e.message); }
   }
 
   async function accionCorreo(url, metodo, cuerpo, mensaje) {

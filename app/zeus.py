@@ -364,7 +364,7 @@ def estado():
         from app import alertas_correo
         return {'agente': _agente(d), 'items': [_enriquecer(i) for i in d['items'][-60:][::-1]],
                 'resumen': {e: sum(1 for i in d['items'] if i['estado'] == e) for e in ('pendiente', 'entregada', 'creada', 'error', 'cancelada', 'anulada')},
-                'correo': {'configurado': alertas_correo.puede_enviar(), 'cuenta': alertas_correo.cuenta()[0], 'encargado': bool(any(c.get('estado') == 'verificado' for c in d['config']['correos']) or os.getenv('ZEUS_EMAIL_A') or os.getenv('ALERTA_EMAIL_A'))},
+                'correo': {'google': __import__('app.google_correo', fromlist=['x']).estado(), 'configurado': alertas_correo.puede_enviar(), 'cuenta': alertas_correo.cuenta()[0], 'encargado': bool(any(c.get('estado') == 'verificado' for c in d['config']['correos']) or os.getenv('ZEUS_EMAIL_A') or os.getenv('ALERTA_EMAIL_A'))},
                 'correos': _correos_vista(d), 'notificar': d['config']['notificar'], 'usuarios': _usuarios()}
 
 
@@ -530,6 +530,59 @@ def _usuario_llave(request: Request) -> str:
     if not _llave_ok(usuario):
         raise HTTPException(403, 'Solo la cuenta Indoor Sport puede ver y cambiar la API de Effi')
     return usuario
+
+
+@router.get('/google')
+def google_estado(request: Request):
+    from app import google_correo
+    _usuario_llave(request)
+    return google_correo.estado()
+
+
+@router.put('/google/cliente')
+def google_cliente(request: Request, payload: dict):
+    """Guarda el ID de cliente y el secreto OAuth que se crean en Google Cloud (solo en el servidor)."""
+    from app import google_correo
+    _usuario_llave(request)
+    cid, sec = str(payload.get('cliente_id') or '').strip(), str(payload.get('secreto') or '').strip()
+    if not cid.endswith('.apps.googleusercontent.com') or len(sec) < 10 or re.search(r'\s', cid + sec):
+        raise HTTPException(400, 'Revisa el ID de cliente (termina en .apps.googleusercontent.com) y el secreto')
+    google_correo.guardar_cliente(cid, sec)
+    return google_correo.estado()
+
+
+@router.get('/google/inicio')
+def google_inicio(request: Request):
+    from fastapi.responses import RedirectResponse
+    from app import google_correo
+    _usuario_llave(request)
+    try:
+        return RedirectResponse(google_correo.url_inicio())
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@router.delete('/google')
+def google_desconectar(request: Request):
+    from app import google_correo
+    _usuario_llave(request)
+    google_correo.desconectar()
+    return google_correo.estado()
+
+
+@public_router.get('/google/retorno')
+def google_retorno(code: str = '', state: str = '', error: str = ''):
+    """A donde vuelve Google después de elegir la cuenta (la validez la da el «state» que generó el panel)."""
+    from app import google_correo
+    if error or not code:
+        return _pagina('Cuenta no conectada', 'Google no dio el permiso (' + (error or 'cancelado') + '). Cierra esta ventana y vuelve a intentarlo.', False)
+    try:
+        correo_ = google_correo.completar(code, state)
+    except Exception as e:   # noqa: BLE001
+        log.warning('Google correo: %s', e)
+        return _pagina('Cuenta no conectada', str(e), False)
+    log.info('Cuenta de envío conectada con Google: %s', correo_)
+    return _pagina('Cuenta conectada', f'Desde ahora los mensajes del panel salen desde {correo_}. Puedes cerrar esta ventana.', True)
 
 
 @router.put('/cuenta')
