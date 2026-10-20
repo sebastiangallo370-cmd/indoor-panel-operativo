@@ -23,18 +23,17 @@ header small{padding:6px 12px;border:1px solid var(--line);border-radius:999px;b
 .hero h1{margin:0 0 6px;font-size:clamp(1.5rem,4.5vw,2.3rem);line-height:1.12;font-weight:900;letter-spacing:-.02em}
 .hero h1 span{color:var(--lima)}
 .hero p{margin:0;max-width:640px;color:#cdd8c6;font-size:1rem}
-.pasos{display:flex;gap:10px;margin:18px 0 0;flex-wrap:wrap}
+.pasos{display:flex;gap:10px;margin:18px 0 0;flex-wrap:wrap;padding:0}
 .pasos li{list-style:none;display:flex;align-items:center;gap:9px;padding:8px 14px 8px 8px;border:1px solid var(--line);border-radius:999px;background:rgba(0,0,0,.25);color:var(--mut);font-size:.85rem;font-weight:600;transition:.3s}
 .pasos li b{display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,.12);color:#fff;font-size:.8rem;transition:.3s}
 .pasos li.on{color:#fff;border-color:var(--lima);background:rgba(208,244,76,.1);box-shadow:0 0 22px rgba(208,244,76,.18)}
 .pasos li.on b,.pasos li.hecho b{background:var(--lima);color:#12200a}
 .pasos li.hecho{color:#dfe9d6}
-.pasos ol,.pasos{padding:0}
 .card{position:relative;margin:0 0 18px;padding:20px;border:1px solid var(--line);border-radius:24px;background:linear-gradient(160deg,var(--glass2),rgba(255,255,255,.03));backdrop-filter:blur(16px);box-shadow:0 18px 50px rgba(0,0,0,.35);animation:sube .55s ease both}
 .card>h2{display:flex;align-items:center;gap:12px;margin:0 0 4px;font-size:1.2rem;font-weight:800}
 .card>h2 b{display:grid;place-items:center;width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--lima),var(--lima2));color:#12200a;font-size:.95rem;box-shadow:0 6px 18px rgba(208,244,76,.35)}
 .card>.ayuda{margin:0 0 16px 44px;color:var(--mut);font-size:.92rem}
-.disenos{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px}
+.disenos,.mgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px}
 .dis{position:relative;display:grid;gap:10px;padding:10px;text-align:left;border:1.5px solid var(--line);border-radius:20px;background:rgba(0,0,0,.22);color:inherit;font:inherit;cursor:pointer;transition:transform .25s,border-color .25s,box-shadow .25s,background .25s}
 .dis:hover{transform:translateY(-5px);border-color:rgba(208,244,76,.6);box-shadow:0 16px 36px rgba(0,0,0,.45),0 0 0 1px rgba(208,244,76,.25)}
 .dis.on{border-color:var(--lima);background:rgba(208,244,76,.1);box-shadow:0 0 0 2px rgba(208,244,76,.35),0 18px 40px rgba(0,0,0,.45)}
@@ -44,23 +43,29 @@ header small{padding:6px 12px;border:1px solid var(--line);border-radius:999px;b
 .dis strong{display:block;font-size:.98rem;line-height:1.25}
 .dis small{color:var(--mut);font-size:.78rem}
 .dis .ins{position:absolute;top:16px;right:16px;padding:5px 11px;border-radius:999px;background:var(--lima);color:#12200a;font-size:.72rem;font-weight:800;box-shadow:0 6px 16px rgba(0,0,0,.4);animation:pop .3s ease}
-.galeria{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:16px;align-items:start;margin-bottom:16px}
-.grande{aspect-ratio:16/10;border-radius:18px;background:#fff;display:grid;place-items:center;overflow:hidden;color:#555;box-shadow:0 14px 36px rgba(0,0,0,.4)}
+.mc{position:relative;display:grid;gap:10px;padding:10px;border:1.5px solid var(--line);border-radius:20px;background:rgba(0,0,0,.22);transition:transform .25s,border-color .25s,box-shadow .25s}
+.mc.on{border-color:var(--lima);background:rgba(208,244,76,.1);box-shadow:0 0 0 2px rgba(208,244,76,.35)}
+.mc .im{position:relative;aspect-ratio:4/3;border-radius:14px;background:#fff;display:grid;place-items:center;overflow:hidden;cursor:zoom-in}
+.mc .im img{width:100%;height:100%;object-fit:contain}
+.mc .dn{position:absolute;left:8px;top:8px;padding:5px 12px;border-radius:999px;background:#12200a;color:var(--lima);font-weight:900;font-size:.85rem;box-shadow:0 6px 14px rgba(0,0,0,.45)}
+.mc .sub2{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:.82rem;color:var(--mut)}
+.mc .btn{width:100%}
+.tabsd{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px}
+.tabsd button{display:inline-flex;align-items:center;gap:8px;padding:9px 16px;border:1.5px solid var(--line);border-radius:999px;background:rgba(0,0,0,.25);color:var(--ink);font:700 .9rem var(--f);cursor:pointer;transition:.2s}
+.tabsd button small{padding:2px 8px;border-radius:999px;background:rgba(255,255,255,.12);font-size:.72rem}
+.tabsd button.on{border-color:var(--lima);background:rgba(208,244,76,.14);box-shadow:0 0 18px rgba(208,244,76,.2)}
+.tabsd button.on small{background:var(--lima);color:#12200a}
+.galeria{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.5fr);gap:20px;align-items:start}
+.grande{aspect-ratio:4/3;border-radius:18px;background:#fff;display:grid;place-items:center;overflow:hidden;color:#555;box-shadow:0 14px 36px rgba(0,0,0,.4);position:sticky;top:12px}
 .grande img{width:100%;height:100%;object-fit:contain;animation:aparece .4s ease}
-.lado{display:grid;gap:10px}
-.lado h3{margin:0;font-size:1.05rem}
-.lado p{margin:0;color:var(--mut);font-size:.88rem}
-.mini-tira{display:flex;flex-wrap:wrap;gap:8px}
-.mini-tira button{width:86px;height:62px;padding:0;border:2px solid transparent;border-radius:12px;background:#fff;overflow:hidden;cursor:pointer;transition:.2s;position:relative}
-.mini-tira button:hover{transform:translateY(-2px)}
-.mini-tira button.on{border-color:var(--lima);box-shadow:0 0 0 3px rgba(208,244,76,.3)}
-.mini-tira img{width:100%;height:100%;object-fit:contain}
-.mini-tira i{position:absolute;left:4px;bottom:3px;padding:1px 6px;border-radius:6px;background:#12200a;color:var(--lima);font:800 .62rem var(--f)}
+.grande .dn{position:absolute;left:10px;top:10px;padding:6px 14px;border-radius:999px;background:#12200a;color:var(--lima);font-weight:900}
+.lado h3{margin:0 0 2px;font-size:1.05rem}
+.lado p{margin:0 0 10px;color:var(--mut);font-size:.88rem}
 .tabla{width:100%;border-collapse:separate;border-spacing:0 6px}
 .tabla th{padding:4px 6px;text-align:left;color:var(--mut);font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em}
 .tabla td{padding:0 3px;vertical-align:middle}
 .tabla td.n{width:30px;color:var(--mut);text-align:center;font-size:.78rem;font-weight:700}
-.tabla td.cn{width:84px}.tabla td.ct{width:92px}.tabla td.cd{width:74px}.tabla td.cg{width:98px}.tabla td.cc{width:78px}.tabla td.cx{width:42px}
+.tabla td.cn{width:76px}.tabla td.ct{width:78px}.tabla td.cg{width:96px}.tabla td.cc{width:66px}.tabla td.cx{width:42px}
 select,input,textarea{font:inherit;color:var(--ink);background:rgba(0,0,0,.35);border:1.5px solid rgba(255,255,255,.16);border-radius:12px;min-height:46px;padding:8px 10px;width:100%;transition:border-color .2s,box-shadow .2s}
 select:focus,input:focus,textarea:focus{outline:none;border-color:var(--lima);box-shadow:0 0 0 3px rgba(208,244,76,.18)}
 .tabla tr.llena input,.tabla tr.llena select{border-color:rgba(208,244,76,.4)}
@@ -77,9 +82,6 @@ button{font:inherit}
 .pegar.on{display:block;animation:sube .3s ease}
 .pegar textarea{min-height:110px;font-family:Consolas,monospace;font-size:.85rem}
 .info{margin:12px 0 0;color:var(--mut);font-size:.86rem}
-.chips{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 14px;min-height:40px}
-.chip{display:inline-flex;align-items:center;gap:8px;padding:7px 8px 7px 14px;border:1px solid rgba(208,244,76,.5);border-radius:999px;font-size:.82rem;font-weight:600;background:rgba(208,244,76,.1)}
-.chip button{display:grid;place-items:center;width:22px;height:22px;border:0;border-radius:50%;background:rgba(255,255,255,.12);color:var(--err);cursor:pointer;font-weight:900}
 .barra{position:fixed;left:0;right:0;bottom:0;z-index:4;display:flex;justify-content:center;padding:14px 16px 16px;background:linear-gradient(0deg,#070a07 55%,transparent)}
 .barra .in{display:flex;align-items:center;gap:14px;width:min(640px,100%);padding:8px 8px 8px 20px;border:1px solid var(--line);border-radius:999px;background:rgba(20,28,18,.85);backdrop-filter:blur(18px);box-shadow:0 14px 40px rgba(0,0,0,.55)}
 .barra .tot{flex:1;font-size:.9rem;color:#dbe6d2;line-height:1.2}.barra .tot b{display:block;font-size:1.15rem;color:var(--lima)}
@@ -90,6 +92,8 @@ button{font:inherit}
 .resumen{margin:10px 0;padding:12px;border-radius:14px;background:rgba(0,0,0,.28);font-size:.88rem}
 .resumen div{display:flex;justify-content:space-between;gap:10px;padding:3px 0}
 .resumen b{color:var(--lima)}
+.visor{position:fixed;inset:0;z-index:7;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.88);cursor:zoom-out}
+.visor.on{display:flex}.visor img{max-width:100%;max-height:92vh;border-radius:14px;background:#fff}
 .campos{display:grid;gap:12px;margin:14px 0}
 .campos label{display:grid;gap:5px;font-size:.82rem;font-weight:600;color:var(--mut)}
 .msg{padding:12px 14px;border-radius:14px;background:rgba(208,244,76,.12);border:1px solid rgba(208,244,76,.4);color:var(--lima);font-weight:700;margin-bottom:14px}
@@ -104,17 +108,17 @@ button{font:inherit}
 @keyframes pop{0%{transform:scale(.8);opacity:0}100%{transform:scale(1);opacity:1}}
 @keyframes flota{50%{transform:translate(-20px,16px) scale(1.08)}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
-@media(max-width:760px){.galeria{grid-template-columns:1fr}.disenos{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:620px){.hero{padding:20px 18px}.card{padding:14px;border-radius:20px}.card>.ayuda{margin-left:0}.barra .in{padding-left:16px}.pasos li{font-size:.78rem;padding-right:10px}
+@media(max-width:820px){.galeria{grid-template-columns:1fr}.grande{position:static}.disenos,.mgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:620px){.hero{padding:20px 18px}.card{padding:14px;border-radius:20px}.card>.ayuda{margin-left:0}.barra .in{padding-left:16px}.pasos li{font-size:.76rem;padding-right:10px}
 .tabla,.tabla tbody{display:block}.tabla thead{display:none}
 .tabla tr{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:8px 6px;margin:0 0 12px;padding:12px;border:1px solid rgba(255,255,255,.12);border-radius:16px;background:rgba(0,0,0,.2)}
 .tabla tr.llena{border-color:rgba(208,244,76,.4)}
 .tabla td{display:block;width:auto!important;padding:0!important;min-width:0}.tabla td.n{display:none}
 .tabla td::before{content:attr(data-l);display:block;margin:0 0 3px 2px;color:var(--mut);font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em}.tabla td.cx::before{content:none}
 .tabla td.cn{grid-column:span 4}.tabla td.cm{grid-column:span 8}
-.tabla td.ct{grid-column:span 3}.tabla td.cd{grid-column:span 3}.tabla td.cg{grid-column:span 4}.tabla td.cc{grid-column:span 2}.tabla td.cx{grid-column:span 12;text-align:right}
+.tabla td.ct{grid-column:span 4}.tabla td.cg{grid-column:span 5}.tabla td.cc{grid-column:span 3}.tabla td.cx{grid-column:span 12;text-align:right}
 .tabla button{width:auto;padding:0 14px;min-height:36px}.tabla td.cx button::after{content:" Quitar";font-size:.8rem}}
-@media(max-width:420px){.disenos{grid-template-columns:1fr}}
+@media(max-width:420px){.disenos,.mgrid{grid-template-columns:1fr}}
 </style>
 </head>
 <body data-token="__TOKEN__">
@@ -123,55 +127,61 @@ button{font:inherit}
 
   <section class="hero">
     <h1 id="titulo">Cargando…</h1>
-    <p id="intro">Vuelve a pedir tus uniformes en minutos: elige el diseño que ya conoces, escribe tus jugadores y envía. Nosotros nos encargamos del resto.</p>
+    <p id="intro">Vuelve a pedir tus uniformes en minutos: elige el pedido que ya conoces, marca los diseños que quieres repetir y escribe tus jugadores. Nosotros nos encargamos del resto.</p>
     <ol class="pasos" id="pasos">
-      <li class="on" data-p="1"><b>1</b>Elige el diseño</li>
-      <li data-p="2"><b>2</b>Escribe tus jugadores</li>
-      <li data-p="3"><b>3</b>Envía el pedido</li>
+      <li class="on" data-p="1"><b>1</b>Pedido anterior</li>
+      <li data-p="2"><b>2</b>Diseños</li>
+      <li data-p="3"><b>3</b>Jugadores</li>
+      <li data-p="4"><b>4</b>Confirmar</li>
     </ol>
   </section>
   <div id="msg"></div>
 
   <div id="app" hidden>
     <section class="card" id="c1">
-      <h2><b>1</b> ¿Cuál diseño quieres volver a pedir?</h2>
-      <p class="ayuda">Toca el diseño. Puedes elegir uno o varios, uno después del otro.</p>
+      <h2><b>1</b> ¿Cuál pedido anterior quieres repetir?</h2>
+      <p class="ayuda">Toca el pedido. Puedes elegir varios, uno después del otro.</p>
       <div class="disenos" id="disenos"></div>
     </section>
 
     <section class="card" id="c2" hidden>
-      <h2><b>2</b> <span id="t2">Escribe tus jugadores</span></h2>
-      <p class="ayuda">Un jugador por fila. Si es la misma prenda varias veces, usa la cantidad.</p>
-      <div class="galeria" id="galeria">
+      <h2><b>2</b> ¿Cuáles diseños quieres volver a pedir?</h2>
+      <p class="ayuda">Cada imagen es un diseño de ese pedido (Diseño 1, Diseño 2…). Toca <b>Elegir</b> en los que quieres repetir. Toca la imagen para verla grande.</p>
+      <div class="mgrid" id="mgrid"></div>
+    </section>
+
+    <section class="card" id="c3" hidden>
+      <h2><b>3</b> Escribe los jugadores de cada diseño</h2>
+      <p class="ayuda" id="ay3">Cambia de diseño con las pestañas. Un jugador por fila; si es la misma prenda varias veces, usa la cantidad.</p>
+      <div class="tabsd" id="tabsd"></div>
+      <div class="galeria">
         <div class="grande" id="grande"></div>
         <div class="lado">
           <h3 id="nomdis"></h3>
           <p id="info"></p>
-          <p id="pista" hidden>Estos son los diseños de esta referencia. En cada fila elige cuál lleva ese jugador.</p>
-          <div class="mini-tira" id="tira"></div>
+          <table class="tabla">
+            <thead><tr><th>#</th><th>Número</th><th>Nombre en la camiseta</th><th>Talla</th><th>Hombre / Mujer</th><th>Cant.</th><th></th></tr></thead>
+            <tbody id="filas"></tbody>
+          </table>
+          <div class="acciones">
+            <button class="btn sec mini" id="mas1" type="button">+ Agregar jugador</button>
+            <button class="btn sec mini" id="mas5" type="button">+ 5 más</button>
+            <button class="btn sec mini" id="verpegar" type="button">Pegar desde Excel</button>
+          </div>
+          <div class="pegar" id="pegar">
+            <p class="info" style="margin-top:0">¿Ya tienes la lista en Excel? Copia las filas con estas columnas, en este orden, y pégalas aquí: <b>Número · Nombre · Talla · H o M · Cantidad</b>. Entran en el diseño que tienes abierto.</p>
+            <textarea id="texto" placeholder="10&#9;MESSI&#9;M&#9;H&#9;1&#10;7&#9;ANA&#9;S&#9;M&#9;2"></textarea>
+            <div class="acciones"><button class="btn mini" id="aplicar" type="button">Pasar a la lista</button></div>
+          </div>
+          <p class="info" id="aviso">Las filas vacías no se envían. Tu lista se guarda sola mientras la escribes.</p>
         </div>
       </div>
-      <div class="chips" id="chips"></div>
-      <table class="tabla">
-        <thead><tr><th>#</th><th>Número</th><th>Nombre en la camiseta</th><th>Talla</th><th class="hd">Diseño</th><th>Hombre / Mujer</th><th>Cant.</th><th></th></tr></thead>
-        <tbody id="filas"></tbody>
-      </table>
-      <div class="acciones">
-        <button class="btn sec mini" id="mas1" type="button">+ Agregar jugador</button>
-        <button class="btn sec mini" id="mas5" type="button">+ 5 más</button>
-        <button class="btn sec mini" id="verpegar" type="button">Pegar desde Excel</button>
-      </div>
-      <div class="pegar" id="pegar">
-        <p class="info" style="margin-top:0">¿Ya tienes la lista en Excel? Copia las filas con estas columnas, en este orden, y pégalas aquí: <b>Número · Nombre · Talla · Diseño · H o M · Cantidad</b>.</p>
-        <textarea id="texto" placeholder="10&#9;MESSI&#9;M&#9;1&#9;H&#9;1&#10;7&#9;ANA&#9;S&#9;1&#9;M&#9;2"></textarea>
-        <div class="acciones"><button class="btn mini" id="aplicar" type="button">Pasar a la lista</button></div>
-      </div>
-      <p class="info" id="aviso">Las filas vacías no se envían. Tu lista se guarda sola mientras la escribes.</p>
     </section>
   </div>
 </div>
 
-<div class="barra" id="barra"><div class="in"><div class="tot" id="tot"><b>0 prendas</b>Elige un diseño para empezar</div><button class="btn" id="enviar" disabled>Confirmar pedido</button></div></div>
+<div class="barra" id="barra"><div class="in"><div class="tot" id="tot"><b>0 prendas</b>Elige un pedido para empezar</div><button class="btn" id="enviar" disabled>Confirmar pedido</button></div></div>
+<div class="visor" id="visor"><img id="visorimg" alt=""></div>
 
 <div class="modal" id="modal"><div class="hoja">
   <h2>Último paso</h2>
@@ -189,26 +199,29 @@ button{font:inherit}
 
 <script>
 (function(){
-  var token=document.body.dataset.token,tallas=[],disenos=[],carro={},sel=0,foto=0,fotos={},KEY='club:'+token;
+  // carro[row] = jugadores de ese pedido anterior; cada jugador lleva su "diseno" (1, 2, 3…). eleg[row] = diseños elegidos; tab = diseño abierto.
+  var token=document.body.dataset.token,tallas=[],disenos=[],carro={},eleg={},sel=0,tab=0,fotos={},KEY='club:'+token;
   var $=function(i){return document.getElementById(i)};
   var esc=function(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})};
   var vacia=function(j){return !String(j.numero||'').trim()&&!String(j.nombre||'').trim()};
   function llenas(r){return (carro[r]||[]).filter(function(j){return !vacia(j)})}
+  function delDis(r,n){return (carro[r]||[]).filter(function(j){return (Number(j.diseno)||1)===n})}
   function prendas(){var n=0;Object.keys(carro).forEach(function(r){llenas(r).forEach(function(j){n+=Math.max(1,Number(j.cantidad)||1)})});return n}
-  function nDisenos(){return Object.keys(carro).filter(function(r){return llenas(r).length}).length}
+  function nPedidos(){return Object.keys(carro).filter(function(r){return llenas(r).length}).length}
   function actual(){return disenos.filter(function(d){return d.row===sel})[0]}
-  function nueva(){return {numero:'',nombre:'',talla:tallas.indexOf('M')>=0?'M':tallas[0],diseno:1,genero:'',cantidad:1}}
-  function nDis(){var d=actual(),f=d&&fotos[d.row];return Math.max(1,Math.min((f&&f.length)||1,20))}
+  function nDis(d){var f=fotos[d.row];return Math.max(1,Math.min((f&&f.length)||1,20))}
+  function nueva(n){return {numero:'',nombre:'',talla:tallas.indexOf('M')>=0?'M':tallas[0],diseno:n||1,genero:'',cantidad:1}}
+  function lista(r){return Object.keys(eleg[r]||{}).map(Number).sort(function(a,b){return a-b})}
 
   function guardar(){try{var v={};Object.keys(carro).forEach(function(r){var l=llenas(r);if(l.length)v[r]=l});if(Object.keys(v).length)localStorage.setItem(KEY,JSON.stringify(v));else localStorage.removeItem(KEY)}catch(e){}}
-  function pasoActual(){var p=sel?2:1;if(!$('modal').classList.contains('on')&&prendas()&&sel)p=2;return p}
-  function pasos(modal){var p=modal?3:(sel?2:1);document.querySelectorAll('#pasos li').forEach(function(li){var n=Number(li.dataset.p);li.classList.toggle('on',n===p);li.classList.toggle('hecho',n<p)})}
-  function barra(){var n=prendas(),k=nDisenos();$('enviar').disabled=!n;$('tot').innerHTML='<b>'+n+(n===1?' prenda':' prendas')+'</b>'+(n?'en '+k+(k===1?' diseño':' diseños'):'Elige un diseño para empezar');guardar()}
+  function pasos(p){document.querySelectorAll('#pasos li').forEach(function(li){var n=Number(li.dataset.p);li.classList.toggle('on',n===p);li.classList.toggle('hecho',n<p)})}
+  function paso(){var d=actual();if(!d)return 1;return lista(d.row).length?3:2}
+  function barra(){var n=prendas(),k=nPedidos();$('enviar').disabled=!n;$('tot').innerHTML='<b>'+n+(n===1?' prenda':' prendas')+'</b>'+(n?'en '+k+(k===1?' pedido anterior':' pedidos anteriores'):'Elige un pedido para empezar');guardar()}
 
-  function foto0(d){var f=fotos[d.row];return f&&f.length?'<img alt="" src="'+esc(f[0])+'">':(f?'Sin imagen':'Cargando…')}
+  function img0(d){var f=fotos[d.row];return f&&f.length?'<img alt="" src="'+esc(f[0])+'">':(f?'Sin imagen':'Cargando…')}
   function tarjetas(){
     $('disenos').innerHTML=disenos.map(function(d){var n=llenas(d.row).length;
-      return '<button type="button" class="dis'+(d.row===sel?' on':'')+'" data-dis="'+d.row+'">'+(n?'<span class="ins">✓ '+n+' jugadores</span>':'')+'<div class="im">'+foto0(d)+'</div><div><strong>'+esc(d.proyecto||d.referencia)+'</strong><small>Ref. '+esc(d.referencia)+' · pedido '+esc(d.orden)+(d.fecha?' · '+esc(d.fecha):'')+'</small></div></button>';
+      return '<button type="button" class="dis'+(d.row===sel?' on':'')+'" data-dis="'+d.row+'">'+(n?'<span class="ins">✓ '+n+' jugadores</span>':'')+'<div class="im">'+img0(d)+'</div><div><strong>'+esc(d.proyecto||d.referencia)+'</strong><small>Ref. '+esc(d.referencia)+' · pedido '+esc(d.orden)+(d.fecha?' · '+esc(d.fecha):'')+'</small></div></button>';
     }).join('');
   }
   function cargaFotos(d){
@@ -217,47 +230,67 @@ button{font:inherit}
     if(m.mockups_lista){fetch(m.mockups_lista).then(function(r){return r.ok?r.json():null}).then(function(x){fotos[d.row]=(x&&x.mockups)||[];repinta()}).catch(function(){fotos[d.row]=[];repinta()});return}
     fotos[d.row]=[];repinta();
   }
-  function repinta(){tarjetas();galeria();if(actual())tabla(true)}
-  function galeria(){
-    var d=actual();if(!d)return;
-    var f=fotos[d.row];$('nomdis').textContent=d.proyecto||d.referencia;$('info').textContent='Ref. '+d.referencia+' · pedido anterior '+d.orden+(d.fecha?' · '+d.fecha:'');
-    if(!f){$('grande').textContent='Cargando diseño…';$('tira').innerHTML='';$('pista').hidden=true;return}
-    if(!f.length){$('grande').textContent='Este diseño no tiene imagen disponible';$('tira').innerHTML='';$('pista').hidden=true;return}
-    foto=Math.min(foto,f.length-1);
-    $('grande').innerHTML='<img alt="Diseño '+esc(d.referencia)+'" src="'+esc(f[foto])+'">';
-    $('pista').hidden=f.length<2;
-    $('tira').innerHTML=f.length>1?f.map(function(u,i){return '<button type="button" data-foto="'+i+'" class="'+(i===foto?'on':'')+'" aria-label="Ver diseño '+(i+1)+'"><img alt="" src="'+esc(u)+'"><i>D'+(i+1)+'</i></button>'}).join(''):'';
+  function repinta(){tarjetas();var d=actual();if(d){iniciaElegidos(d);cuadricula();paso3()}}
+  // si el pedido anterior tiene un solo diseño no hace falta elegir: se toma ese
+  function iniciaElegidos(d){
+    var e=eleg[d.row]=eleg[d.row]||{};
+    (carro[d.row]||[]).forEach(function(j){if(!vacia(j))e[Number(j.diseno)||1]=1});   // borrador recuperado
+    if(fotos[d.row]&&nDis(d)===1)e[1]=1;
   }
-  function tabla(sinLeer){
-    var d=actual();$('c2').hidden=!d;if(!d)return;
-    if(!sinLeer)leer();
-    var js=carro[d.row]=carro[d.row]||[];if(!js.length){for(var k=0;k<5;k++)js.push(nueva())}
-    var multi=nDis()>1;document.querySelectorAll('.hd').forEach(function(h){h.hidden=!multi});
-    $('filas').innerHTML=js.map(function(j,i){
-      return '<tr data-i="'+i+'" class="'+(vacia(j)?'':'llena')+'"><td class="n">'+(i+1)+'</td><td class="cn" data-l="Número"><input data-f="numero" inputmode="numeric" maxlength="4" placeholder="N°" value="'+esc(j.numero)+'" aria-label="Número"></td>'
+  function cuadricula(){
+    var d=actual();if(!d){$('c2').hidden=true;return}
+    var f=fotos[d.row],n=nDis(d);
+    $('c2').hidden=!f||n<2;
+    if(!f||n<2)return;
+    var e=eleg[d.row]||{};
+    $('mgrid').innerHTML=f.slice(0,n).map(function(u,i){var k=i+1,on=!!e[k];
+      return '<div class="mc'+(on?' on':'')+'"><div class="im" data-zoom="'+esc(u)+'"><span class="dn">Diseño '+k+'</span><img alt="Diseño '+k+'" src="'+esc(u)+'"></div><div class="sub2"><span>'+(on?delDis(d.row,k).filter(function(j){return !vacia(j)}).length+' jugadores':'Sin elegir')+'</span></div><button type="button" class="btn '+(on?'sec ':'')+'mini" data-eleg="'+k+'">'+(on?'✓ Elegido (quitar)':'Elegir este diseño')+'</button></div>';
+    }).join('');
+  }
+  function paso3(){
+    var d=actual(),l=d?lista(d.row):[];
+    $('c3').hidden=!d||!l.length;if(!d||!l.length){pasos(d?2:1);return}
+    if(l.indexOf(tab)<0)tab=l[0];
+    var f=fotos[d.row]||[];
+    $('tabsd').innerHTML=l.length>1||nDis(d)>1?l.map(function(k){return '<button type="button" data-tab="'+k+'" class="'+(k===tab?'on':'')+'">Diseño '+k+'<small>'+delDis(d.row,k).filter(function(j){return !vacia(j)}).length+'</small></button>'}).join(''):'';
+    $('grande').innerHTML=f[tab-1]?'<span class="dn">Diseño '+tab+'</span><img alt="Diseño '+tab+'" src="'+esc(f[tab-1])+'">':'Sin imagen';
+    $('nomdis').textContent=(d.proyecto||d.referencia)+(nDis(d)>1?' · Diseño '+tab:'');
+    $('info').textContent='Ref. '+d.referencia+' · pedido anterior '+d.orden+(d.fecha?' · '+d.fecha:'');
+    tabla();pasos(3);
+  }
+  function tabla(){
+    var d=actual();if(!d)return;
+    var js=carro[d.row]=carro[d.row]||[],mios=delDis(d.row,tab);
+    if(!mios.length){for(var k=0;k<5;k++)js.push(nueva(tab))}
+    $('filas').innerHTML=js.map(function(j,i){return {j:j,i:i}}).filter(function(x){return (Number(x.j.diseno)||1)===tab}).map(function(x,pos){var j=x.j,i=x.i;
+      return '<tr data-i="'+i+'" class="'+(vacia(j)?'':'llena')+'"><td class="n">'+(pos+1)+'</td><td class="cn" data-l="Número"><input data-f="numero" inputmode="numeric" maxlength="4" placeholder="N°" value="'+esc(j.numero)+'" aria-label="Número"></td>'
         +'<td class="cm" data-l="Nombre en la camiseta"><input data-f="nombre" maxlength="40" placeholder="Nombre" value="'+esc(j.nombre)+'" aria-label="Nombre en la camiseta"></td>'
         +'<td class="ct" data-l="Talla"><select data-f="talla" aria-label="Talla">'+tallas.map(function(t){return '<option'+(t===j.talla?' selected':'')+'>'+t+'</option>'}).join('')+'</select></td>'
-        +(multi?'<td class="cd" data-l="Diseño"><select data-f="diseno" aria-label="Diseño">'+Array.apply(null,Array(nDis())).map(function(_,q){return '<option value="'+(q+1)+'"'+((Number(j.diseno)||1)===q+1?' selected':'')+'>D'+(q+1)+'</option>'}).join('')+'</select></td>':'')
         +'<td class="cg" data-l="Hombre / Mujer"><select data-f="genero" aria-label="Hombre o mujer"><option value="">—</option><option'+(j.genero==='MASC'?' selected':'')+' value="MASC">Hombre</option><option'+(j.genero==='FEM'?' selected':'')+' value="FEM">Mujer</option></select></td>'
         +'<td class="cc" data-l="Cant."><input data-f="cantidad" type="number" min="1" max="50" value="'+(j.cantidad||1)+'" aria-label="Cantidad"></td>'
         +'<td class="cx"><button type="button" data-del="'+i+'" aria-label="Quitar jugador">✕</button></td></tr>';
     }).join('');
-    $('chips').innerHTML=disenos.filter(function(x){return llenas(x.row).length}).map(function(x){return '<span class="chip">'+esc(x.referencia)+' · '+llenas(x.row).length+' jugadores<button type="button" data-quitar="'+x.row+'" aria-label="Quitar este diseño del pedido">✕</button></span>'}).join('');
   }
   function leer(){
     var d=actual();if(!d)return;
-    document.querySelectorAll('#filas tr').forEach(function(tr){var j=(carro[d.row]||[])[Number(tr.dataset.i)];if(!j)return;tr.querySelectorAll('[data-f]').forEach(function(c){j[c.dataset.f]=c.value;});tr.classList.toggle('llena',!vacia(j))});
+    document.querySelectorAll('#filas tr').forEach(function(tr){var j=(carro[d.row]||[])[Number(tr.dataset.i)];if(!j)return;tr.querySelectorAll('[data-f]').forEach(function(c){j[c.dataset.f]=c.value});tr.classList.toggle('llena',!vacia(j))});
   }
-  function todo(){tarjetas();galeria();tabla();barra();pasos(false)}
+  function todo(){tarjetas();var d=actual();if(d){iniciaElegidos(d);cuadricula()}else $('c2').hidden=true;paso3();barra();if(!d)pasos(1)}
 
   document.addEventListener('click',function(e){
+    var z=e.target.closest('[data-zoom]');if(z){$('visorimg').src=z.dataset.zoom;$('visor').classList.add('on');return}
+    if(e.target.closest('#visor')){$('visor').classList.remove('on');return}
     var c=e.target.closest('[data-dis]');
-    if(c){leer();sel=Number(c.dataset.dis);foto=0;var d=actual();if(d&&!fotos[d.row])cargaFotos(d);todo();$('c2').scrollIntoView({behavior:'smooth',block:'start'});return}
-    var t=e.target.closest('[data-foto]');if(t){foto=Number(t.dataset.foto);galeria();return}
-    var x=e.target.closest('[data-del]');if(x){leer();var dd=actual();carro[dd.row].splice(Number(x.dataset.del),1);tabla(true);barra();tarjetas();return}
-    var q=e.target.closest('[data-quitar]');if(q){delete carro[q.dataset.quitar];todo();return}
+    if(c){leer();sel=Number(c.dataset.dis);tab=0;var d=actual();if(d&&!fotos[d.row])cargaFotos(d);todo();$((fotos[d.row]&&nDis(d)<2)?'c3':'c2').scrollIntoView({behavior:'smooth',block:'start'});pasos(paso());return}
+    var el=e.target.closest('[data-eleg]');
+    if(el){leer();var d2=actual(),k=Number(el.dataset.eleg),en=eleg[d2.row];
+      if(en[k]){if(delDis(d2.row,k).some(function(j){return !vacia(j)})&&!confirm('Si quitas este diseño se borran los jugadores que escribiste en él. ¿Quitarlo?'))return;delete en[k];carro[d2.row]=(carro[d2.row]||[]).filter(function(j){return (Number(j.diseno)||1)!==k})}
+      else{en[k]=1;tab=k}
+      cuadricula();paso3();barra();tarjetas();if(en[k])$('c3').scrollIntoView({behavior:'smooth',block:'start'});return}
+    var tb=e.target.closest('[data-tab]');if(tb){leer();tab=Number(tb.dataset.tab);paso3();return}
+    var x=e.target.closest('[data-del]');if(x){leer();var dd=actual();carro[dd.row].splice(Number(x.dataset.del),1);paso3();cuadricula();barra();tarjetas();return}
   });
-  document.addEventListener('input',function(e){if(e.target.closest('#filas')){leer();barra();tarjetas();var d=actual();$('chips').innerHTML=disenos.filter(function(x){return llenas(x.row).length}).map(function(x){return '<span class="chip">'+esc(x.referencia)+' · '+llenas(x.row).length+' jugadores<button type="button" data-quitar="'+x.row+'" aria-label="Quitar este diseño del pedido">✕</button></span>'}).join('')}});
+  document.addEventListener('input',function(e){if(e.target.closest('#filas')){leer();barra();tarjetas();var d=actual();if(d){cuadricula();document.querySelectorAll('#tabsd button').forEach(function(b){var k=Number(b.dataset.tab);b.querySelector('small').textContent=delDis(d.row,k).filter(function(j){return !vacia(j)}).length})}}});
   // Enter pasa a la fila de abajo (y agrega una si era la última), para llenar rápido
   document.addEventListener('keydown',function(e){
     if(e.key!=='Enter')return;var inp=e.target.closest('#filas input');if(!inp)return;e.preventDefault();
@@ -265,27 +298,31 @@ button{font:inherit}
     if(!sig){mas(1);sig=document.querySelector('#filas tr:last-child')}
     var next=sig&&sig.querySelector('[data-f="'+f+'"]');if(next)next.focus();
   });
-  function mas(n){leer();var d=actual();if(!d)return;for(var i=0;i<n;i++)carro[d.row].push(nueva());tabla(true);barra()}
+  function mas(n){leer();var d=actual();if(!d)return;for(var i=0;i<n;i++)carro[d.row].push(nueva(tab));tabla();barra()}
   $('mas1').addEventListener('click',function(){mas(1);var f=document.querySelectorAll('#filas tr');if(f.length)f[f.length-1].scrollIntoView({block:'center',behavior:'smooth'})});
   $('mas5').addEventListener('click',function(){mas(5)});
   $('verpegar').addEventListener('click',function(){$('pegar').classList.toggle('on')});
   $('aplicar').addEventListener('click',function(){
-    leer();var d=actual();if(!d)return;var js=carro[d.row].filter(function(j){return !vacia(j)}),malas=0;
+    leer();var d=actual();if(!d)return;var malas=0,nuevos=[];
     $('texto').value.split(/\r?\n/).forEach(function(linea){
       if(!linea.trim())return;var p=linea.split(/\t|;/).map(function(s){return s.trim()});
       if(p.length<2){p=linea.trim().split(/\s{2,}/)}
       var talla=String(p[2]||'').toUpperCase();if(tallas.indexOf(talla)<0){malas++;talla=tallas.indexOf('M')>=0?'M':tallas[0]}
-      var g=String(p[4]||'').toUpperCase().charAt(0);
-      js.push({numero:String(p[0]||'').replace(/[^0-9A-Za-z]/g,'').slice(0,4),nombre:String(p[1]||'').slice(0,40),talla:talla,diseno:Math.max(1,Math.min(nDis(),parseInt(p[3],10)||1)),genero:(g==='H'||g==='M')?'MASC':g==='F'?'FEM':'',cantidad:Math.max(1,Math.min(50,parseInt(p[5],10)||1))});
+      var g=String(p[3]||'').toUpperCase().charAt(0);
+      nuevos.push({numero:String(p[0]||'').replace(/[^0-9A-Za-z]/g,'').slice(0,4),nombre:String(p[1]||'').slice(0,40),talla:talla,diseno:tab,genero:(g==='H'||g==='M')?'MASC':g==='F'?'FEM':'',cantidad:Math.max(1,Math.min(50,parseInt(p[4],10)||1))});
     });
-    carro[d.row]=js.concat([nueva()]);$('texto').value='';$('pegar').classList.remove('on');tabla(true);barra();tarjetas();
+    carro[d.row]=carro[d.row].filter(function(j){return (Number(j.diseno)||1)!==tab||!vacia(j)}).concat(nuevos,[nueva(tab)]);
+    $('texto').value='';$('pegar').classList.remove('on');paso3();cuadricula();barra();tarjetas();
     $('aviso').textContent=malas?malas+' fila(s) tenían una talla que no existe y quedaron en M: revísalas.':'Lista pasada. Revisa que todo esté bien.';
   });
   $('enviar').addEventListener('click',function(){
     leer();var n=prendas();
-    $('resumen').innerHTML=disenos.filter(function(d){return llenas(d.row).length}).map(function(d){var c=0;llenas(d.row).forEach(function(j){c+=Math.max(1,Number(j.cantidad)||1)});return '<div><span>'+esc(d.proyecto||d.referencia)+' · '+esc(d.referencia)+'</span><b>'+c+(c===1?' prenda':' prendas')+'</b></div>'}).join('')+'<div style="border-top:1px solid rgba(255,255,255,.12);margin-top:6px;padding-top:8px"><span>Total</span><b>'+n+(n===1?' prenda':' prendas')+'</b></div>';
-    $('msg2').innerHTML='';$('modal').classList.add('on');pasos(true)});
-  $('cerrar').addEventListener('click',function(){$('modal').classList.remove('on');pasos(false)});
+    $('resumen').innerHTML=disenos.filter(function(d){return llenas(d.row).length}).map(function(d){
+      var por={};llenas(d.row).forEach(function(j){var k=Number(j.diseno)||1;por[k]=(por[k]||0)+Math.max(1,Number(j.cantidad)||1)});
+      return '<div><strong>'+esc(d.proyecto||d.referencia)+' · '+esc(d.referencia)+'</strong></div>'+Object.keys(por).map(function(k){return '<div><span>&nbsp;&nbsp;Diseño '+k+'</span><b>'+por[k]+(por[k]===1?' prenda':' prendas')+'</b></div>'}).join('');
+    }).join('')+'<div style="border-top:1px solid rgba(255,255,255,.12);margin-top:6px;padding-top:8px"><span>Total</span><b>'+n+(n===1?' prenda':' prendas')+'</b></div>';
+    $('msg2').innerHTML='';$('modal').classList.add('on');pasos(4)});
+  $('cerrar').addEventListener('click',function(){$('modal').classList.remove('on');pasos(paso())});
   $('confirmar').addEventListener('click',function(){
     leer();var b=$('confirmar');b.disabled=true;b.textContent='Enviando…';
     var lineas=Object.keys(carro).filter(function(r){return llenas(r).length}).map(function(r){return {row:Number(r),jugadores:llenas(r)}});
@@ -294,7 +331,7 @@ button{font:inherit}
       .then(function(x){
         b.disabled=false;b.textContent='Confirmar pedido';
         if(!x.ok){$('msg2').innerHTML='<div class="msg err">'+esc(x.d.detail||'No se pudo enviar. Intenta de nuevo.')+'</div>';return}
-        $('modal').classList.remove('on');carro={};sel=0;try{localStorage.removeItem(KEY)}catch(e){}
+        $('modal').classList.remove('on');carro={};eleg={};sel=0;try{localStorage.removeItem(KEY)}catch(e){}
         $('app').hidden=true;$('barra').hidden=true;$('pasos').hidden=true;$('intro').hidden=true;
         $('msg').innerHTML='<div class="card gracias"><div class="ok">✓</div><h2>¡Listo, recibimos tu pedido!</h2><p>Tu pedido <b>#'+esc(x.d.numero)+'</b> ('+esc(x.d.prendas)+' prendas) ya está con tu asesor comercial. Lo revisará y te contactará muy pronto para confirmártelo.</p><button class="btn" id="otro" type="button">Hacer otro pedido</button></div>';
         $('otro').addEventListener('click',function(){location.reload()});window.scrollTo({top:0,behavior:'smooth'});
@@ -306,7 +343,7 @@ button{font:inherit}
     if(!disenos.length){$('pasos').hidden=true;$('msg').innerHTML='<div class="msg err">Todavía no hay diseños disponibles para reponer. Escríbele a tu asesor comercial.</div>';$('barra').hidden=true;return}
     $('app').hidden=false;
     disenos.forEach(function(d){cargaFotos(d)});
-    try{var g=JSON.parse(localStorage.getItem(KEY)||'null');if(g){Object.keys(g).forEach(function(r){if(disenos.some(function(d){return String(d.row)===r}))carro[r]=g[r]});if(prendas()){$('msg').innerHTML='<div class="msg">Recuperamos el pedido que dejaste sin enviar. <button type="button" id="nuevo" class="btn sec mini" style="margin-left:8px">Empezar de nuevo</button></div>';$('nuevo').addEventListener('click',function(){carro={};sel=0;try{localStorage.removeItem(KEY)}catch(e){}$('msg').innerHTML='';$('c2').hidden=true;todo()})}}}catch(e){}
+    try{var g=JSON.parse(localStorage.getItem(KEY)||'null');if(g){Object.keys(g).forEach(function(r){if(disenos.some(function(d){return String(d.row)===r}))carro[r]=g[r]});if(prendas()){$('msg').innerHTML='<div class="msg">Recuperamos el pedido que dejaste sin enviar. <button type="button" id="nuevo" class="btn sec mini" style="margin-left:8px">Empezar de nuevo</button></div>';$('nuevo').addEventListener('click',function(){carro={};eleg={};sel=0;try{localStorage.removeItem(KEY)}catch(e){}$('msg').innerHTML='';todo()})}}}catch(e){}
     todo();
   }).catch(function(){$('titulo').textContent='Sin conexión';});
 })();
