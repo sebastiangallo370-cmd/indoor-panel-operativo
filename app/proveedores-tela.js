@@ -208,8 +208,44 @@
   .pt-b:hover{background:#1b3024;transform:translateY(-2px)}.pt-b:active{transform:none}
   .pt-b.pri{background:#d0ec93;border-color:#d0ec93;color:#14210f}.pt-b.pri:hover{background:#e0f6aa;box-shadow:0 10px 22px -10px #d0ec93}
   .pv-card.pv-t.editando{border-color:#d0ec93!important;box-shadow:0 0 0 2px rgba(208,236,147,.2),0 22px 40px -18px #000!important}
-  .pv-card.pv-t.editando .pt-n{background:#d0ec93;color:#14210f}
   @media(max-width:700px){.pt-acc{padding:4px 16px 16px}}
+  /* EFECTO VIDRIO: tarjeta translúcida con reflejo que sigue al mouse, brillo de color según el estado y movimiento suave */
+  .pv-card.pv-t,.pv-ftelas .pv-card.pv-t{position:relative;background:linear-gradient(150deg,rgba(255,255,255,.14),rgba(255,255,255,.04) 55%,rgba(255,255,255,.08))!important;-webkit-backdrop-filter:blur(22px) saturate(160%);backdrop-filter:blur(22px) saturate(160%);border:1px solid rgba(255,255,255,.18)!important;border-top:1px solid rgba(255,255,255,.4)!important;border-radius:20px;box-shadow:0 14px 34px -16px rgba(0,0,0,.8),inset 0 1px 0 rgba(255,255,255,.28),inset 0 0 44px rgba(255,255,255,.03)!important;transform:perspective(900px) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg));transition:transform .18s ease-out,box-shadow .3s,border-color .3s}
+  .pv-card.pv-t:hover{transform:perspective(900px) translateY(-6px) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg))!important;box-shadow:0 26px 48px -18px rgba(0,0,0,.9),inset 0 1px 0 rgba(255,255,255,.4)!important;border-color:rgba(255,255,255,.32)!important}
+  .pv-card.pv-t::before{display:block!important;content:""!important;position:absolute;inset:auto!important;right:-70px;top:-90px;width:240px;height:240px!important;left:auto!important;bottom:auto!important;border-radius:50%;background:radial-gradient(circle,rgba(139,219,175,.42),transparent 66%)!important;filter:blur(8px);animation:ptOrb 9s ease-in-out infinite alternate;pointer-events:none;z-index:0}
+  .pv-card.pv-t.sin::before{background:radial-gradient(circle,rgba(243,184,82,.42),transparent 66%)!important}
+  .pv-card.pv-t::after{content:"";position:absolute;inset:0;border-radius:inherit;background:radial-gradient(260px circle at var(--mx,50%) var(--my,0%),rgba(255,255,255,.2),transparent 62%);opacity:0;transition:opacity .25s;pointer-events:none;z-index:2}
+  .pv-card.pv-t:hover::after{opacity:1}
+  .pv-card.pv-t>*{position:relative;z-index:1}
+  .pv-card.pv-t.sin{border-top-color:rgba(243,184,82,.7)!important}.pv-card.pv-t:not(.sin){border-top-color:rgba(139,219,175,.65)!important}
+  .pv-card.pv-t .pt-head,.pv-card.pv-t .pt-stats{border-color:rgba(255,255,255,.1)}
+  .pv-card.pv-t .pt-row{border-bottom-color:rgba(255,255,255,.08)}
+  .pv-card.pv-t .pt-stats{background:rgba(0,0,0,.26);position:relative;overflow:hidden}
+  .pv-card.pv-t .pt-stats{gap:8px;padding:10px;border-top:0}
+  .pv-card.pv-t .pt-stats>div{position:relative;overflow:hidden;border:0;padding:14px 6px 10px;min-width:0}
+  .pv-card.pv-t .pt-stats b{font-size:clamp(16px,5.4vw,28px)}
+  .pv-card.pv-t .pt-head{flex-wrap:wrap}.pt-nom{hyphens:manual!important}
+  .pv-card.pv-t .pt-row input{background:rgba(0,0,0,.32);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);border-color:rgba(255,255,255,.18)}
+  .pv-card.pv-t .pt-chips button,.pv-card.pv-t .pt-lapiz,.pv-card.pv-t .pt-b{background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.2);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+  .pv-card.pv-t .pt-b.pri{background:#d0ec93;border-color:#d0ec93}
+  .pv-card.pv-t .pt-lapiz:hover,.pv-card.pv-t .pt-chips button:hover{background:#d0ec93}
+  .pv-card.pv-t .pv-progress{background:rgba(255,255,255,.1)}
+  .pv-card.pv-t .pv-progress>span{background:linear-gradient(90deg,#4fae86,#a6f0c6,#4fae86);background-size:200% 100%;animation:ptBrillo 2.4s linear infinite}
+  .pt-ring{position:relative;flex:0 0 auto;width:46px;height:46px;display:inline-grid;place-items:center}
+  .pt-ring svg{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg)}
+  .pt-ring circle{fill:none;stroke-width:3.4}.pt-ring .bg{stroke:rgba(255,255,255,.14)}
+  .pt-ring .fg{stroke:#f3b852;stroke-linecap:round;animation:ptAro .9s cubic-bezier(.2,.8,.2,1) both}.pt-ring.ok .fg{stroke:#8bdbaf}
+  .pt-ring b{position:relative;font:800 11px/1 Arial;color:#f3f8ee}
+  .pv-card.pv-t.editando .pt-ring .fg{stroke:#d0ec93}
+  .pv-grid.entra>.pv-card.pv-t{animation:ptEntra .65s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--i,0)*55ms)}
+  .pv-card.pv-t.editando .pt-row input,.pv-card.pv-t.editando .pt-acc{animation:ptIn .3s ease-out both}
+  .pv-card.pv-t.nueva{animation:ptDestello 1.1s ease-out}
+  @keyframes ptEntra{from{opacity:0;transform:translateY(26px) scale(.96)}to{opacity:1}}
+  @keyframes ptOrb{from{transform:translate(0,0) scale(1)}to{transform:translate(-30px,34px) scale(1.25)}}
+  @keyframes ptBrillo{from{background-position:200% 0}to{background-position:-200% 0}}
+  @keyframes ptAro{from{stroke-dasharray:0 100}}
+  @keyframes ptDestello{0%{box-shadow:0 0 0 0 rgba(208,236,147,.7)}100%{box-shadow:0 0 0 22px rgba(208,236,147,0)}}
+  @media(prefers-reduced-motion:reduce){.pv-card.pv-t,.pv-card.pv-t::before,.pv-card.pv-t .pv-progress>span,.pt-ring .fg{animation:none!important;transition:none!important}.pv-card.pv-t:hover{transform:none!important}}
   @keyframes ptIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
   .pt-row:last-child{border-bottom:0}
   @media(max-width:360px){.pt-row{grid-template-columns:1fr;gap:4px;padding:8px 0}.pt-row.fijo{grid-template-columns:1fr auto}.pt-chips{padding-left:0}}
@@ -291,14 +327,16 @@
       : '';
     const lapiz = edit ? '' : `<button type="button" class="pt-lapiz${falta ? ' pri' : ''}" data-pv-editar title="Editar tarjeta" aria-label="Editar tarjeta"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>`;
     return `<div class="pv-card pv-t${falta ? ' sin' : ''}${edit ? ' editando' : ''}${st.reciente === t.codigo ? ' nueva' : ''}" data-cod="${esc(t.codigo)}">` +
-      `<div class="pt-head"><h3 class="pt-nom">${esc(t.nombre)}</h3><span class="pt-n${falta ? '' : ' ok'}" title="${falta ? esc(falta) : 'Los 4 datos obligatorios están completos'}">${listos}/4</span>${lapiz}</div>` +
+      `<div class="pt-head"><h3 class="pt-nom">${esc(t.nombre)}</h3><span class="pt-ring${falta ? '' : ' ok'}" title="${falta ? esc(falta) : 'Los 4 datos obligatorios están completos'}"><svg viewBox="0 0 36 36" aria-hidden="true"><circle class="bg" cx="18" cy="18" r="15.9155" pathLength="100"/><circle class="fg" cx="18" cy="18" r="15.9155" pathLength="100" stroke-dasharray="${listos * 25} 100"/></svg><b>${listos}/4</b></span>${lapiz}</div>` +
       `<div class="pt-form"><div class="pt-row fijo"><span class="pt-lbl">Código<b>*</b></span><button type="button" class="pt-cod" data-pv-copiar title="Tocar para copiar el código">${esc(t.codigo)}</button></div>` +
       fila(t.codigo, 'Proveedor', t.proveedor, 'list="pv-proveedores" data-pv-input', true, !t.proveedor, 'Escribe el proveedor…') +
       (edit ? sugerencias('prov', habituales().slice(0, 5)) : '') +
       fila(t.codigo, 'Ancho (cm)', t.ancho, 'inputmode="decimal" data-pv-ancho', true, !t.ancho, 'Ej. 150', ' cm') +
       (edit ? sugerencias('ancho', anchosHabituales()) : '') +
       fila(t.codigo, 'ID Effi', t.id_effi, 'inputmode="numeric" data-pv-ide', false, false, 'Opcional') + '</div>' + acciones +
-      `<div class="pt-stats"><div><b>${f0(mts)}</b><span>MTS en bodega</span></div><div><b>${f0(rollos)}</b><span>Rollos</span></div><div><b>${f0(uso)}</b><span>MTS en ${f0(ped)} pedidos</span></div></div>` +
+      `<div class="pt-stats"><div data-lq="${Math.min(100, Math.round(mts / 25))}" data-lq-tone="teal" data-lq-nopct><b data-n="${mts}">${f0(mts)}</b><span>MTS en bodega</span></div>` +
+      `<div data-lq="${Math.min(100, rollos * 10)}" data-lq-tone="azul" data-lq-nopct><b data-n="${rollos}">${f0(rollos)}</b><span>Rollos</span></div>` +
+      `<div data-lq="${pct}" data-lq-tone="${pct >= 80 ? 'rojo' : 'ambar'}" data-lq-nopct><b data-n="${uso}">${f0(uso)}</b><span>MTS en ${f0(ped)} pedidos</span></div></div>` +
       (uso > 0 ? `<div class="pv-progress" title="${pct}% de la bodega está comprometida en pedidos"><span style="width:${pct}%"></span></div>` : '') +
       `<div class="pv-est ${esc(e.c || '')}" data-pv-est>${esc(e.t || '')}</div></div>`;
   }
@@ -323,7 +361,22 @@
       cont.innerHTML = '<div class="pv-grupos">' + Object.keys(g).sort().map(f => '<section class="pv-fcard pv-glass">' + cabeceraFam(f, g[f]) + (st.plegadas.has(f) ? '' : `<div class="pv-ftelas${st.compacto ? ' compacto' : ''}">` + g[f].map(tarjetaHtml).join('') + '</div>') + '</section>').join('') + '</div>';
     }
     st.reciente = '';
+    entrada(cont);
     pintarMasa();
+  }
+  // Entrada animada: las tarjetas suben escalonadas y las cifras cuentan desde cero (se omite si la persona pide menos movimiento)
+  function entrada(raiz) {
+    if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const g = raiz.querySelector('.pv-grid, .pv-grupos'); if (!g) return;
+    raiz.querySelectorAll('.pv-card.pv-t').forEach((c, i) => c.style.setProperty('--i', Math.min(i, 14)));
+    g.classList.add('entra'); setTimeout(() => g.classList.remove('entra'), 1400);
+    const f0 = n => Number(n).toLocaleString('es-CO'), t0 = performance.now();
+    const cifras = [...raiz.querySelectorAll('.pt-stats b[data-n]')].slice(0, 60);
+    (function paso(t) {
+      const p = Math.min(1, (t - t0) / 800), e = 1 - Math.pow(1 - p, 3);
+      cifras.forEach(b => { b.textContent = f0(Math.round(Number(b.dataset.n) * e)); });
+      if (p < 1) requestAnimationFrame(paso);
+    })(t0);
   }
   function pintarMasa() {
     const n = st.sel.size;
@@ -473,6 +526,18 @@
     if (host !== el) {
       host = el;
       const cod = e => { const c = e.target.closest('.pv-card'); return c && c.dataset.cod; };
+      // Reflejo de vidrio que sigue al mouse y una inclinación suave (solo con mouse)
+      let tilt = 0;
+      host.addEventListener('pointermove', e => {
+        if (e.pointerType !== 'mouse') return;
+        const c = e.target.closest('.pv-card.pv-t'); if (!c || c.classList.contains('editando')) return;
+        if (tilt) return; tilt = requestAnimationFrame(() => {
+          tilt = 0; const r = c.getBoundingClientRect(), x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
+          c.style.setProperty('--mx', (x * 100).toFixed(1) + '%'); c.style.setProperty('--my', (y * 100).toFixed(1) + '%');
+          c.style.setProperty('--ry', ((x - .5) * 7).toFixed(2) + 'deg'); c.style.setProperty('--rx', ((.5 - y) * 5).toFixed(2) + 'deg');
+        });
+      });
+      host.addEventListener('pointerout', e => { const c = e.target.closest && e.target.closest('.pv-card.pv-t'); if (c && !c.contains(e.relatedTarget)) { c.style.setProperty('--rx', '0deg'); c.style.setProperty('--ry', '0deg'); } });
       host.addEventListener('mousedown', e => { if (e.target.closest('.pt-chips button')) e.preventDefault(); });   // el campo no pierde el foco al tocar un atajo
       host.addEventListener('click', e => {
         const f = e.target.closest('[data-pv-filtro]'); if (f) { st.filtro = f.dataset.pvFiltro; pintarChips(); pintarGrid(); return; }
