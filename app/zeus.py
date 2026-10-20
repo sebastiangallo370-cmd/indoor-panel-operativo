@@ -91,7 +91,7 @@ def estado_tela(tela: str) -> dict:
     if not item:
         return {'estado': 'pendiente'}
     if item['estado'] == 'creada' and item.get('oc'):
-        masc = [re.sub(r'^(.).*?(@.*)$', r'***', c['correo']) for c in d['config']['correos'] if c.get('estado') == 'verificado']
+        masc = [re.sub(r'^(.).*?(@.*)$', r'\1***\2', c['correo']) for c in d['config']['correos'] if c.get('estado') == 'verificado']
         return {'estado': 'enviado', 'oc': str(item['oc']), 'para': ', '.join(masc), 'hora': str(item.get('creada') or item.get('actualizado') or '')[11:16]}
     return {'estado': 'error' if item['estado'] == 'error' else 'pendiente'}
 
@@ -530,6 +530,33 @@ def _usuario_llave(request: Request) -> str:
     if not _llave_ok(usuario):
         raise HTTPException(403, 'Solo la cuenta Indoor Sport puede ver y cambiar la API de Effi')
     return usuario
+
+
+@router.put('/cuenta')
+def cambiar_cuenta_envio(request: Request, payload: dict):
+    """Cambia la cuenta de Gmail con que el panel envía TODOS sus correos. Antes de guardar inicia sesión con ella (no envía nada). Solo «Indoor Sport»."""
+    from app import alertas_correo
+    _usuario_llave(request)
+    usuario = _validar(payload.get('usuario'))
+    clave = re.sub(r'\s+', '', str(payload.get('clave') or ''))
+    if len(clave) < 8:
+        raise HTTPException(400, 'Escribe la contraseña de aplicación de esa cuenta (16 letras que da Google)')
+    try:
+        alertas_correo.probar_cuenta(usuario, clave)
+    except Exception as e:   # noqa: BLE001
+        raise HTTPException(400, 'Google no aceptó esa cuenta o contraseña de aplicación: ' + str(e)[:120])
+    alertas_correo.guardar_cuenta(usuario, clave)
+    log.info('Cuenta de envío de correos cambiada a %s por %s', usuario, _auth(request))
+    return {'ok': True, 'cuenta': usuario}
+
+
+@router.delete('/cuenta')
+def quitar_cuenta_envio(request: Request):
+    """Vuelve a la cuenta original del servidor (la del .env)."""
+    from app import alertas_correo
+    _usuario_llave(request)
+    alertas_correo.borrar_cuenta()
+    return {'ok': True, 'cuenta': alertas_correo.cuenta()[0]}
 
 
 @router.get('/api')

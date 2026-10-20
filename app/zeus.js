@@ -14,6 +14,11 @@
     '<article class="inventory-item-card ' + cls + '"><span class="inv-badge ' + badgeClass + '">' + esc(badge) + '</span><strong class="inv-name">' + esc(name) + '</strong>' + extra +
     '<span class="inv-total">' + total + '</span>' + (unit ? '<span class="inv-unit">' + esc(unit) + '</span>' : '') + '</article>';
 
+  function cuentaHtml() {
+    return '<div class="zeus-cuenta"><span>Correo que envía todos los mensajes: <b>' + esc(cuentaEnvia || 'sin configurar') + '</b></span>' +
+      '<button type="button" class="bd-clear" data-zeus-cuenta>Cambiar correo de envío</button></div>';
+  }
+
   function correosHtml() {
     const chip = c => {
       const ok = c.estado === 'verificado';
@@ -25,7 +30,7 @@
     return '<section class="bd-section"><h3 title="Solo los correos confirmados reciben las órdenes">Correos que reciben la orden</h3>' +
       '<div class="zeus-correos">' + (correos.length ? correos.map(chip).join('') : '<p class="bd-note">Sin correos todavía.</p>') + '</div>' +
       '<form class="zeus-form" data-zeus-form autocomplete="off"><input type="email" name="correo" placeholder="correo@ejemplo.com" aria-label="Correo nuevo" required><button type="submit" class="bd-clear">Agregar y verificar</button></form>' +
-      '<p class="bd-note zeus-msg" data-zeus-msg title="' + esc('Al agregar un correo se le envía un mensaje' + (cuentaEnvia ? ' desde ' + cuentaEnvia : '') + '; hasta que su dueño lo confirme no recibe órdenes.') + '"></p></section>';
+      cuentaHtml() + '<p class="bd-note zeus-msg" data-zeus-msg title="' + esc('Al agregar un correo se le envía un mensaje' + (cuentaEnvia ? ' desde ' + cuentaEnvia : '') + '; hasta que su dueño lo confirme no recibe órdenes.') + '"></p></section>';
   }
 
   const nombreDe = u => (usuariosPanel.find(x => x.nombre.toLowerCase() === String(u).toLowerCase()) || { completo: u }).completo;
@@ -266,6 +271,20 @@
     if (!r.ok) throw Error(d.detail || 'No se pudo completar');
     return d;
   }
+  async function cambiarCuenta() {
+    const m = panel.querySelector('[data-zeus-msg]');
+    const usuario = (prompt('Correo de Gmail que enviará todos los mensajes del panel (ahora: ' + (cuentaEnvia || 'ninguno') + '):') || '').trim().toLowerCase();
+    if (!usuario) return;
+    const clave = (prompt('Contraseña de aplicación de ' + usuario + ' (16 letras que genera Google; no es la contraseña normal):') || '').trim();
+    if (!clave) return;
+    if (m) m.textContent = 'Comprobando la cuenta con Google…';
+    try {
+      const d = await llamar('/api/zeus/cuenta', 'PUT', { usuario, clave });
+      await cargar(false);
+      const m2 = panel.querySelector('[data-zeus-msg]'); if (m2) m2.textContent = 'Listo: ahora los mensajes salen desde ' + d.cuenta + '.';
+    } catch (e) { const m2 = panel.querySelector('[data-zeus-msg]'); if (m2) m2.textContent = e.message; }
+  }
+
   async function accionCorreo(url, metodo, cuerpo, mensaje) {
     try {
       const d = await llamar(url, metodo, cuerpo);
@@ -278,6 +297,7 @@
   const estilo = document.createElement('style');
   estilo.textContent = `
 .zeus-correos{display:flex;flex-wrap:wrap;gap:8px}
+.zeus-cuenta{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:14px 0 4px;font:600 .82rem Arial;color:#cfd8c9}.zeus-cuenta b{color:#e4ff6b;overflow-wrap:anywhere}
 .zeus-chip{display:inline-flex;align-items:center;gap:10px;padding:6px 8px 6px 12px;border:1px solid #46563f;border-radius:16px;background:#151d15;color:#dfe8d9;font:700 .8rem Arial;max-width:100%}
 .zeus-chip>span{overflow-wrap:anywhere}
 .zeus-chip small{display:block;font:600 .66rem Arial;color:#8a9485;letter-spacing:.03em}
@@ -424,6 +444,7 @@
       clearInterval(tickZ); tickZ = setInterval(tickHace, 1000);
     });
     panel.querySelector('.bd-refresh').addEventListener('click', () => cargar(false));
+    panel.addEventListener('click', e => { if (e.target.closest('[data-zeus-cuenta]')) cambiarCuenta(); });
     panel.addEventListener('submit', e => {
       const f = e.target.closest('[data-zeus-form]');
       if (!f) return;

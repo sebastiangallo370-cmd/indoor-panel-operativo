@@ -26,15 +26,15 @@ CUENTA_FILE = Path(os.getenv('CORREO_CUENTA_FILE', '/data/state/correo_cuenta.js
 
 def cuenta() -> tuple[str, str]:
     """(usuario, contraseña de aplicación) con que se envían los correos: primero el .env y, si no hay, lo guardado desde el panel del agente."""
-    usuario, clave = os.getenv('ALERTA_SMTP_USER', ''), os.getenv('ALERTA_SMTP_PASSWORD', '')
-    if usuario and clave:
-        return usuario, clave
     try:
         d = json.loads(CUENTA_FILE.read_text(encoding='utf-8'))
         if d.get('usuario') and d.get('clave'):
             return str(d['usuario']), str(d['clave'])
     except (OSError, ValueError):
         pass
+    usuario, clave = os.getenv('ALERTA_SMTP_USER', ''), os.getenv('ALERTA_SMTP_PASSWORD', '')
+    if usuario and clave:
+        return usuario, clave
     # la cuenta que el panel YA usa para sus correos (SMTP_EMAIL / SMTP_PASSWORD del .env): no hay que configurar nada nuevo
     return os.getenv('SMTP_EMAIL', ''), os.getenv('SMTP_PASSWORD', '')
 
