@@ -201,8 +201,10 @@
   .pt-chips button:hover{background:#d0ec93;color:#14210f;transform:translateY(-1px)}
   @media(max-width:700px){.pt-nom{font-size:18px}.pt-head{padding:16px}.pt-form{padding:6px 16px}.pt-stats b{font-size:clamp(17px,6vw,24px)}.pt-nom{overflow-wrap:break-word;hyphens:auto}}
   .pt-val{font:700 17px/1.3 Arial;color:#eef5ed;overflow-wrap:anywhere;cursor:text}.pt-val.vacio{color:#ffc86b;font-weight:700;font-size:15px}
+  .pt-lapiz{flex:0 0 auto;width:38px;height:38px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;border:1px solid #3f5a46;background:#122018;color:#cfe8d3;cursor:pointer;padding:0;transition:background .18s,color .18s,transform .18s}
+  .pt-lapiz:hover{background:#d0ec93;color:#14210f;transform:rotate(-12deg) scale(1.08)}.pt-lapiz.pri{border-color:#d0ec93;color:#d0ec93}
   .pt-acc{display:flex;gap:10px;padding:4px 22px 18px}
-  .pt-b{flex:1;height:46px;border-radius:12px;border:1px solid #3f5a46;background:#122018;color:#e3f1e6;font:800 13px/1 Arial;letter-spacing:.06em;cursor:pointer;transition:background .18s,transform .18s,box-shadow .18s}
+  .pt-b{flex:1;white-space:nowrap;padding:0 8px;height:46px;border-radius:12px;border:1px solid #3f5a46;background:#122018;color:#e3f1e6;font:800 13px/1 Arial;letter-spacing:.06em;cursor:pointer;transition:background .18s,transform .18s,box-shadow .18s}
   .pt-b:hover{background:#1b3024;transform:translateY(-2px)}.pt-b:active{transform:none}
   .pt-b.pri{background:#d0ec93;border-color:#d0ec93;color:#14210f}.pt-b.pri:hover{background:#e0f6aa;box-shadow:0 10px 22px -10px #d0ec93}
   .pv-card.pv-t.editando{border-color:#d0ec93!important;box-shadow:0 0 0 2px rgba(208,236,147,.2),0 22px 40px -18px #000!important}
@@ -286,9 +288,10 @@
         `<span class="pt-val${valor ? '' : ' vacio'}" data-pv-dbl title="Doble toque para editar">${valor ? esc(valor) + (sufijo || '') : (req ? '⚠ Falta' : '—')}</span></div>`;
     const acciones = edit
       ? '<div class="pt-acc"><button type="button" class="pt-b pri" data-pv-guardar>✓ GUARDAR</button><button type="button" class="pt-b" data-pv-cancelar>CANCELAR</button></div>'
-      : `<div class="pt-acc"><button type="button" class="pt-b${falta ? ' pri' : ''}" data-pv-editar>✎ EDITAR TARJETA</button></div>`;
+      : '';
+    const lapiz = edit ? '' : `<button type="button" class="pt-lapiz${falta ? ' pri' : ''}" data-pv-editar title="Editar tarjeta" aria-label="Editar tarjeta"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>`;
     return `<div class="pv-card pv-t${falta ? ' sin' : ''}${edit ? ' editando' : ''}${st.reciente === t.codigo ? ' nueva' : ''}" data-cod="${esc(t.codigo)}">` +
-      `<div class="pt-head"><h3 class="pt-nom">${esc(t.nombre)}</h3><span class="pt-n${falta ? '' : ' ok'}" title="${falta ? esc(falta) : 'Los 4 datos obligatorios están completos'}">${listos}/4</span></div>` +
+      `<div class="pt-head"><h3 class="pt-nom">${esc(t.nombre)}</h3><span class="pt-n${falta ? '' : ' ok'}" title="${falta ? esc(falta) : 'Los 4 datos obligatorios están completos'}">${listos}/4</span>${lapiz}</div>` +
       `<div class="pt-form"><div class="pt-row fijo"><span class="pt-lbl">Código<b>*</b></span><button type="button" class="pt-cod" data-pv-copiar title="Tocar para copiar el código">${esc(t.codigo)}</button></div>` +
       fila(t.codigo, 'Proveedor', t.proveedor, 'list="pv-proveedores" data-pv-input', true, !t.proveedor, 'Escribe el proveedor…') +
       (edit ? sugerencias('prov', habituales().slice(0, 5)) : '') +
