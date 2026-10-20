@@ -34,7 +34,7 @@ _permitido: Callable[[str], bool] = lambda u: False
 _too_many: Callable = lambda bucket, request, limit, seconds=60: False
 _mockups: Callable[[int], dict] = lambda row: {'mockups': [], 'mockups_lista': None}
 COL = timezone(timedelta(hours=-5))
-TALLAS = ['2', '4', '6', '8', '10', '12', '14', '16', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL']
+TALLAS = ['2', '4', '6', '8', '10', '12', '14', '16', 'XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL']   # las mismas de la plantilla de Indoor
 MAX_JUGADORES = 300
 EXCEL_DIR = Path(os.getenv('CLUB_EXCEL_DIR', '/data/state/club_excel'))
 
@@ -96,42 +96,75 @@ def tela_de(row: int) -> tuple[str, str]:
     return tela, ' / '.join(dict.fromkeys(str(t['codigo']) for t in elegidas))
 
 
-def construir_excel(p: dict) -> bytes:
-    """Listado de la reposición en un formato fijo: cada fila repite la REFERENCIA y el CÓDIGO DE TELA del pedido anterior."""
-    from openpyxl import Workbook
-    from openpyxl.styles import Alignment, Font, PatternFill
-    wb = Workbook()
-    ws = wb.active
-    ws.title = 'LISTADO'
-    negrita, lima = Font(bold=True), PatternFill('solid', fgColor='D0F44C')
-    ws.append(['REPOSICIÓN CLUB #%s' % p['id'], '', '', '', '', '', ''])
-    ws['A1'].font = Font(bold=True, size=14)
-    for etiqueta, valor in (('CLIENTE', p['cliente']), ('CONTACTO', p['contacto']), ('TELÉFONO', p['telefono']), ('FECHA', str(p['creado'])[:16].replace('T', ' ')), ('NOTAS', p.get('notas') or '')):
-        ws.append([etiqueta, valor])
-        ws.cell(row=ws.max_row, column=1).font = negrita
-    ws.append([])
-    cab = ['REFERENCIA', 'CÓDIGO TELA', 'TELA', 'PEDIDO BASE', 'N° CAMISETA', 'NOMBRE EN LA PRENDA', 'TALLA', 'CANTIDAD']
-    ws.append(cab)
-    for c in range(1, len(cab) + 1):
-        ws.cell(row=ws.max_row, column=c).font = negrita
-        ws.cell(row=ws.max_row, column=c).fill = lima
-    total = 0
+PLANTILLA_NAS = Path(os.getenv('CLUB_PLANTILLA', '/mnt/nas/DIRECCION COMERCIAL_ANDRES LOPEZ/HERRAMIENTAS COMERCIALES/EXCEL/Plantilla.xlsm'))
+PLANTILLA_COPIA = Path(os.getenv('CLUB_PLANTILLA_COPIA', '/data/state/club_plantilla.xlsm'))
+LINEAS = ('COPA', 'PLUS', 'MAQUILA', 'PREMIUM', 'ESTANDAR')
+
+
+def _plantilla() -> bytes:
+    """La plantilla de listado de Indoor (la misma que usa el equipo comercial): del NAS; si el NAS no responde, la última copia guardada."""
+    try:
+        datos = PLANTILLA_NAS.read_bytes()
+        PLANTILLA_COPIA.parent.mkdir(parents=True, exist_ok=True)
+        PLANTILLA_COPIA.write_bytes(datos)
+        return datos
+    except OSError:
+        if PLANTILLA_COPIA.is_file():
+            return PLANTILLA_COPIA.read_bytes()
+        raise
+
+
+def _linea_de(row: int) -> str:
+    with _connect() as db:
+        meta = db.execute("SELECT value FROM production_meta WHERE key='headers'").fetchone()
+        r = db.execute('SELECT values_json FROM production_rows WHERE source_row=?', (row,)).fetchone()
+    if not meta or not r:
+        return ''
+    h = [str(x or '').strip().upper() for x in json.loads(meta['value'])]
+    v = json.loads(r['values_json'])
+    x = _plano(v[h.index('LINEA')]) if 'LINEA' in h and h.index('LINEA') < len(v) else ''
+    return x if x in LINEAS else ''
+
+
+def construir_excels(p: dict) -> list[tuple[str, bytes]]:
+    """Un listado por referencia, con la plantilla de Indoor: la hoja se llama como la referencia, el encabezado lleva cliente, proyecto y comercial,
+    y cada prenda es una fila (NOMBRE, TALLA, NÚMERO, X en el DISEÑO elegido y en MASC o FEM). Se agrega la tela y su código del pedido anterior."""
+    from openpyxl import load_workbook
+    salida = []
     for l in p['lineas']:
+        wb = load_workbook(io.BytesIO(_plantilla()), keep_vba=True)
+        ws = wb.worksheets[0]
+        ws.title = re.sub(r'[\\/*?:\[\]]', '', l['referencia'])[:31] or 'REFERENCIA'
+        ws['J2'] = p['cliente']
+        ws['J3'] = l.get('proyecto', '')
+        ws['J4'] = p.get('comercial', '')
+        linea = _linea_de(l['row'])
+        if linea:
+            ws['J6'] = linea
+        ws['P2'] = 'TELA (pedido anterior)'
+        ws['P3'] = (l.get('tela') or '—') + ('  ·  código ' + l['codigo_tela'] if l.get('codigo_tela') else '')
+        ws['P4'] = 'Reposición club #%s · base %s' % (p['id'], l.get('orden_base', ''))
+        fila, maximo = 8, 1
         for j in l['jugadores']:
-            ws.append([l['referencia'], l.get('codigo_tela', ''), l.get('tela', ''), l.get('orden_base', ''), j.get('numero', ''), j.get('nombre', ''), j.get('talla', ''), int(j.get('cantidad') or 1)])
-            total += int(j.get('cantidad') or 1)
-    ws.append([])
-    ws.append(['TOTAL PRENDAS', '', '', '', '', '', '', total])
-    ws.cell(row=ws.max_row, column=1).font = negrita
-    ws.cell(row=ws.max_row, column=8).font = negrita
-    for col, ancho in zip('ABCDEFGH', (16, 14, 20, 14, 14, 30, 8, 10)):
-        ws.column_dimensions[col].width = ancho
-    for fila in ws.iter_rows():
-        for celda in fila:
-            celda.alignment = Alignment(vertical='center')
-    buf = io.BytesIO()
-    wb.save(buf)
-    return buf.getvalue()
+            for _ in range(max(1, int(j.get('cantidad') or 1))):
+                ws.cell(row=fila, column=3, value=j.get('nombre') or None)
+                ws.cell(row=fila, column=4, value=j.get('talla') or None)
+                ws.cell(row=fila, column=5, value=j.get('numero') or None)
+                d = max(1, min(int(j.get('diseno') or 1), 20))
+                maximo = max(maximo, d)
+                if d <= 6:   # la plantilla trae las columnas DISEÑO 1 a 6 en la tabla
+                    ws.cell(row=fila, column=9 + d, value='X')
+                if j.get('genero') == 'MASC':
+                    ws.cell(row=fila, column=16, value='X')
+                elif j.get('genero') == 'FEM':
+                    ws.cell(row=fila, column=17, value='X')
+                fila += 1
+        ws['AG3'] = max(int(ws['AG3'].value or 1), min(maximo, 20))
+        buf = io.BytesIO()
+        wb.save(buf)
+        nombre = re.sub(r'[^A-Za-z0-9_-]+', '_', f"{l['referencia']}_{p['cliente']}")[:60]
+        salida.append((f"Reposicion_{p['id']}_{nombre}.xlsm", buf.getvalue()))
+    return salida
 
 
 def _pedido(pedido_id: int) -> dict:
@@ -141,6 +174,9 @@ def _pedido(pedido_id: int) -> dict:
         raise HTTPException(404, 'No existe esa reposición')
     p = dict(r)
     p['lineas'] = json.loads(p['lineas'] or '[]')
+    with _connect() as db:
+        l = db.execute('SELECT creado_por FROM club_links WHERE id=?', (p['link_id'],)).fetchone()
+    p['comercial'] = l['creado_por'] if l else ''
     return p
 
 
@@ -253,13 +289,22 @@ def resolver_pedido(request: Request, pedido_id: int, payload: dict = Body(...))
 
 @router.get('/pedidos/{pedido_id}/excel')
 def excel_pedido(request: Request, pedido_id: int):
+    """El listado en la plantilla de Indoor (.xlsm): un archivo por referencia; si son varias, vienen juntas en un .zip."""
     _usuario(request)
     p = _pedido(pedido_id)
-    guardado = EXCEL_DIR / f'reposicion-{pedido_id}.xlsx'
-    datos = guardado.read_bytes() if guardado.is_file() else construir_excel(p)
-    nombre = re.sub(r'[^A-Za-z0-9_-]+', '_', p['cliente'])[:40]
-    return Response(datos, media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                    headers={'Content-Disposition': f'attachment; filename="Reposicion_{pedido_id}_{nombre}.xlsx"', 'Cache-Control': 'no-store'})
+    try:
+        archivos = construir_excels(p)
+    except OSError:
+        raise HTTPException(503, 'No pude leer la plantilla de listado del NAS')
+    if len(archivos) == 1:
+        nombre, datos = archivos[0]
+        return Response(datos, media_type='application/vnd.ms-excel.sheet.macroEnabled.12', headers={'Content-Disposition': f'attachment; filename="{nombre}"', 'Cache-Control': 'no-store'})
+    import zipfile
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
+        for nombre, datos in archivos:
+            z.writestr(nombre, datos)
+    return Response(buf.getvalue(), media_type='application/zip', headers={'Content-Disposition': f'attachment; filename="Reposicion_{pedido_id}.zip"', 'Cache-Control': 'no-store'})
 
 
 # ------------------------------------------------------------------ cliente (enlace privado)
@@ -297,8 +342,9 @@ def enviar_pedido(request: Request, token: str, payload: dict = Body(...)):
             cant = int(j.get('cantidad') or 1)
             if talla not in TALLAS or not 1 <= cant <= 50:
                 raise HTTPException(400, 'Revisa las tallas y las cantidades (de 1 a 50 por jugador)')
+            genero = str(j.get('genero') or '').upper()
             jugadores.append({'nombre': re.sub(r'\s+', ' ', str(j.get('nombre') or '')).strip()[:40], 'numero': re.sub(r'[^0-9A-Za-z]', '', str(j.get('numero') or ''))[:4],
-                              'talla': talla, 'cantidad': cant})
+                              'talla': talla, 'cantidad': cant, 'diseno': max(1, min(int(j.get('diseno') or 1), 20)), 'genero': genero if genero in ('MASC', 'FEM') else ''})
             total += cant
         if jugadores:
             tela, codigo = tela_de(d['row'])
@@ -316,7 +362,8 @@ def enviar_pedido(request: Request, token: str, payload: dict = Body(...)):
     log.info('Reposición de club #%s (%s): %s prendas', numero, link['cliente'], total)
     try:   # al confirmar se arma el listado en Excel (referencia y código de tela de la vez pasada) y queda guardado
         EXCEL_DIR.mkdir(parents=True, exist_ok=True)
-        (EXCEL_DIR / f'reposicion-{numero}.xlsx').write_bytes(construir_excel(_pedido(numero)))
+        for nombre, datos in construir_excels(_pedido(numero)):
+            (EXCEL_DIR / nombre).write_bytes(datos)
     except Exception:   # noqa: BLE001
         log.exception('No se pudo guardar el Excel de la reposición %s', numero)
     return {'ok': True, 'numero': numero, 'prendas': total}

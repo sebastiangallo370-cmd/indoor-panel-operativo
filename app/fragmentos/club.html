@@ -40,7 +40,7 @@ button{font:inherit;cursor:pointer}
 .tabla th{padding:6px 6px;text-align:left;color:var(--mut);font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--line)}
 .tabla td{padding:4px 4px;vertical-align:middle}
 .tabla td.n{width:34px;color:var(--mut);text-align:center;font-size:.8rem}
-.tabla td.cn{width:84px}.tabla td.ct{width:92px}.tabla td.cc{width:78px}.tabla td.cx{width:42px}
+.tabla td.cn{width:84px}.tabla td.ct{width:92px}.tabla td.cd{width:74px}.tabla td.cg{width:84px}.tabla td.cc{width:78px}.tabla td.cx{width:42px}
 .tabla button{min-height:40px;width:38px;border:1px solid #3d4c3b;border-radius:10px;background:transparent;color:var(--mut)}
 .acciones{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}
 .pegar{margin-top:12px;display:none}
@@ -59,7 +59,7 @@ button{font:inherit;cursor:pointer}
 .msg{padding:12px;border-radius:10px;background:#1b2a1b;color:var(--lima);font-weight:700}
 .msg.err{background:#3a1d1a;color:var(--err)}
 .hp{position:absolute;left:-9999px;opacity:0}
-@media(max-width:620px){h1{font-size:1.4rem}.paso{padding:14px}.tabla td.cn{width:54px}.tabla td.ct{width:60px}.tabla td.cc{width:48px}.tabla td.cx{width:30px}.tabla button{width:28px}.tabla input,.tabla select{padding:8px 4px;font-size:.9rem}.tabla td{padding:3px 2px}.tabla td.n{display:none}.tabla th:first-child{display:none}.mini-tira button{flex-basis:76px;height:56px}}
+@media(max-width:620px){h1{font-size:1.4rem}.paso{padding:14px}.tabla td.cn{width:50px}.tabla td.ct{width:54px}.tabla td.cd{width:50px}.tabla td.cg{width:56px}.tabla td.cc{width:44px}.tabla td.cx{width:28px}.tabla button{width:28px}.tabla input,.tabla select{padding:8px 4px;font-size:.9rem}.tabla td{padding:3px 2px}.tabla td.n{display:none}.tabla th:first-child{display:none}.mini-tira button{flex-basis:76px;height:56px}}
 </style>
 </head>
 <body data-token="__TOKEN__">
@@ -84,7 +84,7 @@ button{font:inherit;cursor:pointer}
       <h2><b>2</b> Llena el listado de jugadores</h2>
       <div class="chips" id="chips"></div>
       <table class="tabla">
-        <thead><tr><th>#</th><th>N° camiseta</th><th>Nombre en la prenda</th><th>Talla</th><th>Cant.</th><th></th></tr></thead>
+        <thead><tr><th>#</th><th>N° camiseta</th><th>Nombre en la prenda</th><th>Talla</th><th>Diseño</th><th>Género</th><th>Cant.</th><th></th></tr></thead>
         <tbody id="filas"></tbody>
       </table>
       <div class="acciones">
@@ -93,8 +93,8 @@ button{font:inherit;cursor:pointer}
         <button class="btn sec mini" id="verpegar" type="button">Pegar desde Excel</button>
       </div>
       <div class="pegar" id="pegar">
-        <p class="info">Copia las filas de tu Excel con estas 4 columnas, en este orden: <b>N° camiseta · Nombre · Talla · Cantidad</b>. Luego pégalas aquí.</p>
-        <textarea id="texto" placeholder="10&#9;MESSI&#9;M&#9;1&#10;7&#9;RONALDO&#9;L&#9;2"></textarea>
+        <p class="info">Copia las filas de tu Excel con estas 4 columnas, en este orden: <b>N° camiseta · Nombre · Talla · Diseño (1, 2…) · Género (M o F) · Cantidad</b>. Luego pégalas aquí.</p>
+        <textarea id="texto" placeholder="10&#9;MESSI&#9;M&#9;1&#9;M&#9;1&#10;7&#9;RONALDO&#9;L&#9;2&#9;M&#9;2"></textarea>
         <div class="acciones"><button class="btn mini" id="aplicar" type="button">Pasar al listado</button></div>
       </div>
       <p class="info" id="aviso"></p>
@@ -126,7 +126,8 @@ button{font:inherit;cursor:pointer}
   function prendas(){var n=0;Object.keys(carro).forEach(function(r){llenas(r).forEach(function(j){n+=Math.max(1,Number(j.cantidad)||1)})});return n}
   function barra(){var n=prendas();$('enviar').disabled=!n;$('enviar').textContent='Revisar y enviar ('+n+(n===1?' prenda)':' prendas)');}
   function actual(){return disenos.filter(function(d){return d.row===sel})[0]}
-  function nueva(){return {numero:'',nombre:'',talla:tallas.indexOf('M')>=0?'M':tallas[0],cantidad:1}}
+  function nueva(){return {numero:'',nombre:'',talla:tallas.indexOf('M')>=0?'M':tallas[0],diseno:1,genero:'',cantidad:1}}
+  function nDis(){var d=actual(),f=d&&fotos[d.row];return Math.max(1,Math.min((f&&f.length)||1,20))}
 
   function opciones(){
     $('sel').innerHTML='<option value="0">— Selecciona un diseño —</option>'+disenos.map(function(d){
@@ -156,6 +157,8 @@ button{font:inherit;cursor:pointer}
       return '<tr data-i="'+i+'"><td class="n">'+(i+1)+'</td><td class="cn"><input data-f="numero" inputmode="numeric" maxlength="4" placeholder="N°" value="'+esc(j.numero)+'" aria-label="Número de camiseta"></td>'
         +'<td><input data-f="nombre" maxlength="40" placeholder="Nombre" value="'+esc(j.nombre)+'" aria-label="Nombre en la prenda"></td>'
         +'<td class="ct"><select data-f="talla" aria-label="Talla">'+tallas.map(function(t){return '<option'+(t===j.talla?' selected':'')+'>'+t+'</option>'}).join('')+'</select></td>'
+        +'<td class="cd"><select data-f="diseno" aria-label="Diseño">'+Array.apply(null,Array(nDis())).map(function(_,k){return '<option value="'+(k+1)+'"'+((Number(j.diseno)||1)===k+1?' selected':'')+'>D'+(k+1)+'</option>'}).join('')+'</select></td>'
+        +'<td class="cg"><select data-f="genero" aria-label="Género"><option value="">—</option><option'+(j.genero==='MASC'?' selected':'')+' value="MASC">Masc</option><option'+(j.genero==='FEM'?' selected':'')+' value="FEM">Fem</option></select></td>'
         +'<td class="cc"><input data-f="cantidad" type="number" min="1" max="50" value="'+(j.cantidad||1)+'" aria-label="Cantidad"></td>'
         +'<td class="cx"><button type="button" data-del="'+i+'" aria-label="Quitar fila">✕</button></td></tr>';
     }).join('');
@@ -186,7 +189,7 @@ button{font:inherit;cursor:pointer}
       if(!linea.trim())return;var p=linea.split(/\t|;/).map(function(s){return s.trim()});
       if(p.length<2){p=linea.trim().split(/\s{2,}/)}
       var talla=String(p[2]||'').toUpperCase();if(tallas.indexOf(talla)<0){malas++;talla=tallas.indexOf('M')>=0?'M':tallas[0]}
-      js.push({numero:String(p[0]||'').replace(/[^0-9A-Za-z]/g,'').slice(0,4),nombre:String(p[1]||'').slice(0,40),talla:talla,cantidad:Math.max(1,Math.min(50,parseInt(p[3],10)||1))});
+      var g=String(p[4]||'').toUpperCase().charAt(0);js.push({numero:String(p[0]||'').replace(/[^0-9A-Za-z]/g,'').slice(0,4),nombre:String(p[1]||'').slice(0,40),talla:talla,diseno:Math.max(1,Math.min(nDis(),parseInt(p[3],10)||1)),genero:g==='M'?'MASC':g==='F'?'FEM':'',cantidad:Math.max(1,Math.min(50,parseInt(p[5],10)||1))});
     });
     carro[d.row]=js.concat([nueva()]);$('texto').value='';$('pegar').classList.remove('on');tabla();barra();opciones();
     $('aviso').textContent=malas?malas+' fila(s) tenían una talla no válida y quedaron en M: revísalas.':'Listado pasado. Revisa que todo esté bien.';
