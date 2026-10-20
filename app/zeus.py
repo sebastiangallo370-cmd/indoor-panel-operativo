@@ -105,7 +105,7 @@ def estado_tela(tela: str) -> dict:
     if item['estado'] == 'creada' and item.get('oc'):
         masc = [re.sub(r'^(.).*?(@.*)$', r'\1***\2', c['correo']) for c in d['config']['correos'] if c.get('estado') == 'verificado']
         return {'estado': 'enviado', 'oc': str(item['oc']), 'para': ', '.join(masc), 'hora': str(item.get('creada') or item.get('actualizado') or '')[11:16]}
-    return {'estado': 'error' if item['estado'] == 'error' else 'pendiente'}
+    return {'estado': 'error' if item['estado'] == 'error' else 'pendiente', 'detalle': str(item.get('detalle') or '') if item['estado'] == 'error' else ''}
 
 
 def auth_agente(pc_auth: Callable[[Request], None]) -> Callable[[Request], None]:

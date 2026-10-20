@@ -138,7 +138,7 @@
   function reqHtml(r){
     r=r||{estado:'pendiente'};
     if(r.estado==='enviado')return '<span class="ico">✓</span><span>Requerimiento <b>enviado</b>'+(r.oc?' (orden de compra '+esc(r.oc)+' en Effi)':'')+' a '+esc(r.para||'los correos del agente')+(r.hora?' · '+esc(r.hora):'')+'</span>';
-    if(r.estado==='error')return '<span class="ico">!</span><span>El agente no pudo crear el requerimiento en Effi. Se reintenta.</span>';
+    if(r.estado==='error')return '<span class="ico">!</span><span>El agente no pudo crear el requerimiento en Effi'+(r.detalle?': '+esc(r.detalle):'. Se reintenta.')+'</span>';
     return '<span class="ico"></span><span>Creando el requerimiento en Effi…</span>';
   }
   function pintaReq(ov,lista){
