@@ -337,6 +337,26 @@ club_mod.configurar(lambda: connect(), authenticate, permisos_mod.comerciales_pe
 app.include_router(club_mod.router)
 app.include_router(club_mod.public)
 app.include_router(club_mod.pagina)
+from app import effitron as effitron_mod
+effitron_mod.configurar(lambda: connect(), zeus_mod.auth_agente(ecommerce_mod._pc), lambda: zeus_mod._leer_secreto().get('llave', ''),
+                        lambda row: production_row_files(row, excel_only=False)[0], lambda orden, cliente, proyecto: _club_carpeta(orden, cliente, proyecto),
+                        club_mod._pedido, club_mod.construir_excels)
+app.include_router(effitron_mod.pc_router)
+
+
+def _club_carpeta(orden: str, cliente: str, proyecto: str) -> Path:
+    """Carpeta de una orden nueva en el NAS: CLIENTES/<cliente>/<ORDEN>_<proyecto> (la del cliente se reutiliza si ya existe)."""
+    raiz = Path(CONFIG["ruta_nas_clientes"]).resolve()
+    if not raiz.is_dir():
+        raise OSError('El NAS no está disponible')
+    nombre = legacy.sanitize(cliente)
+    cdir = next((d for d in raiz.iterdir() if d.is_dir() and _plain_text(d.name) == _plain_text(nombre)), raiz / nombre)
+    odir = (cdir / f"{orden}_{legacy.sanitize(proyecto) if proyecto else 'ORDEN'}").resolve()
+    if raiz not in odir.parents:
+        raise OSError('Ruta de carpeta inválida')
+    odir.mkdir(parents=True, exist_ok=True)
+    return odir
+
 app.include_router(externa_router, dependencies=[Depends(authenticate)])
 
 

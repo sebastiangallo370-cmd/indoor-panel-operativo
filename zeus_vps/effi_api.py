@@ -207,6 +207,36 @@ def crear_orden(item_id, referencia: str, metros: float, nombre_proveedor: str, 
     return {'oc': str(data.get('id')), 'detalle': f"API Effi {data.get('id_transaccion') or data.get('id')} · {res['proveedor'][:40]} · {metros:g} MTS · total ${data.get('total') or res['total']}"}
 
 
+def forma_pago_id(dias: int) -> int:
+    """Id de la forma de pago de Effi para «N días» (Contado = 0 días)."""
+    nombre = 'contado' if int(dias) == 0 else f'{int(dias)} días'
+    for f in _lista('forma_pago'):
+        if str(f.get('nombre') or '').strip().lower() == nombre:
+            return int(f['id'])
+    raise EffiError(f'No encontré la forma de pago «{nombre}» en Effi')
+
+
+def cotizacion_de(cot_id) -> dict:
+    """Encabezado de una cotización (cliente, vendedor, sucursal, bodega, centro de costos y dirección del cliente)."""
+    d = _peticion('GET', 'cotizacion', {'id': str(cot_id)}).get('data') or []
+    if not d:
+        raise EffiError(f'No encontré la cotización {cot_id} en Effi')
+    return d[0]
+
+
+def crear_cotizacion(cuerpo: dict) -> dict:
+    """POST /cotizacion. Con la misma idempotency_key un reintento no crea otra (409 → se devuelve la ya creada). Devuelve {'id','prefijo','total'}."""
+    try:
+        data = _peticion('POST', 'cotizacion', cuerpo=cuerpo).get('data') or {}
+    except EffiError as e:
+        if e.estado != 409:
+            raise
+        data = (e.cuerpo.get('data') or {}) if isinstance(e.cuerpo, dict) else {}
+        if not data.get('id'):
+            raise EffiError('Effi dice que esta cotización ya se creó, pero no devolvió su número: revísala en Ventas > Cotizaciones', 409)
+    return {'id': str(data.get('id')), 'prefijo': str(data.get('prefijo') or ''), 'total': data.get('total')}
+
+
 def anular_orden(oc_id, motivo: str) -> dict:
     """Anula una orden de compra vigente (DELETE /orden_c). Si ya estaba anulada lo dice Effi con un 400: el llamador lo trata como anulada."""
     cuerpo = {'sucursal': int(os.getenv('EFFI_SUCURSAL', '1')), 'id': int(oc_id), 'observacion_anular': str(motivo or 'Anulada desde el panel')[:255]}

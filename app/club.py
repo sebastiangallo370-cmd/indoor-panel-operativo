@@ -201,11 +201,12 @@ def disenos_de(cliente: str) -> list[dict]:
             if _plano(cel('NOMBRE DEL CLIENTE')) != objetivo:
                 continue
             ref = cel('REFERENCIA').upper()
-            if not ref or ref in salida:
+            clave = f"{cel('ORDEN').upper()}|{ref}"
+            if not ref or clave in salida:   # todos los pedidos del cliente: uno por orden y referencia (no solo el último de cada referencia)
                 continue
-            salida[ref] = {'row': r['source_row'], 'referencia': ref, 'proyecto': cel('NOMBRE PROYECTO'), 'orden': cel('ORDEN'), 'cantidad': cel('CANTIDAD'), 'fecha': cel('FECHA DE INICIO'),
+            salida[clave] = {'row': r['source_row'], 'referencia': ref, 'proyecto': cel('NOMBRE PROYECTO'), 'orden': cel('ORDEN'), 'cantidad': cel('CANTIDAD'), 'fecha': cel('FECHA DE INICIO'),
                            'tipo': cel('TIPO DE DISEÑO')}
-    return list(salida.values())[:40]
+    return list(salida.values())[:200]
 
 
 # ------------------------------------------------------------------ comercial
@@ -272,7 +273,7 @@ def listar_pedidos(request: Request, estado: str = ''):
     for f in filas:
         f['lineas'] = json.loads(f['lineas'] or '[]')
         f['prendas'] = sum(int(j.get('cantidad') or 1) for l in f['lineas'] for j in l.get('jugadores', []))
-    return {'pedidos': filas}
+    return {'pedidos': [{k: v for k, v in f.items() if k != 'cot_cuerpo'} for f in filas]}
 
 
 @router.post('/pedidos/{pedido_id}/resolver')
@@ -287,6 +288,35 @@ def resolver_pedido(request: Request, pedido_id: int, payload: dict = Body(...))
         db.execute('UPDATE club_pedidos SET estado=?, resuelto_por=?, resuelto=?, nota_comercial=? WHERE id=?',
                    (estado, u, _ahora(), str(payload.get('nota') or '')[:300], pedido_id))
     return {'ok': True}
+
+
+@router.get('/pedidos/{pedido_id}/cotizacion/vista')
+def vista_cotizacion(request: Request, pedido_id: int):
+    """VISTA PREVIA (solo lectura): lo que EFFITRON enviaría a Effi para esta reposición. No crea nada."""
+    _usuario(request)
+    from app import effitron
+    try:
+        r = effitron.preparar(_pedido(pedido_id))
+    except Exception as e:   # noqa: BLE001
+        return {'ok': False, 'motivo': str(e)[:400]}
+    return {'ok': True, 'resumen': r['resumen'], 'cuerpo': r['cuerpo']}
+
+
+@router.post('/pedidos/{pedido_id}/cotizacion/reintentar')
+def reintentar_cotizacion(request: Request, pedido_id: int):
+    _usuario(request)
+    from app import effitron
+    if not effitron.ACTIVO:
+        raise HTTPException(409, 'EFFITRON está apagado: no se crean cotizaciones todavía')
+    effitron.reintentar(pedido_id)
+    return {'ok': True}
+
+
+@router.get('/effitron')
+def estado_effitron(request: Request):
+    _usuario(request)
+    from app import effitron
+    return {**effitron.agente(), 'activo': effitron.ACTIVO}
 
 
 @router.get('/pedidos/{pedido_id}/excel')
@@ -323,6 +353,36 @@ def disenos(request: Request, token: str):
             d['mockups'] = {'mockups': [], 'mockups_lista': None}
         d.pop('cantidad', None)
     return {'cliente': link['cliente'], 'tallas': TALLAS, 'disenos': lista}
+
+
+@public.get('/{token}/pedido/{pedido_id}')
+def estado_pedido(request: Request, token: str, pedido_id: int):
+    """El cliente consulta cómo va su cotización (la página lo repite cada pocos segundos)."""
+    if _too_many('club-estado', request, 120):
+        raise HTTPException(429, 'Demasiadas solicitudes.')
+    link = _enlace(token)
+    p = _pedido(pedido_id)
+    if p['link_id'] != link['id']:
+        raise HTTPException(404, 'No existe ese pedido')
+    from app import effitron
+    e = effitron.estado_publico(pedido_id)
+    e['url'] = f'/api/club/{token}/pedido/{pedido_id}/cotizacion.pdf' if e['pdf'] else ''
+    return e
+
+
+@public.get('/{token}/pedido/{pedido_id}/cotizacion.pdf')
+def pdf_pedido(request: Request, token: str, pedido_id: int):
+    if _too_many('club-pdf', request, 30):
+        raise HTTPException(429, 'Demasiadas solicitudes.')
+    link = _enlace(token)
+    p = _pedido(pedido_id)
+    if p['link_id'] != link['id']:
+        raise HTTPException(404, 'No existe ese pedido')
+    from app import effitron
+    datos = effitron.pdf_bytes(pedido_id)
+    if not datos:
+        raise HTTPException(404, 'La cotización todavía no está lista')
+    return Response(datos, media_type='application/pdf', headers={'Content-Disposition': f'inline; filename="Cotizacion_{p["cot_numero"] or pedido_id}.pdf"', 'Cache-Control': 'private, max-age=300'})
 
 
 @public.post('/{token}/pedido')
@@ -362,13 +422,21 @@ def enviar_pedido(request: Request, token: str, payload: dict = Body(...)):
                          (link['id'], link['cliente'], contacto, telefono, str(payload.get('notas') or '')[:400], json.dumps(lineas, ensure_ascii=False), _ahora()))
         numero = cur.lastrowid
     log.info('Reposición de club #%s (%s): %s prendas', numero, link['cliente'], total)
+    cotiza = False
+    try:   # EFFITRON (apagado por defecto: EFFITRON_ACTIVO=1 lo enciende) crea la cotización en Effi
+        from app import effitron
+        if effitron.ACTIVO:
+            effitron.encolar(numero)
+            cotiza = True
+    except Exception:   # noqa: BLE001
+        log.exception('No se pudo encolar la cotización del pedido %s', numero)
     try:   # al confirmar se arma el listado en Excel (referencia y código de tela de la vez pasada) y queda guardado
         EXCEL_DIR.mkdir(parents=True, exist_ok=True)
         for nombre, datos in construir_excels(_pedido(numero)):
             (EXCEL_DIR / nombre).write_bytes(datos)
     except Exception:   # noqa: BLE001
         log.exception('No se pudo guardar el Excel de la reposición %s', numero)
-    return {'ok': True, 'numero': numero, 'prendas': total}
+    return {'ok': True, 'numero': numero, 'prendas': total, 'cotizacion': cotiza}
 
 
 @pagina.get('/club/{token}', response_class=HTMLResponse)

@@ -140,7 +140,7 @@ button{font:inherit}
   <div id="app" hidden>
     <section class="card" id="c1">
       <h2><b>1</b> ¿Cuál pedido anterior quieres repetir?</h2>
-      <p class="ayuda">Toca el pedido. Puedes elegir varios, uno después del otro.</p>
+      <p class="ayuda">Estos son todos tus pedidos con Indoor. Toca el que quieres repetir; puedes elegir varios, uno después del otro.</p>
       <div class="disenos" id="disenos"></div>
     </section>
 
@@ -221,7 +221,7 @@ button{font:inherit}
   function img0(d){var f=fotos[d.row];return f&&f.length?'<img alt="" src="'+esc(f[0])+'">':(f?'Sin imagen':'Cargando…')}
   function tarjetas(){
     $('disenos').innerHTML=disenos.map(function(d){var n=llenas(d.row).length;
-      return '<button type="button" class="dis'+(d.row===sel?' on':'')+'" data-dis="'+d.row+'">'+(n?'<span class="ins">✓ '+n+' jugadores</span>':'')+'<div class="im">'+img0(d)+'</div><div><strong>'+esc(d.proyecto||d.referencia)+'</strong><small>Ref. '+esc(d.referencia)+' · pedido '+esc(d.orden)+(d.fecha?' · '+esc(d.fecha):'')+'</small></div></button>';
+      return '<button type="button" class="dis'+(d.row===sel?' on':'')+'" data-dis="'+d.row+'">'+(n?'<span class="ins">✓ '+n+' jugadores</span>':'')+'<div class="im">'+img0(d)+'</div><div><strong>Pedido '+esc(d.orden)+' · '+esc(d.proyecto||d.referencia)+'</strong><small>Ref. '+esc(d.referencia)+(d.fecha?' · '+esc(d.fecha):'')+'</small></div></button>';
     }).join('');
   }
   function cargaFotos(d){
