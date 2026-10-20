@@ -254,6 +254,9 @@ def _records_for_tab(values: list[list[str]], tab_key: str, tab_label: str, grid
         if not name or normalized_name in {"TOTAL", "SUBTOTAL", "NOMBRE", "REFERENCIA"}:
             last_record = None
             continue
+        if tab_key == 'BODEGA TELA' and 'DON ALVEIRO' in normalized_name:   # el REPORTE de DON ALVEIRO (rollos de otra empresa) no se muestra en el inventario; sus líneas sin nombre quedan fuera con él
+            last_record = None
+            continue
         if total == 0 and not any(str(cell or "").strip() for cell in row[active_name + 1:active_total + 1]):
             last_record = None
             continue
