@@ -200,6 +200,14 @@
   .pt-chips button{font:700 12px/1 Arial;padding:8px 12px;border-radius:999px;border:1px solid #3f5a46;background:#122018;color:#cfe8d3;cursor:pointer;transition:background .15s,transform .15s}
   .pt-chips button:hover{background:#d0ec93;color:#14210f;transform:translateY(-1px)}
   @media(max-width:700px){.pt-nom{font-size:18px}.pt-head{padding:16px}.pt-form{padding:6px 16px}.pt-stats b{font-size:clamp(17px,6vw,24px)}.pt-nom{overflow-wrap:break-word;hyphens:auto}}
+  .pt-val{font:700 17px/1.3 Arial;color:#eef5ed;overflow-wrap:anywhere;cursor:text}.pt-val.vacio{color:#ffc86b;font-weight:700;font-size:15px}
+  .pt-acc{display:flex;gap:10px;padding:4px 22px 18px}
+  .pt-b{flex:1;height:46px;border-radius:12px;border:1px solid #3f5a46;background:#122018;color:#e3f1e6;font:800 13px/1 Arial;letter-spacing:.06em;cursor:pointer;transition:background .18s,transform .18s,box-shadow .18s}
+  .pt-b:hover{background:#1b3024;transform:translateY(-2px)}.pt-b:active{transform:none}
+  .pt-b.pri{background:#d0ec93;border-color:#d0ec93;color:#14210f}.pt-b.pri:hover{background:#e0f6aa;box-shadow:0 10px 22px -10px #d0ec93}
+  .pv-card.pv-t.editando{border-color:#d0ec93!important;box-shadow:0 0 0 2px rgba(208,236,147,.2),0 22px 40px -18px #000!important}
+  .pv-card.pv-t.editando .pt-n{background:#d0ec93;color:#14210f}
+  @media(max-width:700px){.pt-acc{padding:4px 16px 16px}}
   @keyframes ptIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
   .pt-row:last-child{border-bottom:0}
   @media(max-width:360px){.pt-row{grid-template-columns:1fr;gap:4px;padding:8px 0}.pt-row.fijo{grid-template-columns:1fr auto}.pt-chips{padding-left:0}}
@@ -270,17 +278,23 @@
     const rapidos = [...new Set([sugInv, ...sug].filter(n => n && n !== t.proveedor))].slice(0, 3);
     const falta = !t.proveedor ? (t.ancho ? 'FALTA PROVEEDOR' : 'FALTAN PROVEEDOR Y ANCHO') : (!t.ancho ? 'FALTA ANCHO' : '');
     const listos = 2 + (t.proveedor ? 1 : 0) + (t.ancho ? 1 : 0);
-    const fila = (cod, etiqueta, valor, atrib, req, falto, ayuda) =>
-      `<label class="pt-row${falto ? ' falta' : ''}"><span class="pt-lbl">${etiqueta}${req ? '<b>*</b>' : ''}</span>` +
-      `<input type="text" ${atrib} value="${esc(valor || '')}" placeholder="${esc(ayuda)}" autocomplete="off"${req ? ' required' : ''}></label>`;
-    return `<div class="pv-card pv-t${falta ? ' sin' : ''}${st.reciente === t.codigo ? ' nueva' : ''}" data-cod="${esc(t.codigo)}">` +
+    const edit = st.edit.has(t.codigo);   // por defecto la tarjeta se ve limpia; el botón EDITAR abre los campos
+    const fila = (cod, etiqueta, valor, atrib, req, falto, ayuda, sufijo) => edit
+      ? `<label class="pt-row${falto ? ' falta' : ''}"><span class="pt-lbl">${etiqueta}${req ? '<b>*</b>' : ''}</span>` +
+        `<input type="text" ${atrib} value="${esc(valor || '')}" placeholder="${esc(ayuda)}" autocomplete="off"${req ? ' required' : ''}></label>`
+      : `<div class="pt-row${falto ? ' falta' : ''}"><span class="pt-lbl">${etiqueta}${req ? '<b>*</b>' : ''}</span>` +
+        `<span class="pt-val${valor ? '' : ' vacio'}" data-pv-dbl title="Doble toque para editar">${valor ? esc(valor) + (sufijo || '') : (req ? '⚠ Falta' : '—')}</span></div>`;
+    const acciones = edit
+      ? '<div class="pt-acc"><button type="button" class="pt-b pri" data-pv-guardar>✓ GUARDAR</button><button type="button" class="pt-b" data-pv-cancelar>CANCELAR</button></div>'
+      : `<div class="pt-acc"><button type="button" class="pt-b${falta ? ' pri' : ''}" data-pv-editar>✎ EDITAR TARJETA</button></div>`;
+    return `<div class="pv-card pv-t${falta ? ' sin' : ''}${edit ? ' editando' : ''}${st.reciente === t.codigo ? ' nueva' : ''}" data-cod="${esc(t.codigo)}">` +
       `<div class="pt-head"><h3 class="pt-nom">${esc(t.nombre)}</h3><span class="pt-n${falta ? '' : ' ok'}" title="${falta ? esc(falta) : 'Los 4 datos obligatorios están completos'}">${listos}/4</span></div>` +
       `<div class="pt-form"><div class="pt-row fijo"><span class="pt-lbl">Código<b>*</b></span><button type="button" class="pt-cod" data-pv-copiar title="Tocar para copiar el código">${esc(t.codigo)}</button></div>` +
       fila(t.codigo, 'Proveedor', t.proveedor, 'list="pv-proveedores" data-pv-input', true, !t.proveedor, 'Escribe el proveedor…') +
-      sugerencias('prov', habituales().slice(0, 5)) +
-      fila(t.codigo, 'Ancho (cm)', t.ancho, 'inputmode="decimal" data-pv-ancho', true, !t.ancho, 'Ej. 150') +
-      sugerencias('ancho', anchosHabituales()) +
-      fila(t.codigo, 'ID Effi', t.id_effi, 'inputmode="numeric" data-pv-ide', false, false, 'Opcional') + '</div>' +
+      (edit ? sugerencias('prov', habituales().slice(0, 5)) : '') +
+      fila(t.codigo, 'Ancho (cm)', t.ancho, 'inputmode="decimal" data-pv-ancho', true, !t.ancho, 'Ej. 150', ' cm') +
+      (edit ? sugerencias('ancho', anchosHabituales()) : '') +
+      fila(t.codigo, 'ID Effi', t.id_effi, 'inputmode="numeric" data-pv-ide', false, false, 'Opcional') + '</div>' + acciones +
       `<div class="pt-stats"><div><b>${f0(mts)}</b><span>MTS en bodega</span></div><div><b>${f0(rollos)}</b><span>Rollos</span></div><div><b>${f0(uso)}</b><span>MTS en ${f0(ped)} pedidos</span></div></div>` +
       (uso > 0 ? `<div class="pv-progress" title="${pct}% de la bodega está comprometida en pedidos"><span style="width:${pct}%"></span></div>` : '') +
       `<div class="pv-est ${esc(e.c || '')}" data-pv-est>${esc(e.t || '')}</div></div>`;
@@ -381,6 +395,28 @@
       return true;
     } catch (e) { estado(cod, 'err', e.message); return false; }
   }
+  function abrirEdicion(cod) {
+    st.edit.add(cod); cambiarTarjeta(cod);
+    const tj = host.querySelector('.pv-card[data-cod="' + CSS.escape(cod) + '"]');
+    const vacio = tj && [...tj.querySelectorAll('.pt-row input')].find(i => !i.value && i.required);
+    (vacio || (tj && tj.querySelector('.pt-row input')) || { focus() {} }).focus();
+  }
+  // Guarda de una vez proveedor, ancho e ID Effi de la tarjeta en edición
+  async function guardarTodo(cod) {
+    const tj = host.querySelector('.pv-card[data-cod="' + CSS.escape(cod) + '"]'), t = telas().find(x => x.codigo === cod);
+    if (!tj || !t) return false;
+    const v = s => (tj.querySelector(s) || { value: '' }).value.trim();
+    const cuerpo = { codigo: cod, proveedor: v('[data-pv-input]'), ancho: v('[data-pv-ancho]').replace(',', '.'), id_effi: v('[data-pv-ide]') };
+    estado(cod, 'guardando', 'Guardando…');
+    try {
+      await api('/api/proveedores-tela', { method: 'PUT', body: JSON.stringify(cuerpo) });
+      t.proveedor = cuerpo.proveedor; t.ancho = cuerpo.ancho ? String(Number(cuerpo.ancho)) : ''; t.id_effi = cuerpo.id_effi;
+      st.edit.delete(cod); st.reciente = cod; st.estado[cod] = { c: 'ok', t: '✓ Guardado' };
+      cambiarTarjeta(cod); pintarKpis(); pintarChips();
+      setTimeout(() => { if ((st.estado[cod] || {}).c === 'ok') { delete st.estado[cod]; const e = host.querySelector('.pv-card[data-cod="' + CSS.escape(cod) + '"] [data-pv-est]'); if (e) { e.className = 'pv-est'; e.textContent = ''; } } }, 2200);
+      return true;
+    } catch (e) { estado(cod, 'err', e.message); return false; }
+  }
   async function aplicarMasa(dado) {
     const prov = String(dado || q1('[data-pv-masa]').value).trim(); if (!prov) { q1('[data-pv-masa]').focus(); return; }
     const boton = q1('[data-pv-masa-ok]'); boton.disabled = true;
@@ -437,7 +473,10 @@
       host.addEventListener('mousedown', e => { if (e.target.closest('.pt-chips button')) e.preventDefault(); });   // el campo no pierde el foco al tocar un atajo
       host.addEventListener('click', e => {
         const f = e.target.closest('[data-pv-filtro]'); if (f) { st.filtro = f.dataset.pvFiltro; pintarChips(); pintarGrid(); return; }
-        const ch = e.target.closest('[data-pv-chip]'); if (ch) { const c = cod(e); if (ch.dataset.pvChip === 'ancho') guardarAncho(c, ch.dataset.v); else guardar(c, ch.dataset.v); return; }
+        const ch = e.target.closest('[data-pv-chip]'); if (ch) { const tj = ch.closest('.pv-card'), inp = tj && tj.querySelector(ch.dataset.pvChip === 'ancho' ? '[data-pv-ancho]' : '[data-pv-input]'); if (inp) { inp.value = ch.dataset.v; inp.focus(); } return; }
+        if (e.target.closest('[data-pv-editar],[data-pv-dbl]')) { const c = cod(e); if (c) abrirEdicion(c); return; }
+        if (e.target.closest('[data-pv-cancelar]')) { const c = cod(e); if (c) { st.edit.delete(c); delete st.estado[c]; cambiarTarjeta(c); } return; }
+        if (e.target.closest('[data-pv-guardar]')) { const c = cod(e); if (c) guardarTodo(c); return; }
         const cp = e.target.closest('[data-pv-copiar]'); if (cp) { try { navigator.clipboard.writeText(cp.textContent.trim()); } catch (x) { /* sin portapapeles */ } cp.classList.add('copiado'); setTimeout(() => cp.classList.remove('copiado'), 1200); return; }
         const p = e.target.closest('[data-pv-poner]'); if (p) { guardar(cod(e), p.dataset.pvPoner); return; }
         if (e.target.closest('[data-pv-quitar]')) { guardar(cod(e), ''); return; }
@@ -466,12 +505,10 @@
       host.addEventListener('change', e => {
         const c = cod(e);
         if (e.target.matches('[data-pv-sel]') && c) { e.target.checked ? st.sel.add(c) : st.sel.delete(c); e.target.closest('.pv-card').classList.toggle('sel', e.target.checked); pintarMasa(); return; }
-        if (e.target.matches('[data-pv-ancho]') && c) guardarAncho(c, e.target.value);
-        if (e.target.matches('[data-pv-ide]') && c) guardarCampo(c, 'id_effi', e.target.value);
-        if (e.target.matches('[data-pv-input]') && c) guardar(c, e.target.value);   // vacío = quitar el proveedor;   // al elegir de la lista o salir de la casilla
+        // los campos de la tarjeta ya no se guardan solos: se guardan con el botón GUARDAR (o Enter) de la tarjeta en edición
       });
       host.addEventListener('input', e => { if (e.target.matches('[data-pv-buscar]')) { st.buscar = e.target.value; pintarGrid(); } });
-      host.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('[data-pv-fam-input]')) { e.preventDefault(); const b = e.target.parentElement.querySelector('[data-pv-fam-aplicar]'); if (b) aplicarFamilia(e.target.dataset.pvFamInput, b); return; } if (e.key === 'Enter' && e.target.matches('[data-pv-ide]')) { e.preventDefault(); const c = cod(e); if (c) guardarCampo(c, 'id_effi', e.target.value); } if (e.key === 'Enter' && e.target.matches('[data-pv-ancho]')) { e.preventDefault(); const c = cod(e); if (c) guardarAncho(c, e.target.value); } if (e.key === 'Enter' && e.target.matches('[data-pv-input]')) { e.preventDefault(); const c = cod(e); if (c) guardar(c, e.target.value); } });
+      host.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('[data-pv-fam-input]')) { e.preventDefault(); const b = e.target.parentElement.querySelector('[data-pv-fam-aplicar]'); if (b) aplicarFamilia(e.target.dataset.pvFamInput, b); return; } if (e.target.matches('.pt-row input')) { const c = cod(e); if (c && e.key === 'Enter') { e.preventDefault(); guardarTodo(c); } if (c && e.key === 'Escape') { st.edit.delete(c); delete st.estado[c]; cambiarTarjeta(c); } } });
     }
     if (!st.datos) { pintar(); cargar(); }
     else if (!host.firstElementChild) pintar();
