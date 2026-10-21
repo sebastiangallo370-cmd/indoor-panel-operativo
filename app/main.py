@@ -385,6 +385,27 @@ def senal_orden_programada(origen: str = ''):
     threading.Thread(target=correr, name='senal-orden-programada', daemon=True).start()
 
 
+def _trazo_candidatos() -> list[dict]:
+    """Referencias que ya están en la cola de TRAZO/CORTE/PLT: tela que no es blanca, celdas de TRAZO vacías y pedido sin entregar."""
+    base = _produccion_base()   # ya trae «N/A» en TRAZO para lo entregado o de tela blanca (solo se lee)
+    headers = [''.join(c for c in unicodedata.normalize('NFD', str(h or '')) if not unicodedata.combining(c)).strip().upper() for h in base.get('headers') or []]
+    if 'ORDEN' not in headers or 'REFERENCIA' not in headers:
+        return []
+    i_orden, i_ref = headers.index('ORDEN'), headers.index('REFERENCIA')
+    cols = [i for i, h in enumerate(base.get('headers') or []) if _proceso_de(h) == trazo_plt.ETIQUETA]
+    plano = lambda v: re.sub(r'\s+', '', str(v or '')).upper()
+    salida = []
+    for r in base.get('rows') or []:
+        v = r['values']
+        orden, ref = plano(v[i_orden] if i_orden < len(v) else ''), plano(v[i_ref] if i_ref < len(v) else '')
+        if not orden or not ref or not trazo_plt.aplica_trazo(ref):
+            continue
+        if any(i < len(v) and str(v[i] or '').strip() for i in cols):
+            continue   # ya empezó, terminó o no aplica: solo entran a la cola las que siguen vacías
+        salida.append({'clave': f'{orden}|{ref}', 'orden': orden, 'ref': ref})
+    return salida
+
+
 def _llenar_mts_tarjetas(origen: str = '') -> None:
     """Anota en MTS REQUERIDOS (solo en el panel, nunca en el Sheet) los MTS calculados con el promedio de las tarjetas que aún no los tienen.
     Antes lo hacía el reloj de ZEUS; ahora corre cuando entra una orden y cada 10 minutos, para que ninguna tarjeta nueva se quede «Sin registrar»."""
@@ -395,6 +416,12 @@ def _llenar_mts_tarjetas(origen: str = '') -> None:
             avisar_zeus('MTS requeridos anotados')
     except Exception:
         logging.exception('No se pudieron anotar los MTS requeridos')
+    try:   # DRACO: las órdenes que entran a TRAZOS (tela de color) reciben sus DXF, uno por talla
+        lanzadas = agentes_mod.auto_trazo(_trazo_candidatos())
+        if lanzadas:
+            logging.info('DRACO: trazos automáticos para %s (%s)', ', '.join(lanzadas), origen or 'periódico')
+    except Exception:
+        logging.exception('No se pudo avisar a DRACO de las órdenes nuevas en TRAZOS')
 
 
 def _vigilar_mts_tarjetas() -> None:
