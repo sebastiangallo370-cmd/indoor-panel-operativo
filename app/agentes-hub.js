@@ -29,7 +29,7 @@
   #agentes-hub .ah-fila{display:flex;align-items:center}
   #agentes-hub .ah-lista button{display:flex!important;align-items:center;gap:10px;min-width:0!important;margin:0!important;border:0!important;background:transparent!important;color:#e8f0e0!important;text-align:left;box-shadow:none!important;cursor:pointer;transition:background .12s,transform .12s}
   #agentes-hub .ah-ir{flex:1;justify-content:space-between;padding:12px 12px!important;border-radius:13px!important}
-  #agentes-hub .ah-ir b{font:900 13px Arial;letter-spacing:.12em}
+  #agentes-hub .ah-ir b{font:800 10.5px Arial!important;letter-spacing:.1em!important}
   #agentes-hub .ah-ir:hover,#agentes-hub .ah-mas:hover{background:rgba(208,244,76,.14)!important}
   #agentes-hub .ah-mas{flex:0 0 40px;width:40px!important;height:40px;justify-content:center;border-radius:11px!important;padding:0!important}
   #agentes-hub .ah-mas i{width:8px;height:8px;border-right:2px solid #d0f44c;border-bottom:2px solid #d0f44c;transform:rotate(45deg) translateY(-2px);transition:transform .2s}
@@ -40,8 +40,8 @@
   #agentes-hub .ah-ag button:hover{background:rgba(208,244,76,.14)!important;transform:translateX(2px)}
   #agentes-hub .ah-ag em{flex:0 0 26px;height:26px;display:grid;place-items:center;border-radius:50%;background:rgba(208,244,76,.12);border:1px solid rgba(208,244,76,.28);font:900 11px Arial;font-style:normal;color:#d0f44c}
   #agentes-hub .ah-ag span{display:grid;gap:1px;min-width:0}
-  #agentes-hub .ah-ag b{font:900 12px Arial;letter-spacing:.1em}
-  #agentes-hub .ah-lista small{font:600 11px Arial;color:#9aa893}
+  #agentes-hub .ah-ag b{font:800 10px Arial!important;letter-spacing:.08em!important}
+  #agentes-hub .ah-lista small{font:600 10px Arial;color:#9aa893}
   @keyframes ahIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
   #open-ecommerce,#open-zeus,#open-agentes,#open-agentes-hub{display:none!important}   /* los agentes ya no van en el menú de la cuenta: se abren con el robot */
   `;
