@@ -108,6 +108,10 @@ def telas() -> list[dict]:
         t['referencias'] = refs.get(c, [])
         t.update(proveedor=g.get('proveedor', ''), nit=g.get('nit', ''), ancho=g.get('ancho', ''), id_effi=g.get('id_effi', ''))
         t.update({k: g.get(k, '') for k in CAMPOS_EXTRA})   # datos opcionales de la ficha de la tela
+        try:   # para los agentes: el precio como número, aunque en la tarjeta se muestre tal como se escribió
+            t['precio_num'] = _numero(str(t.get('precio_sin_iva') or '')) if t.get('precio_sin_iva') else None
+        except HTTPException:
+            t['precio_num'] = None
         t['faltan'] = [n for n, v in (('proveedor', t['proveedor']), ('ancho', t['ancho'])) if not v]   # los 4 datos obligatorios: nombre y código siempre vienen del inventario
     return sorted(por_codigo.values(), key=lambda t: (int(t['codigo']), t['nombre']))
 
@@ -117,18 +121,30 @@ def _limpiar_extra(campo: str, valor) -> str:
     if not texto:
         return ''
     if campo in ('gramaje', 'precio_sin_iva'):
-        numero = texto.replace('$', '').replace(' ', '')
-        if re.fullmatch(r'\d{1,3}(\.\d{3})+(,\d+)?', numero):   # 12.500 o 1.250.000,50 (formato colombiano)
-            numero = numero.replace('.', '').replace(',', '.')
-        else:
-            numero = numero.replace(',', '.')
-        try:
-            n = float(numero)
-        except ValueError:
-            raise HTTPException(400, ('El gramaje' if campo == 'gramaje' else 'El precio') + ' debe ser un número')
-        if n < 0 or n > 100000000:
-            raise HTTPException(400, 'Valor fuera de rango')
-        return format(n, '.4f').rstrip('0').rstrip('.')   # sin notación científica (1250000, no 1.25e+06)
+        n = _numero(texto, campo)
+        if campo == 'precio_sin_iva':
+            return texto[:30]   # el precio se guarda y se muestra TAL COMO SE ESCRIBIÓ (solo se valida que sea un número)
+        return format(n, '.4f').rstrip('0').rstrip('.')
+    return _limpiar_texto(campo, texto)
+
+
+def _numero(texto: str, campo: str = 'precio_sin_iva') -> float:
+    """Lee un número escrito a la colombiana o con punto decimal («$ 18.500», «7,93», «1.250.000», «150»)."""
+    numero = texto.replace('$', '').replace(' ', '')
+    if re.fullmatch(r'\d{1,3}(\.\d{3})+(,\d+)?', numero):   # 12.500 o 1.250.000,50 (formato colombiano)
+        numero = numero.replace('.', '').replace(',', '.')
+    else:
+        numero = numero.replace(',', '.')
+    try:
+        n = float(numero)
+    except ValueError:
+        raise HTTPException(400, ('El gramaje' if campo == 'gramaje' else 'El precio') + ' debe ser un número')
+    if n < 0 or n > 100000000:
+        raise HTTPException(400, 'Valor fuera de rango')
+    return n
+
+
+def _limpiar_texto(campo: str, texto: str) -> str:
     if campo == 'correo':
         if not re.fullmatch(r'[^@\s]+@[^@\s]+\.[^@\s]+', texto):
             raise HTTPException(400, 'El correo del proveedor no es válido')
