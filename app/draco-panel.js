@@ -112,7 +112,7 @@
     caja.innerHTML =
       `<header class="dr-hd"><div><small>AGENTE DE TRAZOS</small><h2>DRACO</h2><p>Crea un trazo (un DXF) por cada talla en Optitex Mark y lo guarda en la carpeta CORTE PLT de la orden. Solo corre en el PC AUTOMATIZACIÓN; aquí le pides y ves lo que hace.</p></div>` +
       `<div class="dr-pills"><span class="dr-pill ${st.pc.conectado ? 'ok' : 'mal'}"><i></i>PC AUTOMATIZACIÓN · ${st.pc.conectado ? 'conectado' : (st.pc.id ? 'sin conexión (' + esc(hace(st.pc.visto)) + ')' : 'no registrado')}</span>` +
-      `<span class="dr-pill ok"><i></i>Automático: al entrar una orden a TRAZOS</span></div></header>` +
+      `<span class="dr-pill ok"><i></i>Se activa con «P» en TRAZO/CORTE/PLT</span></div></header>` +
       (st.aviso ? `<div class="dr-aviso">${esc(st.aviso)}</div>` : '') +
       `<div class="dr-grid"><section class="dr-col"><h3>COLA DE TRAZOS <em>${st.ordenes.length} ${st.ordenes.length === 1 ? 'orden' : 'órdenes'}</em></h3>` +
       (st.cargada ? (st.ordenes.length ? st.ordenes.map(tarjeta).join('') : '<div class="dr-vacio">No hay órdenes con tela de color pendientes de trazo.</div>') : '<div class="dr-vacio">Cargando…</div>') + `</section>` +

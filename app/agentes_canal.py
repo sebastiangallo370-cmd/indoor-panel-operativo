@@ -978,21 +978,21 @@ PC_TRAZOS = 'AUTOMATIZACION'   # DRACO solo corre en este PC (el que tiene Optit
 
 def auto_trazo(candidatos: list[dict]) -> list[str]:
     """candidatos: referencias que tienen que pasar por TRAZO/CORTE/PLT (tela que no es blanca) y aún no lo han hecho: [{'clave', 'orden', 'ref'}].
-    Cuando una orden entra a TRAZOS, DRACO crea sus DXF (uno por talla) en la carpeta CORTE PLT de la orden. El mensaje va SIEMPRE al canal del PC
+    Cuando alguien pone «P» en TRAZO/CORTE/PLT de una referencia, DRACO crea sus DXF (uno por talla) en la carpeta CORTE PLT de la orden. El mensaje va SIEMPRE al canal del PC
     AUTOMATIZACION (en los demás PC no corre). La primera vez solo se anotan las que ya estaban (el historial no se toca). Si ese PC no está
     conectado, o la persona está esperando una respuesta, se reintenta en la siguiente vuelta. Devuelve las órdenes lanzadas."""
     lanzadas = []
     with _lock:
         datos = _leer()
         auto = datos['auto']
-        if auto.get('vistos_trazo') is None:
-            auto['vistos_trazo'] = [c['clave'] for c in candidatos]
+        if auto.get('vistos_trazo_p') is None:
+            auto['vistos_trazo_p'] = [c['clave'] for c in candidatos]
             _guardar(datos)
             return lanzadas
         pid = next((p for p, info in datos['pcs'].items() if str(info.get('nombre', '')).strip().upper() == PC_TRAZOS), '')
         if not pid or not _conectado(datos, pid):
             return lanzadas   # sin el PC de DRACO conectado no se manda nada: se reintenta luego
-        vistos = set(auto['vistos_trazo'])
+        vistos = set(auto['vistos_trazo_p'])
         cambio = False
         for c in candidatos:
             if c['clave'] in vistos:
@@ -1004,12 +1004,12 @@ def auto_trazo(candidatos: list[dict]) -> list[str]:
             if any(m['sesion'] == sesion and m['rol'] == 'yo' and not m.get('respondido') and not m.get('oculto') for m in datos['mensajes']):
                 continue
             orden = c['orden']
-            _nuevo(datos, sesion, 'yo', f"draco trazo {orden} (automático: la orden entró a TRAZOS)", t=_ahora(), tomado=False, respondido=False, auto=True)
+            _nuevo(datos, sesion, 'yo', f"draco trazo {orden} (automático: «P» en TRAZO/CORTE/PLT)", t=_ahora(), tomado=False, respondido=False, auto=True)
             vistos.add(c['clave']); cambio = True
             vistos |= {x['clave'] for x in candidatos if x['orden'] == orden}   # las demás referencias de la orden salen en el mismo pedido
             lanzadas.append(orden)
         if cambio:
-            auto['vistos_trazo'] = sorted(vistos)[-3000:]
+            auto['vistos_trazo_p'] = sorted(vistos)[-3000:]
             _guardar(datos)
     return lanzadas
 

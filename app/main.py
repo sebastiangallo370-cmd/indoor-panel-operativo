@@ -386,8 +386,9 @@ def senal_orden_programada(origen: str = ''):
 
 
 def _trazo_candidatos() -> list[dict]:
-    """Referencias que ya están en la cola de TRAZO/CORTE/PLT: tela que no es blanca, celdas de TRAZO vacías y pedido sin entregar."""
-    base = _produccion_base()   # ya trae «N/A» en TRAZO para lo entregado o de tela blanca (solo se lee)
+    """Referencias a las que una persona les puso «P» en TRAZO/CORTE/PLT (en la tarjeta o en el Google Sheets): esa es la señal para que DRACO cree sus DXF.
+    Ya no arranca solo cuando la orden entra a TRAZOS."""
+    base = _produccion_base()
     headers = [''.join(c for c in unicodedata.normalize('NFD', str(h or '')) if not unicodedata.combining(c)).strip().upper() for h in base.get('headers') or []]
     if 'ORDEN' not in headers or 'REFERENCIA' not in headers:
         return []
@@ -400,9 +401,9 @@ def _trazo_candidatos() -> list[dict]:
         orden, ref = plano(v[i_orden] if i_orden < len(v) else ''), plano(v[i_ref] if i_ref < len(v) else '')
         if not orden or not ref or not trazo_plt.aplica_trazo(ref):
             continue
-        if any(i < len(v) and str(v[i] or '').strip() for i in cols):
-            continue   # ya empezó, terminó o no aplica: solo entran a la cola las que siguen vacías
-        salida.append({'clave': f'{orden}|{ref}', 'orden': orden, 'ref': ref})
+        celdas = [str(v[i] or '').strip().upper() for i in cols if i < len(v)]
+        if 'P' in celdas and not any(c == 'N/A' or parse_production_date(c) for c in celdas):
+            salida.append({'clave': f'{orden}|{ref}', 'orden': orden, 'ref': ref})
     return salida
 
 
@@ -469,12 +470,21 @@ def _llenar_mts_tarjetas(origen: str = '') -> None:
             avisar_zeus('MTS requeridos anotados')
     except Exception:
         logging.exception('No se pudieron anotar los MTS requeridos')
-    try:   # DRACO: las órdenes que entran a TRAZOS (tela de color) reciben sus DXF, uno por talla
-        lanzadas = agentes_mod.auto_trazo(_trazo_candidatos())
-        if lanzadas:
-            logging.info('DRACO: trazos automáticos para %s (%s)', ', '.join(lanzadas), origen or 'periódico')
-    except Exception:
-        logging.exception('No se pudo avisar a DRACO de las órdenes nuevas en TRAZOS')
+
+
+def _vigilar_trazos_p() -> None:
+    """Cada minuto revisa si alguien puso «P» en TRAZO/CORTE/PLT para despertar a DRACO."""
+    def ciclo():
+        time.sleep(60)
+        while True:
+            try:
+                lanzadas = agentes_mod.auto_trazo(_trazo_candidatos())
+                if lanzadas:
+                    logging.info('DRACO: «P» en TRAZO/CORTE/PLT → %s', ', '.join(lanzadas))
+            except Exception:
+                logging.exception('No se pudo avisar a DRACO')
+            time.sleep(60)
+    threading.Thread(target=ciclo, name='trazos-p', daemon=True).start()
 
 
 def _vigilar_mts_tarjetas() -> None:
@@ -888,6 +898,7 @@ def startup():
     sheets_sync.start(connect, legacy.get_gspread, STATE_DIR, al_haber_filas_nuevas=lambda: senal_orden_programada('fila nueva en el Sheet'))
     start_sublimacion_worker()
     _vigilar_mts_tarjetas()
+    _vigilar_trazos_p()
     db_backup.start(DB_PATH, STATE_DIR, legacy.get_supabase)
     respaldo.start(DATA_ROOT, DB_PATH)
     alertas_correo.start(_problemas_salud, STATE_DIR)
@@ -6830,7 +6841,7 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
 `;document.head.appendChild(traceFigmaStyle);setTraceView();
     const commercialGroup=commercialToggle.closest('.nav-group');commercialGroup.classList.add('collapsed');const productionToggle=document.getElementById('production-toggle');if(productionToggle)productionToggle.addEventListener('click',()=>{{const g=productionToggle.closest('.nav-group');g.classList.toggle('collapsed');if(!g.classList.contains('collapsed')&&window.innerWidth>860)g.querySelector('.nav-children .tab')?.click()}});
     setTimeout(()=>{{if(!document.querySelector('.panel.active'))document.querySelector('.tab[data-kind="inicio"]')?.click()}},0);
-    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/liquid-stats.js?v=20261019-1'></script><script src='/permisos.js?v=20261007-2'></script><script src='/reposiciones.js?v=20261019-1'></script><script src='/agentes.js?v=20261021-1'></script><script src='/promedios.js?v=20261006-7'></script><script src='/capacidad.js?v=20261009-2'></script><script src='/molderia.js?v=20261010-2'></script><script src='/estandar.js?v=20261020-1'></script><script src='/proveedores-tela.js?v=20261021-1'></script><script src='/terminos.js?v=20261010-1'></script><script src='/cookies-aviso.js?v=20261010-1'></script><script src='/rh-contratos.js?v=20261009-3'></script><script src='/fichas-resumen.js?v=20261010-16'></script><script src='/api/cartera/cartera.js?v=20261009-1'></script><script src='/trace-ui.js?v=20261020-1'></script><script src='/home-dashboard.js?v=20261019-1'></script><script src='/bodega-dashboard.js?v=20261019-6'></script><script src='/bodegas.js?v=20261009-7'></script><script src='/codigos-barras.js?v=20261014-3'></script><script src='/mis-pedidos.js?v=20261008-4'></script><script src='/crear-cliente.js?v=20261018-5'></script><script src='/club-admin.js?v=20261020-1'></script><script src='/mobile-nav.js?v=20261018-1'></script><script src='/nav-liquid.js?v=20261003-3'></script><script src='/build-watch.js?v=20261002-1'></script><script src='/salud.js?v=20261014-2'></script><script src='/alertas.js?v=20261018-2'></script><script src='/bitacora.js?v=20261016-2'></script><script src='/memoria.js?v=20261018-1'></script><script src='/ecommerce.js?v=20261019-1'></script><script src='/zeus.js?v=20261020-1'></script><script src='/draco-panel.js?v=20261021-1'></script><script src='/agentes-hub.js?v=20261021-4'></script><script src='/recordar-vista.js?v=20261018-1'></script><script src='/tema.js?v=20261008-1'></script><script src='/tarjeta-iconos.js?v=20261002-5'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261018-1'></script><script src='/linea-editor.js?v=20261008-1'></script><script src='/menu-cuenta.js?v=20261016-3'></script><script src='/foto-perfil.js?v=20261008-4'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
+    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/liquid-stats.js?v=20261019-1'></script><script src='/permisos.js?v=20261007-2'></script><script src='/reposiciones.js?v=20261019-1'></script><script src='/agentes.js?v=20261021-1'></script><script src='/promedios.js?v=20261006-7'></script><script src='/capacidad.js?v=20261009-2'></script><script src='/molderia.js?v=20261010-2'></script><script src='/estandar.js?v=20261020-1'></script><script src='/proveedores-tela.js?v=20261021-1'></script><script src='/terminos.js?v=20261010-1'></script><script src='/cookies-aviso.js?v=20261010-1'></script><script src='/rh-contratos.js?v=20261009-3'></script><script src='/fichas-resumen.js?v=20261010-16'></script><script src='/api/cartera/cartera.js?v=20261009-1'></script><script src='/trace-ui.js?v=20261020-1'></script><script src='/home-dashboard.js?v=20261019-1'></script><script src='/bodega-dashboard.js?v=20261019-6'></script><script src='/bodegas.js?v=20261009-7'></script><script src='/codigos-barras.js?v=20261014-3'></script><script src='/mis-pedidos.js?v=20261008-4'></script><script src='/crear-cliente.js?v=20261018-5'></script><script src='/club-admin.js?v=20261020-1'></script><script src='/mobile-nav.js?v=20261018-1'></script><script src='/nav-liquid.js?v=20261003-3'></script><script src='/build-watch.js?v=20261002-1'></script><script src='/salud.js?v=20261014-2'></script><script src='/alertas.js?v=20261018-2'></script><script src='/bitacora.js?v=20261016-2'></script><script src='/memoria.js?v=20261018-1'></script><script src='/ecommerce.js?v=20261019-1'></script><script src='/zeus.js?v=20261020-1'></script><script src='/draco-panel.js?v=20261021-2'></script><script src='/agentes-hub.js?v=20261021-4'></script><script src='/recordar-vista.js?v=20261018-1'></script><script src='/tema.js?v=20261008-1'></script><script src='/tarjeta-iconos.js?v=20261002-5'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261018-1'></script><script src='/linea-editor.js?v=20261008-1'></script><script src='/menu-cuenta.js?v=20261016-3'></script><script src='/foto-perfil.js?v=20261008-4'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
 
 
 def ordered_mockup_uploads(extras, slots):
