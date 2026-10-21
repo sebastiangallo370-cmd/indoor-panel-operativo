@@ -379,7 +379,7 @@
       fila(t.codigo, 'Vendedor proveedor', t.vendedor, 'data-pv-opc data-pv-vend', false, false, 'Nombre del vendedor') +
       fila(t.codigo, 'WPP proveedor', t.wpp, 'inputmode="tel" data-pv-opc data-pv-wpp', false, false, 'Ej. 573001234567') +
       fila(t.codigo, 'Correo proveedor', t.correo, 'inputmode="email" data-pv-opc data-pv-correo', false, false, 'correo@proveedor.com') +
-      fila(t.codigo, 'Precio sin IVA', t.precio_sin_iva ? Number(t.precio_sin_iva).toLocaleString('es-CO') : '', 'inputmode="decimal" data-pv-opc data-pv-precio', false, false, 'Ej. 18500', ' COP') +
+      fila(t.codigo, 'Precio sin IVA (COP)', t.precio_sin_iva ? new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(Number(t.precio_sin_iva)) : '', 'inputmode="decimal" data-pv-opc data-pv-precio', false, false, 'Ej. $ 18.500') +
       '</div>' + acciones +
       `<div class="pt-stats"><div data-lq="${Math.min(100, Math.round(mts / 25))}" data-lq-tone="gris" data-lq-nopct><b data-n="${mts}">${f0(mts)}</b><span>MTS en bodega</span></div>` +
       '</div>' +
