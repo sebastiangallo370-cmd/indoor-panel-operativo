@@ -3019,6 +3019,8 @@ def _agentes_trazo_listo(orden: str, referencia: str, momento: str = 'fin') -> d
     i_hi = next((k for k in range(i_trazo + 1, min(i_trazo + 6, len(titulos))) if titulos[k] == 'HORA INICIO'), -1)
     i_hf = next((k for k in range(i_trazo + 1, min(i_trazo + 6, len(titulos))) if titulos[k] == 'HORA FINAL'), -1)
     hm = ahora.strftime('%H:%M')
+    # todas las columnas de la etapa TRAZO/CORTE/PLT (TRAZO y CORTE TEXTIL/PLT): la tarjeta queda finalizada en las dos, igual que en el Sheet
+    otras = [k + 1 for k, h in enumerate(json.loads(meta.get('headers') or '[]')) if k != i_trazo and _proceso_de(h) == trazo_plt.ETIQUETA]
     resultado = {'ok': True, 'orden': orden, 'referencia': referencia, 'filas': []}
     col_trazo = i_trazo + 1
     for fila in filas:
@@ -3026,6 +3028,8 @@ def _agentes_trazo_listo(orden: str, referencia: str, momento: str = 'fin') -> d
         celdas = {col_trazo: valor}
         if i_resp >= 0:
             celdas[i_resp + 1] = 'AGENT'
+        for c in otras:
+            celdas[c] = valor
         if momento == 'inicio' and i_hi >= 0:
             celdas[i_hi + 1] = hm   # HORA INICIO (solo si está vacía)
         if momento != 'inicio' and i_hf >= 0:
@@ -3044,6 +3048,10 @@ def _agentes_trazo_listo(orden: str, referencia: str, momento: str = 'fin') -> d
                 resultado['filas'].append({'fila': fila, 'omitida': f'TRAZO ya tiene «{actual}»'})
                 continue   # ya empezó o ya está terminado (por una persona): no se toca
             v[col_trazo - 1] = valor
+            for c in otras:
+                if str(v[c - 1] if c <= len(v) else '').strip().upper() in ('', 'P', 'R'):
+                    v.extend([''] * max(0, c - len(v)))
+                    v[c - 1] = valor
             if i_resp >= 0 and not str(v[i_resp]).strip():
                 v[i_resp] = 'AGENT'
             if momento == 'inicio' and i_hi >= 0 and not str(v[i_hi]).strip():
@@ -3062,8 +3070,8 @@ def _agentes_trazo_listo(orden: str, referencia: str, momento: str = 'fin') -> d
             db.execute('UPDATE production_rows SET values_json=? WHERE source_row=?', (json.dumps(v, ensure_ascii=False), fila))
             db.execute("INSERT OR REPLACE INTO production_meta(key,value) VALUES ('updated_at',?)", (datetime.now(timezone.utc).isoformat(),))
         # en el Google Sheets: TRAZO solo si está vacío (o en «P» al terminar) y RESP. solo si está vacío
-        permitido = {col_trazo: {'', 'P'} if momento != 'inicio' else {''}}
-        solo_vacias = {c for c in celdas if c != col_trazo and c != (i_hf + 1)}   # HORA FINAL sí se actualiza; lo demás no se pisa
+        permitido = {c: {'', 'P'} if momento != 'inicio' else {''} for c in [col_trazo] + otras}
+        solo_vacias = {c for c in celdas if c not in permitido and c != (i_hf + 1)}   # HORA FINAL sí se actualiza; lo demás no se pisa
         resultado['filas'].append({'fila': fila, 'sheet': _agentes_escribir_sheet(fila, celdas, solo_vacias, permitido)})
     logging.info('DRACO: TRAZO/CORTE/PLT (%s): %s', momento, resultado)
     if momento != 'inicio':
