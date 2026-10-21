@@ -376,6 +376,8 @@
       fila(t.codigo, 'Composición', t.composicion, 'data-pv-opc data-pv-comp', false, false, 'Ej. 100% poliéster', '', 'pt-w2') +
       fila(t.codigo, 'Gramaje', t.gramaje, 'inputmode="decimal" data-pv-opc data-pv-gram', false, false, 'Ej. 150', ' g/m²') +
       fila(t.codigo, 'Tipo', t.tipo, 'data-pv-opc data-pv-tipo', false, false, 'Ej. Punto, Plano, Rib') +
+      fila(t.codigo, 'Stock mínimo', t.stock_minimo, 'inputmode="decimal" data-pv-opc data-pv-smin', false, false, 'Ej. 1200', ' mts') +
+      fila(t.codigo, 'Stock máximo', t.stock_maximo, 'inputmode="decimal" data-pv-opc data-pv-smax', false, false, 'Ej. 1800', ' mts') +
       fila(t.codigo, 'Vendedor proveedor', t.vendedor, 'data-pv-opc data-pv-vend', false, false, 'Nombre del vendedor') +
       fila(t.codigo, 'WPP proveedor', t.wpp, 'inputmode="tel" data-pv-opc data-pv-wpp', false, false, 'Ej. 573001234567') +
       fila(t.codigo, 'Correo proveedor', t.correo, 'inputmode="email" data-pv-opc data-pv-correo', false, false, 'correo@proveedor.com') +
@@ -508,7 +510,7 @@
     if (!tj || !t) return false;
     const v = s => (tj.querySelector(s) || { value: '' }).value.trim();
     const cuerpo = { codigo: cod, proveedor: v('[data-pv-input]'), ancho: v('[data-pv-ancho]').replace(',', '.'), id_effi: v('[data-pv-ide]'),
-      composicion: v('[data-pv-comp]'), gramaje: v('[data-pv-gram]'), tipo: v('[data-pv-tipo]'), vendedor: v('[data-pv-vend]'), correo: v('[data-pv-correo]'), precio_sin_iva: v('[data-pv-precio]'), wpp: v('[data-pv-wpp]') };
+      composicion: v('[data-pv-comp]'), gramaje: v('[data-pv-gram]'), tipo: v('[data-pv-tipo]'), stock_minimo: v('[data-pv-smin]'), stock_maximo: v('[data-pv-smax]'), vendedor: v('[data-pv-vend]'), correo: v('[data-pv-correo]'), precio_sin_iva: v('[data-pv-precio]'), wpp: v('[data-pv-wpp]') };
     estado(cod, 'guardando', 'Guardando…');
     try {
       await api('/api/proveedores-tela', { method: 'PUT', body: JSON.stringify(cuerpo) });

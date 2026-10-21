@@ -65,7 +65,7 @@ def proveedor_de(codigo: str) -> dict:
     return _leer().get(str(codigo), {})
 
 
-CAMPOS_EXTRA = ('composicion', 'gramaje', 'tipo', 'vendedor', 'correo', 'precio_sin_iva', 'wpp')   # opcionales: se guardan por separado, nunca son obligatorios
+CAMPOS_EXTRA = ('composicion', 'gramaje', 'tipo', 'stock_minimo', 'stock_maximo', 'vendedor', 'correo', 'precio_sin_iva', 'wpp')   # opcionales: se guardan por separado, nunca son obligatorios
 
 _NO_PROVEEDOR = {'VARIAS', 'DON ALVEIRO', ''}   # «VARIAS» no es un proveedor y DON ALVEIRO es otra empresa: no se sugieren
 
@@ -120,11 +120,11 @@ def _limpiar_extra(campo: str, valor) -> str:
     texto = re.sub(r'\s+', ' ', str(valor or '')).strip()
     if not texto:
         return ''
-    if campo in ('gramaje', 'precio_sin_iva'):
+    if campo in ('gramaje', 'precio_sin_iva', 'stock_minimo', 'stock_maximo'):
         n = _numero(texto, campo)
         if campo == 'precio_sin_iva':
             return texto[:30]   # el precio se guarda y se muestra TAL COMO SE ESCRIBIÓ (solo se valida que sea un número)
-        return format(n, '.4f').rstrip('0').rstrip('.')
+        return format(n, '.4f').rstrip('0').rstrip('.')   # gramaje y stocks (metros) se guardan como número limpio
     return _limpiar_texto(campo, texto)
 
 
