@@ -198,7 +198,8 @@ def autollenar_mts(ordenes: list[dict]) -> dict:
     """Anota «NN.NN MTS» en MTS REQUERIDOS (nota de la columna 17) de las tarjetas que todavía no la tienen, con los MTS calculados con el promedio.
     Solo toca el panel: nunca escribe en el Google Sheets. No pisa lo que puso una persona ni lo que ya trae el Sheet; sí actualiza sus propias notas
     cuando el cálculo mejora (por ejemplo al leer el listado de tallas)."""
-    candidatas = [o for o in ordenes if o.get('fila') and float(o.get('mts') or 0) > 0 and o.get('situacion') != 'sin_promedio']
+    # SOLO los cálculos EXACTOS: talla por talla con Promedios maestros (tallas del listado × consumo de cada talla). El promedio general (aproximado) ya no se anota.
+    candidatas = [o for o in ordenes if o.get('fila') and float(o.get('mts') or 0) > 0 and o.get('situacion') != 'sin_promedio' and o.get('exacto')]
     if not candidatas:
         return {'escritas': 0}
     try:

@@ -38,10 +38,10 @@ class AutollenarMts(unittest.TestCase):
             db.close()
 
     def test_solo_llena_donde_nadie_escribio(self):
-        ordenes = [{'fila': 1, 'mts': 12.345, 'situacion': 'alcanza'}, {'fila': 2, 'mts': 99, 'situacion': 'alcanza'},
-                   {'fila': 3, 'mts': 99, 'situacion': 'alcanza'}, {'fila': 4, 'mts': 7.5, 'situacion': 'alcanza', 'exacto': True},
+        ordenes = [{'fila': 1, 'mts': 12.345, 'situacion': 'alcanza', 'exacto': True}, {'fila': 2, 'mts': 99, 'situacion': 'alcanza', 'exacto': True},
+                   {'fila': 3, 'mts': 99, 'situacion': 'alcanza', 'exacto': True}, {'fila': 4, 'mts': 7.5, 'situacion': 'alcanza', 'exacto': True},
                    {'fila': 5, 'mts': 0, 'situacion': 'sin_promedio'}, {'fila': 6, 'mts': 8, 'situacion': 'sin_promedio'},
-                   {'fila': 7, 'mts': 20, 'situacion': 'alcanza', 'estado': 'P'}]
+                   {'fila': 7, 'mts': 20, 'situacion': 'alcanza', 'estado': 'P', 'exacto': True}]
         r = tela_necesaria.autollenar_mts(ordenes)
         n = self.notas()
         self.assertEqual(r['escritas'], 3)
@@ -59,9 +59,15 @@ class AutollenarMts(unittest.TestCase):
         self.assertEqual(self.notas()[4], ('5.00 MTS', 'AGENTE INVENTARIO'))
 
     def test_no_repite(self):
-        o = [{'fila': 1, 'mts': 3, 'situacion': 'alcanza'}]
+        o = [{'fila': 1, 'mts': 3, 'situacion': 'alcanza', 'exacto': True}]
         self.assertEqual(tela_necesaria.autollenar_mts(o)['escritas'], 1)
         self.assertEqual(tela_necesaria.autollenar_mts(o)['escritas'], 0)
+
+    def test_el_aproximado_no_se_anota(self):
+        # el promedio general (sin tallas) ya no se escribe: solo el cálculo exacto por talla con Promedios maestros
+        r = tela_necesaria.autollenar_mts([{'fila': 1, 'mts': 12.3, 'situacion': 'alcanza'}, {'fila': 7, 'mts': 20, 'situacion': 'alcanza', 'exacto': False}])
+        self.assertEqual(r['escritas'], 0)
+        self.assertNotIn(1, self.notas())
 
 
 if __name__ == '__main__':
