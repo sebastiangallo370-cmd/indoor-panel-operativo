@@ -48,5 +48,21 @@ class TrazoCortePltTest(unittest.TestCase):
         self.assertEqual(base['rows'][2]['values'][1:3], ['P', ''])
 
 
+    def test_trazo_terminado_deja_corte_en_na_en_la_web(self):
+        headers = ['REFERENCIA', 'TRAZO', 'CORTE TEXTIL/PLT']
+        fecha = lambda t: t[:2].isdigit() and '-' in t and len(t) >= 8
+        base = {'headers': headers, 'rows': [
+            {'source_row': 1, 'values': ['A7202SHT01', '21-10-2026', '']},        # DRACO terminó TRAZO: CORTE vacío se ve N/A
+            {'source_row': 2, 'values': ['A2102PT12', '21-10-2026', 'P']},         # ▶ había puesto P en CORTE: también N/A
+            {'source_row': 3, 'values': ['A4302SD02', 'P', '']},                  # TRAZO en proceso: no se toca
+            {'source_row': 4, 'values': ['A4302SD02', '', '22-10-2026']},         # CORTE con fecha propia: se respeta
+        ]}
+        trazo_plt.marcar_no_aplica(base, lambda h: trazo_plt.ETIQUETA if h != 'REFERENCIA' else '', fecha)
+        self.assertEqual(base['rows'][0]['values'][1:3], ['21-10-2026', 'N/A'])
+        self.assertEqual(base['rows'][1]['values'][1:3], ['21-10-2026', 'N/A'])
+        self.assertEqual(base['rows'][2]['values'][1:3], ['P', ''])
+        self.assertEqual(base['rows'][3]['values'][1:3], ['', '22-10-2026'])
+
+
 if __name__ == '__main__':
     unittest.main()
