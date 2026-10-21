@@ -5,10 +5,12 @@
   if (window.__agentesHub) return;
   window.__agentesHub = true;
   const AREAS = [
-    { kind: 'agentes', nombre: 'EDICIÓN', agentes: [['TAVO', 'Coordina el pedido'], ['LEO', 'Lee el listado'], ['JACK', 'Crea la muestra'], ['OLVER', 'Mesas de trabajo'], ['OLIVER', 'Tallas, números y PDF'], ['TERRY', 'MTS y Google Sheets'], ['DRACO', 'Trazos en Optitex Mark']] },
-    { kind: 'ecommerce', nombre: 'ECOMMERCE', agentes: [['ALMA', 'Descarga las órdenes'], ['BRISA', 'Exporta las tallas'], ['CIRO', 'PDF y Google Sheets']] },
-    { kind: 'zeus', nombre: 'INVENTARIOS', agentes: [['ZEUS', 'Tela y órdenes de compra']] },
-    { kind: 'club', nombre: 'COMERCIAL', agentes: [['EFFITRON', 'Cotización de las reposiciones']] },
+    { id: 'edicion', kind: 'agentes', nombre: 'EDICIÓN', agentes: [['TAVO', 'Coordina el pedido'], ['LEO', 'Lee el listado'], ['JACK', 'Crea la muestra'], ['OLVER', 'Mesas de trabajo'], ['OLIVER', 'Tallas, números y PDF'], ['TERRY', 'MTS y Google Sheets']] },
+    // TRAZO es su propio desplegable: DRACO se atiende en el chat de Agentes, pero aparece aparte de los de Edición y deja escrito «draco » para pedirle
+    { id: 'trazo', kind: 'agentes', nombre: 'TRAZO', mensaje: 'draco ', agentes: [['DRACO', 'Trazos en Optitex Mark']] },
+    { id: 'ecommerce', kind: 'ecommerce', nombre: 'ECOMMERCE', agentes: [['ALMA', 'Descarga las órdenes'], ['BRISA', 'Exporta las tallas'], ['CIRO', 'PDF y Google Sheets']] },
+    { id: 'zeus', kind: 'zeus', nombre: 'INVENTARIOS', agentes: [['ZEUS', 'Tela y órdenes de compra']] },
+    { id: 'club', kind: 'club', nombre: 'COMERCIAL', agentes: [['EFFITRON', 'Cotización de las reposiciones']] },
   ];
   const ROBOT = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="8" width="15" height="11" rx="3"/><path d="M12 8V4.6"/><circle cx="12" cy="3.6" r="1.1"/><circle cx="9" cy="13" r="1.2"/><circle cx="15" cy="13" r="1.2"/><path d="M9.5 16.4h5M2.5 12.5v3M21.5 12.5v3"/></svg>';
   const css = document.createElement('style');
@@ -56,16 +58,17 @@
     if (!caja) return;
     caja.classList.toggle('listo', lista.length > 0);
     if (!lista.length) return;
-    const clave = lista.map(a => a.kind).join('|') + '>' + (lista.find(a => activa(a.kind)) || {}).kind;
+    const resaltada = a => !a.mensaje && activa(a.kind);   // TRAZO comparte la pantalla de Edición y no se marca como activa
+    const clave = lista.map(a => a.id).join('|') + '>' + (lista.find(resaltada) || {}).id;
     if (caja.dataset.clave === clave) return;
     caja.dataset.clave = clave;
     const total = lista.reduce((n, a) => n + a.agentes.length, 0);
     // la lista muestra primero las ÁREAS (Edición, Ecommerce, Inventarios, Comercial); la flecha de cada una despliega sus agentes
     caja.innerHTML = `<summary title="Agentes (${total})" aria-label="Agentes">${ROBOT}</summary><div class="ah-lista">` +
-      lista.map(a => `<div class="ah-area${abiertas.has(a.kind) ? ' abierta' : ''}${activa(a.kind) ? ' on' : ''}"><div class="ah-fila">` +
-        `<button type="button" class="ah-ir" data-area="${a.kind}"><b>${a.nombre}</b><small>${a.agentes.length} ${a.agentes.length === 1 ? 'agente' : 'agentes'}</small></button>` +
-        `<button type="button" class="ah-mas" data-mas="${a.kind}" title="Ver los agentes de ${a.nombre}" aria-label="Ver los agentes de ${a.nombre}"><i></i></button></div>` +
-        `<div class="ah-ag">` + a.agentes.map(g => `<button type="button" data-area="${a.kind}"><em>${g[0][0]}</em><span><b>${g[0]}</b><small>${g[1]}</small></span></button>`).join('') + '</div></div>').join('') + '</div>';
+      lista.map(a => `<div class="ah-area${abiertas.has(a.id) ? ' abierta' : ''}${resaltada(a) ? ' on' : ''}"><div class="ah-fila">` +
+        `<button type="button" class="ah-ir" data-area="${a.id}"><b>${a.nombre}</b><small>${a.agentes.length} ${a.agentes.length === 1 ? 'agente' : 'agentes'}</small></button>` +
+        `<button type="button" class="ah-mas" data-mas="${a.id}" title="Ver los agentes de ${a.nombre}" aria-label="Ver los agentes de ${a.nombre}"><i></i></button></div>` +
+        `<div class="ah-ag">` + a.agentes.map(g => `<button type="button" data-area="${a.id}"><em>${g[0][0]}</em><span><b>${g[0]}</b><small>${g[1]}</small></span></button>`).join('') + '</div></div>').join('') + '</div>';
   }
 
   function ubicar() {
@@ -100,8 +103,15 @@
         const b = e.target.closest('[data-area]');
         if (!b) return;
         caja.removeAttribute('open');
-        const t = tabDe(b.dataset.area);
+        const area = AREAS.find(a => a.id === b.dataset.area);
+        const t = area && tabDe(area.kind);
         if (t) t.click();
+        if (area && area.mensaje) {   // TRAZO: abre el chat de Agentes y deja escrito «draco » para pedirle lo que necesites
+          setTimeout(() => {
+            const caja = document.querySelector('.panel[data-panel="' + area.kind + '"] textarea');
+            if (caja) { if (!caja.value.trim()) { caja.value = area.mensaje; caja.dispatchEvent(new Event('input', { bubbles: true })); } caja.focus(); }
+          }, 350);
+        }
       });
       document.addEventListener('click', e => { if (caja.open && !caja.contains(e.target)) caja.removeAttribute('open'); });
       document.addEventListener('keydown', e => { if (e.key === 'Escape') caja.removeAttribute('open'); });
