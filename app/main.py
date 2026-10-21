@@ -372,15 +372,11 @@ app.include_router(externa_router, dependencies=[Depends(authenticate)])
 
 
 def senal_orden_programada(origen: str = ''):
-    """La página le avisa a los agentes que entró una orden nueva: TERRY calcula sus MTS de inmediato. Se llama solo cuando ocurre el hecho
+    """La página le avisa al agente de inventario (ZEUS) que entró una orden nueva: calcula sus MTS de inmediato y manda la alerta de tela. Se llama solo cuando ocurre el hecho
     (el pedido se programó en el panel o el Sheet trajo filas nuevas); no hay ningún reloj que revise. Corre en segundo plano para no demorar a quien programa."""
     def correr():
-        try:
-            lanzadas = agentes_mod.auto_mts(_edicion_finalizada_sin_mts(False), 'vistos_mts_prog', 'orden programada')
-            if lanzadas:
-                logging.info('Agentes: señal de orden nueva (%s) → cálculo de MTS para %s', origen or 'panel', ', '.join(lanzadas))
-        except Exception:
-            logging.exception('No se pudo avisar a los agentes de la orden nueva')
+        # Al programar, los MTS los calcula SOLO el agente de inventario (ZEUS): el mismo que luego compara contra la bodega y envía la alerta de tela.
+        # TERRY ya no calcula al programar (solo queda su respaldo al terminar EDICIÓN para las tarjetas que sigan sin MTS).
         _llenar_mts_tarjetas(origen)
     threading.Thread(target=correr, name='senal-orden-programada', daemon=True).start()
 
