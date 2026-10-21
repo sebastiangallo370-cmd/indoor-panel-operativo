@@ -2404,7 +2404,7 @@ def read_production_sheet() -> dict:
         heading_rows = blocks[0] if blocks else []
         groups = list(heading_rows[0]) if heading_rows else []
         headers = list(heading_rows[1]) if len(heading_rows) > 1 else []
-        width = max(len(groups), len(headers), 83)
+        width = max(len(groups), len(headers), 120)
         groups += [""] * (width - len(groups))
         headers += [""] * (width - len(headers))
         current_group = "GENERAL"
@@ -4179,7 +4179,7 @@ async def update_production_cell(payload: dict = Body(...), _=Depends(authentica
     except (TypeError, ValueError) as exc:
         raise HTTPException(400, "Fila o columna inválida") from exc
     value = str(payload.get("value", ""))
-    if row < PRODUCTION_START_ROW or column < 1 or column > 83:
+    if row < PRODUCTION_START_ROW or column < 1 or column > 120:
         raise HTTPException(400, "La celda está fuera del área editable de Producción")
     if len(value) > 5000:
         raise HTTPException(400, "El contenido de la celda es demasiado largo")

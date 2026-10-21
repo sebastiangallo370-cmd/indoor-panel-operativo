@@ -1,7 +1,9 @@
 """Read-only Sheets -> production delta sync. No source or NAS writes."""
 import collections
+import difflib
 import json
 import logging
+import re
 import sqlite3
 import threading
 from datetime import datetime, timezone
@@ -9,7 +11,7 @@ from datetime import datetime, timezone
 SPREADSHEET_ID = '1n7t5F1ZTX4Fwj3_ZAS1hdHnF7g16kTXfmFFkNa7M3tg'
 SHEET_ID = 1514880696
 START_ROW = 706
-WIDTH = 83
+WIDTH = 83   # mínimo; el ancho real lo lee fetch() de la hoja
 
 
 def identity(values):
@@ -39,8 +41,10 @@ def fetch(worksheet):
     meta = worksheet.spreadsheet.fetch_sheet_metadata()
     prop = next(s['properties'] for s in meta['sheets'] if s['properties']['sheetId'] == SHEET_ID)
     title = prop['title'].replace("'", "''")
-    ranges = [f"'{title}'!A2:CE3"] + [
-        f"'{title}'!A{s}:CE{min(s+249, prop['gridProperties']['rowCount'])}"
+    ancho = max(WIDTH, int(prop['gridProperties'].get('columnCount') or WIDTH))   # el ancho REAL de la hoja: si le insertan columnas, se leen todas
+    ultima = _letras(ancho)
+    ranges = [f"'{title}'!A2:{ultima}3"] + [
+        f"'{title}'!A{s}:{ultima}{min(s+249, prop['gridProperties']['rowCount'])}"
         for s in range(START_ROW, prop['gridProperties']['rowCount']+1, 250)]
     cells = {}
     for bounded_range in ranges:
@@ -52,12 +56,16 @@ def fetch(worksheet):
                 for offset, row in enumerate(block.get('rowData', [])):
                     cells[block.get('startRow', 0)+offset+1] = row.get('values', [])
     headers = [c.get('formattedValue', '').strip() or f'COLUMNA {i+1}'
-               for i, c in enumerate((cells.get(3, [])+[{}]*WIDTH)[:WIDTH])]
+               for i, c in enumerate((cells.get(3, [])+[{}]*ancho)[:ancho])]
+    grupos, actual = [], ''
+    for c in (cells.get(2, [])+[{}]*ancho)[:ancho]:   # la fila 2 trae el nombre del grupo solo en la primera celda de cada bloque combinado
+        actual = (c.get('formattedValue', '') or '').strip() or actual
+        grupos.append(actual)
     rows = []
     for number, cell_row in sorted(cells.items()):
         if number < START_ROW:
             continue
-        values = [c.get('formattedValue', '') for c in (cell_row+[{}]*WIDTH)[:WIDTH]]
+        values = [c.get('formattedValue', '') for c in (cell_row+[{}]*ancho)[:ancho]]
         if not values[4].strip():
             continue  # Ignore formula-only template rows, not orders without reference.
         rows.append({'sheet_row': number, 'values': values,
@@ -68,7 +76,7 @@ def fetch(worksheet):
         line_colors = line_color_map(rows, fetch_line_colors(worksheet, title, prop['gridProperties']['rowCount']))
     except Exception:
         line_colors = None  # si falla, se conservan los colores que ya estaban guardados
-    return {'headers': headers, 'rows': rows, 'sheet': prop['title'], 'line_colors': line_colors}
+    return {'headers': headers, 'groups': grupos, 'rows': rows, 'sheet': prop['title'], 'line_colors': line_colors}
 
 
 def fetch_line_colors(worksheet, title, row_count):
@@ -116,6 +124,81 @@ def schema(db):
     ''')
 
 
+def _letras(n):
+    """Letras de la columna n (1 -> A, 27 -> AA, 87 -> CI)."""
+    texto = ''
+    while n:
+        n, resto = divmod(n - 1, 26)
+        texto = chr(65 + resto) + texto
+    return texto
+
+
+def _clave_encabezado(h):
+    return '' if re.fullmatch(r'COLUMNA \d+', str(h)) else str(h)   # un encabezado vacío se llama «COLUMNA n» y n cambia al mover columnas
+
+
+def plan_columnas(viejos, nuevos):
+    """Si el cambio de columnas es SOLO insertar o quitar columnas devuelve ({columna vieja: columna nueva} (desde 1), [columnas nuevas insertadas]);
+    si además hay columnas renombradas o cambiadas devuelve None (no se adivina)."""
+    a, b = [_clave_encabezado(h) for h in viejos], [_clave_encabezado(h) for h in nuevos]
+    mapa, insertadas = {}, []
+    for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(None, a, b, autojunk=False).get_opcodes():
+        if tag == 'equal':
+            for k in range(i2 - i1):
+                mapa[i1 + k + 1] = j1 + k + 1
+        elif tag == 'insert':
+            insertadas += list(range(j1 + 1, j2 + 1))
+        elif tag == 'replace' and i2 - i1 == j2 - j1 and all(b[j] == '' for j in range(j1, j2)):   # un encabezado que quedó vacío en el Sheet no cambia la estructura
+            for k in range(i2 - i1):
+                mapa[i1 + k + 1] = j1 + k + 1
+        elif tag != 'delete':
+            return None
+    return mapa, insertadas
+
+
+TABLAS_CON_COLUMNA = ('production_notes', 'production_started', 'production_finished', 'production_rework', 'production_paused',
+                      'production_operator_events', 'production_sheet_notes')
+
+
+def migrar_columnas(db, viejos, snapshot, plan):
+    """Reubica TODO lo guardado por número de columna cuando en el Sheet se insertaron o quitaron columnas (dentro de la transacción de apply)."""
+    mapa, insertadas = plan
+    nuevos = snapshot['headers']
+    n = len(nuevos)
+
+    def reubicar(lista, vacio=''):
+        salida = [vacio] * n
+        for viejo, nuevo in mapa.items():
+            if viejo - 1 < len(lista):
+                salida[nuevo - 1] = lista[viejo - 1]
+        return salida
+
+    for numero, raw in db.execute('SELECT source_row, values_json FROM production_rows').fetchall():
+        db.execute('UPDATE production_rows SET values_json=? WHERE source_row=?', (json.dumps(reubicar(json.loads(raw)), ensure_ascii=False), numero))
+    for tabla in TABLAS_CON_COLUMNA:
+        if not db.execute("SELECT 1 FROM sqlite_master WHERE name=?", (tabla,)).fetchone():
+            continue
+        db.execute(f'UPDATE {tabla} SET column_number = column_number + 1000')   # primero se sacan del rango para que no choquen entre sí
+        for viejo, nuevo in mapa.items():
+            db.execute(f'UPDATE {tabla} SET column_number=? WHERE column_number=?', (nuevo, viejo + 1000))
+        db.execute(f'DELETE FROM {tabla} WHERE column_number >= 1000')   # las de columnas que ya no existen
+    for identidad, texto in db.execute('SELECT identity, snapshot FROM production_sheet_links').fetchall():
+        item = json.loads(texto)
+        item['values'] = reubicar(item.get('values') or [])
+        item['notes'] = {str(mapa[int(k)]): v for k, v in (item.get('notes') or {}).items() if int(k) in mapa}
+        if 'cells' in item:
+            item['cells'] = reubicar(item.get('cells') or [], {})
+        db.execute('UPDATE production_sheet_links SET snapshot=? WHERE identity=?', (json.dumps(item, ensure_ascii=False), identidad))
+    fila = db.execute("SELECT value FROM production_meta WHERE key='groups'").fetchone()
+    grupos = reubicar(json.loads(fila[0]) if fila else [])
+    nuevos_grupos = snapshot.get('groups') or []
+    for j in insertadas:   # las columnas nuevas toman el grupo que dice la fila 2 del Sheet
+        grupos[j - 1] = nuevos_grupos[j - 1] if j - 1 < len(nuevos_grupos) else (grupos[j - 2] if j > 1 else '')
+    db.executemany('INSERT OR REPLACE INTO production_meta(key,value) VALUES (?,?)', [
+        ('headers', json.dumps(nuevos, ensure_ascii=False)), ('groups', json.dumps(grupos, ensure_ascii=False))])
+    logging.warning('Sheets sync: columnas del Sheet cambiaron (%s -> %s columnas, %s insertadas): datos reubicados', len(viejos), n, len(insertadas))
+
+
 def apply(db, snapshot, force=False):
     """Atomically merge, retaining local IDs, history, local notes and tombstones.
     force=True (al volver a encender el interruptor de Producción): los valores de las filas vinculadas se
@@ -128,7 +211,11 @@ def apply(db, snapshot, force=False):
         same = len(headers) == len(snapshot['headers']) and all(
             old == new or new == f'COLUMNA {i+1}' for i, (old, new) in enumerate(zip(headers, snapshot['headers'])))
         if not same:
-            raise ValueError('Las columnas de Google Sheets cambiaron; no se importó nada')
+            plan = plan_columnas(headers, snapshot['headers'])
+            if plan is None:
+                raise ValueError('Las columnas de Google Sheets cambiaron; no se importó nada')
+            migrar_columnas(db, headers, snapshot, plan)   # solo se insertaron o quitaron columnas: se reubica todo y se sigue
+            headers = list(snapshot['headers'])
         # Clave de cada tarjeta local: la de su enlace con el Sheet (que ya trae el número de aparición si la referencia está repetida);
         # las que aún no tienen enlace toman la primera aparición libre de su [orden, referencia].
         enlaces = {numero: clave for clave, numero in db.execute('SELECT identity,source_row FROM production_sheet_links')}
@@ -170,9 +257,9 @@ def apply(db, snapshot, force=False):
                 if link and number != link[0]:
                     raise ValueError('La identidad local cambió; se conserva sin sobrescribir')
                 after = list(before)
-                after += [''] * (WIDTH-len(after))
+                after += [''] * (len(snapshot['headers'])-len(after))
                 if force:
-                    after = list(item['values']) + [''] * (WIDTH - len(item['values']))
+                    after = list(item['values']) + [''] * (len(snapshot['headers']) - len(item['values']))
                 else:
                     for i, value in enumerate(item['values']):
                         if old is None or value != old['values'][i]:
@@ -285,6 +372,16 @@ def start(connect, worksheet_provider, state_dir, al_haber_filas_nuevas=None, al
                                 db.backup(destination)
                             for old_copy in sorted(state_dir.glob('before-relink-*.sqlite3'))[:-5]:
                                 old_copy.unlink(missing_ok=True)
+                        try:   # si cambiaron las columnas, copia de seguridad ANTES de reubicar (se conservan las 5 últimas)
+                            guardados = json.loads(db.execute("SELECT value FROM production_meta WHERE key='headers'").fetchone()[0])
+                            if guardados != snapshot['headers'] and plan_columnas(guardados, snapshot['headers']):
+                                stamp = datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')
+                                with sqlite3.connect(state_dir / f'before-columnas-{stamp}.sqlite3') as destination:
+                                    db.backup(destination)
+                                for old_copy in sorted(state_dir.glob('before-columnas-*.sqlite3'))[:-5]:
+                                    old_copy.unlink(missing_ok=True)
+                        except Exception:
+                            logging.exception('No se pudo hacer la copia antes de reubicar columnas')
                         counts = apply(db, snapshot, force=force)
                     if force:
                         resync.unlink(missing_ok=True)
