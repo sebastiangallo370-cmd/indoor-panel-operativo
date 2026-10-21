@@ -103,7 +103,12 @@
   .dr-ref.p{border-color:#ff7a59;background:rgba(255,122,89,.22)}
   .dr-actv{display:grid;gap:8px;border-top:1px solid rgba(255,255,255,.1);padding-top:8px}.dr-actv.mal .dr-mas{color:#ffb39f}
   .dr-actv .dr-m{max-width:100%;font-size:12px;max-height:240px;overflow:auto}
-  .dr-paus{background:rgba(255,200,80,.16);border-color:rgba(255,200,80,.5);color:#ffd98a}.dr-cancel{border-color:rgba(255,107,97,.6)!important;color:#ffb3ac!important}.dr-ctl .dr-b{flex:0 0 auto}.dr-ctl .dr-b.pri{flex:1}.dr-q{color:#ff9d83;font-weight:900}.dr-off{padding:6px 10px;border-radius:10px;background:rgba(255,107,97,.18);border:1px solid rgba(255,107,97,.45);color:#ffb39f;font:700 11px Arial}
+  .dr-paus{background:rgba(255,200,80,.16);border-color:rgba(255,200,80,.5);color:#ffd98a}.dr-cancel{border-color:rgba(255,107,97,.6)!important;color:#ffb3ac!important}.dr-ctl .dr-b{flex:0 0 auto}.dr-ctl .dr-b.pri{flex:1}.dr-prog{display:grid;gap:6px}.dr-prog small{font:600 11px Arial;color:#ffb39f;overflow-wrap:anywhere}
+  .dr-bar{height:8px;border-radius:99px;background:rgba(255,255,255,.12);overflow:hidden;box-shadow:inset 0 1px 2px rgba(0,0,0,.4)}
+  .dr-bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#ff7a59,#ffb39f);box-shadow:0 0 12px rgba(255,122,89,.7);transition:width .6s ease}
+  .dr-bar.ind i{width:40%;animation:drBarra 1.4s ease-in-out infinite}
+  @keyframes drBarra{0%{margin-left:-40%}100%{margin-left:100%}}
+  .dr-q{color:#ff9d83;font-weight:900}.dr-off{padding:6px 10px;border-radius:10px;background:rgba(255,107,97,.18);border:1px solid rgba(255,107,97,.45);color:#ffb39f;font:700 11px Arial}
   @keyframes drFlota{to{transform:translate(70px,50px) scale(1.18)}}
   @keyframes drPulso{0%{box-shadow:0 0 0 0 rgba(111,227,154,.6)}100%{box-shadow:0 0 0 10px rgba(111,227,154,0)}}
   @keyframes drPulsoMal{0%{box-shadow:0 0 0 0 rgba(255,107,97,.6)}100%{box-shadow:0 0 0 10px rgba(255,107,97,0)}}
@@ -157,9 +162,14 @@
       : (o.error ? `<span class="dr-err">${esc(o.error)}</span>` : `<span class="dr-nada">Todavía no hay DXF en CORTE PLT.</span>`);
     const bloqueado = !st.pc.conectado || st.esperando || st.enviando;
     const fin = dxf.length ? { t: dxf.length + ' DXF', c: 'hecho' } : e;
+    const ultY = [...st.msgs].reverse().find(m => m.rol === 'yo'), tmsg = (st.trabajo && st.trabajo.msg) || '';
+    const corriendo = st.esperando && (tmsg.includes(o.orden) || (ultY && String(ultY.texto || '').includes(o.orden)) || r.estado === 'en proceso');
+    const pm = tmsg.match(/(\d{1,3})\s*%/) || null, fr = tmsg.match(/(\d+)\s*(?:\/|de)\s*(\d+)/), pct = pm ? Math.min(100, +pm[1]) : (fr && +fr[2] ? Math.min(100, Math.round(100 * fr[1] / fr[2])) : null);
+    const barra = corriendo ? `<div class="dr-prog"><div class="dr-bar${pct === null ? ' ind' : ''}"><i style="${pct === null ? '' : 'width:' + pct + '%'}"></i></div><small>${esc(tmsg || 'DRACO está trabajando…')}${pct === null ? '' : ' · ' + pct + '%'}</small></div>` : '';
     const prob = st.msgs.some(m => m.rol !== 'yo' && /Con problemas|Error/.test(m.texto || '') && String(m.texto).includes(o.orden));
     return `<article class="dr-card" data-orden="${esc(o.orden)}"><div class="dr-top"><div><h4>${esc(r.ref)} <b class="dr-q">×${esc(r.cantidad || '?')}</b></h4><div class="dr-cli">${esc(o.orden)}${o.entrega ? ' · entrega ' + esc(o.entrega) : ''}</div></div><span class="dr-est ${fin.c}">${esc(fin.t)}</span></div>` +
       (st.pausa ? '<div class="dr-off dr-paus">EN PAUSA</div>' : (st.pc.conectado ? '' : '<div class="dr-off">PC sin conexión</div>')) +
+      barra +
       (prob ? `<div class="dr-actv mal"><button type="button" class="dr-mas" data-act="${esc(o.orden)}">⚠ Con problemas ${st.abiertas['a:' + o.orden] ? '▾' : '▸'}</button>${st.abiertas['a:' + o.orden] ? st.msgs.filter(m => m.rol !== 'yo' && String(m.texto || '').includes(o.orden)).slice(-1).map(m => `<div class="dr-m bot">${esc(m.texto.length > 700 ? m.texto.slice(0, 700) + '…' : m.texto)}</div>`).join('') : ''}</div>` : '') +
       `<div class="dr-acc dr-ctl"><button type="button" class="dr-b pri" data-crear="${esc(o.orden)}"${bloqueado ? ' disabled' : ''}>CREAR DXF</button><button type="button" class="dr-b" data-pausa="${st.pausa ? 0 : 1}">${st.pausa ? '▶' : '⏸'}</button><button type="button" class="dr-b dr-cancel" data-cancelar${st.pc.id ? '' : ' disabled'} title="Cancelar">⏹</button></div></article>`;
   }
@@ -170,7 +180,7 @@
     const caja = panel.querySelector('.dr'); if (!caja) return;
     const activo = document.activeElement;
     if (activo && activo.matches && activo.matches('.dr-form input') && activo.value) return;   // no se redibuja mientras la persona está escribiendo
-    const firma = JSON.stringify([st.pausa, st.pc, st.ordenes, st.msgs.length, st.ultimo, st.esperando, st.aviso, st.cargada, st.abiertas, st.enviando]);
+    const firma = JSON.stringify([st.trabajo, st.pausa, st.pc, st.ordenes, st.msgs.length, st.ultimo, st.esperando, st.aviso, st.cargada, st.abiertas, st.enviando]);
     if (firma === st.firma) return;
     st.firma = firma;
     const tarjetas = [].concat(...st.ordenes.map(o => o.referencias.map(r => tarjeta(o, r))));
