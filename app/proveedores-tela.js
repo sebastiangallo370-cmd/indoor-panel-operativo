@@ -286,6 +286,20 @@
   .pv-card.pv-t .pv-progress{height:5px;margin:0;border-radius:0;background:#223128}
   .pv-card.pv-t .pv-est{padding:0 16px}.pv-card.pv-t .pv-est:not(:empty){padding:8px 16px}
   @media(max-width:700px){.pv-grupos{columns:1}.pv-head{padding:16px}.pv-head h2{font-size:1.2rem}.pv-kpis{width:100%}.pv-kpi{flex:1;min-width:0;padding:8px}.pv-bar input[type=search]{min-width:0;width:100%;flex-basis:100%}.pv input{font-size:16px}.pv-grid{grid-template-columns:1fr}.pv-cod{font-size:1.6rem}.pv-herr{width:100%}.pv-herr .pv-fil,.pv-masa-chips .pv-fil{white-space:normal;flex:1 1 100%;text-align:center;line-height:1.2;padding:8px 12px}.pv-masa{bottom:8px}}
+  /* TARJETA COMPACTA: campos en dos columnas (la etiqueta arriba), sin referencias: se ve completa sin hacer scroll */
+  .pv-grid{grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:16px}
+  .pv-card.pv-t .pt-head{padding:12px 16px}.pv-card.pv-t .pt-nom{font-size:17px}
+  .pt-form{grid-template-columns:1fr 1fr;column-gap:16px;row-gap:0;padding:2px 16px 8px}
+  .pt-form>.pt-chips{grid-column:1/-1}.pt-row.pt-w2{grid-column:1/-1}
+  .pt-row{grid-template-columns:1fr;gap:3px;min-height:0;padding:8px 0 7px;align-content:center}
+  .pt-lbl{font:700 10.5px/1.1 Arial;letter-spacing:.06em;text-transform:uppercase}
+  .pt-val{font:700 14px/1.25 Arial}.pt-val.vacio{font-size:13px}
+  .pt-cod{font-size:20px;padding:0 6px;margin-left:-6px}
+  .pt-row input{height:36px;font-size:14px;padding:0 10px}
+  .pt-acc{padding:4px 16px 12px}.pt-b{height:40px}
+  .pv-card.pv-t .pt-stats{padding:6px 10px}.pv-card.pv-t .pt-stats>div{display:flex;align-items:baseline;justify-content:center;gap:8px;padding:7px 8px 6px}
+  .pv-card.pv-t .pt-stats b{display:inline;font-size:20px}.pv-card.pv-t .pt-stats span{display:inline;margin:0;font-size:10px}
+  @media(max-width:360px){.pt-form{grid-template-columns:1fr}}
   `;
   document.head.appendChild(css);
 
@@ -342,10 +356,10 @@
     const falta = !t.proveedor ? (t.ancho ? 'FALTA PROVEEDOR' : 'FALTAN PROVEEDOR Y ANCHO') : (!t.ancho ? 'FALTA ANCHO' : '');
     const listos = 2 + (t.proveedor ? 1 : 0) + (t.ancho ? 1 : 0);
     const edit = st.edit.has(t.codigo);   // por defecto la tarjeta se ve limpia; el botón EDITAR abre los campos
-    const fila = (cod, etiqueta, valor, atrib, req, falto, ayuda, sufijo) => edit
-      ? `<label class="pt-row${falto ? ' falta' : ''}"><span class="pt-lbl">${etiqueta}${req ? '<b>*</b>' : ''}</span>` +
+    const fila = (cod, etiqueta, valor, atrib, req, falto, ayuda, sufijo, clase) => edit
+      ? `<label class="pt-row${falto ? ' falta' : ''}${clase ? ' ' + clase : ''}"><span class="pt-lbl">${etiqueta}${req ? '<b>*</b>' : ''}</span>` +
         `<input type="text" ${atrib} value="${esc(valor || '')}" placeholder="${esc(ayuda)}" autocomplete="off"${req ? ' required' : ''}></label>`
-      : `<div class="pt-row${falto ? ' falta' : ''}"><span class="pt-lbl">${etiqueta}${req ? '<b>*</b>' : ''}</span>` +
+      : `<div class="pt-row${falto ? ' falta' : ''}${clase ? ' ' + clase : ''}"><span class="pt-lbl">${etiqueta}${req ? '<b>*</b>' : ''}</span>` +
         `<span class="pt-val${valor ? '' : ' vacio'}" data-pv-dbl title="Doble toque para editar">${valor ? esc(valor) + (sufijo || '') : (req ? '⚠ Falta' : '—')}</span></div>`;
     const acciones = edit
       ? '<div class="pt-acc"><button type="button" class="pt-b pri" data-pv-guardar>✓ GUARDAR</button><button type="button" class="pt-b" data-pv-cancelar>CANCELAR</button></div>'
@@ -359,13 +373,13 @@
       fila(t.codigo, 'Ancho (cm)', t.ancho, 'inputmode="decimal" data-pv-ancho', true, !t.ancho, 'Ej. 150', ' cm') +
       (edit ? sugerencias('ancho', anchosHabituales()) : '') +
       fila(t.codigo, 'ID Effi', t.id_effi, 'inputmode="numeric" data-pv-ide', false, false, 'Opcional') +
-      fila(t.codigo, 'Composición', t.composicion, 'data-pv-opc data-pv-comp', false, false, 'Ej. 100% poliéster') +
+      fila(t.codigo, 'Composición', t.composicion, 'data-pv-opc data-pv-comp', false, false, 'Ej. 100% poliéster', '', 'pt-w2') +
       fila(t.codigo, 'Gramaje', t.gramaje, 'inputmode="decimal" data-pv-opc data-pv-gram', false, false, 'Ej. 150', ' g/m²') +
       fila(t.codigo, 'Tipo', t.tipo, 'data-pv-opc data-pv-tipo', false, false, 'Ej. Punto, Plano, Rib') +
-      fila(t.codigo, 'Correo proveedor', t.correo, 'inputmode="email" data-pv-opc data-pv-correo', false, false, 'correo@proveedor.com') +
+      fila(t.codigo, 'Correo proveedor', t.correo, 'inputmode="email" data-pv-opc data-pv-correo', false, false, 'correo@proveedor.com', '', 'pt-w2') +
       fila(t.codigo, 'Precio sin IVA', t.precio_sin_iva ? Number(t.precio_sin_iva).toLocaleString('es-CO') : '', 'inputmode="decimal" data-pv-opc data-pv-precio', false, false, 'Ej. 18500', ' COP') +
       fila(t.codigo, 'WPP proveedor', t.wpp, 'inputmode="tel" data-pv-opc data-pv-wpp', false, false, 'Ej. 573001234567') +
-      `<div class="pt-row fijo pt-refs"><span class="pt-lbl">Referencias</span><span class="pt-val">${referenciasHtml(t.referencias)}</span></div></div>` + acciones +
+      '</div>' + acciones +
       `<div class="pt-stats"><div data-lq="${Math.min(100, Math.round(mts / 25))}" data-lq-tone="gris" data-lq-nopct><b data-n="${mts}">${f0(mts)}</b><span>MTS en bodega</span></div>` +
       '</div>' +
       `<div class="pv-est ${esc(e.c || '')}" data-pv-est>${esc(e.t || '')}</div></div>`;
