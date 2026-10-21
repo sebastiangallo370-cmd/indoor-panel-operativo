@@ -472,12 +472,21 @@ def _llenar_mts_tarjetas(origen: str = '') -> None:
         logging.exception('No se pudieron anotar los MTS requeridos')
 
 
+_TRAZO_P_PREVIO = None   # claves orden|ref que tenían «P» en TRAZO/CORTE/PLT la última vez que se miró
+
+
 def senal_trazo_p(origen: str = '', reactivar: str = '') -> None:
     """Señal a DRACO: el panel (o el Google Sheets) acaba de cambiar una celda; si alguna referencia quedó con «P» en TRAZO/CORTE/PLT, se le avisa.
     Sin reloj: solo corre cuando llega un cambio."""
     def correr():
+        global _TRAZO_P_PREVIO
         try:
-            lanzadas = agentes_mod.auto_trazo(_trazo_candidatos(), reactivar)
+            cands = _trazo_candidatos()
+            claves = {c['clave'] for c in cands}
+            # toda «P» que APARECE (antes no estaba) se lanza, aunque esa referencia ya se hubiera lanzado antes: no se recuerda lo ejecutado
+            nuevas = (claves - _TRAZO_P_PREVIO) if _TRAZO_P_PREVIO is not None else set()
+            _TRAZO_P_PREVIO = claves
+            lanzadas = agentes_mod.auto_trazo(cands, ({reactivar} if reactivar else set()) | nuevas)
             if lanzadas:
                 logging.info('DRACO: «P» en TRAZO/CORTE/PLT (%s) → %s', origen, ', '.join(lanzadas))
         except Exception:

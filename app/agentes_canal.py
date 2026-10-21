@@ -1025,7 +1025,8 @@ def auto_trazo(candidatos: list[dict], reactivar: str = '') -> list[str]:
         pid = next((p for p, info in datos['pcs'].items() if str(info.get('nombre', '')).strip().upper() == PC_TRAZOS), '')
         if not pid or not _conectado(datos, pid):
             return lanzadas   # sin el PC de DRACO conectado no se manda nada: se reintenta luego
-        vistos = (set(auto['vistos_trazo_p']) - {reactivar}) & {c['clave'] for c in candidatos}   # «reactivar»: alguien acaba de poner la «P» a mano en la tarjeta   # si quitan la «P», la referencia se olvida: al volver a ponerla se activa de nuevo
+        rea = {reactivar} if isinstance(reactivar, str) else set(reactivar or ())
+        vistos = (set(auto['vistos_trazo_p']) - rea) & {c['clave'] for c in candidatos}   # «reactivar»: alguien acaba de poner la «P» a mano en la tarjeta   # si quitan la «P», la referencia se olvida: al volver a ponerla se activa de nuevo
         cambio = False
         for c in candidatos:
             if c['clave'] in vistos:
