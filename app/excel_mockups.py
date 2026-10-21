@@ -30,7 +30,7 @@ def read_designs(filename, modified_ns, size, reference):
     STATE_DIR.mkdir(parents=True, exist_ok=True)
     with closing(sqlite3.connect(cache_path, timeout=15)) as db, db:
         db.execute('CREATE TABLE IF NOT EXISTS previews (filename TEXT, reference TEXT, version TEXT, payload TEXT, updated REAL, PRIMARY KEY(filename,reference))')
-        version = f'3:{modified_ns}:{size}'
+        version = f'4:{modified_ns}:{size}'
         row = db.execute('SELECT payload FROM previews WHERE filename=? AND reference=? AND version=?', (filename, reference, version)).fetchone()
     if row:
         try:
@@ -96,7 +96,7 @@ def extract_designs(filename, size, reference):
             except Exception:
                 return [], False
             sheet_rels = relations(part)
-            items, bad = [], False
+            items, alt, bad = [], [], False
             for drawing in sheet_xml.findall('s:drawing', NS):
                 drawing_part = sheet_rels.get(drawing.get('{'+NS['r']+'}id'))
                 if not drawing_part:
@@ -113,7 +113,10 @@ def extract_designs(filename, size, reference):
                     col = int(marker.findtext('x:col', '-1', NS))
                     row = int(marker.findtext('x:row', '-1', NS))
                     # Diseños desde la columna R (los antiguos) o AH (las plantillas nuevas); el logo vive en B.
-                    if not 17 <= col <= 300 or not 0 <= row <= 100:
+                    # Plantilla de una sola imagen (hojas tipo A2102PT12): el diseño queda más a la izquierda (columna D a Q, desde la fila 6);
+                    # solo se usa si la hoja no trae diseños en la franja normal.
+                    principal = 17 <= col <= 300 and 0 <= row <= 100
+                    if not principal and not (3 <= col <= 16 and 5 <= row <= 100):
                         continue
                     blip = anchor.find('.//a:blip', NS)
                     if blip is None:
@@ -132,8 +135,8 @@ def extract_designs(filename, size, reference):
                     if mime is None:
                         bad = True
                         continue
-                    items.append((row, col, None, mime, data, row))
-            return items, bad
+                    (items if principal else alt).append((row, col, None if principal else 'alt', mime, data, row))
+            return (items or alt), bad
 
         # 1) Exact sheet-name match.
         matched = [s for s in all_sheets if normalized(s.get('name', '')) == normalized(reference)]
@@ -168,7 +171,9 @@ def extract_designs(filename, size, reference):
         result = []
         seen = set()
         for row, col, _design, mime, data, _row in candidates:
-            if first_col >= 31:
+            if _design == 'alt':                                  # plantilla de una sola imagen: D1, D2… en el orden en que aparecen
+                number = len(result) + 1
+            elif first_col >= 31:
                 number = max(1, round((col - 33) / 6) + 1)       # plantilla nueva: AH, AN, AT… = D1, D2, D3…
             else:
                 number = max(1, round((col - 18) / 6) + 1)  # plantilla antigua: S, Y, AE, AK, AQ… = D1, D2, D3…
