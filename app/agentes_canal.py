@@ -289,6 +289,26 @@ def draco_cola(request: Request):
     return {'pc': pc, 'automatico': True, 'pausa': bool(datos['auto'].get('draco_pausa')), 'ordenes': _cola_trazos() if _cola_trazos else []}
 
 
+def aviso_trazo(orden: str, referencia: str, hora: str) -> None:
+    """DRACO terminó los DXF de una referencia: queda un aviso para la campana del panel (se muestran 12 h)."""
+    with _lock:
+        datos = _leer()
+        lista = datos['auto'].setdefault('draco_avisos', [])
+        lista.append({'orden': orden, 'ref': referencia, 'hora': hora, 't': _ahora()})
+        datos['auto']['draco_avisos'] = lista[-30:]
+        _guardar(datos)
+
+
+def alertas_trazo() -> list[dict]:
+    """Avisos de la campana: referencias cuyos trazos DRACO terminó en las últimas 12 h."""
+    with _lock:
+        avisos = _leer()['auto'].get('draco_avisos') or []
+    limite = _ahora() - 12 * 3600
+    return [{'tipo': 'trazo', 'orden': a['orden'], 'cliente': '', 'severidad': 'info', 'titulo': f"DRACO terminó los trazos de {a['orden']} · {a['ref']}",
+             'detalle': f"Hora final {a['hora']} · los DXF están en CORTE PLT y TRAZO quedó hecho"}
+            for a in reversed(avisos) if a.get('t', 0) >= limite]
+
+
 @router.post('/draco/pausa')
 def draco_pausa(request: Request, payload: dict | None = None):
     """Pausa (o reanuda) los trazos automáticos de DRACO: en pausa no se lanza ninguna orden nueva; lo que ya está en curso se corta con «detener»."""
