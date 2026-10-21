@@ -3079,6 +3079,7 @@ def _agentes_trazo_listo(orden: str, referencia: str, momento: str = 'fin') -> d
             agentes_mod.aviso_trazo(orden, referencia, hm)   # aviso en la campana del panel
         except Exception:
             logging.exception('No se pudo guardar el aviso de DRACO')
+        senal_trazo_p('DRACO terminó una referencia')   # si otra referencia quedó en «P» esperando turno, sale ahora
     return resultado
 
 
