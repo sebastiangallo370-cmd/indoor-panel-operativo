@@ -372,7 +372,29 @@ def senal_orden_programada(origen: str = ''):
                 logging.info('Agentes: señal de orden nueva (%s) → cálculo de MTS para %s', origen or 'panel', ', '.join(lanzadas))
         except Exception:
             logging.exception('No se pudo avisar a los agentes de la orden nueva')
+        _llenar_mts_tarjetas(origen)
     threading.Thread(target=correr, name='senal-orden-programada', daemon=True).start()
+
+
+def _llenar_mts_tarjetas(origen: str = '') -> None:
+    """Anota en MTS REQUERIDOS (solo en el panel, nunca en el Sheet) los MTS calculados con el promedio de las tarjetas que aún no los tienen.
+    Antes lo hacía el reloj de ZEUS; ahora corre cuando entra una orden y cada 10 minutos, para que ninguna tarjeta nueva se quede «Sin registrar»."""
+    try:
+        r = zeus_mod._llenar_mts()
+        if r.get('escritas'):
+            logging.info('MTS REQUERIDOS anotados en %s tarjeta(s) (%s)', r['escritas'], origen or 'periódico')
+            avisar_zeus('MTS requeridos anotados')
+    except Exception:
+        logging.exception('No se pudieron anotar los MTS requeridos')
+
+
+def _vigilar_mts_tarjetas() -> None:
+    def ciclo():
+        time.sleep(90)
+        while True:
+            _llenar_mts_tarjetas('periódico')
+            time.sleep(600)
+    threading.Thread(target=ciclo, name='mts-tarjetas', daemon=True).start()
 
 
 def avisar_zeus(origen: str = ''):
@@ -776,6 +798,7 @@ def startup():
         flag.touch(exist_ok=True)
     sheets_sync.start(connect, legacy.get_gspread, STATE_DIR, al_haber_filas_nuevas=lambda: senal_orden_programada('fila nueva en el Sheet'))
     start_sublimacion_worker()
+    _vigilar_mts_tarjetas()
     db_backup.start(DB_PATH, STATE_DIR, legacy.get_supabase)
     respaldo.start(DATA_ROOT, DB_PATH)
     alertas_correo.start(_problemas_salud, STATE_DIR)
