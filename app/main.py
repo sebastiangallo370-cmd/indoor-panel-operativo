@@ -3442,6 +3442,13 @@ def production_operator_action(payload: dict = Body(...), _=Depends(authenticate
         db.execute('UPDATE production_rows SET values_json=? WHERE source_row=?',(json.dumps(values,ensure_ascii=False),row))
         db.execute("INSERT OR REPLACE INTO production_meta(key,value) VALUES ('updated_at',?)",(timestamp,))
         db.commit()
+        if action == 'start' and (_proceso_de(headers[column-1]) == trazo_plt.ETIQUETA or 'TRAZO' in str(headers[column-1]).upper()):
+            try:   # el botón ▶ de la tarjeta también avisa a DRACO (antes solo lo hacía escribir la «P» en la celda)
+                nombres = [str(h).strip().upper() for h in headers]
+                clave = re.sub(r'\s+', '', str(values[nombres.index('ORDEN')])).upper() + '|' + re.sub(r'\s+', '', str(values[nombres.index('REFERENCIA')])).upper()
+            except Exception:
+                clave = ''
+            senal_trazo_p('botón iniciar de la tarjeta', clave)
         return {'ok':True,'values':values,'created_at':timestamp}
     except Exception:
         db.rollback()
