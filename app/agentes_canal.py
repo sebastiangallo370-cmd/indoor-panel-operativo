@@ -1037,10 +1037,10 @@ def auto_trazo(candidatos: list[dict], reactivar: str = '') -> list[str]:
             if any(m['sesion'] == sesion and m['rol'] == 'yo' and not m.get('respondido') and not m.get('oculto') for m in datos['mensajes']):
                 continue
             orden = c['orden']
-            _nuevo(datos, sesion, 'yo', f"draco trazo {orden} (automático: «P» en TRAZO/CORTE/PLT)", t=_ahora(), tomado=False, respondido=False, auto=True)
+            # SOLO la referencia a la que le pusieron la «P» (las demás referencias de la orden no se tocan)
+            _nuevo(datos, sesion, 'yo', f"draco trazo {orden} {c['ref']} (automático: «P» en TRAZO/CORTE/PLT)", t=_ahora(), tomado=False, respondido=False, auto=True)
             vistos.add(c['clave']); cambio = True
-            vistos |= {x['clave'] for x in candidatos if x['orden'] == orden}   # las demás referencias de la orden salen en el mismo pedido
-            lanzadas.append(orden)
+            lanzadas.append(f"{orden} {c['ref']}")
         if cambio or vistos != set(auto['vistos_trazo_p']):
             auto['vistos_trazo_p'] = sorted(vistos)[-3000:]
             _guardar(datos)
