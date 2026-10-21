@@ -992,7 +992,7 @@ def auto_trazo(candidatos: list[dict]) -> list[str]:
         pid = next((p for p, info in datos['pcs'].items() if str(info.get('nombre', '')).strip().upper() == PC_TRAZOS), '')
         if not pid or not _conectado(datos, pid):
             return lanzadas   # sin el PC de DRACO conectado no se manda nada: se reintenta luego
-        vistos = set(auto['vistos_trazo_p'])
+        vistos = set(auto['vistos_trazo_p']) & {c['clave'] for c in candidatos}   # si quitan la «P», la referencia se olvida: al volver a ponerla se activa de nuevo
         cambio = False
         for c in candidatos:
             if c['clave'] in vistos:
@@ -1008,7 +1008,7 @@ def auto_trazo(candidatos: list[dict]) -> list[str]:
             vistos.add(c['clave']); cambio = True
             vistos |= {x['clave'] for x in candidatos if x['orden'] == orden}   # las demás referencias de la orden salen en el mismo pedido
             lanzadas.append(orden)
-        if cambio:
+        if cambio or vistos != set(auto['vistos_trazo_p']):
             auto['vistos_trazo_p'] = sorted(vistos)[-3000:]
             _guardar(datos)
     return lanzadas
