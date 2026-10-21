@@ -792,7 +792,7 @@ def telas_info(request: Request, payload: dict):
     """DRACO (y quien lo necesite): las telas de INFORMACIÓN TELA con su código, nombre, ancho, proveedor, ID de Effi y las referencias que las usan."""
     _pc(request)
     from app import proveedores_tela as proveedores_tela_mod
-    return {'telas': [{k: t.get(k) for k in ('codigo', 'nombre', 'ancho', 'proveedor', 'id_effi', 'referencias', 'faltan')} for t in proveedores_tela_mod.telas()]}
+    return {'telas': [{k: t.get(k) for k in ('codigo', 'nombre', 'ancho', 'proveedor', 'id_effi', 'referencias', 'faltan', 'composicion', 'gramaje', 'tipo', 'correo', 'precio_sin_iva', 'wpp')} for t in proveedores_tela_mod.telas()]}
 
 
 @pc_router.post('/mts')

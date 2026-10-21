@@ -257,7 +257,7 @@
   .pv-card.pv-t .pt-val.vacio{color:rgba(255,255,255,.62);font-style:italic;font-weight:600}
   .pv-card.pv-t .pt-cod{color:#fff}.pv-card.pv-t .pt-cod.copiado{background:#fff;color:#111}
   .pv-card.pv-t .pt-row.falta input{border:1px dashed rgba(255,255,255,.55)}
-  .pv-card.pv-t .pt-row:not(.falta):not(.fijo) input:not([data-pv-ide]){border-color:rgba(255,255,255,.18);color:#fff}
+  .pv-card.pv-t .pt-row:not(.falta):not(.fijo) input:not([data-pv-ide]):not([data-pv-opc]){border-color:rgba(255,255,255,.18);color:#fff}
   .pv-card.pv-t .pt-row input:focus{border-color:rgba(255,255,255,.85);box-shadow:0 0 0 2px rgba(255,255,255,.14)}
   .pt-ring .fg,.pt-ring.ok .fg,.pv-card.pv-t.editando .pt-ring .fg{stroke:#fff}.pt-ring:not(.ok) .fg{stroke:rgba(255,255,255,.55)}
   .pv-card.pv-t .pt-lapiz.pri{border-color:rgba(255,255,255,.7);color:#fff}
@@ -276,7 +276,7 @@
   .pt-row input::placeholder{color:#6f8276;font-weight:400}
   .pt-row input:focus{border-color:#d0ec93;box-shadow:0 0 0 2px rgba(208,236,147,.15)}
   .pt-row.falta input{border-color:#b9824a}
-  .pt-row:not(.falta):not(.fijo) input:not([data-pv-ide]){border-color:#4d7a58;color:#d9ffd4}
+  .pt-row:not(.falta):not(.fijo) input:not([data-pv-ide]):not([data-pv-opc]){border-color:#4d7a58;color:#d9ffd4}
   .pt-stats{display:grid;grid-template-columns:repeat(3,1fr);background:#0e1812;border-top:1px solid #28382e}
   .pt-stats>div{padding:18px 10px 14px;text-align:center;border-right:1px solid #223128;transition:background .2s}.pt-stats>div:last-child{border-right:0}
   .pt-stats>div:hover{background:#142218}
@@ -359,6 +359,12 @@
       fila(t.codigo, 'Ancho (cm)', t.ancho, 'inputmode="decimal" data-pv-ancho', true, !t.ancho, 'Ej. 150', ' cm') +
       (edit ? sugerencias('ancho', anchosHabituales()) : '') +
       fila(t.codigo, 'ID Effi', t.id_effi, 'inputmode="numeric" data-pv-ide', false, false, 'Opcional') +
+      fila(t.codigo, 'Composición', t.composicion, 'data-pv-opc data-pv-comp', false, false, 'Ej. 100% poliéster') +
+      fila(t.codigo, 'Gramaje', t.gramaje, 'inputmode="decimal" data-pv-opc data-pv-gram', false, false, 'Ej. 150', ' g/m²') +
+      fila(t.codigo, 'Tipo', t.tipo, 'data-pv-opc data-pv-tipo', false, false, 'Ej. Punto, Plano, Rib') +
+      fila(t.codigo, 'Correo proveedor', t.correo, 'inputmode="email" data-pv-opc data-pv-correo', false, false, 'correo@proveedor.com') +
+      fila(t.codigo, 'Precio sin IVA', t.precio_sin_iva ? Number(t.precio_sin_iva).toLocaleString('es-CO') : '', 'inputmode="decimal" data-pv-opc data-pv-precio', false, false, 'Ej. 18500', ' COP') +
+      fila(t.codigo, 'WPP proveedor', t.wpp, 'inputmode="tel" data-pv-opc data-pv-wpp', false, false, 'Ej. 573001234567') +
       `<div class="pt-row fijo pt-refs"><span class="pt-lbl">Referencias</span><span class="pt-val">${referenciasHtml(t.referencias)}</span></div></div>` + acciones +
       `<div class="pt-stats"><div data-lq="${Math.min(100, Math.round(mts / 25))}" data-lq-tone="gris" data-lq-nopct><b data-n="${mts}">${f0(mts)}</b><span>MTS en bodega</span></div>` +
       '</div>' +
@@ -486,11 +492,13 @@
     const tj = host.querySelector('.pv-card[data-cod="' + CSS.escape(cod) + '"]'), t = telas().find(x => x.codigo === cod);
     if (!tj || !t) return false;
     const v = s => (tj.querySelector(s) || { value: '' }).value.trim();
-    const cuerpo = { codigo: cod, proveedor: v('[data-pv-input]'), ancho: v('[data-pv-ancho]').replace(',', '.'), id_effi: v('[data-pv-ide]') };
+    const cuerpo = { codigo: cod, proveedor: v('[data-pv-input]'), ancho: v('[data-pv-ancho]').replace(',', '.'), id_effi: v('[data-pv-ide]'),
+      composicion: v('[data-pv-comp]'), gramaje: v('[data-pv-gram]'), tipo: v('[data-pv-tipo]'), correo: v('[data-pv-correo]'), precio_sin_iva: v('[data-pv-precio]'), wpp: v('[data-pv-wpp]') };
     estado(cod, 'guardando', 'Guardando…');
     try {
       await api('/api/proveedores-tela', { method: 'PUT', body: JSON.stringify(cuerpo) });
       t.proveedor = cuerpo.proveedor; t.ancho = cuerpo.ancho ? String(Number(cuerpo.ancho)) : ''; t.id_effi = cuerpo.id_effi;
+      try { st.datos = await api('/api/proveedores-tela'); } catch (x) { /* si no se puede releer, queda lo escrito */ }   // el servidor normaliza precio, correo y WhatsApp: se leen tal como quedaron
       st.edit.delete(cod); st.reciente = cod; st.estado[cod] = { c: 'ok', t: '✓ Guardado' };
       cambiarTarjeta(cod); pintarKpis(); pintarChips();
       setTimeout(() => { if ((st.estado[cod] || {}).c === 'ok') { delete st.estado[cod]; const e = host.querySelector('.pv-card[data-cod="' + CSS.escape(cod) + '"] [data-pv-est]'); if (e) { e.className = 'pv-est'; e.textContent = ''; } } }, 2200);
