@@ -976,7 +976,7 @@ def auto_procesar(candidatos: list[dict]) -> list[str]:
 PC_TRAZOS = 'AUTOMATIZACION'   # DRACO solo corre en este PC (el que tiene Optitex Mark)
 
 
-def auto_trazo(candidatos: list[dict]) -> list[str]:
+def auto_trazo(candidatos: list[dict], reactivar: str = '') -> list[str]:
     """candidatos: referencias que tienen que pasar por TRAZO/CORTE/PLT (tela que no es blanca) y aún no lo han hecho: [{'clave', 'orden', 'ref'}].
     Cuando alguien pone «P» en TRAZO/CORTE/PLT de una referencia, DRACO crea sus DXF (uno por talla) en la carpeta CORTE PLT de la orden. El mensaje va SIEMPRE al canal del PC
     AUTOMATIZACION (en los demás PC no corre). La primera vez solo se anotan las que ya estaban (el historial no se toca). Si ese PC no está
@@ -992,7 +992,7 @@ def auto_trazo(candidatos: list[dict]) -> list[str]:
         pid = next((p for p, info in datos['pcs'].items() if str(info.get('nombre', '')).strip().upper() == PC_TRAZOS), '')
         if not pid or not _conectado(datos, pid):
             return lanzadas   # sin el PC de DRACO conectado no se manda nada: se reintenta luego
-        vistos = set(auto['vistos_trazo_p']) & {c['clave'] for c in candidatos}   # si quitan la «P», la referencia se olvida: al volver a ponerla se activa de nuevo
+        vistos = (set(auto['vistos_trazo_p']) - {reactivar}) & {c['clave'] for c in candidatos}   # «reactivar»: alguien acaba de poner la «P» a mano en la tarjeta   # si quitan la «P», la referencia se olvida: al volver a ponerla se activa de nuevo
         cambio = False
         for c in candidatos:
             if c['clave'] in vistos:

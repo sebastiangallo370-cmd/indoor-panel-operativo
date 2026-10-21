@@ -472,12 +472,12 @@ def _llenar_mts_tarjetas(origen: str = '') -> None:
         logging.exception('No se pudieron anotar los MTS requeridos')
 
 
-def senal_trazo_p(origen: str = '') -> None:
+def senal_trazo_p(origen: str = '', reactivar: str = '') -> None:
     """Señal a DRACO: el panel (o el Google Sheets) acaba de cambiar una celda; si alguna referencia quedó con «P» en TRAZO/CORTE/PLT, se le avisa.
     Sin reloj: solo corre cuando llega un cambio."""
     def correr():
         try:
-            lanzadas = agentes_mod.auto_trazo(_trazo_candidatos())
+            lanzadas = agentes_mod.auto_trazo(_trazo_candidatos(), reactivar)
             if lanzadas:
                 logging.info('DRACO: «P» en TRAZO/CORTE/PLT (%s) → %s', origen, ', '.join(lanzadas))
         except Exception:
@@ -4172,7 +4172,13 @@ async def update_production_cell(payload: dict = Body(...), _=Depends(authentica
         db.commit()
         db.close()
         if value.strip().upper() == 'P' and str(previous).strip().upper() != 'P' and (_proceso_de(header) == trazo_plt.ETIQUETA or 'TRAZO' in header):
-            senal_trazo_p('tarjeta en la web')
+            try:
+                ref_fila = next((str(values[i]) for i, h in enumerate(headers) if str(h).strip().upper() == 'REFERENCIA'), '')
+                ord_fila = next((str(values[i]) for i, h in enumerate(headers) if str(h).strip().upper() == 'ORDEN'), '')
+                clave = re.sub(r'\s+', '', ord_fila).upper() + '|' + re.sub(r'\s+', '', ref_fila).upper()
+            except Exception:
+                clave = ''
+            senal_trazo_p('tarjeta en la web', clave)
         return {"ok": True, "row": row, "column": column, "value": value, "values": values}
     except Exception as exc:
         if isinstance(exc, HTTPException):
