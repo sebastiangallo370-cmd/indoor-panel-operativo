@@ -472,19 +472,17 @@ def _llenar_mts_tarjetas(origen: str = '') -> None:
         logging.exception('No se pudieron anotar los MTS requeridos')
 
 
-def _vigilar_trazos_p() -> None:
-    """Cada minuto revisa si alguien puso «P» en TRAZO/CORTE/PLT para despertar a DRACO."""
-    def ciclo():
-        time.sleep(60)
-        while True:
-            try:
-                lanzadas = agentes_mod.auto_trazo(_trazo_candidatos())
-                if lanzadas:
-                    logging.info('DRACO: «P» en TRAZO/CORTE/PLT → %s', ', '.join(lanzadas))
-            except Exception:
-                logging.exception('No se pudo avisar a DRACO')
-            time.sleep(60)
-    threading.Thread(target=ciclo, name='trazos-p', daemon=True).start()
+def senal_trazo_p(origen: str = '') -> None:
+    """Señal a DRACO: el panel (o el Google Sheets) acaba de cambiar una celda; si alguna referencia quedó con «P» en TRAZO/CORTE/PLT, se le avisa.
+    Sin reloj: solo corre cuando llega un cambio."""
+    def correr():
+        try:
+            lanzadas = agentes_mod.auto_trazo(_trazo_candidatos())
+            if lanzadas:
+                logging.info('DRACO: «P» en TRAZO/CORTE/PLT (%s) → %s', origen, ', '.join(lanzadas))
+        except Exception:
+            logging.exception('No se pudo avisar a DRACO')
+    threading.Thread(target=correr, name='senal-trazo-p', daemon=True).start()
 
 
 def _vigilar_mts_tarjetas() -> None:
@@ -895,10 +893,10 @@ def startup():
         flag.unlink(missing_ok=True)
     else:
         flag.touch(exist_ok=True)
-    sheets_sync.start(connect, legacy.get_gspread, STATE_DIR, al_haber_filas_nuevas=lambda: senal_orden_programada('fila nueva en el Sheet'))
+    sheets_sync.start(connect, legacy.get_gspread, STATE_DIR, al_haber_filas_nuevas=lambda: senal_orden_programada('fila nueva en el Sheet'),
+                      al_haber_cambios=lambda: senal_trazo_p('cambio en el Sheet'))
     start_sublimacion_worker()
     _vigilar_mts_tarjetas()
-    _vigilar_trazos_p()
     db_backup.start(DB_PATH, STATE_DIR, legacy.get_supabase)
     respaldo.start(DATA_ROOT, DB_PATH)
     alertas_correo.start(_problemas_salud, STATE_DIR)
@@ -4173,6 +4171,8 @@ async def update_production_cell(payload: dict = Body(...), _=Depends(authentica
         db.execute("INSERT OR REPLACE INTO production_meta(key, value) VALUES ('updated_at', ?)", (now,))
         db.commit()
         db.close()
+        if value.strip().upper() == 'P' and str(previous).strip().upper() != 'P' and (_proceso_de(header) == trazo_plt.ETIQUETA or 'TRAZO' in header):
+            senal_trazo_p('tarjeta en la web')
         return {"ok": True, "row": row, "column": column, "value": value, "values": values}
     except Exception as exc:
         if isinstance(exc, HTTPException):
