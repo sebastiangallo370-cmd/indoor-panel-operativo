@@ -103,7 +103,7 @@
   .dr-ref.p{border-color:#ff7a59;background:rgba(255,122,89,.22)}
   .dr-actv{display:grid;gap:8px;border-top:1px solid rgba(255,255,255,.1);padding-top:8px}.dr-actv.mal .dr-mas{color:#ffb39f}
   .dr-actv .dr-m{max-width:100%;font-size:12px;max-height:240px;overflow:auto}
-  .dr-paus{background:rgba(255,200,80,.16);border-color:rgba(255,200,80,.5);color:#ffd98a}.dr-cancel{border-color:rgba(255,107,97,.6)!important;color:#ffb3ac!important}.dr-ctl .dr-b{flex:1}.dr-q{color:#ff9d83;font-weight:900}.dr-off{padding:6px 10px;border-radius:10px;background:rgba(255,107,97,.18);border:1px solid rgba(255,107,97,.45);color:#ffb39f;font:700 11px Arial}
+  .dr-paus{background:rgba(255,200,80,.16);border-color:rgba(255,200,80,.5);color:#ffd98a}.dr-cancel{border-color:rgba(255,107,97,.6)!important;color:#ffb3ac!important}.dr-ctl .dr-b{flex:0 0 auto}.dr-ctl .dr-b.pri{flex:1}.dr-q{color:#ff9d83;font-weight:900}.dr-off{padding:6px 10px;border-radius:10px;background:rgba(255,107,97,.18);border:1px solid rgba(255,107,97,.45);color:#ffb39f;font:700 11px Arial}
   @keyframes drFlota{to{transform:translate(70px,50px) scale(1.18)}}
   @keyframes drPulso{0%{box-shadow:0 0 0 0 rgba(111,227,154,.6)}100%{box-shadow:0 0 0 10px rgba(111,227,154,0)}}
   @keyframes drPulsoMal{0%{box-shadow:0 0 0 0 rgba(255,107,97,.6)}100%{box-shadow:0 0 0 10px rgba(255,107,97,0)}}
@@ -157,14 +157,11 @@
       : (o.error ? `<span class="dr-err">${esc(o.error)}</span>` : `<span class="dr-nada">Todavía no hay DXF en CORTE PLT.</span>`);
     const bloqueado = !st.pc.conectado || st.esperando || st.enviando;
     const fin = dxf.length ? { t: dxf.length + ' DXF', c: 'hecho' } : e;
-    return `<article class="dr-card" data-orden="${esc(o.orden)}"><div class="dr-top"><div><h4>${esc(o.orden)} · ${esc(r.ref)} <b class="dr-q">×${esc(r.cantidad || '?')}</b></h4><div class="dr-cli">${esc(o.cliente)}${o.proyecto ? ' · ' + esc(o.proyecto) : ''}${o.entrega ? ' · entrega ' + esc(o.entrega) : ''}</div></div><span class="dr-est ${fin.c}">${esc(fin.t)}</span></div>` +
-      (st.pausa ? '<div class="dr-off dr-paus">DRACO EN PAUSA · no lanza trazos nuevos</div>' : '') +
-      (st.pc.conectado ? '' : '<div class="dr-off">PC AUTOMATIZACIÓN sin conexión</div>') +
-      `<div class="dr-dxf"><strong>DXF EN CORTE PLT</strong>${lista}</div>` +
-      actividad(o) +
-      `<div class="dr-acc dr-ctl"><button type="button" class="dr-b ${st.pausa ? 'pri' : ''}" data-pausa="${st.pausa ? 0 : 1}">${st.pausa ? '▶ REANUDAR' : '⏸ PAUSAR'}</button><button type="button" class="dr-b dr-cancel" data-cancelar${st.pc.id ? '' : ' disabled'}>⏹ CANCELAR</button></div>` +
-      `<div class="dr-acc"><button type="button" class="dr-b" data-plan="${esc(o.orden)}"${bloqueado ? ' disabled' : ''}>VER PLAN</button><button type="button" class="dr-b pri" data-crear="${esc(o.orden)}"${bloqueado ? ' disabled' : ''}>CREAR DXF</button>` +
-      `<button type="button" class="dr-b" data-copiar="${esc(o.corte || (o.carpeta ? o.carpeta + '\CORTE PLT' : ''))}"${o.carpeta || o.corte ? '' : ' disabled'}>COPIAR CARPETA</button></div></article>`;
+    const prob = st.msgs.some(m => m.rol !== 'yo' && /Con problemas|Error/.test(m.texto || '') && String(m.texto).includes(o.orden));
+    return `<article class="dr-card" data-orden="${esc(o.orden)}"><div class="dr-top"><div><h4>${esc(r.ref)} <b class="dr-q">×${esc(r.cantidad || '?')}</b></h4><div class="dr-cli">${esc(o.orden)}${o.entrega ? ' · entrega ' + esc(o.entrega) : ''}</div></div><span class="dr-est ${fin.c}">${esc(fin.t)}</span></div>` +
+      (st.pausa ? '<div class="dr-off dr-paus">EN PAUSA</div>' : (st.pc.conectado ? '' : '<div class="dr-off">PC sin conexión</div>')) +
+      (prob ? `<div class="dr-actv mal"><button type="button" class="dr-mas" data-act="${esc(o.orden)}">⚠ Con problemas ${st.abiertas['a:' + o.orden] ? '▾' : '▸'}</button>${st.abiertas['a:' + o.orden] ? st.msgs.filter(m => m.rol !== 'yo' && String(m.texto || '').includes(o.orden)).slice(-1).map(m => `<div class="dr-m bot">${esc(m.texto.length > 700 ? m.texto.slice(0, 700) + '…' : m.texto)}</div>`).join('') : ''}</div>` : '') +
+      `<div class="dr-acc dr-ctl"><button type="button" class="dr-b pri" data-crear="${esc(o.orden)}"${bloqueado ? ' disabled' : ''}>CREAR DXF</button><button type="button" class="dr-b" data-pausa="${st.pausa ? 0 : 1}">${st.pausa ? '▶' : '⏸'}</button><button type="button" class="dr-b dr-cancel" data-cancelar${st.pc.id ? '' : ' disabled'} title="Cancelar">⏹</button></div></article>`;
   }
   const burbuja = m => `<div class="dr-m ${m.rol === 'yo' ? 'yo' : 'bot'}${m.auto ? ' auto' : ''}">${esc(m.texto)}<small>${m.rol === 'yo' ? 'Tú' : (m.agentes && m.agentes.length ? m.agentes.join(' · ') : 'TAVO')} · ${esc(hora(m.creado))}</small></div>`;
 
