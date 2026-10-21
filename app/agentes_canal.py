@@ -717,6 +717,14 @@ def plantillas_orden(request: Request, payload: dict):
     return {'hojas': {h: promedios_mod.plantillas_de_hoja(h) for h in hojas}}
 
 
+@pc_router.post('/telas')
+def telas_info(request: Request, payload: dict):
+    """DRACO (y quien lo necesite): las telas de INFORMACIÓN TELA con su código, nombre, ancho, proveedor, ID de Effi y las referencias que las usan."""
+    _pc(request)
+    from app import proveedores_tela as proveedores_tela_mod
+    return {'telas': [{k: t.get(k) for k in ('codigo', 'nombre', 'ancho', 'proveedor', 'id_effi', 'referencias', 'faltan')} for t in proveedores_tela_mod.telas()]}
+
+
 @pc_router.post('/mts')
 def mts_orden(request: Request, payload: dict):
     """TERRY: calcula los MTS requeridos de una orden (promedio por talla × cantidad del listado) y los escribe en su tarjeta de producción."""

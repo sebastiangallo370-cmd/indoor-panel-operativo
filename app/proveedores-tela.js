@@ -203,6 +203,9 @@
   .pt-val{font:700 17px/1.3 Arial;color:#eef5ed;overflow-wrap:anywhere;cursor:text}.pt-val.vacio{color:#ffc86b;font-weight:700;font-size:15px}
   .pt-lapiz{flex:0 0 auto;width:38px;height:38px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;border:1px solid #3f5a46;background:#122018;color:#cfe8d3;cursor:pointer;padding:0;transition:background .18s,color .18s,transform .18s}
   .pt-lapiz:hover{background:#d0ec93;color:#14210f;transform:rotate(-12deg) scale(1.08)}.pt-lapiz.pri{border-color:#d0ec93;color:#d0ec93}
+  .pt-refs{align-items:start;padding:12px 0}.pt-refs .pt-val{display:flex;flex-wrap:wrap;gap:6px;cursor:default;font-size:13px}
+  .pt-ref{padding:5px 9px;border-radius:999px;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.07);font:700 12px/1 Arial;color:#f3f8ee;letter-spacing:.03em}
+  .pt-ref.mas{color:#a4b7aa}.pt-sin-ref{color:#8fa596;font-weight:600}
   .pt-acc{display:flex;gap:10px;padding:4px 22px 18px}
   .pt-b{flex:1;white-space:nowrap;padding:0 8px;height:46px;border-radius:12px;border:1px solid #3f5a46;background:#122018;color:#e3f1e6;font:800 13px/1 Arial;letter-spacing:.06em;cursor:pointer;transition:background .18s,transform .18s,box-shadow .18s}
   .pt-b:hover{background:#1b3024;transform:translateY(-2px)}.pt-b:active{transform:none}
@@ -322,6 +325,12 @@
   };
   // Atajos que aparecen al tocar el campo (proveedores y anchos más usados): un toque llena y guarda
   const sugerencias = (tipo, lista) => lista.length ? `<div class="pt-chips">${lista.map(v => `<button type="button" data-pv-chip="${tipo}" data-v="${esc(v)}">${esc(v)}${tipo === 'ancho' ? ' cm' : ''}</button>`).join('')}</div>` : '';
+  // referencias de Producción que usan esta tela (A2102SD02 → tela 2102, referencia SD02)
+  const referenciasHtml = lista => {
+    lista = lista || [];
+    if (!lista.length) return '<span class="pt-sin-ref">—</span>';
+    return lista.slice(0, 14).map(r => `<span class="pt-ref">${esc(r)}</span>`).join('') + (lista.length > 14 ? `<span class="pt-ref mas">+${lista.length - 14}</span>` : '');
+  };
   function tarjetaHtml(t) {
     const e = st.estado[t.codigo] || {};
     const editando = st.edit.has(t.codigo) || !t.proveedor;
@@ -349,7 +358,8 @@
       (edit ? sugerencias('prov', habituales().slice(0, 5)) : '') +
       fila(t.codigo, 'Ancho (cm)', t.ancho, 'inputmode="decimal" data-pv-ancho', true, !t.ancho, 'Ej. 150', ' cm') +
       (edit ? sugerencias('ancho', anchosHabituales()) : '') +
-      fila(t.codigo, 'ID Effi', t.id_effi, 'inputmode="numeric" data-pv-ide', false, false, 'Opcional') + '</div>' + acciones +
+      fila(t.codigo, 'ID Effi', t.id_effi, 'inputmode="numeric" data-pv-ide', false, false, 'Opcional') +
+      `<div class="pt-row fijo pt-refs"><span class="pt-lbl">Referencias</span><span class="pt-val">${referenciasHtml(t.referencias)}</span></div></div>` + acciones +
       `<div class="pt-stats"><div data-lq="${Math.min(100, Math.round(mts / 25))}" data-lq-tone="gris" data-lq-nopct><b data-n="${mts}">${f0(mts)}</b><span>MTS en bodega</span></div>` +
       '</div>' +
       `<div class="pv-est ${esc(e.c || '')}" data-pv-est>${esc(e.t || '')}</div></div>`;

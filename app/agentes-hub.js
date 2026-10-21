@@ -5,7 +5,7 @@
   if (window.__agentesHub) return;
   window.__agentesHub = true;
   const AREAS = [
-    { kind: 'agentes', nombre: 'EDICIÓN', agentes: [['TAVO', 'Coordina el pedido'], ['LEO', 'Lee el listado'], ['JACK', 'Crea la muestra'], ['OLVER', 'Mesas de trabajo'], ['OLIVER', 'Tallas, números y PDF'], ['TERRY', 'MTS y Google Sheets']] },
+    { kind: 'agentes', nombre: 'EDICIÓN', agentes: [['TAVO', 'Coordina el pedido'], ['LEO', 'Lee el listado'], ['JACK', 'Crea la muestra'], ['OLVER', 'Mesas de trabajo'], ['OLIVER', 'Tallas, números y PDF'], ['TERRY', 'MTS y Google Sheets'], ['DRACO', 'Trazos en Optitex Mark']] },
     { kind: 'ecommerce', nombre: 'ECOMMERCE', agentes: [['ALMA', 'Descarga las órdenes'], ['BRISA', 'Exporta las tallas'], ['CIRO', 'PDF y Google Sheets']] },
     { kind: 'zeus', nombre: 'INVENTARIOS', agentes: [['ZEUS', 'Tela y órdenes de compra']] },
     { kind: 'club', nombre: 'COMERCIAL', agentes: [['EFFITRON', 'Cotización de las reposiciones']] },

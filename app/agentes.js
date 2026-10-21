@@ -3,13 +3,13 @@
 (() => {
   'use strict';
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const COLORES = { TAVO: '#7da4ff', LEO: '#b794ff', JACK: '#ffcf5c', OLVER: '#6fe39a', OLIVER: '#ff8fd0', TERRY: '#6ee0e0' };
-  const ROLES = { TAVO: 'Coordina', LEO: 'Lee el listado', JACK: 'Muestra PDF', OLVER: 'Exporta mesas', OLIVER: 'Valida tallas', TERRY: 'Google Sheets' };
+  const COLORES = { TAVO: '#7da4ff', LEO: '#b794ff', JACK: '#ffcf5c', OLVER: '#6fe39a', OLIVER: '#ff8fd0', TERRY: '#6ee0e0', DRACO: '#ff7a59' };
+  const ROLES = { TAVO: 'Coordina', LEO: 'Lee el listado', JACK: 'Muestra PDF', OLVER: 'Exporta mesas', OLIVER: 'Valida tallas', TERRY: 'Google Sheets', DRACO: 'Trazos (Mark)' };
   const ATAJOS = [['Ver listado', 'Qué dice el listado de la orden '], ['Exportar mesas', 'Expórtame las mesas de trabajo de la orden '], ['Crear muestra', 'Crea la muestra de la orden '],
     ['Pedido completo', 'Pedido completo de la orden '], ['Sin muestra', 'Pedido completo sin muestra de la orden '], ['Jugadores', 'jugadores'], ['Reiniciar', 'cancelar']];
   // Botones para usar cada agente por separado (se aplican a la orden activa)
   const AGENTES_BTN = [['LEO', 'Listado', 'Qué dice el listado de la orden '], ['JACK', 'Muestra', 'Crea la muestra de la orden '], ['OLVER', 'Mesas', 'Expórtame las mesas de trabajo de la orden '],
-    ['OLIVER', 'Jugadores', 'jugadores'], ['TERRY', 'MTS', 'Calcula los MTS requeridos de la orden ']];
+    ['OLIVER', 'Jugadores', 'jugadores'], ['TERRY', 'MTS', 'Calcula los MTS requeridos de la orden '], ['DRACO', 'Trazo', 'draco ayuda']];
   const st = { orden: '', cambiandoOrden: false, abiertos: {}, msgs: [], ultimo: 0, evs: [], ultimoEv: 0, esperando: false, trabajo: null, estado: { conectado: false }, cargando: false, enviando: false };
   let panel, tab, timer = 0;
 
@@ -1349,7 +1349,7 @@
     const claveFiltro = String(flow.filtro || '');
     if (f.dataset.f !== claveFiltro) {   // un solo selector (en vez de ocho botones)
       f.dataset.f = claveFiltro;
-      f.innerHTML = '<select class="ag-pcsel" data-filtro-sel aria-label="Qué mostrar">' + [['Todo', ''], ['⚠ Avisos y errores', '!'], ...['TAVO', 'LEO', 'JACK', 'OLVER', 'OLIVER', 'TERRY'].map(x => [x, x])].map(([t, v]) => '<option value="' + v + '"' + (claveFiltro === v ? ' selected' : '') + '>' + t + '</option>').join('') + '</select>';
+      f.innerHTML = '<select class="ag-pcsel" data-filtro-sel aria-label="Qué mostrar">' + [['Todo', ''], ['⚠ Avisos y errores', '!'], ...['TAVO', 'LEO', 'JACK', 'OLVER', 'OLIVER', 'TERRY', 'DRACO'].map(x => [x, x])].map(([t, v]) => '<option value="' + v + '"' + (claveFiltro === v ? ' selected' : '') + '>' + t + '</option>').join('') + '</select>';
     }
     const lista = flow.ejec.eventos.filter(e => !flow.filtro || (flow.filtro === '!' ? (e.nivel === 'WARN' || e.nivel === 'ERROR') : e.agente === flow.filtro));
     const todos = flow.ejec.eventos, nAv = todos.filter(e => e.nivel === 'WARN').length, nEr = todos.filter(e => e.nivel === 'ERROR').length, cnt = panel.querySelector('[data-logcnt]');
@@ -1646,7 +1646,7 @@
     { const __el = panel.querySelector('[data-aviso]'), __h = !e.conectado ? '<div class="ag-warn">El PC «' + esc((e.pc && e.pc.nombre) || 'de los agentes') + '» no está conectado. Tu mensaje queda en cola y se atiende cuando ese PC esté encendido con los agentes iniciados' + ((e.pcs || []).some(p => p.conectado && p.id !== (e.pc && e.pc.id)) ? '; también puedes elegir otro PC conectado arriba.' : '.') + '</div>' : ''; if (__el && __el.__h !== __h) { __el.__h = __h; __el.innerHTML = __h; } }
     const trabajo = st.trabajo;
     const hilo = st.msgs.length ? hiloHtml()
-      : '<div class="ag-empty"><div class="ag-empty-av">' + ['TAVO', 'LEO', 'JACK', 'OLVER', 'OLIVER', 'TERRY'].map(avatar).join('') + '</div><h3>¿Qué necesitas hoy?</h3><p>' + (st.orden ? 'Trabajando con la orden <b>' + esc(st.orden) + '</b>. Elige una acción o escríbele a TAVO.' : 'Fija la orden arriba y pídele lo que necesites. TAVO decide qué agente actúa.') + '</p>' +
+      : '<div class="ag-empty"><div class="ag-empty-av">' + ['TAVO', 'LEO', 'JACK', 'OLVER', 'OLIVER', 'TERRY', 'DRACO'].map(avatar).join('') + '</div><h3>¿Qué necesitas hoy?</h3><p>' + (st.orden ? 'Trabajando con la orden <b>' + esc(st.orden) + '</b>. Elige una acción o escríbele a TAVO.' : 'Fija la orden arriba y pídele lo que necesites. TAVO decide qué agente actúa.') + '</p>' +
         '<div class="ag-empty-acc">' + ATAJOS.filter(([l]) => l !== 'Reiniciar').map(([l, t]) => '<button type="button" data-atajo="' + esc(t) + '">' + esc(l) + '</button>').join('') + '</div></div>';
     const trabajando = st.esperando ? '<div class="ag-work"><div class="ag-who">' + ((trabajo && trabajo.agentes) || ['TAVO']).map(a => tag(a)).join('') + '<span class="ag-dots"><i></i><i></i><i></i></span></div><b>' +
       esc(trabajo && trabajo.msg ? trabajo.agente + ': ' + trabajo.msg : e.conectado ? 'TAVO está trabajando…' : 'Esperando al PC de los agentes…') + '</b><button type="button" class="ag-btn danger" data-detener>Detener</button></div>' : '';

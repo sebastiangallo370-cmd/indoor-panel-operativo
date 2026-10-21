@@ -16,9 +16,28 @@ _lock = threading.Lock()
 _items: Callable[[], list[dict]] = lambda: []
 
 
-def configurar(items: Callable[[], list[dict]]) -> None:
-    global _items
+_referencias: Callable[[], list[str]] = lambda: []
+_REF = re.compile(r'A(\d{2,5})([A-Z]+\d+)')
+
+
+def configurar(items: Callable[[], list[dict]], referencias: Callable[[], list[str]] | None = None) -> None:
+    global _items, _referencias
     _items = items
+    if referencias:
+        _referencias = referencias
+
+
+def referencias_por_tela() -> dict[str, list[str]]:
+    """Código de tela → referencias que lo usan en Producción (A2102SD02 → tela 2102, referencia SD02)."""
+    por_tela: dict[str, set] = {}
+    try:
+        textos = _referencias()
+    except Exception:  # noqa: BLE001
+        textos = []
+    for texto in textos:
+        for codigo, ref in _REF.findall(str(texto or '').upper()):
+            por_tela.setdefault(codigo, set()).add(ref)
+    return {c: sorted(v) for c, v in por_tela.items()}
 
 
 def _leer() -> dict:
@@ -81,8 +100,10 @@ def telas() -> list[dict]:
             pass
         if not t.get('prov_inventario'):
             t['prov_inventario'] = _prov_inventario(i.get('proveedor'))
+    refs = referencias_por_tela()
     for c, t in por_codigo.items():
         g = guardado.get(c) or {}
+        t['referencias'] = refs.get(c, [])
         t.update(proveedor=g.get('proveedor', ''), nit=g.get('nit', ''), ancho=g.get('ancho', ''), id_effi=g.get('id_effi', ''))
         t['faltan'] = [n for n, v in (('proveedor', t['proveedor']), ('ancho', t['ancho'])) if not v]   # los 4 datos obligatorios: nombre y código siempre vienen del inventario
     return sorted(por_codigo.values(), key=lambda t: (int(t['codigo']), t['nombre']))
