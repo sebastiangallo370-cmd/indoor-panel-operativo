@@ -171,7 +171,7 @@
       (st.pausa ? '<div class="dr-off dr-paus">EN PAUSA</div>' : (st.pc.conectado ? '' : '<div class="dr-off">PC sin conexión</div>')) +
       barra +
       (prob ? `<div class="dr-actv mal"><button type="button" class="dr-mas" data-act="${esc(o.orden)}">⚠ Con problemas ${st.abiertas['a:' + o.orden] ? '▾' : '▸'}</button>${st.abiertas['a:' + o.orden] ? st.msgs.filter(m => m.rol !== 'yo' && String(m.texto || '').includes(o.orden)).slice(-1).map(m => `<div class="dr-m bot">${esc(m.texto.length > 700 ? m.texto.slice(0, 700) + '…' : m.texto)}</div>`).join('') : ''}</div>` : '') +
-      `<div class="dr-acc dr-ctl"><button type="button" class="dr-b pri" data-crear="${esc(o.orden)}"${bloqueado ? ' disabled' : ''}>CREAR DXF</button><button type="button" class="dr-b" data-pausa="${st.pausa ? 0 : 1}">${st.pausa ? '▶' : '⏸'}</button><button type="button" class="dr-b dr-cancel" data-cancelar${st.pc.id ? '' : ' disabled'} title="Cancelar">⏹</button></div></article>`;
+      `<div class="dr-acc dr-ctl"><button type="button" class="dr-b pri" data-crear="${esc(o.orden + ' ' + r.ref)}"${bloqueado ? ' disabled' : ''}>CREAR DXF</button><button type="button" class="dr-b" data-pausa="${st.pausa ? 0 : 1}">${st.pausa ? '▶' : '⏸'}</button><button type="button" class="dr-b dr-cancel" data-cancelar${st.pc.id ? '' : ' disabled'} title="Cancelar">⏹</button></div></article>`;
   }
   const burbuja = m => `<div class="dr-m ${m.rol === 'yo' ? 'yo' : 'bot'}${m.auto ? ' auto' : ''}">${esc(m.texto)}<small>${m.rol === 'yo' ? 'Tú' : (m.agentes && m.agentes.length ? m.agentes.join(' · ') : 'TAVO')} · ${esc(hora(m.creado))}</small></div>`;
 
@@ -215,7 +215,7 @@
       const q = e.target.closest('[data-q]'); if (q) { const i = panel.querySelector('.dr-form input'); if (i) { i.value = q.dataset.q; i.focus(); } return; }
       const plan = e.target.closest('[data-plan]'); if (plan && !plan.disabled) { enviar('draco plan ' + plan.dataset.plan); return; }
       const crear = e.target.closest('[data-crear]');
-      if (crear && !crear.disabled) { if (confirm('¿Crear los DXF de ' + crear.dataset.crear + '? DRACO los guarda en la carpeta CORTE PLT de la orden (lo que ya existe no se reemplaza).')) enviar('draco trazo ' + crear.dataset.crear); return; }
+      if (crear && !crear.disabled) { if (confirm('¿Crear los DXF de ' + crear.dataset.crear + '? DRACO los guarda en la carpeta CORTE PLT de la orden y reemplaza los de esa referencia.')) enviar('draco trazo ' + crear.dataset.crear); return; }
       const pau = e.target.closest('[data-pausa]');
       if (pau) { const v = pau.dataset.pausa === '1'; api('/api/agentes/draco/pausa', { method: 'POST', body: JSON.stringify({ pausa: v }) }).then(() => { st.pausa = v; pintar(); }).catch(x => { st.aviso = x.message; pintar(); }); return; }
       const can = e.target.closest('[data-cancelar]');
