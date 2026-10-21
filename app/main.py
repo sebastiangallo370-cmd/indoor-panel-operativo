@@ -3055,7 +3055,7 @@ def _produccion_base(force: bool = False) -> dict:
         if not force and c['base'] is not None and c['token'] == token and time.monotonic() - c['at'] < _PROD_SEGUNDOS:
             return c['base']
         base = dict(read_local_production())
-        trazo_plt.marcar_no_aplica(base, _proceso_de)
+        trazo_plt.marcar_no_aplica(base, _proceso_de, parse_production_date)
         base['process_times'] = _tiempos_proceso()
         c.update(at=time.monotonic(), token=token, base=base)
         return base
