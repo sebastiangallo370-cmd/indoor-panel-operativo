@@ -65,7 +65,7 @@ def proveedor_de(codigo: str) -> dict:
     return _leer().get(str(codigo), {})
 
 
-CAMPOS_EXTRA = ('composicion', 'gramaje', 'tipo', 'correo', 'precio_sin_iva', 'wpp')   # opcionales: se guardan por separado, nunca son obligatorios
+CAMPOS_EXTRA = ('composicion', 'gramaje', 'tipo', 'vendedor', 'correo', 'precio_sin_iva', 'wpp')   # opcionales: se guardan por separado, nunca son obligatorios
 
 _NO_PROVEEDOR = {'VARIAS', 'DON ALVEIRO', ''}   # «VARIAS» no es un proveedor y DON ALVEIRO es otra empresa: no se sugieren
 

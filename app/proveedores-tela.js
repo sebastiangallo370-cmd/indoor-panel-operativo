@@ -367,7 +367,7 @@
     const lapiz = edit ? '' : `<button type="button" class="pt-lapiz${falta ? ' pri' : ''}" data-pv-editar title="Editar tarjeta" aria-label="Editar tarjeta"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>`;
     return `<div class="pv-card pv-t${falta ? ' sin' : ''}${edit ? ' editando' : ''}${st.reciente === t.codigo ? ' nueva' : ''}" data-cod="${esc(t.codigo)}">` +
       `<div class="pt-head"><h3 class="pt-nom">${esc(t.nombre)}</h3><span class="pt-ring${falta ? '' : ' ok'}" title="${falta ? esc(falta) : 'Los 4 datos obligatorios están completos'}"><svg viewBox="0 0 36 36" aria-hidden="true"><circle class="bg" cx="18" cy="18" r="15.9155" pathLength="100"/><circle class="fg" cx="18" cy="18" r="15.9155" pathLength="100" stroke-dasharray="${listos * 25} 100"/></svg><b>${listos}/4</b></span>${lapiz}</div>` +
-      `<div class="pt-form"><div class="pt-row fijo"><span class="pt-lbl">Código<b>*</b></span><button type="button" class="pt-cod" data-pv-copiar title="Tocar para copiar el código">${esc(t.codigo)}</button></div>` +
+      `<div class="pt-form"><div class="pt-row fijo"><span class="pt-lbl">Código Indoor<b>*</b></span><button type="button" class="pt-cod" data-pv-copiar title="Tocar para copiar el código">${esc(t.codigo)}</button></div>` +
       fila(t.codigo, 'Proveedor', t.proveedor, 'list="pv-proveedores" data-pv-input', true, !t.proveedor, 'Escribe el proveedor…') +
       (edit ? sugerencias('prov', habituales().slice(0, 5)) : '') +
       fila(t.codigo, 'Ancho (cm)', t.ancho, 'inputmode="decimal" data-pv-ancho', true, !t.ancho, 'Ej. 150', ' cm') +
@@ -376,9 +376,10 @@
       fila(t.codigo, 'Composición', t.composicion, 'data-pv-opc data-pv-comp', false, false, 'Ej. 100% poliéster', '', 'pt-w2') +
       fila(t.codigo, 'Gramaje', t.gramaje, 'inputmode="decimal" data-pv-opc data-pv-gram', false, false, 'Ej. 150', ' g/m²') +
       fila(t.codigo, 'Tipo', t.tipo, 'data-pv-opc data-pv-tipo', false, false, 'Ej. Punto, Plano, Rib') +
-      fila(t.codigo, 'Correo proveedor', t.correo, 'inputmode="email" data-pv-opc data-pv-correo', false, false, 'correo@proveedor.com', '', 'pt-w2') +
-      fila(t.codigo, 'Precio sin IVA', t.precio_sin_iva ? Number(t.precio_sin_iva).toLocaleString('es-CO') : '', 'inputmode="decimal" data-pv-opc data-pv-precio', false, false, 'Ej. 18500', ' COP') +
+      fila(t.codigo, 'Vendedor proveedor', t.vendedor, 'data-pv-opc data-pv-vend', false, false, 'Nombre del vendedor') +
       fila(t.codigo, 'WPP proveedor', t.wpp, 'inputmode="tel" data-pv-opc data-pv-wpp', false, false, 'Ej. 573001234567') +
+      fila(t.codigo, 'Correo proveedor', t.correo, 'inputmode="email" data-pv-opc data-pv-correo', false, false, 'correo@proveedor.com') +
+      fila(t.codigo, 'Precio sin IVA', t.precio_sin_iva ? Number(t.precio_sin_iva).toLocaleString('es-CO') : '', 'inputmode="decimal" data-pv-opc data-pv-precio', false, false, 'Ej. 18500', ' COP') +
       '</div>' + acciones +
       `<div class="pt-stats"><div data-lq="${Math.min(100, Math.round(mts / 25))}" data-lq-tone="gris" data-lq-nopct><b data-n="${mts}">${f0(mts)}</b><span>MTS en bodega</span></div>` +
       '</div>' +
@@ -507,7 +508,7 @@
     if (!tj || !t) return false;
     const v = s => (tj.querySelector(s) || { value: '' }).value.trim();
     const cuerpo = { codigo: cod, proveedor: v('[data-pv-input]'), ancho: v('[data-pv-ancho]').replace(',', '.'), id_effi: v('[data-pv-ide]'),
-      composicion: v('[data-pv-comp]'), gramaje: v('[data-pv-gram]'), tipo: v('[data-pv-tipo]'), correo: v('[data-pv-correo]'), precio_sin_iva: v('[data-pv-precio]'), wpp: v('[data-pv-wpp]') };
+      composicion: v('[data-pv-comp]'), gramaje: v('[data-pv-gram]'), tipo: v('[data-pv-tipo]'), vendedor: v('[data-pv-vend]'), correo: v('[data-pv-correo]'), precio_sin_iva: v('[data-pv-precio]'), wpp: v('[data-pv-wpp]') };
     estado(cod, 'guardando', 'Guardando…');
     try {
       await api('/api/proveedores-tela', { method: 'PUT', body: JSON.stringify(cuerpo) });
