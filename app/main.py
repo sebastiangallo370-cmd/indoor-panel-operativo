@@ -3020,7 +3020,7 @@ def _agentes_trazo_listo(orden: str, referencia: str, momento: str = 'fin') -> d
     i_hf = next((k for k in range(i_trazo + 1, min(i_trazo + 6, len(titulos))) if titulos[k] == 'HORA FINAL'), -1)
     hm = ahora.strftime('%H:%M')
     # todas las columnas de la etapa TRAZO/CORTE/PLT (TRAZO y CORTE TEXTIL/PLT): la tarjeta queda finalizada en las dos, igual que en el Sheet
-    otras = [k + 1 for k, h in enumerate(json.loads(meta.get('headers') or '[]')) if k != i_trazo and _proceso_de(h) == trazo_plt.ETIQUETA]
+    otras = []   # DRACO escribe SOLO la columna TRAZO: la columna CORTE TEXTIL/PLT no la llena el agente (pedido del usuario, 2026-10-21)
     resultado = {'ok': True, 'orden': orden, 'referencia': referencia, 'filas': []}
     col_trazo = i_trazo + 1
     for fila in filas:
