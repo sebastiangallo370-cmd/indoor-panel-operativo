@@ -41,7 +41,7 @@
   #agentes-hub .ah-ag b{font:900 12px Arial;letter-spacing:.1em}
   #agentes-hub .ah-lista small{font:600 11px Arial;color:#9aa893}
   @keyframes ahIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
-  #open-ecommerce,#open-zeus{display:none!important}
+  #open-ecommerce,#open-zeus,#open-agentes,#open-agentes-hub{display:none!important}   /* los agentes ya no van en el menú de la cuenta: se abren con el robot */
   `;
   document.head.appendChild(css);
 
@@ -108,19 +108,7 @@
     }
     pintar();
     ubicar();
-    // una sola entrada «Agentes» en el menú de la cuenta (Ecommerce e Inventario se ocultan: se eligen con el robot);
-    // si la cuenta no ve Edición, la entrada se crea aquí y abre la primera área disponible
-    const menu = document.querySelector('.user-dropdown');
-    const lista = disponibles();
-    const viejo = document.getElementById('open-agentes');
-    if (viejo && viejo.textContent !== 'Agentes') viejo.textContent = 'Agentes';
-    if (menu && lista.length && !viejo && !document.getElementById('open-agentes-hub')) {
-      const boton = document.createElement('button');
-      boton.type = 'button'; boton.id = 'open-agentes-hub'; boton.textContent = 'Agentes';
-      boton.addEventListener('click', () => { document.querySelector('.user-menu')?.removeAttribute('open'); const t = tabDe(disponibles()[0].kind); if (t) t.click(); });
-      const previo = document.getElementById('open-personal-notes');
-      previo ? previo.insertAdjacentElement('afterend', boton) : menu.querySelector('p')?.insertAdjacentElement('afterend', boton);
-    }
+    // el menú de la cuenta ya no lista los agentes (Edición, Ecommerce, Inventarios): se abren con el robot junto al sol
   }
   setInterval(montar, 400);
   document.addEventListener('click', () => setTimeout(() => { pintar(); ubicar(); }, 60), true);
