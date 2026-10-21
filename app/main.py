@@ -2814,7 +2814,7 @@ COL_MAQUINA, COL_ED_INICIO, COL_ED_FINAL, COL_ED_RESP = 18, 38, 39, 40
 _AGENTES_CORRIDAS: dict = {}   # orden -> filas de Producción que los agentes están trabajando (se llena al empezar, se usa al terminar)
 
 
-def _agentes_escribir_sheet(fila_local: int, celdas: dict, solo_si_vacia: set) -> dict:
+def _agentes_escribir_sheet(fila_local: int, celdas: dict, solo_si_vacia: set, solo_si_en: dict | None = None) -> dict:
     """Escribe celdas {columna: valor} en la fila del Google Sheets que corresponde a la tarjeta. Antes comprueba EN VIVO que la fila sea la misma
     orden y referencia (las filas pueden moverse) y no pisa las columnas de «solo_si_vacia» que ya tengan algo."""
     import gspread
@@ -2836,6 +2836,8 @@ def _agentes_escribir_sheet(fila_local: int, celdas: dict, solo_si_vacia: set) -
             actual = str(vivos[col - 1] if len(vivos) >= col else '').strip()
             if col in solo_si_vacia and actual:
                 continue
+            if solo_si_en and col in solo_si_en and actual.upper() not in solo_si_en[col]:
+                continue   # solo se escribe si la celda está vacía o en uno de esos valores (p. ej. «P»): nunca se pisa lo que una persona puso
             if actual == str(valor):
                 continue
             datos.append({'range': gspread.utils.rowcol_to_a1(fila, col), 'values': [[valor]]})
@@ -2982,6 +2984,62 @@ def _agentes_sellar(orden: str, momento: str, referencia: str = '') -> dict:
     return resultado
 
 
+def _agentes_trazo_listo(orden: str, referencia: str, momento: str = 'fin') -> dict:
+    """DRACO y el proceso TRAZO/CORTE/PLT de una referencia, en Producción (la página web), en el Google Sheets y con la HORA de inicio y de fin:
+      · momento «inicio»: cuando DRACO empieza → TRAZO = «P» (en proceso) y se registra la hora de inicio;
+      · momento «fin»: cuando terminó los DXF de TODAS las tallas → TRAZO = fecha de hoy y se registra la hora final.
+    RESP. = «AGENT». Solo en la fila de esa referencia y sin pisar lo que una persona haya puesto."""
+    ahora = datetime.now(timezone(timedelta(hours=-5)))
+    hoy, marca = ahora.strftime('%d/%m/%Y'), ahora.isoformat()
+    filas = _filas_de_referencia(_filas_de_orden(orden), referencia)
+    if not filas:
+        return {'ok': False, 'motivo': f'No encontré en Producción la referencia {referencia} de la orden {orden}'}
+    with connect() as db:
+        meta = {r['key']: r['value'] for r in db.execute('SELECT key, value FROM production_meta')}
+    plano = lambda h: ''.join(c for c in unicodedata.normalize('NFD', str(h or '')) if not unicodedata.combining(c)).strip().upper()
+    titulos = [plano(h) for h in json.loads(meta.get('headers') or '[]')]
+    if 'TRAZO' not in titulos:
+        return {'ok': False, 'motivo': 'Producción no tiene la columna TRAZO'}
+    i_trazo = titulos.index('TRAZO')
+    i_resp = next((k for k in range(i_trazo + 1, min(i_trazo + 5, len(titulos))) if titulos[k].startswith('RESP')), -1)
+    resultado = {'ok': True, 'orden': orden, 'referencia': referencia, 'filas': []}
+    col_trazo = i_trazo + 1
+    for fila in filas:
+        valor = 'P' if momento == 'inicio' else hoy
+        celdas = {col_trazo: valor}
+        if i_resp >= 0:
+            celdas[i_resp + 1] = 'AGENT'
+        with connect() as db:
+            rec = db.execute('SELECT values_json FROM production_rows WHERE source_row=?', (fila,)).fetchone()
+            if not rec:
+                continue
+            v = json.loads(rec['values_json'])
+            v.extend([''] * max(0, max(celdas) - len(v)))
+            actual = str(v[col_trazo - 1]).strip().upper()
+            if (momento == 'inicio' and actual) or (momento != 'inicio' and actual not in ('', 'P', 'R')):
+                resultado['filas'].append({'fila': fila, 'omitida': f'TRAZO ya tiene «{actual}»'})
+                continue   # ya empezó o ya está terminado (por una persona): no se toca
+            v[col_trazo - 1] = valor
+            if i_resp >= 0 and not str(v[i_resp]).strip():
+                v[i_resp] = 'AGENT'
+            ensure_operator_events(db)
+            if momento == 'inicio':
+                db.execute('INSERT INTO production_started(source_row,column_number,created_at) VALUES (?,?,?)', (fila, col_trazo, marca))
+                db.execute('INSERT INTO production_operator_events(source_row,column_number,action,username,responsible,reason,created_at) VALUES (?,?,?,?,?,?,?)',
+                           (fila, col_trazo, 'start', 'DRACO', 'AGENT', 'DRACO empezó los trazos (DXF por talla)', marca))
+            else:
+                db.execute('INSERT INTO production_finished(source_row,column_number,value,created_at) VALUES (?,?,?,?)', (fila, col_trazo, hoy, marca))
+                db.execute('INSERT INTO production_operator_events(source_row,column_number,action,username,responsible,reason,created_at) VALUES (?,?,?,?,?,?,?)',
+                           (fila, col_trazo, 'finish', 'DRACO', 'AGENT', 'DRACO terminó los DXF de todas las tallas', marca))
+            db.execute('UPDATE production_rows SET values_json=? WHERE source_row=?', (json.dumps(v, ensure_ascii=False), fila))
+            db.execute("INSERT OR REPLACE INTO production_meta(key,value) VALUES ('updated_at',?)", (datetime.now(timezone.utc).isoformat(),))
+        # en el Google Sheets: TRAZO solo si está vacío (o en «P» al terminar) y RESP. solo si está vacío
+        permitido = {col_trazo: {'', 'P'} if momento != 'inicio' else {''}}
+        resultado['filas'].append({'fila': fila, 'sheet': _agentes_escribir_sheet(fila, celdas, {c for c in celdas if c != col_trazo}, permitido)})
+    logging.info('DRACO: TRAZO/CORTE/PLT (%s): %s', momento, resultado)
+    return resultado
+
+
 def _agentes_guardar_maquina(orden: str, referencias: list, maquina: str) -> dict:
     """Los agentes ponen la máquina de impresión (la que sale de los JPG del maestro) en las tarjetas de la orden. Solo llena las que están vacías:
     lo que una persona ya eligió no se cambia."""
@@ -3048,6 +3106,7 @@ def _agentes_maquinas_de(orden: str) -> list:
 
 agentes_mod.configurar_mts(_terry_guardar_mts)
 agentes_mod.configurar_trazos(_trazo_cola)
+agentes_mod.configurar_trazo_listo(_agentes_trazo_listo)
 agentes_mod.configurar_maquinas_de(_agentes_maquinas_de)
 agentes_mod.configurar_maquina(_agentes_guardar_maquina)
 agentes_mod.configurar_sello(_agentes_sellar)

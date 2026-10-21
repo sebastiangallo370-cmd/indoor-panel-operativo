@@ -737,6 +737,25 @@ def plantillas_orden(request: Request, payload: dict):
     return {'hojas': {h: promedios_mod.plantillas_de_hoja(h) for h in hojas}}
 
 
+_trazo_listo: Callable | None = None   # lo registra main.py: marca TRAZO/CORTE/PLT en Producción y en el Google Sheets
+
+
+def configurar_trazo_listo(fn: Callable) -> None:
+    global _trazo_listo
+    _trazo_listo = fn
+
+
+@pc_router.post('/trazo-listo')
+def trazo_listo(request: Request, payload: dict):
+    """DRACO terminó los DXF de todas las tallas de una referencia: se marca TRAZO/CORTE/PLT en Producción y en el Google Sheets."""
+    _pc(request)
+    orden = re.sub(r'\s+', '', str(payload.get('orden') or '')).upper()
+    referencia = str(payload.get('referencia') or '').strip()
+    if not orden or not referencia or not _trazo_listo:
+        raise HTTPException(400, 'Faltan la orden o la referencia')
+    return _trazo_listo(orden, referencia, 'inicio' if str(payload.get('momento') or '') == 'inicio' else 'fin')
+
+
 @pc_router.post('/telas')
 def telas_info(request: Request, payload: dict):
     """DRACO (y quien lo necesite): las telas de INFORMACIÓN TELA con su código, nombre, ancho, proveedor, ID de Effi y las referencias que las usan."""
