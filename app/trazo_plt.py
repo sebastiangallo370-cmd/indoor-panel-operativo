@@ -18,7 +18,7 @@ def _plano(texto) -> str:
 
 def marcar_no_aplica(base: dict, proceso_de, es_fecha=lambda texto: False) -> None:
     """En lo que ve la web (no en la base ni en el Sheet), las columnas de TRAZO/CORTE/PLT:
-      · vacías en una referencia que no lo usa (tela blanca o sin código) se muestran «N/A»;
+      · en una referencia que no lo usa (tela blanca o sin código) todo lo que no sea una fecha, incluida una «P» puesta por error, se muestra «N/A»;
       · en un pedido ya ENTREGADO (con fecha en esa columna del Sheet) todo lo que no sea una fecha o «N/A» (vacío, «P», notas viejas como «PLT» o «26-05»)
         se muestra «N/A»: un pedido entregado ya terminó todo, así no queda en la cola.
     `proceso_de(encabezado)` da la etiqueta del proceso de esa columna; `es_fecha(texto)` dice si el texto es una fecha."""
@@ -38,5 +38,5 @@ def marcar_no_aplica(base: dict, proceso_de, es_fecha=lambda texto: False) -> No
                 continue
             celda = str(v[i] or '').strip()
             cerrada = celda.upper() == 'N/A' or bool(es_fecha(celda))
-            if (entregado and not cerrada) or (sin_uso and not celda):
+            if (entregado or sin_uso) and not cerrada:
                 v[i] = 'N/A'

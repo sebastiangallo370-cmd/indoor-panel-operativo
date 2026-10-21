@@ -31,7 +31,7 @@ class TrazoCortePltTest(unittest.TestCase):
         trazo_plt.marcar_no_aplica(base, lambda h: trazo_plt.ETIQUETA if h in ('TRAZO', 'CORTE TEXTIL/PLT') else '')
         self.assertEqual(base['rows'][0]['values'][1:3], ['N/A', 'N/A'])
         self.assertEqual(base['rows'][1]['values'][1:3], ['', ''])
-        self.assertEqual(base['rows'][2]['values'][1:3], ['P', 'N/A'])
+        self.assertEqual(base['rows'][2]['values'][1:3], ['N/A', 'N/A'])
 
 
     def test_pedido_entregado_no_queda_en_la_cola(self):
