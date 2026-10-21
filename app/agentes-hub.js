@@ -7,7 +7,7 @@
   const AREAS = [
     { id: 'edicion', kind: 'agentes', nombre: 'EDICIÓN', agentes: [['TAVO', 'Coordina el pedido'], ['LEO', 'Lee el listado'], ['JACK', 'Crea la muestra'], ['OLVER', 'Mesas de trabajo'], ['OLIVER', 'Tallas, números y PDF'], ['TERRY', 'MTS y Google Sheets']] },
     // TRAZO es su propio desplegable: DRACO se atiende en el chat de Agentes, pero aparece aparte de los de Edición y deja escrito «draco » para pedirle
-    { id: 'trazo', kind: 'agentes', nombre: 'TRAZOS', mensaje: 'draco ', agentes: [['DRACO', 'Trazos en Optitex Mark']] },
+    { id: 'trazo', kind: 'draco', nombre: 'TRAZOS', agentes: [['DRACO', 'Trazos en Optitex Mark']] },   // su propia pantalla (draco-panel.js): cola de órdenes, DXF por talla y conversación con DRACO
     { id: 'ecommerce', kind: 'ecommerce', nombre: 'ECOMMERCE', agentes: [['ALMA', 'Descarga las órdenes'], ['BRISA', 'Exporta las tallas'], ['CIRO', 'PDF y Google Sheets']] },
     { id: 'zeus', kind: 'zeus', nombre: 'INVENTARIOS', agentes: [['ZEUS', 'Tela y órdenes de compra']] },
     { id: 'club', kind: 'club', nombre: 'COMERCIAL', agentes: [['EFFITRON', 'Cotización de las reposiciones']] },

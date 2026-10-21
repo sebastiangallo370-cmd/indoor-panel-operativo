@@ -269,6 +269,26 @@ def estado(request: Request, pc: str = ''):
             'pc_activo': datos.get('pc_activo') or '', 'pcs': pcs}
 
 
+_cola_trazos: Callable | None = None   # lo registra main.py: órdenes en la cola de TRAZO/CORTE/PLT con los DXF que ya tienen
+
+
+def configurar_trazos(fn: Callable) -> None:
+    global _cola_trazos
+    _cola_trazos = fn
+
+
+@router.get('/draco/cola')
+def draco_cola(request: Request):
+    """Panel de DRACO: órdenes que están en TRAZOS (tela que no es blanca) con sus DXF ya creados en la carpeta CORTE PLT, y el PC AUTOMATIZACION."""
+    _auth(request)
+    with _lock:
+        datos = _leer()
+    pid = next((p for p, info in datos['pcs'].items() if str(info.get('nombre', '')).strip().upper() == PC_TRAZOS), '')
+    pc = {'id': pid, 'nombre': PC_TRAZOS, 'conectado': bool(pid) and _conectado(datos, pid), 'visto': _latido_pc(datos, pid).get('iso', '') if pid else '',
+          'equipo': _latido_pc(datos, pid).get('equipo', '') if pid else ''}
+    return {'pc': pc, 'automatico': True, 'ordenes': _cola_trazos() if _cola_trazos else []}
+
+
 @router.get('/mensajes')
 def mensajes(request: Request, desde: int = 0, desde_ev: int = 0, pc: str = ''):
     usuario = _auth(request)
