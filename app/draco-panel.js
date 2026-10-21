@@ -59,13 +59,67 @@
   .dr-rapidos button:hover{background:rgba(255,255,255,.14)}
   @keyframes drIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}@keyframes drLate{50%{transform:scale(1.5);opacity:.5}}
   @media(max-width:980px){.dr-grid{grid-template-columns:1fr}.dr-hd{padding:16px}.dr-hd h2{font-size:22px}}
+  /* ===== Efecto vidrio líquido ===== */
+  .dr{position:relative;isolation:isolate;--gx:50%;--gy:0%}
+  .dr::before,.dr::after{content:"";position:absolute;z-index:-1;border-radius:50%;filter:blur(70px);pointer-events:none;animation:drFlota 16s ease-in-out infinite alternate}
+  .dr::before{width:460px;height:460px;left:-80px;top:-40px;background:radial-gradient(circle,rgba(255,122,89,.42),transparent 70%)}
+  .dr::after{width:520px;height:520px;right:-100px;top:240px;background:radial-gradient(circle,rgba(70,190,170,.32),transparent 70%);animation-delay:-8s}
+  .dr-hd,.dr-card,.dr-chat,.dr-vacio{--mx:50%;--my:0%;position:relative;overflow:hidden;
+    background:linear-gradient(150deg,rgba(255,255,255,.16),rgba(255,255,255,.04) 45%,rgba(255,255,255,.08));
+    border:1px solid rgba(255,255,255,.2);
+    -webkit-backdrop-filter:blur(22px) saturate(1.7);backdrop-filter:blur(22px) saturate(1.7);
+    box-shadow:0 14px 40px rgba(0,0,0,.38),inset 0 1px 0 rgba(255,255,255,.35),inset 0 -1px 0 rgba(255,255,255,.06)}
+  .dr-hd::before,.dr-card::before{content:"";position:absolute;inset:0;pointer-events:none;border-radius:inherit;opacity:0;transition:opacity .25s;
+    background:radial-gradient(320px circle at var(--mx) var(--my),rgba(255,255,255,.22),transparent 60%)}
+  .dr-hd:hover::before,.dr-card:hover::before{opacity:1}
+  .dr-hd::after,.dr-card::after{content:"";position:absolute;top:0;left:-60%;width:40%;height:100%;pointer-events:none;
+    background:linear-gradient(100deg,transparent,rgba(255,255,255,.14),transparent);transform:skewX(-18deg);transition:left .8s ease}
+  .dr-hd:hover::after,.dr-card:hover::after{left:130%}
+  .dr-card>*,.dr-hd>*{position:relative;z-index:1}
+  .dr-card{border-radius:20px;padding:18px 20px;animation:drIn .4s ease-out both;transition:transform .25s cubic-bezier(.2,.8,.2,1),box-shadow .25s,border-color .25s}
+  .dr-card:hover{transform:translateY(-4px) scale(1.006);border-color:rgba(255,160,130,.55);box-shadow:0 22px 50px rgba(0,0,0,.45),0 0 0 1px rgba(255,122,89,.25),inset 0 1px 0 rgba(255,255,255,.45)}
+  .dr-hd{border-radius:24px}.dr-hd h2{background:linear-gradient(90deg,#fff,#ffb39f);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .dr-top h4{font-size:22px}
+  .dr-ref,.dr-arch,.dr-pill{-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);background:rgba(255,255,255,.1);box-shadow:inset 0 1px 0 rgba(255,255,255,.22);transition:transform .2s,background .2s}
+  .dr-ref:hover,.dr-arch:hover{transform:translateY(-2px);background:rgba(255,255,255,.2)}
+  .dr-pill.ok i{animation:drPulso 2s ease-out infinite}.dr-pill.mal i{animation:drPulsoMal 1.6s ease-out infinite}
+  .dr-est{background:rgba(255,255,255,.12);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+  .dr-b{border-radius:14px;background:linear-gradient(180deg,rgba(255,255,255,.2),rgba(255,255,255,.06));box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 4px 12px rgba(0,0,0,.25);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+  .dr-b:active:not(:disabled){transform:scale(.97)}
+  .dr-b.pri{background:linear-gradient(180deg,#ff9a7d,#e8573a);color:#fff;border-color:rgba(255,255,255,.35);box-shadow:inset 0 1px 0 rgba(255,255,255,.5),0 6px 18px rgba(255,100,70,.4)}
+  .dr-b.pri:hover:not(:disabled){background:linear-gradient(180deg,#ffae95,#f0674b);box-shadow:inset 0 1px 0 rgba(255,255,255,.5),0 8px 24px rgba(255,100,70,.55)}
+  .dr-chat{border-radius:20px;padding:16px;scrollbar-width:thin}
+  .dr-m{-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);box-shadow:inset 0 1px 0 rgba(255,255,255,.2),0 4px 14px rgba(0,0,0,.2)}
+  .dr-m.yo{background:linear-gradient(150deg,rgba(255,122,89,.4),rgba(255,122,89,.15));border-radius:16px 16px 4px 16px}
+  .dr-m.bot{background:linear-gradient(150deg,rgba(255,255,255,.16),rgba(255,255,255,.05));border-radius:16px 16px 16px 4px}
+  .dr-form input{border-radius:14px;background:rgba(255,255,255,.08);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);box-shadow:inset 0 1px 3px rgba(0,0,0,.35);transition:box-shadow .2s,border-color .2s}
+  .dr-form input:focus{box-shadow:0 0 0 3px rgba(255,122,89,.28),inset 0 1px 3px rgba(0,0,0,.35)}
+  .dr-rapidos button{background:rgba(255,255,255,.1);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);box-shadow:inset 0 1px 0 rgba(255,255,255,.22);transition:transform .2s,background .2s}
+  .dr-rapidos button:hover{transform:translateY(-2px)}
+  .dr-vacio{border-style:solid;border-radius:20px}
+  .dr-grid{grid-template-columns:1fr}
+  .dr-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:16px}
+  .dr-card{align-content:start}
+  .dr-ref.p{border-color:#ff7a59;background:rgba(255,122,89,.22)}
+  .dr-actv{display:grid;gap:8px;border-top:1px solid rgba(255,255,255,.1);padding-top:8px}.dr-actv.mal .dr-mas{color:#ffb39f}
+  .dr-actv .dr-m{max-width:100%;font-size:12px;max-height:240px;overflow:auto}
+  .dr-paus{background:rgba(255,200,80,.16);border-color:rgba(255,200,80,.5);color:#ffd98a}.dr-cancel{border-color:rgba(255,107,97,.6)!important;color:#ffb3ac!important}.dr-ctl .dr-b{flex:1}.dr-q{color:#ff9d83;font-weight:900}.dr-off{padding:6px 10px;border-radius:10px;background:rgba(255,107,97,.18);border:1px solid rgba(255,107,97,.45);color:#ffb39f;font:700 11px Arial}
+  @keyframes drFlota{to{transform:translate(70px,50px) scale(1.18)}}
+  @keyframes drPulso{0%{box-shadow:0 0 0 0 rgba(111,227,154,.6)}100%{box-shadow:0 0 0 10px rgba(111,227,154,0)}}
+  @keyframes drPulsoMal{0%{box-shadow:0 0 0 0 rgba(255,107,97,.6)}100%{box-shadow:0 0 0 10px rgba(255,107,97,0)}}
+  @media(prefers-reduced-motion:reduce){.dr::before,.dr::after,.dr-card,.dr-pill i{animation:none!important}}
+  @media(max-width:980px){.dr::before,.dr::after{width:300px;height:300px;filter:blur(55px)}.dr-card{padding:15px}}
   `;
   document.head.appendChild(css);
+  document.addEventListener('pointermove', e => {
+    const t = e.target.closest && e.target.closest('.dr-card,.dr-hd'); if (!t) return;
+    const r = t.getBoundingClientRect(); t.style.setProperty('--mx', (e.clientX - r.left) + 'px'); t.style.setProperty('--my', (e.clientY - r.top) + 'px');
+  }, { passive: true });
 
   async function cargarCola() {
     try {
       const d = await api('/api/agentes/draco/cola');
-      st.pc = d.pc || st.pc; st.ordenes = d.ordenes || []; st.cargada = true; st.aviso = '';
+      st.pausa = !!d.pausa; st.pc = d.pc || st.pc; st.ordenes = d.ordenes || []; st.cargada = true; st.aviso = '';
     } catch (e) { st.aviso = e.message; }
   }
   async function cargarChat() {
@@ -86,17 +140,31 @@
   }
 
   const estadoOrden = o => { const e = o.referencias.map(r => r.estado); return e.includes('en proceso') || e.includes('reproceso') ? { t: 'EN PROCESO', c: 'proc' } : (o.dxf && o.dxf.length ? { t: o.dxf.length + ' DXF', c: 'hecho' } : { t: 'PENDIENTE', c: '' }); };
-  function tarjeta(o) {
-    const e = estadoOrden(o), abierta = !!st.abiertas[o.orden], dxf = o.dxf || [], mostrar = abierta ? dxf : dxf.slice(0, 6);
+  function actividad(o) {
+    const ms = st.msgs.filter(m => m.rol !== 'yo' && String(m.texto || '').includes(o.orden)).slice(-3);
+    if (!ms.length) return '';
+    const ab = !!st.abiertas['a:' + o.orden], prob = ms.some(m => /Con problemas|Error/.test(m.texto));
+    return `<div class="dr-actv${prob ? ' mal' : ''}"><button type="button" class="dr-mas" data-act="${esc(o.orden)}">${ab ? '▾' : '▸'} Actividad de DRACO${prob ? ' · con problemas' : ''} (${ms.length})</button>` +
+      (ab ? ms.map(m => `<div class="dr-m bot">${esc(m.texto.length > 900 ? m.texto.slice(0, 900) + '…' : m.texto)}<small>${esc(hora(m.creado))}</small></div>`).join('') : '') + `</div>`;
+  }
+  function tarjeta(o, r) {
+    const e = estadoOrden({ referencias: [r], dxf: [] }), clave = o.orden + '|' + r.ref, abierta = !!st.abiertas[clave];
+    const todos = o.dxf || [], conSub = todos.some(a => a.sub);
+    const dxf = conSub ? todos.filter(a => String(a.sub || '').toUpperCase().includes(String(r.ref).toUpperCase())) : (o.referencias.length === 1 ? todos : []);
+    const mostrar = abierta ? dxf : dxf.slice(0, 6);
     const lista = dxf.length
-      ? `<div class="dr-lista">${mostrar.map(a => `<span class="dr-arch" title="${esc(a.sub ? a.sub + '\\' + a.nombre : a.nombre)}">${esc((a.sub ? a.sub + '/' : '') + a.nombre)}</span>`).join('')}</div>` + (dxf.length > 6 ? `<button type="button" class="dr-mas" data-mas="${esc(o.orden)}">${abierta ? 'Ver menos' : 'Ver los ' + dxf.length}</button>` : '')
-      : (o.error ? `<span class="dr-err">${esc(o.error)}</span>` : `<span class="dr-nada">Todavía no hay DXF en la carpeta CORTE PLT${o.corte ? '' : ' (la carpeta se crea al generarlos)'}.</span>`);
+      ? `<div class="dr-lista">${mostrar.map(a => `<span class="dr-arch" title="${esc(a.nombre)}">${esc(a.nombre)}</span>`).join('')}</div>` + (dxf.length > 6 ? `<button type="button" class="dr-mas" data-mas="${esc(clave)}">${abierta ? 'Ver menos' : 'Ver los ' + dxf.length}</button>` : '')
+      : (o.error ? `<span class="dr-err">${esc(o.error)}</span>` : `<span class="dr-nada">Todavía no hay DXF en CORTE PLT.</span>`);
     const bloqueado = !st.pc.conectado || st.esperando || st.enviando;
-    return `<article class="dr-card" data-orden="${esc(o.orden)}"><div class="dr-top"><div><h4>${esc(o.orden)}</h4><div class="dr-cli">${esc(o.cliente)}${o.proyecto ? ' · ' + esc(o.proyecto) : ''}${o.entrega ? ' · entrega ' + esc(o.entrega) : ''}</div></div><span class="dr-est ${e.c}">${esc(e.t)}</span></div>` +
-      `<div class="dr-refs">${o.referencias.map(r => `<span class="dr-ref">${esc(r.ref)} <b>×${esc(r.cantidad || '?')}</b></span>`).join('')}</div>` +
+    const fin = dxf.length ? { t: dxf.length + ' DXF', c: 'hecho' } : e;
+    return `<article class="dr-card" data-orden="${esc(o.orden)}"><div class="dr-top"><div><h4>${esc(o.orden)} · ${esc(r.ref)} <b class="dr-q">×${esc(r.cantidad || '?')}</b></h4><div class="dr-cli">${esc(o.cliente)}${o.proyecto ? ' · ' + esc(o.proyecto) : ''}${o.entrega ? ' · entrega ' + esc(o.entrega) : ''}</div></div><span class="dr-est ${fin.c}">${esc(fin.t)}</span></div>` +
+      (st.pausa ? '<div class="dr-off dr-paus">DRACO EN PAUSA · no lanza trazos nuevos</div>' : '') +
+      (st.pc.conectado ? '' : '<div class="dr-off">PC AUTOMATIZACIÓN sin conexión</div>') +
       `<div class="dr-dxf"><strong>DXF EN CORTE PLT</strong>${lista}</div>` +
+      actividad(o) +
+      `<div class="dr-acc dr-ctl"><button type="button" class="dr-b ${st.pausa ? 'pri' : ''}" data-pausa="${st.pausa ? 0 : 1}">${st.pausa ? '▶ REANUDAR' : '⏸ PAUSAR'}</button><button type="button" class="dr-b dr-cancel" data-cancelar${st.pc.id ? '' : ' disabled'}>⏹ CANCELAR</button></div>` +
       `<div class="dr-acc"><button type="button" class="dr-b" data-plan="${esc(o.orden)}"${bloqueado ? ' disabled' : ''}>VER PLAN</button><button type="button" class="dr-b pri" data-crear="${esc(o.orden)}"${bloqueado ? ' disabled' : ''}>CREAR DXF</button>` +
-      `<button type="button" class="dr-b" data-copiar="${esc(o.corte || (o.carpeta ? o.carpeta + '\\CORTE PLT' : ''))}"${o.carpeta || o.corte ? '' : ' disabled'}>COPIAR CARPETA</button></div></article>`;
+      `<button type="button" class="dr-b" data-copiar="${esc(o.corte || (o.carpeta ? o.carpeta + '\CORTE PLT' : ''))}"${o.carpeta || o.corte ? '' : ' disabled'}>COPIAR CARPETA</button></div></article>`;
   }
   const burbuja = m => `<div class="dr-m ${m.rol === 'yo' ? 'yo' : 'bot'}${m.auto ? ' auto' : ''}">${esc(m.texto)}<small>${m.rol === 'yo' ? 'Tú' : (m.agentes && m.agentes.length ? m.agentes.join(' · ') : 'TAVO')} · ${esc(hora(m.creado))}</small></div>`;
 
@@ -105,22 +173,12 @@
     const caja = panel.querySelector('.dr'); if (!caja) return;
     const activo = document.activeElement;
     if (activo && activo.matches && activo.matches('.dr-form input') && activo.value) return;   // no se redibuja mientras la persona está escribiendo
-    const firma = JSON.stringify([st.pc, st.ordenes, st.msgs.length, st.ultimo, st.esperando, st.aviso, st.cargada, st.abiertas, st.enviando]);
+    const firma = JSON.stringify([st.pausa, st.pc, st.ordenes, st.msgs.length, st.ultimo, st.esperando, st.aviso, st.cargada, st.abiertas, st.enviando]);
     if (firma === st.firma) return;
     st.firma = firma;
-    const chat = caja.querySelector('.dr-chat'), alFinal = chat ? chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 30 : true, valor = (caja.querySelector('.dr-form input') || {}).value || '';
-    caja.innerHTML =
-      `<header class="dr-hd"><div><small>AGENTE DE TRAZOS</small><h2>DRACO</h2><p>Crea un trazo (un DXF) por cada talla en Optitex Mark y lo guarda en la carpeta CORTE PLT de la orden. Solo corre en el PC AUTOMATIZACIÓN; aquí le pides y ves lo que hace.</p></div>` +
-      `<div class="dr-pills"><span class="dr-pill ${st.pc.conectado ? 'ok' : 'mal'}"><i></i>PC AUTOMATIZACIÓN · ${st.pc.conectado ? 'conectado' : (st.pc.id ? 'sin conexión (' + esc(hace(st.pc.visto)) + ')' : 'no registrado')}</span>` +
-      `<span class="dr-pill ok"><i></i>Se activa con «P» en TRAZO/CORTE/PLT</span></div></header>` +
-      (st.aviso ? `<div class="dr-aviso">${esc(st.aviso)}</div>` : '') +
-      `<div class="dr-grid"><section class="dr-col"><h3>COLA DE TRAZOS <em>${st.ordenes.length} ${st.ordenes.length === 1 ? 'orden' : 'órdenes'}</em></h3>` +
-      (st.cargada ? (st.ordenes.length ? st.ordenes.map(tarjeta).join('') : '<div class="dr-vacio">No hay órdenes con tela de color pendientes de trazo.</div>') : '<div class="dr-vacio">Cargando…</div>') + `</section>` +
-      `<section class="dr-col"><h3>CONVERSACIÓN CON DRACO <em>canal del PC AUTOMATIZACIÓN</em></h3>` +
-      `<div class="dr-chat">${st.msgs.length ? st.msgs.map(burbuja).join('') : '<div class="dr-nada">Escribe «draco ayuda» para ver lo que puede hacer.</div>'}${st.esperando ? '<div class="dr-pensando"><i></i>' + esc(st.trabajo && st.trabajo.msg ? st.trabajo.msg : 'DRACO está trabajando…') + '</div>' : ''}</div>` +
-      `<div class="dr-rapidos"><button type="button" data-q="draco ayuda">Ayuda</button><button type="button" data-q="draco codigo ">Ver un código</button><button type="button" data-q="draco tallas ">Plan por tallas</button><button type="button" data-q="draco plan ">Plan de una orden</button><button type="button" data-q="draco trazo ">Crear DXF de una orden</button></div>` +
-      `<form class="dr-form"><input type="text" autocomplete="off" placeholder="draco … (ej. draco plan RM7664)" value="${esc(valor)}"><button type="submit" class="dr-b pri"${st.enviando || st.esperando ? ' disabled' : ''}>ENVIAR</button></form></section></div>`;
-    const c2 = caja.querySelector('.dr-chat'); if (c2 && alFinal) c2.scrollTop = c2.scrollHeight;
+    const tarjetas = [].concat(...st.ordenes.map(o => o.referencias.map(r => tarjeta(o, r))));
+    caja.innerHTML = (st.aviso ? `<div class="dr-aviso">${esc(st.aviso)}</div>` : '') +
+      (st.cargada ? (tarjetas.length ? '<div class="dr-cards">' + tarjetas.join('') + '</div>' : '<div class="dr-vacio">No hay órdenes con tela de color pendientes de trazo.</div>') : '<div class="dr-vacio">Cargando…</div>');
   }
 
   async function vuelta() {
@@ -151,6 +209,11 @@
       const plan = e.target.closest('[data-plan]'); if (plan && !plan.disabled) { enviar('draco plan ' + plan.dataset.plan); return; }
       const crear = e.target.closest('[data-crear]');
       if (crear && !crear.disabled) { if (confirm('¿Crear los DXF de ' + crear.dataset.crear + '? DRACO los guarda en la carpeta CORTE PLT de la orden (lo que ya existe no se reemplaza).')) enviar('draco trazo ' + crear.dataset.crear); return; }
+      const pau = e.target.closest('[data-pausa]');
+      if (pau) { const v = pau.dataset.pausa === '1'; api('/api/agentes/draco/pausa', { method: 'POST', body: JSON.stringify({ pausa: v }) }).then(() => { st.pausa = v; pintar(); }).catch(x => { st.aviso = x.message; pintar(); }); return; }
+      const can = e.target.closest('[data-cancelar]');
+      if (can && !can.disabled) { if (confirm('¿Cancelar lo que DRACO está haciendo? Si Illustrator/Mark estaba guardando un archivo, termina ese y no sigue con el resto.')) api('/api/agentes/detener', { method: 'POST', body: JSON.stringify({ pc: st.pc.id }) }).then(() => cargarChat()).then(pintar).catch(x => { st.aviso = x.message; pintar(); }); return; }
+      const act = e.target.closest('[data-act]'); if (act) { const k = 'a:' + act.dataset.act; st.abiertas[k] = !st.abiertas[k]; pintar(); return; }
       const mas = e.target.closest('[data-mas]'); if (mas) { st.abiertas[mas.dataset.mas] = !st.abiertas[mas.dataset.mas]; pintar(); return; }
       const cp = e.target.closest('[data-copiar]'); if (cp && cp.dataset.copiar) { try { navigator.clipboard.writeText(cp.dataset.copiar); cp.textContent = 'COPIADA ✓'; setTimeout(() => { cp.textContent = 'COPIAR CARPETA'; }, 1400); } catch (x) { /* sin portapapeles */ } }
     });

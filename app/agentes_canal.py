@@ -286,7 +286,18 @@ def draco_cola(request: Request):
     pid = next((p for p, info in datos['pcs'].items() if str(info.get('nombre', '')).strip().upper() == PC_TRAZOS), '')
     pc = {'id': pid, 'nombre': PC_TRAZOS, 'conectado': bool(pid) and _conectado(datos, pid), 'visto': _latido_pc(datos, pid).get('iso', '') if pid else '',
           'equipo': _latido_pc(datos, pid).get('equipo', '') if pid else ''}
-    return {'pc': pc, 'automatico': True, 'ordenes': _cola_trazos() if _cola_trazos else []}
+    return {'pc': pc, 'automatico': True, 'pausa': bool(datos['auto'].get('draco_pausa')), 'ordenes': _cola_trazos() if _cola_trazos else []}
+
+
+@router.post('/draco/pausa')
+def draco_pausa(request: Request, payload: dict | None = None):
+    """Pausa (o reanuda) los trazos automáticos de DRACO: en pausa no se lanza ninguna orden nueva; lo que ya está en curso se corta con «detener»."""
+    _auth(request)
+    with _lock:
+        datos = _leer()
+        datos['auto']['draco_pausa'] = bool((payload or {}).get('pausa'))
+        _guardar(datos)
+    return {'ok': True, 'pausa': datos['auto']['draco_pausa']}
 
 
 @router.get('/mensajes')
@@ -985,6 +996,8 @@ def auto_trazo(candidatos: list[dict], reactivar: str = '') -> list[str]:
     with _lock:
         datos = _leer()
         auto = datos['auto']
+        if auto.get('draco_pausa'):
+            return lanzadas   # DRACO en pausa: no se lanza nada nuevo; al reanudar sale lo que quedó pendiente
         if auto.get('vistos_trazo_p') is None:
             auto['vistos_trazo_p'] = [c['clave'] for c in candidatos]
             _guardar(datos)
