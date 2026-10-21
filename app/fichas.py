@@ -525,7 +525,7 @@ def importar(carpeta_excel: Path) -> dict:
     for k, libro in enumerate(archivos, 1):
         estado['progreso'] = f'{k}/{len(archivos)} · {libro.stem}'
         try:
-            wb = openpyxl.load_workbook(libro, data_only=True)
+            wb = openpyxl.load_workbook(io.BytesIO(Path(libro).read_bytes()), data_only=True)
         except Exception as e:  # noqa: BLE001
             estado['error'] = f'{libro.name}: {e}'
             continue

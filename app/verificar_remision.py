@@ -20,8 +20,9 @@ def total_del_pdf(texto: str) -> int | None:
 
 
 def unidades_por_hoja(excel: Path) -> dict[str, int]:
+    import io
     from openpyxl import load_workbook
-    libro = load_workbook(excel, read_only=True, data_only=True)
+    libro = load_workbook(io.BytesIO(Path(excel).read_bytes()), read_only=True, data_only=True)
     try:
         cuenta = {}
         for hoja in libro.worksheets:

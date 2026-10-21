@@ -700,7 +700,7 @@ def process_job(job_id: int, pdf_path: Path, extra_paths: list[Path], observatio
 def process_reprogram_excel_job(job_id: int, excel_path: Path, extra_paths: list[Path], observations: str = '', author: str = ''):
     try:
         update_job_progress(job_id, 8, "Leyendo el listado Excel")
-        workbook = load_workbook(excel_path, read_only=True, data_only=True)
+        workbook = load_workbook(io.BytesIO(Path(excel_path).read_bytes()), read_only=True, data_only=True)
         sheets = [sheet for sheet in workbook.worksheets if sheet.title.upper() != "BASE_DATOS"]
         if not sheets:
             raise ValueError("El Excel no contiene pestañas de listado")

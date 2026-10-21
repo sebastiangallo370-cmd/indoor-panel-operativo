@@ -946,7 +946,7 @@ def _data_from_document(path: Path) -> dict:
     suffix = path.suffix.lower()
     text, tables, structured = "", [], {}
     if suffix in {".xlsx", ".xlsm"}:
-        workbook = load_workbook(path, read_only=True, data_only=True)
+        workbook = load_workbook(io.BytesIO(Path(path).read_bytes()), read_only=True, data_only=True)
         try:
             for sheet in workbook.worksheets:
                 rows = [list(row) for row in sheet.iter_rows(values_only=True)]
