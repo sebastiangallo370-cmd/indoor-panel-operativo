@@ -52,7 +52,7 @@
   .mm-chips{display:flex;flex-wrap:wrap;gap:8px}.mm-chip{padding:8px 13px;border-radius:99px;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.06);color:#d7e3d1;font:800 11px Arial;letter-spacing:.05em;cursor:pointer}
   .mm-chip em{font-style:normal;color:#8fa596;margin-left:5px}.mm-chip.on{background:#6fe39a;border-color:#6fe39a;color:#06240f}.mm-chip.on em{color:#0b3a1d}
   .mm-lista{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px}
-  .mm-t{padding:16px 18px;display:grid;gap:11px;transition:transform .2s,border-color .2s;animation:mmEntra .35s ease-out backwards}.mm-t:hover{transform:translateY(-3px)}
+  .mm-t{padding:18px 20px;display:grid;gap:14px;transition:transform .2s,border-color .2s;animation:mmEntra .35s ease-out backwards}.mm-t:hover{transform:translateY(-3px)}
   @keyframes mmEntra{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
   .mm-t h4{margin:0;font:900 15px/1.25 Arial;letter-spacing:.03em;display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
   .mm-t h4 small{display:block;font:700 10px Arial;color:#9fb096;letter-spacing:.08em;margin-top:3px}
@@ -64,6 +64,7 @@
   .mm-t.rojo .mm-medidor i{background:linear-gradient(90deg,#e8573a,#ff9d83)}.mm-t.azul .mm-medidor i{background:linear-gradient(90deg,#4a86d8,#9cc6ff)}.mm-t.ambar .mm-medidor i{background:linear-gradient(90deg,#d49a2a,#ffd98a)}
   .mm-medidor u{position:absolute;top:-5px;bottom:-5px;width:2px;background:#fff;text-decoration:none}.mm-medidor u b{position:absolute;top:100%;left:50%;transform:translateX(-50%);font:700 9px Arial;color:#c5d2bf;margin-top:2px;white-space:nowrap}
   .mm-nums{display:flex;justify-content:space-between;gap:8px;font:700 11px Arial;color:#c5d2bf}.mm-nums b{color:#fff}
+  .mm-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:9px 6px;border-radius:12px;background:rgba(0,0,0,.22);border:1px solid rgba(255,255,255,.1);text-align:center}.mm-stats small{display:block;font:800 8.5px Arial;letter-spacing:.12em;color:#9fb096}.mm-stats b{font:900 17px Arial;color:#fff}
   .mm-fila{display:flex;justify-content:space-between;align-items:center;gap:8px;font:700 12px Arial;color:#c5d2bf}.mm-fila b{color:#fff;font-size:14px}
   .mm-pedir{padding:5px 11px;border-radius:99px;background:rgba(255,107,97,.18);border:1px solid rgba(255,107,97,.5);color:#ffb3ac}.mm-pedir b{font:900 15px Arial;color:#ffd3cf}
   .mm-nota{font:12px/1.4 Arial;color:#a9b8a3}.mm-vacio{padding:30px;text-align:center;color:#9fb096;font:13px/1.5 Arial;border:1px dashed rgba(255,255,255,.2);border-radius:16px}
@@ -115,7 +116,8 @@
     return '<article class="mm-glass mm-t ' + tono + '" style="animation-delay:' + Math.min(i * 25, 300) + 'ms"><h4><span>' + esc(t.tela) + '<small>' + esc(t.codigo) + ' · ' + esc(t.proveedor || 'SIN PROVEEDOR') + '</small></span><em>' + txt + '</em></h4>' +
       '<div class="mm-medidor" title="Hay ' + num(t.stock) + ' · mínimo ' + num(t.minimo) + ' · máximo ' + num(t.maximo) + '"><i style="width:' + pct(t.stock) + '%"></i>' +
       '<u style="left:' + pct(t.minimo) + '%"><b>mín ' + num(t.minimo) + '</b></u><u style="left:' + pct(t.maximo) + '%;opacity:.55"><b>máx ' + num(t.maximo) + '</b></u></div>' +
-      '<div class="mm-fila"><span>Hay <b>' + num(t.stock) + '</b>' + (t.por_recibir ? ' · +' + num(t.por_recibir) + ' en camino' : '') + '</span>' + (t.pedir ? '<span class="mm-pedir">pedir <b>' + num(t.pedir) + '</b> mts</span>' : '') + '</div>' + aviso + '</article>';
+      '<div class="mm-stats"><div><small>HAY</small><b>' + num(t.stock) + '</b></div><div><small>MÍNIMO</small><b>' + num(t.minimo) + '</b></div><div><small>MÁXIMO</small><b>' + num(t.maximo) + '</b></div><div><small>EN CAMINO</small><b>' + num(t.por_recibir || 0) + '</b></div></div>' +
+      '<div class="mm-fila"><span>' + (t.pedir ? 'Quedaría en <b>' + num(t.stock + (t.por_recibir || 0) + t.pedir) + '</b> mts (' + Math.round((t.stock + (t.por_recibir || 0) + t.pedir) / Math.max(t.maximo, 1) * 100) + '% del máx.)' : '<b>' + Math.round(t.stock / Math.max(t.maximo, 1) * 100) + '%</b> del máximo') + '</span>' + (t.pedir ? '<span class="mm-pedir">pedir <b>' + num(t.pedir) + '</b> mts</span>' : '') + '</div>' + aviso + '</article>';
   }
 
   function ocHtml(c) {
