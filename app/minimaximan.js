@@ -76,6 +76,18 @@
   .mm-t.rojo{animation:mmEntra .35s ease-out backwards,mmAlerta 3.2s ease-in-out infinite .6s}@keyframes mmAlerta{50%{box-shadow:0 14px 34px -16px rgba(0,0,0,.8),0 0 26px -4px rgba(255,107,97,.45),inset 0 1px 0 rgba(255,255,255,.28)}}
   .mm-pedir{transition:transform .2s}.mm-t:hover .mm-pedir{transform:scale(1.08)}.mm-stats div{transition:transform .2s}.mm-t:hover .mm-stats div{transform:translateY(-2px)}
   .mm-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:9px 6px;border-radius:12px;background:rgba(0,0,0,.22);border:1px solid rgba(255,255,255,.1);text-align:center}.mm-stats small{display:block;font:800 8.5px Arial;letter-spacing:.12em;color:#9fb096}.mm-stats b{font:900 17px Arial;color:#fff}
+  .mm-hero{display:flex;justify-content:space-between;align-items:flex-end;gap:12px}
+  .mm-big small,.mm-acc small{display:block;font:800 9px Arial;letter-spacing:.18em;color:#9fb096;margin-bottom:2px}
+  .mm-big div,.mm-acc div{display:flex;align-items:baseline;gap:5px}
+  .mm-big b{font:900 46px/1 Arial;letter-spacing:-.03em;color:#fff;text-shadow:0 0 24px currentColor}.mm-big em,.mm-acc em{font:800 11px Arial;font-style:normal;letter-spacing:.14em;color:#c5d2bf}
+  .mm-acc{text-align:right;padding:8px 14px;border-radius:14px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06)}
+  .mm-acc b{font:900 26px/1 Arial;color:#fff}.mm-acc div{justify-content:flex-end}
+  .mm-acc.pide{background:linear-gradient(135deg,rgba(255,107,97,.38),rgba(255,107,97,.12));border-color:rgba(255,107,97,.7);box-shadow:0 0 22px -6px #ff6b61}
+  .mm-acc.viene{background:rgba(100,170,255,.16);border-color:rgba(100,170,255,.6)}.mm-acc.bien{background:rgba(111,227,154,.14);border-color:rgba(111,227,154,.55)}
+  .mm-t:hover .mm-acc{transform:scale(1.06);transition:transform .2s}.mm-t:hover .mm-big b{color:currentColor}
+  .mm-t.rojo{color:#ff9d93}.mm-t.azul{color:#9cc6ff}.mm-t.ambar{color:#ffd98a}.mm-t.verde{color:#a6f0c6}.mm-t>*{color:#e8f0e0}.mm-t .mm-big b{color:#fff}
+  .mm-pie{display:flex;justify-content:space-between;gap:6px;padding-top:12px;border-top:1px solid rgba(255,255,255,.12)}
+  .mm-pie span{display:grid;gap:2px}.mm-pie small{font:800 8.5px Arial;letter-spacing:.14em;color:#9fb096}.mm-pie b{font:800 15px Arial;color:#fff}.mm-pie .fin b{color:#8fe9b3}
   .mm-cent{display:grid;grid-template-columns:92px minmax(0,1fr);gap:16px;align-items:center}
   .mm-aro{--c:#6fe39a;box-sizing:border-box;width:92px;height:92px;border-radius:50%;padding:7px;background:conic-gradient(var(--c) calc(var(--p)*1%),rgba(255,255,255,.1) 0);box-shadow:0 0 22px -4px var(--c),inset 0 0 0 1px rgba(255,255,255,.2);display:grid;transition:transform .3s;animation:mmGira .9s cubic-bezier(.2,.8,.2,1) backwards}
   .mm-aro>div{border-radius:50%;background:#0c120e;display:grid;place-content:center;text-align:center;box-shadow:inset 0 0 14px rgba(0,0,0,.7)}
@@ -134,13 +146,13 @@
     const pct = v => Math.max(0, Math.min(100, v / tope * 100)).toFixed(1);
     const aviso = ['error', 'sin_effi', 'revisar'].includes(t.estado) && t.nota ? '<div class="mm-nota">' + esc(t.nota) + '</div>' : '';   // el resto de estados ya se entiende con la etiqueta
     return '<article class="mm-glass mm-t ' + tono + '" style="animation-delay:' + Math.min(i * 25, 300) + 'ms"><h4><span>' + esc(t.tela) + '<small>' + esc(t.codigo) + ' · ' + esc(t.proveedor || 'SIN PROVEEDOR') + '</small></span><em>' + txt + '</em></h4>' +
-      '<div class="mm-cent"><div class="mm-aro" style="--p:' + Math.min(100, Math.round(t.stock / Math.max(t.maximo, 1) * 100)) + '"><div><b data-n="' + t.stock + '">' + num(t.stock) + '</b><em>MTS</em><small>STOCK</small></div></div>' +
-      '<div class="mm-stats"><div><small>MÍNIMO</small><b data-n="' + t.minimo + '">' + num(t.minimo) + '</b></div><div><small>MÁXIMO</small><b data-n="' + t.maximo + '">' + num(t.maximo) + '</b></div><div><small>EN CAMINO</small><b data-n="' + (t.por_recibir || 0) + '">' + num(t.por_recibir || 0) + '</b></div></div></div>' +
+      '<div class="mm-hero"><div class="mm-big"><small>STOCK</small><div><b data-n="' + t.stock + '">' + num(t.stock) + '</b><em>MTS</em></div></div>' +
+      (t.pedir ? '<div class="mm-acc pide"><small>PEDIR</small><div><b>+' + num(t.pedir) + '</b><em>MTS</em></div></div>' : t.por_recibir ? '<div class="mm-acc viene"><small>EN CAMINO</small><div><b>+' + num(t.por_recibir) + '</b><em>MTS</em></div></div>' : '<div class="mm-acc bien"><small>NIVEL</small><div><b>' + Math.round(t.stock / Math.max(t.maximo, 1) * 100) + '%</b><em>DEL MÁX.</em></div></div>') + '</div>' +
       '<div class="mm-medidor" title="Hay ' + num(t.stock) + ' · mínimo ' + num(t.minimo) + ' · máximo ' + num(t.maximo) + '"><span class="mm-zona" style="width:' + pct(t.minimo) + '%"></span><span class="mm-zona ok" style="left:' + pct(t.minimo) + '%;width:' + (pct(t.maximo) - pct(t.minimo)).toFixed(1) + '%"></span>' +
       (t.pedir || t.por_recibir ? '<s style="left:' + pct(t.stock) + '%;width:' + (pct(t.stock + (t.por_recibir || 0) + (t.pedir || 0)) - pct(t.stock)).toFixed(1) + '%"></s>' : '') +
       '<i style="--w:' + pct(t.stock) + '%"></i><q style="left:' + pct(t.stock) + '%"></q>' +
       '<u style="left:' + pct(t.minimo) + '%"><b>mín ' + num(t.minimo) + '</b></u><u style="left:' + pct(t.maximo) + '%"><b>máx ' + num(t.maximo) + '</b></u></div>' +
-      '<div class="mm-fila"><span>' + (t.pedir ? 'Quedaría en <b>' + num(t.stock + (t.por_recibir || 0) + t.pedir) + '</b> mts (' + Math.round((t.stock + (t.por_recibir || 0) + t.pedir) / Math.max(t.maximo, 1) * 100) + '% del máx.)' : 'Nivel <b>' + Math.round(t.stock / Math.max(t.maximo, 1) * 100) + '%</b> del máximo') + '</span>' + (t.pedir ? '<span class="mm-pedir">pedir <b>' + num(t.pedir) + '</b> mts</span>' : '') + '</div>' + aviso + '</article>';
+      '<div class="mm-pie"><span><small>MÍN</small><b>' + num(t.minimo) + '</b></span><span><small>MÁX</small><b>' + num(t.maximo) + '</b></span><span><small>EN CAMINO</small><b>' + num(t.por_recibir || 0) + '</b></span>' + (t.pedir ? '<span class="fin"><small>QUEDARÍA</small><b>' + num((t.stock + (t.por_recibir || 0) + (t.pedir || 0))) + '</b></span>' : '') + '</div>' + aviso + '</article>';
   }
 
   function ocHtml(c) {
