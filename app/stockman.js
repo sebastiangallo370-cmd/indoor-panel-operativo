@@ -97,6 +97,20 @@
   .sm-metrica{transition:transform .18s,border-color .18s}.sm-metrica:hover{transform:translateY(-2px)}.sm-metrica.on{border-color:var(--lima,#d0f44c)!important}
   .sm-host .sm-igualar,.sm-host .sm-suma{transition:transform .15s,filter .15s}.sm-host .sm-igualar:hover,.sm-host .sm-suma:hover{transform:translateY(-1px);filter:brightness(1.08)}
   @media(prefers-reduced-motion:reduce){.sm-host .sm-t{animation:none!important}}
+  /* Panel lateral: el control queda al costado izquierdo, con botones pequeños; las tarjetas usan el resto. */
+  .sm-layout{display:grid;grid-template-columns:180px minmax(0,1fr);gap:16px;align-items:start}
+  .sm-lado{position:sticky;top:12px}.sm-lado .sm-control{display:flex!important;flex-direction:column;align-items:stretch!important;gap:10px!important;margin:0!important;padding:12px!important;border-radius:16px}
+  .sm-lado .sm-intro{flex-direction:column;align-items:flex-start!important;gap:4px!important;min-width:0!important}.sm-lado .sm-intro-top{flex-wrap:wrap}.sm-lado .sm-intro h2{font-size:12px!important}.sm-lado .sm-live{font-size:8px!important}
+  .sm-lado .sm-metricas{display:flex!important;flex-direction:column;gap:5px!important;flex:none!important;order:0!important}
+  .sm-lado .sm-metrica{display:flex!important;align-items:center;justify-content:space-between;flex-direction:row-reverse;gap:8px;min-width:0!important;height:32px;padding:0 10px!important;border-radius:999px!important;background:rgba(0,0,0,.25)!important;border:1px solid rgba(255,255,255,.12)!important;overflow:visible}
+  .sm-lado .sm-metrica b{font-size:13px!important;min-width:26px;padding:2px 7px;border-radius:999px;text-align:center;background:rgba(255,255,255,.1)}.sm-lado .sm-metrica span{margin:0!important;font-size:9px!important;letter-spacing:.06em;color:#c9d6c2}
+  .sm-lado .sm-metrica[data-tono="ambar"] b{background:#f3b852;color:#2a1c04}.sm-lado .sm-metrica[data-tono="verde"] b{background:#8bdbaf;color:#103423}.sm-lado .sm-metrica[data-tono="rojo"] b{background:#e36764;color:#240b0d}
+  .sm-lado .sm-metrica.on{border-color:var(--lima,#d0f44c)!important;background:rgba(208,244,76,.1)!important}.sm-lado .sm-metrica.on span{color:var(--lima,#d0f44c)}.sm-lado .sm-metrica:hover{transform:translateX(3px)}
+  .sm-lado .sm-acciones{display:flex!important;flex-direction:column;align-items:stretch!important;gap:6px!important;margin:0!important;width:auto!important}.sm-lado .sm-acciones>*{height:32px!important}
+  .sm-lado .sm-acciones .mm-sw{display:flex!important;justify-content:space-between}.sm-lado .sm-acciones .mm-b{justify-content:center}.sm-lado .sm-vistas button{flex:1;justify-content:center}
+  .sm-lado .sm-intro{width:100%;padding:0!important;margin:0!important;overflow:visible!important;transform:none!important}.sm-lado .sm-intro h2{white-space:normal!important;margin:2px 0 0!important}.sm-lado .mm-logo{max-height:18px}
+  .sm-lado .sm-vistas button,.sm-lado .sm-acciones .mm-b{flex-direction:row!important;white-space:nowrap;gap:5px}.sm-lado .sm-vistas{display:flex!important}
+  @media(max-width:900px){.sm-layout{grid-template-columns:1fr}.sm-lado{position:static}.sm-lado .sm-control{flex-direction:row!important;flex-wrap:wrap}.sm-lado .sm-metricas{flex-direction:row;flex-wrap:wrap;flex:1 1 100%!important}.sm-lado .sm-metrica{flex:1 1 40%}.sm-lado .sm-acciones{flex-direction:row;flex-wrap:wrap;flex:1 1 100%}.sm-lado .sm-acciones>*{flex:1}.sm-lado .sm-acciones .mm-sw{display:flex!important}}
   .sm-host .sm-op.cerca{border-color:rgba(208,244,76,.6)!important;background:rgba(208,244,76,.07)!important}.sm-tag{display:inline-block;margin-left:6px;padding:2px 6px;border-radius:5px;background:var(--lima,#d0f44c);color:#18220c;font:800 8px Arial;font-style:normal;letter-spacing:.05em;vertical-align:middle}
   @media(max-width:600px){.sm-acciones>*{height:40px}.sm-acciones .mm-b{flex:1;justify-content:center}.sm-control .sm-metrica span{font-size:8px}}
   `;
@@ -170,13 +184,13 @@
     const a = datos.agente, r = datos.resumen, activo = !!a.activo;
     const total = Math.max(r.telas || 0, 1);
     const TONO = { ajustar: 'ambar', igual: 'verde', sin_articulo: 'rojo', todo: 'gris' };
-    const kpi = (k, n, rotulo) => '<button type="button" class="sm-metrica' + (filtro === k ? ' on' : '') + '" data-sm-filtro="' + k + '" data-lq="' + Math.round(n * 100 / total) + '" data-lq-tone="' + TONO[k] + '"><b data-sm-cuenta="' + n + '">' + n + '</b><span>' + rotulo + '</span></button>';
+    const kpi = (k, n, rotulo) => '<button type="button" class="sm-metrica' + (filtro === k ? ' on' : '') + '" data-sm-filtro="' + k + '" data-tono="' + TONO[k] + '"><b data-sm-cuenta="' + n + '">' + n + '</b><span>' + rotulo + '</span></button>';
     panel.querySelector('.mm').innerHTML =
-      '<div class="sm-control"><section class="mm-glass sm-intro"><div class="sm-intro-top"><img class="mm-logo" src="/marca-indoor.svg" alt="Indoor"><span class="sm-live"><i></i>' + (activo ? 'SINCRONIZACIÓN ACTIVA' : 'SINCRONIZACIÓN PAUSADA') + '</span></div><h2>Control de artículos</h2><p>Compara por bodega el inventario del panel con Effi.</p><small>Actualizado ' + hora(a.ultima) + '</small></section>' +
+      '<div class="sm-layout"><aside class="sm-lado"><div class="sm-control"><section class="mm-glass sm-intro"><div class="sm-intro-top"><img class="mm-logo" src="/marca-indoor.svg" alt="Indoor"><span class="sm-live"><i></i>' + (activo ? 'SINCRONIZACIÓN ACTIVA' : 'SINCRONIZACIÓN PAUSADA') + '</span></div><h2>Control de artículos</h2><p>Compara por bodega el inventario del panel con Effi.</p><small>Actualizado ' + hora(a.ultima) + '</small></section>' +
       '<section class="sm-metricas">' + kpi('ajustar', r.ajustar + r.grande + (r.ambiguo || 0), 'POR REVISAR') + kpi('igual', r.igual, 'CONCILIADOS') + kpi('sin_articulo', r.sin_articulo, 'SIN ARTÍCULO') + kpi('todo', r.telas, 'TOTAL') + '</section>' +
-      '<section class="mm-glass sm-acciones"><div class="mm-sw' + (activo ? ' on' : '') + '"><i></i><span>' + (activo ? 'ACTIVO' : 'APAGADO') + '</span><button type="button" data-sm-activar="' + (activo ? 0 : 1) + '" aria-label="Activar o apagar STOCKMAN"></button></div><button type="button" class="mm-b" data-sm-revisar' + (ocupado ? ' disabled' : '') + '>↻ ' + (ocupado ? 'REVISANDO…' : 'REVISAR') + '</button><div class="sm-vistas"><button type="button" data-sm-vista="tarjetas" class="' + (vista === 'tarjetas' ? 'on' : '') + '">▦ TARJETAS</button><button type="button" data-sm-vista="lista" class="' + (vista === 'lista' ? 'on' : '') + '">☰ LISTA</button></div></section></div>' +
+      '<section class="mm-glass sm-acciones"><div class="mm-sw' + (activo ? ' on' : '') + '"><i></i><span>' + (activo ? 'ACTIVO' : 'APAGADO') + '</span><button type="button" data-sm-activar="' + (activo ? 0 : 1) + '" aria-label="Activar o apagar STOCKMAN"></button></div><button type="button" class="mm-b" data-sm-revisar' + (ocupado ? ' disabled' : '') + '>↻ ' + (ocupado ? 'REVISANDO…' : 'REVISAR') + '</button><div class="sm-vistas"><button type="button" data-sm-vista="tarjetas" class="' + (vista === 'tarjetas' ? 'on' : '') + '">▦ TARJETAS</button><button type="button" data-sm-vista="lista" class="' + (vista === 'lista' ? 'on' : '') + '">☰ LISTA</button></div></section></div></aside><div class="sm-main">' +
       '<div class="mm-glass mm-top"><div class="mm-busca"><input type="search" data-sm-buscar placeholder="Buscar por tela, código o artículo…" value="' + esc(buscar) + '" autocomplete="off"></div></div>' +
-      actividad() + '<div class="mm-cuerpo"><div class="sm-host"></div></div>';
+      actividad() + '<div class="mm-cuerpo"><div class="sm-host"></div></div></div></div>';
     pintarLista();
     contar();
   }
