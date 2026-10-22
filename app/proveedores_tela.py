@@ -144,9 +144,8 @@ def telas() -> list[dict]:
         t['referencias'] = refs.get(c, [])
         t.update(proveedor=g.get('proveedor', ''), nit=g.get('nit', ''), ancho=g.get('ancho', ''), id_effi=g.get('id_effi', ''))
         r = razon_social(t['proveedor'])
-        if r:   # los guardados con el nombre corto se muestran con su razón social y su NIT
+        if r:   # los guardados con el nombre corto se muestran con su razón social
             t['proveedor'] = r[0]
-            t['nit'] = t['nit'] or r[1]
         t.update({k: g.get(k, '') for k in CAMPOS_EXTRA})   # datos opcionales de la ficha de la tela
         try:   # para los agentes: el precio como número, aunque en la tarjeta se muestre tal como se escribió
             t['precio_num'] = _numero(str(t.get('precio_sin_iva') or '')) if t.get('precio_sin_iva') else None
@@ -215,9 +214,8 @@ def guardar(payload: dict, request: Request):
             g['proveedor'] = str(payload.get('proveedor') or '').strip()[:120]
             g['nit'] = str(payload.get('nit', g.get('nit', '')) or '').strip()[:30]
             r = razon_social(g['proveedor'])
-            if r:   # se guarda con la razón social de la factura y, si no se escribió, su NIT
+            if r:   # se guarda con la razón social de la factura
                 g['proveedor'] = r[0]
-                g['nit'] = g['nit'] or r[1]
         if 'ancho' in payload:
             texto = str(payload.get('ancho') or '').strip().replace(',', '.')
             if texto:
