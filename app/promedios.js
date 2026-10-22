@@ -133,7 +133,7 @@
     const host = panel.querySelector('.pm');
     if (!st.datos) host.innerHTML = '<div class="pm-vacio">Cargando promedios…</div>';
     try { st.datos = await api('/api/promedios'); pintar(false); } catch (e) { host.innerHTML = '<div class="pm-vacio">' + esc(e.message) + '</div>'; return; }
-    try { const r = await api('/api/inventarios/tela-necesaria'); st.pendientes = r.pendientes_maestro || []; pintar(false); } catch (e) { /* sin esta lista la pantalla sigue igual */ }
+    st.pendientes = st.datos.pendientes_maestro || []; pintar(false);
   }
 
   function leerForm(form) {
@@ -152,7 +152,7 @@
       if (form.nota_texto.value.trim()) await api('/api/promedios/nota', { method: 'POST', body: JSON.stringify({ ref: cuerpo.ref, tipo: form.nota_tipo.value, texto: form.nota_texto.value }) });
       st.mensaje = '✓ ' + (r.creado ? 'Referencia agregada' : 'Cambios guardados') + ' · promedio ' + num(r.maestro.promedio) + ' MTS';
       st.editando = null; st.prefill = ''; st.datos = await api('/api/promedios');
-      try { st.pendientes = (await api('/api/inventarios/tela-necesaria')).pendientes_maestro || []; } catch (x) { /* la lista se actualiza al recargar */ }
+      st.pendientes = st.datos.pendientes_maestro || [];
       pintar(false);
     } catch (e) { st.mensaje = e.message; const m = form.querySelector('[data-msg]'); m.textContent = e.message; m.className = 'pm-msg err'; boton.disabled = false; }
   }
@@ -184,7 +184,7 @@
           const r = await api('/api/promedios/registrar-generales', { method: 'POST', body: JSON.stringify({ refs }) });
           st.mensaje = '✓ ' + r.creados.length + ' registradas con el promedio general' + (r.omitidos.length ? ' · ' + r.omitidos.length + ' sin cambios (' + r.omitidos.map(o => o.ref + ': ' + o.motivo).join('; ') + ')' : '');
           st.datos = await api('/api/promedios');
-          st.pendientes = ((await api('/api/inventarios/tela-necesaria')).pendientes_maestro) || [];
+          st.pendientes = st.datos.pendientes_maestro || [];
         } catch (x) { st.mensaje = x.message; }
         pintar(false); return;
       }

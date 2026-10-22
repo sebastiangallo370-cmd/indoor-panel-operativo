@@ -112,8 +112,14 @@ def _limpiar(payload: dict) -> dict:
 def listar():
     with _lock:
         datos = _leer()
+    from app import tela_necesaria   # import tardío: tela_necesaria usa este módulo
+    try:
+        pendientes = tela_necesaria.pendientes_maestro()
+    except Exception:   # noqa: BLE001 — si falla, la pantalla de maestros sigue funcionando
+        pendientes = []
     return {'maestros': [_vista(m) for m in datos['maestros']], 'notas': datos['notas'],
-            'tallas': {'adulto': TALLAS_ADULTO, 'nino': TALLAS_NINO}, 'tipos_nota': list(TIPOS_NOTA), 'disenos': list(DISENOS)}
+            'tallas': {'adulto': TALLAS_ADULTO, 'nino': TALLAS_NINO}, 'tipos_nota': list(TIPOS_NOTA), 'disenos': list(DISENOS),
+            'pendientes_maestro': pendientes}
 
 
 @router.post('/maestro')

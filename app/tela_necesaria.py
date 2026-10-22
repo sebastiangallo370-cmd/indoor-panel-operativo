@@ -302,6 +302,37 @@ def _pedidos() -> list[dict] | None:
         db.close()
 
 
+def pendientes_maestro() -> list[dict]:
+    """Referencias de los pedidos programados que todavía no tienen maestro con consumos (usan el promedio general de su ficha).
+    No necesita el inventario de Bodega: sirve para la pantalla de Promedios maestros."""
+    pedidos = _pedidos()
+    if not pedidos:
+        return []
+    with promedios._lock:
+        datos = promedios._leer()
+    maestros = {m['ref']: m for m in datos['maestros']}
+    plantillas = {}
+    for m in datos['maestros']:
+        for campo in ('p_masculino', 'p_femenino', 'p_femenino_short', 'p_nino', 'p_nina', 'p_nina_short'):
+            codigo = str(m.get(campo) or '').strip().upper()
+            if codigo:
+                plantillas.setdefault(codigo, m)
+    pendientes: dict[str, dict] = {}
+    for p in pedidos:
+        for parte in promedios.partes_de_hoja(p['referencia']):
+            if not parte:
+                continue
+            maestro = maestros.get(parte) or plantillas.get(parte)
+            if maestro and promedios.promedio(maestro):
+                continue
+            pend = pendientes.setdefault(parte, {'ref': parte, 'general': _general_de_ficha(parte), 'tela': p['tela'], 'ordenes': []})
+            if p['orden'] not in pend['ordenes']:
+                pend['ordenes'].append(p['orden'])
+    for x in pendientes.values():
+        x['ordenes'].sort()
+    return sorted(pendientes.values(), key=lambda x: (-len(x['ordenes']), x['ref']))
+
+
 def calcular(items: list[dict]) -> dict:
     """Necesidad de tela por pedidos programados, agrupada por tela y comparada con el stock de Bodega."""
     pedidos = _pedidos()
