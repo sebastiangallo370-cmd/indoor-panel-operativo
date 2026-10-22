@@ -79,7 +79,7 @@
   .mm-cent{display:grid;grid-template-columns:92px minmax(0,1fr);gap:16px;align-items:center}
   .mm-aro{--c:#6fe39a;box-sizing:border-box;width:92px;height:92px;border-radius:50%;padding:7px;background:conic-gradient(var(--c) calc(var(--p)*1%),rgba(255,255,255,.1) 0);box-shadow:0 0 22px -4px var(--c),inset 0 0 0 1px rgba(255,255,255,.2);display:grid;transition:transform .3s;animation:mmGira .9s cubic-bezier(.2,.8,.2,1) backwards}
   .mm-aro>div{border-radius:50%;background:#0c120e;display:grid;place-content:center;text-align:center;box-shadow:inset 0 0 14px rgba(0,0,0,.7)}
-  .mm-aro b{font:900 24px/1 Arial;color:#fff}.mm-aro small{font:800 8.5px Arial;letter-spacing:.16em;color:#9fb096;margin-top:3px}
+  .mm-aro b{font:900 22px/1 Arial;color:#fff}.mm-aro small{font:800 8.5px Arial;letter-spacing:.16em;color:#9fb096;margin-top:3px}
   .mm-t:hover .mm-aro{transform:rotate(8deg) scale(1.06)}@keyframes mmGira{from{transform:rotate(-90deg) scale(.7);opacity:0}}
   .mm-t.rojo .mm-aro{--c:#ff6b61}.mm-t.azul .mm-aro{--c:#64aaff}.mm-t.ambar .mm-aro{--c:#ffc850}
   .mm-stats{grid-template-columns:1fr!important;gap:0!important;padding:4px 12px!important;text-align:left!important}
@@ -134,7 +134,7 @@
     const pct = v => Math.max(0, Math.min(100, v / tope * 100)).toFixed(1);
     const aviso = ['error', 'sin_effi', 'revisar'].includes(t.estado) && t.nota ? '<div class="mm-nota">' + esc(t.nota) + '</div>' : '';   // el resto de estados ya se entiende con la etiqueta
     return '<article class="mm-glass mm-t ' + tono + '" style="animation-delay:' + Math.min(i * 25, 300) + 'ms"><h4><span>' + esc(t.tela) + '<small>' + esc(t.codigo) + ' · ' + esc(t.proveedor || 'SIN PROVEEDOR') + '</small></span><em>' + txt + '</em></h4>' +
-      '<div class="mm-cent"><div class="mm-aro" style="--p:' + Math.min(100, Math.round(t.stock / Math.max(t.maximo, 1) * 100)) + '"><div><b data-n="' + t.stock + '">' + num(t.stock) + '</b><small>STOCK</small></div></div>' +
+      '<div class="mm-cent"><div class="mm-aro" style="--p:' + Math.min(100, Math.round(t.stock / Math.max(t.maximo, 1) * 100)) + '"><div><b data-n="' + t.stock + '">' + num(t.stock) + '</b><em>MTS</em><small>STOCK</small></div></div>' +
       '<div class="mm-stats"><div><small>MÍNIMO</small><b data-n="' + t.minimo + '">' + num(t.minimo) + '</b></div><div><small>MÁXIMO</small><b data-n="' + t.maximo + '">' + num(t.maximo) + '</b></div><div><small>EN CAMINO</small><b data-n="' + (t.por_recibir || 0) + '">' + num(t.por_recibir || 0) + '</b></div></div></div>' +
       '<div class="mm-medidor" title="Hay ' + num(t.stock) + ' · mínimo ' + num(t.minimo) + ' · máximo ' + num(t.maximo) + '"><span class="mm-zona" style="width:' + pct(t.minimo) + '%"></span><span class="mm-zona ok" style="left:' + pct(t.minimo) + '%;width:' + (pct(t.maximo) - pct(t.minimo)).toFixed(1) + '%"></span>' +
       (t.pedir || t.por_recibir ? '<s style="left:' + pct(t.stock) + '%;width:' + (pct(t.stock + (t.por_recibir || 0) + (t.pedir || 0)) - pct(t.stock)).toFixed(1) + '%"></s>' : '') +
