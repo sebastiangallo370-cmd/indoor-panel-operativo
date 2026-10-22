@@ -6,7 +6,7 @@
   window.__minimaximanListo = true;
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const num = v => Number(v || 0).toLocaleString('es-CO', { maximumFractionDigits: 2 });
-  const ESTADO = { pedir: ['POR PEDIR', 'rojo'], sin_proveedor: ['SIN PROVEEDOR', 'ambar'], sin_effi: ['NO LO VEO EN EFFI', 'ambar'], revisar: ['REVISAR RANGO', 'ambar'], en_camino: ['EN CAMINO', 'azul'], ok: ['EN RANGO', 'verde'] };
+  const ESTADO = { pedir: ['POR PEDIR', 'rojo'], sin_proveedor: ['SIN PROVEEDOR', 'ambar'], sin_effi: ['NO LO VEO EN EFFI', 'ambar'], error: ['CON ERROR', 'rojo'], revisar: ['REVISAR RANGO', 'ambar'], en_camino: ['EN CAMINO', 'azul'], ok: ['EN RANGO', 'verde'] };
   let panel = null, tab = null, timer = null, datos = null, filtro = 'pedir', ocupado = false;
 
   const css = document.createElement('style');
@@ -66,13 +66,14 @@
     if (!panel || !datos) return;
     const a = datos.agente, r = datos.resumen, activo = !!a.activo;
     const kpi = (k, n, rotulo) => '<button type="button" class="mm-glass mm-kpi' + (filtro === k ? ' on' : '') + '" data-mm-filtro="' + k + '" data-lq="' + (r.telas ? Math.round(n / r.telas * 100) : 0) + '" data-lq-tone="' + ({ pedir: 'rojo', en_camino: 'azul', sin_proveedor: 'ambar', ok: 'verde', todas: 'gris' }[k] || 'gris') + '" data-lq-nopct><b>' + n + '</b><span>' + rotulo + '</span></button>';
-    const lista = datos.telas.filter(t => filtro === 'todas' || t.estado === filtro || (filtro === 'pedir' && (t.estado === 'sin_effi' || t.estado === 'revisar')));
+    const lista = datos.telas.filter(t => filtro === 'todas' || t.estado === filtro || (filtro === 'pedir' && (t.estado === 'sin_effi' || t.estado === 'revisar' || t.estado === 'error')));
     panel.querySelector('.mm').innerHTML =
-      '<header class="mm-glass mm-hd"><div><small>AGENTE DE INVENTARIO</small><h2>MINIMAXIMAN</h2><p>' + esc(a.titulo) + '. Cuando una tela baja de su stock mínimo, pide lo necesario para llegar a su máximo, igual que ZEUS: la orden de compra la crea el agente de Effi y el panel avisa.</p></div>' +
+      '<header class="mm-glass mm-hd"><div><small>AGENTE DE INVENTARIO</small><h2>MINIMAXIMAN</h2><p>' + esc(a.titulo) + '. Cuando una tela baja de su stock mínimo, pide lo necesario para llegar a su máximo, igual que ZEUS: la orden de compra la crea él mismo en Effi (por la API, sin usar a ZEUS ni a otros agentes) y avisa por correo y en la campana.</p></div>' +
       '<div class="mm-sw' + (activo ? ' on' : '') + '"><span>' + (activo ? 'ACTIVO · crea compras' : 'APAGADO · solo muestra') + '</span><button type="button" data-mm-activar="' + (activo ? 0 : 1) + '" aria-label="Activar o apagar MINIMAXIMAN"></button></div></header>' +
       (a.error ? '<div class="mm-vacio">' + esc(a.error) + '</div>' : '') +
       '<div class="mm-kpis">' + kpi('pedir', r.pedir, 'POR PEDIR') + kpi('en_camino', r.en_camino, 'EN CAMINO') + kpi('sin_proveedor', r.sin_proveedor, 'SIN PROVEEDOR') + kpi('ok', r.ok, 'EN RANGO') + kpi('todas', r.telas, 'TELAS CON MÍN. Y MÁX.') + '</div>' +
       '<div class="mm-acc"><button type="button" class="mm-b" data-mm-revisar' + (ocupado ? ' disabled' : '') + '>↻ ' + (ocupado ? 'REVISANDO…' : 'REVISAR AHORA') + '</button><span class="mm-meta">Última revisión: ' + hora(a.ultima) + ' · se repite sola cada 10 minutos' + (activo ? '' : ' · APAGADO: no crea ninguna compra') + '</span></div>' +
+      (datos.compras && datos.compras.length ? '<section class="mm-glass mm-t"><h4><span>ÓRDENES QUE HA CREADO</span></h4>' + datos.compras.map(c => '<div class="mm-nums"><span><b>' + esc(c.tela) + '</b> · ' + num(c.metros) + ' mts</span><span>' + (c.estado === 'creada' ? 'OC ' + esc(c.oc) : (c.estado === 'error' ? 'ERROR (' + (c.intentos || 0) + '/3)' : 'creando…')) + ' · ' + hora(c.creada || c.creado) + '</span></div>' + (c.estado === 'error' ? '<div class="mm-nota">' + esc(c.detalle) + '</div>' : '')).join('') + '</section>' : '') +
       (lista.length ? '<section class="mm-lista">' + lista.map(tarjeta).join('') + '</section>' : '<div class="mm-vacio">' + (r.telas ? 'No hay telas en este grupo.' : 'Ninguna tela tiene stock mínimo y máximo todavía: se anotan en INFORMACIÓN TELA.') + '</div>') +
       '<ul class="mm-meta" style="margin:0;padding-left:18px">' + (a.funciones || []).map(f => '<li>' + esc(f) + '</li>').join('') + '</ul>';
     if (window.liquidStats && window.liquidStats.refresh) window.liquidStats.refresh(panel);
@@ -108,7 +109,7 @@
       const s = e.target.closest('[data-mm-activar]');
       if (s) {
         const quiere = s.dataset.mmActivar === '1';
-        if (quiere && !confirm('¿Activar MINIMAXIMAN?\n\nCuando una tela baje de su stock mínimo, dejará la compra en la fila de ZEUS y el agente de Effi creará la orden de compra (con el proveedor de INFORMACIÓN TELA) sin pedirte permiso.')) return;
+        if (quiere && !confirm('¿Activar MINIMAXIMAN?\n\nCuando una tela baje de su stock mínimo, MINIMAXIMAN creará él mismo la orden de compra en Effi (con el proveedor de INFORMACIÓN TELA y la llave de la API), sin pedirte permiso.')) return;
         try { await api('/api/minimaximan/activar', { method: 'PUT', body: JSON.stringify({ activo: quiere }) }); } catch (x) { alert(x.message); }
         cargar();
       }

@@ -9,7 +9,7 @@
     // TRAZO es su propio desplegable: DRACO se atiende en el chat de Agentes, pero aparece aparte de los de Edición y deja escrito «draco » para pedirle
     { id: 'trazo', kind: 'draco', nombre: 'TRAZOS', agentes: [['DRACO', 'Trazos en Optitex Mark']] },   // su propia pantalla (draco-panel.js): cola de órdenes, DXF por talla y conversación con DRACO
     { id: 'ecommerce', kind: 'ecommerce', nombre: 'ECOMMERCE', agentes: [['ALMA', 'Descarga las órdenes'], ['BRISA', 'Exporta las tallas'], ['CIRO', 'PDF y Google Sheets']] },
-    { id: 'zeus', kind: 'zeus', nombre: 'INVENTARIOS', agentes: [['ZEUS', 'Tela y órdenes de compra']] },
+    { id: 'zeus', kind: 'zeus', nombre: 'INVENTARIOS', agentes: [['ZEUS', 'Tela y órdenes de compra'], ['MINIMAXIMAN', 'Mantiene las telas entre su mínimo y su máximo', 'minimaximan']] },   // el tercer dato es la pantalla propia del agente
     { id: 'club', kind: 'club', nombre: 'COMERCIAL', agentes: [['EFFITRON', 'Cotización de las reposiciones']] },
   ];
   const ROBOT = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="8" width="15" height="11" rx="3"/><path d="M12 8V4.6"/><circle cx="12" cy="3.6" r="1.1"/><circle cx="9" cy="13" r="1.2"/><circle cx="15" cy="13" r="1.2"/><path d="M9.5 16.4h5M2.5 12.5v3M21.5 12.5v3"/></svg>';
@@ -43,7 +43,7 @@
   #agentes-hub .ah-ag b{font:800 10px Arial!important;letter-spacing:.08em!important}
   #agentes-hub .ah-lista small{font:600 10px Arial;color:#9aa893}
   @keyframes ahIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
-  #open-ecommerce,#open-zeus,#open-agentes,#open-agentes-hub{display:none!important}   /* los agentes ya no van en el menú de la cuenta: se abren con el robot */
+  #open-ecommerce,#open-zeus,#open-minimaximan,#open-agentes,#open-agentes-hub{display:none!important}   /* los agentes ya no van en el menú de la cuenta: se abren con el robot */
   `;
   document.head.appendChild(css);
 
@@ -52,23 +52,25 @@
   const tabDe = kind => document.querySelector('.tab[data-kind="' + kind + '"]');
   const activa = kind => !!document.querySelector('.panel[data-panel="' + kind + '"].active');
   const disponibles = () => AREAS.filter(a => tabDe(a.kind));
+  const losAgentes = a => a.agentes.filter(g => !g[2] || tabDe(g[2]));   // un agente con pantalla propia solo sale si la cuenta tiene esa pantalla
+  const areaActiva = a => activa(a.kind) || a.agentes.some(g => g[2] && activa(g[2]));
 
   function pintar() {
     const lista = disponibles();
     if (!caja) return;
     caja.classList.toggle('listo', lista.length > 0);
     if (!lista.length) return;
-    const resaltada = a => !a.mensaje && activa(a.kind);   // TRAZO comparte la pantalla de Edición y no se marca como activa
-    const clave = lista.map(a => a.id).join('|') + '>' + (lista.find(resaltada) || {}).id;
+    const resaltada = a => !a.mensaje && areaActiva(a);   // TRAZO comparte la pantalla de Edición y no se marca como activa
+    const clave = lista.map(a => a.id + losAgentes(a).length).join('|') + '>' + (lista.find(resaltada) || {}).id;
     if (caja.dataset.clave === clave) return;
     caja.dataset.clave = clave;
-    const total = lista.reduce((n, a) => n + a.agentes.length, 0);
+    const total = lista.reduce((n, a) => n + losAgentes(a).length, 0);
     // la lista muestra primero las ÁREAS (Edición, Ecommerce, Inventarios, Comercial); la flecha de cada una despliega sus agentes
     caja.innerHTML = `<summary title="Agentes (${total})" aria-label="Agentes">${ROBOT}</summary><div class="ah-lista">` +
       lista.map(a => `<div class="ah-area${abiertas.has(a.id) ? ' abierta' : ''}${resaltada(a) ? ' on' : ''}"><div class="ah-fila">` +
-        `<button type="button" class="ah-ir" data-area="${a.id}"><b>${a.nombre}</b><small>${a.agentes.length} ${a.agentes.length === 1 ? 'agente' : 'agentes'}</small></button>` +
+        `<button type="button" class="ah-ir" data-area="${a.id}"><b>${a.nombre}</b><small>${losAgentes(a).length} ${losAgentes(a).length === 1 ? 'agente' : 'agentes'}</small></button>` +
         `<button type="button" class="ah-mas" data-mas="${a.id}" title="Ver los agentes de ${a.nombre}" aria-label="Ver los agentes de ${a.nombre}"><i></i></button></div>` +
-        `<div class="ah-ag">` + a.agentes.map(g => `<button type="button" data-area="${a.id}"><em>${g[0][0]}</em><span><b>${g[0]}</b><small>${g[1]}</small></span></button>`).join('') + '</div></div>').join('') + '</div>';
+        `<div class="ah-ag">` + losAgentes(a).map(g => `<button type="button" data-area="${a.id}"${g[2] ? ` data-pantalla="${g[2]}"` : ''}><em>${g[0][0]}</em><span><b>${g[0]}</b><small>${g[1]}</small></span></button>`).join('') + '</div></div>').join('') + '</div>';
   }
 
   function ubicar() {
@@ -82,7 +84,7 @@
       return;
     }
     // sin la barra de arriba (pantallas angostas): solo se muestra encima del panel cuando se está en una pantalla de agentes
-    const enAgentes = AREAS.some(a => activa(a.kind)), main = document.querySelector('main');
+    const enAgentes = AREAS.some(a => areaActiva(a)), main = document.querySelector('main');
     caja.style.display = enAgentes ? '' : 'none';
     if (main && enAgentes && caja.parentElement !== main) main.prepend(caja);
   }
@@ -104,7 +106,7 @@
         if (!b) return;
         caja.removeAttribute('open');
         const area = AREAS.find(a => a.id === b.dataset.area);
-        const t = area && tabDe(area.kind);
+        const t = area && tabDe(b.dataset.pantalla || area.kind);   // un agente con pantalla propia (MINIMAXIMAN) abre la suya; los demás, la del área
         if (t) t.click();
         if (area && area.mensaje) {   // TRAZO: abre el chat de Agentes y deja escrito «draco » para pedirle lo que necesites
           setTimeout(() => {

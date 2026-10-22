@@ -132,7 +132,7 @@ def retenciones_de(ids: list[int]) -> list[dict]:
     return [por_id[i] for i in ids]
 
 
-def construir_pedido(item_id, referencia: str, metros: float, nombre_proveedor: str, descripcion: str = '') -> dict:
+def construir_pedido(item_id, referencia: str, metros: float, nombre_proveedor: str, descripcion: str = '', observacion: str = '') -> dict:
     """Arma el cuerpo de POST /orden_c. Devuelve {'cuerpo', 'resumen'}; no envía nada."""
     prov = proveedor(nombre_proveedor)
     art = articulo(referencia)
@@ -177,7 +177,7 @@ def construir_pedido(item_id, referencia: str, metros: float, nombre_proveedor: 
         'articulo': [str(art['id'])], 'descripcion': [(descripcion or str(art.get('descripcion') or referencia))[:120]],
         'cantidad': [float(cantidad)], 'precio': [float(precio)], 'descuento': [float(descuento)],
         't_forma_pago': [int(forma)], 'valor_forma_pago': [float(total)],
-        'observacion': 'Orden creada por el AGENTE INVENTARIO (Tela programada)',
+        'observacion': observacion or 'Orden creada por el AGENTE INVENTARIO (Tela programada)',
     }
     if imps:
         cuerpo['impuestos'] = {'1': [int(i['id']) for i in imps]}
@@ -191,9 +191,9 @@ def construir_pedido(item_id, referencia: str, metros: float, nombre_proveedor: 
     return {'cuerpo': cuerpo, 'resumen': resumen}
 
 
-def crear_orden(item_id, referencia: str, metros: float, nombre_proveedor: str, descripcion: str = '') -> dict:
+def crear_orden(item_id, referencia: str, metros: float, nombre_proveedor: str, descripcion: str = '', observacion: str = '') -> dict:
     """Crea la orden por la API. Devuelve {'oc': id, 'detalle': texto}. Un reintento con la misma clave no crea otra orden (409 → se devuelve la ya creada)."""
-    p = construir_pedido(item_id, referencia, metros, nombre_proveedor, descripcion)
+    p = construir_pedido(item_id, referencia, metros, nombre_proveedor, descripcion, observacion)
     try:
         r = _peticion('POST', 'orden_c', cuerpo=p['cuerpo'])
         data = r.get('data') or {}
