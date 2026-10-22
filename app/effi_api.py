@@ -172,7 +172,8 @@ def construir_pedido(item_id, referencia: str, metros: float, nombre_proveedor: 
         else:
             base = imp_valor if tipo == 'sobre impuesto principal' else subtotal
         ret_valor += base * _d(r.get('valor')) / 100
-    total = _redondear(subtotal + imp_valor - ret_valor)
+    # Effi valida que la forma de pago sume el total de la orden y por la API ese total NO descuenta la retención (comprobado con la orden 143: pedía $830.429,60 y no $812.983,60)
+    total = _redondear(subtotal + imp_valor)
     forma = prov['forma_pago'] or os.getenv('EFFI_FORMA_PAGO')
     if not forma:
         raise EffiError('El proveedor no tiene forma de pago en Effi y no hay EFFI_FORMA_PAGO de respaldo')
@@ -193,7 +194,7 @@ def construir_pedido(item_id, referencia: str, metros: float, nombre_proveedor: 
     if d:
         cuerpo.update(id_pais_proveedor=int(d['id_pais']), id_provincia_proveedor=int(d['id_provincia']), id_ciudad_proveedor=int(d['id_ciudad']), direccion_proveedor=str(d['direccion'])[:200])
     resumen = {'proveedor': prov['nombre'], 'articulo': art.get('descripcion'), 'precio': float(precio), 'bruto': float(_redondear(bruto)), 'descuento': float(descuento),
-               'impuestos': float(_redondear(imp_valor)), 'retenciones': float(_redondear(ret_valor)), 'total': float(total)}
+               'impuestos': float(_redondear(imp_valor)), 'retenciones': float(_redondear(ret_valor)), 'total': float(total), 'neto_con_retencion': float(_redondear(total - ret_valor))}
     return {'cuerpo': cuerpo, 'resumen': resumen}
 
 
