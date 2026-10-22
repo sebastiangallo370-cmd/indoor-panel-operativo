@@ -15,6 +15,7 @@ class RazonSocial(unittest.TestCase):
         self.assertEqual(p.razon_social('ELIOT'), ('MANUFACTURAS ELIOT S.A.S', '860000452'))
         self.assertEqual(p.razon_social('Saraxy'), ('SARAXY S.A.S', '900306394-6'))
         self.assertEqual(p.razon_social('MERCANTIL DE TEXTILES'), ('MERCANTIL DE TEXTILES S.A.S.', '890914669'))
+        self.assertEqual(p.razon_social('TEXTILES SPIRIT'), ('COMERCIALIZADORA SPIRIT SAS', '901208883-1'))
 
     def test_la_razon_social_escrita_distinto_se_reconoce(self):
         self.assertEqual(p.razon_social('Textiles Lafayette S.A.S.')[0], 'TEXTILES LAFAYETTE SAS')
