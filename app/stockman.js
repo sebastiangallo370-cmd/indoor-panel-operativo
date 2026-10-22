@@ -161,7 +161,7 @@
     lista.sort((x, y) => (y.panel || 0) - (x.panel || 0) || String(x.tela).localeCompare(String(y.tela)));   // primero la tela con MAYOR stock en el panel
     const aviso = filtro === 'sin_articulo' && datos.agente.error ? '<div class="mm-nota" style="margin-bottom:10px">' + esc(datos.agente.error) + '</div>' : '';
     host.classList.toggle('vista-lista', vista === 'lista');
-    const rotulo = { ajustar: 'SKU con descuadre panel ↔ Effi', igual: 'SKU conciliados', sin_articulo: 'SKU sin mapeo a Effi', todo: 'SKU en seguimiento' }[filtro] || 'artículos';
+    const rotulo = { ajustar: 'por revisar', igual: 'verificados', sin_articulo: 'sin ID de Effi', todo: 'en total' }[filtro] || 'artículos';
     host.innerHTML = '<div class="sm-subbarra"><b><strong>' + lista.length + '</strong> ' + rotulo + '</b><span>Ordenados por mayor stock · ' + (vista === 'lista' ? 'vista compacta' : 'vista por tarjetas') + '</span></div>' + aviso + (lista.length ? '<div class="mm-lista">' + lista.map(tarjeta).join('') + '</div>' : '<div class="mm-vacio">' + (filtro === 'ajustar' ? 'Nada por igualar: el stock del panel y el de Effi coinciden.' : 'No hay telas con ese filtro.') + '</div>');
   }
 
@@ -197,7 +197,7 @@
         '<div class="mm-sw smb-sw' + (activo ? ' on' : '') + '"><i></i><span>' + (activo ? 'ACTIVO' : 'APAGADO') + '</span><button type="button" data-sm-activar="' + (activo ? 0 : 1) + '" aria-label="Activar o apagar STOCKMAN"></button></div>' +
         '<button type="button" class="smb-btn" data-sm-revisar' + (ocupado ? ' disabled' : '') + '>↻ ' + (ocupado ? 'REVISANDO…' : 'REVISAR') + '</button>' +
         '<span class="smb-esp"></span>' +
-        '<div class="smb-fichas">' + ficha('ajustar', r.ajustar + r.grande + (r.ambiguo || 0), 'DESCUADRE') + ficha('igual', r.igual, 'CONCILIADO') + ficha('sin_articulo', r.sin_articulo, 'SIN MAPEO EFFI') + ficha('todo', r.telas, 'TOTAL SKU') + '</div>' +
+        '<div class="smb-fichas">' + ficha('ajustar', r.ajustar + r.grande + (r.ambiguo || 0), 'POR REVISAR') + ficha('igual', r.igual, 'VERIFICADO') + ficha('sin_articulo', r.sin_articulo, 'SIN ID') + ficha('todo', r.telas, 'TODO') + '</div>' +
         '<div class="smb-vistas"><button type="button" data-sm-vista="tarjetas" class="' + (vista === 'tarjetas' ? 'on' : '') + '" title="Tarjetas">▦</button><button type="button" data-sm-vista="lista" class="' + (vista === 'lista' ? 'on' : '') + '" title="Lista">☰</button></div>' +
         '<label class="smb-busca"><input type="search" data-sm-buscar placeholder="Buscar…" value="' + esc(buscar) + '" autocomplete="off"></label>' +
       '</div>' +
