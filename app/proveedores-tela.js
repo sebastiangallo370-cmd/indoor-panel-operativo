@@ -300,12 +300,20 @@
   .pv-card.pv-t .pt-stats{padding:6px 10px}.pv-card.pv-t .pt-stats>div{display:flex;align-items:baseline;justify-content:center;gap:8px;padding:7px 8px 6px}
   .pv-card.pv-t .pt-stats b{display:inline;font-size:20px}.pv-card.pv-t .pt-stats span{display:inline;margin:0;font-size:10px}
   @media(max-width:360px){.pt-form{grid-template-columns:1fr}}
+  .pv-card input.pv-auto{border-color:rgba(208,244,76,.6)!important;background:rgba(208,244,76,.08)!important}
   `;
   document.head.appendChild(css);
 
   const telas = () => (st.datos && st.datos.telas) || [];
   const cuentaProv = () => { const c = {}; telas().forEach(t => { if (t.proveedor) c[t.proveedor] = (c[t.proveedor] || 0) + 1; }); return c; };
-  const habituales = () => { const c = cuentaProv(); return Object.keys(c).sort((a, b) => c[b] - c[a] || a.localeCompare(b)); };
+  const habituales = () => { const c = cuentaProv(); Object.keys((st.datos && st.datos.directorio) || {}).forEach(n => { if (!(n in c)) c[n] = 0; }); return Object.keys(c).sort((a, b) => c[b] - c[a] || a.localeCompare(b)); };
+  // Al escoger un proveedor ya registrado, sus datos (vendedor, WhatsApp, correo) se llenan solos en los campos vacíos
+  const llenarDesdeDirectorio = input => {
+    const dir = (st.datos && st.datos.directorio) || {}, nombre = String(input.value || '').trim();
+    const p = dir[nombre] || dir[Object.keys(dir).find(k => k.toUpperCase() === nombre.toUpperCase()) || ''];
+    const tj = input.closest('.pv-card'); if (!p || !tj) return;
+    [['vendedor', '[data-pv-vend]'], ['wpp', '[data-pv-wpp]'], ['correo', '[data-pv-correo]']].forEach(([k, sel]) => { const c = tj.querySelector(sel); if (c && !c.value.trim() && p[k]) { c.value = p[k]; c.classList.add('pv-auto'); } });
+  };
   const visibles = () => {
     const q = plano(st.buscar);
     return telas().filter(t => (!st.filtro || (st.filtro === '__sin' ? !(t.proveedor && t.ancho) : t.proveedor === st.filtro)) && (!q || plano(t.codigo + ' ' + t.nombre + ' ' + t.proveedor).includes(q)));
@@ -571,6 +579,8 @@
     pintarGrid();
   }
 
+  document.addEventListener('change', e => { if (e.target.matches && e.target.matches('.pv-card [data-pv-input]')) llenarDesdeDirectorio(e.target); });
+  document.addEventListener('input', e => { if (e.target.matches && e.target.matches('.pv-card [data-pv-input]')) llenarDesdeDirectorio(e.target); });
   window.proveedoresTelaPintar = el => {
     if (host !== el) {
       host = el;

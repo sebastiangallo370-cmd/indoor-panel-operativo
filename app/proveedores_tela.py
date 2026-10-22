@@ -55,6 +55,38 @@ def _guardar(d: dict) -> None:
     tmp.replace(_file)
 
 
+# Directorio de proveedores: los datos de contacto que se escriben al registrar un proveedor en una tela quedan guardados por proveedor,
+# para que al escogerlo en otra tela salga en la lista y sus datos se llenen solos.
+_dir_file = _file.with_name('proveedores_directorio.json')
+CAMPOS_DIRECTORIO = ('vendedor', 'wpp', 'correo')
+
+
+def directorio() -> dict:
+    try:
+        d = json.loads(_dir_file.read_text(encoding='utf-8'))
+        return d if isinstance(d, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _anotar_en_directorio(g: dict) -> None:
+    """Guarda o completa el proveedor de la tela en el directorio (solo pisa un dato si viene escrito)."""
+    nombre = str(g.get('proveedor') or '').strip()
+    if not nombre:
+        return
+    d = directorio()
+    p = dict(d.get(nombre) or {})
+    for campo in CAMPOS_DIRECTORIO:
+        if g.get(campo):
+            p[campo] = g[campo]
+    p['actualizado'] = time.strftime('%Y-%m-%d %H:%M:%S')
+    d[nombre] = p
+    _dir_file.parent.mkdir(parents=True, exist_ok=True)
+    tmp = _dir_file.with_suffix('.tmp')
+    tmp.write_text(json.dumps(d, ensure_ascii=False, indent=1), encoding='utf-8')
+    tmp.replace(_dir_file)
+
+
 def codigo_de(texto: str) -> str:
     """«(700) TOUR ...» -> '700'."""
     m = re.match(r'\s*\((\d+)\)', str(texto or ''))
@@ -203,7 +235,14 @@ def _limpiar_texto(campo: str, texto: str) -> str:
 @router.get('')
 def listar():
     t = telas()
-    return {'telas': t, 'proveedores': sorted({x['proveedor'] for x in t if x['proveedor']} | {r[0] for r in RAZONES_SOCIALES})}
+    dire = directorio()
+    for x in t:   # los contactos ya escritos en las telas también sirven (sin pisar lo del directorio)
+        if x['proveedor'] and any(x.get(c) for c in CAMPOS_DIRECTORIO):
+            p = dire.setdefault(x['proveedor'], {})
+            for c in CAMPOS_DIRECTORIO:
+                if x.get(c) and not p.get(c):
+                    p[c] = x[c]
+    return {'telas': t, 'proveedores': sorted({x['proveedor'] for x in t if x['proveedor']} | {r[0] for r in RAZONES_SOCIALES} | set(dire)), 'directorio': dire}
 
 
 @router.put('')
@@ -242,6 +281,7 @@ def guardar(payload: dict, request: Request):
         if g.get('proveedor') or g.get('ancho') or g.get('id_effi') or any(g.get(c) for c in CAMPOS_EXTRA):
             g['actualizado'] = time.strftime('%Y-%m-%d %H:%M:%S')
             d[codigo] = g
+            _anotar_en_directorio(g)
         else:
             d.pop(codigo, None)
         _guardar(d)
