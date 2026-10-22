@@ -1,45 +1,78 @@
 /* MINIMAXIMAN · agente de inventario que mantiene cada tela entre su stock mínimo y su stock máximo.
-   Pantalla propia (menú de la cuenta → MINIMAXIMAN), como «Agente inventario»: interruptor, resumen y lista de telas bajo el mínimo. */
+   Pantalla propia (robot de agentes → INVENTARIOS → MINIMAXIMAN): usa todo el ancho; a la izquierda las telas (buscador, filtros y orden) y a la derecha
+   las órdenes de compra que ha creado, con las que esperan tu aprobación primero. */
 (function () {
   'use strict';
   if (window.__minimaximanListo) return;
   window.__minimaximanListo = true;
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const num = v => Number(v || 0).toLocaleString('es-CO', { maximumFractionDigits: 2 });
-  const ESTADO = { pedir: ['POR PEDIR', 'rojo'], sin_proveedor: ['SIN PROVEEDOR', 'ambar'], sin_effi: ['NO LO VEO EN EFFI', 'ambar'], error: ['CON ERROR', 'rojo'], revisar: ['REVISAR RANGO', 'ambar'], en_camino: ['EN CAMINO', 'azul'], ok: ['EN RANGO', 'verde'] };
-  let panel = null, tab = null, timer = null, datos = null, filtro = 'pedir', ocupado = false;
+  const plano = t => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const ESTADO = { pedir: ['POR PEDIR', 'rojo'], error: ['CON ERROR', 'rojo'], sin_proveedor: ['SIN PROVEEDOR', 'ambar'], sin_effi: ['NO LO VEO EN EFFI', 'ambar'], revisar: ['REVISAR RANGO', 'ambar'], en_camino: ['EN CAMINO', 'azul'], ok: ['EN RANGO', 'verde'] };
+  const GRUPOS = [['atencion', 'REQUIEREN ATENCIÓN'], ['en_camino', 'EN CAMINO'], ['ok', 'EN RANGO'], ['todas', 'TODAS LAS TELAS']];
+  let guardado = {}; try { guardado = JSON.parse(localStorage.getItem('mm-vista') || '{}'); } catch (_) { /* sin almacenamiento */ }
+  let panel = null, tab = null, timer = null, datos = null, filtro = guardado.filtro || 'atencion', buscar = '', orden = guardado.orden || 'estado', ocupado = false, firma = '';
+  const recordar = () => { try { localStorage.setItem('mm-vista', JSON.stringify({ filtro, orden })); } catch (_) { /* sin almacenamiento */ } };
 
   const css = document.createElement('style');
   css.textContent = `
-  .mm{display:grid;gap:18px;padding:4px 0 30px;font-family:Arial,sans-serif;color:#e8f0e0;position:relative;isolation:isolate}
-  .mm::before{content:"";position:absolute;z-index:-1;left:-60px;top:-30px;width:420px;height:420px;border-radius:50%;filter:blur(70px);background:radial-gradient(circle,rgba(111,227,154,.28),transparent 70%);pointer-events:none}
+  .panel[data-panel="minimaximan"]{width:100%;max-width:none}
+  .mm{overflow-x:clip;display:grid;gap:18px;padding:4px 0 34px;font-family:Arial,sans-serif;color:#e8f0e0;position:relative;isolation:isolate;width:100%;min-height:calc(100vh - 150px);align-content:start}
+  .mm::before,.mm::after{content:"";position:absolute;z-index:-1;border-radius:50%;filter:blur(80px);pointer-events:none;animation:mmFlota 18s ease-in-out infinite alternate}
+  .mm::before{left:-80px;top:-40px;width:520px;height:520px;background:radial-gradient(circle,rgba(111,227,154,.26),transparent 70%)}
+  .mm::after{right:-100px;top:280px;width:560px;height:560px;background:radial-gradient(circle,rgba(255,122,89,.18),transparent 70%);animation-delay:-9s}
+  @keyframes mmFlota{to{transform:translate(70px,50px) scale(1.15)}}
   .mm-glass{border:1px solid rgba(255,255,255,.2);border-radius:20px;background:linear-gradient(150deg,rgba(255,255,255,.14),rgba(255,255,255,.04) 45%,rgba(255,255,255,.08));-webkit-backdrop-filter:blur(20px) saturate(1.6);backdrop-filter:blur(20px) saturate(1.6);box-shadow:0 14px 40px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.3)}
-  .mm-hd{display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:space-between;padding:20px 22px}
-  .mm-hd small{font:800 10px Arial;letter-spacing:.18em;color:#6fe39a}.mm-hd h2{margin:4px 0;font:900 26px Arial;letter-spacing:.06em}.mm-hd p{margin:0;font:13px/1.45 Arial;color:#a9b8a3;max-width:640px}
-  .mm-sw{display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:999px;border:1px solid rgba(255,255,255,.2);background:rgba(0,0,0,.25);font:800 12px Arial;letter-spacing:.05em}
+  .mm-hd{display:flex;flex-wrap:wrap;gap:18px;align-items:center;justify-content:space-between;padding:20px 24px}
+  .mm-hd small{font:800 10px Arial;letter-spacing:.2em;color:#6fe39a}.mm-hd h2{margin:4px 0 6px;font:900 30px Arial;letter-spacing:.06em;background:linear-gradient(90deg,#fff,#9ff0c0);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .mm-hd p{margin:0;font:13px/1.5 Arial;color:#a9b8a3;max-width:760px}
+  .mm-ctl{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+  .mm-sw{display:flex;align-items:center;gap:12px;padding:10px 16px;border-radius:999px;border:1px solid rgba(255,255,255,.2);background:rgba(0,0,0,.28);font:800 12px Arial;letter-spacing:.05em}
+  .mm-sw i{width:10px;height:10px;border-radius:50%;background:#ff6b61;box-shadow:0 0 0 0 rgba(255,107,97,.6);animation:mmPulso 1.8s ease-out infinite}
+  .mm-sw.on i{background:#6fe39a;animation-name:mmPulsoOk}
+  @keyframes mmPulso{to{box-shadow:0 0 0 10px rgba(255,107,97,0)}}@keyframes mmPulsoOk{0%{box-shadow:0 0 0 0 rgba(111,227,154,.6)}100%{box-shadow:0 0 0 10px rgba(111,227,154,0)}}
   .mm-sw button{width:54px;height:28px;border-radius:99px;border:1px solid rgba(255,255,255,.25);background:#3a3f38;position:relative;cursor:pointer;transition:background .2s;padding:0}
   .mm-sw button::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:transform .2s}
   .mm-sw.on button{background:#2fae62}.mm-sw.on button::after{transform:translateX(26px)}.mm-sw.on span{color:#6fe39a}.mm-sw:not(.on) span{color:#ffb39f}
-  .mm-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
-  .mm-kpi{padding:14px 16px;cursor:pointer;text-align:left;color:inherit;font:inherit;position:relative;overflow:hidden;transition:transform .2s,border-color .2s}
-  .mm-kpi:hover{transform:translateY(-3px)}.mm-kpi.on{border-color:rgba(111,227,154,.7)}
-  .mm-kpi b{display:block;font:900 30px Arial}.mm-kpi span{font:800 10px Arial;letter-spacing:.12em;color:#b9c8b3}
-  .mm-acc{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-  .mm-b{padding:10px 16px;border-radius:13px;border:1px solid rgba(255,255,255,.25);background:linear-gradient(180deg,rgba(255,255,255,.2),rgba(255,255,255,.06));color:#fff;font:800 12px Arial;letter-spacing:.05em;cursor:pointer}
-  .mm-b:disabled{opacity:.5;cursor:default}.mm-meta{font:12px Arial;color:#9fb096}
-  .mm-lista{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
-  .mm-t{padding:16px 18px;display:grid;gap:10px}
-  .mm-t h4{margin:0;font:900 16px Arial;letter-spacing:.03em;display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+  .mm-b{padding:10px 16px;border-radius:13px;border:1px solid rgba(255,255,255,.25);background:linear-gradient(180deg,rgba(255,255,255,.2),rgba(255,255,255,.06));color:#fff;font:800 12px Arial;letter-spacing:.05em;cursor:pointer;transition:transform .15s,background .15s;box-shadow:inset 0 1px 0 rgba(255,255,255,.3)}
+  .mm-b:hover:not(:disabled){transform:translateY(-1px);background:rgba(255,255,255,.22)}.mm-b:disabled{opacity:.5;cursor:default}
+  .mm-b.ok{background:linear-gradient(180deg,#5fe39a,#2fae62);color:#04210f;border-color:rgba(255,255,255,.4)}
+  .mm-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px}
+  .mm-kpi{padding:16px 18px;cursor:pointer;text-align:left;color:inherit;font:inherit;position:relative;overflow:hidden;transition:transform .2s,border-color .2s}
+  .mm-kpi:hover{transform:translateY(-3px)}.mm-kpi.on{border-color:rgba(111,227,154,.8);box-shadow:0 0 0 1px rgba(111,227,154,.35),0 14px 40px rgba(0,0,0,.35)}
+  .mm-kpi b{display:block;font:900 34px Arial;position:relative}.mm-kpi span{font:800 10px Arial;letter-spacing:.12em;color:#c5d2bf;position:relative}
+  .mm-cuerpo{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:18px;align-items:start}
+  .mm-izq{display:grid;gap:14px;min-width:0}
+  .mm-barra{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px 14px}
+  .mm-barra input,.mm-barra select{height:40px;border-radius:12px;border:1px solid rgba(255,255,255,.22);background:rgba(0,0,0,.3);color:#fff;font:14px Arial;padding:0 12px;outline:0}
+  .mm-barra input{flex:1;min-width:200px}.mm-barra input:focus,.mm-barra select:focus{border-color:#6fe39a}
+  .mm-chips{display:flex;flex-wrap:wrap;gap:8px}.mm-chip{padding:8px 13px;border-radius:99px;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.06);color:#d7e3d1;font:800 11px Arial;letter-spacing:.05em;cursor:pointer}
+  .mm-chip em{font-style:normal;color:#8fa596;margin-left:5px}.mm-chip.on{background:#6fe39a;border-color:#6fe39a;color:#06240f}.mm-chip.on em{color:#0b3a1d}
+  .mm-lista{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px}
+  .mm-t{padding:16px 18px;display:grid;gap:11px;transition:transform .2s,border-color .2s;animation:mmEntra .35s ease-out both}.mm-t:hover{transform:translateY(-3px)}
+  @keyframes mmEntra{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .mm-t h4{margin:0;font:900 15px/1.25 Arial;letter-spacing:.03em;display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+  .mm-t h4 small{display:block;font:700 10px Arial;color:#9fb096;letter-spacing:.08em;margin-top:3px}
   .mm-t h4 em{font:800 9.5px Arial;font-style:normal;letter-spacing:.08em;padding:5px 9px;border-radius:99px;border:1px solid rgba(255,255,255,.3);white-space:nowrap}
-  .mm-t.rojo h4 em{background:rgba(255,107,97,.25);border-color:#ff6b61;color:#ffb3ac}.mm-t.ambar h4 em{background:rgba(255,200,80,.2);border-color:#ffc850;color:#ffe0a0}
+  .mm-t.rojo{border-color:rgba(255,107,97,.55)}.mm-t.rojo h4 em{background:rgba(255,107,97,.25);border-color:#ff6b61;color:#ffb3ac}.mm-t.ambar h4 em{background:rgba(255,200,80,.2);border-color:#ffc850;color:#ffe0a0}
   .mm-t.azul h4 em{background:rgba(100,170,255,.2);border-color:#64aaff;color:#bcd8ff}.mm-t.verde h4 em{background:rgba(111,227,154,.18);border-color:#6fe39a;color:#bff5d3}
-  .mm-barra{height:12px;border-radius:99px;background:rgba(255,255,255,.1);position:relative;overflow:visible}
-  .mm-barra i{position:absolute;left:0;top:0;bottom:0;border-radius:99px;background:linear-gradient(90deg,#4fae86,#a6f0c6)}
-  .mm-t.rojo .mm-barra i{background:linear-gradient(90deg,#e8573a,#ff9d83)}.mm-t.azul .mm-barra i{background:linear-gradient(90deg,#4a86d8,#9cc6ff)}
-  .mm-barra u{position:absolute;top:-4px;bottom:-4px;width:2px;background:#fff;opacity:.85;text-decoration:none}
-  .mm-nums{display:flex;justify-content:space-between;font:700 11px Arial;color:#c5d2bf}.mm-nums b{color:#fff}
-  .mm-nota{font:12px/1.4 Arial;color:#a9b8a3}.mm-vacio{padding:26px;text-align:center;color:#9fb096;font:13px/1.5 Arial;border:1px dashed rgba(255,255,255,.2);border-radius:16px}
-  @media(max-width:700px){.mm-hd h2{font-size:21px}.mm-lista{grid-template-columns:1fr}}`;
+  .mm-medidor{position:relative;height:14px;border-radius:99px;background:rgba(255,255,255,.1);margin:6px 0 16px}
+  .mm-medidor i{position:absolute;left:0;top:0;bottom:0;border-radius:99px;background:linear-gradient(90deg,#4fae86,#a6f0c6);transition:width .6s ease}
+  .mm-t.rojo .mm-medidor i{background:linear-gradient(90deg,#e8573a,#ff9d83)}.mm-t.azul .mm-medidor i{background:linear-gradient(90deg,#4a86d8,#9cc6ff)}.mm-t.ambar .mm-medidor i{background:linear-gradient(90deg,#d49a2a,#ffd98a)}
+  .mm-medidor u{position:absolute;top:-5px;bottom:-5px;width:2px;background:#fff;text-decoration:none}.mm-medidor u b{position:absolute;top:100%;left:50%;transform:translateX(-50%);font:700 9px Arial;color:#c5d2bf;margin-top:2px;white-space:nowrap}
+  .mm-nums{display:flex;justify-content:space-between;gap:8px;font:700 11px Arial;color:#c5d2bf}.mm-nums b{color:#fff}
+  .mm-pedir{padding:9px 12px;border-radius:12px;background:rgba(255,107,97,.14);border:1px solid rgba(255,107,97,.4);display:flex;justify-content:space-between;align-items:center;font:700 12px Arial}.mm-pedir b{font:900 18px Arial;color:#ffb3ac}
+  .mm-nota{font:12px/1.4 Arial;color:#a9b8a3}.mm-vacio{padding:30px;text-align:center;color:#9fb096;font:13px/1.5 Arial;border:1px dashed rgba(255,255,255,.2);border-radius:16px}
+  .mm-der{display:grid;gap:14px;position:sticky;top:12px;max-height:calc(100vh - 40px);overflow:auto;align-content:start;padding:2px}
+  .mm-caja{padding:16px 18px;display:grid;gap:10px}.mm-caja h3{margin:0;font:900 12px Arial;letter-spacing:.16em;color:#b9c8b3;display:flex;justify-content:space-between;align-items:center}
+  .mm-caja h3 em{font:900 10px Arial;font-style:normal;padding:4px 9px;border-radius:99px;background:rgba(255,200,80,.2);border:1px solid #ffc850;color:#ffe0a0}
+  .mm-oc{padding:12px 13px;border-radius:14px;background:rgba(0,0,0,.24);border:1px solid rgba(255,255,255,.14);display:grid;gap:7px}
+  .mm-oc.espera{border-color:rgba(255,200,80,.6);background:rgba(255,200,80,.08)}.mm-oc.error{border-color:rgba(255,107,97,.6)}
+  .mm-oc b{font:800 13px Arial}.mm-oc .mm-nums{font-size:11px}.mm-oc .mm-b{width:100%}
+  .mm-pasos{margin:0;padding-left:18px;font:12px/1.55 Arial;color:#a9b8a3}
+  @media(max-width:1180px){.mm-cuerpo{grid-template-columns:1fr}.mm-der{position:static;max-height:none}}
+  @media(max-width:700px){.mm-hd h2{font-size:23px}.mm-hd{padding:16px}.mm-lista{grid-template-columns:1fr}.mm-kpis{grid-template-columns:repeat(2,1fr)}}
+  @media(prefers-reduced-motion:reduce){.mm::before,.mm::after,.mm-t,.mm-sw i{animation:none!important}}`;
   document.head.appendChild(css);
 
   const api = async (url, opciones) => {
@@ -49,45 +82,74 @@
     return d;
   };
   const hora = iso => iso ? new Date(iso).toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—';
+  const coincide = t => filtro === 'todas' || (filtro === 'atencion' && ['pedir', 'error', 'sin_proveedor', 'sin_effi', 'revisar'].includes(t.estado)) || t.estado === filtro;
+  const PESO = { pedir: 0, error: 1, sin_proveedor: 2, sin_effi: 3, revisar: 4, en_camino: 5, ok: 6 };
+  const ordenar = lista => lista.slice().sort((a, b) => orden === 'nombre' ? a.tela.localeCompare(b.tela) : orden === 'pedir' ? b.pedir - a.pedir : orden === 'faltante' ? (a.stock / a.minimo) - (b.stock / b.minimo) : (PESO[a.estado] - PESO[b.estado]) || a.tela.localeCompare(b.tela));
 
-  function envioHtml(c) {
-    const e = c.envio_proveedor || {};
-    if (e.estado === 'enviada') return '<div class="mm-nota">✔ Enviada al proveedor (' + esc(e.correo) + ') · aprobó ' + esc(e.por) + ' · ' + hora(e.at) + ' <button type="button" class="mm-b" data-mm-prov="' + c.id + '" data-otra="1" data-oc="' + esc(c.oc) + '">Reenviar</button></div>';
-    return '<div class="mm-nota">⏳ Esperando tu aprobación para enviarla al proveedor · <button type="button" class="mm-b" data-mm-prov="' + c.id + '" data-oc="' + esc(c.oc) + '">✉ Enviar al proveedor</button></div>';
+  function tarjeta(t, i) {
+    const [txt, tono] = ESTADO[t.estado] || ['—', ''];
+    const tope = Math.max(t.maximo, t.stock + (t.por_recibir || 0), 1) * 1.08;
+    const pct = v => Math.max(0, Math.min(100, v / tope * 100)).toFixed(1);
+    return '<article class="mm-glass mm-t ' + tono + '" style="animation-delay:' + Math.min(i * 25, 300) + 'ms"><h4><span>' + esc(t.tela) + '<small>' + esc(t.codigo) + ' · ' + esc(t.proveedor || 'SIN PROVEEDOR') + '</small></span><em>' + txt + '</em></h4>' +
+      '<div class="mm-medidor" title="Hay ' + num(t.stock) + ' · mínimo ' + num(t.minimo) + ' · máximo ' + num(t.maximo) + '"><i style="width:' + pct(t.stock) + '%"></i>' +
+      '<u style="left:' + pct(t.minimo) + '%"><b>mín ' + num(t.minimo) + '</b></u><u style="left:' + pct(t.maximo) + '%;opacity:.55"><b>máx ' + num(t.maximo) + '</b></u></div>' +
+      '<div class="mm-nums"><span>Hay <b>' + num(t.stock) + '</b> mts</span>' + (t.por_recibir ? '<span>Por recibir en Effi <b>' + num(t.por_recibir) + '</b></span>' : '') + '</div>' +
+      (t.pedir ? '<div class="mm-pedir"><span>A pedir hasta el máximo</span><b>' + num(t.pedir) + ' mts</b></div>' : '') +
+      (t.nota ? '<div class="mm-nota">' + esc(t.nota) + '</div>' : '') + '</article>';
   }
 
-  function tarjeta(t) {
-    const [txt, tono] = ESTADO[t.estado] || ['—', ''];
-    const tope = Math.max(t.maximo, t.stock + (t.en_cola || 0) + (t.por_recibir || 0), 1) * 1.05;
-    const pct = v => Math.max(0, Math.min(100, v / tope * 100)).toFixed(1);
-    return '<article class="mm-glass mm-t ' + tono + '"><h4><span>' + esc(t.tela) + '</span><em>' + txt + '</em></h4>' +
-      '<div class="mm-barra" title="Hay ' + num(t.stock) + ' · mínimo ' + num(t.minimo) + ' · máximo ' + num(t.maximo) + '"><i style="width:' + pct(t.stock) + '%"></i><u style="left:' + pct(t.minimo) + '%" title="Mínimo"></u><u style="left:' + pct(t.maximo) + '%;opacity:.45" title="Máximo"></u></div>' +
-      '<div class="mm-nums"><span>Hay <b>' + num(t.stock) + '</b> mts</span><span>Mín <b>' + num(t.minimo) + '</b></span><span>Máx <b>' + num(t.maximo) + '</b></span></div>' +
-      ((t.en_cola || t.por_recibir) ? '<div class="mm-nums"><span>En cola <b>' + num(t.en_cola) + '</b></span><span>Por recibir en Effi <b>' + (t.por_recibir == null ? '—' : num(t.por_recibir)) + '</b></span></div>' : '') +
-      (t.pedir ? '<div class="mm-nums"><span>A pedir <b>' + num(t.pedir) + ' mts</b></span><span>' + esc(t.proveedor || 'sin proveedor') + '</span></div>' : '') +
-      (t.nota ? '<div class="mm-nota">' + esc(t.nota) + '</div>' : '') + '</article>';
+  function ocHtml(c) {
+    const e = c.envio_proveedor || {};
+    if (c.estado === 'error') return '<div class="mm-oc error"><b>' + esc(c.tela) + '</b><div class="mm-nums"><span>' + num(c.metros) + ' mts</span><span>ERROR ' + (c.intentos || 0) + '/3</span></div><div class="mm-nota">' + esc(c.detalle) + '</div></div>';
+    if (c.estado !== 'creada') return '<div class="mm-oc"><b>' + esc(c.tela) + '</b><div class="mm-nums"><span>' + num(c.metros) + ' mts</span><span>creando…</span></div></div>';
+    const cab = '<b>' + esc(c.tela) + '</b><div class="mm-nums"><span>' + num(c.metros) + ' mts · OC <b>' + esc(c.oc) + '</b></span><span>' + hora(c.creada || c.creado) + '</span></div>';
+    if (e.estado === 'enviada') return '<div class="mm-oc">' + cab + '<div class="mm-nota">✔ Enviada a ' + esc(e.correo) + ' · aprobó ' + esc(e.por) + ' · ' + hora(e.at) + '</div><button type="button" class="mm-b" data-mm-prov="' + c.id + '" data-otra="1" data-oc="' + esc(c.oc) + '">Reenviar</button></div>';
+    return '<div class="mm-oc espera">' + cab + '<div class="mm-nota">⏳ Esperando tu aprobación para enviarla a ' + esc(c.proveedor || 'el proveedor') + '</div><button type="button" class="mm-b ok" data-mm-prov="' + c.id + '" data-oc="' + esc(c.oc) + '">✉ APROBAR Y ENVIAR AL PROVEEDOR</button></div>';
   }
 
   function pintar() {
     if (!panel || !datos) return;
-    const a = datos.agente, r = datos.resumen, activo = !!a.activo;
-    const kpi = (k, n, rotulo) => '<button type="button" class="mm-glass mm-kpi' + (filtro === k ? ' on' : '') + '" data-mm-filtro="' + k + '" data-lq="' + (r.telas ? Math.round(n / r.telas * 100) : 0) + '" data-lq-tone="' + ({ pedir: 'rojo', en_camino: 'azul', sin_proveedor: 'ambar', ok: 'verde', todas: 'gris' }[k] || 'gris') + '" data-lq-nopct><b>' + n + '</b><span>' + rotulo + '</span></button>';
-    const lista = datos.telas.filter(t => filtro === 'todas' || t.estado === filtro || (filtro === 'pedir' && (t.estado === 'sin_effi' || t.estado === 'revisar' || t.estado === 'error')));
+    const foco = document.activeElement;
+    if (foco && foco.matches && foco.matches('[data-mm-buscar]') && panel.contains(foco)) { pintarLista(); return; }   // no se redibuja todo mientras se escribe en el buscador
+    const a = datos.agente, r = datos.resumen, activo = !!a.activo, compras = datos.compras || [];
+    const esperan = compras.filter(c => c.estado === 'creada' && (c.envio_proveedor || {}).estado !== 'enviada');
+    const nAtencion = r.pedir + (r.error || 0) + r.sin_proveedor + r.sin_effi;
+    const cuenta = { atencion: nAtencion, en_camino: r.en_camino, ok: r.ok, todas: r.telas };
+    const kpi = (k, n, rotulo, tono) => '<button type="button" class="mm-glass mm-kpi' + (filtro === k ? ' on' : '') + '" data-mm-filtro="' + k + '" data-lq="' + (r.telas ? Math.round(n / r.telas * 100) : 0) + '" data-lq-tone="' + tono + '" data-lq-nopct><b>' + n + '</b><span>' + rotulo + '</span></button>';
+    const resto = compras.filter(c => !esperan.includes(c));
     panel.querySelector('.mm').innerHTML =
-      '<header class="mm-glass mm-hd"><div><small>AGENTE DE INVENTARIO</small><h2>MINIMAXIMAN</h2><p>' + esc(a.titulo) + '. Cuando una tela baja de su stock mínimo, pide lo necesario para llegar a su máximo, igual que ZEUS: la orden de compra la crea él mismo en Effi (por la API, sin usar a ZEUS ni a otros agentes) y avisa por correo y en la campana.</p></div>' +
-      '<div class="mm-sw' + (activo ? ' on' : '') + '"><span>' + (activo ? 'ACTIVO · crea compras' : 'APAGADO · solo muestra') + '</span><button type="button" data-mm-activar="' + (activo ? 0 : 1) + '" aria-label="Activar o apagar MINIMAXIMAN"></button></div></header>' +
+      '<header class="mm-glass mm-hd"><div><small>AGENTE DE INVENTARIO · CORRE EN EL SERVIDOR</small><h2>MINIMAXIMAN</h2><p>' + esc(a.titulo) + '. Cuando una tela baja de su stock mínimo, crea él mismo la orden de compra en Effi por lo que falta hasta el máximo; avisa al encargado y la orden solo sale al proveedor cuando tú la apruebas.</p></div>' +
+      '<div class="mm-ctl"><div class="mm-sw' + (activo ? ' on' : '') + '"><i></i><span>' + (activo ? 'ACTIVO · crea las compras' : 'APAGADO · solo muestra') + '</span><button type="button" data-mm-activar="' + (activo ? 0 : 1) + '" aria-label="Activar o apagar MINIMAXIMAN"></button></div>' +
+      '<button type="button" class="mm-b" data-mm-revisar' + (ocupado ? ' disabled' : '') + '>↻ ' + (ocupado ? 'REVISANDO…' : 'REVISAR AHORA') + '</button></div></header>' +
       (a.error ? '<div class="mm-vacio">' + esc(a.error) + '</div>' : '') +
-      '<div class="mm-kpis">' + kpi('pedir', r.pedir, 'POR PEDIR') + kpi('en_camino', r.en_camino, 'EN CAMINO') + kpi('sin_proveedor', r.sin_proveedor, 'SIN PROVEEDOR') + kpi('ok', r.ok, 'EN RANGO') + kpi('todas', r.telas, 'TELAS CON MÍN. Y MÁX.') + '</div>' +
-      '<div class="mm-acc"><button type="button" class="mm-b" data-mm-revisar' + (ocupado ? ' disabled' : '') + '>↻ ' + (ocupado ? 'REVISANDO…' : 'REVISAR AHORA') + '</button><span class="mm-meta">Última revisión: ' + hora(a.ultima) + ' · se repite sola cada 10 minutos' + (activo ? '' : ' · APAGADO: no crea ninguna compra') + '</span></div>' +
-      (datos.compras && datos.compras.length ? '<section class="mm-glass mm-t"><h4><span>ÓRDENES QUE HA CREADO</span></h4>' + datos.compras.map(c => '<div class="mm-nums"><span><b>' + esc(c.tela) + '</b> · ' + num(c.metros) + ' mts</span><span>' + (c.estado === 'creada' ? 'OC ' + esc(c.oc) : (c.estado === 'error' ? 'ERROR (' + (c.intentos || 0) + '/3)' : 'creando…')) + ' · ' + hora(c.creada || c.creado) + '</span></div>' + (c.estado === 'creada' ? envioHtml(c) : '') + (c.estado === 'error' ? '<div class="mm-nota">' + esc(c.detalle) + '</div>' : '')).join('') + '</section>' : '') +
-      (lista.length ? '<section class="mm-lista">' + lista.map(tarjeta).join('') + '</section>' : '<div class="mm-vacio">' + (r.telas ? 'No hay telas en este grupo.' : 'Ninguna tela tiene stock mínimo y máximo todavía: se anotan en INFORMACIÓN TELA.') + '</div>') +
-      '<ul class="mm-meta" style="margin:0;padding-left:18px">' + (a.funciones || []).map(f => '<li>' + esc(f) + '</li>').join('') + '</ul>';
+      '<div class="mm-kpis">' + kpi('atencion', nAtencion, 'REQUIEREN ATENCIÓN', 'rojo') + kpi('en_camino', r.en_camino, 'EN CAMINO', 'azul') + kpi('ok', r.ok, 'EN RANGO', 'verde') + kpi('todas', r.telas, 'TELAS CON MÍN. Y MÁX.', 'gris') + '</div>' +
+      '<div class="mm-cuerpo"><section class="mm-izq"><div class="mm-glass mm-barra"><input type="search" data-mm-buscar placeholder="Buscar tela, código o proveedor…" value="' + esc(buscar) + '" autocomplete="off">' +
+      '<select data-mm-orden aria-label="Ordenar">' + [['estado', 'Orden: lo urgente primero'], ['pedir', 'Más metros por pedir'], ['faltante', 'Más cerca de cero'], ['nombre', 'Nombre A-Z']].map(o => '<option value="' + o[0] + '"' + (orden === o[0] ? ' selected' : '') + '>' + o[1] + '</option>').join('') + '</select>' +
+      '<div class="mm-chips">' + GRUPOS.map(g => '<button type="button" class="mm-chip' + (filtro === g[0] ? ' on' : '') + '" data-mm-filtro="' + g[0] + '">' + g[1] + '<em>' + cuenta[g[0]] + '</em></button>').join('') + '</div></div>' +
+      '<div class="mm-lista-host"></div></section>' +
+      '<aside class="mm-der"><section class="mm-glass mm-caja"><h3>ESPERAN TU APROBACIÓN' + (esperan.length ? '<em>' + esperan.length + '</em>' : '') + '</h3>' +
+      (esperan.length ? esperan.map(ocHtml).join('') : '<div class="mm-nota">No hay órdenes esperando. Cuando MINIMAXIMAN cree una, te llega el correo y aparece aquí para que la apruebes.</div>') + '</section>' +
+      '<section class="mm-glass mm-caja"><h3>ÓRDENES ANTERIORES</h3>' + (resto.length ? resto.map(ocHtml).join('') : '<div class="mm-nota">Todavía no ha creado ninguna orden.</div>') + '</section>' +
+      '<section class="mm-glass mm-caja"><h3>CÓMO TRABAJA</h3><ol class="mm-pasos"><li>Revisa cada 10 minutos las telas con mínimo y máximo (INFORMACIÓN TELA).</li><li>Cuenta lo que ya viene en camino en Effi («por recibir»).</li><li>Si queda bajo el mínimo, crea la orden de compra por lo que falta hasta el máximo.</li><li>Avisa al encargado por correo y por la campana.</li><li>Al aprobarla aquí, la envía al correo del proveedor.</li></ol>' +
+      '<div class="mm-nota">Última revisión: ' + hora(a.ultima) + (activo ? '' : ' · APAGADO: no crea ninguna compra') + '</div></section></aside></div>';
+    pintarLista();
     if (window.liquidStats && window.liquidStats.refresh) window.liquidStats.refresh(panel);
   }
 
+  function pintarLista() {
+    const host = panel.querySelector('.mm-lista-host'); if (!host || !datos) return;
+    const q = plano(buscar);
+    const lista = ordenar(datos.telas.filter(t => coincide(t) && (!q || plano(t.tela + ' ' + t.codigo + ' ' + t.proveedor).includes(q))));
+    host.innerHTML = lista.length ? '<div class="mm-lista">' + lista.map(tarjeta).join('') + '</div>' : '<div class="mm-vacio">' + (datos.resumen.telas ? 'No hay telas con ese filtro.' : 'Ninguna tela tiene stock mínimo y máximo todavía: se anotan en INFORMACIÓN TELA.') + '</div>';
+  }
+
   async function cargar() {
-    try { datos = await api('/api/minimaximan/estado'); pintar(); }
-    catch (e) { if (panel) panel.querySelector('.mm').innerHTML = '<div class="mm-vacio">' + esc(e.message) + '</div>'; }
+    try {
+      const nuevo = await api('/api/minimaximan/estado');
+      const f = JSON.stringify(nuevo);
+      if (f === firma && datos) return;   // sin cambios: no se redibuja
+      firma = f; datos = nuevo; pintar();
+    } catch (e) { if (panel) panel.querySelector('.mm').innerHTML = '<div class="mm-vacio">' + esc(e.message) + '</div>'; }
   }
 
   function construir() {
@@ -105,27 +167,29 @@
       document.querySelectorAll('.tab').forEach(x => x.classList.toggle('active', x === tab));
       document.querySelectorAll('.panel').forEach(x => x.classList.toggle('active', x === panel));
       document.body.classList.remove('inicio-mode', 'inventory-mode', 'production-mode', 'schedule-mode', 'operarios-mode', 'cartera-mode', 'trace-cards-mode');
-      cargar(); clearInterval(timer);
+      firma = ''; cargar(); clearInterval(timer);
       timer = setInterval(() => { if (panel.classList.contains('active') && !document.hidden) cargar(); }, 15000);
     });
+    panel.addEventListener('input', e => { if (e.target.matches('[data-mm-buscar]')) { buscar = e.target.value; pintarLista(); } });
+    panel.addEventListener('change', e => { if (e.target.matches('[data-mm-orden]')) { orden = e.target.value; recordar(); pintar(); } });
     panel.addEventListener('click', async e => {
-      const f = e.target.closest('[data-mm-filtro]'); if (f) { filtro = f.dataset.mmFiltro; pintar(); return; }
+      const f = e.target.closest('[data-mm-filtro]'); if (f) { filtro = f.dataset.mmFiltro; recordar(); pintar(); return; }
       const r = e.target.closest('[data-mm-revisar]');
-      if (r && !ocupado) { ocupado = true; pintar(); try { await api('/api/minimaximan/revisar', { method: 'POST' }); } catch (x) { alert(x.message); } ocupado = false; await cargar(); return; }
+      if (r && !ocupado) { ocupado = true; pintar(); try { await api('/api/minimaximan/revisar', { method: 'POST' }); } catch (x) { alert(x.message); } ocupado = false; firma = ''; await cargar(); return; }
       const p = e.target.closest('[data-mm-prov]');
       if (p) {
         const otra = !!p.dataset.otra;
         if (!confirm((otra ? 'Esta orden ya se envió. ¿Enviarla otra vez' : '¿Aprobar y enviar la orden de compra ' + (p.dataset.oc || '')) + ' al correo del proveedor?\nEl proveedor recibirá el mensaje de Indoor Sport con el número de la orden, la tela y los metros.')) return;
         p.disabled = true;
         try { await api('/api/minimaximan/enviar-proveedor', { method: 'POST', body: JSON.stringify({ id: Number(p.dataset.mmProv), otra_vez: otra }) }); } catch (x) { alert(x.message); }
-        cargar(); return;
+        firma = ''; cargar(); return;
       }
       const s = e.target.closest('[data-mm-activar]');
       if (s) {
         const quiere = s.dataset.mmActivar === '1';
-        if (quiere && !confirm('¿Activar MINIMAXIMAN?\n\nCuando una tela baje de su stock mínimo, MINIMAXIMAN creará él mismo la orden de compra en Effi (con el proveedor de INFORMACIÓN TELA y la llave de la API), sin pedirte permiso.')) return;
+        if (quiere && !confirm('¿Activar MINIMAXIMAN?\n\nCuando una tela baje de su stock mínimo, MINIMAXIMAN creará él mismo la orden de compra en Effi (con el proveedor de INFORMACIÓN TELA y la llave de la API), sin pedirte permiso. La orden solo se enviará al proveedor cuando tú la apruebes.')) return;
         try { await api('/api/minimaximan/activar', { method: 'PUT', body: JSON.stringify({ activo: quiere }) }); } catch (x) { alert(x.message); }
-        cargar();
+        firma = ''; cargar();
       }
     });
     return true;
