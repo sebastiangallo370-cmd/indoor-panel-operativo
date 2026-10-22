@@ -11,7 +11,7 @@
   const ESTADO = { pedir: ['POR PEDIR', 'rojo'], error: ['CON ERROR', 'rojo'], sin_proveedor: ['SIN PROVEEDOR', 'ambar'], sin_effi: ['NO LO VEO EN EFFI', 'ambar'], revisar: ['REVISAR RANGO', 'ambar'], pausa: ['EN PAUSA', 'ambar'], sin_id: ['FALTA ID EFFI', 'ambar'], en_camino: ['EN CAMINO', 'azul'], ok: ['EN RANGO', 'verde'] };
   const GRUPOS = [['atencion', 'ATENCIÓN'], ['en_camino', 'EN CAMINO'], ['ok', 'EN RANGO'], ['todas', 'TODAS']];
   let guardado = {}; try { guardado = JSON.parse(localStorage.getItem('mm-vista') || '{}'); } catch (_) { /* sin almacenamiento */ }
-  let panel = null, tab = null, timer = null, datos = null, filtro = ['aprobacion', 'aprobado', 'todo'].includes(guardado.filtro) ? guardado.filtro : 'aprobacion', buscar = '', orden = guardado.orden || 'estado', ocupado = false, firma = '';
+  let panel = null, tab = null, timer = null, datos = null, filtro = ['aprobacion', 'aprobado', 'todo'].includes(guardado.filtro) ? guardado.filtro : 'aprobacion', buscar = '', orden = 'pedir', ocupado = false, firma = '';
   const recordar = () => { try { localStorage.setItem('mm-vista', JSON.stringify({ filtro, orden })); } catch (_) { /* sin almacenamiento */ } };
 
   const css = document.createElement('style');
@@ -242,7 +242,7 @@
   const enviada = c => (c.envio_proveedor || {}).estado === 'enviada';
   const coincide = t => { if (filtro === 'todo') return true; const c = ordenDe(t); return !!c && (filtro === 'aprobado' ? enviada(c) : !enviada(c)); };
   const PESO = { pedir: 0, error: 1, sin_proveedor: 2, sin_effi: 3, revisar: 4, en_camino: 5, ok: 6 };
-  const ordenar = lista => lista.slice().sort((a, b) => orden === 'nombre' ? a.tela.localeCompare(b.tela) : orden === 'pedir' ? b.pedir - a.pedir : orden === 'faltante' ? (a.stock / a.minimo) - (b.stock / b.minimo) : (PESO[a.estado] - PESO[b.estado]) || a.tela.localeCompare(b.tela));
+  const ordenar = lista => lista.slice().sort((a, b) => orden === 'nombre' ? a.tela.localeCompare(b.tela) : orden === 'pedir' ? (b.pedir - a.pedir) || a.tela.localeCompare(b.tela) : orden === 'faltante' ? (a.stock / a.minimo) - (b.stock / b.minimo) : (PESO[a.estado] - PESO[b.estado]) || a.tela.localeCompare(b.tela));
 
   // Botones de la orden que MINIMAXIMAN creó para esa tela (mientras no se haya enviado al proveedor se puede enviar, modificar o anular)
   function acciones(t) {
