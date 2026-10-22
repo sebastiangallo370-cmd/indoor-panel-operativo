@@ -1,0 +1,52 @@
+import tempfile
+import unittest
+from pathlib import Path
+from unittest import mock
+
+from app import minimaximan
+
+
+def tela(stock, minimo, maximo, proveedor='LINDATEXTIL'):
+    return {'codigo': '100', 'nombre': 'MONTECATINI BLANCO', 'mts': stock, 'stock_minimo': str(minimo), 'stock_maximo': str(maximo), 'proveedor': proveedor}
+
+
+class MinimaximanTest(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.parches = [mock.patch.object(minimaximan, '_file', Path(self.dir.name) / 'mm.json'), mock.patch.object(minimaximan, '_usar_api', lambda: True)]
+        for p in self.parches:
+            p.start()
+
+    def tearDown(self):
+        for p in self.parches:
+            p.stop()
+        self.dir.cleanup()
+
+    def evaluar(self, t, por_recibir=0.0):
+        with mock.patch.object(minimaximan.proveedores_tela, 'telas', lambda: [t]), mock.patch.object(minimaximan, '_por_recibir', lambda codigo: por_recibir):
+            return minimaximan.evaluar()[0]
+
+    def test_bajo_el_minimo_pide_lo_que_falta_para_llegar_al_maximo(self):
+        f = self.evaluar(tela(250, 300, 500))   # mínimo 300, hay 250, máximo 500 -> pedir 250 (queda en 500)
+        self.assertEqual((f['estado'], f['pedir']), ('pedir', 250.0))
+
+    def test_en_el_minimo_o_por_encima_no_pide(self):
+        self.assertEqual(self.evaluar(tela(300, 300, 500))['estado'], 'ok')
+        self.assertEqual(self.evaluar(tela(450, 300, 500))['estado'], 'ok')
+
+    def test_lo_que_ya_viene_en_camino_cuenta(self):
+        self.assertEqual(self.evaluar(tela(250, 300, 500), por_recibir=100)['estado'], 'en_camino')   # 250 + 100 llega al mínimo
+        f = self.evaluar(tela(100, 300, 500), por_recibir=100)   # 100 + 100 = 200 sigue bajo: pide hasta el máximo
+        self.assertEqual((f['estado'], f['pedir']), ('pedir', 300.0))
+
+    def test_sin_proveedor_o_sin_ver_a_effi_no_pide(self):
+        self.assertEqual(self.evaluar(tela(250, 300, 500, proveedor=''))['estado'], 'sin_proveedor')
+        with mock.patch.object(minimaximan.proveedores_tela, 'telas', lambda: [tela(250, 300, 500)]), mock.patch.object(minimaximan, '_por_recibir', lambda codigo: None):
+            self.assertEqual(minimaximan.evaluar()[0]['estado'], 'sin_effi')
+
+    def test_maximo_menor_que_el_minimo_se_marca(self):
+        self.assertEqual(self.evaluar(tela(250, 300, 200))['estado'], 'revisar')
+
+
+if __name__ == '__main__':
+    unittest.main()
