@@ -9,7 +9,7 @@
   const sg = v => (v > 0 ? '+' : '') + num(v);
   const plano = t => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   const ESTADO = { ajustar: ['DIFERENCIA', 'ambar'], grande: ['DIFERENCIA GRANDE', 'rojo'], igual: ['IGUAL', 'verde'], sin_articulo: ['SIN ARTÍCULO EN EFFI', 'ambar'] };
-  let urlWh = '', panel = null, tab = null, timer = null, datos = null, filtro = 'ajustar', buscar = '', ocupado = false, firma = '';
+  let urlWh = '', actAbierta = false, panel = null, tab = null, timer = null, datos = null, filtro = 'ajustar', buscar = '', ocupado = false, firma = '';
 
   const css = `
   .panel[data-panel="stockman"],.panel[data-panel="stockman"].active{width:100%;max-width:none;grid-template-columns:minmax(0,1fr)!important;justify-content:stretch!important;justify-items:stretch!important}
@@ -21,6 +21,17 @@
   .sm-fila .d{color:#fff}.sm-fila .d.mas{color:var(--lima,#d0f44c)}.sm-fila .d.menos{color:#ffb3ac}
   .sm-tot{display:flex;justify-content:space-between;gap:10px}.sm-tot div{display:grid;gap:2px}.sm-tot small{font:800 8px Arial;letter-spacing:.14em;color:#9fb096}.sm-tot b{font:900 22px Arial;color:#fff}
   .sm-nom{font:700 10px Arial;color:#9fb096}
+  .sm-hero{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center}
+  .sm-hero small{display:block;font:800 8px Arial;letter-spacing:.14em;color:#9fb096}.sm-hero b{font:900 24px/1.1 Arial;color:#fff}.sm-hero .der{text-align:right}
+  .sm-hero i{font:900 12px Arial;font-style:normal;padding:6px 11px;border-radius:99px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.08);color:#fff;white-space:nowrap}
+  .sm-hero i.mas{color:var(--lima,#d0f44c);border-color:rgba(208,244,76,.5)}.sm-hero i.menos{color:#ffb3ac;border-color:rgba(255,107,97,.5)}.sm-hero i.ok{color:var(--lima,#d0f44c);border-color:rgba(208,244,76,.5);background:rgba(208,244,76,.12)}
+  .sm-t{gap:11px!important}.sm-igualar{height:32px!important;font-size:10px!important}
+  .sm-act{padding:0!important}.sm-act summary{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;padding:12px 18px;cursor:pointer;list-style:none;font:700 11px Arial;color:#c5d2bf}.sm-act summary::-webkit-details-marker{display:none}
+  .sm-act summary b{font:900 11px Arial;letter-spacing:.16em;color:#fff}.sm-act summary::after{content:"▾";margin-left:auto;color:#9fb096}.sm-act[open] summary::after{content:"▴"}
+  .sm-act-g{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;padding:4px 18px 16px}
+  .sm-act-g section{display:grid;gap:7px;align-content:start;font:11px/1.4 Arial;color:#c5d2bf}.sm-act-g h3{margin:0;font:900 10px Arial;letter-spacing:.16em;color:#b9c8b3}
+  .sm-act-g .ok{color:#e8f0e0}.sm-act-g .mal{color:#ffb3ac}.sm-act-g .vacio{color:#9fb096}.sm-act-g .sm-nota{color:#9fb096}.sm-act-g .mm-bt{width:auto;padding:0 14px;justify-self:start}
+
   .sm-wh{display:flex;justify-content:space-between;align-items:center;gap:12px}.sm-url{display:flex;gap:8px;align-items:center}.sm-url code{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:7px 10px;border-radius:10px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.12);color:#e8f0e0;font:11px Consolas,monospace}.sm-url .mm-bt{width:90px;flex:none}
   .sm-hist{padding:12px 16px;display:grid;gap:6px;font:11px Arial;color:#c5d2bf}.sm-hist h3{margin:0;font:900 11px Arial;letter-spacing:.16em;color:#b9c8b3}
   `;
@@ -36,20 +47,40 @@
 
   function tarjeta(t, i) {
     const [txt, tono] = ESTADO[t.estado] || ['—', ''];
-    const filas = (t.bodegas || []).map(b => '<div class="sm-fila"><span>' + esc(b.nombre) + '</span><span>' + num(b.panel) + '</span><span>' + num(b.effi) + '</span><span class="d ' + (b.delta > 0 ? 'mas' : b.delta < 0 ? 'menos' : '') + '">' + (Math.abs(b.delta) < 0.01 ? '=' : sg(b.delta)) + '</span></div>').join('');
-    const boton = (t.estado === 'ajustar' || t.estado === 'grande') ? '<button type="button" class="mm-bt env" data-sm-ajustar="' + esc(t.codigo) + '" data-grande="' + (t.estado === 'grande' ? 1 : 0) + '" data-tela="' + esc(t.tela) + '">IGUALAR EN EFFI</button>' : '';
+    const vivas = (t.bodegas || []).filter(b => b.panel || b.effi);   // las bodegas en cero en los dos lados no se muestran
+    const filas = vivas.map(b => '<div class="sm-fila"><span>' + esc(b.nombre) + '</span><span>' + num(b.panel) + '</span><span>' + num(b.effi) + '</span><span class="d ' + (b.delta > 0 ? 'mas' : b.delta < 0 ? 'menos' : '') + '">' + (Math.abs(b.delta) < 0.01 ? '=' : sg(b.delta)) + '</span></div>').join('');
+    const boton = (t.estado === 'ajustar' || t.estado === 'grande') ? '<button type="button" class="mm-bt env sm-igualar" data-sm-ajustar="' + esc(t.codigo) + '" data-grande="' + (t.estado === 'grande' ? 1 : 0) + '" data-tela="' + esc(t.tela) + '">IGUALAR EN EFFI</button>' : '';
+    const dif = Math.round((t.diferencia || 0) * 100) / 100;
     const cuerpo = t.estado === 'sin_articulo'
       ? '<div class="mm-nota">Effi no tiene un artículo con esta referencia exacta. Escribe su «ID Effi» en INFORMACIÓN TELA.</div>'
-      : '<div class="sm-tot"><div><small>PANEL</small><b>' + num(t.panel) + ' <em style="font:800 9px Arial;font-style:normal;color:#c5d2bf">MTS</em></b></div><div style="text-align:right"><small>EFFI</small><b>' + num(t.effi) + ' <em style="font:800 9px Arial;font-style:normal;color:#c5d2bf">MTS</em></b></div></div>' +
-        '<div class="sm-tabla"><div class="sm-fila cab"><span>BODEGA</span><span>PANEL</span><span>EFFI</span><span>DIF.</span></div>' + filas + '</div>' + boton;
-    return '<article class="mm-glass mm-t ' + tono + '" style="animation-delay:' + Math.min(i * 25, 300) + 'ms"><h4><span>' + esc(t.tela) + '<small>' + esc(t.codigo) + (t.id_effi ? ' · ID EFFI ' + esc(t.id_effi) : '') + '</small></span><em>' + txt + '</em></h4>' + cuerpo + '<img class="mm-marca" src="/marca-indoor.svg" alt="" aria-hidden="true"></article>';
+      : '<div class="sm-hero"><div><small>PANEL</small><b>' + num(t.panel) + '</b></div><i class="' + (Math.abs(dif) < 0.01 ? 'ok' : dif > 0 ? 'mas' : 'menos') + '">' + (Math.abs(dif) < 0.01 ? '✔ IGUAL' : sg(dif)) + '</i><div class="der"><small>EFFI</small><b>' + num(t.effi) + '</b></div></div>' +
+        (vivas.length ? '<div class="sm-tabla"><div class="sm-fila cab"><span>BODEGA</span><span>PANEL</span><span>EFFI</span><span>DIF.</span></div>' + filas + '</div>' : '') + boton;
+    return '<article class="mm-glass mm-t sm-t ' + tono + '" style="animation-delay:' + Math.min(i * 25, 300) + 'ms"><h4><span>' + esc(t.tela) + '<small>' + esc(t.codigo) + (t.id_effi ? ' · ID EFFI ' + esc(t.id_effi) : '') + '</small></span><em>' + txt + '</em></h4>' + cuerpo + '<img class="mm-marca" src="/marca-indoor.svg" alt="" aria-hidden="true"></article>';
   }
 
   function pintarLista() {
     const host = panel.querySelector('.sm-host'); if (!host || !datos) return;
     const q = plano(buscar);
     const lista = datos.telas.filter(t => coincide(t) && (!q || plano(t.tela + ' ' + t.codigo + ' ' + (t.nombre_panel || '')).includes(q)));
-    host.innerHTML = lista.length ? '<div class="mm-lista">' + lista.map(tarjeta).join('') + '</div>' : '<div class="mm-vacio">' + (filtro === 'ajustar' ? 'Nada por ajustar: el stock del panel y el de Effi coinciden.' : 'No hay telas con ese filtro.') + '</div>';
+    const aviso = filtro === 'sin_articulo' && datos.agente.error ? '<div class="mm-nota" style="margin-bottom:10px">' + esc(datos.agente.error) + '</div>' : '';
+    host.innerHTML = aviso + (lista.length ? '<div class="mm-lista">' + lista.map(tarjeta).join('') + '</div>' : '<div class="mm-vacio">' + (filtro === 'ajustar' ? 'Nada por igualar: el stock del panel y el de Effi coinciden.' : 'No hay telas con ese filtro.') + '</div>');
+  }
+
+  function actividad() {
+    const wh = datos.webhook || {};
+    const dir = h => h.tipo === 'a_panel' ? 'Effi → panel' : 'Panel → Effi';
+    const op = h => ({ traslado: 'traslado', ajuste: 'ingreso', egreso: 'egreso' }[h.operacion] || 'ajuste');
+    const hist = (datos.ajustes || []).slice(0, 8).map(h => '<div class="' + (h.estado === 'hecho' ? 'ok' : 'mal') + '">' + (h.estado === 'hecho' ? '✔' : '✕') + ' <b>' + dir(h) + '</b> · ' + op(h) + ' · ' + esc(h.tela) + ' · ' + esc(h.bodega) + ' ' + sg(h.delta) + ' mts · ' + (h.tipo === 'a_panel' ? esc(h.at) : hora(h.at)) + (h.estado === 'hecho' ? ' · n.° ' + esc(h.ajuste) : ' · ' + esc(h.detalle || '')) + '</div>').join('') || '<div class="vacio">Todavía no hay ajustes.</div>';
+    const cam = (datos.cambios || []).map(h => '<div>⏱ ' + esc(h.tela) + ' · ' + esc(h.bodega_nombre) + ' ' + sg(h.delta) + ' mts (de ' + num(h.antes) + ' a ' + num(h.ahora) + ')</div>').join('');
+    const pend = (datos.pendientes || []).map(h => '<div>⏳ ' + esc(h.tela) + ' · ' + esc(h.bodega) + ' ' + sg(h.delta) + ' mts · ajuste ' + esc(h.ajuste) + ' de ' + esc(h.por) + '</div>').join('');
+    const firmaTxt = wh.secreto ? ' · firma: ' + ({ valida: 'válida ✔', no_coincide: 'NO coincide', sin_firma: 'el aviso no trae firma' }[wh.firma] || '—') : '';
+    const whTxt = wh.recibidos ? 'conectado · ' + wh.recibidos + ' avisos · el último ' + hora(wh.ultimo) + firmaTxt : 'sin avisos todavía (mientras tanto revisa cada 2 minutos)';
+    const nCam = (datos.cambios || []).length + (datos.pendientes || []).length;
+    return '<details class="mm-glass sm-act"' + (actAbierta ? ' open' : '') + '><summary><b>ACTIVIDAD</b><span>Webhook ' + (wh.recibidos ? 'conectado' : 'sin avisos') + '</span><span>' + nCam + ' cambios en espera</span><span>' + (datos.ajustes || []).length + ' ajustes recientes</span></summary>' +
+      '<div class="sm-act-g"><section><h3>WEBHOOK DE EFFI</h3><div>' + esc(whTxt) + '</div><button type="button" class="mm-bt" data-sm-webhook>GENERAR WEBHOOK</button>' +
+      (urlWh ? '<div class="sm-nota">Pega esta dirección en Effi (Integraciones → Webhooks), método POST. No cambia la clave.</div><div class="sm-url"><code>' + esc(urlWh) + '</code><button type="button" class="mm-bt" data-sm-copiar>COPIAR</button><button type="button" class="mm-bt" data-sm-ocultar>OCULTAR</button></div>' : '') + '</section>' +
+      '<section><h3>CAMBIOS EN ESPERA</h3>' + (cam || pend || '<div class="vacio">Ninguno: el panel y Effi están al día.</div>') + '</section>' +
+      '<section><h3>ÚLTIMOS AJUSTES</h3>' + hist + '</section></div></details>';
   }
 
   function pintar() {
@@ -58,19 +89,13 @@
     if (foco && foco.matches && foco.matches('[data-sm-buscar]') && panel.contains(foco)) { pintarLista(); return; }
     const a = datos.agente, r = datos.resumen, activo = !!a.activo;
     const kpi = (k, n, rotulo) => '<button type="button" class="mm-glass mm-kpi' + (filtro === k ? ' on' : '') + '" data-sm-filtro="' + k + '"><b>' + n + '</b><span>' + rotulo + '</span></button>';
-    const dir = h => h.tipo === 'a_panel' ? 'Effi → panel' : 'Panel → Effi';
-    const hist = (datos.ajustes || []).slice(0, 10).map(h => '<div>' + (h.estado === 'hecho' ? '✔' : '✕') + ' <b>' + dir(h) + '</b> · ' + esc(h.tela) + ' · ' + esc(h.bodega) + ' ' + sg(h.delta) + ' mts · ' + (h.tipo === 'a_panel' ? esc(h.at) : hora(h.at)) + ' · ' + esc(h.por) + (h.estado === 'hecho' ? ' · ajuste ' + esc(h.ajuste) : ' · ' + esc(h.detalle || '')) + '</div>').join('');
-    const cam = (datos.cambios || []).map(h => '<div>⏱ ' + esc(h.tela) + ' · ' + esc(h.bodega_nombre) + ' ' + sg(h.delta) + ' mts (de ' + num(h.antes) + ' a ' + num(h.ahora) + ')</div>').join('');
-    const pend = (datos.pendientes || []).map(h => '<div>⏳ ' + esc(h.tela) + ' · ' + esc(h.bodega) + ' ' + sg(h.delta) + ' mts · ajuste ' + esc(h.ajuste) + ' de ' + esc(h.por) + '</div>').join('');
     panel.querySelector('.mm').innerHTML =
       '<div class="mm-glass mm-top"><div class="mm-nom"><img class="mm-logo" src="/marca-indoor.svg" alt="Indoor"><small>Revisado</small><b>' + hora(a.ultima) + '</b></div>' +
       '<div class="mm-sw' + (activo ? ' on' : '') + '"><i></i><span>' + (activo ? 'ACTIVO' : 'APAGADO') + '</span><button type="button" data-sm-activar="' + (activo ? 0 : 1) + '" aria-label="Activar o apagar STOCKMAN"></button></div>' +
       '<button type="button" class="mm-b" data-sm-revisar' + (ocupado ? ' disabled' : '') + '>↻ ' + (ocupado ? 'REVISANDO…' : 'REVISAR') + '</button>' +
       '<span class="mm-sep"></span><div class="mm-kpis">' + kpi('ajustar', r.ajustar + r.grande, 'DIFERENCIAS') + kpi('igual', r.igual, 'IGUALES') + kpi('sin_articulo', r.sin_articulo, 'SIN ARTÍCULO') + kpi('todo', r.telas, 'TODO') + '</div>' +
       '<div class="mm-busca"><input type="search" data-sm-buscar placeholder="Buscar…" value="' + esc(buscar) + '" autocomplete="off"></div></div>' +
-      (a.error ? '<div class="mm-vacio">' + esc(a.error) + '</div>' : '') +
-      '<div class="mm-cuerpo">' + '<div class="mm-glass sm-hist sm-wh"><div>🔗 <b>Webhook de Effi</b> · ' + ((datos.webhook || {}).recibidos ? 'conectado · avisos recibidos: ' + (datos.webhook || {}).recibidos + ' · el último ' + hora((datos.webhook || {}).ultimo) + ((datos.webhook || {}).secreto ? ' · firma: ' + ({ valida: 'válida ✔', no_coincide: 'NO coincide', sin_firma: 'el aviso no trae firma' }[(datos.webhook || {}).firma] || '—') : '') : 'sin avisos todavía (mientras tanto STOCKMAN revisa solo cada 2 minutos)') + '</div><button type="button" class="mm-bt" data-sm-webhook style="width:170px;flex:none">GENERAR WEBHOOK</button></div>' +
-      (urlWh ? '<div class="mm-glass sm-hist"><div>Pega esta dirección en Effi (Integraciones → Webhooks), método POST. No cambia la clave: un webhook ya creado en Effi sigue funcionando.</div><div class="sm-url"><code>' + esc(urlWh) + '</code><button type="button" class="mm-bt" data-sm-copiar>COPIAR</button><button type="button" class="mm-bt" data-sm-ocultar>OCULTAR</button></div></div>' : '') + '<div class="sm-host"></div>' + (cam ? '<div class="mm-glass sm-hist"><h3>CAMBIOS DEL PANEL QUE IRÁN A EFFI (SOLO LA BODEGA QUE CAMBIÓ)</h3>' + cam + '</div>' : '') + (pend ? '<div class="mm-glass sm-hist"><h3>AJUSTES HECHOS EN EFFI QUE LLEGARÁN AL PANEL AL ACTIVAR</h3>' + pend + '</div>' : '') + (hist ? '<div class="mm-glass sm-hist"><h3>ÚLTIMOS AJUSTES</h3>' + hist + '</div>' : '') + '</div>';
+      actividad() + '<div class="mm-cuerpo"><div class="sm-host"></div></div>';
     pintarLista();
   }
 
@@ -104,6 +129,7 @@
     });
     const marcar = () => document.body.classList.toggle('sm-modo', panel.classList.contains('active'));
     new MutationObserver(marcar).observe(panel, { attributes: true, attributeFilter: ['class'] }); marcar();
+    panel.addEventListener('toggle', e => { if (e.target.classList && e.target.classList.contains('sm-act')) actAbierta = e.target.open; }, true);
     panel.addEventListener('input', e => { if (e.target.matches('[data-sm-buscar]')) { buscar = e.target.value; pintarLista(); } });
     panel.addEventListener('click', async e => {
       const f = e.target.closest('[data-sm-filtro]'); if (f) { filtro = f.dataset.smFiltro; pintar(); return; }
