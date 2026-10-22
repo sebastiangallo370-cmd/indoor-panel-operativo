@@ -9,6 +9,7 @@ los agentes y los movimientos) no se toca: se guarda un alias código -> nombre 
 El artículo de Effi se busca por el «ID Effi» de INFORMACIÓN TELA y, si no hay, por la referencia exacta (el código de la tela). Solo lectura en Effi."""
 from __future__ import annotations
 
+import difflib
 import hashlib
 import hmac
 import json
@@ -17,6 +18,7 @@ import os
 import re
 import secrets
 import threading
+import unicodedata
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -43,6 +45,8 @@ INTERVALO = 1800         # lectura completa de Effi (nombres y stock de todas la
 CICLO = 120              # cada cuánto mira los ajustes nuevos de Effi y las diferencias
 ESTABLE_SEG = 300        # una diferencia panel/Effi debe mantenerse 5 minutos antes de ajustarla (así no pisa un cambio a medias)
 PROPIO = 'Alineado con el panel por STOCKMAN'
+MIN_PARECIDO = 0.25      # para escoger entre varios registros con el mismo código: el nombre debe parecerse al del artículo de Effi...
+MARGEN_PARECIDO = 0.12   # ...y ganarle al siguiente por este margen
 REINTENTO_SEG = 1800     # si Effi rechaza un cambio (por ejemplo, sin existencias en esa bodega) se reintenta a la media hora
 MAX_TELAS = 5            # tope de telas que ajusta solo por revisión
 GRANDE_PCT = 0.5         # una diferencia total de más del 50 % (y de más de 1.000 mts) no se ajusta sola: pide que una persona pulse AJUSTAR
@@ -155,10 +159,28 @@ def mapa() -> dict:
     return salida
 
 
-def _stock_panel() -> dict[str, dict[str, float]]:
-    """Metros de cada tela por bodega, tal como los ve el panel, con el id de la bodega de Effi como clave. Los rollos sin bodega cuentan en BODEGA INDOOR (la de por defecto)."""
+_ABREV = {'bco': 'blanco', 'osc': 'oscuro', 'neg': 'negro'}
+
+
+def _palabras(t: str) -> list[str]:
+    t = unicodedata.normalize('NFD', str(t or ''))
+    t = ''.join(c for c in t if unicodedata.category(c) != 'Mn').lower()
+    return [x for x in (_ABREV.get(w, w) for w in re.sub(r'[^a-z0-9]+', ' ', t).split()) if x not in ('de', 'la', 'el', 'tela')]
+
+
+def _parecido(a: str, b: str) -> float:
+    """Qué tan parecidos son dos nombres de tela (0 a 1): palabras en común y orden de las letras."""
+    A, B = _palabras(a), _palabras(b)
+    sa, sb = set(A), set(B)
+    jac = len(sa & sb) / len(sa | sb) if sa | sb else 0.0
+    return round(0.5 * jac + 0.5 * difflib.SequenceMatcher(None, ' '.join(sorted(A)), ' '.join(sorted(B))).ratio(), 3)
+
+
+def _stock_panel_detalle() -> dict[str, list[dict]]:
+    """Cada registro del inventario del panel por código: puede haber varios con el mismo código (por ejemplo (500) LONDON BLANCO y (500) MILANO BLANCO). Cada uno con sus metros por bodega
+    (clave = id de la bodega de Effi). Los rollos sin bodega cuentan en BODEGA INDOOR (la de por defecto)."""
     from app import inventario_api
-    por_tela: dict[str, dict[str, float]] = {}
+    por_codigo: dict[str, list[dict]] = {}
     for t in inventario_api.inventory_bodegas().get('telas') or []:
         codigo = proveedores_tela.codigo_de(t.get('nombre'))
         if not codigo:
@@ -174,21 +196,50 @@ def _stock_panel() -> dict[str, dict[str, float]]:
             reparto = {BODEGAS[inventario_api.DEFAULT_PLACE]: total}
         elif total >= 0 and suma > 0 and abs(suma - total) > 0.01:
             reparto = {b: v * total / suma for b, v in reparto.items()}   # las salidas se reparten en proporción entre las bodegas
-        por_tela[codigo] = {b: round(v, 2) for b, v in reparto.items()}
-    return por_tela
+        por_codigo.setdefault(codigo, []).append({'nombre': re.sub(r'^\s*\(\d+\)\s*', '', str(t.get('nombre') or '')).strip(), 'bodegas': {b: round(v, 2) for b, v in reparto.items()}, 'total': total})
+    return por_codigo
+
+
+def _elegir(codigo: str, candidatos: list[dict], nombre_effi: str) -> tuple[dict | None, list[dict]]:
+    """Qué registro del panel es la tela del artículo de Effi: se cruza por CÓDIGO y por NOMBRE. Con un solo registro con ese código es ese; si hay varios, el que más se parece al nombre
+    del artículo de Effi, siempre que gane con claridad. Si no se puede saber, devuelve None (no se toca nada solo) y la lista de opciones."""
+    if len(candidatos) == 1:
+        return candidatos[0], candidatos
+    puntos = sorted(((_parecido(nombre_effi, c['nombre']), i) for i, c in enumerate(candidatos)), reverse=True)
+    if puntos and puntos[0][0] >= MIN_PARECIDO and (len(puntos) < 2 or puntos[0][0] - puntos[1][0] >= MARGEN_PARECIDO):
+        return candidatos[puntos[0][1]], candidatos
+    return None, candidatos
+
+
+def _stock_panel() -> dict[str, dict[str, float]]:
+    """Metros por bodega de cada tela del panel que tiene artículo en Effi. Las telas con varios registros del mismo código que no se pueden distinguir por nombre no entran."""
+    nombres = _leer()['nombres']
+    salida = {}
+    for codigo, candidatos in _stock_panel_detalle().items():
+        v = nombres.get(codigo) or {}
+        elegido, _ = _elegir(codigo, candidatos, v.get('nombre_effi') or v.get('nombre_panel') or '')
+        if elegido is not None:
+            salida[codigo] = elegido['bodegas']
+    return salida
 
 
 def evaluar() -> list[dict]:
     """Por tela: lo que dice el panel por bodega contra lo que dice Effi, y la diferencia que habría que ajustar en Effi (el panel manda)."""
-    panel = _stock_panel()
+    detalle = _stock_panel_detalle()
     d = _leer()
     filas = []
     for t in proveedores_tela.telas():
         codigo = str(t['codigo'])
         v = d['nombres'].get(codigo)
         fila = {'codigo': codigo, 'tela': (v or {}).get('nombre_effi') or t['nombre'], 'id_effi': (v or {}).get('id_effi', ''), 'estado': 'sin_articulo', 'bodegas': [], 'panel': 0.0, 'effi': 0.0, 'diferencia': 0.0}
+        elegido, opciones = _elegir(codigo, detalle.get(codigo, []), v.get('nombre_effi') or '') if v else (None, [])
+        if v and elegido is None and opciones:
+            fila.update(estado='ambiguo', opciones=[{'nombre': c['nombre'], 'mts': c['total']} for c in opciones], panel=round(sum(c['total'] for c in opciones), 2), effi=round(sum((v.get('stock_effi') or {}).values()), 2))
+            filas.append(fila)
+            continue
         if v:
-            pan, efi = panel.get(codigo, {}), v.get('stock_effi') or {}
+            fila['item_panel'] = elegido['nombre'] if elegido else ''
+            pan, efi = (elegido['bodegas'] if elegido else {}), v.get('stock_effi') or {}
             ids = sorted(set(pan) | set(efi) | set(BODEGAS.values()), key=lambda i: (i not in _NOMBRE_BODEGA, int(i)))
             for b in ids:
                 p_, e_ = round(pan.get(b, 0.0), 2), round(efi.get(b, 0.0), 2)
@@ -204,7 +255,7 @@ def evaluar() -> list[dict]:
             fila['nombre_panel'] = t['nombre']
             fila['nombre_igual'] = (v.get('nombre_effi') or '') == (v.get('nombre_panel') or '')
         filas.append(fila)
-    orden = {'grande': 0, 'ajustar': 1, 'igual': 2, 'sin_articulo': 3}
+    orden = {'grande': 0, 'ambiguo': 1, 'ajustar': 2, 'igual': 3, 'sin_articulo': 4}
     return sorted(filas, key=lambda f: (orden[f['estado']], -abs(f['diferencia']), f['tela']))
 
 
@@ -556,7 +607,7 @@ def estado(request: Request):
     filas = evaluar()
     cuenta = lambda k: sum(1 for f in filas if f['estado'] == k)
     return {'agente': {'nombre': NOMBRE, 'activo': d['activo'], 'ultima': d['ultima'], 'error': d['error']},
-            'resumen': {'telas': len(filas), 'ajustar': cuenta('ajustar'), 'grande': cuenta('grande'), 'igual': cuenta('igual'), 'sin_articulo': cuenta('sin_articulo')},
+            'resumen': {'telas': len(filas), 'ajustar': cuenta('ajustar'), 'grande': cuenta('grande'), 'ambiguo': cuenta('ambiguo'), 'igual': cuenta('igual'), 'sin_articulo': cuenta('sin_articulo')},
             'telas': filas, 'ajustes': d['ajustes'][-30:][::-1], 'pendientes': d['pendientes'], 'cambios': _cambios_para_ver(),
             'webhook': {'recibidos': d['webhook'].get('recibidos', 0), 'ultimo': d['webhook'].get('ultimo', ''),
                         'firma': d['webhook'].get('firma', ''), 'cabeceras': d['webhook'].get('cabeceras', []), 'secreto': bool(d['webhook'].get('secreto'))}}

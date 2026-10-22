@@ -6,6 +6,10 @@ from unittest import mock
 from app import stockman
 
 
+def _det(bodegas, nombre='MONTECATINI BLANCO', codigo='100'):
+    return {codigo: [{'nombre': nombre, 'bodegas': bodegas, 'total': sum(bodegas.values())}]}
+
+
 class NombresTest(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.TemporaryDirectory()
@@ -61,7 +65,7 @@ class AjusteTest(unittest.TestCase):
         self.dir.cleanup()
 
     def test_la_diferencia_por_bodega_deja_effi_igual_al_panel(self):
-        with mock.patch.object(stockman, '_stock_panel', lambda: {'100': {'21': 2000.0, '23': 968.0}}):
+        with mock.patch.object(stockman, '_stock_panel_detalle', lambda: _det({'21': 2000.0, '23': 968.0})):
             f = stockman.evaluar()[0]
         por = {b['bodega']: b['delta'] for b in f['bodegas']}
         self.assertEqual((por['21'], por['23'], por['5']), (1999.59, 968.0, -2981.0))   # Materia Prima (5) queda en cero y las bodegas del panel igualan
@@ -71,12 +75,12 @@ class AjusteTest(unittest.TestCase):
         d = stockman._leer()
         d['nombres']['100']['stock_effi'] = {'21': 2000.0, '23': 968.0}
         stockman._guardar(d)
-        with mock.patch.object(stockman, '_stock_panel', lambda: {'100': {'21': 2000.0, '23': 968.0}}):
+        with mock.patch.object(stockman, '_stock_panel_detalle', lambda: _det({'21': 2000.0, '23': 968.0})):
             self.assertEqual(stockman.evaluar()[0]['estado'], 'igual')
 
     def test_lo_que_sobra_en_una_bodega_se_traslada_a_la_que_falta(self):
         traslados, ajustes = [], []
-        with mock.patch.object(stockman, '_stock_panel', lambda: {'100': {'21': 2000.0}}),                 mock.patch.object(stockman.effi_api, 'crear_traslado', lambda clave, o, d, art, cant, obs: traslados.append((o, d, art, cant)) or {'id': 't1'}),                 mock.patch.object(stockman.effi_api, 'crear_ajuste', lambda clave, bodega, art, delta, obs, costo=None: ajustes.append((bodega, delta)) or {'id': 'a1'}),                 mock.patch.object(stockman.effi_api, 'articulo', lambda *a: {'stock_bodegas': [{'bodega': '5', 'stock': '2981'}, {'bodega': '21', 'stock': '0.41'}]}):
+        with mock.patch.object(stockman, '_stock_panel_detalle', lambda: _det({'21': 2000.0})),                 mock.patch.object(stockman.effi_api, 'crear_traslado', lambda clave, o, d, art, cant, obs: traslados.append((o, d, art, cant)) or {'id': 't1'}),                 mock.patch.object(stockman.effi_api, 'crear_ajuste', lambda clave, bodega, art, delta, obs, costo=None: ajustes.append((bodega, delta)) or {'id': 'a1'}),                 mock.patch.object(stockman.effi_api, 'articulo', lambda *a: {'stock_bodegas': [{'bodega': '5', 'stock': '2981'}, {'bodega': '21', 'stock': '0.41'}]}):
             r = stockman.aplicar_tela('100', 'ADMIN')
         self.assertEqual(traslados, [(5, 21, '6082', 1999.59)])   # Materia Prima -> INDOOR: el total de Effi no cambia
         self.assertEqual(ajustes, [(5, -981.41)])               # y lo que sobra de más en Materia Prima se resta con un egreso
@@ -89,7 +93,7 @@ class AjusteTest(unittest.TestCase):
         d['nombres']['100']['stock_effi'] = {'21': 1900.0}
         stockman._guardar(d)
         ajustes = []
-        with mock.patch.object(stockman, '_stock_panel', lambda: {'100': {'21': 2000.0}}),                 mock.patch.object(stockman.effi_api, 'crear_ajuste', lambda clave, bodega, art, delta, obs, costo=None: ajustes.append((bodega, art, delta)) or {'id': 'a1'}),                 mock.patch.object(stockman.effi_api, 'articulo', lambda *a: {'stock_bodegas': [{'bodega': '21', 'stock': '1900'}]}):
+        with mock.patch.object(stockman, '_stock_panel_detalle', lambda: _det({'21': 2000.0})),                 mock.patch.object(stockman.effi_api, 'crear_ajuste', lambda clave, bodega, art, delta, obs, costo=None: ajustes.append((bodega, art, delta)) or {'id': 'a1'}),                 mock.patch.object(stockman.effi_api, 'articulo', lambda *a: {'stock_bodegas': [{'bodega': '21', 'stock': '1900'}]}):
             stockman.aplicar_tela('100', 'ADMIN')
         self.assertEqual(ajustes, [(21, '6082', 100.0)])
 
@@ -199,6 +203,26 @@ class _Peticion:
 
     async def body(self):
         return b'{}'
+
+
+class MismoCodigoTest(unittest.TestCase):
+    """Varias telas del panel con el mismo código: se escoge por código Y por nombre, y si no se distingue no se toca."""
+    LONDON = {'nombre': 'LONDON BLANCO', 'bodegas': {'21': 2486.0}, 'total': 2486.0}
+    MILANO = {'nombre': 'MILANO BLANCO (DUNGA)', 'bodegas': {'21': 11.0}, 'total': 11.0}
+
+    def test_escoge_la_que_se_parece_al_nombre_del_articulo_de_effi(self):
+        elegido, _ = stockman._elegir('500', [self.MILANO, self.LONDON], '901504 LONDON BCO 1A')
+        self.assertEqual(elegido['nombre'], 'LONDON BLANCO')   # 2.486 mts, no los 11 de la otra tela
+        e, _ = stockman._elegir('4302', [{'nombre': 'SUPER ZENTRAL AZUL OSCURO', 'bodegas': {}, 'total': 496}, {'nombre': 'SUPER ZENTRAL NEGRO', 'bodegas': {}, 'total': 426}], 'SUPER ZENTRAL NEGRO')
+        self.assertEqual(e['nombre'], 'SUPER ZENTRAL NEGRO')
+
+    def test_si_no_se_distingue_no_se_toca(self):
+        a = {'nombre': 'EXIRRIB BLANCO', 'bodegas': {}, 'total': 8}
+        b = {'nombre': 'SUPERRIB BLANCO', 'bodegas': {}, 'total': 41}
+        self.assertIsNone(stockman._elegir('8100', [a, b], 'SUPERRIB (EXIRRIB)')[0])
+
+    def test_un_solo_registro_con_ese_codigo_es_ese(self):
+        self.assertEqual(stockman._elegir('100', [self.LONDON], 'LO QUE SEA')[0]['nombre'], 'LONDON BLANCO')
 
 
 class WebhookTest(unittest.TestCase):
