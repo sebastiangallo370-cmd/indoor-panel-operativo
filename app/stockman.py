@@ -43,6 +43,7 @@ INTERVALO = 1800         # lectura completa de Effi (nombres y stock de todas la
 CICLO = 120              # cada cuánto mira los ajustes nuevos de Effi y las diferencias
 ESTABLE_SEG = 300        # una diferencia panel/Effi debe mantenerse 5 minutos antes de ajustarla (así no pisa un cambio a medias)
 PROPIO = 'Alineado con el panel por STOCKMAN'
+REINTENTO_SEG = 1800     # si Effi rechaza un cambio (por ejemplo, sin existencias en esa bodega) se reintenta a la media hora
 MAX_TELAS = 5            # tope de telas que ajusta solo por revisión
 GRANDE_PCT = 0.5         # una diferencia total de más del 50 % (y de más de 1.000 mts) no se ajusta sola: pide que una persona pulse AJUSTAR
 GRANDE_MTS = 1000.0
@@ -68,6 +69,7 @@ def _leer() -> dict:
     d.setdefault('vistos', [])
     d.setdefault('pendientes', [])  # ajustes de Effi por traer al panel (STOCKMAN apagado)
     d.setdefault('estables', {})
+    d.setdefault('fallos', {})      # cambios que Effi rechazó: se reintentan pasado un rato, no en cada ciclo
     d.setdefault('panel_base', None)   # metros por bodega del panel la última vez que se procesó: solo lo que cambie respecto a esto se manda a Effi
     d.setdefault('ultimo_completo', 0)
     d.setdefault('webhook', {'clave': '', 'recibidos': 0, 'ultimo': ''})
@@ -87,6 +89,18 @@ def _guardar(d: dict) -> None:
 def _usar_api() -> bool:
     from app import minimaximan   # misma llave y ajustes de la API que ya usa el agente de inventario
     return minimaximan._usar_api()
+
+
+def _costo(a: dict) -> float:
+    """Costo del artículo en Effi (los ingresos de un ajuste llevan costo): el promedio y, si no hay, el último."""
+    for k in ('p_costo_promedio', 'p_costo_ultimo', 'p_costo'):
+        try:
+            v = float(a.get(k) or 0)
+        except (TypeError, ValueError):
+            v = 0.0
+        if v > 0:
+            return v
+    return 0.0
 
 
 def refrescar_nombres() -> dict:
@@ -117,7 +131,7 @@ def refrescar_nombres() -> dict:
                     stock[str(b['bodega'])] = round(float(b.get('stock') or 0), 2)
                 except (KeyError, TypeError, ValueError):
                     pass
-            nuevos[codigo] = {'nombre_panel': t['nombre'], 'nombre_effi': nombre, 'id_effi': str(a.get('id') or ''), 'stock_effi': stock, 'at': _iso()}
+            nuevos[codigo] = {'nombre_panel': t['nombre'], 'nombre_effi': nombre, 'id_effi': str(a.get('id') or ''), 'stock_effi': stock, 'costo': _costo(a), 'at': _iso()}
     with _lock:
         d = _leer()
         cambiadas = sum(1 for c, v in nuevos.items() if (d['nombres'].get(c) or {}).get('nombre_effi') != v['nombre_effi'])
@@ -206,6 +220,7 @@ def _releer(codigo: str) -> None:
     with _lock:
         d = _leer()
         d['nombres'][codigo]['stock_effi'] = {str(x['bodega']): round(float(x.get('stock') or 0), 2) for x in a.get('stock_bodegas') or []}
+        d['nombres'][codigo]['costo'] = _costo(a)
         _guardar(d)
 
 
@@ -255,15 +270,22 @@ def aplicar_tela(codigo: str, usuario: str) -> dict:
             continue
         clave = 'sm-a-' + hashlib.sha1(f"{codigo}|{f[0]}|{f[1]}|{fila['panel']}|{fila['effi']}".encode()).hexdigest()[:22]
         try:
-            r = effi_api.crear_ajuste(clave, int(f[0]), fila['id_effi'], f[1], f'{PROPIO} ({usuario})')
+            r = effi_api.crear_ajuste(clave, int(f[0]), fila['id_effi'], f[1], f'{PROPIO} ({usuario})', costo=(_leer()['nombres'].get(codigo) or {}).get('costo'))
         except Exception as exc:   # noqa: BLE001
             fallo(exc, 'ajuste', '', nombre(f[0]), f[1])
         registrar('hecho', 'ajuste', '', nombre(f[0]), f[1], r['id'])
         log.warning('STOCKMAN: ajuste %s · %s · %s +%g mts (por %s)', r['id'], fila['tela'], nombre(f[0]), f[1], usuario)
-    # 3) lo que sobra en Effi y el panel no tiene: restar no se puede por ajuste (la API solo acepta cantidades mayores que cero)
+    # 3) lo que sobra en Effi y el panel no tiene se RESTA con un ajuste de egreso (Effi valida que haya existencias en esa bodega)
     for o in sobran:
-        if o[1] >= 0.01:
-            registrar('pendiente', 'salida', nombre(o[0]), '', -o[1], detalle='Effi tiene más que el panel y por la API no se puede restar: hazlo en Effi')
+        if o[1] < 0.01:
+            continue
+        clave = 'sm-e-' + hashlib.sha1(f"{codigo}|{o[0]}|{o[1]}|{fila['panel']}|{fila['effi']}".encode()).hexdigest()[:22]
+        try:
+            r = effi_api.crear_ajuste(clave, int(o[0]), fila['id_effi'], -o[1], f'{PROPIO} ({usuario})')
+        except Exception as exc:   # noqa: BLE001
+            fallo(exc, 'egreso', nombre(o[0]), '', -o[1])
+        registrar('hecho', 'egreso', nombre(o[0]), '', -o[1], r['id'])
+        log.warning('STOCKMAN: egreso %s · %s · %s -%g mts (por %s)', r['id'], fila['tela'], nombre(o[0]), o[1], usuario)
     with _lock:
         d = _leer()
         d['ajustes'] = (d['ajustes'] + hechos)[-200:]
@@ -326,12 +348,10 @@ def aplicar_cambio(c: dict, usuario: str) -> dict:
     v = _leer()['nombres'].get(c['codigo'])
     if not v or not v.get('id_effi'):
         raise HTTPException(404, 'Esa tela no tiene artículo en Effi.')
-    if c['delta'] <= 0:   # la API de Effi solo suma en un ajuste: una salida del panel todavía no se puede restar en Effi
-        raise HTTPException(501, 'Restar en Effi no se puede hacer por la API de ajustes (solo suma): queda pendiente.')
     clave = 'sm-' + hashlib.sha1(f"{c['codigo']}|{c['bodega']}|{c['antes']}|{c['ahora']}".encode()).hexdigest()[:24]
     nombre = _NOMBRE_BODEGA.get(c['bodega']) or _OTRAS.get(c['bodega'], c['bodega'])
     try:
-        r = effi_api.crear_ajuste(clave, int(c['bodega']), v['id_effi'], c['delta'], f'{PROPIO} ({usuario})')
+        r = effi_api.crear_ajuste(clave, int(c['bodega']), v['id_effi'], c['delta'], f'{PROPIO} ({usuario})', costo=v.get('costo'))
     except Exception as exc:   # noqa: BLE001
         with _lock:
             d = _leer()
@@ -455,10 +475,17 @@ def ciclo(completo: bool = False) -> dict:
                 break
             if abs(c['delta']) > GRANDE_MTS or ahora - estables[f"{c['codigo']}|{c['bodega']}"]['desde'] < ESTABLE_SEG:
                 continue   # un cambio enorme espera a una persona (botón de la tarjeta)
+            k = f"{c['codigo']}|{c['bodega']}"
+            if ahora - float(_leer()['fallos'].get(k, 0)) < REINTENTO_SEG:
+                continue
             try:
                 aplicar_cambio(c, 'STOCKMAN')
                 ajustadas += 1
             except HTTPException:
+                with _lock:
+                    dd = _leer()
+                    dd['fallos'][k] = ahora
+                    _guardar(dd)
                 continue
     with _lock:
         dd = _leer()

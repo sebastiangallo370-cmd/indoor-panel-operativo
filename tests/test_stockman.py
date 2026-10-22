@@ -76,12 +76,12 @@ class AjusteTest(unittest.TestCase):
 
     def test_lo_que_sobra_en_una_bodega_se_traslada_a_la_que_falta(self):
         traslados, ajustes = [], []
-        with mock.patch.object(stockman, '_stock_panel', lambda: {'100': {'21': 2000.0}}),                 mock.patch.object(stockman.effi_api, 'crear_traslado', lambda clave, o, d, art, cant, obs: traslados.append((o, d, art, cant)) or {'id': 't1'}),                 mock.patch.object(stockman.effi_api, 'crear_ajuste', lambda clave, bodega, art, delta, obs: ajustes.append((bodega, delta)) or {'id': 'a1'}),                 mock.patch.object(stockman.effi_api, 'articulo', lambda *a: {'stock_bodegas': [{'bodega': '5', 'stock': '2981'}, {'bodega': '21', 'stock': '0.41'}]}):
+        with mock.patch.object(stockman, '_stock_panel', lambda: {'100': {'21': 2000.0}}),                 mock.patch.object(stockman.effi_api, 'crear_traslado', lambda clave, o, d, art, cant, obs: traslados.append((o, d, art, cant)) or {'id': 't1'}),                 mock.patch.object(stockman.effi_api, 'crear_ajuste', lambda clave, bodega, art, delta, obs, costo=None: ajustes.append((bodega, delta)) or {'id': 'a1'}),                 mock.patch.object(stockman.effi_api, 'articulo', lambda *a: {'stock_bodegas': [{'bodega': '5', 'stock': '2981'}, {'bodega': '21', 'stock': '0.41'}]}):
             r = stockman.aplicar_tela('100', 'ADMIN')
         self.assertEqual(traslados, [(5, 21, '6082', 1999.59)])   # Materia Prima -> INDOOR: el total de Effi no cambia
-        self.assertEqual(ajustes, [])
+        self.assertEqual(ajustes, [(5, -981.41)])               # y lo que sobra de más en Materia Prima se resta con un egreso
         h = stockman._leer()['ajustes']
-        self.assertEqual([(x['operacion'], x['estado']) for x in h], [('traslado', 'hecho'), ('salida', 'pendiente')])   # lo que sobra de más no se puede restar por la API
+        self.assertEqual([(x['operacion'], x['estado']) for x in h], [('traslado', 'hecho'), ('egreso', 'hecho')])
         self.assertEqual(r['ajustes'], 2)
 
     def test_lo_que_falta_en_effi_se_suma_con_un_ajuste(self):
@@ -89,7 +89,7 @@ class AjusteTest(unittest.TestCase):
         d['nombres']['100']['stock_effi'] = {'21': 1900.0}
         stockman._guardar(d)
         ajustes = []
-        with mock.patch.object(stockman, '_stock_panel', lambda: {'100': {'21': 2000.0}}),                 mock.patch.object(stockman.effi_api, 'crear_ajuste', lambda clave, bodega, art, delta, obs: ajustes.append((bodega, art, delta)) or {'id': 'a1'}),                 mock.patch.object(stockman.effi_api, 'articulo', lambda *a: {'stock_bodegas': [{'bodega': '21', 'stock': '1900'}]}):
+        with mock.patch.object(stockman, '_stock_panel', lambda: {'100': {'21': 2000.0}}),                 mock.patch.object(stockman.effi_api, 'crear_ajuste', lambda clave, bodega, art, delta, obs, costo=None: ajustes.append((bodega, art, delta)) or {'id': 'a1'}),                 mock.patch.object(stockman.effi_api, 'articulo', lambda *a: {'stock_bodegas': [{'bodega': '21', 'stock': '1900'}]}):
             stockman.aplicar_tela('100', 'ADMIN')
         self.assertEqual(ajustes, [(21, '6082', 100.0)])
 
@@ -172,11 +172,20 @@ class SoloLaBodegaQueCambioTest(unittest.TestCase):
         c = stockman.cambios_panel()
         self.assertEqual([(x['bodega'], x['delta']) for x in c], [('23', 18.0)])
         hechos = []
-        with mock.patch.object(stockman.effi_api, 'crear_ajuste', lambda clave, bodega, art, delta, obs: hechos.append((bodega, art, delta)) or {'id': '9', 'total': None}), \
+        with mock.patch.object(stockman.effi_api, 'crear_ajuste', lambda clave, bodega, art, delta, obs, costo=None: hechos.append((bodega, art, delta)) or {'id': '9', 'total': None}), \
                 mock.patch.object(stockman.effi_api, 'articulo', lambda *a: {'stock_bodegas': []}):
             stockman.aplicar_cambio(c[0], 'STOCKMAN')
         self.assertEqual(hechos, [(23, '6082', 18.0)])   # un solo ajuste, de una sola bodega
         self.assertEqual(stockman.cambios_panel(), [])    # ya está procesado: no se repite
+
+    def test_una_salida_del_panel_se_resta_en_effi_solo_en_esa_bodega(self):
+        stockman.cambios_panel(fijar_base=True)
+        self.panel['100']['23'] = 950.0   # salieron 18 mts de GLORIA
+        c = stockman.cambios_panel()
+        hechos = []
+        with mock.patch.object(stockman.effi_api, 'crear_ajuste', lambda clave, bodega, art, delta, obs, costo=None: hechos.append((bodega, art, delta)) or {'id': '9', 'total': None}),                 mock.patch.object(stockman.effi_api, 'articulo', lambda *a: {'stock_bodegas': []}):
+            stockman.aplicar_cambio(c[0], 'STOCKMAN')
+        self.assertEqual(hechos, [(23, '6082', -18.0)])
 
     def test_lo_que_trae_effi_no_se_devuelve_a_effi(self):
         stockman.cambios_panel(fijar_base=True)

@@ -45,15 +45,15 @@ class PedidoServidor(unittest.TestCase):
 
 
 class AjusteInventario(unittest.TestCase):
-    def test_el_ajuste_va_a_una_sola_bodega_con_el_delta_firmado_y_clave_de_reintento(self):
+    def test_el_ajuste_va_a_una_sola_bodega_con_t_ajuste_y_cantidad_positiva(self):
         enviados = []
         with mock.patch.object(effi_api, '_peticion', lambda metodo, ruta, params=None, cuerpo=None, reintento=True: enviados.append((metodo, ruta, cuerpo)) or {'data': {'id': 77}}):
-            r = effi_api.crear_ajuste('sm-abc12345', 21, 6082, 12.5, 'Prueba')
+            r = effi_api.crear_ajuste('sm-abc12345', 21, 6082, 12.5, 'Prueba', costo=7930)
+            effi_api.crear_ajuste('sm-abc12346', 21, 6082, -4, 'Prueba')
         metodo, ruta, c = enviados[0]
         self.assertEqual((metodo, ruta, r['id']), ('POST', 'ajuste_inventario', '77'))
-        self.assertEqual((c['bodega'], c['conceptos'], c['idempotency_key']), (21, [{'articulo': '6082', 'cantidad': 12.5}], 'sm-abc12345'))
-        with self.assertRaises(effi_api.EffiError):   # por la API un ajuste solo suma
-            effi_api.crear_ajuste('sm-abc12346', 21, 6082, -1, 'x')
+        self.assertEqual((c['bodega'], c['conceptos'], c['idempotency_key']), (21, [{'articulo': '6082', 't_ajuste': 1, 'cantidad': 12.5, 'costo': 7930.0}], 'sm-abc12345'))
+        self.assertEqual(enviados[1][2]['conceptos'], [{'articulo': '6082', 't_ajuste': 0, 'cantidad': 4.0}])   # restar = egreso con cantidad positiva
 
 
 if __name__ == '__main__':

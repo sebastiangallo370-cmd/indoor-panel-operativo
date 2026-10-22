@@ -214,12 +214,15 @@ def crear_orden(item_id, referencia: str, metros: float, nombre_proveedor: str, 
     return {'oc': str(data.get('id')), 'detalle': f"API Effi {data.get('id_transaccion') or data.get('id')} · {res['proveedor'][:40]} · {metros:g} MTS · total ${data.get('total') or res['total']}"}
 
 
-def crear_ajuste(clave: str, bodega: int, articulo_id, delta: float, observacion: str) -> dict:
-    """POST /ajuste_inventario: suma (delta > 0) o resta (delta < 0) metros de un artículo en UNA bodega. Con la misma clave un reintento no crea otro ajuste (409 → se devuelve el ya creado)."""
-    if float(delta) <= 0:
-        raise EffiError('Por la API un ajuste de inventario solo suma (la cantidad debe ser mayor que cero): para restar hay que usar otra operación de Effi', 400)
-    cuerpo = {'idempotency_key': str(clave)[:36], 'sucursal': int(os.getenv('EFFI_SUCURSAL', '1')), 'bodega': int(bodega), 'observacion': str(observacion)[:250],
-              'conceptos': [{'articulo': str(articulo_id), 'cantidad': float(delta)}]}
+def crear_ajuste(clave: str, bodega: int, articulo_id, delta: float, observacion: str, costo: float | None = None) -> dict:
+    """POST /ajuste_inventario: suma (delta > 0, t_ajuste 1, con el costo del artículo) o resta (delta < 0, t_ajuste 0; Effi valida que haya existencias en esa bodega) metros de un artículo
+    en UNA bodega. La cantidad que se envía siempre es positiva. Con la misma clave un reintento no crea otro ajuste (409 → se devuelve el ya creado)."""
+    if abs(float(delta)) < 0.01:
+        raise EffiError('El ajuste no tiene cantidad', 400)
+    concepto = {'articulo': str(articulo_id), 't_ajuste': 1 if float(delta) > 0 else 0, 'cantidad': round(abs(float(delta)), 2)}
+    if float(delta) > 0 and costo:
+        concepto['costo'] = float(costo)
+    cuerpo = {'idempotency_key': str(clave)[:36], 'sucursal': int(os.getenv('EFFI_SUCURSAL', '1')), 'bodega': int(bodega), 'observacion': str(observacion)[:250], 'conceptos': [concepto]}
     try:
         data = _peticion('POST', 'ajuste_inventario', cuerpo=cuerpo).get('data') or {}
     except EffiError as e:
