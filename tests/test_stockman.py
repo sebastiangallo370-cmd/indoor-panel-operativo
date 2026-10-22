@@ -93,7 +93,7 @@ class EffiAPanelTest(unittest.TestCase):
         self.movs = []
         lista = [{'id': '10', 'articulo': '6082', 'bodega': '21', 'cantidad': '5', 'observacion': 'viejo', 'vigente': '1', 'nombre_responsable': 'X', 'fecha_trans': 'a'}]
         self.lista = lista
-        self.p = [mock.patch.object(stockman, '_file', Path(self.dir.name) / 's.json'), mock.patch.object(stockman, '_usar_api', lambda: True),
+        self.p = [mock.patch.object(stockman, '_file', Path(self.dir.name) / 's.json'), mock.patch.object(stockman, '_usar_api', lambda: True), mock.patch.object(stockman, '_stock_panel', lambda: {}),
                   mock.patch.object(stockman.proveedores_tela, 'telas', lambda: [{'codigo': '100', 'nombre': 'MONTECATINI BLANCO', 'id_effi': '6082'}]),
                   mock.patch.object(stockman.effi_api, '_lista', lambda ruta, params=None: list(self.lista)),
                   mock.patch('app.inventario_api.inventory_movement', lambda m: self.movs.append((m.type, m.mts, m.bodega, m.code)) or {'ok': True})]
@@ -134,6 +134,72 @@ class EffiAPanelTest(unittest.TestCase):
         self.assertEqual([p['ajuste'] for p in d['pendientes']], ['12'])
         stockman.traer_de_effi(True)
         self.assertEqual(self.movs, [('INGRESO', 7.0, 'BODEGA INDOOR', '100')])
+
+
+class SoloLaBodegaQueCambioTest(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.panel = {'100': {'21': 2000.0, '23': 968.0}}
+        self.p = [mock.patch.object(stockman, '_file', Path(self.dir.name) / 's.json'), mock.patch.object(stockman, '_usar_api', lambda: True),
+                  mock.patch.object(stockman, '_stock_panel', lambda: {c: dict(v) for c, v in self.panel.items()})]
+        for m in self.p:
+            m.start()
+        d = stockman._leer()
+        d['nombres']['100'] = {'nombre_panel': 'MONTECATINI BLANCO', 'nombre_effi': 'MONTECATINI', 'id_effi': '6082', 'stock_effi': {'5': 2981.0}}
+        stockman._guardar(d)
+
+    def tearDown(self):
+        for m in self.p:
+            m.stop()
+        self.dir.cleanup()
+
+    def test_la_primera_vez_solo_toma_el_punto_de_partida(self):
+        self.assertEqual(stockman.cambios_panel(fijar_base=True), [])
+        self.assertEqual(stockman._leer()['panel_base'], {'100': {'21': 2000.0, '23': 968.0}})
+
+    def test_solo_sale_la_bodega_que_cambio_y_por_lo_que_cambio(self):
+        stockman.cambios_panel(fijar_base=True)
+        self.panel['100']['23'] = 950.0   # salieron 18 mts de GLORIA; INDOOR no cambió
+        c = stockman.cambios_panel()
+        self.assertEqual([(x['bodega'], x['delta']) for x in c], [('23', -18.0)])
+        hechos = []
+        with mock.patch.object(stockman.effi_api, 'crear_ajuste', lambda clave, bodega, art, delta, obs: hechos.append((bodega, art, delta)) or {'id': '9', 'total': None}), \
+                mock.patch.object(stockman.effi_api, 'articulo', lambda *a: {'stock_bodegas': []}):
+            stockman.aplicar_cambio(c[0], 'STOCKMAN')
+        self.assertEqual(hechos, [(23, '6082', -18.0)])   # un solo ajuste, de una sola bodega
+        self.assertEqual(stockman.cambios_panel(), [])    # ya está procesado: no se repite
+
+    def test_lo_que_trae_effi_no_se_devuelve_a_effi(self):
+        stockman.cambios_panel(fijar_base=True)
+        self.panel['100']['21'] = 2040.0   # el panel cambió porque STOCKMAN trajo un ajuste de Effi
+        stockman._base_a_actual(['100'])
+        self.assertEqual(stockman.cambios_panel(), [])
+
+
+class WebhookTest(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.p = mock.patch.object(stockman, '_file', Path(self.dir.name) / 's.json')
+        self.p.start()
+        stockman._despertar.clear()
+
+    def tearDown(self):
+        self.p.stop()
+        self.dir.cleanup()
+
+    def test_con_la_clave_correcta_despierta_a_stockman_y_con_otra_da_404(self):
+        import asyncio
+        from fastapi import HTTPException
+        clave = stockman._clave_webhook()
+        with self.assertRaises(HTTPException) as r:
+            asyncio.run(stockman.webhook('clave-mala', object()))
+        self.assertEqual(r.exception.status_code, 404)
+        self.assertFalse(stockman._despertar.is_set())
+        self.assertEqual(asyncio.run(stockman.webhook(clave, object())), {'ok': True})
+        self.assertTrue(stockman._despertar.is_set())
+        w = stockman._leer()['webhook']
+        self.assertEqual(w['recibidos'], 1)
+        self.assertEqual(stockman._clave_webhook(), clave)   # la clave no cambia
 
 
 if __name__ == '__main__':

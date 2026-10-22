@@ -1,5 +1,6 @@
 """STOCKMAN: alinea el inventario del panel con el de Effi (agente de INVENTARIOS, vive en el VPS). El inventario REAL es el del panel.
-Panel -> Effi: si el panel cambia, STOCKMAN deja la tela en Effi igual (un ajuste de inventario por bodega), tras comprobar que la diferencia se mantiene unos minutos.
+Panel -> Effi: si el panel cambia en una bodega, STOCKMAN hace en Effi UN ajuste de inventario SOLO de esa bodega y por lo que cambió (no iguala las demás), tras comprobar que el cambio se mantiene unos minutos.
+Las diferencias que ya existían al arrancar no se tocan solas: se igualan con el botón de la tarjeta.
 Effi -> panel: Effi no avisa, así que STOCKMAN revisa cada pocos minutos los ajustes de inventario nuevos de Effi y los registra en el panel (ingreso o salida) para que el
 panel quede igual; los ajustes que hizo el propio STOCKMAN se reconocen y no rebotan. Solo con STOCKMAN ACTIVO; apagado muestra lo que haría.
 
@@ -9,10 +10,12 @@ El artículo de Effi se busca por el «ID Effi» de INFORMACIÓN TELA y, si no h
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import logging
 import os
 import re
+import secrets
 import threading
 import time
 from datetime import datetime, timedelta, timezone
@@ -32,6 +35,8 @@ def configurar(auth) -> None:
 
 log = logging.getLogger('stockman')
 router = APIRouter(prefix='/api/stockman', tags=['stockman'])
+webhook_router = APIRouter(prefix='/api/stockman', tags=['stockman'])   # sin sesión: lo llama Effi; se protege con la clave que va en la dirección
+_despertar = threading.Event()
 _file = Path(os.getenv('STOCKMAN_FILE', '/data/state/stockman.json'))
 _lock = threading.RLock()
 INTERVALO = 1800         # lectura completa de Effi (nombres y stock de todas las telas)
@@ -63,7 +68,9 @@ def _leer() -> dict:
     d.setdefault('vistos', [])
     d.setdefault('pendientes', [])  # ajustes de Effi por traer al panel (STOCKMAN apagado)
     d.setdefault('estables', {})
+    d.setdefault('panel_base', None)   # metros por bodega del panel la última vez que se procesó: solo lo que cambie respecto a esto se manda a Effi
     d.setdefault('ultimo_completo', 0)
+    d.setdefault('webhook', {'clave': '', 'recibidos': 0, 'ultimo': ''})
     d.setdefault('nombres', {})      # código de la tela -> {'nombre_panel', 'nombre_effi', 'id_effi', 'at'}
     d.setdefault('ultima', '')
     d.setdefault('error', '')
@@ -229,6 +236,7 @@ def aplicar_tela(codigo: str, usuario: str) -> dict:
         d = _leer()
         d['ajustes'] = (d['ajustes'] + hechos)[-200:]
         _guardar(d)
+    _base_a_actual([codigo])
     try:   # relee la tela en Effi para que la pantalla muestre ya el stock nuevo
         a = effi_api.articulo(codigo, fila['id_effi'])
         with _lock:
@@ -238,6 +246,73 @@ def aplicar_tela(codigo: str, usuario: str) -> dict:
     except Exception:   # noqa: BLE001
         log.exception('STOCKMAN: no pude releer la tela tras ajustarla')
     return {'ok': True, 'ajustes': len(hechos)}
+
+
+def _base_a_actual(codigos) -> None:
+    """Da por procesado lo que hoy dice el panel de esas telas (después de traer un ajuste de Effi o de igualar una tela), para no devolverlo a Effi."""
+    try:
+        actual = _stock_panel()
+    except Exception:   # noqa: BLE001
+        log.exception('STOCKMAN: no pude leer el panel para actualizar la base')
+        return
+    with _lock:
+        d = _leer()
+        if d['panel_base'] is None:
+            return
+        for c in codigos:
+            d['panel_base'][str(c)] = dict(actual.get(str(c), {}))
+        _guardar(d)
+
+
+def cambios_panel(fijar_base: bool = False) -> list[dict]:
+    """Lo que cambió en el panel, bodega por bodega, desde la última vez que se procesó. La primera vez solo se anota cómo está el panel (sin mandar nada a Effi)."""
+    actual = _stock_panel()
+    with _lock:
+        d = _leer()
+        if d['panel_base'] is None:
+            if fijar_base:
+                d['panel_base'] = {c: dict(v) for c, v in actual.items()}
+                _guardar(d)
+            return []
+        base = d['panel_base']
+    salida = []
+    for codigo, por_bodega in actual.items():
+        if codigo not in base:   # tela nueva en el panel: se toma como punto de partida
+            continue
+        for b, ahora in por_bodega.items():
+            antes = float(base[codigo].get(b, 0.0))
+            if abs(ahora - antes) >= 0.01:
+                salida.append({'codigo': codigo, 'bodega': b, 'antes': round(antes, 2), 'ahora': round(ahora, 2), 'delta': round(ahora - antes, 2)})
+        for b, antes in base[codigo].items():   # una bodega que quedó en cero (ya no aparece en el panel)
+            if b not in por_bodega and abs(float(antes)) >= 0.01:
+                salida.append({'codigo': codigo, 'bodega': b, 'antes': round(float(antes), 2), 'ahora': 0.0, 'delta': round(-float(antes), 2)})
+    return salida
+
+
+def aplicar_cambio(c: dict, usuario: str) -> dict:
+    """Un ajuste en Effi, de UNA bodega y por lo que cambió en el panel."""
+    v = _leer()['nombres'].get(c['codigo'])
+    if not v or not v.get('id_effi'):
+        raise HTTPException(404, 'Esa tela no tiene artículo en Effi.')
+    clave = 'sm-' + hashlib.sha1(f"{c['codigo']}|{c['bodega']}|{c['antes']}|{c['ahora']}".encode()).hexdigest()[:24]
+    nombre = _NOMBRE_BODEGA.get(c['bodega']) or _OTRAS.get(c['bodega'], c['bodega'])
+    try:
+        r = effi_api.crear_ajuste(clave, int(c['bodega']), v['id_effi'], c['delta'], f'{PROPIO} ({usuario})')
+    except Exception as exc:   # noqa: BLE001
+        with _lock:
+            d = _leer()
+            d['ajustes'] = (d['ajustes'] + [{'codigo': c['codigo'], 'tela': v.get('nombre_effi') or c['codigo'], 'bodega': nombre, 'delta': c['delta'], 'estado': 'error', 'tipo': 'a_effi', 'detalle': str(exc)[:200], 'por': usuario, 'at': _iso()}])[-200:]
+            _guardar(d)
+        raise HTTPException(502, f'Effi no aceptó el ajuste de {nombre}: {str(exc)[:150]}')
+    with _lock:
+        d = _leer()
+        d['ajustes'] = (d['ajustes'] + [{'codigo': c['codigo'], 'tela': v.get('nombre_effi') or c['codigo'], 'bodega': nombre, 'delta': c['delta'], 'estado': 'hecho', 'tipo': 'a_effi', 'ajuste': r['id'], 'por': usuario, 'at': _iso()}])[-200:]
+        if d['panel_base'] is not None:
+            d['panel_base'].setdefault(c['codigo'], {})[c['bodega']] = c['ahora']
+        _guardar(d)
+    log.warning('STOCKMAN: ajuste %s en Effi · %s · %s %+g mts (por %s)', r['id'], v.get('nombre_effi'), nombre, c['delta'], usuario)
+    _releer(c['codigo'])
+    return r
 
 
 def _bodega_panel(effi_id: str) -> str:
@@ -296,6 +371,7 @@ def traer_de_effi(aplicar: bool) -> list[dict]:
                 nuevos.append({**item, 'estado': 'error', 'detalle': str(exc)[:160]})
         else:
             pendientes.append({**item, 'estado': 'pendiente'})
+    _base_a_actual({n['codigo'] for n in nuevos if n.get('estado') == 'hecho'})
     with _lock:
         d = _leer()
         d['vistos'] = (d['vistos'] + marcar)[-500:]
@@ -324,25 +400,29 @@ def ciclo(completo: bool = False) -> dict:
     except Exception:   # noqa: BLE001
         log.exception('STOCKMAN: no pude revisar los ajustes de Effi')
     ajustadas = 0
+    try:
+        cambios = cambios_panel(fijar_base=True)
+    except Exception:   # noqa: BLE001
+        log.exception('STOCKMAN: no pude leer el panel')
+        cambios = []
+    ahora = time.time()
+    with _lock:   # un cambio debe mantenerse ESTABLE_SEG antes de mandarlo a Effi
+        dd = _leer()
+        estables = {}
+        for c in cambios:
+            k = f"{c['codigo']}|{c['bodega']}"
+            previo = dd['estables'].get(k)
+            estables[k] = previo if previo and previo['ahora'] == c['ahora'] else {'ahora': c['ahora'], 'desde': ahora}
+        dd['estables'] = estables
+        _guardar(dd)
     if activo and r.get('ok') and not _leer()['pendientes']:
-        ahora = time.time()
-        filas = [x for x in evaluar() if x['estado'] == 'ajustar']
-        with _lock:
-            dd = _leer()
-            estables = {f['codigo']: dd['estables'].get(f['codigo']) for f in filas}
-            for f in filas:
-                firma = json.dumps([(b['bodega'], b['panel'], b['effi']) for b in f['bodegas']])
-                if not estables.get(f['codigo']) or estables[f['codigo']]['firma'] != firma:
-                    estables[f['codigo']] = {'firma': firma, 'desde': ahora}
-            dd['estables'] = {c: v for c, v in estables.items() if v}
-            _guardar(dd)
-        for f in filas:
-            if ajustadas >= MAX_TELAS:
+        for c in cambios:
+            if ajustadas >= MAX_TELAS * 4:
                 break
-            if ahora - estables[f['codigo']]['desde'] < ESTABLE_SEG:
-                continue
+            if abs(c['delta']) > GRANDE_MTS or ahora - estables[f"{c['codigo']}|{c['bodega']}"]['desde'] < ESTABLE_SEG:
+                continue   # un cambio enorme espera a una persona (botón de la tarjeta)
             try:
-                aplicar_tela(f['codigo'], 'STOCKMAN')
+                aplicar_cambio(c, 'STOCKMAN')
                 ajustadas += 1
             except HTTPException:
                 continue
@@ -357,6 +437,36 @@ def revisar() -> dict:
     return ciclo(completo=True)
 
 
+def _clave_webhook() -> str:
+    with _lock:
+        d = _leer()
+        if not d['webhook'].get('clave'):
+            d['webhook']['clave'] = secrets.token_urlsafe(24)
+            _guardar(d)
+        return d['webhook']['clave']
+
+
+@webhook_router.api_route('/webhook/{clave}', methods=['POST', 'PUT', 'GET'])
+async def webhook(clave: str, request: Request):
+    """Aviso de Effi (webhook): hay algo nuevo. No se confía en lo que traiga: solo despierta a STOCKMAN, que lee en Effi por la API qué cambió."""
+    if not hmac.compare_digest(str(clave), _clave_webhook()):
+        raise HTTPException(404, 'No encontrado')
+    with _lock:
+        d = _leer()
+        d['webhook'].update(recibidos=int(d['webhook'].get('recibidos', 0)) + 1, ultimo=_iso())
+        _guardar(d)
+    _despertar.set()
+    return {'ok': True}
+
+
+def _cambios_para_ver() -> list[dict]:
+    try:
+        nombres = _leer()['nombres']
+        return [{**c, 'tela': (nombres.get(c['codigo']) or {}).get('nombre_effi') or c['codigo'], 'bodega_nombre': _NOMBRE_BODEGA.get(c['bodega']) or _OTRAS.get(c['bodega'], c['bodega'])} for c in cambios_panel()]
+    except Exception:   # noqa: BLE001
+        return []
+
+
 @router.get('/estado')
 def estado(request: Request):
     d = _leer()
@@ -364,7 +474,8 @@ def estado(request: Request):
     cuenta = lambda k: sum(1 for f in filas if f['estado'] == k)
     return {'agente': {'nombre': NOMBRE, 'activo': d['activo'], 'ultima': d['ultima'], 'error': d['error']},
             'resumen': {'telas': len(filas), 'ajustar': cuenta('ajustar'), 'grande': cuenta('grande'), 'igual': cuenta('igual'), 'sin_articulo': cuenta('sin_articulo')},
-            'telas': filas, 'ajustes': d['ajustes'][-30:][::-1], 'pendientes': d['pendientes']}
+            'telas': filas, 'ajustes': d['ajustes'][-30:][::-1], 'pendientes': d['pendientes'], 'cambios': _cambios_para_ver(),
+            'webhook': {'ruta': f"/api/stockman/webhook/{_clave_webhook()}", 'recibidos': d['webhook'].get('recibidos', 0), 'ultimo': d['webhook'].get('ultimo', '')}}
 
 
 @router.post('/revisar')
@@ -407,7 +518,9 @@ def _bucle() -> None:
             ciclo()
         except Exception:   # noqa: BLE001
             log.exception('STOCKMAN: fallo en el ciclo')
-        time.sleep(CICLO)
+        if _despertar.wait(CICLO):   # un aviso de Effi (webhook) lo despierta ya; si no, revisa cada 2 minutos
+            _despertar.clear()
+            time.sleep(3)   # unos segundos para que Effi termine de guardar el ajuste
 
 
 def start() -> None:

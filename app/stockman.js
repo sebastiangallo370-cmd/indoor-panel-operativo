@@ -8,7 +8,7 @@
   const num = v => Number(v || 0).toLocaleString('es-CO', { maximumFractionDigits: 2 });
   const sg = v => (v > 0 ? '+' : '') + num(v);
   const plano = t => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-  const ESTADO = { ajustar: ['POR AJUSTAR', 'ambar'], grande: ['DIFERENCIA GRANDE', 'rojo'], igual: ['IGUAL', 'verde'], sin_articulo: ['SIN ARTÍCULO EN EFFI', 'ambar'] };
+  const ESTADO = { ajustar: ['DIFERENCIA', 'ambar'], grande: ['DIFERENCIA GRANDE', 'rojo'], igual: ['IGUAL', 'verde'], sin_articulo: ['SIN ARTÍCULO EN EFFI', 'ambar'] };
   let panel = null, tab = null, timer = null, datos = null, filtro = 'ajustar', buscar = '', ocupado = false, firma = '';
 
   const css = `
@@ -21,6 +21,7 @@
   .sm-fila .d{color:#fff}.sm-fila .d.mas{color:var(--lima,#d0f44c)}.sm-fila .d.menos{color:#ffb3ac}
   .sm-tot{display:flex;justify-content:space-between;gap:10px}.sm-tot div{display:grid;gap:2px}.sm-tot small{font:800 8px Arial;letter-spacing:.14em;color:#9fb096}.sm-tot b{font:900 22px Arial;color:#fff}
   .sm-nom{font:700 10px Arial;color:#9fb096}
+  .sm-url{display:flex;gap:8px;align-items:center}.sm-url code{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:7px 10px;border-radius:10px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.12);color:#e8f0e0;font:11px Consolas,monospace}.sm-url .mm-bt{width:90px;flex:none}
   .sm-hist{padding:12px 16px;display:grid;gap:6px;font:11px Arial;color:#c5d2bf}.sm-hist h3{margin:0;font:900 11px Arial;letter-spacing:.16em;color:#b9c8b3}
   `;
 
@@ -36,7 +37,7 @@
   function tarjeta(t, i) {
     const [txt, tono] = ESTADO[t.estado] || ['—', ''];
     const filas = (t.bodegas || []).map(b => '<div class="sm-fila"><span>' + esc(b.nombre) + '</span><span>' + num(b.panel) + '</span><span>' + num(b.effi) + '</span><span class="d ' + (b.delta > 0 ? 'mas' : b.delta < 0 ? 'menos' : '') + '">' + (Math.abs(b.delta) < 0.01 ? '=' : sg(b.delta)) + '</span></div>').join('');
-    const boton = (t.estado === 'ajustar' || t.estado === 'grande') ? '<button type="button" class="mm-bt env" data-sm-ajustar="' + esc(t.codigo) + '" data-grande="' + (t.estado === 'grande' ? 1 : 0) + '" data-tela="' + esc(t.tela) + '">AJUSTAR EN EFFI</button>' : '';
+    const boton = (t.estado === 'ajustar' || t.estado === 'grande') ? '<button type="button" class="mm-bt env" data-sm-ajustar="' + esc(t.codigo) + '" data-grande="' + (t.estado === 'grande' ? 1 : 0) + '" data-tela="' + esc(t.tela) + '">IGUALAR EN EFFI</button>' : '';
     const cuerpo = t.estado === 'sin_articulo'
       ? '<div class="mm-nota">Effi no tiene un artículo con esta referencia exacta. Escribe su «ID Effi» en INFORMACIÓN TELA.</div>'
       : '<div class="sm-tot"><div><small>PANEL</small><b>' + num(t.panel) + ' <em style="font:800 9px Arial;font-style:normal;color:#c5d2bf">MTS</em></b></div><div style="text-align:right"><small>EFFI</small><b>' + num(t.effi) + ' <em style="font:800 9px Arial;font-style:normal;color:#c5d2bf">MTS</em></b></div></div>' +
@@ -59,15 +60,16 @@
     const kpi = (k, n, rotulo) => '<button type="button" class="mm-glass mm-kpi' + (filtro === k ? ' on' : '') + '" data-sm-filtro="' + k + '"><b>' + n + '</b><span>' + rotulo + '</span></button>';
     const dir = h => h.tipo === 'a_panel' ? 'Effi → panel' : 'Panel → Effi';
     const hist = (datos.ajustes || []).slice(0, 10).map(h => '<div>' + (h.estado === 'hecho' ? '✔' : '✕') + ' <b>' + dir(h) + '</b> · ' + esc(h.tela) + ' · ' + esc(h.bodega) + ' ' + sg(h.delta) + ' mts · ' + (h.tipo === 'a_panel' ? esc(h.at) : hora(h.at)) + ' · ' + esc(h.por) + (h.estado === 'hecho' ? ' · ajuste ' + esc(h.ajuste) : ' · ' + esc(h.detalle || '')) + '</div>').join('');
+    const cam = (datos.cambios || []).map(h => '<div>⏱ ' + esc(h.tela) + ' · ' + esc(h.bodega_nombre) + ' ' + sg(h.delta) + ' mts (de ' + num(h.antes) + ' a ' + num(h.ahora) + ')</div>').join('');
     const pend = (datos.pendientes || []).map(h => '<div>⏳ ' + esc(h.tela) + ' · ' + esc(h.bodega) + ' ' + sg(h.delta) + ' mts · ajuste ' + esc(h.ajuste) + ' de ' + esc(h.por) + '</div>').join('');
     panel.querySelector('.mm').innerHTML =
       '<div class="mm-glass mm-top"><div class="mm-nom"><img class="mm-logo" src="/marca-indoor.svg" alt="Indoor"><small>Revisado</small><b>' + hora(a.ultima) + '</b></div>' +
       '<div class="mm-sw' + (activo ? ' on' : '') + '"><i></i><span>' + (activo ? 'ACTIVO' : 'APAGADO') + '</span><button type="button" data-sm-activar="' + (activo ? 0 : 1) + '" aria-label="Activar o apagar STOCKMAN"></button></div>' +
       '<button type="button" class="mm-b" data-sm-revisar' + (ocupado ? ' disabled' : '') + '>↻ ' + (ocupado ? 'REVISANDO…' : 'REVISAR') + '</button>' +
-      '<span class="mm-sep"></span><div class="mm-kpis">' + kpi('ajustar', r.ajustar + r.grande, 'POR AJUSTAR') + kpi('igual', r.igual, 'IGUALES') + kpi('sin_articulo', r.sin_articulo, 'SIN ARTÍCULO') + kpi('todo', r.telas, 'TODO') + '</div>' +
+      '<span class="mm-sep"></span><div class="mm-kpis">' + kpi('ajustar', r.ajustar + r.grande, 'DIFERENCIAS') + kpi('igual', r.igual, 'IGUALES') + kpi('sin_articulo', r.sin_articulo, 'SIN ARTÍCULO') + kpi('todo', r.telas, 'TODO') + '</div>' +
       '<div class="mm-busca"><input type="search" data-sm-buscar placeholder="Buscar…" value="' + esc(buscar) + '" autocomplete="off"></div></div>' +
       (a.error ? '<div class="mm-vacio">' + esc(a.error) + '</div>' : '') +
-      '<div class="mm-cuerpo"><div class="sm-host"></div>' + (pend ? '<div class="mm-glass sm-hist"><h3>AJUSTES HECHOS EN EFFI QUE LLEGARÁN AL PANEL AL ACTIVAR</h3>' + pend + '</div>' : '') + (hist ? '<div class="mm-glass sm-hist"><h3>ÚLTIMOS AJUSTES</h3>' + hist + '</div>' : '') + '</div>';
+      '<div class="mm-cuerpo"><div class="sm-host"></div>' + '<div class="mm-glass sm-hist"><h3>WEBHOOK DE EFFI</h3><div>Dirección para que Effi avise al instante de cada ajuste de inventario:</div><div class="sm-url"><code>' + esc(location.origin + (datos.webhook || {}).ruta) + '</code><button type="button" class="mm-bt" data-sm-copiar>COPIAR</button></div><div>' + ((datos.webhook || {}).recibidos ? 'Avisos recibidos: ' + (datos.webhook || {}).recibidos + ' · el último ' + hora((datos.webhook || {}).ultimo) : 'Todavía no ha llegado ningún aviso de Effi (mientras tanto STOCKMAN revisa solo cada 2 minutos).') + '</div></div>' + (cam ? '<div class="mm-glass sm-hist"><h3>CAMBIOS DEL PANEL QUE IRÁN A EFFI (SOLO LA BODEGA QUE CAMBIÓ)</h3>' + cam + '</div>' : '') + (pend ? '<div class="mm-glass sm-hist"><h3>AJUSTES HECHOS EN EFFI QUE LLEGARÁN AL PANEL AL ACTIVAR</h3>' + pend + '</div>' : '') + (hist ? '<div class="mm-glass sm-hist"><h3>ÚLTIMOS AJUSTES</h3>' + hist + '</div>' : '') + '</div>';
     pintarLista();
   }
 
@@ -109,15 +111,17 @@
       const aj = e.target.closest('[data-sm-ajustar]');
       if (aj) {
         const grande = aj.dataset.grande === '1';
-        if (!confirm('¿Dejar «' + aj.dataset.tela + '» en Effi igual que en el panel?\n\nSe crea un ajuste de inventario en Effi por cada bodega con diferencia (afecta el inventario contable).' + (grande ? '\n\n⚠ La diferencia es GRANDE: revisa bien antes de aceptar.' : ''))) return;
+        if (!confirm('¿Dejar «' + aj.dataset.tela + '» en Effi igual que en el panel?\n\nSe crea un ajuste de inventario en Effi por cada bodega con diferencia (afecta el inventario contable). Esto iguala TODA la tela; lo normal es que STOCKMAN solo ajuste la bodega que cambia.' + (grande ? '\n\n⚠ La diferencia es GRANDE: revisa bien antes de aceptar.' : ''))) return;
         aj.disabled = true;
         try { await api('/api/stockman/ajustar', { method: 'POST', body: JSON.stringify({ codigo: aj.dataset.smAjustar }) }); } catch (x) { alert(x.message); }
         firma = ''; cargar(); return;
       }
+      const cp = e.target.closest('[data-sm-copiar]');
+      if (cp) { try { await navigator.clipboard.writeText(location.origin + datos.webhook.ruta); cp.textContent = 'COPIADO'; setTimeout(() => { cp.textContent = 'COPIAR'; }, 1500); } catch (_) { prompt('Copia esta dirección:', location.origin + datos.webhook.ruta); } return; }
       const s = e.target.closest('[data-sm-activar]');
       if (s) {
         const quiere = s.dataset.smActivar === '1';
-        if (quiere && !confirm('¿Activar STOCKMAN?\n\nEl panel es el inventario real. Cuando el panel cambie, STOCKMAN dejará Effi igual (ajuste de inventario por bodega) tras 5 minutos estable; y los ajustes que se hagan en Effi desde ahora los registrará en el panel (ingreso o salida). Las diferencias grandes no las toca: esperan a que pulses AJUSTAR.')) return;
+        if (quiere && !confirm('¿Activar STOCKMAN?\n\nEl panel es el inventario real. Cuando el panel cambie en una bodega, STOCKMAN hará en Effi un ajuste SOLO de esa bodega y por lo que cambió, tras 5 minutos estable (no toca las demás); y los ajustes que se hagan en Effi desde ahora los registrará en el panel (ingreso o salida). Las diferencias grandes no las toca: esperan a que pulses AJUSTAR.')) return;
         try { await api('/api/stockman/activar', { method: 'PUT', body: JSON.stringify({ activo: quiere }) }); } catch (x) { alert(x.message); }
         firma = ''; cargar();
       }
