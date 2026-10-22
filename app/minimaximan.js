@@ -64,6 +64,17 @@
   .mm-t.rojo .mm-medidor i{background:linear-gradient(90deg,#e8573a,#ff9d83)}.mm-t.azul .mm-medidor i{background:linear-gradient(90deg,#4a86d8,#9cc6ff)}.mm-t.ambar .mm-medidor i{background:linear-gradient(90deg,#d49a2a,#ffd98a)}
   .mm-medidor u{position:absolute;top:-5px;bottom:-5px;width:2px;background:#fff;text-decoration:none}.mm-medidor u b{position:absolute;top:100%;left:50%;transform:translateX(-50%);font:700 9px Arial;color:#c5d2bf;margin-top:2px;white-space:nowrap}
   .mm-nums{display:flex;justify-content:space-between;gap:8px;font:700 11px Arial;color:#c5d2bf}.mm-nums b{color:#fff}
+  .mm-medidor{height:20px;border-radius:99px;background:rgba(255,255,255,.07);margin:8px 0 22px;overflow:visible;box-shadow:inset 0 2px 6px rgba(0,0,0,.5)}
+  .mm-zona{position:absolute;top:0;bottom:0;left:0;border-radius:99px 0 0 99px;background:repeating-linear-gradient(135deg,rgba(255,107,97,.28) 0 6px,rgba(255,107,97,.12) 6px 12px)}
+  .mm-zona.ok{border-radius:0 99px 99px 0;background:rgba(111,227,154,.16)}
+  .mm-medidor i{z-index:2;border-radius:99px;width:var(--w);animation:mmLlena .9s cubic-bezier(.2,.8,.2,1) backwards;box-shadow:0 0 14px currentColor;background-size:200% 100%}
+  .mm-medidor s{position:absolute;top:3px;bottom:3px;z-index:1;border-radius:99px;border:1.5px dashed rgba(255,255,255,.7);background:rgba(255,255,255,.12);animation:mmPulso 1.8s ease-in-out infinite}
+  .mm-medidor q{position:absolute;z-index:3;top:50%;width:18px;height:18px;margin:-9px 0 0 -9px;border-radius:50%;background:#fff;box-shadow:0 0 0 4px rgba(255,255,255,.25),0 0 16px currentColor;animation:mmPulso 1.8s ease-in-out infinite}
+  .mm-t.rojo .mm-medidor{color:#ff6b61}.mm-t.azul .mm-medidor{color:#64aaff}.mm-t.ambar .mm-medidor{color:#ffc850}.mm-t.verde .mm-medidor{color:#6fe39a}
+  .mm-medidor u{z-index:4;top:-4px;bottom:-4px;background:rgba(255,255,255,.85)}
+  @keyframes mmLlena{from{width:0}}@keyframes mmPulso{50%{opacity:.55;transform:scale(1.08)}}
+  .mm-t.rojo{animation:mmEntra .35s ease-out backwards,mmAlerta 3.2s ease-in-out infinite .6s}@keyframes mmAlerta{50%{box-shadow:0 14px 34px -16px rgba(0,0,0,.8),0 0 26px -4px rgba(255,107,97,.45),inset 0 1px 0 rgba(255,255,255,.28)}}
+  .mm-pedir{transition:transform .2s}.mm-t:hover .mm-pedir{transform:scale(1.08)}.mm-stats div{transition:transform .2s}.mm-t:hover .mm-stats div{transform:translateY(-2px)}
   .mm-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:9px 6px;border-radius:12px;background:rgba(0,0,0,.22);border:1px solid rgba(255,255,255,.1);text-align:center}.mm-stats small{display:block;font:800 8.5px Arial;letter-spacing:.12em;color:#9fb096}.mm-stats b{font:900 17px Arial;color:#fff}
   .mm-fila{display:flex;justify-content:space-between;align-items:center;gap:8px;font:700 12px Arial;color:#c5d2bf}.mm-fila b{color:#fff;font-size:14px}
   .mm-pedir{padding:5px 11px;border-radius:99px;background:rgba(255,107,97,.18);border:1px solid rgba(255,107,97,.5);color:#ffb3ac}.mm-pedir b{font:900 15px Arial;color:#ffd3cf}
@@ -114,9 +125,11 @@
     const pct = v => Math.max(0, Math.min(100, v / tope * 100)).toFixed(1);
     const aviso = ['error', 'sin_effi', 'revisar'].includes(t.estado) && t.nota ? '<div class="mm-nota">' + esc(t.nota) + '</div>' : '';   // el resto de estados ya se entiende con la etiqueta
     return '<article class="mm-glass mm-t ' + tono + '" style="animation-delay:' + Math.min(i * 25, 300) + 'ms"><h4><span>' + esc(t.tela) + '<small>' + esc(t.codigo) + ' · ' + esc(t.proveedor || 'SIN PROVEEDOR') + '</small></span><em>' + txt + '</em></h4>' +
-      '<div class="mm-medidor" title="Hay ' + num(t.stock) + ' · mínimo ' + num(t.minimo) + ' · máximo ' + num(t.maximo) + '"><i style="width:' + pct(t.stock) + '%"></i>' +
-      '<u style="left:' + pct(t.minimo) + '%"><b>mín ' + num(t.minimo) + '</b></u><u style="left:' + pct(t.maximo) + '%;opacity:.55"><b>máx ' + num(t.maximo) + '</b></u></div>' +
-      '<div class="mm-stats"><div><small>HAY</small><b>' + num(t.stock) + '</b></div><div><small>MÍNIMO</small><b>' + num(t.minimo) + '</b></div><div><small>MÁXIMO</small><b>' + num(t.maximo) + '</b></div><div><small>EN CAMINO</small><b>' + num(t.por_recibir || 0) + '</b></div></div>' +
+      '<div class="mm-medidor" title="Hay ' + num(t.stock) + ' · mínimo ' + num(t.minimo) + ' · máximo ' + num(t.maximo) + '"><span class="mm-zona" style="width:' + pct(t.minimo) + '%"></span><span class="mm-zona ok" style="left:' + pct(t.minimo) + '%;width:' + (pct(t.maximo) - pct(t.minimo)).toFixed(1) + '%"></span>' +
+      (t.pedir || t.por_recibir ? '<s style="left:' + pct(t.stock) + '%;width:' + (pct(t.stock + (t.por_recibir || 0) + (t.pedir || 0)) - pct(t.stock)).toFixed(1) + '%"></s>' : '') +
+      '<i style="--w:' + pct(t.stock) + '%"></i><q style="left:' + pct(t.stock) + '%"></q>' +
+      '<u style="left:' + pct(t.minimo) + '%"><b>mín ' + num(t.minimo) + '</b></u><u style="left:' + pct(t.maximo) + '%"><b>máx ' + num(t.maximo) + '</b></u></div>' +
+      '<div class="mm-stats"><div><small>HAY</small><b data-n="' + t.stock + '">' + num(t.stock) + '</b></div><div><small>MÍNIMO</small><b data-n="' + t.minimo + '">' + num(t.minimo) + '</b></div><div><small>MÁXIMO</small><b data-n="' + t.maximo + '">' + num(t.maximo) + '</b></div><div><small>EN CAMINO</small><b>' + num(t.por_recibir || 0) + '</b></div></div>' +
       '<div class="mm-fila"><span>' + (t.pedir ? 'Quedaría en <b>' + num(t.stock + (t.por_recibir || 0) + t.pedir) + '</b> mts (' + Math.round((t.stock + (t.por_recibir || 0) + t.pedir) / Math.max(t.maximo, 1) * 100) + '% del máx.)' : '<b>' + Math.round(t.stock / Math.max(t.maximo, 1) * 100) + '%</b> del máximo') + '</span>' + (t.pedir ? '<span class="mm-pedir">pedir <b>' + num(t.pedir) + '</b> mts</span>' : '') + '</div>' + aviso + '</article>';
   }
 
@@ -151,6 +164,7 @@
       '<div class="mm-lista-host"></div>' +
       (resto.length ? '<details class="mm-ant"><summary>ÓRDENES ANTERIORES (' + resto.length + ')</summary><div class="mm-lista">' + resto.map(ocHtml).join('') + '</div></details>' : '') + '</div>';
     pintarLista();
+    panel.querySelectorAll('.mm-stats b[data-n]').forEach(e => { const n = +e.dataset.n; if (!n || e.dataset.v === e.dataset.n) return; e.dataset.v = e.dataset.n; const t0 = performance.now(); (function paso(t) { const k = Math.min(1, (t - t0) / 700); e.textContent = num(Math.round(n * (1 - Math.pow(1 - k, 3)))); if (k < 1) requestAnimationFrame(paso); })(t0); });
     if (window.liquidStats && window.liquidStats.refresh) window.liquidStats.refresh(panel);
   }
 
