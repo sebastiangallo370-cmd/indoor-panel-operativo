@@ -136,9 +136,11 @@ def evaluar() -> list[dict]:
         if mx < mn:
             fila.update(estado='revisar', nota='El máximo es menor que el mínimo: corrígelo en INFORMACIÓN TELA.')
         elif stock < mn:   # solo si por stock ya está bajo se consulta a Effi lo que viene en camino
-            pr = _por_recibir(codigo, fila['id_effi']) if con_api else None
+            pr = _por_recibir(codigo, fila['id_effi']) if (con_api and fila['id_effi']) else None
             fila['por_recibir'] = pr
-            if pr is None:
+            if not fila['id_effi']:   # todo sale de INFORMACIÓN TELA: sin su ID de Effi no se adivina el artículo por referencia ni por nombre
+                fila.update(estado='sin_id', pedir=round(mx - stock, 2), nota='Falta el «ID Effi» de esta tela en INFORMACIÓN TELA: sin él no pido nada.')
+            elif pr is None:
                 fila.update(estado='sin_effi', nota='No pude ver en Effi lo que ya está pedido de esta tela: no pido nada hasta confirmarlo.' if con_api else 'Falta la llave de la API de Effi (pantalla «API Effi» del agente de inventario).')
             elif stock + pr >= mn:
                 fila.update(estado='en_camino', nota='Está bajo el mínimo, pero ya hay órdenes de compra abiertas que la completan.')
@@ -156,12 +158,14 @@ def evaluar() -> list[dict]:
                 else:
                     fila.update(estado='pedir', pedir=falta, nota=f'Pedir {falta:g} mts para llegar al máximo ({mx:g}).')
         filas.append(fila)
-    orden = {'pedir': 0, 'error': 1, 'sin_proveedor': 2, 'sin_effi': 3, 'revisar': 4, 'pausa': 5, 'en_camino': 6, 'ok': 7}
+    orden = {'pedir': 0, 'error': 1, 'sin_id': 2, 'sin_proveedor': 2, 'sin_effi': 3, 'revisar': 4, 'pausa': 5, 'en_camino': 6, 'ok': 7}
     return sorted(filas, key=lambda f: (orden.get(f['estado'], 9), f['tela']))
 
 
 def _crear(f: dict) -> dict | None:
     """Crea (o reintenta) la orden de compra de esa tela directamente en Effi por la API. Devuelve la compra guardada."""
+    if not f.get('id_effi'):
+        return None   # sin ID de Effi en INFORMACIÓN TELA nunca se crea una orden
     with _lock:
         e = _leer()
         previa = next((c for c in e['compras'] if c['codigo'] == f['codigo'] and c['estado'] == 'error' and c.get('intentos', 0) < MAX_INTENTOS), None)
@@ -286,7 +290,7 @@ def estado(request: Request):
                                      'Cuenta lo que ya está pedido: las órdenes de compra abiertas en Effi («por recibir»)',
                                      'Si queda bajo el mínimo, crea él mismo la orden de compra en Effi por la API, por lo que falta hasta el máximo',
                                      'Corre solo en el servidor, sin usar a ZEUS ni a los agentes de los PC. Nunca pide si no ve en Effi lo que ya está en camino']},
-            'resumen': {'telas': len(r), 'pedir': cuenta('pedir'), 'en_camino': cuenta('en_camino'), 'sin_proveedor': cuenta('sin_proveedor'), 'sin_effi': cuenta('sin_effi'),
+            'resumen': {'telas': len(r), 'pedir': cuenta('pedir'), 'en_camino': cuenta('en_camino'), 'sin_proveedor': cuenta('sin_proveedor'), 'sin_id': cuenta('sin_id'), 'sin_effi': cuenta('sin_effi'),
                         'error': cuenta('error'), 'ok': cuenta('ok')},
             'telas': r, 'compras': e['compras'][-60:][::-1]}
 
@@ -387,6 +391,8 @@ def modificar(request: Request, payload: dict):
         raise HTTPException(400, 'Los metros deben ser mayores que 0.')
     if abs(metros - float(c['metros'])) < 0.005:
         raise HTTPException(400, 'Esa ya es la cantidad de la orden.')
+    if not _id_de(c):
+        raise HTTPException(400, 'Falta el «ID Effi» de esta tela en INFORMACIÓN TELA.')
     n = int(c.get('modificaciones', 0)) + 1
     try:
         effi_api.construir_pedido(f'mm{c["id"]}m{n}', c['codigo'], metros, c['proveedor'], id_articulo=_id_de(c))   # solo valida: si algo falla la orden original queda intacta

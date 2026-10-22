@@ -8,7 +8,7 @@
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const num = v => Number(v || 0).toLocaleString('es-CO', { maximumFractionDigits: 2 });
   const plano = t => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-  const ESTADO = { pedir: ['POR PEDIR', 'rojo'], error: ['CON ERROR', 'rojo'], sin_proveedor: ['SIN PROVEEDOR', 'ambar'], sin_effi: ['NO LO VEO EN EFFI', 'ambar'], revisar: ['REVISAR RANGO', 'ambar'], pausa: ['EN PAUSA', 'ambar'], en_camino: ['EN CAMINO', 'azul'], ok: ['EN RANGO', 'verde'] };
+  const ESTADO = { pedir: ['POR PEDIR', 'rojo'], error: ['CON ERROR', 'rojo'], sin_proveedor: ['SIN PROVEEDOR', 'ambar'], sin_effi: ['NO LO VEO EN EFFI', 'ambar'], revisar: ['REVISAR RANGO', 'ambar'], pausa: ['EN PAUSA', 'ambar'], sin_id: ['FALTA ID EFFI', 'ambar'], en_camino: ['EN CAMINO', 'azul'], ok: ['EN RANGO', 'verde'] };
   const GRUPOS = [['atencion', 'ATENCIÓN'], ['en_camino', 'EN CAMINO'], ['ok', 'EN RANGO'], ['todas', 'TODAS']];
   let guardado = {}; try { guardado = JSON.parse(localStorage.getItem('mm-vista') || '{}'); } catch (_) { /* sin almacenamiento */ }
   let panel = null, tab = null, timer = null, datos = null, filtro = guardado.filtro || 'atencion', buscar = '', orden = guardado.orden || 'estado', ocupado = false, firma = '';
@@ -230,7 +230,7 @@
     return d;
   };
   const hora = iso => iso ? new Date(iso).toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—';
-  const coincide = t => filtro === 'todas' || (filtro === 'atencion' && ['pedir', 'error', 'sin_proveedor', 'sin_effi', 'revisar'].includes(t.estado)) || t.estado === filtro;
+  const coincide = t => filtro === 'todas' || (filtro === 'atencion' && ['pedir', 'error', 'sin_id', 'sin_proveedor', 'sin_effi', 'revisar'].includes(t.estado)) || t.estado === filtro;
   const PESO = { pedir: 0, error: 1, sin_proveedor: 2, sin_effi: 3, revisar: 4, en_camino: 5, ok: 6 };
   const ordenar = lista => lista.slice().sort((a, b) => orden === 'nombre' ? a.tela.localeCompare(b.tela) : orden === 'pedir' ? b.pedir - a.pedir : orden === 'faltante' ? (a.stock / a.minimo) - (b.stock / b.minimo) : (PESO[a.estado] - PESO[b.estado]) || a.tela.localeCompare(b.tela));
 
@@ -251,8 +251,8 @@
     const [txt, tono] = ESTADO[t.estado] || ['—', ''];
     const tope = Math.max(t.maximo, t.stock + (t.por_recibir || 0), 1) * 1.08;
     const pct = v => Math.max(0, Math.min(100, v / tope * 100)).toFixed(1);
-    const aviso = ['error', 'sin_effi', 'revisar'].includes(t.estado) && t.nota ? '<div class="mm-nota">' + esc(t.nota) + '</div>' : '';   // el resto de estados ya se entiende con la etiqueta
-    return '<article class="mm-glass mm-t ' + tono + '" style="animation-delay:' + Math.min(i * 25, 300) + 'ms"><h4><span>' + esc(t.tela) + '<small>' + esc(t.codigo) + ' · ' + esc(t.proveedor || 'SIN PROVEEDOR') + '</small><small class="mm-ide' + (t.id_effi ? '' : ' falta') + '">' + (t.id_effi ? 'ID EFFI ' + esc(t.id_effi) : 'SIN ID EFFI · se busca por referencia') + '</small></span><em>' + txt + '</em></h4>' +
+    const aviso = ['error', 'sin_id', 'sin_effi', 'revisar'].includes(t.estado) && t.nota ? '<div class="mm-nota">' + esc(t.nota) + '</div>' : '';   // el resto de estados ya se entiende con la etiqueta
+    return '<article class="mm-glass mm-t ' + tono + '" style="animation-delay:' + Math.min(i * 25, 300) + 'ms"><h4><span>' + esc(t.tela) + '<small>' + esc(t.codigo) + ' · ' + esc(t.proveedor || 'SIN PROVEEDOR') + '</small><small class="mm-ide' + (t.id_effi ? '' : ' falta') + '">' + (t.id_effi ? 'ID EFFI ' + esc(t.id_effi) : 'SIN ID EFFI') + '</small></span><em>' + txt + '</em></h4>' +
       '<div class="mm-hero"><div class="mm-big"><small>STOCK</small><div><b data-n="' + t.stock + '">' + num(t.stock) + '</b><em>MTS</em></div></div>' +
       (t.pedir ? '<div class="mm-acc pide"><div><span>PEDIR</span><b>' + num(t.pedir) + '</b><em>MTS</em></div></div>' : t.por_recibir ? '<div class="mm-acc viene"><small>EN CAMINO</small><div><b>' + num(t.por_recibir) + '</b><em>MTS</em></div></div>' : '<div class="mm-acc bien"><small>NIVEL</small><div><b>' + Math.round(t.stock / Math.max(t.maximo, 1) * 100) + '%</b><em>DEL MÁX.</em></div></div>') + '</div>' +
       '<div class="mm-medidor" title="Hay ' + num(t.stock) + ' · mínimo ' + num(t.minimo) + ' · máximo ' + num(t.maximo) + '"><span class="mm-zona" style="width:' + pct(t.minimo) + '%"></span><span class="mm-zona ok" style="left:' + pct(t.minimo) + '%;width:' + (pct(t.maximo) - pct(t.minimo)).toFixed(1) + '%"></span>' +
@@ -278,7 +278,7 @@
     if (foco && foco.matches && foco.matches('[data-mm-buscar]') && panel.contains(foco)) { pintarLista(); return; }   // no se redibuja todo mientras se escribe en el buscador
     const a = datos.agente, r = datos.resumen, activo = !!a.activo, compras = datos.compras || [];
     const esperan = compras.filter(c => c.estado === 'creada' && (c.envio_proveedor || {}).estado !== 'enviada');
-    const nAtencion = r.pedir + (r.error || 0) + r.sin_proveedor + r.sin_effi;
+    const nAtencion = r.pedir + (r.error || 0) + (r.sin_id || 0) + r.sin_proveedor + r.sin_effi;
     const cuenta = { atencion: nAtencion, en_camino: r.en_camino, ok: r.ok, todas: r.telas };
     const kpi = (k, n, rotulo, tono) => '<button type="button" class="mm-glass mm-kpi' + (filtro === k ? ' on' : '') + '" data-mm-filtro="' + k + '"><b>' + n + '</b><span>' + rotulo + '</span></button>';
     const resto = compras.filter(c => !esperan.includes(c));

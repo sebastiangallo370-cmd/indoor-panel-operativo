@@ -6,8 +6,8 @@ from unittest import mock
 from app import minimaximan
 
 
-def tela(stock, minimo, maximo, proveedor='LINDATEXTIL'):
-    return {'codigo': '100', 'nombre': 'MONTECATINI BLANCO', 'mts': stock, 'stock_minimo': str(minimo), 'stock_maximo': str(maximo), 'proveedor': proveedor}
+def tela(stock, minimo, maximo, proveedor='LINDATEXTIL', id_effi='6082'):
+    return {'codigo': '100', 'nombre': 'MONTECATINI BLANCO', 'mts': stock, 'stock_minimo': str(minimo), 'stock_maximo': str(maximo), 'proveedor': proveedor, 'id_effi': id_effi}
 
 
 class MinimaximanTest(unittest.TestCase):
@@ -43,6 +43,11 @@ class MinimaximanTest(unittest.TestCase):
         self.assertEqual(self.evaluar(tela(250, 300, 500, proveedor=''))['estado'], 'sin_proveedor')
         with mock.patch.object(minimaximan.proveedores_tela, 'telas', lambda: [tela(250, 300, 500)]), mock.patch.object(minimaximan, '_por_recibir', lambda *a: None):
             self.assertEqual(minimaximan.evaluar()[0]['estado'], 'sin_effi')
+
+    def test_sin_id_effi_en_informacion_tela_no_pide(self):
+        f = self.evaluar(tela(250, 300, 500, id_effi=''))
+        self.assertEqual(f['estado'], 'sin_id')
+        self.assertIsNone(minimaximan._crear(f))   # tampoco crea nada si se lo piden a la fuerza
 
     def test_maximo_menor_que_el_minimo_se_marca(self):
         self.assertEqual(self.evaluar(tela(250, 300, 200))['estado'], 'revisar')
