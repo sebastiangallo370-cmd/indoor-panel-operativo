@@ -185,6 +185,8 @@ def telas() -> list[dict]:
         t.update({k: g.get(k, '') for k in CAMPOS_EXTRA})   # datos opcionales de la ficha de la tela
         try:   # para los agentes: el precio como número, aunque en la tarjeta se muestre tal como se escribió
             t['precio_num'] = _numero(str(t.get('precio_sin_iva') or '')) if t.get('precio_sin_iva') else None
+            if t.get('gramaje'):
+                t['gramaje'] = formato_num(_numero(str(t['gramaje']), 'gramaje'))   # los guardados antes también con el mismo formato
             if t['precio_num'] is not None:
                 t['precio_sin_iva'] = formato_cop(t['precio_num'])   # los escritos antes de otra forma también se ven igual
         except HTTPException:
@@ -201,6 +203,8 @@ def _limpiar_extra(campo: str, valor) -> str:
         n = _numero(texto, campo)
         if campo == 'precio_sin_iva':
             return formato_cop(n)   # el precio siempre en pesos colombianos, sin importar cómo se copió: «$ 7.930»
+        if campo == 'gramaje':
+            return formato_num(n)   # igual que el precio: «147», «147,5», «1.200» (la tarjeta le agrega « g/m²»)
         return format(n, '.4f').rstrip('0').rstrip('.')   # gramaje y stocks (metros) se guardan como número limpio
     return _limpiar_texto(campo, texto)
 
@@ -209,7 +213,8 @@ def _numero(texto: str, campo: str = 'precio_sin_iva') -> float:
     """Lee un número escrito de cualquier forma: a la colombiana («$ 18.500», «1.250.000,50», «7,93»), a la gringa («$7,930.50»),
     sin separadores («7930») o con moneda («COP 7.930»). Con punto y coma a la vez, el último es el decimal; con uno solo,
     si todos los grupos que le siguen tienen 3 cifras es de miles, si no es decimal."""
-    numero = re.sub(r'[^\d.,-]', '', str(texto))
+    m = re.search(r'-?\d[\d.,\s]*', str(texto))   # solo el primer número (así «147 g/m2» no se lleva el 2 de la unidad)
+    numero = re.sub(r'\s', '', m.group()).rstrip('.,') if m else ''
     if '.' in numero and ',' in numero:
         dec = '.' if numero.rfind('.') > numero.rfind(',') else ','
         numero = numero.replace(',' if dec == '.' else '.', '').replace(dec, '.')
@@ -227,6 +232,13 @@ def _numero(texto: str, campo: str = 'precio_sin_iva') -> float:
     if n < 0 or n > 100000000:
         raise HTTPException(400, 'Valor fuera de rango')
     return n
+
+
+def formato_num(n: float) -> str:
+    """Número a la colombiana: miles con punto y decimales con coma, sin ceros de sobra («147», «147,5», «1.200»)."""
+    entero, cent = divmod(round(float(n) * 100), 100)
+    texto = f'{int(entero):,}'.replace(',', '.')
+    return texto + (f',{int(cent):02d}'.rstrip('0') if cent else '')
 
 
 def formato_cop(n: float) -> str:

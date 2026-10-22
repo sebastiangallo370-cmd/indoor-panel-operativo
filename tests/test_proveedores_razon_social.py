@@ -38,6 +38,12 @@ class PrecioCop(unittest.TestCase):
         self.assertEqual(p._limpiar_extra('precio_sin_iva', '1.250.000'), '$ 1.250.000')
         self.assertEqual(p._numero('7,93'), 7.93)
 
+    def test_el_gramaje_con_el_mismo_formato(self):
+        self.assertEqual(p._limpiar_extra('gramaje', '147'), '147')
+        self.assertEqual(p._limpiar_extra('gramaje', '147.5'), '147,5')
+        self.assertEqual(p._limpiar_extra('gramaje', '147,5 g/m2'), '147,5')
+        self.assertEqual(p._limpiar_extra('gramaje', '1200'), '1.200')
+
 
 if __name__ == '__main__':
     unittest.main()
