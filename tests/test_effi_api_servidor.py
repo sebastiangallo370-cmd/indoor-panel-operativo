@@ -44,5 +44,15 @@ class PedidoServidor(unittest.TestCase):
                 effi_api.articulo('100', '1234')   # un ID que no existe no se cambia por la referencia
 
 
+class AjusteInventario(unittest.TestCase):
+    def test_el_ajuste_va_a_una_sola_bodega_con_el_delta_firmado_y_clave_de_reintento(self):
+        enviados = []
+        with mock.patch.object(effi_api, '_peticion', lambda metodo, ruta, params=None, cuerpo=None, reintento=True: enviados.append((metodo, ruta, cuerpo)) or {'data': {'id': 77}}):
+            r = effi_api.crear_ajuste('sm-abc12345', 21, 6082, -12.5, 'Prueba')
+        metodo, ruta, c = enviados[0]
+        self.assertEqual((metodo, ruta, r['id']), ('POST', 'ajuste_inventario', '77'))
+        self.assertEqual((c['bodega'], c['articulo'], c['cantidad'], c['idempotency_key']), (21, ['6082'], [-12.5], 'sm-abc12345'))
+
+
 if __name__ == '__main__':
     unittest.main()

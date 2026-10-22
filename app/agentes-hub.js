@@ -9,7 +9,7 @@
     // TRAZO es su propio desplegable: DRACO se atiende en el chat de Agentes, pero aparece aparte de los de Edición y deja escrito «draco » para pedirle
     { id: 'trazo', kind: 'draco', nombre: 'TRAZOS', agentes: [['DRACO', 'Trazos en Optitex Mark']] },   // su propia pantalla (draco-panel.js): cola de órdenes, DXF por talla y conversación con DRACO
     { id: 'ecommerce', kind: 'ecommerce', nombre: 'ECOMMERCE', agentes: [['ALMA', 'Descarga las órdenes'], ['BRISA', 'Exporta las tallas'], ['CIRO', 'PDF y Google Sheets']] },
-    { id: 'zeus', kind: 'zeus', nombre: 'INVENTARIOS', agentes: [['ZEUS', 'Tela y órdenes de compra'], ['MINIMAXIMAN', 'Mantiene las telas entre su mínimo y su máximo', 'minimaximan']] },   // el tercer dato es la pantalla propia del agente
+    { id: 'zeus', kind: 'zeus', nombre: 'INVENTARIOS', agentes: [['ZEUS', 'Tela y órdenes de compra'], ['MINIMAXIMAN', 'Mantiene las telas entre su mínimo y su máximo', 'minimaximan'], ['STOCKMAN', 'Alinea el inventario del panel con Effi', 'stockman']] },   // el tercer dato es la pantalla propia del agente
     { id: 'club', kind: 'club', nombre: 'COMERCIAL', agentes: [['EFFITRON', 'Cotización de las reposiciones']] },
   ];
   const ROBOT = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="8" width="15" height="11" rx="3"/><path d="M12 8V4.6"/><circle cx="12" cy="3.6" r="1.1"/><circle cx="9" cy="13" r="1.2"/><circle cx="15" cy="13" r="1.2"/><path d="M9.5 16.4h5M2.5 12.5v3M21.5 12.5v3"/></svg>';
@@ -43,7 +43,7 @@
   #agentes-hub .ah-ag b{font:800 10px Arial!important;letter-spacing:.08em!important}
   #agentes-hub .ah-lista small{font:600 10px Arial;color:#9aa893}
   @keyframes ahIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
-  #open-ecommerce,#open-zeus,#open-minimaximan,#open-agentes,#open-agentes-hub{display:none!important}   /* los agentes ya no van en el menú de la cuenta: se abren con el robot */
+  #open-ecommerce,#open-zeus,#open-minimaximan,#open-stockman,#open-agentes,#open-agentes-hub{display:none!important}   /* los agentes ya no van en el menú de la cuenta: se abren con el robot */
   `;
   document.head.appendChild(css);
 

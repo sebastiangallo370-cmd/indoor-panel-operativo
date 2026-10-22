@@ -214,6 +214,21 @@ def crear_orden(item_id, referencia: str, metros: float, nombre_proveedor: str, 
     return {'oc': str(data.get('id')), 'detalle': f"API Effi {data.get('id_transaccion') or data.get('id')} · {res['proveedor'][:40]} · {metros:g} MTS · total ${data.get('total') or res['total']}"}
 
 
+def crear_ajuste(clave: str, bodega: int, articulo_id, delta: float, observacion: str) -> dict:
+    """POST /ajuste_inventario: suma (delta > 0) o resta (delta < 0) metros de un artículo en UNA bodega. Con la misma clave un reintento no crea otro ajuste (409 → se devuelve el ya creado)."""
+    cuerpo = {'idempotency_key': str(clave)[:36], 'sucursal': int(os.getenv('EFFI_SUCURSAL', '1')), 'bodega': int(bodega), 'observacion': str(observacion)[:250],
+              'articulo': [str(articulo_id)], 'cantidad': [float(delta)]}
+    try:
+        data = _peticion('POST', 'ajuste_inventario', cuerpo=cuerpo).get('data') or {}
+    except EffiError as e:
+        if e.estado != 409:
+            raise
+        data = (e.cuerpo.get('data') or {}) if isinstance(e.cuerpo, dict) else {}
+        if not data.get('id'):
+            raise EffiError('Effi dice que este ajuste ya se creó, pero no devolvió su número: revísalo en Inventario > Ajustes', 409)
+    return {'id': str(data.get('id')), 'total': data.get('total')}
+
+
 def forma_pago_id(dias: int) -> int:
     """Id de la forma de pago de Effi para «N días» (Contado = 0 días)."""
     nombre = 'contado' if int(dias) == 0 else f'{int(dias)} días'

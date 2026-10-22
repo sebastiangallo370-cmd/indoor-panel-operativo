@@ -40,6 +40,8 @@ ETIQUETAS = [
     ('DELETE', r'^/api/produccion/operaciones/evento/\d+$', 'Producción', 'Borró un evento de operario'),
     ('PUT', r'^/api/proveedores-tela$', 'Estándar 2026', 'Eligió el proveedor de una tela'),
     ('POST', r'^/api/zeus/anular$', 'Agente inventario', 'Anuló una orden de compra en Effi'),
+    ('POST', r'^/api/stockman/ajustar$', 'STOCKMAN', 'Ajustó en Effi el stock de una tela para igualarlo al panel'),
+    ('PUT', r'^/api/stockman/activar$', 'STOCKMAN', 'Prendió o apagó a STOCKMAN'),
     ('POST', r'^/api/minimaximan/anular$', 'MINIMAXIMAN', 'Anuló una orden de compra en Effi'),
     ('POST', r'^/api/minimaximan/modificar$', 'MINIMAXIMAN', 'Modificó los metros de una orden de compra'),
     ('POST', r'^/api/minimaximan/enviar-proveedor$', 'MINIMAXIMAN', 'Aprobó y envió una orden de compra al proveedor'),
