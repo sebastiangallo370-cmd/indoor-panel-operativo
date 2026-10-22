@@ -88,6 +88,14 @@
   .mm-t.rojo{color:#ff9d93}.mm-t.azul{color:#9cc6ff}.mm-t.ambar{color:#ffd98a}.mm-t.verde{color:#a6f0c6}.mm-t>*{color:#e8f0e0}.mm-t .mm-big b{color:#fff}
   .mm-pie{display:flex;justify-content:space-between;gap:6px;padding-top:12px;border-top:1px solid rgba(255,255,255,.12)}
   .mm-pie span{display:grid;gap:2px}.mm-pie small{font:800 8.5px Arial;letter-spacing:.14em;color:#9fb096}.mm-pie b{font:800 15px Arial;color:#fff}.mm-pie .fin b{color:#8fe9b3}
+  .mm-top{display:flex;flex-wrap:wrap;align-items:center;gap:10px 12px;padding:10px 16px}
+  .mm-nom{display:grid;margin-right:6px}.mm-nom h2{margin:0;font:900 20px Arial;letter-spacing:.08em;background:linear-gradient(90deg,#fff,#9ff0c0);-webkit-background-clip:text;background-clip:text;color:transparent}.mm-nom small{font:11px Arial;color:#9fb096}
+  .mm-top .mm-b{padding:7px 12px;font-size:11px}.mm-sep{width:1px;align-self:stretch;background:rgba(255,255,255,.18);margin:0 4px}
+  .mm-top .mm-kpis{display:flex;flex-wrap:wrap;gap:8px}
+  .mm-top .mm-kpi{display:flex;align-items:center;gap:8px;padding:6px 13px;border-radius:99px}.mm-top .mm-kpi b{display:inline;font:900 15px Arial}.mm-top .mm-kpi span{font-size:9.5px}
+  .mm-busca{display:flex;gap:8px;margin-left:auto;flex:1;justify-content:flex-end;min-width:220px}.mm-busca input{flex:1;max-width:340px;height:34px;border-radius:99px;border:1px solid rgba(255,255,255,.22);background:rgba(0,0,0,.3);color:#fff;font:13px Arial;padding:0 14px;outline:0}.mm-busca select{height:34px;border-radius:99px;border:1px solid rgba(255,255,255,.22);background:rgba(0,0,0,.3);color:#fff;font:12px Arial;padding:0 10px}
+  .mm-cuerpo{gap:14px}
+  .mm-top .mm-b{width:auto!important;flex:none!important;display:inline-block!important}.mm-top .mm-kpis{display:flex!important;flex-direction:row!important;flex-wrap:wrap;width:auto!important;flex:none!important}.mm-top .mm-kpi{width:auto!important;flex:none!important;min-width:0!important;height:auto!important}.mm-top .mm-sw{flex:none}
   .mm-cent{display:grid;grid-template-columns:92px minmax(0,1fr);gap:16px;align-items:center}
   .mm-aro{--c:#6fe39a;box-sizing:border-box;width:92px;height:92px;border-radius:50%;padding:7px;background:conic-gradient(var(--c) calc(var(--p)*1%),rgba(255,255,255,.1) 0);box-shadow:0 0 22px -4px var(--c),inset 0 0 0 1px rgba(255,255,255,.2);display:grid;transition:transform .3s;animation:mmGira .9s cubic-bezier(.2,.8,.2,1) backwards}
   .mm-aro>div{border-radius:50%;background:#0c120e;display:grid;place-content:center;text-align:center;box-shadow:inset 0 0 14px rgba(0,0,0,.7)}
@@ -175,13 +183,14 @@
     const kpi = (k, n, rotulo, tono) => '<button type="button" class="mm-glass mm-kpi' + (filtro === k ? ' on' : '') + '" data-mm-filtro="' + k + '" data-lq="' + (r.telas ? Math.round(n / r.telas * 100) : 0) + '" data-lq-tone="' + tono + '" data-lq-nopct><b>' + n + '</b><span>' + rotulo + '</span></button>';
     const resto = compras.filter(c => !esperan.includes(c));
     panel.querySelector('.mm').innerHTML =
-      '<header class="mm-glass mm-hd"><div><h2>MINIMAXIMAN</h2><div class="mm-sub">Telas entre su mínimo y su máximo · revisado ' + hora(a.ultima) + '</div></div>' +
-      '<div class="mm-ctl"><div class="mm-sw' + (activo ? ' on' : '') + '"><i></i><span>' + (activo ? 'ACTIVO' : 'APAGADO') + '</span><button type="button" data-mm-activar="' + (activo ? 0 : 1) + '" aria-label="Activar o apagar MINIMAXIMAN"></button></div>' +
-      '<button type="button" class="mm-b" data-mm-revisar' + (ocupado ? ' disabled' : '') + '>↻ ' + (ocupado ? 'REVISANDO…' : 'REVISAR') + '</button></div></header>' +
+      '<div class="mm-glass mm-top"><div class="mm-nom"><h2>MINIMAXIMAN</h2><small>revisado ' + hora(a.ultima) + '</small></div>' +
+      '<div class="mm-sw' + (activo ? ' on' : '') + '"><i></i><span>' + (activo ? 'ACTIVO' : 'APAGADO') + '</span><button type="button" data-mm-activar="' + (activo ? 0 : 1) + '" aria-label="Activar o apagar MINIMAXIMAN"></button></div>' +
+      '<button type="button" class="mm-b" data-mm-revisar' + (ocupado ? ' disabled' : '') + '>↻ ' + (ocupado ? 'REVISANDO…' : 'REVISAR') + '</button>' +
+      '<span class="mm-sep"></span><div class="mm-kpis">' + kpi('atencion', nAtencion, 'ATENCIÓN', 'rojo') + kpi('en_camino', r.en_camino, 'EN CAMINO', 'azul') + kpi('ok', r.ok, 'EN RANGO', 'verde') + kpi('todas', r.telas, 'TELAS', 'gris') + '</div>' +
+      '<div class="mm-busca"><input type="search" data-mm-buscar placeholder="Buscar…" value="' + esc(buscar) + '" autocomplete="off">' +
+      '<select data-mm-orden aria-label="Ordenar">' + [['estado', 'Urgentes primero'], ['pedir', 'Más por pedir'], ['faltante', 'Más cerca de cero'], ['nombre', 'A-Z']].map(o => '<option value="' + o[0] + '"' + (orden === o[0] ? ' selected' : '') + '>' + o[1] + '</option>').join('') + '</select></div></div>' +
       (a.error ? '<div class="mm-vacio">' + esc(a.error) + '</div>' : '') +
-      '<div class="mm-kpis">' + kpi('atencion', nAtencion, 'ATENCIÓN', 'rojo') + kpi('en_camino', r.en_camino, 'EN CAMINO', 'azul') + kpi('ok', r.ok, 'EN RANGO', 'verde') + kpi('todas', r.telas, 'TELAS', 'gris') + '</div>' +
-      '<div class="mm-cuerpo"><div class="mm-glass mm-barra"><input type="search" data-mm-buscar placeholder="Buscar…" value="' + esc(buscar) + '" autocomplete="off">' +
-      '<select data-mm-orden aria-label="Ordenar">' + [['estado', 'Urgentes primero'], ['pedir', 'Más por pedir'], ['faltante', 'Más cerca de cero'], ['nombre', 'A-Z']].map(o => '<option value="' + o[0] + '"' + (orden === o[0] ? ' selected' : '') + '>' + o[1] + '</option>').join('') + '</select></div>' +
+      '<div class="mm-cuerpo">' +
       (esperan.length ? '<h3 class="mm-tit">ESPERAN TU APROBACIÓN <em>' + esperan.length + '</em></h3><div class="mm-lista">' + esperan.map(ocHtml).join('') + '</div>' : '') +
       '<div class="mm-lista-host"></div>' +
       (resto.length ? '<details class="mm-ant"><summary>ÓRDENES ANTERIORES (' + resto.length + ')</summary><div class="mm-lista">' + resto.map(ocHtml).join('') + '</div></details>' : '') + '</div>';
