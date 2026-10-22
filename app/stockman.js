@@ -69,7 +69,7 @@
       '<span class="mm-sep"></span><div class="mm-kpis">' + kpi('ajustar', r.ajustar + r.grande, 'DIFERENCIAS') + kpi('igual', r.igual, 'IGUALES') + kpi('sin_articulo', r.sin_articulo, 'SIN ARTÍCULO') + kpi('todo', r.telas, 'TODO') + '</div>' +
       '<div class="mm-busca"><input type="search" data-sm-buscar placeholder="Buscar…" value="' + esc(buscar) + '" autocomplete="off"></div></div>' +
       (a.error ? '<div class="mm-vacio">' + esc(a.error) + '</div>' : '') +
-      '<div class="mm-cuerpo">' + '<div class="mm-glass sm-hist sm-wh"><h3>WEBHOOK DE EFFI</h3><div>Dirección para que Effi avise al instante de cada ajuste de inventario:</div><div class="sm-url"><code>' + esc(location.origin + (datos.webhook || {}).ruta) + '</code><button type="button" class="mm-bt" data-sm-copiar>COPIAR</button></div><div>' + ((datos.webhook || {}).recibidos ? 'Avisos recibidos: ' + (datos.webhook || {}).recibidos + ' · el último ' + hora((datos.webhook || {}).ultimo) + ((datos.webhook || {}).secreto ? ' · firma: ' + ({ valida: 'válida ✔', no_coincide: 'NO coincide', sin_firma: 'el aviso no trae firma' }[(datos.webhook || {}).firma] || '—') : '') : 'Todavía no ha llegado ningún aviso de Effi (mientras tanto STOCKMAN revisa solo cada 2 minutos).') + '</div></div>' + '<div class="sm-host"></div>' + (cam ? '<div class="mm-glass sm-hist"><h3>CAMBIOS DEL PANEL QUE IRÁN A EFFI (SOLO LA BODEGA QUE CAMBIÓ)</h3>' + cam + '</div>' : '') + (pend ? '<div class="mm-glass sm-hist"><h3>AJUSTES HECHOS EN EFFI QUE LLEGARÁN AL PANEL AL ACTIVAR</h3>' + pend + '</div>' : '') + (hist ? '<div class="mm-glass sm-hist"><h3>ÚLTIMOS AJUSTES</h3>' + hist + '</div>' : '') + '</div>';
+      '<div class="mm-cuerpo">' + '<div class="mm-glass sm-hist sm-wh"><div>🔗 <b>Webhook de Effi</b> · ' + ((datos.webhook || {}).recibidos ? 'conectado · avisos recibidos: ' + (datos.webhook || {}).recibidos + ' · el último ' + hora((datos.webhook || {}).ultimo) + ((datos.webhook || {}).secreto ? ' · firma: ' + ({ valida: 'válida ✔', no_coincide: 'NO coincide', sin_firma: 'el aviso no trae firma' }[(datos.webhook || {}).firma] || '—') : '') : 'sin avisos todavía (mientras tanto STOCKMAN revisa solo cada 2 minutos)') + '</div></div>' + '<div class="sm-host"></div>' + (cam ? '<div class="mm-glass sm-hist"><h3>CAMBIOS DEL PANEL QUE IRÁN A EFFI (SOLO LA BODEGA QUE CAMBIÓ)</h3>' + cam + '</div>' : '') + (pend ? '<div class="mm-glass sm-hist"><h3>AJUSTES HECHOS EN EFFI QUE LLEGARÁN AL PANEL AL ACTIVAR</h3>' + pend + '</div>' : '') + (hist ? '<div class="mm-glass sm-hist"><h3>ÚLTIMOS AJUSTES</h3>' + hist + '</div>' : '') + '</div>';
     pintarLista();
   }
 
@@ -116,8 +116,6 @@
         try { await api('/api/stockman/ajustar', { method: 'POST', body: JSON.stringify({ codigo: aj.dataset.smAjustar }) }); } catch (x) { alert(x.message); }
         firma = ''; cargar(); return;
       }
-      const cp = e.target.closest('[data-sm-copiar]');
-      if (cp) { try { await navigator.clipboard.writeText(location.origin + datos.webhook.ruta); cp.textContent = 'COPIADO'; setTimeout(() => { cp.textContent = 'COPIAR'; }, 1500); } catch (_) { prompt('Copia esta dirección:', location.origin + datos.webhook.ruta); } return; }
       const s = e.target.closest('[data-sm-activar]');
       if (s) {
         const quiere = s.dataset.smActivar === '1';

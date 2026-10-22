@@ -491,7 +491,7 @@ def estado(request: Request):
     return {'agente': {'nombre': NOMBRE, 'activo': d['activo'], 'ultima': d['ultima'], 'error': d['error']},
             'resumen': {'telas': len(filas), 'ajustar': cuenta('ajustar'), 'grande': cuenta('grande'), 'igual': cuenta('igual'), 'sin_articulo': cuenta('sin_articulo')},
             'telas': filas, 'ajustes': d['ajustes'][-30:][::-1], 'pendientes': d['pendientes'], 'cambios': _cambios_para_ver(),
-            'webhook': {'ruta': f"/api/stockman/webhook/{_clave_webhook()}", 'recibidos': d['webhook'].get('recibidos', 0), 'ultimo': d['webhook'].get('ultimo', ''),
+            'webhook': {'recibidos': d['webhook'].get('recibidos', 0), 'ultimo': d['webhook'].get('ultimo', ''),
                         'firma': d['webhook'].get('firma', ''), 'cabeceras': d['webhook'].get('cabeceras', []), 'secreto': bool(d['webhook'].get('secreto'))}}
 
 
