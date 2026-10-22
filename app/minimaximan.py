@@ -35,6 +35,15 @@ MAX_NUEVAS = 5          # tope de órdenes nuevas por revisión (por si algo sal
 MAX_INTENTOS = 3        # una orden con error se reintenta hasta 3 veces; después espera a que una persona la revise
 NOTIFICA_DIAS = 7
 NOMBRE = 'MINIMAXIMAN'
+MENSAJE_PROVEEDOR = (
+    '{saludo},\n\n'
+    'Desde INDOOR SPORT SAS le enviamos la orden de compra N.° {oc}:\n\n'
+    '  · Tela: {tela}\n'
+    '  · Cantidad: {metros:g} metros\n\n'
+    'Por favor confirme la recepción de este pedido y la fecha estimada de despacho respondiendo a este correo.\n\n'
+    'Muchas gracias por su atención.\n\n'
+    'INDOOR SPORT SAS\nÁrea de Compras e Inventario\nhttps://produccion.cloud'
+)
 _permitido: Callable[[str], bool] = lambda usuario: True
 _auth: Callable = lambda request: ''
 
@@ -181,7 +190,8 @@ def _correo_creada(c: dict) -> None:
         alertas_correo.enviar(f"Orden de compra de tela creada en Effi: {c['tela']} (MINIMAXIMAN)",
                               f"MINIMAXIMAN creó la orden de compra {c['oc']} en Effi para dejar la tela en su stock máximo.\n\nTela: {c['tela']}\nMetros pedidos: {c['metros']:g} MTS\n"
                               f"Había {c['stock']:g} mts (mínimo {c['minimo']:g}, máximo {c['maximo']:g}).\nProveedor: {c['proveedor']}\n\nEl PDF de la orden está en Effi (Compras > Órdenes de compra).\n\n"
-                              'Ver: https://produccion.cloud (robot de agentes > INVENTARIOS > MINIMAXIMAN)', para=zeus.destinatarios())
+                              'LA ORDEN TODAVÍA NO SE HA ENVIADO AL PROVEEDOR: espera tu aprobación.\nPara aprobarla y enviarla entra a https://produccion.cloud (robot de agentes > INVENTARIOS > MINIMAXIMAN) '
+                              'y pulsa «Enviar al proveedor» en esa orden.', para=zeus.destinatarios())
     except Exception:   # noqa: BLE001
         log.exception('MINIMAXIMAN: no se pudo enviar el correo de la orden')
 
@@ -229,7 +239,7 @@ def alertas_para(usuario: str) -> list[dict]:
         except (ValueError, TypeError):
             pass
         salida.append({'tipo': 'compra', 'orden': 'OC ' + str(c['oc']), 'cliente': '', 'severidad': 'media', 'titulo': f"MINIMAXIMAN pidió tela: {c['tela']}",
-                       'detalle': f"{c['metros']:g} MTS para llegar al máximo · orden de compra {c['oc']} en Effi", 'texto': f"MINIMAXIMAN {c['tela']} {c['metros']:g} MTS · OC {c['oc']}"})
+                       'detalle': f"{c['metros']:g} MTS para llegar al máximo · orden de compra {c['oc']} en Effi" + (' · ya enviada al proveedor' if (c.get('envio_proveedor') or {}).get('estado') == 'enviada' else ' · ESPERA TU APROBACIÓN para enviarla al proveedor'), 'texto': f"MINIMAXIMAN {c['tela']} {c['metros']:g} MTS · OC {c['oc']}"})
     return salida[:10]
 
 
@@ -269,6 +279,42 @@ def estado(request: Request):
             'resumen': {'telas': len(r), 'pedir': cuenta('pedir'), 'en_camino': cuenta('en_camino'), 'sin_proveedor': cuenta('sin_proveedor'), 'sin_effi': cuenta('sin_effi'),
                         'error': cuenta('error'), 'ok': cuenta('ok')},
             'telas': r, 'compras': e['compras'][-15:][::-1]}
+
+
+@router.post('/enviar-proveedor')
+def enviar_proveedor(request: Request, payload: dict):
+    """APROBACIÓN: una persona autoriza que la orden de compra creada por MINIMAXIMAN se envíe al correo del proveedor (el de INFORMACIÓN TELA). Nunca sale sola."""
+    usuario = _usuario(request)
+    with _lock:
+        e = _leer()
+        c = next((x for x in e['compras'] if x['id'] == payload.get('id')), None)
+        if not c or c['estado'] != 'creada' or not c.get('oc'):
+            raise HTTPException(404, 'Esa orden de compra todavía no está creada en Effi')
+        previo = c.get('envio_proveedor') or {}
+        if previo.get('estado') == 'enviada' and not payload.get('otra_vez'):
+            raise HTTPException(409, 'Esta orden ya se envió al proveedor')
+    tela = next((t for t in proveedores_tela.telas() if str(t['codigo']) == c['codigo']), {})
+    correo = str(tela.get('correo') or '').strip()
+    if not correo:
+        raise HTTPException(400, 'Falta el correo del proveedor de esta tela: escríbelo en INFORMACIÓN TELA (Correo proveedor) y vuelve a intentarlo')
+    from app import alertas_correo
+    if not alertas_correo.puede_enviar():
+        raise HTTPException(503, 'Falta configurar la cuenta de correo del servidor')
+    vendedor = str(tela.get('vendedor') or '').strip()
+    try:
+        alertas_correo.enviar(f"INDOOR SPORT SAS · Orden de compra {c['oc']} · {c['tela']}",
+                              MENSAJE_PROVEEDOR.format(saludo=('Cordial saludo, ' + vendedor) if vendedor else 'Cordial saludo', oc=c['oc'], tela=c['tela'], metros=float(c['metros'])), para=correo)
+    except Exception as exc:   # noqa: BLE001
+        log.exception('MINIMAXIMAN: no se pudo enviar la orden al proveedor')
+        raise HTTPException(502, 'No pude enviar el correo: ' + str(exc)[:120])
+    with _lock:
+        e = _leer()
+        for x in e['compras']:
+            if x['id'] == c['id']:
+                x['envio_proveedor'] = {'estado': 'enviada', 'correo': correo, 'por': usuario, 'at': _iso()}
+        _guardar(e)
+    log.warning('MINIMAXIMAN: orden %s enviada al proveedor %s (%s) con la aprobación de %s', c['oc'], c['proveedor'], correo, usuario)
+    return {'ok': True, 'correo': correo}
 
 
 @router.post('/revisar')

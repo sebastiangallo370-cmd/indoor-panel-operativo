@@ -48,5 +48,63 @@ class MinimaximanTest(unittest.TestCase):
         self.assertEqual(self.evaluar(tela(250, 300, 200))['estado'], 'revisar')
 
 
+class AprobacionTest(unittest.TestCase):
+    """La orden creada por MINIMAXIMAN solo sale al proveedor cuando una persona la aprueba."""
+
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.enviados = []
+        from app import alertas_correo
+        self.parches = [mock.patch.object(minimaximan, '_file', Path(self.dir.name) / 'mm.json'),
+                        mock.patch.object(alertas_correo, 'puede_enviar', lambda: True),
+                        mock.patch.object(alertas_correo, 'enviar', lambda asunto, cuerpo, para=None, adjuntos=None: self.enviados.append((asunto, cuerpo, para)))]
+        for p in self.parches:
+            p.start()
+        minimaximan.configurar(lambda request: 'ADMIN', lambda u: True)
+        e = minimaximan._leer()
+        e['compras'] = [{'id': 1, 'codigo': '100', 'tela': 'MONTECATINI BLANCO', 'proveedor': 'LINDATEXTIL', 'metros': 250.0, 'estado': 'creada', 'oc': '133', 'stock': 250, 'minimo': 300, 'maximo': 500},
+                        {'id': 2, 'codigo': '100', 'tela': 'MONTECATINI BLANCO', 'proveedor': 'LINDATEXTIL', 'metros': 50.0, 'estado': 'error', 'oc': ''}]
+        minimaximan._guardar(e)
+
+    def tearDown(self):
+        for p in self.parches:
+            p.stop()
+        self.dir.cleanup()
+
+    def con_correo(self, correo='ventas@lindatextil.com', vendedor='JADER'):
+        return mock.patch.object(minimaximan.proveedores_tela, 'telas', lambda: [{'codigo': '100', 'correo': correo, 'vendedor': vendedor}])
+
+    def test_envia_solo_al_aprobar_y_queda_registrado(self):
+        self.assertEqual(self.enviados, [])   # crear la orden no envía nada al proveedor
+        with self.con_correo():
+            r = minimaximan.enviar_proveedor(object(), {'id': 1})
+        self.assertEqual(r['correo'], 'ventas@lindatextil.com')
+        self.assertEqual(len(self.enviados), 1)
+        self.assertEqual(self.enviados[0][2], 'ventas@lindatextil.com')
+        self.assertIn('133', self.enviados[0][1])
+        self.assertIn('250', self.enviados[0][1])
+        env = minimaximan._leer()['compras'][0]['envio_proveedor']
+        self.assertEqual((env['estado'], env['por']), ('enviada', 'ADMIN'))
+
+    def test_no_se_envia_dos_veces_ni_sin_correo_ni_sin_orden(self):
+        from fastapi import HTTPException
+        with self.con_correo():
+            minimaximan.enviar_proveedor(object(), {'id': 1})
+            with self.assertRaises(HTTPException) as dos:
+                minimaximan.enviar_proveedor(object(), {'id': 1})
+            self.assertEqual(dos.exception.status_code, 409)
+            with self.assertRaises(HTTPException) as error:
+                minimaximan.enviar_proveedor(object(), {'id': 2})   # la orden con error no existe en Effi
+            self.assertEqual(error.exception.status_code, 404)
+        with self.con_correo(correo=''):
+            e = minimaximan._leer()
+            e['compras'][0].pop('envio_proveedor', None)
+            minimaximan._guardar(e)
+            with self.assertRaises(HTTPException) as sin:
+                minimaximan.enviar_proveedor(object(), {'id': 1})
+            self.assertEqual(sin.exception.status_code, 400)
+        self.assertEqual(len(self.enviados), 1)
+
+
 if __name__ == '__main__':
     unittest.main()

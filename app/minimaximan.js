@@ -50,6 +50,12 @@
   };
   const hora = iso => iso ? new Date(iso).toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—';
 
+  function envioHtml(c) {
+    const e = c.envio_proveedor || {};
+    if (e.estado === 'enviada') return '<div class="mm-nota">✔ Enviada al proveedor (' + esc(e.correo) + ') · aprobó ' + esc(e.por) + ' · ' + hora(e.at) + ' <button type="button" class="mm-b" data-mm-prov="' + c.id + '" data-otra="1" data-oc="' + esc(c.oc) + '">Reenviar</button></div>';
+    return '<div class="mm-nota">⏳ Esperando tu aprobación para enviarla al proveedor · <button type="button" class="mm-b" data-mm-prov="' + c.id + '" data-oc="' + esc(c.oc) + '">✉ Enviar al proveedor</button></div>';
+  }
+
   function tarjeta(t) {
     const [txt, tono] = ESTADO[t.estado] || ['—', ''];
     const tope = Math.max(t.maximo, t.stock + (t.en_cola || 0) + (t.por_recibir || 0), 1) * 1.05;
@@ -73,7 +79,7 @@
       (a.error ? '<div class="mm-vacio">' + esc(a.error) + '</div>' : '') +
       '<div class="mm-kpis">' + kpi('pedir', r.pedir, 'POR PEDIR') + kpi('en_camino', r.en_camino, 'EN CAMINO') + kpi('sin_proveedor', r.sin_proveedor, 'SIN PROVEEDOR') + kpi('ok', r.ok, 'EN RANGO') + kpi('todas', r.telas, 'TELAS CON MÍN. Y MÁX.') + '</div>' +
       '<div class="mm-acc"><button type="button" class="mm-b" data-mm-revisar' + (ocupado ? ' disabled' : '') + '>↻ ' + (ocupado ? 'REVISANDO…' : 'REVISAR AHORA') + '</button><span class="mm-meta">Última revisión: ' + hora(a.ultima) + ' · se repite sola cada 10 minutos' + (activo ? '' : ' · APAGADO: no crea ninguna compra') + '</span></div>' +
-      (datos.compras && datos.compras.length ? '<section class="mm-glass mm-t"><h4><span>ÓRDENES QUE HA CREADO</span></h4>' + datos.compras.map(c => '<div class="mm-nums"><span><b>' + esc(c.tela) + '</b> · ' + num(c.metros) + ' mts</span><span>' + (c.estado === 'creada' ? 'OC ' + esc(c.oc) : (c.estado === 'error' ? 'ERROR (' + (c.intentos || 0) + '/3)' : 'creando…')) + ' · ' + hora(c.creada || c.creado) + '</span></div>' + (c.estado === 'error' ? '<div class="mm-nota">' + esc(c.detalle) + '</div>' : '')).join('') + '</section>' : '') +
+      (datos.compras && datos.compras.length ? '<section class="mm-glass mm-t"><h4><span>ÓRDENES QUE HA CREADO</span></h4>' + datos.compras.map(c => '<div class="mm-nums"><span><b>' + esc(c.tela) + '</b> · ' + num(c.metros) + ' mts</span><span>' + (c.estado === 'creada' ? 'OC ' + esc(c.oc) : (c.estado === 'error' ? 'ERROR (' + (c.intentos || 0) + '/3)' : 'creando…')) + ' · ' + hora(c.creada || c.creado) + '</span></div>' + (c.estado === 'creada' ? envioHtml(c) : '') + (c.estado === 'error' ? '<div class="mm-nota">' + esc(c.detalle) + '</div>' : '')).join('') + '</section>' : '') +
       (lista.length ? '<section class="mm-lista">' + lista.map(tarjeta).join('') + '</section>' : '<div class="mm-vacio">' + (r.telas ? 'No hay telas en este grupo.' : 'Ninguna tela tiene stock mínimo y máximo todavía: se anotan en INFORMACIÓN TELA.') + '</div>') +
       '<ul class="mm-meta" style="margin:0;padding-left:18px">' + (a.funciones || []).map(f => '<li>' + esc(f) + '</li>').join('') + '</ul>';
     if (window.liquidStats && window.liquidStats.refresh) window.liquidStats.refresh(panel);
@@ -106,6 +112,14 @@
       const f = e.target.closest('[data-mm-filtro]'); if (f) { filtro = f.dataset.mmFiltro; pintar(); return; }
       const r = e.target.closest('[data-mm-revisar]');
       if (r && !ocupado) { ocupado = true; pintar(); try { await api('/api/minimaximan/revisar', { method: 'POST' }); } catch (x) { alert(x.message); } ocupado = false; await cargar(); return; }
+      const p = e.target.closest('[data-mm-prov]');
+      if (p) {
+        const otra = !!p.dataset.otra;
+        if (!confirm((otra ? 'Esta orden ya se envió. ¿Enviarla otra vez' : '¿Aprobar y enviar la orden de compra ' + (p.dataset.oc || '')) + ' al correo del proveedor?\nEl proveedor recibirá el mensaje de Indoor Sport con el número de la orden, la tela y los metros.')) return;
+        p.disabled = true;
+        try { await api('/api/minimaximan/enviar-proveedor', { method: 'POST', body: JSON.stringify({ id: Number(p.dataset.mmProv), otra_vez: otra }) }); } catch (x) { alert(x.message); }
+        cargar(); return;
+      }
       const s = e.target.closest('[data-mm-activar]');
       if (s) {
         const quiere = s.dataset.mmActivar === '1';
