@@ -11,7 +11,7 @@
   const ESTADO = { pedir: ['POR PEDIR', 'rojo'], error: ['CON ERROR', 'rojo'], sin_proveedor: ['SIN PROVEEDOR', 'ambar'], sin_effi: ['NO LO VEO EN EFFI', 'ambar'], revisar: ['REVISAR RANGO', 'ambar'], pausa: ['EN PAUSA', 'ambar'], sin_id: ['FALTA ID EFFI', 'ambar'], en_camino: ['EN CAMINO', 'azul'], ok: ['EN RANGO', 'verde'] };
   const GRUPOS = [['atencion', 'ATENCIÓN'], ['en_camino', 'EN CAMINO'], ['ok', 'EN RANGO'], ['todas', 'TODAS']];
   let guardado = {}; try { guardado = JSON.parse(localStorage.getItem('mm-vista') || '{}'); } catch (_) { /* sin almacenamiento */ }
-  let panel = null, tab = null, timer = null, datos = null, filtro = guardado.filtro || 'atencion', buscar = '', orden = guardado.orden || 'estado', ocupado = false, firma = '';
+  let panel = null, tab = null, timer = null, datos = null, filtro = ['aprobacion', 'aprobado'].includes(guardado.filtro) ? guardado.filtro : 'aprobacion', buscar = '', orden = guardado.orden || 'estado', ocupado = false, firma = '';
   const recordar = () => { try { localStorage.setItem('mm-vista', JSON.stringify({ filtro, orden })); } catch (_) { /* sin almacenamiento */ } };
 
   const css = document.createElement('style');
@@ -230,13 +230,16 @@
     return d;
   };
   const hora = iso => iso ? new Date(iso).toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—';
-  const coincide = t => filtro === 'todas' || (filtro === 'atencion' && ['pedir', 'error', 'sin_id', 'sin_proveedor', 'sin_effi', 'revisar'].includes(t.estado)) || t.estado === filtro;
+  // La orden de compra vigente de la tela: EN APROBACIÓN = creada y falta que el encargado la apruebe; APROBADO = ya se envió al proveedor
+  const ordenDe = t => (datos.compras || []).find(x => x.codigo === t.codigo && x.estado === 'creada' && x.oc);
+  const enviada = c => (c.envio_proveedor || {}).estado === 'enviada';
+  const coincide = t => { const c = ordenDe(t); return !!c && (filtro === 'aprobado' ? enviada(c) : !enviada(c)); };
   const PESO = { pedir: 0, error: 1, sin_proveedor: 2, sin_effi: 3, revisar: 4, en_camino: 5, ok: 6 };
   const ordenar = lista => lista.slice().sort((a, b) => orden === 'nombre' ? a.tela.localeCompare(b.tela) : orden === 'pedir' ? b.pedir - a.pedir : orden === 'faltante' ? (a.stock / a.minimo) - (b.stock / b.minimo) : (PESO[a.estado] - PESO[b.estado]) || a.tela.localeCompare(b.tela));
 
   // Botones de la orden que MINIMAXIMAN creó para esa tela (mientras no se haya enviado al proveedor se puede enviar, modificar o anular)
   function acciones(t) {
-    const c = (datos.compras || []).find(x => x.codigo === t.codigo && x.estado === 'creada' && x.oc);
+    const c = ordenDe(t);
     if (!c) return '';
     const e = c.envio_proveedor || {};
     if (e.estado === 'enviada') return '<div class="mm-ordenes"><div class="mm-ocinfo"><b>OC ' + esc(c.oc) + '</b> · ' + num(c.metros) + ' MTS<span class="ok">✔ Enviada al proveedor</span></div></div>';
@@ -277,23 +280,20 @@
     const foco = document.activeElement;
     if (foco && foco.matches && foco.matches('[data-mm-buscar]') && panel.contains(foco)) { pintarLista(); return; }   // no se redibuja todo mientras se escribe en el buscador
     const a = datos.agente, r = datos.resumen, activo = !!a.activo, compras = datos.compras || [];
-    const esperan = compras.filter(c => c.estado === 'creada' && (c.envio_proveedor || {}).estado !== 'enviada');
-    const nAtencion = r.pedir + (r.error || 0) + (r.sin_id || 0) + r.sin_proveedor + r.sin_effi;
-    const cuenta = { atencion: nAtencion, en_camino: r.en_camino, ok: r.ok, todas: r.telas };
+    const vigentes = compras.filter(c => c.estado === 'creada' && c.oc && datos.telas.some(t => t.codigo === c.codigo));
+    const nAprob = vigentes.filter(c => !enviada(c)).length, nEnv = vigentes.filter(enviada).length;
     const kpi = (k, n, rotulo, tono) => '<button type="button" class="mm-glass mm-kpi' + (filtro === k ? ' on' : '') + '" data-mm-filtro="' + k + '"><b>' + n + '</b><span>' + rotulo + '</span></button>';
-    const resto = compras.filter(c => !esperan.includes(c));
     panel.querySelector('.mm').innerHTML =
       '<div class="mm-glass mm-top"><div class="mm-nom"><img class="mm-logo" src="/marca-indoor.svg" alt="Indoor"><small>Revisado</small><b>' + hora(a.ultima) + '</b></div>' +
       '<div class="mm-sw' + (activo ? ' on' : '') + '"><i></i><span>' + (activo ? 'ACTIVO' : 'APAGADO') + '</span><button type="button" data-mm-activar="' + (activo ? 0 : 1) + '" aria-label="Activar o apagar MINIMAXIMAN"></button></div>' +
       '<button type="button" class="mm-b" data-mm-revisar' + (ocupado ? ' disabled' : '') + '>↻ ' + (ocupado ? 'REVISANDO…' : 'REVISAR') + '</button>' +
-      '<span class="mm-sep"></span><div class="mm-kpis">' + kpi('atencion', nAtencion, 'ATENCIÓN', 'rojo') + kpi('en_camino', r.en_camino, 'EN CAMINO', 'azul') + kpi('ok', r.ok, 'EN RANGO', 'verde') + kpi('todas', r.telas, 'TELAS', 'gris') + '</div>' +
+      '<span class="mm-sep"></span><div class="mm-kpis">' + kpi('aprobacion', nAprob, 'EN APROBACIÓN', 'ambar') + kpi('aprobado', nEnv, 'APROBADO', 'verde') + '</div>' +
       '<div class="mm-busca"><input type="search" data-mm-buscar placeholder="Buscar…" value="' + esc(buscar) + '" autocomplete="off">' +
       '</div></div>' +
       (a.error ? '<div class="mm-vacio">' + esc(a.error) + '</div>' : '') +
       '<div class="mm-cuerpo">' +
-      (esperan.length ? '<h3 class="mm-tit">ESPERAN TU APROBACIÓN <em>' + esperan.length + '</em></h3><div class="mm-lista">' + esperan.map(ocHtml).join('') + '</div>' : '') +
       '<div class="mm-lista-host"></div>' +
-      (resto.length ? '<details class="mm-ant"><summary>ÓRDENES ANTERIORES (' + resto.length + ')</summary><div class="mm-lista">' + resto.map(ocHtml).join('') + '</div></details>' : '') + '</div>';
+      '</div>';
     pintarLista();
     panel.querySelectorAll('.mm-stats b[data-n]').forEach(e => { const n = +e.dataset.n; if (!n || e.dataset.v === e.dataset.n) return; e.dataset.v = e.dataset.n; const t0 = performance.now(); (function paso(t) { const k = Math.min(1, (t - t0) / 700); e.textContent = num(Math.round(n * (1 - Math.pow(1 - k, 3)))); if (k < 1) requestAnimationFrame(paso); })(t0); });
     if (window.liquidStats && window.liquidStats.refresh) window.liquidStats.refresh(panel);
@@ -303,7 +303,7 @@
     const host = panel.querySelector('.mm-lista-host'); if (!host || !datos) return;
     const q = plano(buscar);
     const lista = ordenar(datos.telas.filter(t => coincide(t) && (!q || plano(t.tela + ' ' + t.codigo + ' ' + t.proveedor).includes(q))));
-    host.innerHTML = lista.length ? '<div class="mm-lista">' + lista.map(tarjeta).join('') + '</div>' : '<div class="mm-vacio">' + (datos.resumen.telas ? 'No hay telas con ese filtro.' : 'Ninguna tela tiene stock mínimo y máximo todavía: se anotan en INFORMACIÓN TELA.') + '</div>';
+    host.innerHTML = lista.length ? '<div class="mm-lista">' + lista.map(tarjeta).join('') + '</div>' : '<div class="mm-vacio">' + (filtro === 'aprobado' ? 'Ninguna orden enviada al proveedor todavía.' : 'Ninguna orden en aprobación.') + '</div>';
   }
 
   async function cargar() {
