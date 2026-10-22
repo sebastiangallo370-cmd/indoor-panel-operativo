@@ -166,6 +166,13 @@
   .mm-bt.env{grid-column:1/-1;background:linear-gradient(180deg,#e2fb78,#b4d83a);color:#16200a;border-color:rgba(255,255,255,.4)}
   .mm-bt.no{border-color:rgba(255,107,97,.55);color:#ffb3ac}
   .mm-t h4 small.mm-ide{margin-top:2px;color:var(--lima);letter-spacing:.1em}.mm-t h4 small.mm-ide.falta{color:#ffe0a0;opacity:.8}
+  /* sin letras montadas: nada se sale de la tarjeta */
+  .mm-t{min-width:0}.mm-t>*{min-width:0}
+  .mm-hero{flex-wrap:wrap;align-items:flex-end}.mm-big{min-width:0}.mm-acc{max-width:100%;box-sizing:border-box;white-space:nowrap}
+  .mm-medidor{margin:8px 0 12px!important}
+  .mm-pie{display:grid;grid-template-columns:repeat(auto-fit,minmax(0,1fr));gap:6px}.mm-pie small{letter-spacing:.06em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mm-acc small{letter-spacing:.12em}.mm-acc.bien b{font-size:22px}
+  .mm-t h4{align-items:flex-start}.mm-t h4>span{min-width:0}.mm-t h4 em{flex:none}
   .mm-t>*{position:relative;z-index:1}
   .mm-top{display:grid!important;grid-template-columns:auto auto auto minmax(0,1fr) minmax(220px,340px);align-items:center;gap:14px;padding:12px 18px}
   .mm-sep{display:none}
@@ -256,12 +263,12 @@
     const pct = v => Math.max(0, Math.min(100, v / tope * 100)).toFixed(1);
     const aviso = ['error', 'sin_id', 'sin_effi', 'revisar'].includes(t.estado) && t.nota ? '<div class="mm-nota">' + esc(t.nota) + '</div>' : '';   // el resto de estados ya se entiende con la etiqueta
     return '<article class="mm-glass mm-t ' + tono + '" style="animation-delay:' + Math.min(i * 25, 300) + 'ms"><h4><span>' + esc(t.tela) + '<small>' + esc(t.codigo) + ' · ' + esc(t.proveedor || 'SIN PROVEEDOR') + '</small><small class="mm-ide' + (t.id_effi ? '' : ' falta') + '">' + (t.id_effi ? 'ID EFFI ' + esc(t.id_effi) : 'SIN ID EFFI') + '</small></span><em>' + txt + '</em></h4>' +
-      '<div class="mm-hero"><div class="mm-big"><small>STOCK</small><div><b data-n="' + t.stock + '">' + num(t.stock) + '</b><em>MTS</em></div></div>' +
-      (t.pedir ? '<div class="mm-acc pide"><div><span>PEDIR</span><b>' + num(t.pedir) + '</b><em>MTS</em></div></div>' : t.por_recibir ? '<div class="mm-acc viene"><small>EN CAMINO</small><div><b>' + num(t.por_recibir) + '</b><em>MTS</em></div></div>' : '<div class="mm-acc bien"><small>NIVEL</small><div><b>' + Math.round(t.stock / Math.max(t.maximo, 1) * 100) + '%</b><em>DEL MÁX.</em></div></div>') + '</div>' +
+      '<div class="mm-hero"><div class="mm-big"><small>STOCK</small><div><b data-n="' + t.stock + '" style="font-size:' + (num(t.stock).length <= 3 ? 46 : num(t.stock).length === 4 ? 40 : 32) + 'px">' + num(t.stock) + '</b><em>MTS</em></div></div>' +
+      (t.pedir ? '<div class="mm-acc pide"><div><span>PEDIR</span><b>' + num(t.pedir) + '</b><em>MTS</em></div></div>' : t.por_recibir ? '<div class="mm-acc viene"><small>EN CAMINO</small><div><b>' + num(t.por_recibir) + '</b><em>MTS</em></div></div>' : '<div class="mm-acc bien"><small>DEL MÁXIMO</small><div><b>' + Math.round(t.stock / Math.max(t.maximo, 1) * 100) + '%</b></div></div>') + '</div>' +
       '<div class="mm-medidor" title="Hay ' + num(t.stock) + ' · mínimo ' + num(t.minimo) + ' · máximo ' + num(t.maximo) + '"><span class="mm-zona" style="width:' + pct(t.minimo) + '%"></span><span class="mm-zona ok" style="left:' + pct(t.minimo) + '%;width:' + (pct(t.maximo) - pct(t.minimo)).toFixed(1) + '%"></span>' +
       (t.pedir || t.por_recibir ? '<s style="left:' + pct(t.stock) + '%;width:' + (pct(t.stock + (t.por_recibir || 0) + (t.pedir || 0)) - pct(t.stock)).toFixed(1) + '%"></s>' : '') +
       '<i style="--w:' + pct(t.stock) + '%"></i><q style="left:' + pct(t.stock) + '%"></q>' +
-      '<u style="left:' + pct(t.minimo) + '%"><b>mín ' + num(t.minimo) + '</b></u><u style="left:' + pct(t.maximo) + '%"><b>máx ' + num(t.maximo) + '</b></u></div>' +
+      '<u style="left:' + pct(t.minimo) + '%"></u><u style="left:' + pct(t.maximo) + '%"></u></div>' +
       '<div class="mm-pie"><span><small>MÍN</small><b>' + num(t.minimo) + '</b></span><span><small>MÁX</small><b>' + num(t.maximo) + '</b></span><span><small>EN CAMINO</small><b>' + num(t.por_recibir || 0) + '</b></span>' + (t.pedir ? '<span class="fin"><small>QUEDARÍA</small><b>' + num((t.stock + (t.por_recibir || 0) + (t.pedir || 0))) + '</b></span>' : '') + '</div>' + aviso + acciones(t) + '<img class="mm-marca" src="/marca-indoor.svg" alt="" aria-hidden="true"></article>';
   }
 
