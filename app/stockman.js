@@ -9,7 +9,7 @@
   const sg = v => (v > 0 ? '+' : '') + num(v);
   const plano = t => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   const ESTADO = { ajustar: ['DIFERENCIA', 'ambar'], grande: ['DIFERENCIA GRANDE', 'rojo'], ambiguo: ['VARIAS TELAS, MISMO CÓDIGO', 'ambar'], igual: ['IGUAL', 'verde'], sin_articulo: ['SIN ARTÍCULO EN EFFI', 'ambar'] };
-  let urlWh = '', actAbierta = false, panel = null, tab = null, timer = null, datos = null, filtro = 'ajustar', buscar = '', ocupado = false, firma = '';
+  let urlWh = '', actAbierta = false, panel = null, tab = null, timer = null, datos = null, filtro = 'ajustar', buscar = '', ocupado = false, firma = '', vista = 'tarjetas';
 
   const css = `
   .panel[data-panel="stockman"],.panel[data-panel="stockman"].active{width:100%;max-width:none;grid-template-columns:minmax(0,1fr)!important;justify-content:stretch!important;justify-items:stretch!important}
@@ -42,6 +42,17 @@
 
   .sm-wh{display:flex;justify-content:space-between;align-items:center;gap:12px}.sm-url{display:flex;gap:8px;align-items:center}.sm-url code{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:7px 10px;border-radius:10px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.12);color:#e8f0e0;font:11px Consolas,monospace}.sm-url .mm-bt{width:90px;flex:none}
   .sm-hist{padding:12px 16px;display:grid;gap:6px;font:11px Arial;color:#c5d2bf}.sm-hist h3{margin:0;font:900 11px Arial;letter-spacing:.16em;color:#b9c8b3}
+  /* Centro de control STOCKMAN: información priorizada, sin alterar datos ni acciones. */
+  .sm-control{display:grid;grid-template-columns:minmax(240px,1.25fr) minmax(360px,2fr) auto;gap:12px;align-items:stretch;margin-bottom:12px}
+  .sm-intro{padding:16px 18px;display:grid;gap:5px}.sm-intro-top{display:flex;align-items:center;gap:9px}.sm-intro h2{margin:0;font:900 18px Arial;letter-spacing:.04em;color:#fff}.sm-intro p{margin:0;color:#aebca7;font:600 11px/1.4 Arial}.sm-live{display:inline-flex;align-items:center;gap:6px;color:var(--lima,#d0f44c);font:800 9px Arial;letter-spacing:.12em}.sm-live i{width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 0 4px rgba(208,244,76,.12);animation:smPulso 1.8s infinite}
+  .sm-metricas{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.sm-metrica{position:relative;overflow:hidden;text-align:left;padding:12px 14px;border-radius:15px;border:1px solid rgba(255,255,255,.13);background:linear-gradient(145deg,rgba(255,255,255,.09),rgba(255,255,255,.025));color:#fff;cursor:pointer;transition:.2s transform,.2s border-color}.sm-metrica:hover,.sm-metrica.on{transform:translateY(-2px);border-color:rgba(208,244,76,.65)}.sm-metrica.on{background:linear-gradient(145deg,rgba(208,244,76,.24),rgba(208,244,76,.06))}.sm-metrica b{display:block;font:900 25px/1 Arial}.sm-metrica span{display:block;margin-top:5px;font:800 8px Arial;letter-spacing:.12em;color:#b8c5b2}.sm-metrica[data-sm-filtro="ajustar"] b{color:#ffe09c}.sm-metrica[data-sm-filtro="sin_articulo"] b{color:#ffc2a9}
+  .sm-acciones{display:grid;align-content:center;gap:8px;padding:10px 12px;min-width:132px}.sm-vistas{display:flex;gap:5px;padding:4px;border:1px solid rgba(255,255,255,.14);background:rgba(0,0,0,.2);border-radius:11px}.sm-vistas button{border:0;border-radius:8px;background:transparent;color:#aebca7;font:800 10px Arial;padding:7px 8px;cursor:pointer}.sm-vistas button.on{background:rgba(208,244,76,.18);color:var(--lima,#d0f44c)}
+  .sm-subbarra{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px;margin-bottom:12px}.sm-subbarra b{font:800 10px Arial;letter-spacing:.12em;color:#dce8d6}.sm-subbarra span{font:700 10px Arial;color:#91a28c}.sm-subbarra strong{color:var(--lima,#d0f44c)}
+  .sm-host .mm-lista{grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:13px}.sm-host.vista-lista .mm-lista{grid-template-columns:1fr}.sm-host.vista-lista .sm-t{grid-template-columns:minmax(210px,.9fr) minmax(290px,1.3fr) minmax(150px,.5fr);align-items:center}.sm-host.vista-lista .sm-t h4{align-self:start}.sm-host.vista-lista .sm-nota-pie{grid-column:2/-1}.sm-host.vista-lista .mm-marca{width:105px}
+  .sm-t{position:relative;isolation:isolate}.sm-t::after{content:"";position:absolute;left:0;top:18px;bottom:18px;width:3px;border-radius:0 5px 5px 0;background:rgba(208,244,76,.55);opacity:.65}.sm-t.ambar::after{background:#ffc850}.sm-t.rojo::after{background:#ff796d}
+  @keyframes smPulso{50%{opacity:.5;transform:scale(1.25)}}
+  @media(max-width:900px){.sm-control{grid-template-columns:1fr}.sm-acciones{grid-template-columns:1fr auto;align-items:center}.sm-metricas{grid-template-columns:repeat(4,1fr)}}
+  @media(max-width:600px){.sm-metricas{grid-template-columns:repeat(2,1fr)}.sm-host.vista-lista .sm-t{grid-template-columns:1fr}.sm-host.vista-lista .sm-nota-pie{grid-column:auto}.sm-subbarra{align-items:flex-start}.sm-t::after{top:14px;bottom:14px}.sm-hero b{font-size:21px}}
   `;
 
   const api = async (url, opciones) => {
@@ -75,7 +86,9 @@
     const lista = datos.telas.filter(t => coincide(t) && (!q || plano(t.tela + ' ' + t.codigo + ' ' + (t.nombre_panel || '')).includes(q)));
     lista.sort((x, y) => (y.panel || 0) - (x.panel || 0) || String(x.tela).localeCompare(String(y.tela)));   // primero la tela con MAYOR stock en el panel
     const aviso = filtro === 'sin_articulo' && datos.agente.error ? '<div class="mm-nota" style="margin-bottom:10px">' + esc(datos.agente.error) + '</div>' : '';
-    host.innerHTML = aviso + (lista.length ? '<div class="mm-lista">' + lista.map(tarjeta).join('') + '</div>' : '<div class="mm-vacio">' + (filtro === 'ajustar' ? 'Nada por igualar: el stock del panel y el de Effi coinciden.' : 'No hay telas con ese filtro.') + '</div>');
+    host.classList.toggle('vista-lista', vista === 'lista');
+    const rotulo = { ajustar: 'diferencias por resolver', igual: 'artículos conciliados', sin_articulo: 'artículos sin referencia en Effi', todo: 'artículos en seguimiento' }[filtro] || 'artículos';
+    host.innerHTML = '<div class="sm-subbarra"><b><strong>' + lista.length + '</strong> ' + rotulo + '</b><span>Ordenados por mayor stock · ' + (vista === 'lista' ? 'vista compacta' : 'vista por tarjetas') + '</span></div>' + aviso + (lista.length ? '<div class="mm-lista">' + lista.map(tarjeta).join('') + '</div>' : '<div class="mm-vacio">' + (filtro === 'ajustar' ? 'Nada por igualar: el stock del panel y el de Effi coinciden.' : 'No hay telas con ese filtro.') + '</div>');
   }
 
   function actividad() {
@@ -100,13 +113,13 @@
     const foco = document.activeElement;
     if (foco && foco.matches && foco.matches('[data-sm-buscar]') && panel.contains(foco)) { pintarLista(); return; }
     const a = datos.agente, r = datos.resumen, activo = !!a.activo;
-    const kpi = (k, n, rotulo) => '<button type="button" class="mm-glass mm-kpi' + (filtro === k ? ' on' : '') + '" data-sm-filtro="' + k + '"><b>' + n + '</b><span>' + rotulo + '</span></button>';
+    const total = Math.max(r.telas || 0, 1);
+    const kpi = (k, n, rotulo) => '<button type="button" class="sm-metrica' + (filtro === k ? ' on' : '') + '" data-sm-filtro="' + k + '" data-lq="' + Math.round(n * 100 / total) + '" data-lq-nopct><b>' + n + '</b><span>' + rotulo + '</span></button>';
     panel.querySelector('.mm').innerHTML =
-      '<div class="mm-glass mm-top"><div class="mm-nom"><img class="mm-logo" src="/marca-indoor.svg" alt="Indoor"><small>Revisado</small><b>' + hora(a.ultima) + '</b></div>' +
-      '<div class="mm-sw' + (activo ? ' on' : '') + '"><i></i><span>' + (activo ? 'ACTIVO' : 'APAGADO') + '</span><button type="button" data-sm-activar="' + (activo ? 0 : 1) + '" aria-label="Activar o apagar STOCKMAN"></button></div>' +
-      '<button type="button" class="mm-b" data-sm-revisar' + (ocupado ? ' disabled' : '') + '>↻ ' + (ocupado ? 'REVISANDO…' : 'REVISAR') + '</button>' +
-      '<span class="mm-sep"></span><div class="mm-kpis">' + kpi('ajustar', r.ajustar + r.grande + (r.ambiguo || 0), 'DIFERENCIAS') + kpi('igual', r.igual, 'IGUALES') + kpi('sin_articulo', r.sin_articulo, 'SIN ARTÍCULO') + kpi('todo', r.telas, 'TODO') + '</div>' +
-      '<div class="mm-busca"><input type="search" data-sm-buscar placeholder="Buscar…" value="' + esc(buscar) + '" autocomplete="off"></div></div>' +
+      '<div class="sm-control"><section class="mm-glass sm-intro"><div class="sm-intro-top"><img class="mm-logo" src="/marca-indoor.svg" alt="Indoor"><span class="sm-live"><i></i>' + (activo ? 'SINCRONIZACIÓN ACTIVA' : 'SINCRONIZACIÓN PAUSADA') + '</span></div><h2>Control de artículos</h2><p>Compara por bodega el inventario del panel con Effi.</p><small>Actualizado ' + hora(a.ultima) + '</small></section>' +
+      '<section class="sm-metricas">' + kpi('ajustar', r.ajustar + r.grande + (r.ambiguo || 0), 'POR REVISAR') + kpi('igual', r.igual, 'CONCILIADOS') + kpi('sin_articulo', r.sin_articulo, 'SIN ARTÍCULO') + kpi('todo', r.telas, 'TOTAL') + '</section>' +
+      '<section class="mm-glass sm-acciones"><div class="mm-sw' + (activo ? ' on' : '') + '"><i></i><span>' + (activo ? 'ACTIVO' : 'APAGADO') + '</span><button type="button" data-sm-activar="' + (activo ? 0 : 1) + '" aria-label="Activar o apagar STOCKMAN"></button></div><button type="button" class="mm-b" data-sm-revisar' + (ocupado ? ' disabled' : '') + '>↻ ' + (ocupado ? 'REVISANDO…' : 'REVISAR') + '</button><div class="sm-vistas"><button type="button" data-sm-vista="tarjetas" class="' + (vista === 'tarjetas' ? 'on' : '') + '">▦ TARJETAS</button><button type="button" data-sm-vista="lista" class="' + (vista === 'lista' ? 'on' : '') + '">☰ LISTA</button></div></section></div>' +
+      '<div class="mm-glass mm-top"><div class="mm-busca"><input type="search" data-sm-buscar placeholder="Buscar por tela, código o artículo…" value="' + esc(buscar) + '" autocomplete="off"></div></div>' +
       actividad() + '<div class="mm-cuerpo"><div class="sm-host"></div></div>';
     pintarLista();
   }
@@ -145,6 +158,7 @@
     panel.addEventListener('input', e => { if (e.target.matches('[data-sm-buscar]')) { buscar = e.target.value; pintarLista(); } });
     panel.addEventListener('click', async e => {
       const f = e.target.closest('[data-sm-filtro]'); if (f) { filtro = f.dataset.smFiltro; pintar(); return; }
+      const v = e.target.closest('[data-sm-vista]'); if (v) { vista = v.dataset.smVista; pintar(); return; }
       const r = e.target.closest('[data-sm-revisar]');
       if (r && !ocupado) { ocupado = true; pintar(); try { await api('/api/stockman/revisar', { method: 'POST' }); } catch (x) { alert(x.message); } ocupado = false; firma = ''; await cargar(); return; }
       const aj = e.target.closest('[data-sm-ajustar]');
