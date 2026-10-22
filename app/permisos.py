@@ -154,6 +154,21 @@ def fichas_editar_permitido(username: str) -> bool:
     return _plano(_lookup(username)) == 'PATRONAJE'
 
 
+def info_tela_editar_permitido(username: str) -> bool:
+    """INFORMACIÓN TELA (Estándar 2026): la editan quienes pueden editar Promedios y, además, las cuentas con proceso Patronaje (pedido del usuario, 2026-10-22)."""
+    return puede(username, 'promedios', 'editar') or _plano(_lookup(username)) == 'PATRONAJE'
+
+
+def exigir_info_tela():
+    """Dependencia de FastAPI para INFORMACIÓN TELA: ver = permiso de ver Promedios; cambiar = info_tela_editar_permitido."""
+    def comprobar(request: Request, usuario: str = Depends(_autenticar)):
+        ok = puede(usuario, 'promedios', 'ver') if request.method in ('GET', 'HEAD') else info_tela_editar_permitido(usuario)
+        if not ok:
+            raise HTTPException(403, 'Tu perfil no tiene permiso para esta acción')
+        return usuario
+    return comprobar
+
+
 def rhumano_permitido(username: str) -> bool:
     """El módulo R.HUMANO (recurso humano) y su submódulo CONTRATOS Y C.LABORAL los ven TODOS los usuarios con sesión (pedido del usuario, 2026-10-09)."""
     return True

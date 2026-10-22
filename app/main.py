@@ -314,7 +314,7 @@ def _referencias_produccion() -> list:
 
 proveedores_tela_mod.configurar(lambda: (__import__('app.inventario_api', fromlist=['x']).inventory_snapshot().get('items') or []),   # el mismo inventario que ve la pantalla (con rollos y uso en pedidos)
                                 _referencias_produccion)
-app.include_router(proveedores_tela_mod.router, dependencies=[Depends(authenticate), Depends(permisos_mod.exigir('promedios'))])
+app.include_router(proveedores_tela_mod.router, dependencies=[Depends(authenticate), Depends(permisos_mod.exigir_info_tela())])   # Patronaje también edita INFORMACIÓN TELA
 app.include_router(promedios_mod.router, dependencies=[Depends(authenticate), Depends(permisos_mod.exigir('promedios'))])
 
 

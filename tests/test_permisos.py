@@ -34,6 +34,12 @@ class PermisosTest(unittest.TestCase):
         self.assertFalse(permisos.agentes_permitido(cuenta('g', 'Comercial')))
         self.assertFalse(permisos.agentes_permitido(cuenta('h', 'Empaque')))
 
+    def test_info_tela_la_edita_patronaje(self):
+        self.assertTrue(permisos.info_tela_editar_permitido(cuenta('pt', 'Patronaje')))
+        self.assertTrue(permisos.info_tela_editar_permitido('PRODUCCION'))
+        self.assertFalse(permisos.info_tela_editar_permitido(cuenta('em', 'Empaque')))
+        self.assertTrue(permisos.puede(cuenta('em2', 'Empaque'), 'promedios', 'ver'))   # los demás operarios siguen viéndola sin editar
+
     def test_tesoreria_comercial_y_indoor_sport(self):
         self.assertTrue(permisos.tesoreria_permitido(cuenta('i', 'Comercial')))
         self.assertTrue(permisos.tesoreria_permitido('Indoor Sport'))
