@@ -11,7 +11,7 @@
   const ESTADO = { pedir: ['POR PEDIR', 'rojo'], error: ['CON ERROR', 'rojo'], sin_proveedor: ['SIN PROVEEDOR', 'ambar'], sin_effi: ['NO LO VEO EN EFFI', 'ambar'], revisar: ['REVISAR RANGO', 'ambar'], pausa: ['EN PAUSA', 'ambar'], sin_id: ['FALTA ID EFFI', 'ambar'], en_camino: ['EN CAMINO', 'azul'], ok: ['EN RANGO', 'verde'] };
   const GRUPOS = [['atencion', 'ATENCIÓN'], ['en_camino', 'EN CAMINO'], ['ok', 'EN RANGO'], ['todas', 'TODAS']];
   let guardado = {}; try { guardado = JSON.parse(localStorage.getItem('mm-vista') || '{}'); } catch (_) { /* sin almacenamiento */ }
-  let panel = null, tab = null, timer = null, datos = null, filtro = ['aprobacion', 'aprobado'].includes(guardado.filtro) ? guardado.filtro : 'aprobacion', buscar = '', orden = guardado.orden || 'estado', ocupado = false, firma = '';
+  let panel = null, tab = null, timer = null, datos = null, filtro = ['aprobacion', 'aprobado', 'todo'].includes(guardado.filtro) ? guardado.filtro : 'aprobacion', buscar = '', orden = guardado.orden || 'estado', ocupado = false, firma = '';
   const recordar = () => { try { localStorage.setItem('mm-vista', JSON.stringify({ filtro, orden })); } catch (_) { /* sin almacenamiento */ } };
 
   const css = document.createElement('style');
@@ -171,7 +171,7 @@
   .mm-sep{display:none}
   .mm-nom b{font:700 12px Arial;color:#e8f0e0}.mm-nom{padding-right:18px;border-right:1px solid rgba(255,255,255,.16);margin:0}.mm-nom h2{font-size:21px}
   .mm-top .mm-sw{margin:0}.mm-top .mm-b{height:36px;padding:0 16px!important;border-radius:99px!important;margin:0;justify-self:start}
-  .mm-top .mm-kpis{justify-self:end;display:grid!important;grid-template-columns:repeat(4,auto);gap:4px!important;padding:4px;border-radius:99px;background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.14);width:100%!important;width:auto!important}
+  .mm-top .mm-kpis{justify-self:end;display:grid!important;grid-template-columns:repeat(3,auto);gap:4px!important;padding:4px;border-radius:99px;background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.14);width:100%!important;width:auto!important}
   .mm-top .mm-kpi{justify-content:center;border-radius:99px!important;border:1px solid transparent!important;background:transparent!important;box-shadow:none!important;padding:7px 10px!important;width:auto!important;overflow:hidden}
   .mm-top .mm-kpi::before,.mm-top .mm-kpi::after{display:none!important}
   .mm-top .mm-kpi b{font:900 17px Arial!important}.mm-top .mm-kpi span{font:800 9.5px Arial;letter-spacing:.1em}
@@ -233,7 +233,7 @@
   // La orden de compra vigente de la tela: EN APROBACIÓN = creada y falta que el encargado la apruebe; APROBADO = ya se envió al proveedor
   const ordenDe = t => (datos.compras || []).find(x => x.codigo === t.codigo && x.estado === 'creada' && x.oc);
   const enviada = c => (c.envio_proveedor || {}).estado === 'enviada';
-  const coincide = t => { const c = ordenDe(t); return !!c && (filtro === 'aprobado' ? enviada(c) : !enviada(c)); };
+  const coincide = t => { if (filtro === 'todo') return true; const c = ordenDe(t); return !!c && (filtro === 'aprobado' ? enviada(c) : !enviada(c)); };
   const PESO = { pedir: 0, error: 1, sin_proveedor: 2, sin_effi: 3, revisar: 4, en_camino: 5, ok: 6 };
   const ordenar = lista => lista.slice().sort((a, b) => orden === 'nombre' ? a.tela.localeCompare(b.tela) : orden === 'pedir' ? b.pedir - a.pedir : orden === 'faltante' ? (a.stock / a.minimo) - (b.stock / b.minimo) : (PESO[a.estado] - PESO[b.estado]) || a.tela.localeCompare(b.tela));
 
@@ -287,7 +287,7 @@
       '<div class="mm-glass mm-top"><div class="mm-nom"><img class="mm-logo" src="/marca-indoor.svg" alt="Indoor"><small>Revisado</small><b>' + hora(a.ultima) + '</b></div>' +
       '<div class="mm-sw' + (activo ? ' on' : '') + '"><i></i><span>' + (activo ? 'ACTIVO' : 'APAGADO') + '</span><button type="button" data-mm-activar="' + (activo ? 0 : 1) + '" aria-label="Activar o apagar MINIMAXIMAN"></button></div>' +
       '<button type="button" class="mm-b" data-mm-revisar' + (ocupado ? ' disabled' : '') + '>↻ ' + (ocupado ? 'REVISANDO…' : 'REVISAR') + '</button>' +
-      '<span class="mm-sep"></span><div class="mm-kpis">' + kpi('aprobacion', nAprob, 'EN APROBACIÓN', 'ambar') + kpi('aprobado', nEnv, 'APROBADO', 'verde') + '</div>' +
+      '<span class="mm-sep"></span><div class="mm-kpis">' + kpi('aprobacion', nAprob, 'EN APROBACIÓN', 'ambar') + kpi('aprobado', nEnv, 'APROBADO', 'verde') + kpi('todo', datos.telas.length, 'TODO', 'gris') + '</div>' +
       '<div class="mm-busca"><input type="search" data-mm-buscar placeholder="Buscar…" value="' + esc(buscar) + '" autocomplete="off">' +
       '</div></div>' +
       (a.error ? '<div class="mm-vacio">' + esc(a.error) + '</div>' : '') +
