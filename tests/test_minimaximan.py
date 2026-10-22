@@ -23,7 +23,7 @@ class MinimaximanTest(unittest.TestCase):
         self.dir.cleanup()
 
     def evaluar(self, t, por_recibir=0.0):
-        with mock.patch.object(minimaximan.proveedores_tela, 'telas', lambda: [t]), mock.patch.object(minimaximan, '_por_recibir', lambda codigo: por_recibir):
+        with mock.patch.object(minimaximan.proveedores_tela, 'telas', lambda: [t]), mock.patch.object(minimaximan, '_por_recibir', lambda *a: por_recibir):
             return minimaximan.evaluar()[0]
 
     def test_bajo_el_minimo_pide_lo_que_falta_para_llegar_al_maximo(self):
@@ -41,7 +41,7 @@ class MinimaximanTest(unittest.TestCase):
 
     def test_sin_proveedor_o_sin_ver_a_effi_no_pide(self):
         self.assertEqual(self.evaluar(tela(250, 300, 500, proveedor=''))['estado'], 'sin_proveedor')
-        with mock.patch.object(minimaximan.proveedores_tela, 'telas', lambda: [tela(250, 300, 500)]), mock.patch.object(minimaximan, '_por_recibir', lambda codigo: None):
+        with mock.patch.object(minimaximan.proveedores_tela, 'telas', lambda: [tela(250, 300, 500)]), mock.patch.object(minimaximan, '_por_recibir', lambda *a: None):
             self.assertEqual(minimaximan.evaluar()[0]['estado'], 'sin_effi')
 
     def test_maximo_menor_que_el_minimo_se_marca(self):
@@ -62,7 +62,7 @@ class AprobacionTest(unittest.TestCase):
             p.start()
         minimaximan.configurar(lambda request: 'ADMIN', lambda u: True)
         e = minimaximan._leer()
-        e['compras'] = [{'id': 1, 'codigo': '100', 'tela': 'MONTECATINI BLANCO', 'proveedor': 'LINDATEXTIL', 'metros': 250.0, 'estado': 'creada', 'oc': '133', 'stock': 250, 'minimo': 300, 'maximo': 500},
+        e['compras'] = [{'id': 1, 'codigo': '100', 'tela': 'MONTECATINI BLANCO', 'proveedor': 'LINDATEXTIL', 'metros': 250.0, 'estado': 'creada', 'oc': '133', 'id_effi': '6082', 'stock': 250, 'minimo': 300, 'maximo': 500},
                         {'id': 2, 'codigo': '100', 'tela': 'MONTECATINI BLANCO', 'proveedor': 'LINDATEXTIL', 'metros': 50.0, 'estado': 'error', 'oc': ''}]
         minimaximan._guardar(e)
 
@@ -119,9 +119,9 @@ class AprobacionTest(unittest.TestCase):
         with mock.patch.object(minimaximan, '_usar_api', lambda: True), \
                 mock.patch.object(minimaximan.effi_api, 'construir_pedido', lambda *a, **k: hechos.append('valida')), \
                 mock.patch.object(minimaximan.effi_api, 'anular_orden', lambda oc, motivo: hechos.append('anula ' + oc)), \
-                mock.patch.object(minimaximan.effi_api, 'crear_orden', lambda item, ref, metros, prov, **k: hechos.append('crea %g' % metros) or {'oc': '140', 'detalle': 'x'}):
+                mock.patch.object(minimaximan.effi_api, 'crear_orden', lambda item, ref, metros, prov, **k: hechos.append('crea %g id=%s' % (metros, k.get('id_articulo'))) or {'oc': '140', 'detalle': 'x'}):
             minimaximan.modificar(object(), {'id': 1, 'metros': 400})
-        self.assertEqual(hechos, ['valida', 'anula 133', 'crea 400'])
+        self.assertEqual(hechos, ['valida', 'anula 133', 'crea 400 id=6082'])
         c = minimaximan._leer()['compras'][0]
         self.assertEqual((c['oc'], c['metros'], c['estado']), ('140', 400.0, 'creada'))
 

@@ -98,8 +98,14 @@ def proveedor(nombre: str) -> dict:
     return {'codigo': int(codigo), 'direcciones': elegido.get('direcciones') or [], 'forma_pago': elegido.get('t_forma_pago'), 'nombre': elegido.get('nombre') or nombre}
 
 
-def articulo(referencia: str) -> dict:
-    """Artículo cuya REFERENCIA es exactamente la pedida (la búsqueda de Effi es por «contiene»)."""
+def articulo(referencia: str, id_effi: str = '') -> dict:
+    """Artículo cuya REFERENCIA es exactamente la pedida (la búsqueda de Effi es por «contiene»). Si se da el ID de Effi se usa ese, que es único, y no se adivina por la referencia."""
+    ide = str(id_effi or '').strip()
+    if ide:
+        for a in _lista('articulo', {'id': ide}):
+            if str(a.get('id') or '').strip() == ide:
+                return a
+        raise EffiError(f'No hay en Effi un artículo con ID {ide} (revisa el «ID Effi» de la tela en INFORMACIÓN TELA)')
     for a in _lista('articulo', {'referencia': referencia}):
         if str(a.get('referencia') or '').strip() == str(referencia).strip():
             return a
@@ -132,10 +138,10 @@ def retenciones_de(ids: list[int]) -> list[dict]:
     return [por_id[i] for i in ids]
 
 
-def construir_pedido(item_id, referencia: str, metros: float, nombre_proveedor: str, descripcion: str = '', observacion: str = '') -> dict:
+def construir_pedido(item_id, referencia: str, metros: float, nombre_proveedor: str, descripcion: str = '', observacion: str = '', id_articulo: str = '') -> dict:
     """Arma el cuerpo de POST /orden_c. Devuelve {'cuerpo', 'resumen'}; no envía nada."""
     prov = proveedor(nombre_proveedor)
-    art = articulo(referencia)
+    art = articulo(referencia, id_articulo)
     precio = _d(art.get('p_costo_ultimo')) or _d(art.get('p_costo'))
     if precio <= 0:
         raise EffiError('El artículo no tiene costo en Effi (o la llave no tiene permiso de «Artículos - Costos»): no se sabe el precio')
@@ -191,9 +197,9 @@ def construir_pedido(item_id, referencia: str, metros: float, nombre_proveedor: 
     return {'cuerpo': cuerpo, 'resumen': resumen}
 
 
-def crear_orden(item_id, referencia: str, metros: float, nombre_proveedor: str, descripcion: str = '', observacion: str = '') -> dict:
+def crear_orden(item_id, referencia: str, metros: float, nombre_proveedor: str, descripcion: str = '', observacion: str = '', id_articulo: str = '') -> dict:
     """Crea la orden por la API. Devuelve {'oc': id, 'detalle': texto}. Un reintento con la misma clave no crea otra orden (409 → se devuelve la ya creada)."""
-    p = construir_pedido(item_id, referencia, metros, nombre_proveedor, descripcion, observacion)
+    p = construir_pedido(item_id, referencia, metros, nombre_proveedor, descripcion, observacion, id_articulo)
     try:
         r = _peticion('POST', 'orden_c', cuerpo=p['cuerpo'])
         data = r.get('data') or {}

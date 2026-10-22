@@ -100,10 +100,10 @@ def _usar_api() -> bool:
     return effi_api.disponible()
 
 
-def _por_recibir(codigo: str) -> float | None:
+def _por_recibir(codigo: str, id_effi: str = '') -> float | None:
     """Metros en órdenes de compra abiertas del artículo en Effi (stock por recibir). None si Effi no lo dice."""
     try:
-        a = effi_api.articulo(codigo)
+        a = effi_api.articulo(codigo, id_effi)
     except Exception:   # noqa: BLE001
         return None
     v = str(a.get('stock_empresa_orden_c') or '0').replace(',', '')
@@ -131,12 +131,12 @@ def evaluar() -> list[dict]:
             continue
         codigo = str(t['codigo'])
         stock = round(float(t.get('mts') or 0), 2)
-        fila = {'codigo': codigo, 'tela': t['nombre'], 'proveedor': t.get('proveedor', ''), 'stock': stock, 'minimo': mn, 'maximo': mx,
+        fila = {'codigo': codigo, 'tela': t['nombre'], 'id_effi': str(t.get('id_effi') or '').strip(), 'proveedor': t.get('proveedor', ''), 'stock': stock, 'minimo': mn, 'maximo': mx,
                 'por_recibir': None, 'pedir': 0.0, 'estado': 'ok', 'nota': ''}
         if mx < mn:
             fila.update(estado='revisar', nota='El máximo es menor que el mínimo: corrígelo en INFORMACIÓN TELA.')
         elif stock < mn:   # solo si por stock ya está bajo se consulta a Effi lo que viene en camino
-            pr = _por_recibir(codigo) if con_api else None
+            pr = _por_recibir(codigo, fila['id_effi']) if con_api else None
             fila['por_recibir'] = pr
             if pr is None:
                 fila.update(estado='sin_effi', nota='No pude ver en Effi lo que ya está pedido de esta tela: no pido nada hasta confirmarlo.' if con_api else 'Falta la llave de la API de Effi (pantalla «API Effi» del agente de inventario).')
@@ -170,12 +170,12 @@ def _crear(f: dict) -> dict | None:
             compra.update(metros=f['pedir'], intentos=compra.get('intentos', 0) + 1)
         else:
             e['seq'] += 1
-            compra = {'id': e['seq'], 'codigo': f['codigo'], 'tela': f['tela'], 'proveedor': f['proveedor'], 'metros': f['pedir'], 'estado': 'pendiente', 'oc': '',
+            compra = {'id': e['seq'], 'codigo': f['codigo'], 'tela': f['tela'], 'proveedor': f['proveedor'], 'metros': f['pedir'], 'estado': 'pendiente', 'oc': '', 'id_effi': f.get('id_effi', ''),
                       'detalle': '', 'intentos': 1, 'creado': _iso(), 'stock': f['stock'], 'minimo': f['minimo'], 'maximo': f['maximo']}
             e['compras'].append(compra)
         _guardar(e)
     try:
-        r = effi_api.crear_orden(f'mm{compra["id"]}', f['codigo'], float(f['pedir']), f['proveedor'], observacion='Orden creada por MINIMAXIMAN (reposición al stock máximo)')
+        r = effi_api.crear_orden(f'mm{compra["id"]}', f['codigo'], float(f['pedir']), f['proveedor'], observacion='Orden creada por MINIMAXIMAN (reposición al stock máximo)', id_articulo=f.get('id_effi', ''))
         compra.update(estado='creada', oc=str(r['oc']), detalle=str(r['detalle'])[:300], creada=_iso())
     except Exception as exc:   # noqa: BLE001
         compra.update(estado='error', detalle=str(exc)[:300])
@@ -327,6 +327,14 @@ def enviar_proveedor(request: Request, payload: dict):
     return {'ok': True, 'correo': correo}
 
 
+def _id_de(c: dict) -> str:
+    """ID de Effi de la tela de una orden: el guardado al crearla o, si no hay, el que tenga hoy la tela en INFORMACIÓN TELA."""
+    if c.get('id_effi'):
+        return str(c['id_effi'])
+    t = next((x for x in proveedores_tela.telas() if str(x['codigo']) == str(c['codigo'])), {})
+    return str(t.get('id_effi') or '').strip()
+
+
 def _compra_editable(payload: dict) -> dict:
     """La orden creada que todavía no salió al proveedor (anular o modificar una ya enviada se hace en Effi a mano)."""
     with _lock:
@@ -381,12 +389,12 @@ def modificar(request: Request, payload: dict):
         raise HTTPException(400, 'Esa ya es la cantidad de la orden.')
     n = int(c.get('modificaciones', 0)) + 1
     try:
-        effi_api.construir_pedido(f'mm{c["id"]}m{n}', c['codigo'], metros, c['proveedor'])   # solo valida: si algo falla la orden original queda intacta
+        effi_api.construir_pedido(f'mm{c["id"]}m{n}', c['codigo'], metros, c['proveedor'], id_articulo=_id_de(c))   # solo valida: si algo falla la orden original queda intacta
     except effi_api.EffiError as e:
         raise HTTPException(400, str(e))
     _anular_en_effi(c, f'Modificada desde el panel por {usuario}: de {float(c["metros"]):g} a {metros:g} MTS')
     try:
-        r = effi_api.crear_orden(f'mm{c["id"]}m{n}', c['codigo'], metros, c['proveedor'], observacion=f'Orden modificada desde el panel por {usuario} (reemplaza la {c["oc"]})')
+        r = effi_api.crear_orden(f'mm{c["id"]}m{n}', c['codigo'], metros, c['proveedor'], observacion=f'Orden modificada desde el panel por {usuario} (reemplaza la {c["oc"]})', id_articulo=_id_de(c))
     except Exception as exc:   # noqa: BLE001
         with _lock:
             e = _leer()

@@ -165,6 +165,7 @@
   .mm-bt:hover:not(:disabled){transform:translateY(-1px);background:rgba(255,255,255,.18)}.mm-bt:disabled{opacity:.5;cursor:default}
   .mm-bt.env{grid-column:1/-1;background:linear-gradient(180deg,#e2fb78,#b4d83a);color:#16200a;border-color:rgba(255,255,255,.4)}
   .mm-bt.no{border-color:rgba(255,107,97,.55);color:#ffb3ac}
+  .mm-t h4 small.mm-ide{margin-top:2px;color:var(--lima);letter-spacing:.1em}.mm-t h4 small.mm-ide.falta{color:#ffe0a0;opacity:.8}
   .mm-t>*{position:relative;z-index:1}
   .mm-top{display:grid!important;grid-template-columns:auto auto auto minmax(0,1fr) minmax(220px,340px);align-items:center;gap:14px;padding:12px 18px}
   .mm-sep{display:none}
@@ -251,7 +252,7 @@
     const tope = Math.max(t.maximo, t.stock + (t.por_recibir || 0), 1) * 1.08;
     const pct = v => Math.max(0, Math.min(100, v / tope * 100)).toFixed(1);
     const aviso = ['error', 'sin_effi', 'revisar'].includes(t.estado) && t.nota ? '<div class="mm-nota">' + esc(t.nota) + '</div>' : '';   // el resto de estados ya se entiende con la etiqueta
-    return '<article class="mm-glass mm-t ' + tono + '" style="animation-delay:' + Math.min(i * 25, 300) + 'ms"><h4><span>' + esc(t.tela) + '<small>' + esc(t.codigo) + ' · ' + esc(t.proveedor || 'SIN PROVEEDOR') + '</small></span><em>' + txt + '</em></h4>' +
+    return '<article class="mm-glass mm-t ' + tono + '" style="animation-delay:' + Math.min(i * 25, 300) + 'ms"><h4><span>' + esc(t.tela) + '<small>' + esc(t.codigo) + ' · ' + esc(t.proveedor || 'SIN PROVEEDOR') + '</small><small class="mm-ide' + (t.id_effi ? '' : ' falta') + '">' + (t.id_effi ? 'ID EFFI ' + esc(t.id_effi) : 'SIN ID EFFI · se busca por referencia') + '</small></span><em>' + txt + '</em></h4>' +
       '<div class="mm-hero"><div class="mm-big"><small>STOCK</small><div><b data-n="' + t.stock + '">' + num(t.stock) + '</b><em>MTS</em></div></div>' +
       (t.pedir ? '<div class="mm-acc pide"><div><span>PEDIR</span><b>' + num(t.pedir) + '</b><em>MTS</em></div></div>' : t.por_recibir ? '<div class="mm-acc viene"><small>EN CAMINO</small><div><b>' + num(t.por_recibir) + '</b><em>MTS</em></div></div>' : '<div class="mm-acc bien"><small>NIVEL</small><div><b>' + Math.round(t.stock / Math.max(t.maximo, 1) * 100) + '%</b><em>DEL MÁX.</em></div></div>') + '</div>' +
       '<div class="mm-medidor" title="Hay ' + num(t.stock) + ' · mínimo ' + num(t.minimo) + ' · máximo ' + num(t.maximo) + '"><span class="mm-zona" style="width:' + pct(t.minimo) + '%"></span><span class="mm-zona ok" style="left:' + pct(t.minimo) + '%;width:' + (pct(t.maximo) - pct(t.minimo)).toFixed(1) + '%"></span>' +
