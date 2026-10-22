@@ -151,22 +151,42 @@ def _cantidad(valor) -> int:
     return int(digitos) if digitos else 0
 
 
+_general_cache: dict = {}
+
+
+def _general_de_ficha(parte: str) -> float:
+    """Promedio general de la FICHA de la referencia (Masculino/Femenino/Niño), mientras no haya maestro talla por talla. Se guarda 5 min."""
+    hit = _general_cache.get(parte)
+    if hit and time.time() - hit[0] < 300:
+        return hit[1]
+    try:
+        from app import fichas as fichas_mod
+        valor = fichas_mod.promedio_general(parte)
+    except Exception:  # noqa: BLE001 — si la ficha no se puede leer, se cuenta como faltante
+        valor = 0.0
+    _general_cache[parte] = (time.time(), valor)
+    return valor
+
+
 def _consumo(referencia: str, maestros: dict, plantillas: dict) -> tuple[float, list[str], list[str]]:
-    """Consumo promedio general por prenda de una referencia (suma las partes si es compuesta) y lo que no se encontró."""
+    """Consumo promedio por prenda de una referencia (suma las partes si es compuesta) y lo que no se encontró.
+    Si la referencia aún no tiene maestro con consumo, se usa el PROMEDIO GENERAL de su ficha (así todo funciona mientras se ingresan los maestros talla por talla)."""
     total, usados, faltan = 0.0, [], []
     for parte in promedios.partes_de_hoja(referencia):
         if not parte:
             continue
         maestro = maestros.get(parte) or plantillas.get(parte)
-        if not maestro:
-            faltan.append(parte)
+        promedio = promedios.promedio(maestro) if maestro else 0.0
+        if promedio:
+            total += promedio
+            usados.append(maestro['ref'])
             continue
-        promedio = promedios.promedio(maestro)
-        if not promedio:
-            faltan.append(maestro['ref'])
-            continue
-        total += promedio
-        usados.append(maestro['ref'])
+        general = _general_de_ficha(parte)
+        if general:
+            total += general
+            usados.append(parte + ' (promedio general de la ficha)')
+        else:
+            faltan.append(maestro['ref'] if maestro else parte)
     return round(total, 2), usados, faltan
 
 

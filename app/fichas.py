@@ -606,6 +606,34 @@ def ficha(ident: str) -> dict | None:
         return None
 
 
+def _numero_ficha(v) -> float | None:
+    """Un valor de «Promedio de la ficha» (puede venir con coma, «X» o vacío) como número; None si no es número."""
+    t = str(v if v is not None else '').strip().replace(',', '.')
+    try:
+        n = float(t)
+    except ValueError:
+        return None
+    return n if n > 0 else None
+
+
+def promedio_general(ref: str) -> float:
+    """Promedio general de la ficha de una referencia (Masculino, Femenino y Niño, lo que tenga número). 0 si la ficha no tiene promedio."""
+    for x in indice().get('fichas', []):
+        if x.get('ref') != ref:
+            continue
+        f = ficha(x['id']) or {}
+        for p in f.get('promedios', []):
+            v = p.get('valores', {})
+            nums = []
+            for grupo in (('masc',), ('feme', 'fem'), ('nino', 'nina')):   # un valor por género: el primero que tenga número
+                n = next((x for x in (_numero_ficha(v.get(k)) for k in grupo) if x is not None), None)
+                if n is not None:
+                    nums.append(n)
+            if nums:
+                return round(sum(nums) / len(nums), 2)
+    return 0.0
+
+
 def ruta_imagen(ident: str, archivo: str) -> Path | None:
     if not re.fullmatch(r'[a-z0-9-]+__[a-z0-9-]+', ident or '') or not re.fullmatch(r'[a-z0-9-]+_(?:\d+\.jpg|fit\d+\.png)', archivo or ''):
         return None
