@@ -173,6 +173,13 @@
   .mm-pie{display:grid;grid-template-columns:repeat(auto-fit,minmax(0,1fr));gap:6px}.mm-pie small{letter-spacing:.06em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .mm-acc small{letter-spacing:.12em}.mm-acc.bien b{font-size:22px}
   .mm-t h4{align-items:flex-start}.mm-t h4>span{min-width:0}.mm-t h4 em{flex:none}
+  /* letras más pequeñas dentro de las tarjetas */
+  .mm-t{padding:15px 17px!important;gap:11px!important}
+  .mm-t h4{font-size:12.5px!important}.mm-t h4 small{font-size:8.5px!important}.mm-t h4 em{font-size:8px!important;padding:4px 8px!important}
+  .mm-big small,.mm-acc small{font-size:8px!important}.mm-big em,.mm-acc em{font-size:9px!important}
+  .mm-acc{padding:7px 12px!important}.mm-acc b,.mm-acc.bien b{font-size:19px!important}.mm-acc.pide span{font-size:8.5px!important}
+  .mm-pie small{font-size:7.5px!important}.mm-pie b{font-size:12.5px!important}
+  .mm-ocinfo{font-size:11px!important}.mm-bt{height:28px;font-size:9px!important}.mm-nota{font-size:11px!important}
   .mm-t>*{position:relative;z-index:1}
   .mm-top{display:grid!important;grid-template-columns:auto auto auto minmax(0,1fr) minmax(220px,340px);align-items:center;gap:14px;padding:12px 18px}
   .mm-sep{display:none}
@@ -263,7 +270,7 @@
     const pct = v => Math.max(0, Math.min(100, v / tope * 100)).toFixed(1);
     const aviso = ['error', 'sin_id', 'sin_effi', 'revisar'].includes(t.estado) && t.nota ? '<div class="mm-nota">' + esc(t.nota) + '</div>' : '';   // el resto de estados ya se entiende con la etiqueta
     return '<article class="mm-glass mm-t ' + tono + '" style="animation-delay:' + Math.min(i * 25, 300) + 'ms"><h4><span>' + esc(t.tela) + '<small>' + esc(t.codigo) + ' · ' + esc(t.proveedor || 'SIN PROVEEDOR') + '</small><small class="mm-ide' + (t.id_effi ? '' : ' falta') + '">' + (t.id_effi ? 'ID EFFI ' + esc(t.id_effi) : 'SIN ID EFFI') + '</small></span><em>' + txt + '</em></h4>' +
-      '<div class="mm-hero"><div class="mm-big"><small>STOCK</small><div><b data-n="' + t.stock + '" style="font-size:' + (num(t.stock).length <= 3 ? 46 : num(t.stock).length === 4 ? 40 : 32) + 'px">' + num(t.stock) + '</b><em>MTS</em></div></div>' +
+      '<div class="mm-hero"><div class="mm-big"><small>STOCK</small><div><b data-n="' + t.stock + '" style="font-size:' + (num(t.stock).length <= 3 ? 34 : num(t.stock).length === 4 ? 30 : 25) + 'px">' + num(t.stock) + '</b><em>MTS</em></div></div>' +
       (t.pedir ? '<div class="mm-acc pide"><div><span>PEDIR</span><b>' + num(t.pedir) + '</b><em>MTS</em></div></div>' : t.por_recibir ? '<div class="mm-acc viene"><small>EN CAMINO</small><div><b>' + num(t.por_recibir) + '</b><em>MTS</em></div></div>' : '<div class="mm-acc bien"><small>DEL MÁXIMO</small><div><b>' + Math.round(t.stock / Math.max(t.maximo, 1) * 100) + '%</b></div></div>') + '</div>' +
       '<div class="mm-medidor" title="Hay ' + num(t.stock) + ' · mínimo ' + num(t.minimo) + ' · máximo ' + num(t.maximo) + '"><span class="mm-zona" style="width:' + pct(t.minimo) + '%"></span><span class="mm-zona ok" style="left:' + pct(t.minimo) + '%;width:' + (pct(t.maximo) - pct(t.minimo)).toFixed(1) + '%"></span>' +
       (t.pedir || t.por_recibir ? '<s style="left:' + pct(t.stock) + '%;width:' + (pct(t.stock + (t.por_recibir || 0) + (t.pedir || 0)) - pct(t.stock)).toFixed(1) + '%"></s>' : '') +
