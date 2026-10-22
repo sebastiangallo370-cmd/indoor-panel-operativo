@@ -77,12 +77,63 @@ class AjusteTest(unittest.TestCase):
     def test_aplicar_crea_un_ajuste_por_bodega_con_diferencia(self):
         hechos = []
         crear = lambda clave, bodega, art, delta, obs: hechos.append((bodega, art, delta)) or {'id': str(len(hechos)), 'total': None}
-        with mock.patch.object(stockman, '_stock_panel', lambda: {'100': {'21': 2000.0}}), mock.patch.object(stockman.effi_api, 'crear_ajuste', crear),                 mock.patch.object(stockman.effi_api, 'articulo', lambda *a: {'stock_bodegas': [{'bodega': '21', 'stock': '2000'}]}):
+        with mock.patch.object(stockman, '_stock_panel', lambda: {'100': {'21': 2000.0}}), mock.patch.object(stockman.effi_api, 'crear_ajuste', crear),                 mock.patch.object(stockman.effi_api, 'articulo', lambda *a: {'stock_bodegas': [{'bodega': '21', 'stock': '2000'}] if hechos else [{'bodega': '5', 'stock': '2981'}, {'bodega': '21', 'stock': '0.41'}]}):
             r = stockman.aplicar_tela('100', 'ADMIN')
         self.assertEqual(r['ajustes'], 2)
         self.assertIn((21, '6082', 1999.59), hechos)
         self.assertIn((5, '6082', -2981.0), hechos)
         self.assertEqual(stockman._leer()['nombres']['100']['stock_effi'], {'21': 2000.0})
+
+
+class EffiAPanelTest(unittest.TestCase):
+    """Un ajuste hecho en Effi pasa al panel; el que hizo STOCKMAN no rebota; lo anterior al arranque no se trae."""
+
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.movs = []
+        lista = [{'id': '10', 'articulo': '6082', 'bodega': '21', 'cantidad': '5', 'observacion': 'viejo', 'vigente': '1', 'nombre_responsable': 'X', 'fecha_trans': 'a'}]
+        self.lista = lista
+        self.p = [mock.patch.object(stockman, '_file', Path(self.dir.name) / 's.json'), mock.patch.object(stockman, '_usar_api', lambda: True),
+                  mock.patch.object(stockman.proveedores_tela, 'telas', lambda: [{'codigo': '100', 'nombre': 'MONTECATINI BLANCO', 'id_effi': '6082'}]),
+                  mock.patch.object(stockman.effi_api, '_lista', lambda ruta, params=None: list(self.lista)),
+                  mock.patch('app.inventario_api.inventory_movement', lambda m: self.movs.append((m.type, m.mts, m.bodega, m.code)) or {'ok': True})]
+        for m in self.p:
+            m.start()
+        d = stockman._leer()
+        d['nombres']['100'] = {'nombre_panel': 'MONTECATINI BLANCO', 'nombre_effi': 'MONTECATINI', 'id_effi': '6082', 'stock_effi': {}}
+        stockman._guardar(d)
+
+    def tearDown(self):
+        for m in self.p:
+            m.stop()
+        self.dir.cleanup()
+
+    def nuevo(self, i, cantidad, bodega='21', obs='ajuste manual'):
+        self.lista.insert(0, {'id': str(i), 'articulo': '6082', 'bodega': bodega, 'cantidad': str(cantidad), 'observacion': obs, 'vigente': '1', 'nombre_responsable': 'Ana', 'fecha_trans': 'hoy'})
+
+    def test_lo_anterior_al_arranque_no_se_trae(self):
+        self.assertEqual(stockman.traer_de_effi(True), [])
+        self.assertEqual(self.movs, [])
+
+    def test_un_ajuste_nuevo_de_effi_se_registra_en_el_panel(self):
+        stockman.traer_de_effi(True)
+        self.nuevo(11, 40)
+        self.nuevo(12, -15, bodega='23')
+        stockman.traer_de_effi(True)
+        self.assertEqual(self.movs, [('INGRESO', 40.0, 'BODEGA INDOOR', '100'), ('SALIDA', 15.0, '', '100')])
+        stockman.traer_de_effi(True)   # no se repite
+        self.assertEqual(len(self.movs), 2)
+
+    def test_el_ajuste_de_stockman_no_rebota_y_apagado_solo_queda_pendiente(self):
+        stockman.traer_de_effi(False)
+        self.nuevo(11, 40, obs=stockman.PROPIO + ' (ADMIN)')
+        self.nuevo(12, 7)
+        stockman.traer_de_effi(False)
+        self.assertEqual(self.movs, [])
+        d = stockman._leer()
+        self.assertEqual([p['ajuste'] for p in d['pendientes']], ['12'])
+        stockman.traer_de_effi(True)
+        self.assertEqual(self.movs, [('INGRESO', 7.0, 'BODEGA INDOOR', '100')])
 
 
 if __name__ == '__main__':
