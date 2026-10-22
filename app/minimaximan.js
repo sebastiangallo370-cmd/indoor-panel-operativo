@@ -18,6 +18,7 @@
   css.textContent = `
   .panel[data-panel="minimaximan"],.panel[data-panel="minimaximan"].active{width:100%;max-width:none;grid-template-columns:minmax(0,1fr)!important;justify-content:stretch!important;justify-items:stretch!important;place-content:stretch!important}
   body.mm-modo main,body:has(.panel[data-panel="minimaximan"].active) main{width:100%!important;max-width:none!important;margin-left:0!important;margin-right:0!important;box-sizing:border-box;padding-left:clamp(12px,1.6vw,36px)!important;padding-right:clamp(12px,1.6vw,36px)!important}
+  .panel[data-panel="minimaximan"] .mm{max-width:none!important;width:100%!important;margin:0!important;gap:18px}
   .mm>*{width:100%;max-width:none;box-sizing:border-box;justify-self:stretch;margin-left:0;margin-right:0}
   .mm{overflow-x:clip;display:grid;gap:18px;padding:4px 0 34px;font-family:Arial,sans-serif;color:#e8f0e0;position:relative;isolation:isolate;width:100%;min-height:calc(100vh - 150px);align-content:start}
   .mm::before,.mm::after{content:"";position:absolute;z-index:-1;border-radius:50%;filter:blur(80px);pointer-events:none;animation:mmFlota 18s ease-in-out infinite alternate}
