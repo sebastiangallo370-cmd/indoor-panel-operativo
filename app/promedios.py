@@ -132,6 +132,40 @@ def guardar_maestro(payload: dict):
     return {'ok': True, 'maestro': _vista(nuevo), 'creado': existente is None}
 
 
+@router.post('/registrar-generales')
+def registrar_generales(payload: dict):
+    """Registra como maestro las referencias pendientes con el PROMEDIO GENERAL de su ficha técnica (los cuatro grupos).
+    Las que ya tienen consumos NO se tocan; las que no tienen ficha con promedio se omiten."""
+    from app import fichas as fichas_mod
+    refs = []
+    for r in payload.get('refs') or []:
+        ref = re.sub(r'\s+', '', str(r or '')).upper()
+        if ref and ref not in refs:
+            refs.append(ref)
+    creados, omitidos = [], []
+    with _lock:
+        datos = _leer()
+        for ref in refs:
+            idx = next((i for i, m in enumerate(datos['maestros']) if m['ref'] == ref), None)
+            if idx is not None and any(v for g in GRUPOS for v in datos['maestros'][idx].get(g, [])):
+                omitidos.append({'ref': ref, 'motivo': 'ya tiene consumos'})
+                continue
+            general = fichas_mod.promedio_general(ref)
+            if not general:
+                omitidos.append({'ref': ref, 'motivo': 'su ficha no tiene promedio'})
+                continue
+            cuerpo = {'ref': ref, 'diseno': 'D6', **{g: [str(general)] * len(t) for g, t in GRUPOS.items()}}
+            nuevo = _limpiar(cuerpo)
+            if idx is None:
+                datos['maestros'].append(nuevo)
+            else:
+                datos['maestros'][idx] = nuevo
+            creados.append({'ref': ref, 'promedio': general})
+        if creados:
+            _guardar(datos)
+    return {'ok': True, 'creados': creados, 'omitidos': omitidos}
+
+
 @router.delete('/maestro/{ref}')
 def borrar_maestro(ref: str):
     with _lock:

@@ -23,7 +23,7 @@
   css.textContent = `
   .pm{display:grid;gap:16px;width:100%;max-width:1280px;margin:0 auto}
   .pm *{box-sizing:border-box}
-  .pm-pend{display:grid;gap:8px;margin:0 0 14px;padding:14px 16px;border-radius:16px;border:1px solid rgba(243,184,82,.45);background:rgba(243,184,82,.06)}.pm-pend-cab{display:grid;gap:3px}.pm-pend-cab b{color:#f3b852;font:900 14px Arial}.pm-pend-cab span{color:#c9d6c2;font:600 12px Arial}.pm-pend-fila{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;background:#111a15;border:1px solid #35463c;flex-wrap:wrap}.pm-pend-fila b{font:900 14px Arial;color:#eef4e9}.pm-pend-fila small{display:block;font:600 11px Arial;color:#a6b7ab;margin-top:2px}.pm-pend-cargar{min-height:36px;padding:0 14px;border-radius:999px;border:0;background:var(--lima,#d0f44c);color:#18220c;font:900 11px Arial;letter-spacing:.05em;cursor:pointer;width:auto}@media(max-width:600px){.pm-pend-cargar{width:100%}}
+  .pm-pend{display:grid;gap:8px;margin:0 0 14px;padding:14px 16px;border-radius:16px;border:1px solid rgba(243,184,82,.45);background:rgba(243,184,82,.06)}.pm-pend-cab{display:grid;gap:3px}.pm-pend-cab b{color:#f3b852;font:900 14px Arial}.pm-pend-cab span{color:#c9d6c2;font:600 12px Arial}.pm-pend-fila{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;background:#111a15;border:1px solid #35463c;flex-wrap:wrap}.pm-pend-fila b{font:900 14px Arial;color:#eef4e9}.pm-pend-fila small{display:block;font:600 11px Arial;color:#a6b7ab;margin-top:2px}.pm-pend-todas{min-height:40px;margin-top:4px;padding:0 16px;border-radius:999px;border:1px solid #f3b852;background:#f3b852;color:#2a1c04;font:900 11px Arial;letter-spacing:.05em;cursor:pointer;width:max-content}.pm-pend-cargar{min-height:36px;padding:0 14px;border-radius:999px;border:0;background:var(--lima,#d0f44c);color:#18220c;font:900 11px Arial;letter-spacing:.05em;cursor:pointer;width:auto}@media(max-width:600px){.pm-pend-cargar{width:100%}}
   .pm-head{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;flex-wrap:wrap;padding:20px 22px;border:1px solid #34432f;border-radius:16px;background:linear-gradient(135deg,#101a16,#0c110d)}
   .pm-head small{color:#7da4ff;letter-spacing:.14em;font-weight:800;font-size:.68rem}.pm-head h2{margin:4px 0 4px;font-size:1.6rem}.pm-head p{margin:0;color:#aebba7;font-size:.88rem}
   .pm-head input{min-height:44px;min-width:260px;padding:0 14px;border:1px solid #34432f;border-radius:12px;background:#0c110d;color:inherit;font-size:.95rem}
@@ -124,6 +124,7 @@
     const lista = st.pendientes;
     if (!lista || !lista.length) return '';
     return '<section class="pm-pend"><div class="pm-pend-cab"><b>' + lista.length + ' referencia' + (lista.length === 1 ? '' : 's') + ' sin maestro talla por talla</b><span>Mientras tanto usan el promedio general de su ficha. Cárguelas aquí cuando tenga los consumos.</span></div>' +
+      (st.puedeEditar ? '<button type="button" class="pm-pend-todas" data-pend-todas>REGISTRAR TODAS CON EL PROMEDIO GENERAL</button>' : '') +
       lista.map(x => '<div class="pm-pend-fila"><div><b>' + esc(x.ref) + '</b><small>' + esc(x.tela) + ' · ' + (x.general ? 'promedio general de ficha ' + esc(String(x.general).replace('.', ',')) + ' MTS' : 'sin ficha ni maestro') + '</small><small>Órdenes: ' + esc(x.ordenes.join(', ')) + '</small></div>' +
       (st.puedeEditar ? '<button type="button" class="pm-pend-cargar" data-pend-cargar="' + esc(x.ref) + '">CARGAR MAESTRO</button>' : '') + '</div>').join('') + '</section>';
   }
@@ -176,6 +177,17 @@
     });
     panel.addEventListener('click', async e => {
       const editar = e.target.closest('[data-editar]'), borrar = e.target.closest('[data-borrar]'), nota = e.target.closest('[data-nota-borrar]');
+      if (e.target.closest('[data-pend-todas]')) {
+        const refs = (st.pendientes || []).filter(x => x.general).map(x => x.ref);
+        if (!refs.length) { st.mensaje = 'No hay referencias con promedio general de ficha para registrar.'; pintar(false); return; }
+        try {
+          const r = await api('/api/promedios/registrar-generales', { method: 'POST', body: JSON.stringify({ refs }) });
+          st.mensaje = '✓ ' + r.creados.length + ' registradas con el promedio general' + (r.omitidos.length ? ' · ' + r.omitidos.length + ' sin cambios (' + r.omitidos.map(o => o.ref + ': ' + o.motivo).join('; ') + ')' : '');
+          st.datos = await api('/api/promedios');
+          st.pendientes = ((await api('/api/inventarios/tela-necesaria')).pendientes_maestro) || [];
+        } catch (x) { st.mensaje = x.message; }
+        pintar(false); return;
+      }
       const pendCargar = e.target.closest('[data-pend-cargar]');
       if (pendCargar) { st.editando = null; st.prefill = pendCargar.dataset.pendCargar; st.mensaje = ''; pintar(false); panel.querySelector('[data-form]')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
       if (editar) { st.editando = editar.dataset.editar; st.mensaje = ''; pintar(false); panel.querySelector('[data-form]')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
