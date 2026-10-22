@@ -301,6 +301,7 @@
   .pv-card.pv-t .pt-stats b{display:inline;font-size:20px}.pv-card.pv-t .pt-stats span{display:inline;margin:0;font-size:10px}
   @media(max-width:360px){.pt-form{grid-template-columns:1fr}}
   .pv-card input.pv-auto{border-color:rgba(208,244,76,.6)!important;background:rgba(208,244,76,.08)!important}
+  .pt-copia{display:grid;gap:5px;margin:0 0 12px;padding:10px 12px;border-radius:12px;border:1px dashed rgba(208,244,76,.45);background:rgba(208,244,76,.05)}.pt-copia>span{font:800 10px Arial;letter-spacing:.08em;color:var(--lima,#d0f44c);text-transform:uppercase}.pt-copia select{width:100%;height:36px;padding:0 10px;border-radius:10px;border:1px solid rgba(255,255,255,.2);background:#111a15;color:#eef4e9;font:600 13px Arial}.pt-copia-ok{color:#bfe39a;font:600 11px Arial}
   `;
   document.head.appendChild(css);
 
@@ -375,6 +376,7 @@
     const lapiz = edit ? '' : `<button type="button" class="pt-lapiz${falta ? ' pri' : ''}" data-pv-editar title="Editar tarjeta" aria-label="Editar tarjeta"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>`;
     return `<div class="pv-card pv-t${falta ? ' sin' : ''}${edit ? ' editando' : ''}${st.reciente === t.codigo ? ' nueva' : ''}" data-cod="${esc(t.codigo)}">` +
       `<div class="pt-head"><h3 class="pt-nom">${esc(t.nombre)}</h3>${lapiz}</div>` +
+      (edit ? copiarDe(t) : '') +
       `<div class="pt-form"><div class="pt-row fijo"><span class="pt-lbl">Código Indoor<b>*</b></span><button type="button" class="pt-cod" data-pv-copiar title="Tocar para copiar el código">${esc(t.codigo)}</button></div>` +
       fila(t.codigo, 'Proveedor', t.proveedor, 'list="pv-proveedores" data-pv-input', true, !t.proveedor, 'Escribe el proveedor…') +
       (edit ? sugerencias('prov', habituales().slice(0, 5)) : '') +
@@ -396,6 +398,24 @@
       `<div class="pv-est ${esc(e.c || '')}" data-pv-est>${esc(e.t || '')}</div></div>`;
   }
   const familia = n => (String(n || '').toUpperCase().replace(/\(.*?\)/g, ' ').trim().split(/\s+/)[0]) || 'OTRAS';
+  // «Copiar datos de otra tela»: lista de telas que ya tienen datos (primero las de la misma familia y el mismo proveedor)
+  const CAMPOS_COPIA = [['proveedor', '[data-pv-input]'], ['ancho', '[data-pv-ancho]'], ['composicion', '[data-pv-comp]'], ['gramaje', '[data-pv-gram]'], ['tipo', '[data-pv-tipo]'], ['stock_minimo', '[data-pv-smin]'], ['stock_maximo', '[data-pv-smax]'], ['vendedor', '[data-pv-vend]'], ['wpp', '[data-pv-wpp]'], ['correo', '[data-pv-correo]'], ['precio_sin_iva', '[data-pv-precio]']];
+  function copiarDe(t) {
+    const conDatos = telas().filter(x => x.codigo !== t.codigo && CAMPOS_COPIA.slice(2).some(([k]) => x[k]));
+    if (!conDatos.length) return '';
+    const fam = familia(t.nombre), peso = x => (familia(x.nombre) === fam ? 0 : 2) + (t.proveedor && x.proveedor === t.proveedor ? 0 : 1);
+    conDatos.sort((a, b) => peso(a) - peso(b) || String(a.nombre).localeCompare(String(b.nombre)));
+    return '<label class="pt-copia"><span>⧉ Copiar datos de otra tela</span><select data-pv-copiarde><option value="">Escoge una tela…</option>' +
+      conDatos.map(x => '<option value="' + esc(x.codigo) + '">' + esc(x.nombre) + ' · ' + esc(x.codigo) + '</option>').join('') + '</select></label>';
+  }
+  function aplicarCopia(sel) {
+    const tj = sel.closest('.pv-card'), x = telas().find(y => y.codigo === sel.value); if (!tj || !x) return;
+    let n = 0;
+    CAMPOS_COPIA.forEach(([k, s]) => { const c = tj.querySelector(s); if (c && !c.value.trim() && x[k]) { c.value = x[k]; c.classList.add('pv-auto'); n++; } });
+    const inp = tj.querySelector('[data-pv-input]'); if (inp) llenarDesdeDirectorio(inp);
+    sel.insertAdjacentHTML('afterend', '<small class="pt-copia-ok">' + (n ? '✓ ' + n + ' datos copiados de ' + esc(x.nombre) + '. Revisa y pulsa GUARDAR.' : 'Los campos ya tenían datos: no se cambió nada.') + '</small>');
+    const viejo = tj.querySelectorAll('.pt-copia-ok'); if (viejo.length > 1) viejo[0].remove();
+  }
   function cabeceraFam(f, lista) {
     const con = lista.filter(t => t.proveedor).length, sin = lista.length - con, cerrada = st.plegadas.has(f);
     const todas = lista.every(t => st.sel.has(t.codigo));
@@ -509,6 +529,7 @@
   function abrirEdicion(cod) {
     st.edit.add(cod); cambiarTarjeta(cod);
     const tj = host.querySelector('.pv-card[data-cod="' + CSS.escape(cod) + '"]');
+    const pin = tj && tj.querySelector('[data-pv-input]'); if (pin && pin.value.trim()) llenarDesdeDirectorio(pin);
     const vacio = tj && [...tj.querySelectorAll('.pt-row input')].find(i => !i.value && i.required);
     (vacio || (tj && tj.querySelector('.pt-row input')) || { focus() {} }).focus();
   }
@@ -580,6 +601,7 @@
   }
 
   document.addEventListener('change', e => { if (e.target.matches && e.target.matches('.pv-card [data-pv-input]')) llenarDesdeDirectorio(e.target); });
+  document.addEventListener('change', e => { if (e.target.matches && e.target.matches('.pv-card [data-pv-copiarde]')) aplicarCopia(e.target); });
   document.addEventListener('input', e => { if (e.target.matches && e.target.matches('.pv-card [data-pv-input]')) llenarDesdeDirectorio(e.target); });
   window.proveedoresTelaPintar = el => {
     if (host !== el) {
