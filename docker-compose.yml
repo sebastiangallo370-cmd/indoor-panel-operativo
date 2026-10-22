@@ -49,39 +49,6 @@ services:
     security_opt:
       - no-new-privileges:true
 
-  # produccion.tech vía Cloudflare Tunnel: el VPS abre la conexión hacia
-  # Cloudflare (como ngrok) en vez de esperar que Cloudflare logre conectarse
-  # de entrada al servidor. Esto evita el problema de alcance de red del VPS
-  # (confirmado con errores 522 reales, no solo con validación de certificados).
-  # Requiere ./cloudflared/<tunnel-id>.json y ./cloudflared/config.yml en el
-  # servidor (no se generan automáticamente, ver documentación del túnel).
-  cloudflared:
-    image: cloudflare/cloudflared:latest
-    container_name: asistente-reprogramaciones-cloudflared
-    restart: unless-stopped
-    depends_on:
-      - asistente
-    command: tunnel --config /etc/cloudflared/config.yml run
-    volumes:
-      - ./cloudflared:/etc/cloudflared:ro
-    security_opt:
-      - no-new-privileges:true
-
-  # Segunda conexión del mismo túnel: Cloudflare reparte el tráfico entre
-  # ambas automáticamente. Si una conexión se cae o se está reiniciando, la
-  # otra sigue atendiendo produccion.tech sin que nadie note un corte.
-  cloudflared2:
-    image: cloudflare/cloudflared:latest
-    container_name: asistente-reprogramaciones-cloudflared2
-    restart: unless-stopped
-    depends_on:
-      - asistente
-    command: tunnel --config /etc/cloudflared/config.yml run
-    volumes:
-      - ./cloudflared:/etc/cloudflared:ro
-    security_opt:
-      - no-new-privileges:true
-
 volumes:
   caddy_data:
   caddy_config:

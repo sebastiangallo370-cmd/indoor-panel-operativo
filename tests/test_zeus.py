@@ -1,6 +1,7 @@
 """ZEUS: la lista de compras sigue a la tela que falta (sin duplicar, sin pedir de más, cancelando lo que ya alcanza)."""
 import os
 import sys
+from unittest import mock
 import tempfile
 import unittest
 from pathlib import Path
@@ -138,7 +139,9 @@ class ZeusTest(unittest.TestCase):
         self.assertEqual(self.pc.get('/api/zeus/config').json()['correos'], [])
 
     def test_sin_cuenta_de_correo_queda_pendiente_con_el_motivo(self):
-        r = self.pc.post('/api/zeus/correos', json={'correo': 'a@b.co'}).json()
+        from app import alertas_correo
+        with mock.patch.object(alertas_correo, 'puede_enviar', return_value=False):   # sin cuenta de correo configurada (no depende del .env de cada máquina)
+            r = self.pc.post('/api/zeus/correos', json={'correo': 'a@b.co'}).json()
         self.assertFalse(r['enviado'])
         self.assertIn('correo', r['detalle'].lower())
         self.assertEqual(r['correos'][0]['estado'], 'pendiente')

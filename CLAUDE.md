@@ -51,10 +51,9 @@ Léelo completo antes de tocar código. Última actualización grande: 2026-10-0
 - Las tablas/tarjetas largas se parten en pestañas o secciones plegables para evitar scroll; el usuario lo pide seguido.
 
 ## Despliegue (automático desde main)
-**Hacer push a main = publicar en ~2 min.** En el VPS, `scripts/auto_desplegar.sh` corre cada minuto (cron `/etc/cron.d/auto_desplegar`, log `/var/log/auto_desplegar.log`): si main cambió, descarga ese commit, revisa sintaxis, copia app/, reconstruye y comprueba /salud; si falla, vuelve a la versión anterior. Por eso prueba bien ANTES de hacer push. El workflow de GitHub Actions no sirve (el VPS no acepta SSH desde GitHub). Si cambias el script, el VPS no lo actualiza solo: hay que volver a descargarlo con el curl de su cabecera.
+**Hacer push a main = publicar en ~2 min.** En el VPS, `scripts/auto_desplegar.sh` corre cada minuto (cron `/etc/cron.d/auto_desplegar`, log `/var/log/auto_desplegar.log`): si main cambió, descarga ese commit, revisa sintaxis, copia app/, reconstruye y comprueba /salud; si falla, vuelve a la versión anterior. Por eso prueba bien ANTES de hacer push. Se quitaron los workflows de GitHub Actions: no podían entrar al VPS por SSH. Si cambias el script, el VPS no lo actualiza solo: hay que volver a descargarlo con el curl de su cabecera.
 
 Lo de abajo es el método manual de respaldo:
-Opción automática: GitHub Actions → «Desplegar a produccion.cloud» (`.github/workflows/desplegar.yml`), solo a mano escribiendo PUBLICAR. Necesita los secretos `VPS_HOST`, `VPS_SSH_KEY` y `VPS_KNOWN_HOSTS`, y publica lo que esté en main de GitHub: úsalo solo si main ya tiene todos los commits locales.
 Respaldo: `respaldo.py` hace un .tar.gz diario de /data (14 en el servidor) y lo copia a la NAS en `RESPALDOS PANEL` (30 copias; `RESPALDO_NAS_DIR` vacío lo apaga). Si falla, aparece en salud.
 
 Opción manual:
