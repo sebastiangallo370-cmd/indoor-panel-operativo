@@ -235,7 +235,7 @@ def aplicar_tela(codigo: str, usuario: str) -> dict:
     hechos = []
 
     def registrar(estado, tipo_op, origen, destino, cantidad, ident='', detalle=''):
-        hechos.append({'codigo': codigo, 'tela': fila['tela'], 'bodega': (f"{origen} → {destino}" if tipo_op == 'traslado' else destino), 'delta': cantidad, 'estado': estado, 'tipo': 'a_effi',
+        hechos.append({'codigo': codigo, 'tela': fila['tela'], 'bodega': (f"{origen} → {destino}" if tipo_op == 'traslado' else (origen if tipo_op == 'egreso' else destino)), 'delta': cantidad, 'estado': estado, 'tipo': 'a_effi',
                        'operacion': tipo_op, 'ajuste': ident, 'detalle': detalle, 'por': usuario, 'at': _iso()})
 
     def fallo(exc, tipo_op, origen, destino, cantidad):
