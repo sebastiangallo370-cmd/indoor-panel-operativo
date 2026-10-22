@@ -73,6 +73,7 @@
     const host = panel.querySelector('.sm-host'); if (!host || !datos) return;
     const q = plano(buscar);
     const lista = datos.telas.filter(t => coincide(t) && (!q || plano(t.tela + ' ' + t.codigo + ' ' + (t.nombre_panel || '')).includes(q)));
+    lista.sort((x, y) => (y.panel || 0) - (x.panel || 0) || String(x.tela).localeCompare(String(y.tela)));   // primero la tela con MAYOR stock en el panel
     const aviso = filtro === 'sin_articulo' && datos.agente.error ? '<div class="mm-nota" style="margin-bottom:10px">' + esc(datos.agente.error) + '</div>' : '';
     host.innerHTML = aviso + (lista.length ? '<div class="mm-lista">' + lista.map(tarjeta).join('') + '</div>' : '<div class="mm-vacio">' + (filtro === 'ajustar' ? 'Nada por igualar: el stock del panel y el de Effi coinciden.' : 'No hay telas con ese filtro.') + '</div>');
   }
