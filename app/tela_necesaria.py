@@ -318,6 +318,7 @@ def calcular(items: list[dict]) -> dict:
                 plantillas.setdefault(codigo, m)
     por_tela: dict[str, dict] = {}
     sin_promedio = []
+    pendientes: dict[str, dict] = {}
     brecha = brecha_sublimacion()
     for p in sorted(pedidos, key=lambda x: (x['entrega'] or '9999', x['orden'])):
         consumo, usados, faltan = _consumo(p['referencia'], maestros, plantillas)
@@ -336,6 +337,16 @@ def calcular(items: list[dict]) -> dict:
             mts, consumo, usados = exacto['mts'], round(exacto['mts'] / max(1, exacto['prendas']), 2), exacto['partes']
         else:
             mts = round(consumo * p['cantidad'], 2)
+        if not exacto:   # referencias de esta orden que todavía no tienen maestro con consumo (usan el promedio general de la ficha)
+            for parte in promedios.partes_de_hoja(p['referencia']):
+                if not parte:
+                    continue
+                maestro = maestros.get(parte) or plantillas.get(parte)
+                if maestro and promedios.promedio(maestro):
+                    continue
+                pend = pendientes.setdefault(parte, {'ref': parte, 'general': _general_de_ficha(parte), 'tela': p['tela'], 'ordenes': []})
+                if p['orden'] not in pend['ordenes']:
+                    pend['ordenes'].append(p['orden'])
         entrada = por_tela.setdefault(p['tela'], {'tela': p['tela'], 'mts': 0.0, 'prendas': 0, 'pedidos': [], 'codigos': set()})
         entrada['codigos'].add(_codigo_tela(p['referencia']))
         entrada['mts'] += mts
@@ -374,6 +385,9 @@ def calcular(items: list[dict]) -> dict:
         sp['bodega'] = round(sum(sum(float(x) for x in (i.get('roll_values') or [])) for i in enc), 2) if enc else None
     resultado.sort(key=lambda r: (r['alcanza'], -r['mts']))
     por_orden.sort(key=lambda o: (o['entrega'] or '9999', o['orden']))
-    return {'disponible': True, 'brecha_sublimacion': brecha, 'telas': resultado, 'ordenes': por_orden + sin_promedio, 'sin_promedio': sin_promedio,
+    pendientes_lista = sorted(pendientes.values(), key=lambda x: (-len(x['ordenes']), x['ref']))
+    for x in pendientes_lista:
+        x['ordenes'].sort()
+    return {'disponible': True, 'brecha_sublimacion': brecha, 'telas': resultado, 'ordenes': por_orden + sin_promedio, 'sin_promedio': sin_promedio, 'pendientes_maestro': pendientes_lista,
             'mts': round(sum(r['mts'] for r in resultado), 2), 'pedidos': sum(len(r['pedidos']) for r in resultado),
             'faltan': round(sum(r['faltan'] for r in resultado), 2), 'telas_no_alcanzan': sum(1 for r in resultado if not r['alcanza'])}

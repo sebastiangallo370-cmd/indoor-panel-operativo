@@ -32,6 +32,20 @@ class TelaCompartida(unittest.TestCase):
         self.assertEqual(ords['CO6214']['compartida_con'], ['CO6216'])
         self.assertEqual(ords['CO6216']['compartida_con'], ['CO6214'])
 
+    def test_pendientes_de_maestro_listan_las_ordenes_que_usan_el_general(self):
+        items = [{'categoria': 'BODEGA TELA', 'nombre': '(11200) QATAR', 'roll_values': [497.0]}]
+        consumos = iter([(147.38, ['FUT01'], []), (23.58, ['FUT01'], [])])
+        with mock.patch.object(tn, '_pedidos', return_value=[pedido('CO6214'), pedido('CO6216')]), \
+             mock.patch.object(tn, 'brecha_sublimacion', return_value=5), \
+             mock.patch.object(tn.promedios, '_leer', return_value={'maestros': []}), \
+             mock.patch.object(tn, '_consumo', side_effect=lambda *a: next(consumos)), \
+             mock.patch.object(tn, '_exacto', return_value=None), \
+             mock.patch.object(tn, '_general_de_ficha', return_value=1.23), \
+             mock.patch.object(tn, '_telas_de_bodega', return_value=items):
+            pend = tn.calcular(items)['pendientes_maestro']
+        self.assertEqual(len(pend), 1)
+        self.assertEqual((pend[0]['ref'], pend[0]['general'], pend[0]['ordenes']), ('FUT01', 1.23, ['CO6214', 'CO6216']))
+
 
 if __name__ == '__main__':
     unittest.main()

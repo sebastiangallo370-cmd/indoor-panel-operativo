@@ -6,7 +6,7 @@
     ['nino', 'NIÑO · TALLA 2 A 16', 'nino'], ['nina', 'NIÑA · TALLA 2 A 16', 'nino'],
     ['masc', 'MASCULINO · XS A 4XL', 'adulto'], ['fem', 'FEMENINO · XS A 4XL', 'adulto']];
   const NOMBRE_NOTA = { NOTA: 'NOTA (aviso)', OMITIR_MANUAL: 'OMITIR MANUAL', SIN_FUSIONADO: 'SIN FUSIONADO', SIN_SUBCARPETAS: 'SIN SUBCARPETAS' };
-  const st = { datos: null, buscar: '', editando: null, puedeEditar: false, abierto: {}, mensaje: '' };
+  const st = { datos: null, buscar: '', editando: null, puedeEditar: false, abierto: {}, mensaje: '', pendientes: null, prefill: '' };
   let panel, tab;
 
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -23,6 +23,7 @@
   css.textContent = `
   .pm{display:grid;gap:16px;width:100%;max-width:1280px;margin:0 auto}
   .pm *{box-sizing:border-box}
+  .pm-pend{display:grid;gap:8px;margin:0 0 14px;padding:14px 16px;border-radius:16px;border:1px solid rgba(243,184,82,.45);background:rgba(243,184,82,.06)}.pm-pend-cab{display:grid;gap:3px}.pm-pend-cab b{color:#f3b852;font:900 14px Arial}.pm-pend-cab span{color:#c9d6c2;font:600 12px Arial}.pm-pend-fila{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;background:#111a15;border:1px solid #35463c;flex-wrap:wrap}.pm-pend-fila b{font:900 14px Arial;color:#eef4e9}.pm-pend-fila small{display:block;font:600 11px Arial;color:#a6b7ab;margin-top:2px}.pm-pend-cargar{min-height:36px;padding:0 14px;border-radius:999px;border:0;background:var(--lima,#d0f44c);color:#18220c;font:900 11px Arial;letter-spacing:.05em;cursor:pointer;width:auto}@media(max-width:600px){.pm-pend-cargar{width:100%}}
   .pm-head{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;flex-wrap:wrap;padding:20px 22px;border:1px solid #34432f;border-radius:16px;background:linear-gradient(135deg,#101a16,#0c110d)}
   .pm-head small{color:#7da4ff;letter-spacing:.14em;font-weight:800;font-size:.68rem}.pm-head h2{margin:4px 0 4px;font-size:1.6rem}.pm-head p{margin:0;color:#aebba7;font-size:.88rem}
   .pm-head input{min-height:44px;min-width:260px;padding:0 14px;border:1px solid #34432f;border-radius:12px;background:#0c110d;color:inherit;font-size:.95rem}
@@ -68,7 +69,7 @@
 
   function formulario() {
     const m = st.editando ? st.datos.maestros.find(x => x.ref === st.editando) : null;
-    const t = k => esc(m ? m[k] : '');
+    const t = k => esc(m ? m[k] : (k === 'ref' ? st.prefill : ''));
     if (!st.puedeEditar) return '';
     return '<form class="pm-form" data-form autocomplete="off">' +
       '<h3>' + (m ? 'EDITANDO MAESTRO ' + esc(m.ref) : 'NUEVA REFERENCIA') + '</h3>' +
@@ -111,17 +112,27 @@
     const host = panel.querySelector('.pm');
     const formViejo = conservarForm ? host.querySelector('[data-form]') : null;
     host.innerHTML = '<div class="pm-head"><div><small>EDICIÓN · INTELIGENCIA</small><h2>PROMEDIOS MAESTROS</h2><p>Consumo promedio de tela por maestro y talla. ' + st.datos.maestros.length + ' maestros registrados.</p></div><input type="search" data-buscar placeholder="Buscar referencia..." value="' + esc(st.buscar) + '"></div>' +
-      '<div data-form-lugar></div><section class="pm-lista">' + (lista.map(tarjeta).join('') || '<div class="pm-vacio" style="grid-column:1/-1">Ninguna referencia coincide con la búsqueda.</div>') + '</section>';
+      bannerPendientes() + '<div data-form-lugar></div><section class="pm-lista">' + (lista.map(tarjeta).join('') || '<div class="pm-vacio" style="grid-column:1/-1">Ninguna referencia coincide con la búsqueda.</div>') + '</section>';
     const destino = host.querySelector('[data-form-lugar]');
     if (formViejo) destino.appendChild(formViejo); else destino.innerHTML = formulario();
     const caja = host.querySelector('[data-buscar]');
     if (document.activeElement === document.body && st.buscar) { caja.focus(); caja.setSelectionRange(st.buscar.length, st.buscar.length); }
   }
 
+  // Referencias que aún usan el promedio general de su ficha: se ven aquí para cargar su maestro talla por talla
+  function bannerPendientes() {
+    const lista = st.pendientes;
+    if (!lista || !lista.length) return '';
+    return '<section class="pm-pend"><div class="pm-pend-cab"><b>' + lista.length + ' referencia' + (lista.length === 1 ? '' : 's') + ' sin maestro talla por talla</b><span>Mientras tanto usan el promedio general de su ficha. Cárguelas aquí cuando tenga los consumos.</span></div>' +
+      lista.map(x => '<div class="pm-pend-fila"><div><b>' + esc(x.ref) + '</b><small>' + esc(x.tela) + ' · ' + (x.general ? 'promedio general de ficha ' + esc(String(x.general).replace('.', ',')) + ' MTS' : 'sin ficha ni maestro') + '</small><small>Órdenes: ' + esc(x.ordenes.join(', ')) + '</small></div>' +
+      (st.puedeEditar ? '<button type="button" class="pm-pend-cargar" data-pend-cargar="' + esc(x.ref) + '">CARGAR MAESTRO</button>' : '') + '</div>').join('') + '</section>';
+  }
+
   async function cargar() {
     const host = panel.querySelector('.pm');
     if (!st.datos) host.innerHTML = '<div class="pm-vacio">Cargando promedios…</div>';
-    try { st.datos = await api('/api/promedios'); pintar(false); } catch (e) { host.innerHTML = '<div class="pm-vacio">' + esc(e.message) + '</div>'; }
+    try { st.datos = await api('/api/promedios'); pintar(false); } catch (e) { host.innerHTML = '<div class="pm-vacio">' + esc(e.message) + '</div>'; return; }
+    try { const r = await api('/api/inventarios/tela-necesaria'); st.pendientes = r.pendientes_maestro || []; pintar(false); } catch (e) { /* sin esta lista la pantalla sigue igual */ }
   }
 
   function leerForm(form) {
@@ -139,7 +150,9 @@
       const r = await api('/api/promedios/maestro', { method: 'POST', body: JSON.stringify(cuerpo) });
       if (form.nota_texto.value.trim()) await api('/api/promedios/nota', { method: 'POST', body: JSON.stringify({ ref: cuerpo.ref, tipo: form.nota_tipo.value, texto: form.nota_texto.value }) });
       st.mensaje = '✓ ' + (r.creado ? 'Referencia agregada' : 'Cambios guardados') + ' · promedio ' + num(r.maestro.promedio) + ' MTS';
-      st.editando = null; st.datos = await api('/api/promedios'); pintar(false);
+      st.editando = null; st.prefill = ''; st.datos = await api('/api/promedios');
+      try { st.pendientes = (await api('/api/inventarios/tela-necesaria')).pendientes_maestro || []; } catch (x) { /* la lista se actualiza al recargar */ }
+      pintar(false);
     } catch (e) { st.mensaje = e.message; const m = form.querySelector('[data-msg]'); m.textContent = e.message; m.className = 'pm-msg err'; boton.disabled = false; }
   }
 
@@ -163,6 +176,8 @@
     });
     panel.addEventListener('click', async e => {
       const editar = e.target.closest('[data-editar]'), borrar = e.target.closest('[data-borrar]'), nota = e.target.closest('[data-nota-borrar]');
+      const pendCargar = e.target.closest('[data-pend-cargar]');
+      if (pendCargar) { st.editando = null; st.prefill = pendCargar.dataset.pendCargar; st.mensaje = ''; pintar(false); panel.querySelector('[data-form]')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
       if (editar) { st.editando = editar.dataset.editar; st.mensaje = ''; pintar(false); panel.querySelector('[data-form]')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
       else if (e.target.closest('[data-cancelar]')) { st.editando = null; st.mensaje = ''; pintar(false); }
       else if (borrar) {
