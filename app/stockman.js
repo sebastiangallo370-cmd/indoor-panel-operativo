@@ -24,6 +24,11 @@
   .sm-t h4 small{font:800 12px Arial!important;letter-spacing:.04em!important;color:#c5d2bf!important;margin-top:5px!important;display:flex!important;align-items:center;gap:8px;flex-wrap:wrap}
   .sm-id{padding:2px 9px;border-radius:99px;border:1px solid rgba(208,244,76,.55);background:rgba(208,244,76,.12);color:var(--lima,#d0f44c);font:900 12px Arial;letter-spacing:.05em}
   .sm-hero b em{font:800 9px Arial;font-style:normal;letter-spacing:.1em;color:#9fb096;margin-left:5px}
+  .sm-pregunta{margin:0;font:700 12.5px/1.4 Arial;color:#e8f0e0}.sm-pregunta b{color:var(--lima,#d0f44c)}
+  .sm-opciones{display:grid;gap:7px}.sm-op{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;border-radius:12px;background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.12)}
+  .sm-op div{display:grid;gap:2px;min-width:0}.sm-op b{font:800 12px Arial;color:#fff;overflow:hidden;text-overflow:ellipsis}.sm-op small{font:700 10px Arial;color:#9fb096}
+  .sm-op .mm-bt{width:96px;flex:none;height:30px}.sm-suma{height:34px!important;font-size:10px!important}
+  .sm-nota-pie{font:700 10.5px/1.4 Arial;color:#9fb096}.sm-nota-pie b{color:#e8f0e0}.sm-nota-pie a{color:var(--lima,#d0f44c);text-decoration:underline}
   .sm-hero{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center}
   .sm-hero small{display:block;font:800 8px Arial;letter-spacing:.14em;color:#9fb096}.sm-hero b{font:900 24px/1.1 Arial;color:#fff}.sm-hero .der{text-align:right}
   .sm-hero i{font:900 12px Arial;font-style:normal;padding:6px 11px;border-radius:99px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.08);color:#fff;white-space:nowrap}
@@ -55,12 +60,13 @@
     const boton = (t.estado === 'ajustar' || t.estado === 'grande') ? '<button type="button" class="mm-bt env sm-igualar" data-sm-ajustar="' + esc(t.codigo) + '" data-grande="' + (t.estado === 'grande' ? 1 : 0) + '" data-tela="' + esc(t.tela) + '">IGUALAR EN EFFI</button>' : '';
     const dif = Math.round((t.diferencia || 0) * 100) / 100;
     const cuerpo = t.estado === 'ambiguo'
-      ? '<div class="mm-nota">El código ' + esc(t.codigo) + ' lo comparten varias telas del panel y no se sabe cuál es la de este artículo de Effi, así que STOCKMAN no la toca:</div><div class="sm-tabla">' + (t.opciones || []).map(o => '<div class="sm-fila" style="grid-template-columns:1fr auto"><span>' + esc(o.nombre) + '</span><span>' + num(o.mts) + ' mts</span></div>').join('') + '</div>'
+      ? '<p class="sm-pregunta">El código <b>' + esc(t.codigo) + '</b> lo usan ' + (t.opciones || []).length + ' telas del panel. ¿Cuál es la de este artículo de Effi?</p><div class="sm-opciones">' + (t.opciones || []).map(o => '<div class="sm-op"><div><b>' + esc(o.nombre) + '</b><small>' + num(o.mts) + ' mts en el panel</small></div><button type="button" class="mm-bt" data-sm-asignar="una" data-codigo="' + esc(t.codigo) + '" data-nombre="' + esc(o.nombre) + '">ES ESTA</button></div>').join('') + '</div><button type="button" class="mm-bt env sm-suma" data-sm-asignar="suma" data-codigo="' + esc(t.codigo) + '">SON LA MISMA TELA · SUMAR LAS ' + (t.opciones || []).length + ' (' + num(t.panel) + ' mts)</button><div class="sm-nota-pie">Mientras no elijas, STOCKMAN no toca esta tela.</div>'
       : t.estado === 'sin_articulo'
       ? '<div class="mm-nota">Effi no tiene un artículo con esta referencia exacta. Escribe su «ID Effi» en INFORMACIÓN TELA.</div>'
       : '<div class="sm-hero"><div><small>PANEL · METROS</small><b>' + num(t.panel) + '<em>MTS</em></b></div><i class="' + (Math.abs(dif) < 0.01 ? 'ok' : dif > 0 ? 'mas' : 'menos') + '">' + (Math.abs(dif) < 0.01 ? '✔ IGUAL' : sg(dif) + ' mts') + '</i><div class="der"><small>EFFI · METROS</small><b>' + num(t.effi) + '<em>MTS</em></b></div></div>' +
         (vivas.length ? '<div class="sm-tabla"><div class="sm-fila cab"><span>BODEGA</span><span>PANEL (MTS)</span><span>EFFI (MTS)</span><span>DIF. (MTS)</span></div>' + filas + '</div>' : '') + boton;
-    return '<article class="mm-glass mm-t sm-t ' + tono + '" style="animation-delay:' + Math.min(i * 25, 300) + 'ms"><h4><span>' + esc(t.tela) + '<small>CÓD. ' + esc(t.codigo) + (t.item_panel && t.item_panel.toLowerCase() !== String(t.tela).toLowerCase() ? ' · panel: ' + esc(t.item_panel) : '') + (t.id_effi ? ' <span class="sm-id">ID EFFI ' + esc(t.id_effi) + '</span>' : '') + '</small></span><em>' + txt + '</em></h4>' + cuerpo + '<img class="mm-marca" src="/marca-indoor.svg" alt="" aria-hidden="true"></article>';
+    const elegida = t.varias && t.estado !== 'ambiguo' ? '<div class="sm-nota-pie">Tela del panel: <b>' + esc(t.item_panel) + '</b>' + (t.asignada ? ' · elegida por ti' : ' · escogida por nombre') + ' · <a href="#" data-sm-asignar="auto" data-codigo="' + esc(t.codigo) + '">cambiar</a></div>' : '';
+    return '<article class="mm-glass mm-t sm-t ' + tono + '" style="animation-delay:' + Math.min(i * 25, 300) + 'ms"><h4><span>' + esc(t.tela) + '<small>CÓD. ' + esc(t.codigo) + (t.id_effi ? ' <span class="sm-id">ID EFFI ' + esc(t.id_effi) + '</span>' : '') + '</small></span><em>' + txt + '</em></h4>' + cuerpo + elegida + '<img class="mm-marca" src="/marca-indoor.svg" alt="" aria-hidden="true"></article>';
   }
 
   function pintarLista() {
@@ -153,6 +159,14 @@
       const oc = e.target.closest('[data-sm-ocultar]'); if (oc) { urlWh = ''; pintar(); return; }
       const cp = e.target.closest('[data-sm-copiar]');
       if (cp) { try { await navigator.clipboard.writeText(urlWh); cp.textContent = 'COPIADO'; setTimeout(() => { cp.textContent = 'COPIAR'; }, 1500); } catch (_) { prompt('Copia esta dirección:', urlWh); } return; }
+      const asg = e.target.closest('[data-sm-asignar]');
+      if (asg) {
+        e.preventDefault();
+        const modo = asg.dataset.smAsignar;
+        if (modo !== 'auto' && !confirm(modo === 'suma' ? 'Se sumarán todas las telas con el código ' + asg.dataset.codigo + ' para compararlas con el artículo de Effi. ¿Continuar?' : 'Para el código ' + asg.dataset.codigo + ' se usará «' + asg.dataset.nombre + '» como la tela de este artículo de Effi. ¿Continuar?')) return;
+        try { await api('/api/stockman/asignar', { method: 'POST', body: JSON.stringify({ codigo: asg.dataset.codigo, modo, nombre: asg.dataset.nombre || '' }) }); } catch (x) { alert(x.message); }
+        firma = ''; cargar(); return;
+      }
       const s = e.target.closest('[data-sm-activar]');
       if (s) {
         const quiere = s.dataset.smActivar === '1';

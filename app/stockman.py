@@ -73,6 +73,7 @@ def _leer() -> dict:
     d.setdefault('vistos', [])
     d.setdefault('pendientes', [])  # ajustes de Effi por traer al panel (STOCKMAN apagado)
     d.setdefault('estables', {})
+    d.setdefault('asignaciones', {})   # código con varias telas -> {'modo': 'una', 'nombre': ...} o {'modo': 'suma'} (lo decide una persona)
     d.setdefault('fallos', {})      # cambios que Effi rechazó: se reintentan pasado un rato, no en cada ciclo
     d.setdefault('panel_base', None)   # metros por bodega del panel la última vez que se procesó: solo lo que cambie respecto a esto se manda a Effi
     d.setdefault('ultimo_completo', 0)
@@ -200,11 +201,21 @@ def _stock_panel_detalle() -> dict[str, list[dict]]:
     return por_codigo
 
 
-def _elegir(codigo: str, candidatos: list[dict], nombre_effi: str) -> tuple[dict | None, list[dict]]:
+def _elegir(codigo: str, candidatos: list[dict], nombre_effi: str, asignacion: dict | None = None) -> tuple[dict | None, list[dict]]:
     """Qué registro del panel es la tela del artículo de Effi: se cruza por CÓDIGO y por NOMBRE. Con un solo registro con ese código es ese; si hay varios, el que más se parece al nombre
     del artículo de Effi, siempre que gane con claridad. Si no se puede saber, devuelve None (no se toca nada solo) y la lista de opciones."""
     if len(candidatos) == 1:
         return candidatos[0], candidatos
+    if asignacion:   # lo que decidió una persona manda
+        if asignacion.get('modo') == 'suma':
+            juntas: dict[str, float] = {}
+            for c in candidatos:
+                for b, v in c['bodegas'].items():
+                    juntas[b] = round(juntas.get(b, 0.0) + v, 2)
+            return {'nombre': ' + '.join(c['nombre'] for c in candidatos), 'bodegas': juntas, 'total': round(sum(c['total'] for c in candidatos), 2)}, candidatos
+        elegida = next((c for c in candidatos if c['nombre'] == asignacion.get('nombre')), None)
+        if elegida:
+            return elegida, candidatos
     puntos = sorted(((_parecido(nombre_effi, c['nombre']), i) for i, c in enumerate(candidatos)), reverse=True)
     if puntos and puntos[0][0] >= MIN_PARECIDO and (len(puntos) < 2 or puntos[0][0] - puntos[1][0] >= MARGEN_PARECIDO):
         return candidatos[puntos[0][1]], candidatos
@@ -217,7 +228,7 @@ def _stock_panel() -> dict[str, dict[str, float]]:
     salida = {}
     for codigo, candidatos in _stock_panel_detalle().items():
         v = nombres.get(codigo) or {}
-        elegido, _ = _elegir(codigo, candidatos, v.get('nombre_effi') or v.get('nombre_panel') or '')
+        elegido, _ = _elegir(codigo, candidatos, v.get('nombre_effi') or v.get('nombre_panel') or '', _leer()['asignaciones'].get(codigo))
         if elegido is not None:
             salida[codigo] = elegido['bodegas']
     return salida
@@ -232,13 +243,15 @@ def evaluar() -> list[dict]:
         codigo = str(t['codigo'])
         v = d['nombres'].get(codigo)
         fila = {'codigo': codigo, 'tela': (v or {}).get('nombre_effi') or t['nombre'], 'id_effi': (v or {}).get('id_effi', ''), 'estado': 'sin_articulo', 'bodegas': [], 'panel': 0.0, 'effi': 0.0, 'diferencia': 0.0}
-        elegido, opciones = _elegir(codigo, detalle.get(codigo, []), v.get('nombre_effi') or '') if v else (None, [])
+        elegido, opciones = _elegir(codigo, detalle.get(codigo, []), v.get('nombre_effi') or '', d['asignaciones'].get(codigo)) if v else (None, [])
         if v and elegido is None and opciones:
             fila.update(estado='ambiguo', opciones=[{'nombre': c['nombre'], 'mts': c['total']} for c in opciones], panel=round(sum(c['total'] for c in opciones), 2), effi=round(sum((v.get('stock_effi') or {}).values()), 2))
             filas.append(fila)
             continue
         if v:
             fila['item_panel'] = elegido['nombre'] if elegido else ''
+            fila['asignada'] = (d['asignaciones'].get(codigo) or {}).get('modo', '')
+            fila['varias'] = len(opciones) > 1
             pan, efi = (elegido['bodegas'] if elegido else {}), v.get('stock_effi') or {}
             ids = sorted(set(pan) | set(efi) | set(BODEGAS.values()), key=lambda i: (i not in _NOMBRE_BODEGA, int(i)))
             for b in ids:
@@ -616,6 +629,25 @@ def estado(request: Request):
 @router.post('/revisar')
 def revisar_ahora(request: Request):
     return revisar()
+
+
+@router.post('/asignar')
+def asignar(request: Request, payload: dict):
+    """Cuando varias telas del panel comparten un código, una persona decide cuál es la del artículo de Effi (una de ellas, o todas juntas) o vuelve a lo automático."""
+    codigo, modo = str(payload.get('codigo') or ''), str(payload.get('modo') or '')
+    if modo not in ('una', 'suma', 'auto') or not codigo:
+        raise HTTPException(400, 'Elige una opción válida')
+    with _lock:
+        d = _leer()
+        if modo == 'auto':
+            d['asignaciones'].pop(codigo, None)
+        elif modo == 'suma':
+            d['asignaciones'][codigo] = {'modo': 'suma', 'por': str(_auth(request) or ''), 'at': _iso()}
+        else:
+            d['asignaciones'][codigo] = {'modo': 'una', 'nombre': str(payload.get('nombre') or ''), 'por': str(_auth(request) or ''), 'at': _iso()}
+        d['panel_base'] = None if d['panel_base'] is None else {c: v for c, v in d['panel_base'].items() if c != codigo}   # esa tela vuelve a tomarse como punto de partida
+        _guardar(d)
+    return {'ok': True}
 
 
 @router.post('/ajustar')

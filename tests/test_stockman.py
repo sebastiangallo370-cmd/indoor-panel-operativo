@@ -221,6 +221,14 @@ class MismoCodigoTest(unittest.TestCase):
         b = {'nombre': 'SUPERRIB BLANCO', 'bodegas': {}, 'total': 41}
         self.assertIsNone(stockman._elegir('8100', [a, b], 'SUPERRIB (EXIRRIB)')[0])
 
+    def test_lo_que_decide_una_persona_manda(self):
+        a = {'nombre': 'EXIRRIB BLANCO', 'bodegas': {'21': 8.0}, 'total': 8.0}
+        b = {'nombre': 'SUPERRIB BLANCO', 'bodegas': {'21': 41.0, '23': 3.0}, 'total': 44.0}
+        suma, _ = stockman._elegir('8100', [a, b], 'SUPERRIB (EXIRRIB)', {'modo': 'suma'})
+        self.assertEqual((suma['total'], suma['bodegas']), (52.0, {'21': 49.0, '23': 3.0}))
+        una, _ = stockman._elegir('8100', [a, b], 'SUPERRIB (EXIRRIB)', {'modo': 'una', 'nombre': 'EXIRRIB BLANCO'})
+        self.assertEqual(una['nombre'], 'EXIRRIB BLANCO')
+
     def test_un_solo_registro_con_ese_codigo_es_ese(self):
         self.assertEqual(stockman._elegir('100', [self.LONDON], 'LO QUE SEA')[0]['nombre'], 'LONDON BLANCO')
 
