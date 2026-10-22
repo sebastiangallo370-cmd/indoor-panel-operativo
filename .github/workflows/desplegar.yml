@@ -34,7 +34,7 @@ jobs:
 
       - name: Revisar sintaxis antes de publicar
         run: |
-          python -W ignore -c "import ast,glob;[ast.parse(open(f,encoding='utf-8').read(),f) for f in glob.glob('app/*.py')+glob.glob('*.py')]"
+          python -W ignore -c "import ast,glob;[ast.parse(open(f,encoding='utf-8-sig').read(),f) for f in glob.glob('app/*.py')+glob.glob('*.py')]"
           for f in app/*.js; do node --check "$f"; done
 
       - name: Preparar SSH
