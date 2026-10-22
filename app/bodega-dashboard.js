@@ -115,7 +115,7 @@
 .bd .ot-pie{margin-top:auto;display:grid;gap:4px;padding-right:50px;padding-top:2px}
 .bd .ot-bodega{font:800 .68rem Arial;letter-spacing:.03em;line-height:1.3;opacity:.95}
 .bd .ot-bodega b{font-weight:900}
-.bd .ot-bodega.comparte{display:block}.bd .ot-bodega .ot-comparte{display:block;margin-top:3px;font:700 .6rem Arial;letter-spacing:.04em;opacity:.75;text-transform:uppercase}
+.bd .ot-bodega.comparte{display:block}.bd .ot-flujo{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin:4px 0 2px}.bd .ot-flujo>div{display:grid;gap:1px;padding:6px 8px;border-radius:10px;background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.12);min-width:0}.bd .ot-flujo small{font:800 .52rem Arial;letter-spacing:.08em;text-transform:uppercase;opacity:.7;white-space:nowrap}.bd .ot-flujo b{font:900 .95rem Arial;white-space:nowrap}.bd .ot-flujo b.desc{color:#f3b852!important;-webkit-text-fill-color:#f3b852!important}.bd .ot-flujo b.falta{color:#ff9d8f!important;-webkit-text-fill-color:#ff9d8f!important}.bd .ot-bodega .ot-comparte{display:block;margin-top:3px;font:700 .6rem Arial;letter-spacing:.04em;opacity:.75;text-transform:uppercase}
 html body .bd .inventory-item-card .ot-bodega b.hay{color:#7cc9ff!important;-webkit-text-fill-color:#7cc9ff!important}
 html body .bd .inventory-item-card .ot-bodega b.queda{color:#d6f55a!important;-webkit-text-fill-color:#d6f55a!important}
 html body .bd .inventory-item-card .ot-bodega b.falta{color:#ff9a8f!important;-webkit-text-fill-color:#ff9a8f!important}
@@ -544,10 +544,14 @@ html body .bd .inventory-item-card.lq,html body .bd .bd-tkpi .lq{background:radi
       const comparte = o.compartida_con || [];
       if (comparte.length && o.situacion !== 'sin_promedio') {   // misma tela en varias órdenes: lo que le toca a ESTA orden, no el total
         const otras = comparte.join(', ');
-        return '<div class="ot-bodega comparte" title="' + esc('Esta tela también la usan ' + otras + '. Se sirven por fecha de entrega: cada una toma de lo que queda.') + '">' +
-          'Para esta orden <b class="hay">' + entero(o.disponible, Math.floor) + '</b> MTS de <b>' + entero(o.bodega, Math.round) + '</b> en Bodega' +
-          (o.situacion === 'no_alcanza' ? ' · faltan <b class="falta">' + entero(o.falta, Math.ceil) + '</b> MTS' : ' · quedan <b class="queda">' + entero(o.quedan, Math.floor) + '</b> MTS') +
-          '<small class="ot-comparte">Misma tela que ' + esc(otras) + '</small></div>';
+        const dec = v => (Number(v) || 0).toLocaleString('es-CO', {maximumFractionDigits: 2});
+        const casilla = (titulo, valor, cls) => '<div><small>' + titulo + '</small><b class="' + cls + '">' + valor + '</b></div>';
+        const detalle = o.situacion === 'no_alcanza'
+          ? casilla('En bodega', entero(o.disponible, Math.floor), 'hay') + casilla('Descuenta', dec(o.mts), 'desc') + casilla('Faltan', entero(o.falta, Math.ceil), 'falta')
+          : casilla('En bodega', entero(o.disponible, Math.floor), 'hay') + casilla('Descuenta', dec(o.mts), 'desc') + casilla('Queda', entero(o.quedan, Math.floor), 'queda');
+        return '<div class="ot-bodega comparte" title="' + esc('Esta tela también la usan ' + otras + '. Se sirven por fecha de entrega: cada una descuenta de lo que queda.') + '">' +
+          '<div class="ot-flujo">' + detalle + '</div>' +
+          '<small class="ot-comparte">Misma tela que ' + esc(otras) + ' · de ' + entero(o.bodega, Math.round) + ' MTS en Bodega</small></div>';
       }
       if (o.situacion === 'no_alcanza') return '<div class="ot-bodega mal" title="' + esc(tit) + '">Bodega <b class="hay">' + entero(o.bodega, Math.round) + '</b> MTS · faltan <b class="falta">' + entero(o.falta, Math.ceil) + '</b> MTS</div>';
       return '<div class="ot-bodega" title="' + esc(tit) + '">Bodega <b class="hay">' + entero(o.bodega, Math.round) + '</b> MTS · quedan <b class="queda">' + entero(o.quedan, Math.floor) + '</b> MTS</div>';
