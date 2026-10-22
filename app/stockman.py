@@ -446,14 +446,30 @@ def _clave_webhook() -> str:
         return d['webhook']['clave']
 
 
+def _verificar_firma(secreto: str, cuerpo: bytes, cabeceras: dict) -> str:
+    """Si Effi firma el aviso (HMAC-SHA256 con el secreto del webhook en alguna cabecera de firma), comprueba la firma. Solo informa: la clave de la dirección ya autentica."""
+    if not secreto:
+        return 'sin_secreto'
+    esperado = hmac.new(secreto.encode(), cuerpo, hashlib.sha256).hexdigest()
+    recibidas = [v for k, v in cabeceras.items() if any(t in k for t in ('signature', 'firma', 'hmac', 'sign'))]
+    if not recibidas:
+        return 'sin_firma'
+    return 'valida' if any(hmac.compare_digest(str(v).strip().lower().removeprefix('sha256=').removeprefix('v1='), esperado) for v in recibidas) else 'no_coincide'
+
+
 @webhook_router.api_route('/webhook/{clave}', methods=['POST', 'PUT', 'GET'])
 async def webhook(clave: str, request: Request):
     """Aviso de Effi (webhook): hay algo nuevo. No se confía en lo que traiga: solo despierta a STOCKMAN, que lee en Effi por la API qué cambió."""
     if not hmac.compare_digest(str(clave), _clave_webhook()):
         raise HTTPException(404, 'No encontrado')
+    cuerpo = await request.body()
+    cabeceras = {k.lower(): v for k, v in request.headers.items()}
     with _lock:
         d = _leer()
-        d['webhook'].update(recibidos=int(d['webhook'].get('recibidos', 0)) + 1, ultimo=_iso())
+        secreto = str(d['webhook'].get('secreto') or '')
+        d['webhook'].update(recibidos=int(d['webhook'].get('recibidos', 0)) + 1, ultimo=_iso(), bytes=len(cuerpo),
+                            cabeceras=sorted(k for k in cabeceras if k not in ('host', 'content-length', 'connection', 'accept', 'accept-encoding', 'user-agent', 'x-forwarded-for', 'x-forwarded-proto', 'x-real-ip')),
+                            firma=_verificar_firma(secreto, cuerpo, cabeceras))
         _guardar(d)
     _despertar.set()
     return {'ok': True}
@@ -475,7 +491,8 @@ def estado(request: Request):
     return {'agente': {'nombre': NOMBRE, 'activo': d['activo'], 'ultima': d['ultima'], 'error': d['error']},
             'resumen': {'telas': len(filas), 'ajustar': cuenta('ajustar'), 'grande': cuenta('grande'), 'igual': cuenta('igual'), 'sin_articulo': cuenta('sin_articulo')},
             'telas': filas, 'ajustes': d['ajustes'][-30:][::-1], 'pendientes': d['pendientes'], 'cambios': _cambios_para_ver(),
-            'webhook': {'ruta': f"/api/stockman/webhook/{_clave_webhook()}", 'recibidos': d['webhook'].get('recibidos', 0), 'ultimo': d['webhook'].get('ultimo', '')}}
+            'webhook': {'ruta': f"/api/stockman/webhook/{_clave_webhook()}", 'recibidos': d['webhook'].get('recibidos', 0), 'ultimo': d['webhook'].get('ultimo', ''),
+                        'firma': d['webhook'].get('firma', ''), 'cabeceras': d['webhook'].get('cabeceras', []), 'secreto': bool(d['webhook'].get('secreto'))}}
 
 
 @router.post('/revisar')

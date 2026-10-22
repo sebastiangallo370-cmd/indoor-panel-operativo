@@ -176,6 +176,13 @@ class SoloLaBodegaQueCambioTest(unittest.TestCase):
         self.assertEqual(stockman.cambios_panel(), [])
 
 
+class _Peticion:
+    headers = {'content-type': 'application/json'}
+
+    async def body(self):
+        return b'{}'
+
+
 class WebhookTest(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.TemporaryDirectory()
@@ -192,14 +199,26 @@ class WebhookTest(unittest.TestCase):
         from fastapi import HTTPException
         clave = stockman._clave_webhook()
         with self.assertRaises(HTTPException) as r:
-            asyncio.run(stockman.webhook('clave-mala', object()))
+            asyncio.run(stockman.webhook('clave-mala', _Peticion()))
         self.assertEqual(r.exception.status_code, 404)
         self.assertFalse(stockman._despertar.is_set())
-        self.assertEqual(asyncio.run(stockman.webhook(clave, object())), {'ok': True})
+        self.assertEqual(asyncio.run(stockman.webhook(clave, _Peticion())), {'ok': True})
         self.assertTrue(stockman._despertar.is_set())
         w = stockman._leer()['webhook']
         self.assertEqual(w['recibidos'], 1)
         self.assertEqual(stockman._clave_webhook(), clave)   # la clave no cambia
+
+
+class FirmaTest(unittest.TestCase):
+    def test_firma_hmac_sha256_valida_o_no(self):
+        import hashlib
+        import hmac
+        cuerpo = b'{"x":1}'
+        f = hmac.new(b'secreto', cuerpo, hashlib.sha256).hexdigest()
+        self.assertEqual(stockman._verificar_firma('secreto', cuerpo, {'x-signature': 'sha256=' + f}), 'valida')
+        self.assertEqual(stockman._verificar_firma('secreto', cuerpo, {'x-signature': 'otra'}), 'no_coincide')
+        self.assertEqual(stockman._verificar_firma('secreto', cuerpo, {'content-type': 'x'}), 'sin_firma')
+        self.assertEqual(stockman._verificar_firma('', cuerpo, {'x-signature': f}), 'sin_secreto')
 
 
 if __name__ == '__main__':
