@@ -27,9 +27,26 @@ python3 -W ignore -c "import ast,glob;[ast.parse(open(f,encoding='utf-8-sig').re
 rm -rf "$ESTADO/anterior"; mkdir -p "$ESTADO/anterior"
 cp -a "$DESTINO/app" "$DESTINO/Dockerfile" "$DESTINO/requirements.txt" "$ESTADO/anterior/"
 
+# Qué cambió: decide cuánto hay que reiniciar (para no cortar la página si no hace falta)
+#   - Dockerfile o requirements.txt  -> reconstruir la imagen (~1 min de corte)
+#   - algún .py                      -> copiar al contenedor y reiniciarlo (~6 s)
+#   - solo .js/.html/.css/...        -> copiar al contenedor, SIN reiniciar (0 s de corte)
+cambiados=$(cd "$tmp/app" && find . -type f ! -path '*/__pycache__/*' | while read -r f; do cmp -s "$f" "$DESTINO/app/$f" || echo "$f"; done)
+modo=estaticos
+if ! cmp -s "$tmp/Dockerfile" "$DESTINO/Dockerfile" || ! cmp -s "$tmp/requirements.txt" "$DESTINO/requirements.txt"; then modo=reconstruir
+elif echo "$cambiados" | grep -q '\.py$'; then modo=reiniciar; fi
+echo "$(date -Is) cambiados: $(echo "$cambiados" | grep -c . ) archivo(s) · modo $modo"
+
 cp -r "$tmp/app/." "$DESTINO/app/"
 cp "$tmp/Dockerfile" "$tmp/requirements.txt" "$tmp/monitor_archivos.py" "$tmp/pedidos_legacy.py" "$DESTINO/"
-cd "$DESTINO" && docker compose up -d --build asistente
+cd "$DESTINO"
+if [ "$modo" = reconstruir ]; then
+  docker compose up -d --build asistente
+else
+  # el contenedor corre con la imagen vieja: se le copian los archivos (el host ya quedó al día para el próximo rebuild)
+  echo "$cambiados" | while read -r f; do [ -n "$f" ] || continue; docker exec asistente-reprogramaciones mkdir -p "/app/app/$(dirname "$f")"; docker cp "$DESTINO/app/$f" "asistente-reprogramaciones:/app/app/$f"; done
+  [ "$modo" = reiniciar ] && docker restart asistente-reprogramaciones
+fi
 
 for i in $(seq 1 24); do
   if [ "$(curl -s -o /dev/null -w '%{http_code}' -m 10 https://produccion.cloud/salud)" = 200 ]; then
@@ -41,6 +58,6 @@ done
 echo "$(date -Is) /salud no responde: se vuelve a la versión anterior"
 rm -rf "$DESTINO/app"; cp -a "$ESTADO/anterior/app" "$DESTINO/app"
 cp "$ESTADO/anterior/Dockerfile" "$ESTADO/anterior/requirements.txt" "$DESTINO/"
-docker compose up -d --build asistente
+docker compose up -d --build --force-recreate asistente
 echo "$sha" > "$ESTADO/ultimo"   # no se reintenta el mismo commit roto
 exit 1
