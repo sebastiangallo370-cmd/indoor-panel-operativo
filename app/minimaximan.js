@@ -95,6 +95,20 @@
   .mm-top .mm-kpi{display:flex;align-items:center;gap:8px;padding:6px 13px;border-radius:99px}.mm-top .mm-kpi b{display:inline;font:900 15px Arial}.mm-top .mm-kpi span{font-size:9.5px}
   .mm-busca{display:flex;gap:8px;margin-left:auto;flex:1;justify-content:flex-end;min-width:220px}.mm-busca input{flex:1;max-width:340px;height:34px;border-radius:99px;border:1px solid rgba(255,255,255,.22);background:rgba(0,0,0,.3);color:#fff;font:13px Arial;padding:0 14px;outline:0}.mm-busca select{height:34px;border-radius:99px;border:1px solid rgba(255,255,255,.22);background:rgba(0,0,0,.3);color:#fff;font:12px Arial;padding:0 10px}
   .mm-cuerpo{gap:14px}
+  /* SIN COLOR: solo vidrio (blanco translúcido). Va al final para anular los tonos de estado. */
+  .mm::before,.mm::after,.mm-glass::before{display:none!important}
+  .mm-glass,.mm-t.rojo,.mm-t.azul,.mm-t.ambar,.mm-t.verde{border-color:rgba(255,255,255,.2)!important;border-top-color:rgba(255,255,255,.45)!important;animation-name:mmEntra!important}
+  .mm-t .mm-medidor,.mm-t.rojo .mm-medidor,.mm-t.azul .mm-medidor,.mm-t.ambar .mm-medidor,.mm-t.verde .mm-medidor{color:#fff}
+  .mm-medidor i,.mm-t.rojo .mm-medidor i,.mm-t.azul .mm-medidor i,.mm-t.ambar .mm-medidor i{background:linear-gradient(90deg,rgba(255,255,255,.55),#fff)!important;box-shadow:0 0 12px rgba(255,255,255,.45)!important}
+  .mm-zona,.mm-zona.ok{background:rgba(255,255,255,.07)!important}.mm-zona:not(.ok){background:repeating-linear-gradient(135deg,rgba(255,255,255,.14) 0 6px,rgba(255,255,255,.05) 6px 12px)!important}
+  .mm-acc.pide,.mm-acc.viene,.mm-acc.bien{background:rgba(255,255,255,.1)!important;border-color:rgba(255,255,255,.35)!important;box-shadow:none!important}
+  .mm-t h4 em{background:rgba(255,255,255,.12)!important;border-color:rgba(255,255,255,.35)!important;color:#fff!important}
+  .mm-pie .fin b,.mm-top .mm-kpi b,.mm-top .mm-kpi[data-mm-filtro] b{color:#fff!important}
+  .mm-top .mm-kpi.on{background:rgba(255,255,255,.24)!important;box-shadow:0 0 0 1px rgba(255,255,255,.45) inset!important}.mm-top .mm-kpi.on b,.mm-top .mm-kpi.on span{color:#fff!important}
+  .mm-sw.on span,.mm-sw:not(.on) span{color:#fff}.mm-sw.on button{background:rgba(255,255,255,.5)}.mm-sw i{background:#fff!important;box-shadow:none!important}
+  .mm-b.ok{background:rgba(255,255,255,.25)!important;color:#fff!important}.mm-nom h2{background:none;color:#fff}
+  .mm-oc.espera,.mm-oc.error{background:rgba(255,255,255,.08)!important}.mm-tit,.mm-tit em{color:#fff!important;background:none;border-color:rgba(255,255,255,.4)}
+  .mm-pedir{background:rgba(255,255,255,.12)!important;border-color:rgba(255,255,255,.4)!important;color:#fff!important}
   .mm-top{display:grid!important;grid-template-columns:auto auto auto minmax(0,1fr) minmax(220px,340px);align-items:center;gap:14px;padding:12px 18px}
   .mm-sep{display:none}
   .mm-nom b{font:700 12px Arial;color:#e8f0e0}.mm-nom{padding-right:18px;border-right:1px solid rgba(255,255,255,.16);margin:0}.mm-nom h2{font-size:21px}
@@ -194,7 +208,7 @@
     const esperan = compras.filter(c => c.estado === 'creada' && (c.envio_proveedor || {}).estado !== 'enviada');
     const nAtencion = r.pedir + (r.error || 0) + r.sin_proveedor + r.sin_effi;
     const cuenta = { atencion: nAtencion, en_camino: r.en_camino, ok: r.ok, todas: r.telas };
-    const kpi = (k, n, rotulo, tono) => '<button type="button" class="mm-glass mm-kpi' + (filtro === k ? ' on' : '') + '" data-mm-filtro="' + k + '" data-lq="' + (r.telas ? Math.round(n / r.telas * 100) : 0) + '" data-lq-tone="' + tono + '" data-lq-nopct><b>' + n + '</b><span>' + rotulo + '</span></button>';
+    const kpi = (k, n, rotulo, tono) => '<button type="button" class="mm-glass mm-kpi' + (filtro === k ? ' on' : '') + '" data-mm-filtro="' + k + '"><b>' + n + '</b><span>' + rotulo + '</span></button>';
     const resto = compras.filter(c => !esperan.includes(c));
     panel.querySelector('.mm').innerHTML =
       '<div class="mm-glass mm-top"><div class="mm-nom"><small>Revisado</small><b>' + hora(a.ultima) + '</b></div>' +
