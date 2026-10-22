@@ -239,7 +239,10 @@
   .mm{min-height:calc(100vh - 40px)}.mm-cuerpo{min-height:calc(100vh - 380px)}
   .mm-lista{grid-template-columns:repeat(auto-fill,minmax(clamp(280px,17vw,380px),1fr))}
   @media(max-width:1180px){.mm-cuerpo{min-height:0}}
-  @media(prefers-reduced-motion:reduce){.mm::before,.mm::after,.mm-glass::before,.mm-t,.mm-sw i{animation:none!important}.mm-glass{transform:none!important}}`;
+  @media(prefers-reduced-motion:reduce){.mm::before,.mm::after,.mm-glass::before,.mm-t,.mm-sw i{animation:none!important}.mm-glass{transform:none!important}}  /* Proveedor visible en la tarjeta: píldora propia, legible. */
+  .mm-t h4 .mm-prov{display:inline-block;width:max-content;max-width:100%;margin:5px 0 3px;padding:4px 10px;border-radius:999px;background:rgba(208,244,76,.12);border:1px solid rgba(208,244,76,.45);color:var(--lima,#d0f44c);font:800 11px/1.25 Arial;letter-spacing:.03em;white-space:normal;overflow-wrap:anywhere}
+  .mm-t h4 .mm-prov.sin{background:rgba(243,184,82,.14);border-color:rgba(243,184,82,.55);color:#f3b852}
+`;
   document.head.appendChild(css);
 
   const api = async (url, opciones) => {
@@ -274,7 +277,7 @@
     const tope = Math.max(t.maximo, t.stock + (t.por_recibir || 0), 1) * 1.08;
     const pct = v => Math.max(0, Math.min(100, v / tope * 100)).toFixed(1);
     const aviso = ['error', 'sin_id', 'sin_effi', 'revisar'].includes(t.estado) && t.nota ? '<div class="mm-nota">' + esc(t.nota) + '</div>' : '';   // el resto de estados ya se entiende con la etiqueta
-    return '<article class="mm-glass mm-t ' + tono + '" style="animation-delay:' + Math.min(i * 25, 300) + 'ms"><h4><span>' + esc(t.tela) + '<small>' + esc(t.codigo) + ' · ' + esc(t.proveedor || 'SIN PROVEEDOR') + '</small><small class="mm-ide' + (t.id_effi ? '' : ' falta') + '">' + (t.id_effi ? 'ID EFFI ' + esc(t.id_effi) : 'SIN ID EFFI') + '</small></span><em>' + txt + '</em></h4>' +
+    return '<article class="mm-glass mm-t ' + tono + '" style="animation-delay:' + Math.min(i * 25, 300) + 'ms"><h4><span>' + esc(t.tela) + '<small>CÓD. ' + esc(t.codigo) + '</small><b class="mm-prov' + (t.proveedor ? '' : ' sin') + '" title="Proveedor">' + esc(t.proveedor || 'SIN PROVEEDOR') + '</b><small class="mm-ide' + (t.id_effi ? '' : ' falta') + '">' + (t.id_effi ? 'ID EFFI ' + esc(t.id_effi) : 'SIN ID EFFI') + '</small></span><em>' + txt + '</em></h4>' +
       '<div class="mm-hero"><div class="mm-big"><small>STOCK</small><div><b data-n="' + t.stock + '" style="font-size:' + (num(t.stock).length <= 3 ? 34 : num(t.stock).length === 4 ? 30 : 25) + 'px">' + num(t.stock) + '</b><em>MTS</em></div></div>' +
       (t.pedir ? '<div class="mm-acc pide"><div><span>PEDIR</span><b>' + num(t.pedir) + '</b><em>MTS</em></div></div>' : t.por_recibir ? '<div class="mm-acc viene"><small>EN CAMINO</small><div><b>' + num(t.por_recibir) + '</b><em>MTS</em></div></div>' : '<div class="mm-acc bien"><small>DEL MÁXIMO</small><div><b>' + Math.round(t.stock / Math.max(t.maximo, 1) * 100) + '%</b></div></div>') + '</div>' +
       '<div class="mm-medidor" title="Hay ' + num(t.stock) + ' · mínimo ' + num(t.minimo) + ' · máximo ' + num(t.maximo) + '"><span class="mm-zona" style="width:' + pct(t.minimo) + '%"></span><span class="mm-zona ok" style="left:' + pct(t.minimo) + '%;width:' + (pct(t.maximo) - pct(t.minimo)).toFixed(1) + '%"></span>' +

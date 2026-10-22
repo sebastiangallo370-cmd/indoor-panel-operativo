@@ -146,6 +146,10 @@ def telas() -> list[dict]:
         r = razon_social(t['proveedor'])
         if r:   # los guardados con el nombre corto se muestran con su razón social
             t['proveedor'] = r[0]
+        inv = t.get('prov_inventario') or ''
+        if not t['proveedor'] and inv and not re.search(r'\s-\s', inv):   # sin proveedor elegido: el del inventario (la columna del Sheet), si es uno solo
+            t['proveedor'] = inv
+            t['proveedor_auto'] = True
         t.update({k: g.get(k, '') for k in CAMPOS_EXTRA})   # datos opcionales de la ficha de la tela
         try:   # para los agentes: el precio como número, aunque en la tarjeta se muestre tal como se escribió
             t['precio_num'] = _numero(str(t.get('precio_sin_iva') or '')) if t.get('precio_sin_iva') else None
