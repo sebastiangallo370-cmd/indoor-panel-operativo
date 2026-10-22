@@ -109,6 +109,28 @@
   .mm-b.ok{background:rgba(255,255,255,.25)!important;color:#fff!important}.mm-nom h2{background:none;color:#fff}
   .mm-oc.espera,.mm-oc.error{background:rgba(255,255,255,.08)!important}.mm-tit,.mm-tit em{color:#fff!important;background:none;border-color:rgba(255,255,255,.4)}
   .mm-pedir{background:rgba(255,255,255,.12)!important;border-color:rgba(255,255,255,.4)!important;color:#fff!important}
+  /* VIDRIO CON LOS COLORES DE INDOOR: verde lima #d0f44c y el logotipo de la marca. Va después del bloque neutro. */
+  .mm{--lima:#d0f44c}
+  .mm::before{display:block!important;left:-60px;top:-30px;width:520px;height:520px;background:radial-gradient(circle,rgba(208,244,76,.16),transparent 70%)}
+  .mm-glass{border-top-color:rgba(208,244,76,.7)!important;box-shadow:0 14px 34px -16px rgba(0,0,0,.8),inset 0 1px 0 rgba(255,255,255,.28),0 0 0 1px rgba(208,244,76,.06)!important}
+  .mm-glass::before{display:block!important;background:radial-gradient(circle,rgba(208,244,76,.3),transparent 66%)!important}
+  .mm-top.mm-glass::before,.mm-oc.mm-glass::before{display:none!important}
+  .mm-t:hover,.mm-kpi:hover{border-color:rgba(208,244,76,.65)!important}
+  .mm-marca{position:absolute!important;right:-14px;bottom:-12px;width:150px;opacity:.07;pointer-events:none;z-index:0!important;filter:drop-shadow(0 0 0 transparent);transform:rotate(-8deg);transition:opacity .3s,transform .4s}.mm-t:hover .mm-marca{opacity:.16;transform:rotate(-3deg) scale(1.06)}
+  .mm-logo{height:20px;width:auto;margin-bottom:3px;justify-self:start}
+  .mm-t .mm-medidor,.mm-t.rojo .mm-medidor,.mm-t.azul .mm-medidor,.mm-t.ambar .mm-medidor,.mm-t.verde .mm-medidor{color:var(--lima)}
+  .mm-medidor i,.mm-t.rojo .mm-medidor i,.mm-t.azul .mm-medidor i,.mm-t.ambar .mm-medidor i{background:linear-gradient(90deg,#8fb02a,var(--lima))!important;box-shadow:0 0 14px rgba(208,244,76,.55)!important}
+  .mm-zona.ok{background:rgba(208,244,76,.12)!important}
+  .mm-acc.pide{background:linear-gradient(135deg,rgba(208,244,76,.3),rgba(208,244,76,.08))!important;border-color:rgba(208,244,76,.7)!important;box-shadow:0 0 20px -6px var(--lima)!important}
+  .mm-acc.viene,.mm-acc.bien{border-color:rgba(208,244,76,.45)!important}
+  .mm-t h4 em{border-color:rgba(208,244,76,.55)!important;color:var(--lima)!important}
+  .mm-pie .fin b,.mm-acc.pide b{color:var(--lima)!important}
+  .mm-top .mm-kpi.on{background:linear-gradient(180deg,#e2fb78,#b4d83a)!important;box-shadow:0 0 18px -2px rgba(208,244,76,.7)!important}.mm-top .mm-kpi.on b,.mm-top .mm-kpi.on span{color:#16200a!important}
+  .mm-sw.on button{background:var(--lima)}.mm-sw.on span{color:var(--lima)}.mm-sw i{background:var(--lima)!important}
+  .mm-b.ok{background:linear-gradient(180deg,#e2fb78,#b4d83a)!important;color:#16200a!important}
+  .mm-tit,.mm-tit em{color:var(--lima)!important;border-color:rgba(208,244,76,.5)}
+  .mm-busca input:focus,.mm-busca select:focus{border-color:var(--lima)}
+  .mm-t>*{position:relative;z-index:1}
   .mm-top{display:grid!important;grid-template-columns:auto auto auto minmax(0,1fr) minmax(220px,340px);align-items:center;gap:14px;padding:12px 18px}
   .mm-sep{display:none}
   .mm-nom b{font:700 12px Arial;color:#e8f0e0}.mm-nom{padding-right:18px;border-right:1px solid rgba(255,255,255,.16);margin:0}.mm-nom h2{font-size:21px}
@@ -188,7 +210,7 @@
       (t.pedir || t.por_recibir ? '<s style="left:' + pct(t.stock) + '%;width:' + (pct(t.stock + (t.por_recibir || 0) + (t.pedir || 0)) - pct(t.stock)).toFixed(1) + '%"></s>' : '') +
       '<i style="--w:' + pct(t.stock) + '%"></i><q style="left:' + pct(t.stock) + '%"></q>' +
       '<u style="left:' + pct(t.minimo) + '%"><b>mín ' + num(t.minimo) + '</b></u><u style="left:' + pct(t.maximo) + '%"><b>máx ' + num(t.maximo) + '</b></u></div>' +
-      '<div class="mm-pie"><span><small>MÍN</small><b>' + num(t.minimo) + '</b></span><span><small>MÁX</small><b>' + num(t.maximo) + '</b></span><span><small>EN CAMINO</small><b>' + num(t.por_recibir || 0) + '</b></span>' + (t.pedir ? '<span class="fin"><small>QUEDARÍA</small><b>' + num((t.stock + (t.por_recibir || 0) + (t.pedir || 0))) + '</b></span>' : '') + '</div>' + aviso + '</article>';
+      '<div class="mm-pie"><span><small>MÍN</small><b>' + num(t.minimo) + '</b></span><span><small>MÁX</small><b>' + num(t.maximo) + '</b></span><span><small>EN CAMINO</small><b>' + num(t.por_recibir || 0) + '</b></span>' + (t.pedir ? '<span class="fin"><small>QUEDARÍA</small><b>' + num((t.stock + (t.por_recibir || 0) + (t.pedir || 0))) + '</b></span>' : '') + '</div>' + aviso + '<img class="mm-marca" src="/marca-indoor.svg" alt="" aria-hidden="true"></article>';
   }
 
   function ocHtml(c) {
@@ -211,12 +233,12 @@
     const kpi = (k, n, rotulo, tono) => '<button type="button" class="mm-glass mm-kpi' + (filtro === k ? ' on' : '') + '" data-mm-filtro="' + k + '"><b>' + n + '</b><span>' + rotulo + '</span></button>';
     const resto = compras.filter(c => !esperan.includes(c));
     panel.querySelector('.mm').innerHTML =
-      '<div class="mm-glass mm-top"><div class="mm-nom"><small>Revisado</small><b>' + hora(a.ultima) + '</b></div>' +
+      '<div class="mm-glass mm-top"><div class="mm-nom"><img class="mm-logo" src="/marca-indoor.svg" alt="Indoor"><small>Revisado</small><b>' + hora(a.ultima) + '</b></div>' +
       '<div class="mm-sw' + (activo ? ' on' : '') + '"><i></i><span>' + (activo ? 'ACTIVO' : 'APAGADO') + '</span><button type="button" data-mm-activar="' + (activo ? 0 : 1) + '" aria-label="Activar o apagar MINIMAXIMAN"></button></div>' +
       '<button type="button" class="mm-b" data-mm-revisar' + (ocupado ? ' disabled' : '') + '>↻ ' + (ocupado ? 'REVISANDO…' : 'REVISAR') + '</button>' +
       '<span class="mm-sep"></span><div class="mm-kpis">' + kpi('atencion', nAtencion, 'ATENCIÓN', 'rojo') + kpi('en_camino', r.en_camino, 'EN CAMINO', 'azul') + kpi('ok', r.ok, 'EN RANGO', 'verde') + kpi('todas', r.telas, 'TELAS', 'gris') + '</div>' +
       '<div class="mm-busca"><input type="search" data-mm-buscar placeholder="Buscar…" value="' + esc(buscar) + '" autocomplete="off">' +
-      '<select data-mm-orden aria-label="Ordenar">' + [['estado', 'Urgentes primero'], ['pedir', 'Más por pedir'], ['faltante', 'Más cerca de cero'], ['nombre', 'A-Z']].map(o => '<option value="' + o[0] + '"' + (orden === o[0] ? ' selected' : '') + '>' + o[1] + '</option>').join('') + '</select></div></div>' +
+      '</div></div>' +
       (a.error ? '<div class="mm-vacio">' + esc(a.error) + '</div>' : '') +
       '<div class="mm-cuerpo">' +
       (esperan.length ? '<h3 class="mm-tit">ESPERAN TU APROBACIÓN <em>' + esperan.length + '</em></h3><div class="mm-lista">' + esperan.map(ocHtml).join('') + '</div>' : '') +
