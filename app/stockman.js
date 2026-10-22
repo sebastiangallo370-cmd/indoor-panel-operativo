@@ -79,6 +79,22 @@
   .sm-datos small{font:700 8px Arial;letter-spacing:.08em;color:#a6b7ab}.sm-datos b{font:800 14px Arial;color:#eef4e9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sm-datos i{font:600 9px Arial;font-style:normal;color:#a6b7ab;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sm-datos i.emp{color:#ffb454}.sm-datos .esp{border-color:#9a6a1f;background:#2a1f10}.sm-datos .esp b{color:#ffb454}
   .sm-host .sm-igualar,.sm-host .sm-suma{height:30px!important;margin:0 0 12px!important;font-size:10px!important;border-radius:999px!important}.sm-host .sm-op .mm-bt{width:auto!important;height:26px!important;padding:0 12px!important;font-size:10px!important;border-radius:999px!important}.sm-host .sm-op{padding:7px 10px!important}
   @media(max-width:600px){.sm-acciones>*{height:34px!important}.sm-datos{grid-template-columns:repeat(2,1fr)}}
+  /* Ajustes tras verlo en producción: barra legible, buscador a todo el ancho, botones dentro de la tarjeta. */
+  .sm-control .sm-metrica b{font-size:18px!important}.sm-control .sm-metrica span{font-size:9px!important}.sm-control .sm-intro h2{font-size:13px!important}.sm-live{font-size:9px!important}
+  .sm-acciones>*{height:32px!important}.sm-acciones .mm-b{font-size:11px!important}.sm-vistas button{font-size:10px!important}
+  .panel[data-panel="stockman"] .mm-top{display:flex!important}.panel[data-panel="stockman"] .mm-busca{flex:1!important;width:100%!important;max-width:none!important;justify-content:stretch!important}.panel[data-panel="stockman"] .mm-busca input{flex:1!important;width:100%!important;max-width:none!important}
+  .sm-host .sm-igualar,.sm-host .sm-suma{display:block;box-sizing:border-box;width:calc(100% - 32px)!important}
+  .sm-amb{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}.sm-amb span{display:grid;gap:2px;padding:9px 12px;border-radius:10px;background:#111a15;border:1px solid #35463c}.sm-amb small{font:700 9px Arial;letter-spacing:.08em;color:#a6b7ab}.sm-amb b{font:800 20px Arial;color:#eef4e9}.sm-amb em{font:700 9px Arial;font-style:normal;color:#a6b7ab;margin-left:4px}
+  .sm-host .sm-pregunta{padding-top:12px!important;font-size:13px!important}.sm-host .sm-opciones{padding:10px 0 4px!important}
+  /* Movimiento: tarjetas que entran escalonadas, las que tienen diferencia pulsan, opciones que reaccionan al pasar. */
+  @keyframes smEntra{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
+  @keyframes smPulso{0%,100%{box-shadow:0 0 0 0 rgba(243,184,82,0)}50%{box-shadow:0 0 0 4px rgba(243,184,82,.22)}}
+  .sm-host .sm-t{animation:smEntra .45s cubic-bezier(.2,.8,.2,1) both!important}.sm-host .sm-t.ambar,.sm-host .sm-t.rojo{animation:smEntra .45s cubic-bezier(.2,.8,.2,1) both,smPulso 2.6s ease-in-out 1s infinite!important}
+  .sm-host .sm-op{transition:transform .15s,border-color .15s,background .15s}.sm-host .sm-op:hover{transform:translateX(3px);border-color:rgba(208,244,76,.5)!important}
+  .sm-metrica{transition:transform .18s,border-color .18s}.sm-metrica:hover{transform:translateY(-2px)}.sm-metrica.on{border-color:var(--lima,#d0f44c)!important}
+  .sm-host .sm-igualar,.sm-host .sm-suma{transition:transform .15s,filter .15s}.sm-host .sm-igualar:hover,.sm-host .sm-suma:hover{transform:translateY(-1px);filter:brightness(1.08)}
+  @media(prefers-reduced-motion:reduce){.sm-host .sm-t{animation:none!important}}
+  .sm-host .sm-op.cerca{border-color:rgba(208,244,76,.6)!important;background:rgba(208,244,76,.07)!important}.sm-tag{display:inline-block;margin-left:6px;padding:2px 6px;border-radius:5px;background:var(--lima,#d0f44c);color:#18220c;font:800 8px Arial;font-style:normal;letter-spacing:.05em;vertical-align:middle}
   @media(max-width:600px){.sm-acciones>*{height:40px}.sm-acciones .mm-b{flex:1;justify-content:center}.sm-control .sm-metrica span{font-size:8px}}
   `;
 
@@ -107,7 +123,7 @@
       '</div>';
     const dif = Math.round((t.diferencia || 0) * 100) / 100;
     const cuerpo = t.estado === 'ambiguo'
-      ? '<p class="sm-pregunta">El código <b>' + esc(t.codigo) + '</b> lo usan ' + (t.opciones || []).length + ' telas del panel. ¿Cuál es la de este artículo de Effi?</p><div class="sm-opciones">' + (t.opciones || []).map(o => '<div class="sm-op"><div><b>' + esc(o.nombre) + '</b><small>' + num(o.mts) + ' mts en el panel</small></div><button type="button" class="mm-bt" data-sm-asignar="una" data-codigo="' + esc(t.codigo) + '" data-nombre="' + esc(o.nombre) + '">ES ESTA</button></div>').join('') + '</div><button type="button" class="mm-bt env sm-suma" data-sm-asignar="suma" data-codigo="' + esc(t.codigo) + '">SON LA MISMA TELA · SUMAR LAS ' + (t.opciones || []).length + ' (' + num(t.panel) + ' mts)</button><div class="sm-nota-pie">Mientras no elijas, STOCKMAN no toca esta tela.</div>'
+      ? '<div class="sm-amb"><span><small>EFFI TIENE</small><b>' + num(t.effi) + '<em>MTS</em></b></span><span><small>SUMANDO LAS ' + (t.opciones || []).length + '</small><b>' + num(t.panel) + '<em>MTS</em></b></span></div><p class="sm-pregunta">El código <b>' + esc(t.codigo) + '</b> lo usan ' + (t.opciones || []).length + ' telas del panel. ¿Cuál es la de este artículo de Effi?</p><div class="sm-opciones">' + (t.opciones || []).map(o => { const d = Math.round((o.mts - (t.effi || 0)) * 100) / 100, cerca = (t.opciones || []).every(x => Math.abs(x.mts - (t.effi || 0)) >= Math.abs(d)); return '<div class="sm-op' + (cerca ? ' cerca' : '') + '"><div><b>' + esc(o.nombre) + (cerca ? ' <i class="sm-tag">MÁS PARECIDA A EFFI</i>' : '') + '</b><small>' + num(o.mts) + ' mts en el panel · ' + (Math.abs(d) < 0.01 ? 'igual a Effi' : sg(d) + ' mts vs Effi') + '</small></div><button type="button" class="mm-bt" data-sm-asignar="una" data-codigo="' + esc(t.codigo) + '" data-nombre="' + esc(o.nombre) + '">ES ESTA</button></div>'; }).join('') + '</div><button type="button" class="mm-bt env sm-suma" data-sm-asignar="suma" data-codigo="' + esc(t.codigo) + '">SON LA MISMA TELA · SUMAR LAS ' + (t.opciones || []).length + ' (' + num(t.panel) + ' mts)</button><div class="sm-nota-pie">Mientras no elijas, STOCKMAN no toca esta tela.</div>'
       : t.estado === 'sin_articulo'
       ? '<div class="mm-nota">Effi no tiene un artículo con esta referencia exacta. Escribe su «ID Effi» en INFORMACIÓN TELA.</div>'
       : '<div class="sm-hero"><div><small>PANEL · METROS</small><b>' + num(t.panel) + '<em>MTS</em></b></div><i class="' + (Math.abs(dif) < 0.01 ? 'ok' : dif > 0 ? 'mas' : 'menos') + '">' + (Math.abs(dif) < 0.01 ? '✔ IGUAL' : sg(dif) + ' mts') + '</i><div class="der"><small>EFFI · METROS</small><b>' + num(t.effi) + '<em>MTS</em></b></div></div>' +
@@ -150,7 +166,8 @@
     if (foco && foco.matches && foco.matches('[data-sm-buscar]') && panel.contains(foco)) { pintarLista(); return; }
     const a = datos.agente, r = datos.resumen, activo = !!a.activo;
     const total = Math.max(r.telas || 0, 1);
-    const kpi = (k, n, rotulo) => '<button type="button" class="sm-metrica' + (filtro === k ? ' on' : '') + '" data-sm-filtro="' + k + '"><b>' + n + '</b><span>' + rotulo + '</span></button>';
+    const TONO = { ajustar: 'ambar', igual: 'verde', sin_articulo: 'rojo', todo: 'gris' };
+    const kpi = (k, n, rotulo) => '<button type="button" class="sm-metrica' + (filtro === k ? ' on' : '') + '" data-sm-filtro="' + k + '" data-lq="' + Math.round(n * 100 / total) + '" data-lq-tone="' + TONO[k] + '"><b data-sm-cuenta="' + n + '">' + n + '</b><span>' + rotulo + '</span></button>';
     panel.querySelector('.mm').innerHTML =
       '<div class="sm-control"><section class="mm-glass sm-intro"><div class="sm-intro-top"><img class="mm-logo" src="/marca-indoor.svg" alt="Indoor"><span class="sm-live"><i></i>' + (activo ? 'SINCRONIZACIÓN ACTIVA' : 'SINCRONIZACIÓN PAUSADA') + '</span></div><h2>Control de artículos</h2><p>Compara por bodega el inventario del panel con Effi.</p><small>Actualizado ' + hora(a.ultima) + '</small></section>' +
       '<section class="sm-metricas">' + kpi('ajustar', r.ajustar + r.grande + (r.ambiguo || 0), 'POR REVISAR') + kpi('igual', r.igual, 'CONCILIADOS') + kpi('sin_articulo', r.sin_articulo, 'SIN ARTÍCULO') + kpi('todo', r.telas, 'TOTAL') + '</section>' +
@@ -158,6 +175,19 @@
       '<div class="mm-glass mm-top"><div class="mm-busca"><input type="search" data-sm-buscar placeholder="Buscar por tela, código o artículo…" value="' + esc(buscar) + '" autocomplete="off"></div></div>' +
       actividad() + '<div class="mm-cuerpo"><div class="sm-host"></div></div>';
     pintarLista();
+    contar();
+  }
+
+  // Los números de arriba cuentan desde su valor anterior hasta el nuevo
+  const previos = {};
+  function contar() {
+    panel.querySelectorAll('[data-sm-cuenta]').forEach(el => {
+      const k = el.closest('[data-sm-filtro]').dataset.smFiltro, fin = Number(el.dataset.smCuenta), ini = previos[k] ?? 0;
+      previos[k] = fin;
+      if (ini === fin || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      const t0 = performance.now(), paso = now => { const p = Math.min(1, (now - t0) / 600), e = 1 - Math.pow(1 - p, 3); el.textContent = Math.round(ini + (fin - ini) * e); if (p < 1) requestAnimationFrame(paso); };
+      requestAnimationFrame(paso);
+    });
   }
 
   async function cargar() {
