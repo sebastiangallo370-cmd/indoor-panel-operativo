@@ -157,6 +157,7 @@
   .mm-t:hover{box-shadow:0 26px 44px -18px rgba(0,0,0,.9),0 0 22px -8px rgba(208,244,76,.35),inset 0 1px 0 rgba(255,255,255,.35)!important}
   .mm-glass::after{background:radial-gradient(300px circle at var(--mx,50%) var(--my,0%),rgba(255,255,255,.16),transparent 62%)!important}
   .mm-acc.pide b{color:#fff!important}
+  .mm-acc.pide span{font:800 10px Arial;letter-spacing:.16em;color:var(--lima)}.mm-acc.pide div{align-items:baseline;gap:7px}.mm-acc.pide{padding:11px 16px}
   .mm-t>*{position:relative;z-index:1}
   .mm-top{display:grid!important;grid-template-columns:auto auto auto minmax(0,1fr) minmax(220px,340px);align-items:center;gap:14px;padding:12px 18px}
   .mm-sep{display:none}
@@ -232,7 +233,7 @@
     const aviso = ['error', 'sin_effi', 'revisar'].includes(t.estado) && t.nota ? '<div class="mm-nota">' + esc(t.nota) + '</div>' : '';   // el resto de estados ya se entiende con la etiqueta
     return '<article class="mm-glass mm-t ' + tono + '" style="animation-delay:' + Math.min(i * 25, 300) + 'ms"><h4><span>' + esc(t.tela) + '<small>' + esc(t.codigo) + ' · ' + esc(t.proveedor || 'SIN PROVEEDOR') + '</small></span><em>' + txt + '</em></h4>' +
       '<div class="mm-hero"><div class="mm-big"><small>STOCK</small><div><b data-n="' + t.stock + '">' + num(t.stock) + '</b><em>MTS</em></div></div>' +
-      (t.pedir ? '<div class="mm-acc pide"><small>PEDIR</small><div><b>+' + num(t.pedir) + '</b><em>MTS</em></div></div>' : t.por_recibir ? '<div class="mm-acc viene"><small>EN CAMINO</small><div><b>+' + num(t.por_recibir) + '</b><em>MTS</em></div></div>' : '<div class="mm-acc bien"><small>NIVEL</small><div><b>' + Math.round(t.stock / Math.max(t.maximo, 1) * 100) + '%</b><em>DEL MÁX.</em></div></div>') + '</div>' +
+      (t.pedir ? '<div class="mm-acc pide"><div><span>PEDIR</span><b>' + num(t.pedir) + '</b><em>MTS</em></div></div>' : t.por_recibir ? '<div class="mm-acc viene"><small>EN CAMINO</small><div><b>' + num(t.por_recibir) + '</b><em>MTS</em></div></div>' : '<div class="mm-acc bien"><small>NIVEL</small><div><b>' + Math.round(t.stock / Math.max(t.maximo, 1) * 100) + '%</b><em>DEL MÁX.</em></div></div>') + '</div>' +
       '<div class="mm-medidor" title="Hay ' + num(t.stock) + ' · mínimo ' + num(t.minimo) + ' · máximo ' + num(t.maximo) + '"><span class="mm-zona" style="width:' + pct(t.minimo) + '%"></span><span class="mm-zona ok" style="left:' + pct(t.minimo) + '%;width:' + (pct(t.maximo) - pct(t.minimo)).toFixed(1) + '%"></span>' +
       (t.pedir || t.por_recibir ? '<s style="left:' + pct(t.stock) + '%;width:' + (pct(t.stock + (t.por_recibir || 0) + (t.pedir || 0)) - pct(t.stock)).toFixed(1) + '%"></s>' : '') +
       '<i style="--w:' + pct(t.stock) + '%"></i><q style="left:' + pct(t.stock) + '%"></q>' +
