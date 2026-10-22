@@ -21,6 +21,8 @@
   .sm-fila .d{color:#fff}.sm-fila .d.mas{color:var(--lima,#d0f44c)}.sm-fila .d.menos{color:#ffb3ac}
   .sm-tot{display:flex;justify-content:space-between;gap:10px}.sm-tot div{display:grid;gap:2px}.sm-tot small{font:800 8px Arial;letter-spacing:.14em;color:#9fb096}.sm-tot b{font:900 22px Arial;color:#fff}
   .sm-nom{font:700 10px Arial;color:#9fb096}
+  .sm-t h4 small{font:800 12px Arial!important;letter-spacing:.04em!important;color:#c5d2bf!important;margin-top:5px!important;display:flex!important;align-items:center;gap:8px;flex-wrap:wrap}
+  .sm-id{padding:2px 9px;border-radius:99px;border:1px solid rgba(208,244,76,.55);background:rgba(208,244,76,.12);color:var(--lima,#d0f44c);font:900 12px Arial;letter-spacing:.05em}
   .sm-hero{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center}
   .sm-hero small{display:block;font:800 8px Arial;letter-spacing:.14em;color:#9fb096}.sm-hero b{font:900 24px/1.1 Arial;color:#fff}.sm-hero .der{text-align:right}
   .sm-hero i{font:900 12px Arial;font-style:normal;padding:6px 11px;border-radius:99px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.08);color:#fff;white-space:nowrap}
@@ -55,7 +57,7 @@
       ? '<div class="mm-nota">Effi no tiene un artículo con esta referencia exacta. Escribe su «ID Effi» en INFORMACIÓN TELA.</div>'
       : '<div class="sm-hero"><div><small>PANEL</small><b>' + num(t.panel) + '</b></div><i class="' + (Math.abs(dif) < 0.01 ? 'ok' : dif > 0 ? 'mas' : 'menos') + '">' + (Math.abs(dif) < 0.01 ? '✔ IGUAL' : sg(dif)) + '</i><div class="der"><small>EFFI</small><b>' + num(t.effi) + '</b></div></div>' +
         (vivas.length ? '<div class="sm-tabla"><div class="sm-fila cab"><span>BODEGA</span><span>PANEL</span><span>EFFI</span><span>DIF.</span></div>' + filas + '</div>' : '') + boton;
-    return '<article class="mm-glass mm-t sm-t ' + tono + '" style="animation-delay:' + Math.min(i * 25, 300) + 'ms"><h4><span>' + esc(t.tela) + '<small>' + esc(t.codigo) + (t.id_effi ? ' · ID EFFI ' + esc(t.id_effi) : '') + '</small></span><em>' + txt + '</em></h4>' + cuerpo + '<img class="mm-marca" src="/marca-indoor.svg" alt="" aria-hidden="true"></article>';
+    return '<article class="mm-glass mm-t sm-t ' + tono + '" style="animation-delay:' + Math.min(i * 25, 300) + 'ms"><h4><span>' + esc(t.tela) + '<small>CÓD. ' + esc(t.codigo) + (t.id_effi ? ' <span class="sm-id">ID EFFI ' + esc(t.id_effi) + '</span>' : '') + '</small></span><em>' + txt + '</em></h4>' + cuerpo + '<img class="mm-marca" src="/marca-indoor.svg" alt="" aria-hidden="true"></article>';
   }
 
   function pintarLista() {
