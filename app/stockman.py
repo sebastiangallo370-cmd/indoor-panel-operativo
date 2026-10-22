@@ -483,6 +483,12 @@ def _cambios_para_ver() -> list[dict]:
         return []
 
 
+@router.post('/webhook-direccion')
+def webhook_direccion(request: Request):
+    """Botón «GENERAR WEBHOOK»: entrega la dirección (con su clave) para pegarla en Effi. No cambia la clave, así que un webhook ya creado en Effi sigue funcionando."""
+    return {'ruta': f"/api/stockman/webhook/{_clave_webhook()}"}
+
+
 @router.get('/estado')
 def estado(request: Request):
     d = _leer()

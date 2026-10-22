@@ -9,7 +9,7 @@
   const sg = v => (v > 0 ? '+' : '') + num(v);
   const plano = t => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   const ESTADO = { ajustar: ['DIFERENCIA', 'ambar'], grande: ['DIFERENCIA GRANDE', 'rojo'], igual: ['IGUAL', 'verde'], sin_articulo: ['SIN ARTÍCULO EN EFFI', 'ambar'] };
-  let panel = null, tab = null, timer = null, datos = null, filtro = 'ajustar', buscar = '', ocupado = false, firma = '';
+  let urlWh = '', panel = null, tab = null, timer = null, datos = null, filtro = 'ajustar', buscar = '', ocupado = false, firma = '';
 
   const css = `
   .panel[data-panel="stockman"],.panel[data-panel="stockman"].active{width:100%;max-width:none;grid-template-columns:minmax(0,1fr)!important;justify-content:stretch!important;justify-items:stretch!important}
@@ -21,7 +21,7 @@
   .sm-fila .d{color:#fff}.sm-fila .d.mas{color:var(--lima,#d0f44c)}.sm-fila .d.menos{color:#ffb3ac}
   .sm-tot{display:flex;justify-content:space-between;gap:10px}.sm-tot div{display:grid;gap:2px}.sm-tot small{font:800 8px Arial;letter-spacing:.14em;color:#9fb096}.sm-tot b{font:900 22px Arial;color:#fff}
   .sm-nom{font:700 10px Arial;color:#9fb096}
-  .sm-url{display:flex;gap:8px;align-items:center}.sm-url code{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:7px 10px;border-radius:10px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.12);color:#e8f0e0;font:11px Consolas,monospace}.sm-url .mm-bt{width:90px;flex:none}
+  .sm-wh{display:flex;justify-content:space-between;align-items:center;gap:12px}.sm-url{display:flex;gap:8px;align-items:center}.sm-url code{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:7px 10px;border-radius:10px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.12);color:#e8f0e0;font:11px Consolas,monospace}.sm-url .mm-bt{width:90px;flex:none}
   .sm-hist{padding:12px 16px;display:grid;gap:6px;font:11px Arial;color:#c5d2bf}.sm-hist h3{margin:0;font:900 11px Arial;letter-spacing:.16em;color:#b9c8b3}
   `;
 
@@ -69,7 +69,8 @@
       '<span class="mm-sep"></span><div class="mm-kpis">' + kpi('ajustar', r.ajustar + r.grande, 'DIFERENCIAS') + kpi('igual', r.igual, 'IGUALES') + kpi('sin_articulo', r.sin_articulo, 'SIN ARTÍCULO') + kpi('todo', r.telas, 'TODO') + '</div>' +
       '<div class="mm-busca"><input type="search" data-sm-buscar placeholder="Buscar…" value="' + esc(buscar) + '" autocomplete="off"></div></div>' +
       (a.error ? '<div class="mm-vacio">' + esc(a.error) + '</div>' : '') +
-      '<div class="mm-cuerpo">' + '<div class="mm-glass sm-hist sm-wh"><div>🔗 <b>Webhook de Effi</b> · ' + ((datos.webhook || {}).recibidos ? 'conectado · avisos recibidos: ' + (datos.webhook || {}).recibidos + ' · el último ' + hora((datos.webhook || {}).ultimo) + ((datos.webhook || {}).secreto ? ' · firma: ' + ({ valida: 'válida ✔', no_coincide: 'NO coincide', sin_firma: 'el aviso no trae firma' }[(datos.webhook || {}).firma] || '—') : '') : 'sin avisos todavía (mientras tanto STOCKMAN revisa solo cada 2 minutos)') + '</div></div>' + '<div class="sm-host"></div>' + (cam ? '<div class="mm-glass sm-hist"><h3>CAMBIOS DEL PANEL QUE IRÁN A EFFI (SOLO LA BODEGA QUE CAMBIÓ)</h3>' + cam + '</div>' : '') + (pend ? '<div class="mm-glass sm-hist"><h3>AJUSTES HECHOS EN EFFI QUE LLEGARÁN AL PANEL AL ACTIVAR</h3>' + pend + '</div>' : '') + (hist ? '<div class="mm-glass sm-hist"><h3>ÚLTIMOS AJUSTES</h3>' + hist + '</div>' : '') + '</div>';
+      '<div class="mm-cuerpo">' + '<div class="mm-glass sm-hist sm-wh"><div>🔗 <b>Webhook de Effi</b> · ' + ((datos.webhook || {}).recibidos ? 'conectado · avisos recibidos: ' + (datos.webhook || {}).recibidos + ' · el último ' + hora((datos.webhook || {}).ultimo) + ((datos.webhook || {}).secreto ? ' · firma: ' + ({ valida: 'válida ✔', no_coincide: 'NO coincide', sin_firma: 'el aviso no trae firma' }[(datos.webhook || {}).firma] || '—') : '') : 'sin avisos todavía (mientras tanto STOCKMAN revisa solo cada 2 minutos)') + '</div><button type="button" class="mm-bt" data-sm-webhook style="width:170px;flex:none">GENERAR WEBHOOK</button></div>' +
+      (urlWh ? '<div class="mm-glass sm-hist"><div>Pega esta dirección en Effi (Integraciones → Webhooks), método POST. No cambia la clave: un webhook ya creado en Effi sigue funcionando.</div><div class="sm-url"><code>' + esc(urlWh) + '</code><button type="button" class="mm-bt" data-sm-copiar>COPIAR</button><button type="button" class="mm-bt" data-sm-ocultar>OCULTAR</button></div></div>' : '') + '<div class="sm-host"></div>' + (cam ? '<div class="mm-glass sm-hist"><h3>CAMBIOS DEL PANEL QUE IRÁN A EFFI (SOLO LA BODEGA QUE CAMBIÓ)</h3>' + cam + '</div>' : '') + (pend ? '<div class="mm-glass sm-hist"><h3>AJUSTES HECHOS EN EFFI QUE LLEGARÁN AL PANEL AL ACTIVAR</h3>' + pend + '</div>' : '') + (hist ? '<div class="mm-glass sm-hist"><h3>ÚLTIMOS AJUSTES</h3>' + hist + '</div>' : '') + '</div>';
     pintarLista();
   }
 
@@ -116,6 +117,11 @@
         try { await api('/api/stockman/ajustar', { method: 'POST', body: JSON.stringify({ codigo: aj.dataset.smAjustar }) }); } catch (x) { alert(x.message); }
         firma = ''; cargar(); return;
       }
+      const gw = e.target.closest('[data-sm-webhook]');
+      if (gw) { try { urlWh = location.origin + (await api('/api/stockman/webhook-direccion', { method: 'POST' })).ruta; } catch (x) { alert(x.message); } firma = ''; pintar(); return; }
+      const oc = e.target.closest('[data-sm-ocultar]'); if (oc) { urlWh = ''; pintar(); return; }
+      const cp = e.target.closest('[data-sm-copiar]');
+      if (cp) { try { await navigator.clipboard.writeText(urlWh); cp.textContent = 'COPIADO'; setTimeout(() => { cp.textContent = 'COPIAR'; }, 1500); } catch (_) { prompt('Copia esta dirección:', urlWh); } return; }
       const s = e.target.closest('[data-sm-activar]');
       if (s) {
         const quiere = s.dataset.smActivar === '1';
