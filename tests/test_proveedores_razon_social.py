@@ -30,5 +30,14 @@ class RazonSocial(unittest.TestCase):
         self.assertEqual(p.alias_de('PUNTOFLEX'), [])
 
 
+class PrecioCop(unittest.TestCase):
+    def test_el_precio_siempre_queda_en_pesos_colombianos(self):
+        for escrito in ('7930', '7.930', '7,930', '$ 7.930', '$7,930.00', 'COP 7.930', ' 7 930 '):
+            self.assertEqual(p._limpiar_extra('precio_sin_iva', escrito), '$ 7.930', escrito)
+        self.assertEqual(p._limpiar_extra('precio_sin_iva', '7.930,50'), '$ 7.930,50')
+        self.assertEqual(p._limpiar_extra('precio_sin_iva', '1.250.000'), '$ 1.250.000')
+        self.assertEqual(p._numero('7,93'), 7.93)
+
+
 if __name__ == '__main__':
     unittest.main()

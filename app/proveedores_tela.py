@@ -185,6 +185,8 @@ def telas() -> list[dict]:
         t.update({k: g.get(k, '') for k in CAMPOS_EXTRA})   # datos opcionales de la ficha de la tela
         try:   # para los agentes: el precio como número, aunque en la tarjeta se muestre tal como se escribió
             t['precio_num'] = _numero(str(t.get('precio_sin_iva') or '')) if t.get('precio_sin_iva') else None
+            if t['precio_num'] is not None:
+                t['precio_sin_iva'] = formato_cop(t['precio_num'])   # los escritos antes de otra forma también se ven igual
         except HTTPException:
             t['precio_num'] = None
         t['faltan'] = [n for n, v in (('proveedor', t['proveedor']), ('ancho', t['ancho'])) if not v]   # los 4 datos obligatorios: nombre y código siempre vienen del inventario
@@ -198,18 +200,26 @@ def _limpiar_extra(campo: str, valor) -> str:
     if campo in ('gramaje', 'precio_sin_iva', 'stock_minimo', 'stock_maximo'):
         n = _numero(texto, campo)
         if campo == 'precio_sin_iva':
-            return texto[:30]   # el precio se guarda y se muestra TAL COMO SE ESCRIBIÓ (solo se valida que sea un número)
+            return formato_cop(n)   # el precio siempre en pesos colombianos, sin importar cómo se copió: «$ 7.930»
         return format(n, '.4f').rstrip('0').rstrip('.')   # gramaje y stocks (metros) se guardan como número limpio
     return _limpiar_texto(campo, texto)
 
 
 def _numero(texto: str, campo: str = 'precio_sin_iva') -> float:
-    """Lee un número escrito a la colombiana o con punto decimal («$ 18.500», «7,93», «1.250.000», «150»)."""
-    numero = texto.replace('$', '').replace(' ', '')
-    if re.fullmatch(r'\d{1,3}(\.\d{3})+(,\d+)?', numero):   # 12.500 o 1.250.000,50 (formato colombiano)
-        numero = numero.replace('.', '').replace(',', '.')
-    else:
-        numero = numero.replace(',', '.')
+    """Lee un número escrito de cualquier forma: a la colombiana («$ 18.500», «1.250.000,50», «7,93»), a la gringa («$7,930.50»),
+    sin separadores («7930») o con moneda («COP 7.930»). Con punto y coma a la vez, el último es el decimal; con uno solo,
+    si todos los grupos que le siguen tienen 3 cifras es de miles, si no es decimal."""
+    numero = re.sub(r'[^\d.,-]', '', str(texto))
+    if '.' in numero and ',' in numero:
+        dec = '.' if numero.rfind('.') > numero.rfind(',') else ','
+        numero = numero.replace(',' if dec == '.' else '.', '').replace(dec, '.')
+    elif '.' in numero or ',' in numero:
+        sep = '.' if '.' in numero else ','
+        partes = numero.split(sep)
+        if len(partes) > 1 and all(len(p) == 3 for p in partes[1:]) and partes[0].lstrip('-'):
+            numero = ''.join(partes)   # 7.930 / 1.250.000 / 7,930 → miles
+        else:
+            numero = ''.join(partes[:-1]) + '.' + partes[-1]   # 7,93 / 18.5 → decimal
     try:
         n = float(numero)
     except ValueError:
@@ -217,6 +227,13 @@ def _numero(texto: str, campo: str = 'precio_sin_iva') -> float:
     if n < 0 or n > 100000000:
         raise HTTPException(400, 'Valor fuera de rango')
     return n
+
+
+def formato_cop(n: float) -> str:
+    """Pesos colombianos: «$ 7.930» (miles con punto; centavos con coma solo si los hay: «$ 7.930,50»)."""
+    entero, cent = divmod(round(float(n) * 100), 100)
+    texto = '$ ' + f'{int(entero):,}'.replace(',', '.')
+    return texto + (f',{int(cent):02d}' if cent else '')
 
 
 def _limpiar_texto(campo: str, texto: str) -> str:
