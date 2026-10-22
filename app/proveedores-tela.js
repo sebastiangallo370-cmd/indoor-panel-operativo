@@ -308,13 +308,6 @@
   const telas = () => (st.datos && st.datos.telas) || [];
   const cuentaProv = () => { const c = {}; telas().forEach(t => { if (t.proveedor) c[t.proveedor] = (c[t.proveedor] || 0) + 1; }); return c; };
   const habituales = () => { const c = cuentaProv(); Object.keys((st.datos && st.datos.directorio) || {}).forEach(n => { if (!(n in c)) c[n] = 0; }); return Object.keys(c).sort((a, b) => c[b] - c[a] || a.localeCompare(b)); };
-  // Al escoger un proveedor ya registrado, sus datos (vendedor, WhatsApp, correo) se llenan solos en los campos vacíos
-  const llenarDesdeDirectorio = input => {
-    const dir = (st.datos && st.datos.directorio) || {}, nombre = String(input.value || '').trim();
-    const p = dir[nombre] || dir[Object.keys(dir).find(k => k.toUpperCase() === nombre.toUpperCase()) || ''];
-    const tj = input.closest('.pv-card'); if (!p || !tj) return;
-    [['vendedor', '[data-pv-vend]'], ['wpp', '[data-pv-wpp]'], ['correo', '[data-pv-correo]']].forEach(([k, sel]) => { const c = tj.querySelector(sel); if (c && !c.value.trim() && p[k]) { c.value = p[k]; c.classList.add('pv-auto'); } });
-  };
   const visibles = () => {
     const q = plano(st.buscar);
     return telas().filter(t => (!st.filtro || (st.filtro === '__sin' ? !(t.proveedor && t.ancho) : t.proveedor === st.filtro)) && (!q || plano(t.codigo + ' ' + t.nombre + ' ' + t.proveedor).includes(q)));
@@ -377,7 +370,6 @@
     const lapiz = edit ? '' : `<button type="button" class="pt-lapiz${falta ? ' pri' : ''}" data-pv-editar title="Editar tarjeta" aria-label="Editar tarjeta"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>`;
     return `<div class="pv-card pv-t${falta ? ' sin' : ''}${edit ? ' editando' : ''}${st.reciente === t.codigo ? ' nueva' : ''}" data-cod="${esc(t.codigo)}">` +
       `<div class="pt-head"><h3 class="pt-nom">${esc(t.nombre)}</h3>${lapiz}</div>` +
-      (edit ? copiarDe(t) : '') +
       `<div class="pt-form"><div class="pt-row fijo"><span class="pt-lbl">Código Indoor<b>*</b></span><button type="button" class="pt-cod" data-pv-copiar title="Tocar para copiar el código">${esc(t.codigo)}</button></div>` +
       fila(t.codigo, 'Proveedor', t.proveedor, 'list="pv-proveedores" data-pv-input', true, !t.proveedor, 'Escribe el proveedor…') +
       (edit ? sugerencias('prov', habituales().slice(0, 5)) : '') +
@@ -399,9 +391,7 @@
       `<div class="pv-est ${esc(e.c || '')}" data-pv-est>${esc(e.t || '')}</div></div>`;
   }
   const familia = n => (String(n || '').toUpperCase().replace(/\(.*?\)/g, ' ').trim().split(/\s+/)[0]) || 'OTRAS';
-  // «Copiar datos de otra tela»: lista de telas que ya tienen datos (primero las de la misma familia y el mismo proveedor)
-  const CAMPOS_COPIA = [['proveedor', '[data-pv-input]'], ['ancho', '[data-pv-ancho]'], ['composicion', '[data-pv-comp]'], ['gramaje', '[data-pv-gram]'], ['tipo', '[data-pv-tipo]'], ['stock_minimo', '[data-pv-smin]'], ['stock_maximo', '[data-pv-smax]'], ['vendedor', '[data-pv-vend]'], ['wpp', '[data-pv-wpp]'], ['correo', '[data-pv-correo]'], ['precio_sin_iva', '[data-pv-precio]']];
-  // Una lista desplegable por campo con los valores ya usados en otras telas (los más usados primero)
+  // Una lista desplegable por campo con los valores ya guardados en otras tarjetas (los más usados primero). No llena nada solo: se escoge.
   const LISTAS = { ancho: 'ancho', composicion: 'comp', gramaje: 'gram', tipo: 'tipo', stock_minimo: 'smin', stock_maximo: 'smax', vendedor: 'vend', wpp: 'wpp', correo: 'correo', precio_sin_iva: 'precio' };
   function pintarListasCampos() {
     let caja = document.getElementById('pv-listas');
@@ -411,22 +401,6 @@
       telas().forEach(t => { const v = String(t[k] || '').trim(); if (v) cuenta[v] = (cuenta[v] || 0) + 1; });
       return '<datalist id="pv-dl-' + id + '">' + Object.keys(cuenta).sort((a, b) => cuenta[b] - cuenta[a] || a.localeCompare(b)).slice(0, 40).map(v => '<option value="' + esc(v) + '">').join('') + '</datalist>';
     }).join('');
-  }
-  function copiarDe(t) {
-    const conDatos = telas().filter(x => x.codigo !== t.codigo && CAMPOS_COPIA.slice(2).some(([k]) => x[k]));
-    if (!conDatos.length) return '';
-    const fam = familia(t.nombre), peso = x => (familia(x.nombre) === fam ? 0 : 2) + (t.proveedor && x.proveedor === t.proveedor ? 0 : 1);
-    conDatos.sort((a, b) => peso(a) - peso(b) || String(a.nombre).localeCompare(String(b.nombre)));
-    return '<label class="pt-copia"><span>⧉ Copiar datos de otra tela</span><select data-pv-copiarde><option value="">Escoge una tela…</option>' +
-      conDatos.map(x => '<option value="' + esc(x.codigo) + '">' + esc(x.nombre) + ' · ' + esc(x.codigo) + '</option>').join('') + '</select></label>';
-  }
-  function aplicarCopia(sel) {
-    const tj = sel.closest('.pv-card'), x = telas().find(y => y.codigo === sel.value); if (!tj || !x) return;
-    let n = 0;
-    CAMPOS_COPIA.forEach(([k, s]) => { const c = tj.querySelector(s); if (c && !c.value.trim() && x[k]) { c.value = x[k]; c.classList.add('pv-auto'); n++; } });
-    const inp = tj.querySelector('[data-pv-input]'); if (inp) llenarDesdeDirectorio(inp);
-    sel.insertAdjacentHTML('afterend', '<small class="pt-copia-ok">' + (n ? '✓ ' + n + ' datos copiados de ' + esc(x.nombre) + '. Revisa y pulsa GUARDAR.' : 'Los campos ya tenían datos: no se cambió nada.') + '</small>');
-    const viejo = tj.querySelectorAll('.pt-copia-ok'); if (viejo.length > 1) viejo[0].remove();
   }
   function cabeceraFam(f, lista) {
     const con = lista.filter(t => t.proveedor).length, sin = lista.length - con, cerrada = st.plegadas.has(f);
@@ -541,7 +515,6 @@
   function abrirEdicion(cod) {
     st.edit.add(cod); cambiarTarjeta(cod);
     const tj = host.querySelector('.pv-card[data-cod="' + CSS.escape(cod) + '"]');
-    const pin = tj && tj.querySelector('[data-pv-input]'); if (pin && pin.value.trim()) llenarDesdeDirectorio(pin);
     const vacio = tj && [...tj.querySelectorAll('.pt-row input')].find(i => !i.value && i.required);
     (vacio || (tj && tj.querySelector('.pt-row input')) || { focus() {} }).focus();
   }
@@ -612,9 +585,6 @@
     pintarGrid();
   }
 
-  document.addEventListener('change', e => { if (e.target.matches && e.target.matches('.pv-card [data-pv-input]')) llenarDesdeDirectorio(e.target); });
-  document.addEventListener('change', e => { if (e.target.matches && e.target.matches('.pv-card [data-pv-copiarde]')) aplicarCopia(e.target); });
-  document.addEventListener('input', e => { if (e.target.matches && e.target.matches('.pv-card [data-pv-input]')) llenarDesdeDirectorio(e.target); });
   window.proveedoresTelaPintar = el => {
     if (host !== el) {
       host = el;
