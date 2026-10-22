@@ -120,6 +120,9 @@
   .fi-ed-aviso{display:none;margin-left:10px;color:#d0f44c;font:800 10px Arial;letter-spacing:.04em;font-style:normal;text-transform:none}.fi-ed.sucio .fi-ed-aviso{display:inline}
   .fi-ed button.fi-ed-mas{width:auto!important;min-height:0!important;padding:8px 15px!important;border:1px solid rgba(255,255,255,.2)!important;border-radius:999px!important;background:transparent!important;color:#e6ede0!important;font:800 10.5px Arial!important;letter-spacing:.12em;text-transform:uppercase;cursor:pointer;white-space:nowrap}
   .fi-ed button.fi-ed-mas:hover{border-color:#d0f44c!important;color:#d0f44c!important}
+  .fi-prom-cab{padding:0 0 2px}.fi-prom-cab span{font:800 9px Arial;letter-spacing:.08em;text-transform:uppercase;color:#a6b7ab;padding-left:4px}.fi-prom-cab .gen{color:var(--lima,#d0f44c)}
+  .fi-prom-gen{display:flex;align-items:center;justify-content:center;height:100%;min-height:34px;border-radius:9px;border:1px solid rgba(208,244,76,.55);background:rgba(208,244,76,.1);color:var(--lima,#d0f44c);font:900 13px Arial;white-space:nowrap}
+  .fi-prom-gen-v{display:inline-block;margin-left:6px;padding:2px 8px;border-radius:999px;background:rgba(208,244,76,.14);border:1px solid rgba(208,244,76,.5);color:var(--lima,#d0f44c);font:800 11px Arial}
   .fi-ed-fila{display:grid;grid-template-columns:24px minmax(0,1fr) auto;gap:8px;align-items:center}
   .fi-ed-fila.uno{grid-template-columns:minmax(0,1fr)}.fi-ed-fila.tabla{grid-template-columns:var(--cols)}
   .fi-ed-fila>b{color:#d0f44c;font:800 12px Arial;letter-spacing:.08em}
@@ -710,16 +713,25 @@
       if (JSON.stringify(filas) === JSON.stringify(baseDe(f, sec))) delete S.bor[sec]; else S.bor[sec] = filas;
     });
   }
+  // Calculador del promedio general: el promedio de los géneros que tienen número (Masculino, Femenino, Niño)
+  const numProm = v => { const n = parseFloat(String(v == null ? '' : v).replace(',', '.').replace(/[^\d.]/g, '')); return isFinite(n) && n > 0 ? n : null; };
+  function promGeneral(x) {
+    const vals = ['masc', 'feme', 'nino'].map(k => numProm(x && x[k])).filter(v => v != null);
+    return vals.length ? (Math.round(vals.reduce((a, b) => a + b, 0) / vals.length * 100) / 100).toString().replace('.', ',') + ' MTS' : '—';
+  }
   function editor(f, sec) {
     const d = ED[sec], pend = (S.bor || {})[sec], filas = pend || baseDe(f, sec), e = (f.editado || {})[sec], uno = d.tipo === 'texto', una = uno || !d.cols || !!d.linea;
-    const plantilla = !una ? '24px ' + d.cols.map(c => 'minmax(0,' + c[2] + 'fr)').join(' ') + ' auto' : '';
+    const esProm = sec === 'promedios';
+    const plantilla = !una ? '24px ' + d.cols.map(c => 'minmax(0,' + c[2] + 'fr)').join(' ') + (esProm ? ' minmax(0,1fr)' : '') + ' auto' : '';
     const texto = x => d.linea ? d.linea.une(x) : x, llenas = filas.filter(x => String(una ? texto(x) : Object.values(x).join('')).trim()).length;
     const mover = i => '<span class="fi-ed-mov"><button type="button" data-fi-ed-sube="' + i + '" title="Subir"' + (i === 0 ? ' disabled' : '') + '>↑</button><button type="button" data-fi-ed-baja="' + i + '" title="Bajar"' + (i === filas.length - 1 ? ' disabled' : '') + '>↓</button><button type="button" class="x" data-fi-ed-del="' + i + '" title="Quitar">×</button></span>';
     const fila = (x, i) => uno ? '<div class="fi-ed-fila uno"><textarea rows="' + (String(x).length > 70 ? 3 : 1) + '" maxlength="1200" data-ed-va placeholder="Escribe aquí">' + esc(x) + '</textarea></div>'
       : una ? '<div class="fi-ed-fila"><b>' + pad(i + 1) + '</b><input type="text" maxlength="600" data-ed-va placeholder="Escribe aquí" value="' + esc(texto(x)) + '">' + mover(i) + '</div>'
-      : '<div class="fi-ed-fila tabla" style="--cols:' + plantilla + '"><b>' + pad(i + 1) + '</b>' + d.cols.map(c => '<input type="text" maxlength="300" data-ed-col="' + c[0] + '" placeholder="' + esc(c[1]) + '" title="' + esc(c[1]) + '" value="' + esc(x[c[0]]) + '">').join('') + mover(i) + '</div>';
+      : '<div class="fi-ed-fila tabla" style="--cols:' + plantilla + '"><b>' + pad(i + 1) + '</b>' + d.cols.map(c => '<input type="text" maxlength="300" data-ed-col="' + c[0] + '" placeholder="' + esc(c[1]) + '" title="' + esc(c[1]) + '" value="' + esc(x[c[0]]) + '">').join('') + (esProm ? '<output class="fi-prom-gen" data-fi-prom-gen title="Promedio general de los 3 géneros">' + promGeneral(x) + '</output>' : '') + mover(i) + '</div>';
     return '<div class="fi-ed' + (pend ? ' sucio' : '') + '" data-fi-ed="' + sec + '"><div class="fi-ed-cab"><span>' + esc(d.t) + (uno ? '' : ' (' + llenas + ')') + '<i class="fi-ed-aviso">● sin guardar</i></span>' + (uno ? '' : '<button type="button" class="fi-ed-mas" data-fi-ed-add>+ Agregar</button>') + '</div>' +
-      (d.ayuda ? '<p class="fi-obs" style="margin:0 0 2px">' + d.ayuda + '</p>' : '') + filas.map(fila).join('') +
+      (d.ayuda ? '<p class="fi-obs" style="margin:0 0 2px">' + d.ayuda + '</p>' : '') +
+      (esProm ? '<div class="fi-ed-fila tabla fi-prom-cab" style="--cols:' + plantilla + '"><b></b><span>Nombre</span><span>Masculino</span><span>Femenino</span><span>Niño</span><span class="gen">General (3 géneros)</span><span></span></div>' : '') +
+      filas.map(fila).join('') +
       '<div class="fi-ed-acc">' + (uno ? '' : '<button type="button" class="fi-ed-mas" data-fi-ed-add>' + (d.mas || '+ Agregar otro renglón') + '</button>') + '<button type="button" class="des" data-fi-ed-cancelar title="Descarta lo escrito y vuelve a lo guardado">Deshacer</button>' +
       (e ? '<button type="button" data-fi-ed-restaurar title="Quita la corrección y vuelve a lo que dice el Excel">Restaurar el del Excel</button><span class="fi-edmarca">corregido por ' + esc(e.por) + ' · ' + esc(e.fecha) + '</span>' : '') + '<span class="fi-ed-msg" data-fi-ed-msg></span></div></div>';
   }
@@ -788,7 +800,7 @@
     t.push({ id: 'PIEZAS', n: mats.reduce((a, m) => a + m.total, 0) || (hayFitReal(f) ? f.fit.imagenes.length : 0), u: ['pieza', 'piezas'], html: mapaTelas(mats, f) + (dPz.length ? sec('Como está en la ficha') + lista(dPz) : '') + libre('piezas') });
     // TELA Y CONSUMO: telas recomendadas, promedio de la ficha y consumo por talla del maestro
     const telas = (f.telas || []).map(x => kv('Tela ' + x.material, x.tela));
-    const prom = (f.promedios || []).map(p => kv(p.nombre, Object.entries(p.valores || {}).map(([k, v]) => (NOMBRE[k] || k) + ' ' + v).join(' · ') + ' MTS'));
+    const prom = (f.promedios || []).map(p => { const v = p.valores || {}, g = promGeneral({ masc: v.masc, feme: v.feme || v.fem, nino: v.nino }); return kv(p.nombre, Object.entries(v).map(([k, x]) => (NOMBRE[k] || k) + ' ' + x).join(' · ') + ' MTS') + (g !== '—' ? ' <b class="fi-prom-gen-v">GENERAL ' + esc(g) + '</b>' : ''); });
     const tCons = ((cons && cons.grupos) || []).filter(g => enGrupo(g.tallas)).map(g => '<div class="fi-bloque"><p class="fi-titulo">' + esc(g.grupo) + ' (MTS por prenda)</p>' + tablaMedidas(g.tallas, [['MTS', g.valores.map(v => v || '—')]], S.talla) + '</div>');
     const hayCons = !!(cons && cons.grupos.length);
     t.push({ id: 'TELA Y CONSUMO', n: telas.length + prom.length + (f.composicion ? 1 : 0) + (hayCons ? cons.grupos.length : 0), u: ['dato', 'datos'], html:
@@ -1041,7 +1053,7 @@
       }
       else if (e.target.closest('[data-fi-pagina]')) { const f = S.fichas[S.i]; cerrar(); window.molderiaAbrirPagina(f.id); }
     });
-    overlay.addEventListener('input', e => { const ed = e.target.closest('[data-fi-ed]'); if (ed) { ed.classList.add('sucio'); const pie = overlay.querySelector('[data-fi-pie]'); if (pie) pie.classList.add('sucio'); return; } if (e.target.matches('[data-fi-q]')) { S.q = e.target.value; pintarBusqueda(); } else if (e.target.matches('[data-fi-calc]')) recalcular(); });
+    overlay.addEventListener('input', e => { const ed = e.target.closest('[data-fi-ed]'); if (ed) { ed.classList.add('sucio'); if (ed.dataset.fiEd === 'promedios') { const fl = e.target.closest('.fi-ed-fila'), out = fl && fl.querySelector('[data-fi-prom-gen]'); if (out) out.textContent = promGeneral(Object.fromEntries([...fl.querySelectorAll('[data-ed-col]')].map(i => [i.dataset.edCol, i.value]))); } const pie = overlay.querySelector('[data-fi-pie]'); if (pie) pie.classList.add('sucio'); return; } if (e.target.matches('[data-fi-q]')) { S.q = e.target.value; pintarBusqueda(); } else if (e.target.matches('[data-fi-calc]')) recalcular(); });
     overlay.addEventListener('change', e => {
       if (!e.target.matches('[data-fi-chk]')) return;
       const k = e.target.dataset.fiChk; if (e.target.checked) CHK[k] = 1; else delete CHK[k]; guardar('mo_chk', CHK);
