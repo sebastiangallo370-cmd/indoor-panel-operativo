@@ -15,6 +15,11 @@
     });
     const nodos = [];
     while (w.nextNode()) nodos.push(w.currentNode);
+    // textos que se ven al pasar el mouse o como ayuda (title, aria-label, placeholder)
+    raiz.querySelectorAll && raiz.querySelectorAll('[title],[aria-label],[placeholder]').forEach(e => ['title', 'aria-label', 'placeholder'].forEach(a => {
+      const v = e.getAttribute(a); const nuevo = v && mapa[norm(v)];
+      if (nuevo && v !== nuevo) e.setAttribute(a, nuevo);
+    }));
     nodos.forEach(n => {
       const original = n.nodeValue;
       if (n.__efi === original) return;   // ya lo cambié yo: no lo vuelvo a tocar
