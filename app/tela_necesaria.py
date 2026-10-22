@@ -363,6 +363,8 @@ def calcular(items: list[dict]) -> dict:
             ped['bodega'] = disponible   # todo lo que hay en Bodega de esa tela (antes de servir las órdenes)
             ped['quedan'] = round(max(restante, 0.0), 2)   # lo que sobra en Bodega después de esta orden
             por_orden.append(ped)
+        for ped in entrada['pedidos']:   # varias órdenes de la misma tela: cada una sabe con cuáles comparte
+            ped['compartida_con'] = [o['orden'] for o in entrada['pedidos'] if o['orden'] != ped['orden']]
         entrada.pop('codigos', None)
         resultado.append({**entrada, 'mts': mts, 'disponible': disponible, 'encontrada': bool(encontradas),
                           'telas': [i['nombre'] for i in encontradas], 'faltan': round(max(0.0, mts - disponible), 2) if encontradas else mts,

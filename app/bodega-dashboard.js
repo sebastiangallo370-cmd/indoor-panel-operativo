@@ -115,6 +115,7 @@
 .bd .ot-pie{margin-top:auto;display:grid;gap:4px;padding-right:50px;padding-top:2px}
 .bd .ot-bodega{font:800 .68rem Arial;letter-spacing:.03em;line-height:1.3;opacity:.95}
 .bd .ot-bodega b{font-weight:900}
+.bd .ot-bodega.comparte{display:grid;gap:2px}.bd .ot-bodega .ot-comparte{font:700 .6rem Arial;letter-spacing:.04em;opacity:.75;text-transform:uppercase}
 html body .bd .inventory-item-card .ot-bodega b.hay{color:#7cc9ff!important;-webkit-text-fill-color:#7cc9ff!important}
 html body .bd .inventory-item-card .ot-bodega b.queda{color:#d6f55a!important;-webkit-text-fill-color:#d6f55a!important}
 html body .bd .inventory-item-card .ot-bodega b.falta{color:#ff9a8f!important;-webkit-text-fill-color:#ff9a8f!important}
@@ -540,6 +541,14 @@ html body .bd .inventory-item-card.lq,html body .bd .bd-tkpi .lq{background:radi
       if (typeof o.bodega !== 'number') return '';
       const tit = 'Bodega tiene ' + entero(o.bodega, Math.round) + ' MTS de esta tela en total. Las órdenes se sirven por fecha de entrega: para esta orden quedan disponibles ' + entero(o.disponible || 0, Math.floor) + ' MTS.';
       if (o.situacion === 'sin_promedio') return '<div class="ot-bodega" title="' + esc(tit) + '">Bodega <b class="hay">' + entero(o.bodega, Math.round) + '</b> MTS</div>';
+      const comparte = o.compartida_con || [];
+      if (comparte.length && o.situacion !== 'sin_promedio') {   // misma tela en varias órdenes: lo que le toca a ESTA orden, no el total
+        const otras = comparte.join(', ');
+        return '<div class="ot-bodega comparte" title="' + esc('Esta tela también la usan ' + otras + '. Se sirven por fecha de entrega: cada una toma de lo que queda.') + '">' +
+          'Para esta orden <b class="hay">' + entero(o.disponible, Math.floor) + '</b> MTS de <b>' + entero(o.bodega, Math.round) + '</b> en Bodega' +
+          (o.situacion === 'no_alcanza' ? ' · faltan <b class="falta">' + entero(o.falta, Math.ceil) + '</b> MTS' : ' · quedan <b class="queda">' + entero(o.quedan, Math.floor) + '</b> MTS') +
+          '<small class="ot-comparte">Misma tela que ' + esc(otras) + '</small></div>';
+      }
       if (o.situacion === 'no_alcanza') return '<div class="ot-bodega mal" title="' + esc(tit) + '">Bodega <b class="hay">' + entero(o.bodega, Math.round) + '</b> MTS · faltan <b class="falta">' + entero(o.falta, Math.ceil) + '</b> MTS</div>';
       return '<div class="ot-bodega" title="' + esc(tit) + '">Bodega <b class="hay">' + entero(o.bodega, Math.round) + '</b> MTS · quedan <b class="queda">' + entero(o.quedan, Math.floor) + '</b> MTS</div>';
     };
