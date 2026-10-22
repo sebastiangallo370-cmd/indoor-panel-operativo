@@ -216,8 +216,10 @@ def crear_orden(item_id, referencia: str, metros: float, nombre_proveedor: str, 
 
 def crear_ajuste(clave: str, bodega: int, articulo_id, delta: float, observacion: str) -> dict:
     """POST /ajuste_inventario: suma (delta > 0) o resta (delta < 0) metros de un artículo en UNA bodega. Con la misma clave un reintento no crea otro ajuste (409 → se devuelve el ya creado)."""
+    if float(delta) <= 0:
+        raise EffiError('Por la API un ajuste de inventario solo suma (la cantidad debe ser mayor que cero): para restar hay que usar otra operación de Effi', 400)
     cuerpo = {'idempotency_key': str(clave)[:36], 'sucursal': int(os.getenv('EFFI_SUCURSAL', '1')), 'bodega': int(bodega), 'observacion': str(observacion)[:250],
-              'articulo': [str(articulo_id)], 'cantidad': [float(delta)]}
+              'conceptos': [{'articulo': str(articulo_id), 'cantidad': float(delta)}]}
     try:
         data = _peticion('POST', 'ajuste_inventario', cuerpo=cuerpo).get('data') or {}
     except EffiError as e:
@@ -226,6 +228,22 @@ def crear_ajuste(clave: str, bodega: int, articulo_id, delta: float, observacion
         data = (e.cuerpo.get('data') or {}) if isinstance(e.cuerpo, dict) else {}
         if not data.get('id'):
             raise EffiError('Effi dice que este ajuste ya se creó, pero no devolvió su número: revísalo en Inventario > Ajustes', 409)
+    return {'id': str(data.get('id')), 'total': data.get('total')}
+
+
+def crear_traslado(clave: str, bodega_origen: int, bodega_destino: int, articulo_id, cantidad: float, observacion: str) -> dict:
+    """POST /traslado_inventario: mueve metros de una bodega a otra (el total del artículo no cambia). Con la misma clave un reintento no crea otro traslado."""
+    suc = int(os.getenv('EFFI_SUCURSAL', '1'))
+    cuerpo = {'idempotency_key': str(clave)[:36], 'sucursal_origen': suc, 'sucursal_destino': suc, 'bodega_origen': int(bodega_origen), 'bodega_destino': int(bodega_destino),
+              'observacion': str(observacion)[:250], 'conceptos': [{'articulo': str(articulo_id), 'cantidad': float(cantidad)}]}
+    try:
+        data = _peticion('POST', 'traslado_inventario', cuerpo=cuerpo).get('data') or {}
+    except EffiError as e:
+        if e.estado != 409:
+            raise
+        data = (e.cuerpo.get('data') or {}) if isinstance(e.cuerpo, dict) else {}
+        if not data.get('id'):
+            raise EffiError('Effi dice que este traslado ya se creó, pero no devolvió su número: revísalo en Inventario > Traslados', 409)
     return {'id': str(data.get('id')), 'total': data.get('total')}
 
 

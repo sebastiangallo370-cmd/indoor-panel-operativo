@@ -218,20 +218,52 @@ def aplicar_tela(codigo: str, usuario: str) -> dict:
     if not fila or fila['estado'] in ('sin_articulo', 'igual'):
         raise HTTPException(404, 'Esa tela no tiene nada que ajustar.')
     hechos = []
-    for b in fila['bodegas']:
-        if abs(b['delta']) < 0.01:
+
+    def registrar(estado, tipo_op, origen, destino, cantidad, ident='', detalle=''):
+        hechos.append({'codigo': codigo, 'tela': fila['tela'], 'bodega': (f"{origen} → {destino}" if tipo_op == 'traslado' else destino), 'delta': cantidad, 'estado': estado, 'tipo': 'a_effi',
+                       'operacion': tipo_op, 'ajuste': ident, 'detalle': detalle, 'por': usuario, 'at': _iso()})
+
+    def fallo(exc, tipo_op, origen, destino, cantidad):
+        registrar('error', tipo_op, origen, destino, cantidad, detalle=str(exc)[:200])
+        with _lock:
+            d = _leer()
+            d['ajustes'] = (d['ajustes'] + hechos)[-200:]
+            _guardar(d)
+        raise HTTPException(502, f"Effi no aceptó el {tipo_op} ({origen} → {destino}): {str(exc)[:150]}")
+
+    # 1) lo que sobra en una bodega de Effi y falta en otra se MUEVE con un traslado (el total no cambia)
+    sobran = sorted([[b['bodega'], -b['delta']] for b in fila['bodegas'] if b['delta'] <= -0.01], key=lambda x: -x[1])
+    faltan = sorted([[b['bodega'], b['delta']] for b in fila['bodegas'] if b['delta'] >= 0.01], key=lambda x: -x[1])
+    nombre = lambda i: _NOMBRE_BODEGA.get(i) or _OTRAS.get(i, i)
+    for o in sobran:
+        for f in faltan:
+            mover = round(min(o[1], f[1]), 2)
+            if mover < 0.01:
+                continue
+            clave = 'sm-t-' + hashlib.sha1(f"{codigo}|{o[0]}|{f[0]}|{mover}|{fila['panel']}|{fila['effi']}".encode()).hexdigest()[:22]
+            try:
+                r = effi_api.crear_traslado(clave, int(o[0]), int(f[0]), fila['id_effi'], mover, f'{PROPIO} ({usuario})')
+            except Exception as exc:   # noqa: BLE001
+                fallo(exc, 'traslado', nombre(o[0]), nombre(f[0]), mover)
+            registrar('hecho', 'traslado', nombre(o[0]), nombre(f[0]), mover, r['id'])
+            log.warning('STOCKMAN: traslado %s · %s · %s → %s %g mts (por %s)', r['id'], fila['tela'], nombre(o[0]), nombre(f[0]), mover, usuario)
+            o[1] = round(o[1] - mover, 2)
+            f[1] = round(f[1] - mover, 2)
+    # 2) lo que falta en Effi (el panel tiene más) se SUMA con un ajuste de inventario
+    for f in faltan:
+        if f[1] < 0.01:
             continue
-        clave = 'sm-' + hashlib.sha1(f"{codigo}|{b['bodega']}|{b['panel']}|{b['effi']}".encode()).hexdigest()[:24]
+        clave = 'sm-a-' + hashlib.sha1(f"{codigo}|{f[0]}|{f[1]}|{fila['panel']}|{fila['effi']}".encode()).hexdigest()[:22]
         try:
-            r = effi_api.crear_ajuste(clave, int(b['bodega']), fila['id_effi'], b['delta'], f'Alineado con el panel por STOCKMAN ({usuario})')
+            r = effi_api.crear_ajuste(clave, int(f[0]), fila['id_effi'], f[1], f'{PROPIO} ({usuario})')
         except Exception as exc:   # noqa: BLE001
-            with _lock:
-                d = _leer()
-                d['ajustes'] = (d['ajustes'] + [{'codigo': codigo, 'tela': fila['tela'], 'bodega': b['nombre'], 'delta': b['delta'], 'estado': 'error', 'tipo': 'a_effi', 'detalle': str(exc)[:200], 'por': usuario, 'at': _iso()}])[-200:]
-                _guardar(d)
-            raise HTTPException(502, f"Effi no aceptó el ajuste de {b['nombre']}: {str(exc)[:150]}")
-        hechos.append({'codigo': codigo, 'tela': fila['tela'], 'bodega': b['nombre'], 'delta': b['delta'], 'estado': 'hecho', 'tipo': 'a_effi', 'ajuste': r['id'], 'por': usuario, 'at': _iso()})
-        log.warning('STOCKMAN: ajuste %s · %s · %s %+g mts (por %s)', r['id'], fila['tela'], b['nombre'], b['delta'], usuario)
+            fallo(exc, 'ajuste', '', nombre(f[0]), f[1])
+        registrar('hecho', 'ajuste', '', nombre(f[0]), f[1], r['id'])
+        log.warning('STOCKMAN: ajuste %s · %s · %s +%g mts (por %s)', r['id'], fila['tela'], nombre(f[0]), f[1], usuario)
+    # 3) lo que sobra en Effi y el panel no tiene: restar no se puede por ajuste (la API solo acepta cantidades mayores que cero)
+    for o in sobran:
+        if o[1] >= 0.01:
+            registrar('pendiente', 'salida', nombre(o[0]), '', -o[1], detalle='Effi tiene más que el panel y por la API no se puede restar: hazlo en Effi')
     with _lock:
         d = _leer()
         d['ajustes'] = (d['ajustes'] + hechos)[-200:]
@@ -294,6 +326,8 @@ def aplicar_cambio(c: dict, usuario: str) -> dict:
     v = _leer()['nombres'].get(c['codigo'])
     if not v or not v.get('id_effi'):
         raise HTTPException(404, 'Esa tela no tiene artículo en Effi.')
+    if c['delta'] <= 0:   # la API de Effi solo suma en un ajuste: una salida del panel todavía no se puede restar en Effi
+        raise HTTPException(501, 'Restar en Effi no se puede hacer por la API de ajustes (solo suma): queda pendiente.')
     clave = 'sm-' + hashlib.sha1(f"{c['codigo']}|{c['bodega']}|{c['antes']}|{c['ahora']}".encode()).hexdigest()[:24]
     nombre = _NOMBRE_BODEGA.get(c['bodega']) or _OTRAS.get(c['bodega'], c['bodega'])
     try:

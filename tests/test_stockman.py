@@ -74,15 +74,24 @@ class AjusteTest(unittest.TestCase):
         with mock.patch.object(stockman, '_stock_panel', lambda: {'100': {'21': 2000.0, '23': 968.0}}):
             self.assertEqual(stockman.evaluar()[0]['estado'], 'igual')
 
-    def test_aplicar_crea_un_ajuste_por_bodega_con_diferencia(self):
-        hechos = []
-        crear = lambda clave, bodega, art, delta, obs: hechos.append((bodega, art, delta)) or {'id': str(len(hechos)), 'total': None}
-        with mock.patch.object(stockman, '_stock_panel', lambda: {'100': {'21': 2000.0}}), mock.patch.object(stockman.effi_api, 'crear_ajuste', crear),                 mock.patch.object(stockman.effi_api, 'articulo', lambda *a: {'stock_bodegas': [{'bodega': '21', 'stock': '2000'}] if hechos else [{'bodega': '5', 'stock': '2981'}, {'bodega': '21', 'stock': '0.41'}]}):
+    def test_lo_que_sobra_en_una_bodega_se_traslada_a_la_que_falta(self):
+        traslados, ajustes = [], []
+        with mock.patch.object(stockman, '_stock_panel', lambda: {'100': {'21': 2000.0}}),                 mock.patch.object(stockman.effi_api, 'crear_traslado', lambda clave, o, d, art, cant, obs: traslados.append((o, d, art, cant)) or {'id': 't1'}),                 mock.patch.object(stockman.effi_api, 'crear_ajuste', lambda clave, bodega, art, delta, obs: ajustes.append((bodega, delta)) or {'id': 'a1'}),                 mock.patch.object(stockman.effi_api, 'articulo', lambda *a: {'stock_bodegas': [{'bodega': '5', 'stock': '2981'}, {'bodega': '21', 'stock': '0.41'}]}):
             r = stockman.aplicar_tela('100', 'ADMIN')
+        self.assertEqual(traslados, [(5, 21, '6082', 1999.59)])   # Materia Prima -> INDOOR: el total de Effi no cambia
+        self.assertEqual(ajustes, [])
+        h = stockman._leer()['ajustes']
+        self.assertEqual([(x['operacion'], x['estado']) for x in h], [('traslado', 'hecho'), ('salida', 'pendiente')])   # lo que sobra de más no se puede restar por la API
         self.assertEqual(r['ajustes'], 2)
-        self.assertIn((21, '6082', 1999.59), hechos)
-        self.assertIn((5, '6082', -2981.0), hechos)
-        self.assertEqual(stockman._leer()['nombres']['100']['stock_effi'], {'21': 2000.0})
+
+    def test_lo_que_falta_en_effi_se_suma_con_un_ajuste(self):
+        d = stockman._leer()
+        d['nombres']['100']['stock_effi'] = {'21': 1900.0}
+        stockman._guardar(d)
+        ajustes = []
+        with mock.patch.object(stockman, '_stock_panel', lambda: {'100': {'21': 2000.0}}),                 mock.patch.object(stockman.effi_api, 'crear_ajuste', lambda clave, bodega, art, delta, obs: ajustes.append((bodega, art, delta)) or {'id': 'a1'}),                 mock.patch.object(stockman.effi_api, 'articulo', lambda *a: {'stock_bodegas': [{'bodega': '21', 'stock': '1900'}]}):
+            stockman.aplicar_tela('100', 'ADMIN')
+        self.assertEqual(ajustes, [(21, '6082', 100.0)])
 
 
 class EffiAPanelTest(unittest.TestCase):
@@ -159,14 +168,14 @@ class SoloLaBodegaQueCambioTest(unittest.TestCase):
 
     def test_solo_sale_la_bodega_que_cambio_y_por_lo_que_cambio(self):
         stockman.cambios_panel(fijar_base=True)
-        self.panel['100']['23'] = 950.0   # salieron 18 mts de GLORIA; INDOOR no cambió
+        self.panel['100']['23'] = 986.0   # entraron 18 mts a GLORIA; INDOOR no cambió
         c = stockman.cambios_panel()
-        self.assertEqual([(x['bodega'], x['delta']) for x in c], [('23', -18.0)])
+        self.assertEqual([(x['bodega'], x['delta']) for x in c], [('23', 18.0)])
         hechos = []
         with mock.patch.object(stockman.effi_api, 'crear_ajuste', lambda clave, bodega, art, delta, obs: hechos.append((bodega, art, delta)) or {'id': '9', 'total': None}), \
                 mock.patch.object(stockman.effi_api, 'articulo', lambda *a: {'stock_bodegas': []}):
             stockman.aplicar_cambio(c[0], 'STOCKMAN')
-        self.assertEqual(hechos, [(23, '6082', -18.0)])   # un solo ajuste, de una sola bodega
+        self.assertEqual(hechos, [(23, '6082', 18.0)])   # un solo ajuste, de una sola bodega
         self.assertEqual(stockman.cambios_panel(), [])    # ya está procesado: no se repite
 
     def test_lo_que_trae_effi_no_se_devuelve_a_effi(self):
