@@ -9,7 +9,7 @@
   const num = v => Number(v || 0).toLocaleString('es-CO', { maximumFractionDigits: 2 });
   const plano = t => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   const ESTADO = { pedir: ['POR PEDIR', 'rojo'], error: ['CON ERROR', 'rojo'], sin_proveedor: ['SIN PROVEEDOR', 'ambar'], sin_effi: ['NO LO VEO EN EFFI', 'ambar'], revisar: ['REVISAR RANGO', 'ambar'], en_camino: ['EN CAMINO', 'azul'], ok: ['EN RANGO', 'verde'] };
-  const GRUPOS = [['atencion', 'REQUIEREN ATENCIÓN'], ['en_camino', 'EN CAMINO'], ['ok', 'EN RANGO'], ['todas', 'TODAS LAS TELAS']];
+  const GRUPOS = [['atencion', 'ATENCIÓN'], ['en_camino', 'EN CAMINO'], ['ok', 'EN RANGO'], ['todas', 'TODAS']];
   let guardado = {}; try { guardado = JSON.parse(localStorage.getItem('mm-vista') || '{}'); } catch (_) { /* sin almacenamiento */ }
   let panel = null, tab = null, timer = null, datos = null, filtro = guardado.filtro || 'atencion', buscar = '', orden = guardado.orden || 'estado', ocupado = false, firma = '';
   const recordar = () => { try { localStorage.setItem('mm-vista', JSON.stringify({ filtro, orden })); } catch (_) { /* sin almacenamiento */ } };
@@ -17,14 +17,15 @@
   const css = document.createElement('style');
   css.textContent = `
   .panel[data-panel="minimaximan"]{width:100%;max-width:none}
+  body:has(.panel[data-panel="minimaximan"].active) main{width:100%!important;max-width:none!important;margin-left:0!important;margin-right:0!important;padding-left:clamp(12px,1.6vw,36px)!important;padding-right:clamp(12px,1.6vw,36px)!important}
   .mm{overflow-x:clip;display:grid;gap:18px;padding:4px 0 34px;font-family:Arial,sans-serif;color:#e8f0e0;position:relative;isolation:isolate;width:100%;min-height:calc(100vh - 150px);align-content:start}
   .mm::before,.mm::after{content:"";position:absolute;z-index:-1;border-radius:50%;filter:blur(80px);pointer-events:none;animation:mmFlota 18s ease-in-out infinite alternate}
   .mm::before{left:-80px;top:-40px;width:520px;height:520px;background:radial-gradient(circle,rgba(111,227,154,.26),transparent 70%)}
   .mm::after{right:-100px;top:280px;width:560px;height:560px;background:radial-gradient(circle,rgba(255,122,89,.18),transparent 70%);animation-delay:-9s}
   @keyframes mmFlota{to{transform:translate(70px,50px) scale(1.15)}}
   .mm-glass{border:1px solid rgba(255,255,255,.2);border-radius:20px;background:linear-gradient(150deg,rgba(255,255,255,.14),rgba(255,255,255,.04) 45%,rgba(255,255,255,.08));-webkit-backdrop-filter:blur(20px) saturate(1.6);backdrop-filter:blur(20px) saturate(1.6);box-shadow:0 14px 40px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.3)}
-  .mm-hd{display:flex;flex-wrap:wrap;gap:18px;align-items:center;justify-content:space-between;padding:20px 24px}
-  .mm-hd small{font:800 10px Arial;letter-spacing:.2em;color:#6fe39a}.mm-hd h2{margin:4px 0 6px;font:900 30px Arial;letter-spacing:.06em;background:linear-gradient(90deg,#fff,#9ff0c0);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .mm-hd{display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;padding:14px 22px}
+  .mm-sub{font:12px Arial;color:#9fb096}.mm-hd small{display:none}.mm-hd h2{margin:4px 0 6px;font:900 30px Arial;letter-spacing:.06em;background:linear-gradient(90deg,#fff,#9ff0c0);-webkit-background-clip:text;background-clip:text;color:transparent}
   .mm-hd p{margin:0;font:13px/1.5 Arial;color:#a9b8a3;max-width:760px}
   .mm-ctl{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
   .mm-sw{display:flex;align-items:center;gap:12px;padding:10px 16px;border-radius:999px;border:1px solid rgba(255,255,255,.2);background:rgba(0,0,0,.28);font:800 12px Arial;letter-spacing:.05em}
@@ -38,9 +39,9 @@
   .mm-b:hover:not(:disabled){transform:translateY(-1px);background:rgba(255,255,255,.22)}.mm-b:disabled{opacity:.5;cursor:default}
   .mm-b.ok{background:linear-gradient(180deg,#5fe39a,#2fae62);color:#04210f;border-color:rgba(255,255,255,.4)}
   .mm-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px}
-  .mm-kpi{padding:16px 18px;cursor:pointer;text-align:left;color:inherit;font:inherit;position:relative;overflow:hidden;transition:transform .2s,border-color .2s}
+  .mm-kpi{padding:12px 16px;cursor:pointer;text-align:left;color:inherit;font:inherit;position:relative;overflow:hidden;transition:transform .2s,border-color .2s}
   .mm-kpi:hover{transform:translateY(-3px)}.mm-kpi.on{border-color:rgba(111,227,154,.8);box-shadow:0 0 0 1px rgba(111,227,154,.35),0 14px 40px rgba(0,0,0,.35)}
-  .mm-kpi b{display:block;font:900 34px Arial;position:relative}.mm-kpi span{font:800 10px Arial;letter-spacing:.12em;color:#c5d2bf;position:relative}
+  .mm-kpi b{display:block;font:900 30px Arial;position:relative}.mm-kpi span{font:800 10px Arial;letter-spacing:.12em;color:#c5d2bf;position:relative}
   .mm-cuerpo{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:18px;align-items:start}
   .mm-izq{display:grid;gap:14px;min-width:0}
   .mm-barra{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px 14px}
@@ -61,7 +62,8 @@
   .mm-t.rojo .mm-medidor i{background:linear-gradient(90deg,#e8573a,#ff9d83)}.mm-t.azul .mm-medidor i{background:linear-gradient(90deg,#4a86d8,#9cc6ff)}.mm-t.ambar .mm-medidor i{background:linear-gradient(90deg,#d49a2a,#ffd98a)}
   .mm-medidor u{position:absolute;top:-5px;bottom:-5px;width:2px;background:#fff;text-decoration:none}.mm-medidor u b{position:absolute;top:100%;left:50%;transform:translateX(-50%);font:700 9px Arial;color:#c5d2bf;margin-top:2px;white-space:nowrap}
   .mm-nums{display:flex;justify-content:space-between;gap:8px;font:700 11px Arial;color:#c5d2bf}.mm-nums b{color:#fff}
-  .mm-pedir{padding:9px 12px;border-radius:12px;background:rgba(255,107,97,.14);border:1px solid rgba(255,107,97,.4);display:flex;justify-content:space-between;align-items:center;font:700 12px Arial}.mm-pedir b{font:900 18px Arial;color:#ffb3ac}
+  .mm-fila{display:flex;justify-content:space-between;align-items:center;gap:8px;font:700 12px Arial;color:#c5d2bf}.mm-fila b{color:#fff;font-size:14px}
+  .mm-pedir{padding:5px 11px;border-radius:99px;background:rgba(255,107,97,.18);border:1px solid rgba(255,107,97,.5);color:#ffb3ac}.mm-pedir b{font:900 15px Arial;color:#ffd3cf}
   .mm-nota{font:12px/1.4 Arial;color:#a9b8a3}.mm-vacio{padding:30px;text-align:center;color:#9fb096;font:13px/1.5 Arial;border:1px dashed rgba(255,255,255,.2);border-radius:16px}
   .mm-der{display:grid;gap:14px;position:sticky;top:12px;max-height:calc(100vh - 40px);overflow:auto;align-content:start;padding:2px}
   .mm-caja{padding:16px 18px;display:grid;gap:10px}.mm-caja h3{margin:0;font:900 12px Arial;letter-spacing:.16em;color:#b9c8b3;display:flex;justify-content:space-between;align-items:center}
@@ -107,12 +109,11 @@
     const [txt, tono] = ESTADO[t.estado] || ['—', ''];
     const tope = Math.max(t.maximo, t.stock + (t.por_recibir || 0), 1) * 1.08;
     const pct = v => Math.max(0, Math.min(100, v / tope * 100)).toFixed(1);
+    const aviso = ['error', 'sin_effi', 'revisar'].includes(t.estado) && t.nota ? '<div class="mm-nota">' + esc(t.nota) + '</div>' : '';   // el resto de estados ya se entiende con la etiqueta
     return '<article class="mm-glass mm-t ' + tono + '" style="animation-delay:' + Math.min(i * 25, 300) + 'ms"><h4><span>' + esc(t.tela) + '<small>' + esc(t.codigo) + ' · ' + esc(t.proveedor || 'SIN PROVEEDOR') + '</small></span><em>' + txt + '</em></h4>' +
       '<div class="mm-medidor" title="Hay ' + num(t.stock) + ' · mínimo ' + num(t.minimo) + ' · máximo ' + num(t.maximo) + '"><i style="width:' + pct(t.stock) + '%"></i>' +
       '<u style="left:' + pct(t.minimo) + '%"><b>mín ' + num(t.minimo) + '</b></u><u style="left:' + pct(t.maximo) + '%;opacity:.55"><b>máx ' + num(t.maximo) + '</b></u></div>' +
-      '<div class="mm-nums"><span>Hay <b>' + num(t.stock) + '</b> mts</span>' + (t.por_recibir ? '<span>Por recibir en Effi <b>' + num(t.por_recibir) + '</b></span>' : '') + '</div>' +
-      (t.pedir ? '<div class="mm-pedir"><span>A pedir hasta el máximo</span><b>' + num(t.pedir) + ' mts</b></div>' : '') +
-      (t.nota ? '<div class="mm-nota">' + esc(t.nota) + '</div>' : '') + '</article>';
+      '<div class="mm-fila"><span>Hay <b>' + num(t.stock) + '</b>' + (t.por_recibir ? ' · +' + num(t.por_recibir) + ' en camino' : '') + '</span>' + (t.pedir ? '<span class="mm-pedir">pedir <b>' + num(t.pedir) + '</b> mts</span>' : '') + '</div>' + aviso + '</article>';
   }
 
   function ocHtml(c) {
@@ -120,8 +121,8 @@
     if (c.estado === 'error') return '<div class="mm-oc error"><b>' + esc(c.tela) + '</b><div class="mm-nums"><span>' + num(c.metros) + ' mts</span><span>ERROR ' + (c.intentos || 0) + '/3</span></div><div class="mm-nota">' + esc(c.detalle) + '</div></div>';
     if (c.estado !== 'creada') return '<div class="mm-oc"><b>' + esc(c.tela) + '</b><div class="mm-nums"><span>' + num(c.metros) + ' mts</span><span>creando…</span></div></div>';
     const cab = '<b>' + esc(c.tela) + '</b><div class="mm-nums"><span>' + num(c.metros) + ' mts · OC <b>' + esc(c.oc) + '</b></span><span>' + hora(c.creada || c.creado) + '</span></div>';
-    if (e.estado === 'enviada') return '<div class="mm-oc">' + cab + '<div class="mm-nota">✔ Enviada a ' + esc(e.correo) + ' · aprobó ' + esc(e.por) + ' · ' + hora(e.at) + '</div><button type="button" class="mm-b" data-mm-prov="' + c.id + '" data-otra="1" data-oc="' + esc(c.oc) + '">Reenviar</button></div>';
-    return '<div class="mm-oc espera">' + cab + '<div class="mm-nota">⏳ Esperando tu aprobación para enviarla a ' + esc(c.proveedor || 'el proveedor') + '</div><button type="button" class="mm-b ok" data-mm-prov="' + c.id + '" data-oc="' + esc(c.oc) + '">✉ APROBAR Y ENVIAR AL PROVEEDOR</button></div>';
+    if (e.estado === 'enviada') return '<div class="mm-oc">' + cab + '<div class="mm-nota">✔ Enviada · ' + esc(e.por) + ' · ' + hora(e.at) + '</div><button type="button" class="mm-b" data-mm-prov="' + c.id + '" data-otra="1" data-oc="' + esc(c.oc) + '">Reenviar</button></div>';
+    return '<div class="mm-oc espera">' + cab + '<div class="mm-nota">Para ' + esc(c.proveedor || 'el proveedor') + '</div><button type="button" class="mm-b ok" data-mm-prov="' + c.id + '" data-oc="' + esc(c.oc) + '">✉ APROBAR Y ENVIAR</button></div>';
   }
 
   function pintar() {
@@ -135,20 +136,19 @@
     const kpi = (k, n, rotulo, tono) => '<button type="button" class="mm-glass mm-kpi' + (filtro === k ? ' on' : '') + '" data-mm-filtro="' + k + '" data-lq="' + (r.telas ? Math.round(n / r.telas * 100) : 0) + '" data-lq-tone="' + tono + '" data-lq-nopct><b>' + n + '</b><span>' + rotulo + '</span></button>';
     const resto = compras.filter(c => !esperan.includes(c));
     panel.querySelector('.mm').innerHTML =
-      '<header class="mm-glass mm-hd"><div><small>AGENTE DE INVENTARIO · CORRE EN EL SERVIDOR</small><h2>MINIMAXIMAN</h2><p>' + esc(a.titulo) + '. Cuando una tela baja de su stock mínimo, crea él mismo la orden de compra en Effi por lo que falta hasta el máximo; avisa al encargado y la orden solo sale al proveedor cuando tú la apruebas.</p></div>' +
-      '<div class="mm-ctl"><div class="mm-sw' + (activo ? ' on' : '') + '"><i></i><span>' + (activo ? 'ACTIVO · crea las compras' : 'APAGADO · solo muestra') + '</span><button type="button" data-mm-activar="' + (activo ? 0 : 1) + '" aria-label="Activar o apagar MINIMAXIMAN"></button></div>' +
-      '<button type="button" class="mm-b" data-mm-revisar' + (ocupado ? ' disabled' : '') + '>↻ ' + (ocupado ? 'REVISANDO…' : 'REVISAR AHORA') + '</button></div></header>' +
+      '<header class="mm-glass mm-hd"><div><h2>MINIMAXIMAN</h2><div class="mm-sub">Telas entre su mínimo y su máximo · revisado ' + hora(a.ultima) + '</div></div>' +
+      '<div class="mm-ctl"><div class="mm-sw' + (activo ? ' on' : '') + '"><i></i><span>' + (activo ? 'ACTIVO' : 'APAGADO') + '</span><button type="button" data-mm-activar="' + (activo ? 0 : 1) + '" aria-label="Activar o apagar MINIMAXIMAN"></button></div>' +
+      '<button type="button" class="mm-b" data-mm-revisar' + (ocupado ? ' disabled' : '') + '>↻ ' + (ocupado ? 'REVISANDO…' : 'REVISAR') + '</button></div></header>' +
       (a.error ? '<div class="mm-vacio">' + esc(a.error) + '</div>' : '') +
-      '<div class="mm-kpis">' + kpi('atencion', nAtencion, 'REQUIEREN ATENCIÓN', 'rojo') + kpi('en_camino', r.en_camino, 'EN CAMINO', 'azul') + kpi('ok', r.ok, 'EN RANGO', 'verde') + kpi('todas', r.telas, 'TELAS CON MÍN. Y MÁX.', 'gris') + '</div>' +
-      '<div class="mm-cuerpo"><section class="mm-izq"><div class="mm-glass mm-barra"><input type="search" data-mm-buscar placeholder="Buscar tela, código o proveedor…" value="' + esc(buscar) + '" autocomplete="off">' +
-      '<select data-mm-orden aria-label="Ordenar">' + [['estado', 'Orden: lo urgente primero'], ['pedir', 'Más metros por pedir'], ['faltante', 'Más cerca de cero'], ['nombre', 'Nombre A-Z']].map(o => '<option value="' + o[0] + '"' + (orden === o[0] ? ' selected' : '') + '>' + o[1] + '</option>').join('') + '</select>' +
+      '<div class="mm-kpis">' + kpi('atencion', nAtencion, 'ATENCIÓN', 'rojo') + kpi('en_camino', r.en_camino, 'EN CAMINO', 'azul') + kpi('ok', r.ok, 'EN RANGO', 'verde') + kpi('todas', r.telas, 'TELAS', 'gris') + '</div>' +
+      '<div class="mm-cuerpo"><section class="mm-izq"><div class="mm-glass mm-barra"><input type="search" data-mm-buscar placeholder="Buscar…" value="' + esc(buscar) + '" autocomplete="off">' +
+      '<select data-mm-orden aria-label="Ordenar">' + [['estado', 'Urgentes primero'], ['pedir', 'Más por pedir'], ['faltante', 'Más cerca de cero'], ['nombre', 'A-Z']].map(o => '<option value="' + o[0] + '"' + (orden === o[0] ? ' selected' : '') + '>' + o[1] + '</option>').join('') + '</select>' +
       '<div class="mm-chips">' + GRUPOS.map(g => '<button type="button" class="mm-chip' + (filtro === g[0] ? ' on' : '') + '" data-mm-filtro="' + g[0] + '">' + g[1] + '<em>' + cuenta[g[0]] + '</em></button>').join('') + '</div></div>' +
       '<div class="mm-lista-host"></div></section>' +
       '<aside class="mm-der"><section class="mm-glass mm-caja"><h3>ESPERAN TU APROBACIÓN' + (esperan.length ? '<em>' + esperan.length + '</em>' : '') + '</h3>' +
-      (esperan.length ? esperan.map(ocHtml).join('') : '<div class="mm-nota">No hay órdenes esperando. Cuando MINIMAXIMAN cree una, te llega el correo y aparece aquí para que la apruebes.</div>') + '</section>' +
-      '<section class="mm-glass mm-caja"><h3>ÓRDENES ANTERIORES</h3>' + (resto.length ? resto.map(ocHtml).join('') : '<div class="mm-nota">Todavía no ha creado ninguna orden.</div>') + '</section>' +
-      '<section class="mm-glass mm-caja"><h3>CÓMO TRABAJA</h3><ol class="mm-pasos"><li>Revisa cada 10 minutos las telas con mínimo y máximo (INFORMACIÓN TELA).</li><li>Cuenta lo que ya viene en camino en Effi («por recibir»).</li><li>Si queda bajo el mínimo, crea la orden de compra por lo que falta hasta el máximo.</li><li>Avisa al encargado por correo y por la campana.</li><li>Al aprobarla aquí, la envía al correo del proveedor.</li></ol>' +
-      '<div class="mm-nota">Última revisión: ' + hora(a.ultima) + (activo ? '' : ' · APAGADO: no crea ninguna compra') + '</div></section></aside></div>';
+      (esperan.length ? esperan.map(ocHtml).join('') : '<div class="mm-nota">Ninguna por aprobar.</div>') + '</section>' +
+      '<section class="mm-glass mm-caja"><h3>ÓRDENES ANTERIORES</h3>' + (resto.length ? resto.map(ocHtml).join('') : '<div class="mm-nota">Sin órdenes todavía.</div>') + '</section>' +
+      '</aside></div>';
     pintarLista();
     if (window.liquidStats && window.liquidStats.refresh) window.liquidStats.refresh(panel);
   }
