@@ -233,6 +233,16 @@ class MismoCodigoTest(unittest.TestCase):
         self.assertEqual(stockman._elegir('100', [self.LONDON], 'LO QUE SEA')[0]['nombre'], 'LONDON BLANCO')
 
 
+class SinIdNoEsAutomaticoTest(unittest.TestCase):
+    def test_solo_las_telas_con_id_de_effi_entran_en_lo_automatico(self):
+        with tempfile.TemporaryDirectory() as dir_:
+            with mock.patch.object(stockman, '_file', Path(dir_) / 's.json'),                     mock.patch.object(stockman, '_stock_panel_detalle', lambda: {'100': _det({'21': 5.0})['100'], '200': _det({'21': 9.0}, 'OTRA', '200')['200']}):
+                d = stockman._leer()
+                d['nombres']['100'] = {'nombre_effi': 'MONTECATINI', 'id_effi': '6082'}   # tiene artículo en Effi
+                stockman._guardar(d)                                                       # la 200 no tiene ID: queda fuera
+                self.assertEqual(stockman._stock_panel(), {'100': {'21': 5.0}})
+
+
 class WebhookTest(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.TemporaryDirectory()

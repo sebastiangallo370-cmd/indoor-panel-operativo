@@ -228,6 +228,8 @@ def _stock_panel() -> dict[str, dict[str, float]]:
     salida = {}
     for codigo, candidatos in _stock_panel_detalle().items():
         v = nombres.get(codigo) or {}
+        if not v.get('id_effi'):
+            continue   # sin el ID del artículo en Effi la tela no se sincroniza sola hasta que se ingrese su ID
         elegido, _ = _elegir(codigo, candidatos, v.get('nombre_effi') or v.get('nombre_panel') or '', _leer()['asignaciones'].get(codigo))
         if elegido is not None:
             salida[codigo] = elegido['bodegas']
