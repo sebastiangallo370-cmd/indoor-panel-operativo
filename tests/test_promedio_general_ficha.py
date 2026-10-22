@@ -49,6 +49,11 @@ class LetraDeGenero(unittest.TestCase):
             self.assertEqual(fichas.promedio_general('CH01'), 1.23)
         self.assertEqual(fichas._candidatas('CB11'), ['CB11'])
 
+    def test_referencias_sin_la_a_del_codigo_de_tela(self):
+        from app import promedios
+        self.assertEqual(promedios.partes_de_hoja('502CH01M'), ['CH01M'])
+        self.assertEqual(promedios.partes_de_hoja('A100CB15'), ['CB15'])
+
 
 if __name__ == '__main__':
     unittest.main()

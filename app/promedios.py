@@ -214,7 +214,7 @@ def borrar_nota(nota_id: str):
 
 
 # ---------------------------------------------------------------- MTS REQUERIDOS de una orden (lo usa el agente TERRY)
-_CODIGO_TELA = re.compile(r'^A\d+(?=[A-Z]{1,4}\d)')
+_CODIGO_TELA = re.compile(r'^A?\d+(?=[A-Z]{1,4}\d)')   # A100CB15 y también 502CH01M (algunos pedidos no traen la A)
 
 
 def _plano(texto: str) -> str:
