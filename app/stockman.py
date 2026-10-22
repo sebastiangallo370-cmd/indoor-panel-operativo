@@ -197,7 +197,8 @@ def _stock_panel_detalle() -> dict[str, list[dict]]:
             reparto = {BODEGAS[inventario_api.DEFAULT_PLACE]: total}
         elif total >= 0 and suma > 0 and abs(suma - total) > 0.01:
             reparto = {b: v * total / suma for b, v in reparto.items()}   # las salidas se reparten en proporción entre las bodegas
-        por_codigo.setdefault(codigo, []).append({'nombre': re.sub(r'^\s*\(\d+\)\s*', '', str(t.get('nombre') or '')).strip(), 'bodegas': {b: round(v, 2) for b, v in reparto.items()}, 'total': total})
+        por_codigo.setdefault(codigo, []).append({'nombre': re.sub(r'^\s*\(\d+\)\s*', '', str(t.get('nombre') or '')).strip(), 'bodegas': {b: round(v, 2) for b, v in reparto.items()}, 'total': total,
+                                           'rollos': len(t.get('rollos') or []), 'empezados': sum(1 for r in t.get('rollos') or [] if r.get('estado') == 'started')})
     return por_codigo
 
 
@@ -212,7 +213,8 @@ def _elegir(codigo: str, candidatos: list[dict], nombre_effi: str, asignacion: d
             for c in candidatos:
                 for b, v in c['bodegas'].items():
                     juntas[b] = round(juntas.get(b, 0.0) + v, 2)
-            return {'nombre': ' + '.join(c['nombre'] for c in candidatos), 'bodegas': juntas, 'total': round(sum(c['total'] for c in candidatos), 2)}, candidatos
+            return {'nombre': ' + '.join(c['nombre'] for c in candidatos), 'bodegas': juntas, 'total': round(sum(c['total'] for c in candidatos), 2),
+                    'rollos': sum(c.get('rollos', 0) for c in candidatos), 'empezados': sum(c.get('empezados', 0) for c in candidatos)}, candidatos
         elegida = next((c for c in candidatos if c['nombre'] == asignacion.get('nombre')), None)
         if elegida:
             return elegida, candidatos
@@ -252,6 +254,8 @@ def evaluar() -> list[dict]:
             continue
         if v:
             fila['item_panel'] = elegido['nombre'] if elegido else ''
+            fila['rollos'] = (elegido or {}).get('rollos', 0)
+            fila['empezados'] = (elegido or {}).get('empezados', 0)
             fila['asignada'] = (d['asignaciones'].get(codigo) or {}).get('modo', '')
             fila['varias'] = len(opciones) > 1
             pan, efi = (elegido['bodegas'] if elegido else {}), v.get('stock_effi') or {}

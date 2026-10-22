@@ -68,6 +68,17 @@
   .sm-acciones .mm-b:hover:not(:disabled){filter:brightness(1.08);transform:translateY(-1px)}.sm-acciones .mm-b:disabled{opacity:.6;cursor:wait}
   .sm-vistas{display:flex;align-items:stretch;gap:2px;padding:3px!important;border-radius:999px}.sm-vistas button{display:inline-flex;align-items:center;gap:5px;padding:0 12px!important;border-radius:999px;font:800 10px Arial!important;letter-spacing:.05em;color:#aebca7}.sm-vistas button.on{background:rgba(208,244,76,.18);color:var(--lima,#d0f44c)}.sm-vistas button:not(.on):hover{color:#fff}
   .sm-acciones button:focus-visible{outline:2px solid var(--lima,#d0f44c);outline-offset:2px}
+  /* Rediseño: barra y botones compactos (30px), tarjetas con fila de datos. */
+  .sm-control{padding:6px 10px!important;gap:8px!important}.sm-control .sm-metrica{padding:5px 10px!important}.sm-control .sm-metrica b{font-size:16px!important}.sm-control .sm-metrica span{font-size:8px!important;margin-top:1px!important}
+  .sm-acciones>*{height:30px!important}.sm-acciones .mm-b{padding:0 12px!important;font-size:10px!important}.sm-acciones .mm-sw button{width:36px;height:20px}.sm-acciones .mm-sw button::after{width:14px;height:14px}.sm-acciones .mm-sw.on button::after{transform:translateX(16px)}.sm-vistas button{padding:0 9px!important;font-size:9px!important}
+  .mm-top{padding:6px 8px!important}.mm-top .mm-busca input{height:32px;font-size:12px}
+  .sm-host .mm-lista{grid-template-columns:repeat(auto-fill,minmax(min(100%,400px),1fr))!important;gap:14px!important}
+  .sm-host .sm-t>h4{padding:13px 16px 11px!important;font-size:16px!important}.sm-host .sm-t>:not(h4):not(.mm-marca){margin-left:16px!important;margin-right:16px!important}
+  .sm-host .sm-hero{padding:12px 0!important}.sm-host .sm-hero b{font-size:24px!important}.sm-host .sm-tabla{margin-bottom:10px!important}.sm-host .sm-fila{padding:5px 0!important}
+  .sm-datos{display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:6px;margin-bottom:12px}.sm-datos>span{display:grid;align-content:start;gap:1px;padding:7px 9px;border-radius:9px;background:#111a15;border:1px solid #35463c;min-width:0}
+  .sm-datos small{font:700 8px Arial;letter-spacing:.08em;color:#a6b7ab}.sm-datos b{font:800 14px Arial;color:#eef4e9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sm-datos i{font:600 9px Arial;font-style:normal;color:#a6b7ab;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sm-datos i.emp{color:#ffb454}.sm-datos .esp{border-color:#9a6a1f;background:#2a1f10}.sm-datos .esp b{color:#ffb454}
+  .sm-host .sm-igualar,.sm-host .sm-suma{height:30px!important;margin:0 0 12px!important;font-size:10px!important;border-radius:999px!important}.sm-host .sm-op .mm-bt{width:auto!important;height:26px!important;padding:0 12px!important;font-size:10px!important;border-radius:999px!important}.sm-host .sm-op{padding:7px 10px!important}
+  @media(max-width:600px){.sm-acciones>*{height:34px!important}.sm-datos{grid-template-columns:repeat(2,1fr)}}
   @media(max-width:600px){.sm-acciones>*{height:40px}.sm-acciones .mm-b{flex:1;justify-content:center}.sm-control .sm-metrica span{font-size:8px}}
   `;
 
@@ -85,13 +96,22 @@
     const vivas = (t.bodegas || []).filter(b => b.panel || b.effi);   // las bodegas en cero en los dos lados no se muestran
     const filas = vivas.map(b => '<div class="sm-fila"><span>' + esc(b.nombre) + '</span><span>' + num(b.panel) + '</span><span>' + num(b.effi) + '</span><span class="d ' + (b.delta > 0 ? 'mas' : b.delta < 0 ? 'menos' : '') + '">' + (Math.abs(b.delta) < 0.01 ? '=' : sg(b.delta)) + '</span></div>').join('');
     const boton = (t.estado === 'ajustar' || t.estado === 'grande') ? '<button type="button" class="mm-bt env sm-igualar" data-sm-ajustar="' + esc(t.codigo) + '" data-grande="' + (t.estado === 'grande' ? 1 : 0) + '" data-tela="' + esc(t.tela) + '">IGUALAR EN EFFI</button>' : '';
+    // Datos extra de la tela: rollos, bodegas con stock, último ajuste y cambio en espera
+    const ult = (datos.ajustes || []).find(h => h.codigo === t.codigo);
+    const espera = (datos.cambios || []).filter(c => c.codigo === t.codigo);
+    const datosT = (t.estado === 'sin_articulo' || t.estado === 'ambiguo') ? '' : '<div class="sm-datos">' +
+      '<span><small>ROLLOS</small><b>' + (t.rollos || 0) + '</b>' + (t.empezados ? '<i class="emp">' + t.empezados + ' empezado' + (t.empezados > 1 ? 's' : '') + '</i>' : '') + '</span>' +
+      '<span><small>BODEGAS</small><b>' + vivas.filter(b => b.panel).length + '</b></span>' +
+      '<span><small>ÚLTIMO AJUSTE</small><b>' + (ult ? (ult.estado === 'hecho' ? '' : '✕ ') + sg(ult.delta) + ' mts' : '—') + '</b>' + (ult ? '<i>' + (ult.tipo === 'a_panel' ? esc(ult.at) : hora(ult.at)) + ' · ' + esc(ult.bodega) + '</i>' : '') + '</span>' +
+      (espera.length ? '<span class="esp"><small>EN ESPERA</small><b>' + espera.map(c => sg(c.delta)).join(' / ') + ' mts</b><i>' + esc(espera.map(c => c.bodega_nombre).join(', ')) + '</i></span>' : '') +
+      '</div>';
     const dif = Math.round((t.diferencia || 0) * 100) / 100;
     const cuerpo = t.estado === 'ambiguo'
       ? '<p class="sm-pregunta">El código <b>' + esc(t.codigo) + '</b> lo usan ' + (t.opciones || []).length + ' telas del panel. ¿Cuál es la de este artículo de Effi?</p><div class="sm-opciones">' + (t.opciones || []).map(o => '<div class="sm-op"><div><b>' + esc(o.nombre) + '</b><small>' + num(o.mts) + ' mts en el panel</small></div><button type="button" class="mm-bt" data-sm-asignar="una" data-codigo="' + esc(t.codigo) + '" data-nombre="' + esc(o.nombre) + '">ES ESTA</button></div>').join('') + '</div><button type="button" class="mm-bt env sm-suma" data-sm-asignar="suma" data-codigo="' + esc(t.codigo) + '">SON LA MISMA TELA · SUMAR LAS ' + (t.opciones || []).length + ' (' + num(t.panel) + ' mts)</button><div class="sm-nota-pie">Mientras no elijas, STOCKMAN no toca esta tela.</div>'
       : t.estado === 'sin_articulo'
       ? '<div class="mm-nota">Effi no tiene un artículo con esta referencia exacta. Escribe su «ID Effi» en INFORMACIÓN TELA.</div>'
       : '<div class="sm-hero"><div><small>PANEL · METROS</small><b>' + num(t.panel) + '<em>MTS</em></b></div><i class="' + (Math.abs(dif) < 0.01 ? 'ok' : dif > 0 ? 'mas' : 'menos') + '">' + (Math.abs(dif) < 0.01 ? '✔ IGUAL' : sg(dif) + ' mts') + '</i><div class="der"><small>EFFI · METROS</small><b>' + num(t.effi) + '<em>MTS</em></b></div></div>' +
-        (vivas.length ? '<div class="sm-tabla"><div class="sm-fila cab"><span>BODEGA</span><span>PANEL (MTS)</span><span>EFFI (MTS)</span><span>DIF. (MTS)</span></div>' + filas + '</div>' : '') + boton;
+        (vivas.length ? '<div class="sm-tabla"><div class="sm-fila cab"><span>BODEGA</span><span>PANEL (MTS)</span><span>EFFI (MTS)</span><span>DIF. (MTS)</span></div>' + filas + '</div>' : '') + datosT + boton;
     const elegida = t.varias && t.estado !== 'ambiguo' ? '<div class="sm-nota-pie">Tela del panel: <b>' + esc(t.item_panel) + '</b>' + (t.asignada ? ' · elegida por ti' : ' · escogida por nombre') + ' · <a href="#" data-sm-asignar="auto" data-codigo="' + esc(t.codigo) + '">cambiar</a></div>' : '';
     return '<article class="mm-glass mm-t sm-t ' + tono + '" style="animation-delay:' + Math.min(i * 25, 300) + 'ms"><h4><span>' + esc(t.tela) + '<small>CÓD. ' + esc(t.codigo) + (t.id_effi ? ' <span class="sm-id">ID EFFI ' + esc(t.id_effi) + '</span>' : '') + '</small></span><em>' + txt + '</em></h4>' + cuerpo + elegida + '<img class="mm-marca" src="/marca-indoor.svg" alt="" aria-hidden="true"></article>';
   }
