@@ -41,5 +41,14 @@ class ConsumoConFicha(unittest.TestCase):
         self.assertEqual((total, usados, faltan), (1.0, ['FUT01'], []))
 
 
+class LetraDeGenero(unittest.TestCase):
+    def test_si_no_hay_ficha_con_la_letra_final_busca_sin_ella(self):
+        idx = {'fichas': [{'id': 'f3', 'ref': 'CH01'}]}
+        with mock.patch.object(fichas, 'indice', return_value=idx), mock.patch.object(fichas, 'ficha', return_value=FICHA):
+            self.assertEqual(fichas.promedio_general('CH01M'), 1.23)
+            self.assertEqual(fichas.promedio_general('CH01'), 1.23)
+        self.assertEqual(fichas._candidatas('CB11'), ['CB11'])
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -616,9 +616,27 @@ def _numero_ficha(v) -> float | None:
     return n if n > 0 else None
 
 
+def _candidatas(ref: str) -> list[str]:
+    """La referencia tal cual y, si no hay ficha con ese código, sin la letra de género final (CH01M → CH01)."""
+    r = str(ref or '').strip().upper()
+    out = [r]
+    if len(r) > 3 and r[-1] in 'MFN' and r[-2].isdigit():
+        out.append(r[:-1])
+    return out
+
+
 def promedio_general(ref: str) -> float:
     """Promedio general de la ficha de una referencia (Masculino, Femenino y Niño, lo que tenga número). 0 si la ficha no tiene promedio."""
-    for x in indice().get('fichas', []):
+    fichas_idx = indice().get('fichas', [])
+    for cand in _candidatas(ref):
+        valor = _promedio_de_ficha(fichas_idx, cand)
+        if valor:
+            return valor
+    return 0.0
+
+
+def _promedio_de_ficha(fichas_idx: list, ref: str) -> float:
+    for x in fichas_idx:
         if x.get('ref') != ref:
             continue
         f = ficha(x['id']) or {}
