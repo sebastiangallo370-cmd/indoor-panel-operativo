@@ -164,7 +164,7 @@
   function diasParaEntrega(summary) {
     if (!summary.due || summary.state === 'finished') return '';
     const hoy = scheduleToday(), dias = Math.round((summary.due.getTime() - hoy.getTime()) / 86400000);
-    const [texto, tono] = dias < 0 ? [(-dias) + (dias === -1 ? ' día de atraso' : ' días de atraso'), 'tarde'] : dias === 0 ? ['entrega HOY', 'hoy'] : dias === 1 ? ['falta 1 día', dias <= 2 ? 'cerca' : 'ok'] : ['faltan ' + dias + ' días', dias <= 2 ? 'cerca' : 'ok'];
+    const [texto, tono] = dias < 0 ? [(-dias) + (dias === -1 ? ' Dia de atraso' : ' Dias de atraso'), 'tarde'] : dias === 0 ? ['HOY', 'hoy'] : [dias + (dias === 1 ? ' Dia' : ' Dias'), dias <= 2 ? 'cerca' : 'ok'];
     return ' <b class="trace-dias dias-' + tono + '">' + texto + '</b>';
   }
   const procActual = () => { try { return navigationProcess; } catch (e) { return null; } };   // el proceso elegido en el menú (aún no existe al cargar)
@@ -919,7 +919,8 @@
       if (viewSummary.due) {
         const caja = document.createElement('div');
         caja.className = 'trace-entrega-dias';
-        caja.innerHTML = '<small>ENTREGA</small><b>' + esc(displayProductionDate(traceField(row, 'FECHA DE ENTREGA'))) + '</b>' + diasParaEntrega(viewSummary);
+        caja.title = 'Fecha de entrega: ' + displayProductionDate(traceField(row, 'FECHA DE ENTREGA'));
+        caja.innerHTML = '<small>ENTREGA :</small>' + (diasParaEntrega(viewSummary) || '<b>' + esc(displayProductionDate(traceField(row, 'FECHA DE ENTREGA'))) + '</b>');
         facts.appendChild(caja);
       }
       // HORA INICIO y HORA FINAL del proceso en contexto (las columnas del Sheet), debajo de la cantidad. Si ese proceso no lleva horas, las del último que sí las tenga.
@@ -1218,7 +1219,7 @@
     + '.trace-order-pause{border-color:#ff8a80!important;color:#ffb3ad!important}'
     + '.trace-order-resume{border-color:#79d66f!important;color:#c9f7c3!important;background:#1d4922!important}';
   document.head.appendChild(pauseStyle);
-  const diasStyle = document.createElement('style'); diasStyle.textContent = '.trace-entrega-dias{grid-column:1/-1;display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding-top:2px}.trace-entrega-dias small{color:#8e9c8f;font:800 9px Arial;letter-spacing:.1em}.trace-entrega-dias b{color:#f1f7ed;font:800 12.5px Arial}.trace-entrega-dias .trace-dias{margin-left:auto;font:900 12.5px Arial;padding:4px 12px}.trace-entrega-dias b{font-size:13.5px}.trace-dias{display:inline-block;margin-left:8px;padding:2px 9px;border-radius:99px;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.08);color:#e8f0e0;font:800 10.5px Arial;letter-spacing:.04em;white-space:nowrap}.trace-dias.dias-ok{border-color:rgba(208,244,76,.5);color:#d0f44c}.trace-dias.dias-cerca{border-color:rgba(243,184,82,.7);background:rgba(243,184,82,.14);color:#ffd98a}.trace-dias.dias-hoy{border-color:rgba(243,184,82,.9);background:rgba(243,184,82,.24);color:#ffe9b8}.trace-dias.dias-tarde{border-color:rgba(255,107,97,.8);background:rgba(255,107,97,.18);color:#ffb3ac}'; document.head.appendChild(diasStyle);
+  const diasStyle = document.createElement('style'); diasStyle.textContent = '.trace-entrega-dias{grid-column:1/-1;display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding-top:2px}.trace-entrega-dias small{color:#8e9c8f;font:800 9px Arial;letter-spacing:.1em}.trace-entrega-dias b{color:#f1f7ed;font:800 12.5px Arial}.trace-entrega-dias .trace-dias{margin-left:0;font:900 13px Arial;padding:4px 12px}.trace-entrega-dias small{font-size:11px!important}.trace-entrega-dias b{font-size:13.5px}.trace-dias{display:inline-block;margin-left:8px;padding:2px 9px;border-radius:99px;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.08);color:#e8f0e0;font:800 10.5px Arial;letter-spacing:.04em;white-space:nowrap}.trace-dias.dias-ok{border-color:rgba(208,244,76,.5);color:#d0f44c}.trace-dias.dias-cerca{border-color:rgba(243,184,82,.7);background:rgba(243,184,82,.14);color:#ffd98a}.trace-dias.dias-hoy{border-color:rgba(243,184,82,.9);background:rgba(243,184,82,.24);color:#ffe9b8}.trace-dias.dias-tarde{border-color:rgba(255,107,97,.8);background:rgba(255,107,97,.18);color:#ffb3ac}'; document.head.appendChild(diasStyle);
   const inventoryQuickStyle = document.createElement('style'); inventoryQuickStyle.textContent = '.trace-card .trace-primary-facts .trace-horas{grid-column:1/-1;display:flex;justify-content:flex-end;gap:8px;margin-top:-2px}.trace-horas span{display:flex;align-items:baseline;gap:6px;min-width:74px;justify-content:space-between;padding:4px 9px;border:1px solid rgba(255,255,255,.14);border-radius:8px;background:rgba(255,255,255,.03)}.trace-horas small{color:#8e9c8f;font:800 8.5px Arial;letter-spacing:.08em}.trace-horas b{color:#f1f7ed;font:800 12.5px Arial}.trace-horas.en-curso span:first-child{border-color:rgba(208,244,76,.55)}.trace-horas.en-curso span:first-child b{color:#d0f44c}.trace-mts-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.trace-mts-inventory{width:auto!important;min-height:32px;padding:7px 10px;border:1px solid #6ca8c7!important;border-radius:8px;background:#19303b!important;color:#c3edff!important;font:800 10px Arial!important}'; document.head.appendChild(inventoryQuickStyle);
   traceCards.addEventListener('click', event => {
     const button = event.target.closest('[data-card-nas]');
