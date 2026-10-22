@@ -49,7 +49,7 @@
   .mm-chips{display:flex;flex-wrap:wrap;gap:8px}.mm-chip{padding:8px 13px;border-radius:99px;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.06);color:#d7e3d1;font:800 11px Arial;letter-spacing:.05em;cursor:pointer}
   .mm-chip em{font-style:normal;color:#8fa596;margin-left:5px}.mm-chip.on{background:#6fe39a;border-color:#6fe39a;color:#06240f}.mm-chip.on em{color:#0b3a1d}
   .mm-lista{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px}
-  .mm-t{padding:16px 18px;display:grid;gap:11px;transition:transform .2s,border-color .2s;animation:mmEntra .35s ease-out both}.mm-t:hover{transform:translateY(-3px)}
+  .mm-t{padding:16px 18px;display:grid;gap:11px;transition:transform .2s,border-color .2s;animation:mmEntra .35s ease-out backwards}.mm-t:hover{transform:translateY(-3px)}
   @keyframes mmEntra{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
   .mm-t h4{margin:0;font:900 15px/1.25 Arial;letter-spacing:.03em;display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
   .mm-t h4 small{display:block;font:700 10px Arial;color:#9fb096;letter-spacing:.08em;margin-top:3px}
@@ -72,7 +72,24 @@
   .mm-pasos{margin:0;padding-left:18px;font:12px/1.55 Arial;color:#a9b8a3}
   @media(max-width:1180px){.mm-cuerpo{grid-template-columns:1fr}.mm-der{position:static;max-height:none}}
   @media(max-width:700px){.mm-hd h2{font-size:23px}.mm-hd{padding:16px}.mm-lista{grid-template-columns:1fr}.mm-kpis{grid-template-columns:repeat(2,1fr)}}
-  @media(prefers-reduced-motion:reduce){.mm::before,.mm::after,.mm-t,.mm-sw i{animation:none!important}}`;
+  /* TARJETA VIDRIOSA IGUAL A LAS DE PRODUCCIÓN: vidrio con desenfoque, borde superior de color según el estado, destello que sigue al mouse, inclinación suave y brillo de color
+     arriba a la derecha. Se aplica a las tarjetas de telas, a las cajas de la derecha, a los resúmenes y al encabezado. */
+  .mm-glass{position:relative;overflow:hidden;background:linear-gradient(150deg,rgba(255,255,255,.14),rgba(255,255,255,.04) 55%,rgba(255,255,255,.08));-webkit-backdrop-filter:blur(22px) saturate(160%);backdrop-filter:blur(22px) saturate(160%);border:1px solid rgba(255,255,255,.18);border-top:1px solid rgba(139,219,175,.65);border-radius:20px;box-shadow:0 14px 34px -16px rgba(0,0,0,.8),inset 0 1px 0 rgba(255,255,255,.28),inset 0 0 44px rgba(255,255,255,.03);transform:perspective(900px) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg));transition:transform .18s ease-out,box-shadow .3s,border-color .3s}
+  .mm-glass::before{content:"";position:absolute;right:-70px;top:-90px;width:240px;height:240px;border-radius:50%;background:radial-gradient(circle,rgba(139,219,175,.42),transparent 66%);filter:blur(8px);animation:mmOrbe 9s ease-in-out infinite alternate;pointer-events:none;z-index:0}
+  .mm-glass::after{content:"";position:absolute;inset:0;border-radius:inherit;background:radial-gradient(260px circle at var(--mx,50%) var(--my,0%),rgba(255,255,255,.2),transparent 62%);opacity:0;transition:opacity .25s;pointer-events:none;z-index:2}
+  .mm-glass:hover::after{opacity:1}.mm-glass>*{position:relative;z-index:1}
+  .mm-t:hover,.mm-kpi:hover{transform:perspective(900px) translateY(-6px) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg));box-shadow:0 26px 48px -18px rgba(0,0,0,.9),inset 0 1px 0 rgba(255,255,255,.4);border-color:rgba(255,255,255,.32)}
+  .mm-hd:hover,.mm-caja:hover{transform:perspective(900px) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg))}
+  .mm-t.rojo{border-top-color:rgba(255,107,97,.8)}.mm-t.rojo::before{background:radial-gradient(circle,rgba(255,107,97,.45),transparent 66%)}
+  .mm-t.ambar{border-top-color:rgba(243,184,82,.75)}.mm-t.ambar::before{background:radial-gradient(circle,rgba(243,184,82,.42),transparent 66%)}
+  .mm-t.azul{border-top-color:rgba(100,170,255,.75)}.mm-t.azul::before{background:radial-gradient(circle,rgba(100,170,255,.4),transparent 66%)}
+  .mm-caja{border-top-color:rgba(255,255,255,.4)}.mm-caja::before{display:none}
+  @keyframes mmOrbe{to{transform:translate(-26px,22px) scale(1.2)}}
+  /* usa el 100% de la pantalla disponible: sin tope de ancho, la columna de la derecha crece con la pantalla y la lista llena el alto */
+  .mm{min-height:calc(100vh - 40px)}.mm-cuerpo{grid-template-columns:minmax(0,1fr) clamp(380px,26vw,560px);min-height:calc(100vh - 380px)}
+  .mm-lista{grid-template-columns:repeat(auto-fill,minmax(clamp(280px,17vw,380px),1fr))}.mm-der{max-height:calc(100vh - 28px)}
+  @media(max-width:1180px){.mm-cuerpo{grid-template-columns:1fr;min-height:0}}
+  @media(prefers-reduced-motion:reduce){.mm::before,.mm::after,.mm-glass::before,.mm-t,.mm-sw i{animation:none!important}.mm-glass{transform:none!important}}`;
   document.head.appendChild(css);
 
   const api = async (url, opciones) => {
@@ -170,6 +187,17 @@
       firma = ''; cargar(); clearInterval(timer);
       timer = setInterval(() => { if (panel.classList.contains('active') && !document.hidden) cargar(); }, 15000);
     });
+    let inclinar = 0;
+    panel.addEventListener('pointermove', e => {
+      if (e.pointerType !== 'mouse') return;
+      const c = e.target.closest('.mm-glass'); if (!c || inclinar) return;
+      inclinar = requestAnimationFrame(() => {
+        inclinar = 0; const r = c.getBoundingClientRect(), x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height, grande = r.width > 600;   // el encabezado y las cajas anchas casi no se inclinan
+        c.style.setProperty('--mx', (x * 100).toFixed(1) + '%'); c.style.setProperty('--my', (y * 100).toFixed(1) + '%');
+        c.style.setProperty('--ry', ((x - .5) * (grande ? 1.5 : 7)).toFixed(2) + 'deg'); c.style.setProperty('--rx', ((.5 - y) * (grande ? 1 : 5)).toFixed(2) + 'deg');
+      });
+    });
+    panel.addEventListener('pointerout', e => { const c = e.target.closest && e.target.closest('.mm-glass'); if (c && !c.contains(e.relatedTarget)) { c.style.removeProperty('--rx'); c.style.removeProperty('--ry'); } });
     panel.addEventListener('input', e => { if (e.target.matches('[data-mm-buscar]')) { buscar = e.target.value; pintarLista(); } });
     panel.addEventListener('change', e => { if (e.target.matches('[data-mm-orden]')) { orden = e.target.value; recordar(); pintar(); } });
     panel.addEventListener('click', async e => {
