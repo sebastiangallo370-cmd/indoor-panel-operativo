@@ -180,6 +180,11 @@
   .mm-acc{padding:7px 12px!important}.mm-acc b,.mm-acc.bien b{font-size:19px!important}.mm-acc.pide span{font-size:8.5px!important}
   .mm-pie small{font-size:7.5px!important}.mm-pie b{font-size:12.5px!important}
   .mm-ocinfo{font-size:11px!important}.mm-bt{height:28px;font-size:9px!important}.mm-nota{font-size:11px!important}
+  .mm-ordenes{gap:10px!important}
+  .mm-ocinfo{align-items:center!important}.mm-ocinfo>div{font:700 11px Arial;color:#c5d2bf}
+  .mm-btns{display:grid!important;grid-template-columns:1fr 1fr;gap:8px!important}
+  .mm-bt{display:flex!important;align-items:center;justify-content:center;height:34px!important;line-height:1;padding:0 8px;font:800 10px Arial!important;letter-spacing:.08em;white-space:nowrap}
+  .mm-bt.env{height:38px!important;font-size:10.5px!important}
   .mm-t>*{position:relative;z-index:1}
   .mm-top{display:grid!important;grid-template-columns:auto auto auto minmax(0,1fr) minmax(220px,340px);align-items:center;gap:14px;padding:12px 18px}
   .mm-sep{display:none}
@@ -256,12 +261,12 @@
     const c = ordenDe(t);
     if (!c) return '';
     const e = c.envio_proveedor || {};
-    if (e.estado === 'enviada') return '<div class="mm-ordenes"><div class="mm-ocinfo"><b>OC ' + esc(c.oc) + '</b> · ' + num(c.metros) + ' MTS<span class="ok">✔ Enviada al proveedor</span></div></div>';
+    if (e.estado === 'enviada') return '<div class="mm-ordenes"><div class="mm-ocinfo"><div><b>OC ' + esc(c.oc) + '</b> · ' + num(c.metros) + ' MTS</div><span class="ok">✔ Enviada al proveedor</span></div></div>';
     const d = ' data-oc="' + esc(c.oc) + '" data-metros="' + c.metros + '"';
-    return '<div class="mm-ordenes"><div class="mm-ocinfo"><b>OC ' + esc(c.oc) + '</b> · ' + num(c.metros) + ' MTS<span>Por aprobar</span></div>' +
-      '<div class="mm-btns"><button type="button" class="mm-bt env" data-mm-prov="' + c.id + '"' + d + '>✉ ENVIAR AL PROVEEDOR</button>' +
-      '<button type="button" class="mm-bt" data-mm-modif="' + c.id + '"' + d + '>✎ MODIFICAR</button>' +
-      '<button type="button" class="mm-bt no" data-mm-anular="' + c.id + '"' + d + '>✕ ANULAR</button></div></div>';
+    return '<div class="mm-ordenes"><div class="mm-ocinfo"><div><b>OC ' + esc(c.oc) + '</b> · ' + num(c.metros) + ' MTS</div><span>POR APROBAR</span></div>' +
+      '<div class="mm-btns"><button type="button" class="mm-bt env" data-mm-prov="' + c.id + '"' + d + '>ENVIAR AL PROVEEDOR</button>' +
+      '<button type="button" class="mm-bt" data-mm-modif="' + c.id + '"' + d + '>MODIFICAR</button>' +
+      '<button type="button" class="mm-bt no" data-mm-anular="' + c.id + '"' + d + '>ANULAR</button></div></div>';
   }
 
   function tarjeta(t, i) {
