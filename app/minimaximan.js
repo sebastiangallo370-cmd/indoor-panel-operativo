@@ -130,6 +130,20 @@
   .mm-b.ok{background:linear-gradient(180deg,#e2fb78,#b4d83a)!important;color:#16200a!important}
   .mm-tit,.mm-tit em{color:var(--lima)!important;border-color:rgba(208,244,76,.5)}
   .mm-busca input:focus,.mm-busca select:focus{border-color:var(--lima)}
+  /* DINÁMICA: destello que recorre la barra, puntos vivos, brillo lima que sigue al mouse y levantamiento */
+  .mm-medidor i{overflow:hidden}.mm-medidor i::after{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent 30%,rgba(255,255,255,.65) 50%,transparent 70%);transform:translateX(-120%);animation:mmBrilla 2.8s ease-in-out infinite 1s}
+  @keyframes mmBrilla{60%,100%{transform:translateX(120%)}}
+  .mm-t h4 em::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--lima);margin-right:6px;vertical-align:1px;animation:mmLate 1.6s ease-in-out infinite}
+  @keyframes mmLate{50%{opacity:.25;transform:scale(1.5)}}
+  .mm-glass::after{background:radial-gradient(300px circle at var(--mx,50%) var(--my,0%),rgba(208,244,76,.3),transparent 62%)!important}
+  .mm-t{transition:transform .25s cubic-bezier(.2,.8,.2,1),box-shadow .3s,border-color .3s}
+  .mm-t:hover{transform:perspective(900px) translateY(-8px) scale(1.02) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg))!important;box-shadow:0 30px 50px -18px rgba(0,0,0,.9),0 0 34px -6px rgba(208,244,76,.5),inset 0 1px 0 rgba(255,255,255,.4)!important;z-index:5}
+  .mm-acc.pide{animation:mmLatido 2.2s ease-in-out infinite}@keyframes mmLatido{50%{box-shadow:0 0 30px -2px var(--lima)}}
+  .mm-big b{background:linear-gradient(180deg,#fff,#d9efa0);-webkit-background-clip:text;background-clip:text;color:transparent!important;text-shadow:none}
+  .mm-t:hover .mm-big b{background:linear-gradient(180deg,#f4ffc0,var(--lima));-webkit-background-clip:text;background-clip:text}
+  .mm-pie span{transition:transform .2s}.mm-t:hover .mm-pie span{transform:translateY(-2px)}.mm-t:hover .mm-pie span:nth-child(2){transition-delay:.04s}.mm-t:hover .mm-pie span:nth-child(3){transition-delay:.08s}.mm-t:hover .mm-pie span:nth-child(4){transition-delay:.12s}
+  .mm-medidor q{background:var(--lima);box-shadow:0 0 0 4px rgba(208,244,76,.28),0 0 18px var(--lima)}
+  @media(prefers-reduced-motion:reduce){.mm-medidor i::after,.mm-t h4 em::before,.mm-acc.pide{animation:none!important}}
   .mm-t>*{position:relative;z-index:1}
   .mm-top{display:grid!important;grid-template-columns:auto auto auto minmax(0,1fr) minmax(220px,340px);align-items:center;gap:14px;padding:12px 18px}
   .mm-sep{display:none}
