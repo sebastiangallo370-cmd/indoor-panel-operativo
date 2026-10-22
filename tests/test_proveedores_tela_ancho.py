@@ -26,7 +26,7 @@ class AnchoTelaTest(unittest.TestCase):
         pt.guardar({'codigo': '100', 'proveedor': 'LINDATEXTIL'}, None)
         pt.guardar({'codigo': '100', 'ancho': '150,5'}, None)
         t = pt.telas()[0]
-        self.assertEqual((t['proveedor'], t['ancho'], t['faltan']), ('LINDATEXTIL', '150.5', []))
+        self.assertEqual((t['proveedor'], t['ancho'], t['faltan']), ('TEJIDOS DE PUNTO LINDATEXTIL S.A.S.', '150.5', []))
         pt.guardar({'codigo': '100', 'proveedor': ''}, None)
         self.assertEqual(pt.telas()[0]['ancho'], '150.5')
 

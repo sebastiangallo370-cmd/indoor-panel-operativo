@@ -70,12 +70,47 @@ CAMPOS_EXTRA = ('composicion', 'gramaje', 'tipo', 'stock_minimo', 'stock_maximo'
 _NO_PROVEEDOR = {'VARIAS', 'DON ALVEIRO', ''}   # «VARIAS» no es un proveedor y DON ALVEIRO es otra empresa: no se sugieren
 
 
+# Razón social y NIT de cada proveedor, tal como salen en sus facturas electrónicas. El proveedor de INFORMACIÓN TELA se muestra y
+# se guarda con la razón social; los nombres cortos de siempre (los del Sheet o los escritos antes) se reconocen como alias.
+RAZONES_SOCIALES = (
+    ('TEJIDOS DE PUNTO LINDATEXTIL S.A.S.', '901018972-1', ('LINDATEXTIL', 'LINDA TEXTIL', 'TEJIDOS DE PUNTO LINDATEXTIL')),
+    ('TEXTILES LAFAYETTE SAS', '860001965', ('LAFAYETTE', 'LA FAYETTE', 'TELAS LAFAYETTE', 'TEXTILES LAFAYETTE')),
+    ('MANUFACTURAS ELIOT S.A.S', '860000452', ('ELIOT', 'MANUFACTURAS ELIOT')),
+    ('SARAXY S.A.S', '900306394-6', ('SARAXY',)),
+    ('MERCANTIL DE TEXTILES S.A.S.', '890914669', ('MERCANTIL DE TEXTILES', 'MERCANTIL')),
+)
+
+
+def _clave(texto) -> str:
+    t = re.sub(r'[^A-Z0-9 ]', ' ', str(texto or '').upper())
+    t = re.sub(r'\b(S ?A ?S|SAS|S A|LTDA)\b', ' ', t)
+    return re.sub(r'\s+', ' ', t).strip()
+
+
+def razon_social(texto) -> tuple[str, str] | None:
+    """(razón social, NIT) del proveedor si se reconoce por su nombre corto o por su razón social; si no, None."""
+    k = _clave(texto)
+    if not k:
+        return None
+    for razon, nit, alias in RAZONES_SOCIALES:
+        if k == _clave(razon) or k in {_clave(a) for a in alias}:
+            return razon, nit
+    return None
+
+
+def alias_de(texto) -> list[str]:
+    """Nombres cortos de un proveedor (para buscarlo en Effi si allá está registrado con otro nombre)."""
+    r = razon_social(texto)
+    return [a for razon, _nit, alias in RAZONES_SOCIALES if r and razon == r[0] for a in alias]
+
+
 def _prov_inventario(texto) -> str:
     """Proveedor que dice el inventario (el encabezado de columna del Sheet), con el nombre como se guarda en Effi."""
     t = re.sub(r'\s+', ' ', str(texto or '')).strip().upper()
     if t in _NO_PROVEEDOR or t.startswith('CAMPO '):
         return ''
-    return {'LINDA TEXTIL': 'LINDATEXTIL'}.get(t, t)
+    r = razon_social(t)
+    return r[0] if r else t
 
 
 def telas() -> list[dict]:
@@ -107,6 +142,10 @@ def telas() -> list[dict]:
         g = guardado.get(c) or {}
         t['referencias'] = refs.get(c, [])
         t.update(proveedor=g.get('proveedor', ''), nit=g.get('nit', ''), ancho=g.get('ancho', ''), id_effi=g.get('id_effi', ''))
+        r = razon_social(t['proveedor'])
+        if r:   # los guardados con el nombre corto se muestran con su razón social y su NIT
+            t['proveedor'] = r[0]
+            t['nit'] = t['nit'] or r[1]
         t.update({k: g.get(k, '') for k in CAMPOS_EXTRA})   # datos opcionales de la ficha de la tela
         try:   # para los agentes: el precio como número, aunque en la tarjeta se muestre tal como se escribió
             t['precio_num'] = _numero(str(t.get('precio_sin_iva') or '')) if t.get('precio_sin_iva') else None
@@ -160,7 +199,7 @@ def _limpiar_texto(campo: str, texto: str) -> str:
 @router.get('')
 def listar():
     t = telas()
-    return {'telas': t, 'proveedores': sorted({x['proveedor'] for x in t if x['proveedor']})}
+    return {'telas': t, 'proveedores': sorted({x['proveedor'] for x in t if x['proveedor']} | {r[0] for r in RAZONES_SOCIALES})}
 
 
 @router.put('')
@@ -174,6 +213,10 @@ def guardar(payload: dict, request: Request):
         if 'proveedor' in payload:   # lo que no viene en la petición se conserva (el ancho y el proveedor se guardan por separado)
             g['proveedor'] = str(payload.get('proveedor') or '').strip()[:120]
             g['nit'] = str(payload.get('nit', g.get('nit', '')) or '').strip()[:30]
+            r = razon_social(g['proveedor'])
+            if r:   # se guarda con la razón social de la factura y, si no se escribió, su NIT
+                g['proveedor'] = r[0]
+                g['nit'] = g['nit'] or r[1]
         if 'ancho' in payload:
             texto = str(payload.get('ancho') or '').strip().replace(',', '.')
             if texto:

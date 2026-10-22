@@ -86,6 +86,17 @@ def proveedor(nombre: str) -> dict:
     """Busca el proveedor por palabras de su nombre (el elegido en Estándar 2026) y devuelve su código interno, dirección y forma de pago."""
     palabras = ' '.join(re.findall(r'\w+', nombre))[:60]
     candidatos = _lista('proveedor', {'nombre': palabras})
+    if not candidatos:   # en INFORMACIÓN TELA va la razón social; si en Effi está con su nombre corto, se busca por ese
+        try:
+            from app import proveedores_tela
+            alias_lista = proveedores_tela.alias_de(nombre)
+        except Exception:   # noqa: BLE001 — al correr effi_api.py suelto, sin el paquete app
+            alias_lista = []
+        for alias in alias_lista:
+            candidatos = _lista('proveedor', {'nombre': alias})
+            if candidatos:
+                nombre = alias
+                break
     if not candidatos:
         raise EffiError(f'No encontré el proveedor «{nombre}» en Effi')
     exacto = [c for c in candidatos if re.sub(r'\W+', '', str(c.get('nombre') or c.get('nombre_razon_social') or '')).upper() == re.sub(r'\W+', '', nombre).upper()]
