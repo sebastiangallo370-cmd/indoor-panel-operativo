@@ -17,7 +17,8 @@
   const css = document.createElement('style');
   css.textContent = `
   .panel[data-panel="minimaximan"]{width:100%;max-width:none}
-  body:has(.panel[data-panel="minimaximan"].active) main{width:100%!important;max-width:none!important;margin-left:0!important;margin-right:0!important;padding-left:clamp(12px,1.6vw,36px)!important;padding-right:clamp(12px,1.6vw,36px)!important}
+  body.mm-modo main,body:has(.panel[data-panel="minimaximan"].active) main{width:100%!important;max-width:none!important;box-sizing:border-box;padding-left:clamp(12px,1.6vw,36px)!important;padding-right:clamp(12px,1.6vw,36px)!important}
+  .mm>*{width:100%;max-width:none;box-sizing:border-box;justify-self:stretch;margin-left:0;margin-right:0}
   .mm{overflow-x:clip;display:grid;gap:18px;padding:4px 0 34px;font-family:Arial,sans-serif;color:#e8f0e0;position:relative;isolation:isolate;width:100%;min-height:calc(100vh - 150px);align-content:start}
   .mm::before,.mm::after{content:"";position:absolute;z-index:-1;border-radius:50%;filter:blur(80px);pointer-events:none;animation:mmFlota 18s ease-in-out infinite alternate}
   .mm::before{left:-80px;top:-40px;width:520px;height:520px;background:radial-gradient(circle,rgba(111,227,154,.26),transparent 70%)}
@@ -42,7 +43,7 @@
   .mm-kpi{padding:12px 16px;cursor:pointer;text-align:left;color:inherit;font:inherit;position:relative;overflow:hidden;transition:transform .2s,border-color .2s}
   .mm-kpi:hover{transform:translateY(-3px)}.mm-kpi.on{border-color:rgba(111,227,154,.8);box-shadow:0 0 0 1px rgba(111,227,154,.35),0 14px 40px rgba(0,0,0,.35)}
   .mm-kpi b{display:block;font:900 30px Arial;position:relative}.mm-kpi span{font:800 10px Arial;letter-spacing:.12em;color:#c5d2bf;position:relative}
-  .mm-cuerpo{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:18px;align-items:start}
+  .mm-cuerpo{display:grid;gap:14px}.mm-barra.mm-glass{padding:10px 12px}.mm-tit{margin:4px 0 0;font:900 12px Arial;letter-spacing:.16em;color:#ffe0a0}.mm-tit em{font-style:normal;padding:3px 9px;border-radius:99px;background:rgba(255,200,80,.2);border:1px solid #ffc850;margin-left:6px}.mm-ant summary{cursor:pointer;font:900 12px Arial;letter-spacing:.16em;color:#b9c8b3;padding:6px 2px}.mm-ant .mm-lista{margin-top:10px}
   .mm-izq{display:grid;gap:14px;min-width:0}
   .mm-barra{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px 14px}
   .mm-barra input,.mm-barra select{height:40px;border-radius:12px;border:1px solid rgba(255,255,255,.22);background:rgba(0,0,0,.3);color:#fff;font:14px Arial;padding:0 12px;outline:0}
@@ -68,11 +69,11 @@
   .mm-der{display:grid;gap:14px;position:sticky;top:12px;max-height:calc(100vh - 40px);overflow:auto;align-content:start;padding:2px}
   .mm-caja{padding:16px 18px;display:grid;gap:10px}.mm-caja h3{margin:0;font:900 12px Arial;letter-spacing:.16em;color:#b9c8b3;display:flex;justify-content:space-between;align-items:center}
   .mm-caja h3 em{font:900 10px Arial;font-style:normal;padding:4px 9px;border-radius:99px;background:rgba(255,200,80,.2);border:1px solid #ffc850;color:#ffe0a0}
-  .mm-oc{padding:12px 13px;border-radius:14px;background:rgba(0,0,0,.24);border:1px solid rgba(255,255,255,.14);display:grid;gap:7px}
+  .mm-oc{padding:16px 18px;display:grid;gap:9px}
   .mm-oc.espera{border-color:rgba(255,200,80,.6);background:rgba(255,200,80,.08)}.mm-oc.error{border-color:rgba(255,107,97,.6)}
   .mm-oc b{font:800 13px Arial}.mm-oc .mm-nums{font-size:11px}.mm-oc .mm-b{width:100%}
   .mm-pasos{margin:0;padding-left:18px;font:12px/1.55 Arial;color:#a9b8a3}
-  @media(max-width:1180px){.mm-cuerpo{grid-template-columns:1fr}.mm-der{position:static;max-height:none}}
+  @media(max-width:1180px){}
   @media(max-width:700px){.mm-hd h2{font-size:23px}.mm-hd{padding:16px}.mm-lista{grid-template-columns:1fr}.mm-kpis{grid-template-columns:repeat(2,1fr)}}
   /* TARJETA VIDRIOSA IGUAL A LAS DE PRODUCCIÓN: vidrio con desenfoque, borde superior de color según el estado, destello que sigue al mouse, inclinación suave y brillo de color
      arriba a la derecha. Se aplica a las tarjetas de telas, a las cajas de la derecha, a los resúmenes y al encabezado. */
@@ -88,9 +89,9 @@
   .mm-caja{border-top-color:rgba(255,255,255,.4)}.mm-caja::before{display:none}
   @keyframes mmOrbe{to{transform:translate(-26px,22px) scale(1.2)}}
   /* usa el 100% de la pantalla disponible: sin tope de ancho, la columna de la derecha crece con la pantalla y la lista llena el alto */
-  .mm{min-height:calc(100vh - 40px)}.mm-cuerpo{grid-template-columns:minmax(0,1fr) clamp(380px,26vw,560px);min-height:calc(100vh - 380px)}
-  .mm-lista{grid-template-columns:repeat(auto-fill,minmax(clamp(280px,17vw,380px),1fr))}.mm-der{max-height:calc(100vh - 28px)}
-  @media(max-width:1180px){.mm-cuerpo{grid-template-columns:1fr;min-height:0}}
+  .mm{min-height:calc(100vh - 40px)}.mm-cuerpo{min-height:calc(100vh - 380px)}
+  .mm-lista{grid-template-columns:repeat(auto-fill,minmax(clamp(280px,17vw,380px),1fr))}
+  @media(max-width:1180px){.mm-cuerpo{min-height:0}}
   @media(prefers-reduced-motion:reduce){.mm::before,.mm::after,.mm-glass::before,.mm-t,.mm-sw i{animation:none!important}.mm-glass{transform:none!important}}`;
   document.head.appendChild(css);
 
@@ -118,11 +119,11 @@
 
   function ocHtml(c) {
     const e = c.envio_proveedor || {};
-    if (c.estado === 'error') return '<div class="mm-oc error"><b>' + esc(c.tela) + '</b><div class="mm-nums"><span>' + num(c.metros) + ' mts</span><span>ERROR ' + (c.intentos || 0) + '/3</span></div><div class="mm-nota">' + esc(c.detalle) + '</div></div>';
-    if (c.estado !== 'creada') return '<div class="mm-oc"><b>' + esc(c.tela) + '</b><div class="mm-nums"><span>' + num(c.metros) + ' mts</span><span>creando…</span></div></div>';
+    if (c.estado === 'error') return '<div class="mm-glass mm-oc error"><b>' + esc(c.tela) + '</b><div class="mm-nums"><span>' + num(c.metros) + ' mts</span><span>ERROR ' + (c.intentos || 0) + '/3</span></div><div class="mm-nota">' + esc(c.detalle) + '</div></div>';
+    if (c.estado !== 'creada') return '<div class="mm-glass mm-oc"><b>' + esc(c.tela) + '</b><div class="mm-nums"><span>' + num(c.metros) + ' mts</span><span>creando…</span></div></div>';
     const cab = '<b>' + esc(c.tela) + '</b><div class="mm-nums"><span>' + num(c.metros) + ' mts · OC <b>' + esc(c.oc) + '</b></span><span>' + hora(c.creada || c.creado) + '</span></div>';
-    if (e.estado === 'enviada') return '<div class="mm-oc">' + cab + '<div class="mm-nota">✔ Enviada · ' + esc(e.por) + ' · ' + hora(e.at) + '</div><button type="button" class="mm-b" data-mm-prov="' + c.id + '" data-otra="1" data-oc="' + esc(c.oc) + '">Reenviar</button></div>';
-    return '<div class="mm-oc espera">' + cab + '<div class="mm-nota">Para ' + esc(c.proveedor || 'el proveedor') + '</div><button type="button" class="mm-b ok" data-mm-prov="' + c.id + '" data-oc="' + esc(c.oc) + '">✉ APROBAR Y ENVIAR</button></div>';
+    if (e.estado === 'enviada') return '<div class="mm-glass mm-oc">' + cab + '<div class="mm-nota">✔ Enviada · ' + esc(e.por) + ' · ' + hora(e.at) + '</div><button type="button" class="mm-b" data-mm-prov="' + c.id + '" data-otra="1" data-oc="' + esc(c.oc) + '">Reenviar</button></div>';
+    return '<div class="mm-glass mm-oc espera">' + cab + '<div class="mm-nota">Para ' + esc(c.proveedor || 'el proveedor') + '</div><button type="button" class="mm-b ok" data-mm-prov="' + c.id + '" data-oc="' + esc(c.oc) + '">✉ APROBAR Y ENVIAR</button></div>';
   }
 
   function pintar() {
@@ -141,14 +142,11 @@
       '<button type="button" class="mm-b" data-mm-revisar' + (ocupado ? ' disabled' : '') + '>↻ ' + (ocupado ? 'REVISANDO…' : 'REVISAR') + '</button></div></header>' +
       (a.error ? '<div class="mm-vacio">' + esc(a.error) + '</div>' : '') +
       '<div class="mm-kpis">' + kpi('atencion', nAtencion, 'ATENCIÓN', 'rojo') + kpi('en_camino', r.en_camino, 'EN CAMINO', 'azul') + kpi('ok', r.ok, 'EN RANGO', 'verde') + kpi('todas', r.telas, 'TELAS', 'gris') + '</div>' +
-      '<div class="mm-cuerpo"><section class="mm-izq"><div class="mm-glass mm-barra"><input type="search" data-mm-buscar placeholder="Buscar…" value="' + esc(buscar) + '" autocomplete="off">' +
-      '<select data-mm-orden aria-label="Ordenar">' + [['estado', 'Urgentes primero'], ['pedir', 'Más por pedir'], ['faltante', 'Más cerca de cero'], ['nombre', 'A-Z']].map(o => '<option value="' + o[0] + '"' + (orden === o[0] ? ' selected' : '') + '>' + o[1] + '</option>').join('') + '</select>' +
-      '<div class="mm-chips">' + GRUPOS.map(g => '<button type="button" class="mm-chip' + (filtro === g[0] ? ' on' : '') + '" data-mm-filtro="' + g[0] + '">' + g[1] + '<em>' + cuenta[g[0]] + '</em></button>').join('') + '</div></div>' +
-      '<div class="mm-lista-host"></div></section>' +
-      '<aside class="mm-der"><section class="mm-glass mm-caja"><h3>ESPERAN TU APROBACIÓN' + (esperan.length ? '<em>' + esperan.length + '</em>' : '') + '</h3>' +
-      (esperan.length ? esperan.map(ocHtml).join('') : '<div class="mm-nota">Ninguna por aprobar.</div>') + '</section>' +
-      '<section class="mm-glass mm-caja"><h3>ÓRDENES ANTERIORES</h3>' + (resto.length ? resto.map(ocHtml).join('') : '<div class="mm-nota">Sin órdenes todavía.</div>') + '</section>' +
-      '</aside></div>';
+      '<div class="mm-cuerpo"><div class="mm-glass mm-barra"><input type="search" data-mm-buscar placeholder="Buscar…" value="' + esc(buscar) + '" autocomplete="off">' +
+      '<select data-mm-orden aria-label="Ordenar">' + [['estado', 'Urgentes primero'], ['pedir', 'Más por pedir'], ['faltante', 'Más cerca de cero'], ['nombre', 'A-Z']].map(o => '<option value="' + o[0] + '"' + (orden === o[0] ? ' selected' : '') + '>' + o[1] + '</option>').join('') + '</select></div>' +
+      (esperan.length ? '<h3 class="mm-tit">ESPERAN TU APROBACIÓN <em>' + esperan.length + '</em></h3><div class="mm-lista">' + esperan.map(ocHtml).join('') + '</div>' : '') +
+      '<div class="mm-lista-host"></div>' +
+      (resto.length ? '<details class="mm-ant"><summary>ÓRDENES ANTERIORES (' + resto.length + ')</summary><div class="mm-lista">' + resto.map(ocHtml).join('') + '</div></details>' : '') + '</div>';
     pintarLista();
     if (window.liquidStats && window.liquidStats.refresh) window.liquidStats.refresh(panel);
   }
@@ -187,6 +185,8 @@
       firma = ''; cargar(); clearInterval(timer);
       timer = setInterval(() => { if (panel.classList.contains('active') && !document.hidden) cargar(); }, 15000);
     });
+    const marcar = () => document.body.classList.toggle('mm-modo', panel.classList.contains('active'));
+    new MutationObserver(marcar).observe(panel, { attributes: true, attributeFilter: ['class'] }); marcar();
     let inclinar = 0;
     panel.addEventListener('pointermove', e => {
       if (e.pointerType !== 'mouse') return;
