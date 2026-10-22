@@ -76,6 +76,15 @@
   .mm-t.rojo{animation:mmEntra .35s ease-out backwards,mmAlerta 3.2s ease-in-out infinite .6s}@keyframes mmAlerta{50%{box-shadow:0 14px 34px -16px rgba(0,0,0,.8),0 0 26px -4px rgba(255,107,97,.45),inset 0 1px 0 rgba(255,255,255,.28)}}
   .mm-pedir{transition:transform .2s}.mm-t:hover .mm-pedir{transform:scale(1.08)}.mm-stats div{transition:transform .2s}.mm-t:hover .mm-stats div{transform:translateY(-2px)}
   .mm-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:9px 6px;border-radius:12px;background:rgba(0,0,0,.22);border:1px solid rgba(255,255,255,.1);text-align:center}.mm-stats small{display:block;font:800 8.5px Arial;letter-spacing:.12em;color:#9fb096}.mm-stats b{font:900 17px Arial;color:#fff}
+  .mm-cent{display:grid;grid-template-columns:92px minmax(0,1fr);gap:16px;align-items:center}
+  .mm-aro{--c:#6fe39a;box-sizing:border-box;width:92px;height:92px;border-radius:50%;padding:7px;background:conic-gradient(var(--c) calc(var(--p)*1%),rgba(255,255,255,.1) 0);box-shadow:0 0 22px -4px var(--c),inset 0 0 0 1px rgba(255,255,255,.2);display:grid;transition:transform .3s;animation:mmGira .9s cubic-bezier(.2,.8,.2,1) backwards}
+  .mm-aro>div{border-radius:50%;background:#0c120e;display:grid;place-content:center;text-align:center;box-shadow:inset 0 0 14px rgba(0,0,0,.7)}
+  .mm-aro b{font:900 24px/1 Arial;color:#fff}.mm-aro small{font:800 8.5px Arial;letter-spacing:.16em;color:#9fb096;margin-top:3px}
+  .mm-t:hover .mm-aro{transform:rotate(8deg) scale(1.06)}@keyframes mmGira{from{transform:rotate(-90deg) scale(.7);opacity:0}}
+  .mm-t.rojo .mm-aro{--c:#ff6b61}.mm-t.azul .mm-aro{--c:#64aaff}.mm-t.ambar .mm-aro{--c:#ffc850}
+  .mm-stats{grid-template-columns:1fr!important;gap:0!important;padding:4px 12px!important;text-align:left!important}
+  .mm-stats div{display:flex;justify-content:space-between;align-items:baseline;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.08)}.mm-stats div:last-child{border:0}
+  .mm-stats small{font-size:9px!important}.mm-stats b{font-size:16px!important}
   .mm-fila{display:flex;justify-content:space-between;align-items:center;gap:8px;font:700 12px Arial;color:#c5d2bf}.mm-fila b{color:#fff;font-size:14px}
   .mm-pedir{padding:5px 11px;border-radius:99px;background:rgba(255,107,97,.18);border:1px solid rgba(255,107,97,.5);color:#ffb3ac}.mm-pedir b{font:900 15px Arial;color:#ffd3cf}
   .mm-nota{font:12px/1.4 Arial;color:#a9b8a3}.mm-vacio{padding:30px;text-align:center;color:#9fb096;font:13px/1.5 Arial;border:1px dashed rgba(255,255,255,.2);border-radius:16px}
@@ -125,12 +134,13 @@
     const pct = v => Math.max(0, Math.min(100, v / tope * 100)).toFixed(1);
     const aviso = ['error', 'sin_effi', 'revisar'].includes(t.estado) && t.nota ? '<div class="mm-nota">' + esc(t.nota) + '</div>' : '';   // el resto de estados ya se entiende con la etiqueta
     return '<article class="mm-glass mm-t ' + tono + '" style="animation-delay:' + Math.min(i * 25, 300) + 'ms"><h4><span>' + esc(t.tela) + '<small>' + esc(t.codigo) + ' · ' + esc(t.proveedor || 'SIN PROVEEDOR') + '</small></span><em>' + txt + '</em></h4>' +
+      '<div class="mm-cent"><div class="mm-aro" style="--p:' + Math.min(100, Math.round(t.stock / Math.max(t.maximo, 1) * 100)) + '"><div><b data-n="' + t.stock + '">' + num(t.stock) + '</b><small>STOCK</small></div></div>' +
+      '<div class="mm-stats"><div><small>MÍNIMO</small><b data-n="' + t.minimo + '">' + num(t.minimo) + '</b></div><div><small>MÁXIMO</small><b data-n="' + t.maximo + '">' + num(t.maximo) + '</b></div><div><small>EN CAMINO</small><b data-n="' + (t.por_recibir || 0) + '">' + num(t.por_recibir || 0) + '</b></div></div></div>' +
       '<div class="mm-medidor" title="Hay ' + num(t.stock) + ' · mínimo ' + num(t.minimo) + ' · máximo ' + num(t.maximo) + '"><span class="mm-zona" style="width:' + pct(t.minimo) + '%"></span><span class="mm-zona ok" style="left:' + pct(t.minimo) + '%;width:' + (pct(t.maximo) - pct(t.minimo)).toFixed(1) + '%"></span>' +
       (t.pedir || t.por_recibir ? '<s style="left:' + pct(t.stock) + '%;width:' + (pct(t.stock + (t.por_recibir || 0) + (t.pedir || 0)) - pct(t.stock)).toFixed(1) + '%"></s>' : '') +
       '<i style="--w:' + pct(t.stock) + '%"></i><q style="left:' + pct(t.stock) + '%"></q>' +
       '<u style="left:' + pct(t.minimo) + '%"><b>mín ' + num(t.minimo) + '</b></u><u style="left:' + pct(t.maximo) + '%"><b>máx ' + num(t.maximo) + '</b></u></div>' +
-      '<div class="mm-stats"><div><small>HAY</small><b data-n="' + t.stock + '">' + num(t.stock) + '</b></div><div><small>MÍNIMO</small><b data-n="' + t.minimo + '">' + num(t.minimo) + '</b></div><div><small>MÁXIMO</small><b data-n="' + t.maximo + '">' + num(t.maximo) + '</b></div><div><small>EN CAMINO</small><b>' + num(t.por_recibir || 0) + '</b></div></div>' +
-      '<div class="mm-fila"><span>' + (t.pedir ? 'Quedaría en <b>' + num(t.stock + (t.por_recibir || 0) + t.pedir) + '</b> mts (' + Math.round((t.stock + (t.por_recibir || 0) + t.pedir) / Math.max(t.maximo, 1) * 100) + '% del máx.)' : '<b>' + Math.round(t.stock / Math.max(t.maximo, 1) * 100) + '%</b> del máximo') + '</span>' + (t.pedir ? '<span class="mm-pedir">pedir <b>' + num(t.pedir) + '</b> mts</span>' : '') + '</div>' + aviso + '</article>';
+      '<div class="mm-fila"><span>' + (t.pedir ? 'Quedaría en <b>' + num(t.stock + (t.por_recibir || 0) + t.pedir) + '</b> mts (' + Math.round((t.stock + (t.por_recibir || 0) + t.pedir) / Math.max(t.maximo, 1) * 100) + '% del máx.)' : 'Nivel <b>' + Math.round(t.stock / Math.max(t.maximo, 1) * 100) + '%</b> del máximo') + '</span>' + (t.pedir ? '<span class="mm-pedir">pedir <b>' + num(t.pedir) + '</b> mts</span>' : '') + '</div>' + aviso + '</article>';
   }
 
   function ocHtml(c) {
