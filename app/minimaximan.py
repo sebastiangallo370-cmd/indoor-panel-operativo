@@ -31,6 +31,7 @@ _file = Path(os.getenv('MINIMAXIMAN_FILE', '/data/state/minimaximan.json'))
 _lock = threading.RLock()
 INTERVALO = 600
 MIN_PEDIDO = 1.0        # no se piden menos de 1 metro
+PAUSA_HORAS = 24        # tras anular una orden a mano, MINIMAXIMAN no vuelve a pedir esa tela durante este tiempo
 MAX_NUEVAS = 5          # tope de órdenes nuevas por revisión (por si algo sale raro)
 MAX_INTENTOS = 3        # una orden con error se reintenta hasta 3 veces; después espera a que una persona la revise
 NOTIFICA_DIAS = 7
@@ -69,6 +70,7 @@ def _leer() -> dict:
     d.setdefault('cambio', {})
     d.setdefault('compras', [])
     d.setdefault('seq', 0)
+    d.setdefault('pausa', {})
     return d
 
 
@@ -111,6 +113,12 @@ def _por_recibir(codigo: str) -> float | None:
         return None
 
 
+def _en_pausa(codigo: str) -> bool:
+    with _lock:
+        hasta = float(_leer()['pausa'].get(str(codigo), 0))
+    return hasta > time.time()
+
+
 def evaluar() -> list[dict]:
     """Una fila por cada tela con mínimo y máximo: cuánta hay, qué está en camino y cuánto habría que pedir."""
     con_api = _usar_api()
@@ -143,10 +151,12 @@ def evaluar() -> list[dict]:
                     fila.update(estado='ok')
                 elif trabada:
                     fila.update(estado='error', pedir=falta, nota='La orden falló 3 veces: ' + str(trabada.get('detalle', ''))[:140])
+                elif _en_pausa(codigo):
+                    fila.update(estado='pausa', pedir=falta, nota='Anulaste su orden: no la vuelvo a pedir sola por ' + str(PAUSA_HORAS) + ' horas.')
                 else:
                     fila.update(estado='pedir', pedir=falta, nota=f'Pedir {falta:g} mts para llegar al máximo ({mx:g}).')
         filas.append(fila)
-    orden = {'pedir': 0, 'error': 1, 'sin_proveedor': 2, 'sin_effi': 3, 'revisar': 4, 'en_camino': 5, 'ok': 6}
+    orden = {'pedir': 0, 'error': 1, 'sin_proveedor': 2, 'sin_effi': 3, 'revisar': 4, 'pausa': 5, 'en_camino': 6, 'ok': 7}
     return sorted(filas, key=lambda f: (orden.get(f['estado'], 9), f['tela']))
 
 
@@ -278,7 +288,7 @@ def estado(request: Request):
                                      'Corre solo en el servidor, sin usar a ZEUS ni a los agentes de los PC. Nunca pide si no ve en Effi lo que ya está en camino']},
             'resumen': {'telas': len(r), 'pedir': cuenta('pedir'), 'en_camino': cuenta('en_camino'), 'sin_proveedor': cuenta('sin_proveedor'), 'sin_effi': cuenta('sin_effi'),
                         'error': cuenta('error'), 'ok': cuenta('ok')},
-            'telas': r, 'compras': e['compras'][-15:][::-1]}
+            'telas': r, 'compras': e['compras'][-60:][::-1]}
 
 
 @router.post('/enviar-proveedor')
@@ -315,6 +325,85 @@ def enviar_proveedor(request: Request, payload: dict):
         _guardar(e)
     log.warning('MINIMAXIMAN: orden %s enviada al proveedor %s (%s) con la aprobación de %s', c['oc'], c['proveedor'], correo, usuario)
     return {'ok': True, 'correo': correo}
+
+
+def _compra_editable(payload: dict) -> dict:
+    """La orden creada que todavía no salió al proveedor (anular o modificar una ya enviada se hace en Effi a mano)."""
+    with _lock:
+        c = next((x for x in _leer()['compras'] if x['id'] == payload.get('id')), None)
+    if not c or c['estado'] != 'creada' or not c.get('oc'):
+        raise HTTPException(404, 'Esa orden de compra no está creada en Effi (o ya se anuló)')
+    if (c.get('envio_proveedor') or {}).get('estado') == 'enviada':
+        raise HTTPException(409, 'Esta orden ya se envió al proveedor: anúlala o cámbiala directamente en Effi y avísale.')
+    if not _usar_api():
+        raise HTTPException(400, 'Falta conectar la API de Effi (pantalla «API Effi» del agente de inventario).')
+    return c
+
+
+def _anular_en_effi(c: dict, motivo: str) -> None:
+    try:
+        effi_api.anular_orden(c['oc'], motivo)
+    except effi_api.EffiError as e:
+        if not (e.estado == 400 and 'anulada' in str(e).lower()):   # Effi dice que ya estaba anulada: se refleja igual
+            raise HTTPException(400, 'Effi no la anuló: ' + str(e))
+
+
+@router.post('/anular')
+def anular(request: Request, payload: dict):
+    """Botón «Anular»: anula la orden de compra en Effi (DELETE /orden_c). Esa tela queda en pausa para que el agente no la vuelva a pedir de inmediato."""
+    usuario = _usuario(request)
+    c = _compra_editable(payload)
+    motivo = str(payload.get('motivo', '')).strip() or 'Orden anulada desde el panel de Indoor Sport'
+    _anular_en_effi(c, f'{motivo} ({usuario})')
+    with _lock:
+        e = _leer()
+        for x in e['compras']:
+            if x['id'] == c['id']:
+                x.update(estado='anulada', anulada={'por': usuario, 'at': _iso(), 'motivo': motivo[:255]})
+        e['pausa'][c['codigo']] = time.time() + PAUSA_HORAS * 3600
+        _guardar(e)
+    log.warning('MINIMAXIMAN: orden %s anulada por %s', c['oc'], usuario)
+    return {'ok': True}
+
+
+@router.post('/modificar')
+def modificar(request: Request, payload: dict):
+    """Botón «Modificar»: cambia los metros de la orden. Effi no edita una orden creada, así que se anula y se crea otra con la cantidad nueva (antes se comprueba que el pedido nuevo sea válido)."""
+    usuario = _usuario(request)
+    c = _compra_editable(payload)
+    try:
+        metros = round(float(str(payload.get('metros')).replace(',', '.')), 2)
+    except (TypeError, ValueError):
+        raise HTTPException(400, 'Los metros no son un número.')
+    if metros <= 0 or metros > 100000:
+        raise HTTPException(400, 'Los metros deben ser mayores que 0.')
+    if abs(metros - float(c['metros'])) < 0.005:
+        raise HTTPException(400, 'Esa ya es la cantidad de la orden.')
+    n = int(c.get('modificaciones', 0)) + 1
+    try:
+        effi_api.construir_pedido(f'mm{c["id"]}m{n}', c['codigo'], metros, c['proveedor'])   # solo valida: si algo falla la orden original queda intacta
+    except effi_api.EffiError as e:
+        raise HTTPException(400, str(e))
+    _anular_en_effi(c, f'Modificada desde el panel por {usuario}: de {float(c["metros"]):g} a {metros:g} MTS')
+    try:
+        r = effi_api.crear_orden(f'mm{c["id"]}m{n}', c['codigo'], metros, c['proveedor'], observacion=f'Orden modificada desde el panel por {usuario} (reemplaza la {c["oc"]})')
+    except Exception as exc:   # noqa: BLE001
+        with _lock:
+            e = _leer()
+            for x in e['compras']:
+                if x['id'] == c['id']:
+                    x.update(estado='error', detalle=f'Se anuló la orden {c["oc"]} pero no se pudo crear la nueva: {str(exc)[:200]}', intentos=MAX_INTENTOS)
+            _guardar(e)
+        raise HTTPException(502, f'Se anuló la orden {c["oc"]} pero Effi no creó la nueva: {str(exc)[:150]}. Créala de nuevo o revísalo en Effi.')
+    with _lock:
+        e = _leer()
+        for x in e['compras']:
+            if x['id'] == c['id']:
+                x.setdefault('historial', []).append({'oc': c['oc'], 'metros': c['metros'], 'por': usuario, 'at': _iso()})
+                x.update(oc=str(r['oc']), metros=metros, detalle=str(r['detalle'])[:300], modificaciones=n, creada=_iso())
+        _guardar(e)
+    log.warning('MINIMAXIMAN: orden %s modificada por %s: %s -> %s mts (nueva OC %s)', c['oc'], usuario, c['metros'], metros, r['oc'])
+    return {'ok': True, 'oc': str(r['oc'])}
 
 
 @router.post('/revisar')

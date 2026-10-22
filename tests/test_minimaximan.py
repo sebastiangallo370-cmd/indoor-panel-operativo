@@ -105,6 +105,37 @@ class AprobacionTest(unittest.TestCase):
             self.assertEqual(sin.exception.status_code, 400)
         self.assertEqual(len(self.enviados), 1)
 
+    def test_anular_marca_la_orden_y_pausa_la_tela(self):
+        llamadas = []
+        with mock.patch.object(minimaximan, '_usar_api', lambda: True), mock.patch.object(minimaximan.effi_api, 'anular_orden', lambda oc, motivo: llamadas.append(oc)):
+            minimaximan.anular(object(), {'id': 1})
+        self.assertEqual(llamadas, ['133'])
+        e = minimaximan._leer()
+        self.assertEqual(e['compras'][0]['estado'], 'anulada')
+        self.assertTrue(minimaximan._en_pausa('100'))   # no se vuelve a pedir sola de inmediato
+
+    def test_modificar_anula_y_crea_otra_con_los_metros_nuevos(self):
+        hechos = []
+        with mock.patch.object(minimaximan, '_usar_api', lambda: True), \
+                mock.patch.object(minimaximan.effi_api, 'construir_pedido', lambda *a, **k: hechos.append('valida')), \
+                mock.patch.object(minimaximan.effi_api, 'anular_orden', lambda oc, motivo: hechos.append('anula ' + oc)), \
+                mock.patch.object(minimaximan.effi_api, 'crear_orden', lambda item, ref, metros, prov, **k: hechos.append('crea %g' % metros) or {'oc': '140', 'detalle': 'x'}):
+            minimaximan.modificar(object(), {'id': 1, 'metros': 400})
+        self.assertEqual(hechos, ['valida', 'anula 133', 'crea 400'])
+        c = minimaximan._leer()['compras'][0]
+        self.assertEqual((c['oc'], c['metros'], c['estado']), ('140', 400.0, 'creada'))
+
+    def test_una_orden_ya_enviada_no_se_anula_ni_se_modifica(self):
+        from fastapi import HTTPException
+        e = minimaximan._leer()
+        e['compras'][0]['envio_proveedor'] = {'estado': 'enviada'}
+        minimaximan._guardar(e)
+        with mock.patch.object(minimaximan, '_usar_api', lambda: True):
+            for f, p in ((minimaximan.anular, {'id': 1}), (minimaximan.modificar, {'id': 1, 'metros': 10})):
+                with self.assertRaises(HTTPException) as r:
+                    f(object(), p)
+                self.assertEqual(r.exception.status_code, 409)
+
 
 if __name__ == '__main__':
     unittest.main()
