@@ -144,6 +144,19 @@
   .mm-pie span{transition:transform .2s}.mm-t:hover .mm-pie span{transform:translateY(-2px)}.mm-t:hover .mm-pie span:nth-child(2){transition-delay:.04s}.mm-t:hover .mm-pie span:nth-child(3){transition-delay:.08s}.mm-t:hover .mm-pie span:nth-child(4){transition-delay:.12s}
   .mm-medidor q{background:var(--lima);box-shadow:0 0 0 4px rgba(208,244,76,.28),0 0 18px var(--lima)}
   @media(prefers-reduced-motion:reduce){.mm-medidor i::after,.mm-t h4 em::before,.mm-acc.pide{animation:none!important}}
+  /* MÁS SOBRIO: el lima queda solo como acento fino (barra, +pedir y borde al pasar el mouse) */
+  .mm-glass{border-top-color:rgba(255,255,255,.4)!important}
+  .mm-glass::before{background:radial-gradient(circle,rgba(208,244,76,.09),transparent 66%)!important}
+  .mm::before{background:radial-gradient(circle,rgba(208,244,76,.06),transparent 70%)!important}
+  .mm-acc.pide{background:rgba(255,255,255,.07)!important;border-color:rgba(208,244,76,.4)!important;box-shadow:none!important;animation:none!important}
+  .mm-t h4 em{border-color:rgba(255,255,255,.3)!important;color:#e8f0e0!important;background:rgba(255,255,255,.08)!important}
+  .mm-pie .fin b{color:#e8f0e0!important}
+  .mm-medidor i,.mm-t.rojo .mm-medidor i,.mm-t.azul .mm-medidor i,.mm-t.ambar .mm-medidor i{background:linear-gradient(90deg,rgba(208,244,76,.45),rgba(208,244,76,.85))!important;box-shadow:0 0 8px rgba(208,244,76,.25)!important}
+  .mm-zona.ok{background:rgba(255,255,255,.06)!important}
+  .mm-big b{background:none!important;color:#fff!important}.mm-t:hover .mm-big b{background:none!important;color:#fff!important}
+  .mm-t:hover{box-shadow:0 26px 44px -18px rgba(0,0,0,.9),0 0 22px -8px rgba(208,244,76,.35),inset 0 1px 0 rgba(255,255,255,.35)!important}
+  .mm-glass::after{background:radial-gradient(300px circle at var(--mx,50%) var(--my,0%),rgba(255,255,255,.16),transparent 62%)!important}
+  .mm-acc.pide b{color:#fff!important}
   .mm-t>*{position:relative;z-index:1}
   .mm-top{display:grid!important;grid-template-columns:auto auto auto minmax(0,1fr) minmax(220px,340px);align-items:center;gap:14px;padding:12px 18px}
   .mm-sep{display:none}
