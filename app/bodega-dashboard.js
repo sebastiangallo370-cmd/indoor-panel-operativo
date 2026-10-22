@@ -115,7 +115,7 @@
 .bd .ot-pie{margin-top:auto;display:grid;gap:4px;padding-right:50px;padding-top:2px}
 .bd .ot-bodega{font:800 .68rem Arial;letter-spacing:.03em;line-height:1.3;opacity:.95}
 .bd .ot-bodega b{font-weight:900}
-.bd .ot-bodega.comparte{display:grid;gap:2px}.bd .ot-bodega .ot-comparte{font:700 .6rem Arial;letter-spacing:.04em;opacity:.75;text-transform:uppercase}
+.bd .ot-bodega.comparte{display:block}.bd .ot-bodega .ot-comparte{display:block;margin-top:3px;font:700 .6rem Arial;letter-spacing:.04em;opacity:.75;text-transform:uppercase}
 html body .bd .inventory-item-card .ot-bodega b.hay{color:#7cc9ff!important;-webkit-text-fill-color:#7cc9ff!important}
 html body .bd .inventory-item-card .ot-bodega b.queda{color:#d6f55a!important;-webkit-text-fill-color:#d6f55a!important}
 html body .bd .inventory-item-card .ot-bodega b.falta{color:#ff9a8f!important;-webkit-text-fill-color:#ff9a8f!important}
