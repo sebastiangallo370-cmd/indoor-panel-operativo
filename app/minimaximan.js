@@ -97,7 +97,7 @@
   .mm-cuerpo{gap:14px}
   .mm-top{display:grid!important;grid-template-columns:auto auto auto minmax(0,1fr) minmax(220px,340px);align-items:center;gap:14px;padding:12px 18px}
   .mm-sep{display:none}
-  .mm-nom{padding-right:18px;border-right:1px solid rgba(255,255,255,.16);margin:0}.mm-nom h2{font-size:21px}
+  .mm-nom b{font:700 12px Arial;color:#e8f0e0}.mm-nom{padding-right:18px;border-right:1px solid rgba(255,255,255,.16);margin:0}.mm-nom h2{font-size:21px}
   .mm-top .mm-sw{margin:0}.mm-top .mm-b{height:36px;padding:0 16px!important;border-radius:99px!important;margin:0;justify-self:start}
   .mm-top .mm-kpis{justify-self:end;display:grid!important;grid-template-columns:repeat(4,auto);gap:4px!important;padding:4px;border-radius:99px;background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.14);width:100%!important;width:auto!important}
   .mm-top .mm-kpi{justify-content:center;border-radius:99px!important;border:1px solid transparent!important;background:transparent!important;box-shadow:none!important;padding:7px 10px!important;width:auto!important;overflow:hidden}
@@ -197,7 +197,7 @@
     const kpi = (k, n, rotulo, tono) => '<button type="button" class="mm-glass mm-kpi' + (filtro === k ? ' on' : '') + '" data-mm-filtro="' + k + '" data-lq="' + (r.telas ? Math.round(n / r.telas * 100) : 0) + '" data-lq-tone="' + tono + '" data-lq-nopct><b>' + n + '</b><span>' + rotulo + '</span></button>';
     const resto = compras.filter(c => !esperan.includes(c));
     panel.querySelector('.mm').innerHTML =
-      '<div class="mm-glass mm-top"><div class="mm-nom"><h2>MINIMAXIMAN</h2><small>revisado ' + hora(a.ultima) + '</small></div>' +
+      '<div class="mm-glass mm-top"><div class="mm-nom"><small>Revisado</small><b>' + hora(a.ultima) + '</b></div>' +
       '<div class="mm-sw' + (activo ? ' on' : '') + '"><i></i><span>' + (activo ? 'ACTIVO' : 'APAGADO') + '</span><button type="button" data-mm-activar="' + (activo ? 0 : 1) + '" aria-label="Activar o apagar MINIMAXIMAN"></button></div>' +
       '<button type="button" class="mm-b" data-mm-revisar' + (ocupado ? ' disabled' : '') + '>↻ ' + (ocupado ? 'REVISANDO…' : 'REVISAR') + '</button>' +
       '<span class="mm-sep"></span><div class="mm-kpis">' + kpi('atencion', nAtencion, 'ATENCIÓN', 'rojo') + kpi('en_camino', r.en_camino, 'EN CAMINO', 'azul') + kpi('ok', r.ok, 'EN RANGO', 'verde') + kpi('todas', r.telas, 'TELAS', 'gris') + '</div>' +
