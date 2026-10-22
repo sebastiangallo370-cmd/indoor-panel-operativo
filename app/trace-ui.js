@@ -216,11 +216,11 @@
     const position = groups.findIndex(g => g.key === focus.key);
     return position <= 0 || groups[position - 1].state === 'finished';
   }
-  // Siempre: primero las tarjetas cuyo proceso anterior ya está finalizado y después, dentro de cada grupo, por fecha de entrega.
+  // Siempre por FECHA DE ENTREGA: primero las de entrega más próxima (las atrasadas arriba) y al final las que no tienen fecha.
   function orderByReadiness(rows, headers, summaries) {
     const column = headers.findIndex(h => key(h) === 'FECHA DE ENTREGA');
-    return rows.map((row, index) => ({ row, index, listo: readyToWork(summaries.get(row.source_row)) ? 0 : 1, due: dateValue(row.values[column])?.getTime() ?? Infinity }))
-      .sort((a, b) => a.listo - b.listo || (a.due === b.due ? a.index - b.index : a.due < b.due ? -1 : 1)).map(item => item.row);
+    return rows.map((row, index) => ({ row, index, due: dateValue(row.values[column])?.getTime() ?? Infinity }))
+      .sort((a, b) => a.due === b.due ? a.index - b.index : a.due < b.due ? -1 : 1).map(item => item.row);
   }
   function addBusinessDays(date, count) {
     const result = new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -693,7 +693,7 @@
       button.setAttribute('aria-pressed', String(button.dataset.traceFilter === filter));
       button.querySelector('span').textContent = base.filter(row => match(forView(row, button.dataset.traceFilter), button.dataset.traceFilter)).length;
     });
-    toolbar.querySelector('.trace-results').textContent = 'Mostrando ' + pageResult.start + '–' + pageResult.end + ' de ' + pageResult.total + ' tarjetas · ' + (comercialesMode ? 'Primero las programadas más recientes' : 'Primero las del proceso anterior finalizado y luego por fecha de entrega') + (filter === 'mine' ? ' · Asignadas a tu usuario' : '');
+    toolbar.querySelector('.trace-results').textContent = 'Mostrando ' + pageResult.start + '–' + pageResult.end + ' de ' + pageResult.total + ' tarjetas · ' + (comercialesMode ? 'Primero las programadas más recientes' : 'Primero las de entrega más próxima') + (filter === 'mine' ? ' · Asignadas a tu usuario' : '');
     const mtsColi = productionData.headers.findIndex(h => String(h || '').trim().toUpperCase() === 'MTS REQUERIDO');
     const isMtsNoteKey = key => {
       const column = Number(String(key).split(':')[1]);
