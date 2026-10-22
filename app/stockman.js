@@ -67,6 +67,18 @@
   .sm-host .sm-suma{display:block!important;width:auto!important;margin:12px 21px 0!important;box-sizing:border-box;height:38px!important;font-size:10.5px!important;grid-column:auto}
   .sm-host .sm-nota-pie{padding:12px 21px 18px;margin:0}
   .sm-host .sm-t.ambar{border-color:rgba(255,200,80,.35)!important}
+  /* IGUAL QUE LAS TARJETAS DE PRODUCCIÓN: mismo vidrio con desenfoque, mismo aro de color según el estado (verde igual, naranja diferencia, rojo grande), mismo brillo al pasar el mouse
+     y el mismo ancho (4 por fila en pantalla ancha, todas de la fila con la misma altura). */
+  .sm-host .mm-lista{grid-template-columns:repeat(auto-fill,minmax(min(100%,400px),1fr))!important;gap:20px!important;align-items:stretch!important;padding:2px}
+  .sm-host .sm-t{--r:rgba(255,255,255,.7);display:flex!important;flex-direction:column;border-radius:16px!important;min-width:0;overflow:hidden;
+    background:radial-gradient(120% 80% at 10% 0%,rgba(255,255,255,.14),rgba(255,255,255,0) 55%),linear-gradient(160deg,rgba(255,255,255,.11),rgba(255,255,255,.035))!important;
+    -webkit-backdrop-filter:blur(20px) saturate(1.3)!important;backdrop-filter:blur(20px) saturate(1.3)!important;border:1px solid rgba(255,255,255,.22)!important;
+    box-shadow:inset 0 1.5px 0 rgba(255,255,255,.38),0 0 0 1px color-mix(in srgb,var(--r) 55%,transparent),0 0 16px -4px var(--r),0 10px 26px -10px #000c!important;
+    transition:transform .18s ease,box-shadow .18s ease!important}
+  .sm-host .sm-t.verde{--r:#35d46a}.sm-host .sm-t.ambar{--r:#ff9a1f}.sm-host .sm-t.rojo{--r:#ff4b3e}
+  .sm-host .sm-t:hover{transform:translateY(-3px)!important;border-color:rgba(255,255,255,.22)!important;box-shadow:inset 0 1.5px 0 rgba(255,255,255,.5),0 0 0 1px var(--r),0 0 24px -2px var(--r),0 14px 30px -10px #000c!important}
+  .sm-host .sm-t>h4{background:transparent!important;border-bottom-color:rgba(255,255,255,.12)!important}
+  .sm-host .sm-t>.sm-igualar,.sm-host .sm-t>.sm-suma{margin-top:auto!important}
   `;
 
   const api = async (url, opciones) => {
