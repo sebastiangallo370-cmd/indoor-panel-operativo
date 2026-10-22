@@ -3,9 +3,9 @@
 # así nadie publica sin querer una rama main que esté atrasada frente al servidor.
 #
 # Secretos que hay que crear en GitHub (Settings → Secrets and variables → Actions):
-#   VPS_HOST         179.236.66.149
-#   VPS_SSH_KEY      llave privada SSH con acceso root al VPS (la crea y la pega el dueño, no Claude)
-#   VPS_KNOWN_HOSTS  salida de: ssh-keyscan 179.236.66.149
+#   INDOOR_DEPLOY_KEY   llave privada SSH con acceso root al VPS (la crea y la pega el dueño, no Claude)
+#   INDOOR_KNOWN_HOSTS  salida de: ssh-keyscan 179.236.66.149
+# El host no es secreto y se fija abajo: 179.236.66.149.
 #
 # Qué copia: app/, Dockerfile, requirements.txt y los .py de la raíz. NO toca .env, secrets/, data/,
 # docker-compose.yml ni el Caddyfile del servidor.
@@ -29,6 +29,7 @@ jobs:
     timeout-minutes: 20
     env:
       DESTINO: /opt/asistente-reprogramaciones
+      VPS_HOST: 179.236.66.149
     steps:
       - uses: actions/checkout@v4
 
@@ -40,22 +41,22 @@ jobs:
       - name: Preparar SSH
         run: |
           install -m 700 -d ~/.ssh
-          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_vps
+          printf '%s\n' "${{ secrets.INDOOR_DEPLOY_KEY }}" > ~/.ssh/id_vps
           chmod 600 ~/.ssh/id_vps
-          printf '%s\n' "${{ secrets.VPS_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          printf '%s\n' "${{ secrets.INDOOR_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
 
       - name: Copiar archivos al servidor
         run: |
           rsync -rlptz --checksum -e "ssh -i ~/.ssh/id_vps" \
             --exclude '__pycache__/' --exclude 'FORMATO_EXCEL.xlsx' --exclude 'usuarios_panel.html' \
-            app/ root@${{ secrets.VPS_HOST }}:$DESTINO/app/
+            app/ root@$VPS_HOST:$DESTINO/app/
           rsync -ptz --checksum -e "ssh -i ~/.ssh/id_vps" \
             Dockerfile requirements.txt monitor_archivos.py pedidos_legacy.py \
-            root@${{ secrets.VPS_HOST }}:$DESTINO/
+            root@$VPS_HOST:$DESTINO/
 
       - name: Reconstruir y reiniciar el panel
         run: |
-          ssh -i ~/.ssh/id_vps root@${{ secrets.VPS_HOST }} \
+          ssh -i ~/.ssh/id_vps root@$VPS_HOST \
             "cd $DESTINO && docker compose up -d --build asistente"
 
       - name: Verificar que responde
