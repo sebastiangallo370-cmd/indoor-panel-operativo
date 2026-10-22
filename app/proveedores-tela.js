@@ -337,6 +337,7 @@
     const chip = (k, txt, n, extra) => `<button type="button" class="pv-fil${extra || ''}${st.filtro === k ? ' on' : ''}" data-pv-filtro="${esc(k)}">${esc(txt)}<em>${n}</em></button>`;
     q1('.pv-chips').innerHTML = chip('', 'TODAS', total) + chip('__sin', 'INCOMPLETAS', sin, ' ambar') + habituales().map(n => chip(n, n, c[n])).join('');
     q1('#pv-proveedores').innerHTML = habituales().map(n => `<option value="${esc(n)}">`).join('');
+    pintarListasCampos();
     q1('.pv-masa-chips').innerHTML = habituales().slice(0, 6).map(n => `<button type="button" class="pv-fil on" data-pv-masa-poner="${esc(n)}">ASIGNAR ${esc(n)}</button>`).join('');
     const ag = q1('[data-pv-agrupar]'), co = q1('[data-pv-compacto]'); if (ag) ag.classList.toggle('on', st.agrupar); if (co) co.classList.toggle('on', st.compacto);
     const ns = q1('[data-pv-selsin]'); if (ns) ns.textContent = 'SELECCIONAR LAS SIN PROVEEDOR (' + visibles().filter(t => !t.proveedor).length + ')';
@@ -380,18 +381,18 @@
       `<div class="pt-form"><div class="pt-row fijo"><span class="pt-lbl">Código Indoor<b>*</b></span><button type="button" class="pt-cod" data-pv-copiar title="Tocar para copiar el código">${esc(t.codigo)}</button></div>` +
       fila(t.codigo, 'Proveedor', t.proveedor, 'list="pv-proveedores" data-pv-input', true, !t.proveedor, 'Escribe el proveedor…') +
       (edit ? sugerencias('prov', habituales().slice(0, 5)) : '') +
-      fila(t.codigo, 'Ancho (cm)', t.ancho, 'inputmode="decimal" data-pv-ancho', true, !t.ancho, 'Ej. 150', ' cm') +
+      fila(t.codigo, 'Ancho (cm)', t.ancho, 'list="pv-dl-ancho" inputmode="decimal" data-pv-ancho', true, !t.ancho, 'Ej. 150', ' cm') +
       (edit ? sugerencias('ancho', anchosHabituales()) : '') +
       fila(t.codigo, 'ID Effi', t.id_effi, 'inputmode="numeric" data-pv-ide', false, false, 'Opcional') +
-      fila(t.codigo, 'Composición', t.composicion, 'data-pv-opc data-pv-comp', false, false, 'Ej. 100% poliéster', '', 'pt-w2') +
-      fila(t.codigo, 'Gramaje', t.gramaje, 'inputmode="decimal" data-pv-opc data-pv-gram', false, false, 'Ej. 150', ' g/m²') +
-      fila(t.codigo, 'Tipo', t.tipo, 'data-pv-opc data-pv-tipo', false, false, 'Ej. Punto, Plano, Rib') +
-      fila(t.codigo, 'Stock mínimo', t.stock_minimo, 'inputmode="decimal" data-pv-opc data-pv-smin', false, false, 'Ej. 1200', ' mts') +
-      fila(t.codigo, 'Stock máximo', t.stock_maximo, 'inputmode="decimal" data-pv-opc data-pv-smax', false, false, 'Ej. 1800', ' mts') +
-      fila(t.codigo, 'Vendedor proveedor', t.vendedor, 'data-pv-opc data-pv-vend', false, false, 'Nombre del vendedor') +
-      fila(t.codigo, 'WPP proveedor', t.wpp, 'inputmode="tel" data-pv-opc data-pv-wpp', false, false, 'Ej. 573001234567') +
-      fila(t.codigo, 'Correo proveedor', t.correo, 'inputmode="email" data-pv-opc data-pv-correo', false, false, 'correo@proveedor.com') +
-      fila(t.codigo, 'Precio sin IVA (COP)', t.precio_sin_iva, 'inputmode="decimal" data-pv-opc data-pv-precio', false, false, 'Ej. 18.500') +
+      fila(t.codigo, 'Composición', t.composicion, 'list="pv-dl-comp" data-pv-opc data-pv-comp', false, false, 'Ej. 100% poliéster', '', 'pt-w2') +
+      fila(t.codigo, 'Gramaje', t.gramaje, 'list="pv-dl-gram" inputmode="decimal" data-pv-opc data-pv-gram', false, false, 'Ej. 150', ' g/m²') +
+      fila(t.codigo, 'Tipo', t.tipo, 'list="pv-dl-tipo" data-pv-opc data-pv-tipo', false, false, 'Ej. Punto, Plano, Rib') +
+      fila(t.codigo, 'Stock mínimo', t.stock_minimo, 'list="pv-dl-smin" inputmode="decimal" data-pv-opc data-pv-smin', false, false, 'Ej. 1200', ' mts') +
+      fila(t.codigo, 'Stock máximo', t.stock_maximo, 'list="pv-dl-smax" inputmode="decimal" data-pv-opc data-pv-smax', false, false, 'Ej. 1800', ' mts') +
+      fila(t.codigo, 'Vendedor proveedor', t.vendedor, 'list="pv-dl-vend" data-pv-opc data-pv-vend', false, false, 'Nombre del vendedor') +
+      fila(t.codigo, 'WPP proveedor', t.wpp, 'list="pv-dl-wpp" inputmode="tel" data-pv-opc data-pv-wpp', false, false, 'Ej. 573001234567') +
+      fila(t.codigo, 'Correo proveedor', t.correo, 'list="pv-dl-correo" inputmode="email" data-pv-opc data-pv-correo', false, false, 'correo@proveedor.com') +
+      fila(t.codigo, 'Precio sin IVA (COP)', t.precio_sin_iva, 'list="pv-dl-precio" inputmode="decimal" data-pv-opc data-pv-precio', false, false, 'Ej. 18.500') +
       '</div>' + acciones +
       `<div class="pt-stats"><div data-lq="${Math.min(100, Math.round(mts / 25))}" data-lq-tone="gris" data-lq-nopct><b data-n="${mts}">${f0(mts)}</b><span>MTS en bodega</span></div>` +
       '</div>' +
@@ -400,6 +401,17 @@
   const familia = n => (String(n || '').toUpperCase().replace(/\(.*?\)/g, ' ').trim().split(/\s+/)[0]) || 'OTRAS';
   // «Copiar datos de otra tela»: lista de telas que ya tienen datos (primero las de la misma familia y el mismo proveedor)
   const CAMPOS_COPIA = [['proveedor', '[data-pv-input]'], ['ancho', '[data-pv-ancho]'], ['composicion', '[data-pv-comp]'], ['gramaje', '[data-pv-gram]'], ['tipo', '[data-pv-tipo]'], ['stock_minimo', '[data-pv-smin]'], ['stock_maximo', '[data-pv-smax]'], ['vendedor', '[data-pv-vend]'], ['wpp', '[data-pv-wpp]'], ['correo', '[data-pv-correo]'], ['precio_sin_iva', '[data-pv-precio]']];
+  // Una lista desplegable por campo con los valores ya usados en otras telas (los más usados primero)
+  const LISTAS = { ancho: 'ancho', composicion: 'comp', gramaje: 'gram', tipo: 'tipo', stock_minimo: 'smin', stock_maximo: 'smax', vendedor: 'vend', wpp: 'wpp', correo: 'correo', precio_sin_iva: 'precio' };
+  function pintarListasCampos() {
+    let caja = document.getElementById('pv-listas');
+    if (!caja) { caja = document.createElement('div'); caja.id = 'pv-listas'; caja.hidden = true; document.body.appendChild(caja); }
+    caja.innerHTML = Object.entries(LISTAS).map(([k, id]) => {
+      const cuenta = {};
+      telas().forEach(t => { const v = String(t[k] || '').trim(); if (v) cuenta[v] = (cuenta[v] || 0) + 1; });
+      return '<datalist id="pv-dl-' + id + '">' + Object.keys(cuenta).sort((a, b) => cuenta[b] - cuenta[a] || a.localeCompare(b)).slice(0, 40).map(v => '<option value="' + esc(v) + '">').join('') + '</datalist>';
+    }).join('');
+  }
   function copiarDe(t) {
     const conDatos = telas().filter(x => x.codigo !== t.codigo && CAMPOS_COPIA.slice(2).some(([k]) => x[k]));
     if (!conDatos.length) return '';
