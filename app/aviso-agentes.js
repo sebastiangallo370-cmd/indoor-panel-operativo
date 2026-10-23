@@ -7,7 +7,7 @@
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const ROBOT = '<svg viewBox="0 0 64 64" aria-hidden="true"><line x1="32" y1="6" x2="32" y2="14" stroke="#d0f44c" stroke-width="3" stroke-linecap="round"/><circle class="ant" cx="32" cy="5" r="3.5" fill="#d0f44c"/><rect x="12" y="14" width="40" height="30" rx="10" fill="#1a2a20" stroke="#d0f44c" stroke-width="2.5"/><circle class="ojo" cx="24" cy="29" r="4.5" fill="#d0f44c"/><circle class="ojo" cx="40" cy="29" r="4.5" fill="#d0f44c"/><rect x="25" y="37" width="14" height="3" rx="1.5" fill="#d0f44c" opacity=".7"/><rect x="18" y="47" width="28" height="11" rx="5" fill="#1a2a20" stroke="#d0f44c" stroke-width="2"/><rect class="br" x="4" y="22" width="6" height="14" rx="3" fill="#d0f44c"/><rect class="br2" x="54" y="22" width="6" height="14" rx="3" fill="#d0f44c"/></svg>';
   const css = `
-  #aviso-agentes{position:fixed;top:100px;right:20px;z-index:9999;display:grid;gap:8px;width:min(310px,calc(100vw - 32px));pointer-events:none}
+  #aviso-agentes{position:fixed;top:100px;right:20px;z-index:9999;display:grid;gap:8px;width:min(340px,calc(100vw - 32px));pointer-events:none}
   .aa-t{pointer-events:auto;display:flex;align-items:center;gap:10px;padding:8px 10px 9px 9px;border-radius:14px;cursor:pointer;color:#f1f7ed;font-family:Arial,sans-serif;
     background:radial-gradient(120% 90% at 10% 0%,rgba(255,255,255,.16),rgba(255,255,255,0) 55%),linear-gradient(160deg,rgba(24,38,28,.92),rgba(12,20,15,.92));
     -webkit-backdrop-filter:blur(18px) saturate(1.3);backdrop-filter:blur(18px) saturate(1.3);border:1px solid rgba(208,244,76,.55);
@@ -21,8 +21,8 @@
   .aa-rob .ant{animation:aaLate 1s ease-in-out infinite}.aa-rob .ojo{transform-origin:center;transform-box:fill-box;animation:aaParpadea 2.6s infinite}
   .aa-rob .br{transform-origin:right center;transform-box:fill-box;animation:aaBrazo .55s ease-in-out infinite alternate}.aa-rob .br2{transform-origin:left center;transform-box:fill-box;animation:aaBrazo .55s ease-in-out infinite alternate-reverse}
   @keyframes aaSalta{50%{transform:translateY(-4px)}}@keyframes aaLate{50%{opacity:.3}}@keyframes aaParpadea{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.1)}}@keyframes aaBrazo{to{transform:rotate(-18deg)}}
-  .aa-txt{display:grid;gap:2px;min-width:0;flex:1}.aa-txt b{font:900 10.5px/1.25 Arial;letter-spacing:.05em;color:#d0f44c}.aa-t.listo .aa-txt b{color:#6fe39a}.aa-t.error .aa-txt b{color:#ffb3ac}
-  .aa-txt span{font:600 10.5px/1.35 Arial;color:#dfe8da}.aa-txt u{text-decoration:none;font-weight:800;color:#fff}
+  .aa-txt{display:grid;gap:2px;min-width:0;flex:1}.aa-txt b{font:900 10.5px/1.25 Arial;letter-spacing:.05em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#d0f44c}.aa-t.listo .aa-txt b{color:#6fe39a}.aa-t.error .aa-txt b{color:#ffb3ac}
+  .aa-txt span{font:600 10.5px/1.35 Arial;color:#dfe8da;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.aa-txt u{text-decoration:none;font-weight:800;color:#fff}
   .aa-x{flex:none;align-self:flex-start;border:0;background:transparent;color:#9fb096;font:700 13px/1 Arial;cursor:pointer;padding:2px 4px}.aa-x:hover{color:#fff}
   .aa-barra{position:absolute;left:12px;right:12px;bottom:0;height:2px;overflow:hidden;border-radius:2px}.aa-barra i{display:block;height:100%;width:35%;background:linear-gradient(90deg,transparent,#d0f44c,transparent);animation:aaBarra 1.4s linear infinite}
   .aa-t{position:relative}@keyframes aaBarra{from{transform:translateX(-100%)}to{transform:translateX(300%)}}
@@ -47,7 +47,7 @@
     } catch (_) { /* sin notificaciones */ }
   }
   function titulo(a) {
-    if (a.activo) return a.agente + ' HA EMPEZADO A TRABAJAR';
+    if (a.activo) return a.agente + ' EMPEZÓ A TRABAJAR';
     return a.fase === 'error' ? a.agente + ' NO PUDO COMPLETARLO' : a.agente + ' TERMINÓ';
   }
   function dibujar(t, a) {
