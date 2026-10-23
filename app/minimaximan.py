@@ -263,6 +263,7 @@ MIN_ENTRE = 15   # segundos mínimos entre dos revisiones seguidas (los avisos l
 
 def despertar(motivo: str = '') -> None:
     """Algo que MINIMAXIMAN usa cambió (INFORMACIÓN TELA o el inventario): revisa ya, sin esperar los 10 minutos."""
+    log.info('MINIMAXIMAN despertado por %s', motivo)
     _despertar.set()
 
 
@@ -298,6 +299,18 @@ def estado(request: Request):
     with _lock:
         e = _leer()
     r = e['resultado']
+    try:   # los datos de INFORMACIÓN TELA se ven al instante en la tarjeta, aunque la revisión (que decide qué pedir) llegue unos segundos después
+        info = {str(t['codigo']): t for t in proveedores_tela.telas()}
+        for f in r:
+            t = info.get(f['codigo'])
+            if t:
+                f['id_effi'] = str(t.get('id_effi') or '').strip()
+                f['proveedor'] = t.get('proveedor', '') or ''
+                mn, mx = _num(t.get('stock_minimo')), _num(t.get('stock_maximo'))
+                if mn > 0 and mx > 0:
+                    f['minimo'], f['maximo'] = mn, mx
+    except Exception:   # noqa: BLE001
+        pass
     cuenta = lambda k: sum(1 for f in r if f['estado'] == k)
     return {'agente': {'nombre': NOMBRE, 'titulo': 'Mantiene cada tela entre su stock mínimo y su stock máximo', 'activo': e['activo'], 'ultima': e['ultima'], 'error': e['error'],
                        'funciones': ['Revisa cada tela con stock mínimo y máximo (INFORMACIÓN TELA) contra lo que hay en Bodega',
