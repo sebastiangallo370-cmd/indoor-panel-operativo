@@ -142,5 +142,18 @@ class AprobacionTest(unittest.TestCase):
                 self.assertEqual(r.exception.status_code, 409)
 
 
+class RobotProcesandoTest(unittest.TestCase):
+    def test_el_proceso_se_ve_mientras_trabaja_y_el_listo_dura_unos_segundos(self):
+        minimaximan._proceso_set('creando', 'DUBLIN', 'Creando la orden')
+        p = minimaximan.proceso_actual()
+        self.assertEqual((p['fase'], p['tela'], p['activo']), ('creando', 'DUBLIN', True))
+        minimaximan._proceso_fin('listo', 'Orden creada', 'DUBLIN', segundos=5)
+        p = minimaximan.proceso_actual()
+        self.assertEqual((p['fase'], p['activo']), ('listo', False))
+        minimaximan._proceso['hasta'] = 1   # ya pasó el tiempo: desaparece
+        self.assertIsNone(minimaximan.proceso_actual())
+        minimaximan._proceso.clear()
+
+
 if __name__ == '__main__':
     unittest.main()
