@@ -130,6 +130,21 @@ html body .bd .ot-flujo b.hay{color:#a9cdee!important;-webkit-text-fill-color:#a
 html body .bd .ot-flujo b.desc{color:#e3c084!important;-webkit-text-fill-color:#e3c084!important}
 html body .bd .ot-flujo b.queda{color:#cfe58a!important;-webkit-text-fill-color:#cfe58a!important}
 html body .bd .ot-flujo b.falta{color:#f0a89d!important;-webkit-text-fill-color:#f0a89d!important}
+.bd .ot-flujo{transition:border-color .25s,box-shadow .25s}
+.bd .ot-flujo>div{transition:background .25s,transform .25s}
+.bd .ot-flujo>div:hover{background:rgba(255,255,255,.05)!important;transform:translateY(-1px)}
+.bd .ot-flujo::after{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent 35%,rgba(255,255,255,.1) 50%,transparent 65%);transform:translateX(-120%);pointer-events:none}
+.bd .ot-bodega.comparte{position:relative}.bd .ot-bodega.comparte:hover .ot-flujo::after{animation:otBarrido 1.1s ease}
+@keyframes otBarrido{to{transform:translateX(120%)}}
+.bd .ot-flujo{position:relative}
+.bd .ot-medidor{position:relative;display:flex;height:6px;margin:7px 2px 2px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden}
+.bd .ot-medidor i{display:block;height:100%;width:var(--w);transform-origin:left;animation:otLlena .9s cubic-bezier(.2,.8,.2,1) backwards}
+.bd .ot-medidor i.q{background:linear-gradient(90deg,#7fa83a,#cfe58a);border-radius:99px 0 0 99px;box-shadow:0 0 10px rgba(207,229,138,.45)}
+.bd .ot-medidor i.d{background:linear-gradient(90deg,#d9a848,#f1cf8a);animation-delay:.25s;box-shadow:0 0 10px rgba(241,207,138,.55)}
+.bd .ot-medidor i.c{background:linear-gradient(90deg,#d9685a,#f0a89d);border-radius:99px;box-shadow:0 0 10px rgba(240,168,157,.5)}
+.bd .ot-medidor::after{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent 30%,rgba(255,255,255,.35) 50%,transparent 70%);transform:translateX(-120%);animation:otBrilla 3.4s ease-in-out infinite 1.2s}
+@keyframes otLlena{from{width:0}}@keyframes otBrilla{55%,100%{transform:translateX(120%)}}
+@media(prefers-reduced-motion:reduce){.bd .ot-medidor i,.bd .ot-medidor::after{animation:none}}
 .bd .ot-consumo{font:900 1.6rem Arial;line-height:1;letter-spacing:-.01em}
 .bd .ot-consumo small{font:800 .7rem Arial;margin-left:5px;opacity:.85;letter-spacing:.05em}
 .bd .ot-sinprom{font:900 1.15rem Arial;color:#d0f44c!important}
@@ -556,12 +571,18 @@ html body .bd .inventory-item-card.lq,html body .bd .bd-tkpi .lq{background:radi
       if (comparte.length && o.situacion !== 'sin_promedio') {   // misma tela en varias órdenes: lo que le toca a ESTA orden, no el total
         const otras = comparte.join(', ');
         const dec = v => (Number(v) || 0).toLocaleString('es-CO', {maximumFractionDigits: 2});
-        const casilla = (titulo, valor, cls) => '<div><small>' + titulo + '</small><b class="' + cls + '">' + valor + '</b></div>';
+        const casilla = (titulo, valor, cls, n, dec2) => '<div><small>' + titulo + '</small><b class="' + cls + '" data-n="' + n + '" data-dec="' + dec2 + '">' + valor + '</b></div>';
+        const hay = Math.floor(o.disponible || 0), desc = Number(o.mts) || 0;
         const detalle = o.situacion === 'no_alcanza'
-          ? casilla('En bodega', entero(o.disponible, Math.floor), 'hay') + casilla('Descuenta', dec(o.mts), 'desc') + casilla('Faltan', entero(o.falta, Math.ceil), 'falta')
-          : casilla('En bodega', entero(o.disponible, Math.floor), 'hay') + casilla('Descuenta', dec(o.mts), 'desc') + casilla('Queda', entero(o.quedan, Math.floor), 'queda');
+          ? casilla('En bodega', entero(o.disponible, Math.floor), 'hay', hay, 0) + casilla('Descuenta', dec(o.mts), 'desc', desc, 2) + casilla('Faltan', entero(o.falta, Math.ceil), 'falta', Math.ceil(o.falta || 0), 0)
+          : casilla('En bodega', entero(o.disponible, Math.floor), 'hay', hay, 0) + casilla('Descuenta', dec(o.mts), 'desc', desc, 2) + casilla('Queda', entero(o.quedan, Math.floor), 'queda', Math.floor(o.quedan || 0), 0);
+        // medidor: lo que queda (lima) y, al final, la parte que descuenta esta orden (ámbar); si no alcanza, lo que cubre la bodega (coral)
+        const pQueda = hay ? Math.max(0, Math.min(100, (Number(o.quedan) || 0) / hay * 100)) : 0, pDesc = hay ? Math.max(2.5, Math.min(100, desc / hay * 100)) : 0;
+        const medidor = o.situacion === 'no_alcanza'
+          ? '<div class="ot-medidor mal"><i class="c" style="--w:' + Math.max(3, Math.min(100, o.mts ? hay / o.mts * 100 : 0)).toFixed(1) + '%"></i></div>'
+          : '<div class="ot-medidor"><i class="q" style="--w:' + Math.min(pQueda, 100 - pDesc).toFixed(1) + '%"></i><i class="d" style="--w:' + pDesc.toFixed(1) + '%"></i></div>';
         return '<div class="ot-bodega comparte" title="' + esc('Esta tela también la usan ' + otras + '. Se sirven por fecha de entrega: cada una descuenta de lo que queda.') + '">' +
-          '<div class="ot-flujo">' + detalle + '</div></div>';   // sin la leyenda «Misma tela que…»: queda solo en el texto al pasar el mouse
+          '<div class="ot-flujo">' + detalle + '</div>' + medidor + '</div>';   // sin la leyenda «Misma tela que…»: queda solo en el texto al pasar el mouse
       }
       if (o.situacion === 'no_alcanza') return '<div class="ot-bodega mal" title="' + esc(tit) + '">Bodega <b class="hay">' + entero(o.bodega, Math.round) + '</b> MTS · faltan <b class="falta">' + entero(o.falta, Math.ceil) + '</b> MTS</div>';
       return '<div class="ot-bodega" title="' + esc(tit) + '">Bodega <b class="hay">' + entero(o.bodega, Math.round) + '</b> MTS · quedan <b class="queda">' + entero(o.quedan, Math.floor) + '</b> MTS</div>';
@@ -585,7 +606,14 @@ html body .bd .inventory-item-card.lq,html body .bd .bd-tkpi .lq{background:radi
         '<div class="ot-pie">' + (sinPromedio ? '<span class="ot-sinprom">Sin promedio</span>' : '<span class="ot-consumo">' + num(o.mts) + '<small>MTS</small></span>') +
         (alerta ? '<span class="ot-alerta">' + esc(alerta) + '</span>' : '') + '</div></article>';
     };
-    poner(tCards, ordenes.length ? ordenes.map(orderCard).join('') : '<p class="bd-note">No hay pedidos programados pendientes de Sublimación.</p>');
+    if (poner(tCards, ordenes.length ? ordenes.map(orderCard).join('') : '<p class="bd-note">No hay pedidos programados pendientes de Sublimación.</p>')) {
+      // los números de EN BODEGA / DESCUENTA / QUEDA cuentan hasta su valor cuando las tarjetas se dibujan o cambian
+      if (!window.matchMedia || !window.matchMedia('(prefers-reduced-motion: reduce)').matches) tCards.querySelectorAll('.ot-flujo b[data-n]').forEach(el => {
+        const n = Number(el.dataset.n) || 0, d = Number(el.dataset.dec) || 0, t0 = performance.now();
+        const paso = t => { const k = Math.min(1, (t - t0) / 800), v = n * (1 - Math.pow(1 - k, 3)); el.textContent = v.toLocaleString('es-CO', {minimumFractionDigits: d, maximumFractionDigits: d}); if (k < 1) requestAnimationFrame(paso); };
+        requestAnimationFrame(paso);
+      });
+    }
     filterTela();
   };
   tFilters.addEventListener('input', filterTela);
