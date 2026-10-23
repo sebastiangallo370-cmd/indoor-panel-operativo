@@ -255,6 +255,12 @@ def autollenar_mts(ordenes: list[dict]) -> dict:
     return {'escritas': escritas}
 
 
+def _mts_de_nota(nota: str) -> float:
+    """MTS REQUERIDOS de la nota de la columna 17 («147,38 MTS»): el mismo número que muestra Producción. 0 si no hay."""
+    found = re.findall(r'(\d+(?:[.,]\d+)?)\s*MTS', str(nota or ''), re.I)
+    return float(found[-1].replace(',', '.')) if found else 0.0
+
+
 def _pedidos() -> list[dict] | None:
     try:
         db = sqlite3.connect(f'file:{DB_FILE}?mode=ro', uri=True, timeout=5)
@@ -274,6 +280,11 @@ def _pedidos() -> list[dict] | None:
         pi = headers.index('NOMBRE PROYECTO') if 'NOMBRE PROYECTO' in headers else None
         texto = lambda v, i: str(v[i]).strip() if i is not None and i < len(v) else ''
         limite = (_hoy() - timedelta(days=DIAS_GRACIA)).isoformat()
+        notas = {r: n for r, n in db.execute('SELECT source_row,note FROM production_notes WHERE column_number=17')}   # MTS REQUERIDOS escritos en la web
+        try:
+            notas_sheet = {r: n for r, n in db.execute('SELECT source_row,note FROM production_sheet_notes WHERE column_number=17')}
+        except sqlite3.Error:
+            notas_sheet = {}
         pedidos = []
         for fila, valores_json in db.execute('SELECT source_row, values_json FROM production_rows'):
             v = json.loads(valores_json)
@@ -294,7 +305,8 @@ def _pedidos() -> list[dict] | None:
             pedidos.append({'fila': fila, 'orden': str(v[oi]).strip(), 'referencia': str(v[ri]).strip(), 'tela': tela, 'cantidad': cantidad,
                             'cliente': texto(v, ki), 'proyecto': texto(v, pi),
                             'estado': 'P' if estado == 'P' else '',
-                            'entrega': parse_date(v[ei]) if ei is not None and ei < len(v) else ''})
+                            'entrega': parse_date(v[ei]) if ei is not None and ei < len(v) else '',
+                            'nota_mts': _mts_de_nota(notas.get(fila) or notas_sheet.get(fila) or '')})
         return pedidos
     except (sqlite3.Error, ValueError, KeyError):
         return None
@@ -360,11 +372,16 @@ def calcular(items: list[dict]) -> dict:
             est = date.fromisoformat(p['entrega']) - timedelta(days=brecha)
             base.update(sublim_est=est.isoformat(), dias_sublim=(est - _hoy()).days)
         base['en_sublim'] = p['estado'] == 'P'
-        if not consumo and not exacto:
+        nota = p.get('nota_mts') or 0.0
+        if not consumo and not exacto and not nota:
             sin_promedio.append({**base, 'situacion': 'sin_promedio', 'promedio': 0, 'mts': 0, 'falta': 0, 'maestros': [], 'telas': [],
                                  'motivo': ('Sin promedio para ' + ', '.join(faltan)) if faltan else 'La referencia no dice qué maestro es'})
             continue
-        if exacto:
+        if nota:   # misma cifra que Producción: los MTS de la nota de MTS REQUERIDOS (columna 17)
+            mts = round(nota, 2)
+            consumo = round(mts / max(1, p['cantidad']), 2)
+            usados = usados or ['nota de MTS requeridos']
+        elif exacto:
             mts, consumo, usados = exacto['mts'], round(exacto['mts'] / max(1, exacto['prendas']), 2), exacto['partes']
         else:
             mts = round(consumo * p['cantidad'], 2)

@@ -47,5 +47,20 @@ class TelaCompartida(unittest.TestCase):
         self.assertEqual((pend[0]['ref'], pend[0]['general'], pend[0]['ordenes']), ('FUT01', 1.23, ['CO6214', 'CO6216']))
 
 
+class MtsDeLaNota(unittest.TestCase):
+    def test_la_nota_q_manda_sobre_el_maestro(self):
+        con_nota = dict(pedido('CO6214'), nota_mts=147.38)
+        sin_nota = pedido('CO6216')
+        items = [{'categoria': 'BODEGA TELA', 'nombre': '(11200) QATAR', 'roll_values': [497.0]}]
+        with mock.patch.object(tn, '_pedidos', return_value=[con_nota, sin_nota]), mock.patch.object(tn, 'brecha_sublimacion', return_value=5), \
+             mock.patch.object(tn.promedios, '_leer', return_value={'maestros': []}), \
+             mock.patch.object(tn, '_consumo', return_value=(23.58, ['FUT01'], [])), \
+             mock.patch.object(tn, '_exacto', return_value=None), \
+             mock.patch.object(tn, '_telas_de_bodega', return_value=items):
+            ords = {o['orden']: o for o in tn.calcular(items)['ordenes']}
+        self.assertEqual(ords['CO6214']['mts'], 147.38)   # la misma cifra que muestra Producción
+        self.assertEqual(ords['CO6216']['mts'], 23.58)    # sin nota: sigue el maestro
+
+
 if __name__ == '__main__':
     unittest.main()
