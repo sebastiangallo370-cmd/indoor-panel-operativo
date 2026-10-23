@@ -257,6 +257,15 @@ def alertas_para(usuario: str) -> list[dict]:
     return salida[:10]
 
 
+_despertar = threading.Event()
+MIN_ENTRE = 15   # segundos mínimos entre dos revisiones seguidas (los avisos llegan en ráfagas)
+
+
+def despertar(motivo: str = '') -> None:
+    """Algo que MINIMAXIMAN usa cambió (INFORMACIÓN TELA o el inventario): revisa ya, sin esperar los 10 minutos."""
+    _despertar.set()
+
+
 def _bucle() -> None:
     time.sleep(150)
     while True:
@@ -264,10 +273,15 @@ def _bucle() -> None:
             revisar()
         except Exception:   # noqa: BLE001
             log.exception('MINIMAXIMAN: fallo en la revisión periódica')
-        time.sleep(INTERVALO)
+        time.sleep(MIN_ENTRE)
+        if _despertar.wait(INTERVALO):   # aviso en tiempo real; si no llega, revisa cada 10 minutos
+            _despertar.clear()
+            time.sleep(2)   # junta los avisos que lleguen seguidos
 
 
 def start() -> None:
+    from app import tiempo_real
+    tiempo_real.suscribir(despertar)
     threading.Thread(target=_bucle, name='minimaximan', daemon=True).start()
 
 

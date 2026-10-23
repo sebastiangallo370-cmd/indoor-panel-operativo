@@ -59,26 +59,93 @@
   .sm-host .mm-lista{grid-template-columns:repeat(auto-fill,minmax(min(100%,520px),1fr));gap:20px;align-items:start}.sm-host .sm-t{min-height:0;padding:0!important;gap:0!important;overflow:hidden;border-radius:18px!important;background:#18251d!important;box-shadow:0 6px 22px #0002!important}.sm-host .sm-t>h4{display:flex!important;align-items:flex-start;gap:14px;padding:19px 21px 15px;margin:0!important;border-bottom:1px solid #35463c;font:700 19px/1.25 Arial!important}.sm-host .sm-t>h4>span{flex:1;min-width:0}.sm-host .sm-t>h4 small{font:700 10px/1.4 Arial!important;letter-spacing:.07em!important;color:#a6b7ab!important;margin-top:6px!important}.sm-host .sm-t>h4 em{margin-top:1px;font:600 10px/1.4 Arial!important;border-radius:6px!important;padding:6px 9px!important;background:#36433b!important;border:1px solid #536459!important;color:#d3ded6!important}.sm-host .sm-t.ambar>h4 em{background:#f3b852!important;border-color:#f3b852!important;color:#332306!important}.sm-host .sm-t.rojo>h4 em{background:#e36764!important;border-color:#f79089!important;color:#240b0d!important}.sm-host .sm-t.verde>h4 em{background:#8bdbaf!important;border-color:#8bdbaf!important;color:#103423!important}.sm-host .sm-t>:not(h4):not(.mm-marca){margin-left:21px;margin-right:21px}.sm-host .sm-hero{grid-template-columns:1fr auto 1fr;gap:16px;padding:18px 0}.sm-host .sm-hero small{font:700 10px/1.5 Arial!important;letter-spacing:.04em!important;color:#a6b7ab!important}.sm-host .sm-hero b{font:700 28px/1.15 Arial!important;letter-spacing:-.5px}.sm-host .sm-hero i{font:600 12px Arial!important;border-radius:6px!important;padding:7px 10px!important}.sm-host .sm-tabla{margin-bottom:16px!important;border-radius:10px!important;background:#111a15!important;border-color:#35463c!important;padding:7px 12px!important}.sm-host .sm-fila{grid-template-columns:1.2fr 1fr 1fr .8fr;padding:7px 0!important;font:600 12px Arial!important}.sm-host .sm-fila.cab{font:700 9px Arial!important;color:#a6b7ab!important}.sm-host .sm-opciones{padding:17px 0 10px}.sm-host .sm-pregunta{padding-top:17px;font:600 14px/1.5 Arial!important}.sm-host .sm-op{padding:11px 13px!important;border-radius:9px!important;background:#111a15!important;border-color:#35463c!important}.sm-host .sm-op b{font:600 13px Arial!important}.sm-host .sm-op small{font:12px Arial!important}.sm-host .sm-suma,.sm-host .sm-igualar{margin-top:8px;margin-bottom:16px;height:40px!important;border-radius:8px!important;font:700 11px Arial!important}.sm-host .sm-nota-pie{padding:2px 0 18px!important;font:12px/1.5 Arial!important}.sm-host .mm-marca{width:130px!important;right:-12px!important;bottom:-9px!important}.sm-host.vista-lista .sm-t{grid-template-columns:minmax(210px,.8fr) minmax(320px,1.4fr) minmax(160px,.5fr)}.sm-host.vista-lista .sm-t>h4{grid-row:1/4;margin:0!important}.sm-host.vista-lista .sm-t>:not(h4):not(.mm-marca){margin-left:0;margin-right:21px}@media(max-width:680px){.sm-host .mm-lista{grid-template-columns:1fr;gap:14px}.sm-host .sm-t>h4{padding:16px}.sm-host .sm-t>:not(h4):not(.mm-marca){margin-left:16px;margin-right:16px}.sm-host .sm-hero{gap:8px}.sm-host .sm-hero b{font-size:23px!important}.sm-host .sm-hero i{font-size:10px!important;padding:6px!important}.sm-host .sm-fila{font-size:10px!important}.sm-host .sm-fila.cab{font-size:7px!important}.sm-host.vista-lista .sm-t{grid-template-columns:1fr}.sm-host.vista-lista .sm-t>h4{grid-row:auto}.sm-host.vista-lista .sm-t>:not(h4):not(.mm-marca){margin-left:16px;margin-right:16px}}
   /* STOCKMAN no usa el cristal dinámico de otros agentes: evita desenfoque al pasar el mouse. */
   .sm-host .sm-t{backdrop-filter:none!important;-webkit-backdrop-filter:none!important;transform:none!important;transition:border-color .16s ease,box-shadow .16s ease!important}.sm-host .sm-t::before,.sm-host .sm-t::after{display:none!important}.sm-host .sm-t:hover{transform:translateY(-2px)!important;border-color:rgba(208,244,76,.55)!important;box-shadow:0 10px 26px rgba(0,0,0,.28)!important}.sm-host .sm-t:hover .mm-marca{opacity:.07!important;transform:rotate(-8deg)!important}
-  /* Orden y respiro: buscador a todo el ancho y tarjetas de «varias telas» con sus botones dentro de la tarjeta. */
-  .sm-buscador{display:block!important;padding:9px 12px!important;margin-bottom:10px}.sm-buscador .mm-busca{display:block;width:100%;max-width:none;margin:0;min-width:0}.sm-buscador input{display:block;width:100%!important;max-width:none!important;height:42px;box-sizing:border-box;padding-left:42px;font-size:14px}
-  .sm-host .sm-pregunta{margin:0!important;padding:18px 21px 0;font-size:13px}.sm-host .sm-opciones{padding:12px 21px 0;gap:9px}
-  .sm-host .sm-op{padding:11px 14px;border-radius:13px;background:rgba(0,0,0,.28)}.sm-host .sm-op b{font-size:12.5px}.sm-host .sm-op small{font-size:11px}
-  .sm-host .sm-op .mm-bt{width:104px;height:32px;font-size:10px}
-  .sm-host .sm-suma{display:block!important;width:auto!important;margin:12px 21px 0!important;box-sizing:border-box;height:38px!important;font-size:10.5px!important;grid-column:auto}
-  .sm-host .sm-nota-pie{padding:12px 21px 18px;margin:0}
-  .sm-host .sm-t.ambar{border-color:rgba(255,200,80,.35)!important}
-  /* IGUAL QUE LAS TARJETAS DE PRODUCCIÓN: mismo vidrio con desenfoque, mismo aro de color según el estado (verde igual, naranja diferencia, rojo grande), mismo brillo al pasar el mouse
-     y el mismo ancho (4 por fila en pantalla ancha, todas de la fila con la misma altura). */
-  .sm-host .mm-lista{grid-template-columns:repeat(auto-fill,minmax(min(100%,400px),1fr))!important;gap:20px!important;align-items:stretch!important;padding:2px}
-  .sm-host .sm-t{--r:rgba(255,255,255,.7);display:flex!important;flex-direction:column;border-radius:16px!important;min-width:0;overflow:hidden;
-    background:radial-gradient(120% 80% at 10% 0%,rgba(255,255,255,.14),rgba(255,255,255,0) 55%),linear-gradient(160deg,rgba(255,255,255,.11),rgba(255,255,255,.035))!important;
-    -webkit-backdrop-filter:blur(20px) saturate(1.3)!important;backdrop-filter:blur(20px) saturate(1.3)!important;border:1px solid rgba(255,255,255,.22)!important;
-    box-shadow:inset 0 1.5px 0 rgba(255,255,255,.38),0 0 0 1px color-mix(in srgb,var(--r) 55%,transparent),0 0 16px -4px var(--r),0 10px 26px -10px #000c!important;
-    transition:transform .18s ease,box-shadow .18s ease!important}
-  .sm-host .sm-t.verde{--r:#35d46a}.sm-host .sm-t.ambar{--r:#ff9a1f}.sm-host .sm-t.rojo{--r:#ff4b3e}
-  .sm-host .sm-t:hover{transform:translateY(-3px)!important;border-color:rgba(255,255,255,.22)!important;box-shadow:inset 0 1.5px 0 rgba(255,255,255,.5),0 0 0 1px var(--r),0 0 24px -2px var(--r),0 14px 30px -10px #000c!important}
-  .sm-host .sm-t>h4{background:transparent!important;border-bottom-color:rgba(255,255,255,.12)!important}
-  .sm-host .sm-t>.sm-igualar,.sm-host .sm-t>.sm-suma{margin-top:auto!important}
+  /* Botones de la barra: misma altura (36px), letra legible y REVISAR como acción principal. */
+  .sm-control .sm-metrica span{font-size:9px;letter-spacing:.06em}.sm-control .sm-metrica b{font-size:19px}
+  .sm-acciones{gap:8px!important}.sm-acciones>*{height:36px;box-sizing:border-box}
+  .sm-acciones .mm-sw{gap:8px;padding:0 6px 0 12px!important;border-radius:999px;background:rgba(0,0,0,.25);font:800 10px Arial;letter-spacing:.06em}
+  .sm-acciones .mm-sw i{width:8px;height:8px}.sm-acciones .mm-sw button{width:42px;height:24px}.sm-acciones .mm-sw button::after{top:2px;left:2px;width:18px;height:18px}.sm-acciones .mm-sw.on button::after{transform:translateX(18px)}
+  .sm-acciones .mm-b{display:inline-flex;align-items:center;gap:6px;padding:0 16px!important;border-radius:999px;border:0;background:var(--lima,#d0f44c);color:#18220c;font:900 11px Arial!important;letter-spacing:.06em;box-shadow:0 4px 14px rgba(208,244,76,.22)}
+  .sm-acciones .mm-b:hover:not(:disabled){filter:brightness(1.08);transform:translateY(-1px)}.sm-acciones .mm-b:disabled{opacity:.6;cursor:wait}
+  .sm-vistas{display:flex;align-items:stretch;gap:2px;padding:3px!important;border-radius:999px}.sm-vistas button{display:inline-flex;align-items:center;gap:5px;padding:0 12px!important;border-radius:999px;font:800 10px Arial!important;letter-spacing:.05em;color:#aebca7}.sm-vistas button.on{background:rgba(208,244,76,.18);color:var(--lima,#d0f44c)}.sm-vistas button:not(.on):hover{color:#fff}
+  .sm-acciones button:focus-visible{outline:2px solid var(--lima,#d0f44c);outline-offset:2px}
+  /* Rediseño: barra y botones compactos (30px), tarjetas con fila de datos. */
+  .sm-control{padding:6px 10px!important;gap:8px!important}.sm-control .sm-metrica{padding:5px 10px!important}.sm-control .sm-metrica b{font-size:16px!important}.sm-control .sm-metrica span{font-size:8px!important;margin-top:1px!important}
+  .sm-acciones>*{height:30px!important}.sm-acciones .mm-b{padding:0 12px!important;font-size:10px!important}.sm-acciones .mm-sw button{width:36px;height:20px}.sm-acciones .mm-sw button::after{width:14px;height:14px}.sm-acciones .mm-sw.on button::after{transform:translateX(16px)}.sm-vistas button{padding:0 9px!important;font-size:9px!important}
+  .mm-top{padding:6px 8px!important}.mm-top .mm-busca input{height:32px;font-size:12px}
+  .sm-host .mm-lista{grid-template-columns:repeat(auto-fill,minmax(min(100%,400px),1fr))!important;gap:14px!important}
+  .sm-host .sm-t>h4{padding:13px 16px 11px!important;font-size:16px!important}.sm-host .sm-t>:not(h4):not(.mm-marca){margin-left:16px!important;margin-right:16px!important}
+  .sm-host .sm-hero{padding:12px 0!important}.sm-host .sm-hero b{font-size:24px!important}.sm-host .sm-tabla{margin-bottom:10px!important}.sm-host .sm-fila{padding:5px 0!important}
+  .sm-datos{display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:6px;margin-bottom:12px}.sm-datos>span{display:grid;align-content:start;gap:1px;padding:7px 9px;border-radius:9px;background:#111a15;border:1px solid #35463c;min-width:0}
+  .sm-datos small{font:700 8px Arial;letter-spacing:.08em;color:#a6b7ab}.sm-datos b{font:800 14px Arial;color:#eef4e9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sm-datos i{font:600 9px Arial;font-style:normal;color:#a6b7ab;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sm-datos i.emp{color:#ffb454}.sm-datos .esp{border-color:#9a6a1f;background:#2a1f10}.sm-datos .esp b{color:#ffb454}
+  .sm-host .sm-igualar,.sm-host .sm-suma{height:30px!important;margin:0 0 12px!important;font-size:10px!important;border-radius:999px!important}.sm-host .sm-op .mm-bt{width:auto!important;height:26px!important;padding:0 12px!important;font-size:10px!important;border-radius:999px!important}.sm-host .sm-op{padding:7px 10px!important}
+  @media(max-width:600px){.sm-acciones>*{height:34px!important}.sm-datos{grid-template-columns:repeat(2,1fr)}}
+  /* Ajustes tras verlo en producción: barra legible, buscador a todo el ancho, botones dentro de la tarjeta. */
+  .sm-control .sm-metrica b{font-size:18px!important}.sm-control .sm-metrica span{font-size:9px!important}.sm-control .sm-intro h2{font-size:13px!important}.sm-live{font-size:9px!important}
+  .sm-acciones>*{height:32px!important}.sm-acciones .mm-b{font-size:11px!important}.sm-vistas button{font-size:10px!important}
+  .panel[data-panel="stockman"] .mm-top{display:flex!important;justify-content:flex-start;padding:0!important;margin-bottom:10px;border:0!important;background:transparent!important;box-shadow:none!important;backdrop-filter:none!important}.panel[data-panel="stockman"] .mm-top::before,.panel[data-panel="stockman"] .mm-top::after{display:none!important}
+  .panel[data-panel="stockman"] .mm-busca{flex:none!important;width:auto!important;margin:0!important}.panel[data-panel="stockman"] .mm-busca input{flex:none!important;width:300px!important;max-width:100%!important;height:36px!important;padding-left:36px!important;border-radius:999px!important;border:1px solid rgba(208,244,76,.35)!important;background-color:rgba(208,244,76,.06)!important;font:600 12px Arial!important;color:#eef4e9!important;transition:width .25s cubic-bezier(.2,.8,.2,1),border-color .2s,box-shadow .2s,background-color .2s}
+  .panel[data-panel="stockman"] .mm-busca input::placeholder{color:#a6b7ab}.panel[data-panel="stockman"] .mm-busca input:focus{width:420px!important;border-color:var(--lima,#d0f44c)!important;background-color:rgba(0,0,0,.35)!important;box-shadow:0 0 0 3px rgba(208,244,76,.18)}
+  @media(max-width:600px){.panel[data-panel="stockman"] .mm-busca,.panel[data-panel="stockman"] .mm-busca input,.panel[data-panel="stockman"] .mm-busca input:focus{width:100%!important;flex:1!important}}
+  .sm-host .sm-igualar,.sm-host .sm-suma{display:block;box-sizing:border-box;width:calc(100% - 32px)!important}
+  .sm-amb{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}.sm-amb span{display:grid;gap:2px;padding:9px 12px;border-radius:10px;background:#111a15;border:1px solid #35463c}.sm-amb small{font:700 9px Arial;letter-spacing:.08em;color:#a6b7ab}.sm-amb b{font:800 20px Arial;color:#eef4e9}.sm-amb em{font:700 9px Arial;font-style:normal;color:#a6b7ab;margin-left:4px}
+  .sm-host .sm-pregunta{padding-top:12px!important;font-size:13px!important}.sm-host .sm-opciones{padding:10px 0 4px!important}
+  /* Movimiento: tarjetas que entran escalonadas, las que tienen diferencia pulsan, opciones que reaccionan al pasar. */
+  @keyframes smEntra{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
+  @keyframes smPulso{0%,100%{box-shadow:0 0 0 0 rgba(243,184,82,0)}50%{box-shadow:0 0 0 4px rgba(243,184,82,.22)}}
+  .sm-host .sm-t{animation:smEntra .45s cubic-bezier(.2,.8,.2,1) both!important}.sm-host .sm-t.ambar,.sm-host .sm-t.rojo{animation:smEntra .45s cubic-bezier(.2,.8,.2,1) both,smPulso 2.6s ease-in-out 1s infinite!important}
+  .sm-host .sm-op{transition:transform .15s,border-color .15s,background .15s}.sm-host .sm-op:hover{transform:translateX(3px);border-color:rgba(208,244,76,.5)!important}
+  .sm-metrica{transition:transform .18s,border-color .18s}.sm-metrica:hover{transform:translateY(-2px)}.sm-metrica.on{border-color:var(--lima,#d0f44c)!important}
+  .sm-host .sm-igualar,.sm-host .sm-suma{transition:transform .15s,filter .15s}.sm-host .sm-igualar:hover,.sm-host .sm-suma:hover{transform:translateY(-1px);filter:brightness(1.08)}
+  @media(prefers-reduced-motion:reduce){.sm-host .sm-t{animation:none!important}}
+  /* Barra única y delgada (como la de los otros agentes): marca, activo y revisar a la izquierda; fichas, vista y buscador a la derecha. */
+  .smb{display:flex;align-items:center;gap:10px;margin-bottom:10px;padding:7px 10px;border-radius:16px;border:1px solid rgba(255,255,255,.16);background:linear-gradient(100deg,rgba(255,255,255,.07),rgba(208,244,76,.04))}
+  .smb-marca{display:flex;align-items:center;gap:8px;padding-right:10px;border-right:1px solid rgba(255,255,255,.14)}.smb-marca .mm-logo{height:20px}.smb-marca small{font:600 8px/1.2 Arial;color:#a6b7ab}.smb-marca small b{font:700 9px Arial;color:#eef4e9}
+  .smb>*{flex:none}.smb-esp{flex:1}
+  .smb-sw{height:30px;gap:8px;padding:0 6px 0 12px!important;border-radius:999px!important;border:1px solid rgba(255,255,255,.18)!important;background:rgba(0,0,0,.25)!important;font:800 10px Arial!important;letter-spacing:.06em}.smb-sw i{width:8px!important;height:8px!important}.smb-sw button{width:36px!important;height:20px!important}.smb-sw button::after{top:2px!important;left:2px!important;width:14px!important;height:14px!important}.smb-sw.on button::after{transform:translateX(16px)!important}
+  .smb-btn{height:30px;padding:0 14px;border-radius:999px;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.08);color:#eef4e9;font:800 10px Arial;letter-spacing:.06em;cursor:pointer;transition:background .15s,border-color .15s}.smb-btn:hover:not(:disabled){border-color:var(--lima,#d0f44c);background:rgba(208,244,76,.12)}.smb-btn:disabled{opacity:.6;cursor:wait}
+  .smb-fichas{display:flex;gap:4px;padding:3px;border-radius:999px;border:1px solid rgba(255,255,255,.14);background:rgba(0,0,0,.25)}
+  .smb-ficha{display:flex;align-items:center;gap:6px;height:28px;padding:0 11px 0 5px;border:0;border-radius:999px;background:transparent;color:#c9d6c2;cursor:pointer;transition:background .15s}.smb-ficha b{min-width:22px;padding:2px 6px;border-radius:999px;background:rgba(255,255,255,.1);font:900 12px Arial;color:#fff;text-align:center}.smb-ficha span{font:800 9px Arial;letter-spacing:.06em}
+  .smb-ficha[data-tono="ambar"] b{color:#f3b852}.smb-ficha[data-tono="verde"] b{color:#8bdbaf}.smb-ficha[data-tono="rojo"] b{color:#ff8f86}
+  .smb-ficha:hover{background:rgba(255,255,255,.07)}.smb-ficha.on{background:#8bdbaf33;box-shadow:inset 0 0 0 1px rgba(208,244,76,.5)}.smb-ficha.on span{color:var(--lima,#d0f44c)}
+  .smb-vistas{display:flex;gap:2px;padding:3px;border-radius:999px;border:1px solid rgba(255,255,255,.14);background:rgba(0,0,0,.25)}.smb-vistas button{width:28px;height:24px;border:0;border-radius:999px;background:transparent;color:#a6b7ab;font:14px Arial;cursor:pointer}.smb-vistas button.on{background:rgba(208,244,76,.18);color:var(--lima,#d0f44c)}
+  .smb-busca input{width:230px;height:30px;padding:0 12px 0 32px;border-radius:999px;border:1px solid rgba(255,255,255,.18);background:rgba(0,0,0,.25) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='none' stroke='%23a6b7ab' stroke-width='2'%3E%3Ccircle cx='6' cy='6' r='4.5'/%3E%3Cpath d='m9.5 9.5 3 3'/%3E%3C/svg%3E") no-repeat 11px center;color:#eef4e9;font:600 12px Arial;outline:0;transition:width .25s,border-color .2s}.smb-busca input:focus{width:300px;border-color:var(--lima,#d0f44c)}
+  .smb button:focus-visible,.smb input:focus-visible{outline:2px solid var(--lima,#d0f44c);outline-offset:2px}
+  @media(max-width:1100px){.smb{flex-wrap:wrap}.smb-esp{display:none}.smb-busca{flex:1 1 200px}.smb-busca input,.smb-busca input:focus{width:100%}}
+  /* Todas las tarjetas del mismo alto (en todas las filas); los botones quedan abajo. */
+  .sm-host:not(.vista-lista) .mm-lista{align-items:stretch!important;grid-auto-rows:1fr}.sm-host:not(.vista-lista) .sm-t{display:flex!important;flex-direction:column;height:100%;box-sizing:border-box}
+  .sm-host:not(.vista-lista) .sm-t>.sm-igualar,.sm-host:not(.vista-lista) .sm-t>.sm-suma,.sm-host:not(.vista-lista) .sm-t .sm-igualar{margin-top:auto!important}.sm-host:not(.vista-lista) .sm-t>.sm-nota-pie:last-of-type{margin-top:auto}
+  .smb{max-width:100%;box-sizing:border-box}.smb button{width:auto!important;min-width:0;min-height:0!important;margin:0}.smb-sw button{width:36px!important}.smb-vistas button{width:28px!important;padding:0!important;display:grid;place-items:center;line-height:1}.smb-busca{display:block;margin:0}.smb-ficha span{white-space:nowrap}
+  @media(max-width:600px){.smb-marca small{display:none}.smb-marca{border:0;padding:0}.smb-sw{flex:1!important}.smb-btn{flex:1}.smb-fichas{min-width:0}.smb-fichas{order:5;flex:1 1 100%;overflow-x:auto;scrollbar-width:none}.smb-ficha{flex:1;justify-content:center;padding:0 8px 0 4px}.smb-ficha span{font-size:8px}.smb-busca{order:6;flex:1 1 100%}}
+  /* Tarjetas más grandes: más anchas, más aire y cifras/letras mayores. */
+  .sm-host .mm-lista{grid-template-columns:repeat(auto-fill,minmax(min(100%,540px),1fr))!important;gap:18px!important}
+  .sm-host .sm-t>h4{padding:18px 22px 14px!important;font-size:19px!important}.sm-host .sm-t>h4 small{font-size:11px!important}.sm-host .sm-t>h4 em{font-size:11px!important;padding:6px 11px!important}.sm-id{font-size:13px}
+  .sm-host .sm-t>:not(h4):not(.mm-marca){margin-left:22px!important;margin-right:22px!important}
+  .sm-host .sm-hero{padding:18px 0!important}.sm-host .sm-hero b{font-size:32px!important}.sm-host .sm-hero small{font-size:11px!important}.sm-host .sm-hero i{font-size:13px!important;padding:7px 11px!important}
+  .sm-host .sm-tabla{padding:8px 14px!important;margin-bottom:14px!important}.sm-host .sm-fila{padding:8px 0!important;font-size:14px!important}.sm-host .sm-fila.cab{font-size:10px!important}
+  .sm-datos{gap:8px;margin-bottom:16px}.sm-datos>span{padding:10px 12px}.sm-datos small{font-size:10px}.sm-datos b{font-size:18px}.sm-datos i{font-size:11px}
+  .sm-amb span{padding:12px 14px}.sm-amb small{font-size:10px}.sm-amb b{font-size:26px}.sm-host .sm-pregunta{font-size:15px!important}
+  .sm-host .sm-op{padding:11px 13px!important}.sm-host .sm-op b{font-size:14px!important}.sm-host .sm-op small{font-size:12px!important}.sm-host .sm-op .mm-bt{height:32px!important;font-size:11px!important;padding:0 16px!important}
+  .sm-host .sm-igualar,.sm-host .sm-suma{height:40px!important;font-size:12px!important;width:calc(100% - 44px)!important}.sm-host .sm-nota-pie{font-size:13px!important}
+  /* Móvil: barra en cuadrícula (no ensancha la página) y tarjetas compactas, legibles y sin cortes. */
+  @media(max-width:600px){
+  .panel[data-panel="stockman"] .mm{max-width:100%;overflow-x:hidden}
+  .smb{display:grid!important;grid-template-columns:auto minmax(0,1fr) minmax(0,1fr) auto;gap:6px!important;padding:8px!important}.smb-esp{display:none}
+  .smb-marca{grid-column:1}.smb-sw{grid-column:2;justify-content:space-between;min-width:0;overflow:hidden}.smb-sw span{display:none}.smb-sw button,.smb-sw i{flex:none!important}.smb-btn{grid-column:3;justify-content:center}.smb-vistas{grid-column:4}
+  .smb-fichas{grid-column:1/-1;display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr));border-radius:14px!important}.smb-ficha{flex-direction:column;gap:2px!important;height:auto!important;padding:5px 2px!important;border-radius:10px!important}.smb-ficha span{font-size:7.5px!important;white-space:normal!important;text-align:center;line-height:1.1}
+  .smb-busca{grid-column:1/-1}.smb-busca input,.smb-busca input:focus{width:100%!important}
+  .sm-subbarra{flex-direction:column;align-items:flex-start!important;gap:2px}
+  .sm-host .sm-t>h4{flex-direction:column-reverse;align-items:flex-start!important;gap:8px!important;padding:16px 16px 13px!important;font-size:18px!important}.sm-host .sm-t>h4 em{font-size:9px!important;padding:4px 8px!important}
+  .sm-host .sm-t>:not(h4):not(.mm-marca){margin-left:16px!important;margin-right:16px!important}
+  .sm-host .sm-hero{grid-template-columns:1fr auto 1fr!important;gap:6px!important;padding:12px 0!important}.sm-host .sm-hero b{font-size:26px!important}.sm-host .sm-hero small{font-size:10px!important}.sm-host .sm-hero i{font-size:10px!important;padding:5px 7px!important}
+  .sm-host .sm-tabla{padding:5px 9px!important}.sm-host .sm-fila{grid-template-columns:1.3fr 1fr 1fr .7fr!important;font-size:13px!important}.sm-host .sm-fila.cab{font-size:9px!important}
+  .sm-datos{grid-template-columns:repeat(2,minmax(0,1fr))!important}.sm-datos b{font-size:16px}
+  .sm-amb b{font-size:22px}.sm-host .sm-pregunta{font-size:14px!important}
+  .sm-host .sm-op{gap:8px}.sm-host .sm-op>div{min-width:0}.sm-host .sm-op b{font-size:14px!important}.sm-host .sm-op small{font-size:11px!important}.sm-tag{display:block;width:max-content;margin:3px 0 0}
+  .sm-host .sm-igualar,.sm-host .sm-suma{width:calc(100% - 32px)!important;height:auto!important;min-height:36px;white-space:normal;line-height:1.2;padding:8px 12px!important}
+  .sm-host:not(.vista-lista) .mm-lista{grid-auto-rows:auto}.sm-host:not(.vista-lista) .sm-t{height:auto}
+  }
+  .sm-host .sm-op.cerca{border-color:rgba(208,244,76,.6)!important;background:rgba(208,244,76,.07)!important}.sm-tag{display:inline-block;margin-left:6px;padding:2px 6px;border-radius:5px;background:var(--lima,#d0f44c);color:#18220c;font:800 8px Arial;font-style:normal;letter-spacing:.05em;vertical-align:middle}
+  @media(max-width:600px){.sm-acciones>*{height:40px}.sm-acciones .mm-b{flex:1;justify-content:center}.sm-control .sm-metrica span{font-size:8px}}
   `;
 
   const api = async (url, opciones) => {
@@ -95,13 +162,22 @@
     const vivas = (t.bodegas || []).filter(b => b.panel || b.effi);   // las bodegas en cero en los dos lados no se muestran
     const filas = vivas.map(b => '<div class="sm-fila"><span>' + esc(b.nombre) + '</span><span>' + num(b.panel) + '</span><span>' + num(b.effi) + '</span><span class="d ' + (b.delta > 0 ? 'mas' : b.delta < 0 ? 'menos' : '') + '">' + (Math.abs(b.delta) < 0.01 ? '=' : sg(b.delta)) + '</span></div>').join('');
     const boton = (t.estado === 'ajustar' || t.estado === 'grande') ? '<button type="button" class="mm-bt env sm-igualar" data-sm-ajustar="' + esc(t.codigo) + '" data-grande="' + (t.estado === 'grande' ? 1 : 0) + '" data-tela="' + esc(t.tela) + '">IGUALAR EN EFFI</button>' : '';
+    // Datos extra de la tela: rollos, bodegas con stock, último ajuste y cambio en espera
+    const ult = (datos.ajustes || []).find(h => h.codigo === t.codigo);
+    const espera = (datos.cambios || []).filter(c => c.codigo === t.codigo);
+    const datosT = (t.estado === 'sin_articulo' || t.estado === 'ambiguo') ? '' : '<div class="sm-datos">' +
+      '<span><small>ROLLOS</small><b>' + (t.rollos || 0) + '</b>' + (t.empezados ? '<i class="emp">' + t.empezados + ' empezado' + (t.empezados > 1 ? 's' : '') + '</i>' : '') + '</span>' +
+      '<span><small>BODEGAS</small><b>' + vivas.filter(b => b.panel).length + '</b></span>' +
+      '<span><small>ÚLTIMO AJUSTE</small><b>' + (ult ? (ult.estado === 'hecho' ? '' : '✕ ') + sg(ult.delta) + ' mts' : '—') + '</b>' + (ult ? '<i>' + (ult.tipo === 'a_panel' ? esc(ult.at) : hora(ult.at)) + ' · ' + esc(ult.bodega) + '</i>' : '') + '</span>' +
+      (espera.length ? '<span class="esp"><small>EN ESPERA</small><b>' + espera.map(c => sg(c.delta)).join(' / ') + ' mts</b><i>' + esc(espera.map(c => c.bodega_nombre).join(', ')) + '</i></span>' : '') +
+      '</div>';
     const dif = Math.round((t.diferencia || 0) * 100) / 100;
     const cuerpo = t.estado === 'ambiguo'
-      ? '<p class="sm-pregunta">El código <b>' + esc(t.codigo) + '</b> lo usan ' + (t.opciones || []).length + ' telas del panel. ¿Cuál es la de este artículo de Effi?</p><div class="sm-opciones">' + (t.opciones || []).map(o => '<div class="sm-op"><div><b>' + esc(o.nombre) + '</b><small>' + num(o.mts) + ' mts en el panel</small></div><button type="button" class="mm-bt" data-sm-asignar="una" data-codigo="' + esc(t.codigo) + '" data-nombre="' + esc(o.nombre) + '">ES ESTA</button></div>').join('') + '</div><button type="button" class="mm-bt env sm-suma" data-sm-asignar="suma" data-codigo="' + esc(t.codigo) + '">SON LA MISMA TELA · SUMAR LAS ' + (t.opciones || []).length + ' (' + num(t.panel) + ' mts)</button><div class="sm-nota-pie">Mientras no elijas, STOCKMAN no toca esta tela.</div>'
+      ? '<div class="sm-amb"><span><small>EFFI TIENE</small><b>' + num(t.effi) + '<em>MTS</em></b></span><span><small>SUMANDO LAS ' + (t.opciones || []).length + '</small><b>' + num(t.panel) + '<em>MTS</em></b></span></div><p class="sm-pregunta">El código <b>' + esc(t.codigo) + '</b> lo usan ' + (t.opciones || []).length + ' telas del panel. ¿Cuál es la de este artículo de Effi?</p><div class="sm-opciones">' + (t.opciones || []).map(o => { const d = Math.round((o.mts - (t.effi || 0)) * 100) / 100, cerca = (t.opciones || []).every(x => Math.abs(x.mts - (t.effi || 0)) >= Math.abs(d)); return '<div class="sm-op' + (cerca ? ' cerca' : '') + '"><div><b>' + esc(o.nombre) + (cerca ? ' <i class="sm-tag">MÁS PARECIDA A EFFI</i>' : '') + '</b><small>' + num(o.mts) + ' mts en el panel · ' + (Math.abs(d) < 0.01 ? 'igual a Effi' : sg(d) + ' mts vs Effi') + '</small></div><button type="button" class="mm-bt" data-sm-asignar="una" data-codigo="' + esc(t.codigo) + '" data-nombre="' + esc(o.nombre) + '">ES ESTA</button></div>'; }).join('') + '</div><button type="button" class="mm-bt env sm-suma" data-sm-asignar="suma" data-codigo="' + esc(t.codigo) + '">SON LA MISMA TELA · SUMAR LAS ' + (t.opciones || []).length + ' (' + num(t.panel) + ' mts)</button><div class="sm-nota-pie">Mientras no elijas, STOCKMAN no toca esta tela.</div>'
       : t.estado === 'sin_articulo'
       ? '<div class="mm-nota">Effi no tiene un artículo con esta referencia exacta. Escribe su «ID Effi» en INFORMACIÓN TELA.</div>'
       : '<div class="sm-hero"><div><small>PANEL · METROS</small><b>' + num(t.panel) + '<em>MTS</em></b></div><i class="' + (Math.abs(dif) < 0.01 ? 'ok' : dif > 0 ? 'mas' : 'menos') + '">' + (Math.abs(dif) < 0.01 ? '✔ IGUAL' : sg(dif) + ' mts') + '</i><div class="der"><small>EFFI · METROS</small><b>' + num(t.effi) + '<em>MTS</em></b></div></div>' +
-        (vivas.length ? '<div class="sm-tabla"><div class="sm-fila cab"><span>BODEGA</span><span>PANEL (MTS)</span><span>EFFI (MTS)</span><span>DIF. (MTS)</span></div>' + filas + '</div>' : '') + boton;
+        (vivas.length ? '<div class="sm-tabla"><div class="sm-fila cab"><span>BODEGA</span><span>PANEL (MTS)</span><span>EFFI (MTS)</span><span>DIF. (MTS)</span></div>' + filas + '</div>' : '') + datosT + boton;
     const elegida = t.varias && t.estado !== 'ambiguo' ? '<div class="sm-nota-pie">Tela del panel: <b>' + esc(t.item_panel) + '</b>' + (t.asignada ? ' · elegida por ti' : ' · escogida por nombre') + ' · <a href="#" data-sm-asignar="auto" data-codigo="' + esc(t.codigo) + '">cambiar</a></div>' : '';
     return '<article class="mm-glass mm-t sm-t ' + tono + '" style="animation-delay:' + Math.min(i * 25, 300) + 'ms"><h4><span>' + esc(t.tela) + '<small>CÓD. ' + esc(t.codigo) + (t.id_effi ? ' <span class="sm-id">ID EFFI ' + esc(t.id_effi) + '</span>' : '') + '</small></span><em>' + txt + '</em></h4>' + cuerpo + elegida + '<img class="mm-marca" src="/marca-indoor.svg" alt="" aria-hidden="true"></article>';
   }
@@ -113,7 +189,7 @@
     lista.sort((x, y) => (y.panel || 0) - (x.panel || 0) || String(x.tela).localeCompare(String(y.tela)));   // primero la tela con MAYOR stock en el panel
     const aviso = filtro === 'sin_articulo' && datos.agente.error ? '<div class="mm-nota" style="margin-bottom:10px">' + esc(datos.agente.error) + '</div>' : '';
     host.classList.toggle('vista-lista', vista === 'lista');
-    const rotulo = { ajustar: 'diferencias por resolver', igual: 'artículos conciliados', sin_articulo: 'artículos sin referencia en Effi', todo: 'artículos en seguimiento' }[filtro] || 'artículos';
+    const rotulo = { ajustar: 'por revisar', igual: 'verificados', sin_articulo: 'sin ID de Effi', todo: 'en total' }[filtro] || 'artículos';
     host.innerHTML = '<div class="sm-subbarra"><b><strong>' + lista.length + '</strong> ' + rotulo + '</b><span>Ordenados por mayor stock · ' + (vista === 'lista' ? 'vista compacta' : 'vista por tarjetas') + '</span></div>' + aviso + (lista.length ? '<div class="mm-lista">' + lista.map(tarjeta).join('') + '</div>' : '<div class="mm-vacio">' + (filtro === 'ajustar' ? 'Nada por igualar: el stock del panel y el de Effi coinciden.' : 'No hay telas con ese filtro.') + '</div>');
   }
 
@@ -140,14 +216,34 @@
     if (foco && foco.matches && foco.matches('[data-sm-buscar]') && panel.contains(foco)) { pintarLista(); return; }
     const a = datos.agente, r = datos.resumen, activo = !!a.activo;
     const total = Math.max(r.telas || 0, 1);
-    const kpi = (k, n, rotulo) => '<button type="button" class="sm-metrica' + (filtro === k ? ' on' : '') + '" data-sm-filtro="' + k + '"><b>' + n + '</b><span>' + rotulo + '</span></button>';
+    const TONO = { ajustar: 'ambar', igual: 'verde', sin_articulo: 'rojo', todo: 'gris' };
+    const kpi = (k, n, rotulo) => '<button type="button" class="sm-metrica' + (filtro === k ? ' on' : '') + '" data-sm-filtro="' + k + '" data-tono="' + TONO[k] + '"><b data-sm-cuenta="' + n + '">' + n + '</b><span>' + rotulo + '</span></button>';
+    const ficha = (k, n, rotulo) => '<button type="button" class="smb-ficha' + (filtro === k ? ' on' : '') + '" data-sm-filtro="' + k + '" data-tono="' + TONO[k] + '"><b data-sm-cuenta="' + n + '">' + n + '</b><span>' + rotulo + '</span></button>';
     panel.querySelector('.mm').innerHTML =
-      '<div class="sm-control"><section class="mm-glass sm-intro"><div class="sm-intro-top"><img class="mm-logo" src="/marca-indoor.svg" alt="Indoor"><span class="sm-live"><i></i>' + (activo ? 'SINCRONIZACIÓN ACTIVA' : 'SINCRONIZACIÓN PAUSADA') + '</span></div><h2>Control de artículos</h2><p>Compara por bodega el inventario del panel con Effi.</p><small>Actualizado ' + hora(a.ultima) + '</small></section>' +
-      '<section class="sm-metricas">' + kpi('ajustar', r.ajustar + r.grande + (r.ambiguo || 0), 'POR REVISAR') + kpi('igual', r.igual, 'CONCILIADOS') + kpi('sin_articulo', r.sin_articulo, 'SIN ARTÍCULO') + kpi('todo', r.telas, 'TOTAL') + '</section>' +
-      '<section class="mm-glass sm-acciones"><div class="mm-sw' + (activo ? ' on' : '') + '"><i></i><span>' + (activo ? 'ACTIVO' : 'APAGADO') + '</span><button type="button" data-sm-activar="' + (activo ? 0 : 1) + '" aria-label="Activar o apagar STOCKMAN"></button></div><button type="button" class="mm-b" data-sm-revisar' + (ocupado ? ' disabled' : '') + '>↻ ' + (ocupado ? 'REVISANDO…' : 'REVISAR') + '</button><div class="sm-vistas"><button type="button" data-sm-vista="tarjetas" class="' + (vista === 'tarjetas' ? 'on' : '') + '">▦ TARJETAS</button><button type="button" data-sm-vista="lista" class="' + (vista === 'lista' ? 'on' : '') + '">☰ LISTA</button></div></section></div>' +
-      '<div class="mm-glass mm-top sm-buscador"><div class="mm-busca"><input type="search" data-sm-buscar placeholder="Buscar por tela, código o artículo…" value="' + esc(buscar) + '" autocomplete="off"></div></div>' +
+      '<div class="smb">' +
+        '<div class="smb-marca"><img class="mm-logo" src="/marca-indoor.svg" alt="Indoor"><small>Revisado<br><b>' + hora(a.ultima) + '</b></small></div>' +
+        '<div class="mm-sw smb-sw' + (activo ? ' on' : '') + '"><i></i><span>' + (activo ? 'ACTIVO' : 'APAGADO') + '</span><button type="button" data-sm-activar="' + (activo ? 0 : 1) + '" aria-label="Activar o apagar STOCKMAN"></button></div>' +
+        '<button type="button" class="smb-btn" data-sm-revisar' + (ocupado ? ' disabled' : '') + '>↻ ' + (ocupado ? 'REVISANDO…' : 'REVISAR') + '</button>' +
+        '<span class="smb-esp"></span>' +
+        '<div class="smb-fichas">' + ficha('ajustar', r.ajustar + r.grande + (r.ambiguo || 0), 'POR REVISAR') + ficha('igual', r.igual, 'VERIFICADO') + ficha('sin_articulo', r.sin_articulo, 'SIN ID') + ficha('todo', r.telas, 'TODO') + '</div>' +
+        '<div class="smb-vistas"><button type="button" data-sm-vista="tarjetas" class="' + (vista === 'tarjetas' ? 'on' : '') + '" title="Tarjetas">▦</button><button type="button" data-sm-vista="lista" class="' + (vista === 'lista' ? 'on' : '') + '" title="Lista">☰</button></div>' +
+        '<label class="smb-busca"><input type="search" data-sm-buscar placeholder="Buscar…" value="' + esc(buscar) + '" autocomplete="off"></label>' +
+      '</div>' +
       actividad() + '<div class="mm-cuerpo"><div class="sm-host"></div></div>';
     pintarLista();
+    contar();
+  }
+
+  // Los números de arriba cuentan desde su valor anterior hasta el nuevo
+  const previos = {};
+  function contar() {
+    panel.querySelectorAll('[data-sm-cuenta]').forEach(el => {
+      const k = el.closest('[data-sm-filtro]').dataset.smFiltro, fin = Number(el.dataset.smCuenta), ini = previos[k] ?? 0;
+      previos[k] = fin;
+      if (ini === fin || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      const t0 = performance.now(), paso = now => { const p = Math.min(1, (now - t0) / 600), e = 1 - Math.pow(1 - p, 3); el.textContent = Math.round(ini + (fin - ini) * e); if (p < 1) requestAnimationFrame(paso); };
+      requestAnimationFrame(paso);
+    });
   }
 
   async function cargar() {
@@ -176,7 +272,7 @@
       document.querySelectorAll('.panel').forEach(x => x.classList.toggle('active', x === panel));
       document.body.classList.remove('inicio-mode', 'inventory-mode', 'production-mode', 'schedule-mode', 'operarios-mode', 'cartera-mode', 'trace-cards-mode');
       firma = ''; cargar(); clearInterval(timer);
-      timer = setInterval(() => { if (panel.classList.contains('active') && !document.hidden) cargar(); }, 20000);
+      timer = setInterval(() => { if (panel.classList.contains('active') && !document.hidden) cargar(); }, 6000);
     });
     const marcar = () => document.body.classList.toggle('sm-modo', panel.classList.contains('active'));
     new MutationObserver(marcar).observe(panel, { attributes: true, attributeFilter: ['class'] }); marcar();

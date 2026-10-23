@@ -55,6 +55,38 @@ def _guardar(d: dict) -> None:
     tmp.replace(_file)
 
 
+# Directorio de proveedores: los datos de contacto que se escriben al registrar un proveedor en una tela quedan guardados por proveedor,
+# para que al escogerlo en otra tela salga en la lista y sus datos se llenen solos.
+_dir_file = _file.with_name('proveedores_directorio.json')
+CAMPOS_DIRECTORIO = ('vendedor', 'wpp', 'correo')
+
+
+def directorio() -> dict:
+    try:
+        d = json.loads(_dir_file.read_text(encoding='utf-8'))
+        return d if isinstance(d, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _anotar_en_directorio(g: dict) -> None:
+    """Guarda o completa el proveedor de la tela en el directorio (solo pisa un dato si viene escrito)."""
+    nombre = str(g.get('proveedor') or '').strip()
+    if not nombre:
+        return
+    d = directorio()
+    p = dict(d.get(nombre) or {})
+    for campo in CAMPOS_DIRECTORIO:
+        if g.get(campo):
+            p[campo] = g[campo]
+    p['actualizado'] = time.strftime('%Y-%m-%d %H:%M:%S')
+    d[nombre] = p
+    _dir_file.parent.mkdir(parents=True, exist_ok=True)
+    tmp = _dir_file.with_suffix('.tmp')
+    tmp.write_text(json.dumps(d, ensure_ascii=False, indent=1), encoding='utf-8')
+    tmp.replace(_dir_file)
+
+
 def codigo_de(texto: str) -> str:
     """«(700) TOUR ...» -> '700'."""
     m = re.match(r'\s*\((\d+)\)', str(texto or ''))
@@ -70,12 +102,48 @@ CAMPOS_EXTRA = ('composicion', 'gramaje', 'tipo', 'stock_minimo', 'stock_maximo'
 _NO_PROVEEDOR = {'VARIAS', 'DON ALVEIRO', ''}   # «VARIAS» no es un proveedor y DON ALVEIRO es otra empresa: no se sugieren
 
 
+# Razón social y NIT de cada proveedor, tal como salen en sus facturas electrónicas. El proveedor de INFORMACIÓN TELA se muestra y
+# se guarda con la razón social; los nombres cortos de siempre (los del Sheet o los escritos antes) se reconocen como alias.
+RAZONES_SOCIALES = (
+    ('TEJIDOS DE PUNTO LINDATEXTIL S.A.S.', '901018972-1', ('LINDATEXTIL', 'LINDA TEXTIL', 'TEJIDOS DE PUNTO LINDATEXTIL')),
+    ('TEXTILES LAFAYETTE SAS', '860001965', ('LAFAYETTE', 'LA FAYETTE', 'TELAS LAFAYETTE', 'TEXTILES LAFAYETTE')),
+    ('MANUFACTURAS ELIOT S.A.S', '860000452', ('ELIOT', 'MANUFACTURAS ELIOT')),
+    ('SARAXY S.A.S', '900306394-6', ('SARAXY',)),
+    ('MERCANTIL DE TEXTILES S.A.S.', '890914669', ('MERCANTIL DE TEXTILES', 'MERCANTIL')),
+    ('COMERCIALIZADORA SPIRIT SAS', '901208883-1', ('SPIRIT', 'TEXTILES SPIRIT', 'COMERCIALIZADORA SPIRIT')),
+)
+
+
+def _clave(texto) -> str:
+    t = re.sub(r'[^A-Z0-9 ]', ' ', str(texto or '').upper())
+    t = re.sub(r'\b(S ?A ?S|SAS|S A|LTDA)\b', ' ', t)
+    return re.sub(r'\s+', ' ', t).strip()
+
+
+def razon_social(texto) -> tuple[str, str] | None:
+    """(razón social, NIT) del proveedor si se reconoce por su nombre corto o por su razón social; si no, None."""
+    k = _clave(texto)
+    if not k:
+        return None
+    for razon, nit, alias in RAZONES_SOCIALES:
+        if k == _clave(razon) or k in {_clave(a) for a in alias}:
+            return razon, nit
+    return None
+
+
+def alias_de(texto) -> list[str]:
+    """Nombres cortos de un proveedor (para buscarlo en Effi si allá está registrado con otro nombre)."""
+    r = razon_social(texto)
+    return [a for razon, _nit, alias in RAZONES_SOCIALES if r and razon == r[0] for a in alias]
+
+
 def _prov_inventario(texto) -> str:
     """Proveedor que dice el inventario (el encabezado de columna del Sheet), con el nombre como se guarda en Effi."""
     t = re.sub(r'\s+', ' ', str(texto or '')).strip().upper()
     if t in _NO_PROVEEDOR or t.startswith('CAMPO '):
         return ''
-    return {'LINDA TEXTIL': 'LINDATEXTIL'}.get(t, t)
+    r = razon_social(t)
+    return r[0] if r else t
 
 
 def telas() -> list[dict]:
@@ -107,9 +175,20 @@ def telas() -> list[dict]:
         g = guardado.get(c) or {}
         t['referencias'] = refs.get(c, [])
         t.update(proveedor=g.get('proveedor', ''), nit=g.get('nit', ''), ancho=g.get('ancho', ''), id_effi=g.get('id_effi', ''))
+        r = razon_social(t['proveedor'])
+        if r:   # los guardados con el nombre corto se muestran con su razón social
+            t['proveedor'] = r[0]
+        inv = t.get('prov_inventario') or ''
+        if not t['proveedor'] and inv and not re.search(r'\s-\s', inv):   # sin proveedor elegido: el del inventario (la columna del Sheet), si es uno solo
+            t['proveedor'] = inv
+            t['proveedor_auto'] = True
         t.update({k: g.get(k, '') for k in CAMPOS_EXTRA})   # datos opcionales de la ficha de la tela
         try:   # para los agentes: el precio como número, aunque en la tarjeta se muestre tal como se escribió
             t['precio_num'] = _numero(str(t.get('precio_sin_iva') or '')) if t.get('precio_sin_iva') else None
+            if t.get('gramaje'):
+                t['gramaje'] = formato_num(_numero(str(t['gramaje']), 'gramaje'))   # los guardados antes también con el mismo formato
+            if t['precio_num'] is not None:
+                t['precio_sin_iva'] = formato_cop(t['precio_num'])   # los escritos antes de otra forma también se ven igual
         except HTTPException:
             t['precio_num'] = None
         t['faltan'] = [n for n, v in (('proveedor', t['proveedor']), ('ancho', t['ancho'])) if not v]   # los 4 datos obligatorios: nombre y código siempre vienen del inventario
@@ -123,18 +202,29 @@ def _limpiar_extra(campo: str, valor) -> str:
     if campo in ('gramaje', 'precio_sin_iva', 'stock_minimo', 'stock_maximo'):
         n = _numero(texto, campo)
         if campo == 'precio_sin_iva':
-            return texto[:30]   # el precio se guarda y se muestra TAL COMO SE ESCRIBIÓ (solo se valida que sea un número)
+            return formato_cop(n)   # el precio siempre en pesos colombianos, sin importar cómo se copió: «$ 7.930»
+        if campo == 'gramaje':
+            return formato_num(n)   # igual que el precio: «147», «147,5», «1.200» (la tarjeta le agrega « g/m²»)
         return format(n, '.4f').rstrip('0').rstrip('.')   # gramaje y stocks (metros) se guardan como número limpio
     return _limpiar_texto(campo, texto)
 
 
 def _numero(texto: str, campo: str = 'precio_sin_iva') -> float:
-    """Lee un número escrito a la colombiana o con punto decimal («$ 18.500», «7,93», «1.250.000», «150»)."""
-    numero = texto.replace('$', '').replace(' ', '')
-    if re.fullmatch(r'\d{1,3}(\.\d{3})+(,\d+)?', numero):   # 12.500 o 1.250.000,50 (formato colombiano)
-        numero = numero.replace('.', '').replace(',', '.')
-    else:
-        numero = numero.replace(',', '.')
+    """Lee un número escrito de cualquier forma: a la colombiana («$ 18.500», «1.250.000,50», «7,93»), a la gringa («$7,930.50»),
+    sin separadores («7930») o con moneda («COP 7.930»). Con punto y coma a la vez, el último es el decimal; con uno solo,
+    si todos los grupos que le siguen tienen 3 cifras es de miles, si no es decimal."""
+    m = re.search(r'-?\d[\d.,\s]*', str(texto))   # solo el primer número (así «147 g/m2» no se lleva el 2 de la unidad)
+    numero = re.sub(r'\s', '', m.group()).rstrip('.,') if m else ''
+    if '.' in numero and ',' in numero:
+        dec = '.' if numero.rfind('.') > numero.rfind(',') else ','
+        numero = numero.replace(',' if dec == '.' else '.', '').replace(dec, '.')
+    elif '.' in numero or ',' in numero:
+        sep = '.' if '.' in numero else ','
+        partes = numero.split(sep)
+        if len(partes) > 1 and all(len(p) == 3 for p in partes[1:]) and partes[0].lstrip('-'):
+            numero = ''.join(partes)   # 7.930 / 1.250.000 / 7,930 → miles
+        else:
+            numero = ''.join(partes[:-1]) + '.' + partes[-1]   # 7,93 / 18.5 → decimal
     try:
         n = float(numero)
     except ValueError:
@@ -142,6 +232,20 @@ def _numero(texto: str, campo: str = 'precio_sin_iva') -> float:
     if n < 0 or n > 100000000:
         raise HTTPException(400, 'Valor fuera de rango')
     return n
+
+
+def formato_num(n: float) -> str:
+    """Número a la colombiana: miles con punto y decimales con coma, sin ceros de sobra («147», «147,5», «1.200»)."""
+    entero, cent = divmod(round(float(n) * 100), 100)
+    texto = f'{int(entero):,}'.replace(',', '.')
+    return texto + (f',{int(cent):02d}'.rstrip('0') if cent else '')
+
+
+def formato_cop(n: float) -> str:
+    """Pesos colombianos: «$ 7.930» (miles con punto; centavos con coma solo si los hay: «$ 7.930,50»)."""
+    entero, cent = divmod(round(float(n) * 100), 100)
+    texto = '$ ' + f'{int(entero):,}'.replace(',', '.')
+    return texto + (f',{int(cent):02d}' if cent else '')
 
 
 def _limpiar_texto(campo: str, texto: str) -> str:
@@ -160,7 +264,14 @@ def _limpiar_texto(campo: str, texto: str) -> str:
 @router.get('')
 def listar():
     t = telas()
-    return {'telas': t, 'proveedores': sorted({x['proveedor'] for x in t if x['proveedor']})}
+    dire = directorio()
+    for x in t:   # los contactos ya escritos en las telas también sirven (sin pisar lo del directorio)
+        if x['proveedor'] and any(x.get(c) for c in CAMPOS_DIRECTORIO):
+            p = dire.setdefault(x['proveedor'], {})
+            for c in CAMPOS_DIRECTORIO:
+                if x.get(c) and not p.get(c):
+                    p[c] = x[c]
+    return {'telas': t, 'proveedores': sorted({x['proveedor'] for x in t if x['proveedor']} | {r[0] for r in RAZONES_SOCIALES} | set(dire)), 'directorio': dire}
 
 
 @router.put('')
@@ -174,6 +285,9 @@ def guardar(payload: dict, request: Request):
         if 'proveedor' in payload:   # lo que no viene en la petición se conserva (el ancho y el proveedor se guardan por separado)
             g['proveedor'] = str(payload.get('proveedor') or '').strip()[:120]
             g['nit'] = str(payload.get('nit', g.get('nit', '')) or '').strip()[:30]
+            r = razon_social(g['proveedor'])
+            if r:   # se guarda con la razón social de la factura
+                g['proveedor'] = r[0]
         if 'ancho' in payload:
             texto = str(payload.get('ancho') or '').strip().replace(',', '.')
             if texto:
@@ -196,7 +310,13 @@ def guardar(payload: dict, request: Request):
         if g.get('proveedor') or g.get('ancho') or g.get('id_effi') or any(g.get(c) for c in CAMPOS_EXTRA):
             g['actualizado'] = time.strftime('%Y-%m-%d %H:%M:%S')
             d[codigo] = g
+            _anotar_en_directorio(g)
         else:
             d.pop(codigo, None)
         _guardar(d)
+    try:
+        from app import tiempo_real
+        tiempo_real.avisar('info_tela')   # los agentes se enteran al instante
+    except Exception:   # noqa: BLE001
+        pass
     return {'ok': True}

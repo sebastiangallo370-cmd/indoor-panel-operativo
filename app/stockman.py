@@ -197,7 +197,8 @@ def _stock_panel_detalle() -> dict[str, list[dict]]:
             reparto = {BODEGAS[inventario_api.DEFAULT_PLACE]: total}
         elif total >= 0 and suma > 0 and abs(suma - total) > 0.01:
             reparto = {b: v * total / suma for b, v in reparto.items()}   # las salidas se reparten en proporción entre las bodegas
-        por_codigo.setdefault(codigo, []).append({'nombre': re.sub(r'^\s*\(\d+\)\s*', '', str(t.get('nombre') or '')).strip(), 'bodegas': {b: round(v, 2) for b, v in reparto.items()}, 'total': total})
+        por_codigo.setdefault(codigo, []).append({'nombre': re.sub(r'^\s*\(\d+\)\s*', '', str(t.get('nombre') or '')).strip(), 'bodegas': {b: round(v, 2) for b, v in reparto.items()}, 'total': total,
+                                           'rollos': len(t.get('rollos') or []), 'empezados': sum(1 for r in t.get('rollos') or [] if r.get('estado') == 'started')})
     return por_codigo
 
 
@@ -212,7 +213,8 @@ def _elegir(codigo: str, candidatos: list[dict], nombre_effi: str, asignacion: d
             for c in candidatos:
                 for b, v in c['bodegas'].items():
                     juntas[b] = round(juntas.get(b, 0.0) + v, 2)
-            return {'nombre': ' + '.join(c['nombre'] for c in candidatos), 'bodegas': juntas, 'total': round(sum(c['total'] for c in candidatos), 2)}, candidatos
+            return {'nombre': ' + '.join(c['nombre'] for c in candidatos), 'bodegas': juntas, 'total': round(sum(c['total'] for c in candidatos), 2),
+                    'rollos': sum(c.get('rollos', 0) for c in candidatos), 'empezados': sum(c.get('empezados', 0) for c in candidatos)}, candidatos
         elegida = next((c for c in candidatos if c['nombre'] == asignacion.get('nombre')), None)
         if elegida:
             return elegida, candidatos
@@ -252,6 +254,8 @@ def evaluar() -> list[dict]:
             continue
         if v:
             fila['item_panel'] = elegido['nombre'] if elegido else ''
+            fila['rollos'] = (elegido or {}).get('rollos', 0)
+            fila['empezados'] = (elegido or {}).get('empezados', 0)
             fila['asignada'] = (d['asignaciones'].get(codigo) or {}).get('modo', '')
             fila['varias'] = len(opciones) > 1
             pan, efi = (elegido['bodegas'] if elegido else {}), v.get('stock_effi') or {}
@@ -680,17 +684,33 @@ def actualizar(request: Request):
     return refrescar_nombres()
 
 
+_completo_pedido = threading.Event()   # INFORMACIÓN TELA cambió: la próxima vuelta lee de nuevo todos los artículos de Effi
+MIN_ENTRE = 10
+
+
+def despertar(motivo: str = '') -> None:
+    """Algo que STOCKMAN usa cambió: INFORMACIÓN TELA (ID de Effi, nombres) o el inventario del panel. Despierta ya, sin esperar los 2 minutos."""
+    if motivo == 'info_tela':
+        _completo_pedido.set()
+    _despertar.set()
+
+
 def _bucle() -> None:
     time.sleep(90)
     while True:
         try:
-            ciclo()
+            completo = _completo_pedido.is_set()
+            _completo_pedido.clear()
+            ciclo(completo=completo)
         except Exception:   # noqa: BLE001
             log.exception('STOCKMAN: fallo en el ciclo')
+        time.sleep(MIN_ENTRE)
         if _despertar.wait(CICLO):   # un aviso de Effi (webhook) lo despierta ya; si no, revisa cada 2 minutos
             _despertar.clear()
             time.sleep(3)   # unos segundos para que Effi termine de guardar el ajuste
 
 
 def start() -> None:
+    from app import tiempo_real
+    tiempo_real.suscribir(despertar)
     threading.Thread(target=_bucle, name='stockman', daemon=True).start()

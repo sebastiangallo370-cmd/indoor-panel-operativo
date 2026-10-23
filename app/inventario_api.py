@@ -920,6 +920,11 @@ def _refresh_snapshot() -> None:
         payload = _read_inventory()
         _save_snapshot(payload)
         _cache.update({"at": time.monotonic(), "data": payload})
+        try:
+            from app import tiempo_real
+            tiempo_real.avisar('inventario')   # MINIMAXIMAN y STOCKMAN se enteran del cambio al instante
+        except Exception:   # noqa: BLE001
+            pass
     except Exception:
         _cache.update({'at': 0.0, 'data': None})
 
