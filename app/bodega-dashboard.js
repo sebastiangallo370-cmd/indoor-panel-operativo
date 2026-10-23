@@ -145,6 +145,23 @@ html body .bd .ot-flujo b.falta{color:#f0a89d!important;-webkit-text-fill-color:
 .bd .ot-medidor::after{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent 30%,rgba(255,255,255,.35) 50%,transparent 70%);transform:translateX(-120%);animation:otBrilla 3.4s ease-in-out infinite 1.2s}
 @keyframes otLlena{from{width:0}}@keyframes otBrilla{55%,100%{transform:translateX(120%)}}
 @media(prefers-reduced-motion:reduce){.bd .ot-medidor i,.bd .ot-medidor::after{animation:none}}
+.bd .ot-bodega.nuevo{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:4px 14px;align-items:center;margin:10px 0 2px;padding:12px 14px 10px;border-radius:16px;background:linear-gradient(150deg,rgba(255,255,255,.07),rgba(0,0,0,.18));border:1px solid rgba(255,255,255,.1);transition:border-color .25s,transform .25s,box-shadow .25s}
+.bd .ot-bodega.nuevo:hover{border-color:rgba(207,229,138,.45);box-shadow:0 8px 22px -10px rgba(207,229,138,.35);transform:translateY(-1px)}
+.bd .ot-bodega.nuevo.mal:hover{border-color:rgba(240,168,157,.5);box-shadow:0 8px 22px -10px rgba(240,168,157,.35)}
+.bd .ot-hero small,.bd .ot-lado small{display:block;font:700 .5rem Arial;letter-spacing:.16em;color:#8fa08a!important;opacity:1}
+.bd .ot-hero>div{display:flex;align-items:baseline;gap:6px;margin-top:2px}
+.bd .ot-hero b{font:900 2rem/1 Arial;letter-spacing:-.02em}.bd .ot-hero em{font:800 .65rem Arial;font-style:normal;letter-spacing:.14em;color:#9fb096}
+html body .bd .ot-hero b.desc{color:#f1cf8a!important;-webkit-text-fill-color:#f1cf8a!important}
+.bd .ot-lado{display:grid;gap:8px;padding-left:14px;border-left:1px solid rgba(255,255,255,.1)}
+.bd .ot-lado b{font:800 1rem Arial}
+html body .bd .ot-lado b.hay{color:#a9cdee!important;-webkit-text-fill-color:#a9cdee!important}
+html body .bd .ot-lado b.queda{color:#cfe58a!important;-webkit-text-fill-color:#cfe58a!important}
+html body .bd .ot-lado b.falta{color:#f0a89d!important;-webkit-text-fill-color:#f0a89d!important}
+.bd .ot-bodega.nuevo .ot-medidor{grid-column:1/-1;margin:8px 0 0}
+.bd .ot:has(.ot-bodega.nuevo) .ot-consumo{display:none}
+.bd .ot-dias{display:inline-block;margin-left:8px;padding:2px 9px;border-radius:99px;font:800 .6rem Arial;letter-spacing:.04em;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.08)}
+.bd .ot-dias.ok{color:#cfe58a;border-color:rgba(207,229,138,.5)}.bd .ot-dias.cerca{color:#ffd98a;border-color:rgba(255,217,138,.6);background:rgba(243,184,82,.14)}.bd .ot-dias.tarde{color:#ffb3ac;border-color:rgba(255,107,97,.7);background:rgba(255,107,97,.16)}
+.bd .ot-titulo .ot-tela{font-size:1.15rem}
 .bd .ot-consumo{font:900 1.6rem Arial;line-height:1;letter-spacing:-.01em}
 .bd .ot-consumo small{font:800 .7rem Arial;margin-left:5px;opacity:.85;letter-spacing:.05em}
 .bd .ot-sinprom{font:900 1.15rem Arial;color:#d0f44c!important}
@@ -433,6 +450,12 @@ html body .bd .inventory-item-card.lq,html body .bd .bd-tkpi .lq{background:radi
       const rank = t => { const i = ORD_TALLAS.indexOf(t); return i >= 0 ? i : 100 + (Number(t) || 0); };
       return Object.keys(m).sort((x, y) => rank(x) - rank(y)).map(t => [t, m[t]]);
     };
+    const diasChip = v => {   // días que faltan para la entrega (o de atraso)
+      const d = v ? new Date(v + 'T12:00:00') : null; if (!d || isNaN(d)) return '';
+      const hoy = new Date(); hoy.setHours(12, 0, 0, 0);
+      const n = Math.round((d - hoy) / 86400000);
+      return ' <b class="ot-dias ' + (n < 0 ? 'tarde' : n <= 2 ? 'cerca' : 'ok') + '">' + (n < 0 ? (-n) + (n === -1 ? ' dia de atraso' : ' dias de atraso') : n === 0 ? 'HOY' : n + (n === 1 ? ' dia' : ' dias')) + '</b>';
+    };
     const fechaCorta = v => { const d = v ? new Date(v + 'T12:00:00') : null; return d && !isNaN(d) ? d.toLocaleDateString('es-CO', {day: 'numeric', month: 'short', year: 'numeric'}).replace(/\./g, '') : 'Sin fecha'; };
     // ---- cuánto falta para que la orden llegue a Sublimación: por cada área que aún le falta antes de Sublimación, unidades × minutos por unidad (el de la escalera de Inicio) ----
     const MIN_DIA = 570;   // jornada de 7:00 a. m. a 4:30 p. m. (la misma que usa Inicio para medir)
@@ -568,22 +591,20 @@ html body .bd .inventory-item-card.lq,html body .bd .bd-tkpi .lq{background:radi
       const tit = 'Bodega tiene ' + entero(o.bodega, Math.round) + ' MTS de esta tela en total. Las órdenes se sirven por fecha de entrega: para esta orden quedan disponibles ' + entero(o.disponible || 0, Math.floor) + ' MTS.';
       if (o.situacion === 'sin_promedio') return '<div class="ot-bodega" title="' + esc(tit) + '">Bodega <b class="hay">' + entero(o.bodega, Math.round) + '</b> MTS</div>';
       const comparte = o.compartida_con || [];
-      if (comparte.length && o.situacion !== 'sin_promedio') {   // misma tela en varias órdenes: lo que le toca a ESTA orden, no el total
-        const otras = comparte.join(', ');
-        const dec = v => (Number(v) || 0).toLocaleString('es-CO', {maximumFractionDigits: 2});
-        const casilla = (titulo, valor, cls, n, dec2) => '<div><small>' + titulo + '</small><b class="' + cls + '" data-n="' + n + '" data-dec="' + dec2 + '">' + valor + '</b></div>';
-        const hay = Math.floor(o.disponible || 0), desc = Number(o.mts) || 0;
-        const detalle = o.situacion === 'no_alcanza'
-          ? casilla('En bodega', entero(o.disponible, Math.floor), 'hay', hay, 0) + casilla('Descuenta', dec(o.mts), 'desc', desc, 2) + casilla('Faltan', entero(o.falta, Math.ceil), 'falta', Math.ceil(o.falta || 0), 0)
-          : casilla('En bodega', entero(o.disponible, Math.floor), 'hay', hay, 0) + casilla('Descuenta', dec(o.mts), 'desc', desc, 2) + casilla('Queda', entero(o.quedan, Math.floor), 'queda', Math.floor(o.quedan || 0), 0);
-        // medidor: lo que queda (lima) y, al final, la parte que descuenta esta orden (ámbar); si no alcanza, lo que cubre la bodega (coral)
-        const pQueda = hay ? Math.max(0, Math.min(100, (Number(o.quedan) || 0) / hay * 100)) : 0, pDesc = hay ? Math.max(2.5, Math.min(100, desc / hay * 100)) : 0;
-        const medidor = o.situacion === 'no_alcanza'
-          ? '<div class="ot-medidor mal"><i class="c" style="--w:' + Math.max(3, Math.min(100, o.mts ? hay / o.mts * 100 : 0)).toFixed(1) + '%"></i></div>'
-          : '<div class="ot-medidor"><i class="q" style="--w:' + Math.min(pQueda, 100 - pDesc).toFixed(1) + '%"></i><i class="d" style="--w:' + pDesc.toFixed(1) + '%"></i></div>';
-        return '<div class="ot-bodega comparte" title="' + esc('Esta tela también la usan ' + otras + '. Se sirven por fecha de entrega: cada una descuenta de lo que queda.') + '">' +
-          '<div class="ot-flujo">' + detalle + '</div>' + medidor + '</div>';   // sin la leyenda «Misma tela que…»: queda solo en el texto al pasar el mouse
-      }
+      const dec = v => (Number(v) || 0).toLocaleString('es-CO', {maximumFractionDigits: 2});
+      const faltan = o.situacion === 'no_alcanza', base = comparte.length ? (o.disponible || 0) : (o.bodega || 0);   // si otras órdenes usan la misma tela, lo que le toca a ESTA; si no, el total de Bodega
+      const hay = Math.floor(base), desc = Number(o.mts) || 0;
+      const lado = (titulo, valor, cls, n) => '<div><small>' + titulo + '</small><b class="' + cls + '" data-n="' + n + '" data-dec="0">' + valor + '</b></div>';
+      // medidor: lo que queda (lima) y, al final, la parte que descuenta esta orden (ámbar); si no alcanza, lo que cubre la bodega (coral)
+      const pQueda = hay ? Math.max(0, Math.min(100, (Number(o.quedan) || 0) / hay * 100)) : 0, pDesc = hay ? Math.max(2.5, Math.min(100, desc / hay * 100)) : 0;
+      const medidor = faltan
+        ? '<div class="ot-medidor mal"><i class="c" style="--w:' + Math.max(3, Math.min(100, o.mts ? hay / o.mts * 100 : 0)).toFixed(1) + '%"></i></div>'
+        : '<div class="ot-medidor"><i class="q" style="--w:' + Math.min(pQueda, 100 - pDesc).toFixed(1) + '%"></i><i class="d" style="--w:' + pDesc.toFixed(1) + '%"></i></div>';
+      const tt = comparte.length ? 'Esta tela también la usan ' + comparte.join(', ') + '. Se sirven por fecha de entrega: cada una descuenta de lo que queda.' : tit;
+      return '<div class="ot-bodega nuevo' + (faltan ? ' mal' : '') + '" title="' + esc(tt) + '">' +
+        '<div class="ot-hero"><small>' + (faltan ? 'NECESITA' : 'DESCUENTA') + '</small><div><b class="desc" data-n="' + desc + '" data-dec="2">' + dec(o.mts) + '</b><em>MTS</em></div></div>' +
+        '<div class="ot-lado">' + lado('En bodega', entero(base, Math.floor), 'hay', hay) + (faltan ? lado('Faltan', entero(o.falta, Math.ceil), 'falta', Math.ceil(o.falta || 0)) : lado('Queda', entero(o.quedan, Math.floor), 'queda', Math.floor(o.quedan || 0))) + '</div>' +
+        medidor + '</div>';
       if (o.situacion === 'no_alcanza') return '<div class="ot-bodega mal" title="' + esc(tit) + '">Bodega <b class="hay">' + entero(o.bodega, Math.round) + '</b> MTS · faltan <b class="falta">' + entero(o.falta, Math.ceil) + '</b> MTS</div>';
       return '<div class="ot-bodega" title="' + esc(tit) + '">Bodega <b class="hay">' + entero(o.bodega, Math.round) + '</b> MTS · quedan <b class="queda">' + entero(o.quedan, Math.floor) + '</b> MTS</div>';
     };
@@ -598,7 +619,7 @@ html body .bd .inventory-item-card.lq,html body .bd .bd-tkpi .lq{background:radi
       const attrs = ' data-q="' + esc(norm([o.orden, o.cliente, o.proyecto, o.referencia, o.tela].join(' '))) + '" data-tela="' + esc(o.tela) + '" data-sit="' + o.situacion + '" data-sub="' + (o.estado === 'P' ? 'P' : 'pend') + '" data-fecha="' + esc(o.entrega || '') + '" data-sinfiltro="false" title="' + esc([o.cliente || 'Sin cliente', o.proyecto || 'Sin proyecto', pares.length ? 'Tallas: ' + pares.map(([t, n]) => t + ' ' + num(n)).join(' · ') : '', tiempo && tiempo[2] ? tiempo[2] : '', tiempo && tiempo[4] ? tiempo[4] : ''].filter(Boolean).join('\n')) + '"';
       const titTiempo = tiempo ? (tiempo[3] || 'Estimado: fecha de entrega menos los ' + (brechaDias || 14) + ' días que suelen pasar entre Sublimación y la entrega') : '';
       return '<article class="inventory-item-card ot ' + (cls === 'bad' ? 'bad' : '') + '"' + attrs + (level !== null ? ' data-lq="' + Math.round(level) + '" data-lq-tone="' + tono + '"' : '') + '>' +
-        '<div class="ot-head"><span class="inv-badge ' + cls + '">' + esc(o.orden) + '</span><span class="ot-fecha" title="Fecha de entrega">Entrega ' + esc(fechaCorta(o.entrega)) + '</span></div>' +
+        '<div class="ot-head"><span class="inv-badge ' + cls + '">' + esc(o.orden) + '</span><span class="ot-fecha" title="Fecha de entrega">Entrega ' + esc(fechaCorta(o.entrega)) + diasChip(o.entrega) + '</span></div>' +
         '<div class="ot-titulo"><strong class="ot-tela">' + esc(o.tela) + '</strong><span class="ot-ref">' + esc(o.referencia) + '</span></div>' +
         '<div class="ot-cliente-linea" title="' + esc((o.cliente || 'Sin cliente') + (o.proyecto ? ' · ' + o.proyecto : '')) + '"><b>' + esc(o.cliente || 'Sin cliente') + '</b></div>' +
         (tiempo ? '<div class="ot-tiempo ' + tiempo[0] + '" title="' + esc(titTiempo) + '"><span class="ot-reloj" aria-hidden="true">⏱</span><span><b>' + esc(tiempo[1]) + '</b>' + (false ? '<small class="ot-cambio ' + tiempo[5] + '">' + esc(tiempo[4]) + '</small>' : '') + '</span></div>' : '') +
@@ -608,7 +629,7 @@ html body .bd .inventory-item-card.lq,html body .bd .bd-tkpi .lq{background:radi
     };
     if (poner(tCards, ordenes.length ? ordenes.map(orderCard).join('') : '<p class="bd-note">No hay pedidos programados pendientes de Sublimación.</p>')) {
       // los números de EN BODEGA / DESCUENTA / QUEDA cuentan hasta su valor cuando las tarjetas se dibujan o cambian
-      if (!window.matchMedia || !window.matchMedia('(prefers-reduced-motion: reduce)').matches) tCards.querySelectorAll('.ot-flujo b[data-n]').forEach(el => {
+      if (!window.matchMedia || !window.matchMedia('(prefers-reduced-motion: reduce)').matches) tCards.querySelectorAll('.ot-bodega.nuevo b[data-n]').forEach(el => {
         const n = Number(el.dataset.n) || 0, d = Number(el.dataset.dec) || 0, t0 = performance.now();
         const paso = t => { const k = Math.min(1, (t - t0) / 800), v = n * (1 - Math.pow(1 - k, 3)); el.textContent = v.toLocaleString('es-CO', {minimumFractionDigits: d, maximumFractionDigits: d}); if (k < 1) requestAnimationFrame(paso); };
         requestAnimationFrame(paso);
