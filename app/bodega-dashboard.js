@@ -119,6 +119,17 @@
 html body .bd .inventory-item-card .ot-bodega b.hay{color:#7cc9ff!important;-webkit-text-fill-color:#7cc9ff!important}
 html body .bd .inventory-item-card .ot-bodega b.queda{color:#d6f55a!important;-webkit-text-fill-color:#d6f55a!important}
 html body .bd .inventory-item-card .ot-bodega b.falta{color:#ff9a8f!important;-webkit-text-fill-color:#ff9a8f!important}
+.bd .ot-flujo{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;margin:8px 0 4px;padding:0;border-radius:14px;background:rgba(0,0,0,.2);border:1px solid rgba(255,255,255,.1);overflow:hidden}
+.bd .ot-flujo>div{position:relative;display:grid;gap:3px;padding:9px 12px;border:0!important;border-radius:0!important;background:transparent!important;text-align:left}
+.bd .ot-flujo>div+div{border-left:1px solid rgba(255,255,255,.09)!important}
+.bd .ot-flujo>div+div::before{position:absolute;left:-7px;top:50%;transform:translateY(-50%);width:14px;height:14px;border-radius:50%;background:#1b2a22;border:1px solid rgba(255,255,255,.14);color:#aebca7;font:800 .6rem/12px Arial;text-align:center}
+.bd .ot-flujo>div:nth-child(2)::before{content:"−"}.bd .ot-flujo>div:nth-child(3)::before{content:"="}
+.bd .ot-flujo small{font:700 .5rem Arial;letter-spacing:.14em;color:#8fa08a!important;opacity:1}
+.bd .ot-flujo b{font:700 .98rem Arial;letter-spacing:.01em}
+html body .bd .ot-flujo b.hay{color:#a9cdee!important;-webkit-text-fill-color:#a9cdee!important}
+html body .bd .ot-flujo b.desc{color:#e3c084!important;-webkit-text-fill-color:#e3c084!important}
+html body .bd .ot-flujo b.queda{color:#cfe58a!important;-webkit-text-fill-color:#cfe58a!important}
+html body .bd .ot-flujo b.falta{color:#f0a89d!important;-webkit-text-fill-color:#f0a89d!important}
 .bd .ot-consumo{font:900 1.6rem Arial;line-height:1;letter-spacing:-.01em}
 .bd .ot-consumo small{font:800 .7rem Arial;margin-left:5px;opacity:.85;letter-spacing:.05em}
 .bd .ot-sinprom{font:900 1.15rem Arial;color:#d0f44c!important}
