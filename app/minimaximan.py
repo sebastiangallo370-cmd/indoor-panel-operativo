@@ -329,7 +329,10 @@ def _usuario(request: Request) -> str:
 @router.get('/actividad')
 def actividad(request: Request):
     """Lo que hacen ahora los agentes de inventario, para el aviso «EMPEZÓ A TRABAJAR» de la esquina. Solo cuenta lo que de verdad toca algo (crear o enviar una orden, ajustar Effi); las revisiones de rutina no avisan."""
-    _usuario(request)
+    u = _usuario(request)
+    from app import permisos
+    if not permisos.bitacora_permitido(u):   # el aviso es solo para la cuenta «Indoor Sport» (la misma regla de la bitácora)
+        raise HTTPException(403, 'El aviso de los agentes es solo para la cuenta Indoor Sport')
     salida = []
     try:
         p = proceso_actual()

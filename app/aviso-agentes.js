@@ -35,6 +35,17 @@
   const toasts = new Map();   // agente|id -> {el, fase}
   let parado = false;
 
+  // Si la pestaña del panel no es la que estás mirando, también sale la notificación del navegador (se pide permiso una sola vez, con tu primer clic).
+  const permisoNotif = () => 'Notification' in window ? Notification.permission : 'denied';
+  document.addEventListener('click', () => { if (permisoNotif() === 'default') { try { Notification.requestPermission(); } catch (_) { /* el navegador no lo permite */ } } }, { once: true });
+  function notificarNavegador(clave, a) {
+    if (!document.hidden || permisoNotif() !== 'granted') return;
+    try {
+      const n = new Notification(titulo(a), { body: (a.tela ? a.tela + ' · ' : '') + (a.detalle || ''), tag: clave + '|' + a.fase, icon: '/favicon.svg', requireInteraction: false });
+      n.onclick = () => { window.focus(); n.close(); };
+      setTimeout(() => n.close(), 9000);
+    } catch (_) { /* sin notificaciones */ }
+  }
   function titulo(a) {
     if (a.activo) return a.agente + ' HA EMPEZADO A TRABAJAR';
     return a.fase === 'error' ? a.agente + ' NO PUDO COMPLETARLO' : a.agente + ' TERMINÓ';
@@ -62,13 +73,13 @@
         });
         toasts.set(clave, t); caja.appendChild(t.el);
       }
-      if (t.fase !== a.fase) { dibujar(t, a); t.saliendo = false; if (!a.activo) quitar(clave, 6500); }
+      if (t.fase !== a.fase) { dibujar(t, a); t.saliendo = false; if (!a.activo) quitar(clave, 6500); notificarNavegador(clave, a); }
     });
     toasts.forEach((t, clave) => { if (!vivos.has(clave) && !t.saliendo) quitar(clave, t.fase === 'listo' || t.fase === 'error' ? 0 : 2500); });
   }
   async function sondear() {
     if (parado) return;
-    if (!document.hidden) {
+    {
       try {
         const r = await fetch('/api/minimaximan/actividad', { cache: 'no-store', credentials: 'same-origin' });
         if (r.status === 401 || r.status === 403 || r.status === 404) { parado = true; return; }   // esta cuenta no ve a los agentes: no se vuelve a consultar
