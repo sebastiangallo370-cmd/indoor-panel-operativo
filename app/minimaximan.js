@@ -203,8 +203,8 @@
   @keyframes mmPunto{0%,60%,100%{opacity:.25;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}
   .mm-proc-barra{position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(255,255,255,.08);overflow:hidden}.mm-proc-barra i{display:block;height:100%;width:35%;background:linear-gradient(90deg,transparent,var(--lima,#d0f44c),transparent);animation:mmBarra 1.4s linear infinite}
   @keyframes mmBarra{from{transform:translateX(-100%)}to{transform:translateX(300%)}}
-  .mm-t.procesando{border-color:rgba(208,244,76,.9)!important;box-shadow:0 0 0 2px rgba(208,244,76,.6),0 0 30px -4px rgba(208,244,76,.7)!important;animation:mmLatidoTarjeta 1.2s ease-in-out infinite}
-  .mm-t.procesando::after{content:"🤖 PROCESANDO…";position:absolute;right:12px;bottom:10px;padding:4px 10px;border-radius:99px;background:rgba(208,244,76,.18);border:1px solid rgba(208,244,76,.6);color:var(--lima,#d0f44c);font:900 10px Arial;letter-spacing:.1em;opacity:1;z-index:5}
+  .mm-t.procesando{border-color:rgba(208,244,76,.9)!important;box-shadow:0 0 0 2px rgba(208,244,76,.6),0 0 30px -4px rgba(208,244,76,.7)!important;animation-name:mmLatidoTarjeta!important;animation-duration:1.2s!important;animation-delay:0s!important;animation-iteration-count:infinite!important;animation-timing-function:ease-in-out!important;animation-fill-mode:none!important}
+  .mm-t.procesando::after{content:"🤖 PROCESANDO…";position:absolute;inset:46px 14px auto auto!important;width:auto!important;height:auto!important;border-radius:99px!important;padding:4px 10px;border-radius:99px;background:rgba(208,244,76,.18);border:1px solid rgba(208,244,76,.6);color:var(--lima,#d0f44c);font:900 10px Arial;letter-spacing:.1em;opacity:1;z-index:5}
   @keyframes mmLatidoTarjeta{50%{box-shadow:0 0 0 2px rgba(208,244,76,.9),0 0 40px -2px rgba(208,244,76,.9)}}
   @media(prefers-reduced-motion:reduce){.mm-robot,.mm-robot-svg *,.mm-proc-barra i,.mm-t.procesando,.mm-proc-txt .pts i{animation:none!important}}
   .mm-t>*{position:relative;z-index:1}
