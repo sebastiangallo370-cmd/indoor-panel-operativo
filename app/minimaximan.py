@@ -184,7 +184,7 @@ def proceso_actual() -> dict | None:
         return None
     if not p.get('hasta') and time.time() - p.get('desde', 0) > 600:   # algo quedó colgado: no se muestra para siempre
         return None
-    return {'fase': p['fase'], 'tela': p.get('tela', ''), 'detalle': p.get('detalle', ''), 'activo': not p.get('hasta')}
+    return {'fase': p['fase'], 'tela': p.get('tela', ''), 'detalle': p.get('detalle', ''), 'activo': not p.get('hasta'), 'id': int(p.get('desde', 0) * 1000)}
 
 
 def _crear(f: dict) -> dict | None:
@@ -324,6 +324,24 @@ def _usuario(request: Request) -> str:
     if not _permitido(u):
         raise HTTPException(403, 'Sin acceso al agente de inventario')
     return u
+
+
+@router.get('/actividad')
+def actividad(request: Request):
+    """Lo que hacen ahora los agentes de inventario, para el aviso «EMPEZÓ A TRABAJAR» de la esquina. Solo cuenta lo que de verdad toca algo (crear o enviar una orden, ajustar Effi); las revisiones de rutina no avisan."""
+    _usuario(request)
+    salida = []
+    try:
+        p = proceso_actual()
+        if p and (p['fase'] in ('creando', 'enviando') or (p['fase'] in ('listo', 'error') and p['tela'])):
+            salida.append({'agente': NOMBRE, **p})
+        from app import stockman
+        q = stockman.proceso_actual()
+        if q:
+            salida.append({'agente': 'STOCKMAN', **q})
+    except Exception:   # noqa: BLE001
+        log.exception('MINIMAXIMAN: no pude armar la actividad')
+    return {'agentes': salida}
 
 
 @router.get('/estado')
