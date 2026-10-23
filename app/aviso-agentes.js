@@ -52,7 +52,7 @@
   }
   function dibujar(t, a) {
     t.el.className = 'aa-t ' + (a.activo ? 'activo' : a.fase === 'error' ? 'error' : 'listo');
-    t.el.innerHTML = '<div class="aa-rob">' + ROBOT + '</div><div class="aa-txt"><b>' + esc(titulo(a)) + '</b><span>' + (a.tela ? '<u>' + esc(a.tela) + '</u> · ' : '') + esc(a.detalle || '') + '</span></div><button type="button" class="aa-x" aria-label="Cerrar">✕</button>' + (a.activo ? '<div class="aa-barra"><i></i></div>' : '');
+    t.el.innerHTML = '<div class="aa-rob">' + ROBOT + '</div><div class="aa-txt"><b>' + esc(titulo(a)) + '</b><span title="' + esc((a.tela ? a.tela + ' · ' : '') + (a.detalle || '')) + '">' + esc(a.corto || ((a.tela ? a.tela + ' · ' : '') + (a.detalle || ''))) + '</span></div><button type="button" class="aa-x" aria-label="Cerrar">✕</button>' + (a.activo ? '<div class="aa-barra"><i></i></div>' : '');
     t.fase = a.fase;
   }
   function quitar(clave, ms) {
