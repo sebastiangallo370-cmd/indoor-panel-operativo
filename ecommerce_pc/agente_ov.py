@@ -29,6 +29,9 @@ ETAPAS = ('1_descargadas', '2_tallas', '3_terminadas', 'errores')
 RUTA_BOTS = r'\\192.168.0.120\nas indoor\DIRECCION PRODUCCION\CARPETAS PERSONALES\GALLO\Automatizacion\AUTOMATIZACION_PAGINA WEB'
 ESPERA_COLA_SEG = 5
 INTENTOS_MAX = 3
+# Las órdenes de e-commerce se programan a nombre de la razón social, aunque el
+# PDF de Effi conserva el cliente real para los documentos y la trazabilidad.
+CLIENTE_PROGRAMACION_SHEETS = 'INDOOR SPORT SAS'
 
 
 def log(texto: str):
@@ -173,6 +176,32 @@ def cargar_ov(con_effi: bool):
         import bot_ordenes_venta as bov   # su registro a archivo duplica la salida: se devuelve la salida normal
         sys.stdout, sys.stderr = salida, errores
     return maestros_ov, bov, ruta
+
+
+def registrar_en_sheets_a_nombre_de_indoor_sport(mo, pdf, items):
+    """Registra la orden sin modificar el cliente real del PDF ni de la cola.
+
+    ``maestros_ov.registrar_en_sheets`` obtiene el encabezado con
+    ``leer_encabezado``. Se sustituye esa lectura únicamente durante la llamada
+    que agrega la fila a Google Sheets y se restaura siempre, incluso si falla.
+    """
+    leer_encabezado = getattr(mo, 'leer_encabezado', None)
+    if not callable(leer_encabezado):
+        return mo.registrar_en_sheets(pdf, items)
+
+    def encabezado_para_sheets(ruta_pdf):
+        encabezado = leer_encabezado(ruta_pdf)
+        if not isinstance(encabezado, dict):
+            return encabezado
+        encabezado = dict(encabezado)
+        encabezado['cliente'] = CLIENTE_PROGRAMACION_SHEETS
+        return encabezado
+
+    mo.leer_encabezado = encabezado_para_sheets
+    try:
+        return mo.registrar_en_sheets(pdf, items)
+    finally:
+        mo.leer_encabezado = leer_encabezado
 
 
 def talla_ya_exportada(mo, maestro: Path, item: dict):
@@ -414,7 +443,7 @@ def ciclo_pdfs(mo, ruta: Path, ruta_job: Path) -> None:
     log(f'OV{numero}: llenando Google Sheets…')
     latido('pdfs', f'Llenando Google Sheets (OV{numero})')
     try:
-        en_sheets = mo.registrar_en_sheets(pdf, items)
+        en_sheets = registrar_en_sheets_a_nombre_de_indoor_sport(mo, pdf, items)
     except Exception as e:  # noqa: BLE001
         en_sheets = False
         log(f'  [Error] {e}')
