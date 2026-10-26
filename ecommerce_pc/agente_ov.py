@@ -185,6 +185,8 @@ def registrar_en_sheets_a_nombre_de_indoor_sport(mo, pdf, items):
     ``leer_encabezado``. Se sustituye esa lectura únicamente durante la llamada
     que agrega la fila a Google Sheets y se restaura siempre, incluso si falla.
     """
+    if not bool(config().get('programar_a_indoor_sport', False)):
+        return mo.registrar_en_sheets(pdf, items)
     leer_encabezado = getattr(mo, 'leer_encabezado', None)
     if not callable(leer_encabezado):
         return mo.registrar_en_sheets(pdf, items)

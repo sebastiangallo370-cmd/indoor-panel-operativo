@@ -9,7 +9,7 @@
   const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const st = {
     agentes: [], pc: null, cola: {}, ordenes: [], trabajos: [], historial: [], hoy: {}, latidos: {}, log: [], ultimo: 0, filtro: '', token: null, abierto: {}, ocupado: false,
-    aviso: '', vista: 'flujo', filtroOrd: 'todas', busqueda: '', orden: null, drawer: null, proxima: null, intervalo: 60, revisando: 0, feedId: 0
+    aviso: '', vista: 'flujo', filtroOrd: 'todas', busqueda: '', orden: null, drawer: null, proxima: null, intervalo: 60, revisando: 0, feedId: 0, configuracion: {}
   };
   let panel = null, tab = null, timer = 0, reloj = 0;
 
@@ -38,6 +38,7 @@
   .ec-conn{padding:14px 16px;border:1px solid #d0f44c;border-radius:12px;background:rgba(208,244,76,.06);font-size:.85rem;line-height:1.6}
   .ec-conn code{display:block;margin:8px 0;padding:9px 11px;border-radius:8px;background:#0b0f09;color:#d0f44c;font:12px Consolas,monospace;overflow-wrap:anywhere;user-select:all}
   .ec-aviso{padding:10px 14px;border-radius:11px;background:#5a2a12;color:#ffd9b0;font-size:.85rem}
+  .ec-programacion{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:13px 16px;border:1px solid rgba(255,255,255,.13);border-radius:12px;background:linear-gradient(110deg,rgba(80,146,60,.12),rgba(10,16,9,.8));font-size:.85rem;line-height:1.4}.ec-programacion h3{margin:0 0 3px;font-size:.9rem}.ec-programacion p{margin:0;color:#abb7a6}.ec-switch{display:flex;align-items:center;gap:9px;flex:none;border:0;border-radius:999px;padding:7px 11px 7px 8px;background:#323a31;color:#d5dfcf;font:700 11px/1 system-ui;letter-spacing:.04em;cursor:pointer}.ec-switch i{position:relative;width:34px;height:20px;border-radius:99px;background:#657160;transition:.2s}.ec-switch i::after{content:"";position:absolute;width:14px;height:14px;left:3px;top:3px;border-radius:50%;background:#edf3e9;transition:.2s}.ec-switch.on{background:#355b28;color:#ddffd3}.ec-switch.on i{background:#8bd450}.ec-switch.on i::after{transform:translateX(14px)}.ec-switch:disabled{opacity:.5;cursor:wait}
   /* ---- flujo en vivo ---- */
   .ec-hero{position:relative;display:flex;align-items:flex-start;justify-content:space-between;gap:0;padding:22px 18px 18px;border:1px solid rgba(255,255,255,.1);border-radius:16px;background:radial-gradient(120% 140% at 50% -20%,rgba(208,244,76,.09),transparent 55%),linear-gradient(160deg,#101810,#0b100a);overflow:hidden}
   .ec-hero::before{content:"";position:absolute;inset:0;background-image:radial-gradient(rgba(255,255,255,.05) 1px,transparent 1px);background-size:22px 22px;mask-image:linear-gradient(180deg,#000,transparent 85%);pointer-events:none}
@@ -149,6 +150,13 @@
     if (!st.token) return '';
     return '<div class="ec-conn"><b>Código de enlace (se muestra una sola vez)</b><code>' + esc(st.token.url) + '</code><code>' + esc(st.token.token) + '</code>' +
       'En el PC de los agentes: si es nuevo, abre <b>INSTALAR_AGENTES_EDICION.vbs</b> (carpeta AGENTES_INDOOR de la NAS) y pega este código cuando lo pida. Si ya tiene los agentes, abre <b>ecommerce\\ENLAZAR_ECOMMERCE.bat</b> y pega la dirección y el código; luego <b>detener_agentes.bat</b> y <b>iniciar_oculto.vbs</b>. Ese mismo archivo inicia los agentes de edición y a ALMA, BRISA y CIRO. El panel atiende un solo PC.</div>';
+  }
+  function programacion() {
+    const activo = !!st.configuracion.programar_a_indoor_sport;
+    const pc = st.pc || {};
+    return '<section class="ec-programacion"><div><h3>Nombre al programar en Google Sheets</h3><p>' + (activo ? 'Las nuevas órdenes se registrarán como <b>INDOOR SPORT SAS</b>.' : 'Las nuevas órdenes conservarán el cliente real de Effi.') +
+      (pc.conectado ? ' CIRO recibe el cambio antes de la próxima fila.' : ' El cambio se aplicará cuando el PC de agentes se conecte.') + '</p></div>' +
+      '<button type="button" class="ec-switch' + (activo ? ' on' : '') + '" role="switch" aria-checked="' + activo + '" data-programar-indoor' + (st.ocupado ? ' disabled' : '') + '><i></i>' + (activo ? 'ACTIVADO' : 'DESACTIVADO') + '</button></section>';
   }
 
   // ====================================================== FLUJO (esqueleto fijo: solo se actualizan sus partes, para que las animaciones no se reinicien)
@@ -351,13 +359,14 @@
     const raiz = panel.querySelector('.ec');
     const cab = raiz.querySelector('[data-cabecera]');
     if (!cab) {   // primera vez: se arma el esqueleto fijo
-      raiz.innerHTML = '<div data-cabecera></div><div data-aviso></div><div data-conexion></div>' +
+      raiz.innerHTML = '<div data-cabecera></div><div data-aviso></div><div data-conexion></div><div data-programacion></div>' +
         '<nav class="ag-vtabs ec-vtabs" aria-label="Secciones de ECOMMERCE"></nav><div class="ec-body"><div data-vista-flujo>' + esqueletoFlujo() + '</div><div data-vista-ordenes hidden></div><div data-vista-agentes hidden></div><div data-vista-registro hidden></div></div>' +
         '<div class="ec-velo" data-velo></div><aside class="ec-drawer" data-drawer aria-label="Detalle del agente"></aside>';
     }
     { const __el = raiz.querySelector('[data-cabecera]'), __h = encabezado(); if (__el && __el.__h !== __h) { __el.__h = __h; __el.innerHTML = __h; } }
     { const __el = raiz.querySelector('[data-aviso]'), __h = st.aviso ? '<div class="ec-aviso">' + esc(st.aviso) + '</div>' : ''; if (__el && __el.__h !== __h) { __el.__h = __h; __el.innerHTML = __h; } }
     { const __el = raiz.querySelector('[data-conexion]'), __h = conexion(); if (__el && __el.__h !== __h) { __el.__h = __h; __el.innerHTML = __h; } }
+    { const __el = raiz.querySelector('[data-programacion]'), __h = programacion(); if (__el && __el.__h !== __h) { __el.__h = __h; __el.innerHTML = __h; } }
     const sobre = st.trabajos.filter(t => t.etapa === 'errores').length;
     { const __el = raiz.querySelector('.ec-vtabs'), __h = [['flujo', 'FLUJO'], ['ordenes', 'ÓRDENES' + (sobre ? ' ⚠' : '')], ['agentes', 'AGENTES'], ['registro', 'REGISTRO']].map(([id, n]) => '<button type="button" class="ag-vt' + (st.vista === id ? ' on' : '') + '" data-vt="' + id + '">' + n + '</button>').join(''); if (__el && __el.__h !== __h) { __el.__h = __h; __el.innerHTML = __h; } }
     ['flujo', 'ordenes', 'agentes', 'registro'].forEach(id => { raiz.querySelector('[data-vista-' + id + ']').hidden = st.vista !== id; });
@@ -373,7 +382,7 @@
   async function cargar() {
     try {
       const e = await api('/api/ecommerce/estado');
-      st.agentes = e.agentes; st.pc = e.pc; st.ordenes = e.ordenes; st.cola = e.cola || {}; st.trabajos = e.trabajos || []; st.historial = e.historial || []; st.hoy = e.hoy || {}; st.latidos = e.latidos || {};
+      st.agentes = e.agentes; st.pc = e.pc; st.ordenes = e.ordenes; st.cola = e.cola || {}; st.trabajos = e.trabajos || []; st.historial = e.historial || []; st.hoy = e.hoy || {}; st.latidos = e.latidos || {}; st.configuracion = e.configuracion || {};
       const al = st.latidos.alma;
       if (al && al.proxima_en != null) { st.proxima = Date.now() + al.proxima_en * 1000; st.intervalo = al.intervalo || 60; } else st.proxima = null;
       const l = await api('/api/ecommerce/log?desde=' + st.ultimo + '&limite=300');
@@ -396,6 +405,16 @@
     if (!vivos.length || !confirm(texto)) return;
     st.aviso = '';
     for (const a of vivos) { try { await api('/api/ecommerce/agentes/' + a.id + '/' + accion, { method: 'POST' }); } catch (err) { st.aviso = err.message; } }
+    await cargar();
+  }
+  async function cambiarProgramacion(activo) {
+    if (st.ocupado) return;
+    st.ocupado = true; st.aviso = '';
+    try {
+      const r = await api('/api/ecommerce/configuracion/programar-indoor-sport', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ activo: !!activo }) });
+      st.configuracion.programar_a_indoor_sport = !!r.programar_a_indoor_sport;
+    } catch (err) { st.aviso = err.message; }
+    st.ocupado = false;
     await cargar();
   }
 
@@ -451,6 +470,8 @@
         try { st.token = await api('/api/ecommerce/conexion/regenerar', { method: 'POST' }); st.aviso = ''; } catch (err) { st.aviso = err.message; }
         pintar(); await cargar();
       }
+      const programar = e.target.closest('[data-programar-indoor]');
+      if (programar && !programar.disabled) cambiarProgramacion(!st.configuracion.programar_a_indoor_sport);
     });
     panel.addEventListener('input', e => { if (e.target.matches('[data-bo]')) { st.busqueda = e.target.value; pintar(); } });
     panel.addEventListener('toggle', e => { const d = e.target.closest && e.target.closest('[data-det]'); if (d) st.abierto[d.dataset.det] = d.open; }, true);

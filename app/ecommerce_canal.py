@@ -89,6 +89,8 @@ def _leer() -> dict:
     datos.setdefault('trabajos', [])    # órdenes de venta que hay ahora en la cola (con su detalle)
     datos.setdefault('historial', [])   # órdenes que terminaron (para las cifras de hoy)
     datos.setdefault('vistos', [])
+    datos.setdefault('configuracion', {})
+    datos['configuracion'].setdefault('programar_a_indoor_sport', False)
     return datos
 
 
@@ -328,7 +330,25 @@ def estado(request: Request):
                 'effi_avisa': {'webhook': (datos.get('webhook') or {}).get('iso', ''), 'activo': _vigia_est['activo'], 'hace': round(_ahora() - _vigia_est['ultimo_ok']) if _vigia_est['ultimo_ok'] else None, 'fallos': _vigia_est['fallos']},
                 'ordenes': [{k: o[k] for k in ('id', 'agente', 'accion', 'por', 'estado', 'detalle', 'iso')} for o in datos['ordenes'][-8:]][::-1],
                 'cola': {e: int((datos.get('cola') or {}).get(e, 0)) for e in ETAPAS_COLA}, 'ultimo_log': datos['seq'],
-                'latidos': _latidos_vivos(datos), 'trabajos': datos.get('trabajos') or [], 'hoy': _hoy(datos), 'historial': datos['historial'][-40:][::-1]}
+                'latidos': _latidos_vivos(datos), 'trabajos': datos.get('trabajos') or [], 'hoy': _hoy(datos), 'historial': datos['historial'][-40:][::-1],
+                'configuracion': {'programar_a_indoor_sport': bool(datos['configuracion'].get('programar_a_indoor_sport'))}}
+
+
+@router.post('/configuracion/programar-indoor-sport')
+def configurar_programacion_indoor_sport(request: Request, payload: dict):
+    """Activa o desactiva el nombre fijo que CIRO usa al crear filas en Sheets."""
+    usuario = _usuario(request)
+    activo = payload.get('activo')
+    if not isinstance(activo, bool):
+        raise HTTPException(422, '«activo» debe ser verdadero o falso')
+    with _lock:
+        datos = _leer()
+        anterior = bool(datos['configuracion'].get('programar_a_indoor_sport'))
+        datos['configuracion']['programar_a_indoor_sport'] = activo
+        if anterior != activo:
+            _nota(datos, 'ciro', 'info', f'{usuario} ' + ('activó' if activo else 'desactivó') + ' programar las órdenes a nombre de Indoor Sport SAS')
+        _guardar(datos)
+    return {'ok': True, 'programar_a_indoor_sport': activo}
 
 
 @router.post('/agentes/{agente}/{accion}')
@@ -471,4 +491,5 @@ def sondeo(request: Request, payload: dict):
                 o['estado'] = 'entregada'
                 entregar.append({'id': o['id'], 'agente': o['agente'], 'accion': o['accion']})
         _guardar(datos)
-    return {'ordenes': entregar}
+    return {'ordenes': entregar,
+            'configuracion': {'programar_a_indoor_sport': bool(datos['configuracion'].get('programar_a_indoor_sport'))}}

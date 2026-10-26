@@ -52,6 +52,28 @@ def leer_json(ruta: Path, defecto):
         return defecto
 
 
+def guardar_json(ruta: Path, datos) -> None:
+    """Guarda sin dejar un config.json a medio escribir mientras CIRO lo consulta."""
+    ruta.parent.mkdir(parents=True, exist_ok=True)
+    temporal = ruta.with_suffix('.tmp')
+    temporal.write_text(json.dumps(datos, ensure_ascii=False, indent=2), encoding='utf-8')
+    temporal.replace(ruta)
+
+
+def aplicar_configuracion_del_panel(configuracion) -> None:
+    """Recibe el interruptor del panel y lo deja disponible para CIRO de inmediato."""
+    if not isinstance(configuracion, dict) or 'programar_a_indoor_sport' not in configuracion:
+        return
+    ruta = DATOS / 'config.json'
+    datos = leer_json(ruta, {})
+    activo = bool(configuracion['programar_a_indoor_sport'])
+    if bool(datos.get('programar_a_indoor_sport', False)) == activo:
+        return
+    datos['programar_a_indoor_sport'] = activo
+    guardar_json(ruta, datos)
+    print('Programar en Google Sheets a nombre de Indoor Sport SAS: ' + ('ACTIVADO' if activo else 'DESACTIVADO'))
+
+
 class Bot:
     """Un bot lanzado como proceso de Windows, con su salida capturada línea por línea."""
 
@@ -308,6 +330,7 @@ def main():
                 resp = peticion(url, panel['token'], cuerpo)
                 del pendientes[:len(lineas)]
                 resultados = []
+                aplicar_configuracion_del_panel(resp.get('configuracion'))
                 for orden in resp.get('ordenes', []):
                     bot = bots.get(orden['agente'])
                     try:
