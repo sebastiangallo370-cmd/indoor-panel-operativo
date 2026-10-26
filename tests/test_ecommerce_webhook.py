@@ -26,6 +26,7 @@ class Webhook(unittest.TestCase):
         for m in self.p:
             m.start()
         d = ec._leer()
+        d['configuracion']['ecommerce_activo'] = True
         d['latido'] = {'at': ec._ahora(), 'iso': ec._iso(), 'equipo': 'PC'}
         d['agentes']['alma'] = {'estado': 'CORRIENDO'}
         ec._guardar(d)
@@ -61,6 +62,16 @@ class Webhook(unittest.TestCase):
     def test_cuerpo_que_no_es_json_tambien_sirve(self):
         t = ec.token_webhook()
         self.assertTrue(asyncio.run(ec.webhook_effi(t, Peticion(b'esto no es json')))['ok'])
+
+    def test_desactivado_ignora_el_aviso(self):
+        d = ec._leer()
+        d['configuracion']['ecommerce_activo'] = False
+        ec._guardar(d)
+
+        respuesta = asyncio.run(ec.webhook_effi(ec.token_webhook(), Peticion(b'{"evento":"orden_v.crear"}')))
+
+        self.assertFalse(respuesta['activo'])
+        self.assertFalse([o for o in ec._leer()['ordenes'] if o['accion'] == 'revisar'])
 
 
 if __name__ == '__main__':

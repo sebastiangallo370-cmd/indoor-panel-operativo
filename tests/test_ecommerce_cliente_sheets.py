@@ -33,7 +33,7 @@ class ClienteEnSheets(unittest.TestCase):
     def test_programa_a_nombre_de_indoor_sport_y_restaura_el_cliente_real(self):
         maestro = MaestroFalso()
 
-        with mock.patch.object(agente_ov, 'config', return_value={'programar_a_indoor_sport': True}):
+        with mock.patch.object(agente_ov, 'config', return_value={'ecommerce_activo': True}):
             self.assertTrue(agente_ov.registrar_en_sheets_a_nombre_de_indoor_sport(maestro, 'OV_1234.pdf', []))
 
         self.assertEqual(maestro.cliente_enviado, 'INDOOR SPORT SAS')
@@ -42,28 +42,29 @@ class ClienteEnSheets(unittest.TestCase):
     def test_restaura_el_lector_si_google_sheets_falla(self):
         maestro = MaestroFalso(falla=True)
 
-        with mock.patch.object(agente_ov, 'config', return_value={'programar_a_indoor_sport': True}):
+        with mock.patch.object(agente_ov, 'config', return_value={'ecommerce_activo': True}):
             with self.assertRaisesRegex(RuntimeError, 'Sheets no disponible'):
                 agente_ov.registrar_en_sheets_a_nombre_de_indoor_sport(maestro, 'OV_1234.pdf', [])
 
         self.assertEqual(maestro.cliente_enviado, 'INDOOR SPORT SAS')
         self.assertEqual(maestro.leer_encabezado('OV_1234.pdf')['cliente'], 'Cliente real de Effi')
 
-    def test_desactivado_conserva_el_cliente_real(self):
+    def test_desactivado_no_permite_programar(self):
         maestro = MaestroFalso()
 
-        with mock.patch.object(agente_ov, 'config', return_value={'programar_a_indoor_sport': False}):
-            self.assertTrue(agente_ov.registrar_en_sheets_a_nombre_de_indoor_sport(maestro, 'OV_1234.pdf', []))
+        with mock.patch.object(agente_ov, 'config', return_value={'ecommerce_activo': False}):
+            with self.assertRaisesRegex(RuntimeError, 'ECOMMERCE está desactivado'):
+                agente_ov.registrar_en_sheets_a_nombre_de_indoor_sport(maestro, 'OV_1234.pdf', [])
 
-        self.assertEqual(maestro.cliente_enviado, 'Cliente real de Effi')
+        self.assertIsNone(maestro.cliente_enviado)
 
     def test_puente_guarda_el_interruptor_sin_perder_su_configuracion(self):
         configuracion = {'ruta_bots': 'D:/bots'}
         with mock.patch.object(puente_ecommerce, 'leer_json', return_value=configuracion), mock.patch.object(puente_ecommerce, 'guardar_json') as guardar:
-            puente_ecommerce.aplicar_configuracion_del_panel({'programar_a_indoor_sport': True})
+            puente_ecommerce.aplicar_configuracion_del_panel({'ecommerce_activo': True})
 
         datos = guardar.call_args.args[1]
-        self.assertTrue(datos['programar_a_indoor_sport'])
+        self.assertTrue(datos['ecommerce_activo'])
         self.assertEqual(datos['ruta_bots'], 'D:/bots')
 
 

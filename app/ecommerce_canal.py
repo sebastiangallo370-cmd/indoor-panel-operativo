@@ -90,7 +90,7 @@ def _leer() -> dict:
     datos.setdefault('historial', [])   # órdenes que terminaron (para las cifras de hoy)
     datos.setdefault('vistos', [])
     datos.setdefault('configuracion', {})
-    datos['configuracion'].setdefault('programar_a_indoor_sport', False)
+    datos['configuracion'].setdefault('ecommerce_activo', False)
     return datos
 
 
@@ -206,6 +206,8 @@ async def webhook_effi(token: str, request: Request):
     detalle = _resumen_aviso(cuerpo)
     with _lock:
         datos = _leer()
+        if not bool(datos['configuracion'].get('ecommerce_activo')):
+            return {'ok': True, 'activo': False}
         despierta = _despertar_alma(datos, 'Effi (webhook)')
         datos['webhook'] = {'at': _ahora(), 'iso': _iso(), 'orden': detalle}
         _nota(datos, 'alma', 'info', f'Effi avisó por webhook de una orden de venta nueva{(" (" + detalle + ")") if detalle else ""}: ' + ('ALMA la descarga ahora' if despierta else 'ALMA la tomará en su próxima revisión'))
@@ -228,6 +230,8 @@ def _leer_vigia() -> dict:
 
 def _despertar_alma(datos: dict, por: str) -> bool:
     """Pide a ALMA que revise Effi YA (la descarga de la orden nueva). Solo si el PC está conectado, ALMA vigilando y sin otra revisión en espera."""
+    if not bool(datos['configuracion'].get('ecommerce_activo')):
+        return False
     actual = (datos['agentes'].get('alma') or {}).get('estado', 'INACTIVO')
     if _conectado(datos) and actual in ESTADOS_ACTIVOS and not _pendiente_de(datos, 'alma', 'revisar'):
         datos['seq'] += 1
@@ -239,6 +243,9 @@ def _despertar_alma(datos: dict, por: str) -> bool:
 def revisar_ordenes_venta() -> list[str]:
     """Pregunta a la API de Effi por las órdenes de venta de los últimos días (una consulta liviana, sin abrir Effi en el navegador).
     La primera vez solo toma nota de las que ya existen. Si hay una nueva vigente, despierta a ALMA (orden «revisar») para que la descargue."""
+    with _lock:
+        if not bool(_leer()['configuracion'].get('ecommerce_activo')):
+            return []
     llave = _llave_effi()
     if not llave:
         _vigia_est['activo'] = False
@@ -331,24 +338,25 @@ def estado(request: Request):
                 'ordenes': [{k: o[k] for k in ('id', 'agente', 'accion', 'por', 'estado', 'detalle', 'iso')} for o in datos['ordenes'][-8:]][::-1],
                 'cola': {e: int((datos.get('cola') or {}).get(e, 0)) for e in ETAPAS_COLA}, 'ultimo_log': datos['seq'],
                 'latidos': _latidos_vivos(datos), 'trabajos': datos.get('trabajos') or [], 'hoy': _hoy(datos), 'historial': datos['historial'][-40:][::-1],
-                'configuracion': {'programar_a_indoor_sport': bool(datos['configuracion'].get('programar_a_indoor_sport'))}}
+                'configuracion': {'ecommerce_activo': bool(datos['configuracion'].get('ecommerce_activo'))}}
 
 
-@router.post('/configuracion/programar-indoor-sport')
-def configurar_programacion_indoor_sport(request: Request, payload: dict):
-    """Activa o desactiva el nombre fijo que CIRO usa al crear filas en Sheets."""
+@router.post('/configuracion/activar-ecommerce')
+def configurar_ecommerce(request: Request, payload: dict):
+    """Activa o pausa por completo los agentes de órdenes de venta."""
     usuario = _usuario(request)
     activo = payload.get('activo')
     if not isinstance(activo, bool):
         raise HTTPException(422, '«activo» debe ser verdadero o falso')
     with _lock:
         datos = _leer()
-        anterior = bool(datos['configuracion'].get('programar_a_indoor_sport'))
-        datos['configuracion']['programar_a_indoor_sport'] = activo
+        anterior = bool(datos['configuracion'].get('ecommerce_activo'))
+        datos['configuracion']['ecommerce_activo'] = activo
         if anterior != activo:
-            _nota(datos, 'ciro', 'info', f'{usuario} ' + ('activó' if activo else 'desactivó') + ' programar las órdenes a nombre de Indoor Sport SAS')
+            _nota(datos, 'ciro', 'info', f'{usuario} ' + ('activó' if activo else 'desactivó') + ' ECOMMERCE: ' +
+                  ('recibe órdenes y las programa como Indoor Sport SAS' if activo else 'no recibe ni procesa órdenes'))
         _guardar(datos)
-    return {'ok': True, 'programar_a_indoor_sport': activo}
+    return {'ok': True, 'ecommerce_activo': activo}
 
 
 @router.post('/agentes/{agente}/{accion}')
@@ -359,6 +367,8 @@ def ordenar(request: Request, agente: str, accion: str):
     with _lock:
         datos = _leer()
         _vencer(datos)
+        if not bool(datos['configuracion'].get('ecommerce_activo')):
+            raise HTTPException(409, 'ECOMMERCE está desactivado: actívalo antes de iniciar, detener o revisar agentes.')
         if not _conectado(datos):
             raise HTTPException(409, 'El PC de los bots no está conectado al panel. Enciéndelo y abre «ECOMMERCE · conectar» en ese PC.')
         if _pendiente_de(datos, agente):
@@ -492,4 +502,4 @@ def sondeo(request: Request, payload: dict):
                 entregar.append({'id': o['id'], 'agente': o['agente'], 'accion': o['accion']})
         _guardar(datos)
     return {'ordenes': entregar,
-            'configuracion': {'programar_a_indoor_sport': bool(datos['configuracion'].get('programar_a_indoor_sport'))}}
+            'configuracion': {'ecommerce_activo': bool(datos['configuracion'].get('ecommerce_activo'))}}

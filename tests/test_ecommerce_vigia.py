@@ -17,6 +17,7 @@ class Vigia(unittest.TestCase):
         for m in self.p:
             m.start()
         d = ec._leer()
+        d['configuracion']['ecommerce_activo'] = True
         d['latido'] = {'at': ec._ahora(), 'iso': ec._iso(), 'equipo': 'PC'}
         d['agentes']['alma'] = {'estado': 'CORRIENDO'}
         ec._guardar(d)
@@ -61,6 +62,14 @@ class Vigia(unittest.TestCase):
         with mock.patch.object(effi_api, '_lista', return_value=[{'id': 13, 'sucursal': 1, 'vigente': '1'}]):
             self.assertEqual(ec.revisar_ordenes_venta(), ['1-13'])
         self.assertFalse(self.ordenes_de_revision())
+
+    def test_desactivado_no_consulta_effi(self):
+        d = ec._leer()
+        d['configuracion']['ecommerce_activo'] = False
+        ec._guardar(d)
+        with mock.patch.object(effi_api, '_lista') as consulta:
+            self.assertEqual(ec.revisar_ordenes_venta(), [])
+        consulta.assert_not_called()
 
 
 if __name__ == '__main__':

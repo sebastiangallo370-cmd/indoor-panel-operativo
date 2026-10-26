@@ -152,10 +152,10 @@
       'En el PC de los agentes: si es nuevo, abre <b>INSTALAR_AGENTES_EDICION.vbs</b> (carpeta AGENTES_INDOOR de la NAS) y pega este código cuando lo pida. Si ya tiene los agentes, abre <b>ecommerce\\ENLAZAR_ECOMMERCE.bat</b> y pega la dirección y el código; luego <b>detener_agentes.bat</b> y <b>iniciar_oculto.vbs</b>. Ese mismo archivo inicia los agentes de edición y a ALMA, BRISA y CIRO. El panel atiende un solo PC.</div>';
   }
   function programacion() {
-    const activo = !!st.configuracion.programar_a_indoor_sport;
+    const activo = !!st.configuracion.ecommerce_activo;
     const pc = st.pc || {};
-    return '<section class="ec-programacion"><div><h3>Nombre al programar en Google Sheets</h3><p>' + (activo ? 'Las nuevas órdenes se registrarán como <b>INDOOR SPORT SAS</b>.' : 'Las nuevas órdenes conservarán el cliente real de Effi.') +
-      (pc.conectado ? ' CIRO recibe el cambio antes de la próxima fila.' : ' El cambio se aplicará cuando el PC de agentes se conecte.') + '</p></div>' +
+    return '<section class="ec-programacion"><div><h3>Estado de ECOMMERCE</h3><p>' + (activo ? 'Activo: recibe órdenes, procesa la cola y programa como <b>INDOOR SPORT SAS</b>.' : 'Apagado: no recibe información de Effi, no procesa la cola ni escribe en Google Sheets.') +
+      (pc.conectado ? ' El PC aplica el cambio antes del siguiente paso.' : ' El cambio se aplicará cuando el PC de agentes se conecte.') + '</p></div>' +
       '<button type="button" class="ec-switch' + (activo ? ' on' : '') + '" role="switch" aria-checked="' + activo + '" data-programar-indoor' + (st.ocupado ? ' disabled' : '') + '><i></i>' + (activo ? 'ACTIVADO' : 'DESACTIVADO') + '</button></section>';
   }
 
@@ -411,8 +411,8 @@
     if (st.ocupado) return;
     st.ocupado = true; st.aviso = '';
     try {
-      const r = await api('/api/ecommerce/configuracion/programar-indoor-sport', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ activo: !!activo }) });
-      st.configuracion.programar_a_indoor_sport = !!r.programar_a_indoor_sport;
+      const r = await api('/api/ecommerce/configuracion/activar-ecommerce', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ activo: !!activo }) });
+      st.configuracion.ecommerce_activo = !!r.ecommerce_activo;
     } catch (err) { st.aviso = err.message; }
     st.ocupado = false;
     await cargar();
@@ -471,7 +471,7 @@
         pintar(); await cargar();
       }
       const programar = e.target.closest('[data-programar-indoor]');
-      if (programar && !programar.disabled) cambiarProgramacion(!st.configuracion.programar_a_indoor_sport);
+      if (programar && !programar.disabled) cambiarProgramacion(!st.configuracion.ecommerce_activo);
     });
     panel.addEventListener('input', e => { if (e.target.matches('[data-bo]')) { st.busqueda = e.target.value; pintar(); } });
     panel.addEventListener('toggle', e => { const d = e.target.closest && e.target.closest('[data-det]'); if (d) st.abierto[d.dataset.det] = d.open; }, true);

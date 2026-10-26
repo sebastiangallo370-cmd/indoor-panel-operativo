@@ -149,6 +149,11 @@ def config() -> dict:
         return {}
 
 
+def ecommerce_activo() -> bool:
+    """El interruptor del panel pausa toda la recepción y el procesamiento."""
+    return bool(config().get('ecommerce_activo', False))
+
+
 def carpeta_ov() -> Path:
     cfg = config()
     return Path(cfg.get('ruta_ov') or (Path(cfg.get('ruta_bots') or RUTA_BOTS) / 'BOT_ORDENES_VENTA'))
@@ -185,8 +190,8 @@ def registrar_en_sheets_a_nombre_de_indoor_sport(mo, pdf, items):
     ``leer_encabezado``. Se sustituye esa lectura únicamente durante la llamada
     que agrega la fila a Google Sheets y se restaura siempre, incluso si falla.
     """
-    if not bool(config().get('programar_a_indoor_sport', False)):
-        return mo.registrar_en_sheets(pdf, items)
+    if not ecommerce_activo():
+        raise RuntimeError('ECOMMERCE está desactivado: no se programó la orden en Google Sheets')
     leer_encabezado = getattr(mo, 'leer_encabezado', None)
     if not callable(leer_encabezado):
         return mo.registrar_en_sheets(pdf, items)
@@ -307,12 +312,19 @@ def rol_descarga():
     log('ALMA · vigilando las órdenes de venta de Effi (solo descarga el PDF).')
     fallos: dict = {}
     while True:
+        if not ecommerce_activo():
+            latido('descarga', 'ECOMMERCE desactivado desde el panel')
+            dormir_vigilando(ESPERA_COLA_SEG)
+            continue
         driver = None
         try:
             driver = bov.setup_driver()
             wait = WebDriverWait(driver, 30)
             bov.login(driver, wait)
             while True:
+                if not ecommerce_activo():
+                    latido('descarga', 'ECOMMERCE desactivado desde el panel')
+                    break
                 latido('descarga', 'Revisando las órdenes de venta de Effi…')
                 hizo = ciclo_descarga(bov, ruta, driver, wait, fallos)
                 ahora = time.time()
@@ -399,6 +411,10 @@ def rol_tallas():
     log('BRISA · esperando órdenes descargadas para exportar sus tallas.')
     while True:
         try:
+            if not ecommerce_activo():
+                latido('tallas', 'ECOMMERCE desactivado desde el panel')
+                time.sleep(ESPERA_COLA_SEG)
+                continue
             pendientes = trabajos('1_descargadas')
             if pendientes:
                 ciclo_tallas(mo, pendientes[0])
@@ -474,6 +490,10 @@ def rol_pdfs():
     log('CIRO · esperando órdenes con tallas exportadas para generar los PDF y llenar Google Sheets.')
     while True:
         try:
+            if not ecommerce_activo():
+                latido('pdfs', 'ECOMMERCE desactivado desde el panel')
+                time.sleep(ESPERA_COLA_SEG)
+                continue
             pendientes = trabajos('2_tallas')
             if pendientes:
                 ciclo_pdfs(mo, ruta, pendientes[0])

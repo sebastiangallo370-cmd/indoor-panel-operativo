@@ -61,17 +61,17 @@ def guardar_json(ruta: Path, datos) -> None:
 
 
 def aplicar_configuracion_del_panel(configuracion) -> None:
-    """Recibe el interruptor del panel y lo deja disponible para CIRO de inmediato."""
-    if not isinstance(configuracion, dict) or 'programar_a_indoor_sport' not in configuracion:
+    """Recibe el interruptor del panel y pausa o activa los tres agentes."""
+    if not isinstance(configuracion, dict) or 'ecommerce_activo' not in configuracion:
         return
     ruta = DATOS / 'config.json'
     datos = leer_json(ruta, {})
-    activo = bool(configuracion['programar_a_indoor_sport'])
-    if bool(datos.get('programar_a_indoor_sport', False)) == activo:
+    activo = bool(configuracion['ecommerce_activo'])
+    if bool(datos.get('ecommerce_activo', False)) == activo:
         return
-    datos['programar_a_indoor_sport'] = activo
+    datos['ecommerce_activo'] = activo
     guardar_json(ruta, datos)
-    print('Programar en Google Sheets a nombre de Indoor Sport SAS: ' + ('ACTIVADO' if activo else 'DESACTIVADO'))
+    print('ECOMMERCE: ' + ('ACTIVADO · recibirá órdenes y programará como Indoor Sport SAS' if activo else 'DESACTIVADO · no recibe ni procesa órdenes'))
 
 
 class Bot:
