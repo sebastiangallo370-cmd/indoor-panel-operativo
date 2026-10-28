@@ -236,6 +236,12 @@ def _liberar_vencidos(datos: dict) -> bool:
             m['respondido'] = True
             if m.get('oculto'):
                 continue
+            compra, respuesta = _compra_pedida_a_jefe(_base(m['sesion']), str(m.get('texto') or ''))
+            if compra:
+                _nuevo(datos, m['sesion'], 'bot', respuesta, estado='ZEUS' if respuesta.startswith('Asigné') else 'REVISAR', botones=[], agentes=['JEFE', 'ZEUS'], respondido=True)
+                datos['trabajo'].pop(m['sesion'], None)
+                cambio = True
+                continue
             _nuevo(datos, m['sesion'], 'bot', 'No recibí respuesta del PC de los agentes. Revisa que esté encendido y con iniciar.bat abierto, y vuelve a intentarlo.',
                    estado='ERROR', botones=[], agentes=['TAVO'], respondido=True)
             datos['trabajo'].pop(m['sesion'], None)
