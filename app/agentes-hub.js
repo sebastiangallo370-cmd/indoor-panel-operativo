@@ -141,7 +141,7 @@
   async function refrescarControl() {
     if (!panelGeneral || !panelGeneral.classList.contains('active')) return;
     const pedir = ruta => fetch(ruta, { cache: 'no-store', credentials: 'same-origin' }).then(r => r.ok ? r.json() : null).catch(() => null);
-    const [edicion, ecommerce, zeus] = await Promise.all([pedir('/api/agentes/estado'), pedir('/api/ecommerce/estado'), pedir('/api/zeus/estado')]);
+    const [edicion, ecommerce, zeus, chat] = await Promise.all([pedir('/api/agentes/estado'), pedir('/api/ecommerce/estado'), pedir('/api/zeus/estado'), pedir('/api/agentes/mensajes?desde=0')]);
     const actividades = {};
     (ecommerce?.agentes || []).forEach(a => { actividades[String(a.nombre || a.id).toUpperCase()] = a.ultima || ecommerce?.latidos?.[a.id]?.actividad || a.estado; });
     const trabajo = (edicion?.pcs || []).map(p => p.trabajo || '').join(' · ');
@@ -153,16 +153,22 @@
       el.classList.toggle('trabajando', !/^(Disponible|Conectado al centro|CORRIENDO|INACTIVO)$/i.test(actividad));
       el.title = textoActividad(nombre, actividad); el.querySelector('small').textContent = textoActividad(nombre, actividad);
     });
+    const salida = panelGeneral.querySelector('[data-jefe-respuesta]');
+    if (salida && chat) {
+      const ultimos = (chat.mensajes || []).filter(m => m.rol === 'bot').slice(-2);
+      salida.textContent = ultimos.map(m => 'JEFE: ' + m.texto).join('\n\n') || (chat.esperando ? 'JEFE está diagnosticando y asignando la tarea…' : 'Escríbele una tarea a JEFE.');
+    }
   }
   function crearPanelGeneral() {
     const main = document.querySelector('main'), nav = document.querySelector('nav.tabs');
     if (!main || !nav || panelGeneral) return;
     panelGeneral = document.createElement('section'); panelGeneral.className = 'panel'; panelGeneral.dataset.panel = 'agentes-general';
     const areas = AREAS.map((a, i) => `<button type="button" class="ag-area-general a${i + 1}" data-general-area="${a.id}"><strong>${a.nombre}</strong><small>${a.agentes.length} agentes conectados al centro</small><div class="ag-general-agentes">${a.agentes.map(g => `<span data-control-agent="${g[0]}" title="${g[0]}"><i></i><b class="ag-muneco" aria-label="${g[0]}">${AVATAR[g[0]] || '🤖'}</b><small>Conectado al centro</small></span>`).join('')}</div></button>`).join('');
-    panelGeneral.innerHTML = `<div class="ag-general"><header class="ag-general-head"><div><h2>RED DE AGENTES</h2><p>Todos los asistentes conectados al centro operativo.</p></div><small>● RED DISPONIBLE</small></header><section class="ag-campus">${areas}<article class="ag-edificio"><div><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M8 56h48M14 56V18l18-10 18 10v38M24 56V35h16v21M21 23h6m10 0h6M21 30h6m10 0h6"/></svg><b>INDOOR SPORT SAS</b><span>Centro de operaciones</span></div></article></section></div>`;
+    panelGeneral.innerHTML = `<div class="ag-general"><header class="ag-general-head"><div><h2>RED DE AGENTES</h2><p>Todos los asistentes conectados al centro operativo.</p></div><small>● RED DISPONIBLE</small></header><section class="ag-campus">${areas}<article class="ag-edificio"><div><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M8 56h48M14 56V18l18-10 18 10v38M24 56V35h16v21M21 23h6m10 0h6M21 30h6m10 0h6"/></svg><b>INDOOR SPORT SAS</b><span>Centro de operaciones</span></div></article></section><form class="ag-jefe-chat" data-jefe-form><label>👑 JEFE · pide una tarea o un diagnóstico</label><textarea data-jefe-input placeholder="Ej.: revisa la orden CO6268, crea la muestra y avísame si falta información"></textarea><button type="submit">ENVIAR A JEFE</button><div class="ag-jefe-respuesta" data-jefe-respuesta>Escríbele una tarea a JEFE.</div></form></div>`;
     main.appendChild(panelGeneral);
     const grupo = document.createElement('div'); grupo.hidden = true; grupo.style.display = 'none'; grupo.innerHTML = '<button class="tab" data-kind="agentes-general" type="button"></button>'; nav.appendChild(grupo); tabGeneral = grupo.querySelector('.tab');
     panelGeneral.addEventListener('click', e => { const b = e.target.closest('[data-general-area]'); if (b) { const area = AREAS.find(a => a.id === b.dataset.generalArea); abrirArea(area); } });
+    panelGeneral.addEventListener('submit', async e => { if (!e.target.matches('[data-jefe-form]')) return; e.preventDefault(); const entrada = panelGeneral.querySelector('[data-jefe-input]'), texto = entrada.value.trim(); if (!texto) return; entrada.disabled = true; try { await fetch('/api/agentes/mensaje', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mensaje: texto }) }); entrada.value = ''; panelGeneral.querySelector('[data-jefe-respuesta]').textContent = 'JEFE recibió la tarea y está diagnosticando a quién asignarla…'; refrescarControl(); } finally { entrada.disabled = false; entrada.focus(); } });
     if (!controlTimer) controlTimer = setInterval(refrescarControl, 1000);
   }
   setInterval(montar, 400);
