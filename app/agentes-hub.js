@@ -48,7 +48,7 @@
   `;
   document.head.appendChild(css);
 
-  let caja = null, panelGeneral = null, tabGeneral = null;
+  let caja = null, panelGeneral = null, tabGeneral = null, controlTimer = 0;
   const abiertas = new Set();   // áreas con sus agentes desplegados
   const tabDe = kind => document.querySelector('.tab[data-kind="' + kind + '"]');
   const activa = kind => !!document.querySelector('.panel[data-panel="' + kind + '"].active');
@@ -134,16 +134,34 @@
     if (!panelGeneral || !tabGeneral) return;
     document.querySelectorAll('.tab').forEach(x => x.classList.toggle('active', x === tabGeneral));
     document.querySelectorAll('.panel').forEach(x => x.classList.toggle('active', x === panelGeneral));
+    refrescarControl();
+  }
+  const textoActividad = (id, actividad) => actividad ? actividad.slice(0, 72) : 'Disponible';
+  async function refrescarControl() {
+    if (!panelGeneral || !panelGeneral.classList.contains('active')) return;
+    const pedir = ruta => fetch(ruta, { cache: 'no-store', credentials: 'same-origin' }).then(r => r.ok ? r.json() : null).catch(() => null);
+    const [edicion, ecommerce, zeus] = await Promise.all([pedir('/api/agentes/estado'), pedir('/api/ecommerce/estado'), pedir('/api/zeus/estado')]);
+    const actividades = {};
+    (ecommerce?.agentes || []).forEach(a => { actividades[String(a.nombre || a.id).toUpperCase()] = a.ultima || ecommerce?.latidos?.[a.id]?.actividad || a.estado; });
+    const trabajo = (edicion?.pcs || []).map(p => p.trabajo || '').join(' · ');
+    ['TAVO','LEO','JACK','OLVER','OLIVER','TERRY','DRACO'].forEach(n => { actividades[n] = trabajo && trabajo.toUpperCase().includes(n) ? trabajo : 'Conectado al centro'; });
+    if (zeus) actividades.ZEUS = zeus.actividad || zeus.estado || 'Revisando inventario';
+    panelGeneral.querySelectorAll('[data-control-agent]').forEach(el => {
+      const nombre = el.dataset.controlAgent, actividad = actividades[nombre] || 'Conectado al centro';
+      el.classList.toggle('trabajando', !/^(Disponible|Conectado al centro|CORRIENDO|INACTIVO)$/i.test(actividad));
+      el.title = textoActividad(nombre, actividad); el.querySelector('small').textContent = textoActividad(nombre, actividad);
+    });
   }
   function crearPanelGeneral() {
     const main = document.querySelector('main'), nav = document.querySelector('nav.tabs');
     if (!main || !nav || panelGeneral) return;
     panelGeneral = document.createElement('section'); panelGeneral.className = 'panel'; panelGeneral.dataset.panel = 'agentes-general';
-    const areas = AREAS.map((a, i) => `<button type="button" class="ag-area-general a${i + 1}" data-general-area="${a.id}"><strong>${a.nombre}</strong><small>${a.agentes.length} agentes conectados al centro</small><div class="ag-general-agentes">${a.agentes.map(g => `<span><i></i>${g[0]}</span>`).join('')}</div></button>`).join('');
+    const areas = AREAS.map((a, i) => `<button type="button" class="ag-area-general a${i + 1}" data-general-area="${a.id}"><strong>${a.nombre}</strong><small>${a.agentes.length} agentes conectados al centro</small><div class="ag-general-agentes">${a.agentes.map(g => `<span data-control-agent="${g[0]}"><i></i><b>${g[0]}</b><small>Conectado al centro</small></span>`).join('')}</div></button>`).join('');
     panelGeneral.innerHTML = `<div class="ag-general"><header class="ag-general-head"><div><h2>RED DE AGENTES</h2><p>Todos los asistentes conectados al centro operativo.</p></div><small>● RED DISPONIBLE</small></header><section class="ag-campus">${areas}<article class="ag-edificio"><div><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M8 56h48M14 56V18l18-10 18 10v38M24 56V35h16v21M21 23h6m10 0h6M21 30h6m10 0h6"/></svg><b>INDOOR SPORT SAS</b><span>Centro de operaciones</span></div></article></section></div>`;
     main.appendChild(panelGeneral);
     const grupo = document.createElement('div'); grupo.hidden = true; grupo.style.display = 'none'; grupo.innerHTML = '<button class="tab" data-kind="agentes-general" type="button"></button>'; nav.appendChild(grupo); tabGeneral = grupo.querySelector('.tab');
     panelGeneral.addEventListener('click', e => { const b = e.target.closest('[data-general-area]'); if (b) { const area = AREAS.find(a => a.id === b.dataset.generalArea); abrirArea(area); } });
+    if (!controlTimer) controlTimer = setInterval(refrescarControl, 3000);
   }
   setInterval(montar, 400);
   document.addEventListener('click', () => setTimeout(() => { pintar(); ubicar(); }, 60), true);
