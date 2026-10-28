@@ -55,7 +55,7 @@
   `;
   document.head.appendChild(controlCss);
 
-  let caja = null, panelGeneral = null, tabGeneral = null, controlTimer = 0;
+  let caja = null, panelGeneral = null, tabGeneral = null, controlTimer = 0, controlChatKey = '';
   const abiertas = new Set();   // áreas con sus agentes desplegados
   const tabDe = kind => document.querySelector('.tab[data-kind="' + kind + '"]');
   const activa = kind => !!document.querySelector('.panel[data-panel="' + kind + '"].active');
@@ -156,8 +156,11 @@
     if (zeus) actividades.ZEUS = zeus.actividad || zeus.estado || 'Revisando inventario';
     panelGeneral.querySelectorAll('[data-control-agent]').forEach(el => {
       const nombre = el.dataset.controlAgent, actividad = actividades[nombre] || 'Conectado al centro';
+      const texto = textoActividad(nombre, actividad);
       el.classList.toggle('trabajando', !/^(Disponible|Conectado al centro|CORRIENDO|INACTIVO)$/i.test(actividad));
-      el.title = textoActividad(nombre, actividad); el.querySelector('small').textContent = textoActividad(nombre, actividad);
+      if (el.dataset.actividad !== texto) {
+        el.dataset.actividad = texto; el.title = texto; el.querySelector('small').textContent = texto;
+      }
     });
     const salida = panelGeneral.querySelector('[data-jefe-respuesta]');
     if (salida && chat) {
@@ -167,7 +170,12 @@
         return limpio.length > 280 ? limpio.slice(0, 280).replace(/\s+\S*$/, '') + '…' : limpio;
       };
       const ultimos = (chat.mensajes || []).filter(m => m.rol === 'bot').slice(-2);
-      salida.innerHTML = ultimos.length
+      const clave = JSON.stringify({ esperando: !!chat.esperando, trabajo: chat.trabajo || null, ultimos: ultimos.map(m => [m.id, m.texto, m.estado]) });
+      if (clave === controlChatKey) return;
+      controlChatKey = clave;
+      salida.innerHTML = chat.esperando
+        ? `<article class="ag-chat-msg pendiente"><small>👑 JEFE · TAREA EN PROCESO</small><div>${escapar((chat.trabajo && chat.trabajo.msg) || 'JEFE recibió la tarea y está eligiendo al agente responsable.')}</div></article>`
+        : ultimos.length
         ? ultimos.map(m => { const texto = String(m.texto || ''); const corto = resumen(texto); return `<article class="ag-chat-msg"><small>👑 JEFE · RESPUESTA</small><div>${escapar(corto)}</div>${texto.length > corto.length ? `<details><summary>Ver detalle completo</summary><p>${escapar(texto)}</p></details>` : ''}</article>`; }).join('')
         : `<article class="ag-chat-msg pendiente"><small>👑 JEFE · EN ESPERA</small><div>${chat.esperando ? 'JEFE está diagnosticando y asignando la tarea…' : 'Escríbele una tarea a JEFE para que la diagnostique y la envíe al agente indicado.'}</div></article>`;
     }
@@ -182,7 +190,7 @@
     const grupo = document.createElement('div'); grupo.hidden = true; grupo.style.display = 'none'; grupo.innerHTML = '<button class="tab" data-kind="agentes-general" type="button"></button>'; nav.appendChild(grupo); tabGeneral = grupo.querySelector('.tab');
     panelGeneral.addEventListener('click', e => { const b = e.target.closest('[data-general-area]'); if (b) { const area = AREAS.find(a => a.id === b.dataset.generalArea); abrirArea(area); } });
     panelGeneral.addEventListener('submit', async e => { if (!e.target.matches('[data-jefe-form]')) return; e.preventDefault(); const entrada = panelGeneral.querySelector('[data-jefe-input]'), texto = entrada.value.trim(); if (!texto) return; entrada.disabled = true; try { await fetch('/api/agentes/mensaje', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mensaje: texto }) }); entrada.value = ''; panelGeneral.querySelector('[data-jefe-respuesta]').textContent = 'JEFE recibió la tarea y está diagnosticando a quién asignarla…'; refrescarControl(); } finally { entrada.disabled = false; entrada.focus(); } });
-    if (!controlTimer) controlTimer = setInterval(refrescarControl, 1000);
+    if (!controlTimer) controlTimer = setInterval(refrescarControl, 3000);
   }
   setInterval(montar, 400);
   document.addEventListener('click', () => setTimeout(() => { pintar(); ubicar(); }, 60), true);
