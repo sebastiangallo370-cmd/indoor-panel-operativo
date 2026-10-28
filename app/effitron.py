@@ -109,6 +109,26 @@ def _linea_base(base: dict, ref: str, d: int, g: str) -> dict:
     raise ValueError(f'La cotización anterior no tiene líneas de la referencia {ref}')
 
 
+def _forma_pago_base(cabecera: dict, dias_pdf: int) -> int:
+    """Conserva la condición comercial real de Effi; el PDF solo es respaldo.
+
+    Algunos PDFs antiguos muestran días que ya no existen como forma de pago.
+    La cabecera de la cotización original contiene el id vigente y evita crear
+    reposiciones con una condición inventada.
+    """
+    valor = cabecera.get('t_forma_pago') or cabecera.get('forma_pago') or cabecera.get('id_forma_pago')
+    if isinstance(valor, (list, tuple)):
+        valor = valor[0] if valor else None
+    if isinstance(valor, dict):
+        valor = valor.get('id') or valor.get('valor')
+    try:
+        if int(valor) > 0:
+            return int(valor)
+    except (TypeError, ValueError):
+        pass
+    return effi_api.forma_pago_id(dias_pdf or 0)
+
+
 def preparar(p: dict) -> dict:
     """Arma el cuerpo de POST /cotizacion para una reposición. Lanza ValueError con el motivo si no se puede hacer con seguridad."""
     if not _llave():
@@ -151,7 +171,7 @@ def preparar(p: dict) -> dict:
         'observacion': f"REPOSICIÓN CLUB #{p['id']} · base CO{base_ref['numero']} · creada por EFFITRON"[:250],
         'articulo': [c['articulo'] for c in conceptos], 'descripcion': [c['descripcion'] for c in conceptos],
         'cantidad': [c['cantidad'] for c in conceptos], 'precio': [c['precio'] for c in conceptos], 'descuento': [0] * len(conceptos),
-        't_forma_pago': [effi_api.forma_pago_id(base_ref['dias'] or 0)], 'valor_forma_pago': [total],
+        't_forma_pago': [_forma_pago_base(cab, base_ref['dias'])], 'valor_forma_pago': [total],
     }
     if not cab.get('direccion_cliente'):
         for k in ('id_pais_cliente', 'id_provincia_cliente', 'id_ciudad_cliente', 'direccion_cliente'):
