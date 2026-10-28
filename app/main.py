@@ -384,7 +384,10 @@ def senal_orden_programada(origen: str = ''):
     def correr():
         # Al programar, los MTS los calcula SOLO el agente de inventario (ZEUS): el mismo que luego compara contra la bodega y envía la alerta de tela.
         # TERRY ya no calcula al programar (solo queda su respaldo al terminar EDICIÓN para las tarjetas que sigan sin MTS).
-        _llenar_mts_tarjetas(origen, leer_listados=True)
+        # La señal no depende de que se hayan escrito MTS: una orden puede llegar con
+        # su nota ya llena y aun así debe avisar de inmediato si la tela no alcanza.
+        _llenar_mts_tarjetas(origen, leer_listados=True, avisar_inventario=False)
+        avisar_zeus(f'orden programada · {origen}' if origen else 'orden programada')
     threading.Thread(target=correr, name='senal-orden-programada', daemon=True).start()
 
 
@@ -463,7 +466,7 @@ def _trazo_cola() -> list[dict]:
     return lista
 
 
-def _llenar_mts_tarjetas(origen: str = '', leer_listados: bool = False) -> None:
+def _llenar_mts_tarjetas(origen: str = '', leer_listados: bool = False, avisar_inventario: bool = True) -> None:
     """Anota en MTS REQUERIDOS (solo en el panel, nunca en el Sheet) los MTS calculados con el promedio de las tarjetas que aún no los tienen.
     Antes lo hacía el reloj de ZEUS; ahora corre cuando entra una orden y cada 10 minutos, para que ninguna tarjeta nueva se quede «Sin registrar»."""
     try:
@@ -473,7 +476,8 @@ def _llenar_mts_tarjetas(origen: str = '', leer_listados: bool = False) -> None:
         r = zeus_mod._llenar_mts()
         if r.get('escritas'):
             logging.info('MTS REQUERIDOS anotados en %s tarjeta(s) (%s)', r['escritas'], origen or 'periódico')
-            avisar_zeus('MTS requeridos anotados')
+            if avisar_inventario:
+                avisar_zeus('MTS requeridos anotados')
     except Exception:
         logging.exception('No se pudieron anotar los MTS requeridos')
 
