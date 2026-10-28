@@ -5,7 +5,7 @@
   if (window.__agentesHub) return;
   window.__agentesHub = true;
   const AREAS = [
-    { id: 'edicion', kind: 'agentes', nombre: 'EDICIÓN', agentes: [['TAVO', 'Coordina el pedido'], ['LEO', 'Lee el listado'], ['JACK', 'Crea la muestra'], ['OLVER', 'Mesas de trabajo'], ['OLIVER', 'Tallas, números y PDF'], ['TERRY', 'MTS y Google Sheets']] },
+    { id: 'edicion', kind: 'agentes', nombre: 'EDICIÓN', agentes: [['JEFE', 'Recibe y asigna la tarea correcta'], ['LEO', 'Lee el listado'], ['JACK', 'Crea la muestra'], ['OLVER', 'Mesas de trabajo'], ['OLIVER', 'Tallas, números y PDF'], ['TERRY', 'MTS y Google Sheets']] },
     // TRAZO es su propio desplegable: DRACO se atiende en el chat de Agentes, pero aparece aparte de los de Edición y deja escrito «draco » para pedirle
     { id: 'trazo', kind: 'draco', nombre: 'TRAZOS', agentes: [['DRACO', 'Trazos en Optitex Mark']] },   // su propia pantalla (draco-panel.js): cola de órdenes, DXF por talla y conversación con DRACO
     { id: 'ecommerce', kind: 'ecommerce', nombre: 'ECOMMERCE', agentes: [['ALMA', 'Descarga las órdenes'], ['BRISA', 'Exporta las tallas'], ['CIRO', 'PDF y Google Sheets']] },
@@ -13,6 +13,7 @@
     { id: 'club', kind: 'club', nombre: 'COMERCIAL', agentes: [['EFFITRON', 'Cotización de las reposiciones']] },
   ];
   const ROBOT = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="8" width="15" height="11" rx="3"/><path d="M12 8V4.6"/><circle cx="12" cy="3.6" r="1.1"/><circle cx="9" cy="13" r="1.2"/><circle cx="15" cy="13" r="1.2"/><path d="M9.5 16.4h5M2.5 12.5v3M21.5 12.5v3"/></svg>';
+  const AVATAR = { JEFE: '👑', TAVO: '🧑‍💼', LEO: '🧑‍💻', JACK: '🧑‍🎨', OLVER: '🧑‍🔧', OLIVER: '🧑‍💼', TERRY: '🧑‍💻', DRACO: '🤖', ALMA: '👩‍💼', BRISA: '👩‍💻', CIRO: '🧑‍🎨', ZEUS: '🧙', MINIMAXIMAN: '🧑‍🔬', STOCKMAN: '🧑‍💼', EFFITRON: '🤵' };
   const css = document.createElement('style');
   css.textContent = `
   #agentes-hub{position:relative;display:none;align-items:center;margin:0 6px 0 0;vertical-align:middle;z-index:1200}
@@ -144,6 +145,7 @@
     const actividades = {};
     (ecommerce?.agentes || []).forEach(a => { actividades[String(a.nombre || a.id).toUpperCase()] = a.ultima || ecommerce?.latidos?.[a.id]?.actividad || a.estado; });
     const trabajo = (edicion?.pcs || []).map(p => p.trabajo || '').join(' · ');
+    actividades.JEFE = trabajo || 'Coordina y asigna tareas';
     ['TAVO','LEO','JACK','OLVER','OLIVER','TERRY','DRACO'].forEach(n => { actividades[n] = trabajo && trabajo.toUpperCase().includes(n) ? trabajo : 'Conectado al centro'; });
     if (zeus) actividades.ZEUS = zeus.actividad || zeus.estado || 'Revisando inventario';
     panelGeneral.querySelectorAll('[data-control-agent]').forEach(el => {
@@ -156,12 +158,12 @@
     const main = document.querySelector('main'), nav = document.querySelector('nav.tabs');
     if (!main || !nav || panelGeneral) return;
     panelGeneral = document.createElement('section'); panelGeneral.className = 'panel'; panelGeneral.dataset.panel = 'agentes-general';
-    const areas = AREAS.map((a, i) => `<button type="button" class="ag-area-general a${i + 1}" data-general-area="${a.id}"><strong>${a.nombre}</strong><small>${a.agentes.length} agentes conectados al centro</small><div class="ag-general-agentes">${a.agentes.map(g => `<span data-control-agent="${g[0]}"><i></i><b>${g[0]}</b><small>Conectado al centro</small></span>`).join('')}</div></button>`).join('');
+    const areas = AREAS.map((a, i) => `<button type="button" class="ag-area-general a${i + 1}" data-general-area="${a.id}"><strong>${a.nombre}</strong><small>${a.agentes.length} agentes conectados al centro</small><div class="ag-general-agentes">${a.agentes.map(g => `<span data-control-agent="${g[0]}" title="${g[0]}"><i></i><b class="ag-muneco" aria-label="${g[0]}">${AVATAR[g[0]] || '🤖'}</b><small>Conectado al centro</small></span>`).join('')}</div></button>`).join('');
     panelGeneral.innerHTML = `<div class="ag-general"><header class="ag-general-head"><div><h2>RED DE AGENTES</h2><p>Todos los asistentes conectados al centro operativo.</p></div><small>● RED DISPONIBLE</small></header><section class="ag-campus">${areas}<article class="ag-edificio"><div><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M8 56h48M14 56V18l18-10 18 10v38M24 56V35h16v21M21 23h6m10 0h6M21 30h6m10 0h6"/></svg><b>INDOOR SPORT SAS</b><span>Centro de operaciones</span></div></article></section></div>`;
     main.appendChild(panelGeneral);
     const grupo = document.createElement('div'); grupo.hidden = true; grupo.style.display = 'none'; grupo.innerHTML = '<button class="tab" data-kind="agentes-general" type="button"></button>'; nav.appendChild(grupo); tabGeneral = grupo.querySelector('.tab');
     panelGeneral.addEventListener('click', e => { const b = e.target.closest('[data-general-area]'); if (b) { const area = AREAS.find(a => a.id === b.dataset.generalArea); abrirArea(area); } });
-    if (!controlTimer) controlTimer = setInterval(refrescarControl, 3000);
+    if (!controlTimer) controlTimer = setInterval(refrescarControl, 1000);
   }
   setInterval(montar, 400);
   document.addEventListener('click', () => setTimeout(() => { pintar(); ubicar(); }, 60), true);
