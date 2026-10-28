@@ -13,6 +13,7 @@ from urllib.parse import unquote
 import secrets
 import threading
 import time
+import unicodedata
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -40,7 +41,7 @@ _vistas: dict[str, dict] = {}   # id -> {sesion, nombre, ext}: se pierden al rei
 _lock_vistas = threading.Lock()
 _TIPOS = {'pdf': ('application/pdf', b'%PDF'), 'png': ('image/png', b'\x89PNG'), 'jpg': ('image/jpeg', b'\xff\xd8\xff'), 'jpeg': ('image/jpeg', b'\xff\xd8\xff')}
 LATIDO_SEG = 25          # el PC se considera conectado si sondeó hace menos de esto
-ESPERA_MAX_SEG = 2700    # un lote de PDF de producción por jugador puede tardar varios minutos (hasta 45 min antes de avisar)
+ESPERA_MAX_SEG = 900     # evita que una orden quede bloqueada si el PC de edición deja de responder
 _auth: Callable = lambda request: None
 _es_admin: Callable[[str], bool] = lambda usuario: False
 _lista_usuarios: Callable[[], list] = lambda: []
@@ -347,11 +348,67 @@ def enviar(request: Request, payload: dict):
         datos = _leer()
         _liberar_vencidos(datos)
         pid, ses = _canal(datos, usuario, str(payload.get('pc') or ''))
-        if any(m['sesion'] == ses and m['rol'] == 'yo' and not m.get('respondido') and not m.get('oculto') for m in datos['mensajes']):
-            raise HTTPException(409, 'Espera la respuesta de TAVO antes de enviar otro mensaje')
+        # Las ejecuciones no se bloquean entre sí: el PC de edición las toma
+        # en cola y permite repetir una misma orden tantas veces como haga falta.
         msg = _nuevo(datos, ses, 'yo', texto, t=_ahora(), tomado=False, respondido=False)
         _guardar(datos)
         return {'ok': True, 'id': msg['id'], 'conectado': _conectado(datos, msg.get('pc')), 'pc': _nombre_pc(datos, msg.get('pc') or PRINCIPAL)}
+
+
+def _normalizar_jefe(valor: str) -> str:
+    return ''.join(c for c in unicodedata.normalize('NFD', str(valor or '').upper()) if unicodedata.category(c) != 'Mn')
+
+
+def _compra_pedida_a_jefe(usuario: str, texto: str) -> tuple[bool, str]:
+    """Reconoce compras de tela inequívocas y deja el requerimiento a ZEUS.
+
+    Devuelve (reconocida, respuesta). Una orden se crea como pendiente: ZEUS/Effi
+    sigue siendo quien la materializa y notifica el número de OC.
+    """
+    limpio = _normalizar_jefe(texto)
+    if 'TELA' not in limpio or not re.search(r'\b(COMPR[AEAR]*|REQUERIMIENTO|PEDIR|ORDEN\s+DE\s+COMPRA)\b', limpio):
+        return False, ''
+    metros = re.search(r'\b(\d+(?:[.,]\d+)?)\s*(?:MTS?|METROS?)\b', limpio)
+    if not metros:
+        return True, 'JEFE detectó una compra de tela, pero falta la cantidad en MTS. Ejemplo: «requerimiento de compra de 70 mts de tela Montecatini».'
+    cantidad = float(metros.group(1).replace(',', '.'))
+    if cantidad <= 0:
+        return True, 'La cantidad de la compra debe ser mayor a cero.'
+    from app import proveedores_tela, zeus
+    catalogo = proveedores_tela.telas()
+    codigos = re.findall(r'\b\d{3,6}\b', limpio)
+    elegida = next((t for c in codigos for t in catalogo if str(t.get('codigo') or '') == c), None)
+    if not elegida:
+        elegida = next((t for t in catalogo if _normalizar_jefe(t.get('nombre', '')) in limpio), None)
+    if not elegida:
+        return True, 'No encontré esa tela en el catálogo de Inventarios. No crearé una compra a ciegas: escribe el código exacto que aparece en Bodega Tela.'
+    resultado = zeus.pedir_tela_ventas(usuario, str(elegida.get('codigo') or ''), str(elegida.get('nombre') or ''), cantidad,
+                                       'REQUERIMIENTO JEFE', 1, proyecto='Pedido desde JEFE', documento='JEFE')
+    estado = 'ya estaba en cola' if resultado.get('repetido') else 'quedó en cola'
+    return True, f"Asigné la compra a ZEUS: {cantidad:g} MTS de {elegida.get('nombre')}. El requerimiento {estado}; ZEUS creará la OC en Effi y avisará cuando tenga el número."
+
+
+@router.post('/jefe')
+def enviar_a_jefe(request: Request, payload: dict):
+    """Entrada del panel de coordinación: compras de tela van a ZEUS; lo demás a TAVO."""
+    usuario = _auth(request)
+    texto = str(payload.get('mensaje') or '').strip()[:2000]
+    if not texto:
+        raise HTTPException(400, 'Escribe una tarea')
+    reconocida, respuesta = _compra_pedida_a_jefe(usuario, texto)
+    with _lock:
+        datos = _leer()
+        _liberar_vencidos(datos)
+        pid, ses = _canal(datos, usuario, str(payload.get('pc') or ''))
+        if reconocida:
+            msg = _nuevo(datos, ses, 'yo', texto, t=_ahora(), tomado=True, respondido=True, pc=pid)
+            _nuevo(datos, ses, 'bot', respuesta, estado='ZEUS' if respuesta.startswith('Asigné') else 'REVISAR', botones=[], agentes=['JEFE', 'ZEUS'], respondido=True)
+            datos['trabajo'].pop(ses, None)
+            _guardar(datos)
+            return {'ok': True, 'id': msg['id'], 'agente': 'ZEUS', 'mensaje': respuesta}
+        msg = _nuevo(datos, ses, 'yo', texto, t=_ahora(), tomado=False, respondido=False)
+        _guardar(datos)
+        return {'ok': True, 'id': msg['id'], 'agente': 'TAVO', 'mensaje': 'JEFE asignó la tarea a Edición.'}
 
 
 @router.post('/orden')
