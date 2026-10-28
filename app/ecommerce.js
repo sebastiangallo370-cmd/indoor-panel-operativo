@@ -9,7 +9,7 @@
   const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const st = {
     agentes: [], pc: null, cola: {}, ordenes: [], trabajos: [], historial: [], hoy: {}, latidos: {}, log: [], ultimo: 0, filtro: '', token: null, abierto: {}, ocupado: false,
-    aviso: '', vista: 'flujo', filtroOrd: 'todas', busqueda: '', orden: null, drawer: null, proxima: null, intervalo: 60, revisando: 0, feedId: 0, configuracion: {}
+    aviso: '', vista: 'flujo', filtroOrd: 'todas', busqueda: '', orden: null, drawer: null, proxima: null, intervalo: 60, revisando: 0, feedId: 0, configuracion: {}, agenteVista: 'resumen'
   };
   let panel = null, tab = null, timer = 0, reloj = 0;
 
@@ -105,6 +105,7 @@
   .ec-ult{min-height:2.4em;color:#aeb9a6;font:12px Consolas,monospace;overflow-wrap:anywhere}.ec-desde{color:#8f9d88;font-size:.72rem;min-height:1em}
   .ec-btns{display:flex;gap:8px;flex-wrap:wrap}.ec-btns .ag-btn{flex:1 1 90px}
   .ec-card details summary,.ec-drawer details summary{cursor:pointer;color:#aeb9a6;font-size:.75rem;font-weight:800;letter-spacing:.08em}.ec-card ul,.ec-drawer ul{margin:8px 0 0;padding-left:18px;color:#c4cfbf;font-size:.8rem;line-height:1.5}
+  .ec-agent-tabs{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px;padding:7px;border:1px solid #34432f;border-radius:12px;background:#090e09}.ec-agent-tab{border:1px solid transparent;border-radius:9px;padding:8px 13px;background:transparent;color:#aeb9a6;font:800 12px Arial;letter-spacing:.06em;cursor:pointer}.ec-agent-tab:hover{color:#eef4e9;background:#172014}.ec-agent-tab.on{border-color:var(--c,#8bd450);background:color-mix(in srgb,var(--c,#8bd450) 16%,#10170c);color:#eef4e9}.ec-agent-focus{display:grid;grid-template-columns:minmax(270px,410px) minmax(240px,1fr);gap:14px}.ec-agent-focus .ec-card{align-content:start}.ec-agent-actividad{padding:15px;border:1px solid #34432f;border-radius:14px;background:#0c110d}.ec-agent-actividad h3{margin:0 0 10px;color:#d8e4d2;font-size:.82rem;letter-spacing:.1em}.ec-agent-actividad .ec-log{max-height:390px}
   .ec-sub2{color:#8f9d88;font-size:.72rem;font-weight:800;letter-spacing:.1em;margin:2px 0 6px}
   .ec-ordenes-pc{display:grid;gap:6px}.ec-opc{display:flex;flex-wrap:wrap;gap:6px 14px;padding:8px 12px;border:1px solid #34432f;border-radius:10px;background:#0c110d;font-size:.8rem;color:#c4cfbf}
   .ec-opc b{color:#eef4e9}.ec-opc.error,.ec-opc.vencida{color:#ffb4ae;border-color:#6a2e2a}.ec-opc.hecha{color:#b8e68a}
@@ -121,7 +122,7 @@
     @keyframes ecFluyeV{to{background-position:0 20px}}.ec-cola{left:22px;top:50%;transform:translateY(-50%)}
     .ec-paquete{left:-4px!important;animation:ecViajaV 2.2s linear infinite}@keyframes ecViajaV{from{top:-4%;opacity:0}15%{opacity:1}85%{opacity:1}to{top:100%;opacity:0}}
     .ec-extremo{margin-top:6px}.ec-ord>button{grid-template-columns:1fr}.ec-tiempo{text-align:left}}
-  @media(max-width:620px){.ec-l{flex-wrap:wrap;gap:2px 8px}.ec-vtabs .ag-vt{padding:8px 12px!important;flex:1}}
+  @media(max-width:620px){.ec-l{flex-wrap:wrap;gap:2px 8px}.ec-vtabs .ag-vt{padding:8px 12px!important;flex:1}.ec-agent-tabs{display:grid;grid-template-columns:repeat(2,1fr)}.ec-agent-tab{padding:9px 7px}.ec-agent-focus{grid-template-columns:1fr}}
   @media(prefers-reduced-motion:reduce){.ec-barrido,.ec-enlace.activo,.ec-paquete,.ec-nodo.trabaja .ec-disco,.ec-act-cab i,.ec-ev,.ec-p.ahora i{animation:none!important}}`;
   document.head.appendChild(css);
 
@@ -322,7 +323,19 @@
       '<details data-det="' + a.id + '"' + (st.abierto[a.id] ? ' open' : '') + '><summary>QUÉ HACE</summary><ul>' + a.funciones.map(f => '<li>' + esc(f) + '</li>').join('') + '</ul></details></article>';
   }
   function vistaAgentes() {
-    return '<div class="ec-grid">' + st.agentes.map(tarjeta).join('') + '</div>' +
+    const pestañas = [{ id: 'resumen', nombre: 'RESUMEN', color: '#8bd450' }].concat(st.agentes.map(a => ({ id: a.id, nombre: a.nombre, color: a.color })));
+    const selector = '<nav class="ec-agent-tabs" aria-label="Vista de agentes e-commerce">' + pestañas.map(p =>
+      '<button type="button" class="ec-agent-tab' + (st.agenteVista === p.id ? ' on' : '') + '" data-ec-agente-vista="' + p.id + '" style="--c:' + p.color + '">' + esc(p.nombre) + '</button>').join('') + '</nav>';
+    let contenido;
+    if (st.agenteVista === 'resumen' || !agente(st.agenteVista).id) {
+      contenido = '<div class="ec-grid">' + st.agentes.map(tarjeta).join('') + '</div>';
+    } else {
+      const a = agente(st.agenteVista), lineas = st.log.filter(l => l.agente === a.id).slice(-120).reverse();
+      contenido = '<div class="ec-agent-focus"><div>' + tarjeta(a) + '</div><section class="ec-agent-actividad"><h3>ACTIVIDAD DE ' + esc(a.nombre) + '</h3><div class="ec-log">' +
+        (lineas.length ? lineas.map(l => '<div class="ec-l ' + esc(l.nivel) + '"><time>' + hora(l.at) + '</time><b style="color:' + (a.color || '#aeb9a6') + '">' + esc(a.nombre) + '</b><span>' + esc(l.texto) + '</span></div>').join('') : '<div class="ec-vacio">Sin actividad registrada todavía.</div>') +
+        '</div></section></div>';
+    }
+    return selector + contenido +
       (st.ordenes.length ? '<div><div class="ec-sub2">ÚLTIMAS ÓRDENES AL PC</div><div class="ec-ordenes-pc">' + st.ordenes.map(o =>
         '<div class="ec-opc ' + esc(o.estado) + '"><b>' + esc(agente(o.agente).nombre || o.agente) + '</b><span>' + esc(o.accion) + '</span><span>por ' + esc(o.por) + ' · ' + horaIso(o.iso) + '</span><span>' +
         esc({ pendiente: 'esperando al PC', entregada: 'el PC la está haciendo', hecha: 'hecha', error: 'falló', vencida: 'vencida' }[o.estado] || o.estado) + (o.detalle ? ' — ' + esc(o.detalle) : '') + '</span></div>').join('') + '</div></div>' : '');
@@ -457,6 +470,8 @@
       if (b && !b.disabled) { const [id, accion] = b.dataset.orden.split(':'); ordenar(id, accion); return; }
       const vt = e.target.closest('[data-vt]');
       if (vt) { st.vista = vt.dataset.vt; pintar(); return; }
+      const av = e.target.closest('[data-ec-agente-vista]');
+      if (av) { st.agenteVista = av.dataset.ecAgenteVista; pintar(); return; }
       const fo = e.target.closest('[data-fo]');
       if (fo) { st.filtroOrd = fo.dataset.fo; pintar(); return; }
       const ab = e.target.closest('[data-abrir]');
