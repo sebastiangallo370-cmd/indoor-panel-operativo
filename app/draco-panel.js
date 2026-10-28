@@ -103,7 +103,7 @@
   .dr-ref.p{border-color:#ff7a59;background:rgba(255,122,89,.22)}
   .dr-actv{display:grid;gap:8px;border-top:1px solid rgba(255,255,255,.1);padding-top:8px}.dr-actv.mal .dr-mas{color:#ffb39f}
   .dr-actv .dr-m{max-width:100%;font-size:12px;max-height:240px;overflow:auto}
-  .dr-paus{background:rgba(255,200,80,.16);border-color:rgba(255,200,80,.5);color:#ffd98a}.dr-cancel{border-color:rgba(255,107,97,.6)!important;color:#ffb3ac!important}.dr-ctl .dr-b{flex:0 0 auto}.dr-ctl .dr-b.pri{flex:1}.dr-prog{display:grid;gap:6px}.dr-prog small{font:600 11px Arial;color:#ffb39f;overflow-wrap:anywhere}
+  .dr-paus{background:rgba(255,200,80,.16);border-color:rgba(255,200,80,.5);color:#ffd98a}.dr-cancel{border-color:rgba(255,107,97,.6)!important;color:#ffb3ac!important}.dr-restart{border-color:rgba(116,201,255,.65)!important;color:#c6ecff!important}.dr-ctl .dr-b{flex:0 0 auto}.dr-ctl .dr-b.pri{flex:1}.dr-prog{display:grid;gap:6px}.dr-prog small{font:600 11px Arial;color:#ffb39f;overflow-wrap:anywhere}
   .dr-bar{height:8px;border-radius:99px;background:rgba(255,255,255,.12);overflow:hidden;box-shadow:inset 0 1px 2px rgba(0,0,0,.4)}
   .dr-bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#ff7a59,#ffb39f);box-shadow:0 0 12px rgba(255,122,89,.7);transition:width .6s ease}
   .dr-bar.ind i{width:40%;animation:drBarra 1.4s ease-in-out infinite}
@@ -171,7 +171,7 @@
       (st.pausa ? '<div class="dr-off dr-paus">EN PAUSA</div>' : (st.pc.conectado ? '' : '<div class="dr-off">PC sin conexión</div>')) +
       barra +
       (prob ? `<div class="dr-actv mal"><button type="button" class="dr-mas" data-act="${esc(o.orden)}">⚠ Con problemas ${st.abiertas['a:' + o.orden] ? '▾' : '▸'}</button>${st.abiertas['a:' + o.orden] ? st.msgs.filter(m => m.rol !== 'yo' && String(m.texto || '').includes(o.orden)).slice(-1).map(m => `<div class="dr-m bot">${esc(m.texto.length > 700 ? m.texto.slice(0, 700) + '…' : m.texto)}</div>`).join('') : ''}</div>` : '') +
-      `<div class="dr-acc dr-ctl"><button type="button" class="dr-b pri" data-crear="${esc(o.orden + ' ' + r.ref)}"${bloqueado ? ' disabled' : ''}>CREAR DXF</button><button type="button" class="dr-b" data-pausa="${st.pausa ? 0 : 1}">${st.pausa ? '▶' : '⏸'}</button><button type="button" class="dr-b dr-cancel" data-cancelar${st.pc.id ? '' : ' disabled'} title="Cancelar">⏹</button></div></article>`;
+      `<div class="dr-acc dr-ctl"><button type="button" class="dr-b pri" data-crear="${esc(o.orden + ' ' + r.ref)}"${bloqueado ? ' disabled' : ''}>CREAR DXF</button><button type="button" class="dr-b" data-pausa="${st.pausa ? 0 : 1}">${st.pausa ? '▶' : '⏸'}</button><button type="button" class="dr-b dr-restart" data-reiniciar${st.pc.id ? '' : ' disabled'} title="Reiniciar DRACO">↻</button><button type="button" class="dr-b dr-cancel" data-cancelar${st.pc.id ? '' : ' disabled'} title="Cancelar">⏹</button></div></article>`;
   }
   const burbuja = m => `<div class="dr-m ${m.rol === 'yo' ? 'yo' : 'bot'}${m.auto ? ' auto' : ''}">${esc(m.texto)}<small>${m.rol === 'yo' ? 'Tú' : (m.agentes && m.agentes.length ? m.agentes.join(' · ') : 'TAVO')} · ${esc(hora(m.creado))}</small></div>`;
 
@@ -218,6 +218,8 @@
       if (crear && !crear.disabled) { if (confirm('¿Crear los DXF de ' + crear.dataset.crear + '? DRACO los guarda en la carpeta CORTE PLT de la orden y reemplaza los de esa referencia.')) enviar('draco trazo ' + crear.dataset.crear); return; }
       const pau = e.target.closest('[data-pausa]');
       if (pau) { const v = pau.dataset.pausa === '1'; api('/api/agentes/draco/pausa', { method: 'POST', body: JSON.stringify({ pausa: v }) }).then(() => { st.pausa = v; pintar(); }).catch(x => { st.aviso = x.message; pintar(); }); return; }
+      const rein = e.target.closest('[data-reiniciar]');
+      if (rein && !rein.disabled) { if (confirm('¿Reiniciar DRACO en el PC AUTOMATIZACION? El trabajo que esté en curso se detendrá y el agente volverá solo en unos 30 segundos.')) api('/api/agentes/reiniciar', { method: 'POST', body: JSON.stringify({ pc: st.pc.id }) }).then(() => { st.aviso = 'Reinicio solicitado. DRACO volverá a conectarse en unos 30 segundos.'; return cargarChat(); }).then(pintar).catch(x => { st.aviso = x.message; pintar(); }); return; }
       const can = e.target.closest('[data-cancelar]');
       if (can && !can.disabled) { if (confirm('¿Cancelar lo que DRACO está haciendo? Si Illustrator/Mark estaba guardando un archivo, termina ese y no sigue con el resto.')) api('/api/agentes/detener', { method: 'POST', body: JSON.stringify({ pc: st.pc.id }) }).then(() => cargarChat()).then(pintar).catch(x => { st.aviso = x.message; pintar(); }); return; }
       const act = e.target.closest('[data-act]'); if (act) { const k = 'a:' + act.dataset.act; st.abiertas[k] = !st.abiertas[k]; pintar(); return; }
