@@ -44,10 +44,11 @@
   #agentes-hub .ah-lista small{font:600 10px Arial;color:#9aa893}
   @keyframes ahIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
   #open-ecommerce,#open-zeus,#open-minimaximan,#open-stockman,#open-agentes,#open-agentes-hub{display:none!important}   /* los agentes ya no van en el menú de la cuenta: se abren con el robot */
+  .ag-general{max-width:1380px;margin:0 auto;padding:18px;color:#ecf3ed}.ag-general-head{display:flex;align-items:end;justify-content:space-between;gap:16px;padding:20px 22px;border:1px solid rgba(208,244,76,.25);border-radius:20px;background:linear-gradient(135deg,#142216,#09100b);box-shadow:0 18px 40px #0005}.ag-general-head h2{margin:0;font:900 clamp(1.45rem,3vw,2.3rem)/1 system-ui;letter-spacing:.08em}.ag-general-head p{margin:7px 0 0;color:#aebba8;font-size:.88rem}.ag-general-head small{color:#d0f44c;font:800 11px system-ui;letter-spacing:.1em}.ag-campus{position:relative;display:grid;grid-template-columns:repeat(3,minmax(190px,1fr));gap:22px;margin-top:18px;align-items:center}.ag-edificio{grid-column:2;grid-row:2;position:relative;z-index:2;min-height:205px;display:grid;place-items:center;text-align:center;border:2px solid #c8f95d;border-radius:20px;background:linear-gradient(145deg,#263e1b,#121e12);box-shadow:0 0 0 9px #baff5320,0 22px 46px #0008}.ag-edificio svg{width:76px;height:76px;fill:none;stroke:#d9ff74;stroke-width:1.4}.ag-edificio b{display:block;font:900 18px system-ui;letter-spacing:.09em}.ag-edificio span{color:#b7c6ae;font-size:12px}.ag-area-general{position:relative;z-index:2;display:grid;gap:9px;padding:13px;border:1px solid #40563c;border-radius:16px;background:linear-gradient(145deg,#152016,#0a100b);text-align:left;cursor:pointer;transition:.18s transform,.18s border-color}.ag-area-general:hover{transform:translateY(-3px);border-color:#d0f44c}.ag-area-general::after{content:"";position:absolute;z-index:-1;width:34%;height:1px;background:linear-gradient(90deg,#7ead47,transparent);top:50%;left:100%}.ag-area-general:nth-of-type(3n)::after{left:auto;right:100%;transform:rotate(180deg)}.ag-area-general strong{font:900 11px system-ui;letter-spacing:.13em;color:#d0f44c}.ag-area-general small{color:#aebaa8;font-size:11px}.ag-general-agentes{display:flex;flex-wrap:wrap;gap:5px}.ag-general-agentes span{padding:5px 7px;border:1px solid #40533d;border-radius:7px;background:#0c140d;color:#dae6d5;font:800 10px system-ui;letter-spacing:.05em}.ag-general-agentes i{display:inline-block;width:6px;height:6px;margin-right:5px;border-radius:50%;background:#7ed14b;box-shadow:0 0 7px #7ed14b}.ag-general .a1{grid-column:1;grid-row:1}.ag-general .a2{grid-column:2;grid-row:1}.ag-general .a3{grid-column:3;grid-row:1}.ag-general .a4{grid-column:1;grid-row:2}.ag-general .a5{grid-column:3;grid-row:2}@media(max-width:780px){.ag-campus{grid-template-columns:1fr;gap:10px}.ag-edificio,.ag-general .a1,.ag-general .a2,.ag-general .a3,.ag-general .a4,.ag-general .a5{grid-column:1;grid-row:auto}.ag-edificio{min-height:160px;order:-1}.ag-area-general::after{display:none}.ag-general{padding:10px}.ag-general-head{align-items:start;flex-direction:column}}
   `;
   document.head.appendChild(css);
 
-  let caja = null;
+  let caja = null, panelGeneral = null, tabGeneral = null;
   const abiertas = new Set();   // áreas con sus agentes desplegados
   const tabDe = kind => document.querySelector('.tab[data-kind="' + kind + '"]');
   const activa = kind => !!document.querySelector('.panel[data-panel="' + kind + '"].active');
@@ -66,7 +67,7 @@
     caja.dataset.clave = clave;
     const total = lista.reduce((n, a) => n + losAgentes(a).length, 0);
     // la lista muestra primero las ÁREAS (Edición, Ecommerce, Inventarios, Comercial); la flecha de cada una despliega sus agentes
-    caja.innerHTML = `<summary title="Agentes (${total})" aria-label="Agentes">${ROBOT}</summary><div class="ah-lista">` +
+    caja.innerHTML = `<summary title="Agentes (${total})" aria-label="Agentes">${ROBOT}</summary><div class="ah-lista"><button type="button" class="ah-ir" data-general><b>PANEL DE CONTROL AGENT</b><small>Todos los agentes</small></button>` +
       lista.map(a => `<div class="ah-area${abiertas.has(a.id) ? ' abierta' : ''}${resaltada(a) ? ' on' : ''}"><div class="ah-fila">` +
         `<button type="button" class="ah-ir" data-area="${a.id}"><b>${a.nombre}</b><small>${losAgentes(a).length} ${losAgentes(a).length === 1 ? 'agente' : 'agentes'}</small></button>` +
         `<button type="button" class="ah-mas" data-mas="${a.id}" title="Ver los agentes de ${a.nombre}" aria-label="Ver los agentes de ${a.nombre}"><i></i></button></div>` +
@@ -95,6 +96,7 @@
       caja = document.createElement('details');
       caja.id = 'agentes-hub';
       caja.addEventListener('click', e => {
+        if (e.target.closest('[data-general]')) { caja.removeAttribute('open'); abrirGeneral(); return; }
         const mas = e.target.closest('[data-mas]');
         if (mas) {   // la flecha despliega o pliega los agentes del área (sin cambiar de pantalla)
           const k = mas.dataset.mas, fila = mas.closest('.ah-area');
@@ -119,8 +121,29 @@
       document.addEventListener('keydown', e => { if (e.key === 'Escape') caja.removeAttribute('open'); });
     }
     pintar();
+    crearPanelGeneral();
     ubicar();
     // el menú de la cuenta ya no lista los agentes (Edición, Ecommerce, Inventarios): se abren con el robot junto al sol
+  }
+  function abrirArea(area) {
+    const t = area && tabDe(area.kind);
+    if (t) t.click();
+    if (area && area.mensaje) setTimeout(() => { const entrada = document.querySelector('.panel[data-panel="' + area.kind + '"] textarea'); if (entrada) { entrada.value = entrada.value || area.mensaje; entrada.dispatchEvent(new Event('input', { bubbles: true })); entrada.focus(); } }, 350);
+  }
+  function abrirGeneral() {
+    if (!panelGeneral || !tabGeneral) return;
+    document.querySelectorAll('.tab').forEach(x => x.classList.toggle('active', x === tabGeneral));
+    document.querySelectorAll('.panel').forEach(x => x.classList.toggle('active', x === panelGeneral));
+  }
+  function crearPanelGeneral() {
+    const main = document.querySelector('main'), nav = document.querySelector('nav.tabs');
+    if (!main || !nav || panelGeneral) return;
+    panelGeneral = document.createElement('section'); panelGeneral.className = 'panel'; panelGeneral.dataset.panel = 'agentes-general';
+    const areas = AREAS.map((a, i) => `<button type="button" class="ag-area-general a${i + 1}" data-general-area="${a.id}"><strong>${a.nombre}</strong><small>${a.agentes.length} agentes conectados al centro</small><div class="ag-general-agentes">${a.agentes.map(g => `<span><i></i>${g[0]}</span>`).join('')}</div></button>`).join('');
+    panelGeneral.innerHTML = `<div class="ag-general"><header class="ag-general-head"><div><h2>RED DE AGENTES</h2><p>Todos los asistentes conectados al centro operativo.</p></div><small>● RED DISPONIBLE</small></header><section class="ag-campus">${areas}<article class="ag-edificio"><div><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M8 56h48M14 56V18l18-10 18 10v38M24 56V35h16v21M21 23h6m10 0h6M21 30h6m10 0h6"/></svg><b>INDOOR SPORT SAS</b><span>Centro de operaciones</span></div></article></section></div>`;
+    main.appendChild(panelGeneral);
+    const grupo = document.createElement('div'); grupo.hidden = true; grupo.style.display = 'none'; grupo.innerHTML = '<button class="tab" data-kind="agentes-general" type="button"></button>'; nav.appendChild(grupo); tabGeneral = grupo.querySelector('.tab');
+    panelGeneral.addEventListener('click', e => { const b = e.target.closest('[data-general-area]'); if (b) { const area = AREAS.find(a => a.id === b.dataset.generalArea); abrirArea(area); } });
   }
   setInterval(montar, 400);
   document.addEventListener('click', () => setTimeout(() => { pintar(); ubicar(); }, 60), true);
