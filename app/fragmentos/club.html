@@ -38,7 +38,16 @@ header small{padding:6px 12px;border:1px solid var(--line);border-radius:999px;b
 .dis{position:relative;display:grid;gap:10px;padding:10px;text-align:left;border:1.5px solid var(--line);border-radius:20px;background:rgba(0,0,0,.22);color:inherit;font:inherit;cursor:pointer;transition:transform .25s,border-color .25s,box-shadow .25s,background .25s}
 .dis:hover{transform:translateY(-5px);border-color:rgba(208,244,76,.6);box-shadow:0 16px 36px rgba(0,0,0,.45),0 0 0 1px rgba(208,244,76,.25)}
 .dis.on{border-color:var(--lima);background:rgba(208,244,76,.1);box-shadow:0 0 0 2px rgba(208,244,76,.35),0 18px 40px rgba(0,0,0,.45)}
+.dis.bloq{opacity:.42;cursor:not-allowed;filter:saturate(.45)}
+.dis.bloq:hover{transform:none;border-color:var(--line);box-shadow:none}
 .dis .im{aspect-ratio:auto;border-radius:14px;background:#fff;display:grid;place-items:center;overflow:hidden;color:#777;font-size:.78rem}
+.pedido-vivo{border-color:rgba(208,244,76,.42)!important;background:linear-gradient(145deg,rgba(32,51,24,.88),rgba(13,21,13,.94))!important}
+.pedido-vivo .ayuda{margin-bottom:12px}.pv-lista{display:grid;gap:10px}.pv-ref{padding:12px;border:1px solid rgba(208,244,76,.2);border-radius:16px;background:rgba(0,0,0,.2)}
+.pedido-vivo h2 .carrito-meta{margin-left:auto;color:var(--lima);font-size:.8rem;letter-spacing:.02em}
+.pv-ref-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,.1)}.pv-ref-head strong{display:block}.pv-ref-head small{display:block;margin-top:3px;color:var(--mut)}
+.pv-ref-head b{color:var(--lima);white-space:nowrap}.pv-dis{padding:9px 0;border-bottom:1px solid rgba(255,255,255,.08)}.pv-dis:last-child{border-bottom:0;padding-bottom:0}
+.pv-dis-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:5px}.pv-dis-title button{border:0;background:transparent;color:var(--lima);font:inherit;font-weight:800;cursor:pointer;padding:0;text-align:left}.pv-dis-title button:hover{text-decoration:underline}.pv-dis-title b{font-size:.82rem;color:#f1f6eb}
+.pv-jugador{display:flex;justify-content:space-between;gap:10px;padding:3px 0 3px 10px;color:#d8e2d3;font-size:.84rem}.pv-jugador span{min-width:0;overflow-wrap:anywhere}.pv-jugador b{color:var(--lima);white-space:nowrap}
 .dis .im img{display:block;width:100%;height:auto;object-fit:contain;transition:transform .4s}
 .dis:hover .im img{transform:scale(1.06)}
 .dis strong{display:block;font-size:.98rem;line-height:1.25}
@@ -94,6 +103,9 @@ button{font:inherit}
 .resumen{margin:10px 0;padding:12px;border-radius:14px;background:rgba(0,0,0,.28);font-size:.88rem}
 .resumen div{display:flex;justify-content:space-between;gap:10px;padding:3px 0}
 .resumen b{color:var(--lima)}
+.res-ref{padding:10px 0;border-bottom:1px solid rgba(255,255,255,.12)}.res-ref:first-child{padding-top:0}.res-ref:last-child{border-bottom:0}
+.res-ref strong{display:block;color:#f4f8ef}.res-ref small{display:block;margin:3px 0 5px;color:var(--mut)}
+.res-line{padding-left:10px!important;font-size:.82rem}.res-line span{min-width:0;overflow-wrap:anywhere}.res-total{margin-top:8px;padding-top:8px!important;border-top:1px solid rgba(255,255,255,.18);font-size:.95rem}
 .visor{position:fixed;inset:0;z-index:7;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.88);cursor:zoom-out}
 .visor.on{display:flex}.visor img{max-width:100%;max-height:92vh;border-radius:14px;background:#fff}
 .campos{display:grid;gap:12px;margin:14px 0}
@@ -104,11 +116,13 @@ button{font:inherit}
 .gracias .ok{display:grid;place-items:center;width:84px;height:84px;border-radius:50%;background:linear-gradient(135deg,var(--lima),var(--lima2));color:#12200a;font-size:2.6rem;font-weight:900;box-shadow:0 0 0 12px rgba(208,244,76,.12),0 0 50px rgba(208,244,76,.4);animation:pop .5s ease}
 .gracias h2{margin:6px 0 0;font-size:1.6rem}
 .gracias p{margin:0;max-width:460px;color:#cdd8c6}
+.cot-progreso{width:min(410px,100%);margin:8px 0 2px;text-align:left}.cot-progreso .pista{height:10px;overflow:hidden;border:1px solid rgba(208,244,76,.38);border-radius:999px;background:rgba(0,0,0,.32);box-shadow:inset 0 1px 4px rgba(0,0,0,.4)}.cot-progreso .avance{width:18%;height:100%;border-radius:inherit;background:linear-gradient(90deg,var(--lima2),var(--lima),#f2ffb4);box-shadow:0 0 18px rgba(208,244,76,.8);transition:width .7s ease;position:relative}.cot-progreso .avance::after{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent 20%,rgba(255,255,255,.7),transparent 80%);animation:brillo 1.5s linear infinite}.cot-progreso small{display:block;margin-top:8px;color:var(--mut);font-weight:700;text-align:center}
 .hp{position:absolute;left:-9999px;opacity:0}
 @keyframes sube{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
 @keyframes aparece{from{opacity:0}to{opacity:1}}
 @keyframes pop{0%{transform:scale(.8);opacity:0}100%{transform:scale(1);opacity:1}}
 @keyframes flota{50%{transform:translate(-20px,16px) scale(1.08)}}
+@keyframes brillo{from{transform:translateX(-120%)}to{transform:translateX(120%)}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 @media(max-width:820px){.grande{position:static}.disenos,.mgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:620px){.hero{padding:20px 18px}.card{padding:14px;border-radius:20px}.card>.ayuda{margin-left:0}.barra .in{padding-left:16px}.pasos li{font-size:.76rem;padding-right:10px}
@@ -141,9 +155,15 @@ button{font:inherit}
 
   <div id="app" hidden>
     <section class="card" id="c1">
-      <h2><b>1</b> ¿Cuál pedido anterior quieres repetir?</h2>
-      <p class="ayuda">Estos son todos tus pedidos con Indoor. Toca el que quieres repetir; puedes elegir varios, uno después del otro.</p>
+      <h2><b>1</b> ¿Qué referencias quieres repetir?</h2>
+      <p class="ayuda">Puedes elegir varias referencias del mismo proyecto. Para cambiar de proyecto, primero quita las prendas que ya agregaste.</p>
       <div class="disenos" id="disenos"></div>
+    </section>
+
+    <section class="card pedido-vivo" id="pedidoVivo" hidden>
+      <h2><b>🛒</b> Tu carrito <span class="carrito-meta" id="carritoMeta"></span></h2>
+      <p class="ayuda">Aquí puedes revisar todo lo agregado. Toca un diseño para volver a editar sus jugadores.</p>
+      <div class="pv-lista" id="pedidoDetalle"></div>
     </section>
 
     <section class="card" id="c2" hidden>
@@ -187,11 +207,9 @@ button{font:inherit}
 
 <div class="modal" id="modal"><div class="hoja">
   <h2>Último paso</h2>
-  <p class="info" style="margin:0 0 6px">Revisa tu pedido y déjanos tus datos para confirmarte.</p>
+  <p class="info" style="margin:0 0 6px">Revisa cada referencia, sus jugadores y cantidades antes de confirmar.</p>
   <div class="resumen" id="resumen"></div>
   <div class="campos">
-    <label>Tu nombre<input id="contacto" maxlength="80" autocomplete="name" placeholder="¿Quién hace el pedido?"></label>
-    <label>Teléfono o WhatsApp<input id="telefono" inputmode="tel" maxlength="25" autocomplete="tel" placeholder="Para confirmarte el pedido"></label>
     <label>¿Algo más que debamos saber? (opcional)<textarea id="notas" rows="2" maxlength="400" placeholder="Ejemplo: lo necesitamos antes del 15"></textarea></label>
     <input class="hp" id="website" tabindex="-1" autocomplete="off" aria-hidden="true">
   </div>
@@ -214,16 +232,23 @@ button{font:inherit}
   function nDis(d){var f=fotos[d.row];return Math.max(1,Math.min((f&&f.length)||1,20))}
   function nueva(n){return {nombre:'',talla:tallas.indexOf('M')>=0?'M':tallas[0],numero:'',genero:'',observacion:'',diseno:n||1,cantidad:1}}
   function lista(r){return Object.keys(eleg[r]||{}).map(Number).sort(function(a,b){return a-b})}
+  function claveProyecto(v){return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toUpperCase()}
+  function proyectoActivo(){var d=disenos.filter(function(x){return llenas(x.row).length})[0];return d?claveProyecto(d.proyecto):''}
 
   function guardar(){try{var v={};Object.keys(carro).forEach(function(r){var l=llenas(r);if(l.length)v[r]=l});if(Object.keys(v).length)localStorage.setItem(KEY,JSON.stringify(v));else localStorage.removeItem(KEY)}catch(e){}}
   function pasos(p){document.querySelectorAll('#pasos li').forEach(function(li){var n=Number(li.dataset.p);li.classList.toggle('on',n===p);li.classList.toggle('hecho',n<p)})}
   function paso(){var d=actual();if(!d)return 1;return lista(d.row).length?3:2}
-  function barra(){var n=prendas(),k=nPedidos();$('enviar').disabled=!n;$('tot').innerHTML='<b>'+n+(n===1?' prenda':' prendas')+'</b>'+(n?'en '+k+(k===1?' pedido anterior':' pedidos anteriores'):'Elige un pedido para empezar');guardar()}
+  function pedidoVivo(){var escogidos=disenos.filter(function(d){return llenas(d.row).length}),panel=$('pedidoVivo');panel.hidden=!escogidos.length;if(!escogidos.length){$('pedidoDetalle').innerHTML='';$('carritoMeta').textContent='';return}$('carritoMeta').textContent=prendas()+' prendas · '+escogidos.length+' referencias';
+    $('pedidoDetalle').innerHTML=escogidos.map(function(d){var por={};llenas(d.row).forEach(function(j){var k=Number(j.diseno)||1;(por[k]=por[k]||[]).push(j)});var subtotal=llenas(d.row).reduce(function(s,j){return s+Math.max(1,Number(j.cantidad)||1)},0);
+      return '<article class="pv-ref"><div class="pv-ref-head"><div><strong>'+esc(d.proyecto||d.referencia)+'</strong><small>Referencia '+esc(d.referencia)+'</small></div><b>'+subtotal+(subtotal===1?' prenda':' prendas')+'</b></div>'+Object.keys(por).sort(function(a,b){return Number(a)-Number(b)}).map(function(k){var jugadores=por[k],cant=jugadores.reduce(function(s,j){return s+Math.max(1,Number(j.cantidad)||1)},0);return '<div class="pv-dis"><div class="pv-dis-title"><button type="button" data-revisar-row="'+d.row+'" data-revisar-dis="'+k+'">Diseño D'+k+' · editar</button><b>'+cant+(cant===1?' prenda':' prendas')+'</b></div>'+jugadores.map(function(j){var detalle=[j.nombre||'Sin nombre','Talla '+(j.talla||'—'),j.numero?'N.º '+j.numero:'Sin número',j.genero||''];if(j.observacion)detalle.push(j.observacion);return '<div class="pv-jugador"><span>'+esc(detalle.filter(Boolean).join(' · '))+'</span><b>×'+Math.max(1,Number(j.cantidad)||1)+'</b></div>'}).join('')+'</div>'}).join('')+'</article>'}).join('');
+  }
+  function barra(){var n=prendas(),k=nPedidos();$('enviar').disabled=!n;$('tot').innerHTML='<b>'+n+(n===1?' prenda':' prendas')+'</b>'+(n?'en '+k+(k===1?' pedido anterior':' pedidos anteriores'):'Elige un pedido para empezar');pedidoVivo();guardar()}
 
   function img0(d){var f=fotos[d.row];return f&&f.length?'<img alt="" src="'+esc(f[0])+'">':(f?'Sin imagen':'Cargando…')}
   function tarjetas(){
-    $('disenos').innerHTML=disenos.map(function(d){var n=llenas(d.row).length;
-      return '<button type="button" class="dis'+(d.row===sel?' on':'')+'" data-dis="'+d.row+'">'+(n?'<span class="ins">✓ '+n+' jugadores</span>':'')+'<div class="im">'+img0(d)+'</div><div><strong>Pedido '+esc(d.orden)+' · '+esc(d.proyecto||d.referencia)+'</strong><small>Ref. '+esc(d.referencia)+(d.fecha?' · '+esc(d.fecha):'')+'</small></div></button>';
+    var activo=proyectoActivo();
+    $('disenos').innerHTML=disenos.map(function(d){var n=llenas(d.row).length,bloq=activo&&claveProyecto(d.proyecto)!==activo;
+      return '<button type="button"'+(bloq?' disabled aria-disabled="true"':'')+' class="dis'+((d.row===sel||n)?' on':'')+(bloq?' bloq':'')+'" data-dis="'+d.row+'">'+(n?'<span class="ins">✓ '+n+' jugadores</span>':'')+'<div class="im">'+img0(d)+'</div><div><strong>'+esc(d.proyecto||d.referencia)+'</strong><small>Proyecto MAESTROS · Ref. '+esc(d.referencia)+(d.fecha?' · '+esc(d.fecha):'')+'</small></div></button>';
     }).join('');
   }
   function cargaFotos(d){
@@ -284,8 +309,12 @@ button{font:inherit}
   document.addEventListener('click',function(e){
     var z=e.target.closest('[data-zoom]');if(z){$('visorimg').src=z.dataset.zoom;$('visor').classList.add('on');return}
     if(e.target.closest('#visor')){$('visor').classList.remove('on');return}
+    var revisar=e.target.closest('[data-revisar-row]');
+    if(revisar){leer();sel=Number(revisar.dataset.revisarRow);tab=Number(revisar.dataset.revisarDis);var dr=actual();if(dr&&!fotos[dr.row])cargaFotos(dr);todo();$('c3').scrollIntoView({behavior:'smooth',block:'start'});return}
     var c=e.target.closest('[data-dis]');
-    if(c){leer();sel=Number(c.dataset.dis);tab=0;var d=actual();if(d&&!fotos[d.row])cargaFotos(d);todo();$((fotos[d.row]&&nDis(d)<2)?'c3':'c2').scrollIntoView({behavior:'smooth',block:'start'});pasos(paso());return}
+    if(c){leer();var elegido=disenos.filter(function(x){return x.row===Number(c.dataset.dis)})[0],activo=proyectoActivo();
+      if(activo&&elegido&&claveProyecto(elegido.proyecto)!==activo){$('msg').innerHTML='<div class="msg err">Solo puedes agregar referencias del mismo proyecto en este pedido. Quita las prendas actuales para cambiar de proyecto.</div>';return}
+      sel=Number(c.dataset.dis);tab=0;var d=actual();if(d&&!fotos[d.row])cargaFotos(d);todo();$((fotos[d.row]&&nDis(d)<2)?'c3':'c2').scrollIntoView({behavior:'smooth',block:'start'});pasos(paso());return}
     var el=e.target.closest('[data-eleg]');
     if(el){leer();var d2=actual(),k=Number(el.dataset.eleg),en=eleg[d2.row];
       if(en[k]){if(delDis(d2.row,k).some(function(j){return !vacia(j)})&&!confirm('Si quitas este diseño se borran los jugadores que escribiste en él. ¿Quitarlo?'))return;delete en[k];carro[d2.row]=(carro[d2.row]||[]).filter(function(j){return (Number(j.diseno)||1)!==k})}
@@ -322,15 +351,15 @@ button{font:inherit}
   $('enviar').addEventListener('click',function(){
     leer();var n=prendas();
     $('resumen').innerHTML=disenos.filter(function(d){return llenas(d.row).length}).map(function(d){
-      var por={};llenas(d.row).forEach(function(j){var k=Number(j.diseno)||1;por[k]=(por[k]||0)+Math.max(1,Number(j.cantidad)||1)});
-      return '<div><strong>'+esc(d.proyecto||d.referencia)+' · '+esc(d.referencia)+'</strong></div>'+Object.keys(por).map(function(k){return '<div><span>&nbsp;&nbsp;Diseño '+k+'</span><b>'+por[k]+(por[k]===1?' prenda':' prendas')+'</b></div>'}).join('');
-    }).join('')+'<div style="border-top:1px solid rgba(255,255,255,.12);margin-top:6px;padding-top:8px"><span>Total</span><b>'+n+(n===1?' prenda':' prendas')+'</b></div>';
+      var filas=llenas(d.row),subtotal=filas.reduce(function(s,j){return s+Math.max(1,Number(j.cantidad)||1)},0);
+      return '<section class="res-ref"><strong>'+esc(d.proyecto||d.referencia)+' · '+esc(d.referencia)+'</strong><small>Referencia '+esc(d.referencia)+' · '+subtotal+(subtotal===1?' prenda':' prendas')+'</small>'+filas.map(function(j){var datos=['D'+(Number(j.diseno)||1),j.nombre||'Sin nombre','Talla '+(j.talla||'—'),j.numero?'N.º '+j.numero:'Sin número',j.genero||''];if(j.observacion)datos.push(j.observacion);return '<div class="res-line"><span>'+esc(datos.filter(Boolean).join(' · '))+'</span><b>×'+Math.max(1,Number(j.cantidad)||1)+'</b></div>'}).join('')+'</section>';
+    }).join('')+'<div class="res-total"><span>Total del pedido</span><b>'+n+(n===1?' prenda':' prendas')+'</b></div>';
     $('msg2').innerHTML='';$('modal').classList.add('on');pasos(4)});
   $('cerrar').addEventListener('click',function(){$('modal').classList.remove('on');pasos(paso())});
   $('confirmar').addEventListener('click',function(){
     leer();var b=$('confirmar');b.disabled=true;b.textContent='Enviando…';
     var lineas=Object.keys(carro).filter(function(r){return llenas(r).length}).map(function(r){return {row:Number(r),jugadores:llenas(r)}});
-    fetch('/api/club/'+encodeURIComponent(token)+'/pedido',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lineas:lineas,contacto:$('contacto').value,telefono:$('telefono').value,notas:$('notas').value,website:$('website').value})})
+    fetch('/api/club/'+encodeURIComponent(token)+'/pedido',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lineas:lineas,notas:$('notas').value,website:$('website').value})})
       .then(function(r){return r.json().catch(function(){return {}}).then(function(d){return {ok:r.ok,d:d}})})
       .then(function(x){
         b.disabled=false;b.textContent='Confirmar pedido';
@@ -345,10 +374,11 @@ button{font:inherit}
   // EFFITRON crea la cotización en Effi: se espera aquí y, cuando el PDF está listo, el cliente lo ve y lo puede compartir
   function espera(numero,n){
     var t0=Date.now(),url='/api/club/'+encodeURIComponent(token)+'/pedido/'+numero;
-    $('msg').innerHTML='<div class="card gracias" id="esp"><div class="ok" style="animation:flota 2s ease-in-out infinite">⏳</div><h2>Estamos creando tu cotización…</h2><p>Recibimos tu pedido <b>#'+esc(numero)+'</b> ('+esc(n)+' prendas). En unos segundos verás aquí tu cotización lista para compartir.</p></div>';
+    $('msg').innerHTML='<div class="card gracias" id="esp"><div class="ok" style="animation:flota 2s ease-in-out infinite">⏳</div><h2>Estamos creando tu cotización…</h2><p>Recibimos tu pedido <b>#'+esc(numero)+'</b> ('+esc(n)+' prendas). En unos segundos verás aquí tu cotización lista para compartir.</p><div class="cot-progreso"><div class="pista"><div class="avance" id="cot-avance"></div></div><small id="cot-etapa">Preparando los datos del pedido…</small></div></div>';
     window.scrollTo({top:0,behavior:'smooth'});
     (function sonda(){
       fetch(url,{cache:'no-store'}).then(function(r){return r.json()}).then(function(e){
+        var etapas={preparando:['Preparando los datos del pedido…',28],pendiente:['Creando tu cotización en Effi…',56],entregada:['Descargando tu PDF…',78],sin_pdf:['Descargando tu PDF…',84]};var etapa=etapas[e.estado]||['Procesando tu cotización…',42],av=$('cot-avance'),et=$('cot-etapa');if(av)av.style.width=etapa[1]+'%';if(et)et.textContent=etapa[0];
         if(e.estado==='lista'&&e.url){
           var abs=location.origin+e.url,wa='https://wa.me/?text='+encodeURIComponent('Cotización de mi pedido en Indoor Sport: '+abs);
           $('msg').innerHTML='<div class="card gracias"><div class="ok">✓</div><h2>¡Tu cotización está lista!</h2><p>Cotización <b>'+esc(e.numero)+'</b> de tu pedido <b>#'+esc(numero)+'</b>. Tu asesor comercial también la recibió.</p><div class="acciones" style="justify-content:center"><a class="btn" style="text-decoration:none;display:inline-flex;align-items:center" href="'+esc(e.url)+'" target="_blank" rel="noopener">Ver cotización (PDF)</a><a class="btn sec" style="text-decoration:none;display:inline-flex;align-items:center" href="'+esc(wa)+'" target="_blank" rel="noopener">Compartir por WhatsApp</a><button class="btn sec" id="cop" type="button">Copiar enlace</button></div></div>';
