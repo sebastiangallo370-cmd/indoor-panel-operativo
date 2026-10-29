@@ -14,6 +14,7 @@ import sqlite3
 import threading
 import time
 import unicodedata
+import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 from datetime import datetime, timedelta, timezone
@@ -56,6 +57,52 @@ from app import diseno_versiones as versiones_mod
 from app import bitacora as bitacora_mod
 from app import ecommerce_canal as ecommerce_mod
 app = FastAPI(title="Asistente de Reprogramaciones", version="1.0.0")
+
+@app.post('/api/planeacion/preguntar')
+async def planeacion_preguntar(payload: dict = Body(...)):
+    """Chat de planeación: consulta el modelo local sin exponer datos fuera del VPS."""
+    pregunta = str(payload.get('pregunta') or '').strip()[:2000]
+    contexto = str(payload.get('contexto') or '')[:12000]
+    if not pregunta:
+        raise HTTPException(400, 'Escribe una pregunta')
+    # Añade un resumen global actualizado del panel para que el agente no dependa
+    # únicamente de la pestaña que el usuario tenga abierta.
+    try:
+        base = await asyncio.to_thread(_produccion_base, False)
+        rows = base.get('rows') or base.get('data') or []
+        total_units = 0
+        by_process = {}
+        for row in rows:
+            vals = row.get('values', row) if isinstance(row, dict) else {}
+            try: total_units += int(float(str(vals.get('CANTIDAD', vals.get('cantidad', 0))).replace(',', '.') or 0))
+            except (TypeError, ValueError): pass
+            for key, value in vals.items() if isinstance(vals, dict) else ():
+                if str(value).strip().upper() in ('P', 'R'):
+                    by_process.setdefault(str(key), {'P': 0, 'R': 0})[str(value).strip().upper()] += 1
+        global_context = {'filas_produccion': len(rows), 'unidades_totales': total_units,
+                          'estado_por_proceso': by_process,
+                          'tiempos_proceso': base.get('process_times', {})}
+        contexto = (contexto + '\nRESUMEN GLOBAL ACTUAL DEL PANEL:\n' +
+                    json.dumps(global_context, ensure_ascii=False, default=str))[:30000]
+    except Exception as exc:
+        contexto = (contexto + f'\nNo se pudo cargar el resumen global: {exc}')[:30000]
+    prompt = ('Eres el agente de planeación empresarial de Indoor Sport. Responde en español, claro y breve. '
+              'Usa únicamente el contexto entregado; si falta información dilo explícitamente. '
+              'Puedes analizar capacidad, operarios, tiempos, producción, inventario y ventas.\n\n'
+              'CONTEXTO:\n' + contexto + '\n\nPREGUNTA:\n' + pregunta)
+    # En producción Ollama es el servicio `ollama` del compose; el nombre
+    # antiguo `asistente-vision` provocaba 404 aunque el VPS estuviera sano.
+    url = os.getenv('OLLAMA_URL', 'http://ollama:11434').rstrip('/') + '/api/generate'
+    body = json.dumps({'model': os.getenv('PLANEACION_MODEL', 'llama3.2:3b'), 'prompt': prompt, 'stream': False}).encode()
+    def llamar():
+        req = urllib.request.Request(url, data=body, headers={'Content-Type': 'application/json'}, method='POST')
+        with urllib.request.urlopen(req, timeout=45) as r:
+            return json.loads(r.read().decode()).get('response', '')
+    try:
+        respuesta = await asyncio.to_thread(llamar)
+    except Exception as exc:
+        raise HTTPException(503, 'El agente de planeación no está disponible: ' + str(exc)[:120])
+    return {'respuesta': respuesta.strip() or 'No pude generar una respuesta.'}
 
 
 @app.middleware("http")
@@ -273,6 +320,11 @@ ecommerce_mod.configurar_effi(lambda: zeus_mod._leer_secreto().get('llave', ''))
 from app import cliente_effi as cliente_effi_mod
 cliente_effi_mod.configurar(authenticate, permisos_mod.comerciales_permitido, lambda: zeus_mod._leer_secreto().get('llave', ''))
 app.include_router(cliente_effi_mod.router)
+from app import ventas_effi as ventas_effi_mod
+ventas_effi_mod.configurar(authenticate, permisos_mod.comerciales_permitido, lambda: zeus_mod._leer_secreto().get('llave', ''),
+                           lambda: CONFIG['ruta_nas_clientes'],
+                           lambda: __import__('app.inventario_api', fromlist=['x']).inventory_snapshot())
+app.include_router(ventas_effi_mod.router)
 app.include_router(ecommerce_mod.router)
 app.include_router(ecommerce_mod.pc_router)
 app.include_router(ecommerce_mod.webhook_router)   # Effi llama aquí cuando entra una orden de venta (código secreto en la dirección)
@@ -862,6 +914,60 @@ def process_order_job(job_id: int, job_dir: Path, pdf_path: Path, excel_path: Pa
         update_job(job_id, "ERROR", str(error))
 
 
+def _programar_reposicion_club(pedido_id: int, usuario: str) -> dict:
+    """Puente automático y trazable: una reposición aprobada entra a Producción.
+
+    Se limita a una referencia por reposición: varias referencias requieren
+    revisión comercial, porque el procesador histórico recibe un solo listado.
+    """
+    pedido_club = club_mod._pedido(pedido_id)
+    if str(pedido_club.get('cot_estado') or '') != 'lista' or not pedido_club.get('cot_numero'):
+        raise ValueError('La cotización todavía no está lista en Effi; no se puede programar.')
+    pdf = effitron_mod.pdf_bytes(pedido_id)
+    if not pdf:
+        raise ValueError('Falta el PDF de la cotización; vuelve a intentar cuando EFFITRON lo descargue.')
+    excels = club_mod.construir_excels(pedido_club)
+    if len(excels) != 1:
+        raise ValueError('La reposición tiene varias referencias. Quedó en revisión para programarla sin mezclar listados.')
+    numero = str(pedido_club['cot_numero']).strip()
+    orden = 'CO' + numero if not numero.upper().startswith('CO') else numero.upper()
+    pdf_name = f'{orden}_TIENDA_CLUB.pdf'
+    rechazo = _reject_existing_order(pdf, pdf_name)
+    if rechazo:
+        raise ValueError(rechazo)
+    excel_origen, excel_bytes = excels[0]
+    sello = datetime.now().strftime('%Y%m%d%H%M%S%f')
+    carpeta = UPLOAD_DIR / 'pedidos' / f'club-{pedido_id}-{sello}'
+    carpeta.mkdir(parents=True, exist_ok=False)
+    pdf_path = carpeta / pdf_name
+    excel_path = carpeta / f'{orden}_{Path(excel_origen).name}'
+    pdf_path.write_bytes(pdf)
+    excel_path.write_bytes(excel_bytes)
+    detalle = f'Reposición Club #{pedido_id} aprobada: enviando {orden} a Producción'
+    now = datetime.now(timezone.utc).isoformat()
+    with connect() as db:
+        cur = db.execute(
+            'INSERT INTO jobs(filename,status,detail,created_at,updated_at,kind,input_summary,order_number) VALUES(?,?,?,?,?,?,?,?)',
+            (f'{pdf_path.name} + {excel_path.name}', 'RECIBIDO', detalle, now, now, 'pedido',
+             json.dumps({'origen': 'tienda_club', 'pedido_club': pedido_id, 'usuario': usuario}, ensure_ascii=False), orden),
+        )
+        job_id = cur.lastrowid
+        db.execute('UPDATE club_pedidos SET produccion_job=?, produccion_estado=?, produccion_detalle=? WHERE id=?',
+                   (job_id, 'EN COLA', detalle, pedido_id))
+
+    def ejecutar():
+        process_order_job(job_id, carpeta, pdf_path, excel_path, f'Reposición Tienda Club #{pedido_id}', f'{usuario} · Tienda Club')
+        with connect() as db:
+            fila = db.execute('SELECT status, detail FROM jobs WHERE id=?', (job_id,)).fetchone()
+        club_mod.marcar_programacion(pedido_id, str(fila['status'] if fila else 'ERROR'), str(fila['detail'] if fila else 'No encontré el trabajo'))
+
+    threading.Thread(target=ejecutar, name=f'club-produccion-{pedido_id}', daemon=True).start()
+    return {'programacion': 'EN COLA', 'job': job_id, 'orden': orden}
+
+
+club_mod.configurar_programador(_programar_reposicion_club)
+
+
 def process_creator_job(job_id: int, data_image: Path, images: list[tuple[int, Path]], output_name: str, sheet_name: str = ""):
     try:
         update_job(job_id, "PROCESANDO", "La IA esta analizando las imagenes")
@@ -1389,6 +1495,11 @@ def nombres_effi_js():
 @app.get('/stockman.js')
 def stockman_js():
     return FileResponse(Path(__file__).with_name('stockman.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
+
+
+@app.get('/descuento-sublimacion.js')
+def descuento_sublimacion_js():
+    return FileResponse(Path(__file__).with_name('descuento-sublimacion.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
 
 
 @app.get('/aviso-agentes.js')
@@ -4639,6 +4750,22 @@ function Open-OrderAndMasters([string]$OrderPath) {
 }
 try {
     $parsed = [System.Uri]$Uri
+    if ($parsed.Host -eq "order") {
+        $parts = $parsed.AbsolutePath.Trim('/').Split('/')
+        if ($parts.Count -ne 2) { throw "Ruta de orden inválida." }
+        $order = [System.Uri]::UnescapeDataString($parts[0]).Trim().ToUpper()
+        $clientName = [System.Uri]::UnescapeDataString($parts[1])
+        if ([string]::IsNullOrWhiteSpace($order) -or [string]::IsNullOrWhiteSpace($clientName)) { throw "Orden o cliente inválido." }
+        $base = "\\192.168.0.120\NAS INDOOR\CLIENTES"
+        $client = Get-ChildItem -LiteralPath $base -Directory -ErrorAction Stop |
+            Where-Object { $_.Name -ieq $clientName } | Select-Object -First 1
+        if ($null -eq $client) { throw "No encontré la carpeta del cliente en la NAS." }
+        $found = Get-ChildItem -LiteralPath $client.FullName -Directory -ErrorAction Stop |
+            Where-Object { $_.Name.ToUpper().StartsWith($order) } | Select-Object -First 1
+        if ($null -eq $found) { throw "No encontré una carpeta que empiece por $order." }
+        Open-OrderAndMasters $found.FullName
+        exit 0
+    }
     if ($parsed.Host -eq "folder") {
         $parts = $parsed.AbsolutePath.Trim('/').Split('/')
         if ($parts.Count -ne 2) { throw "Ruta de carpeta inválida." }
@@ -4763,7 +4890,7 @@ def resolve_nas_client(root: Path, client_name: str) -> Path:
 
 
 def find_nas_order(order: str) -> Path:
-    clean = str(order or "").strip().upper()
+    clean = re.sub(r"\s+", "-", str(order or "")).upper()   # «CO6212 CO6237» (varias órdenes en la celda) -> carpeta «CO6212-CO6237_…»
     if not re.fullmatch(r"[A-Z0-9_-]{2,40}", clean):
         raise HTTPException(400, "Número de orden inválido")
     root = Path(CONFIG["ruta_nas_clientes"]).resolve()
@@ -4803,13 +4930,20 @@ def production_row_files(source_row: int, excel_only=False):
     def normalized_name(value):
         return ' '.join(''.join(c for c in unicodedata.normalize('NFD', value) if not unicodedata.combining(c)).casefold().split())
     client_name = legacy.sanitize(field('NOMBRE DEL CLIENTE'))
-    order = field('ORDEN').upper()
+    # Algunas filas agrupan varias órdenes en una sola celda (CO6212 CO6237),
+    # mientras la carpeta de la NAS las guarda concatenadas (CO6212CO6237).
+    # Se quitan únicamente espacios internos; no se cambia ningún otro dato.
+    order = re.sub(r'\s+', '', field('ORDEN').upper())
+    order_compact = re.sub(r'[^A-Z0-9]', '', order)
     if not client_name or not re.fullmatch(r'[A-Z0-9_-]{2,40}', order):
         raise HTTPException(404, "La fila no tiene cliente u orden válidos")
     try:
         client = resolve_nas_client(root, client_name)
-        matches = [p.resolve() for p in client.iterdir() if p.is_dir() and
-                   (p.name.upper() == order or any(p.name.upper().startswith(order + s) for s in ('_', ' ', '-')))]
+        matches = [p.resolve() for p in client.iterdir() if p.is_dir() and (
+            p.name.upper() == order or
+            any(p.name.upper().startswith(order + s) for s in ('_', ' ', '-')) or
+            re.sub(r'[^A-Z0-9]', '', p.name.upper()).startswith(order_compact)
+        )]
     except HTTPException as error:
         if error.status_code != 404:
             raise
@@ -4839,7 +4973,10 @@ def production_row_files(source_row: int, excel_only=False):
     if excel_only:
         return [p for p in files if not p.name.startswith('~$') and p.suffix.lower() in ('.xlsx', '.xlsm', '.xls', '.pdf', '.csv')], [], client
     def child(parent, name):
-        found = [p.resolve() for p in parent.iterdir() if p.is_dir() and p.name.casefold() == name.casefold() and p.resolve().parent == parent]
+        if parent is None or not name:
+            return None
+        clave = normalized_name(str(name))
+        found = [p.resolve() for p in parent.iterdir() if p.is_dir() and normalized_name(p.name) == clave and p.resolve().parent == parent]
         return found[0] if len(found) == 1 else None
     masters = child(client, 'MAESTROS')
     project_name = legacy.sanitize(field('NOMBRE PROYECTO'))
@@ -4858,14 +4995,16 @@ def production_row_files(source_row: int, excel_only=False):
         if client_key == 'dimelo jara company sas' and project_name.upper() == 'ALCALDIA DE ITAGUI' and reference == 'A11200CA02-A11200PT01':
             tokens = {'FUT02'}
         designs = []
-        for folder in project.iterdir():
-            if not folder.is_dir() or folder.resolve().parent != project:
+        for folder in project.rglob('*'):
+            if not folder.is_dir():
                 continue
             code = re.split(r'[_\s-]', folder.name.upper())[0]
             if code == reference or code in tokens:
                 designs.append(folder.resolve())
         if len(designs) == 1:
-            images = [p for p in designs[0].iterdir() if p.is_file() and p.resolve().parent == designs[0] and p.suffix.lower() in ('.png', '.jpg', '.jpeg', '.webp')]
+            # Los maestros pueden estar organizados en subcarpetas por rango de tallas
+            # (FUT01_D1_D2_PLUS) y sus recursos pueden vivir dentro de ellas.
+            images = [p for p in designs[0].rglob('*') if p.is_file() and p.suffix.lower() in ('.png', '.jpg', '.jpeg', '.webp')]
             # Up to four versions within the uniquely matched design folder.
             images = sorted(images, key=lambda p: p.name.casefold())[:4]
     # Verified NAS naming exception: same client's 2018-2019 flag project.
@@ -5128,7 +5267,7 @@ def production_card_file(source_row: int, name: str, _=Depends(authenticate)):
 
 @app.post("/api/nas/preparar")
 def prepare_nas_order(payload: dict = Body(...), _=Depends(authenticate)):
-    order = str(payload.get("order") or "").strip().upper()
+    order = re.sub(r"\s+", "-", str(payload.get("order") or "")).upper()
     client = str(payload.get("client") or "").strip()
     project = str(payload.get("project") or "").strip()
     if not re.fullmatch(r"[A-Z0-9_-]{2,40}", order):
@@ -5263,9 +5402,17 @@ def open_nas_order_direct(order: str, request: Request, client: str = "", _=Depe
     """Resuelve y redirige de un solo salto, para que el enlace cuente como clic directo
     del usuario: así el navegador entrega indoor-nas:/smb: al Explorador/Finder en vez de
     bloquearlo en silencio por falta de gesto reciente."""
-    clean = str(order or "").strip().upper()
+    clean = re.sub(r"\s+", "-", str(order or "")).upper()   # «CO6212 CO6237» -> CO6212-CO6237
     if not re.fullmatch(r"[A-Z0-9_-]{2,40}", clean):
         return nas_error_page("Número de orden inválido.")
+    # La NAS es privada y solo es visible desde el PC del usuario, no desde el VPS.
+    # En Windows enviamos la orden directamente al conector local; él resuelve la
+    # carpeta real (incluidos nombres como CO6212CO6237...) sin consultar el servidor.
+    if "Windows" in request.headers.get("user-agent", ""):
+        # El conector instalado también entiende la forma antigua y busca por
+        # prefijo en todos los clientes: funciona aunque el nombre del cliente
+        # visible en Producción sea un proyecto o un responsable.
+        return RedirectResponse("indoor-nas:///" + quote(clean, safe=""), status_code=307)
     # Path(...) por sí solo no toca el filesystem; el .resolve() (y todo lo demás que sí
     # lo toca) ocurre dentro de resolve_nas_order_path, cubierto por el límite de tiempo.
     root_raw = Path(CONFIG["ruta_nas_clientes"])
@@ -6933,7 +7080,7 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
 `;document.head.appendChild(traceFigmaStyle);setTraceView();
     const commercialGroup=commercialToggle.closest('.nav-group');commercialGroup.classList.add('collapsed');const productionToggle=document.getElementById('production-toggle');if(productionToggle)productionToggle.addEventListener('click',()=>{{const g=productionToggle.closest('.nav-group');g.classList.toggle('collapsed');if(!g.classList.contains('collapsed')&&window.innerWidth>860)g.querySelector('.nav-children .tab')?.click()}});
     setTimeout(()=>{{if(!document.querySelector('.panel.active'))document.querySelector('.tab[data-kind="inicio"]')?.click()}},0);
-    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/liquid-stats.js?v=20261019-1'></script><script src='/nombres-effi.js?v=20261022-2'></script><script src='/permisos.js?v=20261007-2'></script><script src='/reposiciones.js?v=20261019-1'></script><script src='/agentes.js?v=20261021-1'></script><script src='/promedios.js?v=20261023-1'></script><script src='/capacidad.js?v=20261009-2'></script><script src='/molderia.js?v=20261010-2'></script><script src='/estandar.js?v=20261020-1'></script><script src='/proveedores-tela.js?v=20261022-4'></script><script src='/terminos.js?v=20261010-1'></script><script src='/cookies-aviso.js?v=20261010-1'></script><script src='/rh-contratos.js?v=20261009-3'></script><script src='/fichas-resumen.js?v=20261022-2'></script><script src='/api/cartera/cartera.js?v=20261009-1'></script><script src='/trace-ui.js?v=20261022-5'></script><script src='/home-dashboard.js?v=20261019-1'></script><script src='/bodega-dashboard.js?v=20261023-4'></script><script src='/bodegas.js?v=20261009-7'></script><script src='/codigos-barras.js?v=20261014-3'></script><script src='/mis-pedidos.js?v=20261008-4'></script><script src='/crear-cliente.js?v=20261018-5'></script><script src='/club-admin.js?v=20261020-1'></script><script src='/mobile-nav.js?v=20261018-1'></script><script src='/nav-liquid.js?v=20261003-3'></script><script src='/build-watch.js?v=20261002-1'></script><script src='/salud.js?v=20261014-2'></script><script src='/alertas.js?v=20261021-1'></script><script src='/bitacora.js?v=20261016-2'></script><script src='/memoria.js?v=20261018-1'></script><script src='/ecommerce.js?v=20261019-1'></script><script src='/zeus.js?v=20261020-1'></script><script src='/minimaximan.js?v=20261023-2'></script><script src='/aviso-agentes.js?v=20261023-5'></script><script src='/stockman.js?v=20261022-30'></script><script src='/draco-panel.js?v=20261021-8'></script><script src='/agentes-hub.js?v=20261022-2'></script><script src='/recordar-vista.js?v=20261018-1'></script><script src='/tema.js?v=20261008-1'></script><script src='/tarjeta-iconos.js?v=20261002-5'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261021-1'></script><script src='/linea-editor.js?v=20261008-1'></script><script src='/menu-cuenta.js?v=20261016-3'></script><script src='/foto-perfil.js?v=20261008-4'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
+    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/liquid-stats.js?v=20261019-1'></script><script src='/nombres-effi.js?v=20261022-2'></script><script src='/permisos.js?v=20261007-2'></script><script src='/reposiciones.js?v=20261019-1'></script><script src='/agentes.js?v=20261021-1'></script><script src='/promedios.js?v=20261023-1'></script><script src='/capacidad.js?v=20261009-2'></script><script src='/molderia.js?v=20261010-2'></script><script src='/estandar.js?v=20261020-1'></script><script src='/proveedores-tela.js?v=20261022-4'></script><script src='/terminos.js?v=20261010-1'></script><script src='/cookies-aviso.js?v=20261010-1'></script><script src='/rh-contratos.js?v=20261009-3'></script><script src='/fichas-resumen.js?v=20261022-2'></script><script src='/api/cartera/cartera.js?v=20261009-1'></script><script src='/trace-ui.js?v=20261022-5'></script><script src='/home-dashboard.js?v=20261019-1'></script><script src='/bodega-dashboard.js?v=20261023-4'></script><script src='/bodegas.js?v=20261009-7'></script><script src='/codigos-barras.js?v=20261014-3'></script><script src='/mis-pedidos.js?v=20261008-4'></script><script src='/crear-cliente.js?v=20261024-31'></script><script src='/club-admin.js?v=20261020-1'></script><script src='/mobile-nav.js?v=20261018-1'></script><script src='/nav-liquid.js?v=20261003-3'></script><script src='/build-watch.js?v=20261002-1'></script><script src='/salud.js?v=20261014-2'></script><script src='/alertas.js?v=20261021-1'></script><script src='/bitacora.js?v=20261016-2'></script><script src='/memoria.js?v=20261018-1'></script><script src='/ecommerce.js?v=20261019-1'></script><script src='/zeus.js?v=20261020-1'></script><script src='/minimaximan.js?v=20261023-2'></script><script src='/aviso-agentes.js?v=20261023-5'></script><script src='/descuento-sublimacion.js?v=20261026-1'></script><script src='/stockman.js?v=20261022-30'></script><script src='/draco-panel.js?v=20261021-8'></script><script src='/agentes-hub.js?v=20261022-2'></script><script src='/recordar-vista.js?v=20261018-1'></script><script src='/tema.js?v=20261008-1'></script><script src='/tarjeta-iconos.js?v=20261002-5'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261021-1'></script><script src='/linea-editor.js?v=20261008-1'></script><script src='/menu-cuenta.js?v=20261016-3'></script><script src='/foto-perfil.js?v=20261008-4'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
 
 
 def ordered_mockup_uploads(extras, slots):
@@ -7104,6 +7251,11 @@ def club_admin_js():
 @app.get('/crear-cliente.js')
 def crear_cliente_js():
     return FileResponse(Path(__file__).with_name('crear-cliente.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
+
+
+@app.get('/ventas.js')
+def ventas_js():
+    return FileResponse(Path(__file__).with_name('ventas.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
 
 
 @app.get('/mis-pedidos.js')

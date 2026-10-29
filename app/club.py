@@ -33,6 +33,7 @@ _auth: Callable = lambda request: ''
 _permitido: Callable[[str], bool] = lambda u: False
 _too_many: Callable = lambda bucket, request, limit, seconds=60: False
 _mockups: Callable[[int], dict] = lambda row: {'mockups': [], 'mockups_lista': None}
+_programar: Callable[[int, str], dict] | None = None
 COL = timezone(timedelta(hours=-5))
 TALLAS = ['2', '4', '6', '8', '10', '12', '14', '16', 'XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL']   # las mismas de la plantilla de Indoor
 MAX_JUGADORES = 300
@@ -46,6 +47,21 @@ def configurar(connect: Callable, auth: Callable, permitido: Callable[[str], boo
         db.execute('CREATE TABLE IF NOT EXISTS club_links(id INTEGER PRIMARY KEY AUTOINCREMENT, token TEXT UNIQUE, cliente TEXT, creado_por TEXT, creado TEXT, vence TEXT, activo INTEGER DEFAULT 1)')
         db.execute('CREATE TABLE IF NOT EXISTS club_pedidos(id INTEGER PRIMARY KEY AUTOINCREMENT, link_id INTEGER, cliente TEXT, contacto TEXT, telefono TEXT, notas TEXT, '
                    'lineas TEXT, estado TEXT DEFAULT \'pendiente\', creado TEXT, resuelto_por TEXT, resuelto TEXT, nota_comercial TEXT)')
+        existentes = {r[1] for r in db.execute('PRAGMA table_info(club_pedidos)')}
+        for columna, definicion in (('produccion_job', 'INTEGER'), ('produccion_estado', 'TEXT'), ('produccion_detalle', 'TEXT')):
+            if columna not in existentes:
+                db.execute(f'ALTER TABLE club_pedidos ADD COLUMN {columna} {definicion}')
+
+
+def configurar_programador(fn: Callable[[int, str], dict]) -> None:
+    """main.py registra el puente seguro Tienda Club → Producción."""
+    global _programar
+    _programar = fn
+
+
+def marcar_programacion(pedido_id: int, estado: str, detalle: str = '') -> None:
+    with _connect() as db:
+        db.execute('UPDATE club_pedidos SET produccion_estado=?, produccion_detalle=? WHERE id=?', (estado[:30], detalle[:500], pedido_id))
 
 
 def _ahora() -> str:
@@ -288,7 +304,16 @@ def resolver_pedido(request: Request, pedido_id: int, payload: dict = Body(...))
             raise HTTPException(404, 'No existe esa reposición')
         db.execute('UPDATE club_pedidos SET estado=?, resuelto_por=?, resuelto=?, nota_comercial=? WHERE id=?',
                    (estado, u, _ahora(), str(payload.get('nota') or '')[:300], pedido_id))
-    return {'ok': True}
+    if estado != 'aprobada':
+        return {'ok': True}
+    if _programar is None:
+        raise HTTPException(503, 'El puente hacia Producción no está configurado todavía')
+    try:
+        resultado = _programar(pedido_id, u)
+    except ValueError as error:
+        marcar_programacion(pedido_id, 'REVISAR', str(error))
+        return {'ok': True, 'programacion': 'REVISAR', 'detalle': str(error)}
+    return {'ok': True, **resultado}
 
 
 @router.get('/pedidos/{pedido_id}/cotizacion/vista')
