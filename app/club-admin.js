@@ -140,7 +140,7 @@
   .tc-dlg p{margin:0;color:#a9b5a3;font:500 13px/1.5 Arial}
   .tc-form{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
   .tc-form label{display:grid;gap:5px;flex:1 1 220px;color:#c9d3c1;font:800 11px Arial;letter-spacing:.1em;min-width:0}
-  .tc-cliente-wrap{position:relative}.tc-sugerencias{position:absolute;z-index:4;left:0;right:0;top:calc(100% + 5px);display:grid;max-height:230px;overflow:auto;padding:5px;border:1px solid #52624a;border-radius:12px;background:#172018;box-shadow:0 14px 32px rgba(0,0,0,.55)}
+  .tc-cliente-wrap{position:relative}.tc-sugerencias{position:relative;z-index:4;margin-top:6px;display:grid;max-height:230px;overflow:auto;padding:5px;border:1px solid #52624a;border-radius:12px;background:#172018;box-shadow:0 14px 32px rgba(0,0,0,.55)}
   .tc-sugerencias[hidden]{display:none}.tc-sugerencias button{display:flex!important;justify-content:space-between!important;align-items:center!important;gap:10px;width:100%!important;min-height:36px;padding:8px 10px!important;border:0!important;border-radius:8px!important;background:transparent!important;color:#eff6e8!important;text-align:left!important;font:700 13px Arial!important;cursor:pointer}.tc-sugerencias button:hover{background:rgba(208,244,76,.13)!important}.tc-sugerencias small{color:#aab7a5;font:600 11px Arial;white-space:nowrap}
   .tc-toasts{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);display:grid;gap:8px;z-index:9999;pointer-events:none;width:min(92vw,420px)}
   .tc-toast{padding:12px 16px;border-radius:14px;background:#1d2a1d;border:1px solid rgba(208,244,76,.35);color:#f5faef;font:700 14px Arial;box-shadow:0 12px 30px rgba(0,0,0,.4);opacity:0;transform:translateY(12px);transition:opacity .25s ease,transform .25s ease;text-align:center}
