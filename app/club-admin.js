@@ -257,6 +257,20 @@
     dlg.innerHTML = ultimoDlg = html;
     const cliente = dlg.querySelector('#tc-cliente');
     if (cliente && cliente0) cliente.value = cliente0;
+    const crear = dlg.querySelector('#tc-crear');
+    if (crear) crear.onclick = async e => {
+      e.preventDefault(); e.stopPropagation();
+      const nombre = (dlg.querySelector('#tc-cliente')?.value || '').trim();
+      if (nombre.length < 3) { toast('Elige un cliente de la lista', 'error'); return; }
+      crear.disabled = true; crear.textContent = 'Generando…';
+      try {
+        const d = await api('/api/club/enlaces', 'POST', { cliente: nombre, dias: Number(dlg.querySelector('#tc-dias').value) });
+        aviso = 'Enlace listo: <b>' + esc(url(d.token)) + '</b>';
+        try { await navigator.clipboard.writeText(url(d.token)); aviso += ' (copiado)'; } catch (er) { /* sin portapapeles */ }
+        toast('Enlace de ' + nombre + ' listo', 'ok');
+        await cargar();
+      } catch (er) { toast(er.message || 'No se pudo generar el enlace', 'error'); crear.disabled = false; crear.textContent = 'Generar enlace'; }
+    };
     if (cliente && enfocar) cliente.focus();
   }
 
@@ -317,13 +331,6 @@
           const d = await api('/api/club/correos', 'PUT', { comerciales: dlg.querySelector('#tc-correos').value, sin_vendedor: dlg.querySelector('#tc-sin-vendedor').value.trim() });
           correos = { ...correos, comerciales: d.comerciales, sin_vendedor: d.sin_vendedor };
           toast('Correos guardados', 'ok'); return;
-        }
-        if (b.id === 'tc-crear') {
-          const cliente = dlg.querySelector('#tc-cliente').value.trim();
-          const d = await api('/api/club/enlaces', 'POST', { cliente, dias: Number(dlg.querySelector('#tc-dias').value) });
-          aviso = 'Enlace listo: <b>' + esc(url(d.token)) + '</b>'; try { await navigator.clipboard.writeText(url(d.token)); aviso += ' (copiado)'; } catch (er) { /* sin portapapeles */ }
-          toast('Enlace de ' + cliente + ' listo', 'ok');
-          await cargar(); return;
         }
         if (b.dataset.copiar) { try { await navigator.clipboard.writeText(url(b.dataset.copiar)); toast('Enlace copiado', 'ok'); aviso = 'Enlace copiado: ' + esc(url(b.dataset.copiar)); } catch (er) { aviso = 'Copia este enlace: ' + esc(url(b.dataset.copiar)); } pintarEnlaces(false); return; }
         if (b.dataset.revocar) { if (!confirm('¿Revocar este enlace? El cliente ya no podrá abrirlo.')) return; await api('/api/club/enlaces/' + b.dataset.revocar, 'DELETE'); aviso = 'Enlace revocado.'; toast('Enlace revocado', 'ok'); await cargar(); return; }
