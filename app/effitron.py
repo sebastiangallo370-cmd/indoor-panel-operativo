@@ -126,7 +126,23 @@ def _forma_pago_base(cabecera: dict, dias_pdf: int) -> int:
             return int(valor)
     except (TypeError, ValueError):
         pass
-    return effi_api.forma_pago_id(dias_pdf or 0)
+    try:
+        return effi_api.forma_pago_id(dias_pdf or 0)
+    except effi_api.EffiError:
+        # Las cotizaciones viejas pueden decir «5 días» aunque Effi ya solo
+        # conserve «7 días». Se elige la condición vigente más cercana,
+        # prefiriendo no acortar el plazo comercial.
+        opciones = []
+        for forma in effi_api._lista('forma_pago'):
+            nombre = str(forma.get('nombre') or '').strip().lower()
+            dias = 0 if nombre.startswith('contado') else (int(m.group(1)) if (m := re.search(r'\b(\d+)\b', nombre)) else None)
+            if dias is not None and forma.get('id') is not None:
+                opciones.append((dias, int(forma['id'])))
+        if not opciones:
+            raise
+        pedido = int(dias_pdf or 0)
+        opciones.sort(key=lambda x: (abs(x[0] - pedido), x[0] < pedido, x[0]))
+        return opciones[0][1]
 
 
 def preparar(p: dict) -> dict:
