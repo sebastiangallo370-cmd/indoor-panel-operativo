@@ -109,6 +109,19 @@ def _linea_base(base: dict, ref: str, d: int, g: str) -> dict:
     raise ValueError(f'La cotización anterior no tiene líneas de la referencia {ref}')
 
 
+def _descripcion_reposicion(descripcion: str, diseno: int, genero: str) -> str:
+    """La tela no es parte de la descripción comercial de la reposición.
+
+    Effi debe mostrar la variante que está comprando el club: género y diseño.
+    La tela permanece en el listado de producción, no en el concepto cotizado.
+    """
+    texto = re.sub(r'\s+TELA\s+[^+|]+\+?\s*', ' ', str(descripcion or ''), flags=re.I)
+    texto = re.sub(r'\s*GENERO\s+DISE[ÑN]O\s*\([^)]*\)', '', texto, flags=re.I)
+    texto = re.sub(r'\s+', ' ', texto).strip(' -+')
+    etiqueta = 'FEM' if str(genero).upper() == 'FEM' else 'MASC'
+    return f'{texto} GENERO DISEÑO ( {etiqueta} D{int(diseno)})'.strip()
+
+
 def _forma_pago_base(cabecera: dict, dias_pdf: int) -> int:
     """Conserva la condición comercial real de Effi; el PDF solo es respaldo.
 
@@ -170,8 +183,7 @@ def preparar(p: dict) -> dict:
             por[k] = por.get(k, 0) + max(1, int(j.get('cantidad') or 1))
         for (d, g), cant in sorted(por.items()):
             b = _linea_base(base, l['referencia'], d, g)
-            desc = re.sub(r'\bD\d+\b', f'D{d}', b['desc'])
-            desc = re.sub(r'\b(MASC?|FEM)\b', 'FEM' if g == 'FEM' else 'MAS', desc, flags=re.I)
+            desc = _descripcion_reposicion(b['desc'], d, g)
             conceptos.append({'articulo': int(art['id']), 'descripcion': desc[:120], 'cantidad': cant, 'precio': b['precio']})
     if not conceptos:
         raise ValueError('El pedido no tiene prendas')
