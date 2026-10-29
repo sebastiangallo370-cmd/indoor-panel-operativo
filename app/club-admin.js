@@ -293,9 +293,11 @@
       const clientes = d.clientes || [], dl = dlg.querySelector('#tc-clientes');
       if (dl) dl.innerHTML = clientes.map(c => '<option value="' + esc(c.nombre) + '"></option>').join('');
       if (!caja) return;
-      caja.innerHTML = clientes.map(c => '<button type="button" role="option" data-sugerencia="' + esc(c.nombre) + '"><span>' + esc(c.nombre) + '</span><small>' + Number(c.proyectos || c.pedidos || 0) + ' proyectos</small></button>').join('');
-      caja.hidden = !clientes.length;
-    } catch (e) { if (caja) { caja.hidden = true; caja.innerHTML = ''; } }
+      caja.innerHTML = clientes.length
+        ? clientes.map(c => '<button type="button" role="option" data-sugerencia="' + esc(c.nombre) + '"><span>' + esc(c.nombre) + '</span><small>' + Number(c.proyectos || c.pedidos || 0) + ' proyectos</small></button>').join('')
+        : '<div style="padding:10px;color:#aab7a5;font:600 13px Arial">No hay clientes con MAESTROS que coincidan.</div>';
+      caja.hidden = false;
+    } catch (e) { if (caja) { caja.hidden = false; caja.innerHTML = '<div style="padding:10px;color:#ffb0a5;font:600 13px Arial">No se pudo buscar ahora. Intenta de nuevo.</div>'; } }
   }
 
   function iniciar() {
