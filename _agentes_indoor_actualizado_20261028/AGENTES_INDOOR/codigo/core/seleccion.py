@@ -101,7 +101,13 @@ def filtrar_por_referencia(rutas, lineas):
         if ref is None and getattr(r, "parent", None) is not None:   # «Z_D1_MUESTRA.ai» no dice su referencia: la dice su carpeta («FUT09_D1_D2», «PE01MFN»)
             ref = referencia_del_archivo(r.parent.name)
         (elegidas if ref in refs else omitidas).append((r, ref))
-    return [r for r, _ in elegidas], sorted({ref for _, ref in omitidas})
+    # ``None`` indica que el archivo ni su carpeta declaran una referencia.
+    # No se puede ordenar junto con referencias de texto (Python compara ambos
+    # tipos al aplicar ``sorted``), y ese detalle no debe detener la orden.
+    # El archivo queda omitido por seguridad: nunca se usa una mesa/muestra
+    # cuya referencia no se pudo identificar.
+    omitidas_refs = sorted({ref for _, ref in omitidas if ref})
+    return [r for r, _ in elegidas], omitidas_refs
 
 
 def _norm_talla(t):
