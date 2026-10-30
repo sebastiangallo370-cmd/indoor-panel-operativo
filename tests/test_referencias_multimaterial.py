@@ -40,6 +40,44 @@ class ReferenciasMultimaterialTest(unittest.TestCase):
         resultado = tela_necesaria.reparto_materiales('A11300-1800FUT04', {}, fichas, 20)
         self.assertEqual([(m['codigo'], m['mts']) for m in resultado], [('11300', 15.0), ('1800', 5.0)])
 
+    def test_maestro_antiguo_tiene_prioridad_sobre_ficha_tecnica(self):
+        maestros = {
+            'CP07': {
+                'ref': 'CP07',
+                'masc': [1] * 8,
+                'fem': [1] * 8,
+                'nino': [0, 1, 1, 1, 1, 1, 1, 1],
+                'nina': [0, 1, 1, 1, 1, 1, 1, 1],
+            }
+        }
+        fichas = {
+            'CP07': {
+                'telas': [{'material': 'M1', 'tela': 'TRIATLÓN'}],
+                'promedios': [{'nombre': 'PROMEDIO M1', 'valores': {'masc': '0.15'}}],
+            }
+        }
+        resultado = tela_necesaria.calcular_materiales_por_talla(
+            'A11400CP07', [{'genero': 'MASC', 'talla': 'M', 'cantidad': 36}], maestros, fichas
+        )
+        self.assertEqual([(m['codigo'], m['mts'], m['origen']) for m in resultado],
+                         [('11400', 36.0, 'PROMEDIOS MAESTROS')])
+
+    def test_no_reutiliza_listado_de_otra_fila_de_la_misma_referencia(self):
+        datos = {
+            'maestros': [{'ref': 'CP07', 'masc': [1] * 8, 'fem': [1] * 8,
+                          'nino': [0, 1, 1, 1, 1, 1, 1, 1], 'nina': [0, 1, 1, 1, 1, 1, 1, 1]}],
+            'plantillas': [],
+        }
+        filas = [
+            {'source_row': 41, 'values': ['CO1', 'A11400CP07', '27']},
+            {'source_row': 42, 'values': ['CO1', 'A11400CP07', '6']},
+        ]
+        listado = {'CO1': {'hojas': {'A11400CP07': [{'genero': 'MASC', 'talla': 'M', 'cantidad': 27}]}}}
+        with patch.object(promedios, '_leer', return_value=datos), patch.dict(tela_necesaria._tallas, listado, clear=True):
+            detalle = tela_necesaria.detalles_mts_produccion(filas, ['ORDEN', 'REFERENCIA', 'CANTIDAD'])
+        self.assertEqual(detalle['41']['total'], 27.0)
+        self.assertEqual(detalle['42']['total'], 6.0)
+
     def test_tarjeta_expone_un_renglon_real_por_material(self):
         datos = {
             'maestros': [{

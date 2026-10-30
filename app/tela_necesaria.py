@@ -298,6 +298,20 @@ def materiales_de_referencia(referencia: str, maestros: dict, fichas: dict | Non
                 })
     if materiales:
         return materiales
+    # Los maestros antiguos tienen los consumos directamente en la referencia
+    # (masc/fem/nino/nina), sin el bloque ``materiales``. Siguen siendo la
+    # fuente prioritaria: una ficha técnica solo es respaldo cuando el maestro
+    # realmente no existe o no tiene ningún consumo documentado.
+    if isinstance(maestro, dict):
+        promedio_maestro = promedios.promedio(maestro)
+        if promedio_maestro > 0:
+            return [{
+                'material': 'M1',
+                'tela': str(maestro.get('tela') or '').strip(),
+                'promedio': promedio_maestro,
+                'consumos': {grupo: list(maestro.get(grupo) or []) for grupo in promedios.GRUPOS},
+                'origen': 'PROMEDIOS MAESTROS',
+            }]
     return _materiales_de_ficha(ref, fichas)
 
 
@@ -443,7 +457,13 @@ def detalles_mts_produccion(rows: list[dict], headers: list[str], ficha_resolver
         calculados: list[dict] = []
         if materiales:
             lineas = _lineas_listado(orden, referencia)
-            if lineas:
+            # Una orden puede tener la misma referencia en más de una fila.
+            # El listado pertenece a la orden completa; solo es exacto para
+            # esta tarjeta si su cantidad coincide. Si no, reutilizarlo haría
+            # que, por ejemplo, una fila de 6 prendas heredara los 27 mts de
+            # otra fila de la misma referencia.
+            cantidad_listado = sum(_cantidad(linea.get('cantidad') or 1) for linea in lineas)
+            if lineas and cantidad_listado == cantidad:
                 calculados = calcular_materiales_por_talla(referencia, lineas, maestros, fichas)
             else:
                 # Aún no se ha indexado el listado: el promedio está documentado
