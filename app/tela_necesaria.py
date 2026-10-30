@@ -275,8 +275,13 @@ def _materiales_de_ficha(ref: str, fichas: dict) -> list[dict]:
 def materiales_de_referencia(referencia: str, maestros: dict, fichas: dict | None = None) -> list[dict]:
     """Obtiene los materiales de una referencia sin cambiar datos reales.
 
-    Prioridad: materiales detallados de Promedios maestros → ficha técnica.
-    La función es pura para poder probarla antes de conectarla a las tarjetas.
+    Solo usa Promedios Maestros. Una ficha técnica puede describir una prenda,
+    pero no es una fuente autorizada de consumo para programar tela; si la
+    referencia no está configurada en Promedios Maestros, la tarjeta queda sin
+    metros hasta que se complete su maestro.
+
+    ``fichas`` se mantiene por compatibilidad con llamadas antiguas, pero no
+    participa en el cálculo.
     """
     fichas = fichas or {}
     ref = _referencia_base(referencia, maestros)
@@ -312,7 +317,7 @@ def materiales_de_referencia(referencia: str, maestros: dict, fichas: dict | Non
                 'consumos': {grupo: list(maestro.get(grupo) or []) for grupo in promedios.GRUPOS},
                 'origen': 'PROMEDIOS MAESTROS',
             }]
-    return _materiales_de_ficha(ref, fichas)
+    return []
 
 
 def reparto_materiales(referencia: str, maestros: dict, fichas: dict | None, mts_total: float) -> list[dict]:
@@ -345,8 +350,7 @@ def reparto_materiales(referencia: str, maestros: dict, fichas: dict | None, mts
 def calcular_materiales_por_talla(referencia: str, lineas: list[dict], maestros: dict, fichas: dict | None = None) -> list[dict]:
     """Calcula MTS por material usando talla, género y cantidad del listado.
 
-    Si el material proviene únicamente de la ficha (sin consumos por talla),
-    no inventa valores: se reparte por el promedio documentado de la ficha.
+    Solo calcula con consumos documentados en Promedios Maestros.
     """
     materiales = materiales_de_referencia(referencia, maestros, fichas)
     if not materiales:
@@ -371,7 +375,11 @@ def calcular_materiales_por_talla(referencia: str, lineas: list[dict], maestros:
                 material['mts'] += float(valor) * max(0, cantidad)
             else:
                 sin_detalle = True
-    if sin_detalle and not any(m['mts'] for m in resultado):
+    # Si el listado trae una talla/género sin consumo registrado no se debe
+    # sumar solo la parte que sí coincidió: daría un total engañosamente bajo
+    # (ej. 56 prendas y 2,68 mts). En ese caso se usa el promedio completo del
+    # mismo Promedio Maestro para todas las prendas de esa tarjeta.
+    if sin_detalle:
         prendas = sum(max(0, int(linea.get('cantidad') or 1)) for linea in (lineas or []))
         return reparto_materiales(referencia, maestros, fichas, prendas * sum(float(m['promedio']) for m in materiales))
     for material in resultado:
@@ -396,10 +404,9 @@ def _lineas_listado(orden: str, referencia: str) -> list[dict]:
 def detalles_mts_produccion(rows: list[dict], headers: list[str], ficha_resolver=None) -> dict[str, dict]:
     """Desglose de MTS reales para las tarjetas de Producción.
 
-    El cálculo es de solo lectura y sigue el orden de confianza: consumos por
-    talla de Promedios Maestros, luego Ficha Técnica. Si no hay listado aún,
-    usa solamente el promedio documentado de cada material. No reparte ni
-    inventa metros cuando una referencia no tiene materiales documentados.
+    El cálculo es de solo lectura y usa exclusivamente consumos por talla de
+    Promedios Maestros. Si no hay listado aún, usa el promedio documentado en
+    ese maestro. Una ficha técnica nunca completa ni estima metros requeridos.
     """
     indice = {str(h or '').strip().upper(): i for i, h in enumerate(headers or [])}
     ref_i = indice.get('REFERENCIA')
@@ -414,28 +421,6 @@ def detalles_mts_produccion(rows: list[dict], headers: list[str], ficha_resolver
         return {}
     maestros = {str(x.get('ref') or '').upper(): x for x in datos.get('maestros') or [] if isinstance(x, dict)}
     plantillas = {str(x.get('ref') or '').upper(): x for x in datos.get('plantillas') or [] if isinstance(x, dict)}
-    fichas_cache: dict[str, dict] = {}
-
-    def ficha_de(ref: str) -> dict:
-        base = _referencia_base(ref, maestros)
-        if not base:
-            return {}
-        if base not in fichas_cache:
-            ficha = None
-            try:
-                if ficha_resolver:
-                    ficha = ficha_resolver(base)
-                else:
-                    # Importación tardía para no crear un ciclo al iniciar la app.
-                    from app import fichas_resumen
-                    resumen = fichas_resumen.resumen(base)
-                    candidatas = resumen.get('fichas') or []
-                    ficha = candidatas[0] if candidatas else None
-            except Exception:  # noqa: BLE001 - una ficha incompleta no bloquea la página
-                ficha = None
-            fichas_cache[base] = ficha if isinstance(ficha, dict) else {}
-        return fichas_cache[base]
-
     respuesta: dict[str, dict] = {}
     for row in rows or []:
         valores = list(row.get('values') or [])
@@ -445,15 +430,9 @@ def detalles_mts_produccion(rows: list[dict], headers: list[str], ficha_resolver
         codigos = codigos_de_materiales(referencia)
         if not referencia or not cantidad or not codigos:
             continue
-        # El maestro ya trae materiales y consumos por talla en la mayoría de
-        # referencias. Evitamos consultar Fichas Técnicas en ese caso: la
-        # tarjeta queda inmediata y conserva esa ficha solo como respaldo.
+        # Los metros de programación salen únicamente del maestro. Una ficha
+        # técnica no se consulta como respaldo: evita promedios no aprobados.
         materiales = materiales_de_referencia(referencia, maestros, {})
-        fichas = {}
-        if not materiales:
-            ficha = ficha_de(referencia)
-            fichas = {_referencia_base(referencia, maestros): ficha} if ficha else {}
-            materiales = materiales_de_referencia(referencia, maestros, fichas)
         calculados: list[dict] = []
         if materiales:
             lineas = _lineas_listado(orden, referencia)
@@ -464,12 +443,12 @@ def detalles_mts_produccion(rows: list[dict], headers: list[str], ficha_resolver
             # otra fila de la misma referencia.
             cantidad_listado = sum(_cantidad(linea.get('cantidad') or 1) for linea in lineas)
             if lineas and cantidad_listado == cantidad:
-                calculados = calcular_materiales_por_talla(referencia, lineas, maestros, fichas)
+                calculados = calcular_materiales_por_talla(referencia, lineas, maestros, {})
             else:
-                # Aún no se ha indexado el listado: el promedio está documentado
-                # en el maestro/ficha y sirve como estimación real temporal.
+                # Aún no se ha indexado el listado: el promedio documentado en
+                # Promedios Maestros sirve como estimación temporal.
                 calculados = reparto_materiales(
-                    referencia, maestros, fichas,
+                    referencia, maestros, {},
                     cantidad * sum(float(m.get('promedio') or 0) for m in materiales),
                 )
         elif len(codigos) == 1:

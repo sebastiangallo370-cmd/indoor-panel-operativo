@@ -27,7 +27,7 @@ class ReferenciasMultimaterialTest(unittest.TestCase):
         )
         self.assertEqual([(m['codigo'], m['mts']) for m in resultado], [('11300', 3.0), ('1800', 1.78)])
 
-    def test_usa_ficha_tecnica_si_no_hay_materiales_en_maestro(self):
+    def test_no_usa_ficha_tecnica_si_no_hay_materiales_en_maestro(self):
         fichas = {
             'FUT04': {
                 'telas': [{'material': 'M1', 'tela': 'MONTECATINI'}, {'material': 'M2', 'tela': 'TRIATLÓN'}],
@@ -38,7 +38,7 @@ class ReferenciasMultimaterialTest(unittest.TestCase):
             }
         }
         resultado = tela_necesaria.reparto_materiales('A11300-1800FUT04', {}, fichas, 20)
-        self.assertEqual([(m['codigo'], m['mts']) for m in resultado], [('11300', 15.0), ('1800', 5.0)])
+        self.assertEqual(resultado, [])
 
     def test_maestro_antiguo_tiene_prioridad_sobre_ficha_tecnica(self):
         maestros = {
@@ -78,6 +78,24 @@ class ReferenciasMultimaterialTest(unittest.TestCase):
         self.assertEqual(detalle['41']['total'], 27.0)
         self.assertEqual(detalle['42']['total'], 6.0)
 
+    def test_listado_incompleto_usa_promedio_maestro_completo(self):
+        maestros = {
+            'RP08': {
+                'ref': 'RP08',
+                'masc': [1] + [0] * 7,
+                'fem': [0] * 8,
+                'nino': [0] * 8,
+                'nina': [0] * 8,
+            }
+        }
+        resultado = tela_necesaria.calcular_materiales_por_talla(
+            'A2100RP08', [
+                {'genero': 'MASC', 'talla': 'XS', 'cantidad': 1},
+                {'genero': 'MASC', 'talla': '2XL', 'cantidad': 35},
+            ], maestros,
+        )
+        self.assertEqual([(m['codigo'], m['mts']) for m in resultado], [('2100', 36.0)])
+
     def test_tarjeta_expone_un_renglon_real_por_material(self):
         datos = {
             'maestros': [{
@@ -97,7 +115,7 @@ class ReferenciasMultimaterialTest(unittest.TestCase):
         self.assertEqual(detalle['21']['total'], 4.78)
         self.assertEqual([(m['codigo'], m['mts']) for m in detalle['21']['materiales']], [('11300', 3.0), ('1800', 1.78)])
 
-    def test_cb11_con_dos_codigos_usa_ficha_tecnica_real(self):
+    def test_cb11_sin_maestro_no_usa_ficha_tecnica(self):
         ficha = {
             'ref': 'CB11',
             'telas': [
@@ -116,11 +134,7 @@ class ReferenciasMultimaterialTest(unittest.TestCase):
             detalle = tela_necesaria.detalles_mts_produccion(
                 filas, ['ORDEN', 'REFERENCIA', 'CANTIDAD'], ficha_resolver=lambda ref: ficha if ref == 'CB11' else None
             )
-        self.assertEqual(detalle['1646']['total'], 20.33)
-        self.assertEqual(
-            [(m['codigo'], m['mts']) for m in detalle['1646']['materiales']],
-            [('100', 9.5), ('11400', 10.83)],
-        )
+        self.assertNotIn('1646', detalle)
 
 
 if __name__ == '__main__':
