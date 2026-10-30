@@ -199,13 +199,35 @@
       padding-top: 96px !important;
     }
 
-    @media (max-width: 1080px) and (min-width: 701px) {
+    @media (max-width: 1180px) and (min-width: 701px) {
       html body.top-navigation .sidebar { padding: 8px 14px !important; gap: 8px !important; }
       html body.top-navigation .sidebar-brand { flex-basis: 90px !important; }
       html body.top-navigation .sidebar-brand img { width: 88px !important; }
-      html body.top-navigation .sidebar nav.tabs { max-width: calc(100vw - 216px); padding: 4px 6px !important; }
+      html body.top-navigation .sidebar nav.tabs {
+        max-width: none !important;
+        flex: 1 1 0 !important;
+        justify-content: center !important;
+        margin: 0 !important;
+        padding: 4px 6px !important;
+      }
       html body.top-navigation .sidebar nav.tabs > .tab,
-      html body.top-navigation .sidebar .nav-parent { padding-inline: 8px !important; }
+      html body.top-navigation .sidebar .nav-parent {
+        width: 40px !important;
+        min-width: 40px !important;
+        padding: 7px !important;
+      }
+      html body.top-navigation .sidebar nav.tabs > .tab .nav-icon,
+      html body.top-navigation .sidebar .nav-parent .nav-icon {
+        display: grid !important;
+        margin: 0 !important;
+      }
+      html body.top-navigation .sidebar nav.tabs > .tab strong,
+      html body.top-navigation .sidebar .nav-parent > span:not(.nav-icon) {
+        width: 0 !important;
+        height: 0 !important;
+        overflow: hidden !important;
+        font-size: 0 !important;
+      }
     }
 
     @media (max-width: 700px) {
