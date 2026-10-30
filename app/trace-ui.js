@@ -666,13 +666,29 @@
       selMaq.innerHTML = '<option value="">Todas las máquinas</option>' + maquinas.map(m => '<option value="' + esc(m) + '"' + (m === maquinaFiltro ? ' selected' : '') + '>' + esc(m) + '</option>').join('');
     }
     const lista = maquinaFiltro ? visibles.filter(row => maqDe(row) === maquinaFiltro) : visibles;
-    // unidades = columna CANTIDAD; MTS = lo que dice la nota de la columna Q (MTS REQUERIDOS), sumando todas las referencias de la orden
+    // Unidades = CANTIDAD. Los MTS detallados los calcula el servidor con
+    // Promedios Maestros/Fichas; la nota Q queda como compatibilidad para
+    // referencias antiguas sin materiales documentados.
     const numero = t => { let v = String(t).trim(); if (v.includes(',') && v.includes('.')) v = v.replace(/\./g, '').replace(',', '.'); else if (v.includes(',')) v = v.replace(',', '.'); return parseFloat(v) || 0; };
+    const materialesMts = row => {
+      const detalle = productionData.materiales_mts?.[String(row.source_row)] || productionData.materiales_mts?.[row.source_row];
+      return Array.isArray(detalle?.materiales) ? detalle.materiales.filter(m => String(m?.codigo || '').trim() && Number(m?.mts) > 0) : [];
+    };
+    const mtsNota = row => {
+      const raw = String(productionData.notes?.[row.source_row + ':17'] || '');
+      return [...raw.matchAll(/([0-9]+(?:[.,][0-9]+)*)\s*MTS/gi)].reduce((total, m) => total + numero(m[1]), 0);
+    };
+    const mtsFila = row => {
+      const detalle = materialesMts(row);
+      if (detalle.length) return detalle.reduce((total, material) => total + Number(material.mts || 0), 0);
+      return mtsNota(row);
+    };
+    const formatoMts = valor => Number(valor || 0).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const sumar = filas => {
       let und = 0, mts = 0;
       filas.forEach(row => {
         und += parseInt(String(traceField(row, 'CANTIDAD') || '0').replace(/[^0-9]/g, ''), 10) || 0;
-        for (const m of String(productionData.notes?.[row.source_row + ':17'] || '').matchAll(/([0-9]+(?:[.,][0-9]+)*)\s*MTS/gi)) mts += numero(m[1]);
+        mts += mtsFila(row);
       });
       return [und, mts];
     };
@@ -705,13 +721,22 @@
       const _reference = String(traceField(row, 'REFERENCIA') || '').trim().toUpperCase();
       const _mtsRaw = String(productionData.notes?.[id + ':17'] || '').trim();
       const _mtsMatches = [..._mtsRaw.matchAll(/(\d+[,.]?\d*)\s*MTS/gi)];
-      const mtsV = _mtsMatches.length ? _mtsMatches[_mtsMatches.length - 1][1] + ' MTS' : (_mtsRaw.includes(' : ') ? _mtsRaw.split(' : ').slice(1).join(' : ').trim() : _mtsRaw);
+      const detalleMateriales = materialesMts(row);
+      const mtsV = detalleMateriales.length
+        ? formatoMts(mtsFila(row)) + ' MTS'
+        : (_mtsMatches.length ? _mtsMatches[_mtsMatches.length - 1][1] + ' MTS' : (_mtsRaw.includes(' : ') ? _mtsRaw.split(' : ').slice(1).join(' : ').trim() : _mtsRaw));
+      const detalleMtsHtml = detalleMateriales.length
+        ? '<span class="trace-mts-lines">' + detalleMateriales.map(material => {
+          const codigo = String(material.codigo || '').replace(/^COD/i, '').trim();
+          return '<span class="trace-mts-line"><b>COD' + esc(codigo) + ':</b> <em>' + esc(formatoMts(material.mts)) + ' MTS</em></span>';
+        }).join('') + '</span>'
+        : esc(mtsV || 'Sin registrar');
       const notes = Object.entries(productionData.notes || {}).filter(([k, v]) => k.startsWith(id + ':') && v && !isMtsNoteKey(k)).length;
       const responsible = summary.focus?.responsible || '';
       const due = traceField(row, 'FECHA DE ENTREGA');
       const dueLabel = !summary.due ? 'Sin fecha' : summary.overdue ? 'Atrasado' : summary.state !== 'finished' && summary.due.getTime() === scheduleToday().getTime() ? 'Entrega hoy' : 'Entrega';
       const hasRework = summary.groups.some(group => group.state === 'rework');
-      return '<article class="trace-card state-' + summary.state + '" data-card-row="' + id + '"><div class="trace-media">' + traceAssetsMarkup(id) + '</div><div class="trace-card-body"><div class="trace-card-heading"><h3>' + esc(traceField(row, 'ORDEN') || 'Sin número') + '</h3><button type="button" class="trace-order-rework' + (hasRework ? ' has-rework' : '') + '" data-card-rework="' + esc(traceField(row, 'ORDEN')) + '" aria-label="Registrar reproceso de la orden ' + esc(traceField(row, 'ORDEN')) + '">REPROCESO</button><span class="trace-stage ' + summary.state + '">' + labels[summary.state] + '</span></div><p class="trace-client">' + esc(traceField(row, 'NOMBRE DEL CLIENTE') || 'Sin cliente') + '</p><p class="trace-project">' + esc(traceField(row, 'NOMBRE PROYECTO')) + '</p><div class="trace-mts-row' + (mtsV ? ' con-mts' : ' sin-mts') + '">' + ('<div class="trace-machine-top"><small>MÁQUINA DE IMPRESIÓN</small><button type="button" class="trace-machine-btn' + (traceField(row, 'MAQUINA DE IMPRESION').trim() ? ' has-value' : '') + '" data-card-machine="' + id + '" title="Máquina de impresión: clic para elegirla">' + esc(traceField(row, 'MAQUINA DE IMPRESION').trim() || 'Seleccionar') + '</button></div>') + '<button class="trace-mts-btn' + (mtsV ? ' has-value' : '') + '" type="button" data-card-mts="' + id + '"><span class="mts-label">Ingresar MTS REQUERIDOS</span></button><button class="trace-mts-inventory" type="button" data-card-inventory="' + id + '">STOCK TELA ↗</button><div class="trace-mts-display' + (mtsV ? ' has-value' : '') + '"><small>MTS REQUERIDOS</small><strong>' + esc(mtsV || 'Sin registrar') + '</strong></div></div><dl><div><dt>Referencia</dt><dd class="trace-ref" title="' + esc(traceField(row, 'REFERENCIA') || '') + '">' + esc(traceField(row, 'REFERENCIA') || '—') + '</dd>' + telaMarkup(row) + '</div>' + '<div><dt>Cantidad</dt><dd class="trace-quantity">' + esc(traceField(row, 'CANTIDAD') || '0') + ' <small>und.</small></dd></div><div class="trace-due ' + (summary.overdue ? 'late' : '') + '"><dt>' + dueLabel + '</dt><dd>' + esc(summary.due ? displayProductionDate(due) : 'Sin programar') + diasParaEntrega(summary) + '</dd></div><div><dt>Responsable del proceso</dt><dd>' + (responsible ? responsible.split(/[,;·\n]+/).filter(x => x.trim()).map(name => '<span class="trace-person">' + esc(name.trim()) + '</span>').join(' ') : '<span class="trace-unassigned">Sin asignar</span>') + '</dd></div></dl><div class="trace-card-meta"><span>' + notes + ' nota' + (notes === 1 ? '' : 's') + '</span><span>Fila ' + id + '</span></div><div class="trace-card-actions"><button type="button" class="operator-open" data-card-edit="' + id + '">PRODUCCIÓN</button><button type="button" data-card-detail="' + id + '">Ver detalle</button><button type="button" data-card-nas="' + id + '" aria-label="Abrir carpeta del pedido">NAS ↗</button></div></div>' + routeMarkup(row, summary) + '</article>';
+      return '<article class="trace-card state-' + summary.state + '" data-card-row="' + id + '"><div class="trace-media">' + traceAssetsMarkup(id) + '</div><div class="trace-card-body"><div class="trace-card-heading"><h3>' + esc(traceField(row, 'ORDEN') || 'Sin número') + '</h3><button type="button" class="trace-order-rework' + (hasRework ? ' has-rework' : '') + '" data-card-rework="' + esc(traceField(row, 'ORDEN')) + '" aria-label="Registrar reproceso de la orden ' + esc(traceField(row, 'ORDEN')) + '">REPROCESO</button><span class="trace-stage ' + summary.state + '">' + labels[summary.state] + '</span></div><p class="trace-client">' + esc(traceField(row, 'NOMBRE DEL CLIENTE') || 'Sin cliente') + '</p><p class="trace-project">' + esc(traceField(row, 'NOMBRE PROYECTO')) + '</p><div class="trace-mts-row' + (mtsV ? ' con-mts' : ' sin-mts') + '">' + ('<div class="trace-machine-top"><small>MÁQUINA DE IMPRESIÓN</small><button type="button" class="trace-machine-btn' + (traceField(row, 'MAQUINA DE IMPRESION').trim() ? ' has-value' : '') + '" data-card-machine="' + id + '" title="Máquina de impresión: clic para elegirla">' + esc(traceField(row, 'MAQUINA DE IMPRESION').trim() || 'Seleccionar') + '</button></div>') + '<button class="trace-mts-btn' + (mtsV ? ' has-value' : '') + '" type="button" data-card-mts="' + id + '"><span class="mts-label">Ingresar MTS REQUERIDOS</span></button><button class="trace-mts-inventory" type="button" data-card-inventory="' + id + '">STOCK TELA ↗</button><div class="trace-mts-display' + (mtsV ? ' has-value' : '') + (detalleMateriales.length ? ' multi-material' : '') + '"><small>MTS REQUERIDOS</small><strong>' + detalleMtsHtml + '</strong></div></div><dl><div><dt>Referencia</dt><dd class="trace-ref" title="' + esc(traceField(row, 'REFERENCIA') || '') + '">' + esc(traceField(row, 'REFERENCIA') || '—') + '</dd>' + telaMarkup(row) + '</div>' + '<div><dt>Cantidad</dt><dd class="trace-quantity">' + esc(traceField(row, 'CANTIDAD') || '0') + ' <small>und.</small></dd></div><div class="trace-due ' + (summary.overdue ? 'late' : '') + '"><dt>' + dueLabel + '</dt><dd>' + esc(summary.due ? displayProductionDate(due) : 'Sin programar') + diasParaEntrega(summary) + '</dd></div><div><dt>Responsable del proceso</dt><dd>' + (responsible ? responsible.split(/[,;·\n]+/).filter(x => x.trim()).map(name => '<span class="trace-person">' + esc(name.trim()) + '</span>').join(' ') : '<span class="trace-unassigned">Sin asignar</span>') + '</dd></div></dl><div class="trace-card-meta"><span>' + notes + ' nota' + (notes === 1 ? '' : 's') + '</span><span>Fila ' + id + '</span></div><div class="trace-card-actions"><button type="button" class="operator-open" data-card-edit="' + id + '">PRODUCCIÓN</button><button type="button" data-card-detail="' + id + '">Ver detalle</button><button type="button" data-card-nas="' + id + '" aria-label="Abrir carpeta del pedido">NAS ↗</button></div></div>' + routeMarkup(row, summary) + '</article>';
     });
     // Sin parpadeo: solo se vuelven a dibujar las tarjetas que cambiaron; las demás se conservan tal cual (con su imagen y su scroll).
     if (!rows.length) {
@@ -2320,6 +2345,12 @@
   html body.production-mode .trace-card .trace-mts-actions button{width:20px!important;min-width:20px!important;height:20px!important;min-height:20px!important;padding:0!important;border-radius:6px!important;font-size:11px!important;line-height:1!important}
   html body.production-mode .trace-card .trace-mts-actions button svg{width:11px!important;height:11px!important}
   html body.production-mode .trace-card .trace-mts-display.has-value strong{padding-right:28px!important}
+  html body.production-mode .trace-card .trace-mts-display.multi-material{align-content:start}
+  html body.production-mode .trace-card .trace-mts-display.multi-material strong{display:grid;gap:4px;min-width:0;white-space:normal!important;overflow:visible!important;text-overflow:clip!important;line-height:1.25}
+  html body.production-mode .trace-card .trace-mts-lines{display:grid;gap:3px}
+  html body.production-mode .trace-card .trace-mts-line{display:block;min-width:0;font-size:11px;letter-spacing:.01em;overflow-wrap:anywhere}
+  html body.production-mode .trace-card .trace-mts-line b{color:#d0f44c;font-weight:900}
+  html body.production-mode .trace-card .trace-mts-line em{color:#eff7dc;font-style:normal;font-weight:800}
   html body.production-mode .trace-card .trace-machine-top{display:grid;gap:3px;align-content:center;min-width:0;padding:7px 10px;border:1px solid #3d4f3d;border-radius:10px;background:rgba(255,255,255,.03)}
   html body.production-mode .trace-card .trace-machine-top small{color:#9fb08c;font:800 9px Arial;letter-spacing:.09em;text-transform:uppercase}
   html body.production-mode .trace-card .trace-machine-top .trace-machine-btn{width:100%!important;height:auto!important;min-height:28px!important;padding:5px 8px!important;font-size:12px!important;line-height:1.2!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important;overflow-wrap:anywhere;text-align:center}

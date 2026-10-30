@@ -189,9 +189,26 @@ def codigos_de_materiales(referencia: str) -> list[str]:
 
 
 def _referencia_base(referencia: str, maestros: dict) -> str:
-    """Encuentra la referencia de Promedios sin confundir los códigos de tela."""
-    partes = promedios.partes_de_hoja(referencia)
+    """Encuentra la referencia base sin confundirla con los códigos de tela.
+
+    ``partes_de_hoja`` cubre los nombres usuales, pero una referencia como
+    ``A100-11400CB11-1`` tiene un segundo código que hace que la expresión
+    histórica devuelva ``A100``.  Para estas órdenes buscamos también el
+    identificador que queda después de *todos* los códigos iniciales. Así la
+    ficha ``CB11`` sigue siendo el respaldo real cuando no hay maestro.
+    """
+    texto = re.sub(r'\s+', '', str(referencia or '')).upper()
+    sin_codigos = re.sub(r'^A\d+(?:-\d+)*(?=[A-Z]{1,8}\d{2,4})', '', texto)
+    extraidas = re.findall(r'[A-Z]{1,8}\d{2,4}', sin_codigos)
+    partes = extraidas + promedios.partes_de_hoja(texto)
+    candidatas = []
     for parte in partes:
+        parte = str(parte or '').upper().strip()
+        # A100 es un código de tela, no la referencia A100-11400CB11-1.
+        if not parte or re.fullmatch(r'A\d+', parte) or parte in candidatas:
+            continue
+        candidatas.append(parte)
+    for parte in candidatas:
         if parte in maestros:
             return parte
         # CB11-1 puede estar definido como CB11 en el maestro, pero solo se
@@ -199,7 +216,7 @@ def _referencia_base(referencia: str, maestros: dict) -> str:
         sin_sufijo = re.sub(r'-\d+$', '', parte)
         if sin_sufijo in maestros:
             return sin_sufijo
-    return partes[0] if partes else ''
+    return candidatas[0] if candidatas else ''
 
 
 def _promedio_ficha(valores) -> float:
@@ -237,14 +254,21 @@ def _materiales_de_ficha(ref: str, fichas: dict) -> list[dict]:
         if match:
             promedios_ficha[f'M{match.group(1)}'] = promedio_ficha.get('valores') or promedio_ficha
     materiales = []
+    vistos = set()
     for indice, tela in enumerate(ficha.get('telas') or [], start=1):
         if not isinstance(tela, dict):
             continue
         material = str(tela.get('material') or f'M{indice}').upper().strip()
+        # Algunas fichas antiguas repiten M1 para variantes de la misma tela.
+        # La ficha no separa sus consumos, por eso se usa una sola vez: evita
+        # asignar el segundo código a otra variante y dejar M2 sin código.
+        if material in vistos:
+            continue
         valores = promedios_ficha.get(material)
         if valores:
             materiales.append({'material': material, 'tela': str(tela.get('tela') or '').strip(),
                                'promedio': _promedio_ficha(valores), 'origen': 'FICHA TÉCNICA'})
+            vistos.add(material)
     return [m for m in materiales if m['promedio'] > 0]
 
 
@@ -339,6 +363,112 @@ def calcular_materiales_por_talla(referencia: str, lineas: list[dict], maestros:
     for material in resultado:
         material['mts'] = round(material['mts'], 2)
     return resultado
+
+
+def _lineas_listado(orden: str, referencia: str) -> list[dict]:
+    """Devuelve las líneas ya leídas del Excel para una referencia de la orden.
+
+    Nunca abre la NAS desde la tarjeta: el hilo de ``refrescar_tallas`` es el
+    único que la consulta. Así la vista de Producción sigue respondiendo rápido.
+    """
+    with _tallas_lock:
+        entrada = _tallas.get(str(orden or ''))
+        hojas = dict((entrada or {}).get('hojas') or {})
+    clave = listado_tallas._codigo(referencia)
+    titulo = next((t for t in hojas if listado_tallas._codigo(t) == clave), None)
+    return list(hojas.get(titulo) or []) if titulo else []
+
+
+def detalles_mts_produccion(rows: list[dict], headers: list[str], ficha_resolver=None) -> dict[str, dict]:
+    """Desglose de MTS reales para las tarjetas de Producción.
+
+    El cálculo es de solo lectura y sigue el orden de confianza: consumos por
+    talla de Promedios Maestros, luego Ficha Técnica. Si no hay listado aún,
+    usa solamente el promedio documentado de cada material. No reparte ni
+    inventa metros cuando una referencia no tiene materiales documentados.
+    """
+    indice = {str(h or '').strip().upper(): i for i, h in enumerate(headers or [])}
+    ref_i = indice.get('REFERENCIA')
+    orden_i = indice.get('ORDEN')
+    cant_i = indice.get('CANTIDAD', indice.get('CANT.'))
+    if ref_i is None or orden_i is None:
+        return {}
+    try:
+        with promedios._lock:
+            datos = promedios._leer()
+    except Exception:  # noqa: BLE001 - no debe impedir mostrar Producción
+        return {}
+    maestros = {str(x.get('ref') or '').upper(): x for x in datos.get('maestros') or [] if isinstance(x, dict)}
+    plantillas = {str(x.get('ref') or '').upper(): x for x in datos.get('plantillas') or [] if isinstance(x, dict)}
+    fichas_cache: dict[str, dict] = {}
+
+    def ficha_de(ref: str) -> dict:
+        base = _referencia_base(ref, maestros)
+        if not base:
+            return {}
+        if base not in fichas_cache:
+            ficha = None
+            try:
+                if ficha_resolver:
+                    ficha = ficha_resolver(base)
+                else:
+                    # Importación tardía para no crear un ciclo al iniciar la app.
+                    from app import fichas_resumen
+                    resumen = fichas_resumen.resumen(base)
+                    candidatas = resumen.get('fichas') or []
+                    ficha = candidatas[0] if candidatas else None
+            except Exception:  # noqa: BLE001 - una ficha incompleta no bloquea la página
+                ficha = None
+            fichas_cache[base] = ficha if isinstance(ficha, dict) else {}
+        return fichas_cache[base]
+
+    respuesta: dict[str, dict] = {}
+    for row in rows or []:
+        valores = list(row.get('values') or [])
+        referencia = str(valores[ref_i] if ref_i < len(valores) else '').strip().upper()
+        orden = str(valores[orden_i] if orden_i < len(valores) else '').strip()
+        cantidad = _cantidad(valores[cant_i] if cant_i is not None and cant_i < len(valores) else '')
+        codigos = codigos_de_materiales(referencia)
+        if not referencia or not cantidad or not codigos:
+            continue
+        # El maestro ya trae materiales y consumos por talla en la mayoría de
+        # referencias. Evitamos consultar Fichas Técnicas en ese caso: la
+        # tarjeta queda inmediata y conserva esa ficha solo como respaldo.
+        materiales = materiales_de_referencia(referencia, maestros, {})
+        fichas = {}
+        if not materiales:
+            ficha = ficha_de(referencia)
+            fichas = {_referencia_base(referencia, maestros): ficha} if ficha else {}
+            materiales = materiales_de_referencia(referencia, maestros, fichas)
+        calculados: list[dict] = []
+        if materiales:
+            lineas = _lineas_listado(orden, referencia)
+            if lineas:
+                calculados = calcular_materiales_por_talla(referencia, lineas, maestros, fichas)
+            else:
+                # Aún no se ha indexado el listado: el promedio está documentado
+                # en el maestro/ficha y sirve como estimación real temporal.
+                calculados = reparto_materiales(
+                    referencia, maestros, fichas,
+                    cantidad * sum(float(m.get('promedio') or 0) for m in materiales),
+                )
+        elif len(codigos) == 1:
+            # Referencias de un solo material conservan la regla histórica.
+            promedio, _, _ = _consumo(referencia, maestros, plantillas)
+            if promedio > 0:
+                calculados = [{'codigo': codigos[0], 'mts': round(promedio * cantidad, 2), 'origen': 'PROMEDIOS MAESTROS'}]
+        lineas_reales = [
+            {'codigo': str(m.get('codigo') or '').strip(), 'mts': round(float(m.get('mts') or 0), 2),
+             'origen': str(m.get('origen') or '')}
+            for m in calculados
+            if str(m.get('codigo') or '').strip() and float(m.get('mts') or 0) > 0
+        ]
+        if lineas_reales:
+            respuesta[str(row.get('source_row'))] = {
+                'materiales': lineas_reales,
+                'total': round(sum(m['mts'] for m in lineas_reales), 2),
+            }
+    return respuesta
 
 
 def _telas_de_bodega(items: list[dict], tela: str, codigos: set[str]) -> list[dict]:
