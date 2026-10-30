@@ -127,15 +127,14 @@
     }
 
     html body.top-navigation .sidebar nav.tabs {
-      /* La cápsula llega hasta el control de tema: el sol queda pegado a su
-         extremo derecho y el menú conserva su grupo centrado. */
-      flex: 1 1 0 !important;
+      /* Conserva su ancho: se desplaza completa a la derecha para quedar
+         junto al sol, sin alargar la cápsula. */
+      flex: 0 1 auto !important;
       min-width: 0;
-      max-width: none !important;
-      margin: 0 !important;
+      max-width: min(1040px, calc(100vw - 310px));
+      margin: 0 0 0 auto !important;
       padding: 5px 10px !important;
       gap: 2px !important;
-      justify-content: center !important;
       border: 1px solid rgba(232,255,229,.22) !important;
       border-radius: 999px !important;
       background: linear-gradient(135deg, rgba(255,255,255,.12), rgba(255,255,255,.035) 48%, rgba(9,22,14,.25)) !important;
