@@ -52,7 +52,8 @@ class _VigiaCarpeta:
         self._revisar(definitivo=True)
 
 
-# Pedido del usuario (2026-10-16): al exportar, SIEMPRE salen todas las mesas del maestro (XS a 4XL) y las que ya existían se reemplazan. Ponla en False para volver a exportar solo las que faltan.
+# Pedido del usuario: al exportar se revisan TODAS las mesas del maestro.
+# Las que ya existen en Montajes se reutilizan; Illustrator solo crea las que faltan.
 SIEMPRE_TODAS_LAS_MESAS = True
 
 def _cache_maestro(ai):
@@ -125,6 +126,13 @@ class _VigiaTraslado:
             try:
                 self.destino.mkdir(parents=True, exist_ok=True)
                 final = self.destino / nombre
+                # Si otra ejecución ya dejó esa mesa, es la versión que se
+                # reutiliza. No la reemplazamos ni hacemos que Illustrator
+                # pierda tiempo exportándola otra vez.
+                if final.is_file() and final.stat().st_size > 0:
+                    shutil.rmtree(f.parent, ignore_errors=True)
+                    log(AGENTE, f"Reutilizo mesa ya exportada: {final.name}")
+                    return
                 shutil.copy2(f, final)
                 shutil.rmtree(f.parent, ignore_errors=True)
                 _evento_montaje(final)
@@ -257,7 +265,8 @@ def exportar_mesas(cliente, referencia, ruta_ai, formato="ai", sobrescribir=Fals
                 log(AGENTE, f"{ai.name}: todas las mesas pedidas ya existían, sigo sin exportar")
                 return {"ok": True, "carpeta": str(carpeta), "archivos": sorted(f.name for f in carpeta.glob("*") if f.is_file()), "simulado": simulado, "ya_existian": len(ya)}
             log(AGENTE, f"Exporto solo las que faltan: {', '.join(tallas)}")
-    log(AGENTE, f"Exportando mesas de {ai.name} a {carpeta} ({formato})" + (" [simulado]" if simulado else ""))
+    alcance_mesas = "todas las mesas de trabajo" if SIEMPRE_TODAS_LAS_MESAS else "las mesas solicitadas"
+    log(AGENTE, f"Exportando {alcance_mesas} de {ai.name} a {carpeta} ({formato})" + (" [simulado]" if simulado else ""))
     try:
         if simulado:
             for n in ("frente", "espalda", "mangas"):
@@ -286,7 +295,7 @@ def exportar_mesas(cliente, referencia, ruta_ai, formato="ai", sobrescribir=Fals
                 {"ai": ai.as_posix(), "carpeta": carpeta.as_posix(), "prefijo": prefijo, "formato": formato,
                  "conGenero": bool(ref), "ref": ref, "disenos": disenos, "sobrescribir": bool(sobrescribir) or not limpiar,
                  "generoUnico": generos[0] if generos and len(generos) == 1 else "",
-                 "tallas": tallas, "nombre": nombre_final, "todas": True, "cache": cache, "local": local.as_posix() if tallas else "", "trabajo": trabajo.as_posix() if trabajo else ""},
+                 "tallas": tallas, "nombre": nombre_final, "todas": SIEMPRE_TODAS_LAS_MESAS, "cache": cache, "local": local.as_posix() if tallas else "", "trabajo": trabajo.as_posix() if trabajo else ""},
             )
             if vigia:
                 vigia.parar()
