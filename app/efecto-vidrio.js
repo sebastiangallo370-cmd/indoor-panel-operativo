@@ -102,6 +102,131 @@
       box-shadow: 0 24px 60px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.45) !important;
     }
 
+    /* Navegación superior: capa visual únicamente. Mantiene los mismos botones,
+       eventos y submenús del panel, pero los presenta como la barra de vidrio. */
+    html body.top-navigation .sidebar {
+      height: 78px !important;
+      padding: 8px 22px !important;
+      gap: 18px !important;
+      background: linear-gradient(90deg, rgba(14,28,17,.94), rgba(16,37,25,.80), rgba(9,25,17,.93)) !important;
+      border-bottom: 1px solid rgba(225,255,222,.14) !important;
+      box-shadow: 0 14px 38px rgba(0,0,0,.30), inset 0 -1px 0 rgba(255,255,255,.08) !important;
+      -webkit-backdrop-filter: blur(22px) saturate(1.22) !important;
+      backdrop-filter: blur(22px) saturate(1.22) !important;
+    }
+
+    html body.top-navigation .sidebar-brand {
+      flex: 0 0 112px !important;
+      position: relative;
+      z-index: 2;
+    }
+
+    html body.top-navigation .sidebar-brand img {
+      width: 108px !important;
+      height: 44px !important;
+    }
+
+    html body.top-navigation .sidebar nav.tabs {
+      flex: 0 1 auto !important;
+      min-width: 0;
+      max-width: min(1040px, calc(100vw - 310px));
+      margin: 0 auto !important;
+      padding: 5px 10px !important;
+      gap: 2px !important;
+      border: 1px solid rgba(232,255,229,.22) !important;
+      border-radius: 999px !important;
+      background: linear-gradient(135deg, rgba(255,255,255,.12), rgba(255,255,255,.035) 48%, rgba(9,22,14,.25)) !important;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.28), inset 0 -1px 0 rgba(0,0,0,.18), 0 12px 28px rgba(0,0,0,.20) !important;
+      -webkit-backdrop-filter: blur(18px) saturate(1.28) !important;
+      backdrop-filter: blur(18px) saturate(1.28) !important;
+    }
+
+    html body.top-navigation .sidebar nav.tabs > .tab,
+    html body.top-navigation .sidebar .nav-parent {
+      min-height: 42px !important;
+      padding: 9px clamp(9px, 1.05vw, 16px) !important;
+      border: 0 !important;
+      border-radius: 999px !important;
+      color: rgba(244,250,242,.88) !important;
+      background: transparent !important;
+      font-size: clamp(10px, .82vw, 13px) !important;
+      letter-spacing: .015em !important;
+      transition: background .18s ease, color .18s ease, transform .18s ease !important;
+    }
+
+    html body.top-navigation .sidebar nav.tabs > .tab:hover,
+    html body.top-navigation .sidebar .nav-parent:hover {
+      outline: 0 !important;
+      background: rgba(215,247,92,.13) !important;
+      color: #efffc0 !important;
+      transform: translateY(-1px);
+    }
+
+    html body.top-navigation .sidebar nav.tabs > .tab.active,
+    html body.top-navigation .sidebar .nav-parent[aria-expanded="true"] {
+      background: linear-gradient(135deg, #d9fb53, #b9eb37) !important;
+      color: #14200d !important;
+      box-shadow: 0 5px 18px rgba(190,241,65,.26), inset 0 1px 0 rgba(255,255,255,.55) !important;
+    }
+
+    html body.top-navigation .sidebar nav.tabs > .tab.active *,
+    html body.top-navigation .sidebar .nav-parent[aria-expanded="true"] * {
+      color: #14200d !important;
+      -webkit-text-fill-color: #14200d !important;
+    }
+
+    html body.top-navigation .sidebar .nav-children {
+      top: calc(100% + 11px) !important;
+      padding: 9px !important;
+      border: 1px solid rgba(230,255,226,.23) !important;
+      border-radius: 15px !important;
+      background: linear-gradient(145deg, rgba(35,59,42,.93), rgba(12,30,20,.94)) !important;
+      box-shadow: 0 18px 42px rgba(0,0,0,.37), inset 0 1px 0 rgba(255,255,255,.20) !important;
+      -webkit-backdrop-filter: blur(20px) saturate(1.25) !important;
+      backdrop-filter: blur(20px) saturate(1.25) !important;
+    }
+
+    html body.top-navigation .sidebar .nav-children .tab {
+      border-radius: 10px !important;
+    }
+
+    html body.top-navigation .sidebar .systems {
+      position: relative;
+      z-index: 2;
+    }
+
+    html body.top-navigation main {
+      padding-top: 96px !important;
+    }
+
+    @media (max-width: 1080px) and (min-width: 701px) {
+      html body.top-navigation .sidebar { padding: 8px 14px !important; gap: 8px !important; }
+      html body.top-navigation .sidebar-brand { flex-basis: 90px !important; }
+      html body.top-navigation .sidebar-brand img { width: 88px !important; }
+      html body.top-navigation .sidebar nav.tabs { max-width: calc(100vw - 216px); padding: 4px 6px !important; }
+      html body.top-navigation .sidebar nav.tabs > .tab,
+      html body.top-navigation .sidebar .nav-parent { padding-inline: 8px !important; }
+    }
+
+    @media (max-width: 700px) {
+      html body.top-navigation .sidebar {
+        height: 110px !important;
+        padding: 8px 10px !important;
+      }
+      html body.top-navigation .sidebar nav.tabs {
+        order: 2;
+        flex: 1 1 100% !important;
+        max-width: 100%;
+        overflow-x: auto !important;
+        justify-content: flex-start !important;
+        scrollbar-width: none;
+      }
+      html body.top-navigation .sidebar nav.tabs::-webkit-scrollbar { display: none; }
+      html body.top-navigation .sidebar nav.tabs > .tab,
+      html body.top-navigation .sidebar .nav-parent { flex: 0 0 auto; }
+      html body.top-navigation main { padding-top: 124px !important; }
+    }
+
     body button:not(.danger),
     body .btn:not(.danger),
     body .chip,
