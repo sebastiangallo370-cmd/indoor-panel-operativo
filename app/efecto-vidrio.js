@@ -135,7 +135,7 @@
       margin: 0 0 0 auto !important;
       /* En escritorio la acerca físicamente al sol sin alterar su ancho. */
       transform: translateX(clamp(0px, 9vw, 170px));
-      padding: 5px 10px !important;
+      padding: 3px 8px !important;
       gap: 2px !important;
       border: 1px solid rgba(232,255,229,.22) !important;
       border-radius: 999px !important;
@@ -147,13 +147,13 @@
 
     html body.top-navigation .sidebar nav.tabs > .tab,
     html body.top-navigation .sidebar .nav-parent {
-      min-height: 42px !important;
-      padding: 9px clamp(9px, 1.05vw, 16px) !important;
+      min-height: 36px !important;
+      padding: 7px clamp(8px, .9vw, 13px) !important;
       border: 0 !important;
       border-radius: 999px !important;
       color: rgba(244,250,242,.88) !important;
       background: transparent !important;
-      font-size: clamp(10px, .82vw, 13px) !important;
+      font-size: clamp(9px, .74vw, 12px) !important;
       letter-spacing: .015em !important;
       transition: background .18s ease, color .18s ease, transform .18s ease !important;
     }
