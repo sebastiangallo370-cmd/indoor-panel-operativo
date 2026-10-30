@@ -48,6 +48,7 @@
   .pm-prom{display:grid;gap:4px;padding:14px;border-radius:12px;background:#111a14}
   .pm-prom b{font-size:1.5rem;color:#fff}.pm-prom em{font-style:normal;color:#d7ff3a}
   .pm-prom summary{cursor:pointer;color:#9db8ff;font-size:.78rem;margin-top:4px}
+  .pm-materiales{display:grid;gap:8px;padding:12px;border:1px solid #344a37;border-radius:12px;background:#0d1710}.pm-materiales>b{font-size:.65rem;letter-spacing:.12em;color:#aebba7}.pm-material{display:grid;gap:7px;padding:10px 11px;border-radius:10px;background:#121d14;border-left:3px solid #80bd49}.pm-material.fusionado{order:-1;border-left-color:#78aee8;background:linear-gradient(90deg,rgba(57,104,152,.2),#121d14)}.pm-material summary{display:flex;justify-content:space-between;align-items:center;gap:8px;cursor:pointer;font-size:.76rem;color:#eaf5e1;font-weight:800}.pm-material summary em{font-style:normal;color:#d7ff3a;font-size:.72rem;white-space:nowrap}.pm-material .pm-grupo>b{font-size:.58rem}
   .pm-chips{display:flex;flex-wrap:wrap;gap:6px}.pm-chip{display:grid;gap:2px;text-align:center;font-size:.58rem;color:#9fb09a}.pm-chip span{display:block;min-width:44px;padding:6px 8px;border-radius:999px;background:#17211a;color:#fff;font-size:.82rem}
   .pm-plant{display:grid;gap:3px;font-size:.78rem;color:#aebba7}.pm-plant b{color:#d7e3d1}
   .pm-notas{display:grid;gap:6px}.pm-nota{display:flex;gap:8px;align-items:flex-start;justify-content:space-between;padding:8px 10px;border-radius:10px;background:#141c15;font-size:.8rem}.pm-nota i{font-style:normal;font-size:.62rem;letter-spacing:.08em;color:#ffcf5c;font-weight:800;display:block}
@@ -98,8 +99,20 @@
     }).join('');
     const plantillas = [['Masculino', m.p_masculino], ['Femenino', [m.p_femenino, m.p_femenino_short].filter(Boolean).join(' + ')], ['Niño', m.p_nino], ['Niña', [m.p_nina, m.p_nina_short].filter(Boolean).join(' + ')],
       ['Complemento adulto', m.c_adulto], ['Complemento niño', m.c_nino]].filter(x => x[1]).map(x => '<div><b>' + x[0] + ':</b> ' + esc(x[1]) + '</div>').join('');
+    const materiales = (m.materiales || []).filter(material => GRUPOS.some(([g]) => (material[g] || []).some(v => v))).sort((a, b) => (a.material === 'M4' ? -1 : b.material === 'M4' ? 1 : String(a.material).localeCompare(String(b.material)))).map(material => {
+      const etiqueta = material.material === 'M4' ? 'FUSIONADO · M4' : (m.ref === 'CB11' && material.material === 'M2' ? 'M2 + M3' : material.material) + (material.material === 'M4' ? '' : ' · ' + (material.tela || 'Sin tela'));
+      const valores = GRUPOS.flatMap(([g]) => material[g] || []).filter(v => Number(v));
+      const promedioMaterial = valores.length ? valores.reduce((s, v) => s + Number(v), 0) / valores.length : 0;
+      const detalle = GRUPOS.map(([g, titulo, tipo]) => {
+        if (!(material[g] || []).some(v => v)) return '';
+        const tallas = st.datos.tallas[tipo];
+        return '<div class="pm-grupo"><b>' + esc(titulo) + '</b><div class="pm-chips">' + tallas.map((t, i) => '<div class="pm-chip">' + esc(t) + '<span>' + (material[g][i] ? num(material[g][i]) : '—') + '</span></div>').join('') + '</div></div>';
+      }).join('');
+      return '<details class="pm-material' + (material.material === 'M4' ? ' fusionado' : '') + '"><summary><span>' + esc(etiqueta) + '</span><em>' + num(promedioMaterial) + ' MTS</em></summary>' + detalle + '</details>';
+    }).join('');
     return '<article class="pm-card" data-ref="' + esc(m.ref) + '"><div class="pm-card-top"><div><small>ID MAESTRO</small><h4>' + esc(m.ref) + '</h4></div><div style="display:flex;gap:8px;align-items:center"><span class="pm-badge">' + esc(m.diseno) + '</span>' +
       (st.puedeEditar ? '<button class="pm-ico" type="button" data-editar="' + esc(m.ref) + '" title="Editar" aria-label="Editar ' + esc(m.ref) + '">✎</button><button class="pm-ico" type="button" data-borrar="' + esc(m.ref) + '" title="Eliminar" aria-label="Eliminar ' + esc(m.ref) + '">🗑</button>' : '') + '</div></div>' +
+      (materiales ? '<section class="pm-materiales"><b>MATERIALES POR UNIDAD</b>' + materiales + '</section>' : '') +
       '<details class="pm-prom"' + (st.abierto[m.ref] ? ' open' : '') + ' data-det="' + esc(m.ref) + '"><summary>CONSUMO PROMEDIO · <em>' + num(m.promedio) + ' MTS</em> · ver consumo por talla</summary>' + grupos + '</details>' +
       (plantillas ? '<div class="pm-plant">' + plantillas + '</div>' : '') +
       (notas.length ? '<div class="pm-notas">' + notas.map(n => '<div class="pm-nota"><div><i>' + esc(NOMBRE_NOTA[n.tipo] || n.tipo) + '</i>' + esc(n.texto) + '</div>' + (st.puedeEditar ? '<button type="button" data-nota-borrar="' + esc(n.id) + '" title="Quitar nota">✕</button>' : '') + '</div>').join('') + '</div>' : '') + '</article>';
