@@ -105,6 +105,35 @@ def _limpiar(payload: dict) -> dict:
                 raise HTTPException(400, 'Cada consumo debe estar entre 0 y 99 MTS.')
             fila.append(round(n, 2))
         limpio[grupo] = fila
+    # Una referencia puede usar más de una tela.  Cada material conserva su
+    # propio consumo por talla; no se mezcla con el promedio general de la
+    # referencia.  Es opcional para no alterar los maestros que ya existen.
+    materiales = payload.get('materiales')
+    if materiales is not None:
+        if not isinstance(materiales, list) or len(materiales) > 8:
+            raise HTTPException(400, 'Los materiales deben ser una lista de máximo 8 telas.')
+        limpio['materiales'] = []
+        vistos = set()
+        for bruto in materiales:
+            if not isinstance(bruto, dict):
+                raise HTTPException(400, 'Cada material debe tener su código y consumos por talla.')
+            material = str(bruto.get('material') or '').strip().upper()
+            if not re.fullmatch(r'M[1-8]', material) or material in vistos:
+                raise HTTPException(400, 'Cada material debe identificarse una sola vez como M1 a M8.')
+            vistos.add(material)
+            tela = str(bruto.get('tela') or '').strip()[:120]
+            fila_material = {'material': material, 'tela': tela}
+            for grupo, tallas in GRUPOS.items():
+                valores = bruto.get(grupo) or [0] * len(tallas)
+                if not isinstance(valores, list) or len(valores) != len(tallas):
+                    raise HTTPException(400, f'Faltan consumos de {material} para {grupo.upper()}.')
+                try:
+                    fila_material[grupo] = [round(float(str(v).replace(',', '.') or 0), 2) for v in valores]
+                except ValueError:
+                    raise HTTPException(400, 'Los consumos de cada material deben ser números.')
+                if any(not 0 <= n <= 99 for n in fila_material[grupo]):
+                    raise HTTPException(400, 'Cada consumo de material debe estar entre 0 y 99 MTS.')
+            limpio['materiales'].append(fila_material)
     return limpio
 
 
@@ -127,6 +156,11 @@ def guardar_maestro(payload: dict):
         if existente is None:
             lista.append(nuevo)
         else:
+            # Las pantallas antiguas todavía no envían ``materiales``. No
+            # borrar una configuración multimaterial ya documentada al editar
+            # otro campo del maestro desde una de esas pantallas.
+            if 'materiales' not in payload and lista[existente].get('materiales'):
+                nuevo['materiales'] = lista[existente]['materiales']
             lista[existente] = nuevo
         _guardar(datos)
     return {'ok': True, 'maestro': _vista(nuevo), 'creado': existente is None}
@@ -174,7 +208,9 @@ def borrar_nota(nota_id: str):
 
 
 # ---------------------------------------------------------------- MTS REQUERIDOS de una orden (lo usa el agente TERRY)
-_CODIGO_TELA = re.compile(r'^A\d+(?=[A-Z]{1,4}\d)')
+# El bloque inicial A<codigo> puede llevar varios códigos separados por guión:
+# A11300-1800FUT04 = telas 11300 y 1800 para la referencia FUT04.
+_CODIGO_TELA = re.compile(r'^A\d+(?:-\d+)*(?=[A-Z]{1,5}\d{2,3})')
 
 
 def _plano(texto: str) -> str:
@@ -184,8 +220,12 @@ def _plano(texto: str) -> str:
 
 
 def partes_de_hoja(hoja: str) -> list[str]:
-    """«A100FUT01» -> [FUT01] (quita el código de tela A100); una referencia compuesta «A100CB02-A100PT01» -> [CB02, PT01]."""
-    partes = [p.strip().upper() for p in re.split(r'[-+/]', str(hoja or '')) if p.strip()]
+    """Quita códigos de tela sin partir sus materiales.
+
+    «A11300-1800FUT04» -> [FUT04].  Solo se separan referencias completas,
+    como «A100CB02-A100PT01» -> [CB02, PT01].
+    """
+    partes = [p.strip().upper() for p in re.split(r'-(?=A\d+(?:-\d+)*(?:[A-Z]{1,5}\d{2,3}))|[+/]', str(hoja or '')) if p.strip()]
     return [_CODIGO_TELA.sub('', p) for p in partes]
 
 
