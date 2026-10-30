@@ -133,6 +133,8 @@
       min-width: 0;
       max-width: min(1040px, calc(100vw - 310px));
       margin: 0 0 0 auto !important;
+      /* En escritorio la acerca físicamente al sol sin alterar su ancho. */
+      transform: translateX(clamp(0px, 9vw, 170px));
       padding: 5px 10px !important;
       gap: 2px !important;
       border: 1px solid rgba(232,255,229,.22) !important;
@@ -210,6 +212,7 @@
         flex: 1 1 0 !important;
         justify-content: center !important;
         margin: 0 !important;
+        transform: none !important;
         padding: 4px 6px !important;
       }
       html body.top-navigation .sidebar nav.tabs > .tab,
