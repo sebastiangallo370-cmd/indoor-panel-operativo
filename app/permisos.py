@@ -206,6 +206,15 @@ def exigir(modulo: str, accion: str | None = None):
     return comprobar
 
 
+def exigir_info_tela():
+    """Información de tela pertenece al módulo Estándar/Promedios.
+
+    Mantiene el control de lectura y edición por método HTTP sin duplicar una
+    regla de permisos para el router de proveedores.
+    """
+    return exigir('promedios')
+
+
 _autenticar: Callable = lambda: None  # lo registra main.py (es la función authenticate)
 
 
