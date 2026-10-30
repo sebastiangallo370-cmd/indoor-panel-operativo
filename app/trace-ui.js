@@ -728,7 +728,8 @@
       const detalleMtsHtml = detalleMateriales.length
         ? '<span class="trace-mts-lines">' + detalleMateriales.map(material => {
           const codigo = String(material.codigo || '').replace(/^COD/i, '').trim();
-          return '<span class="trace-mts-line"><b>COD' + esc(codigo) + ':</b> <em>' + esc(formatoMts(material.mts)) + ' MTS</em></span>';
+          // El valor se conserva unido para que «MTS» no caiga en un segundo renglón.
+          return '<span class="trace-mts-line"><b>COD' + esc(codigo) + ':</b> <em>' + esc(formatoMts(material.mts)) + '&nbsp;MTS</em></span>';
         }).join('') + '</span>'
         : esc(mtsV || 'Sin registrar');
       const notes = Object.entries(productionData.notes || {}).filter(([k, v]) => k.startsWith(id + ':') && v && !isMtsNoteKey(k)).length;
@@ -2348,7 +2349,7 @@
   html body.production-mode .trace-card .trace-mts-display.multi-material{align-content:start}
   html body.production-mode .trace-card .trace-mts-display.multi-material strong{display:grid;gap:4px;min-width:0;white-space:normal!important;overflow:visible!important;text-overflow:clip!important;line-height:1.25}
   html body.production-mode .trace-card .trace-mts-lines{display:grid;gap:3px}
-  html body.production-mode .trace-card .trace-mts-line{display:block;min-width:0;font-size:11px;letter-spacing:.01em;overflow-wrap:anywhere}
+  html body.production-mode .trace-card .trace-mts-line{display:block;min-width:0;font-size:10px;letter-spacing:0;white-space:nowrap;overflow:visible;text-overflow:clip}
   html body.production-mode .trace-card .trace-mts-line b{color:#d0f44c;font-weight:900}
   html body.production-mode .trace-card .trace-mts-line em{color:#eff7dc;font-style:normal;font-weight:800}
   html body.production-mode .trace-card .trace-machine-top{display:grid;gap:3px;align-content:center;min-width:0;padding:7px 10px;border:1px solid #3d4f3d;border-radius:10px;background:rgba(255,255,255,.03)}
