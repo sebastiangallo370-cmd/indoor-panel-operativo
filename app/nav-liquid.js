@@ -35,7 +35,14 @@
     '.systems .theme-icon:hover,.systems #agentes-hub summary:hover,.systems #al-btn.header-alert:hover{transform:translateY(-2px) scale(1.12)!important}',
     '.systems .theme-icon:hover svg{transform:rotate(20deg)}.systems .theme-icon svg{transition:transform .25s ease}',
     '.systems .user-info small::before{content:"";display:inline-block;width:5px;height:5px;margin:0 5px 1px 0;border-radius:50%;background:#d0f44c;box-shadow:0 0 0 0 rgba(208,244,76,.7);animation:headerStatus 2s infinite}',
-    '.systems .user-menu summary:hover .user-info strong{color:#d0f44c}@keyframes headerStatus{0%,100%{box-shadow:0 0 0 0 rgba(208,244,76,.55)}50%{box-shadow:0 0 0 4px rgba(208,244,76,0)}}'
+    '.systems .user-menu summary:hover .user-info strong{color:#d0f44c}@keyframes headerStatus{0%,100%{box-shadow:0 0 0 0 rgba(208,244,76,.55)}50%{box-shadow:0 0 0 4px rgba(208,244,76,0)}}',
+    /* Un solo contenedor de vidrio líquido para que los controles se lean como un conjunto. */
+    '.brand .systems{position:relative!important;isolation:isolate;padding:5px 9px!important;border:1px solid rgba(205,242,178,.26)!important;border-radius:999px!important;background:radial-gradient(130% 160% at 12% 0%,rgba(255,255,255,.2),rgba(255,255,255,0) 48%),linear-gradient(115deg,rgba(52,82,61,.48),rgba(14,28,20,.72),rgba(44,72,53,.38))!important;background-size:180% 100%!important;box-shadow:inset 0 1px 1px rgba(255,255,255,.38),inset 0 -1px 0 rgba(0,0,0,.25),0 9px 24px rgba(0,0,0,.25)!important;-webkit-backdrop-filter:blur(16px) saturate(1.35);backdrop-filter:blur(16px) saturate(1.35);animation:headerGlass 9s ease-in-out infinite alternate}',
+    '.brand .systems::before{content:"";position:absolute;z-index:-1;left:12px;right:36%;top:1px;height:42%;border-radius:999px;background:linear-gradient(90deg,rgba(255,255,255,.2),transparent);filter:blur(1px);pointer-events:none}',
+    '.brand .systems .user-menu{padding-left:8px;border-left:1px solid rgba(230,255,217,.2)}',
+    '.brand .systems .theme-icon::after,.brand .systems #agentes-hub summary::after,.brand .systems #al-btn.header-alert::after{bottom:-1px}',
+    '@keyframes headerGlass{0%{background-position:0% 50%;transform:translateY(0)}100%{background-position:100% 50%;transform:translateY(-1px)}}',
+    '@media(prefers-reduced-motion:reduce){.brand .systems{animation:none!important}}'
   ].join('');
   var style=document.createElement('style');
   style.textContent=css;
