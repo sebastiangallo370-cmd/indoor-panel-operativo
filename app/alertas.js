@@ -107,6 +107,17 @@
     '<button type="button" class="al-ic" data-cerrar title="Cerrar" aria-label="Cerrar"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>' +
     '<div class="al-filtros" data-filtros></div><div class="al-buscar"><input type="search" data-q placeholder="Buscar orden o cliente…" aria-label="Buscar en las alertas"></div><div data-error></div><div class="al-lista" data-lista></div>';
   document.body.appendChild(btn); document.body.appendChild(box);
+  const headerStyle = document.createElement('style');
+  headerStyle.textContent = '#al-btn.header-alert{position:relative!important;right:auto!important;bottom:auto!important;z-index:1201;flex:0 0 42px;width:42px!important;height:42px!important;margin:0!important;color:#d0f44c}#al-btn.header-alert svg{width:22px;height:22px}#al-btn.header-alert b{top:-3px;right:-5px}@media(max-width:700px){#al-btn.header-alert{flex-basis:38px;width:38px!important;height:38px!important}#al-btn.header-alert svg{width:20px;height:20px}}';
+  document.head.appendChild(headerStyle);
+  function ponerCampanaEnCabecera() {
+    const area = document.querySelector('.systems'), sol = area?.querySelector('.theme-icon');
+    if (!area || !sol) return;
+    if (btn.previousElementSibling !== sol) sol.after(btn);
+    btn.classList.add('header-alert');
+  }
+  ponerCampanaEnCabecera();
+  new MutationObserver(ponerCampanaEnCabecera).observe(document.body, { childList: true, subtree: true });
   const q = s => box.querySelector(s);
 
   function irAProduccion(orden) {
