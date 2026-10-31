@@ -19,15 +19,16 @@
     '}',
     '@media(prefers-reduced-motion:reduce){.nl-goo.ready .nl-blob{transition:none!important}}',
     /* Controles compactos: conservan iconos claros sin ocupar la cabecera. */
-    '.systems{gap:5px!important}',
-    '.systems .theme-icon,.systems #agentes-hub summary,.systems #al-btn.header-alert{flex:0 0 34px!important;width:34px!important;height:34px!important;min-height:34px!important}',
-    '.systems .theme-icon svg,.systems #agentes-hub summary svg,.systems #al-btn.header-alert svg{width:18px!important;height:18px!important}',
-    '.systems .user-menu summary{gap:6px!important;padding:4px 7px!important;border-radius:19px!important}',
-    '.systems .user-avatar{width:28px!important;height:28px!important;font-size:11px!important}',
+    '.systems{display:flex!important;align-items:center!important;gap:6px!important}',
+    '.systems .theme-icon,.systems #agentes-hub summary,.systems #al-btn.header-alert{flex:0 0 32px!important;width:32px!important;height:32px!important;min-height:32px!important;border:1px solid rgba(208,244,76,.28)!important;border-radius:50%!important;background:rgba(14,24,16,.78)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.08)!important}',
+    '.systems .theme-icon:hover,.systems #agentes-hub summary:hover,.systems #al-btn.header-alert:hover{background:#25351d!important;border-color:rgba(208,244,76,.62)!important;box-shadow:0 0 0 2px rgba(208,244,76,.1)!important}',
+    '.systems .theme-icon svg,.systems #agentes-hub summary svg,.systems #al-btn.header-alert svg{width:17px!important;height:17px!important}',
+    '.systems .user-menu{margin-left:3px}.systems .user-menu summary{gap:6px!important;padding:3px 8px 3px 4px!important;border-radius:18px!important;background:linear-gradient(135deg,rgba(45,63,46,.9),rgba(11,23,15,.9))!important}',
+    '.systems .user-avatar{width:27px!important;height:27px!important;font-size:10px!important;box-shadow:0 0 0 2px rgba(208,244,76,.22)}',
     '.systems .user-info{max-width:145px!important}',
     '.systems .user-info strong{font-size:.7rem!important}',
     '.systems .user-info small{font-size:.6rem!important}',
-    '.systems #al-btn.header-alert b{transform:scale(.78);transform-origin:top right}'
+    '.systems #al-btn.header-alert b{transform:scale(.72);transform-origin:top right}'
   ].join('');
   var style=document.createElement('style');
   style.textContent=css;
