@@ -2181,6 +2181,10 @@
   html body.production-mode .trace-card .trace-card-body> :not(.trace-disclosure){flex-shrink:0}
   html body.production-mode .trace-card .trace-card-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:5px;margin-top:auto;padding-top:10px}
   html body.production-mode .trace-card .trace-card-actions button{grid-column:auto!important;min-height:38px;min-width:0;padding:8px 3px;font-size:11px!important;white-space:nowrap}
+  html body.production-mode .trace-card .trace-card-actions:has(.trace-edit-action){grid-template-columns:repeat(3,minmax(0,1fr))!important}
+  html body.production-mode .trace-card .trace-card-actions .trace-nas-action{order:1}
+  html body.production-mode .trace-card .trace-card-actions .trace-edit-action{order:2}
+  html body.production-mode .trace-card .trace-card-actions .trace-delete-action{order:3}
   html body.production-mode .trace-card .trace-card-actions [data-card-nas]{opacity:1;color:#e7f5ca!important;border-color:#7d9655!important}
   html body.production-mode .trace-card .trace-card-actions:not(:has([data-card-delete])){grid-template-columns:1fr!important}
   html body.production-mode .trace-card-heading{gap:6px;align-items:center;flex-wrap:wrap}
