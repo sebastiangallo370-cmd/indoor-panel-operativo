@@ -672,7 +672,7 @@
     const numero = t => { let v = String(t).trim(); if (v.includes(',') && v.includes('.')) v = v.replace(/\./g, '').replace(',', '.'); else if (v.includes(',')) v = v.replace(',', '.'); return parseFloat(v) || 0; };
     const materialesMts = row => {
       const detalle = productionData.materiales_mts?.[String(row.source_row)] || productionData.materiales_mts?.[row.source_row];
-      return Array.isArray(detalle?.materiales) ? detalle.materiales.filter(m => String(m?.codigo || '').trim() && Number(m?.mts) > 0) : [];
+      return Array.isArray(detalle?.materiales) ? detalle.materiales.filter(m => (String(m?.codigo || '').trim() || String(m?.material || '').trim()) && Number(m?.mts) > 0) : [];
     };
     const mtsNota = row => {
       const raw = String(productionData.notes?.[row.source_row + ':17'] || '');
@@ -728,8 +728,9 @@
       const detalleMtsHtml = detalleMateriales.length
         ? '<span class="trace-mts-lines">' + detalleMateriales.map(material => {
           const codigo = String(material.codigo || '').replace(/^COD/i, '').trim();
+          const etiqueta = String(material.material || '').toUpperCase() === 'M4' ? 'FUSIONADO' : (String(material.material || '').trim() || (codigo ? 'COD ' + codigo : 'MATERIAL'));
           // El valor se conserva unido para que «MTS» no caiga en un segundo renglón.
-          return '<span class="trace-mts-line"><b>COD' + esc(codigo) + ':</b> <em>' + esc(formatoMts(material.mts)) + '&nbsp;MTS</em></span>';
+          return '<span class="trace-mts-line"><b>' + esc(etiqueta) + ':</b> <em>' + esc(formatoMts(material.mts)) + '&nbsp;MTS</em></span>';
         }).join('') + '</span>'
         : esc(mtsV || 'Sin registrar');
       const notes = Object.entries(productionData.notes || {}).filter(([k, v]) => k.startsWith(id + ':') && v && !isMtsNoteKey(k)).length;
@@ -775,6 +776,12 @@
       traceCards.querySelector('[data-clear-trace]').textContent = 'Limpiar búsqueda';
     }
     traceCards.querySelectorAll(':scope > article[data-card-row]').forEach(card => {
+      const nasButton = card.querySelector('[data-card-nas]');
+      if (nasButton && !nasButton.classList.contains('trace-icon-action')) {
+        nasButton.classList.add('trace-icon-action', 'trace-nas-action');
+        nasButton.title = 'Abrir carpeta NAS';
+        nasButton.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h7l2 2h9v10H3zM12 14h7m-3-3 3 3-3 3"/></svg>';
+      }
       if (!card._pendiente) return;   // tarjeta sin cambios: ya quedó armada, no se toca
       card._pendiente = false;
       const row = rows.find(r => r.source_row === Number(card.dataset.cardRow));
@@ -824,9 +831,9 @@
       }
       if (canDelete) {
         const button = document.createElement('button');
-        button.type = 'button';button.textContent = 'ELIMINAR';button.dataset.cardDelete = row.source_row;
+        button.type = 'button';button.className = 'trace-icon-action trace-delete-action';button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5"/></svg>';button.dataset.cardDelete = row.source_row;
         button.disabled = deletingRows.has(Number(row.source_row));
-        button.setAttribute('aria-label', 'Eliminar orden ' + traceField(row, 'ORDEN') + ', fila ' + row.source_row);
+        button.setAttribute('aria-label', 'Eliminar orden ' + traceField(row, 'ORDEN') + ', fila ' + row.source_row);button.title = 'Eliminar orden';
         button.style.cssText = 'grid-column:1/-1;color:#ffb5ae!important;border-color:#8c524c!important;background:#392323!important';
         card.querySelector('.trace-card-actions').appendChild(button);
       }
@@ -2367,6 +2374,10 @@
   html body.production-mode .trace-quick-filters button:before{width:6px!important;height:6px!important}
   html body.production-mode .trace-quick-filters button span{font-size:11px!important;line-height:1.2!important;padding:1px 6px!important;border-radius:999px!important}
   html body.production-mode .trace-quick-filters button[aria-pressed=true]{box-shadow:none!important}
+  html body.production-mode .trace-card .trace-card-actions .trace-icon-action{display:grid!important;place-items:center!important;padding:0!important;font-size:0!important}
+  html body.production-mode .trace-card .trace-card-actions .trace-icon-action svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+  html body.production-mode .trace-card .trace-card-actions .trace-nas-action{color:#d6f64b!important;border-color:#819e4b!important}
+  html body.production-mode .trace-card .trace-card-actions .trace-delete-action{color:#ffb5ae!important;border-color:#8c524c!important;background:#392323!important}
   @media(max-width:860px){
     html body.production-mode .trace-quick-filters button{min-height:40px!important;padding:6px 12px!important;white-space:nowrap}
   }
