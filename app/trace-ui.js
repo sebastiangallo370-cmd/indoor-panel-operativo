@@ -367,7 +367,10 @@
     const rowId = Number(cardEditorDialog.dataset.row);
     const row = productionData?.rows.find(item => Number(item.source_row) === rowId);
     if (!row) return;
-    const changes = editableCardHeaders().map(({header, index}) => ({ column: index + 1, header, value: String(cardEditorFields.elements['field-' + index]?.value ?? ''), previous: String(row.values[index] ?? '') })).filter(item => item.value !== item.previous);
+    const changes = editableCardHeaders().map(({header, index}) => {
+      const field = cardEditorDialog.querySelector('[name="field-' + index + '"]');
+      return { column: index + 1, header, value: String(field?.value ?? ''), previous: String(row.values[index] ?? '') };
+    }).filter(item => item.value !== item.previous);
     if (!changes.length) { cardEditorDialog.close(); return; }
     const save = cardEditorDialog.querySelector('.trace-card-editor-save');
     save.disabled = true; cardEditorMessage.textContent = 'Guardando ' + changes.length + ' cambio' + (changes.length === 1 ? '' : 's') + '…';
