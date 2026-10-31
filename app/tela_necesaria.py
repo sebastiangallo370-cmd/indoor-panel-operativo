@@ -151,6 +151,20 @@ def _cantidad(valor) -> int:
     return int(digitos) if digitos else 0
 
 
+def _mts_nota(valor) -> float:
+    """Último valor «N.NN MTS» de la tarjeta de Producción, o 0.
+
+    Es una lectura de respaldo: permite que Tela programada muestre una
+    referencia que ya tiene sus metros validados en Producción, aunque aún no
+    tenga el maestro configurado para recalcularla aquí.
+    """
+    encontrados = re.findall(r'(\d+(?:[.,]\d+)?)\s*MTS', str(valor or ''), re.I)
+    try:
+        return float(encontrados[-1].replace(',', '.')) if encontrados else 0.0
+    except (TypeError, ValueError):
+        return 0.0
+
+
 def _consumo(referencia: str, maestros: dict, plantillas: dict) -> tuple[float, list[str], list[str]]:
     """Consumo promedio general por prenda de una referencia (suma las partes si es compuesta) y lo que no se encontró."""
     total, usados, faltan = 0.0, [], []
@@ -456,11 +470,21 @@ def detalles_mts_produccion(rows: list[dict], headers: list[str], ficha_resolver
             promedio, _, _ = _consumo(referencia, maestros, plantillas)
             if promedio > 0:
                 calculados = [{'codigo': codigos[0], 'mts': round(promedio * cantidad, 2), 'origen': 'PROMEDIOS MAESTROS'}]
+        # No todos los materiales tienen código dentro de la referencia. Por
+        # ejemplo, CB11 declara 100 y 11400 para M1/M2, pero M4 (Fusionado)
+        # también es consumo real. Se conserva su identificador de material
+        # para que no desaparezca de Producción ni de Tela programada.
         lineas_reales = [
-            {'codigo': str(m.get('codigo') or '').strip(), 'mts': round(float(m.get('mts') or 0), 2),
-             'origen': str(m.get('origen') or '')}
+            {
+                'codigo': str(m.get('codigo') or '').strip(),
+                'material': str(m.get('material') or '').strip().upper(),
+                'tela': str(m.get('tela') or '').strip(),
+                'mts': round(float(m.get('mts') or 0), 2),
+                'origen': str(m.get('origen') or ''),
+            }
             for m in calculados
-            if str(m.get('codigo') or '').strip() and float(m.get('mts') or 0) > 0
+            if (str(m.get('codigo') or '').strip() or str(m.get('material') or '').strip())
+            and float(m.get('mts') or 0) > 0
         ]
         if lineas_reales:
             respuesta[str(row.get('source_row'))] = {
@@ -548,6 +572,12 @@ def _pedidos() -> list[dict] | None:
         pi = headers.index('NOMBRE PROYECTO') if 'NOMBRE PROYECTO' in headers else None
         texto = lambda v, i: str(v[i]).strip() if i is not None and i < len(v) else ''
         limite = (_hoy() - timedelta(days=DIAS_GRACIA)).isoformat()
+        # Misma prioridad que las tarjetas: nota web, después nota del Sheet.
+        web = {r: n for r, n in db.execute('SELECT source_row,note FROM production_notes WHERE column_number=17')}
+        try:
+            sheet = {r: n for r, n in db.execute('SELECT source_row,note FROM production_sheet_notes WHERE column_number=17')}
+        except sqlite3.Error:
+            sheet = {}
         pedidos = []
         for fila, valores_json in db.execute('SELECT source_row, values_json FROM production_rows'):
             v = json.loads(valores_json)
@@ -568,12 +598,38 @@ def _pedidos() -> list[dict] | None:
             pedidos.append({'fila': fila, 'orden': str(v[oi]).strip(), 'referencia': str(v[ri]).strip(), 'tela': tela, 'cantidad': cantidad,
                             'cliente': texto(v, ki), 'proyecto': texto(v, pi),
                             'estado': 'P' if estado == 'P' else '',
-                            'entrega': parse_date(v[ei]) if ei is not None and ei < len(v) else ''})
+                            'entrega': parse_date(v[ei]) if ei is not None and ei < len(v) else '',
+                            'mts_tarjeta': _mts_nota(web.get(fila) or sheet.get(fila) or '')})
         return pedidos
     except (sqlite3.Error, ValueError, KeyError):
         return None
     finally:
         db.close()
+
+
+def _detalles_de_tarjetas() -> dict[str, dict]:
+    """MTS por material que ya calcula Producción para sus tarjetas.
+
+    Esta función es estrictamente de lectura. Se usa como respaldo para que
+    Tela programada no deje una referencia en «Sin promedio» cuando Producción
+    ya la puede calcular desde Promedios Maestros.
+    """
+    try:
+        db = sqlite3.connect(f'file:{DB_FILE}?mode=ro', uri=True, timeout=5)
+        try:
+            raw = db.execute("SELECT value FROM production_meta WHERE key='headers'").fetchone()
+            if not raw:
+                return {}
+            headers = json.loads(raw[0])
+            filas = [
+                {'source_row': fila, 'values': json.loads(valores)}
+                for fila, valores in db.execute('SELECT source_row,values_json FROM production_rows')
+            ]
+        finally:
+            db.close()
+        return detalles_mts_produccion(filas, headers)
+    except (sqlite3.Error, ValueError, TypeError):
+        return {}
 
 
 def calcular(items: list[dict]) -> dict:
@@ -593,6 +649,7 @@ def calcular(items: list[dict]) -> dict:
     por_tela: dict[str, dict] = {}
     sin_promedio = []
     brecha = brecha_sublimacion()
+    detalles_tarjetas = _detalles_de_tarjetas()
     for p in sorted(pedidos, key=lambda x: (x['entrega'] or '9999', x['orden'])):
         consumo, usados, faltan = _consumo(p['referencia'], maestros, plantillas)
         exacto = _exacto(p['orden'], p['referencia'], datos)
@@ -602,12 +659,39 @@ def calcular(items: list[dict]) -> dict:
             est = date.fromisoformat(p['entrega']) - timedelta(days=brecha)
             base.update(sublim_est=est.isoformat(), dias_sublim=(est - _hoy()).days)
         base['en_sublim'] = p['estado'] == 'P'
+        detalle_tarjeta = detalles_tarjetas.get(str(p['fila'])) or {}
+        mts_tarjeta = float(detalle_tarjeta.get('total') or p.get('mts_tarjeta') or 0)
+        # Desglose que verá Tela programada: una referencia puede consumir
+        # varias telas (p. ej. código 100 y 11400). Conserva el mismo reparto
+        # de MTS que ya calcula la tarjeta de Producción.
+        materiales_tarjeta = []
+        for material in detalle_tarjeta.get('materiales') or []:
+            codigo = str(material.get('codigo') or '').strip()
+            etiqueta_material = str(material.get('material') or '').strip().upper()
+            mts_material = round(float(material.get('mts') or 0), 2)
+            if not (codigo or etiqueta_material) or mts_material <= 0:
+                continue
+            tela_material = str(material.get('tela') or p['tela']).strip()
+            encontradas_material = _telas_de_bodega(items, tela_material, {codigo} if codigo else set())
+            materiales_tarjeta.append({
+                'codigo': codigo, 'material': etiqueta_material, 'mts': mts_material,
+                'tela': str((encontradas_material[0] if encontradas_material else {}).get('nombre') or tela_material).strip(),
+            })
+        # Producción ya tiene un consumo validado (por TERRY o una persona):
+        # úsalo únicamente cuando Tela programada aún no puede resolver el
+        # maestro. Así ambos paneles muestran la misma referencia y metros,
+        # sin escribir ni alterar inventario, notas o el Sheet.
+        respaldo_tarjeta = not consumo and not exacto and mts_tarjeta > 0
+        if respaldo_tarjeta:
+            consumo, usados, faltan = round(mts_tarjeta / max(1, p['cantidad']), 2), ['TARJETA DE PRODUCCIÓN'], []
         if not consumo and not exacto:
             sin_promedio.append({**base, 'situacion': 'sin_promedio', 'promedio': 0, 'mts': 0, 'falta': 0, 'maestros': [], 'telas': [],
                                  'motivo': ('Sin promedio para ' + ', '.join(faltan)) if faltan else 'La referencia no dice qué maestro es'})
             continue
         if exacto:
             mts, consumo, usados = exacto['mts'], round(exacto['mts'] / max(1, exacto['prendas']), 2), exacto['partes']
+        elif respaldo_tarjeta:
+            mts = round(mts_tarjeta, 2)
         else:
             mts = round(consumo * p['cantidad'], 2)
         entrada = por_tela.setdefault(p['tela'], {'tela': p['tela'], 'mts': 0.0, 'prendas': 0, 'pedidos': [], 'codigos': set()})
@@ -616,6 +700,8 @@ def calcular(items: list[dict]) -> dict:
         entrada['prendas'] += p['cantidad']
         entrada['pedidos'].append({**base, 'promedio': consumo, 'mts': mts, 'maestros': usados, 'parcial': bool(faltan) and not exacto,
                                    'exacto': bool(exacto), 'prendas_talla': (exacto or {}).get('prendas', 0),
+                                   'origen_tarjeta': respaldo_tarjeta,
+                                   'materiales': materiales_tarjeta,
                                    'tallas': [{'grupo': d['grupo'], 'talla': d['talla'], 'cantidad': d['cantidad'], 'promedio': d['promedio'], 'mts': d['subtotal']}
                                               for d in (exacto or {}).get('detalle', [])]})
     resultado, por_orden = [], []
@@ -641,6 +727,50 @@ def calcular(items: list[dict]) -> dict:
         resultado.append({**entrada, 'mts': mts, 'disponible': disponible, 'encontrada': bool(encontradas),
                           'telas': [i['nombre'] for i in encontradas], 'faltan': round(max(0.0, mts - disponible), 2) if encontradas else mts,
                           'alcanza': bool(encontradas) and disponible >= mts})
+
+    # Una tarjeta puede llevar más de una tela. El saldo debe calcularse por
+    # material, no contra la primera tela escrita en la fila de Producción:
+    # de otro modo Montecatini, Triatlón y Fusionado mostrarían el mismo
+    # inventario y un descuento engañoso. Se atienden en el mismo orden de
+    # entrega que las tarjetas principales, sin modificar inventario alguno.
+    por_material: dict[str, list[tuple[dict, dict]]] = {}
+    for pedido in por_orden:
+        materiales_pedido = pedido.get('materiales') or []
+        for material in pedido.get('materiales') or []:
+            codigo = str(material.get('codigo') or '').strip()
+            tela = str(material.get('tela') or pedido.get('tela') or '').strip()
+            # «Fusionado» (M4) no existe como rollo separado: es la misma
+            # tela base que pasa por Sublimación una segunda vez. Conservamos
+            # su línea y su descuento, pero compartimos el saldo de M1 para
+            # no reportarlo erróneamente como una tela sin existencia.
+            if str(material.get('material') or '').strip().upper() == 'M4' or norm(tela) == 'FUSIONADO':
+                base = next((x for x in materiales_pedido if str(x.get('material') or '').strip().upper() == 'M1'), None)
+                if base:
+                    codigo = str(base.get('codigo') or '').strip()
+                    tela = str(base.get('tela') or pedido.get('tela') or '').strip()
+                    material['stock_compartido'] = 'M1'
+            clave = 'COD:' + codigo if codigo else 'TELA:' + norm(tela)
+            por_material.setdefault(clave, []).append((pedido, material))
+    for pares in por_material.values():
+        muestra_pedido, muestra_material = pares[0]
+        codigo = str(muestra_material.get('codigo') or '').strip()
+        tela = str(muestra_material.get('tela') or muestra_pedido.get('tela') or '').strip()
+        encontradas = _telas_de_bodega(items, tela, {codigo} if codigo else set())
+        disponible = round(sum(sum(float(x) for x in (item.get('roll_values') or [])) for item in encontradas), 2)
+        restante = disponible
+        for pedido, material in pares:
+            mts_material = round(float(material.get('mts') or 0), 2)
+            material['bodega'] = disponible if encontradas else None
+            material['disponible'] = round(restante, 2)
+            if not encontradas:
+                material.update(situacion='sin_tela', falta=mts_material, queda=0.0)
+            elif restante >= mts_material:
+                restante = round(restante - mts_material, 2)
+                material.update(situacion='alcanza', falta=0.0, queda=restante)
+            else:
+                falta = round(mts_material - max(restante, 0.0), 2)
+                restante = 0.0
+                material.update(situacion='no_alcanza', falta=falta, queda=0.0)
     for sp in sin_promedio:   # aunque no tenga promedio, se muestra cuánta tela hay en Bodega
         enc = sublimacion_stock._matched(items, sp['tela'])
         sp['bodega'] = round(sum(sum(float(x) for x in (i.get('roll_values') or [])) for i in enc), 2) if enc else None
