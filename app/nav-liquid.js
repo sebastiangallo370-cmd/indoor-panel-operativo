@@ -28,7 +28,14 @@
     '.systems .user-info{max-width:145px!important}',
     '.systems .user-info strong{font-size:.7rem!important}',
     '.systems .user-info small{font-size:.6rem!important}',
-    '.systems #al-btn.header-alert b{transform:scale(.68);transform-origin:top right}'
+    '.systems #al-btn.header-alert b{transform:scale(.68);transform-origin:top right}',
+    '.systems .theme-icon,.systems #agentes-hub summary,.systems #al-btn.header-alert{position:relative!important;transition:transform .18s ease,color .18s ease!important}',
+    '.systems .theme-icon::after,.systems #agentes-hub summary::after,.systems #al-btn.header-alert::after{content:"";position:absolute;left:50%;bottom:-4px;width:0;height:2px;border-radius:2px;background:#d0f44c;box-shadow:0 0 8px #d0f44c;transform:translateX(-50%);transition:width .18s ease}',
+    '.systems .theme-icon:hover::after,.systems #agentes-hub summary:hover::after,.systems #agentes-hub[open] summary::after,.systems #al-btn.header-alert:hover::after{width:13px}',
+    '.systems .theme-icon:hover,.systems #agentes-hub summary:hover,.systems #al-btn.header-alert:hover{transform:translateY(-2px) scale(1.12)!important}',
+    '.systems .theme-icon:hover svg{transform:rotate(20deg)}.systems .theme-icon svg{transition:transform .25s ease}',
+    '.systems .user-info small::before{content:"";display:inline-block;width:5px;height:5px;margin:0 5px 1px 0;border-radius:50%;background:#d0f44c;box-shadow:0 0 0 0 rgba(208,244,76,.7);animation:headerStatus 2s infinite}',
+    '.systems .user-menu summary:hover .user-info strong{color:#d0f44c}@keyframes headerStatus{0%,100%{box-shadow:0 0 0 0 rgba(208,244,76,.55)}50%{box-shadow:0 0 0 4px rgba(208,244,76,0)}}'
   ].join('');
   var style=document.createElement('style');
   style.textContent=css;
