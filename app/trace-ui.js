@@ -332,6 +332,58 @@
   const isAdmin = typeof canViewAdministration !== 'undefined' && canViewAdministration;
   const canDelete = typeof deleteProductionAllowed !== 'undefined' && deleteProductionAllowed;
   const deletingRows = new Set();
+  const cardEditorDialog = document.createElement('dialog');
+  cardEditorDialog.className = 'trace-card-editor';
+  cardEditorDialog.innerHTML = '<form method="dialog" class="trace-card-editor-form"><header><div><span class="trace-eyebrow">EDITAR TARJETA</span><h2></h2><p>Modifica los datos de esta orden. Los estados de proceso se administran por separado.</p></div><button type="button" class="trace-card-editor-close" aria-label="Cerrar">×</button></header><div class="trace-card-editor-fields"></div><p class="trace-card-editor-message" role="status"></p><footer><button type="button" class="trace-card-editor-cancel">Cancelar</button><button type="submit" class="trace-card-editor-save">Guardar cambios</button></footer></form>';
+  document.body.appendChild(cardEditorDialog);
+  const cardEditorFields = cardEditorDialog.querySelector('.trace-card-editor-fields');
+  const cardEditorMessage = cardEditorDialog.querySelector('.trace-card-editor-message');
+  const editableCardHeaders = () => (productionData?.headers || []).map((header, index) => ({ header: String(header || '').trim(), index })).filter(field => {
+    if (!field.header) return false;
+    return !(typeof isProcessStatusHeader === 'function' && isProcessStatusHeader(field.header));
+  });
+  function openCardEditor(id) {
+    const row = productionData?.rows.find(item => Number(item.source_row) === Number(id));
+    if (!row) return;
+    cardEditorDialog.dataset.row = String(id);
+    cardEditorDialog.querySelector('h2').textContent = (traceField(row, 'ORDEN') || 'Orden sin número') + ' · editar información';
+    cardEditorMessage.textContent = '';
+    cardEditorFields.innerHTML = editableCardHeaders().map(({header, index}) => {
+      const value = String(row.values[index] ?? '');
+      const normalized = key(header);
+      const isLong = /OBSERV|DESCRIP|INDIC|NOTA|DIRECCION/.test(normalized);
+      const input = isLong
+        ? '<textarea name="field-' + index + '" rows="3" maxlength="5000">' + esc(value) + '</textarea>'
+        : '<input name="field-' + index + '" value="' + esc(value) + '" maxlength="5000" autocomplete="off">';
+      return '<label class="trace-card-editor-field' + (isLong ? ' long' : '') + '"><span>' + esc(header) + '</span>' + input + '</label>';
+    }).join('');
+    cardEditorDialog.showModal();
+    setTimeout(() => cardEditorFields.querySelector('input,textarea')?.focus(), 0);
+  }
+  cardEditorDialog.querySelector('.trace-card-editor-close').onclick = () => cardEditorDialog.close();
+  cardEditorDialog.querySelector('.trace-card-editor-cancel').onclick = () => cardEditorDialog.close();
+  cardEditorDialog.addEventListener('submit', async event => {
+    event.preventDefault();
+    const rowId = Number(cardEditorDialog.dataset.row);
+    const row = productionData?.rows.find(item => Number(item.source_row) === rowId);
+    if (!row) return;
+    const changes = editableCardHeaders().map(({header, index}) => ({ column: index + 1, header, value: String(cardEditorFields.elements['field-' + index]?.value ?? ''), previous: String(row.values[index] ?? '') })).filter(item => item.value !== item.previous);
+    if (!changes.length) { cardEditorDialog.close(); return; }
+    const save = cardEditorDialog.querySelector('.trace-card-editor-save');
+    save.disabled = true; cardEditorMessage.textContent = 'Guardando ' + changes.length + ' cambio' + (changes.length === 1 ? '' : 's') + '…';
+    try {
+      for (const change of changes) {
+        const response = await fetch('/api/produccion/celda', {method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({row: rowId, column: change.column, value: change.value})});
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw Error(data.detail || 'No se pudo guardar ' + change.header);
+        row.values = data.values || row.values;
+      }
+      cardEditorDialog.close();
+      renderProduction();
+    } catch (error) {
+      cardEditorMessage.textContent = error.message || 'No se pudieron guardar los cambios.';
+    } finally { save.disabled = false; }
+  });
   const deleteProgress = document.createElement('dialog');
   deleteProgress.className = 'operator-dialog';
   deleteProgress.setAttribute('aria-label', 'Progreso de eliminación');
@@ -738,7 +790,7 @@
       const due = traceField(row, 'FECHA DE ENTREGA');
       const dueLabel = !summary.due ? 'Sin fecha' : summary.overdue ? 'Atrasado' : summary.state !== 'finished' && summary.due.getTime() === scheduleToday().getTime() ? 'Entrega hoy' : 'Entrega';
       const hasRework = summary.groups.some(group => group.state === 'rework');
-      return '<article class="trace-card state-' + summary.state + '" data-card-row="' + id + '"><div class="trace-media">' + traceAssetsMarkup(id) + '</div><div class="trace-card-body"><div class="trace-card-heading"><h3>' + esc(traceField(row, 'ORDEN') || 'Sin número') + '</h3><button type="button" class="trace-order-rework' + (hasRework ? ' has-rework' : '') + '" data-card-rework="' + esc(traceField(row, 'ORDEN')) + '" aria-label="Registrar reproceso de la orden ' + esc(traceField(row, 'ORDEN')) + '">REPROCESO</button><span class="trace-stage ' + summary.state + '">' + labels[summary.state] + '</span></div><p class="trace-client">' + esc(traceField(row, 'NOMBRE DEL CLIENTE') || 'Sin cliente') + '</p><p class="trace-project">' + esc(traceField(row, 'NOMBRE PROYECTO')) + '</p><div class="trace-mts-row' + (mtsV ? ' con-mts' : ' sin-mts') + '">' + ('<div class="trace-machine-top"><small>MÁQUINA DE IMPRESIÓN</small><button type="button" class="trace-machine-btn' + (traceField(row, 'MAQUINA DE IMPRESION').trim() ? ' has-value' : '') + '" data-card-machine="' + id + '" title="Máquina de impresión: clic para elegirla">' + esc(traceField(row, 'MAQUINA DE IMPRESION').trim() || 'Seleccionar') + '</button></div>') + '<button class="trace-mts-btn' + (mtsV ? ' has-value' : '') + '" type="button" data-card-mts="' + id + '"><span class="mts-label">Ingresar MTS REQUERIDOS</span></button><button class="trace-mts-inventory" type="button" data-card-inventory="' + id + '">STOCK TELA ↗</button><div class="trace-mts-display' + (mtsV ? ' has-value' : '') + (detalleMateriales.length ? ' multi-material' : '') + '"><small>MTS REQUERIDOS</small><strong>' + detalleMtsHtml + '</strong></div></div><dl><div><dt>Referencia</dt><dd class="trace-ref" title="' + esc(traceField(row, 'REFERENCIA') || '') + '">' + esc(traceField(row, 'REFERENCIA') || '—') + '</dd>' + telaMarkup(row) + '</div>' + '<div><dt>Cantidad</dt><dd class="trace-quantity">' + esc(traceField(row, 'CANTIDAD') || '0') + ' <small>und.</small></dd></div><div class="trace-due ' + (summary.overdue ? 'late' : '') + '"><dt>' + dueLabel + '</dt><dd>' + esc(summary.due ? displayProductionDate(due) : 'Sin programar') + diasParaEntrega(summary) + '</dd></div><div><dt>Responsable del proceso</dt><dd>' + (responsible ? responsible.split(/[,;·\n]+/).filter(x => x.trim()).map(name => '<span class="trace-person">' + esc(name.trim()) + '</span>').join(' ') : '<span class="trace-unassigned">Sin asignar</span>') + '</dd></div></dl><div class="trace-card-meta"><span>' + notes + ' nota' + (notes === 1 ? '' : 's') + '</span><span>Fila ' + id + '</span></div><div class="trace-card-actions"><button type="button" class="operator-open" data-card-edit="' + id + '">PRODUCCIÓN</button><button type="button" data-card-detail="' + id + '">Ver detalle</button><button type="button" data-card-nas="' + id + '" aria-label="Abrir carpeta del pedido">NAS ↗</button></div></div>' + routeMarkup(row, summary) + '</article>';
+      return '<article class="trace-card state-' + summary.state + '" data-card-row="' + id + '"><div class="trace-media">' + traceAssetsMarkup(id) + '</div><div class="trace-card-body"><div class="trace-card-heading"><h3>' + esc(traceField(row, 'ORDEN') || 'Sin número') + '</h3><button type="button" class="trace-order-rework' + (hasRework ? ' has-rework' : '') + '" data-card-rework="' + esc(traceField(row, 'ORDEN')) + '" aria-label="Registrar reproceso de la orden ' + esc(traceField(row, 'ORDEN')) + '">REPROCESO</button><span class="trace-stage ' + summary.state + '">' + labels[summary.state] + '</span></div><p class="trace-client">' + esc(traceField(row, 'NOMBRE DEL CLIENTE') || 'Sin cliente') + '</p><p class="trace-project">' + esc(traceField(row, 'NOMBRE PROYECTO')) + '</p><div class="trace-mts-row' + (mtsV ? ' con-mts' : ' sin-mts') + '">' + ('<div class="trace-machine-top"><small>MÁQUINA DE IMPRESIÓN</small><button type="button" class="trace-machine-btn' + (traceField(row, 'MAQUINA DE IMPRESION').trim() ? ' has-value' : '') + '" data-card-machine="' + id + '" title="Máquina de impresión: clic para elegirla">' + esc(traceField(row, 'MAQUINA DE IMPRESION').trim() || 'Seleccionar') + '</button></div>') + '<button class="trace-mts-btn' + (mtsV ? ' has-value' : '') + '" type="button" data-card-mts="' + id + '"><span class="mts-label">Ingresar MTS REQUERIDOS</span></button><button class="trace-mts-inventory" type="button" data-card-inventory="' + id + '">STOCK TELA ↗</button><div class="trace-mts-display' + (mtsV ? ' has-value' : '') + (detalleMateriales.length ? ' multi-material' : '') + '"><small>MTS REQUERIDOS</small><strong>' + detalleMtsHtml + '</strong></div></div><dl><div><dt>Referencia</dt><dd class="trace-ref" title="' + esc(traceField(row, 'REFERENCIA') || '') + '">' + esc(traceField(row, 'REFERENCIA') || '—') + '</dd>' + telaMarkup(row) + '</div>' + '<div><dt>Cantidad</dt><dd class="trace-quantity">' + esc(traceField(row, 'CANTIDAD') || '0') + ' <small>und.</small></dd></div><div class="trace-due ' + (summary.overdue ? 'late' : '') + '"><dt>' + dueLabel + '</dt><dd>' + esc(summary.due ? displayProductionDate(due) : 'Sin programar') + diasParaEntrega(summary) + '</dd></div><div><dt>Responsable del proceso</dt><dd>' + (responsible ? responsible.split(/[,;·\n]+/).filter(x => x.trim()).map(name => '<span class="trace-person">' + esc(name.trim()) + '</span>').join(' ') : '<span class="trace-unassigned">Sin asignar</span>') + '</dd></div></dl><div class="trace-card-meta"><span>' + notes + ' nota' + (notes === 1 ? '' : 's') + '</span><span>Fila ' + id + '</span></div><div class="trace-card-actions"><button type="button" class="operator-open" data-card-full-edit="' + id + '">PRODUCCIÓN</button><button type="button" data-card-detail="' + id + '">Ver detalle</button><button type="button" data-card-nas="' + id + '" aria-label="Abrir carpeta del pedido">NAS ↗</button></div></div>' + routeMarkup(row, summary) + '</article>';
     });
     // Sin parpadeo: solo se vuelven a dibujar las tarjetas que cambiaron; las demás se conservan tal cual (con su imagen y su scroll).
     if (!rows.length) {
@@ -1303,6 +1355,12 @@
     };
     setTimeout(apply, 200);
   };
+  traceCards.addEventListener('click', event => {
+    const editButton = event.target.closest('[data-card-full-edit]');
+    if (!editButton) return;
+    event.preventDefault(); event.stopImmediatePropagation();
+    openCardEditor(Number(editButton.dataset.cardFullEdit));
+  }, true);
   traceCards.addEventListener('click', event => {
     const inventoryButton = event.target.closest('[data-card-inventory]');
     if (inventoryButton) {
@@ -2389,6 +2447,7 @@
   html body.production-mode .trace-card .trace-card-actions .trace-edit-action{color:#bde9ff!important;border-color:#5f9fbd!important;background:#18313c!important}
   html body.production-mode .trace-card .trace-card-actions .trace-nas-action{color:#d6f64b!important;border-color:#819e4b!important}
   html body.production-mode .trace-card .trace-card-actions .trace-delete-action{color:#ffb5ae!important;border-color:#8c524c!important;background:#392323!important}
+  .trace-card-editor{width:min(920px,94vw);max-height:88dvh;overflow:auto;margin:auto;padding:0;border:1px solid #55705b;border-radius:16px;background:#132119;color:#edf5eb;box-shadow:0 25px 80px #000b}.trace-card-editor::backdrop{background:#000b}.trace-card-editor-form{display:grid;gap:18px;padding:22px}.trace-card-editor header{display:flex;justify-content:space-between;gap:18px;padding-bottom:16px;border-bottom:1px solid #3d5141}.trace-card-editor h2{margin:4px 0;font:700 22px Arial}.trace-card-editor header p{margin:0;color:#aebdaf;font:13px/1.5 Arial}.trace-card-editor-close{flex:0 0 auto;width:36px!important;min-height:36px!important;padding:0!important;border:1px solid #607363!important;border-radius:9px!important;background:#1d2f23!important;color:#fff!important;font:700 20px/1 Arial!important}.trace-card-editor-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.trace-card-editor-field{display:grid;gap:6px;min-width:0}.trace-card-editor-field.long{grid-column:1/-1}.trace-card-editor-field span{font:800 10px Arial;letter-spacing:.07em;color:#a9baab}.trace-card-editor-field input,.trace-card-editor-field textarea{box-sizing:border-box;width:100%;border:1px solid #4d6451;border-radius:8px;background:#203328;color:#f1f6ed;padding:10px 11px;font:14px Arial}.trace-card-editor-field textarea{resize:vertical;min-height:78px}.trace-card-editor-message{min-height:20px;margin:0;color:#ffd28e;font:13px Arial}.trace-card-editor footer{display:flex;justify-content:flex-end;gap:10px;padding-top:14px;border-top:1px solid #3d5141}.trace-card-editor footer button{min-height:42px;padding:9px 15px;border-radius:8px;border:1px solid #61765f;background:#25392b;color:#eaf2e7;font:700 13px Arial}.trace-card-editor .trace-card-editor-save{background:#d0ec93;color:#1d2b14;border-color:#d0ec93}.trace-card-editor .trace-card-editor-save:disabled{opacity:.6;cursor:wait}@media(max-width:600px){.trace-card-editor-form{padding:16px;gap:14px}.trace-card-editor-fields{grid-template-columns:1fr}.trace-card-editor h2{font-size:18px}.trace-card-editor footer{position:sticky;bottom:-16px;padding:12px 0;background:#132119}.trace-card-editor footer button{flex:1}}
   @media(max-width:860px){
     html body.production-mode .trace-quick-filters button{min-height:40px!important;padding:6px 12px!important;white-space:nowrap}
   }
