@@ -837,8 +837,14 @@
         button.style.cssText = 'grid-column:1/-1;color:#ffb5ae!important;border-color:#8c524c!important;background:#392323!important';
         card.querySelector('.trace-card-actions').appendChild(button);
       }
-      // Las acciones operativas ya están en el encabezado; no repetimos el botón Producción.
-      card.querySelector('.operator-open')?.remove();
+      // El lápiz reutiliza el editor completo de Producción; no abre un formulario parcial.
+      const editButton = card.querySelector('.operator-open');
+      if (editButton) {
+        editButton.className = 'trace-icon-action trace-edit-action';
+        editButton.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l11-11-4-4L4 16v4zm10-14 4 4M4 20h16"/></svg>';
+        editButton.setAttribute('aria-label', 'Modificar toda la información de la orden ' + traceField(row, 'ORDEN') + ', fila ' + row.source_row);
+        editButton.title = 'Modificar información de la tarjeta';
+      }
       const viewSummary = summaries.get(row.source_row);
       const progressSummary = viewSummary.route || viewSummary;
       const progress = card.querySelector('.trace-progress');
@@ -2376,6 +2382,7 @@
   html body.production-mode .trace-quick-filters button[aria-pressed=true]{box-shadow:none!important}
   html body.production-mode .trace-card .trace-card-actions .trace-icon-action{display:grid!important;place-items:center!important;padding:0!important;font-size:0!important}
   html body.production-mode .trace-card .trace-card-actions .trace-icon-action svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+  html body.production-mode .trace-card .trace-card-actions .trace-edit-action{color:#bde9ff!important;border-color:#5f9fbd!important;background:#18313c!important}
   html body.production-mode .trace-card .trace-card-actions .trace-nas-action{color:#d6f64b!important;border-color:#819e4b!important}
   html body.production-mode .trace-card .trace-card-actions .trace-delete-action{color:#ffb5ae!important;border-color:#8c524c!important;background:#392323!important}
   @media(max-width:860px){
