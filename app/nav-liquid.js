@@ -36,18 +36,14 @@
     '.systems .theme-icon:hover svg{transform:rotate(20deg)}.systems .theme-icon svg{transition:transform .25s ease}',
     '.systems .user-info small::before{content:"";display:inline-block;width:5px;height:5px;margin:0 5px 1px 0;border-radius:50%;background:#d0f44c;box-shadow:0 0 0 0 rgba(208,244,76,.7);animation:headerStatus 2s infinite}',
     '.systems .user-menu summary:hover .user-info strong{color:#d0f44c}@keyframes headerStatus{0%,100%{box-shadow:0 0 0 0 rgba(208,244,76,.55)}50%{box-shadow:0 0 0 4px rgba(208,244,76,0)}}',
-    /* Un solo contenedor de vidrio líquido para que los controles se lean como un conjunto. */
-    '.brand .systems{position:relative!important;isolation:isolate;min-height:42px;padding:6px 12px!important;border:1px solid rgba(191,247,147,.48)!important;border-radius:999px!important;background:radial-gradient(100% 160% at 6% -35%,rgba(235,255,220,.34),rgba(235,255,220,0) 52%),linear-gradient(120deg,rgba(91,124,98,.56),rgba(20,46,30,.86) 46%,rgba(55,92,66,.62))!important;background-size:185% 100%!important;box-shadow:inset 0 1px 1px rgba(255,255,255,.54),inset 0 -1px 0 rgba(0,0,0,.3),0 8px 22px rgba(0,0,0,.3),0 0 0 1px rgba(0,0,0,.16)!important;-webkit-backdrop-filter:blur(18px) saturate(1.45);backdrop-filter:blur(18px) saturate(1.45);animation:headerGlass 7s ease-in-out infinite alternate}',
-    '.brand .systems::before{content:"";position:absolute;z-index:0;left:8px;right:26%;top:2px;height:43%;border-radius:14px;background:linear-gradient(90deg,rgba(255,255,255,.3),rgba(220,255,198,.08),transparent);filter:blur(1px);pointer-events:none}',
-    '.brand .systems>*{position:relative;z-index:1}',
-    '.brand .systems .user-menu{margin-left:5px;padding-left:10px;border-left:1px solid rgba(222,255,207,.36)}',
+    /* Controles ligeros: sin cápsula grande, solo iconos y el monograma del usuario. */
+    '.brand .systems{gap:10px!important;min-height:32px!important;padding:0!important;border:0!important;background:transparent!important;box-shadow:none!important;animation:none!important}',
+    '.brand .systems .user-menu{margin-left:4px;padding-left:9px;border-left:1px solid rgba(222,255,207,.25)}',
     /* La cabecera conserva solo el monograma; los datos completos siguen en el menú desplegable. */
     '.brand .systems .user-menu summary .user-info,.brand .systems .user-menu summary>[aria-hidden="true"]{display:none!important}',
     '.brand .systems .user-menu summary{min-width:30px!important;justify-content:center!important}',
     '.brand .systems .user-avatar{display:grid!important;place-items:center;width:28px!important;height:28px!important;border:1px solid rgba(208,244,76,.7)!important;border-radius:50%!important;background:linear-gradient(145deg,rgba(215,255,88,.22),rgba(75,108,64,.16))!important;font-size:11px!important;font-weight:900!important;letter-spacing:.05em!important;box-shadow:inset 0 1px 1px rgba(255,255,255,.35),0 0 12px rgba(208,244,76,.12)!important}',
-    '.brand .systems .theme-icon::after,.brand .systems #agentes-hub summary::after,.brand .systems #al-btn.header-alert::after{bottom:-1px}',
-    '@keyframes headerGlass{0%{background-position:0% 50%;transform:translateY(0)}100%{background-position:100% 50%;transform:translateY(-1px)}}',
-    '@media(prefers-reduced-motion:reduce){.brand .systems{animation:none!important}}'
+    '.brand .systems .theme-icon::after,.brand .systems #agentes-hub summary::after,.brand .systems #al-btn.header-alert::after{bottom:-1px}'
   ].join('');
   var style=document.createElement('style');
   style.textContent=css;
