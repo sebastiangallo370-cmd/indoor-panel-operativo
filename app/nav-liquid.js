@@ -17,7 +17,17 @@
       NAV+' .nl-on,'+NAV+' .nl-on:hover{background:transparent!important;box-shadow:none!important;border-color:transparent!important;text-shadow:none!important;outline-color:transparent!important}',
       NAV+' .nl-on,'+NAV+' .nl-on *{color:#10150e!important;-webkit-text-fill-color:#10150e!important;text-shadow:none!important}',
     '}',
-    '@media(prefers-reduced-motion:reduce){.nl-goo.ready .nl-blob{transition:none!important}}'
+    '@media(prefers-reduced-motion:reduce){.nl-goo.ready .nl-blob{transition:none!important}}',
+    /* Controles compactos: conservan iconos claros sin ocupar la cabecera. */
+    '.systems{gap:5px!important}',
+    '.systems .theme-icon,.systems #agentes-hub summary,.systems #al-btn.header-alert{flex:0 0 34px!important;width:34px!important;height:34px!important;min-height:34px!important}',
+    '.systems .theme-icon svg,.systems #agentes-hub summary svg,.systems #al-btn.header-alert svg{width:18px!important;height:18px!important}',
+    '.systems .user-menu summary{gap:6px!important;padding:4px 7px!important;border-radius:19px!important}',
+    '.systems .user-avatar{width:28px!important;height:28px!important;font-size:11px!important}',
+    '.systems .user-info{max-width:145px!important}',
+    '.systems .user-info strong{font-size:.7rem!important}',
+    '.systems .user-info small{font-size:.6rem!important}',
+    '.systems #al-btn.header-alert b{transform:scale(.78);transform-origin:top right}'
   ].join('');
   var style=document.createElement('style');
   style.textContent=css;
