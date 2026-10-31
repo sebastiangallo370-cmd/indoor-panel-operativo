@@ -338,10 +338,10 @@
   document.body.appendChild(cardEditorDialog);
   const cardEditorFields = cardEditorDialog.querySelector('.trace-card-editor-fields');
   const cardEditorMessage = cardEditorDialog.querySelector('.trace-card-editor-message');
-  const editableCardHeaders = () => (productionData?.headers || []).map((header, index) => ({ header: String(header || '').trim(), index })).filter(field => {
-    if (!field.header) return false;
-    return !(typeof isProcessStatusHeader === 'function' && isProcessStatusHeader(field.header));
-  });
+  // Solo los datos que el usuario ve dentro de la tarjeta; los procesos y columnas internas
+  // se mantienen en sus propios controles para no llenar el editor con campos ajenos.
+  const visibleCardHeaders = new Set(['ORDEN', 'NOMBRE DEL CLIENTE', 'CLIENTE', 'NOMBRE PROYECTO', 'PROYECTO', 'REFERENCIA', 'CANTIDAD', 'TELA', 'NOMBRE TELA', 'FECHA DE ENTREGA', 'MAQUINA DE IMPRESION', 'MÁQUINA DE IMPRESIÓN']);
+  const editableCardHeaders = () => (productionData?.headers || []).map((header, index) => ({ header: String(header || '').trim(), index })).filter(field => visibleCardHeaders.has(key(field.header)));
   function openCardEditor(id) {
     const row = productionData?.rows.find(item => Number(item.source_row) === Number(id));
     if (!row) return;
