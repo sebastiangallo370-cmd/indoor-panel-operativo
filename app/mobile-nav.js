@@ -153,13 +153,13 @@
   document.head.appendChild(style);
 
   const ICONS = {
-    INICIO: '<path d="m3.5 10.8 8.5-7 8.5 7v9a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z"/><path d="M9.2 21.3v-6.1h5.6v6.1"/>',
+    INICIO: '<path d="m3 11 9-7.5 9 7.5"/><path d="M5.5 9.5v10.2a1.3 1.3 0 0 0 1.3 1.3h10.4a1.3 1.3 0 0 0 1.3-1.3V9.5"/><path d="M9.3 21v-6h5.4v6"/>',
     CONTROL: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M8.5 12.5l2.3 2.3 4.7-4.8"/>',
     NOVEDADES: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 8 3 8H3s3-1 3-8"/><path d="M10 20a2 2 0 0 0 4 0"/>',
-    REPROCESOS: '<path d="M20.5 8.2A8.7 8.7 0 0 0 5.8 5.7L3.5 8"/><path d="M3.5 4.2V8h3.8"/><path d="M3.5 15.8a8.7 8.7 0 0 0 14.7 2.5l2.3-2.3"/><path d="M20.5 19.8V16h-3.8"/>',
-    REPROCESO: '<path d="M20.5 8.2A8.7 8.7 0 0 0 5.8 5.7L3.5 8"/><path d="M3.5 4.2V8h3.8"/><path d="M3.5 15.8a8.7 8.7 0 0 0 14.7 2.5l2.3-2.3"/><path d="M20.5 19.8V16h-3.8"/>',
-    PRODUCCION: '<path d="M3.5 20.5V10.8l5 2.7V9.8l5 2.7V6.3l7 3.5v10.7z"/><path d="M7.5 17.2h1M12 17.2h1M16.5 17.2h1"/><path d="M6.2 20.5v-4.1h3v4.1"/>',
-    INVENTARIOS: '<path d="m12 3.2 8.3 4.4-8.3 4.4-8.3-4.4z"/><path d="m3.7 12.2 8.3 4.4 8.3-4.4"/><path d="m3.7 16.8 8.3 4.4 8.3-4.4"/>',
+    REPROCESOS: '<path d="M19.5 8.5A8.5 8.5 0 0 0 5.2 6L3 8.2"/><path d="M3 4.5v3.7h3.7"/><path d="M4.5 15.5A8.5 8.5 0 0 0 18.8 18l2.2-2.2"/><path d="M21 19.5v-3.7h-3.7"/><path d="m9.2 12 1.8 1.8 3.8-3.8"/>',
+    REPROCESO: '<path d="M19.5 8.5A8.5 8.5 0 0 0 5.2 6L3 8.2"/><path d="M3 4.5v3.7h3.7"/><path d="M4.5 15.5A8.5 8.5 0 0 0 18.8 18l2.2-2.2"/><path d="M21 19.5v-3.7h-3.7"/><path d="m9.2 12 1.8 1.8 3.8-3.8"/>',
+    PRODUCCION: '<path d="M3.5 18.5h17v2h-17z"/><path d="M6 18.5v-7h7.1a3.4 3.4 0 0 1 3.4 3.4v3.6"/><path d="M10.5 11.5V7.2h4.2"/><path d="M14.7 7.2a2.2 2.2 0 1 1-4.2 0"/><path d="M6 15.2h10.5"/><circle cx="8.5" cy="18.5" r="1.5"/><path d="M18.5 10.5v4"/>',
+    INVENTARIOS: '<path d="m12 3 8.2 4.3v9.4L12 21l-8.2-4.3V7.3z"/><path d="m3.8 7.3L12 12l8.2-4.7M12 12v9"/><path d="M7.2 9.2h2.2M14.6 9.2h2.2"/>',
     ADMINISTRACION: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/><path d="M3 13h18"/>',
     AGENTES: '<rect x="5" y="8" width="14" height="11" rx="3"/><path d="M12 4v4M9 13h.01M15 13h.01M9.5 16.5h5"/><circle cx="12" cy="3.5" r="1"/>',
     PERMISOS: '<path d="M12 3l8 3v6c0 5-3.4 8.2-8 9-4.6-.8-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/>',
@@ -211,7 +211,7 @@
   const PRIORITY = [['INICIO'], ['PRODUCCION'], ['REPROCESOS', 'REPROCESO'], ['INVENTARIOS']];
   const pretty = label => { const t = String(label || '').trim().toLowerCase(); return t.charAt(0).toUpperCase() + t.slice(1).replace('produccion', 'producción').replace('administracion', 'administración'); };
   const svg = path => '<svg viewBox="0 0 24 24" aria-hidden="true">' + path + '</svg>';
-  const MENU_ICON = svg('<g class="g-menu"><circle cx="7" cy="7" r="1.2"/><circle cx="12" cy="7" r="1.2"/><circle cx="17" cy="7" r="1.2"/><circle cx="7" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="17" cy="12" r="1.2"/><circle cx="7" cy="17" r="1.2"/><circle cx="12" cy="17" r="1.2"/><circle cx="17" cy="17" r="1.2"/></g><g class="g-x"><path d="M6 6l12 12M18 6 6 18"/></g>');
+  const MENU_ICON = svg('<g class="g-menu"><path d="M5 7.5h14M5 12h14M5 16.5h14"/></g><g class="g-x"><path d="M6 6l12 12M18 6 6 18"/></g>');
   const iconOf = section => svg(ICONS[plain(section.label)] || ICONS.OTRO);
   const el = (tag, cls, text) => { const node = document.createElement(tag); if (cls) node.className = cls; if (text != null) node.textContent = text; return node; };
   const pagesOf = section => section.direct ? [section.direct] : section.children();
