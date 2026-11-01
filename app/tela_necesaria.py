@@ -707,6 +707,10 @@ def calcular(items: list[dict]) -> dict:
             materiales_tarjeta.append({
                 'codigo': codigo, 'material': etiqueta_material, 'mts': mts_material,
                 'tela': str((encontradas_material[0] if encontradas_material else {}).get('nombre') or tela_material).strip(),
+                # Producción y Tela programada deben recibir exactamente la
+                # misma semántica: Fusionado puede ser M2, M3, etcétera.
+                'fusionado': bool(material.get('fusionado')),
+                'etiqueta': str(material.get('etiqueta') or '').strip().upper(),
             })
         # Producción ya tiene un consumo validado (por TERRY o una persona):
         # úsalo únicamente cuando Tela programada aún no puede resolver el
@@ -774,7 +778,7 @@ def calcular(items: list[dict]) -> dict:
             # tela base que pasa por Sublimación una segunda vez. Conservamos
             # su línea y su descuento, pero compartimos el saldo de M1 para
             # no reportarlo erróneamente como una tela sin existencia.
-            if str(material.get('material') or '').strip().upper() == 'M4' or norm(tela) == 'FUSIONADO':
+            if bool(material.get('fusionado')) or str(material.get('etiqueta') or '').strip().upper() == 'FUSIONADO' or str(material.get('material') or '').strip().upper() == 'M4' or norm(tela) == 'FUSIONADO':
                 base = next((x for x in materiales_pedido if str(x.get('material') or '').strip().upper() == 'M1'), None)
                 if base:
                     codigo = str(base.get('codigo') or '').strip()
