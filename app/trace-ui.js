@@ -789,7 +789,12 @@
       const detalleMtsHtml = detalleMateriales.length
         ? '<span class="trace-mts-lines">' + detalleMateriales.map(material => {
           const codigo = String(material.codigo || '').replace(/^COD/i, '').trim();
-          const etiqueta = String(material.material || '').toUpperCase() === 'M4' ? 'FUSIONADO' : (String(material.material || '').trim() || (codigo ? 'COD ' + codigo : 'MATERIAL'));
+          // Fusionado puede estar registrado en cualquier posición del maestro
+          // (CP07, por ejemplo, lo usa como M2). La tela documentada es la
+          // fuente de presentación; M4 se conserva para los maestros antiguos.
+          const etiqueta = String(material.etiqueta || '').trim().toUpperCase() === 'FUSIONADO' || !!material.fusionado || String(material.tela || '').trim().toUpperCase() === 'FUSIONADO' || String(material.material || '').toUpperCase() === 'M4'
+            ? 'FUSIONADO'
+            : (String(material.material || '').trim() || (codigo ? 'COD ' + codigo : 'MATERIAL'));
           // El valor se conserva unido para que «MTS» no caiga en un segundo renglón.
           return '<span class="trace-mts-line"><b>' + esc(etiqueta) + ':</b> <em>' + esc(formatoMts(material.mts)) + '&nbsp;MTS</em></span>';
         }).join('') + '</span>'

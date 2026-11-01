@@ -27,7 +27,7 @@ class ReferenciasMultimaterialTest(unittest.TestCase):
         )
         self.assertEqual([(m['codigo'], m['mts']) for m in resultado], [('11300', 3.0), ('1800', 1.78)])
 
-    def test_no_usa_ficha_tecnica_si_no_hay_materiales_en_maestro(self):
+    def test_usa_ficha_tecnica_si_no_existe_maestro(self):
         fichas = {
             'FUT04': {
                 'telas': [{'material': 'M1', 'tela': 'MONTECATINI'}, {'material': 'M2', 'tela': 'TRIATLÓN'}],
@@ -38,7 +38,10 @@ class ReferenciasMultimaterialTest(unittest.TestCase):
             }
         }
         resultado = tela_necesaria.reparto_materiales('A11300-1800FUT04', {}, fichas, 20)
-        self.assertEqual(resultado, [])
+        self.assertEqual(
+            [(m['material'], m['tela'], m['promedio'], m['origen']) for m in resultado],
+            [('M1', 'MONTECATINI', 1.5, 'FICHA TÉCNICA'), ('M2', 'TRIATLÓN', 0.5, 'FICHA TÉCNICA')],
+        )
 
     def test_maestro_antiguo_tiene_prioridad_sobre_ficha_tecnica(self):
         maestros = {
@@ -115,7 +118,24 @@ class ReferenciasMultimaterialTest(unittest.TestCase):
         self.assertEqual(detalle['21']['total'], 4.78)
         self.assertEqual([(m['codigo'], m['mts']) for m in detalle['21']['materiales']], [('11300', 3.0), ('1800', 1.78)])
 
-    def test_cb11_sin_maestro_no_usa_ficha_tecnica(self):
+    def test_tarjeta_conserva_marca_fusionado_del_maestro(self):
+        datos = {
+            'maestros': [{
+                'ref': 'CP07',
+                'materiales': [
+                    {'material': 'M1', 'tela': 'TRIATLÓN', 'masc': [0, 0, 1, 0, 0, 0, 0, 0], 'fem': [0] * 8, 'nina': [0] * 8, 'nino': [0] * 8},
+                    {'material': 'M2', 'fusionado': True, 'masc': [0, 0, 0.2, 0, 0, 0, 0, 0], 'fem': [0] * 8, 'nina': [0] * 8, 'nino': [0] * 8},
+                ],
+            }],
+            'plantillas': [],
+        }
+        filas = [{'source_row': 22, 'values': ['CO1', 'A11400CP07', '2']}]
+        tallas = {'CO1': {'hojas': {'A11400CP07': [{'genero': 'MASC', 'talla': 'M', 'cantidad': 2}]}}}
+        with patch.object(promedios, '_leer', return_value=datos), patch.dict(tela_necesaria._tallas, tallas, clear=True):
+            detalle = tela_necesaria.detalles_mts_produccion(filas, ['ORDEN', 'REFERENCIA', 'CANTIDAD'])
+        self.assertEqual([m['fusionado'] for m in detalle['22']['materiales']], [False, True])
+
+    def test_cb11_sin_maestro_usa_ficha_tecnica(self):
         ficha = {
             'ref': 'CB11',
             'telas': [
@@ -134,7 +154,9 @@ class ReferenciasMultimaterialTest(unittest.TestCase):
             detalle = tela_necesaria.detalles_mts_produccion(
                 filas, ['ORDEN', 'REFERENCIA', 'CANTIDAD'], ficha_resolver=lambda ref: ficha if ref == 'CB11' else None
             )
-        self.assertNotIn('1646', detalle)
+        self.assertIn('1646', detalle)
+        self.assertEqual(detalle['1646']['total'], 20.33)
+        self.assertEqual(detalle['1646']['materiales'][0]['origen'], 'FICHA TÉCNICA')
 
 
 if __name__ == '__main__':

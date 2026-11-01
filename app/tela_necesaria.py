@@ -286,16 +286,32 @@ def _materiales_de_ficha(ref: str, fichas: dict) -> list[dict]:
     return [m for m in materiales if m['promedio'] > 0]
 
 
+def _ficha_de_respaldo(ref: str) -> dict | None:
+    """Busca una ficha por REF sin impedir el cálculo si no se puede leer.
+
+    Se consulta solamente cuando no existe un maestro de promedios para esa
+    referencia. Las fichas se mantienen en su propio índice y no se alteran
+    durante este cálculo de solo lectura.
+    """
+    try:
+        from app import fichas
+        objetivo = str(ref or '').upper().strip()
+        entrada = next(
+            (x for x in fichas.indice().get('fichas', [])
+             if str(x.get('ref') or '').upper().strip() == objetivo),
+            None,
+        )
+        return fichas.ficha(str(entrada.get('id') or '')) if entrada else None
+    except Exception:  # noqa: BLE001 - una ficha no debe frenar Producción
+        return None
+
+
 def materiales_de_referencia(referencia: str, maestros: dict, fichas: dict | None = None) -> list[dict]:
     """Obtiene los materiales de una referencia sin cambiar datos reales.
 
-    Solo usa Promedios Maestros. Una ficha técnica puede describir una prenda,
-    pero no es una fuente autorizada de consumo para programar tela; si la
-    referencia no está configurada en Promedios Maestros, la tarjeta queda sin
-    metros hasta que se complete su maestro.
-
-    ``fichas`` se mantiene por compatibilidad con llamadas antiguas, pero no
-    participa en el cálculo.
+    Prioridad de cálculo: Promedios Maestros, y si la referencia no existe
+    allí, los promedios documentados en su Ficha Técnica. Si ninguna fuente
+    tiene consumo, no se genera un promedio.
     """
     fichas = fichas or {}
     ref = _referencia_base(referencia, maestros)
@@ -311,6 +327,7 @@ def materiales_de_referencia(referencia: str, maestros: dict, fichas: dict | Non
                 materiales.append({
                     'material': material,
                     'tela': str(bruto.get('tela') or '').strip(),
+                    'fusionado': bool(bruto.get('fusionado')),
                     'promedio': promedio_material,
                     'consumos': {grupo: list(bruto.get(grupo) or []) for grupo in promedios.GRUPOS},
                     'origen': 'PROMEDIOS MAESTROS',
@@ -331,7 +348,11 @@ def materiales_de_referencia(referencia: str, maestros: dict, fichas: dict | Non
                 'consumos': {grupo: list(maestro.get(grupo) or []) for grupo in promedios.GRUPOS},
                 'origen': 'PROMEDIOS MAESTROS',
             }]
-    return []
+        # La referencia sí está registrada en Promedios Maestros: aunque sus
+        # valores estén vacíos, no se sustituye por la ficha. Así queda claro
+        # que ese maestro necesita completarse.
+        return []
+    return _materiales_de_ficha(ref, fichas)
 
 
 def reparto_materiales(referencia: str, maestros: dict, fichas: dict | None, mts_total: float) -> list[dict]:
@@ -364,7 +385,7 @@ def reparto_materiales(referencia: str, maestros: dict, fichas: dict | None, mts
 def calcular_materiales_por_talla(referencia: str, lineas: list[dict], maestros: dict, fichas: dict | None = None) -> list[dict]:
     """Calcula MTS por material usando talla, género y cantidad del listado.
 
-    Solo calcula con consumos documentados en Promedios Maestros.
+    Usa Promedios Maestros y, si la REF no existe allí, Ficha Técnica.
     """
     materiales = materiales_de_referencia(referencia, maestros, fichas)
     if not materiales:
@@ -418,9 +439,8 @@ def _lineas_listado(orden: str, referencia: str) -> list[dict]:
 def detalles_mts_produccion(rows: list[dict], headers: list[str], ficha_resolver=None) -> dict[str, dict]:
     """Desglose de MTS reales para las tarjetas de Producción.
 
-    El cálculo es de solo lectura y usa exclusivamente consumos por talla de
-    Promedios Maestros. Si no hay listado aún, usa el promedio documentado en
-    ese maestro. Una ficha técnica nunca completa ni estima metros requeridos.
+    El cálculo es de solo lectura. Prioriza los consumos por talla de Promedios
+    Maestros; si la REF no está allí, usa los promedios de su Ficha Técnica.
     """
     indice = {str(h or '').strip().upper(): i for i, h in enumerate(headers or [])}
     ref_i = indice.get('REFERENCIA')
@@ -444,9 +464,12 @@ def detalles_mts_produccion(rows: list[dict], headers: list[str], ficha_resolver
         codigos = codigos_de_materiales(referencia)
         if not referencia or not cantidad or not codigos:
             continue
-        # Los metros de programación salen únicamente del maestro. Una ficha
-        # técnica no se consulta como respaldo: evita promedios no aprobados.
-        materiales = materiales_de_referencia(referencia, maestros, {})
+        ref_base = _referencia_base(referencia, maestros)
+        ficha = ficha_resolver(ref_base) if ficha_resolver else _ficha_de_respaldo(ref_base)
+        fichas = {ref_base: ficha} if isinstance(ficha, dict) else {}
+        # Promedios Maestros tiene prioridad. Solo si falta esa REF se consulta
+        # la Ficha Técnica; sin datos en ambas fuentes queda «Sin promedio».
+        materiales = materiales_de_referencia(referencia, maestros, fichas)
         calculados: list[dict] = []
         if materiales:
             lineas = _lineas_listado(orden, referencia)
@@ -457,12 +480,12 @@ def detalles_mts_produccion(rows: list[dict], headers: list[str], ficha_resolver
             # otra fila de la misma referencia.
             cantidad_listado = sum(_cantidad(linea.get('cantidad') or 1) for linea in lineas)
             if lineas and cantidad_listado == cantidad:
-                calculados = calcular_materiales_por_talla(referencia, lineas, maestros, {})
+                calculados = calcular_materiales_por_talla(referencia, lineas, maestros, fichas)
             else:
                 # Aún no se ha indexado el listado: el promedio documentado en
                 # Promedios Maestros sirve como estimación temporal.
                 calculados = reparto_materiales(
-                    referencia, maestros, {},
+                    referencia, maestros, fichas,
                     cantidad * sum(float(m.get('promedio') or 0) for m in materiales),
                 )
         elif len(codigos) == 1:
@@ -479,6 +502,14 @@ def detalles_mts_produccion(rows: list[dict], headers: list[str], ficha_resolver
                 'codigo': str(m.get('codigo') or '').strip(),
                 'material': str(m.get('material') or '').strip().upper(),
                 'tela': str(m.get('tela') or '').strip(),
+                # La UI de Producción necesita conservar esta propiedad para
+                # nombrar el consumo como «Fusionado», aunque sea M2/M3.
+                'fusionado': bool(m.get('fusionado')),
+                # Se envía también la etiqueta final, no solo la bandera. De
+                # este modo cualquier consumidor (Producción, tarjetas de
+                # tela programada o una versión anterior de la interfaz)
+                # nombra siempre «FUSIONADO» al material marcado así.
+                'etiqueta': 'FUSIONADO' if bool(m.get('fusionado')) else str(m.get('material') or '').strip().upper(),
                 'mts': round(float(m.get('mts') or 0), 2),
                 'origen': str(m.get('origen') or ''),
             }
