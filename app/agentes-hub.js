@@ -87,7 +87,11 @@
     if (barra) {
       caja.style.display = '';
       const sol = barra.querySelector('.theme-icon');
-      if (sol) { if (caja.previousElementSibling !== sol) sol.after(caja); }
+      // Alertas se inserta justo después del sol. Anclar el robot después de
+      // ella evita que los dos observadores se intercambien de lugar cada vez
+      // que se abre el desplegable (el parpadeo que se veía en el robot).
+      const ancla = barra.querySelector('#al-btn.header-alert') || sol;
+      if (ancla) { if (caja.previousElementSibling !== ancla) ancla.after(caja); }
       else if (caja.parentElement !== barra || caja !== barra.firstElementChild) barra.insertBefore(caja, barra.firstChild);
       return;
     }
