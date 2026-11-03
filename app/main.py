@@ -2544,7 +2544,7 @@ def web_manifest():
         "background_color": "#050605",
         "theme_color": "#050605",
         "icons": [
-            {"src": "/favicon.svg?v=6", "sizes": "any", "type": "image/svg+xml", "purpose": "any"},
+            {"src": "/favicon.svg?v=7", "sizes": "any", "type": "image/svg+xml", "purpose": "any"},
             {"src": "/favicon.png", "sizes": "64x64", "type": "image/png"},
         ],
     }, media_type="application/manifest+json")
@@ -5609,7 +5609,7 @@ def home(_=Depends(authenticate)):
     {INPUT_CONTRAST_STYLE}
     <link rel='manifest' href='/manifest.webmanifest'><link rel='apple-touch-icon' href='/favicon.png'>
     <meta name='mobile-web-app-capable' content='yes'><meta name='apple-mobile-web-app-capable' content='yes'><meta name='apple-mobile-web-app-status-bar-style' content='black'><meta name='apple-mobile-web-app-title' content='Indoor'>
-    <link rel='icon' type='image/svg+xml' href='/favicon.svg?v=6'>
+    <link rel='icon' type='image/svg+xml' href='/favicon.svg?v=7'>
     <title>Indoor Sport SAS</title><style>
     :root{{--lime:#d0f44c;--lime-2:#8eaa25;--metal:linear-gradient(135deg,#6f871d 0%,#d0f44c 24%,#efffa5 48%,#d0f44c 68%,#78921e 100%);--ink:#f7f9f2;--muted:#a7b0a0;--line:rgba(208,244,76,.22);--glass:rgba(20,24,19,.62);--panel:#11150f}}
     *{{box-sizing:border-box}} body{{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;background:#050605;margin:0;color:var(--ink);font-size:16px;line-height:1.5;min-height:100vh;min-height:100dvh;overflow-x:hidden}}
