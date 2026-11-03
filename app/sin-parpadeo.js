@@ -6,6 +6,29 @@
 (function () {
   if (window.__sinParpadeo) return;
   window.__sinParpadeo = true;
+
+  // El menú nace como barra lateral y trace-ui lo transforma en navegación
+  // superior. No revelar el documento entre ambos estados evita que se vea
+  // por un instante la interfaz lateral durante la carga.
+  function sincronizarAparicion() {
+    var body = document.body;
+    if (!body) return;
+    document.documentElement.classList.toggle('ui-ready', body.classList.contains('top-navigation'));
+  }
+  function vigilarNavegacion() {
+    if (!document.body) { setTimeout(vigilarNavegacion, 0); return; }
+    new MutationObserver(sincronizarAparicion).observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class']
+    });
+    new MutationObserver(sincronizarAparicion).observe(document.body, {
+      attributes: true,
+      attributeFilter: ['class']
+    });
+    sincronizarAparicion();
+  }
+  vigilarNavegacion();
+
   var desc = Object.getOwnPropertyDescriptor(Element.prototype, 'innerHTML');
   if (!desc || !desc.set || !desc.get) return;
   var memoria = new WeakMap();   // elemento -> {src: texto asignado, ser: HTML tal como quedó en el DOM}
