@@ -959,6 +959,7 @@
   @media(prefers-reduced-motion:reduce){.od,.od-fill,.od-adv,.od-today,.od-steps .st,.dash-areadlg[open]{transition:none!important;animation:none!important}.od{opacity:1;transform:none}.od-list .od-fill{width:var(--w)}.od-list .od-adv{width:var(--a)}.od-today{opacity:1}}
   /* Escalera de la planta con el diseño de «Vencimiento de la cartera»: panel + tarjetas de líquido en escalones */
   .dash-stairs{--base:132px;--span:190px;display:grid;gap:16px;padding:22px 24px 18px;border:1px solid rgba(255,255,255,.12);border-radius:18px;background:linear-gradient(130deg,rgba(35,48,25,.72),rgba(9,12,9,.95) 52%,rgba(16,28,16,.84))}
+  .dash-stairs.de-unidad{--span:190px}
   .dash-stairs.compact{--base:112px;--span:96px}
   .dash-stairs>.st-head{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;flex-wrap:wrap}
   .dash-stairs h3{margin:0 0 6px;font-size:1.15rem;color:#fff}.dash-stairs p{margin:0;max-width:640px;color:#98a692;font-size:.76rem;line-height:1.4}
