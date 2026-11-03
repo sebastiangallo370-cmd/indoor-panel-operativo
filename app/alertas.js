@@ -128,7 +128,6 @@
       else if (n < 8) setTimeout(() => poner(n + 1), 150);
     };
     poner(0);
-    cerrar();
   }
   function relativo(seg) { return seg < 5 ? 'ahora' : seg < 60 ? 'hace ' + seg + ' s' : 'hace ' + Math.round(seg / 60) + ' min'; }
 
@@ -218,6 +217,9 @@
   document.addEventListener('click', e => { if (st.abierto && !box.contains(e.target) && !btn.contains(e.target)) cerrar(); });
   box.addEventListener('input', e => { if (e.target.matches('[data-q]')) { st.q = e.target.value; pintar(false); } });
   box.addEventListener('click', async e => {
+    // El panel permanece abierto mientras se consulta una alerta. Se cierra
+    // solo con la X, Escape o un clic fuera de él.
+    e.stopPropagation();
     const f = e.target.closest('[data-filtro]');
     if (f) { st.filtro = f.dataset.filtro; pintar(true); return; }
     if (e.target.closest('[data-cerrar]')) { cerrar(); return; }
