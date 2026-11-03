@@ -361,6 +361,8 @@
     const ultimo = con[con.length - 1];   // en celular solo este día viene abierto; los demás se abren al tocarlos
     const cols = dias.map((d, i) => { const hay = d.v !== null, v = d.v, pct = hay ? Math.round(v / mayor * 100) : 0, rise = hay ? Math.max(18, Math.round(v / mayor * 150)) : 0, top = hay && d === lento && con.length > 1;
       const numero = !hay ? '—' : v >= 60 ? fmtNum(v / 60, 1) : v >= 1 ? fmtNum(v, 1) : String(Math.round(v * 60)), unidad = !hay ? 'sin datos' : (v >= 60 ? 'h' : v >= 1 ? 'min' : 'seg') + (porLote ? ' por lote' : ' / und.');
+      const esTrazo = x.label === 'TRAZO/CORTE/PLT';
+      const nombre = esTrazo ? 'TRAZO<span>CORTE PLT</span>' : esc(SHORT[x.label] || x.label);
       return '<div class="st-col' + (top ? ' top' : '') + (hay ? '' : ' empty') + (d === ultimo ? '' : ' cerrado') + '" role="listitem" style="--i:' + i + ';--rise:' + rise + 'px;--lv:' + Math.min(94, Math.max(pct, hay ? 8 : 0)) + '%" title="' + esc(d.nombre) + (hay ? ' · ' + fmtDur(d.min) + ' ÷ ' + fmtNum(d.und) + ' und. · ' + d.lotes + ' lotes' : ' · sin inicio y final ese día') + '">' +
         (top ? '<em class="ar-ribbon">Más lento</em>' : '') + '<span class="st-slot"><span class="st-bar">' + (hay ? '<i class="sg ' + (top ? 'cola' : 'prog') + '" style="flex:1"></i>' : '') + '</span></span>' +
         '<b class="st-name">' + esc(d.nombre) + '</b><span class="st-val">' + numero + '</span><small class="st-sub">' + unidad + (hay ? ' · ' + fmtNum(d.und) + ' und. · ' + plural(d.lotes, 'orden', 'órdenes') : '') + '</small>' + ordDia(d) + '<em class="st-pct">' + pct + '%</em></div>'; }).join('');
@@ -388,7 +390,9 @@
     const cols = l.map((x, i) => {
       const v = dato(x), hay = v !== null, rise = hay ? Math.max(18, Math.round(v / mayor * 190)) : 0, share = hay && total ? Math.round(v / total * 100) : 0, top = hay && x === lento && con.length > 1;
       const numero = !hay ? '—' : v >= 60 ? fmtNum(v / 60, 1) : v >= 1 ? fmtNum(v, 1) : String(Math.round(v * 60)), unidad = !hay ? 'sin datos' : (v >= 60 ? 'h' : v >= 1 ? 'min' : 'seg') + (porLote ? ' por lote' : ' / und.');
-      return '<button type="button" class="st-col' + (top ? ' top' : '') + (hay ? '' : ' empty') + '" data-unit-open="' + esc(x.label) + '" style="--i:' + i + ';--rise:' + rise + 'px;--lv:' + Math.min(94, Math.max(share, hay ? 8 : 0)) + '%" title="' + esc(x.label) + (hay ? ' · ' + fmtDur(x.porUnidad) + ' por unidad · lote típico ' + fmtDur(x.lote) + ' · ' + fmtNum(x.unidades) + ' unidades en ' + x.lotes + ' lotes' : ' · todavía sin inicio y final registrados') + '">' +
+      const esTrazo = x.label === 'TRAZO/CORTE/PLT';
+      const nombre = esTrazo ? 'TRAZO<span>CORTE PLT</span>' : esc(SHORT[x.label] || x.label);
+      return '<button type="button" class="st-col' + (top ? ' top' : '') + (esTrazo ? ' trazo' : '') + (hay ? '' : ' empty') + '" data-unit-open="' + esc(x.label) + '" style="--i:' + i + ';--rise:' + rise + 'px;--lv:' + Math.min(94, Math.max(share, hay ? 8 : 0)) + '%" title="' + esc(x.label) + (hay ? ' · ' + fmtDur(x.porUnidad) + ' por unidad · lote típico ' + fmtDur(x.lote) + ' · ' + fmtNum(x.unidades) + ' unidades en ' + x.lotes + ' lotes' : ' · todavía sin inicio y final registrados') + '">' +
         (top ? '<em class="ar-ribbon">Más lento</em>' : '') + '<span class="st-slot"><span class="st-bar">' + (hay ? '<i class="sg ' + (top ? 'cola' : 'prog') + '" style="flex:1"></i>' : '') + '</span></span>' +
         '<b class="st-name">' + esc(SHORT[x.label] || x.label) + '</b><span class="st-val">' + numero + '</span><small class="st-sub">' + unidad + (hay ? ' · ' + fmtNum(x.unidades) + ' und.' : '') + '</small><em class="st-pct">' + share + '%</em></button>';
     }).join('');
@@ -971,7 +975,7 @@
   .st-col:hover,.st-col:focus-visible{transform:translateY(-4px);border-color:#d0f44c;box-shadow:0 16px 30px rgba(208,244,76,.16);outline:none;transition-delay:0s}
   .st-col.top{border-color:#ff6b5c}
   .st-col .ar-ribbon{right:8px;font-size:.5rem;white-space:nowrap;padding:2px 7px}.st-col.top .st-name{margin-top:14px}
-  .st-name{position:relative;z-index:3;display:block;font-size:.62rem;font-weight:900;letter-spacing:.07em;text-transform:uppercase;line-height:1.2;word-break:keep-all}
+  .st-name{position:relative;z-index:3;display:block;font-size:.62rem;font-weight:900;letter-spacing:.07em;text-transform:uppercase;line-height:1.2;word-break:keep-all}.st-col.trazo{border:2px solid #ffe36d;box-shadow:0 0 0 1px rgba(255,170,32,.72),0 0 22px rgba(255,179,46,.48),inset 0 1px rgba(255,255,255,.28)}.st-col.trazo .st-name{color:#fff7bd;font-size:.68rem;text-shadow:0 1px 3px #3a2100}.st-col.trazo .st-name span{display:block;width:max-content;max-width:100%;margin-top:4px;padding:3px 5px;border-radius:5px;background:#fff1a6;color:#432400;font-size:.56rem;letter-spacing:.08em;line-height:1.1;text-shadow:none}.st-col.trazo .st-val{color:#fff;text-shadow:0 2px 5px #5b3100}
   .st-val{position:relative;z-index:3;display:block;margin-top:14px;font-size:1.6rem;line-height:1;font-weight:900;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
   .st-sub{position:relative;z-index:3;display:block;max-width:calc(100% - 34px);margin-top:5px;font-size:.6rem;opacity:.92;line-height:1.3}.st-late{font-style:normal;font-weight:800;color:#ffd7cf}
   .st-pct{position:absolute;z-index:3;right:-16px;bottom:-16px;width:70px;height:70px;box-sizing:border-box;padding:14px 0 0 16px;border:1px solid rgba(255,255,255,.24);border-radius:50%;font:900 .66rem Arial;font-style:normal;text-shadow:none}
