@@ -22,7 +22,11 @@
     '.systems{display:flex!important;align-items:center!important;gap:8px!important}',
     '.systems .theme-icon,.systems #agentes-hub summary,.systems #al-btn.header-alert{flex:0 0 28px!important;width:28px!important;height:28px!important;min-height:28px!important;padding:0!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important}',
     '.systems .theme-icon:hover,.systems #agentes-hub summary:hover,.systems #al-btn.header-alert:hover{background:transparent!important;border-color:transparent!important;box-shadow:none!important;color:#efff81!important;transform:translateY(-1px)}',
-    '.systems .theme-icon svg,.systems #agentes-hub summary svg,.systems #al-btn.header-alert svg{width:17px!important;height:17px!important}',
+    '.systems .theme-icon svg,.systems #agentes-hub summary svg{display:block!important;width:17px!important;height:17px!important}',
+    /* La campana usa un trazo más ancho y con estados de color: necesita aire
+       propio para que los extremos no se recorten en la barra compacta. */
+    '.systems #al-btn.header-alert{display:grid!important;place-items:center!important;overflow:visible!important}',
+    '.systems #al-btn.header-alert svg{display:block!important;width:20px!important;height:20px!important;min-width:20px!important;overflow:visible!important}',
     '.systems .user-menu{margin-left:2px}.systems .user-menu summary{gap:5px!important;padding:0!important;border:0!important;border-radius:0!important;background:transparent!important}',
     '.systems .user-avatar{width:auto!important;height:auto!important;padding:0!important;background:transparent!important;color:#d0f44c!important;font-size:12px!important;box-shadow:none!important;border:0!important;border-radius:0!important}',
     '.systems .user-info{max-width:145px!important}',
