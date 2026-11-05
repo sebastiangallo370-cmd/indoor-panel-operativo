@@ -72,9 +72,7 @@
   // clic directo sobre el menú. Al cambiar el panel visible, la URL se
   // sincroniza también en esos casos.
   let ultimaVistaSincronizada = '';
-  let sincronizacionPendiente = false;
   const sincronizarVistaActiva = () => {
-    sincronizacionPendiente = false;
     if (restaurando || esperandoRestauracion) return;
     const activa = document.querySelector('.panel.active')?.dataset?.panel;
     if (!activa) return;
@@ -82,19 +80,14 @@
     // tablero de bodega y no se reemplaza por la ruta genérica Inventarios.
     if (activa === 'inventario' && /^#bodega(?:\/|$)/i.test(location.hash)) return;
     const rutaActual = location.hash.replace(/^#/, '').toLowerCase();
-    if (ultimaVistaSincronizada === activa && rutaActual === activa) return;
+    const rutaEsperada = rutaDe({ attr: 'data-kind', val: activa });
+    if (ultimaVistaSincronizada === activa && rutaActual === rutaEsperada) return;
     ultimaVistaSincronizada = activa;
     guardar(activa === 'inicio' ? null : { attr: 'data-kind', val: activa, rotulo: activa.toUpperCase(), t: Date.now() });
   };
-  const vigilarPestana = new MutationObserver(() => {
-    if (sincronizacionPendiente) return;
-    sincronizacionPendiente = true;
-    setTimeout(sincronizarVistaActiva, 0);
-  });
-  vigilarPestana.observe(document.documentElement, { subtree: true, attributes: true, attributeFilter: ['class'] });
-  // Refuerzo final: no importa cómo cambie la vista (clic, atajo o módulo),
-  // la barra de dirección se corrige de inmediato contra el panel visible.
-  setInterval(sincronizarVistaActiva, 250);
+  // Revisión liviana: consulta solo el panel activo, sin observar cada cambio
+  // de clases de las tarjetas ni reescribir una ruta que ya está sincronizada.
+  setInterval(sincronizarVistaActiva, 750);
 
   const guardada = leer();
   if (guardada?.attr) {
