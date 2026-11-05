@@ -9,7 +9,7 @@
     const ruta = decodeURIComponent(location.hash.replace(/^#/, '')).toLowerCase();
     if (!ruta) return null;
     if (ruta === 'bodega' || ruta.startsWith('bodega/')) return {attr: 'data-bodega-dashboard', val: 'true', rotulo: 'PANEL DE CONTROL'};
-    if (ruta.startsWith('produccion/')) return {attr: 'data-kind', val: 'produccion', rotulo: 'PRODUCCIÓN', subruta: ruta.slice('produccion/'.length)};
+    if (/^produccion(?:_|\/)/.test(ruta)) return {attr: 'data-kind', val: 'produccion', rotulo: 'PRODUCCIÓN', subruta: ruta.replace(/^produccion[_/]/, '')};
     return {attr: 'data-kind', val: ruta, rotulo: ruta.toUpperCase()};
   };
   const leer = () => desdeRuta() || (() => { try { return JSON.parse(localStorage.getItem(CLAVE) || 'null'); } catch (e) { return null; } })();
@@ -18,13 +18,14 @@
     if (v.attr === 'data-bodega-dashboard') return 'bodega/' + (() => { try { return localStorage.getItem('indoor-bodega-subtab') || 'resumen'; } catch (_) { return 'resumen'; } })();
     if (v.val === 'produccion') {
       const proceso = document.querySelector('.process-nav.active[data-production-route]')?.dataset.productionRoute;
-      return proceso ? 'produccion/' + proceso : 'produccion';
+      return proceso ? 'produccion_' + proceso : 'produccion';
     }
     return String(v.val || '');
   };
   const guardar = v => {
     try { localStorage.setItem(CLAVE, JSON.stringify(v)); } catch (e) { /* sin almacenamiento */ }
-    try { history.replaceState(history.state, '', location.pathname + location.search + (rutaDe(v) ? '#' + encodeURIComponent(rutaDe(v)) : '')); } catch (e) { /* History API no disponible */ }
+    // La ruta conserva el formato legible de submódulo: #produccion_edicion.
+    try { history.replaceState(history.state, '', location.pathname + location.search + (rutaDe(v) ? '#' + encodeURI(rutaDe(v)) : '')); } catch (e) { /* History API no disponible */ }
   };
   let usuarioToco = false, restaurando = false;
   // Mientras se recupera una ruta al cargar, no se debe reemplazar por la

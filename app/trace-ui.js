@@ -2468,6 +2468,11 @@
   @media(max-width:860px){
     html body.production-mode .trace-quick-filters button{min-height:40px!important;padding:6px 12px!important;white-space:nowrap}
   }
+  /* Las tarjetas que están fuera del área visible no se pintan hasta que el
+     usuario se acerca a ellas. Reduce CPU/GPU al navegar listas pesadas. */
+  @supports(content-visibility:auto){
+    html body.production-mode .trace-card{content-visibility:auto;contain-intrinsic-size:560px}
+  }
   `;
   document.head.appendChild(style);
 })();
