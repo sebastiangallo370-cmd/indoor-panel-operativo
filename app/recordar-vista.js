@@ -88,7 +88,7 @@
   };
   // Revisión liviana: consulta solo el panel activo, sin observar cada cambio
   // de clases de las tarjetas ni reescribir una ruta que ya está sincronizada.
-  setInterval(sincronizarVistaActiva, 750);
+  setInterval(() => { if (!document.hidden) sincronizarVistaActiva(); }, 1000);
 
   const guardada = leer();
   if (guardada?.attr) {
@@ -115,6 +115,27 @@
       setTimeout(() => { abrir(); restaurando = false; esperandoRestauracion = false; sincronizarVistaActiva(); }, 8500);
     }, 300);
   }
+})();
+
+/* Rendimiento adaptativo: conserva el diseño completo, pero evita efectos
+   costosos en equipos con pocos núcleos o poca memoria. */
+(() => {
+  const nucleos = Number(navigator.hardwareConcurrency || 0);
+  const memoria = Number(navigator.deviceMemory || 0);
+  const equipoLimitado = (nucleos > 0 && nucleos <= 4) || (memoria > 0 && memoria <= 4);
+  if (!equipoLimitado) return;
+  document.documentElement.classList.add('indoor-low-power');
+  const style = document.createElement('style');
+  style.textContent = `
+    html.indoor-low-power *,html.indoor-low-power *::before,html.indoor-low-power *::after{
+      animation-duration:.01ms!important;animation-iteration-count:1!important;
+      transition-duration:.01ms!important;scroll-behavior:auto!important
+    }
+    html.indoor-low-power .card,html.indoor-low-power .panel,html.indoor-low-power dialog{
+      backdrop-filter:none!important;-webkit-backdrop-filter:none!important
+    }
+  `;
+  document.head.appendChild(style);
 })();
 
 /* Historial interno: Atrás cambia entre pestañas del panel sin abandonar la sesión. */
