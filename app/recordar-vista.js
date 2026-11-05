@@ -5,8 +5,18 @@
   if (window.__recordarVista) return;
   window.__recordarVista = true;
   const CLAVE = 'indoor-ultima-vista';
-  const leer = () => { try { return JSON.parse(localStorage.getItem(CLAVE) || 'null'); } catch (e) { return null; } };
-  const guardar = v => { try { localStorage.setItem(CLAVE, JSON.stringify(v)); } catch (e) { /* sin almacenamiento */ } };
+  const desdeRuta = () => {
+    const ruta = decodeURIComponent(location.hash.replace(/^#/, '')).toLowerCase();
+    if (!ruta) return null;
+    if (ruta === 'bodega' || ruta.startsWith('bodega/')) return {attr: 'data-bodega-dashboard', val: 'true', rotulo: 'PANEL DE CONTROL'};
+    return {attr: 'data-kind', val: ruta, rotulo: ruta.toUpperCase()};
+  };
+  const leer = () => desdeRuta() || (() => { try { return JSON.parse(localStorage.getItem(CLAVE) || 'null'); } catch (e) { return null; } })();
+  const rutaDe = v => !v ? '' : (v.attr === 'data-bodega-dashboard' ? 'bodega/' + (() => { try { return localStorage.getItem('indoor-bodega-subtab') || 'resumen'; } catch (_) { return 'resumen'; } })() : String(v.val || ''));
+  const guardar = v => {
+    try { localStorage.setItem(CLAVE, JSON.stringify(v)); } catch (e) { /* sin almacenamiento */ }
+    try { history.replaceState(history.state, '', location.pathname + location.search + (rutaDe(v) ? '#' + encodeURIComponent(rutaDe(v)) : '')); } catch (e) { /* History API no disponible */ }
+  };
   let usuarioToco = false, restaurando = false;
 
   // identifica una pestaña por su data-kind (o por el atributo propio de las pantallas de Inventarios)
@@ -21,7 +31,9 @@
   const buscar = c => {
     if (!c) return null;
     const lista = [...document.querySelectorAll('[' + c.attr + (c.val ? '="' + String(c.val).replace(/"/g, '') + '"' : '') + ']')];
-    return lista.find(el => (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 60) === c.rotulo) || (lista.length === 1 ? lista[0] : null);
+    // data-kind es el identificador único de cada pantalla. El rótulo puede
+    // cambiar («C.LABORAL») y no debe decidir a qué pantalla se regresa.
+    return lista[0] || null;
   };
 
   document.addEventListener('click', e => {
@@ -44,6 +56,53 @@
     const grupo = el.closest('.nav-group');
     if (grupo) grupo.classList.remove('collapsed');
     restaurando = true;
-    setTimeout(() => { if (!usuarioToco) el.click(); restaurando = false; }, 250);
+    const abrir = () => { if (!usuarioToco) buscar(guardada)?.click(); };
+    // Algunas pantallas se crean después del menú. Se reaplica al finalizar
+    // esa carga para que ninguna inicialización posterior cambie la vista.
+    setTimeout(abrir, 250);
+    setTimeout(abrir, 1500);
+    setTimeout(abrir, 3500);
+    setTimeout(abrir, 6000);
+    setTimeout(() => { abrir(); restaurando = false; }, 8500);
   }, 300);
+})();
+
+/* Historial interno: Atrás cambia entre pestañas del panel sin abandonar la sesión. */
+(() => {
+  if (window.__historialVistasIndoor) return;
+  window.__historialVistasIndoor = true;
+  let restaurando = false;
+  const texto = el => (el?.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 70);
+  const guardar = view => {
+    try { history.pushState({ indoorPanel: true, guard: true, indoorView: view }, '', location.href); } catch (e) { /* History API no disponible */ }
+  };
+  const vistaDe = target => {
+    const tab = target.closest?.('.tab[data-kind]');
+    if (tab) return { kind: tab.dataset.kind, label: texto(tab) };
+    const estandar = target.closest?.('[data-es-tab]');
+    if (estandar) return { estandar: estandar.dataset.esTab };
+    return null;
+  };
+  const abrir = view => {
+    if (!view) return;
+    restaurando = true;
+    if (view.estandar) {
+      try { localStorage.setItem('indoor-estandar-vista', view.estandar); } catch (e) {}
+      document.getElementById('open-promedios')?.click();
+      setTimeout(() => document.querySelector('.panel[data-panel="promedios"].active [data-es-tab="' + view.estandar + '"]')?.click(), 180);
+    } else if (view.kind) {
+      const tabs = [...document.querySelectorAll('.tab[data-kind="' + CSS.escape(view.kind) + '"]')];
+      (tabs.find(tab => texto(tab) === view.label) || tabs[0])?.click();
+    }
+    setTimeout(() => { restaurando = false; }, 350);
+  };
+  document.addEventListener('click', event => {
+    if (restaurando || !event.isTrusted) return;
+    const view = vistaDe(event.target);
+    if (!view || view.kind === 'inicio') return;
+    setTimeout(() => { if (!restaurando) guardar(view); }, 0);
+  }, true);
+  addEventListener('popstate', event => {
+    if (event.state?.indoorView) abrir(event.state.indoorView);
+  });
 })();
