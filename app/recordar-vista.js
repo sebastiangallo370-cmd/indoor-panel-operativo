@@ -55,26 +55,52 @@
   }, true);
   ['mousedown', 'keydown', 'touchstart'].forEach(ev => window.addEventListener(ev, () => { usuarioToco = true; }, { passive: true, once: true, capture: true }));
 
+  // Red de seguridad: varios módulos abren pestañas mediante código, sin un
+  // clic directo sobre el menú. Al cambiar el panel visible, la URL se
+  // sincroniza también en esos casos.
+  let ultimaVistaSincronizada = '';
+  let sincronizacionPendiente = false;
+  const sincronizarVistaActiva = () => {
+    sincronizacionPendiente = false;
+    if (restaurando || (!usuarioToco && desdeRuta())) return;
+    const activa = document.querySelector('.panel.active')?.dataset?.panel;
+    if (!activa) return;
+    // Bodega tiene submódulos propios: su ruta detallada la controla el
+    // tablero de bodega y no se reemplaza por la ruta genérica Inventarios.
+    if (activa === 'inventario' && /^#bodega(?:\/|$)/i.test(location.hash)) return;
+    const rutaActual = location.hash.replace(/^#/, '').toLowerCase();
+    if (ultimaVistaSincronizada === activa && rutaActual === activa) return;
+    ultimaVistaSincronizada = activa;
+    guardar(activa === 'inicio' ? null : { attr: 'data-kind', val: activa, rotulo: activa.toUpperCase(), t: Date.now() });
+  };
+  const vigilarPestana = new MutationObserver(() => {
+    if (sincronizacionPendiente) return;
+    sincronizacionPendiente = true;
+    setTimeout(sincronizarVistaActiva, 0);
+  });
+  vigilarPestana.observe(document.documentElement, { subtree: true, attributes: true, attributeFilter: ['class'] });
+
   const guardada = leer();
-  if (!guardada || !guardada.attr) return;
-  let intentos = 0;
-  const espera = setInterval(() => {
-    if (usuarioToco || ++intentos > 70) { clearInterval(espera); return; }   // ~20 s como máximo
-    const el = buscar(guardada);
-    if (!el || !document.querySelector('.tab[data-kind="inicio"]')) return;   // el menú aún se está armando
-    clearInterval(espera);
-    const grupo = el.closest('.nav-group');
-    if (grupo) grupo.classList.remove('collapsed');
-    restaurando = true;
-    const abrir = () => { if (!usuarioToco) buscar(guardada)?.click(); };
-    // Algunas pantallas se crean después del menú. Se reaplica al finalizar
-    // esa carga para que ninguna inicialización posterior cambie la vista.
-    setTimeout(abrir, 250);
-    setTimeout(abrir, 1500);
-    setTimeout(abrir, 3500);
-    setTimeout(abrir, 6000);
-    setTimeout(() => { abrir(); restaurando = false; }, 8500);
-  }, 300);
+  if (guardada?.attr) {
+    let intentos = 0;
+    const espera = setInterval(() => {
+      if (usuarioToco || ++intentos > 70) { clearInterval(espera); return; }   // ~20 s como máximo
+      const el = buscar(guardada);
+      if (!el || !document.querySelector('.tab[data-kind="inicio"]')) return;   // el menú aún se está armando
+      clearInterval(espera);
+      const grupo = el.closest('.nav-group');
+      if (grupo) grupo.classList.remove('collapsed');
+      restaurando = true;
+      const abrir = () => { if (!usuarioToco) buscar(guardada)?.click(); };
+      // Algunas pantallas se crean después del menú. Se reaplica al finalizar
+      // esa carga para que ninguna inicialización posterior cambie la vista.
+      setTimeout(abrir, 250);
+      setTimeout(abrir, 1500);
+      setTimeout(abrir, 3500);
+      setTimeout(abrir, 6000);
+      setTimeout(() => { abrir(); restaurando = false; sincronizarVistaActiva(); }, 8500);
+    }, 300);
+  }
 })();
 
 /* Historial interno: Atrás cambia entre pestañas del panel sin abandonar la sesión. */
