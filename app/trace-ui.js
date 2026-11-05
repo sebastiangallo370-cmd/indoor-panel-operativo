@@ -1699,7 +1699,7 @@
       }
       requestAnimationFrame(fitTraceCards);
     }
-    backToTop.hidden = !active || position < 220;
+    backToTop.hidden = !active || position < 80;
   }
   const queueScroll = () => { if (!scrollFrame) scrollFrame = requestAnimationFrame(updateTraceScroll); };
   traceCards.addEventListener('scroll', queueScroll, { passive: true });
@@ -1712,7 +1712,7 @@
   const scrollStyle = document.createElement('style');
   scrollStyle.textContent = `
   .trace-scroll-controls{display:none;width:auto;min-height:36px;padding:7px 12px;border:1px solid #496150;border-radius:8px;background:#24372a;color:#e0efce;box-shadow:none;font:600 12px Arial}
-  .trace-back-top{position:fixed;right:28px;bottom:max(22px,env(safe-area-inset-bottom));z-index:30;width:auto;min-height:44px;padding:11px 17px;background:#d0ec93;color:#1c2b13;border:1px solid #e4f8bb;border-radius:24px;box-shadow:0 5px 22px #0006;font:600 13px Arial}
+  .trace-back-top{position:fixed!important;right:28px!important;left:auto!important;bottom:max(22px,env(safe-area-inset-bottom))!important;z-index:9999!important;width:auto!important;min-height:44px;padding:11px 17px;background:#d0ec93;color:#1c2b13;border:1px solid #e4f8bb;border-radius:24px;box-shadow:0 5px 22px #0006;font:700 13px Arial;cursor:pointer}
   .trace-back-top[hidden]{display:none!important}
   body.production-mode.trace-cards-mode .production-toolbar{transition:padding .2s ease}
   body.production-mode.trace-cards-mode .production-process-filter{max-height:260px;transition:max-height .2s ease,padding .2s ease;overflow:hidden}
