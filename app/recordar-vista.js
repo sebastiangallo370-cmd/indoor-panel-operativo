@@ -5,6 +5,14 @@
   if (window.__recordarVista) return;
   window.__recordarVista = true;
   const CLAVE = 'indoor-ultima-vista';
+  // Un parámetro temporal de actualización nunca debe quedarse en la URL.
+  try {
+    const url = new URL(location.href);
+    if (url.searchParams.has('actualizar')) {
+      url.searchParams.delete('actualizar');
+      history.replaceState(history.state, '', url.pathname + (url.search || '') + url.hash);
+    }
+  } catch (e) { /* URL API no disponible */ }
   const desdeRuta = () => {
     const ruta = decodeURIComponent(location.hash.replace(/^#/, '')).toLowerCase();
     if (!ruta) return null;
