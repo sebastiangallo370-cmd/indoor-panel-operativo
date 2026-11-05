@@ -8,8 +8,9 @@
       const build = (await response.json()).build;
       if (known === null) { known = build; return; }
       if (build === known) return;
-      // Hay versión nueva. Si la pestaña está oculta, se recarga sola; si no, se avisa con un botón.
-      if (document.hidden) { location.reload(); return; }
+      // Nunca se recarga sola: si la ventana estaba minimizada, una recarga
+      // pierde la pestaña y cualquier contexto que el usuario tenga abierto.
+      // Al volver se muestra el aviso y la actualización queda bajo su control.
       if (banner) return;
       banner = document.createElement('div');
       banner.setAttribute('role', 'status');
