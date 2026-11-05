@@ -3418,7 +3418,10 @@ def _tiempos_proceso() -> dict:
 
 _PROD_CACHE = {'at': 0.0, 'token': None, 'base': None}
 _PROD_LOCK = threading.Lock()
-_PROD_SEGUNDOS = 8
+# La hoja se sincroniza en segundo plano; recalcular toda Producción por cada
+# cambio de una persona convertía un clic en trabajo repetido para todos.
+# Se sirve una misma foto breve y `force=1` sigue permitiendo actualizar ya.
+_PROD_SEGUNDOS = 25
 
 
 def _prod_token():
@@ -3443,7 +3446,7 @@ def _produccion_base(force: bool = False) -> dict:
     with _PROD_LOCK:
         token = _prod_token()
         c = _PROD_CACHE
-        if not force and c['base'] is not None and c['token'] == token and time.monotonic() - c['at'] < _PROD_SEGUNDOS:
+        if not force and c['base'] is not None and time.monotonic() - c['at'] < _PROD_SEGUNDOS:
             return c['base']
         base = dict(read_local_production())
         trazo_plt.marcar_no_aplica(base, _proceso_de, parse_production_date)
