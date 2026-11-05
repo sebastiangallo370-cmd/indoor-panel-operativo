@@ -25,7 +25,7 @@
     if (!v) return '';
     if (v.attr === 'data-bodega-dashboard') return 'bodega/' + (() => { try { return localStorage.getItem('indoor-bodega-subtab') || 'resumen'; } catch (_) { return 'resumen'; } })();
     if (v.val === 'produccion') {
-      const proceso = document.querySelector('.process-nav.active[data-production-route]')?.dataset.productionRoute;
+      const proceso = document.querySelector('.process-nav.active[data-production-route]')?.dataset.productionRoute || document.getElementById('production-process')?.value;
       return proceso ? 'produccion_' + proceso : 'produccion';
     }
     return String(v.val || '');
@@ -35,6 +35,16 @@
     // La ruta conserva el formato legible de submódulo: #produccion_edicion.
     try { history.replaceState(history.state, '', location.pathname + location.search + (rutaDe(v) ? '#' + encodeURI(rutaDe(v)) : '')); } catch (e) { /* History API no disponible */ }
   };
+  const guardarSoloVista = v => { try { localStorage.setItem(CLAVE, JSON.stringify(v)); } catch (e) { /* sin almacenamiento */ } };
+  const guardarVistaVisible = () => {
+    const activa = document.querySelector('.panel.active')?.dataset?.panel;
+    if (!activa || activa === 'inicio') return guardarSoloVista(null);
+    guardarSoloVista({ attr: 'data-kind', val: activa, rotulo: activa.toUpperCase(), t: Date.now() });
+  };
+  // Una recarga no depende del último clic: antes de que la página se cierre
+  // se registra exactamente el panel que el usuario está viendo.
+  addEventListener('pagehide', guardarVistaVisible, { capture: true });
+  addEventListener('beforeunload', guardarVistaVisible, { capture: true });
   let usuarioToco = false, restaurando = false;
   // Mientras se recupera una ruta al cargar, no se debe reemplazar por la
   // pantalla inicial que aparece por unos milisegundos.
