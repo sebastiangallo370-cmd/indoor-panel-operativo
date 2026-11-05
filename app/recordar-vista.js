@@ -9,10 +9,19 @@
     const ruta = decodeURIComponent(location.hash.replace(/^#/, '')).toLowerCase();
     if (!ruta) return null;
     if (ruta === 'bodega' || ruta.startsWith('bodega/')) return {attr: 'data-bodega-dashboard', val: 'true', rotulo: 'PANEL DE CONTROL'};
+    if (ruta.startsWith('produccion/')) return {attr: 'data-kind', val: 'produccion', rotulo: 'PRODUCCIÓN', subruta: ruta.slice('produccion/'.length)};
     return {attr: 'data-kind', val: ruta, rotulo: ruta.toUpperCase()};
   };
   const leer = () => desdeRuta() || (() => { try { return JSON.parse(localStorage.getItem(CLAVE) || 'null'); } catch (e) { return null; } })();
-  const rutaDe = v => !v ? '' : (v.attr === 'data-bodega-dashboard' ? 'bodega/' + (() => { try { return localStorage.getItem('indoor-bodega-subtab') || 'resumen'; } catch (_) { return 'resumen'; } })() : String(v.val || ''));
+  const rutaDe = v => {
+    if (!v) return '';
+    if (v.attr === 'data-bodega-dashboard') return 'bodega/' + (() => { try { return localStorage.getItem('indoor-bodega-subtab') || 'resumen'; } catch (_) { return 'resumen'; } })();
+    if (v.val === 'produccion') {
+      const proceso = document.querySelector('.process-nav.active[data-production-route]')?.dataset.productionRoute;
+      return proceso ? 'produccion/' + proceso : 'produccion';
+    }
+    return String(v.val || '');
+  };
   const guardar = v => {
     try { localStorage.setItem(CLAVE, JSON.stringify(v)); } catch (e) { /* sin almacenamiento */ }
     try { history.replaceState(history.state, '', location.pathname + location.search + (rutaDe(v) ? '#' + encodeURIComponent(rutaDe(v)) : '')); } catch (e) { /* History API no disponible */ }
@@ -98,7 +107,11 @@
       const grupo = el.closest('.nav-group');
       if (grupo) grupo.classList.remove('collapsed');
       restaurando = true;
-      const abrir = () => { if (!usuarioToco) buscar(guardada)?.click(); };
+      const abrir = () => {
+        if (usuarioToco) return;
+        buscar(guardada)?.click();
+        if (guardada.subruta) document.querySelector('.process-nav[data-production-route="' + String(guardada.subruta).replace(/"/g, '') + '"]')?.click();
+      };
       // Algunas pantallas se crean después del menú. Se reaplica al finalizar
       // esa carga para que ninguna inicialización posterior cambie la vista.
       setTimeout(abrir, 250);

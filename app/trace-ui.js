@@ -648,6 +648,7 @@
     button.type = 'button';
     button.className = 'tab process-nav';
     button.dataset.kind = 'produccion';
+    button.dataset.productionRoute = key(process.label).toLowerCase();
     button.innerHTML = '<span class="nav-icon">' + (index + 2) + '</span><strong>' + esc(process.label.toUpperCase()) + '</strong>';
     button.onclick = () => {
       productionNav.click();
@@ -666,6 +667,7 @@
   comButton.type = 'button';
   comButton.className = 'tab process-nav';
   comButton.dataset.kind = 'produccion';
+  comButton.dataset.productionRoute = 'comerciales';
   comButton.innerHTML = '<span class="nav-icon">1</span><strong>COMERCIALES</strong>';
   comButton.onclick = () => {
     productionNav.click();
