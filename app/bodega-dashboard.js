@@ -458,7 +458,12 @@ html body .bd .inventory-item-card.lq,html body .bd .bd-tkpi .lq{background:radi
   // ---- Sub-pestaña «Tela programada»: la tela que piden los pedidos programados (promedio general del maestro × cantidad) frente a Bodega ----
   const body2 = panel.querySelector('.bd-body2');
   const filtersBox = panel.querySelector('.bd-filters:not(.bd-tfilters)');
+  // Cada persona vuelve al mismo submódulo al recargar (p. ej. Tela programada).
   let subTab = 'resumen';
+  try {
+    const guardada = localStorage.getItem('indoor-bodega-subtab');
+    if (guardada === 'resumen' || guardada === 'tela') subTab = guardada;
+  } catch (_) { /* sin almacenamiento: abre Resumen */ }
   body2.style.display = 'grid';
   body2.style.gap = '22px';
   body2.innerHTML =
@@ -717,6 +722,7 @@ html body .bd .inventory-item-card.lq,html body .bd .bd-tkpi .lq{background:radi
   };
   const showSubTab = name => {
     subTab = name;
+    try { localStorage.setItem('indoor-bodega-subtab', subTab); } catch (_) { /* sin almacenamiento */ }
     panel.querySelectorAll('[data-bd-tab]').forEach(b => { const on = b.dataset.bdTab === name; b.classList.toggle('on', on); b.setAttribute('aria-selected', String(on)); });
     body.hidden = name !== 'resumen';
     filtersBox.hidden = name !== 'resumen';
@@ -726,11 +732,11 @@ html body .bd .inventory-item-card.lq,html body .bd .bd-tkpi .lq{background:radi
   panel.addEventListener('click', event => { const tab = event.target.closest('[data-bd-tab]'); if (tab) showSubTab(tab.dataset.bdTab); });
   setInterval(() => { if (!document.hidden && panel.classList.contains('active') && subTab === 'tela') load2(true); }, 60000);
 
-  const open = (button, destino = panel, cargar = () => (subTab === 'tela' ? load2(false) : load())) => {
+  const open = (button, destino = panel) => {
     document.querySelectorAll('.tab').forEach(tab => tab.classList.toggle('active', tab === button));
     document.querySelectorAll('.panel').forEach(item => item.classList.toggle('active', item === destino));
     document.body.classList.remove('inicio-mode','inventory-mode','production-mode','schedule-mode','operarios-mode','cartera-mode');
-    cargar();
+    showSubTab(subTab);
   };
 
   const mount = () => {
