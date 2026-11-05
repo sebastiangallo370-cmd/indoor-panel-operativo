@@ -30,7 +30,9 @@
   let usuarioToco = false, restaurando = false;
   // Mientras se recupera una ruta al cargar, no se debe reemplazar por la
   // pantalla inicial que aparece por unos milisegundos.
-  let esperandoRestauracion = Boolean(desdeRuta());
+  let esperandoRestauracion = Boolean(desdeRuta() || (() => {
+    try { return JSON.parse(localStorage.getItem(CLAVE) || 'null'); } catch (e) { return null; }
+  })());
 
   // identifica una pestaña por su data-kind (o por el atributo propio de las pantallas de Inventarios)
   function clave(el) {
