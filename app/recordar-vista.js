@@ -18,6 +18,9 @@
     try { history.replaceState(history.state, '', location.pathname + location.search + (rutaDe(v) ? '#' + encodeURIComponent(rutaDe(v)) : '')); } catch (e) { /* History API no disponible */ }
   };
   let usuarioToco = false, restaurando = false;
+  // Mientras se recupera una ruta al cargar, no se debe reemplazar por la
+  // pantalla inicial que aparece por unos milisegundos.
+  let esperandoRestauracion = Boolean(desdeRuta());
 
   // identifica una pestaña por su data-kind (o por el atributo propio de las pantallas de Inventarios)
   function clave(el) {
@@ -42,6 +45,7 @@
     if (!destino) return;
     const c = clave(e.target);
     usuarioToco = true;
+    esperandoRestauracion = false;
     // El cambio de panel lo hacen otros manejadores de click. Guardamos al
     // final del evento para leer la pestaña que realmente quedó abierta y no
     // la anterior (algunos accesos son botones que llaman otra pestaña).
@@ -62,7 +66,7 @@
   let sincronizacionPendiente = false;
   const sincronizarVistaActiva = () => {
     sincronizacionPendiente = false;
-    if (restaurando || (!usuarioToco && desdeRuta())) return;
+    if (restaurando || esperandoRestauracion) return;
     const activa = document.querySelector('.panel.active')?.dataset?.panel;
     if (!activa) return;
     // Bodega tiene submódulos propios: su ruta detallada la controla el
@@ -79,6 +83,9 @@
     setTimeout(sincronizarVistaActiva, 0);
   });
   vigilarPestana.observe(document.documentElement, { subtree: true, attributes: true, attributeFilter: ['class'] });
+  // Refuerzo final: no importa cómo cambie la vista (clic, atajo o módulo),
+  // la barra de dirección se corrige de inmediato contra el panel visible.
+  setInterval(sincronizarVistaActiva, 250);
 
   const guardada = leer();
   if (guardada?.attr) {
@@ -98,7 +105,7 @@
       setTimeout(abrir, 1500);
       setTimeout(abrir, 3500);
       setTimeout(abrir, 6000);
-      setTimeout(() => { abrir(); restaurando = false; sincronizarVistaActiva(); }, 8500);
+      setTimeout(() => { abrir(); restaurando = false; esperandoRestauracion = false; sincronizarVistaActiva(); }, 8500);
     }, 300);
   }
 })();
