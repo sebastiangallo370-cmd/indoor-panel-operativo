@@ -148,6 +148,20 @@
   document.head.appendChild(style);
 })();
 
+/* Inicio liviano: evita que el tablero compita por CPU/GPU con el trabajo
+   operativo. Conserva los datos y elimina solo efectos decorativos continuos. */
+(() => {
+  const style = document.createElement('style');
+  style.textContent = `
+    body .home-hero canvas,body .home-hero .hp-amb,body .home-hero .hp-glow{display:none!important}
+    body .home-hero img{filter:none!important;will-change:auto!important}
+    body #home-dashboard *,body #home-dashboard *::before,body #home-dashboard *::after{
+      animation:none!important;transition-duration:.01ms!important
+    }
+  `;
+  document.head.appendChild(style);
+})();
+
 /* Historial interno: Atrás cambia entre pestañas del panel sin abandonar la sesión. */
 (() => {
   if (window.__historialVistasIndoor) return;
