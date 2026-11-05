@@ -38,10 +38,20 @@
 
   document.addEventListener('click', e => {
     if (restaurando || !e.isTrusted) return;   // al restaurar (y los clics por programa de otros módulos) no se cambia lo guardado: ya es esta misma vista
+    const destino = e.target.closest?.('.tab,[data-bodega-dashboard]');
+    if (!destino) return;
     const c = clave(e.target);
-    if (!c) return;
-    if (e.isTrusted) usuarioToco = true;
-    if (c.val === 'inicio') guardar(null); else guardar({ ...c, t: Date.now() });
+    usuarioToco = true;
+    // El cambio de panel lo hacen otros manejadores de click. Guardamos al
+    // final del evento para leer la pestaña que realmente quedó abierta y no
+    // la anterior (algunos accesos son botones que llaman otra pestaña).
+    setTimeout(() => {
+      const activa = document.querySelector('.panel.active')?.dataset?.panel;
+      if (c?.attr === 'data-bodega-dashboard') guardar({ ...c, t: Date.now() });
+      else if (activa === 'inicio') guardar(null);
+      else if (activa) guardar({ attr: 'data-kind', val: activa, rotulo: activa.toUpperCase(), t: Date.now() });
+      else if (c) guardar({ ...c, t: Date.now() });
+    }, 0);
   }, true);
   ['mousedown', 'keydown', 'touchstart'].forEach(ev => window.addEventListener(ev, () => { usuarioToco = true; }, { passive: true, once: true, capture: true }));
 
