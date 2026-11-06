@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 import time
+import zipfile
 from pathlib import Path
 
 import requests
@@ -31,8 +32,13 @@ CUFE_SELECTOR = os.getenv('DIAN_CUFE_SELECTOR', '#DocumentKey')
 SEARCH_SELECTOR = os.getenv('DIAN_SEARCH_SELECTOR', 'button.btn-search')
 DATE_SELECTOR = os.getenv('DIAN_DATE_SELECTOR', '#dashboard-report-range')
 NO_RESULTS_TEXT = 'Ningún documento disponible para mostrar.'
-XML_SELECTOR = os.getenv('DIAN_XML_SELECTOR', '')
-PDF_SELECTOR = os.getenv('DIAN_PDF_SELECTOR', '')
+# En las páginas autenticadas la descarga oficial es un ZIP por documento,
+# disparado por el botón de la primera celda de su fila. No usamos la
+# búsqueda pública ni controles que requieran CAPTCHA.
+DOWNLOAD_BUTTON_SELECTOR = os.getenv(
+    'DIAN_DOWNLOAD_BUTTON_SELECTOR',
+    'table tbody tr:not(:has-text("Ningún documento disponible para mostrar.")) button',
+)
 
 
 def api(path: str, body: dict | None = None) -> dict:
@@ -51,6 +57,29 @@ def complete(document_id: int, status: str, note: str = '', evidence: str = '', 
         'document_id': document_id, 'status': status, 'note': note[:240],
         'evidence': evidence[:240], 'filename': filename[:180],
     })
+
+
+def _extract_requested_file(archive: Path, destination: Path, file_format: str) -> Path | None:
+    """Extrae exclusivamente PDF o XML y evita rutas manipuladas en el ZIP."""
+    suffix = '.' + file_format.lower()
+    with zipfile.ZipFile(archive) as zipped:
+        entries = [entry for entry in zipped.infolist()
+                   if not entry.is_dir() and Path(entry.filename).suffix.lower() == suffix]
+        if not entries:
+            return None
+        # DIAN entrega un PDF y un XML por CUFE. Si en el futuro añade otros
+        # archivos, se conserva solo el primero del formato solicitado.
+        entry = entries[0]
+        safe_name = Path(entry.filename).name
+        if not safe_name or safe_name in {'.', '..'}:
+            return None
+        target = (destination / safe_name).resolve()
+        destination_resolved = destination.resolve()
+        if destination_resolved not in target.parents:
+            return None
+        with zipped.open(entry) as source, target.open('wb') as output:
+            output.write(source.read())
+    return target
 
 
 def process_one(page, job: dict) -> tuple[str, str, str, str]:
@@ -79,20 +108,22 @@ def process_one(page, job: dict) -> tuple[str, str, str, str]:
                 break
         if not found:
             return ('failed', '', '', 'DIAN no encontró el CUFE en documentos recibidos ni enviados.')
-        selector = XML_SELECTOR if job['format'] == 'XML' else PDF_SELECTOR
-        if not selector:
-            return ('uncertain', '', '', f'DIAN encontró el documento, pero falta validar el control de descarga {job["format"]}.')
+        selector = DOWNLOAD_BUTTON_SELECTOR
         with page.expect_download(timeout=35_000) as pending:
             page.locator(selector).wait_for(state='visible', timeout=25_000)
             page.locator(selector).click()
         download = pending.value
-        filename = download.suggested_filename
-        target = Path('/mnt/nas/DIAN DESCARGAS') / job['destination'] / filename
-        target.parent.mkdir(parents=True, exist_ok=True)
-        download.save_as(str(target))
-        if not target.is_file() or target.stat().st_size == 0:
+        destination = Path('/mnt/nas/DIAN DESCARGAS') / job['destination']
+        destination.mkdir(parents=True, exist_ok=True)
+        archive = destination / (job['cufe'] + '.zip')
+        download.save_as(str(archive))
+        if not archive.is_file() or archive.stat().st_size == 0:
             return ('uncertain', '', '', 'DIAN indicó descarga, pero no apareció un archivo utilizable.')
-        return ('downloaded', filename, 'Descarga visible aceptada por DIAN y archivo guardado.', '')
+        target = _extract_requested_file(archive, destination, job['format'])
+        archive.unlink(missing_ok=True)
+        if not target or not target.is_file() or target.stat().st_size == 0:
+            return ('uncertain', '', '', f'DIAN entregó el ZIP, pero no incluyó un archivo {job["format"]} utilizable.')
+        return ('downloaded', target.name, 'Descarga oficial DIAN visible, ZIP validado y formato solicitado guardado.', '')
     except PlaywrightTimeoutError:
         return ('uncertain', '', '', 'DIAN no mostró un control o descarga verificable; requiere revisión.')
     except Exception as exc:

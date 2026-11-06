@@ -4,9 +4,10 @@
 
 1. El usuario pega su enlace/token temporal de DIAN.
 2. Pega los CUFEs desde Excel; el panel conserva uno por fila.
-3. Elige una subcarpeta dentro de `DIAN DESCARGAS` de la NAS. Es una carpeta
-   central, no una ruta de Windows del computador: así cualquier usuario ve el
-   mismo resultado sin dejar un PC encendido.
+3. Elige una subcarpeta dentro de `DIAN DESCARGAS` de la NAS. Opcionalmente,
+   desde Chrome puede elegir una carpeta local de Windows o una unidad de red;
+   el panel copia allí los archivos del lote mientras esa pestaña permanece
+   abierta. La NAS conserva la copia central.
 4. Inicia el lote. El servidor reserva y procesa **un CUFE a la vez**.
 5. El panel actualiza el estado y los archivos del destino cada cinco segundos.
 
@@ -14,7 +15,9 @@
 
 El worker usa el enlace temporal para entrar a las secciones autenticadas de
 **Documentos recibidos** y **Documentos enviados**. Consulta cada CUFE con un
-rango amplio de fechas y solo continúa si DIAN muestra una coincidencia.
+rango amplio de fechas y solo continúa si DIAN muestra una coincidencia. La
+descarga oficial entrega un ZIP; el worker valida el archivo y extrae solamente
+el XML o el PDF solicitado por el usuario.
 
 La búsqueda pública de DIAN puede exigir CAPTCHA. No se automatiza ni se
 intenta superar ese control: si el comprobante no está en las secciones
@@ -49,15 +52,16 @@ Resultados admitidos:
   reintenta automáticamente.
 
 Antes de activar el worker se debe comprobar el flujo real en DIAN con un CUFE
-de prueba y un token temporal nuevo. Los selectores del portal pueden cambiar;
-por eso no se publica un worker que haga clics a ciegas ni se marca una descarga
+de prueba y un token temporal nuevo. El control validado actualmente es el
+botón oficial **Descargar elementos** de la coincidencia mostrada. Los
+selectores del portal pueden cambiar; por eso el worker no marca una descarga
 como realizada sin evidencia.
 
 Para instalarlo en el VPS, cuando estén validados los selectores, se construye
 con `docker compose -f docker-compose.dian-worker.yml up -d --build`. El worker
-no arranca una descarga hasta que reciba `DIAN_WORKER_TOKEN` y los selectores
-`DIAN_SEARCH_URL`, `DIAN_CUFE_SELECTOR`, `DIAN_SEARCH_SELECTOR` y el selector
-del formato requerido. Esto evita descargar o marcar comprobantes erróneos.
+no arranca una descarga hasta que reciba `DIAN_WORKER_TOKEN`. Los selectores de
+consulta y descarga tienen valores oficiales validados, pero se pueden ajustar
+por variables de entorno si DIAN cambia su interfaz.
 
 ## Configuración de producción
 
