@@ -17,7 +17,8 @@
     folder:'<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
     copy:'<rect x="9" y="4" width="10" height="12" rx="1.5"/><path d="M15 16v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h3"/>',
     image:'<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><circle cx="9" cy="10" r="1.35"/><path d="M5.5 17l4.3-4 3.1 2.7 2.4-2 2.2 3.3"/>',
-    images:'<rect x="6" y="7" width="14" height="12" rx="2"/><path d="M4 16V5a2 2 0 0 1 2-2h11"/><circle cx="12" cy="11" r="1.2"/><path d="M8 17l3.2-3 2.1 1.7 1.8-1.6 2 3"/>'
+    images:'<rect x="6" y="7" width="14" height="12" rx="2"/><path d="M4 16V5a2 2 0 0 1 2-2h11"/><circle cx="12" cy="11" r="1.2"/><path d="M8 17l3.2-3 2.1 1.7 1.8-1.6 2 3"/>',
+    sewing:'<path d="M3 19h18M5 19v-4h7a4 4 0 0 0 4-4V8h2v11M5 15V8h6a4 4 0 0 1 4 4v1M7 8V5M17 8V5M5 15H3v-4M18 11h3M10 15v4M8 22h4"/><circle cx="12" cy="11" r="1.4"/>'
   };
   // selector, icono, ayuda, grupo (los grupos se separan con una línea fina)
   var MAP=[
@@ -121,7 +122,7 @@
     var stage=media.querySelector('.trace-design-stage');if(!stage)return;
     var tools=document.createElement('div');tools.className='trace-copy-tools';tools.style.cssText='position:absolute!important;top:50%!important;right:8px!important;transform:translateY(-50%)!important;flex-direction:column!important';tools.setAttribute('role','toolbar');tools.setAttribute('aria-label','Copiar mockups');
     var infoButton=copyButton('copy','Copiar información de la tarjeta','info');infoButton.className='trace-copy-info';infoButton.style.cssText='position:absolute!important;z-index:8!important;top:50%!important;left:8px!important;transform:translateY(-50%)!important';
-    var summaryButton=copyButton('note','Copiar mockups, cliente, referencia y cantidad','summary');summaryButton.className='trace-copy-info';summaryButton.style.cssText='position:absolute!important;z-index:8!important;top:calc(50% + 34px)!important;left:8px!important;transform:translateY(-50%)!important';
+    var summaryButton=copyButton('sewing','Copiar mockups, cliente, referencia y cantidad','summary');summaryButton.className='trace-copy-info';summaryButton.style.cssText='position:absolute!important;z-index:8!important;top:calc(50% + 34px)!important;left:8px!important;transform:translateY(-50%)!important';
     tools.appendChild(copyButton('image','Copiar mockup visible','visible'));
     tools.appendChild(copyButton('images','Copiar todos los mockups agrupados','group'));
     var copiar=async function(event){
