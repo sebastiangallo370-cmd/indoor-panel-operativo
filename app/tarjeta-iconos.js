@@ -50,12 +50,12 @@
     B+'.trace-media{position:relative}'+
     B+'.trace-design-view{height:auto!important;flex:1 1 auto}'+
     B+'.trace-copy-tools{position:absolute;z-index:8;top:50%;right:8px;display:flex;flex-direction:column;align-items:center;gap:7px;margin:0;padding:4px 0;transform:translateY(-50%)}'+
-    B+'.trace-copy-tools button{width:25px!important;min-width:25px!important;height:25px!important;min-height:25px!important;padding:0!important;margin:0!important;display:grid!important;place-items:center!important;border:1px solid rgba(19,32,24,.58)!important;border-radius:5px!important;background:rgba(255,255,255,.92)!important;color:#18241c!important;box-shadow:0 1px 3px rgba(0,0,0,.13)!important;font-size:0!important;cursor:pointer;transition:transform .14s,background .14s,color .14s,border-color .14s}'+
-    B+'.trace-copy-tools button svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}'+
-    B+'.trace-copy-tools button:hover,'+B+'.trace-copy-tools button:focus-visible{background:#d0f44c!important;border-color:#263526!important;color:#10170e!important;transform:scale(1.09)}'+
-    B+'.trace-copy-tools button.is-done{background:#e8f8d1!important;border-color:#56713f!important;color:#203817!important}'+
-    B+'.trace-copy-tools button:disabled{opacity:.55;cursor:wait;transform:none}'+
-    '@media(max-width:700px){'+B+'.trace-copy-tools{right:8px;gap:8px}'+B+'.trace-copy-tools button{width:28px!important;min-width:28px!important;height:28px!important;min-height:28px!important}'+B+'.trace-copy-tools button svg{width:17px;height:17px}}'+
+    B+'.trace-copy-tools button,'+B+'.trace-copy-info{width:25px!important;min-width:25px!important;height:25px!important;min-height:25px!important;padding:0!important;margin:0!important;display:grid!important;place-items:center!important;border:1px solid rgba(19,32,24,.58)!important;border-radius:5px!important;background:rgba(255,255,255,.92)!important;color:#18241c!important;box-shadow:0 1px 3px rgba(0,0,0,.13)!important;font-size:0!important;cursor:pointer;transition:transform .14s,background .14s,color .14s,border-color .14s}'+
+    B+'.trace-copy-tools button svg,'+B+'.trace-copy-info svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}'+
+    B+'.trace-copy-tools button:hover,'+B+'.trace-copy-tools button:focus-visible,'+B+'.trace-copy-info:hover,'+B+'.trace-copy-info:focus-visible{background:#d0f44c!important;border-color:#263526!important;color:#10170e!important;transform:scale(1.09)}'+
+    B+'.trace-copy-tools button.is-done,'+B+'.trace-copy-info.is-done{background:#e8f8d1!important;border-color:#56713f!important;color:#203817!important}'+
+    B+'.trace-copy-tools button:disabled,'+B+'.trace-copy-info:disabled{opacity:.55;cursor:wait;transform:none}'+
+    '@media(max-width:700px){'+B+'.trace-copy-tools{right:8px;gap:8px}'+B+'.trace-copy-tools button,'+B+'.trace-copy-info{width:28px!important;min-width:28px!important;height:28px!important;min-height:28px!important}'+B+'.trace-copy-tools button svg,'+B+'.trace-copy-info svg{width:17px;height:17px}}'+
     '@media(max-width:700px){'+B+'.trace-rail button{width:42px!important;min-width:42px!important;height:42px!important;min-height:42px!important}'+B+'.trace-card-body{padding-right:66px!important}'+B+'.trace-rail{right:8px}}';
   document.head.appendChild(style);
 
@@ -118,11 +118,11 @@
   function addCopyTools(card){
     var media=card.querySelector('.trace-media');if(!media||media.querySelector('.trace-copy-tools'))return;
     var stage=media.querySelector('.trace-design-stage');if(!stage)return;
-    var tools=document.createElement('div');tools.className='trace-copy-tools';tools.style.cssText='position:absolute!important;top:50%!important;right:8px!important;transform:translateY(-50%)!important;flex-direction:column!important';tools.setAttribute('role','toolbar');tools.setAttribute('aria-label','Copiar información y mockups');
-    tools.appendChild(copyButton('copy','Copiar información de la tarjeta','info'));
+    var tools=document.createElement('div');tools.className='trace-copy-tools';tools.style.cssText='position:absolute!important;top:50%!important;right:8px!important;transform:translateY(-50%)!important;flex-direction:column!important';tools.setAttribute('role','toolbar');tools.setAttribute('aria-label','Copiar mockups');
+    var infoButton=copyButton('copy','Copiar información de la tarjeta','info');infoButton.className='trace-copy-info';infoButton.style.cssText='position:absolute!important;z-index:8!important;top:50%!important;left:8px!important;transform:translateY(-50%)!important';
     tools.appendChild(copyButton('image','Copiar mockup visible','visible'));
     tools.appendChild(copyButton('images','Copiar todos los mockups agrupados','group'));
-    tools.addEventListener('click',async function(event){
+    var copiar=async function(event){
       var button=event.target.closest('button[data-copy-action]');if(!button)return;var action=button.dataset.copyAction;
       try{
         button.disabled=true;
@@ -134,8 +134,9 @@
         try{await copyImageBlob(blob);flash(button,action==='visible'?'Mockup copiado':'Mockups agrupados copiados')}catch(error){await copyText(urls.join('\n'));flash(button,'Se copiaron los enlaces de los mockups')}
       }catch(error){flash(button,error&&error.message||'No se pudo copiar')}
       finally{button.disabled=false}
-    });
-    stage.appendChild(tools);
+    };
+    tools.addEventListener('click',copiar);infoButton.addEventListener('click',copiar);
+    stage.appendChild(infoButton);stage.appendChild(tools);
   }
   function run(){
     queued=false;
