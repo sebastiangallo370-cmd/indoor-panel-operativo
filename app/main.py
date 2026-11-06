@@ -1789,7 +1789,7 @@ def login_page(error: str = "") -> str:
 
 @app.get("/landing/{nombre}.jpg")
 def landing_foto(nombre: str):
-    if not re.fullmatch(r"(hero|proceso-[1-6]|uniforme-[1-6])", nombre):
+    if not re.fullmatch(r"(hero|proceso-[1-6]|uniforme-[1-6]|fabrica-[1-6])", nombre):
         raise HTTPException(status_code=404)
     return FileResponse(Path(__file__).with_name("landing") / f"{nombre}.jpg", media_type="image/jpeg", headers={"Cache-Control": "public, max-age=86400"})
 
