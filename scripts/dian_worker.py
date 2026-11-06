@@ -122,6 +122,8 @@ def _uncertain_note(stage: str, page) -> str:
     """Explica el punto de fallo sin registrar CUFEs, tokens ni contenido del portal."""
     try:
         text = page.locator('body').inner_text(timeout=3_000).lower()
+        if 'solicitud bloqueada por controles de seguridad' in text:
+            return 'DIAN bloqueó la consulta automatizada por controles de seguridad; el lote se pausa para revisión humana.'
         if 'captcha' in text or 'recaptcha' in text:
             return f'DIAN solicitó una verificación humana durante {stage}; no se intenta eludirla.'
     except Exception:
@@ -157,6 +159,9 @@ def process_one(page, job: dict) -> tuple[str, str, str, str]:
         for search_url in SEARCH_URLS:
             stage = 'abrir la consulta autenticada'
             page.goto(search_url, wait_until='domcontentloaded', timeout=60_000)
+            body_text = page.locator('body').inner_text(timeout=10_000).lower()
+            if 'solicitud bloqueada por controles de seguridad' in body_text:
+                return ('uncertain', '', '', _uncertain_note(stage, page))
             stage = 'ubicar el campo CUFE'
             field = _first_visible(page, (
                 CUFE_SELECTOR,

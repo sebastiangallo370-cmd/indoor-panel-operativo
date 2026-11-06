@@ -374,7 +374,19 @@ async def worker_result(request: Request):
             con.execute('UPDATE dian_documents SET status=?,filename=?,evidence=?,technical_note=?,updated_at=? WHERE id=?', (status, filename, evidence, note, now, doc_id))
             pending = con.execute("SELECT COUNT(*) n FROM dian_documents WHERE batch_id=? AND status IN ('pending','processing')", (batch_id,)).fetchone()['n']
             counts = {item['status']: item['n'] for item in con.execute('SELECT status,COUNT(*) n FROM dian_documents WHERE batch_id=? GROUP BY status', (batch_id,))}
-            batch_status = 'completed' if pending == 0 else 'queued'
+            current_batch = con.execute("SELECT status FROM dian_batches WHERE id=?", (batch_id,)).fetchone()
+            note_lower = note.lower()
+            blocked_by_dian = status == 'uncertain' and (
+                'controles de seguridad' in note_lower or 'verificación humana' in note_lower
+            )
+            # Si DIAN exige intervención humana o bloquea la IP del worker,
+            # detenemos el lote completo. Nunca continuamos consumiendo CUFEs
+            # ni reintentamos automáticamente bajo un control de DIAN.
+            if blocked_by_dian or (current_batch and current_batch['status'] == 'paused'):
+                batch_status = 'paused'
+                _active_tokens.pop(batch_id, None)
+            else:
+                batch_status = 'completed' if pending == 0 else 'queued'
             con.execute('''UPDATE dian_batches SET status=?,downloaded=?,failed=?,uncertain=?,updated_at=?,last_error=? WHERE id=?''', (batch_status, counts.get('downloaded', 0), counts.get('failed', 0), counts.get('uncertain', 0), now, note if status != 'downloaded' else '', batch_id))
             if pending == 0:
                 _active_tokens.pop(batch_id, None)
