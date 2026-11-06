@@ -187,10 +187,14 @@
     const tab = document.createElement('button'); tab.id = 'dian-tab'; tab.type = 'button'; tab.className = 'tab'; tab.innerHTML = '<span class="nav-icon">DN</span><strong>D. DIAN</strong>'; tab.addEventListener('click', activate);
     (treasury?.querySelector('.nav-children') || document.querySelector('.tabs'))?.appendChild(tab);
     if (location.hash === '#dian') activate();
+    // El formulario es un borrador del usuario: no se vuelve a dibujar mientras
+    // no exista un lote. Antes se refrescaba la carpeta cada 5 segundos y ese
+    // render reemplazaba los campos de fecha mientras el usuario los editaba.
+    // La carpeta se actualiza al abrirla, al escoger destino y durante un lote.
     if (timer) clearInterval(timer); timer = setInterval(() => {
-      if (!document.hidden && panel?.classList.contains('active')) {
+      if (!document.hidden && panel?.classList.contains('active') && state.batch) {
         snapshot();
-        if (state.batch) pollBatch(); else loadFolder().then(render);
+        pollBatch();
       }
     }, 5000);
   }
