@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 import time
 import zipfile
+from datetime import datetime
 from pathlib import Path
 
 import requests
@@ -39,6 +40,12 @@ DOWNLOAD_BUTTON_SELECTOR = os.getenv(
     'DIAN_DOWNLOAD_BUTTON_SELECTOR',
     'table tbody tr:not(:has-text("Ningún documento disponible para mostrar.")) button',
 )
+RESULT_ROW_SELECTOR = os.getenv(
+    'DIAN_RESULT_ROW_SELECTOR',
+    'table tbody tr:not(:has-text("Ningún documento disponible para mostrar."))',
+)
+MONTHS_ES = ('ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO',
+             'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE')
 
 
 def api(path: str, body: dict | None = None) -> dict:
@@ -82,6 +89,18 @@ def _extract_requested_file(archive: Path, destination: Path, file_format: str) 
     return target
 
 
+def _date_folder(raw: str) -> str:
+    """Convierte la fecha visible de DIAN a MES_DIA, por ejemplo OCTUBRE_31."""
+    value = str(raw or '').strip()
+    for pattern in ('%d-%m-%Y', '%d/%m/%Y', '%Y-%m-%d'):
+        try:
+            date = datetime.strptime(value, pattern)
+            return f'{MONTHS_ES[date.month - 1]}_{date.day:02d}'
+        except ValueError:
+            continue
+    return 'SIN_FECHA'
+
+
 def process_one(page, job: dict) -> tuple[str, str, str, str]:
     """Descarga un documento solo si hay evidencia visible de aceptación."""
     if not SEARCH_URLS:
@@ -108,12 +127,18 @@ def process_one(page, job: dict) -> tuple[str, str, str, str]:
                 break
         if not found:
             return ('failed', '', '', 'DIAN no encontró el CUFE en documentos recibidos ni enviados.')
+        row = page.locator(RESULT_ROW_SELECTOR).filter(has=page.locator('button')).first
+        cells = row.locator('td')
+        # Columnas oficiales: [descarga, recepción, fecha, ...]. La fecha del
+        # documento organiza el destino como MES_DIA.
+        date_folder = _date_folder(cells.nth(2).inner_text(timeout=10_000))
         selector = DOWNLOAD_BUTTON_SELECTOR
         with page.expect_download(timeout=35_000) as pending:
             page.locator(selector).wait_for(state='visible', timeout=25_000)
             page.locator(selector).click()
         download = pending.value
-        destination = Path('/mnt/nas/DIAN DESCARGAS') / job['destination']
+        base_destination = Path('/mnt/nas/DIAN DESCARGAS') / job['destination']
+        destination = base_destination / date_folder
         destination.mkdir(parents=True, exist_ok=True)
         archive = destination / (job['cufe'] + '.zip')
         download.save_as(str(archive))
@@ -123,7 +148,8 @@ def process_one(page, job: dict) -> tuple[str, str, str, str]:
         archive.unlink(missing_ok=True)
         if not target or not target.is_file() or target.stat().st_size == 0:
             return ('uncertain', '', '', f'DIAN entregó el ZIP, pero no incluyó un archivo {job["format"]} utilizable.')
-        return ('downloaded', target.name, 'Descarga oficial DIAN visible, ZIP validado y formato solicitado guardado.', '')
+        relative_filename = target.relative_to(base_destination).as_posix()
+        return ('downloaded', relative_filename, 'Descarga oficial DIAN visible, ZIP eliminado y formato solicitado guardado por MES_DIA.', '')
     except PlaywrightTimeoutError:
         return ('uncertain', '', '', 'DIAN no mostró un control o descarga verificable; requiere revisión.')
     except Exception as exc:

@@ -16,8 +16,10 @@
 El worker usa el enlace temporal para entrar a las secciones autenticadas de
 **Documentos recibidos** y **Documentos enviados**. Consulta cada CUFE con un
 rango amplio de fechas y solo continúa si DIAN muestra una coincidencia. La
-descarga oficial entrega un ZIP; el worker valida el archivo y extrae solamente
-el XML o el PDF solicitado por el usuario.
+descarga oficial entrega un ZIP temporal; el worker valida el archivo, lo
+extrae en una subcarpeta `MES_DIA` (por ejemplo `OCTUBRE_31`) y conserva
+solamente el XML o el PDF solicitado por el usuario. El ZIP temporal se elimina
+después de una extracción correcta.
 
 La búsqueda pública de DIAN puede exigir CAPTCHA. No se automatiza ni se
 intenta superar ese control: si el comprobante no está en las secciones

@@ -92,7 +92,7 @@
     try {
       if (await state.localFolder.requestPermission({mode:'readwrite'}) !== 'granted') return;
       for (const item of state.batchFiles) {
-        const handle = await state.localFolder.getFileHandle(item.name, {create:true});
+        const handle = await localFileHandle(item.name);
         const current = await handle.getFile();
         if (current.size === item.size) continue;
         const response = await fetch(`/api/dian/lotes/${batchId}/archivos/${encodeURIComponent(item.name)}`, {credentials:'same-origin'});
@@ -102,6 +102,14 @@
         await writable.close();
       }
     } catch (error) { state.message = `La descarga central sigue activa. Copia local pendiente: ${error.message}`; }
+  }
+  async function localFileHandle(relativeName) {
+    const parts = String(relativeName || '').split('/').filter(Boolean);
+    const filename = parts.pop();
+    if (!filename) throw new Error('Nombre de archivo inválido.');
+    let directory = state.localFolder;
+    for (const part of parts) directory = await directory.getDirectoryHandle(part, {create:true});
+    return directory.getFileHandle(filename, {create:true});
   }
   async function resume() {
     snapshot();

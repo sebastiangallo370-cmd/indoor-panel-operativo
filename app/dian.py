@@ -101,6 +101,15 @@ def _safe_part(value: str) -> str:
     return clean[:80] or 'sin_nombre'
 
 
+def _safe_file_relative(value: str) -> str:
+    """Conserva una ruta relativa corta para archivos del lote, nunca rutas externas."""
+    raw = str(value or '').strip().replace('\\', '/')
+    if not raw or raw.startswith('/') or '..' in raw.split('/'):
+        return ''
+    parts = [_safe_part(part) for part in raw.split('/') if part]
+    return '/'.join(parts)[:180]
+
+
 def _destination(raw: str) -> tuple[str, Path]:
     relative = str(raw or '').strip().replace('\\', '/') or 'pendientes'
     if relative.startswith('/') or '..' in relative.split('/'):
@@ -211,37 +220,40 @@ def batch_files(batch_id: str, request: Request):
             con.close()
     files, batch_files = [], []
     if folder.exists():
-        for item in sorted(folder.iterdir(), key=lambda value: value.stat().st_mtime, reverse=True)[:100]:
+        items = (item for item in folder.rglob('*') if item.is_file())
+        for item in sorted(items, key=lambda value: value.stat().st_mtime, reverse=True)[:100]:
+            relative_name = item.relative_to(folder).as_posix()
             if item.is_file():
-                value = {'name': item.name, 'size': item.stat().st_size,
+                value = {'name': relative_name, 'size': item.stat().st_size,
                          'modified_at': datetime.fromtimestamp(item.stat().st_mtime, timezone.utc).isoformat(),
-                         'from_batch': item.name in batch_names}
+                         'from_batch': relative_name in batch_names}
                 files.append(value)
                 if value['from_batch']:
                     batch_files.append(value)
     return {'destination': batch['destination'], 'files': files, 'batch_files': batch_files}
 
 
-@router.get('/lotes/{batch_id}/archivos/{filename}')
+@router.get('/lotes/{batch_id}/archivos/{filename:path}')
 def download_batch_file(batch_id: str, filename: str, request: Request):
     """Entrega solo un archivo que pertenece al lote del usuario autenticado."""
     user = _user(request)
-    if Path(filename).name != filename:
+    safe_filename = _safe_file_relative(filename)
+    if not safe_filename or safe_filename != filename.replace('\\', '/'):
         raise HTTPException(400, 'Nombre de archivo inválido.')
     with _lock:
         con = _connect()
         try:
             batch = _owned(con, batch_id, user)
-            allowed = con.execute("SELECT 1 FROM dian_documents WHERE batch_id=? AND status='downloaded' AND filename=?", (batch_id, filename)).fetchone()
+            allowed = con.execute("SELECT 1 FROM dian_documents WHERE batch_id=? AND status='downloaded' AND filename=?", (batch_id, safe_filename)).fetchone()
         finally:
             con.close()
     if not allowed:
         raise HTTPException(404, 'Ese archivo no pertenece al lote.')
     _, folder = _destination(batch['destination'])
-    target = (folder / filename).resolve()
+    target = (folder / safe_filename).resolve()
     if folder.resolve() not in target.parents or not target.is_file():
         raise HTTPException(404, 'Archivo no disponible.')
-    return FileResponse(target, filename=filename)
+    return FileResponse(target, filename=Path(safe_filename).name)
 
 
 @router.post('/lotes/{batch_id}/pausar')
@@ -329,7 +341,7 @@ async def worker_result(request: Request):
     doc_id, status = int(payload.get('document_id') or 0), str(payload.get('status') or '')
     if status not in {'downloaded', 'failed', 'uncertain'}:
         raise HTTPException(400, 'Resultado no válido.')
-    filename, evidence = _safe_part(payload.get('filename') or '')[:180], str(payload.get('evidence') or '')[:240]
+    filename, evidence = _safe_file_relative(payload.get('filename') or ''), str(payload.get('evidence') or '')[:240]
     note = str(payload.get('note') or '')[:240]
     with _lock:
         con = _connect()
