@@ -107,3 +107,41 @@
   }
   init();
 })();
+
+/* Submódulos flotantes: se mantienen legibles sobre cualquier panel sin
+   contenedor, borde ni bloque rectangular. */
+(function () {
+  if (document.getElementById('interfaz-flotante')) return;
+  var N = 'html body.top-navigation.top-navigation ';
+  var css = [
+    '@media(min-width:861px){',
+    N+'.sidebar{background:linear-gradient(180deg,rgba(4,8,5,.8),rgba(4,8,5,0))!important;border:0!important;box-shadow:none!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important}',
+    N+'.sidebar :is(.brand,.tabs,.topbar,.systems){background:transparent!important;border-color:transparent!important;box-shadow:none!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important}',
+    N+'.sidebar::before,'+N+'.sidebar::after{display:none!important}',
+    N+'.sidebar .tab{background:transparent!important;border-color:transparent!important;box-shadow:none!important;border-radius:10px!important;transition:transform .3s cubic-bezier(.22,1,.36,1),background .25s!important}',
+    N+'.sidebar .nav-children{left:50%!important;right:auto!important;margin-left:0!important;translate:-50% 0;background:radial-gradient(closest-side ellipse at 38% 50%,rgba(3,7,4,.94) 0%,rgba(3,7,4,.86) 55%,rgba(3,7,4,0) 100%)!important;background-color:transparent!important;border:0!important;box-shadow:none!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;padding:26px 44px!important}',
+    N+'.sidebar .nav-children:has(> .tab:nth-child(7)){grid-template-columns:repeat(2,max-content)!important;grid-template-rows:repeat(8,auto)!important;grid-auto-flow:column!important;column-gap:34px;width:max-content}',
+    N+'.sidebar .nav-children:has(> .tab:nth-child(7)) > .tab{min-width:0}',
+    N+'.sidebar .nav-children::before,'+N+'.sidebar .nav-children::after{display:none!important}',
+    N+'.sidebar .nav-children .tab{background:transparent!important;color:#fff!important;font-weight:800!important;text-shadow:0 0 1px #000,0 0 3px rgba(0,0,0,.95),0 0 8px rgba(0,0,0,.95),0 2px 16px rgba(0,0,0,.95),0 0 30px rgba(0,0,0,.85)}',
+    N+'.sidebar .nav-children .tab.active,'+N+'.sidebar .nav-children .tab:hover{color:#d0ec93!important}',
+    N+'.sidebar .nav-children .tab:hover,'+N+'.sidebar .nav-children .tab.active{background:rgba(255,255,255,.1)!important;box-shadow:0 10px 22px -12px rgba(0,0,0,.85),inset 0 1px 0 rgba(255,255,255,.1)!important}',
+    N+'.sidebar :is(.tabs > .tab,.tabs > .nav-group > .nav-parent,.nav-group > .nav-parent){font-size:clamp(12.5px,.8vw,16px)!important;letter-spacing:.05em!important;padding-left:.85em!important;padding-right:.85em!important}',
+    N+'.sidebar :is(.tab,.nav-parent){text-shadow:none!important;background:transparent!important;border-color:transparent!important;box-shadow:none!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important}',
+    N+'.sidebar .tab:hover{background:rgba(255,255,255,.1)!important}',
+    '}',
+    '@media(max-width:860px){',
+    N+'.sidebar{background:linear-gradient(180deg,rgba(4,8,5,.82),rgba(4,8,5,0))!important;border:0!important;border-bottom:0!important;box-shadow:none!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important}',
+    N+'.sidebar .systems,'+N+'.sidebar .nav-children{background:transparent!important;border:0!important;box-shadow:none!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important}',
+    N+'.sidebar .systems > *{border-color:transparent!important}',
+    N+'.sidebar .nav-children .tab{background:transparent!important;border-color:transparent!important;box-shadow:none!important;color:#fff!important;font-weight:800!important;text-shadow:0 0 3px rgba(0,0,0,.95),0 1px 10px rgba(0,0,0,.95)}',
+    N+'.sidebar .nav-children .tab.active{background:rgba(255,255,255,.1)!important;color:#d0ec93!important}',
+    'html body nav.mbar{border:0!important;background:linear-gradient(180deg,rgba(10,18,12,.78),rgba(6,12,8,.9))!important;box-shadow:0 14px 34px -10px rgba(0,0,0,.9),inset 0 1px 0 rgba(255,255,255,.07)!important}',
+    '}',
+    '@media(prefers-reduced-motion:reduce){'+N+'.sidebar .tab{transition:none!important}}'
+  ].join('');
+  var style = document.createElement('style');
+  style.id = 'interfaz-flotante';
+  style.textContent = css;
+  document.head.appendChild(style);
+})();
