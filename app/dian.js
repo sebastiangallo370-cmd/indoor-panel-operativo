@@ -151,8 +151,10 @@
     panel.querySelector('[data-pause]')?.addEventListener('click', async () => { try { const id = typeof state.batch === 'string' ? state.batch : state.batch.id; await api(`/api/dian/lotes/${id}/pausar`, {method:'POST'}); state.message='Lote pausado. El token temporal fue descartado.'; await pollBatch(); } catch (error) { state.message=error.message; render(); } });
     panel.querySelector('[data-clear]')?.addEventListener('click', () => { state.token=''; state.raw=''; state.dateFrom=''; state.dateTo=''; state.portalOpen=false; state.batch=null; state.message='Formulario limpiado.'; render(); });
     panel.querySelector('#dian-token')?.addEventListener('input', () => { snapshot(); state.portalOpen = false; });
-    panel.querySelector('#dian-date-from')?.addEventListener('input', snapshot);
-    panel.querySelector('#dian-date-to')?.addEventListener('input', snapshot);
+    ['input', 'change'].forEach(event => {
+      panel.querySelector('#dian-date-from')?.addEventListener(event, snapshot);
+      panel.querySelector('#dian-date-to')?.addEventListener(event, snapshot);
+    });
     panel.querySelector('#dian-cufes')?.addEventListener('input', () => { snapshot(); const head=panel.querySelector('.dian-cufe-head strong'); if(head) head.textContent=`${cufes().length} / ${MAX}`; });
   }
   function addStyle() {
@@ -171,7 +173,12 @@
     const tab = document.createElement('button'); tab.id = 'dian-tab'; tab.type = 'button'; tab.className = 'tab'; tab.innerHTML = '<span class="nav-icon">DN</span><strong>D. DIAN</strong>'; tab.addEventListener('click', activate);
     (treasury?.querySelector('.nav-children') || document.querySelector('.tabs'))?.appendChild(tab);
     if (location.hash === '#dian') activate();
-    if (timer) clearInterval(timer); timer = setInterval(() => { if (!document.hidden && panel?.classList.contains('active')) { if (state.batch) pollBatch(); else loadFolder().then(render); } }, 5000);
+    if (timer) clearInterval(timer); timer = setInterval(() => {
+      if (!document.hidden && panel?.classList.contains('active')) {
+        snapshot();
+        if (state.batch) pollBatch(); else loadFolder().then(render);
+      }
+    }, 5000);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build); else build();
 }());
