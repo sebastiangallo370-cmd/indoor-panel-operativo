@@ -124,7 +124,7 @@
     var stage=media.querySelector('.trace-design-stage');if(!stage)return;
     var tools=document.createElement('div');tools.className='trace-copy-tools';tools.style.cssText='position:absolute!important;right:8px!important;bottom:36px!important;flex-direction:column!important';tools.setAttribute('role','toolbar');tools.setAttribute('aria-label','Copiar mockups');
     var infoButton=copyButton('copy','Copiar información de la tarjeta','info');infoButton.className='trace-copy-info';infoButton.style.cssText='position:absolute!important;z-index:8!important;bottom:8px!important;left:8px!important';
-    var summaryButton=copyButton('sewing','Copiar mockups, cliente, referencia y cantidad','summary');summaryButton.className='trace-copy-info trace-copy-summary';summaryButton.style.cssText='position:absolute!important;z-index:8!important;bottom:8px!important;left:42px!important';
+    var summaryButton=copyButton('sewing','Copiar mockup actual','visible');summaryButton.className='trace-copy-info trace-copy-summary';summaryButton.style.cssText='position:absolute!important;z-index:8!important;bottom:8px!important;left:42px!important';
     tools.appendChild(copyButton('image','Copiar mockup visible','visible'));
     tools.appendChild(copyButton('images','Copiar todos los mockups agrupados','group'));
     var copiar=async function(event){
