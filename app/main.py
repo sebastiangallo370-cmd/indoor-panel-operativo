@@ -46,7 +46,7 @@ pedidos.CONFIG_PATH = STATE_DIR / "pedidos_config.json"
 DB_PATH = STATE_DIR / "jobs.sqlite3"
 security = HTTPBasic(auto_error=False)
 from app.cartera_api import cartera_router
-from app.dian import router as dian_router
+from app import dian as dian_mod
 from app.inventario_api import inventario_router, start_sublimacion_worker, inventory_alerts
 from app import perfil_foto as perfil_foto_mod
 from app import terminos as terminos_mod
@@ -385,7 +385,9 @@ app.include_router(agentes_mod.pc_router)  # el PC de los agentes entra con su t
 app.include_router(permisos_mod.router)
 app.include_router(exportar_mod.router)
 app.include_router(cartera_router, dependencies=[Depends(authenticate), Depends(permisos_mod.exigir('cartera'))])
-app.include_router(dian_router, dependencies=[Depends(authenticate), Depends(permisos_mod.exigir('cartera'))])
+dian_mod.configurar(authenticate)
+app.include_router(dian_mod.router, dependencies=[Depends(authenticate), Depends(permisos_mod.exigir('cartera'))])
+app.include_router(dian_mod.worker_router)
 app.include_router(inventario_router, dependencies=[Depends(authenticate), Depends(permisos_mod.exigir('inventario'))])
 from app import zeus as zeus_mod
 zeus_mod.configurar_usuarios(_usuarios_detalle)
