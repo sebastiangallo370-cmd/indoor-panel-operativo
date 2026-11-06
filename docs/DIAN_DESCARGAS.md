@@ -10,6 +10,18 @@
 4. Inicia el lote. El servidor reserva y procesa **un CUFE a la vez**.
 5. El panel actualiza el estado y los archivos del destino cada cinco segundos.
 
+## Consulta segura
+
+El worker usa el enlace temporal para entrar a las secciones autenticadas de
+**Documentos recibidos** y **Documentos enviados**. Consulta cada CUFE con un
+rango amplio de fechas y solo continúa si DIAN muestra una coincidencia.
+
+La búsqueda pública de DIAN puede exigir CAPTCHA. No se automatiza ni se
+intenta superar ese control: si el comprobante no está en las secciones
+autenticadas, el lote lo marca para revisión. Un documento solo se marca como
+descargado tras guardar un archivo no vacío y registrar la evidencia visible
+del portal.
+
 El token no se guarda en la base de datos ni en registros técnicos. Se mantiene
 solamente en memoria durante el lote. Si el servidor se reinicia, el lote queda
 en `requires_token` y el usuario debe pegar un token nuevo y usar **Reanudar

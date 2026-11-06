@@ -20,10 +20,17 @@ WORKER_TOKEN = os.getenv('DIAN_WORKER_TOKEN', '')
 PROFILE = Path(os.getenv('DIAN_BROWSER_PROFILE', '/data/dian-browser-profile'))
 WAIT_SECONDS = max(3, int(os.getenv('DIAN_WORKER_WAIT_SECONDS', '8')))
 
-# Se definen tras validar el portal DIAN real con un CUFE de prueba.
-SEARCH_URL = os.getenv('DIAN_SEARCH_URL', '')
-CUFE_SELECTOR = os.getenv('DIAN_CUFE_SELECTOR', '')
-SEARCH_SELECTOR = os.getenv('DIAN_SEARCH_SELECTOR', '')
+# El flujo automático usa únicamente las consultas autenticadas por el token.
+# La búsqueda pública de DIAN exige CAPTCHA y queda fuera de este worker.
+SEARCH_URLS = tuple(url.strip() for url in os.getenv(
+    'DIAN_SEARCH_URLS',
+    'https://catalogo-vpfe.dian.gov.co/Document/Received,'
+    'https://catalogo-vpfe.dian.gov.co/Document/Sent',
+).split(',') if url.strip())
+CUFE_SELECTOR = os.getenv('DIAN_CUFE_SELECTOR', '#DocumentKey')
+SEARCH_SELECTOR = os.getenv('DIAN_SEARCH_SELECTOR', 'button.btn-search')
+DATE_SELECTOR = os.getenv('DIAN_DATE_SELECTOR', '#dashboard-report-range')
+NO_RESULTS_TEXT = 'Ningún documento disponible para mostrar.'
 XML_SELECTOR = os.getenv('DIAN_XML_SELECTOR', '')
 PDF_SELECTOR = os.getenv('DIAN_PDF_SELECTOR', '')
 
@@ -48,18 +55,33 @@ def complete(document_id: int, status: str, note: str = '', evidence: str = '', 
 
 def process_one(page, job: dict) -> tuple[str, str, str, str]:
     """Descarga un documento solo si hay evidencia visible de aceptación."""
-    if not all((SEARCH_URL, CUFE_SELECTOR, SEARCH_SELECTOR)):
-        return ('uncertain', '', '', 'Faltan los selectores DIAN validados; no se automatizó este CUFE.')
+    if not SEARCH_URLS:
+        return ('uncertain', '', '', 'No hay rutas autenticadas DIAN configuradas.')
     try:
         page.goto(job['token'], wait_until='domcontentloaded', timeout=60_000)
-        page.goto(SEARCH_URL, wait_until='domcontentloaded', timeout=60_000)
-        field = page.locator(CUFE_SELECTOR)
-        field.wait_for(state='visible', timeout=25_000)
-        field.fill(job['cufe'])
-        page.locator(SEARCH_SELECTOR).click()
+        # Se busca tanto en recibidos como en enviados. El rango amplio evita
+        # que el filtro diario de DIAN oculte un CUFE antiguo.
+        found = False
+        for search_url in SEARCH_URLS:
+            page.goto(search_url, wait_until='domcontentloaded', timeout=60_000)
+            field = page.locator(CUFE_SELECTOR)
+            field.wait_for(state='visible', timeout=25_000)
+            if DATE_SELECTOR:
+                date = page.locator(DATE_SELECTOR)
+                if date.count():
+                    date.fill('2020/01/01 - 2035/12/31')
+                    date.press('Enter')
+            field.fill(job['cufe'])
+            page.locator(SEARCH_SELECTOR).click()
+            page.wait_for_timeout(1_500)
+            if NO_RESULTS_TEXT not in page.locator('body').inner_text():
+                found = True
+                break
+        if not found:
+            return ('failed', '', '', 'DIAN no encontró el CUFE en documentos recibidos ni enviados.')
         selector = XML_SELECTOR if job['format'] == 'XML' else PDF_SELECTOR
         if not selector:
-            return ('uncertain', '', '', f'No existe selector configurado para {job["format"]}.')
+            return ('uncertain', '', '', f'DIAN encontró el documento, pero falta validar el control de descarga {job["format"]}.')
         with page.expect_download(timeout=35_000) as pending:
             page.locator(selector).wait_for(state='visible', timeout=25_000)
             page.locator(selector).click()
