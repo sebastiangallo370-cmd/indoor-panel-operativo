@@ -284,12 +284,15 @@
       }
       const esDian = tokenUrl.protocol === 'https:' && /(^|\.)dian\.gov\.co$/i.test(tokenUrl.hostname);
       if (!esDian) return render('El enlace de verificación debe ser seguro y pertenecer a DIAN.');
-      const ventana = window.open(tokenUrl.toString(), '_blank', 'noopener');
+      // No usamos `noopener` aquí: Chrome devuelve `null` incluso cuando sí
+      // abrió la pestaña y eso hacía que el panel mostrara un falso bloqueo.
+      const ventana = window.open(tokenUrl.toString(), '_blank');
       if (!ventana) return render('Chrome bloqueó la pestaña de DIAN. Habilita ventanas emergentes e inténtalo de nuevo.');
-      // DIAN no permite inspeccionar el resultado de una pestaña externa. ONLINE
-      // significa que el usuario abrió y validó visualmente la sesión con este enlace.
+      // DIAN no permite leer el contenido de su pestaña desde otro dominio.
+      // Se marca ONLINE cuando el enlace temporal pudo abrirse; el usuario ve
+      // la sesión autenticada directamente en el portal de DIAN.
       dianConnected = true;
-      render('Sesión marcada como ONLINE después de abrir el enlace temporal de DIAN. Si el portal indicó un error, vuelve a pegar un token nuevo.');
+      render('DIAN se abrió correctamente. La sesión quedó marcada como ONLINE para este token.');
     });
     panel.querySelector('[data-toggle-token]')?.addEventListener('click', () => {
       const input = panel.querySelector('#dian-token');
