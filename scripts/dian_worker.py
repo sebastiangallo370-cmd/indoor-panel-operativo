@@ -19,6 +19,7 @@ from playwright.sync_api import sync_playwright
 
 BASE_URL = os.getenv('DIAN_PANEL_URL', 'https://produccion.cloud').rstrip('/')
 WORKER_TOKEN = os.getenv('DIAN_WORKER_TOKEN', '')
+WORKER_TOKEN_FILE = Path(os.getenv('DIAN_WORKER_TOKEN_FILE', '/data/state/dian_worker_token'))
 PROFILE = Path(os.getenv('DIAN_BROWSER_PROFILE', '/data/dian-browser-profile'))
 WAIT_SECONDS = max(3, int(os.getenv('DIAN_WORKER_WAIT_SECONDS', '8')))
 
@@ -49,11 +50,17 @@ MONTHS_ES = ('ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO',
 
 
 def api(path: str, body: dict | None = None) -> dict:
-    if len(WORKER_TOKEN) < 32:
+    token = WORKER_TOKEN
+    if len(token) < 32:
+        try:
+            token = WORKER_TOKEN_FILE.read_text(encoding='utf-8').strip()
+        except OSError:
+            token = ''
+    if len(token) < 32:
         raise RuntimeError('Falta DIAN_WORKER_TOKEN; el worker no inicia.')
     response = requests.post(
         BASE_URL + path, json=body or {},
-        headers={'X-DIAN-Worker-Token': WORKER_TOKEN}, timeout=45,
+        headers={'X-DIAN-Worker-Token': token}, timeout=45,
     )
     response.raise_for_status()
     return response.json()

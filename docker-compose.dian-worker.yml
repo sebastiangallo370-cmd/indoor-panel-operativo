@@ -12,6 +12,7 @@ services:
       DIAN_BROWSER_PROFILE: /data/dian-browser-profile
     volumes:
       - ./data/dian-browser-profile:/data/dian-browser-profile
+      - ./data/state:/data/state:ro
       - /mnt/nas-indoor:/mnt/nas
     security_opt:
       - no-new-privileges:true
