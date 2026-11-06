@@ -8,6 +8,7 @@ interfaz, sin editar ni registrar datos de usuarios.
 from __future__ import annotations
 
 import os
+import re
 import time
 import zipfile
 from datetime import datetime
@@ -108,43 +109,88 @@ def _date_folder(raw: str) -> str:
     return 'SIN_FECHA'
 
 
+def _safe_page_path(page) -> str:
+    """Devuelve solo dominio y ruta para diagnóstico, nunca token ni parámetros."""
+    try:
+        match = re.match(r'^(https?://[^/?#]+)(/[^?#]*)?', str(page.url or ''))
+        return ''.join(part for part in (match.group(1), match.group(2) or '') if part) if match else 'desconocida'
+    except Exception:
+        return 'desconocida'
+
+
+def _uncertain_note(stage: str, page) -> str:
+    """Explica el punto de fallo sin registrar CUFEs, tokens ni contenido del portal."""
+    try:
+        text = page.locator('body').inner_text(timeout=3_000).lower()
+        if 'captcha' in text or 'recaptcha' in text:
+            return f'DIAN solicitó una verificación humana durante {stage}; no se intenta eludirla.'
+    except Exception:
+        pass
+    return f'DIAN no mostró un control verificable durante {stage} ({_safe_page_path(page)}); requiere revisión.'
+
+
+def _first_visible(page, selectors: tuple[str, ...], timeout: int = 25_000):
+    """Prueba selectores equivalentes de la interfaz oficial, sin adivinar acciones."""
+    last_error: Exception | None = None
+    for selector in selectors:
+        try:
+            locator = page.locator(selector).first
+            locator.wait_for(state='visible', timeout=timeout)
+            return locator
+        except Exception as exc:
+            last_error = exc
+    if last_error:
+        raise last_error
+    raise PlaywrightTimeoutError('No hubo selectores DIAN configurados.')
+
+
 def process_one(page, job: dict) -> tuple[str, str, str, str]:
     """Descarga un documento solo si hay evidencia visible de aceptación."""
     if not SEARCH_URLS:
         return ('uncertain', '', '', 'No hay rutas autenticadas DIAN configuradas.')
+    stage = 'abrir el enlace temporal'
     try:
         page.goto(job['token'], wait_until='domcontentloaded', timeout=60_000)
         # Se busca tanto en recibidos como en enviados. El rango amplio evita
         # que el filtro diario de DIAN oculte un CUFE antiguo.
         found = False
         for search_url in SEARCH_URLS:
+            stage = 'abrir la consulta autenticada'
             page.goto(search_url, wait_until='domcontentloaded', timeout=60_000)
-            field = page.locator(CUFE_SELECTOR)
-            field.wait_for(state='visible', timeout=25_000)
+            stage = 'ubicar el campo CUFE'
+            field = _first_visible(page, (
+                CUFE_SELECTOR,
+                'input[placeholder*="CUFE" i]',
+                'input[placeholder*="UUID" i]',
+                'input[name*="Document" i]',
+            ))
             if DATE_SELECTOR:
                 date = page.locator(DATE_SELECTOR)
-                if date.count():
+                if date.count() and (date.evaluate('(node) => node instanceof HTMLInputElement') if date.count() else False):
+                    stage = 'aplicar el rango de fechas'
                     start = str(job.get('date_from') or '2020-01-01').replace('-', '/')
                     end = str(job.get('date_to') or '2035-12-31').replace('-', '/')
                     date.fill(f'{start} - {end}')
                     date.press('Enter')
+            stage = 'buscar el CUFE'
             field.fill(job['cufe'])
-            page.locator(SEARCH_SELECTOR).click()
-            page.wait_for_timeout(1_500)
+            _first_visible(page, (SEARCH_SELECTOR, 'button:has-text("Buscar")', 'input[type="submit"]')).click()
+            page.wait_for_timeout(2_000)
             if NO_RESULTS_TEXT not in page.locator('body').inner_text():
                 found = True
                 break
         if not found:
             return ('failed', '', '', 'DIAN no encontró el CUFE en documentos recibidos ni enviados.')
+        stage = 'ubicar el resultado descargable'
         row = page.locator(RESULT_ROW_SELECTOR).filter(has=page.locator('button')).first
         cells = row.locator('td')
         # Columnas oficiales: [descarga, recepción, fecha, ...]. La fecha del
         # documento organiza el destino como MES_DIA.
         date_folder = _date_folder(cells.nth(2).inner_text(timeout=10_000))
         selector = DOWNLOAD_BUTTON_SELECTOR
+        stage = 'solicitar la descarga oficial'
         with page.expect_download(timeout=35_000) as pending:
-            page.locator(selector).wait_for(state='visible', timeout=25_000)
-            page.locator(selector).click()
+            _first_visible(page, (selector, 'a[href*="Download" i]', 'button:has-text("Descargar")')).click()
         download = pending.value
         base_destination = Path('/mnt/nas/DIAN DESCARGAS') / job['destination']
         destination = base_destination / date_folder
@@ -160,7 +206,7 @@ def process_one(page, job: dict) -> tuple[str, str, str, str]:
         relative_filename = target.relative_to(base_destination).as_posix()
         return ('downloaded', relative_filename, 'Descarga oficial DIAN visible, ZIP eliminado y formato solicitado guardado por MES_DIA.', '')
     except PlaywrightTimeoutError:
-        return ('uncertain', '', '', 'DIAN no mostró un control o descarga verificable; requiere revisión.')
+        return ('uncertain', '', '', _uncertain_note(stage, page))
     except Exception as exc:
         return ('failed', '', '', f'Error conocido del worker: {type(exc).__name__}.')
 
