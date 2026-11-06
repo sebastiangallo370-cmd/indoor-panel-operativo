@@ -1,0 +1,17 @@
+# Se instala adicionalmente al compose principal; no altera el panel web.
+services:
+  dian-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.dian-worker
+    container_name: asistente-dian-worker
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DIAN_PANEL_URL: https://produccion.cloud
+      DIAN_BROWSER_PROFILE: /data/dian-browser-profile
+    volumes:
+      - ./data/dian-browser-profile:/data/dian-browser-profile
+      - /mnt/nas-indoor:/mnt/nas
+    security_opt:
+      - no-new-privileges:true

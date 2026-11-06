@@ -1,0 +1,8 @@
+FROM mcr.microsoft.com/playwright/python:v1.55.0-noble
+
+WORKDIR /worker
+COPY requirements-dian-worker.txt .
+RUN pip install --no-cache-dir -r requirements-dian-worker.txt
+COPY scripts/dian_worker.py /worker/dian_worker.py
+RUN mkdir -p /data/dian-browser-profile /mnt/nas
+CMD ["python", "/worker/dian_worker.py"]
