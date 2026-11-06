@@ -114,12 +114,14 @@
   function loadImage(blob){return new Promise(function(resolve,reject){var image=new Image(),url=URL.createObjectURL(blob);image.onload=function(){URL.revokeObjectURL(url);resolve(image)};image.onerror=function(){URL.revokeObjectURL(url);reject(Error('No se pudo abrir el mockup'))};image.src=url})}
   async function groupedMockup(urls){var images=await Promise.all(urls.map(async function(url){return loadImage(await fetchImage(url))})),tileW=760,tileH=980,columns=Math.min(2,images.length),rows=Math.ceil(images.length/columns),canvas=document.createElement('canvas');canvas.width=tileW*columns;canvas.height=tileH*rows;var ctx=canvas.getContext('2d');ctx.fillStyle='#f7f8f4';ctx.fillRect(0,0,canvas.width,canvas.height);images.forEach(function(image,index){var x=(index%columns)*tileW,y=Math.floor(index/columns)*tileH,scale=Math.min((tileW-36)/image.naturalWidth,(tileH-36)/image.naturalHeight),w=image.naturalWidth*scale,h=image.naturalHeight*scale;ctx.drawImage(image,x+(tileW-w)/2,y+(tileH-h)/2,w,h)});return new Promise(function(resolve,reject){canvas.toBlob(function(blob){blob?resolve(blob):reject(Error('No se pudo preparar el grupo'))},'image/png')})}
   function detailsText(card){var get=function(selector){return textOf(card.querySelector(selector))||'—'};return ['CLIENTE: '+get('.trace-client'),'PROYECTO: '+get('.trace-project'),'REFERENCIA: '+get('.trace-ref'),'TELA: '+get('.trace-tela span'),'FECHA DE ENTREGA: '+get('.trace-due dd'),'MÁQUINA DE IMPRESIÓN: '+get('.trace-machine-btn'),'CANTIDAD: '+get('.trace-quantity')].join('\n')}
+  function mockupSummary(card,urls){var get=function(selector){return textOf(card.querySelector(selector))||'—'};return ['MOCKUPS:',urls.length?urls.map(function(url,index){return (index+1)+'. '+url}).join('\n'):'Sin mockups adjuntos','CLIENTE: '+get('.trace-client'),'REFERENCIA: '+get('.trace-ref'),'CANTIDAD: '+get('.trace-quantity')].join('\n')}
   function copyButton(icon,tip,action){var button=document.createElement('button');button.type='button';button.dataset.tip=tip;button.title=tip;button.setAttribute('aria-label',tip);button.dataset.copyAction=action;button.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true">'+ICONS[icon]+'</svg>';return button}
   function addCopyTools(card){
     var media=card.querySelector('.trace-media');if(!media||media.querySelector('.trace-copy-tools'))return;
     var stage=media.querySelector('.trace-design-stage');if(!stage)return;
     var tools=document.createElement('div');tools.className='trace-copy-tools';tools.style.cssText='position:absolute!important;top:50%!important;right:8px!important;transform:translateY(-50%)!important;flex-direction:column!important';tools.setAttribute('role','toolbar');tools.setAttribute('aria-label','Copiar mockups');
     var infoButton=copyButton('copy','Copiar información de la tarjeta','info');infoButton.className='trace-copy-info';infoButton.style.cssText='position:absolute!important;z-index:8!important;top:50%!important;left:8px!important;transform:translateY(-50%)!important';
+    var summaryButton=copyButton('note','Copiar mockups, cliente, referencia y cantidad','summary');summaryButton.className='trace-copy-info';summaryButton.style.cssText='position:absolute!important;z-index:8!important;top:calc(50% + 34px)!important;left:8px!important;transform:translateY(-50%)!important';
     tools.appendChild(copyButton('image','Copiar mockup visible','visible'));
     tools.appendChild(copyButton('images','Copiar todos los mockups agrupados','group'));
     var copiar=async function(event){
@@ -128,6 +130,7 @@
         button.disabled=true;
         if(action==='info'){await copyText(detailsText(card));flash(button,'Información copiada');return}
         var row=card.dataset.cardRow,urls=[];
+        if(action==='summary'){var summaryResponse=await fetch('/api/produccion/fila/'+encodeURIComponent(row)+'/archivos',{cache:'no-store',credentials:'same-origin'}),summaryData=await summaryResponse.json();if(!summaryResponse.ok)throw Error(summaryData.detail||'No se pudieron consultar los mockups');urls=(summaryData.images||[]).map(function(image){return image.url}).filter(Boolean);await copyText(mockupSummary(card,urls));flash(button,'Resumen copiado');return}
         if(action==='visible'){var image=media.querySelector('.trace-design-main img');if(!image)throw Error('El mockup todavía no está disponible');urls=[image.currentSrc||image.src]}
         else {var response=await fetch('/api/produccion/fila/'+encodeURIComponent(row)+'/archivos',{cache:'no-store',credentials:'same-origin'}),data=await response.json();if(!response.ok)throw Error(data.detail||'No se pudieron consultar los mockups');urls=(data.images||[]).map(function(image){return image.url}).filter(Boolean);if(!urls.length)throw Error('No hay mockups disponibles')}
         var blob=action==='visible'?await fetchImage(urls[0]):await groupedMockup(urls);
@@ -135,8 +138,8 @@
       }catch(error){flash(button,error&&error.message||'No se pudo copiar')}
       finally{button.disabled=false}
     };
-    tools.addEventListener('click',copiar);infoButton.addEventListener('click',copiar);
-    stage.appendChild(infoButton);stage.appendChild(tools);
+    tools.addEventListener('click',copiar);infoButton.addEventListener('click',copiar);summaryButton.addEventListener('click',copiar);
+    stage.appendChild(infoButton);stage.appendChild(summaryButton);stage.appendChild(tools);
   }
   function run(){
     queued=false;
