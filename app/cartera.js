@@ -77,3 +77,11 @@ async function api(path,opt={}){const ctrl=new AbortController();const t=setTime
 // Esta comprobación evita que la vista se quede con el mensaje inicial en ese caso.
 if (document.querySelector('.panel[data-panel="cartera"].active')) load();
 })();
+
+// D. DIAN vive dentro de TESORERÍA y aprovecha el mismo permiso que Cartera.
+// Se carga aparte para que su código y sus controles no afecten el tablero.
+if (!document.querySelector('script[data-indoor-dian]')) {
+  const dianScript = document.createElement('script');
+  dianScript.src = '/api/dian/dian.js'; dianScript.dataset.indoorDian = '1';
+  document.head.appendChild(dianScript);
+}
