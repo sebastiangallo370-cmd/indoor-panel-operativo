@@ -2,6 +2,7 @@
 (function () {
   'use strict';
   const MAX = 1000;
+  const DRAFT_KEY = 'indoor-dian-draft-v1';
   const CUFE = /\b[a-f0-9]{64,128}\b/gi;
   const state = { token: '', raw: '', dateFrom: '', dateTo: '', folder: 'pendientes', folderSelected: false, format: 'XML', batch: null, entries: [], batchFiles: [], localFolder: null, localFolderName: '', portalOpen: false, message: '' };
   let panel, timer;
@@ -15,6 +16,17 @@
   };
   const cufes = () => [...new Set((state.raw.match(CUFE) || []).map(v => v.toUpperCase()))].slice(0, MAX);
   const size = n => n < 1024 ? `${n} B` : n < 1048576 ? `${Math.round(n / 1024)} KB` : `${(n / 1048576).toFixed(1)} MB`;
+  function saveDraft() {
+    try { sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ token: state.token, raw: state.raw, dateFrom: state.dateFrom, dateTo: state.dateTo, folder: state.folder, folderSelected: state.folderSelected, format: state.format, portalOpen: state.portalOpen })); } catch (_) { /* navegador sin sessionStorage */ }
+  }
+  function restoreDraft() {
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || 'null');
+      if (!saved || typeof saved !== 'object') return;
+      ['token', 'raw', 'dateFrom', 'dateTo', 'folder', 'format'].forEach(key => { if (typeof saved[key] === 'string') state[key] = saved[key]; });
+      state.folderSelected = Boolean(saved.folderSelected); state.portalOpen = Boolean(saved.portalOpen);
+    } catch (_) { /* borrador corrupto: se ignora */ }
+  }
 
   async function loadFolder() {
     try {
@@ -80,11 +92,12 @@
     const dateFrom = panel.querySelector('#dian-date-from'); const dateTo = panel.querySelector('#dian-date-to');
     if (token) state.token = token.value; if (raw) state.raw = raw.value;
     if (dateFrom) state.dateFrom = dateFrom.value; if (dateTo) state.dateTo = dateTo.value;
+    saveDraft();
   }
   async function verify() {
     snapshot();
     if (!state.token.trim()) { state.message = 'Pega el token temporal antes de verificarlo.'; return render(); }
-    try { const url = new URL(state.token.trim()); if (url.protocol !== 'https:' || !/(^|\.)dian\.gov\.co$/i.test(url.hostname)) throw new Error(); const opened = window.open(url.toString(), '_blank'); if (!opened) throw new Error('blocked'); state.portalOpen = true; state.message = 'DIAN se abrió en otra pestaña. El lote validará el token al iniciar la descarga.'; } catch (_) { state.portalOpen = false; state.message = 'Chrome bloqueó DIAN o el enlace no es un token HTTPS válido.'; }
+    try { const url = new URL(state.token.trim()); if (url.protocol !== 'https:' || !/(^|\.)dian\.gov\.co$/i.test(url.hostname)) throw new Error(); const opened = window.open(url.toString(), '_blank'); if (!opened) throw new Error('blocked'); state.portalOpen = true; saveDraft(); state.message = 'DIAN se abrió en otra pestaña. El lote validará el token al iniciar la descarga.'; } catch (_) { state.portalOpen = false; saveDraft(); state.message = 'Chrome bloqueó DIAN o el enlace no es un token HTTPS válido.'; }
     render();
   }
   async function create() {
@@ -129,13 +142,13 @@
       state.message = result.message; await pollBatch();
     } catch (error) { state.message = error.message; render(); }
   }
-  function chooseFolder() { const dialog = panel.querySelector('.dian-folder-dialog'); dialog.showModal(); dialog.addEventListener('close', async () => { if (dialog.returnValue === 'ok') { state.folder = dialog.querySelector('[name="folder"]').value.trim() || 'pendientes'; state.folderSelected = true; await loadFolder(); render(); } }, {once:true}); }
+  function chooseFolder() { const dialog = panel.querySelector('.dian-folder-dialog'); dialog.showModal(); dialog.addEventListener('close', async () => { if (dialog.returnValue === 'ok') { state.folder = dialog.querySelector('[name="folder"]').value.trim() || 'pendientes'; state.folderSelected = true; saveDraft(); await loadFolder(); render(); } }, {once:true}); }
   async function chooseLocalFolder() {
     if (!window.showDirectoryPicker) { state.message = 'Para elegir una carpeta de Windows usa Chrome o Edge actualizado.'; return render(); }
     try {
       state.localFolder = await window.showDirectoryPicker({mode:'readwrite'});
       state.localFolderName = state.localFolder.name;
-      state.folderSelected = true;
+      state.folderSelected = false;
       state.message = `Carpeta local vinculada: ${state.localFolderName}.`;
       if (state.batch) await pollBatch(); else render();
     } catch (error) { if (error.name !== 'AbortError') { state.message = 'No fue posible vincular la carpeta local.'; render(); } }
@@ -147,10 +160,10 @@
     panel.querySelector('[data-folder]')?.addEventListener('click', chooseFolder);
     panel.querySelector('[data-local-folder]')?.addEventListener('click', chooseLocalFolder);
     panel.querySelector('[data-normalize]')?.addEventListener('click', () => { snapshot(); state.raw = cufes().join('\n'); state.message = `${cufes().length} CUFEs organizados.`; render(); });
-    panel.querySelectorAll('[data-format]').forEach(btn => btn.addEventListener('click', () => { state.format = btn.dataset.format; render(); }));
+    panel.querySelectorAll('[data-format]').forEach(btn => btn.addEventListener('click', () => { state.format = btn.dataset.format; saveDraft(); render(); }));
     panel.querySelector('[data-pause]')?.addEventListener('click', async () => { try { const id = typeof state.batch === 'string' ? state.batch : state.batch.id; await api(`/api/dian/lotes/${id}/pausar`, {method:'POST'}); state.message='Lote pausado. El token temporal fue descartado.'; await pollBatch(); } catch (error) { state.message=error.message; render(); } });
-    panel.querySelector('[data-clear]')?.addEventListener('click', () => { state.token=''; state.raw=''; state.dateFrom=''; state.dateTo=''; state.portalOpen=false; state.batch=null; state.message='Formulario limpiado.'; render(); });
-    panel.querySelector('#dian-token')?.addEventListener('input', () => { snapshot(); state.portalOpen = false; });
+    panel.querySelector('[data-clear]')?.addEventListener('click', () => { state.token=''; state.raw=''; state.dateFrom=''; state.dateTo=''; state.portalOpen=false; state.batch=null; sessionStorage.removeItem(DRAFT_KEY); state.message='Formulario limpiado.'; render(); });
+    panel.querySelector('#dian-token')?.addEventListener('input', () => { snapshot(); state.portalOpen = false; saveDraft(); });
     ['input', 'change'].forEach(event => {
       panel.querySelector('#dian-date-from')?.addEventListener(event, snapshot);
       panel.querySelector('#dian-date-to')?.addEventListener(event, snapshot);
@@ -169,6 +182,7 @@
     const main = document.querySelector('main');
     const treasury = [...document.querySelectorAll('.nav-group')].find(group => group.querySelector('.nav-parent span:last-child')?.textContent.trim() === 'TESORERÍA');
     if (!main || document.querySelector('#dian-panel')) return;
+    restoreDraft();
     addStyle(); panel = document.createElement('section'); panel.id = 'dian-panel'; panel.className = 'panel dian-panel'; main.prepend(panel);
     const tab = document.createElement('button'); tab.id = 'dian-tab'; tab.type = 'button'; tab.className = 'tab'; tab.innerHTML = '<span class="nav-icon">DN</span><strong>D. DIAN</strong>'; tab.addEventListener('click', activate);
     (treasury?.querySelector('.nav-children') || document.querySelector('.tabs'))?.appendChild(tab);
