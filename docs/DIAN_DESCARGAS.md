@@ -3,7 +3,9 @@
 ## Flujo por usuario
 
 1. El usuario pega su enlace/token temporal de DIAN.
-2. Pega los CUFEs desde Excel; el panel conserva uno por fila.
+2. Indica **fecha desde** y **fecha hasta** del Excel, y pega los CUFEs; el
+   panel conserva uno por fila. Ambas fechas son obligatorias y el worker usa
+   exactamente ese rango en DIAN para ese lote.
 3. Elige una subcarpeta dentro de `DIAN DESCARGAS` de la NAS. Opcionalmente,
    desde Chrome puede elegir una carpeta local de Windows o una unidad de red;
    el panel copia allí los archivos del lote mientras esa pestaña permanece

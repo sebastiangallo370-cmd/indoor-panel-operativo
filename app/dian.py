@@ -12,7 +12,7 @@ import secrets
 import sqlite3
 import threading
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Callable
 
@@ -52,7 +52,8 @@ def _connect() -> sqlite3.Connection:
     con.executescript('''
       CREATE TABLE IF NOT EXISTS dian_batches (
         id TEXT PRIMARY KEY, owner TEXT NOT NULL, destination TEXT NOT NULL,
-        format TEXT NOT NULL, status TEXT NOT NULL, total INTEGER NOT NULL,
+        format TEXT NOT NULL, date_from TEXT NOT NULL DEFAULT '', date_to TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL, total INTEGER NOT NULL,
         downloaded INTEGER NOT NULL DEFAULT 0, failed INTEGER NOT NULL DEFAULT 0,
         uncertain INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL, last_error TEXT NOT NULL DEFAULT ''
@@ -68,6 +69,12 @@ def _connect() -> sqlite3.Connection:
       );
       CREATE INDEX IF NOT EXISTS dian_docs_claim ON dian_documents(batch_id, status, id);
     ''')
+    # Migración compatible con lotes creados antes de los filtros por fecha.
+    columns = {row['name'] for row in con.execute('PRAGMA table_info(dian_batches)')}
+    if 'date_from' not in columns:
+        con.execute("ALTER TABLE dian_batches ADD COLUMN date_from TEXT NOT NULL DEFAULT ''")
+    if 'date_to' not in columns:
+        con.execute("ALTER TABLE dian_batches ADD COLUMN date_to TEXT NOT NULL DEFAULT ''")
     return con
 
 
@@ -122,6 +129,17 @@ def _destination(raw: str) -> tuple[str, Path]:
     return normalized, folder
 
 
+def _date_range(payload: dict) -> tuple[str, str]:
+    start, end = str(payload.get('fecha_desde') or ''), str(payload.get('fecha_hasta') or '')
+    try:
+        start_date, end_date = date.fromisoformat(start), date.fromisoformat(end)
+    except ValueError as exc:
+        raise HTTPException(400, 'Indica las fechas desde y hasta del lote.') from exc
+    if start_date > end_date:
+        raise HTTPException(400, 'La fecha inicial no puede ser posterior a la fecha final.')
+    return start_date.isoformat(), end_date.isoformat()
+
+
 def _owned(con: sqlite3.Connection, batch_id: str, user: str) -> sqlite3.Row:
     row = con.execute('SELECT * FROM dian_batches WHERE id=? AND owner=?', (batch_id, user)).fetchone()
     if not row:
@@ -152,6 +170,7 @@ async def create_batch(request: Request):
     token = str(payload.get('token') or '').strip()
     values, duplicates = _cufes(payload.get('cufes') or '')
     fmt = str(payload.get('format') or 'XML').upper()
+    date_from, date_to = _date_range(payload)
     if not token or len(token) > 12_000:
         raise HTTPException(400, 'Pega un token temporal DIAN válido.')
     if not values:
@@ -168,8 +187,8 @@ async def create_batch(request: Request):
         con = _connect()
         try:
             con.execute('BEGIN IMMEDIATE')
-            con.execute('''INSERT INTO dian_batches(id,owner,destination,format,status,total,created_at,updated_at)
-              VALUES (?,?,?,?,\'queued\',?,?,?)''', (batch_id, user, relative, fmt, len(values), now, now))
+            con.execute('''INSERT INTO dian_batches(id,owner,destination,format,date_from,date_to,status,total,created_at,updated_at)
+              VALUES (?,?,?,?,?,?,\'queued\',?,?,?)''', (batch_id, user, relative, fmt, date_from, date_to, len(values), now, now))
             con.executemany('''INSERT INTO dian_documents(batch_id,cufe,cufe_hash,status,updated_at)
               VALUES (?,?,?,\'pending\',?)''', [(batch_id, value, hashlib.sha256(value.encode()).hexdigest(), now) for value in values])
             con.execute('COMMIT')
@@ -310,7 +329,7 @@ def worker_claim(request: Request):
                 con.execute("UPDATE dian_documents SET status='uncertain',technical_note=?,updated_at=? WHERE status='processing' AND claimed_at<?", ('El worker se interrumpió antes de confirmar la descarga.', _now(), expiry))
                 for abandoned_batch in abandoned:
                     con.execute("UPDATE dian_batches SET status='queued',uncertain=(SELECT COUNT(*) FROM dian_documents WHERE batch_id=? AND status='uncertain'),updated_at=?,last_error=? WHERE id=?", (abandoned_batch, _now(), 'Un comprobante requiere revisión por interrupción del worker.', abandoned_batch))
-            row = con.execute('''SELECT d.*, b.destination, b.format FROM dian_documents d
+            row = con.execute('''SELECT d.*, b.destination, b.format, b.date_from, b.date_to FROM dian_documents d
               JOIN dian_batches b ON b.id=d.batch_id
               WHERE b.status='queued' AND d.status='pending' ORDER BY b.created_at,d.id LIMIT 1''').fetchone()
             if not row:
@@ -326,7 +345,8 @@ def worker_claim(request: Request):
             con.execute("UPDATE dian_batches SET status='processing',updated_at=? WHERE id=?", (now, row['batch_id']))
             con.execute('COMMIT')
             return {'job': {'document_id': row['id'], 'batch_id': row['batch_id'], 'cufe': row['cufe'],
-                            'token': _active_tokens[row['batch_id']], 'format': row['format'], 'destination': row['destination']}}
+                            'token': _active_tokens[row['batch_id']], 'format': row['format'], 'destination': row['destination'],
+                            'date_from': row['date_from'], 'date_to': row['date_to']}}
         except Exception:
             con.execute('ROLLBACK')
             raise

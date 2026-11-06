@@ -124,7 +124,9 @@ def process_one(page, job: dict) -> tuple[str, str, str, str]:
             if DATE_SELECTOR:
                 date = page.locator(DATE_SELECTOR)
                 if date.count():
-                    date.fill('2020/01/01 - 2035/12/31')
+                    start = str(job.get('date_from') or '2020-01-01').replace('-', '/')
+                    end = str(job.get('date_to') or '2035-12-31').replace('-', '/')
+                    date.fill(f'{start} - {end}')
                     date.press('Enter')
             field.fill(job['cufe'])
             page.locator(SEARCH_SELECTOR).click()
