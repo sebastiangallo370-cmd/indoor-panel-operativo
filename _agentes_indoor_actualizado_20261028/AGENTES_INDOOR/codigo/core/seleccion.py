@@ -6,7 +6,7 @@ línea de ese género con una talla dentro del rango del archivo (y, si el lista
 import re
 import unicodedata
 
-from core.ordenes import MESA_AI, MESA_ALT
+from core.ordenes import MESA_AI, MESA_ALT, MESA_LEGACY, diseno_en_archivo
 
 ADULTO = ["XXS", "XS", "S", "M", "L", "XL", "XXL", "2XL", "3XL", "XXXL", "4XL", "5XL", "6XL"]
 _ALIAS_TALLA = {"XXL": "2XL", "XXXL": "3XL"}
@@ -165,7 +165,7 @@ def mesas_para(rutas, lineas, plantillas=None):
     """Devuelve (seleccionadas, motivo). Si el listado no permite decidir, seleccionadas == [] y el motivo lo explica.
     `plantillas`: códigos de plantilla que Promedios maestros asigna a las referencias del listado (CA02M, CA02F, CA02N…).
     Si se da, solo se usan los .ai cuya plantilla esté en esa lista (un CA01F no sirve para una orden de CA02)."""
-    candidatas = [r for r in rutas if MESA_AI.match(r.name) or MESA_ALT.match(r.name)]
+    candidatas = [r for r in rutas if MESA_AI.match(r.name) or MESA_ALT.match(r.name) or MESA_LEGACY.match(r.name)]
     if not candidatas:
         return [], "En el maestro no hay archivos con el formato «D1 FUT01M XS A 4XL»."
     if not lineas:
@@ -184,19 +184,37 @@ def mesas_para(rutas, lineas, plantillas=None):
     for r in candidatas:
         m = MESA_AI.match(r.name)
         alt = MESA_ALT.match(r.name) if not m else None
+        legacy = MESA_LEGACY.match(r.name) if not m and not alt else None
         if alt:
             n, g = int(alt.group(2)), alt.group(3).upper()
             ref_arch = ""  # referencia implícita en la carpeta
             resto = alt.group(1)
+        elif legacy:
+            # «BZ02M TALLA XS A XL.ai» vive en «BZ02_D1»: conserva el
+            # archivo original y deduce D1 de su carpeta, sin renombrarlo.
+            n = diseno_en_archivo(r.parent.name)
+            if n is None:
+                continue
+            n, g, ref_arch = int(n), legacy.group(2).upper(), legacy.group(1).upper()
+            resto = r.name[legacy.end():]
         else:
-            n, g, ref_arch = int(m.group(1)), m.group(3).upper(), m.group(2).upper()
+            n, ref_arch = int(m.group(1)), m.group(2).upper()
+            # Algunos maestros son unisex: «D1 CA42 XS A 5XL.ai» no trae
+            # M/F/N. En ese caso se contrasta diseño, referencia y talla,
+            # sin inventar un género y sin descartar una mesa válida.
+            g = m.group(3).upper() if m.group(3) else None
             resto = r.name[m.end():]
         sx = re.match(r"\(([MFmf])\)", resto)
         sexo_archivo = sx.group(1).upper() if sx else None
         if sx:
             resto = resto[sx.end():]
         rango = resto.rsplit(".", 1)[0].strip()
-        if plantillas_ok is not None and ref_arch and (ref_arch + g + (f"({sexo_archivo})" if sexo_archivo else "")) not in plantillas_ok:
+        # «DISEÑO1 CA42.ai» es un archivo de arte, no una plantilla para
+        # mesas. Los maestros sin M/F/N son válidos solo si declaran el rango
+        # de tallas, por ejemplo «D1 CA42 XS A 5XL.ai».
+        if g is None and not rango:
+            continue
+        if plantillas_ok is not None and ref_arch and g and (ref_arch + g + (f"({sexo_archivo})" if sexo_archivo else "")) not in plantillas_ok:
             continue
         for l in lineas:
             refs_l = {x for x in referencias_del_listado([l]) if re.fullmatch(r"[A-Z]{1,5}\d{2,3}[MFN]?", x)}
@@ -206,11 +224,11 @@ def mesas_para(rutas, lineas, plantillas=None):
             dis_l = disenos_de([l])
             if dis_l and n not in dis_l:
                 continue
-            if _genero_efectivo(l) != g:
+            if g and _genero_efectivo(l) != g:
                 continue
             if sexo_archivo and _sexo(l) not in (None, sexo_archivo):
                 continue
-            if not _talla_ok(l.get("talla", ""), g, rango):
+            if not _talla_ok(l.get("talla", ""), g or "M", rango):
                 continue
             sel.append(r)
             break

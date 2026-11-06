@@ -26,7 +26,7 @@ MODULOS = {
     'agentes': ('Agentes de edición', ('ver', 'editar')),
     'dian': ('Agente DIAN', ('ver', 'editar')),
     'promedios': ('Promedios maestros', ('ver', 'editar')),
-    'molderia': ('Moldería', ('ver',)),
+    'molderia': ('Moldería', ('ver', 'editar')),
 }
 ACCIONES = {'ver': 'Ver', 'editar': 'Editar', 'exportar': 'Exportar a Excel'}
 
@@ -50,11 +50,16 @@ def _defaults() -> dict:
     matriz['operario']['produccion']['exportar'] = False
     matriz['operario']['agentes'] = {'ver': False, 'editar': False}
     matriz['comercial']['agentes'] = {'ver': False, 'editar': False}
+    # El agente DIAN se abre desde el panel de Agentes. Por defecto sigue la
+    # misma regla de acceso; Administración puede autorizar casos puntuales.
     matriz['comercial']['dian'] = {'ver': False, 'editar': False}
     matriz['operario']['dian'] = {'ver': False, 'editar': False}
     # Estándar 2026 (Promedios maestros + Fichas técnicas) lo ve todo el mundo; solo Administración y Edición lo editan
     matriz['operario']['promedios'] = {'ver': True, 'editar': False}
     matriz['comercial']['promedios'] = {'ver': True, 'editar': False}
+    # Conectar libros de fichas escribe en el NAS: solo Coordinación/Administración y Edición.
+    matriz['operario']['molderia'] = {'ver': True, 'editar': False}
+    matriz['comercial']['molderia'] = {'ver': True, 'editar': False}
     return matriz
 
 
@@ -98,18 +103,70 @@ def matriz() -> dict:
     return resultado
 
 
+def _guardado() -> dict:
+    try:
+        value = json.loads(_file.read_text(encoding='utf-8'))
+        return value if isinstance(value, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def permiso_personalizado(username: str, modulo: str, accion: str) -> bool | None:
+    """Decisión explícita por persona; None significa que sigue la regla de rol."""
+    usuarios = _guardado().get('usuarios', {})
+    personalizado = next((v for k, v in usuarios.items() if _plano(k) == _plano(username)), {})
+    value = ((personalizado.get(modulo) or {}).get(accion)) if isinstance(personalizado, dict) else None
+    return value if isinstance(value, bool) else None
+
+
+def permisos_usuario(username: str) -> dict:
+    """Permisos efectivos editables por persona, antes de las reglas fijas."""
+    resultado = json.loads(json.dumps(matriz().get(rol_de(username), {})))
+    for modulo, (_, acciones) in MODULOS.items():
+        for accion in acciones:
+            value = permiso_personalizado(username, modulo, accion)
+            if isinstance(value, bool):
+                resultado[modulo][accion] = value
+    return resultado
+
+
+def guardar_permisos_usuario(username: str, permisos: dict) -> dict:
+    """Guarda solo las excepciones explícitas de una cuenta; no permite limitar administración."""
+    if rol_de(username) == 'administracion':
+        raise HTTPException(400, 'Las cuentas de administración conservan todos sus permisos.')
+    limpia = {m: {a: bool((permisos.get(m) or {}).get(a)) for a in acciones}
+              for m, (_, acciones) in MODULOS.items()}
+    with _lock:
+        data = _guardado()
+        usuarios = data.setdefault('usuarios', {})
+        anterior = next((k for k in usuarios if _plano(k) == _plano(username)), username)
+        usuarios[anterior] = limpia
+        _file.parent.mkdir(parents=True, exist_ok=True)
+        tmp = _file.with_suffix('.tmp')
+        tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
+        tmp.replace(_file)
+    return limpia
+
+
 _PROCESOS_AGENTES = {'EDICION', 'COORDINADOR'}   # los agentes de edición solo los ven las cuentas con proceso Edición o Coordinador
 
 
 def agentes_permitido(username: str) -> bool:
     """Regla fija (no se cambia desde /permisos): solo Edición y Coordinador, más la cuenta maestra de la aplicación."""
+    personal = permiso_personalizado(username, 'agentes', 'ver')
+    if personal is not None:
+        return personal
     if username == os.getenv('APP_USER', 'indoor'):
         return True
     return _plano(_lookup(username)) in _PROCESOS_AGENTES
 
 
 def dian_permitido(username: str) -> bool:
-    """El agente DIAN se abre desde el robot de Agentes para coordinación."""
+    """DIAN es un agente local: Coordinación/Administración y los usuarios
+    autorizados explícitamente pueden abrirlo desde el robot de Agentes."""
+    personal = permiso_personalizado(username, 'dian', 'ver')
+    if personal is not None:
+        return personal
     return administracion_permitido(username) or agentes_permitido(username)
 
 
@@ -119,6 +176,9 @@ _TESORERIA_ADMINISTRATIVOS = {'ADMINISTRACION', 'ADMINISTRATIVA', 'ADMINISTRATIV
 
 def tesoreria_permitido(username: str) -> bool:
     """Regla fija (no se cambia desde /permisos): Tesorería, y con ella Cartera, son para las cuentas con proceso Comercial o Administración (administrativos) y la cuenta «Indoor Sport»."""
+    personal = permiso_personalizado(username, 'cartera', 'ver')
+    if personal is not None:
+        return personal
     if _plano(username) in _TESORERIA_EXTRA:
         return True
     return _plano(_lookup(username)) in (_COMERCIAL | _TESORERIA_ADMINISTRATIVOS)
@@ -175,6 +235,9 @@ def sin_modulo(username: str, modulo: str) -> bool:
 
 
 def puede(username: str, modulo: str, accion: str) -> bool:
+    personal = permiso_personalizado(username, modulo, accion)
+    if personal is not None:
+        return personal
     if sin_modulo(username, modulo):
         return False
     if modulo in ('cartera', 'tesoreria') and not tesoreria_permitido(username):
@@ -189,7 +252,7 @@ def puede(username: str, modulo: str, accion: str) -> bool:
         return False
     if modulo == 'administracion' and not administracion_permitido(username):
         return False
-    return bool(matriz().get(rol_de(username), {}).get(modulo, {}).get(accion))
+    return bool(permisos_usuario(username).get(modulo, {}).get(accion))
 
 
 def guardar(nueva: dict) -> dict:
@@ -199,9 +262,11 @@ def guardar(nueva: dict) -> dict:
                        for m, (_, acciones) in MODULOS.items()}
     limpia['administracion'] = _todo(True)
     with _lock:
+        data = _guardado()
+        data['matriz'] = limpia
         _file.parent.mkdir(parents=True, exist_ok=True)
         tmp = _file.with_suffix('.tmp')
-        tmp.write_text(json.dumps({'matriz': limpia}, ensure_ascii=False, indent=2), encoding='utf-8')
+        tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
         tmp.replace(_file)
     return limpia
 
@@ -237,7 +302,7 @@ def registrar_autenticacion(fn: Callable) -> None:
 def mis_permisos(request: Request):
     usuario = _autenticar(request)
     rol = rol_de(usuario)
-    permisos = json.loads(json.dumps(matriz()[rol]))
+    permisos = permisos_usuario(usuario)
     if not agentes_permitido(usuario):
         permisos['agentes'] = {'ver': False, 'editar': False}
     if not tesoreria_permitido(usuario):

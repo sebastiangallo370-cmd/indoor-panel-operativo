@@ -40,4 +40,16 @@
     var l=last();
     if(l>0&&now()-l>IDLE)out();else activity();
   });
+  // Tras iniciar sesión, Chrome puede conservar /login en el historial. Dejamos una
+  // entrada segura del mismo panel delante de ella: el primer botón Atrás no revela
+  // el formulario guardado, sino que permanece en la sesión actual.
+  try {
+    if(!history.state || !history.state.indoorPanel){
+      history.replaceState({indoorPanel:true},'',location.href);
+      history.pushState({indoorPanel:true,guard:true},'',location.href);
+    }
+    addEventListener('popstate',function(){
+      if(history.state && history.state.indoorPanel && !history.state.guard) history.forward();
+    });
+  } catch(e) { /* navegadores que bloquean History API */ }
 })();

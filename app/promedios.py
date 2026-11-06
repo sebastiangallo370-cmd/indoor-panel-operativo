@@ -74,6 +74,7 @@ def _guardar(datos: dict) -> None:
 
 def promedio(maestro: dict) -> float:
     valores = [v for k in GRUPOS for v in maestro.get(k, []) if v]
+    valores += [x.get('consumo', 0) for grupo in (maestro.get('extras') or {}).values() for x in grupo if x.get('consumo')]
     return round(sum(valores) / len(valores), 2) if valores else 0.0
 
 
@@ -105,6 +106,38 @@ def _limpiar(payload: dict) -> dict:
                 raise HTTPException(400, 'Cada consumo debe estar entre 0 y 99 MTS.')
             fila.append(round(n, 2))
         limpio[grupo] = fila
+
+    def limpiar_extras(bruto: object) -> dict:
+        """Tallas adicionales por familia, sin modificar la tabla estándar."""
+        if bruto is None:
+            return {}
+        if not isinstance(bruto, dict):
+            raise HTTPException(400, 'Las tallas adicionales no son válidas.')
+        salida = {}
+        for grupo in GRUPOS:
+            filas = bruto.get(grupo) or []
+            if not isinstance(filas, list) or len(filas) > 12:
+                raise HTTPException(400, 'Cada familia admite máximo 12 tallas adicionales.')
+            vistos, limpias = set(), []
+            for fila in filas:
+                if not isinstance(fila, dict):
+                    raise HTTPException(400, 'Cada talla adicional debe tener nombre y consumo.')
+                talla = re.sub(r'\s+', '', str(fila.get('talla') or '')).upper()
+                if not re.fullmatch(r'[A-Z0-9+\-]{1,10}', talla) or talla in GRUPOS[grupo] or talla in vistos:
+                    raise HTTPException(400, 'Revisa el nombre de la talla adicional: no puede repetirse.')
+                vistos.add(talla)
+                try:
+                    consumo = round(float(str(fila.get('consumo') or 0).replace(',', '.')), 2)
+                except ValueError:
+                    raise HTTPException(400, 'Los consumos de las tallas adicionales deben ser números.')
+                if not 0 <= consumo <= 99:
+                    raise HTTPException(400, 'Cada consumo debe estar entre 0 y 99 MTS.')
+                limpias.append({'talla': talla, 'consumo': consumo})
+            if limpias:
+                salida[grupo] = limpias
+        return salida
+
+    limpio['extras'] = limpiar_extras(payload.get('extras'))
     # Una referencia puede usar más de una tela.  Cada material conserva su
     # propio consumo por talla; no se mezcla con el promedio general de la
     # referencia.  Es opcional para no alterar los maestros que ya existen.
@@ -122,7 +155,9 @@ def _limpiar(payload: dict) -> dict:
                 raise HTTPException(400, 'Cada material debe identificarse una sola vez como M1 a M8.')
             vistos.add(material)
             tela = str(bruto.get('tela') or '').strip()[:120]
-            fila_material = {'material': material, 'tela': tela}
+            # Fusionado es una propiedad del material, no un tipo de tela:
+            # puede estar presente en M1, M2 o cualquier otro material.
+            fila_material = {'material': material, 'tela': tela, 'fusionado': bool(bruto.get('fusionado'))}
             for grupo, tallas in GRUPOS.items():
                 valores = bruto.get(grupo) or [0] * len(tallas)
                 if not isinstance(valores, list) or len(valores) != len(tallas):
@@ -133,6 +168,7 @@ def _limpiar(payload: dict) -> dict:
                     raise HTTPException(400, 'Los consumos de cada material deben ser números.')
                 if any(not 0 <= n <= 99 for n in fila_material[grupo]):
                     raise HTTPException(400, 'Cada consumo de material debe estar entre 0 y 99 MTS.')
+            fila_material['extras'] = limpiar_extras(bruto.get('extras'))
             limpio['materiales'].append(fila_material)
     return limpio
 
@@ -304,7 +340,11 @@ def calcular_hoja(hoja: str, lineas: list[dict], datos: dict | None = None) -> d
                 faltan.add(f'no existe el maestro {parte} en Promedios maestros')
                 continue
             tallas = GRUPOS[grupo]
-            valor = maestro[grupo][tallas.index(talla)] if talla in tallas else 0
+            if talla in tallas:
+                valor = maestro[grupo][tallas.index(talla)]
+            else:
+                extra = next((x for x in (maestro.get('extras') or {}).get(grupo, []) if x.get('talla') == talla), None)
+                valor = extra.get('consumo', 0) if extra else 0
             if not valor:
                 faltan.add(f'{parte}: sin consumo para {grupo.upper()} talla {talla}')
             consumo += valor

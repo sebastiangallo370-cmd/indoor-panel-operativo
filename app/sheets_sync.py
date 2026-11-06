@@ -10,7 +10,9 @@ from datetime import datetime, timezone
 
 SPREADSHEET_ID = '1n7t5F1ZTX4Fwj3_ZAS1hdHnF7g16kTXfmFFkNa7M3tg'
 SHEET_ID = 1514880696
-START_ROW = 706
+# Solo se sincroniza el tramo operativo vigente de la hoja. Las filas previas
+# permanecen en la base local como histórico y no se eliminan.
+START_ROW = 904
 WIDTH = 83   # mínimo; el ancho real lo lee fetch() de la hoja
 
 
@@ -295,6 +297,11 @@ def apply(db, snapshot, force=False):
         for link_identity, link_source_row in linked_rows:
             if link_identity in sheet_keys:
                 continue  # Aun existe en la hoja
+            # Al mover el inicio de lectura no se borran las filas antiguas:
+            # quedan fuera de pantalla, pero su historial sigue disponible.
+            sheet_row = db.execute('SELECT sheet_row FROM production_sheet_links WHERE identity=?', (link_identity,)).fetchone()
+            if sheet_row and int(sheet_row[0]) < START_ROW:
+                continue
             if link_identity in deleted:
                 continue  # Ya fue marcada como eliminada localmente
             if not db.execute('SELECT 1 FROM production_rows WHERE source_row=?', (link_source_row,)).fetchone():

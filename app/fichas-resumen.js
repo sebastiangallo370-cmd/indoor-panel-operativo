@@ -739,7 +739,32 @@
   }
   async function guardarTodo() {   // guarda de una vez todas las secciones con cambios, de cualquier pestaña
     const msg = overlay.querySelector('[data-fi-todo-msg]'), boton = overlay.querySelector('[data-fi-ed-todo]');
-    const pendientes = Object.keys(S.bor || {});
+    let pendientes = Object.keys(S.bor || {});
+    // Una ficha nueva nace vacía dentro de esta misma plantilla. La REF que se
+    // escribe en GENERAL es su identidad; se crea recién al guardar para no
+    // dejar borradores ni datos incompletos en el servidor.
+    if (S.nueva) {
+      const ref = String(((S.bor || {}).referencia || [])[0] || '').trim();
+      if (!ref) {
+        if (msg) { msg.className = 'fi-ed-msg'; msg.textContent = 'Escribe la REF en GENERAL antes de guardar.'; }
+        return;
+      }
+      if (boton) boton.disabled = true;
+      try {
+        const r = await fetch('/api/molderia/fichas/registrar', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ref }) });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(j.detail || 'No pude crear la ficha');
+        const resumen = await api('/api/fichas/resumen?ref=' + encodeURIComponent(j.ficha.ref));
+        if (!resumen.fichas || !resumen.fichas.length) throw new Error('La ficha se creó, pero no pude abrirla todavía. Vuelve a abrirla desde el catálogo.');
+        S.fichas = resumen.fichas; S.consumos = resumen.consumos || []; S.i = 0; S.nueva = false;
+        delete S.bor.referencia;
+        pendientes = Object.keys(S.bor || {});
+      } catch (e) {
+        if (msg) { msg.className = 'fi-ed-msg'; msg.textContent = e.message; }
+        if (boton) boton.disabled = false;
+        return;
+      }
+    }
     if (!pendientes.length) { if (msg) { msg.className = 'fi-ed-ok'; msg.textContent = 'No hay cambios por guardar.'; } return; }
     if (boton) boton.disabled = true;
     let hechas = 0, error = '';
@@ -753,6 +778,22 @@
   function pestanas(f) {
     const cons = S.consumos.find(c => c.ref === f.ref);
     const t = [], sec = x => '<p class="fi-sec">' + x + '</p>', nota = x => '<p class="fi-obs" style="margin:10px 0 0">' + esc(x) + '</p>';
+    // Antes de editar, la ficha nueva se presenta como la ficha técnica
+    // normal: limpia, sin campos de formulario ni mockup. El lápiz es el que
+    // desbloquea los espacios para diligenciarla poco a poco.
+    if (S.nueva && !E.editar) {
+      const porDefinir = 'Por definir';
+      const vacio = texto => '<p class="fi-vacio">' + texto + '</p>';
+      return [
+        { id: 'GENERAL', n: 0, u: ['dato', 'datos'], html: lista([kv('Prenda', porDefinir), kv('Referencia', porDefinir), kv('Línea', porDefinir)]) + sec('Descripción de la prenda') + lista([porDefinir, porDefinir]) + sec('Datos adicionales') + vacio('Sin información registrada.') },
+        { id: 'PIEZAS', n: 0, u: ['pieza', 'piezas'], html: vacio('Sin piezas registradas. Edita la ficha cuando tengas los datos de moldería.') },
+        { id: 'TELA Y CONSUMO', n: 0, u: ['dato', 'datos'], html: sec('Telas recomendadas') + vacio('Sin telas registradas.') + sec('Promedio de la ficha') + vacio('Sin promedio registrado.') },
+        { id: 'MEDIDAS', n: 0, u: ['medida', 'medidas'], html: vacio('Sin medidas registradas.') },
+        { id: 'INSUMOS', n: 0, u: ['insumo', 'insumos'], html: vacio('Sin insumos registrados.') },
+        { id: 'CONFECCIÓN', n: 0, u: ['paso', 'pasos'], html: vacio('Sin operaciones registradas.') },
+        { id: 'EMPAQUE', n: 0, u: ['insumo', 'insumos'], html: vacio('Sin información de empaque.') }
+      ];
+    }
     // una sección: su contenido, o su editor si se está corrigiendo; quien puede editar la ve aunque esté vacía (para poder llenarla)
     const libre = k => { const v = (f['libre_' + k] || []).map(x => esc(String(x))); return E.editar ? editor(f, 'libre_' + k) : (v.length ? secEd(f, 'Especificaciones adicionales', 'libre_' + k) + lista(v) : ''); };
     const hayL = k => (f['libre_' + k] || []).length;
@@ -884,6 +925,9 @@
   window.fichasBuscarMockup = buscarMockupNas;
 
   // ---------------------------------------------------------------- dibujo
+  function mockNuevo() {
+    return '<div class="li-mock fi-mock-nuevo"><div class="li-mock-tag"><i></i>MOCKUP DE REFERENCIA</div><div class="fi-sinmock"><span>Sin mockup todavía.<br>Puedes subirlo en cualquier momento.</span></div><div class="fi-mockacc"><button type="button" class="pri" data-fi-nuevo-mock>⬆ Subir mockup</button></div><div class="li-mock-cap">NUEVA REFERENCIA</div></div>';
+  }
   function mockPane(f) {
     let src = '', cap = f ? f.ref + (f.prenda ? ' · ' + f.prenda : '') : '';
     const propio = f && f.mockup;
@@ -919,12 +963,25 @@
     inp.addEventListener('change', () => { if (inp.files[0]) subirMockup(ref, inp.files[0]); });
     inp.click();
   }
+  async function subirMockupFichaNueva() {
+    // Un mockup necesita una REF para no mezclarse con otra ficha. Si la
+    // persona lo sube primero, pedimos solo esa identidad y guardamos la
+    // ficha vacía; el resto se puede completar más tarde por pestañas.
+    if (!E.editar) {
+      const ref = prompt('Escribe la REF para asociar este mockup (ej. FUT02):');
+      if (!ref || !ref.trim()) return;
+      E.editar = true; S.bor = { referencia: [ref.trim()] };
+    }
+    capturar();
+    await guardarTodo();
+    if (!S.nueva && S.fichas[S.i] && S.fichas[S.i].ref) elegirMockup(S.fichas[S.i].ref);
+  }
 
   function dibujar() {
     const card = overlay.querySelector('.li-card');
     const paneAntes = card.querySelector('.li-pane'), bajada = paneAntes && card.dataset.tab === (S.modo + '|' + S.i + '|' + S.tab) ? paneAntes.scrollTop : 0;
     card.style.setProperty('--ac', '#c3ee3f');
-    const top = '<div class="li-top"><span class="li-logo" role="img" aria-label="Indoor"></span><span>FICHA TÉCNICA</span><span class="fi-acc">' + (E.puedeEditar && S.modo === 'ficha' ? '<button type="button" class="fi-modif' + (E.editar ? ' on' : '') + '" data-fi-modificar title="' + (E.editar ? 'Vuelve a bloquear la ficha' : 'Desbloquea toda la ficha para corregirla o agregarle datos') + '">' + (E.editar ? '🔓 Terminar edición' : '✎ Modificar ficha técnica') + '</button>' : '') + (window.molderiaAbrirMolde && S.modo === 'ficha' ? '<button type="button" class="fi-mold" data-fi-molderia title="Abre la carpeta con los moldes de Illustrator de esta referencia">📐 Moldería</button>' : '') + (E.puede && window.molderiaAbrirPagina && S.modo === 'ficha' ? '<button type="button" data-fi-pagina>Vista completa</button>' : '') + '<button type="button" data-fi-imp>🖨 Imprimir</button></span></div>';
+    const top = '<div class="li-top"><span class="li-logo" role="img" aria-label="Indoor"></span><span>FICHA TÉCNICA</span><span class="fi-acc">' + (E.puedeEditar && S.modo === 'ficha' ? '<button type="button" class="fi-modif' + (E.editar ? ' on' : '') + '" data-fi-modificar title="' + (S.nueva ? (E.editar ? 'Cancela esta ficha vacía sin guardar datos' : 'Abre los espacios para llenar la ficha') : (E.editar ? 'Vuelve a bloquear la ficha' : 'Desbloquea toda la ficha para corregirla o agregarle datos')) + '">' + (S.nueva ? (E.editar ? '× Cancelar ficha' : '✎ Llenar ficha técnica') : (E.editar ? '🔓 Terminar edición' : '✎ Modificar ficha técnica')) + '</button>' : '') + (window.molderiaAbrirMolde && S.modo === 'ficha' && !S.nueva ? '<button type="button" class="fi-mold" data-fi-molderia title="Abre la carpeta con los moldes de Illustrator de esta referencia">📐 Moldería</button>' : '') + (E.puede && window.molderiaAbrirPagina && S.modo === 'ficha' && !S.nueva ? '<button type="button" data-fi-pagina>Vista completa</button>' : '') + '<button type="button" data-fi-imp>🖨 Imprimir</button></span></div>';
     const foot = '<div class="li-foot"><span class="li-foot-l"><img class="li-iso" src="/favicon.svg" alt=""><i>' + esc(E.lema) + '</i></span><span>Documento interno · Indoor Sport</span></div>';
     let mock = '', main = '';
     if (S.modo === 'buscar') {
@@ -934,10 +991,13 @@
       const f = S.fichas[S.i], tabs = pestanas(f);
       if (!tabs.some(x => x.id === S.tab)) S.tab = 'GENERAL';
       const act = tabs.find(x => x.id === S.tab);
-      mock = mockPane(f);
+      // El alta inicia como una ficha limpia: no arrastra mockups ni imágenes
+      // de otra referencia. Después de crearla el mockup se puede subir desde
+      // los controles habituales de la ficha.
+      mock = S.nueva ? mockNuevo() : mockPane(f);
       const hojas = S.fichas.length > 1 ? '<div class="fi-hojas">' + S.fichas.map((x, k) => '<button type="button" aria-pressed="' + (k === S.i) + '" data-fi-hoja="' + k + '">' + esc(x.hoja) + '</button>').join('') + '</div>' : '';
       main = top + hojas + '<div class="li-tabs" role="tablist">' + tabs.map(x => '<button type="button" role="tab" data-fi-tab="' + esc(x.id) + '" aria-pressed="' + (x.id === S.tab) + '">' + esc(x.id) + '</button>').join('') + '</div>' +
-        '<div class="li-pane"><div class="li-title"><i class="li-bar"></i><h2 id="li-title">' + esc(f.ref) + '</h2></div><p class="li-sub"><span class="li-count">' + act.n + ' ' + act.u[act.n === 1 ? 0 : 1] + '</span><span>' + esc(f.prenda || f.familia) + ' · ' + esc(f.familia) + '</span></p>' + (E.editar ? '<p class="fi-desbloq">🔓 <b>Ficha desbloqueada.</b> Cambia cualquier renglón, agrégale los que quieras con «+ Agregar» y ordénalos con las flechas, en todas las pestañas. En PIEZAS toca una pieza para cambiarla. Al final pulsa «Guardar cambios».</p>' : '') + act.html + '</div>' + (E.editar ? '<div class="fi-pie-ed' + (sucio() ? ' sucio' : '') + '" data-fi-pie><span data-fi-todo-msg class="' + (S.aviso_ed && S.aviso_ed.mal ? 'fi-ed-msg' : 'fi-ed-ok') + '">' + esc((S.aviso_ed || {}).t || (sucio() ? 'Tienes cambios sin guardar.' : '')) + '</span><button type="button" data-fi-modificar>Cerrar edición</button><button type="button" class="pri" data-fi-ed-todo>Guardar cambios' + (sucio() ? ' (' + Object.keys(S.bor).length + ')' : '') + '</button></div>' : '') + foot;
+        '<div class="li-pane"><div class="li-title"><i class="li-bar"></i><h2 id="li-title">' + esc(S.nueva ? 'NUEVA FICHA' : f.ref) + '</h2></div><p class="li-sub"><span class="li-count">' + act.n + ' ' + act.u[act.n === 1 ? 0 : 1] + '</span><span>' + esc(f.prenda || f.familia) + ' · ' + esc(f.familia) + '</span></p>' + (E.editar ? '<p class="fi-desbloq">🔓 <b>' + (S.nueva ? 'Plantilla vacía.' : 'Ficha desbloqueada.') + '</b> ' + (S.nueva ? 'Empieza por la REF en GENERAL y completa cada pestaña según tengas los datos. Al guardar se crea la ficha.' : 'Cambia cualquier renglón, agrégale los que quieras con «+ Agregar» y ordénalos con las flechas, en todas las pestañas. En PIEZAS toca una pieza para cambiarla. Al final pulsa «Guardar cambios».') + '</p>' : '') + act.html + '</div>' + (E.editar ? '<div class="fi-pie-ed' + (sucio() ? ' sucio' : '') + '" data-fi-pie><span data-fi-todo-msg class="' + (S.aviso_ed && S.aviso_ed.mal ? 'fi-ed-msg' : 'fi-ed-ok') + '">' + esc((S.aviso_ed || {}).t || (sucio() ? 'Tienes cambios sin guardar.' : (S.nueva ? 'Completa la REF y guarda para crear la ficha.' : ''))) + '</span><button type="button" data-fi-modificar>' + (S.nueva ? 'Cancelar ficha' : 'Cerrar edición') + '</button><button type="button" class="pri" data-fi-ed-todo>' + (S.nueva ? 'Crear y guardar ficha' : 'Guardar cambios') + (sucio() ? ' (' + Object.keys(S.bor).length + ')' : '') + '</button></div>' : '') + foot;
     }
     card.classList.toggle('has-mock', !!mock);
     card.innerHTML = '<button type="button" class="li-close" aria-label="Cerrar">×</button><div class="li-split">' + mock + '<div class="li-main">' + main + '</div></div>';
@@ -961,7 +1021,7 @@
 
   function cerrar() {
     if (overlay) overlay.remove();
-    overlay = null; document.removeEventListener('keydown', teclas);
+    overlay = null; E.editar = false; document.removeEventListener('keydown', teclas);
   }
   function teclas(e) {
     if (e.key === 'Escape') { capturar(); if (sucio() && !confirm('Tienes cambios sin guardar. ¿Cerrar la ficha sin guardarlos?')) return; cerrar(); return; }
@@ -1026,6 +1086,11 @@
       }
       else if (e.target.closest('[data-fi-modificar]')) {
         if (!E.puedeEditar) return;
+        if (S.nueva) {
+          if (!E.editar) { E.editar = true; dibujar(); return; }
+          if (!sucio() || confirm('¿Cancelar esta ficha nueva? No se guardará nada.')) cerrar();
+          return;
+        }
         if (E.editar && sucio() && !confirm('Tienes cambios sin guardar. ¿Terminar la edición sin guardarlos?')) return;
         E.editar = !E.editar; S.bor = {}; dibujar();
       }
@@ -1040,6 +1105,9 @@
         const f = S.fichas[S.i]; cerrar(); window.molderiaAbrirMolde(f.ref);
       }
       else if (e.target.closest('[data-fi-pagina]')) { const f = S.fichas[S.i]; cerrar(); window.molderiaAbrirPagina(f.id); }
+      else if (e.target.closest('[data-fi-nuevo-mock]')) {
+        subirMockupFichaNueva();
+      }
     });
     overlay.addEventListener('input', e => { const ed = e.target.closest('[data-fi-ed]'); if (ed) { ed.classList.add('sucio'); const pie = overlay.querySelector('[data-fi-pie]'); if (pie) pie.classList.add('sucio'); return; } if (e.target.matches('[data-fi-q]')) { S.q = e.target.value; pintarBusqueda(); } else if (e.target.matches('[data-fi-calc]')) recalcular(); });
     overlay.addEventListener('change', e => {
@@ -1060,6 +1128,7 @@
   async function abrir(ref, fila, hojaId, linea) {
     await Promise.all([lema(), permisos()]);
     abrirOverlay();
+    E.editar = false;
     S = { modo: ref ? 'cargando' : 'buscar', fichas: [], i: 0, tab: 'GENERAL', talla: '', consumos: [], fila: fila || '', q: '', calc: {}, linea: linea || '' };
     const card = overlay.querySelector('.li-card');
     card.style.setProperty('--ac', '#c3ee3f');
@@ -1079,6 +1148,23 @@
     } catch (e) { card.querySelector('.li-pane').innerHTML = '<p class="fi-vacio">' + esc(e.message) + '</p>'; }
   }
   window.abrirFichaResumen = abrir;
+
+  // Alta desde el catálogo: se muestra exactamente la ficha técnica, pero sin
+  // contenidos ni mockup. No se guarda nada hasta que la persona confirme.
+  async function nuevaFicha() {
+    await Promise.all([lema(), permisos()]);
+    abrirOverlay();
+    E.editar = false;
+    S = {
+      modo: 'ficha', nueva: true, fichas: [{
+        id: '', ref: '', hoja: '', familia: '', prenda: '', referencia: '', nota: '', nota_promedio: '', composicion: '',
+        descripcion: [], piezas: [], telas: [], promedios: [], tallajes: [], insumos: [], medidas_insumos: [], confeccion: [], terminacion: [], empaque_insumos: [], especificaciones: [], editado: {}
+      }],
+      i: 0, tab: 'GENERAL', talla: '', consumos: [], fila: '', q: '', calc: {}, linea: '', bor: {}
+    };
+    dibujar();
+  }
+  window.fichasResumenNueva = nuevaFicha;
 
   // Botón «FICHA TÉCNICA» en cada tarjeta de producción (usa la referencia de la propia tarjeta)
   document.addEventListener('click', e => {

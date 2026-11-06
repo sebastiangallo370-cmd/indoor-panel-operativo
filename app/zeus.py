@@ -239,17 +239,24 @@ def _guardar_pdf(oc: str, b64: str) -> str:
 def _correo_creada(item: dict) -> None:
     try:
         from app import alertas_correo
-        if not alertas_correo.puede_enviar():
-            return
-        para = destinatarios()
-        lineas = [f"- {o['orden']} · {o['referencia']} · {o.get('cliente', '')}: falta {o['falta']:g} MTS (entrega {o.get('entrega') or 'sin fecha'})" for o in item['ordenes']]
-        adj = _pdf_de(item)
-        alertas_correo.enviar(f"Orden de compra de tela creada en Effi: {item['tela']}",
-                              f"El AGENTE INVENTARIO creó la orden de compra {item['oc'] or '(sin número)'} en Effi.\n\nTela: {item['tela']}\nMetros pedidos: {item['falta']:g} MTS\n\n"
-                              'Pedidos que la necesitan:\n' + '\n'.join(lineas) + ('\n\nAdjunto el PDF de la orden.' if adj else '\n\n(El PDF de la orden no se pudo descargar de Effi: está en Compras > Órdenes de compra.)') +
-                              '\n\nVer: https://produccion.cloud (menú de la cuenta > Agente inventario)', para=para, adjuntos=adj)
+        if alertas_correo.puede_enviar():
+            para = destinatarios()
+            lineas = [f"- {o['orden']} · {o['referencia']} · {o.get('cliente', '')}: falta {o['falta']:g} MTS (entrega {o.get('entrega') or 'sin fecha'})" for o in item['ordenes']]
+            adj = _pdf_de(item)
+            alertas_correo.enviar(f"Orden de compra de tela creada en Effi: {item['tela']}",
+                                  f"El AGENTE INVENTARIO creó la orden de compra {item['oc'] or '(sin número)'} en Effi.\n\nTela: {item['tela']}\nMetros pedidos: {item['falta']:g} MTS\n\n"
+                                  'Pedidos que la necesitan:\n' + '\n'.join(lineas) + ('\n\nAdjunto el PDF de la orden.' if adj else '\n\n(El PDF de la orden no se pudo descargar de Effi: está en Compras > Órdenes de compra.)') +
+                                  '\n\nVer: https://produccion.cloud (menú de la cuenta > Agente inventario)', para=para, adjuntos=adj)
     except Exception:   # noqa: BLE001
         log.exception('No se pudo enviar el correo de la orden de compra')
+    # WhatsApp se encola aparte del correo: un fallo o una configuración incompleta
+    # no puede impedir que ZEUS conserve ni notifique la orden por correo.
+    try:
+        from app import whatsapp_notificaciones
+        resultado = whatsapp_notificaciones.encolar_zeus_oc(item)
+        log.info('WhatsApp ZEUS OC %s: %s', item.get('oc', ''), resultado.get('queued') or resultado.get('reason', 'omitido'))
+    except Exception:  # noqa: BLE001
+        log.exception('No se pudo encolar WhatsApp de la orden de compra')
 
 
 MENSAJE_PROVEEDOR = (

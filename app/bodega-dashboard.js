@@ -722,7 +722,13 @@ html body .bd .inventory-item-card.lq,html body .bd .bd-tkpi .lq{background:radi
   };
   const showSubTab = name => {
     subTab = name;
-    try { localStorage.setItem('indoor-bodega-subtab', subTab); } catch (_) { /* sin almacenamiento */ }
+    try {
+      localStorage.setItem('indoor-bodega-subtab', subTab);
+      // También fija el módulo padre: llegar a «Tela programada» desde un
+      // enlace interno no siempre genera un clic sobre el menú lateral.
+      localStorage.setItem('indoor-ultima-vista', JSON.stringify({attr: 'data-bodega-dashboard', val: 'true', rotulo: 'PANEL DE CONTROL', t: Date.now()}));
+      history.replaceState(history.state, '', location.pathname + location.search + '#bodega/' + subTab);
+    } catch (_) { /* sin almacenamiento */ }
     panel.querySelectorAll('[data-bd-tab]').forEach(b => { const on = b.dataset.bdTab === name; b.classList.toggle('on', on); b.setAttribute('aria-selected', String(on)); });
     body.hidden = name !== 'resumen';
     filtersBox.hidden = name !== 'resumen';

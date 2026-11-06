@@ -113,7 +113,7 @@ async def no_cache_html(request: Request, call_next):
         response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
         response.headers["Pragma"] = "no-cache"
     return response
-PRODUCTION_START_ROW = 726
+PRODUCTION_START_ROW = 904
 PRODUCTION_CACHE = {"at": 0.0, "data": None}
 PRODUCTION_CACHE_LOCK = threading.Lock()
 LOGO_FILE = Path(__file__).resolve().parent / "indoor-logo.png"
@@ -390,12 +390,16 @@ app.include_router(dian_mod.router, dependencies=[Depends(authenticate), Depends
 app.include_router(dian_mod.worker_router)
 app.include_router(inventario_router, dependencies=[Depends(authenticate), Depends(permisos_mod.exigir('inventario'))])
 from app import zeus as zeus_mod
+from app import whatsapp_notificaciones as whatsapp_mod
 zeus_mod.configurar_usuarios(_usuarios_detalle)
 zeus_mod.configurar_llave(permisos_mod.bitacora_permitido)   # la API de Effi solo la ve y cambia la cuenta «Indoor Sport»
 zeus_mod.configurar_mts(lambda: __import__('app.inventario_api', fromlist=['x']).autollenar_mts())
 zeus_mod.configurar(lambda: __import__('app.inventario_api', fromlist=['x']).tela_faltante(), zeus_mod.auth_agente(ecommerce_mod._pc), authenticate, permisos_mod.zeus_permitido)
 app.include_router(zeus_mod.router, dependencies=[Depends(authenticate), Depends(permisos_mod.exigir('inventario'))])
 app.include_router(zeus_mod.pc_router)
+whatsapp_mod.configurar(authenticate, permisos_mod.zeus_permitido)
+app.include_router(whatsapp_mod.router, dependencies=[Depends(authenticate), Depends(permisos_mod.exigir('inventario'))])
+app.include_router(whatsapp_mod.worker_router)
 from app import minimaximan as minimaximan_mod
 minimaximan_mod.configurar(authenticate, permisos_mod.zeus_permitido)
 app.include_router(minimaximan_mod.router, dependencies=[Depends(authenticate), Depends(permisos_mod.exigir('inventario'))])
@@ -1784,12 +1788,13 @@ LOGIN_GLASS_STYLE = _fragmento('login-glass-style.html')
 
 def login_page(error: str = "") -> str:
     template = Path(__file__).with_name("login.html").read_text(encoding="utf-8")
-    return template.replace("__LOGIN_ERROR__", escape(error)).replace('</head>', INPUT_CONTRAST_STYLE + LOGIN_GLASS_STYLE + '</head>')
+    volver_al_panel = "<script>addEventListener('pageshow',function(e){if(e.persisted)location.replace('/')})</script>"
+    return template.replace("__LOGIN_ERROR__", escape(error)).replace('</head>', INPUT_CONTRAST_STYLE + LOGIN_GLASS_STYLE + volver_al_panel + '</head>')
 
 
 @app.get("/landing/{nombre}.jpg")
 def landing_foto(nombre: str):
-    if not re.fullmatch(r"(hero|proceso-[1-6]|uniforme-[1-6]|fabrica-[1-6])", nombre):
+    if not re.fullmatch(r"(hero|proceso-[1-6]|uniforme-[1-6])", nombre):
         raise HTTPException(status_code=404)
     return FileResponse(Path(__file__).with_name("landing") / f"{nombre}.jpg", media_type="image/jpeg", headers={"Cache-Control": "public, max-age=86400"})
 
@@ -1803,7 +1808,7 @@ def login_sport_image():
 def login_form(request: Request):
     if session_username(request.cookies.get("indoor_session", "")):
         return RedirectResponse("/", status_code=303)
-    return HTMLResponse(login_page())
+    return HTMLResponse(login_page(), headers={'Cache-Control': 'no-store, no-cache, must-revalidate', 'Pragma': 'no-cache'})
 
 
 _rate_hits: dict = {}
@@ -2490,10 +2495,18 @@ def motion_js():
 def home_hero_js():
     return FileResponse(Path(__file__).with_name("home-hero.js"), media_type="application/javascript", headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"})
 
+@app.get("/motion.js")
+def motion_js():
+    return FileResponse(Path(__file__).with_name("motion.js"), media_type="application/javascript", headers={"Cache-Control": "public, max-age=86400"})
+
+
+@app.get("/home-hero.js")
+def home_hero_js():
+    return FileResponse(Path(__file__).with_name("home-hero.js"), media_type="application/javascript", headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"})
 
 @app.get("/home-dashboard.js")
 def home_dashboard_js():
-    return FileResponse(Path(__file__).with_name("home-dashboard.js"), media_type="application/javascript", headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"})
+    return FileResponse(Path(__file__).with_name("home-dashboard.js"), media_type="application/javascript", headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/bodega-dashboard.js")
@@ -2692,9 +2705,16 @@ def read_local_production() -> dict:
         meta = {row["key"]: row["value"] for row in db.execute("SELECT key, value FROM production_meta")}
         if not meta.get("headers"):
             raise RuntimeError("La base local de Producción todavía no ha sido inicializada")
+        # El panel operativo muestra solo el tramo vigente del Sheet. Las
+        # filas anteriores no se borran: se conservan como histórico local.
         rows = [
             {"source_row": row["source_row"], "values": json.loads(row["values_json"])}
-            for row in db.execute("SELECT source_row, values_json FROM production_rows ORDER BY COALESCE(sort_order, source_row), source_row")
+            for row in db.execute(
+                "SELECT r.source_row,r.values_json FROM production_rows r "
+                "LEFT JOIN production_sheet_links l ON l.source_row=r.source_row "
+                "WHERE l.sheet_row IS NULL OR l.sheet_row>=? "
+                "ORDER BY COALESCE(r.sort_order,r.source_row),r.source_row", (PRODUCTION_START_ROW,)
+            )
         ]
         headers = json.loads(meta["headers"])
         normalized = [str(header or "").strip().upper() for header in headers]
@@ -5556,6 +5576,42 @@ def change_account_name(payload: dict = Body(...), username=Depends(authenticate
     return response
 
 
+def _exigir_gestion_permisos(username: str) -> None:
+    if not permisos_mod.administracion_permitido(username):
+        raise HTTPException(403, 'Solo Administración puede gestionar permisos')
+
+
+@app.get('/api/permisos/usuarios')
+def listar_usuarios_permisos(username=Depends(authenticate)):
+    _exigir_gestion_permisos(username)
+    with connect() as db:
+        rows = db.execute('SELECT name, process, display_name FROM users ORDER BY COALESCE(display_name, name) COLLATE NOCASE').fetchall()
+    result = []
+    for row in rows:
+        name, process = row['name'], row['process'] or ''
+        admin = permisos_mod.rol_de(name) == 'administracion'
+        result.append({'name': name, 'display_name': row['display_name'] or name, 'process': process,
+                       'admin': admin, 'permisos': permisos_mod.permisos_usuario(name)})
+    return {'modules': permisos_mod.MODULOS, 'actions': permisos_mod.ACCIONES, 'users': result}
+
+
+@app.put('/api/permisos/usuarios/{name}')
+def actualizar_usuario_permisos(name: str, payload: dict = Body(...), username=Depends(authenticate)):
+    _exigir_gestion_permisos(username)
+    process = ' '.join(str(payload.get('process') or '').split())
+    if not 2 <= len(process) <= 80:
+        raise HTTPException(400, 'Indica un proceso válido')
+    with connect() as db:
+        target = db.execute('SELECT name FROM users WHERE name=? COLLATE NOCASE', (name,)).fetchone()
+        if not target:
+            raise HTTPException(404, 'Usuario no encontrado')
+        db.execute('UPDATE users SET process=? WHERE name=? COLLATE NOCASE', (process, name))
+        db.commit()
+    if permisos_mod.rol_de(name) != 'administracion':
+        permisos_mod.guardar_permisos_usuario(name, payload.get('permisos') or {})
+    return {'ok': True, 'process': process, 'permisos': permisos_mod.permisos_usuario(name)}
+
+
 def _personal_note_payload(payload: dict) -> tuple[str, str, str]:
     title = " ".join(str(payload.get("title") or "").split())
     content = str(payload.get("content") or "").strip()
@@ -5607,6 +5663,7 @@ def delete_personal_note(note_id: int, username=Depends(authenticate)):
 
 @app.get("/", response_class=HTMLResponse)
 def home(response: Response, _=Depends(authenticate)):
+    # La página principal siempre debe recuperar las versiones actuales de JS.
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     # These HTML strings also appear inside JavaScript template literals.
     from html import escape as html_escape
@@ -7122,7 +7179,7 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
     const commercialGroup=commercialToggle.closest('.nav-group');commercialGroup.classList.add('collapsed');const productionToggle=document.getElementById('production-toggle');if(productionToggle)productionToggle.addEventListener('click',()=>{{const g=productionToggle.closest('.nav-group');g.classList.toggle('collapsed');if(!g.classList.contains('collapsed')&&window.innerWidth>860)g.querySelector('.nav-children .tab')?.click()}});
     setTimeout(()=>{{if(!document.querySelector('.panel.active'))document.querySelector('.tab[data-kind="inicio"]')?.click()}},0);
     setTimeout(()=>{{const panel=document.querySelector('.panel.active');const kind=panel?.dataset?.panel;const activeTab=kind&&document.querySelector(`.tab[data-kind="${{kind}}"]`);if(activeTab)document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===activeTab))}},100);
-</script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/liquid-stats.js?v=20261019-1'></script><script src='/nombres-effi.js?v=20261022-2'></script><script src='/permisos.js?v=20261007-2'></script><script src='/reposiciones.js?v=20261019-1'></script><script src='/agentes.js?v=20261021-1'></script><script src='/promedios.js?v=20261030-2'></script><script src='/capacidad.js?v=20261009-2'></script><script src='/molderia.js?v=20261010-2'></script><script src='/estandar.js?v=20261020-1'></script><script src='/proveedores-tela.js?v=20261022-4'></script><script src='/terminos.js?v=20261010-1'></script><script src='/cookies-aviso.js?v=20261010-1'></script><script src='/rh-contratos.js?v=20261009-3'></script><script src='/fichas-resumen.js?v=20261022-2'></script><script src='/api/cartera/cartera.js?v=20261009-1'></script><script src='/trace-ui.js?v=20261101-1'></script><script src='/home-dashboard.js?v=20261106-2'></script><script src='/bodega-dashboard.js?v=20261030-25'></script><script src='/bodegas.js?v=20261009-7'></script><script src='/codigos-barras.js?v=20261014-3'></script><script src='/mis-pedidos.js?v=20261008-4'></script><script src='/crear-cliente.js?v=20261024-31'></script><script src='/club-admin.js?v=20261020-1'></script><script src='/mobile-nav.js?v=20261018-1'></script><script src='/nav-liquid.js?v=20261030-9'></script><script src='/build-watch.js?v=20261002-1'></script><script src='/salud.js?v=20261014-2'></script><script src='/alertas.js?v=20261030-1'></script><script src='/bitacora.js?v=20261016-2'></script><script src='/memoria.js?v=20261018-1'></script><script src='/ecommerce.js?v=20261019-1'></script><script src='/zeus.js?v=20261020-1'></script><script src='/minimaximan.js?v=20261023-2'></script><script src='/aviso-agentes.js?v=20261023-5'></script><script src='/descuento-sublimacion.js?v=20261026-1'></script><script src='/stockman.js?v=20261022-30'></script><script src='/draco-panel.js?v=20261021-8'></script><script src='/agentes-hub.js?v=20261022-2'></script><script src='/recordar-vista.js?v=20261018-1'></script><script src='/tema.js?v=20261008-1'></script><script src='/tarjeta-iconos.js?v=20261030-1'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261021-1'></script><script src='/linea-editor.js?v=20261030-2'></script><script src='/lineas-producto-panel.js?v=20261030-1'></script><script src='/menu-cuenta.js?v=20261016-3'></script><script src='/foto-perfil.js?v=20261030-1'></script><script src='/efecto-vidrio.js?v=20261029-1'></script><script src='/motion.js?v=11.18.2'></script><script src='/home-hero.js?v=20261106-48'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab=>tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
+</script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/liquid-stats.js?v=20261019-1'></script><script src='/nombres-effi.js?v=20261022-2'></script><script src='/permisos.js?v=20261007-2'></script><script src='/reposiciones.js?v=20261019-1'></script><script src='/agentes.js?v=20261021-1'></script><script src='/promedios.js?v=20261101-5'></script><script src='/capacidad.js?v=20261009-2'></script><script src='/molderia.js?v=20261010-2'></script><script src='/estandar.js?v=20261020-1'></script><script src='/proveedores-tela.js?v=20261022-4'></script><script src='/terminos.js?v=20261010-1'></script><script src='/cookies-aviso.js?v=20261010-1'></script><script src='/rh-contratos.js?v=20261009-3'></script><script src='/fichas-resumen.js?v=20261022-2'></script><script src='/api/cartera/cartera.js?v=20261009-1'></script><script src='/trace-ui.js?v=20261101-1'></script><script src='/home-dashboard.js?v=20261019-1'></script><script src='/bodega-dashboard.js?v=20261030-25'></script><script src='/bodegas.js?v=20261009-7'></script><script src='/codigos-barras.js?v=20261014-3'></script><script src='/mis-pedidos.js?v=20261008-1'></script><script src='/crear-cliente.js?v=20261024-31'></script><script src='/club-admin.js?v=20261020-1'></script><script src='/mobile-nav.js?v=20261018-1'></script><script src='/nav-liquid.js?v=20261103-10'></script><script src='/build-watch.js?v=20261105-1'></script><script src='/salud.js?v=20261014-2'></script><script src='/alertas.js?v=20261030-1'></script><script src='/bitacora.js?v=20261016-2'></script><script src='/memoria.js?v=20261018-1'></script><script src='/ecommerce.js?v=20261019-1'></script><script src='/zeus.js?v=20261020-1'></script><script src='/minimaximan.js?v=20261023-2'></script><script src='/aviso-agentes.js?v=20261023-5'></script><script src='/descuento-sublimacion.js?v=20261026-1'></script><script src='/stockman.js?v=20261022-30'></script><script src='/draco-panel.js?v=20261021-8'></script><script src='/agentes-hub.js?v=20261106-2'></script><script src='/recordar-vista.js?v=20261018-1'></script><script src='/tema.js?v=20261008-1'></script><script src='/tarjeta-iconos.js?v=20261030-1'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261021-1'></script><script src='/linea-editor.js?v=20261030-1'></script><script src='/lineas-producto-panel.js?v=20261030-1'></script><script src='/menu-cuenta.js?v=20261016-3'></script><script src='/foto-perfil.js?v=20261030-1'></script><script src='/efecto-vidrio.js?v=20261029-1'></script><script src='/motion.js?v=11.18.2'></script><script src='/home-hero.js?v=20261106-48'></script><script src='/motion.js?v=11.18.2'></script><script src='/home-hero.js?v=20261106-48'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab=>tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
 
 
 def ordered_mockup_uploads(extras, slots):

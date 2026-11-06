@@ -92,6 +92,14 @@
   .al-vacio{padding:42px 24px}.al-vacio b{display:grid;place-items:center;width:54px;height:54px;margin:0 auto 12px;border-radius:50%;background:rgba(53,212,106,.14);border:1px solid rgba(53,212,106,.5);box-shadow:0 0 22px -4px #35d46a;color:#6be69a;font-size:1.5rem}
   #al-btn b{top:-4px;right:-6px;min-width:22px;height:22px;border-radius:999px;background:rgba(214,54,54,.92);border:1.5px solid rgba(255,255,255,.85);box-shadow:0 4px 10px -2px #000b;font-size:11px;line-height:19px}
   #al-btn b.nuevas{background:rgba(255,138,31,.95)}
+  /* El panel se posiciona desde la campana del encabezado (no desde el pie
+     de pantalla). Esta capa mantiene las alertas compactas y legibles. */
+  #al-box{width:min(408px,calc(100vw - 24px));border-radius:20px}
+  .al-cab{padding:15px 16px 9px}.al-cab h3{font-size:1.02rem}.al-ic{width:31px;height:31px}
+  .al-filtros{padding:2px 16px 9px}.al-buscar{padding:0 16px 9px}.al-lista{padding:2px 10px 12px;gap:7px}
+  .al-card{grid-template-columns:37px 1fr;gap:9px;padding:10px 11px 9px;border-radius:15px}.al-tipo{width:37px;height:37px;border-radius:12px}.al-tipo svg{width:19px;height:19px}
+  .al-tit{font-size:.84rem;line-height:1.25}.al-det{font-size:.72rem;line-height:1.35}.al-tags{margin-top:6px}.al-tag{padding:2px 8px;font-size:.61rem}
+  .al-acc{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:7px}.al-acc button{min-width:0;padding:5px 7px;border-radius:8px;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.al-acc button.pri{grid-column:1 / -1}
   @media(max-width:700px){#al-btn{bottom:86px;right:12px}#al-box{right:8px;left:8px;width:auto;bottom:148px;max-height:68vh}}
   @media(prefers-reduced-motion:reduce){#al-btn.suena svg,#al-btn b.nuevas,.al-card,#al-box.on{animation:none}}`;
   document.head.appendChild(css);
@@ -118,6 +126,20 @@
   }
   ponerCampanaEnCabecera();
   new MutationObserver(ponerCampanaEnCabecera).observe(document.body, { childList: true, subtree: true });
+  function ubicarPanel() {
+    if (!btn.classList.contains('header-alert')) return;
+    const r = btn.getBoundingClientRect(), margen = movil() ? 8 : 14;
+    const anchoVista = document.documentElement.clientWidth, altoVista = document.documentElement.clientHeight;
+    const ancho = Math.min(movil() ? anchoVista - 16 : 408, anchoVista - margen * 2);
+    const derechaDeseada = Math.max(margen, anchoVista - r.right);
+    const derechaMaxima = Math.max(margen, anchoVista - ancho - margen);
+    const derecha = Math.min(derechaDeseada, derechaMaxima);
+    const arriba = Math.max(margen, r.bottom + 10);
+    box.style.left = 'auto'; box.style.right = derecha + 'px'; box.style.bottom = 'auto'; box.style.top = arriba + 'px';
+    box.style.width = ancho + 'px'; box.style.maxHeight = Math.max(260, altoVista - arriba - margen) + 'px';
+  }
+  addEventListener('resize', ubicarPanel);
+  addEventListener('scroll', ubicarPanel, true);
   const q = s => box.querySelector(s);
 
   function irAProduccion(orden) {
@@ -198,6 +220,7 @@
   }
 
   function abrir() {
+    ubicarPanel();
     st.abierto = true; st.animar = true; box.classList.add('on'); btn.setAttribute('aria-expanded', 'true');
     pintar(true); subtitulo(); cargar();
     clearTimeout(abrir.t);

@@ -13,9 +13,11 @@
     { id: 'zeus', kind: 'zeus', nombre: 'INVENTARIOS', agentes: [['ZEUS', 'Tela y órdenes de compra'], ['MINIMAXIMAN', 'Mantiene las telas entre su mínimo y su máximo', 'minimaximan'], ['STOCKMAN', 'Alinea el inventario del panel con Effi', 'stockman']] },   // el tercer dato es la pantalla propia del agente
     { id: 'club', kind: 'club', nombre: 'COMERCIAL', agentes: [['EFFITRON', 'Cotización de las reposiciones']] },
   ];
+  // DIAN no es un submódulo de Tesorería. Solo se incorpora al robot cuando
+  // la cuenta puede abrir el agente y el panel técnico ya cargó su pestaña.
   const DIAN_AREA = { id: 'dian', kind: 'dian', nombre: 'DIAN', agentes: [['DIAN', 'Descarga comprobantes electrónicos en este PC']] };
   const ROBOT = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="8" width="15" height="11" rx="3"/><path d="M12 8V4.6"/><circle cx="12" cy="3.6" r="1.1"/><circle cx="9" cy="13" r="1.2"/><circle cx="15" cy="13" r="1.2"/><path d="M9.5 16.4h5M2.5 12.5v3M21.5 12.5v3"/></svg>';
-  const AVATAR = { JEFE: '👑', TAVO: '🧑‍💼', LEO: '🧑‍💻', JACK: '🧑‍🎨', OLVER: '🧑‍🔧', OLIVER: '🧑‍💼', TERRY: '🧑‍💻', DRACO: '🤖', ALMA: '👩‍💼', BRISA: '👩‍💻', CIRO: '🧑‍🎨', ZEUS: '🧙', MINIMAXIMAN: '🧑‍🔬', STOCKMAN: '🧑‍💼', EFFITRON: '🤵', DIAN: '📄' };
+  const AVATAR = { JEFE: '👑', TAVO: '🧑‍💼', LEO: '🧑‍💻', JACK: '🧑‍🎨', OLVER: '🧑‍🔧', OLIVER: '🧑‍💼', TERRY: '🧑‍💻', DRACO: '🤖', ALMA: '👩‍💼', BRISA: '👩‍💻', CIRO: '🧑‍🎨', ZEUS: '🧙', MINIMAXIMAN: '🧑‍🔬', STOCKMAN: '🧑‍💼', DIAN: '📄', EFFITRON: '🤵' };
   const css = document.createElement('style');
   css.textContent = `
   #agentes-hub{position:relative;display:none;align-items:center;margin:0 6px 0 0;vertical-align:middle;z-index:1200}
@@ -70,27 +72,26 @@
     caja.classList.toggle('listo', lista.length > 0);
     if (!lista.length) return;
     const resaltada = a => !a.mensaje && areaActiva(a);   // TRAZO comparte la pantalla de Edición y no se marca como activa
-    const clave = lista.map(a => a.id + losAgentes(a).length).join('|') + '>' + (lista.find(resaltada) || {}).id;
-    if (caja.dataset.clave === clave) return;
-    caja.dataset.clave = clave;
+    // No reconstruir el robot cuando solamente cambia el área activa: al reemplazar
+    // el <summary> en cada cambio de pestaña el icono parecía parpadear.
+    const estructuraClave = lista.map(a => a.id + ':' + losAgentes(a).map(g => g[0]).join(',')).join('|');
+    const activaClave = (lista.find(resaltada) || {}).id || '';
+    if (caja.dataset.estructura === estructuraClave) {
+      caja.querySelectorAll('.ah-area[data-ah-area]').forEach(area => {
+        area.classList.toggle('on', area.dataset.ahArea === activaClave);
+      });
+      caja.dataset.activa = activaClave;
+      return;
+    }
+    caja.dataset.estructura = estructuraClave;
+    caja.dataset.activa = activaClave;
     const total = lista.reduce((n, a) => n + losAgentes(a).length, 0);
     // la lista muestra primero las ÁREAS (Edición, Ecommerce, Inventarios, Comercial); la flecha de cada una despliega sus agentes
     caja.innerHTML = `<summary title="Agentes (${total})" aria-label="Agentes">${ROBOT}</summary><div class="ah-lista"><button type="button" class="ah-ir" data-general><b>PANEL DE CONTROL AGENT</b><small>Todos los agentes</small></button>` +
-      lista.map(a => `<div class="ah-area${abiertas.has(a.id) ? ' abierta' : ''}${resaltada(a) ? ' on' : ''}"><div class="ah-fila">` +
+      lista.map(a => `<div class="ah-area${abiertas.has(a.id) ? ' abierta' : ''}${resaltada(a) ? ' on' : ''}" data-ah-area="${a.id}"><div class="ah-fila">` +
         `<button type="button" class="ah-ir" data-area="${a.id}"><b>${a.nombre}</b><small>${losAgentes(a).length} ${losAgentes(a).length === 1 ? 'agente' : 'agentes'}</small></button>` +
         `<button type="button" class="ah-mas" data-mas="${a.id}" title="Ver los agentes de ${a.nombre}" aria-label="Ver los agentes de ${a.nombre}"><i></i></button></div>` +
         `<div class="ah-ag">` + losAgentes(a).map(g => `<button type="button" data-area="${a.id}"${g[2] ? ` data-pantalla="${g[2]}"` : ''}><em>${g[0][0]}</em><span><b>${g[0]}</b><small>${g[1]}</small></span></button>`).join('') + '</div></div>').join('') + '</div>';
-  }
-
-  async function cargarAgenteDian() {
-    if (AREAS.some(area => area.id === 'dian')) return;
-    try {
-      const respuesta = await fetch('/api/dian/estado', {cache: 'no-store', credentials: 'same-origin'});
-      if (!respuesta.ok) return;
-      const destino = AREAS.findIndex(area => area.id === 'club');
-      AREAS.splice(destino < 0 ? AREAS.length : destino, 0, DIAN_AREA);
-      pintar();
-    } catch (_) {}
   }
 
   function ubicar() {
@@ -98,10 +99,10 @@
     const barra = document.querySelector('.systems');
     if (barra) {
       caja.style.display = '';
-      const sol = barra.querySelector('.theme-icon');
       // Alertas se inserta justo después del sol. Anclar el robot después de
       // ella evita que los dos observadores se intercambien de lugar cada vez
       // que se abre el desplegable (el parpadeo que se veía en el robot).
+      const sol = barra.querySelector('.theme-icon');
       const ancla = barra.querySelector('#al-btn.header-alert') || sol;
       if (ancla) { if (caja.previousElementSibling !== ancla) ancla.after(caja); }
       else if (caja.parentElement !== barra || caja !== barra.firstElementChild) barra.insertBefore(caja, barra.firstChild);
@@ -208,7 +209,16 @@
     panelGeneral.addEventListener('submit', async e => { if (!e.target.matches('[data-jefe-form]')) return; e.preventDefault(); const entrada = panelGeneral.querySelector('[data-jefe-input]'), texto = entrada.value.trim(); if (!texto) return; entrada.disabled = true; try { const r = await fetch('/api/agentes/jefe', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mensaje: texto }) }); const data = await r.json(); if (!r.ok) throw new Error(data.detail || 'No se pudo enviar la tarea'); entrada.value = ''; controlChatKey = ''; panelGeneral.querySelector('[data-jefe-respuesta]').textContent = data.mensaje || 'JEFE recibió la tarea y está diagnosticando a quién asignarla…'; refrescarControl(); } catch (error) { panelGeneral.querySelector('[data-jefe-respuesta]').textContent = error.message || 'No se pudo enviar la tarea.'; } finally { entrada.disabled = false; entrada.focus(); } });
     if (!controlTimer) controlTimer = setInterval(refrescarControl, 3000);
   }
-  setInterval(montar, 400);
+  async function cargarAgenteDian() {
+    if (AREAS.some(area => area.id === 'dian')) return;
+    try {
+      const respuesta = await fetch('/api/dian/estado', { cache: 'no-store', credentials: 'same-origin' });
+      if (!respuesta.ok) return;
+      AREAS.splice(Math.max(0, AREAS.findIndex(area => area.id === 'club')), 0, DIAN_AREA);
+      pintar();
+    } catch (_) { /* El robot permanece igual si el agente no está disponible. */ }
+  }
   cargarAgenteDian();
+  setInterval(montar, 400);
   document.addEventListener('click', () => setTimeout(() => { pintar(); ubicar(); }, 60), true);
 })();

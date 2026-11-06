@@ -35,7 +35,12 @@
       '<div class="at-list">'+alerts.map(function(a){return '<div class="at-row"><div><b title="'+esc(a.nombre)+'">'+esc(a.nombre)+'</b><small>'+(a.pedidos?a.pedidos+' pedidos de clientes':'Stock mínimo definido')+'</small></div><div style="display:flex;align-items:center;gap:10px"><span class="at-chip '+esc(a.nivel)+'">'+(a.nivel==='agotado'?'Agotada':'Baja')+'</span><div class="at-num">'+fmt(a.total)+' MTS<em>mín '+fmt(a.minimo)+' · faltan '+fmt(a.faltan)+'</em></div></div></div>'}).join('')+'</div>'+
       '<div class="at-foot"><button type="button" class="at-btn" data-close>Entendido</button><button type="button" class="at-btn main" data-go>Ver inventario</button></div></div>';
     (document.body||document.documentElement).appendChild(ov);
-    function close(){modal=null;ov.remove()}
+    function close(){
+      modal=null;ov.remove();
+      // Si existe una producción programada sin tela, se muestra a continuación
+      // del resumen de inventario; no espera al siguiente ciclo de revisión.
+      setTimeout(checkFaltantes,20);
+    }
     ov.addEventListener('click',function(e){
       if(e.target.closest('[data-close]')||e.target===ov)close();
       else if(e.target.closest('[data-go]')){close();var t=document.querySelector('[data-bodega-dashboard]');if(t){var g=t.closest('.nav-group');if(g)g.classList.remove('collapsed');t.click()}}
@@ -67,7 +72,8 @@
   check('sesion');
 
   // 2) AVISO INMEDIATO cuando una tela no hay (agotada) o no alcanza para los pedidos programados.
-  // Se consulta cada 30 s mientras la página está abierta; cada faltante avisa una vez y, si se resuelve y vuelve a faltar, avisa de nuevo.
+  // Se consulta cada 5 s mientras la página está abierta; el servidor reutiliza su
+  // cálculo y, cuando se programa una orden, lo invalida de inmediato.
   var KF='at_faltantes',fmodal=null;
   function ent(n,f){return f(Number(n)||0).toLocaleString('es-CO',{maximumFractionDigits:0})}
   function vistas(){try{return JSON.parse(get('localStorage',KF)||'[]')}catch(e){return []}}
@@ -152,7 +158,7 @@
     var chip=a.tipo==='sin_tela'?'No está en Bodega':'No alcanza';
     return '<div class="at-row at-prod" style="animation-delay:'+(250+i*200)+'ms"><span class="at-chip">'+chip+'</span>'+
       '<dl class="at-datos"><div class="cli full"><dt>Nombre cliente</dt><dd>'+esc(a.cliente||'—')+'</dd></div>'+
-      '<div><dt>Proyecto</dt><dd>'+esc(a.proyecto||'—')+'</dd></div><div><dt>Referencia</dt><dd>'+esc(a.referencia||'—')+'</dd></div>'+
+      '<div><dt>Orden</dt><dd>'+esc(a.orden||'—')+'</dd></div><div><dt>Proyecto</dt><dd>'+esc(a.proyecto||'—')+'</dd></div><div><dt>Referencia</dt><dd>'+esc(a.referencia||'—')+'</dd></div>'+
       '<div><dt>Tela</dt><dd>'+esc(a.tela||'—')+'</dd></div><div class="mts"><dt>MTS</dt><dd><span data-n="'+(Number(a.mts)||0)+'">0</span></dd></div>'+
       '<div class="falta full"><dt>Tela que falta</dt><dd><span data-n="'+Math.ceil(Number(a.falta)||0)+'">0</span><small>MTS</small></dd></div>'+
       '<div class="req pend" data-req="'+esc(a.clave||'')+'">'+reqHtml(a.requerimiento)+'</div></dl></div>';
@@ -210,7 +216,7 @@
       }).catch(function(){});
     },2500);
   }
-  setTimeout(checkFaltantes,6000);
-  setInterval(checkFaltantes,30000);
+  setTimeout(checkFaltantes,800);
+  setInterval(checkFaltantes,5000);
   document.addEventListener('visibilitychange',function(){if(!document.hidden)setTimeout(checkFaltantes,800)});
 })();

@@ -127,56 +127,63 @@
     }
 
     html body.top-navigation .sidebar nav.tabs {
-      /* Conserva su ancho: se desplaza completa a la derecha para quedar
-         junto al sol, sin alargar la cápsula. */
+      /* Una sola fila compacta: deja espacio fijo a la cuenta y al botón del sol. */
       flex: 0 1 auto !important;
       min-width: 0;
-      max-width: min(1040px, calc(100vw - 310px));
-      margin: 0 0 0 auto !important;
-      /* En escritorio la acerca físicamente al sol sin alterar su ancho. */
-      transform: translateX(clamp(0px, 9vw, 170px));
-      padding: 3px 8px !important;
-      gap: 2px !important;
-      border: 1px solid rgba(232,255,229,.22) !important;
-      border-radius: 999px !important;
-      background: linear-gradient(135deg, rgba(255,255,255,.12), rgba(255,255,255,.035) 48%, rgba(9,22,14,.25)) !important;
-      box-shadow: inset 0 1px 0 rgba(255,255,255,.28), inset 0 -1px 0 rgba(0,0,0,.18), 0 12px 28px rgba(0,0,0,.20) !important;
-      -webkit-backdrop-filter: blur(18px) saturate(1.28) !important;
-      backdrop-filter: blur(18px) saturate(1.28) !important;
+      max-width: min(820px, calc(100vw - 320px));
+      margin: 0 auto !important;
+      transform: none !important;
+      padding: 0 !important;
+      gap: 14px !important;
+      border: 0 !important;
+      border-radius: 0 !important;
+      background: transparent !important;
+      box-shadow: none !important;
+      -webkit-backdrop-filter: none !important;
+      backdrop-filter: none !important;
     }
+    /* La marca activa es la línea inferior; se apaga la burbuja líquida anterior. */
+    html body.top-navigation .sidebar nav.tabs .nl-goo { display:none !important; }
+    html body.top-navigation .sidebar nav.tabs .nl-on,
+    html body.top-navigation .sidebar nav.tabs .nl-on * { color:#efffc0!important; -webkit-text-fill-color:#efffc0!important; }
 
     html body.top-navigation .sidebar nav.tabs > .tab,
     html body.top-navigation .sidebar .nav-parent {
-      min-height: 36px !important;
-      padding: 7px clamp(8px, .9vw, 13px) !important;
+      min-height: 34px !important;
+      padding: 4px 1px !important;
       border: 0 !important;
-      border-radius: 999px !important;
+      border-radius: 0 !important;
       color: rgba(244,250,242,.88) !important;
       background: transparent !important;
-      font-size: clamp(9px, .74vw, 12px) !important;
-      letter-spacing: .015em !important;
+      font-size: clamp(8px, .6vw, 10px) !important;
+      letter-spacing: .01em !important;
       transition: background .18s ease, color .18s ease, transform .18s ease !important;
+    }
+    html body.top-navigation .sidebar nav.tabs > .tab strong,
+    html body.top-navigation .sidebar .nav-parent > span:not(.nav-icon) {
+      font-size: clamp(8px, .6vw, 10px) !important;
     }
 
     html body.top-navigation .sidebar nav.tabs > .tab:hover,
     html body.top-navigation .sidebar .nav-parent:hover {
       outline: 0 !important;
-      background: rgba(215,247,92,.13) !important;
+      background: transparent !important;
       color: #efffc0 !important;
-      transform: translateY(-1px);
+      transform: none;
     }
 
     html body.top-navigation .sidebar nav.tabs > .tab.active,
     html body.top-navigation .sidebar .nav-parent[aria-expanded="true"] {
-      background: linear-gradient(135deg, #d9fb53, #b9eb37) !important;
-      color: #14200d !important;
-      box-shadow: 0 5px 18px rgba(190,241,65,.26), inset 0 1px 0 rgba(255,255,255,.55) !important;
+      border-bottom: 2px solid #d9fb53 !important;
+      background: transparent !important;
+      color: #efffc0 !important;
+      box-shadow: none !important;
     }
 
     html body.top-navigation .sidebar nav.tabs > .tab.active *,
     html body.top-navigation .sidebar .nav-parent[aria-expanded="true"] * {
-      color: #14200d !important;
-      -webkit-text-fill-color: #14200d !important;
+      color: #efffc0 !important;
+      -webkit-text-fill-color: #efffc0 !important;
     }
 
     html body.top-navigation .sidebar .nav-children {
@@ -201,38 +208,6 @@
 
     html body.top-navigation main {
       padding-top: 96px !important;
-    }
-
-    @media (max-width: 1180px) and (min-width: 701px) {
-      html body.top-navigation .sidebar { padding: 8px 14px !important; gap: 8px !important; }
-      html body.top-navigation .sidebar-brand { flex-basis: 90px !important; }
-      html body.top-navigation .sidebar-brand img { width: 88px !important; }
-      html body.top-navigation .sidebar nav.tabs {
-        max-width: none !important;
-        flex: 1 1 0 !important;
-        justify-content: center !important;
-        margin: 0 !important;
-        transform: none !important;
-        padding: 4px 6px !important;
-      }
-      html body.top-navigation .sidebar nav.tabs > .tab,
-      html body.top-navigation .sidebar .nav-parent {
-        width: 40px !important;
-        min-width: 40px !important;
-        padding: 7px !important;
-      }
-      html body.top-navigation .sidebar nav.tabs > .tab .nav-icon,
-      html body.top-navigation .sidebar .nav-parent .nav-icon {
-        display: grid !important;
-        margin: 0 !important;
-      }
-      html body.top-navigation .sidebar nav.tabs > .tab strong,
-      html body.top-navigation .sidebar .nav-parent > span:not(.nav-icon) {
-        width: 0 !important;
-        height: 0 !important;
-        overflow: hidden !important;
-        font-size: 0 !important;
-      }
     }
 
     @media (max-width: 700px) {
@@ -274,4 +249,36 @@
     }
   `;
   document.head.appendChild(style);
+})();
+
+/* Capa de profundidad: no cambia la estructura ni los eventos de los módulos. */
+(() => {
+  const STYLE_ID = 'indoor-vidrio-dinamico';
+  document.getElementById(STYLE_ID)?.remove();
+  const style = document.createElement('style');
+  style.id = STYLE_ID;
+  style.textContent = `
+    :root { --glass-deep:rgba(7,22,14,.46); --glass-edge:rgba(239,255,226,.30); --glass-glow:rgba(194,246,95,.16); }
+    html body { background:radial-gradient(50rem 32rem at var(--glass-x,12%) var(--glass-y,8%),rgba(213,255,104,.16),transparent 68%),radial-gradient(44rem 38rem at 98% 15%,rgba(44,182,135,.18),transparent 68%),radial-gradient(38rem 34rem at 46% 104%,rgba(109,145,49,.15),transparent 70%),linear-gradient(135deg,#06100a 0%,#0b2116 48%,#061a13 100%) !important; }
+    body .home-section,body .dashboard-card,body .dash-card,body .trace-card,body .stock-card,body .inventory-card,body .agent-card,body .ct-card,body .ct-group,body .production-shell,body .schedule-shell { background:radial-gradient(circle at var(--glass-card-x,50%) var(--glass-card-y,0%),rgba(238,255,210,.11),transparent 32%),linear-gradient(138deg,rgba(255,255,255,.15),rgba(255,255,255,.055) 34%,var(--glass-deep) 100%) !important; border-color:var(--glass-edge) !important; box-shadow:0 18px 45px rgba(0,0,0,.27),inset 0 1px 0 rgba(255,255,255,.48),inset 0 -1px 0 rgba(205,255,189,.10) !important; transition:transform .24s cubic-bezier(.2,.8,.2,1),box-shadow .24s ease,border-color .24s ease !important; }
+    @media (hover:hover) { body .home-section:hover,body .dashboard-card:hover,body .dash-card:hover,body .trace-card:hover,body .stock-card:hover,body .inventory-card:hover,body .agent-card:hover,body .ct-card:hover,body .ct-group:hover { transform:translateY(-4px); border-color:rgba(222,255,160,.54) !important; box-shadow:0 26px 54px rgba(0,0,0,.36),inset 0 1px 0 rgba(255,255,255,.56),0 0 0 1px var(--glass-glow) !important; } }
+    body button:not(.danger),body .btn:not(.danger) { position:relative; overflow:hidden; border-color:rgba(229,255,196,.38); }
+    body button:not(.danger)::after,body .btn:not(.danger)::after { content:''; position:absolute; inset:0; pointer-events:none; background:linear-gradient(110deg,transparent 28%,rgba(255,255,255,.34) 48%,transparent 68%); transform:translateX(-140%); transition:transform .46s ease; }
+    @media (hover:hover) { body button:not(.danger):hover::after,body .btn:not(.danger):hover::after { transform:translateX(140%); } }
+    @media (max-width:760px) { body .home-section,body .dashboard-card,body .dash-card,body .trace-card,body .stock-card,body .inventory-card,body .agent-card,body .ct-card,body .ct-group { background:linear-gradient(145deg,rgba(255,255,255,.13),rgba(10,28,18,.62)) !important; } }
+    @media (prefers-reduced-motion:reduce) { body .home-section,body .dashboard-card,body .dash-card,body .trace-card,body .stock-card,body .inventory-card,body .agent-card,body .ct-card,body .ct-group,body button,body .btn { transition:none !important; } body button::after,body .btn::after { display:none; } }
+  `;
+  document.head.appendChild(style);
+  const selector = '.home-section,.dashboard-card,.dash-card,.trace-card,.stock-card,.inventory-card,.agent-card,.ct-card,.ct-group';
+  const motionOK = !matchMedia('(prefers-reduced-motion: reduce)').matches && matchMedia('(hover: hover)').matches;
+  if (!motionOK) return;
+  document.addEventListener('pointermove', event => {
+    document.documentElement.style.setProperty('--glass-x', `${Math.round(event.clientX / innerWidth * 100)}%`);
+    document.documentElement.style.setProperty('--glass-y', `${Math.round(event.clientY / innerHeight * 100)}%`);
+    const card = event.target.closest(selector);
+    if (!card) return;
+    const rect = card.getBoundingClientRect();
+    card.style.setProperty('--glass-card-x', `${Math.round((event.clientX - rect.left) / rect.width * 100)}%`);
+    card.style.setProperty('--glass-card-y', `${Math.round((event.clientY - rect.top) / rect.height * 100)}%`);
+  }, { passive:true });
 })();

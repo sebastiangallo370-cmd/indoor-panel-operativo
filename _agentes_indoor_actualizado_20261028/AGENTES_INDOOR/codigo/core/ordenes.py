@@ -23,16 +23,20 @@ VIGENCIA_SEG = 12 * 3600
 MIN_ENTRE_RECARGAS = 120
 
 
-# Admite tanto «D1 FUT02M XS A 4XL.ai» como «D1_FUT02M_XS-4XL.ai» y
-# «D1 CP03 M XS A 4XL.ai». Hay maestros antiguos donde el género es un
+# Admite tanto «D1 FUT02M XS A 4XL.ai» como «D1_FUT02M_XS-4XL.ai»,
+# «D1 CP03 M XS A 4XL.ai» y el formato unisex «D1 CA42 XS A 5XL.ai».
+# Hay maestros antiguos donde el género es un
 # campo separado; no reconocerlos hacía que TAVO descartara una referencia
 # válida antes de contrastarla con el listado.
 # «_» es un carácter de palabra para \b, por eso un límite de palabra solo no
 # reconocía los maestros que separan el género y las tallas con guion bajo.
-MESA_AI = re.compile(r"^D(?:ISE\S{1,2}O)?\s*(\d+)[\s_-]+([A-Za-z]+\d+)[\s_-]*([MFN])(?=$|[.\s_-])", re.I)  # D1 FUT02M / D1 CP03 M → diseño, referencia, género
+MESA_AI = re.compile(r"^D(?:ISE\S{1,2}O)?\s*(\d+)[\s_-]+([A-Za-z]+\d+)(?:[\s_-]*([MFN])(?=$|[.\s_-]))?", re.I)  # D1 FUT02M / D1 CP03 M / D1 CA42 → diseño, referencia, género opcional
 # Formato histórico alterno. Se declara aquí (y no solo en seleccion.py) para
 # que buscar_ai no lo descarte antes de que el selector pueda evaluarlo.
 MESA_ALT = re.compile(r"^Talla_([^_]+)_Tipo_D(\d+)_Gen_([MFN])", re.I)
+# Formato histórico: «BZ02M TALLA XS A XL.ai». El diseño se infiere de la
+# carpeta contenedora («BZ02_D1»).
+MESA_LEGACY = re.compile(r"^([A-Za-z]+\d+)([MFN])(?:[\s_-]+)TALLA(?:[\s_-]+)", re.I)
 
 
 def simulado():
@@ -248,8 +252,25 @@ def buscar_ai(codigo, max_resultados=60, max_prof=6, solo_maestro=False):
     if not solo_maestro:
         opciones.append((carpetas_de_orden(codigo), "orden"))
     for carpetas, etiqueta in opciones:
-        encontrados = [a for a in _ai_en(carpetas, 300, max_prof) if "muestra" not in a.name.lower()]
-        mesas = [a for a in encontrados if MESA_AI.match(a.name) or MESA_ALT.match(a.name)]
+        # Un proyecto puede contener cientos de referencias. Antes se leían los
+        # primeros 300 .ai en orden alfabético y, al recortar a 60, FUT02 podía
+        # quedar fuera aunque su carpeta sí existiera. Cuando LEO ya indicó la
+        # referencia, se entra primero a ESA carpeta del maestro.
+        refs = _PISTAS.get(str(codigo).upper(), set()) if etiqueta == "MAESTROS" else set()
+        por_referencia = []
+        if refs:
+            for carpeta in carpetas:
+                por_referencia.extend(_carpetas_de_referencia(carpeta, refs, max_prof=max_prof))
+            por_referencia = list(dict.fromkeys(por_referencia))
+        origen = por_referencia or carpetas
+        # Los .ai dentro de Montajes son mesas independientes ya exportadas.
+        # No son maestros: si se devuelven aquí TAVO los procesa una segunda
+        # vez como si fueran una plantilla y termina intentando crear PDFs
+        # desde una ruta anidada (p. ej. SD02M/Montajes (SHUREZ)).
+        encontrados = [a for a in _ai_en(origen, 300, max_prof)
+                       if "muestra" not in a.name.lower()
+                       and not any("montajes" in parte.lower() for parte in a.parts)]
+        mesas = [a for a in encontrados if MESA_AI.match(a.name) or MESA_ALT.match(a.name) or MESA_LEGACY.match(a.name)]
         encontrados = (mesas or encontrados)[:max_resultados]
         if encontrados:
             log("TAVO", f"{len(encontrados)} archivos .ai de {codigo} en la carpeta {etiqueta}")

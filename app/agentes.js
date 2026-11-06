@@ -1041,8 +1041,13 @@
     dibujar();
   }
   // Una petición nueva: si la anterior terminó (o no hay), empieza una ejecución limpia; si esperaba una respuesta, continúa la misma.
-  function prepararEjecucion(idMensaje) {
-    const nueva = !flow.estadoServidor || ['INICIO', 'FIN', 'ERROR'].includes(flow.estadoServidor);
+  function prepararEjecucion(idMensaje, texto) {
+    // «Reprocesar» inicia otra ejecución aunque el intento previo haya quedado
+    // esperando en JUGADORES. Sin esto los ERROR del intento anterior se
+    // mezclaban con el nuevo y el panel mostraba "Terminó con errores" aun
+    // cuando el reproceso acababa correctamente.
+    const reproceso = /\breproces(?:ar|o)|\breintentar\b/i.test(String(texto || ''));
+    const nueva = reproceso || !flow.estadoServidor || ['INICIO', 'FIN', 'ERROR'].includes(flow.estadoServidor);
     flow.preparado = idMensaje || flow.preparado;
     if (nueva) { flow.genTab = null; flow.disTab = null; flow.mgenTab = null; flow.mdisTab = null; nuevaEjec(); } else NODOS.forEach(n => { if (flow.estado[n.id] === 'espera') poner(n.id, 'ok'); });
     flow.ejec.pet++;
@@ -1856,7 +1861,7 @@
     st.enviando = true; pintar();
     try {
       if (!flow.listo) reconstruir();
-      prepararEjecucion();
+      prepararEjecucion(null, texto);
       const r = await api('/api/agentes/mensaje', { method: 'POST', body: JSON.stringify({ mensaje: texto, pc: st.pc }) });
       flow.preparado = r.id; st.esperando = true; await cargar(true);
     } catch (e) { alert(e.message); flow.listo = false; }
@@ -1976,6 +1981,10 @@
     anchor.insertAdjacentElement('afterend', group);
     tab = group.querySelector('.tab');
     tab.addEventListener('click', async () => {
+      // El acceso del menú de usuario hace tab.click() (no es un clic confiable
+      // para recordar-vista.js), así que se guarda explícitamente la ubicación.
+      try { localStorage.setItem('indoor-ultima-vista', JSON.stringify({attr: 'data-kind', val: 'agentes', rotulo: 'AGENTES', t: Date.now()})); } catch (_) { /* sin almacenamiento */ }
+      try { history.replaceState(history.state, '', location.pathname + location.search + '#agentes'); } catch (_) { /* History API no disponible */ }
       document.querySelectorAll('.tab').forEach(x => x.classList.toggle('active', x === tab));
       document.querySelectorAll('.panel').forEach(x => x.classList.toggle('active', x === panel));
       document.body.classList.remove('inicio-mode', 'inventory-mode', 'production-mode', 'schedule-mode', 'operarios-mode', 'cartera-mode');

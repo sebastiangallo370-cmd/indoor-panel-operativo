@@ -117,7 +117,10 @@ def _responder(sesion, texto, orden=None):
             SESIONES[sesion] = _nueva()
             log(AGENTE, "Sesión reiniciada")
             return _r("Listo, reinicié. Envíame los datos del nuevo pedido.", "INICIO")
-        if s["estado"] == "FIN":
+        if s["estado"] in ("FIN", "ERROR"):
+            # Un error terminal conserva el diagnóstico en el chat, pero no debe
+            # bloquear el siguiente intento: antes buscaba un manejador ERROR que
+            # no existe y producía KeyError al pedir «reprocesar».
             s = SESIONES[sesion] = _nueva()
         if s["estado"] in ("INICIO", "FIN") and draco.es_para_draco(t):   # «draco …»: el agente de trazos (solo corre en el PC AUTOMATIZACION)
             return draco.atender(t)
@@ -944,6 +947,17 @@ def _pdfs_y_sheets(s, sobrescribir):
     resp = s.get("resp_sheets")
     p, fila = s["pedido"], s["leo"]
     archivos = p.get("mesas_ai") or [p.get("archivo")]
+    # La sesión puede conservar una selección de mesas de un intento anterior.
+    # Antes de crear PDF se vuelve a cruzar con el listado recién leído para no
+    # generar D2, otro género o una talla que la orden actual no solicita.
+    seleccionadas, motivo = seleccion.mesas_para([Path(str(a)) for a in archivos if a], fila.get("lineas") or [])
+    if not seleccionadas:
+        return _err("no encontré la plantilla que pide el listado para crear los PDF de producción.", motivo,
+                    "Revisa el listado y los archivos del maestro; luego escribe «revisar».", "JUGADORES", ["Revisar"])
+    archivos = [str(a) for a in dict.fromkeys(seleccionadas)]
+    p["mesas_ai"] = archivos
+    destinos_previos = s.get("destinos_prod") or {}
+    s["destinos_prod"] = {a: destinos_previos[a] for a in archivos if a in destinos_previos}
     tela = telas.tela_de_hojas([l.get("hoja", "") for l in fila["lineas"]], (fila.get("lineas") or [{}])[0].get("hoja", ""))
     tela_archivo = telas.tela_archivo_de_hojas([l.get("hoja", "") for l in fila["lineas"]], (fila.get("lineas") or [{}])[0].get("hoja", ""))   # MONTECATINI (sin color) para el nombre del PDF
     tarjetas, textos, avisos, total, conservados, fallos = [], [], [], 0, 0, []
@@ -952,10 +966,12 @@ def _pdfs_y_sheets(s, sobrescribir):
     for ai in archivos:
         destino = (s.get("destinos_prod") or {}).get(str(ai)) or {"carpeta": str(olver.carpeta_mesas(p["cliente"], p["referencia"], p.get("orden")).parent / "produccion")}
         log(AGENTE, f"OLVER crea los PDF de producción por jugador de {Path(ai).name}")
-        r = olver.pdfs_por_jugador(ai, fila["lineas"], destino, p.get("orden"), tela=tela or "", sobrescribir=sobrescribir, tela_archivo=tela_archivo)
+        r = olver.pdfs_por_jugador(ai, fila["lineas"], destino, p.get("orden"), tela=tela or "", sobrescribir=sobrescribir,
+                                   tela_archivo=tela_archivo, referencia=p.get("referencia", ""))
         if r.get("existe") and s.get("repro") != "conservar" and not igual:   # el listado cambió desde que se hicieron: se rehacen sin preguntar
             log(AGENTE, f"El listado cambió desde que se hicieron los PDF de {Path(ai).name}: los rehago")
-            r = olver.pdfs_por_jugador(ai, fila["lineas"], destino, p.get("orden"), tela=tela or "", sobrescribir=True, tela_archivo=tela_archivo)
+            r = olver.pdfs_por_jugador(ai, fila["lineas"], destino, p.get("orden"), tela=tela or "", sobrescribir=True,
+                                       tela_archivo=tela_archivo, referencia=p.get("referencia", ""))
         if r.get("existe"):   # mismos jugadores: se conservan los PDF que ya estaban
             log(AGENTE, f"Los PDF de producción de {Path(ai).name} ya existían y el listado no cambió: no los toco")
             conservados += r.get("n", 0)

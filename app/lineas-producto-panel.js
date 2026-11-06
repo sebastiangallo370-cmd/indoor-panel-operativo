@@ -1,14 +1,15 @@
 (function(){
   'use strict';
-  var panel, tab, data;
+  var panel, data;
   function esc(value){return String(value==null?'':value).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
   function api(){return fetch('/api/lineas-producto',{cache:'no-store',credentials:'same-origin'}).then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.detail||'No fue posible cargar las líneas');return d})})}
   function adminGroup(){return Array.prototype.find.call(document.querySelectorAll('.nav-group'),function(group){var parent=group.querySelector('.nav-parent');return parent&&parent.textContent.toUpperCase().indexOf('ADMINISTRACIÓN')>=0})}
   function exitModes(){['inventory-mode','production-mode','inicio-mode','schedule-mode','operarios-mode','cartera-mode'].forEach(function(name){document.body.classList.remove(name)});document.body.classList.add('lineas-producto-mode')}
   function activate(){
-    document.querySelectorAll('.tab').forEach(function(item){item.classList.toggle('active',item===tab)});
+    document.querySelectorAll('.tab').forEach(function(item){item.classList.remove('active')});
     document.querySelectorAll('.panel').forEach(function(item){item.classList.toggle('active',item===panel)});
     exitModes();
+    document.querySelector('.user-menu')?.removeAttribute('open');
     if(window.innerWidth<=860)document.body.classList.remove('menu-open');
     window.scrollTo({top:0,behavior:'auto'});
   }
@@ -29,15 +30,12 @@
   }
   function refresh(){api().then(function(result){data=result;render()}).catch(function(error){if(panel){var grid=panel.querySelector('[data-lp-grid]');grid.innerHTML='<div class="lp-empty-grid">'+esc(error.message)+'</div>'}})}
   function build(){
-    var group=adminGroup();
-    if(!group||group.querySelector('[data-kind="lineas-producto"]'))return;
-    var children=group.querySelector('.nav-children');
-    if(!children)return;
-    tab=document.createElement('button');
-    tab.type='button';tab.className='tab';tab.dataset.kind='lineas-producto';
-    tab.innerHTML='<span class="nav-icon">LP</span><strong>LÍNEAS DE PRODUCTO</strong>';
-    tab.addEventListener('click',activate);
-    children.appendChild(tab);
+    var menu=document.querySelector('.user-dropdown');
+    if(!menu||document.getElementById('open-lineas-producto'))return;
+    var opener=document.createElement('button');
+    opener.type='button';opener.id='open-lineas-producto';opener.textContent='Líneas de producto';
+    opener.addEventListener('click',activate);
+    menu.appendChild(opener);
     panel=document.createElement('section');
     panel.className='panel lp-panel';panel.dataset.panel='lineas-producto';
     panel.innerHTML='<div class="lp-shell"><header class="lp-head"><div><span class="eyebrow">Administración · Catálogo de producción</span><h2>LÍNEAS DE PRODUCTO</h2><p>Consulta y organiza las líneas, características y mockups que usan las tarjetas de producción.</p></div><div class="lp-actions"><strong data-lp-count>Cargando…</strong><button type="button" data-lp-edit>✎ Editar líneas</button></div></header><div class="lp-grid" data-lp-grid><div class="lp-empty-grid">Cargando líneas de producto…</div></div></div>';

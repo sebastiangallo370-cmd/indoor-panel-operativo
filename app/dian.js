@@ -70,7 +70,7 @@
     const done = batch ? batch.downloaded + batch.failed + batch.uncertain : 0;
     const pct = batch ? Math.round((done / Math.max(1, batch.total)) * 100) : (ready ? 75 : 0);
     panel.innerHTML = `<div class="dian-desk dian-central">
-      <header class="dian-bar"><div class="dian-brand"><span>AGENTES</span><b>D. DIAN · DESCARGAS</b></div><div class="dian-bar-spacer"></div><button class="dian-reset" data-clear title="Limpiar formulario">↺</button></header>
+      <header class="dian-bar"><div class="dian-brand"><span>AGENTES</span><b>DIAN · DESCARGAS</b></div><div class="dian-bar-spacer"></div><button class="dian-btn dian-btn-line" data-local-agent>Agente de este PC</button><button class="dian-reset" data-clear title="Limpiar formulario">↺</button></header>
       <div class="dian-board">
         <section class="dian-board-main">
           <div class="dian-token-strip"><label><span>TOKEN DE ACCESO TEMPORAL</span><input id="dian-token" autocomplete="off" spellcheck="false" value="${esc(state.token)}" placeholder="Pega aquí el enlace temporal de DIAN"></label><button class="dian-btn dian-btn-line" data-verify>↗ Verificar token</button></div>
@@ -82,7 +82,7 @@
           <div class="dian-board-summary"><div class="dian-summary-title">RESUMEN DEL LOTE</div><div><span>Token</span><b>${state.token ? 'Temporal cargado' : 'Pendiente'}</b></div><div><span>CUFEs</span><b>${batch ? `${batch.total} en lote` : `${count} listos`}</b></div><div><span>Descargados</span><b>${batch ? `${batch.downloaded} archivos` : '0 archivos'}</b></div>${batch ? `<div><span>Estado</span><b>${esc(batch.status)}</b></div>` : ''}${state.message ? `<p>${esc(state.message)}</p>` : ''}</div>
         </section>
         <aside class="dian-board-side"><div class="dian-session-status ${conn.cls}"><i></i><div><b>${conn.title}</b><small>${conn.note}</small></div></div><div class="dian-side-title">ARCHIVOS EN CARPETA <small>${state.entries.length} archivo${state.entries.length === 1 ? '' : 's'}</small></div><button class="dian-folder-board" data-folder><span>↥</span><b>${esc(state.folder)}</b><small>Carpeta central de la NAS · cambiar</small></button><div class="dian-folder-state"><span>Destino central</span><b>${esc(state.folder)}</b></div><button class="dian-local-folder" data-local-folder><span>▣</span><b>${state.localFolderName ? esc(state.localFolderName) : 'Elegir carpeta de este PC'}</b><small>${state.localFolderName ? 'Los archivos del lote se copiarán aquí' : 'Opcional: Escritorio o cualquier carpeta de Windows'}</small></button><div class="dian-folder-files">${files()}</div>${batch && ['queued','processing'].includes(batch.status) ? '<button class="dian-btn dian-btn-line dian-pause" data-pause>Pausar lote</button>' : ''}</aside>
-      </div><footer class="dian-foot">Cada usuario usa su token temporal. Los archivos se descargan desde el servidor en la NAS, uno por uno; el token no se guarda.</footer>
+      </div><footer class="dian-foot">Para descargar en el Escritorio, NAS o una carpeta de este PC, abre <b>Agente de este PC</b>. Cada usuario usa su token temporal y conserva su propia sesión local.</footer>
       <dialog class="dian-folder-dialog"><form method="dialog"><b>Carpeta central de la NAS</b><p>Indica una subcarpeta dentro de <strong>DIAN DESCARGAS</strong>.</p><input name="folder" value="${esc(state.folder)}" placeholder="Ej. 2026/noviembre"><menu><button value="cancel">Cancelar</button><button value="ok" class="dian-dialog-ok">Usar carpeta</button></menu></form></dialog>
     </div>`;
     bind();
@@ -159,6 +159,10 @@
     panel.querySelector('[data-resume]')?.addEventListener('click', resume);
     panel.querySelector('[data-folder]')?.addEventListener('click', chooseFolder);
     panel.querySelector('[data-local-folder]')?.addEventListener('click', chooseLocalFolder);
+    panel.querySelector('[data-local-agent]')?.addEventListener('click', () => {
+      const opened = window.open('http://127.0.0.1:17877', '_blank', 'noopener');
+      if (!opened) { state.message = 'Chrome bloqueó la ventana del Agente DIAN local.'; render(); }
+    });
     panel.querySelector('[data-normalize]')?.addEventListener('click', () => { snapshot(); state.raw = cufes().join('\n'); state.message = `${cufes().length} CUFEs organizados.`; render(); });
     panel.querySelectorAll('[data-format]').forEach(btn => btn.addEventListener('click', () => { state.format = btn.dataset.format; saveDraft(); render(); }));
     panel.querySelector('[data-pause]')?.addEventListener('click', async () => { try { const id = typeof state.batch === 'string' ? state.batch : state.batch.id; await api(`/api/dian/lotes/${id}/pausar`, {method:'POST'}); state.message='Lote pausado. El token temporal fue descartado.'; await pollBatch(); } catch (error) { state.message=error.message; render(); } });
@@ -183,8 +187,11 @@
     if (!main || document.querySelector('#dian-panel')) return;
     restoreDraft();
     addStyle(); panel = document.createElement('section'); panel.id = 'dian-panel'; panel.className = 'panel dian-panel'; main.prepend(panel);
-    const tab = document.createElement('button'); tab.id = 'dian-tab'; tab.type = 'button'; tab.className = 'tab'; tab.dataset.kind = 'dian'; tab.innerHTML = '<span class="nav-icon">DN</span><strong>D. DIAN</strong>'; tab.addEventListener('click', activate);
-    const host = document.createElement('div'); host.hidden = true; host.style.display = 'none'; host.appendChild(tab); document.querySelector('.tabs')?.appendChild(host);
+    const tab = document.createElement('button'); tab.id = 'dian-tab'; tab.type = 'button'; tab.className = 'tab'; tab.innerHTML = '<span class="nav-icon">DN</span><strong>D. DIAN</strong>'; tab.addEventListener('click', activate);
+    // La pestaña es técnica e invisible: se abre exclusivamente desde el robot
+    // del panel de Agentes, no como submódulo de Tesorería.
+    const host = document.createElement('div'); host.hidden = true; host.style.display = 'none';
+    host.appendChild(tab); document.querySelector('nav.tabs')?.appendChild(host);
     if (location.hash === '#dian') activate();
     // El formulario es un borrador del usuario: no se vuelve a dibujar mientras
     // no exista un lote. Antes se refrescaba la carpeta cada 5 segundos y ese

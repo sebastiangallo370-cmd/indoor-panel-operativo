@@ -11,7 +11,7 @@
     // fichas
     modo: 'refs', fichas: null, mockups: {},
     talla: '', cerradas: {}, calc: {}, orden: 'ref', soloFav: false, ids: [],
-    fav: new Set(guardado('mo_fav', [])), rec: guardado('mo_rec', []), chk: guardado('mo_chk', {}), familia: '', ficha: null, imp: null, importando: false, cargandoFicha: false,
+    fav: new Set(guardado('mo_fav', [])), rec: guardado('mo_rec', []), chk: guardado('mo_chk', {}), familia: '', ficha: null, imp: null, importando: false, cargandoFicha: false, registro: false,
   };
   let panel, tab, relojImp = null;
 
@@ -36,7 +36,7 @@
 
   const css = document.createElement('style');
   css.textContent = `
-  .mo{display:grid;gap:16px;width:100%;max-width:1320px;margin:0 auto}.mo *{box-sizing:border-box}
+  .mo{display:grid;gap:16px;width:100%;max-width:1320px;margin:0 auto}.panel[data-panel='molderia'] .mo{max-width:none}.mo *{box-sizing:border-box}
   .mo-head{display:grid;gap:14px;padding:22px 24px;border:1px solid #34432f;border-radius:20px;background:radial-gradient(120% 140% at 0 0,#1a2a12 0,#0c110d 60%)}
   .mo-head small{color:#d7ff3a;letter-spacing:.16em;font-weight:800;font-size:.68rem}.mo-head h2{margin:4px 0 0;font-size:1.7rem}
   .mo-tabs{display:flex;gap:8px;flex-wrap:wrap}.mo-tab{min-height:44px;padding:0 22px;border:1px solid #34432f;border-radius:999px;background:#101710;color:#c5d1bf;font-weight:800;letter-spacing:.06em;cursor:pointer;width:auto!important}
@@ -63,6 +63,9 @@
   .mo-ref .mo-in{display:grid;gap:6px;padding:0 14px 14px}.mo-ref h4{margin:0;font-size:1.5rem;letter-spacing:.03em}.mo-ref p{margin:0;font-size:.78rem;color:#aebba7}
   .mo-prom{display:flex;gap:6px;flex-wrap:wrap}.mo-prom span{padding:3px 9px;border-radius:999px;background:#17211a;font-size:.68rem;font-weight:800;color:#d7ff3a}
   .mo-ref .sinimg{height:190px;display:grid;place-items:center;align-content:center;gap:12px;background:#17211a;color:#6d7e68;font-weight:800;font-size:.8rem;letter-spacing:.1em}
+  .mo-reg{display:grid;gap:18px;max-width:1180px;margin:0 auto;padding:clamp(18px,3vw,34px);border:1px solid rgba(195,238,63,.32);border-radius:24px;background:radial-gradient(100% 130% at 0 0,rgba(195,238,63,.12),transparent 58%),linear-gradient(135deg,#132013,#091009)}
+  .mo-reg-top{display:flex;gap:16px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap}.mo-reg h3{margin:0;color:#eff8e8;font-size:clamp(1.35rem,2.2vw,2rem)}.mo-reg p{margin:6px 0 0;color:#aebba7;font-size:.9rem;line-height:1.5}.mo-reg-tabs{display:flex;gap:8px;flex-wrap:wrap}.mo-reg-tabs button{min-height:38px;padding:0 14px;border:1px solid #40513c;border-radius:999px;background:#111a11;color:#cbd7c6;font-weight:800;cursor:pointer}.mo-reg-tabs button.on{background:#d7ff3a;color:#10140a;border-color:#d7ff3a}
+  .mo-reg-form{display:grid;gap:16px}.mo-reg-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}.mo-reg-grid .ancho{grid-column:1/-1}.mo-reg label{display:grid;gap:7px;color:#b8c6b1;font-size:.68rem;font-weight:900;letter-spacing:.1em}.mo-reg input,.mo-reg textarea{width:100%;min-height:44px;padding:11px 13px;border:1px solid #40513c;border-radius:11px;background:rgba(0,0,0,.24);color:#f2f7ee;font:600 .92rem Arial;outline:none}.mo-reg textarea{min-height:86px;resize:vertical}.mo-reg input:focus,.mo-reg textarea:focus{border-color:#d7ff3a;box-shadow:0 0 0 3px rgba(215,255,58,.13)}.mo-reg-materiales{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;padding:15px;border:1px solid rgba(255,255,255,.1);border-radius:16px;background:rgba(0,0,0,.16)}.mo-reg-materiales h4{grid-column:1/-1;margin:0;color:#d7ff3a;font-size:.72rem;letter-spacing:.12em}.mo-reg-section{display:grid;gap:13px;padding:18px;border:1px solid rgba(128,164,115,.33);border-radius:16px;background:rgba(0,0,0,.12)}.mo-reg-section h4{margin:0;color:#d7ff3a;font-size:.78rem;letter-spacing:.11em}.mo-reg-section small{color:#93a58d;line-height:1.45}.mo-reg-acciones{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.mo-reg-msg{color:#d7ff3a;font-weight:700;font-size:.85rem}.mo-reg-upload{display:grid;gap:14px;padding:22px;border:1px dashed rgba(215,255,58,.55);border-radius:18px;background:rgba(0,0,0,.18)}.mo-reg-upload b{font-size:1rem;color:#eff8e8}.mo-reg-upload code{padding:8px 10px;border-radius:8px;background:#080e08;color:#d7ff3a;font:700 .8rem Consolas,monospace}.mo-reg-upload small{color:#aebba7;line-height:1.5}@media(max-width:700px){.mo-reg{padding:18px 14px}.mo-reg-grid,.mo-reg-materiales{grid-template-columns:1fr}.mo-reg-grid .ancho,.mo-reg-materiales h4{grid-column:auto}}
   /* ficha con la plantilla de Indoor */
   .ft{display:grid;gap:14px}
   .ft-top{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
@@ -274,7 +277,7 @@
       (pos >= 0 ? '<button type="button" class="mo-btn" data-nav="-1" title="Ficha anterior (←)">‹</button><button type="button" class="mo-btn" data-nav="1" title="Ficha siguiente (→)">›</button>' : '') +
       '<div class="ft-nav">' + menu.map(m => '<button type="button" class="mo-chip" data-ir-sec="' + esc(m) + '">' + esc(m) + '</button>').join('') + '</div>' +
       '<span class="ft-der"><button type="button" class="mo-btn pri" data-ficha-indoor="' + esc(f.ref) + '">✦ Ficha Indoor</button><button type="button" class="mo-btn" data-todo="cerrar">Contraer todo</button><button type="button" class="mo-btn" data-todo="abrir">Expandir todo</button><button type="button" class="mo-btn" data-imprimir>🖨 Imprimir</button>' +
-      '<a class="mo-btn" href="/api/molderia/archivo?tab=fichas&ruta=' + encodeURIComponent('FICHAS TECNICAS/' + f.archivo) + '&descargar=1" download>⬇ Excel original</a></span></div>' +
+      (f.manual ? '' : '<a class="mo-btn" href="/api/molderia/archivo?tab=fichas&ruta=' + encodeURIComponent('FICHAS TECNICAS/' + f.archivo) + '&descargar=1" download>⬇ Excel original</a>') + '</span></div>' +
       '<div class="ft-banda"><div class="ft-id"><div class="ft-ref">' + esc(f.ref) + '</div><div><small>FICHA TÉCNICA · ' + esc(f.familia) + '</small><p class="ft-prenda">' + esc(f.prenda) + '</p>' +
       '<p class="ft-sub">' + (f.referencia ? 'Referencia ' + esc(f.referencia) + ' · ' : '') + esc(f.hoja) + ' · ' + sesenta + ' imágenes</p></div></div>' +
       (f.nota_prenda ? '<p class="ft-nota">' + esc(f.nota_prenda) + '</p>' : '') +
@@ -294,6 +297,7 @@
     const recientes = (st.rec || []).map(id => idx && (idx.fichas || []).find(f => f.id === id)).filter(Boolean);
     const barra = '<div class="mo-bar"><input type="search" data-buscar placeholder="Buscar REF o prenda (CA02, FUT01, chaqueta…)" value="' + esc(st.buscar) + '">' +
       '<select data-orden title="Ordenar"><option value="ref"' + (st.orden === 'ref' ? ' selected' : '') + '>Orden: REF</option><option value="prenda"' + (st.orden === 'prenda' ? ' selected' : '') + '>Orden: prenda</option><option value="imagenes"' + (st.orden === 'imagenes' ? ' selected' : '') + '>Orden: más imágenes</option></select>' +
+      (st.puedeEditar ? '<button type="button" class="mo-btn pri" data-registrar-ficha>＋ Registrar nueva ficha</button>' : '') +
       '<span class="mo-meta">' + estado + '</span></div>';
     const chips = familias.length ? '<div class="mo-chips"><button type="button" class="mo-chip' + (!st.familia ? ' on' : '') + '" data-fam="">TODAS</button>' + familias.map(f => '<button type="button" class="mo-chip' + (st.familia === f ? ' on' : '') + '" data-fam="' + esc(f) + '">' + esc(f) + '</button>').join('') + '</div>' : '';
     let cuerpo;
@@ -306,6 +310,28 @@
     }).join('') + '</div>' : '<div class="mo-vacio">Nada coincide con la búsqueda.</div>';
     const recHtml = recientes.length ? '<div class="mo-rec"><small>RECIENTES</small>' + recientes.map(f => '<button type="button" class="mo-chip" data-ficha="' + esc(f.id) + '">' + esc(f.ref) + '</button>').join('') + '</div>' : '';
     return barra + recHtml + chips + cuerpo;
+  }
+
+  function vistaRegistro() {
+    const manual = st.registro === 'manual';
+    const bloque = (titulo, ayuda, cuerpo) => '<section class="mo-reg-section"><h4>' + titulo + '</h4>' + (ayuda ? '<small>' + ayuda + '</small>' : '') + cuerpo + '</section>';
+    const tallaje = (id, titulo) => '<label>' + titulo + '<textarea name="tallaje_' + id + '" placeholder="Tallas: XS, S, M, L&#10;Ancho: 48, 50, 52, 54&#10;Alto: 68, 70, 72, 74&#10;Largo: 68, 70, 72, 74"></textarea></label>';
+    return '<section class="mo-reg" aria-label="Registrar nueva ficha técnica"><div class="mo-reg-top"><div><small>FICHAS TÉCNICAS</small><h3>Registrar nueva ficha</h3><p>Crea una referencia desde cero o incorpora varias desde Excel. Las referencias que ya existen se protegen: nunca se reemplazan.</p></div><button type="button" class="mo-btn" data-cerrar-registro>← Volver al catálogo</button></div>' +
+      '<div class="mo-reg-tabs"><button type="button" class="' + (manual ? 'on' : '') + '" data-reg-modo="manual">Llenar manualmente</button><button type="button" class="' + (!manual ? 'on' : '') + '" data-reg-modo="excel">Conectar libro técnico</button></div>' +
+      (manual ? '<form class="mo-reg-form" data-reg-form>' + bloque('GENERAL', 'Los mismos datos principales que tiene cada ficha del libro técnico.', '<div class="mo-reg-grid">' +
+        '<label>REF *<input name="ref" required maxlength="12" placeholder="Ej. CP07"></label><label>PRENDA *<input name="prenda" required maxlength="180" placeholder="Ej. Camiseta polo"></label>' +
+        '<label>FAMILIA<input name="familia" maxlength="120" placeholder="Ej. Camisetas"></label><label>REFERENCIA INTERNA<input name="referencia" maxlength="180" placeholder="Opcional"></label>' +
+        '<label class="ancho">COMPOSICIÓN<input name="composicion" maxlength="300" placeholder="Ej. 100% poliéster"></label><label class="ancho">NOTA PARA PRODUCCIÓN<textarea name="nota" maxlength="1200" placeholder="Indicaciones generales de esta referencia"></textarea></label></div>') +
+        '<div class="mo-reg-materiales"><h4>MATERIALES DE LA FICHA · OPCIONALES</h4>' + ['M1', 'M2', 'M3', 'M4'].map(m => '<label>' + m + '<input name="' + m + '" maxlength="180" placeholder="Nombre del material"></label>').join('') + '</div>' +
+        bloque('PROMEDIOS POR UNIDAD', 'Registra el consumo promedio que corresponde a cada grupo.', '<div class="mo-reg-grid"><label>MASCULINO · MTS<input name="prom_masc" inputmode="decimal" placeholder="0,00"></label><label>FEMENINO · MTS<input name="prom_feme" inputmode="decimal" placeholder="0,00"></label><label>NIÑO · MTS<input name="prom_nino" inputmode="decimal" placeholder="0,00"></label><label>NIÑA · MTS<input name="prom_nina" inputmode="decimal" placeholder="0,00"></label></div>') +
+        bloque('FIT Y PIEZAS', 'Escribe una pieza por línea para que aparezcan en la sección Fit y piezas.', '<div class="mo-reg-grid"><label>FIT / MOLDERÍA<input name="fit_titulo" maxlength="180" placeholder="Ej. Fit regular"></label><label>NOTA DEL FIT<input name="fit_nota" maxlength="600" placeholder="Indicaciones del molde"></label><label class="ancho">PIEZAS<textarea name="piezas" placeholder="Frente&#10;Espalda&#10;Manga derecha&#10;Manga izquierda"></textarea></label></div>') +
+        bloque('MEDIDAS Y TALLAJES', 'Para cada grupo escribe las filas Tallas, Ancho, Alto y Largo, separadas por comas.', '<div class="mo-reg-grid">' + tallaje('masc', 'MASCULINO') + tallaje('feme', 'FEMENINO') + tallaje('nino', 'NIÑO') + tallaje('nina', 'NIÑA') + '</div>') +
+        bloque('DESCRIPCIÓN', 'Una indicación por línea.', '<label>DESCRIPCIÓN<textarea name="descripcion" maxlength="1600" placeholder="Cuello tipo polo&#10;Manga corta&#10;Costuras reforzadas"></textarea></label>') +
+        bloque('INSUMOS Y MEDIDAS DE INSUMOS', 'Una fila por línea, separada con |: Nombre | Tipo | Color | Medida | Cantidad | Observación.', '<div class="mo-reg-grid"><label class="ancho">INSUMOS<textarea name="insumos" placeholder="Cremallera | nylon | negro | 20 cm | 1 | frontal"></textarea></label><label class="ancho">MEDIDAS DE INSUMOS<textarea name="medidas_insumos" placeholder="Medida cuello | XS,S,M,L | 38,40,42,44"></textarea></label></div>') +
+        bloque('CONFECCIÓN', 'Una operación por línea: Etiqueta | Valor | Detalle.', '<label>OPERACIONES<textarea name="confeccion" placeholder="Cerrar hombros | recta | 4 hilos&#10;Montar cuello | collarín | "></textarea></label>') +
+        bloque('TERMINACIÓN Y EMPAQUE', 'Terminación: una por línea. Empaque: Nombre | Tipo | Color | Medida | Cantidad | Observación.', '<div class="mo-reg-grid"><label>TERMINACIÓN<textarea name="terminacion" placeholder="Revisar hilos&#10;Doblar prenda"></textarea></label><label>INSUMOS DE EMPAQUE<textarea name="empaque_insumos" placeholder="Bolsa | empaque | transparente | 30x40 | 1 | "></textarea></label></div>') +
+        '<div class="mo-reg-acciones"><button type="submit" class="mo-btn pri">Guardar ficha nueva</button><button type="button" class="mo-btn" data-cerrar-registro>Cancelar</button><span class="mo-reg-msg" data-reg-msg></span></div></form>' :
+        '<div class="mo-reg-upload"><b>Conectar o actualizar libro técnico</b><small>Selecciona un libro como <code>BUZOS (BZ).xlsx</code>, <code>CAMISAS (CA).xlsx</code> o <code>CAMISA POLO (CP).xlsx</code>. Cada hoja del libro se incorpora como ficha técnica nueva dentro de la carpeta oficial.</small><div><button type="button" class="mo-btn pri" data-conectar-excel>Seleccionar libro .xlsx</button></div><small>Si el libro tiene el mismo nombre, se actualizan sus datos; las imágenes actuales de cada ficha se conservan. Las hojas nuevas se agregan normalmente.</small><span class="mo-reg-msg" data-reg-msg></span></div>') + '</section>';
   }
 
   async function cargarFichas() {
@@ -335,6 +361,49 @@
       st.imp = j.estado || { importando: true }; st.imp.importando = true;
       vigilarImportacion(); pintar();
     } catch (e) { alert(e.message); }
+  }
+  function elegirExcel() {
+    const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    inp.addEventListener('change', () => { if (inp.files[0]) conectarExcel(inp.files[0]); });
+    inp.click();
+  }
+  async function conectarExcel(archivo) {
+    if (!/\.xlsx$/i.test(archivo.name) || archivo.size > 50 * 1024 * 1024) { alert('Selecciona un Excel .xlsx de máximo 50 MB.'); return; }
+    const datos = new FormData(); datos.append('archivo', archivo);
+    try {
+      const r = await fetch('/api/molderia/fichas/conectar-excel', { method: 'POST', credentials: 'same-origin', body: datos });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.detail || 'No pude conectar el Excel');
+      st.imp = j.estado || { importando: true }; st.imp.importando = true;
+      st.mensaje = (j.reemplazado ? 'Libro actualizado: ' : 'Excel conectado: ') + archivo.name + '. Importando fichas…'; vigilarImportacion(); pintar();
+    } catch (e) { alert(e.message); }
+  }
+
+  async function registrarManual(form) {
+    const datos = new FormData(form);
+    const payload = Object.fromEntries(datos.entries());
+    payload.materiales = Object.fromEntries(['M1', 'M2', 'M3', 'M4'].map(m => [m, payload[m] || '']));
+    const mensaje = panel.querySelector('[data-reg-msg]'), boton = form.querySelector('button[type=submit]');
+    boton.disabled = true; if (mensaje) mensaje.textContent = 'Guardando…';
+    try {
+      const j = await api('/api/molderia/fichas/registrar', { method: 'POST', body: JSON.stringify(payload) });
+      st.registro = false; st.mensaje = 'Ficha ' + j.ficha.ref + ' creada. Ya puedes completar sus detalles.'; await cargarFichas();
+    } catch (e) { if (mensaje) mensaje.textContent = e.message; }
+    finally { boton.disabled = false; }
+  }
+  function elegirExcelReferencias() {
+    const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    inp.addEventListener('change', () => { if (inp.files[0]) importarReferenciasExcel(inp.files[0]); }); inp.click();
+  }
+  async function importarReferenciasExcel(archivo) {
+    if (!/\.xlsx$/i.test(archivo.name) || archivo.size > 10 * 1024 * 1024) { alert('Selecciona un Excel .xlsx de máximo 10 MB.'); return; }
+    const mensaje = panel.querySelector('[data-reg-msg]'); if (mensaje) mensaje.textContent = 'Validando e importando…';
+    const datos = new FormData(); datos.append('archivo', archivo);
+    try {
+      const r = await fetch('/api/molderia/fichas/importar-referencias', { method: 'POST', credentials: 'same-origin', body: datos });
+      const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.detail || 'No pude importar el Excel');
+      st.registro = false; st.mensaje = j.creadas + ' ficha' + (j.creadas === 1 ? '' : 's') + ' creada' + (j.creadas === 1 ? '' : 's') + ' desde ' + archivo.name + '.'; await cargarFichas();
+    } catch (e) { if (mensaje) mensaje.textContent = e.message; }
   }
 
   function navegarFicha(d) {
@@ -404,7 +473,7 @@
     const host = panel.querySelector('.mo');
     const cab = st.ctx === 'estandar' ? '' : '<div class="mo-head"><div><small>PRODUCCIÓN</small><h2>MOLDERIA</h2></div></div>';
     const foco = document.activeElement && document.activeElement.matches && document.activeElement.matches('[data-buscar]');
-    const cuerpo = st.tab === 'fichas' ? (st.modo === 'ficha' ? vistaFicha() : st.modo === 'archivos' ? vistaExplorador() : vistaRefs()) : vistaExplorador();
+    const cuerpo = st.tab === 'fichas' ? (st.registro ? vistaRegistro() : st.modo === 'ficha' ? vistaFicha() : st.modo === 'archivos' ? vistaExplorador() : vistaRefs()) : vistaExplorador();
     host.innerHTML = cab + cuerpo;
     if (foco) { const c = host.querySelector('[data-buscar]'); if (c) { c.focus(); c.setSelectionRange(c.value.length, c.value.length); } }
     if (st.tab === 'fichas' && st.modo === 'ficha' && st.ficha) { resaltarTalla(); recalcular(); }
@@ -491,8 +560,18 @@
       const estrella = e.target.closest('[data-fav]');
       if (estrella) { e.preventDefault(); e.stopPropagation(); const id = estrella.dataset.fav; st.fav.has(id) ? st.fav.delete(id) : st.fav.add(id); guardar('mo_fav', [...st.fav]); pintar(); return; }
       const t = e.target.closest('[data-t]'), ir = e.target.closest('[data-ir]'), dir = e.target.closest('[data-dir]'), ficha = e.target.closest('[data-ficha]');
-      if (ficha) abrirIndoor(ficha.dataset.ficha);
+      if (e.target.closest('[data-registrar-ficha]')) {
+        // El alta se hace dentro de la plantilla real de ficha técnica, vacía
+        // y sin mockup; así se completa por pestañas conforme se consiguen los datos.
+        if (typeof window.fichasResumenNueva === 'function') window.fichasResumenNueva();
+        else alert('La plantilla de ficha aún está cargando. Espera un momento e inténtalo de nuevo.');
+      }
+      else if (e.target.closest('[data-cerrar-registro]')) { st.registro = false; pintar(); }
+      else if (e.target.closest('[data-reg-modo]')) { st.registro = e.target.closest('[data-reg-modo]').dataset.regModo; pintar(); }
+      else if (e.target.closest('[data-reg-elegir-excel]')) elegirExcelReferencias();
+      else if (ficha) abrirIndoor(ficha.dataset.ficha);
       else if (e.target.closest('[data-volver]')) { st.modo = 'refs'; st.ficha = null; pintar(); }
+      else if (e.target.closest('[data-conectar-excel]')) elegirExcel();
       else if (e.target.closest('[data-importar]')) importar();
       else if (e.target.closest('[data-solo-fav]')) { st.soloFav = !st.soloFav; pintar(); }
       else if (e.target.closest('[data-talla]')) { st.talla = e.target.closest('[data-talla]').dataset.talla; pintar(); }
@@ -528,6 +607,7 @@
     });
     panel.addEventListener('input', e => { if (e.target.matches('[data-calc]')) recalcular(); });
     panel.addEventListener('input', e => { if (e.target.matches('[data-buscar]')) { st.buscar = e.target.value; pintar(); } });
+    panel.addEventListener('submit', e => { if (e.target.matches('[data-reg-form]')) { e.preventDefault(); registrarManual(e.target); } });
     return true;
   }
 
@@ -538,6 +618,7 @@
   fetch('/api/permisos/mi', { cache: 'no-store', credentials: 'same-origin' }).then(r => (r.ok ? r.json() : null)).then(mi => {
     const p = (mi && mi.permisos && mi.permisos.molderia) || {};
     if (!p.ver) return;
+    st.puedeEditar = !!p.editar;
     let intentos = 0;
     const espera = setInterval(() => { if ((build() && addMenuItem()) || ++intentos > 80) clearInterval(espera); }, 250);
   }).catch(() => { /* sin permisos confirmados: no se muestra */ });

@@ -3,6 +3,11 @@
   // No duplica nada: pone una franja con las dos pestañas arriba de los dos módulos existentes y cambia entre ellos.
   if (window.__estandarListo) return;
   window.__estandarListo = true;
+  const VISTA_KEY = 'indoor-estandar-vista';
+  try {
+    const guardada = localStorage.getItem(VISTA_KEY);
+    if (guardada === 'promedios' || guardada === 'fichas' || guardada === 'proveedores') window.__esVista = guardada;
+  } catch (e) { /* el panel sigue funcionando sin almacenamiento */ }
 
   const css = document.createElement('style');
   css.textContent = `
@@ -75,8 +80,10 @@
       window.__esVista = que;
       if (!document.querySelector('.panel[data-panel="promedios"].active')) document.querySelector('.tab[data-kind="promedios"]')?.click();
     } else if (window.molderiaIr) {
+      window.__esVista = 'fichas';
       window.molderiaIr('estandar');
     }
+    try { localStorage.setItem(VISTA_KEY, window.__esVista || 'promedios'); } catch (e) { /* sin almacenamiento */ }
     setTimeout(sincronizar, 60);
   }
 
@@ -98,5 +105,18 @@
   const obs = new MutationObserver(() => { renombrarMenu(); sincronizar(); });
   const iniciar = () => { const main = document.querySelector('main'); if (main) obs.observe(main, { childList: true, subtree: false, attributes: true, attributeFilter: ['class'] }); };
   iniciar();
+  // Al volver con F5, el menú abre Estándar y esta vista conserva su subpestaña.
+  const vistaGuardada = window.__esVista;
+  if (vistaGuardada && vistaGuardada !== 'promedios') {
+    let intentos = 0;
+    const restaurar = setInterval(() => {
+      if (++intentos > 60) return clearInterval(restaurar);
+      const panelPromedios = document.querySelector('.panel[data-panel="promedios"].active');
+      const panelFichas = document.querySelector('.panel[data-panel="molderia"].active');
+      if (!panelPromedios && !panelFichas) return;
+      clearInterval(restaurar);
+      ir(vistaGuardada);
+    }, 250);
+  }
   document.addEventListener('click', () => setTimeout(sincronizar, 80), true);
 })();

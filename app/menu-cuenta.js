@@ -48,7 +48,7 @@
         m.querySelector('.li-menu-item:not(.li-create-user)'), porId('open-agentes'), porId('open-agentes-hub'), porId('open-ecommerce'), porId('open-zeus'), porId('open-promedios'), porId('open-molderia'), fichas
       ].filter(Boolean);
       // cuenta: dentro de la sección
-      const cuenta = [porId('open-profile'), porId('open-name'), porId('open-password'), porId('open-personal-notes'), m.querySelector('.li-create-user'), m.querySelector('.theme-toggle')].filter(Boolean);
+      const cuenta = [porId('open-profile'), porId('open-name'), porId('open-password'), porId('open-manage-permissions'), porId('open-lineas-producto'), porId('open-personal-notes'), m.querySelector('.li-create-user'), m.querySelector('.theme-toggle')].filter(Boolean);
       let ref = rol ? rol.nextSibling : m.firstChild;
       herramientas.forEach(el => { if (el.parentNode !== m || el !== ref) m.insertBefore(el, ref); ref = el.nextSibling; });
       if (grupo.parentNode !== m || grupo !== ref) m.insertBefore(grupo, ref);

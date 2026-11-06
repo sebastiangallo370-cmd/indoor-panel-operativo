@@ -52,8 +52,8 @@ class _VigiaCarpeta:
         self._revisar(definitivo=True)
 
 
-# Pedido del usuario: al exportar se revisan TODAS las mesas del maestro.
-# Las que ya existen en Montajes se reutilizan; Illustrator solo crea las que faltan.
+# Exporta todas las mesas/tallas del archivo que abrió OLVER. Las que ya
+# existen en Montajes se reutilizan; Illustrator crea únicamente las faltantes.
 SIEMPRE_TODAS_LAS_MESAS = True
 
 def _cache_maestro(ai):
@@ -201,7 +201,12 @@ def exportar_mesas(cliente, referencia, ruta_ai, formato="ai", sobrescribir=Fals
         return {"ok": False, "error": f"No encuentro el archivo: {ai}"}
 
     # Nombre de cada mesa: D1_FUT01M (diseño + referencia + M/F/N). Referencia y diseños salen de la carpeta del .ai (FUT01_ D1_D2_)
-    mn = re.match(_RE_MAESTRO, ai.name, re.I)   # «D1 FUT02M XS A 4XL.ai» ya trae todo
+    mn = _maestro_match(ai)   # formato moderno o histórico «FUT02M TALLA XS A 4XL.ai»
+    if mn and getattr(mn, "sin_genero", False):
+        try:
+            mn = _maestro_con_genero_del_listado(mn, lineas)
+        except ValueError as e:
+            return {"ok": False, "error": str(e)}
     ref, ds = ordenes.ref_y_disenos(ai.parent.name)
     ref = (ref or "").upper()
     disenos = sorted(ds, key=int)
@@ -393,6 +398,57 @@ def _jugadores_de(lineas, diseno, genero):
 
 # Nombre del maestro: «D1 BAL01N(F) 4 A 16.ai» -> diseño 1, referencia BAL01, género N y sufijo (F). Las carpetas llevan el MISMO nombre que la plantilla (BAL01N(F)).
 _RE_MAESTRO = r"^D(?:ISE\S{1,2}O)?\s*(\d+)[\s_]+([A-Za-z]+\d+)([MFN])(\([MF]\))?(?![A-Za-z0-9])"   # también «DISEÑO1 PT01M XS A 4XL.ai»
+_RE_MAESTRO_UNISEX = re.compile(r"^D(?:ISE\S{1,2}O)?\s*(\d+)[\s_]+([A-Za-z]+\d+)(?=[\s_.-]|$)", re.I)
+_RE_MAESTRO_HISTORICO = re.compile(r"^([A-Za-z]+\d+)([MFN])(?:[\s_-]+)TALLA(?:[\s_-]+)", re.I)
+# Mesa independiente que exporta OLVER desde un maestro. Su nombre no trae la
+# referencia porque esta ya vive en la carpeta de producción del pedido.
+_RE_MESA_INDEPENDIENTE = r"^(?:.+_)?Talla_([^_]+)_Tipo_D(\d+)_Gen_([MFN])$"
+
+
+class _MaestroHistorico:
+    """Compatibilidad mínima con Match para los maestros antiguos sin D<n>."""
+    def __init__(self, diseno, referencia, genero):
+        self._grupos = (str(diseno), referencia, genero, "")
+
+    def group(self, indice):
+        return self._grupos[indice - 1]
+
+
+class _MaestroUnisex:
+    """Maestro «D1 CA42 XS A 5XL.ai»: su género se toma del listado."""
+    sin_genero = True
+
+    def __init__(self, diseno, referencia):
+        self._grupos = (str(diseno), referencia, "", "")
+
+    def group(self, indice):
+        return self._grupos[indice - 1]
+
+
+def _maestro_match(ai):
+    """Lee ambos formatos sin modificar los archivos del cliente."""
+    m = re.match(_RE_MAESTRO, Path(ai).name, re.I)
+    if m:
+        return m
+    unisex = _RE_MAESTRO_UNISEX.match(Path(ai).name)
+    if unisex:
+        return _MaestroUnisex(unisex.group(1), unisex.group(2).upper())
+    antiguo = _RE_MAESTRO_HISTORICO.match(Path(ai).name)
+    diseno = ordenes.diseno_en_archivo(Path(ai).parent.name) if antiguo else None
+    if antiguo and diseno:
+        return _MaestroHistorico(diseno, antiguo.group(1).upper(), antiguo.group(2).upper())
+    return None
+
+
+def _maestro_con_genero_del_listado(maestro, lineas):
+    """Un maestro sin M/F/N se ejecuta solo para el género único solicitado."""
+    if not getattr(maestro, "sin_genero", False):
+        return maestro
+    generos = {seleccion._genero_efectivo(linea) for linea in (lineas or [])}
+    generos.discard(None)
+    if len(generos) != 1:
+        raise ValueError("El maestro unisex necesita un único género en el listado para exportar la plantilla correcta.")
+    return _MaestroHistorico(maestro.group(1), maestro.group(2), generos.pop())
 
 
 def _solo_sexo_del_maestro(por_talla, sufijo):
@@ -452,7 +508,7 @@ def _nombres_esperados(carpeta, base, jugadores):
     return [_archivo_pdf(carpeta, base, i, j) for i, j in enumerate(jugadores, 1)]
 
 
-def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=False, tela_archivo=None):
+def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=False, tela_archivo=None, referencia=""):
     # destino["montajes"]: carpeta Montajes (MÁQUINA) del maestro; si ahí ya están las mesas independientes exportadas, se abre cada talla desde su archivo
     """Crea un PDF por jugador. Devuelve:
         {"ok": True, "pdfs": [{"ruta", "nombre", "numero", "talla"}], "carpeta", "simulado", "omitidas": [...]}
@@ -460,11 +516,29 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
         {"ok": False, "error": texto}
     """
     ai = Path(str(ruta_ai).strip().strip('"'))
-    m = re.match(_RE_MAESTRO, ai.name, re.I)
-    if not m:
+    m = _maestro_match(ai)
+    # Los maestros históricos pueden venir sin la letra M/F/N (por ejemplo,
+    # «D1 CA42 XS A 5XL.ai»). Al crear los PDF se debe resolver con el
+    # listado actual igual que al exportar las mesas; de lo contrario queda
+    # un género vacío y OLVER reporta erróneamente que no hay jugadores.
+    if m and getattr(m, "sin_genero", False):
+        try:
+            m = _maestro_con_genero_del_listado(m, lineas)
+        except ValueError as e:
+            return {"ok": False, "error": str(e)}
+    mesa = re.match(_RE_MESA_INDEPENDIENTE, ai.stem, re.I)
+    if m:
+        diseno, ref, genero = m.group(1), m.group(2).upper(), m.group(3).upper()
+        suf_maestro = (m.group(4) or "").upper()
+    elif mesa and str(referencia).strip():
+        # «Talla_M_Tipo_D1_Gen_M.ai» es una mesa YA aislada por OLVER. Solo
+        # se acepta cuando TAVO entrega la referencia exacta del pedido; así
+        # nunca se usa una mesa de otra referencia por accidente.
+        diseno, ref, genero = mesa.group(2), str(referencia).strip().upper(), mesa.group(3).upper()
+        suf_maestro = ""
+        log(AGENTE, f"Reconozco {ai.name} como mesa independiente de D{diseno} {ref}{genero}")
+    else:
         return {"ok": False, "error": f"El nombre del archivo no dice diseño, referencia y género (D1 FUT02F …): {ai.name}"}
-    diseno, ref, genero = m.group(1), m.group(2).upper(), m.group(3).upper()
-    suf_maestro = (m.group(4) or "").upper()
     por_talla = _solo_sexo_del_maestro(_jugadores_de(lineas, diseno, genero), suf_maestro)
     if not por_talla:
         return {"ok": False, "error": f"El listado no tiene jugadores de diseño {diseno} y género {genero} para {ai.name}."}

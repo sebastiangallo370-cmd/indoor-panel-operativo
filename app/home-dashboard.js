@@ -361,8 +361,6 @@
     const ultimo = con[con.length - 1];   // en celular solo este día viene abierto; los demás se abren al tocarlos
     const cols = dias.map((d, i) => { const hay = d.v !== null, v = d.v, pct = hay ? Math.round(v / mayor * 100) : 0, rise = hay ? Math.max(18, Math.round(v / mayor * 150)) : 0, top = hay && d === lento && con.length > 1;
       const numero = !hay ? '—' : v >= 60 ? fmtNum(v / 60, 1) : v >= 1 ? fmtNum(v, 1) : String(Math.round(v * 60)), unidad = !hay ? 'sin datos' : (v >= 60 ? 'h' : v >= 1 ? 'min' : 'seg') + (porLote ? ' por lote' : ' / und.');
-      const esTrazo = x.label === 'TRAZO/CORTE/PLT';
-      const nombre = esTrazo ? 'TRAZO<span>CORTE PLT</span>' : esc(SHORT[x.label] || x.label);
       return '<div class="st-col' + (top ? ' top' : '') + (hay ? '' : ' empty') + (d === ultimo ? '' : ' cerrado') + '" role="listitem" style="--i:' + i + ';--rise:' + rise + 'px;--lv:' + Math.min(94, Math.max(pct, hay ? 8 : 0)) + '%" title="' + esc(d.nombre) + (hay ? ' · ' + fmtDur(d.min) + ' ÷ ' + fmtNum(d.und) + ' und. · ' + d.lotes + ' lotes' : ' · sin inicio y final ese día') + '">' +
         (top ? '<em class="ar-ribbon">Más lento</em>' : '') + '<span class="st-slot"><span class="st-bar">' + (hay ? '<i class="sg ' + (top ? 'cola' : 'prog') + '" style="flex:1"></i>' : '') + '</span></span>' +
         '<b class="st-name">' + esc(d.nombre) + '</b><span class="st-val">' + numero + '</span><small class="st-sub">' + unidad + (hay ? ' · ' + fmtNum(d.und) + ' und. · ' + plural(d.lotes, 'orden', 'órdenes') : '') + '</small>' + ordDia(d) + '<em class="st-pct">' + pct + '%</em></div>'; }).join('');
@@ -386,20 +384,22 @@
   function unitStairs(a) {
     const l = a.unitTime || [], porLote = unitMetric === 'lote', dato = x => (porLote ? x.lote : x.porUnidad), con = l.filter(x => dato(x) !== null);
     const abierta = unitArea && l.find(x => x.label === unitArea); if (abierta) return unitWeek(abierta, porLote);
-    const mayor = Math.max(1e-9, ...con.map(dato)), total = con.reduce((t, x) => t + dato(x), 0), lento = con.slice().sort((x, y) => dato(y) - dato(x))[0];
+    // Cada área conserva su propia base: sus minutos ÷ sus unidades medidas.
+    // No se suman cantidades de otras áreas para construir el indicador ni su porcentaje.
+    const mayor = Math.max(1e-9, ...con.map(dato)), lento = con.slice().sort((x, y) => dato(y) - dato(x))[0];
     const cols = l.map((x, i) => {
-      const v = dato(x), hay = v !== null, rise = hay ? Math.max(18, Math.round(v / mayor * 190)) : 0, share = hay && total ? Math.round(v / total * 100) : 0, top = hay && x === lento && con.length > 1;
+      const v = dato(x), hay = v !== null, rise = hay ? Math.max(18, Math.round(v / mayor * 190)) : 0, share = hay ? Math.round(v / mayor * 100) : 0, top = hay && x === lento && con.length > 1;
       const numero = !hay ? '—' : v >= 60 ? fmtNum(v / 60, 1) : v >= 1 ? fmtNum(v, 1) : String(Math.round(v * 60)), unidad = !hay ? 'sin datos' : (v >= 60 ? 'h' : v >= 1 ? 'min' : 'seg') + (porLote ? ' por lote' : ' / und.');
       const esTrazo = x.label === 'TRAZO/CORTE/PLT';
       const nombre = esTrazo ? 'TRAZO<span>CORTE PLT</span>' : esc(SHORT[x.label] || x.label);
       return '<button type="button" class="st-col' + (top ? ' top' : '') + (esTrazo ? ' trazo' : '') + (hay ? '' : ' empty') + '" data-unit-open="' + esc(x.label) + '" style="--i:' + i + ';--rise:' + rise + 'px;--lv:' + Math.min(94, Math.max(share, hay ? 8 : 0)) + '%" title="' + esc(x.label) + (hay ? ' · ' + fmtDur(x.porUnidad) + ' por unidad · lote típico ' + fmtDur(x.lote) + ' · ' + fmtNum(x.unidades) + ' unidades en ' + x.lotes + ' lotes' : ' · todavía sin inicio y final registrados') + '">' +
         (top ? '<em class="ar-ribbon">Más lento</em>' : '') + '<span class="st-slot"><span class="st-bar">' + (hay ? '<i class="sg ' + (top ? 'cola' : 'prog') + '" style="flex:1"></i>' : '') + '</span></span>' +
-        '<b class="st-name">' + esc(SHORT[x.label] || x.label) + '</b><span class="st-val">' + numero + '</span><small class="st-sub">' + unidad + (hay ? ' · ' + fmtNum(x.unidades) + ' und.' : '') + '</small><em class="st-pct">' + share + '%</em></button>';
+        '<b class="st-name">' + nombre + '</b><span class="st-val">' + numero + '</span><small class="st-sub">' + unidad + (hay ? ' · ' + fmtNum(x.unidades) + ' und.' : '') + '</small><em class="st-pct">' + share + '%</em></button>';
     }).join('');
     return '<section class="dash-stairs de-unidad' + (stairsPlayed ? ' go' : '') + '" data-compact="0">' +
-      '<header class="st-head"><div><span class="ar-kicker">CUÁNTO TARDA CADA PRENDA</span><h3>Escalera de tiempo por unidad</h3><p>Cada escalón es un área en el orden del proceso: mientras más alto, más tarda. Se calcula con la HORA INICIO y la HORA FINAL del Sheet y, en las áreas que no las llevan, con el inicio y el final marcados en la página; el porcentaje es la parte del tiempo total que se lleva esa área. Toca un área para ver su escalera de la última semana.</p></div>' +
+      '<header class="st-head"><div><span class="ar-kicker">CUÁNTO TARDA CADA PRENDA</span><h3>Escalera de tiempo por unidad</h3><p>Cada escalón se calcula solo con los lotes y las unidades registradas en esa área: su tiempo medido dividido entre su propia cantidad. No mezcla cantidades de otras áreas. El porcentaje compara el tiempo por unidad de cada área con la más lenta. Toca un área para ver su escalera de la última semana.</p></div>' +
       '<div class="st-metric" role="group" aria-label="Medir por"><button type="button" data-ut-metric="unidad" class="' + (porLote ? '' : 'on') + '">Por unidad</button><button type="button" data-ut-metric="lote" class="' + (porLote ? 'on' : '') + '">Por lote</button></div></header>' +
-      '<div class="st-sum"><span class="st-pill proc" title="Suma de las áreas que tienen registro"><i></i>' + (porLote ? 'Suma de lotes típicos' : 'Total por unidad') + ' <b>' + (con.length ? fmtDur(total) : '—') + '</b></span>' +
+      '<div class="st-sum"><span class="st-pill proc" title="Cada área usa únicamente sus propios lotes y unidades"><i></i>' + (porLote ? 'Medición por lote' : 'Medición propia por área') + ' <b>' + (con.length ? con.length + ' áreas' : '—') + '</b></span>' +
       '<span class="st-pill prog"><i></i>Áreas medidas <b>' + con.length + ' de ' + l.length + '</b></span><span class="st-pill cola"><i></i>Lotes medidos <b>' + fmtNum(l.reduce((t, x) => t + x.lotes, 0)) + '</b></span>' +
       (lento ? '<span class="st-neck">Área que más tarda: <b>' + esc(lento.label) + '</b> · ' + fmtDur(dato(lento)) + (porLote ? ' por lote' : ' por unidad') + '</span>' : '') + '</div>' +
       '<div class="st-scroll"><div class="st-chart" role="list">' + cols + '</div></div><div class="st-flow" aria-hidden="true"><span>Entrada</span><i></i><span>Salida</span></div></section>';
@@ -501,10 +501,10 @@
     unitDetach(); if (unitShown) setTimeout(unitAttach, 0);   // al redibujar, la tarjeta prestada vuelve a su sitio y se trae otra vez
     const l = a.unitTime || [], con = l.filter(x => x.porUnidad !== null);
     if (!l.length) return '<p class="dash-none">Todavía no hay áreas de producción para medir.</p>';
-    const mayor = Math.max(1e-9, ...con.map(x => x.porUnidad)), total = con.reduce((t, x) => t + x.porUnidad, 0), TONOS = ['lime', 'blue', 'green', 'orange', 'lime', 'blue', 'green'];
+    const mayor = Math.max(1e-9, ...con.map(x => x.porUnidad)), TONOS = ['lime', 'blue', 'green', 'orange', 'lime', 'blue', 'green'];
     const valor = m => m === null ? ['—', ''] : m >= 60 ? [fmtNum(m / 60, 1), 'hrs / unidad'] : m >= 1 ? [fmtNum(m, 1), 'min / unidad'] : [String(Math.round(m * 60)), 'seg / unidad'];
-    const resumen = con.length ? card('green', 'Total por unidad', valor(total)[0], valor(total)[1], [['Suma de las áreas con registro', ''], ['Áreas medidas', con.length + ' de ' + l.length],
-      ['Unidades medidas', fmtNum(Math.max(...con.map(x => x.unidades)))], ['Área que más tarda', con.slice().sort((x, y) => y.porUnidad - x.porUnidad)[0].label]], '', null) : '';
+    const resumen = con.length ? card('green', 'Medición por área', String(con.length), 'áreas con datos', [['Cada área usa sus propios lotes y unidades', ''], ['Áreas medidas', con.length + ' de ' + l.length],
+      ['Mayor cantidad medida', fmtNum(Math.max(...con.map(x => x.unidades))) + ' und.'], ['Área que más tarda', con.slice().sort((x, y) => y.porUnidad - x.porUnidad)[0].label]], '', null) : '';
     return unitFind(a) + unitStairs(a) + unitOrders(a) + '<section class="dash-load"><div class="dash-panel-head"><h4>Detalle por área</h4><small>Minutos por prenda en todas las áreas · con las horas del Sheet o, si el área no las lleva, con el inicio y el final marcados en la página · las filas de una orden que se trabajaron juntas cuentan como un solo lote</small></div>' +
       '<div class="dash-cards dash-unit">' + resumen + l.map((x, i) => { const [v, u] = valor(x.porUnidad); return x.porUnidad === null
         ? card('orange', esc(x.label), '—', '', [['Todavía no hay registros con hora de inicio y final', '']], '', 0)
@@ -518,6 +518,10 @@
   function telaTabs() { if (telaData && !TABS.some(([id]) => id === 'tela')) TABS.push(['tela', 'Tela']); }
   let activeTab = 'resumen';
   try { const saved = localStorage.getItem('indoor-home-tab'); if (TABS.some(([id]) => id === saved)) activeTab = saved; } catch (e) { /* sin almacenamiento */ }
+  // En las vistas de análisis el banner de bienvenida no aporta contexto y empuja
+  // la escalera fuera del primer pantallazo. Se oculta solo mientras no se vea Resumen.
+  function syncHomeFocus() { root.closest('.home-page')?.classList.toggle('home-dashboard-focus', activeTab !== 'resumen'); }
+  syncHomeFocus();
   function tabsBar(a) {
     telaTabs();
     const badge = { tiempo: a.timing.length || '', carga: a.load.length || '', tela: telaData && (telaData.por_pedir.length + telaData.errores.length) || '' };
@@ -529,6 +533,7 @@
     if (!tab) return;
     activeTab = tab.dataset.dashTab;
     try { localStorage.setItem('indoor-home-tab', activeTab); } catch (e) { /* sin almacenamiento */ }
+    syncHomeFocus();
     root.querySelectorAll('[data-dash-tab]').forEach(b => { const on = b.dataset.dashTab === activeTab; b.classList.toggle('on', on); b.setAttribute('aria-selected', String(on)); });
     root.querySelectorAll('.dash-pane').forEach(pane => pane.classList.toggle('on', pane.dataset.pane === activeTab));
     countUp();
@@ -958,8 +963,8 @@
   @media(max-width:700px){.od-legend{display:none}.od-title small{display:none}.od-head{gap:8px;padding-bottom:6px}.od-title h3{font-size:1.35rem}.od-close{width:38px!important;height:38px}.od-kpi span{font-size:.56rem;letter-spacing:.03em}.od-tools{gap:8px;padding-bottom:6px}.od-chips{flex-wrap:nowrap;overflow-x:auto;flex:1 1 100%;scrollbar-width:none}.od-chip{flex:none;padding:6px 11px;font-size:.7rem}.od-search input,.od-sort select{min-height:34px}.od-head{padding-top:14px}.od-kpis{order:3;width:100%;display:grid;grid-template-columns:repeat(4,1fr);gap:6px}.od-kpi{min-width:0;padding:7px 4px}.od-kpi b{font-size:1.1rem}.od-search input{width:100%}.od-search{flex:1 1 100%}.od-sort{flex:1 1 100%}.od-sort select{flex:1}.od-list{grid-template-columns:1fr;padding-bottom:30px}.od-steps .st b{display:none}.od-legend{gap:10px}}
   @media(prefers-reduced-motion:reduce){.od,.od-fill,.od-adv,.od-today,.od-steps .st,.dash-areadlg[open]{transition:none!important;animation:none!important}.od{opacity:1;transform:none}.od-list .od-fill{width:var(--w)}.od-list .od-adv{width:var(--a)}.od-today{opacity:1}}
   /* Escalera de la planta con el diseño de «Vencimiento de la cartera»: panel + tarjetas de líquido en escalones */
-  .dash-stairs{--base:132px;--span:190px;display:grid;gap:16px;padding:22px 24px 18px;border:1px solid rgba(255,255,255,.12);border-radius:18px;background:linear-gradient(130deg,rgba(35,48,25,.72),rgba(9,12,9,.95) 52%,rgba(16,28,16,.84))}
-  .dash-stairs.de-unidad{--span:190px}
+  .home-page.home-dashboard-focus>.home-hero{display:none}.dash-stairs{--base:132px;--span:190px;display:grid;gap:16px;padding:22px 24px 18px;border:1px solid rgba(255,255,255,.12);border-radius:18px;background:linear-gradient(130deg,rgba(35,48,25,.72),rgba(9,12,9,.95) 52%,rgba(16,28,16,.84))}
+  .dash-stairs.de-unidad{--base:110px;--span:190px;gap:12px;padding:18px 22px 14px}
   .dash-stairs.compact{--base:112px;--span:96px}
   .dash-stairs>.st-head{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;flex-wrap:wrap}
   .dash-stairs h3{margin:0 0 6px;font-size:1.15rem;color:#fff}.dash-stairs p{margin:0;max-width:640px;color:#98a692;font-size:.76rem;line-height:1.4}
@@ -993,7 +998,7 @@
   .st-bar .sg:not(:first-child)::after{bottom:-6px;background:var(--c2);transform:scaleY(-1);animation-direction:reverse;animation-duration:4.4s;z-index:1}
   @keyframes stFlow{from{-webkit-mask-position:0 0;mask-position:0 0}to{-webkit-mask-position:48px 0;mask-position:48px 0}}
   .st-flow{display:flex;align-items:center;gap:10px;color:#6c7a68;font-size:.62rem;text-transform:uppercase;letter-spacing:.1em}.st-flow i{flex:1;height:2px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.25));position:relative}.st-flow i::after{content:"";position:absolute;right:0;top:-4px;border:5px solid transparent;border-left:8px solid rgba(255,255,255,.35)}
-  @media(max-width:700px){.dash-stairs{padding:16px 14px 14px}.dash-stairs.compact{--base:100px;--span:80px}.dash-stairs{--base:116px;--span:150px}.st-chart{gap:8px;min-width:900px}.st-val{font-size:1.6rem}.st-neck{margin-left:0;flex:1 1 100%}}
+  @media(max-width:700px){.dash-stairs{padding:16px 14px 14px}.dash-stairs.de-unidad{--base:108px;--span:190px;padding:16px 14px 14px}.dash-stairs.compact{--base:100px;--span:80px}.dash-stairs{--base:116px;--span:150px}.dash-stairs.de-unidad{--base:108px;--span:190px}.st-chart{gap:8px;min-width:900px}.st-val{font-size:1.6rem}.st-neck{margin-left:0;flex:1 1 100%}}
   @media(prefers-reduced-motion:reduce){.st-col,.st-bar,.st-bar::before,.st-bar .sg::before,.st-bar .sg::after{transition:none!important;animation:none!important}.st-col{height:calc(var(--base) + var(--rise))}.st-bar{height:var(--lv)}}
   /* Carga por área con el mismo diseño de «Vencimiento de la cartera» */
   .ar-panel{display:grid;gap:22px;padding:22px 24px 26px;border:1px solid rgba(255,255,255,.12);border-radius:18px;background:linear-gradient(130deg,rgba(35,48,25,.72),rgba(9,12,9,.95) 52%,rgba(16,28,16,.84))}

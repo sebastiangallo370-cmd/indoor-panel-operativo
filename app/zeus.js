@@ -8,7 +8,7 @@
   const ESTADO = { SIN_CONECTAR: ['Sin conectar', 'bad'], ESPERANDO_EFFI: ['Esperando acceso a Effi', 'warn'], LIBRE: ['Libre', 'ok'], TRABAJANDO: ['Creando orden de compra…', 'ok'], ERROR: ['Con error', 'bad'] };
   const COMPRA = { pendiente: ['Por comprar', 'warn'], entregada: ['Creándola en Effi…', 'warn'], creada: ['Orden creada', 'ok'], error: ['Con error', 'bad'], cancelada: ['Ya alcanza', ''], anulada: ['Anulada', ''] };
   let verOcultas = false, apiEstado = null, apiMsg = '', apiRetenciones = null, pintadoUna = false, vista = 'ordenes', filtroOrd = 'todas', datosZ = null, firmaZ = '', animarVista = false, kpiPrev = {}, tickZ = 0, baseHace = null, baseAt = 0;
-  let panel = null, tab = null, cuerpo = null, timer = null, correos = [], cuentaEnvia = '', notificar = [], usuariosPanel = [], notAbierto = false, notBuscar = '';
+  let panel = null, tab = null, cuerpo = null, timer = null, correos = [], cuentaEnvia = '', notificar = [], usuariosPanel = [], notAbierto = false, notBuscar = '', whatsappEstado = null;
 
   const card = ({ badge, badgeClass = '', name, total, unit = '', extra = '', cls = '' }) =>
     '<article class="inventory-item-card ' + cls + '"><span class="inv-badge ' + badgeClass + '">' + esc(badge) + '</span><strong class="inv-name">' + esc(name) + '</strong>' + extra +
@@ -178,6 +178,23 @@
     } catch (e) { /* sin acceso: la pestaña no aparece */ }
   }
 
+  async function cargarWhatsApp() {
+    try {
+      const r = await fetch('/api/whatsapp/status', { cache: 'no-store', credentials: 'same-origin' });
+      whatsappEstado = r.ok ? await r.json() : null;
+      if (vista === 'whatsapp') repintarZ();
+    } catch (_) { whatsappEstado = null; }
+  }
+  function whatsappHtml() {
+    const s = whatsappEstado, c = s?.config || {}, n = s?.counts || {};
+    const estado = !s ? '<span class="za-chip pend">Sin información del worker</span>' : !s.worker_configured ? '<span class="za-chip pend">Worker pendiente de instalar</span>' : '<span class="za-chip ' + (c.enabled && !c.paused ? 'ok' : 'pend') + '">' + (c.enabled && !c.paused ? 'Worker habilitado' : 'Cola pausada o desactivada') + '</span>';
+    return '<section class="bd-section zeus-apibox"><h3>WhatsApp Web · ZEUS</h3>' + estado +
+      '<p class="bd-note">Conecta la cuenta en el navegador del worker escaneando el QR. La cola se mantiene desactivada hasta que la supervises.</p>' +
+      '<div class="za-ajustes"><button type="button" class="bd-clear" data-wa-open>Conectar WhatsApp Web</button><button type="button" class="bd-clear" data-wa-refresh>Actualizar estado</button></div>' +
+      '<div class="zeus-wa-counts"><span>Pendientes <b>' + Number(n.pending || 0) + '</b></span><span>Preparados <b>' + Number(n.prepared || 0) + '</b></span><span>Enviados <b>' + Number(n.sent || 0) + '</b></span><span>Revisar <b>' + Number(n.uncertain || 0) + '</b></span></div>' +
+      '<p class="bd-note">El botón abre WhatsApp Web. El worker usa un perfil separado y visible para que no se copie ni exponga tu sesión normal.</p></section>';
+  }
+
   function pintar(d) {
     datosZ = d;
     const a = d.agente || {}, [etq, cls] = ESTADO[a.estado] || [a.estado || '—', ''];
@@ -198,15 +215,16 @@
     const kpi = (k, v, txt, f, tono) => '<button type="button" class="zk ' + tono + (filtroOrd === f && vista === 'ordenes' ? ' on' : '') + '" data-zeus-filtro="' + f + '"><b data-k="' + k + '" data-v="' + v + '">' + v + '</b><span>' + txt + '</span></button>';
     const hero = '<section class="zh ' + estadoPill + '"><div class="zh-estado"><span class="zh-punto"></span><div><strong' + ((a.funciones || []).length ? ' title="' + esc(a.funciones.join('\n')) + '"' : '') + '>' + esc(etiqueta) + '</strong><small><span data-zeus-hace>' + haceTxt(a.hace) + '</span></small></div></div>' +
       (a.ultima && (cls === 'bad' || a.estado === 'TRABAJANDO') ? '<p class="zh-ultima">' + esc(String(a.ultima).slice(0, 120)) + '</p>' : '') +
-      '<div class="zh-acc"><button type="button" class="bd-clear" data-zeus-revisar>↻ Revisar</button></div>' +
+      '<div class="zh-acc"><button type="button" class="bd-clear" data-zeus-whatsapp>WhatsApp Web</button><button type="button" class="bd-clear" data-zeus-revisar>↻ Revisar</button></div>' +
       '</section>';
     const kpis = '<div class="zks">' + kpi('pend', (r.pendiente || 0) + (r.entregada || 0), 'Por comprar', 'pendiente', 'warn') + kpi('cre', r.creada || 0, 'Creadas', 'creada', 'ok') + kpi('err', r.error || 0, 'Con error', 'error', 'bad') + '</div>';
-    const tabs = '<div class="zv-tabs" role="tablist">' + [['ordenes', 'Órdenes', items.length], ['correos', 'Correos', correos.length], ['notificar', 'Notificar', notificar.length]].concat(apiEstado ? [['api', 'API Effi', 0]] : []).map(([k, t, n]) =>
+    const tabs = '<div class="zv-tabs" role="tablist">' + [['ordenes', 'Órdenes', items.length], ['correos', 'Correos', correos.length], ['notificar', 'Notificar', notificar.length], ['whatsapp', 'WhatsApp', (whatsappEstado?.counts?.pending || 0) + (whatsappEstado?.counts?.uncertain || 0)]].concat(apiEstado ? [['api', 'API Effi', 0]] : []).map(([k, t, n]) =>
       '<button type="button" role="tab" class="zv-tab' + (vista === k ? ' on' : '') + '" data-zeus-vista="' + k + '">' + t + (n ? ' <em>' + n + '</em>' : '') + '</button>').join('') + '</div>';
     let contenido;
     if (vista === 'correos') contenido = correosHtml();
     else if (vista === 'notificar') contenido = notificarHtml();
     else if (vista === 'api') contenido = apiHtml();
+    else if (vista === 'whatsapp') contenido = whatsappHtml();
     else contenido = '<section class="bd-section">' + barraQuitar(items, d.ocultas || 0) + (items.length ? '<div class="zo-lista">' + (visibles.length ? visibles.map(ordenHtml).join('') : '<p class="bd-note">Sin órdenes aquí.</p>') + '</div>' : '<p class="bd-note">Nada por comprar.</p>') + '</section>';
     const quieto = pintadoUna && !animarVista, alto = cuerpo.offsetHeight, scrollY0 = window.scrollY;
     cuerpo.classList.toggle('zeus-quieto', quieto);
@@ -422,7 +440,7 @@
 @media(prefers-reduced-motion:reduce){.zo,.zv-vista.anima,.zh-punto,.zo-pasos li.actual i{animation:none}}
 .zeus-que{margin-top:6px}.zeus-que summary{cursor:pointer;font:700 .7rem Arial;color:#b9c6b1;list-style:none}.zeus-que summary::-webkit-details-marker{display:none}.zeus-que summary::before{content:'ⓘ ';opacity:.8}.zeus-que[open] summary{margin-bottom:4px}
 .zeus-msg:empty,[data-zeus-notmsg]:empty{display:none}
-.zeus-apibox{display:grid;gap:12px;max-width:640px}
+.zeus-apibox{display:grid;gap:12px;max-width:640px}.zeus-wa-counts{display:flex;gap:8px;flex-wrap:wrap}.zeus-wa-counts span{padding:8px 12px;border:1px solid rgba(255,255,255,.2);border-radius:10px;font:700 .72rem Arial;color:#cfd8c9}.zeus-wa-counts b{color:#e4ff6b;font-size:1rem;margin-left:4px}
 .za-chip{justify-self:start;padding:6px 14px;border-radius:999px;border:1px solid rgba(255,255,255,.25);font:800 .72rem Arial;letter-spacing:.04em}.za-chip.ok{border-color:#35d46a;color:#8bd450;box-shadow:0 0 14px -4px #35d46a}.za-chip.pend{border-color:#ff9a1f;color:#ffc98a}
 .za-form{display:flex;gap:10px;flex-wrap:wrap}.za-form input{flex:1 1 280px;min-width:0;box-sizing:border-box;min-height:44px;padding:0 14px;border:1px solid rgba(255,255,255,.22);border-radius:12px;background:rgba(0,0,0,.3);color:#fff;font:500 16px Arial;outline:none}
 .za-form input[data-za-llave]{-webkit-text-security:disc;text-security:disc;letter-spacing:.12em}
@@ -506,8 +524,13 @@
       }
     });
     panel.addEventListener('click', e => {
+      if (e.target.closest('[data-zeus-whatsapp]')) { vista = 'whatsapp'; animarVista = true; cargarWhatsApp(); repintarZ(); return; }
+      if (e.target.closest('[data-wa-refresh]')) { cargarWhatsApp(); return; }
+      if (e.target.closest('[data-wa-open]')) { window.open('https://web.whatsapp.com/', 'indoor-whatsapp-web'); }
+    });
+    panel.addEventListener('click', e => {
       const v = e.target.closest('[data-zeus-vista]');
-      if (v && v.dataset.zeusVista !== vista) { vista = v.dataset.zeusVista; animarVista = true; if (vista === 'api') cargarApi(); repintarZ(); return; }
+      if (v && v.dataset.zeusVista !== vista) { vista = v.dataset.zeusVista; animarVista = true; if (vista === 'api') cargarApi(); if (vista === 'whatsapp') cargarWhatsApp(); repintarZ(); return; }
       const f = e.target.closest('[data-zeus-filtro]');
       if (f) { filtroOrd = filtroOrd === f.dataset.zeusFiltro ? 'todas' : f.dataset.zeusFiltro; if (vista !== 'ordenes') vista = 'ordenes'; animarVista = true; repintarZ(); }
     });
