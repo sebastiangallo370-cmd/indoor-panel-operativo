@@ -13,8 +13,9 @@
     { id: 'zeus', kind: 'zeus', nombre: 'INVENTARIOS', agentes: [['ZEUS', 'Tela y órdenes de compra'], ['MINIMAXIMAN', 'Mantiene las telas entre su mínimo y su máximo', 'minimaximan'], ['STOCKMAN', 'Alinea el inventario del panel con Effi', 'stockman']] },   // el tercer dato es la pantalla propia del agente
     { id: 'club', kind: 'club', nombre: 'COMERCIAL', agentes: [['EFFITRON', 'Cotización de las reposiciones']] },
   ];
+  const DIAN_AREA = { id: 'dian', kind: 'dian', nombre: 'DIAN', agentes: [['DIAN', 'Descarga comprobantes electrónicos en este PC']] };
   const ROBOT = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="8" width="15" height="11" rx="3"/><path d="M12 8V4.6"/><circle cx="12" cy="3.6" r="1.1"/><circle cx="9" cy="13" r="1.2"/><circle cx="15" cy="13" r="1.2"/><path d="M9.5 16.4h5M2.5 12.5v3M21.5 12.5v3"/></svg>';
-  const AVATAR = { JEFE: '👑', TAVO: '🧑‍💼', LEO: '🧑‍💻', JACK: '🧑‍🎨', OLVER: '🧑‍🔧', OLIVER: '🧑‍💼', TERRY: '🧑‍💻', DRACO: '🤖', ALMA: '👩‍💼', BRISA: '👩‍💻', CIRO: '🧑‍🎨', ZEUS: '🧙', MINIMAXIMAN: '🧑‍🔬', STOCKMAN: '🧑‍💼', EFFITRON: '🤵' };
+  const AVATAR = { JEFE: '👑', TAVO: '🧑‍💼', LEO: '🧑‍💻', JACK: '🧑‍🎨', OLVER: '🧑‍🔧', OLIVER: '🧑‍💼', TERRY: '🧑‍💻', DRACO: '🤖', ALMA: '👩‍💼', BRISA: '👩‍💻', CIRO: '🧑‍🎨', ZEUS: '🧙', MINIMAXIMAN: '🧑‍🔬', STOCKMAN: '🧑‍💼', EFFITRON: '🤵', DIAN: '📄' };
   const css = document.createElement('style');
   css.textContent = `
   #agentes-hub{position:relative;display:none;align-items:center;margin:0 6px 0 0;vertical-align:middle;z-index:1200}
@@ -79,6 +80,17 @@
         `<button type="button" class="ah-ir" data-area="${a.id}"><b>${a.nombre}</b><small>${losAgentes(a).length} ${losAgentes(a).length === 1 ? 'agente' : 'agentes'}</small></button>` +
         `<button type="button" class="ah-mas" data-mas="${a.id}" title="Ver los agentes de ${a.nombre}" aria-label="Ver los agentes de ${a.nombre}"><i></i></button></div>` +
         `<div class="ah-ag">` + losAgentes(a).map(g => `<button type="button" data-area="${a.id}"${g[2] ? ` data-pantalla="${g[2]}"` : ''}><em>${g[0][0]}</em><span><b>${g[0]}</b><small>${g[1]}</small></span></button>`).join('') + '</div></div>').join('') + '</div>';
+  }
+
+  async function cargarAgenteDian() {
+    if (AREAS.some(area => area.id === 'dian')) return;
+    try {
+      const respuesta = await fetch('/api/dian/estado', {cache: 'no-store', credentials: 'same-origin'});
+      if (!respuesta.ok) return;
+      const destino = AREAS.findIndex(area => area.id === 'club');
+      AREAS.splice(destino < 0 ? AREAS.length : destino, 0, DIAN_AREA);
+      pintar();
+    } catch (_) {}
   }
 
   function ubicar() {
@@ -197,5 +209,6 @@
     if (!controlTimer) controlTimer = setInterval(refrescarControl, 3000);
   }
   setInterval(montar, 400);
+  cargarAgenteDian();
   document.addEventListener('click', () => setTimeout(() => { pintar(); ubicar(); }, 60), true);
 })();

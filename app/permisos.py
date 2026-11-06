@@ -24,6 +24,7 @@ MODULOS = {
     'cartera': ('Cartera', ('ver', 'editar', 'exportar')),
     'produccion': ('Producción', ('exportar',)),
     'agentes': ('Agentes de edición', ('ver', 'editar')),
+    'dian': ('Agente DIAN', ('ver', 'editar')),
     'promedios': ('Promedios maestros', ('ver', 'editar')),
     'molderia': ('Moldería', ('ver',)),
 }
@@ -49,6 +50,8 @@ def _defaults() -> dict:
     matriz['operario']['produccion']['exportar'] = False
     matriz['operario']['agentes'] = {'ver': False, 'editar': False}
     matriz['comercial']['agentes'] = {'ver': False, 'editar': False}
+    matriz['comercial']['dian'] = {'ver': False, 'editar': False}
+    matriz['operario']['dian'] = {'ver': False, 'editar': False}
     # Estándar 2026 (Promedios maestros + Fichas técnicas) lo ve todo el mundo; solo Administración y Edición lo editan
     matriz['operario']['promedios'] = {'ver': True, 'editar': False}
     matriz['comercial']['promedios'] = {'ver': True, 'editar': False}
@@ -103,6 +106,11 @@ def agentes_permitido(username: str) -> bool:
     if username == os.getenv('APP_USER', 'indoor'):
         return True
     return _plano(_lookup(username)) in _PROCESOS_AGENTES
+
+
+def dian_permitido(username: str) -> bool:
+    """El agente DIAN se abre desde el robot de Agentes para coordinación."""
+    return administracion_permitido(username) or agentes_permitido(username)
 
 
 _TESORERIA_EXTRA = {'INDOOR SPORT'}   # además de los comerciales, solo esta cuenta entra a Tesorería (donde vive Cartera)
@@ -172,6 +180,8 @@ def puede(username: str, modulo: str, accion: str) -> bool:
     if modulo in ('cartera', 'tesoreria') and not tesoreria_permitido(username):
         return False
     if modulo == 'agentes' and not agentes_permitido(username):
+        return False
+    if modulo == 'dian' and not dian_permitido(username):
         return False
     if modulo == 'comerciales' and not comerciales_permitido(username):
         return False

@@ -386,7 +386,7 @@ app.include_router(permisos_mod.router)
 app.include_router(exportar_mod.router)
 app.include_router(cartera_router, dependencies=[Depends(authenticate), Depends(permisos_mod.exigir('cartera'))])
 dian_mod.configurar(authenticate)
-app.include_router(dian_mod.router, dependencies=[Depends(authenticate), Depends(permisos_mod.exigir('cartera'))])
+app.include_router(dian_mod.router, dependencies=[Depends(authenticate), Depends(permisos_mod.exigir('dian'))])
 app.include_router(dian_mod.worker_router)
 app.include_router(inventario_router, dependencies=[Depends(authenticate), Depends(permisos_mod.exigir('inventario'))])
 from app import zeus as zeus_mod

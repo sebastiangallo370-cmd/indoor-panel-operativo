@@ -70,7 +70,7 @@
     const done = batch ? batch.downloaded + batch.failed + batch.uncertain : 0;
     const pct = batch ? Math.round((done / Math.max(1, batch.total)) * 100) : (ready ? 75 : 0);
     panel.innerHTML = `<div class="dian-desk dian-central">
-      <header class="dian-bar"><div class="dian-brand"><span>TESORERÍA</span><b>D. DIAN · DESCARGAS</b></div><div class="dian-bar-spacer"></div><button class="dian-reset" data-clear title="Limpiar formulario">↺</button></header>
+      <header class="dian-bar"><div class="dian-brand"><span>AGENTES</span><b>D. DIAN · DESCARGAS</b></div><div class="dian-bar-spacer"></div><button class="dian-reset" data-clear title="Limpiar formulario">↺</button></header>
       <div class="dian-board">
         <section class="dian-board-main">
           <div class="dian-token-strip"><label><span>TOKEN DE ACCESO TEMPORAL</span><input id="dian-token" autocomplete="off" spellcheck="false" value="${esc(state.token)}" placeholder="Pega aquí el enlace temporal de DIAN"></label><button class="dian-btn dian-btn-line" data-verify>↗ Verificar token</button></div>
@@ -180,12 +180,11 @@
   async function activate() { document.querySelectorAll('.tab,.panel').forEach(el => el.classList.remove('active')); document.querySelector('#dian-tab')?.classList.add('active'); panel?.classList.add('active'); document.body.classList.add('dian-mode'); await loadFolder(); render(); }
   function build() {
     const main = document.querySelector('main');
-    const treasury = [...document.querySelectorAll('.nav-group')].find(group => group.querySelector('.nav-parent span:last-child')?.textContent.trim() === 'TESORERÍA');
     if (!main || document.querySelector('#dian-panel')) return;
     restoreDraft();
     addStyle(); panel = document.createElement('section'); panel.id = 'dian-panel'; panel.className = 'panel dian-panel'; main.prepend(panel);
-    const tab = document.createElement('button'); tab.id = 'dian-tab'; tab.type = 'button'; tab.className = 'tab'; tab.innerHTML = '<span class="nav-icon">DN</span><strong>D. DIAN</strong>'; tab.addEventListener('click', activate);
-    (treasury?.querySelector('.nav-children') || document.querySelector('.tabs'))?.appendChild(tab);
+    const tab = document.createElement('button'); tab.id = 'dian-tab'; tab.type = 'button'; tab.className = 'tab'; tab.dataset.kind = 'dian'; tab.innerHTML = '<span class="nav-icon">DN</span><strong>D. DIAN</strong>'; tab.addEventListener('click', activate);
+    const host = document.createElement('div'); host.hidden = true; host.style.display = 'none'; host.appendChild(tab); document.querySelector('.tabs')?.appendChild(host);
     if (location.hash === '#dian') activate();
     // El formulario es un borrador del usuario: no se vuelve a dibujar mientras
     // no exista un lote. Antes se refrescaba la carpeta cada 5 segundos y ese

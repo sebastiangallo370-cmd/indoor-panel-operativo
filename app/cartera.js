@@ -78,10 +78,10 @@ async function api(path,opt={}){const ctrl=new AbortController();const t=setTime
 if (document.querySelector('.panel[data-panel="cartera"].active')) load();
 })();
 
-// D. DIAN vive dentro de TESORERÍA y aprovecha el mismo permiso que Cartera.
-// Se carga aparte para que su código y sus controles no afecten el tablero.
+// D. DIAN se abre desde el robot de Agentes. Se carga aparte para no afectar
+// los controles del tablero de Cartera.
 if (!document.querySelector('script[data-indoor-dian]')) {
   const dianScript = document.createElement('script');
-  dianScript.src = '/api/dian/dian.js'; dianScript.dataset.indoorDian = '1';
+  dianScript.src = '/api/dian/dian.js?v=20261106-4'; dianScript.dataset.indoorDian = '1';
   document.head.appendChild(dianScript);
 }
