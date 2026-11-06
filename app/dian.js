@@ -3,7 +3,7 @@
   'use strict';
   const MAX = 1000;
   const CUFE = /\b[a-f0-9]{64,128}\b/gi;
-  const state = { token: '', raw: '', dateFrom: '', dateTo: '', folder: 'pendientes', folderSelected: false, format: 'XML', batch: null, entries: [], batchFiles: [], localFolder: null, localFolderName: '', message: '' };
+  const state = { token: '', raw: '', dateFrom: '', dateTo: '', folder: 'pendientes', folderSelected: false, format: 'XML', batch: null, entries: [], batchFiles: [], localFolder: null, localFolderName: '', portalOpen: false, message: '' };
   let panel, timer;
 
   const esc = (v) => String(v || '').replace(/[&<>'"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;' }[c]));
@@ -42,6 +42,7 @@
     return state.entries.slice(0, 50).map(item => `<div class="dian-folder-file"><span>${item.directory ? '□' : '▤'}</span><div><b title="${esc(item.name)}">${esc(item.name)}</b><small>${item.directory ? 'Carpeta' : size(item.size || 0)}</small></div></div>`).join('');
   }
   function connection(batch) {
+    if (!batch && state.portalOpen && state.token.trim()) return { cls: 'online', title: 'CONEXIÓN LISTA', note: 'Portal DIAN abierto; el lote validará el token antes de descargar.' };
     if (!batch) return { cls: 'offline', title: 'EN ESPERA', note: 'Pega token, CUFEs y crea el lote.' };
     if (batch.status === 'requires_token') return { cls: 'offline', title: 'TOKEN VENCIDO', note: 'Pega un token nuevo para reanudar.' };
     if (batch.status === 'paused') return { cls: 'offline', title: 'PAUSADO', note: 'El lote fue pausado.' };
@@ -74,11 +75,16 @@
     </div>`;
     bind();
   }
-  function snapshot() { state.token = panel.querySelector('#dian-token')?.value || state.token; state.raw = panel.querySelector('#dian-cufes')?.value || state.raw; state.dateFrom = panel.querySelector('#dian-date-from')?.value || state.dateFrom; state.dateTo = panel.querySelector('#dian-date-to')?.value || state.dateTo; }
+  function snapshot() {
+    const token = panel.querySelector('#dian-token'); const raw = panel.querySelector('#dian-cufes');
+    const dateFrom = panel.querySelector('#dian-date-from'); const dateTo = panel.querySelector('#dian-date-to');
+    if (token) state.token = token.value; if (raw) state.raw = raw.value;
+    if (dateFrom) state.dateFrom = dateFrom.value; if (dateTo) state.dateTo = dateTo.value;
+  }
   async function verify() {
     snapshot();
     if (!state.token.trim()) { state.message = 'Pega el token temporal antes de verificarlo.'; return render(); }
-    try { const url = new URL(state.token.trim()); if (url.protocol !== 'https:' || !/(^|\.)dian\.gov\.co$/i.test(url.hostname)) throw new Error(); window.open(url.toString(), '_blank'); state.message = 'Se abrió DIAN. Si el portal muestra tu sesión, vuelve y crea el lote.'; } catch (_) { state.message = 'Pega un enlace HTTPS temporal entregado por DIAN.'; }
+    try { const url = new URL(state.token.trim()); if (url.protocol !== 'https:' || !/(^|\.)dian\.gov\.co$/i.test(url.hostname)) throw new Error(); const opened = window.open(url.toString(), '_blank'); if (!opened) throw new Error('blocked'); state.portalOpen = true; state.message = 'DIAN se abrió en otra pestaña. El lote validará el token al iniciar la descarga.'; } catch (_) { state.portalOpen = false; state.message = 'Chrome bloqueó DIAN o el enlace no es un token HTTPS válido.'; }
     render();
   }
   async function create() {
@@ -143,7 +149,10 @@
     panel.querySelector('[data-normalize]')?.addEventListener('click', () => { snapshot(); state.raw = cufes().join('\n'); state.message = `${cufes().length} CUFEs organizados.`; render(); });
     panel.querySelectorAll('[data-format]').forEach(btn => btn.addEventListener('click', () => { state.format = btn.dataset.format; render(); }));
     panel.querySelector('[data-pause]')?.addEventListener('click', async () => { try { const id = typeof state.batch === 'string' ? state.batch : state.batch.id; await api(`/api/dian/lotes/${id}/pausar`, {method:'POST'}); state.message='Lote pausado. El token temporal fue descartado.'; await pollBatch(); } catch (error) { state.message=error.message; render(); } });
-    panel.querySelector('[data-clear]')?.addEventListener('click', () => { state.token=''; state.raw=''; state.dateFrom=''; state.dateTo=''; state.batch=null; state.message='Formulario limpiado.'; render(); });
+    panel.querySelector('[data-clear]')?.addEventListener('click', () => { state.token=''; state.raw=''; state.dateFrom=''; state.dateTo=''; state.portalOpen=false; state.batch=null; state.message='Formulario limpiado.'; render(); });
+    panel.querySelector('#dian-token')?.addEventListener('input', () => { snapshot(); state.portalOpen = false; });
+    panel.querySelector('#dian-date-from')?.addEventListener('input', snapshot);
+    panel.querySelector('#dian-date-to')?.addEventListener('input', snapshot);
     panel.querySelector('#dian-cufes')?.addEventListener('input', () => { snapshot(); const head=panel.querySelector('.dian-cufe-head strong'); if(head) head.textContent=`${cufes().length} / ${MAX}`; });
   }
   function addStyle() {
