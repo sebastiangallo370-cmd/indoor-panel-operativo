@@ -117,6 +117,7 @@
   function copyButton(icon,tip,action){var button=document.createElement('button');button.type='button';button.dataset.tip=tip;button.title=tip;button.setAttribute('aria-label',tip);button.dataset.copyAction=action;button.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true">'+ICONS[icon]+'</svg>';return button}
   function addCopyTools(card){
     var media=card.querySelector('.trace-media');if(!media||media.querySelector('.trace-copy-tools'))return;
+    var stage=media.querySelector('.trace-design-stage');if(!stage)return;
     var tools=document.createElement('div');tools.className='trace-copy-tools';tools.style.cssText='position:absolute!important;top:50%!important;right:8px!important;transform:translateY(-50%)!important;flex-direction:column!important';tools.setAttribute('role','toolbar');tools.setAttribute('aria-label','Copiar información y mockups');
     tools.appendChild(copyButton('copy','Copiar información de la tarjeta','info'));
     tools.appendChild(copyButton('image','Copiar mockup visible','visible'));
@@ -134,7 +135,7 @@
       }catch(error){flash(button,error&&error.message||'No se pudo copiar')}
       finally{button.disabled=false}
     });
-    media.appendChild(tools);
+    stage.appendChild(tools);
   }
   function run(){
     queued=false;
