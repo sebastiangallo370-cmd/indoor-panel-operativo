@@ -265,9 +265,12 @@ def exportar_mesas(cliente, referencia, ruta_ai, formato="ai", sobrescribir=Fals
             necesarios = [suf_sexo] if suf_sexo else (sexos_talla.get(t) or ["M"])
             return all(_hay(t, g) for g in necesarios)
         ya = [t for t in tallas if _exportada(t)]
+        faltan = [t for t in tallas if t not in ya]
+        ruta_montajes = str(carpeta)
+        log(AGENTE, f"Revisé Montajes ({ruta_montajes}): existen [{', '.join(ya) or 'ninguna'}]; faltan [{', '.join(faltan) or 'ninguna'}]")
         if ya:
             log(AGENTE, f"Ya estaban exportadas {len(ya)} talla(s) ({', '.join(ya)}): no las exporto de nuevo")
-            tallas = [t for t in tallas if t not in ya]
+            tallas = faltan
             if not tallas:
                 log(AGENTE, f"{ai.name}: todas las mesas pedidas ya existían, sigo sin exportar")
                 return {"ok": True, "carpeta": str(carpeta), "archivos": sorted(f.name for f in carpeta.glob("*") if f.is_file()), "simulado": simulado, "ya_existian": len(ya)}
