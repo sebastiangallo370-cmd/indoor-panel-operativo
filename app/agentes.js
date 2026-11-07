@@ -32,7 +32,6 @@
     const fecha = new Date(y, mo - 1, d);
     return fecha.getFullYear() === y && fecha.getMonth() === mo - 1 && fecha.getDate() === d ? fecha : null;
   };
-  const fechaEntregaCorta = fecha => fecha ? fecha.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' }) : 'Sin fecha';
   function prepararOrdenes(produccion) {
     const headers = produccion && produccion.headers || [], indice = nombre => headers.findIndex(h => sinTildes(h).trim() === nombre);
     const iOrden = indice('orden'), iEntrega = indice('fecha de entrega'), iCliente = indice('nombre del cliente'), iEdicion = indice('edicion');
@@ -1695,7 +1694,7 @@
     if (barra.dataset.clave !== claveOrden) {
       barra.dataset.clave = claveOrden;
       const actualIncluida = st.orden && st.ordenes.some(o => o.orden.toUpperCase() === st.orden.toUpperCase());
-      const opciones = (actualIncluida ? [] : (st.orden ? [{ orden: st.orden, entrega: null, cliente: 'Orden actual', prioridadEdicion: 2 }] : [])).concat(st.ordenes).map(o => '<option value="' + esc(o.orden) + '"' + (o.orden.toUpperCase() === st.orden.toUpperCase() ? ' selected' : '') + '>' + esc(o.orden + (o.prioridadEdicion === 0 ? ' · EDICIÓN pendiente' : o.prioridadEdicion === 1 ? ' · REPROCESO edición' : '') + ' · ' + fechaEntregaCorta(o.entrega) + (o.cliente ? ' · ' + o.cliente : '')) + '</option>').join('');
+      const opciones = (actualIncluida ? [] : (st.orden ? [{ orden: st.orden, entrega: null, cliente: 'Orden actual', prioridadEdicion: 2 }] : [])).concat(st.ordenes).map(o => '<option value="' + esc(o.orden) + '"' + (o.orden.toUpperCase() === st.orden.toUpperCase() ? ' selected' : '') + '>' + esc(o.orden + ' · Cliente: ' + (o.cliente || 'Sin cliente') + (o.prioridadEdicion === 0 ? ' · EDICIÓN pendiente' : o.prioridadEdicion === 1 ? ' · REPROCESO edición' : '')) + '</option>').join('');
       const selector = '<label class="ag-orden-select" title="Primero las órdenes en proceso o reproceso de EDICIÓN; luego por fecha de entrega"><span>Orden</span><select data-orden-sel aria-label="Seleccionar orden"><option value="">Selecciona una orden…</option>' + opciones + '</select></label>';
       barra.innerHTML = selector + (st.orden
         ?
