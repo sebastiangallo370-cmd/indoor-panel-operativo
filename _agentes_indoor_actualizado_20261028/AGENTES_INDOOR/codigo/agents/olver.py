@@ -628,24 +628,31 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
                 candidatas = list(dict.fromkeys(candidatas))
             elif genero in ("M", "F"):   # maestro F con mesas rotuladas Gen_M (o al revés): se prueba primero la propia y luego la otra letra
                 candidatas += [f"Talla_{talla}_Tipo_D{diseno}_Gen_{'F' if genero == 'M' else 'M'}"]
-            # La mesa independiente sirve para comprobar que la talla existe, pero NO
-            # se abre para personalizar el PDF: una mesa reutilizada puede venir de
-            # una ejecución anterior sin los textos guía NOMBRE/00. El maestro
-            # conserva esos textos y se cierra sin guardar al terminar cada PDF.
-            # Así reutilizar tallas nunca las vuelve a exportar ni daña los PDF.
+            # El PDF siempre parte de la mesa independiente exacta de Montajes:
+            # talla, diseño y género que pidió el cliente. Se usa una copia local
+            # temporal para que Illustrator nunca modifique la talla guardada.
             fuente, usada_trabajo, mesa_independiente = ai, None, False
             if destino.get("montajes"):
                 carpeta_m = Path(destino["montajes"]) / f"D{diseno}" / f"{ref}{genero}{suf_maestro}"
                 for cand in candidatas:
                     propia = carpeta_m / f"{cand}.ai"
                     if propia.exists():
-                        candidatas, mesa_independiente = [cand], True
+                        try:
+                            trabajo = _dir_trabajo(carpeta_m)
+                            trabajo.mkdir(parents=True, exist_ok=True)
+                            copia = trabajo / f"pdf_{int(time.time() * 1000)}_{cand}.ai"
+                            shutil.copy2(propia, copia)
+                            fuente, usada_trabajo = copia, copia
+                            candidatas, mesa_independiente = [cand], True
+                        except OSError as e:
+                            omitidas.append(f"talla {talla}: no pude preparar una copia temporal de {propia.name}: {e}")
+                            log(AGENTE, f"Talla {talla}: no pude copiar {propia} para el PDF: {e}", "WARN")
                         break
             if destino.get("montajes") and not mesa_independiente:
                 omitidas.append(f"talla {talla}: no existe su mesa independiente en Montajes; no hice el PDF desde el maestro completo")
                 log(AGENTE, f"Talla {talla}: sin mesa independiente en Montajes: no abro el maestro completo", "WARN")
                 continue
-            log(AGENTE, f"Talla {talla}: reutilizo su mesa y abro el maestro {fuente.name} para poner nombre y número")
+            log(AGENTE, f"Talla {talla}: reutilizo {fuente.name} desde Montajes para poner nombre y número")
             vigia = _VigiaCarpeta(carpeta, f"{base}_*.pdf", lambda f, js=jugadores, t=talla: _evento_pdf(f, js, t, diseno, genero))
             try:
                 for cand in candidatas:
@@ -724,6 +731,16 @@ def _correr_bot(codigo, ai, artboard, base, carpeta, jugadores, orden, tela, sal
     for linea in mensajes.splitlines():
         log(AGENTE, "[JSX] " + linea, "ERROR" if "ERROR" in linea else "INFO")
     _cerrar_si_abierto(app, ai)   # BOT.jsx ya lo cierra; esto solo cubre un fallo a medias
+    sin_guias = "no se encontro ningun placeholder" in mensajes.lower()
+    if sin_guias:
+        # No aceptar un PDF que salió sin poder escribir nombre y número. Esto
+        # deja intacta la talla de Montajes y hace visible que debe repararse.
+        for i, jugador in enumerate(jugadores, 1):
+            try:
+                _archivo_pdf(carpeta, base, i, jugador).unlink(missing_ok=True)
+            except OSError:
+                pass
+        return {"error": f"{ai.name} no conserva los textos guía NOMBRE y 00; no generé un PDF incompleto"}
     time.sleep(0.3)               # pausa mínima tras cerrar un .ai pesado antes de abrir el siguiente
     return {"mensajes": mensajes}
 
