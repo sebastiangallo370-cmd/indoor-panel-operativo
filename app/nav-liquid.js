@@ -123,6 +123,9 @@
     N+'.sidebar .nav-children:has(> .tab:nth-child(7)){grid-template-columns:repeat(2,max-content)!important;grid-template-rows:repeat(8,auto)!important;grid-auto-flow:column!important;column-gap:34px;width:max-content}',
     N+'.sidebar .nav-children:has(> .tab:nth-child(7)) > .tab{min-width:0}',
     N+'.sidebar .nav-children::before,'+N+'.sidebar .nav-children::after{display:none!important}',
+    /* Los submenús cerrados no pueden dejar texto fantasma detrás de la navegación. */
+    N+'.sidebar .nav-group.collapsed > .nav-children{display:none!important}',
+    N+'.sidebar .nav-group:not(.collapsed) > .nav-children{z-index:100!important}',
     N+'.sidebar .nav-children .tab{background:transparent!important;color:#fff!important;font-weight:800!important;text-shadow:0 0 1px #000,0 0 3px rgba(0,0,0,.95),0 0 8px rgba(0,0,0,.95),0 2px 16px rgba(0,0,0,.95),0 0 30px rgba(0,0,0,.85)}',
     N+'.sidebar .nav-children .tab.active,'+N+'.sidebar .nav-children .tab:hover{color:#d0ec93!important}',
     N+'.sidebar .nav-children .tab:hover,'+N+'.sidebar .nav-children .tab.active{background:rgba(255,255,255,.1)!important;box-shadow:0 10px 22px -12px rgba(0,0,0,.85),inset 0 1px 0 rgba(255,255,255,.1)!important}',

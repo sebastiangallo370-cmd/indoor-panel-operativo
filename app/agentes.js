@@ -612,9 +612,9 @@
   .panel[data-panel='agentes'] .ag-orden>*{flex:none}
   .panel[data-panel='agentes'] .ag-orden .ag-btn,.panel[data-panel='agentes'] .ag-orden .ag-ochip,.panel[data-panel='agentes'] .ag-orden .ag-prog,.panel[data-panel='agentes'] .ag-orden .ag-mas>summary{height:38px;min-height:38px;box-sizing:border-box;display:inline-flex;align-items:center}
   .panel[data-panel='agentes'] .ag-orden .ag-ochip{gap:8px;padding:0 6px 0 14px;border-radius:12px}
-  .panel[data-panel='agentes'] .ag-orden .ag-orden-select{position:relative;display:flex;align-items:center;gap:12px;height:46px;min-width:590px;padding:0 42px 0 14px;border:1px solid #94bd5b;border-radius:15px;background:linear-gradient(135deg,#263f20,#111d11 65%);color:#eef4e9;font:800 12px Arial;box-shadow:inset 0 1px 0 rgba(255,255,255,.14),0 10px 22px -16px #000;cursor:pointer}
-  .panel[data-panel='agentes'] .ag-orden .ag-orden-select::after{content:'⌄';position:absolute;right:14px;top:10px;color:#d7ff3a;font:900 23px/1 Arial;pointer-events:none}.panel[data-panel='agentes'] .ag-orden .ag-orden-select:focus-within{border-color:#d7ff3a;box-shadow:0 0 0 3px rgba(215,255,58,.18),inset 0 1px 0 rgba(255,255,255,.16)}
-  .panel[data-panel='agentes'] .ag-orden .ag-orden-select span{display:grid;place-items:center;align-self:stretch;padding:0 12px;margin-left:-14px;border-radius:14px 0 0 14px;background:linear-gradient(180deg,rgba(215,255,58,.23),rgba(215,255,58,.09));color:#e4ff7a;font:900 10px Arial;letter-spacing:.12em}.panel[data-panel='agentes'] .ag-orden .ag-orden-select select{min-width:0;max-width:510px;flex:1;appearance:none;border:0;outline:0;background:transparent;color:#fff;font:900 15px Arial;cursor:pointer;text-overflow:ellipsis}.panel[data-panel='agentes'] .ag-orden .ag-orden-select option{background:#142017;color:#eef4e9;font:700 14px Arial}
+  .panel[data-panel='agentes'] .ag-orden .ag-orden-picker{position:relative;min-width:650px}.panel[data-panel='agentes'] .ag-orden .ag-orden-picker>summary{display:flex;align-items:center;gap:13px;height:48px;padding:0 16px;border:1px solid #9dcc57;border-radius:15px;background:linear-gradient(135deg,#2a4822,#111c11 68%);color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.16),0 11px 24px -18px #000;list-style:none;cursor:pointer}.panel[data-panel='agentes'] .ag-orden .ag-orden-picker>summary::-webkit-details-marker{display:none}.panel[data-panel='agentes'] .ag-orden .ag-orden-picker>summary::after{content:'⌄';margin-left:auto;color:#d7ff3a;font:900 24px/1 Arial;transition:transform .16s}.panel[data-panel='agentes'] .ag-orden .ag-orden-picker[open]>summary{border-color:#d7ff3a;box-shadow:0 0 0 3px rgba(215,255,58,.18),inset 0 1px 0 rgba(255,255,255,.16)}.panel[data-panel='agentes'] .ag-orden .ag-orden-picker[open]>summary::after{transform:rotate(180deg)}
+  .ag-orden-actual{display:flex;align-items:center;gap:13px;min-width:0}.ag-orden-actual em{display:grid;place-items:center;align-self:stretch;padding:0 12px;margin-left:-16px;background:linear-gradient(180deg,rgba(215,255,58,.25),rgba(215,255,58,.08));color:#e4ff7a;font:900 10px Arial;font-style:normal;letter-spacing:.12em}.ag-orden-actual b{font:900 16px Arial;color:#fff;white-space:nowrap}.ag-orden-actual small{overflow:hidden;color:#d8e6d4;font:800 13px Arial;text-overflow:ellipsis;white-space:nowrap}.ag-orden-actual small i{margin-right:6px;color:#b8d58c;font-style:normal;font-size:10px;letter-spacing:.08em}
+  .ag-orden-lista{position:absolute;top:calc(100% + 8px);left:0;right:0;z-index:80;display:grid;gap:3px;max-height:min(510px,calc(100vh - 220px));overflow:auto;padding:8px;border:1px solid rgba(176,226,99,.48);border-radius:15px;background:linear-gradient(160deg,#1b2b18,#091008);box-shadow:0 22px 45px -16px #000}.ag-orden-lista button{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;width:100%;min-height:47px;padding:8px 10px;border:1px solid transparent;border-radius:10px;background:transparent;color:#f4faef;text-align:left;cursor:pointer}.ag-orden-lista button:hover,.ag-orden-lista button.activa{border-color:rgba(215,255,88,.38);background:rgba(215,255,88,.12)}.ag-orden-lista button b{font:900 14px Arial;color:#e9ff9c}.ag-orden-lista button span{overflow:hidden;color:#dbe6d5;font:700 12px Arial;text-overflow:ellipsis;white-space:nowrap}.ag-orden-lista button em{padding:4px 7px;border-radius:999px;background:rgba(255,194,90,.14);color:#ffd27e;font:900 9px Arial;font-style:normal;letter-spacing:.05em;white-space:nowrap}.ag-orden-lista button em.repro{background:rgba(255,116,100,.15);color:#ffb2a7}
   .panel[data-panel='agentes'] .ag-orden .ag-nas{padding:0 14px}
   .panel[data-panel='agentes'] .ag-mas{position:relative}
   .panel[data-panel='agentes'] .ag-mas>summary{list-style:none;justify-content:center;width:38px;padding:0;cursor:pointer;font:900 18px Arial;letter-spacing:.05em}
@@ -767,7 +767,7 @@
     § .ag-main[data-vista="agentes"] .ag-detalle{display:grid!important;margin-top:10px}
     § .ag-main[data-vista="pdfs"] .ag-live{display:grid!important}
     § .ag-main .ag-orden{margin-bottom:8px;flex-wrap:wrap}
-    § .panel[data-panel='agentes'] .ag-orden .ag-orden-select{flex:1 1 100%;min-width:0}.panel[data-panel='agentes'] .ag-orden .ag-orden-select select{max-width:none}
+    § .panel[data-panel='agentes'] .ag-orden .ag-orden-picker{flex:1 1 100%;min-width:0}.ag-orden-actual small{font-size:11px}.ag-orden-lista{max-height:min(55dvh,450px)}
     § .ag-thread{height:calc(100dvh - 430px)!important;min-height:250px!important}
     § .ag-muestras{gap:10px;padding:10px}
     § .mu-doble{display:grid;grid-template-columns:minmax(0,1fr)!important;gap:10px}
@@ -1695,8 +1695,10 @@
     if (barra.dataset.clave !== claveOrden) {
       barra.dataset.clave = claveOrden;
       const actualIncluida = st.orden && st.ordenes.some(o => o.orden.toUpperCase() === st.orden.toUpperCase());
-      const opciones = (actualIncluida ? [] : (st.orden ? [{ orden: st.orden, entrega: null, cliente: 'Orden actual', prioridadEdicion: 2 }] : [])).concat(st.ordenes).map(o => '<option value="' + esc(o.orden) + '"' + (o.orden.toUpperCase() === st.orden.toUpperCase() ? ' selected' : '') + '>' + esc(o.orden + ' · Cliente: ' + (o.cliente || 'Sin cliente') + (o.prioridadEdicion === 0 ? ' · EDICIÓN pendiente' : o.prioridadEdicion === 1 ? ' · REPROCESO edición' : '')) + '</option>').join('');
-      const selector = '<label class="ag-orden-select" title="Primero las órdenes en proceso o reproceso de EDICIÓN; luego por fecha de entrega"><span>Orden</span><select data-orden-sel aria-label="Seleccionar orden"><option value="">Selecciona una orden…</option>' + opciones + '</select></label>';
+      const ordenesSelector = (actualIncluida ? [] : (st.orden ? [{ orden: st.orden, entrega: null, cliente: 'Orden actual', prioridadEdicion: 2 }] : [])).concat(st.ordenes);
+      const actual = ordenesSelector.find(o => o.orden.toUpperCase() === st.orden.toUpperCase()) || { orden: st.orden || 'Selecciona una orden', cliente: '' };
+      const opciones = ordenesSelector.map(o => '<button type="button" data-orden-elegir="' + esc(o.orden) + '" class="' + (o.orden.toUpperCase() === st.orden.toUpperCase() ? 'activa' : '') + '"><b>' + esc(o.orden) + '</b><span>' + esc(o.cliente || 'Sin cliente') + '</span>' + (o.prioridadEdicion === 0 ? '<em>EDICIÓN</em>' : o.prioridadEdicion === 1 ? '<em class="repro">REPROCESO</em>' : '') + '</button>').join('');
+      const selector = '<details class="ag-orden-picker" title="Primero las órdenes en proceso o reproceso de EDICIÓN; luego por fecha de entrega"><summary><span class="ag-orden-actual"><em>ORDEN</em><b>' + esc(actual.orden) + '</b><small><i>CLIENTE</i>' + esc(actual.cliente || 'Selecciona una orden') + '</small></span></summary><div class="ag-orden-lista">' + (opciones || '<div class="ag-empty">No hay órdenes disponibles.</div>') + '</div></details>';
       barra.innerHTML = selector + (st.orden
         ?
           '<button type="button" class="ag-btn" data-iniciar title="Lee el listado, crea la muestra, te pide aprobarla y sigue con las mesas y los PDF de producción">▶ Iniciar</button>' +
@@ -2034,6 +2036,7 @@
       // los menús (⋯ y ⚡) se cierran al elegir una opción o al tocar fuera
       panel.querySelectorAll('details.ag-menu[open]').forEach(d => { if (!d.contains(e.target) || e.target.closest('.ag-menu-l button')) d.removeAttribute('open'); });
       const pestana = e.target.closest('[data-pc-tab]'); if (pestana) { await cambiarPc(pestana.dataset.pcTab); return; }
+      const ordenElegida = e.target.closest('[data-orden-elegir]'); if (ordenElegida) { await fijarOrden(ordenElegida.dataset.ordenElegir); return; }
       if (e.target.closest('[data-orden-cambiar]')) { st.cambiandoOrden = true; pintar(); return; }
       if (e.target.closest('[data-orden-cancelar]')) { st.cambiandoOrden = false; pintar(); return; }
       if (e.target.closest('[data-orden-quitar]')) { await fijarOrden(''); return; }
@@ -2127,7 +2130,6 @@
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && panel.classList.contains('active')) panel.querySelectorAll('details.ag-menu[open],details.ag-mas[open],details.ag-det[open]').forEach(d => d.removeAttribute('open')); });
     panel.addEventListener('change', async e => {
       if (e.target.matches('[data-filtro-sel]')) { filtrar(e.target.value || null); return; }
-      if (e.target.matches('[data-orden-sel]')) { await fijarOrden(e.target.value); return; }
       if (!e.target.matches('[data-pc-activo]')) return;
       try { await api('/api/agentes/pc-activo', { method: 'POST', body: JSON.stringify({ pc: e.target.value }) }); } catch (err) { alert(err.message); }
       await cargar(true); pintar();
