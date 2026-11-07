@@ -54,7 +54,9 @@ class _VigiaCarpeta:
 
 # Exporta todas las mesas/tallas del archivo que abrió OLVER. Las que ya
 # existen en Montajes se reutilizan; Illustrator crea únicamente las faltantes.
-SIEMPRE_TODAS_LAS_MESAS = True
+# Conserva las mesas por talla que ya existen; solo exporta las que faltan.
+# Un reproceso con la opción "Reemplazar todo" sí pasa sobrescribir=True.
+SIEMPRE_TODAS_LAS_MESAS = False
 
 def _cache_maestro(ai):
     """Ruta de la copia local incrustada del maestro (cambia sola si el .ai de la NAS cambia de tamaño o fecha)."""
