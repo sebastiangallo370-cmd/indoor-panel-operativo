@@ -34,6 +34,8 @@ services:
     volumes:
       - ./data:/data
       - /mnt/nas-indoor:/mnt/nas
+    healthcheck:
+      disable: true
     security_opt:
       - no-new-privileges:true
 
