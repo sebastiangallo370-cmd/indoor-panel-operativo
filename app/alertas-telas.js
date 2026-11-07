@@ -185,8 +185,10 @@
       fetch('/api/alertas-telas',{cache:'no-store',credentials:'same-origin'}).then(function(r){return r.ok?r.json():null}).then(function(d){
         if(fmodal!==ov||!d||!d.faltantes)return;
         pintaReq(ov,d.faltantes);
-        if(!d.faltantes.every(function(a){return a.requerimiento&&a.requerimiento.estado==='enviado'}))tReq=setTimeout(sondeaReq,4000);
-      }).catch(function(){tReq=setTimeout(sondeaReq,6000)});
+        // Solo se vuelve a consultar mientras ZEUS está creando el requerimiento.
+        // Si terminó o falló, no mantenemos peticiones costosas al inventario.
+        if(d.faltantes.some(function(a){return !a.requerimiento||a.requerimiento.estado==='pendiente'}))tReq=setTimeout(sondeaReq,12000);
+      }).catch(function(){tReq=setTimeout(sondeaReq,15000)});
     }
     tReq=setTimeout(sondeaReq,2500);
     function close(){clearTimeout(tReq);fmodal=null;ov.remove()}
@@ -196,8 +198,10 @@
     });
     document.addEventListener('keydown',function onKey(e){if(e.key==='Escape'&&fmodal===ov){close();document.removeEventListener('keydown',onKey)}});
   }
+  var faltantesCargando=false;
   function checkFaltantes(){
-    if(document.hidden||fmodal||modal)return;
+    if(document.hidden||fmodal||modal||faltantesCargando)return;
+    faltantesCargando=true;
     fetch('/api/alertas-telas',{cache:'no-store',credentials:'same-origin'}).then(function(r){return r.ok?r.json():null}).then(function(d){
       if(!d||!d.aplica)return;
       cargarFuente();
@@ -205,7 +209,7 @@
       var vigentes=prev.filter(function(k){return claves.indexOf(k)>=0});   // las que ya se resolvieron se olvidan: si vuelven a faltar, avisan otra vez
       if(vigentes.length!==prev.length)set('localStorage',KF,JSON.stringify(vigentes));
       if(activas.some(function(a){return vigentes.indexOf(a.clave)<0}))showFaltantes(activas);
-    }).catch(function(){});
+    }).catch(function(){}).then(function(){faltantesCargando=false});
   }
   // Prueba: abrir la página con ?probar_alerta=1 muestra la alerta de inmediato (con las faltas reales, o con un ejemplo si no hay). Solo a quien ya recibe estos avisos.
   if(/[?&]probar_alerta=1/.test(location.search)){
@@ -221,6 +225,6 @@
     },2500);
   }
   setTimeout(checkFaltantes,800);
-  setInterval(checkFaltantes,5000);
+  setInterval(checkFaltantes,30000);
   document.addEventListener('visibilitychange',function(){if(!document.hidden)setTimeout(checkFaltantes,800)});
 })();
