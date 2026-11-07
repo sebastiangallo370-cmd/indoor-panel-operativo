@@ -226,7 +226,7 @@
       if (!dianScriptRequested && !document.querySelector('script[data-dian-agent]')) {
         dianScriptRequested = true;
         const script = document.createElement('script');
-        script.src = '/dian.js?v=20261106-1';
+        script.src = '/dian.js?v=20261106-2';
         script.dataset.dianAgent = '1';
         script.onerror = () => { dianScriptRequested = false; };
         document.head.appendChild(script);

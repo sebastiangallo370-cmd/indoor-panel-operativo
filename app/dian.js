@@ -187,7 +187,7 @@
     if (!main || document.querySelector('#dian-panel')) return;
     restoreDraft();
     addStyle(); panel = document.createElement('section'); panel.id = 'dian-panel'; panel.className = 'panel dian-panel'; main.prepend(panel);
-    const tab = document.createElement('button'); tab.id = 'dian-tab'; tab.type = 'button'; tab.className = 'tab'; tab.innerHTML = '<span class="nav-icon">DN</span><strong>D. DIAN</strong>'; tab.addEventListener('click', activate);
+    const tab = document.createElement('button'); tab.id = 'dian-tab'; tab.dataset.kind = 'dian'; tab.type = 'button'; tab.className = 'tab'; tab.innerHTML = '<span class="nav-icon">DN</span><strong>D. DIAN</strong>'; tab.addEventListener('click', activate);
     // La pestaña es técnica e invisible: se abre exclusivamente desde el robot
     // del panel de Agentes, no como submódulo de Tesorería.
     const host = document.createElement('div'); host.hidden = true; host.style.display = 'none';
