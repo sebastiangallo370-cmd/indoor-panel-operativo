@@ -10,7 +10,7 @@
   // Botones para usar cada agente por separado (se aplican a la orden activa)
   const AGENTES_BTN = [['LEO', 'Listado', 'Qué dice el listado de la orden '], ['JACK', 'Muestra', 'Crea la muestra de la orden '], ['OLVER', 'Mesas', 'Expórtame las mesas de trabajo de la orden '],
     ['OLIVER', 'Jugadores', 'jugadores'], ['TERRY', 'MTS', 'Calcula los MTS requeridos de la orden '], ['DRACO', 'Trazo', 'draco ayuda']];
-  const st = { orden: '', cambiandoOrden: false, abiertos: {}, msgs: [], ultimo: 0, evs: [], ultimoEv: 0, esperando: false, trabajo: null, estado: { conectado: false }, cargando: false, enviando: false };
+  const st = { orden: '', cambiandoOrden: false, ordenes: [], ordenesCargadas: false, abiertos: {}, msgs: [], ultimo: 0, evs: [], ultimoEv: 0, esperando: false, trabajo: null, estado: { conectado: false }, cargando: false, enviando: false };
   let panel, tab, timer = 0;
 
   async function api(url, options) {
@@ -24,6 +24,38 @@
   const avatar = a => '<span class="ag-av" style="--c:' + (COLORES[a] || '#c4cfbf') + '" aria-hidden="true">' + esc(String(a || 'T')[0]) + '</span>';
   const sinTildes = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   const tag = a => '<span class="ag-tag" style="--c:' + (COLORES[a] || '#c4cfbf') + '">' + esc(a) + '</span>';
+  const fechaEntrega = valor => {
+    const texto = String(valor || '').trim();
+    let m = /^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/.exec(texto) || /^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/.exec(texto);
+    if (!m) return null;
+    const y = m[1].length === 4 ? +m[1] : +m[3], mo = m[1].length === 4 ? +m[2] : +m[2], d = m[1].length === 4 ? +m[3] : +m[1];
+    const fecha = new Date(y, mo - 1, d);
+    return fecha.getFullYear() === y && fecha.getMonth() === mo - 1 && fecha.getDate() === d ? fecha : null;
+  };
+  const fechaEntregaCorta = fecha => fecha ? fecha.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' }) : 'Sin fecha';
+  function prepararOrdenes(produccion) {
+    const headers = produccion && produccion.headers || [], indice = nombre => headers.findIndex(h => sinTildes(h).trim() === nombre);
+    const iOrden = indice('orden'), iEntrega = indice('fecha de entrega'), iCliente = indice('nombre del cliente');
+    if (iOrden < 0) return [];
+    const agrupadas = new Map();
+    (produccion.rows || []).forEach(fila => {
+      const valores = fila.values || fila || [], orden = String(valores[iOrden] || '').trim();
+      if (!orden) return;
+      const entrega = fechaEntrega(valores[iEntrega]), cliente = String(iCliente < 0 ? '' : valores[iCliente] || '').trim(), clave = orden.toUpperCase();
+      const anterior = agrupadas.get(clave);
+      if (!anterior) agrupadas.set(clave, { orden, entrega, cliente });
+      else {
+        if (entrega && (!anterior.entrega || entrega < anterior.entrega)) anterior.entrega = entrega;
+        if (!anterior.cliente && cliente) anterior.cliente = cliente;
+      }
+    });
+    return [...agrupadas.values()].sort((a, b) => (a.entrega ? a.entrega.getTime() : Infinity) - (b.entrega ? b.entrega.getTime() : Infinity) || a.orden.localeCompare(b.orden, 'es'));
+  }
+  async function cargarOrdenes() {
+    if (st.ordenesCargadas) return;
+    try { st.ordenes = prepararOrdenes(await api('/api/produccion')); } catch (e) { st.ordenes = []; }
+    st.ordenesCargadas = true;
+  }
 
   const css = document.createElement('style');
   css.textContent = `
@@ -580,6 +612,8 @@
   .panel[data-panel='agentes'] .ag-orden>*{flex:none}
   .panel[data-panel='agentes'] .ag-orden .ag-btn,.panel[data-panel='agentes'] .ag-orden .ag-ochip,.panel[data-panel='agentes'] .ag-orden .ag-prog,.panel[data-panel='agentes'] .ag-orden .ag-mas>summary{height:38px;min-height:38px;box-sizing:border-box;display:inline-flex;align-items:center}
   .panel[data-panel='agentes'] .ag-orden .ag-ochip{gap:8px;padding:0 6px 0 14px;border-radius:12px}
+  .panel[data-panel='agentes'] .ag-orden .ag-orden-select{display:flex;align-items:center;gap:8px;height:38px;min-width:245px;padding:0 10px 0 13px;border:1px solid #60754d;border-radius:12px;background:#142017;color:#eef4e9;font:800 12px Arial}
+  .panel[data-panel='agentes'] .ag-orden .ag-orden-select span{color:#aebba7;font-size:11px}.panel[data-panel='agentes'] .ag-orden .ag-orden-select select{min-width:0;max-width:260px;flex:1;border:0;outline:0;background:transparent;color:#d7ff3a;font:900 16px Arial;cursor:pointer}.panel[data-panel='agentes'] .ag-orden .ag-orden-select option{background:#142017;color:#eef4e9;font:700 13px Arial}
   .panel[data-panel='agentes'] .ag-orden .ag-nas{padding:0 14px}
   .panel[data-panel='agentes'] .ag-mas{position:relative}
   .panel[data-panel='agentes'] .ag-mas>summary{list-style:none;justify-content:center;width:38px;padding:0;cursor:pointer;font:900 18px Arial;letter-spacing:.05em}
@@ -732,6 +766,7 @@
     § .ag-main[data-vista="agentes"] .ag-detalle{display:grid!important;margin-top:10px}
     § .ag-main[data-vista="pdfs"] .ag-live{display:grid!important}
     § .ag-main .ag-orden{margin-bottom:8px;flex-wrap:wrap}
+    § .panel[data-panel='agentes'] .ag-orden .ag-orden-select{flex:1 1 100%;min-width:0}.panel[data-panel='agentes'] .ag-orden .ag-orden-select select{max-width:none}
     § .ag-thread{height:calc(100dvh - 430px)!important;min-height:250px!important}
     § .ag-muestras{gap:10px;padding:10px}
     § .mu-doble{display:grid;grid-template-columns:minmax(0,1fr)!important;gap:10px}
@@ -1655,19 +1690,21 @@
         '<div class="ag-empty-acc">' + ATAJOS.filter(([l]) => l !== 'Reiniciar').map(([l, t]) => '<button type="button" data-atajo="' + esc(t) + '">' + esc(l) + '</button>').join('') + '</div></div>';
     const trabajando = st.esperando ? '<div class="ag-work"><div class="ag-who">' + ((trabajo && trabajo.agentes) || ['TAVO']).map(a => tag(a)).join('') + '<span class="ag-dots"><i></i><i></i><i></i></span></div><b>' +
       esc(trabajo && trabajo.msg ? trabajo.agente + ': ' + trabajo.msg : e.conectado ? 'TAVO está trabajando…' : 'Esperando al PC de los agentes…') + '</b><button type="button" class="ag-btn danger" data-detener>Detener</button></div>' : '';
-    const barra = panel.querySelector('[data-orden]'), claveOrden = st.orden + '|' + st.cambiandoOrden + '|' + disSel() + '|' + disenosDeOrden().join(',');
+    const barra = panel.querySelector('[data-orden]'), firmaOrdenes = st.ordenes.map(o => o.orden + ':' + (o.entrega ? o.entrega.getTime() : '')).join(','), claveOrden = st.orden + '|' + firmaOrdenes + '|' + disSel() + '|' + disenosDeOrden().join(',');
     if (barra.dataset.clave !== claveOrden) {
       barra.dataset.clave = claveOrden;
-      barra.innerHTML = st.orden && !st.cambiandoOrden
-        ? '<span class="ag-ochip" title="Todo lo que pidas se hace con esta orden">Orden <b>' + esc(st.orden) + '</b><button type="button" class="ag-ico" data-orden-cambiar title="Cambiar la orden">✎</button></span>' +
+      const actualIncluida = st.orden && st.ordenes.some(o => o.orden.toUpperCase() === st.orden.toUpperCase());
+      const opciones = (actualIncluida ? [] : (st.orden ? [{ orden: st.orden, entrega: null, cliente: 'Orden actual' }] : [])).concat(st.ordenes).map(o => '<option value="' + esc(o.orden) + '"' + (o.orden.toUpperCase() === st.orden.toUpperCase() ? ' selected' : '') + '>' + esc(o.orden + ' · ' + fechaEntregaCorta(o.entrega) + (o.cliente ? ' · ' + o.cliente : '')) + '</option>').join('');
+      const selector = '<label class="ag-orden-select" title="Las órdenes con entrega más cercana aparecen primero"><span>Orden</span><select data-orden-sel aria-label="Seleccionar orden"><option value="">Selecciona una orden…</option>' + opciones + '</select></label>';
+      barra.innerHTML = selector + (st.orden
+        ?
           '<button type="button" class="ag-btn" data-iniciar title="Lee el listado, crea la muestra, te pide aprobarla y sigue con las mesas y los PDF de producción">▶ Iniciar</button>' +
           (disenosDeOrden().length > 1 ? '<span class="ag-dissel" title="Elige de qué diseño se crea la muestra. «Todas» = todos los diseños del listado"><i>Muestra</i><button type="button" data-dis-sel=""' + (!disSel() ? ' class="on"' : '') + '>Todas</button>' + disenosDeOrden().map(d => '<button type="button" data-dis-sel="' + d + '"' + (disSel() === d ? ' class="on"' : '') + '>D' + d + '</button>').join('') + '</span>' : '') +
           '<a class="ag-btn sec ag-nas" data-nas-orden href="/nas/abrir?order=' + encodeURIComponent(st.orden) + '" title="Abrir la carpeta de la orden ' + esc(st.orden) + ' en el NAS (Explorador de archivos)">📁 NAS <span>↗</span></a>' +
           '<details class="ag-mas"><summary class="ag-btn sec" title="Más acciones">⋯</summary><div class="ag-mas-menu">' +
           '<button type="button" data-reprocesar title="Vuelve a procesar una orden que ya se hizo: tú eliges si reemplazas todo o conservas lo que ya existe">↻ Reprocesar la orden</button>' +
           '<button type="button" data-orden-quitar title="Quitar la orden">✕ Quitar la orden</button></div></details>'
-        : '<form data-orden-form><label for="ag-orden-in">Orden</label><input id="ag-orden-in" maxlength="12" autocomplete="off" placeholder="CO6133" value="' + esc(st.orden) + '" title="Escríbela una sola vez y TAVO relaciona todo con ella"><button type="submit" class="ag-btn">Fijar</button>' + (st.orden ? '<button type="button" class="ag-ico" data-orden-cancelar title="Cancelar">✕</button>' : '') + '</form>';
-      if (st.cambiandoOrden) panel.querySelector('#ag-orden-in')?.focus();
+        : '');
     }
     pintarProg();
     panel.querySelector('textarea').placeholder = st.orden && !pantallaChica() ? 'Pídele a TAVO (usa la orden ' + st.orden + ')…' : 'Escribe a TAVO…';
@@ -1990,7 +2027,7 @@
       document.body.classList.remove('inicio-mode', 'inventory-mode', 'production-mode', 'schedule-mode', 'operarios-mode', 'cartera-mode');
       if (st.admin === undefined) { try { st.admin = !!(await api('/api/permisos/mi')).admin; } catch (e) { st.admin = false; } }
       if (!panel.dataset.armado) armar();
-      await cargar(true); pintar(); programar();
+      await Promise.all([cargar(true), cargarOrdenes()]); pintar(); programar();
     });
     panel.addEventListener('click', async e => {
       // los menús (⋯ y ⚡) se cierran al elegir una opción o al tocar fuera
@@ -2089,6 +2126,7 @@
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && panel.classList.contains('active')) panel.querySelectorAll('details.ag-menu[open],details.ag-mas[open],details.ag-det[open]').forEach(d => d.removeAttribute('open')); });
     panel.addEventListener('change', async e => {
       if (e.target.matches('[data-filtro-sel]')) { filtrar(e.target.value || null); return; }
+      if (e.target.matches('[data-orden-sel]')) { await fijarOrden(e.target.value); return; }
       if (!e.target.matches('[data-pc-activo]')) return;
       try { await api('/api/agentes/pc-activo', { method: 'POST', body: JSON.stringify({ pc: e.target.value }) }); } catch (err) { alert(err.message); }
       await cargar(true); pintar();
