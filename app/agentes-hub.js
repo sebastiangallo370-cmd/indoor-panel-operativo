@@ -66,6 +66,7 @@
   let caja = null, panelGeneral = null, tabGeneral = null, controlTimer = 0, controlChatKey = '';
   const abiertas = new Set();   // áreas con sus agentes desplegados
   const tabDe = kind => document.querySelector('.tab[data-kind="' + kind + '"]');
+  let dianScriptRequested = false;
   const activa = kind => !!document.querySelector('.panel[data-panel="' + kind + '"].active');
   const disponibles = () => AREAS.filter(a => tabDe(a.kind));
   const losAgentes = a => a.agentes.filter(g => !g[2] || tabDe(g[2]));   // un agente con pantalla propia solo sale si la cuenta tiene esa pantalla
@@ -218,7 +219,20 @@
   function cargarAgenteDian() {
     // dian.js crea una pestaña técnica oculta. No consultamos /api/dian/estado:
     // algunos roles no pueden ver ese estado aunque sí deban ver FACTURÓN.
-    if (AREAS.some(area => area.id === 'dian') || !tabDe('dian')) return;
+    if (AREAS.some(area => area.id === 'dian')) return;
+    if (!tabDe('dian')) {
+      // El panel se abre desde Agentes, por eso se carga bajo demanda y no
+      // queda como pestaña visible en la barra principal.
+      if (!dianScriptRequested && !document.querySelector('script[data-dian-agent]')) {
+        dianScriptRequested = true;
+        const script = document.createElement('script');
+        script.src = '/dian.js?v=20261106-1';
+        script.dataset.dianAgent = '1';
+        script.onerror = () => { dianScriptRequested = false; };
+        document.head.appendChild(script);
+      }
+      return;
+    }
     AREAS.splice(Math.max(0, AREAS.findIndex(area => area.id === 'club')), 0, DIAN_AREA);
     pintar();
   }
