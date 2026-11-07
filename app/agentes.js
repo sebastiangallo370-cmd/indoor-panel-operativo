@@ -35,21 +35,22 @@
   const fechaEntregaCorta = fecha => fecha ? fecha.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' }) : 'Sin fecha';
   function prepararOrdenes(produccion) {
     const headers = produccion && produccion.headers || [], indice = nombre => headers.findIndex(h => sinTildes(h).trim() === nombre);
-    const iOrden = indice('orden'), iEntrega = indice('fecha de entrega'), iCliente = indice('nombre del cliente');
+    const iOrden = indice('orden'), iEntrega = indice('fecha de entrega'), iCliente = indice('nombre del cliente'), iEdicion = indice('edicion');
     if (iOrden < 0) return [];
     const agrupadas = new Map();
     (produccion.rows || []).forEach(fila => {
       const valores = fila.values || fila || [], orden = String(valores[iOrden] || '').trim();
       if (!orden) return;
-      const entrega = fechaEntrega(valores[iEntrega]), cliente = String(iCliente < 0 ? '' : valores[iCliente] || '').trim(), clave = orden.toUpperCase();
+      const entrega = fechaEntrega(valores[iEntrega]), cliente = String(iCliente < 0 ? '' : valores[iCliente] || '').trim(), estadoEdicion = String(iEdicion < 0 ? '' : valores[iEdicion] || '').trim().toUpperCase(), prioridadEdicion = estadoEdicion === 'P' ? 0 : estadoEdicion === 'R' ? 1 : 2, clave = orden.toUpperCase();
       const anterior = agrupadas.get(clave);
-      if (!anterior) agrupadas.set(clave, { orden, entrega, cliente });
+      if (!anterior) agrupadas.set(clave, { orden, entrega, cliente, prioridadEdicion });
       else {
         if (entrega && (!anterior.entrega || entrega < anterior.entrega)) anterior.entrega = entrega;
         if (!anterior.cliente && cliente) anterior.cliente = cliente;
+        anterior.prioridadEdicion = Math.min(anterior.prioridadEdicion, prioridadEdicion);
       }
     });
-    return [...agrupadas.values()].sort((a, b) => (a.entrega ? a.entrega.getTime() : Infinity) - (b.entrega ? b.entrega.getTime() : Infinity) || a.orden.localeCompare(b.orden, 'es'));
+    return [...agrupadas.values()].sort((a, b) => a.prioridadEdicion - b.prioridadEdicion || (a.entrega ? a.entrega.getTime() : Infinity) - (b.entrega ? b.entrega.getTime() : Infinity) || a.orden.localeCompare(b.orden, 'es'));
   }
   async function cargarOrdenes() {
     if (st.ordenesCargadas) return;
@@ -1694,8 +1695,8 @@
     if (barra.dataset.clave !== claveOrden) {
       barra.dataset.clave = claveOrden;
       const actualIncluida = st.orden && st.ordenes.some(o => o.orden.toUpperCase() === st.orden.toUpperCase());
-      const opciones = (actualIncluida ? [] : (st.orden ? [{ orden: st.orden, entrega: null, cliente: 'Orden actual' }] : [])).concat(st.ordenes).map(o => '<option value="' + esc(o.orden) + '"' + (o.orden.toUpperCase() === st.orden.toUpperCase() ? ' selected' : '') + '>' + esc(o.orden + ' · ' + fechaEntregaCorta(o.entrega) + (o.cliente ? ' · ' + o.cliente : '')) + '</option>').join('');
-      const selector = '<label class="ag-orden-select" title="Las órdenes con entrega más cercana aparecen primero"><span>Orden</span><select data-orden-sel aria-label="Seleccionar orden"><option value="">Selecciona una orden…</option>' + opciones + '</select></label>';
+      const opciones = (actualIncluida ? [] : (st.orden ? [{ orden: st.orden, entrega: null, cliente: 'Orden actual', prioridadEdicion: 2 }] : [])).concat(st.ordenes).map(o => '<option value="' + esc(o.orden) + '"' + (o.orden.toUpperCase() === st.orden.toUpperCase() ? ' selected' : '') + '>' + esc(o.orden + (o.prioridadEdicion === 0 ? ' · EDICIÓN pendiente' : o.prioridadEdicion === 1 ? ' · REPROCESO edición' : '') + ' · ' + fechaEntregaCorta(o.entrega) + (o.cliente ? ' · ' + o.cliente : '')) + '</option>').join('');
+      const selector = '<label class="ag-orden-select" title="Primero las órdenes en proceso o reproceso de EDICIÓN; luego por fecha de entrega"><span>Orden</span><select data-orden-sel aria-label="Seleccionar orden"><option value="">Selecciona una orden…</option>' + opciones + '</select></label>';
       barra.innerHTML = selector + (st.orden
         ?
           '<button type="button" class="ag-btn" data-iniciar title="Lee el listado, crea la muestra, te pide aprobarla y sigue con las mesas y los PDF de producción">▶ Iniciar</button>' +
