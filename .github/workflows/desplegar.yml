@@ -7,8 +7,8 @@
 #   INDOOR_KNOWN_HOSTS  salida de: ssh-keyscan 179.236.66.149
 # El host no es secreto y se fija abajo: 179.236.66.149.
 #
-# Qué copia: app/, Dockerfile, requirements.txt y los .py de la raíz. NO toca .env, secrets/, data/,
-# docker-compose.yml ni el Caddyfile del servidor.
+# Qué copia: app/, scripts/, Dockerfile, compose y dependencias. NO toca .env,
+# secrets/ ni data/ (FACTURÓN comparte esos volúmenes persistentes).
 name: Desplegar a produccion.cloud
 
 on:
@@ -50,14 +50,16 @@ jobs:
           rsync -rlptz --checksum -e "ssh -i ~/.ssh/id_vps" \
             --exclude '__pycache__/' --exclude 'FORMATO_EXCEL.xlsx' --exclude 'usuarios_panel.html' \
             app/ root@$VPS_HOST:$DESTINO/app/
+          rsync -rlptz --checksum -e "ssh -i ~/.ssh/id_vps" \
+            --exclude '__pycache__/' scripts/ root@$VPS_HOST:$DESTINO/scripts/
           rsync -ptz --checksum -e "ssh -i ~/.ssh/id_vps" \
-            Dockerfile requirements.txt monitor_archivos.py pedidos_legacy.py \
+            Dockerfile docker-compose.yml requirements.txt monitor_archivos.py pedidos_legacy.py \
             root@$VPS_HOST:$DESTINO/
 
       - name: Reconstruir y reiniciar el panel
         run: |
           ssh -i ~/.ssh/id_vps root@$VPS_HOST \
-            "cd $DESTINO && docker compose up -d --build asistente"
+            "cd $DESTINO && docker compose up -d --build asistente dian-worker"
 
       - name: Verificar que responde
         run: |

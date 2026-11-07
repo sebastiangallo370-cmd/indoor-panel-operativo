@@ -37,6 +37,30 @@ _active_tokens: dict[str, str] = {}
 def configurar(auth: Callable[[Request], str]) -> None:
     global _auth
     _auth = auth
+    _ensure_worker_token()
+
+
+def _ensure_worker_token() -> None:
+    """Crea la credencial interna del worker una sola vez.
+
+    El navegador que consulta DIAN es un servicio separado del panel, pero
+    ambos comparten ``/data``. Guardar el secreto ahí (con permisos privados)
+    evita que haya que copiarlo a mano al .env y nunca se devuelve por la API.
+    """
+    if os.getenv('DIAN_WORKER_TOKEN', '').strip():
+        return
+    try:
+        _token_file.parent.mkdir(parents=True, exist_ok=True)
+        if not _token_file.exists() or len(_token_file.read_text(encoding='utf-8').strip()) < 32:
+            _token_file.write_text(secrets.token_urlsafe(48), encoding='utf-8')
+            try:
+                _token_file.chmod(0o600)
+            except OSError:
+                pass
+    except OSError:
+        # /estado mostrará que el worker no está configurado; no impedimos que
+        # el panel principal arranque si el volumen persistente está caído.
+        pass
 
 
 def _now() -> str:

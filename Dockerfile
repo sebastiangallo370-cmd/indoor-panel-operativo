@@ -9,8 +9,12 @@ RUN apt-get update \
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+# FACTURÓN usa Chromium aislado para consultar la sesión oficial DIAN, un CUFE
+# por turno. El navegador se comparte con el servicio dian-worker del compose.
+RUN python -m playwright install --with-deps chromium
 
 COPY app ./app
+COPY scripts ./scripts
 COPY monitor_archivos.py ./monitor_archivos.py
 COPY pedidos_legacy.py ./pedidos_legacy.py
 # La plantilla Excel se instala solo en servidores que usan el creador de XLSX.

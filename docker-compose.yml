@@ -17,6 +17,26 @@ services:
     security_opt:
       - no-new-privileges:true
 
+  # FACTURÓN: consulta la sesión oficial DIAN de forma secuencial. Comparte
+  # /data con el panel para la cola y /mnt/nas para los comprobantes; no expone
+  # puertos ni guarda el token temporal que pega la persona usuaria.
+  dian-worker:
+    build: .
+    container_name: asistente-reprogramaciones-dian-worker
+    restart: unless-stopped
+    depends_on:
+      - asistente
+    env_file: .env
+    environment:
+      - DIAN_PANEL_URL=http://asistente:8000
+      - DIAN_BROWSER_PROFILE=/data/dian-browser-profile
+    command: ["python", "/app/scripts/dian_worker.py"]
+    volumes:
+      - ./data:/data
+      - /mnt/nas-indoor:/mnt/nas
+    security_opt:
+      - no-new-privileges:true
+
   caddy:
     # Imagen con el modulo DNS de Cloudflare compilado (ver Dockerfile.caddy): permite
     # validar certificados por DNS-01 en vez de HTTP-01/TLS-ALPN-01. produccion.tech lo
