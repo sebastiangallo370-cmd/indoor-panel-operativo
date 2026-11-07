@@ -49,7 +49,7 @@
         anterior.prioridadEdicion = Math.min(anterior.prioridadEdicion, prioridadEdicion);
       }
     });
-    return [...agrupadas.values()].sort((a, b) => a.prioridadEdicion - b.prioridadEdicion || (a.entrega ? a.entrega.getTime() : Infinity) - (b.entrega ? b.entrega.getTime() : Infinity) || a.orden.localeCompare(b.orden, 'es'));
+    return [...agrupadas.values()].filter(o => o.prioridadEdicion < 2).sort((a, b) => (a.entrega ? a.entrega.getTime() : Infinity) - (b.entrega ? b.entrega.getTime() : Infinity) || a.prioridadEdicion - b.prioridadEdicion || a.orden.localeCompare(b.orden, 'es'));
   }
   async function cargarOrdenes() {
     if (st.ordenesCargadas) return;
@@ -1695,11 +1695,9 @@
     const barra = panel.querySelector('[data-orden]'), firmaOrdenes = st.ordenes.map(o => o.orden + ':' + (o.entrega ? o.entrega.getTime() : '')).join(','), claveOrden = st.orden + '|' + firmaOrdenes + '|' + disSel() + '|' + disenosDeOrden().join(',');
     if (barra.dataset.clave !== claveOrden) {
       barra.dataset.clave = claveOrden;
-      const actualIncluida = st.orden && st.ordenes.some(o => o.orden.toUpperCase() === st.orden.toUpperCase());
-      const ordenesSelector = (actualIncluida ? [] : (st.orden ? [{ orden: st.orden, entrega: null, cliente: 'Orden actual', prioridadEdicion: 2 }] : [])).concat(st.ordenes);
-      const actual = ordenesSelector.find(o => o.orden.toUpperCase() === st.orden.toUpperCase()) || { orden: st.orden || 'Selecciona una orden', cliente: '' };
+      const ordenesSelector = st.ordenes;
       const opciones = ordenesSelector.map(o => '<option value="' + esc(o.orden) + '"' + (o.orden.toUpperCase() === st.orden.toUpperCase() ? ' selected' : '') + '>' + esc(o.orden + ' · ' + (o.cliente || 'Sin cliente')) + '</option>').join('');
-      const selector = '<label class="ag-orden-select" title="Primero las órdenes en proceso o reproceso de EDICIÓN; luego por fecha de entrega">ORDEN<select data-orden-sel aria-label="Seleccionar orden"><option value="">Selecciona una orden</option>' + opciones + '</select></label>';
+      const selector = '<label class="ag-orden-select" title="Solo órdenes de EDICIÓN, ordenadas por fecha de entrega más cercana">ORDEN · EDICIÓN<select data-orden-sel aria-label="Seleccionar orden de edición"><option value="">Selecciona una orden de edición</option>' + opciones + '</select></label>';
       barra.innerHTML = selector + (st.orden
         ?
           '<button type="button" class="ag-btn" data-iniciar title="Lee el listado, crea la muestra, te pide aprobarla y sigue con las mesas y los PDF de producción">▶ Iniciar</button>' +
