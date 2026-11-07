@@ -42,7 +42,7 @@
     (produccion.rows || []).forEach(fila => {
       const valores = fila.values || fila || [], orden = String(valores[iOrden] || '').trim();
       if (!orden) return;
-      const entrega = fechaEntrega(valores[iEntrega]), cliente = String(iCliente < 0 ? '' : valores[iCliente] || '').trim(), estadoEdicion = String(iEdicion < 0 ? '' : valores[iEdicion] || '').trim().toUpperCase(), procesoActual = sinTildes(fila.current_process && fila.current_process.label).trim(), prioridadEdicion = procesoActual === 'edicion' ? 0 : estadoEdicion === 'R' ? 1 : 2, clave = orden.toUpperCase();
+      const entrega = fechaEntrega(valores[iEntrega]), cliente = String(iCliente < 0 ? '' : valores[iCliente] || '').trim(), estadoEdicion = String(iEdicion < 0 ? '' : valores[iEdicion] || '').trim().toUpperCase(), edicionPendiente = !estadoEdicion || estadoEdicion === 'P' || estadoEdicion === 'R', prioridadEdicion = edicionPendiente ? (estadoEdicion === 'R' ? 1 : 0) : 2, clave = orden.toUpperCase();
       const anterior = agrupadas.get(clave);
       if (!anterior) agrupadas.set(clave, { orden, entrega, cliente, prioridadEdicion });
       else {
