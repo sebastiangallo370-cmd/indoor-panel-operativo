@@ -55,8 +55,7 @@
   }
   async function cargarOrdenes() {
     if (st.ordenesCargadas) return;
-    try { st.ordenes = prepararOrdenes(await api('/api/produccion')); } catch (e) { st.ordenes = []; }
-    st.ordenesCargadas = true;
+    try { st.ordenes = prepararOrdenes(await api('/api/produccion')); st.ordenesCargadas = true; } catch (e) { st.ordenes = []; }
   }
 
   const css = document.createElement('style');
@@ -1964,6 +1963,7 @@
       pintar();
     } catch (e) { /* sin conexión: se reintenta */ }
     st.cargando = false;
+    if (!st.ordenesCargadas) cargarOrdenes().then(() => { if (st.ordenesCargadas) pintar(); });
   }
   function programar() {
     clearTimeout(timer);
