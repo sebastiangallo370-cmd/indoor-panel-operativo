@@ -843,6 +843,9 @@
       traceCards.querySelector('.trace-empty p').textContent = ownProcess ? 'No hay pendientes para tu área. Desactiva PROCESO AL QUE PERTENECES para consultar todos los pedidos.' : 'Administración debe asignar un proceso de Indoor a tu cuenta.';
       traceCards.querySelector('[data-clear-trace]').textContent = 'Limpiar búsqueda';
     }
+    // La estructura básica se muestra primero. Los controles detallados de cada tarjeta
+    // se completan por cuadros de animación para que el panel responda de inmediato.
+    const enhancementQueue = [];
     traceCards.querySelectorAll(':scope > article[data-card-row]').forEach(card => {
       const nasButton = card.querySelector('[data-card-nas]');
       if (nasButton && !nasButton.classList.contains('trace-icon-action')) {
@@ -850,9 +853,32 @@
         nasButton.title = 'Abrir carpeta NAS';
         nasButton.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h7l2 2h9v10H3zM12 14h7m-3-3 3 3-3 3"/></svg>';
       }
-      if (!card._pendiente) return;   // tarjeta sin cambios: ya quedó armada, no se toca
+      if (card._pendiente) enhancementQueue.push(card);
+    });
+    // Conserva la posición antes de que los detalles de las tarjetas cambien su alto.
+    traceCards.scrollTop = scrollTop;
+    const finishTraceCards = () => {
+      traceCards.scrollTop = scrollTop;
+      if (focusKey && focusAttribute) traceCards.querySelector('[data-card-row="' + focusKey + '"] [' + focusAttribute + '="' + focusValue + '"]')?.focus({ preventScroll: true });
+      fitTraceCards();
+      refreshOperatorActions();
+    };
+    let enhancementIndex = 0;
+    const renderCardEnhancement = () => {
+      const card = enhancementQueue[enhancementIndex++];
+      if (!card) { finishTraceCards(); return; }
+      if (!card.isConnected || !card._pendiente) {
+        if (enhancementIndex < enhancementQueue.length) requestAnimationFrame(renderCardEnhancement);
+        else finishTraceCards();
+        return;
+      }
       card._pendiente = false;
       const row = rows.find(r => r.source_row === Number(card.dataset.cardRow));
+      if (!row) {
+        if (enhancementIndex < enhancementQueue.length) requestAnimationFrame(renderCardEnhancement);
+        else finishTraceCards();
+        return;
+      }
       card.querySelector('.trace-mts-inventory')?.remove();
       // Línea de producto (columna B del Sheet)
       const lineList = document.getElementById('order-lines');
@@ -1064,11 +1090,11 @@
       toggle.setAttribute('aria-label', 'Detalles de la orden ' + traceField(row, 'ORDEN'));
       toggle.textContent = '☰';
       card.prepend(toggle);
-    });
-    traceCards.scrollTop = scrollTop;
-    if (focusKey && focusAttribute) traceCards.querySelector('[data-card-row="' + focusKey + '"] [' + focusAttribute + '="' + focusValue + '"]')?.focus({ preventScroll: true });
-    fitTraceCards();
-    refreshOperatorActions();
+      if (enhancementIndex < enhancementQueue.length) requestAnimationFrame(renderCardEnhancement);
+      else finishTraceCards();
+    };
+    if (enhancementQueue.length) requestAnimationFrame(renderCardEnhancement);
+    else finishTraceCards();
   };
   // Boton "X" en cada nota: la borra por completo (misma API que el editor de notas de la tabla).
   traceCards.addEventListener('click', async event => {
