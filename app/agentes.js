@@ -27,8 +27,10 @@
   const fechaEntrega = valor => {
     const texto = String(valor || '').trim();
     let m = /^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/.exec(texto) || /^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/.exec(texto);
-    if (!m) return null;
-    const y = m[1].length === 4 ? +m[1] : +m[3], mo = m[1].length === 4 ? +m[2] : +m[2], d = m[1].length === 4 ? +m[3] : +m[1];
+    const mesTexto = /^(\d{1,2})[-\s]([a-záéíóúñ]+)[-\s](\d{4})/i.exec(sinTildes(texto));
+    const meses = { ene: 1, enero: 1, feb: 2, febrero: 2, mar: 3, marzo: 3, abr: 4, abril: 4, may: 5, mayo: 5, jun: 6, junio: 6, jul: 7, julio: 7, ago: 8, agosto: 8, sep: 9, sept: 9, septiembre: 9, oct: 10, octubre: 10, nov: 11, noviembre: 11, dic: 12, diciembre: 12 };
+    if (!m && !mesTexto) return null;
+    const y = mesTexto ? +mesTexto[3] : (m[1].length === 4 ? +m[1] : +m[3]), mo = mesTexto ? meses[mesTexto[2]] : +m[2], d = mesTexto ? +mesTexto[1] : (m[1].length === 4 ? +m[3] : +m[1]);
     const fecha = new Date(y, mo - 1, d);
     return fecha.getFullYear() === y && fecha.getMonth() === mo - 1 && fecha.getDate() === d ? fecha : null;
   };
@@ -40,7 +42,7 @@
     (produccion.rows || []).forEach(fila => {
       const valores = fila.values || fila || [], orden = String(valores[iOrden] || '').trim();
       if (!orden) return;
-      const entrega = fechaEntrega(valores[iEntrega]), cliente = String(iCliente < 0 ? '' : valores[iCliente] || '').trim(), estadoEdicion = String(iEdicion < 0 ? '' : valores[iEdicion] || '').trim().toUpperCase(), prioridadEdicion = estadoEdicion === 'P' ? 0 : estadoEdicion === 'R' ? 1 : 2, clave = orden.toUpperCase();
+      const entrega = fechaEntrega(valores[iEntrega]), cliente = String(iCliente < 0 ? '' : valores[iCliente] || '').trim(), estadoEdicion = String(iEdicion < 0 ? '' : valores[iEdicion] || '').trim().toUpperCase(), procesoActual = sinTildes(fila.current_process && fila.current_process.label).trim(), prioridadEdicion = procesoActual === 'edicion' ? 0 : estadoEdicion === 'R' ? 1 : 2, clave = orden.toUpperCase();
       const anterior = agrupadas.get(clave);
       if (!anterior) agrupadas.set(clave, { orden, entrega, cliente, prioridadEdicion });
       else {
