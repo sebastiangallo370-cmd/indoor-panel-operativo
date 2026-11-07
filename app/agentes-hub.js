@@ -13,11 +13,16 @@
     { id: 'zeus', kind: 'zeus', nombre: 'INVENTARIOS', agentes: [['ZEUS', 'Tela y órdenes de compra'], ['MINIMAXIMAN', 'Mantiene las telas entre su mínimo y su máximo', 'minimaximan'], ['STOCKMAN', 'Alinea el inventario del panel con Effi', 'stockman']] },   // el tercer dato es la pantalla propia del agente
     { id: 'club', kind: 'club', nombre: 'COMERCIAL', agentes: [['EFFITRON', 'Cotización de las reposiciones']] },
   ];
-  // DIAN no es un submódulo de Tesorería. Solo se incorpora al robot cuando
-  // la cuenta puede abrir el agente y el panel técnico ya cargó su pestaña.
-  const DIAN_AREA = { id: 'dian', kind: 'dian', nombre: 'DIAN', agentes: [['DIAN', 'Descarga comprobantes electrónicos en este PC']] };
+  // FACTURÓN no es un submódulo de Tesorería. Se incorpora al robot cuando
+  // el panel técnico ya cargó su pestaña.
+  const DIAN_AREA = {
+    id: 'dian',
+    kind: 'dian',
+    nombre: 'FACTURACIÓN',
+    agentes: [['FACTURÓN', 'Consulta CUFEs y descarga comprobantes uno por uno']]
+  };
   const ROBOT = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="8" width="15" height="11" rx="3"/><path d="M12 8V4.6"/><circle cx="12" cy="3.6" r="1.1"/><circle cx="9" cy="13" r="1.2"/><circle cx="15" cy="13" r="1.2"/><path d="M9.5 16.4h5M2.5 12.5v3M21.5 12.5v3"/></svg>';
-  const AVATAR = { JEFE: '👑', TAVO: '🧑‍💼', LEO: '🧑‍💻', JACK: '🧑‍🎨', OLVER: '🧑‍🔧', OLIVER: '🧑‍💼', TERRY: '🧑‍💻', DRACO: '🤖', ALMA: '👩‍💼', BRISA: '👩‍💻', CIRO: '🧑‍🎨', ZEUS: '🧙', MINIMAXIMAN: '🧑‍🔬', STOCKMAN: '🧑‍💼', DIAN: '📄', EFFITRON: '🤵' };
+  const AVATAR = { JEFE: '👑', TAVO: '🧑‍💼', LEO: '🧑‍💻', JACK: '🧑‍🎨', OLVER: '🧑‍🔧', OLIVER: '🧑‍💼', TERRY: '🧑‍💻', DRACO: '🤖', ALMA: '👩‍💼', BRISA: '👩‍💻', CIRO: '🧑‍🎨', ZEUS: '🧙', MINIMAXIMAN: '🧑‍🔬', STOCKMAN: '🧑‍💼', FACTURÓN: '📄', EFFITRON: '🤵' };
   const css = document.createElement('style');
   css.textContent = `
   #agentes-hub{position:relative;display:none;align-items:center;margin:0 6px 0 0;vertical-align:middle;z-index:1200}
@@ -116,6 +121,7 @@
 
   function montar() {
     if (!document.querySelector('main')) return;
+    cargarAgenteDian();
     if (!caja) {
       caja = document.createElement('details');
       caja.id = 'agentes-hub';
@@ -209,16 +215,13 @@
     panelGeneral.addEventListener('submit', async e => { if (!e.target.matches('[data-jefe-form]')) return; e.preventDefault(); const entrada = panelGeneral.querySelector('[data-jefe-input]'), texto = entrada.value.trim(); if (!texto) return; entrada.disabled = true; try { const r = await fetch('/api/agentes/jefe', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mensaje: texto }) }); const data = await r.json(); if (!r.ok) throw new Error(data.detail || 'No se pudo enviar la tarea'); entrada.value = ''; controlChatKey = ''; panelGeneral.querySelector('[data-jefe-respuesta]').textContent = data.mensaje || 'JEFE recibió la tarea y está diagnosticando a quién asignarla…'; refrescarControl(); } catch (error) { panelGeneral.querySelector('[data-jefe-respuesta]').textContent = error.message || 'No se pudo enviar la tarea.'; } finally { entrada.disabled = false; entrada.focus(); } });
     if (!controlTimer) controlTimer = setInterval(refrescarControl, 3000);
   }
-  async function cargarAgenteDian() {
-    if (AREAS.some(area => area.id === 'dian')) return;
-    try {
-      const respuesta = await fetch('/api/dian/estado', { cache: 'no-store', credentials: 'same-origin' });
-      if (!respuesta.ok) return;
-      AREAS.splice(Math.max(0, AREAS.findIndex(area => area.id === 'club')), 0, DIAN_AREA);
-      pintar();
-    } catch (_) { /* El robot permanece igual si el agente no está disponible. */ }
+  function cargarAgenteDian() {
+    // dian.js crea una pestaña técnica oculta. No consultamos /api/dian/estado:
+    // algunos roles no pueden ver ese estado aunque sí deban ver FACTURÓN.
+    if (AREAS.some(area => area.id === 'dian') || !tabDe('dian')) return;
+    AREAS.splice(Math.max(0, AREAS.findIndex(area => area.id === 'club')), 0, DIAN_AREA);
+    pintar();
   }
-  cargarAgenteDian();
   setInterval(montar, 400);
   document.addEventListener('click', () => setTimeout(() => { pintar(); ubicar(); }, 60), true);
 })();

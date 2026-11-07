@@ -1496,7 +1496,7 @@ def ecommerce_js():
 
 @app.get('/agentes-hub.js')
 def agentes_hub_js():
-    return FileResponse(Path(__file__).with_name('agentes-hub.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
+    return FileResponse(Path(__file__).with_name('agentes-hub.js'), media_type='application/javascript', headers={'Cache-Control': 'no-store'})
 
 
 @app.get('/recordar-vista.js')
