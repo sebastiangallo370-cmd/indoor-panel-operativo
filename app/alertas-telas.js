@@ -61,6 +61,10 @@
         // un aviso por cada inicio de sesión (la marca cambia cuando la persona vuelve a entrar con su usuario)
         if(get('localStorage','at_sesion')===d.sesion)return;
         set('localStorage','at_sesion',d.sesion);
+        // Las producciones sin tela siguen siendo urgentes al volver a entrar.
+        // No se conserva la marca de «ya vistas» de la sesión anterior: ZEUS
+        // debe avisarlas de nuevo en cada inicio de sesión.
+        set('localStorage','at_faltantes','[]');
       }
       if(!d.alertas||!d.alertas.length)return;
       show(d.alertas,reason);
