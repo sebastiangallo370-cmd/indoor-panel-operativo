@@ -318,6 +318,15 @@ def exportar_mesas(cliente, referencia, ruta_ai, formato="ai", sobrescribir=Fals
                     if arch:
                         shutil.move(str(arch[0]), str(trabajo / f"{sub.name}.ai"))
                     shutil.rmtree(sub, ignore_errors=True)
+                # La copia de trabajo incorpora las imágenes y conserva los
+                # textos editables NOMBRE/00. Se deja también en Montajes:
+                # esa es la versión que luego se reutiliza para los PDF por
+                # jugador. Solo contiene las tallas recién exportadas, por lo
+                # que nunca reemplaza una talla existente que se conservó.
+                for lista in trabajo.glob("*.ai"):
+                    destino_mesa = carpeta / lista.name
+                    shutil.copy2(lista, destino_mesa)
+                    log(AGENTE, f"Mesa reutilizable guardada: {destino_mesa.name}")
             if res.startswith("FALTAN"):   # se exportó, pero el maestro no tiene la mesa de alguna talla pedida
                 log(AGENTE, f"{ai.name}: el maestro no tiene mesa de las tallas {res.split('|', 1)[1]}", "WARN")
                 res = "OK|0"
