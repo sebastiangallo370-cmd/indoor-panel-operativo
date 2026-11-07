@@ -628,27 +628,24 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
                 candidatas = list(dict.fromkeys(candidatas))
             elif genero in ("M", "F"):   # maestro F con mesas rotuladas Gen_M (o al revés): se prueba primero la propia y luego la otra letra
                 candidatas += [f"Talla_{talla}_Tipo_D{diseno}_Gen_{'F' if genero == 'M' else 'M'}"]
-            # La mesa independiente de esa talla (Talla_M_Tipo_D1_Gen_M.ai) ya se exportó en el paso anterior: se abre ESA (liviana, segundos)
-            # y no el maestro completo (pesado, minutos por cada PDF). Se busca con cualquiera de los nombres posibles.
-            fuente, usada_trabajo = ai, None
+            # La mesa independiente sirve para comprobar que la talla existe, pero NO
+            # se abre para personalizar el PDF: una mesa reutilizada puede venir de
+            # una ejecución anterior sin los textos guía NOMBRE/00. El maestro
+            # conserva esos textos y se cierra sin guardar al terminar cada PDF.
+            # Así reutilizar tallas nunca las vuelve a exportar ni daña los PDF.
+            fuente, usada_trabajo, mesa_independiente = ai, None, False
             if destino.get("montajes"):
                 carpeta_m = Path(destino["montajes"]) / f"D{diseno}" / f"{ref}{genero}{suf_maestro}"
                 for cand in candidatas:
                     propia = carpeta_m / f"{cand}.ai"
                     if propia.exists():
-                        fuente, candidatas = propia, [cand]
-                        try:   # copia de trabajo local (imágenes incrustadas, abre en ~1 s); se usa solo si es de esta misma exportación
-                            tw = _dir_trabajo(carpeta_m) / f"{cand}.ai"
-                            if tw.exists() and tw.stat().st_mtime >= propia.stat().st_mtime - 60:
-                                fuente, usada_trabajo = tw, tw
-                        except OSError:
-                            pass
+                        candidatas, mesa_independiente = [cand], True
                         break
-            if destino.get("montajes") and fuente == ai:   # no hay mesa independiente de esta talla: NO se abre el maestro completo (el PDF saldría con todas las tallas)
+            if destino.get("montajes") and not mesa_independiente:
                 omitidas.append(f"talla {talla}: no existe su mesa independiente en Montajes; no hice el PDF desde el maestro completo")
                 log(AGENTE, f"Talla {talla}: sin mesa independiente en Montajes: no abro el maestro completo", "WARN")
                 continue
-            log(AGENTE, f"Abro {fuente.name} para poner nombre y número" + (" (copia de trabajo: la mesa de la NAS no se toca)" if usada_trabajo else ""))
+            log(AGENTE, f"Talla {talla}: reutilizo su mesa y abro el maestro {fuente.name} para poner nombre y número")
             vigia = _VigiaCarpeta(carpeta, f"{base}_*.pdf", lambda f, js=jugadores, t=talla: _evento_pdf(f, js, t, diseno, genero))
             try:
                 for cand in candidatas:
