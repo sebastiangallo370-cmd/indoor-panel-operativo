@@ -949,7 +949,11 @@ def _programar_reposicion_club(pedido_id: int, usuario: str) -> dict:
     carpeta = UPLOAD_DIR / 'pedidos' / f'club-{pedido_id}-{sello}'
     carpeta.mkdir(parents=True, exist_ok=False)
     pdf_path = carpeta / pdf_name
-    excel_path = carpeta / f'{orden}_{Path(excel_origen).name}'
+    # El listado debe llamarse igual que la carpeta de la orden. Así, aunque
+    # exista un archivo de un intento fallido, el sincronizador identifica el
+    # Excel canónico y no confunde la reposición con dos listados distintos.
+    proyecto = str((pedido_club.get('lineas') or [{}])[0].get('proyecto') or 'REPROGRAMACION').strip()
+    excel_path = carpeta / f'{orden}_{legacy.sanitize(proyecto)}.xlsm'
     pdf_path.write_bytes(pdf)
     excel_path.write_bytes(excel_bytes)
     detalle = f'Reposición Club #{pedido_id} aprobada: enviando {orden} a Producción'
