@@ -967,6 +967,11 @@ def _programar_reposicion_club(pedido_id: int, usuario: str) -> dict:
         process_order_job(job_id, carpeta, pdf_path, excel_path, f'Reposición Tienda Club #{pedido_id}', f'{usuario} · Tienda Club')
         with connect() as db:
             fila = db.execute('SELECT status, detail FROM jobs WHERE id=?', (job_id,)).fetchone()
+        if fila and str(fila['status']) == 'COMPLETADO':
+            referencias = {str(linea.get('referencia') or '') for linea in pedido_club.get('lineas') or []}
+            lanzadas = _iniciar_edicion_reposicion(orden, referencias)
+            if lanzadas:
+                logging.info('Reposición Club #%s: TAVO inició sin muestra %s', pedido_id, ', '.join(lanzadas))
         club_mod.marcar_programacion(pedido_id, str(fila['status'] if fila else 'ERROR'), str(fila['detail'] if fila else 'No encontré el trabajo'))
 
     threading.Thread(target=ejecutar, name=f'club-produccion-{pedido_id}', daemon=True).start()
@@ -2828,6 +2833,51 @@ def _edicion_en_proceso() -> list[dict]:
                     usuario = ''   # quien la puso en proceso no usa los agentes: el aviso va a quien los usó por última vez
             resultado.append({'clave': f'{orden}|{ref}', 'orden': orden, 'ref': ref, 'usuario': usuario, 'fila': r['source_row']})
         return resultado
+
+
+def _iniciar_edicion_reposicion(orden: str, referencias: set[str]) -> list[str]:
+    """Activa únicamente las referencias de una reposición ya aprobada por Comercial.
+
+    La aprobación comercial sustituye la aprobación interna de muestra para este flujo: las
+    tarjetas nuevas quedan en EDICIÓN y TAVO recibe la orden de ejecutar sin muestra. Nunca se
+    toca una tarjeta ajena ni una referencia que ya tenga estado en EDICIÓN.
+    """
+    plano = lambda v: re.sub(r'\s+', '', str(v or '')).upper()
+    codigo = plano(orden)
+    refs = {plano(ref) for ref in referencias if plano(ref)}
+    if not codigo or not refs:
+        return []
+    candidatos = []
+    with connect() as db:
+        meta = {r['key']: r['value'] for r in db.execute('SELECT key, value FROM production_meta')}
+        headers = json.loads(meta.get('headers') or '[]')
+        titulos = [str(h or '').strip().upper() for h in headers]
+        if 'ORDEN' not in titulos or 'REFERENCIA' not in titulos:
+            return []
+        i_orden, i_ref = titulos.index('ORDEN'), titulos.index('REFERENCIA')
+        etapa = official_process('EDICION')
+        columnas = [i for i, h in enumerate(headers) if etapa is not None and official_process(h) == etapa]
+        if not columnas:
+            return []
+        for fila in db.execute('SELECT source_row, values_json FROM production_rows ORDER BY source_row'):
+            valores = json.loads(fila['values_json'])
+            if plano(valores[i_orden] if i_orden < len(valores) else '') != codigo:
+                continue
+            ref = plano(valores[i_ref] if i_ref < len(valores) else '')
+            if ref not in refs:
+                continue
+            # No reabrir algo que ya fue iniciado, finalizado, reprocesado o no aplica.
+            if any(i < len(valores) and str(valores[i] or '').strip() for i in columnas):
+                continue
+            for i in columnas:
+                if i < len(valores):
+                    valores[i] = 'P'
+            db.execute('UPDATE production_rows SET values_json=? WHERE source_row=?',
+                       (json.dumps(valores, ensure_ascii=False), fila['source_row']))
+            candidatos.append({'clave': f'{codigo}|{ref}', 'orden': codigo, 'ref': ref, 'usuario': '', 'fila': fila['source_row']})
+        if candidatos:
+            db.execute("INSERT OR REPLACE INTO production_meta(key,value) VALUES ('updated_at',?)", (datetime.now(timezone.utc).isoformat(),))
+    return agentes_mod.auto_procesar(candidatos, inmediato=True) if candidatos else []
 
 
 def _edicion_finalizada_sin_mts(solo_finalizada: bool = True) -> list[dict]:

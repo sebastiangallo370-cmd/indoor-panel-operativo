@@ -1024,26 +1024,33 @@ def respuesta(request: Request, payload: dict):
 
 
 # ------------------------------------------------------------------ inicio automático (EDICIÓN en proceso)
-def auto_procesar(candidatos: list[dict]) -> list[str]:
+def auto_procesar(candidatos: list[dict], inmediato: bool = False) -> list[str]:
     """candidatos: tarjetas cuya columna EDICIÓN está en proceso: [{'clave', 'orden', 'ref', 'usuario'}].
     La primera vez solo se anotan (para no arrancar de golpe lo que ya estaba en proceso). Después, cada tarjeta nueva inicia el
     «pedido completo» en el chat de quien la puso en proceso (o de quien usó los agentes por última vez). Si esa persona está esperando
-    una respuesta o el PC no está conectado, se reintenta en la siguiente vuelta. Devuelve las órdenes lanzadas."""
+    una respuesta o el PC no está conectado, se reintenta en la siguiente vuelta. `inmediato` se usa
+    para una reposición aprobada por Comercial: no espera el siguiente ciclo ni la muestra. Devuelve
+    las órdenes lanzadas."""
     lanzadas = []
     with _lock:
         datos = _leer()
         auto = datos['auto']
-        if auto.get('vistos') is None:
+        prioritarios = set(auto.get('sin_muestra') or [])
+        if inmediato:
+            prioritarios.update(str(c.get('clave') or '') for c in candidatos if c.get('clave'))
+        if auto.get('vistos') is None and not prioritarios:
             auto['vistos'] = [c['clave'] for c in candidatos]
             _guardar(datos)
             return lanzadas
-        vistos = set(auto['vistos'])
+        vistos = set(auto.get('vistos') or [])
         cambio = False
         for c in candidatos:
-            if c['clave'] in vistos:
+            clave = str(c.get('clave') or '')
+            es_inmediato = inmediato or clave in prioritarios
+            if clave in vistos and not es_inmediato:
                 continue
             if not auto.get('activo', True):
-                vistos.add(c['clave']); cambio = True   # apagado: se anota como vista, no arranca
+                vistos.add(clave); prioritarios.discard(clave); cambio = True   # apagado: se anota como vista, no arranca
                 continue
             sesion = c.get('usuario') or next((m['sesion'] for m in reversed(datos['mensajes']) if m['rol'] == 'yo' and not m.get('auto')), '')
             if sesion:
@@ -1056,12 +1063,17 @@ def auto_procesar(candidatos: list[dict]) -> list[str]:
             orden = c['orden']
             datos['ordenes'][sesion] = orden
             _nuevo(datos, sesion, 'yo', 'cancelar', t=_ahora(), tomado=False, respondido=False, oculto=True)   # sesión limpia para la orden nueva
-            _nuevo(datos, sesion, 'yo', f"Pedido completo de la orden {orden} (inicio automático: EDICIÓN en proceso)", t=_ahora(),
+            instruccion = (f"Pedido completo sin muestra de la orden {orden} "
+                           "(inicio automático: reposición aprobada por Comercial). "
+                           "Ejecuta únicamente las referencias programadas en EDICIÓN."
+                           if es_inmediato else f"Pedido completo de la orden {orden} (inicio automático: EDICIÓN en proceso)")
+            _nuevo(datos, sesion, 'yo', instruccion, t=_ahora(),
                    tomado=False, respondido=False, auto=True)
-            vistos.add(c['clave']); cambio = True
+            vistos.add(clave); prioritarios.discard(clave); cambio = True
             lanzadas.append(orden)
-        if cambio:
+        if cambio or inmediato:
             auto['vistos'] = sorted(vistos)[-3000:]
+            auto['sin_muestra'] = sorted(prioritarios)[-3000:]
             _guardar(datos)
     return lanzadas
 
