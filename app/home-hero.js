@@ -10,12 +10,11 @@
 
   const M = window.Motion || null;
   const quieto = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
-  // Las dos capas de fotografías se cruzan bien en escritorio, pero en móvil
-  // terminan compitiendo por muy poco espacio y dejan la portada cortada. Allí
-  // mostramos una escena fija, ligera y legible; el ciclo completo queda igual
-  // en computador.
+  // En móvil la portada conserva el ciclo completo, pero cada transición usa
+  // una sola foto visible: dos capas cruzándose en una pantalla angosta daban
+  // la sensación de imágenes partidas o superpuestas.
   const movil = !!(window.matchMedia && matchMedia('(max-width: 860px)').matches);
-  const anima = !!M && !quieto && !movil;
+  const anima = !!M && !quieto;
   const ease = [0.22, 1, 0.36, 1];
   const dormir = ms => new Promise(r => setTimeout(r, ms));
   const VB = '0 0 265.09 68.59', VW = 265.09, VH = 68.59;
@@ -61,9 +60,9 @@
   .hp-line button i{display:block;height:2px;border-radius:2px;background:rgba(255,255,255,.18);overflow:hidden}.hp-line button i b{display:block;height:100%;background:#d0f44c;transform:scaleX(0);transform-origin:left}
   .hp-line button:focus-visible{outline:2px solid #d0f44c;outline-offset:5px}
   @media(max-width:860px){
-    body .home-hero{min-height:330px!important;margin-bottom:-28px!important}
+    body .home-hero{min-height:430px!important;margin-bottom:-48px!important}
     .hp-top{flex-direction:column;align-items:flex-start;gap:8px;top:28px}.hp-kpis{display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;width:100%}.hp-kpis b{font-size:1rem}.hp-kpis span{font-size:.52rem}
-    .esc{top:54%}.esc-lg{width:min(78vw,420px)}.esc-ph{display:none!important}.hp canvas{display:none}.hp-glow{opacity:.62}.hp-amb .am.on{opacity:.28}.hp-line{bottom:18%;gap:5px;width:80%}
+    .esc{top:52%}.esc-lg{width:min(78vw,420px)}.esc-ph{width:92%;height:76%;top:51%}.hp canvas{display:none}.hp-glow{opacity:.62}.hp-amb .am.on{opacity:.28}.hp-line{bottom:18%;gap:5px;width:80%}
   }
   @media(prefers-reduced-motion:reduce){.hp-hi i{animation:none}}
   body #home-dashboard .dash-tabs{border-color:transparent!important;background:linear-gradient(90deg,rgba(8,11,8,.5) 0,rgba(8,11,8,.42) 34%,rgba(8,11,8,0) 70%)!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;box-shadow:none!important}
@@ -217,7 +216,10 @@
   async function escenaFoto(mi, i) {   // foto real del proceso: se abre desde el centro sobre la anterior, con un barrido de luz verde
     const el = escPhs[kf], prev = escPhs[kf ^ 1], img = el.querySelector('img'), lz = el.querySelector('.lz'); kf ^= 1;
     apagar(el); img.src = FOTOS[i]; ambiente(FOTOS[i]); M.animate(glow, { opacity: [.6, 1] }, { duration: 1.2 });
-    saliente(prev); saliente(escLg);
+    // En teléfono no dejamos el fotograma anterior debajo del que entra: así
+    // se mantiene la animación, sin que dos imágenes queden mezcladas.
+    if (movil) apagar(prev); else saliente(prev);
+    saliente(escLg);
     el.style.zIndex = 4; prev.style.zIndex = 3; el.style.opacity = 1;
     M.animate(el, { opacity: [0, 1] }, { duration: 1.2, ease: [0.4, 0, 0.2, 1] });
     M.animate(img, { scale: [1.14, 1.03], x: [(i % 2 ? 3 : -3) + '%', '0%'] }, { duration: 6.4, ease: 'linear' });
