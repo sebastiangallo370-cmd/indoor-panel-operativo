@@ -115,7 +115,9 @@
   var N = 'html body.top-navigation.top-navigation ';
   var css = [
     '@media(min-width:861px){',
-    N+'.sidebar{background:linear-gradient(180deg,rgba(4,8,5,.8),rgba(4,8,5,0))!important;border:0!important;box-shadow:none!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important}',
+    /* La barra debe tapar por completo el contenido: el degradado transparente
+       dejaba textos de los paneles visibles detrás de los botones. */
+    N+'.sidebar{z-index:101!important;isolation:isolate!important;background:linear-gradient(180deg,#061109 0%,#07120a 100%)!important;border:0!important;box-shadow:0 1px 0 rgba(208,244,76,.16)!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important}',
     N+'.sidebar :is(.brand,.tabs,.topbar,.systems){background:transparent!important;border-color:transparent!important;box-shadow:none!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important}',
     N+'.sidebar::before,'+N+'.sidebar::after{display:none!important}',
     N+'.sidebar .tab{background:transparent!important;border-color:transparent!important;box-shadow:none!important;border-radius:10px!important;transition:transform .3s cubic-bezier(.22,1,.36,1),background .25s!important}',
