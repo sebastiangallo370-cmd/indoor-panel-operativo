@@ -222,7 +222,12 @@
     saliente(escLg);
     el.style.zIndex = 4; prev.style.zIndex = 3; el.style.opacity = 1;
     M.animate(el, { opacity: [0, 1] }, { duration: 1.2, ease: [0.4, 0, 0.2, 1] });
-    M.animate(img, { scale: [1.14, 1.03], x: [(i % 2 ? 3 : -3) + '%', '0%'] }, { duration: 6.4, ease: 'linear' });
+    // En móvil se conserva el acercamiento suave, pero sin paneo lateral:
+    // el contenido de la foto debe permanecer exactamente centrado.
+    M.animate(img, {
+      scale: movil ? [1.08, 1.04] : [1.14, 1.03],
+      x: movil ? ['0%', '0%'] : [(i % 2 ? 3 : -3) + '%', '0%']
+    }, { duration: 6.4, ease: 'linear' });
     await dormir(900); if (!vivo(mi)) return;
     lz.style.opacity = 1; M.animate(lz, { x: ['-120%', '520%'], opacity: [0, 1, 0] }, { duration: 1.3, ease: 'easeInOut' });
     const r = el.getBoundingClientRect(), h = hero.getBoundingClientRect();
