@@ -405,6 +405,7 @@ button{font:inherit}
   }
   fetch('/api/club/'+encodeURIComponent(token)+'/disenos',{cache:'no-store'}).then(function(r){return r.json().catch(function(){return {}}).then(function(d){return {ok:r.ok,d:d}})}).then(function(x){
     if(!x.ok){$('titulo').textContent='Este enlace no está disponible';$('pasos').hidden=true;$('intro').textContent='';$('barra').hidden=true;$('msg').innerHTML='<div class="msg err">'+esc(x.d.detail||'No se pudo abrir este enlace.')+'</div>';return}
+    if(x.d.catalogo_pendiente){$('titulo').textContent='Preparando tus proyectos…';$('intro').textContent='Estamos leyendo los diseños maestros. Esta página se actualizará sola en unos segundos.';$('pasos').hidden=true;$('barra').hidden=true;setTimeout(function(){location.reload()},2500);return}
     tallas=x.d.tallas;disenos=x.d.disenos;proyectosNas=x.d.proyectos||[];$('titulo').innerHTML='Hola, <span>'+esc(x.d.cliente)+'</span> 👋';
     if(!disenos.length&&!proyectosNas.length){$('pasos').hidden=true;$('msg').innerHTML='<div class="msg err">Todavía no hay diseños disponibles para reponer. Escríbele a tu asesor comercial.</div>';$('barra').hidden=true;return}
     if(!disenos.length){$('msg').innerHTML='<div class="msg">Estos son los proyectos maestros del cliente. Las referencias se habilitan cuando su historial de producción esté sincronizado.</div>';}

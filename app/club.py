@@ -17,8 +17,10 @@ import re
 import secrets
 import time
 import unicodedata
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from threading import Lock
 from typing import Callable
 
 from fastapi import APIRouter, Body, HTTPException, Request
@@ -74,9 +76,13 @@ def _plano(t) -> str:
 
 
 _JPG_MAESTRO = re.compile(r'^(?P<referencia>[A-Z0-9-]+)_(?P<diseno>D[0-9]+)_(?P<maquina>[A-Z0-9-]+)\.jpe?g$', re.I)
+_catalogos_maestros: dict[str, list[dict]] = {}
+_catalogos_pendientes: dict[str, object] = {}
+_catalogos_lock = Lock()
+_catalogos_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix='club-maestros')
 
 
-def proyectos_maestros_de(cliente: str) -> list[dict]:
+def _leer_proyectos_maestros(cliente: str) -> list[dict]:
     """Proyectos reutilizables del NAS.
 
     La fuente de verdad son los JPG de cada maestro: solo cuentan los que se
@@ -116,6 +122,41 @@ def proyectos_maestros_de(cliente: str) -> list[dict]:
     except OSError:
         log.warning('No pude listar los maestros del cliente %s', cliente, exc_info=True)
         return []
+
+
+def _catalogo_terminado(cliente: str, futuro) -> None:
+    try:
+        catalogo = futuro.result()
+    except Exception:  # noqa: BLE001
+        log.warning('No pude preparar el catálogo maestro de %s', cliente, exc_info=True)
+        catalogo = []
+    with _catalogos_lock:
+        _catalogos_maestros[_plano(cliente)] = catalogo
+        _catalogos_pendientes.pop(_plano(cliente), None)
+
+
+def proyectos_maestros_de(cliente: str) -> list[dict]:
+    """Entrega el catálogo sin dejar esperando al cliente por la NAS."""
+    raiz = str(_clientes_root() or '').replace('\\', '/')
+    # La NAS remota puede tardar varios segundos en enumerar directorios. Para
+    # rutas de pruebas/locales se conserva la lectura inmediata.
+    if not raiz.startswith('/mnt/nas/'):
+        return _leer_proyectos_maestros(cliente)
+    clave = _plano(cliente)
+    with _catalogos_lock:
+        if clave in _catalogos_maestros:
+            return _catalogos_maestros[clave]
+        futuro = _catalogos_pendientes.get(clave)
+        if futuro is None:
+            futuro = _catalogos_pool.submit(_leer_proyectos_maestros, cliente)
+            _catalogos_pendientes[clave] = futuro
+            futuro.add_done_callback(lambda f, c=cliente: _catalogo_terminado(c, f))
+    return []
+
+
+def catalogo_maestros_pendiente(cliente: str) -> bool:
+    with _catalogos_lock:
+        return _plano(cliente) in _catalogos_pendientes
 
 
 def _usuario(request: Request) -> str:
@@ -454,7 +495,8 @@ def disenos(request: Request, token: str):
         disponibles[_plano(d['proyecto'])] = disponibles.get(_plano(d['proyecto']), 0) + 1
     proyectos = [{'nombre': p['proyecto'], 'referencias': len(p['referencias']), 'disenos': p['disenos'],
                   'disponibles': disponibles.get(_plano(p['proyecto']), 0)} for p in catalogo]
-    return {'cliente': link['cliente'], 'tallas': TALLAS, 'disenos': lista, 'proyectos': proyectos}
+    return {'cliente': link['cliente'], 'tallas': TALLAS, 'disenos': lista, 'proyectos': proyectos,
+            'catalogo_pendiente': catalogo_maestros_pendiente(link['cliente'])}
 
 
 @public.get('/{token}/pedido/{pedido_id}')
