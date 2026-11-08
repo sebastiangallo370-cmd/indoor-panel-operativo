@@ -434,6 +434,40 @@ def _club_carpeta(orden: str, cliente: str, proyecto: str) -> Path:
     odir.mkdir(parents=True, exist_ok=True)
     return odir
 
+
+def _adjuntar_mockups_reposicion(carpeta: Path, pedido_club: dict) -> int:
+    """Copia desde el maestro solo los diseños elegidos por el cliente.
+
+    El listado de una reposición nace sin imágenes; antes de programarlo se
+    adjuntan los mockups del maestro con el nombre referencia/Diseño que exige
+    el validador de Producción. Sin un mockup verificable no se crea la tarjeta.
+    """
+    copiados = 0
+    for linea in pedido_club.get('lineas') or []:
+        referencia = str(linea.get('referencia') or '').strip().upper()
+        fila = int(linea.get('row') or 0)
+        disenos = sorted({max(1, min(int(j.get('diseno') or 1), 20)) for j in linea.get('jugadores') or []})
+        if not referencia or not fila or not disenos:
+            continue
+        _archivos, imagenes, _cliente = production_row_files(fila, excel_only=False)
+        if not imagenes:
+            raise ValueError(f'No encontré el mockup maestro de {referencia}; no programé la reposición.')
+        for diseno in disenos:
+            patron = re.compile(rf'(?:^|[^A-Z0-9])D(?:ISE[ÑN]O)?[_ -]?{diseno}(?:[^A-Z0-9]|$)', re.I)
+            origen = next((p for p in imagenes if patron.search(p.stem)), None)
+            # En maestros ordenados por diseño, el primer archivo es D1, el
+            # segundo D2, etc.; se conserva esa convención como respaldo.
+            if origen is None and 1 <= diseno <= len(imagenes):
+                origen = imagenes[diseno - 1]
+            if origen is None:
+                raise ValueError(f'No encontré el mockup D{diseno} de {referencia}; no programé la reposición.')
+            destino = carpeta / f'{referencia}_D{diseno}_MAESTRO{origen.suffix.lower()}'
+            shutil.copy2(origen, destino)
+            copiados += 1
+    if not copiados:
+        raise ValueError('No encontré mockups maestros para las referencias de la reposición.')
+    return copiados
+
 app.include_router(externa_router, dependencies=[Depends(authenticate)])
 
 
@@ -956,6 +990,7 @@ def _programar_reposicion_club(pedido_id: int, usuario: str) -> dict:
     excel_path = carpeta / f'{orden}_{legacy.sanitize(proyecto)}.xlsm'
     pdf_path.write_bytes(pdf)
     excel_path.write_bytes(excel_bytes)
+    mockups = _adjuntar_mockups_reposicion(carpeta, pedido_club)
     detalle = f'Reposición Club #{pedido_id} aprobada: enviando {orden} a Producción'
     now = datetime.now(timezone.utc).isoformat()
     with connect() as db:
@@ -980,7 +1015,7 @@ def _programar_reposicion_club(pedido_id: int, usuario: str) -> dict:
         club_mod.marcar_programacion(pedido_id, str(fila['status'] if fila else 'ERROR'), str(fila['detail'] if fila else 'No encontré el trabajo'))
 
     threading.Thread(target=ejecutar, name=f'club-produccion-{pedido_id}', daemon=True).start()
-    return {'programacion': 'EN COLA', 'job': job_id, 'orden': orden}
+    return {'programacion': 'EN COLA', 'job': job_id, 'orden': orden, 'mockups': mockups}
 
 
 club_mod.configurar_programador(_programar_reposicion_club)
