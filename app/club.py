@@ -33,6 +33,7 @@ _auth: Callable = lambda request: ''
 _permitido: Callable[[str], bool] = lambda u: False
 _too_many: Callable = lambda bucket, request, limit, seconds=60: False
 _mockups: Callable[[int], dict] = lambda row: {'mockups': [], 'mockups_lista': None}
+_clientes_root: Callable[[], str] = lambda: ''
 _programar: Callable[[int, str], dict] | None = None
 COL = timezone(timedelta(hours=-5))
 TALLAS = ['2', '4', '6', '8', '10', '12', '14', '16', 'XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL']   # las mismas de la plantilla de Indoor
@@ -40,9 +41,9 @@ MAX_JUGADORES = 300
 EXCEL_DIR = Path(os.getenv('CLUB_EXCEL_DIR', '/data/state/club_excel'))
 
 
-def configurar(connect: Callable, auth: Callable, permitido: Callable[[str], bool], too_many: Callable, mockups: Callable[[int], dict]) -> None:
-    global _connect, _auth, _permitido, _too_many, _mockups
-    _connect, _auth, _permitido, _too_many, _mockups = connect, auth, permitido, too_many, mockups
+def configurar(connect: Callable, auth: Callable, permitido: Callable[[str], bool], too_many: Callable, mockups: Callable[[int], dict], clientes_root: Callable[[], str] = lambda: '') -> None:
+    global _connect, _auth, _permitido, _too_many, _mockups, _clientes_root
+    _connect, _auth, _permitido, _too_many, _mockups, _clientes_root = connect, auth, permitido, too_many, mockups, clientes_root
     with _connect() as db:
         db.execute('CREATE TABLE IF NOT EXISTS club_links(id INTEGER PRIMARY KEY AUTOINCREMENT, token TEXT UNIQUE, cliente TEXT, creado_por TEXT, creado TEXT, vence TEXT, activo INTEGER DEFAULT 1)')
         db.execute('CREATE TABLE IF NOT EXISTS club_pedidos(id INTEGER PRIMARY KEY AUTOINCREMENT, link_id INTEGER, cliente TEXT, contacto TEXT, telefono TEXT, notas TEXT, '
@@ -70,6 +71,48 @@ def _ahora() -> str:
 
 def _plano(t) -> str:
     return re.sub(r'\s+', ' ', ''.join(c for c in unicodedata.normalize('NFD', str(t or '')) if unicodedata.category(c) != 'Mn')).strip().upper()
+
+
+_JPG_MAESTRO = re.compile(r'^(?P<referencia>[A-Z0-9-]+)_(?P<diseno>D[0-9]+)_(?P<maquina>[A-Z0-9-]+)\.jpe?g$', re.I)
+
+
+def proyectos_maestros_de(cliente: str) -> list[dict]:
+    """Proyectos reutilizables del NAS.
+
+    La fuente de verdad son los JPG de cada maestro: solo cuentan los que se
+    llaman REFERENCIA_DISEÑO_MÁQUINA.jpg, por ejemplo FUT01_D1_GT.jpg. Así no
+    se muestran carpetas de recursos, PDFs ni archivos sueltos como diseños.
+    """
+    try:
+        raiz = Path(str(_clientes_root() or '')).expanduser()
+        if not raiz.is_dir():
+            return []
+        cliente_dir = next((p for p in raiz.iterdir() if p.is_dir() and _plano(p.name) == _plano(cliente)), None)
+        maestros = cliente_dir / 'MAESTROS' if cliente_dir else None
+        if not maestros or not maestros.is_dir():
+            return []
+        salida = []
+        for proyecto in sorted((p for p in maestros.iterdir() if p.is_dir()), key=lambda p: _plano(p.name)):
+            referencias: dict[str, set[str]] = {}
+            try:
+                archivos = proyecto.rglob('*')
+                for archivo in archivos:
+                    if not archivo.is_file():
+                        continue
+                    m = _JPG_MAESTRO.match(archivo.name.strip())
+                    if not m:
+                        continue
+                    ref = m.group('referencia').upper()
+                    referencias.setdefault(ref, set()).add(m.group('diseno').upper())
+            except OSError:
+                continue
+            if referencias:
+                salida.append({'proyecto': proyecto.name, 'referencias': sorted(referencias),
+                               'disenos': sum(len(x) for x in referencias.values())})
+        return salida
+    except OSError:
+        log.warning('No pude listar los maestros del cliente %s', cliente, exc_info=True)
+        return []
 
 
 def _usuario(request: Request) -> str:
@@ -200,13 +243,16 @@ def _pedido(pedido_id: int) -> dict:
 
 
 # ------------------------------------------------------------------ diseños del cliente (desde Producción)
-def disenos_de(cliente: str) -> list[dict]:
+def disenos_de(cliente: str, catalogo: list[dict] | None = None) -> list[dict]:
     """Proyectos maestros ya producidos para el cliente, uno por carpeta base.
 
     Una misma referencia puede existir en varias órdenes históricas. Solo se
     expone la más reciente de cada maestro (FUT01, FUT02, PE01, etc.) para que
     el cliente no vea ni reutilice órdenes anteriores.
     """
+    catalogo = proyectos_maestros_de(cliente) if catalogo is None else catalogo
+    # Si la NAS está disponible, no se cuelan filas antiguas sin su JPG maestro.
+    proyecto_por_referencia = {ref: item['proyecto'] for item in catalogo for ref in item['referencias']}
     with _connect() as db:
         meta = db.execute("SELECT value FROM production_meta WHERE key='headers'").fetchone()
         if not meta:
@@ -225,7 +271,9 @@ def disenos_de(cliente: str) -> list[dict]:
             ref = cel('REFERENCIA').upper()
             partes_maestro = re.findall(r'[A-Z]+\d+', ref)
             maestro = partes_maestro[-1] if partes_maestro else ref
-            proyecto = cel('NOMBRE PROYECTO')
+            if catalogo and maestro not in proyecto_por_referencia:
+                continue
+            proyecto = proyecto_por_referencia.get(maestro) or cel('NOMBRE PROYECTO')
             clave = f"{_plano(proyecto)}|{maestro}"
             if not ref or clave in salida:
                 continue
@@ -390,14 +438,20 @@ def disenos(request: Request, token: str):
     if _too_many('club-disenos', request, 40):
         raise HTTPException(429, 'Demasiadas solicitudes. Intenta en un minuto.')
     link = _enlace(token)
-    lista = disenos_de(link['cliente'])
+    catalogo = proyectos_maestros_de(link['cliente'])
+    lista = disenos_de(link['cliente'], catalogo)
     for d in lista:
         try:
             d['mockups'] = _mockups(d['row'])
         except Exception:   # noqa: BLE001  (NAS caída: el diseño se muestra sin imagen)
             d['mockups'] = {'mockups': [], 'mockups_lista': None}
         d.pop('cantidad', None)
-    return {'cliente': link['cliente'], 'tallas': TALLAS, 'disenos': lista}
+    disponibles = {_plano(d['proyecto']): 0 for d in lista}
+    for d in lista:
+        disponibles[_plano(d['proyecto'])] = disponibles.get(_plano(d['proyecto']), 0) + 1
+    proyectos = [{'nombre': p['proyecto'], 'referencias': len(p['referencias']), 'disenos': p['disenos'],
+                  'disponibles': disponibles.get(_plano(p['proyecto']), 0)} for p in catalogo]
+    return {'cliente': link['cliente'], 'tallas': TALLAS, 'disenos': lista, 'proyectos': proyectos}
 
 
 @public.get('/{token}/pedido/{pedido_id}')

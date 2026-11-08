@@ -410,7 +410,8 @@ app.include_router(stockman_mod.webhook_router)   # webhook de Effi: sin sesión
 app.include_router(zeus_mod.public_router)
 from app import club as club_mod
 club_mod.configurar(lambda: connect(), authenticate, permisos_mod.comerciales_permitido, lambda *a, **k: _too_many(*a, **k),
-                    lambda row: (_PREFETCH_POOL.submit(_prefetch_public, row), _public_mockup_info(row))[1])
+                    lambda row: (_PREFETCH_POOL.submit(_prefetch_public, row), _public_mockup_info(row))[1],
+                    lambda: CONFIG['ruta_nas_clientes'])
 app.include_router(club_mod.router)
 app.include_router(club_mod.public)
 app.include_router(club_mod.pagina)

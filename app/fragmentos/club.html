@@ -220,7 +220,7 @@ button{font:inherit}
 <script>
 (function(){
   // carro[row] = jugadores de ese pedido anterior; cada jugador lleva su "diseno" (1, 2, 3…). eleg[row] = diseños elegidos; tab = diseño abierto.
-  var token=document.body.dataset.token,tallas=[],disenos=[],carro={},eleg={},sel=0,tab=0,fotos={},proyectoSel='',KEY='club:'+token;
+  var token=document.body.dataset.token,tallas=[],disenos=[],proyectosNas=[],carro={},eleg={},sel=0,tab=0,fotos={},proyectoSel='',KEY='club:'+token;
   var $=function(i){return document.getElementById(i)};
   var esc=function(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})};
   var vacia=function(j){return !String(j.numero||'').trim()&&!String(j.nombre||'').trim()};
@@ -245,12 +245,17 @@ button{font:inherit}
   function barra(){var n=prendas(),k=nPedidos();$('enviar').disabled=!n;$('tot').innerHTML='<b>'+n+(n===1?' prenda':' prendas')+'</b>'+(n?'en '+k+(k===1?' pedido anterior':' pedidos anteriores'):'Elige un pedido para empezar');pedidoVivo();guardar()}
 
   function img0(d){var f=fotos[d.row];return f&&f.length?'<img alt="" src="'+esc(f[0])+'">':(f?'Sin imagen':'Cargando…')}
-  function proyectos(){var vistos={};return disenos.filter(function(d){var k=claveProyecto(d.proyecto||d.referencia);if(vistos[k])return false;vistos[k]=true;return true})}
+  function proyectos(){
+    var vistos={},salida=[];
+    (proyectosNas||[]).forEach(function(p){var k=claveProyecto(p.nombre);if(!k||vistos[k])return;vistos[k]=true;salida.push({nombre:p.nombre,clave:k,referencias:Number(p.referencias)||0,disponibles:Number(p.disponibles)||0})});
+    disenos.forEach(function(d){var k=claveProyecto(d.proyecto||d.referencia);if(!k||vistos[k])return;vistos[k]=true;var total=disenos.filter(function(x){return claveProyecto(x.proyecto||x.referencia)===k}).length;salida.push({nombre:d.proyecto||d.referencia,clave:k,referencias:total,disponibles:total})});
+    return salida;
+  }
   function tarjetas(){
     var activo=proyectoActivo(),contenedor=$('disenos');
     if(!proyectoSel){
       $('c1titulo').innerHTML='<b>1</b> ¿Qué proyecto quieres repetir?';$('c1ayuda').textContent='Elige un proyecto para ver únicamente sus referencias y diseños.';
-      contenedor.innerHTML=proyectos().map(function(d){var total=disenos.filter(function(x){return claveProyecto(x.proyecto||x.referencia)===claveProyecto(d.proyecto||d.referencia)}).length;return '<button type="button" class="dis" data-proyecto="'+esc(claveProyecto(d.proyecto||d.referencia))+'"><div class="im"><span class="dn">PROYECTO</span></div><div><strong>'+esc(d.proyecto||d.referencia)+'</strong><small>'+total+' '+(total===1?'referencia disponible':'referencias disponibles')+'</small></div></button>'}).join('');
+      contenedor.innerHTML=proyectos().map(function(p){var sinHistorial=!p.disponibles;return '<button type="button"'+(sinHistorial?' disabled aria-disabled="true"':'')+' class="dis'+(sinHistorial?' bloq':'')+'" data-proyecto="'+esc(p.clave)+'"><div class="im"><span class="dn">PROYECTO</span></div><div><strong>'+esc(p.nombre)+'</strong><small>'+p.referencias+' '+(p.referencias===1?'referencia maestra':'referencias maestras')+(sinHistorial?' · pendiente de sincronizar':'')+'</small></div></button>'}).join('');
       return;
     }
     $('c1titulo').innerHTML='<b>1</b> Proyectos de '+esc(proyectoSel);$('c1ayuda').innerHTML='Elige el proyecto que quieres reprogramar. <button type="button" class="btn sec mini" data-cambiar-proyecto>← Cambiar proyecto</button>';
@@ -400,8 +405,9 @@ button{font:inherit}
   }
   fetch('/api/club/'+encodeURIComponent(token)+'/disenos',{cache:'no-store'}).then(function(r){return r.json().catch(function(){return {}}).then(function(d){return {ok:r.ok,d:d}})}).then(function(x){
     if(!x.ok){$('titulo').textContent='Este enlace no está disponible';$('pasos').hidden=true;$('intro').textContent='';$('barra').hidden=true;$('msg').innerHTML='<div class="msg err">'+esc(x.d.detail||'No se pudo abrir este enlace.')+'</div>';return}
-    tallas=x.d.tallas;disenos=x.d.disenos;$('titulo').innerHTML='Hola, <span>'+esc(x.d.cliente)+'</span> 👋';
-    if(!disenos.length){$('pasos').hidden=true;$('msg').innerHTML='<div class="msg err">Todavía no hay diseños disponibles para reponer. Escríbele a tu asesor comercial.</div>';$('barra').hidden=true;return}
+    tallas=x.d.tallas;disenos=x.d.disenos;proyectosNas=x.d.proyectos||[];$('titulo').innerHTML='Hola, <span>'+esc(x.d.cliente)+'</span> 👋';
+    if(!disenos.length&&!proyectosNas.length){$('pasos').hidden=true;$('msg').innerHTML='<div class="msg err">Todavía no hay diseños disponibles para reponer. Escríbele a tu asesor comercial.</div>';$('barra').hidden=true;return}
+    if(!disenos.length){$('msg').innerHTML='<div class="msg">Estos son los proyectos maestros del cliente. Las referencias se habilitan cuando su historial de producción esté sincronizado.</div>';}
     $('app').hidden=false;
     try{var g=JSON.parse(localStorage.getItem(KEY)||'null');if(g){Object.keys(g).forEach(function(r){if(disenos.some(function(d){return String(d.row)===r}))carro[r]=g[r]});if(prendas()){proyectoSel=proyectoActivo();$('msg').innerHTML='<div class="msg">Recuperamos el pedido que dejaste sin enviar. <button type="button" id="nuevo" class="btn sec mini" style="margin-left:8px">Empezar de nuevo</button></div>';$('nuevo').addEventListener('click',function(){carro={};eleg={};sel=0;proyectoSel='';try{localStorage.removeItem(KEY)}catch(e){}$('msg').innerHTML='';todo()})}}}catch(e){}
     todo();
