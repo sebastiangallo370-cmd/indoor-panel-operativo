@@ -2578,7 +2578,7 @@ def web_manifest():
 
 
 def read_production_sheet() -> dict:
-    """Lee la línea de producción desde la fila 726 sin modificar Google Sheets."""
+    """Lee la línea de producción desde la fila 904 sin modificar Google Sheets."""
     now = time.time()
     with PRODUCTION_CACHE_LOCK:
         cached = PRODUCTION_CACHE.get("data")
@@ -2705,8 +2705,7 @@ def read_local_production() -> dict:
         meta = {row["key"]: row["value"] for row in db.execute("SELECT key, value FROM production_meta")}
         if not meta.get("headers"):
             raise RuntimeError("La base local de Producción todavía no ha sido inicializada")
-        # El panel operativo muestra solo el tramo vigente del Sheet. Las
-        # filas anteriores no se borran: se conservan como histórico local.
+        # El panel operativo usa únicamente el tramo vigente del Sheet.
         rows = [
             {"source_row": row["source_row"], "values": json.loads(row["values_json"])}
             for row in db.execute(
