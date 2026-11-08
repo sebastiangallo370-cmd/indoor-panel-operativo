@@ -109,17 +109,21 @@ def _linea_base(base: dict, ref: str, d: int, g: str) -> dict:
     raise ValueError(f'La cotización anterior no tiene líneas de la referencia {ref}')
 
 
-def _descripcion_reposicion(descripcion: str, diseno: int, genero: str) -> str:
-    """La tela no es parte de la descripción comercial de la reposición.
+def _descripcion_reposicion(descripcion_articulo: str, diseno: int, genero: str) -> str:
+    """Detalle propio del artículo de Effi más su variante solicitada.
 
-    Effi debe mostrar la variante que está comprando el club: género y diseño.
-    La tela permanece en el listado de producción, no en el concepto cotizado.
+    La descripción de una reposición no hereda texto del PDF antiguo (tela,
+    diseño o género). Conserva únicamente el detalle del artículo creado en
+    Effi y añade la variante real que pidió el cliente.
     """
-    texto = re.sub(r'\s+TELA\s+[^+|]+\+?\s*', ' ', str(descripcion or ''), flags=re.I)
-    texto = re.sub(r'\s*GENERO\s+DISE[ÑN]O\s*\([^)]*\)', '', texto, flags=re.I)
-    texto = re.sub(r'\s+', ' ', texto).strip(' -+')
+    texto = str(descripcion_articulo or '')
+    texto = re.sub(r'\s+TELA\s+[^+|]+\+?\s*', ' ', texto, flags=re.I)
+    texto = re.sub(r'\s*[·|+-]?\s*GENERO\s+DISE[ÑN]O\s*\([^)]*\)', '', texto, flags=re.I)
+    texto = re.sub(r'\s*[·|+-]?\s*DISE[ÑN]O\s*D?\d+', '', texto, flags=re.I)
+    texto = re.sub(r'\s*[·|+-]?\s*G[EÉ]NERO\s*(?:MASC(?:ULINO)?|FEM(?:ENINO)?)', '', texto, flags=re.I)
+    texto = re.sub(r'\s+', ' ', texto).strip(' ·|+-')
     etiqueta = 'FEM' if str(genero).upper() == 'FEM' else 'MASC'
-    return f'{texto} GENERO DISEÑO ( {etiqueta} D{int(diseno)})'.strip()
+    return f'{texto} DISEÑO D{int(diseno)} {etiqueta}'.strip()[:120]
 
 
 def _forma_pago_base(cabecera: dict, dias_pdf: int) -> int:
@@ -183,7 +187,7 @@ def preparar(p: dict) -> dict:
             por[k] = por.get(k, 0) + max(1, int(j.get('cantidad') or 1))
         for (d, g), cant in sorted(por.items()):
             b = _linea_base(base, l['referencia'], d, g)
-            desc = _descripcion_reposicion(b['desc'], d, g)
+            desc = _descripcion_reposicion(str(art.get('descripcion') or b['desc']), d, g)
             conceptos.append({'articulo': int(art['id']), 'descripcion': desc[:120], 'cantidad': cant, 'precio': b['precio']})
     if not conceptos:
         raise ValueError('El pedido no tiene prendas')
