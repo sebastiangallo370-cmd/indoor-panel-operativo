@@ -131,12 +131,40 @@ def carpetas_maestros(codigo):
     for carpeta in carpetas_de_orden(codigo):
         c = Path(carpeta)
         proyecto = _INICIO_ORDEN.sub("", c.name).strip(" _-.")
+        refs = _PISTAS.get(str(codigo).upper())
         maestros = _carpeta_maestros(c.parent)
         if maestros is None:
+            # En una reposición nueva puede existir la carpeta de la orden bajo
+            # un cliente abreviado, todavía sin MAESTROS. Antes se hacía
+            # ``continue`` aquí y jamás se buscaba el cliente histórico
+            # (por ejemplo «CERROS» -> «CERROS FC»).
+            cliente = c.parent
+            clave_cliente = _norm(cliente.name)
+            alternas = {}
+            if refs and clave_cliente:
+                try:
+                    hermanos = _hijos_dir(cliente.parent)
+                except OSError:
+                    hermanos = []
+                for hermano in hermanos:
+                    otro = Path(hermano.path)
+                    if otro == cliente or clave_cliente not in _norm(otro.name):
+                        continue
+                    maestros_otro = _carpeta_maestros(otro)
+                    if maestros_otro is None:
+                        continue
+                    candidatas = [h.path for h in _hijos_dir(maestros_otro)
+                                  if proyecto and _norm(h.name) == _norm(proyecto)] or [str(maestros_otro)]
+                    halladas = [ruta for candidata in candidatas for ruta in _carpetas_de_referencia(candidata, refs)]
+                    if halladas:
+                        alternas[otro.name] = list(dict.fromkeys(halladas))
+            if len(alternas) == 1:
+                nombre, halladas = next(iter(alternas.items()))
+                res += halladas
+                log("TAVO", f"El cliente {cliente.name} no tiene MAESTROS: uso el maestro de {nombre} para {', '.join(sorted(refs))}", "WARN")
             continue
         exactas = [h.path for h in _hijos_dir(maestros) if proyecto and _norm(h.name) == _norm(proyecto)]
         elegidas = exactas or [str(maestros)]
-        refs = _PISTAS.get(str(codigo).upper())
         if not exactas and refs:
             # El listado no trae el nombre de un proyecto que exista en MAESTROS (ej. «MUESTRAS2027»): no se recorre toda la carpeta MAESTROS
             # (se cortaba en los primeros .ai por orden alfabético y TAVO nunca veía FUT02); se va directo a la carpeta de la referencia.
@@ -191,6 +219,35 @@ def carpetas_maestros(codigo):
                 nombre = max(por_proyecto, key=_prioridad)
                 elegidas = por_proyecto[nombre]
                 log("TAVO", f"MAESTROS/{Path(exactas[0]).name} no tiene {', '.join(sorted(refs))}: uso el maestro exacto de MAESTROS/{nombre}", "WARN")
+        if refs and not any(_carpetas_de_referencia(e, refs) for e in elegidas):
+            # Una reposición puede traer el cliente abreviado ("CERROS") mientras
+            # los maestros están en la carpeta histórica "CERROS FC". Nunca se
+            # inventa otro cliente: solo se admite un hermano cuyo nombre contiene
+            # por completo el nombre actual y que tenga EXACTAMENTE la referencia.
+            cliente = c.parent
+            raiz_clientes = cliente.parent
+            clave_cliente = _norm(cliente.name)
+            alternas = {}
+            try:
+                hermanos = _hijos_dir(raiz_clientes)
+            except OSError:
+                hermanos = []
+            for hermano in hermanos:
+                otro = Path(hermano.path)
+                if otro == cliente or not clave_cliente or clave_cliente not in _norm(otro.name):
+                    continue
+                maestros_otro = _carpeta_maestros(otro)
+                if maestros_otro is None:
+                    continue
+                candidatas = [h.path for h in _hijos_dir(maestros_otro)
+                              if proyecto and _norm(h.name) == _norm(proyecto)] or [str(maestros_otro)]
+                halladas = [ruta for candidata in candidatas for ruta in _carpetas_de_referencia(candidata, refs)]
+                if halladas:
+                    alternas[otro.name] = list(dict.fromkeys(halladas))
+            if len(alternas) == 1:
+                nombre, halladas = next(iter(alternas.items()))
+                elegidas = halladas
+                log("TAVO", f"El cliente {cliente.name} no tiene maestro para {', '.join(sorted(refs))}: uso MAESTROS de {nombre}", "WARN")
         res += elegidas
     return res
 
@@ -203,6 +260,14 @@ def pista_referencias(codigo, referencias):
     refs = set()
     for r in referencias or []:
         r = str(r).upper().strip()
+        # El listado de producción usa el código comercial completo
+        # (A200FUT01 / A11200FUT01), pero en MAESTROS la carpeta es FUT01.
+        # Conservamos únicamente esa referencia final para no buscar un maestro
+        # inexistente llamado con el código del artículo.
+        referencia_articulo = re.fullmatch(r"[A-Z]\d+([A-Z]{2,5}\d{2,3})", r)
+        if referencia_articulo:
+            refs.add(referencia_articulo.group(1))
+            continue
         if re.fullmatch(r"[A-Z]{1,5}\d{2,3}[MFN]?", r):
             refs.add(r[:-1] if r[-1] in "MFN" else r)
         else:
