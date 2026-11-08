@@ -75,7 +75,6 @@ def _plano(t) -> str:
     return re.sub(r'\s+', ' ', ''.join(c for c in unicodedata.normalize('NFD', str(t or '')) if unicodedata.category(c) != 'Mn')).strip().upper()
 
 
-_JPG_MAESTRO = re.compile(r'^(?P<referencia>[A-Z0-9-]+)_(?P<diseno>D[0-9]+)_(?P<maquina>[A-Z0-9-]+)\.jpe?g$', re.I)
 _CARPETA_MAESTRA = re.compile(r'^(?P<referencia>[A-Z0-9-]+)_D[0-9]+(?:_D[0-9]+)*_[A-Z0-9-]+$', re.I)
 _catalogos_maestros: dict[str, list[dict]] = {}
 _catalogos_pendientes: dict[str, object] = {}
@@ -86,9 +85,10 @@ _catalogos_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix='club-mae
 def _leer_proyectos_maestros(cliente: str) -> list[dict]:
     """Proyectos reutilizables del NAS.
 
-    La fuente de verdad son los JPG de cada maestro: solo cuentan los que se
-    llaman REFERENCIA_DISEÑO_MÁQUINA.jpg, por ejemplo FUT01_D1_GT.jpg. Así no
-    se muestran carpetas de recursos, PDFs ni archivos sueltos como diseños.
+    Se usan únicamente las carpetas de referencia que siguen el mismo formato
+    de sus JPG: REFERENCIA_DISEÑO_MÁQUINA (por ejemplo FUT01_D1_D2_PLUS).
+    Así se excluyen recursos y archivos sueltos sin abrir todos los JPG del
+    NAS en cada visita.
     """
     try:
         raiz = Path(str(_clientes_root() or '')).expanduser()
@@ -102,23 +102,16 @@ def _leer_proyectos_maestros(cliente: str) -> list[dict]:
         for proyecto in sorted((p for p in maestros.iterdir() if p.is_dir()), key=lambda p: _plano(p.name)):
             referencias: dict[str, set[str]] = {}
             try:
-                # Cada referencia es una carpeta directa del proyecto y sus
-                # imágenes también son directas (ver FUT01_D1_D2_PLUS). No se
-                # usa rglob: recorrer el NAS completo vuelve lenta la tienda.
+                # Cada referencia es una carpeta directa del proyecto. Su
+                # nombre ya identifica los JPG de impresión que contiene;
+                # abrir cada archivo desde la NAS puede tardar minutos.
                 for carpeta in (p for p in proyecto.iterdir() if p.is_dir()):
                     carpeta_match = _CARPETA_MAESTRA.match(carpeta.name.strip())
                     if not carpeta_match:
                         continue
-                    for archivo in carpeta.iterdir():
-                        if not archivo.is_file():
-                            continue
-                        m = _JPG_MAESTRO.match(archivo.name.strip())
-                        if not m:
-                            continue
-                        ref = m.group('referencia').upper()
-                        if ref != carpeta_match.group('referencia').upper():
-                            continue
-                        referencias.setdefault(ref, set()).add(m.group('diseno').upper())
+                    ref = carpeta_match.group('referencia').upper()
+                    disenos = re.findall(r'_D([0-9]+)', carpeta.name.upper())
+                    referencias.setdefault(ref, set()).update('D' + n for n in disenos)
             except OSError:
                 continue
             if referencias:

@@ -7,17 +7,14 @@ from app import club
 
 
 class ClubMaestrosTests(unittest.TestCase):
-    def test_solo_cuenta_jpg_con_referencia_diseno_maquina(self):
+    def test_solo_cuenta_carpetas_de_referencia_diseno_maquina(self):
         with tempfile.TemporaryDirectory(dir=Path(__file__).parent) as tmp:
             maestros = Path(tmp) / 'CLIENTES' / 'CERROS' / 'MAESTROS'
             futbol = maestros / 'UNIFORMES 2027 FUTBOL'
             referencia = futbol / 'FUT01_D1_D2_PLUS'
             referencia.mkdir(parents=True)
-            (referencia / 'FUT01_D1_GT.jpg').touch()
-            (referencia / 'FUT01_D2_GT.JPG').touch()
-            (referencia / 'FUT01_MUESTRA.jpg').touch()
-            (referencia / 'FUT02_D1_.jpg').touch()
-            (referencia / 'nota.pdf').touch()
+            (futbol / 'RECURSOS').mkdir()
+            (futbol / 'FUT02_D1_D2_').mkdir()
             (maestros / 'RECURSOS').mkdir()
             with patch.object(club, '_clientes_root', return_value=str(Path(tmp) / 'CLIENTES')):
                 proyectos = club.proyectos_maestros_de('cerros')
