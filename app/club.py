@@ -453,8 +453,6 @@ def enviar_pedido(request: Request, token: str, payload: dict = Body(...)):
         raise HTTPException(400, 'Agrega al menos una prenda')
     contacto = re.sub(r'\s+', ' ', str(payload.get('contacto') or '')).strip()[:80]
     telefono = re.sub(r'[^0-9+ ()-]', '', str(payload.get('telefono') or ''))[:25]
-    if len(contacto) < 2 or len(re.sub(r'\D', '', telefono)) < 7:
-        raise HTTPException(400, 'Escribe tu nombre y un teléfono de contacto')
     with _connect() as db:
         cur = db.execute('INSERT INTO club_pedidos(link_id,cliente,contacto,telefono,notas,lineas,estado,creado) VALUES(?,?,?,?,?,?,\'pendiente\',?)',
                          (link['id'], link['cliente'], contacto, telefono, str(payload.get('notas') or '')[:400], json.dumps(lineas, ensure_ascii=False), _ahora()))
