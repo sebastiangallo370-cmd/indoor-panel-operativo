@@ -95,15 +95,18 @@ def proyectos_maestros_de(cliente: str) -> list[dict]:
         for proyecto in sorted((p for p in maestros.iterdir() if p.is_dir()), key=lambda p: _plano(p.name)):
             referencias: dict[str, set[str]] = {}
             try:
-                archivos = proyecto.rglob('*')
-                for archivo in archivos:
-                    if not archivo.is_file():
-                        continue
-                    m = _JPG_MAESTRO.match(archivo.name.strip())
-                    if not m:
-                        continue
-                    ref = m.group('referencia').upper()
-                    referencias.setdefault(ref, set()).add(m.group('diseno').upper())
+                # Cada referencia es una carpeta directa del proyecto y sus
+                # imágenes también son directas (ver FUT01_D1_D2_PLUS). No se
+                # usa rglob: recorrer el NAS completo vuelve lenta la tienda.
+                for carpeta in (p for p in proyecto.iterdir() if p.is_dir()):
+                    for archivo in carpeta.iterdir():
+                        if not archivo.is_file():
+                            continue
+                        m = _JPG_MAESTRO.match(archivo.name.strip())
+                        if not m:
+                            continue
+                        ref = m.group('referencia').upper()
+                        referencias.setdefault(ref, set()).add(m.group('diseno').upper())
             except OSError:
                 continue
             if referencias:

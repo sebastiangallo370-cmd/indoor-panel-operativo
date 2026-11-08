@@ -11,12 +11,13 @@ class ClubMaestrosTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(dir=Path(__file__).parent) as tmp:
             maestros = Path(tmp) / 'CLIENTES' / 'CERROS' / 'MAESTROS'
             futbol = maestros / 'UNIFORMES 2027 FUTBOL'
-            futbol.mkdir(parents=True)
-            (futbol / 'FUT01_D1_GT.jpg').touch()
-            (futbol / 'FUT01_D2_GT.JPG').touch()
-            (futbol / 'FUT01_MUESTRA.jpg').touch()
-            (futbol / 'FUT02_D1_.jpg').touch()
-            (futbol / 'nota.pdf').touch()
+            referencia = futbol / 'FUT01_D1_D2_PLUS'
+            referencia.mkdir(parents=True)
+            (referencia / 'FUT01_D1_GT.jpg').touch()
+            (referencia / 'FUT01_D2_GT.JPG').touch()
+            (referencia / 'FUT01_MUESTRA.jpg').touch()
+            (referencia / 'FUT02_D1_.jpg').touch()
+            (referencia / 'nota.pdf').touch()
             (maestros / 'RECURSOS').mkdir()
             with patch.object(club, '_clientes_root', return_value=str(Path(tmp) / 'CLIENTES')):
                 proyectos = club.proyectos_maestros_de('cerros')
