@@ -62,7 +62,7 @@
   @media(max-width:860px){
     body .home-hero{min-height:430px!important;margin-bottom:-48px!important}
     .hp-top{flex-direction:column;align-items:flex-start;gap:8px;top:28px}.hp-kpis{display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;width:100%}.hp-kpis b{font-size:1rem}.hp-kpis span{font-size:.52rem}
-    .esc{left:50%!important;right:auto!important;top:52%;translate:-50% -50%!important}.esc-lg{width:min(78vw,420px)}.esc-ph{width:92%;height:76%;top:51%}.esc-ph img{object-position:center center}.hp canvas{display:none}.hp-glow{opacity:.62}.hp-amb .am.on{opacity:.28}.hp-line{bottom:18%;gap:5px;width:80%}
+    .hp{left:0!important;right:auto!important;width:100%!important}.esc{left:50%!important;right:auto!important;top:52%;translate:-50% -50%!important}.esc-lg{width:min(78vw,420px)}.esc-ph{width:92%;height:76%;top:51%}.esc-ph img{object-position:center center}.hp canvas{display:none}.hp-glow{opacity:.62}.hp-amb .am.on{opacity:.28}.hp-line{bottom:18%;gap:5px;width:80%}
   }
   @media(prefers-reduced-motion:reduce){.hp-hi i{animation:none}}
   body #home-dashboard .dash-tabs{border-color:transparent!important;background:linear-gradient(90deg,rgba(8,11,8,.5) 0,rgba(8,11,8,.42) 34%,rgba(8,11,8,0) 70%)!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;box-shadow:none!important}
@@ -156,7 +156,18 @@
   function ajustarAncho() { const padre = hero.parentElement; if (!padre) return;
     const flota = document.body.classList.contains('top-navigation') && window.innerWidth > 860, main = document.querySelector('main');
     const navH = flota && main ? Math.max(0, (parseFloat(getComputedStyle(main).paddingTop) || 0) - 10) : 0;
-    hero.style.setProperty('--navh', navH + 'px'); hero.style.setProperty('margin-top', (-(navH + 6)) + 'px', 'important'); hero.style.width = ''; hero.style.marginLeft = ''; const r = padre.getBoundingClientRect(); hero.style.width = document.documentElement.clientWidth + 'px'; hero.style.marginLeft = (-r.left) + 'px'; }
+    // La vista móvil compacta el main con zoom (.88). Las medidas de
+    // getBoundingClientRect son ya visuales, mientras que width/margin-left
+    // esperan píxeles de diseño. Compensamos la escala para llegar al borde
+    // real de la pantalla y no dejar una banda vacía a la derecha.
+    const escala = main ? (parseFloat(getComputedStyle(main).zoom) || 1) : 1;
+    hero.style.setProperty('--navh', navH + 'px'); hero.style.setProperty('margin-top', (-(navH + 6)) + 'px', 'important'); hero.style.width = ''; hero.style.marginLeft = ''; const r = padre.getBoundingClientRect(); hero.style.width = (document.documentElement.clientWidth / escala) + 'px'; hero.style.marginLeft = (-(r.left / escala)) + 'px';
+    // Algunos navegadores móviles calculan el hijo absoluto antes de aplicar
+    // el ancho completo de la portada. Se fuerza el mismo ancho real para que
+    // no quede una franja vacía a la derecha de la animación.
+    if (movil) { p.style.width = hero.offsetWidth + 'px'; p.style.left = '0'; p.style.right = 'auto'; }
+    else { p.style.width = ''; p.style.left = ''; p.style.right = ''; }
+  }
   ajustarAncho(); [150, 600, 1500, 3500].forEach(ms => setTimeout(ajustarAncho, ms)); window.addEventListener('load', ajustarAncho);
   window.addEventListener('resize', () => { ajustarAncho(); medir(); medirLogo(); });
   if (typeof ResizeObserver === 'function') new ResizeObserver(() => { ajustarAncho(); }).observe(document.documentElement);
