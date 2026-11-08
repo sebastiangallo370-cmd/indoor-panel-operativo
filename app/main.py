@@ -940,9 +940,10 @@ def _programar_reposicion_club(pedido_id: int, usuario: str) -> dict:
     numero = str(pedido_club['cot_numero']).strip()
     orden = 'CO' + numero if not numero.upper().startswith('CO') else numero.upper()
     pdf_name = f'{orden}_TIENDA_CLUB.pdf'
-    rechazo = _reject_existing_order(pdf, pdf_name)
-    if rechazo:
-        raise ValueError(rechazo)
+    # La validación devuelve el número que leyó del PDF cuando está libre; solo
+    # lanza error si detecta un duplicado real. No se interpreta ese número como
+    # un rechazo (antes toda reposición con cotización válida quedaba en REVISAR).
+    _reject_existing_order(pdf, pdf_name)
     excel_origen, excel_bytes = excels[0]
     sello = datetime.now().strftime('%Y%m%d%H%M%S%f')
     carpeta = UPLOAD_DIR / 'pedidos' / f'club-{pedido_id}-{sello}'
