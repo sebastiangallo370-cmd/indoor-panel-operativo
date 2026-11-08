@@ -76,6 +76,7 @@ def _plano(t) -> str:
 
 
 _JPG_MAESTRO = re.compile(r'^(?P<referencia>[A-Z0-9-]+)_(?P<diseno>D[0-9]+)_(?P<maquina>[A-Z0-9-]+)\.jpe?g$', re.I)
+_CARPETA_MAESTRA = re.compile(r'^(?P<referencia>[A-Z0-9-]+)_D[0-9]+(?:_D[0-9]+)*_[A-Z0-9-]+$', re.I)
 _catalogos_maestros: dict[str, list[dict]] = {}
 _catalogos_pendientes: dict[str, object] = {}
 _catalogos_lock = Lock()
@@ -105,6 +106,9 @@ def _leer_proyectos_maestros(cliente: str) -> list[dict]:
                 # imágenes también son directas (ver FUT01_D1_D2_PLUS). No se
                 # usa rglob: recorrer el NAS completo vuelve lenta la tienda.
                 for carpeta in (p for p in proyecto.iterdir() if p.is_dir()):
+                    carpeta_match = _CARPETA_MAESTRA.match(carpeta.name.strip())
+                    if not carpeta_match:
+                        continue
                     for archivo in carpeta.iterdir():
                         if not archivo.is_file():
                             continue
@@ -112,6 +116,8 @@ def _leer_proyectos_maestros(cliente: str) -> list[dict]:
                         if not m:
                             continue
                         ref = m.group('referencia').upper()
+                        if ref != carpeta_match.group('referencia').upper():
+                            continue
                         referencias.setdefault(ref, set()).add(m.group('diseno').upper())
             except OSError:
                 continue
