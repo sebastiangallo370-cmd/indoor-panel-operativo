@@ -253,9 +253,9 @@ button{font:inherit}
       contenedor.innerHTML=proyectos().map(function(d){var total=disenos.filter(function(x){return claveProyecto(x.proyecto||x.referencia)===claveProyecto(d.proyecto||d.referencia)}).length;return '<button type="button" class="dis" data-proyecto="'+esc(claveProyecto(d.proyecto||d.referencia))+'"><div class="im"><span class="dn">PROYECTO</span></div><div><strong>'+esc(d.proyecto||d.referencia)+'</strong><small>'+total+' '+(total===1?'referencia disponible':'referencias disponibles')+'</small></div></button>'}).join('');
       return;
     }
-    $('c1titulo').innerHTML='<b>1</b> Referencias de '+esc(proyectoSel);$('c1ayuda').innerHTML='Elige las referencias que quieres repetir. <button type="button" class="btn sec mini" data-cambiar-proyecto>← Cambiar proyecto</button>';
+    $('c1titulo').innerHTML='<b>1</b> Proyectos de '+esc(proyectoSel);$('c1ayuda').innerHTML='Elige el proyecto que quieres reprogramar. <button type="button" class="btn sec mini" data-cambiar-proyecto>← Cambiar proyecto</button>';
     contenedor.innerHTML=disenos.filter(function(d){return claveProyecto(d.proyecto||d.referencia)===proyectoSel}).map(function(d){var n=llenas(d.row).length,bloq=activo&&claveProyecto(d.proyecto)!==activo;
-      return '<button type="button"'+(bloq?' disabled aria-disabled="true"':'')+' class="dis'+((d.row===sel||n)?' on':'')+(bloq?' bloq':'')+'" data-dis="'+d.row+'">'+(n?'<span class="ins">✓ '+n+' jugadores</span>':'')+'<div class="im">'+img0(d)+'</div><div><strong>'+esc(d.proyecto||d.referencia)+'</strong><small>Ref. '+esc(d.referencia)+(d.fecha?' · '+esc(d.fecha):'')+'</small></div></button>';
+      return '<button type="button"'+(bloq?' disabled aria-disabled="true"':'')+' class="dis'+((d.row===sel||n)?' on':'')+(bloq?' bloq':'')+'" data-dis="'+d.row+'">'+(n?'<span class="ins">✓ '+n+' jugadores</span>':'')+'<div class="im">'+img0(d)+'</div><div><strong>'+esc(d.maestro||d.referencia)+'</strong><small>Proyecto maestro · '+esc(d.proyecto||'Indoor Sport')+'</small></div></button>';
     }).join('');
   }
   function cargaFotos(d){

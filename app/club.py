@@ -201,7 +201,12 @@ def _pedido(pedido_id: int) -> dict:
 
 # ------------------------------------------------------------------ diseños del cliente (desde Producción)
 def disenos_de(cliente: str) -> list[dict]:
-    """Las referencias que ya se produjeron para ese cliente: la más reciente de cada referencia, con su fila para sacar el mockup."""
+    """Proyectos maestros ya producidos para el cliente, uno por carpeta base.
+
+    Una misma referencia puede existir en varias órdenes históricas. Solo se
+    expone la más reciente de cada maestro (FUT01, FUT02, PE01, etc.) para que
+    el cliente no vea ni reutilice órdenes anteriores.
+    """
     with _connect() as db:
         meta = db.execute("SELECT value FROM production_meta WHERE key='headers'").fetchone()
         if not meta:
@@ -218,10 +223,13 @@ def disenos_de(cliente: str) -> list[dict]:
             if _plano(cel('NOMBRE DEL CLIENTE')) != objetivo:
                 continue
             ref = cel('REFERENCIA').upper()
-            clave = f"{cel('ORDEN').upper()}|{ref}"
-            if not ref or clave in salida:   # todos los pedidos del cliente: uno por orden y referencia (no solo el último de cada referencia)
+            partes_maestro = re.findall(r'[A-Z]+\d+', ref)
+            maestro = partes_maestro[-1] if partes_maestro else ref
+            proyecto = cel('NOMBRE PROYECTO')
+            clave = f"{_plano(proyecto)}|{maestro}"
+            if not ref or clave in salida:
                 continue
-            salida[clave] = {'row': r['source_row'], 'referencia': ref, 'proyecto': cel('NOMBRE PROYECTO'), 'orden': cel('ORDEN'), 'cantidad': cel('CANTIDAD'), 'fecha': cel('FECHA DE INICIO'),
+            salida[clave] = {'row': r['source_row'], 'referencia': ref, 'maestro': maestro, 'proyecto': proyecto, 'orden': cel('ORDEN'), 'cantidad': cel('CANTIDAD'), 'fecha': cel('FECHA DE INICIO'),
                            'tipo': cel('TIPO DE DISEÑO')}
     return list(salida.values())[:200]
 
