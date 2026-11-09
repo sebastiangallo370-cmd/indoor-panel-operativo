@@ -315,7 +315,13 @@ def _con_listado(s, cod, fila):
     if s["intencion"] == "jugadores":   # OLIVER: valida tallas, números y nombres de la pestaña elegida y crea el PDF de producción de cada jugador
         s["estado"] = "INICIO"
         rutas = ordenes.buscar_ai(cod)
-        sel, motivo = seleccion.mesas_para(rutas, fila["lineas"]) if rutas else ([], "no encontré archivos .ai en MAESTROS")
+        try:
+            plantillas = _plantillas_promedios(fila["lineas"])
+        except RuntimeError as e:
+            return _err(f"NO creé los PDF de los jugadores de {cod}: no pude validar su estructura.", str(e),
+                        "Completa la estructura en Promedios maestros y vuelve a intentarlo.", "ERROR", [f"Exportar mesas de {cod}"])
+        s["plantillas_promedios"] = sorted(plantillas)
+        sel, motivo = seleccion.mesas_para(rutas, fila["lineas"], plantillas) if rutas else ([], "no encontré archivos .ai en MAESTROS")
         if not sel:
             # sin saber de qué mesas salen los jugadores NO se crea nada ni se da el pedido por terminado
             log(AGENTE, f"Jugadores de {cod}: no pude elegir las mesas ({motivo})", "WARN")
@@ -606,27 +612,33 @@ def _confirmar(s, t):
 
 
 def _plantillas_promedios(lineas):
-    """Plantillas (CA02M, CA02F, CA02N…) que Promedios maestros asigna a las referencias del listado. Vacío si no se puede saber (se usan todas)."""
+    """Estructura obligatoria de Promedios maestros para escoger .ai.
+
+    La estructura (PE03M, PE03F, PE03N(M), PE03N(F)…) manda sobre el
+    nombre que parezca tener un archivo. Si no se puede consultar, se detiene:
+    usar «todas» puede abrir una moldería equivocada o dejar tallas sin PDF.
+    """
     hojas = sorted({str(l.get("hoja", "")).strip() for l in lineas if l.get("hoja")})
     if not hojas:
-        return set()
+        raise RuntimeError("El listado no trae la referencia para consultar Promedios maestros.")
     try:
         import puente
         cfg = puente._leer_config()
         if not cfg:
-            return set()
+            raise RuntimeError("No encontré la configuración del puente hacia el panel.")
         r = puente._post_firme(cfg, "/api/agentes/pc/plantillas", {"hojas": hojas}, timeout=30, intentos=2)
     except Exception as e:  # noqa: BLE001
-        log(AGENTE, f"No pude consultar Promedios maestros: {e}", "WARN")
-        return set()
+        raise RuntimeError(f"No pude consultar Promedios maestros: {e}") from e
     codigos = set()
+    faltantes = []
     for h, d in (r.get("hojas") or {}).items():
-        if d.get("encontrado"):
+        if d.get("encontrado") and d.get("codigos"):
             log(AGENTE, f"Promedios maestros: {h} -> maestro {', '.join(d['maestros'])}; plantillas {', '.join(d['codigos'])}")
             codigos |= {c.upper() for c in d["codigos"]}
         else:
-            log(AGENTE, f"Promedios maestros: {h} no tiene maestro; uso todas las plantillas del maestro de la carpeta", "WARN")
-            return set()   # si una hoja no está en Promedios no se filtra nada
+            faltantes.append(h)
+    if faltantes or not codigos:
+        raise RuntimeError("Promedios maestros no tiene estructura definida para: " + ", ".join(faltantes or hojas))
     return codigos
 
 
@@ -643,7 +655,11 @@ def _mesas_tras_muestra(s, prefijo, estado_error, botones_error):
     if not disenos:
         return _error_maestro(s, p, hojas, "En la carpeta MAESTROS del proyecto no hay ningún archivo .ai de diseño.",
                               "Crea el maestro en MAESTROS con el formato «D1 FUT01M XS A 4XL.ai» y vuelve a iniciar la orden.")
-    plantillas = _plantillas_promedios(lineas)
+    try:
+        plantillas = _plantillas_promedios(lineas)
+    except RuntimeError as e:
+        return _error_maestro(s, p, hojas, str(e), "Completa la estructura en Promedios maestros y vuelve a iniciar la orden.")
+    s["plantillas_promedios"] = sorted(plantillas)
     sel, motivo = seleccion.mesas_para(disenos, lineas, plantillas)
     # Si el listado trae varias referencias y el maestro solo tiene algunas,
     # conserva las mesas disponibles y deja las referencias faltantes para un
@@ -950,7 +966,8 @@ def _pdfs_y_sheets(s, sobrescribir):
     # La sesión puede conservar una selección de mesas de un intento anterior.
     # Antes de crear PDF se vuelve a cruzar con el listado recién leído para no
     # generar D2, otro género o una talla que la orden actual no solicita.
-    seleccionadas, motivo = seleccion.mesas_para([Path(str(a)) for a in archivos if a], fila.get("lineas") or [])
+    plantillas = set(s.get("plantillas_promedios") or _plantillas_promedios(fila.get("lineas") or []))
+    seleccionadas, motivo = seleccion.mesas_para([Path(str(a)) for a in archivos if a], fila.get("lineas") or [], plantillas)
     if not seleccionadas:
         return _err("no encontré la plantilla que pide el listado para crear los PDF de producción.", motivo,
                     "Revisa el listado y los archivos del maestro; luego escribe «revisar».", "JUGADORES", ["Revisar"])
