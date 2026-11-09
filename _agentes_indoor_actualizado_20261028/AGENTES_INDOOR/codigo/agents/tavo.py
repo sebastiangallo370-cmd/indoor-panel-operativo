@@ -312,15 +312,19 @@ def _con_listado(s, cod, fila):
     ordenes.pista_referencias(cod, seleccion.referencias_del_listado(fila.get("lineas") or []))   # para ubicar el maestro por referencia
     s["aviso"] = leo.resumen(fila)
     log(AGENTE, f"LEO informó: {cod} = cliente {fila['cliente']} / proyecto {fila['proyecto']}")
+    # Esta consulta es la fuente de verdad para TODOS los caminos: muestra,
+    # mesas, jugadores o pedido completo. No se permite adivinar la estructura
+    # por el nombre de un .ai cuando Promedios Maestros no responde.
+    try:
+        s["plantillas_promedios"] = sorted(_plantillas_promedios(fila["lineas"]))
+    except RuntimeError as e:
+        return _err(f"No inicié {cod}: no pude validar la estructura en Promedios maestros.", str(e),
+                    "Completa o corrige la estructura en Promedios maestros y vuelve a iniciar la orden.",
+                    "ERROR", [f"Ver listado {cod}"])
     if s["intencion"] == "jugadores":   # OLIVER: valida tallas, números y nombres de la pestaña elegida y crea el PDF de producción de cada jugador
         s["estado"] = "INICIO"
         rutas = ordenes.buscar_ai(cod)
-        try:
-            plantillas = _plantillas_promedios(fila["lineas"])
-        except RuntimeError as e:
-            return _err(f"NO creé los PDF de los jugadores de {cod}: no pude validar su estructura.", str(e),
-                        "Completa la estructura en Promedios maestros y vuelve a intentarlo.", "ERROR", [f"Exportar mesas de {cod}"])
-        s["plantillas_promedios"] = sorted(plantillas)
+        plantillas = set(s["plantillas_promedios"])
         sel, motivo = seleccion.mesas_para(rutas, fila["lineas"], plantillas) if rutas else ([], "no encontré archivos .ai en MAESTROS")
         if not sel:
             # sin saber de qué mesas salen los jugadores NO se crea nada ni se da el pedido por terminado
