@@ -629,11 +629,15 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
             carpetas_m.append(Path(destino["montajes"]) / f"D{diseno}" / f"{ref}{genero_maestro}{suf_maestro}")
         ampliado = []
         for talla, art, base, js in plan:
-            mesas = []
-            for cm in carpetas_m:
-                mesas = _mesas_de(cm, talla, diseno, {art.rsplit("_Gen_", 1)[-1]})
-                if mesas:
-                    break
+            # Una orden puede tener varias piezas con la misma talla, diseño
+            # y género (frente, espalda, mangas o archivos en más de una
+            # carpeta del mismo maestro). El JSX debe pasar por TODAS; no se
+            # puede detener al encontrar la primera coincidencia.
+            mesas = sorted({
+                mesa
+                for cm in carpetas_m
+                for mesa in _mesas_de(cm, talla, diseno, {art.rsplit("_Gen_", 1)[-1]})
+            })
             if len(mesas) > 1:
                 log(AGENTE, f"Talla {talla}: {len(mesas)} mesas coinciden en talla, diseño y género ({', '.join(mesas)}): el nombre y el número van en todas")
             ampliado += [(talla, m, f"{prefijo}{m}", js) for m in mesas] or [(talla, art, base, js)]
