@@ -818,8 +818,12 @@
       let previa = null;
       rows.forEach((row, i) => {
         const id = row.source_row, linea = String(traceField(row, 'LINEA') || '').trim().toUpperCase();
-        const firma = cardHtmls[i] + JSON.stringify([row.values, delFila(productionData.notes, id), delFila(productionData.note_entries, id), delFila(productionData.paused, id),
-          (productionData.web_orders || []).includes(String(traceField(row, 'ORDEN') || '').replace(/[\s-]+/g, '').toUpperCase()), (productionData.line_colors || {})[linea] || '',
+        // Los archivos visuales se actualizan directamente dentro de .trace-media.
+        // Excluirlos de la firma evita reemplazar toda la tarjeta (el parpadeo)
+        // cuando el sondeo de mockups termina, conservando sus animaciones y estado.
+        const firmaVista = cardHtmls[i].replace(traceAssetsMarkup(id), '');
+        const firma = firmaVista + JSON.stringify([row.values, summaries.get(id), delFila(productionData.notes, id), delFila(productionData.note_entries, id), delFila(productionData.paused, id),
+          productionData.materiales_mts?.[String(id)] || null, (productionData.web_orders || []).includes(String(traceField(row, 'ORDEN') || '').replace(/[\s-]+/g, '').toUpperCase()), (productionData.line_colors || {})[linea] || '',
           filter, selectedProcess, ownAreaFilter, canDelete, deletingRows.has(Number(id))]);
         let card = existentes.get(String(id));
         existentes.delete(String(id));
