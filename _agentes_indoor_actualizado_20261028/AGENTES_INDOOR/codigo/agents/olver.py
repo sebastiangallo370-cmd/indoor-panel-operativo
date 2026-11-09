@@ -785,7 +785,8 @@ def _correr_bot(codigo, ai, artboard, base, carpeta, jugadores, orden, tela, sal
         log(AGENTE, "[JSX] " + linea, "ERROR" if "ERROR" in linea else "INFO")
     _cerrar_si_abierto(app, ai)   # BOT.jsx ya lo cierra; esto solo cubre un fallo a medias
     sin_guias = "no se encontro ningun placeholder" in mensajes.lower()
-    if sin_guias:
+    requiere_personalizacion = any((j.get("nombre") or "").strip() or str(j.get("numero") or "").strip() for j in jugadores)
+    if sin_guias and requiere_personalizacion:
         # No aceptar un PDF que salió sin poder escribir nombre y número. Esto
         # deja intacta la talla de Montajes y hace visible que debe repararse.
         for i, jugador in enumerate(jugadores, 1):
@@ -796,6 +797,10 @@ def _correr_bot(codigo, ai, artboard, base, carpeta, jugadores, orden, tela, sal
         diagnostico = next((x for x in mensajes.splitlines() if "DIAGNOSTICO MARCADORES:" in x), "")
         detalle = f" ({diagnostico[:700]})" if diagnostico else ""
         return {"error": f"{ai.name} no conserva los textos guía NOMBRE y 00; no generé un PDF incompleto{detalle}"}
+    if sin_guias:
+        # La talla no lleva nombre ni dorsal: se conserva el PDF tal cual,
+        # agrupado por cantidad (p. ej. «30unds»). No hay texto que aplicar.
+        log(AGENTE, f"{ai.name}: sin guías NOMBRE/00, pero la talla no tiene personalización; conservo el PDF de producción")
     time.sleep(0.3)               # pausa mínima tras cerrar un .ai pesado antes de abrir el siguiente
     return {"mensajes": mensajes}
 
