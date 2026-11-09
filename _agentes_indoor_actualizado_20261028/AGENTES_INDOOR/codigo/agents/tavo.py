@@ -738,11 +738,24 @@ def _exportar_mesas(s, sobrescribir):
                 destinos = {ai: (d or ordenes.destino_con_maquina(p["orden"], ai, maq)) for ai, d in destinos.items()}
         if any(not d for d in destinos.values()):
             # La máquina ordena la carpeta final de impresión, pero no puede
-            # detener Edición. Se exporta en la carpeta propia de la orden y
-            # se deja el aviso para clasificarla cuando se asigne la máquina.
-            log(AGENTE, f"No sé la máquina de impresión de {p['orden']}: continúo en la carpeta de la orden", "WARN")
-            s["aviso"] += "\n\n⚠ No encontré máquina de impresión: continúo con mesas y PDF en la carpeta de la orden; asígnala después para clasificar la producción."
-            destinos = {}
+            # detener Edición. Se usa una carpeta explícita en la NAS de la
+            # orden, nunca la salida local del PC, para clasificarla después.
+            orden_dir = next(iter(ordenes.carpetas_de_orden(p["orden"])), None)
+            if orden_dir:
+                pendientes = ordenes._carpeta_existente(orden_dir, "IMPRESION (PENDIENTE MAQUINA)")
+                destinos = {
+                    ai: {
+                        "carpeta": str(pendientes),
+                        "montajes": str(ordenes._carpeta_existente(Path(ai).parent, "Montajes (PENDIENTE MAQUINA)")),
+                        "maquina": "PENDIENTE MAQUINA", "generos": [],
+                    }
+                    for ai in archivos
+                }
+                log(AGENTE, f"No sé la máquina de impresión de {p['orden']}: continúo en {pendientes}", "WARN")
+                s["aviso"] += "\n\n⚠ No encontré máquina de impresión: continúo en la NAS, en IMPRESION (PENDIENTE MAQUINA); asígnala después para clasificar la producción."
+            else:
+                log(AGENTE, f"No encontré carpeta de la orden {p['orden']}: uso la salida local", "WARN")
+                destinos = {}
     # Un maestro «Fusionado» no puede mezclarse con las mesas normales. Tanto
     # sus mesas independientes como sus PDF por jugador quedan agrupados en
     # la subcarpeta Fusionado de la máquina correspondiente.
