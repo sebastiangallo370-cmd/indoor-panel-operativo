@@ -436,7 +436,9 @@ def fijar_orden(request: Request, payload: dict):
             # reinicio interno de TAVO (no aparece en el chat): así no arrastra pasos de la orden anterior
             _nuevo(datos, ses, 'yo', 'cancelar', t=_ahora(), tomado=False, respondido=False, oculto=True)
             _guardar(datos)
-    return {'ok': True, 'orden': codigo}
+    # El navegador descarta el historial visual de la orden anterior. Entregar
+    # los cursores evita que vuelva a pintar sus muestras o PDFs al recargar.
+    return {'ok': True, 'orden': codigo, 'ultimo': datos['contador'], 'ultimo_ev': datos['cont_ev']}
 
 
 @router.post('/detener')

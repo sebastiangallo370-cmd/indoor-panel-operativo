@@ -1888,7 +1888,15 @@
   async function fijarOrden(codigo) {
     try {
       const r = await api('/api/agentes/orden', { method: 'POST', body: JSON.stringify({ orden: codigo, pc: st.pc }) });
-      st.orden = r.orden; st.cambiandoOrden = false; flow.estadoServidor = null;   // la próxima petición abre una ejecución nueva
+      // El canal conserva el chat como historial, pero sus archivos no son de
+      // la nueva orden. Al cambiarla se limpia la vista y se adelantan los
+      // cursores: nunca se muestra PE03/Cerros al trabajar RM7715/Atalanta.
+      st.orden = r.orden; st.cambiandoOrden = false;
+      st.msgs = []; st.evs = []; st.trabajo = null; st.esperando = false;
+      st.ultimo = Number(r.ultimo) || st.ultimo; st.ultimoEv = Number(r.ultimo_ev) || st.ultimoEv;
+      st.muFirma = ''; st.muIdx = 0; st.muTodo = false; st.disSel = ''; st.disOrden = '';
+      flow.listo = false; flow.preparado = 0; flow.estadoServidor = null; flow.vistaFija = null;
+      flow.genTab = null; flow.disTab = null; flow.mgenTab = null; flow.mdisTab = null;
     } catch (e) { alert(e.message); }
     pintar();
   }
