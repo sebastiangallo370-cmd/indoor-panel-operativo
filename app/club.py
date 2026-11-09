@@ -76,6 +76,23 @@ def _plano(t) -> str:
     return re.sub(r'\s+', ' ', ''.join(c for c in unicodedata.normalize('NFD', str(t or '')) if unicodedata.category(c) != 'Mn')).strip().upper()
 
 
+def _mismo_cliente(a, b) -> bool:
+    """Compara el cliente de la NAS con el del listado sin mezclar clubes.
+
+    En los maestros de algunos clubes el directorio conserva el sufijo
+    deportivo ``FC`` mientras que las órdenes históricas del Sheet no lo
+    tienen. Es el mismo cliente, pero la comparación estricta hacía que se
+    perdiera la fila real (referencia, orden y PDF de cotización) y se creara
+    una fila sintética ``MAESTRO`` que EFFITRON no puede cotizar.
+    """
+    uno, dos = _plano(a), _plano(b)
+    if not uno or not dos:
+        return False
+    if uno == dos:
+        return True
+    return (uno.endswith(' FC') and uno[:-3] == dos) or (dos.endswith(' FC') and dos[:-3] == uno)
+
+
 # Algunas carpetas antiguas terminan en "_" (PE01_D1_D2_), aunque los
 # JPG internos sí llevan la máquina; también son maestros válidos.
 _CARPETA_MAESTRA = re.compile(r'^(?P<referencia>[A-Z0-9-]+)_D[0-9]+(?:_D[0-9]+)*_(?:[A-Z0-9-]+)?$', re.I)
@@ -307,12 +324,11 @@ def disenos_de(cliente: str, catalogo: list[dict] | None = None) -> list[dict]:
         ix = {n: h.index(n) for n in ('NOMBRE DEL CLIENTE', 'NOMBRE PROYECTO', 'ORDEN', 'REFERENCIA', 'CANTIDAD', 'FECHA DE INICIO', 'TIPO DE DISEÑO') if n in h}
         if 'NOMBRE DEL CLIENTE' not in ix or 'REFERENCIA' not in ix:
             return []
-        objetivo = _plano(cliente)
         salida: dict[str, dict] = {}
         for r in db.execute('SELECT source_row, values_json FROM production_rows ORDER BY source_row DESC'):
             v = json.loads(r['values_json'])
             cel = lambda n: str(v[ix[n]] or '').strip() if n in ix and ix[n] < len(v) else ''
-            if _plano(cel('NOMBRE DEL CLIENTE')) != objetivo:
+            if not _mismo_cliente(cel('NOMBRE DEL CLIENTE'), cliente):
                 continue
             ref = cel('REFERENCIA').upper()
             partes_maestro = re.findall(r'[A-Z]+\d+', ref)

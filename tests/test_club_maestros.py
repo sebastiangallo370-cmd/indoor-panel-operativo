@@ -7,6 +7,11 @@ from app import club
 
 
 class ClubMaestrosTests(unittest.TestCase):
+    def test_reconoce_sufijo_fc_de_la_carpeta_del_club(self):
+        self.assertTrue(club._mismo_cliente('CORPORACION SOCIOCULTURAL CERROS FC', 'CORPORACION SOCIOCULTURAL CERROS'))
+        self.assertTrue(club._mismo_cliente('Corporación Sociocultural Cerros', 'CORPORACION SOCIOCULTURAL CERROS FC'))
+        self.assertFalse(club._mismo_cliente('CORPORACION SOCIOCULTURAL CERROS FC', 'CORPORACION SOMOS AWARE'))
+
     def test_solo_cuenta_carpetas_de_referencia_diseno_maquina(self):
         with tempfile.TemporaryDirectory(dir=Path(__file__).parent) as tmp:
             maestros = Path(tmp) / 'CLIENTES' / 'CERROS' / 'MAESTROS'
