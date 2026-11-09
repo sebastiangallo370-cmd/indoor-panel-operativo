@@ -397,6 +397,13 @@ def _jugadores_de(lineas, diseno, genero):
     """Líneas del listado que corresponden a este archivo (diseño D<n> y género M/F/N), agrupadas por talla en el orden de tallas."""
     orden = {t: i for i, t in enumerate(config.TALLAS_PERMITIDAS)}
     grupos = {}
+
+    def dato(v):
+        # Excel/Sheets puede entregar la celda vacía como None, NaN o texto
+        # «SIN NUMERO». Ninguno es una personalización para el PDF.
+        texto = "" if v is None else str(v).strip()
+        return "" if texto.lower() in ("none", "nan", "null", "sin numero", "sin nombre") else texto
+
     for l in lineas:
         if seleccion._genero_efectivo(l) != genero:   # talla numérica en MASC/FEM = niño/niña
             continue
@@ -406,7 +413,7 @@ def _jugadores_de(lineas, diseno, genero):
         talla = str(l.get("talla", "")).upper().strip()
         talla = "2XL" if talla == "XXL" else talla   # en las mesas del maestro se llama Talla_2XL
         if talla:   # sin nombre o sin número igual se exporta: el PDF queda en blanco en ese dato
-            grupos.setdefault(talla, []).append({"nombre": str(l.get("nombre", "")).strip(), "numero": str(l.get("numero", "")).strip(), "hoja": l.get("hoja", ""), "sexo": seleccion._sexo(l) or ""})
+            grupos.setdefault(talla, []).append({"nombre": dato(l.get("nombre")), "numero": dato(l.get("numero")), "hoja": l.get("hoja", ""), "sexo": seleccion._sexo(l) or ""})
     return sorted(grupos.items(), key=lambda kv: (orden.get(kv[0], 99), kv[0]))
 
 
