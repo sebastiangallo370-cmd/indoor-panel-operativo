@@ -533,7 +533,8 @@ def _nombres_esperados(carpeta, base, jugadores):
     return [_archivo_pdf(carpeta, base, i, j) for i, j in enumerate(jugadores, 1)]
 
 
-def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=False, tela_archivo=None, referencia="", genero_destino=None):
+def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=False, tela_archivo=None, referencia="", genero_destino=None,
+                      permitir_faltantes=False):
     # destino["montajes"]: carpeta Montajes (MÁQUINA) del maestro; si ahí ya están las mesas independientes exportadas, se abre cada talla desde su archivo
     """Crea un PDF por jugador. Devuelve:
         {"ok": True, "pdfs": [{"ruta", "nombre", "numero", "talla"}], "carpeta", "simulado", "omitidas": [...]}
@@ -605,6 +606,7 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
         return {"ok": False, "existe": True, "incompleto": len(previos) != len(esperados),
                 "carpeta": str(carpeta), "n": len(previos), "esperados": len(esperados)}
 
+    faltan = []
     if not simulado and destino.get("montajes"):   # RECTIFICA que existan las mesas independientes de TODAS las tallas (adulto o niño) ANTES de poner nombre y número
         carpetas_m = [Path(destino["montajes"]) / f"D{diseno}" / f"{ref}{genero}{suf_maestro}"]
         if genero_maestro != genero:
@@ -631,7 +633,20 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
                 log(AGENTE, f"No pude exportar las mesas que faltaban de {ai.name}: {e}", "WARN")
             faltan = [t for t, art, _b, _j in plan if not _mesa_ok(art, t)]
         if faltan:
-            log(AGENTE, f"{ai.name}: siguen sin mesa independiente las tallas {', '.join(faltan)}", "WARN")
+            # Una talla puede ser perfectamente válida en el listado (por
+            # ejemplo 5XL) pero no existir físicamente en este maestro (que
+            # termina en 4XL). No se puede adivinar ni clonar otra talla. Se
+            # pide la decisión de la persona ANTES de abrir Illustrator.
+            faltan = list(dict.fromkeys(faltan))
+            if not permitir_faltantes:
+                return {
+                    "ok": False,
+                    "requiere_confirmacion": True,
+                    "faltantes": faltan,
+                    "maestro": ai.name,
+                    "error": "No existen mesas independientes para: " + ", ".join(faltan),
+                }
+            log(AGENTE, f"{ai.name}: continúo sin las mesas independientes de {', '.join(faltan)} por confirmación del usuario", "WARN")
         else:
             log(AGENTE, f"{ai.name}: están las mesas independientes de todas las tallas ({', '.join(t for t, _a, _b, _j in plan)})")
     if not simulado and destino.get("montajes"):   # nombre y número se aplican a TODAS las mesas que coinciden en talla, diseño y género (p. ej. Frente_ y Espalda_)
@@ -640,6 +655,11 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
             carpetas_m.append(Path(destino["montajes"]) / f"D{diseno}" / f"{ref}{genero_maestro}{suf_maestro}")
         ampliado = []
         for talla, art, base, js in plan:
+            if talla in faltan:
+                # La persona autorizó continuar con las tallas disponibles.
+                # No ejecuto JSX sobre el maestro completo ni repito errores
+                # por cada prenda que pertenece a una talla inexistente.
+                continue
             # Una orden puede tener varias piezas con la misma talla, diseño
             # y género (frente, espalda, mangas o archivos en más de una
             # carpeta del mismo maestro). El JSX debe pasar por TODAS; no se
@@ -659,6 +679,11 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
             return {"ok": False, "existe": True, "incompleto": len(previos) != len(esperados),
                     "carpeta": str(carpeta), "n": len(previos), "esperados": len(esperados)}
     pdfs, omitidas = [], []
+    if faltan:
+        omitidas.extend(
+            f"talla {t}: no existe mesa independiente en {ai.name}; se dejó pendiente por decisión del usuario"
+            for t in faltan
+        )
     codigo, ruta_bot = (None, "") if simulado else _bot_jsx()
     codigo, saltos = _parchar_saltos(codigo)
     total_plan = sum(len(js) for _, _, _, js in plan)

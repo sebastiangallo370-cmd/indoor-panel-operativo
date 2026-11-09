@@ -128,7 +128,8 @@ def _responder(sesion, texto, orden=None):
             s["estado"] = "INICIO"  # pidió otra orden: no es una lista de jugadores
         manejadores = {
             "INICIO": _inicio, "CONFIRMAR": _confirmar, "APROBACION": _aprobacion, "REPRO": _repro,
-            "JUGADORES": _jugadores, "TALLA_RARA": _talla_rara, "CONFIRMAR_SHEETS": _sheets, "ELEGIR_AI": _elegir_ai,
+            "JUGADORES": _jugadores, "TALLA_RARA": _talla_rara, "CONFIRMAR_TALLAS_MESAS": _confirmar_tallas_mesas,
+            "CONFIRMAR_SHEETS": _sheets, "ELEGIR_AI": _elegir_ai,
             "ELEGIR_PROYECTO": _elegir_proyecto, "ELEGIR_PESTANA": _elegir_pestana,
         }
         if re.search(r"cambiar (de )?pesta", tl):   # volver a elegir la pestaña (referencia) del listado
@@ -978,7 +979,7 @@ def _copiar_jpgs_a_orden(archivos, destinos):
     return copiados, estaban, errores
 
 
-def _pdfs_y_sheets(s, sobrescribir):
+def _pdfs_y_sheets(s, sobrescribir, permitir_tallas_faltantes=False):
     sobrescribir = sobrescribir or s.get("repro") == "reemplazar"
     """Crea los PDF de producción por jugador y devuelve la pregunta de Google Sheets (o pide confirmar si ya existen)."""
     resp = s.get("resp_sheets")
@@ -1038,14 +1039,28 @@ def _pdfs_y_sheets(s, sobrescribir):
         etiqueta_ai = Path(ai).name + (f" · Gen_{genero_destino}" if genero_destino else "")
         log(AGENTE, f"OLVER crea los PDF de producción por jugador de {etiqueta_ai}")
         r = olver.pdfs_por_jugador(ai, fila["lineas"], destino, p.get("orden"), tela=tela or "", sobrescribir=sobrescribir,
-                                   tela_archivo=tela_archivo, referencia=p.get("referencia", ""), genero_destino=genero_destino)
+                                   tela_archivo=tela_archivo, referencia=p.get("referencia", ""), genero_destino=genero_destino,
+                                   permitir_faltantes=permitir_tallas_faltantes)
+        if r.get("requiere_confirmacion"):
+            faltantes = ", ".join(r.get("faltantes") or [])
+            maestro = r.get("maestro") or Path(ai).name
+            s["pdfs_faltantes"] = {"sobrescribir": sobrescribir}
+            s["estado"] = "CONFIRMAR_TALLAS_MESAS"
+            log(AGENTE, f"{maestro}: faltan mesas de talla {faltantes}; espero decisión antes de crear PDF", "WARN")
+            return _r(
+                f"El maestro {maestro} no tiene mesa independiente para: {faltantes}.\n\n"
+                "Ya exporté todas las mesas disponibles de la plantilla; no ejecuté JSX ni generé PDFs todavía. "
+                "¿Continúo solo con las tallas que sí existen o cancelo?",
+                "CONFIRMAR_TALLAS_MESAS", ["Continuar con disponibles", "Cancelar"],
+            )
         if r.get("existe") and (r.get("incompleto") or (s.get("repro") != "conservar" and not igual)):
             # Un conjunto parcial nunca se puede conservar: debe reconstruirse,
             # incluso si el listado no cambió desde el intento anterior.
             razon = "faltan PDF de producción" if r.get("incompleto") else "el listado cambió desde que se hicieron los PDF"
             log(AGENTE, f"{razon.capitalize()} de {etiqueta_ai}: los rehago")
             r = olver.pdfs_por_jugador(ai, fila["lineas"], destino, p.get("orden"), tela=tela or "", sobrescribir=True,
-                                       tela_archivo=tela_archivo, referencia=p.get("referencia", ""), genero_destino=genero_destino)
+                                       tela_archivo=tela_archivo, referencia=p.get("referencia", ""), genero_destino=genero_destino,
+                                       permitir_faltantes=permitir_tallas_faltantes)
         if r.get("existe"):   # mismos jugadores: se conservan los PDF que ya estaban
             log(AGENTE, f"Los PDF de producción de {etiqueta_ai} ya existían y el listado no cambió: no los toco")
             conservados += r.get("n", 0)
@@ -1141,6 +1156,20 @@ def _talla_rara(s, t):
         log(AGENTE, f"Continúo con tallas fuera del catálogo: {', '.join(sorted(s['tallas_ok']))}", "WARN")
         return _jugadores_desde_listado(s)
     return _r("¿Continúo con esas tallas o cancelo?", "TALLA_RARA", ["Continuar", "Cancelar", "Revisar"])
+
+
+def _confirmar_tallas_mesas(s, t):
+    """No se inventa una mesa: la persona decide si produce las tallas que sí existen."""
+    tl = t.lower().strip()
+    if re.fullmatch(r"(continuar(?: con disponibles)?|continúa|continua|sí|si|ok|dale|seguir)\W*", tl):
+        datos = s.pop("pdfs_faltantes", {})
+        log(AGENTE, "Autorizó continuar solo con las tallas que tienen mesa independiente", "WARN")
+        return _pdfs_y_sheets(s, bool(datos.get("sobrescribir")), permitir_tallas_faltantes=True)
+    if tl == "revisar":
+        s.pop("pdfs_faltantes", None)
+        return _releer(s)
+    return _r("No generé PDFs. Puedes continuar con las tallas disponibles, revisar el listado o cancelar.",
+              "CONFIRMAR_TALLAS_MESAS", ["Continuar con disponibles", "Cancelar", "Revisar"])
 
 
 def _jugadores(s, t):
