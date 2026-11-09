@@ -954,24 +954,37 @@ def _pdfs_y_sheets(s, sobrescribir):
     if not seleccionadas:
         return _err("no encontré la plantilla que pide el listado para crear los PDF de producción.", motivo,
                     "Revisa el listado y los archivos del maestro; luego escribe «revisar».", "JUGADORES", ["Revisar"])
-    # La selección anterior solo confirma que HAY alguna plantilla utilizable.
-    # Debe cubrir cada línea: con PE03M presente y PE03F ausente, por ejemplo,
-    # antes se hacían los PDF masculinos y se daba por terminada toda la orden.
-    # Detenemos el flujo antes de tocar producción si falta una plantilla.
-    sin_plantilla = []
+    # Un maestro puede tener mesas M y F aunque su nombre termine en M/F. Si
+    # falta el archivo gemelo, OLVER abre el maestro disponible y exporta la
+    # mesa del género pendiente; así no se pierden los PDF de las jugadoras.
+    # Solo detenemos si no existe NINGÚN maestro del diseño solicitado.
+    trabajos = [(str(a), None) for a in seleccionadas]
+    sin_maestro = []
     rutas = [Path(str(a)) for a in archivos if a]
     for linea in fila.get("lineas") or []:
         if not (linea.get("talla") or linea.get("numero") or linea.get("nombre")):
             continue
         if seleccion.mesas_para(rutas, [linea])[0]:
             continue
+        dis = re.search(r"(\d+)", str(linea.get("diseno") or ""))
+        genero = seleccion._genero_efectivo(linea)
+        candidatas = []
+        for ruta in rutas:
+            maestro = olver._maestro_match(ruta)
+            if maestro and dis and maestro.group(1) == dis.group(1):
+                candidatas.append(str(ruta))
+        if candidatas and genero:
+            trabajo = (candidatas[0], genero)
+            if trabajo not in trabajos:
+                trabajos.append(trabajo)
+            continue
         etiqueta = " · ".join(str(linea.get(k) or "—").strip() for k in ("hoja", "diseno", "genero", "talla"))
-        if etiqueta not in sin_plantilla:
-            sin_plantilla.append(etiqueta)
-    if sin_plantilla:
-        return _err("faltan plantillas para crear todos los PDF de producción.",
-                    "No existe un .ai que cubra: " + "; ".join(sin_plantilla),
-                    "Agrega o corrige esas plantillas en MAESTROS y escribe «revisar». La orden no se finalizó ni se subió a Google Sheets.",
+        if etiqueta not in sin_maestro:
+            sin_maestro.append(etiqueta)
+    if sin_maestro:
+        return _err("no existe ningún maestro para crear todos los PDF de producción.",
+                    "No encontré un .ai del diseño que cubra: " + "; ".join(sin_maestro),
+                    "Crea el maestro de ese diseño y escribe «revisar». La orden no se finalizó ni se subió a Google Sheets.",
                     "JUGADORES", ["Revisar"])
     archivos = [str(a) for a in dict.fromkeys(seleccionadas)]
     p["mesas_ai"] = archivos
@@ -982,20 +995,21 @@ def _pdfs_y_sheets(s, sobrescribir):
     tarjetas, textos, avisos, total, conservados, fallos = [], [], [], 0, 0, []
     clave_firma, firma = _clave(p), _firma_jugadores(fila["lineas"])
     igual = db.firma_guardada(clave_firma) == firma   # ¿son los mismos jugadores con los que se hicieron los PDF que ya existen?
-    for ai in archivos:
+    for ai, genero_destino in trabajos:
         destino = (s.get("destinos_prod") or {}).get(str(ai)) or {"carpeta": str(olver.carpeta_mesas(p["cliente"], p["referencia"], p.get("orden")).parent / "produccion")}
-        log(AGENTE, f"OLVER crea los PDF de producción por jugador de {Path(ai).name}")
+        etiqueta_ai = Path(ai).name + (f" · Gen_{genero_destino}" if genero_destino else "")
+        log(AGENTE, f"OLVER crea los PDF de producción por jugador de {etiqueta_ai}")
         r = olver.pdfs_por_jugador(ai, fila["lineas"], destino, p.get("orden"), tela=tela or "", sobrescribir=sobrescribir,
-                                   tela_archivo=tela_archivo, referencia=p.get("referencia", ""))
+                                   tela_archivo=tela_archivo, referencia=p.get("referencia", ""), genero_destino=genero_destino)
         if r.get("existe") and (r.get("incompleto") or (s.get("repro") != "conservar" and not igual)):
             # Un conjunto parcial nunca se puede conservar: debe reconstruirse,
             # incluso si el listado no cambió desde el intento anterior.
             razon = "faltan PDF de producción" if r.get("incompleto") else "el listado cambió desde que se hicieron los PDF"
-            log(AGENTE, f"{razon.capitalize()} de {Path(ai).name}: los rehago")
+            log(AGENTE, f"{razon.capitalize()} de {etiqueta_ai}: los rehago")
             r = olver.pdfs_por_jugador(ai, fila["lineas"], destino, p.get("orden"), tela=tela or "", sobrescribir=True,
-                                       tela_archivo=tela_archivo, referencia=p.get("referencia", ""))
+                                       tela_archivo=tela_archivo, referencia=p.get("referencia", ""), genero_destino=genero_destino)
         if r.get("existe"):   # mismos jugadores: se conservan los PDF que ya estaban
-            log(AGENTE, f"Los PDF de producción de {Path(ai).name} ya existían y el listado no cambió: no los toco")
+            log(AGENTE, f"Los PDF de producción de {etiqueta_ai} ya existían y el listado no cambió: no los toco")
             conservados += r.get("n", 0)
             continue
         if not r["ok"]:
@@ -1003,13 +1017,13 @@ def _pdfs_y_sheets(s, sobrescribir):
             fallos.append(Path(ai).name)
             continue
         total += len(r["pdfs"])
-        textos.append(f"{Path(ai).name}: {len(r['pdfs'])} PDF" + (" (simulado)" if r.get("simulado") else "") + f"\n{r['carpeta']}")
-        avisos += [f"{Path(ai).name} · {o}" for o in r.get("omitidas", [])]
+        textos.append(f"{etiqueta_ai}: {len(r['pdfs'])} PDF" + (" (simulado)" if r.get("simulado") else "") + f"\n{r['carpeta']}")
+        avisos += [f"{etiqueta_ai} · {o}" for o in r.get("omitidas", [])]
         if r.get("omitidas") or len(r["pdfs"]) != r.get("esperados", len(r["pdfs"])):
             faltan = max(0, int(r.get("esperados", 0)) - len(r["pdfs"]))
             detalle = "; ".join(r.get("omitidas") or []) or f"faltan {faltan} PDF"
-            avisos.append(f"{Path(ai).name}: exportación incompleta ({detalle})")
-            fallos.append(Path(ai).name)
+            avisos.append(f"{etiqueta_ai}: exportación incompleta ({detalle})")
+            fallos.append(etiqueta_ai)
         for x in r["pdfs"]:
             tarjetas.append({"ruta": x["ruta"], "tipo": "produccion", "titulo": f"{x['nombre'] or 'Jugador'} · #{x['numero']} · talla {x['talla']}"})
     if total or conservados:

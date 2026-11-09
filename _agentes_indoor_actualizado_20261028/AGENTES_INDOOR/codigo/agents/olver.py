@@ -522,7 +522,7 @@ def _nombres_esperados(carpeta, base, jugadores):
     return [_archivo_pdf(carpeta, base, i, j) for i, j in enumerate(jugadores, 1)]
 
 
-def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=False, tela_archivo=None, referencia=""):
+def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=False, tela_archivo=None, referencia="", genero_destino=None):
     # destino["montajes"]: carpeta Montajes (MÁQUINA) del maestro; si ahí ya están las mesas independientes exportadas, se abre cada talla desde su archivo
     """Crea un PDF por jugador. Devuelve:
         {"ok": True, "pdfs": [{"ruta", "nombre", "numero", "talla"}], "carpeta", "simulado", "omitidas": [...]}
@@ -542,13 +542,18 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
             return {"ok": False, "error": str(e)}
     mesa = re.match(_RE_MESA_INDEPENDIENTE, ai.stem, re.I)
     if m:
-        diseno, ref, genero = m.group(1), m.group(2).upper(), m.group(3).upper()
+        diseno, ref, genero_maestro = m.group(1), m.group(2).upper(), m.group(3).upper()
+        # Un maestro puede incluir mesas M y F. Si falta el .ai femenino,
+        # reutilizamos ese maestro y exportamos su mesa Gen_F; nunca se deja
+        # una jugadora sin PDF solo porque el archivo se llamó PE03M.
+        genero = str(genero_destino or genero_maestro).upper()
         suf_maestro = (m.group(4) or "").upper()
     elif mesa and str(referencia).strip():
         # «Talla_M_Tipo_D1_Gen_M.ai» es una mesa YA aislada por OLVER. Solo
         # se acepta cuando TAVO entrega la referencia exacta del pedido; así
         # nunca se usa una mesa de otra referencia por accidente.
-        diseno, ref, genero = mesa.group(2), str(referencia).strip().upper(), mesa.group(3).upper()
+        diseno, ref, genero = mesa.group(2), str(referencia).strip().upper(), str(genero_destino or mesa.group(3)).upper()
+        genero_maestro = mesa.group(3).upper()
         suf_maestro = ""
         log(AGENTE, f"Reconozco {ai.name} como mesa independiente de D{diseno} {ref}{genero}")
     else:
@@ -590,13 +595,15 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
                 "carpeta": str(carpeta), "n": len(previos), "esperados": len(esperados)}
 
     if not simulado and destino.get("montajes"):   # RECTIFICA que existan las mesas independientes de TODAS las tallas (adulto o niño) ANTES de poner nombre y número
-        carpeta_m = Path(destino["montajes"]) / f"D{diseno}" / f"{ref}{genero}{suf_maestro}"
+        carpetas_m = [Path(destino["montajes"]) / f"D{diseno}" / f"{ref}{genero}{suf_maestro}"]
+        if genero_maestro != genero:
+            carpetas_m.append(Path(destino["montajes"]) / f"D{diseno}" / f"{ref}{genero_maestro}{suf_maestro}")
 
         def _mesa_ok(art, talla):
             # En los maestros de niño la mesa se llama Gen_M o Gen_F; y en algunos maestros F/M las mesas de trabajo quedaron rotuladas con la otra letra
             # (CA04F con «Talla_XS_Tipo_D1_Gen_M»). Las mesas viven en la carpeta de ESE maestro, así que cualquiera de las dos letras sirve.
             gens = {art.rsplit("_Gen_", 1)[-1]} | {"M", "F"}
-            return bool(_mesas_de(carpeta_m, talla, diseno, gens))
+            return any(_mesas_de(cm, talla, diseno, gens) for cm in carpetas_m)
 
         faltan = [t for t, art, _b, _j in plan if not _mesa_ok(art, t)]
         if faltan:
@@ -611,10 +618,16 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
         else:
             log(AGENTE, f"{ai.name}: están las mesas independientes de todas las tallas ({', '.join(t for t, _a, _b, _j in plan)})")
     if not simulado and destino.get("montajes"):   # nombre y número se aplican a TODAS las mesas que coinciden en talla, diseño y género (p. ej. Frente_ y Espalda_)
-        carpeta_m = Path(destino["montajes"]) / f"D{diseno}" / f"{ref}{genero}{suf_maestro}"
+        carpetas_m = [Path(destino["montajes"]) / f"D{diseno}" / f"{ref}{genero}{suf_maestro}"]
+        if genero_maestro != genero:
+            carpetas_m.append(Path(destino["montajes"]) / f"D{diseno}" / f"{ref}{genero_maestro}{suf_maestro}")
         ampliado = []
         for talla, art, base, js in plan:
-            mesas = _mesas_de(carpeta_m, talla, diseno, {art.rsplit("_Gen_", 1)[-1]})
+            mesas = []
+            for cm in carpetas_m:
+                mesas = _mesas_de(cm, talla, diseno, {art.rsplit("_Gen_", 1)[-1]})
+                if mesas:
+                    break
             if len(mesas) > 1:
                 log(AGENTE, f"Talla {talla}: {len(mesas)} mesas coinciden en talla, diseño y género ({', '.join(mesas)}): el nombre y el número van en todas")
             ampliado += [(talla, m, f"{prefijo}{m}", js) for m in mesas] or [(talla, art, base, js)]
@@ -652,20 +665,22 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
             # temporal para que Illustrator nunca modifique la talla guardada.
             fuente, usada_trabajo, mesa_independiente = ai, None, False
             if destino.get("montajes"):
-                carpeta_m = Path(destino["montajes"]) / f"D{diseno}" / f"{ref}{genero}{suf_maestro}"
-                for cand in candidatas:
-                    propia = carpeta_m / f"{cand}.ai"
-                    if propia.exists():
-                        try:
-                            trabajo = _dir_trabajo(carpeta_m)
-                            trabajo.mkdir(parents=True, exist_ok=True)
-                            copia = trabajo / f"pdf_{int(time.time() * 1000)}_{cand}.ai"
-                            shutil.copy2(propia, copia)
-                            fuente, usada_trabajo = copia, copia
-                            candidatas, mesa_independiente = [cand], True
-                        except OSError as e:
-                            omitidas.append(f"talla {talla}: no pude preparar una copia temporal de {propia.name}: {e}")
-                            log(AGENTE, f"Talla {talla}: no pude copiar {propia} para el PDF: {e}", "WARN")
+                for carpeta_m in carpetas_m:
+                    for cand in candidatas:
+                        propia = carpeta_m / f"{cand}.ai"
+                        if propia.exists():
+                            try:
+                                trabajo = _dir_trabajo(carpeta_m)
+                                trabajo.mkdir(parents=True, exist_ok=True)
+                                copia = trabajo / f"pdf_{int(time.time() * 1000)}_{cand}.ai"
+                                shutil.copy2(propia, copia)
+                                fuente, usada_trabajo = copia, copia
+                                candidatas, mesa_independiente = [cand], True
+                            except OSError as e:
+                                omitidas.append(f"talla {talla}: no pude preparar una copia temporal de {propia.name}: {e}")
+                                log(AGENTE, f"Talla {talla}: no pude copiar {propia} para el PDF: {e}", "WARN")
+                            break
+                    if mesa_independiente:
                         break
             if destino.get("montajes") and not mesa_independiente:
                 omitidas.append(f"talla {talla}: no existe su mesa independiente en Montajes; no hice el PDF desde el maestro completo")
