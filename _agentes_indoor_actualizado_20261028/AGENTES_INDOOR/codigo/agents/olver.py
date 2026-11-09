@@ -770,7 +770,10 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
     log(AGENTE, f"{len(pdfs)} PDF(s) de producción en {carpeta}" + (f" · con problemas: {len(omitidas)}" if omitidas else ""),
         "WARN" if omitidas else "INFO")
     return {"ok": True, "pdfs": pdfs, "carpeta": str(carpeta), "simulado": simulado,
-            "omitidas": omitidas, "esperados": total_plan}
+            "omitidas": omitidas, "omitidas_autorizadas": [
+                f"talla {t}: no existe mesa independiente en {ai.name}; se dejó pendiente por decisión del usuario"
+                for t in faltan
+            ], "esperados": total_plan}
 
 
 def _correr_bot(codigo, ai, artboard, base, carpeta, jugadores, orden, tela, saltos=False):
