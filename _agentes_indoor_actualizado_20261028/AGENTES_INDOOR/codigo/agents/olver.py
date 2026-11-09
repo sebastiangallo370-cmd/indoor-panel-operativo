@@ -580,9 +580,14 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
             nom = f"Talla_{talla}_Tipo_D{diseno}_Gen_{genero}"
             plan.append((talla, nom, f"{prefijo}{nom}", _agrupar_sin_datos(js)))
 
-    previos = [p for _, _, base, js in plan for p in _nombres_esperados(carpeta, base, js) if p.exists()]
+    esperados = [p for _, _, base, js in plan for p in _nombres_esperados(carpeta, base, js)]
+    previos = [p for p in esperados if p.exists()]
     if previos and not sobrescribir:
-        return {"ok": False, "existe": True, "carpeta": str(carpeta), "n": len(previos)}
+        # No basta con que exista *algún* PDF. Antes esto hacía que una
+        # exportación incompleta pareciera terminada y TAVO la conservara.
+        # Se marca el faltante para que el reintento reconstruya el conjunto.
+        return {"ok": False, "existe": True, "incompleto": len(previos) != len(esperados),
+                "carpeta": str(carpeta), "n": len(previos), "esperados": len(esperados)}
 
     if not simulado and destino.get("montajes"):   # RECTIFICA que existan las mesas independientes de TODAS las tallas (adulto o niño) ANTES de poner nombre y número
         carpeta_m = Path(destino["montajes"]) / f"D{diseno}" / f"{ref}{genero}{suf_maestro}"
@@ -614,9 +619,11 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
                 log(AGENTE, f"Talla {talla}: {len(mesas)} mesas coinciden en talla, diseño y género ({', '.join(mesas)}): el nombre y el número van en todas")
             ampliado += [(talla, m, f"{prefijo}{m}", js) for m in mesas] or [(talla, art, base, js)]
         plan = ampliado
-        previos = [p for _, _, base, js in plan for p in _nombres_esperados(carpeta, base, js) if p.exists()]
+        esperados = [p for _, _, base, js in plan for p in _nombres_esperados(carpeta, base, js)]
+        previos = [p for p in esperados if p.exists()]
         if previos and not sobrescribir:
-            return {"ok": False, "existe": True, "carpeta": str(carpeta), "n": len(previos)}
+            return {"ok": False, "existe": True, "incompleto": len(previos) != len(esperados),
+                    "carpeta": str(carpeta), "n": len(previos), "esperados": len(esperados)}
     pdfs, omitidas = [], []
     codigo, ruta_bot = (None, "") if simulado else _bot_jsx()
     codigo, saltos = _parchar_saltos(codigo)
@@ -693,7 +700,8 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
         return {"ok": False, "error": "No se creó ningún PDF de producción. " + "; ".join(omitidas)}
     log(AGENTE, f"{len(pdfs)} PDF(s) de producción en {carpeta}" + (f" · con problemas: {len(omitidas)}" if omitidas else ""),
         "WARN" if omitidas else "INFO")
-    return {"ok": True, "pdfs": pdfs, "carpeta": str(carpeta), "simulado": simulado, "omitidas": omitidas}
+    return {"ok": True, "pdfs": pdfs, "carpeta": str(carpeta), "simulado": simulado,
+            "omitidas": omitidas, "esperados": total_plan}
 
 
 def _correr_bot(codigo, ai, artboard, base, carpeta, jugadores, orden, tela, saltos=False):
