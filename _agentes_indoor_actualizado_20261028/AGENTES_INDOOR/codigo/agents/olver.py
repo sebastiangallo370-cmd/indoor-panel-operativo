@@ -700,7 +700,10 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
             vigia = _VigiaCarpeta(carpeta, f"{base}_*.pdf", lambda f, js=jugadores, t=talla: _evento_pdf(f, js, t, diseno, genero))
             try:
                 for cand in candidatas:
-                    res = _correr_bot(codigo, fuente, cand, base, carpeta, jugadores, orden, tela, saltos)
+                    # La coincidencia sirve para escoger la plantilla; una vez
+                    # abierta, el JSX debe recorrer y exportar TODAS sus mesas
+                    # de trabajo en el mismo PDF del jugador.
+                    res = _correr_bot(codigo, fuente, cand, base, carpeta, jugadores, orden, tela, saltos, todas_mesas=True)
                     if cand != artboard and not res.get("error"):
                         log(AGENTE, f"La mesa de niño de la talla {talla} se llama «{cand}» en {fuente.name}: usé esa")
                     if not (res.get("error") and "no tiene la mesa" in res["error"]):
@@ -712,7 +715,7 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
                 if (res.get("error") and "no conserva los textos guía" in res["error"]
                         and genero == "N" and fuente != ai):
                     log(AGENTE, f"Talla {talla}: la copia de Montajes perdió las guías; reintento {artboard} desde {ai.name}")
-                    res = _correr_bot(codigo, ai, artboard, base, carpeta, jugadores, orden, tela, saltos)
+                    res = _correr_bot(codigo, ai, artboard, base, carpeta, jugadores, orden, tela, saltos, todas_mesas=True)
             finally:
                 vigia.parar()
                 if usada_trabajo:   # la copia de trabajo ya cumplió: se borra. La mesa de la NAS nunca se abrió ni se modificó
@@ -737,8 +740,8 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
             "omitidas": omitidas, "esperados": total_plan}
 
 
-def _correr_bot(codigo, ai, artboard, base, carpeta, jugadores, orden, tela, saltos=False):
-    """Abre el .ai, comprueba que exista la mesa de la talla y ejecuta BOT.jsx (que guarda un PDF por jugador y cierra el documento)."""
+def _correr_bot(codigo, ai, artboard, base, carpeta, jugadores, orden, tela, saltos=False, todas_mesas=False):
+    """Abre el .ai, comprueba su mesa coincidente y ejecuta BOT.jsx. Con todas_mesas, exporta todas las mesas de la plantilla."""
     carpeta.mkdir(parents=True, exist_ok=True)
     tmp = Path(tempfile.gettempdir()) / "indoor_agentes_pdf"
     tmp.mkdir(parents=True, exist_ok=True)
@@ -773,7 +776,7 @@ def _correr_bot(codigo, ai, artboard, base, carpeta, jugadores, orden, tela, sal
         "var INDOOR_AI_NAME = " + json.dumps(ai.stem) + ";\n"
         "var INDOOR_ORDEN = " + json.dumps(str(orden or "")) + ";\n"
         "var INDOOR_TELA = " + json.dumps(str(tela or "")) + ";\n"
-        "var INDOOR_ARTBOARD_NAME = " + json.dumps(artboard) + ";\n"
+        "var INDOOR_ARTBOARD_NAME = " + json.dumps("" if todas_mesas else artboard) + ";\n"
         "var INDOOR_ROW_TARGET = undefined;\n"
         "var INDOOR_TMP_DIR = " + json.dumps(tmp.as_posix()) + ";\n")
     try:
