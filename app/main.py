@@ -450,6 +450,9 @@ def _adjuntar_mockups_reposicion(carpeta: Path, pedido_club: dict) -> int:
         disenos = sorted({max(1, min(int(j.get('diseno') or 1), 20)) for j in linea.get('jugadores') or []})
         if not referencia or not fila or not disenos:
             continue
+        if linea.get('maestro_nas'):
+            copiados += club_mod.copiar_mockups_maestros(pedido_club['cliente'], linea, carpeta)
+            continue
         _archivos, imagenes, _cliente = production_row_files(fila, excel_only=False)
         if not imagenes:
             raise ValueError(f'No encontré el mockup maestro de {referencia}; no programé la reposición.')

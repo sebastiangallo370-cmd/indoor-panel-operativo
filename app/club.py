@@ -10,6 +10,7 @@ Los diseños salen de Producción (mismos mockups firmados de la consulta públi
 from __future__ import annotations
 
 import io
+import hashlib
 import json
 import logging
 import os
@@ -322,7 +323,45 @@ def disenos_de(cliente: str, catalogo: list[dict] | None = None) -> list[dict]:
                 continue
             salida[clave] = {'row': r['source_row'], 'referencia': ref, 'maestro': maestro, 'proyecto': proyecto, 'orden': cel('ORDEN'), 'cantidad': cel('CANTIDAD'), 'fecha': cel('FECHA DE INICIO'),
                            'tipo': cel('TIPO DE DISEÑO')}
+    # Los maestros que ya están en la NAS también se pueden reprogramar aunque
+    # su orden histórica no esté en la copia local del Sheet.
+    existentes = {(d['proyecto'], d['maestro']) for d in salida.values()}
+    for item in catalogo:
+        for ref in item['referencias']:
+            if (item['proyecto'], ref) in existentes:
+                continue
+            semilla = f'{_plano(cliente)}|{_plano(item["proyecto"])}|{ref}'.encode('utf-8')
+            fila = -int.from_bytes(hashlib.sha256(semilla).digest()[:4], 'big')
+            salida[f'{_plano(item["proyecto"])}|{ref}'] = {
+                'row': fila, 'referencia': ref, 'maestro': ref, 'proyecto': item['proyecto'],
+                'orden': 'MAESTRO', 'cantidad': '', 'fecha': '', 'tipo': '',
+                'maestro_nas': True, 'disenos': 1,
+            }
     return list(salida.values())[:200]
+
+
+def copiar_mockups_maestros(cliente: str, linea: dict, destino: Path) -> int:
+    """Copia los JPG maestros al aprobar una reposición sin orden histórica."""
+    ref = str(linea.get('referencia') or '').upper()
+    proyecto = _plano(linea.get('proyecto'))
+    requeridos = {max(1, min(int(j.get('diseno') or 1), 20)) for j in linea.get('jugadores') or []}
+    raiz = Path(str(_clientes_root() or ''))
+    cliente_dir = next((p for p in raiz.iterdir() if p.is_dir() and _plano(p.name) == _plano(cliente)), None)
+    base = cliente_dir / 'MAESTROS' if cliente_dir else None
+    proy = next((p for p in base.iterdir() if p.is_dir() and _plano(p.name) == proyecto), None) if base and base.is_dir() else None
+    if not proy:
+        raise ValueError(f'No encontré el proyecto maestro de {ref}.')
+    candidatos = [p for p in proy.iterdir() if p.is_dir() and _CARPETA_MAESTRA.match(p.name) and _CARPETA_MAESTRA.match(p.name).group('referencia').upper() == ref]
+    copiados = 0
+    for n in requeridos:
+        patron = re.compile(rf'^{re.escape(ref)}_D{n}_[A-Z0-9-]+\.jpe?g$', re.I)
+        origen = next((f for carpeta in candidatos for f in carpeta.iterdir() if f.is_file() and patron.match(f.name)), None)
+        if not origen:
+            raise ValueError(f'No encontré el JPG maestro {ref}_D{n}_MÁQUINA.')
+        import shutil
+        shutil.copy2(origen, destino / f'{ref}_D{n}_MAESTRO{origen.suffix.lower()}')
+        copiados += 1
+    return copiados
 
 
 # ------------------------------------------------------------------ comercial
@@ -485,6 +524,10 @@ def disenos(request: Request, token: str):
     lista = disenos_de(link['cliente'], catalogo)
     for d in lista:
         try:
+            if d.get('maestro_nas'):
+                d['mockups'] = {'mockups': [], 'mockups_lista': None}
+                d.pop('cantidad', None)
+                continue
             d['mockups'] = _mockups(d['row'])
         except Exception:   # noqa: BLE001  (NAS caída: el diseño se muestra sin imagen)
             d['mockups'] = {'mockups': [], 'mockups_lista': None}
@@ -553,8 +596,8 @@ def enviar_pedido(request: Request, token: str, payload: dict = Body(...)):
                               'observacion': re.sub(r'\s+', ' ', str(j.get('observacion') or '')).strip()[:80]})
             total += cant
         if jugadores:
-            tela, codigo = tela_de(d['row'])
-            lineas.append({'row': d['row'], 'referencia': d['referencia'], 'proyecto': d['proyecto'], 'orden_base': d['orden'], 'tela': tela, 'codigo_tela': codigo, 'jugadores': jugadores})
+            tela, codigo = tela_de(d['row']) if d['row'] > 0 else ('', '')
+            lineas.append({'row': d['row'], 'referencia': d['referencia'], 'proyecto': d['proyecto'], 'orden_base': d['orden'], 'tela': tela, 'codigo_tela': codigo, 'maestro_nas': bool(d.get('maestro_nas')), 'jugadores': jugadores})
     if not lineas:
         raise HTTPException(400, 'Agrega al menos una prenda')
     contacto = re.sub(r'\s+', ' ', str(payload.get('contacto') or '')).strip()[:80]
