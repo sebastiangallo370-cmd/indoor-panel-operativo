@@ -1,6 +1,10 @@
 /* Production cards: derived presentation only. Operational writes remain in the existing API. */
 (function () {
   'use strict';
+  // Las tarjetas son la vista operativa. La tabla queda como índice mínimo de
+  // filas para filtros y acciones, sin miles de selectores invisibles.
+  window.__traceCardsMode = true;
+  setTimeout(() => window.renderProduction?.(), 0);
   // TELA de la tarjeta: la columna TELA de Producción más las telas que salen de los códigos de la referencia
   // («A509PE01» → 509 → «(509) DUNGA AMARILLO» de Stock tela; «A100-11400CA02F-A100-11300PT28» → MONTECATINI / TRIATLHON / JACQUARD GALLINETO).
   // Si son varias van todas en un solo renglón: la letra se achica lo necesario para que quepan.
