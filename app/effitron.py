@@ -85,14 +85,23 @@ def leer_cotizacion_pdf(ruta) -> dict:
             texto += (pg.extract_text() or '') + '\n'
     numero = re.search(r'No\.\s*(\d+)', texto)
     lineas = []
-    for l in texto.splitlines():
+    lineas_texto = texto.splitlines()
+    for index, l in enumerate(lineas_texto):
         m = LINEA_PDF.match(l.strip())
         if not m:
             continue
         desc = m.group(3).strip()
         d = re.search(r'\bD(\d+)\b', desc)
         g = 'FEM' if re.search(r'\bFEM\b', desc, re.I) else 'MASC' if re.search(r'\bMAS[C]?\b', desc, re.I) else ''
-        lineas.append({'ref': m.group(2), 'desc': desc, 'diseno': int(d.group(1)) if d else 1, 'genero': g, 'precio': _dinero(m.group(5))})
+        # TCPDF a veces deja el sufijo de dos dígitos de la referencia en la
+        # línea siguiente (A11200FUT / 02). Se recompone solo si esa siguiente
+        # línea contiene exclusivamente el sufijo, para no alterar referencias
+        # ya completas.
+        referencia = m.group(2)
+        siguiente = lineas_texto[index + 1].strip() if index + 1 < len(lineas_texto) else ''
+        if re.fullmatch(r'\d{2,3}', siguiente):
+            referencia += siguiente
+        lineas.append({'ref': referencia, 'desc': desc, 'diseno': int(d.group(1)) if d else 1, 'genero': g, 'precio': _dinero(m.group(5))})
     dias = re.search(r'(\d+)\s*d[ií]as', texto, re.I)
     sub, tot = re.search(r'SUBTOTAL\s*\$([\d.,]+)', texto), re.search(r'TOTAL NETO\s*\$([\d.,]+)', texto)
     return {'numero': numero.group(1) if numero else '', 'lineas': lineas, 'dias': int(dias.group(1)) if dias else 0,
