@@ -417,7 +417,10 @@ app.include_router(club_mod.public)
 app.include_router(club_mod.pagina)
 from app import effitron as effitron_mod
 effitron_mod.configurar(lambda: connect(), zeus_mod.auth_agente(ecommerce_mod._pc), lambda: zeus_mod._leer_secreto().get('llave', ''),
-                        lambda row: production_row_files(row, excel_only=False)[0], lambda orden, cliente, proyecto: _club_carpeta(orden, cliente, proyecto),
+                        # EFFITRON solo necesita el PDF de la cotización base. Pedir la vista
+                        # completa también recorre los diseños y montajes del maestro, lo cual
+                        # puede tardar minutos sin aportar nada a la cotización.
+                        lambda row: production_row_files(row, excel_only=True)[0], lambda orden, cliente, proyecto: _club_carpeta(orden, cliente, proyecto),
                         club_mod._pedido, club_mod.construir_excels)
 app.include_router(effitron_mod.pc_router)
 
