@@ -86,9 +86,11 @@ def _limpiar(payload: dict) -> dict:
     ref = re.sub(r'\s+', '', str(payload.get('ref') or '')).upper()
     if not re.fullmatch(r'[A-Z0-9]{2,14}', ref):
         raise HTTPException(400, 'La referencia base debe tener entre 2 y 14 letras o números (ej: BZ03).')
-    diseno = str(payload.get('diseno') or 'D6').upper()
-    if diseno not in DISENOS:
-        raise HTTPException(400, 'El diseño debe ser D1 a D6.')
+    # Algunos maestros son genéricos: aplican a varios diseños y géneros. En
+    # ese caso se conserva el campo vacío, sin inventar un D1…D6.
+    diseno = str(payload.get('diseno') or '').upper()
+    if diseno and diseno not in DISENOS:
+        raise HTTPException(400, 'El diseño debe ser D1 a D6 o quedar sin diseño.')
     limpio = {'ref': ref, 'diseno': diseno}
     for campo in TEXTOS:
         limpio[campo] = str(payload.get(campo) or '').strip()[:80]
