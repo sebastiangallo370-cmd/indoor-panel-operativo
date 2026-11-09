@@ -14,10 +14,20 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 APP = FastAPI(title="Agente DIAN Indoor", docs_url=None, redoc_url=None)
+# Solo el panel publicado puede controlar este servicio de loopback.  El agente
+# sigue escuchando exclusivamente en 127.0.0.1, nunca en la red local.
+APP.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://produccion.cloud"],
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type"],
+)
 BASE = Path(os.getenv("LOCALAPPDATA", Path.home())) / "IndoorSport" / "AgenteDIAN"
 PROFILE = BASE / "perfil_chrome"
 STATE = {"connected": False, "folder": "", "message": "Agente local listo", "browser": False}
@@ -126,13 +136,37 @@ def sesion(payload: SessionRequest):
     return {"started": True, "message": "Abriendo DIAN en Chrome local. Revisa la ventana que aparece."}
 
 
+@APP.post("/reiniciar")
+def reiniciar():
+    """Cierra únicamente la sesión administrada y deja el agente listo para otro lote."""
+    global _playwright, _context, _page
+    with LOCK:
+        try:
+            if _context is not None:
+                _context.close()
+        finally:
+            _context = None
+            _page = None
+            _download_hooked_pages.clear()
+            if _playwright is not None:
+                try:
+                    _playwright.stop()
+                except Exception:
+                    pass
+            _playwright = None
+            STATE.update(connected=False, browser=False, folder="", message="Agente reiniciado. Elige carpeta y abre una nueva sesión DIAN.")
+    return {"ok": True, **STATE}
+
+
 @APP.get("/", response_class=HTMLResponse)
 def index():
     return """<!doctype html><meta charset=utf-8><title>Agente DIAN · Indoor Sport</title>
-<style>body{margin:0;font-family:system-ui;background:#06140b;color:#eff9e7}.wrap{max-width:760px;margin:8vh auto;padding:28px}.brand{color:#caff3d;letter-spacing:.12em;font-size:12px;font-weight:900}h1{margin:8px 0 6px}p{color:#b7c9b4}.row{display:flex;gap:10px;flex-wrap:wrap}input{flex:1;min-width:280px;padding:13px;border:1px solid #4f8358;border-radius:10px;background:#112c19;color:#fff}button{padding:12px 16px;border:1px solid #79a96a;border-radius:10px;background:#244f2c;color:#fff;font-weight:800;cursor:pointer}.main{background:#caff3d;color:#14210e;border-color:#caff3d}#state{margin-top:20px;padding:14px;border-left:3px solid #caff3d;background:#0d2113;white-space:pre-wrap}.note{font-size:13px;border-top:1px solid #294932;margin-top:26px;padding-top:16px}</style>
-<main class=wrap><div class=brand>INDOOR SPORT · AGENTE LOCAL</div><h1>DIAN en este computador</h1><p>Elige primero la carpeta de destino. Después pega el token y abre DIAN en un navegador visible. Si DIAN exige CAPTCHA, NIT o una confirmación, la completa la persona usuaria.</p><div class=row><button id=folder>Elegir carpeta</button><span id=folderName></span></div><p>Token temporal (no se guarda):</p><div class=row><input id=token placeholder="https://catalogo-vpfe.dian.gov.co/User/AuthToken?..." autocomplete=off><button class=main id=open>Abrir DIAN</button></div><pre id=state>Cargando estado…</pre><p class=note>Las descargas que se inicien desde el navegador administrado se guardan en la carpeta elegida. Este agente no salta CAPTCHA ni controles de seguridad de DIAN.</p></main><script>
+<style>body{margin:0;font-family:system-ui;background:#06140b;color:#eff9e7}.wrap{max-width:760px;margin:8vh auto;padding:28px}.brand{color:#caff3d;letter-spacing:.12em;font-size:12px;font-weight:900}h1{margin:8px 0 6px}h2{font-size:17px;margin:0}p{color:#b7c9b4}.row{display:flex;gap:10px;flex-wrap:wrap}input,textarea{flex:1;min-width:280px;padding:13px;border:1px solid #4f8358;border-radius:10px;background:#112c19;color:#fff;font:13px ui-monospace,Consolas,monospace}textarea{box-sizing:border-box;width:100%;min-height:92px;resize:vertical}button{padding:12px 16px;border:1px solid #79a96a;border-radius:10px;background:#244f2c;color:#fff;font-weight:800;cursor:pointer}.main{background:#caff3d;color:#14210e;border-color:#caff3d}.queue{margin-top:24px;padding:18px;border:1px solid #315c3a;border-radius:14px;background:#0d2113}.queue small{color:#a9c6a6}.current{margin:12px 0;padding:12px;border-radius:9px;background:#06140b;word-break:break-all;font:12px ui-monospace,Consolas,monospace}.progress{color:#caff3d;font-weight:800}#state{margin-top:20px;padding:14px;border-left:3px solid #caff3d;background:#0d2113;white-space:pre-wrap}.note{font-size:13px;border-top:1px solid #294932;margin-top:26px;padding-top:16px}</style>
+<main class=wrap><div class=brand>INDOOR SPORT · AGENTE LOCAL</div><h1>DIAN en este computador</h1><p>Elige primero la carpeta de destino. Después pega el token y abre DIAN en un navegador visible. Si DIAN exige CAPTCHA, NIT o una confirmación, la completa la persona usuaria.</p><div class=row><button id=folder>Elegir carpeta</button><span id=folderName></span><button id=restart>Reiniciar agente</button></div><p>Token temporal (no se guarda):</p><div class=row><input id=token placeholder="https://catalogo-vpfe.dian.gov.co/User/AuthToken?..." autocomplete=off><button class=main id=open>Abrir DIAN</button></div><pre id=state>Cargando estado…</pre><section class=queue><h2>Cola de CUFEs</h2><p>Pega todos los CUFEs una vez. El agente te entrega el siguiente, lo copia y lleva el avance; tú confirmas la descarga oficial en DIAN.</p><textarea id=cufes placeholder="Pega aquí los CUFEs, uno por línea"></textarea><div class=row><button id=load>Preparar cola</button><button id=copy class=main disabled>Copiar siguiente CUFE</button><button id=done disabled>Marcar descargado</button></div><div class=current id=current>Sin CUFEs cargados.</div><small class=progress id=progress></small></section><p class=note>Las descargas que se inicien desde el navegador administrado se guardan en la carpeta elegida. Este agente no salta CAPTCHA ni controles de seguridad de DIAN.</p></main><script>
+const CUFE=/\\b[a-f0-9]{64,128}\\b/gi,KEY='indoor-dian-cufe-queue-v1';let queue=[];try{queue=JSON.parse(sessionStorage.getItem(KEY)||'[]')}catch(_){queue=[]}const save=()=>sessionStorage.setItem(KEY,JSON.stringify(queue));
+const renderQueue=()=>{let i=queue.findIndex(x=>!x.done),item=queue[i],total=queue.length,doneN=queue.filter(x=>x.done).length;current.textContent=item?item.value:(total?'Cola terminada.':'Sin CUFEs cargados.');progress.textContent=total?`${doneN} de ${total} confirmados · ${Math.max(total-doneN,0)} pendientes`:'';copy.disabled=!item;done.disabled=!item};
 const status=async()=>{const d=await fetch('/health').then(r=>r.json());state.textContent=d.message+'\\nCarpeta: '+(d.folder||'sin seleccionar');folderName.textContent=d.folder?'✓ '+d.folder:''};
-folder.onclick=async()=>{await fetch('/carpeta',{method:'POST'});status()};open.onclick=async()=>{let r=await fetch('/sesion',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token_url:token.value})});let d=await r.json();state.textContent=d.message||d.detail||'No se pudo abrir DIAN';setTimeout(status,1200)};status();setInterval(status,5000);
+folder.onclick=async()=>{await fetch('/carpeta',{method:'POST'});status()};restart.onclick=async()=>{if(!confirm('Se cerrará únicamente la ventana de DIAN administrada por el agente. ¿Continuar?'))return;await fetch('/reiniciar',{method:'POST'});token.value='';queue=[];sessionStorage.removeItem(KEY);renderQueue();status()};open.onclick=async()=>{let r=await fetch('/sesion',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token_url:token.value})});let d=await r.json();state.textContent=d.message||d.detail||'No se pudo abrir DIAN';setTimeout(status,1200)};load.onclick=()=>{let values=[...new Set((cufes.value.match(CUFE)||[]).map(x=>x.toUpperCase()))];queue=values.map(value=>({value,done:false}));save();renderQueue()};copy.onclick=async()=>{let item=queue.find(x=>!x.done);if(item){await navigator.clipboard.writeText(item.value);copy.textContent='CUFE copiado';setTimeout(()=>copy.textContent='Copiar siguiente CUFE',900)}};done.onclick=()=>{let item=queue.find(x=>!x.done);if(item){item.done=true;save();renderQueue()}};renderQueue();status();setInterval(status,5000);
 </script>"""
 
 

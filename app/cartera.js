@@ -80,7 +80,7 @@ if (document.querySelector('.panel[data-panel="cartera"].active')) load();
 // abre desde el robot de Agentes, sin depender del menú de Tesorería.
 if (!document.querySelector('script[data-indoor-dian]')) {
   const dianScript = document.createElement('script');
-  dianScript.src = '/api/dian/dian.js?v=20261106-3';
+  dianScript.src = '/api/dian/dian.js?v=20261109-1';
   dianScript.dataset.indoorDian = '1';
   document.head.appendChild(dianScript);
 }
