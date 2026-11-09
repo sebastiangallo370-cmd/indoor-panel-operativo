@@ -948,12 +948,7 @@
         copyButton.title = 'Copiar información de la tarjeta';
         card.querySelector('.trace-card-actions').appendChild(copyButton);
       }
-      if (!card.querySelector('.trace-copy-preview')) {
-        const preview = document.createElement('details');
-        preview.className = 'trace-copy-preview';
-        preview.innerHTML = '<summary>Ver texto que se copiará</summary><pre>' + esc(textoTarjetaCopiable(row, summaries.get(row.source_row) || {})) + '</pre>';
-        card.querySelector('.trace-card-meta')?.insertAdjacentElement('afterend', preview);
-      }
+      card.querySelector('.trace-copy-preview')?.remove();
       const viewSummary = summaries.get(row.source_row);
       const progressSummary = viewSummary.route || viewSummary;
       const progress = card.querySelector('.trace-progress');
@@ -1105,6 +1100,7 @@
       toggle.setAttribute('aria-label', 'Detalles de la orden ' + traceField(row, 'ORDEN'));
       toggle.textContent = '☰';
       card.prepend(toggle);
+      habilitarCopiaDeTexto(card);
       if (enhancementIndex < enhancementQueue.length) requestAnimationFrame(renderCardEnhancement);
       else finishTraceCards();
     };
@@ -1386,15 +1382,43 @@
       'RESPONSABLE: ' + responsable
     ].join('\n');
   }
+  function copiarTexto(texto) {
+    const value = String(texto || '').trim();
+    if (!value) return Promise.resolve();
+    if (navigator.clipboard?.writeText) return navigator.clipboard.writeText(value);
+    const area = document.createElement('textarea');
+    area.value = value; area.style.position = 'fixed'; area.style.opacity = '0';
+    document.body.appendChild(area); area.select(); document.execCommand('copy'); area.remove();
+    return Promise.resolve();
+  }
+  function habilitarCopiaDeTexto(card) {
+    const selector = '.trace-card-heading h3,.trace-client,.trace-project,.trace-stage,.trace-mts-display strong,.trace-ref,.trace-quantity,.trace-due dd,.trace-person,.trace-unassigned,.trace-manufacture h4,.trace-manufacture .trace-material-facts strong,.trace-production-note,.trace-primary-facts dd';
+    card.querySelectorAll(selector).forEach(texto => {
+      if (!texto.textContent.trim() || texto.closest('button,a,[role="button"]')) return;
+      texto.dataset.copyText = texto.textContent.trim();
+      texto.classList.add('trace-text-copy');
+      texto.title = 'Clic para copiar';
+    });
+  }
   traceCards.addEventListener('click', event => {
+    const textCopy = event.target.closest('[data-copy-text]');
+    if (textCopy && !event.target.closest('button,a,[role="button"]')) {
+      event.preventDefault(); event.stopImmediatePropagation();
+      copiarTexto(textCopy.dataset.copyText).then(() => {
+        textCopy.classList.remove('is-copied');
+        void textCopy.offsetWidth;
+        textCopy.classList.add('is-copied');
+        setTimeout(() => textCopy.classList.remove('is-copied'), 1150);
+      });
+      return;
+    }
     const copyButton = event.target.closest('[data-card-copy]');
     if (copyButton) {
       event.preventDefault(); event.stopImmediatePropagation();
       const row = productionData.rows.find(item => Number(item.source_row) === Number(copyButton.dataset.cardCopy));
       if (!row) return;
       const texto = textoTarjetaCopiable(row, summaries.get(row.source_row) || {});
-      const copiar = navigator.clipboard?.writeText ? navigator.clipboard.writeText(texto) : Promise.reject();
-      copiar.catch(() => { const area = document.createElement('textarea'); area.value = texto; area.style.position = 'fixed'; area.style.opacity = '0'; document.body.appendChild(area); area.select(); document.execCommand('copy'); area.remove(); })
+      copiarTexto(texto)
         .then(() => { const anterior = copyButton.title; copyButton.title = '¡Copiado!'; copyButton.classList.add('is-copied'); setTimeout(() => { copyButton.title = anterior; copyButton.classList.remove('is-copied'); }, 1600); });
       return;
     }
@@ -2532,10 +2556,11 @@
   html body.production-mode .trace-card .trace-card-actions .trace-edit-action{color:#bde9ff!important;border-color:#5f9fbd!important;background:#18313c!important}
   html body.production-mode .trace-card .trace-card-actions .trace-copy-action{color:#f4f7ee!important;border-color:#799086!important;background:#23332b!important}
   html body.production-mode .trace-card .trace-card-actions .trace-copy-action.is-copied{color:#d6f64b!important;border-color:#b5df54!important;background:#31481b!important}
-  html body.production-mode .trace-copy-preview{margin:0 0 10px;border:1px solid rgba(121,144,134,.55);border-radius:8px;background:#17251e;color:#cbd8ce}
-  html body.production-mode .trace-copy-preview summary{cursor:pointer;padding:8px 10px;color:#d8edc3;font:800 10px Arial;letter-spacing:.06em;list-style:none}
-  html body.production-mode .trace-copy-preview summary:after{content:'⌄';float:right;font-size:14px}.trace-copy-preview[open] summary:after{content:'⌃'}
-  html body.production-mode .trace-copy-preview pre{margin:0;padding:0 10px 10px;white-space:pre-wrap;color:#c6d1c9;font:11px/1.45 Consolas,monospace}
+  html body.production-mode .trace-text-copy{position:relative;cursor:copy;border-radius:3px;transition:color .16s ease}
+  html body.production-mode .trace-text-copy:hover{color:#e2fb9c!important}
+  html body.production-mode .trace-text-copy:after{content:'';position:absolute;left:0;right:0;bottom:-4px;height:2px;border-radius:99px;background:linear-gradient(90deg,transparent,#d0f44c,transparent);opacity:0;transform:scaleX(.18)}
+  html body.production-mode .trace-text-copy.is-copied:after{animation:trace-copy-shimmer 1.1s ease-out both}
+  @keyframes trace-copy-shimmer{0%{opacity:0;transform:scaleX(.18)}18%{opacity:1;transform:scaleX(1)}70%{opacity:.85;transform:scaleX(.72)}100%{opacity:0;transform:scaleX(.2)}}
   html body.production-mode .trace-card .trace-card-actions .trace-nas-action{color:#d6f64b!important;border-color:#819e4b!important}
   html body.production-mode .trace-card .trace-card-actions .trace-delete-action{color:#ffb5ae!important;border-color:#8c524c!important;background:#392323!important}
   .trace-card-editor-message.is-success{padding:6px 9px;border:1px solid #b7ed59;border-radius:7px;background:#273d18;color:#d0f44c;font:800 11px/1.25 Arial;letter-spacing:.01em}.trace-card-editor-message.is-error{color:#ffaaa2}
