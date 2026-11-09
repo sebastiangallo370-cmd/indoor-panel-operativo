@@ -1,7 +1,7 @@
 """TAVO (coordinador): único agente que habla con el usuario. Decide quién actúa y en qué orden.
 
-Flujo: INICIO -> JACK (muestra) -> APROBACION -> OLVER (mesas) -> JUGADORES (OLIVER) -> PDF de producción -> TERRY (MTS y Google Sheets) -> FIN
-La ÚNICA autorización que se pide es la aprobación de la muestra: lo demás sigue solo (lo que ya existe se conserva sin preguntar).
+Flujo operativo: INICIO -> OLVER (mesas) -> JUGADORES (OLIVER) -> PDF de producción -> TERRY (MTS y Google Sheets) -> FIN.
+La muestra es opcional y solo se crea cuando se pide expresamente; nunca bloquea edición.
 """
 import hashlib
 import json
@@ -192,8 +192,8 @@ def _inicio(s, t):
         )
     s["solo_mesas"] = False
     s["repro"] = None
-    log(AGENTE, f"Nuevo pedido {_clave(p)} → pido la muestra a JACK")
-    return _generar_muestra(s, sobrescribir=False)
+    log(AGENTE, f"Nuevo pedido {_clave(p)} → exporto mesas sin depender de muestra")
+    return _exportar_mesas(s, False)
 
 
 def _por_orden(s, cod, tl):
@@ -210,7 +210,9 @@ def _por_orden(s, cod, tl):
         return _r(f"Orden {cod}. ¿Qué hago con ella?", "INICIO",
                   [f"Ver listado de {cod}", f"Exportar mesas de {cod}", f"Crear muestra de {cod}", f"Pedido completo {cod}", f"Reprocesar {cod}"])
     s["intencion"] = intent
-    s["sin_muestra"] = bool(re.search(_SIN_MUESTRA, tl))
+    # Muestra opcional: un pedido completo o reproceso no espera ni exige
+    # archivo MUESTRA. JACK solo se activa mediante «Crear muestra».
+    s["sin_muestra"] = intent in ("completo", "reproceso") or bool(re.search(_SIN_MUESTRA, tl))
     _m_dis = re.search(_SOLO_DISENO, tl)
     s["solo_diseno"] = int(_m_dis.group(1)) if _m_dis else None   # pestaña D1/D2 elegida en el panel
     s["es_auto"] = "inicio autom" in tl or "(automático" in tl   # los pedidos que manda la página solos (MTS al programar, al terminar EDICIÓN) no preguntan la pestaña: van con todas
@@ -360,11 +362,11 @@ def _con_listado(s, cod, fila):
     if s["intencion"] == "reproceso" and not s.get("repro"):   # orden ya procesada antes: ¿se rehace todo o se conserva lo que existe?
         s["estado"], s["repro_pend"] = "REPRO", (cod, fila)
         return _r(s["aviso"] + f"\n\nVoy a reprocesar la orden {cod}. ¿Cómo lo hago?\n"
-                  "• Reemplazar todo: rehago la muestra, las mesas y los PDF de producción.\n"
+                  "• Reemplazar todo: rehago las mesas y los PDF de producción.\n"
                   "• Conservar lo que ya existe: no toco nada de lo que ya está creado y sigo con lo que falte "
-                  "(si la muestra ya existe, paso directo a tu aprobación).", "REPRO", ["Reemplazar todo", "Conservar lo que ya existe"])
+                  "sin depender de muestras.", "REPRO", ["Reemplazar todo", "Conservar lo que ya existe"])
     muestra = s["intencion"] in ("muestra", "completo", "reproceso")
-    # La muestra SIEMPRE sale del archivo MUESTRA que está en el maestro; las mesas, de los .ai del maestro
+    # Si se pidió una muestra explícitamente, sale del archivo MUESTRA; las mesas siempre salen de los .ai del maestro.
     rutas = ordenes.buscar_muestra(cod) if muestra else ordenes.buscar_ai(cod)
     if not muestra and rutas:
         sel, motivo = seleccion.mesas_para(rutas, fila["lineas"])
