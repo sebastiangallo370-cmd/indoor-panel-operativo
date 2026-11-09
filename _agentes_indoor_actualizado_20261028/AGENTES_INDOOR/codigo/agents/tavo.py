@@ -736,11 +736,13 @@ def _exportar_mesas(s, sobrescribir):
             if maq:
                 log(AGENTE, f"Los JPG no dicen la máquina: uso {maq}, la de la tarjeta de Producción")
                 destinos = {ai: (d or ordenes.destino_con_maquina(p["orden"], ai, maq)) for ai, d in destinos.items()}
-        if any(not d for d in destinos.values()):   # ni los JPG ni la tarjeta dicen la máquina: no se guarda nada en una carpeta local escondida
-            log(AGENTE, f"No sé la máquina de impresión de {p['orden']}: no exporto las mesas", "WARN")
-            s["estado"] = "INICIO"
-            return _r(f"⛔ No exporté las mesas de {p['orden']}: no sé en qué máquina se imprime. Los JPG del maestro (REFERENCIA_DISEÑO_MÁQUINA.jpg) no la dicen y la tarjeta de Producción no tiene máquina." +
-                      "\n\nPonla en la tarjeta (botón MÁQUINA en Producción) o agrega el JPG de la máquina en el maestro, y vuelve a pedir las mesas.", "INICIO", [f"Exportar mesas de {p['orden']}"])
+        if any(not d for d in destinos.values()):
+            # La máquina ordena la carpeta final de impresión, pero no puede
+            # detener Edición. Se exporta en la carpeta propia de la orden y
+            # se deja el aviso para clasificarla cuando se asigne la máquina.
+            log(AGENTE, f"No sé la máquina de impresión de {p['orden']}: continúo en la carpeta de la orden", "WARN")
+            s["aviso"] += "\n\n⚠ No encontré máquina de impresión: continúo con mesas y PDF en la carpeta de la orden; asígnala después para clasificar la producción."
+            destinos = {}
     # Un maestro «Fusionado» no puede mezclarse con las mesas normales. Tanto
     # sus mesas independientes como sus PDF por jugador quedan agrupados en
     # la subcarpeta Fusionado de la máquina correspondiente.
