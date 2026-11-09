@@ -5001,6 +5001,20 @@ def nas_client_key(value):
                            if not unicodedata.combining(c)).casefold().split())
 
 
+def nas_client_equivalent(left, right):
+    """Compara el nombre de un cliente como se usa en el Sheet y en la NAS.
+
+    Algunos clientes históricos tienen la sigla societaria ``FC`` solamente en
+    la carpeta de la NAS (por ejemplo, ``... CERROS FC``). No es un cliente
+    distinto: la carpeta debe resolverse sin activar la búsqueda global de
+    órdenes por toda la NAS.
+    """
+    first, second = nas_client_key(left), nas_client_key(right)
+    if not first or not second:
+        return False
+    return first == second or first == second + ' fc' or second == first + ' fc'
+
+
 _NAS_CLIENTS = {'at': 0.0, 'map': {}}
 
 
@@ -5029,10 +5043,18 @@ def resolve_nas_client(root: Path, client_name: str) -> Path:
         return direct.resolve()
     if not root.is_dir():
         raise HTTPException(503, 'El NAS no está disponible')
-    matches = [m for m in _nas_client_index(root).get(nas_client_key(client_name), []) if m.is_dir()]
+    index = _nas_client_index(root)
+    matches = [m for m in index.get(nas_client_key(client_name), []) if m.is_dir()]
+    if not matches:
+        matches = [folder for folders in index.values() for folder in folders
+                   if folder.is_dir() and nas_client_equivalent(folder.name, client_name)]
     if not matches and time.monotonic() - _NAS_CLIENTS['at'] > 20:
         # puede ser un cliente recién creado: se vuelve a leer la lista (máximo cada 20 s)
-        matches = [m for m in _nas_client_index(root, force=True).get(nas_client_key(client_name), []) if m.is_dir()]
+        index = _nas_client_index(root, force=True)
+        matches = [m for m in index.get(nas_client_key(client_name), []) if m.is_dir()]
+        if not matches:
+            matches = [folder for folders in index.values() for folder in folders
+                       if folder.is_dir() and nas_client_equivalent(folder.name, client_name)]
     if len(matches) > 1:
         raise HTTPException(409, 'Hay varias carpetas con el mismo nombre de cliente al ignorar tildes. Revisa cuál corresponde a la orden.')
     if not matches:
