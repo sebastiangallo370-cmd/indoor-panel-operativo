@@ -558,9 +558,15 @@ html body .bd .inventory-item-card.lq,html body .bd .bd-tkpi .lq{background:radi
         if (Number.isFinite(Number(m.bodega))) g.disponible = Math.max(Number(g.disponible || 0), Number(m.bodega));
       });
     });
-    // Respaldo para cálculos previos que aún no traen materiales separados.
+    // Respaldo únicamente para órdenes antiguas sin materiales separados.
+    // No se agregan las telas principales de una orden que ya fue dividida,
+    // porque producirían un botón duplicado junto a M1/M2.
     (respaldo || []).forEach(t => {
-      const g = asegurar(t.tela, {disponible: t.disponible, encontrada: t.encontrada, alcanza: t.alcanza, faltan: t.faltan});
+      const clave = norm(t.tela);
+      let g = grupos.get(clave);
+      const hayOrdenSinDetalle = (ordenes || []).some(o => !(o.materiales || []).some(m => Number(m.mts) > 0) && norm(o.tela) === clave);
+      if (!g && !hayOrdenSinDetalle) return;
+      if (!g) g = asegurar(t.tela, {disponible: t.disponible, encontrada: t.encontrada, alcanza: t.alcanza, faltan: t.faltan});
       if (!g.mts) { g.mts = Number(t.mts) || 0; g.faltan = Number(t.faltan) || 0; g.encontrada = t.encontrada; g.alcanza = t.alcanza; }
       if (g.disponible === null && Number.isFinite(Number(t.disponible))) g.disponible = Number(t.disponible);
     });
