@@ -789,7 +789,9 @@ def _correr_bot(codigo, ai, artboard, base, carpeta, jugadores, orden, tela, sal
                 _archivo_pdf(carpeta, base, i, jugador).unlink(missing_ok=True)
             except OSError:
                 pass
-        return {"error": f"{ai.name} no conserva los textos guía NOMBRE y 00; no generé un PDF incompleto"}
+        diagnostico = next((x for x in mensajes.splitlines() if "DIAGNOSTICO MARCADORES:" in x), "")
+        detalle = f" ({diagnostico[:700]})" if diagnostico else ""
+        return {"error": f"{ai.name} no conserva los textos guía NOMBRE y 00; no generé un PDF incompleto{detalle}"}
     time.sleep(0.3)               # pausa mínima tras cerrar un .ai pesado antes de abrir el siguiente
     return {"mensajes": mensajes}
 
