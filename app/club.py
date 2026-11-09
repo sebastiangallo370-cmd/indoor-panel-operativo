@@ -42,6 +42,7 @@ COL = timezone(timedelta(hours=-5))
 TALLAS = ['2', '4', '6', '8', '10', '12', '14', '16', 'XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL']   # las mismas de la plantilla de Indoor
 MAX_JUGADORES = 300
 EXCEL_DIR = Path(os.getenv('CLUB_EXCEL_DIR', '/data/state/club_excel'))
+_MESES = {'ENE': 1, 'FEB': 2, 'MAR': 3, 'ABR': 4, 'MAY': 5, 'JUN': 6, 'JUL': 7, 'AGO': 8, 'SEP': 9, 'OCT': 10, 'NOV': 11, 'DIC': 12}
 
 
 def configurar(connect: Callable, auth: Callable, permitido: Callable[[str], bool], too_many: Callable, mockups: Callable[[int], dict], clientes_root: Callable[[], str] = lambda: '') -> None:
@@ -91,6 +92,20 @@ def _mismo_cliente(a, b) -> bool:
     if uno == dos:
         return True
     return (uno.endswith(' FC') and uno[:-3] == dos) or (dos.endswith(' FC') and dos[:-3] == uno)
+
+
+def _recencia(fecha, fila: int) -> tuple[int, int]:
+    """Clave de la última orden: fecha de inicio real y fila solo como desempate."""
+    texto = _plano(fecha)
+    m = re.search(r'\b(\d{1,2})\s*[-/]\s*([A-Z]{3}|\d{1,2})\s*[-/]\s*(\d{4})\b', texto)
+    if m:
+        try:
+            token_mes = m.group(2)
+            mes = _MESES.get(token_mes, int(token_mes) if token_mes.isdigit() else 0)
+            return (datetime(int(m.group(3)), mes, int(m.group(1))).toordinal(), int(fila or 0))
+        except ValueError:
+            pass
+    return (0, int(fila or 0))
 
 
 # Algunas carpetas antiguas terminan en "_" (PE01_D1_D2_), aunque los
@@ -337,10 +352,16 @@ def disenos_de(cliente: str, catalogo: list[dict] | None = None) -> list[dict]:
                 continue
             proyecto = proyecto_por_referencia.get(maestro) or cel('NOMBRE PROYECTO')
             clave = f"{_plano(proyecto)}|{maestro}"
-            if not ref or clave in salida:
+            if not ref:
                 continue
-            salida[clave] = {'row': r['source_row'], 'referencia': ref, 'maestro': maestro, 'proyecto': proyecto, 'orden': cel('ORDEN'), 'cantidad': cel('CANTIDAD'), 'fecha': cel('FECHA DE INICIO'),
-                           'tipo': cel('TIPO DE DISEÑO')}
+            candidato = {'row': r['source_row'], 'referencia': ref, 'maestro': maestro, 'proyecto': proyecto, 'orden': cel('ORDEN'), 'cantidad': cel('CANTIDAD'), 'fecha': cel('FECHA DE INICIO'),
+                         'tipo': cel('TIPO DE DISEÑO')}
+            anterior = salida.get(clave)
+            # El Sheet puede mover o reordenar filas; una fila mayor no
+            # necesariamente es más nueva. Para cotizar se conserva la última
+            # orden por fecha, con su referencia/precio y PDF reales.
+            if anterior is None or _recencia(candidato['fecha'], candidato['row']) > _recencia(anterior['fecha'], anterior['row']):
+                salida[clave] = candidato
     # Los maestros que ya están en la NAS también se pueden reprogramar aunque
     # su orden histórica no esté en la copia local del Sheet.
     existentes = {(d['proyecto'], d['maestro']) for d in salida.values()}

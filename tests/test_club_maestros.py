@@ -12,6 +12,9 @@ class ClubMaestrosTests(unittest.TestCase):
         self.assertTrue(club._mismo_cliente('Corporación Sociocultural Cerros', 'CORPORACION SOCIOCULTURAL CERROS FC'))
         self.assertFalse(club._mismo_cliente('CORPORACION SOCIOCULTURAL CERROS FC', 'CORPORACION SOMOS AWARE'))
 
+    def test_prefiere_fecha_real_antes_que_numero_de_fila(self):
+        self.assertGreater(club._recencia('6-nov-2026', 2203), club._recencia('21-oct-2026', 2222))
+
     def test_solo_cuenta_carpetas_de_referencia_diseno_maquina(self):
         with tempfile.TemporaryDirectory(dir=Path(__file__).parent) as tmp:
             maestros = Path(tmp) / 'CLIENTES' / 'CERROS' / 'MAESTROS'
