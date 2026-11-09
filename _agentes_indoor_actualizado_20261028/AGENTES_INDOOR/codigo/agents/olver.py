@@ -493,11 +493,16 @@ def _limpiar_trabajo_viejo(dias=3):
 
 
 def _agrupar_sin_datos(jugadores):
-    """Conserva una salida por línea, incluso sin nombre ni número.
+    """Agrupa las líneas sin nombre ni número en un PDF por talla.
 
-    Los nombres de PDF quedan siempre con su consecutivo normal (_01, _02,
-    …), nunca se sustituyen por un sufijo como «30unds»."""
-    return list(jugadores)
+    Las prendas personalizadas conservan su consecutivo normal; las que no
+    llevan dato quedan como «3unds», «30unds», etc., según su cantidad."""
+    con_datos = [j for j in jugadores if j["nombre"] or j["numero"]]
+    n = len(jugadores) - len(con_datos)
+    if n:
+        hoja = next((j["hoja"] for j in jugadores if j.get("hoja")), "")
+        con_datos.append({"nombre": "", "numero": "", "hoja": hoja, "sufijo": f"{n}unds", "cantidad": n})
+    return con_datos
 
 
 def _mesas_de(carpeta_m, talla, diseno, generos):
@@ -511,7 +516,7 @@ def _mesas_de(carpeta_m, talla, diseno, generos):
 
 
 def _archivo_pdf(carpeta, base, i, j):
-    """Ruta del PDF de la línea i, con el consecutivo normal (_01, _02…)."""
+    """Ruta del PDF del jugador o del grupo sin datos («…_3unds.pdf»)."""
     return Path(carpeta) / (f"{base}_{j['sufijo']}.pdf" if j.get("sufijo") else f"{base}_{i:02d}.pdf")
 
 
@@ -796,7 +801,7 @@ def _correr_bot(codigo, ai, artboard, base, carpeta, jugadores, orden, tela, sal
         return {"error": f"{ai.name} no conserva los textos guía NOMBRE y 00; no generé un PDF incompleto{detalle}"}
     if sin_guias:
         # La talla no lleva nombre ni dorsal: se conserva el PDF tal cual,
-        # con su nombre consecutivo normal. No hay texto que aplicar.
+        # agrupado por cantidad (p. ej. «3unds»). No hay texto que aplicar.
         log(AGENTE, f"{ai.name}: sin guías NOMBRE/00, pero la talla no tiene personalización; conservo el PDF de producción")
     time.sleep(0.3)               # pausa mínima tras cerrar un .ai pesado antes de abrir el siguiente
     return {"mensajes": mensajes}
