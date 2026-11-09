@@ -487,6 +487,11 @@ html body .bd .inventory-item-card.lq,html body .bd .bd-tkpi .lq{background:radi
       const ok = (!q || (d.q || '').includes(q)) && (!f.tela.value || d.tela === f.tela.value) && (!f.sit.value || d.sit === f.sit.value)
         && (!f.sub.value || d.sub === f.sub.value) && (!desde || (fecha && fecha >= desde)) && (!hasta || (fecha && fecha <= hasta));
       node.hidden = !ok;
+      // Algunas reglas globales de Inventarios fuerzan display:grid sobre las
+      // tarjetas y anulaban visualmente el atributo hidden. Se fuerza aquí el
+      // estado final para que la cantidad y las tarjetas siempre coincidan.
+      node.style.setProperty('display', ok ? 'grid' : 'none', 'important');
+      node.setAttribute('aria-hidden', String(!ok));
       if (ok) shown += 1;
     });
     const total = tCards.querySelectorAll('.inventory-item-card').length;
