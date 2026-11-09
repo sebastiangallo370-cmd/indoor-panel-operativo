@@ -268,6 +268,14 @@ html body .bd .inventory-item-card.lq,html body .bd .bd-tkpi .lq{background:radi
 .bd .ot-dyn-materials.telas-3 .ot-dyn-material{grid-template-rows:auto auto auto auto!important;align-content:space-between!important;gap:2px!important;padding-bottom:3px!important}.bd .ot-dyn-materials.telas-3 .ot-dyn-material-stats{align-self:auto!important}.bd .ot-dyn-materials.telas-3 .ot-dyn-material-stats b{margin-top:2px!important;font-size:10px!important}.bd .ot-dyn-materials.telas-3 .ot-dyn-meter{height:5px!important;margin-top:1px!important}
 @media (max-width:700px){.bd .bd-tkpi.bd-cards.fit{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px}.bd .bd-tkpi .inventory-item-card{padding:12px!important}.bd .bd-tkpi .inv-total{font-size:1.25rem!important}.bd .bd-tkpi .inv-unit{font-size:.62rem!important;line-height:1.25}.bd .bd-tfilters{grid-template-columns:repeat(2,minmax(0,1fr))!important;padding:12px}.bd .bd-tfilters .bd-clear{grid-column:1/-1}.bd .bd-tfilters label:first-child{grid-column:1/-1}.bd .bd-tfilters input,.bd .bd-tfilters select{min-width:0;font-size:16px}.bd .bd-tcards.bd-cards{gap:10px}.bd .bd-tcards .ot-production-card{content-visibility:auto;contain:layout style paint;contain-intrinsic-size:540px}.bd .bd-tcards .inventory-item-card .bd-line b{white-space:normal;text-align:right;overflow-wrap:anywhere}.bd-head h2{font-size:.95rem}}
 @media (max-width:340px){.bd .bd-tkpi.bd-cards.fit{grid-template-columns:minmax(0,1fr)!important}}
+.bd .bd-tkpi .inventory-item-card[data-tela-detail]{position:relative;cursor:pointer;text-align:left;transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}
+.bd .bd-tkpi .inventory-item-card[data-tela-detail]:hover,.bd .bd-tkpi .inventory-item-card[data-tela-detail].is-open{transform:translateY(-2px);border-color:#d0f44c!important;box-shadow:0 10px 24px rgba(0,0,0,.32),0 0 0 1px rgba(208,244,76,.2)!important}
+.bd .bd-tkpi .inventory-item-card[data-tela-detail]:focus-visible{outline:3px solid rgba(208,244,76,.7);outline-offset:3px}
+.bd .bd-tela-expand{display:block;margin-top:3px;color:#d7f96a;font:850 .64rem Arial;letter-spacing:.05em;text-transform:uppercase}
+.bd .bd-tela-desglose{display:grid;gap:14px;padding:16px 18px;border:1px solid rgba(208,244,76,.42);border-radius:18px;background:linear-gradient(145deg,rgba(41,69,31,.7),rgba(10,17,10,.92));box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 12px 28px rgba(0,0,0,.25)}
+.bd .bd-tela-detail-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}.bd .bd-tela-detail-head small{display:block;color:#aebba7;font:800 .61rem Arial;letter-spacing:.1em;text-transform:uppercase}.bd .bd-tela-detail-head h3{margin:4px 0 0;color:#f3f7ec;font:900 1.05rem Arial}.bd .bd-tela-close{width:auto!important;padding:8px 11px!important;border:1px solid rgba(255,255,255,.25)!important;border-radius:9px!important;background:rgba(0,0,0,.2)!important;color:#e9f2df!important;font:800 .72rem Arial!important;cursor:pointer}.bd .bd-tela-close:hover{border-color:#d0f44c!important;color:#dffb7f!important}
+.bd .bd-tela-table-wrap{max-height:360px;overflow:auto;border:1px solid rgba(255,255,255,.12);border-radius:12px;background:rgba(2,8,3,.3)}.bd .bd-tela-table{width:100%;border-collapse:collapse;font:700 .72rem Arial}.bd .bd-tela-table th{position:sticky;top:0;padding:10px;text-align:left;background:#182516;color:#b8caad;font:850 .57rem Arial;letter-spacing:.1em;text-transform:uppercase;z-index:1}.bd .bd-tela-table td{padding:10px;border-top:1px solid rgba(255,255,255,.09);color:#edf4e7;vertical-align:top}.bd .bd-tela-table td:last-child{color:#d9f66c;white-space:nowrap}.bd .bd-tela-empty{margin:0;color:#b9c6b3;font-size:.8rem}
+@media(max-width:700px){.bd .bd-tela-desglose{padding:14px 12px}.bd .bd-tela-detail-head{align-items:center}.bd .bd-tela-detail-head h3{font-size:.95rem}.bd .bd-tela-table-wrap{max-height:420px}.bd .bd-tela-table th,.bd .bd-tela-table td{padding:9px 8px}.bd .bd-tela-table{min-width:690px}.bd .bd-tela-expand{font-size:.58rem}}
 `;
   document.head.appendChild(style);
 
@@ -284,9 +292,9 @@ html body .bd .inventory-item-card.lq,html body .bd .bd-tkpi .lq{background:radi
 
   const circles = (values, states) => values && values.length ? '<div class="inventory-rolls">' + values.map((value, index) => '<span class="inventory-roll ' + (states?.[index] === 'started' ? 'roll-started' : 'roll-new') + '">' + esc(num(value)) + '</span>').join('') + '</div>' : '';
   const codes = names => names.map(name => (String(name).match(/^\s*\(([^)]+)\)/) || [])[1]).filter(Boolean);
-  const card = ({badge, badgeClass = '', name, total, unit, extra = '', cls = '', title = '', telas = null, fecha = '', level = null, tone = 'verde'}) =>
+  const card = ({badge, badgeClass = '', name, total, unit, extra = '', cls = '', title = '', telas = null, fecha = '', level = null, tone = 'verde', detailTela = ''}) =>
     '<article class="inventory-item-card ' + cls + '"' + (level !== null ? ' data-lq="' + Math.max(0, Math.min(100, Math.round(level))) + '" data-lq-tone="' + tone + '"' : '') + (title ? ' title="' + esc(title) + '"' : '') +
-      (telas ? ' data-tela="' + esc(norm(telas.join(' | '))) + '" data-codigo="' + esc(codes(telas).join('|')) + '"' : ' data-sinfiltro="true"') + (fecha ? ' data-fecha="' + esc(day(fecha)) + '"' : '') + '><span class="inv-badge ' + badgeClass + '">' + esc(badge) + '</span><strong class="inv-name">' + esc(name) + '</strong>' + extra + '<span class="inv-total">' + total + '</span>' + (unit ? '<span class="inv-unit">' + esc(unit) + '</span>' : '') + '</article>';
+      (telas ? ' data-tela="' + esc(norm(telas.join(' | '))) + '" data-codigo="' + esc(codes(telas).join('|')) + '"' : ' data-sinfiltro="true"') + (fecha ? ' data-fecha="' + esc(day(fecha)) + '"' : '') + (detailTela ? ' data-tela-detail="' + esc(detailTela) + '" role="button" tabindex="0" aria-expanded="false" aria-label="Ver pedidos de ' + esc(detailTela) + '"' : '') + '><span class="inv-badge ' + badgeClass + '">' + esc(badge) + '</span><strong class="inv-name">' + esc(name) + '</strong>' + extra + '<span class="inv-total">' + total + '</span>' + (unit ? '<span class="inv-unit">' + esc(unit) + '</span>' : '') + (detailTela ? '<span class="bd-tela-expand">Ver pedidos ›</span>' : '') + '</article>';
   const section = (title, note, cards, fit) => '<section class="bd-section"' + (fit ? ' data-fijo="true"' : '') + '><h3>' + esc(title) + (note ? ' <small>· ' + esc(note) + '</small>' : '') + '</h3>' + (cards ? '<div class="bd-cards' + (fit ? ' fit' : '') + '">' + cards + '</div>' : '') + '</section>';
   const meter = (value, max) => '<div class="bd-meter"><i style="width:' + Math.max(1, value / (max || 1) * 100) + '%"></i></div>';
 
@@ -468,6 +476,7 @@ html body .bd .inventory-item-card.lq,html body .bd .bd-tkpi .lq{background:radi
   body2.style.gap = '22px';
   body2.innerHTML =
     '<div class="bd-cards fit bd-tkpi"></div>' +
+    '<section class="bd-tela-desglose" hidden aria-live="polite"></section>' +
     '<form class="bd-filters bd-tfilters" autocomplete="off" onsubmit="return false">' +
       '<label>Buscar<input name="q" type="search" placeholder="Orden, cliente, referencia o tela"></label>' +
       '<label>Tela<select name="tela"><option value="">Todas</option></select></label>' +
@@ -476,8 +485,8 @@ html body .bd .inventory-item-card.lq,html body .bd .bd-tkpi .lq{background:radi
       '<label>Entrega desde<input name="desde" type="date"></label><label>Entrega hasta<input name="hasta" type="date"></label>' +
       '<button type="button" class="bd-clear">Limpiar</button><p class="bd-count"></p></form>' +
     '<div class="bd-cards bd-tcards"><p class="bd-note">Calculando la tela de los pedidos…</p></div>';
-  const tFilters = body2.querySelector('.bd-tfilters'), tCards = body2.querySelector('.bd-tcards'), tKpi = body2.querySelector('.bd-tkpi');
-  let brechaDias = 14, prodData = null, unitData = null;
+  const tFilters = body2.querySelector('.bd-tfilters'), tCards = body2.querySelector('.bd-tcards'), tKpi = body2.querySelector('.bd-tkpi'), telaDesglose = body2.querySelector('.bd-tela-desglose');
+  let brechaDias = 14, prodData = null, unitData = null, telaDetalle = '', ordenesTela = [];
   const SITUACION = {alcanza: ['Alcanza', 'ok'], no_alcanza: ['No alcanza', 'bad'], sin_tela: ['Tela no encontrada', 'bad'], sin_promedio: ['Sin promedio', 'warn']};
   const filterTela = () => {
     const f = tFilters.elements, q = norm(f.q.value), desde = f.desde.value, hasta = f.hasta.value;
@@ -500,16 +509,40 @@ html body .bd .inventory-item-card.lq,html body .bd .bd-tkpi .lq{background:radi
     if (total && !shown) { if (!vacio) tCards.insertAdjacentHTML('beforeend', '<p class="bd-note bd-vacio">Ninguna orden coincide con los filtros.</p>'); }
     else vacio?.remove();
   };
+  const renderDesgloseTela = () => {
+    if (!telaDetalle) { telaDesglose.hidden = true; telaDesglose.innerHTML = ''; return; }
+    const clave = norm(telaDetalle);
+    const filas = ordenesTela.map(o => {
+      const materiales = (o.materiales || []).filter(m => norm(m.tela) === clave);
+      if (norm(o.tela) !== clave && !materiales.length) return null;
+      const mtsMateriales = materiales.reduce((total, m) => total + (Number(m.mts) || 0), 0);
+      return {cliente: o.cliente || 'Sin cliente', proyecto: o.proyecto || 'Sin proyecto', orden: o.orden || '—', cantidad: o.cantidad || 0, referencia: o.referencia || '—', mts: materiales.length ? mtsMateriales : (Number(o.mts) || 0), entrega: o.entrega || ''};
+    }).filter(Boolean).sort((a, b) => String(a.entrega || '9999-12-31').localeCompare(String(b.entrega || '9999-12-31')) || String(a.orden).localeCompare(String(b.orden)));
+    tKpi.querySelectorAll('[data-tela-detail]').forEach(node => {
+      const abierta = norm(node.dataset.telaDetail) === clave;
+      node.classList.toggle('is-open', abierta);
+      node.setAttribute('aria-expanded', String(abierta));
+    });
+    telaDesglose.hidden = false;
+    if (!filas.length) {
+      telaDesglose.innerHTML = '<div class="bd-tela-detail-head"><div><small>Detalle de tela programada</small><h3>' + esc(telaDetalle) + '</h3></div><button type="button" class="bd-tela-close" data-close-tela-detail>Cerrar</button></div><p class="bd-tela-empty">No hay pedidos programados asociados a esta tela.</p>';
+      return;
+    }
+    const totalMts = filas.reduce((total, fila) => total + fila.mts, 0);
+    telaDesglose.innerHTML = '<div class="bd-tela-detail-head"><div><small>Detalle de tela programada · ' + num(filas.length) + (filas.length === 1 ? ' pedido' : ' pedidos') + ' · ' + num(totalMts) + ' MTS requeridos</small><h3>' + esc(telaDetalle) + '</h3></div><button type="button" class="bd-tela-close" data-close-tela-detail>Cerrar</button></div><div class="bd-tela-table-wrap"><table class="bd-tela-table"><thead><tr><th>Cliente</th><th>Proyecto</th><th>Orden</th><th>Cantidad</th><th>Referencia</th><th>MTS requeridos</th></tr></thead><tbody>' + filas.map(fila => '<tr><td>' + esc(fila.cliente) + '</td><td>' + esc(fila.proyecto) + '</td><td>' + esc(fila.orden) + '</td><td>' + num(fila.cantidad) + ' UND.</td><td>' + esc(fila.referencia) + '</td><td>' + num(fila.mts) + ' MTS</td></tr>').join('') + '</tbody></table></div>';
+  };
   const renderTela = data => {
     if (data.disponible === false) { tKpi.__h = tCards.__h = null; tKpi.innerHTML = ''; tCards.innerHTML = '<p class="bd-note">No se pudo leer Producción para calcular la tela necesaria.</p>'; return; }
     const ordenes = data.ordenes || [];
+    ordenesTela = ordenes;
     brechaDias = data.brecha_sublimacion || 14;
     poner(tKpi, card({badge: data.telas_no_alcanzan ? 'Atención' : 'Al día', badgeClass: data.telas_no_alcanzan ? 'bad' : 'ok', cls: data.telas_no_alcanzan ? 'bad' : '',
       level: data.mts ? Math.max(0, 100 - data.faltan / data.mts * 100) : 100, tone: data.telas_no_alcanzan ? 'rojo' : 'verde', name: 'Tela necesaria programada',
       total: num(data.mts) + '<small>MTS</small>', unit: num(data.pedidos) + ' pedidos en ' + num((data.telas || []).length) + ' telas · ' + (data.telas_no_alcanzan ? num(data.telas_no_alcanzan) + ' telas no alcanzan · faltan ' + num(data.faltan) + ' MTS' : 'toda la tela alcanza')}) +
       (data.telas || []).map(t => card({badge: !t.encontrada ? 'Tela no encontrada' : t.alcanza ? 'Alcanza' : 'No alcanza', badgeClass: t.alcanza ? 'ok' : 'bad', cls: t.alcanza ? '' : 'bad',
         level: t.encontrada ? Math.min(100, t.disponible / (t.mts || 1) * 100) : 0, tone: t.alcanza ? 'verde' : 'rojo', name: t.tela, total: num(t.mts) + '<small>MTS</small>',
-        unit: t.pedidos.length + (t.pedidos.length === 1 ? ' pedido' : ' pedidos') + ' · ' + (t.encontrada ? 'Bodega ' + num(t.disponible) + ' MTS' + (t.alcanza ? '' : ' · FALTAN ' + num(t.faltan)) : 'no está en Bodega')})).join(''));
+        unit: t.pedidos.length + (t.pedidos.length === 1 ? ' pedido' : ' pedidos') + ' · ' + (t.encontrada ? 'Bodega ' + num(t.disponible) + ' MTS' + (t.alcanza ? '' : ' · FALTAN ' + num(t.faltan)) : 'no está en Bodega'), detailTela: t.tela})).join(''));
+    renderDesgloseTela();
     const telas = [...new Set(ordenes.map(o => o.tela))].sort();
     const selTela = tFilters.elements.tela, actual = selTela.value;
     poner(selTela, '<option value="">Todas</option>' + telas.map(t => '<option value="' + esc(t) + '"' + (t === actual ? ' selected' : '') + '>' + esc(t) + '</option>').join(''));
@@ -717,6 +750,27 @@ html body .bd .inventory-item-card.lq,html body .bd .bd-tkpi .lq{background:radi
   // equipos táctiles solo llega `search` o `change`. Todos usan la misma ruta.
   ['input', 'search', 'change', 'keyup'].forEach(event => tFilters.addEventListener(event, filterTela));
   tFilters.querySelector('.bd-clear').onclick = () => { tFilters.reset(); filterTela(); };
+  const abrirDesgloseTela = target => {
+    telaDetalle = target.dataset.telaDetail || '';
+    renderDesgloseTela();
+    telaDesglose.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+  };
+  tKpi.addEventListener('click', event => {
+    const target = event.target.closest('[data-tela-detail]');
+    if (target) abrirDesgloseTela(target);
+  });
+  tKpi.addEventListener('keydown', event => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    const target = event.target.closest('[data-tela-detail]');
+    if (!target) return;
+    event.preventDefault();
+    abrirDesgloseTela(target);
+  });
+  body2.addEventListener('click', event => {
+    if (!event.target.closest('[data-close-tela-detail]')) return;
+    telaDetalle = '';
+    renderDesgloseTela();
+  });
   const load2 = async (silencioso) => {
     try {
       const [response, prodResp] = await Promise.all([fetch('/api/inventarios/tela-necesaria', {cache: 'no-store'}), fetch('/api/produccion', {cache: 'no-store'}).catch(() => null)]);
