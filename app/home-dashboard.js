@@ -704,12 +704,25 @@
       el.classList.remove('go');
       requestAnimationFrame(() => requestAnimationFrame(() => {
         el.classList.add('go');
-        // Motion ya está cargado en el panel: las áreas entran una por una, sin animar datos ni alterar la altura real.
+        // Motion ya está cargado en el panel: entrada y flujo vivo, sin alterar los datos ni la altura real.
         if (window.Motion && typeof window.Motion.animate === 'function' && !(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) {
           const cards = [...el.querySelectorAll('.st-col')];
           window.Motion.animate(cards, { opacity: [0, 1], y: [18, 0], scale: [.96, 1] }, {
             duration: .48, ease: 'easeOut', delay: window.Motion.stagger(.045, { startDelay: .06 })
           });
+          const rail = el.querySelector('.st-flow i');
+          if (rail) {
+            rail.querySelector('.st-comet')?.remove();
+            const comet = document.createElement('span');
+            comet.className = 'st-comet';
+            rail.appendChild(comet);
+            window.Motion.animate(comet, {
+              x: [-14, Math.max(0, rail.clientWidth - 10)], opacity: [0, 1, 1, 0], scale: [.55, 1.2, .55]
+            }, { duration: 4.8, ease: 'linear', repeat: Infinity, repeatDelay: .5 });
+          }
+          window.setTimeout(() => window.Motion.animate(cards, {
+            scale: [1, 1.018, 1], boxShadow: ['0 0 0 rgba(208,244,76,0)', '0 0 25px rgba(208,244,76,.28)', '0 0 0 rgba(208,244,76,0)']
+          }, { duration: 1.1, ease: 'easeInOut', delay: window.Motion.stagger(.1), repeat: Infinity, repeatDelay: 4.1 }), 700);
         }
       }));
     });
@@ -1005,7 +1018,7 @@
   .st-bar .sg.proc{--c1:#9be058;--c2:#3f8f22}.st-bar .sg.rep{--c1:#ff8f80;--c2:#c93a2b}.st-bar .sg.cola{--c1:#ffd27a;--c2:#d28f14}.st-bar .sg.prog{--c1:#a9c8ff;--c2:#4f80cf}
   .st-bar .sg:last-child::before{content:"";position:absolute;inset:2px;border-radius:50%;background:#fff;opacity:.88}
   @keyframes stBeacon{50%{transform:scale(.68);opacity:.58}}
-  .st-flow{display:flex;align-items:center;gap:10px;color:#6c7a68;font-size:.62rem;text-transform:uppercase;letter-spacing:.1em}.st-flow i{flex:1;height:2px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.25));position:relative}.st-flow i::after{content:"";position:absolute;right:0;top:-4px;border:5px solid transparent;border-left:8px solid rgba(255,255,255,.35)}
+  .st-flow{display:flex;align-items:center;gap:10px;color:#6c7a68;font-size:.62rem;text-transform:uppercase;letter-spacing:.1em}.st-flow i{flex:1;height:2px;background:linear-gradient(90deg,transparent,#8bd450 32%,rgba(255,255,255,.42));position:relative;overflow:visible}.st-flow i::after{content:"";position:absolute;right:0;top:-4px;border:5px solid transparent;border-left:8px solid rgba(255,255,255,.35)}.st-comet{position:absolute;left:0;top:50%;width:10px;height:10px;margin-top:-4px;border-radius:50%;background:#e9ff93;box-shadow:0 0 0 3px rgba(208,244,76,.14),0 0 12px 4px rgba(208,244,76,.8),-18px 0 15px rgba(102,217,255,.32);will-change:transform,opacity}
   @media(max-width:700px){.dash-stairs{padding:16px 14px 14px}.dash-stairs.de-unidad{--base:108px;--span:190px;padding:16px 14px 14px}.dash-stairs.compact{--base:100px;--span:80px}.dash-stairs{--base:116px;--span:150px}.dash-stairs.de-unidad{--base:108px;--span:190px}.st-chart{gap:8px;min-width:900px}.st-val{font-size:1.6rem}.st-neck{margin-left:0;flex:1 1 100%}}
   @media(prefers-reduced-motion:reduce){.st-col,.st-bar,.st-bar::before,.st-bar .sg{transition:none!important;animation:none!important}.st-col{height:calc(var(--base) + var(--rise))}.st-bar{opacity:1;transform:none}}
   /* Carga por área con el mismo diseño de «Vencimiento de la cartera» */
