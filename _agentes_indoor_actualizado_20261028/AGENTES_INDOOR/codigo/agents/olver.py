@@ -607,6 +607,7 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
                 "carpeta": str(carpeta), "n": len(previos), "esperados": len(esperados)}
 
     faltan = []
+    pendientes_autorizados = []
     if not simulado and destino.get("montajes"):   # RECTIFICA que existan las mesas independientes de TODAS las tallas (adulto o niño) ANTES de poner nombre y número
         carpetas_m = [Path(destino["montajes"]) / f"D{diseno}" / f"{ref}{genero}{suf_maestro}"]
         if genero_maestro != genero:
@@ -646,6 +647,9 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
                     "maestro": ai.name,
                     "error": "No existen mesas independientes para: " + ", ".join(faltan),
                 }
+            pendientes_autorizados = list(dict.fromkeys(
+                art for talla, art, _base, _jugadores in plan if talla in faltan
+            ))
             log(AGENTE, f"{ai.name}: continúo sin las mesas independientes de {', '.join(faltan)} por confirmación del usuario", "WARN")
         else:
             log(AGENTE, f"{ai.name}: están las mesas independientes de todas las tallas ({', '.join(t for t, _a, _b, _j in plan)})")
@@ -773,7 +777,7 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
             "omitidas": omitidas, "omitidas_autorizadas": [
                 f"talla {t}: no existe mesa independiente en {ai.name}; se dejó pendiente por decisión del usuario"
                 for t in faltan
-            ], "esperados": total_plan}
+            ], "pendientes_autorizados": pendientes_autorizados, "esperados": total_plan}
 
 
 def _correr_bot(codigo, ai, artboard, base, carpeta, jugadores, orden, tela, saltos=False):

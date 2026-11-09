@@ -1074,8 +1074,8 @@ def _pdfs_y_sheets(s, sobrescribir, permitir_tallas_faltantes=False):
         omitidas_autorizadas = set(r.get("omitidas_autorizadas") or [])
         omitidas_reales = [o for o in r.get("omitidas", []) if o not in omitidas_autorizadas]
         if omitidas_autorizadas:
-            tallas = ", ".join(sorted({x.split(":", 1)[0].replace("talla ", "") for x in omitidas_autorizadas}))
-            avisos.append(f"{etiqueta_ai}: continuaste sin PDF para talla(s) {tallas}; quedaron pendientes por tu decisión.")
+            pendientes = r.get("pendientes_autorizados") or []
+            avisos += [f"Pendiente el PDF {mesa.replace('_Tipo_', '_')}" for mesa in pendientes]
         avisos += [f"{etiqueta_ai} · {o}" for o in omitidas_reales]
         if omitidas_reales or len(r["pdfs"]) != r.get("esperados", len(r["pdfs"])):
             faltan = max(0, int(r.get("esperados", 0)) - len(r["pdfs"]))
