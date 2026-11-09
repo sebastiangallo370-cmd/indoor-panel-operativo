@@ -76,7 +76,9 @@ def _plano(t) -> str:
     return re.sub(r'\s+', ' ', ''.join(c for c in unicodedata.normalize('NFD', str(t or '')) if unicodedata.category(c) != 'Mn')).strip().upper()
 
 
-_CARPETA_MAESTRA = re.compile(r'^(?P<referencia>[A-Z0-9-]+)_D[0-9]+(?:_D[0-9]+)*_[A-Z0-9-]+$', re.I)
+# Algunas carpetas antiguas terminan en "_" (PE01_D1_D2_), aunque los
+# JPG internos sí llevan la máquina; también son maestros válidos.
+_CARPETA_MAESTRA = re.compile(r'^(?P<referencia>[A-Z0-9-]+)_D[0-9]+(?:_D[0-9]+)*_(?:[A-Z0-9-]+)?$', re.I)
 _catalogos_maestros: dict[str, list[dict]] = {}
 _catalogos_pendientes: dict[str, object] = {}
 _catalogos_lock = Lock()

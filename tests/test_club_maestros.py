@@ -14,15 +14,15 @@ class ClubMaestrosTests(unittest.TestCase):
             referencia = futbol / 'FUT01_D1_D2_PLUS'
             referencia.mkdir(parents=True)
             (futbol / 'RECURSOS').mkdir()
-            (futbol / 'FUT02_D1_D2_').mkdir()
+            (futbol / 'PE01_D1_D2_').mkdir()
             (maestros / 'RECURSOS').mkdir()
             with patch.object(club, '_clientes_root', return_value=str(Path(tmp) / 'CLIENTES')):
                 proyectos = club.proyectos_maestros_de('cerros')
 
         self.assertEqual(proyectos, [{
             'proyecto': 'UNIFORMES 2027 FUTBOL',
-            'referencias': ['FUT01'],
-            'disenos': 2,
+            'referencias': ['FUT01', 'PE01'],
+            'disenos': 4,
         }])
 
 
