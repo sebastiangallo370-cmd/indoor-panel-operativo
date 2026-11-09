@@ -400,9 +400,11 @@ def _jugadores_de(lineas, diseno, genero):
 
     def dato(v):
         # Excel/Sheets puede entregar la celda vacía como None, NaN o texto
-        # «SIN NUMERO». Ninguno es una personalización para el PDF.
+        # «SIN NUMERO» o el guion visual «—». Ninguno es personalización.
         texto = "" if v is None else str(v).strip()
-        return "" if texto.lower() in ("none", "nan", "null", "sin numero", "sin nombre") else texto
+        clave = texto.casefold()
+        vacios = ("", "none", "nan", "null", "sin numero", "sin número", "sin nombre", "s/n", "n/a")
+        return "" if clave in vacios or re.fullmatch(r"[-–—_./]+", texto) else texto
 
     for l in lineas:
         if seleccion._genero_efectivo(l) != genero:   # talla numérica en MASC/FEM = niño/niña
