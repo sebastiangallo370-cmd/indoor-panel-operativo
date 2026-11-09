@@ -5044,6 +5044,15 @@ def resolve_nas_client(root: Path, client_name: str) -> Path:
     direct = root / client_name
     if direct.is_dir():
         return direct.resolve()
+    # Varios clientes históricos conservan «FC» únicamente en la carpeta de
+    # la NAS. Se prueba esa variante de forma directa antes de listar toda la
+    # raíz de clientes (operación que puede ser lenta en la VPN).
+    client_key = nas_client_key(client_name)
+    aliases = ([client_name[:-3].rstrip()] if client_key.endswith(' fc') else [f'{client_name} FC'])
+    for alias in aliases:
+        candidate = root / alias
+        if candidate.is_dir() and candidate.resolve().parent == root:
+            return candidate.resolve()
     if not root.is_dir():
         raise HTTPException(503, 'El NAS no está disponible')
     index = _nas_client_index(root)
