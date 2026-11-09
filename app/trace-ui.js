@@ -939,15 +939,6 @@
         editButton.setAttribute('aria-label', 'Modificar toda la información de la orden ' + traceField(row, 'ORDEN') + ', fila ' + row.source_row);
         editButton.title = 'Modificar información de la tarjeta';
       }
-      if (!card.querySelector('[data-card-copy]')) {
-        const copyButton = document.createElement('button');
-        copyButton.type = 'button'; copyButton.className = 'trace-icon-action trace-copy-action';
-        copyButton.dataset.cardCopy = row.source_row;
-        copyButton.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h4"/></svg>';
-        copyButton.setAttribute('aria-label', 'Copiar toda la información de la orden ' + traceField(row, 'ORDEN'));
-        copyButton.title = 'Copiar información de la tarjeta';
-        card.querySelector('.trace-card-actions').appendChild(copyButton);
-      }
       card.querySelector('.trace-copy-preview')?.remove();
       const viewSummary = summaries.get(row.source_row);
       const progressSummary = viewSummary.route || viewSummary;
