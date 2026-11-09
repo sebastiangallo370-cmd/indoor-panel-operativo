@@ -490,12 +490,15 @@ html body .bd .inventory-item-card.lq,html body .bd .bd-tkpi .lq{background:radi
   const tFilters = body2.querySelector('.bd-tfilters'), tCards = body2.querySelector('.bd-tcards'), tKpi = body2.querySelector('.bd-tkpi'), telaDesglose = body2.querySelector('.bd-tela-desglose');
   let brechaDias = 14, prodData = null, unitData = null, telaDetalle = '', ordenesTela = [];
   const SITUACION = {alcanza: ['Alcanza', 'ok'], no_alcanza: ['No alcanza', 'bad'], sin_tela: ['Tela no encontrada', 'bad'], sin_promedio: ['Sin promedio', 'warn']};
+  // Inventario puede nombrar la misma tela con o sin su código entre
+  // paréntesis: «(10600) NET» y «NET» deben ser un solo botón.
+  const claveTela = tela => norm(String(tela || '').replace(/^\s*\(\s*\d+\s*\)\s*/, ''));
   const filterTela = () => {
     const f = tFilters.elements, q = norm(f.q.value), desde = f.desde.value, hasta = f.hasta.value;
     let shown = 0;
     tCards.querySelectorAll('.inventory-item-card').forEach(node => {
       const d = node.dataset, fecha = d.fecha || '';
-      const ok = (!q || (d.q || '').includes(q)) && (!f.tela.value || d.tela === f.tela.value) && (!f.sit.value || d.sit === f.sit.value)
+      const ok = (!q || (d.q || '').includes(q)) && (!f.tela.value || claveTela(d.tela) === claveTela(f.tela.value)) && (!f.sit.value || d.sit === f.sit.value)
         && (!f.sub.value || d.sub === f.sub.value) && (!desde || (fecha && fecha >= desde)) && (!hasta || (fecha && fecha <= hasta));
       node.hidden = !ok;
       // Algunas reglas globales de Inventarios fuerzan display:grid sobre las
@@ -513,10 +516,10 @@ html body .bd .inventory-item-card.lq,html body .bd .bd-tkpi .lq{background:radi
   };
   const renderDesgloseTela = () => {
     if (!telaDetalle) { telaDesglose.hidden = true; telaDesglose.innerHTML = ''; return; }
-    const clave = norm(telaDetalle);
+    const clave = claveTela(telaDetalle);
     const filas = ordenesTela.map(o => {
-      const materiales = (o.materiales || []).filter(m => norm(m.tela) === clave);
-      if (norm(o.tela) !== clave && !materiales.length) return null;
+      const materiales = (o.materiales || []).filter(m => claveTela(m.tela) === clave);
+      if (claveTela(o.tela) !== clave && !materiales.length) return null;
       const mtsMateriales = materiales.reduce((total, m) => total + (Number(m.mts) || 0), 0);
       return {cliente: o.cliente || 'Sin cliente', proyecto: o.proyecto || 'Sin proyecto', orden: o.orden || '—', cantidad: o.cantidad || 0, referencia: o.referencia || '—', mts: materiales.length ? mtsMateriales : (Number(o.mts) || 0), entrega: o.entrega || ''};
     }).filter(Boolean).sort((a, b) => String(a.entrega || '9999-12-31').localeCompare(String(b.entrega || '9999-12-31')) || String(a.orden).localeCompare(String(b.orden)));
@@ -539,7 +542,7 @@ html body .bd .inventory-item-card.lq,html body .bd .bd-tkpi .lq{background:radi
     const grupos = new Map();
     const asegurar = (tela, base = {}) => {
       const nombre = String(tela || 'Tela sin identificar').trim() || 'Tela sin identificar';
-      const clave = norm(nombre);
+      const clave = claveTela(nombre);
       if (!grupos.has(clave)) grupos.set(clave, {tela: nombre, mts: 0, faltan: 0, encontrada: true, alcanza: true, disponible: null, pedidos: new Set(), ...base});
       return grupos.get(clave);
     };
@@ -562,9 +565,9 @@ html body .bd .inventory-item-card.lq,html body .bd .bd-tkpi .lq{background:radi
     // No se agregan las telas principales de una orden que ya fue dividida,
     // porque producirían un botón duplicado junto a M1/M2.
     (respaldo || []).forEach(t => {
-      const clave = norm(t.tela);
+      const clave = claveTela(t.tela);
       let g = grupos.get(clave);
-      const hayOrdenSinDetalle = (ordenes || []).some(o => !(o.materiales || []).some(m => Number(m.mts) > 0) && norm(o.tela) === clave);
+      const hayOrdenSinDetalle = (ordenes || []).some(o => !(o.materiales || []).some(m => Number(m.mts) > 0) && claveTela(o.tela) === clave);
       if (!g && !hayOrdenSinDetalle) return;
       if (!g) g = asegurar(t.tela, {disponible: t.disponible, encontrada: t.encontrada, alcanza: t.alcanza, faltan: t.faltan});
       if (!g.mts) { g.mts = Number(t.mts) || 0; g.faltan = Number(t.faltan) || 0; g.encontrada = t.encontrada; g.alcanza = t.alcanza; }
