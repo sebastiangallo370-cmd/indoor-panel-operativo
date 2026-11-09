@@ -1014,7 +1014,13 @@
         ['finish', 'FINALIZAR', activeClosed || !activeColumn],
         ['na', 'N/A', activeClosed || !activeColumn],
         ['clear', 'QUITAR ESTADO', !activeKey || !activeColumn]
-      ].map(([action, label, disabled]) => { const column = action === 'clear' ? clearColumn : activeColumn; const isDisabled = action === 'clear' ? !clearColumn : disabled; return '<button type="button" class="trace-order-' + action + '" data-card-operation="' + action + '" data-card-row="' + row.source_row + '" data-card-column="' + (column || '') + '" title="' + esc(action === 'clear' && clearGroup ? clearGroup.label : (activeGroup?.label || 'Sin proceso activo')) + '"' + (isDisabled ? ' disabled' : '') + '>' + label + '</button>'; }).join('');
+      ].map(([action, label, disabled]) => {
+        const column = action === 'clear' ? clearColumn : activeColumn;
+        const isDisabled = action === 'clear' ? !clearColumn : disabled;
+        const icon = ({ start: '▶', pause: 'Ⅱ', resume: '▶', finish: '✓', na: '⊘', clear: '↶' })[action] || '•';
+        const process = action === 'clear' && clearGroup ? clearGroup.label : (activeGroup?.label || 'Sin proceso activo');
+        return '<button type="button" class="trace-order-' + action + ' trace-order-icon" data-card-operation="' + action + '" data-card-operation-label="' + esc(label) + '" data-card-row="' + row.source_row + '" data-card-column="' + (column || '') + '" aria-label="' + esc(label + ': ' + process) + '" title="' + esc(label + ' · ' + process) + '"' + (isDisabled ? ' disabled' : '') + '><span aria-hidden="true">' + icon + '</span><span class="trace-sr-only">' + esc(label) + '</span></button>';
+      }).join('');
       const heading = card.querySelector('.trace-card-heading');
       heading.insertBefore(headerActions, heading.querySelector('.trace-stage'));
       if (ownGroup) {
@@ -1328,7 +1334,7 @@
       if (!reason || reason.length > 2000) { alert('Escribe una observación entre 1 y 2000 caracteres.'); return; }
     }
     if (action === 'clear' && !confirm('¿Cambiar el estado de este proceso a pendiente?')) return;
-    const label = button.querySelector('strong')?.textContent || 'acción';
+    const label = button.dataset.cardOperationLabel || button.querySelector('strong')?.textContent || 'acción';
     button.disabled = true;
     try {
       const response = await fetch('/api/produccion/operacion', {
@@ -2480,6 +2486,7 @@
   html body.production-mode .trace-card .trace-order-note{grid-area:note;justify-self:end;align-self:center}
   html body.production-mode .trace-card .trace-order-actions{grid-area:actions;display:grid!important;grid-template-columns:repeat(auto-fit,minmax(86px,1fr));gap:6px;width:100%;padding:8px;border:1px solid rgba(128,140,120,.28);border-radius:12px;background:rgba(128,140,120,.08)}
   html body.production-mode .trace-card .trace-order-actions>button{width:100%;margin:0;justify-content:center;white-space:nowrap}
+  html body.production-mode .trace-sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
   html body.production-mode .trace-card .trace-mts-row{grid-area:mts;margin:0!important}
   html body.production-mode .trace-card .trace-primary-facts{grid-area:facts;display:grid!important;grid-template-columns:minmax(0,1fr) auto;gap:12px;margin:0!important;padding:11px 14px;border-radius:12px;background:rgba(128,140,120,.1)}
   html body.production-mode .trace-card .trace-inline-notes{grid-area:notes;margin:0!important;max-height:172px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(128,140,120,.5) transparent}
