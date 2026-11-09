@@ -702,7 +702,16 @@
   function playStairs(scope) {
     (scope || root).querySelectorAll('.dash-stairs').forEach(el => {
       el.classList.remove('go');
-      requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('go')));
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        el.classList.add('go');
+        // Motion ya está cargado en el panel: las áreas entran una por una, sin animar datos ni alterar la altura real.
+        if (window.Motion && typeof window.Motion.animate === 'function' && !(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) {
+          const cards = [...el.querySelectorAll('.st-col')];
+          window.Motion.animate(cards, { opacity: [0, 1], y: [18, 0], scale: [.96, 1] }, {
+            duration: .48, ease: 'easeOut', delay: window.Motion.stagger(.045, { startDelay: .06 })
+          });
+        }
+      }));
     });
     stairsPlayed = true;
   }
@@ -984,21 +993,21 @@
   .st-name{position:relative;z-index:3;display:block;font-size:.62rem;font-weight:900;letter-spacing:.07em;text-transform:uppercase;line-height:1.2;word-break:keep-all}.st-col.trazo{border:2px solid #ffe36d;box-shadow:0 0 0 1px rgba(255,170,32,.72),0 0 22px rgba(255,179,46,.48),inset 0 1px rgba(255,255,255,.28)}.st-col.trazo .st-name{color:#fff7bd;font-size:.68rem;text-shadow:0 1px 3px #3a2100}.st-col.trazo .st-name span{display:block;width:max-content;max-width:100%;margin-top:4px;padding:3px 5px;border-radius:5px;background:#fff1a6;color:#432400;font-size:.56rem;letter-spacing:.08em;line-height:1.1;text-shadow:none}.st-col.trazo .st-val{color:#fff;text-shadow:0 2px 5px #5b3100}
   .st-val{position:relative;z-index:3;display:block;margin-top:14px;font-size:1.6rem;line-height:1;font-weight:900;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
   .st-sub{position:relative;z-index:3;display:block;max-width:calc(100% - 34px);margin-top:5px;font-size:.6rem;opacity:.92;line-height:1.3}.st-late{font-style:normal;font-weight:800;color:#ffd7cf}
-  .st-pct{position:absolute;z-index:3;right:-16px;bottom:-16px;width:70px;height:70px;box-sizing:border-box;padding:14px 0 0 16px;border:1px solid rgba(255,255,255,.24);border-radius:50%;font:900 .66rem Arial;font-style:normal;text-shadow:none}
+  .st-pct{position:absolute;z-index:3;right:10px;bottom:13px;box-sizing:border-box;padding:4px 7px;border:1px solid rgba(255,255,255,.19);border-radius:999px;background:rgba(5,10,6,.72);font:900 .62rem Arial;font-style:normal;text-shadow:none;font-variant-numeric:tabular-nums}
   .st-col.empty .st-val{opacity:.55}.st-col.empty .st-bar{display:none}
-  /* Indicador de ritmo: sustituye el llenado líquido por una línea de energía animada. */
-  .st-slot{position:absolute;z-index:2;left:12px;right:12px;bottom:13px;height:7px;display:flex;align-items:center;border:1px solid rgba(255,255,255,.16);border-radius:999px;background:rgba(0,0,0,.28);box-shadow:inset 0 1px 2px rgba(0,0,0,.35);overflow:hidden;pointer-events:none}
-  .st-bar{width:0;height:100%;display:flex;position:relative;transition:width 1.05s cubic-bezier(.18,.85,.25,1);transition-delay:calc(var(--i,0)*55ms + 130ms)}
-  .dash-stairs.go .st-bar{width:var(--lv)}
-  .st-bar::before{content:"";position:absolute;z-index:2;top:-2px;bottom:-2px;width:28px;border-radius:50%;background:rgba(255,255,255,.85);filter:blur(5px);animation:stSignal 2.8s ease-in-out infinite;pointer-events:none}
-  @keyframes stSignal{0%,24%{left:-28px;opacity:0}39%{opacity:.9}74%{left:100%;opacity:.35}100%{left:100%;opacity:0}}
-  .st-bar .sg{position:relative;display:block;min-width:100%;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--c2),var(--c1));opacity:.96;box-shadow:0 0 10px color-mix(in srgb,var(--c1) 58%,transparent)}
+  /* Indicador de ritmo: señal orbital discreta; no llena la tarjeta. */
+  .st-slot{position:absolute;z-index:2;left:12px;bottom:12px;width:23px;height:23px;display:grid;place-items:center;border:1px solid rgba(255,255,255,.28);border-radius:50%;background:rgba(5,10,6,.72);box-shadow:inset 0 0 0 4px rgba(255,255,255,.04),0 0 12px rgba(143,184,255,.16);pointer-events:none}
+  .st-bar{width:100%;height:100%;display:grid;place-items:center;position:relative;opacity:0;transform:scale(.45);transition:opacity .45s ease,transform .65s cubic-bezier(.18,.85,.25,1);transition-delay:calc(var(--i,0)*55ms + 140ms)}
+  .dash-stairs.go .st-bar{opacity:1;transform:scale(1)}
+  .st-bar::before{content:"";position:absolute;inset:-5px;border:1px solid rgba(143,184,255,.22);border-right-color:#cfe1ff;border-radius:50%;animation:stOrbit 2.8s linear infinite;pointer-events:none}
+  @keyframes stOrbit{to{transform:rotate(360deg)}}
+  .st-bar .sg{position:relative;display:block;width:8px;min-width:8px;height:8px;min-height:8px;border-radius:50%;background:var(--c1);opacity:.98;box-shadow:0 0 0 3px color-mix(in srgb,var(--c1) 14%,transparent),0 0 12px var(--c1);animation:stBeacon 1.7s ease-in-out infinite}
   .st-bar .sg.proc{--c1:#9be058;--c2:#3f8f22}.st-bar .sg.rep{--c1:#ff8f80;--c2:#c93a2b}.st-bar .sg.cola{--c1:#ffd27a;--c2:#d28f14}.st-bar .sg.prog{--c1:#a9c8ff;--c2:#4f80cf}
-  .st-bar .sg:last-child::before{content:"";position:absolute;inset:1px 8px auto auto;width:3px;height:3px;border-radius:50%;background:#fff;box-shadow:-10px 0 5px rgba(255,255,255,.4),-20px 0 9px rgba(255,255,255,.15);animation:stPulse 1.9s ease-in-out infinite}
-  @keyframes stPulse{50%{transform:scale(1.8);opacity:.45}}
+  .st-bar .sg:last-child::before{content:"";position:absolute;inset:2px;border-radius:50%;background:#fff;opacity:.88}
+  @keyframes stBeacon{50%{transform:scale(.68);opacity:.58}}
   .st-flow{display:flex;align-items:center;gap:10px;color:#6c7a68;font-size:.62rem;text-transform:uppercase;letter-spacing:.1em}.st-flow i{flex:1;height:2px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.25));position:relative}.st-flow i::after{content:"";position:absolute;right:0;top:-4px;border:5px solid transparent;border-left:8px solid rgba(255,255,255,.35)}
   @media(max-width:700px){.dash-stairs{padding:16px 14px 14px}.dash-stairs.de-unidad{--base:108px;--span:190px;padding:16px 14px 14px}.dash-stairs.compact{--base:100px;--span:80px}.dash-stairs{--base:116px;--span:150px}.dash-stairs.de-unidad{--base:108px;--span:190px}.st-chart{gap:8px;min-width:900px}.st-val{font-size:1.6rem}.st-neck{margin-left:0;flex:1 1 100%}}
-  @media(prefers-reduced-motion:reduce){.st-col,.st-bar,.st-bar::before,.st-bar .sg::before{transition:none!important;animation:none!important}.st-col{height:calc(var(--base) + var(--rise))}.st-bar{width:var(--lv)}}
+  @media(prefers-reduced-motion:reduce){.st-col,.st-bar,.st-bar::before,.st-bar .sg{transition:none!important;animation:none!important}.st-col{height:calc(var(--base) + var(--rise))}.st-bar{opacity:1;transform:none}}
   /* Carga por área con el mismo diseño de «Vencimiento de la cartera» */
   .ar-panel{display:grid;gap:22px;padding:22px 24px 26px;border:1px solid rgba(255,255,255,.12);border-radius:18px;background:linear-gradient(130deg,rgba(35,48,25,.72),rgba(9,12,9,.95) 52%,rgba(16,28,16,.84))}
   .ar-panel>header{display:flex;justify-content:space-between;gap:18px;align-items:flex-start}
