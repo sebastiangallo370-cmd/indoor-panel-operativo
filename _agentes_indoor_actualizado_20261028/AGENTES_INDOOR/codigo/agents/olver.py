@@ -701,6 +701,14 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
                         log(AGENTE, f"La mesa de niño de la talla {talla} se llama «{cand}» en {fuente.name}: usé esa")
                     if not (res.get("error") and "no tiene la mesa" in res["error"]):
                         break
+                # Las mesas infantiles exportadas por Illustrator pueden perder
+                # los nombres internos de los cuadros de texto. No se acepta el
+                # PDF incompleto; se reintenta desde el maestro infantil, pero
+                # limitado a la misma mesa exacta de talla, diseño y sexo.
+                if (res.get("error") and "no conserva los textos guía" in res["error"]
+                        and genero == "N" and fuente != ai):
+                    log(AGENTE, f"Talla {talla}: la copia de Montajes perdió las guías; reintento {artboard} desde {ai.name}")
+                    res = _correr_bot(codigo, ai, artboard, base, carpeta, jugadores, orden, tela, saltos)
             finally:
                 vigia.parar()
                 if usada_trabajo:   # la copia de trabajo ya cumplió: se borra. La mesa de la NAS nunca se abrió ni se modificó
