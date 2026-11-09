@@ -948,6 +948,12 @@
         copyButton.title = 'Copiar información de la tarjeta';
         card.querySelector('.trace-card-actions').appendChild(copyButton);
       }
+      if (!card.querySelector('.trace-copy-preview')) {
+        const preview = document.createElement('details');
+        preview.className = 'trace-copy-preview';
+        preview.innerHTML = '<summary>Ver texto que se copiará</summary><pre>' + esc(textoTarjetaCopiable(row, summaries.get(row.source_row) || {})) + '</pre>';
+        card.querySelector('.trace-card-meta')?.insertAdjacentElement('afterend', preview);
+      }
       const viewSummary = summaries.get(row.source_row);
       const progressSummary = viewSummary.route || viewSummary;
       const progress = card.querySelector('.trace-progress');
@@ -1363,28 +1369,30 @@
   document.head.appendChild(pauseStyle);
   const diasStyle = document.createElement('style'); diasStyle.textContent = '.trace-entrega-dias{grid-column:1/-1;display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding-top:2px}.trace-entrega-dias small{color:#8e9c8f;font:800 9px Arial;letter-spacing:.1em}.trace-entrega-dias b{color:#f1f7ed;font:800 12.5px Arial}.trace-entrega-dias .trace-dias{margin-left:0;font:900 13px Arial;padding:4px 12px}.trace-entrega-dias small{font-size:11px!important}.trace-entrega-dias b{font-size:13.5px}.trace-dias{display:inline-block;margin-left:8px;padding:2px 9px;border-radius:99px;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.08);color:#e8f0e0;font:800 10.5px Arial;letter-spacing:.04em;white-space:nowrap}.trace-dias.dias-ok{border-color:rgba(208,244,76,.5);color:#d0f44c}.trace-dias.dias-cerca{border-color:rgba(243,184,82,.7);background:rgba(243,184,82,.14);color:#ffd98a}.trace-dias.dias-hoy{border-color:rgba(243,184,82,.9);background:rgba(243,184,82,.24);color:#ffe9b8}.trace-dias.dias-tarde{border-color:rgba(255,107,97,.8);background:rgba(255,107,97,.18);color:#ffb3ac}'; document.head.appendChild(diasStyle);
   const inventoryQuickStyle = document.createElement('style'); inventoryQuickStyle.textContent = '.trace-card .trace-primary-facts .trace-horas{grid-column:1/-1;display:flex;justify-content:flex-end;gap:8px;margin-top:-2px}.trace-horas span{display:flex;align-items:baseline;gap:6px;min-width:74px;justify-content:space-between;padding:4px 9px;border:1px solid rgba(255,255,255,.14);border-radius:8px;background:rgba(255,255,255,.03)}.trace-horas small{color:#8e9c8f;font:800 8.5px Arial;letter-spacing:.08em}.trace-horas b{color:#f1f7ed;font:800 12.5px Arial}.trace-horas.en-curso span:first-child{border-color:rgba(208,244,76,.55)}.trace-horas.en-curso span:first-child b{color:#d0f44c}.trace-mts-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.trace-mts-inventory{width:auto!important;min-height:32px;padding:7px 10px;border:1px solid #6ca8c7!important;border-radius:8px;background:#19303b!important;color:#c3edff!important;font:800 10px Arial!important}'; document.head.appendChild(inventoryQuickStyle);
+  function textoTarjetaCopiable(row, summary) {
+    const mts = String(productionData.notes?.[row.source_row + ':17'] || '').trim() || 'Sin registrar';
+    const responsable = summary.focus?.responsible || 'Sin asignar';
+    return [
+      'ORDEN: ' + (traceField(row, 'ORDEN') || 'Sin número'),
+      'CLIENTE: ' + (traceField(row, 'NOMBRE DEL CLIENTE') || 'Sin cliente'),
+      'PROYECTO: ' + (traceField(row, 'NOMBRE PROYECTO') || '—'),
+      'REFERENCIA: ' + (traceField(row, 'REFERENCIA') || '—'),
+      'CANTIDAD: ' + (traceField(row, 'CANTIDAD') || '0') + ' und.',
+      'TELA: ' + (traceField(row, 'NOMBRE TELA') || traceField(row, 'TELA') || '—'),
+      'ENTREGA: ' + (traceField(row, 'FECHA DE ENTREGA') || 'Sin programar'),
+      'MÁQUINA DE IMPRESIÓN: ' + (traceField(row, 'MAQUINA DE IMPRESION') || 'Sin asignar'),
+      'MTS REQUERIDOS: ' + mts,
+      'ESTADO: ' + (labels[summary.state] || 'Pendiente'),
+      'RESPONSABLE: ' + responsable
+    ].join('\n');
+  }
   traceCards.addEventListener('click', event => {
     const copyButton = event.target.closest('[data-card-copy]');
     if (copyButton) {
       event.preventDefault(); event.stopImmediatePropagation();
       const row = productionData.rows.find(item => Number(item.source_row) === Number(copyButton.dataset.cardCopy));
       if (!row) return;
-      const summary = summaries.get(row.source_row) || {};
-      const mts = String(productionData.notes?.[row.source_row + ':17'] || '').trim() || 'Sin registrar';
-      const responsable = summary.focus?.responsible || 'Sin asignar';
-      const texto = [
-        'ORDEN: ' + (traceField(row, 'ORDEN') || 'Sin número'),
-        'CLIENTE: ' + (traceField(row, 'NOMBRE DEL CLIENTE') || 'Sin cliente'),
-        'PROYECTO: ' + (traceField(row, 'NOMBRE PROYECTO') || '—'),
-        'REFERENCIA: ' + (traceField(row, 'REFERENCIA') || '—'),
-        'CANTIDAD: ' + (traceField(row, 'CANTIDAD') || '0') + ' und.',
-        'TELA: ' + (traceField(row, 'NOMBRE TELA') || traceField(row, 'TELA') || '—'),
-        'ENTREGA: ' + (traceField(row, 'FECHA DE ENTREGA') || 'Sin programar'),
-        'MÁQUINA DE IMPRESIÓN: ' + (traceField(row, 'MAQUINA DE IMPRESION') || 'Sin asignar'),
-        'MTS REQUERIDOS: ' + mts,
-        'ESTADO: ' + (labels[summary.state] || 'Pendiente'),
-        'RESPONSABLE: ' + responsable
-      ].join('\n');
+      const texto = textoTarjetaCopiable(row, summaries.get(row.source_row) || {});
       const copiar = navigator.clipboard?.writeText ? navigator.clipboard.writeText(texto) : Promise.reject();
       copiar.catch(() => { const area = document.createElement('textarea'); area.value = texto; area.style.position = 'fixed'; area.style.opacity = '0'; document.body.appendChild(area); area.select(); document.execCommand('copy'); area.remove(); })
         .then(() => { const anterior = copyButton.title; copyButton.title = '¡Copiado!'; copyButton.classList.add('is-copied'); setTimeout(() => { copyButton.title = anterior; copyButton.classList.remove('is-copied'); }, 1600); });
@@ -2524,6 +2532,10 @@
   html body.production-mode .trace-card .trace-card-actions .trace-edit-action{color:#bde9ff!important;border-color:#5f9fbd!important;background:#18313c!important}
   html body.production-mode .trace-card .trace-card-actions .trace-copy-action{color:#f4f7ee!important;border-color:#799086!important;background:#23332b!important}
   html body.production-mode .trace-card .trace-card-actions .trace-copy-action.is-copied{color:#d6f64b!important;border-color:#b5df54!important;background:#31481b!important}
+  html body.production-mode .trace-copy-preview{margin:0 0 10px;border:1px solid rgba(121,144,134,.55);border-radius:8px;background:#17251e;color:#cbd8ce}
+  html body.production-mode .trace-copy-preview summary{cursor:pointer;padding:8px 10px;color:#d8edc3;font:800 10px Arial;letter-spacing:.06em;list-style:none}
+  html body.production-mode .trace-copy-preview summary:after{content:'⌄';float:right;font-size:14px}.trace-copy-preview[open] summary:after{content:'⌃'}
+  html body.production-mode .trace-copy-preview pre{margin:0;padding:0 10px 10px;white-space:pre-wrap;color:#c6d1c9;font:11px/1.45 Consolas,monospace}
   html body.production-mode .trace-card .trace-card-actions .trace-nas-action{color:#d6f64b!important;border-color:#819e4b!important}
   html body.production-mode .trace-card .trace-card-actions .trace-delete-action{color:#ffb5ae!important;border-color:#8c524c!important;background:#392323!important}
   .trace-card-editor-message.is-success{padding:6px 9px;border:1px solid #b7ed59;border-radius:7px;background:#273d18;color:#d0f44c;font:800 11px/1.25 Arial;letter-spacing:.01em}.trace-card-editor-message.is-error{color:#ffaaa2}
