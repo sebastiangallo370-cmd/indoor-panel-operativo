@@ -533,19 +533,55 @@ html body .bd .inventory-item-card.lq,html body .bd .bd-tkpi .lq{background:radi
     const totalMts = filas.reduce((total, fila) => total + fila.mts, 0);
     telaDesglose.innerHTML = '<div class="bd-tela-detail-head"><div><small>Detalle de tela programada · ' + num(filas.length) + (filas.length === 1 ? ' pedido' : ' pedidos') + ' · ' + num(totalMts) + ' MTS requeridos</small><h3>' + esc(telaDetalle) + '</h3></div><button type="button" class="bd-tela-close" data-close-tela-detail>Cerrar</button></div><div class="bd-tela-table-wrap"><table class="bd-tela-table"><thead><tr><th>Cliente</th><th>Proyecto</th><th>Orden</th><th>Cantidad</th><th>Referencia</th><th>MTS requeridos</th></tr></thead><tbody>' + filas.map(fila => '<tr><td>' + esc(fila.cliente) + '</td><td>' + esc(fila.proyecto) + '</td><td>' + esc(fila.orden) + '</td><td>' + num(fila.cantidad) + ' UND.</td><td>' + esc(fila.referencia) + '</td><td>' + num(fila.mts) + ' MTS</td></tr>').join('') + '</tbody></table></div>';
   };
+  // Cada material alimenta su propia tarjeta. Una referencia M1/M2 deja de
+  // quedar concentrada en la primera tela de la orden.
+  const resumirTelas = (ordenes, respaldo) => {
+    const grupos = new Map();
+    const asegurar = (tela, base = {}) => {
+      const nombre = String(tela || 'Tela sin identificar').trim() || 'Tela sin identificar';
+      const clave = norm(nombre);
+      if (!grupos.has(clave)) grupos.set(clave, {tela: nombre, mts: 0, faltan: 0, encontrada: true, alcanza: true, disponible: null, pedidos: new Set(), ...base});
+      return grupos.get(clave);
+    };
+    (ordenes || []).forEach(o => {
+      const materiales = (o.materiales || []).filter(m => Number(m.mts) > 0);
+      // Las órdenes antiguas que no tienen materiales detallados conservan
+      // exactamente el comportamiento anterior.
+      const lineas = materiales.length ? materiales : [{tela: o.tela, mts: o.mts, situacion: o.situacion, falta: o.falta, bodega: o.bodega}];
+      lineas.forEach(m => {
+        const g = asegurar(m.tela || o.tela), mts = Number(m.mts) || 0;
+        g.mts += mts;
+        g.faltan += Number(m.falta) || 0;
+        g.pedidos.add(String(o.fila || o.orden || o.referencia || g.pedidos.size));
+        if (m.situacion === 'sin_tela') { g.encontrada = false; g.alcanza = false; }
+        else if (m.situacion === 'no_alcanza') g.alcanza = false;
+        if (Number.isFinite(Number(m.bodega))) g.disponible = Math.max(Number(g.disponible || 0), Number(m.bodega));
+      });
+    });
+    // Respaldo para cálculos previos que aún no traen materiales separados.
+    (respaldo || []).forEach(t => {
+      const g = asegurar(t.tela, {disponible: t.disponible, encontrada: t.encontrada, alcanza: t.alcanza, faltan: t.faltan});
+      if (!g.mts) { g.mts = Number(t.mts) || 0; g.faltan = Number(t.faltan) || 0; g.encontrada = t.encontrada; g.alcanza = t.alcanza; }
+      if (g.disponible === null && Number.isFinite(Number(t.disponible))) g.disponible = Number(t.disponible);
+    });
+    return [...grupos.values()].map(g => ({...g, mts: Math.round(g.mts * 100) / 100, faltan: Math.round(g.faltan * 100) / 100, pedidos: [...g.pedidos]})).sort((a, b) => Number(a.alcanza) - Number(b.alcanza) || b.mts - a.mts || a.tela.localeCompare(b.tela));
+  };
   const renderTela = data => {
     if (data.disponible === false) { tKpi.__h = tCards.__h = null; tKpi.innerHTML = ''; tCards.innerHTML = '<p class="bd-note">No se pudo leer Producción para calcular la tela necesaria.</p>'; return; }
     const ordenes = data.ordenes || [];
+    const telasResumen = resumirTelas(ordenes, data.telas);
+    const telasNoAlcanzan = telasResumen.filter(t => !t.alcanza).length;
+    const faltanResumen = telasResumen.reduce((total, t) => total + (Number(t.faltan) || 0), 0);
     ordenesTela = ordenes;
     brechaDias = data.brecha_sublimacion || 14;
     poner(tKpi, card({badge: data.telas_no_alcanzan ? 'Atención' : 'Al día', badgeClass: data.telas_no_alcanzan ? 'bad' : 'ok', cls: data.telas_no_alcanzan ? 'bad' : '',
       level: data.mts ? Math.max(0, 100 - data.faltan / data.mts * 100) : 100, tone: data.telas_no_alcanzan ? 'rojo' : 'verde', name: 'Tela necesaria programada',
-      total: num(data.mts) + '<small>MTS</small>', unit: num(data.pedidos) + ' pedidos en ' + num((data.telas || []).length) + ' telas · ' + (data.telas_no_alcanzan ? num(data.telas_no_alcanzan) + ' telas no alcanzan · faltan ' + num(data.faltan) + ' MTS' : 'toda la tela alcanza')}) +
-      (data.telas || []).map(t => card({badge: !t.encontrada ? 'Tela no encontrada' : t.alcanza ? 'Alcanza' : 'No alcanza', badgeClass: t.alcanza ? 'ok' : 'bad', cls: t.alcanza ? '' : 'bad',
+      total: num(data.mts) + '<small>MTS</small>', unit: num(data.pedidos) + ' pedidos en ' + num(telasResumen.length) + ' telas · ' + (telasNoAlcanzan ? num(telasNoAlcanzan) + ' telas no alcanzan · faltan ' + num(faltanResumen) + ' MTS' : 'toda la tela alcanza')}) +
+      telasResumen.map(t => card({badge: !t.encontrada ? 'Tela no encontrada' : t.alcanza ? 'Alcanza' : 'No alcanza', badgeClass: t.alcanza ? 'ok' : 'bad', cls: t.alcanza ? '' : 'bad',
         level: t.encontrada ? Math.min(100, t.disponible / (t.mts || 1) * 100) : 0, tone: t.alcanza ? 'verde' : 'rojo', name: t.tela, total: num(t.mts) + '<small>MTS</small>',
         unit: t.pedidos.length + (t.pedidos.length === 1 ? ' pedido' : ' pedidos') + ' · ' + (t.encontrada ? 'Bodega ' + num(t.disponible) + ' MTS' + (t.alcanza ? '' : ' · FALTAN ' + num(t.faltan)) : 'no está en Bodega'), detailTela: t.tela})).join(''));
     renderDesgloseTela();
-    const telas = [...new Set(ordenes.map(o => o.tela))].sort();
+    const telas = telasResumen.map(t => t.tela).sort();
     const selTela = tFilters.elements.tela, actual = selTela.value;
     poner(selTela, '<option value="">Todas</option>' + telas.map(t => '<option value="' + esc(t) + '"' + (t === actual ? ' selected' : '') + '>' + esc(t) + '</option>').join(''));
     const ORD_TALLAS = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL'];
