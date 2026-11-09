@@ -986,20 +986,19 @@
   .st-sub{position:relative;z-index:3;display:block;max-width:calc(100% - 34px);margin-top:5px;font-size:.6rem;opacity:.92;line-height:1.3}.st-late{font-style:normal;font-weight:800;color:#ffd7cf}
   .st-pct{position:absolute;z-index:3;right:-16px;bottom:-16px;width:70px;height:70px;box-sizing:border-box;padding:14px 0 0 16px;border:1px solid rgba(255,255,255,.24);border-radius:50%;font:900 .66rem Arial;font-style:normal;text-shadow:none}
   .st-col.empty .st-val{opacity:.55}.st-col.empty .st-bar{display:none}
-  .st-slot{position:absolute;z-index:1;inset:0;display:flex;align-items:flex-end;pointer-events:none}
-  .st-bar{width:100%;height:0;display:flex;flex-direction:column-reverse;gap:0;position:relative;transition:height 1.1s cubic-bezier(.2,.8,.2,1);transition-delay:calc(var(--i,0)*55ms + 150ms)}
-  .dash-stairs.go .st-bar{height:var(--lv)}
-  .st-bar::before{content:"";position:absolute;inset:0;z-index:2;pointer-events:none;background:radial-gradient(circle at 22% 92%,rgba(255,255,255,.35) 2px,transparent 3px),radial-gradient(circle at 68% 96%,rgba(255,255,255,.28) 3px,transparent 4px),radial-gradient(circle at 44% 99%,rgba(255,255,255,.3) 2px,transparent 3px),linear-gradient(90deg,rgba(255,255,255,.14),transparent 40%,rgba(0,0,0,.12));background-size:100% 160px,100% 190px,100% 140px,100% 100%;background-repeat:repeat-y,repeat-y,repeat-y,no-repeat;animation:stBubbles 6s linear infinite}
-  @keyframes stBubbles{from{background-position:0 0,0 0,0 0,0 0}to{background-position:0 -160px,0 -190px,0 -140px,0 0}}
-  .st-bar .sg{position:relative;display:block;min-height:6px;background:linear-gradient(180deg,var(--c1),var(--c2));opacity:.96}
+  /* Indicador de ritmo: sustituye el llenado líquido por una línea de energía animada. */
+  .st-slot{position:absolute;z-index:2;left:12px;right:12px;bottom:13px;height:7px;display:flex;align-items:center;border:1px solid rgba(255,255,255,.16);border-radius:999px;background:rgba(0,0,0,.28);box-shadow:inset 0 1px 2px rgba(0,0,0,.35);overflow:hidden;pointer-events:none}
+  .st-bar{width:0;height:100%;display:flex;position:relative;transition:width 1.05s cubic-bezier(.18,.85,.25,1);transition-delay:calc(var(--i,0)*55ms + 130ms)}
+  .dash-stairs.go .st-bar{width:var(--lv)}
+  .st-bar::before{content:"";position:absolute;z-index:2;top:-2px;bottom:-2px;width:28px;border-radius:50%;background:rgba(255,255,255,.85);filter:blur(5px);animation:stSignal 2.8s ease-in-out infinite;pointer-events:none}
+  @keyframes stSignal{0%,24%{left:-28px;opacity:0}39%{opacity:.9}74%{left:100%;opacity:.35}100%{left:100%;opacity:0}}
+  .st-bar .sg{position:relative;display:block;min-width:100%;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--c2),var(--c1));opacity:.96;box-shadow:0 0 10px color-mix(in srgb,var(--c1) 58%,transparent)}
   .st-bar .sg.proc{--c1:#9be058;--c2:#3f8f22}.st-bar .sg.rep{--c1:#ff8f80;--c2:#c93a2b}.st-bar .sg.cola{--c1:#ffd27a;--c2:#d28f14}.st-bar .sg.prog{--c1:#a9c8ff;--c2:#4f80cf}
-  .st-bar .sg:last-child::before,.st-bar .sg:not(:first-child)::after{content:"";position:absolute;left:0;right:0;height:12px;-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 12' preserveAspectRatio='none'%3E%3Cpath d='M0 6 C8 0 16 0 24 6 S40 12 48 6 V12 H0Z' fill='%23000'/%3E%3C/svg%3E") repeat-x 0 0/48px 12px;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 12' preserveAspectRatio='none'%3E%3Cpath d='M0 6 C8 0 16 0 24 6 S40 12 48 6 V12 H0Z' fill='%23000'/%3E%3C/svg%3E") repeat-x 0 0/48px 12px;animation:stFlow 3.4s linear infinite;pointer-events:none}
-  .st-bar .sg:last-child::before{top:-6px;background:var(--c1);z-index:3;filter:drop-shadow(0 -1px 0 rgba(255,255,255,.55))}
-  .st-bar .sg:not(:first-child)::after{bottom:-6px;background:var(--c2);transform:scaleY(-1);animation-direction:reverse;animation-duration:4.4s;z-index:1}
-  @keyframes stFlow{from{-webkit-mask-position:0 0;mask-position:0 0}to{-webkit-mask-position:48px 0;mask-position:48px 0}}
+  .st-bar .sg:last-child::before{content:"";position:absolute;inset:1px 8px auto auto;width:3px;height:3px;border-radius:50%;background:#fff;box-shadow:-10px 0 5px rgba(255,255,255,.4),-20px 0 9px rgba(255,255,255,.15);animation:stPulse 1.9s ease-in-out infinite}
+  @keyframes stPulse{50%{transform:scale(1.8);opacity:.45}}
   .st-flow{display:flex;align-items:center;gap:10px;color:#6c7a68;font-size:.62rem;text-transform:uppercase;letter-spacing:.1em}.st-flow i{flex:1;height:2px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.25));position:relative}.st-flow i::after{content:"";position:absolute;right:0;top:-4px;border:5px solid transparent;border-left:8px solid rgba(255,255,255,.35)}
   @media(max-width:700px){.dash-stairs{padding:16px 14px 14px}.dash-stairs.de-unidad{--base:108px;--span:190px;padding:16px 14px 14px}.dash-stairs.compact{--base:100px;--span:80px}.dash-stairs{--base:116px;--span:150px}.dash-stairs.de-unidad{--base:108px;--span:190px}.st-chart{gap:8px;min-width:900px}.st-val{font-size:1.6rem}.st-neck{margin-left:0;flex:1 1 100%}}
-  @media(prefers-reduced-motion:reduce){.st-col,.st-bar,.st-bar::before,.st-bar .sg::before,.st-bar .sg::after{transition:none!important;animation:none!important}.st-col{height:calc(var(--base) + var(--rise))}.st-bar{height:var(--lv)}}
+  @media(prefers-reduced-motion:reduce){.st-col,.st-bar,.st-bar::before,.st-bar .sg::before{transition:none!important;animation:none!important}.st-col{height:calc(var(--base) + var(--rise))}.st-bar{width:var(--lv)}}
   /* Carga por área con el mismo diseño de «Vencimiento de la cartera» */
   .ar-panel{display:grid;gap:22px;padding:22px 24px 26px;border:1px solid rgba(255,255,255,.12);border-radius:18px;background:linear-gradient(130deg,rgba(35,48,25,.72),rgba(9,12,9,.95) 52%,rgba(16,28,16,.84))}
   .ar-panel>header{display:flex;justify-content:space-between;gap:18px;align-items:flex-start}
