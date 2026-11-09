@@ -190,7 +190,7 @@ def carpeta_mesas(cliente, referencia, orden=None):
     return util.carpeta_pedido(cliente, referencia, orden) / "mesas"
 
 
-def exportar_mesas(cliente, referencia, ruta_ai, formato="ai", sobrescribir=False, orden=None, destino=None, generos=None, limpiar=True, lineas=None):
+def exportar_mesas(cliente, referencia, ruta_ai, formato="ai", sobrescribir=False, orden=None, destino=None, generos=None, limpiar=True, lineas=None, tallas_forzadas=None):
     """Devuelve {"ok": True, "carpeta", "archivos": [...]} | {"ok": False, "existe": True, ...} | {"ok": False, "error"}"""
     formato = (formato or "ai").lower()
     if formato not in FORMATOS:
@@ -218,7 +218,7 @@ def exportar_mesas(cliente, referencia, ruta_ai, formato="ai", sobrescribir=Fals
     tallas, nombre_final = [], ""
     if mn and lineas:
         por_talla = _solo_sexo_del_maestro(_jugadores_de(lineas, mn.group(1), mn.group(3).upper()), mn.group(4))
-        tallas = [t for t, _ in por_talla]
+        tallas = [str(t).upper() for t in (tallas_forzadas or [t for t, _ in por_talla])]
         if not tallas:
             return {"ok": False, "sin_tallas": True, "error": f"El listado no pide tallas de diseño {mn.group(1)} y género {mn.group(3).upper()} para {ai.name}."}
         nombre_final = f"D{mn.group(1)}_{ref}{mn.group(3).upper()}"
@@ -609,7 +609,13 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
         if faltan:
             log(AGENTE, f"{ai.name}: faltan las mesas independientes de las tallas {', '.join(faltan)}; las exporto ANTES de poner nombre y número")
             try:
-                exportar_mesas("", "", str(ai), "ai", True, orden=orden, destino={**destino, "carpeta": destino["montajes"]}, generos=destino.get("generos"), limpiar=True, lineas=lineas)
+                # El maestro PE03M puede contener la mesa Gen_F infantil. Al
+                # pedir talla 16/N se fuerza esa talla: de otro modo OLVER
+                # exportaba solo las tallas adultas masculinas y nunca llegaba
+                # a encontrar Talla_16_Tipo_Dn_Gen_F.
+                exportar_mesas("", "", str(ai), "ai", True, orden=orden,
+                                destino={**destino, "carpeta": destino["montajes"]}, generos=destino.get("generos"),
+                                limpiar=True, lineas=lineas, tallas_forzadas=[t for t, _a, _b, _j in plan])
             except Exception as e:  # noqa: BLE001
                 log(AGENTE, f"No pude exportar las mesas que faltaban de {ai.name}: {e}", "WARN")
             faltan = [t for t, art, _b, _j in plan if not _mesa_ok(art, t)]

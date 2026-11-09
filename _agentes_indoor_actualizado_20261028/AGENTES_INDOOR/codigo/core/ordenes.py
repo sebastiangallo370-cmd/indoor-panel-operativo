@@ -30,7 +30,10 @@ MIN_ENTRE_RECARGAS = 120
 # válida antes de contrastarla con el listado.
 # «_» es un carácter de palabra para \b, por eso un límite de palabra solo no
 # reconocía los maestros que separan el género y las tallas con guion bajo.
-MESA_AI = re.compile(r"^D(?:ISE\S{1,2}O)?\s*(\d+)[\s_-]+([A-Za-z]+\d+)(?:[\s_-]*([MFN])(?=$|[.\s_-]))?", re.I)  # D1 FUT02M / D1 CP03 M / D1 CA42 → diseño, referencia, género opcional
+# «D1 PE03N(F).ai» / «D1 PE03N(M).ai» son los maestros infantiles:
+# la letra N puede venir seguida del sexo entre paréntesis. Sin ese caso el
+# selector trataba PE03N como si fuera la referencia y omitía talla 2–16.
+MESA_AI = re.compile(r"^D(?:ISE\S{1,2}O)?\s*(\d+)[\s_-]+([A-Za-z]+\d+)(?:[\s_-]*([MFN])(?=$|[.(\s_-]))?", re.I)  # D1 FUT02M / D1 PE03N(F) / D1 CP03 M / D1 CA42
 # Formato histórico alterno. Se declara aquí (y no solo en seleccion.py) para
 # que buscar_ai no lo descarte antes de que el selector pueda evaluarlo.
 MESA_ALT = re.compile(r"^Talla_([^_]+)_Tipo_D(\d+)_Gen_([MFN])", re.I)
