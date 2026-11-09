@@ -3124,9 +3124,46 @@ def _terry_guardar_mts(orden: str, referencia: str, texto: str) -> dict:
     return resultado
 
 
-# Columnas de la hoja de producción que llenan los agentes (las mismas del Google Sheets): R máquina de impresión, AL/AM hora inicio/final de EDICIÓN, AN responsable
-COL_MAQUINA, COL_ED_INICIO, COL_ED_FINAL, COL_ED_RESP = 18, 38, 39, 40
 _AGENTES_CORRIDAS: dict = {}   # orden -> filas de Producción que los agentes están trabajando (se llena al empezar, se usa al terminar)
+
+
+def _agentes_columnas(meta: dict, requerir_edicion: bool = True) -> dict:
+    """Ubica las columnas que llenan los agentes por grupo y encabezado.
+
+    Nunca se usan números fijos: Producción puede recibir columnas nuevas (por
+    ejemplo HORA INICIO/HORA FINAL de otros procesos) sin desplazar lo que
+    escriben los agentes de EDICIÓN.  Las posiciones devueltas son 1-based,
+    iguales a las que espera Google Sheets.
+    """
+    normalizar = lambda valor: ''.join(
+        c for c in unicodedata.normalize('NFD', str(valor or '')) if not unicodedata.combining(c)
+    ).strip().upper()
+    headers = [normalizar(h) for h in json.loads(meta.get('headers') or '[]')]
+    groups = [normalizar(g) for g in json.loads(meta.get('groups') or '[]')]
+    if len(groups) < len(headers):
+        groups.extend([''] * (len(headers) - len(groups)))
+
+    def buscar(titulo: str, grupo: str = '') -> int:
+        candidatos = [i for i, header in enumerate(headers) if header == titulo]
+        if grupo:
+            candidatos = [i for i in candidatos if groups[i] == grupo]
+        return candidatos[0] + 1 if candidatos else 0
+
+    def buscar_prefijo(prefijo: str, grupo: str) -> int:
+        return next((i + 1 for i, header in enumerate(headers)
+                     if groups[i] == grupo and header.startswith(prefijo)), 0)
+
+    columnas = {
+        'maquina': buscar('MAQUINA DE IMPRESION'),
+        'edicion': buscar('EDICION', 'EDICION') or buscar('EDICION'),
+        'inicio': buscar('HORA INICIO', 'EDICION'),
+        'final': buscar('HORA FINAL', 'EDICION'),
+        'responsable': buscar_prefijo('RESP', 'EDICION'),
+    }
+    faltantes = [nombre for nombre in ('edicion', 'inicio', 'final', 'responsable') if not columnas[nombre]] if requerir_edicion else []
+    if faltantes:
+        raise ValueError('Producción no tiene la estructura de EDICIÓN completa: ' + ', '.join(faltantes))
+    return columnas
 
 
 def _agentes_escribir_sheet(fila_local: int, celdas: dict, solo_si_vacia: set, solo_si_en: dict | None = None) -> dict:
@@ -3272,28 +3309,30 @@ def _agentes_sellar(orden: str, momento: str, referencia: str = '') -> dict:
             rec = db.execute('SELECT values_json FROM production_rows WHERE source_row=?', (fila,)).fetchone()
             if not rec:
                 continue
+            meta = {r['key']: r['value'] for r in db.execute("SELECT key, value FROM production_meta WHERE key IN ('headers', 'groups')")}
+            columnas = _agentes_columnas(meta)
             v = json.loads(rec['values_json'])
-            v.extend([''] * max(0, COL_ED_RESP - len(v)))
-            if momento == 'inicio' and (reproceso or not str(v[COL_ED_INICIO - 1]).strip()):
-                v[COL_ED_INICIO - 1] = hora
+            v.extend([''] * max(0, max(columnas.values()) - len(v)))
+            if momento == 'inicio' and (reproceso or not str(v[columnas['inicio'] - 1]).strip()):
+                v[columnas['inicio'] - 1] = hora
             if momento == 'fin':
-                v[COL_ED_FINAL - 1] = hora
+                v[columnas['final'] - 1] = hora
                 if inicio_tardio:
-                    v[COL_ED_INICIO - 1] = inicio_tardio
-            v[COL_ED_RESP - 1] = 'AGENT'
-            maquina = str(v[COL_MAQUINA - 1]).strip()
+                    v[columnas['inicio'] - 1] = inicio_tardio
+            v[columnas['responsable'] - 1] = 'AGENT'
+            maquina = str(v[columnas['maquina'] - 1]).strip() if columnas['maquina'] else ''
             db.execute('UPDATE production_rows SET values_json=? WHERE source_row=?', (json.dumps(v, ensure_ascii=False), fila))
             db.execute("INSERT OR REPLACE INTO production_meta(key,value) VALUES ('updated_at',?)", (ahora.isoformat(),))
-        celdas = {COL_ED_RESP: 'AGENT'}
+        celdas = {columnas['responsable']: 'AGENT'}
         if momento == 'inicio':
-            celdas[COL_ED_INICIO] = hora
+            celdas[columnas['inicio']] = hora
         else:
-            celdas[COL_ED_FINAL] = hora
+            celdas[columnas['final']] = hora
             if inicio_tardio:
-                celdas[COL_ED_INICIO] = inicio_tardio
-        if maquina:
-            celdas[COL_MAQUINA] = maquina
-        solo_vacias = {COL_MAQUINA} if reproceso else {COL_ED_INICIO, COL_MAQUINA}
+                celdas[columnas['inicio']] = inicio_tardio
+        if maquina and columnas['maquina']:
+            celdas[columnas['maquina']] = maquina
+        solo_vacias = ({columnas['maquina']} if columnas['maquina'] else set()) if reproceso else ({columnas['inicio']} | ({columnas['maquina']} if columnas['maquina'] else set()))
         resultado[f'fila_{fila}'] = _agentes_escribir_sheet(fila, celdas, solo_vacias)
     logging.info('Agentes: %s', resultado)
     return resultado
@@ -3420,8 +3459,10 @@ def _agentes_guardar_maquina(orden: str, referencias: list, maquina: str) -> dic
                 otras.append(f"fila {r['source_row']} tiene {actual}")
         if llenadas:
             db.execute("INSERT OR REPLACE INTO production_meta(key,value) VALUES ('updated_at',?)", (datetime.now(timezone.utc).isoformat(),))
-    for fila_ll in llenadas:   # la máquina también va al Google Sheets (columna R), solo si allá está vacía
-        _agentes_escribir_sheet(fila_ll, {COL_MAQUINA: maquina}, {COL_MAQUINA})
+    columnas = _agentes_columnas(meta, requerir_edicion=False)
+    for fila_ll in llenadas:   # la máquina también va al Google Sheets, solo si allá está vacía
+        if columnas['maquina']:
+            _agentes_escribir_sheet(fila_ll, {columnas['maquina']: maquina}, {columnas['maquina']})
     if not (llenadas or ya or otras):
         return {'ok': False, 'motivo': f'No encontré en Producción la orden {orden}' + (f' con las referencias {", ".join(sorted(refs))}' if refs else '')}
     return {'ok': True, 'llenadas': llenadas, 'ya_estaban': ya, 'otras': otras}
