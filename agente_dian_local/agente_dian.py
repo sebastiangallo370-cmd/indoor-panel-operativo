@@ -73,28 +73,32 @@ def _open_browser(token_url: str) -> None:
         except Exception as exc:
             STATE["message"] = f"No se pudo conservar una descarga: {exc}"
 
-    with LOCK:
-        if _context is None:
-            _playwright = sync_playwright().start()
-            _context = _playwright.chromium.launch_persistent_context(
-                str(PROFILE), headless=False, accept_downloads=True,
-                downloads_path=str(downloads), viewport={"width": 1440, "height": 900},
-            )
-            _page = _context.pages[0] if _context.pages else _context.new_page()
-            _context.on("page", lambda page: page.on("download", save_download))
-        else:
-            # Las descargas nuevas se gestionan por la carpeta elegida antes de abrir la sesión.
-            _page = _context.pages[0] if _context.pages else _context.new_page()
-        # Una página puede reutilizarse al renovar el token. Registramos el
-        # manejador una sola vez para no intentar guardar dos veces el mismo
-        # archivo si se abre DIAN nuevamente durante la misma sesión.
-        page_key = id(_page)
-        if page_key not in _download_hooked_pages:
-            _page.on("download", save_download)
-            _download_hooked_pages.add(page_key)
-        _page.goto(token_url, wait_until="domcontentloaded", timeout=60000)
-        _page.bring_to_front()
-    STATE.update(connected=True, browser=True, message="DIAN está abierto en este PC. Completa manualmente cualquier validación oficial.")
+    try:
+        with LOCK:
+            if _context is None:
+                _playwright = sync_playwright().start()
+                # Chrome instalado ofrece la sesión visible que el usuario reconoce.
+                _context = _playwright.chromium.launch_persistent_context(
+                    str(PROFILE), channel="chrome", headless=False, accept_downloads=True,
+                    downloads_path=str(downloads), viewport={"width": 1440, "height": 900},
+                )
+                _page = _context.pages[0] if _context.pages else _context.new_page()
+                _context.on("page", lambda page: page.on("download", save_download))
+            else:
+                # Las descargas nuevas se gestionan por la carpeta elegida antes de abrir la sesión.
+                _page = _context.pages[0] if _context.pages else _context.new_page()
+            # Una página puede reutilizarse al renovar el token. Registramos el
+            # manejador una sola vez para no intentar guardar dos veces el mismo
+            # archivo si se abre DIAN nuevamente durante la misma sesión.
+            page_key = id(_page)
+            if page_key not in _download_hooked_pages:
+                _page.on("download", save_download)
+                _download_hooked_pages.add(page_key)
+            _page.goto(token_url, wait_until="domcontentloaded", timeout=60000)
+            _page.bring_to_front()
+        STATE.update(connected=True, browser=True, message="DIAN está abierto en este PC. Completa manualmente cualquier validación oficial.")
+    except Exception as exc:
+        STATE.update(connected=False, browser=False, message=f"No se pudo abrir Chrome para DIAN: {type(exc).__name__}: {exc}")
 
 
 @APP.get("/health")
