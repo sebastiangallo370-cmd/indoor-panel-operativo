@@ -9,7 +9,6 @@ from __future__ import annotations
 import os
 import threading
 import time
-import webbrowser
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -27,7 +26,21 @@ APP.add_middleware(
     allow_credentials=False,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Content-Type"],
+    allow_private_network=True,
 )
+
+
+@APP.middleware("http")
+async def permitir_panel_en_red_privada(request, call_next):
+    """Autoriza únicamente la conexión HTTPS del panel al agente loopback.
+
+    Chrome solicita este encabezado adicional al pasar de produccion.cloud a
+    localhost (Private Network Access). No se abre el servicio a la red.
+    """
+    response = await call_next(request)
+    if request.headers.get("origin") == "https://produccion.cloud":
+        response.headers["Access-Control-Allow-Private-Network"] = "true"
+    return response
 BASE = Path(os.getenv("LOCALAPPDATA", Path.home())) / "IndoorSport" / "AgenteDIAN"
 PROFILE = BASE / "perfil_chrome"
 STATE = {"connected": False, "folder": "", "message": "Agente local listo", "browser": False}
@@ -172,5 +185,4 @@ folder.onclick=async()=>{await fetch('/carpeta',{method:'POST'});status()};resta
 
 if __name__ == "__main__":
     import uvicorn
-    webbrowser.open("http://127.0.0.1:17877")
     uvicorn.run(APP, host="127.0.0.1", port=17877, log_level="warning")
