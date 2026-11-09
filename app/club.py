@@ -320,6 +320,35 @@ def _pedido(pedido_id: int) -> dict:
     return p
 
 
+def actualizar_maestros_pedido(pedido_id: int) -> dict:
+    """Actualiza una reposición antigua que quedó con una fila MAESTRO sintética.
+
+    El reintento comercial es la única ocasión en la que se escribe. Conserva
+    los jugadores y los mockups del maestro, pero recupera de Producción la
+    referencia vendible, la orden/PDF base y la tela de la última orden real.
+    """
+    pedido = _pedido(pedido_id)
+    catalogo = proyectos_maestros_de(pedido['cliente'])
+    disenos = disenos_de(pedido['cliente'], catalogo)
+    reales = {( _plano(d.get('proyecto')), _plano(d.get('maestro'))): d for d in disenos if not d.get('maestro_nas')}
+    cambio = False
+    for linea in pedido['lineas']:
+        if not linea.get('maestro_nas') and int(linea.get('row') or 0) > 0:
+            continue
+        maestro = (re.findall(r'[A-Z]+\d+', str(linea.get('referencia') or '').upper()) or [str(linea.get('referencia') or '').upper()])[-1]
+        base = reales.get((_plano(linea.get('proyecto')), maestro))
+        if not base:
+            continue
+        tela, codigo = tela_de(int(base['row']))
+        linea.update(row=base['row'], referencia=base['referencia'], orden_base=base['orden'],
+                     tela=tela, codigo_tela=codigo, maestro_nas=True)
+        cambio = True
+    if cambio:
+        with _connect() as db:
+            db.execute('UPDATE club_pedidos SET lineas=? WHERE id=?', (json.dumps(pedido['lineas'], ensure_ascii=False), pedido_id))
+    return pedido
+
+
 # ------------------------------------------------------------------ diseños del cliente (desde Producción)
 def disenos_de(cliente: str, catalogo: list[dict] | None = None) -> list[dict]:
     """Proyectos maestros ya producidos para el cliente, uno por carpeta base.
@@ -511,6 +540,7 @@ def reintentar_cotizacion(request: Request, pedido_id: int):
     from app import effitron
     if not effitron.activo():
         raise HTTPException(409, 'EFFITRON está apagado: no se crean cotizaciones todavía')
+    actualizar_maestros_pedido(pedido_id)
     effitron.reintentar(pedido_id)
     return {'ok': True}
 
