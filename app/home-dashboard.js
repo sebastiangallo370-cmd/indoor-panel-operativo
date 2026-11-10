@@ -518,9 +518,9 @@
   function telaTabs() { if (telaData && !TABS.some(([id]) => id === 'tela')) TABS.push(['tela', 'Tela']); }
   let activeTab = 'resumen';
   try { const saved = localStorage.getItem('indoor-home-tab'); if (TABS.some(([id]) => id === saved)) activeTab = saved; } catch (e) { /* sin almacenamiento */ }
-  // En las vistas de análisis el banner de bienvenida no aporta contexto y empuja
-  // la escalera fuera del primer pantallazo. Se oculta solo mientras no se vea Resumen.
-  function syncHomeFocus() { root.closest('.home-page')?.classList.toggle('home-dashboard-focus', activeTab !== 'resumen'); }
+  // El banner de Inicio forma parte de la identidad de esta pantalla y debe
+  // permanecer visible también en las vistas de análisis.
+  function syncHomeFocus() { root.closest('.home-page')?.classList.remove('home-dashboard-focus'); }
   syncHomeFocus();
   function tabsBar(a) {
     telaTabs();
@@ -531,6 +531,7 @@
   root.addEventListener('click', event => {
     const tab = event.target.closest('[data-dash-tab]');
     if (!tab) return;
+    window.dispatchEvent(new CustomEvent('indoor:inicio-antes-de-cambiar'));
     activeTab = tab.dataset.dashTab;
     try { localStorage.setItem('indoor-home-tab', activeTab); } catch (e) { /* sin almacenamiento */ }
     syncHomeFocus();
@@ -899,6 +900,8 @@
     if (primera) countUp();
     if (dlg.open && view.label) dlgList();
     if (!stairsPlayed) playStairs(root.querySelector('.dash-pane.on'));
+    // La restauración de posición espera hasta que Inicio termine de dibujarse.
+    window.dispatchEvent(new CustomEvent('indoor:inicio-listo'));
   }
 
   const style = document.createElement('style');

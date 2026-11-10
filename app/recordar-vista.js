@@ -1,10 +1,11 @@
 (() => {
-  // Al recargar (F5) el panel vuelve a la página en la que estabas, en vez de irse a Inicio.
-  // Guarda la última pestaña del menú que se abrió; al cargar espera a que exista (los módulos crean sus pestañas poco a poco) y la abre,
-  // salvo que ya hayas tocado otra cosa. La sesión se cierra solo tras 2 horas de inactividad (session-guard.js).
+  // Un ingreso nuevo inicia en Inicio. En una recarga de la misma sesión se
+  // recuperan automáticamente la pantalla, su subpestaña y el desplazamiento.
   if (window.__recordarVista) return;
   window.__recordarVista = true;
   const CLAVE = 'indoor-ultima-vista';
+  const CLAVE_SESION = 'indoor-sesion-vista';
+  const CLAVE_PANEL = 'indoor-ubicacion-panel';
   // Un parámetro temporal de actualización nunca debe quedarse en la URL.
   try {
     const url = new URL(location.href);
@@ -13,128 +14,76 @@
       history.replaceState(history.state, '', url.pathname + (url.search || '') + url.hash);
     }
   } catch (e) { /* URL API no disponible */ }
-  const desdeRuta = () => {
-    const ruta = decodeURIComponent(location.hash.replace(/^#/, '')).toLowerCase();
-    if (!ruta) return null;
-    if (ruta === 'bodega' || ruta.startsWith('bodega/')) return {attr: 'data-bodega-dashboard', val: 'true', rotulo: 'PANEL DE CONTROL'};
-    if (/^produccion(?:_|\/)/.test(ruta)) return {attr: 'data-kind', val: 'produccion', rotulo: 'PRODUCCIÓN', subruta: ruta.replace(/^produccion[_/]/, '')};
-    return {attr: 'data-kind', val: ruta, rotulo: ruta.toUpperCase()};
+  const claveUbicacion = () => {
+    const panel = document.querySelector('.panel.active')?.dataset?.panel || 'inicio';
+    const activo = document.querySelector('.panel.active [data-dash-tab].on')?.dataset?.dashTab
+      || document.querySelector('.panel.active [data-es-tab].active')?.dataset?.esTab
+      || 'principal';
+    return 'indoor-ubicacion:' + panel + ':' + activo;
   };
-  const leer = () => desdeRuta() || (() => { try { return JSON.parse(localStorage.getItem(CLAVE) || 'null'); } catch (e) { return null; } })();
-  const rutaDe = v => {
-    if (!v) return '';
-    if (v.attr === 'data-bodega-dashboard') return 'bodega/' + (() => { try { return localStorage.getItem('indoor-bodega-subtab') || 'resumen'; } catch (_) { return 'resumen'; } })();
-    if (v.val === 'produccion') {
-      const proceso = document.querySelector('.process-nav.active[data-production-route]')?.dataset.productionRoute || document.getElementById('production-process')?.value;
-      return proceso ? 'produccion_' + proceso : 'produccion';
+  const guardarUbicacion = () => {
+    const panel = document.querySelector('.panel.active')?.dataset?.panel;
+    if (!panel) return;
+    try {
+      sessionStorage.setItem(CLAVE_SESION, '1');
+      sessionStorage.setItem(CLAVE_PANEL, panel);
+      sessionStorage.setItem(claveUbicacion(), String(Math.max(0, Math.round(scrollY))));
+    } catch (e) { /* sin almacenamiento */ }
+  };
+  let restaurada = false, temporizador = 0, usuarioToco = false;
+  const restaurarUbicacion = () => {
+    if (restaurada) return;
+    if (usuarioToco) { restaurada = true; return; }
+    const panel = document.querySelector('.panel.active')?.dataset?.panel;
+    if (!panel || (panel === 'inicio' && !document.querySelector('#home-dashboard .dash-tabs'))) {
+      clearTimeout(temporizador);
+      temporizador = setTimeout(restaurarUbicacion, 80);
+      return;
     }
-    return String(v.val || '');
+    let punto = 0;
+    try { punto = Number(sessionStorage.getItem(claveUbicacion()) || 0); } catch (e) { /* sin almacenamiento */ }
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      scrollTo({ top: Number.isFinite(punto) ? punto : 0, left: 0, behavior: 'auto' });
+      restaurada = true;
+    }));
   };
-  const guardar = v => {
-    try { localStorage.setItem(CLAVE, JSON.stringify(v)); } catch (e) { /* sin almacenamiento */ }
-    // La ruta conserva el formato legible de submódulo: #produccion_edicion.
-    try { history.replaceState(history.state, '', location.pathname + location.search + (rutaDe(v) ? '#' + encodeURI(rutaDe(v)) : '')); } catch (e) { /* History API no disponible */ }
+  const abrirInicio = () => {
+    const inicio = document.querySelector('.tab[data-kind="inicio"]');
+    if (!inicio) return false;
+    if (!inicio.classList.contains('active')) inicio.click();
+    return true;
   };
-  const guardarSoloVista = v => { try { localStorage.setItem(CLAVE, JSON.stringify(v)); } catch (e) { /* sin almacenamiento */ } };
-  const guardarVistaVisible = () => {
-    const activa = document.querySelector('.panel.active')?.dataset?.panel;
-    if (!activa || activa === 'inicio') return guardarSoloVista(null);
-    guardarSoloVista({ attr: 'data-kind', val: activa, rotulo: activa.toUpperCase(), t: Date.now() });
+  const abrirPanelGuardado = () => {
+    let panel = '';
+    try { panel = sessionStorage.getItem(CLAVE_PANEL) || ''; } catch (e) { /* sin almacenamiento */ }
+    if (!panel || panel === 'inicio') return abrirInicio();
+    const destino = document.querySelector('.tab[data-kind="' + CSS.escape(panel) + '"]');
+    if (!destino) return false;
+    if (!destino.classList.contains('active')) destino.click();
+    return true;
   };
-  // Una recarga no depende del último clic: antes de que la página se cierre
-  // se registra exactamente el panel que el usuario está viendo.
-  addEventListener('pagehide', guardarVistaVisible, { capture: true });
-  addEventListener('beforeunload', guardarVistaVisible, { capture: true });
-  let usuarioToco = false, restaurando = false;
-  // Mientras se recupera una ruta al cargar, no se debe reemplazar por la
-  // pantalla inicial que aparece por unos milisegundos.
-  let esperandoRestauracion = Boolean(desdeRuta() || (() => {
-    try { return JSON.parse(localStorage.getItem(CLAVE) || 'null'); } catch (e) { return null; }
-  })());
-
-  // identifica una pestaña por su data-kind (o por el atributo propio de las pantallas de Inventarios)
-  function clave(el) {
-    const t = el.closest('.tab[data-kind],[data-bodega-dashboard]');
-    if (!t) return null;
-    const rotulo = (t.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 60);   // hay varias pestañas con el mismo data-kind (los procesos de Producción)
-    if (t.dataset.kind) return { attr: 'data-kind', val: t.dataset.kind, rotulo };
-    if (t.hasAttribute('data-bodega-dashboard')) return { attr: 'data-bodega-dashboard', val: t.getAttribute('data-bodega-dashboard'), rotulo };
-    return null;
-  }
-  const buscar = c => {
-    if (!c) return null;
-    const lista = [...document.querySelectorAll('[' + c.attr + (c.val ? '="' + String(c.val).replace(/"/g, '') + '"' : '') + ']')];
-    // data-kind es el identificador único de cada pantalla. El rótulo puede
-    // cambiar («C.LABORAL») y no debe decidir a qué pantalla se regresa.
-    return lista[0] || null;
+  try { localStorage.removeItem(CLAVE); } catch (e) { /* dato heredado */ }
+  let esRecarga = false;
+  try { esRecarga = sessionStorage.getItem(CLAVE_SESION) === '1'; } catch (e) { /* sin almacenamiento */ }
+  let pendienteGuardar = 0;
+  addEventListener('scroll', () => {
+    clearTimeout(pendienteGuardar);
+    pendienteGuardar = setTimeout(guardarUbicacion, 120);
+  }, { passive: true });
+  addEventListener('pagehide', guardarUbicacion, { capture: true });
+  addEventListener('beforeunload', guardarUbicacion, { capture: true });
+  addEventListener('indoor:inicio-antes-de-cambiar', guardarUbicacion);
+  addEventListener('indoor:inicio-listo', restaurarUbicacion);
+  document.addEventListener('click', event => {
+    if (event.isTrusted) usuarioToco = true;
+  }, { capture: true });
+  const iniciar = () => {
+    const abierto = esRecarga ? abrirPanelGuardado() : abrirInicio();
+    if (abierto) restaurarUbicacion();
+    else setTimeout(iniciar, 80);
   };
-
-  document.addEventListener('click', e => {
-    if (restaurando || !e.isTrusted) return;   // al restaurar (y los clics por programa de otros módulos) no se cambia lo guardado: ya es esta misma vista
-    const destino = e.target.closest?.('.tab,[data-bodega-dashboard]');
-    if (!destino) return;
-    const c = clave(e.target);
-    usuarioToco = true;
-    esperandoRestauracion = false;
-    // El cambio de panel lo hacen otros manejadores de click. Guardamos al
-    // final del evento para leer la pestaña que realmente quedó abierta y no
-    // la anterior (algunos accesos son botones que llaman otra pestaña).
-    setTimeout(() => {
-      const activa = document.querySelector('.panel.active')?.dataset?.panel;
-      if (c?.attr === 'data-bodega-dashboard') guardar({ ...c, t: Date.now() });
-      else if (activa === 'inicio') guardar(null);
-      else if (activa) guardar({ attr: 'data-kind', val: activa, rotulo: activa.toUpperCase(), t: Date.now() });
-      else if (c) guardar({ ...c, t: Date.now() });
-    }, 0);
-  }, true);
-  ['mousedown', 'keydown', 'touchstart'].forEach(ev => window.addEventListener(ev, () => { usuarioToco = true; }, { passive: true, once: true, capture: true }));
-
-  // Red de seguridad: varios módulos abren pestañas mediante código, sin un
-  // clic directo sobre el menú. Al cambiar el panel visible, la URL se
-  // sincroniza también en esos casos.
-  let ultimaVistaSincronizada = '';
-  const sincronizarVistaActiva = () => {
-    if (restaurando || esperandoRestauracion) return;
-    const activa = document.querySelector('.panel.active')?.dataset?.panel;
-    if (!activa) return;
-    // Bodega tiene submódulos propios: su ruta detallada la controla el
-    // tablero de bodega y no se reemplaza por la ruta genérica Inventarios.
-    if (activa === 'inventario' && /^#bodega(?:\/|$)/i.test(location.hash)) return;
-    const rutaActual = location.hash.replace(/^#/, '').toLowerCase();
-    const rutaEsperada = rutaDe({ attr: 'data-kind', val: activa });
-    if (ultimaVistaSincronizada === activa && rutaActual === rutaEsperada) return;
-    ultimaVistaSincronizada = activa;
-    guardar(activa === 'inicio' ? null : { attr: 'data-kind', val: activa, rotulo: activa.toUpperCase(), t: Date.now() });
-  };
-  // Revisión liviana: consulta solo el panel activo, sin observar cada cambio
-  // de clases de las tarjetas ni reescribir una ruta que ya está sincronizada.
-  setInterval(() => { if (!document.hidden) sincronizarVistaActiva(); }, 1000);
-
-  const guardada = leer();
-  if (guardada?.attr) {
-    let intentos = 0;
-    const espera = setInterval(() => {
-      if (usuarioToco || ++intentos > 70) { clearInterval(espera); return; }   // ~20 s como máximo
-      const el = buscar(guardada);
-      if (!el || !document.querySelector('.tab[data-kind="inicio"]')) return;   // el menú aún se está armando
-      clearInterval(espera);
-      const grupo = el.closest('.nav-group');
-      if (grupo) grupo.classList.remove('collapsed');
-      restaurando = true;
-      const abrir = () => {
-        if (usuarioToco) return;
-        buscar(guardada)?.click();
-        if (guardada.subruta) document.querySelector('.process-nav[data-production-route="' + String(guardada.subruta).replace(/"/g, '') + '"]')?.click();
-      };
-      // Algunas pantallas se crean después del menú. Se reaplica al finalizar
-      // esa carga para que ninguna inicialización posterior cambie la vista.
-      setTimeout(abrir, 250);
-      setTimeout(abrir, 1500);
-      setTimeout(abrir, 3500);
-      setTimeout(abrir, 6000);
-      setTimeout(() => { abrir(); restaurando = false; esperandoRestauracion = false; sincronizarVistaActiva(); }, 8500);
-    }, 300);
-  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar, { once: true });
+  else iniciar();
 })();
 
 /* Rendimiento adaptativo: conserva el diseño completo, pero evita efectos
@@ -147,26 +96,8 @@
   document.documentElement.classList.add('indoor-low-power');
   const style = document.createElement('style');
   style.textContent = `
-    html.indoor-low-power *,html.indoor-low-power *::before,html.indoor-low-power *::after{
-      animation-duration:.01ms!important;animation-iteration-count:1!important;
-      transition-duration:.01ms!important;scroll-behavior:auto!important
-    }
     html.indoor-low-power .card,html.indoor-low-power .panel,html.indoor-low-power dialog{
       backdrop-filter:none!important;-webkit-backdrop-filter:none!important
-    }
-  `;
-  document.head.appendChild(style);
-})();
-
-/* Inicio liviano: evita que el tablero compita por CPU/GPU con el trabajo
-   operativo. Conserva los datos y elimina solo efectos decorativos continuos. */
-(() => {
-  const style = document.createElement('style');
-  style.textContent = `
-    body .home-hero canvas,body .home-hero .hp-amb,body .home-hero .hp-glow{display:none!important}
-    body .home-hero img{filter:none!important;will-change:auto!important}
-    body #home-dashboard *,body #home-dashboard *::before,body #home-dashboard *::after{
-      animation:none!important;transition-duration:.01ms!important
     }
   `;
   document.head.appendChild(style);
