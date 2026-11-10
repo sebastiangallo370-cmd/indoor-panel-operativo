@@ -184,7 +184,8 @@ def encolar_zeus_oc(item: dict) -> dict:
             cfg = _settings(con)
             if not cfg['events']['zeus_oc_created']:
                 return {'queued': False, 'reason': 'evento desactivado'}
-            raw_phone, name = _contacto_tela(item)
+            prueba = item.get('prueba_controlada') or {}
+            raw_phone, name = ((str(prueba.get('whatsapp') or ''), 'Revisión interna') if prueba else _contacto_tela(item))
             if not raw_phone:
                 return {'queued': False, 'reason': 'La tela no tiene WhatsApp de encargado configurado.'}
             try:
@@ -192,13 +193,19 @@ def encolar_zeus_oc(item: dict) -> dict:
             except ValueError:
                 return {'queued': False, 'reason': 'WhatsApp del encargado no tiene un formato válido.'}
             recipient = con.execute('SELECT consent FROM wa_recipients WHERE phone=?', (phone,)).fetchone()
-            if not recipient or recipient['consent'] != 'authorized':
+            # La ruta de prueba exige permiso administrativo y el teléfono se confirma en la misma acción.
+            # Ninguna OC normal omite el consentimiento previo del destinatario.
+            if not prueba and (not recipient or recipient['consent'] != 'authorized'):
                 return {'queued': False, 'reason': 'El encargado no ha autorizado mensajes de WhatsApp.'}
             now = _now()
             key = f"zeus_oc_created:{item.get('id','')}:{item.get('oc','')}"
+            cuerpo = (_body_zeus(item, cfg['template']) if not prueba else
+                      f"PRUEBA CONTROLADA · Se creó la orden de compra {item.get('oc') or '(sin número)'} en Effi.\n\n"
+                      f"Tela: {item.get('tela') or ''}\nMetros pedidos: {float(item.get('falta') or 0):g} MTS\n\n"
+                      "Se adjuntó el PDF al correo de revisión. Esta orden NO se enviará al proveedor sin una aprobación posterior.")
             cur = con.execute('''INSERT OR IGNORE INTO wa_messages
                 (event_key,phone,recipient_name,event_name,body,status,created_at,updated_at,is_test)
-                VALUES (?,?,?,?,?,'pending',?,?,0)''', (key, phone, name, 'zeus_oc_created', _body_zeus(item, cfg['template']), now, now))
+                VALUES (?,?,?,?,?,'pending',?,?,0)''', (key, phone, name, 'zeus_oc_created', cuerpo, now, now))
             return {'queued': bool(cur.rowcount), 'duplicate': not bool(cur.rowcount), 'phone': _mask(phone)}
         finally:
             con.close()

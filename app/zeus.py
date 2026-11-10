@@ -240,13 +240,23 @@ def _correo_creada(item: dict) -> None:
     try:
         from app import alertas_correo
         if alertas_correo.puede_enviar():
-            para = destinatarios()
+            prueba = item.get('prueba_controlada') or {}
+            para = str(prueba.get('correo') or destinatarios()).strip()
             lineas = [f"- {o['orden']} · {o['referencia']} · {o.get('cliente', '')}: falta {o['falta']:g} MTS (entrega {o.get('entrega') or 'sin fecha'})" for o in item['ordenes']]
             adj = _pdf_de(item)
-            alertas_correo.enviar(f"Orden de compra de tela creada en Effi: {item['tela']}",
-                                  f"El AGENTE INVENTARIO creó la orden de compra {item['oc'] or '(sin número)'} en Effi.\n\nTela: {item['tela']}\nMetros pedidos: {item['falta']:g} MTS\n\n"
-                                  'Pedidos que la necesitan:\n' + '\n'.join(lineas) + ('\n\nAdjunto el PDF de la orden.' if adj else '\n\n(El PDF de la orden no se pudo descargar de Effi: está en Compras > Órdenes de compra.)') +
-                                  '\n\nVer: https://produccion.cloud (menú de la cuenta > Agente inventario)', para=para, adjuntos=adj)
+            if prueba:
+                asunto = f"PRUEBA CONTROLADA · Orden de compra {item['oc'] or '(sin número)'} · {item['tela']}"
+                cuerpo = (f"Se creó una ORDEN DE COMPRA REAL de prueba en Effi.\n\n"
+                          f"Orden: {item['oc'] or '(sin número)'}\nTela: {item['tela']}\nMetros pedidos: {item['falta']:g} MTS\n\n"
+                          "Esta orden es únicamente para validar el flujo interno. NO se ha enviado al proveedor ni se enviará sin una aprobación posterior.\n\n"
+                          + ('Adjunto el PDF de la orden para revisión.' if adj else '(El PDF de la orden no se pudo descargar de Effi: revísalo en Compras > Órdenes de compra.)') +
+                          '\n\nVer: https://produccion.cloud (menú de la cuenta > Agente inventario)')
+            else:
+                asunto = f"Orden de compra de tela creada en Effi: {item['tela']}"
+                cuerpo = (f"El AGENTE INVENTARIO creó la orden de compra {item['oc'] or '(sin número)'} en Effi.\n\nTela: {item['tela']}\nMetros pedidos: {item['falta']:g} MTS\n\n"
+                          'Pedidos que la necesitan:\n' + '\n'.join(lineas) + ('\n\nAdjunto el PDF de la orden.' if adj else '\n\n(El PDF de la orden no se pudo descargar de Effi: está en Compras > Órdenes de compra.)') +
+                          '\n\nVer: https://produccion.cloud (menú de la cuenta > Agente inventario)')
+            alertas_correo.enviar(asunto, cuerpo, para=para, adjuntos=adj)
     except Exception:   # noqa: BLE001
         log.exception('No se pudo enviar el correo de la orden de compra')
     # WhatsApp se encola aparte del correo: un fallo o una configuración incompleta
@@ -393,6 +403,51 @@ def _usuario(request: Request) -> str:
     if not _permitido(usuario):
         raise HTTPException(403, 'Solo Administración / Coordinación puede cambiar los correos del agente')
     return usuario
+
+
+@router.post('/prueba-controlada')
+def crear_prueba_controlada(request: Request, payload: dict):
+    """Crea una OC real limitada a una revisión interna; nunca programa el envío al proveedor."""
+    usuario = _usuario(request)
+    codigo = str(payload.get('codigo') or '').strip()
+    try:
+        metros = round(float(payload.get('metros') or 0), 2)
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(400, 'Los metros no son válidos.') from exc
+    if not re.fullmatch(r'\d{1,6}', codigo) or not 0 < metros <= 10000:
+        raise HTTPException(400, 'Elige una tela válida y una cantidad entre 0,01 y 10.000 MTS.')
+    correo = _validar(payload.get('correo'))
+    try:
+        from app import whatsapp_notificaciones
+        whatsapp = whatsapp_notificaciones.normalizar_telefono(payload.get('whatsapp', ''))
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+    tela = next((t for t in proveedores_tela.telas() if str(t.get('codigo')) == codigo), None)
+    if not tela:
+        raise HTTPException(400, 'Esa tela no está disponible en el catálogo de inventario.')
+    proveedor_reg = proveedores_tela.proveedor_de(codigo)
+    proveedor = str(proveedor_reg.get('proveedor') or tela.get('proveedor') or '').strip()
+    if not proveedor:
+        raise HTTPException(400, 'La tela no tiene proveedor configurado. Regístralo primero en Proveedores de tela.')
+
+    nombre = str(tela.get('nombre') or '').strip()
+    with _lock:
+        d = _leer()
+        d['seq'] += 1
+        item = {
+            'id': d['seq'], 'tela': nombre, 'falta': metros,
+            'ordenes': [{'orden': 'PRUEBA CONTROLADA', 'cliente': 'REVISIÓN INTERNA', 'proyecto': 'PRUEBA CONTROLADA',
+                         'referencia': codigo, 'entrega': '', 'mts': metros, 'falta': metros, 'situacion': 'prueba-controlada'}],
+            'bodega': [f'({codigo}) {nombre}'], 'estado': 'pendiente', 'oc': '', 'detalle': 'Prueba controlada: solo revisión interna; no enviar al proveedor.',
+            'intentos': 0, 'manual': True, 'codigo_forzado': codigo, 'proveedor_forzado': proveedor,
+            'nit_forzado': str(proveedor_reg.get('nit') or tela.get('nit') or ''),
+            'prueba_controlada': {'correo': correo, 'whatsapp': whatsapp, 'solicitada_por': usuario, 'no_enviar_proveedor': True},
+            'creado': _iso(), 'actualizado': _iso(),
+        }
+        d['items'].append(item)
+        _guardar(d)
+    return {'ok': True, 'item': _enriquecer(item), 'mensaje': 'Prueba creada: el agente la llevará a Effi y solo se notificará al encargado indicado.'}
 
 
 def _hash(token: str) -> str:
@@ -551,6 +606,8 @@ def enviar_proveedor(request: Request, payload: dict):
     with _lock:
         d = _leer()
         item = next((i for i in d['items'] if i['id'] == payload.get('id')), None)
+        if item and item.get('prueba_controlada'):
+            raise HTTPException(400, 'Esta es una prueba controlada: no se puede enviar al proveedor desde esta orden.')
         if not item or item.get('estado') != 'creada' or not item.get('oc'):
             raise HTTPException(404, 'Esa orden de compra todavía no está creada en Effi')
         e = item.get('envio_proveedor') or {}
@@ -912,9 +969,11 @@ def sondeo(request: Request, payload: dict):
                     prov = proveedores_tela.proveedor_de(codigo) if codigo else {}
                     proveedor = i.get('proveedor_forzado') or prov.get('proveedor', '')
                     i['codigo_usado'], i['proveedor_usado'] = codigo, proveedor
+                    prueba = i.get('prueba_controlada') or {}
+                    correos_prueba = [str(prueba.get('correo')).strip()] if prueba.get('correo') else correos_envio
                     entregar.append({'id': i['id'], 'tela': i['tela'], 'falta': i['falta'], 'ordenes': [o['orden'] for o in i['ordenes']], 'bodega': i.get('bodega', []),
-                                     'codigo': codigo, 'proveedor': proveedor, 'nit': prov.get('nit', ''),
-                                     'correos': correos_envio, 'api': api_para_agente(d)})
+                                     'codigo': codigo, 'proveedor': proveedor, 'nit': i.get('nit_forzado') or prov.get('nit', ''),
+                                     'correos': correos_prueba, 'api': api_para_agente(d)})
         if payload.get('puede_trabajar'):
             for i in d['items']:
                 e = i.get('envio_proveedor') or {}
