@@ -704,7 +704,15 @@
     const focusAttribute = ['data-card-edit', 'data-card-detail', 'data-card-nas', 'data-node-index', 'data-design-index'].find(a => focused?.hasAttribute(a));
     const focusValue = focusAttribute ? focused.getAttribute(focusAttribute) : null;
     traceImageObserver.disconnect();
-    const visible = new Set([...productionBody.querySelectorAll('tr')].map(tr => Number(tr.querySelector('td[data-row]')?.dataset.row)));
+    const tableRows = [...productionBody.querySelectorAll('tr')];
+    const visible = new Set(tableRows.map(tr => Number(tr.querySelector('td[data-row]')?.dataset.row)));
+    // renderProduction limpia el tbody antes de volver a insertar las filas. El
+    // MutationObserver podía alcanzar ese instante intermedio y sustituir las
+    // tarjetas por “No hay pedidos”, provocando el parpadeo/contador en cero.
+    // Cuando la tabla aún conserva el estado vacío anterior, esperamos a la
+    // siguiente mutación real; una búsqueda sin resultados sí deja
+    // productionEmpty visible y se muestra normalmente.
+    if (!visible.size && productionData.rows.length && productionEmpty.hidden) return;
     const comKey = row => String(traceField(row, 'ORDEN') || '').replace(/[\s-]+/g, '').toUpperCase();
     const base = productionData.rows.filter(row => visible.has(row.source_row) && ['ORDEN', 'NOMBRE DEL CLIENTE', 'NOMBRE PROYECTO', 'REFERENCIA'].some(name => traceField(row, name).trim())
       && (!comercialesMode || (comercialMap.has(comKey(row)) && (!comercialUser || comercialMap.get(comKey(row)).usuario.toLowerCase() === comercialUser.toLowerCase()))));
@@ -2072,6 +2080,17 @@
   document.head.appendChild(statusColors);
   renderTraceCards();
   updateTraceScroll();
+  // Agrupa las mutaciones que renderProduction hace de una vez. Así las
+  // tarjetas se actualizan cuando el tbody ya terminó de reconstruirse y no
+  // muestran un estado vacío entre dos renderizados.
+  let traceBodyRenderFrame = 0;
+  new MutationObserver(() => {
+    cancelAnimationFrame(traceBodyRenderFrame);
+    traceBodyRenderFrame = requestAnimationFrame(() => {
+      traceBodyRenderFrame = 0;
+      if (traceView === 'cards') renderTraceCards();
+    });
+  }).observe(productionBody, { childList: true });
   new ResizeObserver(fitTraceCards).observe(toolbar);
 })();
 

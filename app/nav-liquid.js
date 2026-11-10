@@ -18,9 +18,10 @@
       NAV+' .nl-on,'+NAV+' .nl-on *{color:#10150e!important;-webkit-text-fill-color:#10150e!important;text-shadow:none!important}',
     '}',
     '@media(prefers-reduced-motion:reduce){.nl-goo.ready .nl-blob{transition:none!important}}',
-    /* Controles compactos: conservan iconos claros sin ocupar la cabecera. */
+    /* Controles compactos, pero con superficie táctil real y sin recortar la
+       insignia de alertas. */
     '.systems{display:flex!important;align-items:center!important;gap:8px!important}',
-    '.systems .theme-icon,.systems #agentes-hub summary,.systems #al-btn.header-alert{flex:0 0 28px!important;width:28px!important;height:28px!important;min-height:28px!important;padding:0!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important}',
+    '.systems .theme-icon,.systems #agentes-hub summary,.systems #al-btn.header-alert{flex:0 0 36px!important;width:36px!important;height:36px!important;min-width:36px!important;min-height:36px!important;padding:0!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important}',
     '.systems .theme-icon:hover,.systems #agentes-hub summary:hover,.systems #al-btn.header-alert:hover{background:transparent!important;border-color:transparent!important;box-shadow:none!important;color:#efff81!important;transform:translateY(-1px)}',
     '.systems .theme-icon svg,.systems #agentes-hub summary svg{display:block!important;width:17px!important;height:17px!important}',
     /* La campana usa un trazo más ancho y con estados de color: necesita aire
@@ -32,7 +33,7 @@
     '.systems .user-info{max-width:145px!important}',
     '.systems .user-info strong{font-size:.7rem!important}',
     '.systems .user-info small{font-size:.6rem!important}',
-    '.systems #al-btn.header-alert b{transform:scale(.68);transform-origin:top right}',
+    '.systems #al-btn.header-alert b{transform:scale(.78);transform-origin:top right}',
     '.systems .theme-icon,.systems #agentes-hub summary,.systems #al-btn.header-alert{position:relative!important;transition:transform .18s ease,color .18s ease!important}',
     '.systems .theme-icon::after,.systems #agentes-hub summary::after,.systems #al-btn.header-alert::after{content:"";position:absolute;left:50%;bottom:-4px;width:0;height:2px;border-radius:2px;background:#d0f44c;box-shadow:0 0 8px #d0f44c;transform:translateX(-50%);transition:width .18s ease}',
     '.systems .theme-icon:hover::after,.systems #agentes-hub summary:hover::after,.systems #agentes-hub[open] summary::after,.systems #al-btn.header-alert:hover::after{width:13px}',
@@ -41,12 +42,12 @@
     '.systems .user-info small::before{content:"";display:inline-block;width:5px;height:5px;margin:0 5px 1px 0;border-radius:50%;background:#d0f44c;box-shadow:0 0 0 0 rgba(208,244,76,.7);animation:headerStatus 2s infinite}',
     '.systems .user-menu summary:hover .user-info strong{color:#d0f44c}@keyframes headerStatus{0%,100%{box-shadow:0 0 0 0 rgba(208,244,76,.55)}50%{box-shadow:0 0 0 4px rgba(208,244,76,0)}}',
     /* Controles ligeros: sin cápsula grande, solo iconos y el monograma del usuario. */
-    '.brand .systems{gap:10px!important;min-height:32px!important;padding:0!important;border:0!important;background:transparent!important;box-shadow:none!important;animation:none!important}',
+    '.brand .systems{gap:8px!important;min-height:38px!important;padding:0!important;border:0!important;background:transparent!important;box-shadow:none!important;animation:none!important}',
     '.brand .systems .user-menu{margin-left:4px;padding-left:9px;border-left:1px solid rgba(222,255,207,.25)}',
     /* La cabecera conserva solo el monograma; los datos completos siguen en el menú desplegable. */
     '.brand .systems .user-menu summary .user-info,.brand .systems .user-menu summary>[aria-hidden="true"]{display:none!important}',
-    '.brand .systems .user-menu summary{min-width:30px!important;justify-content:center!important}',
-    '.brand .systems .user-avatar{display:grid!important;place-items:center;width:28px!important;height:28px!important;border:1px solid rgba(208,244,76,.7)!important;border-radius:50%!important;background:linear-gradient(145deg,rgba(215,255,88,.22),rgba(75,108,64,.16))!important;font-size:11px!important;font-weight:900!important;letter-spacing:.05em!important;box-shadow:inset 0 1px 1px rgba(255,255,255,.35),0 0 12px rgba(208,244,76,.12)!important}',
+    '.brand .systems .user-menu summary{min-width:36px!important;min-height:36px!important;justify-content:center!important}',
+    '.brand .systems .user-avatar{display:grid!important;place-items:center;width:32px!important;height:32px!important;border:1px solid rgba(208,244,76,.7)!important;border-radius:50%!important;background:linear-gradient(145deg,rgba(215,255,88,.22),rgba(75,108,64,.16))!important;font-size:11px!important;font-weight:900!important;letter-spacing:.05em!important;box-shadow:inset 0 1px 1px rgba(255,255,255,.35),0 0 12px rgba(208,244,76,.12)!important}',
     '.brand .systems .theme-icon::after,.brand .systems #agentes-hub summary::after,.brand .systems #al-btn.header-alert::after{bottom:-1px}'
   ].join('');
   var style=document.createElement('style');
