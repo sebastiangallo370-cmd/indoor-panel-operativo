@@ -1,7 +1,7 @@
 """DINOMAN: valida maestros en la NAS al programarse un pedido.
 
-No tiene rutas ni interfaz.  Se activa por la señal de pedido programado y,
-si existe CLIENTE/MAESTROS/PROYECTO, inicia DISEÑO en el Google Sheet.
+No tiene rutas ni interfaz. Se activa por la señal de pedido programado y, si
+existe CLIENTE/MAESTROS/PROYECTO, deja en verde el bloque DISEÑO del Sheet.
 """
 from __future__ import annotations
 
@@ -10,7 +10,6 @@ import logging
 import re
 import threading
 import unicodedata
-from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Callable
 
@@ -75,8 +74,9 @@ def _columns(headers: list, groups: list) -> dict | None:
         return None
     same_group = lambda i: g[i] == g[design] or not g[i]
     start = next((i for i, name in enumerate(h) if same_group(i) and name == 'HORAINICIO'), -1)
+    final = next((i for i, name in enumerate(h) if same_group(i) and name == 'HORAFINAL'), -1)
     responsible = next((i for i, name in enumerate(h) if same_group(i) and name.startswith('RESP')), -1)
-    return {'design': design + 1, 'start': start + 1, 'responsible': responsible + 1} if start >= 0 and responsible >= 0 else None
+    return {'design': design + 1, 'start': start + 1, 'final': final + 1, 'responsible': responsible + 1} if start >= 0 and final >= 0 and responsible >= 0 else None
 
 
 def _a1(row: int, column: int) -> str:
@@ -93,15 +93,29 @@ def _mark(sheet_row: int, order: str, reference: str, columns: dict) -> bool:
     # La fila puede haberse movido entre la sincronización y esta escritura.
     if len(live) < 7 or _plain(live[4]) != _plain(order) or _plain(live[6]) != _plain(reference):
         return False
-    chosen = (columns['design'], columns['start'], columns['responsible'])
-    if any(str(live[col - 1] if len(live) >= col else '').strip() for col in chosen):
+    chosen = (columns['design'], columns['start'], columns['final'], columns['responsible'])
+    values = {col: str(live[col - 1] if len(live) >= col else '').strip() for col in chosen}
+    # No pisa lo que haya registrado una persona. RESP ya puede traer N/A de
+    # la lista desplegable: en ese caso se completa el resto del bloque.
+    if any(values[col] for col in chosen if col != columns['responsible']) or values[columns['responsible']].upper() not in ('', 'N/A'):
         return False
-    now = datetime.now(timezone(timedelta(hours=-5))).strftime('%H:%M')
+    # Las tres primeras celdas se dejan intencionalmente vacías: el verde
+    # significa que el maestro existe y el equipo puede iniciar Diseño.
     ws.batch_update([
-        {'range': _a1(sheet_row, columns['design']), 'values': [['P']]},
-        {'range': _a1(sheet_row, columns['start']), 'values': [[now]]},
-        {'range': _a1(sheet_row, columns['responsible']), 'values': [['DINOMAN']]},
+        {'range': _a1(sheet_row, columns['design']), 'values': [['']]},
+        {'range': _a1(sheet_row, columns['start']), 'values': [['']]},
+        {'range': _a1(sheet_row, columns['final']), 'values': [['']]},
+        {'range': _a1(sheet_row, columns['responsible']), 'values': [['N/A']]},
     ], value_input_option='USER_ENTERED')
+    green = {'red': 0, 'green': 1, 'blue': 0}
+    ws.spreadsheet.batch_update({'requests': [{
+        'repeatCell': {
+            'range': {'sheetId': ws.id, 'startRowIndex': sheet_row - 1, 'endRowIndex': sheet_row,
+                      'startColumnIndex': min(chosen) - 1, 'endColumnIndex': max(chosen)},
+            'cell': {'userEnteredFormat': {'backgroundColor': green}},
+            'fields': 'userEnteredFormat.backgroundColor',
+        }
+    }]})
     return True
 
 
