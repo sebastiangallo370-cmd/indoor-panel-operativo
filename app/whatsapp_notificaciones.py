@@ -149,7 +149,7 @@ def estado() -> dict:
         con = _connect()
         try:
             config = _settings(con)
-            counts = {s: 0 for s in ('pending', 'processing', 'prepared', 'sent', 'failed', 'uncertain')}
+            counts = {s: 0 for s in ('pending', 'approved', 'processing', 'prepared', 'sent', 'failed', 'uncertain')}
             for row in con.execute('SELECT status, COUNT(*) n FROM wa_messages GROUP BY status'):
                 counts[row['status']] = row['n']
             health = con.execute("SELECT updated_at, technical_note FROM wa_messages WHERE status='processing' ORDER BY updated_at DESC LIMIT 1").fetchone()
@@ -300,6 +300,32 @@ async def enqueue_test(request: Request):
             con.close()
 
 
+@router.post('/approve-one')
+async def approve_one(request: Request):
+    """Autoriza un único mensaje; la cola general permanece apagada."""
+    _admin(request)
+    payload = await request.json()
+    try:
+        message_id = int(payload.get('id') or 0)
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(400, 'Mensaje inválido.') from exc
+    if message_id < 1:
+        raise HTTPException(400, 'Mensaje inválido.')
+    with _lock:
+        con = _connect()
+        try:
+            row = con.execute('SELECT * FROM wa_messages WHERE id=?', (message_id,)).fetchone()
+            if not row:
+                raise HTTPException(404, 'No existe ese mensaje.')
+            if row['status'] not in {'pending', 'prepared', 'uncertain'}:
+                raise HTTPException(409, 'Ese mensaje ya fue procesado o está siendo procesado.')
+            con.execute("UPDATE wa_messages SET status='approved',updated_at=?,technical_note='Autorizado individualmente para envío visible.' WHERE id=?",
+                        (_now(), message_id))
+            return {'id': message_id, 'status': 'approved', 'phone': _mask(row['phone'])}
+        finally:
+            con.close()
+
+
 @worker_router.post('/claim')
 def claim(request: Request):
     _worker(request)
@@ -307,20 +333,27 @@ def claim(request: Request):
         con = _connect()
         try:
             cfg = _settings(con)
-            if not cfg['enabled'] or cfg['paused']:
-                return {'message': None, 'reason': 'paused' if cfg['paused'] else 'disabled'}
             now_time = time.time()
             # Una reserva vencida no se reenvía: queda para supervisión.
             con.execute("UPDATE wa_messages SET status='uncertain', updated_at=?, result_code='lease_expired', technical_note='La reserva venció; revisar antes de reenviar.' WHERE status='processing' AND lease_until<?", (_now(), now_time))
-            row = con.execute("SELECT * FROM wa_messages WHERE status='pending' ORDER BY created_at,id LIMIT 1").fetchone()
+            # Un mensaje aprobado individualmente tiene prioridad y no habilita
+            # los demás mensajes pendientes de la cola.
+            row = con.execute("SELECT * FROM wa_messages WHERE status='approved' ORDER BY updated_at,id LIMIT 1").fetchone()
+            individual = bool(row)
+            if cfg['paused']:
+                return {'message': None, 'reason': 'paused'}
+            if not row and cfg['enabled']:
+                row = con.execute("SELECT * FROM wa_messages WHERE status='pending' ORDER BY created_at,id LIMIT 1").fetchone()
+            if not row and not cfg['enabled']:
+                return {'message': None, 'reason': 'disabled'}
             if not row:
                 return {'message': None, 'reason': 'empty'}
             # En modo prueba se permite reclamar, pero el worker deberá prepararlo y devolver prepared.
-            con.execute("UPDATE wa_messages SET status='processing', claimed_at=?, lease_until=?, attempts=attempts+1, updated_at=?, technical_note='' WHERE id=? AND status='pending'",
-                        (_now(), now_time + LEASE_SECONDS, _now(), row['id']))
+            con.execute("UPDATE wa_messages SET status='processing', claimed_at=?, lease_until=?, attempts=attempts+1, updated_at=?, technical_note='' WHERE id=? AND status=?",
+                        (_now(), now_time + LEASE_SECONDS, _now(), row['id'], 'approved' if individual else 'pending'))
             reserved = con.execute('SELECT * FROM wa_messages WHERE id=?', (row['id'],)).fetchone()
             return {'message': {'id': reserved['id'], 'phone': reserved['phone'], 'body': reserved['body'],
-                                'is_test': bool(reserved['is_test']), 'test_mode': cfg['test_mode']}}
+                                'is_test': bool(reserved['is_test']), 'test_mode': False if individual else cfg['test_mode']}}
         finally:
             con.close()
 

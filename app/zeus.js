@@ -8,7 +8,7 @@
   const ESTADO = { SIN_CONECTAR: ['Sin conectar', 'bad'], ESPERANDO_EFFI: ['Esperando acceso a Effi', 'warn'], LIBRE: ['Libre', 'ok'], TRABAJANDO: ['Creando orden de compra…', 'ok'], ERROR: ['Con error', 'bad'] };
   const COMPRA = { pendiente: ['Por comprar', 'warn'], entregada: ['Creándola en Effi…', 'warn'], creada: ['Orden creada', 'ok'], error: ['Con error', 'bad'], cancelada: ['Ya alcanza', ''], anulada: ['Anulada', ''] };
   let verOcultas = false, apiEstado = null, apiMsg = '', apiRetenciones = null, pintadoUna = false, vista = 'ordenes', filtroOrd = 'todas', datosZ = null, firmaZ = '', animarVista = false, kpiPrev = {}, tickZ = 0, baseHace = null, baseAt = 0;
-  let panel = null, tab = null, cuerpo = null, timer = null, correos = [], cuentaEnvia = '', notificar = [], usuariosPanel = [], notAbierto = false, notBuscar = '', whatsappEstado = null;
+  let panel = null, tab = null, cuerpo = null, timer = null, correos = [], cuentaEnvia = '', notificar = [], usuariosPanel = [], notAbierto = false, notBuscar = '', whatsappEstado = null, whatsappMensajes = [];
 
   const card = ({ badge, badgeClass = '', name, total, unit = '', extra = '', cls = '' }) =>
     '<article class="inventory-item-card ' + cls + '"><span class="inv-badge ' + badgeClass + '">' + esc(badge) + '</span><strong class="inv-name">' + esc(name) + '</strong>' + extra +
@@ -181,19 +181,26 @@
 
   async function cargarWhatsApp() {
     try {
-      const r = await fetch('/api/whatsapp/status', { cache: 'no-store', credentials: 'same-origin' });
+      const [r, rm] = await Promise.all([
+        fetch('/api/whatsapp/status', { cache: 'no-store', credentials: 'same-origin' }),
+        fetch('/api/whatsapp/messages?limit=12', { cache: 'no-store', credentials: 'same-origin' })
+      ]);
       whatsappEstado = r.ok ? await r.json() : null;
+      whatsappMensajes = rm.ok ? ((await rm.json()).messages || []) : [];
       if (vista === 'whatsapp') repintarZ();
-    } catch (_) { whatsappEstado = null; }
+    } catch (_) { whatsappEstado = null; whatsappMensajes = []; }
   }
   function whatsappHtml() {
     const s = whatsappEstado, c = s?.config || {}, n = s?.counts || {};
     const estado = !s ? '<span class="za-chip pend">Sin información del worker</span>' : !s.worker_configured ? '<span class="za-chip pend">Worker pendiente de instalar</span>' : '<span class="za-chip ' + (c.enabled && !c.paused ? 'ok' : 'pend') + '">' + (c.enabled && !c.paused ? 'Worker habilitado' : 'Cola pausada o desactivada') + '</span>';
+    const porEnviar = whatsappMensajes.filter(m => ['pending', 'approved', 'prepared', 'uncertain'].includes(m.status));
+    const uno = porEnviar.map(m => '<div class="zeus-wa-one"><b>Mensaje #' + m.id + ' · ' + esc(m.event_name) + '</b><span>Destino ' + esc(m.phone) + ' · ' + esc(m.status) + '</span>' + (m.status === 'approved' ? '<small>Autorizado: el worker lo enviará una sola vez al estar conectado.</small>' : '<button type="button" class="bd-clear" data-wa-approve="' + m.id + '">Enviar solo este mensaje</button>') + '</div>').join('');
     return '<section class="bd-section zeus-apibox"><h3>WhatsApp Web · ZEUS</h3>' + estado +
-      '<p class="bd-note">Conecta la cuenta en el navegador del worker escaneando el QR. La cola se mantiene desactivada hasta que la supervises.</p>' +
-      '<div class="za-ajustes"><button type="button" class="bd-clear" data-wa-open>Conectar WhatsApp Web</button><button type="button" class="bd-clear" data-wa-refresh>Actualizar estado</button></div>' +
-      '<div class="zeus-wa-counts"><span>Pendientes <b>' + Number(n.pending || 0) + '</b></span><span>Preparados <b>' + Number(n.prepared || 0) + '</b></span><span>Enviados <b>' + Number(n.sent || 0) + '</b></span><span>Revisar <b>' + Number(n.uncertain || 0) + '</b></span></div>' +
-      '<p class="bd-note">El botón abre WhatsApp Web. El worker usa un perfil separado y visible para que no se copie ni exponga tu sesión normal.</p></section>';
+      '<p class="bd-note">El envío se realiza de uno en uno en el WhatsApp Web visible del agente. La cola general permanece desactivada.</p>' +
+      '<div class="za-ajustes"><button type="button" class="bd-clear" data-wa-refresh>Actualizar estado</button></div>' +
+      '<div class="zeus-wa-counts"><span>Pendientes <b>' + Number(n.pending || 0) + '</b></span><span>Autorizados <b>' + Number(n.approved || 0) + '</b></span><span>Enviados <b>' + Number(n.sent || 0) + '</b></span><span>Revisar <b>' + Number(n.uncertain || 0) + '</b></span></div>' +
+      (uno ? '<div class="zeus-wa-list">' + uno + '</div>' : '<p class="bd-note">No hay mensajes pendientes de supervisión.</p>') +
+      '<p class="bd-note">La sesión del worker es independiente y visible; no usa ni copia tu sesión normal de WhatsApp.</p></section>';
   }
 
   function pintar(d) {
@@ -553,10 +560,17 @@
         repintarZ(); return;
       }
     });
-    panel.addEventListener('click', e => {
+    panel.addEventListener('click', async e => {
       if (e.target.closest('[data-zeus-whatsapp]')) { vista = 'whatsapp'; animarVista = true; cargarWhatsApp(); repintarZ(); return; }
       if (e.target.closest('[data-wa-refresh]')) { cargarWhatsApp(); return; }
-      if (e.target.closest('[data-wa-open]')) { window.open('https://web.whatsapp.com/', 'indoor-whatsapp-web'); }
+      const enviar = e.target.closest('[data-wa-approve]');
+      if (enviar) {
+        const id = Number(enviar.dataset.waApprove);
+        if (!confirm('Autorizar el envío visible de SOLO el mensaje #' + id + '?\n\nNo se activará la cola ni se enviará otro mensaje.')) return;
+        enviar.disabled = true;
+        try { await llamar('/api/whatsapp/approve-one', 'POST', { id }); await cargarWhatsApp(); }
+        catch (err) { alert(err.message); enviar.disabled = false; }
+      }
     });
     panel.addEventListener('click', e => {
       const v = e.target.closest('[data-zeus-vista]');
