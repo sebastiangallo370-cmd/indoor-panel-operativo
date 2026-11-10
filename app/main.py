@@ -1861,6 +1861,16 @@ def login_sport_image():
     return FileResponse(Path(__file__).with_name("login-sport.jpg"), media_type="image/jpeg", headers={"Cache-Control": "public, max-age=86400"})
 
 
+@app.get("/demo-portada-indoor", response_class=HTMLResponse)
+def demo_portada_indoor(_=Depends(authenticate)):
+    """Demo aislada de una posible portada; no altera la pantalla Inicio."""
+    return FileResponse(
+        Path(__file__).with_name("portada-indoor-demo.html"),
+        media_type="text/html",
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate"},
+    )
+
+
 @app.get("/login", response_class=HTMLResponse)
 def login_form(request: Request):
     if session_username(request.cookies.get("indoor_session", "")):
