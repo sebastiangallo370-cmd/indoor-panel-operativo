@@ -101,6 +101,7 @@
   }
 
   function ubicar() {
+    if (!caja) return;
     // arriba a la derecha, justo después del sol del tema: esa zona no se redibuja nunca (los paneles sí) y siempre está a la vista
     const barra = document.querySelector('.systems');
     if (barra) {
