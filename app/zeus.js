@@ -71,6 +71,7 @@
     const e = i.envio_proveedor || {};
     const pdf = i.pdf ? '<a class="zeus-pdf" href="/api/zeus/pdf/' + i.id + '" target="_blank" rel="noopener">📄 Ver PDF de la orden</a>' : '';
     if (i.prueba_controlada) return '<div class="zeus-envio">' + pdf + '<span class="zeus-envio-est ok">✔ Enviada solo a revisión interna · proveedor bloqueado</span></div>';
+    if (i.revision_interna && !i.revision_interna.aprobada) return '<div class="zeus-envio">' + pdf + '<span class="zeus-envio-est ok">✔ Enviada solo a revisión interna · proveedor bloqueado</span><button type="button" class="zeus-envio-btn" data-zeus-aprobar-revision="' + i.id + '">Aprobar revisión</button></div>';
     const fecha = e.at ? String(e.at).replace('T', ' ').slice(0, 16) : '';
     if (e.estado === 'pendiente' || e.estado === 'entregada') return '<div class="zeus-envio">' + pdf + '<span class="zeus-envio-est">⏳ Enviando…</span></div>';
     if (e.estado === 'enviada') return '<div class="zeus-envio">' + pdf + '<span class="zeus-envio-est ok" title="' + esc('Enviada a ' + (e.correo || 'el proveedor') + (fecha ? ' · ' + fecha : '')) + '">✔ Enviada al proveedor</span>' +
@@ -223,7 +224,7 @@
     const kpi = (k, v, txt, f, tono) => '<button type="button" class="zk ' + tono + (filtroOrd === f && vista === 'ordenes' ? ' on' : '') + '" data-zeus-filtro="' + f + '"><b data-k="' + k + '" data-v="' + v + '">' + v + '</b><span>' + txt + '</span></button>';
     const hero = '<section class="zh ' + estadoPill + '"><div class="zh-estado"><span class="zh-punto"></span><div><strong' + ((a.funciones || []).length ? ' title="' + esc(a.funciones.join('\n')) + '"' : '') + '>' + esc(etiqueta) + '</strong><small><span data-zeus-hace>' + haceTxt(a.hace) + '</span></small></div></div>' +
       (a.ultima && (cls === 'bad' || a.estado === 'TRABAJANDO') ? '<p class="zh-ultima">' + esc(String(a.ultima).slice(0, 120)) + '</p>' : '') +
-      '<div class="zh-acc"><button type="button" class="bd-clear" data-zeus-prueba>＋ Prueba controlada</button><button type="button" class="bd-clear" data-zeus-whatsapp>WhatsApp Web</button><button type="button" class="bd-clear" data-zeus-revisar>↻ Revisar</button></div>' +
+      '<div class="zh-acc"><button type="button" class="bd-clear" data-zeus-revision>＋ Compra para revisión</button><button type="button" class="bd-clear" data-zeus-prueba>Prueba controlada</button><button type="button" class="bd-clear" data-zeus-whatsapp>WhatsApp Web</button><button type="button" class="bd-clear" data-zeus-revisar>↻ Revisar</button></div>' +
       '</section>';
     const kpis = '<div class="zks">' + kpi('pend', (r.pendiente || 0) + (r.entregada || 0), 'Por comprar', 'pendiente', 'warn') + kpi('cre', r.creada || 0, 'Creadas', 'creada', 'ok') + kpi('err', r.error || 0, 'Con error', 'error', 'bad') + '</div>';
     const tabs = '<div class="zv-tabs" role="tablist">' + [['ordenes', 'Órdenes', items.length], ['correos', 'Correos', correos.length], ['notificar', 'Notificar', notificar.length], ['whatsapp', 'WhatsApp', (whatsappEstado?.counts?.pending || 0) + (whatsappEstado?.counts?.uncertain || 0)]].concat(apiEstado ? [['api', 'API Effi', 0]] : []).map(([k, t, n]) =>
@@ -292,6 +293,33 @@
       } catch (err) { msg.style.color = '#ff9a9d'; msg.textContent = err.message; ok.disabled = false; }
     });
     document.addEventListener('keydown', function onKey(e) { if (e.key === 'Escape' && ov.isConnected) { cerrar(); document.removeEventListener('keydown', onKey); } });
+  }
+
+  async function abrirCompraRevision() {
+    if (!catalogoMod) { try { catalogoMod = await llamar('/api/proveedores-tela', 'GET'); } catch (_) { catalogoMod = { telas: [] }; } }
+    const telas = (catalogoMod.telas || []).filter(t => t.proveedor);
+    if (!telas.length) { alert('No hay telas con proveedor configurado.'); return; }
+    const preferida = telas.find(t => /MONTECATINI/i.test(t.nombre || '')) || telas[0];
+    const ov = document.createElement('div'); ov.className = 'zm-ov';
+    ov.innerHTML = '<div class="zm-card" role="dialog" aria-modal="true"><h3>Compra real para revisión</h3>' +
+      '<p>Creará una <b>orden real en Effi</b>. El PDF y el aviso se enviarán primero al encargado de revisión. El proveedor seguirá bloqueado hasta una aprobación posterior.</p>' +
+      '<div class="zm-campos"><label>Tela<select data-zr="codigo">' + telas.map(t => '<option value="' + esc(t.codigo) + '"' + (String(t.codigo) === String(preferida.codigo) ? ' selected' : '') + '>' + esc(t.codigo + ' · ' + t.nombre) + '</option>').join('') +
+      '</select></label><label>Metros<input data-zr="metros" type="number" min="0.01" step="0.01" value="43" inputmode="decimal"></label>' +
+      '<label>Correo de revisión<input data-zr="correo" type="email" value="sebastiangallo370@gmail.com" autocomplete="email"></label>' +
+      '<label>WhatsApp de revisión<input data-zr="whatsapp" type="tel" value="3113351601" inputmode="tel"></label></div>' +
+      '<div class="zm-resumen">La orden se creará en Effi, pero el proveedor quedará <b>bloqueado</b> hasta que apruebes la revisión interna.</div><div class="zm-msg" data-zr-msg></div>' +
+      '<div class="zm-btns"><button type="button" class="sec" data-zr-cerrar>Cancelar</button><button type="button" class="ok" data-zr-ok>CREAR ORDEN PARA REVISIÓN</button></div></div>';
+    document.body.appendChild(ov);
+    const q = s => ov.querySelector(s), cerrar = () => ov.remove();
+    ov.addEventListener('click', async e => {
+      if (e.target === ov || e.target.closest('[data-zr-cerrar]')) { cerrar(); return; }
+      if (!e.target.closest('[data-zr-ok]')) return;
+      const codigo = q('[data-zr="codigo"]').value, metros = q('[data-zr="metros"]').value, correo = q('[data-zr="correo"]').value.trim(), whatsapp = q('[data-zr="whatsapp"]').value.trim();
+      if (!confirm('Vas a crear una ORDEN REAL de ' + metros + ' MTS en Effi.\n\nSolo se notificará al encargado de revisión. El proveedor permanecerá bloqueado.\n\n¿Confirmas la creación?')) return;
+      const ok = q('[data-zr-ok]'), msg = q('[data-zr-msg]'); ok.disabled = true; msg.style.color = '#b9c6b4'; msg.textContent = 'Creando la orden en la cola del agente…';
+      try { await llamar('/api/zeus/revision-interna-real', 'POST', { codigo, metros, correo, whatsapp }); cerrar(); vista = 'ordenes'; filtroOrd = 'pendiente'; await cargar(false); }
+      catch (err) { msg.style.color = '#ff9a9d'; msg.textContent = err.message; ok.disabled = false; }
+    });
   }
   async function abrirModificar(b) {
     if (!catalogoMod) { try { catalogoMod = await llamar('/api/proveedores-tela', 'GET'); } catch (er) { catalogoMod = { telas: [], proveedores: [] }; } }
@@ -610,6 +638,15 @@
       if (ocV) { verOcultas = !verOcultas; cargar(false); return; }
       const prueba = e.target.closest('[data-zeus-prueba]');
       if (prueba) { abrirPruebaControlada(); return; }
+      const revision = e.target.closest('[data-zeus-revision]');
+      if (revision) { abrirCompraRevision(); return; }
+      const aprobarRevision = e.target.closest('[data-zeus-aprobar-revision]');
+      if (aprobarRevision) {
+        if (!confirm('¿Apruebas esta orden para habilitar el envío manual al proveedor?\n\nNo se enviará nada todavía.')) return;
+        aprobarRevision.disabled = true;
+        try { await llamar('/api/zeus/aprobar-revision-interna', 'POST', { id: Number(aprobarRevision.dataset.zeusAprobarRevision) }); } catch (err) { alert(err.message); }
+        cargar(false); return;
+      }
       const mod = e.target.closest('[data-zeus-modificar]');
       if (mod) { abrirModificar(mod); return; }
       const an = e.target.closest('[data-zeus-anular]');
