@@ -8,7 +8,7 @@
   const ESTADO = { SIN_CONECTAR: ['Sin conectar', 'bad'], ESPERANDO_EFFI: ['Esperando acceso a Effi', 'warn'], LIBRE: ['Libre', 'ok'], TRABAJANDO: ['Creando orden de compra…', 'ok'], ERROR: ['Con error', 'bad'] };
   const COMPRA = { pendiente: ['Por comprar', 'warn'], entregada: ['Creándola en Effi…', 'warn'], creada: ['Orden creada', 'ok'], error: ['Con error', 'bad'], cancelada: ['Ya alcanza', ''], anulada: ['Anulada', ''] };
   let verOcultas = false, apiEstado = null, apiMsg = '', apiRetenciones = null, pintadoUna = false, vista = 'ordenes', filtroOrd = 'todas', datosZ = null, firmaZ = '', animarVista = false, kpiPrev = {}, tickZ = 0, baseHace = null, baseAt = 0;
-  let panel = null, tab = null, cuerpo = null, timer = null, correos = [], cuentaEnvia = '', notificar = [], usuariosPanel = [], notAbierto = false, notBuscar = '', whatsappEstado = null, whatsappMensajes = [];
+  let panel = null, tab = null, cuerpo = null, timer = null, correos = [], cuentaEnvia = '', notificar = [], usuariosPanel = [], notAbierto = false, notBuscar = '';
 
   const card = ({ badge, badgeClass = '', name, total, unit = '', extra = '', cls = '' }) =>
     '<article class="inventory-item-card ' + cls + '"><span class="inv-badge ' + badgeClass + '">' + esc(badge) + '</span><strong class="inv-name">' + esc(name) + '</strong>' + extra +
@@ -180,29 +180,6 @@
     } catch (e) { /* sin acceso: la pestaña no aparece */ }
   }
 
-  async function cargarWhatsApp() {
-    try {
-      const [r, rm] = await Promise.all([
-        fetch('/api/whatsapp/status', { cache: 'no-store', credentials: 'same-origin' }),
-        fetch('/api/whatsapp/messages?limit=12', { cache: 'no-store', credentials: 'same-origin' })
-      ]);
-      whatsappEstado = r.ok ? await r.json() : null;
-      whatsappMensajes = rm.ok ? ((await rm.json()).messages || []) : [];
-      if (vista === 'whatsapp') repintarZ();
-    } catch (_) { whatsappEstado = null; whatsappMensajes = []; }
-  }
-  function whatsappHtml() {
-    const s = whatsappEstado, c = s?.config || {}, n = s?.counts || {};
-    const estado = !s ? '<span class="za-chip pend">Sin información del worker</span>' : !s.worker_configured ? '<span class="za-chip pend">Worker pendiente de instalar</span>' : '<span class="za-chip ' + (c.enabled && !c.paused ? 'ok' : 'pend') + '">' + (c.enabled && !c.paused ? 'Worker habilitado' : 'Cola pausada o desactivada') + '</span>';
-    const porEnviar = whatsappMensajes.filter(m => ['pending', 'approved', 'prepared', 'uncertain'].includes(m.status));
-    const uno = porEnviar.map(m => '<div class="zeus-wa-one"><b>Mensaje #' + m.id + ' · ' + esc(m.event_name) + '</b><span>Destino ' + esc(m.phone) + ' · ' + esc(m.status) + '</span>' + (m.status === 'approved' ? '<small>Autorizado: el worker lo enviará una sola vez al estar conectado.</small>' : '<button type="button" class="bd-clear" data-wa-approve="' + m.id + '">Enviar solo este mensaje</button>') + '</div>').join('');
-    return '<section class="bd-section zeus-apibox"><h3>WhatsApp Web · ZEUS</h3>' + estado +
-      '<p class="bd-note">El envío se realiza de uno en uno en el WhatsApp Web visible del agente. La cola general permanece desactivada.</p>' +
-      '<div class="za-ajustes"><button type="button" class="bd-clear" data-wa-refresh>Actualizar estado</button></div>' +
-      '<div class="zeus-wa-counts"><span>Pendientes <b>' + Number(n.pending || 0) + '</b></span><span>Autorizados <b>' + Number(n.approved || 0) + '</b></span><span>Enviados <b>' + Number(n.sent || 0) + '</b></span><span>Revisar <b>' + Number(n.uncertain || 0) + '</b></span></div>' +
-      (uno ? '<div class="zeus-wa-list">' + uno + '</div>' : '<p class="bd-note">No hay mensajes pendientes de supervisión.</p>') +
-      '<p class="bd-note">La sesión del worker es independiente y visible; no usa ni copia tu sesión normal de WhatsApp.</p></section>';
-  }
 
   function pintar(d) {
     datosZ = d;
@@ -224,16 +201,15 @@
     const kpi = (k, v, txt, f, tono) => '<button type="button" class="zk ' + tono + (filtroOrd === f && vista === 'ordenes' ? ' on' : '') + '" data-zeus-filtro="' + f + '"><b data-k="' + k + '" data-v="' + v + '">' + v + '</b><span>' + txt + '</span></button>';
     const hero = '<section class="zh ' + estadoPill + '"><div class="zh-estado"><span class="zh-punto"></span><div><strong' + ((a.funciones || []).length ? ' title="' + esc(a.funciones.join('\n')) + '"' : '') + '>' + esc(etiqueta) + '</strong><small><span data-zeus-hace>' + haceTxt(a.hace) + '</span></small></div></div>' +
       (a.ultima && (cls === 'bad' || a.estado === 'TRABAJANDO') ? '<p class="zh-ultima">' + esc(String(a.ultima).slice(0, 120)) + '</p>' : '') +
-      '<div class="zh-acc"><button type="button" class="bd-clear" data-zeus-revision>＋ Compra para revisión</button><button type="button" class="bd-clear" data-zeus-prueba>Prueba controlada</button><button type="button" class="bd-clear" data-zeus-whatsapp>WhatsApp Web</button><button type="button" class="bd-clear" data-zeus-revisar>↻ Revisar</button></div>' +
+      '<div class="zh-acc"><button type="button" class="bd-clear" data-zeus-revision>＋ Compra para revisión</button><button type="button" class="bd-clear" data-zeus-prueba>Prueba controlada</button><button type="button" class="bd-clear" data-zeus-revisar>↻ Revisar</button></div>' +
       '</section>';
     const kpis = '<div class="zks">' + kpi('pend', (r.pendiente || 0) + (r.entregada || 0), 'Por comprar', 'pendiente', 'warn') + kpi('cre', r.creada || 0, 'Creadas', 'creada', 'ok') + kpi('err', r.error || 0, 'Con error', 'error', 'bad') + '</div>';
-    const tabs = '<div class="zv-tabs" role="tablist">' + [['ordenes', 'Órdenes', items.length], ['correos', 'Correos', correos.length], ['notificar', 'Notificar', notificar.length], ['whatsapp', 'WhatsApp', (whatsappEstado?.counts?.pending || 0) + (whatsappEstado?.counts?.uncertain || 0)]].concat(apiEstado ? [['api', 'API Effi', 0]] : []).map(([k, t, n]) =>
+    const tabs = '<div class="zv-tabs" role="tablist">' + [['ordenes', 'Órdenes', items.length], ['correos', 'Correos', correos.length], ['notificar', 'Notificar', notificar.length]].concat(apiEstado ? [['api', 'API Effi', 0]] : []).map(([k, t, n]) =>
       '<button type="button" role="tab" class="zv-tab' + (vista === k ? ' on' : '') + '" data-zeus-vista="' + k + '">' + t + (n ? ' <em>' + n + '</em>' : '') + '</button>').join('') + '</div>';
     let contenido;
     if (vista === 'correos') contenido = correosHtml();
     else if (vista === 'notificar') contenido = notificarHtml();
     else if (vista === 'api') contenido = apiHtml();
-    else if (vista === 'whatsapp') contenido = whatsappHtml();
     else contenido = '<section class="bd-section">' + barraQuitar(items, d.ocultas || 0) + (items.length ? '<div class="zo-lista">' + (visibles.length ? visibles.map(ordenHtml).join('') : '<p class="bd-note">Sin órdenes aquí.</p>') + '</div>' : '<p class="bd-note">Nada por comprar.</p>') + '</section>';
     const quieto = pintadoUna && !animarVista, alto = cuerpo.offsetHeight, scrollY0 = window.scrollY;
     cuerpo.classList.toggle('zeus-quieto', quieto);
@@ -275,8 +251,7 @@
       '<p>Creará una <b>orden real en Effi</b>. El PDF y el aviso se dirigen solo al encargado indicado. Nunca se enviará al proveedor desde esta prueba.</p>' +
       '<div class="zm-campos"><label>Tela<select data-zp="codigo">' + telas.map(t => '<option value="' + esc(t.codigo) + '"' + (String(t.codigo) === String(preferida.codigo) ? ' selected' : '') + '>' + esc(t.codigo + ' · ' + t.nombre) + '</option>').join('') +
       '</select></label><label>Metros<input data-zp="metros" type="number" min="0.01" step="0.01" value="5" inputmode="decimal"></label>' +
-      '<label>Correo de revisión<input data-zp="correo" type="email" value="sebastiangallo370@gmail.com" autocomplete="email"></label>' +
-      '<label>WhatsApp de revisión<input data-zp="whatsapp" type="tel" value="3113351601" inputmode="tel"></label></div>' +
+      '<label>Correo de revisión<input data-zp="correo" type="email" value="sebastiangallo370@gmail.com" autocomplete="email"></label></div>' +
       '<div class="zm-resumen">La orden quedará marcada como <b>PRUEBA CONTROLADA</b>. No activa el botón de envío a proveedor.</div><div class="zm-msg" data-zp-msg></div>' +
       '<div class="zm-btns"><button type="button" class="sec" data-zp-cerrar>Cancelar</button><button type="button" class="ok" data-zp-ok>CREAR ORDEN REAL DE PRUEBA</button></div></div>';
     document.body.appendChild(ov);
@@ -284,11 +259,11 @@
     ov.addEventListener('click', async e => {
       if (e.target === ov || e.target.closest('[data-zp-cerrar]')) { cerrar(); return; }
       if (!e.target.closest('[data-zp-ok]')) return;
-      const codigo = q('[data-zp="codigo"]').value, metros = q('[data-zp="metros"]').value, correo = q('[data-zp="correo"]').value.trim(), whatsapp = q('[data-zp="whatsapp"]').value.trim();
-      if (!confirm('Vas a crear una ORDEN REAL de ' + metros + ' MTS en Effi.\n\nSe notificará únicamente a ' + correo + ' y ' + whatsapp + '.\nNo se enviará nada al proveedor.\n\n¿Confirmas la creación?')) return;
+      const codigo = q('[data-zp="codigo"]').value, metros = q('[data-zp="metros"]').value, correo = q('[data-zp="correo"]').value.trim();
+      if (!confirm('Vas a crear una ORDEN REAL de ' + metros + ' MTS en Effi.\n\nSe notificará únicamente a ' + correo + '.\nNo se enviará nada al proveedor.\n\n¿Confirmas la creación?')) return;
       const ok = q('[data-zp-ok]'), msg = q('[data-zp-msg]'); ok.disabled = true; msg.style.color = '#b9c6b4'; msg.textContent = 'Creando la prueba en la cola del agente…';
       try {
-        await llamar('/api/zeus/prueba-controlada', 'POST', { codigo, metros, correo, whatsapp });
+        await llamar('/api/zeus/prueba-controlada', 'POST', { codigo, metros, correo });
         cerrar(); vista = 'ordenes'; filtroOrd = 'pendiente'; await cargar(false);
       } catch (err) { msg.style.color = '#ff9a9d'; msg.textContent = err.message; ok.disabled = false; }
     });
@@ -305,8 +280,7 @@
       '<p>Creará una <b>orden real en Effi</b>. El PDF y el aviso se enviarán primero al encargado de revisión. El proveedor seguirá bloqueado hasta una aprobación posterior.</p>' +
       '<div class="zm-campos"><label>Tela<select data-zr="codigo">' + telas.map(t => '<option value="' + esc(t.codigo) + '"' + (String(t.codigo) === String(preferida.codigo) ? ' selected' : '') + '>' + esc(t.codigo + ' · ' + t.nombre) + '</option>').join('') +
       '</select></label><label>Metros<input data-zr="metros" type="number" min="0.01" step="0.01" value="43" inputmode="decimal"></label>' +
-      '<label>Correo de revisión<input data-zr="correo" type="email" value="sebastiangallo370@gmail.com" autocomplete="email"></label>' +
-      '<label>WhatsApp de revisión<input data-zr="whatsapp" type="tel" value="3113351601" inputmode="tel"></label></div>' +
+      '<label>Correo de revisión<input data-zr="correo" type="email" value="sebastiangallo370@gmail.com" autocomplete="email"></label></div>' +
       '<div class="zm-resumen">La orden se creará en Effi, pero el proveedor quedará <b>bloqueado</b> hasta que apruebes la revisión interna.</div><div class="zm-msg" data-zr-msg></div>' +
       '<div class="zm-btns"><button type="button" class="sec" data-zr-cerrar>Cancelar</button><button type="button" class="ok" data-zr-ok>CREAR ORDEN PARA REVISIÓN</button></div></div>';
     document.body.appendChild(ov);
@@ -314,10 +288,10 @@
     ov.addEventListener('click', async e => {
       if (e.target === ov || e.target.closest('[data-zr-cerrar]')) { cerrar(); return; }
       if (!e.target.closest('[data-zr-ok]')) return;
-      const codigo = q('[data-zr="codigo"]').value, metros = q('[data-zr="metros"]').value, correo = q('[data-zr="correo"]').value.trim(), whatsapp = q('[data-zr="whatsapp"]').value.trim();
+      const codigo = q('[data-zr="codigo"]').value, metros = q('[data-zr="metros"]').value, correo = q('[data-zr="correo"]').value.trim();
       if (!confirm('Vas a crear una ORDEN REAL de ' + metros + ' MTS en Effi.\n\nSolo se notificará al encargado de revisión. El proveedor permanecerá bloqueado.\n\n¿Confirmas la creación?')) return;
       const ok = q('[data-zr-ok]'), msg = q('[data-zr-msg]'); ok.disabled = true; msg.style.color = '#b9c6b4'; msg.textContent = 'Creando la orden en la cola del agente…';
-      try { await llamar('/api/zeus/revision-interna-real', 'POST', { codigo, metros, correo, whatsapp }); cerrar(); vista = 'ordenes'; filtroOrd = 'pendiente'; await cargar(false); }
+      try { await llamar('/api/zeus/revision-interna-real', 'POST', { codigo, metros, correo }); cerrar(); vista = 'ordenes'; filtroOrd = 'pendiente'; await cargar(false); }
       catch (err) { msg.style.color = '#ff9a9d'; msg.textContent = err.message; ok.disabled = false; }
     });
   }
@@ -588,21 +562,9 @@
         repintarZ(); return;
       }
     });
-    panel.addEventListener('click', async e => {
-      if (e.target.closest('[data-zeus-whatsapp]')) { vista = 'whatsapp'; animarVista = true; cargarWhatsApp(); repintarZ(); return; }
-      if (e.target.closest('[data-wa-refresh]')) { cargarWhatsApp(); return; }
-      const enviar = e.target.closest('[data-wa-approve]');
-      if (enviar) {
-        const id = Number(enviar.dataset.waApprove);
-        if (!confirm('Autorizar el envío visible de SOLO el mensaje #' + id + '?\n\nNo se activará la cola ni se enviará otro mensaje.')) return;
-        enviar.disabled = true;
-        try { await llamar('/api/whatsapp/approve-one', 'POST', { id }); await cargarWhatsApp(); }
-        catch (err) { alert(err.message); enviar.disabled = false; }
-      }
-    });
     panel.addEventListener('click', e => {
       const v = e.target.closest('[data-zeus-vista]');
-      if (v && v.dataset.zeusVista !== vista) { vista = v.dataset.zeusVista; animarVista = true; if (vista === 'api') cargarApi(); if (vista === 'whatsapp') cargarWhatsApp(); repintarZ(); return; }
+      if (v && v.dataset.zeusVista !== vista) { vista = v.dataset.zeusVista; animarVista = true; if (vista === 'api') cargarApi(); repintarZ(); return; }
       const f = e.target.closest('[data-zeus-filtro]');
       if (f) { filtroOrd = filtroOrd === f.dataset.zeusFiltro ? 'todas' : f.dataset.zeusFiltro; if (vista !== 'ordenes') vista = 'ordenes'; animarVista = true; repintarZ(); }
     });

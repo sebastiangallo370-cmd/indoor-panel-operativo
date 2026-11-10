@@ -1588,7 +1588,7 @@ def minimaximan_js():
 
 @app.get('/zeus.js')
 def zeus_js():
-    return FileResponse(Path(__file__).with_name('zeus.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
+    return FileResponse(Path(__file__).with_name('zeus.js'), media_type='application/javascript', headers={'Cache-Control': 'no-store'})
 
 
 @app.get('/draco-panel.js')

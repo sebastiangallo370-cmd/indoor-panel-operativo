@@ -267,14 +267,6 @@ def _correo_creada(item: dict) -> None:
             alertas_correo.enviar(asunto, cuerpo, para=para, adjuntos=adj)
     except Exception:   # noqa: BLE001
         log.exception('No se pudo enviar el correo de la orden de compra')
-    # WhatsApp se encola aparte del correo: un fallo o una configuración incompleta
-    # no puede impedir que ZEUS conserve ni notifique la orden por correo.
-    try:
-        from app import whatsapp_notificaciones
-        resultado = whatsapp_notificaciones.encolar_zeus_oc(item)
-        log.info('WhatsApp ZEUS OC %s: %s', item.get('oc', ''), resultado.get('queued') or resultado.get('reason', 'omitido'))
-    except Exception:  # noqa: BLE001
-        log.exception('No se pudo encolar WhatsApp de la orden de compra')
 
 
 MENSAJE_PROVEEDOR = (
@@ -425,12 +417,6 @@ def crear_prueba_controlada(request: Request, payload: dict):
     if not re.fullmatch(r'\d{1,6}', codigo) or not 0 < metros <= 10000:
         raise HTTPException(400, 'Elige una tela válida y una cantidad entre 0,01 y 10.000 MTS.')
     correo = _validar(payload.get('correo'))
-    try:
-        from app import whatsapp_notificaciones
-        whatsapp = whatsapp_notificaciones.normalizar_telefono(payload.get('whatsapp', ''))
-    except ValueError as exc:
-        raise HTTPException(400, str(exc)) from exc
-
     tela = next((t for t in proveedores_tela.telas() if str(t.get('codigo')) == codigo), None)
     if not tela:
         raise HTTPException(400, 'Esa tela no está disponible en el catálogo de inventario.')
@@ -450,7 +436,7 @@ def crear_prueba_controlada(request: Request, payload: dict):
             'bodega': [f'({codigo}) {nombre}'], 'estado': 'pendiente', 'oc': '', 'detalle': 'Prueba controlada: solo revisión interna; no enviar al proveedor.',
             'intentos': 0, 'manual': True, 'codigo_forzado': codigo, 'proveedor_forzado': proveedor,
             'nit_forzado': str(proveedor_reg.get('nit') or tela.get('nit') or ''),
-            'prueba_controlada': {'correo': correo, 'whatsapp': whatsapp, 'solicitada_por': usuario, 'no_enviar_proveedor': True},
+            'prueba_controlada': {'correo': correo, 'solicitada_por': usuario, 'no_enviar_proveedor': True},
             'creado': _iso(), 'actualizado': _iso(),
         }
         d['items'].append(item)
@@ -470,11 +456,6 @@ def crear_compra_revision_interna(request: Request, payload: dict):
     if not re.fullmatch(r'\d{1,6}', codigo) or not 0 < metros <= 10000:
         raise HTTPException(400, 'Elige una tela válida y una cantidad entre 0,01 y 10.000 MTS.')
     correo = _validar(payload.get('correo'))
-    try:
-        from app import whatsapp_notificaciones
-        whatsapp = whatsapp_notificaciones.normalizar_telefono(payload.get('whatsapp', ''))
-    except ValueError as exc:
-        raise HTTPException(400, str(exc)) from exc
     tela = next((t for t in proveedores_tela.telas() if str(t.get('codigo')) == codigo), None)
     if not tela:
         raise HTTPException(400, 'Esa tela no está disponible en el catálogo de inventario.')
@@ -494,7 +475,7 @@ def crear_compra_revision_interna(request: Request, payload: dict):
             'detalle': 'Compra real pendiente de revisión interna; proveedor bloqueado hasta aprobación.',
             'intentos': 0, 'manual': True, 'codigo_forzado': codigo, 'proveedor_forzado': proveedor,
             'nit_forzado': str(proveedor_reg.get('nit') or tela.get('nit') or ''),
-            'revision_interna': {'correo': correo, 'whatsapp': whatsapp, 'solicitada_por': usuario,
+            'revision_interna': {'correo': correo, 'solicitada_por': usuario,
                                  'aprobada': False, 'proveedor_bloqueado': True},
             'creado': _iso(), 'actualizado': _iso(),
         }
