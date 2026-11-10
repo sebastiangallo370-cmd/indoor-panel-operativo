@@ -184,6 +184,14 @@ def tesoreria_permitido(username: str) -> bool:
     return _plano(_lookup(username)) in (_COMERCIAL | _TESORERIA_ADMINISTRATIVOS)
 
 
+_DASHBOARD_ADMIN_USUARIOS = {'INDOOR SPORT', 'CESAR AUGUSTO', 'CESAR ANDRES'}
+
+
+def dashboard_administrativo_permitido(username: str) -> bool:
+    """Vista corporativa: únicamente las tres cuentas autorizadas por gerencia."""
+    return _plano(username) in _DASHBOARD_ADMIN_USUARIOS
+
+
 _PROCESOS_COMERCIALES = _COMERCIAL | {'COORDINADOR', 'ADMINISTRACION', 'ADMINISTRATIVA', 'ADMINISTRATIVO'}
 
 

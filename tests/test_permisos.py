@@ -40,6 +40,13 @@ class PermisosTest(unittest.TestCase):
         self.assertFalse(permisos.tesoreria_permitido(cuenta('j', 'Edición')))
         self.assertFalse(permisos.tesoreria_permitido(cuenta('k', 'Empaque')))
 
+    def test_dashboard_administrativo_solo_cuentas_autorizadas(self):
+        self.assertTrue(permisos.dashboard_administrativo_permitido('Indoor Sport'))
+        self.assertTrue(permisos.dashboard_administrativo_permitido('César Augusto'))
+        self.assertTrue(permisos.dashboard_administrativo_permitido('CESAR ANDRES'))
+        self.assertFalse(permisos.dashboard_administrativo_permitido('PRODUCCION'))
+        self.assertFalse(permisos.dashboard_administrativo_permitido(cuenta('z', 'Administración')))
+
     def test_cartera_bloqueada_para_edicion_y_operario(self):
         self.assertFalse(permisos.puede(cuenta('l', 'Edición'), 'cartera', 'ver'))
         self.assertFalse(permisos.puede(cuenta('m', 'Empaque'), 'cartera', 'ver'))

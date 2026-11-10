@@ -17,7 +17,34 @@
   let abierto = false;
   try { abierto = localStorage.getItem(CLAVE) === '1'; } catch (e) { /* sin almacenamiento */ }
 
-  let obs = null, pendiente = 0;
+  let obs = null, pendiente = 0, dashboardComprobado = false;
+
+  async function prepararDashboardAdministrativo() {
+    if (dashboardComprobado) return;
+    dashboardComprobado = true;
+    try {
+      const respuesta = await fetch('/api/dashboard-administrativo/permiso', { cache: 'no-store' });
+      const permiso = respuesta.ok ? await respuesta.json() : null;
+      if (!permiso || !permiso.allowed) return;
+      const menu = document.querySelector('.user-dropdown');
+      if (!menu) return;
+      if (!document.getElementById('open-dashboard-administrativo')) {
+        const boton = document.createElement('button');
+        boton.type = 'button';
+        boton.id = 'open-dashboard-administrativo';
+        boton.textContent = 'Dashboard administrativo';
+        menu.appendChild(boton);
+      }
+      if (!document.querySelector('script[data-dashboard-administrativo]')) {
+        const script = document.createElement('script');
+        script.src = '/dashboard-administrativo.js?v=20261109-1';
+        script.dataset.dashboardAdministrativo = '1';
+        document.head.appendChild(script);
+      }
+      organizar();
+    } catch (e) { /* El menú principal sigue funcionando aunque falle esta vista opcional. */ }
+  }
+
   function organizar() {
     const m = document.querySelector('.user-dropdown');
     if (!m) return;
@@ -48,7 +75,7 @@
         m.querySelector('.li-menu-item:not(.li-create-user)'), porId('open-agentes'), porId('open-agentes-hub'), porId('open-ecommerce'), porId('open-zeus'), porId('open-promedios'), porId('open-molderia'), fichas
       ].filter(Boolean);
       // cuenta: dentro de la sección
-      const cuenta = [porId('open-profile'), porId('open-name'), porId('open-password'), porId('open-manage-permissions'), porId('open-lineas-producto'), porId('open-personal-notes'), m.querySelector('.li-create-user'), m.querySelector('.theme-toggle')].filter(Boolean);
+      const cuenta = [porId('open-dashboard-administrativo'), porId('open-profile'), porId('open-name'), porId('open-password'), porId('open-manage-permissions'), porId('open-lineas-producto'), porId('open-personal-notes'), m.querySelector('.li-create-user'), m.querySelector('.theme-toggle')].filter(Boolean);
       let ref = rol ? rol.nextSibling : m.firstChild;
       herramientas.forEach(el => { if (el.parentNode !== m || el !== ref) m.insertBefore(el, ref); ref = el.nextSibling; });
       if (grupo.parentNode !== m || grupo !== ref) m.insertBefore(grupo, ref);
@@ -62,5 +89,5 @@
     }
   }
   let n = 0;
-  const espera = setInterval(() => { if (document.querySelector('.user-dropdown #open-profile') || ++n > 100) { clearInterval(espera); organizar(); } }, 250);
+  const espera = setInterval(() => { if (document.querySelector('.user-dropdown #open-profile') || ++n > 100) { clearInterval(espera); organizar(); prepararDashboardAdministrativo(); } }, 250);
 })();

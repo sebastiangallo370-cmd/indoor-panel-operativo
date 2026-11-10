@@ -1494,6 +1494,11 @@ def menu_cuenta_js():
     return FileResponse(Path(__file__).with_name('menu-cuenta.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
 
 
+@app.get('/dashboard-administrativo.js')
+def dashboard_administrativo_js():
+    return FileResponse(Path(__file__).with_name('dashboard-administrativo.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
+
+
 @app.get('/proveedores-tela.js')
 def proveedores_tela_js():
     return FileResponse(Path(__file__).with_name('proveedores-tela.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
@@ -3655,6 +3660,12 @@ async def production_data(request: Request, force: bool = False, _=Depends(authe
     except Exception as exc:
         logging.exception("No se pudo consultar la base local de producción")
         raise HTTPException(503, f"No se pudo abrir Producción: {exc}") from exc
+
+
+@app.get('/api/dashboard-administrativo/permiso')
+def dashboard_administrativo_permiso(_=Depends(authenticate)):
+    """No entrega datos: solo permite al menú mostrar la vista a las cuentas autorizadas."""
+    return {'allowed': permisos_mod.dashboard_administrativo_permitido(str(_))}
 
 
 PROCESS_STATUS_HEADERS = {
