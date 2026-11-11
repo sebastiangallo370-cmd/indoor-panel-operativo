@@ -251,6 +251,16 @@
   document.head.appendChild(style);
 })();
 
+// La mejora se carga aparte para que el resumen se conserve en su misma pestaña.
+(() => {
+  if (document.querySelector('script[data-contabilidad-confeccion-ui]')) return;
+  const script = document.createElement('script');
+  script.src = '/contabilidad-confeccion-ui.js?v=20261111-1';
+  script.async = false;
+  script.dataset.contabilidadConfeccionUi = 'true';
+  document.head.appendChild(script);
+})();
+
 /* Capa de profundidad: no cambia la estructura ni los eventos de los módulos. */
 (() => {
   const STYLE_ID = 'indoor-vidrio-dinamico';

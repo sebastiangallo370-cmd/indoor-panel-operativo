@@ -1150,6 +1150,11 @@ def confeccion_boton_js():
     return FileResponse(Path(__file__).with_name('confeccion-boton.js'), media_type='application/javascript', headers={'Cache-Control': 'no-store, max-age=0, must-revalidate'})
 
 
+@app.get('/contabilidad-confeccion-ui.js')
+def contabilidad_confeccion_ui_js():
+    return FileResponse(Path(__file__).with_name('contabilidad-confeccion-ui.js'), media_type='application/javascript', headers={'Cache-Control': 'no-store, max-age=0, must-revalidate'})
+
+
 @app.get('/confeccion-agente/instalador')
 def descargar_instalador_confeccion():
     archivo = Path(__file__).with_name('instalar_confeccion.vbs')
