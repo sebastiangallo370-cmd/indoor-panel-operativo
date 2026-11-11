@@ -27,9 +27,9 @@ if not exist "%DEST%\datos" mkdir "%DEST%\datos"
 copy /Y "%ORIGEN%datos\panel.json" "%DEST%\datos\panel.json" >nul
 if not exist "%DEST%\logs" mkdir "%DEST%\logs"
 
-where py >nul 2>nul
+py -3.11 --version >nul 2>nul
 if errorlevel 1 (
-  echo Python no esta instalado. Instalando Python 3.11...
+  echo Python 3.11 no esta instalado. Instalando Python 3.11...
   where winget >nul 2>nul
   if errorlevel 1 (
     echo Este equipo no tiene Winget para instalar Python automaticamente.
@@ -38,22 +38,22 @@ if errorlevel 1 (
     exit /b 1
   )
   winget install --id Python.Python.3.11 -e --source winget --accept-package-agreements --accept-source-agreements
-  where py >nul 2>nul
+  py -3.11 --version >nul 2>nul
   if errorlevel 1 (
-    echo Python no quedo disponible. Reinicia Windows y vuelve a ejecutar este instalador.
+    echo Python 3.11 no quedo disponible. Reinicia Windows y vuelve a ejecutar este instalador.
     pause
     exit /b 1
   )
 )
 echo Preparando el navegador seguro de WhatsApp. Puede tardar varios minutos la primera vez...
 echo Descargando Playwright. No cierres esta ventana mientras haya reintentos.
-py -3 -m pip install --disable-pip-version-check --quiet --timeout 120 --retries 8 playwright
+py -3.11 -m pip install --disable-pip-version-check --quiet --no-cache-dir --index-url https://pypi.org/simple --timeout 120 --retries 8 playwright
 if errorlevel 1 (
   echo No se pudo instalar Playwright. Revisa la conexion a Internet e intenta de nuevo.
   pause
   exit /b 1
 )
-py -3 -m playwright install chromium
+py -3.11 -m playwright install chromium
 if errorlevel 1 (
   echo No se pudo descargar Chromium para WhatsApp. Revisa la conexion a Internet e intenta de nuevo.
   pause
