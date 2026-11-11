@@ -60,6 +60,15 @@ def _day(value):
     return value if isinstance(value, date) else None
 
 
+def _payment_label(value) -> str | None:
+    """Expone solo la marca de pago del Excel, sin interpretar abonos."""
+    payment_day = _day(value)
+    if payment_day:
+        return payment_day.isoformat()
+    text = ' '.join(str(value or '').split())
+    return text[:48] if text else None
+
+
 def _weighted_days(rows: list[dict]) -> float | None:
     timed = [row for row in rows if row['duration'] is not None and row['received'] > 0]
     if not timed:
@@ -96,7 +105,7 @@ def _read(path: Path) -> dict:
                 'maker': label, 'sent': sent, 'received': received, 'amount': amount,
                 'paid': _paid(payment), 'duration': duration, 'sent_date': sent_day,
                 'received_date': received_day, 'description': _clean_label(description, 'Sin descripción'),
-                'reference': _clean_label(reference, ''),
+                'reference': _clean_label(reference, ''), 'payment': _payment_label(payment),
             })
         if not rows:
             continue
@@ -111,6 +120,13 @@ def _read(path: Path) -> dict:
             'average_days': _weighted_days(rows),
             'completion_rate': round(received / sent * 100, 1) if sent else None,
             'average_value_per_unit': round(amount / received) if received else None,
+            'details': [{
+                'sent_date': row['sent_date'].isoformat() if row['sent_date'] else None,
+                'received_date': row['received_date'].isoformat() if row['received_date'] else None,
+                'sent': round(row['sent']), 'received': round(row['received']), 'amount': round(row['amount']),
+                'paid': row['paid'], 'payment': row['payment'], 'product': row['description'],
+                'reference': row['reference'],
+            } for row in sorted(rows, key=lambda row: (row['received_date'] or row['sent_date'] or date.min), reverse=True)],
         })
         all_rows.extend(rows)
     if not makers:
