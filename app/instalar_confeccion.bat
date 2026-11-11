@@ -65,4 +65,7 @@ reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "IndoorConfeccio
 start "" wscript.exe "%DEST%\iniciar_oculto.vbs"
 echo Agente de Confeccion instalado e iniciado en segundo plano en %DEST%.
 echo En la primera preparacion se abrira WhatsApp Web en este PC para escanear el QR.
+echo.
+echo Pulsa una tecla para cerrar esta ventana.
+pause >nul
 exit /b 0
