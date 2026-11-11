@@ -52,11 +52,12 @@ from app import perfil_foto as perfil_foto_mod
 from app import terminos as terminos_mod
 from app import proveedores_tela as proveedores_tela_mod
 from app import memoria_agentes as memoria_mod
-from app import permisos as permisos_mod, exportar as exportar_mod, reposiciones as reposiciones_mod, agentes_canal as agentes_mod, promedios as promedios_mod, molderia as molderia_mod, fichas_resumen as fichas_resumen_mod, rh_contratos as rh_contratos_mod, tela_necesaria as tela_necesaria_mod
+from app import permisos as permisos_mod, exportar as exportar_mod, reposiciones as reposiciones_mod, agentes_canal as agentes_mod, promedios as promedios_mod, molderia as molderia_mod, fichas_resumen as fichas_resumen_mod, rh_contratos as rh_contratos_mod, tela_necesaria as tela_necesaria_mod, listado_tallas as listado_tallas_mod
 from app.cartera_externa import externa_router
 from app import diseno_versiones as versiones_mod
 from app import bitacora as bitacora_mod
 from app import ecommerce_canal as ecommerce_mod
+from app import dinoman as dinoman_mod
 app = FastAPI(title="Asistente de Reprogramaciones", version="1.0.0")
 
 @app.post('/api/planeacion/preguntar')
@@ -225,6 +226,25 @@ def connect():
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
     )""")
+    # Preparación previa al envío de una prenda a confección. Es independiente
+    # del estado de Producción: únicamente guarda la elección explícita del operador.
+    db.execute("""CREATE TABLE IF NOT EXISTS confeccion_preparaciones (
+        source_row INTEGER PRIMARY KEY,
+        orden TEXT NOT NULL DEFAULT '',
+        referencia TEXT NOT NULL DEFAULT '',
+        confeccionista TEXT NOT NULL DEFAULT '',
+        precio_centavos INTEGER NOT NULL DEFAULT 0,
+        updated_by TEXT NOT NULL DEFAULT '',
+        updated_at TEXT NOT NULL DEFAULT ''
+    )""")
+    # Agenda propia de confección. Se completa una vez y luego el número de
+    # WhatsApp aparece automáticamente al escoger la confeccionista.
+    db.execute("""CREATE TABLE IF NOT EXISTS confeccionistas_contactos (
+        confeccionista TEXT PRIMARY KEY,
+        whatsapp TEXT NOT NULL DEFAULT '',
+        updated_by TEXT NOT NULL DEFAULT '',
+        updated_at TEXT NOT NULL DEFAULT ''
+    )""")
     db.commit()
     return db
 
@@ -325,6 +345,7 @@ from app import ventas_effi as ventas_effi_mod
 ventas_effi_mod.configurar(authenticate, permisos_mod.comerciales_permitido, lambda: zeus_mod._leer_secreto().get('llave', ''),
                            lambda: CONFIG['ruta_nas_clientes'],
                            lambda: __import__('app.inventario_api', fromlist=['x']).inventory_snapshot())
+dinoman_mod.configurar(connect, legacy.get_gspread, lambda: CONFIG['ruta_nas_clientes'], STATE_DIR / 'dinoman.json')
 app.include_router(ventas_effi_mod.router)
 app.include_router(ecommerce_mod.router)
 app.include_router(ecommerce_mod.pc_router)
@@ -483,6 +504,9 @@ def senal_orden_programada(origen: str = ''):
     """La página le avisa al agente de inventario (ZEUS) que entró una orden nueva: calcula sus MTS de inmediato y manda la alerta de tela. Se llama solo cuando ocurre el hecho
     (el pedido se programó en el panel o el Sheet trajo filas nuevas); no hay ningún reloj que revise. Corre en segundo plano para no demorar a quien programa."""
     def correr():
+        # DINOMAN valida el maestro del cliente en la NAS. Es silencioso y no
+        # modifica nada si no existe exactamente el proyecto.
+        dinoman_mod.notificar(origen)
         # Al programar, los MTS los calcula SOLO el agente de inventario (ZEUS): el mismo que luego compara contra la bodega y envía la alerta de tela.
         # TERRY ya no calcula al programar (solo queda su respaldo al terminar EDICIÓN para las tarjetas que sigan sin MTS).
         # La señal no depende de que se hayan escrito MTS: una orden puede llegar con
@@ -1112,6 +1136,30 @@ def efecto_vidrio_js():
 @app.get('/tarjeta-iconos.js')
 def tarjeta_iconos_js():
     return FileResponse(Path(__file__).with_name('tarjeta-iconos.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
+
+
+@app.get('/confeccion-preparacion.js')
+def confeccion_preparacion_js():
+    return FileResponse(Path(__file__).with_name('confeccion-preparacion.js'), media_type='application/javascript', headers={'Cache-Control': 'no-store, max-age=0, must-revalidate'})
+
+@app.get('/confeccion-agente/instalador')
+def descargar_instalador_confeccion():
+    archivo = Path(__file__).with_name('instalar_confeccion.vbs')
+    if not archivo.exists():
+        raise HTTPException(404, 'Instalador del agente no disponible')
+    return FileResponse(archivo, media_type='application/octet-stream', filename='instalar_confeccion.vbs')
+
+@app.get('/confeccion-agente/{archivo}')
+def descargar_archivo_agente_confeccion(archivo: str):
+    permitidos = {'confeccion_agente.py', 'whatsapp_playwright.py', 'iniciar_oculto.vbs', 'actualizar_desde_nas.bat', 'iniciar.bat', 'instalar_confeccion.bat'}
+    if archivo not in permitidos:
+        raise HTTPException(404, 'Archivo no disponible')
+    # El paquete se copia dentro de /app/app al construir el contenedor; así
+    # el instalador sigue funcionando aunque la NAS esté temporalmente fuera.
+    ruta = Path(__file__).with_name(archivo)
+    if not ruta.exists():
+        raise HTTPException(404, 'Archivo del agente no disponible')
+    return FileResponse(ruta, media_type='application/octet-stream', filename=archivo)
 
 
 @app.get('/inventario-alertas.js')
@@ -5259,8 +5307,10 @@ def production_row_files(source_row: int, excel_only=False):
             # Los maestros pueden estar organizados en subcarpetas por rango de tallas
             # (FUT01_D1_D2_PLUS) y sus recursos pueden vivir dentro de ellas.
             images = [p for p in designs[0].rglob('*') if p.is_file() and p.suffix.lower() in ('.png', '.jpg', '.jpeg', '.webp')]
-            # Up to four versions within the uniquely matched design folder.
-            images = sorted(images, key=lambda p: p.name.casefold())[:4]
+            # Una tarjeta puede llevar muchos diseños. Conservamos los primeros
+            # quince (ordenados de forma estable) para que Producción y la
+            # preparación de confección muestren exactamente los mismos mockups.
+            images = sorted(images, key=lambda p: p.name.casefold())[:15]
     # Verified NAS naming exception: same client's 2018-2019 flag project.
     if normalized_name(client_name) == 'corporacion cracks antioquia' and field('NOMBRE PROYECTO').upper() == 'BANDERA 2018-2019' and reference == 'A3000BN01' and masters:
         flag_project = child(masters, 'BANDERA 18-19')
@@ -5380,9 +5430,16 @@ def _compute_card_assets(source_row: int):
     try:
         _, nas_images, nas_client = production_row_files(source_row, excel_only=False)
         if nas_images:
-            images = [{'name': p.name,
-                       'url': f'/api/produccion/fila/{source_row}/archivo?name=' + quote(p.relative_to(nas_client).as_posix(), safe='')}
-                      for p in nas_images]
+            images = []
+            for number, path in enumerate(nas_images, start=101):
+                # Se guarda una miniatura temporal para que este mismo mockup se
+                # pueda adjuntar a WhatsApp con un enlace firmado, sin exponer la
+                # ruta de la NAS ni requerir otra sesión del panel.
+                data = excel_mockups._thumbnail(path.read_bytes())
+                mime = 'image/png' if data[:4] == bytes([137, 80, 78, 71]) else 'image/jpeg'
+                _remember_image(source_row, number, hashlib.sha256(data).hexdigest()[:20], mime, data)
+                images.append({'name': path.name, 'design': number,
+                               'url': f'/api/produccion/fila/{source_row}/archivo?name=' + quote(path.relative_to(nas_client).as_posix(), safe='')})
             return {'images': images, 'documents': documents[:20], 'image_status': 'Imagen desde carpeta MAESTROS', 'image_source': 'nas'}
     except (OSError, HTTPException):
         pass
@@ -5452,6 +5509,193 @@ def production_card_assets(source_row: int, _=Depends(authenticate)):
     return payload
 
 
+CONFECCIONISTAS_INICIALES = {
+    # Se registran como agenda real, no como opciones de ejemplo.
+    'GLORIA VALLEJO': '3104907505',
+    'OMAIRA VILLEGAS': '3206571671',
+}
+
+
+def _lista_confeccionistas() -> list[dict]:
+    """Agenda real de confeccionistas registrada desde Estándar 2026."""
+    with connect() as db:
+        # Alta inicial solicitada por Coordinación. INSERT OR IGNORE respeta un
+        # teléfono que luego se actualice desde la interfaz.
+        now = datetime.now(timezone.utc).isoformat()
+        for confeccionista, whatsapp in CONFECCIONISTAS_INICIALES.items():
+            db.execute('''INSERT OR IGNORE INTO confeccionistas_contactos
+                (confeccionista, whatsapp, updated_by, updated_at) VALUES (?, ?, ?, ?)''',
+                (confeccionista, whatsapp, 'Indoor Sport', now))
+        db.commit()
+        saved = db.execute('SELECT confeccionista, whatsapp, updated_at FROM confeccionistas_contactos').fetchall()
+    return [dict(row) for row in sorted(saved, key=lambda row: str(row['confeccionista']).upper())
+            if str(row['confeccionista']).strip()]
+
+
+@app.get('/api/confeccionistas')
+def get_confeccionistas(_=Depends(permisos_mod.exigir('promedios'))):
+    return {'items': _lista_confeccionistas()}
+
+
+@app.post('/api/confeccionistas')
+def save_confeccionista(payload: dict = Body(...), username=Depends(permisos_mod.exigir('promedios'))):
+    name = re.sub(r'\s+', ' ', str(payload.get('confeccionista') or '').strip()).upper()[:80]
+    if not name:
+        raise HTTPException(400, 'Escribe el nombre de la confeccionista')
+    whatsapp = re.sub(r'[^0-9+]', '', str(payload.get('whatsapp') or ''))[:20]
+    if whatsapp and len(re.sub(r'\D', '', whatsapp)) < 7:
+        raise HTTPException(400, 'El WhatsApp debe tener al menos 7 dígitos')
+    now = datetime.now(timezone.utc).isoformat()
+    with connect() as db:
+        db.execute('''INSERT INTO confeccionistas_contactos (confeccionista, whatsapp, updated_by, updated_at)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(confeccionista) DO UPDATE SET whatsapp=excluded.whatsapp,
+            updated_by=excluded.updated_by, updated_at=excluded.updated_at''', (name, whatsapp, username, now))
+        db.commit()
+    return {'ok': True, 'confeccionista': name, 'whatsapp': whatsapp, 'updated_at': now}
+
+
+def _datos_preparacion_confeccion(source_row: int) -> dict:
+    """Datos de una tarjeta para la pestaña interna de preparación de confección.
+
+    La curva se deriva del Excel del listado de esa misma orden, nunca de una
+    cantidad estimada de la tarjeta. Así quedan visibles las tallas reales que
+    se enviarán a la confeccionista.
+    """
+    with connect() as db:
+        record = db.execute('SELECT values_json FROM production_rows WHERE source_row=?', (source_row,)).fetchone()
+        headers_row = db.execute("SELECT value FROM production_meta WHERE key='headers'").fetchone()
+        saved = db.execute('SELECT confeccionista, precio_centavos, updated_at FROM confeccion_preparaciones WHERE source_row=?', (source_row,)).fetchone()
+        contacts = db.execute('SELECT confeccionista, whatsapp FROM confeccionistas_contactos').fetchall()
+    if not record or not headers_row:
+        raise HTTPException(404, 'La tarjeta ya no existe')
+    headers = [str(value or '').strip().upper() for value in json.loads(headers_row['value'])]
+    values = json.loads(record['values_json'])
+
+    def field(*names: str) -> str:
+        for name in names:
+            try:
+                index = headers.index(name)
+            except ValueError:
+                continue
+            if index < len(values):
+                return str(values[index] or '').strip()
+        return ''
+
+    order = field('ORDEN')
+    reference = field('REFERENCIA')
+    client = field('NOMBRE DEL CLIENTE', 'CLIENTE')
+    project = field('NOMBRE PROYECTO', 'PROYECTO')
+    quantity = field('CANTIDAD')
+    curve, curve_error = [], ''
+    try:
+        folder = listado_tallas_mod.carpeta_de_orden(client, order)
+        workbook = listado_tallas_mod.excel_de_orden(folder, order) if folder else None
+        sheets = listado_tallas_mod.leer_hojas(workbook) if workbook else {}
+        wanted = listado_tallas_mod._codigo(reference)
+        matching = [rows for title, rows in sheets.items()
+                    if (listado_tallas_mod._codigo(title) == wanted
+                        or listado_tallas_mod._codigo(title).startswith(wanted)
+                        or wanted.startswith(listado_tallas_mod._codigo(title)))]
+        if not matching and len(sheets) == 1:
+            matching = list(sheets.values())
+        totals = {}
+        for row in (line for rows in matching for line in rows):
+            size = str(row.get('talla') or '').strip().upper()
+            if not size:
+                continue
+            totals[size] = totals.get(size, 0) + int(row.get('cantidad') or 0)
+        size_order = {'XXS': 20, 'XS': 21, 'S': 22, 'M': 23, 'L': 24, 'XL': 25, '2XL': 26, '3XL': 27, '4XL': 28, '5XL': 29}
+        curve = [{'talla': size, 'cantidad': count} for size, count in sorted(
+            totals.items(), key=lambda item: (0, int(item[0])) if item[0].isdigit() else (1, size_order.get(item[0], 99), item[0]))]
+        if not curve:
+            curve_error = 'No se encontró una curva de tallas para esta referencia en el listado.'
+    except Exception:
+        logging.exception('No se pudo leer la curva del listado para la fila %s', source_row)
+        curve_error = 'No se pudo leer la curva del listado ahora. Intenta nuevamente.'
+    assets = production_card_assets(source_row, None)
+    # El enlace de cada mockup solo se comparte con la confeccionista elegida
+    # al abrir WhatsApp. Caduca pronto y no da acceso a otros documentos.
+    expires = int(time.time()) + 7 * 24 * 60 * 60
+    mockups = []
+    for image in assets.get('images', []):
+        item = dict(image)
+        design = item.get('design')
+        if isinstance(design, int) and 1 <= design <= 140:
+            sig = _session_signature(f'confeccion-mockup|{source_row}|{design}|{expires}')
+            item['share_url'] = f'/api/produccion/fila/{source_row}/mockup-compartir/{design}?e={expires}&s={sig}'
+        mockups.append(item)
+    return {
+        'source_row': source_row, 'orden': order, 'cliente': client, 'proyecto': project,
+        'referencia': reference, 'cantidad': quantity, 'mockups': mockups,
+        'curva': curve, 'curva_error': curve_error,
+        'confeccionistas': [item['confeccionista'] for item in _lista_confeccionistas()],
+        'whatsapps': {row['confeccionista']: row['whatsapp'] for row in contacts if row['whatsapp']},
+        'preparacion': ({'confeccionista': saved['confeccionista'],
+                          'precio_prenda': saved['precio_centavos'] / 100,
+                          'updated_at': saved['updated_at']} if saved else None),
+    }
+
+
+@app.get('/api/produccion/fila/{source_row}/confeccion')
+async def get_preparacion_confeccion(source_row: int, _=Depends(authenticate)):
+    return await asyncio.to_thread(_datos_preparacion_confeccion, source_row)
+
+
+@app.post('/api/produccion/fila/{source_row}/confeccion')
+def save_preparacion_confeccion(source_row: int, payload: dict = Body(...), username=Depends(authenticate)):
+    confeccionista = str(payload.get('confeccionista') or '').strip().upper()
+    if confeccionista not in {item['confeccionista'] for item in _lista_confeccionistas()}:
+        raise HTTPException(400, 'Selecciona una confeccionista válida')
+    try:
+        price = float(str(payload.get('precio_prenda', '')).replace(',', '.'))
+    except (TypeError, ValueError):
+        raise HTTPException(400, 'Indica un precio válido por prenda')
+    if not 0 < price <= 10000000:
+        raise HTTPException(400, 'El precio por prenda debe ser mayor que cero')
+    whatsapp = re.sub(r'[^0-9+]', '', str(payload.get('whatsapp') or ''))[:20]
+    if whatsapp and len(re.sub(r'\D', '', whatsapp)) < 7:
+        raise HTTPException(400, 'El WhatsApp debe tener al menos 7 dígitos')
+    with connect() as db:
+        record = db.execute('SELECT values_json FROM production_rows WHERE source_row=?', (source_row,)).fetchone()
+        headers_row = db.execute("SELECT value FROM production_meta WHERE key='headers'").fetchone()
+        if not record or not headers_row:
+            raise HTTPException(404, 'La tarjeta ya no existe')
+        headers, values = json.loads(headers_row['value']), json.loads(record['values_json'])
+        def field(name):
+            index = next((i for i, header in enumerate(headers) if str(header).strip().upper() == name), -1)
+            return str(values[index] or '').strip() if 0 <= index < len(values) else ''
+        now = datetime.now(timezone.utc).isoformat()
+        db.execute('''INSERT INTO confeccion_preparaciones
+            (source_row, orden, referencia, confeccionista, precio_centavos, updated_by, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(source_row) DO UPDATE SET orden=excluded.orden, referencia=excluded.referencia,
+            confeccionista=excluded.confeccionista, precio_centavos=excluded.precio_centavos,
+            updated_by=excluded.updated_by, updated_at=excluded.updated_at''',
+            (source_row, field('ORDEN'), field('REFERENCIA'), confeccionista, round(price * 100), username, now))
+        if whatsapp:
+            db.execute('''INSERT INTO confeccionistas_contactos (confeccionista, whatsapp, updated_by, updated_at)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(confeccionista) DO UPDATE SET whatsapp=excluded.whatsapp,
+                updated_by=excluded.updated_by, updated_at=excluded.updated_at''',
+                (confeccionista, whatsapp, username, now))
+        db.commit()
+    detalle_agente = _datos_preparacion_confeccion(source_row)
+    job_id = agentes_mod.crear_confeccion_job({
+        'source_row': source_row,
+        'orden': field('ORDEN'),
+        'referencia': field('REFERENCIA'),
+        'cliente': detalle_agente.get('cliente', ''),
+        'cantidad': detalle_agente.get('cantidad', ''),
+        'curva': detalle_agente.get('curva', []),
+        'mockups': detalle_agente.get('mockups', []),
+        'confeccionista': confeccionista,
+        'whatsapp': whatsapp,
+        'precio_prenda': round(price, 2),
+    })
+    return {'ok': True, 'job_id': job_id, 'confeccionista': confeccionista, 'precio_prenda': round(price, 2), 'whatsapp': whatsapp, 'updated_at': now}
+
+
 def production_excel_designs(source_row, files):
     with connect() as db:
         record = db.execute('SELECT values_json FROM production_rows WHERE source_row = ?', (source_row,)).fetchone()
@@ -5506,6 +5750,32 @@ def production_excel_image(source_row: int, design: int, request: Request = None
     if request is not None and request.headers.get('if-none-match') == etag:
         return Response(status_code=304, headers=headers)
     return Response(target[2], media_type=target[1], headers=headers)
+
+
+@app.get('/api/produccion/fila/{source_row}/mockup-compartir/{design}')
+def production_excel_image_shared(source_row: int, design: int, e: int = 0, s: str = '', request: Request = None):
+    """Mockup temporal para una confeccionista: solo funciona con enlace firmado."""
+    expected = _session_signature(f'confeccion-mockup|{source_row}|{design}|{e}')
+    if e < time.time() or not s or not hmac.compare_digest(s, expected):
+        raise HTTPException(403, 'El enlace del mockup venció o no es válido')
+    if 1 <= design <= 40:
+        response = production_excel_image(source_row, design, request)
+        if isinstance(response, Response):
+            response.headers['Cache-Control'] = 'private, max-age=3600'
+        return response
+    # Los mockups de respaldo desde MAESTROS se numeran desde 101. Ya están
+    # limitados y cacheados al crear la tarjeta; se entregan solo con esta firma.
+    with _ASSET_LOCK:
+        hit = _IMAGE_CACHE.get((source_row, design))
+    if not hit:
+        _compute_card_assets(source_row)
+        with _ASSET_LOCK:
+            hit = _IMAGE_CACHE.get((source_row, design))
+    if not hit:
+        raise HTTPException(404, 'Mockup no encontrado')
+    return Response(hit[2], media_type=hit[1], headers={
+        'Cache-Control': 'private, max-age=3600', 'X-Content-Type-Options': 'nosniff'
+    })
 
 
 @app.get('/api/produccion/fila/{source_row}/archivo')
@@ -6399,8 +6669,10 @@ body.production-mode .production-row-tools{{gap:6px}}
 body.production-mode .production-row-open{{background:#26311c!important;border-color:#58673f!important;color:#d1e2b2!important;box-shadow:none!important;font-weight:600}}
 body.production-mode .production-drag-handle{{box-shadow:none;border-color:#4f5d3e;background:#1b2516;color:#9cab86}}
 body.production-mode .production-delete-row{{box-shadow:none!important;background:transparent!important;border-color:#67483d!important;color:#d8a293!important}}
-body.production-mode .production-tools-menu{{position:relative}}
-body.production-mode .production-tools-popover{{position:absolute;right:0;top:42px;z-index:120;background:#1c2517;padding:10px;border:1px solid #596745;border-radius:9px;box-shadow:0 10px 25px #0008;min-width:185px}}
+    body.production-mode .production-tools-menu{{position:relative;z-index:9990;isolation:isolate;overflow:visible;pointer-events:auto}}
+    body.production-mode .production-tools-menu summary{{pointer-events:auto;user-select:none}}
+    body.production-mode .production-tools-popover{{position:fixed;right:18px;top:118px;z-index:2147483647;display:block;background:#1c2517;padding:10px;border:1px solid #596745;border-radius:9px;box-shadow:0 10px 25px #0008;min-width:220px;max-width:calc(100vw - 36px);pointer-events:auto}}
+    body.production-mode .production-tools-menu:not([open]) .production-tools-popover{{display:none}}
 .sheets-sync-box{{margin-top:10px;padding-top:10px;border-top:1px solid #3a4530;display:grid;gap:6px}}
 .sheets-sync-box strong{{font-size:.72rem;letter-spacing:.04em;text-transform:uppercase;color:#c7d1b8}}
 .sheets-sync-box p{{margin:0;font-size:.72rem;line-height:1.4;color:#a9b599}}
@@ -7165,7 +7437,7 @@ function traceAssetsMarkup(sourceRow){{const asset=traceAssets.get(sourceRow);if
 function paintTraceAssets(sourceRow){{const card=traceCards.querySelector('[data-card-row="'+sourceRow+'"]');if(card){{card.querySelector('.trace-media').innerHTML=traceAssetsMarkup(sourceRow);const tabs=card.querySelector('.trace-design-tabs'),on=tabs&&tabs.querySelector('[aria-pressed=true]');if(on)tabs.scrollLeft=on.offsetLeft-(tabs.clientWidth-on.offsetWidth)/2}}}}
 async function loadTraceAssets(sourceRow,force=false){{if((traceAssets.has(sourceRow)&&!force)||traceAssetBusy.has(sourceRow))return;traceAssetBusy.add(sourceRow);let changed=false;try{{const response=await fetch('/api/produccion/fila/'+sourceRow+'/archivos',{{cache:'no-store'}});const data=await response.json();if(!response.ok)throw Error(data.detail||'No se pudo consultar el NAS');if(JSON.stringify(traceAssets.get(sourceRow))!==JSON.stringify(data)){{traceAssets.set(sourceRow,data);changed=true}}}}catch(error){{if(!traceAssets.has(sourceRow)){{traceAssets.set(sourceRow,{{error:error.message}});changed=true}}}}finally{{traceAssetBusy.delete(sourceRow);if(changed)paintTraceAssets(sourceRow)}}}}
 let traceSyncBusy=false;
-async function syncTraceMockups(){{if(traceSyncBusy||document.hidden||traceCards.hidden||document.querySelector('.tab.active')?.dataset.kind!=='produccion')return;traceSyncBusy=true;try{{const bounds=traceCards.getBoundingClientRect(),rows=[...traceCards.querySelectorAll('[data-card-row]')].filter(card=>{{const r=card.getBoundingClientRect();return r.bottom>Math.max(0,bounds.top)&&r.top<Math.min(innerHeight,bounds.bottom)}}).map(card=>Number(card.dataset.cardRow));for(let i=0;i<rows.length;i+=2){{if(document.hidden||traceCards.hidden)break;await Promise.all(rows.slice(i,i+2).map(id=>loadTraceAssets(id,true)))}}}}finally{{traceSyncBusy=false}}}}
+async function syncTraceMockups(){{if(traceSyncBusy||document.hidden||traceCards.hidden||document.querySelector('.tab.active')?.dataset.kind!=='produccion')return;traceSyncBusy=true;try{{const bounds=traceCards.getBoundingClientRect(),rows=[...traceCards.querySelectorAll('[data-card-row]')].filter(card=>{{const r=card.getBoundingClientRect();return r.bottom>Math.max(0,bounds.top)&&r.top<Math.min(innerHeight,bounds.bottom)}}).map(card=>Number(card.dataset.cardRow));for(const id of rows){{if(document.hidden||traceCards.hidden)break;await loadTraceAssets(id,false)}}}}finally{{traceSyncBusy=false}}}}
 setInterval(syncTraceMockups,30000);window.addEventListener('focus',syncTraceMockups);document.addEventListener('visibilitychange',()=>{{if(!document.hidden)syncTraceMockups()}});
 const traceImageObserver=new IntersectionObserver(entries=>{{entries.filter(e=>e.isIntersecting).forEach(e=>{{loadTraceAssets(Number(e.target.dataset.cardRow));traceImageObserver.unobserve(e.target)}})}},{{root:traceCards,rootMargin:'100px'}});
 const traceExpandedProcesses=new Set();
@@ -7375,7 +7647,7 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
     const commercialGroup=commercialToggle.closest('.nav-group');commercialGroup.classList.add('collapsed');const productionToggle=document.getElementById('production-toggle');if(productionToggle)productionToggle.addEventListener('click',()=>{{const g=productionToggle.closest('.nav-group');g.classList.toggle('collapsed');if(!g.classList.contains('collapsed')&&window.innerWidth>860)g.querySelector('.nav-children .tab')?.click()}});
     setTimeout(()=>{{if(!document.querySelector('.panel.active'))document.querySelector('.tab[data-kind="inicio"]')?.click()}},0);
     setTimeout(()=>{{const panel=document.querySelector('.panel.active');const kind=panel?.dataset?.panel;const activeTab=kind&&document.querySelector(`.tab[data-kind="${{kind}}"]`);if(activeTab)document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===activeTab))}},100);
-</script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/liquid-stats.js?v=20261019-1'></script><script src='/nombres-effi.js?v=20261022-2'></script><script src='/permisos.js?v=20261007-2'></script><script src='/reposiciones.js?v=20261019-1'></script><script src='/agentes.js?v=20261107-14'></script><script src='/promedios.js?v=20261109-1'></script><script src='/capacidad.js?v=20261009-2'></script><script src='/molderia.js?v=20261010-2'></script><script src='/estandar.js?v=20261020-1'></script><script src='/proveedores-tela.js?v=20261022-4'></script><script src='/terminos.js?v=20261010-1'></script><script src='/cookies-aviso.js?v=20261010-1'></script><script src='/rh-contratos.js?v=20261009-3'></script><script src='/fichas-resumen.js?v=20261022-2'></script><script src='/api/cartera/cartera.js?v=20261009-1'></script><script src='/trace-ui.js?v=20261109-2'></script><script src='/home-dashboard.js?v=20261109-2'></script><script src='/bodega-dashboard.js?v=20261109-3'></script><script src='/bodegas.js?v=20261009-7'></script><script src='/codigos-barras.js?v=20261014-3'></script><script src='/mis-pedidos.js?v=20261008-1'></script><script src='/crear-cliente.js?v=20261024-31'></script><script src='/club-admin.js?v=20261020-1'></script><script src='/mobile-nav.js?v=20261108-1'></script><script src='/nav-liquid.js?v=20261109-1'></script><script src='/build-watch.js?v=20261105-1'></script><script src='/salud.js?v=20261014-2'></script><script src='/alertas.js?v=20261030-1'></script><script src='/bitacora.js?v=20261016-2'></script><script src='/memoria.js?v=20261018-1'></script><script src='/ecommerce.js?v=20261019-1'></script><script src='/zeus.js?v=20261110-3'></script><script src='/minimaximan.js?v=20261023-2'></script><script src='/aviso-agentes.js?v=20261023-5'></script><script src='/descuento-sublimacion.js?v=20261026-1'></script><script src='/stockman.js?v=20261022-30'></script><script src='/draco-panel.js?v=20261021-8'></script><script src='/agentes-hub.js?v=20261109-1'></script><script src='/recordar-vista.js?v=20261109-1'></script><script src='/tema.js?v=20261008-1'></script><script src='/tarjeta-iconos.js?v=20261030-1'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261021-1'></script><script src='/linea-editor.js?v=20261030-1'></script><script src='/lineas-producto-panel.js?v=20261030-1'></script><script src='/menu-cuenta.js?v=20261016-3'></script><script src='/foto-perfil.js?v=20261030-1'></script><script src='/efecto-vidrio.js?v=20261029-1'></script><script src='/motion.js?v=11.18.2'></script><script src='/home-hero.js?v=20261108-5'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab=>tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
+</script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/liquid-stats.js?v=20261019-1'></script><script src='/nombres-effi.js?v=20261022-2'></script><script src='/permisos.js?v=20261007-2'></script><script src='/reposiciones.js?v=20261019-1'></script><script src='/agentes.js?v=20261107-14'></script><script src='/promedios.js?v=20261109-1'></script><script src='/capacidad.js?v=20261009-2'></script><script src='/molderia.js?v=20261010-2'></script><script src='/estandar.js?v=20261020-1'></script><script src='/proveedores-tela.js?v=20261022-4'></script><script src='/terminos.js?v=20261010-1'></script><script src='/cookies-aviso.js?v=20261010-1'></script><script src='/rh-contratos.js?v=20261009-3'></script><script src='/fichas-resumen.js?v=20261022-2'></script><script src='/api/cartera/cartera.js?v=20261009-1'></script><script src='/trace-ui.js?v=20261109-2'></script><script src='/home-dashboard.js?v=20261110-1'></script><script src='/bodega-dashboard.js?v=20261109-3'></script><script src='/bodegas.js?v=20261009-7'></script><script src='/codigos-barras.js?v=20261014-3'></script><script src='/mis-pedidos.js?v=20261008-1'></script><script src='/crear-cliente.js?v=20261024-31'></script><script src='/club-admin.js?v=20261020-1'></script><script src='/mobile-nav.js?v=20261108-1'></script><script src='/nav-liquid.js?v=20261109-1'></script><script src='/build-watch.js?v=20261105-1'></script><script src='/salud.js?v=20261014-2'></script><script src='/alertas.js?v=20261030-1'></script><script src='/bitacora.js?v=20261016-2'></script><script src='/memoria.js?v=20261018-1'></script><script src='/ecommerce.js?v=20261019-1'></script><script src='/zeus.js?v=20261110-3'></script><script src='/minimaximan.js?v=20261023-2'></script><script src='/aviso-agentes.js?v=20261023-5'></script><script src='/descuento-sublimacion.js?v=20261026-1'></script><script src='/stockman.js?v=20261022-30'></script><script src='/draco-panel.js?v=20261021-8'></script><script src='/agentes-hub.js?v=20261109-1'></script><script src='/recordar-vista.js?v=20261109-1'></script><script src='/tema.js?v=20261008-1'></script><script src='/tarjeta-iconos.js?v=20261110-2'></script><script src='/confeccion-preparacion.js?v=20261110-3'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261021-1'></script><script src='/linea-editor.js?v=20261030-1'></script><script src='/lineas-producto-panel.js?v=20261030-1'></script><script src='/menu-cuenta.js?v=20261016-3'></script><script src='/foto-perfil.js?v=20261030-1'></script><script src='/efecto-vidrio.js?v=20261029-1'></script><script src='/motion.js?v=11.18.2'></script><script src='/home-hero.js?v=20261108-5'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab=>tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
 
 
 def ordered_mockup_uploads(extras, slots):

@@ -84,6 +84,7 @@ def _leer() -> dict:
     datos.setdefault('pcs', {})        # id -> {nombre, usuarios, token_hash, latido}: cada PC con Illustrator (el «principal» usa el token de siempre)
     datos.setdefault('ultimo_pc', {})  # usuario -> PC que atendió su último mensaje
     datos.setdefault('pc_activo', '')  # PC elegido a mano para hacer el proceso ('' = automático: el PC de la persona o el que esté conectado)
+    datos.setdefault('confeccion_jobs', [])
     return datos
 
 
@@ -94,6 +95,17 @@ def _guardar(datos: dict) -> None:
     tmp = _file.with_suffix('.tmp')
     tmp.write_text(json.dumps(datos, ensure_ascii=False), encoding='utf-8')
     tmp.replace(_file)
+
+
+def crear_confeccion_job(payload: dict) -> str:
+    """Publica una preparación para el agente nativo de Confección."""
+    job_id = uuid.uuid4().hex
+    with _lock:
+        datos = _leer()
+        datos['confeccion_jobs'] = [j for j in datos.get('confeccion_jobs', []) if j.get('estado') != 'completado'][-99:]
+        datos['confeccion_jobs'].append({'id': job_id, 'estado': 'pendiente', 'creado': _iso(), **payload})
+        _guardar(datos)
+    return job_id
 
 
 def _token() -> str:
@@ -736,7 +748,15 @@ def sondeo(request: Request, payload: dict):
         else:
             datos['pcs'].setdefault(pid, {})['latido'] = latido
         pendientes = []
-        for m in datos['mensajes']:
+        confeccion = []
+        es_confeccion = str(payload.get('confeccion', '')).lower() == 'listo'
+        if es_confeccion:
+            for job in datos.get('confeccion_jobs', []):
+                if job.get('estado') == 'pendiente':
+                    job['estado'] = 'tomado'; job['tomado'] = _iso(); confeccion.append(job)
+        # El agente de Confección puede compartir el token principal en este
+        # PC, pero nunca debe consumir mensajes del chat de Edición.
+        for m in (() if es_confeccion else datos['mensajes']):
             if m['rol'] == 'yo' and not m.get('tomado') and (m.get('pc') or PRINCIPAL) == pid:
                 m['tomado'] = True
                 if not m.get('oculto'):
@@ -746,7 +766,7 @@ def sondeo(request: Request, payload: dict):
                     continue
                 datos['trabajo'][m['sesion']] = {'agente': 'TAVO', 'msg': 'Recibí tu mensaje', 'hora': datetime.now().strftime('%H:%M:%S'), 'agentes': ['TAVO']}
         _guardar(datos)
-    return {'pendientes': pendientes}
+    return {'pendientes': pendientes, 'confeccion': confeccion}
 
 
 _escribir_mts: Callable | None = None   # lo registra main.py: guarda el MTS en la tarjeta de producción de la orden
