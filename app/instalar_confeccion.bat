@@ -15,7 +15,14 @@ if not exist "%ORIGEN%datos\panel.json" (
   exit /b 1
 )
 if not exist "%DEST%" mkdir "%DEST%"
-robocopy "%ORIGEN%" "%DEST%" *.py *.vbs *.bat *.txt /E /XD logs __pycache__ /NJH /NJS /NP /R:2 /W:2 >nul
+copy /Y "%ORIGEN%confeccion_agente.py" "%DEST%\confeccion_agente.py" >nul
+copy /Y "%ORIGEN%whatsapp_playwright.py" "%DEST%\whatsapp_playwright.py" >nul
+copy /Y "%ORIGEN%iniciar_oculto.vbs" "%DEST%\iniciar_oculto.vbs" >nul
+if not exist "%DEST%\iniciar_oculto.vbs" (
+  echo No se pudo copiar el iniciador del agente. Ejecuta este archivo como administrador otra vez.
+  pause
+  exit /b 1
+)
 if not exist "%DEST%\datos" mkdir "%DEST%\datos"
 copy /Y "%ORIGEN%datos\panel.json" "%DEST%\datos\panel.json" >nul
 if not exist "%DEST%\logs" mkdir "%DEST%\logs"
