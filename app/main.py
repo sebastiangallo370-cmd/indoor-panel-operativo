@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import io
 import hashlib
 import hmac
 import json
@@ -15,6 +16,7 @@ import threading
 import time
 import unicodedata
 import urllib.request
+import zipfile
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 from datetime import datetime, timedelta, timezone
@@ -1160,6 +1162,30 @@ def descargar_archivo_agente_confeccion(archivo: str):
     if not ruta.exists():
         raise HTTPException(404, 'Archivo del agente no disponible')
     return FileResponse(ruta, media_type='application/octet-stream', filename=archivo)
+
+
+@app.post('/api/confeccion-agente/paquete')
+def descargar_paquete_agente_confeccion(request: Request, payload: dict = Body(...),
+                                        _=Depends(permisos_mod.exigir('agentes'))):
+    """Genera un instalador individual de Confección, enlazado a un solo PC."""
+    nombre = str(payload.get('nombre') or '').strip()
+    creado = agentes_mod.registrar_pc(nombre)
+    panel_url = str(request.base_url).rstrip('/')
+    archivos = ('confeccion_agente.py', 'whatsapp_playwright.py', 'iniciar_oculto.vbs',
+                'iniciar.bat', 'actualizar_desde_nas.bat', 'instalar_confeccion.bat')
+    paquete = io.BytesIO()
+    with zipfile.ZipFile(paquete, 'w', zipfile.ZIP_DEFLATED) as z:
+        for archivo in archivos:
+            ruta = Path(__file__).with_name(archivo)
+            if not ruta.exists():
+                raise HTTPException(500, f'Falta el archivo del agente: {archivo}')
+            z.write(ruta, archivo)
+        z.writestr('datos/panel.json', json.dumps({'url': panel_url, 'token': creado['token']}, ensure_ascii=False, indent=2))
+        z.writestr('LEEME.txt', 'AGENTE DE CONFECCIÓN · INDOOR SPORT\r\n\r\n1. Extrae todo el ZIP.\r\n2. Ejecuta instalar_confeccion.bat como administrador.\r\n3. En la primera preparación se abrirá WhatsApp Web en este PC: inicia sesión con el QR de la operaria.\r\n\r\nNo compartas la carpeta datos ni el archivo panel.json.\r\n')
+    seguro = re.sub(r'[^A-Za-z0-9_-]+', '_', creado['nombre']).strip('_') or 'confeccion'
+    return Response(paquete.getvalue(), media_type='application/zip', headers={
+        'Content-Disposition': f'attachment; filename="Agente_Confeccion_{seguro}.zip"',
+        'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff'})
 
 
 @app.get('/inventario-alertas.js')

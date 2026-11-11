@@ -632,6 +632,26 @@ def _resumen_pc(datos: dict, pid: str) -> dict:
             'visto': latido.get('iso', ''), 'equipo': latido.get('equipo', ''), 'illustrator': latido.get('illustrator', ''), 'principal': pid == PRINCIPAL}
 
 
+def registrar_pc(nombre: str) -> dict:
+    """Crea un PC enlazado y devuelve su token una sola vez.
+
+    Lo usan tanto la pantalla de Agentes como el paquete descargable de
+    Confección; el llamador ya debe haber comprobado permisos de administración.
+    """
+    nombre = re.sub(r'\s+', ' ', str(nombre or '')).strip()[:40]
+    if len(nombre) < 2:
+        raise HTTPException(400, 'Ponle un nombre al PC, por ejemplo «PC Confección Alba»')
+    with _lock:
+        datos = _leer()
+        if any(_nombre_pc(datos, p).casefold() == nombre.casefold() for p in _ids_pcs(datos)):
+            raise HTTPException(409, 'Ya hay un PC con ese nombre')
+        pid = 'pc-' + secrets.token_hex(3)
+        token = secrets.token_urlsafe(32)
+        datos['pcs'][pid] = {'nombre': nombre, 'usuarios': [], 'token_hash': _hash(token), 'creado': _iso()}
+        _guardar(datos)
+    return {'id': pid, 'nombre': nombre, 'token': token}
+
+
 @router.get('/pcs')
 def listar_pcs(request: Request):
     _solo_admin(request)
@@ -645,18 +665,8 @@ def listar_pcs(request: Request):
 def crear_pc(request: Request, payload: dict):
     """Agrega un PC con Illustrator. Devuelve su código de conexión UNA sola vez."""
     _solo_admin(request)
-    nombre = re.sub(r'\s+', ' ', str(payload.get('nombre') or '')).strip()[:40]
-    if len(nombre) < 2:
-        raise HTTPException(400, 'Ponle un nombre al PC, por ejemplo «PC Diseño 2»')
-    with _lock:
-        datos = _leer()
-        if any(_nombre_pc(datos, p).casefold() == nombre.casefold() for p in _ids_pcs(datos)):
-            raise HTTPException(409, 'Ya hay un PC con ese nombre')
-        pid = 'pc-' + secrets.token_hex(3)
-        token = secrets.token_urlsafe(32)
-        datos['pcs'][pid] = {'nombre': nombre, 'usuarios': [], 'token_hash': _hash(token), 'creado': _iso()}
-        _guardar(datos)
-    return {'id': pid, 'nombre': nombre, 'token': token, 'url': str(request.base_url).rstrip('/')}
+    creado = registrar_pc(payload.get('nombre'))
+    return {**creado, 'url': str(request.base_url).rstrip('/')}
 
 
 @router.put('/pcs/{pid}')
