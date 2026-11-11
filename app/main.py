@@ -378,7 +378,7 @@ def _nombres_usuarios() -> list:
 
 agentes_mod.configurar_usuarios(_nombres_usuarios)
 app.include_router(agentes_mod.router, dependencies=[Depends(authenticate), Depends(permisos_mod.exigir('agentes'))])
-app.include_router(contabilidad_confeccion_mod.router, dependencies=[Depends(authenticate), Depends(permisos_mod.exigir('agentes'))])
+app.include_router(contabilidad_confeccion_mod.router, dependencies=[Depends(authenticate), Depends(permisos_mod.exigir('contabilidad_confeccion'))])
 promedios_mod.configurar(authenticate)
 memoria_mod.configurar(authenticate, permisos_mod.administracion_permitido)
 app.include_router(memoria_mod.router)

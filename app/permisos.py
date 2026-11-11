@@ -24,6 +24,7 @@ MODULOS = {
     'cartera': ('Cartera', ('ver', 'editar', 'exportar')),
     'produccion': ('Producción', ('exportar',)),
     'agentes': ('Agentes de edición', ('ver', 'editar')),
+    'contabilidad_confeccion': ('Contabilidad de confección', ('ver',)),
     'dian': ('Agente DIAN', ('ver', 'editar')),
     'promedios': ('Promedios maestros', ('ver', 'editar')),
     'molderia': ('Moldería', ('ver', 'editar')),
@@ -150,6 +151,13 @@ def guardar_permisos_usuario(username: str, permisos: dict) -> dict:
 
 _PROCESOS_AGENTES = {'EDICION', 'COORDINADOR'}   # los agentes de edición solo los ven las cuentas con proceso Edición o Coordinador
 
+_CONTABILIDAD_CONFECCION_USUARIOS = {'INDOOR SPORT'}
+
+
+def contabilidad_confeccion_permitido(username: str) -> bool:
+    """La contabilidad de talleres es privada: solo la cuenta designada y la maestra."""
+    return username == os.getenv('APP_USER', 'indoor') or _plano(username) in _CONTABILIDAD_CONFECCION_USUARIOS
+
 
 def agentes_permitido(username: str) -> bool:
     """Regla fija (no se cambia desde /permisos): solo Edición y Coordinador, más la cuenta maestra de la aplicación."""
@@ -243,6 +251,8 @@ def sin_modulo(username: str, modulo: str) -> bool:
 
 
 def puede(username: str, modulo: str, accion: str) -> bool:
+    if modulo == 'contabilidad_confeccion' and not contabilidad_confeccion_permitido(username):
+        return False
     personal = permiso_personalizado(username, modulo, accion)
     if personal is not None:
         return personal
@@ -313,6 +323,8 @@ def mis_permisos(request: Request):
     permisos = permisos_usuario(usuario)
     if not agentes_permitido(usuario):
         permisos['agentes'] = {'ver': False, 'editar': False}
+    if not contabilidad_confeccion_permitido(usuario):
+        permisos['contabilidad_confeccion'] = {'ver': False}
     if not tesoreria_permitido(usuario):
         permisos['cartera'] = {accion: False for accion in permisos['cartera']}
     for modulo in list(permisos):
