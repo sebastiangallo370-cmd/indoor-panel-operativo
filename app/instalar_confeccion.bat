@@ -38,8 +38,9 @@ if errorlevel 1 (
     exit /b 1
   )
 )
-echo Preparando el navegador seguro de WhatsApp. Puede tardar unos minutos la primera vez...
-py -3 -m pip install --disable-pip-version-check --quiet playwright
+echo Preparando el navegador seguro de WhatsApp. Puede tardar varios minutos la primera vez...
+echo Descargando Playwright. No cierres esta ventana mientras haya reintentos.
+py -3 -m pip install --disable-pip-version-check --quiet --timeout 120 --retries 8 playwright
 if errorlevel 1 (
   echo No se pudo instalar Playwright. Revisa la conexion a Internet e intenta de nuevo.
   pause
