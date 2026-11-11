@@ -60,6 +60,7 @@ from app import diseno_versiones as versiones_mod
 from app import bitacora as bitacora_mod
 from app import ecommerce_canal as ecommerce_mod
 from app import dinoman as dinoman_mod
+from app import contabilidad_confeccion as contabilidad_confeccion_mod
 app = FastAPI(title="Asistente de Reprogramaciones", version="1.0.0")
 
 @app.post('/api/planeacion/preguntar')
@@ -377,6 +378,7 @@ def _nombres_usuarios() -> list:
 
 agentes_mod.configurar_usuarios(_nombres_usuarios)
 app.include_router(agentes_mod.router, dependencies=[Depends(authenticate), Depends(permisos_mod.exigir('agentes'))])
+app.include_router(contabilidad_confeccion_mod.router, dependencies=[Depends(authenticate), Depends(permisos_mod.exigir('agentes'))])
 promedios_mod.configurar(authenticate)
 memoria_mod.configurar(authenticate, permisos_mod.administracion_permitido)
 app.include_router(memoria_mod.router)
