@@ -255,7 +255,7 @@
 (() => {
   if (document.querySelector('script[data-contabilidad-confeccion-ui]')) return;
   const script = document.createElement('script');
-  script.src = '/contabilidad-confeccion-ui.js?v=20261111-20';
+  script.src = '/contabilidad-confeccion-ui.js?v=20261111-21';
   script.async = false;
   script.dataset.contabilidadConfeccionUi = 'true';
   document.head.appendChild(script);
