@@ -73,7 +73,7 @@
     document.body.classList.remove('inicio-mode','inventory-mode','production-mode','schedule-mode','operarios-mode','cartera-mode');
     const userMenu = document.querySelector('.user-menu'); if (userMenu) userMenu.open = false;
     const root = panel?.querySelector('#cc-accounting');
-    if (root) { setAccountingLoading(root, true, 'Cargando contabilidad…'); window.setTimeout(() => setAccountingLoading(root, false), 420); }
+    if (root) { setAccountingLoading(root, true, 'Leyendo datos actuales del Excel…'); loadExcel(); }
     window.scrollTo({top: 0, behavior: 'smooth'});
   }
   function setAccountingLoading(root, active, label='Cargando contabilidad…') {
