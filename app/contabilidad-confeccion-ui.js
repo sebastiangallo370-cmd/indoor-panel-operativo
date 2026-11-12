@@ -72,7 +72,29 @@
     document.querySelectorAll('.panel').forEach(item => item.classList.toggle('active', item === panel));
     document.body.classList.remove('inicio-mode','inventory-mode','production-mode','schedule-mode','operarios-mode','cartera-mode');
     const userMenu = document.querySelector('.user-menu'); if (userMenu) userMenu.open = false;
+    const root = panel?.querySelector('#cc-accounting');
+    if (root) { setAccountingLoading(root, true, 'Cargando contabilidad…'); window.setTimeout(() => setAccountingLoading(root, false), 420); }
     window.scrollTo({top: 0, behavior: 'smooth'});
+  }
+  function setAccountingLoading(root, active, label='Cargando contabilidad…') {
+    if (!root) return;
+    let overlay = root.querySelector('.cc-loading-overlay');
+    if (active && !overlay) {
+      overlay = document.createElement('div'); overlay.className = 'cc-loading-overlay'; overlay.setAttribute('role', 'status');
+      overlay.innerHTML = '<div class="cc-loading-card"><i aria-hidden="true"></i><div><b>Contabilidad confección</b><span></span></div></div>';
+      root.appendChild(overlay);
+    }
+    root.classList.toggle('cc-is-loading', active); root.setAttribute('aria-busy', String(active));
+    if (!overlay) return;
+    overlay.querySelector('span').textContent = label; overlay.classList.toggle('is-visible', active); overlay.setAttribute('aria-hidden', String(!active));
+  }
+  function clearAccountingRoot(root) {
+    const overlay = root.querySelector('.cc-loading-overlay'); root.innerHTML = ''; if (overlay) root.appendChild(overlay);
+  }
+  function renderAccountingTab(payload, selected) {
+    const root = accountingPanel();
+    setAccountingLoading(root, true, selected === 'inicio' ? 'Cargando resumen general…' : `Cargando ${selected.replace(/^maker:/, '')}…`);
+    window.setTimeout(() => renderExcel(payload, selected), 240);
   }
   function accountingPanel() {
     let panel = document.querySelector('.panel[data-panel="contabilidad-confeccion"]');
@@ -166,19 +188,19 @@
     const tabs = document.createElement('nav'); tabs.className = 'cc-accounting-tabs'; tabs.setAttribute('aria-label', 'Secciones de contabilidad de confección');
     const entries = [{key:'inicio', label:'INICIO'}, ...(payload.makers || []).map(maker => ({key:`maker:${maker.name}`, label:maker.name}))];
     tabs.innerHTML = entries.map(entry => `<button type="button" class="${entry.key === selected ? 'is-active' : ''}" data-cc-tab="${clean(entry.key)}">${clean(entry.label)}</button>`).join('');
-    tabs.querySelectorAll('[data-cc-tab]').forEach(button => button.addEventListener('click', () => renderExcel(payload, button.dataset.ccTab)));
+    tabs.querySelectorAll('[data-cc-tab]').forEach(button => button.addEventListener('click', () => renderAccountingTab(payload, button.dataset.ccTab)));
     root.appendChild(tabs);
     return tabs;
   }
   function renderExcel(payload, selected='inicio') {
-    const root = accountingPanel(); root.innerHTML = '';
+    const root = accountingPanel(); clearAccountingRoot(root);
     managerToolbar(root, payload, selected);
     panelTabs(root, payload, selected);
     const content = document.createElement('div'); content.id = 'cc-accounting-content'; root.appendChild(content);
     const view = filteredPayload(payload);
     if (selected !== 'inicio') {
       const maker = (view.makers || []).find(item => `maker:${item.name}` === selected);
-      if (maker) { makerSummary(content, maker); return; }
+      if (maker) { makerSummary(content, maker); setAccountingLoading(root, false); return; }
     }
     const s = view.summary, d = {orders:s.orders, sent:s.sent, received:s.received, total:s.amount, due:s.pending_payment, paid:s.paid};
     updateSummary(content, d, s.pending_units, pct(s.received, s.sent), pct(s.pending_payment, s.amount));
@@ -188,9 +210,11 @@
     let detail = content.querySelector('#cc-home-detail');
     if (!detail) { detail=document.createElement('section'); detail.id='cc-home-detail'; const anchor=content.querySelector('#cc-home-analytics') || content.querySelector('#cc-home-summary'); anchor?.insertAdjacentElement('afterend',detail); }
     detail.innerHTML = `<details><summary>Ver detalle de confección <span>${view.makers.length} confeccionistas · ${s.average_days ?? '—'} días envío–entrega</span></summary><div class="cc-home-makers">${view.makers.map((maker, index) => `<article><em>${index + 1}</em><div><b>${clean(maker.name)}</b><span>${maker.sent.toLocaleString('es-CO')} enviadas · ${maker.received.toLocaleString('es-CO')} recibidas · ${maker.pending_units.toLocaleString('es-CO')} pendientes</span></div><strong>${money(maker.amount)}</strong><small>${maker.average_days ?? '—'} días</small></article>`).join('')}</div></details>`;
+    setAccountingLoading(root, false);
   }
   async function loadExcel() {
-    try { const response = await fetch('/api/contabilidad-confeccion', {credentials:'same-origin', cache:'no-store'}); if (!response.ok) return; renderExcel(await response.json()); } catch (_) { /* La página continúa sin bloquearse si el archivo no está disponible. */ }
+    const root = accountingPanel(); setAccountingLoading(root, true, 'Leyendo datos del Excel…');
+    try { const response = await fetch('/api/contabilidad-confeccion', {credentials:'same-origin', cache:'no-store'}); if (!response.ok) { setAccountingLoading(root, false); return; } renderExcel(await response.json()); } catch (_) { setAccountingLoading(root, false); /* La página continúa sin bloquearse si el archivo no está disponible. */ }
   }
   const style = document.createElement('style'); style.id = 'contabilidad-confeccion-ui-style'; style.textContent = `
     .contabilidad-confeccion-panel.cc-mejorado{max-width:1880px;margin:auto;padding:clamp(12px,1.5vw,26px)}.cc-mejorado .cc-wrap{display:grid;gap:16px;padding:clamp(18px,2vw,30px);border-radius:22px;background:linear-gradient(135deg,rgba(13,30,19,.96),rgba(5,14,9,.98));box-shadow:0 22px 58px #0005}.cc-mejorado .cc-head{display:flex;justify-content:space-between;align-items:end;gap:12px;padding-bottom:14px;border-bottom:1px solid #e1ffcc24}.cc-mejorado .cc-head span{color:#d8f86c;font:900 10px Arial;letter-spacing:.16em}.cc-mejorado .cc-head h3{margin:0;font-size:clamp(1.28rem,2vw,1.75rem)}.cc-mejorado .cc-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.cc-mejorado .cc-card{min-height:116px;padding:18px!important;display:flex;flex-direction:column;justify-content:center;gap:7px}.cc-mejorado .cc-card small{font:900 10px Arial;letter-spacing:.11em}.cc-mejorado .cc-card b{font-size:clamp(1.42rem,2.25vw,2.1rem);letter-spacing:-.04em}.cc-mejorado .cc-card span{font-size:.78rem!important;line-height:1.35}.cc-mejorado .cc-alertas{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.cc-mejorado .cc-alerta{display:flex;align-items:center;gap:12px;padding:13px 15px;border:1px solid #fff2;border-radius:14px;background:#fff1}.cc-mejorado .cc-alerta>i{display:grid;place-items:center;flex:none;width:32px;height:32px;border-radius:10px;background:#2f9e4f;color:#fff;font-style:normal;font-weight:900}.cc-mejorado .cc-alerta.warn>i{background:#d38800}.cc-mejorado .cc-alerta.risk>i{background:#d94430}.cc-mejorado .cc-alerta small{display:block;color:#bdcbb7;font:900 9px Arial;letter-spacing:.13em}.cc-mejorado .cc-alerta b{display:block;margin:2px 0;font-size:.9rem}.cc-mejorado .cc-alerta span{color:#b4c2ae;font-size:.75rem}.cc-mejorado .cc-bloque{margin:0!important;padding:16px 18px!important;border:1px solid #fff2!important;border-radius:16px!important;background:#fff1!important}.cc-mejorado .cc-bloque h4{margin:0 0 14px;font-size:.78rem;letter-spacing:.08em}.cc-mejorado .cc-doble{height:12px!important;border-radius:99px;overflow:hidden}.cc-mejorado .cc-leyenda{justify-content:flex-start!important;gap:16px!important;margin-top:10px!important}.cc-mejorado .cc-fila{grid-template-columns:25px minmax(148px,190px) minmax(90px,1fr) auto 68px!important;gap:10px!important;padding:7px 0!important}.cc-mejorado .cc-rank{display:grid;place-items:center;width:22px;height:22px;border-radius:50%;background:#d8f86c24;color:#d8f86c;font:900 10px Arial;font-style:normal}.cc-mejorado .cc-fila>span{font-weight:800!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.cc-mejorado .cc-fill{background:linear-gradient(90deg,#8bd450,#d8f86c)!important}.cc-mejorado .cc-fila>b{font-size:.82rem;white-space:nowrap}.cc-mejorado .cc-meta{color:#aebda8;font:700 .67rem Arial;text-align:right;white-space:nowrap}.cc-mejorado .cc-nota{margin:0!important;text-align:center;color:#93a48e;font-size:.7rem}
@@ -220,6 +244,20 @@
     #cc-accounting .cc-maker-bar>i em,#cc-accounting .cc-product-bars i em{background:linear-gradient(90deg,#5bc879,#d8f86c)}
     #cc-accounting #cc-home-summary>header{display:none!important}
   `; document.head.appendChild(indoorThemePatch);
+  const loadingPatch = document.createElement('style'); loadingPatch.textContent = `
+    #cc-accounting{position:relative;min-height:220px}
+    #cc-accounting>.cc-loading-overlay{position:absolute;inset:0;z-index:120;display:grid;place-items:center;padding:24px;background:rgba(4,18,10,.72);backdrop-filter:blur(4px);opacity:0;visibility:hidden;pointer-events:none;transition:opacity .24s ease,visibility .24s ease}
+    #cc-accounting>.cc-loading-overlay.is-visible{opacity:1;visibility:visible;pointer-events:auto}
+    #cc-accounting>.cc-loading-overlay .cc-loading-card{display:flex;align-items:center;gap:12px;min-width:238px;padding:15px 18px;border:1px solid #6d9d4a66;border-radius:16px;background:#0d2116f2;box-shadow:0 16px 38px #0008;color:#efffe8}
+    #cc-accounting>.cc-loading-overlay i{width:28px;height:28px;flex:none;border:3px solid #d8f86c36;border-top-color:#d8f86c;border-right-color:#82c64c;border-radius:50%;animation:cc-loading-spin .82s linear infinite}
+    #cc-accounting>.cc-loading-overlay b{display:block;font:850 11px Arial;letter-spacing:.08em;text-transform:uppercase}
+    #cc-accounting>.cc-loading-overlay span{display:block;margin-top:5px;color:#a9c3ad;font-size:.72rem}
+    #cc-accounting>.cc-loading-overlay span:after{content:'…';animation:cc-loading-dots 1.1s steps(4,end) infinite}
+    #cc-accounting.cc-is-loading> :not(.cc-loading-overlay){opacity:.62;filter:blur(1px);transition:opacity .24s ease,filter .24s ease}
+    @keyframes cc-loading-spin{to{transform:rotate(360deg)}}
+    @keyframes cc-loading-dots{0%,20%{content:''}40%{content:'.'}60%{content:'..'}80%,100%{content:'...'}}
+    @media(prefers-reduced-motion:reduce){#cc-accounting>.cc-loading-overlay,#cc-accounting.cc-is-loading> :not(.cc-loading-overlay){transition:none!important}#cc-accounting>.cc-loading-overlay i,#cc-accounting>.cc-loading-overlay span:after{animation:none!important}}
+  `; document.head.appendChild(loadingPatch);
   function scan(root=document) { const panels=root.matches?.(PANEL)?[root]:[...root.querySelectorAll?.(PANEL)||[]]; panels.forEach(enhance); }
   scan(); loadExcel(); new MutationObserver(records => records.forEach(record => record.addedNodes.forEach(node => { if (node.nodeType === 1) scan(node); }))).observe(document.documentElement,{childList:true,subtree:true});
 })();
