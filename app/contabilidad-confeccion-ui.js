@@ -218,6 +218,7 @@
     #cc-accounting .cc-ring{background:conic-gradient(#d8f86c var(--cc-ring),#294432 0)}
     #cc-accounting .cc-ring:before{background:#0d2116}
     #cc-accounting .cc-maker-bar>i em,#cc-accounting .cc-product-bars i em{background:linear-gradient(90deg,#5bc879,#d8f86c)}
+    #cc-accounting #cc-home-summary>header{display:none!important}
   `; document.head.appendChild(indoorThemePatch);
   function scan(root=document) { const panels=root.matches?.(PANEL)?[root]:[...root.querySelectorAll?.(PANEL)||[]]; panels.forEach(enhance); }
   scan(); loadExcel(); new MutationObserver(records => records.forEach(record => record.addedNodes.forEach(node => { if (node.nodeType === 1) scan(node); }))).observe(document.documentElement,{childList:true,subtree:true});
