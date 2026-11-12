@@ -161,12 +161,45 @@
     return [...groups.values()].map(group => ({...group, orders:group.rows.length})).sort((a,b) => b.key.localeCompare(a.key));
   }
   function liquidationRows(rows) {
-    return rows.map(row => `<div class="cc-payment-row"><span>${day(row.received_date)}</span><span><b>${clean(row.reference || 'Sin referencia')}</b><small>${clean(row.product)}</small></span><span>${Number(row.received || 0).toLocaleString('es-CO')}</span><strong>${money(row.amount)}</strong><em class="${dateAge(row.received_date) > 30 ? 'is-aged' : ''}">${dateAge(row.received_date) == null ? 'Sin fecha' : `${dateAge(row.received_date)} días`}</em></div>`).join('');
+    return rows.map((row,index) => {
+      const age = dateAge(row.received_date), amount = Number(row.amount || 0), units = Number(row.received || 0);
+      return `<div class="cc-payment-row cc-liquidation-payment-row" data-cc-payment-row data-date="${clean(row.received_date || '')}" data-units="${units}" data-amount="${amount}" data-age="${age == null ? 0 : age}" style="--cc-i:${index}"><span>${day(row.received_date)}</span><span><b>${clean(row.reference || 'Sin referencia')}</b><small>${clean(row.product)}</small></span><span>${units.toLocaleString('es-CO')}</span><strong>${money(amount)}</strong><em class="${age > 30 ? 'is-aged' : ''}">${age == null ? 'Sin fecha' : `${age} días`}</em></div>`;
+    }).join('');
+  }
+  function bindLiquidationControls(section) {
+    const groups = [...section.querySelectorAll('.cc-liquidation-group')], search = section.querySelector('[data-cc-liquidation-search]'), sort = section.querySelector('[data-cc-liquidation-sort]'), result = section.querySelector('[data-cc-liquidation-result]');
+    const apply = () => {
+      const query = (search?.value || '').trim().toLocaleLowerCase('es'), mode = sort?.value || 'date', quick = section.querySelector('[data-cc-liquidation-filter].is-active')?.dataset.ccLiquidationFilter || 'all';
+      let visibleRows = 0, visibleAmount = 0;
+      groups.forEach(group => {
+        const rows = [...group.querySelectorAll('[data-cc-payment-row]')];
+        const ordered = rows.slice().sort((a,b) => {
+          const av = mode === 'date' ? (a.dataset.date || '') : Number(a.dataset[mode] || 0), bv = mode === 'date' ? (b.dataset.date || '') : Number(b.dataset[mode] || 0);
+          return mode === 'date' ? bv.localeCompare(av) : bv - av;
+        });
+        ordered.forEach(row => row.parentElement.appendChild(row));
+        let count = 0, amount = 0;
+        rows.forEach(row => {
+          const age = Number(row.dataset.age || 0), matchesText = !query || row.textContent.toLocaleLowerCase('es').includes(query), matchesQuick = quick === 'all' || (quick === 'aged' ? age > 30 : age > 90);
+          row.hidden = !(matchesText && matchesQuick); if (!row.hidden) { count += 1; amount += Number(row.dataset.amount || 0); }
+        });
+        group.hidden = count === 0; visibleRows += count; visibleAmount += amount;
+        const meta = group.querySelector('[data-cc-group-meta]'); if (meta) meta.textContent = `${count.toLocaleString('es-CO')} visibles · ${Number(group.dataset.units || 0).toLocaleString('es-CO')} und.`;
+      });
+      if (result) result.textContent = `${visibleRows.toLocaleString('es-CO')} registros · ${money(visibleAmount)}`;
+    };
+    [search, sort].filter(Boolean).forEach(control => control.addEventListener('input', apply));
+    section.querySelectorAll('[data-cc-liquidation-filter]').forEach(button => button.addEventListener('click', () => { section.querySelectorAll('[data-cc-liquidation-filter]').forEach(item => item.classList.toggle('is-active', item === button)); apply(); }));
+    section.querySelector('[data-cc-open-all]')?.addEventListener('click', () => groups.filter(group => !group.hidden).forEach(group => { group.open = true; }));
+    section.querySelector('[data-cc-close-all]')?.addEventListener('click', () => groups.forEach(group => { group.open = false; }));
+    section.querySelectorAll('[data-cc-payment-row]').forEach(row => row.addEventListener('click', () => row.classList.toggle('is-focused')));
+    apply();
   }
   function liquidationPlan(rows) {
     const section = document.createElement('section'); section.className = 'cc-liquidation-plan';
     const groups = liquidationGroups(rows), total = groups.reduce((sum, group) => sum + group.amount, 0), first = groups[0];
-    section.innerHTML = `<header><div><small>LIQUIDACIÓN QUINCENAL</small><h4>Cada 2 semanas · prendas recibidas sin pago</h4><p>Se agrupa por quincena calendario: del 1 al 14 y del 15 al último día de cada mes.</p></div><strong>${money(total)}</strong></header><div class="cc-liquidation-kpis"><article><small>CICLOS PENDIENTES</small><b>${groups.length.toLocaleString('es-CO')}</b><span>${first ? `Último ciclo: ${first.label}` : 'Sin saldos pendientes'}</span></article><article><small>UNIDADES POR LIQUIDAR</small><b>${groups.reduce((sum, group) => sum + group.units, 0).toLocaleString('es-CO')}</b><span>recibidas y sin marca de pago</span></article><article><small>PRÓXIMA LIQUIDACIÓN</small><b>${first ? first.label : '—'}</b><span>${first ? `${first.orders.toLocaleString('es-CO')} registros` : 'No hay registros'}</span></article></div>${groups.length ? `<div class="cc-liquidation-groups">${groups.map((group,index) => `<details class="cc-liquidation-group" ${index === 0 ? 'open' : ''}><summary><span><b>${group.label}</b><small>${group.orders.toLocaleString('es-CO')} registros · ${group.units.toLocaleString('es-CO')} und.</small></span><strong>${money(group.amount)}</strong></summary><div class="cc-payment-table"><div class="cc-payment-row cc-payment-head"><span>Fecha entrega</span><span>Referencia / producto</span><span>Unidades</span><span>Valor</span><span>Antigüedad</span></div>${liquidationRows(group.rows)}</div></details>`).join('')}</div>` : '<p class="cc-empty">No hay prendas recibidas pendientes de liquidación.</p>'}`;
+    section.innerHTML = `<header><div><small>LIQUIDACIÓN QUINCENAL</small><h4>Cada 2 semanas · prendas recibidas sin pago</h4><p>Se agrupa por quincena calendario: del 1 al 14 y del 15 al último día de cada mes.</p></div><strong>${money(total)}</strong></header><div class="cc-liquidation-kpis"><article><small>CICLOS PENDIENTES</small><b>${groups.length.toLocaleString('es-CO')}</b><span>${first ? `Último ciclo: ${first.label}` : 'Sin saldos pendientes'}</span></article><article><small>UNIDADES POR LIQUIDAR</small><b>${groups.reduce((sum, group) => sum + group.units, 0).toLocaleString('es-CO')}</b><span>recibidas y sin marca de pago</span></article><article><small>PRÓXIMA LIQUIDACIÓN</small><b>${first ? first.label : '—'}</b><span>${first ? `${first.orders.toLocaleString('es-CO')} registros` : 'No hay registros'}</span></article></div>${groups.length ? `<div class="cc-liquidation-controls"><label><span>Buscar referencia o prenda</span><input type="search" data-cc-liquidation-search placeholder="Ej. A300, peto, uniforme" aria-label="Buscar en la liquidación"></label><label><span>Ordenar</span><select data-cc-liquidation-sort aria-label="Ordenar registros"><option value="date">Entrega más reciente</option><option value="amount">Mayor valor</option><option value="units">Más unidades</option><option value="age">Mayor antigüedad</option></select></label><div class="cc-liquidation-filter"><button type="button" class="is-active" data-cc-liquidation-filter="all">Todos</button><button type="button" data-cc-liquidation-filter="aged">Más de 30 días</button><button type="button" data-cc-liquidation-filter="very-aged">Más de 90 días</button></div><div class="cc-liquidation-view"><button type="button" data-cc-open-all>Expandir</button><button type="button" data-cc-close-all>Contraer</button></div><output data-cc-liquidation-result aria-live="polite"></output></div><div class="cc-liquidation-groups">${groups.map((group,index) => `<details class="cc-liquidation-group" data-units="${group.units}" ${index === 0 ? 'open' : ''}><summary><span><b>${group.label}</b><small data-cc-group-meta>${group.orders.toLocaleString('es-CO')} registros · ${group.units.toLocaleString('es-CO')} und.</small><i class="cc-liquidation-progress"><em style="width:${total ? Math.max(2, Math.round(group.amount / total * 100)) : 0}%"></em></i></span><strong>${money(group.amount)}</strong></summary><div class="cc-payment-table"><div class="cc-payment-row cc-payment-head"><span>Fecha entrega</span><span>Referencia / producto</span><span>Unidades</span><span>Valor</span><span>Antigüedad</span></div>${liquidationRows(group.rows)}</div></details>`).join('')}</div>` : '<p class="cc-empty">No hay prendas recibidas pendientes de liquidación.</p>'}`;
+    bindLiquidationControls(section);
     return section;
   }
   function liquidationOverview(root, rows) {
@@ -379,8 +412,26 @@
     #cc-accounting .cc-liquidation-maker-list b{font-size:.73rem}
     #cc-accounting .cc-liquidation-maker-list span{margin-top:3px;color:#9fb79f;font-size:.62rem}
     #cc-accounting .cc-liquidation-maker-list strong{color:#efffe8;font-size:.72rem;white-space:nowrap}
+    #cc-accounting .cc-liquidation-controls{display:grid;grid-template-columns:minmax(200px,1.45fr) minmax(170px,.85fr) auto auto;align-items:end;gap:9px;padding:12px 16px;border-bottom:1px solid #ffffff12;background:#0a1a10}
+    #cc-accounting .cc-liquidation-controls label{display:grid;gap:5px;color:#a9c3ad;font:800 9px Arial;letter-spacing:.08em;text-transform:uppercase}
+    #cc-accounting .cc-liquidation-controls input,#cc-accounting .cc-liquidation-controls select{height:34px;box-sizing:border-box;border:1px solid #3a6544;border-radius:8px;padding:0 10px;background:#10291a;color:#efffe8;font:700 11px Arial;outline:0;transition:border-color .18s,box-shadow .18s}
+    #cc-accounting .cc-liquidation-controls input:focus,#cc-accounting .cc-liquidation-controls select:focus{border-color:#d8f86c;box-shadow:0 0 0 3px #d8f86c1c}
+    #cc-accounting .cc-liquidation-filter,#cc-accounting .cc-liquidation-view{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+    #cc-accounting .cc-liquidation-controls button{height:32px;border:1px solid #3a6544;border-radius:8px;padding:0 9px;background:#10291a;color:#b7d0bc;cursor:pointer;font:800 10px Arial;white-space:nowrap;transition:background .18s,border-color .18s,color .18s,transform .18s}
+    #cc-accounting .cc-liquidation-controls button:hover{border-color:#d8f86c;color:#efffe8;transform:translateY(-1px)}
+    #cc-accounting .cc-liquidation-controls button.is-active{border-color:#d8f86c;background:#d8f86c;color:#122012}
+    #cc-accounting .cc-liquidation-controls output{grid-column:1/-1;color:#9fb79f;font-size:.66rem;min-height:14px}
+    #cc-accounting .cc-liquidation-group summary>span{min-width:0}
+    #cc-accounting .cc-liquidation-progress{display:block;width:min(260px,42vw);height:4px;margin-top:3px;border-radius:99px;background:#ffffff13;overflow:hidden}
+    #cc-accounting .cc-liquidation-progress em{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#5bc879,#d8f86c);transform-origin:left;animation:cc-bar-grow .72s cubic-bezier(.22,.8,.24,1) both}
+    #cc-accounting .cc-liquidation-group[hidden],#cc-accounting .cc-liquidation-payment-row[hidden]{display:none}
+    #cc-accounting .cc-liquidation-payment-row{cursor:pointer;transition:background .18s,transform .18s,box-shadow .18s}
+    #cc-accounting .cc-liquidation-payment-row:hover{background:#d8f86c0b;transform:translateX(3px)}
+    #cc-accounting .cc-liquidation-payment-row.is-focused{background:#d8f86c13;box-shadow:inset 3px 0 #d8f86c}
+    #cc-accounting .cc-liquidation-payment-row:not(.cc-payment-head){animation:cc-card-rise .4s ease both;animation-delay:calc(var(--cc-i,0) * 12ms)}
     @media(max-width:620px){#cc-accounting .cc-production-detail>header{align-items:start;display:grid}.cc-production-detail header strong{justify-self:start}.cc-detail-table{padding-bottom:2px}}
-    @media(max-width:620px){#cc-accounting .cc-liquidation-plan>header,#cc-accounting .cc-liquidation-overview>header{align-items:start;display:grid}.cc-liquidation-plan header>strong{justify-self:start}.cc-liquidation-kpis{grid-template-columns:1fr}.cc-liquidation-maker-list{grid-template-columns:1fr}.cc-liquidation-maker-list article{border-right:0!important}.cc-liquidation-overview-total{display:grid;gap:4px}}
+    @media(max-width:980px){#cc-accounting .cc-liquidation-controls{grid-template-columns:minmax(180px,1fr) minmax(160px,1fr) auto}.cc-liquidation-view{grid-column:3;grid-row:1}}
+    @media(max-width:620px){#cc-accounting .cc-liquidation-plan>header,#cc-accounting .cc-liquidation-overview>header{align-items:start;display:grid}.cc-liquidation-plan header>strong{justify-self:start}.cc-liquidation-kpis{grid-template-columns:1fr}.cc-liquidation-maker-list{grid-template-columns:1fr}.cc-liquidation-maker-list article{border-right:0!important}.cc-liquidation-overview-total{display:grid;gap:4px}.cc-liquidation-controls{grid-template-columns:1fr!important;align-items:stretch!important}.cc-liquidation-filter,.cc-liquidation-view{grid-column:auto!important;grid-row:auto!important}.cc-liquidation-controls output{grid-column:auto!important}.cc-liquidation-progress{width:min(220px,70vw)!important}}
     @media(prefers-reduced-motion:reduce){#cc-accounting .cc-motion-enter,#cc-accounting .cc-month-bars i,#cc-accounting .cc-maker-bar>i em,#cc-accounting .cc-product-bars i em,#cc-accounting .cc-detail-row:not(.cc-detail-head){animation:none!important;transform:none!important;opacity:1!important}}
   `; document.head.appendChild(detailMotionPatch);
   function scan(root=document) { const panels=root.matches?.(PANEL)?[root]:[...root.querySelectorAll?.(PANEL)||[]]; panels.forEach(enhance); }
