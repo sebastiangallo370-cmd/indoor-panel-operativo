@@ -1,41 +1,39 @@
-"""Lectura segura del archivo de control de confección para el panel.
+"""Datos persistentes de Contabilidad Confección para el panel.
 
-El Excel nunca se edita: se toma como fuente de solo lectura y se recalcula al
-cambiar su fecha de modificación en el servidor.
+La API sirve una copia JSON 2026 almacenada en el VPS. El Excel se usa solo
+para generar o actualizar esa copia fuera del ciclo normal de la aplicación.
 """
 from __future__ import annotations
 
 import os
+import json
 from collections import defaultdict
 from datetime import date, datetime
 from pathlib import Path
 from threading import Lock
 
 from fastapi import APIRouter, HTTPException
-from openpyxl import load_workbook
 
 router = APIRouter()
 YEAR = 2026
-DEFAULT_FILE = '/data/CONFECCIONES_2026_CONFECCION.xlsx'
+DEFAULT_FILE = '/data/contabilidad_confeccion_2026.json'
 
-# Son las hojas activas que componen el control 2026 entregado por el usuario.
-SHEETS = (
-    ('yenni monsalve confec', 'Yenni Monsalve'),
-    ('alba confeccion', 'Alba Confección'),
-    ('noelia ciro confec', 'Noelia Ciro'),
-    ('liliana marin conf', 'Liliana Marín'),
-    ('omaira bergara conf', 'Omaira Bergara'),
-    ('juan esteban confecc', 'Juan Esteban'),
-    ('Blanca emilce', 'Blanca Emilce'),
-    ('madelin tulas', 'Madelin Tulas'),
-    ('Aida.Unifo', 'Aida'),
-)
+# Las hojas de apoyo no son confeccionistas. Todas las demás hojas que tengan
+# filas con fechas 2026 se incorporan automáticamente, incluidas las variantes
+# .Unif/.Unifo/.conf que aparecen en el libro consolidado del usuario.
+EXCLUDED_SHEETS = {'inicio', 'hoja1', 'hoja2', 'hoja3', 'maestro'}
+SHEET_LABELS = {
+    'yenni monsalve confec': 'Yenni Monsalve', 'alba confeccion': 'Alba Confección',
+    'noelia ciro confec': 'Noelia Ciro', 'liliana marin conf': 'Liliana Marín',
+    'omaira bergara conf': 'Omaira Bergara', 'juan esteban confecc': 'Juan Esteban',
+    'Blanca emilce': 'Blanca Emilce', 'madelin tulas': 'Madelin Tulas', 'Aida.Unifo': 'Aida',
+}
 _cache: dict = {'mtime': None, 'data': None}
 _lock = Lock()
 
 
 def _source() -> Path:
-    return Path(os.getenv('CONFECCION_EXCEL_PATH', DEFAULT_FILE))
+    return Path(os.getenv('CONFECCION_DATA_PATH', DEFAULT_FILE))
 
 
 def _number(value) -> float:
@@ -116,13 +114,20 @@ def _product_category(value) -> str:
     return 'Personalizados'
 
 
+def _maker_label(sheet_name: str) -> str:
+    clean_name = sheet_name.strip()
+    return SHEET_LABELS.get(clean_name, clean_name.title())
+
+
 def _read(path: Path) -> dict:
+    from openpyxl import load_workbook
     book = load_workbook(path, read_only=True, data_only=True)
     makers = []
     all_rows = []
-    for sheet_name, label in SHEETS:
-        if sheet_name not in book.sheetnames:
+    for sheet_name in book.sheetnames:
+        if sheet_name.strip().lower() in EXCLUDED_SHEETS:
             continue
+        label = _maker_label(sheet_name)
         sheet = book[sheet_name]
         rows = []
         for values in sheet.iter_rows(min_col=2, max_col=12, values_only=True):
@@ -140,7 +145,8 @@ def _read(path: Path) -> dict:
                 'product_category': _product_category(description), 'sent': sent, 'received': received, 'amount': amount,
                 'paid': _paid(payment), 'duration': duration, 'sent_date': sent_day,
                 'received_date': received_day, 'description': _clean_label(description, 'Sin descripción'),
-                'reference': _clean_label(reference, ''), 'payment': _payment_label(payment),
+                'reference': _clean_label(reference, ''), 'quote': _clean_label(_quote, ''),
+                'unit_value': unit_value, 'payment': _payment_label(payment),
             })
         if not rows:
             continue
@@ -160,7 +166,8 @@ def _read(path: Path) -> dict:
                 'received_date': row['received_date'].isoformat() if row['received_date'] else None,
                 'sent': round(row['sent']), 'received': round(row['received']), 'amount': round(row['amount']),
                 'paid': row['paid'], 'payment': row['payment'], 'product': row['description'],
-                'reference': row['reference'], 'client': row['client'], 'client_type': row['client_type'],
+                'reference': row['reference'], 'quote': row['quote'], 'unit_value': round(row['unit_value']),
+                'client': row['client'], 'client_type': row['client_type'],
                 'product_category': row['product_category'],
             } for row in sorted(rows, key=lambda row: (row['received_date'] or row['sent_date'] or date.min), reverse=True)],
         })
@@ -214,7 +221,8 @@ def _read(path: Path) -> dict:
             'received_date': row['received_date'].isoformat() if row['received_date'] else None,
             'sent': round(row['sent']), 'received': round(row['received']), 'amount': round(row['amount']),
             'paid': row['paid'], 'payment': row['payment'], 'product': row['description'],
-            'reference': row['reference'], 'client': row['client'], 'client_type': row['client_type'],
+            'reference': row['reference'], 'quote': row['quote'], 'unit_value': round(row['unit_value']),
+            'client': row['client'], 'client_type': row['client_type'],
             'product_category': row['product_category'],
         } for row in all_rows],
         'monthly': monthly_data,
@@ -223,14 +231,23 @@ def _read(path: Path) -> dict:
     }
 
 
+def _read_json(path: Path) -> dict:
+    with path.open('r', encoding='utf-8') as stream:
+        data = json.load(stream)
+    if not isinstance(data, dict) or not data.get('makers') or not data.get('summary'):
+        raise ValueError('La copia local de contabilidad está incompleta.')
+    data['source_updated_at'] = datetime.fromtimestamp(path.stat().st_mtime).isoformat()
+    return data
+
+
 def get_data() -> dict:
     path = _source()
     if not path.is_file():
-        raise FileNotFoundError(f'No se encontró el archivo de confección en {path.name}.')
+        raise FileNotFoundError(f'No se encontró la copia local de confección en {path.name}.')
     mtime = path.stat().st_mtime_ns
     with _lock:
         if _cache['mtime'] != mtime:
-            _cache['data'] = _read(path)
+            _cache['data'] = _read_json(path)
             _cache['mtime'] = mtime
         return _cache['data']
 
@@ -242,4 +259,4 @@ def contabilidad_confeccion():
     except FileNotFoundError as exc:
         raise HTTPException(503, str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(503, 'No se pudo leer el Excel de confección: ' + str(exc)[:180]) from exc
+        raise HTTPException(503, 'No se pudo cargar la copia local de contabilidad: ' + str(exc)[:180]) from exc
