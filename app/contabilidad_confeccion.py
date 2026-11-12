@@ -82,6 +82,40 @@ def _clean_label(value, fallback: str) -> str:
     return label[:72] if label else fallback
 
 
+def _client_type(value) -> str:
+    text = ' '.join(str(value or '').upper().split())
+    if any(word in text for word in ('CLUB', 'FC ', 'FÚTBOL', 'FUTBOL')):
+        return 'Clubes'
+    if any(word in text for word in ('ACADEMIA', 'ESCUELA', 'SEMILLERO')):
+        return 'Academias'
+    if any(word in text for word in ('COLEGIO', 'COLEGIA', 'INSTITUCIÓN', 'INSTITUCION')):
+        return 'Colegios'
+    if any(word in text for word in ('UNIVERSIDAD', 'UNIVERSIT')):
+        return 'Universidades'
+    if any(word in text for word in ('SAS', 'EMPRESA', 'INDUSTRIA', 'CORPORACION', 'CORPORACIÓN')):
+        return 'Empresas'
+    if any(word in text for word in ('TORNEO', 'COPA', 'COMPETENCIA', 'INTERCLASES')):
+        return 'Torneos'
+    if any(word in text for word in ('ECOMMERCE', 'E-COMMERCE', 'ONLINE', 'WEB')):
+        return 'Ecommerce'
+    return 'Distribuidores'
+
+
+def _product_category(value) -> str:
+    text = ' '.join(str(value or '').upper().split())
+    if any(word in text for word in ('CAMISETA', 'CAMIBUSO', 'POLO')):
+        return 'Camisetas'
+    if any(word in text for word in ('UNIFORME', 'CONJUNTO')):
+        return 'Conjuntos'
+    if 'PANTALONETA' in text:
+        return 'Pantalonetas'
+    if any(word in text for word in ('CHAQUETA', 'CHOMPA', 'SUDADERA')):
+        return 'Chaquetas'
+    if any(word in text for word in ('MEDIA', 'MEDIAS')):
+        return 'Medias'
+    return 'Personalizados'
+
+
 def _read(path: Path) -> dict:
     book = load_workbook(path, read_only=True, data_only=True)
     makers = []
@@ -102,7 +136,8 @@ def _read(path: Path) -> dict:
             sent_day, received_day = _day(sent_date), _day(received_date)
             duration = (received_day - sent_day).days if sent_day and received_day and received_day >= sent_day else None
             rows.append({
-                'maker': label, 'sent': sent, 'received': received, 'amount': amount,
+                'maker': label, 'client': _clean_label(_client, 'Sin cliente'), 'client_type': _client_type(_client),
+                'product_category': _product_category(description), 'sent': sent, 'received': received, 'amount': amount,
                 'paid': _paid(payment), 'duration': duration, 'sent_date': sent_day,
                 'received_date': received_day, 'description': _clean_label(description, 'Sin descripción'),
                 'reference': _clean_label(reference, ''), 'payment': _payment_label(payment),
@@ -125,7 +160,8 @@ def _read(path: Path) -> dict:
                 'received_date': row['received_date'].isoformat() if row['received_date'] else None,
                 'sent': round(row['sent']), 'received': round(row['received']), 'amount': round(row['amount']),
                 'paid': row['paid'], 'payment': row['payment'], 'product': row['description'],
-                'reference': row['reference'],
+                'reference': row['reference'], 'client': row['client'], 'client_type': row['client_type'],
+                'product_category': row['product_category'],
             } for row in sorted(rows, key=lambda row: (row['received_date'] or row['sent_date'] or date.min), reverse=True)],
         })
         all_rows.extend(rows)
@@ -173,6 +209,14 @@ def _read(path: Path) -> dict:
             'payment_marked_rate': round(paid / amount * 100, 1) if amount else None,
         },
         'makers': sorted(makers, key=lambda item: item['amount'], reverse=True),
+        'details': [{
+            'maker': row['maker'], 'sent_date': row['sent_date'].isoformat() if row['sent_date'] else None,
+            'received_date': row['received_date'].isoformat() if row['received_date'] else None,
+            'sent': round(row['sent']), 'received': round(row['received']), 'amount': round(row['amount']),
+            'paid': row['paid'], 'payment': row['payment'], 'product': row['description'],
+            'reference': row['reference'], 'client': row['client'], 'client_type': row['client_type'],
+            'product_category': row['product_category'],
+        } for row in all_rows],
         'monthly': monthly_data,
         'products': sorted(products_data, key=lambda item: item['units'], reverse=True)[:8],
         'pending': sorted(pending, key=lambda item: (item['age_days'] or 0, item['units']), reverse=True),
