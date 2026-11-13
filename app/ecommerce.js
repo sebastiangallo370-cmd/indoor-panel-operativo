@@ -9,7 +9,7 @@
   const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const st = {
     agentes: [], pc: null, cola: {}, ordenes: [], trabajos: [], historial: [], hoy: {}, latidos: {}, log: [], ultimo: 0, filtro: '', token: null, abierto: {}, ocupado: false,
-    aviso: '', vista: 'flujo', filtroOrd: 'todas', busqueda: '', orden: null, drawer: null, proxima: null, intervalo: 60, revisando: 0, feedId: 0
+    aviso: '', vista: 'flujo', filtroOrd: 'todas', busqueda: '', orden: null, drawer: null, proxima: null, intervalo: 60, revisando: 0, feedId: 0, configuracion: {}, agenteVista: 'resumen'
   };
   let panel = null, tab = null, timer = 0, reloj = 0;
 
@@ -38,6 +38,7 @@
   .ec-conn{padding:14px 16px;border:1px solid #d0f44c;border-radius:12px;background:rgba(208,244,76,.06);font-size:.85rem;line-height:1.6}
   .ec-conn code{display:block;margin:8px 0;padding:9px 11px;border-radius:8px;background:#0b0f09;color:#d0f44c;font:12px Consolas,monospace;overflow-wrap:anywhere;user-select:all}
   .ec-aviso{padding:10px 14px;border-radius:11px;background:#5a2a12;color:#ffd9b0;font-size:.85rem}
+  .ec-programacion{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:13px 16px;border:1px solid rgba(255,255,255,.13);border-radius:12px;background:linear-gradient(110deg,rgba(80,146,60,.12),rgba(10,16,9,.8));font-size:.85rem;line-height:1.4}.ec-programacion h3{margin:0 0 3px;font-size:.9rem}.ec-programacion p{margin:0;color:#abb7a6}.ec-switch{display:flex;align-items:center;gap:9px;flex:none;border:0;border-radius:999px;padding:7px 11px 7px 8px;background:#323a31;color:#d5dfcf;font:700 11px/1 system-ui;letter-spacing:.04em;cursor:pointer}.ec-switch i{position:relative;width:34px;height:20px;border-radius:99px;background:#657160;transition:.2s}.ec-switch i::after{content:"";position:absolute;width:14px;height:14px;left:3px;top:3px;border-radius:50%;background:#edf3e9;transition:.2s}.ec-switch.on{background:#355b28;color:#ddffd3}.ec-switch.on i{background:#8bd450}.ec-switch.on i::after{transform:translateX(14px)}.ec-switch:disabled{opacity:.5;cursor:wait}
   /* ---- flujo en vivo ---- */
   .ec-hero{position:relative;display:flex;align-items:flex-start;justify-content:space-between;gap:0;padding:22px 18px 18px;border:1px solid rgba(255,255,255,.1);border-radius:16px;background:radial-gradient(120% 140% at 50% -20%,rgba(208,244,76,.09),transparent 55%),linear-gradient(160deg,#101810,#0b100a);overflow:hidden}
   .ec-hero::before{content:"";position:absolute;inset:0;background-image:radial-gradient(rgba(255,255,255,.05) 1px,transparent 1px);background-size:22px 22px;mask-image:linear-gradient(180deg,#000,transparent 85%);pointer-events:none}
@@ -104,6 +105,7 @@
   .ec-ult{min-height:2.4em;color:#aeb9a6;font:12px Consolas,monospace;overflow-wrap:anywhere}.ec-desde{color:#8f9d88;font-size:.72rem;min-height:1em}
   .ec-btns{display:flex;gap:8px;flex-wrap:wrap}.ec-btns .ag-btn{flex:1 1 90px}
   .ec-card details summary,.ec-drawer details summary{cursor:pointer;color:#aeb9a6;font-size:.75rem;font-weight:800;letter-spacing:.08em}.ec-card ul,.ec-drawer ul{margin:8px 0 0;padding-left:18px;color:#c4cfbf;font-size:.8rem;line-height:1.5}
+  .ec-agent-tabs{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px;padding:7px;border:1px solid #34432f;border-radius:12px;background:#090e09}.ec-agent-tab{border:1px solid transparent;border-radius:9px;padding:8px 13px;background:transparent;color:#aeb9a6;font:800 12px Arial;letter-spacing:.06em;cursor:pointer}.ec-agent-tab:hover{color:#eef4e9;background:#172014}.ec-agent-tab.on{border-color:var(--c,#8bd450);background:color-mix(in srgb,var(--c,#8bd450) 16%,#10170c);color:#eef4e9}.ec-agent-focus{display:grid;grid-template-columns:minmax(270px,410px) minmax(240px,1fr);gap:14px}.ec-agent-focus .ec-card{align-content:start}.ec-agent-actividad{padding:15px;border:1px solid #34432f;border-radius:14px;background:#0c110d}.ec-agent-actividad h3{margin:0 0 10px;color:#d8e4d2;font-size:.82rem;letter-spacing:.1em}.ec-agent-actividad .ec-log{max-height:390px}
   .ec-sub2{color:#8f9d88;font-size:.72rem;font-weight:800;letter-spacing:.1em;margin:2px 0 6px}
   .ec-ordenes-pc{display:grid;gap:6px}.ec-opc{display:flex;flex-wrap:wrap;gap:6px 14px;padding:8px 12px;border:1px solid #34432f;border-radius:10px;background:#0c110d;font-size:.8rem;color:#c4cfbf}
   .ec-opc b{color:#eef4e9}.ec-opc.error,.ec-opc.vencida{color:#ffb4ae;border-color:#6a2e2a}.ec-opc.hecha{color:#b8e68a}
@@ -120,8 +122,11 @@
     @keyframes ecFluyeV{to{background-position:0 20px}}.ec-cola{left:22px;top:50%;transform:translateY(-50%)}
     .ec-paquete{left:-4px!important;animation:ecViajaV 2.2s linear infinite}@keyframes ecViajaV{from{top:-4%;opacity:0}15%{opacity:1}85%{opacity:1}to{top:100%;opacity:0}}
     .ec-extremo{margin-top:6px}.ec-ord>button{grid-template-columns:1fr}.ec-tiempo{text-align:left}}
-  @media(max-width:620px){.ec-l{flex-wrap:wrap;gap:2px 8px}.ec-vtabs .ag-vt{padding:8px 12px!important;flex:1}}
-  @media(prefers-reduced-motion:reduce){.ec-barrido,.ec-enlace.activo,.ec-paquete,.ec-nodo.trabaja .ec-disco,.ec-act-cab i,.ec-ev,.ec-p.ahora i{animation:none!important}}`;
+  @media(max-width:620px){.ec-l{flex-wrap:wrap;gap:2px 8px}.ec-vtabs .ag-vt{padding:8px 12px!important;flex:1}.ec-agent-tabs{display:grid;grid-template-columns:repeat(2,1fr)}.ec-agent-tab{padding:9px 7px}.ec-agent-focus{grid-template-columns:1fr}}
+  @media(prefers-reduced-motion:reduce){.ec-barrido,.ec-enlace.activo,.ec-paquete,.ec-nodo.trabaja .ec-disco,.ec-ev,.ec-p.ahora i{animation:none!important}}
+  /* ---- rediseño: centro de operaciones ---- */
+  .ec{max-width:1440px;margin:0 auto;padding:8px 2px 30px;color:#ecf3ed}.ec .ag-hd{position:relative;display:grid;grid-template-columns:minmax(180px,.8fr) minmax(260px,1.5fr) auto;gap:16px;align-items:center;padding:20px 22px;margin-bottom:12px;border:1px solid rgba(178,255,113,.19);border-radius:20px;background:radial-gradient(circle at 92% -30%,rgba(159,255,89,.2),transparent 38%),linear-gradient(118deg,#111d17,#0a100d 58%,#11170f);box-shadow:0 20px 48px #0007;overflow:hidden}.ec .ag-hd::after{content:"";position:absolute;inset:auto 0 0;height:2px;background:linear-gradient(90deg,transparent,#a7fa62 30%,#5bbff5 58%,transparent)}.ec .ag-hd h2{margin:0;font:900 clamp(1.3rem,2.4vw,2rem)/.95 system-ui;letter-spacing:.1em;color:#f5fff0}.ec .ag-hd h2::after{content:"CENTRO DE OPERACIONES";display:block;margin-top:8px;font:700 10px/1 system-ui;letter-spacing:.18em;color:#9aac9b}.ec .ag-state{display:flex!important;gap:7px;flex-wrap:wrap}.ec .ag-indiv{display:none!important}.ec .ag-hacc{justify-self:end;display:flex;gap:7px;padding:5px;border:1px solid #334536;border-radius:12px;background:#080e0a}.ec .ag-btn{border-radius:9px!important;font-size:11px!important;letter-spacing:.05em}.ec-programacion{margin:0 0 12px;padding:16px 19px!important;border-radius:16px!important;background:linear-gradient(110deg,#122217,#0c120e)!important;border-color:#36533a!important}.ec-programacion h3::before{content:"●";color:#94e869;margin-right:8px}.ec-conn,.ec-aviso{border-radius:14px!important;margin-bottom:12px}.ec-vtabs{display:flex!important;gap:8px;padding:7px;margin:0 0 12px;border:1px solid #344b39;border-radius:16px;background:#0a100c}.ec-vtabs .ag-vt{flex:1;border-radius:10px!important;border:1px solid transparent!important;padding:11px 14px!important;background:transparent!important;color:#aab9ab!important;font-size:11px!important;letter-spacing:.1em}.ec-vtabs .ag-vt.on{background:linear-gradient(135deg,#c5fa70,#81d95a)!important;border-color:#d7ff8f!important;color:#0b160c!important;box-shadow:0 6px 20px #91e25a3d}.ec-body{padding:18px!important;border-radius:20px!important;border-color:#314438!important;background:linear-gradient(145deg,#0e1711,#080d09)!important;box-shadow:inset 0 1px #ffffff08}.ec-hero{display:grid!important;grid-template-columns:minmax(86px,.55fr) 30px repeat(3,minmax(180px,1fr) 30px) minmax(86px,.55fr);align-items:center;gap:0;padding:18px!important;border-radius:18px!important;background:linear-gradient(145deg,#0c150e,#080d09)!important;border-color:#34523a!important}.ec-nodo{display:grid!important;grid-template-columns:38px 1fr!important;grid-template-rows:auto auto auto!important;column-gap:11px;min-height:112px;padding:15px!important;border:1px solid var(--c,#385e40)!important;border-left:4px solid var(--c,#8bd450)!important;border-radius:12px!important;background:linear-gradient(135deg,#132018,#0d1510)!important;text-align:left!important;box-shadow:none!important}.ec-nodo:hover{transform:translateY(-2px);border-color:#b2f56f!important}.ec-nodo .ec-disco{grid-row:1/4!important;grid-column:1!important;width:38px!important;height:38px!important;margin:0!important;border:0!important;border-radius:9px!important;background:color-mix(in srgb,var(--c,#8bd450) 18%,#172117)!important;box-shadow:none!important}.ec-nodo .ec-disco::before{display:none!important}.ec-nodo .ec-barrido{display:none!important}.ec-nodo .ec-centro{position:static!important;transform:none!important;display:grid!important;place-items:center!important;width:100%!important;height:100%!important}.ec-nodo .ec-centro b{font-size:20px!important;color:var(--c,#8bd450)!important}.ec-nodo .ec-centro small{display:none!important}.ec-nodo h4{grid-column:2!important;margin:0!important;font-size:14px!important;letter-spacing:.08em}.ec-nodo .ec-sub{grid-column:2!important;margin:3px 0!important;font-size:11px!important;text-align:left!important}.ec-nodo .ec-estado{grid-column:2!important;justify-self:start!important;margin:3px 0 0!important;padding:4px 7px!important;font-size:9px!important}.ec-nodo .ec-act{grid-column:1/3!important;margin-top:10px!important;padding-top:8px!important;border-top:1px solid #ffffff12!important;font:10px/1.3 Consolas,monospace!important}.ec-enlace{align-self:center!important;min-width:0!important;height:2px!important;margin:0 5px!important;border:0!important;background:#38503c!important}.ec-enlace::before,.ec-enlace::after{display:none!important}.ec-enlace.activo{background:var(--c)!important;animation:none!important}.ec-paquete{display:none!important}.ec-cola{top:auto!important;left:50%!important;bottom:8px!important;transform:translateX(-50%)!important;animation:none!important}.ec-extremo{display:grid!important;place-items:center;gap:8px;margin:0!important;font-size:10px!important;text-align:center!important;color:#9aaa99}.ec-extremo>div{width:42px!important;height:42px!important;border-radius:10px!important;background:#101a12!important;border-color:#486345!important}.ec-cifras{gap:10px!important}.ec-cifra{border-radius:14px!important;border-color:#34523a!important;background:#101a13!important}.ec-act-caja,.ec-log{border-radius:14px!important;border-color:#304934!important;background:#070d09!important}.ec-ord{border-radius:14px!important;background:#0f1812!important;border-color:#314b36!important}.ec-ord>button{padding:14px 16px!important}.ec-card{border-radius:16px!important;background:linear-gradient(145deg,#142018,#0b110d)!important;border-color:#36503a!important;box-shadow:0 10px 24px #0003}.ec-card:hover{transform:translateY(-2px);border-color:var(--c)!important}.ec-agent-tabs{padding:8px!important;border-radius:14px!important;background:#071009!important;border-color:#304a35!important}.ec-agent-tab{border-radius:10px!important}.ec-agent-tab.on{box-shadow:inset 0 0 0 1px var(--c)}.ec-agent-actividad{border-radius:16px!important;background:#0a120d!important;border-color:#35513a!important}.ec-chips{padding:8px;border:1px solid #304a35;border-radius:14px;background:#08100b}.ec-chips button{border-radius:9px!important}.ec-drawer{background:linear-gradient(180deg,#142119,#080e0a)!important;border-color:#456147!important}@media(max-width:1050px){.ec-hero{grid-template-columns:1fr!important;gap:8px!important}.ec-enlace{width:2px!important;height:20px!important;margin:0 auto!important}.ec-extremo{grid-template-columns:42px 1fr;text-align:left}.ec-extremo>div{grid-row:1/3}}@media(max-width:820px){.ec .ag-hd{grid-template-columns:1fr;gap:13px;padding:18px}.ec .ag-hacc{justify-self:start}.ec-vtabs{overflow:auto}.ec-vtabs .ag-vt{min-width:115px}.ec-body{padding:11px!important}}
+  `;
   document.head.appendChild(css);
 
   async function api(url, opciones) {
@@ -149,6 +154,13 @@
     if (!st.token) return '';
     return '<div class="ec-conn"><b>Código de enlace (se muestra una sola vez)</b><code>' + esc(st.token.url) + '</code><code>' + esc(st.token.token) + '</code>' +
       'En el PC de los agentes: si es nuevo, abre <b>INSTALAR_AGENTES_EDICION.vbs</b> (carpeta AGENTES_INDOOR de la NAS) y pega este código cuando lo pida. Si ya tiene los agentes, abre <b>ecommerce\\ENLAZAR_ECOMMERCE.bat</b> y pega la dirección y el código; luego <b>detener_agentes.bat</b> y <b>iniciar_oculto.vbs</b>. Ese mismo archivo inicia los agentes de edición y a ALMA, BRISA y CIRO. El panel atiende un solo PC.</div>';
+  }
+  function programacion() {
+    const activo = !!st.configuracion.ecommerce_activo;
+    const pc = st.pc || {};
+    return '<section class="ec-programacion"><div><h3>Estado de ECOMMERCE</h3><p>' + (activo ? 'Activo: recibe órdenes, procesa la cola y programa como <b>INDOOR SPORT SAS</b>.' : 'Apagado: no recibe información de Effi, no procesa la cola ni escribe en Google Sheets.') +
+      (pc.conectado ? ' El PC aplica el cambio antes del siguiente paso.' : ' El cambio se aplicará cuando el PC de agentes se conecte.') + '</p></div>' +
+      '<button type="button" class="ec-switch' + (activo ? ' on' : '') + '" role="switch" aria-checked="' + activo + '" data-programar-indoor' + (st.ocupado ? ' disabled' : '') + '><i></i>' + (activo ? 'ACTIVADO' : 'DESACTIVADO') + '</button></section>';
   }
 
   // ====================================================== FLUJO (esqueleto fijo: solo se actualizan sus partes, para que las animaciones no se reinicien)
@@ -314,7 +326,19 @@
       '<details data-det="' + a.id + '"' + (st.abierto[a.id] ? ' open' : '') + '><summary>QUÉ HACE</summary><ul>' + a.funciones.map(f => '<li>' + esc(f) + '</li>').join('') + '</ul></details></article>';
   }
   function vistaAgentes() {
-    return '<div class="ec-grid">' + st.agentes.map(tarjeta).join('') + '</div>' +
+    const pestañas = [{ id: 'resumen', nombre: 'RESUMEN', color: '#8bd450' }].concat(st.agentes.map(a => ({ id: a.id, nombre: a.nombre, color: a.color })));
+    const selector = '<nav class="ec-agent-tabs" aria-label="Vista de agentes e-commerce">' + pestañas.map(p =>
+      '<button type="button" class="ec-agent-tab' + (st.agenteVista === p.id ? ' on' : '') + '" data-ec-agente-vista="' + p.id + '" style="--c:' + p.color + '">' + esc(p.nombre) + '</button>').join('') + '</nav>';
+    let contenido;
+    if (st.agenteVista === 'resumen' || !agente(st.agenteVista).id) {
+      contenido = '<div class="ec-grid">' + st.agentes.map(tarjeta).join('') + '</div>';
+    } else {
+      const a = agente(st.agenteVista), lineas = st.log.filter(l => l.agente === a.id).slice(-120).reverse();
+      contenido = '<div class="ec-agent-focus"><div>' + tarjeta(a) + '</div><section class="ec-agent-actividad"><h3>ACTIVIDAD DE ' + esc(a.nombre) + '</h3><div class="ec-log">' +
+        (lineas.length ? lineas.map(l => '<div class="ec-l ' + esc(l.nivel) + '"><time>' + hora(l.at) + '</time><b style="color:' + (a.color || '#aeb9a6') + '">' + esc(a.nombre) + '</b><span>' + esc(l.texto) + '</span></div>').join('') : '<div class="ec-vacio">Sin actividad registrada todavía.</div>') +
+        '</div></section></div>';
+    }
+    return selector + contenido +
       (st.ordenes.length ? '<div><div class="ec-sub2">ÚLTIMAS ÓRDENES AL PC</div><div class="ec-ordenes-pc">' + st.ordenes.map(o =>
         '<div class="ec-opc ' + esc(o.estado) + '"><b>' + esc(agente(o.agente).nombre || o.agente) + '</b><span>' + esc(o.accion) + '</span><span>por ' + esc(o.por) + ' · ' + horaIso(o.iso) + '</span><span>' +
         esc({ pendiente: 'esperando al PC', entregada: 'el PC la está haciendo', hecha: 'hecha', error: 'falló', vencida: 'vencida' }[o.estado] || o.estado) + (o.detalle ? ' — ' + esc(o.detalle) : '') + '</span></div>').join('') + '</div></div>' : '');
@@ -351,13 +375,14 @@
     const raiz = panel.querySelector('.ec');
     const cab = raiz.querySelector('[data-cabecera]');
     if (!cab) {   // primera vez: se arma el esqueleto fijo
-      raiz.innerHTML = '<div data-cabecera></div><div data-aviso></div><div data-conexion></div>' +
+      raiz.innerHTML = '<div data-cabecera></div><div data-aviso></div><div data-conexion></div><div data-programacion></div>' +
         '<nav class="ag-vtabs ec-vtabs" aria-label="Secciones de ECOMMERCE"></nav><div class="ec-body"><div data-vista-flujo>' + esqueletoFlujo() + '</div><div data-vista-ordenes hidden></div><div data-vista-agentes hidden></div><div data-vista-registro hidden></div></div>' +
         '<div class="ec-velo" data-velo></div><aside class="ec-drawer" data-drawer aria-label="Detalle del agente"></aside>';
     }
     { const __el = raiz.querySelector('[data-cabecera]'), __h = encabezado(); if (__el && __el.__h !== __h) { __el.__h = __h; __el.innerHTML = __h; } }
     { const __el = raiz.querySelector('[data-aviso]'), __h = st.aviso ? '<div class="ec-aviso">' + esc(st.aviso) + '</div>' : ''; if (__el && __el.__h !== __h) { __el.__h = __h; __el.innerHTML = __h; } }
     { const __el = raiz.querySelector('[data-conexion]'), __h = conexion(); if (__el && __el.__h !== __h) { __el.__h = __h; __el.innerHTML = __h; } }
+    { const __el = raiz.querySelector('[data-programacion]'), __h = programacion(); if (__el && __el.__h !== __h) { __el.__h = __h; __el.innerHTML = __h; } }
     const sobre = st.trabajos.filter(t => t.etapa === 'errores').length;
     { const __el = raiz.querySelector('.ec-vtabs'), __h = [['flujo', 'FLUJO'], ['ordenes', 'ÓRDENES' + (sobre ? ' ⚠' : '')], ['agentes', 'AGENTES'], ['registro', 'REGISTRO']].map(([id, n]) => '<button type="button" class="ag-vt' + (st.vista === id ? ' on' : '') + '" data-vt="' + id + '">' + n + '</button>').join(''); if (__el && __el.__h !== __h) { __el.__h = __h; __el.innerHTML = __h; } }
     ['flujo', 'ordenes', 'agentes', 'registro'].forEach(id => { raiz.querySelector('[data-vista-' + id + ']').hidden = st.vista !== id; });
@@ -373,7 +398,7 @@
   async function cargar() {
     try {
       const e = await api('/api/ecommerce/estado');
-      st.agentes = e.agentes; st.pc = e.pc; st.ordenes = e.ordenes; st.cola = e.cola || {}; st.trabajos = e.trabajos || []; st.historial = e.historial || []; st.hoy = e.hoy || {}; st.latidos = e.latidos || {};
+      st.agentes = e.agentes; st.pc = e.pc; st.ordenes = e.ordenes; st.cola = e.cola || {}; st.trabajos = e.trabajos || []; st.historial = e.historial || []; st.hoy = e.hoy || {}; st.latidos = e.latidos || {}; st.configuracion = e.configuracion || {};
       const al = st.latidos.alma;
       if (al && al.proxima_en != null) { st.proxima = Date.now() + al.proxima_en * 1000; st.intervalo = al.intervalo || 60; } else st.proxima = null;
       const l = await api('/api/ecommerce/log?desde=' + st.ultimo + '&limite=300');
@@ -396,6 +421,16 @@
     if (!vivos.length || !confirm(texto)) return;
     st.aviso = '';
     for (const a of vivos) { try { await api('/api/ecommerce/agentes/' + a.id + '/' + accion, { method: 'POST' }); } catch (err) { st.aviso = err.message; } }
+    await cargar();
+  }
+  async function cambiarProgramacion(activo) {
+    if (st.ocupado) return;
+    st.ocupado = true; st.aviso = '';
+    try {
+      const r = await api('/api/ecommerce/configuracion/activar-ecommerce', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ activo: !!activo }) });
+      st.configuracion.ecommerce_activo = !!r.ecommerce_activo;
+    } catch (err) { st.aviso = err.message; }
+    st.ocupado = false;
     await cargar();
   }
 
@@ -438,6 +473,8 @@
       if (b && !b.disabled) { const [id, accion] = b.dataset.orden.split(':'); ordenar(id, accion); return; }
       const vt = e.target.closest('[data-vt]');
       if (vt) { st.vista = vt.dataset.vt; pintar(); return; }
+      const av = e.target.closest('[data-ec-agente-vista]');
+      if (av) { st.agenteVista = av.dataset.ecAgenteVista; pintar(); return; }
       const fo = e.target.closest('[data-fo]');
       if (fo) { st.filtroOrd = fo.dataset.fo; pintar(); return; }
       const ab = e.target.closest('[data-abrir]');
@@ -451,6 +488,8 @@
         try { st.token = await api('/api/ecommerce/conexion/regenerar', { method: 'POST' }); st.aviso = ''; } catch (err) { st.aviso = err.message; }
         pintar(); await cargar();
       }
+      const programar = e.target.closest('[data-programar-indoor]');
+      if (programar && !programar.disabled) cambiarProgramacion(!st.configuracion.ecommerce_activo);
     });
     panel.addEventListener('input', e => { if (e.target.matches('[data-bo]')) { st.busqueda = e.target.value; pintar(); } });
     panel.addEventListener('toggle', e => { const d = e.target.closest && e.target.closest('[data-det]'); if (d) st.abierto[d.dataset.det] = d.open; }, true);

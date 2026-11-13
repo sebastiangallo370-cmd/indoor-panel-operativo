@@ -13,6 +13,7 @@ from urllib.parse import unquote
 import secrets
 import threading
 import time
+import unicodedata
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -40,7 +41,7 @@ _vistas: dict[str, dict] = {}   # id -> {sesion, nombre, ext}: se pierden al rei
 _lock_vistas = threading.Lock()
 _TIPOS = {'pdf': ('application/pdf', b'%PDF'), 'png': ('image/png', b'\x89PNG'), 'jpg': ('image/jpeg', b'\xff\xd8\xff'), 'jpeg': ('image/jpeg', b'\xff\xd8\xff')}
 LATIDO_SEG = 25          # el PC se considera conectado si sondeó hace menos de esto
-ESPERA_MAX_SEG = 2700    # un lote de PDF de producción por jugador puede tardar varios minutos (hasta 45 min antes de avisar)
+ESPERA_MAX_SEG = 900     # evita que una orden quede bloqueada si el PC de edición deja de responder
 _auth: Callable = lambda request: None
 _es_admin: Callable[[str], bool] = lambda usuario: False
 _lista_usuarios: Callable[[], list] = lambda: []
@@ -83,6 +84,7 @@ def _leer() -> dict:
     datos.setdefault('pcs', {})        # id -> {nombre, usuarios, token_hash, latido}: cada PC con Illustrator (el «principal» usa el token de siempre)
     datos.setdefault('ultimo_pc', {})  # usuario -> PC que atendió su último mensaje
     datos.setdefault('pc_activo', '')  # PC elegido a mano para hacer el proceso ('' = automático: el PC de la persona o el que esté conectado)
+    datos.setdefault('confeccion_jobs', [])
     return datos
 
 
@@ -93,6 +95,17 @@ def _guardar(datos: dict) -> None:
     tmp = _file.with_suffix('.tmp')
     tmp.write_text(json.dumps(datos, ensure_ascii=False), encoding='utf-8')
     tmp.replace(_file)
+
+
+def crear_confeccion_job(payload: dict) -> str:
+    """Publica una preparación para el agente nativo de Confección."""
+    job_id = uuid.uuid4().hex
+    with _lock:
+        datos = _leer()
+        datos['confeccion_jobs'] = [j for j in datos.get('confeccion_jobs', []) if j.get('estado') != 'completado'][-99:]
+        datos['confeccion_jobs'].append({'id': job_id, 'estado': 'pendiente', 'creado': _iso(), **payload})
+        _guardar(datos)
+    return job_id
 
 
 def _token() -> str:
@@ -235,6 +248,12 @@ def _liberar_vencidos(datos: dict) -> bool:
             m['respondido'] = True
             if m.get('oculto'):
                 continue
+            compra, respuesta = _compra_pedida_a_jefe(_base(m['sesion']), str(m.get('texto') or ''))
+            if compra:
+                _nuevo(datos, m['sesion'], 'bot', respuesta, estado='ZEUS' if respuesta.startswith('Asigné') else 'REVISAR', botones=[], agentes=['JEFE', 'ZEUS'], respondido=True)
+                datos['trabajo'].pop(m['sesion'], None)
+                cambio = True
+                continue
             _nuevo(datos, m['sesion'], 'bot', 'No recibí respuesta del PC de los agentes. Revisa que esté encendido y con iniciar.bat abierto, y vuelve a intentarlo.',
                    estado='ERROR', botones=[], agentes=['TAVO'], respondido=True)
             datos['trabajo'].pop(m['sesion'], None)
@@ -347,11 +366,67 @@ def enviar(request: Request, payload: dict):
         datos = _leer()
         _liberar_vencidos(datos)
         pid, ses = _canal(datos, usuario, str(payload.get('pc') or ''))
-        if any(m['sesion'] == ses and m['rol'] == 'yo' and not m.get('respondido') and not m.get('oculto') for m in datos['mensajes']):
-            raise HTTPException(409, 'Espera la respuesta de TAVO antes de enviar otro mensaje')
+        # Las ejecuciones no se bloquean entre sí: el PC de edición las toma
+        # en cola y permite repetir una misma orden tantas veces como haga falta.
         msg = _nuevo(datos, ses, 'yo', texto, t=_ahora(), tomado=False, respondido=False)
         _guardar(datos)
         return {'ok': True, 'id': msg['id'], 'conectado': _conectado(datos, msg.get('pc')), 'pc': _nombre_pc(datos, msg.get('pc') or PRINCIPAL)}
+
+
+def _normalizar_jefe(valor: str) -> str:
+    return ''.join(c for c in unicodedata.normalize('NFD', str(valor or '').upper()) if unicodedata.category(c) != 'Mn')
+
+
+def _compra_pedida_a_jefe(usuario: str, texto: str) -> tuple[bool, str]:
+    """Reconoce compras de tela inequívocas y deja el requerimiento a ZEUS.
+
+    Devuelve (reconocida, respuesta). Una orden se crea como pendiente: ZEUS/Effi
+    sigue siendo quien la materializa y notifica el número de OC.
+    """
+    limpio = _normalizar_jefe(texto)
+    if 'TELA' not in limpio or not re.search(r'\b(COMPR[AEAR]*|REQUERIMIENTO|PEDIR|ORDEN\s+DE\s+COMPRA)\b', limpio):
+        return False, ''
+    metros = re.search(r'\b(\d+(?:[.,]\d+)?)\s*(?:MTS?|METROS?)\b', limpio)
+    if not metros:
+        return True, 'JEFE detectó una compra de tela, pero falta la cantidad en MTS. Ejemplo: «requerimiento de compra de 70 mts de tela Montecatini».'
+    cantidad = float(metros.group(1).replace(',', '.'))
+    if cantidad <= 0:
+        return True, 'La cantidad de la compra debe ser mayor a cero.'
+    from app import proveedores_tela, zeus
+    catalogo = proveedores_tela.telas()
+    codigos = re.findall(r'\b\d{3,6}\b', limpio)
+    elegida = next((t for c in codigos for t in catalogo if str(t.get('codigo') or '') == c), None)
+    if not elegida:
+        elegida = next((t for t in catalogo if _normalizar_jefe(t.get('nombre', '')) in limpio), None)
+    if not elegida:
+        return True, 'No encontré esa tela en el catálogo de Inventarios. No crearé una compra a ciegas: escribe el código exacto que aparece en Bodega Tela.'
+    resultado = zeus.pedir_tela_ventas(usuario, str(elegida.get('codigo') or ''), str(elegida.get('nombre') or ''), cantidad,
+                                       'REQUERIMIENTO JEFE', 1, proyecto='Pedido desde JEFE', documento='JEFE')
+    estado = 'ya estaba en cola' if resultado.get('repetido') else 'quedó en cola'
+    return True, f"Asigné la compra a ZEUS: {cantidad:g} MTS de {elegida.get('nombre')}. El requerimiento {estado}; ZEUS creará la OC en Effi y avisará cuando tenga el número."
+
+
+@router.post('/jefe')
+def enviar_a_jefe(request: Request, payload: dict):
+    """Entrada del panel de coordinación: compras de tela van a ZEUS; lo demás a TAVO."""
+    usuario = _auth(request)
+    texto = str(payload.get('mensaje') or '').strip()[:2000]
+    if not texto:
+        raise HTTPException(400, 'Escribe una tarea')
+    reconocida, respuesta = _compra_pedida_a_jefe(usuario, texto)
+    with _lock:
+        datos = _leer()
+        _liberar_vencidos(datos)
+        pid, ses = _canal(datos, usuario, str(payload.get('pc') or ''))
+        if reconocida:
+            msg = _nuevo(datos, ses, 'yo', texto, t=_ahora(), tomado=True, respondido=True, pc=pid)
+            _nuevo(datos, ses, 'bot', respuesta, estado='ZEUS' if respuesta.startswith('Asigné') else 'REVISAR', botones=[], agentes=['JEFE', 'ZEUS'], respondido=True)
+            datos['trabajo'].pop(ses, None)
+            _guardar(datos)
+            return {'ok': True, 'id': msg['id'], 'agente': 'ZEUS', 'mensaje': respuesta}
+        msg = _nuevo(datos, ses, 'yo', texto, t=_ahora(), tomado=False, respondido=False)
+        _guardar(datos)
+        return {'ok': True, 'id': msg['id'], 'agente': 'TAVO', 'mensaje': 'JEFE asignó la tarea a Edición.'}
 
 
 @router.post('/orden')
@@ -373,7 +448,9 @@ def fijar_orden(request: Request, payload: dict):
             # reinicio interno de TAVO (no aparece en el chat): así no arrastra pasos de la orden anterior
             _nuevo(datos, ses, 'yo', 'cancelar', t=_ahora(), tomado=False, respondido=False, oculto=True)
             _guardar(datos)
-    return {'ok': True, 'orden': codigo}
+    # El navegador descarta el historial visual de la orden anterior. Entregar
+    # los cursores evita que vuelva a pintar sus muestras o PDFs al recargar.
+    return {'ok': True, 'orden': codigo, 'ultimo': datos['contador'], 'ultimo_ev': datos['cont_ev']}
 
 
 @router.post('/detener')
@@ -555,6 +632,26 @@ def _resumen_pc(datos: dict, pid: str) -> dict:
             'visto': latido.get('iso', ''), 'equipo': latido.get('equipo', ''), 'illustrator': latido.get('illustrator', ''), 'principal': pid == PRINCIPAL}
 
 
+def registrar_pc(nombre: str) -> dict:
+    """Crea un PC enlazado y devuelve su token una sola vez.
+
+    Lo usan tanto la pantalla de Agentes como el paquete descargable de
+    Confección; el llamador ya debe haber comprobado permisos de administración.
+    """
+    nombre = re.sub(r'\s+', ' ', str(nombre or '')).strip()[:40]
+    if len(nombre) < 2:
+        raise HTTPException(400, 'Ponle un nombre al PC, por ejemplo «PC Confección Alba»')
+    with _lock:
+        datos = _leer()
+        if any(_nombre_pc(datos, p).casefold() == nombre.casefold() for p in _ids_pcs(datos)):
+            raise HTTPException(409, 'Ya hay un PC con ese nombre')
+        pid = 'pc-' + secrets.token_hex(3)
+        token = secrets.token_urlsafe(32)
+        datos['pcs'][pid] = {'nombre': nombre, 'usuarios': [], 'token_hash': _hash(token), 'creado': _iso()}
+        _guardar(datos)
+    return {'id': pid, 'nombre': nombre, 'token': token}
+
+
 @router.get('/pcs')
 def listar_pcs(request: Request):
     _solo_admin(request)
@@ -568,18 +665,8 @@ def listar_pcs(request: Request):
 def crear_pc(request: Request, payload: dict):
     """Agrega un PC con Illustrator. Devuelve su código de conexión UNA sola vez."""
     _solo_admin(request)
-    nombre = re.sub(r'\s+', ' ', str(payload.get('nombre') or '')).strip()[:40]
-    if len(nombre) < 2:
-        raise HTTPException(400, 'Ponle un nombre al PC, por ejemplo «PC Diseño 2»')
-    with _lock:
-        datos = _leer()
-        if any(_nombre_pc(datos, p).casefold() == nombre.casefold() for p in _ids_pcs(datos)):
-            raise HTTPException(409, 'Ya hay un PC con ese nombre')
-        pid = 'pc-' + secrets.token_hex(3)
-        token = secrets.token_urlsafe(32)
-        datos['pcs'][pid] = {'nombre': nombre, 'usuarios': [], 'token_hash': _hash(token), 'creado': _iso()}
-        _guardar(datos)
-    return {'id': pid, 'nombre': nombre, 'token': token, 'url': str(request.base_url).rstrip('/')}
+    creado = registrar_pc(payload.get('nombre'))
+    return {**creado, 'url': str(request.base_url).rstrip('/')}
 
 
 @router.put('/pcs/{pid}')
@@ -671,7 +758,15 @@ def sondeo(request: Request, payload: dict):
         else:
             datos['pcs'].setdefault(pid, {})['latido'] = latido
         pendientes = []
-        for m in datos['mensajes']:
+        confeccion = []
+        es_confeccion = str(payload.get('confeccion', '')).lower() == 'listo'
+        if es_confeccion:
+            for job in datos.get('confeccion_jobs', []):
+                if job.get('estado') == 'pendiente':
+                    job['estado'] = 'tomado'; job['tomado'] = _iso(); confeccion.append(job)
+        # El agente de Confección puede compartir el token principal en este
+        # PC, pero nunca debe consumir mensajes del chat de Edición.
+        for m in (() if es_confeccion else datos['mensajes']):
             if m['rol'] == 'yo' and not m.get('tomado') and (m.get('pc') or PRINCIPAL) == pid:
                 m['tomado'] = True
                 if not m.get('oculto'):
@@ -681,7 +776,7 @@ def sondeo(request: Request, payload: dict):
                     continue
                 datos['trabajo'][m['sesion']] = {'agente': 'TAVO', 'msg': 'Recibí tu mensaje', 'hora': datetime.now().strftime('%H:%M:%S'), 'agentes': ['TAVO']}
         _guardar(datos)
-    return {'pendientes': pendientes}
+    return {'pendientes': pendientes, 'confeccion': confeccion}
 
 
 _escribir_mts: Callable | None = None   # lo registra main.py: guarda el MTS en la tarjeta de producción de la orden
@@ -961,26 +1056,33 @@ def respuesta(request: Request, payload: dict):
 
 
 # ------------------------------------------------------------------ inicio automático (EDICIÓN en proceso)
-def auto_procesar(candidatos: list[dict]) -> list[str]:
+def auto_procesar(candidatos: list[dict], inmediato: bool = False) -> list[str]:
     """candidatos: tarjetas cuya columna EDICIÓN está en proceso: [{'clave', 'orden', 'ref', 'usuario'}].
     La primera vez solo se anotan (para no arrancar de golpe lo que ya estaba en proceso). Después, cada tarjeta nueva inicia el
     «pedido completo» en el chat de quien la puso en proceso (o de quien usó los agentes por última vez). Si esa persona está esperando
-    una respuesta o el PC no está conectado, se reintenta en la siguiente vuelta. Devuelve las órdenes lanzadas."""
+    una respuesta o el PC no está conectado, se reintenta en la siguiente vuelta. `inmediato` se usa
+    para una reposición aprobada por Comercial: no espera el siguiente ciclo ni la muestra. Devuelve
+    las órdenes lanzadas."""
     lanzadas = []
     with _lock:
         datos = _leer()
         auto = datos['auto']
-        if auto.get('vistos') is None:
+        prioritarios = set(auto.get('sin_muestra') or [])
+        if inmediato:
+            prioritarios.update(str(c.get('clave') or '') for c in candidatos if c.get('clave'))
+        if auto.get('vistos') is None and not prioritarios:
             auto['vistos'] = [c['clave'] for c in candidatos]
             _guardar(datos)
             return lanzadas
-        vistos = set(auto['vistos'])
+        vistos = set(auto.get('vistos') or [])
         cambio = False
         for c in candidatos:
-            if c['clave'] in vistos:
+            clave = str(c.get('clave') or '')
+            es_inmediato = inmediato or clave in prioritarios
+            if clave in vistos and not es_inmediato:
                 continue
             if not auto.get('activo', True):
-                vistos.add(c['clave']); cambio = True   # apagado: se anota como vista, no arranca
+                vistos.add(clave); prioritarios.discard(clave); cambio = True   # apagado: se anota como vista, no arranca
                 continue
             sesion = c.get('usuario') or next((m['sesion'] for m in reversed(datos['mensajes']) if m['rol'] == 'yo' and not m.get('auto')), '')
             if sesion:
@@ -993,12 +1095,17 @@ def auto_procesar(candidatos: list[dict]) -> list[str]:
             orden = c['orden']
             datos['ordenes'][sesion] = orden
             _nuevo(datos, sesion, 'yo', 'cancelar', t=_ahora(), tomado=False, respondido=False, oculto=True)   # sesión limpia para la orden nueva
-            _nuevo(datos, sesion, 'yo', f"Pedido completo de la orden {orden} (inicio automático: EDICIÓN en proceso)", t=_ahora(),
+            instruccion = (f"Pedido completo sin muestra de la orden {orden} "
+                           "(inicio automático: reposición aprobada por Comercial). "
+                           "Ejecuta únicamente las referencias programadas en EDICIÓN."
+                           if es_inmediato else f"Pedido completo de la orden {orden} (inicio automático: EDICIÓN en proceso)")
+            _nuevo(datos, sesion, 'yo', instruccion, t=_ahora(),
                    tomado=False, respondido=False, auto=True)
-            vistos.add(c['clave']); cambio = True
+            vistos.add(clave); prioritarios.discard(clave); cambio = True
             lanzadas.append(orden)
-        if cambio:
+        if cambio or inmediato:
             auto['vistos'] = sorted(vistos)[-3000:]
+            auto['sin_muestra'] = sorted(prioritarios)[-3000:]
             _guardar(datos)
     return lanzadas
 

@@ -272,7 +272,7 @@
       document.querySelectorAll('.panel').forEach(x => x.classList.toggle('active', x === panel));
       document.body.classList.remove('inicio-mode', 'inventory-mode', 'production-mode', 'schedule-mode', 'operarios-mode', 'cartera-mode', 'trace-cards-mode');
       firma = ''; cargar(); clearInterval(timer);
-      timer = setInterval(() => { if (panel.classList.contains('active') && !document.hidden) cargar(); }, 20000);
+      timer = setInterval(() => { if (panel.classList.contains('active') && !document.hidden) cargar(); }, 6000);
     });
     const marcar = () => document.body.classList.toggle('sm-modo', panel.classList.contains('active'));
     new MutationObserver(marcar).observe(panel, { attributes: true, attributeFilter: ['class'] }); marcar();

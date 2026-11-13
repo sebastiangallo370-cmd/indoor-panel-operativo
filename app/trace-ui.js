@@ -332,6 +332,67 @@
   const isAdmin = typeof canViewAdministration !== 'undefined' && canViewAdministration;
   const canDelete = typeof deleteProductionAllowed !== 'undefined' && deleteProductionAllowed;
   const deletingRows = new Set();
+  const cardEditorDialog = document.createElement('dialog');
+  cardEditorDialog.className = 'trace-card-editor';
+  cardEditorDialog.innerHTML = '<form method="dialog" class="trace-card-editor-form"><header><div><span class="trace-eyebrow">EDITAR TARJETA</span><h2></h2><p>Modifica los datos de esta orden. Los estados de proceso se administran por separado.</p></div><button type="button" class="trace-card-editor-close" aria-label="Cerrar">×</button></header><div class="trace-card-editor-fields"></div><p class="trace-card-editor-message" role="status"></p><footer><button type="button" class="trace-card-editor-cancel">Cancelar</button><button type="submit" class="trace-card-editor-save">Guardar cambios</button></footer></form>';
+  document.body.appendChild(cardEditorDialog);
+  const cardEditorFields = cardEditorDialog.querySelector('.trace-card-editor-fields');
+  const cardEditorMessage = cardEditorDialog.querySelector('.trace-card-editor-message');
+  // Solo los datos que el usuario ve dentro de la tarjeta; los procesos y columnas internas
+  // se mantienen en sus propios controles para no llenar el editor con campos ajenos.
+  const visibleCardHeaders = new Set(['ORDEN', 'NOMBRE DEL CLIENTE', 'CLIENTE', 'NOMBRE PROYECTO', 'PROYECTO', 'REFERENCIA', 'CANTIDAD', 'TELA', 'NOMBRE TELA', 'FECHA DE ENTREGA', 'MAQUINA DE IMPRESION', 'MÁQUINA DE IMPRESIÓN']);
+  const editableCardHeaders = () => (productionData?.headers || []).map((header, index) => ({ header: String(header || '').trim(), index })).filter(field => visibleCardHeaders.has(key(field.header)));
+  function openCardEditor(id) {
+    const row = productionData?.rows.find(item => Number(item.source_row) === Number(id));
+    if (!row) return;
+    cardEditorDialog.dataset.row = String(id);
+    cardEditorDialog.querySelector('h2').textContent = (traceField(row, 'ORDEN') || 'Orden sin número') + ' · editar información';
+    cardEditorMessage.className = 'trace-card-editor-message';
+    cardEditorMessage.textContent = '';
+    cardEditorFields.innerHTML = editableCardHeaders().map(({header, index}) => {
+      const value = String(row.values[index] ?? '');
+      const normalized = key(header);
+      const isLong = /OBSERV|DESCRIP|INDIC|NOTA|DIRECCION/.test(normalized);
+      const input = isLong
+        ? '<textarea name="field-' + index + '" rows="3" maxlength="5000">' + esc(value) + '</textarea>'
+        : '<input name="field-' + index + '" value="' + esc(value) + '" maxlength="5000" autocomplete="off">';
+      return '<label class="trace-card-editor-field' + (isLong ? ' long' : '') + '"><span>' + esc(header) + '</span>' + input + '</label>';
+    }).join('');
+    cardEditorDialog.showModal();
+    setTimeout(() => cardEditorFields.querySelector('input,textarea')?.focus(), 0);
+  }
+  cardEditorDialog.querySelector('.trace-card-editor-close').onclick = () => cardEditorDialog.close();
+  cardEditorDialog.querySelector('.trace-card-editor-cancel').onclick = () => cardEditorDialog.close();
+  cardEditorDialog.addEventListener('submit', async event => {
+    event.preventDefault();
+    const rowId = Number(cardEditorDialog.dataset.row);
+    const row = productionData?.rows.find(item => Number(item.source_row) === rowId);
+    if (!row) return;
+    const changes = editableCardHeaders().map(({header, index}) => {
+      const field = cardEditorDialog.querySelector('[name="field-' + index + '"]');
+      return { column: index + 1, header, value: String(field?.value ?? ''), previous: String(row.values[index] ?? '') };
+    }).filter(item => item.value !== item.previous);
+    if (!changes.length) { cardEditorDialog.close(); return; }
+    const save = cardEditorDialog.querySelector('.trace-card-editor-save');
+    save.disabled = true; cardEditorMessage.className = 'trace-card-editor-message'; cardEditorMessage.textContent = 'Guardando ' + changes.length + ' cambio' + (changes.length === 1 ? '' : 's') + '…';
+    try {
+      for (const change of changes) {
+        const response = await fetch('/api/produccion/celda', {method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({row: rowId, column: change.column, value: change.value})});
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw Error(data.detail || 'No se pudo guardar ' + change.header);
+        row.values = data.values || row.values;
+      }
+      renderProduction();
+      cardEditorMessage.className = 'trace-card-editor-message is-success';
+      cardEditorMessage.textContent = '✓ CAMBIOS GUARDADOS · SE ACTUALIZAN EN LA TARJETA';
+      setTimeout(() => {
+        if (cardEditorDialog.open && Number(cardEditorDialog.dataset.row) === rowId) cardEditorDialog.close();
+      }, 1800);
+    } catch (error) {
+      cardEditorMessage.className = 'trace-card-editor-message is-error';
+      cardEditorMessage.textContent = error.message || 'No se pudieron guardar los cambios.';
+    } finally { save.disabled = false; }
+  });
   const deleteProgress = document.createElement('dialog');
   deleteProgress.className = 'operator-dialog';
   deleteProgress.setAttribute('aria-label', 'Progreso de eliminación');
@@ -587,6 +648,7 @@
     button.type = 'button';
     button.className = 'tab process-nav';
     button.dataset.kind = 'produccion';
+    button.dataset.productionRoute = key(process.label).toLowerCase();
     button.innerHTML = '<span class="nav-icon">' + (index + 2) + '</span><strong>' + esc(process.label.toUpperCase()) + '</strong>';
     button.onclick = () => {
       productionNav.click();
@@ -605,6 +667,7 @@
   comButton.type = 'button';
   comButton.className = 'tab process-nav';
   comButton.dataset.kind = 'produccion';
+  comButton.dataset.productionRoute = 'comerciales';
   comButton.innerHTML = '<span class="nav-icon">1</span><strong>COMERCIALES</strong>';
   comButton.onclick = () => {
     productionNav.click();
@@ -635,17 +698,35 @@
   }
   renderTraceCards = function () {
     if (!productionData || traceView !== 'cards') return;
-    let scrollTop = traceCards.scrollTop;
+    // Si la página completa es la que se desplaza, se guarda y restaura window.scrollY (no la lista)
+    const enPagina = getComputedStyle(traceCards).overflowY === 'visible';
+    let scrollTop = enPagina ? window.scrollY : traceCards.scrollTop;
+    const restaurar = () => { if (enPagina) window.scrollTo(0, scrollTop); else traceCards.scrollTop = scrollTop; };
     const focused = document.activeElement;
     const focusKey = focused?.closest('[data-card-row]')?.dataset.cardRow;
     const focusAttribute = ['data-card-edit', 'data-card-detail', 'data-card-nas', 'data-node-index', 'data-design-index'].find(a => focused?.hasAttribute(a));
     const focusValue = focusAttribute ? focused.getAttribute(focusAttribute) : null;
     traceImageObserver.disconnect();
-    const visible = new Set([...productionBody.querySelectorAll('tr')].map(tr => Number(tr.querySelector('td[data-row]')?.dataset.row)));
+    const tableRows = [...productionBody.querySelectorAll('tr')];
+    const visible = new Set(tableRows.map(tr => Number(tr.querySelector('td[data-row]')?.dataset.row)));
+    // renderProduction limpia el tbody antes de volver a insertar las filas. El
+    // MutationObserver podía alcanzar ese instante intermedio y sustituir las
+    // tarjetas por “No hay pedidos”, provocando el parpadeo/contador en cero.
+    // Cuando la tabla aún conserva el estado vacío anterior, esperamos a la
+    // siguiente mutación real; una búsqueda sin resultados sí deja
+    // productionEmpty visible y se muestra normalmente.
+    if (!visible.size && productionData.rows.length && productionEmpty.hidden) return;
     const comKey = row => String(traceField(row, 'ORDEN') || '').replace(/[\s-]+/g, '').toUpperCase();
     const base = productionData.rows.filter(row => visible.has(row.source_row) && ['ORDEN', 'NOMBRE DEL CLIENTE', 'NOMBRE PROYECTO', 'REFERENCIA'].some(name => traceField(row, name).trim())
       && (!comercialesMode || (comercialMap.has(comKey(row)) && (!comercialUser || comercialMap.get(comKey(row)).usuario.toLowerCase() === comercialUser.toLowerCase()))));
-    const fullSummaries = new Map(base.map(row => [row.source_row, summarize(productionData, row, processStatusHeaders, user, scheduleToday())]));
+    if (renderTraceCards._summaryData !== productionData) { renderTraceCards._summaryData = productionData; renderTraceCards._summaryCache = new Map(); }
+    const cache = renderTraceCards._summaryCache;
+    const fullSummaries = new Map(base.map(row => {
+      const firma = JSON.stringify([row.values, productionData.notes?.[row.source_row + ':17'], productionData.paused?.[row.source_row]]);
+      const previo = cache.get(row.source_row);
+      if (!previo || previo.firma !== firma) cache.set(row.source_row, { firma, valor: summarize(productionData, row, processStatusHeaders, user, scheduleToday()) });
+      return [row.source_row, cache.get(row.source_row).valor];
+    }));
     const forView = (row, stateFilter) => navigationProcess
       ? processQueueSummary(fullSummaries.get(row.source_row), navigationProcess.label, user, scheduleToday())
       : summaryForView(fullSummaries.get(row.source_row), stateFilter, profile, user, scheduleToday(), isAdmin, ownAreaFilter);
@@ -666,13 +747,29 @@
       selMaq.innerHTML = '<option value="">Todas las máquinas</option>' + maquinas.map(m => '<option value="' + esc(m) + '"' + (m === maquinaFiltro ? ' selected' : '') + '>' + esc(m) + '</option>').join('');
     }
     const lista = maquinaFiltro ? visibles.filter(row => maqDe(row) === maquinaFiltro) : visibles;
-    // unidades = columna CANTIDAD; MTS = lo que dice la nota de la columna Q (MTS REQUERIDOS), sumando todas las referencias de la orden
+    // Unidades = CANTIDAD. Los MTS detallados los calcula el servidor con
+    // Promedios Maestros/Fichas; la nota Q queda como compatibilidad para
+    // referencias antiguas sin materiales documentados.
     const numero = t => { let v = String(t).trim(); if (v.includes(',') && v.includes('.')) v = v.replace(/\./g, '').replace(',', '.'); else if (v.includes(',')) v = v.replace(',', '.'); return parseFloat(v) || 0; };
+    const materialesMts = row => {
+      const detalle = productionData.materiales_mts?.[String(row.source_row)] || productionData.materiales_mts?.[row.source_row];
+      return Array.isArray(detalle?.materiales) ? detalle.materiales.filter(m => (String(m?.codigo || '').trim() || String(m?.material || '').trim()) && Number(m?.mts) > 0) : [];
+    };
+    const mtsNota = row => {
+      const raw = String(productionData.notes?.[row.source_row + ':17'] || '');
+      return [...raw.matchAll(/([0-9]+(?:[.,][0-9]+)*)\s*MTS/gi)].reduce((total, m) => total + numero(m[1]), 0);
+    };
+    const mtsFila = row => {
+      const detalle = materialesMts(row);
+      if (detalle.length) return detalle.reduce((total, material) => total + Number(material.mts || 0), 0);
+      return mtsNota(row);
+    };
+    const formatoMts = valor => Number(valor || 0).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const sumar = filas => {
       let und = 0, mts = 0;
       filas.forEach(row => {
         und += parseInt(String(traceField(row, 'CANTIDAD') || '0').replace(/[^0-9]/g, ''), 10) || 0;
-        for (const m of String(productionData.notes?.[row.source_row + ':17'] || '').matchAll(/([0-9]+(?:[.,][0-9]+)*)\s*MTS/gi)) mts += numero(m[1]);
+        mts += mtsFila(row);
       });
       return [und, mts];
     };
@@ -705,15 +802,33 @@
       const _reference = String(traceField(row, 'REFERENCIA') || '').trim().toUpperCase();
       const _mtsRaw = String(productionData.notes?.[id + ':17'] || '').trim();
       const _mtsMatches = [..._mtsRaw.matchAll(/(\d+[,.]?\d*)\s*MTS/gi)];
-      const mtsV = _mtsMatches.length ? _mtsMatches[_mtsMatches.length - 1][1] + ' MTS' : (_mtsRaw.includes(' : ') ? _mtsRaw.split(' : ').slice(1).join(' : ').trim() : _mtsRaw);
+      const detalleMateriales = materialesMts(row);
+      const mtsV = detalleMateriales.length
+        ? formatoMts(mtsFila(row)) + ' MTS'
+        : (_mtsMatches.length ? _mtsMatches[_mtsMatches.length - 1][1] + ' MTS' : (_mtsRaw.includes(' : ') ? _mtsRaw.split(' : ').slice(1).join(' : ').trim() : _mtsRaw));
+      const detalleMtsHtml = detalleMateriales.length
+        ? '<span class="trace-mts-lines">' + detalleMateriales.map(material => {
+          const codigo = String(material.codigo || '').replace(/^COD/i, '').trim();
+          // Fusionado puede estar registrado en cualquier posición del maestro
+          // (CP07, por ejemplo, lo usa como M2). La tela documentada es la
+          // fuente de presentación; M4 se conserva para los maestros antiguos.
+          const etiqueta = String(material.etiqueta || '').trim().toUpperCase() === 'FUSIONADO' || !!material.fusionado || String(material.tela || '').trim().toUpperCase() === 'FUSIONADO' || String(material.material || '').toUpperCase() === 'M4'
+            ? 'FUSIONADO'
+            : (String(material.material || '').trim() || (codigo ? 'COD ' + codigo : 'MATERIAL'));
+          // El valor se conserva unido para que «MTS» no caiga en un segundo renglón.
+          return '<span class="trace-mts-line"><b>' + esc(etiqueta) + ':</b> <em>' + esc(formatoMts(material.mts)) + '&nbsp;MTS</em></span>';
+        }).join('') + '</span>'
+        : esc(mtsV || 'Sin registrar');
       const notes = Object.entries(productionData.notes || {}).filter(([k, v]) => k.startsWith(id + ':') && v && !isMtsNoteKey(k)).length;
       const responsible = summary.focus?.responsible || '';
       const due = traceField(row, 'FECHA DE ENTREGA');
       const dueLabel = !summary.due ? 'Sin fecha' : summary.overdue ? 'Atrasado' : summary.state !== 'finished' && summary.due.getTime() === scheduleToday().getTime() ? 'Entrega hoy' : 'Entrega';
       const hasRework = summary.groups.some(group => group.state === 'rework');
-      return '<article class="trace-card state-' + summary.state + '" data-card-row="' + id + '"><div class="trace-media">' + traceAssetsMarkup(id) + '</div><div class="trace-card-body"><div class="trace-card-heading"><h3>' + esc(traceField(row, 'ORDEN') || 'Sin número') + '</h3><button type="button" class="trace-order-rework' + (hasRework ? ' has-rework' : '') + '" data-card-rework="' + esc(traceField(row, 'ORDEN')) + '" aria-label="Registrar reproceso de la orden ' + esc(traceField(row, 'ORDEN')) + '">REPROCESO</button><span class="trace-stage ' + summary.state + '">' + labels[summary.state] + '</span></div><p class="trace-client">' + esc(traceField(row, 'NOMBRE DEL CLIENTE') || 'Sin cliente') + '</p><p class="trace-project">' + esc(traceField(row, 'NOMBRE PROYECTO')) + '</p><div class="trace-mts-row' + (mtsV ? ' con-mts' : ' sin-mts') + '">' + ('<div class="trace-machine-top"><small>MÁQUINA DE IMPRESIÓN</small><button type="button" class="trace-machine-btn' + (traceField(row, 'MAQUINA DE IMPRESION').trim() ? ' has-value' : '') + '" data-card-machine="' + id + '" title="Máquina de impresión: clic para elegirla">' + esc(traceField(row, 'MAQUINA DE IMPRESION').trim() || 'Seleccionar') + '</button></div>') + '<button class="trace-mts-btn' + (mtsV ? ' has-value' : '') + '" type="button" data-card-mts="' + id + '"><span class="mts-label">Ingresar MTS REQUERIDOS</span></button><button class="trace-mts-inventory" type="button" data-card-inventory="' + id + '">STOCK TELA ↗</button><div class="trace-mts-display' + (mtsV ? ' has-value' : '') + '"><small>MTS REQUERIDOS</small><strong>' + esc(mtsV || 'Sin registrar') + '</strong></div></div><dl><div><dt>Referencia</dt><dd class="trace-ref" title="' + esc(traceField(row, 'REFERENCIA') || '') + '">' + esc(traceField(row, 'REFERENCIA') || '—') + '</dd>' + telaMarkup(row) + '</div>' + '<div><dt>Cantidad</dt><dd class="trace-quantity">' + esc(traceField(row, 'CANTIDAD') || '0') + ' <small>und.</small></dd></div><div class="trace-due ' + (summary.overdue ? 'late' : '') + '"><dt>' + dueLabel + '</dt><dd>' + esc(summary.due ? displayProductionDate(due) : 'Sin programar') + diasParaEntrega(summary) + '</dd></div><div><dt>Responsable del proceso</dt><dd>' + (responsible ? responsible.split(/[,;·\n]+/).filter(x => x.trim()).map(name => '<span class="trace-person">' + esc(name.trim()) + '</span>').join(' ') : '<span class="trace-unassigned">Sin asignar</span>') + '</dd></div></dl><div class="trace-card-meta"><span>' + notes + ' nota' + (notes === 1 ? '' : 's') + '</span><span>Fila ' + id + '</span></div><div class="trace-card-actions"><button type="button" class="operator-open" data-card-edit="' + id + '">PRODUCCIÓN</button><button type="button" data-card-detail="' + id + '">Ver detalle</button><button type="button" data-card-nas="' + id + '" aria-label="Abrir carpeta del pedido">NAS ↗</button></div></div>' + routeMarkup(row, summary) + '</article>';
+      return '<article class="trace-card state-' + summary.state + '" data-card-row="' + id + '"><div class="trace-media">' + traceAssetsMarkup(id) + '</div><div class="trace-card-body"><div class="trace-card-heading"><h3>' + esc(traceField(row, 'ORDEN') || 'Sin número') + '</h3><button type="button" class="trace-order-rework' + (hasRework ? ' has-rework' : '') + '" data-card-rework="' + esc(traceField(row, 'ORDEN')) + '" aria-label="Registrar reproceso de la orden ' + esc(traceField(row, 'ORDEN')) + '">REPROCESO</button><span class="trace-stage ' + summary.state + '">' + labels[summary.state] + '</span></div><p class="trace-client">' + esc(traceField(row, 'NOMBRE DEL CLIENTE') || 'Sin cliente') + '</p><p class="trace-project">' + esc(traceField(row, 'NOMBRE PROYECTO')) + '</p><div class="trace-mts-row' + (mtsV ? ' con-mts' : ' sin-mts') + '">' + ('<div class="trace-machine-top"><small>MÁQUINA DE IMPRESIÓN</small><button type="button" class="trace-machine-btn' + (traceField(row, 'MAQUINA DE IMPRESION').trim() ? ' has-value' : '') + '" data-card-machine="' + id + '" title="Máquina de impresión: clic para elegirla">' + esc(traceField(row, 'MAQUINA DE IMPRESION').trim() || 'Seleccionar') + '</button></div>') + '<button class="trace-mts-btn' + (mtsV ? ' has-value' : '') + '" type="button" data-card-mts="' + id + '"><span class="mts-label">Ingresar MTS REQUERIDOS</span></button><button class="trace-mts-inventory" type="button" data-card-inventory="' + id + '">STOCK TELA ↗</button><div class="trace-mts-display' + (mtsV ? ' has-value' : '') + (detalleMateriales.length ? ' multi-material' : '') + '"><small>MTS REQUERIDOS</small><strong>' + detalleMtsHtml + '</strong></div></div><dl><div><dt>Referencia</dt><dd class="trace-ref" title="' + esc(traceField(row, 'REFERENCIA') || '') + '">' + esc(traceField(row, 'REFERENCIA') || '—') + '</dd>' + telaMarkup(row) + '</div>' + '<div><dt>Cantidad</dt><dd class="trace-quantity">' + esc(traceField(row, 'CANTIDAD') || '0') + ' <small>und.</small></dd></div><div class="trace-due ' + (summary.overdue ? 'late' : '') + '"><dt>' + dueLabel + '</dt><dd>' + esc(summary.due ? displayProductionDate(due) : 'Sin programar') + diasParaEntrega(summary) + '</dd></div><div><dt>Responsable del proceso</dt><dd>' + (responsible ? responsible.split(/[,;·\n]+/).filter(x => x.trim()).map(name => '<span class="trace-person">' + esc(name.trim()) + '</span>').join(' ') : '<span class="trace-unassigned">Sin asignar</span>') + '</dd></div></dl><div class="trace-card-meta"><span>' + notes + ' nota' + (notes === 1 ? '' : 's') + '</span><span>Fila ' + id + '</span></div><div class="trace-card-actions"><button type="button" class="operator-open" data-card-full-edit="' + id + '">PRODUCCIÓN</button><button type="button" data-card-detail="' + id + '">Ver detalle</button><button type="button" data-card-nas="' + id + '" aria-label="Abrir carpeta del pedido">NAS ↗</button></div></div>' + routeMarkup(row, summary) + '</article>';
     });
     // Sin parpadeo: solo se vuelven a dibujar las tarjetas que cambiaron; las demás se conservan tal cual (con su imagen y su scroll).
+    // Mantiene la altura durante el redibujado: la página no se encoge ni vuelve al inicio
+    traceCards.style.minHeight = traceCards.offsetHeight + 'px';
     if (!rows.length) {
       traceCards.innerHTML = '<div class="trace-empty"><h3>No hay pedidos en esta vista</h3><p>' + (filter === 'mine' ? 'No hay responsables que coincidan con tu usuario o iniciales. Prueba Todos o revisa la asignación.' : 'Prueba otro estado o cambia la búsqueda.') + '</p><button type="button" data-clear-trace>Ver todos</button></div>';
     } else {
@@ -723,8 +838,12 @@
       let previa = null;
       rows.forEach((row, i) => {
         const id = row.source_row, linea = String(traceField(row, 'LINEA') || '').trim().toUpperCase();
-        const firma = cardHtmls[i] + JSON.stringify([row.values, delFila(productionData.notes, id), delFila(productionData.note_entries, id), delFila(productionData.paused, id),
-          (productionData.web_orders || []).includes(String(traceField(row, 'ORDEN') || '').replace(/[\s-]+/g, '').toUpperCase()), (productionData.line_colors || {})[linea] || '',
+        // Los archivos visuales se actualizan directamente dentro de .trace-media.
+        // Excluirlos de la firma evita reemplazar toda la tarjeta (el parpadeo)
+        // cuando el sondeo de mockups termina, conservando sus animaciones y estado.
+        const firmaVista = cardHtmls[i].replace(traceAssetsMarkup(id), '');
+        const firma = firmaVista + JSON.stringify([row.values, summaries.get(id), delFila(productionData.notes, id), delFila(productionData.note_entries, id), delFila(productionData.paused, id),
+          productionData.materiales_mts?.[String(id)] || null, (productionData.web_orders || []).includes(String(traceField(row, 'ORDEN') || '').replace(/[\s-]+/g, '').toUpperCase()), (productionData.line_colors || {})[linea] || '',
           filter, selectedProcess, ownAreaFilter, canDelete, deletingRows.has(Number(id))]);
         let card = existentes.get(String(id));
         existentes.delete(String(id));
@@ -748,10 +867,43 @@
       traceCards.querySelector('.trace-empty p').textContent = ownProcess ? 'No hay pendientes para tu área. Desactiva PROCESO AL QUE PERTENECES para consultar todos los pedidos.' : 'Administración debe asignar un proceso de Indoor a tu cuenta.';
       traceCards.querySelector('[data-clear-trace]').textContent = 'Limpiar búsqueda';
     }
+    // La estructura básica se muestra primero. Los controles detallados de cada tarjeta
+    // se completan por cuadros de animación para que el panel responda de inmediato.
+    const enhancementQueue = [];
     traceCards.querySelectorAll(':scope > article[data-card-row]').forEach(card => {
-      if (!card._pendiente) return;   // tarjeta sin cambios: ya quedó armada, no se toca
+      const nasButton = card.querySelector('[data-card-nas]');
+      if (nasButton && !nasButton.classList.contains('trace-icon-action')) {
+        nasButton.classList.add('trace-icon-action', 'trace-nas-action');
+        nasButton.title = 'Abrir carpeta NAS';
+        nasButton.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h7l2 2h9v10H3zM12 14h7m-3-3 3 3-3 3"/></svg>';
+      }
+      if (card._pendiente) enhancementQueue.push(card);
+    });
+    // Conserva la posición antes de que los detalles de las tarjetas cambien su alto.
+    restaurar();
+    requestAnimationFrame(() => { traceCards.style.minHeight = ''; restaurar(); });
+    const finishTraceCards = () => {
+      restaurar();
+      if (focusKey && focusAttribute) traceCards.querySelector('[data-card-row="' + focusKey + '"] [' + focusAttribute + '="' + focusValue + '"]')?.focus({ preventScroll: true });
+      fitTraceCards();
+      refreshOperatorActions();
+    };
+    let enhancementIndex = 0;
+    const renderCardEnhancement = () => {
+      const card = enhancementQueue[enhancementIndex++];
+      if (!card) { finishTraceCards(); return; }
+      if (!card.isConnected || !card._pendiente) {
+        if (enhancementIndex < enhancementQueue.length) requestAnimationFrame(renderCardEnhancement);
+        else finishTraceCards();
+        return;
+      }
       card._pendiente = false;
       const row = rows.find(r => r.source_row === Number(card.dataset.cardRow));
+      if (!row) {
+        if (enhancementIndex < enhancementQueue.length) requestAnimationFrame(renderCardEnhancement);
+        else finishTraceCards();
+        return;
+      }
       card.querySelector('.trace-mts-inventory')?.remove();
       // Línea de producto (columna B del Sheet)
       const lineList = document.getElementById('order-lines');
@@ -798,14 +950,21 @@
       }
       if (canDelete) {
         const button = document.createElement('button');
-        button.type = 'button';button.textContent = 'ELIMINAR';button.dataset.cardDelete = row.source_row;
+        button.type = 'button';button.className = 'trace-icon-action trace-delete-action';button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5"/></svg>';button.dataset.cardDelete = row.source_row;
         button.disabled = deletingRows.has(Number(row.source_row));
-        button.setAttribute('aria-label', 'Eliminar orden ' + traceField(row, 'ORDEN') + ', fila ' + row.source_row);
+        button.setAttribute('aria-label', 'Eliminar orden ' + traceField(row, 'ORDEN') + ', fila ' + row.source_row);button.title = 'Eliminar orden';
         button.style.cssText = 'grid-column:1/-1;color:#ffb5ae!important;border-color:#8c524c!important;background:#392323!important';
         card.querySelector('.trace-card-actions').appendChild(button);
       }
-      // Las acciones operativas ya están en el encabezado; no repetimos el botón Producción.
-      card.querySelector('.operator-open')?.remove();
+      // El lápiz reutiliza el editor completo de Producción; no abre un formulario parcial.
+      const editButton = card.querySelector('.operator-open');
+      if (editButton) {
+        editButton.className = 'trace-icon-action trace-edit-action';
+        editButton.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l11-11-4-4L4 16v4zm10-14 4 4M4 20h16"/></svg>';
+        editButton.setAttribute('aria-label', 'Modificar toda la información de la orden ' + traceField(row, 'ORDEN') + ', fila ' + row.source_row);
+        editButton.title = 'Modificar información de la tarjeta';
+      }
+      card.querySelector('.trace-copy-preview')?.remove();
       const viewSummary = summaries.get(row.source_row);
       const progressSummary = viewSummary.route || viewSummary;
       const progress = card.querySelector('.trace-progress');
@@ -876,7 +1035,13 @@
         ['finish', 'FINALIZAR', activeClosed || !activeColumn],
         ['na', 'N/A', activeClosed || !activeColumn],
         ['clear', 'QUITAR ESTADO', !activeKey || !activeColumn]
-      ].map(([action, label, disabled]) => { const column = action === 'clear' ? clearColumn : activeColumn; const isDisabled = action === 'clear' ? !clearColumn : disabled; return '<button type="button" class="trace-order-' + action + '" data-card-operation="' + action + '" data-card-row="' + row.source_row + '" data-card-column="' + (column || '') + '" title="' + esc(action === 'clear' && clearGroup ? clearGroup.label : (activeGroup?.label || 'Sin proceso activo')) + '"' + (isDisabled ? ' disabled' : '') + '>' + label + '</button>'; }).join('');
+      ].map(([action, label, disabled]) => {
+        const column = action === 'clear' ? clearColumn : activeColumn;
+        const isDisabled = action === 'clear' ? !clearColumn : disabled;
+        const icon = ({ start: '▶', pause: 'Ⅱ', resume: '▶', finish: '✓', na: '⊘', clear: '↶' })[action] || '•';
+        const process = action === 'clear' && clearGroup ? clearGroup.label : (activeGroup?.label || 'Sin proceso activo');
+        return '<button type="button" class="trace-order-' + action + ' trace-order-icon" data-card-operation="' + action + '" data-card-operation-label="' + esc(label) + '" data-card-row="' + row.source_row + '" data-card-column="' + (column || '') + '" aria-label="' + esc(label + ': ' + process) + '" title="' + esc(label + ' · ' + process) + '"' + (isDisabled ? ' disabled' : '') + '><span aria-hidden="true">' + icon + '</span><span class="trace-sr-only">' + esc(label) + '</span></button>';
+      }).join('');
       const heading = card.querySelector('.trace-card-heading');
       heading.insertBefore(headerActions, heading.querySelector('.trace-stage'));
       if (ownGroup) {
@@ -957,11 +1122,12 @@
       toggle.setAttribute('aria-label', 'Detalles de la orden ' + traceField(row, 'ORDEN'));
       toggle.textContent = '☰';
       card.prepend(toggle);
-    });
-    traceCards.scrollTop = scrollTop;
-    if (focusKey && focusAttribute) traceCards.querySelector('[data-card-row="' + focusKey + '"] [' + focusAttribute + '="' + focusValue + '"]')?.focus({ preventScroll: true });
-    fitTraceCards();
-    refreshOperatorActions();
+      habilitarCopiaDeTexto(card);
+      if (enhancementIndex < enhancementQueue.length) requestAnimationFrame(renderCardEnhancement);
+      else finishTraceCards();
+    };
+    if (enhancementQueue.length) requestAnimationFrame(renderCardEnhancement);
+    else finishTraceCards();
   };
   // Boton "X" en cada nota: la borra por completo (misma API que el editor de notas de la tabla).
   traceCards.addEventListener('click', async event => {
@@ -1189,7 +1355,7 @@
       if (!reason || reason.length > 2000) { alert('Escribe una observación entre 1 y 2000 caracteres.'); return; }
     }
     if (action === 'clear' && !confirm('¿Cambiar el estado de este proceso a pendiente?')) return;
-    const label = button.querySelector('strong')?.textContent || 'acción';
+    const label = button.dataset.cardOperationLabel || button.querySelector('strong')?.textContent || 'acción';
     button.disabled = true;
     try {
       const response = await fetch('/api/produccion/operacion', {
@@ -1221,7 +1387,63 @@
   document.head.appendChild(pauseStyle);
   const diasStyle = document.createElement('style'); diasStyle.textContent = '.trace-entrega-dias{grid-column:1/-1;display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding-top:2px}.trace-entrega-dias small{color:#8e9c8f;font:800 9px Arial;letter-spacing:.1em}.trace-entrega-dias b{color:#f1f7ed;font:800 12.5px Arial}.trace-entrega-dias .trace-dias{margin-left:0;font:900 13px Arial;padding:4px 12px}.trace-entrega-dias small{font-size:11px!important}.trace-entrega-dias b{font-size:13.5px}.trace-dias{display:inline-block;margin-left:8px;padding:2px 9px;border-radius:99px;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.08);color:#e8f0e0;font:800 10.5px Arial;letter-spacing:.04em;white-space:nowrap}.trace-dias.dias-ok{border-color:rgba(208,244,76,.5);color:#d0f44c}.trace-dias.dias-cerca{border-color:rgba(243,184,82,.7);background:rgba(243,184,82,.14);color:#ffd98a}.trace-dias.dias-hoy{border-color:rgba(243,184,82,.9);background:rgba(243,184,82,.24);color:#ffe9b8}.trace-dias.dias-tarde{border-color:rgba(255,107,97,.8);background:rgba(255,107,97,.18);color:#ffb3ac}'; document.head.appendChild(diasStyle);
   const inventoryQuickStyle = document.createElement('style'); inventoryQuickStyle.textContent = '.trace-card .trace-primary-facts .trace-horas{grid-column:1/-1;display:flex;justify-content:flex-end;gap:8px;margin-top:-2px}.trace-horas span{display:flex;align-items:baseline;gap:6px;min-width:74px;justify-content:space-between;padding:4px 9px;border:1px solid rgba(255,255,255,.14);border-radius:8px;background:rgba(255,255,255,.03)}.trace-horas small{color:#8e9c8f;font:800 8.5px Arial;letter-spacing:.08em}.trace-horas b{color:#f1f7ed;font:800 12.5px Arial}.trace-horas.en-curso span:first-child{border-color:rgba(208,244,76,.55)}.trace-horas.en-curso span:first-child b{color:#d0f44c}.trace-mts-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.trace-mts-inventory{width:auto!important;min-height:32px;padding:7px 10px;border:1px solid #6ca8c7!important;border-radius:8px;background:#19303b!important;color:#c3edff!important;font:800 10px Arial!important}'; document.head.appendChild(inventoryQuickStyle);
+  function textoTarjetaCopiable(row, summary) {
+    const mts = String(productionData.notes?.[row.source_row + ':17'] || '').trim() || 'Sin registrar';
+    const responsable = summary.focus?.responsible || 'Sin asignar';
+    return [
+      'ORDEN: ' + (traceField(row, 'ORDEN') || 'Sin número'),
+      'CLIENTE: ' + (traceField(row, 'NOMBRE DEL CLIENTE') || 'Sin cliente'),
+      'PROYECTO: ' + (traceField(row, 'NOMBRE PROYECTO') || '—'),
+      'REFERENCIA: ' + (traceField(row, 'REFERENCIA') || '—'),
+      'CANTIDAD: ' + (traceField(row, 'CANTIDAD') || '0') + ' und.',
+      'TELA: ' + (traceField(row, 'NOMBRE TELA') || traceField(row, 'TELA') || '—'),
+      'ENTREGA: ' + (traceField(row, 'FECHA DE ENTREGA') || 'Sin programar'),
+      'MÁQUINA DE IMPRESIÓN: ' + (traceField(row, 'MAQUINA DE IMPRESION') || 'Sin asignar'),
+      'MTS REQUERIDOS: ' + mts,
+      'ESTADO: ' + (labels[summary.state] || 'Pendiente'),
+      'RESPONSABLE: ' + responsable
+    ].join('\n');
+  }
+  function copiarTexto(texto) {
+    const value = String(texto || '').trim();
+    if (!value) return Promise.resolve();
+    if (navigator.clipboard?.writeText) return navigator.clipboard.writeText(value);
+    const area = document.createElement('textarea');
+    area.value = value; area.style.position = 'fixed'; area.style.opacity = '0';
+    document.body.appendChild(area); area.select(); document.execCommand('copy'); area.remove();
+    return Promise.resolve();
+  }
+  function habilitarCopiaDeTexto(card) {
+    const selector = '.trace-card-heading h3,.trace-client,.trace-project,.trace-stage,.trace-mts-display strong,.trace-ref,.trace-quantity,.trace-due dd,.trace-person,.trace-unassigned,.trace-manufacture h4,.trace-manufacture .trace-material-facts strong,.trace-production-note,.trace-primary-facts dd';
+    card.querySelectorAll(selector).forEach(texto => {
+      if (!texto.textContent.trim() || texto.closest('button,a,[role="button"]')) return;
+      texto.dataset.copyText = texto.textContent.trim();
+      texto.classList.add('trace-text-copy');
+      texto.title = 'Clic para copiar';
+    });
+  }
   traceCards.addEventListener('click', event => {
+    const textCopy = event.target.closest('[data-copy-text]');
+    if (textCopy && !event.target.closest('button,a,[role="button"]')) {
+      event.preventDefault(); event.stopImmediatePropagation();
+      copiarTexto(textCopy.dataset.copyText).then(() => {
+        textCopy.classList.remove('is-copied');
+        void textCopy.offsetWidth;
+        textCopy.classList.add('is-copied');
+        setTimeout(() => textCopy.classList.remove('is-copied'), 1150);
+      });
+      return;
+    }
+    const copyButton = event.target.closest('[data-card-copy]');
+    if (copyButton) {
+      event.preventDefault(); event.stopImmediatePropagation();
+      const row = productionData.rows.find(item => Number(item.source_row) === Number(copyButton.dataset.cardCopy));
+      if (!row) return;
+      const texto = textoTarjetaCopiable(row, summaries.get(row.source_row) || {});
+      copiarTexto(texto)
+        .then(() => { const anterior = copyButton.title; copyButton.title = '¡Copiado!'; copyButton.classList.add('is-copied'); setTimeout(() => { copyButton.title = anterior; copyButton.classList.remove('is-copied'); }, 1600); });
+      return;
+    }
     const button = event.target.closest('[data-card-nas]');
     if (!button) return;
     event.preventDefault();
@@ -1264,6 +1486,12 @@
     };
     setTimeout(apply, 200);
   };
+  traceCards.addEventListener('click', event => {
+    const editButton = event.target.closest('[data-card-full-edit]');
+    if (!editButton) return;
+    event.preventDefault(); event.stopImmediatePropagation();
+    openCardEditor(Number(editButton.dataset.cardFullEdit));
+  }, true);
   traceCards.addEventListener('click', event => {
     const inventoryButton = event.target.closest('[data-card-inventory]');
     if (inventoryButton) {
@@ -1586,7 +1814,7 @@
       }
       requestAnimationFrame(fitTraceCards);
     }
-    backToTop.hidden = !active || position < 220;
+    backToTop.hidden = !active || position < 80;
   }
   const queueScroll = () => { if (!scrollFrame) scrollFrame = requestAnimationFrame(updateTraceScroll); };
   traceCards.addEventListener('scroll', queueScroll, { passive: true });
@@ -1599,7 +1827,7 @@
   const scrollStyle = document.createElement('style');
   scrollStyle.textContent = `
   .trace-scroll-controls{display:none;width:auto;min-height:36px;padding:7px 12px;border:1px solid #496150;border-radius:8px;background:#24372a;color:#e0efce;box-shadow:none;font:600 12px Arial}
-  .trace-back-top{position:fixed;right:28px;bottom:max(22px,env(safe-area-inset-bottom));z-index:30;width:auto;min-height:44px;padding:11px 17px;background:#d0ec93;color:#1c2b13;border:1px solid #e4f8bb;border-radius:24px;box-shadow:0 5px 22px #0006;font:600 13px Arial}
+  .trace-back-top{position:fixed!important;right:28px!important;left:auto!important;bottom:max(22px,env(safe-area-inset-bottom))!important;z-index:9999!important;width:auto!important;min-height:44px;padding:11px 17px;background:#d0ec93;color:#1c2b13;border:1px solid #e4f8bb;border-radius:24px;box-shadow:0 5px 22px #0006;font:700 13px Arial;cursor:pointer}
   .trace-back-top[hidden]{display:none!important}
   body.production-mode.trace-cards-mode .production-toolbar{transition:padding .2s ease}
   body.production-mode.trace-cards-mode .production-process-filter{max-height:260px;transition:max-height .2s ease,padding .2s ease;overflow:hidden}
@@ -1865,6 +2093,17 @@
   document.head.appendChild(statusColors);
   renderTraceCards();
   updateTraceScroll();
+  // Agrupa las mutaciones que renderProduction hace de una vez. Así las
+  // tarjetas se actualizan cuando el tbody ya terminó de reconstruirse y no
+  // muestran un estado vacío entre dos renderizados.
+  let traceBodyRenderFrame = 0;
+  new MutationObserver(() => {
+    cancelAnimationFrame(traceBodyRenderFrame);
+    traceBodyRenderFrame = requestAnimationFrame(() => {
+      traceBodyRenderFrame = 0;
+      if (traceView === 'cards') renderTraceCards();
+    });
+  }).observe(productionBody, { childList: true });
   new ResizeObserver(fitTraceCards).observe(toolbar);
 })();
 
@@ -2142,6 +2381,10 @@
   html body.production-mode .trace-card .trace-card-body> :not(.trace-disclosure){flex-shrink:0}
   html body.production-mode .trace-card .trace-card-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:5px;margin-top:auto;padding-top:10px}
   html body.production-mode .trace-card .trace-card-actions button{grid-column:auto!important;min-height:38px;min-width:0;padding:8px 3px;font-size:11px!important;white-space:nowrap}
+  html body.production-mode .trace-card .trace-card-actions:has(.trace-edit-action){grid-template-columns:repeat(3,minmax(0,1fr))!important}
+  html body.production-mode .trace-card .trace-card-actions .trace-nas-action{order:1}
+  html body.production-mode .trace-card .trace-card-actions .trace-edit-action{order:2}
+  html body.production-mode .trace-card .trace-card-actions .trace-delete-action{order:3}
   html body.production-mode .trace-card .trace-card-actions [data-card-nas]{opacity:1;color:#e7f5ca!important;border-color:#7d9655!important}
   html body.production-mode .trace-card .trace-card-actions:not(:has([data-card-delete])){grid-template-columns:1fr!important}
   html body.production-mode .trace-card-heading{gap:6px;align-items:center;flex-wrap:wrap}
@@ -2275,6 +2518,7 @@
   html body.production-mode .trace-card .trace-order-note{grid-area:note;justify-self:end;align-self:center}
   html body.production-mode .trace-card .trace-order-actions{grid-area:actions;display:grid!important;grid-template-columns:repeat(auto-fit,minmax(86px,1fr));gap:6px;width:100%;padding:8px;border:1px solid rgba(128,140,120,.28);border-radius:12px;background:rgba(128,140,120,.08)}
   html body.production-mode .trace-card .trace-order-actions>button{width:100%;margin:0;justify-content:center;white-space:nowrap}
+  html body.production-mode .trace-sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
   html body.production-mode .trace-card .trace-mts-row{grid-area:mts;margin:0!important}
   html body.production-mode .trace-card .trace-primary-facts{grid-area:facts;display:grid!important;grid-template-columns:minmax(0,1fr) auto;gap:12px;margin:0!important;padding:11px 14px;border-radius:12px;background:rgba(128,140,120,.1)}
   html body.production-mode .trace-card .trace-inline-notes{grid-area:notes;margin:0!important;max-height:172px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(128,140,120,.5) transparent}
@@ -2320,6 +2564,12 @@
   html body.production-mode .trace-card .trace-mts-actions button{width:20px!important;min-width:20px!important;height:20px!important;min-height:20px!important;padding:0!important;border-radius:6px!important;font-size:11px!important;line-height:1!important}
   html body.production-mode .trace-card .trace-mts-actions button svg{width:11px!important;height:11px!important}
   html body.production-mode .trace-card .trace-mts-display.has-value strong{padding-right:28px!important}
+  html body.production-mode .trace-card .trace-mts-display.multi-material{align-content:start}
+  html body.production-mode .trace-card .trace-mts-display.multi-material strong{display:grid;gap:4px;min-width:0;white-space:normal!important;overflow:visible!important;text-overflow:clip!important;line-height:1.25}
+  html body.production-mode .trace-card .trace-mts-lines{display:grid;gap:3px}
+  html body.production-mode .trace-card .trace-mts-line{display:block;min-width:0;font-size:10px;letter-spacing:0;white-space:nowrap;overflow:visible;text-overflow:clip}
+  html body.production-mode .trace-card .trace-mts-line b{color:#d0f44c;font-weight:900}
+  html body.production-mode .trace-card .trace-mts-line em{color:#eff7dc;font-style:normal;font-weight:800}
   html body.production-mode .trace-card .trace-machine-top{display:grid;gap:3px;align-content:center;min-width:0;padding:7px 10px;border:1px solid #3d4f3d;border-radius:10px;background:rgba(255,255,255,.03)}
   html body.production-mode .trace-card .trace-machine-top small{color:#9fb08c;font:800 9px Arial;letter-spacing:.09em;text-transform:uppercase}
   html body.production-mode .trace-card .trace-machine-top .trace-machine-btn{width:100%!important;height:auto!important;min-height:28px!important;padding:5px 8px!important;font-size:12px!important;line-height:1.2!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important;overflow-wrap:anywhere;text-align:center}
@@ -2335,8 +2585,27 @@
   html body.production-mode .trace-quick-filters button:before{width:6px!important;height:6px!important}
   html body.production-mode .trace-quick-filters button span{font-size:11px!important;line-height:1.2!important;padding:1px 6px!important;border-radius:999px!important}
   html body.production-mode .trace-quick-filters button[aria-pressed=true]{box-shadow:none!important}
+  html body.production-mode .trace-card .trace-card-actions .trace-icon-action{display:grid!important;place-items:center!important;padding:0!important;font-size:0!important}
+  html body.production-mode .trace-card .trace-card-actions .trace-icon-action svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+  html body.production-mode .trace-card .trace-card-actions .trace-edit-action{color:#bde9ff!important;border-color:#5f9fbd!important;background:#18313c!important}
+  html body.production-mode .trace-card .trace-card-actions .trace-copy-action{color:#f4f7ee!important;border-color:#799086!important;background:#23332b!important}
+  html body.production-mode .trace-card .trace-card-actions .trace-copy-action.is-copied{color:#d6f64b!important;border-color:#b5df54!important;background:#31481b!important}
+  html body.production-mode .trace-text-copy{position:relative;cursor:copy;border-radius:3px;transition:color .16s ease}
+  html body.production-mode .trace-text-copy:hover{color:#e2fb9c!important}
+  html body.production-mode .trace-text-copy:after{content:'';position:absolute;left:0;right:0;bottom:-4px;height:2px;border-radius:99px;background:linear-gradient(90deg,transparent,#d0f44c,transparent);opacity:0;transform:scaleX(.18)}
+  html body.production-mode .trace-text-copy.is-copied:after{animation:trace-copy-shimmer 1.1s ease-out both}
+  @keyframes trace-copy-shimmer{0%{opacity:0;transform:scaleX(.18)}18%{opacity:1;transform:scaleX(1)}70%{opacity:.85;transform:scaleX(.72)}100%{opacity:0;transform:scaleX(.2)}}
+  html body.production-mode .trace-card .trace-card-actions .trace-nas-action{color:#d6f64b!important;border-color:#819e4b!important}
+  html body.production-mode .trace-card .trace-card-actions .trace-delete-action{color:#ffb5ae!important;border-color:#8c524c!important;background:#392323!important}
+  .trace-card-editor-message.is-success{padding:6px 9px;border:1px solid #b7ed59;border-radius:7px;background:#273d18;color:#d0f44c;font:800 11px/1.25 Arial;letter-spacing:.01em}.trace-card-editor-message.is-error{color:#ffaaa2}
+  .trace-card-editor{width:min(920px,94vw);max-height:88dvh;overflow:auto;margin:auto;padding:0;border:1px solid #55705b;border-radius:16px;background:#132119;color:#edf5eb;box-shadow:0 25px 80px #000b}.trace-card-editor::backdrop{background:#000b}.trace-card-editor-form{display:grid;gap:18px;padding:22px}.trace-card-editor header{display:flex;justify-content:space-between;gap:18px;padding-bottom:16px;border-bottom:1px solid #3d5141}.trace-card-editor h2{margin:4px 0;font:700 22px Arial}.trace-card-editor header p{margin:0;color:#aebdaf;font:13px/1.5 Arial}.trace-card-editor-close{flex:0 0 auto;width:36px!important;min-height:36px!important;padding:0!important;border:1px solid #607363!important;border-radius:9px!important;background:#1d2f23!important;color:#fff!important;font:700 20px/1 Arial!important}.trace-card-editor-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.trace-card-editor-field{display:grid;gap:6px;min-width:0}.trace-card-editor-field.long{grid-column:1/-1}.trace-card-editor-field span{font:800 10px Arial;letter-spacing:.07em;color:#a9baab}.trace-card-editor-field input,.trace-card-editor-field textarea{box-sizing:border-box;width:100%;border:1px solid #4d6451;border-radius:8px;background:#203328;color:#f1f6ed;padding:10px 11px;font:14px Arial}.trace-card-editor-field textarea{resize:vertical;min-height:78px}.trace-card-editor-message{min-height:20px;margin:0;color:#ffd28e;font:13px Arial}.trace-card-editor footer{display:flex;justify-content:flex-end;gap:10px;padding-top:14px;border-top:1px solid #3d5141}.trace-card-editor footer button{min-height:42px;padding:9px 15px;border-radius:8px;border:1px solid #61765f;background:#25392b;color:#eaf2e7;font:700 13px Arial}.trace-card-editor .trace-card-editor-save{background:#d0ec93;color:#1d2b14;border-color:#d0ec93}.trace-card-editor .trace-card-editor-save:disabled{opacity:.6;cursor:wait}@media(max-width:600px){.trace-card-editor-form{padding:16px;gap:14px}.trace-card-editor-fields{grid-template-columns:1fr}.trace-card-editor h2{font-size:18px}.trace-card-editor footer{position:sticky;bottom:-16px;padding:12px 0;background:#132119}.trace-card-editor footer button{flex:1}}
   @media(max-width:860px){
     html body.production-mode .trace-quick-filters button{min-height:40px!important;padding:6px 12px!important;white-space:nowrap}
+  }
+  /* Las tarjetas que están fuera del área visible no se pintan hasta que el
+     usuario se acerca a ellas. Reduce CPU/GPU al navegar listas pesadas. */
+  @supports(content-visibility:auto){
+    html body.production-mode .trace-card{content-visibility:auto;contain-intrinsic-size:560px}
   }
   `;
   document.head.appendChild(style);

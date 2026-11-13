@@ -314,4 +314,9 @@ def guardar(payload: dict, request: Request):
         else:
             d.pop(codigo, None)
         _guardar(d)
+    try:
+        from app import tiempo_real
+        tiempo_real.avisar('info_tela')   # los agentes se enteran al instante
+    except Exception:   # noqa: BLE001
+        pass
     return {'ok': True}

@@ -294,6 +294,26 @@ def _releer(codigo: str) -> None:
         _guardar(d)
 
 
+_proceso: dict = {}   # lo que STOCKMAN está haciendo ahora (para el aviso de la esquina); solo en memoria
+
+
+def _proceso_set(fase: str, tela: str = '', detalle: str = '', corto: str = '') -> None:
+    _proceso.clear()
+    _proceso.update(fase=fase, tela=tela, detalle=detalle, corto=corto, desde=time.time(), hasta=0)
+
+
+def _proceso_fin(fase: str, detalle: str, tela: str = '', segundos: float = 8, corto: str = '') -> None:
+    _proceso.clear()
+    _proceso.update(fase=fase, tela=tela, detalle=detalle, corto=corto, desde=time.time(), hasta=time.time() + segundos)
+
+
+def proceso_actual() -> dict | None:
+    p = dict(_proceso)
+    if not p or (p.get('hasta') and time.time() > p['hasta']) or (not p.get('hasta') and time.time() - p.get('desde', 0) > 600):
+        return None
+    return {'fase': p['fase'], 'tela': p.get('tela', ''), 'detalle': p.get('detalle', ''), 'activo': not p.get('hasta'), 'corto': p.get('corto', ''), 'id': int(p.get('desde', 0) * 1000)}
+
+
 def aplicar_tela(codigo: str, usuario: str) -> dict:
     """Escribe en Effi, un ajuste por bodega, la diferencia para que la tela quede igual que en el panel; después vuelve a leer la tela en Effi."""
     if not _usar_api():
@@ -303,6 +323,7 @@ def aplicar_tela(codigo: str, usuario: str) -> dict:
     if not fila or fila['estado'] in ('sin_articulo', 'igual'):
         raise HTTPException(404, 'Esa tela no tiene nada que ajustar.')
     hechos = []
+    _proceso_set('ajustando', fila['tela'], 'Igualando la tela en Effi con el inventario del panel', f"Igualando {fila['tela']} en Effi")
 
     def registrar(estado, tipo_op, origen, destino, cantidad, ident='', detalle=''):
         hechos.append({'codigo': codigo, 'tela': fila['tela'], 'bodega': (f"{origen} → {destino}" if tipo_op == 'traslado' else (origen if tipo_op == 'egreso' else destino)), 'delta': cantidad, 'estado': estado, 'tipo': 'a_effi',
@@ -310,6 +331,7 @@ def aplicar_tela(codigo: str, usuario: str) -> dict:
 
     def fallo(exc, tipo_op, origen, destino, cantidad):
         registrar('error', tipo_op, origen, destino, cantidad, detalle=str(exc)[:200])
+        _proceso_fin('error', f'Effi no aceptó el {tipo_op}: ' + str(exc)[:100], fila['tela'], corto=f"Effi no aceptó el {tipo_op} · {fila['tela']}")
         with _lock:
             d = _leer()
             d['ajustes'] = (d['ajustes'] + hechos)[-200:]
@@ -369,6 +391,7 @@ def aplicar_tela(codigo: str, usuario: str) -> dict:
             _guardar(d)
     except Exception:   # noqa: BLE001
         log.exception('STOCKMAN: no pude releer la tela tras ajustarla')
+    _proceso_fin('listo', f'{len(hechos)} movimiento(s) hechos en Effi', fila['tela'], corto=f"{len(hechos)} movimiento(s) en Effi · {fila['tela']}")
     return {'ok': True, 'ajustes': len(hechos)}
 
 
@@ -420,6 +443,7 @@ def aplicar_cambio(c: dict, usuario: str) -> dict:
         raise HTTPException(404, 'Esa tela no tiene artículo en Effi.')
     clave = 'sm-' + hashlib.sha1(f"{c['codigo']}|{c['bodega']}|{c['antes']}|{c['ahora']}".encode()).hexdigest()[:24]
     nombre = _NOMBRE_BODEGA.get(c['bodega']) or _OTRAS.get(c['bodega'], c['bodega'])
+    _proceso_set('ajustando', v.get('nombre_effi') or c['codigo'], f"Ajustando {nombre} {c['delta']:+g} mts en Effi para igualar al panel", f"Ajustando {nombre} {c['delta']:+g} mts · {v.get('nombre_effi') or c['codigo']}")
     try:
         r = effi_api.crear_ajuste(clave, int(c['bodega']), v['id_effi'], c['delta'], f'{PROPIO} ({usuario})', costo=v.get('costo'))
     except Exception as exc:   # noqa: BLE001
@@ -427,6 +451,7 @@ def aplicar_cambio(c: dict, usuario: str) -> dict:
             d = _leer()
             d['ajustes'] = (d['ajustes'] + [{'codigo': c['codigo'], 'tela': v.get('nombre_effi') or c['codigo'], 'bodega': nombre, 'delta': c['delta'], 'estado': 'error', 'tipo': 'a_effi', 'detalle': str(exc)[:200], 'por': usuario, 'at': _iso()}])[-200:]
             _guardar(d)
+        _proceso_fin('error', f'Effi no aceptó el ajuste de {nombre}: ' + str(exc)[:100], v.get('nombre_effi') or c['codigo'], corto=f"Effi no aceptó el ajuste de {nombre}")
         raise HTTPException(502, f'Effi no aceptó el ajuste de {nombre}: {str(exc)[:150]}')
     with _lock:
         d = _leer()
@@ -436,6 +461,7 @@ def aplicar_cambio(c: dict, usuario: str) -> dict:
         _guardar(d)
     log.warning('STOCKMAN: ajuste %s en Effi · %s · %s %+g mts (por %s)', r['id'], v.get('nombre_effi'), nombre, c['delta'], usuario)
     _releer(c['codigo'])
+    _proceso_fin('listo', f"Ajuste {r['id']} hecho: {nombre} {c['delta']:+g} mts", v.get('nombre_effi') or c['codigo'], corto=f"Ajuste {r['id']} · {nombre} {c['delta']:+g} mts · {v.get('nombre_effi') or c['codigo']}")
     return r
 
 
@@ -684,17 +710,33 @@ def actualizar(request: Request):
     return refrescar_nombres()
 
 
+_completo_pedido = threading.Event()   # INFORMACIÓN TELA cambió: la próxima vuelta lee de nuevo todos los artículos de Effi
+MIN_ENTRE = 10
+
+
+def despertar(motivo: str = '') -> None:
+    """Algo que STOCKMAN usa cambió: INFORMACIÓN TELA (ID de Effi, nombres) o el inventario del panel. Despierta ya, sin esperar los 2 minutos."""
+    if motivo == 'info_tela':
+        _completo_pedido.set()
+    _despertar.set()
+
+
 def _bucle() -> None:
     time.sleep(90)
     while True:
         try:
-            ciclo()
+            completo = _completo_pedido.is_set()
+            _completo_pedido.clear()
+            ciclo(completo=completo)
         except Exception:   # noqa: BLE001
             log.exception('STOCKMAN: fallo en el ciclo')
+        time.sleep(MIN_ENTRE)
         if _despertar.wait(CICLO):   # un aviso de Effi (webhook) lo despierta ya; si no, revisa cada 2 minutos
             _despertar.clear()
             time.sleep(3)   # unos segundos para que Effi termine de guardar el ajuste
 
 
 def start() -> None:
+    from app import tiempo_real
+    tiempo_real.suscribir(despertar)
     threading.Thread(target=_bucle, name='stockman', daemon=True).start()

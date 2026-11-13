@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow">
+<title>Aprobar reprogramación · Indoor Sport</title>
+<style>
+:root{color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:grid;place-items:center;padding:20px;background:radial-gradient(60% 50% at 20% 10%,rgba(208,244,76,.22),transparent 70%),radial-gradient(50% 45% at 90% 90%,rgba(88,170,120,.3),transparent 70%),#080b08;color:#f2f7ea;font:16px/1.5 Arial,Helvetica,sans-serif}
+main{width:min(560px,100%);padding:26px;border:1px solid rgba(255,255,255,.2);border-radius:26px;background:linear-gradient(150deg,rgba(255,255,255,.12),rgba(255,255,255,.03)),rgba(14,24,16,.6);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);box-shadow:0 20px 50px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.2)}
+.eyebrow{color:#d0f44c;font:800 11px Arial;letter-spacing:.16em}
+h1{margin:6px 0 4px;font:900 clamp(22px,5vw,28px) Arial}
+.resumen{margin:14px 0;padding:14px 16px;border-radius:16px;background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.12);display:grid;gap:4px;font-size:.95rem}
+.resumen b{color:#d0f44c}
+.fila{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+button,a.bt{flex:1 1 180px;min-height:50px;padding:0 18px;border:0;border-radius:14px;background:#d0f44c;color:#142017;font:900 14px Arial;letter-spacing:.04em;cursor:pointer;text-align:center;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
+a.bt.sec{background:rgba(255,255,255,.12);color:#f2f7ea}
+button:disabled{opacity:.55;cursor:default}
+.ok{margin-top:14px;padding:14px;border-radius:14px;background:#1b2a1b;color:#d0f44c;font-weight:700}
+.mal{margin-top:14px;padding:14px;border-radius:14px;background:#3a2218;color:#ffd0b0;font-weight:700}
+small{color:#a9b5a3}
+</style></head>
+<body><main>
+<span class="eyebrow">TIENDA CLUB</span>
+<h1>Aprobando la reprogramación…</h1>
+<div class="resumen">__RESUMEN__</div>
+<div id="zona">__ZONA__</div>
+<p><small>Este enlace es personal: solo sirve para esta reprogramación y vence en 7 días. Al aprobarla, los agentes de TIENDA CLUB la preparan y la programan.</small></p>
+</main>
+<script>
+(function(){
+  var b=document.getElementById('aprobar'),zona=document.getElementById('zona');
+  if(!b)return;
+  b.addEventListener('click',function(){
+    b.disabled=true;b.textContent='Aprobando…';
+    fetch('/api/club/aprobar-correo/__TOKEN__',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})
+      .then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d}})})
+      .then(function(x){
+        if(x.ok){document.querySelector('h1').textContent='Reprogramación aprobada';zona.innerHTML='<div class="ok">✔ '+x.d.mensaje+'</div>'}
+        else{zona.innerHTML='<div class="mal">'+(x.d.detail||'No se pudo aprobar')+'</div><div class="fila"><a class="bt sec" href="__PANEL__">Abrir el panel</a></div>'}
+      })
+      .catch(function(){b.disabled=false;b.textContent='✔ Aprobar reprogramación';zona.insertAdjacentHTML('beforeend','<div class="mal">Sin conexión. Intenta de nuevo.</div>')});
+  });
+  setTimeout(function(){b.click()},350);   // al abrir el enlace se aprueba solo; el botón queda por si falla la conexión
+})();
+</script></body></html>

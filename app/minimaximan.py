@@ -162,6 +162,31 @@ def evaluar() -> list[dict]:
     return sorted(filas, key=lambda f: (orden.get(f['estado'], 9), f['tela']))
 
 
+_proceso: dict = {}   # lo que MINIMAXIMAN está haciendo ahora mismo (para el robot de la pantalla); solo en memoria
+
+
+def _proceso_set(fase: str, tela: str = '', detalle: str = '', corto: str = '') -> None:
+    _proceso.clear()
+    _proceso.update(fase=fase, tela=tela, detalle=detalle, corto=corto, desde=time.time(), hasta=0)
+
+
+def _proceso_fin(fase: str, detalle: str, tela: str = '', segundos: float = 8, corto: str = '') -> None:
+    """Deja el mensaje final (Listo / Error) a la vista unos segundos."""
+    _proceso.clear()
+    _proceso.update(fase=fase, tela=tela, detalle=detalle, corto=corto, desde=time.time(), hasta=time.time() + segundos)
+
+
+def proceso_actual() -> dict | None:
+    p = dict(_proceso)
+    if not p:
+        return None
+    if p.get('hasta') and time.time() > p['hasta']:
+        return None
+    if not p.get('hasta') and time.time() - p.get('desde', 0) > 600:   # algo quedó colgado: no se muestra para siempre
+        return None
+    return {'fase': p['fase'], 'tela': p.get('tela', ''), 'detalle': p.get('detalle', ''), 'activo': not p.get('hasta'), 'corto': p.get('corto', ''), 'id': int(p.get('desde', 0) * 1000)}
+
+
 def _crear(f: dict) -> dict | None:
     """Crea (o reintenta) la orden de compra de esa tela directamente en Effi por la API. Devuelve la compra guardada."""
     if not f.get('id_effi'):
@@ -178,6 +203,7 @@ def _crear(f: dict) -> dict | None:
                       'detalle': '', 'intentos': 1, 'creado': _iso(), 'stock': f['stock'], 'minimo': f['minimo'], 'maximo': f['maximo']}
             e['compras'].append(compra)
         _guardar(e)
+    _proceso_set('creando', f['tela'], f"Creando la orden de compra de {f['pedir']:g} mts en Effi para {f['proveedor']}", f"Creando orden de {f['pedir']:g} mts · {f['tela']}")
     try:
         r = effi_api.crear_orden(f'mm{compra["id"]}', f['codigo'], float(f['pedir']), f['proveedor'], observacion='Orden creada por MINIMAXIMAN (reposición al stock máximo)', id_articulo=f.get('id_effi', ''))
         compra.update(estado='creada', oc=str(r['oc']), detalle=str(r['detalle'])[:300], creada=_iso())
@@ -192,7 +218,11 @@ def _crear(f: dict) -> dict | None:
         e['compras'] = [compra if c['id'] == compra['id'] else c for c in e['compras']][-200:]
         _guardar(e)
     if compra['estado'] == 'creada':
+        _proceso_set('creando', f['tela'], f"Orden {compra['oc']} creada: avisando por correo al encargado", f"Orden {compra['oc']} creada · avisando por correo")
         _correo_creada(compra)
+        _proceso_fin('listo', f"Orden de compra {compra['oc']} creada · {f['pedir']:g} mts · espera tu aprobación", f['tela'], corto=f"Orden {compra['oc']} creada · {f['pedir']:g} mts · {f['tela']}")
+    else:
+        _proceso_fin('error', 'Effi no aceptó la orden: ' + str(compra.get('detalle', ''))[:120], f['tela'], corto=f"Effi no aceptó la orden · {f['tela']}")
     return compra
 
 
@@ -214,6 +244,7 @@ def revisar(crear: bool | None = None) -> dict:
     """Calcula y, si MINIMAXIMAN está activo (o se pide crear=True), crea las órdenes de compra que hagan falta."""
     with _lock:
         activo = _leer()['activo'] if crear is None else bool(crear)
+    _proceso_set('revisando', '', 'Revisando el stock de cada tela contra su mínimo y su máximo')
     try:
         filas = evaluar()
         error = ''
@@ -233,6 +264,8 @@ def revisar(crear: bool | None = None) -> dict:
         e = _leer()
         e.update(ultima=_iso(), resultado=filas, error=error)
         _guardar(e)
+    if not _proceso.get('hasta'):   # si no quedó ya un «Listo» de una orden, se muestra el resultado de la revisión
+        _proceso_fin('listo' if not error else 'error', (f'Revisión terminada · {len(filas)} telas' + (f' · {nuevas} órdenes nuevas' if nuevas else ' · nada que pedir')) if not error else error, segundos=4)
     return {'telas': len(filas), 'nuevas': nuevas, 'activo': activo, 'error': error}
 
 
@@ -257,6 +290,16 @@ def alertas_para(usuario: str) -> list[dict]:
     return salida[:10]
 
 
+_despertar = threading.Event()
+MIN_ENTRE = 15   # segundos mínimos entre dos revisiones seguidas (los avisos llegan en ráfagas)
+
+
+def despertar(motivo: str = '') -> None:
+    """Algo que MINIMAXIMAN usa cambió (INFORMACIÓN TELA o el inventario): revisa ya, sin esperar los 10 minutos."""
+    log.info('MINIMAXIMAN despertado por %s', motivo)
+    _despertar.set()
+
+
 def _bucle() -> None:
     time.sleep(150)
     while True:
@@ -264,10 +307,15 @@ def _bucle() -> None:
             revisar()
         except Exception:   # noqa: BLE001
             log.exception('MINIMAXIMAN: fallo en la revisión periódica')
-        time.sleep(INTERVALO)
+        time.sleep(MIN_ENTRE)
+        if _despertar.wait(INTERVALO):   # aviso en tiempo real; si no llega, revisa cada 10 minutos
+            _despertar.clear()
+            time.sleep(2)   # junta los avisos que lleguen seguidos
 
 
 def start() -> None:
+    from app import tiempo_real
+    tiempo_real.suscribir(despertar)
     threading.Thread(target=_bucle, name='minimaximan', daemon=True).start()
 
 
@@ -278,12 +326,45 @@ def _usuario(request: Request) -> str:
     return u
 
 
+@router.get('/actividad')
+def actividad(request: Request):
+    """Lo que hacen ahora los agentes de inventario, para el aviso «EMPEZÓ A TRABAJAR» de la esquina. Solo cuenta lo que de verdad toca algo (crear o enviar una orden, ajustar Effi); las revisiones de rutina no avisan."""
+    u = _usuario(request)
+    from app import permisos
+    if not permisos.bitacora_permitido(u):   # el aviso es solo para la cuenta «Indoor Sport» (la misma regla de la bitácora)
+        raise HTTPException(403, 'El aviso de los agentes es solo para la cuenta Indoor Sport')
+    salida = []
+    try:
+        p = proceso_actual()
+        if p and (p['fase'] in ('creando', 'enviando') or (p['fase'] in ('listo', 'error') and p['tela'])):
+            salida.append({'agente': NOMBRE, **p})
+        from app import stockman
+        q = stockman.proceso_actual()
+        if q:
+            salida.append({'agente': 'STOCKMAN', **q})
+    except Exception:   # noqa: BLE001
+        log.exception('MINIMAXIMAN: no pude armar la actividad')
+    return {'agentes': salida}
+
+
 @router.get('/estado')
 def estado(request: Request):
     _usuario(request)
     with _lock:
         e = _leer()
     r = e['resultado']
+    try:   # los datos de INFORMACIÓN TELA se ven al instante en la tarjeta, aunque la revisión (que decide qué pedir) llegue unos segundos después
+        info = {str(t['codigo']): t for t in proveedores_tela.telas()}
+        for f in r:
+            t = info.get(f['codigo'])
+            if t:
+                f['id_effi'] = str(t.get('id_effi') or '').strip()
+                f['proveedor'] = t.get('proveedor', '') or ''
+                mn, mx = _num(t.get('stock_minimo')), _num(t.get('stock_maximo'))
+                if mn > 0 and mx > 0:
+                    f['minimo'], f['maximo'] = mn, mx
+    except Exception:   # noqa: BLE001
+        pass
     cuenta = lambda k: sum(1 for f in r if f['estado'] == k)
     return {'agente': {'nombre': NOMBRE, 'titulo': 'Mantiene cada tela entre su stock mínimo y su stock máximo', 'activo': e['activo'], 'ultima': e['ultima'], 'error': e['error'],
                        'funciones': ['Revisa cada tela con stock mínimo y máximo (INFORMACIÓN TELA) contra lo que hay en Bodega',
@@ -292,7 +373,7 @@ def estado(request: Request):
                                      'Corre solo en el servidor, sin usar a ZEUS ni a los agentes de los PC. Nunca pide si no ve en Effi lo que ya está en camino']},
             'resumen': {'telas': len(r), 'pedir': cuenta('pedir'), 'en_camino': cuenta('en_camino'), 'sin_proveedor': cuenta('sin_proveedor'), 'sin_id': cuenta('sin_id'), 'sin_effi': cuenta('sin_effi'),
                         'error': cuenta('error'), 'ok': cuenta('ok')},
-            'telas': r, 'compras': e['compras'][-60:][::-1]}
+            'telas': r, 'compras': e['compras'][-60:][::-1], 'proceso': proceso_actual()}
 
 
 @router.post('/enviar-proveedor')
@@ -315,11 +396,13 @@ def enviar_proveedor(request: Request, payload: dict):
     if not alertas_correo.puede_enviar():
         raise HTTPException(503, 'Falta configurar la cuenta de correo del servidor')
     vendedor = str(tela.get('vendedor') or '').strip()
+    _proceso_set('enviando', c['tela'], f"Enviando la orden {c['oc']} a {c['proveedor']} ({correo})", f"Enviando orden {c['oc']} a {c['proveedor']}")
     try:
         alertas_correo.enviar(f"INDOOR SPORT SAS · Orden de compra {c['oc']} · {c['tela']}",
                               MENSAJE_PROVEEDOR.format(saludo=('Cordial saludo, ' + vendedor) if vendedor else 'Cordial saludo', oc=c['oc'], tela=c['tela'], metros=float(c['metros'])), para=correo)
     except Exception as exc:   # noqa: BLE001
         log.exception('MINIMAXIMAN: no se pudo enviar la orden al proveedor')
+        _proceso_fin('error', 'No se pudo enviar el correo al proveedor', c['tela'], corto=f"No se pudo enviar la orden {c['oc']}")
         raise HTTPException(502, 'No pude enviar el correo: ' + str(exc)[:120])
     with _lock:
         e = _leer()
@@ -328,6 +411,7 @@ def enviar_proveedor(request: Request, payload: dict):
                 x['envio_proveedor'] = {'estado': 'enviada', 'correo': correo, 'por': usuario, 'at': _iso()}
         _guardar(e)
     log.warning('MINIMAXIMAN: orden %s enviada al proveedor %s (%s) con la aprobación de %s', c['oc'], c['proveedor'], correo, usuario)
+    _proceso_fin('listo', f"Orden {c['oc']} enviada a {c['proveedor']}", c['tela'], corto=f"Orden {c['oc']} enviada a {c['proveedor']}")
     return {'ok': True, 'correo': correo}
 
 

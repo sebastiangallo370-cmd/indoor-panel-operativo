@@ -65,19 +65,20 @@
   html body.top-navigation .sidebar{height:auto!important;min-height:0!important;max-height:none!important}
   html body main{padding-bottom:calc(110px + env(safe-area-inset-bottom))!important}
   /* Barra inferior: 4 accesos + «Menú». «Menú» abre la hoja con TODAS las secciones y subpáginas (con buscador); los grupos con una sola página van directo */
-  .mbar,.msheet{--mb-bg:rgba(17,23,16,.96);--mb-line:rgba(208,244,76,.2);--mb-fg:#aebba7;--mb-on:#d0f44c;--mb-on-bg:rgba(208,244,76,.14);--ms-bg:#10160f;--ms-row:#151d15;--ms-line:#26321f;--ms-fg:#f0f4eb;--ms-mute:#7f8b79;--ms-on-bg:#1d2a14;--ms-code-bg:rgba(208,244,76,.12)}
-  html.theme-light .mbar,html.theme-light .msheet{--mb-bg:rgba(255,255,255,.97);--mb-line:#d3dcc8;--mb-fg:#5d6a55;--mb-on:#3f6a10;--mb-on-bg:rgba(63,106,16,.12);--ms-bg:#fff;--ms-row:#f3f7ec;--ms-line:#d3dcc8;--ms-fg:#1f2a17;--ms-mute:#7b8872;--ms-on-bg:#e6f0d4;--ms-code-bg:rgba(63,106,16,.1)}
-  .mbar{display:flex;position:fixed;z-index:98;left:12px;right:12px;bottom:max(12px,env(safe-area-inset-bottom));height:66px;padding:0 6px;align-items:stretch;border:1px solid var(--mb-line);border-radius:24px;background:var(--mb-bg);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 14px 36px rgba(0,0,0,.5);-webkit-tap-highlight-color:transparent}
-  html.theme-light .mbar{box-shadow:0 12px 30px rgba(40,60,20,.22)}
+  /* Navegación estilo Apple: una sola cápsula de vidrio, flotante y táctil. */
+  .mbar,.msheet{--mb-bg:rgba(22,31,24,.72);--mb-line:rgba(255,255,255,.24);--mb-fg:rgba(239,248,234,.67);--mb-on:#e4ff8a;--mb-on-bg:rgba(225,255,151,.22);--ms-bg:rgba(21,29,23,.88);--ms-row:rgba(255,255,255,.075);--ms-line:rgba(255,255,255,.14);--ms-fg:#f3f8ee;--ms-mute:rgba(233,245,225,.55);--ms-on-bg:rgba(225,255,151,.14);--ms-code-bg:rgba(225,255,151,.16)}
+  html.theme-light .mbar,html.theme-light .msheet{--mb-bg:rgba(248,251,246,.73);--mb-line:rgba(44,61,39,.15);--mb-fg:rgba(38,53,34,.62);--mb-on:#416d18;--mb-on-bg:rgba(111,168,55,.16);--ms-bg:rgba(248,251,246,.91);--ms-row:rgba(43,67,37,.065);--ms-line:rgba(42,62,36,.13);--ms-fg:#1f2a1b;--ms-mute:rgba(42,59,37,.58);--ms-on-bg:rgba(111,168,55,.13);--ms-code-bg:rgba(111,168,55,.14)}
+  .mbar{display:flex;position:fixed;z-index:98;left:12px;right:12px;bottom:max(12px,env(safe-area-inset-bottom));height:70px;padding:5px 7px;align-items:stretch;border:1px solid var(--mb-line);border-radius:26px;background:var(--mb-bg);backdrop-filter:blur(28px) saturate(1.55);-webkit-backdrop-filter:blur(28px) saturate(1.55);box-shadow:0 16px 42px rgba(0,0,0,.36),inset 0 1px 0 rgba(255,255,255,.22);-webkit-tap-highlight-color:transparent}
+  html.theme-light .mbar{box-shadow:0 14px 34px rgba(40,60,20,.16),inset 0 1px 0 rgba(255,255,255,.7)}
   .mbar[hidden]{display:none!important}
-  .mbar>.mitem{position:relative;flex:1 1 0;min-width:0;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:0;margin:0;border:0;border-radius:18px;background:transparent;color:var(--mb-fg);cursor:pointer;-webkit-tap-highlight-color:transparent;transition:color .18s}
-  .mbar>.mitem .mi{width:52px;height:30px;display:grid;place-items:center;border-radius:15px;transition:background .2s,transform .2s cubic-bezier(.3,1.4,.5,1)}
+  .mbar>.mitem{position:relative;flex:1 1 0;min-width:0;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:0;margin:0;border:0;border-radius:18px;background:transparent;color:var(--mb-fg);cursor:pointer;-webkit-tap-highlight-color:transparent;transition:color .2s,transform .2s}
+  .mbar>.mitem .mi{width:48px;height:31px;display:grid;place-items:center;border-radius:16px;transition:background .22s,transform .28s cubic-bezier(.22,1.45,.36,1),box-shadow .22s}
   .mbar>.mitem svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-  .mbar>.mitem small{font:700 10px/1 Arial,sans-serif;letter-spacing:.01em;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+  .mbar>.mitem small{font:700 9.5px/1 Arial,sans-serif;letter-spacing:.01em;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
   .mbar>.mitem.on{color:var(--mb-on)}
-  .mbar>.mitem.on .mi{background:var(--mb-on-bg)}
+  .mbar>.mitem.on .mi{background:var(--mb-on-bg);box-shadow:inset 0 1px 0 rgba(255,255,255,.32),0 3px 10px rgba(0,0,0,.12)}
   .mbar>.mitem.on small{font-weight:800}
-  .mbar>.mitem:active .mi{transform:scale(.9)}
+  .mbar>.mitem:active .mi{transform:scale(.88)}
   .mbar .g-x{display:none}
   .mbar>.mitem.open .g-menu{display:none}
   .mbar>.mitem.open .g-x{display:inline}
@@ -121,11 +122,14 @@
   .operarios-day-filter-row #operarios-day-filter-apply,.operarios-day-filter-row #operarios-day-filter-clear{grid-column:1/-1!important;width:100%!important;min-height:44px!important;font-size:14px!important}
   .panel[data-panel="operarios"] input:not([type=checkbox]):not([type=radio]),.panel[data-panel="reproceso"] input:not([type=checkbox]):not([type=radio]),.panel[data-panel="reproceso"] select{min-height:44px!important;font-size:16px!important;box-sizing:border-box!important}
   .panel[data-panel="reproceso"] button,.panel[data-panel="operarios"] button.operarios-refresh,.rework-module button{min-height:44px!important}
-  /* Bodega Tela: botones + TELA NUEVA / SUBIR DOCUMENTO / INGRESO / SALIDA compactos en una sola fila */
-  .inventory-toolbar .inventory-movement-actions{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:6px!important;width:100%!important;margin-top:10px!important}
-  .inventory-toolbar .inventory-movement-actions button{width:100%!important;min-width:0!important;height:44px!important;min-height:44px!important;max-height:44px!important;padding:0 4px!important;margin:0!important;writing-mode:horizontal-tb!important;display:flex!important;align-items:center!important;justify-content:center!important;text-align:center!important;font-size:10px!important;line-height:1.15!important;letter-spacing:0!important;white-space:normal!important;overflow:hidden!important;word-break:normal!important;overflow-wrap:normal!important;border-radius:10px!important}
-  .inventory-toolbar .inventory-movement-actions button[data-inventory-doc]{font-size:8.5px!important;letter-spacing:-.02em!important}
-  .inventory-toolbar .inventory-movement-actions button.inventory-refresh-btn{grid-column:1/-1!important;height:38px!important;min-height:38px!important;max-height:38px!important;font-size:11px!important;letter-spacing:.03em!important;padding:0 8px!important;white-space:nowrap!important}
+  /* Bodega Tela: acciones táctiles legibles, sin comprimir el interruptor. */
+  .inventory-toolbar .inventory-movement-actions{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important;width:100%!important;margin-top:10px!important;align-items:stretch!important}
+  .inventory-toolbar .inventory-movement-actions button{width:100%!important;min-width:0!important;height:48px!important;min-height:48px!important;max-height:none!important;padding:7px 8px!important;margin:0!important;writing-mode:horizontal-tb!important;display:flex!important;align-items:center!important;justify-content:center!important;text-align:center!important;font-size:11px!important;line-height:1.15!important;letter-spacing:.01em!important;white-space:normal!important;overflow:hidden!important;word-break:normal!important;overflow-wrap:normal!important;border-radius:11px!important}
+  .inventory-toolbar .inventory-movement-actions button[data-inventory-doc]{font-size:10.5px!important;letter-spacing:0!important}
+  .inventory-toolbar .inventory-movement-actions button.inventory-refresh-btn{grid-column:1/-1!important;height:44px!important;min-height:44px!important;max-height:44px!important;font-size:12px!important;letter-spacing:.05em!important;padding:0 12px!important;white-space:nowrap!important}
+  .inventory-toolbar .inventory-movement-actions .dsub{grid-column:1/-1!important;width:100%!important;min-height:46px!important;padding:7px 12px!important;border-radius:11px!important;display:flex!important;justify-content:space-between!important;gap:10px!important;text-align:left!important;white-space:normal!important;font-size:10.5px!important;line-height:1.2!important}
+  .inventory-toolbar .inventory-movement-actions .dsub>span:last-child{flex:1!important;min-width:0!important}
+  .inventory-toolbar .inventory-movement-actions .dsub small{display:block!important;margin-top:2px!important;font-size:9px!important}
   /* Aviso de salud (NAS, etc.): por encima de la barra inferior y del botón «+», sin taparlos */
   #salud-aviso{bottom:calc(max(12px,env(safe-area-inset-bottom)) + 112px)!important;width:max-content!important;max-width:calc(100vw - 24px)!important;font-size:11.5px!important;line-height:1.3!important}
   /* Producción: los puntos del flujo y los botones de MTS se tocan con el dedo sin cambiar su tamaño visible */
@@ -152,13 +156,13 @@
   document.head.appendChild(style);
 
   const ICONS = {
-    INICIO: '<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h5v-6h4v6h5V9.5"/>',
+    INICIO: '<path d="m3 11 9-7.5 9 7.5"/><path d="M5.5 9.5v10.2a1.3 1.3 0 0 0 1.3 1.3h10.4a1.3 1.3 0 0 0 1.3-1.3V9.5"/><path d="M9.3 21v-6h5.4v6"/>',
     CONTROL: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M8.5 12.5l2.3 2.3 4.7-4.8"/>',
     NOVEDADES: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 8 3 8H3s3-1 3-8"/><path d="M10 20a2 2 0 0 0 4 0"/>',
-    REPROCESOS: '<path d="M3 12a9 9 0 0 1 15.5-6.2L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16"/><path d="M3 21v-5h5"/>',
-    REPROCESO: '<path d="M3 12a9 9 0 0 1 15.5-6.2L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16"/><path d="M3 21v-5h5"/>',
-    PRODUCCION: '<path d="M3 21V10l6 4V10l6 4V6l6 3v12z"/><path d="M7 17h2M12 17h2M17 17h1"/>',
-    INVENTARIOS: '<path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="M3 8l9 5 9-5"/><path d="M12 13v8"/>',
+    REPROCESOS: '<path d="M19.5 8.5A8.5 8.5 0 0 0 5.2 6L3 8.2"/><path d="M3 4.5v3.7h3.7"/><path d="M4.5 15.5A8.5 8.5 0 0 0 18.8 18l2.2-2.2"/><path d="M21 19.5v-3.7h-3.7"/><path d="m9.2 12 1.8 1.8 3.8-3.8"/>',
+    REPROCESO: '<path d="M19.5 8.5A8.5 8.5 0 0 0 5.2 6L3 8.2"/><path d="M3 4.5v3.7h3.7"/><path d="M4.5 15.5A8.5 8.5 0 0 0 18.8 18l2.2-2.2"/><path d="M21 19.5v-3.7h-3.7"/><path d="m9.2 12 1.8 1.8 3.8-3.8"/>',
+    PRODUCCION: '<path d="M3.5 18.5h17v2h-17z"/><path d="M6 18.5v-7h7.1a3.4 3.4 0 0 1 3.4 3.4v3.6"/><path d="M10.5 11.5V7.2h4.2"/><path d="M14.7 7.2a2.2 2.2 0 1 1-4.2 0"/><path d="M6 15.2h10.5"/><circle cx="8.5" cy="18.5" r="1.5"/><path d="M18.5 10.5v4"/>',
+    INVENTARIOS: '<path d="m12 3 8.2 4.3v9.4L12 21l-8.2-4.3V7.3z"/><path d="m3.8 7.3L12 12l8.2-4.7M12 12v9"/><path d="M7.2 9.2h2.2M14.6 9.2h2.2"/>',
     ADMINISTRACION: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/><path d="M3 13h18"/>',
     AGENTES: '<rect x="5" y="8" width="14" height="11" rx="3"/><path d="M12 4v4M9 13h.01M15 13h.01M9.5 16.5h5"/><circle cx="12" cy="3.5" r="1"/>',
     PERMISOS: '<path d="M12 3l8 3v6c0 5-3.4 8.2-8 9-4.6-.8-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/>',
@@ -210,7 +214,7 @@
   const PRIORITY = [['INICIO'], ['PRODUCCION'], ['REPROCESOS', 'REPROCESO'], ['INVENTARIOS']];
   const pretty = label => { const t = String(label || '').trim().toLowerCase(); return t.charAt(0).toUpperCase() + t.slice(1).replace('produccion', 'producción').replace('administracion', 'administración'); };
   const svg = path => '<svg viewBox="0 0 24 24" aria-hidden="true">' + path + '</svg>';
-  const MENU_ICON = svg('<g class="g-menu"><path d="M4 7h16M4 12h16M4 17h16"/></g><g class="g-x"><path d="M6 6l12 12M18 6 6 18"/></g>');
+  const MENU_ICON = svg('<g class="g-menu"><path d="M5 7.5h14M5 12h14M5 16.5h14"/></g><g class="g-x"><path d="M6 6l12 12M18 6 6 18"/></g>');
   const iconOf = section => svg(ICONS[plain(section.label)] || ICONS.OTRO);
   const el = (tag, cls, text) => { const node = document.createElement(tag); if (cls) node.className = cls; if (text != null) node.textContent = text; return node; };
   const pagesOf = section => section.direct ? [section.direct] : section.children();
@@ -461,4 +465,23 @@
   new MutationObserver(schedule).observe(document.body, {childList: true, subtree: true, attributes: true, attributeFilter: ['class']});
   setTimeout(run, 600);
   setTimeout(run, 2000);
+})();
+
+/* Pantallas pequeñas: que ninguna parte de la página se salga por la derecha (sin ocultar contenido). */
+(() => {
+  if (document.getElementById('indoor-movil-global')) return;
+  const st = document.createElement('style');
+  st.id = 'indoor-movil-global';
+  st.textContent = `
+    @media (max-width: 760px) {
+      html, body { max-width: 100% !important; }
+      main, .panel, .panel > section, section, .card, .box, .dash-card, .dash-panel, .trace-card, .inventory-item-card {
+        max-width: 100% !important; box-sizing: border-box !important;
+      }
+      img, video, canvas, iframe { max-width: 100% !important; height: auto; }
+      table { display: block; max-width: 100%; overflow-x: auto; }
+      .kpi-grid, .dash-grid, .cards-grid, .grid-2, .grid-3, .grid-4, .stats-grid { grid-template-columns: minmax(0, 1fr) !important; }
+    }
+  `;
+  document.head.appendChild(st);
 })();

@@ -10,7 +10,9 @@ from datetime import datetime, timezone
 
 SPREADSHEET_ID = '1n7t5F1ZTX4Fwj3_ZAS1hdHnF7g16kTXfmFFkNa7M3tg'
 SHEET_ID = 1514880696
-START_ROW = 706
+# Solo se sincroniza el tramo operativo vigente de la hoja. Las filas previas
+# se purgan de la base local para que no reaparezcan en ningún módulo.
+START_ROW = 904
 WIDTH = 83   # mínimo; el ancho real lo lee fetch() de la hoja
 
 
@@ -301,7 +303,8 @@ def apply(db, snapshot, force=False):
                 continue  # Ya no existe en produccion
             db.execute('DELETE FROM production_rows WHERE source_row=?', (link_source_row,))
             for tbl in ('production_notes','production_started','production_finished',
-                        'production_rework','production_sheet_notes'):
+                        'production_rework','production_paused','production_sheet_notes',
+                        'production_sheet_audit'):
                 db.execute(f'DELETE FROM {tbl} WHERE source_row=?', (link_source_row,))
             if db.execute("SELECT 1 FROM sqlite_master WHERE name='production_operator_events'").fetchone():
                 db.execute('DELETE FROM production_operator_events WHERE source_row=?', (link_source_row,))

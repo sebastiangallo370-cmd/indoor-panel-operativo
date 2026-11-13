@@ -3,6 +3,11 @@
   // No duplica nada: pone una franja con las dos pestañas arriba de los dos módulos existentes y cambia entre ellos.
   if (window.__estandarListo) return;
   window.__estandarListo = true;
+  const VISTA_KEY = 'indoor-estandar-vista';
+  try {
+    const guardada = localStorage.getItem(VISTA_KEY);
+    if (guardada === 'promedios' || guardada === 'fichas' || guardada === 'proveedores' || guardada === 'confeccionistas') window.__esVista = guardada;
+  } catch (e) { /* el panel sigue funcionando sin almacenamiento */ }
 
   const css = document.createElement('style');
   css.textContent = `
@@ -37,30 +42,69 @@
   .es-tab:hover{border-color:#9fd24c}.es-tab.on{background:#d7ff3a;color:#10140a;border-color:#d7ff3a}
   @media(max-width:700px){.es-franja{padding:12px 14px}.es-tabs{margin-left:0;width:100%}.es-tab{flex:1;padding:0 12px}}
   @media print{.es-franja{display:none!important}}
+  .pc{width:100%;max-width:1320px;margin:0 auto}.pc-head{display:flex;justify-content:space-between;gap:18px;align-items:end;margin-bottom:18px;padding:22px;border:1px solid rgba(255,255,255,.2);border-radius:16px;background:rgba(255,255,255,.06)}.pc-head h2{margin:4px 0 0;font-size:1.45rem}.pc-head p{margin:7px 0 0;color:#bdc9b7}.pc-add{display:grid;grid-template-columns:minmax(180px,1fr) minmax(180px,1fr) auto;gap:8px;min-width:min(620px,100%)}.pc input{height:42px;box-sizing:border-box;border:1px solid #637a5d;border-radius:9px;background:#0d1710;color:#f6faf2;padding:0 12px;font-weight:700}.pc button{min-height:42px;border:1px solid #9dcc41;border-radius:9px;background:#cef34d;color:#15200d;padding:0 16px;font-weight:800;cursor:pointer}.pc-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}.pc-card{padding:16px;border:1px solid #466043;border-radius:13px;background:#142017}.pc-card h3{margin:0 0 12px;color:#eaf4e3;font-size:1rem}.pc-card label{display:block;margin-bottom:5px;color:#c4d5bf;font-size:.65rem;font-weight:800;letter-spacing:.09em}.pc-card form{display:grid;grid-template-columns:1fr auto;gap:8px}.pc-card .pc-empty{margin:0;color:#b6c4b2}.pc-state{min-height:19px;margin:12px 0 0;color:#d7f45a;font-size:.82rem;font-weight:700}.pc-state.error{color:#ff9d94}@media(max-width:700px){.pc-head{display:block;padding:16px}.pc-add{min-width:0;grid-template-columns:1fr}.pc-list{grid-template-columns:1fr}.pc-card form{grid-template-columns:1fr}.pc-card form button{width:100%}}
+  .pv-card.pv-t .pc-save{display:none;grid-column:1/-1;padding:4px 0 12px}.pv-card.pv-t.editando .pc-save{display:flex}.pv-card.pv-t input[readonly]{border-color:transparent!important;background:transparent!important;box-shadow:none!important;padding:0!important;pointer-events:none}.pv-card.pv-t.editando input[readonly]{pointer-events:auto;background:rgba(0,0,0,.32)!important;border-color:rgba(255,255,255,.35)!important;padding:0 13px!important}
   `;
   document.head.appendChild(css);
+
+  const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  let confeccionistas = [], pcBuscar = '';
+  async function cargarConfeccionistas(root) {
+    root.dataset.loaded = '1';
+    root.innerHTML = '<p class="pc-empty">Cargando confeccionistas…</p>';
+    try {
+      const response = await fetch('/api/confeccionistas', {credentials:'same-origin', cache:'no-store'});
+      const data = await response.json();
+      if (!response.ok) throw Error(data.detail || 'No se pudo cargar la información');
+      confeccionistas = data.items || [];
+      pintarConfeccionistas(root);
+    } catch (error) { root.innerHTML = '<p class="pc-empty">' + esc(error.message || 'No se pudo cargar la información.') + '</p>'; }
+  }
+  function pintarConfeccionistas(root) {
+    const visibles = confeccionistas.filter(item => (item.confeccionista + ' ' + item.whatsapp).toLowerCase().includes(pcBuscar.toLowerCase()));
+    const completas = confeccionistas.filter(item => item.whatsapp).length;
+    root.className = 'pc pv';
+    root.innerHTML = '<section class="pv-head pv-glass"><div><small>ESTÁNDAR 2026</small><h2>INFORMACIÓN CONFECCIONISTA</h2><p>Agenda que completa automáticamente el WhatsApp cuando preparas una orden para confección.</p></div><div class="pv-kpis"><div class="pv-kpi pv-glass"><b>' + confeccionistas.length + '</b><span>CONFECCIONISTAS</span></div><div class="pv-kpi pv-glass"><b>' + completas + '</b><span>CON WHATSAPP</span></div><div class="pv-kpi pv-glass sin"><b>' + (confeccionistas.length - completas) + '</b><span>PENDIENTES</span></div></div></section>' +
+      '<section class="pv-bar pv-glass"><input type="search" data-pc-search placeholder="Buscar confeccionista o WhatsApp" value="' + esc(pcBuscar) + '"></section><p class="pc-state" aria-live="polite"></p>' +
+      '<section class="pv-grid">' + (visibles.length ? visibles.map(item => '<article class="pv-card pv-t' + (item.whatsapp ? '' : ' sin') + '"><div class="pt-head"><h3 class="pt-nom">' + esc(item.confeccionista) + '</h3><button type="button" class="pt-lapiz" data-pc-edit title="Editar WhatsApp">✎</button></div><form data-pc="' + esc(item.confeccionista) + '" class="pt-form"><label class="pt-row pt-w2"><span class="pt-lbl">WhatsApp de la confeccionista</span><input name="whatsapp" value="' + esc(item.whatsapp) + '" placeholder="Ej. 3001234567" inputmode="tel" maxlength="20" readonly></label><div class="pt-acc pc-save"><button class="pt-b pri">GUARDAR</button></div></form><div class="pt-stats"><div><b>' + esc(item.whatsapp || '—') + '</b><span>WhatsApp registrado</span></div></div></article>').join('') : '<div class="pv-vacio pv-glass">No hay confeccionistas que coincidan con la búsqueda.</div>') + '</section>';
+    const status = root.querySelector('.pc-state');
+    root.querySelector('[data-pc-search]').addEventListener('input', event => { pcBuscar = event.target.value; pintarConfeccionistas(root); });
+    root.querySelectorAll('[data-pc-edit]').forEach(button => button.addEventListener('click', () => { const card = button.closest('.pv-card'); const input = card?.querySelector('input[name="whatsapp"]'); if (!card || !input) return; card.classList.add('editando'); input.readOnly = false; input.focus(); input.select(); }));
+    root.querySelectorAll('form').forEach(form => form.addEventListener('submit', async event => {
+      event.preventDefault(); const name = form.dataset.pc || form.elements.confeccionista.value.trim(); const phone = form.elements.whatsapp.value.trim();
+      if (!name) return; status.className = 'pc-state'; status.textContent = 'Guardando…';
+      try { const response = await fetch('/api/confeccionistas', {method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'}, body:JSON.stringify({confeccionista:name, whatsapp:phone})}); const data = await response.json(); if (!response.ok) throw Error(data.detail || 'No se pudo guardar'); status.textContent = data.confeccionista + ' actualizada.'; await cargarConfeccionistas(root); }
+      catch (error) { status.className = 'pc-state error'; status.textContent = error.message || 'No se pudo guardar.'; }
+    }));
+  }
+  window.confeccionistasPintar = root => { if (!root.dataset.loaded) cargarConfeccionistas(root); };
 
   const PANELES = { promedios: 'promedios', fichas: 'molderia' };
   const franja = activa => '<div class="es-franja" data-es><div><small>MÓDULO</small><h2>ESTÁNDAR 2026</h2></div><div class="es-tabs">' +
     '<button type="button" class="es-tab' + (activa === 'promedios' ? ' on' : '') + '" data-es-tab="promedios">PROMEDIOS MAESTROS</button>' +
     '<button type="button" class="es-tab' + (activa === 'fichas' ? ' on' : '') + '" data-es-tab="fichas">FICHAS TÉCNICAS</button>' +
-    '<button type="button" class="es-tab' + (activa === 'proveedores' ? ' on' : '') + '" data-es-tab="proveedores">INFORMACIÓN TELA</button></div></div>';
+    '<button type="button" class="es-tab' + (activa === 'proveedores' ? ' on' : '') + '" data-es-tab="proveedores">INFORMACIÓN TELA</button>' +
+    '<button type="button" class="es-tab' + (activa === 'confeccionistas' ? ' on' : '') + '" data-es-tab="confeccionistas">INFORMACIÓN CONFECCIONISTA</button></div></div>';
 
   // Pone (o quita) la franja arriba de cada panel según corresponda
   function sincronizar() {
     const pp = document.querySelector('.panel[data-panel="promedios"]');
     const pm = document.querySelector('.panel[data-panel="molderia"]');
     if (pp) {
-      const v = window.__esVista === 'proveedores' ? 'proveedores' : 'promedios';
+      const v = ['proveedores','confeccionistas'].includes(window.__esVista) ? window.__esVista : 'promedios';
       let f = pp.querySelector(':scope > [data-es]');
       if (!f) { pp.insertAdjacentHTML('afterbegin', franja(v)); f = pp.firstElementChild; }
       f.querySelectorAll('[data-es-tab]').forEach(b => b.classList.toggle('on', b.dataset.esTab === v));
       let pv = pp.querySelector(':scope > .pv');
       if (!pv) { pv = document.createElement('div'); pv.className = 'pv'; f.insertAdjacentElement('afterend', pv); }
+      let pc = pp.querySelector(':scope > .pc');
+      if (!pc) { pc = document.createElement('div'); pc.className = 'pc'; pv.insertAdjacentElement('afterend', pc); }
       const pm = pp.querySelector(':scope > .pm');
-      if (pm) pm.hidden = v === 'proveedores';
+      if (pm) pm.hidden = v !== 'promedios';
       pv.hidden = v !== 'proveedores';
+      pc.hidden = v !== 'confeccionistas';
       if (v === 'proveedores' && window.proveedoresTelaPintar) window.proveedoresTelaPintar(pv);
+      if (v === 'confeccionistas') window.confeccionistasPintar(pc);
     }
     if (pm) {
       const enFichas = window.__estandarCtx !== 'molderia' && (typeof window.molderiaCtx !== 'function' || window.molderiaCtx() === 'estandar');
@@ -71,12 +115,14 @@
   }
 
   function ir(que) {
-    if (que === 'promedios' || que === 'proveedores') {
+    if (que === 'promedios' || que === 'proveedores' || que === 'confeccionistas') {
       window.__esVista = que;
       if (!document.querySelector('.panel[data-panel="promedios"].active')) document.querySelector('.tab[data-kind="promedios"]')?.click();
     } else if (window.molderiaIr) {
+      window.__esVista = 'fichas';
       window.molderiaIr('estandar');
     }
+    try { localStorage.setItem(VISTA_KEY, window.__esVista || 'promedios'); } catch (e) { /* sin almacenamiento */ }
     setTimeout(sincronizar, 60);
   }
 
@@ -98,5 +144,18 @@
   const obs = new MutationObserver(() => { renombrarMenu(); sincronizar(); });
   const iniciar = () => { const main = document.querySelector('main'); if (main) obs.observe(main, { childList: true, subtree: false, attributes: true, attributeFilter: ['class'] }); };
   iniciar();
+  // Al volver con F5, el menú abre Estándar y esta vista conserva su subpestaña.
+  const vistaGuardada = window.__esVista;
+  if (vistaGuardada && vistaGuardada !== 'promedios') {
+    let intentos = 0;
+    const restaurar = setInterval(() => {
+      if (++intentos > 60) return clearInterval(restaurar);
+      const panelPromedios = document.querySelector('.panel[data-panel="promedios"].active');
+      const panelFichas = document.querySelector('.panel[data-panel="molderia"].active');
+      if (!panelPromedios && !panelFichas) return;
+      clearInterval(restaurar);
+      ir(vistaGuardada);
+    }, 250);
+  }
   document.addEventListener('click', () => setTimeout(sincronizar, 80), true);
 })();

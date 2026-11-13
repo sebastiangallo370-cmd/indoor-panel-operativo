@@ -185,6 +185,28 @@
   .mm-btns{display:grid!important;grid-template-columns:1fr 1fr;gap:8px!important}
   .mm-bt{display:flex!important;align-items:center;justify-content:center;height:34px!important;line-height:1;padding:0 8px;font:800 10px Arial!important;letter-spacing:.08em;white-space:nowrap}
   .mm-bt.env{height:38px!important;font-size:10.5px!important}
+  /* ROBOT PROCESANDO */
+  .mm-proceso{display:flex;align-items:center;gap:16px;padding:12px 18px;margin-bottom:12px;border-color:rgba(208,244,76,.5)!important;box-shadow:0 0 0 1px rgba(208,244,76,.35),0 0 26px -6px rgba(208,244,76,.5)!important;position:relative;overflow:hidden;animation:mmProcEntra .35s ease-out}
+  .mm-proceso.listo{border-color:rgba(53,212,106,.6)!important;box-shadow:0 0 0 1px rgba(53,212,106,.4),0 0 22px -6px rgba(53,212,106,.5)!important}
+  .mm-proceso.error{border-color:rgba(255,107,97,.7)!important;box-shadow:0 0 0 1px rgba(255,107,97,.45),0 0 22px -6px rgba(255,107,97,.5)!important}
+  @keyframes mmProcEntra{from{opacity:0;transform:translateY(-8px)}}
+  .mm-robot{flex:none;width:58px;height:58px;display:grid;place-items:center;animation:mmRobotSalta 1.1s ease-in-out infinite}
+  .mm-proceso.listo .mm-robot,.mm-proceso.error .mm-robot{animation:none}
+  .mm-robot-svg{width:56px;height:56px;filter:drop-shadow(0 0 8px rgba(208,244,76,.55))}
+  .mm-robot-svg .ant{animation:mmLate 1s ease-in-out infinite}.mm-robot-svg .ojo{transform-origin:center;transform-box:fill-box;animation:mmParpadea 2.6s infinite}
+  .mm-robot-svg .br{transform-origin:right center;transform-box:fill-box;animation:mmBrazo .55s ease-in-out infinite alternate}.mm-robot-svg .br2{transform-origin:left center;transform-box:fill-box;animation:mmBrazo .55s ease-in-out infinite alternate-reverse}
+  @keyframes mmRobotSalta{50%{transform:translateY(-4px)}}@keyframes mmParpadea{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.1)}}@keyframes mmBrazo{to{transform:rotate(-18deg)}}
+  .mm-proc-txt{display:grid;gap:3px;min-width:0}.mm-proc-txt small{font:800 9px Arial;letter-spacing:.2em;color:#9fb096}.mm-proc-txt b{font:900 15px Arial;letter-spacing:.06em;color:var(--lima,#d0f44c)}
+  .mm-proceso.listo .mm-proc-txt b{color:#6fe39a}.mm-proceso.error .mm-proc-txt b{color:#ffb3ac}
+  .mm-proc-txt span:not(.pts){font:600 12.5px/1.4 Arial;color:#e8f0e0}.mm-proc-txt u{text-decoration:none;font-weight:800;color:#fff}
+  .mm-proc-txt .pts{display:inline-flex;gap:3px;margin-left:8px}.mm-proc-txt .pts i{width:5px;height:5px;border-radius:50%;background:currentColor;animation:mmPunto 1s infinite}.mm-proc-txt .pts i:nth-child(2){animation-delay:.18s}.mm-proc-txt .pts i:nth-child(3){animation-delay:.36s}
+  @keyframes mmPunto{0%,60%,100%{opacity:.25;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}
+  .mm-proc-barra{position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(255,255,255,.08);overflow:hidden}.mm-proc-barra i{display:block;height:100%;width:35%;background:linear-gradient(90deg,transparent,var(--lima,#d0f44c),transparent);animation:mmBarra 1.4s linear infinite}
+  @keyframes mmBarra{from{transform:translateX(-100%)}to{transform:translateX(300%)}}
+  .mm-t.procesando{border-color:rgba(208,244,76,.9)!important;box-shadow:0 0 0 2px rgba(208,244,76,.6),0 0 30px -4px rgba(208,244,76,.7)!important;animation-name:mmLatidoTarjeta!important;animation-duration:1.2s!important;animation-delay:0s!important;animation-iteration-count:infinite!important;animation-timing-function:ease-in-out!important;animation-fill-mode:none!important}
+  .mm-t.procesando::after{content:"🤖 PROCESANDO…";position:absolute;inset:46px 14px auto auto!important;width:auto!important;height:auto!important;border-radius:99px!important;padding:4px 10px;border-radius:99px;background:rgba(208,244,76,.18);border:1px solid rgba(208,244,76,.6);color:var(--lima,#d0f44c);font:900 10px Arial;letter-spacing:.1em;opacity:1;z-index:5}
+  @keyframes mmLatidoTarjeta{50%{box-shadow:0 0 0 2px rgba(208,244,76,.9),0 0 40px -2px rgba(208,244,76,.9)}}
+  @media(prefers-reduced-motion:reduce){.mm-robot,.mm-robot-svg *,.mm-proc-barra i,.mm-t.procesando,.mm-proc-txt .pts i{animation:none!important}}
   .mm-t>*{position:relative;z-index:1}
   .mm-top{display:grid!important;grid-template-columns:auto auto auto minmax(0,1fr) minmax(220px,340px);align-items:center;gap:14px;padding:12px 18px}
   .mm-sep{display:none}
@@ -277,7 +299,8 @@
     const tope = Math.max(t.maximo, t.stock + (t.por_recibir || 0), 1) * 1.08;
     const pct = v => Math.max(0, Math.min(100, v / tope * 100)).toFixed(1);
     const aviso = ['error', 'sin_id', 'sin_effi', 'revisar'].includes(t.estado) && t.nota ? '<div class="mm-nota">' + esc(t.nota) + '</div>' : '';   // el resto de estados ya se entiende con la etiqueta
-    return '<article class="mm-glass mm-t ' + tono + '" style="animation-delay:' + Math.min(i * 25, 300) + 'ms"><h4><span>' + esc(t.tela) + '<small>CÓD. ' + esc(t.codigo) + '</small><b class="mm-prov' + (t.proveedor ? '' : ' sin') + '" title="Proveedor">' + esc(t.proveedor || 'SIN PROVEEDOR') + '</b><small class="mm-ide' + (t.id_effi ? '' : ' falta') + '">' + (t.id_effi ? 'ID EFFI ' + esc(t.id_effi) : 'SIN ID EFFI') + '</small></span><em>' + txt + '</em></h4>' +
+    const enProceso = datos.proceso && datos.proceso.activo && datos.proceso.tela && datos.proceso.tela === t.tela;
+    return '<article class="mm-glass mm-t ' + tono + (enProceso ? ' procesando' : '') + '" style="animation-delay:' + Math.min(i * 25, 300) + 'ms"><h4><span>' + esc(t.tela) + '<small>CÓD. ' + esc(t.codigo) + '</small><b class="mm-prov' + (t.proveedor ? '' : ' sin') + '" title="Proveedor">' + esc(t.proveedor || 'SIN PROVEEDOR') + '</b><small class="mm-ide' + (t.id_effi ? '' : ' falta') + '">' + (t.id_effi ? 'ID EFFI ' + esc(t.id_effi) : 'SIN ID EFFI') + '</small></span><em>' + txt + '</em></h4>' +
       '<div class="mm-hero"><div class="mm-big"><small>STOCK</small><div><b data-n="' + t.stock + '" style="font-size:' + (num(t.stock).length <= 3 ? 34 : num(t.stock).length === 4 ? 30 : 25) + 'px">' + num(t.stock) + '</b><em>MTS</em></div></div>' +
       (t.pedir ? '<div class="mm-acc pide"><div><span>PEDIR</span><b>' + num(t.pedir) + '</b><em>MTS</em></div></div>' : t.por_recibir ? '<div class="mm-acc viene"><small>EN CAMINO</small><div><b>' + num(t.por_recibir) + '</b><em>MTS</em></div></div>' : '<div class="mm-acc bien"><small>DEL MÁXIMO</small><div><b>' + Math.round(t.stock / Math.max(t.maximo, 1) * 100) + '%</b></div></div>') + '</div>' +
       '<div class="mm-medidor" title="Hay ' + num(t.stock) + ' · mínimo ' + num(t.minimo) + ' · máximo ' + num(t.maximo) + '"><span class="mm-zona" style="width:' + pct(t.minimo) + '%"></span><span class="mm-zona ok" style="left:' + pct(t.minimo) + '%;width:' + (pct(t.maximo) - pct(t.minimo)).toFixed(1) + '%"></span>' +
@@ -297,6 +320,15 @@
     return '<div class="mm-glass mm-oc espera">' + cab + '<div class="mm-nota">Para ' + esc(c.proveedor || 'el proveedor') + '</div><button type="button" class="mm-b ok" data-mm-prov="' + c.id + '" data-oc="' + esc(c.oc) + '">✉ APROBAR Y ENVIAR</button></div>';
   }
 
+  // Robot que aparece mientras el agente trabaja (revisa, crea una orden, la envía) y dice qué está haciendo.
+  const ROBOT = '<svg class="mm-robot-svg" viewBox="0 0 64 64" aria-hidden="true"><line x1="32" y1="6" x2="32" y2="14" stroke="#d0f44c" stroke-width="3" stroke-linecap="round"/><circle class="ant" cx="32" cy="5" r="3.5" fill="#d0f44c"/><rect x="12" y="14" width="40" height="30" rx="10" fill="#1a2a20" stroke="#d0f44c" stroke-width="2.5"/><circle class="ojo" cx="24" cy="29" r="4.5" fill="#d0f44c"/><circle class="ojo" cx="40" cy="29" r="4.5" fill="#d0f44c"/><rect x="25" y="37" width="14" height="3" rx="1.5" fill="#d0f44c" opacity=".7"/><rect x="18" y="47" width="28" height="11" rx="5" fill="#1a2a20" stroke="#d0f44c" stroke-width="2"/><rect class="br" x="4" y="22" width="6" height="14" rx="3" fill="#d0f44c"/><rect class="br2" x="54" y="22" width="6" height="14" rx="3" fill="#d0f44c"/></svg>';
+  function bannerProceso() {
+    const p = (datos && datos.proceso) || (ocupado ? { fase: 'revisando', detalle: 'Revisando el stock de cada tela…', tela: '', activo: true } : null);
+    if (!p) return '';
+    const titulo = p.fase === 'listo' ? 'LISTO' : p.fase === 'error' ? 'NO SE PUDO' : p.fase === 'creando' ? 'ESTÁ HACIENDO EL REQUERIMIENTO' : p.fase === 'enviando' ? 'ESTÁ ENVIANDO LA ORDEN' : 'ESTÁ PROCESANDO';
+    return '<div class="mm-glass mm-proceso ' + p.fase + '"><div class="mm-robot">' + ROBOT + '</div><div class="mm-proc-txt"><small>MINIMAXIMAN</small><b>' + titulo + (p.activo ? '<span class="pts"><i></i><i></i><i></i></span>' : '') + '</b><span>' + (p.tela ? '<u>' + esc(p.tela) + '</u> · ' : '') + esc(p.detalle || '') + '</span></div>' + (p.activo ? '<div class="mm-proc-barra"><i></i></div>' : '') + '</div>';
+  }
+
   function pintar() {
     if (!panel || !datos) return;
     const foco = document.activeElement;
@@ -313,7 +345,7 @@
       '<div class="mm-busca"><input type="search" data-mm-buscar placeholder="Buscar…" value="' + esc(buscar) + '" autocomplete="off">' +
       '</div></div>' +
       (a.error ? '<div class="mm-vacio">' + esc(a.error) + '</div>' : '') +
-      '<div class="mm-cuerpo">' +
+      bannerProceso() + '<div class="mm-cuerpo">' +
       '<div class="mm-lista-host"></div>' +
       '</div>';
     pintarLista();
@@ -332,8 +364,9 @@
     try {
       const nuevo = await api('/api/minimaximan/estado');
       const f = JSON.stringify(nuevo);
-      if (f === firma && datos) return;   // sin cambios: no se redibuja
+      if (f === firma && datos) { if (nuevo.proceso && nuevo.proceso.activo) setTimeout(cargar, 1200); return; }   // sin cambios: no se redibuja
       firma = f; datos = nuevo; pintar();
+      if (nuevo.proceso) setTimeout(cargar, 1200);   // mientras el robot trabaja se mira cada 1,2 s para ver el final
     } catch (e) { if (panel) panel.querySelector('.mm').innerHTML = '<div class="mm-vacio">' + esc(e.message) + '</div>'; }
   }
 
@@ -353,7 +386,7 @@
       document.querySelectorAll('.panel').forEach(x => x.classList.toggle('active', x === panel));
       document.body.classList.remove('inicio-mode', 'inventory-mode', 'production-mode', 'schedule-mode', 'operarios-mode', 'cartera-mode', 'trace-cards-mode');
       firma = ''; cargar(); clearInterval(timer);
-      timer = setInterval(() => { if (panel.classList.contains('active') && !document.hidden) cargar(); }, 15000);
+      timer = setInterval(() => { if (panel.classList.contains('active') && !document.hidden) cargar(); }, 5000);
     });
     const marcar = () => document.body.classList.toggle('mm-modo', panel.classList.contains('active'));
     new MutationObserver(marcar).observe(panel, { attributes: true, attributeFilter: ['class'] }); marcar();

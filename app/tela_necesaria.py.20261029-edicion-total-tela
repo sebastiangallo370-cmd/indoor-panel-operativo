@@ -1,0 +1,455 @@
+"""Tela necesaria por los pedidos programados.
+
+Apenas un pedido entra a Producción se mira su REFERENCIA (A700CA00 -> maestro CA00), se toma el consumo PROMEDIO GENERAL de ese maestro
+(Promedios maestros: media de todos los consumos por talla distintos de cero) y se multiplica por la CANTIDAD de la orden. Lo de todas las órdenes
+se acumula por tela y se compara con lo que hay en Bodega. Solo lectura: no toca el inventario ni el Sheet.
+
+Cuentan las filas con Sublimación vacía (aún sin tela asignada) o en proceso (P). Una fila vacía solo cuenta si su entrega no está vencida por más de 7 días
+(así no pesan las filas viejas que nunca se llenaron). Las que ya pasaron por Sublimación ya descontaron su tela del inventario.
+"""
+from __future__ import annotations
+
+import json
+import re
+import sqlite3
+from datetime import date, datetime, timedelta, timezone
+
+import os
+import threading
+import time
+from pathlib import Path
+
+from app import listado_tallas, promedios, sublimacion_stock
+from app.sublimacion_stock import DB_FILE, norm, parse_date
+
+DIAS_GRACIA = 7
+BRECHA_POR_DEFECTO = 14   # días entre Sublimación y entrega si aún no hay historial suficiente
+INTERVALO_TALLAS = 600
+_STATE = Path(os.getenv('STATE_DIR', '/data/state'))
+_tallas_lock = threading.Lock()
+_tallas: dict[str, dict] = {}   # orden -> {'ruta', 'mtime', 'hojas': {hoja: [líneas]}, 'ts'}
+
+
+def _nombres_informacion_tela() -> dict[str, str]:
+    """Código de la referencia → nombre oficial de Información Tela.
+
+    La tarjeta de MTS no debe inferir el nombre desde M1/M2 ni desde la tela
+    general de la orden: los códigos escritos en la pestaña Excel son la
+    fuente de verdad. ``fabrics.json`` es el mismo catálogo que muestra
+    Información Tela en el panel.
+    """
+    try:
+        catalogo = json.loads(Path(__file__).with_name('fabrics.json').read_text(encoding='utf-8'))
+        return {
+            str(item.get('code') or '').strip(): str(item.get('name') or '').strip()
+            for item in catalogo if isinstance(item, dict) and item.get('code') and item.get('name')
+        }
+    except (OSError, ValueError, TypeError):
+        return {}
+
+
+def _cargar_tallas() -> None:
+    try:
+        with _tallas_lock:
+            _tallas.update(json.loads((_STATE / 'tela_tallas.json').read_text(encoding='utf-8')))
+    except (OSError, ValueError):
+        pass
+
+
+def _guardar_tallas() -> None:
+    try:
+        tmp = _STATE / 'tela_tallas.tmp'
+        tmp.write_text(json.dumps(_tallas, ensure_ascii=False), encoding='utf-8')
+        tmp.replace(_STATE / 'tela_tallas.json')
+    except OSError:
+        pass
+
+
+def refrescar_tallas() -> int:
+    """Lee (solo si cambió) el listado Excel de cada orden programada para tener sus tallas. Va en segundo plano: la NAS por VPN es lenta."""
+    cambios = 0
+    pedidos = _pedidos() or []
+    por_orden = {}
+    for p in pedidos:
+        por_orden.setdefault(p['orden'], p['cliente'])
+    for orden, cliente in por_orden.items():
+        try:
+            previo = _tallas.get(orden)
+            carpeta = Path(previo['ruta']).parent if previo and Path(previo['ruta']).exists() else listado_tallas.carpeta_de_orden(cliente, orden)
+            ruta = listado_tallas.excel_de_orden(carpeta, orden) if carpeta else None
+            if not ruta:
+                continue
+            mtime = ruta.stat().st_mtime
+            if previo and previo.get('ruta') == str(ruta) and previo.get('mtime') == mtime:
+                continue
+            hojas = listado_tallas.leer_hojas(ruta)
+            with _tallas_lock:
+                _tallas[orden] = {'ruta': str(ruta), 'mtime': mtime, 'hojas': hojas, 'ts': time.time()}
+            cambios += 1
+        except Exception:   # noqa: BLE001 - una orden con Excel raro no debe frenar a las demás
+            continue
+    if cambios:
+        _guardar_tallas()
+    return cambios
+
+
+def _bucle_tallas() -> None:
+    time.sleep(45)
+    while True:
+        try:
+            refrescar_tallas()
+        except Exception:   # noqa: BLE001
+            pass
+        time.sleep(INTERVALO_TALLAS)
+
+
+def start() -> None:
+    _cargar_tallas()
+    threading.Thread(target=_bucle_tallas, name='tela-tallas', daemon=True).start()
+
+
+def _exacto(orden: str, referencia: str, datos: dict, cantidad: int = 0) -> dict | None:
+    """Consumo talla por talla (promedio del maestro de cada talla × prendas de esa talla) si el listado de la orden tiene la hoja de esa referencia.
+    Una orden puede traer varias hojas con el mismo código («A100CA04» y «A100CA04-» de otro género): se toma la que tiene tantas prendas como la fila.
+    Si ninguna coincide con la cantidad, no hay cálculo exacto (antes se tomaba la primera y salía el consumo de otra fila)."""
+    entrada = _tallas.get(orden)
+    if not entrada:
+        return None
+    clave = listado_tallas._codigo(referencia)
+    candidatas = [t for t in entrada['hojas'] if listado_tallas._codigo(t) == clave]
+    for titulo in sorted(candidatas, key=lambda t: t != referencia.strip()):   # primero la hoja de nombre idéntico
+        r = promedios.calcular_hoja(titulo, entrada['hojas'][titulo], datos)
+        if not r.get('completo') or r['mts'] <= 0:
+            continue
+        if cantidad and r['prendas'] != cantidad:
+            continue
+        return {'mts': r['mts'], 'prendas': r['prendas'], 'detalle': r['detalle'],
+                'materiales': r.get('materiales') or [], 'partes': r['partes']}
+    return None
+
+
+_brecha_cache: dict = {'at': 0.0, 'dias': BRECHA_POR_DEFECTO}
+
+
+def brecha_sublimacion() -> int:
+    """Días que suelen pasar entre que una orden entra a Sublimación y su fecha de entrega: la mediana de las órdenes ya sublimadas (se recalcula cada hora).
+    Con eso se estima cuándo le toca a una orden pendiente: fecha de entrega menos esa brecha."""
+    if time.time() - _brecha_cache['at'] < 3600:
+        return _brecha_cache['dias']
+    try:
+        db = sqlite3.connect(f'file:{DB_FILE}?mode=ro', uri=True, timeout=5)
+        try:
+            raw = db.execute("SELECT value FROM production_meta WHERE key='headers'").fetchone()
+            headers = [norm(h) for h in json.loads(raw[0])]
+            si, ei = headers.index('SUBLIMACION'), headers.index('FECHA DE ENTREGA')
+            brechas = []
+            for (valores_json,) in db.execute('SELECT values_json FROM production_rows'):
+                v = json.loads(valores_json)
+                if len(v) <= max(si, ei):
+                    continue
+                sub, ent = parse_date(v[si]), parse_date(v[ei])
+                if sub and ent:
+                    dias = (date.fromisoformat(ent) - date.fromisoformat(sub)).days
+                    if 0 <= dias <= 45:   # fuera de ese rango son fechas mal digitadas o casos raros
+                        brechas.append(dias)
+        finally:
+            db.close()
+        if len(brechas) >= 10:
+            brechas.sort()
+            _brecha_cache.update(at=time.time(), dias=round(brechas[len(brechas) // 2]))
+            return _brecha_cache['dias']
+    except Exception:   # noqa: BLE001
+        pass
+    _brecha_cache['at'] = time.time() - 3000   # reintenta en ~10 min
+    return _brecha_cache['dias']
+
+
+def _hoy() -> date:
+    """Hoy en Colombia (el servidor está en UTC y de noche ya marcaría el día siguiente)."""
+    return datetime.now(timezone(timedelta(hours=-5))).date()
+
+
+def _cantidad(valor) -> int:
+    digitos = re.sub(r'[^0-9]', '', str(valor or ''))
+    return int(digitos) if digitos else 0
+
+
+def _consumo(referencia: str, maestros: dict, plantillas: dict) -> tuple[float, list[str], list[str]]:
+    """Consumo promedio general por prenda de una referencia (suma las partes si es compuesta) y lo que no se encontró."""
+    total, usados, faltan = 0.0, [], []
+    for parte in promedios.partes_de_hoja(referencia):
+        if not parte:
+            continue
+        maestro = maestros.get(parte) or plantillas.get(parte)
+        if not maestro:
+            faltan.append(parte)
+            continue
+        promedio = promedios.promedio(maestro)
+        if not promedio:
+            faltan.append(maestro['ref'])
+            continue
+        total += promedio
+        usados.append(maestro['ref'])
+    return round(total, 2), usados, faltan
+
+
+def _codigo_tela(referencia: str) -> str:
+    """«A700CA00» -> '700' (código de tela que va delante de la referencia); «A4403-4400-…» -> '4403'."""
+    m = re.match(r'\s*A(\d+)', str(referencia or '').upper())
+    return m.group(1) if m else ''
+
+
+def _telas_de_bodega(items: list[dict], tela: str, codigos: set[str]) -> list[dict]:
+    """Telas de Bodega que corresponden a la de Producción: primero por el CÓDIGO de la referencia («A7202SHT01» -> (7202)) y, si no hay, por nombre."""
+    codigos = {c for c in codigos if c}
+    por_codigo = []
+    for i in items:
+        if i.get('categoria') != 'BODEGA TELA':
+            continue
+        nombre = ' ' + sublimacion_stock.norm(i.get('nombre')) + ' '
+        m = re.match(r'\s*\((\d+)\)', nombre)
+        if m and m.group(1) in codigos and not any(x in nombre for x in sublimacion_stock.EXCLUDED_NAMES) and ' RIB ' not in nombre:
+            por_codigo.append(i)
+    blancas = [i for i in por_codigo if ' BLANCO ' in ' ' + sublimacion_stock.norm(i.get('nombre')) + ' ']
+    return blancas or por_codigo or sublimacion_stock._matched(items, tela)
+
+
+USUARIO_NOTA = 'AGENTE INVENTARIO'
+
+
+def _normalizar_notas_info_tela(db: sqlite3.Connection, ahora: str) -> int:
+    """Actualiza notas automáticas ya guardadas con el catálogo oficial.
+
+    Las órdenes terminadas ya no participan en ``calcular``; esta migración
+    pequeña evita que sus tarjetas conserven M1/M2 o nombres anteriores. Solo
+    se toca una nota creada por este agente y únicamente cuando la referencia
+    trae dos códigos y la nota tiene dos consumos verificables.
+    """
+    try:
+        cabeceras_raw = db.execute("SELECT value FROM production_meta WHERE key='headers'").fetchone()
+        cabeceras = [norm(x) for x in json.loads(cabeceras_raw[0])] if cabeceras_raw else []
+        indice_ref = cabeceras.index('REFERENCIA')
+    except (sqlite3.Error, ValueError, IndexError, TypeError):
+        return 0
+    catalogo = _nombres_informacion_tela()
+    if not catalogo:
+        return 0
+    cambios = 0
+    filas = db.execute(
+        "SELECT n.source_row, n.note, r.values_json FROM production_notes n "
+        "JOIN production_rows r ON r.source_row=n.source_row "
+        "WHERE n.column_number=17 AND n.username=?", (USUARIO_NOTA,)
+    ).fetchall()
+    for fila, nota, valores_raw in filas:
+        try:
+            valores = json.loads(valores_raw)
+            referencia = str(valores[indice_ref] if indice_ref < len(valores) else '')
+            codigos = promedios.estructura_de_hoja(referencia).get('codigos_tela') or []
+            partes = [p.strip() for p in str(nota or '').split('·') if re.search(r'\d+(?:[.,]\d+)?\s*MTS', p, re.I)]
+            if len(codigos) != len(partes) or len(codigos) < 2:
+                continue
+            consumos = [re.search(r'(\d+(?:[.,]\d+)?\s*MTS)', p, re.I).group(1).upper() for p in partes]
+            nombres = [norm(catalogo.get(str(codigo).strip()) or '') for codigo in codigos]
+            if not all(nombres):
+                continue
+            nueva = ' · '.join(f'{nombre}: {consumo}' for nombre, consumo in zip(nombres, consumos))
+            if nueva != str(nota).strip():
+                db.execute('UPDATE production_notes SET note=?, updated_at=? WHERE source_row=? AND column_number=17', (nueva, ahora, fila))
+                cambios += 1
+        except (ValueError, TypeError, AttributeError, IndexError):
+            continue
+    return cambios
+
+
+def autollenar_mts(ordenes: list[dict]) -> dict:
+    """Anota «NN.NN MTS» en MTS REQUERIDOS (nota de la columna 17) de las tarjetas que todavía no la tienen, con los MTS calculados con el promedio.
+    Solo toca el panel: nunca escribe en el Google Sheets. No pisa lo que puso una persona ni lo que ya trae el Sheet; sí actualiza sus propias notas
+    cuando el cálculo mejora (por ejemplo al leer el listado de tallas)."""
+    # SOLO los cálculos EXACTOS: talla por talla con Promedios maestros (tallas del listado × consumo de cada talla). El promedio general (aproximado) ya no se anota.
+    candidatas_raw = [o for o in ordenes if o.get('fila') and float(o.get('mts') or 0) > 0 and o.get('situacion') != 'sin_promedio' and o.get('exacto')]
+    # Una misma fila FUT04 produce una tarjeta por cada tela. Al guardar la
+    # nota se agrupa por fila, de modo que M2 no pise los MTS de M1.
+    por_fila: dict[int, dict] = {}
+    for orden in candidatas_raw:
+        fila = int(orden['fila'])
+        actual = por_fila.setdefault(fila, orden)
+        if (orden.get('materiales_exactos') or []) and not (actual.get('materiales_exactos') or []):
+            por_fila[fila] = orden
+    candidatas = list(por_fila.values())
+    try:
+        db = sqlite3.connect(str(DB_FILE), timeout=10)
+    except sqlite3.Error:
+        return {'escritas': 0}
+    escritas = 0
+    try:
+        hay_sheet = bool(db.execute("SELECT 1 FROM sqlite_master WHERE name='production_sheet_notes'").fetchone())
+        ahora = datetime.now(timezone.utc).isoformat()
+        escritas += _normalizar_notas_info_tela(db, ahora)
+        if not candidatas:
+            db.commit()
+            return {'escritas': escritas}
+        for o in candidatas:
+            fila = int(o['fila'])
+            materiales = o.get('materiales_exactos') or []
+            if not materiales:
+                materiales = [{'tela': o.get('tela') or 'TELA', 'mts': o['mts']}]
+            # Formato visible para Operaciones: cada tela real y su consumo.
+            # Ej.: «MONTECATINI: 2.67 MTS · TRIATLHON: 3.03 MTS».
+            texto = ' · '.join(
+                f"{str(m.get('tela') or 'TELA').strip()}: {float(m.get('mts') or 0):.2f} MTS"
+                for m in materiales
+            )
+            if hay_sheet:
+                sh = db.execute('SELECT note FROM production_sheet_notes WHERE source_row=? AND column_number=17', (fila,)).fetchone()
+                if sh and re.search(r'\d+(?:[.,]\d+)?\s*MTS', str(sh[0]), re.I):
+                    continue   # el equipo ya los registró en el Sheet
+            previa = db.execute('SELECT note, username FROM production_notes WHERE source_row=? AND column_number=17', (fila,)).fetchone()
+            if previa and str(previa[0]).strip() and previa[1] != USUARIO_NOTA:
+                continue   # una persona (o TERRY) ya puso los MTS
+            if previa and str(previa[0]).strip() == texto:
+                continue
+            if previa and str(previa[0]).strip() and not o.get('exacto'):
+                continue   # ya hay un valor del agente: solo se cambia por uno exacto (por talla), nunca por el aproximado
+            db.execute('INSERT OR REPLACE INTO production_notes(source_row, column_number, note, username, updated_at) VALUES (?,?,?,?,?)', (fila, 17, texto, USUARIO_NOTA, ahora))
+            escritas += 1
+        if escritas:
+            db.execute("INSERT OR REPLACE INTO production_meta(key, value) VALUES ('updated_at', ?)", (ahora,))
+        db.commit()
+    except sqlite3.Error:
+        pass
+    finally:
+        db.close()
+    return {'escritas': escritas}
+
+
+def _pedidos() -> list[dict] | None:
+    """Filas pendientes o en proceso de Sublimación.
+
+    Una fecha o N/A en Sublimación significa que su tela ya se consumió; esas
+    filas no forman parte de Tela programada, aunque aún no estén entregadas.
+    """
+    try: db = sqlite3.connect(f'file:{DB_FILE}?mode=ro', uri=True, timeout=5)
+    except sqlite3.Error: return None
+    try:
+        raw = db.execute("SELECT value FROM production_meta WHERE key='headers'").fetchone()
+        if not raw: return None
+        headers = [norm(h) for h in json.loads(raw[0])]
+        need = ('SUBLIMACION', 'TELA', 'ORDEN', 'REFERENCIA', 'CANTIDAD')
+        if any(h not in headers for h in need): return None
+        si,ti,oi,ri,ci=(headers.index(h) for h in need)
+        ei=headers.index('FECHA DE ENTREGA') if 'FECHA DE ENTREGA' in headers else None
+        ki=headers.index('NOMBRE DEL CLIENTE') if 'NOMBRE DEL CLIENTE' in headers else None
+        pi=headers.index('NOMBRE PROYECTO') if 'NOMBRE PROYECTO' in headers else None
+        fi=headers.index('ENTREGADO') if 'ENTREGADO' in headers else None
+        texto=lambda v,i: str(v[i]).strip() if i is not None and i<len(v) else ''
+        pedidos=[]
+        for fila,valores_json in db.execute('SELECT source_row, values_json FROM production_rows'):
+            v=json.loads(valores_json)
+            if len(v)<=max(si,ti,oi,ri,ci): continue
+            entregado=norm(v[fi]) if fi is not None and fi<len(v) else ''
+            if entregado=='N/A' or parse_date(v[fi] if fi is not None and fi<len(v) else ''): continue
+            orden,referencia=texto(v,oi),texto(v,ri)
+            if not orden or not referencia: continue
+            sub=norm(v[si])
+            if sub not in ('', 'R', 'P'):
+                continue
+            estado='P' if sub=='P' else ''
+            pedidos.append({'fila':fila,'orden':orden,'referencia':referencia,'tela':norm(v[ti]) or 'SIN TELA ASIGNADA','cantidad':_cantidad(v[ci]),'cliente':texto(v,ki),'proyecto':texto(v,pi),'estado':estado,'entrega':parse_date(v[ei]) if ei is not None and ei<len(v) else ''})
+        return pedidos
+    except (sqlite3.Error, ValueError, KeyError): return None
+    finally: db.close()
+
+def calcular(items: list[dict]) -> dict:
+    """Necesidad de tela por pedidos programados, agrupada por tela y comparada con el stock de Bodega."""
+    pedidos = _pedidos()
+    if pedidos is None:
+        return {'disponible': False, 'telas': [], 'ordenes': [], 'sin_promedio': [], 'mts': 0.0, 'pedidos': 0, 'faltan': 0.0, 'telas_no_alcanzan': 0}
+    with promedios._lock:
+        datos = promedios._leer()
+    maestros = {m['ref']: m for m in datos['maestros']}
+    plantillas = {}
+    for m in datos['maestros']:
+        for campo in ('p_masculino', 'p_femenino', 'p_femenino_short', 'p_nino', 'p_nina', 'p_nina_short'):
+            codigo = str(m.get(campo) or '').strip().upper()
+            if codigo:
+                plantillas.setdefault(codigo, m)
+    por_tela: dict[str, dict] = {}
+    sin_promedio = []
+    por_orden = []
+    brecha = brecha_sublimacion()
+    nombres_info_tela = _nombres_informacion_tela()
+    for p in sorted(pedidos, key=lambda x: (x['entrega'] or '9999', x['orden'])):
+        base = {'fila': p['fila'], 'orden': p['orden'], 'cliente': p['cliente'], 'proyecto': p['proyecto'], 'referencia': p['referencia'], 'tela': p['tela'],
+                'cantidad': p['cantidad'], 'estado': p['estado'], 'entrega': p['entrega']}
+        base['en_sublim'] = p['estado'] == 'P'
+        consumo, usados, faltan = _consumo(p['referencia'], maestros, plantillas)
+        exacto = _exacto(p['orden'], p['referencia'], datos, p['cantidad'])
+        if p['estado'] != 'P' and p['entrega']:
+            est = date.fromisoformat(p['entrega']) - timedelta(days=brecha)
+            base.update(sublim_est=est.isoformat(), dias_sublim=(est - _hoy()).days)
+        if not consumo and not exacto:
+            sin_promedio.append({**base, 'situacion': 'sin_promedio', 'promedio': 0, 'mts': 0, 'falta': 0, 'maestros': [], 'telas': [],
+                                 'motivo': ('Sin promedio para ' + ', '.join(faltan)) if faltan else 'La referencia no dice qué maestro es'})
+            continue
+        if exacto:
+            mts, consumo, usados = exacto['mts'], round(exacto['mts'] / max(1, exacto['prendas']), 2), exacto['partes']
+        else:
+            mts = round(consumo * p['cantidad'], 2)
+        # FUT04 es una prenda de dos telas.  Cada una debe reservar su propio
+        # consumo y bodega: M1 (11300) y M2 (1800); no se mezclan en una
+        # tarjeta de una sola tela. Las demás referencias conservan una fila.
+        partidas = (exacto or {}).get('materiales') or [{
+            'material': '', 'tela': p['tela'], 'codigo_tela': _codigo_tela(p['referencia']), 'mts': mts,
+            'detalle': (exacto or {}).get('detalle', [])
+        }]
+        materiales_exactos = []
+        for partida in partidas:
+            codigo_tela = str(partida.get('codigo_tela') or _codigo_tela(p['referencia'])).strip()
+            # El código del Excel manda: es el que se consulta en Información
+            # Tela para que cada consumo lleve el nombre real de su material.
+            tela_partida = norm(nombres_info_tela.get(codigo_tela) or partida.get('tela')) or p['tela']
+            partida_visible = {**partida, 'codigo_tela': codigo_tela, 'tela': tela_partida}
+            materiales_exactos.append(partida_visible)
+            mts_partida = round(float(partida.get('mts') or 0), 2)
+            entrada = por_tela.setdefault(tela_partida, {'tela': tela_partida, 'mts': 0.0, 'prendas': 0, 'pedidos': [], 'codigos': set()})
+            entrada['codigos'].add(codigo_tela)
+            entrada['mts'] += mts_partida
+            entrada['prendas'] += p['cantidad']
+            entrada['pedidos'].append({**base, 'tela': tela_partida, 'material': partida.get('material') or '',
+                                       'promedio': round(mts_partida / max(1, p['cantidad']), 2), 'mts': mts_partida,
+                                       'maestros': usados, 'parcial': bool(faltan) and not exacto,
+                                       'exacto': bool(exacto), 'materiales_exactos': materiales_exactos if exacto else [],
+                                       'prendas_talla': (exacto or {}).get('prendas', 0),
+                                       'tallas': [{'grupo': d['grupo'], 'talla': d['talla'], 'cantidad': d['cantidad'], 'promedio': d['promedio'], 'mts': d['subtotal']}
+                                                  for d in partida.get('detalle', [])]})
+    resultado = []
+    for tela, entrada in por_tela.items():
+        encontradas = _telas_de_bodega(items, tela, entrada['codigos'])
+        disponible = round(sum(sum(float(x) for x in (i.get('roll_values') or [])) for i in encontradas), 2)
+        mts = round(entrada['mts'], 2)
+        restante = disponible
+        for ped in entrada['pedidos']:   # las órdenes se sirven por fecha de entrega: cada una descuenta su tela de lo que queda en Bodega
+            if not encontradas:
+                ped.update(situacion='sin_tela', falta=ped['mts'], disponible=0.0)
+            elif restante >= ped['mts']:
+                ped.update(situacion='alcanza', falta=0.0, disponible=round(restante, 2))
+                restante -= ped['mts']
+            else:
+                ped.update(situacion='no_alcanza', falta=round(ped['mts'] - max(restante, 0.0), 2), disponible=round(max(restante, 0.0), 2))
+                restante = max(0.0, restante - ped['mts'])
+            ped['telas'] = [i['nombre'] for i in encontradas]
+            ped['bodega'] = disponible   # todo lo que hay en Bodega de esa tela (antes de servir las órdenes)
+            ped['quedan'] = round(max(restante, 0.0), 2)   # lo que sobra en Bodega después de esta orden
+            por_orden.append(ped)
+        entrada.pop('codigos', None)
+        resultado.append({**entrada, 'mts': mts, 'disponible': disponible, 'encontrada': bool(encontradas),
+                          'telas': [i['nombre'] for i in encontradas], 'faltan': round(max(0.0, mts - disponible), 2) if encontradas else mts,
+                          'alcanza': bool(encontradas) and disponible >= mts})
+    for sp in sin_promedio:   # aunque no tenga promedio, se muestra cuánta tela hay en Bodega
+        enc = sublimacion_stock._matched(items, sp['tela'])
+        sp['bodega'] = round(sum(sum(float(x) for x in (i.get('roll_values') or [])) for i in enc), 2) if enc else None
+    resultado.sort(key=lambda r: (r['alcanza'], -r['mts']))
+    por_orden.sort(key=lambda o: (o['entrega'] or '9999', o['orden']))
+    return {'disponible': True, 'brecha_sublimacion': brecha, 'telas': resultado, 'ordenes': por_orden + sin_promedio, 'sin_promedio': sin_promedio,
+            'mts': round(sum(r['mts'] for r in resultado), 2), 'pedidos': sum(len(r['pedidos']) for r in resultado), 'programados': len(pedidos),
+            'faltan': round(sum(r['faltan'] for r in resultado), 2), 'telas_no_alcanzan': sum(1 for r in resultado if not r['alcanza'])}

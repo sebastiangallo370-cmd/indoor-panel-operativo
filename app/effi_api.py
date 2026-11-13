@@ -86,17 +86,6 @@ def proveedor(nombre: str) -> dict:
     """Busca el proveedor por palabras de su nombre (el elegido en Estándar 2026) y devuelve su código interno, dirección y forma de pago."""
     palabras = ' '.join(re.findall(r'\w+', nombre))[:60]
     candidatos = _lista('proveedor', {'nombre': palabras})
-    if not candidatos:   # en INFORMACIÓN TELA va la razón social; si en Effi está con su nombre corto, se busca por ese
-        try:
-            from app import proveedores_tela
-            alias_lista = proveedores_tela.alias_de(nombre)
-        except Exception:   # noqa: BLE001 — al correr effi_api.py suelto, sin el paquete app
-            alias_lista = []
-        for alias in alias_lista:
-            candidatos = _lista('proveedor', {'nombre': alias})
-            if candidatos:
-                nombre = alias
-                break
     if not candidatos:
         raise EffiError(f'No encontré el proveedor «{nombre}» en Effi')
     exacto = [c for c in candidatos if re.sub(r'\W+', '', str(c.get('nombre') or c.get('nombre_razon_social') or '')).upper() == re.sub(r'\W+', '', nombre).upper()]
@@ -288,19 +277,6 @@ def crear_cotizacion(cuerpo: dict) -> dict:
         data = (e.cuerpo.get('data') or {}) if isinstance(e.cuerpo, dict) else {}
         if not data.get('id'):
             raise EffiError('Effi dice que esta cotización ya se creó, pero no devolvió su número: revísala en Ventas > Cotizaciones', 409)
-    return {'id': str(data.get('id')), 'prefijo': str(data.get('prefijo') or ''), 'total': data.get('total')}
-
-
-def crear_remision(cuerpo: dict) -> dict:
-    """POST /remision_v (remisión de venta nueva; descuenta inventario). Misma idempotencia que crear_cotizacion. Devuelve {'id','prefijo','total'}."""
-    try:
-        data = _peticion('POST', 'remision_v', cuerpo=cuerpo).get('data') or {}
-    except EffiError as e:
-        if e.estado != 409:
-            raise
-        data = (e.cuerpo.get('data') or {}) if isinstance(e.cuerpo, dict) else {}
-        if not data.get('id'):
-            raise EffiError('Effi dice que esta remisión ya se creó, pero no devolvió su número: revísala en Ventas > Remisiones de venta', 409)
     return {'id': str(data.get('id')), 'prefijo': str(data.get('prefijo') or ''), 'total': data.get('total')}
 
 

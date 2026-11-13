@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Indoor Sport · Colección</title>
+<style>
+:root{--bg:#070a07;--ink:#f3f7ee;--mut:#a9b5a3;--lime:#d0f44c;--ease:cubic-bezier(.22,1,.36,1)}
+*{box-sizing:border-box}html{background:var(--bg);scroll-behavior:auto}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:Arial,Helvetica,sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+a{color:inherit;text-decoration:none}
+.top{position:fixed;z-index:20;inset:0 0 auto 0;display:flex;align-items:center;justify-content:space-between;padding:16px clamp(16px,4vw,44px);background:linear-gradient(180deg,rgba(7,10,7,.85),transparent)}
+.top img{height:34px;display:block}
+.top a.back{padding:9px 16px;border:1px solid rgba(255,255,255,.25);border-radius:999px;font:800 .75rem Arial;letter-spacing:.06em;text-transform:uppercase;background:rgba(10,14,10,.5);backdrop-filter:blur(8px);transition:background .2s,color .2s}
+.top a.back:hover{background:var(--lime);color:#16200a;border-color:var(--lime)}
+.bar{position:fixed;z-index:21;left:0;top:0;height:3px;width:100%;background:var(--lime);transform-origin:left;transform:scaleX(0)}
+
+/* Escenario fijo: 4 actos que cambian con el scroll */
+.stage{position:relative;height:460vh}
+.sticky{position:sticky;top:0;height:100vh;height:100svh;overflow:hidden}
+.word{position:absolute;z-index:0;left:50%;top:50%;translate:-50% -52%;white-space:nowrap;font:900 clamp(7rem,30vw,30rem)/.8 Arial,Helvetica,sans-serif;letter-spacing:-.04em;color:transparent;-webkit-text-stroke:2px rgba(255,255,255,.13);user-select:none;will-change:transform}
+.shots{position:absolute;inset:0;z-index:1}
+.shot{position:absolute;inset:0;opacity:0;will-change:transform,opacity}
+.shot img{position:absolute;right:0;top:0;width:68%;height:100%;object-fit:cover;-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 38%);mask-image:linear-gradient(90deg,transparent 0,#000 38%)}
+.vig{position:absolute;inset:0;z-index:2;pointer-events:none;background:radial-gradient(120% 90% at 70% 50%,transparent 40%,rgba(7,10,7,.75) 100%),linear-gradient(0deg,rgba(7,10,7,.7),transparent 35%)}
+.acts{position:absolute;inset:0;z-index:3}
+.act{position:absolute;left:clamp(18px,6vw,90px);bottom:clamp(70px,14vh,150px);max-width:min(560px,86vw);opacity:0;will-change:transform,opacity}
+.act .k{display:block;margin-bottom:14px;font:800 .78rem Arial;letter-spacing:.2em;text-transform:uppercase;color:var(--lime)}
+.act h2{margin:0;font:900 clamp(2.4rem,7vw,5.6rem)/.95 Arial,Helvetica,sans-serif;letter-spacing:-.03em}
+.act h2 em{font-style:normal;color:var(--lime)}
+.act p{margin:18px 0 0;max-width:440px;color:var(--mut);font-size:clamp(.95rem,1.6vw,1.15rem);line-height:1.55}
+.num{font:900 clamp(5rem,16vw,13rem)/.85 Arial,Helvetica,sans-serif;letter-spacing:-.05em;font-variant-numeric:tabular-nums;color:var(--lime)}
+.dots{position:absolute;z-index:4;right:clamp(14px,3vw,36px);top:50%;translate:0 -50%;display:grid;gap:10px}
+.dots i{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.28);transition:background .3s,transform .3s}
+.dots i.on{background:var(--lime);transform:scale(1.6)}
+.hint{position:absolute;z-index:4;left:50%;bottom:22px;translate:-50% 0;font:700 .7rem Arial;letter-spacing:.22em;text-transform:uppercase;color:var(--mut)}
+.hint:after{content:'';display:block;width:1px;height:34px;margin:10px auto 0;background:linear-gradient(var(--lime),transparent);animation:cae 1.6s ease-in-out infinite}
+@keyframes cae{0%{transform:scaleY(0);transform-origin:top}50%{transform:scaleY(1);transform-origin:top}51%{transform-origin:bottom}100%{transform:scaleY(0);transform-origin:bottom}}
+
+/* Galería del proceso */
+.proc{padding:clamp(70px,12vw,150px) clamp(16px,6vw,90px)}
+.proc h3{margin:0 0 10px;font:900 clamp(2rem,5vw,4rem)/1 Arial;letter-spacing:-.03em}
+.proc>p{margin:0 0 40px;color:var(--mut);max-width:520px;line-height:1.55}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.card{position:relative;overflow:hidden;border-radius:18px;aspect-ratio:4/5;background:#101610;border:1px solid rgba(255,255,255,.08)}
+.card img{width:100%;height:100%;object-fit:cover;display:block;transition:transform 1.2s var(--ease)}
+.card:hover img{transform:scale(1.06)}
+.card span{position:absolute;left:0;right:0;bottom:0;padding:44px 18px 18px;background:linear-gradient(0deg,rgba(7,10,7,.9),transparent);font:800 .85rem Arial;letter-spacing:.08em;text-transform:uppercase}
+.card span b{display:block;margin-bottom:4px;color:var(--lime);font-size:.7rem;letter-spacing:.2em}
+.end{padding:clamp(80px,14vw,170px) 20px;text-align:center}
+.end h3{margin:0 auto;max-width:900px;font:900 clamp(2.4rem,7vw,6rem)/.95 Arial;letter-spacing:-.03em}
+.end h3 em{font-style:normal;color:var(--lime)}
+.end a{display:inline-block;margin-top:34px;padding:16px 30px;border-radius:999px;background:var(--lime);color:#16200a;font:900 .85rem Arial;letter-spacing:.08em;text-transform:uppercase;transition:transform .25s var(--ease),box-shadow .25s}
+.end a:hover{transform:translateY(-3px);box-shadow:0 14px 40px rgba(208,244,76,.28)}
+
+@media(max-width:760px){
+  .shot img{width:100%;-webkit-mask-image:linear-gradient(0deg,transparent 0,#000 55%);mask-image:linear-gradient(0deg,transparent 0,#000 55%)}
+  .word{-webkit-text-stroke:1.5px rgba(255,255,255,.12)}
+  .act{bottom:clamp(60px,12vh,110px)}.dots{display:none}
+  .grid{grid-template-columns:1fr 1fr;gap:10px}.card{aspect-ratio:3/4}
+}
+@media(prefers-reduced-motion:reduce){
+  .stage{height:auto}.sticky{position:relative;height:auto;min-height:0;overflow:visible}
+  .word,.vig,.dots,.hint,.bar{display:none}
+  .shots,.acts{position:static}.shot{position:relative;opacity:1;height:62vw;max-height:520px}.shot img{width:100%;-webkit-mask-image:none;mask-image:none}
+  .act{position:static;opacity:1;margin:30px clamp(18px,6vw,90px)}
+}
+</style>
+</head>
+<body>
+<div class="bar" id="bar"></div>
+<header class="top"><img src="/marca-indoor.svg" alt="Indoor"><a class="back" href="/">← Volver al panel</a></header>
+
+<section class="stage" id="stage">
+  <div class="sticky">
+    <div class="word" id="word" aria-hidden="true">INDOOR</div>
+    <div class="shots">
+      <div class="shot"><img src="/landing/uniforme-1.jpg" alt="Uniforme sublimado Indoor negro y azul" fetchpriority="high"></div>
+      <div class="shot"><img src="/landing/uniforme-2.jpg" alt="Uniforme de rayas azules Indoor"></div>
+      <div class="shot"><img src="/landing/uniforme-3.jpg" alt="Detalle del escudo y los patrocinadores bordados"></div>
+    </div>
+    <div class="vig"></div>
+    <div class="acts">
+      <div class="act"><span class="k">Indoor Sport</span><h2>Del diseño<br>a la <em>cancha</em>.</h2><p>Uniformes sublimados hechos a la medida de cada equipo, de principio a fin en nuestra propia planta.</p></div>
+      <div class="act"><span class="k">Un solo flujo</span><div class="num"><span id="n1">0</span></div><h2 style="font-size:clamp(1.6rem,4vw,3rem);margin-top:8px">áreas de producción,<br>una <em>sola</em> trazabilidad.</h2></div>
+      <div class="act"><span class="k">Sublimación</span><h2>Cada diseño,<br><em>sin límites</em> de color.</h2><p>Impresión, calandra y corte láser: el estampado se vuelve parte de la tela, no una capa encima.</p></div>
+      <div class="act"><span class="k">Hecho a mano y a máquina</span><h2>Cada detalle<br>con <em>tu escudo</em>.</h2><p>Escudos, patrocinadores y numeración, listos para el primer pitazo.</p></div>
+    </div>
+    <div class="dots" id="dots"><i></i><i></i><i></i><i></i></div>
+    <div class="hint" id="hint">Desliza</div>
+  </div>
+</section>
+
+<section class="proc">
+  <h3>Así lo <span style="color:var(--lime)">fabricamos</span></h3>
+  <p>Impresión, calandra, corte y confección dentro de una misma planta.</p>
+  <div class="grid">
+    <figure class="card" style="margin:0"><img loading="lazy" src="/landing/proceso-1.jpg" alt="Impresión de diseños"><span><b>01</b>Impresión</span></figure>
+    <figure class="card" style="margin:0"><img loading="lazy" src="/landing/proceso-4.jpg" alt="Control manual del estampado"><span><b>02</b>Acabado</span></figure>
+    <figure class="card" style="margin:0"><img loading="lazy" src="/landing/proceso-2.jpg" alt="Corte y armado"><span><b>03</b>Corte y armado</span></figure>
+  </div>
+</section>
+
+<section class="end">
+  <h3>Tu equipo, con la <em>camiseta</em> que merece.</h3>
+  <a href="/">Volver al panel</a>
+</section>
+
+<script src="/motion.js?v=11.18.2"></script>
+<script>
+(function () {
+  var M = window.Motion, quieto = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var shots = [].slice.call(document.querySelectorAll('.shot')), acts = [].slice.call(document.querySelectorAll('.act'));
+  var dots = [].slice.call(document.querySelectorAll('#dots i')), word = document.getElementById('word'), n1 = document.getElementById('n1');
+  var hint = document.getElementById('hint'), bar = document.getElementById('bar');
+  var clamp = function (x) { return Math.max(0, Math.min(1, x)); };
+  var smooth = function (x) { x = clamp(x); return x * x * (3 - 2 * x); };
+  var N = acts.length;
+  // 4 actos: cada uno entra, se sostiene y sale; el último no sale
+  function ventana(p, i) {
+    var a = i / N, b = (i + 1) / N, w = 0.07;
+    var entra = i === 0 ? 1 : smooth((p - a) / w), sale = i === N - 1 ? 1 : 1 - smooth((p - (b - w)) / w);
+    return Math.min(entra, sale);
+  }
+  function frame(p) {
+    var activo = Math.min(N - 1, Math.floor(p * N));
+    acts.forEach(function (el, i) {
+      var v = ventana(p, i), a = i / N, dir = p < (a + 0.5 / N) ? 1 : -1;
+      el.style.opacity = v;
+      el.style.transform = 'translateY(' + ((1 - v) * 34 * dir) + 'px)';
+      el.style.filter = v < 1 ? 'blur(' + ((1 - v) * 8) + 'px)' : 'none';
+    });
+    // las 3 fotos se reparten los 4 actos: foto 0 → acto 0-1, foto 1 → acto 2, foto 2 → acto 3
+    var mapa = [0, 0, 1, 2];
+    shots.forEach(function (el, k) {
+      var v = 0;
+      acts.forEach(function (_, i) { if (mapa[i] === k) v = Math.max(v, ventana(p, i)); });
+      var local = clamp((p * N - (k === 0 ? 0 : k + 1)) / (k === 0 ? 2 : 1));
+      el.style.opacity = v;
+      el.style.transform = 'scale(' + (1.18 - 0.18 * smooth(local + .15)) + ') translateX(' + ((1 - v) * 40) + 'px)';
+    });
+    word.style.transform = 'translateX(' + (-p * 14) + '%) scale(' + (1 + p * 0.12) + ')';
+    n1.textContent = Math.round(14 * smooth((p * N - 1.05) / 0.55));
+    dots.forEach(function (d, i) { d.classList.toggle('on', i === activo); });
+    hint.style.opacity = 1 - clamp(p * 14);
+  }
+  if (!M || quieto) { n1.textContent = '14'; return; }
+  M.scroll(function (p) { frame(p); }, { target: document.getElementById('stage'), offset: ['start start', 'end end'] });
+  M.scroll(M.animate(bar, { scaleX: [0, 1] }, { ease: 'linear' }));
+  frame(0);
+  // la galería y el cierre se revelan al entrar a pantalla
+  M.inView('.card', function (el) {
+    M.animate(el, { opacity: [0, 1], y: [60, 0], scale: [.94, 1] }, { duration: .9, ease: [.22, 1, .36, 1], delay: [].indexOf.call(el.parentNode.children, el) * .1 });
+  }, { margin: '0px 0px -12% 0px' });
+  M.inView('.end h3, .end a, .proc h3, .proc>p', function (el) {
+    M.animate(el, { opacity: [0, 1], y: [30, 0] }, { duration: .8, ease: [.22, 1, .36, 1] });
+  }, { margin: '0px 0px -10% 0px' });
+  // entrada inicial
+  M.animate('.top', { opacity: [0, 1], y: [-16, 0] }, { duration: .8, delay: .2 });
+})();
+</script>
+</body>
+</html>

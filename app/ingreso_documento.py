@@ -568,7 +568,8 @@ def parse_packing_list(data: bytes, filename: str) -> dict | None:
 FORMATOS = [
     {'id': 'lindatextil', 'nombre': 'Lindatextil', 'disponible': True,
      'ayuda': 'Lista de empaque (escaneo o foto, un rollo por fila con su total) o factura electrónica en PDF (entra 1 rollo con el total y lo repartes).'},
-    {'id': 'eliot', 'nombre': 'Manufacturas Eliot · próximamente', 'disponible': False, 'ayuda': 'Este proveedor todavía no está habilitado.'},
+    {'id': 'eliot', 'nombre': 'Manufacturas Eliot', 'disponible': True,
+     'ayuda': 'Nota de entrega: lee cada fila de rollo desde la columna CANTIDAD y conserva su número de rollo.'},
     {'id': 'lafayette', 'nombre': 'Lafayette · próximamente', 'disponible': False, 'ayuda': 'Este proveedor todavía no está habilitado.'},
     {'id': 'saraxy', 'nombre': 'Saraxy · próximamente', 'disponible': False, 'ayuda': 'Este proveedor todavía no está habilitado.'},
     {'id': 'puntoflex', 'nombre': 'Puntoflex · próximamente', 'disponible': False, 'ayuda': 'Este proveedor todavía no está habilitado.'},
@@ -578,12 +579,16 @@ FORMATOS_IDS = {f['id'] for f in FORMATOS}
 
 
 def parse_document(data: bytes, filename: str, formato: str = 'lindatextil') -> dict:
-    """Por ahora solo se lee el formato de Lindatextil (lista de empaque o factura electrónica). Los demás proveedores se habilitan
-    cuando se tenga un documento de ejemplo de cada uno: basta marcar 'disponible' en FORMATOS y llamar a su lector aquí."""
+    """Lee el documento según el formato elegido y devuelve las telas y rollos para validar antes de registrar."""
     formato = formato if formato in FORMATOS_IDS else 'lindatextil'
     info = next(f for f in FORMATOS if f['id'] == formato)
     if not info.get('disponible'):
         raise ValueError(f"El formato de {info['nombre'].split(' · ')[0]} todavía no está habilitado. Por ahora solo se puede subir documentos de Lindatextil.")
+    if formato == 'eliot':
+        eliot = parse_eliot(data, filename)
+        if eliot.get('lineas'):
+            return eliot
+        raise ValueError('No reconocí una nota de entrega de Manufacturas Eliot. Revisa que el escaneo se vea completo y derecho.')
     if data[:4] == b'%PDF':
         invoice = parse_invoice_text(data)
         if invoice:

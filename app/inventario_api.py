@@ -50,6 +50,7 @@ def _load_snapshot() -> dict[str, Any] | None:
 
 
 def _save_snapshot(data: dict[str, Any]) -> None:
+    _invalidar_sublimacion()   # el punto donde cambia el inventario: lo que estaba guardado en memoria ya no sirve
     folder = os.path.dirname(_snapshot_file)
     if folder:
         os.makedirs(folder, exist_ok=True)
@@ -102,11 +103,13 @@ def _load_movements() -> list[dict[str, Any]]:
 
 
 def _save_movements(movements: list[dict[str, Any]]) -> None:
+    _invalidar_sublimacion()   # el punto donde cambia el inventario: lo que estaba guardado en memoria ya no sirve
     folder = os.path.dirname(_movement_file)
     if folder:
         os.makedirs(folder, exist_ok=True)
     with open(_movement_file, 'w', encoding='utf-8') as handle:
         json.dump(movements, handle, ensure_ascii=False)
+    _invalidar_sublimacion()
 
 
 def _normalized(value: Any) -> str:
@@ -545,7 +548,28 @@ def _usage_key(item: dict[str, Any]) -> tuple:
     return (category, -int(item.get('uso_pedidos') or 0), -float(item.get('uso_mts') or 0), name, raw)
 
 
+_sub_cache: dict[str, Any] = {'p': None, 'at': 0.0, 'out': None}
+_SUB_CACHE_SEGUNDOS = 4
+
+
+def _invalidar_sublimacion() -> None:
+    _sub_cache.update(p=None, at=0.0, out=None)
+
+
 def _with_sublimacion(payload: dict[str, Any]) -> dict[str, Any]:
+    """El panel pide el inventario muchas veces por segundo (varias pantallas, agentes, alertas). El plan de rollos y el uso se calculan
+    una vez y se reutilizan unos segundos mientras el inventario base sea el mismo; cada respuesta es una copia para que nadie
+    modifique la compartida. Un movimiento o una actualización del inventario lo invalidan al instante."""
+    ahora = time.monotonic()
+    c = _sub_cache
+    if c['out'] is not None and c['p'] is payload and ahora - c['at'] < _SUB_CACHE_SEGUNDOS:
+        return copy.deepcopy(c['out'])
+    salida = _with_sublimacion_calculo(payload)
+    c.update(p=payload, at=ahora, out=copy.deepcopy(salida))
+    return salida
+
+
+def _with_sublimacion_calculo(payload: dict[str, Any]) -> dict[str, Any]:
     try:
         items, plan = sublimacion_stock.reconcile(payload.get('items') or [])
     except Exception:
@@ -916,10 +940,16 @@ def _inventory_payload(refresh: bool = False):
 
 
 def _refresh_snapshot() -> None:
+    _invalidar_sublimacion()
     try:
         payload = _read_inventory()
         _save_snapshot(payload)
         _cache.update({"at": time.monotonic(), "data": payload})
+        try:
+            from app import tiempo_real
+            tiempo_real.avisar('inventario')   # MINIMAXIMAN y STOCKMAN se enteran del cambio al instante
+        except Exception:   # noqa: BLE001
+            pass
     except Exception:
         _cache.update({'at': 0.0, 'data': None})
 
@@ -940,6 +970,41 @@ _documents_file = os.getenv('INVENTORY_DOCUMENTS_FILE', '/data/inventory_documen
 _documents_dir = os.getenv('INVENTORY_DOCUMENTS_DIR', '/data/inventory_documentos')
 
 
+def _lectura_ruta(digest: str, formato: str) -> str:
+    return os.path.join(_documents_dir, '_lecturas', f'{digest}.{re.sub(r"[^a-z0-9_-]", "", str(formato).lower())}.json')
+
+
+def _version_lectura() -> int:
+    """Cambia sola cada vez que se despliega una versión nueva del lector de documentos: así una lectura guardada nunca sobrevive a un cambio del OCR."""
+    try:
+        return int(os.path.getmtime(ingreso_documento.__file__))
+    except OSError:
+        return 0
+
+
+def _lectura_guardada(digest: str, formato: str):
+    """Lectura (OCR) ya hecha de este mismo archivo, si existe y es de la versión actual del lector; None si hay que leerlo."""
+    try:
+        with open(_lectura_ruta(digest, formato), 'r', encoding='utf-8') as handle:
+            guardada = json.load(handle)
+        if guardada.get('version') == _version_lectura() and isinstance(guardada.get('parsed'), dict):
+            return guardada['parsed']
+    except (OSError, ValueError):
+        pass
+    return None
+
+
+def _guardar_lectura(digest: str, formato: str, parsed: dict) -> None:
+    try:
+        ruta = _lectura_ruta(digest, formato)
+        os.makedirs(os.path.dirname(ruta), exist_ok=True)
+        with open(ruta + '.tmp', 'w', encoding='utf-8') as handle:
+            json.dump({'version': _version_lectura(), 'parsed': parsed}, handle, ensure_ascii=False)
+        os.replace(ruta + '.tmp', ruta)
+    except (OSError, TypeError, ValueError):
+        pass   # sin copia guardada simplemente se vuelve a leer la próxima vez
+
+
 def _imported_documents() -> dict[str, Any]:
     try:
         with open(_documents_file, encoding='utf-8') as handle:
@@ -958,6 +1023,7 @@ def _check_bodegas(movements) -> None:
 
 @inventario_router.post('/movimiento')
 def inventory_movement(movement: InventoryMovement):
+    _invalidar_sublimacion()
     _check_bodegas([movement])
     antes = _roll_code_set() if movement.type == 'INGRESO' else set()
     with _lock:
@@ -1160,6 +1226,7 @@ def inventory_new_fabric(fabric: NewFabric):
 
 @inventario_router.post('/movimientos')
 def inventory_movements(batch: InventoryBatch):
+    _invalidar_sublimacion()
     _check_bodegas(batch.movements)
     hay_ingreso = any(m.type == 'INGRESO' for m in batch.movements)
     antes = _roll_code_set() if hay_ingreso else set()
@@ -1328,10 +1395,13 @@ async def inventory_document(file: UploadFile = File(...), formato: str = Form('
             handle.write(data)
     except OSError:
         pass
-    try:
-        parsed = await run_in_threadpool(ingreso_documento.parse_document, data, name, formato)
-    except Exception as exc:
-        raise HTTPException(status_code=422, detail=f'No se pudo leer el documento: {exc}') from exc
+    parsed = _lectura_guardada(digest, formato)   # el mismo archivo ya leído (p. ej. se subió otra vez): respuesta inmediata, sin repetir el OCR
+    if parsed is None:
+        try:
+            parsed = await run_in_threadpool(ingreso_documento.parse_document, data, name, formato)
+        except Exception as exc:
+            raise HTTPException(status_code=422, detail=f'No se pudo leer el documento: {exc}') from exc
+        _guardar_lectura(digest, formato, parsed)   # se guarda ANTES de agregar las sugerencias, que dependen del inventario de ese momento
     snapshot = _load_snapshot() or {}
     items = [item for item in snapshot.get('items', []) if item.get('categoria') in ('BODEGA TELA', 'RETAL CANASTAS')]
     for line in parsed['lineas']:

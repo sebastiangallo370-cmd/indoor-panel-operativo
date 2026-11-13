@@ -384,18 +384,22 @@
   function unitStairs(a) {
     const l = a.unitTime || [], porLote = unitMetric === 'lote', dato = x => (porLote ? x.lote : x.porUnidad), con = l.filter(x => dato(x) !== null);
     const abierta = unitArea && l.find(x => x.label === unitArea); if (abierta) return unitWeek(abierta, porLote);
-    const mayor = Math.max(1e-9, ...con.map(dato)), total = con.reduce((t, x) => t + dato(x), 0), lento = con.slice().sort((x, y) => dato(y) - dato(x))[0];
+    // Cada área conserva su propia base: sus minutos ÷ sus unidades medidas.
+    // No se suman cantidades de otras áreas para construir el indicador ni su porcentaje.
+    const mayor = Math.max(1e-9, ...con.map(dato)), lento = con.slice().sort((x, y) => dato(y) - dato(x))[0];
     const cols = l.map((x, i) => {
-      const v = dato(x), hay = v !== null, rise = hay ? Math.max(18, Math.round(v / mayor * 190)) : 0, share = hay && total ? Math.round(v / total * 100) : 0, top = hay && x === lento && con.length > 1;
+      const v = dato(x), hay = v !== null, rise = hay ? Math.max(18, Math.round(v / mayor * 190)) : 0, share = hay ? Math.round(v / mayor * 100) : 0, top = hay && x === lento && con.length > 1;
       const numero = !hay ? '—' : v >= 60 ? fmtNum(v / 60, 1) : v >= 1 ? fmtNum(v, 1) : String(Math.round(v * 60)), unidad = !hay ? 'sin datos' : (v >= 60 ? 'h' : v >= 1 ? 'min' : 'seg') + (porLote ? ' por lote' : ' / und.');
-      return '<button type="button" class="st-col' + (top ? ' top' : '') + (hay ? '' : ' empty') + '" data-unit-open="' + esc(x.label) + '" style="--i:' + i + ';--rise:' + rise + 'px;--lv:' + Math.min(94, Math.max(share, hay ? 8 : 0)) + '%" title="' + esc(x.label) + (hay ? ' · ' + fmtDur(x.porUnidad) + ' por unidad · lote típico ' + fmtDur(x.lote) + ' · ' + fmtNum(x.unidades) + ' unidades en ' + x.lotes + ' lotes' : ' · todavía sin inicio y final registrados') + '">' +
+      const esTrazo = x.label === 'TRAZO/CORTE/PLT';
+      const nombre = esTrazo ? 'TRAZO<span>CORTE PLT</span>' : esc(SHORT[x.label] || x.label);
+      return '<button type="button" class="st-col' + (top ? ' top' : '') + (esTrazo ? ' trazo' : '') + (hay ? '' : ' empty') + '" data-unit-open="' + esc(x.label) + '" style="--i:' + i + ';--rise:' + rise + 'px;--lv:' + Math.min(94, Math.max(share, hay ? 8 : 0)) + '%" title="' + esc(x.label) + (hay ? ' · ' + fmtDur(x.porUnidad) + ' por unidad · lote típico ' + fmtDur(x.lote) + ' · ' + fmtNum(x.unidades) + ' unidades en ' + x.lotes + ' lotes' : ' · todavía sin inicio y final registrados') + '">' +
         (top ? '<em class="ar-ribbon">Más lento</em>' : '') + '<span class="st-slot"><span class="st-bar">' + (hay ? '<i class="sg ' + (top ? 'cola' : 'prog') + '" style="flex:1"></i>' : '') + '</span></span>' +
-        '<b class="st-name">' + esc(SHORT[x.label] || x.label) + '</b><span class="st-val">' + numero + '</span><small class="st-sub">' + unidad + (hay ? ' · ' + fmtNum(x.unidades) + ' und.' : '') + '</small><em class="st-pct">' + share + '%</em></button>';
+        '<b class="st-name">' + nombre + '</b><span class="st-val">' + numero + '</span><small class="st-sub">' + unidad + (hay ? ' · ' + fmtNum(x.unidades) + ' und.' : '') + '</small><em class="st-pct">' + share + '%</em></button>';
     }).join('');
     return '<section class="dash-stairs de-unidad' + (stairsPlayed ? ' go' : '') + '" data-compact="0">' +
-      '<header class="st-head"><div><span class="ar-kicker">CUÁNTO TARDA CADA PRENDA</span><h3>Escalera de tiempo por unidad</h3><p>Cada escalón es un área en el orden del proceso: mientras más alto, más tarda. Se calcula con la HORA INICIO y la HORA FINAL del Sheet y, en las áreas que no las llevan, con el inicio y el final marcados en la página; el porcentaje es la parte del tiempo total que se lleva esa área. Toca un área para ver su escalera de la última semana.</p></div>' +
+      '<header class="st-head"><div><span class="ar-kicker">CUÁNTO TARDA CADA PRENDA</span><h3>Escalera de tiempo por unidad</h3><p>Cada escalón se calcula solo con los lotes y las unidades registradas en esa área: su tiempo medido dividido entre su propia cantidad. No mezcla cantidades de otras áreas. El porcentaje compara el tiempo por unidad de cada área con la más lenta. Toca un área para ver su escalera de la última semana.</p></div>' +
       '<div class="st-metric" role="group" aria-label="Medir por"><button type="button" data-ut-metric="unidad" class="' + (porLote ? '' : 'on') + '">Por unidad</button><button type="button" data-ut-metric="lote" class="' + (porLote ? 'on' : '') + '">Por lote</button></div></header>' +
-      '<div class="st-sum"><span class="st-pill proc" title="Suma de las áreas que tienen registro"><i></i>' + (porLote ? 'Suma de lotes típicos' : 'Total por unidad') + ' <b>' + (con.length ? fmtDur(total) : '—') + '</b></span>' +
+      '<div class="st-sum"><span class="st-pill proc" title="Cada área usa únicamente sus propios lotes y unidades"><i></i>' + (porLote ? 'Medición por lote' : 'Medición propia por área') + ' <b>' + (con.length ? con.length + ' áreas' : '—') + '</b></span>' +
       '<span class="st-pill prog"><i></i>Áreas medidas <b>' + con.length + ' de ' + l.length + '</b></span><span class="st-pill cola"><i></i>Lotes medidos <b>' + fmtNum(l.reduce((t, x) => t + x.lotes, 0)) + '</b></span>' +
       (lento ? '<span class="st-neck">Área que más tarda: <b>' + esc(lento.label) + '</b> · ' + fmtDur(dato(lento)) + (porLote ? ' por lote' : ' por unidad') + '</span>' : '') + '</div>' +
       '<div class="st-scroll"><div class="st-chart" role="list">' + cols + '</div></div><div class="st-flow" aria-hidden="true"><span>Entrada</span><i></i><span>Salida</span></div></section>';
@@ -497,10 +501,10 @@
     unitDetach(); if (unitShown) setTimeout(unitAttach, 0);   // al redibujar, la tarjeta prestada vuelve a su sitio y se trae otra vez
     const l = a.unitTime || [], con = l.filter(x => x.porUnidad !== null);
     if (!l.length) return '<p class="dash-none">Todavía no hay áreas de producción para medir.</p>';
-    const mayor = Math.max(1e-9, ...con.map(x => x.porUnidad)), total = con.reduce((t, x) => t + x.porUnidad, 0), TONOS = ['lime', 'blue', 'green', 'orange', 'lime', 'blue', 'green'];
+    const mayor = Math.max(1e-9, ...con.map(x => x.porUnidad)), TONOS = ['lime', 'blue', 'green', 'orange', 'lime', 'blue', 'green'];
     const valor = m => m === null ? ['—', ''] : m >= 60 ? [fmtNum(m / 60, 1), 'hrs / unidad'] : m >= 1 ? [fmtNum(m, 1), 'min / unidad'] : [String(Math.round(m * 60)), 'seg / unidad'];
-    const resumen = con.length ? card('green', 'Total por unidad', valor(total)[0], valor(total)[1], [['Suma de las áreas con registro', ''], ['Áreas medidas', con.length + ' de ' + l.length],
-      ['Unidades medidas', fmtNum(Math.max(...con.map(x => x.unidades)))], ['Área que más tarda', con.slice().sort((x, y) => y.porUnidad - x.porUnidad)[0].label]], '', null) : '';
+    const resumen = con.length ? card('green', 'Medición por área', String(con.length), 'áreas con datos', [['Cada área usa sus propios lotes y unidades', ''], ['Áreas medidas', con.length + ' de ' + l.length],
+      ['Mayor cantidad medida', fmtNum(Math.max(...con.map(x => x.unidades))) + ' und.'], ['Área que más tarda', con.slice().sort((x, y) => y.porUnidad - x.porUnidad)[0].label]], '', null) : '';
     return unitFind(a) + unitStairs(a) + unitOrders(a) + '<section class="dash-load"><div class="dash-panel-head"><h4>Detalle por área</h4><small>Minutos por prenda en todas las áreas · con las horas del Sheet o, si el área no las lleva, con el inicio y el final marcados en la página · las filas de una orden que se trabajaron juntas cuentan como un solo lote</small></div>' +
       '<div class="dash-cards dash-unit">' + resumen + l.map((x, i) => { const [v, u] = valor(x.porUnidad); return x.porUnidad === null
         ? card('orange', esc(x.label), '—', '', [['Todavía no hay registros con hora de inicio y final', '']], '', 0)
@@ -509,11 +513,228 @@
   }
 
   // ---- PESTAÑAS DEL INICIO (para no tener que bajar tanto) ----
-  const TABS = [['resumen', 'Resumen'], ['tiempo', 'Tiempo por orden'], ['unidad', 'Tiempo por unidad'], ['carga', 'Carga por área']];
+  const TABS = [['resumen', 'Resumen'], ['general', 'Panel general'], ['tiempo', 'Tiempo por orden'], ['unidad', 'Tiempo por unidad'], ['carga', 'Carga por área']];
   let telaData = null;   // compras de tela de ZEUS (solo quien puede ver Agente Inventario)
   function telaTabs() { if (telaData && !TABS.some(([id]) => id === 'tela')) TABS.push(['tela', 'Tela']); }
   let activeTab = 'resumen';
   try { const saved = localStorage.getItem('indoor-home-tab'); if (TABS.some(([id]) => id === saved)) activeTab = saved; } catch (e) { /* sin almacenamiento */ }
+  // El banner de Inicio forma parte de la identidad de esta pantalla y debe
+  // permanecer visible también en las vistas de análisis.
+  function syncHomeFocus() { root.closest('.home-page')?.classList.remove('home-dashboard-focus'); }
+  syncHomeFocus();
+  // Panel general: estilo de cristal sobre foto borrosa, con gráficos de línea, dona, barras y listas
+  function generalPane(a) {
+    const DAY = 86400000, hoy = startOfToday();
+    const manana = new Date(hoy.getTime() + DAY);
+    const ords = a.orders || [];
+    const hace30 = new Date(hoy.getTime() - 30 * DAY);
+    const dow = (hoy.getDay() + 6) % 7;
+    const lunes = new Date(hoy.getTime() - dow * DAY);
+    const domingo = new Date(lunes.getTime() + 7 * DAY - 1);
+    const dia = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const dentro = (d, inicio, fin) => !!d && d >= inicio && d <= fin;
+    const fecha = d => d ? d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' }) : 'Sin fecha';
+    const suma = list => list.reduce((total, o) => total + (o.units || 0), 0);
+    const fmt = n => fmtNum(n, 0);
+    const ultimos7 = Array.from({ length: 7 }, (_, i) => new Date(hoy.getTime() - (6 - i) * DAY));
+    const diasSemana = ['L', 'M', 'X', 'J', 'V', 'S', 'D'].map((l, i) => new Date(lunes.getTime() + i * DAY));
+    const etq7 = ultimos7.map(d => d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' }));
+    const etqSemana = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+    const porDia = (dates, pick) => dates.map(pick);
+    const creadosEn = d => ords.filter(o => o.created && dia(o.created).getTime() === d.getTime());
+    const serieProgramadas = porDia(ultimos7, d => suma(creadosEn(d)));
+    const confEn = d => ords.filter(o => Object.entries(o.finishedOn || {}).some(([l, f]) => /CONFEC/i.test(l) && dia(f).getTime() === d.getTime()));
+    const serieConf = porDia(ultimos7, d => suma(confEn(d)));
+    const saleEn = d => ords.filter(o => !o.delivered && o.due && dia(o.due).getTime() === d.getTime());
+    const serieSaleU = porDia(diasSemana, d => suma(saleEn(d)));
+    const serieSaleN = porDia(diasSemana, d => saleEn(d).length);
+
+    const programadosMes = ords.filter(o => dentro(o.created, hace30, manana));
+    const unidadesProgramadas = suma(programadosMes);
+    const confMes = ords.filter(o => Object.entries(o.finishedOn || {}).some(([label, d]) => /CONFEC/i.test(label) && dentro(d, hace30, manana)));
+    const unidadesConfeccion = suma(confMes);
+    const activos = ords.filter(o => !o.delivered);
+    const saleSemana = activos.filter(o => dentro(o.due, lunes, domingo)).sort((x, y) => x.due - y.due);
+    const unidadesSemana = suma(saleSemana);
+    const unidadesActivas = Math.max(1, suma(activos));
+
+    // 1) Sparkline de área: unidades programadas (7 días)
+    const spark = (vals) => {
+      const max = Math.max(1, ...vals), n = vals.length;
+      const P = vals.map((v, i) => [i * 100 / (n - 1), 36 - v / max * 30]);
+      const d = 'M' + P.map(([x, y]) => x.toFixed(1) + ' ' + y.toFixed(1)).join(' L');
+      return '<svg viewBox="0 0 100 40" preserveAspectRatio="none" class="gp-spark" aria-hidden="true"><path d="' + d + ' L100 40 L0 40 Z" class="gp-spark-area"/><path d="' + d + '" class="gp-spark-line"/></svg>';
+    };
+    // 2) Anillo: confección vs programadas (%)
+    const pctConf = Math.min(100, Math.round(unidadesConfeccion / Math.max(1, unidadesProgramadas) * 100));
+    const anillo = '<svg viewBox="0 0 60 60" class="gp-ring" aria-label="' + pctConf + '%"><circle cx="30" cy="30" r="24" class="gp-ring-track"/><circle cx="30" cy="30" r="24" class="gp-ring-val" stroke-dasharray="' + (2 * Math.PI * 24 * pctConf / 100).toFixed(1) + ' 200" transform="rotate(-90 30 30)"/><text x="30" y="34" class="gp-ring-txt">' + pctConf + '%</text></svg>';
+    // 3) Puntos por día: pedidos que salen esta semana
+    const puntos7 = '<div class="gp-dots">' + serieSaleN.map((n, i) => '<span class="gp-dot' + (n ? ' on' : '') + '" style="--i:' + i + '" title="' + etqSemana[i] + ': ' + n + '"><b>' + etqSemana[i] + '</b><i>' + n + '</i></span>').join('') + '</div>';
+    // 4) Medio arco: unidades que salen esta semana frente a las activas
+    const pctSemana = Math.min(100, Math.round(unidadesSemana / unidadesActivas * 100));
+    const arco = '<svg viewBox="0 0 120 70" class="gp-arc" aria-label="' + pctSemana + '%"><path d="M10 60 A50 50 0 0 1 110 60" class="gp-arc-track"/><path d="M10 60 A50 50 0 0 1 110 60" class="gp-arc-val" pathLength="100" stroke-dasharray="' + pctSemana + ' 100"/><text x="60" y="56" class="gp-ring-txt">' + pctSemana + '%</text></svg>';
+
+    // 5) Línea + área: unidades programadas por semana (8 semanas)
+    const semanas = Array.from({ length: 8 }, () => 0);
+    ords.forEach(o => {
+      if (!o.created) return;
+      const w = Math.floor((hoy - dia(o.created)) / (7 * DAY));
+      if (w >= 0 && w < 8) semanas[7 - w] += o.units || 0;
+    });
+    const maxSem = Math.max(10, Math.ceil(Math.max(...semanas) * 1.15));
+    const W = 640, H = 260, L = 46, R = 18, T = 22, B = 34;
+    const x = i => L + i * (W - L - R) / 7;
+    const y = v => T + (H - T - B) * (1 - v / maxSem);
+    const pts = semanas.map((v, i) => [x(i), y(v)]);
+    const suave = P => {
+      let d = 'M' + P[0][0].toFixed(1) + ' ' + P[0][1].toFixed(1);
+      for (let i = 0; i < P.length - 1; i++) {
+        const p0 = P[i - 1] || P[i], p1 = P[i], p2 = P[i + 1], p3 = P[i + 2] || p2;
+        d += ' C' + (p1[0] + (p2[0] - p0[0]) / 6).toFixed(1) + ' ' + (p1[1] + (p2[1] - p0[1]) / 6).toFixed(1) + ' ' + (p2[0] - (p3[0] - p1[0]) / 6).toFixed(1) + ' ' + (p2[1] - (p3[1] - p1[1]) / 6).toFixed(1) + ' ' + p2[0].toFixed(1) + ' ' + p2[1].toFixed(1);
+      }
+      return d;
+    };
+    const trazo = suave(pts);
+    const area = trazo + ' L' + pts[7][0].toFixed(1) + ' ' + (H - B) + ' L' + pts[0][0].toFixed(1) + ' ' + (H - B) + ' Z';
+    const cuadricula = [0, 1, 2, 3, 4].map(k => { const v = Math.round(maxSem * k / 4), yy = y(v).toFixed(1); return '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + yy + '" y2="' + yy + '" class="gp-grid"/><text x="' + (L - 10) + '" y="' + (Number(yy) + 4) + '" class="gp-eje-y">' + fmt(v) + '</text>'; }).join('');
+    const lunesDe = i => new Date(lunes.getTime() - (7 - i) * 7 * DAY).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' });
+    const etiquetasLinea = semanas.map((v, i) => '<text x="' + x(i).toFixed(1) + '" y="' + (H - 10) + '" class="gp-eje">' + (i === 7 ? 'Esta sem.' : lunesDe(i)) + '</text>').join('');
+    const puntosLinea = pts.map(([px, py], i) => '<g class="gp-pt" style="--i:' + i + '"><circle cx="' + px.toFixed(1) + '" cy="' + py.toFixed(1) + '" r="11" class="gp-halo"/><circle cx="' + px.toFixed(1) + '" cy="' + py.toFixed(1) + '" r="5" class="gp-punto"><title>' + lunesDe(i) + ': ' + fmt(semanas[i]) + ' und</title></circle><text x="' + px.toFixed(1) + '" y="' + (py - 14).toFixed(1) + '" class="gp-val">' + fmt(semanas[i]) + '</text></g>').join('');
+    const graficoLinea = '<svg viewBox="0 0 ' + W + ' ' + H + '" class="gp-svg" role="img" aria-label="Unidades programadas por semana"><defs><linearGradient id="gpArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#e6ebf1" stop-opacity=".5"/><stop offset="100%" stop-color="#e6ebf1" stop-opacity="0"/></linearGradient><filter id="gpGlow" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>' +
+      cuadricula + '<path d="' + area + '" fill="url(#gpArea)" class="gp-area"/><path d="' + trazo + '" class="gp-trazo" filter="url(#gpGlow)"/>' + puntosLinea + etiquetasLinea + '</svg>';
+
+    // 6) Dona: reparto de unidades por área (30 días)
+    const areas = new Map();
+    ords.forEach(o => Object.entries(o.finishedOn || {}).forEach(([label, d]) => {
+      if (!dentro(d, hace30, manana)) return;
+      const r = areas.get(label) || { pedidos: 0, unidades: 0 };
+      r.pedidos++; r.unidades += o.units || 0;
+      areas.set(label, r);
+    }));
+    const ranking = [...areas.entries()].sort((x, y) => y[1].unidades - x[1].unidades).slice(0, 6);
+    const colores = ['#d8f86c', '#8bd4ff', '#ffc95c', '#ff9f7a', '#c59bff', '#7fe0c0'];
+    const totalAreas = Math.max(1, ranking.reduce((t, [, r]) => t + r.unidades, 0));
+    // Gráfica polar: cada área es un sector del mismo ángulo y su radio crece con sus unidades
+    const maxUArea = Math.max(1, ...ranking.map(([, r]) => r.unidades));
+    const paso = 360 / Math.max(1, ranking.length);
+    const rosa = ranking.map(([label, r], i) => {
+      const pct = Math.round(r.unidades / totalAreas * 100);
+      const rad = 26 + 74 * Math.sqrt(r.unidades / maxUArea);
+      const a1 = (-90 + i * paso + 1.5) * Math.PI / 180, a2 = (-90 + (i + 1) * paso - 1.5) * Math.PI / 180;
+      const am = (-90 + (i + 0.5) * paso) * Math.PI / 180, lr = rad + 13;
+      return '<path class="gp-rosa-sec" d="M120 120 L' + (120 + rad * Math.cos(a1)).toFixed(1) + ' ' + (120 + rad * Math.sin(a1)).toFixed(1) +
+        ' A' + rad.toFixed(1) + ' ' + rad.toFixed(1) + ' 0 0 1 ' + (120 + rad * Math.cos(a2)).toFixed(1) + ' ' + (120 + rad * Math.sin(a2)).toFixed(1) +
+        ' Z" fill="' + colores[i % colores.length] + '" style="--i:' + i + '"><title>' + esc(label) + ': ' + fmt(r.unidades) + ' und (' + pct + '%)</title></path>' +
+        '<text class="gp-rosa-t" x="' + (120 + lr * Math.cos(am)).toFixed(1) + '" y="' + (120 + lr * Math.sin(am) + 4).toFixed(1) + '" style="--i:' + i + '">' + pct + '%</text>';
+    }).join('');
+    const leyenda = ranking.map(([label, r], i) => '<li><i style="background:' + colores[i % colores.length] + '"></i><span>' + esc(label) + '</span><b>' + Math.round(r.unidades / totalAreas * 100) + '%</b></li>').join('');
+
+    // 7) Barras horizontales: áreas más productivas
+    const maxU = Math.max(1, ...ranking.map(([, r]) => r.unidades));
+    const barrasAreas = ranking.map(([label, r], i) =>
+      '<div class="gp-hrow" style="--i:' + i + '"><span>' + esc(label) + '</span><div class="gp-htrack"><i class="gp-hfill" style="--w:' + Math.round(r.unidades / maxU * 100) + '%;--c:' + colores[i % colores.length] + '"></i></div><b>' + fmt(r.unidades) + ' und</b></div>').join('')
+      || '<p class="gp-vacio">Sin avances en los últimos 30 días</p>';
+
+    // 8) Columnas: unidades programadas por día (últimos 7 días)
+    const barrasVert = (valores, etiquetas, alto) => {
+      const VW = 640, VH = alto || 230, VL = 46, VR = 14, VT = 20, VB = 40;
+      const max = Math.max(1, Math.ceil(Math.max(...valores) * 1.2));
+      const banda = (VW - VL - VR) / valores.length, ancho = Math.min(56, banda * 0.56);
+      const yv = v => VT + (VH - VT - VB) * (1 - v / max);
+      const rejilla = [0, 1, 2, 3, 4].map(k => { const v = Math.round(max * k / 4), yy = yv(v).toFixed(1); return '<line x1="' + VL + '" x2="' + (VW - VR) + '" y1="' + yy + '" y2="' + yy + '" class="gp-grid"/><text x="' + (VL - 10) + '" y="' + (Number(yy) + 4) + '" class="gp-eje-y">' + fmt(v) + '</text>'; }).join('');
+      const cols = valores.map((v, i) => {
+        const cx = VL + banda * i + (banda - ancho) / 2, h = (VH - VT - VB) * v / max;
+        return '<rect class="gp-col" x="' + cx.toFixed(1) + '" y="' + (VH - VB - h).toFixed(1) + '" width="' + ancho.toFixed(1) + '" height="' + h.toFixed(1) + '" rx="10" style="--i:' + i + '"><title>' + esc(etiquetas[i]) + ': ' + fmt(v) + '</title></rect><text class="gp-val" x="' + (cx + ancho / 2).toFixed(1) + '" y="' + (yv(v) - 8).toFixed(1) + '" style="--i:' + i + '">' + fmt(v) + '</text><text class="gp-eje" x="' + (cx + ancho / 2).toFixed(1) + '" y="' + (VH - 14) + '">' + esc(etiquetas[i]) + '</text>';
+      }).join('');
+      return '<svg viewBox="0 0 ' + VW + ' ' + VH + '" class="gp-svg" role="img">' + rejilla + cols + '</svg>';
+    };
+
+    // 9) Lollipop: unidades que salen por día de la semana
+    const lollipop = (valores, etiquetas) => {
+      const VW = 640, VH = 230, VL = 46, VR = 14, VT = 20, VB = 40;
+      const max = Math.max(1, Math.ceil(Math.max(...valores) * 1.2));
+      const banda = (VW - VL - VR) / valores.length;
+      const yv = v => VT + (VH - VT - VB) * (1 - v / max);
+      const rejilla = [0, 1, 2, 3, 4].map(k => { const v = Math.round(max * k / 4), yy = yv(v).toFixed(1); return '<line x1="' + VL + '" x2="' + (VW - VR) + '" y1="' + yy + '" y2="' + yy + '" class="gp-grid"/><text x="' + (VL - 10) + '" y="' + (Number(yy) + 4) + '" class="gp-eje-y">' + fmt(v) + '</text>'; }).join('');
+      const palos = valores.map((v, i) => {
+        const cx = VL + banda * i + banda / 2;
+        return '<line class="gp-palo" x1="' + cx.toFixed(1) + '" x2="' + cx.toFixed(1) + '" y1="' + (VH - VB) + '" y2="' + yv(v).toFixed(1) + '" style="--i:' + i + '"/><circle class="gp-bola" cx="' + cx.toFixed(1) + '" cy="' + yv(v).toFixed(1) + '" r="9" style="--i:' + i + '"><title>' + esc(etiquetas[i]) + ': ' + fmt(v) + '</title></circle><text class="gp-val" x="' + cx.toFixed(1) + '" y="' + (yv(v) - 16).toFixed(1) + '" style="--i:' + i + '">' + fmt(v) + '</text><text class="gp-eje" x="' + cx.toFixed(1) + '" y="' + (VH - 14) + '">' + esc(etiquetas[i]) + '</text>';
+      }).join('');
+      return '<svg viewBox="0 0 ' + VW + ' ' + VH + '" class="gp-svg" role="img">' + rejilla + palos + '</svg>';
+    };
+
+    // 10) Burbujas: pedidos programados recientemente (tamaño = unidades)
+    const recientes = ords.filter(o => o.created).sort((x, y) => y.created - x.created).slice(0, 8);
+    const maxRU = Math.max(1, ...recientes.map(o => o.units || 0));
+    const burbujas = recientes.length ? '<ul class="gp-rank">' + recientes.map((o, i) => {
+      const pct = Math.max(4, Math.round((o.units || 0) / maxRU * 100));
+      return '<li style="--i:' + i + '" title="' + esc(o.id + ' · ' + (o.client || '')) + '"><span class="gp-rank-id"><b>' + esc(o.id) + '</b><small>' + fecha(o.created) + '</small></span><span class="gp-rank-track"><i style="width:' + pct + '%"></i></span><span class="gp-rank-n">' + fmt(o.units || 0) + '</span></li>';
+    }).join('') + '</ul>' : '<p class="gp-vacio">Sin pedidos</p>';
+
+    // 11) Waffle: pedidos que salen esta semana (una celda por pedido, intensidad = unidades)
+    const maxSU = Math.max(1, ...saleSemana.map(o => o.units || 0));
+    const maxSD = Math.max(1, ...diasSemana.map(d => saleEn(d).length));
+    const waffle = '<ul class="gp-dias">' + diasSemana.map((d, i) => {
+      const lista = saleEn(d);
+      const pct = Math.round(lista.length / maxSD * 100);
+      const ids = lista.length ? lista.map(o => '<em title="' + esc(o.id + ' · ' + fmt(o.units || 0) + ' und') + '">' + esc(o.id) + '</em>').join('') : '<small class="gp-none">Sin entregas</small>';
+      return '<li style="--i:' + i + '"><span class="gp-dia-nom"><b>' + etqSemana[i] + '</b><small>' + fecha(d) + '</small></span><span class="gp-dia-cuerpo"><span class="gp-dia-bar"><i style="width:' + pct + '%"></i></span><span class="gp-dia-ids">' + ids + '</span></span><span class="gp-dia-n">' + lista.length + '</span></li>';
+    }).join('') + '</ul>';
+
+    // 12) Trazabilidad: columnas apiladas por área (pedidos activos)
+    const areasTraza = [];
+    ords.forEach(o => Object.keys(o.states || {}).forEach(l => { if (!areasTraza.includes(l)) areasTraza.push(l); }));
+    const conteo = l => {
+      const c = { fin: 0, act: 0, rew: 0, pen: 0 };
+      activos.forEach(o => {
+        const st = (o.states || {})[l];
+        if (st === 'finished') c.fin++; else if (st === 'active') c.act++; else if (st === 'rework') c.rew++; else if (st !== undefined) c.pen++;
+      });
+      return c;
+    };
+    const datosTraza = areasTraza.map(l => ({ label: l, ...conteo(l) }));
+    const maxTraza = Math.max(1, ...datosTraza.map(d => d.fin + d.act + d.rew + d.pen));
+    const coloresTraza = { fin: '#8bd450', act: '#ffc95c', rew: '#ff6b5c', pen: 'rgba(230,235,241,.35)' };
+    const filasTraza = datosTraza.map(d => {
+      const tot = d.fin + d.act + d.rew + d.pen;
+      const pctFin = tot ? Math.round(d.fin / tot * 100) : 0;
+      const tono = pctFin >= 75 ? 'verde' : pctFin >= 40 ? 'ambar' : 'rojo';
+      return '<article class="gp-area-card" data-lq="' + pctFin + '" data-lq-tone="' + tono + '" title="' + esc(d.label) + ': ' + tot + ' pedidos activos"><b>' + esc(String(d.label).toUpperCase()) + '</b><span>' + fmt(d.fin) + ' terminados · ' + fmt(d.act) + ' en proceso</span><span>' + fmt(d.rew) + ' reproceso · ' + fmt(d.pen) + ' pendientes</span></article>';
+    }).join('');
+    const trazabilidad = datosTraza.length
+      ? '<section class="gp-card gp-traza"><h4>Trazabilidad por área · pedidos activos</h4><p class="gp-sub">Cada tarjeta es un área. El nivel del relleno es el % de pedidos ya terminados en esa área.</p><div class="gp-area-grid">' + filasTraza + '</div></section>'
+      : '';
+
+    const kpi = (i, etiqueta, valor, nota, tono, grafica) => '<article class="gp-card gp-kpi ' + tono + '" style="--i:' + i + '"><small>' + etiqueta + '</small><b>' + esc(valor) + '</b><span>' + nota + '</span><div class="gp-kpi-g">' + grafica + '</div></article>';
+    return '<section class="gp">' +
+      '<header class="gp-head"><div><span>PANEL GENERAL</span><h3>Resumen de producción</h3></div><small class="gp-live"><i></i>En vivo</small></header>' +
+      '<div class="gp-kpis">' +
+        kpi(0, 'UNIDADES PROGRAMADAS · MES', fmt(unidadesProgramadas), 'prendas de pedidos creados en 30 días', 'verde', spark(serieProgramadas)) +
+        kpi(1, 'UNIDADES DE CONFECCIÓN · MES', fmt(unidadesConfeccion), '% de lo programado · 30 días', 'azul', anillo) +
+        kpi(2, 'SALEN ESTA SEMANA', saleSemana.length, 'pedidos con entrega (un punto por día)', 'ambar', puntos7) +
+        kpi(3, 'UNIDADES QUE SALEN ESTA SEMANA', fmt(unidadesSemana), '% de las unidades activas', 'verde', arco) +
+      '</div>' +
+      '<div class="gp-charts">' +
+        '<section class="gp-card gp-linea"><h4>Unidades programadas por semana</h4><p class="gp-sub">Unidades de los pedidos creados cada semana (últimas 8). El número sobre cada punto es el total.</p>' + graficoLinea + '</section>' +
+        '<section class="gp-card gp-donut"><h4>Reparto de unidades por área · 30 días</h4><p class="gp-sub">Qué parte de las unidades terminadas en 30 días salió por cada área. Cada sector crece con sus unidades.</p><div class="gp-donut-wrap"><svg class="gp-rosa" viewBox="0 0 240 240" role="img" aria-label="Reparto por área">' + rosa + '</svg>' +
+          '<div class="gp-rosa-lado"><b>' + fmt(totalAreas) + '</b><small>UNIDADES TERMINADAS</small><ul class="gp-leyenda">' + leyenda + '</ul></div></div></section>' +
+      '</div>' +
+      '<div class="gp-charts">' +
+        '<section class="gp-card gp-areas"><h4>Áreas más productivas · 30 días</h4><p class="gp-sub">Unidades terminadas en cada área en los últimos 30 días.</p>' + barrasAreas + '</section>' +
+        '<section class="gp-card gp-semana"><h4>Lo último programado · unidades por día</h4><p class="gp-sub">Unidades de los pedidos creados cada día de la última semana.</p>' + barrasVert(serieProgramadas, etq7, 230) + '</section>' +
+      '</div>' +
+      '<div class="gp-charts">' +
+        '<section class="gp-card gp-semana"><h4>Lo que sale esta semana · unidades por día</h4><p class="gp-sub">Unidades con fecha de entrega en cada día de esta semana.</p>' + lollipop(serieSaleU, etqSemana) + '</section>' +
+        '<section class="gp-card gp-burb"><h4>Lo último programado · pedidos</h4><p class="gp-sub">Cada círculo es un pedido reciente. Más grande = más unidades.</p>' + burbujas + '</section>' +
+      '</div>' +
+      '<div class="gp-charts">' +
+        '<section class="gp-card gp-burb"><h4>Lo que sale esta semana · pedidos</h4><p class="gp-sub">Cada cuadro es un pedido con entrega esta semana. Más intenso = más unidades.</p>' + waffle + '</section>' +
+        '<section class="gp-card gp-semana"><h4>Unidades de confección por día · 7 días</h4><p class="gp-sub">Unidades que terminó confección cada día de la última semana.</p>' + barrasVert(serieConf, etq7, 230) + '</section>' +
+      '</div>' +
+      trazabilidad +
+    '</section>';
+  }
+
   function tabsBar(a) {
     telaTabs();
     const badge = { tiempo: a.timing.length || '', carga: a.load.length || '', tela: telaData && (telaData.por_pedir.length + telaData.errores.length) || '' };
@@ -523,11 +744,14 @@
   root.addEventListener('click', event => {
     const tab = event.target.closest('[data-dash-tab]');
     if (!tab) return;
+    window.dispatchEvent(new CustomEvent('indoor:inicio-antes-de-cambiar'));
     activeTab = tab.dataset.dashTab;
     try { localStorage.setItem('indoor-home-tab', activeTab); } catch (e) { /* sin almacenamiento */ }
+    syncHomeFocus();
     root.querySelectorAll('[data-dash-tab]').forEach(b => { const on = b.dataset.dashTab === activeTab; b.classList.toggle('on', on); b.setAttribute('aria-selected', String(on)); });
     root.querySelectorAll('.dash-pane').forEach(pane => pane.classList.toggle('on', pane.dataset.pane === activeTab));
     countUp();
+    if (activeTab === 'general') gpCount();
     playStairs(root.querySelector('.dash-pane.on'));
   });
 
@@ -693,7 +917,19 @@
   function playStairs(scope) {
     (scope || root).querySelectorAll('.dash-stairs').forEach(el => {
       el.classList.remove('go');
-      requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('go')));
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        el.classList.add('go');
+        // Motion ya está cargado en el panel: entrada y flujo vivo, sin alterar los datos ni la altura real.
+        if (window.Motion && typeof window.Motion.animate === 'function' && !(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) {
+          const cards = [...el.querySelectorAll('.st-col')];
+          window.Motion.animate(cards, { opacity: [0, 1], y: [18, 0], scale: [.96, 1] }, {
+            duration: .48, ease: 'easeOut', delay: window.Motion.stagger(.045, { startDelay: .06 })
+          });
+          window.setTimeout(() => window.Motion.animate(cards, {
+            scale: [1, 1.018, 1], boxShadow: ['0 0 0 rgba(208,244,76,0)', '0 0 25px rgba(208,244,76,.28)', '0 0 0 rgba(208,244,76,0)']
+          }, { duration: 1.1, ease: 'easeInOut', delay: window.Motion.stagger(.1), repeat: Infinity, repeatDelay: 4.1 }), 700);
+        }
+      }));
     });
     stairsPlayed = true;
   }
@@ -727,6 +963,23 @@
     }).join('');
     return '<section class="ar-panel" id="dash-load"><header><div><span class="ar-kicker">ESTADO DE LA PLANTA</span><h3>Carga por área</h3><p>Seleccione un área para ver todos sus pedidos. El porcentaje es la parte de los pedidos en producción que pasa por esa área, según lo programado.</p></div>' +
       '<b class="ar-total">' + a.ordersToMake + '<small>pedidos en producción</small></b></header><div class="ar-grid">' + cards + '</div></section>';
+  }
+
+  // Cifras del Panel general: suben desde 0 hasta su valor (como el dashboard de referencia)
+  function gpCount() {
+    if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    root.querySelectorAll('.gp-kpi > b').forEach(el => {
+      const texto = el.textContent, destino = Number(texto.replace(/[^\d]/g, ''));
+      if (!Number.isFinite(destino) || destino <= 0) return;
+      const inicio = performance.now();
+      const paso = ahora => {
+        const t = Math.min(1, (ahora - inicio) / 900), e = 1 - Math.pow(1 - t, 3);
+        el.textContent = t < 1 ? fmtNum(Math.round(destino * e), 0) : texto;
+        if (t < 1) requestAnimationFrame(paso);
+      };
+      el.textContent = '0';
+      requestAnimationFrame(paso);
+    });
   }
 
   function countUp() {
@@ -871,13 +1124,17 @@
       '<div class="dash-pane' + (activeTab === 'tiempo' ? ' on' : '') + '" data-pane="tiempo">' + (timing || '<p class="dash-none">No hay órdenes con fecha de creación para medir.</p>') + '</div>' +
       '<div class="dash-pane' + (activeTab === 'unidad' ? ' on' : '') + '" data-pane="unidad">' + unitSection(a) + '</div>' +
       '<div class="dash-pane' + (activeTab === 'carga' ? ' on' : '') + '" data-pane="carga">' + stairs(a, false) + (loadHtml || '<p class="dash-none">No hay pedidos pendientes por área.</p>') + '</div>' +
+      '<div class="dash-pane' + (activeTab === 'general' ? ' on' : '') + '" data-pane="general">' + generalPane(a) + '</div>' +
       (telaData ? '<div class="dash-pane' + (activeTab === 'tela' ? ' on' : '') + '" data-pane="tela">' + telaPane() + '</div>' : '');
     greet(a);
     bindOrderFinder(a.orders);
     renderTiming(a);
     if (primera) countUp();
+    if (activeTab === 'general') gpCount();
     if (dlg.open && view.label) dlgList();
     if (!stairsPlayed) playStairs(root.querySelector('.dash-pane.on'));
+    // La restauración de posición espera hasta que Inicio termine de dibujarse.
+    window.dispatchEvent(new CustomEvent('indoor:inicio-listo'));
   }
 
   const style = document.createElement('style');
@@ -954,7 +1211,8 @@
   @media(max-width:700px){.od-legend{display:none}.od-title small{display:none}.od-head{gap:8px;padding-bottom:6px}.od-title h3{font-size:1.35rem}.od-close{width:38px!important;height:38px}.od-kpi span{font-size:.56rem;letter-spacing:.03em}.od-tools{gap:8px;padding-bottom:6px}.od-chips{flex-wrap:nowrap;overflow-x:auto;flex:1 1 100%;scrollbar-width:none}.od-chip{flex:none;padding:6px 11px;font-size:.7rem}.od-search input,.od-sort select{min-height:34px}.od-head{padding-top:14px}.od-kpis{order:3;width:100%;display:grid;grid-template-columns:repeat(4,1fr);gap:6px}.od-kpi{min-width:0;padding:7px 4px}.od-kpi b{font-size:1.1rem}.od-search input{width:100%}.od-search{flex:1 1 100%}.od-sort{flex:1 1 100%}.od-sort select{flex:1}.od-list{grid-template-columns:1fr;padding-bottom:30px}.od-steps .st b{display:none}.od-legend{gap:10px}}
   @media(prefers-reduced-motion:reduce){.od,.od-fill,.od-adv,.od-today,.od-steps .st,.dash-areadlg[open]{transition:none!important;animation:none!important}.od{opacity:1;transform:none}.od-list .od-fill{width:var(--w)}.od-list .od-adv{width:var(--a)}.od-today{opacity:1}}
   /* Escalera de la planta con el diseño de «Vencimiento de la cartera»: panel + tarjetas de líquido en escalones */
-  .dash-stairs{--base:132px;--span:190px;display:grid;gap:16px;padding:22px 24px 18px;border:1px solid rgba(255,255,255,.12);border-radius:18px;background:linear-gradient(130deg,rgba(35,48,25,.72),rgba(9,12,9,.95) 52%,rgba(16,28,16,.84))}
+  .home-page.home-dashboard-focus>.home-hero{display:none}.dash-stairs{--base:132px;--span:190px;display:grid;gap:16px;padding:22px 24px 18px;border:1px solid rgba(255,255,255,.12);border-radius:18px;background:linear-gradient(130deg,rgba(35,48,25,.72),rgba(9,12,9,.95) 52%,rgba(16,28,16,.84))}
+  .dash-stairs.de-unidad{--base:110px;--span:190px;gap:12px;padding:18px 22px 14px}
   .dash-stairs.compact{--base:112px;--span:96px}
   .dash-stairs>.st-head{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;flex-wrap:wrap}
   .dash-stairs h3{margin:0 0 6px;font-size:1.15rem;color:#fff}.dash-stairs p{margin:0;max-width:640px;color:#98a692;font-size:.76rem;line-height:1.4}
@@ -966,30 +1224,25 @@
   .st-neck{margin-left:auto;color:#ffb3a9;font-size:.78rem}.st-neck b{color:#fff}
   .st-scroll{overflow-x:auto;padding:2px 2px 8px;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.25) transparent}
   .st-chart{display:flex;align-items:flex-end;gap:12px;height:calc(var(--base) + var(--span) + 6px);min-width:max(100%,1200px)}
-  .st-col{--rise:0px;--lv:0%;position:relative;flex:1 1 0;min-width:94px;height:var(--base);display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:0;padding:14px 12px;text-align:left;font:inherit;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.16);border-radius:17px;background:linear-gradient(160deg,rgba(255,255,255,.10),rgba(0,0,0,.18));overflow:hidden;cursor:pointer;transition:height 1s cubic-bezier(.2,.8,.2,1),transform .22s ease,border-color .22s ease,box-shadow .22s ease;transition-delay:calc(var(--i,0)*55ms),0s,0s,0s}
+  .st-col{--rise:0px;--lv:0%;position:relative;isolation:isolate;flex:1 1 0;min-width:94px;height:var(--base);display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:0;padding:14px 12px;text-align:left;font:inherit;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.45);border:1px solid rgba(174,255,190,.28);border-radius:17px;background:radial-gradient(100% 76% at 12% 0%,rgba(118,255,179,.18),transparent 58%),linear-gradient(148deg,rgba(30,52,39,.88),rgba(9,16,12,.98) 66%);box-shadow:inset 0 1px 0 rgba(255,255,255,.24),inset 0 -18px 38px rgba(0,0,0,.18),0 9px 22px rgba(0,0,0,.3);overflow:hidden;cursor:pointer;transition:height 1s cubic-bezier(.2,.8,.2,1),transform .22s ease,border-color .22s ease,box-shadow .22s ease;transition-delay:calc(var(--i,0)*55ms),0s,0s,0s}
+  .st-col::before{content:"";position:absolute;z-index:0;inset:-65% -85%;background:conic-gradient(from 210deg,transparent 0 30%,rgba(91,219,255,.13) 42%,rgba(208,244,76,.19) 50%,transparent 62%);animation:stAurora 9s linear infinite;pointer-events:none}.st-col::after{content:"";position:absolute;z-index:1;inset:1px;border-radius:15px;border:1px solid rgba(255,255,255,.08);background:linear-gradient(112deg,rgba(255,255,255,.09),transparent 25%,transparent 72%,rgba(102,217,255,.09));pointer-events:none}
+  @keyframes stAurora{to{transform:rotate(360deg)}}
   .dash-stairs.go .st-col{height:calc(var(--base) + var(--rise))}
   .st-col:hover,.st-col:focus-visible{transform:translateY(-4px);border-color:#d0f44c;box-shadow:0 16px 30px rgba(208,244,76,.16);outline:none;transition-delay:0s}
-  .st-col.top{border-color:#ff6b5c}
+  .st-col.top{border-color:#ffbc4e;background:radial-gradient(100% 76% at 12% 0%,rgba(255,203,91,.27),transparent 58%),linear-gradient(148deg,rgba(77,51,19,.92),rgba(19,16,9,.98) 66%);box-shadow:inset 0 1px 0 rgba(255,255,255,.3),inset 0 -18px 38px rgba(0,0,0,.18),0 0 24px rgba(255,182,58,.18)}
   .st-col .ar-ribbon{right:8px;font-size:.5rem;white-space:nowrap;padding:2px 7px}.st-col.top .st-name{margin-top:14px}
-  .st-name{position:relative;z-index:3;display:block;font-size:.62rem;font-weight:900;letter-spacing:.07em;text-transform:uppercase;line-height:1.2;word-break:keep-all}
+  .st-name{position:relative;z-index:3;display:block;font-size:.62rem;font-weight:900;letter-spacing:.07em;text-transform:uppercase;line-height:1.2;word-break:keep-all}.st-col.trazo{border:2px solid #ffe36d;box-shadow:0 0 0 1px rgba(255,170,32,.72),0 0 22px rgba(255,179,46,.48),inset 0 1px rgba(255,255,255,.28)}.st-col.trazo .st-name{color:#fff7bd;font-size:.68rem;text-shadow:0 1px 3px #3a2100}.st-col.trazo .st-name span{display:block;width:max-content;max-width:100%;margin-top:4px;padding:3px 5px;border-radius:5px;background:#fff1a6;color:#432400;font-size:.56rem;letter-spacing:.08em;line-height:1.1;text-shadow:none}.st-col.trazo .st-val{color:#fff;text-shadow:0 2px 5px #5b3100}
   .st-val{position:relative;z-index:3;display:block;margin-top:14px;font-size:1.6rem;line-height:1;font-weight:900;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
   .st-sub{position:relative;z-index:3;display:block;max-width:calc(100% - 34px);margin-top:5px;font-size:.6rem;opacity:.92;line-height:1.3}.st-late{font-style:normal;font-weight:800;color:#ffd7cf}
-  .st-pct{position:absolute;z-index:3;right:-16px;bottom:-16px;width:70px;height:70px;box-sizing:border-box;padding:14px 0 0 16px;border:1px solid rgba(255,255,255,.24);border-radius:50%;font:900 .66rem Arial;font-style:normal;text-shadow:none}
-  .st-col.empty .st-val{opacity:.55}.st-col.empty .st-bar{display:none}
-  .st-slot{position:absolute;z-index:1;inset:0;display:flex;align-items:flex-end;pointer-events:none}
-  .st-bar{width:100%;height:0;display:flex;flex-direction:column-reverse;gap:0;position:relative;transition:height 1.1s cubic-bezier(.2,.8,.2,1);transition-delay:calc(var(--i,0)*55ms + 150ms)}
-  .dash-stairs.go .st-bar{height:var(--lv)}
-  .st-bar::before{content:"";position:absolute;inset:0;z-index:2;pointer-events:none;background:radial-gradient(circle at 22% 92%,rgba(255,255,255,.35) 2px,transparent 3px),radial-gradient(circle at 68% 96%,rgba(255,255,255,.28) 3px,transparent 4px),radial-gradient(circle at 44% 99%,rgba(255,255,255,.3) 2px,transparent 3px),linear-gradient(90deg,rgba(255,255,255,.14),transparent 40%,rgba(0,0,0,.12));background-size:100% 160px,100% 190px,100% 140px,100% 100%;background-repeat:repeat-y,repeat-y,repeat-y,no-repeat;animation:stBubbles 6s linear infinite}
-  @keyframes stBubbles{from{background-position:0 0,0 0,0 0,0 0}to{background-position:0 -160px,0 -190px,0 -140px,0 0}}
-  .st-bar .sg{position:relative;display:block;min-height:6px;background:linear-gradient(180deg,var(--c1),var(--c2));opacity:.96}
+  .st-pct{position:absolute;z-index:3;right:9px;top:10px;box-sizing:border-box;padding:4px 7px;border:1px solid rgba(255,255,255,.19);border-radius:999px;background:rgba(5,10,6,.72);font:900 .62rem Arial;font-style:normal;text-shadow:none;font-variant-numeric:tabular-nums}
+  .st-col.empty{border-color:rgba(255,255,255,.19);background:linear-gradient(148deg,rgba(37,48,40,.75),rgba(10,14,11,.96));box-shadow:inset 0 1px rgba(255,255,255,.12),0 8px 18px rgba(0,0,0,.22)}.st-col.empty::before{animation:none;opacity:.16}.st-col.empty .st-val{opacity:.55}.st-col.empty .st-bar{display:none}
+  /* Las tarjetas quedan limpias: el movimiento sucede en la ruta inferior, no como un llenado interno. */
+  .st-slot{display:none}
+  .st-bar{display:none}
   .st-bar .sg.proc{--c1:#9be058;--c2:#3f8f22}.st-bar .sg.rep{--c1:#ff8f80;--c2:#c93a2b}.st-bar .sg.cola{--c1:#ffd27a;--c2:#d28f14}.st-bar .sg.prog{--c1:#a9c8ff;--c2:#4f80cf}
-  .st-bar .sg:last-child::before,.st-bar .sg:not(:first-child)::after{content:"";position:absolute;left:0;right:0;height:12px;-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 12' preserveAspectRatio='none'%3E%3Cpath d='M0 6 C8 0 16 0 24 6 S40 12 48 6 V12 H0Z' fill='%23000'/%3E%3C/svg%3E") repeat-x 0 0/48px 12px;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 12' preserveAspectRatio='none'%3E%3Cpath d='M0 6 C8 0 16 0 24 6 S40 12 48 6 V12 H0Z' fill='%23000'/%3E%3C/svg%3E") repeat-x 0 0/48px 12px;animation:stFlow 3.4s linear infinite;pointer-events:none}
-  .st-bar .sg:last-child::before{top:-6px;background:var(--c1);z-index:3;filter:drop-shadow(0 -1px 0 rgba(255,255,255,.55))}
-  .st-bar .sg:not(:first-child)::after{bottom:-6px;background:var(--c2);transform:scaleY(-1);animation-direction:reverse;animation-duration:4.4s;z-index:1}
-  @keyframes stFlow{from{-webkit-mask-position:0 0;mask-position:0 0}to{-webkit-mask-position:48px 0;mask-position:48px 0}}
-  .st-flow{display:flex;align-items:center;gap:10px;color:#6c7a68;font-size:.62rem;text-transform:uppercase;letter-spacing:.1em}.st-flow i{flex:1;height:2px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.25));position:relative}.st-flow i::after{content:"";position:absolute;right:0;top:-4px;border:5px solid transparent;border-left:8px solid rgba(255,255,255,.35)}
-  @media(max-width:700px){.dash-stairs{padding:16px 14px 14px}.dash-stairs.compact{--base:100px;--span:80px}.dash-stairs{--base:116px;--span:150px}.st-chart{gap:8px;min-width:900px}.st-val{font-size:1.6rem}.st-neck{margin-left:0;flex:1 1 100%}}
-  @media(prefers-reduced-motion:reduce){.st-col,.st-bar,.st-bar::before,.st-bar .sg::before,.st-bar .sg::after{transition:none!important;animation:none!important}.st-col{height:calc(var(--base) + var(--rise))}.st-bar{height:var(--lv)}}
+  .st-flow{display:flex;align-items:center;gap:12px;color:#91a18a;font-size:.62rem;text-transform:uppercase;letter-spacing:.13em}.st-flow i{flex:1;height:2px;background:linear-gradient(90deg,transparent,rgba(208,244,76,.42) 48%,rgba(255,255,255,.28));position:relative}.st-flow i::after{content:"";position:absolute;right:0;top:-4px;border:5px solid transparent;border-left:8px solid rgba(233,255,147,.7)}
+  @media(max-width:700px){.dash-stairs{padding:16px 14px 14px}.dash-stairs.de-unidad{--base:108px;--span:190px;padding:16px 14px 14px}.dash-stairs.compact{--base:100px;--span:80px}.dash-stairs{--base:116px;--span:150px}.dash-stairs.de-unidad{--base:108px;--span:190px}.st-chart{gap:8px;min-width:900px}.st-val{font-size:1.6rem}.st-neck{margin-left:0;flex:1 1 100%}}
+  @media(prefers-reduced-motion:reduce){.st-col,.st-col::before{transition:none!important;animation:none!important}.st-col{height:calc(var(--base) + var(--rise))}}
   /* Carga por área con el mismo diseño de «Vencimiento de la cartera» */
   .ar-panel{display:grid;gap:22px;padding:22px 24px 26px;border:1px solid rgba(255,255,255,.12);border-radius:18px;background:linear-gradient(130deg,rgba(35,48,25,.72),rgba(9,12,9,.95) 52%,rgba(16,28,16,.84))}
   .ar-panel>header{display:flex;justify-content:space-between;gap:18px;align-items:flex-start}
@@ -1082,6 +1335,208 @@
   .dash-time-body{display:grid;gap:12px}.dash-time-sub{font-size:.72rem;color:#b3c0ad}
   .dash-time-more{justify-self:center;width:auto!important;padding:9px 22px;border:1px solid rgba(208,244,76,.45);border-radius:999px;background:transparent;color:#d0f44c;font:800 .78rem Arial;cursor:pointer}
   .dash-tela-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;margin-top:16px}.dash-tela-box{padding:16px;border:1px solid rgba(255,255,255,.13);border-radius:16px;background:#121712}.dash-tela-box h4{margin:0 0 10px;font-size:.95rem}.dash-tela-box ul{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+  .gp{position:relative;isolation:isolate;width:100%;display:grid;gap:18px;padding:18px;border-radius:28px;overflow:hidden;background:linear-gradient(160deg,#101a12,#070b08)}
+  .gp::before,.gp::after{content:"";position:absolute;z-index:-1;border-radius:50%;filter:blur(60px);opacity:.55;pointer-events:none}
+  .gp::before{width:46%;height:70%;left:-6%;top:-16%;background:rgba(190,239,62,.35);animation:gpFloat 16s ease-in-out infinite alternate}
+  .gp::after{width:40%;height:60%;right:-4%;bottom:-18%;background:rgba(80,160,255,.28);animation:gpFloat 20s ease-in-out infinite alternate-reverse}
+  @keyframes gpFloat{from{transform:translate(0,0)}to{transform:translate(40px,30px)}}
+  .gp-head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
+  .gp-head span{font:800 11px Arial;letter-spacing:.16em;color:#c9d3c4}
+  .gp-head h3{margin:4px 0 0;font:900 24px Arial;color:#f4f8ef}
+  .gp-live{display:inline-flex;align-items:center;gap:8px;padding:7px 14px;border-radius:999px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.22);font:800 11px Arial;letter-spacing:.1em;color:#d6f7b0;backdrop-filter:blur(14px)}
+  .gp-live i{width:8px;height:8px;border-radius:50%;background:#8bd450;box-shadow:0 0 10px #8bd450;animation:gpPulse 1.6s ease-in-out infinite}
+  @keyframes gpPulse{0%,100%{opacity:1}50%{opacity:.35}}
+  .gp-card{position:relative;padding:18px;border-radius:24px;background:linear-gradient(160deg,rgba(255,255,255,.16),rgba(255,255,255,.05));border:1px solid rgba(255,255,255,.22);backdrop-filter:blur(22px) saturate(1.5);-webkit-backdrop-filter:blur(22px) saturate(1.5);box-shadow:inset 0 1px 0 rgba(255,255,255,.42),0 18px 40px rgba(0,0,0,.32);transition:transform .25s,box-shadow .3s;animation:gpIn .6s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--i,0) * 60ms)}
+  .gp-card:hover{transform:translateY(-3px);box-shadow:inset 0 1px 0 rgba(255,255,255,.55),0 24px 50px rgba(0,0,0,.4)}
+  .gp-card h4{margin:0 0 12px;font:900 12px Arial;letter-spacing:.12em;color:#d8f86c;text-align:center}
+  .gp-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px}
+  .gp-kpi{text-align:center;padding:18px}
+  .gp-kpi small{display:block;font:800 10px Arial;letter-spacing:.14em;color:#c9d3c4}
+  .gp-kpi b{display:block;margin:8px 0 2px;font:900 34px Arial;color:#f4f8ef;font-variant-numeric:tabular-nums}
+  .gp-kpi span{font:700 12px Arial;color:#b9c6b3}
+  .gp-kpi.rojo b{color:#ffb3ae}.gp-kpi.ambar b{color:#ffd27a}.gp-kpi.azul b{color:#9fd8ff}
+  .gp-charts{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.6fr);gap:18px}
+  .gp-donut-wrap{display:flex;align-items:center;justify-content:center;gap:26px;flex-wrap:wrap}
+  .gp-donut svg{width:190px;height:190px;overflow:visible}
+  .gp-seg{fill:none;stroke-width:14;stroke-linecap:round;transform:rotate(-90deg);transform-origin:60px 60px;transition:stroke-dasharray .8s ease;animation:gpIn .9s ease both}
+  .gp-dt{font:900 24px Arial;fill:#f4f8ef;text-anchor:middle}
+  .gp-ds{font:700 9px Arial;fill:#b9c6b3;text-anchor:middle;letter-spacing:.14em}
+  .gp-leyenda{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+  .gp-leyenda li{display:flex;align-items:center;gap:10px;padding:8px 14px;border-radius:999px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);font:700 12px Arial;color:#e6efe2}
+  .gp-leyenda i{width:10px;height:10px;border-radius:50%;box-shadow:0 0 8px currentColor}
+  .gp-leyenda b{margin-left:auto;font:900 14px Arial;color:#f4f8ef}
+  .gp-bars{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;height:230px;padding-top:8px}
+  .gp-bar{flex:1;min-width:0;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:flex-end}
+  .gp-bar span{font:900 13px Arial;color:#f4f8ef;margin-bottom:6px}
+  .gp-bar i{display:block;width:70%;max-width:56px;height:var(--px,20px);border-radius:16px 16px 8px 8px;background:linear-gradient(180deg,#e4fb8e,#6cb83a);box-shadow:0 0 22px rgba(208,244,76,.35),inset 0 1px 0 rgba(255,255,255,.6);transform-origin:bottom;animation:gpGrow .9s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--i,0) * 70ms);transition:filter .2s}
+  .gp-bar:hover i{filter:brightness(1.15)}
+  .gp-bar small{font:700 10px Arial;color:#b9c6b3;margin-top:8px;text-align:center;white-space:nowrap}
+  @keyframes gpGrow{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+  .gp-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:18px}
+  .gp-lista ul{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+  .gp-lista li{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 16px;border-radius:999px;background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.2);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:inset 0 1px 0 rgba(255,255,255,.35);animation:gpIn .45s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--i,0) * 50ms);transition:transform .2s,background .2s}
+  .gp-lista li:hover{transform:translateX(4px);background:rgba(255,255,255,.16)}
+  .gp-lista li div{display:flex;flex-direction:column;min-width:0}
+  .gp-lista li b{font:900 14px Arial;color:#f4f8ef}
+  .gp-lista li span{font:700 12px Arial;color:#b9c6b3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px}
+  .gp-chip{font-style:normal;padding:5px 12px;border-radius:999px;background:rgba(139,212,80,.22);color:#d6f7b0;font:800 12px Arial;white-space:nowrap;text-align:center}
+  .gp-chip.ambar{background:rgba(255,201,92,.22);color:#ffe2a6}.gp-chip.rojo{background:rgba(255,107,92,.25);color:#ffc4bd}
+  .gp-vacio{justify-content:center;color:#b9c6b3;font:700 13px Arial}
+  @keyframes gpIn{from{opacity:0;transform:translateY(12px) scale(.98)}to{opacity:1;transform:none}}
+  @media(max-width:860px){.gp-charts{grid-template-columns:1fr}}
+  @media(prefers-reduced-motion:reduce){.gp *,.gp::before,.gp::after{animation:none!important;transition:none!important}}
+  .gp-hrow{display:grid;grid-template-columns:minmax(110px,160px) minmax(0,1fr) auto;align-items:center;gap:12px;margin:12px 0}
+  .gp-hrow span{font:800 12px Arial;letter-spacing:.06em;color:#e6efe2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .gp-hrow b{font:900 13px Arial;color:#f4f8ef;white-space:nowrap;font-variant-numeric:tabular-nums}
+  .gp-htrack{height:18px;border-radius:999px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);overflow:hidden;backdrop-filter:blur(8px)}
+  .gp-hfill{display:block;height:100%;width:var(--w,0%);border-radius:999px;background:linear-gradient(90deg,#6cb83a,#e4fb8e);box-shadow:0 0 16px rgba(208,244,76,.35),inset 0 1px 0 rgba(255,255,255,.6);transform-origin:left;animation:gpWide .9s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--i,0) * 90ms)}
+  @keyframes gpWide{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+  .gp-areas h4{text-align:center}
+  /* Panel general con foto borrosa de fondo y cristal translúcido (como el video de referencia) */
+  .gp{background:#0a120c!important;min-height:620px}
+  .gp::before{content:"";position:absolute;inset:-40px;z-index:-2;border-radius:0;background:url('/landing/hero.jpg') center/cover no-repeat;filter:blur(22px) saturate(1.15) brightness(.7);opacity:1;width:auto;height:auto;left:-40px;top:-40px;animation:none}
+  .gp::after{content:"";position:absolute;inset:0;z-index:-1;border-radius:0;background:linear-gradient(180deg,rgba(6,12,8,.25),rgba(6,12,8,.7));filter:none;opacity:1;width:auto;height:auto;left:0;top:0;animation:none}
+  .gp-card{background:linear-gradient(160deg,rgba(255,255,255,.22),rgba(255,255,255,.06))!important;border:1px solid rgba(255,255,255,.32)!important;backdrop-filter:blur(28px) saturate(1.7)!important;-webkit-backdrop-filter:blur(28px) saturate(1.7)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.55),inset 0 -1px 0 rgba(255,255,255,.08),0 22px 50px rgba(0,0,0,.35)!important;border-radius:26px!important}
+  .gp-live,.gp-chip{backdrop-filter:blur(16px)}
+  .gp-linea{padding:16px 18px}
+  .gp-svg{width:100%;height:auto;display:block;overflow:visible}
+  .gp-trazo{fill:none;stroke:#d8f86c;stroke-width:3;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1200;stroke-dashoffset:1200;animation:gpDraw 1.6s ease forwards .2s;filter:drop-shadow(0 0 8px rgba(216,248,108,.55))}
+  .gp-area{opacity:0;animation:gpFade .9s ease forwards .9s}
+  @keyframes gpDraw{to{stroke-dashoffset:0}}
+  @keyframes gpFade{to{opacity:1}}
+  .gp-punto{fill:#f4fbe0;stroke:#d8f86c;stroke-width:2;opacity:0;animation:gpFade .4s ease forwards;animation-delay:calc(var(--i,0) * 120ms + .4s)}
+  .gp-eje{font:700 11px Arial;fill:#c9d3c4;text-anchor:middle}
+  .gp-donut{display:flex;flex-direction:column}
+  .gp-donut .gp-donut-wrap{flex:1}
+  .gp-seg{stroke-width:16;animation:gpSeg 1s ease both}
+  @keyframes gpSeg{from{opacity:0;stroke-dasharray:0 339}to{opacity:1}}
+  .gp-hfill{background:linear-gradient(90deg,rgba(255,255,255,.2),var(--c,#d8f86c))!important}
+  .gp-htrack{background:rgba(255,255,255,.14)!important}
+  .gp-lista li,.gp-leyenda li{background:rgba(255,255,255,.14)!important;border-color:rgba(255,255,255,.3)!important}
+  .gp-kpi b{text-shadow:0 2px 14px rgba(0,0,0,.4)}
+  .gp-mini{display:block;width:100%;height:46px;margin-top:10px;overflow:visible}
+  .gp-mini rect{transform-box:fill-box;transform-origin:bottom;animation:gpGrow .8s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--i,0) * 60ms)}
+  .gp-mini-verde rect{fill:#d8f86c} .gp-mini-azul rect{fill:#8bd4ff} .gp-mini-ambar rect{fill:#ffc95c}
+  .gp-col{transform-box:fill-box;transform-origin:bottom;animation:gpGrow .9s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--i,0) * 70ms)}
+  .gp-col-verde{fill:#d8f86c} .gp-col-ambar{fill:#ffc95c}
+  .gp-semana h4{text-align:center}
+  .gp-val{font:900 12px Arial;fill:#f4fbe0;text-anchor:middle;opacity:0;animation:gpFade .4s ease forwards;animation-delay:calc(var(--i,0) * 70ms + .8s)}
+
+  .gp-traza{padding:18px 20px}
+  .gp-leyenda-h{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:12px}
+  .gp-leyenda-h li{padding:6px 14px}
+  .gp-svg-traza{max-height:340px}
+  .gp-tramo{transform-box:fill-box;transform-origin:bottom;animation:gpGrow .9s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--i,0) * 80ms);transition:filter .2s}
+  .gp-tramo:hover{filter:brightness(1.2)}
+  .gp-tv{font:900 12px Arial;fill:#101a10;text-anchor:middle;pointer-events:none}
+  .gp-proc{font:800 10px Arial;fill:#e6efe2;text-anchor:middle;letter-spacing:.04em}
+
+  .gp-grid{stroke:rgba(255,255,255,.14);stroke-width:1;stroke-dasharray:3 5}
+  .gp-eje-y{font:700 11px Arial;fill:#c9d3c4;text-anchor:end;font-variant-numeric:tabular-nums}
+  .gp-eje{font:700 11px Arial;fill:#c9d3c4;text-anchor:middle}
+  .gp-val{font:900 12px Arial;fill:#f4f8ef;text-anchor:middle;opacity:0;animation:gpFade .4s ease forwards;animation-delay:calc(var(--i,0) * 120ms + 1s)}
+  .gp-halo{fill:rgba(216,248,108,.18);opacity:0;animation:gpFade .4s ease forwards;animation-delay:calc(var(--i,0) * 120ms + .4s)}
+  .gp-punto{fill:#f4fbe0;stroke:#d8f86c;stroke-width:2.5;cursor:pointer;transition:r .2s}
+  .gp-punto:hover{r:7}
+  .gp-trazo{stroke-width:3.2}
+  .gp-track{fill:none;stroke:rgba(255,255,255,.12);stroke-width:16}
+  .gp-leyenda b{color:#f4fbe0}
+  .gp-linea .gp-svg{max-height:300px}
+
+  /* Pestañas de Inicio más pequeñas y sin color de acento en la activa */
+  .dash-tabs{padding:4px!important;gap:6px!important}
+  .dash-tabs button{padding:5px 11px!important;font:800 .72rem Arial!important;gap:5px!important;border-radius:9px!important}
+  .dash-tabs button b{font-size:.6rem!important;min-width:16px!important;padding:0 5px!important}
+  .dash-tabs button.on{background:#e6ebf1!important;border-color:#e6ebf1!important;color:#101418!important}
+
+  .gp-kpi{display:flex;flex-direction:column;align-items:center;padding:9px 8px!important}
+  .gp-kpi>small{font:800 7px Arial!important;letter-spacing:.1em!important}
+  .gp-kpi>b{margin:3px 0 0!important;font:900 20px Arial!important}
+  .gp-kpi>span{font:700 9px Arial!important}
+  .gp-kpi-g{width:100%;margin-top:4px;height:36px;display:flex;align-items:center;justify-content:center}
+  .gp-spark{width:100%;height:36px;overflow:visible}
+  .gp-spark-area{fill:rgba(230,235,241,.18)}
+  .gp-spark-line{fill:none;stroke:#eef2f6;stroke-width:2.2;stroke-linecap:round;stroke-dasharray:400;stroke-dashoffset:400;animation:gpDraw 1.4s ease forwards .2s}
+  .gp-ring{width:40px;height:40px}
+  .gp-ring-track{fill:none;stroke:rgba(230,235,241,.16);stroke-width:7}
+  .gp-ring-val{fill:none;stroke:#eef2f6;stroke-width:7;stroke-linecap:round;transition:stroke-dasharray 1s ease}
+  .gp-ring-txt{font:900 13px Arial;fill:#f7f9fb;text-anchor:middle}
+  .gp-arc{width:64px;height:34px}
+  .gp-arc-track{fill:none;stroke:rgba(230,235,241,.16);stroke-width:8;stroke-linecap:round}
+  .gp-arc-val{fill:none;stroke:#eef2f6;stroke-width:8;stroke-linecap:round}
+  .gp-dots{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;width:100%}
+  .gp-dot{display:flex;flex-direction:column;align-items:center;gap:2px;opacity:.35}
+  .gp-dot.on{opacity:1}
+  .gp-dot b{font:800 7px Arial;color:#c9d3c4}
+  .gp-dot i{font:900 8px Arial;font-style:normal;color:#f7f9fb;width:15px;height:15px;border-radius:50%;background:rgba(230,235,241,.2);display:flex;align-items:center;justify-content:center;animation:gpIn .5s ease both;animation-delay:calc(var(--i,0) * 70ms)}
+  .gp-dot.on i{background:#eef2f6;color:#101418}
+  .gp-palo{stroke:rgba(230,235,241,.55);stroke-width:2;transform-box:fill-box;transform-origin:bottom;animation:gpGrow .8s ease both;animation-delay:calc(var(--i,0) * 70ms)}
+  .gp-bola{fill:#f4f7fa;stroke:#8a95a3;stroke-width:2;animation:gpIn .5s ease both;animation-delay:calc(var(--i,0) * 70ms)}
+  .gp-col{fill:#d8f86c;filter:drop-shadow(0 0 6px rgba(216,248,108,.45));transform-box:fill-box;transform-origin:bottom;animation:gpGrow .9s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--i,0) * 70ms)}
+  .gp-burbujas{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;align-items:center;min-height:200px}
+  .gp-burbuja{width:var(--d);height:var(--d);border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;background:radial-gradient(circle at 30% 25%,rgba(255,255,255,.55),rgba(230,235,241,.18) 60%,rgba(230,235,241,.08));border:1px solid rgba(230,235,241,.4);box-shadow:inset 0 1px 0 rgba(255,255,255,.6),0 10px 24px rgba(0,0,0,.3);animation:gpIn .6s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--i,0) * 80ms);transition:transform .25s}
+  .gp-burbuja:hover{transform:scale(1.08)}
+  .gp-burbuja b{font:900 11px Arial;color:#f7f9fb}
+  .gp-burbuja small{font:700 10px Arial;color:#dfe6ee}
+  .gp-burbuja em{font:700 9px Arial;color:#b9c3cf;font-style:normal}
+  /* Gráficas nuevas de Inicio: listas y barras en HTML (legibles en computador y móvil) */
+  .gp-rank,.gp-dias,.gp-tr{list-style:none;margin:10px 0 0;padding:0;display:flex;flex-direction:column;gap:8px}
+  .gp-rank li{display:grid;grid-template-columns:minmax(80px,120px) 1fr 44px;align-items:center;gap:10px;animation:gpIn .5s ease both;animation-delay:calc(var(--i,0) * 60ms)}
+  .gp-rank-id{display:flex;flex-direction:column;min-width:0}
+  .gp-rank-id b{font:900 12px Arial;color:#f7f9fb;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .gp-rank-id small{font:700 10px Arial;color:#b9c3cf}
+  .gp-rank-track{height:12px;border-radius:999px;background:rgba(230,235,241,.14);overflow:hidden}
+  .gp-rank-track i{display:block;height:100%;border-radius:999px;background:#d8f86c}
+  .gp-rank-n{font:900 12px Arial;color:#f7f9fb;text-align:right;font-variant-numeric:tabular-nums}
+  .gp-dias li{display:grid;grid-template-columns:72px 1fr 28px;gap:10px;align-items:center;animation:gpIn .5s ease both;animation-delay:calc(var(--i,0) * 60ms)}
+  .gp-dia-nom{display:flex;flex-direction:column}
+  .gp-dia-nom b{font:900 12px Arial;color:#f7f9fb}
+  .gp-dia-nom small{font:700 10px Arial;color:#b9c3cf}
+  .gp-dia-cuerpo{display:flex;flex-direction:column;gap:5px;min-width:0}
+  .gp-dia-bar{height:8px;border-radius:999px;background:rgba(230,235,241,.14);overflow:hidden}
+  .gp-dia-bar i{display:block;height:100%;border-radius:999px;background:#8bd4ff}
+  .gp-dia-ids{display:flex;flex-wrap:wrap;gap:4px}
+  .gp-dia-ids em{font:800 10px Arial;font-style:normal;color:#101418;background:#eef2f6;border-radius:6px;padding:2px 6px}
+  .gp-none{font:700 10px Arial;color:#9aa6b4}
+  .gp-dia-n{font:900 14px Arial;color:#f7f9fb;text-align:right}
+  .gp-area-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-top:12px}
+  .gp-area-card{display:flex;flex-direction:column;gap:4px;min-height:104px;padding:12px 12px 30px;text-align:left;animation:gpIn .5s ease both;animation-delay:calc(var(--i,0) * 40ms)}
+  .gp-area-card b{font:900 11px Arial;letter-spacing:.04em;color:#f7f9fb;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .gp-area-card span{font:700 10px Arial;color:#dfe6ee;line-height:1.35}
+  .gp-seg-fin{background:#8bd450}
+  .gp-seg-act{background:#ffc95c}
+  .gp-seg-rew{background:#ff6b5c;color:#fff}
+  .gp-seg-pen{background:rgba(230,235,241,.35);color:#f7f9fb}
+  .gp-waffle{display:grid;grid-template-columns:repeat(auto-fill,minmax(22px,1fr));gap:6px;min-height:200px;align-content:start}
+  .gp-cell{aspect-ratio:1;border-radius:6px;background:rgba(238,242,246,calc(var(--a,.5)));border:1px solid rgba(230,235,241,.35);animation:gpIn .4s ease both;animation-delay:calc(var(--i,0) * 40ms);transition:transform .2s}
+  .gp-cell:hover{transform:scale(1.15)}
+  .gp-burb{min-height:260px}
+  /* Dona: carga animada como en el video (cada tramo crece en su turno, luego aparece el total) */
+  .gp-seg{stroke-width:14;fill:none;stroke-linecap:butt;transform:rotate(-90deg);transform-origin:60px 60px;animation:gpDonut 1.3s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--i,0) * 220ms)}
+  @keyframes gpDonut{from{stroke-dasharray:0 100}to{stroke-dasharray:var(--len) 100}}
+  .gp-dt,.gp-ds{animation:gpFade .6s ease both .9s;opacity:0}
+  .gp-donut .gp-track{animation:gpFade .5s ease both}
+  .gp-rosa{width:240px;height:240px;max-width:100%;overflow:visible;flex:0 0 auto}
+  .gp-rosa-sec{transform-origin:120px 120px;animation:gpRosa .9s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--i,0) * 90ms);transition:filter .2s;stroke:rgba(10,18,12,.55);stroke-width:1.5}
+  .gp-rosa-sec:hover{filter:brightness(1.15) drop-shadow(0 0 10px rgba(255,255,255,.35))}
+  .gp-rosa-t{font:900 12px Arial;fill:#f4fbe0;text-anchor:middle;opacity:0;animation:gpFade .4s ease forwards;animation-delay:calc(var(--i,0) * 90ms + .6s);pointer-events:none}
+  @keyframes gpRosa{from{transform:scale(0)}to{transform:scale(1)}}
+  .gp-rosa-lado{display:flex;flex-direction:column;gap:10px;min-width:210px;flex:1 1 210px;max-width:320px}
+  .gp-rosa-lado > b{font:900 28px Arial;color:#f4fbe0;text-shadow:0 2px 14px rgba(0,0,0,.4)}
+  .gp-rosa-lado > small{font:700 10px Arial;letter-spacing:.14em;color:#b9c6b3;margin-top:-8px}
+  .gp-sub{font:600 11px Arial;color:#b9c3cf;text-align:center;margin:-4px 0 12px;line-height:1.4}
+  .dash-tabs button{padding:3px 8px!important;font:800 .62rem Arial!important;gap:4px!important}
+  .dash-tabs button b{font-size:.55rem!important;min-width:14px!important;padding:0 4px!important}
+  .gp-skel{min-height:520px;padding:18px;border-radius:28px;background:linear-gradient(160deg,#101a12,#070b08)}
+  .gp-skel-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
+  .gp-skel-kpis i,.gp-skel-charts i{display:block;border-radius:24px;background:linear-gradient(90deg,rgba(255,255,255,.05),rgba(255,255,255,.16),rgba(255,255,255,.05));background-size:220% 100%;animation:gpShimmer 1.5s ease-in-out infinite}
+  .gp-skel-kpis i{height:110px}
+  .gp-skel-charts{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+  .gp-skel-charts i{height:240px}
+  @keyframes gpShimmer{0%{background-position:120% 0}100%{background-position:-120% 0}}
+  .gp.gp-loading .gp-card{position:relative;overflow:hidden}
+  .gp.gp-loading .gp-card::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:linear-gradient(100deg,transparent 30%,rgba(255,255,255,.22) 50%,transparent 70%);background-size:250% 100%;animation:gpShimmer 1.1s linear infinite}
+  .gp.gp-loading .gp-live i{animation:gpPulse .8s ease-in-out infinite}
   .dash-tela-row{display:flex;justify-content:space-between;gap:12px;padding:10px 12px;border-left:4px solid #8bd450;border-radius:10px;background:#172018}.dash-tela-row.pend{border-color:#ffc95c}.dash-tela-row.err{border-color:#ff6b5c}.dash-tela-row strong{display:block;font-size:.88rem;color:#f2f7ea;overflow-wrap:anywhere}.dash-tela-row small{display:block;font-size:.72rem;color:#a9b5a3}.dash-tela-der{text-align:right;flex:none}.dash-tela-der b{font-size:.9rem;color:#fff}
   @media(max-width:1050px) and (min-width:701px){.dash-order-results{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:700px){.dash-order-finder{grid-template-columns:1fr;padding:15px}.dash-order-results{grid-column:auto;grid-template-columns:1fr}.dash-order-result{min-height:260px}}
   `;
@@ -1091,6 +1546,8 @@
   async function refresh(force) {
     if (busy) return;
     busy = true;
+    // Mientras llegan los datos, cada tarjeta del Panel general muestra un brillo que la recorre
+    root.querySelector('.gp')?.classList.add('gp-loading');
     try {
       const response = await fetch('/api/produccion', { cache: 'no-cache' });
       const text = await response.text();
@@ -1103,16 +1560,22 @@
       lastText = huella;
       model = analyse(crudo);
       unitRaw = crudo; model.unitTime = unitTimes(crudo);
+      // La portada usa exactamente el mismo resumen que estas tarjetas. Se
+      // publica antes de dibujar: así funciona tanto si home-hero.js carga
+      // después como si el panel se actualiza cada 30 segundos.
+      window.indoorHomeStats = model;
+      document.dispatchEvent(new CustomEvent('indoor:stats', { detail: model }));
       render(model);
     } catch (error) {
       if (!model) root.innerHTML = '<div class="dash-empty">No fue posible cargar el resumen: ' + esc(error.message) + '</div>';
     } finally {
       busy = false;
+      root.querySelector('.gp')?.classList.remove('gp-loading');
       if (root.querySelector('.dash-skel') === null) root.closest('.home-page')?.classList.add('dash-ready');   // ya hay resumen (o su aviso de error): se muestran las galerías
     }
   }
 
-  if (!root.firstElementChild) root.innerHTML = '<div class="dash-empty">Cargando resumen…</div>';   // la página ya trae un esqueleto de carga
+  if (!root.firstElementChild) root.innerHTML = '<div class="gp gp-skel" aria-label="Cargando el panel"><div class="gp-skel-kpis"><i></i><i></i><i></i><i></i></div><div class="gp-skel-charts"><i></i><i></i></div><div class="gp-skel-charts"><i></i><i></i></div></div>';   // la página ya trae un esqueleto de carga
   refresh(true);
   document.querySelectorAll('.tab[data-kind="inicio"]').forEach(tab => tab.addEventListener('click', () => refresh(false)));
   setInterval(() => { if (!document.hidden && document.querySelector('.panel.active')?.dataset.panel === 'inicio') refresh(false); }, 30000);

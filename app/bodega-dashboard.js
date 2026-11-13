@@ -94,6 +94,15 @@
 .bd .ot-titulo{display:grid;gap:3px}
 .bd .ot-tela{font:900 1.12rem Arial;letter-spacing:.01em;line-height:1.12;overflow-wrap:anywhere}
 .bd .ot-ref{font:700 .68rem Arial;letter-spacing:.09em;opacity:.78;overflow-wrap:anywhere}
+.bd .ot-identidad{display:grid;gap:3px;padding:2px 0 1px}.bd .ot-identidad b{font:900 .95rem Arial;line-height:1.18;color:#f5f8ef;overflow-wrap:anywhere}.bd .ot-identidad span{font:750 .66rem Arial;letter-spacing:.04em;color:#bdcbb5;overflow-wrap:anywhere;text-transform:uppercase}
+.bd .ot-datos{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px;padding:9px 10px;border-radius:12px;background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.12)}
+.bd .ot-dato{display:grid;gap:2px;min-width:0}.bd .ot-dato small{font:850 .54rem Arial;letter-spacing:.1em;color:#98aa90;text-transform:uppercase}.bd .ot-dato b{font:850 .72rem Arial;color:#edf5e5;overflow-wrap:anywhere}.bd .ot-dato.cantidad{text-align:right}.bd .ot-dato.cantidad b{font-size:.92rem;color:#d5f64d;white-space:nowrap}.bd .ot-dato.cantidad em{font:800 .58rem Arial;font-style:normal;color:#c9d6bf;margin-left:3px}
+.bd .ot-tela-label{font:850 .58rem Arial;letter-spacing:.12em;color:#9caf91;text-transform:uppercase;margin:0 0 -5px}
+.bd .ot-materiales{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:7px;padding:9px;border-radius:13px;background:rgba(3,8,4,.38);border:1px solid rgba(208,244,76,.16)}
+.bd .ot-material{display:grid;gap:3px;min-width:0;padding:7px 8px;border-radius:10px;background:linear-gradient(145deg,rgba(208,244,76,.12),rgba(255,255,255,.035));border-left:3px solid #c9f24a}
+.bd .ot-material small{font:850 .57rem Arial;letter-spacing:.1em;text-transform:uppercase;color:#c9f24a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bd .ot-material b{font:900 .82rem Arial;color:#fff;letter-spacing:.02em}.bd .ot-material b em{font:800 .56rem Arial;font-style:normal;color:#c7d4bd;margin-left:3px}
+.bd .ot-material span{font:700 .58rem Arial;color:#b5c1ad;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bd .ot-sep{height:1px;background:linear-gradient(90deg,rgba(255,255,255,.34),rgba(255,255,255,0))}
 .bd .ot-cliente-bloque{display:grid;gap:2px}
 .bd .ot-cliente{font:800 .8rem Arial;line-height:1.25;overflow-wrap:anywhere}
@@ -119,6 +128,49 @@
 html body .bd .inventory-item-card .ot-bodega b.hay{color:#7cc9ff!important;-webkit-text-fill-color:#7cc9ff!important}
 html body .bd .inventory-item-card .ot-bodega b.queda{color:#d6f55a!important;-webkit-text-fill-color:#d6f55a!important}
 html body .bd .inventory-item-card .ot-bodega b.falta{color:#ff9a8f!important;-webkit-text-fill-color:#ff9a8f!important}
+.bd .ot-flujo{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;margin:8px 0 4px;padding:0;border-radius:14px;background:rgba(0,0,0,.2);border:1px solid rgba(255,255,255,.1);overflow:hidden}
+.bd .ot-flujo>div{position:relative;display:grid;gap:3px;padding:9px 12px;border:0!important;border-radius:0!important;background:transparent!important;text-align:left}
+.bd .ot-flujo>div+div{border-left:1px solid rgba(255,255,255,.09)!important}
+.bd .ot-flujo>div+div::before{position:absolute;left:-7px;top:50%;transform:translateY(-50%);width:14px;height:14px;border-radius:50%;background:#1b2a22;border:1px solid rgba(255,255,255,.14);color:#aebca7;font:800 .6rem/12px Arial;text-align:center}
+.bd .ot-flujo>div:nth-child(2)::before{content:"−"}.bd .ot-flujo>div:nth-child(3)::before{content:"="}
+.bd .ot-flujo small{font:700 .5rem Arial;letter-spacing:.14em;color:#8fa08a!important;opacity:1}
+.bd .ot-flujo b{font:700 .98rem Arial;letter-spacing:.01em}
+html body .bd .ot-flujo b.hay{color:#a9cdee!important;-webkit-text-fill-color:#a9cdee!important}
+html body .bd .ot-flujo b.desc{color:#e3c084!important;-webkit-text-fill-color:#e3c084!important}
+html body .bd .ot-flujo b.queda{color:#cfe58a!important;-webkit-text-fill-color:#cfe58a!important}
+html body .bd .ot-flujo b.falta{color:#f0a89d!important;-webkit-text-fill-color:#f0a89d!important}
+.bd .ot-flujo{transition:border-color .25s,box-shadow .25s}
+.bd .ot-flujo>div{transition:background .25s,transform .25s}
+.bd .ot-flujo>div:hover{background:rgba(255,255,255,.05)!important;transform:translateY(-1px)}
+.bd .ot-flujo::after{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent 35%,rgba(255,255,255,.1) 50%,transparent 65%);transform:translateX(-120%);pointer-events:none}
+.bd .ot-bodega.comparte{position:relative}.bd .ot-bodega.comparte:hover .ot-flujo::after{animation:otBarrido 1.1s ease}
+@keyframes otBarrido{to{transform:translateX(120%)}}
+.bd .ot-flujo{position:relative}
+.bd .ot-medidor{position:relative;display:flex;height:6px;margin:7px 2px 2px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden}
+.bd .ot-medidor i{display:block;height:100%;width:var(--w);transform-origin:left;animation:otLlena .9s cubic-bezier(.2,.8,.2,1) backwards}
+.bd .ot-medidor i.q{background:linear-gradient(90deg,#7fa83a,#cfe58a);border-radius:99px 0 0 99px;box-shadow:0 0 10px rgba(207,229,138,.45)}
+.bd .ot-medidor i.d{background:linear-gradient(90deg,#d9a848,#f1cf8a);animation-delay:.25s;box-shadow:0 0 10px rgba(241,207,138,.55)}
+.bd .ot-medidor i.c{background:linear-gradient(90deg,#d9685a,#f0a89d);border-radius:99px;box-shadow:0 0 10px rgba(240,168,157,.5)}
+.bd .ot-medidor::after{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent 30%,rgba(255,255,255,.35) 50%,transparent 70%);transform:translateX(-120%);animation:otBrilla 3.4s ease-in-out infinite 1.2s}
+@keyframes otLlena{from{width:0}}@keyframes otBrilla{55%,100%{transform:translateX(120%)}}
+@media(prefers-reduced-motion:reduce){.bd .ot-medidor i,.bd .ot-medidor::after{animation:none}}
+.bd .ot-bodega.nuevo{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:4px 14px;align-items:center;margin:10px 0 2px;padding:12px 14px 10px;border-radius:16px;background:linear-gradient(150deg,rgba(255,255,255,.07),rgba(0,0,0,.18));border:1px solid rgba(255,255,255,.1);transition:border-color .25s,transform .25s,box-shadow .25s}
+.bd .ot-bodega.nuevo:hover{border-color:rgba(207,229,138,.45);box-shadow:0 8px 22px -10px rgba(207,229,138,.35);transform:translateY(-1px)}
+.bd .ot-bodega.nuevo.mal:hover{border-color:rgba(240,168,157,.5);box-shadow:0 8px 22px -10px rgba(240,168,157,.35)}
+.bd .ot-hero small,.bd .ot-lado small{display:block;font:700 .5rem Arial;letter-spacing:.16em;color:#8fa08a!important;opacity:1}
+.bd .ot-hero>div{display:flex;align-items:baseline;gap:6px;margin-top:2px}
+.bd .ot-hero b{font:900 2rem/1 Arial;letter-spacing:-.02em}.bd .ot-hero em{font:800 .65rem Arial;font-style:normal;letter-spacing:.14em;color:#9fb096}
+html body .bd .ot-hero b.desc{color:#f1cf8a!important;-webkit-text-fill-color:#f1cf8a!important}
+.bd .ot-lado{display:grid;gap:8px;padding-left:14px;border-left:1px solid rgba(255,255,255,.1)}
+.bd .ot-lado b{font:800 1rem Arial}
+html body .bd .ot-lado b.hay{color:#a9cdee!important;-webkit-text-fill-color:#a9cdee!important}
+html body .bd .ot-lado b.queda{color:#cfe58a!important;-webkit-text-fill-color:#cfe58a!important}
+html body .bd .ot-lado b.falta{color:#f0a89d!important;-webkit-text-fill-color:#f0a89d!important}
+.bd .ot-bodega.nuevo .ot-medidor{grid-column:1/-1;margin:8px 0 0}
+.bd .ot:has(.ot-bodega.nuevo) .ot-consumo{display:none}
+.bd .ot-dias{display:inline-block;margin-left:8px;padding:2px 9px;border-radius:99px;font:800 .6rem Arial;letter-spacing:.04em;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.08)}
+.bd .ot-dias.ok{color:#cfe58a;border-color:rgba(207,229,138,.5)}.bd .ot-dias.cerca{color:#ffd98a;border-color:rgba(255,217,138,.6);background:rgba(243,184,82,.14)}.bd .ot-dias.tarde{color:#ffb3ac;border-color:rgba(255,107,97,.7);background:rgba(255,107,97,.16)}
+.bd .ot-titulo .ot-tela{font-size:1.15rem}
 .bd .ot-consumo{font:900 1.6rem Arial;line-height:1;letter-spacing:-.01em}
 .bd .ot-consumo small{font:800 .7rem Arial;margin-left:5px;opacity:.85;letter-spacing:.05em}
 .bd .ot-sinprom{font:900 1.15rem Arial;color:#d0f44c!important}
@@ -157,8 +209,75 @@ html body .bd .inventory-item-card.lq,html body .bd .bd-tkpi .lq{background:radi
 @media (max-width:700px){.bd .ot{padding:12px!important}.bd .ot-pie{padding-right:46px}}
 .bd .bd-tcards .inventory-item-card .bd-line{flex-wrap:wrap;align-items:baseline}
 .bd .bd-tcards .inventory-item-card .bd-line b{white-space:normal;text-align:right;overflow-wrap:anywhere;min-width:0;margin-left:auto}
-@media (max-width:700px){.bd .bd-tkpi.bd-cards.fit{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px}.bd .bd-tkpi .inventory-item-card{padding:12px!important}.bd .bd-tkpi .inv-total{font-size:1.25rem!important}.bd .bd-tkpi .inv-unit{font-size:.62rem!important;line-height:1.25}.bd .bd-tfilters{grid-template-columns:repeat(2,minmax(0,1fr))!important;padding:12px}.bd .bd-tfilters .bd-clear{grid-column:1/-1}.bd .bd-tfilters label:first-child{grid-column:1/-1}.bd .bd-tfilters input,.bd .bd-tfilters select{min-width:0;font-size:16px}.bd .bd-tcards.bd-cards{gap:10px}.bd .bd-tcards .inventory-item-card .bd-line b{white-space:normal;text-align:right;overflow-wrap:anywhere}.bd-head h2{font-size:.95rem}}
+/* Tela programada: diseño de ficha operativa. La tarjeta deja de ser una tarjeta de inventario
+   y muestra primero quién es el pedido, después sus datos y al final cada tela a programar. */
+.bd .bd-tcards{grid-template-columns:repeat(auto-fill,minmax(390px,1fr))!important;grid-auto-rows:560px;gap:18px!important;align-items:stretch}
+.bd .bd-tcards .ot{position:relative;display:grid!important;gap:0!important;padding:0!important;overflow:hidden;min-height:0;border:1px solid rgba(129,218,142,.48)!important;border-radius:18px!important;background:linear-gradient(155deg,#18241d,#0c120e)!important;box-shadow:0 12px 28px rgba(0,0,0,.28)!important}
+.bd .bd-tcards .ot.bad{border-color:rgba(245,121,108,.72)!important;background:linear-gradient(155deg,#261817,#100b0b)!important}
+.bd .bd-tcards .ot>.lq-wave{display:none!important}
+.bd .bd-tcards .ot-head{order:0;padding:10px 13px;background:rgba(0,0,0,.28);border-bottom:1px solid rgba(255,255,255,.09)}
+.bd .bd-tcards .ot-head .inv-badge{padding:4px 9px!important;border-radius:7px!important;background:#d3f64b!important;color:#17220d!important;font:900 .64rem Arial!important;letter-spacing:.08em!important}
+.bd .bd-tcards .ot.bad .ot-head .inv-badge{background:#ffb4a9!important;color:#36100c!important}
+.bd .bd-tcards .ot-fecha{padding:4px 0!important;color:#c3d0bf!important;font:750 .61rem Arial!important;opacity:1!important}
+.bd .bd-tcards .ot-identidad{order:1;gap:3px;padding:16px 15px 11px!important;background:linear-gradient(100deg,rgba(208,244,76,.13),transparent 68%)}
+.bd .bd-tcards .ot-identidad::before{content:"CLIENTE";font:800 .52rem Arial;letter-spacing:.15em;color:#b7c99d}
+.bd .bd-tcards .ot-identidad b{font:900 1rem/1.2 Arial!important;color:#fff!important;text-transform:uppercase}
+.bd .bd-tcards .ot-identidad span{font:750 .67rem Arial!important;color:#d7e4d2!important;letter-spacing:.03em!important}
+.bd .bd-tcards .ot-datos{order:2;grid-template-columns:1fr 1.2fr .62fr;gap:0;margin:0 15px;padding:0!important;border:1px solid rgba(255,255,255,.12)!important;border-radius:11px!important;background:rgba(2,7,3,.3)!important;overflow:hidden}
+.bd .bd-tcards .ot-dato{min-height:54px;padding:9px 8px;align-content:center}.bd .bd-tcards .ot-dato+.ot-dato{border-left:1px solid rgba(255,255,255,.1)}
+.bd .bd-tcards .ot-dato small{font:800 .5rem Arial!important;letter-spacing:.12em!important;color:#9faf96!important}.bd .bd-tcards .ot-dato b{font:850 .68rem Arial!important;color:#f3f7ed!important;line-height:1.22}.bd .bd-tcards .ot-dato.cantidad b{font-size:1rem!important;color:#d6f64b!important}.bd .bd-tcards .ot-dato.cantidad em{display:block;margin:1px 0 0!important;font-size:.5rem!important}
+.bd .bd-tcards .ot-programa{order:3;display:grid;gap:8px;margin:14px 15px 0;padding:11px;border-radius:12px;background:#101a10;border:1px solid rgba(208,244,76,.25)}
+.bd .bd-tcards .ot-programa-titulo{display:flex;justify-content:space-between;gap:8px;color:#d7f64c;font:900 .58rem Arial;letter-spacing:.12em}.bd .bd-tcards .ot-programa-titulo span{color:#98aa90;font-weight:800}
+.bd .bd-tcards .ot-materiales{display:grid;gap:6px;padding:0!important;border:0!important;border-radius:0!important;background:transparent!important}
+.bd .bd-tcards .ot-material{grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:9px;padding:8px 7px!important;border:0!important;border-left:3px solid #c9f24a!important;border-radius:6px!important;background:rgba(255,255,255,.055)!important}
+.bd .bd-tcards .ot-material small{grid-row:1 / span 2;color:#e5f99c!important;font:900 .57rem Arial!important;letter-spacing:.08em!important;white-space:nowrap}.bd .bd-tcards .ot-material span{grid-column:2;grid-row:1;font:700 .59rem Arial!important;color:#c9d5c2!important}.bd .bd-tcards .ot-material b{grid-column:3;grid-row:1 / span 2;font:900 .9rem Arial!important;color:#fff!important}.bd .bd-tcards .ot-material b em{font-size:.5rem!important}
+.bd .bd-tcards .ot-tiempo{order:4;margin:11px 15px 0!important;padding:0!important;background:transparent!important}.bd .bd-tcards .ot-tiempo b{font-size:.66rem!important;color:#cbd7c5!important}.bd .bd-tcards .ot-tiempo::before{color:#d7f64c}
+.bd .bd-tcards .ot-bodega.nuevo{order:5;margin:13px 15px 14px!important;border-radius:11px!important}.bd .bd-tcards .ot-pie{display:none!important}
+@media(max-width:700px){.bd .bd-tcards{grid-template-columns:1fr!important;gap:12px!important}.bd .bd-tcards .ot-datos{margin:0 12px}.bd .bd-tcards .ot-identidad{padding-left:12px;padding-right:12px}.bd .bd-tcards .ot-programa,.bd .bd-tcards .ot-tiempo,.bd .bd-tcards .ot-bodega.nuevo{margin-left:12px!important;margin-right:12px!important}}
+/* Misma lectura de una tarjeta de Producción: cabecera, cliente/proyecto, MTS y ficha de datos. */
+.bd .bd-tcards .ot-production-card{display:block!important;height:100%;min-height:0;padding:0!important;border:1px solid #3a4a40!important;border-radius:16px!important;background:#19231e!important;box-shadow:0 6px 22px #0002!important;overflow:hidden}
+.bd .bd-tcards .ot-production-card.bad{border-color:#985452!important;background:#211817!important}
+.bd .ot-production-card>.lq-wave{display:none!important}
+.bd .ot-production-body{display:grid;grid-template-rows:auto auto auto minmax(0,1fr) auto auto auto;gap:0;height:100%;min-height:0;padding:18px 21px!important;box-sizing:border-box;min-width:0}
+.bd .ot-production-heading{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:5px}.bd .ot-production-heading h3{margin:0 auto 0 0;color:#f3f6ef;font:700 24px/1.2 Arial;letter-spacing:-.6px}.bd .ot-production-project-chip{display:inline-block;max-width:58%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:6px 9px;border:1px solid #536459;border-radius:6px;background:#36433b;color:#d3ded6;font:700 10px/1.4 Arial;text-transform:uppercase}.bd .ot-production-card.bad .ot-production-project-chip{background:#5a2927;border-color:#985452;color:#ffd5d0}
+.bd .ot-production-client{margin:0 0 13px;color:#eef5ed;font:600 16px/1.35 Arial;overflow-wrap:anywhere}.bd .ot-production-project{display:none}
+.bd .ot-production-mts{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid #5f9650;border-radius:10px;background:linear-gradient(135deg,#1d351e,#122015)}.bd .ot-production-mts small{display:grid;gap:2px;color:#9eae9b;font:800 9px Arial;letter-spacing:.07em}.bd .ot-production-mts small::after{content:"PLAN DE CONSUMO";color:#d0f44c;font-size:8px}.bd .ot-production-mts strong{color:#d0f44c;font:800 19px Arial;overflow-wrap:anywhere}
+.bd .ot-production-fabrics{display:grid;align-content:start;gap:7px;min-height:0;overflow-y:auto;margin:10px 0 14px;padding-right:3px;scrollbar-width:thin;scrollbar-color:#77bd63 transparent}.bd .ot-production-fabrics::-webkit-scrollbar{width:5px}.bd .ot-production-fabrics::-webkit-scrollbar-thumb{border-radius:99px;background:#77bd63}.bd .ot-production-fabric{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;padding:9px 10px;border:1px solid rgba(126,184,205,.14);border-left:3px solid #66c8e4;border-radius:9px;background:linear-gradient(110deg,#13251f,#101914);box-shadow:inset 0 1px rgba(255,255,255,.03)}.bd .ot-production-fabric.no-stock,.bd .ot-production-fabric.insufficient{border-left-color:#f28d82;background:linear-gradient(110deg,#241918,#15100f)}.bd .ot-production-fabric small{color:#c8f24b;font:800 9px Arial;letter-spacing:.08em}.bd .ot-production-fabric span{color:#d8e5da;font:600 12px/1.3 Arial;overflow-wrap:anywhere}.bd .ot-production-fabric>b{grid-column:2;grid-row:1 / span 2;align-self:center;color:#fff;font:800 18px Arial;white-space:nowrap}.bd .ot-production-fabric>b em{font:700 9px Arial;font-style:normal;color:#aebba7;margin-left:3px}.bd .ot-production-fabric .ot-fabric-stock{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:7px;margin-top:5px}.bd .ot-production-fabric .ot-fabric-stock span{padding:5px 7px;border-radius:5px;background:rgba(255,255,255,.055);font:800 8px Arial;color:#aebca9;text-transform:uppercase}.bd .ot-production-fabric .ot-fabric-stock span:last-child{text-align:right}.bd .ot-production-fabric .ot-fabric-stock b{display:block;color:#d0f44c;font:800 11px Arial;line-height:1.25}.bd .ot-production-fabric .ot-fabric-stock.mal b{color:#ff9c93}.bd .ot-production-fabric .ot-fabric-stock.sin{color:#ffb2aa}.bd .ot-fabric-meter{grid-column:1/-1;height:5px;overflow:hidden;border-radius:999px;background:rgba(255,255,255,.1);margin-top:2px}.bd .ot-fabric-meter i{display:block;width:var(--coverage,0%);height:100%;border-radius:inherit;background:linear-gradient(90deg,#a9d943,#d7f64c);transition:width .5s ease}.bd .ot-production-fabric.insufficient .ot-fabric-meter i,.bd .ot-production-fabric.no-stock .ot-fabric-meter i{background:linear-gradient(90deg,#f28d82,#ffb1a8)}
+.bd .ot-production-facts{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:17px 14px;margin:0}.bd .ot-production-facts div{min-width:0}.bd .ot-production-facts .referencia{grid-column:1/-1}.bd .ot-production-facts dt{margin-bottom:5px;color:#a6b7ab;font:12px/1.5 Arial}.bd .ot-production-facts dd{margin:0;color:#eef5ed;font:500 14px/1.5 Arial;overflow-wrap:anywhere}.bd .ot-production-facts .cantidad dd{color:#d0f44c;font:700 22px/1 Arial}.bd .ot-production-facts .cantidad small{font:500 12px Arial;color:#adbdaf}.bd .ot-production-facts .entrega dd{font-weight:700}
+.bd .ot-production-card .ot-tiempo{margin:15px 0 0!important;padding:10px 11px!important;border-top:1px solid #35463c!important;background:transparent!important}.bd .ot-production-card .ot-tiempo b{font:600 12px/1.4 Arial!important}.bd .ot-production-card .ot-bodega.nuevo{margin:14px 0 0!important}.bd .ot-production-card .ot-pie{display:none!important}
+@media(max-width:700px){.bd .bd-tcards{grid-auto-rows:540px!important}}@media(max-width:560px){.bd .ot-production-body{min-height:0;padding:16px 17px!important}.bd .ot-production-heading h3{font-size:21px}.bd .ot-production-facts{grid-template-columns:1fr 1fr}.bd .ot-production-facts .referencia{grid-column:1/-1}.bd .ot-production-card .ot-bodega.nuevo{margin-top:12px!important}}
+/* Tarjeta dinámica de programación: identidad arriba, telas en el centro y datos operativos abajo. */
+.bd .bd-tcards{grid-auto-rows:480px!important}.bd .ot-dyn-plan{grid-template-rows:minmax(0,1fr)!important}.bd .ot-dyn-plan-head{display:none!important}@media(max-width:560px){.bd .bd-tcards{grid-auto-rows:465px!important}}
+/* Distribución plana: los datos se leen como una ficha, no como una colección de recuadros. */
+.bd .ot-dyn-head{column-gap:14px;row-gap:8px;padding-bottom:9px;border-bottom:1px solid rgba(255,255,255,.12)}.bd .ot-dyn-head>div{padding:0!important;border:0!important;border-radius:0!important;background:transparent!important}.bd .ot-dyn-head .cliente{padding-top:2px!important}.bd .ot-dyn-head .cantidad b{color:#d5f64d}.bd .ot-dyn-plan{padding:0!important;border:0!important;border-radius:0!important;background:transparent!important}.bd .ot-dyn-plan-head{margin:0 0 8px;padding:0 0 7px;border-bottom:1px solid rgba(255,255,255,.11)}.bd .ot-dyn-materials{grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:minmax(0,1fr);align-content:stretch;overflow:hidden!important;padding:0!important;gap:10px}.bd .ot-dyn-materials.one{grid-template-columns:1fr}.bd .ot-dyn-material{height:100%;box-sizing:border-box;padding:9px 0!important;border:0!important;border-top:2px solid #66c8e4!important;border-radius:0!important;background:transparent!important;box-shadow:none!important}.bd .ot-dyn-material.bad{border-top-color:#f09086!important;background:transparent!important}.bd .ot-dyn-material-top{padding:0 2px}.bd .ot-dyn-material-tag{border-radius:999px}.bd .ot-dyn-material-name{min-height:0;padding:0 2px;font-size:11px}.bd .ot-dyn-material-stats{align-self:end;gap:12px;padding:6px 2px 0}.bd .ot-dyn-material-stats span{padding:0!important;border-radius:0!important;background:transparent!important}.bd .ot-dyn-material-stats b{font-size:12px}.bd .ot-dyn-meter{margin:5px 2px 0}.bd .ot-dyn-materials.one .ot-dyn-material{padding-top:14px!important}.bd .ot-dyn-materials.one .ot-dyn-material-top b{font-size:26px}.bd .ot-dyn-materials.one .ot-dyn-material-name{font-size:14px}.bd .ot-dyn-materials.one .ot-dyn-material-stats b{font-size:17px}.bd .ot-dyn-materials.one .ot-dyn-meter{height:7px}
+/* Cada tela usa un acento propio para diferenciar rápidamente el descuento. */
+.bd .ot-dyn-material:nth-child(1){border-top-color:#62cbe9!important}.bd .ot-dyn-material:nth-child(1) .ot-dyn-material-tag{background:#62cbe9}.bd .ot-dyn-material:nth-child(1) .ot-dyn-meter i{background:linear-gradient(90deg,#3d9fca,#62cbe9)}.bd .ot-dyn-material:nth-child(2){border-top-color:#d5f64d!important}.bd .ot-dyn-material:nth-child(2) .ot-dyn-material-tag{background:#d5f64d}.bd .ot-dyn-material:nth-child(2) .ot-dyn-meter i{background:linear-gradient(90deg,#8ebd46,#d5f64d)}.bd .ot-dyn-material:nth-child(3){border-top-color:#ffc45d!important}.bd .ot-dyn-material:nth-child(3) .ot-dyn-material-tag{background:#ffc45d}.bd .ot-dyn-material:nth-child(3) .ot-dyn-meter i{background:linear-gradient(90deg,#dc9632,#ffc45d)}.bd .ot-dyn-material:nth-child(4){border-top-color:#cf9df5!important}.bd .ot-dyn-material:nth-child(4) .ot-dyn-material-tag{background:#cf9df5}.bd .ot-dyn-material:nth-child(4) .ot-dyn-meter i{background:linear-gradient(90deg,#9d67d0,#cf9df5)}.bd .ot-dyn-material.bad{border-top-color:#f09086!important}.bd .ot-dyn-material.bad .ot-dyn-material-tag{background:#f09086}.bd .ot-dyn-material.bad .ot-dyn-meter i{background:linear-gradient(90deg,#d95c55,#f09086)}
+/* Restauración de la composición anterior: solo se elimina el total duplicado. */
+.bd .bd-tcards{grid-auto-rows:540px!important}.bd .ot-dyn-head{column-gap:7px;row-gap:7px;padding:0;border:0}.bd .ot-dyn-head>div{min-width:0;padding:8px 9px!important;border:1px solid rgba(255,255,255,.1)!important;border-radius:9px!important;background:rgba(5,13,8,.42)!important}.bd .ot-dyn-head .cliente{grid-column:1/-1;padding:8px 9px!important}.bd .ot-dyn-head small{display:block;margin-bottom:3px}.bd .ot-dyn-head .orden b{font-size:20px}.bd .ot-dyn-head .cliente span{font-size:14px}.bd .ot-dyn-plan{display:grid!important;grid-template-rows:minmax(0,1fr)!important;min-height:0;padding:10px!important;border:1px solid rgba(181,239,103,.23)!important;border-radius:12px!important;background:rgba(7,18,10,.5)!important}.bd .ot-dyn-materials{grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:auto;align-content:start;overflow-y:auto!important;padding-right:2px!important;gap:7px}.bd .ot-dyn-materials.one{grid-template-columns:1fr}.bd .ot-dyn-material{height:auto;padding:8px!important;border:1px solid rgba(102,200,228,.18)!important;border-top:3px solid #66c8e4!important;border-radius:8px!important;background:linear-gradient(150deg,rgba(24,48,39,.95),rgba(13,25,18,.95))!important}.bd .ot-dyn-material.bad{border-top-color:#f09086!important;background:linear-gradient(150deg,rgba(58,31,28,.96),rgba(25,15,13,.95))!important}.bd .ot-dyn-material-name{min-height:28px;padding:0;font-size:10px}.bd .ot-dyn-material-stats{align-self:auto;gap:4px;padding:0}.bd .ot-dyn-material-stats span{padding:4px!important;border-radius:4px!important;background:rgba(255,255,255,.055)!important}.bd .ot-dyn-material-stats b{font-size:10px}.bd .ot-dyn-meter{height:4px;margin-top:2px}.bd .ot-dyn-materials.one .ot-dyn-material{padding:8px!important}.bd .ot-dyn-materials.one .ot-dyn-material-top b{font-size:16px}.bd .ot-dyn-materials.one .ot-dyn-material-name{font-size:10px}.bd .ot-dyn-materials.one .ot-dyn-material-stats b{font-size:10px}.bd .ot-dyn-materials.one .ot-dyn-meter{height:4px}
+.bd .ot-dyn-material:nth-child(2){border-top-color:#d5f64d!important}.bd .ot-dyn-material:nth-child(3){border-top-color:#ffc45d!important}.bd .ot-dyn-material:nth-child(4){border-top-color:#cf9df5!important}
+.bd .ot-dyn-plan{grid-template-rows:minmax(0,1fr)!important}.bd .ot-dyn-plan-head{display:none!important}
+/* Cuadrícula fija de identidad y lectura amplia del descuento. */
+.bd .ot-dyn-head{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important}.bd .ot-dyn-head .orden{grid-column:1!important;grid-row:1!important}.bd .ot-dyn-head .proyecto{grid-column:2!important;grid-row:1!important}.bd .ot-dyn-head .cliente{grid-column:1 / -1!important;grid-row:2!important}.bd .ot-dyn-head .referencia{grid-column:1!important;grid-row:3!important}.bd .ot-dyn-head .cantidad{grid-column:2!important;grid-row:3!important}.bd .ot-dyn-material-top{display:flex!important;width:100%;justify-content:space-between!important}.bd .ot-dyn-material-top b{margin-left:auto!important}.bd .ot-dyn-material-stats{display:grid!important;width:100%;grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important}.bd .ot-dyn-material-stats span{display:block!important;min-width:0}.bd .ot-dyn-material-stats b{display:block!important;white-space:nowrap}.bd .ot-dyn-materials.one{grid-template-columns:minmax(0,1fr)!important}
+.bd .ot-ref-compuesta{display:flex;flex-wrap:wrap;gap:5px}.bd .ot-ref-compuesta span{display:inline-flex!important;align-items:center;padding:3px 7px;border:1px solid rgba(208,244,76,.4);border-radius:7px;background:rgba(208,244,76,.1);color:#eaf6c9!important;font:850 .64rem Arial!important;letter-spacing:.04em}
+.bd .ot-ref-desglose{display:flex;flex-wrap:wrap;gap:5px}.bd .ot-ref-desglose b,.bd .ot-ref-desglose span{display:inline-flex!important;align-items:center;padding:3px 7px;border:1px solid rgba(208,244,76,.38);border-radius:7px;background:rgba(208,244,76,.1);color:#ecf6d5!important;font:850 .64rem Arial!important;letter-spacing:.04em}.bd .ot-ref-desglose span{color:#c3d6bb!important;background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.16)}.bd .ot-dyn-material-code{display:inline-flex;align-items:center;margin-left:5px;padding:2px 6px;border:1px solid rgba(255,255,255,.22);border-radius:99px;color:#cfe78e;font:850 .56rem Arial;letter-spacing:.06em}
+/* Diseño de referencia para todas las tarjetas de Tela Programada. */
+.bd .bd-tcards{grid-auto-rows:540px!important}.bd .bd-tcards .ot-production-card{border:2px solid #28b86c!important;border-radius:16px!important;background:radial-gradient(circle at 18% 0,rgba(224,239,229,.32),transparent 43%),linear-gradient(145deg,#203126,#0c170f)!important}.bd .ot-production-body{padding:12px!important;gap:0!important}.bd .ot-dyn-head{gap:7px!important;padding:0 0 10px!important;border-bottom:1px solid rgba(255,255,255,.16)!important}.bd .ot-dyn-head>div{padding:0!important;border:0!important;border-radius:0!important;background:transparent!important}.bd .ot-dyn-head small{margin-bottom:4px!important;color:#d6ddd5!important;font:800 8px Arial!important;letter-spacing:.1em!important}.bd .ot-dyn-head b,.bd .ot-dyn-head span{font:800 13px/1.2 Arial!important}.bd .ot-dyn-head .orden b{font-size:21px!important}.bd .ot-dyn-head .cliente span{font-size:15px!important}.bd .ot-dyn-head .cantidad b{font-size:14px!important;color:#fff!important}.bd .ot-dyn-plan{display:grid!important;grid-template-rows:auto minmax(0,1fr)!important;padding:13px 0 0!important;border:0!important;border-radius:0!important;background:transparent!important}.bd .ot-dyn-plan-head{display:flex!important;justify-content:space-between;align-items:center;gap:8px;margin:0 0 25px!important;padding:0 0 5px!important;border-bottom:2px solid #60cdea!important}.bd .ot-dyn-plan-head small{color:#edf2ee!important;font:800 9px Arial!important;letter-spacing:.08em!important}.bd .ot-dyn-plan-head b{padding:8px 10px;border:3px solid #12bfe2;background:#102219;color:#fff!important;font:900 17px Arial!important}.bd .ot-dyn-plan-head b em{font:800 9px Arial!important}.bd .ot-dyn-materials{grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:minmax(0,1fr);align-content:stretch;gap:10px;overflow:hidden!important;padding:0!important}.bd .ot-dyn-materials.one{grid-template-columns:1fr!important}.bd .ot-dyn-material{display:grid!important;grid-template-rows:auto auto 1fr auto auto;gap:4px;height:100%;padding:0 0 8px!important;border:0!important;border-top:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important}.bd .ot-dyn-material.bad{background:transparent!important}.bd .ot-dyn-material-top{align-items:center!important;padding:0!important}.bd .ot-dyn-material-tag{padding:3px 6px!important;border-radius:999px!important;background:#62cbe9!important;color:#fff!important;font:900 10px Arial!important}.bd .ot-dyn-material-top b{padding:7px 9px;border:3px solid #12bfe2;color:#fff!important;font:900 27px Arial!important}.bd .ot-dyn-material-top b em{font:800 10px Arial!important}.bd .ot-dyn-material-name{min-height:0!important;color:#fff!important;font:800 12px Arial!important}.bd .ot-dyn-material-stats{align-self:end!important;gap:18px!important;padding:0!important}.bd .ot-dyn-material-stats span{padding:0!important;background:transparent!important;color:#fff!important;font:800 8px Arial!important}.bd .ot-dyn-material-stats b{margin-top:4px;color:#fff!important;font:900 17px Arial!important}.bd .ot-dyn-meter{height:7px!important;margin:4px 0 0!important;background:#214135!important}.bd .ot-dyn-meter i{background:#62cbe9!important}.bd .ot-dyn-materials:not(.one) .ot-dyn-material-top b{padding:5px 6px;border-width:2px;font-size:17px!important}.bd .ot-dyn-materials:not(.one) .ot-dyn-material-stats b{font-size:11px!important}.bd .ot-dyn-materials:not(.one) .ot-dyn-material-name{font-size:10px!important}
+/* Únicos cambios solicitados: sin resumen duplicado ni marcos azules; todas las telas visibles. */
+.bd .ot-dyn-plan{grid-template-rows:minmax(0,1fr)!important}.bd .ot-dyn-plan-head{display:none!important}.bd .ot-dyn-material-top b{padding:0!important;border:0!important;background:transparent!important}.bd .ot-dyn-materials:not(.one){grid-template-columns:repeat(2,minmax(0,1fr))!important;grid-auto-rows:minmax(0,1fr)!important}.bd .ot-dyn-materials:not(.one) .ot-dyn-material{height:auto!important;min-height:0}.bd .ot-dyn-materials:not(.one) .ot-dyn-material-top b{padding:0!important;border:0!important}.bd .ot-dyn-materials:not(.one) .ot-dyn-material-stats{gap:8px!important}
+/* El área de telas llena siempre la tarjeta, sin importar cuántos materiales tenga. */
+.bd .ot-production-body.ot-dynamic-body{grid-template-rows:auto minmax(0,1fr)!important}.bd .ot-dyn-material-amount{display:grid!important;justify-items:end;gap:1px;margin-left:auto}.bd .ot-dyn-material-amount small{color:#bbcec0!important;font:800 7px Arial!important;letter-spacing:.09em!important}.bd .ot-dyn-material-top .ot-dyn-material-amount b{margin-left:0!important}.bd .ot-dyn-materials.telas-2 .ot-dyn-material-amount b,.bd .ot-dyn-materials.telas-3 .ot-dyn-material-amount b{font-size:18px!important}
+.bd .ot-dyn-plan,.bd .ot-dyn-materials{height:100%!important;min-height:0!important}.bd .ot-dyn-materials.telas-1{grid-template-columns:1fr!important;grid-template-rows:minmax(0,1fr)!important}.bd .ot-dyn-materials.telas-2{grid-template-columns:1fr!important;grid-template-rows:repeat(2,minmax(0,1fr))!important}.bd .ot-dyn-materials.telas-3{grid-template-columns:1fr!important;grid-template-rows:repeat(3,minmax(0,1fr))!important}.bd .ot-dyn-materials.telas-4{grid-template-columns:repeat(2,minmax(0,1fr))!important;grid-template-rows:repeat(2,minmax(0,1fr))!important}.bd .ot-dyn-materials.telas-1 .ot-dyn-material,.bd .ot-dyn-materials.telas-2 .ot-dyn-material,.bd .ot-dyn-materials.telas-3 .ot-dyn-material,.bd .ot-dyn-materials.telas-4 .ot-dyn-material{height:auto!important;min-height:0!important;align-self:stretch!important}.bd .ot-dyn-materials.telas-1 .ot-dyn-material-top b{font-size:30px!important}.bd .ot-dyn-materials.telas-1 .ot-dyn-material-name{font-size:14px!important}.bd .ot-dyn-materials.telas-1 .ot-dyn-material-stats b{font-size:18px!important}.bd .ot-dyn-materials.telas-1 .ot-dyn-meter{height:8px!important}
+.bd .ot-dyn-materials.telas-3 .ot-dyn-material{grid-template-rows:auto auto auto auto!important;align-content:space-between!important;gap:2px!important;padding-bottom:3px!important}.bd .ot-dyn-materials.telas-3 .ot-dyn-material-stats{align-self:auto!important}.bd .ot-dyn-materials.telas-3 .ot-dyn-material-stats b{margin-top:2px!important;font-size:10px!important}.bd .ot-dyn-materials.telas-3 .ot-dyn-meter{height:5px!important;margin-top:1px!important}
+@media (max-width:700px){.bd .bd-tkpi.bd-cards.fit{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px}.bd .bd-tkpi .inventory-item-card{padding:12px!important}.bd .bd-tkpi .inv-total{font-size:1.25rem!important}.bd .bd-tkpi .inv-unit{font-size:.62rem!important;line-height:1.25}.bd .bd-tfilters{grid-template-columns:repeat(2,minmax(0,1fr))!important;padding:12px}.bd .bd-tfilters .bd-clear{grid-column:1/-1}.bd .bd-tfilters label:first-child{grid-column:1/-1}.bd .bd-tfilters input,.bd .bd-tfilters select{min-width:0;font-size:16px}.bd .bd-tcards.bd-cards{gap:10px}.bd .bd-tcards .ot-production-card{content-visibility:auto;contain:layout style paint;contain-intrinsic-size:540px}.bd .bd-tcards .inventory-item-card .bd-line b{white-space:normal;text-align:right;overflow-wrap:anywhere}.bd-head h2{font-size:.95rem}}
 @media (max-width:340px){.bd .bd-tkpi.bd-cards.fit{grid-template-columns:minmax(0,1fr)!important}}
+.bd .bd-tkpi .inventory-item-card[data-tela-detail]{position:relative;cursor:pointer;text-align:left;transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}
+.bd .bd-tkpi .inventory-item-card[data-tela-detail]:hover,.bd .bd-tkpi .inventory-item-card[data-tela-detail].is-open{transform:translateY(-2px);border-color:#d0f44c!important;box-shadow:0 10px 24px rgba(0,0,0,.32),0 0 0 1px rgba(208,244,76,.2)!important}
+.bd .bd-tkpi .inventory-item-card[data-tela-detail]:focus-visible{outline:3px solid rgba(208,244,76,.7);outline-offset:3px}
+.bd .bd-tela-expand{display:block;margin-top:3px;color:#d7f96a;font:850 .64rem Arial;letter-spacing:.05em;text-transform:uppercase}
+.bd .bd-tela-desglose{display:grid;gap:14px;padding:16px 18px;border:1px solid rgba(208,244,76,.42);border-radius:18px;background:linear-gradient(145deg,rgba(41,69,31,.7),rgba(10,17,10,.92));box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 12px 28px rgba(0,0,0,.25)}
+.bd .bd-tela-detail-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}.bd .bd-tela-detail-head small{display:block;color:#aebba7;font:800 .61rem Arial;letter-spacing:.1em;text-transform:uppercase}.bd .bd-tela-detail-head h3{margin:4px 0 0;color:#f3f7ec;font:900 1.05rem Arial}.bd .bd-tela-close{width:auto!important;padding:8px 11px!important;border:1px solid rgba(255,255,255,.25)!important;border-radius:9px!important;background:rgba(0,0,0,.2)!important;color:#e9f2df!important;font:800 .72rem Arial!important;cursor:pointer}.bd .bd-tela-close:hover{border-color:#d0f44c!important;color:#dffb7f!important}
+.bd .bd-tela-table-wrap{max-height:360px;overflow:auto;border:1px solid rgba(255,255,255,.12);border-radius:12px;background:rgba(2,8,3,.3)}.bd .bd-tela-table{width:100%;border-collapse:collapse;font:700 .72rem Arial}.bd .bd-tela-table th{position:sticky;top:0;padding:10px;text-align:left;background:#182516;color:#b8caad;font:850 .57rem Arial;letter-spacing:.1em;text-transform:uppercase;z-index:1}.bd .bd-tela-table td{padding:10px;border-top:1px solid rgba(255,255,255,.09);color:#edf4e7;vertical-align:top}.bd .bd-tela-table td:last-child{color:#d9f66c;white-space:nowrap}.bd .bd-tela-empty{margin:0;color:#b9c6b3;font-size:.8rem}
+@media(max-width:700px){.bd .bd-tela-desglose{padding:14px 12px}.bd .bd-tela-detail-head{align-items:center}.bd .bd-tela-detail-head h3{font-size:.95rem}.bd .bd-tela-table-wrap{max-height:420px}.bd .bd-tela-table th,.bd .bd-tela-table td{padding:9px 8px}.bd .bd-tela-table{min-width:690px}.bd .bd-tela-expand{font-size:.58rem}}
 `;
   document.head.appendChild(style);
 
@@ -175,9 +294,9 @@ html body .bd .inventory-item-card.lq,html body .bd .bd-tkpi .lq{background:radi
 
   const circles = (values, states) => values && values.length ? '<div class="inventory-rolls">' + values.map((value, index) => '<span class="inventory-roll ' + (states?.[index] === 'started' ? 'roll-started' : 'roll-new') + '">' + esc(num(value)) + '</span>').join('') + '</div>' : '';
   const codes = names => names.map(name => (String(name).match(/^\s*\(([^)]+)\)/) || [])[1]).filter(Boolean);
-  const card = ({badge, badgeClass = '', name, total, unit, extra = '', cls = '', title = '', telas = null, fecha = '', level = null, tone = 'verde'}) =>
+  const card = ({badge, badgeClass = '', name, total, unit, extra = '', cls = '', title = '', telas = null, fecha = '', level = null, tone = 'verde', detailTela = ''}) =>
     '<article class="inventory-item-card ' + cls + '"' + (level !== null ? ' data-lq="' + Math.max(0, Math.min(100, Math.round(level))) + '" data-lq-tone="' + tone + '"' : '') + (title ? ' title="' + esc(title) + '"' : '') +
-      (telas ? ' data-tela="' + esc(norm(telas.join(' | '))) + '" data-codigo="' + esc(codes(telas).join('|')) + '"' : ' data-sinfiltro="true"') + (fecha ? ' data-fecha="' + esc(day(fecha)) + '"' : '') + '><span class="inv-badge ' + badgeClass + '">' + esc(badge) + '</span><strong class="inv-name">' + esc(name) + '</strong>' + extra + '<span class="inv-total">' + total + '</span>' + (unit ? '<span class="inv-unit">' + esc(unit) + '</span>' : '') + '</article>';
+      (telas ? ' data-tela="' + esc(norm(telas.join(' | '))) + '" data-codigo="' + esc(codes(telas).join('|')) + '"' : ' data-sinfiltro="true"') + (fecha ? ' data-fecha="' + esc(day(fecha)) + '"' : '') + (detailTela ? ' data-tela-detail="' + esc(detailTela) + '" role="button" tabindex="0" aria-expanded="false" aria-label="Ver pedidos de ' + esc(detailTela) + '"' : '') + '><span class="inv-badge ' + badgeClass + '">' + esc(badge) + '</span><strong class="inv-name">' + esc(name) + '</strong>' + extra + '<span class="inv-total">' + total + '</span>' + (unit ? '<span class="inv-unit">' + esc(unit) + '</span>' : '') + (detailTela ? '<span class="bd-tela-expand">Ver pedidos ›</span>' : '') + '</article>';
   const section = (title, note, cards, fit) => '<section class="bd-section"' + (fit ? ' data-fijo="true"' : '') + '><h3>' + esc(title) + (note ? ' <small>· ' + esc(note) + '</small>' : '') + '</h3>' + (cards ? '<div class="bd-cards' + (fit ? ' fit' : '') + '">' + cards + '</div>' : '') + '</section>';
   const meter = (value, max) => '<div class="bd-meter"><i style="width:' + Math.max(1, value / (max || 1) * 100) + '%"></i></div>';
 
@@ -349,11 +468,17 @@ html body .bd .inventory-item-card.lq,html body .bd .bd-tkpi .lq{background:radi
   // ---- Sub-pestaña «Tela programada»: la tela que piden los pedidos programados (promedio general del maestro × cantidad) frente a Bodega ----
   const body2 = panel.querySelector('.bd-body2');
   const filtersBox = panel.querySelector('.bd-filters:not(.bd-tfilters)');
+  // Cada persona vuelve al mismo submódulo al recargar (p. ej. Tela programada).
   let subTab = 'resumen';
+  try {
+    const guardada = localStorage.getItem('indoor-bodega-subtab');
+    if (guardada === 'resumen' || guardada === 'tela') subTab = guardada;
+  } catch (_) { /* sin almacenamiento: abre Resumen */ }
   body2.style.display = 'grid';
   body2.style.gap = '22px';
   body2.innerHTML =
     '<div class="bd-cards fit bd-tkpi"></div>' +
+    '<section class="bd-tela-desglose" hidden aria-live="polite"></section>' +
     '<form class="bd-filters bd-tfilters" autocomplete="off" onsubmit="return false">' +
       '<label>Buscar<input name="q" type="search" placeholder="Orden, cliente, referencia o tela"></label>' +
       '<label>Tela<select name="tela"><option value="">Todas</option></select></label>' +
@@ -362,17 +487,25 @@ html body .bd .inventory-item-card.lq,html body .bd .bd-tkpi .lq{background:radi
       '<label>Entrega desde<input name="desde" type="date"></label><label>Entrega hasta<input name="hasta" type="date"></label>' +
       '<button type="button" class="bd-clear">Limpiar</button><p class="bd-count"></p></form>' +
     '<div class="bd-cards bd-tcards"><p class="bd-note">Calculando la tela de los pedidos…</p></div>';
-  const tFilters = body2.querySelector('.bd-tfilters'), tCards = body2.querySelector('.bd-tcards'), tKpi = body2.querySelector('.bd-tkpi');
-  let brechaDias = 14, prodData = null, unitData = null;
+  const tFilters = body2.querySelector('.bd-tfilters'), tCards = body2.querySelector('.bd-tcards'), tKpi = body2.querySelector('.bd-tkpi'), telaDesglose = body2.querySelector('.bd-tela-desglose');
+  let brechaDias = 14, prodData = null, unitData = null, telaDetalle = '', ordenesTela = [];
   const SITUACION = {alcanza: ['Alcanza', 'ok'], no_alcanza: ['No alcanza', 'bad'], sin_tela: ['Tela no encontrada', 'bad'], sin_promedio: ['Sin promedio', 'warn']};
+  // Inventario puede nombrar la misma tela con o sin su código entre
+  // paréntesis: «(10600) NET» y «NET» deben ser un solo botón.
+  const claveTela = tela => norm(String(tela || '').replace(/^\s*\(\s*\d+\s*\)\s*/, ''));
   const filterTela = () => {
     const f = tFilters.elements, q = norm(f.q.value), desde = f.desde.value, hasta = f.hasta.value;
     let shown = 0;
     tCards.querySelectorAll('.inventory-item-card').forEach(node => {
       const d = node.dataset, fecha = d.fecha || '';
-      const ok = (!q || (d.q || '').includes(q)) && (!f.tela.value || d.tela === f.tela.value) && (!f.sit.value || d.sit === f.sit.value)
+      const ok = (!q || (d.q || '').includes(q)) && (!f.tela.value || claveTela(d.tela) === claveTela(f.tela.value)) && (!f.sit.value || d.sit === f.sit.value)
         && (!f.sub.value || d.sub === f.sub.value) && (!desde || (fecha && fecha >= desde)) && (!hasta || (fecha && fecha <= hasta));
       node.hidden = !ok;
+      // Algunas reglas globales de Inventarios fuerzan display:grid sobre las
+      // tarjetas y anulaban visualmente el atributo hidden. Se fuerza aquí el
+      // estado final para que la cantidad y las tarjetas siempre coincidan.
+      node.style.setProperty('display', ok ? 'grid' : 'none', 'important');
+      node.setAttribute('aria-hidden', String(!ok));
       if (ok) shown += 1;
     });
     const total = tCards.querySelectorAll('.inventory-item-card').length;
@@ -381,17 +514,83 @@ html body .bd .inventory-item-card.lq,html body .bd .bd-tkpi .lq{background:radi
     if (total && !shown) { if (!vacio) tCards.insertAdjacentHTML('beforeend', '<p class="bd-note bd-vacio">Ninguna orden coincide con los filtros.</p>'); }
     else vacio?.remove();
   };
+  const renderDesgloseTela = () => {
+    if (!telaDetalle) { telaDesglose.hidden = true; telaDesglose.innerHTML = ''; return; }
+    const clave = claveTela(telaDetalle);
+    const filas = ordenesTela.map(o => {
+      const materiales = (o.materiales || []).filter(m => claveTela(m.tela) === clave);
+      if (claveTela(o.tela) !== clave && !materiales.length) return null;
+      const mtsMateriales = materiales.reduce((total, m) => total + (Number(m.mts) || 0), 0);
+      return {cliente: o.cliente || 'Sin cliente', proyecto: o.proyecto || 'Sin proyecto', orden: o.orden || '—', cantidad: o.cantidad || 0, referencia: o.referencia || '—', mts: materiales.length ? mtsMateriales : (Number(o.mts) || 0), entrega: o.entrega || ''};
+    }).filter(Boolean).sort((a, b) => String(a.entrega || '9999-12-31').localeCompare(String(b.entrega || '9999-12-31')) || String(a.orden).localeCompare(String(b.orden)));
+    tKpi.querySelectorAll('[data-tela-detail]').forEach(node => {
+      const abierta = norm(node.dataset.telaDetail) === clave;
+      node.classList.toggle('is-open', abierta);
+      node.setAttribute('aria-expanded', String(abierta));
+    });
+    telaDesglose.hidden = false;
+    if (!filas.length) {
+      telaDesglose.innerHTML = '<div class="bd-tela-detail-head"><div><small>Detalle de tela programada</small><h3>' + esc(telaDetalle) + '</h3></div><button type="button" class="bd-tela-close" data-close-tela-detail>Cerrar</button></div><p class="bd-tela-empty">No hay pedidos programados asociados a esta tela.</p>';
+      return;
+    }
+    const totalMts = filas.reduce((total, fila) => total + fila.mts, 0);
+    telaDesglose.innerHTML = '<div class="bd-tela-detail-head"><div><small>Detalle de tela programada · ' + num(filas.length) + (filas.length === 1 ? ' pedido' : ' pedidos') + ' · ' + num(totalMts) + ' MTS requeridos</small><h3>' + esc(telaDetalle) + '</h3></div><button type="button" class="bd-tela-close" data-close-tela-detail>Cerrar</button></div><div class="bd-tela-table-wrap"><table class="bd-tela-table"><thead><tr><th>Cliente</th><th>Proyecto</th><th>Orden</th><th>Cantidad</th><th>Referencia</th><th>MTS requeridos</th></tr></thead><tbody>' + filas.map(fila => '<tr><td>' + esc(fila.cliente) + '</td><td>' + esc(fila.proyecto) + '</td><td>' + esc(fila.orden) + '</td><td>' + num(fila.cantidad) + ' UND.</td><td>' + esc(fila.referencia) + '</td><td>' + num(fila.mts) + ' MTS</td></tr>').join('') + '</tbody></table></div>';
+  };
+  // Cada material alimenta su propia tarjeta. Una referencia M1/M2 deja de
+  // quedar concentrada en la primera tela de la orden.
+  const resumirTelas = (ordenes, respaldo) => {
+    const grupos = new Map();
+    const asegurar = (tela, base = {}) => {
+      const nombre = String(tela || 'Tela sin identificar').trim() || 'Tela sin identificar';
+      const clave = claveTela(nombre);
+      if (!grupos.has(clave)) grupos.set(clave, {tela: nombre, mts: 0, faltan: 0, encontrada: true, alcanza: true, disponible: null, pedidos: new Set(), ...base});
+      return grupos.get(clave);
+    };
+    (ordenes || []).forEach(o => {
+      const materiales = (o.materiales || []).filter(m => Number(m.mts) > 0);
+      // Las órdenes antiguas que no tienen materiales detallados conservan
+      // exactamente el comportamiento anterior.
+      const lineas = materiales.length ? materiales : [{tela: o.tela, mts: o.mts, situacion: o.situacion, falta: o.falta, bodega: o.bodega}];
+      lineas.forEach(m => {
+        const g = asegurar(m.tela || o.tela), mts = Number(m.mts) || 0;
+        g.mts += mts;
+        g.faltan += Number(m.falta) || 0;
+        g.pedidos.add(String(o.fila || o.orden || o.referencia || g.pedidos.size));
+        if (m.situacion === 'sin_tela') { g.encontrada = false; g.alcanza = false; }
+        else if (m.situacion === 'no_alcanza') g.alcanza = false;
+        if (Number.isFinite(Number(m.bodega))) g.disponible = Math.max(Number(g.disponible || 0), Number(m.bodega));
+      });
+    });
+    // Respaldo únicamente para órdenes antiguas sin materiales separados.
+    // No se agregan las telas principales de una orden que ya fue dividida,
+    // porque producirían un botón duplicado junto a M1/M2.
+    (respaldo || []).forEach(t => {
+      const clave = claveTela(t.tela);
+      let g = grupos.get(clave);
+      const hayOrdenSinDetalle = (ordenes || []).some(o => !(o.materiales || []).some(m => Number(m.mts) > 0) && claveTela(o.tela) === clave);
+      if (!g && !hayOrdenSinDetalle) return;
+      if (!g) g = asegurar(t.tela, {disponible: t.disponible, encontrada: t.encontrada, alcanza: t.alcanza, faltan: t.faltan});
+      if (!g.mts) { g.mts = Number(t.mts) || 0; g.faltan = Number(t.faltan) || 0; g.encontrada = t.encontrada; g.alcanza = t.alcanza; }
+      if (g.disponible === null && Number.isFinite(Number(t.disponible))) g.disponible = Number(t.disponible);
+    });
+    return [...grupos.values()].map(g => ({...g, mts: Math.round(g.mts * 100) / 100, faltan: Math.round(g.faltan * 100) / 100, pedidos: [...g.pedidos]})).sort((a, b) => Number(a.alcanza) - Number(b.alcanza) || b.mts - a.mts || a.tela.localeCompare(b.tela));
+  };
   const renderTela = data => {
     if (data.disponible === false) { tKpi.__h = tCards.__h = null; tKpi.innerHTML = ''; tCards.innerHTML = '<p class="bd-note">No se pudo leer Producción para calcular la tela necesaria.</p>'; return; }
     const ordenes = data.ordenes || [];
+    const telasResumen = resumirTelas(ordenes, data.telas);
+    const telasNoAlcanzan = telasResumen.filter(t => !t.alcanza).length;
+    const faltanResumen = telasResumen.reduce((total, t) => total + (Number(t.faltan) || 0), 0);
+    ordenesTela = ordenes;
     brechaDias = data.brecha_sublimacion || 14;
     poner(tKpi, card({badge: data.telas_no_alcanzan ? 'Atención' : 'Al día', badgeClass: data.telas_no_alcanzan ? 'bad' : 'ok', cls: data.telas_no_alcanzan ? 'bad' : '',
       level: data.mts ? Math.max(0, 100 - data.faltan / data.mts * 100) : 100, tone: data.telas_no_alcanzan ? 'rojo' : 'verde', name: 'Tela necesaria programada',
-      total: num(data.mts) + '<small>MTS</small>', unit: num(data.pedidos) + ' pedidos en ' + num((data.telas || []).length) + ' telas · ' + (data.telas_no_alcanzan ? num(data.telas_no_alcanzan) + ' telas no alcanzan · faltan ' + num(data.faltan) + ' MTS' : 'toda la tela alcanza')}) +
-      (data.telas || []).map(t => card({badge: !t.encontrada ? 'Tela no encontrada' : t.alcanza ? 'Alcanza' : 'No alcanza', badgeClass: t.alcanza ? 'ok' : 'bad', cls: t.alcanza ? '' : 'bad',
+      total: num(data.mts) + '<small>MTS</small>', unit: num(data.pedidos) + ' pedidos en ' + num(telasResumen.length) + ' telas · ' + (telasNoAlcanzan ? num(telasNoAlcanzan) + ' telas no alcanzan · faltan ' + num(faltanResumen) + ' MTS' : 'toda la tela alcanza')}) +
+      telasResumen.map(t => card({badge: !t.encontrada ? 'Tela no encontrada' : t.alcanza ? 'Alcanza' : 'No alcanza', badgeClass: t.alcanza ? 'ok' : 'bad', cls: t.alcanza ? '' : 'bad',
         level: t.encontrada ? Math.min(100, t.disponible / (t.mts || 1) * 100) : 0, tone: t.alcanza ? 'verde' : 'rojo', name: t.tela, total: num(t.mts) + '<small>MTS</small>',
-        unit: t.pedidos.length + (t.pedidos.length === 1 ? ' pedido' : ' pedidos') + ' · ' + (t.encontrada ? 'Bodega ' + num(t.disponible) + ' MTS' + (t.alcanza ? '' : ' · FALTAN ' + num(t.faltan)) : 'no está en Bodega')})).join(''));
-    const telas = [...new Set(ordenes.map(o => o.tela))].sort();
+        unit: t.pedidos.length + (t.pedidos.length === 1 ? ' pedido' : ' pedidos') + ' · ' + (t.encontrada ? 'Bodega ' + num(t.disponible) + ' MTS' + (t.alcanza ? '' : ' · FALTAN ' + num(t.faltan)) : 'no está en Bodega'), detailTela: t.tela})).join(''));
+    renderDesgloseTela();
+    const telas = telasResumen.map(t => t.tela).sort();
     const selTela = tFilters.elements.tela, actual = selTela.value;
     poner(selTela, '<option value="">Todas</option>' + telas.map(t => '<option value="' + esc(t) + '"' + (t === actual ? ' selected' : '') + '>' + esc(t) + '</option>').join(''));
     const ORD_TALLAS = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL'];
@@ -406,6 +605,12 @@ html body .bd .inventory-item-card.lq,html body .bd .bd-tkpi .lq{background:radi
       (o.tallas || []).forEach(t => { m[t.talla] = (m[t.talla] || 0) + t.cantidad; });
       const rank = t => { const i = ORD_TALLAS.indexOf(t); return i >= 0 ? i : 100 + (Number(t) || 0); };
       return Object.keys(m).sort((x, y) => rank(x) - rank(y)).map(t => [t, m[t]]);
+    };
+    const diasChip = v => {   // días que faltan para la entrega (o de atraso)
+      const d = v ? new Date(v + 'T12:00:00') : null; if (!d || isNaN(d)) return '';
+      const hoy = new Date(); hoy.setHours(12, 0, 0, 0);
+      const n = Math.round((d - hoy) / 86400000);
+      return ' <b class="ot-dias ' + (n < 0 ? 'tarde' : n <= 2 ? 'cerca' : 'ok') + '">' + (n < 0 ? (-n) + (n === -1 ? ' dia de atraso' : ' dias de atraso') : n === 0 ? 'HOY' : n + (n === 1 ? ' dia' : ' dias')) + '</b>';
     };
     const fechaCorta = v => { const d = v ? new Date(v + 'T12:00:00') : null; return d && !isNaN(d) ? d.toLocaleDateString('es-CO', {day: 'numeric', month: 'short', year: 'numeric'}).replace(/\./g, '') : 'Sin fecha'; };
     // ---- cuánto falta para que la orden llegue a Sublimación: por cada área que aún le falta antes de Sublimación, unidades × minutos por unidad (el de la escalera de Inicio) ----
@@ -542,17 +747,20 @@ html body .bd .inventory-item-card.lq,html body .bd .bd-tkpi .lq{background:radi
       const tit = 'Bodega tiene ' + entero(o.bodega, Math.round) + ' MTS de esta tela en total. Las órdenes se sirven por fecha de entrega: para esta orden quedan disponibles ' + entero(o.disponible || 0, Math.floor) + ' MTS.';
       if (o.situacion === 'sin_promedio') return '<div class="ot-bodega" title="' + esc(tit) + '">Bodega <b class="hay">' + entero(o.bodega, Math.round) + '</b> MTS</div>';
       const comparte = o.compartida_con || [];
-      if (comparte.length && o.situacion !== 'sin_promedio') {   // misma tela en varias órdenes: lo que le toca a ESTA orden, no el total
-        const otras = comparte.join(', ');
-        const dec = v => (Number(v) || 0).toLocaleString('es-CO', {maximumFractionDigits: 2});
-        const casilla = (titulo, valor, cls) => '<div><small>' + titulo + '</small><b class="' + cls + '">' + valor + '</b></div>';
-        const detalle = o.situacion === 'no_alcanza'
-          ? casilla('En bodega', entero(o.disponible, Math.floor), 'hay') + casilla('Descuenta', dec(o.mts), 'desc') + casilla('Faltan', entero(o.falta, Math.ceil), 'falta')
-          : casilla('En bodega', entero(o.disponible, Math.floor), 'hay') + casilla('Descuenta', dec(o.mts), 'desc') + casilla('Queda', entero(o.quedan, Math.floor), 'queda');
-        return '<div class="ot-bodega comparte" title="' + esc('Esta tela también la usan ' + otras + '. Se sirven por fecha de entrega: cada una descuenta de lo que queda.') + '">' +
-          '<div class="ot-flujo">' + detalle + '</div>' +
-          '<small class="ot-comparte">Misma tela que ' + esc(otras) + ' · de ' + entero(o.bodega, Math.round) + ' MTS en Bodega</small></div>';
-      }
+      const dec = v => (Number(v) || 0).toLocaleString('es-CO', {maximumFractionDigits: 2});
+      const faltan = o.situacion === 'no_alcanza', base = comparte.length ? (o.disponible || 0) : (o.bodega || 0);   // si otras órdenes usan la misma tela, lo que le toca a ESTA; si no, el total de Bodega
+      const hay = Math.floor(base), desc = Number(o.mts) || 0;
+      const lado = (titulo, valor, cls, n) => '<div><small>' + titulo + '</small><b class="' + cls + '" data-n="' + n + '" data-dec="0">' + valor + '</b></div>';
+      // medidor: lo que queda (lima) y, al final, la parte que descuenta esta orden (ámbar); si no alcanza, lo que cubre la bodega (coral)
+      const pQueda = hay ? Math.max(0, Math.min(100, (Number(o.quedan) || 0) / hay * 100)) : 0, pDesc = hay ? Math.max(2.5, Math.min(100, desc / hay * 100)) : 0;
+      const medidor = faltan
+        ? '<div class="ot-medidor mal"><i class="c" style="--w:' + Math.max(3, Math.min(100, o.mts ? hay / o.mts * 100 : 0)).toFixed(1) + '%"></i></div>'
+        : '<div class="ot-medidor"><i class="q" style="--w:' + Math.min(pQueda, 100 - pDesc).toFixed(1) + '%"></i><i class="d" style="--w:' + pDesc.toFixed(1) + '%"></i></div>';
+      const tt = comparte.length ? 'Esta tela también la usan ' + comparte.join(', ') + '. Se sirven por fecha de entrega: cada una descuenta de lo que queda.' : tit;
+      return '<div class="ot-bodega nuevo' + (faltan ? ' mal' : '') + '" title="' + esc(tt) + '">' +
+        '<div class="ot-hero"><small>' + (faltan ? 'NECESITA' : 'DESCUENTA') + '</small><div><b class="desc" data-n="' + desc + '" data-dec="2">' + dec(o.mts) + '</b><em>MTS</em></div></div>' +
+        '<div class="ot-lado">' + lado('En bodega', entero(base, Math.floor), 'hay', hay) + (faltan ? lado('Faltan', entero(o.falta, Math.ceil), 'falta', Math.ceil(o.falta || 0)) : lado('Queda', entero(o.quedan, Math.floor), 'queda', Math.floor(o.quedan || 0))) + '</div>' +
+        medidor + '</div>';
       if (o.situacion === 'no_alcanza') return '<div class="ot-bodega mal" title="' + esc(tit) + '">Bodega <b class="hay">' + entero(o.bodega, Math.round) + '</b> MTS · faltan <b class="falta">' + entero(o.falta, Math.ceil) + '</b> MTS</div>';
       return '<div class="ot-bodega" title="' + esc(tit) + '">Bodega <b class="hay">' + entero(o.bodega, Math.round) + '</b> MTS · quedan <b class="queda">' + entero(o.quedan, Math.floor) + '</b> MTS</div>';
     };
@@ -564,22 +772,63 @@ html body .bd .inventory-item-card.lq,html body .bd .bd-tkpi .lq{background:radi
       const alerta = o.situacion === 'no_alcanza' ? 'No alcanza · faltan ' + entero(o.falta, Math.ceil) + ' MTS' : o.situacion === 'sin_tela' ? 'No alcanza · la tela no está en Bodega' : '';
       const pares = !sinPromedio && o.exacto ? tallasPares(o) : [];
       const tiempo = tiempoSublim(o);
-      const attrs = ' data-q="' + esc(norm([o.orden, o.cliente, o.proyecto, o.referencia, o.tela].join(' '))) + '" data-tela="' + esc(o.tela) + '" data-sit="' + o.situacion + '" data-sub="' + (o.estado === 'P' ? 'P' : 'pend') + '" data-fecha="' + esc(o.entrega || '') + '" data-sinfiltro="false" title="' + esc([o.cliente || 'Sin cliente', o.proyecto || 'Sin proyecto', pares.length ? 'Tallas: ' + pares.map(([t, n]) => t + ' ' + num(n)).join(' · ') : '', tiempo && tiempo[2] ? tiempo[2] : '', tiempo && tiempo[4] ? tiempo[4] : ''].filter(Boolean).join('\n')) + '"';
+      // Busca también por cada tela/material que se ve dentro de la tarjeta,
+      // no solamente por la tela principal de la referencia.
+      const materiales = (o.materiales || []).filter(m => Number(m.mts) > 0);
+      // Una referencia como A100CB02-A100PT01 contiene dos prendas/referencias.
+      // Se separa solamente cuando cada parte empieza con su propio código A…;
+      // A11300-100FUT04 no se parte porque 11300 y 100 son códigos de telas de FUT04.
+      const referencias = String(o.referencia || '').split(/-(?=A\d+(?:-\d+)*(?:[A-Z]{1,5}\d{2,3}))|[+/]/).map(x => x.trim()).filter(Boolean);
+      const referenciaUnica = referencias.length === 1 ? referencias[0] : '';
+      const codigoEnReferencia = /^A(\d+(?:-\d+)*)(?=[A-Z]{1,8}\d{2,4})/.exec(referenciaUnica);
+      const codigosTela = codigoEnReferencia ? codigoEnReferencia[1].split('-') : [];
+      const referenciaBase = referenciaUnica.replace(/^A\d+(?:-\d+)*(?=[A-Z]{1,8}\d{2,4})/, '') || referenciaUnica;
+      const referenciaVista = referencias.length > 1
+        ? '<div class="ot-ref-compuesta">' + referencias.map(ref => '<span>' + esc(ref) + '</span>').join('') + '</div>'
+        : codigosTela.length ? '<div class="ot-ref-desglose"><b>' + esc(referenciaBase) + '</b>' + codigosTela.map(codigo => '<span>TELA ' + esc(codigo) + '</span>').join('') + '</div>' : '<span>' + esc(o.referencia || '—') + '</span>';
+      const busca = norm([o.orden, o.cliente, o.proyecto, o.referencia, o.tela, ...materiales.flatMap(m => [m.tela, m.material, m.codigo, m.etiqueta])].join(' '));
+      const attrs = ' data-q="' + esc(busca) + '" data-tela="' + esc(o.tela) + '" data-sit="' + o.situacion + '" data-sub="' + (o.estado === 'P' ? 'P' : 'pend') + '" data-fecha="' + esc(o.entrega || '') + '" data-sinfiltro="false" title="' + esc([o.cliente || 'Sin cliente', o.proyecto || 'Sin proyecto', pares.length ? 'Tallas: ' + pares.map(([t, n]) => t + ' ' + num(n)).join(' · ') : '', tiempo && tiempo[2] ? tiempo[2] : '', tiempo && tiempo[4] ? tiempo[4] : ''].filter(Boolean).join('\n')) + '"';
       const titTiempo = tiempo ? (tiempo[3] || 'Estimado: fecha de entrega menos los ' + (brechaDias || 14) + ' días que suelen pasar entre Sublimación y la entrega') : '';
-      return '<article class="inventory-item-card ot ' + (cls === 'bad' ? 'bad' : '') + '"' + attrs + (level !== null ? ' data-lq="' + Math.round(level) + '" data-lq-tone="' + tono + '"' : '') + '>' +
-        '<div class="ot-head"><span class="inv-badge ' + cls + '">' + esc(o.orden) + '</span><span class="ot-fecha" title="Fecha de entrega">Entrega ' + esc(fechaCorta(o.entrega)) + '</span></div>' +
-        '<div class="ot-titulo"><strong class="ot-tela">' + esc(o.tela) + '</strong><span class="ot-ref">' + esc(o.referencia) + '</span></div>' +
-        '<div class="ot-cliente-linea" title="' + esc((o.cliente || 'Sin cliente') + (o.proyecto ? ' · ' + o.proyecto : '')) + '"><b>' + esc(o.cliente || 'Sin cliente') + '</b></div>' +
-        (tiempo ? '<div class="ot-tiempo ' + tiempo[0] + '" title="' + esc(titTiempo) + '"><span class="ot-reloj" aria-hidden="true">⏱</span><span><b>' + esc(tiempo[1]) + '</b>' + (false ? '<small class="ot-cambio ' + tiempo[5] + '">' + esc(tiempo[4]) + '</small>' : '') + '</span></div>' : '') +
-        bodegaLinea(o) +
-        '<div class="ot-pie">' + (sinPromedio ? '<span class="ot-sinprom">Sin promedio</span>' : '<span class="ot-consumo">' + num(o.mts) + '<small>MTS</small></span>') +
-        (alerta ? '<span class="ot-alerta">' + esc(alerta) + '</span>' : '') + '</div></article>';
+      const bloqueMateriales = materiales.length ? materiales.map((m, indice) => { const material = String(m.material || '').toUpperCase(); const esFusionado = Boolean(m.fusionado) || String(m.etiqueta || '').trim().toUpperCase() === 'FUSIONADO' || material === 'M4' || String(m.tela || '').trim().toUpperCase() === 'FUSIONADO'; const etiqueta = esFusionado ? 'FUSIONADO' : (material || (m.codigo ? 'COD ' + m.codigo : 'MATERIAL')); const codigoTela = String(m.codigo || codigosTela[indice] || '').trim(); const baseFusionado = esFusionado ? materiales.find(x => String(x.material || '').toUpperCase() === 'M1') : null; const sinTela = m.situacion === 'sin_tela'; const mal = m.situacion === 'no_alcanza'; const bodegaNumero = Number(m.bodega ?? (baseFusionado && baseFusionado.bodega)) || 0; const tieneQueda = m.queda !== null && m.queda !== undefined && m.queda !== ''; const quedaPropia = tieneQueda ? Number(m.queda) : NaN; const quedaBase = Number(baseFusionado && baseFusionado.queda); const quedaFusionado = Number.isFinite(quedaPropia) ? quedaPropia : (Number.isFinite(quedaBase) ? Math.max(0, quedaBase - Number(m.mts || 0)) : null); const cobertura = sinTela ? 0 : Math.max(0, Math.min(100, bodegaNumero && m.mts ? bodegaNumero / Number(m.mts) * 100 : 0)); const saldo = sinTela ? 'Sin existencia' : (mal ? 'Faltan ' + num(m.falta) + ' MTS' : (Number.isFinite(quedaFusionado) ? num(quedaFusionado) + ' MTS' : 'Pendiente')); const estado = sinTela || mal ? ' bad' : ''; return '<div class="ot-dyn-material' + estado + '"><div class="ot-dyn-material-top"><span class="ot-dyn-material-tag">' + esc(etiqueta) + '</span>' + (codigoTela ? '<span class="ot-dyn-material-code">TELA ' + esc(codigoTela) + '</span>' : '') + '<span class="ot-dyn-material-amount"><small>DESCUENTA</small><b>' + num(m.mts) + '<em>MTS</em></b></span></div><div class="ot-dyn-material-name">' + esc(m.tela || o.tela) + '</div><div class="ot-dyn-material-stats"><span>Descontar<b>' + num(m.mts) + ' MTS</b></span><span>Stock después<b>' + esc(saldo) + '</b></span></div><div class="ot-dyn-meter" aria-label="Cobertura de tela"><i style="--coverage:' + cobertura.toFixed(1) + '%"></i></div></div>'; }).join('') : '<div class="ot-dyn-material bad"><div class="ot-dyn-material-name">Sin promedio documentado para calcular el descuento.</div></div>';
+      return '<article class="inventory-item-card ot ot-production-card ' + (cls === 'bad' ? 'bad' : '') + '"' + attrs + (level !== null ? ' data-lq="' + Math.round(level) + '" data-lq-tone="' + tono + '"' : '') + '><div class="ot-production-body ot-dynamic-body">' +
+        '<div class="ot-dyn-head"><div class="orden"><small>ORDEN</small><b>' + esc(o.orden || 'Sin orden') + '</b></div><div class="proyecto"><small>PROYECTO</small><span title="' + esc(o.proyecto || 'Sin proyecto') + '">' + esc(o.proyecto || 'Sin proyecto') + '</span></div><div class="cliente"><small>CLIENTE</small><span>' + esc(o.cliente || 'Cliente sin nombre') + '</span></div><div class="referencia"><small>' + (referencias.length > 1 ? 'REFERENCIAS' : 'REFERENCIA') + '</small>' + referenciaVista + '</div><div class="cantidad"><small>CANTIDAD</small><b>' + num(o.cantidad) + ' UND.</b></div></div>' +
+        '<section class="ot-dyn-plan"><div class="ot-dyn-materials telas-' + Math.min(Math.max(materiales.length, 1), 4) + (materiales.length === 1 ? ' one' : '') + '">' + bloqueMateriales + '</div></section></div></article>';
     };
-    poner(tCards, ordenes.length ? ordenes.map(orderCard).join('') : '<p class="bd-note">No hay pedidos programados pendientes de Sublimación.</p>');
+    if (poner(tCards, ordenes.length ? ordenes.map(orderCard).join('') : '<p class="bd-note">No hay pedidos programados pendientes de Sublimación.</p>')) {
+      // los números de EN BODEGA / DESCUENTA / QUEDA cuentan hasta su valor cuando las tarjetas se dibujan o cambian
+      if (!window.matchMedia || !window.matchMedia('(prefers-reduced-motion: reduce)').matches) tCards.querySelectorAll('.ot-bodega.nuevo b[data-n]').forEach(el => {
+        const n = Number(el.dataset.n) || 0, d = Number(el.dataset.dec) || 0, t0 = performance.now();
+        const paso = t => { const k = Math.min(1, (t - t0) / 800), v = n * (1 - Math.pow(1 - k, 3)); el.textContent = v.toLocaleString('es-CO', {minimumFractionDigits: d, maximumFractionDigits: d}); if (k < 1) requestAnimationFrame(paso); };
+        requestAnimationFrame(paso);
+      });
+    }
     filterTela();
   };
-  tFilters.addEventListener('input', filterTela);
+  // Chrome emite `input` al escribir, pero en algunos controles de búsqueda y
+  // equipos táctiles solo llega `search` o `change`. Todos usan la misma ruta.
+  ['input', 'search', 'change', 'keyup'].forEach(event => tFilters.addEventListener(event, filterTela));
   tFilters.querySelector('.bd-clear').onclick = () => { tFilters.reset(); filterTela(); };
+  const abrirDesgloseTela = target => {
+    telaDetalle = target.dataset.telaDetail || '';
+    renderDesgloseTela();
+    telaDesglose.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+  };
+  tKpi.addEventListener('click', event => {
+    const target = event.target.closest('[data-tela-detail]');
+    if (target) abrirDesgloseTela(target);
+  });
+  tKpi.addEventListener('keydown', event => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    const target = event.target.closest('[data-tela-detail]');
+    if (!target) return;
+    event.preventDefault();
+    abrirDesgloseTela(target);
+  });
+  body2.addEventListener('click', event => {
+    if (!event.target.closest('[data-close-tela-detail]')) return;
+    telaDetalle = '';
+    renderDesgloseTela();
+  });
   const load2 = async (silencioso) => {
     try {
       const [response, prodResp] = await Promise.all([fetch('/api/inventarios/tela-necesaria', {cache: 'no-store'}), fetch('/api/produccion', {cache: 'no-store'}).catch(() => null)]);
@@ -595,6 +844,13 @@ html body .bd .inventory-item-card.lq,html body .bd .bd-tkpi .lq{background:radi
   };
   const showSubTab = name => {
     subTab = name;
+    try {
+      localStorage.setItem('indoor-bodega-subtab', subTab);
+      // También fija el módulo padre: llegar a «Tela programada» desde un
+      // enlace interno no siempre genera un clic sobre el menú lateral.
+      localStorage.setItem('indoor-ultima-vista', JSON.stringify({attr: 'data-bodega-dashboard', val: 'true', rotulo: 'PANEL DE CONTROL', t: Date.now()}));
+      history.replaceState(history.state, '', location.pathname + location.search + '#bodega/' + subTab);
+    } catch (_) { /* sin almacenamiento */ }
     panel.querySelectorAll('[data-bd-tab]').forEach(b => { const on = b.dataset.bdTab === name; b.classList.toggle('on', on); b.setAttribute('aria-selected', String(on)); });
     body.hidden = name !== 'resumen';
     filtersBox.hidden = name !== 'resumen';
@@ -604,11 +860,11 @@ html body .bd .inventory-item-card.lq,html body .bd .bd-tkpi .lq{background:radi
   panel.addEventListener('click', event => { const tab = event.target.closest('[data-bd-tab]'); if (tab) showSubTab(tab.dataset.bdTab); });
   setInterval(() => { if (!document.hidden && panel.classList.contains('active') && subTab === 'tela') load2(true); }, 60000);
 
-  const open = (button, destino = panel, cargar = () => (subTab === 'tela' ? load2(false) : load())) => {
+  const open = (button, destino = panel) => {
     document.querySelectorAll('.tab').forEach(tab => tab.classList.toggle('active', tab === button));
     document.querySelectorAll('.panel').forEach(item => item.classList.toggle('active', item === destino));
     document.body.classList.remove('inicio-mode','inventory-mode','production-mode','schedule-mode','operarios-mode','cartera-mode');
-    cargar();
+    showSubTab(subTab);
   };
 
   const mount = () => {

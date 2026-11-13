@@ -11,31 +11,31 @@
   css.textContent = `
   .lq{--liquid:#2f9e4f;--level:0%;position:relative!important;isolation:isolate;overflow:hidden!important;border:1px solid rgba(255,255,255,.30)!important;border-radius:17px!important;
     background:radial-gradient(120% 85% at 14% 0%,rgba(255,255,255,.30),rgba(255,255,255,0) 52%),linear-gradient(160deg,rgba(255,255,255,.16),rgba(255,255,255,.05) 55%,rgba(255,255,255,.09))!important;
-    -webkit-backdrop-filter:blur(22px) saturate(1.4);backdrop-filter:blur(22px) saturate(1.4);
+    /* El desenfoque en cada tarjeta obliga a repintar la GPU constantemente.
+       Se conserva el vidrio con capas fijas para que el panel fluya igual. */
     box-shadow:inset 0 1.5px 0 rgba(255,255,255,.55),inset 0 -1px 0 rgba(255,255,255,.14),inset 0 0 26px rgba(255,255,255,.07),0 12px 30px rgba(0,0,0,.40)!important;
     color:#fff!important;text-shadow:0 1px 2px rgba(0,0,0,.4);transition:transform .22s ease,border-color .22s ease,box-shadow .22s ease}
-  @property --lq-ang{syntax:"<angle>";inherits:false;initial-value:0deg}
   .lq::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1.5px;pointer-events:none;z-index:2;
-    background:conic-gradient(from var(--lq-ang),color-mix(in srgb,var(--lq-ring) 35%,transparent),var(--lq-ring) 12%,color-mix(in srgb,var(--lq-ring) 35%,transparent) 28%,color-mix(in srgb,var(--lq-ring) 35%,transparent) 60%,var(--lq-ring) 74%,color-mix(in srgb,var(--lq-ring) 35%,transparent) 90%);
+    background:linear-gradient(135deg,color-mix(in srgb,var(--lq-ring) 38%,transparent),var(--lq-ring) 48%,color-mix(in srgb,var(--lq-ring) 30%,transparent));
     -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0);
-    animation:lq-giro 7s linear infinite;filter:drop-shadow(0 0 6px var(--lq-ring))}
+    box-shadow:0 0 6px var(--lq-ring)}
   .lq{--lq-ring:#ffffff}
   .lq[data-lq-tone="verde"],.lq[data-lq-tone="oliva"],.lq[data-lq-tone="teal"],.lq[data-lq-tone="azul"],.lq[data-lq-tone="violeta"]{--lq-ring:#35d46a}
   .lq[data-lq-tone="ambar"]{--lq-ring:#ff9a1f}
   .lq[data-lq-tone="rojo"],.lq[data-lq-tone="coral"],.lq[data-lq-tone="rosa"]{--lq-ring:#ff4b3e}
   .lq[data-lq-color]{--lq-ring:#35d46a}
   /* Escalera de Inicio y tarjetas de orden: vidrio sin color, el estado se ve en el anillo de luz */
-  .st-col{--lq-ring:#35d46a;background:radial-gradient(120% 90% at 12% 0%,rgba(255,255,255,.16),rgba(255,255,255,0) 55%),linear-gradient(160deg,rgba(255,255,255,.12),rgba(255,255,255,.04))!important;border:1px solid rgba(255,255,255,.22)!important;-webkit-backdrop-filter:blur(22px) saturate(1.4);backdrop-filter:blur(22px) saturate(1.4);box-shadow:inset 0 1.5px 0 rgba(255,255,255,.4),0 0 0 1px color-mix(in srgb,var(--lq-ring) 55%,transparent),0 0 16px -3px var(--lq-ring)}
+  .st-col{--lq-ring:#35d46a;background:radial-gradient(120% 90% at 12% 0%,rgba(255,255,255,.16),rgba(255,255,255,0) 55%),linear-gradient(160deg,rgba(255,255,255,.12),rgba(255,255,255,.04))!important;border:1px solid rgba(255,255,255,.22)!important;box-shadow:inset 0 1.5px 0 rgba(255,255,255,.4),0 0 0 1px color-mix(in srgb,var(--lq-ring) 55%,transparent),0 0 16px -3px var(--lq-ring)}
   .st-col.top{--lq-ring:#ff4b3e;border-color:rgba(255,255,255,.22)!important}
   .st-col.empty{--lq-ring:rgba(255,255,255,.7)}
   .st-col:hover,.st-col:focus-visible{border-color:rgba(255,255,255,.5)!important;box-shadow:inset 0 1.5px 0 rgba(255,255,255,.5),0 0 0 1px var(--lq-ring),0 0 24px -2px var(--lq-ring)}
   .st-bar .sg,.st-bar .sg.proc,.st-bar .sg.rep,.st-bar .sg.cola,.st-bar .sg.prog{--c1:rgba(255,255,255,.34);--c2:rgba(255,255,255,.10);opacity:1}
   .st-bar .sg:last-child::before{filter:drop-shadow(0 -1px 0 rgba(255,255,255,.7))}
-  .od{--lq-ring:var(--c);border-left-width:1px!important;border:1px solid rgba(255,255,255,.22)!important;background:radial-gradient(120% 90% at 10% 0%,rgba(255,255,255,.14),rgba(255,255,255,0) 55%),linear-gradient(160deg,rgba(255,255,255,.10),rgba(255,255,255,.03))!important;-webkit-backdrop-filter:blur(18px) saturate(1.3);backdrop-filter:blur(18px) saturate(1.3);box-shadow:inset 0 1.5px 0 rgba(255,255,255,.35),0 0 0 1px color-mix(in srgb,var(--lq-ring) 55%,transparent),0 0 14px -4px var(--lq-ring)}
+  .od{--lq-ring:var(--c);border-left-width:1px!important;border:1px solid rgba(255,255,255,.22)!important;background:radial-gradient(120% 90% at 10% 0%,rgba(255,255,255,.14),rgba(255,255,255,0) 55%),linear-gradient(160deg,rgba(255,255,255,.10),rgba(255,255,255,.03))!important;box-shadow:inset 0 1.5px 0 rgba(255,255,255,.35),0 0 0 1px color-mix(in srgb,var(--lq-ring) 55%,transparent),0 0 14px -4px var(--lq-ring)}
   .od.tone-ok{--c:#35d46a}.od.tone-warn{--c:#ff9a1f}.od.tone-late{--c:#ff4b3e}.od.tone-none{--c:rgba(255,255,255,.6)}
   .od:hover{box-shadow:inset 0 1.5px 0 rgba(255,255,255,.5),0 0 0 1px var(--lq-ring),0 0 22px -2px var(--lq-ring)!important}
   /* Tarjetas de Producción: vidrio sin color, el estado se ve en el aro (verde terminado, naranja en proceso, rojo reproceso/pausada) */
-  html body.production-mode .trace-card{--r:rgba(255,255,255,.7);background:radial-gradient(120% 80% at 10% 0%,rgba(255,255,255,.14),rgba(255,255,255,0) 55%),linear-gradient(160deg,rgba(255,255,255,.11),rgba(255,255,255,.035))!important;-webkit-backdrop-filter:blur(20px) saturate(1.3);backdrop-filter:blur(20px) saturate(1.3);border:1px solid rgba(255,255,255,.22)!important;border-top:1px solid rgba(255,255,255,.22)!important;box-shadow:inset 0 1.5px 0 rgba(255,255,255,.38),0 0 0 1px color-mix(in srgb,var(--r) 55%,transparent),0 0 16px -4px var(--r),0 10px 26px -10px #000c!important}
+  html body.production-mode .trace-card{--r:rgba(255,255,255,.7);background:radial-gradient(120% 80% at 10% 0%,rgba(255,255,255,.14),rgba(255,255,255,0) 55%),linear-gradient(160deg,rgba(255,255,255,.11),rgba(255,255,255,.035))!important;border:1px solid rgba(255,255,255,.22)!important;border-top:1px solid rgba(255,255,255,.22)!important;box-shadow:inset 0 1.5px 0 rgba(255,255,255,.38),0 0 0 1px color-mix(in srgb,var(--r) 55%,transparent),0 0 16px -4px var(--r),0 10px 26px -10px #000c!important}
   html body.production-mode .trace-card.state-finished{--r:#35d46a}
   html body.production-mode .trace-card.state-active{--r:#ff9a1f}
   html body.production-mode .trace-card.state-rework,html body.production-mode .trace-card.trace-paused{--r:#ff4b3e}
@@ -46,12 +46,10 @@
   /* el porcentaje de la esquina no se monta sobre el último texto: la tarjeta reserva su espacio abajo */
   html body .lq:not([data-lq-nopct]),html body .bd .lq:not([data-lq-nopct]),html body .bd .bd-tkpi .inventory-item-card.lq:not([data-lq-nopct]){padding-bottom:32px!important}
   .lq:not([data-lq-nopct])>.lq-pct{bottom:7px}
-  @keyframes lq-giro{to{--lq-ang:360deg}}
-  @media(prefers-reduced-motion:reduce){.lq::before{animation:none}}
   .lq:hover{transform:translateY(-4px);border-color:rgba(255,255,255,.5)!important;box-shadow:inset 0 1.5px 0 rgba(255,255,255,.65),inset 0 -1px 0 rgba(255,255,255,.18),inset 0 0 26px rgba(255,255,255,.1),0 18px 34px rgba(0,0,0,.45)!important}
   .lq>.lq-fill{position:absolute;z-index:-2;inset:0;height:auto;background:linear-gradient(118deg,rgba(255,255,255,.24) 0%,rgba(255,255,255,.05) 34%,rgba(255,255,255,0) 54%),linear-gradient(0deg,rgba(0,0,0,.20),rgba(0,0,0,0) 42%);opacity:1;pointer-events:none}
   .lq>.lq-wave{position:absolute;z-index:-1;top:-25%;left:-55%;width:42%;height:150%;border-radius:0;background:linear-gradient(90deg,rgba(255,255,255,0),rgba(255,255,255,.20),rgba(255,255,255,0));transform:rotate(18deg);opacity:0;pointer-events:none;animation:lq-shine 9s ease-in-out infinite}
-  .lq>.lq-pct{position:absolute;right:9px;bottom:8px;z-index:1;margin:0;padding:1px 7px;font:900 .6rem Arial;font-style:normal;opacity:1;pointer-events:none;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.30);border-radius:999px;width:auto;height:auto;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);box-shadow:inset 0 1px 0 rgba(255,255,255,.35)}
+  .lq>.lq-pct{position:absolute;right:9px;bottom:8px;z-index:1;margin:0;padding:1px 7px;font:900 .6rem Arial;font-style:normal;opacity:1;pointer-events:none;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.30);border-radius:999px;width:auto;height:auto;box-shadow:inset 0 1px 0 rgba(255,255,255,.35)}
   .lq[data-lq-nopct]>.lq-pct{display:none}
   .lq::after{content:none!important}
   .lq .dash-load-legend b{color:#13200c!important;text-shadow:none}

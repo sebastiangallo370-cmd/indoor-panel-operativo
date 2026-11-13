@@ -1,0 +1,75 @@
+@echo off
+rem ============================================================================================
+rem  INSTALAR TIENDA CLUB (generado por el panel). Doble clic y listo: no hay que escribir nada.
+rem  - Busca la carpeta de los agentes de edicion de este PC (la misma del instalador de la NAS).
+rem  - Copia desde la NAS los lanzadores y el codigo de TIENDA CLUB.
+rem  - Enlaza este PC con el panel (el codigo ya viene incluido) y reinicia los agentes.
+rem  No toca datos, logs, credenciales ni salidas. Solo funciona en un PC que ya tiene los agentes de edicion.
+rem ============================================================================================
+setlocal
+title Instalar TIENDA CLUB
+set "URL=__URL__"
+set "TOKEN=__TOKEN__"
+set "NAS=__NAS__"
+
+echo.
+echo Buscando los agentes de edicion en este PC...
+set "INST="
+for %%C in ("%~dp0." "%USERPROFILE%\Desktop\agentes_uniformes" "C:\AgentesIndoor" "%USERPROFILE%\AgentesIndoor" "C:\agentes_uniformes") do (
+  if not defined INST if exist "%%~C\iniciar_oculto.vbs" if exist "%%~C\.venv\Scripts\python.exe" set "INST=%%~C"
+)
+if not defined INST (
+  echo.
+  echo NO ENCUENTRO LOS AGENTES DE EDICION en este PC.
+  echo Primero instala los agentes con INSTALAR_AGENTES_EDICION.vbs ^(carpeta AGENTES_INDOOR de la NAS^) y vuelve a abrir este archivo.
+  echo.
+  pause
+  exit /b 1
+)
+echo Agentes encontrados en: %INST%
+
+if not exist "%NAS%\codigo\tienda_club\puente_tienda_club.py" (
+  echo.
+  echo NO PUEDO LEER LA NAS: %NAS%
+  echo Revisa la conexion de red ^(la NAS debe estar encendida y accesible^) y vuelve a intentar.
+  echo.
+  pause
+  exit /b 1
+)
+
+echo Copiando lanzadores y codigo desde la NAS...
+robocopy "%NAS%\lanzadores" "%INST%" *.vbs *.bat *.ps1 /NJH /NJS /NP /R:2 /W:2 >nul
+robocopy "%NAS%\codigo\tienda_club" "%INST%\tienda_club" *.py *.bat *.txt /XD datos cola __pycache__ /NJH /NJS /NP /R:2 /W:2 >nul
+if not exist "%INST%\tienda_club\puente_tienda_club.py" (
+  echo.
+  echo NO SE PUDO COPIAR TIENDA CLUB a %INST%\tienda_club
+  echo.
+  pause
+  exit /b 1
+)
+
+echo Enlazando este PC con el panel...
+if not exist "%INST%\tienda_club\datos" mkdir "%INST%\tienda_club\datos"
+del "%INST%\tienda_club\datos\sin_enlace.txt" >nul 2>&1
+powershell -NoProfile -Command "[IO.File]::WriteAllText('%INST%\tienda_club\datos\panel.json', ('{\"url\": \"%URL%\", \"token\": \"%TOKEN%\"}'), (New-Object Text.UTF8Encoding $false))"
+if not exist "%INST%\tienda_club\datos\panel.json" (
+  echo.
+  echo NO SE PUDO GUARDAR EL ENLACE.
+  echo.
+  pause
+  exit /b 1
+)
+
+echo Reiniciando los agentes ^(edicion, ECOMMERCE y TIENDA CLUB^)...
+powershell -NoProfile -Command "Get-NetTCPConnection -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }; Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match 'puente_ecommerce|agente_ov|puente_tienda_club|agente_club' -and $_.ProcessId -ne $PID } | ForEach-Object { taskkill /PID $_.ProcessId /T /F | Out-Null }"
+ping -n 4 127.0.0.1 >nul
+start "" wscript.exe "%INST%\iniciar_oculto.vbs"
+
+echo.
+echo ============================================================
+echo  LISTO. En 1 o 2 minutos TIENDA CLUB aparece CONECTADA en el panel
+echo  ^(robot de agentes ^> TIENDA CLUB^). Puedes cerrar esta ventana.
+echo ============================================================
+echo.
+pause
+exit /b 0

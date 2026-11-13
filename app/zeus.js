@@ -70,6 +70,8 @@
     if (i.estado !== 'creada' || !i.oc) return '';
     const e = i.envio_proveedor || {};
     const pdf = i.pdf ? '<a class="zeus-pdf" href="/api/zeus/pdf/' + i.id + '" target="_blank" rel="noopener">📄 Ver PDF de la orden</a>' : '';
+    if (i.prueba_controlada) return '<div class="zeus-envio">' + pdf + '<span class="zeus-envio-est ok">✔ Enviada solo a revisión interna · proveedor bloqueado</span></div>';
+    if (i.revision_interna && !i.revision_interna.aprobada) return '<div class="zeus-envio">' + pdf + '<span class="zeus-envio-est ok">✔ Enviada solo a revisión interna · proveedor bloqueado</span><button type="button" class="zeus-envio-btn" data-zeus-aprobar-revision="' + i.id + '">Aprobar revisión</button></div>';
     const fecha = e.at ? String(e.at).replace('T', ' ').slice(0, 16) : '';
     if (e.estado === 'pendiente' || e.estado === 'entregada') return '<div class="zeus-envio">' + pdf + '<span class="zeus-envio-est">⏳ Enviando…</span></div>';
     if (e.estado === 'enviada') return '<div class="zeus-envio">' + pdf + '<span class="zeus-envio-est ok" title="' + esc('Enviada a ' + (e.correo || 'el proveedor') + (fecha ? ' · ' + fecha : '')) + '">✔ Enviada al proveedor</span>' +
@@ -178,6 +180,7 @@
     } catch (e) { /* sin acceso: la pestaña no aparece */ }
   }
 
+
   function pintar(d) {
     datosZ = d;
     const a = d.agente || {}, [etq, cls] = ESTADO[a.estado] || [a.estado || '—', ''];
@@ -198,7 +201,7 @@
     const kpi = (k, v, txt, f, tono) => '<button type="button" class="zk ' + tono + (filtroOrd === f && vista === 'ordenes' ? ' on' : '') + '" data-zeus-filtro="' + f + '"><b data-k="' + k + '" data-v="' + v + '">' + v + '</b><span>' + txt + '</span></button>';
     const hero = '<section class="zh ' + estadoPill + '"><div class="zh-estado"><span class="zh-punto"></span><div><strong' + ((a.funciones || []).length ? ' title="' + esc(a.funciones.join('\n')) + '"' : '') + '>' + esc(etiqueta) + '</strong><small><span data-zeus-hace>' + haceTxt(a.hace) + '</span></small></div></div>' +
       (a.ultima && (cls === 'bad' || a.estado === 'TRABAJANDO') ? '<p class="zh-ultima">' + esc(String(a.ultima).slice(0, 120)) + '</p>' : '') +
-      '<div class="zh-acc"><button type="button" class="bd-clear" data-zeus-revisar>↻ Revisar</button></div>' +
+      '<div class="zh-acc"><button type="button" class="bd-clear" data-zeus-revision>＋ Compra para revisión</button><button type="button" class="bd-clear" data-zeus-prueba>Prueba controlada</button><button type="button" class="bd-clear" data-zeus-revisar>↻ Revisar</button></div>' +
       '</section>';
     const kpis = '<div class="zks">' + kpi('pend', (r.pendiente || 0) + (r.entregada || 0), 'Por comprar', 'pendiente', 'warn') + kpi('cre', r.creada || 0, 'Creadas', 'creada', 'ok') + kpi('err', r.error || 0, 'Con error', 'error', 'bad') + '</div>';
     const tabs = '<div class="zv-tabs" role="tablist">' + [['ordenes', 'Órdenes', items.length], ['correos', 'Correos', correos.length], ['notificar', 'Notificar', notificar.length]].concat(apiEstado ? [['api', 'API Effi', 0]] : []).map(([k, t, n]) =>
@@ -238,6 +241,60 @@
   }
 
   let catalogoMod = null;
+  async function abrirPruebaControlada() {
+    if (!catalogoMod) { try { catalogoMod = await llamar('/api/proveedores-tela', 'GET'); } catch (_) { catalogoMod = { telas: [] }; } }
+    const telas = (catalogoMod.telas || []).filter(t => t.proveedor);
+    if (!telas.length) { alert('No hay telas con proveedor configurado para crear la prueba.'); return; }
+    const preferida = telas.find(t => /MONTECATINI/i.test(t.nombre || '')) || telas[0];
+    const ov = document.createElement('div'); ov.className = 'zm-ov';
+    ov.innerHTML = '<div class="zm-card" role="dialog" aria-modal="true"><h3>Prueba controlada de compra</h3>' +
+      '<p>Creará una <b>orden real en Effi</b>. El PDF y el aviso se dirigen solo al encargado indicado. Nunca se enviará al proveedor desde esta prueba.</p>' +
+      '<div class="zm-campos"><label>Tela<select data-zp="codigo">' + telas.map(t => '<option value="' + esc(t.codigo) + '"' + (String(t.codigo) === String(preferida.codigo) ? ' selected' : '') + '>' + esc(t.codigo + ' · ' + t.nombre) + '</option>').join('') +
+      '</select></label><label>Metros<input data-zp="metros" type="number" min="0.01" step="0.01" value="5" inputmode="decimal"></label>' +
+      '<label>Correo de revisión<input data-zp="correo" type="email" value="sebastiangallo370@gmail.com" autocomplete="email"></label></div>' +
+      '<div class="zm-resumen">La orden quedará marcada como <b>PRUEBA CONTROLADA</b>. No activa el botón de envío a proveedor.</div><div class="zm-msg" data-zp-msg></div>' +
+      '<div class="zm-btns"><button type="button" class="sec" data-zp-cerrar>Cancelar</button><button type="button" class="ok" data-zp-ok>CREAR ORDEN REAL DE PRUEBA</button></div></div>';
+    document.body.appendChild(ov);
+    const q = s => ov.querySelector(s), cerrar = () => ov.remove();
+    ov.addEventListener('click', async e => {
+      if (e.target === ov || e.target.closest('[data-zp-cerrar]')) { cerrar(); return; }
+      if (!e.target.closest('[data-zp-ok]')) return;
+      const codigo = q('[data-zp="codigo"]').value, metros = q('[data-zp="metros"]').value, correo = q('[data-zp="correo"]').value.trim();
+      if (!confirm('Vas a crear una ORDEN REAL de ' + metros + ' MTS en Effi.\n\nSe notificará únicamente a ' + correo + '.\nNo se enviará nada al proveedor.\n\n¿Confirmas la creación?')) return;
+      const ok = q('[data-zp-ok]'), msg = q('[data-zp-msg]'); ok.disabled = true; msg.style.color = '#b9c6b4'; msg.textContent = 'Creando la prueba en la cola del agente…';
+      try {
+        await llamar('/api/zeus/prueba-controlada', 'POST', { codigo, metros, correo });
+        cerrar(); vista = 'ordenes'; filtroOrd = 'pendiente'; await cargar(false);
+      } catch (err) { msg.style.color = '#ff9a9d'; msg.textContent = err.message; ok.disabled = false; }
+    });
+    document.addEventListener('keydown', function onKey(e) { if (e.key === 'Escape' && ov.isConnected) { cerrar(); document.removeEventListener('keydown', onKey); } });
+  }
+
+  async function abrirCompraRevision() {
+    if (!catalogoMod) { try { catalogoMod = await llamar('/api/proveedores-tela', 'GET'); } catch (_) { catalogoMod = { telas: [] }; } }
+    const telas = (catalogoMod.telas || []).filter(t => t.proveedor);
+    if (!telas.length) { alert('No hay telas con proveedor configurado.'); return; }
+    const preferida = telas.find(t => /MONTECATINI/i.test(t.nombre || '')) || telas[0];
+    const ov = document.createElement('div'); ov.className = 'zm-ov';
+    ov.innerHTML = '<div class="zm-card" role="dialog" aria-modal="true"><h3>Compra real para revisión</h3>' +
+      '<p>Creará una <b>orden real en Effi</b>. El PDF y el aviso se enviarán primero al encargado de revisión. El proveedor seguirá bloqueado hasta una aprobación posterior.</p>' +
+      '<div class="zm-campos"><label>Tela<select data-zr="codigo">' + telas.map(t => '<option value="' + esc(t.codigo) + '"' + (String(t.codigo) === String(preferida.codigo) ? ' selected' : '') + '>' + esc(t.codigo + ' · ' + t.nombre) + '</option>').join('') +
+      '</select></label><label>Metros<input data-zr="metros" type="number" min="0.01" step="0.01" value="43" inputmode="decimal"></label>' +
+      '<label>Correo de revisión<input data-zr="correo" type="email" value="sebastiangallo370@gmail.com" autocomplete="email"></label></div>' +
+      '<div class="zm-resumen">La orden se creará en Effi, pero el proveedor quedará <b>bloqueado</b> hasta que apruebes la revisión interna.</div><div class="zm-msg" data-zr-msg></div>' +
+      '<div class="zm-btns"><button type="button" class="sec" data-zr-cerrar>Cancelar</button><button type="button" class="ok" data-zr-ok>CREAR ORDEN PARA REVISIÓN</button></div></div>';
+    document.body.appendChild(ov);
+    const q = s => ov.querySelector(s), cerrar = () => ov.remove();
+    ov.addEventListener('click', async e => {
+      if (e.target === ov || e.target.closest('[data-zr-cerrar]')) { cerrar(); return; }
+      if (!e.target.closest('[data-zr-ok]')) return;
+      const codigo = q('[data-zr="codigo"]').value, metros = q('[data-zr="metros"]').value, correo = q('[data-zr="correo"]').value.trim();
+      if (!confirm('Vas a crear una ORDEN REAL de ' + metros + ' MTS en Effi.\n\nSolo se notificará al encargado de revisión. El proveedor permanecerá bloqueado.\n\n¿Confirmas la creación?')) return;
+      const ok = q('[data-zr-ok]'), msg = q('[data-zr-msg]'); ok.disabled = true; msg.style.color = '#b9c6b4'; msg.textContent = 'Creando la orden en la cola del agente…';
+      try { await llamar('/api/zeus/revision-interna-real', 'POST', { codigo, metros, correo }); cerrar(); vista = 'ordenes'; filtroOrd = 'pendiente'; await cargar(false); }
+      catch (err) { msg.style.color = '#ff9a9d'; msg.textContent = err.message; ok.disabled = false; }
+    });
+  }
   async function abrirModificar(b) {
     if (!catalogoMod) { try { catalogoMod = await llamar('/api/proveedores-tela', 'GET'); } catch (er) { catalogoMod = { telas: [], proveedores: [] }; } }
     const cat = catalogoMod, oc = b.dataset.oc || '', cod = b.dataset.codigo || '', prov = b.dataset.prov || '', mts = Number(b.dataset.mts || 0);
@@ -422,7 +479,7 @@
 @media(prefers-reduced-motion:reduce){.zo,.zv-vista.anima,.zh-punto,.zo-pasos li.actual i{animation:none}}
 .zeus-que{margin-top:6px}.zeus-que summary{cursor:pointer;font:700 .7rem Arial;color:#b9c6b1;list-style:none}.zeus-que summary::-webkit-details-marker{display:none}.zeus-que summary::before{content:'ⓘ ';opacity:.8}.zeus-que[open] summary{margin-bottom:4px}
 .zeus-msg:empty,[data-zeus-notmsg]:empty{display:none}
-.zeus-apibox{display:grid;gap:12px;max-width:640px}
+.zeus-apibox{display:grid;gap:12px;max-width:640px}.zeus-wa-counts{display:flex;gap:8px;flex-wrap:wrap}.zeus-wa-counts span{padding:8px 12px;border:1px solid rgba(255,255,255,.2);border-radius:10px;font:700 .72rem Arial;color:#cfd8c9}.zeus-wa-counts b{color:#e4ff6b;font-size:1rem;margin-left:4px}
 .za-chip{justify-self:start;padding:6px 14px;border-radius:999px;border:1px solid rgba(255,255,255,.25);font:800 .72rem Arial;letter-spacing:.04em}.za-chip.ok{border-color:#35d46a;color:#8bd450;box-shadow:0 0 14px -4px #35d46a}.za-chip.pend{border-color:#ff9a1f;color:#ffc98a}
 .za-form{display:flex;gap:10px;flex-wrap:wrap}.za-form input{flex:1 1 280px;min-width:0;box-sizing:border-box;min-height:44px;padding:0 14px;border:1px solid rgba(255,255,255,.22);border-radius:12px;background:rgba(0,0,0,.3);color:#fff;font:500 16px Arial;outline:none}
 .za-form input[data-za-llave]{-webkit-text-security:disc;text-security:disc;letter-spacing:.12em}
@@ -541,6 +598,17 @@
       }
       const ocV = e.target.closest('[data-zeus-ver-ocultas]');
       if (ocV) { verOcultas = !verOcultas; cargar(false); return; }
+      const prueba = e.target.closest('[data-zeus-prueba]');
+      if (prueba) { abrirPruebaControlada(); return; }
+      const revision = e.target.closest('[data-zeus-revision]');
+      if (revision) { abrirCompraRevision(); return; }
+      const aprobarRevision = e.target.closest('[data-zeus-aprobar-revision]');
+      if (aprobarRevision) {
+        if (!confirm('¿Apruebas esta orden para habilitar el envío manual al proveedor?\n\nNo se enviará nada todavía.')) return;
+        aprobarRevision.disabled = true;
+        try { await llamar('/api/zeus/aprobar-revision-interna', 'POST', { id: Number(aprobarRevision.dataset.zeusAprobarRevision) }); } catch (err) { alert(err.message); }
+        cargar(false); return;
+      }
       const mod = e.target.closest('[data-zeus-modificar]');
       if (mod) { abrirModificar(mod); return; }
       const an = e.target.closest('[data-zeus-anular]');

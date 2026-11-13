@@ -74,6 +74,7 @@ def _guardar(datos: dict) -> None:
 
 def promedio(maestro: dict) -> float:
     valores = [v for k in GRUPOS for v in maestro.get(k, []) if v]
+    valores += [x.get('consumo', 0) for grupo in (maestro.get('extras') or {}).values() for x in grupo if x.get('consumo')]
     return round(sum(valores) / len(valores), 2) if valores else 0.0
 
 
@@ -85,9 +86,11 @@ def _limpiar(payload: dict) -> dict:
     ref = re.sub(r'\s+', '', str(payload.get('ref') or '')).upper()
     if not re.fullmatch(r'[A-Z0-9]{2,14}', ref):
         raise HTTPException(400, 'La referencia base debe tener entre 2 y 14 letras o números (ej: BZ03).')
-    diseno = str(payload.get('diseno') or 'D6').upper()
-    if diseno not in DISENOS:
-        raise HTTPException(400, 'El diseño debe ser D1 a D6.')
+    # Algunos maestros son genéricos: aplican a varios diseños y géneros. En
+    # ese caso se conserva el campo vacío, sin inventar un D1…D6.
+    diseno = str(payload.get('diseno') or '').upper()
+    if diseno and diseno not in DISENOS:
+        raise HTTPException(400, 'El diseño debe ser D1 a D6 o quedar sin diseño.')
     limpio = {'ref': ref, 'diseno': diseno}
     for campo in TEXTOS:
         limpio[campo] = str(payload.get(campo) or '').strip()[:80]
@@ -105,6 +108,70 @@ def _limpiar(payload: dict) -> dict:
                 raise HTTPException(400, 'Cada consumo debe estar entre 0 y 99 MTS.')
             fila.append(round(n, 2))
         limpio[grupo] = fila
+
+    def limpiar_extras(bruto: object) -> dict:
+        """Tallas adicionales por familia, sin modificar la tabla estándar."""
+        if bruto is None:
+            return {}
+        if not isinstance(bruto, dict):
+            raise HTTPException(400, 'Las tallas adicionales no son válidas.')
+        salida = {}
+        for grupo in GRUPOS:
+            filas = bruto.get(grupo) or []
+            if not isinstance(filas, list) or len(filas) > 12:
+                raise HTTPException(400, 'Cada familia admite máximo 12 tallas adicionales.')
+            vistos, limpias = set(), []
+            for fila in filas:
+                if not isinstance(fila, dict):
+                    raise HTTPException(400, 'Cada talla adicional debe tener nombre y consumo.')
+                talla = re.sub(r'\s+', '', str(fila.get('talla') or '')).upper()
+                if not re.fullmatch(r'[A-Z0-9+\-]{1,10}', talla) or talla in GRUPOS[grupo] or talla in vistos:
+                    raise HTTPException(400, 'Revisa el nombre de la talla adicional: no puede repetirse.')
+                vistos.add(talla)
+                try:
+                    consumo = round(float(str(fila.get('consumo') or 0).replace(',', '.')), 2)
+                except ValueError:
+                    raise HTTPException(400, 'Los consumos de las tallas adicionales deben ser números.')
+                if not 0 <= consumo <= 99:
+                    raise HTTPException(400, 'Cada consumo debe estar entre 0 y 99 MTS.')
+                limpias.append({'talla': talla, 'consumo': consumo})
+            if limpias:
+                salida[grupo] = limpias
+        return salida
+
+    limpio['extras'] = limpiar_extras(payload.get('extras'))
+    # Una referencia puede usar más de una tela.  Cada material conserva su
+    # propio consumo por talla; no se mezcla con el promedio general de la
+    # referencia.  Es opcional para no alterar los maestros que ya existen.
+    materiales = payload.get('materiales')
+    if materiales is not None:
+        if not isinstance(materiales, list) or len(materiales) > 8:
+            raise HTTPException(400, 'Los materiales deben ser una lista de máximo 8 telas.')
+        limpio['materiales'] = []
+        vistos = set()
+        for bruto in materiales:
+            if not isinstance(bruto, dict):
+                raise HTTPException(400, 'Cada material debe tener su código y consumos por talla.')
+            material = str(bruto.get('material') or '').strip().upper()
+            if not re.fullmatch(r'M[1-8]', material) or material in vistos:
+                raise HTTPException(400, 'Cada material debe identificarse una sola vez como M1 a M8.')
+            vistos.add(material)
+            tela = str(bruto.get('tela') or '').strip()[:120]
+            # Fusionado es una propiedad del material, no un tipo de tela:
+            # puede estar presente en M1, M2 o cualquier otro material.
+            fila_material = {'material': material, 'tela': tela, 'fusionado': bool(bruto.get('fusionado'))}
+            for grupo, tallas in GRUPOS.items():
+                valores = bruto.get(grupo) or [0] * len(tallas)
+                if not isinstance(valores, list) or len(valores) != len(tallas):
+                    raise HTTPException(400, f'Faltan consumos de {material} para {grupo.upper()}.')
+                try:
+                    fila_material[grupo] = [round(float(str(v).replace(',', '.') or 0), 2) for v in valores]
+                except ValueError:
+                    raise HTTPException(400, 'Los consumos de cada material deben ser números.')
+                if any(not 0 <= n <= 99 for n in fila_material[grupo]):
+                    raise HTTPException(400, 'Cada consumo de material debe estar entre 0 y 99 MTS.')
+            fila_material['extras'] = limpiar_extras(bruto.get('extras'))
+            limpio['materiales'].append(fila_material)
     return limpio
 
 
@@ -112,14 +179,8 @@ def _limpiar(payload: dict) -> dict:
 def listar():
     with _lock:
         datos = _leer()
-    from app import tela_necesaria   # import tardío: tela_necesaria usa este módulo
-    try:
-        pendientes = tela_necesaria.pendientes_maestro()
-    except Exception:   # noqa: BLE001 — si falla, la pantalla de maestros sigue funcionando
-        pendientes = []
     return {'maestros': [_vista(m) for m in datos['maestros']], 'notas': datos['notas'],
-            'tallas': {'adulto': TALLAS_ADULTO, 'nino': TALLAS_NINO}, 'tipos_nota': list(TIPOS_NOTA), 'disenos': list(DISENOS),
-            'pendientes_maestro': pendientes}
+            'tallas': {'adulto': TALLAS_ADULTO, 'nino': TALLAS_NINO}, 'tipos_nota': list(TIPOS_NOTA), 'disenos': list(DISENOS)}
 
 
 @router.post('/maestro')
@@ -133,43 +194,14 @@ def guardar_maestro(payload: dict):
         if existente is None:
             lista.append(nuevo)
         else:
+            # Las pantallas antiguas todavía no envían ``materiales``. No
+            # borrar una configuración multimaterial ya documentada al editar
+            # otro campo del maestro desde una de esas pantallas.
+            if 'materiales' not in payload and lista[existente].get('materiales'):
+                nuevo['materiales'] = lista[existente]['materiales']
             lista[existente] = nuevo
         _guardar(datos)
     return {'ok': True, 'maestro': _vista(nuevo), 'creado': existente is None}
-
-
-@router.post('/registrar-generales')
-def registrar_generales(payload: dict):
-    """Registra como maestro las referencias pendientes con el PROMEDIO GENERAL de su ficha técnica (los cuatro grupos).
-    Las que ya tienen consumos NO se tocan; las que no tienen ficha con promedio se omiten."""
-    from app import fichas as fichas_mod
-    refs = []
-    for r in payload.get('refs') or []:
-        ref = re.sub(r'\s+', '', str(r or '')).upper()
-        if ref and ref not in refs:
-            refs.append(ref)
-    creados, omitidos = [], []
-    with _lock:
-        datos = _leer()
-        for ref in refs:
-            idx = next((i for i, m in enumerate(datos['maestros']) if m['ref'] == ref), None)
-            if idx is not None and any(v for g in GRUPOS for v in datos['maestros'][idx].get(g, [])):
-                omitidos.append({'ref': ref, 'motivo': 'ya tiene consumos'})
-                continue
-            general = fichas_mod.promedio_general(ref)
-            if not general:
-                omitidos.append({'ref': ref, 'motivo': 'su ficha no tiene promedio'})
-                continue
-            cuerpo = {'ref': ref, 'diseno': 'D6', **{g: [str(general)] * len(t) for g, t in GRUPOS.items()}}
-            nuevo = _limpiar(cuerpo)
-            if idx is None:
-                datos['maestros'].append(nuevo)
-            else:
-                datos['maestros'][idx] = nuevo
-            creados.append({'ref': ref, 'promedio': general})
-        if creados:
-            _guardar(datos)
-    return {'ok': True, 'creados': creados, 'omitidos': omitidos}
 
 
 @router.delete('/maestro/{ref}')
@@ -214,7 +246,9 @@ def borrar_nota(nota_id: str):
 
 
 # ---------------------------------------------------------------- MTS REQUERIDOS de una orden (lo usa el agente TERRY)
-_CODIGO_TELA = re.compile(r'^A?\d+(?=[A-Z]{1,4}\d)')   # A100CB15 y también 502CH01M (algunos pedidos no traen la A)
+# El bloque inicial A<codigo> puede llevar varios códigos separados por guión:
+# A11300-1800FUT04 = telas 11300 y 1800 para la referencia FUT04.
+_CODIGO_TELA = re.compile(r'^A\d+(?:-\d+)*(?=[A-Z]{1,5}\d{2,3})')
 
 
 def _plano(texto: str) -> str:
@@ -224,8 +258,12 @@ def _plano(texto: str) -> str:
 
 
 def partes_de_hoja(hoja: str) -> list[str]:
-    """«A100FUT01» -> [FUT01] (quita el código de tela A100); una referencia compuesta «A100CB02-A100PT01» -> [CB02, PT01]."""
-    partes = [p.strip().upper() for p in re.split(r'[-+/]', str(hoja or '')) if p.strip()]
+    """Quita códigos de tela sin partir sus materiales.
+
+    «A11300-1800FUT04» -> [FUT04].  Solo se separan referencias completas,
+    como «A100CB02-A100PT01» -> [CB02, PT01].
+    """
+    partes = [p.strip().upper() for p in re.split(r'-(?=A\d+(?:-\d+)*(?:[A-Z]{1,5}\d{2,3}))|[+/]', str(hoja or '')) if p.strip()]
     return [_CODIGO_TELA.sub('', p) for p in partes]
 
 
@@ -304,7 +342,11 @@ def calcular_hoja(hoja: str, lineas: list[dict], datos: dict | None = None) -> d
                 faltan.add(f'no existe el maestro {parte} en Promedios maestros')
                 continue
             tallas = GRUPOS[grupo]
-            valor = maestro[grupo][tallas.index(talla)] if talla in tallas else 0
+            if talla in tallas:
+                valor = maestro[grupo][tallas.index(talla)]
+            else:
+                extra = next((x for x in (maestro.get('extras') or {}).get(grupo, []) if x.get('talla') == talla), None)
+                valor = extra.get('consumo', 0) if extra else 0
             if not valor:
                 faltan.add(f'{parte}: sin consumo para {grupo.upper()} talla {talla}')
             consumo += valor

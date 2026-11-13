@@ -521,9 +521,15 @@ def importar(carpeta_excel: Path) -> dict:
     t0 = time.time()
     indice, libros = [], 0
     DATOS.mkdir(parents=True, exist_ok=True)
-    archivos = sorted(p for p in carpeta_excel.glob('*.xlsx') if not p.name.startswith(('~$', 'Copia de')))
+    # La carpeta oficial puede organizar las familias en subcarpetas. Cada libro
+    # sigue siendo una fuente de fichas y se conserva su ruta para descargar el
+    # original correcto desde el panel.
+    archivos = sorted((p for p in carpeta_excel.rglob('*.xlsx')
+                       if not p.name.startswith(('~$', 'Copia de'))),
+                      key=lambda p: str(p.relative_to(carpeta_excel)).casefold())
     for k, libro in enumerate(archivos, 1):
-        estado['progreso'] = f'{k}/{len(archivos)} · {libro.stem}'
+        relativa = libro.relative_to(carpeta_excel)
+        estado['progreso'] = f'{k}/{len(archivos)} · {relativa}'
         try:
             wb = openpyxl.load_workbook(io.BytesIO(Path(libro).read_bytes()), data_only=True)
         except Exception as e:  # noqa: BLE001
@@ -542,14 +548,27 @@ def importar(carpeta_excel: Path) -> dict:
                 ficha = _hoja_a_ficha(ws)
                 if not ficha:
                     continue
-                ident = f'{_slug(libro.stem)}__{_slug(ws.title)}'
-                imagenes = _guardar_imagenes(ws, DATOS / 'img' / _slug(libro.stem), _slug(ws.title))
-                try:   # el fit real de la referencia (si algo falla, la ficha queda con el dibujo genérico)
-                    ficha['fit'] = _fit_real(zlibro, ws, _celdas(ws), DATOS / 'img' / _slug(libro.stem), _slug(ws.title), tema) if zlibro else None
-                except Exception as e:  # noqa: BLE001
-                    ficha['fit'] = None
-                    estado['error'] = f'{libro.name} / {ws.title} (fit): {e}'
-                ficha.update(id=ident, archivo=libro.name, familia=familia, ref=_ref_de(ws.title, ficha.get('referencia', '')), imagenes=imagenes)
+                clave_libro = _slug(str(relativa.with_suffix('')))
+                ident = f'{clave_libro}__{_slug(ws.title)}'
+                anterior = None
+                try:
+                    anterior = json.loads((DATOS / f'{ident}.json').read_text(encoding='utf-8'))
+                except (OSError, ValueError):
+                    pass
+                # Al actualizar un libro existente, los datos de la ficha sí se
+                # refrescan, pero sus imágenes ya aprobadas en el panel no se
+                # tocan. Una hoja nueva conserva la importación normal.
+                if anterior and isinstance(anterior.get('imagenes'), list):
+                    imagenes = anterior['imagenes']
+                    ficha['fit'] = anterior.get('fit')
+                else:
+                    imagenes = _guardar_imagenes(ws, DATOS / 'img' / clave_libro, _slug(ws.title))
+                    try:   # el fit real de la referencia (si algo falla, la ficha queda con el dibujo genérico)
+                        ficha['fit'] = _fit_real(zlibro, ws, _celdas(ws), DATOS / 'img' / clave_libro, _slug(ws.title), tema) if zlibro else None
+                    except Exception as e:  # noqa: BLE001
+                        ficha['fit'] = None
+                        estado['error'] = f'{libro.name} / {ws.title} (fit): {e}'
+                ficha.update(id=ident, archivo=relativa.as_posix(), familia=familia, ref=_ref_de(ws.title, ficha.get('referencia', '')), imagenes=imagenes)
                 (DATOS / f'{ident}.json').write_text(json.dumps(ficha, ensure_ascii=False), encoding='utf-8')
                 grandes = sorted(imagenes, key=lambda i: i['ancho'] * i['alto'], reverse=True)
                 portada = next((i for i in grandes if i['zona'] in ('mockup', 'fisica')), None) or next(iter(grandes), None)   # la imagen digital si hay; si no, la más grande
@@ -591,65 +610,160 @@ def correr_importacion(carpeta_excel: Path) -> bool:
 
 
 def indice() -> dict:
+    """Índice oficial más las fichas creadas directamente desde el panel.
+
+    Las manuales viven en archivos separados para que una nueva lectura de los
+    Excel oficiales nunca las borre ni las mezcle con el libro de origen.
+    """
     try:
-        return json.loads((DATOS / 'indice.json').read_text(encoding='utf-8'))
+        base = json.loads((DATOS / 'indice.json').read_text(encoding='utf-8'))
     except (OSError, ValueError):
-        return {'actualizado': '', 'fichas': []}
+        base = {'actualizado': '', 'fichas': []}
+    fichas_base = list(base.get('fichas') or [])
+    existentes = {str(f.get('ref') or '').upper() for f in fichas_base}
+    carpeta = DATOS / 'manuales'
+    if carpeta.is_dir():
+        for archivo in sorted(carpeta.glob('*.json'), key=lambda p: p.name.casefold()):
+            try:
+                f = json.loads(archivo.read_text(encoding='utf-8'))
+            except (OSError, ValueError):
+                continue
+            ref = str(f.get('ref') or '').upper()
+            if not ref or ref in existentes:
+                continue
+            existentes.add(ref)
+            fichas_base.append({
+                'id': f.get('id', ''), 'ref': ref, 'hoja': f.get('hoja', ref),
+                'familia': f.get('familia', ''), 'archivo': 'Registro manual',
+                'prenda': f.get('prenda', ''), 'referencia': f.get('referencia', ''),
+                'portada': '', 'imagenes': 0, 'promedio': {}, 'manual': True,
+            })
+    base['fichas'] = sorted(fichas_base, key=lambda x: (str(x.get('familia') or '').casefold(), str(x.get('ref') or '').casefold(), str(x.get('hoja') or '').casefold()))
+    return base
+
+
+def _limpiar_manual(valor, limite: int = 600) -> str:
+    return re.sub(r'[\r\n\t ]+', ' ', str(valor or '')).strip()[:limite]
+
+
+def _lineas_manual(valor, limite: int = 120) -> list[str]:
+    return [_limpiar_manual(x, limite) for x in str(valor or '').splitlines() if _limpiar_manual(x, limite)]
+
+
+def _tabla_manual(valor, columnas: list[str]) -> list[dict]:
+    salida = []
+    for linea in _lineas_manual(valor, 1000):
+        partes = [p.strip() for p in linea.split('|')]
+        salida.append({clave: partes[i] if i < len(partes) else '' for i, clave in enumerate(columnas)})
+    return salida
+
+
+def _tallaje_manual(titulo: str, valor) -> dict | None:
+    filas = {}
+    nombres = {'tallas': 'tallas', 'ancho': 'ancho', 'alto': 'alto', 'largo': 'largo'}
+    for linea in _lineas_manual(valor, 1000):
+        clave, sep, datos = linea.partition(':')
+        clave = _plano(clave).lower()
+        if sep and clave in nombres:
+            filas[nombres[clave]] = [_limpiar_manual(x, 40) for x in datos.split(',') if _limpiar_manual(x, 40)]
+    if not filas.get('tallas'):
+        return None
+    total = len(filas['tallas'])
+    for clave in ('ancho', 'alto', 'largo'):
+        if clave in filas:
+            filas[clave] = (filas[clave] + [''] * total)[:total]
+    return {'titulo': titulo, **filas, 'nota': ''}
+
+
+def _normalizar_manual(datos: dict) -> dict:
+    """Convierte la captura corta del panel al mismo formato de una ficha leída
+    de Excel. No se asocia a una tela específica: solo registra los materiales."""
+    ref = _ref_valida(datos.get('ref', ''))
+    materiales = []
+    fuente = datos.get('materiales') or {}
+    if isinstance(fuente, list):
+        fuente = {str(x.get('material') or ''): x.get('nombre', '') for x in fuente if isinstance(x, dict)}
+    if isinstance(fuente, dict):
+        for clave in ('M1', 'M2', 'M3', 'M4'):
+            nombre = _limpiar_manual(fuente.get(clave, ''), 180)
+            if nombre:
+                materiales.append({'material': clave, 'tela': nombre})
+    promedios = {clave: _limpiar_manual(datos.get('prom_' + clave, ''), 40)
+                 for clave in ('masc', 'feme', 'nino', 'nina')}
+    promedios = {clave: valor for clave, valor in promedios.items() if valor}
+    tallajes = [x for x in (
+        _tallaje_manual('MEDIDAS TALLAJE MASCULINO', datos.get('tallaje_masc')),
+        _tallaje_manual('MEDIDAS TALLAJE FEMENINO', datos.get('tallaje_feme')),
+        _tallaje_manual('MEDIDAS TALLAJE NIÑO', datos.get('tallaje_nino')),
+        _tallaje_manual('MEDIDAS TALLAJE NIÑA', datos.get('tallaje_nina')),
+    ) if x]
+    fit_titulo = _limpiar_manual(datos.get('fit_titulo', ''), 180)
+    fit_nota = _limpiar_manual(datos.get('fit_nota', ''), 600)
+    return {
+        'id': 'manual__' + _slug(ref), 'ref': ref, 'hoja': ref,
+        'familia': _limpiar_manual(datos.get('familia', ''), 120),
+        'prenda': _limpiar_manual(datos.get('prenda', ''), 180),
+        'referencia': _limpiar_manual(datos.get('referencia', ''), 180),
+        'nota_prenda': _limpiar_manual(datos.get('nota', ''), 1200),
+        'nota_promedio': '', 'composicion': _limpiar_manual(datos.get('composicion', ''), 300),
+        'promedios': ([{'nombre': 'PROMEDIO', 'valores': promedios}] if promedios else []),
+        'telas': materiales, 'fit': ([{'titulo': fit_titulo, 'nota': fit_nota}] if fit_titulo or fit_nota else []),
+        'piezas': _lineas_manual(datos.get('piezas'), 180), 'tallajes': tallajes,
+        'descripcion': [{'n': str(i + 1), 'texto': texto} for i, texto in enumerate(_lineas_manual(datos.get('descripcion'), 1600))],
+        'insumos': _tabla_manual(datos.get('insumos'), ['nombre', 'tipo', 'color', 'medida', 'cant', 'observacion']),
+        'medidas_insumos': [{'titulo': partes[0], 'tallas': [x.strip() for x in partes[1].split(',') if x.strip()],
+                              'medidas': [x.strip() for x in partes[2].split(',') if x.strip()]}
+                             for linea in _lineas_manual(datos.get('medidas_insumos'), 1000)
+                             for partes in [[x.strip() for x in linea.split('|')]] if len(partes) >= 3 and partes[0]],
+        'confeccion': _tabla_manual(datos.get('confeccion'), ['etiqueta', 'valor', 'extra']),
+        'valores_confeccion': {},
+        'terminacion': _lineas_manual(datos.get('terminacion'), 600),
+        'empaque_insumos': _tabla_manual(datos.get('empaque_insumos'), ['nombre', 'tipo', 'color', 'medida', 'cant', 'observacion']),
+        'imagenes': [], 'manual': True,
+    }
+
+
+def registrar_manuales(registros: list[dict]) -> list[dict]:
+    """Guarda fichas nuevas de forma atómica. Una REF existente nunca se pisa."""
+    if not isinstance(registros, list) or not registros or len(registros) > 250:
+        raise ValueError('Registra entre 1 y 250 referencias')
+    fichas_nuevas = [_normalizar_manual(x if isinstance(x, dict) else {}) for x in registros]
+    refs = [f['ref'] for f in fichas_nuevas]
+    if len(set(refs)) != len(refs):
+        raise ValueError('El archivo trae una referencia repetida')
+    with _lock:
+        existentes = {str(x.get('ref') or '').upper() for x in indice().get('fichas', [])}
+        repetidas = sorted(set(refs) & existentes)
+        if repetidas:
+            raise ValueError('Ya existen estas referencias: ' + ', '.join(repetidas[:8]))
+        carpeta = DATOS / 'manuales'
+        carpeta.mkdir(parents=True, exist_ok=True)
+        temporales = []
+        try:
+            for ficha_nueva in fichas_nuevas:
+                destino = carpeta / (ficha_nueva['id'] + '.json')
+                temporal = destino.with_suffix('.tmp')
+                temporal.write_text(json.dumps(ficha_nueva, ensure_ascii=False, indent=1), encoding='utf-8')
+                temporales.append((temporal, destino))
+            for temporal, destino in temporales:
+                temporal.replace(destino)
+        except OSError as e:
+            for temporal, _ in temporales:
+                temporal.unlink(missing_ok=True)
+            raise ValueError('No pude guardar las fichas nuevas') from e
+    return fichas_nuevas
 
 
 def ficha(ident: str) -> dict | None:
     if not re.fullmatch(r'[a-z0-9-]+__[a-z0-9-]+', ident or ''):
         return None
     try:
-        return json.loads((DATOS / f'{ident}.json').read_text(encoding='utf-8'))
+        ruta = DATOS / f'{ident}.json'
+        if ident.startswith('manual__'):
+            ruta = DATOS / 'manuales' / f'{ident}.json'
+        return json.loads(ruta.read_text(encoding='utf-8'))
     except (OSError, ValueError):
         return None
-
-
-def _numero_ficha(v) -> float | None:
-    """Un valor de «Promedio de la ficha» (puede venir con coma, «X» o vacío) como número; None si no es número."""
-    t = str(v if v is not None else '').strip().replace(',', '.')
-    try:
-        n = float(t)
-    except ValueError:
-        return None
-    return n if n > 0 else None
-
-
-def _candidatas(ref: str) -> list[str]:
-    """La referencia tal cual y, si no hay ficha con ese código, sin la letra de género final (CH01M → CH01)."""
-    r = str(ref or '').strip().upper()
-    out = [r]
-    if len(r) > 3 and r[-1] in 'MFN' and r[-2].isdigit():
-        out.append(r[:-1])
-    return out
-
-
-def promedio_general(ref: str) -> float:
-    """Promedio general de la ficha de una referencia (Masculino, Femenino y Niño, lo que tenga número). 0 si la ficha no tiene promedio."""
-    fichas_idx = indice().get('fichas', [])
-    for cand in _candidatas(ref):
-        valor = _promedio_de_ficha(fichas_idx, cand)
-        if valor:
-            return valor
-    return 0.0
-
-
-def _promedio_de_ficha(fichas_idx: list, ref: str) -> float:
-    for x in fichas_idx:
-        if x.get('ref') != ref:
-            continue
-        f = ficha(x['id']) or {}
-        for p in f.get('promedios', []):
-            v = p.get('valores', {})
-            nums = []
-            for grupo in (('masc',), ('feme', 'fem'), ('nino', 'nina')):   # un valor por género: el primero que tenga número
-                n = next((x for x in (_numero_ficha(v.get(k)) for k in grupo) if x is not None), None)
-                if n is not None:
-                    nums.append(n)
-            if nums:
-                return round(sum(nums) / len(nums), 2)
-    return 0.0
 
 
 def ruta_imagen(ident: str, archivo: str) -> Path | None:

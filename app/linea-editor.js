@@ -141,7 +141,7 @@
       st=data;dirty=false;
       var i=st.lineas.findIndex(function(l){return l.nombre===String(keep).toUpperCase().replace(/\s+/g,' ').trim()});
       sel=i>=0?i:Math.min(sel,st.lineas.length-1);
-      paint();say('Guardado ✓ · ya se ve en las tarjetas','ok');
+      paint();window.dispatchEvent(new Event('lineas-actualizadas'));say('Guardado ✓ · ya se ve en las tarjetas','ok');
       window.dispatchEvent(new Event('lineas-actualizadas'));
     }).catch(function(error){button.disabled=false;say(error.message,'err')});
   }
@@ -261,6 +261,7 @@
     create.onclick=function(){location.href='/registro'};
     button.parentNode.insertBefore(create,button.nextSibling);
   }
+  window.abrirLineasProducto=open;
   api('/api/lineas-producto',{cache:'no-store'}).then(function(d){allowed=!!d.puede_editar;addMenu()}).catch(function(){});
   new MutationObserver(addMenu).observe(document.body,{childList:true,subtree:true});
 })();

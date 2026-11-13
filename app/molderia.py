@@ -3,6 +3,7 @@ FICHAS TÉCNICAS (DIRECCION PRODUCCION/ESTANDAR 2026/FICHAS TECNICAS) y MOLDERIA
 Solo se puede mirar lo que está dentro de esas carpetas: cualquier ruta que salga de ellas se rechaza.
 """
 import hashlib
+import io
 import json
 import mimetypes
 import os
@@ -10,11 +11,12 @@ import re
 import subprocess
 import threading
 import time
+import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import quote
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from app import fichas as fichas_mod
 from fastapi.responses import FileResponse
 
@@ -26,7 +28,7 @@ _PRODUCCION = _NAS / 'DIRECCION PRODUCCION'
 TABS = {
     'fichas': {
         'titulo': 'FICHAS TÉCNICAS',
-        'raices': {'FICHAS TECNICAS': _PRODUCCION / 'ESTANDAR 2026' / 'FICHAS TECNICAS'},
+        'raices': {'FICHAS TECNICAS': _PRODUCCION / 'ESTANDAR 2026' / 'FICHAS TECNICAS (ANTES DE USAR CONFIRMAR CON EL NEGRO LOS DATOS)'},
     },
     'molderia': {
         'titulo': 'MOLDERIA',
@@ -156,6 +158,120 @@ def fichas_importar():
     if not carpeta.is_dir():
         raise HTTPException(503, 'No encuentro la carpeta FICHAS TECNICAS en el NAS')
     return {'iniciada': fichas_mod.correr_importacion(carpeta), 'estado': dict(fichas_mod.estado)}
+
+
+@router.post('/fichas/conectar-excel')
+async def fichas_conectar_excel(archivo: UploadFile = File(...)):
+    """Guarda o actualiza un libro técnico; al actualizar se conservan las
+    imágenes ya aprobadas de cada ficha en el panel."""
+    nombre = Path(archivo.filename or '').name
+    if not nombre or Path(nombre).suffix.lower() != '.xlsx' or nombre.startswith('~$'):
+        raise HTTPException(400, 'Selecciona un archivo Excel .xlsx válido')
+    contenido = await archivo.read()
+    if not contenido or len(contenido) > 50 * 1024 * 1024:
+        raise HTTPException(413, 'El Excel debe pesar entre 1 byte y 50 MB')
+    carpeta = TABS['fichas']['raices']['FICHAS TECNICAS']
+    destino = carpeta / nombre
+    if not carpeta.is_dir():
+        raise HTTPException(503, 'No encuentro la carpeta FICHAS TECNICAS en el NAS')
+    try:
+        import openpyxl
+        libro = openpyxl.load_workbook(io.BytesIO(contenido), read_only=True, data_only=True)
+        libro.close()
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(400, 'No pude leer ese archivo como un Excel válido') from e
+    temporal = carpeta / f'.{nombre}.subiendo'
+    reemplazado = destino.exists()
+    try:
+        temporal.write_bytes(contenido)
+        os.replace(temporal, destino)
+    except OSError as e:
+        temporal.unlink(missing_ok=True)
+        raise HTTPException(503, 'No pude guardar el Excel en el NAS') from e
+    return {'ok': True, 'archivo': nombre, 'reemplazado': reemplazado,
+            'iniciada': fichas_mod.correr_importacion(carpeta), 'estado': dict(fichas_mod.estado)}
+
+
+def _encabezado_excel(texto: object) -> str:
+    plano = unicodedata.normalize('NFD', str(texto or '').upper())
+    plano = ''.join(c for c in plano if not unicodedata.combining(c))
+    return re.sub(r'[^A-Z0-9]+', '', plano)
+
+
+def _registros_excel_manual(contenido: bytes) -> list[dict]:
+    """Lee la tabla corta de referencias nuevas sin depender de una plantilla
+    técnica completa. Requiere REF/REFERENCIA y acepta columnas M1 a M4."""
+    try:
+        import openpyxl
+        libro = openpyxl.load_workbook(io.BytesIO(contenido), read_only=True, data_only=True)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(400, 'No pude leer ese archivo como un Excel válido') from e
+    try:
+        hoja = libro.active
+        fila_cabecera, columnas = None, {}
+        for numero_fila, fila in enumerate(hoja.iter_rows(min_row=1, max_row=12, values_only=True), 1):
+            posibles = {_encabezado_excel(v): i for i, v in enumerate(fila) if _encabezado_excel(v)}
+            if 'REF' in posibles or 'IDMAESTRO' in posibles or 'REFERENCIA' in posibles:
+                fila_cabecera, columnas = numero_fila, posibles
+                break
+        if fila_cabecera is None:
+            raise HTTPException(400, 'El Excel debe tener una columna REF (o REFERENCIA) en las primeras 12 filas')
+        inicio = fila_cabecera + 1
+        def dato(fila, *nombres):
+            for nombre in nombres:
+                i = columnas.get(nombre)
+                if i is not None and i < len(fila) and fila[i] is not None:
+                    return str(fila[i]).strip()
+            return ''
+        salida = []
+        for fila in hoja.iter_rows(min_row=inicio, values_only=True):
+            ref = dato(fila, 'REF', 'IDMAESTRO', 'REFERENCIA')
+            if not ref:
+                continue
+            salida.append({
+                'ref': ref, 'prenda': dato(fila, 'PRENDA', 'NOMBRE'),
+                'familia': dato(fila, 'FAMILIA', 'CATEGORIA'),
+                'referencia': dato(fila, 'CODIGOREFERENCIA', 'CODIGO'),
+                'nota': dato(fila, 'NOTA', 'OBSERVACION'),
+                'descripcion': dato(fila, 'DESCRIPCION'),
+                'materiales': {m: dato(fila, m) for m in ('M1', 'M2', 'M3', 'M4')},
+            })
+            if len(salida) > 250:
+                raise HTTPException(400, 'El Excel tiene más de 250 referencias')
+        if not salida:
+            raise HTTPException(400, 'No encontré referencias con datos en el Excel')
+        return salida
+    finally:
+        libro.close()
+
+
+@router.post('/fichas/registrar')
+def fichas_registrar(payload: dict):
+    """Crea una ficha inicial manual. Se rechaza una REF existente para no
+    modificar ni los Excel importados ni otra ficha del panel."""
+    try:
+        fichas_nuevas = fichas_mod.registrar_manuales([payload])
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    return {'ok': True, 'ficha': fichas_nuevas[0]}
+
+
+@router.post('/fichas/importar-referencias')
+async def fichas_importar_referencias(archivo: UploadFile = File(...)):
+    """Importa referencias nuevas desde una tabla Excel corta, sin escribir en
+    el directorio oficial de Excel ni reemplazar referencias ya existentes."""
+    nombre = Path(archivo.filename or '').name
+    if not nombre or Path(nombre).suffix.lower() != '.xlsx' or nombre.startswith('~$'):
+        raise HTTPException(400, 'Selecciona un archivo Excel .xlsx válido')
+    contenido = await archivo.read()
+    if not contenido or len(contenido) > 10 * 1024 * 1024:
+        raise HTTPException(413, 'El Excel debe pesar entre 1 byte y 10 MB')
+    registros = _registros_excel_manual(contenido)
+    try:
+        fichas_nuevas = fichas_mod.registrar_manuales(registros)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    return {'ok': True, 'archivo': nombre, 'creadas': len(fichas_nuevas), 'referencias': [x['ref'] for x in fichas_nuevas]}
 
 
 @router.get('/ficha')

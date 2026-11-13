@@ -28,7 +28,8 @@
 
   function pintarAvatares() {
     const v = propia();
-    document.querySelectorAll('.user-avatar').forEach(a => {
+    // En la barra superior se usan iniciales legibles; la foto se conserva en Mi perfil.
+    document.querySelectorAll('.user-avatar:not(.header-initials)').forEach(a => {
       a.classList.add('con-foto');
       a.style.setProperty('background-image', 'url("' + (v ? url(v) : avatarDefecto(nombreYo())) + '")', 'important');
     });

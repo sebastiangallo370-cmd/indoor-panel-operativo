@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import io
 import hashlib
 import hmac
 import json
@@ -14,6 +15,8 @@ import sqlite3
 import threading
 import time
 import unicodedata
+import urllib.request
+import zipfile
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 from datetime import datetime, timedelta, timezone
@@ -45,17 +48,66 @@ pedidos.CONFIG_PATH = STATE_DIR / "pedidos_config.json"
 DB_PATH = STATE_DIR / "jobs.sqlite3"
 security = HTTPBasic(auto_error=False)
 from app.cartera_api import cartera_router
+from app import dian as dian_mod
 from app.inventario_api import inventario_router, start_sublimacion_worker, inventory_alerts
 from app import perfil_foto as perfil_foto_mod
 from app import terminos as terminos_mod
 from app import proveedores_tela as proveedores_tela_mod
 from app import memoria_agentes as memoria_mod
-from app import permisos as permisos_mod, exportar as exportar_mod, reposiciones as reposiciones_mod, agentes_canal as agentes_mod, promedios as promedios_mod, molderia as molderia_mod, fichas_resumen as fichas_resumen_mod, rh_contratos as rh_contratos_mod
+from app import permisos as permisos_mod, exportar as exportar_mod, reposiciones as reposiciones_mod, agentes_canal as agentes_mod, promedios as promedios_mod, molderia as molderia_mod, fichas_resumen as fichas_resumen_mod, rh_contratos as rh_contratos_mod, tela_necesaria as tela_necesaria_mod, listado_tallas as listado_tallas_mod
 from app.cartera_externa import externa_router
 from app import diseno_versiones as versiones_mod
 from app import bitacora as bitacora_mod
 from app import ecommerce_canal as ecommerce_mod
+from app import dinoman as dinoman_mod
+from app import contabilidad_confeccion as contabilidad_confeccion_mod
 app = FastAPI(title="Asistente de Reprogramaciones", version="1.0.0")
+
+@app.post('/api/planeacion/preguntar')
+async def planeacion_preguntar(payload: dict = Body(...)):
+    """Chat de planeación: consulta el modelo local sin exponer datos fuera del VPS."""
+    pregunta = str(payload.get('pregunta') or '').strip()[:2000]
+    contexto = str(payload.get('contexto') or '')[:12000]
+    if not pregunta:
+        raise HTTPException(400, 'Escribe una pregunta')
+    # Añade un resumen global actualizado del panel para que el agente no dependa
+    # únicamente de la pestaña que el usuario tenga abierta.
+    try:
+        base = await asyncio.to_thread(_produccion_base, False)
+        rows = base.get('rows') or base.get('data') or []
+        total_units = 0
+        by_process = {}
+        for row in rows:
+            vals = row.get('values', row) if isinstance(row, dict) else {}
+            try: total_units += int(float(str(vals.get('CANTIDAD', vals.get('cantidad', 0))).replace(',', '.') or 0))
+            except (TypeError, ValueError): pass
+            for key, value in vals.items() if isinstance(vals, dict) else ():
+                if str(value).strip().upper() in ('P', 'R'):
+                    by_process.setdefault(str(key), {'P': 0, 'R': 0})[str(value).strip().upper()] += 1
+        global_context = {'filas_produccion': len(rows), 'unidades_totales': total_units,
+                          'estado_por_proceso': by_process,
+                          'tiempos_proceso': base.get('process_times', {})}
+        contexto = (contexto + '\nRESUMEN GLOBAL ACTUAL DEL PANEL:\n' +
+                    json.dumps(global_context, ensure_ascii=False, default=str))[:30000]
+    except Exception as exc:
+        contexto = (contexto + f'\nNo se pudo cargar el resumen global: {exc}')[:30000]
+    prompt = ('Eres el agente de planeación empresarial de Indoor Sport. Responde en español, claro y breve. '
+              'Usa únicamente el contexto entregado; si falta información dilo explícitamente. '
+              'Puedes analizar capacidad, operarios, tiempos, producción, inventario y ventas.\n\n'
+              'CONTEXTO:\n' + contexto + '\n\nPREGUNTA:\n' + pregunta)
+    # En producción Ollama es el servicio `ollama` del compose; el nombre
+    # antiguo `asistente-vision` provocaba 404 aunque el VPS estuviera sano.
+    url = os.getenv('OLLAMA_URL', 'http://ollama:11434').rstrip('/') + '/api/generate'
+    body = json.dumps({'model': os.getenv('PLANEACION_MODEL', 'llama3.2:3b'), 'prompt': prompt, 'stream': False}).encode()
+    def llamar():
+        req = urllib.request.Request(url, data=body, headers={'Content-Type': 'application/json'}, method='POST')
+        with urllib.request.urlopen(req, timeout=45) as r:
+            return json.loads(r.read().decode()).get('response', '')
+    try:
+        respuesta = await asyncio.to_thread(llamar)
+    except Exception as exc:
+        raise HTTPException(503, 'El agente de planeación no está disponible: ' + str(exc)[:120])
+    return {'respuesta': respuesta.strip() or 'No pude generar una respuesta.'}
 
 
 @app.middleware("http")
@@ -65,7 +117,7 @@ async def no_cache_html(request: Request, call_next):
         response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
         response.headers["Pragma"] = "no-cache"
     return response
-PRODUCTION_START_ROW = 726
+PRODUCTION_START_ROW = 904
 PRODUCTION_CACHE = {"at": 0.0, "data": None}
 PRODUCTION_CACHE_LOCK = threading.Lock()
 LOGO_FILE = Path(__file__).resolve().parent / "indoor-logo.png"
@@ -177,6 +229,25 @@ def connect():
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
     )""")
+    # Preparación previa al envío de una prenda a confección. Es independiente
+    # del estado de Producción: únicamente guarda la elección explícita del operador.
+    db.execute("""CREATE TABLE IF NOT EXISTS confeccion_preparaciones (
+        source_row INTEGER PRIMARY KEY,
+        orden TEXT NOT NULL DEFAULT '',
+        referencia TEXT NOT NULL DEFAULT '',
+        confeccionista TEXT NOT NULL DEFAULT '',
+        precio_centavos INTEGER NOT NULL DEFAULT 0,
+        updated_by TEXT NOT NULL DEFAULT '',
+        updated_at TEXT NOT NULL DEFAULT ''
+    )""")
+    # Agenda propia de confección. Se completa una vez y luego el número de
+    # WhatsApp aparece automáticamente al escoger la confeccionista.
+    db.execute("""CREATE TABLE IF NOT EXISTS confeccionistas_contactos (
+        confeccionista TEXT PRIMARY KEY,
+        whatsapp TEXT NOT NULL DEFAULT '',
+        updated_by TEXT NOT NULL DEFAULT '',
+        updated_at TEXT NOT NULL DEFAULT ''
+    )""")
     db.commit()
     return db
 
@@ -273,9 +344,12 @@ ecommerce_mod.configurar_effi(lambda: zeus_mod._leer_secreto().get('llave', ''))
 from app import cliente_effi as cliente_effi_mod
 cliente_effi_mod.configurar(authenticate, permisos_mod.comerciales_permitido, lambda: zeus_mod._leer_secreto().get('llave', ''))
 app.include_router(cliente_effi_mod.router)
-from app import pedido_effi as pedido_effi_mod
-pedido_effi_mod.configurar(authenticate, permisos_mod.comerciales_permitido, lambda: zeus_mod._leer_secreto().get('llave', ''), permisos_mod.bitacora_permitido)
-app.include_router(pedido_effi_mod.router)
+from app import ventas_effi as ventas_effi_mod
+ventas_effi_mod.configurar(authenticate, permisos_mod.comerciales_permitido, lambda: zeus_mod._leer_secreto().get('llave', ''),
+                           lambda: CONFIG['ruta_nas_clientes'],
+                           lambda: __import__('app.inventario_api', fromlist=['x']).inventory_snapshot())
+dinoman_mod.configurar(connect, legacy.get_gspread, lambda: CONFIG['ruta_nas_clientes'], STATE_DIR / 'dinoman.json')
+app.include_router(ventas_effi_mod.router)
 app.include_router(ecommerce_mod.router)
 app.include_router(ecommerce_mod.pc_router)
 app.include_router(ecommerce_mod.webhook_router)   # Effi llama aquí cuando entra una orden de venta (código secreto en la dirección)
@@ -304,6 +378,7 @@ def _nombres_usuarios() -> list:
 
 agentes_mod.configurar_usuarios(_nombres_usuarios)
 app.include_router(agentes_mod.router, dependencies=[Depends(authenticate), Depends(permisos_mod.exigir('agentes'))])
+app.include_router(contabilidad_confeccion_mod.router, dependencies=[Depends(authenticate), Depends(permisos_mod.exigir('contabilidad_confeccion'))])
 promedios_mod.configurar(authenticate)
 memoria_mod.configurar(authenticate, permisos_mod.administracion_permitido)
 app.include_router(memoria_mod.router)
@@ -332,17 +407,27 @@ app.include_router(perfil_foto_mod.router)
 app.include_router(molderia_mod.router, dependencies=[Depends(authenticate), Depends(permisos_mod.exigir('molderia'))])
 app.include_router(fichas_resumen_mod.router, dependencies=[Depends(authenticate)])
 app.include_router(agentes_mod.pc_router)  # el PC de los agentes entra con su token, sin sesión
+from app import marcaman_canal as marcaman_mod
+app.include_router(marcaman_mod.pc_router)  # MARCAMAN: la PC de la cortadora entra con el token de agentes
+app.include_router(marcaman_mod.panel_router, dependencies=[Depends(authenticate)])
 app.include_router(permisos_mod.router)
 app.include_router(exportar_mod.router)
 app.include_router(cartera_router, dependencies=[Depends(authenticate), Depends(permisos_mod.exigir('cartera'))])
+dian_mod.configurar(authenticate)
+app.include_router(dian_mod.router, dependencies=[Depends(authenticate), Depends(permisos_mod.exigir('dian'))])
+app.include_router(dian_mod.worker_router)
 app.include_router(inventario_router, dependencies=[Depends(authenticate), Depends(permisos_mod.exigir('inventario'))])
 from app import zeus as zeus_mod
+from app import whatsapp_notificaciones as whatsapp_mod
 zeus_mod.configurar_usuarios(_usuarios_detalle)
 zeus_mod.configurar_llave(permisos_mod.bitacora_permitido)   # la API de Effi solo la ve y cambia la cuenta «Indoor Sport»
 zeus_mod.configurar_mts(lambda: __import__('app.inventario_api', fromlist=['x']).autollenar_mts())
 zeus_mod.configurar(lambda: __import__('app.inventario_api', fromlist=['x']).tela_faltante(), zeus_mod.auth_agente(ecommerce_mod._pc), authenticate, permisos_mod.zeus_permitido)
 app.include_router(zeus_mod.router, dependencies=[Depends(authenticate), Depends(permisos_mod.exigir('inventario'))])
 app.include_router(zeus_mod.pc_router)
+whatsapp_mod.configurar(authenticate, permisos_mod.zeus_permitido)
+app.include_router(whatsapp_mod.router, dependencies=[Depends(authenticate), Depends(permisos_mod.exigir('inventario'))])
+app.include_router(whatsapp_mod.worker_router)
 from app import minimaximan as minimaximan_mod
 minimaximan_mod.configurar(authenticate, permisos_mod.zeus_permitido)
 app.include_router(minimaximan_mod.router, dependencies=[Depends(authenticate), Depends(permisos_mod.exigir('inventario'))])
@@ -353,13 +438,17 @@ app.include_router(stockman_mod.webhook_router)   # webhook de Effi: sin sesión
 app.include_router(zeus_mod.public_router)
 from app import club as club_mod
 club_mod.configurar(lambda: connect(), authenticate, permisos_mod.comerciales_permitido, lambda *a, **k: _too_many(*a, **k),
-                    lambda row: (_PREFETCH_POOL.submit(_prefetch_public, row), _public_mockup_info(row))[1])
+                    lambda row: (_PREFETCH_POOL.submit(_prefetch_public, row), _public_mockup_info(row))[1],
+                    lambda: CONFIG['ruta_nas_clientes'])
 app.include_router(club_mod.router)
 app.include_router(club_mod.public)
 app.include_router(club_mod.pagina)
 from app import effitron as effitron_mod
 effitron_mod.configurar(lambda: connect(), zeus_mod.auth_agente(ecommerce_mod._pc), lambda: zeus_mod._leer_secreto().get('llave', ''),
-                        lambda row: production_row_files(row, excel_only=False)[0], lambda orden, cliente, proyecto: _club_carpeta(orden, cliente, proyecto),
+                        # EFFITRON solo necesita el PDF de la cotización base. Pedir la vista
+                        # completa también recorre los diseños y montajes del maestro, lo cual
+                        # puede tardar minutos sin aportar nada a la cotización.
+                        lambda row: production_row_files(row, excel_only=True)[0], lambda orden, cliente, proyecto: _club_carpeta(orden, cliente, proyecto),
                         club_mod._pedido, club_mod.construir_excels)
 app.include_router(effitron_mod.pc_router)
 
@@ -377,6 +466,43 @@ def _club_carpeta(orden: str, cliente: str, proyecto: str) -> Path:
     odir.mkdir(parents=True, exist_ok=True)
     return odir
 
+
+def _adjuntar_mockups_reposicion(carpeta: Path, pedido_club: dict) -> int:
+    """Copia desde el maestro solo los diseños elegidos por el cliente.
+
+    El listado de una reposición nace sin imágenes; antes de programarlo se
+    adjuntan los mockups del maestro con el nombre referencia/Diseño que exige
+    el validador de Producción. Sin un mockup verificable no se crea la tarjeta.
+    """
+    copiados = 0
+    for linea in pedido_club.get('lineas') or []:
+        referencia = str(linea.get('referencia') or '').strip().upper()
+        fila = int(linea.get('row') or 0)
+        disenos = sorted({max(1, min(int(j.get('diseno') or 1), 20)) for j in linea.get('jugadores') or []})
+        if not referencia or not fila or not disenos:
+            continue
+        if linea.get('maestro_nas'):
+            copiados += club_mod.copiar_mockups_maestros(pedido_club['cliente'], linea, carpeta)
+            continue
+        _archivos, imagenes, _cliente = production_row_files(fila, excel_only=False)
+        if not imagenes:
+            raise ValueError(f'No encontré el mockup maestro de {referencia}; no programé la reposición.')
+        for diseno in disenos:
+            patron = re.compile(rf'(?:^|[^A-Z0-9])D(?:ISE[ÑN]O)?[_ -]?{diseno}(?:[^A-Z0-9]|$)', re.I)
+            origen = next((p for p in imagenes if patron.search(p.stem)), None)
+            # En maestros ordenados por diseño, el primer archivo es D1, el
+            # segundo D2, etc.; se conserva esa convención como respaldo.
+            if origen is None and 1 <= diseno <= len(imagenes):
+                origen = imagenes[diseno - 1]
+            if origen is None:
+                raise ValueError(f'No encontré el mockup D{diseno} de {referencia}; no programé la reposición.')
+            destino = carpeta / f'{referencia}_D{diseno}_MAESTRO{origen.suffix.lower()}'
+            shutil.copy2(origen, destino)
+            copiados += 1
+    if not copiados:
+        raise ValueError('No encontré mockups maestros para las referencias de la reposición.')
+    return copiados
+
 app.include_router(externa_router, dependencies=[Depends(authenticate)])
 
 
@@ -385,9 +511,15 @@ def senal_orden_programada(origen: str = ''):
     """La página le avisa al agente de inventario (ZEUS) que entró una orden nueva: calcula sus MTS de inmediato y manda la alerta de tela. Se llama solo cuando ocurre el hecho
     (el pedido se programó en el panel o el Sheet trajo filas nuevas); no hay ningún reloj que revise. Corre en segundo plano para no demorar a quien programa."""
     def correr():
+        # DINOMAN valida el maestro del cliente en la NAS. Es silencioso y no
+        # modifica nada si no existe exactamente el proyecto.
+        dinoman_mod.notificar(origen)
         # Al programar, los MTS los calcula SOLO el agente de inventario (ZEUS): el mismo que luego compara contra la bodega y envía la alerta de tela.
         # TERRY ya no calcula al programar (solo queda su respaldo al terminar EDICIÓN para las tarjetas que sigan sin MTS).
-        _llenar_mts_tarjetas(origen, leer_listados=True)
+        # La señal no depende de que se hayan escrito MTS: una orden puede llegar con
+        # su nota ya llena y aun así debe avisar de inmediato si la tela no alcanza.
+        _llenar_mts_tarjetas(origen, leer_listados=True, avisar_inventario=False)
+        avisar_zeus(f'orden programada · {origen}' if origen else 'orden programada')
     threading.Thread(target=correr, name='senal-orden-programada', daemon=True).start()
 
 
@@ -466,7 +598,7 @@ def _trazo_cola() -> list[dict]:
     return lista
 
 
-def _llenar_mts_tarjetas(origen: str = '', leer_listados: bool = False) -> None:
+def _llenar_mts_tarjetas(origen: str = '', leer_listados: bool = False, avisar_inventario: bool = True) -> None:
     """Anota en MTS REQUERIDOS (solo en el panel, nunca en el Sheet) los MTS calculados con el promedio de las tarjetas que aún no los tienen.
     Antes lo hacía el reloj de ZEUS; ahora corre cuando entra una orden y cada 10 minutos, para que ninguna tarjeta nueva se quede «Sin registrar»."""
     try:
@@ -476,7 +608,8 @@ def _llenar_mts_tarjetas(origen: str = '', leer_listados: bool = False) -> None:
         r = zeus_mod._llenar_mts()
         if r.get('escritas'):
             logging.info('MTS REQUERIDOS anotados en %s tarjeta(s) (%s)', r['escritas'], origen or 'periódico')
-            avisar_zeus('MTS requeridos anotados')
+            if avisar_inventario:
+                avisar_zeus('MTS requeridos anotados')
     except Exception:
         logging.exception('No se pudieron anotar los MTS requeridos')
 
@@ -861,6 +994,71 @@ def process_order_job(job_id: int, job_dir: Path, pdf_path: Path, excel_path: Pa
         update_job(job_id, "ERROR", str(error))
 
 
+def _programar_reposicion_club(pedido_id: int, usuario: str) -> dict:
+    """Puente automático y trazable: una reposición aprobada entra a Producción.
+
+    Se limita a una referencia por reposición: varias referencias requieren
+    revisión comercial, porque el procesador histórico recibe un solo listado.
+    """
+    pedido_club = club_mod._pedido(pedido_id)
+    if str(pedido_club.get('cot_estado') or '') != 'lista' or not pedido_club.get('cot_numero'):
+        raise ValueError('La cotización todavía no está lista en Effi; no se puede programar.')
+    pdf = effitron_mod.pdf_bytes(pedido_id)
+    if not pdf:
+        raise ValueError('Falta el PDF de la cotización; vuelve a intentar cuando EFFITRON lo descargue.')
+    excels = club_mod.construir_excels(pedido_club)
+    if len(excels) != 1:
+        raise ValueError('La reposición tiene varias referencias. Quedó en revisión para programarla sin mezclar listados.')
+    numero = str(pedido_club['cot_numero']).strip()
+    orden = 'CO' + numero if not numero.upper().startswith('CO') else numero.upper()
+    pdf_name = f'{orden}_TIENDA_CLUB.pdf'
+    # La validación devuelve el número que leyó del PDF cuando está libre; solo
+    # lanza error si detecta un duplicado real. No se interpreta ese número como
+    # un rechazo (antes toda reposición con cotización válida quedaba en REVISAR).
+    _reject_existing_order(pdf, pdf_name)
+    excel_origen, excel_bytes = excels[0]
+    sello = datetime.now().strftime('%Y%m%d%H%M%S%f')
+    carpeta = UPLOAD_DIR / 'pedidos' / f'club-{pedido_id}-{sello}'
+    carpeta.mkdir(parents=True, exist_ok=False)
+    pdf_path = carpeta / pdf_name
+    # El listado debe llamarse igual que la carpeta de la orden. Así, aunque
+    # exista un archivo de un intento fallido, el sincronizador identifica el
+    # Excel canónico y no confunde la reposición con dos listados distintos.
+    proyecto = str((pedido_club.get('lineas') or [{}])[0].get('proyecto') or 'REPROGRAMACION').strip()
+    excel_path = carpeta / f'{orden}_{legacy.sanitize(proyecto)}.xlsm'
+    pdf_path.write_bytes(pdf)
+    excel_path.write_bytes(excel_bytes)
+    mockups = _adjuntar_mockups_reposicion(carpeta, pedido_club)
+    detalle = f'Reposición Club #{pedido_id} aprobada: enviando {orden} a Producción'
+    now = datetime.now(timezone.utc).isoformat()
+    with connect() as db:
+        cur = db.execute(
+            'INSERT INTO jobs(filename,status,detail,created_at,updated_at,kind,input_summary,order_number) VALUES(?,?,?,?,?,?,?,?)',
+            (f'{pdf_path.name} + {excel_path.name}', 'RECIBIDO', detalle, now, now, 'pedido',
+             json.dumps({'origen': 'tienda_club', 'pedido_club': pedido_id, 'usuario': usuario}, ensure_ascii=False), orden),
+        )
+        job_id = cur.lastrowid
+        db.execute('UPDATE club_pedidos SET produccion_job=?, produccion_estado=?, produccion_detalle=? WHERE id=?',
+                   (job_id, 'EN COLA', detalle, pedido_id))
+
+    def ejecutar():
+        process_order_job(job_id, carpeta, pdf_path, excel_path, f'Reposición Tienda Club #{pedido_id}', f'{usuario} · Tienda Club')
+        with connect() as db:
+            fila = db.execute('SELECT status, detail FROM jobs WHERE id=?', (job_id,)).fetchone()
+        if fila and str(fila['status']) == 'COMPLETADO':
+            referencias = {str(linea.get('referencia') or '') for linea in pedido_club.get('lineas') or []}
+            lanzadas = _iniciar_edicion_reposicion(orden, referencias)
+            if lanzadas:
+                logging.info('Reposición Club #%s: TAVO inició sin muestra %s', pedido_id, ', '.join(lanzadas))
+        club_mod.marcar_programacion(pedido_id, str(fila['status'] if fila else 'ERROR'), str(fila['detail'] if fila else 'No encontré el trabajo'))
+
+    threading.Thread(target=ejecutar, name=f'club-produccion-{pedido_id}', daemon=True).start()
+    return {'programacion': 'EN COLA', 'job': job_id, 'orden': orden, 'mockups': mockups}
+
+
+club_mod.configurar_programador(_programar_reposicion_club)
+
+
 def process_creator_job(job_id: int, data_image: Path, images: list[tuple[int, Path]], output_name: str, sheet_name: str = ""):
     try:
         update_job(job_id, "PROCESANDO", "La IA esta analizando las imagenes")
@@ -937,10 +1135,68 @@ DATA_ROOT = STATE_DIR.parent
 def tema_js():
     return FileResponse(Path(__file__).with_name('tema.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
 
+@app.get('/efecto-vidrio.js')
+def efecto_vidrio_js():
+    return FileResponse(Path(__file__).with_name('efecto-vidrio.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
+
 
 @app.get('/tarjeta-iconos.js')
 def tarjeta_iconos_js():
     return FileResponse(Path(__file__).with_name('tarjeta-iconos.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
+
+
+@app.get('/confeccion-preparacion.js')
+def confeccion_preparacion_js():
+    return FileResponse(Path(__file__).with_name('confeccion-preparacion.js'), media_type='application/javascript', headers={'Cache-Control': 'no-store, max-age=0, must-revalidate'})
+
+
+@app.get('/contabilidad-confeccion-ui.js')
+def contabilidad_confeccion_ui_js():
+    return FileResponse(Path(__file__).with_name('contabilidad-confeccion-ui.js'), media_type='application/javascript', headers={'Cache-Control': 'no-store, max-age=0, must-revalidate'})
+
+
+@app.get('/confeccion-agente/instalador')
+def descargar_instalador_confeccion():
+    archivo = Path(__file__).with_name('instalar_confeccion.vbs')
+    if not archivo.exists():
+        raise HTTPException(404, 'Instalador del agente no disponible')
+    return FileResponse(archivo, media_type='application/octet-stream', filename='instalar_confeccion.vbs')
+
+@app.get('/confeccion-agente/{archivo}')
+def descargar_archivo_agente_confeccion(archivo: str):
+    permitidos = {'confeccion_agente.py', 'whatsapp_playwright.py', 'iniciar_oculto.vbs', 'actualizar_desde_nas.bat', 'iniciar.bat', 'instalar_confeccion.bat'}
+    if archivo not in permitidos:
+        raise HTTPException(404, 'Archivo no disponible')
+    # El paquete se copia dentro de /app/app al construir el contenedor; así
+    # el instalador sigue funcionando aunque la NAS esté temporalmente fuera.
+    ruta = Path(__file__).with_name(archivo)
+    if not ruta.exists():
+        raise HTTPException(404, 'Archivo del agente no disponible')
+    return FileResponse(ruta, media_type='application/octet-stream', filename=archivo)
+
+
+@app.post('/api/confeccion-agente/paquete')
+def descargar_paquete_agente_confeccion(request: Request, payload: dict = Body(...),
+                                        _=Depends(permisos_mod.exigir('agentes'))):
+    """Genera un instalador individual de Confección, enlazado a un solo PC."""
+    nombre = str(payload.get('nombre') or '').strip()
+    creado = agentes_mod.registrar_pc(nombre)
+    panel_url = str(request.base_url).rstrip('/')
+    archivos = ('confeccion_agente.py', 'whatsapp_playwright.py', 'iniciar_oculto.vbs',
+                'iniciar.bat', 'actualizar_desde_nas.bat', 'instalar_confeccion.bat')
+    paquete = io.BytesIO()
+    with zipfile.ZipFile(paquete, 'w', zipfile.ZIP_DEFLATED) as z:
+        for archivo in archivos:
+            ruta = Path(__file__).with_name(archivo)
+            if not ruta.exists():
+                raise HTTPException(500, f'Falta el archivo del agente: {archivo}')
+            z.write(ruta, archivo)
+        z.writestr('datos/panel.json', json.dumps({'url': panel_url, 'token': creado['token']}, ensure_ascii=False, indent=2))
+        z.writestr('LEEME.txt', 'AGENTE DE CONFECCIÓN · INDOOR SPORT\r\n\r\n1. Extrae todo el ZIP.\r\n2. Ejecuta instalar_confeccion.bat como administrador.\r\n3. En la primera preparación se abrirá WhatsApp Web en este PC: inicia sesión con el QR de la operaria.\r\n\r\nNo compartas la carpeta datos ni el archivo panel.json.\r\n')
+    seguro = re.sub(r'[^A-Za-z0-9_-]+', '_', creado['nombre']).strip('_') or 'confeccion'
+    return Response(paquete.getvalue(), media_type='application/zip', headers={
+        'Content-Disposition': f'attachment; filename="Agente_Confeccion_{seguro}.zip"',
+        'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff'})
 
 
 @app.get('/inventario-alertas.js')
@@ -1222,6 +1478,11 @@ def linea_editor_js():
     return FileResponse(Path(__file__).with_name('linea-editor.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
 
 
+@app.get('/lineas-producto-panel.js')
+def lineas_producto_panel_js():
+    return FileResponse(Path(__file__).with_name('lineas-producto-panel.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
+
+
 @app.get('/nav-liquid.js')
 def nav_liquid_js():
     return FileResponse(Path(__file__).with_name('nav-liquid.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
@@ -1318,6 +1579,11 @@ def menu_cuenta_js():
     return FileResponse(Path(__file__).with_name('menu-cuenta.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
 
 
+@app.get('/dashboard-administrativo.js')
+def dashboard_administrativo_js():
+    return FileResponse(Path(__file__).with_name('dashboard-administrativo.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
+
+
 @app.get('/proveedores-tela.js')
 def proveedores_tela_js():
     return FileResponse(Path(__file__).with_name('proveedores-tela.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
@@ -1372,7 +1638,7 @@ def ecommerce_js():
 
 @app.get('/agentes-hub.js')
 def agentes_hub_js():
-    return FileResponse(Path(__file__).with_name('agentes-hub.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
+    return FileResponse(Path(__file__).with_name('agentes-hub.js'), media_type='application/javascript', headers={'Cache-Control': 'no-store'})
 
 
 @app.get('/recordar-vista.js')
@@ -1390,6 +1656,16 @@ def stockman_js():
     return FileResponse(Path(__file__).with_name('stockman.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
 
 
+@app.get('/descuento-sublimacion.js')
+def descuento_sublimacion_js():
+    return FileResponse(Path(__file__).with_name('descuento-sublimacion.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
+
+
+@app.get('/aviso-agentes.js')
+def aviso_agentes_js():
+    return FileResponse(Path(__file__).with_name('aviso-agentes.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
+
+
 @app.get('/minimaximan.js')
 def minimaximan_js():
     return FileResponse(Path(__file__).with_name('minimaximan.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
@@ -1397,7 +1673,12 @@ def minimaximan_js():
 
 @app.get('/zeus.js')
 def zeus_js():
-    return FileResponse(Path(__file__).with_name('zeus.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
+    return FileResponse(Path(__file__).with_name('zeus.js'), media_type='application/javascript', headers={'Cache-Control': 'no-store'})
+
+
+@app.get('/laser-panel.js')
+def laser_panel_js():
+    return FileResponse(Path(__file__).with_name('laser-panel.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
 
 
 @app.get('/draco-panel.js')
@@ -1654,12 +1935,13 @@ LOGIN_GLASS_STYLE = _fragmento('login-glass-style.html')
 
 def login_page(error: str = "") -> str:
     template = Path(__file__).with_name("login.html").read_text(encoding="utf-8")
-    return template.replace("__LOGIN_ERROR__", escape(error)).replace('</head>', INPUT_CONTRAST_STYLE + LOGIN_GLASS_STYLE + '</head>')
+    volver_al_panel = "<script>addEventListener('pageshow',function(e){if(e.persisted)location.replace('/')})</script>"
+    return template.replace("__LOGIN_ERROR__", escape(error)).replace('</head>', INPUT_CONTRAST_STYLE + LOGIN_GLASS_STYLE + volver_al_panel + '</head>')
 
 
 @app.get("/landing/{nombre}.jpg")
 def landing_foto(nombre: str):
-    if not re.fullmatch(r"(hero|proceso-[1-6]|uniforme-[1-6])", nombre):
+    if not re.fullmatch(r"(hero|proceso-[1-6]|uniforme-[1-6]|fabrica-[1-6])", nombre):
         raise HTTPException(status_code=404)
     return FileResponse(Path(__file__).with_name("landing") / f"{nombre}.jpg", media_type="image/jpeg", headers={"Cache-Control": "public, max-age=86400"})
 
@@ -1669,11 +1951,21 @@ def login_sport_image():
     return FileResponse(Path(__file__).with_name("login-sport.jpg"), media_type="image/jpeg", headers={"Cache-Control": "public, max-age=86400"})
 
 
+@app.get("/demo-portada-indoor", response_class=HTMLResponse)
+def demo_portada_indoor(_=Depends(authenticate)):
+    """Demo aislada de una posible portada; no altera la pantalla Inicio."""
+    return FileResponse(
+        Path(__file__).with_name("portada-indoor-demo.html"),
+        media_type="text/html",
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate"},
+    )
+
+
 @app.get("/login", response_class=HTMLResponse)
 def login_form(request: Request):
     if session_username(request.cookies.get("indoor_session", "")):
         return RedirectResponse("/", status_code=303)
-    return HTMLResponse(login_page())
+    return HTMLResponse(login_page(), headers={'Cache-Control': 'no-store, no-cache, must-revalidate', 'Pragma': 'no-cache'})
 
 
 _rate_hits: dict = {}
@@ -2351,6 +2643,24 @@ def liquid_stats_script():
     return FileResponse(Path(__file__).with_name("liquid-stats.js"), media_type="application/javascript", headers={"Cache-Control": "no-cache"})
 
 
+@app.get("/motion.js")
+def motion_js():
+    return FileResponse(Path(__file__).with_name("motion.js"), media_type="application/javascript", headers={"Cache-Control": "public, max-age=86400"})
+
+
+@app.get("/home-hero.js")
+def home_hero_js():
+    return FileResponse(Path(__file__).with_name("home-hero.js"), media_type="application/javascript", headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"})
+
+@app.get("/motion.js")
+def motion_js():
+    return FileResponse(Path(__file__).with_name("motion.js"), media_type="application/javascript", headers={"Cache-Control": "public, max-age=86400"})
+
+
+@app.get("/home-hero.js")
+def home_hero_js():
+    return FileResponse(Path(__file__).with_name("home-hero.js"), media_type="application/javascript", headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"})
+
 @app.get("/home-dashboard.js")
 def home_dashboard_js():
     return FileResponse(Path(__file__).with_name("home-dashboard.js"), media_type="application/javascript", headers={"Cache-Control": "no-cache"})
@@ -2396,7 +2706,13 @@ def build_watch_js():
 
 @app.get("/trace-ui.js")
 def trace_ui_script():
-    return FileResponse(Path(__file__).with_name("trace-ui.js"), media_type="application/javascript")
+    # El archivo se actualiza con frecuencia; evitamos que una tarjeta use una
+    # versión anterior después de marcar un material como Fusionado.
+    return FileResponse(
+        Path(__file__).with_name("trace-ui.js"),
+        media_type="application/javascript",
+        headers={"Cache-Control": "no-cache, must-revalidate"},
+    )
 
 
 @app.get("/manifest.webmanifest")
@@ -2412,14 +2728,14 @@ def web_manifest():
         "background_color": "#050605",
         "theme_color": "#050605",
         "icons": [
-            {"src": "/favicon.svg?v=6", "sizes": "any", "type": "image/svg+xml", "purpose": "any"},
+            {"src": "/favicon.svg?v=7", "sizes": "any", "type": "image/svg+xml", "purpose": "any"},
             {"src": "/favicon.png", "sizes": "64x64", "type": "image/png"},
         ],
     }, media_type="application/manifest+json")
 
 
 def read_production_sheet() -> dict:
-    """Lee la línea de producción desde la fila 726 sin modificar Google Sheets."""
+    """Lee la línea de producción desde la fila 904 sin modificar Google Sheets."""
     now = time.time()
     with PRODUCTION_CACHE_LOCK:
         cached = PRODUCTION_CACHE.get("data")
@@ -2546,9 +2862,15 @@ def read_local_production() -> dict:
         meta = {row["key"]: row["value"] for row in db.execute("SELECT key, value FROM production_meta")}
         if not meta.get("headers"):
             raise RuntimeError("La base local de Producción todavía no ha sido inicializada")
+        # El panel operativo usa únicamente el tramo vigente del Sheet.
         rows = [
             {"source_row": row["source_row"], "values": json.loads(row["values_json"])}
-            for row in db.execute("SELECT source_row, values_json FROM production_rows ORDER BY COALESCE(sort_order, source_row), source_row")
+            for row in db.execute(
+                "SELECT r.source_row,r.values_json FROM production_rows r "
+                "LEFT JOIN production_sheet_links l ON l.source_row=r.source_row "
+                "WHERE l.sheet_row IS NULL OR l.sheet_row>=? "
+                "ORDER BY COALESCE(r.sort_order,r.source_row),r.source_row", (PRODUCTION_START_ROW,)
+            )
         ]
         headers = json.loads(meta["headers"])
         normalized = [str(header or "").strip().upper() for header in headers]
@@ -2663,6 +2985,51 @@ def _edicion_en_proceso() -> list[dict]:
                     usuario = ''   # quien la puso en proceso no usa los agentes: el aviso va a quien los usó por última vez
             resultado.append({'clave': f'{orden}|{ref}', 'orden': orden, 'ref': ref, 'usuario': usuario, 'fila': r['source_row']})
         return resultado
+
+
+def _iniciar_edicion_reposicion(orden: str, referencias: set[str]) -> list[str]:
+    """Activa únicamente las referencias de una reposición ya aprobada por Comercial.
+
+    La aprobación comercial sustituye la aprobación interna de muestra para este flujo: las
+    tarjetas nuevas quedan en EDICIÓN y TAVO recibe la orden de ejecutar sin muestra. Nunca se
+    toca una tarjeta ajena ni una referencia que ya tenga estado en EDICIÓN.
+    """
+    plano = lambda v: re.sub(r'\s+', '', str(v or '')).upper()
+    codigo = plano(orden)
+    refs = {plano(ref) for ref in referencias if plano(ref)}
+    if not codigo or not refs:
+        return []
+    candidatos = []
+    with connect() as db:
+        meta = {r['key']: r['value'] for r in db.execute('SELECT key, value FROM production_meta')}
+        headers = json.loads(meta.get('headers') or '[]')
+        titulos = [str(h or '').strip().upper() for h in headers]
+        if 'ORDEN' not in titulos or 'REFERENCIA' not in titulos:
+            return []
+        i_orden, i_ref = titulos.index('ORDEN'), titulos.index('REFERENCIA')
+        etapa = official_process('EDICION')
+        columnas = [i for i, h in enumerate(headers) if etapa is not None and official_process(h) == etapa]
+        if not columnas:
+            return []
+        for fila in db.execute('SELECT source_row, values_json FROM production_rows ORDER BY source_row'):
+            valores = json.loads(fila['values_json'])
+            if plano(valores[i_orden] if i_orden < len(valores) else '') != codigo:
+                continue
+            ref = plano(valores[i_ref] if i_ref < len(valores) else '')
+            if ref not in refs:
+                continue
+            # No reabrir algo que ya fue iniciado, finalizado, reprocesado o no aplica.
+            if any(i < len(valores) and str(valores[i] or '').strip() for i in columnas):
+                continue
+            for i in columnas:
+                if i < len(valores):
+                    valores[i] = 'P'
+            db.execute('UPDATE production_rows SET values_json=? WHERE source_row=?',
+                       (json.dumps(valores, ensure_ascii=False), fila['source_row']))
+            candidatos.append({'clave': f'{codigo}|{ref}', 'orden': codigo, 'ref': ref, 'usuario': '', 'fila': fila['source_row']})
+        if candidatos:
+            db.execute("INSERT OR REPLACE INTO production_meta(key,value) VALUES ('updated_at',?)", (datetime.now(timezone.utc).isoformat(),))
+    return agentes_mod.auto_procesar(candidatos, inmediato=True) if candidatos else []
 
 
 def _edicion_finalizada_sin_mts(solo_finalizada: bool = True) -> list[dict]:
@@ -2862,9 +3229,46 @@ def _terry_guardar_mts(orden: str, referencia: str, texto: str) -> dict:
     return resultado
 
 
-# Columnas de la hoja de producción que llenan los agentes (las mismas del Google Sheets): R máquina de impresión, AL/AM hora inicio/final de EDICIÓN, AN responsable
-COL_MAQUINA, COL_ED_INICIO, COL_ED_FINAL, COL_ED_RESP = 18, 38, 39, 40
 _AGENTES_CORRIDAS: dict = {}   # orden -> filas de Producción que los agentes están trabajando (se llena al empezar, se usa al terminar)
+
+
+def _agentes_columnas(meta: dict, requerir_edicion: bool = True) -> dict:
+    """Ubica las columnas que llenan los agentes por grupo y encabezado.
+
+    Nunca se usan números fijos: Producción puede recibir columnas nuevas (por
+    ejemplo HORA INICIO/HORA FINAL de otros procesos) sin desplazar lo que
+    escriben los agentes de EDICIÓN.  Las posiciones devueltas son 1-based,
+    iguales a las que espera Google Sheets.
+    """
+    normalizar = lambda valor: ''.join(
+        c for c in unicodedata.normalize('NFD', str(valor or '')) if not unicodedata.combining(c)
+    ).strip().upper()
+    headers = [normalizar(h) for h in json.loads(meta.get('headers') or '[]')]
+    groups = [normalizar(g) for g in json.loads(meta.get('groups') or '[]')]
+    if len(groups) < len(headers):
+        groups.extend([''] * (len(headers) - len(groups)))
+
+    def buscar(titulo: str, grupo: str = '') -> int:
+        candidatos = [i for i, header in enumerate(headers) if header == titulo]
+        if grupo:
+            candidatos = [i for i in candidatos if groups[i] == grupo]
+        return candidatos[0] + 1 if candidatos else 0
+
+    def buscar_prefijo(prefijo: str, grupo: str) -> int:
+        return next((i + 1 for i, header in enumerate(headers)
+                     if groups[i] == grupo and header.startswith(prefijo)), 0)
+
+    columnas = {
+        'maquina': buscar('MAQUINA DE IMPRESION'),
+        'edicion': buscar('EDICION', 'EDICION') or buscar('EDICION'),
+        'inicio': buscar('HORA INICIO', 'EDICION'),
+        'final': buscar('HORA FINAL', 'EDICION'),
+        'responsable': buscar_prefijo('RESP', 'EDICION'),
+    }
+    faltantes = [nombre for nombre in ('edicion', 'inicio', 'final', 'responsable') if not columnas[nombre]] if requerir_edicion else []
+    if faltantes:
+        raise ValueError('Producción no tiene la estructura de EDICIÓN completa: ' + ', '.join(faltantes))
+    return columnas
 
 
 def _agentes_escribir_sheet(fila_local: int, celdas: dict, solo_si_vacia: set, solo_si_en: dict | None = None) -> dict:
@@ -3010,28 +3414,30 @@ def _agentes_sellar(orden: str, momento: str, referencia: str = '') -> dict:
             rec = db.execute('SELECT values_json FROM production_rows WHERE source_row=?', (fila,)).fetchone()
             if not rec:
                 continue
+            meta = {r['key']: r['value'] for r in db.execute("SELECT key, value FROM production_meta WHERE key IN ('headers', 'groups')")}
+            columnas = _agentes_columnas(meta)
             v = json.loads(rec['values_json'])
-            v.extend([''] * max(0, COL_ED_RESP - len(v)))
-            if momento == 'inicio' and (reproceso or not str(v[COL_ED_INICIO - 1]).strip()):
-                v[COL_ED_INICIO - 1] = hora
+            v.extend([''] * max(0, max(columnas.values()) - len(v)))
+            if momento == 'inicio' and (reproceso or not str(v[columnas['inicio'] - 1]).strip()):
+                v[columnas['inicio'] - 1] = hora
             if momento == 'fin':
-                v[COL_ED_FINAL - 1] = hora
+                v[columnas['final'] - 1] = hora
                 if inicio_tardio:
-                    v[COL_ED_INICIO - 1] = inicio_tardio
-            v[COL_ED_RESP - 1] = 'AGENT'
-            maquina = str(v[COL_MAQUINA - 1]).strip()
+                    v[columnas['inicio'] - 1] = inicio_tardio
+            v[columnas['responsable'] - 1] = 'AGENT'
+            maquina = str(v[columnas['maquina'] - 1]).strip() if columnas['maquina'] else ''
             db.execute('UPDATE production_rows SET values_json=? WHERE source_row=?', (json.dumps(v, ensure_ascii=False), fila))
             db.execute("INSERT OR REPLACE INTO production_meta(key,value) VALUES ('updated_at',?)", (ahora.isoformat(),))
-        celdas = {COL_ED_RESP: 'AGENT'}
+        celdas = {columnas['responsable']: 'AGENT'}
         if momento == 'inicio':
-            celdas[COL_ED_INICIO] = hora
+            celdas[columnas['inicio']] = hora
         else:
-            celdas[COL_ED_FINAL] = hora
+            celdas[columnas['final']] = hora
             if inicio_tardio:
-                celdas[COL_ED_INICIO] = inicio_tardio
-        if maquina:
-            celdas[COL_MAQUINA] = maquina
-        solo_vacias = {COL_MAQUINA} if reproceso else {COL_ED_INICIO, COL_MAQUINA}
+                celdas[columnas['inicio']] = inicio_tardio
+        if maquina and columnas['maquina']:
+            celdas[columnas['maquina']] = maquina
+        solo_vacias = ({columnas['maquina']} if columnas['maquina'] else set()) if reproceso else ({columnas['inicio']} | ({columnas['maquina']} if columnas['maquina'] else set()))
         resultado[f'fila_{fila}'] = _agentes_escribir_sheet(fila, celdas, solo_vacias)
     logging.info('Agentes: %s', resultado)
     return resultado
@@ -3158,8 +3564,10 @@ def _agentes_guardar_maquina(orden: str, referencias: list, maquina: str) -> dic
                 otras.append(f"fila {r['source_row']} tiene {actual}")
         if llenadas:
             db.execute("INSERT OR REPLACE INTO production_meta(key,value) VALUES ('updated_at',?)", (datetime.now(timezone.utc).isoformat(),))
-    for fila_ll in llenadas:   # la máquina también va al Google Sheets (columna R), solo si allá está vacía
-        _agentes_escribir_sheet(fila_ll, {COL_MAQUINA: maquina}, {COL_MAQUINA})
+    columnas = _agentes_columnas(meta, requerir_edicion=False)
+    for fila_ll in llenadas:   # la máquina también va al Google Sheets, solo si allá está vacía
+        if columnas['maquina']:
+            _agentes_escribir_sheet(fila_ll, {columnas['maquina']: maquina}, {columnas['maquina']})
     if not (llenadas or ya or otras):
         return {'ok': False, 'motivo': f'No encontré en Producción la orden {orden}' + (f' con las referencias {", ".join(sorted(refs))}' if refs else '')}
     return {'ok': True, 'llenadas': llenadas, 'ya_estaban': ya, 'otras': otras}
@@ -3286,7 +3694,10 @@ def _tiempos_proceso() -> dict:
 
 _PROD_CACHE = {'at': 0.0, 'token': None, 'base': None}
 _PROD_LOCK = threading.Lock()
-_PROD_SEGUNDOS = 8
+# La hoja se sincroniza en segundo plano; recalcular toda Producción por cada
+# cambio de una persona convertía un clic en trabajo repetido para todos.
+# Se sirve una misma foto breve y `force=1` sigue permitiendo actualizar ya.
+_PROD_SEGUNDOS = 25
 
 
 def _prod_token():
@@ -3311,10 +3722,16 @@ def _produccion_base(force: bool = False) -> dict:
     with _PROD_LOCK:
         token = _prod_token()
         c = _PROD_CACHE
-        if not force and c['base'] is not None and c['token'] == token and time.monotonic() - c['at'] < _PROD_SEGUNDOS:
+        if not force and c['base'] is not None and time.monotonic() - c['at'] < _PROD_SEGUNDOS:
             return c['base']
         base = dict(read_local_production())
         trazo_plt.marcar_no_aplica(base, _proceso_de, parse_production_date)
+        # Solo lectura: muestra en cada tarjeta los materiales reales de la
+        # referencia. La función usa la caché local de listados; nunca consulta
+        # la NAS durante esta petición ni modifica la orden o el inventario.
+        base['materiales_mts'] = tela_necesaria_mod.detalles_mts_produccion(
+            base.get('rows') or [], base.get('headers') or []
+        )
         base['process_times'] = _tiempos_proceso()
         c.update(at=time.monotonic(), token=token, base=base)
         return base
@@ -3328,7 +3745,14 @@ async def production_data(request: Request, force: bool = False, _=Depends(authe
         data['finished_today_mine'] = await asyncio.to_thread(_finalizados_hoy, str(_))
         data['worked_today_rows'] = await asyncio.to_thread(_filas_trabajadas_hoy, str(_))
         body = json.dumps(data, ensure_ascii=False, separators=(',', ':'), default=str).encode('utf-8')
-        etag = '"' + hashlib.md5(body).hexdigest() + '"'
+        # La hora de revisión de Sheets cambia en cada sondeo aunque las órdenes
+        # sigan iguales. El ETag representa únicamente datos operativos para no
+        # forzar a todos los navegadores a descargar y repintar toda la tabla.
+        etag_data = dict(data)
+        etag_data.pop('updated_at', None)
+        etag_data.pop('sheets_sync', None)
+        etag_body = json.dumps(etag_data, ensure_ascii=False, separators=(',', ':'), default=str).encode('utf-8')
+        etag = '"' + hashlib.md5(etag_body).hexdigest() + '"'
         headers = {'ETag': etag, 'Cache-Control': 'no-cache'}
         if request.headers.get('if-none-match') == etag:
             return Response(status_code=304, headers=headers)
@@ -3336,6 +3760,12 @@ async def production_data(request: Request, force: bool = False, _=Depends(authe
     except Exception as exc:
         logging.exception("No se pudo consultar la base local de producción")
         raise HTTPException(503, f"No se pudo abrir Producción: {exc}") from exc
+
+
+@app.get('/api/dashboard-administrativo/permiso')
+def dashboard_administrativo_permiso(_=Depends(authenticate)):
+    """No entrega datos: solo permite al menú mostrar la vista a las cuentas autorizadas."""
+    return {'allowed': permisos_mod.dashboard_administrativo_permitido(str(_))}
 
 
 PROCESS_STATUS_HEADERS = {
@@ -4633,6 +5063,22 @@ function Open-OrderAndMasters([string]$OrderPath) {
 }
 try {
     $parsed = [System.Uri]$Uri
+    if ($parsed.Host -eq "order") {
+        $parts = $parsed.AbsolutePath.Trim('/').Split('/')
+        if ($parts.Count -ne 2) { throw "Ruta de orden inválida." }
+        $order = [System.Uri]::UnescapeDataString($parts[0]).Trim().ToUpper()
+        $clientName = [System.Uri]::UnescapeDataString($parts[1])
+        if ([string]::IsNullOrWhiteSpace($order) -or [string]::IsNullOrWhiteSpace($clientName)) { throw "Orden o cliente inválido." }
+        $base = "\\192.168.0.120\NAS INDOOR\CLIENTES"
+        $client = Get-ChildItem -LiteralPath $base -Directory -ErrorAction Stop |
+            Where-Object { $_.Name -ieq $clientName } | Select-Object -First 1
+        if ($null -eq $client) { throw "No encontré la carpeta del cliente en la NAS." }
+        $found = Get-ChildItem -LiteralPath $client.FullName -Directory -ErrorAction Stop |
+            Where-Object { $_.Name.ToUpper().StartsWith($order) } | Select-Object -First 1
+        if ($null -eq $found) { throw "No encontré una carpeta que empiece por $order." }
+        Open-OrderAndMasters $found.FullName
+        exit 0
+    }
     if ($parsed.Host -eq "folder") {
         $parts = $parsed.AbsolutePath.Trim('/').Split('/')
         if ($parts.Count -ne 2) { throw "Ruta de carpeta inválida." }
@@ -4717,6 +5163,20 @@ def nas_client_key(value):
                            if not unicodedata.combining(c)).casefold().split())
 
 
+def nas_client_equivalent(left, right):
+    """Compara el nombre de un cliente como se usa en el Sheet y en la NAS.
+
+    Algunos clientes históricos tienen la sigla societaria ``FC`` solamente en
+    la carpeta de la NAS (por ejemplo, ``... CERROS FC``). No es un cliente
+    distinto: la carpeta debe resolverse sin activar la búsqueda global de
+    órdenes por toda la NAS.
+    """
+    first, second = nas_client_key(left), nas_client_key(right)
+    if not first or not second:
+        return False
+    return first == second or first == second + ' fc' or second == first + ' fc'
+
+
 _NAS_CLIENTS = {'at': 0.0, 'map': {}}
 
 
@@ -4743,12 +5203,29 @@ def resolve_nas_client(root: Path, client_name: str) -> Path:
     direct = root / client_name
     if direct.is_dir():
         return direct.resolve()
+    # Varios clientes históricos conservan «FC» únicamente en la carpeta de
+    # la NAS. Se prueba esa variante de forma directa antes de listar toda la
+    # raíz de clientes (operación que puede ser lenta en la VPN).
+    client_key = nas_client_key(client_name)
+    aliases = ([client_name[:-3].rstrip()] if client_key.endswith(' fc') else [f'{client_name} FC'])
+    for alias in aliases:
+        candidate = root / alias
+        if candidate.is_dir() and candidate.resolve().parent == root:
+            return candidate.resolve()
     if not root.is_dir():
         raise HTTPException(503, 'El NAS no está disponible')
-    matches = [m for m in _nas_client_index(root).get(nas_client_key(client_name), []) if m.is_dir()]
+    index = _nas_client_index(root)
+    matches = [m for m in index.get(nas_client_key(client_name), []) if m.is_dir()]
+    if not matches:
+        matches = [folder for folders in index.values() for folder in folders
+                   if folder.is_dir() and nas_client_equivalent(folder.name, client_name)]
     if not matches and time.monotonic() - _NAS_CLIENTS['at'] > 20:
         # puede ser un cliente recién creado: se vuelve a leer la lista (máximo cada 20 s)
-        matches = [m for m in _nas_client_index(root, force=True).get(nas_client_key(client_name), []) if m.is_dir()]
+        index = _nas_client_index(root, force=True)
+        matches = [m for m in index.get(nas_client_key(client_name), []) if m.is_dir()]
+        if not matches:
+            matches = [folder for folders in index.values() for folder in folders
+                       if folder.is_dir() and nas_client_equivalent(folder.name, client_name)]
     if len(matches) > 1:
         raise HTTPException(409, 'Hay varias carpetas con el mismo nombre de cliente al ignorar tildes. Revisa cuál corresponde a la orden.')
     if not matches:
@@ -4757,7 +5234,7 @@ def resolve_nas_client(root: Path, client_name: str) -> Path:
 
 
 def find_nas_order(order: str) -> Path:
-    clean = str(order or "").strip().upper()
+    clean = re.sub(r"\s+", "-", str(order or "")).upper()   # «CO6212 CO6237» (varias órdenes en la celda) -> carpeta «CO6212-CO6237_…»
     if not re.fullmatch(r"[A-Z0-9_-]{2,40}", clean):
         raise HTTPException(400, "Número de orden inválido")
     root = Path(CONFIG["ruta_nas_clientes"]).resolve()
@@ -4797,13 +5274,20 @@ def production_row_files(source_row: int, excel_only=False):
     def normalized_name(value):
         return ' '.join(''.join(c for c in unicodedata.normalize('NFD', value) if not unicodedata.combining(c)).casefold().split())
     client_name = legacy.sanitize(field('NOMBRE DEL CLIENTE'))
-    order = field('ORDEN').upper()
+    # Algunas filas agrupan varias órdenes en una sola celda (CO6212 CO6237),
+    # mientras la carpeta de la NAS las guarda concatenadas (CO6212CO6237).
+    # Se quitan únicamente espacios internos; no se cambia ningún otro dato.
+    order = re.sub(r'\s+', '', field('ORDEN').upper())
+    order_compact = re.sub(r'[^A-Z0-9]', '', order)
     if not client_name or not re.fullmatch(r'[A-Z0-9_-]{2,40}', order):
         raise HTTPException(404, "La fila no tiene cliente u orden válidos")
     try:
         client = resolve_nas_client(root, client_name)
-        matches = [p.resolve() for p in client.iterdir() if p.is_dir() and
-                   (p.name.upper() == order or any(p.name.upper().startswith(order + s) for s in ('_', ' ', '-')))]
+        matches = [p.resolve() for p in client.iterdir() if p.is_dir() and (
+            p.name.upper() == order or
+            any(p.name.upper().startswith(order + s) for s in ('_', ' ', '-')) or
+            re.sub(r'[^A-Z0-9]', '', p.name.upper()).startswith(order_compact)
+        )]
     except HTTPException as error:
         if error.status_code != 404:
             raise
@@ -4833,7 +5317,10 @@ def production_row_files(source_row: int, excel_only=False):
     if excel_only:
         return [p for p in files if not p.name.startswith('~$') and p.suffix.lower() in ('.xlsx', '.xlsm', '.xls', '.pdf', '.csv')], [], client
     def child(parent, name):
-        found = [p.resolve() for p in parent.iterdir() if p.is_dir() and p.name.casefold() == name.casefold() and p.resolve().parent == parent]
+        if parent is None or not name:
+            return None
+        clave = normalized_name(str(name))
+        found = [p.resolve() for p in parent.iterdir() if p.is_dir() and normalized_name(p.name) == clave and p.resolve().parent == parent]
         return found[0] if len(found) == 1 else None
     masters = child(client, 'MAESTROS')
     project_name = legacy.sanitize(field('NOMBRE PROYECTO'))
@@ -4852,16 +5339,20 @@ def production_row_files(source_row: int, excel_only=False):
         if client_key == 'dimelo jara company sas' and project_name.upper() == 'ALCALDIA DE ITAGUI' and reference == 'A11200CA02-A11200PT01':
             tokens = {'FUT02'}
         designs = []
-        for folder in project.iterdir():
-            if not folder.is_dir() or folder.resolve().parent != project:
+        for folder in project.rglob('*'):
+            if not folder.is_dir():
                 continue
             code = re.split(r'[_\s-]', folder.name.upper())[0]
             if code == reference or code in tokens:
                 designs.append(folder.resolve())
         if len(designs) == 1:
-            images = [p for p in designs[0].iterdir() if p.is_file() and p.resolve().parent == designs[0] and p.suffix.lower() in ('.png', '.jpg', '.jpeg', '.webp')]
-            # Up to four versions within the uniquely matched design folder.
-            images = sorted(images, key=lambda p: p.name.casefold())[:4]
+            # Los maestros pueden estar organizados en subcarpetas por rango de tallas
+            # (FUT01_D1_D2_PLUS) y sus recursos pueden vivir dentro de ellas.
+            images = [p for p in designs[0].rglob('*') if p.is_file() and p.suffix.lower() in ('.png', '.jpg', '.jpeg', '.webp')]
+            # Una tarjeta puede llevar muchos diseños. Conservamos los primeros
+            # quince (ordenados de forma estable) para que Producción y la
+            # preparación de confección muestren exactamente los mismos mockups.
+            images = sorted(images, key=lambda p: p.name.casefold())[:15]
     # Verified NAS naming exception: same client's 2018-2019 flag project.
     if normalized_name(client_name) == 'corporacion cracks antioquia' and field('NOMBRE PROYECTO').upper() == 'BANDERA 2018-2019' and reference == 'A3000BN01' and masters:
         flag_project = child(masters, 'BANDERA 18-19')
@@ -4981,9 +5472,16 @@ def _compute_card_assets(source_row: int):
     try:
         _, nas_images, nas_client = production_row_files(source_row, excel_only=False)
         if nas_images:
-            images = [{'name': p.name,
-                       'url': f'/api/produccion/fila/{source_row}/archivo?name=' + quote(p.relative_to(nas_client).as_posix(), safe='')}
-                      for p in nas_images]
+            images = []
+            for number, path in enumerate(nas_images, start=101):
+                # Se guarda una miniatura temporal para que este mismo mockup se
+                # pueda adjuntar a WhatsApp con un enlace firmado, sin exponer la
+                # ruta de la NAS ni requerir otra sesión del panel.
+                data = excel_mockups._thumbnail(path.read_bytes())
+                mime = 'image/png' if data[:4] == bytes([137, 80, 78, 71]) else 'image/jpeg'
+                _remember_image(source_row, number, hashlib.sha256(data).hexdigest()[:20], mime, data)
+                images.append({'name': path.name, 'design': number,
+                               'url': f'/api/produccion/fila/{source_row}/archivo?name=' + quote(path.relative_to(nas_client).as_posix(), safe='')})
             return {'images': images, 'documents': documents[:20], 'image_status': 'Imagen desde carpeta MAESTROS', 'image_source': 'nas'}
     except (OSError, HTTPException):
         pass
@@ -5053,6 +5551,326 @@ def production_card_assets(source_row: int, _=Depends(authenticate)):
     return payload
 
 
+CONFECCIONISTAS_INICIALES = {
+    # Se registran como agenda real, no como opciones de ejemplo.
+    'GLORIA VALLEJO': '3104907505',
+    'OMAIRA VILLEGAS': '3206571671',
+}
+
+
+def _lista_confeccionistas() -> list[dict]:
+    """Agenda real de confeccionistas registrada desde Estándar 2026."""
+    with connect() as db:
+        # Alta inicial solicitada por Coordinación. INSERT OR IGNORE respeta un
+        # teléfono que luego se actualice desde la interfaz.
+        now = datetime.now(timezone.utc).isoformat()
+        for confeccionista, whatsapp in CONFECCIONISTAS_INICIALES.items():
+            db.execute('''INSERT OR IGNORE INTO confeccionistas_contactos
+                (confeccionista, whatsapp, updated_by, updated_at) VALUES (?, ?, ?, ?)''',
+                (confeccionista, whatsapp, 'Indoor Sport', now))
+        db.commit()
+        saved = db.execute('SELECT confeccionista, whatsapp, updated_at FROM confeccionistas_contactos').fetchall()
+    return [dict(row) for row in sorted(saved, key=lambda row: str(row['confeccionista']).upper())
+            if str(row['confeccionista']).strip()]
+
+
+@app.get('/api/confeccionistas')
+def get_confeccionistas(_=Depends(permisos_mod.exigir('promedios'))):
+    return {'items': _lista_confeccionistas()}
+
+
+@app.post('/api/confeccionistas')
+def save_confeccionista(payload: dict = Body(...), username=Depends(permisos_mod.exigir('promedios'))):
+    name = re.sub(r'\s+', ' ', str(payload.get('confeccionista') or '').strip()).upper()[:80]
+    if not name:
+        raise HTTPException(400, 'Escribe el nombre de la confeccionista')
+    whatsapp = re.sub(r'[^0-9+]', '', str(payload.get('whatsapp') or ''))[:20]
+    if whatsapp and len(re.sub(r'\D', '', whatsapp)) < 7:
+        raise HTTPException(400, 'El WhatsApp debe tener al menos 7 dígitos')
+    now = datetime.now(timezone.utc).isoformat()
+    with connect() as db:
+        db.execute('''INSERT INTO confeccionistas_contactos (confeccionista, whatsapp, updated_by, updated_at)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(confeccionista) DO UPDATE SET whatsapp=excluded.whatsapp,
+            updated_by=excluded.updated_by, updated_at=excluded.updated_at''', (name, whatsapp, username, now))
+        db.commit()
+    return {'ok': True, 'confeccionista': name, 'whatsapp': whatsapp, 'updated_at': now}
+
+
+_CACHE_EXCEL_ORDEN = {}
+_CACHE_HOJAS = {}
+
+
+def _excel_orden_cache(folder, order):
+    """Busca el Excel de la orden en la NAS; se reutiliza 5 minutos (la búsqueda tarda varios segundos)."""
+    clave = (str(folder), order)
+    hit = _CACHE_EXCEL_ORDEN.get(clave)
+    if hit and time.time() - hit[0] < 300:
+        return hit[1]
+    valor = listado_tallas_mod.excel_de_orden(folder, order)
+    _CACHE_EXCEL_ORDEN[clave] = (time.time(), valor)
+    return valor
+
+
+def _leer_hojas_cache(workbook):
+    """Lee las hojas del Excel una sola vez mientras el archivo no cambie."""
+    try:
+        clave = (str(workbook), Path(workbook).stat().st_mtime)
+    except OSError:
+        return listado_tallas_mod.leer_hojas(workbook)
+    if clave not in _CACHE_HOJAS:
+        _CACHE_HOJAS.clear()
+        _CACHE_HOJAS[clave] = listado_tallas_mod.leer_hojas(workbook)
+    return _CACHE_HOJAS[clave]
+
+
+def _datos_preparacion_confeccion(source_row: int) -> dict:
+    """Datos de una tarjeta para la pestaña interna de preparación de confección.
+
+    La curva se deriva del Excel del listado de esa misma orden, nunca de una
+    cantidad estimada de la tarjeta. Así quedan visibles las tallas reales que
+    se enviarán a la confeccionista.
+    """
+    with connect() as db:
+        record = db.execute('SELECT values_json FROM production_rows WHERE source_row=?', (source_row,)).fetchone()
+        headers_row = db.execute("SELECT value FROM production_meta WHERE key='headers'").fetchone()
+        saved = db.execute('SELECT confeccionista, precio_centavos, updated_at FROM confeccion_preparaciones WHERE source_row=?', (source_row,)).fetchone()
+        contacts = db.execute('SELECT confeccionista, whatsapp FROM confeccionistas_contactos').fetchall()
+    if not record or not headers_row:
+        raise HTTPException(404, 'La tarjeta ya no existe')
+    headers = [str(value or '').strip().upper() for value in json.loads(headers_row['value'])]
+    values = json.loads(record['values_json'])
+
+    def field(*names: str) -> str:
+        for name in names:
+            try:
+                index = headers.index(name)
+            except ValueError:
+                continue
+            if index < len(values):
+                return str(values[index] or '').strip()
+        return ''
+
+    order = field('ORDEN')
+    reference = field('REFERENCIA')
+    client = field('NOMBRE DEL CLIENTE', 'CLIENTE')
+    project = field('NOMBRE PROYECTO', 'PROYECTO')
+    quantity = field('CANTIDAD')
+    curve, curve_error = [], ''
+    carpeta_orden = None
+    try:
+        folder = carpeta_orden = listado_tallas_mod.carpeta_de_orden(client, order)
+        workbook = _excel_orden_cache(folder, order) if folder else None
+        sheets = _leer_hojas_cache(workbook) if workbook else {}
+        wanted = listado_tallas_mod._codigo(reference)
+        matching = [rows for title, rows in sheets.items()
+                    if (listado_tallas_mod._codigo(title) == wanted
+                        or listado_tallas_mod._codigo(title).startswith(wanted)
+                        or wanted.startswith(listado_tallas_mod._codigo(title)))]
+        if not matching and len(sheets) == 1:
+            matching = list(sheets.values())
+        totals = {}
+        for row in (line for rows in matching for line in rows):
+            size = str(row.get('talla') or '').strip().upper()
+            if not size:
+                continue
+            totals[size] = totals.get(size, 0) + int(row.get('cantidad') or 0)
+        size_order = {'XXS': 20, 'XS': 21, 'S': 22, 'M': 23, 'L': 24, 'XL': 25, '2XL': 26, '3XL': 27, '4XL': 28, '5XL': 29}
+        curve = [{'talla': size, 'cantidad': count} for size, count in sorted(
+            totals.items(), key=lambda item: (0, int(item[0])) if item[0].isdigit() else (1, size_order.get(item[0], 99), item[0]))]
+        if not curve:
+            curve_error = 'No se encontró una curva de tallas para esta referencia en el listado.'
+    except Exception:
+        logging.exception('No se pudo leer la curva del listado para la fila %s', source_row)
+        curve_error = 'No se pudo leer la curva del listado ahora. Intenta nuevamente.'
+    # Aviso si el nombre de proyecto de la hoja no coincide con la carpeta de la orden en la NAS
+    proyecto_error = ''
+    try:
+        if carpeta_orden is None:
+            carpeta_orden = listado_tallas_mod.carpeta_de_orden(client, order)
+        if not carpeta_orden:
+            proyecto_error = 'No se encontró la carpeta de esta orden en la NAS.'
+        else:
+            nombre_carpeta = getattr(carpeta_orden, 'name', str(carpeta_orden))
+            def _sin_espacios(texto):
+                return ''.join(c for c in unicodedata.normalize('NFD', str(texto or '')) if not unicodedata.combining(c)).upper().replace(' ', '')
+            if project and _sin_espacios(project) not in _sin_espacios(nombre_carpeta):
+                proyecto_error = f'El proyecto de la hoja ("{project}") no coincide con la carpeta de la NAS ("{nombre_carpeta}").'
+    except Exception:
+        logging.exception('No se pudo revisar el proyecto de la fila %s', source_row)
+    assets = production_card_assets(source_row, None)
+    # El enlace de cada mockup solo se comparte con la confeccionista elegida
+    # al abrir WhatsApp. Caduca pronto y no da acceso a otros documentos.
+    expires = int(time.time()) + 7 * 24 * 60 * 60
+    mockups = []
+    for image in assets.get('images', []):
+        item = dict(image)
+        design = item.get('design')
+        if isinstance(design, int) and 1 <= design <= 140:
+            sig = _session_signature(f'confeccion-mockup|{source_row}|{design}|{expires}')
+            item['share_url'] = f'/api/produccion/fila/{source_row}/mockup-compartir/{design}?e={expires}&s={sig}'
+        mockups.append(item)
+    return {
+        'source_row': source_row, 'orden': order, 'cliente': client, 'proyecto': project,
+        'referencia': reference, 'cantidad': quantity, 'mockups': mockups,
+        'curva': curve, 'curva_error': curve_error, 'proyecto_error': proyecto_error,
+        'confeccionistas': [item['confeccionista'] for item in _lista_confeccionistas()],
+        'whatsapps': {row['confeccionista']: row['whatsapp'] for row in contacts if row['whatsapp']},
+        'preparacion': ({'confeccionista': saved['confeccionista'],
+                          'precio_prenda': saved['precio_centavos'] / 100,
+                          'updated_at': saved['updated_at']} if saved else None),
+    }
+
+
+def _asegurar_tablas_envios():
+    # Tablas de los envíos de confección y de los tokens de la extensión (se crean si faltan)
+    with connect() as db:
+        db.execute("""CREATE TABLE IF NOT EXISTS confeccion_tokens (
+            usuario TEXT PRIMARY KEY,
+            token TEXT NOT NULL UNIQUE,
+            created_at TEXT NOT NULL DEFAULT ''
+        )""")
+        db.execute("""CREATE TABLE IF NOT EXISTS confeccion_envios (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            mensaje_id TEXT NOT NULL UNIQUE,
+            source_row INTEGER NOT NULL DEFAULT 0,
+            orden TEXT NOT NULL DEFAULT '',
+            referencia TEXT NOT NULL DEFAULT '',
+            cliente TEXT NOT NULL DEFAULT '',
+            confeccionista TEXT NOT NULL DEFAULT '',
+            whatsapp TEXT NOT NULL DEFAULT '',
+            unidades INTEGER NOT NULL DEFAULT 0,
+            precio REAL NOT NULL DEFAULT 0,
+            registrado_por TEXT NOT NULL DEFAULT '',
+            detectado_at TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT ''
+        )""")
+        db.commit()
+
+
+def _usuario_envio_confeccion(request: Request):
+    token = request.headers.get('x-confeccion-token', '').strip()
+    if token:
+        with connect() as db:
+            row = db.execute('SELECT usuario FROM confeccion_tokens WHERE token=?', (token,)).fetchone()
+        if row:
+            return row['usuario']
+        raise HTTPException(401, 'El token de la extensión no es válido. Abre el panel de producción para vincularla de nuevo.')
+    return authenticate(request)
+
+
+@app.get('/api/confeccion/token')
+def token_extension_confeccion(username=Depends(authenticate)):
+    _asegurar_tablas_envios()
+    now = datetime.now(timezone.utc).isoformat()
+    with connect() as db:
+        row = db.execute('SELECT token FROM confeccion_tokens WHERE usuario=?', (username,)).fetchone()
+        if row:
+            token = row['token']
+        else:
+            token = secrets.token_urlsafe(32)
+            db.execute('INSERT INTO confeccion_tokens (usuario, token, created_at) VALUES (?, ?, ?)', (username, token, now))
+            db.commit()
+    return {'token': token}
+
+
+@app.post('/api/confeccion/envios')
+def registrar_envio_confeccion(request: Request, payload: dict = Body(...)):
+    _asegurar_tablas_envios()
+    username = _usuario_envio_confeccion(request)
+    orden = str(payload.get('orden') or '').strip()[:60]
+    confeccionista = re.sub(r'\s+', ' ', str(payload.get('confeccionista') or '')).strip().upper()[:80]
+    if not orden or not confeccionista:
+        raise HTTPException(400, 'Falta la orden o la confeccionista del envío')
+    try:
+        unidades = int(float(payload.get('unidades') or 0))
+        precio = float(payload.get('precio') or 0)
+        source_row = int(payload.get('source_row') or 0)
+    except (TypeError, ValueError):
+        raise HTTPException(400, 'Unidades, precio o fila no válidos')
+    detectado = str(payload.get('detectado_at') or '')[:40]
+    mensaje_id = str(payload.get('mensaje_id') or '').strip()[:120]
+    if not mensaje_id:
+        mensaje_id = hashlib.sha256(f'{orden}|{confeccionista}|{detectado}'.encode('utf-8')).hexdigest()[:32]
+    now = datetime.now(timezone.utc).isoformat()
+    with connect() as db:
+        cur = db.execute('''INSERT OR IGNORE INTO confeccion_envios
+            (mensaje_id, source_row, orden, referencia, cliente, confeccionista, whatsapp, unidades, precio, registrado_por, detectado_at, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+            (mensaje_id, source_row, orden, str(payload.get('referencia') or '')[:120], str(payload.get('cliente') or '')[:160],
+             confeccionista, re.sub(r'[^0-9+]', '', str(payload.get('whatsapp') or ''))[:20], unidades, precio,
+             username, detectado or now, now))
+        db.commit()
+    return {'ok': True, 'duplicado': cur.rowcount == 0, 'mensaje_id': mensaje_id}
+
+
+@app.get('/api/confeccion/envios')
+def listar_envios_confeccion(_=Depends(permisos_mod.exigir('contabilidad_confeccion'))):
+    _asegurar_tablas_envios()
+    with connect() as db:
+        rows = [dict(r) for r in db.execute('SELECT * FROM confeccion_envios ORDER BY detectado_at DESC, id DESC LIMIT 5000').fetchall()]
+    return {'items': rows, 'total_unidades': sum(r['unidades'] for r in rows), 'total_valor': sum(r['unidades'] * r['precio'] for r in rows)}
+
+
+@app.get('/api/produccion/fila/{source_row}/confeccion')
+async def get_preparacion_confeccion(source_row: int, _=Depends(authenticate)):
+    return await asyncio.to_thread(_datos_preparacion_confeccion, source_row)
+
+
+@app.post('/api/produccion/fila/{source_row}/confeccion')
+def save_preparacion_confeccion(source_row: int, payload: dict = Body(...), username=Depends(authenticate)):
+    confeccionista = str(payload.get('confeccionista') or '').strip().upper()
+    if confeccionista not in {item['confeccionista'] for item in _lista_confeccionistas()}:
+        raise HTTPException(400, 'Selecciona una confeccionista válida')
+    try:
+        price = float(str(payload.get('precio_prenda', '')).replace(',', '.'))
+    except (TypeError, ValueError):
+        raise HTTPException(400, 'Indica un precio válido por prenda')
+    if not 0 < price <= 10000000:
+        raise HTTPException(400, 'El precio por prenda debe ser mayor que cero')
+    whatsapp = re.sub(r'[^0-9+]', '', str(payload.get('whatsapp') or ''))[:20]
+    if whatsapp and len(re.sub(r'\D', '', whatsapp)) < 7:
+        raise HTTPException(400, 'El WhatsApp debe tener al menos 7 dígitos')
+    with connect() as db:
+        record = db.execute('SELECT values_json FROM production_rows WHERE source_row=?', (source_row,)).fetchone()
+        headers_row = db.execute("SELECT value FROM production_meta WHERE key='headers'").fetchone()
+        if not record or not headers_row:
+            raise HTTPException(404, 'La tarjeta ya no existe')
+        headers, values = json.loads(headers_row['value']), json.loads(record['values_json'])
+        def field(name):
+            index = next((i for i, header in enumerate(headers) if str(header).strip().upper() == name), -1)
+            return str(values[index] or '').strip() if 0 <= index < len(values) else ''
+        now = datetime.now(timezone.utc).isoformat()
+        db.execute('''INSERT INTO confeccion_preparaciones
+            (source_row, orden, referencia, confeccionista, precio_centavos, updated_by, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(source_row) DO UPDATE SET orden=excluded.orden, referencia=excluded.referencia,
+            confeccionista=excluded.confeccionista, precio_centavos=excluded.precio_centavos,
+            updated_by=excluded.updated_by, updated_at=excluded.updated_at''',
+            (source_row, field('ORDEN'), field('REFERENCIA'), confeccionista, round(price * 100), username, now))
+        if whatsapp:
+            db.execute('''INSERT INTO confeccionistas_contactos (confeccionista, whatsapp, updated_by, updated_at)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(confeccionista) DO UPDATE SET whatsapp=excluded.whatsapp,
+                updated_by=excluded.updated_by, updated_at=excluded.updated_at''',
+                (confeccionista, whatsapp, username, now))
+        db.commit()
+    detalle_agente = _datos_preparacion_confeccion(source_row)
+    job_id = agentes_mod.crear_confeccion_job({
+        'source_row': source_row,
+        'orden': field('ORDEN'),
+        'referencia': field('REFERENCIA'),
+        'cliente': detalle_agente.get('cliente', ''),
+        'cantidad': detalle_agente.get('cantidad', ''),
+        'curva': detalle_agente.get('curva', []),
+        'mockups': detalle_agente.get('mockups', []),
+        'confeccionista': confeccionista,
+        'whatsapp': whatsapp,
+        'precio_prenda': round(price, 2),
+    })
+    return {'ok': True, 'job_id': job_id, 'confeccionista': confeccionista, 'precio_prenda': round(price, 2), 'whatsapp': whatsapp, 'updated_at': now}
+
+
 def production_excel_designs(source_row, files):
     with connect() as db:
         record = db.execute('SELECT values_json FROM production_rows WHERE source_row = ?', (source_row,)).fetchone()
@@ -5109,6 +5927,32 @@ def production_excel_image(source_row: int, design: int, request: Request = None
     return Response(target[2], media_type=target[1], headers=headers)
 
 
+@app.get('/api/produccion/fila/{source_row}/mockup-compartir/{design}')
+def production_excel_image_shared(source_row: int, design: int, e: int = 0, s: str = '', request: Request = None):
+    """Mockup temporal para una confeccionista: solo funciona con enlace firmado."""
+    expected = _session_signature(f'confeccion-mockup|{source_row}|{design}|{e}')
+    if e < time.time() or not s or not hmac.compare_digest(s, expected):
+        raise HTTPException(403, 'El enlace del mockup venció o no es válido')
+    if 1 <= design <= 40:
+        response = production_excel_image(source_row, design, request)
+        if isinstance(response, Response):
+            response.headers['Cache-Control'] = 'private, max-age=3600'
+        return response
+    # Los mockups de respaldo desde MAESTROS se numeran desde 101. Ya están
+    # limitados y cacheados al crear la tarjeta; se entregan solo con esta firma.
+    with _ASSET_LOCK:
+        hit = _IMAGE_CACHE.get((source_row, design))
+    if not hit:
+        _compute_card_assets(source_row)
+        with _ASSET_LOCK:
+            hit = _IMAGE_CACHE.get((source_row, design))
+    if not hit:
+        raise HTTPException(404, 'Mockup no encontrado')
+    return Response(hit[2], media_type=hit[1], headers={
+        'Cache-Control': 'private, max-age=3600', 'X-Content-Type-Options': 'nosniff'
+    })
+
+
 @app.get('/api/produccion/fila/{source_row}/archivo')
 def production_card_file(source_row: int, name: str, _=Depends(authenticate)):
     files, mockups, client = production_row_files(source_row)
@@ -5122,7 +5966,7 @@ def production_card_file(source_row: int, name: str, _=Depends(authenticate)):
 
 @app.post("/api/nas/preparar")
 def prepare_nas_order(payload: dict = Body(...), _=Depends(authenticate)):
-    order = str(payload.get("order") or "").strip().upper()
+    order = re.sub(r"\s+", "-", str(payload.get("order") or "")).upper()
     client = str(payload.get("client") or "").strip()
     project = str(payload.get("project") or "").strip()
     if not re.fullmatch(r"[A-Z0-9_-]{2,40}", order):
@@ -5257,9 +6101,17 @@ def open_nas_order_direct(order: str, request: Request, client: str = "", _=Depe
     """Resuelve y redirige de un solo salto, para que el enlace cuente como clic directo
     del usuario: así el navegador entrega indoor-nas:/smb: al Explorador/Finder en vez de
     bloquearlo en silencio por falta de gesto reciente."""
-    clean = str(order or "").strip().upper()
+    clean = re.sub(r"\s+", "-", str(order or "")).upper()   # «CO6212 CO6237» -> CO6212-CO6237
     if not re.fullmatch(r"[A-Z0-9_-]{2,40}", clean):
         return nas_error_page("Número de orden inválido.")
+    # La NAS es privada y solo es visible desde el PC del usuario, no desde el VPS.
+    # En Windows enviamos la orden directamente al conector local; él resuelve la
+    # carpeta real (incluidos nombres como CO6212CO6237...) sin consultar el servidor.
+    if "Windows" in request.headers.get("user-agent", ""):
+        # El conector instalado también entiende la forma antigua y busca por
+        # prefijo en todos los clientes: funciona aunque el nombre del cliente
+        # visible en Producción sea un proyecto o un responsable.
+        return RedirectResponse("indoor-nas:///" + quote(clean, safe=""), status_code=307)
     # Path(...) por sí solo no toca el filesystem; el .resolve() (y todo lo demás que sí
     # lo toca) ocurre dentro de resolve_nas_order_path, cubierto por el límite de tiempo.
     root_raw = Path(CONFIG["ruta_nas_clientes"])
@@ -5365,6 +6217,42 @@ def change_account_name(payload: dict = Body(...), username=Depends(authenticate
     return response
 
 
+def _exigir_gestion_permisos(username: str) -> None:
+    if not permisos_mod.administracion_permitido(username):
+        raise HTTPException(403, 'Solo Administración puede gestionar permisos')
+
+
+@app.get('/api/permisos/usuarios')
+def listar_usuarios_permisos(username=Depends(authenticate)):
+    _exigir_gestion_permisos(username)
+    with connect() as db:
+        rows = db.execute('SELECT name, process, display_name FROM users ORDER BY COALESCE(display_name, name) COLLATE NOCASE').fetchall()
+    result = []
+    for row in rows:
+        name, process = row['name'], row['process'] or ''
+        admin = permisos_mod.rol_de(name) == 'administracion'
+        result.append({'name': name, 'display_name': row['display_name'] or name, 'process': process,
+                       'admin': admin, 'permisos': permisos_mod.permisos_usuario(name)})
+    return {'modules': permisos_mod.MODULOS, 'actions': permisos_mod.ACCIONES, 'users': result}
+
+
+@app.put('/api/permisos/usuarios/{name}')
+def actualizar_usuario_permisos(name: str, payload: dict = Body(...), username=Depends(authenticate)):
+    _exigir_gestion_permisos(username)
+    process = ' '.join(str(payload.get('process') or '').split())
+    if not 2 <= len(process) <= 80:
+        raise HTTPException(400, 'Indica un proceso válido')
+    with connect() as db:
+        target = db.execute('SELECT name FROM users WHERE name=? COLLATE NOCASE', (name,)).fetchone()
+        if not target:
+            raise HTTPException(404, 'Usuario no encontrado')
+        db.execute('UPDATE users SET process=? WHERE name=? COLLATE NOCASE', (process, name))
+        db.commit()
+    if permisos_mod.rol_de(name) != 'administracion':
+        permisos_mod.guardar_permisos_usuario(name, payload.get('permisos') or {})
+    return {'ok': True, 'process': process, 'permisos': permisos_mod.permisos_usuario(name)}
+
+
 def _personal_note_payload(payload: dict) -> tuple[str, str, str]:
     title = " ".join(str(payload.get("title") or "").split())
     content = str(payload.get("content") or "").strip()
@@ -5415,7 +6303,9 @@ def delete_personal_note(note_id: int, username=Depends(authenticate)):
 
 
 @app.get("/", response_class=HTMLResponse)
-def home(_=Depends(authenticate)):
+def home(response: Response, _=Depends(authenticate)):
+    # La página principal siempre debe recuperar las versiones actuales de JS.
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     # These HTML strings also appear inside JavaScript template literals.
     from html import escape as html_escape
     def escape(value):
@@ -5425,7 +6315,7 @@ def home(_=Depends(authenticate)):
     user_process = profile["process"] if profile else "Administración"
     user_display = profile["display_name"] if profile and profile["display_name"] else str(_)
     nombre_js = json.dumps(user_display).replace('<', '\\u003c')   # para la bienvenida animada (splash-intro.js)
-    user_initials = str(_).upper()
+    user_initials = ''.join(part[0] for part in re.findall(r"[A-Za-zÁÉÍÓÚÑáéíóúñ0-9]+", str(user_display))[:2]).upper() or str(_)[:2].upper()
     fabrics = json.loads(Path(__file__).with_name('fabrics.json').read_text(encoding='utf-8'))
     fabric_rows = ''.join("<tr><td>" + escape(item['code']) + "</td><td>" + escape(item['name']) + "</td><td aria-label='Stock sin registrar'>—</td></tr>" for item in fabrics)
     rows = "<tr class='empty-row'><td colspan='5'><div class='empty-icon'>↗</div><strong>Envía una orden para comenzar</strong><span>Aquí aparecerá únicamente el proceso actual.</span></td></tr>"
@@ -5435,7 +6325,7 @@ def home(_=Depends(authenticate)):
     {INPUT_CONTRAST_STYLE}
     <link rel='manifest' href='/manifest.webmanifest'><link rel='apple-touch-icon' href='/favicon.png'>
     <meta name='mobile-web-app-capable' content='yes'><meta name='apple-mobile-web-app-capable' content='yes'><meta name='apple-mobile-web-app-status-bar-style' content='black'><meta name='apple-mobile-web-app-title' content='Indoor'>
-    <link rel='icon' type='image/svg+xml' href='/favicon.svg?v=6'>
+    <link rel='icon' type='image/svg+xml' href='/favicon.svg?v=7'>
     <title>Indoor Sport SAS</title><style>
     :root{{--lime:#d0f44c;--lime-2:#8eaa25;--metal:linear-gradient(135deg,#6f871d 0%,#d0f44c 24%,#efffa5 48%,#d0f44c 68%,#78921e 100%);--ink:#f7f9f2;--muted:#a7b0a0;--line:rgba(208,244,76,.22);--glass:rgba(20,24,19,.62);--panel:#11150f}}
     *{{box-sizing:border-box}} body{{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;background:#050605;margin:0;color:var(--ink);font-size:16px;line-height:1.5;min-height:100vh;min-height:100dvh;overflow-x:hidden}}
@@ -5518,6 +6408,8 @@ def home(_=Depends(authenticate)):
     .production-process-filter{{display:flex;align-items:center;gap:12px;padding:10px 16px;background:#10160e;border-bottom:1px solid var(--line)}}.production-process-filter label{{font-size:.8rem;color:#d0f44c;font-weight:800}}.production-process-filter select{{min-width:220px;max-width:100%;padding:9px 12px;border:1px solid #657c32;border-radius:9px;background:#182014;color:#f3f7ed;font:inherit;font-size:.82rem}}@media(max-width:620px){{.production-process-filter select{{min-width:0;flex:1}}}}
     .user-menu{{position:relative;color:#efffb0}}.user-menu summary{{display:flex;align-items:center;gap:10px;cursor:pointer;list-style:none;padding:7px 12px;border:1px solid var(--line);border-radius:24px;background:#151b12}}.user-menu summary::-webkit-details-marker{{display:none}}.user-avatar{{display:grid;place-items:center;width:34px;height:34px;flex-shrink:0;border-radius:50%;background:#d0f44c;color:#10140d;font-weight:900}}.user-info{{display:grid;text-align:left;max-width:220px}}.user-info strong{{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.8rem}}.user-info small,.user-dropdown p{{font-size:.72rem;color:#b4bfa9}}.user-dropdown{{position:absolute;right:0;top:calc(100% + 8px);width:230px;padding:12px;background:#151b12;border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 30px #0008;z-index:1100}}.user-dropdown button,.user-dropdown a{{display:block;width:100%;text-align:left;padding:10px;background:transparent;color:#f0f5e8;border:0;box-shadow:none;text-decoration:none;font:inherit;font-size:.82rem}}.user-dropdown button:hover,.user-dropdown a:hover{{background:#28351b;border-radius:8px}}.account-dialog{{width:min(440px,92vw);padding:28px;background:#11180f;color:#f1f5eb;border:1px solid #8aa332;border-radius:20px}}.account-dialog::backdrop{{background:#000a}}.account-close{{float:right;width:auto;padding:3px 10px}}.account-dialog label{{display:block;margin:16px 0}}.account-dialog input{{display:block;width:100%;padding:12px;margin-top:6px;background:#1c2518;color:white;border:1px solid #77864a;border-radius:8px;font:inherit}}.account-dialog p{{color:#c5d5b8}}.account-dialog .account-hint{{margin:10px 0 4px;font-size:.76rem;line-height:1.4;color:#9db08c}}@media(max-width:620px){{.user-info small{{display:none}}.user-info{{max-width:140px}}.user-menu summary{{padding:5px 8px}}}}
     .brand .systems .session-user{{display:inline-flex;align-items:center;gap:8px;max-width:min(48vw,340px);padding:9px 14px;border:1px solid var(--line);border-radius:24px;background:#151b12;color:#efffb0;font-size:.8rem;overflow-wrap:anywhere}} .brand .systems .logout-link{{display:inline-flex!important;font-size:.74rem}}
+    /* Barra de utilidades: vidrio líquido sobrio, iconos equilibrados y monograma único. */
+    body.top-navigation .sidebar .systems{{display:flex!important;align-items:center!important;gap:3px!important;flex-wrap:nowrap!important;margin-left:auto!important;padding:4px 6px!important;border:1px solid rgba(199,241,170,.2)!important;border-radius:15px!important;background:linear-gradient(130deg,rgba(69,102,75,.36),rgba(10,29,18,.72))!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.16),0 8px 20px rgba(0,0,0,.2)!important;-webkit-backdrop-filter:blur(14px) saturate(1.3);backdrop-filter:blur(14px) saturate(1.3)}}body.top-navigation .sidebar .systems .theme-icon,body.top-navigation .sidebar .systems #agentes-hub summary,body.top-navigation .sidebar .systems #al-btn.header-alert{{display:grid!important;place-items:center!important;width:36px!important;height:36px!important;min-width:36px!important;padding:0!important;border:0!important;border-radius:10px!important;background:transparent!important;box-shadow:none!important}}body.top-navigation .sidebar .systems #al-btn.header-alert{{position:relative!important;overflow:visible!important}}body.top-navigation .sidebar .systems .theme-icon:hover,body.top-navigation .sidebar .systems #agentes-hub summary:hover,body.top-navigation .sidebar .systems #al-btn.header-alert:hover{{background:rgba(208,244,76,.12)!important;transform:translateY(-1px)!important}}body.top-navigation .sidebar .systems .user-menu{{margin-left:4px!important;padding-left:7px!important;border-left:1px solid rgba(220,255,207,.2)!important}}body.top-navigation .sidebar .systems .user-menu summary{{display:flex!important;align-items:center!important;gap:7px!important;width:auto!important;min-width:36px!important;height:36px!important;padding:0 3px 0 0!important;border:0!important;border-radius:18px!important;background:transparent!important;box-shadow:none!important}}body.top-navigation .sidebar .systems .user-avatar{{display:inline-block!important;width:auto!important;height:auto!important;padding:0!important;border:0!important;border-radius:0!important;background:transparent!important;color:#c8f15d!important;font-size:.72rem!important;font-weight:950!important;letter-spacing:.08em!important;box-shadow:none!important}}body.top-navigation .sidebar .header-user-copy{{display:grid!important;gap:0;text-align:left;line-height:1.04;white-space:nowrap}}body.top-navigation .sidebar .header-user-copy b{{color:#f4f8ef;font-size:.66rem;font-weight:900}}body.top-navigation .sidebar .header-user-copy small{{color:#c8f15d;font-size:.54rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase}}body.top-navigation .sidebar .systems .user-menu summary:hover .user-avatar{{transform:none!important;box-shadow:none!important;color:#efff81!important}}
     .production-table th{{min-width:124px;max-width:230px;padding:9px 11px;line-height:1.35}} .production-table td{{min-width:124px;max-width:230px;height:46px;padding:8px 11px;line-height:1.4}} .production-table th.production-row-head,.production-table td:first-child{{min-width:76px;width:76px;max-width:76px}} .production-table .production-columns th{{height:48px}} .production-table .production-groups th{{height:38px}}
     .production-table{{font-size:var(--production-body-font,.76rem);text-rendering:geometricPrecision;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}} .production-table thead{{position:sticky;top:0;z-index:1000;isolation:isolate}} .production-table tbody{{position:relative;z-index:1}} .production-table th{{top:auto;z-index:1001!important;font-weight:900;text-shadow:0 1px 1px rgba(0,0,0,.85)}} .production-table thead th.production-frozen{{z-index:1002!important}} .production-table tbody td.production-frozen{{z-index:2}} .production-table .production-groups th{{font-size:var(--production-group-font,.68rem)}} .production-table .production-columns th{{font-size:var(--production-head-font,.65rem)}} .production-table td{{text-align:center;vertical-align:middle;font-weight:700;letter-spacing:.005em}} .production-table td .production-resp-select,.production-table td .production-cell-input{{text-align:center;text-align-last:center;font-size:inherit}}
     .production-line-select{{border-width:1px;color:#10140e!important;box-shadow:inset 0 1px rgba(255,255,255,.22)!important}} .production-line-select.line-empty{{background:#1a201a!important;color:#dce4d7!important}} .production-line-select.line-copa{{background:#eac878!important;border-color:#f4d995!important}} .production-line-select.line-mundial{{background:#eead78!important;border-color:#ffc59a!important}} .production-line-select.line-olimpica{{background:#88aaa4!important;border-color:#afd0ca!important}} .production-line-select.line-muestra{{background:#82c998!important;border-color:#a8dfb8!important}} .production-line-select.line-plus{{background:#b79bd8!important;border-color:#d1b9ec!important}} .production-line-select.line-bot{{background:#6f9fcd!important;border-color:#98bee2!important}} .production-line-select option{{background:#eef1ea;color:#121612}}
@@ -5527,7 +6419,7 @@ def home(_=Depends(authenticate)):
     .system.logout-link{{color:#ffb0aa;text-decoration:none;border-color:rgba(255,104,94,.3)}} .system.logout-link:hover{{background:rgba(255,104,94,.1);border-color:#ff746b}}
     .production-delete-row{{display:inline-grid;place-items:center;flex:0 0 29px;width:29px;height:29px;padding:0;border:1px solid rgba(255,103,94,.65);border-radius:8px;background:#251210;color:#ff8c84;font-size:16px;font-weight:900;line-height:1;cursor:pointer;box-shadow:0 2px 7px rgba(0,0,0,.35)}} .production-delete-row:hover{{background:#481b17;color:#fff;border-color:#ff746b;filter:none}} body.production-mode .production-table th.production-row-head,body.production-mode .production-table td:first-child{{min-width:154px!important;width:154px!important;max-width:154px!important}}
     body.schedule-mode .schedule-events{{overflow-x:hidden}} body.schedule-mode .schedule-event{{text-align:center;white-space:nowrap}} body.schedule-mode .schedule-event strong{{font-size:.72rem;overflow:hidden;text-overflow:ellipsis}}
-    html{{scroll-behavior:auto}}body{{text-rendering:optimizeLegibility}}main,.brand,.panel,.card{{transform:translateZ(0)}}.panel.active{{animation:panelReveal .18s ease-out}}@keyframes panelReveal{{from{{opacity:.72;transform:translateY(3px)}}to{{opacity:1;transform:none}}}}.production-table-wrap,.production-x-scroll,.schedule-events{{-webkit-overflow-scrolling:touch;overscroll-behavior:contain;scrollbar-gutter:stable}}.production-table-wrap{{contain:layout paint;touch-action:pan-x pan-y}}.production-table td,.production-table th{{backface-visibility:hidden}}button,.tab,.nav-parent,.production-row-open,.file-row,.schedule-event{{transition-duration:.14s!important}}@media(prefers-reduced-motion:reduce){{*,*::before,*::after{{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}}}@media(max-width:860px){{.sidebar,.brand{{will-change:transform}}body.menu-open:after{{backdrop-filter:none!important}}}}
+    html{{scroll-behavior:auto}}body{{text-rendering:optimizeLegibility}}main,.brand,.panel,.card{{transform:translateZ(0)}}.panel.active{{animation:panelReveal .18s ease-out}}@keyframes panelReveal{{from{{opacity:1;transform:translateY(1px)}}to{{opacity:1;transform:none}}}}.production-table-wrap,.production-x-scroll,.schedule-events{{-webkit-overflow-scrolling:touch;overscroll-behavior:contain;scrollbar-gutter:stable}}.production-table-wrap{{contain:layout paint;touch-action:pan-x pan-y}}.production-table td,.production-table th{{backface-visibility:hidden}}button,.tab,.nav-parent,.production-row-open,.file-row,.schedule-event{{transition-duration:.14s!important}}@media(prefers-reduced-motion:reduce){{*,*::before,*::after{{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}}}@media(max-width:860px){{.sidebar,.brand{{will-change:transform}}body.menu-open:after{{backdrop-filter:none!important}}}}
     body.schedule-mode{{overflow:hidden}} body.schedule-mode main{{padding-top:18px;padding-bottom:0}} body.schedule-mode .schedule-toolbar{{padding-top:14px;padding-bottom:14px}} body.schedule-mode .schedule-title h2{{margin-top:2px;margin-bottom:3px}} body.schedule-mode .schedule-summary{{padding-top:8px;padding-bottom:8px}} body.schedule-mode .schedule-weekdays div{{padding-top:7px;padding-bottom:7px}} body.schedule-mode .schedule-grid{{grid-template-rows:repeat(6,minmax(68px,calc((100dvh - 352px)/6)))}} body.schedule-mode .schedule-day{{min-height:0;height:auto;padding:6px 8px}} body.schedule-mode .schedule-day-number{{height:20px;margin-bottom:3px}} body.schedule-mode .schedule-events{{gap:3px;max-height:calc(100% - 23px);overflow:auto;scrollbar-width:thin}} body.schedule-mode .schedule-event{{padding:4px 6px}}
     body.schedule-mode header{{display:none}} .panel[data-panel='cronograma'].active{{display:block}} .schedule-shell{{overflow:hidden;border-radius:18px}} .schedule-toolbar{{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:24px 26px;border-bottom:1px solid var(--line);background:linear-gradient(135deg,#121810,#0b0e0b)}} .schedule-title h2{{margin:4px 0 5px;font-size:1.45rem}} .schedule-title p{{color:var(--muted);font-size:.84rem}} .schedule-actions{{display:flex;gap:8px}} .schedule-actions button{{width:auto;min-width:42px;padding:9px 13px;background:#171e14;color:#efffb0;border:1px solid rgba(208,244,76,.38);box-shadow:none}} .schedule-actions button:hover{{background:#243019;filter:none}} .schedule-summary{{display:flex;align-items:center;justify-content:space-between;padding:13px 20px;background:#10150e;border-bottom:1px solid var(--line)}} .schedule-summary strong{{color:var(--lime);font-size:1rem;text-transform:capitalize}} .schedule-summary span{{color:var(--muted);font-size:.78rem}} .schedule-weekdays,.schedule-grid{{display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}} .schedule-weekdays{{background:#161d13;border-bottom:1px solid var(--line)}} .schedule-weekdays div{{padding:10px 8px;text-align:center;color:#aeb9a7;font-size:.66rem;font-weight:900;letter-spacing:.08em}} .schedule-day{{min-height:126px;padding:9px;border-right:1px solid rgba(255,255,255,.075);border-bottom:1px solid rgba(255,255,255,.075);background:#0d110d;overflow:hidden}} .schedule-day:nth-child(7n){{border-right:0}} .schedule-day.outside{{background:#090c09;color:#596255}} .schedule-day.today{{box-shadow:inset 0 0 0 2px var(--lime)}} .schedule-day-number{{display:grid;place-items:center;width:25px;height:25px;margin:0 0 7px auto;border-radius:50%;font-size:.75rem;font-weight:900}} .schedule-day.today .schedule-day-number{{background:var(--lime);color:#10140d}} .schedule-events{{display:grid;gap:5px}} .schedule-event{{width:100%;padding:6px 7px;border:1px solid rgba(208,244,76,.28);border-radius:7px;background:#1b2516;color:#edf6e8;box-shadow:none;text-align:left;line-height:1.25;cursor:pointer}} .schedule-event:hover{{background:#29371e;filter:none;border-color:var(--lime)}} .schedule-event strong{{display:block;color:#dfff75;font-size:.7rem}} .schedule-event span{{display:block;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#cad3c4;font-size:.64rem}} @media(max-width:900px){{.schedule-day{{min-height:95px;padding:5px}}.schedule-event span{{display:none}}}} @media(max-width:620px){{.schedule-toolbar{{align-items:flex-start;flex-direction:column;padding:18px}}.schedule-grid,.schedule-weekdays{{min-width:720px}}.schedule-shell{{overflow:auto}}}}
     .production-table td.delivery-days-cell{{position:sticky!important;z-index:30!important;text-align:center!important;font-size:.82rem!important;font-weight:950!important;opacity:1!important}} .production-table td.delivery-days-cell.semaphore-green{{color:#dfffc4!important;background:#193719!important}} .production-table td.delivery-days-cell.semaphore-orange{{color:#ffe0b3!important;background:#4a2d12!important}} .production-table td.delivery-days-cell.semaphore-red{{color:#ffd0cc!important;background:#461a18!important}} .production-table td.delivery-days-cell::before{{display:block!important}} .production-table tr.row-semaphore-green td:not(.delivery-days-cell){{background:rgba(42,104,38,.16)!important}} .production-table tr.row-semaphore-orange td:not(.delivery-days-cell){{background:rgba(151,85,22,.16)!important}} .production-table tr.row-semaphore-red td:not(.delivery-days-cell){{background:rgba(133,43,38,.16)!important}} .production-table tr.row-semaphore-green:hover td:not(.delivery-days-cell){{background:rgba(53,126,47,.24)!important}} .production-table tr.row-semaphore-orange:hover td:not(.delivery-days-cell){{background:rgba(177,99,27,.24)!important}} .production-table tr.row-semaphore-red:hover td:not(.delivery-days-cell){{background:rgba(158,52,46,.24)!important}} .production-table th.production-row-head,.production-table td:first-child{{min-width:112px!important;width:112px!important;max-width:112px!important}} .production-row-tools{{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;white-space:nowrap}} .production-drag-handle{{display:inline-grid;place-items:center;flex:0 0 29px;width:29px;height:29px;padding:0;border:1px solid #769329;border-radius:8px;background:#11170e;color:#d0f44c;font-size:16px;line-height:1;cursor:grab;user-select:none;touch-action:none;box-shadow:0 2px 7px rgba(0,0,0,.35)}} .production-row-tools .production-row-open{{flex:0 0 auto;min-width:50px;border-color:#9abb36;background:#263119;color:#f1ffb8;box-shadow:0 2px 7px rgba(0,0,0,.35)}} .production-drag-handle:hover{{background:#253218;border-color:#d0f44c}} .production-drag-handle:active{{cursor:grabbing}} .production-table tr.is-dragging{{opacity:.45}} .production-table tr.drag-target td{{box-shadow:inset 0 2px #d0f44c!important}}
@@ -5741,7 +6633,7 @@ def home(_=Depends(authenticate)):
     @media(max-width:860px){{html,body{{width:100%;max-width:100%;overflow-x:hidden}}body{{-webkit-tap-highlight-color:transparent}}main,body.sidebar-hidden main{{width:100%;min-width:0;padding:76px 14px 34px}}.brand{{position:fixed;top:4px;left:64px;right:8px;width:auto;min-width:0;padding:7px 9px 9px}}.brand-logo{{width:96px;height:38px}}.panel,.panel.active{{min-width:0;width:100%}}button,input,select,textarea{{font-size:16px!important}}button{{min-height:42px}}.card,.ct-card,.ct-aging,.ct-group,.ct-alerts{{max-width:100%}}}}
     @media(max-width:620px){{main,body.sidebar-hidden main{{padding:72px 10px 28px}}.brand{{left:58px;right:6px;gap:7px}}.brand-logo{{width:78px;height:34px}}.session-user{{max-width:132px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}.home-page{{gap:18px}}.home-hero-copy{{padding:18px}}.home-hero-copy p{{font-size:.88rem}}.home-section h3{{font-size:1.05rem}}.home-gallery{{grid-auto-columns:minmax(175px,78vw)}}.ct-head{{align-items:stretch!important}}.ct-head h2{{font-size:1.42rem!important}}.ct-head>div:last-child{{display:grid!important;grid-template-columns:1fr 1fr;gap:8px}}.ct-head>div:last-child button{{width:100%;padding:9px 7px!important}}.ct-tabs{{gap:12px!important;padding-bottom:8px!important;scrollbar-width:none}}.ct-tabs::-webkit-scrollbar{{display:none}}.ct-tabs button{{font-size:.68rem!important}}.ct-filters{{gap:8px!important;padding:11px!important}}.ct-filters label{{font-size:.61rem!important}}.ct-filters input,.ct-filters select{{min-height:42px;padding:10px!important}}.ct-filters button{{width:100%;min-height:42px}}.ct-aging,.ct-documents,.ct-card,.ct-group,.ct-alerts{{border-radius:14px!important}}.ct-aging{{padding:14px!important}}.ct-aging-total{{min-width:0!important;width:100%;text-align:left!important}}body.cartera-mode .ct-bands{{grid-template-columns:1fr 1fr!important;gap:8px!important;overflow:visible!important}}body.cartera-mode .ct-bands .ct-liquid-card{{min-width:0!important;min-height:132px!important;padding:12px!important}}.ct-liquid-card span{{margin-top:20px!important;font-size:1.05rem!important}}.ct-kpis,body.cartera-mode .ct-kpis{{grid-template-columns:1fr 1fr!important}}.ct-kpi,body.cartera-mode .ct-kpi{{min-width:0;min-height:104px!important;padding:12px!important}}.ct-kpi span{{font-size:.57rem}}.ct-kpi strong{{font-size:1rem!important;overflow-wrap:anywhere}}.ct-kpi-icon{{right:10px!important;top:10px!important;transform:scale(.86)}}.ct-groups,body.cartera-mode .ct-groups{{grid-template-columns:1fr!important}}.ct-group{{min-height:0!important;padding:14px!important}}.ct-group div{{grid-template-columns:minmax(88px,1fr) minmax(54px,.9fr) auto!important;font-size:.68rem!important}}.ct-group strong{{font-size:.66rem}}.ct-document-card{{padding:14px!important}}.ct-document-card h4{{max-width:170px;font-size:.86rem!important}}.ct-doc-meta,.ct-doc-values{{gap:7px!important}}.ct-document-card footer{{align-items:flex-start!important;flex-direction:column}}.ct-document-card footer>small{{line-height:1.45}}.ct-document-card footer div{{width:100%}}.ct-document-card footer button{{width:36px!important;height:36px!important}}.ct-table-wrap{{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:10px}}.ct-table-wrap table{{min-width:720px}}.ct-card header{{align-items:stretch!important}}.ct-card header>div:last-child{{display:flex;gap:6px;flex-wrap:wrap}}.ct-card header button{{min-height:38px}}.ct-settings{{gap:10px!important}}.ct-settings article{{padding:16px!important}}#ct-dialog{{width:calc(100vw - 20px);max-height:calc(100dvh - 20px);border-radius:14px}}.ct-form,.ct-detail{{max-height:calc(100dvh - 40px);overflow:auto;padding:17px}}.ct-form button,.ct-detail button{{min-height:44px;width:100%}}.ct-upload-layout{{gap:12px!important}}.ct-upload-intro{{grid-template-columns:auto 1fr!important;padding:17px!important}}.ct-upload-stat{{grid-column:1/-1;justify-self:stretch;text-align:left!important;border-left:0!important;border-top:1px solid rgba(208,244,76,.18);padding:10px 0 0!important}}.ct-upload-card{{padding:16px!important}}.ct-upload-grid{{grid-template-columns:1fr!important}}.ct-upload-zone{{min-height:150px!important}}.ct-pending>article{{padding:12px 0!important}}.ct-pending-actions{{grid-column:1/-1;width:100%}}.ct-pending-actions button{{flex:1;min-height:40px}}.preview-modal{{padding:8px}}.preview-dialog{{width:100%;max-height:calc(100dvh - 16px);border-radius:14px}}.preview-head,.preview-content,.preview-actions{{padding:14px!important}}.preview-actions{{flex-direction:column}}.preview-actions button{{width:100%;min-width:0}}}}
     /* Inicio mientras carga: esqueleto en vez del tablero vacío; las galerías de fotos solo aparecen cuando el resumen ya está pintado */.home-page:not(.dash-ready) .home-section{{display:none}}.dash-skel{{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:18px 0}}.dash-skel i,.dash-skel b{{display:block;border-radius:16px;border:1px solid rgba(255,255,255,.06);background:linear-gradient(100deg,rgba(255,255,255,.04) 30%,rgba(208,244,76,.11) 50%,rgba(255,255,255,.04) 70%);background-size:200% 100%;animation:dashSkel 1.3s linear infinite}}.dash-skel i{{height:92px}}.dash-skel b{{grid-column:1/-1;height:240px}}@keyframes dashSkel{{to{{background-position:-200% 0}}}}@media(max-width:700px){{.dash-skel{{grid-template-columns:1fr 1fr}}.dash-skel b{{height:180px}}}}@media(prefers-reduced-motion:reduce){{.dash-skel i,.dash-skel b{{animation:none}}}}
-    html{{background:#080b08}}html:not(.ui-ready) body{{visibility:hidden}}</style><script>window.__indoorNombre={nombre_js}</script><script src='/sin-parpadeo.js?v=20261014-1'></script><script src='/splash-intro.js?v=20261012-10'></script><script src='/session-guard.js?v=20261005-3'></script><script>window.__telasP=fetch('/api/alertas-telas',{{cache:'no-store',credentials:'same-origin'}}).then(function(r){{return r.ok?r.json():null}}).catch(function(){{return null}})</script><script src='/alertas-telas.js?v=20261020-1'></script><script>try{{if(localStorage.getItem('indoor-theme')==='light')document.documentElement.classList.add('theme-light')}}catch(e){{}}setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},3500)</script></head><body class='inicio-mode'><div class='topbar'></div><button id='menu-toggle' class='menu-toggle' type='button' aria-label='Ocultar menú' aria-expanded='true'>‹</button><aside class='sidebar' aria-label='Menú principal'><div class='sidebar-brand'><img src='/marca-indoor.svg' alt='Indoor'></div><div class='session-card'><div class='session-avatar'>IS</div><div class='session-copy'><strong>INDOOR SPORT SAS</strong><span>Panel operativo</span></div></div><div class='sidebar-label'>Menú principal</div><nav class='tabs' aria-label='Navegación principal'><button class='tab home-nav active' data-kind='inicio' type='button'><span class='nav-icon'>IN</span><strong>INICIO</strong></button><div class='nav-group collapsed'><button id='news-toggle' class='nav-parent' type='button'><span class='nav-icon'>CO</span><span>CONTROL</span></button><div class='nav-children'><button class='tab schedule-nav' data-kind='cronograma' type='button'><span class='nav-icon'>CR</span><strong>CRONOGRAMA</strong></button><button class='tab' data-kind='operarios' type='button'><span class='nav-icon'>OP</span><strong>CONTROL OPERARIOS</strong></button></div></div><div class='nav-group'><button id='commercial-toggle' class='nav-parent' type='button'><span class='nav-icon'>AC</span><span>Asistentes Comerciales</span></button><div class='nav-children'><button class='tab' data-kind='reprogramacion' type='button'><span class='nav-icon'>RP</span><strong>REPROGRAMACIONES</strong></button><button class='tab' data-kind='pedido' type='button'><span class='nav-icon'>PN</span><strong>PROGRAMAR</strong></button><button class='tab' data-kind='creador' type='button'><span class='nav-icon'>XL</span><strong>EXCEL</strong></button><button class='tab' data-kind='cliente-effi' type='button'><span class='nav-icon'>CC</span><strong>CREAR CLIENTE</strong></button><button class='tab' data-kind='pedido-effi' type='button'><span class='nav-icon'>PE</span><strong>PEDIDO EN EFFI</strong></button><button class='tab' data-kind='club' type='button'><span class='nav-icon'>TC</span><strong>TIENDA CLUB</strong></button><button class='tab' data-kind='cartera' type='button'><span class='nav-icon'>CT</span><strong>CARTERA</strong></button><button class='tab' data-kind='rh-contratos' type='button'><span class='nav-icon'>CT</span><strong>CONTRATOS</strong></button><button class='tab' data-kind='rh-claboral' type='button'><span class='nav-icon'>CL</span><strong>C.LABORAL</strong></button></div></div><div class='nav-group collapsed'><button id='production-toggle' class='nav-parent' type='button'><span class='nav-icon'>PR</span><span>Producción</span></button><div class='nav-children'><button class='tab production-nav' data-kind='produccion' type='button'><span class='nav-icon'>TR</span><strong>TRAZABILIDAD</strong></button><button class='tab' data-kind='inventario' type='button'><span class='nav-icon'>IT</span><strong>INVENTARIOS</strong></button></div></div></nav><div class='sidebar-foot'>Indoor Sport · Operación interna</div></aside><main>
+    html{{background:#080b08}}html:not(.ui-ready) body{{visibility:hidden}}</style><script>window.__indoorNombre={nombre_js}</script><script src='/sin-parpadeo.js?v=20261014-1'></script><script src='/splash-intro.js?v=20261012-10'></script><script src='/session-guard.js?v=20261005-3'></script><script>window.__telasP=fetch('/api/alertas-telas',{{cache:'no-store',credentials:'same-origin'}}).then(function(r){{return r.ok?r.json():null}}).catch(function(){{return null}})</script><script src='/alertas-telas.js?v=20261107-3'></script><script>try{{if(localStorage.getItem('indoor-theme')==='light')document.documentElement.classList.add('theme-light')}}catch(e){{}}setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},3500)</script></head><body class='inicio-mode'><div class='topbar'></div><button id='menu-toggle' class='menu-toggle' type='button' aria-label='Ocultar menú' aria-expanded='true'>‹</button><aside class='sidebar' aria-label='Menú principal'><div class='sidebar-brand'><img src='/marca-indoor.svg' alt='Indoor'></div><div class='session-card'><div class='session-avatar'>IS</div><div class='session-copy'><strong>INDOOR SPORT SAS</strong><span>Panel operativo</span></div></div><div class='sidebar-label'>Menú principal</div><nav class='tabs' aria-label='Navegación principal'><button class='tab home-nav active' data-kind='inicio' type='button'><span class='nav-icon'>IN</span><strong>INICIO</strong></button><div class='nav-group collapsed'><button id='news-toggle' class='nav-parent' type='button'><span class='nav-icon'>CO</span><span>CONTROL</span></button><div class='nav-children'><button class='tab schedule-nav' data-kind='cronograma' type='button'><span class='nav-icon'>CR</span><strong>CRONOGRAMA</strong></button><button class='tab' data-kind='operarios' type='button'><span class='nav-icon'>OP</span><strong>CONTROL OPERARIOS</strong></button></div></div><div class='nav-group'><button id='commercial-toggle' class='nav-parent' type='button'><span class='nav-icon'>AC</span><span>Asistentes Comerciales</span></button><div class='nav-children'><button class='tab' data-kind='reprogramacion' type='button'><span class='nav-icon'>RP</span><strong>REPROGRAMACIONES</strong></button><button class='tab' data-kind='pedido' type='button'><span class='nav-icon'>PN</span><strong>PROGRAMAR</strong></button><button class='tab' data-kind='creador' type='button'><span class='nav-icon'>XL</span><strong>EXCEL</strong></button><button class='tab' data-kind='cliente-effi' type='button'><span class='nav-icon'>CC</span><strong>CREAR CLIENTE</strong></button><button class='tab' data-kind='club' type='button'><span class='nav-icon'>TC</span><strong>PROGRAMAR CLUB</strong></button><button class='tab' data-kind='cartera' type='button'><span class='nav-icon'>CT</span><strong>CARTERA</strong></button><button class='tab' data-kind='rh-contratos' type='button'><span class='nav-icon'>CT</span><strong>CONTRATOS</strong></button><button class='tab' data-kind='rh-claboral' type='button'><span class='nav-icon'>CL</span><strong>C.LABORAL</strong></button></div></div><div class='nav-group collapsed'><button id='production-toggle' class='nav-parent' type='button'><span class='nav-icon'>PR</span><span>Producción</span></button><div class='nav-children'><button class='tab production-nav' data-kind='produccion' type='button'><span class='nav-icon'>TR</span><strong>TRAZABILIDAD</strong></button><button class='tab' data-kind='inventario' type='button'><span class='nav-icon'>IT</span><strong>INVENTARIOS</strong></button></div></div></nav><div class='sidebar-foot'>Indoor Sport · Operación interna</div></aside><main>
     <section class='panel' data-panel='inventario'><div class='inventory-shell'><section class='inventory-hero'><div><span class='eyebrow'>Producción · Existencias</span><h2>INVENTARIOS</h2><p>Catálogo local de telas, insumos y materia prima, disponible de inmediato.</p></div><button id='inventory-refresh' class='inventory-refresh' type='button'>↻ Actualizar</button></section><section id='inventory-categories' class='inventory-category-grid' aria-label='Categorías de inventarios'></section><section class='card inventory-table-card'><div class='inventory-toolbar'><div><strong>Detalle de existencias</strong><div id='inventory-status' class='inventory-status'>Cargando inventario local…</div></div><input id='inventory-search' type='search' placeholder='Buscar referencia, tela o insumo' aria-label='Buscar inventario'></div><div class='inventory-cards-wrap'><div id='inventory-body' class='inventory-cards-grid'><div class='inventory-empty'>Cargando inventario local…</div></div></div></section></div></section>
     <div class='brand'><span class='brand-logo' aria-label='Indoor'><img src='/marca-indoor.svg' alt='Indoor'></span><span class='brand-line'></span><span class='eyebrow'>Panel operativo</span><div class='systems'><span class='session-user' aria-label='Usuario conectado'>{escape(user_display)}</span></div></div>
     <section class='panel active' data-panel='inicio'><div class='home-page'>
@@ -5787,7 +6679,6 @@ def home(_=Depends(authenticate)):
     <section class='panel rhumano-panel' data-panel='rh-contratos'><div class='card' style='margin:18px 0;padding:28px 26px;text-align:center'><span class='eyebrow'>R.HUMANO</span><h2 style='margin:6px 0 8px'>CONTRATOS</h2><p style='margin:0;color:#a9b5a3'>Este submódulo está listo en el menú. Aquí irán los contratos del personal.</p></div></section>
     <section class='panel rhumano-panel' data-panel='rh-claboral'><div class='card' style='margin:18px 0;padding:28px 26px;text-align:center'><span class='eyebrow'>R.HUMANO</span><h2 style='margin:6px 0 8px'>C.LABORAL</h2><p style='margin:0;color:#a9b5a3'>Este submódulo está listo en el menú. Aquí irán las certificaciones laborales del personal.</p></div></section>
     <section class='panel' data-panel='cliente-effi'></section>
-    <section class='panel' data-panel='pedido-effi'></section>
     <section class='panel' data-panel='club'></section>
     <section class='panel cartera-panel' data-panel='cartera'>
       <div id='cartera-app' class='inventory-shell ct-shell'><p class='ct-empty'>Cargando control de cartera…</p></div>
@@ -5868,7 +6759,7 @@ def home(_=Depends(authenticate)):
     const completedCleanup=new Set();function resetCompletedFlows(){{['reprogramacion','pedido'].forEach(kind=>{{const id=currentId(kind);if(!id||completedCleanup.has(kind+':'+id))return;const job=allJobs.find(item=>item.id===id);if(!job||job.status!=='COMPLETADO')return;completedCleanup.add(kind+':'+id);setTimeout(()=>{{if(currentId(kind)!==id)return;localStorage.removeItem(currentKeys[kind]);if(kind==='reprogramacion'){{form.reset();selected.textContent='';selected.classList.remove('show');drop.classList.remove('has-file','drag');form.querySelectorAll('.has-file').forEach(row=>row.classList.remove('has-file'));document.getElementById('repro-extras-label').textContent='Opcional · selecciona una o varias imágenes';resetProgressButton(submit,'Procesar documento');submit.disabled=true;message.textContent='';message.className='message'}}else{{orderForm.reset();orderForm.querySelectorAll('.has-file').forEach(row=>row.classList.remove('has-file'));checkOrder();resetProgressButton(orderSubmit,'Procesar pedido');orderSubmit.disabled=true;orderMessage.textContent='';orderMessage.className='message'}}refresh()}},2200)}})}}setInterval(resetCompletedFlows,500);
     document.querySelectorAll('.refresh').forEach(b=>b.addEventListener('click',refresh)); form.addEventListener('submit',async e=>{{e.preventDefault();submit.disabled=true;submit.classList.add('is-progress');submit.style.setProperty('--creator-progress','5%');submit.textContent='Enviando documento · 5%';show('Documento recibido. Iniciando el proceso…','ok');try{{const r=await fetch('/procesar',{{method:'POST',body:new FormData(form)}});const data=await r.json();if(!r.ok)throw new Error(data.detail||'No se pudo procesar');remember('reprogramacion',data.id);show('Orden enviada. El avance se actualizará en tiempo real.','ok');form.reset();selected.classList.remove('show');drop.classList.remove('has-file');form.querySelectorAll('.has-file').forEach(row=>row.classList.remove('has-file'));await refresh()}}catch(err){{resetProgressButton(submit,'Procesar documento');submit.disabled=!input.files.length;show(err.message,'error')}}}});
     const productionZoomSelect=document.getElementById('production-zoom'),productionZoomInput=document.createElement('input');productionZoomInput.id='production-zoom';productionZoomInput.className='production-zoom';productionZoomInput.type='number';productionZoomInput.min='25';productionZoomInput.max='200';productionZoomInput.step='1';productionZoomInput.value=String(Math.round(Number(productionZoomSelect.value||1)*100));productionZoomInput.setAttribute('aria-label','Tamaño de la tabla en porcentaje');productionZoomInput.title='Escribe cualquier porcentaje entre 25 y 200';productionZoomSelect.replaceWith(productionZoomInput);
-    const productionSearch=document.getElementById('production-search'),productionZoom=document.getElementById('production-zoom'),productionTable=document.getElementById('production-table'),productionHead=document.getElementById('production-head'),productionBody=document.getElementById('production-body'),productionStatus=document.getElementById('production-status'),productionEmpty=document.getElementById('production-empty'),productionRefresh=document.getElementById('production-refresh'),productionTableWrap=document.getElementById('production-table-wrap'),productionXScroll=document.getElementById('production-x-scroll'),productionXScrollInner=document.getElementById('production-x-scroll-inner');let productionData=null,productionTimer=null,productionScrollSync=false;
+    const productionSearch=document.getElementById('production-search'),productionZoom=document.getElementById('production-zoom'),productionTable=document.getElementById('production-table'),productionHead=document.getElementById('production-head'),productionBody=document.getElementById('production-body'),productionStatus=document.getElementById('production-status'),productionEmpty=document.getElementById('production-empty'),productionRefresh=document.getElementById('production-refresh'),productionTableWrap=document.getElementById('production-table-wrap'),productionXScroll=document.getElementById('production-x-scroll'),productionXScrollInner=document.getElementById('production-x-scroll-inner');let productionData=null,productionTimer=null,productionScrollSync=false,productionRealtimeEtag='',productionRealtimeFingerprint='';const productionFingerprint=data=>JSON.stringify({{headers:data?.headers||[],groups:data?.groups||[],rows:data?.rows||[],notes:data?.notes||{{}}}});
     function productionGroupSegments(groups){{const result=[];(groups||[]).forEach(name=>{{const label=String(name||'GENERAL').replace(/^["']|["']$/g,'').trim()||'GENERAL',last=result[result.length-1];if(last&&last.label===label)last.count+=1;else result.push({{label,count:1}})}});return result}}
     function productionCellClass(value,header){{const text=String(value||'').trim().toUpperCase(),title=String(header||'').trim().toUpperCase(),number=Number(text.replace(',','.').replace(/[^0-9.-]/g,''));if((title.includes('DÍAS ENTREGA FINAL')||title.includes('DIAS ENTREGA FINAL'))&&text&&Number.isFinite(number))return 'delivery-days-cell '+(number<=9?'semaphore-red':number<=14?'semaphore-orange':'semaphore-green');if(title.includes('FECHA')&&text)return 'semaphore-green';if(text==='P')return 'semaphore-orange';if(text==='R')return 'semaphore-red';if(title==='ESTADO'&&text&&Number.isFinite(number))return number<0?'semaphore-red':number===0?'semaphore-yellow':'semaphore-green';if(['SI','SÍ','OK','COMPLETADO','FINALIZADO'].includes(text))return 'semaphore-green';if(text==='NO'||text==='VENCIDO'||text==='ATRASADO')return 'semaphore-red';if((title.includes('RESP')||title==='LINEA'||title==='LÍNEA'||title==='TELA')&&text)return 'cell-chip';return ''}}
     const productionResponsibles=[['','Sin asignar'],['EJ','Ediht Johana Londoño'],['AP','Alejandro Padilla'],['AL','Andrés López'],['AU','Augusto López'],['CC','Carlos Cáceres'],['DB','Dagoberto Botero'],['EE','Edwin Espinosa'],['ES','Esteban Estrada'],['HL','Hesleidy Londoño'],['JP','Jeison Padilla'],['JO','Julian Ocampo'],['JD','Juliana Diaz'],['SV','Santiago Vásquez'],['SG','Sebastian Gallo'],['SS','Stiven Sánchez'],['DD','Dairo Diaz'],['YS','Yenifer Sánchez Arcila'],['G','Gloria'],['DH','David Hincapie'],['GP','Geovanny Piedrahita'],['BOT','Automatización'],['DG','Daniel Gonzales']];
@@ -5953,8 +6844,10 @@ body.production-mode .production-row-tools{{gap:6px}}
 body.production-mode .production-row-open{{background:#26311c!important;border-color:#58673f!important;color:#d1e2b2!important;box-shadow:none!important;font-weight:600}}
 body.production-mode .production-drag-handle{{box-shadow:none;border-color:#4f5d3e;background:#1b2516;color:#9cab86}}
 body.production-mode .production-delete-row{{box-shadow:none!important;background:transparent!important;border-color:#67483d!important;color:#d8a293!important}}
-body.production-mode .production-tools-menu{{position:relative}}
-body.production-mode .production-tools-popover{{position:absolute;right:0;top:42px;z-index:120;background:#1c2517;padding:10px;border:1px solid #596745;border-radius:9px;box-shadow:0 10px 25px #0008;min-width:185px}}
+    body.production-mode .production-tools-menu{{position:relative;z-index:9990;isolation:isolate;overflow:visible;pointer-events:auto}}
+    body.production-mode .production-tools-menu summary{{pointer-events:auto;user-select:none}}
+    body.production-mode .production-tools-popover{{position:fixed;right:18px;top:118px;z-index:2147483647;display:block;background:#1c2517;padding:10px;border:1px solid #596745;border-radius:9px;box-shadow:0 10px 25px #0008;min-width:220px;max-width:calc(100vw - 36px);pointer-events:auto}}
+    body.production-mode .production-tools-menu:not([open]) .production-tools-popover{{display:none}}
 .sheets-sync-box{{margin-top:10px;padding-top:10px;border-top:1px solid #3a4530;display:grid;gap:6px}}
 .sheets-sync-box strong{{font-size:.72rem;letter-spacing:.04em;text-transform:uppercase;color:#c7d1b8}}
 .sheets-sync-box p{{margin:0;font-size:.72rem;line-height:1.4;color:#a9b599}}
@@ -6036,13 +6929,13 @@ async function saveProductionCell(cell,value,original){{let reason=null;const he
     function displayProductionDate(value){{const date=scheduleParseDate(value);return date?String(date.getDate()).padStart(2,'0')+'-'+productionMonthNames[date.getMonth()]+'-'+String(date.getFullYear()).slice(-2):value}}
     function productionDateShortcut(now,withTime=false,timeOnly=false){{const parts=new Intl.DateTimeFormat('en-CA',{{timeZone:'America/Bogota',day:'2-digit',month:'2-digit',year:'numeric'}}).formatToParts(now),get=type=>parts.find(p=>p.type===type).value,date=get('day')+'-'+productionMonthNames[Number(get('month'))-1]+'-'+get('year').slice(-2),time=new Intl.DateTimeFormat('es-CO',{{timeZone:'America/Bogota',hour:'2-digit',minute:'2-digit',hour12:false}}).format(now);return timeOnly?time:withTime?date+' '+time:date}}
     async function editProductionCell(cell){{if(cell.classList.contains('is-editing')||cell.classList.contains('delivery-days-cell')||cell.querySelector('select'))return;const storedRow=productionData.rows.find(row=>String(row.source_row)===cell.dataset.row),original=String(storedRow?.values[Number(cell.dataset.column)-1]??''),input=document.createElement('input');input.className='production-cell-input';input.value=original;cell.classList.add('is-editing');cell.textContent='';cell.appendChild(input);input.focus();input.select();let finished=false;const finish=async save=>{{if(finished)return;finished=true;const value=input.value;cell.classList.remove('is-editing');cell.textContent=save?value:original;if(save&&value!==original){{const ok=await saveProductionCell(cell,value,original);if(!ok)cell.textContent=original;else setTimeout(renderProduction,120)}}}};input.addEventListener('keydown',event=>{{if(event.ctrlKey&&event.code==='Semicolon'){{event.preventDefault();const now=new Date();input.value=productionDateShortcut(now,event.altKey,event.shiftKey&&!event.altKey);return}}if(event.key==='Enter'){{event.preventDefault();input.blur()}}else if(event.key==='Escape'){{event.preventDefault();finished=true;cell.classList.remove('is-editing');cell.textContent=original}}}});input.addEventListener('blur',()=>finish(true))}}
-    async function loadProduction(force=false){{productionRefresh.disabled=true;productionRefresh.textContent='Actualizando…';productionStatus.textContent='Cargando base local…';try{{const response=await fetch('/api/produccion'+(force?'?force=true':''));const data=await response.json();if(!response.ok)throw new Error(data.detail||'No se pudo consultar Producción');productionData=data;renderProduction()}}catch(error){{productionStatus.textContent=error.message;productionEmpty.hidden=false;productionEmpty.textContent='No fue posible cargar la información de producción.'}}finally{{productionRefresh.disabled=false;productionRefresh.textContent='Actualizar'}}}}
+    async function loadProduction(force=false){{productionRefresh.disabled=true;productionRefresh.textContent='Actualizando…';productionStatus.textContent='Cargando base local…';try{{const response=await fetch('/api/produccion'+(force?'?force=true':''));const data=await response.json();if(!response.ok)throw new Error(data.detail||'No se pudo consultar Producción');productionRealtimeEtag=response.headers.get('etag')||'';productionRealtimeFingerprint=productionFingerprint(data);productionData=data;renderProduction()}}catch(error){{productionStatus.textContent=error.message;productionEmpty.hidden=false;productionEmpty.textContent='No fue posible cargar la información de producción.'}}finally{{productionRefresh.disabled=false;productionRefresh.textContent='Actualizar'}}}}
     const savedProductionZoom=Number(localStorage.getItem('indoor-production-zoom'));if(Number.isFinite(savedProductionZoom)&&savedProductionZoom>=.25&&savedProductionZoom<=2)productionZoom.value=String(Math.round(savedProductionZoom*100));function applyProductionZoom(){{const percent=Math.min(200,Math.max(25,Number(productionZoom.value)||100)),scale=percent/100;productionZoom.value=String(percent);productionTable.style.setProperty('--production-zoom',scale);localStorage.setItem('indoor-production-zoom',String(scale));requestAnimationFrame(()=>{{freezeProductionColumns();syncProductionWidth()}})}}applyProductionZoom();productionZoom.addEventListener('change',applyProductionZoom);productionZoom.addEventListener('keydown',event=>{{if(event.key==='Enter'){{event.preventDefault();applyProductionZoom();productionZoom.blur()}}}});productionSearch.addEventListener('input',()=>{{clearTimeout(productionTimer);productionTimer=setTimeout(renderProduction,220)}});productionRefresh.addEventListener('click',()=>loadProduction(true));productionBody.addEventListener('dblclick',event=>{{const cell=event.target.closest('td[data-row]');if(cell)editProductionCell(cell)}});productionBody.addEventListener('click',event=>{{const row=event.target.closest('tr');if(!row)return;productionBody.querySelectorAll('tr.is-selected').forEach(item=>item.classList.remove('is-selected'));row.classList.add('is-selected')}});productionBody.addEventListener('change',async event=>{{const select=event.target.closest('.production-resp-select');if(!select)return;const cell=select.closest('td'),original=select.dataset.original,value=select.value,ok=await saveProductionCell(cell,value,original);if(ok){{select.dataset.original=value;if(select.classList.contains('production-line-select')||select.classList.contains('production-applique-select'))renderProduction()}}else select.value=original}});let productionScrollFrame=0,productionScrollSource=null;function scheduleProductionScroll(source){{productionScrollSource=source;if(productionScrollFrame)return;productionScrollFrame=requestAnimationFrame(()=>{{productionScrollFrame=0;productionScrollSync=true;if(productionScrollSource===productionXScroll)productionTableWrap.scrollLeft=productionXScroll.scrollLeft;else productionXScroll.scrollLeft=productionTableWrap.scrollLeft;productionScrollSync=false}})}}productionXScroll.addEventListener('scroll',()=>{{if(!productionScrollSync)scheduleProductionScroll(productionXScroll)}},{{passive:true}});productionTableWrap.addEventListener('scroll',()=>{{if(!productionScrollSync)scheduleProductionScroll(productionTableWrap)}},{{passive:true}});
     let productionActiveCell=null;productionBody.addEventListener('click',event=>{{const cell=event.target.closest('td[data-row]');if(!cell)return;if(productionActiveCell)productionActiveCell.classList.remove('is-active-cell');productionActiveCell=cell;cell.classList.add('is-active-cell')}});document.addEventListener('keydown',async event=>{{if(!event.ctrlKey||event.code!=='Semicolon'||!productionActiveCell||productionActiveCell.classList.contains('delivery-days-cell')||productionActiveCell.querySelector('input,select'))return;event.preventDefault();const cell=productionActiveCell,original=cell.textContent,now=new Date(),value=productionDateShortcut(now,event.altKey,event.shiftKey&&!event.altKey);cell.textContent=value;const ok=await saveProductionCell(cell,value,original);if(ok)setTimeout(renderProduction,120);else cell.textContent=original}});
     const menuToggle=document.getElementById('menu-toggle'),commercialToggle=document.getElementById('commercial-toggle');function syncMenuButton(){{if(window.innerWidth<=860){{const open=document.body.classList.contains('menu-open');menuToggle.setAttribute('aria-expanded',String(open));menuToggle.setAttribute('aria-label',open?'Cerrar menú':'Abrir menú');menuToggle.textContent=open?'×':'☰'}}else{{const hidden=document.body.classList.contains('sidebar-hidden');menuToggle.setAttribute('aria-expanded',String(!hidden));menuToggle.setAttribute('aria-label',hidden?'Mostrar menú':'Ocultar menú');menuToggle.textContent=hidden?'☰':'‹'}}}}if(localStorage.getItem('indoor-sidebar-hidden')==='1')document.body.classList.add('sidebar-hidden');syncMenuButton();menuToggle.addEventListener('click',()=>{{if(window.innerWidth<=860)document.body.classList.toggle('menu-open');else{{const hidden=document.body.classList.toggle('sidebar-hidden');localStorage.setItem('indoor-sidebar-hidden',hidden?'1':'0')}}syncMenuButton()}});window.addEventListener('resize',()=>{{syncMenuButton();requestAnimationFrame(freezeProductionColumns)}});commercialToggle.addEventListener('click',()=>{{const g=commercialToggle.closest('.nav-group');g.classList.toggle('collapsed');if(!g.classList.contains('collapsed')&&window.innerWidth>860)g.querySelector('.nav-children .tab')?.click()}});
     document.getElementById('news-toggle').addEventListener('click',()=>{{const g=document.getElementById('news-toggle').closest('.nav-group');g.classList.toggle('collapsed');if(!g.classList.contains('collapsed')&&window.innerWidth>860)g.querySelector('.nav-children .tab')?.click()}});
     const inventoryStyle=document.createElement('style');inventoryStyle.textContent='.inventory-shell{{gap:16px;min-height:calc(100vh - 150px)}}.inventory-hero,.inventory-category-grid{{display:none!important}}.inventory-table-card{{min-height:calc(100vh - 190px);display:flex;flex-direction:column}}.inventory-cards-wrap{{max-height:none;height:calc(100vh - 285px);flex:1;overflow-y:auto}}.inventory-cards-grid{{grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:20px}}.inventory-item-card{{display:grid;align-content:start;gap:10px;min-height:220px;padding:22px;border-radius:18px;background:linear-gradient(155deg,#1a2418,#0e140f);border:1px solid #46563f;box-shadow:0 12px 24px rgba(0,0,0,.18)}}.inventory-item-card:hover{{border-color:#d0f44c;transform:translateY(-2px)}}.inventory-item-card .inv-name{{font-size:1.08rem;min-height:48px}}.inventory-item-card .inv-color{{color:#9fb584;font-size:.78rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;margin-top:-4px}}.inventory-item-card .inv-total{{font-size:2rem}}.inv-summary{{display:flex;align-items:baseline;justify-content:space-between;gap:8px;border-bottom:1px solid rgba(255,255,255,.08);padding-bottom:8px}}.inv-summary strong{{color:#e5ff83;font:bold 1.45rem Arial}}.inv-summary span{{color:#c8d5bd;font:800 .82rem Arial;white-space:nowrap}}.inv-rolls{{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;padding-top:10px;border-top:1px solid rgba(255,255,255,.08)}}.inv-rolls span{{display:grid;place-items:center;min-width:38px;height:38px;padding:0 6px;border:1px solid #8ca35a;border-radius:50%;background:#1f2c1b;color:#e5f6b8;font:800 13px Arial}}@media(max-width:600px){{.inventory-shell{{min-height:calc(100vh - 120px)}}.inventory-table-card{{min-height:calc(100vh - 155px)}}.inventory-cards-wrap{{height:calc(100vh - 260px)}}.inventory-cards-grid{{grid-template-columns:1fr}}}}';document.head.appendChild(inventoryStyle);
-    document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{{document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===t));document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.dataset.panel===t.dataset.kind));document.body.classList.toggle('inventory-mode',t.dataset.kind==='inventario');document.body.classList.toggle('production-mode',t.dataset.kind==='produccion');document.body.classList.toggle('inicio-mode',t.dataset.kind==='inicio');document.body.classList.toggle('schedule-mode',t.dataset.kind==='cronograma');document.body.classList.toggle('operarios-mode',t.dataset.kind==='operarios');document.body.classList.toggle('cartera-mode',t.dataset.kind==='cartera');if(t.dataset.kind==='inventario'&&!inventoryData)loadInventory();if(t.dataset.kind==='produccion')loadProduction();if(t.dataset.kind==='cronograma')loadSchedule();if(t.dataset.kind==='operarios')loadOperators();if(t.dataset.kind==='cartera'&&!carteraLoaded){{carteraLoaded=true;loadCartera();}}if(window.innerWidth<=860){{document.body.classList.remove('menu-open');syncMenuButton()}}}}));
+    document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{{document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===t));document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.dataset.panel===t.dataset.kind));document.body.classList.toggle('inventory-mode',t.dataset.kind==='inventario');document.body.classList.toggle('production-mode',t.dataset.kind==='produccion');document.body.classList.toggle('inicio-mode',t.dataset.kind==='inicio');document.body.classList.toggle('schedule-mode',t.dataset.kind==='cronograma');document.body.classList.toggle('operarios-mode',t.dataset.kind==='operarios');document.body.classList.toggle('cartera-mode',t.dataset.kind==='cartera');if(t.dataset.kind==='inventario'&&!inventoryData)loadInventory();if(t.dataset.kind==='produccion'&&!productionData)loadProduction();if(t.dataset.kind==='cronograma')loadSchedule();if(t.dataset.kind==='operarios')loadOperators();if(t.dataset.kind==='cartera'&&!carteraLoaded){{carteraLoaded=true;loadCartera();}}if(window.innerWidth<=860){{document.body.classList.remove('menu-open');syncMenuButton()}}}}));
     const inventoryNav=document.querySelector('.tab[data-kind="inventario"]'),productionGroup=document.getElementById('production-toggle')?.closest('.nav-group');if(inventoryNav&&productionGroup){{const inventoryGroup=document.createElement('div'),inventoryChildren=document.createElement('div'),inventoryWindows=[['BODEGA TELA','STOCK TELA'],['STOCK PARA MERCAR','STOCK PARA MERCAR'],['INSUMOS','INSUMOS'],['MATERIA PRIMA IMPRESION','MATERIA PRIMA IMPRESIÓN'],['RETAL CANASTAS','RETAL CANASTAS']];inventoryGroup.className='nav-group collapsed';inventoryGroup.innerHTML='<button class="nav-parent" type="button"><span class="nav-icon">IV</span><span>INVENTARIOS</span></button>';inventoryChildren.className='nav-children';inventoryWindows.forEach(([category,label])=>{{const button=document.createElement('button');button.type='button';button.className='tab';button.innerHTML='<span class="nav-icon">SH</span><strong>'+label+'</strong>';button.onclick=()=>{{inventoryNav.click();document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===button));inventoryRequestedCategory=category;inventoryCategory=category;if(inventoryData)inventoryRender()}};inventoryChildren.appendChild(button)}});inventoryNav.remove();inventoryGroup.appendChild(inventoryChildren);productionGroup.insertAdjacentElement('afterend',inventoryGroup);inventoryGroup.querySelector('.nav-parent').onclick=()=>inventoryGroup.classList.toggle('collapsed');}}
     const inventoryBody=document.getElementById('inventory-body'),inventoryCategories=document.getElementById('inventory-categories'),inventoryStatus=document.getElementById('inventory-status'),inventorySearch=document.getElementById('inventory-search'),inventoryRefresh=document.getElementById('inventory-refresh');let inventoryData=null,inventoryCategory='',inventoryRequestedCategory='';const inventoryEscape=value=>String(value??'').replace(/[&<>"']/g,char=>({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}}[char]));const inventoryFormat=value=>new Intl.NumberFormat('es-CO',{{maximumFractionDigits:2}}).format(Number(value)||0);function inventoryRender(){{if(!inventoryData)return;const query=inventorySearch.value.trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();const rows=(inventoryData.items||[]).filter(item=>{{const matchesCategory=!inventoryCategory||item.categoria===inventoryCategory;const haystack=(item.nombre+' '+item.categoria_label).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();return matchesCategory&&(!query||haystack.includes(query))}});inventoryBody.innerHTML=rows.length?rows.map((item,i)=>`<article class="inventory-item-card" style="animation-delay:${{Math.min(i*15,600)}}ms"><span class="inv-badge">${{inventoryEscape(item.categoria_label)}}</span><strong class="inv-name">${{inventoryEscape(item.nombre)}}</strong><span class="inv-total">${{inventoryEscape(item.total_label)}}</span><span class="inv-unit">${{inventoryEscape(item.unidad||'unidades')}}</span></article>`).join(''):'<div class="inventory-empty">No hay artículos que coincidan con los filtros.</div>';inventoryStatus.textContent=`${{rows.length}} de ${{inventoryData.summary?.items||rows.length}} referencias${{inventoryCategory?' · '+((inventoryData.categories||[]).find(category=>category.key===inventoryCategory)?.label||inventoryCategory):''}}`;inventoryCategories.querySelectorAll('[data-inventory-category]').forEach(card=>card.classList.toggle('active',card.dataset.inventoryCategory===inventoryCategory));}}function inventoryRenderSummary(){{inventoryCategories.innerHTML=(inventoryData.categories||[]).filter(category=>category.available&&category.key!=='DOCUMENTACION PROCESO').map(category=>`<button type="button" class="inventory-category" data-inventory-category="${{inventoryEscape(category.key)}}"><small>${{inventoryEscape(category.label)}}</small><b>${{inventoryFormat(category.items)}}</b><span>refs · ${{inventoryEscape(category.units_label)}} und.</span></button>`).join('');inventoryCategories.querySelectorAll('[data-inventory-category]').forEach(card=>card.addEventListener('click',()=>{{inventoryCategory=inventoryCategory===card.dataset.inventoryCategory?'':card.dataset.inventoryCategory;inventoryRender()}}));inventoryRender()}}async function loadInventory(force=false){{inventoryRefresh.disabled=true;inventoryRefresh.textContent='Actualizando…';inventoryStatus.textContent='Leyendo inventario local…';try{{const response=await fetch('/api/inventarios'+(force?'?refresh=true':'')),data=await response.json();if(!response.ok)throw new Error(data.detail||'No fue posible cargar Inventarios');inventoryData=data;inventoryCategory=inventoryRequestedCategory;inventoryRequestedCategory='';inventoryRenderSummary();const time=new Intl.DateTimeFormat('es-CO',{{dateStyle:'short',timeStyle:'short'}}).format(new Date(data.updated_at));inventoryStatus.textContent=`${{data.summary?.items||data.items?.length||0}} referencias disponibles · inventario local · actualizado ${{time}}`}}catch(error){{inventoryBody.innerHTML=`<div class="inventory-empty">${{inventoryEscape(error.message)}}</div>`;inventoryCategories.innerHTML='';inventoryStatus.textContent='Inventarios no disponibles'}}finally{{inventoryRefresh.disabled=false;inventoryRefresh.textContent='↻ Actualizar'}}}}inventorySearch.addEventListener('input',inventoryRender);inventoryRefresh.addEventListener('click',()=>loadInventory(true));setTimeout(()=>{{if(inventoryBody?.textContent.includes('Cargando'))loadInventory()}},200);
     const bodegaShortcut=document.querySelector('.nav-children .tab strong')?.closest('.tab');
@@ -6050,7 +6943,7 @@ async function saveProductionCell(cell,value,original){{let reason=null;const he
     document.addEventListener('click',event=>{{const tab=event.target.closest('.nav-children .tab');if(!tab||!tab.textContent.toUpperCase().includes('STOCK TELA'))return;event.preventDefault();event.stopPropagation();document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===tab));document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.dataset.panel==='inventario'));document.body.classList.add('inventory-mode');document.body.classList.remove('inicio-mode','production-mode','schedule-mode','operarios-mode','cartera-mode');inventoryCategory='BODEGA TELA';inventoryRequestedCategory='BODEGA TELA';if(!inventoryData)loadInventory();else inventoryRender();}});
     const orderForm=document.getElementById('order-form'),pdf=document.getElementById('pedido-pdf'),excel=document.getElementById('pedido-excel'),extras=document.getElementById('pedido-extras'),orderSubmit=document.getElementById('order-submit'),orderMessage=document.getElementById('order-message');
     function checkOrder(){{document.getElementById('pdf-label').textContent=pdf.files[0]?.name||'Seleccionar cotización o remisión';document.getElementById('excel-label').textContent=excel.files[0]?.name||'Seleccionar archivo .xlsx o .xlsm';document.getElementById('extras-label').textContent=extras.files.length?extras.files.length+' anexo(s) seleccionado(s)':'Imágenes u otros archivos del pedido';orderSubmit.disabled=!(pdf.files.length&&excel.files.length)}} [pdf,excel,extras].forEach(x=>x.addEventListener('change',()=>{{checkOrder();if(pdf.files.length||excel.files.length){{localStorage.removeItem(currentKeys.pedido);resetProgressButton(orderSubmit,'Procesar pedido')}}}}));
-    orderForm.addEventListener('submit',async e=>{{e.preventDefault();orderSubmit.disabled=true;orderSubmit.classList.add('is-progress');orderSubmit.style.setProperty('--creator-progress','5%');orderSubmit.textContent='Enviando archivos · 5%';orderMessage.textContent='Archivos recibidos. Validando la orden…';orderMessage.className='message show ok';try{{const r=await fetch('/procesar/pedido',{{method:'POST',body:new FormData(orderForm)}});const data=await r.json();if(!r.ok)throw new Error(data.detail||'No se pudo procesar el pedido');remember('pedido',data.id);orderMessage.textContent='Pedido enviado. El avance se actualizará en tiempo real.';orderForm.reset();orderForm.querySelectorAll('.has-file').forEach(row=>row.classList.remove('has-file'));checkOrder();await refresh()}}catch(err){{resetProgressButton(orderSubmit,'Procesar pedido');checkOrder();orderMessage.textContent=err.message;orderMessage.className='message show error'}}}}); refresh();setInterval(refresh,750);
+    orderForm.addEventListener('submit',async e=>{{e.preventDefault();orderSubmit.disabled=true;orderSubmit.classList.add('is-progress');orderSubmit.style.setProperty('--creator-progress','5%');orderSubmit.textContent='Enviando archivos · 5%';orderMessage.textContent='Archivos recibidos. Validando la orden…';orderMessage.className='message show ok';try{{const r=await fetch('/procesar/pedido',{{method:'POST',body:new FormData(orderForm)}});const data=await r.json();if(!r.ok)throw new Error(data.detail||'No se pudo procesar el pedido');remember('pedido',data.id);orderMessage.textContent='Pedido enviado. El avance se actualizará en tiempo real.';orderForm.reset();orderForm.querySelectorAll('.has-file').forEach(row=>row.classList.remove('has-file'));checkOrder();await refresh()}}catch(err){{resetProgressButton(orderSubmit,'Procesar pedido');checkOrder();orderMessage.textContent=err.message;orderMessage.className='message show error'}}}}); const procesoActivo=()=>['reprogramacion','pedido','creador'].includes(document.querySelector('.tab.active')?.dataset.kind);if(procesoActivo())refresh();setInterval(()=>{{if(procesoActivo())refresh()}},3000);
     const creatorForm=document.getElementById('creator-form'),creatorName=document.getElementById('creator-name'),dataInput=document.getElementById('datos-listado'),creatorInputs=[1,2,3,4].map(n=>document.getElementById('d'+n)),creatorSubmit=document.getElementById('creator-submit'),creatorMessage=document.getElementById('creator-message'),addMockup=document.getElementById('add-mockup'),mockupSlots=[...document.querySelectorAll('.mockup-slot')],extraSheets=document.getElementById('extra-sheets'),addExcelSheet=document.getElementById('add-excel-sheet');
     const mockupHints=['Opcional · JPG o PNG · celda S3','Opcional · JPG o PNG · celda Y3','Opcional · JPG o PNG · celda AE3','Opcional · JPG o PNG · celda AK3'];
     function updateMockupButton(){{const hidden=mockupSlots.filter(slot=>slot.hidden);addMockup.hidden=!hidden.length;addMockup.textContent=hidden.length?'＋ Agregar otro mockup':''}}
@@ -6162,7 +7055,7 @@ const scheduleDayIndex={{}};let scheduleDaysOffset=0;
 document.getElementById('schedule-days-prev').addEventListener('click',()=>{{scheduleDaysOffset-=7;renderDayCards()}});
 document.getElementById('schedule-days-next').addEventListener('click',()=>{{scheduleDaysOffset+=7;renderDayCards()}});
 document.getElementById('schedule-days-today').addEventListener('click',()=>{{scheduleDaysOffset=0;renderDayCards()}});
-async function renderDayCards(){{if(!productionData)return;const today=scheduleToday(),todayISO=scheduleISO(today),all=scheduleOrders(),slots=[],pending=[];const base=new Date(today);base.setDate(today.getDate()+scheduleDaysOffset);const rangeEnd=new Date(base);rangeEnd.setDate(base.getDate()+7);document.getElementById('schedule-days-range').textContent=scheduleDaysOffset===0?'':'· '+base.toLocaleDateString('es-CO',{{day:'numeric',month:'short'}})+' — '+rangeEnd.toLocaleDateString('es-CO',{{day:'numeric',month:'short'}});document.getElementById('schedule-days-today').setAttribute('aria-pressed',String(scheduleDaysOffset===0));for(let n=0;n<8;n++){{const d=new Date(base);d.setDate(base.getDate()+n);const iso=scheduleISO(d),items=all.filter(i=>scheduleISO(i.date)===iso).sort((a,b)=>a.order.localeCompare(b.order));let idx=scheduleDayIndex[iso]||0;if(idx>=items.length)idx=0;scheduleDayIndex[iso]=idx;const item=items[idx];slots.push({{d,iso,items,item,idx}});if(item&&item.sourceRow!=null&&!traceAssets.has(item.sourceRow)&&!traceAssetBusy.has(item.sourceRow))pending.push(loadTraceAssets(item.sourceRow))}}if(pending.length)await Promise.all(pending);const cards=slots.map(({{d,iso,items,item,idx}})=>{{let mockup='';if(item){{const asset=item.sourceRow!=null?traceAssets.get(item.sourceRow):null;const image=asset&&!asset.error&&asset.images&&asset.images[0];mockup=image?'<div class="schedule-daycard-mockup"><img loading="lazy" src="'+esc(image.url)+'" alt="'+esc(image.name||'Diseño')+'"></div>':'<div class="schedule-daycard-mockup empty">'+(asset?'Sin diseño adjunto':'Cargando diseño…')+'</div>'}}const dayStateColor={{finished:'#8bd450',active:'#6cb6ff',rework:'#ff6b6b',pending:'#4b5648'}},dayStateLabel={{finished:'Terminado',active:'En proceso',rework:'Reproceso',pending:'Pendiente'}};const dots=item?(item.states||[]).map(st=>'<i style="background:'+dayStateColor[st.state]+'" title="'+esc(st.label+': '+dayStateLabel[st.state])+'"></i>').join(''):'';const progress=item?'<div class="schedule-daycard-progress"><div class="schedule-card-dots">'+dots+'</div><div class="schedule-card-progress"><span><b style="width:'+(item.percent||0)+'%"></b></span><em>'+(item.percent||0)+'%</em></div><div class="schedule-card-focus"><i style="background:'+(item.focus?dayStateColor[item.focus.state]:'#4b5648')+'"></i>'+(item.focus?esc(item.focus.label)+' · '+dayStateLabel[item.focus.state]:'Sin proceso pendiente')+'</div></div>':'';const body=item?mockup+'<div class="schedule-daycard-fields"><div><span>CLIENTE</span><b>'+esc(item.client||'Sin cliente')+'</b></div><div><span>PROYECTO</span><b>'+esc(item.project||'—')+'</b></div><div><span>ORDEN</span><b>'+esc(item.order)+'</b></div><div><span>CANTIDAD</span><b>'+item.units.toLocaleString('es-CO')+' und.'+(item.delivered?' · Entregado':'')+'</b></div></div>'+progress:'<div class="schedule-daycard-empty">Sin entregas</div>';const pager=items.length>1?'<div class="schedule-daycard-pager"><button type="button" data-daynav="prev" data-iso="'+iso+'" aria-label="Entrega anterior">‹</button><span>'+(idx+1)+'/'+items.length+'</span><button type="button" data-daynav="next" data-iso="'+iso+'" aria-label="Entrega siguiente">›</button></div>':'';return '<div class="schedule-daycard'+(iso===todayISO?' is-today':'')+(scheduleStatFilter==='day|'+iso?' active':'')+'" data-iso="'+iso+'"><div class="schedule-daycard-head"><span class="schedule-daycard-dow">'+d.toLocaleDateString('es-CO',{{weekday:'short'}}).replace('.','')+'</span><span class="schedule-daycard-num">'+d.getDate()+'</span><b>'+items.length+'</b></div>'+(items.length>1?'<div class="sch-day-picks">'+items.map((it,j)=>'<button type="button" class="'+scheduleTone(it,today)+(j===idx?' on':'')+'" data-daypick="'+j+'" data-iso="'+iso+'" title="'+esc(it.order+' · '+(it.client||'Sin cliente'))+'" aria-label="Ver '+esc(it.order)+'"></button>').join('')+'</div>':'')+body+pager+'</div>'}});document.getElementById('schedule-days').innerHTML=cards.join('')}}
+async function renderDayCards(){{if(!productionData||document.querySelector('.tab.active')?.dataset.kind!=='cronograma')return;const today=scheduleToday(),todayISO=scheduleISO(today),all=scheduleOrders(),slots=[],pending=[];const base=new Date(today);base.setDate(today.getDate()+scheduleDaysOffset);const rangeEnd=new Date(base);rangeEnd.setDate(base.getDate()+7);document.getElementById('schedule-days-range').textContent=scheduleDaysOffset===0?'':'· '+base.toLocaleDateString('es-CO',{{day:'numeric',month:'short'}})+' — '+rangeEnd.toLocaleDateString('es-CO',{{day:'numeric',month:'short'}});document.getElementById('schedule-days-today').setAttribute('aria-pressed',String(scheduleDaysOffset===0));for(let n=0;n<8;n++){{const d=new Date(base);d.setDate(base.getDate()+n);const iso=scheduleISO(d),items=all.filter(i=>scheduleISO(i.date)===iso).sort((a,b)=>a.order.localeCompare(b.order));let idx=scheduleDayIndex[iso]||0;if(idx>=items.length)idx=0;scheduleDayIndex[iso]=idx;const item=items[idx];slots.push({{d,iso,items,item,idx}});if(item&&item.sourceRow!=null&&!traceAssets.has(item.sourceRow)&&!traceAssetBusy.has(item.sourceRow))pending.push(loadTraceAssets(item.sourceRow))}}if(pending.length)await Promise.all(pending);const cards=slots.map(({{d,iso,items,item,idx}})=>{{let mockup='';if(item){{const asset=item.sourceRow!=null?traceAssets.get(item.sourceRow):null;const image=asset&&!asset.error&&asset.images&&asset.images[0];mockup=image?'<div class="schedule-daycard-mockup"><img loading="lazy" src="'+esc(image.url)+'" alt="'+esc(image.name||'Diseño')+'"></div>':'<div class="schedule-daycard-mockup empty">'+(asset?'Sin diseño adjunto':'Cargando diseño…')+'</div>'}}const dayStateColor={{finished:'#8bd450',active:'#6cb6ff',rework:'#ff6b6b',pending:'#4b5648'}},dayStateLabel={{finished:'Terminado',active:'En proceso',rework:'Reproceso',pending:'Pendiente'}};const dots=item?(item.states||[]).map(st=>'<i style="background:'+dayStateColor[st.state]+'" title="'+esc(st.label+': '+dayStateLabel[st.state])+'"></i>').join(''):'';const progress=item?'<div class="schedule-daycard-progress"><div class="schedule-card-dots">'+dots+'</div><div class="schedule-card-progress"><span><b style="width:'+(item.percent||0)+'%"></b></span><em>'+(item.percent||0)+'%</em></div><div class="schedule-card-focus"><i style="background:'+(item.focus?dayStateColor[item.focus.state]:'#4b5648')+'"></i>'+(item.focus?esc(item.focus.label)+' · '+dayStateLabel[item.focus.state]:'Sin proceso pendiente')+'</div></div>':'';const body=item?mockup+'<div class="schedule-daycard-fields"><div><span>CLIENTE</span><b>'+esc(item.client||'Sin cliente')+'</b></div><div><span>PROYECTO</span><b>'+esc(item.project||'—')+'</b></div><div><span>ORDEN</span><b>'+esc(item.order)+'</b></div><div><span>CANTIDAD</span><b>'+item.units.toLocaleString('es-CO')+' und.'+(item.delivered?' · Entregado':'')+'</b></div></div>'+progress:'<div class="schedule-daycard-empty">Sin entregas</div>';const pager=items.length>1?'<div class="schedule-daycard-pager"><button type="button" data-daynav="prev" data-iso="'+iso+'" aria-label="Entrega anterior">‹</button><span>'+(idx+1)+'/'+items.length+'</span><button type="button" data-daynav="next" data-iso="'+iso+'" aria-label="Entrega siguiente">›</button></div>':'';return '<div class="schedule-daycard'+(iso===todayISO?' is-today':'')+(scheduleStatFilter==='day|'+iso?' active':'')+'" data-iso="'+iso+'"><div class="schedule-daycard-head"><span class="schedule-daycard-dow">'+d.toLocaleDateString('es-CO',{{weekday:'short'}}).replace('.','')+'</span><span class="schedule-daycard-num">'+d.getDate()+'</span><b>'+items.length+'</b></div>'+(items.length>1?'<div class="sch-day-picks">'+items.map((it,j)=>'<button type="button" class="'+scheduleTone(it,today)+(j===idx?' on':'')+'" data-daypick="'+j+'" data-iso="'+iso+'" title="'+esc(it.order+' · '+(it.client||'Sin cliente'))+'" aria-label="Ver '+esc(it.order)+'"></button>').join('')+'</div>':'')+body+pager+'</div>'}});document.getElementById('schedule-days').innerHTML=cards.join('')}}
 document.getElementById('schedule-days').addEventListener('click',event=>{{const pick=event.target.closest('[data-daypick]');if(pick){{event.stopPropagation();scheduleDayIndex[pick.dataset.iso]=Number(pick.dataset.daypick);renderDayCards();return}}const nav=event.target.closest('[data-daynav]');if(nav){{event.stopPropagation();const iso=nav.dataset.iso,items=scheduleOrders().filter(i=>scheduleISO(i.date)===iso);if(!items.length)return;let idx=scheduleDayIndex[iso]||0;idx=nav.dataset.daynav==='next'?(idx+1)%items.length:(idx-1+items.length)%items.length;scheduleDayIndex[iso]=idx;renderDayCards();return}}const card=event.target.closest('.schedule-daycard');if(!card)return;const iso=card.dataset.iso;scheduleStatFilter=scheduleStatFilter==='day|'+iso?'all':'day|'+iso;renderSchedule()}});
 function scheduleMove(direction){{scheduleDate=scheduleView==='week'?new Date(scheduleDate.getFullYear(),scheduleDate.getMonth(),scheduleDate.getDate()+direction*7):new Date(scheduleDate.getFullYear(),scheduleDate.getMonth()+direction,1);renderSchedule()}}
 
@@ -6692,8 +7585,8 @@ body.schedule-mode .schedule-badge{{display:inline-block;margin-top:2px;font-siz
     function fitDeliveryChips(){{document.querySelectorAll('.multiple-deliveries .schedule-events').forEach(list=>{{const buttons=[...list.children];buttons.forEach(button=>button.style.visibility='');const bottom=list.getBoundingClientRect().bottom;buttons.forEach(button=>{{if(button.getBoundingClientRect().bottom>bottom+1)button.style.visibility='hidden'}})}})}}window.addEventListener('resize',()=>requestAnimationFrame(fitDeliveryChips));new ResizeObserver(fitDeliveryChips).observe(scheduleGrid);
     const deliveriesDialog=document.createElement('dialog');deliveriesDialog.className='schedule-deliveries-dialog';deliveriesDialog.innerHTML='<button type="button" class="schedule-deliveries-close" aria-label="Cerrar entregas">×</button><h2>Entregas del día</h2><div class="schedule-deliveries-list"></div>';document.body.appendChild(deliveriesDialog);deliveriesDialog.querySelector('.schedule-deliveries-close').onclick=()=>deliveriesDialog.close();let deliverySourceButtons=[];scheduleGrid.addEventListener('click',event=>{{const total=event.target.closest('.schedule-day-total');if(!total)return;deliverySourceButtons=[...total.closest('.schedule-day').querySelectorAll('.schedule-event')];deliveriesDialog.querySelector('h2').textContent=total.textContent+' · día '+total.closest('.schedule-day').querySelector('.schedule-day-number').textContent;const list=deliveriesDialog.querySelector('.schedule-deliveries-list');list.replaceChildren();deliverySourceButtons.forEach(source=>{{const clone=source.cloneNode(true);clone.style.visibility='';clone.onclick=()=>{{deliveriesDialog.close();source.click()}};list.appendChild(clone)}});deliveriesDialog.showModal()}});
     let scheduleFitFrame=0;function fitScheduleViewport(){{if(scheduleFitFrame)return;scheduleFitFrame=requestAnimationFrame(()=>{{scheduleFitFrame=0;if(!document.body.classList.contains('schedule-mode'))return;const shell=document.querySelector('.schedule-shell'),viewport=window.visualViewport,top=shell.getBoundingClientRect().top,bottom=viewport?viewport.height+viewport.offsetTop:window.innerHeight;shell.style.setProperty('--schedule-height',Math.max(0,Math.min(1300,Math.floor(bottom-top-6)))+'px')}})}}window.addEventListener('resize',fitScheduleViewport);window.visualViewport?.addEventListener('resize',fitScheduleViewport);new MutationObserver(fitScheduleViewport).observe(document.body,{{attributes:true,attributeFilter:['class']}});new ResizeObserver(fitScheduleViewport).observe(document.querySelector('.brand'));fitScheduleViewport();
-    let realtimeSyncBusy=false;async function syncProductionRealtime(){{if(realtimeSyncBusy||document.hidden||productionDraggedRow||productionBody.querySelector('.is-editing'))return;realtimeSyncBusy=true;try{{const response=await fetch('/api/produccion',{{cache:'no-cache'}});if(!response.ok)return;const data=await response.json(),sig=d=>JSON.stringify(Object.assign({{}},d,{{updated_at:0,sheets_sync:0}})),firma=sig(data),changed=!productionData||firma!==window.__prodFirma;if(!changed)return;window.__prodFirma=firma;productionData=data;const active=document.querySelector('.tab.active')?.dataset.kind;if(active==='produccion'){{renderProduction();productionStatus.textContent='✓ Datos sincronizados automáticamente'}}else if(active==='cronograma')renderSchedule()}}catch(error){{console.warn('Sincronización pendiente',error)}}finally{{realtimeSyncBusy=false}}}}setInterval(syncProductionRealtime,5000);document.addEventListener('visibilitychange',()=>{{if(!document.hidden)syncProductionRealtime()}});window.addEventListener('focus',syncProductionRealtime);
-    const userArea=document.querySelector('.systems');userArea.innerHTML=`<details class="user-menu"><summary><span class="user-avatar">{escape(user_initials)}</span><span class="user-info"><strong>{escape(user_display)}</strong><small>{escape(user_process)}</small></span><span aria-hidden="true">▾</span></summary><div class="user-dropdown"><p>{escape(user_process)}</p><button type="button" id="open-profile">Mi perfil</button><button type="button" id="open-name">Cambiar nombre</button><button type="button" id="open-password">Cambiar contraseña</button><a href="/logout">Cerrar sesión</a></div></details>`;
+    let realtimeSyncBusy=false;async function syncProductionRealtime(){{const active=document.querySelector('.tab.active')?.dataset.kind;if(realtimeSyncBusy||document.hidden||productionDraggedRow||productionBody.querySelector('.is-editing')||(active!=='produccion'&&active!=='cronograma'))return;realtimeSyncBusy=true;try{{const response=await fetch('/api/produccion',{{cache:'no-cache',headers:productionRealtimeEtag?{{'If-None-Match':productionRealtimeEtag}}:{{}}}});if(response.status===304)return;if(!response.ok)return;const data=await response.json(),fingerprint=productionFingerprint(data);productionRealtimeEtag=response.headers.get('etag')||'';if(fingerprint===productionRealtimeFingerprint)return;productionRealtimeFingerprint=fingerprint;productionData=data;if(active==='produccion'){{renderProduction();productionStatus.textContent='✓ Datos sincronizados automáticamente'}}else if(active==='cronograma')renderSchedule()}}catch(error){{console.warn('Sincronización pendiente',error)}}finally{{realtimeSyncBusy=false}}}}setInterval(syncProductionRealtime,30000);document.addEventListener('visibilitychange',()=>{{if(!document.hidden)syncProductionRealtime()}});window.addEventListener('focus',syncProductionRealtime);
+    const userArea=document.querySelector('.systems');userArea.innerHTML=`<details class="user-menu"><summary aria-label="Abrir menú de usuario" title="{escape(user_display)}"><span class="header-user-copy"><b>{escape(user_display)}</b><small>{escape(user_process)}</small></span></summary><div class="user-dropdown"><p>{escape(user_process)}</p><button type="button" id="open-profile">Mi perfil</button><button type="button" id="open-name">Cambiar nombre</button><button type="button" id="open-password">Cambiar contraseña</button><a href="/logout">Cerrar sesión</a></div></details>`;
     const accountDialog=document.createElement('dialog');accountDialog.className='account-dialog';accountDialog.innerHTML=`<button type="button" class="account-close" aria-label="Cerrar">×</button><h2 id="account-title">Mi perfil</h2><section id="account-profile"><p>Nombre</p><strong>{escape(user_display)}</strong><p>Proceso</p><strong>{escape(user_process)}</strong></section><form id="account-name" hidden><label>Nuevo nombre<input name="name" type="text" autocomplete="name" required maxlength="80" value="{escape(str(_))}"></label><label>Contraseña actual<input name="current" type="password" autocomplete="new-password" required maxlength="256"></label><p class="account-hint">Este nombre es el que aparece en Producción al registrar actividad; si otras personas ya lo usan para asignarte procesos, avísales del cambio.</p><button type="submit">Guardar nombre</button></form><form id="account-password" hidden><label>Contraseña actual<input name="current" type="password" autocomplete="new-password" required maxlength="256"></label><label>Nueva contraseña<input name="password" type="password" autocomplete="new-password" minlength="6" maxlength="256" required></label><label>Confirmar contraseña<input name="confirm" type="password" autocomplete="new-password" minlength="6" maxlength="256" required></label><button type="submit">Guardar contraseña</button></form><p id="account-message" role="status"></p>`;document.body.appendChild(accountDialog);
     function openAccount(mode){{document.querySelector('.user-menu').open=false;document.getElementById('account-title').textContent=mode==='name'?'Cambiar nombre':mode==='password'?'Cambiar contraseña':'Mi perfil';document.getElementById('account-profile').hidden=mode!=='profile';document.getElementById('account-name').hidden=mode!=='name';document.getElementById('account-password').hidden=mode!=='password';document.getElementById('account-name').reset();document.getElementById('account-password').reset();document.getElementById('account-message').textContent='';accountDialog.showModal()}}document.getElementById('open-profile').onclick=()=>openAccount('profile');document.getElementById('open-name').onclick=()=>openAccount('name');document.getElementById('open-password').onclick=()=>openAccount('password');accountDialog.querySelector('.account-close').onclick=()=>accountDialog.close();document.addEventListener('click',event=>{{if(!event.target.closest('.user-menu'))document.querySelector('.user-menu').open=false}});document.addEventListener('keydown',event=>{{if(event.key==='Escape')document.querySelector('.user-menu').open=false}});
     document.getElementById('account-name').onsubmit=async event=>{{event.preventDefault();const form=event.currentTarget,fields=new FormData(form),message=document.getElementById('account-message'),button=form.querySelector('button'),name=String(fields.get('name')||'').trim();if(name.length<2){{message.textContent='Escribe un nombre válido.';return}}button.disabled=true;try{{const response=await fetch('/api/cuenta/nombre',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{name:name,password:fields.get('current')}})}}),data=await response.json();if(!response.ok)throw new Error(data.detail||'No se pudo guardar');message.textContent='Nombre actualizado. Recargando…';setTimeout(()=>location.reload(),900)}}catch(error){{message.textContent=error.message;button.disabled=false}}}};
@@ -6719,8 +7612,8 @@ function traceAssetsMarkup(sourceRow){{const asset=traceAssets.get(sourceRow);if
 function paintTraceAssets(sourceRow){{const card=traceCards.querySelector('[data-card-row="'+sourceRow+'"]');if(card){{card.querySelector('.trace-media').innerHTML=traceAssetsMarkup(sourceRow);const tabs=card.querySelector('.trace-design-tabs'),on=tabs&&tabs.querySelector('[aria-pressed=true]');if(on)tabs.scrollLeft=on.offsetLeft-(tabs.clientWidth-on.offsetWidth)/2}}}}
 async function loadTraceAssets(sourceRow,force=false){{if((traceAssets.has(sourceRow)&&!force)||traceAssetBusy.has(sourceRow))return;traceAssetBusy.add(sourceRow);let changed=false;try{{const response=await fetch('/api/produccion/fila/'+sourceRow+'/archivos',{{cache:'no-store'}});const data=await response.json();if(!response.ok)throw Error(data.detail||'No se pudo consultar el NAS');if(JSON.stringify(traceAssets.get(sourceRow))!==JSON.stringify(data)){{traceAssets.set(sourceRow,data);changed=true}}}}catch(error){{if(!traceAssets.has(sourceRow)){{traceAssets.set(sourceRow,{{error:error.message}});changed=true}}}}finally{{traceAssetBusy.delete(sourceRow);if(changed)paintTraceAssets(sourceRow)}}}}
 let traceSyncBusy=false;
-async function syncTraceMockups(){{if(traceSyncBusy||document.hidden||traceCards.hidden||document.querySelector('.tab.active')?.dataset.kind!=='produccion')return;traceSyncBusy=true;try{{const bounds=traceCards.getBoundingClientRect(),rows=[...traceCards.querySelectorAll('[data-card-row]')].filter(card=>{{const r=card.getBoundingClientRect();return r.bottom>Math.max(0,bounds.top)&&r.top<Math.min(innerHeight,bounds.bottom)}}).map(card=>Number(card.dataset.cardRow));for(let i=0;i<rows.length;i+=2){{if(document.hidden||traceCards.hidden)break;await Promise.all(rows.slice(i,i+2).map(id=>loadTraceAssets(id,true)))}}}}finally{{traceSyncBusy=false}}}}
-setInterval(syncTraceMockups,5000);window.addEventListener('focus',syncTraceMockups);document.addEventListener('visibilitychange',()=>{{if(!document.hidden)syncTraceMockups()}});
+async function syncTraceMockups(){{if(traceSyncBusy||document.hidden||traceCards.hidden||document.querySelector('.tab.active')?.dataset.kind!=='produccion')return;traceSyncBusy=true;try{{const bounds=traceCards.getBoundingClientRect(),rows=[...traceCards.querySelectorAll('[data-card-row]')].filter(card=>{{const r=card.getBoundingClientRect();return r.bottom>Math.max(0,bounds.top)&&r.top<Math.min(innerHeight,bounds.bottom)}}).map(card=>Number(card.dataset.cardRow));for(const id of rows){{if(document.hidden||traceCards.hidden)break;await loadTraceAssets(id,false)}}}}finally{{traceSyncBusy=false}}}}
+setInterval(syncTraceMockups,30000);window.addEventListener('focus',syncTraceMockups);document.addEventListener('visibilitychange',()=>{{if(!document.hidden)syncTraceMockups()}});
 const traceImageObserver=new IntersectionObserver(entries=>{{entries.filter(e=>e.isIntersecting).forEach(e=>{{loadTraceAssets(Number(e.target.dataset.cardRow));traceImageObserver.unobserve(e.target)}})}},{{root:traceCards,rootMargin:'100px'}});
 const traceExpandedProcesses=new Set();
 traceCards.addEventListener('click',event=>{{const summary=event.target.closest('.trace-process summary');if(!summary)return;const detail=summary.parentElement;traceCards.querySelectorAll('.trace-process[open]').forEach(other=>{{if(other!==detail){{other.open=false;traceExpandedProcesses.delete(other.dataset.processKey)}}}});const info=detail.querySelector('.trace-process-info');if(!info.querySelector('.trace-node-title')){{const title=document.createElement('h4');title.className='trace-node-title';title.textContent=summary.querySelector('strong').textContent+' · '+summary.querySelector('small').textContent;info.prepend(title)}}}});
@@ -6745,8 +7638,8 @@ if(canViewRHumano&&rhumanoTabs.length){{document.querySelector('nav.tabs').appen
 /* COMERCIALES: módulo propio en el menú (solo Comercial, Coordinador y Administración) */
 const comercialesGroup=document.createElement('div');comercialesGroup.className='nav-group collapsed';comercialesGroup.innerHTML='<button class="nav-parent" type="button"><span class="nav-icon">CM</span><span>COMERCIALES</span></button><div class="nav-children"></div>';
 /* Sus pestañas son las herramientas del equipo comercial: REPROGRAMACIONES, PROGRAMAR y EXCEL (antes estaban en ADMINISTRACIÓN) */
-const comercialesTabs=['reprogramacion','pedido','creador','cliente-effi','pedido-effi','club'].map(kind=>document.querySelector('.tab[data-kind="'+kind+'"]')).filter(Boolean);
-if(canViewComerciales&&comercialesTabs.length){{const navTabs=document.querySelector('nav.tabs');navTabs.insertBefore(comercialesGroup,tesoreriaGroup.parentNode===navTabs?tesoreriaGroup:null);comercialesTabs.forEach(tab=>comercialesGroup.querySelector('.nav-children').appendChild(tab));comercialesGroup.querySelector('.nav-parent').onclick=()=>{{comercialesGroup.classList.toggle('collapsed');if(!comercialesGroup.classList.contains('collapsed'))comercialesGroup.querySelector('.nav-children .tab')?.click()}}}}else{{comercialesTabs.forEach(tab=>tab.remove())}}   /* quien no ve COMERCIALES tampoco ve sus herramientas en otro módulo */
+const comercialesTabs=['reprogramacion','pedido','creador','cliente-effi','club'].map(kind=>document.querySelector('.tab[data-kind="'+kind+'"]')).filter(Boolean);
+document.querySelectorAll('.tab[data-kind="reprogramacion"],.tab[data-kind="pedido"]').forEach(t=>{{t.style.display='none'}});if(canViewComerciales&&comercialesTabs.length){{const navTabs=document.querySelector('nav.tabs');navTabs.insertBefore(comercialesGroup,tesoreriaGroup.parentNode===navTabs?tesoreriaGroup:null);comercialesTabs.forEach(tab=>comercialesGroup.querySelector('.nav-children').appendChild(tab));comercialesGroup.querySelector('.nav-parent').onclick=()=>{{comercialesGroup.classList.toggle('collapsed');if(!comercialesGroup.classList.contains('collapsed'))comercialesGroup.querySelector('.nav-children .tab')?.click()}}}}else{{comercialesTabs.forEach(tab=>tab.remove())}}   /* quien no ve COMERCIALES tampoco ve sus herramientas en otro módulo */
 if(!adminGroup.querySelector('.nav-children .tab'))adminGroup.remove();   /* ADMINISTRACIÓN quedó sin pestañas: no se muestra vacía */
 let carteraLoaded=false;
 commercialMenu.hidden=true;commercialMenu.style.display='none';
@@ -6928,7 +7821,8 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
 `;document.head.appendChild(traceFigmaStyle);setTraceView();
     const commercialGroup=commercialToggle.closest('.nav-group');commercialGroup.classList.add('collapsed');const productionToggle=document.getElementById('production-toggle');if(productionToggle)productionToggle.addEventListener('click',()=>{{const g=productionToggle.closest('.nav-group');g.classList.toggle('collapsed');if(!g.classList.contains('collapsed')&&window.innerWidth>860)g.querySelector('.nav-children .tab')?.click()}});
     setTimeout(()=>{{if(!document.querySelector('.panel.active'))document.querySelector('.tab[data-kind="inicio"]')?.click()}},0);
-    </script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/liquid-stats.js?v=20261019-1'></script><script src='/nombres-effi.js?v=20261022-2'></script><script src='/permisos.js?v=20261007-2'></script><script src='/reposiciones.js?v=20261019-1'></script><script src='/agentes.js?v=20261021-1'></script><script src='/promedios.js?v=20261022-3'></script><script src='/capacidad.js?v=20261009-2'></script><script src='/molderia.js?v=20261010-2'></script><script src='/estandar.js?v=20261020-1'></script><script src='/proveedores-tela.js?v=20261022-4'></script><script src='/terminos.js?v=20261010-1'></script><script src='/cookies-aviso.js?v=20261010-1'></script><script src='/rh-contratos.js?v=20261009-3'></script><script src='/fichas-resumen.js?v=20261022-2'></script><script src='/api/cartera/cartera.js?v=20261009-1'></script><script src='/trace-ui.js?v=20261022-5'></script><script src='/home-dashboard.js?v=20261019-1'></script><script src='/bodega-dashboard.js?v=20261022-4'></script><script src='/bodegas.js?v=20261009-7'></script><script src='/codigos-barras.js?v=20261014-3'></script><script src='/mis-pedidos.js?v=20261008-4'></script><script src='/crear-cliente.js?v=20261018-5'></script><script src='/pedido-effi.js?v=20261113-1'></script><script src='/club-admin.js?v=20261020-1'></script><script src='/mobile-nav.js?v=20261018-1'></script><script src='/nav-liquid.js?v=20261003-3'></script><script src='/build-watch.js?v=20261002-1'></script><script src='/salud.js?v=20261014-2'></script><script src='/alertas.js?v=20261021-1'></script><script src='/bitacora.js?v=20261016-2'></script><script src='/memoria.js?v=20261018-1'></script><script src='/ecommerce.js?v=20261019-1'></script><script src='/zeus.js?v=20261020-1'></script><script src='/minimaximan.js?v=20261022-40'></script><script src='/stockman.js?v=20261022-29'></script><script src='/draco-panel.js?v=20261021-8'></script><script src='/agentes-hub.js?v=20261022-2'></script><script src='/recordar-vista.js?v=20261018-1'></script><script src='/tema.js?v=20261008-1'></script><script src='/tarjeta-iconos.js?v=20261002-5'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261021-1'></script><script src='/linea-editor.js?v=20261008-1'></script><script src='/menu-cuenta.js?v=20261016-3'></script><script src='/foto-perfil.js?v=20261008-4'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
+    setTimeout(()=>{{const panel=document.querySelector('.panel.active');const kind=panel?.dataset?.panel;const activeTab=kind&&document.querySelector(`.tab[data-kind="${{kind}}"]`);if(activeTab)document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===activeTab))}},100);
+</script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/liquid-stats.js?v=20261019-1'></script><script src='/nombres-effi.js?v=20261022-2'></script><script src='/permisos.js?v=20261007-2'></script><script src='/reposiciones.js?v=20261019-1'></script><script src='/agentes.js?v=20261107-14'></script><script src='/promedios.js?v=20261109-1'></script><script src='/capacidad.js?v=20261009-2'></script><script src='/molderia.js?v=20261010-2'></script><script src='/estandar.js?v=20261020-1'></script><script src='/proveedores-tela.js?v=20261022-4'></script><script src='/terminos.js?v=20261010-1'></script><script src='/cookies-aviso.js?v=20261010-1'></script><script src='/rh-contratos.js?v=20261009-3'></script><script src='/fichas-resumen.js?v=20261022-2'></script><script src='/api/cartera/cartera.js?v=20261009-1'></script><script src='/trace-ui.js?v=20261109-2'></script><script src='/home-dashboard.js?v=20261110-1'></script><script src='/bodega-dashboard.js?v=20261109-3'></script><script src='/bodegas.js?v=20261009-7'></script><script src='/codigos-barras.js?v=20261014-3'></script><script src='/mis-pedidos.js?v=20261008-1'></script><script src='/crear-cliente.js?v=20261024-31'></script><script src='/club-admin.js?v=20261020-1'></script><script src='/mobile-nav.js?v=20261108-1'></script><script src='/nav-liquid.js?v=20261109-1'></script><script src='/build-watch.js?v=20261105-1'></script><script src='/salud.js?v=20261014-2'></script><script src='/alertas.js?v=20261030-1'></script><script src='/bitacora.js?v=20261016-2'></script><script src='/memoria.js?v=20261018-1'></script><script src='/ecommerce.js?v=20261019-1'></script><script src='/zeus.js?v=20261110-3'></script><script src='/minimaximan.js?v=20261023-2'></script><script src='/aviso-agentes.js?v=20261023-5'></script><script src='/descuento-sublimacion.js?v=20261026-1'></script><script src='/stockman.js?v=20261022-30'></script><script src='/draco-panel.js?v=20261021-8'></script><script src='/laser-panel.js?v=20261113-1'></script><script src='/agentes-hub.js?v=20261109-1'></script><script src='/recordar-vista.js?v=20261109-1'></script><script src='/tema.js?v=20261008-1'></script><script src='/tarjeta-iconos.js?v=20261110-2'></script><script src='/confeccion-preparacion.js?v=20261113-2'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261021-1'></script><script src='/linea-editor.js?v=20261030-1'></script><script src='/lineas-producto-panel.js?v=20261030-1'></script><script src='/menu-cuenta.js?v=20261016-3'></script><script src='/foto-perfil.js?v=20261030-1'></script><script src='/efecto-vidrio.js?v=20261029-1'></script><script src='/motion.js?v=11.18.2'></script><script src='/home-hero.js?v=20261108-5'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab=>tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
 
 
 def ordered_mockup_uploads(extras, slots):
@@ -7096,14 +7990,14 @@ def club_admin_js():
     return FileResponse(Path(__file__).with_name('club-admin.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
 
 
-@app.get('/pedido-effi.js')
-def pedido_effi_js():
-    return FileResponse(Path(__file__).with_name('pedido-effi.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
-
-
 @app.get('/crear-cliente.js')
 def crear_cliente_js():
     return FileResponse(Path(__file__).with_name('crear-cliente.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
+
+
+@app.get('/ventas.js')
+def ventas_js():
+    return FileResponse(Path(__file__).with_name('ventas.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
 
 
 @app.get('/mis-pedidos.js')

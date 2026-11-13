@@ -85,14 +85,23 @@ def leer_cotizacion_pdf(ruta) -> dict:
             texto += (pg.extract_text() or '') + '\n'
     numero = re.search(r'No\.\s*(\d+)', texto)
     lineas = []
-    for l in texto.splitlines():
+    lineas_texto = texto.splitlines()
+    for index, l in enumerate(lineas_texto):
         m = LINEA_PDF.match(l.strip())
         if not m:
             continue
         desc = m.group(3).strip()
         d = re.search(r'\bD(\d+)\b', desc)
         g = 'FEM' if re.search(r'\bFEM\b', desc, re.I) else 'MASC' if re.search(r'\bMAS[C]?\b', desc, re.I) else ''
-        lineas.append({'ref': m.group(2), 'desc': desc, 'diseno': int(d.group(1)) if d else 1, 'genero': g, 'precio': _dinero(m.group(5))})
+        # TCPDF a veces deja el sufijo de dos dígitos de la referencia en la
+        # línea siguiente (A11200FUT / 02). Se recompone solo si esa siguiente
+        # línea contiene exclusivamente el sufijo, para no alterar referencias
+        # ya completas.
+        referencia = m.group(2)
+        siguiente = lineas_texto[index + 1].strip() if index + 1 < len(lineas_texto) else ''
+        if re.fullmatch(r'\d{2,3}', siguiente):
+            referencia += siguiente
+        lineas.append({'ref': referencia, 'desc': desc, 'diseno': int(d.group(1)) if d else 1, 'genero': g, 'precio': _dinero(m.group(5))})
     dias = re.search(r'(\d+)\s*d[ií]as', texto, re.I)
     sub, tot = re.search(r'SUBTOTAL\s*\$([\d.,]+)', texto), re.search(r'TOTAL NETO\s*\$([\d.,]+)', texto)
     return {'numero': numero.group(1) if numero else '', 'lineas': lineas, 'dias': int(dias.group(1)) if dias else 0,
@@ -107,6 +116,59 @@ def _linea_base(base: dict, ref: str, d: int, g: str) -> dict:
         if c:
             return c[0]
     raise ValueError(f'La cotización anterior no tiene líneas de la referencia {ref}')
+
+
+def _descripcion_reposicion(descripcion_articulo: str, diseno: int, genero: str) -> str:
+    """Detalle propio del artículo de Effi más su variante solicitada.
+
+    La descripción de una reposición no hereda texto del PDF antiguo (tela,
+    diseño o género). Conserva únicamente el detalle del artículo creado en
+    Effi y añade la variante real que pidió el cliente.
+    """
+    texto = str(descripcion_articulo or '')
+    texto = re.sub(r'\s+TELA\s+[^+|]+\+?\s*', ' ', texto, flags=re.I)
+    texto = re.sub(r'\s*[·|+-]?\s*GENERO\s+DISE[ÑN]O\s*\([^)]*\)', '', texto, flags=re.I)
+    texto = re.sub(r'\s*[·|+-]?\s*DISE[ÑN]O\s*D?\d+', '', texto, flags=re.I)
+    texto = re.sub(r'\s*[·|+-]?\s*G[EÉ]NERO\s*(?:MASC(?:ULINO)?|FEM(?:ENINO)?)', '', texto, flags=re.I)
+    texto = re.sub(r'\s+', ' ', texto).strip(' ·|+-')
+    etiqueta = 'FEM' if str(genero).upper() == 'FEM' else 'MASC'
+    return f'{texto} DISEÑO D{int(diseno)} {etiqueta}'.strip()[:120]
+
+
+def _forma_pago_base(cabecera: dict, dias_pdf: int) -> int:
+    """Conserva la condición comercial real de Effi; el PDF solo es respaldo.
+
+    Algunos PDFs antiguos muestran días que ya no existen como forma de pago.
+    La cabecera de la cotización original contiene el id vigente y evita crear
+    reposiciones con una condición inventada.
+    """
+    valor = cabecera.get('t_forma_pago') or cabecera.get('forma_pago') or cabecera.get('id_forma_pago')
+    if isinstance(valor, (list, tuple)):
+        valor = valor[0] if valor else None
+    if isinstance(valor, dict):
+        valor = valor.get('id') or valor.get('valor')
+    try:
+        if int(valor) > 0:
+            return int(valor)
+    except (TypeError, ValueError):
+        pass
+    try:
+        return effi_api.forma_pago_id(dias_pdf or 0)
+    except effi_api.EffiError:
+        # Las cotizaciones viejas pueden decir «5 días» aunque Effi ya solo
+        # conserve «7 días». Se elige la condición vigente más cercana,
+        # prefiriendo no acortar el plazo comercial.
+        opciones = []
+        for forma in effi_api._lista('forma_pago'):
+            nombre = str(forma.get('nombre') or '').strip().lower()
+            dias = 0 if nombre.startswith('contado') else (int(m.group(1)) if (m := re.search(r'\b(\d+)\b', nombre)) else None)
+            if dias is not None and forma.get('id') is not None:
+                opciones.append((dias, int(forma['id'])))
+        if not opciones:
+            raise
+        pedido = int(dias_pdf or 0)
+        opciones.sort(key=lambda x: (abs(x[0] - pedido), x[0] < pedido, x[0]))
+        return opciones[0][1]
 
 
 def preparar(p: dict) -> dict:
@@ -134,8 +196,7 @@ def preparar(p: dict) -> dict:
             por[k] = por.get(k, 0) + max(1, int(j.get('cantidad') or 1))
         for (d, g), cant in sorted(por.items()):
             b = _linea_base(base, l['referencia'], d, g)
-            desc = re.sub(r'\bD\d+\b', f'D{d}', b['desc'])
-            desc = re.sub(r'\b(MASC?|FEM)\b', 'FEM' if g == 'FEM' else 'MAS', desc, flags=re.I)
+            desc = _descripcion_reposicion(str(art.get('descripcion') or b['desc']), d, g)
             conceptos.append({'articulo': int(art['id']), 'descripcion': desc[:120], 'cantidad': cant, 'precio': b['precio']})
     if not conceptos:
         raise ValueError('El pedido no tiene prendas')
@@ -151,7 +212,7 @@ def preparar(p: dict) -> dict:
         'observacion': f"REPOSICIÓN CLUB #{p['id']} · base CO{base_ref['numero']} · creada por EFFITRON"[:250],
         'articulo': [c['articulo'] for c in conceptos], 'descripcion': [c['descripcion'] for c in conceptos],
         'cantidad': [c['cantidad'] for c in conceptos], 'precio': [c['precio'] for c in conceptos], 'descuento': [0] * len(conceptos),
-        't_forma_pago': [effi_api.forma_pago_id(base_ref['dias'] or 0)], 'valor_forma_pago': [total],
+        't_forma_pago': [_forma_pago_base(cab, base_ref['dias'])], 'valor_forma_pago': [total],
     }
     if not cab.get('direccion_cliente'):
         for k in ('id_pais_cliente', 'id_provincia_cliente', 'id_ciudad_cliente', 'direccion_cliente'):

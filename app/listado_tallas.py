@@ -19,6 +19,7 @@ _GENERO = {'genero', 'sexo', 'categoria'}
 _CANTIDAD = {'cantidad', 'cantidades', 'cant', 'unidades', 'unds', 'und'}
 _GENEROS = {'masc', 'masculino', 'hombre', 'caballero', 'fem', 'femenino', 'mujer', 'dama', 'nino', 'nina', 'ninos', 'ninas', 'kids'}
 _SIN_MARCA = {'', '0', 'NO', '-', 'N/A'}
+_ITEM = {'item'}
 
 
 def _n(texto) -> str:
@@ -32,6 +33,18 @@ def _codigo(texto) -> str:
 
 def _es_genero(h: str) -> bool:
     return h in _GENEROS or (h.split() or [''])[0] in _GENEROS
+
+
+def _es_item_real(valor: str) -> bool:
+    """Las filas del listado tienen ÍTEM consecutivo; los cuadros de totales no.
+
+    No se usa NÚMERO (es el dorsal del jugador, no una talla).
+    """
+    try:
+        n = float(str(valor or '').strip().replace(',', '.'))
+    except ValueError:
+        return False
+    return n.is_integer() and 1 <= n <= 5000
 
 
 def carpeta_de_orden(cliente: str, orden: str) -> Path | None:
@@ -76,11 +89,17 @@ def leer_hojas(ruta: Path) -> dict[str, list[dict]]:
     wb = openpyxl.load_workbook(io.BytesIO(Path(ruta).read_bytes()), read_only=True, data_only=True)
     hojas: dict[str, list[dict]] = {}
     for ws in wb.worksheets:
+        # Excel también puede contener hojas de gráfico; no tienen iter_rows.
+        if not hasattr(ws, 'iter_rows'):
+            continue
         filas = [['' if c is None else str(c).strip() for c in f] for f in ws.iter_rows(values_only=True)]
         filas = [f for f in filas if any(f)]
-        for i, enc in enumerate(filas[:40]):
-            if not ({_n(c) for c in enc} & _TALLA):
-                continue
+        # Puede haber tablas de tallas arriba a la derecha (un título con TALLA). La tabla del pedido es la
+        # fila que trae TALLA junto con ÍTEM: esa va primero. Sin ÍTEM se usa la primera con TALLA, como antes.
+        candidatos = [i for i, fila in enumerate(filas[:40]) if {_n(c) for c in fila} & _TALLA]
+        candidatos.sort(key=lambda i: 0 if any(_n(c) in _ITEM for c in filas[i]) else 1)
+        for i in candidatos:
+            enc = filas[i]
             sub = filas[i + 1] if i + 1 < len(filas) else []
             i_talla = next(k for k, c in enumerate(enc) if _n(c) in _TALLA)
             cuerpo = filas[i + 1:]
@@ -90,9 +109,14 @@ def leer_hojas(ruta: Path) -> dict[str, list[dict]]:
                 cuerpo = filas[i + 2:]
             i_gen = next((k for k, h in enumerate(enc) if _n(h) in _GENERO), None)
             i_cant = next((k for k, h in enumerate(enc) if _n(h) in _CANTIDAD), None)
+            i_item = next((k for k, h in enumerate(enc) if _n(h) in _ITEM), None)
             lineas = []
             for f in cuerpo:
                 f = f + [''] * (len(enc) - len(f))
+                # Si el formato tiene ÍTEM, solo acepta las líneas de jugadores.
+                # Así no se toman los resúmenes de tallas, medias ni el NÚMERO.
+                if i_item is not None and (i_item >= len(f) or not _es_item_real(f[i_item])):
+                    continue
                 talla = f[i_talla].strip()
                 if not talla:
                     continue

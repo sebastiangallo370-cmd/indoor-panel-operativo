@@ -14,7 +14,11 @@
     trash:'<path d="M5 7h14M10 7V4.5h4V7M7 7l1 13h8l1-13M10 11v6M14 11v6"/>',
     note:'<path d="M5 4h14v12H9.5L5 20z"/><path d="M12 7.5v5M9.5 10h5"/>',
     ruler:'<path d="M3 15L15 3l6 6L9 21z"/><path d="M7 11l2.2 2.2M10 8l2.2 2.2M13 5l2.2 2.2"/>',
-    folder:'<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>'
+    folder:'<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+    copy:'<rect x="9" y="4" width="10" height="12" rx="1.5"/><path d="M15 16v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h3"/>',
+    image:'<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><circle cx="9" cy="10" r="1.35"/><path d="M5.5 17l4.3-4 3.1 2.7 2.4-2 2.2 3.3"/>',
+    images:'<rect x="6" y="7" width="14" height="12" rx="2"/><path d="M4 16V5a2 2 0 0 1 2-2h11"/><circle cx="12" cy="11" r="1.2"/><path d="M8 17l3.2-3 2.1 1.7 1.8-1.6 2 3"/>',
+    sewing:'<path d="M3 19h18M5 19v-4h7a4 4 0 0 0 4-4V8h2v11M5 15V8h6a4 4 0 0 1 4 4v1M7 8V5M17 8V5M5 15H3v-4M18 11h3M10 15v4M8 22h4"/><circle cx="12" cy="11" r="1.4"/>'
   };
   // selector, icono, ayuda, grupo (los grupos se separan con una línea fina)
   var MAP=[
@@ -44,6 +48,17 @@
     B+'.trace-rail button::after{content:attr(data-tip);position:absolute;right:46px;top:50%;transform:translateY(-50%);padding:5px 9px;border-radius:7px;background:#10150e;color:#fff;font:700 11px Arial;letter-spacing:.03em;white-space:nowrap;box-shadow:0 4px 14px rgba(0,0,0,.4);opacity:0;pointer-events:none;transition:opacity .12s}'+
     B+'.trace-rail button:hover::after,'+B+'.trace-rail button:focus-visible::after{opacity:1}'+
     B+'.trace-order-actions:empty,'+B+'.trace-card-actions:empty{display:none!important}'+
+    B+'.trace-media{position:relative}'+
+    B+'.trace-design-view{height:auto!important;flex:1 1 auto}'+
+    B+'.trace-copy-tools{position:absolute;z-index:8;right:8px;bottom:36px;display:flex;flex-direction:column;align-items:center;gap:7px;margin:0;padding:4px 0}'+
+    B+'.trace-copy-tools button,'+B+'.trace-copy-info{width:25px!important;min-width:25px!important;height:25px!important;min-height:25px!important;padding:0!important;margin:0!important;display:grid!important;place-items:center!important;border:1px solid rgba(19,32,24,.58)!important;border-radius:5px!important;background:rgba(255,255,255,.92)!important;color:#18241c!important;box-shadow:0 1px 3px rgba(0,0,0,.13)!important;font-size:0!important;cursor:pointer;transition:transform .14s,background .14s,color .14s,border-color .14s}'+
+    B+'.trace-copy-tools button svg,'+B+'.trace-copy-info svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}'+
+    B+'.trace-copy-tools button:hover,'+B+'.trace-copy-tools button:focus-visible,'+B+'.trace-copy-info:hover,'+B+'.trace-copy-info:focus-visible{background:#d0f44c!important;border-color:#263526!important;color:#10170e!important;transform:scale(1.09)}'+
+    B+'.trace-copy-tools button.is-done,'+B+'.trace-copy-info.is-done{background:#e8f8d1!important;border-color:#56713f!important;color:#203817!important}'+
+    B+'.trace-copy-tools button:disabled,'+B+'.trace-copy-info:disabled{opacity:.55;cursor:wait;transform:none}'+
+    B+'.trace-copy-summary svg{width:19px!important;height:19px!important;stroke-width:2.4!important}'+
+    B+'.trace-copy-info{position:absolute;z-index:8;bottom:8px;left:8px}'+B+'.trace-copy-summary{left:42px}'+
+    '@media(max-width:700px){'+B+'.trace-copy-tools{right:8px;bottom:38px;gap:8px}'+B+'.trace-copy-tools button,'+B+'.trace-copy-info{width:28px!important;min-width:28px!important;height:28px!important;min-height:28px!important}'+B+'.trace-copy-tools button svg,'+B+'.trace-copy-info svg{width:17px;height:17px}}'+
     '@media(max-width:700px){'+B+'.trace-rail button{width:42px!important;min-width:42px!important;height:42px!important;min-height:42px!important}'+B+'.trace-card-body{padding-right:66px!important}'+B+'.trace-rail{right:8px}}';
   document.head.appendChild(style);
 
@@ -93,9 +108,56 @@
     if(host)host.style.minHeight=(rail.offsetHeight+30)+'px';
   }
   var queued=false;
+  function textOf(node){return node?String(node.textContent||'').replace(/\s+/g,' ').trim():''}
+  function flash(button,message){var original=button.dataset.tip||button.title;button.dataset.tip=message;button.title=message;button.classList.add('is-done');setTimeout(function(){button.dataset.tip=original;button.title=original;button.classList.remove('is-done')},1800)}
+  async function copyText(value){if(navigator.clipboard&&navigator.clipboard.writeText){await navigator.clipboard.writeText(value);return}var field=document.createElement('textarea');field.value=value;field.setAttribute('readonly','');field.style.cssText='position:fixed;opacity:0;pointer-events:none';document.body.appendChild(field);field.select();try{document.execCommand('copy')}finally{field.remove()}}
+  async function pngBlob(blob){if(blob.type==='image/png')return blob;var image=await loadImage(blob),canvas=document.createElement('canvas');canvas.width=image.naturalWidth||image.width;canvas.height=image.naturalHeight||image.height;canvas.getContext('2d').drawImage(image,0,0);return new Promise(function(resolve,reject){canvas.toBlob(function(out){out?resolve(out):reject(Error('No fue posible preparar la imagen'))},'image/png')})}
+  async function copyImageBlob(blob){var png=await pngBlob(blob);if(!navigator.clipboard||!window.ClipboardItem)throw Error('Tu navegador no permite copiar imágenes');await navigator.clipboard.write([new ClipboardItem({'image/png':png})])}
+  async function fetchImage(url){var response=await fetch(url,{credentials:'same-origin'});if(!response.ok)throw Error('No se pudo leer el mockup');return response.blob()}
+  function loadImage(blob){return new Promise(function(resolve,reject){var image=new Image(),url=URL.createObjectURL(blob);image.onload=function(){URL.revokeObjectURL(url);resolve(image)};image.onerror=function(){URL.revokeObjectURL(url);reject(Error('No se pudo abrir el mockup'))};image.src=url})}
+  async function groupedMockup(urls){var images=await Promise.all(urls.map(async function(url){return loadImage(await fetchImage(url))})),tileW=760,tileH=980,columns=Math.min(2,images.length),rows=Math.ceil(images.length/columns),canvas=document.createElement('canvas');canvas.width=tileW*columns;canvas.height=tileH*rows;var ctx=canvas.getContext('2d');ctx.fillStyle='#f7f8f4';ctx.fillRect(0,0,canvas.width,canvas.height);images.forEach(function(image,index){var x=(index%columns)*tileW,y=Math.floor(index/columns)*tileH,scale=Math.min((tileW-36)/image.naturalWidth,(tileH-36)/image.naturalHeight),w=image.naturalWidth*scale,h=image.naturalHeight*scale;ctx.drawImage(image,x+(tileW-w)/2,y+(tileH-h)/2,w,h)});return new Promise(function(resolve,reject){canvas.toBlob(function(blob){blob?resolve(blob):reject(Error('No se pudo preparar el grupo'))},'image/png')})}
+  function blobToDataUrl(blob){return new Promise(function(resolve,reject){var reader=new FileReader();reader.onload=function(){resolve(reader.result)};reader.onerror=function(){reject(Error('No se pudo preparar la imagen agrupada'))};reader.readAsDataURL(blob)})}
+  async function mockupsAgrupadosDesdeFila(row){
+    var response=await fetch('/api/produccion/fila/'+encodeURIComponent(row)+'/archivos',{cache:'no-store',credentials:'same-origin'});
+    if(!response.ok)throw Error('No se pudieron consultar los mockups de la tarjeta');
+    var data=await response.json(),urls=(data.images||[]).map(function(image){return image.url}).filter(Boolean);
+    if(!urls.length)throw Error('Esta tarjeta no tiene mockups disponibles');
+    var blob=await groupedMockup(urls);
+    return {nombre:'mockups-agrupados.png',tipo:'image/png',dataUrl:await blobToDataUrl(blob),total:urls.length};
+  }
+  window.indoorMockups=window.indoorMockups||{};
+  window.indoorMockups.agrupadosDesdeFila=mockupsAgrupadosDesdeFila;
+  async function mockupSheet(card,urls){var images=await Promise.all(urls.map(async function(url){return loadImage(await fetchImage(url))})),tileW=760,tileH=980,columns=Math.min(2,images.length),rows=Math.ceil(images.length/columns),headerH=238,canvas=document.createElement('canvas');canvas.width=tileW*columns;canvas.height=headerH+tileH*rows;var ctx=canvas.getContext('2d'),get=function(selector){return textOf(card.querySelector(selector))||'—'},lines=['CLIENTE: '+get('.trace-client'),'REFERENCIA: '+get('.trace-ref'),'ORDEN: '+get('.trace-card-heading h3'),'CANTIDAD: '+get('.trace-quantity')];ctx.fillStyle='#101a13';ctx.fillRect(0,0,canvas.width,headerH);ctx.fillStyle='#d0f44c';ctx.font='700 28px Arial';ctx.fillText('MOCKUPS',34,47);ctx.font='600 22px Arial';ctx.fillStyle='#f4f8ed';lines.forEach(function(line,index){ctx.fillText(line,34,91+index*34)});ctx.fillStyle='#f7f8f4';ctx.fillRect(0,headerH,canvas.width,canvas.height-headerH);images.forEach(function(image,index){var x=(index%columns)*tileW,y=headerH+Math.floor(index/columns)*tileH,scale=Math.min((tileW-36)/image.naturalWidth,(tileH-36)/image.naturalHeight),w=image.naturalWidth*scale,h=image.naturalHeight*scale;ctx.drawImage(image,x+(tileW-w)/2,y+(tileH-h)/2,w,h)});return new Promise(function(resolve,reject){canvas.toBlob(function(blob){blob?resolve(blob):reject(Error('No fue posible preparar la ficha de mockups'))},'image/png')})}
+  function detailsText(card){var get=function(selector){return textOf(card.querySelector(selector))||'—'};return ['CLIENTE: '+get('.trace-client'),'PROYECTO: '+get('.trace-project'),'REFERENCIA: '+get('.trace-ref'),'TELA: '+get('.trace-tela span'),'FECHA DE ENTREGA: '+get('.trace-due dd'),'MÁQUINA DE IMPRESIÓN: '+get('.trace-machine-btn'),'CANTIDAD: '+get('.trace-quantity')].join('\n')}
+  function copyButton(icon,tip,action){var button=document.createElement('button');button.type='button';button.dataset.tip=tip;button.title=tip;button.setAttribute('aria-label',tip);button.dataset.copyAction=action;button.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true">'+ICONS[icon]+'</svg>';return button}
+  function addCopyTools(card){
+    var media=card.querySelector('.trace-media');if(!media||media.querySelector('.trace-copy-tools'))return;
+    var stage=media.querySelector('.trace-design-stage');if(!stage)return;
+    var tools=document.createElement('div');tools.className='trace-copy-tools';tools.style.cssText='position:absolute!important;right:8px!important;bottom:36px!important;flex-direction:column!important';tools.setAttribute('role','toolbar');tools.setAttribute('aria-label','Copiar mockups');
+    var infoButton=copyButton('copy','Copiar información de la tarjeta','info');infoButton.className='trace-copy-info';infoButton.style.cssText='position:absolute!important;z-index:8!important;bottom:8px!important;left:8px!important';
+    var summaryButton=copyButton('sewing','Preparar envío a confección','confeccion');summaryButton.className='trace-copy-info trace-copy-summary';summaryButton.style.cssText='position:absolute!important;z-index:8!important;bottom:8px!important;left:42px!important';
+    tools.appendChild(copyButton('image','Copiar mockup visible','visible'));
+    tools.appendChild(copyButton('images','Copiar todos los mockups agrupados','group'));
+    var copiar=async function(event){
+      var button=event.target.closest('button[data-copy-action]');if(!button)return;var action=button.dataset.copyAction;
+      try{
+        button.disabled=true;
+        if(action==='info'){await copyText(detailsText(card));flash(button,'Información copiada');return}
+        var row=card.dataset.cardRow,urls=[];
+        if(action==='confeccion'){window.dispatchEvent(new CustomEvent('indoor:preparar-confeccion',{detail:{row:Number(row)}}));return}
+        if(action==='visible'){var image=media.querySelector('.trace-design-main img');if(!image)throw Error('El mockup todavía no está disponible');urls=[image.currentSrc||image.src]}
+        else {var response=await fetch('/api/produccion/fila/'+encodeURIComponent(row)+'/archivos',{cache:'no-store',credentials:'same-origin'}),data=await response.json();if(!response.ok)throw Error(data.detail||'No se pudieron consultar los mockups');urls=(data.images||[]).map(function(image){return image.url}).filter(Boolean);if(!urls.length)throw Error('No hay mockups disponibles')}
+        var blob=action==='visible'?await fetchImage(urls[0]):await groupedMockup(urls);
+        try{await copyImageBlob(blob);flash(button,action==='visible'?'Mockup copiado':'Mockups agrupados copiados')}catch(error){await copyText(urls.join('\n'));flash(button,'Se copiaron los enlaces de los mockups')}
+      }catch(error){flash(button,error&&error.message||'No se pudo copiar')}
+      finally{button.disabled=false}
+    };
+    tools.addEventListener('click',copiar);infoButton.addEventListener('click',copiar);summaryButton.addEventListener('click',copiar);
+    stage.appendChild(infoButton);stage.appendChild(summaryButton);stage.appendChild(tools);
+  }
   function run(){
     queued=false;
-    document.querySelectorAll('.trace-card[data-card-row]').forEach(railize);
+    document.querySelectorAll('.trace-card[data-card-row]').forEach(function(card){railize(card);addCopyTools(card)});
   }
   function schedule(){if(!queued){queued=true;setTimeout(run,40)}}
   function start(){
