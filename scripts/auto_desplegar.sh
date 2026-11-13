@@ -2,20 +2,49 @@
 # Publica solo el panel: cada minuto (cron) mira el último commit de main en GitHub y, si cambió,
 # lo descarga, revisa la sintaxis, copia app/ y reconstruye el contenedor. Si /salud no responde 200,
 # vuelve a la versión anterior. No toca .env, secrets/ ni data/.
+# PROTECCIÓN: si alguien cambió app/ a mano en el servidor (scp / docker cp) sin hacer push, NO publica (pisaría ese trabajo): avisa en el log y se detiene.
+#   «auto_desplegar.sh --adoptar» da por bueno lo que corre hoy en el servidor (guarda su huella y marca como ya publicado el main actual).
 # Instalar (una vez, como root en el VPS):
 #   curl -sL https://raw.githubusercontent.com/sebastiangallo370-cmd/indoor-panel-operativo/main/scripts/auto_desplegar.sh -o /usr/local/bin/auto_desplegar.sh
 #   chmod +x /usr/local/bin/auto_desplegar.sh
 #   echo '* * * * * root /usr/local/bin/auto_desplegar.sh >> /var/log/auto_desplegar.log 2>&1' > /etc/cron.d/auto_desplegar
 set -euo pipefail
 REPO=sebastiangallo370-cmd/indoor-panel-operativo
-DESTINO=/opt/asistente-reprogramaciones
-ESTADO=/var/lib/auto_desplegar
+DESTINO=${DESTINO:-/opt/asistente-reprogramaciones}
+ESTADO=${ESTADO:-/var/lib/auto_desplegar}
 mkdir -p "$ESTADO"
+# huella (sha256 de cada archivo) del código de app/ que hay en el servidor; sin __pycache__
+manifiesto() { (cd "$1" && find . -type f ! -path '*/__pycache__/*' ! -name '*.pyc' -print0 | sort -z | xargs -0 -r sha256sum); }
+if [ "${1:-}" = "--adoptar" ]; then
+  manifiesto "$DESTINO/app" > "$ESTADO/manifiesto"
+  git ls-remote "https://github.com/$REPO.git" refs/heads/main | cut -f1 > "$ESTADO/ultimo"
+  rm -f "$ESTADO/bloqueado"
+  echo "Adoptado: $(wc -l < "$ESTADO/manifiesto") archivos de app/ · main $(cut -c1-7 "$ESTADO/ultimo") marcado como ya publicado. Solo se publicarán commits NUEVOS de main."
+  exit 0
+fi
 exec 9>"$ESTADO/lock"; flock -n 9 || exit 0   # nunca dos publicaciones a la vez
 
 sha=$(timeout 30 git ls-remote "https://github.com/$REPO.git" refs/heads/main | cut -f1) || exit 0
 [ -n "$sha" ] || exit 0
 [ "$sha" = "$(cat "$ESTADO/ultimo" 2>/dev/null)" ] && exit 0
+
+# --- protección contra pisar cambios hechos a mano en el servidor ---
+bloquear() { echo "$sha" > "$ESTADO/bloqueado"; exit 0; }
+ya_avisado=$([ "$(cat "$ESTADO/bloqueado" 2>/dev/null)" = "$sha" ] && echo si || echo no)
+if [ ! -s "$ESTADO/manifiesto" ]; then
+  [ "$ya_avisado" = si ] || echo "$(date -Is) NO SE PUBLICA $sha: no hay huella del código del servidor. Si lo que corre ya está en GitHub, ejecuta una vez: auto_desplegar.sh --adoptar"
+  bloquear
+fi
+if ! manifiesto "$DESTINO/app" | cmp -s - "$ESTADO/manifiesto"; then
+  if [ "$ya_avisado" = no ]; then
+    echo "$(date -Is) NO SE PUBLICA $sha: app/ del servidor tiene cambios hechos a mano que NO están en GitHub (se pisarían). Archivos distintos:"
+    { diff <(manifiesto "$DESTINO/app") "$ESTADO/manifiesto" | grep '^[<>]' | awk '{print "   " $3}' | sort -u | head -30; } || true
+    cp -a "$DESTINO/app" "$ESTADO/deriva-$(date +%Y%m%d-%H%M%S)"
+    echo "   (copia de ese código guardada en $ESTADO/deriva-*). Guárdalo en git (scripts/guardar_servidor_en_git.sh) y luego ejecuta: auto_desplegar.sh --adoptar"
+  fi
+  bloquear
+fi
+
 echo "$(date -Is) nuevo commit $sha"
 
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
@@ -50,7 +79,7 @@ fi
 
 for i in $(seq 1 24); do
   if [ "$(curl -s -o /dev/null -w '%{http_code}' -m 10 https://produccion.cloud/salud)" = 200 ]; then
-    echo "$sha" > "$ESTADO/ultimo"; echo "$(date -Is) publicado $sha (salud 200)"; exit 0
+    echo "$sha" > "$ESTADO/ultimo"; manifiesto "$DESTINO/app" > "$ESTADO/manifiesto"; echo "$(date -Is) publicado $sha (salud 200)"; exit 0
   fi
   sleep 5
 done
@@ -59,5 +88,6 @@ echo "$(date -Is) /salud no responde: se vuelve a la versión anterior"
 rm -rf "$DESTINO/app"; cp -a "$ESTADO/anterior/app" "$DESTINO/app"
 cp "$ESTADO/anterior/Dockerfile" "$ESTADO/anterior/requirements.txt" "$DESTINO/"
 docker compose up -d --build --force-recreate asistente
+manifiesto "$DESTINO/app" > "$ESTADO/manifiesto"
 echo "$sha" > "$ESTADO/ultimo"   # no se reintenta el mismo commit roto
 exit 1
