@@ -4,6 +4,7 @@
 # vuelve a la versión anterior. No toca .env, secrets/ ni data/.
 # PROTECCIÓN: si alguien cambió app/ a mano en el servidor (scp / docker cp) sin hacer push, NO publica (pisaría ese trabajo): avisa en el log y se detiene.
 #   «auto_desplegar.sh --adoptar» da por bueno lo que corre hoy en el servidor (guarda su huella y marca como ya publicado el main actual).
+#   «auto_desplegar.sh --huella» solo guarda la huella (úsalo cuando main ya contiene lo que corre y quieres que se publique el main pendiente).
 # Instalar (una vez, como root en el VPS):
 #   curl -sL https://raw.githubusercontent.com/sebastiangallo370-cmd/indoor-panel-operativo/main/scripts/auto_desplegar.sh -o /usr/local/bin/auto_desplegar.sh
 #   chmod +x /usr/local/bin/auto_desplegar.sh
@@ -15,6 +16,11 @@ ESTADO=${ESTADO:-/var/lib/auto_desplegar}
 mkdir -p "$ESTADO"
 # huella (sha256 de cada archivo) del código de app/ que hay en el servidor; sin __pycache__
 manifiesto() { (cd "$1" && find . -type f ! -path '*/__pycache__/*' ! -name '*.pyc' -print0 | sort -z | xargs -0 -r sha256sum); }
+if [ "${1:-}" = "--huella" ]; then   # solo guarda la huella del código actual del servidor; el próximo commit de main (incluso el actual, si aún no se publicó) SÍ se publica
+  manifiesto "$DESTINO/app" > "$ESTADO/manifiesto"; rm -f "$ESTADO/bloqueado"
+  echo "Huella guardada: $(wc -l < "$ESTADO/manifiesto") archivos de app/. Se publicará el main que aún no se haya publicado."
+  exit 0
+fi
 if [ "${1:-}" = "--adoptar" ]; then
   manifiesto "$DESTINO/app" > "$ESTADO/manifiesto"
   git ls-remote "https://github.com/$REPO.git" refs/heads/main | cut -f1 > "$ESTADO/ultimo"
