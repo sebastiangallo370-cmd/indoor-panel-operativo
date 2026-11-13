@@ -53,6 +53,12 @@ Léelo completo antes de tocar código. Última actualización grande: 2026-10-0
 ## Despliegue (automático desde main)
 **Hacer push a main = publicar en ~2 min.** En el VPS, `scripts/auto_desplegar.sh` corre cada minuto (cron `/etc/cron.d/auto_desplegar`, log `/var/log/auto_desplegar.log`): si main cambió, descarga ese commit, revisa sintaxis, copia app/, reconstruye y comprueba /salud; si falla, vuelve a la versión anterior. Por eso prueba bien ANTES de hacer push. Se quitaron los workflows de GitHub Actions: no podían entrar al VPS por SSH. Si cambias el script, el VPS no lo actualiza solo: hay que volver a descargarlo con el curl de su cabecera.
 
+**⚠ ANTES DE HACER PUSH A main: el servidor puede estar POR DELANTE del repo.** El 2026-11-13 un push a main reemplazó en producción una interfaz (ventana «Empezar pedido», pestaña «PROGRAMAR CLUB») que solo existía en el servidor (subida con scp/docker cp sin push). Se recuperó desde `/var/lib/auto_desplegar/anterior`. Reglas:
+- Nunca hagas push a main sin comprobar que main contiene lo que corre en producción (ej.: compara menú/pantallas reales con el repo, o pide al usuario correr `scripts/guardar_servidor_en_git.sh` y revisa la rama `respaldo-servidor-*` que sube).
+- `scripts/auto_desplegar.sh` tiene un CANDADO: guarda la huella de `app/` tras cada publicación y, si el servidor tiene archivos distintos (cambios a mano), NO publica y lo dice en `/var/log/auto_desplegar.log`. Tras guardar ese código en git, se reanuda con `auto_desplegar.sh --adoptar` (marca el main actual como ya publicado). Sin huella (primera vez) tampoco publica: hay que correr `--adoptar` una vez.
+- Todo cambio que se suba al servidor a mano debe terminar también en git (commit + push) el mismo día.
+- Estado al 2026-11-13: producción corre el código de ANTES de PEDIDO EN EFFI; main tiene PEDIDO EN EFFI sobre código viejo (no desplegar main tal cual). El despliegue automático quedó apagado (`/root/auto_desplegar.cron.apagado`); copias en `/root/respaldo_codigo_anterior_20261113` y `/root/app_con_pedido_effi_20261113`.
+
 Lo de abajo es el método manual de respaldo:
 Respaldo: `respaldo.py` hace un .tar.gz diario de /data (14 en el servidor) y lo copia a la NAS en `RESPALDOS PANEL` (30 copias; `RESPALDO_NAS_DIR` vacío lo apaga). Si falla, aparece en salud.
 
