@@ -236,7 +236,7 @@
           <label>Precio ud.*<input data-f="precio" inputmode="decimal" value="${esc(l.precio)}"></label>
           <label>Bruto<input value="${money(brutoDe(l))}" disabled></label>
           <label>Descuento<div class="pe-dto"><input data-f="descuento" inputmode="decimal" value="${esc(l.obsequio ? '100' : l.descuento)}" ${l.obsequio ? 'disabled' : ''}><button class="pe-pct" type="button" data-dtipo title="Cambiar entre valor ($) y porcentaje (%)">${l.obsequio || l.dtipo === 'pct' ? '%' : '$'}</button></div></label>
-          <label>Impuesto<input value="${l.sinIva ? 'Sin IVA' : esc(l.impuesto || '—')}" disabled></label>
+          <label>Impuesto<select data-siniva-sel><option value="0"${l.sinIva ? '' : ' selected'}>${esc(l.impuesto || 'Sin impuesto')}</option>${l.impuesto ? `<option value="1"${l.sinIva ? ' selected' : ''}>Quitar IVA (sin impuesto)</option>` : ''}</select></label>
           <div><span style="color:#c9d3c1;font:800 11px Arial;letter-spacing:.08em">Total sin IVA</span><div class="pe-total-linea">${money(brutoDe(l) - descDe(l))}</div></div>
           <button class="pe-x" type="button" data-quitar aria-label="Quitar concepto">✕</button>
           <div class="pe-tela" data-tela>${telaHtml(l)}</div><div class="pe-mas"><button type="button" class="pe-link" data-detalles>${l.abierta ? '▾' : '▸'} Más detalles${l.obsequio || l.obs || l.sinIva ? ' ●' : ''}</button>${l.abierta ? `<div class="pe-detalles"><label class="pe-chk"><input type="checkbox" data-obsequio ${l.obsequio ? 'checked' : ''}> Sumar solo impuestos para Obsequio, degustación o donación (descuento del 100 %)</label><label class="pe-chk"><input type="checkbox" data-siniva ${l.sinIva ? 'checked' : ''}> Sin IVA en este concepto</label><label>Observación del concepto<input data-f="obs" maxlength="250" value="${esc(l.obs)}" placeholder="Opcional"></label></div>` : ''}</div>
@@ -432,6 +432,7 @@
       if (/^A\d+[A-Z]{1,8}\d{2}/i.test(String(l.ref || ''))) cargarTela(l.ref);
       row.querySelector('[data-dtipo]').onclick = () => { if (l.obsequio) return; l.dtipo = l.dtipo === 'pct' ? 'valor' : 'pct'; invalidar(); dibujar(); };
       row.querySelector('[data-detalles]').onclick = () => { l.abierta = !l.abierta; dibujar(); };
+      const ss = row.querySelector('[data-siniva-sel]'); if (ss) ss.onchange = () => { l.sinIva = ss.value === '1'; st.sinIvaTodos = st.conceptos.every(x => x.sinIva); invalidar(); dibujar(); };
       const si = row.querySelector('[data-siniva]'); if (si) si.onchange = () => { l.sinIva = si.checked; st.sinIvaTodos = st.conceptos.every(x => x.sinIva); invalidar(); dibujar(); };
       const ob = row.querySelector('[data-obsequio]'); if (ob) ob.onchange = () => { l.obsequio = ob.checked; invalidar(); dibujar(); };
       row.querySelector('[data-quitar]').onclick = () => { st.conceptos.splice(i, 1); if (!st.conceptos.length) st.conceptos.push(lineaVacia()); invalidar(); dibujar(); };
