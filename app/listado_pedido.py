@@ -272,3 +272,82 @@ def preparar(datos: dict, plantilla_fn, comercial: str = '') -> dict:
     nombre_xlsx, xlsx = excel_listado(doc, grupos, plantilla_fn(), comercial or str(doc.get('vendedor') or ''), linea_producto)
     return {'pdf_nombre': f'{pref}{numero}.pdf', 'pdf': pdf_cotizacion(doc, grupos), 'excel_nombre': nombre_xlsx, 'excel': xlsx,
             'observaciones': str(datos.get('observaciones') or '').strip()[:5000], 'linea': linea_producto, 'grupos': grupos}
+def _color(c) -> str:
+    try:
+        rgb = c.rgb if c is not None else None
+        if isinstance(rgb, str) and len(rgb) in (6, 8) and rgb not in ('00000000',):
+            rgb = rgb[-6:]
+            return '' if rgb.upper() == 'FFFFFF' and False else '#' + rgb
+    except Exception:  # noqa: BLE001
+        pass
+    return ''
+
+
+def vista_excel(ruta, max_cols: int = 48, extra: int = 2, lado_img: int = 700) -> dict:
+    """El Excel tal como quedó (plantilla de Indoor + filas + mockups) en un formato que el navegador puede dibujar como una hoja de Excel:
+    anchos, altos, celdas combinadas, valores, negritas, rellenos, y las imágenes con su posición. Solo lectura."""
+    import base64
+    from io import BytesIO
+    from openpyxl import load_workbook
+    from openpyxl.utils import get_column_letter
+    from PIL import Image
+    wb = load_workbook(ruta, keep_vba=True)
+    hojas = []
+    for ws in wb.worksheets:
+        ultima = 7
+        for r in range(8, min(ws.max_row, 700) + 1):
+            if any(ws.cell(row=r, column=c).value not in (None, '') for c in (3, 4, 5)):
+                ultima = r
+        filas = ultima + extra
+        imagenes = []
+        for im in getattr(ws, '_images', []):
+            a = im.anchor
+            de = getattr(a, '_from', None)
+            if de is None or de.row >= filas + 40:
+                continue
+            hasta = getattr(a, 'to', None)
+            try:
+                img = Image.open(BytesIO(im._data()))
+                img.thumbnail((lado_img, lado_img))
+                buf = BytesIO()
+                img.convert('RGB').save(buf, 'JPEG', quality=82)
+                datos = 'data:image/jpeg;base64,' + base64.b64encode(buf.getvalue()).decode()
+            except Exception:  # noqa: BLE001
+                continue
+            ext = getattr(a, 'ext', None)
+            imagenes.append({'c1': de.col + 1, 'r1': de.row + 1, 'dx': int((de.colOff or 0) / 9525), 'dy': int((de.rowOff or 0) / 9525),
+                             'c2': (hasta.col + 1) if hasta else None, 'r2': (hasta.row + 1) if hasta else None,
+                             'w': int(ext.width / 9525) if ext is not None and getattr(ext, 'width', None) else None,
+                             'h': int(ext.height / 9525) if ext is not None and getattr(ext, 'height', None) else None, 'src': datos})
+        cols_usadas = 1
+        celdas = []
+        for fila in ws.iter_rows(min_row=1, max_row=filas, max_col=max_cols):
+            for c in fila:
+                v = c.value
+                relleno = _color(c.fill.fgColor) if c.fill is not None and c.fill.fill_type == 'solid' else ''
+                if v in (None, '') and not relleno:
+                    continue
+                cols_usadas = max(cols_usadas, c.column)
+                if isinstance(v, (int, float)) and not isinstance(v, bool):
+                    texto = f'{v:g}' if isinstance(v, float) else str(v)
+                elif hasattr(v, 'strftime'):
+                    texto = v.strftime('%Y-%m-%d')
+                else:
+                    texto = '' if v is None else str(v)
+                if texto.startswith('='):
+                    texto = ''
+                celdas.append({'r': c.row, 'c': c.column, 't': texto, 'b': bool(c.font and c.font.b), 'f': relleno,
+                               'k': _color(c.font.color) if c.font is not None and c.font.color is not None else '',
+                               'h': (c.alignment.horizontal or '') if c.alignment is not None else '', 'z': float(c.font.sz or 11) if c.font is not None else 11.0})
+        for im in imagenes:
+            cols_usadas = max(cols_usadas, im['c2'] or im['c1'])
+        n_cols = min(max_cols, cols_usadas + 1)
+        anchos = [round((ws.column_dimensions[get_column_letter(i)].width or 8.43) if get_column_letter(i) in ws.column_dimensions else 8.43, 2) for i in range(1, n_cols + 1)]
+        altos = [round(ws.row_dimensions[r].height or 15, 2) if r in ws.row_dimensions else 15.0 for r in range(1, filas + 1)]
+        combinadas = []
+        for m in ws.merged_cells.ranges:
+            if m.min_row <= filas and m.min_col <= n_cols:
+                combinadas.append([m.min_row, m.min_col, min(m.max_row, filas), min(m.max_col, n_cols)])
+        hojas.append({'nombre': ws.title, 'filas': filas, 'cols': n_cols, 'primera_dato': 8, 'ultima_dato': ultima, 'anchos': anchos, 'altos': altos,
+                      'combinadas': combinadas, 'celdas': [x for x in celdas if x['c'] <= n_cols], 'imagenes': imagenes})
+    return {'hojas': hojas}

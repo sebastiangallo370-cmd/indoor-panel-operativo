@@ -53,6 +53,22 @@
   .pl-pasos2 li.hecho{color:#e8f0e0}.pl-pasos2 li.hecho span{background:#d0f44c;color:#142017;border-color:#d0f44c}.pl-pasos2 li.activo{color:#d0f44c}.pl-pasos2 li.activo span{border-color:#d0f44c;animation:plpulso 1s infinite}@keyframes plpulso{50%{opacity:.35}}
   .pl-fotos{display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 10px}.pl-fotos figure{margin:0;text-align:center}.pl-fotos img{display:block;height:120px;width:auto;border-radius:8px;background:#fff}.pl-fotos figcaption{font:800 11px Arial;margin-top:3px;color:#c9d3c1}
   .pl-xl-t{width:100%;border-collapse:collapse;font:600 12px Arial}.pl-xl-t th{background:#1d2a1d;font:800 10px Arial;letter-spacing:.06em;text-align:left;padding:5px 7px}.pl-xl-t td{padding:5px 7px;border-bottom:1px solid rgba(255,255,255,.08)}
+  .pl-env{display:grid;gap:14px;grid-template-columns:minmax(260px,360px) minmax(0,1fr);align-items:start}
+  .pl-env-estado{margin:0!important;max-width:none!important;position:sticky;top:0}
+  .pl-xl{min-width:0;border:1px solid #2f3b2f;border-radius:12px;overflow:hidden;background:#fff;color:#111}
+  .xl-titulo{display:flex;align-items:center;gap:8px;padding:7px 10px;background:#1d6b3c;color:#fff;font:700 12px Arial}.xl-titulo small{margin-left:auto;font:700 11px Arial;color:#d9f5e3}
+  .xl-ico{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:3px;background:#fff;color:#1d6b3c;font:900 12px Arial}
+  .xl-scroll{overflow:auto;max-height:calc(100vh - 300px);min-height:300px;background:#fff}
+  .xl-hoja{position:relative;font-family:Calibri,Arial,sans-serif}
+  .xl-col,.xl-fil{position:absolute;background:#f3f3f3;color:#555;font:600 11px Arial;display:flex;align-items:center;justify-content:center;border-right:1px solid #d4d4d4;border-bottom:1px solid #d4d4d4;box-sizing:border-box;z-index:2}
+  .xl-col{top:0;height:22px}.xl-fil{left:0;width:24px}.xl-fil.on{background:#e3f2e8;color:#1d6b3c}
+  .xl-red{position:absolute;background-image:linear-gradient(#e2e2e2 1px,transparent 1px),linear-gradient(90deg,#e2e2e2 1px,transparent 1px);background-size:64px 20px}
+  .xl-c{position:absolute;box-sizing:border-box;display:flex;align-items:center;padding:0 3px;overflow:hidden;white-space:nowrap;border-right:1px solid #e2e2e2;border-bottom:1px solid #e2e2e2;color:#111;opacity:0;transition:opacity .25s}
+  .xl-c.on{opacity:1}
+  .xl-img{position:absolute;object-fit:contain;opacity:0;transform:scale(.6);transition:opacity .4s,transform .4s;z-index:3;box-shadow:0 4px 14px rgba(0,0,0,.25)}.xl-img.on{opacity:1;transform:none}
+  .xl-sel{position:absolute;border:2px solid #1d6b3c;box-shadow:0 0 0 1px #fff inset;z-index:4;pointer-events:none;transition:top .12s}
+  .xl-tabs{display:flex;gap:2px;padding:4px 6px 0;background:#e9e9e9;border-top:1px solid #ccc;overflow-x:auto}.xl-tabs button{all:unset;cursor:pointer;padding:5px 14px;font:700 11px Arial;color:#444;background:#ddd;border-radius:4px 4px 0 0}.xl-tabs button.on{background:#fff;color:#1d6b3c;border-bottom:2px solid #1d6b3c}
+  @media(max-width:900px){.pl-env{grid-template-columns:1fr}.pl-env-estado{position:static}.xl-scroll{max-height:60vh}}
   /* paso 2 y 3 */
   .pl-tarjeta{padding:16px;border:1px solid rgba(255,255,255,.14);border-radius:16px;background:linear-gradient(160deg,rgba(255,255,255,.07),rgba(0,0,0,.28));margin-bottom:12px}
   .pl-tarjeta h3{margin:0 0 10px;font:900 15px Arial;display:flex;align-items:center;gap:8px}.pl-tarjeta h3::before{content:"";width:4px;height:16px;border-radius:2px;background:#d0f44c}
@@ -369,6 +385,7 @@
     const fd = new FormData(); fd.append('payload', JSON.stringify({ doc, listado, linea: L.linea, observaciones: L.observaciones }));
     grupos().forEach(g => { for (let n = 1; n <= L.disenos; n++) { const img = imagenDe(L.compartir ? '*' : g.referencia, n); if (img) fd.append('mockup:' + g.referencia + ':' + n, img, img.name); } });
     // al pulsar PROGRAMAR PEDIDO el trabajo empieza YA y se ve en pantalla: el listado de Excel que se está creando y cómo avanza cada paso
+    L.xlCargado = false; L.xlVista = null;
     L.pantalla = 'enviado'; L.job = { id: 0, estado: 'ENVIANDO', progreso: 3, detail: 'Creando el listado de Excel con la plantilla de Indoor…', excel: '', insertados: null }; dibujar();
     try {
       const r = await fetch('/api/pedido-effi/programar', { method: 'POST', body: fd, credentials: 'same-origin' });
@@ -391,20 +408,89 @@
         filas.map((x, i) => '<tr><td>' + (i + 1) + '</td><td>' + esc(x.nombre) + '</td><td>' + esc(x.talla) + '</td><td>' + esc(x.numero) + '</td><td>D' + esc(x.diseno) + '</td><td>' + esc(x.genero) + '</td><td>' + esc(x.observacion) + '</td></tr>').join('') + '</tbody></table></div></div>';
     }).join('');
   }
+  // ---- La hoja de Excel en pantalla: se dibuja la MISMA plantilla que se guardó y se ve cómo se escribe, fila por fila, y cómo entran los mockups
+  const letra = n => { let s = ''; while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; };
+  function htmlHoja(h) {
+    const X = [0], Y = [0], CH = 22, RH = 24;   // CH: alto de la fila de letras · RH: ancho de la columna de números
+    h.anchos.forEach(w => X.push(X[X.length - 1] + Math.round(w * 7 + 5)));
+    h.altos.forEach(a => Y.push(Y[Y.length - 1] + Math.round(a * 4 / 3)));
+    const W = X[X.length - 1], H = Y[Y.length - 1], tapada = new Set(), span = {};
+    h.combinadas.forEach(([r1, c1, r2, c2]) => { span[r1 + ':' + c1] = [r2, c2]; for (let r = r1; r <= r2; r++) for (let c = c1; c <= c2; c++) if (r !== r1 || c !== c1) tapada.add(r + ':' + c); });
+    let out = '<div class="xl-hoja" style="width:' + (W + RH) + 'px;height:' + (H + CH) + 'px">';
+    for (let c = 1; c <= h.cols; c++) out += '<div class="xl-col" style="left:' + (RH + X[c - 1]) + 'px;width:' + (X[c] - X[c - 1]) + 'px">' + letra(c) + '</div>';
+    for (let r = 1; r <= h.filas; r++) out += '<div class="xl-fil" data-fila="' + r + '" style="top:' + (CH + Y[r - 1]) + 'px;height:' + (Y[r] - Y[r - 1]) + 'px">' + r + '</div>';
+    out += '<div class="xl-red" style="left:' + RH + 'px;top:' + CH + 'px;width:' + W + 'px;height:' + H + 'px;background-size:auto"></div>';
+    h.celdas.forEach(c => {
+      if (tapada.has(c.r + ':' + c.c) || c.c > h.cols || c.r > h.filas) return;
+      const sp = span[c.r + ':' + c.c] || [c.r, c.c], x = X[c.c - 1], y = Y[c.r - 1], w = X[sp[1]] - x, hh = Y[sp[0]] - y;
+      out += '<div class="xl-c" data-r="' + c.r + '" style="left:' + (RH + x) + 'px;top:' + (CH + y) + 'px;width:' + w + 'px;height:' + hh + 'px;' + (c.f ? 'background:' + c.f + ';' : '') + (c.k ? 'color:' + c.k + ';' : '') + (c.b ? 'font-weight:700;' : '') + 'font-size:' + Math.max(8, Math.min(16, c.z)) + 'px;justify-content:' + (c.h === 'center' ? 'center' : c.h === 'right' ? 'flex-end' : 'flex-start') + '">' + esc(c.t) + '</div>';
+    });
+    h.imagenes.forEach((im, k) => {
+      const x = X[im.c1 - 1] + im.dx, y = Y[im.r1 - 1] + im.dy;
+      const w = im.c2 ? X[Math.min(im.c2, h.cols)] - x : (im.w || 200), hh = im.r2 ? Y[Math.min(im.r2, h.filas)] - y : (im.h || 200);
+      out += '<img class="xl-img" data-img="' + k + '" alt="" src="' + im.src + '" style="left:' + (RH + x) + 'px;top:' + (CH + y) + 'px;width:' + w + 'px;height:' + hh + 'px">';
+    });
+    return out + '<div class="xl-sel" hidden></div></div>';
+  }
+  async function animarHoja(caja, h, aviso) {   // primero el encabezado, luego cada fila del listado, al final los mockups
+    const pausa = ms => new Promise(r => setTimeout(r, ms)), sel = caja.querySelector('.xl-sel');
+    const fila = r => caja.querySelectorAll('.xl-c[data-r="' + r + '"]');
+    for (let r = 1; r < h.primera_dato; r++) fila(r).forEach(e => e.classList.add('on'));
+    aviso('Copiando la plantilla de Indoor y llenando el encabezado (cliente, proyecto, comercial, fecha y línea)…'); await pausa(500);
+    for (let r = h.primera_dato; r <= h.ultima_dato; r++) {
+      if (!caja.isConnected) return;
+      const celdas = fila(r), num = caja.querySelector('.xl-fil[data-fila="' + r + '"]');
+      if (celdas.length && sel) { const a = celdas[0]; sel.hidden = false; sel.style.cssText = 'left:' + a.style.left + ';top:' + a.style.top + ';height:' + a.style.height + ';width:' + Math.max(...[...celdas].map(e => parseFloat(e.style.left) + parseFloat(e.style.width))) + 'px'; sel.style.width = (Math.max(...[...celdas].map(e => parseFloat(e.style.left) + parseFloat(e.style.width))) - parseFloat(a.style.left)) + 'px'; }
+      celdas.forEach(e => e.classList.add('on')); if (num) num.classList.add('on');
+      aviso('Escribiendo la fila ' + (r - h.primera_dato + 1) + ' de ' + (h.ultima_dato - h.primera_dato + 1) + '…');
+      await pausa(Math.max(60, Math.min(260, 3000 / Math.max(1, h.ultima_dato - h.primera_dato + 1))));
+    }
+    if (sel) sel.hidden = true;
+    caja.querySelectorAll('.xl-c').forEach(e => e.classList.add('on'));
+    const imgs = [...caja.querySelectorAll('.xl-img')];
+    for (let k = 0; k < imgs.length; k++) { aviso('Insertando el mockup ' + (k + 1) + ' de ' + imgs.length + ' en su diseño…'); try { imgs[k].scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' }); } catch (e) { /* sin desplazar */ } await pausa(350); imgs[k].classList.add('on'); await pausa(900); }
+    aviso('Listado listo en la plantilla de Indoor ✓');
+  }
+  async function cargarHoja() {
+    const caja = raiz.querySelector('[data-xl]'); if (!caja || !L.job.excel || L.xlCargado) return;
+    L.xlCargado = true;
+    const codigo = L.job.excel.split('/').pop();
+    try {
+      const r = await fetch('/api/pedido-effi/excel-vista/' + encodeURIComponent(codigo), { credentials: 'same-origin', cache: 'no-store' });
+      if (!r.ok) throw new Error('Error ' + r.status);
+      const v = await r.json(); L.xlVista = v;
+      mostrarHoja(0, true);
+    } catch (e) { caja.innerHTML = '<div class="pl-pdf-estado"><b>No pude mostrar la hoja</b><small>' + esc(String(e.message || e)) + '. El Excel igual quedó creado: usa DESCARGAR.</small></div>'; }
+  }
+  function mostrarHoja(n, animar) {
+    const caja = raiz.querySelector('[data-xl]'), v = L.xlVista; if (!caja || !v) return;
+    const h = v.hojas[n];
+    caja.innerHTML = '<div class="xl-titulo"><span class="xl-ico">X</span><b>' + esc(v.nombre) + '</b><small data-xl-aviso></small></div><div class="xl-scroll">' + htmlHoja(h) + '</div>' +
+      '<div class="xl-tabs">' + v.hojas.map((x, k) => '<button type="button" class="' + (k === n ? 'on' : '') + '" data-xl-hoja="' + k + '">' + esc(x.nombre) + '</button>').join('') + '</div>';
+    caja.querySelectorAll('[data-xl-hoja]').forEach(b => b.onclick = () => mostrarHoja(Number(b.dataset.xlHoja), false));
+    const aviso = t => { const e = caja.querySelector('[data-xl-aviso]'); if (e) e.textContent = t; };
+    if (animar) animarHoja(caja, h, aviso); else { caja.querySelectorAll('.xl-c,.xl-img,.xl-fil').forEach(e => e.classList.add('on')); aviso(''); }
+  }
   function pantallaEnviado() {
     const j = L.job || {}, fin = ['COMPLETADO', 'ERROR', 'REVISAR'].includes(j.estado), ok = j.estado === 'COMPLETADO', pr = ok ? 100 : Math.max(3, Number(j.progreso) || 3);
     const pasos = PASOS_ENVIO.map(([umbral, texto], k) => { const hecho = ok || pr > umbral || (k === 0 && pr >= 8), activo = !fin && !hecho && (k === 0 || pr >= PASOS_ENVIO[k - 1][0]); return '<li class="' + (hecho ? 'hecho' : activo ? 'activo' : '') + '"><span>' + (hecho ? '✓' : activo ? '…' : '·') + '</span>' + esc(texto) + '</li>'; }).join('');
     const titulo = ok ? 'PEDIDO PROGRAMADO' : fin ? 'NO SE PUDO TERMINAR' : 'PROGRAMANDO EL PEDIDO…';
-    q('[data-cuerpo]').innerHTML = '<div class="pl-listo"><span style="font:800 12px Arial;letter-spacing:.14em;color:' + (fin && !ok ? '#ff9b9b' : '#d0f44c') + '">' + titulo + '</span><strong>' + esc((L.doc.tipo === 'remision' ? 'RM' : 'CO') + L.doc.numero) + '</strong>' +
-      '<div class="pl-progreso"><i style="width:' + pr + '%"></i></div><div style="font:800 12px Arial;color:#c9d3c1">' + pr + ' %</div>' +
-      '<ul class="pl-pasos2">' + pasos + '</ul>' +
+    const estado = '<span style="font:800 12px Arial;letter-spacing:.14em;color:' + (fin && !ok ? '#ff9b9b' : '#d0f44c') + '">' + titulo + '</span><strong>' + esc((L.doc.tipo === 'remision' ? 'RM' : 'CO') + L.doc.numero) + '</strong>' +
+      '<div class="pl-progreso"><i style="width:' + pr + '%"></i></div><div style="font:800 12px Arial;color:#c9d3c1">' + pr + ' %</div><ul class="pl-pasos2">' + pasos + '</ul>' +
       (j.detail ? '<div class="caja ' + (ok ? 'ok' : fin ? 'error' : '') + '">' + esc(j.detail) + '</div>' : '') +
-      (j.excel ? '<div style="margin-top:12px"><a class="pl-btn" href="' + esc(j.excel) + '">⬇ DESCARGAR EL EXCEL' + (j.insertados != null ? ' (' + j.insertados + ' mockup(s) insertado(s))' : '') + '</a></div>' : '') + '</div>' +
-      '<div style="max-width:1000px;margin:0 auto">' + vistaListado() + '</div>';
-    acciones((fin && !ok ? '<button class="pl-btn sec" type="button" data-volver>◀ VOLVER AL LISTADO</button>' : '') + '<button class="pl-btn sec" type="button" data-otro>CREAR OTRO DOCUMENTO</button><button class="pl-btn" type="button" data-cerrar>CERRAR</button>', '', '');
-    const v = q('[data-volver]'); if (v) v.onclick = () => { L.pantalla = 'listado'; dibujar(); };
-    q('[data-otro]').onclick = () => L.opts.onOtro && L.opts.onOtro();
-    q('[data-cerrar]').onclick = () => L.opts.onCerrar && L.opts.onCerrar();
+      (j.excel ? '<div style="margin-top:12px"><a class="pl-btn" href="' + esc(j.excel) + '">⬇ DESCARGAR EL EXCEL' + (j.insertados != null ? ' (' + j.insertados + ' mockup(s) insertado(s))' : '') + '</a></div>' : '');
+    const yaEsta = raiz.querySelector('[data-env-estado]');
+    if (yaEsta) yaEsta.innerHTML = estado;   // solo se actualiza el avance: la hoja de Excel que se está dibujando no se toca
+    else {
+      q('[data-cuerpo]').innerHTML = '<div class="pl-env"><div class="pl-listo pl-env-estado" data-env-estado>' + estado + '</div><div class="pl-xl" data-xl>' +
+        (j.excel ? '' : '<div class="pl-pdf-estado"><div class="pl-spin"></div><b>Creando el listado de Excel…</b><small>En un momento lo verás escribirse aquí, como en Excel.</small></div>') + '</div></div>';
+      acciones('<button class="pl-btn sec" type="button" data-volver hidden>◀ VOLVER AL LISTADO</button><button class="pl-btn sec" type="button" data-otro>CREAR OTRO DOCUMENTO</button><button class="pl-btn" type="button" data-cerrar>CERRAR</button>', '', '');
+      q('[data-volver]').onclick = () => { L.pantalla = 'listado'; dibujar(); };
+      q('[data-otro]').onclick = () => L.opts.onOtro && L.opts.onOtro();
+      q('[data-cerrar]').onclick = () => L.opts.onCerrar && L.opts.onCerrar();
+    }
+    const v = q('[data-volver]'); if (v) v.hidden = !(fin && !ok);
+    if (j.excel && !L.xlCargado) { const c = raiz.querySelector('[data-xl]'); if (c) c.innerHTML = ''; cargarHoja(); }
   }
   async function seguir() {
     for (let k = 0; k < 120 && raiz && raiz.isConnected && L.pantalla === 'enviado'; k++) {
