@@ -14,7 +14,11 @@ from app import pedido_effi as pe
 FORMAS = [{'id': 1, 'nombre': 'Contado', 'credito': False, 'defecto': False},
           {'id': 2, 'nombre': 'Contado a 1 día', 'credito': True, 'defecto': True},
           {'id': 6, 'nombre': '30 días', 'credito': True, 'defecto': False}]
-CATALOGO = {'formas_pago': FORMAS, 'sucursales': [], 'bodegas': [], 'centros': [], 'vendedores': []}
+RETENCIONES = [{'id': 66, 'nombre': 'RETEICA 11.6 X MIL (1.16%)', 'valor': '1.160', 'tipo': 'Sobre base', 'base': '0.00', 'base_excluida': '0.00', 'base_maxima': '0.00'},
+               {'id': 70, 'nombre': 'ReteFuente 4%', 'valor': '4', 'tipo': 'Sobre base', 'base': '1000000', 'base_excluida': '0.00', 'base_maxima': '0.00'},
+               {'id': 71, 'nombre': 'ReteIVA 15%', 'valor': '15', 'tipo': 'Sobre impuesto principal', 'base': '0.00', 'base_excluida': '0.00', 'base_maxima': '0.00'},
+               {'id': 72, 'nombre': 'Con tope', 'valor': '2', 'tipo': 'Sobre base', 'base': '0.00', 'base_excluida': '0.00', 'base_maxima': '5000000'}]
+CATALOGO = {'formas_pago': FORMAS, 'sucursales': [], 'bodegas': [], 'centros': [], 'vendedores': [], 'monedas': [], 'retenciones': RETENCIONES}
 IVA = {'id': 7, 'etiqueta': 'IVA 19%', 'tipo_calculo': 'Porcentaje', 'valor': '19'}
 
 
@@ -97,6 +101,71 @@ class Construir(unittest.TestCase):
     def test_la_observacion_respeta_el_limite_de_la_remision(self):
         c = pe.construir(base(tipo='remision', formas_pago=[{'id': 6}], observacion='x' * 400))['cuerpo']
         self.assertLessEqual(len(c['observacion']), 255)
+
+
+class Funciones(unittest.TestCase):
+    """Los espacios de «Crear cotización» de Effi que tiene el formulario: moneda/TRM, descuento global, obsequio, observación por concepto, retenciones, propina y pronto pago."""
+    def setUp(self):
+        for objetivo, nuevo in (('articulo', articulo), ('impuestos_de', lambda t: [IVA] if t else [])):
+            m = mock.patch.object(effi_api, objetivo, nuevo)
+            m.start(); self.addCleanup(m.stop)
+        m = mock.patch.object(pe, '_catalogos', lambda: CATALOGO)
+        m.start(); self.addCleanup(m.stop)
+
+    def test_moneda_extranjera_pide_trm_y_cop_la_fuerza_a_uno(self):
+        with self.assertRaises(HTTPException):
+            pe.construir(base(divisa='USD'))
+        c = pe.construir(base(divisa='USD', trm='4000'))['cuerpo']
+        self.assertEqual((c['divisa'], c['trm']), ('USD', 4000.0))
+        c = pe.construir(base(divisa='COP', trm='9999'))['cuerpo']
+        self.assertEqual((c['divisa'], c['trm']), ('COP', 1.0))
+        with self.assertRaises(HTTPException):
+            pe.construir(base(divisa='PESOS'))
+
+    def test_descuento_global_se_manda_y_no_pasa_de_100(self):
+        c = pe.construir(base(descuento_global=10, conceptos=[{'articulo': 11, 'cantidad': 10, 'precio': 70000, 'descuento': 70000}]))
+        self.assertEqual(c['cuerpo']['descuento_global'], 10.0)
+        self.assertEqual(c['resumen']['total'], 630000.0)
+        with self.assertRaises(HTTPException):
+            pe.construir(base(descuento_global=101))
+        self.assertNotIn('descuento_global', pe.construir(base())['cuerpo'])
+
+    def test_obsequio_descuenta_el_cien_por_ciento_y_manda_gift(self):
+        c = pe.construir(base(conceptos=[{'articulo': 10, 'cantidad': 2, 'precio': 100000, 'obsequio': True, 'observacion': 'cortesía del club'},
+                                         {'articulo': 11, 'cantidad': 1, 'precio': 50000}]))
+        self.assertEqual(c['cuerpo']['gift'], [1, 0])
+        self.assertEqual(c['cuerpo']['observacion_concepto'], ['cortesía del club', ''])
+        self.assertEqual(c['cuerpo']['descuento'], [0.0, 0.0])
+        self.assertEqual((c['resumen']['descuento'], c['resumen']['total'], c['resumen']['impuestos']), (200000.0, 50000.0, 0.0))   # el obsequio no paga IVA
+
+    def test_retenciones_se_calculan_y_no_bajan_lo_que_suman_las_formas_de_pago(self):
+        p = base(conceptos=[{'articulo': 10, 'cantidad': 10, 'precio': 100000}], retenciones=[66, 70, 71])
+        r = pe.construir(p)
+        self.assertEqual(r['cuerpo']['retencion'], [66, 70, 71])
+        res = r['resumen']
+        self.assertEqual(res['total'], 1190000.0)                                  # 1.000.000 + IVA 190.000
+        self.assertEqual([x['valor'] for x in res['retenciones_detalle']], [11600.0, 40000.0, 28500.0])   # ICA 1,16 % · 4 % (supera la base) · 15 % del IVA
+        self.assertEqual((res['retenciones'], res['neto_con_retencion']), (80100.0, 1109900.0))
+        self.assertEqual(r['cuerpo']['valor_forma_pago'], [1190000.0])
+
+    def test_retencion_bajo_la_base_minima_no_aplica_y_las_raras_se_rechazan(self):
+        r = pe.construir(base(retenciones=[70]))          # subtotal 700.000 < base 1.000.000
+        self.assertEqual(r['resumen']['retenciones'], 0.0)
+        with self.assertRaises(HTTPException):
+            pe.construir(base(retenciones=[72]))          # base máxima: no sabe calcularla
+        with self.assertRaises(HTTPException):
+            pe.construir(base(retenciones=[999]))         # no existe
+
+    def test_propina_se_suma_al_total(self):
+        r = pe.construir(base(propina=50000))
+        self.assertEqual((r['cuerpo']['propina'], r['resumen']['total'], r['cuerpo']['valor_forma_pago']), (50000.0, 750000.0, [750000.0]))
+        self.assertNotIn('propina', pe.construir(base())['cuerpo'])
+
+    def test_pronto_pago_pide_fecha_y_no_cambia_el_total(self):
+        with self.assertRaises(HTTPException):
+            pe.construir(base(prontopago=20000))
+        r = pe.construir(base(prontopago=20000, fecha_prontopago='2026-12-01'))
+        self.assertEqual((r['cuerpo']['prontopago'], r['cuerpo']['fecha_prontopago'], r['resumen']['total']), (20000.0, '2026-12-01', 700000.0))
 
 
 class Crear(unittest.TestCase):

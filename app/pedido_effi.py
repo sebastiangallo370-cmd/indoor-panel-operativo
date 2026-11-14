@@ -97,6 +97,10 @@ def _catalogos() -> dict:
         'centros': [{'id': int(c['id']), 'nombre': str(c.get('nombre') or '')} for c in effi_api._lista('centro_costos') if str(c.get('ingresos')) == '1' and str(c.get('vigente', '1')) == '1'],
         'vendedores': [{'id': int(e['tercero']), 'nombre': str(e.get('nombre') or '')} for e in effi_api._lista('empleado') if str(e.get('vendedor')) == '1' and str(e.get('vigente', '1')) == '1'],
         'formas_pago': formas,
+        'monedas': [{'id': 'COP', 'nombre': 'Peso Colombiano $ COP'}, {'id': 'USD', 'nombre': 'Dólar Estadounidense $ USD'}, {'id': 'EUR', 'nombre': 'Euro € EUR'}],
+        'retenciones': [{'id': int(r['id']), 'nombre': f"{r.get('etiqueta') or r.get('nombre')} ({effi_api._d(r.get('valor')).normalize():f}%)", 'valor': str(r.get('valor') or '0'), 'tipo': str(r.get('tipo_calculo') or ''),
+                         'base': str(r.get('base') or '0'), 'base_excluida': str(r.get('base_excluida') or '0'), 'base_maxima': str(r.get('base_maxima') or '0')}
+                        for r in effi_api._lista('retencion') if str(r.get('vigente', '1')) == '1'],
     }
     _cache.update(t=ahora, d=d)
     return d
@@ -174,6 +178,20 @@ def articulos(request: Request, q: str = ''):
 
 
 # ---------------------------------------------------------------- cuerpo del documento
+def _retencion(r: dict, subtotal: Decimal, impuestos: Decimal) -> Decimal:
+    """Valor de una retención (misma regla que effi_api.construir_pedido): «Sobre base» = % de lo gravable si llega a la base mínima; «Sobre impuesto principal» = % del IVA."""
+    tipo = str(r.get('tipo') or '').lower()
+    if effi_api._d(r.get('base_maxima')) > 0:
+        raise HTTPException(400, f"La retención «{r.get('nombre')}» tiene base máxima: no sé calcularla; elige otra")
+    pct = effi_api._d(r.get('valor'))
+    if tipo == 'sobre base':
+        gravable = subtotal - effi_api._d(r.get('base_excluida'))
+        return effi_api._redondear(gravable * pct / 100) if gravable >= effi_api._d(r.get('base')) else Decimal(0)
+    if tipo == 'sobre impuesto principal':
+        return effi_api._redondear(impuestos * pct / 100)
+    raise HTTPException(400, f"La retención «{r.get('nombre')}» ({r.get('tipo')}) no es de un tipo que sepa calcular")
+
+
 def construir(p: dict, usuario: str = '') -> dict:
     """Arma el cuerpo de POST /cotizacion o /remision_v con los datos del formulario y calcula lo que Effi va a verificar. No envía nada."""
     tipo = str(p.get('tipo') or '')
@@ -188,21 +206,31 @@ def construir(p: dict, usuario: str = '') -> dict:
         entrega = date.fromisoformat(str(p.get('fecha_entrega') or ''))
     except ValueError:
         raise HTTPException(400, 'Falta la fecha de entrega')
+    divisa = str(p.get('divisa') or 'COP').upper()
+    if not re.fullmatch(r'[A-Z]{3}', divisa):
+        raise HTTPException(400, 'La moneda no es válida')
+    trm = Decimal(1) if divisa == 'COP' else _num(p.get('trm'), 'La TRM', mayor=True)
+    desc_global = _num(p.get('descuento_global') or 0, 'El descuento global')
+    if desc_global > 100:
+        raise HTTPException(400, 'El descuento global no puede pasar de 100 %')
     lineas = p.get('conceptos') or []
     if not isinstance(lineas, list) or not lineas:
         raise HTTPException(400, 'Agrega al menos un concepto')
     if len(lineas) > MAX_CONCEPTOS:
         raise HTTPException(400, f'Máximo {MAX_CONCEPTOS} conceptos por documento')
-    formas_cat = {f['id']: f for f in _catalogos()['formas_pago']}
+    cat = _catalogos()
+    formas_cat = {f['id']: f for f in cat['formas_pago']}
     arts: dict[int, tuple[dict, list]] = {}
     out = {'articulo': [], 'descripcion': [], 'cantidad': [], 'precio': [], 'descuento': []}
+    gift, obs_c = [], []
     impuestos: dict[str, list[int]] = {}
     detalle, bruto_t, desc_t, imp_t = [], Decimal(0), Decimal(0), Decimal(0)
     for i, l in enumerate(lineas, 1):
         aid = _entero(l.get('articulo'), f'Artículo del concepto {i}')
         cant = _num(l.get('cantidad'), f'La cantidad del concepto {i}', mayor=True)
         precio = _num(l.get('precio'), f'El precio del concepto {i}')
-        desc = _num(l.get('descuento') or 0, f'El descuento del concepto {i}')
+        obsequio = bool(l.get('obsequio'))
+        desc = Decimal(0) if obsequio else _num(l.get('descuento') or 0, f'El descuento del concepto {i}')
         bruto = effi_api._redondear(cant * precio)
         if desc > bruto:
             raise HTTPException(400, f'El descuento del concepto {i} es mayor que su valor')
@@ -214,16 +242,34 @@ def construir(p: dict, usuario: str = '') -> dict:
                     raise HTTPException(400, f"El impuesto «{x.get('etiqueta')}» del artículo {art.get('referencia')} no es de porcentaje: no sé calcularlo")
             arts[aid] = (art, imps)
         art, imps = arts[aid]
-        base = bruto - desc
+        efectivo = bruto if obsequio else desc   # un obsequio se descuenta al 100 %
+        base = bruto - efectivo
         imp = effi_api._redondear(sum((base * effi_api._d(x.get('valor')) / 100 for x in imps), Decimal(0)))
         out['articulo'].append(str(aid))
         out['descripcion'].append(str(l.get('descripcion') or art.get('descripcion') or art.get('referencia') or '')[:120])
         out['cantidad'].append(float(cant)); out['precio'].append(float(precio)); out['descuento'].append(float(desc))
+        gift.append(1 if obsequio else 0); obs_c.append(str(l.get('observacion') or '').strip()[:250])
         if imps:
             impuestos[str(i)] = [int(x['id']) for x in imps]
-        bruto_t += bruto; desc_t += desc; imp_t += imp
-        detalle.append({'referencia': art.get('referencia'), 'bruto': float(bruto), 'descuento': float(desc), 'impuesto': float(imp), 'total': float(base + imp)})
-    total = effi_api._redondear(bruto_t - desc_t + imp_t)
+        bruto_t += bruto; desc_t += efectivo; imp_t += imp
+        detalle.append({'referencia': art.get('referencia'), 'bruto': float(bruto), 'descuento': float(efectivo), 'impuesto': float(imp), 'total': float(base + imp),
+                        'impuestos': ', '.join(str(x.get('etiqueta') or '') for x in imps)})
+    propina = effi_api._redondear(_num(p.get('propina') or 0, 'La propina'))
+    subtotal = bruto_t - desc_t
+    ret_ids = []
+    for x in (p.get('retenciones') or []):
+        rid = _entero(x, 'Retención')
+        if rid not in ret_ids:
+            ret_ids.append(rid)
+    ret_cat = {r['id']: r for r in cat['retenciones']}
+    ret_valor, ret_detalle = Decimal(0), []
+    for rid in ret_ids:
+        if rid not in ret_cat:
+            raise HTTPException(400, f'La retención {rid} no existe en Effi')
+        v = _retencion(ret_cat[rid], subtotal, imp_t)
+        ret_valor += v; ret_detalle.append({'id': rid, 'nombre': ret_cat[rid]['nombre'], 'valor': float(v)})
+    # Effi valida que las formas de pago sumen el total SIN descontar la retención (comprobado con una orden de compra); la propina sí se suma
+    total = effi_api._redondear(subtotal + imp_t + propina)
     formas = p.get('formas_pago') or []
     if not isinstance(formas, list) or not formas:
         raise HTTPException(400, 'Agrega la forma de pago')
@@ -249,10 +295,27 @@ def construir(p: dict, usuario: str = '') -> dict:
     marca = f'Creada desde el panel por {usuario}' if usuario else 'Creada desde el panel'
     limite = 1020 if tipo == 'cotizacion' else 255
     obs = ((obs + ' · ' if obs else '') + marca)[:limite]
-    cuerpo = {'idempotency_key': clave, 'sucursal': sucursal, 'bodega': bodega, 'centro_costos': centro, 'fecha_entrega': entrega.isoformat(), 'divisa': 'COP', 'trm': 1,
+    cuerpo = {'idempotency_key': clave, 'sucursal': sucursal, 'bodega': bodega, 'centro_costos': centro, 'fecha_entrega': entrega.isoformat(), 'divisa': divisa, 'trm': float(trm),
               'cliente': cliente, **out, 't_forma_pago': ids, 'valor_forma_pago': [float(v) for v in valores], 'observacion': obs}
     if impuestos:
         cuerpo['impuestos'] = impuestos
+    if any(gift):
+        cuerpo['gift'] = gift
+    if any(obs_c):
+        cuerpo['observacion_concepto'] = obs_c
+    if desc_global > 0:
+        cuerpo['descuento_global'] = float(desc_global)
+    if ret_ids:
+        cuerpo['retencion'] = ret_ids
+    if propina > 0:
+        cuerpo['propina'] = float(propina)
+    pronto = effi_api._redondear(_num(p.get('prontopago') or 0, 'El descuento por pronto pago'))
+    if pronto > 0:
+        try:
+            fpp = date.fromisoformat(str(p.get('fecha_prontopago') or ''))
+        except ValueError:
+            raise HTTPException(400, 'Falta la fecha del descuento por pronto pago')
+        cuerpo['prontopago'] = float(pronto); cuerpo['fecha_prontopago'] = fpp.isoformat()
     d = p.get('direccion') or {}
     if all(d.get(k) for k in ('id_pais', 'id_provincia', 'id_ciudad', 'direccion')):
         cuerpo.update(id_pais_cliente=int(d['id_pais']), id_provincia_cliente=int(d['id_provincia']), id_ciudad_cliente=int(d['id_ciudad']),
@@ -264,8 +327,9 @@ def construir(p: dict, usuario: str = '') -> dict:
     garantia = str(p.get('garantia') or '').strip()
     if garantia:
         cuerpo['garantia'] = garantia[:255]
-    return {'cuerpo': cuerpo, 'resumen': {'tipo': TIPOS[tipo], 'lineas': detalle, 'bruto': float(bruto_t), 'descuento': float(desc_t), 'subtotal': float(bruto_t - desc_t),
-                                          'impuestos': float(imp_t), 'total': float(total), 'formas': [{'id': i, 'valor': float(v)} for i, v in zip(ids, valores)]}}
+    return {'cuerpo': cuerpo, 'resumen': {'tipo': TIPOS[tipo], 'lineas': detalle, 'bruto': float(bruto_t), 'descuento': float(desc_t), 'subtotal': float(subtotal),
+                                          'impuestos': float(imp_t), 'propina': float(propina), 'retenciones': float(ret_valor), 'retenciones_detalle': ret_detalle,
+                                          'total': float(total), 'neto_con_retencion': float(total - ret_valor), 'formas': [{'id': i, 'valor': float(v)} for i, v in zip(ids, valores)]}}
 
 
 @router.post('/vista-previa')

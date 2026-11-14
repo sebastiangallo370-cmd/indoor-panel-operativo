@@ -30,7 +30,17 @@
   .pe-sug button{all:unset;box-sizing:border-box;display:block;width:100%;padding:9px 12px;cursor:pointer;color:#f5faef;font:600 13px/1.35 Arial}
   .pe-sug button:hover,.pe-sug button:focus{background:#1d2e20}
   .pe-sug small{display:block;color:#8f9d88;font-weight:500}
-  .pe-linea{display:grid;gap:8px;grid-template-columns:1.3fr 1.9fr .6fr 1fr 1fr 1fr .9fr auto;align-items:end;padding:10px 0;border-top:1px solid rgba(255,255,255,.1)}
+  .pe-linea{display:grid;gap:8px;grid-template-columns:1.3fr 1.8fr .6fr 1fr 1fr 1.1fr .8fr .9fr auto;align-items:end;padding:10px 0;border-top:1px solid rgba(255,255,255,.1)}
+  .pe-dto{display:flex;gap:6px;align-items:center}.pe-dto input{min-width:0}
+  .pe-pct{all:unset;cursor:pointer;box-sizing:border-box;min-width:38px;height:42px;display:grid;place-items:center;border:1px solid #3d4c3b;border-radius:10px;background:#142017;color:#d0f44c;font:900 14px Arial}
+  .pe-pct:hover{border-color:#d0f44c}
+  .pe-mas{grid-column:1/-1}.pe-link{all:unset;cursor:pointer;color:#a9b5a3;font:800 12px Arial;letter-spacing:.06em}.pe-link:hover{color:#d0f44c}
+  .pe-detalles{display:grid;gap:10px;grid-template-columns:minmax(180px,1fr) 2fr;margin-top:8px;padding:10px;border:1px dashed rgba(255,255,255,.18);border-radius:10px}
+  .pe-chk{display:flex;align-items:center;gap:8px;grid-auto-flow:column;justify-content:start;font:700 13px Arial;letter-spacing:0}.pe-chk input{width:auto;min-height:0}
+  .pe-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.pe-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:99px;background:rgba(255,255,255,.09);color:#e8f0e0;font:700 12px Arial}
+  .pe-chip button{all:unset;cursor:pointer;color:#ff9b9b;font-weight:900}
+  .pe-propina{align-items:center}.pe-propina .pe-dto{width:60%}
+  .pe-sub{display:grid;gap:10px;grid-template-columns:1fr 1fr}
   .pe-linea:first-of-type{border-top:0}
   .pe-total-linea{font:900 15px Arial;color:#d0f44c;min-height:42px;display:flex;align-items:center}
   .pe-x{all:unset;cursor:pointer;color:#ff9b9b;font:900 18px Arial;padding:8px}
@@ -54,6 +64,7 @@
   @media(max-width:900px){
     .pe-linea{grid-template-columns:1fr 1fr;padding:14px 0}
     .pe-linea .pe-art,.pe-linea .pe-desc{grid-column:1/-1}
+    .pe-detalles,.pe-sub{grid-template-columns:1fr}.pe-propina .pe-dto{width:55%}
     .pe-dos{grid-template-columns:1fr}
     .pe-forma{grid-template-columns:1fr 1fr}.pe-forma .pe-x{justify-self:end}
     .pe-card{padding:15px}.pe{margin:10px auto 120px}
@@ -61,7 +72,7 @@
   }`;
   document.head.appendChild(css);
 
-  const estadoInicial = () => ({ tipo: 'cotizacion', cat: null, estado: null, cliente: null, direccion: -1, conceptos: [], formas: [], clave: nuevaClave(), previa: false, prev: null, ocupado: false, hecho: null });
+  const estadoInicial = () => ({ tipo: 'cotizacion', cat: null, estado: null, cliente: null, direccion: -1, conceptos: [], formas: [], clave: nuevaClave(), previa: false, prev: null, ocupado: false, hecho: null, moneda: 'COP', trm: '1', global: '', propina: '', propinaPct: false, retenciones: [], pronto: '', fechaPronto: '' });
   const st = estadoInicial();
   let panel = null;
   const q = s => panel.querySelector(s);
@@ -77,10 +88,13 @@
   const debounce = (fn, ms) => { let t = 0; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
   const msg = (t, tipo) => { const m = q('[data-msg]'); if (m) { m.textContent = t || ''; m.className = 'pe-msg ' + (tipo || ''); } };
 
-  const lineaVacia = () => ({ articulo: 0, ref: '', descripcion: '', cantidad: 1, precio: '', descuento: 0 });
+  const lineaVacia = () => ({ articulo: 0, ref: '', descripcion: '', cantidad: 1, precio: '', descuento: 0, dtipo: 'valor', obsequio: false, obs: '', impuesto: '', abierta: false });
   const num = v => { const n = Number(String(v).replace(',', '.')); return isFinite(n) ? n : 0; };
   const brutoDe = l => num(l.cantidad) * num(l.precio);
-  const totales = () => { const b = st.conceptos.reduce((s, l) => s + brutoDe(l), 0), d = st.conceptos.reduce((s, l) => s + num(l.descuento), 0); return { b, d, s: b - d }; };
+  // descuento de un concepto en $: obsequio = 100 %; en % se calcula sobre su bruto; en valor se usa tal cual
+  const descDe = l => l.obsequio ? brutoDe(l) : (l.dtipo === 'pct' ? Math.round(brutoDe(l) * num(l.descuento)) / 100 : num(l.descuento));
+  const totales = () => { const b = st.conceptos.reduce((s, l) => s + brutoDe(l), 0), d = st.conceptos.reduce((s, l) => s + descDe(l), 0); return { b, d, s: b - d }; };
+  const propinaValor = () => (st.propinaPct ? Math.round(totales().s * num(st.propina)) / 100 : num(st.propina));
 
   function opciones(lista, sel, vacio) {
     return '<option value="">' + esc(vacio || 'Seleccionar…') + '</option>' + lista.map(o => '<option value="' + o.id + '"' + (String(o.id) === String(sel) ? ' selected' : '') + '>' + esc(o.nombre) + '</option>').join('');
@@ -110,11 +124,12 @@
           <label>Bodega*<select name="bodega">${opciones(bodegas, guard.bodega)}</select></label>
           <label>Centro de costos*<select name="centro_costos">${opciones(c.centros, guard.centro_costos)}</select></label>
           <label>Fecha de entrega*<input type="date" name="fecha_entrega" value="${esc(guard.fecha_entrega || hoy())}"></label>
-          <label>Moneda*<input value="Peso Colombiano $ COP" disabled></label>
-          <label>TRM*<input value="1" disabled></label>
+          <label>Moneda*<select name="moneda">${(c.monedas || [{ id: 'COP', nombre: 'Peso Colombiano $ COP' }]).map(m => '<option value="' + m.id + '"' + (m.id === st.moneda ? ' selected' : '') + '>' + esc(m.nombre) + '</option>').join('')}</select></label>
+          <label>TRM*<input name="trm" inputmode="decimal" value="${esc(st.moneda === 'COP' ? '1' : st.trm)}" ${st.moneda === 'COP' ? 'disabled' : ''}></label>
           <label>Cliente*<input name="cliente-q" autocomplete="off" placeholder="Buscar por nombre (3 letras)…" value="${esc(st.cliente ? st.cliente.nombre : guard['cliente-q'])}"><div class="pe-sug" data-sug-cliente hidden></div></label>
           <label>Dirección del cliente<select name="direccion">${st.cliente && st.cliente.direcciones.length ? st.cliente.direcciones.map((d, i) => '<option value="' + i + '"' + (i === st.direccion ? ' selected' : '') + '>' + esc((d.ciudad ? d.ciudad + ' · ' : '') + d.direccion) + '</option>').join('') : '<option value="-1">No registra</option>'}</select></label>
           <label>Vendedor<select name="vendedor">${opciones(c.vendedores, guard.vendedor)}</select></label>
+          <label>Descuento global (%)<input name="global" inputmode="decimal" placeholder="0" value="${esc(st.global)}"></label>
         </div>
       </div>
       <div class="pe-card"><h3>Conceptos</h3><div data-lineas>${st.conceptos.map((l, i) => `
@@ -124,16 +139,24 @@
           <label>Cant.*<input data-f="cantidad" inputmode="decimal" value="${esc(l.cantidad)}"></label>
           <label>Precio ud.*<input data-f="precio" inputmode="decimal" value="${esc(l.precio)}"></label>
           <label>Bruto<input value="${money(brutoDe(l))}" disabled></label>
-          <label>Valor descuento<input data-f="descuento" inputmode="decimal" value="${esc(l.descuento)}"></label>
-          <div><span style="color:#c9d3c1;font:800 11px Arial;letter-spacing:.08em">Total sin IVA</span><div class="pe-total-linea">${money(brutoDe(l) - num(l.descuento))}</div></div>
+          <label>Descuento<div class="pe-dto"><input data-f="descuento" inputmode="decimal" value="${esc(l.obsequio ? '100' : l.descuento)}" ${l.obsequio ? 'disabled' : ''}><button class="pe-pct" type="button" data-dtipo title="Cambiar entre valor ($) y porcentaje (%)">${l.obsequio || l.dtipo === 'pct' ? '%' : '$'}</button></div></label>
+          <label>Impuesto<input value="${esc(l.impuesto || '—')}" disabled></label>
+          <div><span style="color:#c9d3c1;font:800 11px Arial;letter-spacing:.08em">Total sin IVA</span><div class="pe-total-linea">${money(brutoDe(l) - descDe(l))}</div></div>
           <button class="pe-x" type="button" data-quitar aria-label="Quitar concepto">✕</button>
+          <div class="pe-mas"><button type="button" class="pe-link" data-detalles>${l.abierta ? '▾' : '▸'} Más detalles${l.obsequio || l.obs ? ' ●' : ''}</button>${l.abierta ? `<div class="pe-detalles"><label class="pe-chk"><input type="checkbox" data-obsequio ${l.obsequio ? 'checked' : ''}> Obsequio (descuento del 100 %)</label><label>Observación del concepto<input data-f="obs" maxlength="250" value="${esc(l.obs)}" placeholder="Opcional"></label></div>` : ''}</div>
         </div>`).join('')}</div>
         <div style="margin-top:10px"><button class="pe-btn sec mini" type="button" data-mas>+ Agregar concepto</button></div>
       </div>
       <div class="pe-card"><h3>Detalles de la ${nombreDoc()}</h3><div class="pe-dos">
-        <div class="pe-grid" style="grid-template-columns:1fr"><label>Garantía<textarea name="garantia" maxlength="255" placeholder="Garantía">${esc(guard.garantia)}</textarea></label><label>Observación<textarea name="observacion" maxlength="800" placeholder="Observación">${esc(guard.observacion)}</textarea></label></div>
-        <div class="pe-tot"><div><span>TOTAL BRUTO</span><b>${money(t.b)}</b></div><div><span>− Descuentos</span><b>${money(t.d)}</b></div><div><span>SUBTOTAL</span><b>${money(t.s)}</b></div><div><span>+ Impuestos</span><b data-imp>${st.prev ? money(st.prev.impuestos) : '—'}</b></div><div class="neto"><span>TOTAL NETO</span><b data-neto>${st.prev ? money(st.prev.total) : '—'}</b></div></div></div>
-        <div data-previa class="pe-prev" ${st.prev ? '' : 'hidden'}>${st.prev ? 'Vista previa lista. Effi calculará ' + money(st.prev.total) + ' con impuestos. Revisa y pulsa CREAR.' : ''}</div>
+        <div class="pe-grid" style="grid-template-columns:1fr"><label>Garantía<textarea name="garantia" maxlength="255" placeholder="Garantía">${esc(guard.garantia)}</textarea></label><label>Observación<textarea name="observacion" maxlength="800" placeholder="Observación">${esc(guard.observacion)}</textarea></label>
+          <div><label>Retenciones<select data-ret-sel>${opciones((c.retenciones || []).filter(r => !st.retenciones.includes(r.id)), '', 'Seleccionar…')}</select></label><div style="margin-top:8px"><button class="pe-btn sec mini" type="button" data-ret-add>+ Agregar retención</button></div>
+            <div class="pe-chips">${st.retenciones.map(id => { const r = (c.retenciones || []).find(x => x.id === id); return '<span class="pe-chip">' + esc(r ? r.nombre : id) + '<button type="button" data-ret-quitar="' + id + '" aria-label="Quitar">✕</button></span>'; }).join('')}</div></div>
+          <div class="pe-sub"><label>Descuento pronto pago ($)<input name="pronto" inputmode="decimal" placeholder="0" value="${esc(st.pronto)}"></label><label>Fecha pronto pago<input type="date" name="fecha_pronto" value="${esc(st.fechaPronto)}"></label></div></div>
+        <div class="pe-tot"><div><span>TOTAL BRUTO</span><b>${money(t.b)}</b></div><div><span>− Descuentos</span><b>${money(t.d)}</b></div><div><span>SUBTOTAL</span><b>${money(t.s)}</b></div>
+          <div class="pe-propina"><span>+ Propina</span><span class="pe-dto"><input name="propina" inputmode="decimal" placeholder="0" value="${esc(st.propina)}"><button class="pe-pct" type="button" data-propina-tipo title="Cambiar entre valor ($) y porcentaje (%)">${st.propinaPct ? '%' : '$'}</button></span></div>
+          <div><span>+ Impuestos</span><b data-imp>${st.prev ? money(st.prev.impuestos) : '—'}</b></div><div><span>− Retenciones</span><b data-ret>${st.prev ? money(st.prev.retenciones) : '—'}</b></div>
+          <div class="neto"><span>TOTAL NETO</span><b data-neto>${st.prev ? money(st.prev.neto_con_retencion) : '—'}</b></div></div></div>
+        <div data-previa class="pe-prev" ${st.prev ? '' : 'hidden'}>${st.prev ? 'Vista previa lista. Las formas de pago deben sumar ' + money(st.prev.total) + (st.prev.retenciones ? ' (Effi pide el total antes de restar retenciones)' : '') + '. Revisa y pulsa CREAR.' : ''}</div>
       </div>
       <div class="pe-card"><h3>Formas de pago</h3><div data-formas>${st.formas.map((f, i) => `
         <div class="pe-forma" data-j="${i}"><label>Forma de pago*<select data-g="id">${opciones(c.formas_pago.filter(x => st.tipo === 'cotizacion' || x.credito), f.id, 'Seleccionar…')}</select></label><label>Valor${st.formas.length > 1 ? '' : ' (vacío = total)'}<input data-g="valor" inputmode="decimal" value="${esc(f.valor)}"></label>${st.formas.length > 1 ? '<button class="pe-x" type="button" data-quitar-forma aria-label="Quitar">✕</button>' : '<span></span>'}</div>`).join('')}</div>
@@ -150,11 +173,12 @@
     return {
       tipo: st.tipo, clave: st.clave, sucursal: valor('sucursal'), bodega: valor('bodega'), centro_costos: valor('centro_costos'), fecha_entrega: valor('fecha_entrega'),
       cliente: st.cliente ? st.cliente.tercero : '', direccion: d || undefined, vendedor: valor('vendedor') || undefined, garantia: valor('garantia'), observacion: valor('observacion'),
-      conceptos: st.conceptos.map(l => ({ articulo: l.articulo, descripcion: l.descripcion, cantidad: l.cantidad, precio: l.precio, descuento: l.descuento || 0 })),
+      divisa: st.moneda, trm: st.trm, descuento_global: st.global || 0, propina: propinaValor() || 0, retenciones: st.retenciones, prontopago: st.pronto || 0, fecha_prontopago: st.fechaPronto,
+      conceptos: st.conceptos.map(l => ({ articulo: l.articulo, descripcion: l.descripcion, cantidad: l.cantidad, precio: l.precio, descuento: descDe(l), obsequio: l.obsequio, observacion: l.obs })),
       formas_pago: st.formas.map(f => ({ id: f.id, valor: f.valor })),
     };
   }
-  function invalidar() { if (st.prev) { st.prev = null; const b = q('[data-crear]'); if (b) b.disabled = true; const p = q('[data-previa]'); if (p) p.hidden = true; const i = q('[data-imp]'), n = q('[data-neto]'); if (i) i.textContent = '—'; if (n) n.textContent = '—'; msg('Cambiaste algo: vuelve a pulsar VISTA PREVIA.', ''); } }
+  function invalidar() { if (st.prev) { st.prev = null; const b = q('[data-crear]'); if (b) b.disabled = true; const p = q('[data-previa]'); if (p) p.hidden = true; const i = q('[data-imp]'), n = q('[data-neto]'), r = q('[data-ret]'); if (i) i.textContent = '—'; if (n) n.textContent = '—'; if (r) r.textContent = '—'; msg('Cambiaste algo: vuelve a pulsar VISTA PREVIA.', ''); } }
   function defectoForma() { const f = st.cat.formas_pago.find(x => x.defecto) || st.cat.formas_pago[0]; return { id: f ? f.id : '', valor: '' }; }
 
   async function previa(crear) {
@@ -196,6 +220,19 @@
     panel.querySelectorAll('[data-tipo]').forEach(b => b.onclick = () => { if (st.tipo === b.dataset.tipo) return; st.tipo = b.dataset.tipo; st.prev = null; if (st.tipo === 'remision') st.formas = st.formas.map(f => { const x = st.cat.formas_pago.find(y => y.id === Number(f.id)); return x && !x.credito ? defectoForma() : f; }); dibujar(); });
     const act = q('[data-activo]');
     if (act) act.onclick = async () => { try { const r = await post('/api/pedido-effi/activo', { activo: !st.estado.activo }); st.estado.activo = r.activo; dibujar(); } catch (e) { msg(String(e.message || e), 'error'); } };
+    const mon = q('[name="moneda"]'); mon.onchange = () => { st.moneda = mon.value; if (mon.value === 'COP') st.trm = '1'; invalidar(); dibujar(); };
+    const trm = q('[name="trm"]'); trm.addEventListener('input', () => { st.trm = trm.value; invalidar(); });
+    const glob = q('[name="global"]'); glob.addEventListener('input', () => {   // como en Effi: el % global se aplica a todos los conceptos (cada uno se puede cambiar después)
+      st.global = glob.value; invalidar();
+      st.conceptos.forEach(l => { if (!l.obsequio) { l.dtipo = 'pct'; l.descuento = st.global === '' ? 0 : st.global; } });
+      panel.querySelectorAll('[data-lineas] .pe-linea').forEach(row => { const l = st.conceptos[Number(row.dataset.i)]; if (l.obsequio) return; row.querySelector('[data-f="descuento"]').value = l.descuento; row.querySelector('[data-dtipo]').textContent = '%'; row.querySelector('.pe-total-linea').textContent = money(brutoDe(l) - descDe(l)); });
+      refrescarTotales();
+    });
+    const pr = q('[name="propina"]'); pr.addEventListener('input', () => { st.propina = pr.value; invalidar(); });
+    q('[data-propina-tipo]').onclick = () => { st.propinaPct = !st.propinaPct; invalidar(); dibujar(); };
+    const pp = q('[name="pronto"]'), fp = q('[name="fecha_pronto"]'); pp.addEventListener('input', () => { st.pronto = pp.value; invalidar(); }); fp.addEventListener('input', () => { st.fechaPronto = fp.value; invalidar(); });
+    q('[data-ret-add]').onclick = () => { const v = Number(q('[data-ret-sel]').value); if (v && !st.retenciones.includes(v)) { st.retenciones.push(v); invalidar(); dibujar(); } };
+    panel.querySelectorAll('[data-ret-quitar]').forEach(b => b.onclick = () => { st.retenciones = st.retenciones.filter(x => x !== Number(b.dataset.retQuitar)); invalidar(); dibujar(); });
     ['sucursal', 'bodega', 'centro_costos', 'vendedor', 'fecha_entrega', 'garantia', 'observacion'].forEach(n => { const e = q('[name="' + n + '"]'); if (e) e.addEventListener('input', () => { invalidar(); if (n === 'sucursal') dibujar(); }); });
     const dir = q('[name="direccion"]'); if (dir) dir.onchange = () => { st.direccion = Number(dir.value); invalidar(); };
     const cq = q('[name="cliente-q"]'), cs = q('[data-sug-cliente]');
@@ -211,12 +248,15 @@
       row.querySelectorAll('[data-f]').forEach(inp => inp.addEventListener('input', () => {
         const f = inp.dataset.f; l[f] = inp.value; invalidar();
         if (f === 'ref') { l.articulo = 0; buscarArticulo(inp.value, sug); }
-        else if (['cantidad', 'precio', 'descuento'].includes(f)) { row.querySelector('.pe-total-linea').textContent = money(brutoDe(l) - num(l.descuento)); row.querySelectorAll('input[disabled]')[0].value = money(brutoDe(l)); refrescarTotales(); }
+        else if (['cantidad', 'precio', 'descuento'].includes(f)) { row.querySelector('.pe-total-linea').textContent = money(brutoDe(l) - descDe(l)); row.querySelectorAll('input[disabled]')[0].value = money(brutoDe(l)); refrescarTotales(); }
       }));
       sug.addEventListener('click', e => {
         const b = e.target.closest('[data-a]'); if (!b) return; const a = sug._lista[Number(b.dataset.a)];
-        Object.assign(l, { articulo: a.id, ref: a.referencia, descripcion: a.descripcion.slice(0, 120), precio: a.precio || l.precio }); invalidar(); dibujar();
+        Object.assign(l, { articulo: a.id, ref: a.referencia, descripcion: a.descripcion.slice(0, 120), precio: a.precio || l.precio, impuesto: a.impuesto || '' }); invalidar(); dibujar();
       });
+      row.querySelector('[data-dtipo]').onclick = () => { if (l.obsequio) return; l.dtipo = l.dtipo === 'pct' ? 'valor' : 'pct'; invalidar(); dibujar(); };
+      row.querySelector('[data-detalles]').onclick = () => { l.abierta = !l.abierta; dibujar(); };
+      const ob = row.querySelector('[data-obsequio]'); if (ob) ob.onchange = () => { l.obsequio = ob.checked; invalidar(); dibujar(); };
       row.querySelector('[data-quitar]').onclick = () => { st.conceptos.splice(i, 1); if (!st.conceptos.length) st.conceptos.push(lineaVacia()); invalidar(); dibujar(); };
     });
     q('[data-mas]').onclick = () => { st.conceptos.push(lineaVacia()); invalidar(); dibujar(); };
