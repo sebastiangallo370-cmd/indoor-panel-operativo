@@ -56,6 +56,18 @@
   .pl-listo{max-width:720px;margin:30px auto;text-align:center}.pl-listo strong{display:block;font:900 26px Arial;color:#d0f44c;margin:8px 0}
   .pl-listo .caja{margin-top:14px;padding:14px;border-radius:12px;text-align:left;font:700 13px/1.5 Arial;white-space:pre-line;border:1px solid rgba(255,255,255,.2)}
   .pl-listo .caja.error{border-color:#ff7b7b;color:#ff9b9b}.pl-listo .caja.ok{border-color:#bff26a;color:#bff26a}
+  @media(max-width:700px){
+    .pl-tabla{min-width:0!important;border-spacing:0}.pl-tabla thead{display:none}.pl-tabla,.pl-tabla tbody{display:block}
+    .pl-tabla tr{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px 10px;margin-bottom:10px;border:1px solid rgba(255,255,255,.14);border-radius:12px;background:rgba(255,255,255,.03);position:relative}
+    .pl-tabla td{padding:0!important;width:auto!important;display:block}.pl-tabla td.n{position:absolute;top:6px;right:48px;width:auto!important;font-size:11px;text-align:right}
+    .pl-tabla td[data-l="NOMBRE"],.pl-tabla td[data-l="OBSERVACIÓN"]{grid-column:1/-1}
+    .pl-tabla td[data-l]::before{content:attr(data-l);display:block;font:800 10px Arial;letter-spacing:.08em;color:#a9b5a3;margin-bottom:3px}
+    .pl-tabla td:last-child{position:absolute;top:2px;right:4px}.pl-tabla input,.pl-tabla select{min-height:44px;font-size:16px}.pl-tabla-caja{overflow:visible!important}
+    .pl-papel table,.pl-papel tbody{display:block}.pl-papel thead{display:none}.pl-papel tr{display:grid;grid-template-columns:1fr 1fr;gap:4px 10px;padding:8px 0;border-bottom:1px solid #ccc}
+    .pl-papel td{display:block;padding:0!important;text-align:left!important}.pl-papel td[data-l]::before{content:attr(data-l) ': ';font:800 9px Arial;letter-spacing:.06em;color:#777}.pl-papel td[data-l="DESCRIPCIÓN"]{grid-column:1/-1}
+    .pl-acciones{position:sticky;bottom:0;z-index:6;box-shadow:0 -8px 18px rgba(0,0,0,.45);padding:8px 10px;gap:6px}.pl-acciones .pl-btn{width:auto!important;flex:1 1 42%;min-height:44px;padding:8px 10px;font-size:12px}.pl-acciones p,.pl-acciones [data-msg]{flex:1 1 100%;font-size:12px;margin:0}
+    .pl-slots{grid-template-columns:1fr!important}.pl-herr .pl-btn{flex:1 1 45%}
+  }
   @media(max-width:900px){.pl{height:auto}.pl-pie{grid-template-columns:1fr}.pl-papel{padding:16px}.pl-acciones .pl-btn{width:100%}.pl-tabla{min-width:720px}.pl-cuerpo{overflow:visible}.pl-tabla-caja{overflow:auto}}
   `;
   document.head.appendChild(css);
@@ -117,7 +129,7 @@
   // ---------------------------------------------------------------- 1) réplica de la cotización
   function htmlDoc() {
     const d = L.doc, s = d.sucursal || {}, c = d.cliente || {}, t = d.totales || {};
-    const filas = (d.conceptos || []).map((x, i) => '<tr><td>' + (i + 1) + '</td><td>' + esc(x.referencia) + '</td><td>' + esc(x.descripcion) + (x.observacion ? '<br><small>' + esc(x.observacion) + '</small>' : '') + '</td><td class="d">' + esc(x.cantidad) + '</td><td class="d">' + money(x.precio) + '</td><td class="d">' + money(x.descuento) + '</td><td class="d">' + esc(x.impuestos || '—') + ' ' + (x.impuesto ? '(' + money(x.impuesto) + ')' : '') + '</td><td class="d"><b>' + money((x.total != null ? x.total : num(x.cantidad) * num(x.precio) - num(x.descuento)) ) + '</b></td></tr>').join('');
+    const filas = (d.conceptos || []).map((x, i) => '<tr><td>' + (i + 1) + '</td><td data-l="REF.">' + esc(x.referencia) + '</td><td data-l="DESCRIPCIÓN">' + esc(x.descripcion) + (x.observacion ? '<br><small>' + esc(x.observacion) + '</small>' : '') + '</td><td class="d" data-l="CANT.">' + esc(x.cantidad) + '</td><td class="d" data-l="PRECIO">' + money(x.precio) + '</td><td class="d" data-l="DESC.">' + money(x.descuento) + '</td><td class="d" data-l="IMPUESTO">' + esc(x.impuestos || '—') + ' ' + (x.impuesto ? '(' + money(x.impuesto) + ')' : '') + '</td><td class="d" data-l="TOTAL"><b>' + money((x.total != null ? x.total : num(x.cantidad) * num(x.precio) - num(x.descuento)) ) + '</b></td></tr>').join('');
     const formas = (d.formas || []).map(f => esc(f.nombre) + ': <b>' + money(f.valor) + '</b>').join(' &nbsp;·&nbsp; ');
     return '<div class="pl-papel" id="pl-doc"><div class="pl-top"><div><h1>INDOOR SPORT SAS</h1><small>' + esc([s.direccion, s.ciudad].filter(Boolean).join(' · ')) + (s.telefonos ? '<br>Tel. ' + esc(s.telefonos) : '') + '</small></div>' +
       '<div class="pl-num"><span>' + (d.tipo === 'remision' ? 'REMISIÓN DE VENTA' : 'COTIZACIÓN') + '</span><b>No. ' + esc(d.numero_completo || d.numero) + '</b><em>✓ CREADA EN EFFI</em></div></div>' +
@@ -195,11 +207,11 @@
   function contador(g) { const n = filasDe(g.referencia).length; return '<span class="pl-cont ' + (n === g.cantidad ? 'ok' : '') + '" data-cont="' + esc(g.referencia) + '">' + n + ' / ' + g.cantidad + '</span>'; }
   function filaHtml(f, i) {
     return '<tr data-i="' + i + '"><td class="n">' + (i + 1) + '</td><td><input data-c="nombre" value="' + esc(f.nombre) + '" placeholder="NOMBRE" autocomplete="off"></td>' +
-      '<td style="width:96px"><select data-c="talla" class="' + (f.talla ? '' : 'bad') + '"><option value="">—</option>' + (L.cat.tallas || TALLAS).map(t => '<option' + (t === f.talla ? ' selected' : '') + '>' + esc(t) + '</option>').join('') + '</select></td>' +
-      '<td style="width:90px"><input data-c="numero" value="' + esc(f.numero) + '" placeholder="Nº" inputmode="numeric" autocomplete="off"></td>' +
-      '<td style="width:96px"><select data-c="diseno">' + Array.from({ length: L.disenos }, (_, k) => '<option value="' + (k + 1) + '"' + (k + 1 === Number(f.diseno) ? ' selected' : '') + '>D' + (k + 1) + '</option>').join('') + '</select></td>' +
-      '<td style="width:100px"><select data-c="genero"><option value="MASC"' + (f.genero === 'MASC' ? ' selected' : '') + '>MASC</option><option value="FEM"' + (f.genero === 'FEM' ? ' selected' : '') + '>FEM</option></select></td>' +
-      '<td><input data-c="observacion" value="' + esc(f.observacion) + '" placeholder="Observación" autocomplete="off"></td><td style="width:34px"><button class="pl-x" type="button" data-quitar-fila aria-label="Quitar">✕</button></td></tr>';
+      '<td data-l="TALLA" style="width:96px"><select data-c="talla" class="' + (f.talla ? '' : 'bad') + '"><option value="">—</option>' + (L.cat.tallas || TALLAS).map(t => '<option' + (t === f.talla ? ' selected' : '') + '>' + esc(t) + '</option>').join('') + '</select></td>' +
+      '<td data-l="NÚMERO" style="width:90px"><input data-c="numero" value="' + esc(f.numero) + '" placeholder="Nº" inputmode="numeric" autocomplete="off"></td>' +
+      '<td data-l="DISEÑO" style="width:96px"><select data-c="diseno">' + Array.from({ length: L.disenos }, (_, k) => '<option value="' + (k + 1) + '"' + (k + 1 === Number(f.diseno) ? ' selected' : '') + '>D' + (k + 1) + '</option>').join('') + '</select></td>' +
+      '<td data-l="GÉNERO" style="width:100px"><select data-c="genero"><option value="MASC"' + (f.genero === 'MASC' ? ' selected' : '') + '>MASC</option><option value="FEM"' + (f.genero === 'FEM' ? ' selected' : '') + '>FEM</option></select></td>' +
+      '<td data-l="OBSERVACIÓN"><input data-c="observacion" value="' + esc(f.observacion) + '" placeholder="Observación" autocomplete="off"></td><td style="width:34px"><button class="pl-x" type="button" data-quitar-fila aria-label="Quitar">✕</button></td></tr>';
   }
   function pantallaListado() {
     const gs = grupos(); if (!gs.find(g => g.referencia === L.abierta)) L.abierta = gs[0].referencia;
