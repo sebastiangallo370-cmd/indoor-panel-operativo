@@ -3,8 +3,8 @@ Al confirmar, el panel crea en Effi una COTIZACIÓN o una REMISIÓN DE VENTA por
 
 Seguridad:
   - Solo cuentas que ven COMERCIALES (mismo permiso que CREAR CLIENTE). La llave de Effi es la que guarda ZEUS en el servidor.
-  - APAGADO por defecto: sin el archivo /data/state/pedido_effi_activo (o PEDIDO_EFFI_ACTIVO=1) NO se crea nada en Effi; «Vista previa» siempre funciona.
-    La cuenta «Indoor Sport» lo enciende y apaga desde el mismo formulario.
+  - SIEMPRE ACTIVO (sin interruptor en pantalla). Protecciones que quedan: vista previa obligatoria, cuadro de confirmación antes de crear, idempotency_key y permisos.
+    Freno de emergencia solo desde el servidor: crear el archivo /data/state/pedido_effi_apagado (o PEDIDO_EFFI_ACTIVO=0) y «Vista previa» sigue funcionando pero no se crea nada en Effi.
   - Cada envío lleva una idempotency_key: un doble clic o un reintento no duplica el documento (Effi responde 409 con el ya creado).
   - La remisión descuenta inventario y registra cobros: por eso aquí solo se aceptan formas de pago a crédito o «Contado a 1 día» (el cobro en caja se hace en Effi).
 Los totales los calcula Effi y los compara con los enviados: aquí se calculan igual (descuento por concepto e impuestos en porcentaje)."""
@@ -24,7 +24,7 @@ from app import effi_api
 
 router = APIRouter(prefix='/api/pedido-effi', tags=['pedido-effi'])
 
-ACTIVO_ARCHIVO = Path(os.getenv('PEDIDO_EFFI_ACTIVO_FILE', '/data/state/pedido_effi_activo'))
+APAGADO_ARCHIVO = Path(os.getenv('PEDIDO_EFFI_APAGADO_FILE', '/data/state/pedido_effi_apagado'))
 MAX_CONCEPTOS = 60
 CLAVE = re.compile(r'^[A-Za-z0-9._:-]{8,36}$')
 TIPOS = {'cotizacion': 'cotización', 'remision': 'remisión de venta'}
@@ -42,7 +42,8 @@ def configurar(auth: Callable, permitido: Callable[[str], bool], llave: Callable
 
 
 def activo() -> bool:
-    return os.getenv('PEDIDO_EFFI_ACTIVO', '') == '1' or ACTIVO_ARCHIVO.exists()
+    """Siempre activo, salvo el freno de emergencia del servidor (archivo pedido_effi_apagado o PEDIDO_EFFI_ACTIVO=0)."""
+    return os.getenv('PEDIDO_EFFI_ACTIVO', '') != '0' and not APAGADO_ARCHIVO.exists()
 
 
 def _usuario(request: Request) -> str:
@@ -127,21 +128,8 @@ def _articulo_json(a: dict, **extra) -> dict:
 
 @router.get('/estado')
 def estado(request: Request):
-    usuario = _usuario(request)
-    return {'activo': activo(), 'llave': bool((_llave() or '').strip() or effi_api.disponible()), 'puede_activar': bool(_admin(usuario))}
-
-
-@router.post('/activo')
-def cambiar_activo(request: Request, payload: dict):
-    usuario = _usuario(request)
-    if not _admin(usuario):
-        raise HTTPException(403, 'Solo la cuenta Indoor Sport enciende o apaga la creación en Effi')
-    if bool((payload or {}).get('activo')):
-        ACTIVO_ARCHIVO.parent.mkdir(parents=True, exist_ok=True)
-        ACTIVO_ARCHIVO.write_text(datetime.now().isoformat(timespec='seconds') + f' {usuario}\n', encoding='utf-8')
-    else:
-        ACTIVO_ARCHIVO.unlink(missing_ok=True)
-    return {'activo': activo()}
+    _usuario(request)
+    return {'activo': activo(), 'llave': bool((_llave() or '').strip() or effi_api.disponible())}
 
 
 @router.get('/catalogos')
@@ -427,7 +415,7 @@ def vista_previa(request: Request, payload: dict):
 def crear(request: Request, payload: dict):
     usuario = _usuario(request)
     if not activo():
-        raise HTTPException(409, 'Crear documentos en Effi está APAGADO. La cuenta Indoor Sport lo enciende con el interruptor de arriba del formulario.')
+        raise HTTPException(409, 'Crear documentos en Effi está frenado desde el servidor (freno de emergencia). Avisa a administración.')
     _con_llave()
     r = construir(payload or {}, usuario)
     tipo = str(payload.get('tipo'))

@@ -256,46 +256,55 @@ class Crear(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
-        m = mock.patch.object(pe, 'ACTIVO_ARCHIVO', Path(self.tmp.name) / 'activo')
+        m = mock.patch.object(pe, 'APAGADO_ARCHIVO', Path(self.tmp.name) / 'apagado')
         m.start(); self.addCleanup(m.stop)
         m = mock.patch.dict(os.environ, {'PEDIDO_EFFI_ACTIVO': ''})
         m.start(); self.addCleanup(m.stop)
         pe.configurar(lambda r: 'Ana', lambda u: u == 'Ana', lambda: 'llave', lambda u: u == 'Ana')
 
-    def test_apagado_por_defecto_no_crea_nada(self):
+    def _con_effi_simulado(self):
+        for objetivo, nuevo in (('articulo', articulo), ('impuestos_de', lambda t: [])):
+            m = mock.patch.object(effi_api, objetivo, nuevo)
+            m.start(); self.addCleanup(m.stop)
+        m = mock.patch.object(pe, '_catalogos', lambda: CATALOGO)
+        m.start(); self.addCleanup(m.stop)
+
+    def test_siempre_activo_y_solo_el_freno_de_emergencia_del_servidor_lo_detiene(self):
+        self._con_effi_simulado()
+        self.assertTrue(pe.activo())
+        self.assertTrue(pe.estado(object())['activo'])
+        pe.APAGADO_ARCHIVO.write_text('frenado', encoding='utf-8')   # freno de emergencia (archivo en el servidor)
         self.assertFalse(pe.activo())
         with mock.patch.object(effi_api, 'crear_cotizacion') as c:
             with self.assertRaises(HTTPException) as e:
                 pe.crear(object(), base())
             self.assertEqual(e.exception.status_code, 409)
             c.assert_not_called()
-
-    def test_encendido_crea_la_cotizacion_y_la_remision(self):
-        pe.cambiar_activo(object(), {'activo': True})
+        pe.APAGADO_ARCHIVO.unlink()
         self.assertTrue(pe.activo())
-        art = mock.patch.object(effi_api, 'articulo', articulo)
-        imp = mock.patch.object(effi_api, 'impuestos_de', lambda t: [])
-        cat = mock.patch.object(pe, '_catalogos', lambda: CATALOGO)
-        with art, imp, cat, mock.patch.object(effi_api, 'crear_cotizacion', return_value={'id': '6400', 'prefijo': 'CO', 'total': 700000}) as c, \
+        with mock.patch.dict(os.environ, {'PEDIDO_EFFI_ACTIVO': '0'}):   # o por variable de entorno
+            self.assertFalse(pe.activo())
+
+    def test_ya_no_hay_interruptor_en_pantalla_ni_ruta_para_cambiarlo(self):
+        self.assertFalse(hasattr(pe, 'cambiar_activo'))
+        self.assertNotIn('puede_activar', pe.estado(object()))
+
+    def test_crea_la_cotizacion_y_la_remision(self):
+        self._con_effi_simulado()
+        with mock.patch.object(effi_api, 'crear_cotizacion', return_value={'id': '6400', 'prefijo': 'CO', 'total': 700000}) as c, \
                 mock.patch.object(effi_api, 'crear_remision', return_value={'id': '88', 'prefijo': 'RV', 'total': 700000}) as r:
             a = pe.crear(object(), base())
             self.assertEqual((a['numero'], a['tipo']), ('CO6400', 'cotización'))
             b = pe.crear(object(), base(tipo='remision', formas_pago=[{'id': 6}]))
             self.assertEqual(b['numero'], 'RV88')
             self.assertEqual((c.call_count, r.call_count), (1, 1))
-        pe.cambiar_activo(object(), {'activo': False})
-        self.assertFalse(pe.activo())
 
     def test_permisos(self):
         pe.configurar(lambda r: 'Otro', lambda u: False, lambda: 'llave', lambda u: False)
-        for f in (lambda: pe.estado(object()), lambda: pe.crear(object(), base()), lambda: pe.cambiar_activo(object(), {'activo': True})):
+        for f in (lambda: pe.estado(object()), lambda: pe.crear(object(), base())):
             with self.assertRaises(HTTPException) as e:
                 f()
             self.assertEqual(e.exception.status_code, 403)
-        pe.configurar(lambda r: 'Comercial', lambda u: True, lambda: 'llave', lambda u: False)
-        with self.assertRaises(HTTPException) as e:
-            pe.cambiar_activo(object(), {'activo': True})
-        self.assertEqual(e.exception.status_code, 403)   # comercial sí usa el formulario, pero no lo enciende
 
 
 if __name__ == '__main__':

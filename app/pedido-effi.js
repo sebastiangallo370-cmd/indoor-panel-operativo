@@ -26,10 +26,14 @@
   .pe textarea{min-height:76px;padding:10px 12px;resize:vertical}
   .pe input:focus,.pe select:focus,.pe textarea:focus{border-color:#d0f44c}
   .pe input[disabled]{opacity:.6}
-  .pe-sug{position:absolute;left:0;right:0;top:100%;z-index:20;max-height:260px;overflow:auto;border:1px solid #3d4c3b;border-radius:10px;background:#0f1a11;box-shadow:0 12px 30px rgba(0,0,0,.5)}
-  .pe-sug button{all:unset;box-sizing:border-box;display:block;width:100%;padding:9px 12px;cursor:pointer;color:#f5faef;font:600 13px/1.35 Arial}
-  .pe-sug button:hover,.pe-sug button:focus{background:#1d2e20}
-  .pe-sug small{display:block;color:#8f9d88;font-weight:500}
+  .pe{position:relative}
+  .pe-sug{position:absolute;left:0;top:0;z-index:60;width:max-content;min-width:min(480px,calc(100% - 12px));max-width:calc(100% - 12px);overflow:auto;box-sizing:border-box;border:1px solid #5a6e55;border-radius:12px;background:#0b140d!important;box-shadow:0 18px 44px rgba(0,0,0,.75);-webkit-backdrop-filter:none!important;backdrop-filter:none!important;scrollbar-width:thin;scrollbar-color:#3d4c3b transparent}
+  .pe-sug button{all:unset;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;gap:28px;width:100%;padding:9px 14px;cursor:pointer;color:#f5faef;font:700 14px Arial;white-space:nowrap;border-bottom:1px solid rgba(255,255,255,.06)}
+  .pe-sug button:last-child{border-bottom:0}
+  .pe-sug button.on,.pe-sug button:hover{background:#1d3321}
+  .pe-sug .d{flex:none;color:#8f9d88;font:600 12px Arial}
+  .pe-sug mark{background:rgba(208,244,76,.3);color:#fff;border-radius:3px;padding:0 1px}
+  .pe-sug-nota{padding:10px 14px;color:#a9b5a3;font:600 13px Arial;white-space:nowrap}
   .pe-linea{display:grid;gap:8px;grid-template-columns:1.3fr 1.8fr .6fr 1fr 1fr 1.1fr .8fr .9fr auto;align-items:end;padding:10px 0;border-top:1px solid rgba(255,255,255,.1)}
   .pe-dto{display:flex;gap:6px;align-items:center}.pe-dto input{min-width:0}
   .pe-pct{all:unset;cursor:pointer;box-sizing:border-box;min-width:38px;height:42px;display:grid;place-items:center;border:1px solid #3d4c3b;border-radius:10px;background:#142017;color:#d0f44c;font:900 14px Arial}
@@ -105,6 +109,7 @@
     .pe-con .pe-h3row{margin-bottom:4px}.pe-btn.mini{min-height:28px}
   }
   @media(max-width:900px){
+    .pe-sug{width:calc(100% - 12px)}.pe-sug button{white-space:normal;gap:10px}
     .pe-linea{grid-template-columns:1fr 1fr;padding:14px 0}
     .pe-linea .pe-art,.pe-linea .pe-desc{grid-column:1/-1}
     .pe-detalles,.pe-sub{grid-template-columns:1fr}.pe-propina .pe-dto{width:55%}
@@ -144,6 +149,9 @@
   }
   const valor = n => { const e = q('[name="' + n + '"]'); return e ? e.value : ''; };
 
+  function refrescarDirecciones() {   // al volver a escribir el cliente, la dirección del anterior ya no vale
+    const dir = q('[name="direccion"]'); if (dir) dir.innerHTML = st.cliente && st.cliente.direcciones.length ? st.cliente.direcciones.map((d, i) => '<option value="' + i + '"' + (i === st.direccion ? ' selected' : '') + '>' + esc((d.ciudad ? d.ciudad + ' · ' : '') + d.direccion) + '</option>').join('') : '<option value="-1">No registra</option>';
+  }
   function dibujar() {
     const c = st.cat, hecho = st.hecho;
     if (hecho) {
@@ -158,7 +166,7 @@
     const t = totales();
     const apagado = st.estado && !st.estado.activo;
     panel.innerHTML = `<div class="pe">
-      ${st.estado ? `<div class="pe-aviso pe-av ${apagado ? '' : 'on'}"><span>${apagado ? 'Crear en Effi está APAGADO: puedes armar el documento y ver la vista previa, pero todavía no se envía.' : 'Crear en Effi está ENCENDIDO: al confirmar se crea el documento real.'}</span>${st.estado.puede_activar ? `<button class="pe-btn sec mini" type="button" data-activo>${apagado ? 'ENCENDER' : 'APAGAR'}</button>` : ''}</div>` : ''}
+      ${apagado ? '<div class="pe-aviso pe-av"><span>La creación en Effi está frenada desde el servidor: puedes armar el documento y ver la vista previa, pero no se envía. Avisa a administración.</span></div>' : ''}
       <div class="pe-card pe-enc">
         <div class="pe-top"><div><span class="eyebrow">COMERCIALES · EFFI</span><h2>+ Crear ${nombreDoc()}</h2></div>
           <div class="pe-tipo" role="group" aria-label="Tipo de documento"><button type="button" data-tipo="cotizacion" class="${st.tipo === 'cotizacion' ? 'on' : ''}">COTIZACIÓN</button><button type="button" data-tipo="remision" class="${st.tipo === 'remision' ? 'on' : ''}">REMISIÓN</button></div></div>
@@ -169,7 +177,7 @@
           <label>Fecha de entrega*<input type="date" name="fecha_entrega" value="${esc(guard.fecha_entrega || hoy())}"></label>
           <label>Moneda*<select name="moneda">${(c.monedas || [{ id: 'COP', nombre: 'Peso Colombiano $ COP' }]).map(m => '<option value="' + m.id + '"' + (m.id === st.moneda ? ' selected' : '') + '>' + esc(m.nombre) + '</option>').join('')}</select></label>
           <label>TRM*<input name="trm" inputmode="decimal" value="${esc(st.moneda === 'COP' ? '1' : st.trm)}" ${st.moneda === 'COP' ? 'disabled' : ''}></label>
-          <label>Cliente*<input name="cliente-q" autocomplete="off" placeholder="Buscar por nombre (3 letras)…" value="${esc(st.cliente ? st.cliente.nombre : guard['cliente-q'])}"><div class="pe-sug" data-sug-cliente hidden></div></label>
+          <label>Cliente*<input name="cliente-q" autocomplete="off" placeholder="Buscar por nombre (3 letras)…" value="${esc(st.cliente ? st.cliente.nombre : guard['cliente-q'])}"></label>
           <label>Dirección del cliente<select name="direccion">${st.cliente && st.cliente.direcciones.length ? st.cliente.direcciones.map((d, i) => '<option value="' + i + '"' + (i === st.direccion ? ' selected' : '') + '>' + esc((d.ciudad ? d.ciudad + ' · ' : '') + d.direccion) + '</option>').join('') : '<option value="-1">No registra</option>'}</select></label>
           <label>Vendedor<select name="vendedor">${opciones(c.vendedores, guard.vendedor)}</select></label>
           <label>Descuento global (%)<input name="global" inputmode="decimal" placeholder="0" value="${esc(st.global)}"></label>
@@ -179,7 +187,7 @@
         ${st.capturando ? `<div class="pe-cap"><label>Códigos: series, ID de artículo o GTIN/EPC<textarea data-cap-texto spellcheck="false" placeholder="Escanea o pega los códigos…">${esc(st.capTexto)}</textarea></label><p>Sepáralos con espacio, tab, salto de línea, coma, punto o punto y coma. Cada código agrega un concepto de cantidad 1; el mismo artículo repetido suma cantidad.</p><div class="fila"><button class="pe-btn mini" type="button" data-cap-ok>Agregar conceptos</button><button class="pe-btn sec mini" type="button" data-cap-cancel>Cancelar</button></div><p data-cap-msg class="pe-msg ${/No encontré|repetida/.test(st.capMsg) ? 'error' : ''}">${esc(st.capMsg)}</p></div>` : ''}
         <div data-lineas>${st.conceptos.map((l, i) => `
         <div class="pe-linea" data-i="${i}">
-          <label class="pe-art">Artículo*${l.id_serie ? ' · SERIE' : ''}<input data-f="ref" autocomplete="off" placeholder="Buscar referencia o nombre…" value="${esc(l.ref)}"><div class="pe-sug" data-sug hidden></div></label>
+          <label class="pe-art">Artículo*${l.id_serie ? ' · SERIE' : ''}<input data-f="ref" autocomplete="off" placeholder="Buscar referencia o nombre…" value="${esc(l.ref)}"></label>
           <label class="pe-desc">Descripción*<input data-f="descripcion" maxlength="120" value="${esc(l.descripcion)}" placeholder="Se llena al elegir el artículo"></label>
           <label>Cant.*<input data-f="cantidad" inputmode="decimal" value="${esc(l.cantidad)}" ${l.id_serie ? 'disabled' : ''}></label>
           <label>Precio ud.*<input data-f="precio" inputmode="decimal" value="${esc(l.precio)}"></label>
@@ -210,7 +218,8 @@
         ${st.tipo === 'remision' ? '<p style="margin:10px 0 0;color:#a9b5a3;font:500 12px/1.5 Arial">En remisión solo van formas a crédito o «Contado a 1 día»; el cobro en caja se registra en Effi.</p>' : ''}
       </div>
       </div>
-      <div class="pe-acciones"><button class="pe-btn sec" type="button" data-previa-btn>VISTA PREVIA</button><button class="pe-btn" type="button" data-crear ${st.prev && !apagado ? '' : 'disabled'}>CREAR ${nombreDoc().toUpperCase()} EN EFFI</button><div class="pe-msg" data-msg>${apagado ? 'Encendido pendiente: pide a la cuenta Indoor Sport que lo active.' : (st.prev ? '' : 'Primero revisa la vista previa.')}</div></div>
+      <div class="pe-acciones"><button class="pe-btn sec" type="button" data-previa-btn>VISTA PREVIA</button><button class="pe-btn" type="button" data-crear ${st.prev && !apagado ? '' : 'disabled'}>CREAR ${nombreDoc().toUpperCase()} EN EFFI</button><div class="pe-msg" data-msg>${apagado ? 'Creación frenada desde el servidor.' : (st.prev ? '' : 'Primero revisa la vista previa.')}</div></div>
+      <div class="pe-sug" data-sug-global hidden></div>
     </div>`;
     enlazar();
   }
@@ -264,28 +273,68 @@
   }
   function dibujarConservando() { const y = window.scrollY; dibujar(); window.scrollTo(0, y); }
 
-  const buscarCliente = debounce(async (texto, caja) => {
-    if (texto.trim().length < 3) { caja.hidden = true; return; }
+  // Lista flotante ÚNICA (hija de .pe, no de una tarjeta): así no la tapa el vidrio de otra tarjeta ni la recorta un scroll. Una fila por resultado con el nombre completo.
+  const resaltar = (t, texto) => {
+    const ws = String(texto || '').trim().split(/\s+/).filter(w => w.length > 1 && !/[&<>"']/.test(w)).map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    const h = esc(t);
+    return ws.length ? h.replace(new RegExp('(' + ws.join('|') + ')', 'gi'), '<mark>$1</mark>') : h;
+  };
+  function mostrarSug(input, html, lista, tipo, i) {
+    const box = q('[data-sug-global]'); if (!box) return null;
+    box.innerHTML = html; box._lista = lista; box._tipo = tipo; box._i = i; box._ancla = input; box._idx = -1; box.hidden = false;
+    posicionarSug(); return box;
+  }
+  function posicionarSug() {
+    const box = q('[data-sug-global]'); if (!box || box.hidden || !box._ancla || !box._ancla.isConnected) return;
+    const raiz = panel.querySelector('.pe'), b = raiz.getBoundingClientRect(), r = box._ancla.getBoundingClientRect();
+    const abajo = innerHeight - r.bottom, arriba = r.top, sube = abajo < 160 && arriba > abajo;   // se abre hacia abajo; solo sube si abajo no hay casi espacio
+    box.style.maxHeight = Math.max(120, Math.min(380, (sube ? arriba : abajo) - 14)) + 'px';
+    box.style.left = Math.max(0, r.left - b.left) + 'px';
+    if (sube) { box.style.top = 'auto'; box.style.bottom = (b.bottom - r.top + 4) + 'px'; } else { box.style.bottom = 'auto'; box.style.top = (r.bottom - b.top + 4) + 'px'; }
+    const maxIzq = b.width - box.getBoundingClientRect().width - 4; if (parseFloat(box.style.left) > maxIzq) box.style.left = Math.max(0, maxIzq) + 'px';
+  }
+  function elegirSug(idx) {
+    const box = q('[data-sug-global]'); if (!box || !box._lista || !box._lista[idx]) return;
+    if (box._tipo === 'c') {
+      st.cliente = box._lista[idx]; st.direccion = st.cliente.direcciones.length ? 0 : -1; invalidar();
+      const v = st.cat.vendedores.find(x => String(x.id) === String(st.cliente.vendedor)); const guardado = valor('vendedor');
+      dibujar(); if (v && !guardado) { q('[name="vendedor"]').value = v.id; }
+    } else {
+      const l = st.conceptos[box._i], a = box._lista[idx];
+      Object.assign(l, { articulo: a.id, ref: a.referencia, descripcion: a.descripcion.slice(0, 120), precio: a.precio || l.precio, impuesto: a.impuesto || '' }); invalidar(); dibujar();
+    }
+  }
+  function teclaSug(e) {
+    const box = q('[data-sug-global]'); if (!box || box.hidden || box._ancla !== e.target) return;
+    const items = [...box.querySelectorAll('[data-i]')]; if (!items.length) { if (e.key === 'Escape') box.hidden = true; return; }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); box._idx = (box._idx + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length; items.forEach((b, k) => b.classList.toggle('on', k === box._idx)); items[box._idx].scrollIntoView({ block: 'nearest' }); }
+    else if (e.key === 'Enter') { e.preventDefault(); elegirSug(Number((items[box._idx] || items[0]).dataset.i)); }
+    else if (e.key === 'Escape') { box.hidden = true; }
+  }
+  const buscarCliente = debounce(async (texto, input) => {
+    const box = q('[data-sug-global]'); if (!box) return;
+    if (texto.trim().length < 3) { box.hidden = true; return; }
+    mostrarSug(input, '<div class="pe-sug-nota">Buscando…</div>', [], 'c');
     try {
       const r = await api('/api/pedido-effi/clientes?q=' + encodeURIComponent(texto));
-      caja.innerHTML = r.clientes.length ? r.clientes.map((c, i) => '<button type="button" data-c="' + i + '">' + esc(c.nombre) + '<small>' + esc(c.documento) + '</small></button>').join('') : '<button type="button" disabled>Sin resultados</button>';
-      caja.hidden = false; caja._lista = r.clientes;
-    } catch (e) { msg(String(e.message || e), 'error'); }
-  }, 350);
-  const buscarArticulo = debounce(async (texto, caja) => {
-    if (texto.trim().length < 2) { caja.hidden = true; return; }
+      if (box._ancla !== input || box.hidden) return;
+      mostrarSug(input, r.clientes.length ? r.clientes.map((c, i) => '<button type="button" data-i="' + i + '"><span class="n">' + resaltar(c.nombre, texto) + '</span><span class="d">' + esc(c.documento) + '</span></button>').join('') : '<div class="pe-sug-nota">Sin resultados para «' + esc(texto.trim()) + '»</div>', r.clientes, 'c');
+    } catch (e) { box.hidden = true; msg(String(e.message || e), 'error'); }
+  }, 300);
+  const buscarArticulo = debounce(async (texto, input, i) => {
+    const box = q('[data-sug-global]'); if (!box) return;
+    if (texto.trim().length < 2) { box.hidden = true; return; }
+    mostrarSug(input, '<div class="pe-sug-nota">Buscando…</div>', [], 'a', i);
     try {
       const r = await api('/api/pedido-effi/articulos?q=' + encodeURIComponent(texto));
-      caja.innerHTML = r.articulos.length ? r.articulos.map((a, i) => '<button type="button" data-a="' + i + '">' + esc(a.referencia) + ' · ' + esc(a.descripcion) + '<small>' + (a.precio ? money(a.precio) : 'sin precio de lista') + (a.impuesto ? ' · ' + esc(a.impuesto) : '') + '</small></button>').join('') : '<button type="button" disabled>Sin resultados</button>';
-      caja.hidden = false; caja._lista = r.articulos;
-    } catch (e) { msg(String(e.message || e), 'error'); }
-  }, 350);
+      if (box._ancla !== input || box.hidden) return;
+      mostrarSug(input, r.articulos.length ? r.articulos.map((a, k) => '<button type="button" data-i="' + k + '"><span class="n">' + resaltar(a.referencia + ' · ' + a.descripcion, texto) + '</span><span class="d">' + (a.precio ? money(a.precio) : 'sin precio de lista') + (a.impuesto ? ' · ' + esc(a.impuesto) : '') + '</span></button>').join('') : '<div class="pe-sug-nota">Sin resultados para «' + esc(texto.trim()) + '»</div>', r.articulos, 'a', i);
+    } catch (e) { box.hidden = true; msg(String(e.message || e), 'error'); }
+  }, 300);
 
   function enlazar() {
     if (st.hecho) return;
     panel.querySelectorAll('[data-tipo]').forEach(b => b.onclick = () => { if (st.tipo === b.dataset.tipo) return; st.tipo = b.dataset.tipo; st.prev = null; if (st.tipo === 'remision') st.formas = st.formas.map(f => { const x = st.cat.formas_pago.find(y => y.id === Number(f.id)); return x && !x.credito ? defectoForma() : f; }); dibujar(); });
-    const act = q('[data-activo]');
-    if (act) act.onclick = async () => { try { const r = await post('/api/pedido-effi/activo', { activo: !st.estado.activo }); st.estado.activo = r.activo; dibujar(); } catch (e) { msg(String(e.message || e), 'error'); } };
     const mon = q('[name="moneda"]'); mon.onchange = () => { st.moneda = mon.value; if (mon.value === 'COP') st.trm = '1'; invalidar(); dibujar(); };
     const trm = q('[name="trm"]'); trm.addEventListener('input', () => { st.trm = trm.value; invalidar(); });
     const glob = q('[name="global"]'); glob.addEventListener('input', () => {   // como en Effi: el % global se aplica a todos los conceptos (cada uno se puede cambiar después)
@@ -301,25 +350,20 @@
     panel.querySelectorAll('[data-ret-quitar]').forEach(b => b.onclick = () => { st.retenciones = st.retenciones.filter(x => x !== Number(b.dataset.retQuitar)); invalidar(); dibujar(); });
     ['sucursal', 'bodega', 'centro_costos', 'vendedor', 'fecha_entrega', 'garantia', 'observacion'].forEach(n => { const e = q('[name="' + n + '"]'); if (e) e.addEventListener('input', () => { invalidar(); if (n === 'sucursal') dibujar(); }); });
     const dir = q('[name="direccion"]'); if (dir) dir.onchange = () => { st.direccion = Number(dir.value); invalidar(); };
-    const cq = q('[name="cliente-q"]'), cs = q('[data-sug-cliente]');
-    cq.addEventListener('input', () => { if (st.cliente) { st.cliente = null; st.direccion = -1; } invalidar(); buscarCliente(cq.value, cs); });
-    cs.addEventListener('click', e => {
-      const b = e.target.closest('[data-c]'); if (!b) return;
-      st.cliente = cs._lista[Number(b.dataset.c)]; st.direccion = st.cliente.direcciones.length ? 0 : -1; invalidar();
-      const v = st.cat.vendedores.find(x => String(x.id) === String(st.cliente.vendedor)); const guardado = valor('vendedor');
-      dibujar(); if (v && !guardado) { q('[name="vendedor"]').value = v.id; }
-    });
+    const cq = q('[name="cliente-q"]');
+    cq.addEventListener('input', () => { if (st.cliente) { st.cliente = null; st.direccion = -1; refrescarDirecciones(); } invalidar(); buscarCliente(cq.value, cq); });
+    cq.addEventListener('keydown', teclaSug);
+    const caja = q('[data-sug-global]');
+    caja.addEventListener('mousedown', e => e.preventDefault());   // no le quita el foco al campo
+    caja.addEventListener('click', e => { const b = e.target.closest('[data-i]'); if (b) elegirSug(Number(b.dataset.i)); });
     panel.querySelectorAll('[data-lineas] .pe-linea').forEach(row => {
-      const i = Number(row.dataset.i), l = st.conceptos[i], sug = row.querySelector('[data-sug]');
+      const i = Number(row.dataset.i), l = st.conceptos[i];
       row.querySelectorAll('[data-f]').forEach(inp => inp.addEventListener('input', () => {
         const f = inp.dataset.f; l[f] = inp.value; invalidar();
-        if (f === 'ref') { l.articulo = 0; buscarArticulo(inp.value, sug); }
+        if (f === 'ref') { l.articulo = 0; buscarArticulo(inp.value, inp, i); }
         else if (['cantidad', 'precio', 'descuento'].includes(f)) { row.querySelector('.pe-total-linea').textContent = money(brutoDe(l) - descDe(l)); row.querySelectorAll('input[disabled]')[0].value = money(brutoDe(l)); refrescarTotales(); }
       }));
-      sug.addEventListener('click', e => {
-        const b = e.target.closest('[data-a]'); if (!b) return; const a = sug._lista[Number(b.dataset.a)];
-        Object.assign(l, { articulo: a.id, ref: a.referencia, descripcion: a.descripcion.slice(0, 120), precio: a.precio || l.precio, impuesto: a.impuesto || '' }); invalidar(); dibujar();
-      });
+      row.querySelector('[data-f="ref"]').addEventListener('keydown', teclaSug);
       row.querySelector('[data-dtipo]').onclick = () => { if (l.obsequio) return; l.dtipo = l.dtipo === 'pct' ? 'valor' : 'pct'; invalidar(); dibujar(); };
       row.querySelector('[data-detalles]').onclick = () => { l.abierta = !l.abierta; dibujar(); };
       const ob = row.querySelector('[data-obsequio]'); if (ob) ob.onchange = () => { l.obsequio = ob.checked; invalidar(); dibujar(); };
@@ -340,7 +384,7 @@
     q('[data-previa-btn]').onclick = () => previa(false);
     q('[data-crear]').onclick = () => previa(true);
   }
-  function cierraSug(e) { if (!panel || !e.target.closest) return; panel.querySelectorAll('.pe-sug').forEach(s => { if (!s.parentElement.contains(e.target)) s.hidden = true; }); }
+  function cierraSug(e) { if (!panel || !e.target.closest) return; const box = q('[data-sug-global]'); if (box && !box.hidden && !box.contains(e.target) && e.target !== box._ancla) box.hidden = true; }
   function refrescarTotales() { const t = totales(), tot = q('.pe-tot'); if (!tot) return; const v = tot.querySelectorAll('b'); v[0].textContent = money(t.b); v[1].textContent = money(t.d); v[2].textContent = money(t.s); }
 
   async function iniciar() {
@@ -363,5 +407,7 @@
   // F8 abre o cierra «Capturar series» (como en Effi) mientras el formulario esté abierto, sin importar dónde esté el cursor
   document.addEventListener('keydown', e => { if (e.key === 'F8' && panel && panel.isConnected && st.cat && !st.hecho) { e.preventDefault(); st.capturando = !st.capturando; dibujar(); if (st.capturando) q('[data-cap-texto]').focus(); } });
   document.addEventListener('click', cierraSug);
+  window.addEventListener('resize', () => posicionarSug());
+  document.addEventListener('scroll', e => { const box = panel && q('[data-sug-global]'); if (box && !box.hidden && !box.contains(e.target)) box.hidden = true; }, true);
   window.PedidoEffi = { montar };
 })();
