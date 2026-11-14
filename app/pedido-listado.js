@@ -391,7 +391,7 @@
       const r = await fetch('/api/pedido-effi/programar', { method: 'POST', body: fd, credentials: 'same-origin' });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(typeof j.detail === 'string' ? j.detail : 'No se pudo programar el pedido (error ' + r.status + ')');
-      L.enviando = false; Object.assign(L.job, { id: j.id, estado: j.estado || 'RECIBIDO', progreso: 8, detail: j.mensaje || '', excel: j.excel || '', insertados: j.mockups_insertados == null ? null : j.mockups_insertados });
+      L.enviando = false; Object.assign(L.job, { id: j.id, estado: j.estado || 'RECIBIDO', progreso: 8, detail: j.mensaje || '', excel: j.excel || '', excel_nombre: j.excel_nombre || '', insertados: j.mockups_insertados == null ? null : j.mockups_insertados });
       if (raiz.isConnected && L.pantalla === 'enviado') pantallaEnviado(); seguir();
     } catch (e) {
       L.enviando = false; L.pantalla = 'listado'; if (raiz.isConnected) { dibujar(); setMsg(String(e.message || e), 'error'); }
@@ -454,6 +454,7 @@
   async function cargarHoja() {
     const caja = raiz.querySelector('[data-xl]'); if (!caja || !L.job.excel || L.xlCargado) return;
     L.xlCargado = true;
+    try { const d = document.createElement('iframe'); d.style.cssText = 'position:fixed;width:0;height:0;border:0;left:-9999px'; d.src = L.job.excel; document.body.appendChild(d); setTimeout(() => d.remove(), 60000); } catch (e) { /* queda el botón DESCARGAR */ }   // se baja solo: con «Abrir siempre archivos de este tipo» se abre en Excel de una vez
     const codigo = L.job.excel.split('/').pop();
     try {
       const r = await fetch('/api/pedido-effi/excel-vista/' + encodeURIComponent(codigo), { credentials: 'same-origin', cache: 'no-store' });
