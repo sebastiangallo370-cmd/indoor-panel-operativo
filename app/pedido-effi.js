@@ -38,6 +38,9 @@
   .pe-dto{display:flex;gap:6px;align-items:center}.pe-dto input{min-width:0}
   .pe-pct{all:unset;cursor:pointer;box-sizing:border-box;min-width:38px;height:42px;display:grid;place-items:center;border:1px solid #3d4c3b;border-radius:10px;background:#142017;color:#d0f44c;font:900 14px Arial}
   .pe-pct:hover{border-color:#d0f44c}
+  .pe-tela{grid-column:1/-1;font:700 12px Arial;color:#d0f44c;letter-spacing:.02em}.pe-tela:empty{display:none}.pe-tela small{color:#a9b5a3;font-weight:700}.pe-tela.no{color:#e8b86a}
+  .pe-fila2{grid-template-columns:minmax(260px,2fr) minmax(220px,1.4fr) minmax(220px,1.6fr)!important;margin-top:0!important}
+  @media(max-width:999px){.pe-fila2{grid-template-columns:1fr!important}}
   .pe-mas{grid-column:1/-1}.pe-link{all:unset;cursor:pointer;color:#a9b5a3;font:800 12px Arial;letter-spacing:.06em}.pe-link:hover{color:#d0f44c}
   .pe-detalles{display:grid;gap:10px;grid-template-columns:minmax(180px,1fr) 2fr;margin-top:8px;padding:10px;border:1px dashed rgba(255,255,255,.18);border-radius:10px}
   .pe-chk{display:flex;align-items:center;gap:8px;grid-auto-flow:column;justify-content:start;font:700 13px Arial;letter-spacing:0}.pe-chk input{width:auto;min-height:0}
@@ -120,7 +123,7 @@
   }`;
   document.head.appendChild(css);
 
-  const estadoInicial = () => ({ tipo: 'cotizacion', cat: null, estado: null, cliente: null, direccion: -1, conceptos: [], formas: [], clave: nuevaClave(), previa: false, prev: null, ocupado: false, hecho: null, capturando: false, capTexto: '', capMsg: '', moneda: 'COP', trm: '1', global: '', propina: '', propinaPct: false, retenciones: [], pronto: '', fechaPronto: '' });
+  const estadoInicial = () => ({ tipo: 'cotizacion', cat: null, estado: null, cliente: null, direccion: -1, conceptos: [], telas: {}, formas: [], clave: nuevaClave(), previa: false, prev: null, ocupado: false, hecho: null, capturando: false, capTexto: '', capMsg: '', moneda: 'COP', trm: '1', global: '', propina: '', propinaPct: false, retenciones: [], pronto: '', fechaPronto: '' });
   const st = estadoInicial();
   let panel = null;
   const q = s => panel.querySelector(s);
@@ -177,10 +180,13 @@
           <label>Fecha de entrega*<input type="date" name="fecha_entrega" value="${esc(guard.fecha_entrega || hoy())}"></label>
           <label>Moneda*<select name="moneda">${(c.monedas || [{ id: 'COP', nombre: 'Peso Colombiano $ COP' }]).map(m => '<option value="' + m.id + '"' + (m.id === st.moneda ? ' selected' : '') + '>' + esc(m.nombre) + '</option>').join('')}</select></label>
           <label>TRM*<input name="trm" inputmode="decimal" value="${esc(st.moneda === 'COP' ? '1' : st.trm)}" ${st.moneda === 'COP' ? 'disabled' : ''}></label>
-          <label>Cliente*<input name="cliente-q" autocomplete="off" placeholder="Buscar por nombre (3 letras)…" value="${esc(st.cliente ? st.cliente.nombre : guard['cliente-q'])}"></label>
-          <label>Dirección del cliente<select name="direccion">${st.cliente && st.cliente.direcciones.length ? st.cliente.direcciones.map((d, i) => '<option value="' + i + '"' + (i === st.direccion ? ' selected' : '') + '>' + esc((d.ciudad ? d.ciudad + ' · ' : '') + d.direccion) + '</option>').join('') : '<option value="-1">No registra</option>'}</select></label>
           <label>Vendedor<select name="vendedor">${opciones(c.vendedores, guard.vendedor)}</select></label>
           <label>Descuento global (%)<input name="global" inputmode="decimal" placeholder="0" value="${esc(st.global)}"></label>
+        </div>
+        <div class="pe-grid pe-fila2">
+          <label>Cliente*<input name="cliente-q" autocomplete="off" placeholder="Buscar por nombre (3 letras)…" value="${esc(st.cliente ? st.cliente.nombre : guard['cliente-q'])}"></label>
+          <label>Dirección del cliente<select name="direccion">${st.cliente && st.cliente.direcciones.length ? st.cliente.direcciones.map((d, i) => '<option value="' + i + '"' + (i === st.direccion ? ' selected' : '') + '>' + esc((d.ciudad ? d.ciudad + ' · ' : '') + d.direccion) + '</option>').join('') : '<option value="-1">No registra</option>'}</select></label>
+          <label class="pe-proy">Proyecto (Garantía)<input name="garantia" maxlength="255" autocomplete="off" placeholder="Ej. TEMPORADA 2027" value="${esc(guard.garantia)}"></label>
         </div>
       </div>
       <div class="pe-card pe-con"><div class="pe-h3row"><h3>Conceptos</h3><button class="pe-btn sec mini" type="button" data-capturar title="Pegar o escanear series, IDs de artículo o códigos GTIN/EPC (tecla F8)">Capturar series (F8)</button></div>
@@ -196,13 +202,13 @@
           <label>Impuesto<input value="${esc(l.impuesto || '—')}" disabled></label>
           <div><span style="color:#c9d3c1;font:800 11px Arial;letter-spacing:.08em">Total sin IVA</span><div class="pe-total-linea">${money(brutoDe(l) - descDe(l))}</div></div>
           <button class="pe-x" type="button" data-quitar aria-label="Quitar concepto">✕</button>
-          <div class="pe-mas"><button type="button" class="pe-link" data-detalles>${l.abierta ? '▾' : '▸'} Más detalles${l.obsequio || l.obs ? ' ●' : ''}</button>${l.abierta ? `<div class="pe-detalles"><label class="pe-chk"><input type="checkbox" data-obsequio ${l.obsequio ? 'checked' : ''}> Sumar solo impuestos para Obsequio, degustación o donación (descuento del 100 %)</label><label>Observación del concepto<input data-f="obs" maxlength="250" value="${esc(l.obs)}" placeholder="Opcional"></label></div>` : ''}</div>
+          <div class="pe-tela" data-tela>${telaHtml(l)}</div><div class="pe-mas"><button type="button" class="pe-link" data-detalles>${l.abierta ? '▾' : '▸'} Más detalles${l.obsequio || l.obs ? ' ●' : ''}</button>${l.abierta ? `<div class="pe-detalles"><label class="pe-chk"><input type="checkbox" data-obsequio ${l.obsequio ? 'checked' : ''}> Sumar solo impuestos para Obsequio, degustación o donación (descuento del 100 %)</label><label>Observación del concepto<input data-f="obs" maxlength="250" value="${esc(l.obs)}" placeholder="Opcional"></label></div>` : ''}</div>
         </div>`).join('')}</div>
         <div style="margin-top:10px"><button class="pe-btn sec mini" type="button" data-mas>+ Agregar concepto</button></div>
       </div>
       <div class="pe-abajo">
       <div class="pe-card"><h3>Detalles de la ${nombreDoc()}</h3><div class="pe-dos">
-        <div class="pe-grid pe-izq"><label>Garantía<textarea name="garantia" maxlength="255" placeholder="Garantía">${esc(guard.garantia)}</textarea></label><label>Observación<textarea name="observacion" maxlength="800" placeholder="Observación">${esc(guard.observacion)}</textarea></label>
+        <div class="pe-grid pe-izq"><label>Observación<textarea name="observacion" maxlength="800" placeholder="Observación">${esc(guard.observacion)}</textarea></label>
           <div><div style="display:flex;gap:8px;align-items:end"><label style="flex:1;min-width:0">Retenciones<select data-ret-sel>${opciones((c.retenciones || []).filter(r => !st.retenciones.includes(r.id)), '', 'Seleccionar…')}</select></label><button class="pe-btn sec mini" type="button" data-ret-add>+ Agregar</button></div>
             <div class="pe-chips">${st.retenciones.map(id => { const r = (c.retenciones || []).find(x => x.id === id); return '<span class="pe-chip">' + esc(r ? r.nombre : id) + '<button type="button" data-ret-quitar="' + id + '" aria-label="Quitar">✕</button></span>'; }).join('')}</div></div>
           <div class="pe-sub"><label>Descuento pronto pago ($)<input name="pronto" inputmode="decimal" placeholder="0" value="${esc(st.pronto)}"></label><label>Fecha pronto pago<input type="date" name="fecha_pronto" value="${esc(st.fechaPronto)}"></label></div></div>
@@ -317,6 +323,21 @@
     if (sube) { box.style.top = 'auto'; box.style.bottom = (b.bottom - r.top + 4) + 'px'; } else { box.style.bottom = 'auto'; box.style.top = (r.bottom - b.top + 4) + 'px'; }
     const maxIzq = b.width - box.getBoundingClientRect().width - 4; if (parseFloat(box.style.left) > maxIzq) box.style.left = Math.max(0, maxIzq) + 'px';
   }
+  function telaHtml(l) {
+    const t = st.telas[String(l.ref || '').toUpperCase()]; if (!l.ref || !t) return '';
+    if (t === 'cargando') return '<small>Buscando la tela…</small>';
+    if (!t.encontrado) return '<span class="no">Sin promedio en Promedios maestros para esta referencia.</span>';
+    const f = n => (Math.round(n * 100) / 100).toLocaleString('es-CO');
+    return t.materiales.map(m => 'TELA ' + (m.codigo && !/^\s*\(/.test(m.tela || '') ? '(' + esc(m.codigo) + ') ' : '') + '<b>' + esc(m.tela || m.material) + '</b> · Promedio general <b>' + f(m.promedio) + ' mts/prenda</b>' +
+      (num(l.cantidad) ? ' · Requerido <b>' + f(m.promedio * num(l.cantidad)) + ' mts</b>' : '') + (m.bodega != null ? ' · <small>Bodega ' + f(m.bodega) + ' mts</small>' : '')).join('<br>');
+  }
+  function pintarTelas() { panel.querySelectorAll('[data-lineas] .pe-linea').forEach(row => { const l = st.conceptos[Number(row.dataset.i)], e = row.querySelector('[data-tela]'); if (l && e) { e.innerHTML = telaHtml(l); const t = st.telas[String(l.ref || '').toUpperCase()]; e.classList.toggle('no', !!t && t !== 'cargando' && !t.encontrado); } }); }
+  async function cargarTela(ref) {
+    const k = String(ref || '').toUpperCase(); if (!k || st.telas[k]) return;
+    st.telas[k] = 'cargando'; pintarTelas();
+    try { st.telas[k] = await api('/api/pedido-effi/tela?ref=' + encodeURIComponent(k)); } catch (e) { delete st.telas[k]; }
+    pintarTelas();
+  }
   function elegirSug(idx) {
     const box = q('[data-sug-global]'); if (!box || !box._lista || !box._lista[idx]) return;
     if (box._tipo === 'c') {
@@ -385,9 +406,10 @@
       row.querySelectorAll('[data-f]').forEach(inp => inp.addEventListener('input', () => {
         const f = inp.dataset.f; l[f] = inp.value; invalidar();
         if (f === 'ref') { l.articulo = 0; buscarArticulo(inp.value, inp, i); }
-        else if (['cantidad', 'precio', 'descuento'].includes(f)) { row.querySelector('.pe-total-linea').textContent = money(brutoDe(l) - descDe(l)); row.querySelectorAll('input[disabled]')[0].value = money(brutoDe(l)); refrescarTotales(); }
+        else if (['cantidad', 'precio', 'descuento'].includes(f)) { row.querySelector('.pe-total-linea').textContent = money(brutoDe(l) - descDe(l)); row.querySelectorAll('input[disabled]')[0].value = money(brutoDe(l)); refrescarTotales(); if (f === 'cantidad') pintarTelas(); }
       }));
       row.querySelector('[data-f="ref"]').addEventListener('keydown', teclaSug);
+      if (/^A\d+[A-Z]{1,8}\d{2}/i.test(String(l.ref || ''))) cargarTela(l.ref);
       row.querySelector('[data-dtipo]').onclick = () => { if (l.obsequio) return; l.dtipo = l.dtipo === 'pct' ? 'valor' : 'pct'; invalidar(); dibujar(); };
       row.querySelector('[data-detalles]').onclick = () => { l.abierta = !l.abierta; dibujar(); };
       const ob = row.querySelector('[data-obsequio]'); if (ob) ob.onchange = () => { l.obsequio = ob.checked; invalidar(); dibujar(); };

@@ -423,3 +423,31 @@ def crear(request: Request, payload: dict):
     tipo = str(payload.get('tipo'))
     hecho = _effi(effi_api.crear_cotizacion if tipo == 'cotizacion' else effi_api.crear_remision, r['cuerpo'])
     return {'ok': True, 'tipo': TIPOS[tipo], 'id': hecho['id'], 'numero': f"{hecho.get('prefijo') or ''}{hecho['id']}", 'total': hecho.get('total') or r['resumen']['total']}
+
+
+@router.get('/tela')
+def tela_de_referencia(request: Request, ref: str = '', cantidad: float = 0):
+    """Tela y promedio general de una referencia (A200FUT01 -> tela 200, maestro FUT01). Solo lectura: Promedios maestros + Bodega."""
+    _usuario(request)
+    from app import promedios, tela_necesaria
+    with promedios._lock:
+        datos = promedios._leer()
+    maestros = {str(m.get('ref') or '').upper(): m for m in datos.get('maestros') or [] if isinstance(m, dict)}
+    materiales = tela_necesaria.materiales_de_referencia(ref, maestros)
+    if not materiales:
+        return {'encontrado': False, 'referencia': ref, 'materiales': []}
+    codigos = tela_necesaria.codigos_de_materiales(ref)
+    items = []
+    try:
+        from app import inventario_api
+        items = inventario_api._inventory_payload().get('items') or []
+    except Exception:  # noqa: BLE001 - sin Bodega igual se muestra el promedio
+        pass
+    salida = []
+    for i, m in enumerate(materiales):
+        codigo = codigos[i] if i < len(codigos) else (codigos[0] if len(codigos) == 1 else '')
+        enc = tela_necesaria._telas_de_bodega(items, m.get('tela') or '', {codigo} if codigo else set()) if items else []
+        stock = round(sum(sum(float(x) for x in (it.get('roll_values') or [])) for it in enc), 2) if enc else None
+        salida.append({'material': m['material'], 'codigo': codigo, 'tela': (enc[0].get('nombre') if enc else '') or m.get('tela') or '',
+                       'promedio': m['promedio'], 'requerido': round(m['promedio'] * cantidad, 2) if cantidad else None, 'bodega': stock})
+    return {'encontrado': True, 'referencia': ref, 'materiales': salida, 'promedio_total': round(sum(x['promedio'] for x in salida), 2)}
