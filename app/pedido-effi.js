@@ -122,7 +122,11 @@
     .pe-acciones{position:static;padding:0;border:0;background:none}.pe-btn{width:100%}.pe-msg{padding:0 4px}
   }
   .pe-sm{display:none}
-  .pe-link-mk{margin-left:14px;color:#d0f44c}
+  .pe-link.pe-link-mk{display:inline-flex;align-items:center;gap:7px;margin-left:12px;padding:5px 14px 5px 11px;border-radius:99px;border:1px solid rgba(208,244,76,.55);background:linear-gradient(180deg,rgba(208,244,76,.20),rgba(208,244,76,.07));color:#d0f44c;font:800 11px Arial;letter-spacing:.06em;box-shadow:0 2px 10px rgba(0,0,0,.35);transition:transform .15s,background .15s,box-shadow .15s}
+  .pe-link.pe-link-mk svg{flex:none;width:15px;height:15px}
+  .pe-btn.pe-mk-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;border-radius:99px;border:1px solid rgba(208,244,76,.55);background:linear-gradient(180deg,rgba(208,244,76,.20),rgba(208,244,76,.07));color:#d0f44c}.pe-btn.pe-mk-btn svg{flex:none;width:14px;height:14px}.pe-btn.pe-mk-btn:hover{background:#d0f44c;color:#142017}
+  .pe-link.pe-link-mk:hover{transform:translateY(-1px);background:#d0f44c;color:#142017;border-color:#d0f44c;box-shadow:0 4px 14px rgba(208,244,76,.35)}
+  .pe-link.pe-link-mk:active{transform:none}
   .pe-mk{position:fixed;inset:0;z-index:2147483000;background:rgba(0,0,0,.9);display:flex;flex-direction:column;font-family:Arial,sans-serif;color:#f5faef}
   .pe-mk-top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.16)}
   .pe-mk-top b{font:900 14px Arial}.pe-mk-top small{display:block;color:#a9b5a3;font:600 12px Arial;margin-top:2px}
@@ -144,12 +148,13 @@
     .pe-top{flex-direction:row;align-items:center}
     .pe-enc>.pe-grid,.pe-enc .pe-fila2{display:contents}.pe-enc{display:flex!important;flex-direction:column;gap:10px}.pe-enc .pe-top{order:-1}
     .pe-enc label{order:5}.pe-enc label:has([name="sucursal"]){order:1}.pe-enc label:has([name="bodega"]){order:2}.pe-enc label:has([name="centro_costos"]){order:3}.pe-enc label:has([name="fecha_entrega"]){order:4}
-    .pe-enc label:has([name="moneda"]){order:5}.pe-enc label:has([name="trm"]){order:6}.pe-enc label:has([name="cliente-q"]){order:7}.pe-enc label:has([name="direccion"]){order:8}.pe-enc label:has([name="garantia"]){order:9}.pe-enc label:has([name="vendedor"]){order:10}.pe-enc label:has([name="global"]){order:11}
+    .pe-enc label:has([name="moneda"]){order:5}.pe-enc label:has([name="trm"]){order:6}.pe-enc label:has([name="cliente-q"]){order:7}.pe-enc label:has([name="direccion"]){order:8}.pe-enc label:has([name="garantia"]){order:9}.pe-enc .pe-mk-btn{order:9}.pe-enc label:has([name="vendedor"]){order:10}.pe-enc label:has([name="global"]){order:11}
     .pe-lg{display:none}.pe-sm{display:inline}.pe-acciones .pe-btn{white-space:nowrap}
     .pe-linea{grid-template-columns:1fr!important;gap:5px;padding:8px 0}.pe-linea>*{grid-column:1/-1!important}.pe-total-linea{font-size:12px;min-height:22px}.pe-x{justify-self:end;color:#ff8a7a}
     .pe-tela{font-size:9px}
     .pe-btn{min-height:28px;font-size:10px;letter-spacing:.02em;width:100%;border-radius:8px;padding:0 10px}.pe-tipo button{padding:4px 9px;font-size:9px}.pe-pct{height:32px;min-width:30px;font-size:12px}
     .pe-btn.mini{min-height:26px;font-size:9px;padding:0 8px}
+    .pe-link.pe-link-mk{display:inline-flex;width:auto;margin:6px 0 0;padding:6px 14px 6px 11px;font-size:10px}
     .pe-link{display:block;width:100%;box-sizing:border-box;text-align:center;background:rgba(255,255,255,.1);color:#f5faef;border-radius:8px;padding:6px;font-size:10px}
     .pe-tot{gap:6px}.pe-tot div{display:flex;justify-content:space-between;font:600 11px Arial}.pe-tot .neto{font-weight:900;font-size:13px}
     .pe-acciones{display:grid;grid-template-columns:1fr 1fr;gap:8px;position:static!important;padding:0;border:0;background:none}.pe-acciones .pe-msg{grid-column:1/-1}
@@ -231,7 +236,7 @@
         <div class="pe-grid pe-fila2">
           <label>Cliente*<input name="cliente-q" autocomplete="off" autocapitalize="words" autocorrect="off" spellcheck="false" enterkeyhint="search" placeholder="Buscar por nombre (3 letras)…" value="${esc(st.cliente ? st.cliente.nombre : guard['cliente-q'])}"></label>
           <label>Dirección del cliente<select name="direccion">${st.cliente && st.cliente.direcciones.length ? st.cliente.direcciones.map((d, i) => '<option value="' + i + '"' + (i === st.direccion ? ' selected' : '') + '>' + esc((d.ciudad ? d.ciudad + ' · ' : '') + d.direccion) + '</option>').join('') : '<option value="-1">No registra</option>'}</select></label>
-          <label class="pe-proy">Nombre del proyecto (Garantía)${proyectoHtml(guard.garantia)}</label><button class="pe-btn sec mini pe-mk-btn" type="button" data-mockups-todos title="Ver los mockups del proyecto para las referencias elegidas">👁 Ver mockups</button>
+          <label class="pe-proy">Nombre del proyecto (Garantía)${proyectoHtml(guard.garantia)}</label><button class="pe-btn sec mini pe-mk-btn" type="button" data-mockups-todos title="Ver los mockups del proyecto para las referencias elegidas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>VER MOCKUPS</button>
         </div>
       </div>
       <div class="pe-card pe-con"><div class="pe-h3row"><h3>Conceptos</h3><label class="pe-chk pe-siniva-todos" style="margin-left:auto"><input type="checkbox" data-siniva-todos ${st.sinIvaTodos ? 'checked' : ''}> Sin IVA (todos)</label></div>
@@ -246,7 +251,7 @@
           <label>Impuesto<select data-siniva-sel><option value="0"${l.sinIva ? '' : ' selected'}>${esc(l.impuesto || 'Sin impuesto')}</option>${l.impuesto ? `<option value="1"${l.sinIva ? ' selected' : ''}>Quitar IVA (sin impuesto)</option>` : ''}</select></label>
           <div><span style="color:#c9d3c1;font:800 11px Arial;letter-spacing:.08em">Total sin IVA</span><div class="pe-total-linea">${money(brutoDe(l) - descDe(l))}</div></div>
           <button class="pe-x" type="button" data-quitar aria-label="Quitar concepto">✕</button>
-          <div class="pe-tela" data-tela>${telaHtml(l)}</div><div class="pe-mas"><button type="button" class="pe-link" data-detalles>${l.abierta ? '▾' : '▸'} Más detalles${l.obsequio || l.obs || l.sinIva ? ' ●' : ''}</button><button type="button" class="pe-link pe-link-mk" data-mockups title="Ver los mockups de este proyecto para la referencia de este concepto">👁 Ver mockups</button>${l.abierta ? `<div class="pe-detalles"><label class="pe-chk"><input type="checkbox" data-obsequio ${l.obsequio ? 'checked' : ''}> Sumar solo impuestos para Obsequio, degustación o donación (descuento del 100 %)</label><label class="pe-chk"><input type="checkbox" data-siniva ${l.sinIva ? 'checked' : ''}> Sin IVA en este concepto</label><label>Observación del concepto<input data-f="obs" maxlength="250" value="${esc(l.obs)}" placeholder="Opcional"></label></div>` : ''}</div>
+          <div class="pe-tela" data-tela>${telaHtml(l)}</div><div class="pe-mas"><button type="button" class="pe-link" data-detalles>${l.abierta ? '▾' : '▸'} Más detalles${l.obsequio || l.obs || l.sinIva ? ' ●' : ''}</button><button type="button" class="pe-link pe-link-mk" data-mockups title="Ver los mockups de este proyecto para la referencia de este concepto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>VER MOCKUPS</button>${l.abierta ? `<div class="pe-detalles"><label class="pe-chk"><input type="checkbox" data-obsequio ${l.obsequio ? 'checked' : ''}> Sumar solo impuestos para Obsequio, degustación o donación (descuento del 100 %)</label><label class="pe-chk"><input type="checkbox" data-siniva ${l.sinIva ? 'checked' : ''}> Sin IVA en este concepto</label><label>Observación del concepto<input data-f="obs" maxlength="250" value="${esc(l.obs)}" placeholder="Opcional"></label></div>` : ''}</div>
         </div>`).join('')}</div>
         <div style="margin-top:10px"><button class="pe-btn sec mini" type="button" data-mas>+ Agregar concepto</button></div>
       </div>
