@@ -3,7 +3,8 @@
   if (window.__clubAdminListo) return;
   window.__clubAdminListo = true;
   const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  let panel = null, dlg = null, modoDlg = 'correos', correos = { comerciales: '', sin_vendedor: '', efectivos: '' }, effi = null, pedidos = [], filtro = 'pendiente', busqueda = '', aviso = '', ultimo = '', ultimoDlg = '', cargando = false, clienteElegido = null;
+  const ESTADOS_VISIBLES = ['aprobada'];
+  let panel = null, dlg = null, modoDlg = 'correos', correos = { comerciales: '', sin_vendedor: '', efectivos: '' }, effi = null, pedidos = [], filtro = 'aprobada', busqueda = '', aviso = '', ultimo = '', ultimoDlg = '', cargando = false, clienteElegido = null;
   let abiertos = new Set(), ocupados = new Set(), vistos = new Set(), primeraCarga = true;
 
   const css = document.createElement('style');
@@ -223,12 +224,12 @@
   // Pestaña: solo la tarjeta de reprogramaciones.
   function pintar() {
     if (!panel) return;
-    const lista = pedidos.filter(p => (!filtro || p.estado === filtro) && coincide(p));
+    const lista = pedidos.filter(p => ESTADOS_VISIBLES.includes(p.estado) && (!filtro || p.estado === filtro) && coincide(p));   // Pendientes y Rechazadas ocultas por pedido del usuario (2026-11-14): no se borra nada, basta quitarlas de ESTADOS_VISIBLES
     const nuevos = new Set(pedidos.map(p => p.id).filter(id => !vistos.has(id)));
     const html = '<div class="tc">' +
       '<section class="tc-card tc-plano"><div class="tc-cabeza"><h2>Reprogramaciones de los clubes</h2><span class="tc-acc"><button class="tc-btn tc-b-lime" data-pedido="nuevo" type="button">EMPEZAR PEDIDO</button><button class="tc-btn tc-b-line" data-correos type="button" title="A quién le llega el correo con el botón APROBAR REPROGRAMACIÓN">✉ Aviso por correo</button></span></div>' +
       (effi ? '<p class="tc-aviso tc-info" style="margin-bottom:12px"><span class="tc-dot ' + (effi.activo && effi.conectado ? 'on' : effi.activo ? 'off' : '') + '"></span><span>EFFITRON · ' + (effi.activo ? (effi.conectado ? 'en línea' : 'SIN CONEXIÓN') : 'apagado') + (effi.ultima ? ' · ' + esc(effi.ultima) : '') + '</span></p>' : '') +
-      '<div class="tc-barra"><div class="tc-chips" role="group" aria-label="Filtrar reprogramaciones">' + [['pendiente', 'Pendientes'], ['aprobada', 'Aprobadas'], ['rechazada', 'Rechazadas'], ['', 'Todas']].map(([k, t]) => '<button type="button" data-filtro="' + k + '" aria-pressed="' + (filtro === k) + '" class="' + (filtro === k ? 'on' : '') + '">' + t + ' <em class="tc-n">' + cuenta(k) + '</em></button>').join('') + '</div>' +
+      '<div class="tc-barra"><div class="tc-chips" role="group" aria-label="Filtrar reprogramaciones">' + [['pendiente', 'Pendientes'], ['aprobada', 'Aprobadas'], ['rechazada', 'Rechazadas']].filter(([k]) => ESTADOS_VISIBLES.includes(k)).map(([k, t]) => '<button type="button" data-filtro="' + k + '" aria-pressed="' + (filtro === k) + '" class="' + (filtro === k ? 'on' : '') + '">' + t + ' <em class="tc-n">' + cuenta(k) + '</em></button>').join('') + '</div>' +
       '<input id="tc-buscar" class="tc-buscar" type="search" placeholder="Buscar club, contacto o cotización" autocomplete="off" value="' + esc(busqueda) + '"></div>' +
       (lista.length ? '<div class="tc-cards">' + lista.map(p => tarjeta(p, nuevos.has(p.id) && !primeraCarga)).join('') + '</div>' : '<div class="tc-vacio">' + (busqueda ? 'Ninguna reprogramación coincide con la búsqueda.' : 'No hay reprogramaciones en esta vista.') + '</div>') +
       '<p style="margin-top:14px;color:#a9b5a3;font:500 13px/1.5 Arial">El Excel usa la plantilla de listado de Indoor (una hoja con el nombre de la referencia; si son varias referencias, vienen en un .zip) y trae la tela del pedido anterior con su código. Si una tela aparece con varios códigos (colores), elige el correcto antes de programar.</p></section></div>';
