@@ -199,8 +199,8 @@
     const numero = String(L.doc.numero || '').replace(/\D/g, ''), conPdf = L.doc.tipo !== 'remision' && !!numero;
     const botones = '<button class="pl-btn sec" type="button" data-imprimir>IMPRIMIR</button><button class="pl-btn" type="button" data-continuar>CONTINUAR CON EL LISTADO ▶</button><button class="pl-btn sec" type="button" data-otro>CREAR OTRO DOCUMENTO</button><button class="pl-btn sec" type="button" data-cerrar>CERRAR</button>';
     const msgOk = 'La ' + (L.doc.tipo === 'remision' ? 'remisión' : 'cotización') + ' ya está creada en Effi. Continúa con el listado para programar el pedido.';
-    L.pdfListo = false;
-    if (conPdf) q('[data-cuerpo]').innerHTML = '<div class="pl-hoja-caja pl-pdf-caja"><div class="pl-pdf-estado" data-pdf-estado><div class="pl-spin"></div><b>Trayendo el PDF de Effi…</b><small>Es el mismo documento que genera Effi. Puede tardar unos segundos.</small></div></div>';
+    if (L.numeroPdf !== numero) { L.pdfListo = false; L.numeroPdf = numero; }
+    if (conPdf) q('[data-cuerpo]').innerHTML = '<div class="pl-hoja-caja pl-pdf-caja"><div class="pl-pdf-estado" data-pdf-estado><div class="pl-spin"></div><b>Trayendo el PDF de Effi… <span data-pdf-seg>0 s</span></b><small>EFFITRON lo descarga de Effi con su sesión (suele tardar 30 a 90 segundos). Mientras tanto puedes seguir con «CONTINUAR CON EL LISTADO»: el PDF quedará listo en el paso 1.</small></div></div>';
     else { q('[data-cuerpo]').innerHTML = '<div class="pl-hoja-caja">' + htmlDoc() + '</div>'; ajustarHoja(); }
     acciones(botones, msgOk, 'ok');
     q('[data-imprimir]').onclick = () => {
@@ -212,11 +212,13 @@
     q('[data-continuar]').onclick = () => { L.pantalla = 'mockups'; dibujar(); };
     q('[data-otro]').onclick = () => L.opts.onOtro && L.opts.onOtro();
     q('[data-cerrar]').onclick = () => L.opts.onCerrar && L.opts.onCerrar();
-    if (conPdf) esperarPdf(numero, 0);
+    if (conPdf) esperarPdf(numero, L.pdfListo ? 39 : 0);
   }
   async function esperarPdf(numero, intento) {
     const caja = () => (L.pantalla === 'doc' && raiz && raiz.isConnected) ? raiz.querySelector('.pl-pdf-caja') : null;
-    if (!caja()) return;
+    if (!raiz || !raiz.isConnected || L.numeroPdf !== numero) return;
+    if (!caja() && L.pdfListo) return;
+    const t = caja() && caja().querySelector('[data-pdf-seg]'); if (t) t.textContent = (intento * 3) + ' s';
     const falla = (texto) => {
       const c = caja(); if (!c) return;
       c.innerHTML = '<div class="pl-pdf-estado"><b>' + esc(texto) + '</b><small>La cotización sí quedó creada en Effi (No. ' + esc(numero) + '). Puedes continuar con el listado.</small><div class="pl-pdf-acc"><button class="pl-btn" type="button" data-pdf-reintentar>REINTENTAR</button><button class="pl-btn sec" type="button" data-pdf-replica>VER RÉPLICA DEL PANEL</button></div></div>';
@@ -225,9 +227,9 @@
     };
     try {
       const r = await fetch('/api/pedido-effi/pdf-estado/' + numero, { credentials: 'same-origin', cache: 'no-store' }).then(x => x.ok ? x.json() : Promise.reject(new Error('Error ' + x.status)));
-      if (!caja()) return;
       if (r.estado === 'listo') {
-        L.pdfListo = true;
+        L.pdfListo = true; L.pdfUrl = '/api/pedido-effi/pdf/' + numero;
+        if (!caja()) return;   // llegó mientras se trabajaba en otro paso: se mostrará al volver a «1 · COTIZACIÓN»
         const url = '/api/pedido-effi/pdf/' + numero;
         caja().innerHTML = '<div class="pl-pdf-barra"><span>PDF de Effi · Cotización ' + esc(numero) + '</span><span><a class="pl-btn sec mini" href="' + url + '" target="_blank" rel="noopener">ABRIR</a> <a class="pl-btn sec mini" href="' + url + '?descargar=1">DESCARGAR</a></span></div><iframe class="pl-pdf" title="PDF de la cotización" src="' + url + '#view=FitH"></iframe>';
         return;

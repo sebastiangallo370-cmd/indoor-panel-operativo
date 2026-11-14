@@ -452,6 +452,12 @@ def crear(request: Request, payload: dict):
     r = construir(payload or {}, usuario)
     tipo = str(payload.get('tipo'))
     hecho = _effi(effi_api.crear_cotizacion if tipo == 'cotizacion' else effi_api.crear_remision, r['cuerpo'])
+    if tipo == 'cotizacion':   # se pide el PDF de Effi YA, sin esperar a que el navegador lo pida: así EFFITRON empieza antes
+        try:
+            from app import effitron
+            effitron.solicitar_pdf_cotizacion(int(hecho['id']))
+        except Exception:  # noqa: BLE001 - nunca debe afectar la creación
+            pass
     return {'ok': True, 'tipo': TIPOS[tipo], 'id': hecho['id'], 'numero': f"{hecho.get('prefijo') or ''}{hecho['id']}", 'total': hecho.get('total') or r['resumen']['total']}
 
 # ---------------------------------------------------------------- Proyectos del cliente (carpeta MAESTROS en la NAS)
