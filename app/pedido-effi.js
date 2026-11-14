@@ -216,8 +216,7 @@
           <label class="pe-proy">Proyecto (Garantía)<input name="garantia" maxlength="255" autocomplete="off" placeholder="Ej. TEMPORADA 2027" value="${esc(guard.garantia)}"></label>
         </div>
       </div>
-      <div class="pe-card pe-con"><div class="pe-h3row"><h3>Conceptos</h3><button class="pe-btn sec mini" type="button" data-capturar title="Pegar o escanear series, IDs de artículo o códigos GTIN/EPC (tecla F8)">Capturar series (F8)</button></div>
-        ${st.capturando ? `<div class="pe-cap"><label>Códigos: series, ID de artículo o GTIN/EPC<textarea data-cap-texto spellcheck="false" placeholder="Escanea o pega los códigos…">${esc(st.capTexto)}</textarea></label><p>Sepáralos con espacio, tab, salto de línea, coma, punto o punto y coma. Cada código agrega un concepto de cantidad 1; el mismo artículo repetido suma cantidad.</p><div class="fila"><button class="pe-btn mini" type="button" data-cap-ok>Agregar conceptos</button><button class="pe-btn sec mini" type="button" data-cap-cancel>Cancelar</button></div><p data-cap-msg class="pe-msg ${/No encontré|repetida/.test(st.capMsg) ? 'error' : ''}">${esc(st.capMsg)}</p></div>` : ''}
+      <div class="pe-card pe-con"><div class="pe-h3row"><h3>Conceptos</h3></div>
         <div data-lineas>${st.conceptos.map((l, i) => `
         <div class="pe-linea" data-i="${i}">
           <label class="pe-art">Artículo*${l.id_serie ? ' · SERIE' : ''}<input data-f="ref" name="articulo-q" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="search" placeholder="Referencia o nombre del artículo (ej. A200FUT01)" value="${esc(l.ref)}"></label>
@@ -308,25 +307,6 @@
         else dibujar();
       }
     } catch (e) { st.ocupado = false; msg(String(e.message || e), 'error'); }
-  }
-  // Capturar series (F8): cada código (serie, ID de artículo, GTIN/EPC) agrega un concepto de cantidad 1
-  async function capturar() {
-    const m = t => { const e = q('[data-cap-msg]'); if (e) e.textContent = t; };
-    if (st.ocupado) return;
-    if (!st.capTexto.trim()) { m('Pega o escanea al menos un código.'); return; }
-    st.ocupado = true; m('Buscando en Effi…');
-    try {
-      const r = await post('/api/pedido-effi/capturar', { codigos: st.capTexto });
-      st.ocupado = false;
-      if (st.conceptos.length === 1 && !st.conceptos[0].articulo && !st.conceptos[0].ref) st.conceptos = [];
-      r.conceptos.forEach(c => st.conceptos.push(Object.assign(lineaVacia(), { articulo: c.id, ref: c.referencia, descripcion: String(c.descripcion || '').slice(0, 120), cantidad: c.cantidad, precio: c.precio || '', impuesto: c.impuesto || '', id_serie: c.id_serie || null })));
-      if (!st.conceptos.length) st.conceptos.push(lineaVacia());
-      const faltan = r.no_encontrados || [], rep = r.repetidos || [];
-      st.capMsg = (r.conceptos.length ? r.conceptos.length + ' concepto(s) agregado(s). ' : '') + (faltan.length ? 'No encontré: ' + faltan.join(', ') + '. ' : '') + (rep.length ? 'Serie repetida: ' + rep.join(', ') + '.' : '');
-      if (faltan.length || rep.length) { st.capTexto = faltan.concat(rep).join('\n'); st.capturando = true; } else { st.capTexto = ''; st.capturando = false; }
-      invalidar(); dibujarConservando();
-      if (!st.capturando) msg(st.capMsg, 'ok');
-    } catch (e) { st.ocupado = false; m(String(e.message || e)); }
   }
   function dibujarConservando() { const y = window.scrollY; dibujar(); window.scrollTo(0, y); }
 
@@ -444,11 +424,6 @@
       const ob = row.querySelector('[data-obsequio]'); if (ob) ob.onchange = () => { l.obsequio = ob.checked; invalidar(); dibujar(); };
       row.querySelector('[data-quitar]').onclick = () => { st.conceptos.splice(i, 1); if (!st.conceptos.length) st.conceptos.push(lineaVacia()); invalidar(); dibujar(); };
     });
-    q('[data-capturar]').onclick = () => { st.capturando = !st.capturando; dibujar(); if (st.capturando) q('[data-cap-texto]').focus(); };
-    const ct = q('[data-cap-texto]');
-    if (ct) { ct.addEventListener('input', () => { st.capTexto = ct.value; }); ct.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); capturar(); } }); }
-    const cok = q('[data-cap-ok]'); if (cok) cok.onclick = capturar;
-    const ccan = q('[data-cap-cancel]'); if (ccan) ccan.onclick = () => { st.capturando = false; st.capTexto = ''; st.capMsg = ''; dibujar(); };
     q('[data-mas]').onclick = () => { st.conceptos.push(lineaVacia()); invalidar(); dibujar(); };
     panel.querySelectorAll('[data-formas] .pe-forma').forEach(row => {
       const j = Number(row.dataset.j);
@@ -479,8 +454,6 @@
     panel = el; Object.assign(st, estadoInicial());
     iniciar();
   }
-  // F8 abre o cierra «Capturar series» (como en Effi) mientras el formulario esté abierto, sin importar dónde esté el cursor
-  document.addEventListener('keydown', e => { if (e.key === 'F8' && panel && panel.isConnected && st.cat && !st.hecho) { e.preventDefault(); st.capturando = !st.capturando; dibujar(); if (st.capturando) q('[data-cap-texto]').focus(); } });
   document.addEventListener('click', cierraSug);
   window.addEventListener('resize', () => posicionarSug());
   document.addEventListener('scroll', e => { const box = panel && q('[data-sug-global]'); if (box && !box.hidden && !box.contains(e.target)) box.hidden = true; }, true);
