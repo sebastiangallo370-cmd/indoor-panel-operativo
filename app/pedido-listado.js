@@ -391,7 +391,7 @@
       const r = await fetch('/api/pedido-effi/programar', { method: 'POST', body: fd, credentials: 'same-origin' });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(typeof j.detail === 'string' ? j.detail : 'No se pudo programar el pedido (error ' + r.status + ')');
-      L.enviando = false; Object.assign(L.job, { id: j.id, estado: j.estado || 'RECIBIDO', progreso: 8, detail: j.mensaje || '', excel: j.excel || '', excel_nombre: j.excel_nombre || '', insertados: j.mockups_insertados == null ? null : j.mockups_insertados });
+      L.enviando = false; Object.assign(L.job, { id: j.id, estado: j.estado || 'RECIBIDO', progreso: 8, detail: j.mensaje || '', excel: j.excel || '', excel_nombre: j.excel_nombre || '', agente: j.agente_trabajo || '', agenteEstado: j.agente_trabajo ? 'pendiente' : '', agenteDetalle: '', insertados: j.mockups_insertados == null ? null : j.mockups_insertados });
       if (raiz.isConnected && L.pantalla === 'enviado') pantallaEnviado(); seguir();
     } catch (e) {
       L.enviando = false; L.pantalla = 'listado'; if (raiz.isConnected) { dibujar(); setMsg(String(e.message || e), 'error'); }
@@ -479,6 +479,7 @@
     const estado = '<span style="font:800 12px Arial;letter-spacing:.14em;color:' + (fin && !ok ? '#ff9b9b' : '#d0f44c') + '">' + titulo + '</span><strong>' + esc((L.doc.tipo === 'remision' ? 'RM' : 'CO') + L.doc.numero) + '</strong>' +
       '<div class="pl-progreso"><i style="width:' + pr + '%"></i></div><div style="font:800 12px Arial;color:#c9d3c1">' + pr + ' %</div><ul class="pl-pasos2">' + pasos + '</ul>' +
       (j.detail ? '<div class="caja ' + (ok ? 'ok' : fin ? 'error' : '') + '">' + esc(j.detail) + '</div>' : '') +
+      (j.agente ? '<div class="caja ' + (j.agenteEstado === 'listo' ? 'ok' : j.agenteEstado === 'error' ? 'error' : '') + '">💻 <b>Excel en tu computador:</b> ' + esc(j.agenteDetalle || 'Esperando a tu agente Excel…') + '</div>' : (j.excel ? '<div style="margin-top:10px;color:#a9b5a3;font:600 12px Arial">💡 Instala el <b>AGENTE EXCEL</b> (botón en PROGRAMAR CLUB) para ver Excel llenarse solo en tu computador.</div>' : '')) +
       (j.excel ? '<div style="margin-top:12px"><a class="pl-btn" href="' + esc(j.excel) + '">⬇ DESCARGAR EL EXCEL' + (j.insertados != null ? ' (' + j.insertados + ' mockup(s) insertado(s))' : '') + '</a></div>' : '');
     const yaEsta = raiz.querySelector('[data-env-estado]');
     if (yaEsta) yaEsta.innerHTML = estado;   // solo se actualiza el avance: la hoja de Excel que se está dibujando no se toca
@@ -494,15 +495,20 @@
     if (j.excel && !L.xlCargado) { const c = raiz.querySelector('[data-xl]'); if (c) c.innerHTML = ''; cargarHoja(); }
   }
   async function seguir() {
-    for (let k = 0; k < 120 && raiz && raiz.isConnected && L.pantalla === 'enviado'; k++) {
+    let fin = false;
+    for (let k = 0; k < 150 && raiz && raiz.isConnected && L.pantalla === 'enviado'; k++) {
       await new Promise(r => setTimeout(r, 1200));
       try {
         const r = await fetch('/api/procesos', { credentials: 'same-origin' }); const lista = await r.json();
+        if (L.job.agente && !['listo', 'error'].includes(L.job.agenteEstado)) {
+          try { const a = await fetch('/api/agente-excel/trabajo/' + L.job.agente, { credentials: 'same-origin', cache: 'no-store' }).then(x => x.json()); if (a.estado && (a.estado !== L.job.agenteEstado || a.detalle !== L.job.agenteDetalle)) { L.job.agenteEstado = a.estado; L.job.agenteDetalle = a.detalle; if (raiz.isConnected && L.pantalla === 'enviado') pantallaEnviado(); } } catch (e) { /* se reintenta */ }
+        }
+        if (fin) { if (!L.job.agente || ['listo', 'error'].includes(L.job.agenteEstado)) return; continue; }
         const m = (lista || []).find(x => x.id === L.job.id); if (!m) continue;
         const cambio = m.status !== L.job.estado || m.detail !== L.job.detail || Number(m.progress) !== L.job.progreso;
         L.job.estado = m.status; L.job.detail = m.detail || ''; L.job.progreso = Number(m.progress) || L.job.progreso;
         if (cambio && raiz.isConnected && L.pantalla === 'enviado') pantallaEnviado();
-        if (['COMPLETADO', 'ERROR', 'REVISAR'].includes(m.status)) { if (m.status === 'COMPLETADO') { try { localStorage.removeItem(claveBorrador()); } catch (e) { /* nada */ } } return; }
+        if (['COMPLETADO', 'ERROR', 'REVISAR'].includes(m.status)) { if (m.status === 'COMPLETADO') { try { localStorage.removeItem(claveBorrador()); } catch (e) { /* nada */ } } fin = true; }
       } catch (e) { /* se reintenta */ }
     }
   }

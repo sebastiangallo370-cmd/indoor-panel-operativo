@@ -1,0 +1,58 @@
+# Arma los instaladores del AGENTE EXCEL (Windows y Mac) y los publica en la release «agente-excel» de GitHub.
+# No entra al VPS: el panel solo enlaza estas descargas (PROGRAMAR CLUB → AGENTE EXCEL).
+name: agente-excel
+on:
+  push:
+    branches: [main]
+    paths: ['agente_excel/**', '.github/workflows/agente-excel.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  construir:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            nombre: AgenteExcelIndoor-Windows.zip
+          - os: macos-latest
+            nombre: AgenteExcelIndoor-Mac.zip
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r agente_excel/requirements.txt
+      - name: Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          pyinstaller --noconfirm --onefile --windowed --name AgenteExcelIndoor --collect-all xlwings agente_excel/agente_excel.py
+          Compress-Archive -Path dist/AgenteExcelIndoor.exe -DestinationPath ${{ matrix.nombre }}
+      - name: Mac
+        if: runner.os == 'macOS'
+        run: |
+          pyinstaller --noconfirm --windowed --name AgenteExcelIndoor --osx-bundle-identifier co.indoorsport.agenteexcel --collect-all xlwings agente_excel/agente_excel.py
+          plutil -insert NSAppleEventsUsageDescription -string "El agente de Indoor abre Microsoft Excel y llena el listado del pedido." dist/AgenteExcelIndoor.app/Contents/Info.plist
+          codesign --force --deep -s - dist/AgenteExcelIndoor.app
+          ditto -c -k --keepParent dist/AgenteExcelIndoor.app ${{ matrix.nombre }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.nombre }}
+          path: ${{ matrix.nombre }}
+  publicar:
+    needs: construir
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: listos
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: agente-excel
+          name: Agente Excel Indoor
+          body: Instaladores del agente que llena el listado del pedido en Excel (Windows y Mac). Se descargan desde el panel en PROGRAMAR CLUB → AGENTE EXCEL.
+          files: listos/*
+          make_latest: false

@@ -11,6 +11,14 @@
   css.textContent = `
   .tc{width:100%;max-width:none;margin:14px 0 0;display:grid;grid-template-columns:minmax(0,1fr);gap:16px;box-sizing:border-box}
   .tc-cards{display:grid;gap:20px;padding:24px;align-items:start;background:#111715;border-radius:14px;grid-template-columns:repeat(auto-fill,minmax(min(100%,500px),1fr))}
+  .ax-fondo{position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.7);display:grid;place-items:center;padding:12px;overflow:auto}
+  .ax-card{width:min(640px,100%);box-sizing:border-box;padding:18px;border:1px solid rgba(208,244,76,.4);border-radius:18px;background:#101a12;color:#f5faef;font-family:Arial,sans-serif}
+  .ax-cab{display:flex;justify-content:space-between;align-items:center;gap:10px}.ax-cab h3{margin:2px 0 0;font:900 20px Arial}.ax-eye{color:#d0f44c;font:800 11px Arial;letter-spacing:.14em}
+  .ax-x{all:unset;cursor:pointer;padding:7px 14px;border:1px solid rgba(255,255,255,.3);border-radius:99px;font:800 12px Arial}
+  .ax-p{color:#c9d3c1;font:600 13px/1.5 Arial}.ax-estado{padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.05);font:700 13px/1.6 Arial;color:#c9d3c1}.ax-estado.ok{border:1px solid rgba(208,244,76,.5);color:#e8f0e0}
+  .ax-pasos{display:grid;gap:10px;margin-top:12px}.ax-paso{display:grid;gap:8px;padding:12px;border:1px solid rgba(255,255,255,.1);border-radius:12px}.ax-paso b{font:900 13px Arial;color:#d0f44c}.ax-paso small{color:#a9b5a3;font:600 12px/1.55 Arial}
+  .ax-btns{display:flex;gap:8px;flex-wrap:wrap}.ax-btn{all:unset;cursor:pointer;padding:9px 16px;border-radius:99px;background:rgba(255,255,255,.1);color:#f5faef;font:900 12px Arial;letter-spacing:.05em}.ax-btn.lime{background:#d0f44c;color:#142017}
+  .ax-codigo{display:flex;align-items:baseline;gap:12px}.ax-codigo span{font:900 30px Consolas,monospace;letter-spacing:.24em;color:#d0f44c}.ax-codigo small{color:#a9b5a3}
   .tc-card{padding:22px;border:1px solid #35403a;border-radius:18px;background:#1a201d;box-shadow:0 5px 20px #0002;box-sizing:border-box;min-width:0}
   .tc-cabeza{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}
   .tc-card h2{margin:0;font:600 clamp(20px,2.4vw,25px) Arial;letter-spacing:-.02em;color:#f4f7f2}
@@ -228,7 +236,7 @@
     const lista = pedidos.filter(p => ESTADOS_VISIBLES.includes(p.estado) && (!filtro || p.estado === filtro) && coincide(p));   // Pendientes y Rechazadas ocultas por pedido del usuario (2026-11-14): no se borra nada, basta quitarlas de ESTADOS_VISIBLES
     const nuevos = new Set(pedidos.map(p => p.id).filter(id => !vistos.has(id)));
     const html = '<div class="tc">' +
-      '<section class="tc-card tc-plano"><div class="tc-cabeza"><h2>Reprogramaciones de los clubes</h2><span class="tc-acc"><button class="tc-btn tc-b-lime" data-pedido="nuevo" type="button">EMPEZAR PEDIDO</button><button class="tc-btn tc-b-line" data-correos type="button" title="A quién le llega el correo con el botón APROBAR REPROGRAMACIÓN">✉ Aviso por correo</button></span></div>' +
+      '<section class="tc-card tc-plano"><div class="tc-cabeza"><h2>Reprogramaciones de los clubes</h2><span class="tc-acc"><button class="tc-btn tc-b-lime" data-pedido="nuevo" type="button">EMPEZAR PEDIDO</button><button class="tc-btn tc-b-line" data-agente-excel type="button" title="Descarga e instala el agente que llena el listado en tu Excel">💻 AGENTE EXCEL</button><button class="tc-btn tc-b-line" data-correos type="button" title="A quién le llega el correo con el botón APROBAR REPROGRAMACIÓN">✉ Aviso por correo</button></span></div>' +
       (effi ? '<p class="tc-aviso tc-info" style="margin-bottom:12px"><span class="tc-dot ' + (effi.activo && effi.conectado ? 'on' : effi.activo ? 'off' : '') + '"></span><span>EFFITRON · ' + (effi.activo ? (effi.conectado ? 'en línea' : 'SIN CONEXIÓN') : 'apagado') + (effi.ultima ? ' · ' + esc(effi.ultima) : '') + '</span></p>' : '') +
       '<div class="tc-barra"><div class="tc-chips" role="group" aria-label="Filtrar reprogramaciones">' + [['pendiente', 'Pendientes'], ['aprobada', 'Aprobadas'], ['rechazada', 'Rechazadas']].filter(([k]) => ESTADOS_VISIBLES.includes(k)).map(([k, t]) => '<button type="button" data-filtro="' + k + '" aria-pressed="' + (filtro === k) + '" class="' + (filtro === k ? 'on' : '') + '">' + t + ' <em class="tc-n">' + cuenta(k) + '</em></button>').join('') + '</div>' +
       '<input id="tc-buscar" class="tc-buscar" type="search" placeholder="Buscar club, contacto o cotización" autocomplete="off" value="' + esc(busqueda) + '"></div>' +
@@ -309,10 +317,43 @@
       } catch (er) { toast(er.message, 'error'); pintar(); }
     });
     document.querySelectorAll('.tab[data-kind="club"]').forEach(tab => tab.addEventListener('click', () => cargar()));
-    document.addEventListener('click', e => { if (e.target.closest('[data-pedido="nuevo"]')) abrirPedido(); });
+    document.addEventListener('click', e => { if (e.target.closest('[data-pedido="nuevo"]')) abrirPedido(); if (e.target.closest('[data-agente-excel]')) abrirAgenteExcel(); });
     setInterval(() => { if (!document.hidden && panel.classList.contains('active')) cargar(); }, 30000);
   }
   // EMPEZAR PEDIDO: formulario igual al de «Crear cotización» de Effi (pedido-effi.js). Crea la cotización o la remisión de venta en Effi (solo si la cuenta Indoor Sport lo tiene ENCENDIDO).
+  // ---- AGENTE EXCEL: descargar, instalar y vincular (una vez por computador). El agente llena el listado en el Excel del PC a la vista.
+  function abrirAgenteExcel() {
+    document.querySelector('.ax-fondo')?.remove();
+    const f = document.createElement('div'); f.className = 'ax-fondo';
+    f.innerHTML = '<div class="ax-card"><div class="ax-cab"><div><span class="ax-eye">PROGRAMAR CLUB</span><h3>💻 Agente Excel</h3></div><button class="ax-x" type="button" data-ax-cerrar>CERRAR ✕</button></div>' +
+      '<p class="ax-p">Con el agente instalado, al pulsar <b>PROGRAMAR PEDIDO</b> se abre Microsoft Excel en tu computador y el listado se llena solo, a la vista (encabezado, filas y mockups). Se instala una sola vez. Necesitas Excel de escritorio con licencia.</p>' +
+      '<div class="ax-estado" data-ax-estado>Consultando tu agente…</div>' +
+      '<div class="ax-pasos"><div class="ax-paso"><b>1 · Descarga e instala</b><div class="ax-btns"><a class="ax-btn" data-ax-win href="#" rel="noopener">⬇ WINDOWS</a><a class="ax-btn" data-ax-mac href="#" rel="noopener">⬇ MAC</a></div>' +
+      '<small><b>Windows:</b> descomprime y abre <i>AgenteExcelIndoor.exe</i>. Si aparece «Windows protegió su PC»: <i>Más información → Ejecutar de todas formas</i>.<br><b>Mac:</b> descomprime, arrastra <i>AgenteExcelIndoor</i> a Aplicaciones y la primera vez ábrelo con <i>clic derecho → Abrir</i>. Cuando pregunte, permite que controle Microsoft Excel (Ajustes → Privacidad y seguridad → Automatización).</small></div>' +
+      '<div class="ax-paso"><b>2 · Vincula este computador con tu usuario</b><div class="ax-btns"><button class="ax-btn lime" type="button" data-ax-codigo>GENERAR CÓDIGO</button></div><div class="ax-codigo" data-ax-ver hidden></div><small>El agente te pedirá este código la primera vez. Sirve 10 minutos.</small></div>' +
+      '<div class="ax-paso"><b>3 · Listo</b><small>El agente arranca solo al prender el computador. Cuando diga «Conectado», programa un pedido y mira tu Excel.</small></div></div></div>';
+    document.body.appendChild(f);
+    const cierra = () => { clearInterval(f._t); f.remove(); };
+    f.querySelector('[data-ax-cerrar]').onclick = cierra; f.addEventListener('click', e => { if (e.target === f) cierra(); });
+    const pintar = async () => {
+      if (!f.isConnected) return;
+      try {
+        const r = await api('/api/agente-excel/estado');
+        f.querySelector('[data-ax-win]').href = r.descargas.windows; f.querySelector('[data-ax-mac]').href = r.descargas.mac;
+        const e = f.querySelector('[data-ax-estado]');
+        e.className = 'ax-estado ' + (r.conectado ? 'ok' : '');
+        e.innerHTML = r.equipos.length ? r.equipos.map(x => '<div>' + (x.conectado ? '🟢 Conectado' : '⚪ Desconectado') + ' · <b>' + esc(x.equipo || 'equipo') + '</b> (' + esc(x.so || '') + ')' + (x.conectado ? '' : x.visto_hace != null ? ' · visto hace ' + Math.round(x.visto_hace / 60) + ' min' : '') + '</div>').join('') : 'Aún no tienes ningún computador vinculado.';
+      } catch (er) { f.querySelector('[data-ax-estado]').textContent = er.message; }
+    };
+    f.querySelector('[data-ax-codigo]').onclick = async () => {
+      try {
+        const r = await api('/api/agente-excel/codigo', 'POST', {}); const v = f.querySelector('[data-ax-ver]'); v.hidden = false;
+        let resta = r.vence_seg; v.innerHTML = '<span>' + esc(r.codigo) + '</span><small data-ax-resta></small>';
+        clearInterval(v._t); v._t = setInterval(() => { resta--; const z = v.querySelector('[data-ax-resta]'); if (z) z.textContent = resta > 0 ? 'vence en ' + Math.floor(resta / 60) + ':' + String(resta % 60).padStart(2, '0') : 'venció: genera otro'; if (resta <= 0) clearInterval(v._t); }, 1000);
+      } catch (er) { toast(er.message, 'error'); }
+    };
+    pintar(); f._t = setInterval(pintar, 4000);
+  }
   function abrirPedido() {
     document.querySelector('.tc-pedido-fondo')?.remove();
     const f = document.createElement('div');
