@@ -244,7 +244,8 @@ def construir(p: dict, usuario: str = '') -> dict:
         art, imps = arts[aid]
         efectivo = bruto if obsequio else desc   # un obsequio se descuenta al 100 %
         base = bruto - efectivo
-        imp = effi_api._redondear(sum((base * effi_api._d(x.get('valor')) / 100 for x in imps), Decimal(0)))
+        base_imp = bruto if obsequio else base   # comprobado en Effi: el obsequio NO deja de pagar IVA (se calcula sobre el valor completo y el total de la línea son solo los impuestos)
+        imp = effi_api._redondear(sum((base_imp * effi_api._d(x.get('valor')) / 100 for x in imps), Decimal(0)))
         out['articulo'].append(str(aid))
         out['descripcion'].append(str(l.get('descripcion') or art.get('descripcion') or art.get('referencia') or '')[:120])
         out['cantidad'].append(float(cant)); out['precio'].append(float(precio)); out['descuento'].append(float(desc))
@@ -268,8 +269,8 @@ def construir(p: dict, usuario: str = '') -> dict:
             raise HTTPException(400, f'La retención {rid} no existe en Effi')
         v = _retencion(ret_cat[rid], subtotal, imp_t)
         ret_valor += v; ret_detalle.append({'id': rid, 'nombre': ret_cat[rid]['nombre'], 'valor': float(v)})
-    # Effi valida que las formas de pago sumen el total SIN descontar la retención (comprobado con una orden de compra); la propina sí se suma
-    total = effi_api._redondear(subtotal + imp_t + propina)
+    # Total neto como en «Crear cotización» de Effi (comprobado en su pantalla): subtotal + IVA + propina − retenciones. Las formas de pago deben sumar ese total neto.
+    total = effi_api._redondear(subtotal + imp_t + propina - ret_valor)
     formas = p.get('formas_pago') or []
     if not isinstance(formas, list) or not formas:
         raise HTTPException(400, 'Agrega la forma de pago')
@@ -329,7 +330,7 @@ def construir(p: dict, usuario: str = '') -> dict:
         cuerpo['garantia'] = garantia[:255]
     return {'cuerpo': cuerpo, 'resumen': {'tipo': TIPOS[tipo], 'lineas': detalle, 'bruto': float(bruto_t), 'descuento': float(desc_t), 'subtotal': float(subtotal),
                                           'impuestos': float(imp_t), 'propina': float(propina), 'retenciones': float(ret_valor), 'retenciones_detalle': ret_detalle,
-                                          'total': float(total), 'neto_con_retencion': float(total - ret_valor), 'formas': [{'id': i, 'valor': float(v)} for i, v in zip(ids, valores)]}}
+                                          'total': float(total), 'neto_con_retencion': float(total), 'formas': [{'id': i, 'valor': float(v)} for i, v in zip(ids, valores)]}}
 
 
 @router.post('/vista-previa')

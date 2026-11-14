@@ -15,6 +15,7 @@ FORMAS = [{'id': 1, 'nombre': 'Contado', 'credito': False, 'defecto': False},
           {'id': 2, 'nombre': 'Contado a 1 día', 'credito': True, 'defecto': True},
           {'id': 6, 'nombre': '30 días', 'credito': True, 'defecto': False}]
 RETENCIONES = [{'id': 66, 'nombre': 'RETEICA 11.6 X MIL (1.16%)', 'valor': '1.160', 'tipo': 'Sobre base', 'base': '0.00', 'base_excluida': '0.00', 'base_maxima': '0.00'},
+               {'id': 28, 'nombre': 'Retefuente 1% compras', 'valor': '1', 'tipo': 'Sobre base', 'base': '0.00', 'base_excluida': '0.00', 'base_maxima': '0.00'},
                {'id': 70, 'nombre': 'ReteFuente 4%', 'valor': '4', 'tipo': 'Sobre base', 'base': '1000000', 'base_excluida': '0.00', 'base_maxima': '0.00'},
                {'id': 71, 'nombre': 'ReteIVA 15%', 'valor': '15', 'tipo': 'Sobre impuesto principal', 'base': '0.00', 'base_excluida': '0.00', 'base_maxima': '0.00'},
                {'id': 72, 'nombre': 'Con tope', 'valor': '2', 'tipo': 'Sobre base', 'base': '0.00', 'base_excluida': '0.00', 'base_maxima': '5000000'}]
@@ -136,17 +137,26 @@ class Funciones(unittest.TestCase):
         self.assertEqual(c['cuerpo']['gift'], [1, 0])
         self.assertEqual(c['cuerpo']['observacion_concepto'], ['cortesía del club', ''])
         self.assertEqual(c['cuerpo']['descuento'], [0.0, 0.0])
-        self.assertEqual((c['resumen']['descuento'], c['resumen']['total'], c['resumen']['impuestos']), (200000.0, 50000.0, 0.0))   # el obsequio no paga IVA
+        self.assertEqual((c['resumen']['descuento'], c['resumen']['impuestos'], c['resumen']['total']), (200000.0, 38000.0, 88000.0))   # el obsequio SÍ paga IVA (sobre el valor completo): su línea son solo los impuestos
 
-    def test_retenciones_se_calculan_y_no_bajan_lo_que_suman_las_formas_de_pago(self):
+    def test_retenciones_se_calculan_y_las_formas_de_pago_suman_el_total_neto(self):
         p = base(conceptos=[{'articulo': 10, 'cantidad': 10, 'precio': 100000}], retenciones=[66, 70, 71])
         r = pe.construir(p)
         self.assertEqual(r['cuerpo']['retencion'], [66, 70, 71])
         res = r['resumen']
-        self.assertEqual(res['total'], 1190000.0)                                  # 1.000.000 + IVA 190.000
+        self.assertEqual(res['impuestos'], 190000.0)                               # 1.000.000 + IVA 190.000
         self.assertEqual([x['valor'] for x in res['retenciones_detalle']], [11600.0, 40000.0, 28500.0])   # ICA 1,16 % · 4 % (supera la base) · 15 % del IVA
-        self.assertEqual((res['retenciones'], res['neto_con_retencion']), (80100.0, 1109900.0))
-        self.assertEqual(r['cuerpo']['valor_forma_pago'], [1190000.0])
+        self.assertEqual((res['retenciones'], res['total']), (80100.0, 1109900.0))   # total neto = 1.190.000 − 80.100
+        self.assertEqual(r['cuerpo']['valor_forma_pago'], [1109900.0])
+
+    def test_numeros_que_mostro_effi_en_su_pantalla(self):
+        """Prueba hecha por el usuario en «Crear cotización» de Effi (artículo de $71.000, retención 1 %, propina 10 %, sin guardar)."""
+        r = pe.construir(base(conceptos=[{'articulo': 10, 'cantidad': 1, 'precio': 71000}], retenciones=[28], propina=7100))['resumen']
+        self.assertEqual((r['subtotal'], r['impuestos'], r['propina'], r['retenciones'], r['total']), (71000.0, 13490.0, 7100.0, 710.0, 90880.0))
+        r = pe.construir(base(conceptos=[{'articulo': 11, 'cantidad': 1, 'precio': 71000, 'descuento': 7100}], retenciones=[28]))['resumen']
+        self.assertEqual((r['subtotal'], r['retenciones'], r['total']), (63900.0, 639.0, 63261.0))   # descuento global 10 %: $7.100 por línea
+        o = pe.construir(base(conceptos=[{'articulo': 10, 'cantidad': 1, 'precio': 71000, 'obsequio': True}], retenciones=[28], propina=0))['resumen']
+        self.assertEqual((o['subtotal'], o['retenciones'], o['impuestos'], o['total']), (0.0, 0.0, 13490.0, 13490.0))   # obsequio: subtotal, retención y propina en cero; el IVA sí se paga
 
     def test_retencion_bajo_la_base_minima_no_aplica_y_las_raras_se_rechazan(self):
         r = pe.construir(base(retenciones=[70]))          # subtotal 700.000 < base 1.000.000
