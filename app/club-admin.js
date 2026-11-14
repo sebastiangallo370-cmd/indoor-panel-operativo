@@ -1,9 +1,9 @@
 (() => {
-  // TIENDA CLUB (COMERCIALES): enlaces privados por cliente y bandeja de reprogramaciones que mandan los clubes.
+  // PROGRAMAR CLUB (COMERCIALES): bandeja de reprogramaciones de los clubes y EMPEZAR PEDIDO (formulario tipo Effi). Los enlaces para clientes se quitaron de la pantalla (2026-11-13); el backend de enlaces sigue en club.py.
   if (window.__clubAdminListo) return;
   window.__clubAdminListo = true;
   const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  let panel = null, dlg = null, modoDlg = 'enlaces', correos = { comerciales: '', sin_vendedor: '', efectivos: '' }, effi = null, enlaces = [], pedidos = [], filtro = 'pendiente', busqueda = '', aviso = '', ultimo = '', ultimoDlg = '', cargando = false, clienteElegido = null;
+  let panel = null, dlg = null, modoDlg = 'correos', correos = { comerciales: '', sin_vendedor: '', efectivos: '' }, effi = null, pedidos = [], filtro = 'pendiente', busqueda = '', aviso = '', ultimo = '', ultimoDlg = '', cargando = false, clienteElegido = null;
   let abiertos = new Set(), ocupados = new Set(), vistos = new Set(), primeraCarga = true;
 
   const css = document.createElement('style');
@@ -220,13 +220,13 @@
   };
   const cuenta = k => pedidos.filter(p => !k || p.estado === k).length;
 
-  // Pestaña: solo la tarjeta de reprogramaciones. Los enlaces para clientes se gestionan en una ventana aparte.
+  // Pestaña: solo la tarjeta de reprogramaciones.
   function pintar() {
     if (!panel) return;
     const lista = pedidos.filter(p => (!filtro || p.estado === filtro) && coincide(p));
     const nuevos = new Set(pedidos.map(p => p.id).filter(id => !vistos.has(id)));
     const html = '<div class="tc">' +
-      '<section class="tc-card tc-plano"><div class="tc-cabeza"><h2>Reprogramaciones de los clubes</h2><span class="tc-acc"><button class="tc-btn tc-b-lime" data-pedido="nuevo" type="button">EMPEZAR PEDIDO</button><button class="tc-btn tc-b-line" data-enlaces="lista" type="button">Enlaces activos (' + enlaces.length + ')</button><button class="tc-btn tc-b-line" data-correos type="button" title="A quién le llega el correo con el botón APROBAR REPROGRAMACIÓN">✉ Aviso por correo</button></span></div>' +
+      '<section class="tc-card tc-plano"><div class="tc-cabeza"><h2>Reprogramaciones de los clubes</h2><span class="tc-acc"><button class="tc-btn tc-b-lime" data-pedido="nuevo" type="button">EMPEZAR PEDIDO</button><button class="tc-btn tc-b-line" data-correos type="button" title="A quién le llega el correo con el botón APROBAR REPROGRAMACIÓN">✉ Aviso por correo</button></span></div>' +
       (effi ? '<p class="tc-aviso tc-info" style="margin-bottom:12px"><span class="tc-dot ' + (effi.activo && effi.conectado ? 'on' : effi.activo ? 'off' : '') + '"></span><span>EFFITRON · ' + (effi.activo ? (effi.conectado ? 'en línea' : 'SIN CONEXIÓN') : 'apagado') + (effi.ultima ? ' · ' + esc(effi.ultima) : '') + '</span></p>' : '') +
       '<div class="tc-barra"><div class="tc-chips" role="group" aria-label="Filtrar reprogramaciones">' + [['pendiente', 'Pendientes'], ['aprobada', 'Aprobadas'], ['rechazada', 'Rechazadas'], ['', 'Todas']].map(([k, t]) => '<button type="button" data-filtro="' + k + '" aria-pressed="' + (filtro === k) + '" class="' + (filtro === k ? 'on' : '') + '">' + t + ' <em class="tc-n">' + cuenta(k) + '</em></button>').join('') + '</div>' +
       '<input id="tc-buscar" class="tc-buscar" type="search" placeholder="Buscar club, contacto o cotización" autocomplete="off" value="' + esc(busqueda) + '"></div>' +
@@ -240,41 +240,6 @@
     panel.innerHTML = ultimo = html;
     const destino = idAct && panel.querySelector('#' + idAct);
     if (destino) { destino.focus(); if (pos != null && destino.setSelectionRange) destino.setSelectionRange(pos, pos); }
-  }
-
-  // Ventana de enlaces para clientes: generar y gestionar. Se redibuja aparte para no cerrarse al refrescar.
-  function pintarEnlaces(enfocar) {
-    if (!dlg) return;
-    const cliente0 = dlg.querySelector('#tc-cliente')?.value ?? '';
-    const html = '<div class="tc-dlg-cuerpo">' +
-      '<div class="tc-dlg-cabeza"><div><span class="eyebrow">TIENDA CLUB</span><h2>Enlaces para clientes</h2></div><button class="tc-btn tc-b-line" data-cerrar type="button">Cerrar</button></div>' +
-      '<p>Genera un enlace privado: el cliente ve los diseños que ya produjo con nosotros y arma su reprogramación con nombres, números y tallas.</p>' +
-      '<div class="tc-form"><label>CLIENTE<div class="tc-cliente-wrap"><input id="tc-cliente" placeholder="Escribe el nombre del cliente" autocomplete="off" aria-autocomplete="list" aria-controls="tc-sugerencias"><div id="tc-sugerencias" class="tc-sugerencias" role="listbox" hidden></div></div></label>' +
-      '<label style="flex:0 1 150px">VIGENCIA<select id="tc-dias"><option value="15">15 días</option><option value="30" selected>30 días</option><option value="90">90 días</option><option value="365">1 año</option></select></label>' +
-      '</div>' +
-      '<div id="tc-seleccion" class="tc-seleccion' + (clienteElegido ? ' on' : '') + '">' + (clienteElegido ? '✓ Cliente seleccionado: <b>' + esc(clienteElegido.nombre) + '</b>' + (clienteElegido.proyectos ? ' · ' + clienteElegido.proyectos + ' proyectos' : '') : '1. Busca y selecciona un cliente para habilitar la generación.') + '</div>' + (aviso ? '<p class="tc-aviso">' + aviso + '</p>' : '') +
-      '<h2 style="font-size:18px">Enlaces activos</h2>' + (enlaces.length ? '<div class="tc-lista" style="grid-template-columns:minmax(0,1fr)">' + enlaces.map(e => '<div class="tc-fila"><span><strong>' + esc(e.cliente) + '</strong><small>Vence ' + fecha(e.vence) + ' · ' + e.pedidos + (e.pedidos === 1 ? ' reprogramación' : ' reprogramaciones') + (e.vencido ? ' · VENCIDO' : '') + '</small></span><span class="tc-acc"><button class="tc-btn tc-b-line" data-copiar="' + esc(e.token) + '">Copiar enlace</button><button class="tc-btn tc-b-red" data-revocar="' + e.id + '">Revocar</button></span></div>').join('') + '</div>' : '<div class="tc-vacio">Todavía no hay enlaces.</div>') +
-      '</div>';
-    if (html === ultimoDlg) return;
-    dlg.innerHTML = ultimoDlg = html;
-    const cliente = dlg.querySelector('#tc-cliente');
-    if (cliente && cliente0) cliente.value = cliente0;
-    const crear = dlg.querySelector('#tc-crear');
-    if (crear) crear.onclick = async e => {
-      e.preventDefault(); e.stopPropagation();
-      const nombre = clienteElegido?.nombre || '';
-      if (!nombre) { toast('Selecciona un cliente de la lista', 'error'); return; }
-      crear.disabled = true; crear.textContent = 'Generando…';
-      try {
-        const d = await api('/api/club/enlaces', 'POST', { cliente: nombre, dias: Number(dlg.querySelector('#tc-dias').value) });
-        aviso = 'Enlace listo: <b>' + esc(url(d.token)) + '</b>';
-        clienteElegido = null;
-        try { await navigator.clipboard.writeText(url(d.token)); aviso += ' (copiado)'; } catch (er) { /* sin portapapeles */ }
-        toast('Enlace de ' + nombre + ' listo', 'ok');
-        await cargar();
-      } catch (er) { toast(er.message || 'No se pudo generar el enlace', 'error'); crear.disabled = false; crear.textContent = 'Generar enlace'; }
-    };
-    if (cliente && enfocar) cliente.focus();
   }
 
   // Ventana «Aviso por correo»: a quién le llega el correo con el botón APROBAR REPROGRAMACIÓN. Se dibuja una sola vez al abrirla (no se redibuja mientras se escribe).
@@ -292,30 +257,12 @@
     if (cargando || !panel) return;
     cargando = true;
     try {
-      const [a, p, e, c] = await Promise.all([api('/api/club/enlaces'), api('/api/club/pedidos'), api('/api/club/effitron').catch(() => null), api('/api/club/correos').catch(() => null)]);
-      enlaces = a.enlaces; pedidos = p.pedidos; effi = e; if (c) correos = c; pintar();
-      if (dlg && dlg.open && modoDlg === 'enlaces') pintarEnlaces(false);
+      const [p, e, c] = await Promise.all([api('/api/club/pedidos'), api('/api/club/effitron').catch(() => null), api('/api/club/correos').catch(() => null)]);
+      pedidos = p.pedidos; effi = e; if (c) correos = c; pintar();
     } catch (e) { panel.innerHTML = '<div class="tc"><div class="tc-card"><p>' + esc(e.message) + '</p></div></div>'; ultimo = ''; }
     finally { cargando = false; }
   }
 
-  async function sugerir(q) {
-    const texto = String(q || '').trim();
-    const caja = dlg && dlg.querySelector('#tc-sugerencias');
-    if (!texto) { if (caja) { caja.hidden = true; caja.innerHTML = ''; } return; }
-    try {
-      const d = await api('/api/club/clientes?q=' + encodeURIComponent(texto));
-      const campo = dlg && dlg.querySelector('#tc-cliente');
-      if (!campo || campo.value.trim() !== texto) return;
-      const clientes = d.clientes || [], dl = dlg.querySelector('#tc-clientes');
-      if (dl) dl.innerHTML = clientes.map(c => '<option value="' + esc(c.nombre) + '"></option>').join('');
-      if (!caja) return;
-      caja.innerHTML = clientes.length
-        ? clientes.map(c => '<button type="button" role="option" data-sugerencia="' + esc(c.nombre) + '" data-proyectos="' + Number(c.proyectos || c.pedidos || 0) + '"><span>' + esc(c.nombre) + '</span><small>' + (Number(c.proyectos || c.pedidos || 0) ? Number(c.proyectos || c.pedidos) + ' proyectos' : 'Cliente NAS') + '</small></button>').join('')
-        : '<div style="padding:10px;color:#aab7a5;font:600 13px Arial">No hay clientes con MAESTROS que coincidan.</div>';
-      caja.hidden = false;
-    } catch (e) { if (caja) { caja.hidden = false; caja.innerHTML = '<div style="padding:10px;color:#ffb0a5;font:600 13px Arial">No se pudo buscar ahora. Intenta de nuevo.</div>'; } }
-  }
 
   function iniciar() {
     panel = document.querySelector('.panel[data-panel="club"]');
@@ -324,20 +271,16 @@
     dlg.className = 'tc-dlg';
     document.body.appendChild(dlg);
     let t = 0;
-    dlg.addEventListener('input', e => { if (e.target.id === 'tc-cliente') { clienteElegido = null; const crear = dlg.querySelector('#tc-crear'), seleccion = dlg.querySelector('#tc-seleccion'); if (crear) crear.disabled = true; if (seleccion) { seleccion.classList.remove('on'); seleccion.textContent = '1. Busca y selecciona un cliente para habilitar la generación.'; } clearTimeout(t); t = setTimeout(() => sugerir(e.target.value), 250); } });
     dlg.addEventListener('click', async e => {
       const b = e.target.closest('button'); if (!b) return;
       try {
-        if (b.dataset.sugerencia) { clienteElegido = { nombre: b.dataset.sugerencia, proyectos: Number(b.dataset.proyectos || 0) }; const campo = dlg.querySelector('#tc-cliente'), crear = dlg.querySelector('#tc-crear'), seleccion = dlg.querySelector('#tc-seleccion'); if (campo) { campo.value = clienteElegido.nombre; campo.focus(); } if (crear) crear.disabled = false; if (seleccion) { seleccion.classList.add('on'); seleccion.innerHTML = '✓ Cliente seleccionado: <b>' + esc(clienteElegido.nombre) + '</b>' + (clienteElegido.proyectos ? ' · ' + clienteElegido.proyectos + ' proyectos' : ''); } const caja = dlg.querySelector('#tc-sugerencias'); if (caja) caja.hidden = true; return; }
         if (b.dataset.cerrar !== undefined) { dlg.close(); return; }
         if (b.id === 'tc-correos-guardar') {
           const d = await api('/api/club/correos', 'PUT', { comerciales: dlg.querySelector('#tc-correos').value, sin_vendedor: dlg.querySelector('#tc-sin-vendedor').value.trim() });
           correos = { ...correos, comerciales: d.comerciales, sin_vendedor: d.sin_vendedor };
           toast('Correos guardados', 'ok'); return;
         }
-        if (b.dataset.copiar) { try { await navigator.clipboard.writeText(url(b.dataset.copiar)); toast('Enlace copiado', 'ok'); aviso = 'Enlace copiado: ' + esc(url(b.dataset.copiar)); } catch (er) { aviso = 'Copia este enlace: ' + esc(url(b.dataset.copiar)); } pintarEnlaces(false); return; }
-        if (b.dataset.revocar) { if (!confirm('¿Revocar este enlace? El cliente ya no podrá abrirlo.')) return; await api('/api/club/enlaces/' + b.dataset.revocar, 'DELETE'); aviso = 'Enlace revocado.'; toast('Enlace revocado', 'ok'); await cargar(); return; }
-      } catch (er) { toast(er.message, 'error'); if (modoDlg === 'enlaces') pintarEnlaces(false); }
+      } catch (er) { toast(er.message, 'error'); }
     });
     dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });   // clic fuera de la tarjeta cierra
     panel.addEventListener('input', e => {
@@ -347,7 +290,6 @@
       const b = e.target.closest('button'); if (!b) return;
       try {
         if (b.dataset.correos !== undefined) { modoDlg = 'correos'; pintarCorreos(); dlg.showModal(); return; }
-        if (b.dataset.enlaces) { modoDlg = 'enlaces'; ultimoDlg = ''; pintarEnlaces(b.dataset.enlaces === 'nuevo'); dlg.showModal(); return; }
         if (b.dataset.cotreint) { await api('/api/club/pedidos/' + b.dataset.cotreint + '/cotizacion/reintentar', 'POST'); aviso = 'Reintentando la cotización…'; toast('Reintentando la cotización…', 'ok'); await cargar(); return; }
         if (b.dataset.filtro !== undefined) { filtro = b.dataset.filtro; pintar(); return; }
         if (b.dataset.ver) { const id = Number(b.dataset.ver); abiertos.has(id) ? abiertos.delete(id) : abiertos.add(id); pintar(); return; }
