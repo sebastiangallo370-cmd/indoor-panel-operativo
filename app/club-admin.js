@@ -37,6 +37,7 @@
   .tc .tc-aviso.tc-info{display:inline-flex!important;align-items:center;gap:8px;width:auto!important;padding:0!important;background:transparent!important;border:0!important;box-shadow:none!important;font-size:13px}
   @media (min-width:900px){.tc>*{width:calc(100vw - 64px)!important;max-width:none!important;box-sizing:border-box}}
   @media (min-width:900px){.tc-plano .tc-cabeza{width:calc(100vw - 64px);justify-content:space-between;flex-wrap:nowrap}.tc-plano .tc-cabeza .tc-acc{margin-left:auto;flex-wrap:nowrap}}
+  .panel[data-panel="club"]{background:transparent!important;border:0!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}.panel[data-panel="club"]::before,.panel[data-panel="club"]::after{display:none!important}   /* sin recuadro: los botones quedan flotando sobre el fondo */
   .tc-plano{overflow:visible!important;padding:4px 0!important;border:0!important;background:transparent!important;box-shadow:none!important;backdrop-filter:none!important}
   .tc-barra{display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:center;margin-bottom:14px}
   .tc-chips{display:flex;gap:8px;flex-wrap:wrap}
