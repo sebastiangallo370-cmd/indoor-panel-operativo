@@ -123,27 +123,27 @@
   }
   .pe-garm{display:none}
   @media(max-width:700px){
-    /* Vista móvil igual a la de Effi: fondo azul noche, una columna, campos a todo el ancho, etiquetas a la izquierda, botones de colores */
-    .tc-pedido-fondo:has(.pe-enc){background:#0b1220!important;padding:0!important}.tc-pedido-card:has(.pe-enc){background:#111a2e!important;border:0!important;border-radius:0!important;padding:10px!important}
-    .pe{gap:10px;color:#e6ebf5}.pe-card{background:#111a2e!important;border:1px solid #1e2a45;border-radius:12px;padding:12px;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
-    .pe h2{font-size:17px;color:#e6ebf5}.pe h3{font-size:14px;color:#e6ebf5}.pe h3::before{background:#2d6ccc}.pe .eyebrow{display:none}
-    .pe label{font-size:12px;letter-spacing:.02em;color:#aab6cf;text-align:left}
-    .pe input,.pe select,.pe textarea{background:#16213a;border-color:#2a3858;color:#e6ebf5;font-size:14px;text-align:left;min-height:40px}.pe input:focus,.pe select:focus,.pe textarea:focus{border-color:#2d6ccc}
-    .pe-top{flex-direction:row;align-items:center}.pe-tipo{border-color:#2a3858}.pe-tipo button{color:#aab6cf}.pe-tipo button.on{background:#0f7f49;color:#fff}
+    /* Vista móvil con la disposición de Effi (una columna, campos a todo el ancho, etiquetas a la izquierda) y los colores de INDOOR */
+    .tc-pedido-fondo:has(.pe-enc){padding:0!important}.tc-pedido-card:has(.pe-enc){border:0!important;border-radius:0!important;padding:10px!important}
+    .pe{gap:10px}.pe-card{border-radius:12px;padding:12px}
+    .pe h2{font-size:17px}.pe h3{font-size:14px}.pe .eyebrow{display:none}
+    .pe label{font-size:12px;letter-spacing:.02em;text-align:left}
+    .pe input,.pe select,.pe textarea{font-size:14px;text-align:left;min-height:40px}
+    .pe-top{flex-direction:row;align-items:center}
     .pe-enc>.pe-grid,.pe-enc .pe-fila2{display:contents}.pe-enc{display:flex!important;flex-direction:column;gap:10px}.pe-enc .pe-top{order:-1}
     .pe-enc label{order:5}.pe-enc label:has([name="sucursal"]){order:1}.pe-enc label:has([name="bodega"]){order:2}.pe-enc label:has([name="centro_costos"]){order:3}.pe-enc label:has([name="fecha_entrega"]){order:4}
     .pe-enc label:has([name="moneda"]){order:5}.pe-enc label:has([name="trm"]){order:6}.pe-enc label:has([name="cliente-q"]){order:7}.pe-enc label:has([name="direccion"]){order:8}.pe-enc label:has([name="vendedor"]){order:9}.pe-enc label:has([name="global"]){order:11}
     .pe-enc .pe-proy{display:none}.pe-garm{display:grid}
-    .pe-linea{grid-template-columns:1fr!important;gap:8px;padding:12px 0}.pe-linea>*{grid-column:1/-1!important}.pe-total-linea{color:#e6ebf5;font-size:15px}.pe-x{justify-self:end;color:#ff8a7a}
-    .pe-tela{color:#7fb0ff;font-size:12px}.pe-tela.no{color:#ffb547}
-    .pe-btn{background:#0f7f49;color:#fff;min-height:44px;font-size:13px;letter-spacing:.02em;width:100%}.pe-btn.sec{background:#16213a;color:#e6ebf5}
-    .pe-con [data-capturar]{background:#2d6ccc;color:#fff}.pe-btn.mini{background:#6b6b6b;color:#f2f2f2;min-height:40px}.pe-con [data-capturar].mini{background:#2d6ccc;color:#fff}
-    .pe-link{display:block;width:100%;box-sizing:border-box;text-align:center;background:#16213a;color:#e6ebf5;border-radius:10px;padding:11px;font-size:13px}
-    .pe-tot{gap:6px}.pe-tot div{display:flex;justify-content:space-between;font:600 14px Arial;color:#e6ebf5}.pe-tot .neto{font-weight:900;font-size:16px}
-    .pe-acciones{display:grid;grid-template-columns:1fr 1fr;gap:8px;position:static!important;padding:0;border:0;background:none}.pe-acciones [data-previa-btn]{background:#2d6ccc;color:#fff}.pe-acciones [data-crear]{background:#0f7f49;color:#fff}.pe-acciones .pe-msg{grid-column:1/-1}
+    .pe-linea{grid-template-columns:1fr!important;gap:8px;padding:12px 0}.pe-linea>*{grid-column:1/-1!important}.pe-total-linea{font-size:15px}.pe-x{justify-self:end;color:#ff8a7a}
+    .pe-tela{font-size:12px}
+    .pe-btn{min-height:44px;font-size:13px;letter-spacing:.02em;width:100%}
+    .pe-btn.mini{min-height:40px}
+    .pe-link{display:block;width:100%;box-sizing:border-box;text-align:center;background:rgba(255,255,255,.1);color:#f5faef;border-radius:10px;padding:11px;font-size:13px}
+    .pe-tot{gap:6px}.pe-tot div{display:flex;justify-content:space-between;font:600 14px Arial}.pe-tot .neto{font-weight:900;font-size:16px}
+    .pe-acciones{display:grid;grid-template-columns:1fr 1fr;gap:8px;position:static!important;padding:0;border:0;background:none}.pe-acciones .pe-msg{grid-column:1/-1}
     .pe-dos{display:flex!important;flex-direction:column;gap:10px}.pe-dos>.pe-izq{display:contents}.pe-izq>.pe-garm{order:1}.pe-izq>label:not(.pe-garm){order:2}.pe-izq>div:not(.pe-sub){order:3}.pe-dos>*:not(.pe-izq){order:4}.pe-izq>.pe-sub{order:5;grid-template-columns:1fr!important}
     .pe-izq>div:not(.pe-sub)>div[style*="display:flex"]{flex-direction:column;align-items:stretch}.pe-izq select{width:100%}
-    .pe-sug{background:#111a2e!important;border-color:#2a3858}.pe-sug button{color:#e6ebf5}.pe-sug button.on,.pe-sug button:hover{background:#16213a}
+    
   }`;
   document.head.appendChild(css);
 
