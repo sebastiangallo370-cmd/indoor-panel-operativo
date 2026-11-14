@@ -131,7 +131,7 @@
     .pe input[type=date]::-webkit-date-and-time-value{text-align:left;min-width:0}.pe input[type=date]::-webkit-calendar-picker-indicator{margin:0}
     .pe h2{font-size:17px}.pe h3{font-size:14px}.pe .eyebrow{display:none}
     .pe label{font-size:12px;letter-spacing:.02em;text-align:left}
-    .pe input,.pe select,.pe textarea{font-size:14px;text-align:left;min-height:40px}
+    .pe input,.pe select,.pe textarea{font-size:14px;text-align:left;min-height:38px}
     .pe-top{flex-direction:row;align-items:center}
     .pe-enc>.pe-grid,.pe-enc .pe-fila2{display:contents}.pe-enc{display:flex!important;flex-direction:column;gap:10px}.pe-enc .pe-top{order:-1}
     .pe-enc label{order:5}.pe-enc label:has([name="sucursal"]){order:1}.pe-enc label:has([name="bodega"]){order:2}.pe-enc label:has([name="centro_costos"]){order:3}.pe-enc label:has([name="fecha_entrega"]){order:4}
@@ -139,9 +139,9 @@
     .pe-enc .pe-proy{display:none}.pe-garm{display:grid}
     .pe-linea{grid-template-columns:1fr!important;gap:8px;padding:12px 0}.pe-linea>*{grid-column:1/-1!important}.pe-total-linea{font-size:15px}.pe-x{justify-self:end;color:#ff8a7a}
     .pe-tela{font-size:12px}
-    .pe-btn{min-height:44px;font-size:13px;letter-spacing:.02em;width:100%}
-    .pe-btn.mini{min-height:40px}
-    .pe-link{display:block;width:100%;box-sizing:border-box;text-align:center;background:rgba(255,255,255,.1);color:#f5faef;border-radius:10px;padding:11px;font-size:13px}
+    .pe-btn{min-height:36px;font-size:12px;letter-spacing:.02em;width:100%;border-radius:10px}.pe-tipo button{padding:6px 12px;font-size:11px}.pe-pct{height:36px;min-width:34px}
+    .pe-btn.mini{min-height:32px;font-size:11px;padding:0 10px}
+    .pe-link{display:block;width:100%;box-sizing:border-box;text-align:center;background:rgba(255,255,255,.1);color:#f5faef;border-radius:10px;padding:8px;font-size:12px}
     .pe-tot{gap:6px}.pe-tot div{display:flex;justify-content:space-between;font:600 14px Arial}.pe-tot .neto{font-weight:900;font-size:16px}
     .pe-acciones{display:grid;grid-template-columns:1fr 1fr;gap:8px;position:static!important;padding:0;border:0;background:none}.pe-acciones .pe-msg{grid-column:1/-1}
     .pe-dos{display:flex!important;flex-direction:column;gap:10px}.pe-dos>.pe-izq{display:contents}.pe-izq>.pe-garm{order:1}.pe-izq>label:not(.pe-garm){order:2}.pe-izq>div:not(.pe-sub){order:3}.pe-dos>*:not(.pe-izq){order:4}.pe-izq>.pe-sub{order:5;grid-template-columns:1fr!important}
@@ -172,6 +172,15 @@
   // descuento de un concepto en $: obsequio = 100 %; en % se calcula sobre su bruto; en valor se usa tal cual
   const descDe = l => l.obsequio ? brutoDe(l) : (l.dtipo === 'pct' ? Math.round(brutoDe(l) * num(l.descuento)) / 100 : num(l.descuento));
   const totales = () => { const b = st.conceptos.reduce((s, l) => s + brutoDe(l), 0), d = st.conceptos.reduce((s, l) => s + descDe(l), 0); return { b, d, s: b - d }; };
+  const pctDe = t => { const m = String(t || '').match(/(\d+(?:[.,]\d+)?)\s*%/); return m ? Number(m[1].replace(',', '.')) : 0; };
+  // Estimado local hasta la VISTA PREVIA (que trae el cálculo exacto de Effi): IVA de cada concepto, propina y retenciones sobre el subtotal
+  function estimado() {
+    const t = totales(); let imp = 0;
+    st.conceptos.forEach(l => { const base = l.obsequio ? brutoDe(l) : brutoDe(l) - descDe(l); imp += base * pctDe(l.impuesto) / 100; });
+    const prop = propinaValor() || 0, ret = (st.retenciones || []).reduce((a, id) => { const r = ((st.cat || {}).retenciones || []).find(x => x.id === id); return a + (r ? t.s * pctDe(r.nombre) / 100 : 0); }, 0);
+    return { imp: Math.round(imp), ret: Math.round(ret), neto: Math.round(t.s + imp + prop - ret) };
+  }
+  const est = v => '≈ ' + money(v);
   const propinaValor = () => (st.propinaPct ? Math.round(totales().s * num(st.propina)) / 100 : num(st.propina));
 
   function opciones(lista, sel, vacio) {
@@ -240,8 +249,8 @@
           <div class="pe-sub"><label>Descuento pronto pago ($)<input name="pronto" inputmode="decimal" placeholder="0" value="${esc(st.pronto)}"></label><label>Fecha pronto pago<input type="date" name="fecha_pronto" value="${esc(st.fechaPronto)}"></label></div></div>
         <div class="pe-tot"><div><span>TOTAL BRUTO</span><b>${money(t.b)}</b></div><div><span>− Descuentos</span><b>${money(t.d)}</b></div><div><span>SUBTOTAL</span><b>${money(t.s)}</b></div>
           <div class="pe-propina"><span>+ Propina</span><span class="pe-dto"><input name="propina" inputmode="decimal" placeholder="0" value="${esc(st.propina)}"><button class="pe-pct" type="button" data-propina-tipo title="Cambiar entre valor ($) y porcentaje (%)">${st.propinaPct ? '%' : '$'}</button></span></div>
-          <div><span>+ Impuestos</span><b data-imp>${st.prev ? money(st.prev.impuestos) : '—'}</b></div><div><span>− Retenciones</span><b data-ret>${st.prev ? money(st.prev.retenciones) : '—'}</b></div>
-          <div class="neto"><span>TOTAL NETO</span><b data-neto>${st.prev ? money(st.prev.total) : '—'}</b></div></div></div>
+          <div><span>+ Impuestos</span><b data-imp>${st.prev ? money(st.prev.impuestos) : est(estimado().imp)}</b></div><div><span>− Retenciones</span><b data-ret>${st.prev ? money(st.prev.retenciones) : (st.retenciones.length ? est(estimado().ret) : '—')}</b></div>
+          <div class="neto"><span>TOTAL NETO</span><b data-neto>${st.prev ? money(st.prev.total) : est(estimado().neto)}</b></div></div></div>
         <div data-previa class="pe-prev" ${st.prev ? '' : 'hidden'}>${st.prev ? 'Vista previa lista. Las formas de pago deben sumar el total neto: ' + money(st.prev.total) + '. Revisa y pulsa CREAR.' : ''}</div>
       </div>
       <div class="pe-card"><h3>Formas de pago</h3><div data-formas>${st.formas.map((f, i) => `
@@ -266,7 +275,7 @@
       formas_pago: st.formas.map(f => ({ id: f.id, valor: f.valor })),
     };
   }
-  function invalidar() { if (st.prev) { st.prev = null; const b = q('[data-crear]'); if (b) b.disabled = true; const p = q('[data-previa]'); if (p) p.hidden = true; const i = q('[data-imp]'), n = q('[data-neto]'), r = q('[data-ret]'); if (i) i.textContent = '—'; if (n) n.textContent = '—'; if (r) r.textContent = '—'; msg('Cambiaste algo: vuelve a pulsar VISTA PREVIA.', ''); } }
+  function invalidar() { if (st.prev) { st.prev = null; const b = q('[data-crear]'); if (b) b.disabled = true; const p = q('[data-previa]'); if (p) p.hidden = true; const i = q('[data-imp]'), n = q('[data-neto]'), r = q('[data-ret]'); refrescarTotales(); msg('Cambiaste algo: vuelve a pulsar VISTA PREVIA.', ''); } }
   function defectoForma() { const f = st.cat.formas_pago.find(x => x.defecto) || st.cat.formas_pago[0]; return { id: f ? f.id : '', valor: '' }; }
 
   const cerrarVentana = () => { const f = document.querySelector('.tc-pedido-fondo'); if (f) f.remove(); };
@@ -334,9 +343,9 @@
     const t = st.telas[String(l.ref || '').toUpperCase()]; if (!l.ref || !t) return '';
     if (t === 'cargando') return '<small>Buscando la tela…</small>';
     if (!t.encontrado) return '<span class="no">Sin promedio en Promedios maestros para esta referencia.</span>';
-    const f = n => (Math.round(n * 100) / 100).toLocaleString('es-CO');
-    return t.materiales.map(m => 'TELA ' + (m.codigo && !/^\s*\(/.test(m.tela || '') ? '(' + esc(m.codigo) + ') ' : '') + '<b>' + esc(m.tela || m.material) + '</b>' +
-      (num(l.cantidad) ? ' · Gasto estimado <b>' + f(m.promedio * num(l.cantidad)) + ' mts</b>' : '') + (m.bodega != null ? ' · En stock <b>' + f(m.bodega) + ' mts</b>' + (num(l.cantidad) && m.bodega < m.promedio * num(l.cantidad) ? ' <span style="color:#ff8a7a">· NO ALCANZA</span>' : '') : '')).join('<br>');
+    const f = n => { const [e, d] = (Math.round(n * 100) / 100).toFixed(2).replace(/0+$/, '').replace(/\.$/, '').split('.'); return e.replace(/\B(?=(\d{3})+(?!\d))/g, '.') + (d ? ',' + d : ''); };
+    return t.materiales.map(m => { const nombre = String(m.tela || m.material || '').replace(/^\s*\(\d+\)\s*/, '').trim(), cod = m.codigo || (String(m.tela || '').match(/^\s*\((\d+)\)/) || [])[1] || '';
+      return '<b>' + (cod ? esc(cod) + ' ' : '') + '(' + esc(nombre) + ')</b>' + (num(l.cantidad) ? ' <b>' + f(m.promedio * num(l.cantidad)) + ' mts</b>' : '') + (m.bodega != null ? ' - STOCK <b>' + f(m.bodega) + ' mts</b>' : '') + (num(l.cantidad) && m.bodega != null && m.bodega < m.promedio * num(l.cantidad) ? ' <span style="color:#ff8a7a">· NO ALCANZA</span>' : ''); }).join('<br>');
   }
   function pintarTelas() { panel.querySelectorAll('[data-lineas] .pe-linea').forEach(row => { const l = st.conceptos[Number(row.dataset.i)], e = row.querySelector('[data-tela]'); if (l && e) { e.innerHTML = telaHtml(l); const t = st.telas[String(l.ref || '').toUpperCase()]; e.classList.toggle('no', !!t && t !== 'cargando' && !t.encontrado); } }); }
   async function cargarTela(ref) {
@@ -435,7 +444,7 @@
     q('[data-crear]').onclick = () => previa(true);
   }
   function cierraSug(e) { if (!panel || !e.target.closest) return; const box = q('[data-sug-global]'); if (box && !box.hidden && !box.contains(e.target) && e.target !== box._ancla) box.hidden = true; }
-  function refrescarTotales() { const t = totales(), tot = q('.pe-tot'); if (!tot) return; const v = tot.querySelectorAll('b'); v[0].textContent = money(t.b); v[1].textContent = money(t.d); v[2].textContent = money(t.s); }
+  function refrescarTotales() { const t = totales(), tot = q('.pe-tot'); if (!tot) return; const v = tot.querySelectorAll('b'); v[0].textContent = money(t.b); v[1].textContent = money(t.d); v[2].textContent = money(t.s); if (!st.prev) { const e = estimado(), i = q('[data-imp]'), n = q('[data-neto]'), r = q('[data-ret]'); if (i) i.textContent = est(e.imp); if (n) n.textContent = est(e.neto); if (r) r.textContent = st.retenciones.length ? est(e.ret) : '—'; } }
 
   async function iniciar() {
     panel.innerHTML = '<div class="pe"><div class="pe-card" style="color:#a9b5a3;font:600 14px Arial">Cargando datos de Effi…</div></div>';
