@@ -329,3 +329,31 @@ class BuscarArticulos(unittest.TestCase):
                 mock.patch.object(pe, '_effi', lambda f, *a: f(*a)), mock.patch.object(effi_api, '_lista', lista):
             r = pe.articulos(mock.Mock(), 'A200FUT0')
         self.assertEqual([a['referencia'] for a in r['articulos']], ['A200FUT01'])
+
+
+class ProyectosDelCliente(unittest.TestCase):
+    CARPETAS = ['CORPORACION SOCIOCULTURAL CERROS FC', 'NICOLAS ANTONIO RAVE', 'ATLETICO NACIONAL']
+
+    def test_el_nombre_de_effi_encuentra_su_carpeta_aunque_no_sea_identico(self):
+        n = 'CORPORACION SOCIOCULTURAL CERROS FUTBOL CLUB DE MEDELLIN S.A.S. EN LIQUIDACION'
+        self.assertEqual(pe.carpeta_de_cliente(n, self.CARPETAS), 'CORPORACION SOCIOCULTURAL CERROS FC')
+        self.assertEqual(pe.carpeta_de_cliente('Nicolás Antonio Rave', self.CARPETAS), 'NICOLAS ANTONIO RAVE')
+        self.assertIsNone(pe.carpeta_de_cliente('PEDRO PEREZ', self.CARPETAS))
+
+    def test_lista_las_carpetas_de_MAESTROS(self):
+        import shutil
+        from app import club
+        with tempfile.TemporaryDirectory() as d:
+            raiz = Path(d)
+            for proyecto in ('UNIFORMES 2027 FUTBOL', 'TEMPORADA 2026'):
+                (raiz / 'CORPORACION SOCIOCULTURAL CERROS FC' / 'MAESTROS' / proyecto).mkdir(parents=True)
+            (raiz / 'CORPORACION SOCIOCULTURAL CERROS FC' / 'MAESTROS' / 'suelto.txt').write_text('x')
+            (raiz / 'NICOLAS ANTONIO RAVE').mkdir()
+            pe._cache_carpetas.update(t=0.0, nombres=[]); pe._cache_proyectos.clear()
+            with mock.patch.object(club, '_clientes_root', lambda: str(raiz)):
+                r = pe.proyectos_de_cliente('CORPORACION SOCIOCULTURAL CERROS FUTBOL CLUB DE MEDELLIN S.A.S.')
+                self.assertEqual(r['carpeta'], 'CORPORACION SOCIOCULTURAL CERROS FC')
+                self.assertEqual(r['proyectos'], ['TEMPORADA 2026', 'UNIFORMES 2027 FUTBOL'])
+                self.assertEqual(pe.proyectos_de_cliente('Nicolas Antonio Rave')['proyectos'], [])   # carpeta sin MAESTROS
+                self.assertEqual(pe.proyectos_de_cliente('PEDRO PEREZ'), {'carpeta': None, 'proyectos': []})
+            pe._cache_carpetas.update(t=0.0, nombres=[]); pe._cache_proyectos.clear()

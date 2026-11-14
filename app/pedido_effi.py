@@ -441,6 +441,79 @@ def crear(request: Request, payload: dict):
     hecho = _effi(effi_api.crear_cotizacion if tipo == 'cotizacion' else effi_api.crear_remision, r['cuerpo'])
     return {'ok': True, 'tipo': TIPOS[tipo], 'id': hecho['id'], 'numero': f"{hecho.get('prefijo') or ''}{hecho['id']}", 'total': hecho.get('total') or r['resumen']['total']}
 
+# ---------------------------------------------------------------- Proyectos del cliente (carpeta MAESTROS en la NAS)
+_PALABRAS_SUELTAS = {'SAS', 'SA', 'S', 'A', 'LTDA', 'CIA', 'E', 'U', 'Y', 'DE', 'DEL', 'LA', 'LAS', 'LOS', 'EN', 'EL', 'CLUB', 'FC', 'FUTBOL', 'DEPORTIVO',
+                     'CORPORACION', 'FUNDACION', 'ASOCIACION', 'LIQUIDACION', 'ESCUELA', 'ACADEMIA', 'COLEGIO'}
+_cache_carpetas: dict = {'t': 0.0, 'nombres': []}
+_cache_proyectos: dict[str, tuple[float, dict]] = {}
+CACHE_SEG = 300
+
+
+def _palabras(texto: str) -> set[str]:
+    """Palabras que identifican a un cliente (sin acentos, sin «SAS», «CLUB», «FC»…): «CORPORACION SOCIOCULTURAL CERROS FC» -> {SOCIOCULTURAL, CERROS}."""
+    import unicodedata
+    plano = ''.join(c for c in unicodedata.normalize('NFD', str(texto or '')) if not unicodedata.combining(c)).upper()
+    return {w for w in re.split(r'[^A-Z0-9]+', plano) if len(w) >= 3 and w not in _PALABRAS_SUELTAS}
+
+
+def carpeta_de_cliente(nombre: str, carpetas: list[str]) -> str | None:
+    """Carpeta de la NAS que corresponde al cliente de Effi (los nombres no son idénticos: «…CERROS FUTBOL CLUB DE MEDELLIN S.A.S. EN LIQUIDACION» vs «…CERROS FC»).
+    Gana la carpeta cuyas palabras clave están todas en el nombre del cliente y, entre varias, la más específica. Sin coincidencia clara devuelve None."""
+    pc = _palabras(nombre)
+    if not pc:
+        return None
+    exacta = next((c for c in carpetas if re.sub(r'[^A-Z0-9]', '', c.upper()) == re.sub(r'[^A-Z0-9]', '', str(nombre).upper())), None)
+    if exacta:
+        return exacta
+    buenas = [(len(pf), c) for c in carpetas for pf in [_palabras(c)] if pf and pf <= pc]
+    if buenas:
+        return max(buenas, key=lambda x: (x[0], -len(x[1])))[1]
+    inversas = [(len(pc), c) for c in carpetas for pf in [_palabras(c)] if pf and pc <= pf]
+    return min(inversas, key=lambda x: len(x[1]))[1] if inversas else None
+
+
+def _raiz_clientes() -> Path | None:
+    from app import club
+    try:
+        raiz = Path(str(club._clientes_root() or '')).expanduser()
+        return raiz if raiz.is_dir() else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def proyectos_de_cliente(nombre: str) -> dict:
+    """Nombres de las carpetas de proyecto dentro de CLIENTE/MAESTROS en la NAS. Solo lectura, con caché de 5 minutos (la NAS es lenta)."""
+    clave = re.sub(r'[^A-Z0-9]', '', str(nombre or '').upper())
+    ahora = time.time()
+    hit = _cache_proyectos.get(clave)
+    if hit and ahora - hit[0] < CACHE_SEG:
+        return hit[1]
+    raiz = _raiz_clientes()
+    resultado = {'carpeta': None, 'proyectos': []}
+    if raiz is not None:
+        try:
+            if ahora - _cache_carpetas['t'] > CACHE_SEG or not _cache_carpetas['nombres']:
+                _cache_carpetas.update(t=ahora, nombres=[p.name for p in raiz.iterdir() if p.is_dir()])
+            carpeta = carpeta_de_cliente(nombre, _cache_carpetas['nombres'])
+            if carpeta:
+                resultado['carpeta'] = carpeta
+                maestros = next((p for p in (raiz / carpeta).iterdir() if p.is_dir() and p.name.strip().upper() == 'MAESTROS'), None)
+                if maestros is not None:
+                    resultado['proyectos'] = sorted((p.name for p in maestros.iterdir() if p.is_dir() and not p.name.startswith('.')), key=lambda n: n.upper())
+        except OSError:
+            return {'carpeta': None, 'proyectos': [], 'error': 'No pude leer la NAS ahora'}
+    _cache_proyectos[clave] = (ahora, resultado)
+    return resultado
+
+
+@router.get('/proyectos')
+def proyectos(request: Request, cliente: str = ''):
+    """Proyectos que ya existen en la carpeta MAESTROS de la NAS del cliente (para la lista desplegable del campo Proyecto)."""
+    _usuario(request)
+    if len((cliente or '').strip()) < 3:
+        return {'carpeta': None, 'proyectos': []}
+    return proyectos_de_cliente(cliente)
+
 
 @router.get('/tela')
 def tela_de_referencia(request: Request, ref: str = '', cantidad: float = 0):

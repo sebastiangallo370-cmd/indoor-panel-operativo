@@ -39,7 +39,7 @@
   .pe-pct{all:unset;cursor:pointer;box-sizing:border-box;min-width:38px;height:42px;display:grid;place-items:center;border:1px solid #3d4c3b;border-radius:10px;background:#142017;color:#d0f44c;font:900 14px Arial}
   .pe-pct:hover{border-color:#d0f44c}
   .pe-tela{grid-column:1/-1;font:700 12px Arial;color:#d0f44c;letter-spacing:.02em}.pe-tela:empty{display:none}.pe-tela small{color:#a9b5a3;font-weight:700}.pe-tela.no{color:#e8b86a}
-  .pe-fila2{grid-template-columns:minmax(260px,2fr) minmax(220px,1.4fr) minmax(220px,1.6fr)!important;margin-top:0!important}
+  .pe-fila2{grid-template-columns:minmax(260px,2fr) minmax(220px,1.4fr) minmax(220px,1.6fr)!important;margin-top:0!important;align-items:start}
   @media(max-width:999px){.pe-fila2{grid-template-columns:1fr!important}}
   .pe-mas{grid-column:1/-1}.pe-link{all:unset;cursor:pointer;color:#a9b5a3;font:800 12px Arial;letter-spacing:.06em}.pe-link:hover{color:#d0f44c}
   .pe-detalles{display:grid;gap:10px;grid-template-columns:minmax(180px,1fr) 2fr;margin-top:8px;padding:10px;border:1px dashed rgba(255,255,255,.18);border-radius:10px}
@@ -121,7 +121,6 @@
     .pe-card{padding:15px}.pe{margin:10px auto 120px}
     .pe-acciones{position:static;padding:0;border:0;background:none}.pe-btn{width:100%}.pe-msg{padding:0 4px}
   }
-  .pe-garm{display:none}
   .pe-sm{display:none}
   @media(max-width:700px){
     /* Vista móvil con la disposición de Effi (una columna, campos a todo el ancho, etiquetas a la izquierda) y los colores de INDOOR */
@@ -136,8 +135,7 @@
     .pe-top{flex-direction:row;align-items:center}
     .pe-enc>.pe-grid,.pe-enc .pe-fila2{display:contents}.pe-enc{display:flex!important;flex-direction:column;gap:10px}.pe-enc .pe-top{order:-1}
     .pe-enc label{order:5}.pe-enc label:has([name="sucursal"]){order:1}.pe-enc label:has([name="bodega"]){order:2}.pe-enc label:has([name="centro_costos"]){order:3}.pe-enc label:has([name="fecha_entrega"]){order:4}
-    .pe-enc label:has([name="moneda"]){order:5}.pe-enc label:has([name="trm"]){order:6}.pe-enc label:has([name="cliente-q"]){order:7}.pe-enc label:has([name="direccion"]){order:8}.pe-enc label:has([name="vendedor"]){order:9}.pe-enc label:has([name="global"]){order:11}
-    .pe-enc .pe-proy{display:none}.pe-garm{display:grid}
+    .pe-enc label:has([name="moneda"]){order:5}.pe-enc label:has([name="trm"]){order:6}.pe-enc label:has([name="cliente-q"]){order:7}.pe-enc label:has([name="direccion"]){order:8}.pe-enc label:has([name="garantia"]){order:9}.pe-enc label:has([name="vendedor"]){order:10}.pe-enc label:has([name="global"]){order:11}
     .pe-lg{display:none}.pe-sm{display:inline}.pe-acciones .pe-btn{white-space:nowrap}
     .pe-linea{grid-template-columns:1fr!important;gap:5px;padding:8px 0}.pe-linea>*{grid-column:1/-1!important}.pe-total-linea{font-size:12px;min-height:22px}.pe-x{justify-self:end;color:#ff8a7a}
     .pe-tela{font-size:9px}
@@ -152,7 +150,7 @@
   }`;
   document.head.appendChild(css);
 
-  const estadoInicial = () => ({ tipo: 'cotizacion', cat: null, estado: null, cliente: null, direccion: -1, conceptos: [], telas: {}, sinIvaTodos: false, formas: [], clave: nuevaClave(), previa: false, prev: null, ocupado: false, hecho: null, capturando: false, capTexto: '', capMsg: '', moneda: 'COP', trm: '1', global: '', propina: '', propinaPct: false, retenciones: [], pronto: '', fechaPronto: '' });
+  const estadoInicial = () => ({ tipo: 'cotizacion', cat: null, estado: null, cliente: null, direccion: -1, conceptos: [], telas: {}, proy: { cliente: '', cargando: false, lista: [], carpeta: null, error: '' }, sinIvaTodos: false, formas: [], clave: nuevaClave(), previa: false, prev: null, ocupado: false, hecho: null, capturando: false, capTexto: '', capMsg: '', moneda: 'COP', trm: '1', global: '', propina: '', propinaPct: false, retenciones: [], pronto: '', fechaPronto: '' });
   const st = estadoInicial();
   let panel = null;
   const q = s => panel.querySelector(s);
@@ -224,7 +222,7 @@
         <div class="pe-grid pe-fila2">
           <label>Cliente*<input name="cliente-q" autocomplete="off" autocapitalize="words" autocorrect="off" spellcheck="false" enterkeyhint="search" placeholder="Buscar por nombre (3 letras)…" value="${esc(st.cliente ? st.cliente.nombre : guard['cliente-q'])}"></label>
           <label>Dirección del cliente<select name="direccion">${st.cliente && st.cliente.direcciones.length ? st.cliente.direcciones.map((d, i) => '<option value="' + i + '"' + (i === st.direccion ? ' selected' : '') + '>' + esc((d.ciudad ? d.ciudad + ' · ' : '') + d.direccion) + '</option>').join('') : '<option value="-1">No registra</option>'}</select></label>
-          <label class="pe-proy">Proyecto (Garantía)<input name="garantia" maxlength="255" autocomplete="off" placeholder="Ej. TEMPORADA 2027" value="${esc(guard.garantia)}"></label>
+          <label class="pe-proy">Nombre del proyecto (Garantía)${proyectoHtml(guard.garantia)}</label>
         </div>
       </div>
       <div class="pe-card pe-con"><div class="pe-h3row"><h3>Conceptos</h3><label class="pe-chk pe-siniva-todos" style="margin-left:auto"><input type="checkbox" data-siniva-todos ${st.sinIvaTodos ? 'checked' : ''}> Sin IVA (todos)</label></div>
@@ -245,7 +243,7 @@
       </div>
       <div class="pe-abajo">
       <div class="pe-card"><h3>Detalles de la ${nombreDoc()}</h3><div class="pe-dos">
-        <div class="pe-grid pe-izq"><label class="pe-garm">Garantía<textarea name="garantia_m" maxlength="255" placeholder="Garantía">${esc(guard.garantia)}</textarea></label><label>Observación<textarea name="observacion" maxlength="800" placeholder="Observación">${esc(guard.observacion)}</textarea></label>
+        <div class="pe-grid pe-izq"><label>Observación<textarea name="observacion" maxlength="800" placeholder="Observación">${esc(guard.observacion)}</textarea></label>
           <div><div style="display:flex;gap:8px;align-items:end"><label style="flex:1;min-width:0">Retenciones<select data-ret-sel>${opciones((c.retenciones || []).filter(r => !st.retenciones.includes(r.id)), '', 'Seleccionar…')}</select></label><button class="pe-btn sec mini" type="button" data-ret-add>+ Agregar</button></div>
             <div class="pe-chips">${st.retenciones.map(id => { const r = (c.retenciones || []).find(x => x.id === id); return '<span class="pe-chip">' + esc(r ? r.nombre : id) + '<button type="button" data-ret-quitar="' + id + '" aria-label="Quitar">✕</button></span>'; }).join('')}</div></div>
           <div class="pe-sub"><label>Descuento pronto pago ($)<input name="pronto" inputmode="decimal" placeholder="0" value="${esc(st.pronto)}"></label><label>Fecha pronto pago<input type="date" name="fecha_pronto" value="${esc(st.fechaPronto)}"></label></div></div>
@@ -356,12 +354,36 @@
     try { st.telas[k] = await api('/api/pedido-effi/tela?ref=' + encodeURIComponent(k)); } catch (e) { delete st.telas[k]; }
     pintarTelas();
   }
+  function proyectoHtml(actual) {
+    const y = st.proy, txt = String(actual || '');
+    if (!st.cliente) return '<select name="proyecto_sel" disabled><option value="">Elige primero el cliente</option></select><input name="garantia" type="hidden" value="">';
+    if (y.cargando) return '<select name="proyecto_sel" disabled><option value="">Cargando proyectos de la NAS…</option></select><input name="garantia" type="hidden" value="' + esc(txt) + '">';
+    const enLista = y.lista.includes(txt), mostrarTxt = !enLista && (!!txt || !!st.proyNuevo || !y.lista.length);
+    return '<select name="proyecto_sel"><option value="">' + (y.lista.length ? 'Seleccionar…' : 'Sin proyectos en MAESTROS: escribe uno nuevo') + '</option>' +
+      y.lista.map(n => '<option value="' + esc(n) + '"' + (n === txt ? ' selected' : '') + '>' + esc(n) + '</option>').join('') +
+      '<option value="__nuevo"' + (mostrarTxt ? ' selected' : '') + '>+ Proyecto nuevo (escribir)…</option></select>' +
+      '<input name="garantia" maxlength="255" autocomplete="off" placeholder="Nombre del proyecto nuevo, ej. TEMPORADA 2027" value="' + esc(txt) + '"' + (mostrarTxt ? '' : ' hidden') + '>' +
+      (y.error ? '<small style="color:#ffb547">' + esc(y.error) + '</small>' : '');
+  }
+  async function cargarProyectos() {
+    const c = st.cliente; if (!c) return;
+    const y = st.proy;
+    if (y.cliente !== c.nombre) { const g = q('[name="garantia"]'); if (g) g.value = ''; st.proyNuevo = false; }
+    Object.assign(y, { cliente: c.nombre, cargando: true, lista: [], carpeta: null, error: '' }); dibujar();
+    try {
+      const r = await api('/api/pedido-effi/proyectos?cliente=' + encodeURIComponent(c.nombre));
+      if (!st.cliente || st.cliente.nombre !== c.nombre) return;
+      Object.assign(y, { cargando: false, lista: r.proyectos || [], carpeta: r.carpeta, error: r.error || '' });
+    } catch (e) { if (st.cliente && st.cliente.nombre === c.nombre) Object.assign(y, { cargando: false, lista: [], error: 'No pude traer los proyectos de la NAS: escribe uno nuevo.' }); }
+    dibujar();
+  }
   function elegirSug(idx) {
     const box = q('[data-sug-global]'); if (!box || !box._lista || !box._lista[idx]) return;
     if (box._tipo === 'c') {
       st.cliente = box._lista[idx]; st.direccion = st.cliente.direcciones.length ? 0 : -1; invalidar();
       const v = st.cat.vendedores.find(x => String(x.id) === String(st.cliente.vendedor)); const guardado = valor('vendedor');
       dibujar(); if (v && !guardado) { q('[name="vendedor"]').value = v.id; }
+      cargarProyectos();
     } else {
       const l = st.conceptos[box._i], a = box._lista[idx];
       Object.assign(l, { articulo: a.id, ref: a.referencia, descripcion: a.descripcion.slice(0, 120), precio: a.precio || l.precio, impuesto: a.impuesto || '' }); invalidar(); dibujar();
@@ -413,8 +435,12 @@
     panel.querySelectorAll('[data-ret-quitar]').forEach(b => b.onclick = () => { st.retenciones = st.retenciones.filter(x => x !== Number(b.dataset.retQuitar)); invalidar(); dibujar(); });
     ['sucursal', 'bodega', 'centro_costos', 'vendedor', 'fecha_entrega', 'garantia', 'observacion'].forEach(n => { const e = q('[name="' + n + '"]'); if (e) e.addEventListener('input', () => { invalidar(); if (n === 'sucursal') dibujar(); }); });
     const dir = q('[name="direccion"]'); if (dir) dir.onchange = () => { st.direccion = Number(dir.value); invalidar(); };
-    const gm = q('[name="garantia_m"]'); if (gm) gm.addEventListener('input', () => { const g = q('[name="garantia"]'); g.value = gm.value; g.dispatchEvent(new Event('input', { bubbles: true })); });
-    const gt = q('[name="garantia"]'); if (gt && gm) gt.addEventListener('input', () => { if (gm.value !== gt.value) gm.value = gt.value; });
+    const ps = q('[name="proyecto_sel"]'); if (ps) ps.addEventListener('change', () => {
+      const t = q('[name="garantia"]'); if (!t) return;
+      if (ps.value === '__nuevo') { st.proyNuevo = true; t.type = 'text'; t.hidden = false; t.value = ''; t.focus(); }
+      else { st.proyNuevo = false; t.hidden = true; t.value = ps.value; }
+      t.dispatchEvent(new Event('input', { bubbles: true }));
+    });
     const cq = q('[name="cliente-q"]');
     cq.addEventListener('input', () => { if (st.cliente) { st.cliente = null; st.direccion = -1; refrescarDirecciones(); } invalidar(); buscarCliente(cq.value, cq); });
     cq.addEventListener('keydown', teclaSug);
