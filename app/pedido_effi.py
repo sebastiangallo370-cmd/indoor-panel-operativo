@@ -647,6 +647,25 @@ def mockup_img(request: Request, cliente: str = '', proyecto: str = '', carpeta:
         raise HTTPException(404, 'No existe esa imagen')
     return FileResponse(ruta, headers={'Cache-Control': 'private, max-age=300'})
 
+# ---------------------------------------------------------------- El MISMO PDF que genera Effi (lo baja EFFITRON con su sesión web)
+@router.get('/pdf-estado/{numero}')
+def pdf_estado(request: Request, numero: int):
+    """Pide el PDF de la cotización a EFFITRON (la primera vez) y dice cómo va. Para remisiones no hay PDF por esta vía."""
+    _usuario(request)
+    from app import effitron
+    return effitron.solicitar_pdf_cotizacion(numero)
+
+
+@router.get('/pdf/{numero}')
+def pdf_cotizacion(request: Request, numero: int, descargar: int = 0):
+    from fastapi.responses import Response
+    _usuario(request)
+    from app import effitron
+    datos = effitron.pdf_cotizacion_bytes(numero)
+    if not datos:
+        raise HTTPException(404, 'El PDF de Effi todavía no está listo')
+    return Response(datos, media_type='application/pdf', headers={'Content-Disposition': ('attachment' if descargar else 'inline') + f'; filename="Cotizacion_{numero}.pdf"', 'Cache-Control': 'private, max-age=300'})
+
 
 @router.get('/tela')
 def tela_de_referencia(request: Request, ref: str = '', cantidad: float = 0):

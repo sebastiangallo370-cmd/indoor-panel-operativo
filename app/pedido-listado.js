@@ -42,6 +42,17 @@
   /* réplica de la cotización: la misma hoja que imprime Effi (se ve igual en computador y en celular; en celular se reduce para que quepa) */
   .pl-hoja-caja{width:100%;max-width:820px;margin:0 auto;overflow:hidden}
   ${HOJA_CSS}
+  .pl-pdf-caja{max-width:1000px}
+  .pl-pdf-estado{display:flex;flex-direction:column;align-items:center;gap:10px;padding:46px 20px;border:1px dashed rgba(208,244,76,.45);border-radius:16px;background:rgba(208,244,76,.05);text-align:center}
+  .pl-pdf-estado b{font:900 15px Arial}.pl-pdf-estado small{color:#a9b5a3;font:600 12px/1.5 Arial;max-width:460px}.pl-pdf-acc{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:6px}
+  .pl-spin{width:34px;height:34px;border-radius:50%;border:3px solid rgba(208,244,76,.25);border-top-color:#d0f44c;animation:plgira 1s linear infinite}@keyframes plgira{to{transform:rotate(360deg)}}
+  .pl-pdf-barra{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 4px;font:800 12px Arial;color:#c9d3c1}.pl-pdf-barra a{text-decoration:none;display:inline-flex;align-items:center}
+  .pl-pdf{display:block;width:100%;height:calc(100vh - 320px);min-height:460px;border:0;border-radius:8px;background:#fff}
+  .pl-progreso{height:12px;border-radius:99px;background:rgba(255,255,255,.1);overflow:hidden;margin:14px auto 4px;max-width:520px}.pl-progreso i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#9fcd12,#d0f44c);box-shadow:0 0 12px rgba(208,244,76,.6);transition:width .5s}
+  .pl-pasos2{list-style:none;margin:14px auto 0;padding:0;max-width:520px;text-align:left;display:grid;gap:6px}.pl-pasos2 li{display:flex;gap:10px;align-items:center;font:700 13px Arial;color:#7d8a77}.pl-pasos2 li span{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;border:1px solid #3d4c3b;font:900 12px Arial}
+  .pl-pasos2 li.hecho{color:#e8f0e0}.pl-pasos2 li.hecho span{background:#d0f44c;color:#142017;border-color:#d0f44c}.pl-pasos2 li.activo{color:#d0f44c}.pl-pasos2 li.activo span{border-color:#d0f44c;animation:plpulso 1s infinite}@keyframes plpulso{50%{opacity:.35}}
+  .pl-fotos{display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 10px}.pl-fotos figure{margin:0;text-align:center}.pl-fotos img{display:block;height:120px;width:auto;border-radius:8px;background:#fff}.pl-fotos figcaption{font:800 11px Arial;margin-top:3px;color:#c9d3c1}
+  .pl-xl-t{width:100%;border-collapse:collapse;font:600 12px Arial}.pl-xl-t th{background:#1d2a1d;font:800 10px Arial;letter-spacing:.06em;text-align:left;padding:5px 7px}.pl-xl-t td{padding:5px 7px;border-bottom:1px solid rgba(255,255,255,.08)}
   /* paso 2 y 3 */
   .pl-tarjeta{padding:16px;border:1px solid rgba(255,255,255,.14);border-radius:16px;background:linear-gradient(160deg,rgba(255,255,255,.07),rgba(0,0,0,.28));margin-bottom:12px}
   .pl-tarjeta h3{margin:0 0 10px;font:900 15px Arial;display:flex;align-items:center;gap:8px}.pl-tarjeta h3::before{content:"";width:4px;height:16px;border-radius:2px;background:#d0f44c}
@@ -82,6 +93,7 @@
     .pl,.pl *{text-align:center}.pl h1{font-size:14px}.pl h3{font-size:11px}.pl label{font-size:8.5px;letter-spacing:.05em;justify-items:center}
     .pl input,.pl select,.pl textarea{font-size:12px!important;text-align:center;text-align-last:center}.pl input,.pl select{min-height:28px;height:30px}
     .pl-btn{font-size:9px!important;min-height:26px;padding:4px 10px;display:inline-flex;align-items:center;justify-content:center;text-align:center}
+    .pl-pdf{height:72vh;min-height:380px}.pl-pdf-barra{justify-content:center}
     .pl-pasos{justify-content:center}.pl-paso{font-size:10px;padding:4px 8px}.pl-refs{justify-content:center}.pl-herr{justify-content:center}.pl-herr label{min-width:110px}
     .pl-tabla input,.pl-tabla select{min-height:28px!important;height:30px;font-size:12px!important}.pl-tabla td[data-l]::before{text-align:center}
     .pl-slot{justify-items:center;align-items:center}.pl-slot>div{justify-content:center}.pl-msg{font-size:12px;text-align:center}
@@ -179,17 +191,51 @@
   function imprimir() {
     const f = document.createElement('iframe'); f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
     document.body.appendChild(f);
-    const w = f.contentWindow; w.document.open(); w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>' + esc((L.doc.tipo === 'remision' ? 'Remision ' : 'Cotizacion ') + (L.doc.numero_completo || L.doc.numero)) + '</title><style>@page{size:letter;margin:8mm}body{margin:0}' + HOJA_CSS + '.pl-papel{zoom:1!important;width:auto;min-height:0;border-radius:0;padding:0}.pl-papel .cab img{filter:none}</style></head><body>' + q('#pl-doc').outerHTML + '</body></html>'); w.document.close();
+    const w = f.contentWindow; w.document.open(); w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>' + esc((L.doc.tipo === 'remision' ? 'Remision ' : 'Cotizacion ') + (L.doc.numero_completo || L.doc.numero)) + '</title><style>@page{size:letter;margin:8mm}body{margin:0}' + HOJA_CSS + '.pl-papel{zoom:1!important;width:auto;min-height:0;border-radius:0;padding:0}.pl-papel .cab img{filter:none}</style></head><body>' + htmlDoc() + '</body></html>'); w.document.close();
     setTimeout(() => { w.focus(); w.print(); setTimeout(() => f.remove(), 2000); }, 250);
   }
+  // El documento que se muestra es el MISMO PDF que genera Effi (lo baja EFFITRON con su sesión web). La réplica propia solo queda para remisiones o si el PDF no llega.
   function pantallaDoc() {
-    q('[data-cuerpo]').innerHTML = '<div class="pl-hoja-caja">' + htmlDoc() + '</div>'; ajustarHoja();
-    acciones('<button class="pl-btn sec" type="button" data-imprimir>IMPRIMIR</button><button class="pl-btn" type="button" data-continuar>CONTINUAR CON EL LISTADO ▶</button><button class="pl-btn sec" type="button" data-otro>CREAR OTRO DOCUMENTO</button><button class="pl-btn sec" type="button" data-cerrar>CERRAR</button>',
-      'La ' + (L.doc.tipo === 'remision' ? 'remisión' : 'cotización') + ' ya está creada en Effi. Continúa con el listado para programar el pedido.', 'ok');
-    q('[data-imprimir]').onclick = imprimir;
+    const numero = String(L.doc.numero || '').replace(/\D/g, ''), conPdf = L.doc.tipo !== 'remision' && !!numero;
+    const botones = '<button class="pl-btn sec" type="button" data-imprimir>IMPRIMIR</button><button class="pl-btn" type="button" data-continuar>CONTINUAR CON EL LISTADO ▶</button><button class="pl-btn sec" type="button" data-otro>CREAR OTRO DOCUMENTO</button><button class="pl-btn sec" type="button" data-cerrar>CERRAR</button>';
+    const msgOk = 'La ' + (L.doc.tipo === 'remision' ? 'remisión' : 'cotización') + ' ya está creada en Effi. Continúa con el listado para programar el pedido.';
+    L.pdfListo = false;
+    if (conPdf) q('[data-cuerpo]').innerHTML = '<div class="pl-hoja-caja pl-pdf-caja"><div class="pl-pdf-estado" data-pdf-estado><div class="pl-spin"></div><b>Trayendo el PDF de Effi…</b><small>Es el mismo documento que genera Effi. Puede tardar unos segundos.</small></div></div>';
+    else { q('[data-cuerpo]').innerHTML = '<div class="pl-hoja-caja">' + htmlDoc() + '</div>'; ajustarHoja(); }
+    acciones(botones, msgOk, 'ok');
+    q('[data-imprimir]').onclick = () => {
+      const f = q('.pl-pdf');
+      if (L.pdfListo && f && f.contentWindow) { try { f.contentWindow.focus(); f.contentWindow.print(); return; } catch (e) { window.open('/api/pedido-effi/pdf/' + numero, '_blank'); return; } }
+      if (conPdf && !raiz.querySelector('#pl-doc')) { setMsg('Espera un momento: el PDF de Effi todavía se está trayendo.', 'error'); return; }
+      imprimir();
+    };
     q('[data-continuar]').onclick = () => { L.pantalla = 'mockups'; dibujar(); };
     q('[data-otro]').onclick = () => L.opts.onOtro && L.opts.onOtro();
     q('[data-cerrar]').onclick = () => L.opts.onCerrar && L.opts.onCerrar();
+    if (conPdf) esperarPdf(numero, 0);
+  }
+  async function esperarPdf(numero, intento) {
+    const caja = () => (L.pantalla === 'doc' && raiz && raiz.isConnected) ? raiz.querySelector('.pl-pdf-caja') : null;
+    if (!caja()) return;
+    const falla = (texto) => {
+      const c = caja(); if (!c) return;
+      c.innerHTML = '<div class="pl-pdf-estado"><b>' + esc(texto) + '</b><small>La cotización sí quedó creada en Effi (No. ' + esc(numero) + '). Puedes continuar con el listado.</small><div class="pl-pdf-acc"><button class="pl-btn" type="button" data-pdf-reintentar>REINTENTAR</button><button class="pl-btn sec" type="button" data-pdf-replica>VER RÉPLICA DEL PANEL</button></div></div>';
+      c.querySelector('[data-pdf-reintentar]').onclick = () => { c.innerHTML = '<div class="pl-pdf-estado"><div class="pl-spin"></div><b>Trayendo el PDF de Effi…</b></div>'; esperarPdf(numero, 0); };
+      c.querySelector('[data-pdf-replica]').onclick = () => { c.classList.remove('pl-pdf-caja'); c.innerHTML = htmlDoc(); ajustarHoja(); };
+    };
+    try {
+      const r = await fetch('/api/pedido-effi/pdf-estado/' + numero, { credentials: 'same-origin', cache: 'no-store' }).then(x => x.ok ? x.json() : Promise.reject(new Error('Error ' + x.status)));
+      if (!caja()) return;
+      if (r.estado === 'listo') {
+        L.pdfListo = true;
+        const url = '/api/pedido-effi/pdf/' + numero;
+        caja().innerHTML = '<div class="pl-pdf-barra"><span>PDF de Effi · Cotización ' + esc(numero) + '</span><span><a class="pl-btn sec mini" href="' + url + '" target="_blank" rel="noopener">ABRIR</a> <a class="pl-btn sec mini" href="' + url + '?descargar=1">DESCARGAR</a></span></div><iframe class="pl-pdf" title="PDF de la cotización" src="' + url + '#view=FitH"></iframe>';
+        return;
+      }
+      if (r.estado === 'error') return falla('No pude traer el PDF de Effi: ' + (r.detalle || 'el agente no respondió'));
+      if (intento >= 40) return falla(r.agente ? 'El PDF de Effi está tardando más de lo normal.' : 'El agente que baja los PDF de Effi (EFFITRON) no está conectado.');
+    } catch (e) { if (intento >= 40) return falla('No pude consultar el PDF de Effi.'); }
+    setTimeout(() => esperarPdf(numero, intento + 1), 3000);
   }
 
   // ---------------------------------------------------------------- 2) mockups
@@ -315,35 +361,57 @@
   async function enviar() {
     if (L.enviando) return;
     const f = faltantes(); if (f.length) { setMsg(f.join('\n'), 'error'); return; }
-    L.enviando = true; const b = q('[data-programar]'); b.disabled = true; setMsg('Enviando el pedido a Producción…', '');
+    L.enviando = true;
     const listado = {}; grupos().forEach(g => { listado[g.referencia] = filasDe(g.referencia).map(x => ({ nombre: x.nombre, talla: x.talla, numero: x.numero, diseno: Number(x.diseno), genero: x.genero, observacion: x.observacion })); });
     const doc = Object.assign({}, L.doc, { proyecto: L.proyecto.trim(), disenos: L.disenos });
     const fd = new FormData(); fd.append('payload', JSON.stringify({ doc, listado, linea: L.linea, observaciones: L.observaciones }));
     grupos().forEach(g => { for (let n = 1; n <= L.disenos; n++) { const img = imagenDe(L.compartir ? '*' : g.referencia, n); if (img) fd.append('mockup:' + g.referencia + ':' + n, img, img.name); } });
+    // al pulsar PROGRAMAR PEDIDO el trabajo empieza YA y se ve en pantalla: el listado de Excel que se está creando y cómo avanza cada paso
+    L.pantalla = 'enviado'; L.job = { id: 0, estado: 'ENVIANDO', progreso: 3, detail: 'Creando el listado de Excel con la plantilla de Indoor…', excel: '', insertados: null }; dibujar();
     try {
       const r = await fetch('/api/pedido-effi/programar', { method: 'POST', body: fd, credentials: 'same-origin' });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(typeof j.detail === 'string' ? j.detail : 'No se pudo programar el pedido (error ' + r.status + ')');
-      L.enviando = false; L.pantalla = 'enviado'; L.job = { id: j.id, estado: j.estado || 'RECIBIDO', detail: '' }; dibujar(); seguir();
-    } catch (e) { L.enviando = false; if (b.isConnected) b.disabled = false; setMsg(String(e.message || e), 'error'); }
+      L.enviando = false; Object.assign(L.job, { id: j.id, estado: j.estado || 'RECIBIDO', progreso: 8, detail: j.mensaje || '', excel: j.excel || '', insertados: j.mockups_insertados == null ? null : j.mockups_insertados });
+      if (raiz.isConnected && L.pantalla === 'enviado') pantallaEnviado(); seguir();
+    } catch (e) {
+      L.enviando = false; L.pantalla = 'listado'; if (raiz.isConnected) { dibujar(); setMsg(String(e.message || e), 'error'); }
+    }
+  }
+  const PASOS_ENVIO = [[3, 'Creando el listado de Excel con la plantilla de Indoor'], [8, 'Validando el pedido (PDF y Excel)'], [36, 'Creando la carpeta del pedido en la NAS'], [58, 'Insertando los mockups en el Excel'], [80, 'Registrando las referencias en Producción'], [100, 'Pedido programado']];
+  function urlImagen(ref, n) { const f = imagenDe(ref, n); if (!f) return ''; L.urls = L.urls || new Map(); if (!L.urls.has(f)) L.urls.set(f, URL.createObjectURL(f)); return L.urls.get(f); }
+  function vistaListado() {   // lo que se está escribiendo en el Excel: una hoja por referencia, con sus mockups
+    return grupos().map(g => {
+      const filas = filasDe(g.referencia), fotos = [];
+      for (let n = 1; n <= L.disenos; n++) { const u = urlImagen(L.compartir ? '*' : g.referencia, n); if (u) fotos.push('<figure><img alt="" src="' + u + '"><figcaption>D' + n + '</figcaption></figure>'); }
+      return '<div class="pl-tarjeta pl-xl"><h3>Hoja ' + esc(g.referencia) + ' · ' + filas.length + ' prendas</h3>' + (fotos.length ? '<div class="pl-fotos">' + fotos.join('') + '</div>' : '<small style="color:#a9b5a3">Sin mockups adjuntos.</small>') +
+        '<div class="pl-tabla-caja"><table class="pl-xl-t"><thead><tr><th>#</th><th>NOMBRE</th><th>TALLA</th><th>Nº</th><th>DISEÑO</th><th>GÉNERO</th><th>OBSERVACIÓN</th></tr></thead><tbody>' +
+        filas.map((x, i) => '<tr><td>' + (i + 1) + '</td><td>' + esc(x.nombre) + '</td><td>' + esc(x.talla) + '</td><td>' + esc(x.numero) + '</td><td>D' + esc(x.diseno) + '</td><td>' + esc(x.genero) + '</td><td>' + esc(x.observacion) + '</td></tr>').join('') + '</tbody></table></div></div>';
+    }).join('');
   }
   function pantallaEnviado() {
-    const j = L.job || {}, fin = ['COMPLETADO', 'ERROR', 'REVISAR'].includes(j.estado), ok = j.estado === 'COMPLETADO';
-    q('[data-cuerpo]').innerHTML = '<div class="pl-listo"><span style="font:800 12px Arial;letter-spacing:.14em;color:#d0f44c">PEDIDO ENVIADO A PRODUCCIÓN</span><strong>' + esc((L.doc.tipo === 'remision' ? 'RM' : 'CO') + L.doc.numero) + '</strong>' +
-      '<div style="color:#a9b5a3;font:600 14px Arial">' + (ok ? 'Quedó programado: ya aparece en Producción con su listado y sus mockups.' : fin ? 'El programar pedido no pudo terminarlo. Lee el motivo y corrígelo.' : 'Procesando… (' + esc(j.estado || 'RECIBIDO') + '). Esto tarda unos segundos.') + '</div>' +
-      (j.detail ? '<div class="caja ' + (ok ? 'ok' : fin ? 'error' : '') + '">' + esc(j.detail) + '</div>' : '') + '</div>';
+    const j = L.job || {}, fin = ['COMPLETADO', 'ERROR', 'REVISAR'].includes(j.estado), ok = j.estado === 'COMPLETADO', pr = ok ? 100 : Math.max(3, Number(j.progreso) || 3);
+    const pasos = PASOS_ENVIO.map(([umbral, texto], k) => { const hecho = ok || pr > umbral || (k === 0 && pr >= 8), activo = !fin && !hecho && (k === 0 || pr >= PASOS_ENVIO[k - 1][0]); return '<li class="' + (hecho ? 'hecho' : activo ? 'activo' : '') + '"><span>' + (hecho ? '✓' : activo ? '…' : '·') + '</span>' + esc(texto) + '</li>'; }).join('');
+    const titulo = ok ? 'PEDIDO PROGRAMADO' : fin ? 'NO SE PUDO TERMINAR' : 'PROGRAMANDO EL PEDIDO…';
+    q('[data-cuerpo]').innerHTML = '<div class="pl-listo"><span style="font:800 12px Arial;letter-spacing:.14em;color:' + (fin && !ok ? '#ff9b9b' : '#d0f44c') + '">' + titulo + '</span><strong>' + esc((L.doc.tipo === 'remision' ? 'RM' : 'CO') + L.doc.numero) + '</strong>' +
+      '<div class="pl-progreso"><i style="width:' + pr + '%"></i></div><div style="font:800 12px Arial;color:#c9d3c1">' + pr + ' %</div>' +
+      '<ul class="pl-pasos2">' + pasos + '</ul>' +
+      (j.detail ? '<div class="caja ' + (ok ? 'ok' : fin ? 'error' : '') + '">' + esc(j.detail) + '</div>' : '') +
+      (j.excel ? '<div style="margin-top:12px"><a class="pl-btn" href="' + esc(j.excel) + '">⬇ DESCARGAR EL EXCEL' + (j.insertados != null ? ' (' + j.insertados + ' mockup(s) insertado(s))' : '') + '</a></div>' : '') + '</div>' +
+      '<div style="max-width:1000px;margin:0 auto">' + vistaListado() + '</div>';
     acciones((fin && !ok ? '<button class="pl-btn sec" type="button" data-volver>◀ VOLVER AL LISTADO</button>' : '') + '<button class="pl-btn sec" type="button" data-otro>CREAR OTRO DOCUMENTO</button><button class="pl-btn" type="button" data-cerrar>CERRAR</button>', '', '');
     const v = q('[data-volver]'); if (v) v.onclick = () => { L.pantalla = 'listado'; dibujar(); };
     q('[data-otro]').onclick = () => L.opts.onOtro && L.opts.onOtro();
     q('[data-cerrar]').onclick = () => L.opts.onCerrar && L.opts.onCerrar();
   }
   async function seguir() {
-    for (let k = 0; k < 60 && raiz && raiz.isConnected && L.pantalla === 'enviado'; k++) {
-      await new Promise(r => setTimeout(r, 1500));
+    for (let k = 0; k < 120 && raiz && raiz.isConnected && L.pantalla === 'enviado'; k++) {
+      await new Promise(r => setTimeout(r, 1200));
       try {
         const r = await fetch('/api/procesos', { credentials: 'same-origin' }); const lista = await r.json();
         const m = (lista || []).find(x => x.id === L.job.id); if (!m) continue;
-        const cambio = m.status !== L.job.estado || m.detail !== L.job.detail; L.job.estado = m.status; L.job.detail = m.detail || '';
+        const cambio = m.status !== L.job.estado || m.detail !== L.job.detail || Number(m.progress) !== L.job.progreso;
+        L.job.estado = m.status; L.job.detail = m.detail || ''; L.job.progreso = Number(m.progress) || L.job.progreso;
         if (cambio && raiz.isConnected && L.pantalla === 'enviado') pantallaEnviado();
         if (['COMPLETADO', 'ERROR', 'REVISAR'].includes(m.status)) { if (m.status === 'COMPLETADO') { try { localStorage.removeItem(claveBorrador()); } catch (e) { /* nada */ } } return; }
       } catch (e) { /* se reintenta */ }
