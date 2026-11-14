@@ -125,6 +125,8 @@
   .pe-det .pe-izq{display:grid;gap:10px;grid-template-columns:minmax(0,1fr)}
   .pe-det .pe-izq>label,.pe-det .pe-izq>div{padding:9px 11px;border:1px solid rgba(255,255,255,.1);border-radius:12px;background:rgba(255,255,255,.035)}
   .pe-det .pe-izq .pe-sub{padding:9px 11px}
+  .pe-det .pe-izq>div:not(.pe-sub)>div[style*="display:flex"]{display:grid!important;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:end;flex-direction:row!important}.pe-det .pe-izq>div>div>label{width:100%;min-width:0;justify-items:stretch!important}.pe-det .pe-izq select{width:100%}
+  .pe-det [data-ret-sel]{min-width:0}.pe-det [data-ret-add]{width:auto!important;flex:none;white-space:nowrap}
   .pe-resumen{border-color:rgba(208,244,76,.42)!important;background:linear-gradient(165deg,rgba(208,244,76,.10),rgba(0,0,0,.34))!important;display:flex;flex-direction:column;gap:8px}
   .pe-resumen h3{margin-bottom:2px}
   .pe-resumen .pe-tot{gap:6px}.pe-resumen .pe-tot div{font:700 14px Arial}
@@ -493,7 +495,9 @@
     const pr = q('[name="propina"]'); pr.addEventListener('input', () => { st.propina = pr.value; invalidar(); });
     q('[data-propina-tipo]').onclick = () => { st.propinaPct = !st.propinaPct; invalidar(); dibujar(); };
     const pp = q('[name="pronto"]'), fp = q('[name="fecha_pronto"]'); pp.addEventListener('input', () => { st.pronto = pp.value; invalidar(); }); fp.addEventListener('input', () => { st.fechaPronto = fp.value; invalidar(); });
-    q('[data-ret-add]').onclick = () => { const v = Number(q('[data-ret-sel]').value); if (v && !st.retenciones.includes(v)) { st.retenciones.push(v); invalidar(); dibujar(); } };
+    const agregarRet = () => { const v = Number(q('[data-ret-sel]').value); if (v && !st.retenciones.includes(v)) { st.retenciones.push(v); invalidar(); dibujar(); } };
+    q('[data-ret-add]').onclick = agregarRet;
+    q('[data-ret-sel]').onchange = agregarRet;   // al elegir una retención de la lista ya se agrega (el botón queda por si acaso)
     panel.querySelectorAll('[data-ret-quitar]').forEach(b => b.onclick = () => { st.retenciones = st.retenciones.filter(x => x !== Number(b.dataset.retQuitar)); invalidar(); dibujar(); });
     ['sucursal', 'bodega', 'centro_costos', 'vendedor', 'fecha_entrega', 'garantia', 'observacion'].forEach(n => { const e = q('[name="' + n + '"]'); if (e) e.addEventListener('input', () => { invalidar(); if (n === 'sucursal') dibujar(); }); });
     const dir = q('[name="direccion"]'); if (dir) dir.onchange = () => { st.direccion = Number(dir.value); invalidar(); };
