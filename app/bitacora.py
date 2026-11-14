@@ -31,6 +31,7 @@ SECRETOS = re.compile(r'pass|clave|contrase|token|secret|key', re.I)
 # (método, patrón de ruta) -> (módulo, descripción)
 ETIQUETAS = [
     ('POST', r'^/api/pedido-effi/crear$', 'Comerciales', 'Creó un documento en Effi desde PEDIDO EN EFFI'),
+    ('POST', r'^/api/pedido-effi/programar$', 'Comerciales', 'Programó un pedido con su listado desde PEDIDO EN EFFI'),
     ('POST', r'^/api/produccion/operacion$', 'Producción', 'Registró una operación de proceso'),
     ('PATCH', r'^/api/produccion/celda$', 'Producción', 'Cambió una celda de producción'),
     ('PUT', r'^/api/produccion/nota$', 'Producción', 'Guardó una nota en producción'),

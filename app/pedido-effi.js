@@ -156,7 +156,7 @@
     const c = st.cat, hecho = st.hecho;
     if (hecho) {
       panel.innerHTML = '<div class="pe"><div class="pe-card pe-listo"><span class="eyebrow">LISTO EN EFFI</span><strong>' + esc(hecho.tipo.toUpperCase()) + ' ' + esc(hecho.numero) + '</strong><p style="color:#a9b5a3;font:500 14px Arial">Total ' + money(hecho.total) + '. Ya está creada en Effi.</p><button class="pe-btn" type="button" data-otro>CREAR OTRO DOCUMENTO</button></div></div>';
-      q('[data-otro]').onclick = () => { st.hecho = null; st.cliente = null; st.conceptos = [lineaVacia()]; st.formas = [defectoForma()]; st.clave = nuevaClave(); st.previa = false; dibujar(); };
+      q('[data-otro]').onclick = nuevoDocumento;
       return;
     }
     const sucDef = c.sucursales.length === 1 ? c.sucursales[0].id : '';
@@ -237,6 +237,27 @@
   function invalidar() { if (st.prev) { st.prev = null; const b = q('[data-crear]'); if (b) b.disabled = true; const p = q('[data-previa]'); if (p) p.hidden = true; const i = q('[data-imp]'), n = q('[data-neto]'), r = q('[data-ret]'); if (i) i.textContent = '—'; if (n) n.textContent = '—'; if (r) r.textContent = '—'; msg('Cambiaste algo: vuelve a pulsar VISTA PREVIA.', ''); } }
   function defectoForma() { const f = st.cat.formas_pago.find(x => x.defecto) || st.cat.formas_pago[0]; return { id: f ? f.id : '', valor: '' }; }
 
+  const cerrarVentana = () => { const f = document.querySelector('.tc-pedido-fondo'); if (f) f.remove(); };
+  function nuevoDocumento() { st.hecho = null; st.cliente = null; st.conceptos = [lineaVacia()]; st.formas = [defectoForma()]; st.clave = nuevaClave(); st.previa = false; st.prev = null; dibujar(); }
+  // Lo que el listado necesita de la cotización recién creada (la réplica en pantalla y el PDF para el programar pedido)
+  function construirDoc(r, body) {
+    const prev = st.prev || {}, ls = prev.lineas || [];
+    const suc = (st.cat.sucursales || []).find(x => String(x.id) === String(body.sucursal)) || {};
+    const ven = (st.cat.vendedores || []).find(x => String(x.id) === String(body.vendedor));
+    const dir = body.direccion;
+    const formas = (body.formas_pago || []).map((f, i) => { const x = (st.cat.formas_pago || []).find(y => y.id === Number(f.id)); const v = (prev.formas || [])[i]; return { nombre: x ? x.nombre : '', valor: v ? v.valor : num(f.valor) }; });
+    const total = r.total != null && isFinite(Number(r.total)) ? Number(r.total) : prev.total;
+    return {
+      tipo: st.tipo, prefijo: (String(r.numero || '').match(/^[A-Za-z]+/) || [''])[0].toUpperCase(), numero: String(r.id), numero_completo: r.numero || String(r.id),
+      fecha_creacion: hoy(), fecha_entrega: body.fecha_entrega, garantia: body.garantia || '', proyecto: String(body.garantia || '').trim(), observacion: body.observacion || '',
+      cliente: { nombre: st.cliente ? st.cliente.nombre : '', documento: st.cliente ? st.cliente.documento : '', direccion: dir ? [dir.ciudad, dir.direccion].filter(Boolean).join(' · ') : '' },
+      vendedor: ven ? ven.nombre : '', sucursal: suc,
+      conceptos: st.conceptos.map((l, i) => ({ referencia: l.ref, descripcion: l.descripcion, cantidad: num(l.cantidad), precio: num(l.precio), descuento: ls[i] ? ls[i].descuento : descDe(l), impuestos: ls[i] ? ls[i].impuestos : '', impuesto: ls[i] ? ls[i].impuesto : 0, total: ls[i] ? ls[i].total : null, observacion: l.obs || '' })),
+      totales: { bruto: prev.bruto, descuento: prev.descuento, subtotal: prev.subtotal, propina: prev.propina, impuestos: prev.impuestos, retenciones: prev.retenciones, total },
+      formas, subtotal: prev.subtotal, total,
+    };
+  }
+
   async function previa(crear) {
     if (st.ocupado) return;
     st.ocupado = true; msg(crear ? 'Creando en Effi…' : 'Calculando con Effi…', '');
@@ -248,7 +269,10 @@
       } else {
         if (!confirm('Se va a crear en Effi una ' + nombreDoc() + ' por ' + money(st.prev.total) + '. ¿Confirmas?')) { st.ocupado = false; msg('', ''); return; }
         const r = await post('/api/pedido-effi/crear', body);
-        st.hecho = r; st.ocupado = false; dibujar();
+        const doc = construirDoc(r, body);   // se arma ANTES de redibujar: usa lo que hay en pantalla
+        st.hecho = r; st.ocupado = false;
+        if (window.PedidoListado) window.PedidoListado.abrir(panel, doc, { cat: (st.cat && st.cat.listado) || {}, onOtro: nuevoDocumento, onCerrar: cerrarVentana });   // réplica de la cotización + «Continuar con el listado»
+        else dibujar();
       }
     } catch (e) { st.ocupado = false; msg(String(e.message || e), 'error'); }
   }

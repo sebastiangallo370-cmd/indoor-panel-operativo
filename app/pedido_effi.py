@@ -93,7 +93,8 @@ def _catalogos() -> dict:
     formas = [{'id': int(f['id']), 'nombre': str(f.get('nombre') or ''), 'credito': str(f.get('contado_credito')) != '1', 'defecto': str(f.get('default_option')) == '1'}
               for f in effi_api._lista('forma_pago') if str(f.get('vigente', '1')) == '1']
     d = {
-        'sucursales': [{'id': int(s['id']), 'nombre': str(s.get('nombre') or '')} for s in effi_api._lista('sucursal') if str(s.get('vigente', '1')) == '1'],
+        'sucursales': [{'id': int(s['id']), 'nombre': str(s.get('nombre') or ''), 'direccion': str(s.get('direccion') or ''), 'ciudad': str(s.get('nombre_ciudad') or ''), 'telefonos': str(s.get('telefonos') or '')}
+                       for s in effi_api._lista('sucursal') if str(s.get('vigente', '1')) == '1'],
         'bodegas': [{'id': int(b['id']), 'nombre': str(b.get('nombre') or ''), 'sucursal': int(b.get('sucursal') or 0)} for b in effi_api._lista('bodega') if str(b.get('vigente', '1')) == '1'],
         'centros': [{'id': int(c['id']), 'nombre': str(c.get('nombre') or '')} for c in effi_api._lista('centro_costos') if str(c.get('ingresos')) == '1' and str(c.get('vigente', '1')) == '1'],
         'vendedores': [{'id': int(e['tercero']), 'nombre': str(e.get('nombre') or '')} for e in effi_api._lista('empleado') if str(e.get('vendedor')) == '1' and str(e.get('vigente', '1')) == '1'],
@@ -136,7 +137,8 @@ def estado(request: Request):
 def catalogos(request: Request):
     _usuario(request)
     _con_llave()
-    return _effi(_catalogos)
+    from app import listado_pedido
+    return {**_effi(_catalogos), 'listado': {'tallas': listado_pedido.TALLAS, 'lineas': listado_pedido.LINEAS, 'max_disenos': 4}}
 
 
 @router.get('/clientes')
