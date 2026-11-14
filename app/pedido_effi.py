@@ -304,6 +304,7 @@ def construir(p: dict, usuario: str = '') -> dict:
     gift, obs_c, series = [], [], []
     impuestos: dict[str, list[int]] = {}
     detalle, bruto_t, desc_t, imp_t = [], Decimal(0), Decimal(0), Decimal(0)
+    grupos_iva: dict[int, dict] = {}   # Effi redondea el impuesto UNA vez por cada impuesto sobre la suma de sus bases (no línea por línea): 137.999,99 y no 138.000,00
     for i, l in enumerate(lineas, 1):
         aid = _entero(l.get('articulo'), f'Artículo del concepto {i}')
         cant = _num(l.get('cantidad'), f'La cantidad del concepto {i}', mayor=True)
@@ -340,9 +341,20 @@ def construir(p: dict, usuario: str = '') -> dict:
         gift.append(1 if obsequio else 0); obs_c.append(str(l.get('observacion') or '').strip()[:250])
         if imps:
             impuestos[str(i)] = [int(x['id']) for x in imps]
-        bruto_t += bruto; desc_t += efectivo; imp_t += imp
+        bruto_t += bruto; desc_t += efectivo
+        for x in imps:
+            g = grupos_iva.setdefault(int(x['id']), {'base': Decimal(0), 'pct': effi_api._d(x.get('valor')), 'partes': []})
+            g['base'] += base_imp
+            g['partes'].append((len(detalle), effi_api._redondear(base_imp * g['pct'] / 100)))
         detalle.append({'referencia': art.get('referencia'), 'bruto': float(bruto), 'descuento': float(efectivo), 'impuesto': float(imp), 'total': float(base + imp),
                         'impuestos': ', '.join(str(x.get('etiqueta') or '') for x in imps)})
+    for g in grupos_iva.values():
+        exacto = effi_api._redondear(g['base'] * g['pct'] / 100)
+        imp_t += exacto
+        resto = exacto - sum((v for _, v in g['partes']), Decimal(0))   # la diferencia de centavos se deja en la última línea de ese impuesto para que las líneas sumen lo mismo que Effi
+        if resto and g['partes']:
+            fila = detalle[g['partes'][-1][0]]
+            fila['impuesto'] = float(Decimal(str(fila['impuesto'])) + resto); fila['total'] = float(Decimal(str(fila['total'])) + resto)
     propina = effi_api._redondear(_num(p.get('propina') or 0, 'La propina'))
     subtotal = bruto_t - desc_t
     ret_ids = []

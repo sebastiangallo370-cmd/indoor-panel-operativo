@@ -414,3 +414,21 @@ class NasLenta(unittest.TestCase):
                 self.assertTrue(r.get('pendiente'))
                 self.assertNotIn('OTROCLIENTEDISTINTO', pe._cache_proyectos)   # lo pendiente no se guarda en caché
             pe._cache_carpetas.update(t=0.0, nombres=[]); pe._cache_proyectos.clear()
+
+
+class IvaPorGrupo(unittest.TestCase):
+    """Caso real del usuario: dos conceptos de $57.983,19 con IVA 19 %. Effi suma las bases y redondea el IVA una sola vez: total $137.999,99 (no $138.000,00)."""
+    def setUp(self):
+        for objetivo, nuevo in (('articulo', articulo), ('impuestos_de', lambda t: [IVA] if t else [])):
+            m = mock.patch.object(effi_api, objetivo, nuevo)
+            m.start(); self.addCleanup(m.stop)
+        m = mock.patch.object(pe, '_catalogos', lambda: CATALOGO)
+        m.start(); self.addCleanup(m.stop)
+
+    def test_dos_lineas_suman_el_iva_como_effi(self):
+        p = base(conceptos=[{'articulo': 10, 'cantidad': 1, 'precio': 57983.19, 'descuento': 0}, {'articulo': 10, 'cantidad': 1, 'precio': 57983.19, 'descuento': 0}], formas_pago=[{'id': 2}])
+        r = pe.construir(p)
+        self.assertEqual(r['resumen']['impuestos'], 22033.61)
+        self.assertEqual(r['resumen']['total'], 137999.99)
+        self.assertEqual(r['cuerpo']['valor_forma_pago'], [137999.99])
+        self.assertAlmostEqual(sum(l['impuesto'] for l in r['resumen']['lineas']), 22033.61, places=2)   # las líneas suman lo mismo que el total
