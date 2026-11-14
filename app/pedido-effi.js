@@ -122,6 +122,7 @@
     .pe-acciones{position:static;padding:0;border:0;background:none}.pe-btn{width:100%}.pe-msg{padding:0 4px}
   }
   .pe-garm{display:none}
+  .pe-sm{display:none}
   @media(max-width:700px){
     /* Vista móvil con la disposición de Effi (una columna, campos a todo el ancho, etiquetas a la izquierda) y los colores de INDOOR */
     .tc-pedido-fondo{overflow-x:hidden!important}.tc-pedido-card{max-width:100%;box-sizing:border-box;overflow-x:hidden}.tc-pedido-fondo:has(.pe-enc){padding:0!important}.tc-pedido-card:has(.pe-enc){border:0!important;border-radius:0!important;padding:10px!important}
@@ -137,6 +138,7 @@
     .pe-enc label{order:5}.pe-enc label:has([name="sucursal"]){order:1}.pe-enc label:has([name="bodega"]){order:2}.pe-enc label:has([name="centro_costos"]){order:3}.pe-enc label:has([name="fecha_entrega"]){order:4}
     .pe-enc label:has([name="moneda"]){order:5}.pe-enc label:has([name="trm"]){order:6}.pe-enc label:has([name="cliente-q"]){order:7}.pe-enc label:has([name="direccion"]){order:8}.pe-enc label:has([name="vendedor"]){order:9}.pe-enc label:has([name="global"]){order:11}
     .pe-enc .pe-proy{display:none}.pe-garm{display:grid}
+    .pe-lg{display:none}.pe-sm{display:inline}.pe-acciones .pe-btn{white-space:nowrap}
     .pe-linea{grid-template-columns:1fr!important;gap:5px;padding:8px 0}.pe-linea>*{grid-column:1/-1!important}.pe-total-linea{font-size:12px;min-height:22px}.pe-x{justify-self:end;color:#ff8a7a}
     .pe-tela{font-size:9px}
     .pe-btn{min-height:28px;font-size:10px;letter-spacing:.02em;width:100%;border-radius:8px;padding:0 10px}.pe-tipo button{padding:4px 9px;font-size:9px}.pe-pct{height:32px;min-width:30px;font-size:12px}
@@ -259,7 +261,7 @@
         ${st.tipo === 'remision' ? '<p style="margin:10px 0 0;color:#a9b5a3;font:500 12px/1.5 Arial">En remisión solo van formas a crédito o «Contado a 1 día»; el cobro en caja se registra en Effi.</p>' : ''}
       </div>
       </div>
-      <div class="pe-acciones"><button class="pe-btn sec" type="button" data-previa-btn>VISTA PREVIA</button><button class="pe-btn" type="button" data-crear ${st.prev && !apagado ? '' : 'disabled'}>CREAR ${nombreDoc().toUpperCase()} EN EFFI</button><div class="pe-msg" data-msg>${apagado ? 'Creación frenada desde el servidor.' : (st.prev ? '' : 'Primero revisa la vista previa.')}</div></div>
+      <div class="pe-acciones"><button class="pe-btn sec" type="button" data-previa-btn>VISTA PREVIA</button><button class="pe-btn" type="button" data-crear ${st.prev && !apagado ? '' : 'disabled'}><span class="pe-lg">CREAR ${nombreDoc().toUpperCase()} EN EFFI</span><span class="pe-sm">CREAR</span></button><div class="pe-msg" data-msg>${apagado ? 'Creación frenada desde el servidor.' : (st.prev ? '' : 'Primero revisa la vista previa.')}</div></div>
       <div class="pe-sug" data-sug-global hidden></div>
     </div>`;
     enlazar();
