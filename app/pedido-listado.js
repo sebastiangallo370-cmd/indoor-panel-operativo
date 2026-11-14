@@ -65,16 +65,16 @@
     .pl-tabla td:last-child{position:absolute;top:2px;right:4px}.pl-tabla input,.pl-tabla select{min-height:44px;font-size:16px}.pl-tabla-caja{overflow:visible!important}
     .pl-papel table,.pl-papel tbody{display:block}.pl-papel thead{display:none}.pl-papel tr{display:grid;grid-template-columns:1fr 1fr;gap:4px 10px;padding:8px 0;border-bottom:1px solid #ccc}
     .pl-papel td{display:block;padding:0!important;text-align:left!important}.pl-papel td[data-l]::before{content:attr(data-l) ': ';font:800 9px Arial;letter-spacing:.06em;color:#777}.pl-papel td[data-l="DESCRIPCIÓN"]{grid-column:1/-1}
-    .pl-acciones{position:sticky;bottom:0;z-index:6;box-shadow:0 -8px 18px rgba(0,0,0,.45);padding:8px 10px;gap:6px}.pl-acciones .pl-btn{width:auto!important;flex:1 1 42%;min-height:32px;padding:4px 8px;font-size:10px}.pl-acciones p,.pl-acciones [data-msg]{flex:1 1 100%;font-size:12px;margin:0}
+    .pl-acciones{position:sticky;bottom:0;z-index:6;box-shadow:0 -8px 18px rgba(0,0,0,.45);padding:8px 10px;gap:6px}.pl-acciones .pl-btn{width:auto!important;flex:1 1 42%;min-height:28px;padding:3px 8px;font-size:9px}.pl-acciones p,.pl-acciones [data-msg]{flex:1 1 100%;font-size:12px;margin:0}
     .pl-slots{grid-template-columns:1fr!important}.pl-herr .pl-btn{flex:1 1 45%}
   }
   @media(max-width:900px){.pl{height:auto}.pl-pie{grid-template-columns:1fr}.pl-papel{padding:16px}.pl-acciones .pl-btn{width:100%}.pl-tabla{min-width:720px}.pl-cuerpo{overflow:visible}.pl-tabla-caja{overflow:auto}}
   @media(max-width:700px){
-    .pl,.pl *{text-align:center}.pl h1{font-size:15px}.pl h3{font-size:12px}.pl label{font-size:9px;letter-spacing:.05em;justify-items:center}
-    .pl input,.pl select,.pl textarea{font-size:13px!important;text-align:center;text-align-last:center}.pl input,.pl select{min-height:32px}
-    .pl-btn{font-size:10px!important;min-height:30px;padding:4px 10px;display:inline-flex;align-items:center;justify-content:center;text-align:center}
+    .pl,.pl *{text-align:center}.pl h1{font-size:14px}.pl h3{font-size:11px}.pl label{font-size:8.5px;letter-spacing:.05em;justify-items:center}
+    .pl input,.pl select,.pl textarea{font-size:12px!important;text-align:center;text-align-last:center}.pl input,.pl select{min-height:28px;height:30px}
+    .pl-btn{font-size:9px!important;min-height:26px;padding:4px 10px;display:inline-flex;align-items:center;justify-content:center;text-align:center}
     .pl-pasos{justify-content:center}.pl-paso{font-size:10px;padding:4px 8px}.pl-refs{justify-content:center}.pl-herr{justify-content:center}.pl-herr label{min-width:110px}
-    .pl-tabla input,.pl-tabla select{min-height:32px!important;font-size:13px!important}.pl-tabla td[data-l]::before{text-align:center}
+    .pl-tabla input,.pl-tabla select{min-height:28px!important;height:30px;font-size:12px!important}.pl-tabla td[data-l]::before{text-align:center}
     .pl-papel,.pl-papel *{text-align:center!important}.pl-papel tr{justify-items:center}.pl-papel td[data-l="DESCRIPCIÓN"]{justify-self:center}
     .pl-slot{justify-items:center;align-items:center}.pl-slot>div{justify-content:center}.pl-msg{font-size:12px;text-align:center}
     .pl-acciones{justify-content:center}
