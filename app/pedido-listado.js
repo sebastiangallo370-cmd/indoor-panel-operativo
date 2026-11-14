@@ -69,6 +69,16 @@
     .pl-slots{grid-template-columns:1fr!important}.pl-herr .pl-btn{flex:1 1 45%}
   }
   @media(max-width:900px){.pl{height:auto}.pl-pie{grid-template-columns:1fr}.pl-papel{padding:16px}.pl-acciones .pl-btn{width:100%}.pl-tabla{min-width:720px}.pl-cuerpo{overflow:visible}.pl-tabla-caja{overflow:auto}}
+  @media(max-width:700px){
+    .pl,.pl *{text-align:center}.pl h1{font-size:17px}.pl h3{font-size:14px}.pl label{font-size:10px;letter-spacing:.06em;justify-items:center}
+    .pl input,.pl select,.pl textarea{font-size:14px!important;text-align:center;text-align-last:center}.pl input,.pl select{min-height:38px}
+    .pl-btn{font-size:12px!important;min-height:38px;padding:6px 12px;display:inline-flex;align-items:center;justify-content:center;text-align:center}
+    .pl-pasos{justify-content:center}.pl-paso{font-size:11px;padding:6px 10px}.pl-refs{justify-content:center}.pl-herr{justify-content:center}.pl-herr label{min-width:110px}
+    .pl-tabla input,.pl-tabla select{min-height:38px!important;font-size:14px!important}.pl-tabla td[data-l]::before{text-align:center}
+    .pl-papel,.pl-papel *{text-align:center!important}.pl-papel tr{justify-items:center}.pl-papel td[data-l="DESCRIPCIÓN"]{justify-self:center}
+    .pl-slot{justify-items:center;align-items:center}.pl-slot>div{justify-content:center}.pl-msg{font-size:12px;text-align:center}
+    .pl-acciones{justify-content:center}
+  }
   `;
   document.head.appendChild(css);
 

@@ -120,6 +120,14 @@
     .pe-forma{grid-template-columns:1fr 1fr}.pe-forma .pe-x{justify-self:end}
     .pe-card{padding:15px}.pe{margin:10px auto 120px}
     .pe-acciones{position:static;padding:0;border:0;background:none}.pe-btn{width:100%}.pe-msg{padding:0 4px}
+  }
+  @media(max-width:700px){
+    .pe,.pe *{text-align:center}.pe h2{font-size:17px}.pe h3{font-size:14px}.pe label{font-size:10px;letter-spacing:.06em;justify-items:center}
+    .pe input,.pe select,.pe textarea{font-size:14px;text-align:center;text-align-last:center}.pe input,.pe select{min-height:38px}
+    .pe-btn,.pe-link{font-size:12px;min-height:38px;justify-content:center;text-align:center}.pe-link{display:block;width:100%}
+    .pe-top{flex-direction:column;align-items:center;gap:8px}.pe-tipo{justify-self:center}.pe-tela{font-size:11px}
+    .pe-tot div{justify-content:space-between}.pe-tot .neto{font-size:15px}.pe-card{padding:12px}.pe-msg{font-size:12px}
+    .pe-linea{grid-template-columns:1fr 1fr;gap:8px}.pe-total-linea{font-size:14px}.pe-x{justify-self:center}
   }`;
   document.head.appendChild(css);
 
