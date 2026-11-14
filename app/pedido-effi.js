@@ -1,5 +1,5 @@
 (() => {
-  // PEDIDO EN EFFI (COMERCIALES): formulario con la estructura de «Crear cotización» de Effi. Al confirmar crea la COTIZACIÓN o la REMISIÓN DE VENTA en Effi.
+  // PEDIDO EN EFFI: formulario con la estructura de «Crear cotización» de Effi. Al confirmar crea la COTIZACIÓN o la REMISIÓN DE VENTA en Effi. Lo abre EMPEZAR PEDIDO (PROGRAMAR CLUB).
   if (window.__pedidoEffiListo) return;
   window.__pedidoEffiListo = true;
   const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -61,7 +61,8 @@
   }`;
   document.head.appendChild(css);
 
-  const st = { tipo: 'cotizacion', cat: null, estado: null, cliente: null, direccion: -1, conceptos: [], formas: [], clave: nuevaClave(), previa: false, ocupado: false, hecho: null };
+  const estadoInicial = () => ({ tipo: 'cotizacion', cat: null, estado: null, cliente: null, direccion: -1, conceptos: [], formas: [], clave: nuevaClave(), previa: false, prev: null, ocupado: false, hecho: null });
+  const st = estadoInicial();
   let panel = null;
   const q = s => panel.querySelector(s);
   const nombreDoc = () => (st.tipo === 'cotizacion' ? 'cotización' : 'remisión de venta');
@@ -243,16 +244,8 @@
     }
   }
 
-  function build() {
-    panel = document.querySelector('.panel[data-panel="pedido-effi"]');
-    if (!panel) return false;
-    let cargado = false;
-    const mirar = () => { if (panel.classList.contains('active') && !cargado) { cargado = true; iniciar(); } };
-    document.addEventListener('click', cierraSug);
-    new MutationObserver(mirar).observe(panel, { attributes: true, attributeFilter: ['class'] });
-    mirar();
-    return true;
-  }
-  let intentos = 0;
-  const t = setInterval(() => { if (build() || ++intentos > 40) clearInterval(t); }, 250);
+  // Se monta dentro de cualquier contenedor (hoy: el botón EMPEZAR PEDIDO de PROGRAMAR CLUB, en club-admin.js). Cada montaje empieza limpio y con su propia clave de envío.
+  function montar(el) { panel = el; Object.assign(st, estadoInicial()); iniciar(); }
+  document.addEventListener('click', cierraSug);
+  window.PedidoEffi = { montar };
 })();

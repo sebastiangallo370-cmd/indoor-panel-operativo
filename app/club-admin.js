@@ -367,73 +367,20 @@
     document.addEventListener('click', e => { if (e.target.closest('[data-pedido="nuevo"]')) abrirPedido(); });
     setInterval(() => { if (!document.hidden && panel.classList.contains('active')) cargar(); }, 30000);
   }
-  // EMPEZAR PEDIDO: formulario para armar un pedido sin salir del panel (v1: solo interfaz, aún no se envía a Effi)
+  // EMPEZAR PEDIDO: formulario igual al de «Crear cotización» de Effi (pedido-effi.js). Crea la cotización o la remisión de venta en Effi (solo si la cuenta Indoor Sport lo tiene ENCENDIDO).
   function abrirPedido() {
     document.querySelector('.tc-pedido-fondo')?.remove();
     const f = document.createElement('div');
     f.className = 'tc-pedido-fondo';
-    f.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.6);display:grid;place-items:center;padding:16px;overflow:auto';
-    f.innerHTML = '<form class="tc-pedido-card" style="width:min(780px,100%);box-sizing:border-box;background:#101a12;border:1px solid rgba(230,235,241,.3);border-radius:18px;padding:18px;color:#f4f7fa;font:700 12px Arial;display:grid;gap:12px">' +
-      '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><span class="eyebrow">PROGRAMAR CLUB</span><h2 style="margin:4px 0 0;font:900 18px Arial">Empezar pedido</h2></div><button type="button" class="tc-btn tc-b-line" data-cerrar-pedido>Cerrar</button></div>' +
-      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px">' +
-        '<label>CLIENTE<input name="cliente" required placeholder="Nombre del cliente" style="width:100%;box-sizing:border-box;margin-top:4px;padding:8px 10px;border-radius:10px;border:1px solid rgba(230,235,241,.3);background:rgba(0,0,0,.35);color:#f4f7fa;font:700 12px Arial"></label>' +
-        '<label>VENDEDOR<input name="vendedor" placeholder="Quién atiende" style="width:100%;box-sizing:border-box;margin-top:4px;padding:8px 10px;border-radius:10px;border:1px solid rgba(230,235,241,.3);background:rgba(0,0,0,.35);color:#f4f7fa;font:700 12px Arial"></label>' +
-        '<label>FECHA DE ENTREGA<input name="entrega" type="date" style="width:100%;box-sizing:border-box;margin-top:4px;padding:8px 10px;border-radius:10px;border:1px solid rgba(230,235,241,.3);background:rgba(0,0,0,.35);color:#f4f7fa;font:700 12px Arial"></label>' +
-      '</div>' +
-      '<div><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><b>CONCEPTOS</b><button type="button" class="tc-btn tc-b-line" data-agregar-concepto>+ Agregar concepto</button></div>' +
-        '<div data-conceptos style="display:grid;gap:6px"></div></div>' +
-      '<label>OBSERVACIÓN<textarea name="observacion" rows="2" placeholder="Notas del pedido" style="width:100%;box-sizing:border-box;margin-top:4px;padding:8px 10px;border-radius:10px;border:1px solid rgba(230,235,241,.3);background:rgba(0,0,0,.35);color:#f4f7fa;font:700 12px Arial"></textarea></label>' +
-      '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><b data-total style="font:900 16px Arial">TOTAL: $ 0</b><button type="submit" class="tc-btn tc-b-lime">Revisar pedido</button></div>' +
-      '<p data-aviso style="margin:0;color:#c9d3c4;font:600 12px Arial"></p>' +
-      '</form>';
+    f.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.65);padding:12px;overflow:auto';
+    f.innerHTML = '<div class="tc-pedido-card" style="width:min(1200px,100%);margin:0 auto;box-sizing:border-box;background:#101a12;border:1px solid rgba(230,235,241,.3);border-radius:18px;padding:14px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:2px 4px 8px"><div><span class="eyebrow">PROGRAMAR CLUB</span><h2 style="margin:4px 0 0;font:900 18px Arial;color:#f4f7fa">Empezar pedido</h2></div><button type="button" class="tc-btn tc-b-line" data-cerrar-pedido>Cerrar</button></div>' +
+      '<div data-pedido-effi></div></div>';
     document.body.appendChild(f);
-    const form = f.querySelector('form'), conceptos = f.querySelector('[data-conceptos]'), total = f.querySelector('[data-total]'), aviso = f.querySelector('[data-aviso]');
-    const campo = 'width:100%;box-sizing:border-box;padding:7px 8px;border-radius:9px;border:1px solid rgba(230,235,241,.3);background:rgba(0,0,0,.35);color:#f4f7fa;font:700 12px Arial';
-    const money = n => '$ ' + Math.round(n || 0).toLocaleString('es-CO');
-    const recalcular = () => {
-      let suma = 0;
-      conceptos.querySelectorAll('[data-concepto]').forEach(row => {
-        const cant = Number(row.querySelector('[name=cantidad]').value) || 0, precio = Number(row.querySelector('[name=precio]').value) || 0;
-        const sub = cant * precio; suma += sub;
-        row.querySelector('[data-subtotal]').textContent = money(sub);
-      });
-      total.textContent = 'TOTAL: ' + money(suma);
-    };
-    const agregar = () => {
-      const row = document.createElement('div');
-      row.dataset.concepto = '1';
-      row.style.cssText = 'display:grid;grid-template-columns:minmax(120px,1.4fr) minmax(90px,1fr) 80px 110px 110px auto;gap:6px;align-items:center';
-      row.innerHTML = '<input name="articulo" placeholder="Artículo" style="' + campo + '">' +
-        '<input name="referencia" placeholder="Referencia" style="' + campo + '">' +
-        '<input name="cantidad" type="number" min="0" step="1" value="1" style="' + campo + '">' +
-        '<input name="precio" type="number" min="0" step="1" value="0" style="' + campo + '">' +
-        '<span data-subtotal style="text-align:right">$ 0</span>' +
-        '<button type="button" class="tc-btn tc-b-line" data-quitar-concepto title="Quitar">×</button>';
-      conceptos.appendChild(row);
-      recalcular();
-    };
-    agregar();
-    f.addEventListener('click', e => {
-      if (e.target === f || e.target.closest('[data-cerrar-pedido]')) { f.remove(); return; }
-      if (e.target.closest('[data-agregar-concepto]')) { agregar(); return; }
-      const quitar = e.target.closest('[data-quitar-concepto]');
-      if (quitar) { if (conceptos.querySelectorAll('[data-concepto]').length > 1) quitar.closest('[data-concepto]').remove(); recalcular(); }
-    });
-    form.addEventListener('input', recalcular);
-    form.addEventListener('submit', e => {
-      e.preventDefault();
-      const cliente = form.elements.cliente.value.trim();
-      const lineas = [...conceptos.querySelectorAll('[data-concepto]')].map(row => ({
-        articulo: row.querySelector('[name=articulo]').value.trim(),
-        referencia: row.querySelector('[name=referencia]').value.trim(),
-        cantidad: Number(row.querySelector('[name=cantidad]').value) || 0,
-        precio: Number(row.querySelector('[name=precio]').value) || 0
-      })).filter(l => l.articulo || l.referencia);
-      if (!cliente) { aviso.textContent = 'Escribe el nombre del cliente.'; aviso.style.color = '#ffb4a2'; return; }
-      if (!lineas.length || lineas.some(l => l.cantidad <= 0)) { aviso.textContent = 'Cada concepto necesita artículo y cantidad mayor que cero.'; aviso.style.color = '#ffb4a2'; return; }
-      aviso.style.color = '#c9d3c4';
-      aviso.textContent = 'Pedido listo para revisar: ' + lineas.length + ' concepto(s) para ' + cliente + '. Todavía no se envía a Effi.';
-    });
+    f.addEventListener('click', e => { if (e.target.closest('[data-cerrar-pedido]')) f.remove(); });   // solo con el botón Cerrar: un clic fuera no debe perder un pedido a medio llenar
+    const caja = f.querySelector('[data-pedido-effi]');
+    if (window.PedidoEffi) window.PedidoEffi.montar(caja);
+    else caja.innerHTML = '<p style="color:#ffb4a2;font:700 13px Arial">No cargó el formulario. Recarga la página con Ctrl+F5.</p>';
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar); else iniciar();
 })();
