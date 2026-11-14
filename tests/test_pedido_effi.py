@@ -178,6 +178,80 @@ class Funciones(unittest.TestCase):
         self.assertEqual((r['cuerpo']['prontopago'], r['cuerpo']['fecha_prontopago'], r['resumen']['total']), (20000.0, '2026-12-01', 700000.0))
 
 
+ART_3460 = {'id': '3460', 'referencia': 'A1000CPDVS-S', 'descripcion': 'CAMISETA TIPO POLO COLEGIO DIVINO SALVADOR', 'gtin': None, 'codigos_barras': '24202418', 'ventas': '1',
+            'precios_venta': 'Tarifa normal: 71000.0000; Tarifa especial empleados: 0.0000; Tarifa Mayorista: 0.0000', 'impuesto': None}
+ART_GTIN = {'id': '55', 'referencia': 'BAL-01', 'descripcion': 'BALON', 'gtin': '7701234567890', 'ventas': '1', 'precios_venta': 'Tarifa normal: 0.0000; Tarifa Mayorista: 30000.0000', 'impuesto': 'IVA 19%'}
+ART_SERIE = {'id': '77', 'referencia': 'CEL-1', 'descripcion': 'CELULAR', 'ventas': '1', 'precios_venta': 'Tarifa normal: 900000.0000', 'impuesto': None}
+
+
+def lista_falsa(ruta, params=None):
+    """Effi simulado: busca por gtin, c_barras, id y por código de serie."""
+    p = params or {}
+    if ruta == 'articulo':
+        if p.get('gtin') == '7701234567890':
+            return [ART_GTIN]
+        if p.get('c_barras') == '24202418':
+            return [ART_3460]
+        if p.get('id') == '3460':
+            return [ART_3460]
+        if p.get('id') == '77':
+            return [ART_SERIE]
+        return []
+    if ruta == 'serie':
+        return {'IMEI111': [{'id': '9001', 'codigo': 'IMEI111', 'articulo': '77'}], 'IMEI222': [{'id': '9002', 'codigo': 'IMEI222', 'articulo': '77'}]}.get(p.get('codigo'), [])
+    return []
+
+
+class CapturarSeries(unittest.TestCase):
+    """Capturar series (F8): cada código agrega un concepto de cantidad 1 (serie, ID de artículo, GTIN/EPC u otro código de barras)."""
+    def setUp(self):
+        m = mock.patch.object(effi_api, '_lista', lista_falsa)
+        m.start(); self.addCleanup(m.stop)
+
+    def test_precio_de_lista_sale_de_la_tarifa_normal(self):
+        self.assertEqual(pe._precio_de(ART_3460), 71000.0)
+        self.assertEqual(pe._precio_de(ART_GTIN), 30000.0)          # sin tarifa normal: toma el primer precio mayor que cero
+        self.assertEqual(pe._precio_de({'precios_venta': ''}), 0.0)
+
+    def test_cada_tipo_de_codigo_encuentra_su_articulo(self):
+        r = pe.capturar_codigos('7701234567890 24202418 3460 IMEI111')
+        self.assertEqual([(c['id'], c['id_serie'], c['cantidad']) for c in r['conceptos']], [(55, None, 1), (3460, None, 2), (77, 9001, 1)])   # 24202418 y 3460 son el mismo artículo: suma
+        self.assertEqual((r['no_encontrados'], r['repetidos']), ([], []))
+        self.assertEqual(r['conceptos'][1]['precio'], 71000.0)
+        self.assertEqual(r['conceptos'][0]['impuesto'], 'IVA 19%')
+
+    def test_separadores_como_en_effi(self):
+        r = pe.capturar_codigos('7701234567890,24202418;IMEI111\n\tIMEI222.3460')
+        self.assertEqual([c['id'] for c in r['conceptos']], [55, 3460, 77, 77, 3460][:0] or [55, 3460, 77, 77])   # 3460 repetido suma a su concepto
+        self.assertEqual([c['id_serie'] for c in r['conceptos']], [None, None, 9001, 9002])
+        self.assertEqual(r['conceptos'][1]['cantidad'], 2)
+
+    def test_serie_repetida_y_codigo_desconocido_se_avisan(self):
+        r = pe.capturar_codigos('IMEI111 IMEI111 XYZ999 XYZ999')
+        self.assertEqual(len(r['conceptos']), 1)
+        self.assertEqual((r['repetidos'], r['no_encontrados']), (['IMEI111'], ['XYZ999']))
+
+    def test_vacio_y_demasiados_codigos(self):
+        with self.assertRaises(HTTPException):
+            pe.capturar_codigos('  ,; ')
+        with self.assertRaises(HTTPException):
+            pe.capturar_codigos(' '.join(f'C{i}' for i in range(pe.MAX_CODIGOS + 1)))
+
+    def test_una_serie_va_en_el_cuerpo_con_cantidad_uno_y_null_en_los_demas(self):
+        for objetivo, nuevo in (('articulo', articulo), ('impuestos_de', lambda t: [])):
+            m = mock.patch.object(effi_api, objetivo, nuevo)
+            m.start(); self.addCleanup(m.stop)
+        m = mock.patch.object(pe, '_catalogos', lambda: CATALOGO)
+        m.start(); self.addCleanup(m.stop)
+        r = pe.construir(base(conceptos=[{'articulo': 11, 'cantidad': 2, 'precio': 1000}, {'articulo': 77, 'cantidad': 1, 'precio': 900000, 'id_serie': 9001}]))
+        self.assertEqual(r['cuerpo']['id_serie'], [None, 9001])
+        with self.assertRaises(HTTPException):
+            pe.construir(base(conceptos=[{'articulo': 77, 'cantidad': 2, 'precio': 1, 'id_serie': 9001}]))
+        with self.assertRaises(HTTPException):
+            pe.construir(base(conceptos=[{'articulo': 77, 'cantidad': 1, 'precio': 1, 'id_serie': 9001}, {'articulo': 77, 'cantidad': 1, 'precio': 1, 'id_serie': 9001}]))
+        self.assertNotIn('id_serie', pe.construir(base())['cuerpo'])
+
+
 class Crear(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

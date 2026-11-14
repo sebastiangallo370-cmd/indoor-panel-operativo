@@ -314,8 +314,8 @@
     document.querySelector('.tc-pedido-fondo')?.remove();
     const f = document.createElement('div');
     f.className = 'tc-pedido-fondo';
-    f.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.65);padding:12px;overflow:auto';
-    f.innerHTML = '<div class="tc-pedido-card" style="width:min(1200px,100%);margin:0 auto;box-sizing:border-box;background:#101a12;border:1px solid rgba(230,235,241,.3);border-radius:18px;padding:14px">' +
+    f.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.65);padding:8px;overflow:auto';
+    f.innerHTML = '<div class="tc-pedido-card" style="width:100%;margin:0;box-sizing:border-box;background:#101a12;border:1px solid rgba(230,235,241,.3);border-radius:18px;padding:14px">' +
       '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:2px 4px 8px"><div><span class="eyebrow">PROGRAMAR CLUB</span><h2 style="margin:4px 0 0;font:900 18px Arial;color:#f4f7fa">Empezar pedido</h2></div><button type="button" class="tc-btn tc-b-line" data-cerrar-pedido>Cerrar</button></div>' +
       '<div data-pedido-effi></div></div>';
     document.body.appendChild(f);

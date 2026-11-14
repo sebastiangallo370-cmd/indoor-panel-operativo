@@ -107,15 +107,22 @@ def _catalogos() -> dict:
 
 
 def _precio_de(art: dict) -> float:
-    """Precio de venta de la tarifa normal si el artículo lo trae (los nombres de esas columnas varían); si no, 0 y el comercial lo escribe."""
-    for k in ('precio_venta', 'precio_1', 'precio', 'precio_tarifa_normal'):
-        v = effi_api._d(art.get(k))
-        if v > 0:
-            return float(v)
-    for k, v in art.items():
-        if str(k).startswith('precio') and 'min' not in str(k) and effi_api._d(v) > 0:
+    """Precio de venta de la «Tarifa normal» (Effi lo entrega como texto: «Tarifa normal: 71000.0000; Tarifa Mayorista: 0.0000»); si no hay, el primer precio mayor que cero; si no, 0 y el comercial lo escribe."""
+    texto = str(art.get('precios_venta') or '')
+    m = re.search(r'tarifa normal\s*:\s*([\d.,]+)', texto, re.I)
+    if m and effi_api._d(m.group(1)) > 0:
+        return float(effi_api._d(m.group(1)))
+    for v in re.findall(r':\s*([\d.]+)', texto):
+        if effi_api._d(v) > 0:
             return float(effi_api._d(v))
+    for k in ('precio_venta', 'precio_1', 'precio'):
+        if effi_api._d(art.get(k)) > 0:
+            return float(effi_api._d(art.get(k)))
     return 0.0
+
+
+def _articulo_json(a: dict, **extra) -> dict:
+    return {'id': int(a['id']), 'referencia': str(a.get('referencia') or ''), 'descripcion': str(a.get('descripcion') or ''), 'precio': _precio_de(a), 'impuesto': str(a.get('impuesto') or ''), **extra}
 
 
 @router.get('/estado')
@@ -173,8 +180,74 @@ def articulos(request: Request, q: str = ''):
     if len(filas) < 25:
         vistos = {a['id'] for a in filas}
         filas += [a for a in _effi(effi_api._lista, 'articulo', {'descripcion': q}) if a['id'] not in vistos]
-    return {'articulos': [{'id': int(a['id']), 'referencia': str(a.get('referencia') or ''), 'descripcion': str(a.get('descripcion') or ''), 'precio': _precio_de(a),
-                           'impuesto': str(a.get('impuesto') or '')} for a in filas if str(a.get('ventas', '1')) != '0'][:25]}
+    return {'articulos': [_articulo_json(a) for a in filas if str(a.get('ventas', '1')) != '0'][:25]}
+
+
+# ---------------------------------------------------------------- Capturar series (F8): pegar o escanear códigos
+SEPARADOR = re.compile(r'[\s,.;]+')   # los mismos separadores de Effi: espacio, tab, salto de línea, coma, punto y punto y coma
+MAX_CODIGOS = 80                      # Effi limita a 120 peticiones por minuto
+
+
+def _resolver_codigo(codigo: str) -> dict | None:
+    """Código → artículo: GTIN/EPC, otro código de barras, serie (código exacto) o ID del artículo. Devuelve {'articulo': {...}, 'id_serie': int|None} o None si no existe."""
+    for filtro in ('gtin', 'c_barras'):
+        for a in _effi(effi_api._lista, 'articulo', {filtro: codigo}):
+            if str(a.get('ventas', '1')) != '0':
+                return {'articulo': a, 'id_serie': None}
+    for sr in _effi(effi_api._lista, 'serie', {'codigo': codigo}):
+        aid = str(sr.get('articulo') or '').strip()
+        if aid.isdigit():
+            art = next(iter(_effi(effi_api._lista, 'articulo', {'id': aid})), None)
+            if art:
+                return {'articulo': art, 'id_serie': int(sr['id'])}
+    if codigo.isdigit() and len(codigo) <= 7:
+        art = next(iter(_effi(effi_api._lista, 'articulo', {'id': codigo})), None)
+        if art and str(art.get('ventas', '1')) != '0':
+            return {'articulo': art, 'id_serie': None}
+    return None
+
+
+def capturar_codigos(texto: str) -> dict:
+    """Cada código agrega un concepto de cantidad 1; el mismo artículo repetido suma cantidad; una serie va en su propio concepto (cantidad 1, sin repetir)."""
+    codigos = [c for c in SEPARADOR.split(str(texto or '')) if c]
+    if not codigos:
+        raise HTTPException(400, 'Pega o escanea al menos un código')
+    if len(codigos) > MAX_CODIGOS:
+        raise HTTPException(400, f'Máximo {MAX_CODIGOS} códigos por vez')
+    conceptos: list[dict] = []
+    por_articulo: dict[int, dict] = {}
+    vistos_serie: set[int] = set()
+    no_encontrados: list[str] = []
+    repetidos: list[str] = []
+    cache: dict[str, dict | None] = {}
+    for c in codigos:
+        if c not in cache:
+            cache[c] = _resolver_codigo(c)
+        r = cache[c]
+        if r is None:
+            if c not in no_encontrados:
+                no_encontrados.append(c)
+            continue
+        a = r['articulo']
+        if r['id_serie'] is not None:
+            if r['id_serie'] in vistos_serie:
+                repetidos.append(c)
+                continue
+            vistos_serie.add(r['id_serie'])
+            conceptos.append({**_articulo_json(a, id_serie=r['id_serie'], serie=c), 'cantidad': 1})
+        elif int(a['id']) in por_articulo:
+            por_articulo[int(a['id'])]['cantidad'] += 1
+        else:
+            por_articulo[int(a['id'])] = {**_articulo_json(a, id_serie=None), 'cantidad': 1}
+            conceptos.append(por_articulo[int(a['id'])])
+    return {'conceptos': conceptos, 'no_encontrados': no_encontrados, 'repetidos': repetidos}
+
+
+@router.post('/capturar')
+def capturar(request: Request, payload: dict):
+    _usuario(request)
+    _con_llave()
+    return capturar_codigos((payload or {}).get('codigos'))
 
 
 # ---------------------------------------------------------------- cuerpo del documento
@@ -222,12 +295,19 @@ def construir(p: dict, usuario: str = '') -> dict:
     formas_cat = {f['id']: f for f in cat['formas_pago']}
     arts: dict[int, tuple[dict, list]] = {}
     out = {'articulo': [], 'descripcion': [], 'cantidad': [], 'precio': [], 'descuento': []}
-    gift, obs_c = [], []
+    gift, obs_c, series = [], [], []
     impuestos: dict[str, list[int]] = {}
     detalle, bruto_t, desc_t, imp_t = [], Decimal(0), Decimal(0), Decimal(0)
     for i, l in enumerate(lineas, 1):
         aid = _entero(l.get('articulo'), f'Artículo del concepto {i}')
         cant = _num(l.get('cantidad'), f'La cantidad del concepto {i}', mayor=True)
+        id_serie = int(l['id_serie']) if str(l.get('id_serie') or '').isdigit() else None
+        if id_serie is not None:
+            if cant != 1:
+                raise HTTPException(400, f'El concepto {i} lleva una serie: su cantidad es 1')
+            if id_serie in series:
+                raise HTTPException(400, f'La serie del concepto {i} está repetida')
+        series.append(id_serie)
         precio = _num(l.get('precio'), f'El precio del concepto {i}')
         obsequio = bool(l.get('obsequio'))
         desc = Decimal(0) if obsequio else _num(l.get('descuento') or 0, f'El descuento del concepto {i}')
@@ -302,6 +382,8 @@ def construir(p: dict, usuario: str = '') -> dict:
         cuerpo['impuestos'] = impuestos
     if any(gift):
         cuerpo['gift'] = gift
+    if any(x is not None for x in series):
+        cuerpo['id_serie'] = series
     if any(obs_c):
         cuerpo['observacion_concepto'] = obs_c
     if desc_global > 0:

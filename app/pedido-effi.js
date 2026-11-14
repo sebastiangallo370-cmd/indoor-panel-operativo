@@ -9,7 +9,7 @@
 
   const css = document.createElement('style');
   css.textContent = `
-  .pe{width:100%;max-width:1180px;margin:18px auto;display:grid;gap:14px}
+  .pe{width:100%;max-width:none;margin:8px 0;display:grid;gap:14px}
   .pe-card{padding:20px;border:1px solid rgba(255,255,255,.14);border-radius:20px;background:linear-gradient(160deg,rgba(255,255,255,.07),rgba(0,0,0,.28));backdrop-filter:blur(14px)}
   .pe-top{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
   .pe h2{margin:0;font:900 clamp(20px,3vw,26px) Arial;color:#f5faef}
@@ -41,6 +41,9 @@
   .pe-chip button{all:unset;cursor:pointer;color:#ff9b9b;font-weight:900}
   .pe-propina{align-items:center}.pe-propina .pe-dto{width:60%}
   .pe-sub{display:grid;gap:10px;grid-template-columns:1fr 1fr}
+  .pe-h3row{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}.pe-h3row h3{margin:0}
+  .pe-cap{display:grid;gap:8px;margin-bottom:12px;padding:12px;border:1px solid rgba(208,244,76,.45);border-radius:12px;background:rgba(208,244,76,.06)}
+  .pe-cap textarea{min-height:90px;font:600 14px Consolas,monospace}.pe-cap p{margin:0;color:#a9b5a3;font:500 12px/1.5 Arial}.pe-cap .fila{display:flex;gap:8px;flex-wrap:wrap}
   .pe-linea:first-of-type{border-top:0}
   .pe-total-linea{font:900 15px Arial;color:#d0f44c;min-height:42px;display:flex;align-items:center}
   .pe-x{all:unset;cursor:pointer;color:#ff9b9b;font:900 18px Arial;padding:8px}
@@ -72,7 +75,7 @@
   }`;
   document.head.appendChild(css);
 
-  const estadoInicial = () => ({ tipo: 'cotizacion', cat: null, estado: null, cliente: null, direccion: -1, conceptos: [], formas: [], clave: nuevaClave(), previa: false, prev: null, ocupado: false, hecho: null, moneda: 'COP', trm: '1', global: '', propina: '', propinaPct: false, retenciones: [], pronto: '', fechaPronto: '' });
+  const estadoInicial = () => ({ tipo: 'cotizacion', cat: null, estado: null, cliente: null, direccion: -1, conceptos: [], formas: [], clave: nuevaClave(), previa: false, prev: null, ocupado: false, hecho: null, capturando: false, capTexto: '', capMsg: '', moneda: 'COP', trm: '1', global: '', propina: '', propinaPct: false, retenciones: [], pronto: '', fechaPronto: '' });
   const st = estadoInicial();
   let panel = null;
   const q = s => panel.querySelector(s);
@@ -88,7 +91,7 @@
   const debounce = (fn, ms) => { let t = 0; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
   const msg = (t, tipo) => { const m = q('[data-msg]'); if (m) { m.textContent = t || ''; m.className = 'pe-msg ' + (tipo || ''); } };
 
-  const lineaVacia = () => ({ articulo: 0, ref: '', descripcion: '', cantidad: 1, precio: '', descuento: 0, dtipo: 'valor', obsequio: false, obs: '', impuesto: '', abierta: false });
+  const lineaVacia = () => ({ articulo: 0, ref: '', descripcion: '', cantidad: 1, precio: '', descuento: 0, dtipo: 'valor', obsequio: false, obs: '', impuesto: '', abierta: false, id_serie: null });
   const num = v => { const n = Number(String(v).replace(',', '.')); return isFinite(n) ? n : 0; };
   const brutoDe = l => num(l.cantidad) * num(l.precio);
   // descuento de un concepto en $: obsequio = 100 %; en % se calcula sobre su bruto; en valor se usa tal cual
@@ -132,11 +135,13 @@
           <label>Descuento global (%)<input name="global" inputmode="decimal" placeholder="0" value="${esc(st.global)}"></label>
         </div>
       </div>
-      <div class="pe-card"><h3>Conceptos</h3><div data-lineas>${st.conceptos.map((l, i) => `
+      <div class="pe-card"><div class="pe-h3row"><h3>Conceptos</h3><button class="pe-btn sec mini" type="button" data-capturar title="Pegar o escanear series, IDs de artículo o códigos GTIN/EPC (tecla F8)">Capturar series (F8)</button></div>
+        ${st.capturando ? `<div class="pe-cap"><label>Códigos: series, ID de artículo o GTIN/EPC<textarea data-cap-texto spellcheck="false" placeholder="Escanea o pega los códigos…">${esc(st.capTexto)}</textarea></label><p>Sepáralos con espacio, tab, salto de línea, coma, punto o punto y coma. Cada código agrega un concepto de cantidad 1; el mismo artículo repetido suma cantidad.</p><div class="fila"><button class="pe-btn mini" type="button" data-cap-ok>Agregar conceptos</button><button class="pe-btn sec mini" type="button" data-cap-cancel>Cancelar</button></div><p data-cap-msg class="pe-msg ${/No encontré|repetida/.test(st.capMsg) ? 'error' : ''}">${esc(st.capMsg)}</p></div>` : ''}
+        <div data-lineas>${st.conceptos.map((l, i) => `
         <div class="pe-linea" data-i="${i}">
-          <label class="pe-art">Artículo*<input data-f="ref" autocomplete="off" placeholder="Buscar referencia o nombre…" value="${esc(l.ref)}"><div class="pe-sug" data-sug hidden></div></label>
+          <label class="pe-art">Artículo*${l.id_serie ? ' · SERIE' : ''}<input data-f="ref" autocomplete="off" placeholder="Buscar referencia o nombre…" value="${esc(l.ref)}"><div class="pe-sug" data-sug hidden></div></label>
           <label class="pe-desc">Descripción*<input data-f="descripcion" maxlength="120" value="${esc(l.descripcion)}" placeholder="Se llena al elegir el artículo"></label>
-          <label>Cant.*<input data-f="cantidad" inputmode="decimal" value="${esc(l.cantidad)}"></label>
+          <label>Cant.*<input data-f="cantidad" inputmode="decimal" value="${esc(l.cantidad)}" ${l.id_serie ? 'disabled' : ''}></label>
           <label>Precio ud.*<input data-f="precio" inputmode="decimal" value="${esc(l.precio)}"></label>
           <label>Bruto<input value="${money(brutoDe(l))}" disabled></label>
           <label>Descuento<div class="pe-dto"><input data-f="descuento" inputmode="decimal" value="${esc(l.obsequio ? '100' : l.descuento)}" ${l.obsequio ? 'disabled' : ''}><button class="pe-pct" type="button" data-dtipo title="Cambiar entre valor ($) y porcentaje (%)">${l.obsequio || l.dtipo === 'pct' ? '%' : '$'}</button></div></label>
@@ -174,7 +179,7 @@
       tipo: st.tipo, clave: st.clave, sucursal: valor('sucursal'), bodega: valor('bodega'), centro_costos: valor('centro_costos'), fecha_entrega: valor('fecha_entrega'),
       cliente: st.cliente ? st.cliente.tercero : '', direccion: d || undefined, vendedor: valor('vendedor') || undefined, garantia: valor('garantia'), observacion: valor('observacion'),
       divisa: st.moneda, trm: st.trm, descuento_global: st.global || 0, propina: propinaValor() || 0, retenciones: st.retenciones, prontopago: st.pronto || 0, fecha_prontopago: st.fechaPronto,
-      conceptos: st.conceptos.map(l => ({ articulo: l.articulo, descripcion: l.descripcion, cantidad: l.cantidad, precio: l.precio, descuento: descDe(l), obsequio: l.obsequio, observacion: l.obs })),
+      conceptos: st.conceptos.map(l => ({ articulo: l.articulo, descripcion: l.descripcion, cantidad: l.cantidad, precio: l.precio, descuento: descDe(l), obsequio: l.obsequio, observacion: l.obs, id_serie: l.id_serie || undefined })),
       formas_pago: st.formas.map(f => ({ id: f.id, valor: f.valor })),
     };
   }
@@ -195,6 +200,25 @@
         st.hecho = r; st.ocupado = false; dibujar();
       }
     } catch (e) { st.ocupado = false; msg(String(e.message || e), 'error'); }
+  }
+  // Capturar series (F8): cada código (serie, ID de artículo, GTIN/EPC) agrega un concepto de cantidad 1
+  async function capturar() {
+    const m = t => { const e = q('[data-cap-msg]'); if (e) e.textContent = t; };
+    if (st.ocupado) return;
+    if (!st.capTexto.trim()) { m('Pega o escanea al menos un código.'); return; }
+    st.ocupado = true; m('Buscando en Effi…');
+    try {
+      const r = await post('/api/pedido-effi/capturar', { codigos: st.capTexto });
+      st.ocupado = false;
+      if (st.conceptos.length === 1 && !st.conceptos[0].articulo && !st.conceptos[0].ref) st.conceptos = [];
+      r.conceptos.forEach(c => st.conceptos.push(Object.assign(lineaVacia(), { articulo: c.id, ref: c.referencia, descripcion: String(c.descripcion || '').slice(0, 120), cantidad: c.cantidad, precio: c.precio || '', impuesto: c.impuesto || '', id_serie: c.id_serie || null })));
+      if (!st.conceptos.length) st.conceptos.push(lineaVacia());
+      const faltan = r.no_encontrados || [], rep = r.repetidos || [];
+      st.capMsg = (r.conceptos.length ? r.conceptos.length + ' concepto(s) agregado(s). ' : '') + (faltan.length ? 'No encontré: ' + faltan.join(', ') + '. ' : '') + (rep.length ? 'Serie repetida: ' + rep.join(', ') + '.' : '');
+      if (faltan.length || rep.length) { st.capTexto = faltan.concat(rep).join('\n'); st.capturando = true; } else { st.capTexto = ''; st.capturando = false; }
+      invalidar(); dibujarConservando();
+      if (!st.capturando) msg(st.capMsg, 'ok');
+    } catch (e) { st.ocupado = false; m(String(e.message || e)); }
   }
   function dibujarConservando() { const y = window.scrollY; dibujar(); window.scrollTo(0, y); }
 
@@ -259,6 +283,11 @@
       const ob = row.querySelector('[data-obsequio]'); if (ob) ob.onchange = () => { l.obsequio = ob.checked; invalidar(); dibujar(); };
       row.querySelector('[data-quitar]').onclick = () => { st.conceptos.splice(i, 1); if (!st.conceptos.length) st.conceptos.push(lineaVacia()); invalidar(); dibujar(); };
     });
+    q('[data-capturar]').onclick = () => { st.capturando = !st.capturando; dibujar(); if (st.capturando) q('[data-cap-texto]').focus(); };
+    const ct = q('[data-cap-texto]');
+    if (ct) { ct.addEventListener('input', () => { st.capTexto = ct.value; }); ct.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); capturar(); } }); }
+    const cok = q('[data-cap-ok]'); if (cok) cok.onclick = capturar;
+    const ccan = q('[data-cap-cancel]'); if (ccan) ccan.onclick = () => { st.capturando = false; st.capTexto = ''; st.capMsg = ''; dibujar(); };
     q('[data-mas]').onclick = () => { st.conceptos.push(lineaVacia()); invalidar(); dibujar(); };
     panel.querySelectorAll('[data-formas] .pe-forma').forEach(row => {
       const j = Number(row.dataset.j);
@@ -285,7 +314,12 @@
   }
 
   // Se monta dentro de cualquier contenedor (hoy: el botón EMPEZAR PEDIDO de PROGRAMAR CLUB, en club-admin.js). Cada montaje empieza limpio y con su propia clave de envío.
-  function montar(el) { panel = el; Object.assign(st, estadoInicial()); iniciar(); }
+  function montar(el) {
+    panel = el; Object.assign(st, estadoInicial());
+    iniciar();
+  }
+  // F8 abre o cierra «Capturar series» (como en Effi) mientras el formulario esté abierto, sin importar dónde esté el cursor
+  document.addEventListener('keydown', e => { if (e.key === 'F8' && panel && panel.isConnected && st.cat && !st.hecho) { e.preventDefault(); st.capturando = !st.capturando; dibujar(); if (st.capturando) q('[data-cap-texto]').focus(); } });
   document.addEventListener('click', cierraSug);
   window.PedidoEffi = { montar };
 })();
