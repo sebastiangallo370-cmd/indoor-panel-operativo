@@ -124,7 +124,7 @@
   .pe-garm{display:none}
   @media(max-width:700px){
     /* Vista móvil igual a la de Effi: fondo azul noche, una columna, campos a todo el ancho, etiquetas a la izquierda, botones de colores */
-    .tc-pedido-fondo{background:#0b1220!important;padding:0!important}.tc-pedido-card{background:#111a2e!important;border:0!important;border-radius:0!important;padding:10px!important}
+    .tc-pedido-fondo:has(.pe-enc){background:#0b1220!important;padding:0!important}.tc-pedido-card:has(.pe-enc){background:#111a2e!important;border:0!important;border-radius:0!important;padding:10px!important}
     .pe{gap:10px;color:#e6ebf5}.pe-card{background:#111a2e!important;border:1px solid #1e2a45;border-radius:12px;padding:12px;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
     .pe h2{font-size:17px;color:#e6ebf5}.pe h3{font-size:14px;color:#e6ebf5}.pe h3::before{background:#2d6ccc}.pe .eyebrow{display:none}
     .pe label{font-size:12px;letter-spacing:.02em;color:#aab6cf;text-align:left}
