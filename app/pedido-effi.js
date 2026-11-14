@@ -64,6 +64,46 @@
   .pe-listo{padding:26px;text-align:center}
   .pe-listo strong{display:block;margin:6px 0 4px;font:900 28px Arial;color:#d0f44c}
   .pe-prev{margin-top:12px;padding:12px;border:1px dashed rgba(208,244,76,.5);border-radius:12px;color:#e8f0e0;font:600 13px/1.5 Arial}
+  /* Pantalla ancha: TODO en una sola vista (sin bajar). Arriba el encabezado, en el centro los conceptos (solo esa lista se desplaza si son muchos) y abajo, lado a lado, detalles + totales y formas de pago. */
+  .pe-izq{grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+  .pe-abajo{display:grid;gap:14px}
+  @media(min-width:1000px){
+    .pe-av{grid-area:av}.pe-enc{grid-area:enc}.pe-con{grid-area:con}.pe-abajo{grid-area:abajo}.pe-acciones{grid-area:acc}
+    .tc-pedido-fondo{padding:6px!important}
+    .tc-pedido-card{height:calc(100vh - 12px);display:flex!important;flex-direction:column;padding:10px 14px!important}
+    .tc-pedido-card [data-pedido-effi]{flex:1;min-height:0}
+    .pe{height:100%;margin:0;gap:8px;grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto minmax(120px,1fr) auto auto;grid-template-areas:"av" "enc" "con" "abajo" "acc"}
+    .pe-card{padding:10px 16px;box-sizing:border-box}
+    .pe h2{font-size:20px}.pe h3{margin-bottom:8px}
+    .pe-aviso{padding:6px 12px}
+    .pe-enc .pe-grid{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-top:8px!important;gap:8px}
+    .pe-con{display:block;overflow:auto;min-height:0}   /* si no caben todos los conceptos (o el cuadro de capturar), se desplaza SOLO esta tarjeta; la página no */
+    .pe-cap textarea{min-height:56px}
+    .pe-linea{padding:6px 0}
+    .pe-abajo{gap:8px;grid-template-columns:minmax(0,2.5fr) minmax(0,1fr)}
+    .pe-abajo .pe-dos{grid-template-columns:minmax(0,1.8fr) minmax(0,1fr);gap:14px}
+    .pe-izq textarea{min-height:46px}
+    .pe-izq{gap:8px}
+    .pe-enc .eyebrow{display:none}.pe-enc .pe-top{gap:8px}.pe-enc h2{font-size:18px}
+    .pe-con{min-height:0}
+    .tc-pedido-fondo{overflow:auto!important}   /* último recurso en pantallas muy bajas: la ventana se desplaza, pero los botones siguen existiendo */
+    .pe-tot{gap:5px}.pe-tot .neto{font-size:20px}
+    .pe-forma{margin-bottom:6px}
+    .pe-acciones{position:static;padding:8px 12px}
+    .pe-btn{min-height:40px}.pe input,.pe select{min-height:38px}
+  }
+  @media(min-width:1000px) and (max-height:850px){
+    .tc-pedido-card{padding:6px 10px!important}
+    .pe{gap:5px}.pe-card{padding:6px 12px}.pe h3{margin-bottom:4px;font-size:13px}.pe h2{font-size:16px}
+    .pe-aviso{padding:3px 10px;font-size:12px}.pe-aviso .pe-btn{min-height:26px}
+    .pe-enc .pe-grid{margin-top:4px!important;gap:5px}.pe label{gap:2px;font-size:10px}
+    .pe input,.pe select{min-height:32px;font-size:14px}.pe-btn{min-height:34px}.pe-pct{height:32px}
+    .pe-izq textarea{min-height:30px}.pe-izq{gap:5px}
+    .pe-linea{padding:3px 0;gap:6px}.pe-link{font-size:11px}
+    .pe-tot{gap:2px}.pe-tot div{font:700 13px Arial}.pe-tot .neto{font-size:17px}
+    .pe-acciones{padding:5px 10px}.pe-forma{margin-bottom:4px}
+    .pe-con .pe-h3row{margin-bottom:4px}.pe-btn.mini{min-height:28px}
+  }
   @media(max-width:900px){
     .pe-linea{grid-template-columns:1fr 1fr;padding:14px 0}
     .pe-linea .pe-art,.pe-linea .pe-desc{grid-column:1/-1}
@@ -118,8 +158,8 @@
     const t = totales();
     const apagado = st.estado && !st.estado.activo;
     panel.innerHTML = `<div class="pe">
-      ${st.estado ? `<div class="pe-aviso ${apagado ? '' : 'on'}"><span>${apagado ? 'Crear en Effi está APAGADO: puedes armar el documento y ver la vista previa, pero todavía no se envía.' : 'Crear en Effi está ENCENDIDO: al confirmar se crea el documento real.'}</span>${st.estado.puede_activar ? `<button class="pe-btn sec mini" type="button" data-activo>${apagado ? 'ENCENDER' : 'APAGAR'}</button>` : ''}</div>` : ''}
-      <div class="pe-card">
+      ${st.estado ? `<div class="pe-aviso pe-av ${apagado ? '' : 'on'}"><span>${apagado ? 'Crear en Effi está APAGADO: puedes armar el documento y ver la vista previa, pero todavía no se envía.' : 'Crear en Effi está ENCENDIDO: al confirmar se crea el documento real.'}</span>${st.estado.puede_activar ? `<button class="pe-btn sec mini" type="button" data-activo>${apagado ? 'ENCENDER' : 'APAGAR'}</button>` : ''}</div>` : ''}
+      <div class="pe-card pe-enc">
         <div class="pe-top"><div><span class="eyebrow">COMERCIALES · EFFI</span><h2>+ Crear ${nombreDoc()}</h2></div>
           <div class="pe-tipo" role="group" aria-label="Tipo de documento"><button type="button" data-tipo="cotizacion" class="${st.tipo === 'cotizacion' ? 'on' : ''}">COTIZACIÓN</button><button type="button" data-tipo="remision" class="${st.tipo === 'remision' ? 'on' : ''}">REMISIÓN</button></div></div>
         <div class="pe-grid" style="margin-top:14px">
@@ -135,7 +175,7 @@
           <label>Descuento global (%)<input name="global" inputmode="decimal" placeholder="0" value="${esc(st.global)}"></label>
         </div>
       </div>
-      <div class="pe-card"><div class="pe-h3row"><h3>Conceptos</h3><button class="pe-btn sec mini" type="button" data-capturar title="Pegar o escanear series, IDs de artículo o códigos GTIN/EPC (tecla F8)">Capturar series (F8)</button></div>
+      <div class="pe-card pe-con"><div class="pe-h3row"><h3>Conceptos</h3><button class="pe-btn sec mini" type="button" data-capturar title="Pegar o escanear series, IDs de artículo o códigos GTIN/EPC (tecla F8)">Capturar series (F8)</button></div>
         ${st.capturando ? `<div class="pe-cap"><label>Códigos: series, ID de artículo o GTIN/EPC<textarea data-cap-texto spellcheck="false" placeholder="Escanea o pega los códigos…">${esc(st.capTexto)}</textarea></label><p>Sepáralos con espacio, tab, salto de línea, coma, punto o punto y coma. Cada código agrega un concepto de cantidad 1; el mismo artículo repetido suma cantidad.</p><div class="fila"><button class="pe-btn mini" type="button" data-cap-ok>Agregar conceptos</button><button class="pe-btn sec mini" type="button" data-cap-cancel>Cancelar</button></div><p data-cap-msg class="pe-msg ${/No encontré|repetida/.test(st.capMsg) ? 'error' : ''}">${esc(st.capMsg)}</p></div>` : ''}
         <div data-lineas>${st.conceptos.map((l, i) => `
         <div class="pe-linea" data-i="${i}">
@@ -152,9 +192,10 @@
         </div>`).join('')}</div>
         <div style="margin-top:10px"><button class="pe-btn sec mini" type="button" data-mas>+ Agregar concepto</button></div>
       </div>
+      <div class="pe-abajo">
       <div class="pe-card"><h3>Detalles de la ${nombreDoc()}</h3><div class="pe-dos">
-        <div class="pe-grid" style="grid-template-columns:1fr"><label>Garantía<textarea name="garantia" maxlength="255" placeholder="Garantía">${esc(guard.garantia)}</textarea></label><label>Observación<textarea name="observacion" maxlength="800" placeholder="Observación">${esc(guard.observacion)}</textarea></label>
-          <div><label>Retenciones<select data-ret-sel>${opciones((c.retenciones || []).filter(r => !st.retenciones.includes(r.id)), '', 'Seleccionar…')}</select></label><div style="margin-top:8px"><button class="pe-btn sec mini" type="button" data-ret-add>+ Agregar retención</button></div>
+        <div class="pe-grid pe-izq"><label>Garantía<textarea name="garantia" maxlength="255" placeholder="Garantía">${esc(guard.garantia)}</textarea></label><label>Observación<textarea name="observacion" maxlength="800" placeholder="Observación">${esc(guard.observacion)}</textarea></label>
+          <div><div style="display:flex;gap:8px;align-items:end"><label style="flex:1;min-width:0">Retenciones<select data-ret-sel>${opciones((c.retenciones || []).filter(r => !st.retenciones.includes(r.id)), '', 'Seleccionar…')}</select></label><button class="pe-btn sec mini" type="button" data-ret-add>+ Agregar</button></div>
             <div class="pe-chips">${st.retenciones.map(id => { const r = (c.retenciones || []).find(x => x.id === id); return '<span class="pe-chip">' + esc(r ? r.nombre : id) + '<button type="button" data-ret-quitar="' + id + '" aria-label="Quitar">✕</button></span>'; }).join('')}</div></div>
           <div class="pe-sub"><label>Descuento pronto pago ($)<input name="pronto" inputmode="decimal" placeholder="0" value="${esc(st.pronto)}"></label><label>Fecha pronto pago<input type="date" name="fecha_pronto" value="${esc(st.fechaPronto)}"></label></div></div>
         <div class="pe-tot"><div><span>TOTAL BRUTO</span><b>${money(t.b)}</b></div><div><span>− Descuentos</span><b>${money(t.d)}</b></div><div><span>SUBTOTAL</span><b>${money(t.s)}</b></div>
@@ -167,6 +208,7 @@
         <div class="pe-forma" data-j="${i}"><label>Forma de pago*<select data-g="id">${opciones(c.formas_pago.filter(x => st.tipo === 'cotizacion' || x.credito), f.id, 'Seleccionar…')}</select></label><label>Valor${st.formas.length > 1 ? '' : ' (vacío = total)'}<input data-g="valor" inputmode="decimal" value="${esc(f.valor)}"></label>${st.formas.length > 1 ? '<button class="pe-x" type="button" data-quitar-forma aria-label="Quitar">✕</button>' : '<span></span>'}</div>`).join('')}</div>
         <button class="pe-btn sec mini" type="button" data-mas-forma>+ Agregar forma de pago</button>
         ${st.tipo === 'remision' ? '<p style="margin:10px 0 0;color:#a9b5a3;font:500 12px/1.5 Arial">En remisión solo van formas a crédito o «Contado a 1 día»; el cobro en caja se registra en Effi.</p>' : ''}
+      </div>
       </div>
       <div class="pe-acciones"><button class="pe-btn sec" type="button" data-previa-btn>VISTA PREVIA</button><button class="pe-btn" type="button" data-crear ${st.prev && !apagado ? '' : 'disabled'}>CREAR ${nombreDoc().toUpperCase()} EN EFFI</button><div class="pe-msg" data-msg>${apagado ? 'Encendido pendiente: pide a la cuenta Indoor Sport que lo active.' : (st.prev ? '' : 'Primero revisa la vista previa.')}</div></div>
     </div>`;
