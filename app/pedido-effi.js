@@ -437,7 +437,8 @@
       const respuestas = await Promise.all(refs.map(rf => api('/api/pedido-effi/mockups?' + qs + '&ref=' + encodeURIComponent(rf))));
       const items = respuestas.flatMap(x => x.items);
       if (!items.length) return aviso((respuestas.find(x => x.motivo) || {}).motivo || 'No encontré mockups para esa referencia.');
-      cuerpo.innerHTML = items.map(i => '<figure class="pe-mk-fig"><img loading="lazy" alt="' + esc(i.ref + ' D' + i.diseno) + '" src="/api/pedido-effi/mockup-img?' + qs + '&carpeta=' + encodeURIComponent(i.carpeta) + '&archivo=' + encodeURIComponent(i.archivo) + '"><figcaption>' + esc(i.ref) + ' · DISEÑO ' + i.diseno + '</figcaption></figure>').join('');
+      const otro = (respuestas.find(x => x.otro_proyecto) || {}).otro_proyecto;
+      cuerpo.innerHTML = (otro ? '<div class="pe-mk-aviso" style="padding:6px 10px">No están en «' + esc(proyecto) + '». Estos mockups son del proyecto «' + esc(otro) + '».</div>' : '') + items.map(i => '<figure class="pe-mk-fig"><img loading="lazy" alt="' + esc(i.ref + ' D' + i.diseno) + '" src="/api/pedido-effi/mockup-img?cliente=' + encodeURIComponent(st.cliente.nombre) + '&proyecto=' + encodeURIComponent(i.proyecto || proyecto) + '&carpeta=' + encodeURIComponent(i.carpeta) + '&archivo=' + encodeURIComponent(i.archivo) + '"><figcaption>' + esc(i.ref) + ' · DISEÑO ' + i.diseno + ' · ' + esc(i.proyecto || proyecto) + '</figcaption></figure>').join('');
       cuerpo.querySelectorAll('.pe-mk-fig img').forEach(im => im.onclick = () => im.closest('.pe-mk-fig').classList.toggle('grande'));
     } catch (e) { aviso('No pude traer los mockups: ' + String(e.message || e)); }
   }

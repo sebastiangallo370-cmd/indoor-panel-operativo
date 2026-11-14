@@ -596,28 +596,43 @@ def _dir_proyecto(cliente: str, proyecto: str) -> tuple[Path, str] | None:
     return (destino, info['carpeta']) if destino.is_dir() else None
 
 
+def _mockups_en(carpeta_proyecto: Path, bases: list[str], proyecto: str) -> list[dict]:
+    items = []
+    for sub in sorted((p for p in carpeta_proyecto.iterdir() if p.is_dir()), key=lambda p: p.name.upper()):
+        nombre = _plano_ref(sub.name)
+        base = next((b for b in bases if nombre.startswith(b)), None)
+        if not base:
+            continue
+        for f in sorted((x for x in sub.iterdir() if x.is_file() and x.suffix.lower() in EXT_IMAGEN), key=lambda x: x.name.upper()):
+            m = re.match(r'^\s*' + re.escape(base) + r'[\s_-]*D\s*(\d+)', f.name, re.I)
+            if m:
+                items.append({'ref': base, 'diseno': int(m.group(1)), 'carpeta': sub.name, 'archivo': f.name, 'proyecto': proyecto})
+    items.sort(key=lambda i: (i['ref'], i['diseno'], i['archivo'].upper()))
+    return items
+
+
 def mockups_de(cliente: str, proyecto: str, ref: str) -> dict:
-    """Imágenes (JPG de impresión: REFERENCIA_Dn_MAQUINA.jpg) de las carpetas de esa referencia dentro del proyecto. Solo lectura."""
+    """Imágenes (JPG de impresión: REFERENCIA_Dn_MAQUINA.jpg) de las carpetas de esa referencia dentro del proyecto. Solo lectura.
+    Si el proyecto elegido no las tiene, se buscan en los OTROS proyectos del cliente y se dice en cuál están."""
     ubicado = _dir_proyecto(cliente, proyecto)
     if ubicado is None:
         return {'items': [], 'motivo': 'El proyecto no está en la carpeta MAESTROS del cliente.'}
     carpeta_proyecto, _ = ubicado
     bases = referencias_base(ref)
-    items = []
     try:
-        for sub in sorted((p for p in carpeta_proyecto.iterdir() if p.is_dir()), key=lambda p: p.name.upper()):
-            nombre = _plano_ref(sub.name)
-            base = next((b for b in bases if nombre.startswith(b)), None)
-            if not base:
+        items = _mockups_en(carpeta_proyecto, bases, proyecto)
+        if items:
+            return {'items': items, 'motivo': '', 'otro_proyecto': ''}
+        for otro in proyectos_de_cliente(cliente).get('proyectos', []):
+            if otro == proyecto:
                 continue
-            for f in sorted((x for x in sub.iterdir() if x.is_file() and x.suffix.lower() in EXT_IMAGEN), key=lambda x: x.name.upper()):
-                m = re.match(r'^\s*' + re.escape(base) + r'[\s_-]*D\s*(\d+)', f.name, re.I)
-                if m:
-                    items.append({'ref': base, 'diseno': int(m.group(1)), 'carpeta': sub.name, 'archivo': f.name})
+            u = _dir_proyecto(cliente, otro)
+            encontrados = _mockups_en(u[0], bases, otro) if u else []
+            if encontrados:
+                return {'items': encontrados, 'motivo': '', 'otro_proyecto': otro}
     except OSError:
         return {'items': [], 'motivo': 'No pude leer la NAS ahora.'}
-    items.sort(key=lambda i: (i['ref'], i['diseno'], i['archivo'].upper()))
-    return {'items': items, 'motivo': '' if items else 'Ese proyecto no tiene mockups para la referencia ' + ', '.join(bases) + '.'}
+    return {'items': [], 'motivo': 'Ningún proyecto del cliente tiene mockups para la referencia ' + ', '.join(bases) + '.', 'otro_proyecto': ''}
 
 
 @router.get('/mockups')

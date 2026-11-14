@@ -382,6 +382,17 @@ class MockupsDelProyecto(unittest.TestCase):
                 self.assertEqual(pe.mockups_de('CLUB SAN LORENZO DE LA PAZ', 'OTRO PROYECTO', 'A100FUT01')['items'], [])   # un proyecto que no está en MAESTROS no se abre
             pe._cache_carpetas.update(t=0.0, nombres=[]); pe._cache_proyectos.clear()
 
+    def test_si_el_proyecto_elegido_no_la_tiene_la_busca_en_otro_proyecto(self):
+        from app import club
+        with tempfile.TemporaryDirectory() as d:
+            self._arbol(Path(d))
+            (Path(d) / 'CLUB SAN LORENZO DE LA PAZ' / 'MAESTROS' / 'UNIFORMES 2026').mkdir()
+            pe._cache_carpetas.update(t=0.0, nombres=[]); pe._cache_proyectos.clear()
+            with mock.patch.object(club, '_clientes_root', lambda: d):
+                r = pe.mockups_de('CLUB SAN LORENZO DE LA PAZ', 'UNIFORMES 2026', 'A200FUT02')
+                self.assertEqual((r['otro_proyecto'], len(r['items']), r['items'][0]['proyecto']), ('UNIFORMES 2027', 2, 'UNIFORMES 2027'))
+            pe._cache_carpetas.update(t=0.0, nombres=[]); pe._cache_proyectos.clear()
+
     def test_referencias_base(self):
         self.assertEqual(pe.referencias_base('A200FUT01'), ['FUT01'])
         self.assertEqual(pe.referencias_base('A100CA02-A100PT01'), ['CA02', 'PT01'])
