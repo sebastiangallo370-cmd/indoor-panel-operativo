@@ -491,12 +491,24 @@ def revocar_enlace(request: Request, link_id: int):
 def listar_pedidos(request: Request, estado: str = ''):
     _usuario(request)
     with _connect() as db:
-        q = 'SELECT * FROM club_pedidos' + (' WHERE estado=?' if estado else '') + ' ORDER BY id DESC LIMIT 200'
+        q = "SELECT * FROM club_pedidos WHERE estado!='eliminada'" + (' AND estado=?' if estado else '') + ' ORDER BY id DESC LIMIT 200'
         filas = [dict(r) for r in db.execute(q, (estado,) if estado else ())]
     for f in filas:
         f['lineas'] = json.loads(f['lineas'] or '[]')
         f['prendas'] = sum(int(j.get('cantidad') or 1) for l in f['lineas'] for j in l.get('jugadores', []))
     return {'pedidos': [{k: v for k, v in f.items() if k != 'cot_cuerpo'} for f in filas]}
+
+
+@router.delete('/pedidos/{pedido_id}')
+def eliminar_pedido(request: Request, pedido_id: int):
+    """Quita la reprogramación de la pantalla (por ejemplo las de prueba). No se borra la fila: queda con estado 'eliminada' y se puede recuperar desde la base.
+    No toca la cotización de Effi ni la tarjeta que ya se haya creado en Producción."""
+    u = _usuario(request)
+    with _connect() as db:
+        if not db.execute('SELECT 1 FROM club_pedidos WHERE id=?', (pedido_id,)).fetchone():
+            raise HTTPException(404, 'No existe esa reprogramación')
+        db.execute("UPDATE club_pedidos SET estado='eliminada', resuelto_por=?, resuelto=? WHERE id=?", (u, _ahora(), pedido_id))
+    return {'ok': True}
 
 
 @router.post('/pedidos/{pedido_id}/resolver')
