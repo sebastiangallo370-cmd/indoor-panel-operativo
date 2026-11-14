@@ -155,7 +155,8 @@ def clientes(request: Request, q: str = ''):
             continue
         salida.append({'tercero': int(c['tercero']), 'nombre': str(c.get('nombre') or ''), 'documento': f"{c.get('abreviacion') or ''} {c.get('id') or ''}".strip(),
                        'forma_pago': c.get('t_forma_pago'), 'vendedor': c.get('vendedor'),
-                       'direcciones': [{k: d.get(k) for k in ('id_pais', 'id_provincia', 'id_ciudad', 'direccion', 'referencia', 'ciudad')} for d in (c.get('direcciones') or [])]})
+                       'telefono': str(c.get('celular') or c.get('telefono_1') or ''), 'email': str(c.get('email') or ''),
+                       'direcciones': [{k: d.get(k) for k in ('id_pais', 'id_provincia', 'id_ciudad', 'direccion', 'referencia', 'ciudad', 'provincia', 'pais')} for d in (c.get('direcciones') or [])]})
     return {'clientes': salida}
 
 

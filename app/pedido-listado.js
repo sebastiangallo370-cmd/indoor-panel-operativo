@@ -8,6 +8,25 @@
   const MAX_DISENOS = 6, MAX_BYTES = 10 * 1024 * 1024;
   const TALLAS = ['2', '4', '6', '8', '10', '12', '14', '16', 'XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL'];
 
+  const HOJA_CSS = `
+  .pl-papel{width:794px;min-height:1000px;box-sizing:border-box;margin:0 auto;background:#fff;color:#111;padding:26px 30px 22px;font:11px/1.35 Arial,Helvetica,sans-serif;display:flex;flex-direction:column;border-radius:6px}
+  .pl-papel b{font-weight:700}.pl-papel *{text-align:left!important}
+  .pl-papel .cab{display:grid;grid-template-columns:150px 1fr 170px;gap:12px;align-items:start}
+  .pl-papel .cab img{width:140px;height:auto;display:block;filter:invert(1) grayscale(1) contrast(1.4)}
+  .pl-papel .emp{text-align:center!important}.pl-papel .emp *{text-align:center!important}.pl-papel .emp h1{margin:0;font:italic 900 17px Arial}.pl-papel .emp .sub{font:800 11px Arial;margin:2px 0 6px}
+  .pl-papel .doc{text-align:center!important}.pl-papel .doc *{text-align:center!important}.pl-papel .doc .ti{font:900 12px Arial;letter-spacing:.04em;margin-top:6px}.pl-papel .doc .ok{display:inline-block;margin:4px 0 6px;padding:1px 8px;border-radius:99px;background:#e4f7b0;color:#2c4a00;font:800 9px Arial}
+  .pl-papel .fechas{margin-top:4px;line-height:1.6}.pl-papel .fechas *{text-align:center!important}
+  .pl-papel table.cli{width:calc(100% - 180px);border-collapse:collapse;margin-top:14px;border:1px solid #111}.pl-papel table.cli td{border:1px solid #111;padding:2px 4px;font-size:11px}
+  .pl-papel table.items{width:100%;border-collapse:collapse;margin-top:18px}.pl-papel table.items th{font:800 10px Arial;text-align:center!important;padding:4px 6px;border-top:1px solid #111;border-bottom:1px solid #111}
+  .pl-papel table.items td{padding:4px 6px;font-size:10.5px;vertical-align:top;white-space:nowrap}.pl-papel table.items td.l{white-space:normal}.pl-papel table.items td.r{text-align:right!important}.pl-papel table.items td.c{text-align:center!important}
+  .pl-papel .tot-i{text-align:center!important;font-weight:700;margin:6px 0}.pl-papel .tot-i *{text-align:center!important}
+  .pl-papel .hueco{flex:1 1 auto;min-height:40px}
+  .pl-papel table.pie{width:100%;border-collapse:collapse;border:1px solid #111}.pl-papel table.pie td{border:1px solid #111;vertical-align:top;padding:2px 4px;font-size:10.5px}
+  .pl-papel table.pie td.sum{width:190px;padding:0}.pl-papel table.pie td.sum div{display:flex;justify-content:space-between;gap:8px;padding:1px 6px;font-weight:700}.pl-papel table.pie td.sum div:first-child{border-bottom:1px solid #111}
+  .pl-papel .legal{font:italic 9.5px/1.35 Arial;margin:5px 0;text-align:justify!important}.pl-papel .legal *{text-align:justify!important}
+  .pl-papel table.firmas{width:100%;border-collapse:collapse;border:1px solid #111}.pl-papel table.firmas td{border:1px solid #111;height:70px;vertical-align:bottom;text-align:center!important;font-size:10px;padding:2px 4px}
+  .pl-papel table.firmas td.obs{vertical-align:top;text-align:left!important}.pl-papel table.firmas td .ln{border-top:1px solid #111;margin:0 10px;padding-top:1px}
+  `;
   const css = document.createElement('style');
   css.textContent = `
   .pl{width:100%;height:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:10px;min-height:0;color:#f5faef;font-family:Arial,sans-serif}
@@ -20,17 +39,9 @@
   .pl-btn.sec{background:rgba(255,255,255,.1);color:#f5faef}.pl-btn.mini{min-height:34px;padding:0 14px;font-size:12px}.pl-btn:disabled{opacity:.45;cursor:not-allowed}
   .pl-acciones{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:10px 14px;border:1px solid rgba(255,255,255,.14);border-radius:14px;background:#0b0f09}
   .pl-msg{flex:1 1 260px;font:700 13px/1.45 Arial;color:#a9b5a3;white-space:pre-line}.pl-msg.error{color:#ff9b9b}.pl-msg.ok{color:#bff26a}
-  /* réplica de la cotización: papel blanco, como el documento de Effi */
-  .pl-papel{max-width:1100px;margin:0 auto;background:#fff;color:#111;border-radius:10px;padding:26px 30px;font:13px/1.45 Arial,sans-serif}
-  .pl-papel h1{margin:0;font:900 22px Arial;letter-spacing:.02em}.pl-papel small{color:#555}
-  .pl-top{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;border-bottom:2px solid #111;padding-bottom:12px;margin-bottom:12px}
-  .pl-num{text-align:right}.pl-num span{display:block;font:800 12px Arial;letter-spacing:.12em;color:#444}.pl-num b{font:900 24px Arial}.pl-num em{display:inline-block;margin-top:4px;padding:2px 10px;border-radius:99px;background:#e4f7b0;color:#2c4a00;font:800 11px Arial;font-style:normal}
-  .pl-meta{display:grid;gap:6px 18px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));margin-bottom:12px}.pl-meta b{display:block;font:800 10px Arial;letter-spacing:.1em;color:#666}
-  .pl-papel table{width:100%;border-collapse:collapse;margin:10px 0}.pl-papel th{background:#f0f0f0;font:800 10px Arial;letter-spacing:.06em;text-align:left;padding:7px 8px;border-bottom:1px solid #999}
-  .pl-papel td{padding:7px 8px;border-bottom:1px solid #ddd;vertical-align:top}.pl-papel td.d,.pl-papel th.d{text-align:right;white-space:nowrap}
-  .pl-pie{display:grid;gap:18px;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);margin-top:12px}
-  .pl-tot div{display:flex;justify-content:space-between;gap:12px;padding:3px 0}.pl-tot .neto{border-top:2px solid #111;margin-top:4px;padding-top:6px;font:900 17px Arial}
-  .pl-pagos{margin-top:12px;padding-top:10px;border-top:1px dashed #aaa}
+  /* réplica de la cotización: la misma hoja que imprime Effi (se ve igual en computador y en celular; en celular se reduce para que quepa) */
+  .pl-hoja-caja{width:100%;max-width:820px;margin:0 auto;overflow:hidden}
+  ${HOJA_CSS}
   /* paso 2 y 3 */
   .pl-tarjeta{padding:16px;border:1px solid rgba(255,255,255,.14);border-radius:16px;background:linear-gradient(160deg,rgba(255,255,255,.07),rgba(0,0,0,.28));margin-bottom:12px}
   .pl-tarjeta h3{margin:0 0 10px;font:900 15px Arial;display:flex;align-items:center;gap:8px}.pl-tarjeta h3::before{content:"";width:4px;height:16px;border-radius:2px;background:#d0f44c}
@@ -63,31 +74,23 @@
     .pl-tabla td[data-l="NOMBRE"],.pl-tabla td[data-l="OBSERVACIÓN"]{grid-column:1/-1}
     .pl-tabla td[data-l]::before{content:attr(data-l);display:block;font:800 10px Arial;letter-spacing:.08em;color:#a9b5a3;margin-bottom:3px}
     .pl-tabla td:last-child{position:absolute;top:2px;right:4px}.pl-tabla input,.pl-tabla select{min-height:44px;font-size:16px}.pl-tabla-caja{overflow:visible!important}
-    .pl-papel table,.pl-papel tbody{display:block}.pl-papel thead{display:none}.pl-papel tr{display:grid;grid-template-columns:1fr 1fr;gap:4px 10px;padding:8px 0;border-bottom:1px solid #ccc}
-    .pl-papel td{display:block;padding:0!important;text-align:left!important}.pl-papel td[data-l]::before{content:attr(data-l) ': ';font:800 9px Arial;letter-spacing:.06em;color:#777}.pl-papel td[data-l="DESCRIPCIÓN"]{grid-column:1/-1}
     .pl-acciones{position:sticky;bottom:0;z-index:6;box-shadow:0 -8px 18px rgba(0,0,0,.45);padding:8px 10px;gap:6px}.pl-acciones .pl-btn{width:auto!important;flex:1 1 42%;min-height:28px;padding:3px 8px;font-size:9px}.pl-acciones p,.pl-acciones [data-msg]{flex:1 1 100%;font-size:12px;margin:0}
     .pl-slots{grid-template-columns:1fr!important}.pl-herr .pl-btn{flex:1 1 45%}
   }
-  @media(max-width:900px){.pl{height:auto}.pl-pie{grid-template-columns:1fr}.pl-papel{padding:16px}.pl-acciones .pl-btn{width:100%}.pl-tabla{min-width:720px}.pl-cuerpo{overflow:visible}.pl-tabla-caja{overflow:auto}}
+  @media(max-width:900px){.pl{height:auto}.pl-acciones .pl-btn{width:100%}.pl-tabla{min-width:720px}.pl-cuerpo{overflow:visible}.pl-tabla-caja{overflow:auto}}
   @media(max-width:700px){
     .pl,.pl *{text-align:center}.pl h1{font-size:14px}.pl h3{font-size:11px}.pl label{font-size:8.5px;letter-spacing:.05em;justify-items:center}
     .pl input,.pl select,.pl textarea{font-size:12px!important;text-align:center;text-align-last:center}.pl input,.pl select{min-height:28px;height:30px}
     .pl-btn{font-size:9px!important;min-height:26px;padding:4px 10px;display:inline-flex;align-items:center;justify-content:center;text-align:center}
     .pl-pasos{justify-content:center}.pl-paso{font-size:10px;padding:4px 8px}.pl-refs{justify-content:center}.pl-herr{justify-content:center}.pl-herr label{min-width:110px}
     .pl-tabla input,.pl-tabla select{min-height:28px!important;height:30px;font-size:12px!important}.pl-tabla td[data-l]::before{text-align:center}
-    .pl-papel,.pl-papel *{text-align:center!important}.pl-papel tr{justify-items:center}.pl-papel td[data-l="DESCRIPCIÓN"]{justify-self:center}
     .pl-slot{justify-items:center;align-items:center}.pl-slot>div{justify-content:center}.pl-msg{font-size:12px;text-align:center}
     .pl-acciones{justify-content:center}
   }
   `;
   document.head.appendChild(css);
 
-  const PRINT_CSS = `body{margin:18px;font:12px/1.4 Arial,sans-serif;color:#111}h1{margin:0;font:900 20px Arial}small{color:#555}
-  .pl-top{display:flex;justify-content:space-between;border-bottom:2px solid #111;padding-bottom:10px;margin-bottom:10px}.pl-num{text-align:right}.pl-num span{display:block;font:800 11px Arial;letter-spacing:.1em}.pl-num b{font:900 22px Arial}.pl-num em{display:none}
-  .pl-meta{display:grid;grid-template-columns:repeat(3,1fr);gap:6px 16px;margin-bottom:10px}.pl-meta b{display:block;font:800 9px Arial;letter-spacing:.1em;color:#666}
-  table{width:100%;border-collapse:collapse;margin:8px 0}th{background:#eee;font:800 9px Arial;text-align:left;padding:6px;border-bottom:1px solid #888}td{padding:6px;border-bottom:1px solid #ccc;vertical-align:top}td.d,th.d{text-align:right;white-space:nowrap}
-  .pl-pie{display:grid;grid-template-columns:1.3fr 1fr;gap:16px;margin-top:10px}.pl-tot div{display:flex;justify-content:space-between;padding:2px 0}.pl-tot .neto{border-top:2px solid #111;margin-top:4px;padding-top:5px;font:900 15px Arial}.pl-pagos{margin-top:10px;padding-top:8px;border-top:1px dashed #999}`;
-
+  window.addEventListener('resize', () => ajustarHoja());
   const L = {};   // estado del flujo (uno por ventana abierta)
   let raiz = null;
   const q = s => raiz.querySelector(s);
@@ -137,28 +140,50 @@
   const setMsg = (t, tipo) => { const m = q('[data-msg]'); if (m) { m.textContent = t || ''; m.className = 'pl-msg ' + (tipo || ''); } };
 
   // ---------------------------------------------------------------- 1) réplica de la cotización
+  const EMPRESA = { nombre: 'INDOOR SPORT SAS', marca: 'INDOOR', nit: '901282105', regimen: 'Régimen ordinario Responsable de IVA', provincia: 'Antioquia', ciudad: 'Itagüí', direccion: 'Calle 45 No 48- 43 Edf Libertador Brr La Gloria', telefonos: '3178861060', email: 'facturacion1indoor@gmail.com' };
+  const LEGAL = 'POR FAVOR CONSIGNAR AL NUMERO DE CUENTA 277000476-58 BANCOLOMBIA AHORROS A NOMBRE DE INDOOR SPORT S.A.S. La garantía del producto corresponde especificaciones técnicas de confección y diseño del uniforme. Esta debe hacerse en los siguientes 5 días hábiles después de la entrega del pedido. En caso tal de que el tallaje no se ajuste a la persona, no se tomará como garantía si el pedido se entrega en las tallas que el cliente solicitó.';
+  const m2 = n => '$' + Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });   // como Effi: $1,034,999.94
   function htmlDoc() {
-    const d = L.doc, s = d.sucursal || {}, c = d.cliente || {}, t = d.totales || {};
-    const filas = (d.conceptos || []).map((x, i) => '<tr><td>' + (i + 1) + '</td><td data-l="REF.">' + esc(x.referencia) + '</td><td data-l="DESCRIPCIÓN">' + esc(x.descripcion) + (x.observacion ? '<br><small>' + esc(x.observacion) + '</small>' : '') + '</td><td class="d" data-l="CANT.">' + esc(x.cantidad) + '</td><td class="d" data-l="PRECIO">' + money(x.precio) + '</td><td class="d" data-l="DESC.">' + money(x.descuento) + '</td><td class="d" data-l="IMPUESTO">' + esc(x.impuestos || '—') + ' ' + (x.impuesto ? '(' + money(x.impuesto) + ')' : '') + '</td><td class="d" data-l="TOTAL"><b>' + money((x.total != null ? x.total : num(x.cantidad) * num(x.precio) - num(x.descuento)) ) + '</b></td></tr>').join('');
-    const formas = (d.formas || []).map(f => esc(f.nombre) + ': <b>' + money(f.valor) + '</b>').join(' &nbsp;·&nbsp; ');
-    return '<div class="pl-papel" id="pl-doc"><div class="pl-top"><div><h1>INDOOR SPORT SAS</h1><small>' + esc([s.direccion, s.ciudad].filter(Boolean).join(' · ')) + (s.telefonos ? '<br>Tel. ' + esc(s.telefonos) : '') + '</small></div>' +
-      '<div class="pl-num"><span>' + (d.tipo === 'remision' ? 'REMISIÓN DE VENTA' : 'COTIZACIÓN') + '</span><b>No. ' + esc(d.numero_completo || d.numero) + '</b><em>✓ CREADA EN EFFI</em></div></div>' +
-      '<div class="pl-meta"><div><b>CREACIÓN</b>' + esc(d.fecha_creacion) + '</div><div><b>ENTREGA</b>' + esc(d.fecha_entrega) + '</div><div><b>VENDEDOR</b>' + esc(d.vendedor || '—') + '</div>' +
-      '<div><b>CLIENTE</b>' + esc(c.nombre) + '</div><div><b>DOCUMENTO</b>' + esc(c.documento || '—') + '</div><div><b>DIRECCIÓN</b>' + esc(c.direccion || '—') + '</div></div>' +
-      '<table><thead><tr><th>#</th><th>REFERENCIA</th><th>DESCRIPCIÓN</th><th class="d">CANT.</th><th class="d">PRECIO UD.</th><th class="d">DESCUENTO</th><th class="d">IMPUESTO</th><th class="d">TOTAL</th></tr></thead><tbody>' + filas + '</tbody></table>' +
-      '<div class="pl-pie"><div>' + (d.garantia ? '<div><b style="font:800 10px Arial;letter-spacing:.1em;color:#666">GARANTÍA / PROYECTO</b><br>' + esc(d.garantia) + '</div>' : '') + (d.observacion ? '<div style="margin-top:8px"><b style="font:800 10px Arial;letter-spacing:.1em;color:#666">OBSERVACIÓN</b><br>' + esc(d.observacion) + '</div>' : '') + '</div>' +
-      '<div class="pl-tot"><div><span>Total bruto</span><b>' + money(t.bruto) + '</b></div><div><span>− Descuentos</span><b>' + money(t.descuento) + '</b></div><div><span>Subtotal</span><b>' + money(t.subtotal) + '</b></div>' + (t.propina ? '<div><span>+ Propina</span><b>' + money(t.propina) + '</b></div>' : '') +
-      '<div><span>+ Impuestos</span><b>' + money(t.impuestos) + '</b></div>' + (t.retenciones ? '<div><span>− Retenciones</span><b>' + money(t.retenciones) + '</b></div>' : '') + '<div class="neto"><span>TOTAL NETO</span><b>' + money(t.total) + '</b></div></div></div>' +
-      (formas ? '<div class="pl-pagos"><b style="font:800 10px Arial;letter-spacing:.1em;color:#666">FORMAS DE PAGO</b><br>' + formas + '</div>' : '') + '</div>';
+    const d = L.doc, s = d.sucursal || {}, c = d.cliente || {}, t = d.totales || {}, e = EMPRESA;
+    const lineas = d.conceptos || [], unidades = lineas.reduce((a, x) => a + num(x.cantidad), 0);
+    const pct = x => { const m = String(x.impuestos || '').match(/(\d+(?:[.,]\d+)?)\s*%/); return m ? m[1].replace(',', '.') + '%' : (num(x.impuesto) ? '' : '0%'); };
+    const filas = lineas.map((x, i) => {
+      const base = num(x.cantidad) * num(x.precio) - num(x.descuento), tot = x.total != null ? x.total : base + num(x.impuesto);
+      return '<tr><td class="c">' + (i + 1) + '</td><td>' + esc(x.referencia) + '</td><td class="l">' + esc(x.descripcion) + (x.observacion ? '<br><i>' + esc(x.observacion) + '</i>' : '') + '</td><td class="c">' + esc(x.cantidad) + '</td><td class="r">' + m2(x.precio) + '</td><td class="r">' + m2(x.descuento).replace('.00', '') + '</td><td class="r">' + pct(x) + ' ' + m2(x.impuesto) + '</td><td class="r">' + m2(tot) + '</td></tr>';
+    }).join('');
+    const porImp = {};   // detalle de impuestos: base y valor por cada impuesto
+    lineas.forEach(x => { const k = String(x.impuestos || '').trim(); if (!k || !num(x.impuesto)) return; const g = porImp[k] = porImp[k] || { base: 0, valor: 0 }; g.base += num(x.cantidad) * num(x.precio) - num(x.descuento); g.valor += num(x.impuesto); });
+    const detImp = Object.keys(porImp).map(k => 'Base I: ' + m2(porImp[k].base) + ' | ' + esc(k) + ' | Valor: ' + m2(porImp[k].valor)).join('<br>') || '&nbsp;';
+    const formas = (d.formas || []).map(f => esc(f.nombre) + ' - Valor: ' + m2(f.valor)).join('<br>');
+    const docNum = esc(d.numero_completo || d.numero), tipo = d.tipo === 'remision' ? 'REMISIÓN DE VENTA' : 'COTIZACIÓN';
+    const m = String(c.documento || '').match(/^([A-Za-z.]+)\s+(.+)$/), tdoc = m ? m[1] : 'CC', ndoc = m ? m[2] : (c.documento || '');
+    return '<div class="pl-papel" id="pl-doc">' +
+      '<div class="cab"><img src="/marca-indoor.png" alt="Indoor"><div class="emp"><h1>' + e.nombre + '</h1><div class="sub">' + e.marca + '</div><div><b>NIT:</b> ' + e.nit + ' | <b>' + e.regimen + '</b></div>' +
+      '<div>' + esc(s.ciudadProv || e.provincia) + ' / ' + esc(e.ciudad) + ' / ' + esc(s.direccion || e.direccion) + '</div><div><b>Teléfonos:</b> ' + esc(s.telefonos || e.telefonos) + '</div><div><b>Email:</b> ' + e.email + '</div></div>' +
+      '<div class="doc"><div class="ti">' + tipo + '<br>No. ' + docNum + '</div><div class="ok">✓ CREADA EN EFFI</div><div class="fechas"><b>Creación:</b> ' + esc(d.fecha_hora || d.fecha_creacion) + '<br><b>Entrega:</b> ' + esc(d.fecha_entrega) + '<br><b>Página:</b> 1 de 1</div></div></div>' +
+      '<table class="cli"><tr><td colspan="2" style="width:70%"><b>Cliente:</b> ' + esc(c.nombre) + '.</td><td><b>' + esc(tdoc) + ':</b> ' + esc(ndoc) + '</td></tr>' +
+      '<tr><td style="width:35%"><b>Teléfono:</b> ' + esc(c.telefono || '') + '</td><td colspan="2"><b>Email:</b> ' + esc(c.email || '') + '</td></tr>' +
+      '<tr><td colspan="3"><b>Dirección:</b> ' + esc(c.direccion || '') + '</td></tr>' +
+      '<tr><td colspan="3"><b>Elaboró:</b> ' + esc(d.elaboro || d.vendedor || '') + '</td></tr><tr><td colspan="3"><b>Vendedor:</b> ' + esc(d.vendedor || '') + '</td></tr></table>' +
+      '<table class="items"><thead><tr><th>ÍTEM</th><th>REF.</th><th>DESCRIPCIÓN</th><th>CANT.</th><th>PRECIO UD.</th><th>DESCUENTO</th><th>IMPUESTOS</th><th>TOTAL NETO</th></tr></thead><tbody>' + filas + '</tbody></table>' +
+      '<div class="tot-i">Total ítems: ' + lineas.length + ' - Total unidades: ' + unidades + '</div><div class="hueco"></div>' +
+      '<table class="pie"><tr><td style="width:30%"><b>FORMA DE PAGO:</b><br>' + (formas || '&nbsp;') + '</td><td><b>DETALLE DE IMPUESTOS:</b><br>' + detImp + '</td>' +
+      '<td class="sum"><div><span>SUBTOTAL</span><span>' + m2(t.subtotal) + '</span></div><div><span>+ Impuestos</span><span>' + m2(t.impuestos) + '</span></div>' + (num(t.propina) ? '<div><span>+ Propina</span><span>' + m2(t.propina) + '</span></div>' : '') + (num(t.retenciones) ? '<div><span>− Retenciones</span><span>' + m2(t.retenciones) + '</span></div>' : '') + '<div><span>TOTAL NETO</span><span>' + m2(t.total) + '</span></div></td></tr></table>' +
+      '<div class="legal">' + esc(LEGAL) + '</div>' +
+      '<table class="firmas"><tr><td style="width:30%"><div class="ln">Firma y sello emisor</div></td><td class="obs"><b>Observación:</b> ' + esc(d.observacion || 'Creada desde el panel') + '<br><b>Garantía:</b> ' + esc(d.garantia || '') + '</td><td style="width:32%"><b>Recibí a satisfacción:</b><br><br><div class="ln">Nombre, identificación, sello y fecha</div></td></tr></table></div>';
+  }
+  function ajustarHoja() {   // en celular la hoja (794 px) se reduce para que quepa completa; en pantallas anchas se ve a tamaño real
+    const caja = raiz && raiz.querySelector('.pl-hoja-caja'), hoja = caja && caja.querySelector('.pl-papel'); if (!hoja) return;
+    const z = Math.min(1, (caja.clientWidth || 794) / 794); hoja.style.zoom = z < 1 ? String(z) : '';
   }
   function imprimir() {
     const f = document.createElement('iframe'); f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
     document.body.appendChild(f);
-    const w = f.contentWindow; w.document.open(); w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>' + esc((L.doc.tipo === 'remision' ? 'Remision ' : 'Cotizacion ') + (L.doc.numero_completo || L.doc.numero)) + '</title><style>' + PRINT_CSS + '</style></head><body>' + q('#pl-doc').innerHTML + '</body></html>'); w.document.close();
+    const w = f.contentWindow; w.document.open(); w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>' + esc((L.doc.tipo === 'remision' ? 'Remision ' : 'Cotizacion ') + (L.doc.numero_completo || L.doc.numero)) + '</title><style>@page{size:letter;margin:8mm}body{margin:0}' + HOJA_CSS + '.pl-papel{zoom:1!important;width:auto;min-height:0;border-radius:0;padding:0}.pl-papel .cab img{filter:none}</style></head><body>' + q('#pl-doc').outerHTML + '</body></html>'); w.document.close();
     setTimeout(() => { w.focus(); w.print(); setTimeout(() => f.remove(), 2000); }, 250);
   }
   function pantallaDoc() {
-    q('[data-cuerpo]').innerHTML = htmlDoc();
+    q('[data-cuerpo]').innerHTML = '<div class="pl-hoja-caja">' + htmlDoc() + '</div>'; ajustarHoja();
     acciones('<button class="pl-btn sec" type="button" data-imprimir>IMPRIMIR</button><button class="pl-btn" type="button" data-continuar>CONTINUAR CON EL LISTADO ▶</button><button class="pl-btn sec" type="button" data-otro>CREAR OTRO DOCUMENTO</button><button class="pl-btn sec" type="button" data-cerrar>CERRAR</button>',
       'La ' + (L.doc.tipo === 'remision' ? 'remisión' : 'cotización') + ' ya está creada en Effi. Continúa con el listado para programar el pedido.', 'ok');
     q('[data-imprimir]').onclick = imprimir;
@@ -170,14 +195,14 @@
   // ---------------------------------------------------------------- 2) mockups
   function slotHtml(ref, n) {
     const f = imagenDe(ref, n);
-    return '<div class="pl-slot ' + (f ? 'ok' : '') + '" data-slot="' + esc(ref) + '|' + n + '"><span class="t">DISEÑO ' + n + (f ? ' ✓' : '') + '</span>' + (f ? '<img alt="" data-prev><small>' + esc(f.name) + '</small>' : '<small>Sin imagen. JPG, PNG o WEBP, máximo 10 MB.</small>') +
+    return '<div class="pl-slot ' + (f ? 'ok' : '') + '" data-slot="' + esc(ref) + '|' + n + '"><span class="t">DISEÑO ' + n + (f ? ' ✓' : '') + '</span>' + (f ? '<img alt="" data-prev><small>' + esc(f.name) + '</small>' : '<small>Opcional. JPG, PNG o WEBP, máximo 10 MB.</small>') +
       '<input type="file" accept="image/jpeg,image/png,image/webp,image/bmp,image/tiff" data-file><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="pl-btn sec mini" type="button" data-elegir>' + (f ? 'CAMBIAR' : 'ADJUNTAR IMAGEN') + '</button>' + (f ? '<button class="pl-btn sec mini" type="button" data-quitar>QUITAR</button>' : '') + '</div></div>';
   }
   function pantallaMockups() {
     const gs = grupos(), varias = gs.length > 1;
     const bloques = (L.compartir ? [['*', 'Todas las referencias']] : gs.map(g => [g.referencia, g.referencia + ' · ' + g.descripcion])).map(([ref, titulo]) =>
       '<div class="pl-tarjeta"><h3>' + esc(titulo) + '</h3><div class="pl-slots">' + Array.from({ length: L.disenos }, (_, i) => slotHtml(ref, i + 1)).join('') + '</div></div>').join('');
-    q('[data-cuerpo]').innerHTML = '<div class="pl-tarjeta"><h3>Datos del pedido</h3><div class="pl-grid">' +
+    q('[data-cuerpo]').innerHTML = '<div class="pl-tarjeta"><h3>Datos del pedido · mockups opcionales</h3><div class="pl-grid">' +
       '<label>Proyecto *<input data-proyecto value="' + esc(L.proyecto) + '" placeholder="Ej. TEMPORADA 2027"></label>' +
       '<label>Línea de producto<select data-linea><option value="">—</option>' + (L.cat.lineas || []).map(x => '<option' + (x === L.linea ? ' selected' : '') + '>' + esc(x) + '</option>').join('') + '</select></label>' +
       '<label>Número de diseños *<select data-disenos>' + Array.from({ length: MAX_DISENOS }, (_, i) => '<option value="' + (i + 1) + '"' + (i + 1 === L.disenos ? ' selected' : '') + '>' + (i + 1) + '</option>').join('') + '</select></label></div>' +
@@ -208,9 +233,9 @@
     });
   }
   function actualizarMockups() {
-    const falta = slotsNecesarios().filter(([r, n]) => !imagenDe(r, n)).length, ok = falta === 0 && L.proyecto.trim();
+    const falta = slotsNecesarios().filter(([r, n]) => !imagenDe(r, n)).length, ok = !!L.proyecto.trim();   // los mockups son opcionales: solo hace falta el proyecto
     const b = q('[data-sigue]'); if (b) b.disabled = !ok;
-    setMsg(!L.proyecto.trim() ? 'Escribe el nombre del proyecto.' : falta ? 'Faltan ' + falta + ' imagen(es): una por cada diseño' + (L.compartir ? '.' : ' de cada referencia.') : 'Mockups completos ✓', ok ? 'ok' : '');
+    setMsg(!L.proyecto.trim() ? 'Escribe el nombre del proyecto.' : falta ? 'Mockups opcionales: faltan ' + falta + ' imagen(es). Puedes continuar sin ellas o adjuntarlas ahora.' : 'Mockups completos ✓', ok ? 'ok' : '');
   }
 
   // ---------------------------------------------------------------- 3) listado

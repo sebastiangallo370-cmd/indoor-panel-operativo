@@ -290,8 +290,8 @@
     const total = r.total != null && isFinite(Number(r.total)) ? Number(r.total) : prev.total;
     return {
       tipo: st.tipo, prefijo: (String(r.numero || '').match(/^[A-Za-z]+/) || [''])[0].toUpperCase(), numero: String(r.id), numero_completo: r.numero || String(r.id),
-      fecha_creacion: hoy(), fecha_entrega: body.fecha_entrega, garantia: body.garantia || '', proyecto: String(body.garantia || '').trim(), observacion: body.observacion || '',
-      cliente: { nombre: st.cliente ? st.cliente.nombre : '', documento: st.cliente ? st.cliente.documento : '', direccion: dir ? [dir.ciudad, dir.direccion].filter(Boolean).join(' · ') : '' },
+      fecha_creacion: hoy(), fecha_hora: new Date().toLocaleString('sv-SE').slice(0, 19), elaboro: ven ? ven.nombre : '', fecha_entrega: body.fecha_entrega, garantia: body.garantia || '', proyecto: String(body.garantia || '').trim(), observacion: body.observacion || '',
+      cliente: { nombre: st.cliente ? st.cliente.nombre : '', documento: st.cliente ? st.cliente.documento : '', telefono: st.cliente ? (st.cliente.telefono || '') : '', email: st.cliente ? (st.cliente.email || '') : '', direccion: dir ? [dir.direccion, dir.ciudad, dir.provincia, dir.pais].filter(Boolean).join(' / ') : '' },
       vendedor: ven ? ven.nombre : '', sucursal: suc,
       conceptos: st.conceptos.map((l, i) => ({ referencia: l.ref, descripcion: l.descripcion, cantidad: num(l.cantidad), precio: num(l.precio), descuento: ls[i] ? ls[i].descuento : descDe(l), impuestos: ls[i] ? ls[i].impuestos : '', impuesto: ls[i] ? ls[i].impuesto : 0, total: ls[i] ? ls[i].total : null, observacion: l.obs || '' })),
       totales: { bruto: prev.bruto, descuento: prev.descuento, subtotal: prev.subtotal, propina: prev.propina, impuestos: prev.impuestos, retenciones: prev.retenciones, total },

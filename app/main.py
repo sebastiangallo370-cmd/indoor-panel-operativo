@@ -767,6 +767,10 @@ def append_local_production(record: dict, row_builder=None, observations: str = 
         db.close()
 
 
+_MOCKUPS_OPCIONALES_JOBS: set[int] = set()   # órdenes creadas desde EMPEZAR PEDIDO: el mockup es opcional (se programan aunque no lleven imagen)
+_MOCKUP_OPCIONAL = __import__('contextvars').ContextVar('mockup_opcional', default=False)
+
+
 def verify_order_mockups(order_dir, records):
     """Use the same reader as cards; never publish a reference without a design."""
     files = [p for p in Path(order_dir).iterdir() if p.is_file() and not p.is_symlink()]
@@ -775,7 +779,7 @@ def verify_order_mockups(order_dir, records):
     for record in records:
         reference = str(record.get('referencia') or '').strip()
         designs, status = listing_designs(files, reference)
-        if not designs:
+        if not designs and not _MOCKUP_OPCIONAL.get():
             raise ValueError(f'No se programó la tarjeta: falta el mockup de {reference}. {status}. '
                              'Sube la imagen con la referencia correcta en el nombre y vuelve a procesar.')
 
@@ -932,6 +936,7 @@ def process_reprogram_excel_job(job_id: int, excel_path: Path, extra_paths: list
 
 
 def process_order_job(job_id: int, job_dir: Path, pdf_path: Path, excel_path: Path, observations: str = '', author: str = '', linea: str = '', overrides: dict | None = None):
+    _MOCKUP_OPCIONAL.set(job_id in _MOCKUPS_OPCIONALES_JOBS)
     try:
         pending_records = []
         # The legacy processor moves/removes attachments: remember them beforehand.
@@ -7826,7 +7831,7 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
     const commercialGroup=commercialToggle.closest('.nav-group');commercialGroup.classList.add('collapsed');const productionToggle=document.getElementById('production-toggle');if(productionToggle)productionToggle.addEventListener('click',()=>{{const g=productionToggle.closest('.nav-group');g.classList.toggle('collapsed');if(!g.classList.contains('collapsed')&&window.innerWidth>860)g.querySelector('.nav-children .tab')?.click()}});
     setTimeout(()=>{{if(!document.querySelector('.panel.active'))document.querySelector('.tab[data-kind="inicio"]')?.click()}},0);
     setTimeout(()=>{{const panel=document.querySelector('.panel.active');const kind=panel?.dataset?.panel;const activeTab=kind&&document.querySelector(`.tab[data-kind="${{kind}}"]`);if(activeTab)document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===activeTab))}},100);
-</script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/liquid-stats.js?v=20261019-1'></script><script src='/nombres-effi.js?v=20261022-2'></script><script src='/permisos.js?v=20261007-2'></script><script src='/reposiciones.js?v=20261019-1'></script><script src='/agentes.js?v=20261107-14'></script><script src='/promedios.js?v=20261109-1'></script><script src='/capacidad.js?v=20261009-2'></script><script src='/molderia.js?v=20261010-2'></script><script src='/estandar.js?v=20261020-1'></script><script src='/proveedores-tela.js?v=20261022-4'></script><script src='/terminos.js?v=20261010-1'></script><script src='/cookies-aviso.js?v=20261010-1'></script><script src='/rh-contratos.js?v=20261009-3'></script><script src='/fichas-resumen.js?v=20261022-2'></script><script src='/api/cartera/cartera.js?v=20261009-1'></script><script src='/trace-ui.js?v=20261109-2'></script><script src='/home-dashboard.js?v=20261110-1'></script><script src='/bodega-dashboard.js?v=20261109-3'></script><script src='/bodegas.js?v=20261009-7'></script><script src='/codigos-barras.js?v=20261014-3'></script><script src='/mis-pedidos.js?v=20261008-1'></script><script src='/crear-cliente.js?v=20261024-31'></script><script src='/pedido-effi.js?v=20261114-21'></script><script src='/pedido-listado.js?v=20261114-5'></script><script src='/club-admin.js?v=20261114-2'></script><script src='/mobile-nav.js?v=20261108-1'></script><script src='/nav-liquid.js?v=20261109-1'></script><script src='/build-watch.js?v=20261105-1'></script><script src='/salud.js?v=20261014-2'></script><script src='/alertas.js?v=20261030-1'></script><script src='/bitacora.js?v=20261016-2'></script><script src='/memoria.js?v=20261018-1'></script><script src='/ecommerce.js?v=20261019-1'></script><script src='/zeus.js?v=20261110-3'></script><script src='/minimaximan.js?v=20261023-2'></script><script src='/aviso-agentes.js?v=20261023-5'></script><script src='/descuento-sublimacion.js?v=20261026-1'></script><script src='/stockman.js?v=20261022-30'></script><script src='/draco-panel.js?v=20261021-8'></script><script src='/laser-panel.js?v=20261113-1'></script><script src='/agentes-hub.js?v=20261109-1'></script><script src='/recordar-vista.js?v=20261109-1'></script><script src='/tema.js?v=20261008-1'></script><script src='/tarjeta-iconos.js?v=20261110-2'></script><script src='/confeccion-preparacion.js?v=20261113-2'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261021-1'></script><script src='/linea-editor.js?v=20261030-1'></script><script src='/lineas-producto-panel.js?v=20261030-1'></script><script src='/menu-cuenta.js?v=20261016-3'></script><script src='/foto-perfil.js?v=20261030-1'></script><script src='/efecto-vidrio.js?v=20261029-1'></script><script src='/motion.js?v=11.18.2'></script><script src='/home-hero.js?v=20261108-5'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab=>tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
+</script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/liquid-stats.js?v=20261019-1'></script><script src='/nombres-effi.js?v=20261022-2'></script><script src='/permisos.js?v=20261007-2'></script><script src='/reposiciones.js?v=20261019-1'></script><script src='/agentes.js?v=20261107-14'></script><script src='/promedios.js?v=20261109-1'></script><script src='/capacidad.js?v=20261009-2'></script><script src='/molderia.js?v=20261010-2'></script><script src='/estandar.js?v=20261020-1'></script><script src='/proveedores-tela.js?v=20261022-4'></script><script src='/terminos.js?v=20261010-1'></script><script src='/cookies-aviso.js?v=20261010-1'></script><script src='/rh-contratos.js?v=20261009-3'></script><script src='/fichas-resumen.js?v=20261022-2'></script><script src='/api/cartera/cartera.js?v=20261009-1'></script><script src='/trace-ui.js?v=20261109-2'></script><script src='/home-dashboard.js?v=20261110-1'></script><script src='/bodega-dashboard.js?v=20261109-3'></script><script src='/bodegas.js?v=20261009-7'></script><script src='/codigos-barras.js?v=20261014-3'></script><script src='/mis-pedidos.js?v=20261008-1'></script><script src='/crear-cliente.js?v=20261024-31'></script><script src='/pedido-effi.js?v=20261114-22'></script><script src='/pedido-listado.js?v=20261114-6'></script><script src='/club-admin.js?v=20261114-2'></script><script src='/mobile-nav.js?v=20261108-1'></script><script src='/nav-liquid.js?v=20261109-1'></script><script src='/build-watch.js?v=20261105-1'></script><script src='/salud.js?v=20261014-2'></script><script src='/alertas.js?v=20261030-1'></script><script src='/bitacora.js?v=20261016-2'></script><script src='/memoria.js?v=20261018-1'></script><script src='/ecommerce.js?v=20261019-1'></script><script src='/zeus.js?v=20261110-3'></script><script src='/minimaximan.js?v=20261023-2'></script><script src='/aviso-agentes.js?v=20261023-5'></script><script src='/descuento-sublimacion.js?v=20261026-1'></script><script src='/stockman.js?v=20261022-30'></script><script src='/draco-panel.js?v=20261021-8'></script><script src='/laser-panel.js?v=20261113-1'></script><script src='/agentes-hub.js?v=20261109-1'></script><script src='/recordar-vista.js?v=20261109-1'></script><script src='/tema.js?v=20261008-1'></script><script src='/tarjeta-iconos.js?v=20261110-2'></script><script src='/confeccion-preparacion.js?v=20261113-2'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261021-1'></script><script src='/linea-editor.js?v=20261030-1'></script><script src='/lineas-producto-panel.js?v=20261030-1'></script><script src='/menu-cuenta.js?v=20261016-3'></script><script src='/foto-perfil.js?v=20261030-1'></script><script src='/efecto-vidrio.js?v=20261029-1'></script><script src='/motion.js?v=11.18.2'></script><script src='/home-hero.js?v=20261108-5'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab=>tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
 
 
 def ordered_mockup_uploads(extras, slots):
@@ -8030,11 +8035,13 @@ async def upload_order(
     mockup_d2: UploadFile = File(default=None),
     mockup_d3: UploadFile = File(default=None),
     mockup_d4: UploadFile = File(default=None),
+    mockups_opcionales: bool = Form(default=False),
     _=Depends(authenticate),
 ):
     extras = ordered_mockup_uploads(extras, [mockup_d1, mockup_d2, mockup_d3, mockup_d4])
     try:
-        await require_mockup_upload(extras)
+        if not (mockups_opcionales and not [e for e in extras if e.filename]):   # opcional y sin imágenes: se programa sin mockups
+            await require_mockup_upload(extras)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     if not pdf.filename or Path(pdf.filename).suffix.lower() != ".pdf":
@@ -8073,6 +8080,8 @@ async def upload_order(
             (display_name, "RECIBIDO", "En cola", now, now, "pedido", json.dumps({'observaciones': observaciones.strip(), 'linea': linea.strip(), 'usuario': str(_)}, ensure_ascii=False), checked_order or None),
         )
         job_id = cursor.lastrowid
+    if mockups_opcionales:
+        _MOCKUPS_OPCIONALES_JOBS.add(job_id)
     asyncio.create_task(asyncio.to_thread(process_order_job, job_id, job_dir, saved[0], saved[1], observaciones.strip(), str(_), linea.strip()))
     return {"id": job_id, "estado": "RECIBIDO", "mensaje": "El pedido se está procesando"}
 
@@ -8102,7 +8111,6 @@ async def programar_pedido_effi(request: Request, usuario=Depends(authenticate))
             raise HTTPException(400, 'Nombre de mockup no válido: ' + str(clave)[:60])
     try:
         arch = await asyncio.to_thread(listado_pedido_mod.preparar, datos, club_mod._plantilla, str((datos.get('doc') or {}).get('vendedor') or ''))
-        listado_pedido_mod.validar_mockups(arch['grupos'], datos.get('doc') or {}, set(imagenes))
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     except OSError as exc:
@@ -8117,7 +8125,7 @@ async def programar_pedido_effi(request: Request, usuario=Depends(authenticate))
     pdf = UploadFile(file=io.BytesIO(arch['pdf']), filename=arch['pdf_nombre'])
     excel = UploadFile(file=io.BytesIO(arch['excel']), filename=arch['excel_nombre'])
     return await upload_order(pdf=pdf, observaciones=arch['observaciones'], linea=arch['linea'], excel=excel, extras=extras,
-                              mockup_d1=None, mockup_d2=None, mockup_d3=None, mockup_d4=None, _=usuario)
+                              mockup_d1=None, mockup_d2=None, mockup_d3=None, mockup_d4=None, mockups_opcionales=True, _=usuario)
 
 
 @app.post("/crear-xlsx/vista-previa")
