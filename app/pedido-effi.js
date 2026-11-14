@@ -124,8 +124,11 @@
   .pe-garm{display:none}
   @media(max-width:700px){
     /* Vista móvil con la disposición de Effi (una columna, campos a todo el ancho, etiquetas a la izquierda) y los colores de INDOOR */
-    .tc-pedido-fondo:has(.pe-enc){padding:0!important}.tc-pedido-card:has(.pe-enc){border:0!important;border-radius:0!important;padding:10px!important}
+    .tc-pedido-fondo{overflow-x:hidden!important}.tc-pedido-card{max-width:100%;box-sizing:border-box;overflow-x:hidden}.tc-pedido-fondo:has(.pe-enc){padding:0!important}.tc-pedido-card:has(.pe-enc){border:0!important;border-radius:0!important;padding:10px!important}
     .pe{gap:10px}.pe-card{border-radius:12px;padding:12px}
+    .pe,.pe-card,.pe label,.pe-grid,.pe-linea,.pe-sub,.pe-forma{min-width:0;max-width:100%;box-sizing:border-box}.pe{overflow-x:hidden}
+    .pe input[type=date]{-webkit-appearance:none;appearance:none;display:block;width:100%;min-width:0;max-width:100%;box-sizing:border-box;text-align:left;line-height:40px;padding-right:8px}
+    .pe input[type=date]::-webkit-date-and-time-value{text-align:left;min-width:0}.pe input[type=date]::-webkit-calendar-picker-indicator{margin:0}
     .pe h2{font-size:17px}.pe h3{font-size:14px}.pe .eyebrow{display:none}
     .pe label{font-size:12px;letter-spacing:.02em;text-align:left}
     .pe input,.pe select,.pe textarea{font-size:14px;text-align:left;min-height:40px}
