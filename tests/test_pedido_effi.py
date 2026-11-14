@@ -398,3 +398,19 @@ class MockupsDelProyecto(unittest.TestCase):
                     with self.assertRaises(HTTPException):
                         pe.mockup_img(mock.Mock(), 'CLUB SAN LORENZO DE LA PAZ', 'UNIFORMES 2027', carpeta, archivo)
             pe._cache_carpetas.update(t=0.0, nombres=[]); pe._cache_proyectos.clear()
+
+
+class NasLenta(unittest.TestCase):
+    def test_carpeta_exacta_no_lista_toda_la_nas_y_si_la_nas_tarda_responde_pendiente(self):
+        from app import club
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / 'CLUB SAN LORENZO DE LA PAZ' / 'MAESTROS' / 'UNIFORMES 2027').mkdir(parents=True)
+            pe._cache_carpetas.update(t=0.0, nombres=[]); pe._cache_proyectos.clear()
+            with mock.patch.object(club, '_clientes_root', lambda: d), mock.patch.object(pe, '_carpetas_clientes', side_effect=AssertionError('no debe listar la NAS')):
+                self.assertEqual(pe.proyectos_de_cliente('CLUB SAN LORENZO DE LA PAZ')['proyectos'], ['UNIFORMES 2027'])
+            pe._cache_proyectos.clear()
+            with mock.patch.object(club, '_clientes_root', lambda: d), mock.patch.object(pe, '_carpetas_clientes', lambda raiz, espera=6.0: None):
+                r = pe.proyectos_de_cliente('OTRO CLIENTE DISTINTO')
+                self.assertTrue(r.get('pendiente'))
+                self.assertNotIn('OTROCLIENTEDISTINTO', pe._cache_proyectos)   # lo pendiente no se guarda en caché
+            pe._cache_carpetas.update(t=0.0, nombres=[]); pe._cache_proyectos.clear()

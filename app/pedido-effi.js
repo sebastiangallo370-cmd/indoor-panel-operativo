@@ -380,8 +380,14 @@
     if (y.cliente !== c.nombre) { const g = q('[name="garantia"]'); if (g) g.value = ''; st.proyNuevo = false; }
     Object.assign(y, { cliente: c.nombre, cargando: true, lista: [], carpeta: null, error: '' }); dibujar();
     try {
-      const r = await api('/api/pedido-effi/proyectos?cliente=' + encodeURIComponent(c.nombre));
-      if (!st.cliente || st.cliente.nombre !== c.nombre) return;
+      let r = null;
+      for (let intento = 0; intento < 8; intento++) {   // la NAS puede tardar en listar: el servidor responde «pendiente» y se vuelve a preguntar
+        r = await api('/api/pedido-effi/proyectos?cliente=' + encodeURIComponent(c.nombre));
+        if (!st.cliente || st.cliente.nombre !== c.nombre) return;
+        if (!r.pendiente) break;
+        await new Promise(ok => setTimeout(ok, 1500));
+      }
+      if (r.pendiente) r = { proyectos: [], carpeta: null, error: 'La NAS tarda en responder: escribe el proyecto o vuelve a elegir el cliente.' };
       Object.assign(y, { cargando: false, lista: r.proyectos || [], carpeta: r.carpeta, error: r.error || '' });
     } catch (e) { if (st.cliente && st.cliente.nombre === c.nombre) Object.assign(y, { cargando: false, lista: [], error: 'No pude traer los proyectos de la NAS: escribe uno nuevo.' }); }
     dibujar();

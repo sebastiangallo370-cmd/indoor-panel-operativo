@@ -482,8 +482,37 @@ def _raiz_clientes() -> Path | None:
         return None
 
 
+def _listar_carpetas(raiz: Path) -> list[str]:
+    nombres = [p.name for p in raiz.iterdir() if p.is_dir()]
+    _cache_carpetas.update(t=time.time(), nombres=nombres)
+    return nombres
+
+
+_pool_nas = None
+_futuro_carpetas = None
+
+
+def _carpetas_clientes(raiz: Path, espera: float = 6.0) -> list[str] | None:
+    """Carpetas de clientes de la NAS. Listar la NAS puede tardar: se hace en segundo plano y si no llega en `espera` segundos devuelve None (el navegador reintenta)."""
+    global _pool_nas, _futuro_carpetas
+    if _cache_carpetas['nombres'] and time.time() - _cache_carpetas['t'] < CACHE_SEG:
+        return _cache_carpetas['nombres']
+    from concurrent.futures import ThreadPoolExecutor, TimeoutError as Espera
+    if _pool_nas is None:
+        _pool_nas = ThreadPoolExecutor(max_workers=1, thread_name_prefix='pedido-nas')
+    if _futuro_carpetas is None or _futuro_carpetas.done():
+        _futuro_carpetas = _pool_nas.submit(_listar_carpetas, raiz)
+    try:
+        return _futuro_carpetas.result(timeout=espera)
+    except Espera:
+        return None
+    except OSError:
+        return []
+
+
 def proyectos_de_cliente(nombre: str) -> dict:
-    """Nombres de las carpetas de proyecto dentro de CLIENTE/MAESTROS en la NAS. Solo lectura, con caché de 5 minutos (la NAS es lenta)."""
+    """Nombres de las carpetas de proyecto dentro de CLIENTE/MAESTROS en la NAS. Solo lectura, con caché de 5 minutos (la NAS es lenta).
+    Primero prueba la carpeta con el nombre exacto del cliente (rápido); si no existe, busca la más parecida entre las carpetas de clientes."""
     clave = re.sub(r'[^A-Z0-9]', '', str(nombre or '').upper())
     ahora = time.time()
     hit = _cache_proyectos.get(clave)
@@ -493,9 +522,16 @@ def proyectos_de_cliente(nombre: str) -> dict:
     resultado = {'carpeta': None, 'proyectos': []}
     if raiz is not None:
         try:
-            if ahora - _cache_carpetas['t'] > CACHE_SEG or not _cache_carpetas['nombres']:
-                _cache_carpetas.update(t=ahora, nombres=[p.name for p in raiz.iterdir() if p.is_dir()])
-            carpeta = carpeta_de_cliente(nombre, _cache_carpetas['nombres'])
+            carpeta = None
+            for cand in dict.fromkeys([str(nombre).strip(), str(nombre).replace('.', '').strip(), re.sub(r'\s+', ' ', str(nombre)).strip()]):
+                if cand and (raiz / cand).is_dir():
+                    carpeta = cand
+                    break
+            if carpeta is None:
+                carpetas = _carpetas_clientes(raiz)
+                if carpetas is None:
+                    return {'carpeta': None, 'proyectos': [], 'pendiente': True}   # la NAS aún está listando: no se guarda en caché
+                carpeta = carpeta_de_cliente(nombre, carpetas)
             if carpeta:
                 resultado['carpeta'] = carpeta
                 maestros = next((p for p in (raiz / carpeta).iterdir() if p.is_dir() and p.name.strip().upper() == 'MAESTROS'), None)
