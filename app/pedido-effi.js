@@ -125,24 +125,24 @@
   @media(max-width:700px){
     /* Vista móvil con la disposición de Effi (una columna, campos a todo el ancho, etiquetas a la izquierda) y los colores de INDOOR */
     .tc-pedido-fondo{overflow-x:hidden!important}.tc-pedido-card{max-width:100%;box-sizing:border-box;overflow-x:hidden}.tc-pedido-fondo:has(.pe-enc){padding:0!important}.tc-pedido-card:has(.pe-enc){border:0!important;border-radius:0!important;padding:10px!important}
-    .pe{gap:10px}.pe-card{border-radius:12px;padding:12px}
+    .pe{gap:8px}.pe-card{border-radius:10px;padding:9px 10px}.pe-grid,.pe-enc,.pe-izq{gap:6px!important}.pe label{gap:3px}
     .pe,.pe-card,.pe label,.pe-grid,.pe-linea,.pe-sub,.pe-forma{min-width:0;max-width:100%;box-sizing:border-box}.pe{overflow-x:hidden}
-    .pe input[type=date]{-webkit-appearance:none;appearance:none;display:block;width:100%;min-width:0;max-width:100%;box-sizing:border-box;text-align:left;line-height:40px;padding-right:8px}
+    .pe input[type=date]{-webkit-appearance:none;appearance:none;display:block;width:100%;min-width:0;max-width:100%;box-sizing:border-box;text-align:left;line-height:30px;padding-right:8px}
     .pe input[type=date]::-webkit-date-and-time-value{text-align:left;min-width:0}.pe input[type=date]::-webkit-calendar-picker-indicator{margin:0}
-    .pe h2{font-size:17px}.pe h3{font-size:14px}.pe .eyebrow{display:none}
-    .pe label{font-size:12px;letter-spacing:.02em;text-align:left}
-    .pe input,.pe select,.pe textarea{font-size:14px;text-align:left;min-height:38px}
+    .pe h2{font-size:15px}.pe h3{font-size:12px;margin-bottom:6px}.pe .eyebrow{display:none}
+    .pe label{font-size:10px;letter-spacing:.02em;text-align:left}
+    .pe input,.pe select,.pe textarea{font-size:13px;text-align:left;min-height:32px;border-radius:8px}.pe input,.pe select{padding:0 9px}.pe textarea{min-height:48px;padding:6px 9px}
     .pe-top{flex-direction:row;align-items:center}
     .pe-enc>.pe-grid,.pe-enc .pe-fila2{display:contents}.pe-enc{display:flex!important;flex-direction:column;gap:10px}.pe-enc .pe-top{order:-1}
     .pe-enc label{order:5}.pe-enc label:has([name="sucursal"]){order:1}.pe-enc label:has([name="bodega"]){order:2}.pe-enc label:has([name="centro_costos"]){order:3}.pe-enc label:has([name="fecha_entrega"]){order:4}
     .pe-enc label:has([name="moneda"]){order:5}.pe-enc label:has([name="trm"]){order:6}.pe-enc label:has([name="cliente-q"]){order:7}.pe-enc label:has([name="direccion"]){order:8}.pe-enc label:has([name="vendedor"]){order:9}.pe-enc label:has([name="global"]){order:11}
     .pe-enc .pe-proy{display:none}.pe-garm{display:grid}
-    .pe-linea{grid-template-columns:1fr!important;gap:8px;padding:12px 0}.pe-linea>*{grid-column:1/-1!important}.pe-total-linea{font-size:15px}.pe-x{justify-self:end;color:#ff8a7a}
-    .pe-tela{font-size:12px}
-    .pe-btn{min-height:36px;font-size:12px;letter-spacing:.02em;width:100%;border-radius:10px}.pe-tipo button{padding:6px 12px;font-size:11px}.pe-pct{height:36px;min-width:34px}
-    .pe-btn.mini{min-height:32px;font-size:11px;padding:0 10px}
-    .pe-link{display:block;width:100%;box-sizing:border-box;text-align:center;background:rgba(255,255,255,.1);color:#f5faef;border-radius:10px;padding:8px;font-size:12px}
-    .pe-tot{gap:6px}.pe-tot div{display:flex;justify-content:space-between;font:600 14px Arial}.pe-tot .neto{font-weight:900;font-size:16px}
+    .pe-linea{grid-template-columns:1fr!important;gap:5px;padding:8px 0}.pe-linea>*{grid-column:1/-1!important}.pe-total-linea{font-size:13px;min-height:24px}.pe-x{justify-self:end;color:#ff8a7a}
+    .pe-tela{font-size:10px}
+    .pe-btn{min-height:30px;font-size:11px;letter-spacing:.02em;width:100%;border-radius:8px;padding:0 10px}.pe-tipo button{padding:5px 10px;font-size:10px}.pe-pct{height:32px;min-width:30px;font-size:12px}
+    .pe-btn.mini{min-height:28px;font-size:10px;padding:0 8px}
+    .pe-link{display:block;width:100%;box-sizing:border-box;text-align:center;background:rgba(255,255,255,.1);color:#f5faef;border-radius:8px;padding:6px;font-size:11px}
+    .pe-tot{gap:6px}.pe-tot div{display:flex;justify-content:space-between;font:600 12px Arial}.pe-tot .neto{font-weight:900;font-size:14px}
     .pe-acciones{display:grid;grid-template-columns:1fr 1fr;gap:8px;position:static!important;padding:0;border:0;background:none}.pe-acciones .pe-msg{grid-column:1/-1}
     .pe-dos{display:flex!important;flex-direction:column;gap:10px}.pe-dos>.pe-izq{display:contents}.pe-izq>.pe-garm{order:1}.pe-izq>label:not(.pe-garm){order:2}.pe-izq>div:not(.pe-sub){order:3}.pe-dos>*:not(.pe-izq){order:4}.pe-izq>.pe-sub{order:5;grid-template-columns:1fr!important}
     .pe-izq>div:not(.pe-sub)>div[style*="display:flex"]{flex-direction:column;align-items:stretch}.pe-izq select{width:100%}
