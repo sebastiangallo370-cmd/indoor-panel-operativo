@@ -121,13 +121,29 @@
     .pe-card{padding:15px}.pe{margin:10px auto 120px}
     .pe-acciones{position:static;padding:0;border:0;background:none}.pe-btn{width:100%}.pe-msg{padding:0 4px}
   }
+  .pe-garm{display:none}
   @media(max-width:700px){
-    .pe,.pe *{text-align:center}.pe h2{font-size:17px}.pe h3{font-size:14px}.pe label{font-size:10px;letter-spacing:.06em;justify-items:center}
-    .pe input,.pe select,.pe textarea{font-size:14px;text-align:center;text-align-last:center}.pe input,.pe select{min-height:38px}
-    .pe-btn,.pe-link{font-size:12px;min-height:38px;justify-content:center;text-align:center}.pe-link{display:block;width:100%}
-    .pe-top{flex-direction:column;align-items:center;gap:8px}.pe-tipo{justify-self:center}.pe-tela{font-size:11px}
-    .pe-tot div{justify-content:space-between}.pe-tot .neto{font-size:15px}.pe-card{padding:12px}.pe-msg{font-size:12px}
-    .pe-linea{grid-template-columns:1fr 1fr;gap:8px}.pe-total-linea{font-size:14px}.pe-x{justify-self:center}
+    /* Vista móvil igual a la de Effi: fondo azul noche, una columna, campos a todo el ancho, etiquetas a la izquierda, botones de colores */
+    .tc-pedido-fondo{background:#0b1220!important;padding:0!important}.tc-pedido-card{background:#111a2e!important;border:0!important;border-radius:0!important;padding:10px!important}
+    .pe{gap:10px;color:#e6ebf5}.pe-card{background:#111a2e!important;border:1px solid #1e2a45;border-radius:12px;padding:12px;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+    .pe h2{font-size:17px;color:#e6ebf5}.pe h3{font-size:14px;color:#e6ebf5}.pe h3::before{background:#2d6ccc}.pe .eyebrow{display:none}
+    .pe label{font-size:12px;letter-spacing:.02em;color:#aab6cf;text-align:left}
+    .pe input,.pe select,.pe textarea{background:#16213a;border-color:#2a3858;color:#e6ebf5;font-size:14px;text-align:left;min-height:40px}.pe input:focus,.pe select:focus,.pe textarea:focus{border-color:#2d6ccc}
+    .pe-top{flex-direction:row;align-items:center}.pe-tipo{border-color:#2a3858}.pe-tipo button{color:#aab6cf}.pe-tipo button.on{background:#0f7f49;color:#fff}
+    .pe-enc>.pe-grid,.pe-enc .pe-fila2{display:contents}.pe-enc{display:flex!important;flex-direction:column;gap:10px}.pe-enc .pe-top{order:-1}
+    .pe-enc label{order:5}.pe-enc label:has([name="sucursal"]){order:1}.pe-enc label:has([name="bodega"]){order:2}.pe-enc label:has([name="centro_costos"]){order:3}.pe-enc label:has([name="fecha_entrega"]){order:4}
+    .pe-enc label:has([name="moneda"]){order:5}.pe-enc label:has([name="trm"]){order:6}.pe-enc label:has([name="cliente-q"]){order:7}.pe-enc label:has([name="direccion"]){order:8}.pe-enc label:has([name="vendedor"]){order:9}.pe-enc label:has([name="global"]){order:11}
+    .pe-enc .pe-proy{display:none}.pe-garm{display:grid}
+    .pe-linea{grid-template-columns:1fr!important;gap:8px;padding:12px 0}.pe-linea>*{grid-column:1/-1!important}.pe-total-linea{color:#e6ebf5;font-size:15px}.pe-x{justify-self:end;color:#ff8a7a}
+    .pe-tela{color:#7fb0ff;font-size:12px}.pe-tela.no{color:#ffb547}
+    .pe-btn{background:#0f7f49;color:#fff;min-height:44px;font-size:13px;letter-spacing:.02em;width:100%}.pe-btn.sec{background:#16213a;color:#e6ebf5}
+    .pe-con [data-capturar]{background:#2d6ccc;color:#fff}.pe-btn.mini{background:#6b6b6b;color:#f2f2f2;min-height:40px}.pe-con [data-capturar].mini{background:#2d6ccc;color:#fff}
+    .pe-link{display:block;width:100%;box-sizing:border-box;text-align:center;background:#16213a;color:#e6ebf5;border-radius:10px;padding:11px;font-size:13px}
+    .pe-tot{gap:6px}.pe-tot div{display:flex;justify-content:space-between;font:600 14px Arial;color:#e6ebf5}.pe-tot .neto{font-weight:900;font-size:16px}
+    .pe-acciones{display:grid;grid-template-columns:1fr 1fr;gap:8px;position:static!important;padding:0;border:0;background:none}.pe-acciones [data-previa-btn]{background:#2d6ccc;color:#fff}.pe-acciones [data-crear]{background:#0f7f49;color:#fff}.pe-acciones .pe-msg{grid-column:1/-1}
+    .pe-dos{display:flex!important;flex-direction:column;gap:10px}.pe-dos>.pe-izq{display:contents}.pe-izq>.pe-garm{order:1}.pe-izq>label:not(.pe-garm){order:2}.pe-izq>div:not(.pe-sub){order:3}.pe-dos>*:not(.pe-izq){order:4}.pe-izq>.pe-sub{order:5;grid-template-columns:1fr!important}
+    .pe-izq>div:not(.pe-sub)>div[style*="display:flex"]{flex-direction:column;align-items:stretch}.pe-izq select{width:100%}
+    .pe-sug{background:#111a2e!important;border-color:#2a3858}.pe-sug button{color:#e6ebf5}.pe-sug button.on,.pe-sug button:hover{background:#16213a}
   }`;
   document.head.appendChild(css);
 
@@ -216,7 +232,7 @@
       </div>
       <div class="pe-abajo">
       <div class="pe-card"><h3>Detalles de la ${nombreDoc()}</h3><div class="pe-dos">
-        <div class="pe-grid pe-izq"><label>Observación<textarea name="observacion" maxlength="800" placeholder="Observación">${esc(guard.observacion)}</textarea></label>
+        <div class="pe-grid pe-izq"><label class="pe-garm">Garantía<textarea name="garantia_m" maxlength="255" placeholder="Garantía">${esc(guard.garantia)}</textarea></label><label>Observación<textarea name="observacion" maxlength="800" placeholder="Observación">${esc(guard.observacion)}</textarea></label>
           <div><div style="display:flex;gap:8px;align-items:end"><label style="flex:1;min-width:0">Retenciones<select data-ret-sel>${opciones((c.retenciones || []).filter(r => !st.retenciones.includes(r.id)), '', 'Seleccionar…')}</select></label><button class="pe-btn sec mini" type="button" data-ret-add>+ Agregar</button></div>
             <div class="pe-chips">${st.retenciones.map(id => { const r = (c.retenciones || []).find(x => x.id === id); return '<span class="pe-chip">' + esc(r ? r.nombre : id) + '<button type="button" data-ret-quitar="' + id + '" aria-label="Quitar">✕</button></span>'; }).join('')}</div></div>
           <div class="pe-sub"><label>Descuento pronto pago ($)<input name="pronto" inputmode="decimal" placeholder="0" value="${esc(st.pronto)}"></label><label>Fecha pronto pago<input type="date" name="fecha_pronto" value="${esc(st.fechaPronto)}"></label></div></div>
@@ -403,6 +419,8 @@
     panel.querySelectorAll('[data-ret-quitar]').forEach(b => b.onclick = () => { st.retenciones = st.retenciones.filter(x => x !== Number(b.dataset.retQuitar)); invalidar(); dibujar(); });
     ['sucursal', 'bodega', 'centro_costos', 'vendedor', 'fecha_entrega', 'garantia', 'observacion'].forEach(n => { const e = q('[name="' + n + '"]'); if (e) e.addEventListener('input', () => { invalidar(); if (n === 'sucursal') dibujar(); }); });
     const dir = q('[name="direccion"]'); if (dir) dir.onchange = () => { st.direccion = Number(dir.value); invalidar(); };
+    const gm = q('[name="garantia_m"]'); if (gm) gm.addEventListener('input', () => { const g = q('[name="garantia"]'); g.value = gm.value; g.dispatchEvent(new Event('input', { bubbles: true })); });
+    const gt = q('[name="garantia"]'); if (gt && gm) gt.addEventListener('input', () => { if (gm.value !== gt.value) gm.value = gt.value; });
     const cq = q('[name="cliente-q"]');
     cq.addEventListener('input', () => { if (st.cliente) { st.cliente = null; st.direccion = -1; refrescarDirecciones(); } invalidar(); buscarCliente(cq.value, cq); });
     cq.addEventListener('keydown', teclaSug);
