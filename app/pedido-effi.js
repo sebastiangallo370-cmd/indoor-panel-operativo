@@ -208,7 +208,7 @@
           <label>Descuento global (%)<input name="global" inputmode="decimal" placeholder="0" value="${esc(st.global)}"></label>
         </div>
         <div class="pe-grid pe-fila2">
-          <label>Cliente*<input name="cliente-q" autocomplete="off" placeholder="Buscar por nombre (3 letras)…" value="${esc(st.cliente ? st.cliente.nombre : guard['cliente-q'])}"></label>
+          <label>Cliente*<input name="cliente-q" autocomplete="off" autocapitalize="words" autocorrect="off" spellcheck="false" enterkeyhint="search" placeholder="Buscar por nombre (3 letras)…" value="${esc(st.cliente ? st.cliente.nombre : guard['cliente-q'])}"></label>
           <label>Dirección del cliente<select name="direccion">${st.cliente && st.cliente.direcciones.length ? st.cliente.direcciones.map((d, i) => '<option value="' + i + '"' + (i === st.direccion ? ' selected' : '') + '>' + esc((d.ciudad ? d.ciudad + ' · ' : '') + d.direccion) + '</option>').join('') : '<option value="-1">No registra</option>'}</select></label>
           <label class="pe-proy">Proyecto (Garantía)<input name="garantia" maxlength="255" autocomplete="off" placeholder="Ej. TEMPORADA 2027" value="${esc(guard.garantia)}"></label>
         </div>
@@ -217,7 +217,7 @@
         ${st.capturando ? `<div class="pe-cap"><label>Códigos: series, ID de artículo o GTIN/EPC<textarea data-cap-texto spellcheck="false" placeholder="Escanea o pega los códigos…">${esc(st.capTexto)}</textarea></label><p>Sepáralos con espacio, tab, salto de línea, coma, punto o punto y coma. Cada código agrega un concepto de cantidad 1; el mismo artículo repetido suma cantidad.</p><div class="fila"><button class="pe-btn mini" type="button" data-cap-ok>Agregar conceptos</button><button class="pe-btn sec mini" type="button" data-cap-cancel>Cancelar</button></div><p data-cap-msg class="pe-msg ${/No encontré|repetida/.test(st.capMsg) ? 'error' : ''}">${esc(st.capMsg)}</p></div>` : ''}
         <div data-lineas>${st.conceptos.map((l, i) => `
         <div class="pe-linea" data-i="${i}">
-          <label class="pe-art">Artículo*${l.id_serie ? ' · SERIE' : ''}<input data-f="ref" autocomplete="off" placeholder="Buscar referencia o nombre…" value="${esc(l.ref)}"></label>
+          <label class="pe-art">Artículo*${l.id_serie ? ' · SERIE' : ''}<input data-f="ref" name="articulo-q" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="search" placeholder="Referencia o nombre del artículo (ej. A200FUT01)" value="${esc(l.ref)}"></label>
           <label class="pe-desc">Descripción*<input data-f="descripcion" maxlength="120" value="${esc(l.descripcion)}" placeholder="Se llena al elegir el artículo"></label>
           <label>Cant.*<input data-f="cantidad" inputmode="decimal" value="${esc(l.cantidad)}" ${l.id_serie ? 'disabled' : ''}></label>
           <label>Precio ud.*<input data-f="precio" inputmode="decimal" value="${esc(l.precio)}"></label>
@@ -387,7 +387,7 @@
     try {
       const r = await api('/api/pedido-effi/clientes?q=' + encodeURIComponent(texto));
       if (box._ancla !== input || box.hidden) return;
-      mostrarSug(input, r.clientes.length ? r.clientes.map((c, i) => '<button type="button" data-i="' + i + '"><span class="n">' + resaltar(c.nombre, texto) + '</span><span class="d">' + esc(c.documento) + '</span></button>').join('') : '<div class="pe-sug-nota">Sin resultados para «' + esc(texto.trim()) + '»</div>', r.clientes, 'c');
+      mostrarSug(input, r.clientes.length ? r.clientes.map((c, i) => '<button type="button" data-i="' + i + '"><span class="n">' + resaltar(c.nombre, texto) + '</span><span class="d">' + esc(c.documento) + '</span></button>').join('') : '<div class="pe-sug-nota">Sin resultados para «' + esc(texto.trim()) + '»<br><small>Este campo busca ARTÍCULOS por referencia o nombre. El cliente se busca en el campo «Cliente» de arriba.</small></div>', r.clientes, 'c');
     } catch (e) { box.hidden = true; msg(String(e.message || e), 'error'); }
   }, 300);
   const buscarArticulo = debounce(async (texto, input, i) => {
