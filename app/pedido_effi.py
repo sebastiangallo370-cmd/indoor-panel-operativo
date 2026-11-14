@@ -169,13 +169,19 @@ def articulos(request: Request, q: str = ''):
     filas = _effi(effi_api._lista, 'articulo', {'referencia': q + '%'})
     if len(filas) < 25:
         vistos = {a['id'] for a in filas}
-        extra = _effi(effi_api._lista, 'articulo', {'descripcion': q})
-        if not extra and ' ' in q:   # varias palabras en otro orden («futbol uniforme»): se busca la más larga y se filtra por todas
+        def _buscar(filtro: dict) -> list:
+            try:
+                return _effi(effi_api._lista, 'articulo', filtro)
+            except Exception:  # noqa: BLE001 - una búsqueda extra que falle nunca debe tumbar los resultados que ya hay
+                return []
+        extra = _buscar({'descripcion': q})
+        sin = not filas and not extra   # los respaldos solo cuando no apareció nada
+        if sin and ' ' in q:   # varias palabras en otro orden («futbol uniforme»): se busca la más larga y se filtra por todas
             palabras = [w for w in q.split(' ') if w]
-            extra = [a for a in _effi(effi_api._lista, 'articulo', {'descripcion': max(palabras, key=len)})
+            extra = [a for a in _buscar({'descripcion': max(palabras, key=len)})
                      if all(w.upper() in (str(a.get('descripcion') or '') + ' ' + str(a.get('referencia') or '')).upper() for w in palabras)]
-        if not extra and len(filas) < 25 and len(q) >= 3:   # la referencia puede estar a mitad de texto
-            extra = _effi(effi_api._lista, 'articulo', {'referencia': '%' + q + '%'})
+        if sin and not extra and len(q) >= 3:   # la referencia puede estar a mitad de texto
+            extra = _buscar({'referencia': '%' + q + '%'})
         for a in extra:
             if a['id'] not in vistos:
                 vistos.add(a['id']); filas.append(a)

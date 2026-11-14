@@ -309,3 +309,16 @@ class Crear(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class BuscarArticulos(unittest.TestCase):
+    """Una búsqueda extra que falle en Effi nunca debe tumbar los resultados que ya aparecieron (pasó con el buscador del celular)."""
+    def test_si_falla_la_busqueda_por_descripcion_igual_salen_los_de_referencia(self):
+        def lista(recurso, filtros):
+            if 'referencia' in filtros and filtros['referencia'].endswith('%') and not filtros['referencia'].startswith('%'):
+                return [{'id': 1, 'referencia': 'A200FUT01', 'descripcion': 'UNIFORME FUTBOL', 'ventas': '1'}]
+            raise HTTPException(502, 'Effi no respondió')
+        with mock.patch.object(pe, '_usuario', lambda r: 'x'), mock.patch.object(pe, '_con_llave', lambda: None), \
+                mock.patch.object(pe, '_effi', lambda f, *a: f(*a)), mock.patch.object(effi_api, '_lista', lista):
+            r = pe.articulos(mock.Mock(), 'A200FUT0')
+        self.assertEqual([a['referencia'] for a in r['articulos']], ['A200FUT01'])

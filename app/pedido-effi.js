@@ -390,7 +390,7 @@
       const r = await api('/api/pedido-effi/articulos?q=' + encodeURIComponent(texto));
       if (box._ancla !== input || box.hidden) return;
       mostrarSug(input, r.articulos.length ? r.articulos.map((a, k) => '<button type="button" data-i="' + k + '"><span class="n">' + resaltar(a.referencia + ' · ' + a.descripcion, texto) + '</span><span class="d">' + (a.precio ? money(a.precio) : 'sin precio de lista') + (a.impuesto ? ' · ' + esc(a.impuesto) : '') + '</span></button>').join('') : '<div class="pe-sug-nota">Sin resultados para «' + esc(texto.trim()) + '»</div>', r.articulos, 'a', i);
-    } catch (e) { box.hidden = true; msg(String(e.message || e), 'error'); }
+    } catch (e) { mostrarSug(input, '<div class="pe-sug-nota">No se pudo buscar: ' + esc(String(e.message || e)) + '</div>', [], 'a', i); }
   }, 300);
 
   function enlazar() {
