@@ -468,6 +468,25 @@
     iniciar();
   }
   document.addEventListener('click', cierraSug);
+  // Teclado del celular: al enfocar un campo de la ventana del pedido (formulario, mockups o listado) se le deja espacio al final y se desplaza hasta verlo completo, por encima del teclado
+  (function () {
+    const vv = window.visualViewport; if (!vv) return;
+    const fondo = () => document.querySelector('.tc-pedido-fondo');
+    const tecladoAlto = () => Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+    function ajustar() { const f = fondo(); if (!f) return; const k = tecladoAlto(); f.style.paddingBottom = k > 80 ? (k + 16) + 'px' : ''; }
+    function mostrar(el) {
+      if (!el || !el.scrollIntoView) return;
+      const r = el.getBoundingClientRect(), libre = vv.height - 12;
+      if (r.bottom > libre || r.top < 60) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+    vv.addEventListener('resize', () => { ajustar(); const a = document.activeElement; if (a && a.closest && a.closest('.tc-pedido-fondo')) setTimeout(() => mostrar(a), 80); });
+    vv.addEventListener('scroll', ajustar);
+    document.addEventListener('focusin', e => {
+      const t = e.target; if (!t || !t.closest || !t.closest('.tc-pedido-fondo') || !/^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName)) return;
+      [250, 600].forEach(ms => setTimeout(() => { ajustar(); if (document.activeElement === t) mostrar(t); }, ms));   // el teclado tarda en abrir: se reintenta
+    });
+    document.addEventListener('focusout', () => setTimeout(ajustar, 200));
+  })();
   window.addEventListener('resize', () => posicionarSug());
   document.addEventListener('scroll', e => { const box = panel && q('[data-sug-global]'); if (box && !box.hidden && !box.contains(e.target)) box.hidden = true; }, true);
   window.PedidoEffi = { montar };
