@@ -57,6 +57,13 @@ class Construir(unittest.TestCase):
         self.assertEqual(r['resumen']['total'], 214200.0)   # (200.000 - 20.000) × 1,19
         self.assertEqual(r['cuerpo']['valor_forma_pago'], [214200.0])
 
+    def test_sin_iva_quita_el_impuesto_solo_de_ese_concepto(self):
+        p = base(conceptos=[{'articulo': 10, 'cantidad': 2, 'precio': 100000, 'descuento': 20000, 'sin_iva': True},
+                            {'articulo': 10, 'cantidad': 1, 'precio': 100000, 'descuento': 0}])
+        r = pe.construir(p)
+        self.assertEqual(r['cuerpo']['impuestos'], {'2': [7]})   # solo el segundo concepto lleva IVA
+        self.assertEqual(r['resumen']['total'], 180000.0 + 119000.0)
+
     def test_dos_formas_de_pago_la_vacia_toma_el_resto(self):
         r = pe.construir(base(formas_pago=[{'id': 2, 'valor': 350000}, {'id': 6, 'valor': ''}]))
         self.assertEqual(r['cuerpo']['valor_forma_pago'], [350000.0, 350000.0])

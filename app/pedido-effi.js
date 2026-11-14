@@ -150,7 +150,7 @@
   }`;
   document.head.appendChild(css);
 
-  const estadoInicial = () => ({ tipo: 'cotizacion', cat: null, estado: null, cliente: null, direccion: -1, conceptos: [], telas: {}, formas: [], clave: nuevaClave(), previa: false, prev: null, ocupado: false, hecho: null, capturando: false, capTexto: '', capMsg: '', moneda: 'COP', trm: '1', global: '', propina: '', propinaPct: false, retenciones: [], pronto: '', fechaPronto: '' });
+  const estadoInicial = () => ({ tipo: 'cotizacion', cat: null, estado: null, cliente: null, direccion: -1, conceptos: [], telas: {}, sinIvaTodos: false, formas: [], clave: nuevaClave(), previa: false, prev: null, ocupado: false, hecho: null, capturando: false, capTexto: '', capMsg: '', moneda: 'COP', trm: '1', global: '', propina: '', propinaPct: false, retenciones: [], pronto: '', fechaPronto: '' });
   const st = estadoInicial();
   let panel = null;
   const q = s => panel.querySelector(s);
@@ -166,7 +166,7 @@
   const debounce = (fn, ms) => { let t = 0; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
   const msg = (t, tipo) => { const m = q('[data-msg]'); if (m) { m.textContent = t || ''; m.className = 'pe-msg ' + (tipo || ''); } };
 
-  const lineaVacia = () => ({ articulo: 0, ref: '', descripcion: '', cantidad: 1, precio: '', descuento: 0, dtipo: 'valor', obsequio: false, obs: '', impuesto: '', abierta: false, id_serie: null });
+  const lineaVacia = () => ({ articulo: 0, ref: '', descripcion: '', cantidad: 1, precio: '', descuento: 0, dtipo: 'valor', obsequio: false, sinIva: false, obs: '', impuesto: '', abierta: false, id_serie: null });
   const num = v => { const n = Number(String(v).replace(',', '.')); return isFinite(n) ? n : 0; };
   const brutoDe = l => num(l.cantidad) * num(l.precio);
   // descuento de un concepto en $: obsequio = 100 %; en % se calcula sobre su bruto; en valor se usa tal cual
@@ -176,7 +176,7 @@
   // Estimado local hasta la VISTA PREVIA (que trae el cálculo exacto de Effi): IVA de cada concepto, propina y retenciones sobre el subtotal
   function estimado() {
     const t = totales(); let imp = 0;
-    st.conceptos.forEach(l => { const base = l.obsequio ? brutoDe(l) : brutoDe(l) - descDe(l); imp += base * pctDe(l.impuesto) / 100; });
+    st.conceptos.forEach(l => { const base = l.obsequio ? brutoDe(l) : brutoDe(l) - descDe(l); if (!l.sinIva) imp += base * pctDe(l.impuesto) / 100; });
     const prop = propinaValor() || 0, ret = (st.retenciones || []).reduce((a, id) => { const r = ((st.cat || {}).retenciones || []).find(x => x.id === id); return a + (r ? t.s * pctDe(r.nombre) / 100 : 0); }, 0);
     return { imp: Math.round(imp), ret: Math.round(ret), neto: Math.round(t.s + imp + prop - ret) };
   }
@@ -225,7 +225,7 @@
           <label class="pe-proy">Proyecto (Garantía)<input name="garantia" maxlength="255" autocomplete="off" placeholder="Ej. TEMPORADA 2027" value="${esc(guard.garantia)}"></label>
         </div>
       </div>
-      <div class="pe-card pe-con"><div class="pe-h3row"><h3>Conceptos</h3></div>
+      <div class="pe-card pe-con"><div class="pe-h3row"><h3>Conceptos</h3><label class="pe-chk pe-siniva-todos" style="margin-left:auto"><input type="checkbox" data-siniva-todos ${st.sinIvaTodos ? 'checked' : ''}> Sin IVA (todos)</label></div>
         <div data-lineas>${st.conceptos.map((l, i) => `
         <div class="pe-linea" data-i="${i}">
           <label class="pe-art">Artículo*${l.id_serie ? ' · SERIE' : ''}<input data-f="ref" name="articulo-q" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="search" placeholder="Referencia o nombre del artículo (ej. A200FUT01)" value="${esc(l.ref)}"></label>
@@ -234,10 +234,10 @@
           <label>Precio ud.*<input data-f="precio" inputmode="decimal" value="${esc(l.precio)}"></label>
           <label>Bruto<input value="${money(brutoDe(l))}" disabled></label>
           <label>Descuento<div class="pe-dto"><input data-f="descuento" inputmode="decimal" value="${esc(l.obsequio ? '100' : l.descuento)}" ${l.obsequio ? 'disabled' : ''}><button class="pe-pct" type="button" data-dtipo title="Cambiar entre valor ($) y porcentaje (%)">${l.obsequio || l.dtipo === 'pct' ? '%' : '$'}</button></div></label>
-          <label>Impuesto<input value="${esc(l.impuesto || '—')}" disabled></label>
+          <label>Impuesto<input value="${l.sinIva ? 'Sin IVA' : esc(l.impuesto || '—')}" disabled></label>
           <div><span style="color:#c9d3c1;font:800 11px Arial;letter-spacing:.08em">Total sin IVA</span><div class="pe-total-linea">${money(brutoDe(l) - descDe(l))}</div></div>
           <button class="pe-x" type="button" data-quitar aria-label="Quitar concepto">✕</button>
-          <div class="pe-tela" data-tela>${telaHtml(l)}</div><div class="pe-mas"><button type="button" class="pe-link" data-detalles>${l.abierta ? '▾' : '▸'} Más detalles${l.obsequio || l.obs ? ' ●' : ''}</button>${l.abierta ? `<div class="pe-detalles"><label class="pe-chk"><input type="checkbox" data-obsequio ${l.obsequio ? 'checked' : ''}> Sumar solo impuestos para Obsequio, degustación o donación (descuento del 100 %)</label><label>Observación del concepto<input data-f="obs" maxlength="250" value="${esc(l.obs)}" placeholder="Opcional"></label></div>` : ''}</div>
+          <div class="pe-tela" data-tela>${telaHtml(l)}</div><div class="pe-mas"><button type="button" class="pe-link" data-detalles>${l.abierta ? '▾' : '▸'} Más detalles${l.obsequio || l.obs || l.sinIva ? ' ●' : ''}</button>${l.abierta ? `<div class="pe-detalles"><label class="pe-chk"><input type="checkbox" data-obsequio ${l.obsequio ? 'checked' : ''}> Sumar solo impuestos para Obsequio, degustación o donación (descuento del 100 %)</label><label class="pe-chk"><input type="checkbox" data-siniva ${l.sinIva ? 'checked' : ''}> Sin IVA en este concepto</label><label>Observación del concepto<input data-f="obs" maxlength="250" value="${esc(l.obs)}" placeholder="Opcional"></label></div>` : ''}</div>
         </div>`).join('')}</div>
         <div style="margin-top:10px"><button class="pe-btn sec mini" type="button" data-mas>+ Agregar concepto</button></div>
       </div>
@@ -271,7 +271,7 @@
       tipo: st.tipo, clave: st.clave, sucursal: valor('sucursal'), bodega: valor('bodega'), centro_costos: valor('centro_costos'), fecha_entrega: valor('fecha_entrega'),
       cliente: st.cliente ? st.cliente.tercero : '', direccion: d || undefined, vendedor: valor('vendedor') || undefined, garantia: valor('garantia'), observacion: valor('observacion'),
       divisa: st.moneda, trm: st.trm, descuento_global: st.global || 0, propina: propinaValor() || 0, retenciones: st.retenciones, prontopago: st.pronto || 0, fecha_prontopago: st.fechaPronto,
-      conceptos: st.conceptos.map(l => ({ articulo: l.articulo, descripcion: l.descripcion, cantidad: l.cantidad, precio: l.precio, descuento: descDe(l), obsequio: l.obsequio, observacion: l.obs, id_serie: l.id_serie || undefined })),
+      conceptos: st.conceptos.map(l => ({ articulo: l.articulo, descripcion: l.descripcion, cantidad: l.cantidad, precio: l.precio, descuento: descDe(l), obsequio: l.obsequio, sin_iva: !!l.sinIva, observacion: l.obs, id_serie: l.id_serie || undefined })),
       formas_pago: st.formas.map(f => ({ id: f.id, valor: f.valor })),
     };
   }
@@ -430,10 +430,12 @@
       if (/^A\d+[A-Z]{1,8}\d{2}/i.test(String(l.ref || ''))) cargarTela(l.ref);
       row.querySelector('[data-dtipo]').onclick = () => { if (l.obsequio) return; l.dtipo = l.dtipo === 'pct' ? 'valor' : 'pct'; invalidar(); dibujar(); };
       row.querySelector('[data-detalles]').onclick = () => { l.abierta = !l.abierta; dibujar(); };
+      const si = row.querySelector('[data-siniva]'); if (si) si.onchange = () => { l.sinIva = si.checked; st.sinIvaTodos = st.conceptos.every(x => x.sinIva); invalidar(); dibujar(); };
       const ob = row.querySelector('[data-obsequio]'); if (ob) ob.onchange = () => { l.obsequio = ob.checked; invalidar(); dibujar(); };
       row.querySelector('[data-quitar]').onclick = () => { st.conceptos.splice(i, 1); if (!st.conceptos.length) st.conceptos.push(lineaVacia()); invalidar(); dibujar(); };
     });
-    q('[data-mas]').onclick = () => { st.conceptos.push(lineaVacia()); invalidar(); dibujar(); };
+    q('[data-mas]').onclick = () => { const n = lineaVacia(); n.sinIva = st.sinIvaTodos; st.conceptos.push(n); invalidar(); dibujar(); };
+    const sit = q('[data-siniva-todos]'); if (sit) sit.onchange = () => { st.sinIvaTodos = sit.checked; st.conceptos.forEach(l => { l.sinIva = sit.checked; }); invalidar(); dibujar(); };
     panel.querySelectorAll('[data-formas] .pe-forma').forEach(row => {
       const j = Number(row.dataset.j);
       row.querySelectorAll('[data-g]').forEach(inp => inp.addEventListener('input', () => { st.formas[j][inp.dataset.g] = inp.value; invalidar(); }));

@@ -327,6 +327,8 @@ def construir(p: dict, usuario: str = '') -> dict:
                     raise HTTPException(400, f"El impuesto «{x.get('etiqueta')}» del artículo {art.get('referencia')} no es de porcentaje: no sé calcularlo")
             arts[aid] = (art, imps)
         art, imps = arts[aid]
+        if l.get('sin_iva'):   # el comercial pidió quitar el IVA de este concepto: se crea sin impuestos
+            imps = []
         efectivo = bruto if obsequio else desc   # un obsequio se descuenta al 100 %
         base = bruto - efectivo
         base_imp = bruto if obsequio else base   # comprobado en Effi: el obsequio NO deja de pagar IVA (se calcula sobre el valor completo y el total de la línea son solo los impuestos)
