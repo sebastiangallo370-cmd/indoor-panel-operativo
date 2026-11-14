@@ -39,7 +39,7 @@
   .pe-pct{all:unset;cursor:pointer;box-sizing:border-box;min-width:38px;height:42px;display:grid;place-items:center;border:1px solid #3d4c3b;border-radius:10px;background:#142017;color:#d0f44c;font:900 14px Arial}
   .pe-pct:hover{border-color:#d0f44c}
   .pe-tela{grid-column:1/-1;font:700 12px Arial;color:#d0f44c;letter-spacing:.02em}.pe-tela:empty{display:none}.pe-tela small{color:#a9b5a3;font-weight:700}.pe-tela.no{color:#e8b86a}
-  .pe-fila2{grid-template-columns:minmax(260px,2fr) minmax(220px,1.4fr) minmax(220px,1.6fr)!important;margin-top:0!important;align-items:start}
+  .pe-fila2{grid-template-columns:minmax(200px,1.1fr) minmax(200px,1fr) minmax(200px,1fr) auto!important;margin-top:0!important;align-items:end}.pe-fila2 .pe-mk-btn{white-space:nowrap}
   @media(max-width:999px){.pe-fila2{grid-template-columns:1fr!important}}
   .pe-mas{grid-column:1/-1}.pe-link{all:unset;cursor:pointer;color:#a9b5a3;font:800 12px Arial;letter-spacing:.06em}.pe-link:hover{color:#d0f44c}
   .pe-detalles{display:grid;gap:10px;grid-template-columns:minmax(180px,1fr) 2fr;margin-top:8px;padding:10px;border:1px dashed rgba(255,255,255,.18);border-radius:10px}
@@ -122,6 +122,15 @@
     .pe-acciones{position:static;padding:0;border:0;background:none}.pe-btn{width:100%}.pe-msg{padding:0 4px}
   }
   .pe-sm{display:none}
+  .pe-link-mk{margin-left:14px;color:#d0f44c}
+  .pe-mk{position:fixed;inset:0;z-index:2147483000;background:rgba(0,0,0,.9);display:flex;flex-direction:column;font-family:Arial,sans-serif;color:#f5faef}
+  .pe-mk-top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.16)}
+  .pe-mk-top b{font:900 14px Arial}.pe-mk-top small{display:block;color:#a9b5a3;font:600 12px Arial;margin-top:2px}
+  .pe-mk-x{all:unset;cursor:pointer;padding:8px 16px;border:1px solid rgba(255,255,255,.3);border-radius:99px;font:800 12px Arial}
+  .pe-mk-cuerpo{flex:1;overflow:auto;padding:14px;display:flex;flex-wrap:wrap;gap:16px;justify-content:center;align-content:flex-start}
+  .pe-mk-fig{margin:0;max-width:min(560px,100%)}.pe-mk-fig img{display:block;max-width:100%;max-height:calc(100vh - 150px);border-radius:8px;background:#fff;cursor:zoom-in}.pe-mk-fig figcaption{margin-top:6px;text-align:center;font:800 12px Arial;letter-spacing:.06em}
+  .pe-mk-fig.grande{max-width:100%}.pe-mk-fig.grande img{max-height:none;cursor:zoom-out}
+  .pe-mk-aviso{width:100%;max-width:520px;text-align:center;font:700 14px/1.5 Arial;color:#ffd78a;padding:30px 10px}
   @media(max-width:700px){
     /* Vista móvil con la disposición de Effi (una columna, campos a todo el ancho, etiquetas a la izquierda) y los colores de INDOOR */
     .tc-pedido-fondo{overflow-x:hidden!important}.tc-pedido-card{max-width:100%;box-sizing:border-box;overflow-x:hidden}.tc-pedido-fondo:has(.pe-enc){padding:0!important}.tc-pedido-card:has(.pe-enc){border:0!important;border-radius:0!important;padding:10px!important}
@@ -222,7 +231,7 @@
         <div class="pe-grid pe-fila2">
           <label>Cliente*<input name="cliente-q" autocomplete="off" autocapitalize="words" autocorrect="off" spellcheck="false" enterkeyhint="search" placeholder="Buscar por nombre (3 letras)…" value="${esc(st.cliente ? st.cliente.nombre : guard['cliente-q'])}"></label>
           <label>Dirección del cliente<select name="direccion">${st.cliente && st.cliente.direcciones.length ? st.cliente.direcciones.map((d, i) => '<option value="' + i + '"' + (i === st.direccion ? ' selected' : '') + '>' + esc((d.ciudad ? d.ciudad + ' · ' : '') + d.direccion) + '</option>').join('') : '<option value="-1">No registra</option>'}</select></label>
-          <label class="pe-proy">Nombre del proyecto (Garantía)${proyectoHtml(guard.garantia)}</label>
+          <label class="pe-proy">Nombre del proyecto (Garantía)${proyectoHtml(guard.garantia)}</label><button class="pe-btn sec mini pe-mk-btn" type="button" data-mockups-todos title="Ver los mockups del proyecto para las referencias elegidas">👁 Ver mockups</button>
         </div>
       </div>
       <div class="pe-card pe-con"><div class="pe-h3row"><h3>Conceptos</h3><label class="pe-chk pe-siniva-todos" style="margin-left:auto"><input type="checkbox" data-siniva-todos ${st.sinIvaTodos ? 'checked' : ''}> Sin IVA (todos)</label></div>
@@ -237,7 +246,7 @@
           <label>Impuesto<select data-siniva-sel><option value="0"${l.sinIva ? '' : ' selected'}>${esc(l.impuesto || 'Sin impuesto')}</option>${l.impuesto ? `<option value="1"${l.sinIva ? ' selected' : ''}>Quitar IVA (sin impuesto)</option>` : ''}</select></label>
           <div><span style="color:#c9d3c1;font:800 11px Arial;letter-spacing:.08em">Total sin IVA</span><div class="pe-total-linea">${money(brutoDe(l) - descDe(l))}</div></div>
           <button class="pe-x" type="button" data-quitar aria-label="Quitar concepto">✕</button>
-          <div class="pe-tela" data-tela>${telaHtml(l)}</div><div class="pe-mas"><button type="button" class="pe-link" data-detalles>${l.abierta ? '▾' : '▸'} Más detalles${l.obsequio || l.obs || l.sinIva ? ' ●' : ''}</button>${l.abierta ? `<div class="pe-detalles"><label class="pe-chk"><input type="checkbox" data-obsequio ${l.obsequio ? 'checked' : ''}> Sumar solo impuestos para Obsequio, degustación o donación (descuento del 100 %)</label><label class="pe-chk"><input type="checkbox" data-siniva ${l.sinIva ? 'checked' : ''}> Sin IVA en este concepto</label><label>Observación del concepto<input data-f="obs" maxlength="250" value="${esc(l.obs)}" placeholder="Opcional"></label></div>` : ''}</div>
+          <div class="pe-tela" data-tela>${telaHtml(l)}</div><div class="pe-mas"><button type="button" class="pe-link" data-detalles>${l.abierta ? '▾' : '▸'} Más detalles${l.obsequio || l.obs || l.sinIva ? ' ●' : ''}</button><button type="button" class="pe-link pe-link-mk" data-mockups title="Ver los mockups de este proyecto para la referencia de este concepto">👁 Ver mockups</button>${l.abierta ? `<div class="pe-detalles"><label class="pe-chk"><input type="checkbox" data-obsequio ${l.obsequio ? 'checked' : ''}> Sumar solo impuestos para Obsequio, degustación o donación (descuento del 100 %)</label><label class="pe-chk"><input type="checkbox" data-siniva ${l.sinIva ? 'checked' : ''}> Sin IVA en este concepto</label><label>Observación del concepto<input data-f="obs" maxlength="250" value="${esc(l.obs)}" placeholder="Opcional"></label></div>` : ''}</div>
         </div>`).join('')}</div>
         <div style="margin-top:10px"><button class="pe-btn sec mini" type="button" data-mas>+ Agregar concepto</button></div>
       </div>
@@ -377,6 +386,30 @@
     } catch (e) { if (st.cliente && st.cliente.nombre === c.nombre) Object.assign(y, { cargando: false, lista: [], error: 'No pude traer los proyectos de la NAS: escribe uno nuevo.' }); }
     dibujar();
   }
+  // Vista previa de los mockups: del proyecto elegido (carpeta MAESTROS del cliente en la NAS) y de la referencia del concepto (o de todas las elegidas)
+  async function verMockups(l) {
+    const ov = document.createElement('div'); ov.className = 'pe-mk';
+    const tecla = e => { if (e.key === 'Escape') cierra(); };
+    const cierra = () => { ov.remove(); document.removeEventListener('keydown', tecla); };
+    const proyecto = valor('garantia').trim(), conceptos = l ? [l] : st.conceptos.filter(c => c.articulo && String(c.ref || '').trim());
+    const refs = [...new Set(conceptos.map(c => String(c.ref || '').trim()).filter(Boolean))];
+    ov.innerHTML = '<div class="pe-mk-top"><div><b>Mockups' + (proyecto ? ' · ' + esc(proyecto) : '') + '</b><small>' + (refs.length ? 'Referencia' + (refs.length > 1 ? 's' : '') + ' ' + esc(refs.join(', ')) : '') + '</small></div><button class="pe-mk-x" type="button">CERRAR ✕</button></div><div class="pe-mk-cuerpo"><div class="pe-mk-aviso">Buscando en la NAS…</div></div>';
+    document.body.appendChild(ov); document.addEventListener('keydown', tecla);
+    ov.querySelector('.pe-mk-x').onclick = cierra; ov.addEventListener('click', e => { if (e.target === ov) cierra(); });
+    const cuerpo = ov.querySelector('.pe-mk-cuerpo'), aviso = t => { cuerpo.innerHTML = '<div class="pe-mk-aviso">' + esc(t) + '</div>'; };
+    if (!st.cliente) return aviso('Primero elige el cliente (debe ser un cliente existente).');
+    if (!refs.length || (l && !l.articulo)) return aviso('Primero elige la referencia en el concepto.');
+    if (!proyecto) return aviso('Primero elige el nombre del proyecto de la lista.');
+    if (!st.proy.lista.includes(proyecto)) return aviso('«' + proyecto + '» es un proyecto nuevo: no tiene mockups guardados en la NAS. Elige uno de la lista para verlos.');
+    try {
+      const qs = 'cliente=' + encodeURIComponent(st.cliente.nombre) + '&proyecto=' + encodeURIComponent(proyecto);
+      const respuestas = await Promise.all(refs.map(rf => api('/api/pedido-effi/mockups?' + qs + '&ref=' + encodeURIComponent(rf))));
+      const items = respuestas.flatMap(x => x.items);
+      if (!items.length) return aviso((respuestas.find(x => x.motivo) || {}).motivo || 'No encontré mockups para esa referencia.');
+      cuerpo.innerHTML = items.map(i => '<figure class="pe-mk-fig"><img loading="lazy" alt="' + esc(i.ref + ' D' + i.diseno) + '" src="/api/pedido-effi/mockup-img?' + qs + '&carpeta=' + encodeURIComponent(i.carpeta) + '&archivo=' + encodeURIComponent(i.archivo) + '"><figcaption>' + esc(i.ref) + ' · DISEÑO ' + i.diseno + '</figcaption></figure>').join('');
+      cuerpo.querySelectorAll('.pe-mk-fig img').forEach(im => im.onclick = () => im.closest('.pe-mk-fig').classList.toggle('grande'));
+    } catch (e) { aviso('No pude traer los mockups: ' + String(e.message || e)); }
+  }
   function elegirSug(idx) {
     const box = q('[data-sug-global]'); if (!box || !box._lista || !box._lista[idx]) return;
     if (box._tipo === 'c') {
@@ -435,6 +468,7 @@
     panel.querySelectorAll('[data-ret-quitar]').forEach(b => b.onclick = () => { st.retenciones = st.retenciones.filter(x => x !== Number(b.dataset.retQuitar)); invalidar(); dibujar(); });
     ['sucursal', 'bodega', 'centro_costos', 'vendedor', 'fecha_entrega', 'garantia', 'observacion'].forEach(n => { const e = q('[name="' + n + '"]'); if (e) e.addEventListener('input', () => { invalidar(); if (n === 'sucursal') dibujar(); }); });
     const dir = q('[name="direccion"]'); if (dir) dir.onchange = () => { st.direccion = Number(dir.value); invalidar(); };
+    const mkb = q('[data-mockups-todos]'); if (mkb) mkb.onclick = () => verMockups(null);
     const ps = q('[name="proyecto_sel"]'); if (ps) ps.addEventListener('change', () => {
       const t = q('[name="garantia"]'); if (!t) return;
       if (ps.value === '__nuevo') { st.proyNuevo = true; t.type = 'text'; t.hidden = false; t.value = ''; t.focus(); }
@@ -458,6 +492,7 @@
       if (/^A\d+[A-Z]{1,8}\d{2}/i.test(String(l.ref || ''))) cargarTela(l.ref);
       row.querySelector('[data-dtipo]').onclick = () => { if (l.obsequio) return; l.dtipo = l.dtipo === 'pct' ? 'valor' : 'pct'; invalidar(); dibujar(); };
       row.querySelector('[data-detalles]').onclick = () => { l.abierta = !l.abierta; dibujar(); };
+      row.querySelector('[data-mockups]').onclick = () => verMockups(l);
       const ss = row.querySelector('[data-siniva-sel]'); if (ss) ss.onchange = () => { l.sinIva = ss.value === '1'; st.sinIvaTodos = st.conceptos.every(x => x.sinIva); invalidar(); dibujar(); };
       const si = row.querySelector('[data-siniva]'); if (si) si.onchange = () => { l.sinIva = si.checked; st.sinIvaTodos = st.conceptos.every(x => x.sinIva); invalidar(); dibujar(); };
       const ob = row.querySelector('[data-obsequio]'); if (ob) ob.onchange = () => { l.obsequio = ob.checked; invalidar(); dibujar(); };

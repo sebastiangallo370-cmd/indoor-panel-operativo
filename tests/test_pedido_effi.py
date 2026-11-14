@@ -357,3 +357,44 @@ class ProyectosDelCliente(unittest.TestCase):
                 self.assertEqual(pe.proyectos_de_cliente('Nicolas Antonio Rave')['proyectos'], [])   # carpeta sin MAESTROS
                 self.assertEqual(pe.proyectos_de_cliente('PEDRO PEREZ'), {'carpeta': None, 'proyectos': []})
             pe._cache_carpetas.update(t=0.0, nombres=[]); pe._cache_proyectos.clear()
+
+
+class MockupsDelProyecto(unittest.TestCase):
+    def _arbol(self, raiz: Path):
+        proy = raiz / 'CLUB SAN LORENZO DE LA PAZ' / 'MAESTROS' / 'UNIFORMES 2027'
+        for carpeta, archivos in (('FUT01_ D1_D2', ['FUT01_D1_EPSON JESAM.jpg', 'FUT01_D1_MUESTRA.ai', 'textura.psd']),
+                                  ('FUT02_D1_D2_', ['FUT02_D1_EPSON JESAM.jpg', 'FUT02_D2_EPSON_JESAM.jpg', 'FUT02_D1_MUESTRA.pdf'])):
+            (proy / carpeta).mkdir(parents=True)
+            for a in archivos:
+                (proy / carpeta / a).write_bytes(b'x')
+        return proy
+
+    def test_solo_salen_los_jpg_de_la_referencia_elegida(self):
+        from app import club
+        with tempfile.TemporaryDirectory() as d:
+            self._arbol(Path(d))
+            pe._cache_carpetas.update(t=0.0, nombres=[]); pe._cache_proyectos.clear()
+            with mock.patch.object(club, '_clientes_root', lambda: d):
+                r = pe.mockups_de('CLUB SAN LORENZO DE LA PAZ', 'UNIFORMES 2027', 'A200FUT02')
+                self.assertEqual([(i['diseno'], i['archivo']) for i in r['items']], [(1, 'FUT02_D1_EPSON JESAM.jpg'), (2, 'FUT02_D2_EPSON_JESAM.jpg')])
+                self.assertEqual([i['archivo'] for i in pe.mockups_de('CLUB SAN LORENZO DE LA PAZ', 'UNIFORMES 2027', 'A100FUT01')['items']], ['FUT01_D1_EPSON JESAM.jpg'])
+                self.assertEqual(pe.mockups_de('CLUB SAN LORENZO DE LA PAZ', 'UNIFORMES 2027', 'A100CA09')['items'], [])
+                self.assertEqual(pe.mockups_de('CLUB SAN LORENZO DE LA PAZ', 'OTRO PROYECTO', 'A100FUT01')['items'], [])   # un proyecto que no está en MAESTROS no se abre
+            pe._cache_carpetas.update(t=0.0, nombres=[]); pe._cache_proyectos.clear()
+
+    def test_referencias_base(self):
+        self.assertEqual(pe.referencias_base('A200FUT01'), ['FUT01'])
+        self.assertEqual(pe.referencias_base('A100CA02-A100PT01'), ['CA02', 'PT01'])
+
+    def test_la_imagen_no_sale_de_la_carpeta_del_proyecto(self):
+        from app import club
+        with tempfile.TemporaryDirectory() as d, mock.patch.object(pe, '_usuario', lambda r: 'x'):
+            self._arbol(Path(d))
+            pe._cache_carpetas.update(t=0.0, nombres=[]); pe._cache_proyectos.clear()
+            with mock.patch.object(club, '_clientes_root', lambda: d):
+                ok = pe.mockup_img(mock.Mock(), 'CLUB SAN LORENZO DE LA PAZ', 'UNIFORMES 2027', 'FUT02_D1_D2_', 'FUT02_D1_EPSON JESAM.jpg')
+                self.assertTrue(str(ok.path).endswith('FUT02_D1_EPSON JESAM.jpg'))
+                for carpeta, archivo in (('..', 'x.jpg'), ('FUT02_D1_D2_', '../../x.jpg'), ('FUT02_D1_D2_', 'FUT02_D1_MUESTRA.pdf')):
+                    with self.assertRaises(HTTPException):
+                        pe.mockup_img(mock.Mock(), 'CLUB SAN LORENZO DE LA PAZ', 'UNIFORMES 2027', carpeta, archivo)
+            pe._cache_carpetas.update(t=0.0, nombres=[]); pe._cache_proyectos.clear()

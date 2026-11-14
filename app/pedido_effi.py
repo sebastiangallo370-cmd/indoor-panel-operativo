@@ -515,6 +515,90 @@ def proyectos(request: Request, cliente: str = ''):
         return {'carpeta': None, 'proyectos': []}
     return proyectos_de_cliente(cliente)
 
+# ---------------------------------------------------------------- Mockups de un proyecto (CLIENTE/MAESTROS/PROYECTO/REFERENCIA_D1_D2/REFERENCIA_D1_MAQUINA.jpg)
+EXT_IMAGEN = {'.jpg', '.jpeg', '.png', '.webp'}
+
+
+def _plano_ref(texto: str) -> str:
+    return re.sub(r'[^A-Z0-9]', '', str(texto or '').upper())
+
+
+def referencias_base(ref: str) -> list[str]:
+    """«A200FUT01» -> ['FUT01'] (se quita el código de tela); «A100CA02-A100PT01» -> ['CA02', 'PT01']."""
+    from app import promedios
+    partes = promedios.partes_de_hoja(str(ref or '').strip().upper().replace(' ', ''))
+    return [_plano_ref(p) for p in partes if _plano_ref(p)]
+
+
+def _dir_proyecto(cliente: str, proyecto: str) -> tuple[Path, str] | None:
+    """(carpeta del proyecto, nombre de la carpeta del cliente) o None. Solo carpetas reales dentro de CLIENTE/MAESTROS: sin rutas de otro lado."""
+    info = proyectos_de_cliente(cliente)
+    raiz = _raiz_clientes()
+    if raiz is None or not info.get('carpeta') or proyecto not in info.get('proyectos', []):
+        return None
+    base = raiz / info['carpeta']
+    maestros = next((p for p in base.iterdir() if p.is_dir() and p.name.strip().upper() == 'MAESTROS'), None)
+    if maestros is None:
+        return None
+    destino = maestros / proyecto
+    try:
+        destino.resolve().relative_to(maestros.resolve())
+    except ValueError:
+        return None
+    return (destino, info['carpeta']) if destino.is_dir() else None
+
+
+def mockups_de(cliente: str, proyecto: str, ref: str) -> dict:
+    """Imágenes (JPG de impresión: REFERENCIA_Dn_MAQUINA.jpg) de las carpetas de esa referencia dentro del proyecto. Solo lectura."""
+    ubicado = _dir_proyecto(cliente, proyecto)
+    if ubicado is None:
+        return {'items': [], 'motivo': 'El proyecto no está en la carpeta MAESTROS del cliente.'}
+    carpeta_proyecto, _ = ubicado
+    bases = referencias_base(ref)
+    items = []
+    try:
+        for sub in sorted((p for p in carpeta_proyecto.iterdir() if p.is_dir()), key=lambda p: p.name.upper()):
+            nombre = _plano_ref(sub.name)
+            base = next((b for b in bases if nombre.startswith(b)), None)
+            if not base:
+                continue
+            for f in sorted((x for x in sub.iterdir() if x.is_file() and x.suffix.lower() in EXT_IMAGEN), key=lambda x: x.name.upper()):
+                m = re.match(r'^\s*' + re.escape(base) + r'[\s_-]*D\s*(\d+)', f.name, re.I)
+                if m:
+                    items.append({'ref': base, 'diseno': int(m.group(1)), 'carpeta': sub.name, 'archivo': f.name})
+    except OSError:
+        return {'items': [], 'motivo': 'No pude leer la NAS ahora.'}
+    items.sort(key=lambda i: (i['ref'], i['diseno'], i['archivo'].upper()))
+    return {'items': items, 'motivo': '' if items else 'Ese proyecto no tiene mockups para la referencia ' + ', '.join(bases) + '.'}
+
+
+@router.get('/mockups')
+def mockups(request: Request, cliente: str = '', proyecto: str = '', ref: str = ''):
+    """Lista de mockups del proyecto del cliente para la referencia elegida (para la vista previa del pedido)."""
+    _usuario(request)
+    if len(cliente.strip()) < 3 or not proyecto.strip() or not ref.strip():
+        raise HTTPException(400, 'Faltan el cliente, el proyecto o la referencia')
+    return mockups_de(cliente, proyecto, ref)
+
+
+@router.get('/mockup-img')
+def mockup_img(request: Request, cliente: str = '', proyecto: str = '', carpeta: str = '', archivo: str = ''):
+    from fastapi.responses import FileResponse
+    _usuario(request)
+    if any(x in (carpeta + archivo) for x in ('/', '\\', '..')) or Path(archivo).suffix.lower() not in EXT_IMAGEN:
+        raise HTTPException(400, 'Archivo no válido')
+    ubicado = _dir_proyecto(cliente, proyecto)
+    if ubicado is None:
+        raise HTTPException(404, 'No existe ese proyecto')
+    ruta = ubicado[0] / carpeta / archivo
+    try:
+        ruta.resolve().relative_to(ubicado[0].resolve())
+    except ValueError:
+        raise HTTPException(400, 'Archivo no válido')
+    if not ruta.is_file():
+        raise HTTPException(404, 'No existe esa imagen')
+    return FileResponse(ruta, headers={'Cache-Control': 'private, max-age=300'})
+
 
 @router.get('/tela')
 def tela_de_referencia(request: Request, ref: str = '', cantidad: float = 0):
