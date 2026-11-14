@@ -328,8 +328,8 @@
     if (t === 'cargando') return '<small>Buscando la tela…</small>';
     if (!t.encontrado) return '<span class="no">Sin promedio en Promedios maestros para esta referencia.</span>';
     const f = n => (Math.round(n * 100) / 100).toLocaleString('es-CO');
-    return t.materiales.map(m => 'TELA ' + (m.codigo && !/^\s*\(/.test(m.tela || '') ? '(' + esc(m.codigo) + ') ' : '') + '<b>' + esc(m.tela || m.material) + '</b> · Promedio general <b>' + f(m.promedio) + ' mts/prenda</b>' +
-      (num(l.cantidad) ? ' · Requerido <b>' + f(m.promedio * num(l.cantidad)) + ' mts</b>' : '') + (m.bodega != null ? ' · <small>Bodega ' + f(m.bodega) + ' mts</small>' : '')).join('<br>');
+    return t.materiales.map(m => 'TELA ' + (m.codigo && !/^\s*\(/.test(m.tela || '') ? '(' + esc(m.codigo) + ') ' : '') + '<b>' + esc(m.tela || m.material) + '</b>' +
+      (num(l.cantidad) ? ' · Gasto estimado <b>' + f(m.promedio * num(l.cantidad)) + ' mts</b>' : '') + (m.bodega != null ? ' · En stock <b>' + f(m.bodega) + ' mts</b>' + (num(l.cantidad) && m.bodega < m.promedio * num(l.cantidad) ? ' <span style="color:#ff8a7a">· NO ALCANZA</span>' : '') : '')).join('<br>');
   }
   function pintarTelas() { panel.querySelectorAll('[data-lineas] .pe-linea').forEach(row => { const l = st.conceptos[Number(row.dataset.i)], e = row.querySelector('[data-tela]'); if (l && e) { e.innerHTML = telaHtml(l); const t = st.telas[String(l.ref || '').toUpperCase()]; e.classList.toggle('no', !!t && t !== 'cargando' && !t.encontrado); } }); }
   async function cargarTela(ref) {
