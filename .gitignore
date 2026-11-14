@@ -20,3 +20,7 @@ FORMATO_EXCEL.xlsx
 
 ecommerce_pc/datos/
 ecommerce_pc/*.log
+
+# archivos temporales que genera pedidos_legacy al correr las pruebas
+/alertas_pendientes.json
+/registros_pendientes.json
