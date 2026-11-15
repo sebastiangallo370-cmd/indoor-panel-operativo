@@ -282,8 +282,9 @@ def excel_listado(doc: dict, grupos: list[dict], plantilla: bytes, comercial: st
     buf = io.BytesIO()
     wb.save(buf)
     pref, numero = prefijo_numero(doc)
-    cliente = re.sub(r'[^A-Za-z0-9_-]+', '_', _sin_acentos((doc.get('cliente') or {}).get('nombre') or ''))[:40].strip('_')
-    return f'{pref}{numero}_{cliente or "LISTADO"}.xlsm', buf.getvalue()
+    # como se guarda en la carpeta de la orden: NUMEROORDEN_NOMBRE PROYECTO (CO1234_UNIFORMES 2027)
+    proyecto = re.sub(r'\s+', ' ', re.sub(r'[^A-Za-z0-9\s-]', '', _sin_acentos(str(doc.get('proyecto') or '')).upper())).strip()[:60]
+    return f'{pref}{numero}_{proyecto or "LISTADO"}.xlsm', buf.getvalue()
 
 
 def preparar(datos: dict, plantilla_fn, comercial: str = '') -> dict:

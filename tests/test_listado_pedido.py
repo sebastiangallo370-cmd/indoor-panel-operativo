@@ -78,7 +78,7 @@ class Validar(unittest.TestCase):
 class Excel(unittest.TestCase):
     def test_una_hoja_por_referencia_con_la_cabecera_y_las_filas(self):
         nombre, datos = lp.excel_listado(DOC, lp.validar(DOC, LISTADO), plantilla_falsa(), 'CESAR', 'plus')
-        self.assertEqual(nombre, 'CO6400_CLUB_DEPORTIVO_CERROS_S_A_S.xlsm')
+        self.assertEqual(nombre, 'CO6400_TEMPORADA 2027.xlsm')
         wb = load_workbook(io.BytesIO(datos))
         self.assertEqual(wb.sheetnames, ['A100CA02', 'A200SH01'])
         ws = wb['A100CA02']
