@@ -848,6 +848,10 @@ def process_job(job_id: int, pdf_path: Path, extra_paths: list[Path], observatio
                 detail += ". Avisos: " + " | ".join(warnings)
             if image_issues:
                 raise ValueError('No se programó: ' + ' | '.join(image_issues))
+            # mockups opcionales = se puede programar SIN imágenes; pero si el comercial subió alguna, es OBLIGATORIO que quede insertada
+            subidas = [n for n in uploaded_names if Path(n).suffix.lower() in {'.jpg', '.jpeg', '.png', '.webp', '.bmp', '.tif', '.tiff'}]
+            if _MOCKUP_OPCIONAL.get() and subidas and inserted < len(subidas):
+                raise ValueError(f'No se insertaron todos los mockups subidos ({inserted} de {len(subidas)}). Revisa las imágenes y vuelve a programar.')
             detail += '. ' + _verificar_listado(pdf_path, items_pdf, order_dir / f'{pdf_path.stem}.xlsx')
             verify_order_mockups(order_dir, pending_records)
             for record in pending_records:

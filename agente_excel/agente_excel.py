@@ -24,7 +24,7 @@ import urllib.request
 from pathlib import Path
 from tkinter import messagebox, simpledialog
 
-VERSION = '1.0.5'
+VERSION = '1.0.6'
 URL = os.getenv('AGENTE_EXCEL_URL', 'https://produccion.cloud').rstrip('/')
 CONFIG = Path.home() / '.agente_excel_indoor.json'
 SALIDA = Path.home() / 'Documents' / 'Indoor Pedidos'
@@ -178,7 +178,13 @@ def poner_imagen(hoja, ruta: str, im: dict) -> None:
             pass
     if not caja_w or caja_w <= 5 or not caja_h or caja_h <= 5:
         caja_w, caja_h = float(im.get('ancho') or 200), float(im.get('alto') or 300)
-    pic = hoja.pictures.add(ruta, left=celda.left, top=celda.top)   # tamaño natural: así nunca da «fuera de los límites»
+    try:
+        pic = hoja.pictures.add(ruta, left=celda.left, top=celda.top)   # tamaño natural: así nunca da «fuera de los límites»
+    except Exception:  # noqa: BLE001 - segundo intento con el método nativo de Excel (Insertar → Imagen)
+        if ES_MAC:
+            raise
+        hoja.api.Shapes.AddPicture(str(Path(ruta).resolve()), 0, -1, celda.left, celda.top, -1, -1)
+        pic = hoja.pictures[-1]
     try:
         esc = min(caja_w / max(pic.width, 1), caja_h / max(pic.height, 1))
         pic.width, pic.height = max(10, pic.width * esc), max(10, pic.height * esc)
