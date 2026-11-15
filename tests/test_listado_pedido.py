@@ -91,6 +91,15 @@ class Excel(unittest.TestCase):
         self.assertEqual(ws['AG3'].value, 2)
 
 
+class BloquesPorDiseno(unittest.TestCase):
+    def test_cada_diseno_va_en_su_bloque_d1_primero(self):
+        filas = [dict(FILAS_POLO[2]), dict(FILAS_POLO[0]), dict(FILAS_POLO[1])]   # D2 escrito primero en pantalla
+        _, datos = lp.excel_listado(DOC, lp.validar(DOC, {'A100CA02': filas, 'A200SH01': FILAS_SHORT}), plantilla_falsa(), 'CESAR', 'plus')
+        ws = load_workbook(io.BytesIO(datos))['A100CA02']
+        self.assertEqual([(ws.cell(row=r, column=3).value, ws.cell(row=r, column=10).value, ws.cell(row=r, column=11).value) for r in (8, 9, 10)],
+                         [('PEREZ', 'X', None), ('GOMEZ DIAZ', 'X', None), ('ANA', None, 'X')])
+
+
 class PdfLeidoPorElProgramarPedidoReal(unittest.TestCase):
     def test_el_programar_pedido_lee_el_pdf_del_panel(self):
         os.environ.setdefault('SUPABASE_URL', 'http://x'); os.environ.setdefault('SUPABASE_KEY', 'x')

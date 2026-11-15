@@ -226,7 +226,7 @@ def _llenar_hoja(ws, doc: dict, g: dict, comercial: str, linea_producto: str) ->
     ws['P2'] = 'COTIZACIÓN'
     ws['P3'] = '%s%s' % prefijo_numero(doc)
     fila, maximo = 8, 1
-    for f in g['filas']:
+    for f in sorted(g['filas'], key=lambda x: int(x.get('diseno') or 1)):   # como la skill: cada diseño en su propio bloque, D1 primero, luego D2…
         ws.cell(row=fila, column=3, value=f['nombre'] or None)
         ws.cell(row=fila, column=4, value=f['talla'] or None)
         ws.cell(row=fila, column=5, value=f['numero'] or None)
