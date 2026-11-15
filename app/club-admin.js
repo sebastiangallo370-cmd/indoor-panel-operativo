@@ -293,7 +293,7 @@
     return '<h3 style="margin:18px 0 10px;font:900 12px Arial;letter-spacing:.14em;color:#d0f44c">PEDIDOS PROGRAMADOS <em class="tc-n">' + lista.length + '</em></h3><div class="tc-progcards"><div class="trace-cards">' +
       lista.slice(0, 60).map(x => {
         const o = produccion[x.codigo] || null;
-        const e = x.estado === 'ERROR' || x.estado === 'REVISAR' ? ['late', 'Error al programar'] : !o ? ['pending', x.estado === 'COMPLETADO' ? 'Programado' : 'Programando…'] : o.percent >= 100 ? ['finished', 'Terminado'] : o.focus ? [o.focus.state === 'active' ? 'active' : 'pending', (o.focus.state === 'active' ? 'En ' : 'Pendiente - ') + o.focus.label] : ['pending', 'Programado'];
+        const e = x.estado === 'ERROR' || x.estado === 'REVISAR' ? ['late', 'Error al programar'] : !o ? ['late', x.estado === 'COMPLETADO' ? 'No está en Producción' : 'Programando…'] : o.percent >= 100 ? ['finished', 'Terminado'] : o.focus ? [o.focus.state === 'active' ? 'active' : 'pending', (o.focus.state === 'active' ? 'En ' : 'Pendiente - ') + o.focus.label] : ['pending', 'Programado'];
         const dias = o && o.entrega ? Math.round((o.entrega - new Date().setHours(0, 0, 0, 0)) / 864e5) : null;
         return '<article class="trace-card state-' + e[0] + '"><div class="trace-media"><span class="tc-disenio">DISEÑO 1</span><img loading="lazy" alt="Mockup ' + esc(x.codigo) + '" src="/api/pedido-effi/programados/' + encodeURIComponent(x.codigo) + '/mockup" onerror="this.replaceWith(Object.assign(document.createElement(\'span\'),{textContent:\'Sin mockup\'}))"></div>' +
           '<div class="trace-card-body"><div class="trace-card-heading"><h3>' + esc(o && o.orden || x.codigo) + '</h3></div>' +
@@ -312,7 +312,7 @@
     try {
       const d = await fetch('/api/produccion', { cache: 'no-cache', credentials: 'same-origin' }).then(r => r.json());
       const h = (d.headers || []).map(norm), col = n => h.indexOf(n);
-      const iO = col('ORDEN'), iR = col('REFERENCIA'), iC = col('CANTIDAD'), iCl = col('NOMBRE DEL CLIENTE'), iP = col('NOMBRE PROYECTO'), iE = col('FECHA DE ENTREGA'), iT = h.findIndex(x => x === 'TELA' || x.startsWith('TELA'));
+      const iO = col('ORDEN') >= 0 ? col('ORDEN') : h.findIndex(x => x.includes('ORDEN')), iR = col('REFERENCIA'), iC = col('CANTIDAD'), iCl = col('NOMBRE DEL CLIENTE'), iP = col('NOMBRE PROYECTO'), iE = col('FECHA DE ENTREGA'), iT = h.findIndex(x => x === 'TELA' || x.startsWith('TELA'));
       const flow = typeof indoorProcessFlow !== 'undefined' ? indoorProcessFlow : [];
       const procs = flow.map(p => ({ label: p.label, ext: norm(p.label) === 'DISENO', cols: p.headers.flatMap(x => h.flatMap((y, i) => y === norm(x) ? [i] : [])) })).filter(p => p.cols.length);
       const out = {};
