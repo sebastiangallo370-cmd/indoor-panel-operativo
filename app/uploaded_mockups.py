@@ -125,6 +125,25 @@ def embed_uploads(workbook_path, paths, backup_dir, missing_only=False):
     book_rels = rels('xl/workbook.xml')
     content = xml('[Content_Types].xml')
     inserted = 0
+    # dónde va cada diseño: en la plantilla de Indoor el recuadro «DISEÑO 1» está en AH (D2 AN, D3 AT, D4 AZ… cada 6 columnas);
+    # en el formato antiguo, en S. Se detecta por el título «DISEÑO 1» de la fila 2.
+    shared = []
+    if 'xl/sharedStrings.xml' in entries:
+        shared = [''.join(t.text or '' for t in si.iter('{'+S+'}t')) for si in xml('xl/sharedStrings.xml').findall('{'+S+'}si')]
+    def base_col(sheet_xml):
+        for c in sheet_xml.iter('{'+S+'}c'):
+            m = re.fullmatch(r'([A-Z]+)2', c.get('r', ''))
+            if not m:
+                continue
+            v = c.findtext('{'+S+'}v') or ''.join(t.text or '' for t in c.iter('{'+S+'}t'))
+            if c.get('t') == 's' and v.isdigit() and int(v) < len(shared):
+                v = shared[int(v)]
+            if re.sub(r'\s+', ' ', str(v)).strip().upper() in ('DISEÑO 1', 'DISENO 1'):
+                n = 0
+                for ch in m.group(1):
+                    n = n * 26 + ord(ch) - 64
+                return n - 1, (340, 700)    # índice 0 (AH = 33); recuadro AH3:AL27
+        return 18, (330, 620)
     for name, designs in assignments.items():
         part = target_for('xl/workbook.xml', book_rels, sheets[name].get('{'+R+'}id'))
         if not part or part not in entries:
@@ -153,14 +172,15 @@ def embed_uploads(workbook_path, paths, backup_dir, missing_only=False):
             save(relpart(part), sheet_rels)
             drawing = ET.Element('{'+X+'}wsDr')
             ET.SubElement(content, '{'+C+'}Override', PartName='/'+drawing_part, ContentType='application/vnd.openxmlformats-officedocument.drawing+xml')
+        base, (max_w, max_h) = base_col(sheet)
         existing = {}
         for anchor in drawing:
             marker = anchor.find('{'+X+'}from')
             if marker is not None:
                 col = int(marker.findtext('{'+X+'}col', '-1'))
                 row = int(marker.findtext('{'+X+'}row', '-1'))
-                if 17 <= col <= 42 and 0 <= row <= 100:
-                    existing.setdefault(max(1, round((col-18)/6)+1), []).append(anchor)
+                if base - 1 <= col <= base + 6 * 20 and 0 <= row <= 100:
+                    existing.setdefault(max(1, round((col-base)/6)+1), []).append(anchor)
         image_rels = rels(drawing_part)
         for design, (path, data, width, height) in designs.items():
             if missing_only and existing:
@@ -175,9 +195,9 @@ def embed_uploads(workbook_path, paths, backup_dir, missing_only=False):
                 ET.SubElement(image_rels, '{'+P+'}Relationship', Id=rid, Type=R+'/image', Target=posixpath.relpath(media, posixpath.dirname(drawing_part)))
             anchor = ET.SubElement(drawing, '{'+X+'}oneCellAnchor')
             marker = ET.SubElement(anchor, '{'+X+'}from')
-            for key, value in [('col', 18+(design-1)*6), ('colOff', 0), ('row', 2), ('rowOff', 0)]:
+            for key, value in [('col', base+(design-1)*6), ('colOff', 0), ('row', 2), ('rowOff', 0)]:
                 ET.SubElement(marker, '{'+X+'}'+key).text = str(value)
-            scale = min(330/width, 620/height)
+            scale = min(max_w/width, max_h/height)
             ET.SubElement(anchor, '{'+X+'}ext', cx=str(int(width*scale*9525)), cy=str(int(height*scale*9525)))
             picture = ET.SubElement(anchor, '{'+X+'}pic')
             props = ET.SubElement(picture, '{'+X+'}nvPicPr')

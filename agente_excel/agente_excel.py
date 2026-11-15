@@ -24,7 +24,7 @@ import urllib.request
 from pathlib import Path
 from tkinter import messagebox, simpledialog
 
-VERSION = '1.0.9'
+VERSION = '1.1.0'
 URL = os.getenv('AGENTE_EXCEL_URL', 'https://produccion.cloud').rstrip('/')
 CONFIG = Path.home() / '.agente_excel_indoor.json'
 SALIDA = Path.home() / 'Documents' / 'Indoor Pedidos'
@@ -229,6 +229,19 @@ def verificar(wb, plan: dict) -> int:
     return corregidas
 
 
+def seguir_al_frente(app, wb) -> None:
+    """Excel y ESTE libro deben seguir adelante mientras se llena (obligatorio): si otra ventana quedó encima, se trae de nuevo."""
+    try:
+        if wb.app.books.active.name != wb.name:
+            wb.activate()
+        if not ES_MAC:
+            import ctypes
+            if ctypes.windll.user32.GetForegroundWindow() != app.hwnd:
+                al_frente(app)
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def poner_imagen(hoja, ruta: str, im: dict) -> None:
     """Inserta el mockup dentro de su recuadro, sin deformarlo. Si Excel rechaza el tamaño, la pone a su tamaño y la ajusta después."""
     celda = hoja.range(im['celda'])
@@ -281,6 +294,13 @@ def llenar(trabajo: dict, token: str, aviso) -> str:
         app.display_alerts = False
     except Exception:  # noqa: BLE001
         pass
+    # los listados anteriores (ya guardados en Indoor Pedidos) se cierran: así en pantalla SOLO queda el que se está llenando
+    for b in list(app.books):
+        try:
+            if Path(b.fullname).parent.resolve() == SALIDA.resolve():
+                b.save(); b.close()
+        except Exception:  # noqa: BLE001
+            pass
     abiertos = {b.name.lower() for b in app.books}
     nombre = Path(trabajo['nombre'])
     destino, k = SALIDA / nombre.name, 2
@@ -310,11 +330,18 @@ def llenar(trabajo: dict, token: str, aviso) -> str:
                 pass
             escribir(rango, c)
             hechas += 1
+            if hechas % 8 == 0:
+                seguir_al_frente(app, wb)   # si otra ventana tapó a Excel, vuelve a ponerlo adelante
             if hechas % 5 == 0 or hechas == total:
                 aviso(f'Llenando {hechas} de {total} celdas…', hechas, total)
             time.sleep(PAUSA_CELDA)
         for im in h['imagenes']:
             aviso(f'Insertando mockup en {h["nombre"]}…', hechas, total)
+            try:
+                hoja.range(im['celda']).select()   # Excel se desplaza al recuadro del diseño: se ve pegar el mockup
+                time.sleep(0.5)
+            except Exception:  # noqa: BLE001
+                pass
             try:
                 poner_imagen(hoja, str(carpeta / im['archivo']), im)
             except Exception as e:  # noqa: BLE001 - un mockup que no entra no tumba el listado
