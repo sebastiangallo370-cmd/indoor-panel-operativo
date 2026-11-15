@@ -41,7 +41,7 @@
   .tc-fila{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px;align-items:center;padding:10px 12px;border:1px solid rgba(255,255,255,.12);border-radius:12px;background:#121712}
   .tc-fila strong{color:#f2f7ea}.tc-fila small{display:block;color:#a9b5a3;font-size:.74rem}
   .tc-acc{display:flex;gap:8px;flex-wrap:wrap}
-  .panel[data-panel="club"]{position:relative}
+  .panel[data-panel="club"]{position:relative}.tc-ptabs{display:inline-flex;margin:0 auto;border:1px solid #3d4c3b;border-radius:99px;overflow:hidden;background:rgba(0,0,0,.3)}.tc-ptabs button{all:unset;cursor:pointer;padding:9px 26px!important;color:#c9d3c1!important;background:transparent!important;border:0!important;box-shadow:none!important;min-height:0!important;width:auto!important;font:900 12px Arial!important;letter-spacing:.12em!important;transition:background .2s,color .2s}.tc-ptabs button:hover{color:#d0f44c!important}.tc-ptabs button.on{background:#d0f44c!important;color:#0d140e!important}@media(max-width:600px){.tc-ptabs button{padding:8px 14px;font-size:11px}}
   .tc .tc-aviso.tc-info{display:inline-flex!important;align-items:center;gap:8px;width:auto!important;padding:0!important;background:transparent!important;border:0!important;box-shadow:none!important;font-size:13px}
   @media (min-width:900px){.tc>*{width:calc(100vw - 64px)!important;max-width:none!important;box-sizing:border-box}}
   @media (min-width:900px){.tc-plano .tc-cabeza{width:calc(100vw - 64px);justify-content:space-between;flex-wrap:nowrap}.tc-plano .tc-cabeza .tc-acc{margin-left:auto;flex-wrap:nowrap}}
@@ -474,11 +474,20 @@
     f.className = 'tc-pedido-fondo';
     f.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.65);padding:8px;overflow:auto';
     f.innerHTML = '<div class="tc-pedido-card" style="width:100%;margin:0;box-sizing:border-box;background:#101a12;border:1px solid rgba(230,235,241,.3);border-radius:18px;padding:14px">' +
-      '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:2px 4px 8px"><div><span class="eyebrow">PROGRAMAR CLUB</span><h2 style="margin:4px 0 0;font:900 18px Arial;color:#f4f7fa">Empezar pedido</h2></div><button type="button" class="tc-btn tc-b-line" data-cerrar-pedido>Cerrar</button></div>' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:2px 4px 8px"><div><span class="eyebrow">PROGRAMAR CLUB</span><h2 style="margin:4px 0 0;font:900 18px Arial;color:#f4f7fa">Empezar pedido</h2></div><div class="tc-ptabs" role="tablist"><button type="button" role="tab" data-ptab="doc" class="on">CO/RM</button><button type="button" role="tab" data-ptab="listado">LISTADO</button></div><button type="button" class="tc-btn tc-b-line" data-cerrar-pedido>Cerrar</button></div>' +
       '<div data-pedido-effi></div></div>';
     document.body.appendChild(f);
     f.addEventListener('click', e => { if (e.target.closest('[data-cerrar-pedido]')) f.remove(); });   // solo con el botón Cerrar: un clic fuera no debe perder un pedido a medio llenar
     const caja = f.querySelector('[data-pedido-effi]');
+    // pestañas CO/RM (la cotización o remisión) y LISTADO
+    const marcarTab = () => { const p = window.PedidoListado && window.PedidoListado.activo && window.PedidoListado.activo(); const lst = p === 'listado' || p === 'mockups' || p === 'enviado'; f.querySelectorAll('[data-ptab]').forEach(b => b.classList.toggle('on', (b.dataset.ptab === 'listado') === lst)); };
+    new MutationObserver(marcarTab).observe(caja, { childList: true, subtree: true });
+    f.addEventListener('click', e => {
+      const b = e.target.closest('[data-ptab]'); if (!b) return;
+      const PL = window.PedidoListado, hay = PL && PL.activo && PL.activo();
+      if (!hay) { if (b.dataset.ptab === 'listado') toast('Primero crea la cotización o remisión: al crearla pasas directo al LISTADO.', 'error'); return; }
+      PL.ir(b.dataset.ptab); marcarTab();
+    });
     if (window.PedidoEffi) window.PedidoEffi.montar(caja);
     else caja.innerHTML = '<p style="color:#ffb4a2;font:700 13px Arial">No cargó el formulario. Recarga la página con Ctrl+F5.</p>';
   }

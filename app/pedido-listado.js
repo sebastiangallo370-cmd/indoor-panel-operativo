@@ -566,5 +566,8 @@
     }
     dibujar();
   }
-  window.PedidoListado = { abrir };
+  // para las pestañas CO/RM y LISTADO de la ventana: en qué pantalla está el listado (null = aún no hay documento creado) y saltar a otra
+  const activo = () => (L.doc && raiz && raiz.isConnected && raiz.querySelector('.pl, [data-cuerpo]')) ? L.pantalla : null;
+  function ir(p) { if (!activo() || L.pantalla === 'enviado' || L.enviando) return false; L.pantalla = p; if (p === 'listado') L.abierta = L.abierta || grupos()[0].referencia; dibujar(); return true; }
+  window.PedidoListado = { abrir, activo, ir };
 })();
