@@ -24,7 +24,7 @@ import urllib.request
 from pathlib import Path
 from tkinter import messagebox, simpledialog
 
-VERSION = '1.0.2'
+VERSION = '1.0.3'
 URL = os.getenv('AGENTE_EXCEL_URL', 'https://produccion.cloud').rstrip('/')
 CONFIG = Path.home() / '.agente_excel_indoor.json'
 SALIDA = Path.home() / 'Documents' / 'Indoor Pedidos'
@@ -80,20 +80,26 @@ def iniciar_con_el_equipo() -> None:
 def llenar(trabajo: dict, token: str, aviso) -> str:
     import xlwings as xw
     carpeta = Path(tempfile.mkdtemp(prefix='indoor_'))
-    base = carpeta / ('base' + Path(trabajo['base']).suffix)
-    base.write_bytes(pedir(trabajo['base'], token=token, binario=True))
+    datos_base = pedir(trabajo['base'], token=token, binario=True)
     for h in trabajo['plan']['hojas']:
         for im in h['imagenes']:
             (carpeta / im['archivo']).write_bytes(pedir(trabajo['imagenes_url'] + im['archivo'], token=token, binario=True))
     SALIDA.mkdir(parents=True, exist_ok=True)
-    destino = SALIDA / trabajo['nombre']
+    # el archivo se abre YA con el nombre del pedido y en su carpeta final (Excel no deja abrir dos libros con el mismo nombre:
+    # si uno igual sigue abierto de una prueba anterior, se usa CO6380_2.xlsm, _3…)
     app = xw.apps.active if xw.apps.count else xw.App(visible=True, add_book=False)
+    abiertos = {b.name.lower() for b in app.books}
+    nombre = Path(trabajo['nombre'])
+    destino, k = SALIDA / nombre.name, 2
+    while destino.name.lower() in abiertos or destino.exists():
+        destino = SALIDA / f'{nombre.stem}_{k}{nombre.suffix}'; k += 1
+    destino.write_bytes(datos_base)
     app.visible = True
     try:
         app.activate(steal_focus=True)
     except Exception:  # noqa: BLE001
         pass
-    wb = app.books.open(str(base))
+    wb = app.books.open(str(destino))
     # Excel al FRENTE y maximizado, para que el comercial lo vea llenarse
     try:
         wb.activate()
@@ -140,7 +146,7 @@ def llenar(trabajo: dict, token: str, aviso) -> str:
             hoja.pictures.add(str(carpeta / im['archivo']), left=celda.left, top=celda.top, width=ancho, height=alto)
             time.sleep(0.6)
     wb.sheets[0].activate()
-    wb.save(str(destino))
+    wb.save()
     return str(destino)
 
 
