@@ -239,11 +239,34 @@ def _llenar_hoja(ws, doc: dict, g: dict, comercial: str, linea_producto: str) ->
     return maximo
 
 
+def familia(ref: str) -> str:
+    """Como REPROGRAMACIONES AUTOMÁTICAS (excel_linux.family) y la skill: A200FUT01 y A200FUT02 son la familia A200FUT."""
+    return re.sub(r'[-_]*\d+$', '', ref) or ref
+
+
+def hojas_por_familia(grupos: list[dict]) -> list[dict]:
+    """Una pestaña por familia de referencia. Nombre = la referencia sola o las referencias unidas con «-» (A200FUT01-A200FUT02), que el programar pedido
+    lee como referencia compuesta. Si el nombre no cabe en 31 letras, esas referencias quedan en pestañas separadas."""
+    fams: dict[str, list[dict]] = {}
+    for g in grupos:
+        fams.setdefault(familia(g['referencia']), []).append(g)
+    hojas = []
+    for gs in fams.values():
+        nombre = '-'.join(g['referencia'] for g in gs)
+        partes = [gs] if len(nombre) <= 31 and REF_PRODUCCION_RE.match(nombre) else [[g] for g in gs]
+        for p in partes:
+            filas = [f for d in range(1, MAX_DISENOS + 1) for g in p for f in g['filas'] if int(f.get('diseno') or 1) == d]
+            hojas.append({'referencia': '-'.join(g['referencia'] for g in p), 'refs': [g['referencia'] for g in p], 'filas': filas,
+                          'cantidad': sum(g['cantidad'] for g in p)})
+    return hojas
+
+
 def excel_listado(doc: dict, grupos: list[dict], plantilla: bytes, comercial: str = '', linea_producto: str = '') -> tuple[str, bytes]:
     """UN Excel con una hoja por referencia (la plantilla se copia en blanco ANTES de llenar la primera)."""
     from openpyxl import load_workbook
     wb = load_workbook(io.BytesIO(plantilla), keep_vba=True)
     base = wb.worksheets[0]
+    grupos = hojas_por_familia(grupos)
     hojas = [base]
     for _ in grupos[1:]:
         copia = wb.copy_worksheet(base)
@@ -271,7 +294,8 @@ def preparar(datos: dict, plantilla_fn, comercial: str = '') -> dict:
     linea_producto = str(datos.get('linea') or '').strip().upper()[:40]
     nombre_xlsx, xlsx = excel_listado(doc, grupos, plantilla_fn(), comercial or str(doc.get('vendedor') or ''), linea_producto)
     return {'pdf_nombre': f'{pref}{numero}.pdf', 'pdf': pdf_cotizacion(doc, grupos), 'excel_nombre': nombre_xlsx, 'excel': xlsx,
-            'observaciones': str(datos.get('observaciones') or '').strip()[:5000], 'linea': linea_producto, 'grupos': grupos}
+            'observaciones': str(datos.get('observaciones') or '').strip()[:5000], 'linea': linea_producto, 'grupos': grupos,
+            'hoja_de': {r: h['referencia'] for h in hojas_por_familia(grupos) for r in h['refs']}}
 def _color(c) -> str:
     try:
         rgb = c.rgb if c is not None else None

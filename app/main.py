@@ -8195,14 +8195,18 @@ async def programar_pedido_effi(request: Request, usuario=Depends(authenticate))
     except OSError as exc:
         raise HTTPException(503, 'No pude abrir la plantilla del listado (¿la NAS está sin conexión?). Intenta de nuevo en un momento.') from exc
     referencias = {g['referencia'] for g in arch['grupos']}
-    extras, imagenes_listas = [], []
+    extras, imagenes_listas, puestos = [], [], set()
     for (ref, n), archivo in sorted(imagenes.items()):
         if ref not in referencias:
             continue
+        hoja = arch.get('hoja_de', {}).get(ref, ref)   # pestaña de la familia (A200FUT01-A200FUT02): una imagen por pestaña y diseño, la primera
+        if (hoja, n) in puestos:
+            continue
+        puestos.add((hoja, n))
         extension = Path(archivo.filename or '').suffix.lower() or '.png'
         datos_img = await archivo.read()
-        imagenes_listas.append((f'{ref}_D{n}{extension}', datos_img))
-        extras.append(UploadFile(file=io.BytesIO(datos_img), filename=f'{ref}_D{n}{extension}'))
+        imagenes_listas.append((f'{hoja}_D{n}{extension}', datos_img))
+        extras.append(UploadFile(file=io.BytesIO(datos_img), filename=f'{hoja}_D{n}{extension}'))
     pdf = UploadFile(file=io.BytesIO(arch['pdf']), filename=arch['pdf_nombre'])
     excel = UploadFile(file=io.BytesIO(arch['excel']), filename=arch['excel_nombre'])
     # Copia descargable del listado YA con las imágenes insertadas: se arma al instante para que el usuario la vea/descargue en su pantalla (la orden sigue su curso en Producción)

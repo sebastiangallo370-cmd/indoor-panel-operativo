@@ -134,3 +134,16 @@ class Preparar(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class PestanasPorFamilia(unittest.TestCase):
+    def test_familia_en_una_pestana_d1_primero(self):
+        from app import listado_pedido as L
+        f = lambda r, d: {'nombre': r, 'diseno': d, 'filas': []}
+        gs = [{'referencia': 'A200FUT01', 'cantidad': 2, 'filas': [f('a', 2), f('b', 1)]},
+              {'referencia': 'A200FUT02', 'cantidad': 1, 'filas': [f('c', 1)]},
+              {'referencia': 'A100CA02', 'cantidad': 1, 'filas': [f('d', 1)]}]
+        h = L.hojas_por_familia(gs)
+        self.assertEqual([x['referencia'] for x in h], ['A200FUT01-A200FUT02', 'A100CA02'])
+        self.assertEqual([x['nombre'] for x in h[0]['filas']], ['b', 'c', 'a'])
+        self.assertEqual(h[0]['cantidad'], 3)
