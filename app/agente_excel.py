@@ -179,7 +179,7 @@ def nuevo_codigo(request: Request):
 def estado(request: Request):
     u = _usuario(request)
     d = _leer(); ahora = time.time()
-    equipos = [{'equipo': e.get('equipo', ''), 'so': e.get('so', ''), 'conectado': ahora - e.get('visto', 0) < CONECTADO_SEG,
+    equipos = [{'equipo': e.get('equipo', ''), 'so': e.get('so', ''), 'version': e.get('version', ''), 'conectado': ahora - e.get('visto', 0) < CONECTADO_SEG,
                 'visto_hace': int(ahora - e.get('visto', 0)) if e.get('visto') else None} for e in d['equipos'].values() if e.get('usuario') == u]
     return {'equipos': equipos, 'conectado': any(x['conectado'] for x in equipos), 'descargas': DESCARGAS}
 
@@ -247,6 +247,9 @@ def sondeo(request: Request, payload: dict):
         if h not in d['equipos']:
             raise HTTPException(401, 'Agente no vinculado')
         d['equipos'][h]['visto'] = ahora
+        if payload.get('version'):
+            d['equipos'][h]['version'] = str(payload['version'])[:20]
+        viejo = tuple(int(x) for x in re.findall(r'\d+', d['equipos'][h].get('version') or '0')[:3]) < (1, 0, 3)
         for r in (payload.get('resultados') or [])[:20]:
             t = d['trabajos'].get(str(r.get('id') or ''))
             if t and t['usuario'] == e['usuario'] and r.get('estado') in ('llenando', 'listo', 'error'):
@@ -255,6 +258,9 @@ def sondeo(request: Request, payload: dict):
         if payload.get('puede_trabajar', True):
             for tid, t in d['trabajos'].items():
                 if t['usuario'] == e['usuario'] and t['estado'] == 'pendiente':
+                    if viejo:   # la 1.0.2 abría siempre «base.xlsm» y Excel no deja abrir dos libros con ese nombre
+                        t['estado'] = 'error'; t['detalle'] = 'Tu agente Excel está desactualizado: cierra Excel y el agente (Ctrl+Q), descarga el nuevo en PROGRAMAR CLUB → AGENTE EXCEL y ábrelo.'
+                        continue
                     plan = json.loads((CARPETA / tid / 'plan.json').read_text(encoding='utf-8'))
                     trabajos.append({'id': tid, 'nombre': t['nombre'], 'base': f'/api/agente-excel/pc/archivo/{tid}/{t["base"]}', 'plan': plan,
                                      'imagenes_url': f'/api/agente-excel/pc/archivo/{tid}/'})

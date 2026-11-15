@@ -343,7 +343,7 @@
         f.querySelector('[data-ax-win]').href = r.descargas.windows; f.querySelector('[data-ax-mac]').href = r.descargas.mac;
         const e = f.querySelector('[data-ax-estado]');
         e.className = 'ax-estado ' + (r.conectado ? 'ok' : '');
-        e.innerHTML = r.equipos.length ? r.equipos.map(x => '<div>' + (x.conectado ? '🟢 Conectado' : '⚪ Desconectado') + ' · <b>' + esc(x.equipo || 'equipo') + '</b> (' + esc(x.so || '') + ')' + (x.conectado ? '' : x.visto_hace != null ? ' · visto hace ' + Math.round(x.visto_hace / 60) + ' min' : '') + '</div>').join('') : 'Aún no tienes ningún computador vinculado.';
+        e.innerHTML = r.equipos.length ? r.equipos.map(x => '<div>' + (x.conectado ? '🟢 Conectado' : '⚪ Desconectado') + ' · <b>' + esc(x.equipo || 'equipo') + '</b> (' + esc(x.so || '') + (x.version ? ' · v' + esc(x.version) : '') + ')' + (x.conectado ? '' : x.visto_hace != null ? ' · visto hace ' + Math.round(x.visto_hace / 60) + ' min' : '') + '</div>').join('') : 'Aún no tienes ningún computador vinculado.';
       } catch (er) { f.querySelector('[data-ax-estado]').textContent = er.message; }
     };
     f.querySelector('[data-ax-codigo]').onclick = async () => {
