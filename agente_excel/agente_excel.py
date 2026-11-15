@@ -24,7 +24,7 @@ import urllib.request
 from pathlib import Path
 from tkinter import messagebox, simpledialog
 
-VERSION = '1.0.4'
+VERSION = '1.0.5'
 URL = os.getenv('AGENTE_EXCEL_URL', 'https://produccion.cloud').rstrip('/')
 CONFIG = Path.home() / '.agente_excel_indoor.json'
 SALIDA = Path.home() / 'Documents' / 'Indoor Pedidos'
@@ -136,6 +136,57 @@ start "" "{exe}"
 
 
 # ---------------------------------------------------------------- llenar Excel a la vista
+def al_frente(app) -> None:
+    """Excel al frente y maximizado. Windows no deja que un programa en segundo plano robe el foco: se simula la tecla Alt
+    y se engancha al hilo de la ventana activa, que es la forma aceptada de hacerlo."""
+    try:
+        app.visible = True
+        if ES_MAC:
+            app.activate(steal_focus=True)
+            return
+        import ctypes
+        u = ctypes.windll.user32
+        hwnd = app.hwnd
+        try:
+            app.api.WindowState = -4137   # xlMaximized
+        except Exception:  # noqa: BLE001
+            pass
+        u.keybd_event(0x12, 0, 0, 0)          # Alt abajo
+        u.keybd_event(0x12, 0, 2, 0)          # Alt arriba
+        fg = u.GetForegroundWindow()
+        hilo_fg = u.GetWindowThreadProcessId(fg, None)
+        hilo_yo = ctypes.windll.kernel32.GetCurrentThreadId()
+        u.AttachThreadInput(hilo_yo, hilo_fg, True)
+        u.ShowWindow(hwnd, 9)                 # SW_RESTORE
+        u.ShowWindow(hwnd, 3)                 # SW_MAXIMIZE
+        u.BringWindowToTop(hwnd)
+        u.SetForegroundWindow(hwnd)
+        u.AttachThreadInput(hilo_yo, hilo_fg, False)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def poner_imagen(hoja, ruta: str, im: dict) -> None:
+    """Inserta el mockup dentro de su recuadro, sin deformarlo. Si Excel rechaza el tamaño, la pone a su tamaño y la ajusta después."""
+    celda = hoja.range(im['celda'])
+    caja_w, caja_h = None, None
+    if im.get('hasta'):
+        try:
+            fin = hoja.range(im['hasta'])
+            caja_w, caja_h = fin.left - celda.left, fin.top - celda.top
+        except Exception:  # noqa: BLE001
+            pass
+    if not caja_w or caja_w <= 5 or not caja_h or caja_h <= 5:
+        caja_w, caja_h = float(im.get('ancho') or 200), float(im.get('alto') or 300)
+    pic = hoja.pictures.add(ruta, left=celda.left, top=celda.top)   # tamaño natural: así nunca da «fuera de los límites»
+    try:
+        esc = min(caja_w / max(pic.width, 1), caja_h / max(pic.height, 1))
+        pic.width, pic.height = max(10, pic.width * esc), max(10, pic.height * esc)
+        pic.left, pic.top = celda.left, celda.top
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def llenar(trabajo: dict, token: str, aviso) -> str:
     import xlwings as xw
     carpeta = Path(tempfile.mkdtemp(prefix='indoor_'))
@@ -159,22 +210,16 @@ def llenar(trabajo: dict, token: str, aviso) -> str:
     except Exception:  # noqa: BLE001
         pass
     wb = app.books.open(str(destino))
-    # Excel al FRENTE y maximizado, para que el comercial lo vea llenarse
     try:
         wb.activate()
-        if ES_MAC:
-            app.activate(steal_focus=True)
-        else:
-            app.api.WindowState = -4137                 # xlMaximized
-            app.api.ActiveWindow.WindowState = -4137
-            import ctypes
-            ctypes.windll.user32.ShowWindow(app.hwnd, 3)  # SW_MAXIMIZE
-            ctypes.windll.user32.SetForegroundWindow(app.hwnd)
     except Exception:  # noqa: BLE001
         pass
+    al_frente(app)   # Excel al FRENTE y maximizado, para que el comercial lo vea llenarse
     total = sum(len(h['celdas']) for h in trabajo['plan']['hojas']) or 1
-    hechas = 0
+    hechas, fallos = 0, []
     for h in trabajo['plan']['hojas']:
+        if hechas == 0:
+            al_frente(app)
         hoja = wb.sheets[h['nombre']]
         hoja.activate()
         for c in h['celdas']:
@@ -196,16 +241,16 @@ def llenar(trabajo: dict, token: str, aviso) -> str:
             time.sleep(PAUSA_CELDA)
         for im in h['imagenes']:
             aviso(f'Insertando mockup en {h["nombre"]}…', hechas, total)
-            celda = hoja.range(im['celda'])
-            if im.get('hasta'):
-                fin = hoja.range(im['hasta'])
-                ancho, alto = max(20, fin.left - celda.left), max(20, fin.top - celda.top)
-            else:
-                ancho, alto = im.get('ancho') or 200, im.get('alto') or 300
-            hoja.pictures.add(str(carpeta / im['archivo']), left=celda.left, top=celda.top, width=ancho, height=alto)
+            try:
+                poner_imagen(hoja, str(carpeta / im['archivo']), im)
+            except Exception as e:  # noqa: BLE001 - un mockup que no entra no tumba el listado
+                fallos.append(f'{h["nombre"]}: {str(e)[:80]}')
             time.sleep(0.6)
     wb.sheets[0].activate()
     wb.save()
+    al_frente(app)
+    if fallos:
+        raise RuntimeError('Listado guardado en ' + str(destino) + ', pero no pude insertar el mockup: ' + ' | '.join(fallos))
     return str(destino)
 
 
