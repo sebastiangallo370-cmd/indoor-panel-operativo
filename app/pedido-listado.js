@@ -84,7 +84,7 @@
   .pl-slot .t{font:900 12px Arial;color:#d0f44c;letter-spacing:.08em}.pl-slot small{color:#8f9d88;word-break:break-all}
   .pl-slot input[type=file]{display:none}.pl-slot .pl-btn{min-height:32px;font-size:11px}
   .pl-refs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
-  .pl-ref{padding:8px 14px;border-radius:12px;border:1px solid #3d4c3b;background:#142017;color:#f5faef;cursor:pointer;font:800 12px Arial}.pl-ref.on{border-color:#d0f44c;background:#1d3321}
+  .pl-ref{width:auto!important;flex:0 0 auto!important;min-width:150px;min-height:38px;display:inline-flex!important;align-items:center;justify-content:center;gap:8px;padding:8px 16px;border-radius:12px;border:1px solid #3d4c3b;background:#142017;color:#f5faef;cursor:pointer;font:800 12px Arial;white-space:nowrap}.pl-ref.on{border-color:#d0f44c;background:#1d3321}
   .pl-cont{padding:2px 8px;border-radius:99px;margin-left:8px;font:900 11px Arial;background:#5a2323;color:#ffb4a2}.pl-cont.ok{background:#1d4a1d;color:#bff26a}
   .pl-tabla{width:100%;border-collapse:separate;border-spacing:0 4px}.pl-tabla th{font:800 10px Arial;letter-spacing:.08em;color:#a9b5a3;text-align:left;padding:2px 4px;position:sticky;top:0;background:#101a12;z-index:2}
   .pl-tabla td{padding:0 3px}.pl-tabla td.n{width:34px;color:#8f9d88;font:700 12px Arial;text-align:right}.pl-tabla input,.pl-tabla select{min-height:34px}
