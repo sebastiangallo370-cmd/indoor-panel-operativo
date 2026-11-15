@@ -479,20 +479,22 @@
     const estado = '<span style="font:800 12px Arial;letter-spacing:.14em;color:' + (fin && !ok ? '#ff9b9b' : '#d0f44c') + '">' + titulo + '</span><strong>' + esc((L.doc.tipo === 'remision' ? 'RM' : 'CO') + L.doc.numero) + '</strong>' +
       '<div class="pl-progreso"><i style="width:' + pr + '%"></i></div><div style="font:800 12px Arial;color:#c9d3c1">' + pr + ' %</div><ul class="pl-pasos2">' + pasos + '</ul>' +
       (j.detail ? '<div class="caja ' + (ok ? 'ok' : fin ? 'error' : '') + '">' + esc(j.detail) + '</div>' : '') +
-      (j.agente ? '<div class="caja ' + (j.agenteEstado === 'listo' ? 'ok' : j.agenteEstado === 'error' ? 'error' : '') + '">💻 <b>Excel en tu computador:</b> ' + esc(j.agenteDetalle || 'Esperando a tu agente Excel…') + '</div>' : (j.excel ? '<div style="margin-top:10px;color:#a9b5a3;font:600 12px Arial">💡 Instala el <b>AGENTE EXCEL</b> (botón en PROGRAMAR CLUB) para ver Excel llenarse solo en tu computador.</div>' : '')) +
-      (j.excel ? '<div style="margin-top:12px"><a class="pl-btn" href="' + esc(j.excel) + '">⬇ DESCARGAR EL EXCEL' + (j.insertados != null ? ' (' + j.insertados + ' mockup(s) insertado(s))' : '') + '</a></div>' : '');
+            (j.excel ? '<div style="margin-top:12px"><a class="pl-btn" href="' + esc(j.excel) + '">⬇ DESCARGAR EL EXCEL' + (j.insertados != null ? ' (' + j.insertados + ' mockup(s) insertado(s))' : '') + '</a></div>' : '');
+    // el Excel NO se dibuja en el panel: lo abre y lo llena el AGENTE EXCEL en el computador, con el programa Excel
+    const st = j.agenteEstado, pc = !j.excel && !j.agente && !fin ? ['⏳', 'Preparando el listado…', 'Al terminar, Excel se abrirá en tu computador y se llenará solo.']
+      : j.agente ? (st === 'listo' ? ['✅', 'Excel listo en tu computador', j.agenteDetalle || ''] : st === 'error' ? ['⚠️', 'Tu agente no pudo llenar Excel', j.agenteDetalle || ''] : ['💻', st === 'llenando' ? 'Excel se está llenando en tu computador' : 'Abriendo Excel en tu computador…', j.agenteDetalle || 'Mira la ventana de Excel: se llena sola, celda por celda.'])
+      : fin ? ['💡', 'Tu agente Excel no está conectado', 'Abre el AGENTE EXCEL en este computador (botón en PROGRAMAR CLUB) para que Excel se abra y se llene solo. Mientras, puedes descargar el archivo.'] : ['⏳', 'Programando…', ''];
+    const pcHtml = '<div class="pl-pdf-estado">' + (st === 'listo' || st === 'error' || (fin && !j.agente) ? '' : '<div class="pl-spin"></div>') + '<div style="font-size:42px">' + pc[0] + '</div><b>' + esc(pc[1]) + '</b><small>' + esc(pc[2]) + '</small></div>';
     const yaEsta = raiz.querySelector('[data-env-estado]');
-    if (yaEsta) yaEsta.innerHTML = estado;   // solo se actualiza el avance: la hoja de Excel que se está dibujando no se toca
+    if (yaEsta) { yaEsta.innerHTML = estado; const x = raiz.querySelector('[data-xl]'); if (x) x.innerHTML = pcHtml; }   // solo se actualiza el avance: la hoja de Excel que se está dibujando no se toca
     else {
-      q('[data-cuerpo]').innerHTML = '<div class="pl-env"><div class="pl-listo pl-env-estado" data-env-estado>' + estado + '</div><div class="pl-xl" data-xl>' +
-        (j.excel ? '' : '<div class="pl-pdf-estado"><div class="pl-spin"></div><b>Creando el listado de Excel…</b><small>En un momento lo verás escribirse aquí, como en Excel.</small></div>') + '</div></div>';
+      q('[data-cuerpo]').innerHTML = '<div class="pl-env"><div class="pl-listo pl-env-estado" data-env-estado>' + estado + '</div><div class="pl-xl" data-xl>' + pcHtml + '</div></div>';
       acciones('<button class="pl-btn sec" type="button" data-volver hidden>◀ VOLVER AL LISTADO</button><button class="pl-btn sec" type="button" data-otro>CREAR OTRO DOCUMENTO</button><button class="pl-btn" type="button" data-cerrar>CERRAR</button>', '', '');
       q('[data-volver]').onclick = () => { L.pantalla = 'listado'; dibujar(); };
       q('[data-otro]').onclick = () => L.opts.onOtro && L.opts.onOtro();
       q('[data-cerrar]').onclick = () => L.opts.onCerrar && L.opts.onCerrar();
     }
     const v = q('[data-volver]'); if (v) v.hidden = !(fin && !ok);
-    if (j.excel && !L.xlCargado) { const c = raiz.querySelector('[data-xl]'); if (c) c.innerHTML = ''; cargarHoja(); }
   }
   async function seguir() {
     let fin = false;
