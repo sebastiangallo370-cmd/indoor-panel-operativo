@@ -331,6 +331,7 @@
       '<div class="ax-pasos"><div class="ax-paso"><b>1 · Descarga e instala</b><div class="ax-btns"><a class="ax-btn" data-ax-win href="#" rel="noopener">⬇ WINDOWS</a><a class="ax-btn" data-ax-mac href="#" rel="noopener">⬇ MAC</a></div>' +
       '<small><b>Windows:</b> descomprime y abre <i>AgenteExcelIndoor.exe</i>. Si aparece «Windows protegió su PC»: <i>Más información → Ejecutar de todas formas</i>.<br><b>Mac:</b> descomprime, arrastra <i>AgenteExcelIndoor</i> a Aplicaciones y la primera vez ábrelo con <i>clic derecho → Abrir</i>. Cuando pregunte, permite que controle Microsoft Excel (Ajustes → Privacidad y seguridad → Automatización).</small></div>' +
       '<div class="ax-paso"><b>2 · Vincula este computador con tu usuario</b><div class="ax-btns"><button class="ax-btn lime" type="button" data-ax-codigo>GENERAR CÓDIGO</button></div><div class="ax-codigo" data-ax-ver hidden></div><small>El agente te pedirá este código la primera vez. Sirve 10 minutos.</small></div>' +
+      '<div class="ax-paso"><b>▶ Ver cómo se llena Excel</b><div class="ax-btns"><input data-ax-pedido placeholder="CO6379" style="width:110px;padding:8px;border-radius:8px;border:1px solid #3d4c3b;background:#0d140e;color:#e8f0e0;font:700 13px Arial;text-transform:uppercase"><button class="ax-btn lime" type="button" data-ax-abrir>ABRIR EN EXCEL</button></div><small data-ax-abrir-estado>Escribe un pedido ya programado: Excel se abre en este computador y se llena solo, a la vista.</small></div>' +
       '<div class="ax-paso"><b>3 · Listo</b><small>El agente arranca solo al prender el computador. Cuando diga «Conectado», programa un pedido y mira tu Excel.</small></div></div></div>';
     document.body.appendChild(f);
     const cierra = () => { clearInterval(f._t); f.remove(); };
@@ -351,6 +352,14 @@
         let resta = r.vence_seg; v.innerHTML = '<span>' + esc(r.codigo) + '</span><small data-ax-resta></small>';
         clearInterval(v._t); v._t = setInterval(() => { resta--; const z = v.querySelector('[data-ax-resta]'); if (z) z.textContent = resta > 0 ? 'vence en ' + Math.floor(resta / 60) + ':' + String(resta % 60).padStart(2, '0') : 'venció: genera otro'; if (resta <= 0) clearInterval(v._t); }, 1000);
       } catch (er) { toast(er.message, 'error'); }
+    };
+    f.querySelector('[data-ax-abrir]').onclick = async () => {
+      const c = f.querySelector('[data-ax-pedido]').value.trim().toUpperCase(), z = f.querySelector('[data-ax-abrir-estado]');
+      if (!c) { z.textContent = 'Escribe el pedido, por ejemplo CO6379.'; return; }
+      try {
+        const r = await api('/api/agente-excel/abrir/' + encodeURIComponent(c), 'POST', {}); z.textContent = 'Enviado a tu agente: mira tu Excel…';
+        clearInterval(f._a); f._a = setInterval(async () => { try { const a = await api('/api/agente-excel/trabajo/' + r.trabajo); z.textContent = (a.estado === 'listo' ? '✅ ' : a.estado === 'error' ? '⚠️ ' : '💻 ') + (a.detalle || a.estado); if (['listo', 'error'].includes(a.estado) || !f.isConnected) clearInterval(f._a); } catch (e) { clearInterval(f._a); } }, 2000);
+      } catch (er) { z.textContent = '⚠️ ' + er.message; }
     };
     pintar(); f._t = setInterval(pintar, 4000);
   }

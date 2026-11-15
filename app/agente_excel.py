@@ -193,6 +193,23 @@ def ver_trabajo(request: Request, tid: str):
     return {'estado': t['estado'], 'detalle': t.get('detalle', '')}
 
 
+@router.post('/abrir/{codigo}')
+def abrir_pedido(request: Request, codigo: str):
+    """Vuelve a abrir y llenar en Excel (en el PC del usuario) el listado de un pedido ya programado desde el panel, p. ej. CO6379."""
+    import os
+    import re
+    u = _usuario(request)
+    codigo = re.sub(r'[^A-Z0-9]', '', codigo.upper())
+    carpeta = Path(os.getenv('PEDIDO_EFFI_EXCEL_DIR', '/data/state/pedido_effi_excel')) / codigo
+    archivos = sorted(carpeta.glob('*.xls*')) if codigo and carpeta.is_dir() else []
+    if not archivos:
+        raise HTTPException(404, f'No encuentro el listado de {codigo or "ese pedido"}: debe haberse programado desde EMPEZAR PEDIDO')
+    tid = encolar(u, archivos[0], archivos[0].name)
+    if not tid:
+        raise HTTPException(409, 'Tu agente Excel no está conectado: ábrelo en este computador y vuelve a intentar')
+    return {'trabajo': tid, 'nombre': archivos[0].name}
+
+
 # ---------------------------------------------------------------- lo que usa el agente del PC (con su token)
 def _equipo(request: Request) -> tuple[str, dict]:
     token = (request.headers.get('authorization') or '').removeprefix('Bearer ').strip()
