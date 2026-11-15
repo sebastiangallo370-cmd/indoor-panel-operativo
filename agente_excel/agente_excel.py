@@ -24,7 +24,7 @@ import urllib.request
 from pathlib import Path
 from tkinter import messagebox, simpledialog
 
-VERSION = '1.0.0'
+VERSION = '1.0.1'
 URL = os.getenv('AGENTE_EXCEL_URL', 'https://produccion.cloud').rstrip('/')
 CONFIG = Path.home() / '.agente_excel_indoor.json'
 SALIDA = Path.home() / 'Documents' / 'Indoor Pedidos'
@@ -141,10 +141,13 @@ class Agente:
         tk.Label(self.ventana, text='AGENTE EXCEL · INDOOR', fg='#d0f44c', bg='#0d140e', font=('Arial', 13, 'bold')).pack(pady=(14, 4))
         self.estado = tk.Label(self.ventana, text='Iniciando…', fg='#e8f0e0', bg='#0d140e', font=('Arial', 10), wraplength=340, justify='center')
         self.estado.pack(pady=6)
-        tk.Label(self.ventana, text='Puedes minimizar esta ventana. Al programar un pedido en el panel, Excel se llenará solo.', fg='#a9b5a3', bg='#0d140e',
+        tk.Label(self.ventana, text='Déjalo abierto o minimizado (la X solo lo minimiza). Arranca solo al prender el PC. Al programar un pedido en el panel, Excel se llenará solo.', fg='#a9b5a3', bg='#0d140e',
                  font=('Arial', 8), wraplength=340).pack(pady=4)
         self.config = leer_config()
         self.resultados = []
+        # la X no cierra el agente: lo minimiza (si se cerrara, Excel dejaría de llenarse). Para salir de verdad: Ctrl+Q en la ventana.
+        self.ventana.protocol('WM_DELETE_WINDOW', self.ventana.iconify)
+        self.ventana.bind('<Control-q>', lambda e: self.ventana.destroy())
 
     def poner(self, texto):
         self.estado.config(text=texto)
