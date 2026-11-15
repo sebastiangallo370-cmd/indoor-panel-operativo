@@ -8219,8 +8219,7 @@ async def programar_pedido_effi(request: Request, usuario=Depends(authenticate))
         descarga = await asyncio.to_thread(_excel_para_descargar, arch, imagenes_listas, datos.get('doc') or {})
     except Exception:   # noqa: BLE001 - la descarga nunca debe impedir programar la orden
         logging.getLogger(__name__).exception('No se pudo armar la copia descargable del listado')
-    resultado = await upload_order(pdf=pdf, observaciones=arch['observaciones'], linea=arch['linea'], excel=excel, extras=extras,
-                                   mockup_d1=None, mockup_d2=None, mockup_d3=None, mockup_d4=None, mockups_opcionales=True, _=usuario)
+    # el AGENTE EXCEL empieza YA (antes de crear la orden en la NAS): el comercial ve llenarse su Excel apenas pulsa PROGRAMAR PEDIDO
     agente = None
     if descarga.get('excel'):   # si el comercial tiene su AGENTE EXCEL conectado, el listado también se llena a la vista en su computador
         try:
@@ -8228,6 +8227,8 @@ async def programar_pedido_effi(request: Request, usuario=Depends(authenticate))
             agente = await asyncio.to_thread(agente_excel_mod.encolar, str(usuario), PEDIDO_EXCEL_DIR / codigo_xl / descarga['excel_nombre'], descarga['excel_nombre'])
         except Exception:   # noqa: BLE001 - el agente nunca debe impedir programar la orden
             logging.getLogger(__name__).exception('No se pudo dejar el trabajo al agente Excel')
+    resultado = await upload_order(pdf=pdf, observaciones=arch['observaciones'], linea=arch['linea'], excel=excel, extras=extras,
+                                   mockup_d1=None, mockup_d2=None, mockup_d3=None, mockup_d4=None, mockups_opcionales=True, _=usuario)
     try:   # queda en la lista «Programados» de PROGRAMAR CLUB
         _registrar_programado(datos.get('doc') or {}, arch, descarga, str(usuario), resultado)
     except Exception:   # noqa: BLE001

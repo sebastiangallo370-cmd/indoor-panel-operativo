@@ -24,13 +24,13 @@ import urllib.request
 from pathlib import Path
 from tkinter import messagebox, simpledialog
 
-VERSION = '1.0.8'
+VERSION = '1.0.9'
 URL = os.getenv('AGENTE_EXCEL_URL', 'https://produccion.cloud').rstrip('/')
 CONFIG = Path.home() / '.agente_excel_indoor.json'
 SALIDA = Path.home() / 'Documents' / 'Indoor Pedidos'
-SONDEO_MS = 3000
-PAUSA_CELDA = float(os.getenv('AGENTE_EXCEL_PAUSA', '0.10'))   # segundos entre celda y celda: se ve escribirse
-PAUSA_LETRA = float(os.getenv('AGENTE_EXCEL_LETRA', '0.035'))  # segundos entre letra y letra
+SONDEO_MS = 1000   # pregunta cada segundo: el llenado empieza apenas se pulsa PROGRAMAR PEDIDO
+PAUSA_CELDA = float(os.getenv('AGENTE_EXCEL_PAUSA', '0.45'))   # segundos entre celda y celda: se ve escribirse
+PAUSA_LETRA = float(os.getenv('AGENTE_EXCEL_LETRA', '0.11'))  # segundos entre letra y letra
 ES_MAC = platform.system() == 'Darwin'
 RELEASE = 'https://github.com/sebastiangallo370-cmd/indoor-panel-operativo/releases/download/agente-excel/'
 REVISAR_VERSION_SEG = 600   # cada 10 min mira si hay versión nueva y se actualiza sola
@@ -195,9 +195,13 @@ def _valor(c: dict):
 def escribir(rango, c: dict) -> None:
     """Escribe la celda LETRA POR LETRA, como si alguien la estuviera digitando; al final deja el valor exacto (número, fecha o texto)."""
     v = _valor(c)
-    if isinstance(v, str) and len(v) > 1 and PAUSA_LETRA > 0:
-        for k in range(1, len(v)):
-            rango.value = "'" + v[:k]          # el apóstrofo evita que Excel convierta un pedazo (p. ej. «1» de «10») en otra cosa
+    time.sleep(PAUSA_CELDA * 0.4)          # como una persona: llega a la celda, la mira y empieza a escribir
+    texto = v.strftime('%d/%m/%Y') if isinstance(v, dt.datetime) else str(v)
+    if texto and PAUSA_LETRA > 0:
+        for k in range(1, len(texto) + (0 if isinstance(v, str) else 1)):
+            if not isinstance(v, str):
+                rango.value = "'" + texto[:k]; time.sleep(PAUSA_LETRA); continue
+            rango.value = "'" + texto[:k]      # el apóstrofo evita que Excel convierta un pedazo (p. ej. «1» de «10») en otra cosa
             time.sleep(PAUSA_LETRA)
     rango.value = v
 
