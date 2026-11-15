@@ -484,8 +484,9 @@
     new MutationObserver(marcarTab).observe(caja, { childList: true, subtree: true });
     f.addEventListener('click', e => {
       const b = e.target.closest('[data-ptab]'); if (!b) return;
-      const PL = window.PedidoListado, hay = PL && PL.activo && PL.activo();
-      if (!hay) { if (b.dataset.ptab === 'listado') toast('Primero crea la cotización o remisión: al crearla pasas directo al LISTADO.', 'error'); return; }
+      const PL = window.PedidoListado, PE = window.PedidoEffi, hay = PL && PL.activo && PL.activo(), previo = hay && PL.previo && PL.previo();
+      if (previo) { if (b.dataset.ptab === 'doc' && PE.volverAlFormulario) PE.volverAlFormulario(); marcarTab(); return; }   // listado previo -> vuelve al formulario guardando lo llenado
+      if (!hay) { if (b.dataset.ptab === 'listado' && PE && PE.listadoPrevio) PE.listadoPrevio(); marcarTab(); return; }   // aún sin documento: listado PREVIO
       PL.ir(b.dataset.ptab); marcarTab();
     });
     if (window.PedidoEffi) window.PedidoEffi.montar(caja);

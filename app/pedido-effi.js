@@ -181,7 +181,7 @@
   }`;
   document.head.appendChild(css);
 
-  const estadoInicial = () => ({ tipo: 'cotizacion', cat: null, estado: null, cliente: null, direccion: -1, conceptos: [], telas: {}, proy: { cliente: '', cargando: false, lista: [], carpeta: null, error: '' }, sinIvaTodos: false, formas: [], clave: nuevaClave(), previa: false, prev: null, ocupado: false, hecho: null, capturando: false, capTexto: '', capMsg: '', moneda: 'COP', trm: '1', global: '', propina: '', propinaPct: false, retenciones: [], pronto: '', fechaPronto: '', linea: '', mkSel: {} });
+  const estadoInicial = () => ({ tipo: 'cotizacion', cat: null, estado: null, cliente: null, direccion: -1, conceptos: [], telas: {}, proy: { cliente: '', cargando: false, lista: [], carpeta: null, error: '' }, sinIvaTodos: false, formas: [], clave: nuevaClave(), previa: false, prev: null, ocupado: false, hecho: null, capturando: false, capTexto: '', capMsg: '', moneda: 'COP', trm: '1', global: '', propina: '', propinaPct: false, retenciones: [], pronto: '', fechaPronto: '', linea: '', mkSel: {}, listadoPrevio: null });
   const st = estadoInicial();
   let panel = null;
   const q = s => panel.querySelector(s);
@@ -345,7 +345,8 @@
         const r = await post('/api/pedido-effi/crear', body);
         const doc = construirDoc(r, body);   // se arma ANTES de redibujar: usa lo que hay en pantalla
         st.hecho = r; st.ocupado = false; guardarLS(CLAVE_BORRADOR, null);   // ya está en Effi: el borrador se descarta
-        const preset = { linea: st.linea, proyecto: doc.proyecto, mockups: Object.fromEntries(Object.entries(st.mkSel).filter(([, v]) => v && v.length)) };
+        const lp = st.listadoPrevio || {};
+        const preset = { linea: st.linea || lp.linea, proyecto: doc.proyecto, mockups: Object.fromEntries(Object.entries(st.mkSel).filter(([, v]) => v && v.length)), listado: lp.listado, disenos: lp.disenos, observaciones: lp.observaciones };
         if (window.PedidoListado) window.PedidoListado.abrir(panel, doc, { cat: (st.cat && st.cat.listado) || {}, onOtro: nuevoDocumento, onCerrar: cerrarVentana, preset });   // réplica de la cotización + «Continuar con el listado»
         else dibujar();
       }
@@ -786,5 +787,24 @@
     if (!panel._ofrecido) { panel._ofrecido = true; ofrecerBorrador(); }
   }
   document.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && panel && panel.isConnected && q('.pe-enc')) { e.preventDefault(); const b = q('[data-previa-btn]'); if (b) b.click(); } });   // Ctrl+Enter = VISTA PREVIA
-  window.PedidoEffi = { montar };
+  // pestaña LISTADO antes de crear el documento: listado PREVIO con las referencias y cantidades del formulario (se guarda y pasa solo al crear)
+  function listadoPrevio() {
+    if (!window.PedidoListado || !st.cat || st.hecho) return false;
+    const conceptos = st.conceptos.filter(l => String(l.ref || '').trim()).map(l => ({ referencia: l.ref, descripcion: l.descripcion, cantidad: num(l.cantidad) }));
+    if (!conceptos.length) { msg('Primero agrega al menos un artículo en Conceptos: el listado se arma por referencia.', 'error'); return false; }
+    st.guardCampos = ['sucursal', 'bodega', 'centro_costos', 'vendedor', 'fecha_entrega', 'garantia', 'observacion', 'cliente-q'].reduce((o, n) => (o[n] = valor(n), o), {});
+    const doc = { tipo: st.tipo, numero: 'PREVIO', prefijo: '', cliente: { nombre: st.cliente ? st.cliente.nombre : '' }, proyecto: valor('garantia').trim(), conceptos };
+    const lp = st.listadoPrevio || {};
+    window.PedidoListado.abrir(panel, doc, { cat: (st.cat && st.cat.listado) || {}, previo: true, onVolver: volverAlFormulario, preset: { linea: st.linea, proyecto: doc.proyecto, listado: lp.listado, disenos: lp.disenos, observaciones: lp.observaciones } });
+    return true;
+  }
+  function volverAlFormulario() {
+    if (window.PedidoListado && window.PedidoListado.previo && window.PedidoListado.previo()) st.listadoPrevio = window.PedidoListado.datos();
+    dibujar();
+    const g = st.guardCampos || {}; Object.entries(g).forEach(([n, v]) => { const e = q('[name="' + n + '"]'); if (e && v && !e.value) e.value = v; });
+    const ps = q('[name="proyecto_sel"]'); if (ps && g.garantia && st.proy.lista.includes(g.garantia)) ps.value = g.garantia;
+    try { pintarPasos(); } catch (e) { /* nada */ }
+    return true;
+  }
+  window.PedidoEffi = { montar, listadoPrevio, volverAlFormulario };
 })();

@@ -135,7 +135,7 @@
   };
   const claveBorrador = () => 'pedidoListado:' + (L.doc.prefijo || '') + L.doc.numero;
   function guardarBorrador() { try { localStorage.setItem(claveBorrador(), JSON.stringify({ disenos: L.disenos, proyecto: L.proyecto, linea: L.linea, observaciones: L.observaciones, listado: L.listado })); } catch (e) { /* sin almacenamiento */ } }
-  function cargarBorrador() { try { const b = JSON.parse(localStorage.getItem(claveBorrador()) || 'null'); if (b && b.listado) Object.assign(L, { disenos: b.disenos || 1, proyecto: b.proyecto || L.proyecto, linea: b.linea || '', observaciones: b.observaciones || '', listado: b.listado }); } catch (e) { /* borrador dañado */ } }
+  function cargarBorrador() { if (L.doc.numero === 'PREVIO') return; try { const b = JSON.parse(localStorage.getItem(claveBorrador()) || 'null'); if (b && b.listado) Object.assign(L, { disenos: b.disenos || 1, proyecto: b.proyecto || L.proyecto, linea: b.linea || '', observaciones: b.observaciones || '', listado: b.listado }); } catch (e) { /* borrador dañado */ } }
   const filaVacia = () => ({ nombre: '', talla: '', numero: '', diseno: L.defDiseno || 1, genero: L.defGenero || 'MASC', observacion: '' });
   const filasDe = ref => (L.listado[ref] = L.listado[ref] || []);
   const faltantes = () => {   // lo que impide programar: se muestra completo, no uno por uno
@@ -156,6 +156,7 @@
   // ---------------------------------------------------------------- estructura
   const PASOS = [['doc', '1 · COTIZACIÓN'], ['mockups', '2 · MOCKUPS'], ['listado', '3 · LISTADO']];
   function barra() {
+    if (L.previo) return '<div class="pl-barra"><div class="pl-pasos"><span class="pl-paso on">LISTADO PREVIO</span></div><span style="color:#a9b5a3;font:700 12px Arial">Llénalo ahora: queda guardado y pasa solo al listado cuando crees la cotización · ' + esc((L.doc.cliente || {}).nombre || 'sin cliente') + '</span></div>';
     const orden = ['doc', 'mockups', 'listado', 'enviado'], i = orden.indexOf(L.pantalla);
     return '<div class="pl-barra"><div class="pl-pasos">' + PASOS.map(([k, t], j) => '<span class="pl-paso ' + (j === i ? 'on' : j < i ? 'hecho' : '') + '">' + t + '</span>').join('') + '</div><span style="color:#a9b5a3;font:700 12px Arial">' + esc((L.doc.tipo === 'remision' ? 'Remisión ' : 'Cotización ') + (L.doc.numero_completo || L.doc.numero)) + ' · ' + esc((L.doc.cliente || {}).nombre) + '</span></div>';
   }
@@ -326,10 +327,11 @@
       '<button class="pl-btn sec mini" type="button" data-mas>+ AGREGAR FILA</button><button class="pl-btn sec mini" type="button" data-mas5>+ AGREGAR 5 FILAS</button><button class="pl-btn sec mini" type="button" data-completar>COMPLETAR HASTA ' + g.cantidad + '</button><button class="pl-btn sec mini" type="button" data-pegar>PEGAR DESDE EXCEL</button></div>' +
       '<div data-pegado hidden class="pl-tarjeta" style="margin:0 0 10px"><label>Pega aquí las filas copiadas de Excel (columnas: NOMBRE, TALLA, NÚMERO, DISEÑO, GÉNERO, OBSERVACIÓN; separadas por tabulador o punto y coma)<textarea data-pegado-texto spellcheck="false"></textarea></label><div style="display:flex;gap:8px;margin-top:8px"><button class="pl-btn mini" type="button" data-pegado-ok>PEGAR FILAS</button><button class="pl-btn sec mini" type="button" data-pegado-no>CANCELAR</button></div></div>' +
       '<div class="pl-tabla-caja"><table class="pl-tabla"><thead><tr><th></th><th>NOMBRE</th><th>TALLA *</th><th>NÚMERO</th><th>DISEÑO</th><th>GÉNERO</th><th>OBSERVACIÓN</th><th></th></tr></thead><tbody data-filas>' + filas.map(filaHtml).join('') + '</tbody></table></div></div>';
-    acciones('<button class="pl-btn sec" type="button" data-atras>◀ MOCKUPS</button><button class="pl-btn" type="button" data-programar>PROGRAMAR PEDIDO EN PRODUCCIÓN</button>', '', '');
+    if (L.previo) acciones('<button class="pl-btn sec" type="button" data-atras>◀ VOLVER A CO/RM</button><button class="pl-btn" type="button" data-programar disabled>CREA LA COTIZACIÓN PARA PROGRAMAR</button>', '', '');
+    else acciones('<button class="pl-btn sec" type="button" data-atras>◀ MOCKUPS</button><button class="pl-btn" type="button" data-programar>PROGRAMAR PEDIDO EN PRODUCCIÓN</button>', '', '');
     estadoListado();
     raiz.querySelectorAll('[data-ref]').forEach(b => b.onclick = () => { L.abierta = b.dataset.ref; pantallaListado(); });
-    q('[data-atras]').onclick = () => { L.pantalla = 'mockups'; dibujar(); };
+    q('[data-atras]').onclick = () => { if (L.previo) { if (L.opts.onVolver) L.opts.onVolver(); return; } L.pantalla = 'mockups'; dibujar(); };
     q('[data-def-diseno]').onchange = e => { L.defDiseno = Number(e.target.value); };
     q('[data-def-genero]').onchange = e => { L.defGenero = e.target.value; };
     q('[data-mas]').onclick = () => { filas.push(filaVacia()); guardarBorrador(); pantallaListado(); enfocarUltima(); };
@@ -396,7 +398,7 @@
   }
   function estadoListado() {
     grupos().forEach(g => { const el = raiz.querySelector('[data-cont="' + g.referencia.replace(/"/g, '') + '"]'); if (el) { const n = filasDe(g.referencia).length; el.textContent = n + ' / ' + g.cantidad; el.classList.toggle('ok', n === g.cantidad); } });
-    const f = faltantes(), b = q('[data-programar]'); if (b) b.disabled = f.length > 0 || L.enviando;
+    const f = faltantes(), b = q('[data-programar]'); if (b) b.disabled = f.length > 0 || L.enviando || !!L.previo;
     if (L.enviando) return;
     setMsg(f.length ? f.slice(0, 6).join('\n') + (f.length > 6 ? '\n…y ' + (f.length - 6) + ' más' : '') : 'Listado completo ✓ Ya puedes programar el pedido.', f.length ? '' : 'ok');
   }
@@ -549,6 +551,12 @@
     cargarBorrador();
     L.compartir = grupos().length > 1;
     const pr = (opts && opts.preset) || null;
+    L.previo = !!(opts && opts.previo);
+    if (pr && pr.listado) {   // lo que se llenó en el LISTADO PREVIO (antes de crear la cotización)
+      Object.entries(pr.listado).forEach(([ref, filas]) => { if (Array.isArray(filas) && filas.some(f => f.nombre || f.talla || f.numero || f.observacion)) { L.listado[String(ref).toUpperCase()] = filas.map(f => Object.assign({}, f)); L.relleno[String(ref).toUpperCase()] = true; } });
+      if (pr.disenos) L.disenos = Math.max(L.disenos || 1, Number(pr.disenos) || 1);
+      if (pr.observaciones) L.observaciones = pr.observaciones;
+    }
     if (pr) {   // viene de EMPEZAR PEDIDO con la línea, el proyecto y los mockups ya elegidos: directo al LISTADO (sin pasos de más)
       if (pr.linea) L.linea = pr.linea;
       if (pr.proyecto) L.proyecto = pr.proyecto;
@@ -569,5 +577,7 @@
   // para las pestañas CO/RM y LISTADO de la ventana: en qué pantalla está el listado (null = aún no hay documento creado) y saltar a otra
   const activo = () => (L.doc && raiz && raiz.isConnected && raiz.querySelector('.pl, [data-cuerpo]')) ? L.pantalla : null;
   function ir(p) { if (!activo() || L.pantalla === 'enviado' || L.enviando) return false; L.pantalla = p; if (p === 'listado') L.abierta = L.abierta || grupos()[0].referencia; dibujar(); return true; }
-  window.PedidoListado = { abrir, activo, ir };
+  const previo = () => !!(L.previo && activo());
+  const datos = () => ({ listado: L.listado, disenos: L.disenos, linea: L.linea, observaciones: L.observaciones });
+  window.PedidoListado = { abrir, activo, ir, previo, datos };
 })();
