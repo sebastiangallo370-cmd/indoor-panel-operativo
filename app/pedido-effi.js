@@ -181,7 +181,7 @@
   }`;
   document.head.appendChild(css);
 
-  const estadoInicial = () => ({ tipo: 'cotizacion', cat: null, estado: null, cliente: null, direccion: -1, conceptos: [], telas: {}, proy: { cliente: '', cargando: false, lista: [], carpeta: null, error: '' }, sinIvaTodos: false, formas: [], clave: nuevaClave(), previa: false, prev: null, ocupado: false, hecho: null, capturando: false, capTexto: '', capMsg: '', moneda: 'COP', trm: '1', global: '', propina: '', propinaPct: false, retenciones: [], pronto: '', fechaPronto: '', linea: '', mkSel: {}, listadoPrevio: null });
+  const estadoInicial = () => ({ tipo: 'cotizacion', cat: null, estado: null, cliente: null, direccion: -1, conceptos: [], telas: {}, proy: { cliente: '', cargando: false, lista: [], carpeta: null, error: '' }, sinIvaTodos: false, formas: [], clave: nuevaClave(), previa: false, prev: null, ocupado: false, hecho: null, capturando: false, capTexto: '', capMsg: '', moneda: 'COP', trm: '1', global: '', propina: '', propinaPct: false, retenciones: [], pronto: '', fechaPronto: '', linea: '', mkSel: {}, listadoPrevio: null, mkFiles: {} });
   const st = estadoInicial();
   let panel = null;
   const q = s => panel.querySelector(s);
@@ -470,7 +470,7 @@
     try {
       const r = await api('/api/pedido-effi/clientes?q=' + encodeURIComponent(texto));
       if (box._ancla !== input || box.hidden) return;
-      mostrarSug(input, r.clientes.length ? r.clientes.map((c, i) => '<button type="button" data-i="' + i + '"><span class="n">' + resaltar(c.nombre, texto) + '</span><span class="d">' + esc(c.documento) + '</span></button>').join('') : '<div class="pe-sug-nota">Sin resultados para «' + esc(texto.trim()) + '»<br><small>Este campo busca ARTÍCULOS por referencia o nombre. El cliente se busca en el campo «Cliente» de arriba.</small></div>', r.clientes, 'c');
+      mostrarSug(input, r.clientes.length ? r.clientes.map((c, i) => '<button type="button" data-i="' + i + '"><span class="n">' + resaltar(c.nombre, texto) + '</span><span class="d">' + esc(c.documento) + '</span></button>').join('') : '<div class="pe-sug-nota">Sin resultados para «' + esc(texto.trim()) + '»<br><small>Ese cliente no existe en Effi. ¿Es un cliente nuevo?</small><br><button type="button" class="pe-btn mini" data-cliente-nuevo style="margin-top:6px">+ CREAR CLIENTE NUEVO</button></div>', r.clientes, 'c');
     } catch (e) { box.hidden = true; msg(String(e.message || e), 'error'); }
   }, 300);
   const buscarArticulo = debounce(async (texto, input, i) => {
@@ -517,7 +517,14 @@
     cq.addEventListener('keydown', teclaSug);
     const caja = q('[data-sug-global]');
     caja.addEventListener('mousedown', e => e.preventDefault());   // no le quita el foco al campo
-    caja.addEventListener('click', e => { const b = e.target.closest('[data-i]'); if (b) elegirSug(Number(b.dataset.i)); });
+    caja.addEventListener('click', e => {
+      if (e.target.closest('[data-cliente-nuevo]')) {   // cliente nuevo: se guarda lo llenado, se abre CREAR CLIENTE y al volver se recupera el borrador
+        guardarBorrador(); const f = document.querySelector('.tc-pedido-fondo'); if (f) f.remove();
+        const tab = document.querySelector('.tab[data-kind="cliente-effi"]'); if (tab) tab.click();
+        return;
+      }
+      const b = e.target.closest('[data-i]'); if (b) elegirSug(Number(b.dataset.i));
+    });
     panel.querySelectorAll('[data-lineas] .pe-linea').forEach(row => {
       const i = Number(row.dataset.i), l = st.conceptos[i];
       row.querySelectorAll('[data-f]').forEach(inp => inp.addEventListener('input', () => {
@@ -617,6 +624,7 @@
   .pe-vit .foto{position:relative}.pe-vit .foto img{width:100%;height:100%;object-fit:contain}
   .pe-vit{cursor:pointer;transition:border-color .2s,box-shadow .2s}.pe-vit:hover{border-color:rgba(208,244,76,.5)}
   .pe-vit.elegido{border:2px solid #d0f44c;box-shadow:0 0 0 3px rgba(208,244,76,.2)}
+  .pe-vit-up{cursor:pointer;border-style:dashed!important}.pe-vit-up .foto{background:rgba(208,244,76,.07);color:#d0f44c;font:900 13px/1.6 Arial;text-align:center;align-content:center}.pe-vit-up .foto small{color:#a9b5a3;font-weight:700}.pe-vit-up:hover .foto{background:rgba(208,244,76,.15)}
   .pe-vit-d{position:absolute;top:8px;left:8px;padding:4px 10px;border-radius:99px;background:#0d140e;color:#a9b5a3;font:900 11px Arial;letter-spacing:.08em}
   .pe-vit.elegido .pe-vit-d{background:#d0f44c;color:#0d140e}
   .pe-vit-lupa{all:unset;position:absolute;top:8px;right:8px;width:30px;height:30px;display:grid;place-items:center;border-radius:50%;background:rgba(13,20,14,.8);cursor:zoom-in;font-size:14px}
@@ -683,6 +691,7 @@
     }
     return mockCache[k];
   }
+  const urlsArchivo = new Map(); const urlArchivo = fl => { if (!urlsArchivo.has(fl)) urlsArchivo.set(fl, URL.createObjectURL(fl)); return urlsArchivo.get(fl); };
   function pintarVitrina() {
     const caja = q('[data-vitrina]'); if (!caja) return;
     const ls = st.conceptos.filter(l => l.articulo || String(l.ref || '').trim());
@@ -692,11 +701,26 @@
       const ref = String(l.ref || '').trim().toUpperCase(); if (vistas.has(ref)) return ''; vistas.add(ref);
       const f = fotoMockup(l), tela = telaHtml(l), sel = st.mkSel[ref] || [];
       const aviso = t => '<div class="pe-vit"><div class="foto">' + t + '</div>' + (tela ? '<div class="t">' + tela + '</div>' : '') + '</div>';
-      if (!Array.isArray(f) || !f.length) return aviso(f === 'cargando' ? 'Buscando mockups…' : !st.cliente ? 'Elige el cliente para ver los mockups' : !valor('garantia').trim() ? 'Elige el proyecto para ver los mockups' : 'Sin mockups en la NAS');
-      return f.map(m => { const k = sel.indexOf(m.url);
+      const subidos = (st.mkFiles[ref] || []).map((fl, j) => { const k = sel.indexOf(fl);
+        return '<div class="pe-vit' + (k >= 0 ? ' elegido' : '') + '" data-vit-ref="' + esc(ref) + '" data-vit-file="' + j + '" title="Mockup subido: clic para elegirlo o quitarlo"><div class="foto"><img alt="Mockup subido" src="' + esc(urlArchivo(fl)) + '"><span class="pe-vit-d">' + (k >= 0 ? '✓ D' + (k + 1) : 'SUBIDO · ELEGIR') + '</span><button type="button" class="pe-vit-lupa" data-vit-borrar title="Quitar este mockup">✕</button></div></div>'; }).join('');
+      const subir = '<label class="pe-vit pe-vit-up" title="Sube un mockup de tu computador (para un pedido nuevo o un diseño que no está en la NAS)"><input type="file" accept="image/*" multiple hidden data-vit-up="' + esc(ref) + '"><div class="foto">＋<br>SUBIR MOCKUP<br><small>' + esc(ref) + '</small></div></label>';
+      if (!Array.isArray(f) || !f.length) return aviso(f === 'cargando' ? 'Buscando mockups…' : !st.cliente ? 'Elige el cliente para ver los mockups' : !valor('garantia').trim() ? 'Elige el proyecto para ver los mockups' : 'Sin mockups en la NAS (pedido nuevo): súbelos aquí') + subidos + subir;
+      return subidos + subir + f.map(m => { const k = sel.indexOf(m.url);
         return '<div class="pe-vit' + (k >= 0 ? ' elegido' : '') + '" data-vit-ref="' + esc(ref) + '" data-vit-url="' + esc(m.url) + '" title="Clic para ' + (k >= 0 ? 'quitarlo de' : 'usarlo en') + ' el listado"><div class="foto"><img alt="Mockup ' + esc(ref) + '" src="' + esc(m.url) + '"><span class="pe-vit-d">' + (k >= 0 ? '✓ D' + (k + 1) : 'ELEGIR') + '</span><button type="button" class="pe-vit-lupa" data-vit-lupa title="Ver en grande">🔍</button></div>' + (tela ? '<div class="t">' + tela + '</div>' : '') + '</div>'; }).join('');
     }).join('');
     if (caja._html === html) return; caja._html = html; caja.innerHTML = html;
+    caja.querySelectorAll('[data-vit-up]').forEach(inp => inp.onchange = () => {
+      const ref = inp.dataset.vitUp, lista = st.mkFiles[ref] = st.mkFiles[ref] || [], sel = st.mkSel[ref] = st.mkSel[ref] || [];
+      [...inp.files].forEach(fl => { if (!/^image\//.test(fl.type) || fl.size > 10 * 1024 * 1024) return; lista.push(fl); if (sel.length < 6) sel.push(fl); });   // lo que subes queda elegido, en orden
+      pintarVitrina();
+    });
+    caja.querySelectorAll('[data-vit-file]').forEach(c => c.onclick = e => {
+      const ref = c.dataset.vitRef, lista = st.mkFiles[ref] || [], fl = lista[Number(c.dataset.vitFile)]; if (!fl) return;
+      const sel = st.mkSel[ref] = st.mkSel[ref] || [];
+      if (e.target.closest('[data-vit-borrar]')) { lista.splice(lista.indexOf(fl), 1); const k = sel.indexOf(fl); if (k >= 0) sel.splice(k, 1); pintarVitrina(); return; }
+      const k = sel.indexOf(fl); if (k >= 0) sel.splice(k, 1); else if (sel.length < 6) sel.push(fl);
+      pintarVitrina();
+    });
     caja.querySelectorAll('[data-vit-url]').forEach(c => c.onclick = e => {
       const ref = c.dataset.vitRef;
       if (e.target.closest('[data-vit-lupa]')) { const l = st.conceptos.find(x => String(x.ref || '').toUpperCase() === ref); if (l) verMockups(l); return; }
@@ -716,7 +740,7 @@
     const campos = ['sucursal', 'bodega', 'centro_costos', 'vendedor', 'fecha_entrega', 'garantia', 'observacion'].reduce((o, n) => (o[n] = valor(n), o), {});
     const vacio = !st.cliente && st.conceptos.every(l => !l.articulo && !String(l.ref || '').trim());
     if (vacio) return;
-    guardarLS(CLAVE_BORRADOR, { cuando: Date.now(), tipo: st.tipo, cliente: st.cliente, direccion: st.direccion, conceptos: st.conceptos, formas: st.formas, moneda: st.moneda, trm: st.trm, global: st.global, propina: st.propina, propinaPct: st.propinaPct, retenciones: st.retenciones, pronto: st.pronto, fechaPronto: st.fechaPronto, sinIvaTodos: st.sinIvaTodos, linea: st.linea, mkSel: st.mkSel, campos });
+    guardarLS(CLAVE_BORRADOR, { cuando: Date.now(), tipo: st.tipo, cliente: st.cliente, direccion: st.direccion, conceptos: st.conceptos, formas: st.formas, moneda: st.moneda, trm: st.trm, global: st.global, propina: st.propina, propinaPct: st.propinaPct, retenciones: st.retenciones, pronto: st.pronto, fechaPronto: st.fechaPronto, sinIvaTodos: st.sinIvaTodos, linea: st.linea, mkSel: Object.fromEntries(Object.entries(st.mkSel).map(([k, v]) => [k, (v || []).filter(x => typeof x === 'string')])), campos });
     panel._borradorTxt = '● Borrador guardado ' + new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
     const b = q('[data-borrador]'); if (b) { b.classList.add('si'); b.textContent = panel._borradorTxt; }
   }

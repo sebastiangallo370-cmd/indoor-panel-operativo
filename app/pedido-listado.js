@@ -571,7 +571,7 @@
       L.mkEsperados = refs.flatMap(ref => m[ref].map((u, i) => [ref, i + 1])); L.mkCarga = [];
       refs.forEach(ref => m[ref].forEach((url, i) => L.mkCarga.push((async () => {
         try {
-          const b = await fetch(url, { credentials: 'same-origin' }).then(x => { if (!x.ok) throw new Error(); return x.blob(); });
+          const b = typeof url === 'string' ? await fetch(url, { credentials: 'same-origin' }).then(x => { if (!x.ok) throw new Error(); return x.blob(); }) : url;   // una URL de la NAS o un archivo que subió el comercial
           const ext = (b.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
           (L.imgs[ref] = L.imgs[ref] || {})[i + 1] = new File([b], ref + '_D' + (i + 1) + '.' + ext, { type: b.type || 'image/png' });
           if (raiz && raiz.isConnected && L.pantalla === 'mockups') dibujar();
