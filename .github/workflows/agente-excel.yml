@@ -45,10 +45,13 @@ jobs:
     needs: construir
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           path: listos
           merge-multiple: true
+      - name: version.txt (el agente lo lee para actualizarse solo)
+        run: grep -oP "^VERSION = '\\K[0-9.]+" agente_excel/agente_excel.py > listos/version.txt && cat listos/version.txt
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: agente-excel

@@ -24,13 +24,15 @@ import urllib.request
 from pathlib import Path
 from tkinter import messagebox, simpledialog
 
-VERSION = '1.0.3'
+VERSION = '1.0.4'
 URL = os.getenv('AGENTE_EXCEL_URL', 'https://produccion.cloud').rstrip('/')
 CONFIG = Path.home() / '.agente_excel_indoor.json'
 SALIDA = Path.home() / 'Documents' / 'Indoor Pedidos'
 SONDEO_MS = 3000
 PAUSA_CELDA = float(os.getenv('AGENTE_EXCEL_PAUSA', '0.12'))   # segundos entre celda y celda: se ve escribirse
 ES_MAC = platform.system() == 'Darwin'
+RELEASE = 'https://github.com/sebastiangallo370-cmd/indoor-panel-operativo/releases/download/agente-excel/'
+REVISAR_VERSION_SEG = 600   # cada 10 min mira si hay versión nueva y se actualiza sola
 
 
 # ---------------------------------------------------------------- configuración y panel
@@ -74,6 +76,63 @@ def iniciar_con_el_equipo() -> None:
                 winreg.SetValueEx(k, 'AgenteExcelIndoor', 0, winreg.REG_SZ, f'"{exe}"')
     except Exception:  # noqa: BLE001 - si no se puede, igual funciona abriéndolo a mano
         pass
+
+
+# ---------------------------------------------------------------- actualización automática
+def _num(v: str) -> tuple:
+    import re
+    return tuple(int(x) for x in re.findall(r'\d+', v or '')[:3])
+
+
+def descargar(url: str) -> bytes:
+    req = urllib.request.Request(url, headers={'User-Agent': f'AgenteExcelIndoor/{VERSION}'})
+    with urllib.request.urlopen(req, timeout=120) as r:
+        return r.read()
+
+
+def actualizar_si_hay() -> bool:
+    """Si en GitHub hay una versión más nueva, la baja, reemplaza este programa y lo vuelve a abrir. True = el agente debe cerrarse ya."""
+    if not getattr(sys, 'frozen', False):
+        return False
+    try:
+        nueva = descargar(RELEASE + 'version.txt').decode().strip()
+    except Exception:  # noqa: BLE001
+        return False
+    if _num(nueva) <= _num(VERSION):
+        return False
+    import subprocess
+    import zipfile
+    tmp = Path(tempfile.mkdtemp(prefix='indoor_act_'))
+    zipf = tmp / 'nuevo.zip'
+    zipf.write_bytes(descargar(RELEASE + ('AgenteExcelIndoor-Mac.zip' if ES_MAC else 'AgenteExcelIndoor-Windows.zip')))
+    exe = Path(sys.executable)
+    if ES_MAC:
+        app = exe.parents[2]      # …/AgenteExcelIndoor.app/Contents/MacOS/AgenteExcelIndoor
+        sh = tmp / 'actualizar.sh'
+        sh.write_text(f'''#!/bin/sh
+sleep 3
+rm -rf "{app}"
+ditto -x -k "{zipf}" "{app.parent}"
+xattr -dr com.apple.quarantine "{app}" 2>/dev/null
+open "{app}"
+''', encoding='utf-8')
+        os.chmod(sh, 0o755)
+        subprocess.Popen(['/bin/sh', str(sh)], start_new_session=True)
+    else:
+        with zipfile.ZipFile(zipf) as z:
+            z.extract('AgenteExcelIndoor.exe', tmp)
+        bat = tmp / 'actualizar.bat'
+        # reintenta copiar hasta que este programa se haya cerrado (mientras corre, Windows bloquea el .exe)
+        bat.write_text(f'''@echo off
+set n=0
+:otra
+timeout /t 2 /nobreak >nul
+set /a n+=1
+copy /y "{tmp / 'AgenteExcelIndoor.exe'}" "{exe}" >nul 2>&1 || (if %n% lss 60 goto otra)
+start "" "{exe}"
+''', encoding='mbcs')
+        subprocess.Popen(['cmd', '/c', str(bat)], creationflags=0x08000000 | 0x00000008)   # sin ventana, independiente
+    return True
 
 
 # ---------------------------------------------------------------- llenar Excel a la vista
@@ -205,6 +264,15 @@ class Agente:
                 self.poner(f'El panel respondió {e.code}; reintentando…')
         except Exception:  # noqa: BLE001
             self.poner('Sin conexión con el panel; reintentando…')
+        if time.time() - getattr(self, '_ultima_revision', 0) > REVISAR_VERSION_SEG:
+            self._ultima_revision = time.time()
+            try:
+                if actualizar_si_hay():
+                    self.poner('Actualizando el agente… se vuelve a abrir solo.')
+                    self.ventana.after(800, self.ventana.destroy)
+                    return
+            except Exception:  # noqa: BLE001 - si falla, sigue con la versión actual
+                pass
         self.ventana.after(SONDEO_MS, self.ciclo)
 
     def trabajar(self, t):
