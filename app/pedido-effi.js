@@ -344,7 +344,7 @@
         if (!confirm('Se va a crear en Effi una ' + nombreDoc() + ' por ' + money(st.prev.total) + '. ¿Confirmas?')) { st.ocupado = false; msg('', ''); return; }
         const r = await post('/api/pedido-effi/crear', body);
         const doc = construirDoc(r, body);   // se arma ANTES de redibujar: usa lo que hay en pantalla
-        st.hecho = r; st.ocupado = false;
+        st.hecho = r; st.ocupado = false; guardarLS(CLAVE_BORRADOR, null);   // ya está en Effi: el borrador se descarta
         if (window.PedidoListado) window.PedidoListado.abrir(panel, doc, { cat: (st.cat && st.cat.listado) || {}, onOtro: nuevoDocumento, onCerrar: cerrarVentana });   // réplica de la cotización + «Continuar con el listado»
         else dibujar();
       }
@@ -381,7 +381,7 @@
     return t.materiales.map(m => { const nombre = String(m.tela || m.material || '').replace(/^\s*\(\d+\)\s*/, '').trim(), cod = m.codigo || (String(m.tela || '').match(/^\s*\((\d+)\)/) || [])[1] || '';
       return '<b>' + (cod ? esc(cod) + ' ' : '') + '(' + esc(nombre) + ')</b>' + (num(l.cantidad) ? ' <b>' + f(m.promedio * num(l.cantidad)) + ' mts</b>' : '') + (m.bodega != null ? ' - STOCK <b>' + f(m.bodega) + ' mts</b>' : '') + (num(l.cantidad) && m.bodega != null && m.bodega < m.promedio * num(l.cantidad) ? ' <span style="color:#ff8a7a">· NO ALCANZA</span>' : ''); }).join('<br>');
   }
-  function pintarTelas() { panel.querySelectorAll('[data-lineas] .pe-linea').forEach(row => { const l = st.conceptos[Number(row.dataset.i)], e = row.querySelector('[data-tela]'); if (l && e) { e.innerHTML = telaHtml(l); const t = st.telas[String(l.ref || '').toUpperCase()]; e.classList.toggle('no', !!t && t !== 'cargando' && !t.encontrado); } }); }
+  function pintarTelas() { panel.querySelectorAll('[data-lineas] .pe-linea').forEach(row => { const l = st.conceptos[Number(row.dataset.i)], e = row.querySelector('[data-tela]'); if (l && e) { e.innerHTML = telaHtml(l); const t = st.telas[String(l.ref || '').toUpperCase()]; e.classList.toggle('no', !!t && t !== 'cargando' && !t.encontrado); } }); if (typeof pintarVitrina === 'function') try { pintarVitrina(); } catch (e) { /* nada */ } }
   async function cargarTela(ref) {
     const k = String(ref || '').toUpperCase(); if (!k || st.telas[k]) return;
     st.telas[k] = 'cargando'; pintarTelas();
@@ -542,6 +542,7 @@
     q('[data-mas-forma]').onclick = () => { st.formas.push({ id: '', valor: '' }); invalidar(); dibujar(); };
     q('[data-previa-btn]').onclick = () => previa(false);
     q('[data-crear]').onclick = () => previa(true);
+    try { mejorar(); } catch (e) { console.warn('mejoras del formulario', e); }   // las mejoras nunca deben tumbar el formulario
   }
   function cierraSug(e) { if (!panel || !e.target.closest) return; const box = q('[data-sug-global]'); if (box && !box.hidden && !box.contains(e.target) && e.target !== box._ancla) box.hidden = true; }
   function refrescarTotales() { const t = totales(), tot = q('.pe-tot'); if (!tot) return; const v = tot.querySelectorAll('b'); v[0].textContent = money(t.b); v[1].textContent = money(t.d); v[2].textContent = money(t.s); if (!st.prev) { const e = estimado(), i = q('[data-imp]'), n = q('[data-neto]'), r = q('[data-ret]'); if (i) i.textContent = est(e.imp); if (n) n.textContent = est(e.neto); if (r) r.textContent = st.retenciones.length ? est(e.ret) : '—'; } }
@@ -585,5 +586,186 @@
   })();
   window.addEventListener('resize', () => posicionarSug());
   document.addEventListener('scroll', e => { const box = panel && q('[data-sug-global]'); if (box && !box.hidden && !box.contains(e.target)) box.hidden = true; }, true);
+  // ================================================================ MEJORAS DINÁMICAS (solo se AGREGAN encima del formulario: no cambian campos, botones ni cálculos)
+  // 1) pasos con avance  2) vitrina de conceptos (mockup + tela)  3) conceptos como tarjetas  4) resumen vivo  5) encabezado compacto  6) atajos y borrador
+  const CLAVE_PREF = 'pedidoEffiPreferencias', CLAVE_BORRADOR = 'pedidoEffiBorrador';
+  const leerLS = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) || d; } catch (e) { return d; } };
+  const guardarLS = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* sin almacenamiento */ } };
+  const mockCache = {};
+  let ultimoNeto = null;
+  const cssPlus = document.createElement('style');
+  cssPlus.textContent = `
+  .pe-pasos{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:0 auto 0 18px}
+  .pe-paso{display:flex;align-items:center;gap:6px;padding:5px 11px 5px 6px;border-radius:99px;border:1px solid #3d4c3b;color:#a9b5a3;font:900 10.5px Arial;letter-spacing:.08em;cursor:pointer;transition:all .25s;background:rgba(0,0,0,.25)}
+  .pe-paso i{display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:#2a332c;color:#c9d3c1;font:900 11px Arial;font-style:normal;transition:all .25s}
+  .pe-paso.ok{border-color:#6f9410;color:#d0f44c}.pe-paso.ok i{background:#9be37a;color:#0d140e}
+  .pe-paso.aqui{border-color:#d0f44c;color:#f5faef;box-shadow:0 0 0 3px rgba(208,244,76,.15)}.pe-paso.aqui i{background:#d0f44c;color:#0d140e;animation:pePulso 1.6s ease-in-out infinite}
+  .pe-paso-sep{width:14px;height:2px;background:#3d4c3b;border-radius:2px}.pe-paso-sep.ok{background:#9be37a}
+  @keyframes pePulso{50%{box-shadow:0 0 0 5px rgba(208,244,76,.25)}}
+  .pe .pe-falta{outline:2px solid rgba(255,181,71,.75)!important;outline-offset:1px;border-radius:8px}
+  .pe-linea{position:relative;border:1px solid rgba(255,255,255,.08)!important;border-radius:14px;padding:8px 10px!important;margin-bottom:8px;background:rgba(0,0,0,.18);transition:border-color .2s,background .2s,transform .2s}
+  .pe-linea:hover{border-color:rgba(208,244,76,.35)!important;background:rgba(208,244,76,.04)}
+  .pe-linea.lista{border-left:4px solid #9be37a!important}
+  .pe-linea.nueva{animation:peEntra .45s cubic-bezier(.2,.8,.2,1)}
+  @keyframes peEntra{from{opacity:0;transform:translateY(10px) scale(.99)}to{opacity:1;transform:none}}
+  .pe-vitrina{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;margin-top:14px}
+  .pe-vit{display:grid;grid-template-columns:96px 1fr;gap:10px;padding:10px;border:1px solid rgba(255,255,255,.1);border-radius:14px;background:linear-gradient(160deg,rgba(255,255,255,.05),rgba(0,0,0,.25));animation:peEntra .45s ease}
+  .pe-vit .foto{height:130px;border-radius:10px;background:#e9eeea;display:grid;place-items:center;overflow:hidden;color:#52604f;font:800 10px Arial;text-align:center;padding:4px}
+  .pe-vit .foto img{width:100%;height:100%;object-fit:contain;cursor:zoom-in}
+  .pe-vit b.r{display:block;color:#d0f44c;font:900 14px Arial}.pe-vit .d{color:#f5faef;font:700 12px Arial;margin:2px 0 6px}
+  .pe-vit .n{display:flex;gap:10px;font:800 11px Arial;color:#c9d3c1}.pe-vit .n strong{color:#f5faef;font-size:15px}
+  .pe-vit .t{margin-top:6px;font:600 11px/1.4 Arial;color:#a9b5a3}
+  .pe-vit-vacia{border:1px dashed #3d4c3b;border-radius:14px;padding:22px;text-align:center;color:#7f8c79;font:700 13px Arial}
+  .pe-resumen [data-neto]{transition:transform .25s,color .25s;display:inline-block}
+  .pe-resumen [data-neto].sube{transform:scale(1.12);color:#fff}
+  .pe-btn[data-crear]:not(:disabled){animation:peBrillo 1.8s ease-in-out infinite}
+  @keyframes peBrillo{50%{box-shadow:0 0 0 4px rgba(208,244,76,.35),0 0 22px rgba(208,244,76,.45)}}
+  .pe-resumen .pe-listo-txt{font:800 11px Arial;color:#9be37a;margin-top:4px}
+  .pe-enc.pe-compacto label:has(> [name="sucursal"]),.pe-enc.pe-compacto label:has(> [name="moneda"]),.pe-enc.pe-compacto label:has(> [name="trm"]),.pe-enc.pe-compacto label:has(> [name="centro_costos"]){display:none}
+  .pe-ajustes{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:6px;margin-top:8px;padding:4px 10px;border:1px solid #3d4c3b;border-radius:99px;color:#c9d3c1;font:800 11px Arial}
+  .pe-ajustes:hover{border-color:#d0f44c;color:#d0f44c}
+  .pe-borrador{display:inline-flex;align-items:center;gap:6px;color:#7f8c79;font:700 10.5px Arial;margin-left:10px}
+  .pe-borrador.si{color:#9be37a}
+  .pe-atajos{color:#7f8c79;font:600 10.5px Arial;margin-top:6px}
+  .pe-recuperar{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:10px 14px;border:1px solid rgba(208,244,76,.4);border-radius:14px;background:rgba(208,244,76,.07);color:#e8f0e0;font:700 13px Arial}
+  @media(max-width:999px){.pe-pasos{margin:8px 0 0;width:100%}.pe-paso{padding:4px 8px 4px 5px;font-size:9.5px}.pe-paso-sep{display:none}.pe-vit{grid-template-columns:80px 1fr}.pe-vit .foto{height:110px}}
+  `;
+  document.head.appendChild(cssPlus);
+
+  const lineaLista = l => !!(l.articulo && num(l.cantidad) > 0 && String(l.precio) !== '' && String(l.descripcion || '').trim());
+  function estadoPasos() {
+    const cliente = !!st.cliente && !!valor('bodega') && !!valor('centro_costos') && !!valor('garantia').trim() && !!valor('fecha_entrega');
+    const conceptos = st.conceptos.length > 0 && st.conceptos.every(lineaLista);
+    const pago = st.formas.length > 0 && st.formas.every(f => !!f.id);
+    return [['Cliente', cliente], ['Conceptos', conceptos], ['Pago', pago], ['Crear', !!st.prev]];
+  }
+  function pintarPasos() {
+    const caja = q('[data-pasos]'); if (!caja) return;
+    const p = estadoPasos(), aqui = p.findIndex(x => !x[1]);
+    caja.innerHTML = p.map(([t, ok], i) => (i ? '<span class="pe-paso-sep' + (p[i - 1][1] ? ' ok' : '') + '"></span>' : '') + '<span class="pe-paso' + (ok ? ' ok' : '') + (i === aqui ? ' aqui' : '') + '" data-ir="' + i + '"><i>' + (ok ? '✓' : i + 1) + '</i>' + t.toUpperCase() + '</span>').join('');
+    // campos obligatorios que faltan: en ámbar (solo los del paso donde estás o anteriores)
+    panel.querySelectorAll('.pe-falta').forEach(e => e.classList.remove('pe-falta'));
+    const marca = (sel, falta) => { const e = q(sel); if (e && falta) e.classList.add('pe-falta'); };
+    if (aqui >= 0) {
+      marca('[name="cliente-q"]', !st.cliente); marca('[name="bodega"]', !valor('bodega')); marca('[name="centro_costos"]', !valor('centro_costos'));
+      marca('[name="proyecto_sel"]', !!st.cliente && !valor('garantia').trim()); marca('[name="fecha_entrega"]', !valor('fecha_entrega'));
+      if (aqui >= 1) panel.querySelectorAll('[data-lineas] .pe-linea').forEach(row => { const l = st.conceptos[Number(row.dataset.i)]; if (!l) return; if (!l.articulo) row.querySelector('[data-f="ref"]').classList.add('pe-falta'); else if (String(l.precio) === '') row.querySelector('[data-f="precio"]').classList.add('pe-falta'); });
+      if (aqui >= 2) panel.querySelectorAll('[data-formas] [data-g="id"]').forEach(s => { if (!s.value) s.classList.add('pe-falta'); });
+    }
+    panel.querySelectorAll('[data-lineas] .pe-linea').forEach(row => row.classList.toggle('lista', lineaLista(st.conceptos[Number(row.dataset.i)] || {})));
+    caja.querySelectorAll('[data-ir]').forEach(b => b.onclick = () => {
+      const destino = ['[name="cliente-q"]', '[data-lineas] [data-f="ref"]', '[data-formas] [data-g="id"]', '[data-previa-btn]'][Number(b.dataset.ir)];
+      const e = q(destino); if (e) { e.scrollIntoView({ block: 'center', behavior: 'smooth' }); e.focus && e.focus(); }
+    });
+    // CREAR solo «se ilumina» cuando todo está listo (sigue funcionando igual)
+    const listo = p.slice(0, 3).every(x => x[1]), r = q('.pe-resumen');
+    if (r) { let t = r.querySelector('.pe-listo-txt'); if (listo && !st.prev) { if (!t) { t = document.createElement('div'); t.className = 'pe-listo-txt'; r.querySelector('.pe-acciones').before(t); } t.textContent = '✓ Todo listo: pulsa VISTA PREVIA (Ctrl+Enter).'; } else if (t) t.remove(); }
+  }
+  function fotoMockup(l) {
+    const proyecto = valor('garantia').trim(), ref = String(l.ref || '').trim().toUpperCase();
+    if (!st.cliente || !proyecto || !ref || !st.proy.lista.includes(proyecto)) return null;
+    const k = st.cliente.nombre + '|' + proyecto + '|' + ref;
+    if (!(k in mockCache)) {
+      mockCache[k] = 'cargando';
+      api('/api/pedido-effi/mockups?cliente=' + encodeURIComponent(st.cliente.nombre) + '&proyecto=' + encodeURIComponent(proyecto) + '&ref=' + encodeURIComponent(ref))
+        .then(r => { const i = (r.items || [])[0]; mockCache[k] = i ? '/api/pedido-effi/mockup-img?cliente=' + encodeURIComponent(st.cliente.nombre) + '&proyecto=' + encodeURIComponent(i.proyecto || proyecto) + '&carpeta=' + encodeURIComponent(i.carpeta) + '&archivo=' + encodeURIComponent(i.archivo) : ''; pintarVitrina(); })
+        .catch(() => { mockCache[k] = ''; pintarVitrina(); });
+    }
+    return mockCache[k];
+  }
+  function pintarVitrina() {
+    const caja = q('[data-vitrina]'); if (!caja) return;
+    const ls = st.conceptos.filter(l => l.articulo || String(l.ref || '').trim());
+    if (!ls.length) { caja._html = ''; caja.innerHTML = '<div class="pe-vit-vacia">Elige un artículo: aquí verás su mockup, la tela que gasta y el stock disponible.</div>'; return; }
+    const html = ls.map(l => {
+      const f = fotoMockup(l), tela = telaHtml(l);
+      return '<div class="pe-vit"><div class="foto">' + (f && f !== 'cargando' ? '<img alt="Mockup ' + esc(l.ref) + '" src="' + esc(f) + '" data-vit-ref="' + esc(l.ref) + '">' : f === 'cargando' ? 'Buscando mockup…' : !st.cliente ? 'Elige el cliente para ver el mockup' : !valor('garantia').trim() ? 'Elige el proyecto para ver el mockup' : 'Sin mockup en la NAS') + '</div>' +
+        '<div><b class="r">' + esc(l.ref || '—') + '</b><div class="d">' + esc(l.descripcion || '') + '</div><div class="n"><span>CANT.<br><strong>' + esc(l.cantidad || 0) + '</strong></span><span>TOTAL<br><strong>' + money(brutoDe(l) - descDe(l)) + '</strong></span></div>' + (tela ? '<div class="t">' + tela + '</div>' : '') + '</div></div>';
+    }).join('');
+    if (caja._html === html) return; caja._html = html; caja.innerHTML = html;
+    caja.querySelectorAll('[data-vit-ref]').forEach(im => im.onclick = () => { const l = st.conceptos.find(x => x.ref === im.dataset.vitRef); if (l) verMockups(l); });
+  }
+  function animarNeto() {
+    const n = q('[data-neto]'); if (!n) return;
+    const t = n.textContent; if (ultimoNeto !== null && t !== ultimoNeto) { n.classList.add('sube'); setTimeout(() => n.classList.remove('sube'), 260); }
+    ultimoNeto = t;
+  }
+  // borrador: lo que se ha llenado queda guardado en este navegador hasta crear el documento
+  function guardarBorrador() {
+    if (st.hecho || !st.cat) return;
+    const campos = ['sucursal', 'bodega', 'centro_costos', 'vendedor', 'fecha_entrega', 'garantia', 'observacion'].reduce((o, n) => (o[n] = valor(n), o), {});
+    const vacio = !st.cliente && st.conceptos.every(l => !l.articulo && !String(l.ref || '').trim());
+    if (vacio) return;
+    guardarLS(CLAVE_BORRADOR, { cuando: Date.now(), tipo: st.tipo, cliente: st.cliente, direccion: st.direccion, conceptos: st.conceptos, formas: st.formas, moneda: st.moneda, trm: st.trm, global: st.global, propina: st.propina, propinaPct: st.propinaPct, retenciones: st.retenciones, pronto: st.pronto, fechaPronto: st.fechaPronto, sinIvaTodos: st.sinIvaTodos, campos });
+    panel._borradorTxt = '● Borrador guardado ' + new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+    const b = q('[data-borrador]'); if (b) { b.classList.add('si'); b.textContent = panel._borradorTxt; }
+  }
+  const guardarBorradorPronto = debounce(guardarBorrador, 700);
+  function ponerCampos(campos) { Object.entries(campos || {}).forEach(([n, v]) => { const e = q('[name="' + n + '"]'); if (e && v && !e.value) e.value = v; }); }
+  function ofrecerBorrador() {
+    const b = leerLS(CLAVE_BORRADOR, null); if (!b || !b.cuando || Date.now() - b.cuando > 7 * 864e5 || q('[data-recuperar]')) return;
+    const d = document.createElement('div'); d.className = 'pe-recuperar'; d.dataset.recuperar = '';
+    d.innerHTML = '<span>Tienes un borrador sin terminar' + (b.cliente ? ' de <b>' + esc(b.cliente.nombre) + '</b>' : '') + ' (' + new Date(b.cuando).toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) + ').</span><span style="display:flex;gap:8px"><button class="pe-btn mini" type="button" data-rec-si>RECUPERAR</button><button class="pe-btn sec mini" type="button" data-rec-no>DESCARTAR</button></span>';
+    const pe = q('.pe'); if (!pe) return; pe.prepend(d);
+    d.querySelector('[data-rec-no]').onclick = () => { guardarLS(CLAVE_BORRADOR, null); d.remove(); };
+    d.querySelector('[data-rec-si]').onclick = () => {
+      ['tipo', 'cliente', 'direccion', 'conceptos', 'formas', 'moneda', 'trm', 'global', 'propina', 'propinaPct', 'retenciones', 'pronto', 'fechaPronto', 'sinIvaTodos'].forEach(k => { if (b[k] !== undefined) st[k] = b[k]; });
+      st.prev = null; st.clave = nuevaClave();
+      dibujar(); ponerCampos(b.campos);
+      if (st.cliente) cargarProyectos().then(() => { ponerCampos({ garantia: (b.campos || {}).garantia }); const ps = q('[name="proyecto_sel"]'), g = (b.campos || {}).garantia; if (ps && g && st.proy.lista.includes(g)) ps.value = g; pintarPasos(); });
+      pintarPasos(); pintarVitrina();
+    };
+  }
+  function textoAjustes() {
+    const b = q('[data-ajustes]'), enc = q('.pe-enc'); if (!b || !enc || !st.cat) return;
+    const nom = (lista, v) => ((lista || []).find(x => String(x.id) === String(v)) || {}).nombre || 'sin elegir';
+    b.innerHTML = '⚙ ' + esc(nom(st.cat.sucursales, valor('sucursal'))) + ' · ' + esc(st.moneda) + ' · ' + esc(nom(st.cat.centros, valor('centro_costos'))) + ' <span>' + (enc.classList.contains('pe-compacto') ? '▸ cambiar' : '▾ ocultar') + '</span>';
+  }
+  function mejorar() {
+    if (st.hecho || !q('.pe-enc')) return;
+    // 1) pasos (dentro del encabezado: no altera la cuadrícula de la ventana)
+    const top = q('.pe-top'); if (top && !q('[data-pasos]')) { const p = document.createElement('div'); p.className = 'pe-pasos'; p.dataset.pasos = ''; top.firstElementChild.after(p); }
+    // 5) encabezado compacto: Sucursal, Moneda, TRM y Centro de costos se guardan como preferencia y se esconden en «Ajustes»
+    const pref = leerLS(CLAVE_PREF, {});
+    const es = q('[name="sucursal"]');
+    if (es && !es.value && pref.sucursal && [...es.options].some(o => o.value === pref.sucursal)) { es.value = pref.sucursal; es.dispatchEvent(new Event('input', { bubbles: true })); return; }   // redibuja (bodegas de esa sucursal) y vuelve a entrar aquí
+    ['centro_costos', 'vendedor', 'bodega'].forEach(n => { const e = q('[name="' + n + '"]'); if (e && !e.value && pref[n] && [...e.options].some(o => o.value === pref[n])) e.value = pref[n]; });
+    const enc = q('.pe-enc');
+    const faltaOculto = ['sucursal', 'centro_costos'].some(n => !valor(n)) || (st.moneda !== 'COP' && !valor('trm'));
+    if (!panel._encAbierto && !faltaOculto) enc.classList.add('pe-compacto'); else enc.classList.remove('pe-compacto');
+    if (!q('[data-ajustes]')) {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'pe-ajustes'; b.dataset.ajustes = '';
+      b.onclick = () => { panel._encAbierto = enc.classList.contains('pe-compacto'); enc.classList.toggle('pe-compacto'); textoAjustes(); };
+      const g2 = q('.pe-fila2'); if (g2) g2.before(b);
+    }
+    textoAjustes();
+    // 2) vitrina dentro de Conceptos (llena el espacio vacío)
+    const con = q('.pe-con'); if (con && !q('[data-vitrina]')) { const v = document.createElement('div'); v.className = 'pe-vitrina'; v.dataset.vitrina = ''; con.appendChild(v); }
+    // 3) la línea recién agregada entra animada
+    const filas = panel.querySelectorAll('[data-lineas] .pe-linea');
+    if (panel._nLineas !== undefined && filas.length > panel._nLineas) filas[filas.length - 1].classList.add('nueva');
+    panel._nLineas = filas.length;
+    // 6) atajos y borrador
+    const res = q('.pe-resumen h3'); if (res && !q('[data-borrador]')) { const s = document.createElement('span'); s.className = 'pe-borrador'; s.dataset.borrador = ''; s.textContent = panel._borradorTxt || '○ Sin borrador'; if (panel._borradorTxt) s.classList.add('si'); res.appendChild(s); }
+    const acc = q('.pe-acciones'); if (acc && !q('.pe-atajos')) { const a = document.createElement('div'); a.className = 'pe-atajos'; a.textContent = 'Atajos: Enter en Cant. = otro concepto · Ctrl+Enter = vista previa'; acc.after(a); }
+    panel.querySelectorAll('[data-lineas] [data-f="cantidad"]').forEach(inp => inp.addEventListener('keydown', e => {
+      if (e.key !== 'Enter' || e.ctrlKey || e.metaKey) return; e.preventDefault();
+      const b = q('[data-mas]'); if (b) { b.click(); setTimeout(() => { const ult = panel.querySelectorAll('[data-lineas] [data-f="ref"]'); const u = ult[ult.length - 1]; if (u) u.focus(); }, 30); }
+    }));
+    if (!panel._plus) {   // escuchas delegadas, una sola vez por ventana
+      panel._plus = true;
+      const vivo = () => { if (!q('.pe-enc')) return; pintarPasos(); pintarVitrina(); animarNeto(); textoAjustes(); guardarBorradorPronto(); };
+      const vivoPronto = debounce(vivo, 120);
+      panel.addEventListener('input', vivoPronto); panel.addEventListener('change', e => {
+        vivoPronto();
+        const n = e.target && e.target.name; if (['sucursal', 'centro_costos', 'vendedor', 'bodega'].includes(n)) { const p = leerLS(CLAVE_PREF, {}); p[n] = e.target.value; guardarLS(CLAVE_PREF, p); }
+      });
+      panel.addEventListener('click', () => setTimeout(vivoPronto, 50));
+
+    }
+    pintarPasos(); pintarVitrina(); animarNeto();
+    if (!panel._ofrecido) { panel._ofrecido = true; ofrecerBorrador(); }
+  }
+  document.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && panel && panel.isConnected && q('.pe-enc')) { e.preventDefault(); const b = q('[data-previa-btn]'); if (b) b.click(); } });   // Ctrl+Enter = VISTA PREVIA
   window.PedidoEffi = { montar };
 })();
