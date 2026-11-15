@@ -265,32 +265,72 @@
   }
 
   let programados = [];
-  let produccion = {};   // ORDEN -> filas de Producción (referencia, cantidad, entrega, avance)
+  let produccion = {};   // CO#### -> datos de la orden en Producción (las mismas columnas que usa su tarjeta)
+  const norm = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase();
+  const esFecha = v => /^\d{1,4}[-/]\d{1,2}[-/]\d{1,4}/.test(String(v || '').trim());
+  // las tarjetas usan EXACTAMENTE el estilo de Producción: se copian sus reglas «body.production-mode …» a «.tc-prog …»
+  function copiarEstiloProduccion() {
+    if (document.getElementById('tc-progcards-css')) return;
+    const out = [];
+    const recorrer = (reglas, envolver) => { for (const r of Array.from(reglas || [])) {
+      if (r.cssRules && r.media) { recorrer(r.cssRules, x => envolver('@media ' + r.media.mediaText + '{' + x + '}')); continue; }
+      if (r.selectorText && r.selectorText.includes('body.production-mode')) out.push(envolver(r.cssText.split('body.production-mode').join('.tc-progcards')));
+    } };
+    for (const h of Array.from(document.styleSheets)) { try { recorrer(h.cssRules, x => x); } catch (e) { /* hoja de otro dominio */ } }
+    const st = document.createElement('style'); st.id = 'tc-progcards-css';
+    st.textContent = out.join('\n') + '.tc-progcards .trace-cards{background:transparent!important;padding:0!important;overflow:visible!important}.tc-progcards .trace-media{position:relative}.tc-progcards .tc-disenio{position:absolute;top:10px;left:10px;background:#0d140e;color:#d0f44c;font:900 10px Arial;letter-spacing:.1em;padding:4px 9px;border-radius:12px}' +
+      '.tc-progcards .tc-caja{border:1px solid #35403a;border-radius:12px;padding:10px 12px;margin:10px 0;background:#141a16}.tc-progcards .tc-caja small{display:block;font:800 10px Arial;letter-spacing:.1em;color:#9caa95}.tc-progcards .tc-caja b{color:#ecf0e7;font-size:14px}.tc-progcards .tc-tela{color:#d0f44c!important;font-size:12px!important}' +
+      '.tc-progcards .tc-dias{display:inline-block;margin-top:4px;padding:3px 10px;border:1px solid #d0f44c;border-radius:12px;color:#d0f44c;font:800 12px Arial}.tc-progcards .tc-dias.tarde{border-color:#ff8f8f;color:#ff8f8f}' +
+      '.tc-progcards .tc-ruta{display:flex;gap:4px;margin:10px 0 4px}.tc-progcards .tc-ruta i{flex:1;height:6px;border-radius:3px;background:#2a332c}.tc-progcards .tc-ruta i.finished{background:#9be37a}.tc-progcards .tc-ruta i.active{background:#f3d196}.tc-progcards .tc-ruta i.rework{background:#ff8f8f}' +
+      '.tc-progcards .tc-sig{display:flex;justify-content:space-between;font:700 11px Arial;color:#c9d3c1}.tc-progcards .tc-sig b{color:#d0f44c}';
+    document.head.appendChild(st);
+  }
   function htmlProgramados() {
     const q = busqueda.trim().toLowerCase();
     const lista = programados.filter(x => !q || (x.codigo + ' ' + x.cliente + ' ' + x.proyecto).toLowerCase().includes(q));
     if (!lista.length) return '';
-    const est = e => e === 'COMPLETADO' ? ['finished', 'PROGRAMADO'] : e === 'ERROR' || e === 'REVISAR' ? ['late', e] : ['active', e || 'EN PROCESO'];
-    return '<h3 style="margin:18px 0 10px;font:900 12px Arial;letter-spacing:.14em;color:#d0f44c">PEDIDOS PROGRAMADOS <em class="tc-n">' + lista.length + '</em></h3><div class="trace-cards" style="background:transparent;padding:0;overflow:visible">' +
+    copiarEstiloProduccion();
+    return '<h3 style="margin:18px 0 10px;font:900 12px Arial;letter-spacing:.14em;color:#d0f44c">PEDIDOS PROGRAMADOS <em class="tc-n">' + lista.length + '</em></h3><div class="tc-progcards"><div class="trace-cards">' +
       lista.slice(0, 60).map(x => {
-        const [c, txt] = est(x.estado), filas = produccion[x.codigo] || [];
-        const refs = filas.length ? filas.map(f => f.ref).filter(Boolean) : (x.referencias || []);
-        const cant = filas.length ? filas.reduce((a, f) => a + (Number(f.cant) || 0), 0) : (x.prendas || 0);
-        const cliente = (filas[0] && filas[0].cliente) || x.cliente, proyecto = (filas[0] && filas[0].proyecto) || x.proyecto, entrega = filas[0] && filas[0].entrega;
-        return '<article class="trace-card" data-prog="' + esc(x.codigo) + '"><div class="trace-media"><img loading="lazy" alt="Mockup ' + esc(x.codigo) + '" src="/api/pedido-effi/programados/' + encodeURIComponent(x.codigo) + '/mockup" onerror="this.replaceWith(Object.assign(document.createElement(\'span\'),{textContent:\'Sin mockup\'}))"></div>' +
-          '<div class="trace-card-body"><div class="trace-card-heading"><h3>' + esc(x.codigo) + '</h3><span class="trace-stage ' + c + '">' + esc(txt) + '</span></div>' +
-          '<p class="trace-client">' + esc(cliente || 'Sin cliente') + '</p><p class="trace-project">' + esc(proyecto || '') + '</p>' +
-          '<dl><div><dt>Referencia</dt><dd class="trace-ref">' + esc(refs.join(', ') || '—') + '</dd></div><div><dt>Cantidad</dt><dd class="trace-quantity">' + cant + ' <small>und.</small></dd></div>' +
-          '<div><dt>Entrega</dt><dd>' + esc(entrega || '—') + '</dd></div><div><dt>Programó</dt><dd>' + esc(x.usuario || '—') + '<br><small style="color:#899685">' + esc(String(x.fecha || '').replace('T', ' ').slice(0, 16)) + '</small></dd></div></dl>' +
-          '<div class="trace-card-actions">' + (x.excel ? '<a class="tc-btn tc-b-line" href="' + esc(x.excel) + '">⬇ EXCEL</a>' : '') + '<button type="button" class="operator-open" data-abrir-excel="' + esc(x.codigo) + '">ABRIR EN EXCEL</button><button type="button" data-quitar-prog="' + esc(x.codigo) + '" style="border-color:#7a3a3a;color:#ffb4b4">ELIMINAR</button></div></div></article>';
-      }).join('') + '</div>';
+        const o = produccion[x.codigo] || null;
+        const e = x.estado === 'ERROR' || x.estado === 'REVISAR' ? ['late', 'Error al programar'] : !o ? ['pending', x.estado === 'COMPLETADO' ? 'Programado' : 'Programando…'] : o.percent >= 100 ? ['finished', 'Terminado'] : o.focus ? [o.focus.state === 'active' ? 'active' : 'pending', (o.focus.state === 'active' ? 'En ' : 'Pendiente - ') + o.focus.label] : ['pending', 'Programado'];
+        const dias = o && o.entrega ? Math.round((o.entrega - new Date().setHours(0, 0, 0, 0)) / 864e5) : null;
+        return '<article class="trace-card state-' + e[0] + '"><div class="trace-media"><span class="tc-disenio">DISEÑO 1</span><img loading="lazy" alt="Mockup ' + esc(x.codigo) + '" src="/api/pedido-effi/programados/' + encodeURIComponent(x.codigo) + '/mockup" onerror="this.replaceWith(Object.assign(document.createElement(\'span\'),{textContent:\'Sin mockup\'}))"></div>' +
+          '<div class="trace-card-body"><div class="trace-card-heading"><h3>' + esc(o && o.orden || x.codigo) + '</h3></div>' +
+          '<p class="trace-client">' + esc((o && o.cliente) || x.cliente || 'Sin cliente') + '</p><p class="trace-project">' + esc((o && o.proyecto) || x.proyecto || '') + '</p>' +
+          '<span class="trace-stage ' + e[0] + '">' + esc(e[1]) + '</span>' +
+          '<div class="tc-caja"><div style="display:flex;justify-content:space-between;gap:10px"><div><small>REFERENCIA</small><b>' + esc((o ? o.refs : x.referencias || []).join(', ') || '—') + '</b>' + (o && o.tela ? '<small style="margin-top:6px">TELA</small><b class="tc-tela">' + esc(o.tela) + '</b>' : '') + '</div>' +
+          '<div style="text-align:right"><small>CANTIDAD</small><b style="font-size:20px">' + (o ? o.units : x.prendas || 0) + '</b> <small style="display:inline">und.</small></div></div>' +
+          '<small style="margin-top:8px">ENTREGA</small>' + (dias == null ? '<b>—</b>' : '<span class="tc-dias' + (dias < 0 ? ' tarde' : '') + '">' + (dias < 0 ? 'Atrasado ' + (-dias) + ' días' : dias === 0 ? 'Hoy' : dias + ' Días') + '</span>') + '</div>' +
+          '<div class="trace-card-actions">' + (x.excel ? '<a class="tc-btn tc-b-line" href="' + esc(x.excel) + '" title="Descargar el listado">⬇ EXCEL</a>' : '') + '<button type="button" class="operator-open" data-abrir-excel="' + esc(x.codigo) + '">ABRIR EN EXCEL</button><button type="button" data-quitar-prog="' + esc(x.codigo) + '" style="border-color:#7a3a3a;color:#ffb4b4">🗑 ELIMINAR</button></div>' +
+          (o ? '<div class="tc-ruta">' + o.states.map(s => '<i class="' + s.state + '" title="' + esc(s.label) + '"></i>').join('') + '</div><div class="tc-sig"><span>' + esc(o.focus ? 'Siguiente: ' + o.focus.label : 'Ruta completada') + '</span><b>' + o.percent + '% COMPLETADO</b></div>' : '') +
+          '<div style="font:600 11px Arial;color:#7f8c79;margin-top:6px">Programó ' + esc(x.usuario || '—') + ' · ' + esc(String(x.fecha || '').replace('T', ' ').slice(0, 16)) + '</div></div></article>';
+      }).join('') + '</div></div>';
   }
+  function fechaDe(v) { const m = String(v || '').trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})|^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})/); if (!m) return null; return m[1] ? new Date(+m[1], m[2] - 1, +m[3]) : new Date(+(m[6].length === 2 ? '20' + m[6] : m[6]), m[5] - 1, +m[4]); }
   async function cargarProduccion() {
     try {
       const d = await fetch('/api/produccion', { cache: 'no-cache', credentials: 'same-origin' }).then(r => r.json());
-      const h = (d.headers || []).map(x => String(x).trim().toUpperCase()), col = n => h.indexOf(n), out = {};
-      const iO = col('ORDEN'), iR = col('REFERENCIA'), iC = col('CANTIDAD'), iCl = col('NOMBRE DEL CLIENTE'), iP = col('NOMBRE PROYECTO'), iE = h.findIndex(x => /ENTREGA/.test(x));
-      (d.rows || []).forEach(r => { const v = r.values || r; const o = String(v[iO] || '').trim().toUpperCase(); if (!o) return; (out[o] = out[o] || []).push({ ref: v[iR], cant: v[iC], cliente: v[iCl], proyecto: v[iP], entrega: iE >= 0 ? v[iE] : '' }); });
+      const h = (d.headers || []).map(norm), col = n => h.indexOf(n);
+      const iO = col('ORDEN'), iR = col('REFERENCIA'), iC = col('CANTIDAD'), iCl = col('NOMBRE DEL CLIENTE'), iP = col('NOMBRE PROYECTO'), iE = col('FECHA DE ENTREGA'), iT = h.findIndex(x => x === 'TELA' || x.startsWith('TELA'));
+      const flow = typeof indoorProcessFlow !== 'undefined' ? indoorProcessFlow : [];
+      const procs = flow.map(p => ({ label: p.label, ext: norm(p.label) === 'DISENO', cols: p.headers.flatMap(x => h.flatMap((y, i) => y === norm(x) ? [i] : [])) })).filter(p => p.cols.length);
+      const out = {};
+      (d.rows || []).forEach(r => {
+        const v = r.values || r, orden = String(v[iO] || '').trim(); if (!orden) return;
+        (orden.toUpperCase().match(/\b(?:CO|RM)\d+\b/g) || []).forEach(cod => {
+          const o = out[cod] = out[cod] || { orden, cliente: v[iCl], proyecto: v[iP], refs: [], units: 0, tela: v[iT] || '', entrega: fechaDe(v[iE]), cells: procs.map(() => []) };
+          if (v[iR]) o.refs.push(String(v[iR]).trim()); o.units += Number(String(v[iC] || '0').replace(/[^0-9.-]/g, '')) || 0;
+          procs.forEach((p, k) => p.cols.forEach(c => o.cells[k].push(norm(v[c]))));
+        });
+      });
+      Object.values(out).forEach(o => {
+        o.states = procs.map((p, k) => { const c = o.cells[k]; return { label: p.label, ext: p.ext, state: c.includes('R') ? 'rework' : c.includes('P') ? 'active' : c.length && c.every(x => x === 'N/A' || esFecha(x)) ? 'finished' : 'pending' }; });
+        const internos = o.states.filter(s => !s.ext), hechos = internos.filter(s => s.state === 'finished').length;
+        o.percent = internos.length ? Math.round(hechos / internos.length * 100) : 0;
+        o.focus = internos.find(s => s.state === 'rework') || [...internos].reverse().find(s => s.state === 'active') || internos.find(s => s.state !== 'finished');
+        delete o.cells;
+      });
       produccion = out;
     } catch (e) { /* sin Producción: la tarjeta usa lo guardado al programar */ }
   }
