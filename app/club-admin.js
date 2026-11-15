@@ -241,6 +241,7 @@
       '<div class="tc-barra"><div class="tc-chips" role="group" aria-label="Filtrar reprogramaciones">' + [['pendiente', 'Pendientes'], ['aprobada', 'Aprobadas'], ['rechazada', 'Rechazadas']].filter(([k]) => ESTADOS_VISIBLES.includes(k)).map(([k, t]) => '<button type="button" data-filtro="' + k + '" aria-pressed="' + (filtro === k) + '" class="' + (filtro === k ? 'on' : '') + '">' + t + ' <em class="tc-n">' + cuenta(k) + '</em></button>').join('') + '</div>' +
       '<input id="tc-buscar" class="tc-buscar" type="search" placeholder="Buscar club, contacto o cotización" autocomplete="off" value="' + esc(busqueda) + '"></div>' +
       (lista.length ? '<div class="tc-cards">' + lista.map(p => tarjeta(p, nuevos.has(p.id) && !primeraCarga)).join('') + '</div>' : (busqueda ? '<div class="tc-vacio">Ninguna reprogramación coincide con la búsqueda.</div>' : '')) +
+      htmlProgramados() +
       '<p style="margin-top:14px;color:#a9b5a3;font:500 13px/1.5 Arial">El Excel usa la plantilla de listado de Indoor (una hoja con el nombre de la referencia; si son varias referencias, vienen en un .zip) y trae la tela del pedido anterior con su código. Si una tela aparece con varios códigos (colores), elige el correcto antes de programar.</p></section></div>';
     pedidos.forEach(p => vistos.add(p.id));
     primeraCarga = false;
@@ -263,11 +264,29 @@
       '<div class="tc-form"><button class="tc-btn tc-b-lime" id="tc-correos-guardar" type="button">Guardar</button></div></div>';
   }
 
+  let programados = [];
+  function htmlProgramados() {
+    const q = busqueda.trim().toLowerCase();
+    const lista = programados.filter(x => !q || (x.codigo + ' ' + x.cliente + ' ' + x.proyecto).toLowerCase().includes(q));
+    if (!lista.length) return '';
+    const est = e => e === 'COMPLETADO' ? ['ok', '✓ Programado'] : e === 'ERROR' || e === 'REVISAR' ? ['mal', '⚠ ' + e] : ['', e ? '… ' + e : ''];
+    return '<h3 style="margin:18px 0 10px;font:900 12px Arial;letter-spacing:.14em;color:#d0f44c">PEDIDOS PROGRAMADOS <em class="tc-n">' + lista.length + '</em></h3><div class="tc-cards">' +
+      lista.slice(0, 60).map(x => { const [c, txt] = est(x.estado); return '<article style="padding:12px 14px;border:1px solid #3d4c3b;border-radius:14px;background:rgba(13,20,14,.6)">' +
+        '<div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><b style="font:900 16px Arial;color:#d0f44c">' + esc(x.codigo) + '</b><small style="font:800 11px Arial;color:' + (c === 'ok' ? '#9be37a' : c === 'mal' ? '#ff9b9b' : '#c9d3c1') + '">' + esc(txt) + '</small></div>' +
+        '<div style="font:800 13px Arial;color:#f5faef;margin-top:4px">' + esc(x.cliente) + '</div><div style="font:600 12px Arial;color:#a9b5a3">' + esc(x.proyecto) + ' · ' + esc((x.referencias || []).join(', ')) + ' · ' + (x.prendas || 0) + ' prendas</div>' +
+        '<div style="font:600 11px Arial;color:#7f8c79;margin-top:2px">' + esc(String(x.fecha || '').replace('T', ' ').slice(0, 16)) + ' · ' + esc(x.usuario || '') + '</div>' +
+        '<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">' + (x.excel ? '<a class="tc-btn tc-b-line" href="' + esc(x.excel) + '">⬇ EXCEL</a>' : '') + '<button class="tc-btn tc-b-lime" type="button" data-abrir-excel="' + esc(x.codigo) + '">ABRIR EN EXCEL</button></div></article>'; }).join('') + '</div>';
+  }
+  document.addEventListener('click', async e => {
+    const b = e.target.closest('[data-abrir-excel]'); if (!b) return;
+    try { await api('/api/agente-excel/abrir/' + encodeURIComponent(b.dataset.abrirExcel), 'POST', {}); toast('Abriendo ' + b.dataset.abrirExcel + ' en tu Excel…', 'ok'); } catch (er) { toast(er.message, 'error'); }
+  });
   async function cargar() {
     if (cargando || !panel) return;
     cargando = true;
     try {
-      const [p, e, c] = await Promise.all([api('/api/club/pedidos'), api('/api/club/effitron').catch(() => null), api('/api/club/correos').catch(() => null)]);
+      const [p, e, c, pr] = await Promise.all([api('/api/club/pedidos'), api('/api/club/effitron').catch(() => null), api('/api/club/correos').catch(() => null), api('/api/pedido-effi/programados').catch(() => null)]);
+      if (pr) programados = pr.programados || [];
       pedidos = p.pedidos; effi = e; if (c) correos = c; pintar();
     } catch (e) { panel.innerHTML = '<div class="tc"><div class="tc-card"><p>' + esc(e.message) + '</p></div></div>'; ultimo = ''; }
     finally { cargando = false; }

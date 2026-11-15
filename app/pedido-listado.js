@@ -350,10 +350,36 @@
       if (e.key !== 'Enter' || e.target.dataset.c !== 'observacion') return; e.preventDefault();
       const i = Number(e.target.closest('tr').dataset.i); if (i === filas.length - 1) { filas.push(filaVacia()); guardarBorrador(); pantallaListado(); enfocarUltima(); } else { const sig = tb.querySelector('tr[data-i="' + (i + 1) + '"] [data-c="nombre"]'); sig && sig.focus(); }
     });
+    tb.addEventListener('paste', e => {   // pegar desde Excel DIRECTO en la tabla: entra desde la celda donde estás, columna por columna y fila por fila (como en Excel)
+      const texto = (e.clipboardData || window.clipboardData).getData('text'); if (!texto || !/[\t\n]/.test(texto.replace(/\r?\n$/, ''))) return;
+      e.preventDefault();
+      const tr = e.target.closest('tr'), col = COLS.indexOf(e.target.dataset.c); if (!tr || col < 0) return;
+      const n = pegarEn(g.referencia, Number(tr.dataset.i), col, texto); guardarBorrador(); pantallaListado(); setMsg(n + ' fila(s) pegadas.', 'ok');
+    });
     tb.addEventListener('click', e => { const b = e.target.closest('[data-quitar-fila]'); if (!b) return; filas.splice(Number(b.closest('tr').dataset.i), 1); guardarBorrador(); pantallaListado(); });
     q('[data-programar]').onclick = enviar;
   }
   function enfocarUltima() { const t = q('[data-filas]'); const u = t && t.querySelector('tr:last-child [data-c="nombre"]'); if (u) u.focus(); }
+  const COLS = ['nombre', 'talla', 'numero', 'diseno', 'genero', 'observacion'];   // mismo orden que la plantilla: NOMBRE · TALLA · NÚMERO · DISEÑO · GÉNERO · OBSERVACIÓN
+  function valorCol(c, v) {
+    v = String(v == null ? '' : v).trim();
+    if (c === 'talla') { const t = v.toUpperCase(); return (L.cat.tallas || TALLAS).includes(t) ? t : ''; }
+    if (c === 'diseno') { const d = v.match(/\d+/); return d && Number(d[0]) >= 1 && Number(d[0]) <= L.disenos ? Number(d[0]) : (L.defDiseno || 1); }
+    if (c === 'genero') { const g = v.toUpperCase(); return /^F/.test(g) ? 'FEM' : /^M/.test(g) ? 'MASC' : (L.defGenero || 'MASC'); }
+    return c === 'numero' ? v : v.toUpperCase();
+  }
+  function pegarEn(ref, fila, col, texto) {
+    const filas = filasDe(ref); let n = 0;
+    String(texto).replace(/\r/g, '').replace(/\n$/, '').split('\n').forEach((linea, k) => {
+      const celdas = linea.split('\t');
+      if (k === 0 && /^nombre$/i.test((celdas[0] || '').trim())) return;   // encabezado copiado
+      while (filas.length <= fila + n) filas.push(filaVacia());
+      const f = filas[fila + n];
+      celdas.forEach((v, j) => { const c = COLS[col + j]; if (c) f[c] = valorCol(c, v); });   // solo lo que pegaste, cada valor en su columna
+      n++;
+    });
+    return n;
+  }
   function pegar(ref, texto) {
     const filas = filasDe(ref); let n = 0;
     String(texto || '').split(/\r?\n/).forEach(linea => {
