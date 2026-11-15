@@ -265,18 +265,41 @@
   }
 
   let programados = [];
+  let produccion = {};   // ORDEN -> filas de Producción (referencia, cantidad, entrega, avance)
   function htmlProgramados() {
     const q = busqueda.trim().toLowerCase();
     const lista = programados.filter(x => !q || (x.codigo + ' ' + x.cliente + ' ' + x.proyecto).toLowerCase().includes(q));
     if (!lista.length) return '';
-    const est = e => e === 'COMPLETADO' ? ['ok', '✓ Programado'] : e === 'ERROR' || e === 'REVISAR' ? ['mal', '⚠ ' + e] : ['', e ? '… ' + e : ''];
-    return '<h3 style="margin:18px 0 10px;font:900 12px Arial;letter-spacing:.14em;color:#d0f44c">PEDIDOS PROGRAMADOS <em class="tc-n">' + lista.length + '</em></h3><div class="tc-cards">' +
-      lista.slice(0, 60).map(x => { const [c, txt] = est(x.estado); return '<article style="padding:12px 14px;border:1px solid #3d4c3b;border-radius:14px;background:rgba(13,20,14,.6)">' +
-        '<div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><b style="font:900 16px Arial;color:#d0f44c">' + esc(x.codigo) + '</b><small style="font:800 11px Arial;color:' + (c === 'ok' ? '#9be37a' : c === 'mal' ? '#ff9b9b' : '#c9d3c1') + '">' + esc(txt) + '</small></div>' +
-        '<div style="font:800 13px Arial;color:#f5faef;margin-top:4px">' + esc(x.cliente) + '</div><div style="font:600 12px Arial;color:#a9b5a3">' + esc(x.proyecto) + ' · ' + esc((x.referencias || []).join(', ')) + ' · ' + (x.prendas || 0) + ' prendas</div>' +
-        '<div style="font:600 11px Arial;color:#7f8c79;margin-top:2px">' + esc(String(x.fecha || '').replace('T', ' ').slice(0, 16)) + ' · ' + esc(x.usuario || '') + '</div>' +
-        '<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">' + (x.excel ? '<a class="tc-btn tc-b-line" href="' + esc(x.excel) + '">⬇ EXCEL</a>' : '') + '<button class="tc-btn tc-b-lime" type="button" data-abrir-excel="' + esc(x.codigo) + '">ABRIR EN EXCEL</button></div></article>'; }).join('') + '</div>';
+    const est = e => e === 'COMPLETADO' ? ['finished', 'PROGRAMADO'] : e === 'ERROR' || e === 'REVISAR' ? ['late', e] : ['active', e || 'EN PROCESO'];
+    return '<h3 style="margin:18px 0 10px;font:900 12px Arial;letter-spacing:.14em;color:#d0f44c">PEDIDOS PROGRAMADOS <em class="tc-n">' + lista.length + '</em></h3><div class="trace-cards" style="background:transparent;padding:0;overflow:visible">' +
+      lista.slice(0, 60).map(x => {
+        const [c, txt] = est(x.estado), filas = produccion[x.codigo] || [];
+        const refs = filas.length ? filas.map(f => f.ref).filter(Boolean) : (x.referencias || []);
+        const cant = filas.length ? filas.reduce((a, f) => a + (Number(f.cant) || 0), 0) : (x.prendas || 0);
+        const cliente = (filas[0] && filas[0].cliente) || x.cliente, proyecto = (filas[0] && filas[0].proyecto) || x.proyecto, entrega = filas[0] && filas[0].entrega;
+        return '<article class="trace-card" data-prog="' + esc(x.codigo) + '"><div class="trace-media"><img loading="lazy" alt="Mockup ' + esc(x.codigo) + '" src="/api/pedido-effi/programados/' + encodeURIComponent(x.codigo) + '/mockup" onerror="this.replaceWith(Object.assign(document.createElement(\'span\'),{textContent:\'Sin mockup\'}))"></div>' +
+          '<div class="trace-card-body"><div class="trace-card-heading"><h3>' + esc(x.codigo) + '</h3><span class="trace-stage ' + c + '">' + esc(txt) + '</span></div>' +
+          '<p class="trace-client">' + esc(cliente || 'Sin cliente') + '</p><p class="trace-project">' + esc(proyecto || '') + '</p>' +
+          '<dl><div><dt>Referencia</dt><dd class="trace-ref">' + esc(refs.join(', ') || '—') + '</dd></div><div><dt>Cantidad</dt><dd class="trace-quantity">' + cant + ' <small>und.</small></dd></div>' +
+          '<div><dt>Entrega</dt><dd>' + esc(entrega || '—') + '</dd></div><div><dt>Programó</dt><dd>' + esc(x.usuario || '—') + '<br><small style="color:#899685">' + esc(String(x.fecha || '').replace('T', ' ').slice(0, 16)) + '</small></dd></div></dl>' +
+          '<div class="trace-card-actions">' + (x.excel ? '<a class="tc-btn tc-b-line" href="' + esc(x.excel) + '">⬇ EXCEL</a>' : '') + '<button type="button" class="operator-open" data-abrir-excel="' + esc(x.codigo) + '">ABRIR EN EXCEL</button><button type="button" data-quitar-prog="' + esc(x.codigo) + '" style="border-color:#7a3a3a;color:#ffb4b4">ELIMINAR</button></div></div></article>';
+      }).join('') + '</div>';
   }
+  async function cargarProduccion() {
+    try {
+      const d = await fetch('/api/produccion', { cache: 'no-cache', credentials: 'same-origin' }).then(r => r.json());
+      const h = (d.headers || []).map(x => String(x).trim().toUpperCase()), col = n => h.indexOf(n), out = {};
+      const iO = col('ORDEN'), iR = col('REFERENCIA'), iC = col('CANTIDAD'), iCl = col('NOMBRE DEL CLIENTE'), iP = col('NOMBRE PROYECTO'), iE = h.findIndex(x => /ENTREGA/.test(x));
+      (d.rows || []).forEach(r => { const v = r.values || r; const o = String(v[iO] || '').trim().toUpperCase(); if (!o) return; (out[o] = out[o] || []).push({ ref: v[iR], cant: v[iC], cliente: v[iCl], proyecto: v[iP], entrega: iE >= 0 ? v[iE] : '' }); });
+      produccion = out;
+    } catch (e) { /* sin Producción: la tarjeta usa lo guardado al programar */ }
+  }
+  document.addEventListener('click', async e => {
+    const b = e.target.closest('[data-quitar-prog]'); if (!b) return;
+    const c = b.dataset.quitarProg;
+    if (!confirm('¿Quitar ' + c + ' de esta lista?\n\nNo borra la orden de Producción ni su carpeta en la NAS.')) return;
+    try { await api('/api/pedido-effi/programados/' + encodeURIComponent(c), 'DELETE'); programados = programados.filter(x => x.codigo !== c); pintar(); toast(c + ' quitado de la lista', 'ok'); } catch (er) { toast(er.message, 'error'); }
+  });
   document.addEventListener('click', async e => {
     const b = e.target.closest('[data-abrir-excel]'); if (!b) return;
     try { await api('/api/agente-excel/abrir/' + encodeURIComponent(b.dataset.abrirExcel), 'POST', {}); toast('Abriendo ' + b.dataset.abrirExcel + ' en tu Excel…', 'ok'); } catch (er) { toast(er.message, 'error'); }
@@ -286,7 +309,7 @@
     cargando = true;
     try {
       const [p, e, c, pr] = await Promise.all([api('/api/club/pedidos'), api('/api/club/effitron').catch(() => null), api('/api/club/correos').catch(() => null), api('/api/pedido-effi/programados').catch(() => null)]);
-      if (pr) programados = pr.programados || [];
+      if (pr) programados = pr.programados || []; await cargarProduccion();
       pedidos = p.pedidos; effi = e; if (c) correos = c; pintar();
     } catch (e) { panel.innerHTML = '<div class="tc"><div class="tc-card"><p>' + esc(e.message) + '</p></div></div>'; ultimo = ''; }
     finally { cargando = false; }

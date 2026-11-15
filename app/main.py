@@ -7860,7 +7860,7 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
     const commercialGroup=commercialToggle.closest('.nav-group');commercialGroup.classList.add('collapsed');const productionToggle=document.getElementById('production-toggle');if(productionToggle)productionToggle.addEventListener('click',()=>{{const g=productionToggle.closest('.nav-group');g.classList.toggle('collapsed');if(!g.classList.contains('collapsed')&&window.innerWidth>860)g.querySelector('.nav-children .tab')?.click()}});
     setTimeout(()=>{{if(!document.querySelector('.panel.active'))document.querySelector('.tab[data-kind="inicio"]')?.click()}},0);
     setTimeout(()=>{{const panel=document.querySelector('.panel.active');const kind=panel?.dataset?.panel;const activeTab=kind&&document.querySelector(`.tab[data-kind="${{kind}}"]`);if(activeTab)document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===activeTab))}},100);
-</script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/liquid-stats.js?v=20261019-1'></script><script src='/nombres-effi.js?v=20261022-2'></script><script src='/permisos.js?v=20261007-2'></script><script src='/reposiciones.js?v=20261019-1'></script><script src='/agentes.js?v=20261107-14'></script><script src='/promedios.js?v=20261109-1'></script><script src='/capacidad.js?v=20261009-2'></script><script src='/molderia.js?v=20261010-2'></script><script src='/estandar.js?v=20261020-1'></script><script src='/proveedores-tela.js?v=20261022-4'></script><script src='/terminos.js?v=20261010-1'></script><script src='/cookies-aviso.js?v=20261010-1'></script><script src='/rh-contratos.js?v=20261009-3'></script><script src='/fichas-resumen.js?v=20261022-2'></script><script src='/api/cartera/cartera.js?v=20261009-1'></script><script src='/trace-ui.js?v=20261109-2'></script><script src='/home-dashboard.js?v=20261110-1'></script><script src='/bodega-dashboard.js?v=20261109-3'></script><script src='/bodegas.js?v=20261009-7'></script><script src='/codigos-barras.js?v=20261014-3'></script><script src='/mis-pedidos.js?v=20261008-1'></script><script src='/crear-cliente.js?v=20261024-31'></script><script src='/pedido-effi.js?v=20261114-32'></script><script src='/pedido-listado.js?v=20261115-3'></script><script src='/instalar-app.js?v=20261115-1'></script><script src='/club-admin.js?v=20261115-3'></script><script src='/mobile-nav.js?v=20261108-1'></script><script src='/nav-liquid.js?v=20261109-1'></script><script src='/build-watch.js?v=20261105-1'></script><script src='/salud.js?v=20261014-2'></script><script src='/alertas.js?v=20261030-1'></script><script src='/bitacora.js?v=20261016-2'></script><script src='/memoria.js?v=20261018-1'></script><script src='/ecommerce.js?v=20261019-1'></script><script src='/zeus.js?v=20261110-3'></script><script src='/minimaximan.js?v=20261023-2'></script><script src='/aviso-agentes.js?v=20261023-5'></script><script src='/descuento-sublimacion.js?v=20261026-1'></script><script src='/stockman.js?v=20261022-30'></script><script src='/draco-panel.js?v=20261021-8'></script><script src='/laser-panel.js?v=20261113-1'></script><script src='/agentes-hub.js?v=20261109-1'></script><script src='/recordar-vista.js?v=20261109-1'></script><script src='/tema.js?v=20261008-1'></script><script src='/tarjeta-iconos.js?v=20261110-2'></script><script src='/confeccion-preparacion.js?v=20261113-2'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261021-1'></script><script src='/linea-editor.js?v=20261030-1'></script><script src='/lineas-producto-panel.js?v=20261030-1'></script><script src='/menu-cuenta.js?v=20261016-3'></script><script src='/foto-perfil.js?v=20261030-1'></script><script src='/efecto-vidrio.js?v=20261029-1'></script><script src='/motion.js?v=11.18.2'></script><script src='/home-hero.js?v=20261108-5'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab=>tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
+</script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/liquid-stats.js?v=20261019-1'></script><script src='/nombres-effi.js?v=20261022-2'></script><script src='/permisos.js?v=20261007-2'></script><script src='/reposiciones.js?v=20261019-1'></script><script src='/agentes.js?v=20261107-14'></script><script src='/promedios.js?v=20261109-1'></script><script src='/capacidad.js?v=20261009-2'></script><script src='/molderia.js?v=20261010-2'></script><script src='/estandar.js?v=20261020-1'></script><script src='/proveedores-tela.js?v=20261022-4'></script><script src='/terminos.js?v=20261010-1'></script><script src='/cookies-aviso.js?v=20261010-1'></script><script src='/rh-contratos.js?v=20261009-3'></script><script src='/fichas-resumen.js?v=20261022-2'></script><script src='/api/cartera/cartera.js?v=20261009-1'></script><script src='/trace-ui.js?v=20261109-2'></script><script src='/home-dashboard.js?v=20261110-1'></script><script src='/bodega-dashboard.js?v=20261109-3'></script><script src='/bodegas.js?v=20261009-7'></script><script src='/codigos-barras.js?v=20261014-3'></script><script src='/mis-pedidos.js?v=20261008-1'></script><script src='/crear-cliente.js?v=20261024-31'></script><script src='/pedido-effi.js?v=20261114-32'></script><script src='/pedido-listado.js?v=20261115-3'></script><script src='/instalar-app.js?v=20261115-1'></script><script src='/club-admin.js?v=20261115-4'></script><script src='/mobile-nav.js?v=20261108-1'></script><script src='/nav-liquid.js?v=20261109-1'></script><script src='/build-watch.js?v=20261105-1'></script><script src='/salud.js?v=20261014-2'></script><script src='/alertas.js?v=20261030-1'></script><script src='/bitacora.js?v=20261016-2'></script><script src='/memoria.js?v=20261018-1'></script><script src='/ecommerce.js?v=20261019-1'></script><script src='/zeus.js?v=20261110-3'></script><script src='/minimaximan.js?v=20261023-2'></script><script src='/aviso-agentes.js?v=20261023-5'></script><script src='/descuento-sublimacion.js?v=20261026-1'></script><script src='/stockman.js?v=20261022-30'></script><script src='/draco-panel.js?v=20261021-8'></script><script src='/laser-panel.js?v=20261113-1'></script><script src='/agentes-hub.js?v=20261109-1'></script><script src='/recordar-vista.js?v=20261109-1'></script><script src='/tema.js?v=20261008-1'></script><script src='/tarjeta-iconos.js?v=20261110-2'></script><script src='/confeccion-preparacion.js?v=20261113-2'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261021-1'></script><script src='/linea-editor.js?v=20261030-1'></script><script src='/lineas-producto-panel.js?v=20261030-1'></script><script src='/menu-cuenta.js?v=20261016-3'></script><script src='/foto-perfil.js?v=20261030-1'></script><script src='/efecto-vidrio.js?v=20261029-1'></script><script src='/motion.js?v=11.18.2'></script><script src='/home-hero.js?v=20261108-5'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab=>tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
 
 
 def ordered_mockup_uploads(extras, slots):
@@ -8151,7 +8151,7 @@ def descargar_excel_pedido(codigo: str, usuario=Depends(authenticate)):
     if not re.fullmatch(r'(CO|RM)\d{1,10}', codigo):
         raise HTTPException(400, 'Código no válido')
     carpeta = PEDIDO_EXCEL_DIR / codigo
-    archivos = [p for p in carpeta.iterdir() if p.is_file()] if carpeta.is_dir() else []
+    archivos = sorted(carpeta.glob('*.xls*')) if carpeta.is_dir() else []
     if not archivos:
         raise HTTPException(404, 'Ese listado todavía no está listo')
     return FileResponse(archivos[0], filename=archivos[0].name, headers={'Cache-Control': 'no-store'})
@@ -8163,7 +8163,7 @@ def vista_excel_pedido(codigo: str, usuario=Depends(authenticate)):
     if not re.fullmatch(r'(CO|RM)\d{1,10}', codigo):
         raise HTTPException(400, 'Código no válido')
     carpeta = PEDIDO_EXCEL_DIR / codigo
-    archivos = [p for p in carpeta.iterdir() if p.is_file()] if carpeta.is_dir() else []
+    archivos = sorted(carpeta.glob('*.xls*')) if carpeta.is_dir() else []
     if not archivos:
         raise HTTPException(404, 'Ese listado todavía no está listo')
     return {'nombre': archivos[0].name, **listado_pedido_mod.vista_excel(archivos[0])}
@@ -8257,6 +8257,61 @@ def _registrar_programado(doc: dict, arch: dict, descarga: dict, usuario: str, r
         _PROGRAMADOS.write_text(json.dumps(lista[:500], ensure_ascii=False), encoding='utf-8')
 
 
+_PROGRAMADOS_OCULTOS = PEDIDO_EXCEL_DIR / '_programados_ocultos.json'
+
+
+def _leer_json(ruta: Path, defecto):
+    try:
+        return json.loads(ruta.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return defecto
+
+
+@app.delete("/api/pedido-effi/programados/{codigo}")
+def quitar_programado(codigo: str, usuario=Depends(authenticate)):
+    """Quita la tarjeta de la lista de PROGRAMAR CLUB. NO borra la orden de Producción ni su carpeta en la NAS."""
+    if not permisos_mod.comerciales_permitido(str(usuario)):
+        raise HTTPException(403, 'Solo para el equipo comercial')
+    if not re.fullmatch(r'(CO|RM)\d{1,10}', codigo):
+        raise HTTPException(400, 'Código no válido')
+    with _programados_lock:
+        ocultos = _leer_json(_PROGRAMADOS_OCULTOS, [])
+        if codigo not in ocultos:
+            ocultos.append(codigo)
+        _PROGRAMADOS_OCULTOS.parent.mkdir(parents=True, exist_ok=True)
+        _PROGRAMADOS_OCULTOS.write_text(json.dumps(ocultos), encoding='utf-8')
+    return {'ok': True}
+
+
+@app.get("/api/pedido-effi/programados/{codigo}/mockup")
+def mockup_programado(codigo: str, usuario=Depends(authenticate)):
+    """Miniatura del primer mockup del listado (para la tarjeta). Se saca una vez del Excel y se guarda."""
+    if not re.fullmatch(r'(CO|RM)\d{1,10}', codigo):
+        raise HTTPException(400, 'Código no válido')
+    carpeta = PEDIDO_EXCEL_DIR / codigo
+    png = carpeta / '_mockup.png'
+    if not png.is_file():
+        xl = sorted(carpeta.glob('*.xls*')) if carpeta.is_dir() else []
+        if not xl:
+            raise HTTPException(404, 'Sin listado')
+        from openpyxl import load_workbook
+        from PIL import Image
+        import io as _io
+        mejor = None
+        for ws in load_workbook(xl[0]).worksheets:
+            for im in getattr(ws, '_images', []):
+                de = getattr(im.anchor, '_from', None)
+                if de is not None and de.col <= 4 and de.row <= 6:
+                    continue   # el logo de la plantilla
+                im.ref.seek(0); mejor = im.ref.read(); break
+            if mejor:
+                break
+        if not mejor:
+            raise HTTPException(404, 'El listado no tiene mockup')
+        foto = Image.open(_io.BytesIO(mejor)).convert('RGB'); foto.thumbnail((500, 500)); foto.save(png, 'PNG')
+    return FileResponse(png, media_type='image/png', headers={'Cache-Control': 'private, max-age=600'})
+
+
 @app.get("/api/pedido-effi/programados")
 def pedidos_programados(usuario=Depends(authenticate)):
     """Los pedidos programados desde EMPEZAR PEDIDO, más reciente primero (se muestran en PROGRAMAR CLUB)."""
@@ -8275,6 +8330,8 @@ def pedidos_programados(usuario=Depends(authenticate)):
                 resto = xl[0].stem.split('_', 1)[1] if '_' in xl[0].stem else ''
                 lista.append({'codigo': d.name, 'cliente': resto.replace('_', ' '), 'proyecto': '', 'usuario': '', 'referencias': [], 'prendas': 0,
                               'fecha': datetime.fromtimestamp(xl[0].stat().st_mtime).isoformat(timespec='seconds'), 'excel': f'/api/pedido-effi/excel/{d.name}', 'estado': ''})
+    ocultos = set(_leer_json(_PROGRAMADOS_OCULTOS, []))
+    lista = [x for x in lista if x.get('codigo') not in ocultos]
     lista.sort(key=lambda x: x.get('fecha') or '', reverse=True)
     with connect() as db:   # estado actual de la programación (COMPLETADO / ERROR …)
         for x in lista:
