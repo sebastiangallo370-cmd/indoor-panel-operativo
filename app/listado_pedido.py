@@ -239,6 +239,9 @@ def _llenar_hoja(ws, doc: dict, g: dict, comercial: str, linea_producto: str) ->
     return maximo
 
 
+AGRUPAR_FAMILIAS = False   # True = como la skill: A200FUT01 y A200FUT02 en una sola pestaña
+
+
 def familia(ref: str) -> str:
     """Como REPROGRAMACIONES AUTOMÁTICAS (excel_linux.family) y la skill: A200FUT01 y A200FUT02 son la familia A200FUT."""
     return re.sub(r'[-_]*\d+$', '', ref) or ref
@@ -248,8 +251,8 @@ def hojas_por_familia(grupos: list[dict]) -> list[dict]:
     """Una pestaña por familia de referencia. Nombre = la referencia sola o las referencias unidas con «-» (A200FUT01-A200FUT02), que el programar pedido
     lee como referencia compuesta. Si el nombre no cabe en 31 letras, esas referencias quedan en pestañas separadas."""
     fams: dict[str, list[dict]] = {}
-    for g in grupos:
-        fams.setdefault(familia(g['referencia']), []).append(g)
+    for g in grupos:   # pedido del usuario (2026-11-15): CADA referencia en su propia pestaña (ya no se juntan las de la misma familia)
+        fams.setdefault(g['referencia'] if not AGRUPAR_FAMILIAS else familia(g['referencia']), []).append(g)
     hojas = []
     for gs in fams.values():
         nombre = '-'.join(g['referencia'] for g in gs)
