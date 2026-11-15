@@ -24,7 +24,7 @@ import urllib.request
 from pathlib import Path
 from tkinter import messagebox, simpledialog
 
-VERSION = '1.0.6'
+VERSION = '1.0.7'
 URL = os.getenv('AGENTE_EXCEL_URL', 'https://produccion.cloud').rstrip('/')
 CONFIG = Path.home() / '.agente_excel_indoor.json'
 SALIDA = Path.home() / 'Documents' / 'Indoor Pedidos'
@@ -254,6 +254,14 @@ def llenar(trabajo: dict, token: str, aviso) -> str:
             time.sleep(0.6)
     wb.sheets[0].activate()
     wb.save()
+    if fallos and trabajo.get('completo'):
+        # Excel no dejó insertar la imagen: se abre el listado del servidor, que YA trae el mockup insertado (mismos datos)
+        aviso('Insertando el mockup con el listado del panel…', hechas, total)
+        completo = pedir(trabajo['completo'], token=token, binario=True)
+        wb.close()
+        destino.write_bytes(completo)
+        wb = app.books.open(str(destino))
+        fallos = []
     al_frente(app)
     if fallos:
         raise RuntimeError('Listado guardado en ' + str(destino) + ', pero no pude insertar el mockup: ' + ' | '.join(fallos))

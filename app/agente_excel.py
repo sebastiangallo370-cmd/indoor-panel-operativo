@@ -137,6 +137,7 @@ def preparar_trabajo(final: Path, destino: Path) -> dict:
         plan['hojas'].append({'nombre': ws.title, 'celdas': celdas, 'imagenes': imagenes})
     base = destino / ('base' + final.suffix)
     wb.save(base)
+    shutil.copy2(final, destino / ('completo' + Path(final).suffix))   # el listado del servidor YA con mockups: respaldo si Excel no deja insertar la imagen
     (destino / 'plan.json').write_text(json.dumps(plan, ensure_ascii=False, default=str), encoding='utf-8')
     return plan
 
@@ -263,7 +264,8 @@ def sondeo(request: Request, payload: dict):
                         continue
                     plan = json.loads((CARPETA / tid / 'plan.json').read_text(encoding='utf-8'))
                     trabajos.append({'id': tid, 'nombre': t['nombre'], 'base': f'/api/agente-excel/pc/archivo/{tid}/{t["base"]}', 'plan': plan,
-                                     'imagenes_url': f'/api/agente-excel/pc/archivo/{tid}/'})
+                                     'imagenes_url': f'/api/agente-excel/pc/archivo/{tid}/',
+                                     'completo': f'/api/agente-excel/pc/archivo/{tid}/completo{Path(t["base"]).suffix}'})
                     t['estado'] = 'entregado'; t['detalle'] = 'Tu agente lo recibió: abriendo Excel…'
                     break
         _guardar(d)
