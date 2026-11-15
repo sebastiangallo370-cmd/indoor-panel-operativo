@@ -24,7 +24,7 @@ import urllib.request
 from pathlib import Path
 from tkinter import messagebox, simpledialog
 
-VERSION = '1.0.1'
+VERSION = '1.0.2'
 URL = os.getenv('AGENTE_EXCEL_URL', 'https://produccion.cloud').rstrip('/')
 CONFIG = Path.home() / '.agente_excel_indoor.json'
 SALIDA = Path.home() / 'Documents' / 'Indoor Pedidos'
@@ -94,6 +94,19 @@ def llenar(trabajo: dict, token: str, aviso) -> str:
     except Exception:  # noqa: BLE001
         pass
     wb = app.books.open(str(base))
+    # Excel al FRENTE y maximizado, para que el comercial lo vea llenarse
+    try:
+        wb.activate()
+        if ES_MAC:
+            app.activate(steal_focus=True)
+        else:
+            app.api.WindowState = -4137                 # xlMaximized
+            app.api.ActiveWindow.WindowState = -4137
+            import ctypes
+            ctypes.windll.user32.ShowWindow(app.hwnd, 3)  # SW_MAXIMIZE
+            ctypes.windll.user32.SetForegroundWindow(app.hwnd)
+    except Exception:  # noqa: BLE001
+        pass
     total = sum(len(h['celdas']) for h in trabajo['plan']['hojas']) or 1
     hechas = 0
     for h in trabajo['plan']['hojas']:
@@ -113,7 +126,7 @@ def llenar(trabajo: dict, token: str, aviso) -> str:
                     pass
             rango.value = valor
             hechas += 1
-            if hechas % 5 == 0:
+            if hechas % 5 == 0 or hechas == total:
                 aviso(f'Llenando {hechas} de {total} celdas…', hechas, total)
             time.sleep(PAUSA_CELDA)
         for im in h['imagenes']:
@@ -194,7 +207,7 @@ class Agente:
 
         def aviso(texto, hechas, total):
             self.poner(texto)
-            if hechas in (5, total // 2):
+            if hechas % 10 == 0 or hechas == 5:
                 try:
                     pedir('/api/agente-excel/pc/sondeo', {'resultados': [{'id': tid, 'estado': 'llenando', 'detalle': texto}], 'puede_trabajar': False}, token=self.config['token'])
                 except Exception:  # noqa: BLE001

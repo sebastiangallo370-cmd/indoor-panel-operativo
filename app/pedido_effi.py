@@ -674,7 +674,40 @@ def pdf_estado(request: Request, numero: int):
     """Pide el PDF de la cotización a EFFITRON (la primera vez) y dice cómo va. Para remisiones no hay PDF por esta vía."""
     _usuario(request)
     from app import effitron
-    return effitron.solicitar_pdf_cotizacion(numero)
+    r = effitron.solicitar_pdf_cotizacion(numero)
+    if r.get('estado') == 'listo':
+        r['paginas'] = paginas_pdf(numero)
+    return r
+
+
+def paginas_pdf(numero: int) -> int:
+    from app import effitron
+    import pdfplumber
+    ruta = effitron.pdf_cotizacion_ruta(numero)
+    try:
+        with pdfplumber.open(str(ruta)) as pdf:
+            return len(pdf.pages)
+    except Exception:  # noqa: BLE001
+        return 1
+
+
+@router.get('/pdf-img/{numero}/{pagina}')
+def pdf_imagen(request: Request, numero: int, pagina: int):
+    """Cada página del PDF de Effi como imagen: se ve igual en cualquier navegador y en el celular (sin visor de PDF ni marcos bloqueados)."""
+    from fastapi.responses import FileResponse
+    _usuario(request)
+    from app import effitron
+    import pdfplumber
+    ruta = effitron.pdf_cotizacion_ruta(numero)
+    if not ruta.is_file():
+        raise HTTPException(404, 'El PDF de Effi todavía no está listo')
+    png = ruta.with_name(f'{ruta.stem}-p{int(pagina)}.png')
+    if not png.is_file() or png.stat().st_mtime < ruta.stat().st_mtime:
+        with pdfplumber.open(str(ruta)) as pdf:
+            if not 1 <= pagina <= len(pdf.pages):
+                raise HTTPException(404, 'Esa página no existe')
+            pdf.pages[pagina - 1].to_image(resolution=150).original.convert('RGB').save(png, 'PNG', optimize=True)
+    return FileResponse(png, media_type='image/png', headers={'Cache-Control': 'private, max-age=300'})
 
 
 @router.get('/pdf/{numero}')
