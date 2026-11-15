@@ -24,12 +24,13 @@ import urllib.request
 from pathlib import Path
 from tkinter import messagebox, simpledialog
 
-VERSION = '1.0.7'
+VERSION = '1.0.8'
 URL = os.getenv('AGENTE_EXCEL_URL', 'https://produccion.cloud').rstrip('/')
 CONFIG = Path.home() / '.agente_excel_indoor.json'
 SALIDA = Path.home() / 'Documents' / 'Indoor Pedidos'
 SONDEO_MS = 3000
-PAUSA_CELDA = float(os.getenv('AGENTE_EXCEL_PAUSA', '0.12'))   # segundos entre celda y celda: se ve escribirse
+PAUSA_CELDA = float(os.getenv('AGENTE_EXCEL_PAUSA', '0.10'))   # segundos entre celda y celda: se ve escribirse
+PAUSA_LETRA = float(os.getenv('AGENTE_EXCEL_LETRA', '0.035'))  # segundos entre letra y letra
 ES_MAC = platform.system() == 'Darwin'
 RELEASE = 'https://github.com/sebastiangallo370-cmd/indoor-panel-operativo/releases/download/agente-excel/'
 REVISAR_VERSION_SEG = 600   # cada 10 min mira si hay versión nueva y se actualiza sola
@@ -166,6 +167,64 @@ def al_frente(app) -> None:
         pass
 
 
+def mostrar_libro(app, wb) -> None:
+    """Que se vea EL LIBRO (no una ventana de Excel vacía/negra): ventana visible, activa, pantalla actualizándose y al 100 %."""
+    try:
+        wb.activate()
+        if not ES_MAC:
+            w = wb.api.Windows(1)
+            w.Visible = True
+            w.Activate()
+            w.WindowState = -4137
+            app.api.ScreenUpdating = True
+            app.api.Interactive = True
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _valor(c: dict):
+    v = c['valor']
+    if c.get('fecha'):
+        try:
+            return dt.datetime.strptime(str(v)[:10], '%Y-%m-%d')
+        except ValueError:
+            pass
+    return v
+
+
+def escribir(rango, c: dict) -> None:
+    """Escribe la celda LETRA POR LETRA, como si alguien la estuviera digitando; al final deja el valor exacto (número, fecha o texto)."""
+    v = _valor(c)
+    if isinstance(v, str) and len(v) > 1 and PAUSA_LETRA > 0:
+        for k in range(1, len(v)):
+            rango.value = "'" + v[:k]          # el apóstrofo evita que Excel convierta un pedazo (p. ej. «1» de «10») en otra cosa
+            time.sleep(PAUSA_LETRA)
+    rango.value = v
+
+
+def _igual(a, b) -> bool:
+    if isinstance(b, dt.datetime) or isinstance(a, dt.datetime):
+        return str(a)[:10] == str(b)[:10]
+    na, nb = str('' if a is None else a).strip(), str('' if b is None else b).strip()
+    try:
+        return float(na) == float(nb)
+    except ValueError:
+        return na.upper() == nb.upper()
+
+
+def verificar(wb, plan: dict) -> int:
+    """Relee cada celda escrita y corrige la que no quedó igual al listado del panel. Devuelve cuántas corrigió."""
+    corregidas = 0
+    for h in plan['hojas']:
+        hoja = wb.sheets[h['nombre']]
+        for c in h['celdas']:
+            r = hoja.range(c['celda'])
+            if not _igual(r.value, _valor(c)):
+                r.value = _valor(c)
+                corregidas += 1
+    return corregidas
+
+
 def poner_imagen(hoja, ruta: str, im: dict) -> None:
     """Inserta el mockup dentro de su recuadro, sin deformarlo. Si Excel rechaza el tamaño, la pone a su tamaño y la ajusta después."""
     celda = hoja.range(im['celda'])
@@ -203,7 +262,21 @@ def llenar(trabajo: dict, token: str, aviso) -> str:
     SALIDA.mkdir(parents=True, exist_ok=True)
     # el archivo se abre YA con el nombre del pedido y en su carpeta final (Excel no deja abrir dos libros con el mismo nombre:
     # si uno igual sigue abierto de una prueba anterior, se usa CO6380_2.xlsm, _3…)
-    app = xw.apps.active if xw.apps.count else xw.App(visible=True, add_book=False)
+    # un Excel ya abierto y VISIBLE; si no hay, uno nuevo. (Un Excel invisible abierto por otro programa mostraba una ventana negra vacía.)
+    app = None
+    for a in list(xw.apps):
+        try:
+            if a.visible:
+                app = a; break
+        except Exception:  # noqa: BLE001
+            pass
+    if app is None:
+        app = xw.App(visible=True, add_book=False)
+    try:
+        app.screen_updating = True
+        app.display_alerts = False
+    except Exception:  # noqa: BLE001
+        pass
     abiertos = {b.name.lower() for b in app.books}
     nombre = Path(trabajo['nombre'])
     destino, k = SALIDA / nombre.name, 2
@@ -216,10 +289,7 @@ def llenar(trabajo: dict, token: str, aviso) -> str:
     except Exception:  # noqa: BLE001
         pass
     wb = app.books.open(str(destino))
-    try:
-        wb.activate()
-    except Exception:  # noqa: BLE001
-        pass
+    mostrar_libro(app, wb)
     al_frente(app)   # Excel al FRENTE y maximizado, para que el comercial lo vea llenarse
     total = sum(len(h['celdas']) for h in trabajo['plan']['hojas']) or 1
     hechas, fallos = 0, []
@@ -231,16 +301,10 @@ def llenar(trabajo: dict, token: str, aviso) -> str:
         for c in h['celdas']:
             rango = hoja.range(c['celda'])
             try:
-                rango.select()
+                rango.select()        # la celda activa sigue la escritura: Excel se desplaza solo
             except Exception:  # noqa: BLE001
                 pass
-            valor = c['valor']
-            if c.get('fecha'):
-                try:
-                    valor = dt.datetime.strptime(str(valor)[:10], '%Y-%m-%d')
-                except ValueError:
-                    pass
-            rango.value = valor
+            escribir(rango, c)
             hechas += 1
             if hechas % 5 == 0 or hechas == total:
                 aviso(f'Llenando {hechas} de {total} celdas…', hechas, total)
@@ -252,7 +316,13 @@ def llenar(trabajo: dict, token: str, aviso) -> str:
             except Exception as e:  # noqa: BLE001 - un mockup que no entra no tumba el listado
                 fallos.append(f'{h["nombre"]}: {str(e)[:80]}')
             time.sleep(0.6)
+    aviso('Verificando el listado…', hechas, total)
+    corregidas = verificar(wb, trabajo['plan'])
     wb.sheets[0].activate()
+    try:
+        wb.sheets[0].range('A1').select()
+    except Exception:  # noqa: BLE001
+        pass
     wb.save()
     if fallos and trabajo.get('completo'):
         # Excel no dejó insertar la imagen: se abre el listado del servidor, que YA trae el mockup insertado (mismos datos)
@@ -265,7 +335,10 @@ def llenar(trabajo: dict, token: str, aviso) -> str:
     al_frente(app)
     if fallos:
         raise RuntimeError('Listado guardado en ' + str(destino) + ', pero no pude insertar el mockup: ' + ' | '.join(fallos))
-    return str(destino)
+    faltan = [h['nombre'] for h in trabajo['plan']['hojas'] if h['imagenes'] and len(wb.sheets[h['nombre']].pictures) < len(h['imagenes'])]
+    if faltan:
+        raise RuntimeError('Listado guardado en ' + str(destino) + ', pero falta el mockup en: ' + ', '.join(faltan))
+    return str(destino) + f' · verificado ✓ ({total} celdas' + (f', {corregidas} corregidas' if corregidas else '') + ')'
 
 
 # ---------------------------------------------------------------- ventana
