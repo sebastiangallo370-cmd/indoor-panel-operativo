@@ -78,7 +78,7 @@ class Trabajo(Base):
         self.assertEqual(len(plan['hojas'][0]['imagenes']), 1)   # el mockup (el logo de la plantilla queda en la base)
         base = load_workbook(ax.CARPETA / tid / 'base.xlsm', keep_vba=True).worksheets[0]
         self.assertEqual((base['J2'].value, base['C8'].value, len(base._images)), (None, None, 1))
-        r = ax.sondeo(pedir(token), {})
+        r = ax.sondeo(pedir(token), {'version': '1.0.3'})
         self.assertEqual([t['id'] for t in r['trabajos']], [tid])
         self.assertEqual(ax.sondeo(pedir(token), {})['trabajos'], [])   # no se entrega dos veces
         self.assertEqual(str(ax.archivo(pedir(token), tid, 'base.xlsm').path), str(ax.CARPETA / tid / 'base.xlsm'))
@@ -95,8 +95,19 @@ class Trabajo(Base):
         self.assertEqual(ax.sondeo(pedir(otro), {})['trabajos'], [])
         with self.assertRaises(HTTPException):
             ax.archivo(pedir(otro), tid, 'base.xlsm')
-        self.assertEqual(len(ax.sondeo(pedir(token), {})['trabajos']), 1)
+        self.assertEqual(len(ax.sondeo(pedir(token), {'version': '1.0.3'})['trabajos']), 1)
 
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class AgenteViejo(Trabajo):
+    def test_agente_anterior_a_103_recibe_aviso_de_actualizar(self):
+        token = self.vincular()
+        tid = ax.encolar('ANA', self.excel(), 'x.xlsm')
+        self.assertEqual(ax.sondeo(pedir(token), {'version': '1.0.2'})['trabajos'], [])
+        with mock.patch.object(ax, '_auth', lambda r: 'ANA'):
+            t = ax.ver_trabajo(mock.Mock(), tid)
+        self.assertEqual(t['estado'], 'error')
+        self.assertIn('desactualizado', t['detalle'])
