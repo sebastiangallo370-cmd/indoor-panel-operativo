@@ -420,4 +420,4 @@ def sondeo(request: Request, payload: dict):
 
 def agente() -> dict:
     vivo = _ahora() - latido['at'] < 60
-    return {'nombre': 'EFFITRON', 'conectado': vivo, 'estado': latido['estado'] if vivo else 'SIN_CONECTAR', 'ultima': latido['ultima'] if vivo else '', 'equipo': latido['equipo']}
+    return {'nombre': 'EFFITRON', 'conectado': vivo, 'estado': latido['estado'] if vivo else 'SIN_CONECTAR', 'ultima': re.sub(r' del pedido #9\d{8}', ' del panel', latido['ultima']) if vivo else '', 'equipo': latido['equipo']}

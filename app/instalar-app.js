@@ -9,9 +9,10 @@
   const oculto = () => { try { return localStorage.getItem(CLAVE) === '1'; } catch (e) { return false; } };
   const css = document.createElement('style');
   css.textContent = `
-  .ia-boton{position:fixed;left:14px;bottom:14px;z-index:99990;display:flex;align-items:center;gap:8px;padding:9px 12px 9px 14px;border-radius:99px;border:1px solid #b9e03a;
-    background:linear-gradient(180deg,#e6ff6b,#c4ee2c 55%,#9fcd12);color:#16240a;font:900 12px Arial;letter-spacing:.05em;box-shadow:0 3px 0 #6f9410,0 8px 18px rgba(0,0,0,.45);cursor:pointer}
-  .ia-boton svg{width:16px;height:16px}.ia-x{all:unset;cursor:pointer;margin-left:4px;padding:0 4px;font:900 13px Arial;opacity:.6}
+  .ia-boton{all:unset;box-sizing:border-box;position:fixed!important;left:12px!important;bottom:12px!important;top:auto!important;right:auto!important;z-index:99990!important;width:34px!important;height:34px!important;min-width:0!important;max-width:34px!important;padding:0!important;margin:0!important;display:grid!important;place-items:center;border-radius:50%;border:1px solid #b9e03a;
+    background:linear-gradient(180deg,#e6ff6b,#9fcd12);color:#16240a;box-shadow:0 2px 0 #6f9410,0 6px 14px rgba(0,0,0,.45);cursor:pointer;opacity:.85;transition:opacity .15s,transform .15s}
+  .ia-boton:hover{opacity:1;transform:translateY(-1px)}.ia-boton svg{width:16px;height:16px;pointer-events:none}
+  .ia-x{position:absolute;top:-6px;right:-6px;width:15px;height:15px;border-radius:50%;background:#0d140e;color:#d0f44c;border:1px solid #3d4c3b;font:900 9px/13px Arial;text-align:center;cursor:pointer}
   .ia-ayuda{position:fixed;left:14px;bottom:62px;z-index:99990;max-width:300px;padding:12px 14px;border-radius:12px;background:#0d140e;border:1px solid rgba(208,244,76,.5);color:#e8f0e0;font:600 12px/1.5 Arial;box-shadow:0 10px 26px rgba(0,0,0,.5)}
   @media(max-width:700px){.ia-boton{display:none}}`;
   document.head.appendChild(css);
@@ -19,8 +20,8 @@
   function quitar() { if (boton) boton.remove(); boton = null; const a = document.querySelector('.ia-ayuda'); if (a) a.remove(); }
   function mostrar(alPulsar) {
     if (boton || yaInstalada() || oculto()) return;
-    boton = document.createElement('button'); boton.type = 'button'; boton.className = 'ia-boton';
-    boton.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>INSTALAR APP INDOOR<span class="ia-x" title="No mostrar más">✕</span>';
+    boton = document.createElement('button'); boton.type = 'button'; boton.className = 'ia-boton'; boton.title = 'Instalar la app de Indoor en este computador';
+    boton.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg><span class="ia-x" title="No mostrar más">✕</span>';
     boton.onclick = e => { if (e.target.classList.contains('ia-x')) { try { localStorage.setItem(CLAVE, '1'); } catch (er) { /* nada */ } quitar(); return; } alPulsar(); };
     document.body.appendChild(boton);
   }
