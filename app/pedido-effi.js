@@ -39,7 +39,7 @@
   .pe-pct{all:unset;cursor:pointer;box-sizing:border-box;min-width:38px;height:42px;display:grid;place-items:center;border:1px solid #3d4c3b;border-radius:10px;background:#142017;color:#d0f44c;font:900 14px Arial}
   .pe-pct:hover{border-color:#d0f44c}
   .pe-tela{grid-column:1/-1;font:700 12px Arial;color:#d0f44c;letter-spacing:.02em}.pe-tela:empty{display:none}.pe-tela small{color:#a9b5a3;font-weight:700}.pe-tela.no{color:#e8b86a}
-  .pe-fila2{grid-template-columns:minmax(200px,1.1fr) minmax(200px,1fr) minmax(200px,1fr) auto!important;margin-top:0!important;align-items:end}.pe-fila2 .pe-mk-btn{white-space:nowrap}
+  .pe-fila2{grid-template-columns:minmax(200px,1.1fr) minmax(180px,1fr) minmax(200px,1fr) minmax(130px,.5fr) auto!important;margin-top:0!important;align-items:end}.pe-fila2 .pe-mk-btn{white-space:nowrap}
   @media(max-width:999px){.pe-fila2{grid-template-columns:1fr!important}}
   .pe-mas{grid-column:1/-1}.pe-link{all:unset;cursor:pointer;color:#a9b5a3;font:800 12px Arial;letter-spacing:.06em}.pe-link:hover{color:#d0f44c}
   .pe-detalles{display:grid;gap:10px;grid-template-columns:minmax(180px,1fr) 2fr;margin-top:8px;padding:10px;border:1px dashed rgba(255,255,255,.18);border-radius:10px}
@@ -165,7 +165,7 @@
     .pe-top{flex-direction:row;align-items:center}
     .pe-enc>.pe-grid,.pe-enc .pe-fila2{display:contents}.pe-enc{display:flex!important;flex-direction:column;gap:10px}.pe-enc .pe-top{order:-1}
     .pe-enc label{order:5}.pe-enc label:has([name="sucursal"]){order:1}.pe-enc label:has([name="bodega"]){order:2}.pe-enc label:has([name="centro_costos"]){order:3}.pe-enc label:has([name="fecha_entrega"]){order:4}
-    .pe-enc label:has([name="moneda"]){order:5}.pe-enc label:has([name="trm"]){order:6}.pe-enc label:has([name="cliente-q"]){order:7}.pe-enc label:has([name="direccion"]){order:8}.pe-enc label:has([name="garantia"]){order:9}.pe-enc .pe-mk-btn{order:9}.pe-enc label:has([name="vendedor"]){order:10}.pe-enc label:has([name="global"]){order:11}
+    .pe-enc label:has([name="moneda"]){order:5}.pe-enc label:has([name="trm"]){order:6}.pe-enc label:has([name="cliente-q"]){order:7}.pe-enc label:has([name="direccion"]){order:8}.pe-enc label:has([name="garantia"]){order:9}.pe-enc label:has([name="linea_prod"]){order:9}.pe-enc .pe-mk-btn{order:9}.pe-enc label:has([name="vendedor"]){order:10}.pe-enc label:has([name="global"]){order:11}
     .pe-lg{display:none}.pe-sm{display:inline}.pe-acciones .pe-btn{white-space:nowrap}
     .pe-linea{grid-template-columns:1fr!important;gap:5px;padding:8px 0}.pe-linea>*{grid-column:1/-1!important}.pe-total-linea{font-size:12px;min-height:22px}.pe-x{justify-self:end;color:#ff8a7a}
     .pe-tela{font-size:9px}
@@ -181,7 +181,7 @@
   }`;
   document.head.appendChild(css);
 
-  const estadoInicial = () => ({ tipo: 'cotizacion', cat: null, estado: null, cliente: null, direccion: -1, conceptos: [], telas: {}, proy: { cliente: '', cargando: false, lista: [], carpeta: null, error: '' }, sinIvaTodos: false, formas: [], clave: nuevaClave(), previa: false, prev: null, ocupado: false, hecho: null, capturando: false, capTexto: '', capMsg: '', moneda: 'COP', trm: '1', global: '', propina: '', propinaPct: false, retenciones: [], pronto: '', fechaPronto: '' });
+  const estadoInicial = () => ({ tipo: 'cotizacion', cat: null, estado: null, cliente: null, direccion: -1, conceptos: [], telas: {}, proy: { cliente: '', cargando: false, lista: [], carpeta: null, error: '' }, sinIvaTodos: false, formas: [], clave: nuevaClave(), previa: false, prev: null, ocupado: false, hecho: null, capturando: false, capTexto: '', capMsg: '', moneda: 'COP', trm: '1', global: '', propina: '', propinaPct: false, retenciones: [], pronto: '', fechaPronto: '', linea: '', mkSel: {} });
   const st = estadoInicial();
   let panel = null;
   const q = s => panel.querySelector(s);
@@ -253,7 +253,7 @@
         <div class="pe-grid pe-fila2">
           <label>Cliente*<input name="cliente-q" autocomplete="off" autocapitalize="words" autocorrect="off" spellcheck="false" enterkeyhint="search" placeholder="Buscar por nombre (3 letras)…" value="${esc(st.cliente ? st.cliente.nombre : guard['cliente-q'])}"></label>
           <label>Dirección del cliente<select name="direccion">${st.cliente && st.cliente.direcciones.length ? st.cliente.direcciones.map((d, i) => '<option value="' + i + '"' + (i === st.direccion ? ' selected' : '') + '>' + esc((d.ciudad ? d.ciudad + ' · ' : '') + d.direccion) + '</option>').join('') : '<option value="-1">No registra</option>'}</select></label>
-          <label class="pe-proy">Nombre del proyecto (Garantía)${proyectoHtml(guard.garantia)}</label><button class="pe-btn sec mini pe-mk-btn" type="button" data-mockups-todos title="Ver los mockups del proyecto para las referencias elegidas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>VER MOCKUPS</button>
+          <label class="pe-proy">Nombre del proyecto (Garantía)${proyectoHtml(guard.garantia)}</label><label class="pe-linea-prod">Línea del producto<select name="linea_prod"><option value="">Seleccionar…</option>${((c.listado && c.listado.lineas) || ['COPA', 'PLUS', 'MAQUILA', 'PREMIUM', 'ESTANDAR']).map(x => '<option' + (x === st.linea ? ' selected' : '') + '>' + esc(x) + '</option>').join('')}</select></label><button class="pe-btn sec mini pe-mk-btn" type="button" data-mockups-todos title="Ver los mockups del proyecto para las referencias elegidas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>VER MOCKUPS</button>
         </div>
       </div>
       <div class="pe-card pe-con"><div class="pe-h3row"><h3>Conceptos</h3><label class="pe-chk pe-siniva-todos" style="margin-left:auto"><input type="checkbox" data-siniva-todos ${st.sinIvaTodos ? 'checked' : ''}> Sin IVA (todos)</label></div>
@@ -345,7 +345,8 @@
         const r = await post('/api/pedido-effi/crear', body);
         const doc = construirDoc(r, body);   // se arma ANTES de redibujar: usa lo que hay en pantalla
         st.hecho = r; st.ocupado = false; guardarLS(CLAVE_BORRADOR, null);   // ya está en Effi: el borrador se descarta
-        if (window.PedidoListado) window.PedidoListado.abrir(panel, doc, { cat: (st.cat && st.cat.listado) || {}, onOtro: nuevoDocumento, onCerrar: cerrarVentana });   // réplica de la cotización + «Continuar con el listado»
+        const preset = { linea: st.linea, proyecto: doc.proyecto, mockups: Object.fromEntries(Object.entries(st.mkSel).filter(([, v]) => v && v.length)) };
+        if (window.PedidoListado) window.PedidoListado.abrir(panel, doc, { cat: (st.cat && st.cat.listado) || {}, onOtro: nuevoDocumento, onCerrar: cerrarVentana, preset });   // réplica de la cotización + «Continuar con el listado»
         else dibujar();
       }
     } catch (e) { st.ocupado = false; msg(String(e.message || e), 'error'); }
@@ -502,6 +503,7 @@
     panel.querySelectorAll('[data-ret-quitar]').forEach(b => b.onclick = () => { st.retenciones = st.retenciones.filter(x => x !== Number(b.dataset.retQuitar)); invalidar(); dibujar(); });
     ['sucursal', 'bodega', 'centro_costos', 'vendedor', 'fecha_entrega', 'garantia', 'observacion'].forEach(n => { const e = q('[name="' + n + '"]'); if (e) e.addEventListener('input', () => { invalidar(); if (n === 'sucursal') dibujar(); }); });
     const dir = q('[name="direccion"]'); if (dir) dir.onchange = () => { st.direccion = Number(dir.value); invalidar(); };
+    const lp = q('[name="linea_prod"]'); if (lp) lp.onchange = () => { st.linea = lp.value; };
     const mkb = q('[data-mockups-todos]'); if (mkb) mkb.onclick = () => verMockups(null);
     const ps = q('[name="proyecto_sel"]'); if (ps) ps.addEventListener('change', () => {
       const t = q('[name="garantia"]'); if (!t) return;
@@ -611,7 +613,12 @@
   .pe-vitrina{display:flex;flex-wrap:wrap;gap:16px;margin-top:16px}
   .pe-vit{display:block;width:280px;padding:10px;border:1px solid rgba(255,255,255,.1);border-radius:14px;background:linear-gradient(160deg,rgba(255,255,255,.05),rgba(0,0,0,.25))}
   .pe-vit .foto{height:400px;border-radius:10px;background:#e9eeea;display:grid;place-items:center;overflow:hidden;color:#52604f;font:800 10px Arial;text-align:center;padding:4px}
-  .pe-vit .foto img{width:100%;height:100%;object-fit:contain;cursor:zoom-in}
+  .pe-vit .foto{position:relative}.pe-vit .foto img{width:100%;height:100%;object-fit:contain}
+  .pe-vit{cursor:pointer;transition:border-color .2s,box-shadow .2s}.pe-vit:hover{border-color:rgba(208,244,76,.5)}
+  .pe-vit.elegido{border:2px solid #d0f44c;box-shadow:0 0 0 3px rgba(208,244,76,.2)}
+  .pe-vit-d{position:absolute;top:8px;left:8px;padding:4px 10px;border-radius:99px;background:#0d140e;color:#a9b5a3;font:900 11px Arial;letter-spacing:.08em}
+  .pe-vit.elegido .pe-vit-d{background:#d0f44c;color:#0d140e}
+  .pe-vit-lupa{all:unset;position:absolute;top:8px;right:8px;width:30px;height:30px;display:grid;place-items:center;border-radius:50%;background:rgba(13,20,14,.8);cursor:zoom-in;font-size:14px}
   .pe-vit b.r{display:block;color:#d0f44c;font:900 20px Arial}.pe-vit .d{color:#f5faef;font:700 15px Arial;margin:4px 0 12px}
   .pe-vit .n{display:flex;gap:22px;font:800 12px Arial;color:#c9d3c1}.pe-vit .n strong{color:#f5faef;font-size:22px}
   .pe-vit .t{margin-top:10px;font:700 13px/1.5 Arial;color:#d0f44c;text-align:center}
@@ -668,21 +675,34 @@
     if (!(k in mockCache)) {
       mockCache[k] = 'cargando';
       api('/api/pedido-effi/mockups?cliente=' + encodeURIComponent(st.cliente.nombre) + '&proyecto=' + encodeURIComponent(proyecto) + '&ref=' + encodeURIComponent(ref))
-        .then(r => { const i = (r.items || [])[0]; mockCache[k] = i ? '/api/pedido-effi/mockup-img?cliente=' + encodeURIComponent(st.cliente.nombre) + '&proyecto=' + encodeURIComponent(i.proyecto || proyecto) + '&carpeta=' + encodeURIComponent(i.carpeta) + '&archivo=' + encodeURIComponent(i.archivo) : ''; pintarVitrina(); })
-        .catch(() => { mockCache[k] = ''; pintarVitrina(); });
+        .then(r => { mockCache[k] = (r.items || []).map(i => ({ url: '/api/pedido-effi/mockup-img?cliente=' + encodeURIComponent(st.cliente.nombre) + '&proyecto=' + encodeURIComponent(i.proyecto || proyecto) + '&carpeta=' + encodeURIComponent(i.carpeta) + '&archivo=' + encodeURIComponent(i.archivo), nombre: i.archivo, diseno: i.diseno }));
+          const sel = st.mkSel[ref]; if (!sel || !sel.length) st.mkSel[ref] = mockCache[k].length === 1 ? [mockCache[k][0].url] : (sel || []);   // si hay uno solo, ya queda elegido
+          pintarVitrina(); })
+        .catch(() => { mockCache[k] = []; pintarVitrina(); });
     }
     return mockCache[k];
   }
   function pintarVitrina() {
     const caja = q('[data-vitrina]'); if (!caja) return;
     const ls = st.conceptos.filter(l => l.articulo || String(l.ref || '').trim());
-    if (!ls.length) { caja._html = ''; caja.innerHTML = '<div class="pe-vit-vacia">Elige un artículo: aquí verás su mockup, la tela que gasta y el stock disponible.</div>'; return; }
+    if (!ls.length) { caja._html = ''; caja.innerHTML = '<div class="pe-vit-vacia">Elige un artículo: aquí verás sus mockups (clic para elegir los que vas a programar), la tela y el stock.</div>'; return; }
+    const vistas = new Set();
     const html = ls.map(l => {
-      const f = fotoMockup(l), tela = telaHtml(l);
-      return '<div class="pe-vit"><div class="foto">' + (f && f !== 'cargando' ? '<img alt="Mockup ' + esc(l.ref) + '" src="' + esc(f) + '" data-vit-ref="' + esc(l.ref) + '">' : f === 'cargando' ? 'Buscando mockup…' : !st.cliente ? 'Elige el cliente para ver el mockup' : !valor('garantia').trim() ? 'Elige el proyecto para ver el mockup' : 'Sin mockup en la NAS') + '</div>' + (tela ? '<div class="t">' + tela + '</div>' : '') + '</div>';   // el mockup y, debajo, solo la tela y el stock
+      const ref = String(l.ref || '').trim().toUpperCase(); if (vistas.has(ref)) return ''; vistas.add(ref);
+      const f = fotoMockup(l), tela = telaHtml(l), sel = st.mkSel[ref] || [];
+      const aviso = t => '<div class="pe-vit"><div class="foto">' + t + '</div>' + (tela ? '<div class="t">' + tela + '</div>' : '') + '</div>';
+      if (!Array.isArray(f) || !f.length) return aviso(f === 'cargando' ? 'Buscando mockups…' : !st.cliente ? 'Elige el cliente para ver los mockups' : !valor('garantia').trim() ? 'Elige el proyecto para ver los mockups' : 'Sin mockups en la NAS');
+      return f.map(m => { const k = sel.indexOf(m.url);
+        return '<div class="pe-vit' + (k >= 0 ? ' elegido' : '') + '" data-vit-ref="' + esc(ref) + '" data-vit-url="' + esc(m.url) + '" title="Clic para ' + (k >= 0 ? 'quitarlo de' : 'usarlo en') + ' el listado"><div class="foto"><img alt="Mockup ' + esc(ref) + '" src="' + esc(m.url) + '"><span class="pe-vit-d">' + (k >= 0 ? '✓ D' + (k + 1) : 'ELEGIR') + '</span><button type="button" class="pe-vit-lupa" data-vit-lupa title="Ver en grande">🔍</button></div>' + (tela ? '<div class="t">' + tela + '</div>' : '') + '</div>'; }).join('');
     }).join('');
     if (caja._html === html) return; caja._html = html; caja.innerHTML = html;
-    caja.querySelectorAll('[data-vit-ref]').forEach(im => im.onclick = () => { const l = st.conceptos.find(x => x.ref === im.dataset.vitRef); if (l) verMockups(l); });
+    caja.querySelectorAll('[data-vit-url]').forEach(c => c.onclick = e => {
+      const ref = c.dataset.vitRef;
+      if (e.target.closest('[data-vit-lupa]')) { const l = st.conceptos.find(x => String(x.ref || '').toUpperCase() === ref); if (l) verMockups(l); return; }
+      const sel = st.mkSel[ref] = st.mkSel[ref] || [], k = sel.indexOf(c.dataset.vitUrl);
+      if (k >= 0) sel.splice(k, 1); else if (sel.length < 6) sel.push(c.dataset.vitUrl);
+      pintarVitrina(); guardarBorradorPronto();
+    });
   }
   function animarNeto() {
     const n = q('[data-neto]'); if (!n) return;
@@ -695,7 +715,7 @@
     const campos = ['sucursal', 'bodega', 'centro_costos', 'vendedor', 'fecha_entrega', 'garantia', 'observacion'].reduce((o, n) => (o[n] = valor(n), o), {});
     const vacio = !st.cliente && st.conceptos.every(l => !l.articulo && !String(l.ref || '').trim());
     if (vacio) return;
-    guardarLS(CLAVE_BORRADOR, { cuando: Date.now(), tipo: st.tipo, cliente: st.cliente, direccion: st.direccion, conceptos: st.conceptos, formas: st.formas, moneda: st.moneda, trm: st.trm, global: st.global, propina: st.propina, propinaPct: st.propinaPct, retenciones: st.retenciones, pronto: st.pronto, fechaPronto: st.fechaPronto, sinIvaTodos: st.sinIvaTodos, campos });
+    guardarLS(CLAVE_BORRADOR, { cuando: Date.now(), tipo: st.tipo, cliente: st.cliente, direccion: st.direccion, conceptos: st.conceptos, formas: st.formas, moneda: st.moneda, trm: st.trm, global: st.global, propina: st.propina, propinaPct: st.propinaPct, retenciones: st.retenciones, pronto: st.pronto, fechaPronto: st.fechaPronto, sinIvaTodos: st.sinIvaTodos, linea: st.linea, mkSel: st.mkSel, campos });
     panel._borradorTxt = '● Borrador guardado ' + new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
     const b = q('[data-borrador]'); if (b) { b.classList.add('si'); b.textContent = panel._borradorTxt; }
   }
@@ -708,7 +728,7 @@
     const pe = q('.pe'); if (!pe) return; pe.prepend(d);
     d.querySelector('[data-rec-no]').onclick = () => { guardarLS(CLAVE_BORRADOR, null); d.remove(); };
     d.querySelector('[data-rec-si]').onclick = () => {
-      ['tipo', 'cliente', 'direccion', 'conceptos', 'formas', 'moneda', 'trm', 'global', 'propina', 'propinaPct', 'retenciones', 'pronto', 'fechaPronto', 'sinIvaTodos'].forEach(k => { if (b[k] !== undefined) st[k] = b[k]; });
+      ['tipo', 'cliente', 'direccion', 'conceptos', 'formas', 'moneda', 'trm', 'global', 'propina', 'propinaPct', 'retenciones', 'pronto', 'fechaPronto', 'sinIvaTodos', 'linea', 'mkSel'].forEach(k => { if (b[k] !== undefined) st[k] = b[k]; });
       st.prev = null; st.clave = nuevaClave();
       dibujar(); ponerCampos(b.campos);
       if (st.cliente) cargarProyectos().then(() => { ponerCampos({ garantia: (b.campos || {}).garantia }); const ps = q('[name="proyecto_sel"]'), g = (b.campos || {}).garantia; if (ps && g && st.proy.lista.includes(g)) ps.value = g; pintarPasos(); });

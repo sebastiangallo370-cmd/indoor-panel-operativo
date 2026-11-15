@@ -548,6 +548,22 @@
     Object.assign(L, { doc, opts: opts || {}, cat: (opts && opts.cat) || {}, pantalla: 'doc', disenos: 1, proyecto: String(doc.proyecto || doc.garantia || ''), linea: '', observaciones: '', compartir: true, imgs: {}, listado: {}, relleno: {}, defDiseno: 1, defGenero: 'MASC', enviando: false });
     cargarBorrador();
     L.compartir = grupos().length > 1;
+    const pr = (opts && opts.preset) || null;
+    if (pr) {   // viene de EMPEZAR PEDIDO con la línea, el proyecto y los mockups ya elegidos: directo al LISTADO (sin pasos de más)
+      if (pr.linea) L.linea = pr.linea;
+      if (pr.proyecto) L.proyecto = pr.proyecto;
+      const m = pr.mockups || {}, refs = Object.keys(m);
+      if (refs.length) { L.compartir = false; L.disenos = Math.min(MAX_DISENOS, Math.max(L.disenos || 1, ...refs.map(r => m[r].length))); }
+      L.pantalla = 'listado'; L.abierta = grupos()[0].referencia;
+      refs.forEach(ref => m[ref].forEach(async (url, i) => {
+        try {
+          const b = await fetch(url, { credentials: 'same-origin' }).then(x => { if (!x.ok) throw new Error(); return x.blob(); });
+          const ext = (b.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
+          (L.imgs[ref] = L.imgs[ref] || {})[i + 1] = new File([b], ref + '_D' + (i + 1) + '.' + ext, { type: b.type || 'image/png' });
+          if (raiz && raiz.isConnected && L.pantalla === 'mockups') dibujar();
+        } catch (e) { /* ese mockup se puede subir a mano en MOCKUPS */ }
+      }));
+    }
     dibujar();
   }
   window.PedidoListado = { abrir };
