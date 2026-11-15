@@ -408,6 +408,11 @@
     if (L.enviando) return;
     const f = faltantes(); if (f.length) { setMsg(f.join('\n'), 'error'); return; }
     L.enviando = true;
+    if (L.mkCarga && L.mkCarga.length) {   // los mockups elegidos en el documento SON los que se insertan: se espera a que terminen de bajar y se exige que estén todos
+      setMsg('Preparando los mockups elegidos…', ''); await Promise.all(L.mkCarga);
+      const faltan = (L.mkEsperados || []).filter(([r, n]) => !imagenDe(r, n));
+      if (faltan.length) { L.enviando = false; setMsg('No pude traer el mockup ' + faltan.map(([r, n]) => r + ' D' + n).join(', ') + ' desde la NAS. Súbelo a mano en ◀ MOCKUPS o vuelve a intentar.', 'error'); return; }
+    }
     const listado = {}; grupos().forEach(g => { listado[g.referencia] = filasDe(g.referencia).map(x => ({ nombre: x.nombre, talla: x.talla, numero: x.numero, diseno: Number(x.diseno), genero: x.genero, observacion: x.observacion })); });
     const doc = Object.assign({}, L.doc, { proyecto: L.proyecto.trim(), disenos: L.disenos });
     const fd = new FormData(); fd.append('payload', JSON.stringify({ doc, listado, linea: L.linea, observaciones: L.observaciones }));
@@ -563,14 +568,15 @@
       const m = pr.mockups || {}, refs = Object.keys(m);
       if (refs.length) { L.compartir = false; L.disenos = Math.min(MAX_DISENOS, Math.max(L.disenos || 1, ...refs.map(r => m[r].length))); }
       L.pantalla = 'listado'; L.abierta = grupos()[0].referencia;
-      refs.forEach(ref => m[ref].forEach(async (url, i) => {
+      L.mkEsperados = refs.flatMap(ref => m[ref].map((u, i) => [ref, i + 1])); L.mkCarga = [];
+      refs.forEach(ref => m[ref].forEach((url, i) => L.mkCarga.push((async () => {
         try {
           const b = await fetch(url, { credentials: 'same-origin' }).then(x => { if (!x.ok) throw new Error(); return x.blob(); });
           const ext = (b.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
           (L.imgs[ref] = L.imgs[ref] || {})[i + 1] = new File([b], ref + '_D' + (i + 1) + '.' + ext, { type: b.type || 'image/png' });
           if (raiz && raiz.isConnected && L.pantalla === 'mockups') dibujar();
         } catch (e) { /* ese mockup se puede subir a mano en MOCKUPS */ }
-      }));
+      })())));
     }
     dibujar();
   }
