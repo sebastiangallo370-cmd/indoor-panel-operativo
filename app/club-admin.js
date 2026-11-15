@@ -319,8 +319,8 @@
       (d.rows || []).forEach(r => {
         const v = r.values || r, orden = String(v[iO] || '').trim(); if (!orden) return;
         (orden.toUpperCase().match(/\b(?:CO|RM)\d+\b/g) || []).forEach(cod => {
-          const o = out[cod] = out[cod] || { orden, cliente: v[iCl], proyecto: v[iP], refs: [], units: 0, tela: v[iT] || '', entrega: fechaDe(v[iE]), cells: procs.map(() => []) };
-          if (v[iR]) o.refs.push(String(v[iR]).trim()); o.units += Number(String(v[iC] || '0').replace(/[^0-9.-]/g, '')) || 0;
+          const o = out[cod] = out[cod] || { orden, filas: [], cliente: v[iCl], proyecto: v[iP], refs: [], units: 0, tela: v[iT] || '', entrega: fechaDe(v[iE]), cells: procs.map(() => []) };
+          o.filas.push(r.source_row); if (v[iR]) o.refs.push(String(v[iR]).trim()); o.units += Number(String(v[iC] || '0').replace(/[^0-9.-]/g, '')) || 0;
           procs.forEach((p, k) => p.cols.forEach(c => o.cells[k].push(norm(v[c]))));
         });
       });
@@ -334,11 +334,33 @@
       produccion = out;
     } catch (e) { /* sin Producción: la tarjeta usa lo guardado al programar */ }
   }
+  function pedirClave(titulo, texto) {   // contraseña en un cuadro propio (nunca en un prompt() que la muestra)
+    return new Promise(res => {
+      const f = document.createElement('div'); f.className = 'ax-fondo';
+      f.innerHTML = '<div class="ax-card" style="max-width:460px"><div class="ax-cab"><div><span class="ax-eye">ELIMINAR DE PRODUCCIÓN</span><h3>' + esc(titulo) + '</h3></div></div><p class="ax-p">' + texto + '</p>' +
+        '<input type="password" data-clave autocomplete="current-password" placeholder="Tu contraseña del panel" style="width:100%;box-sizing:border-box;padding:10px 12px;border-radius:10px;border:1px solid #3d4c3b;background:#0d140e;color:#f5faef;font:700 14px Arial">' +
+        '<div class="ax-btns" style="margin-top:12px;justify-content:flex-end"><button class="ax-btn" type="button" data-no>CANCELAR</button><button class="ax-btn" type="button" data-si style="background:#7a2a2a;color:#fff;border-color:#a33">ELIMINAR</button></div></div>';
+      document.body.appendChild(f);
+      const fin = v => { f.remove(); res(v); }, inp = f.querySelector('[data-clave]'); inp.focus();
+      f.querySelector('[data-no]').onclick = () => fin('');
+      f.querySelector('[data-si]').onclick = () => fin(inp.value);
+      inp.onkeydown = e => { if (e.key === 'Enter') fin(inp.value); if (e.key === 'Escape') fin(''); };
+    });
+  }
   document.addEventListener('click', async e => {
     const b = e.target.closest('[data-quitar-prog]'); if (!b) return;
-    const c = b.dataset.quitarProg;
-    if (!confirm('¿Quitar ' + c + ' de esta lista?\n\nNo borra la orden de Producción ni su carpeta en la NAS.')) return;
-    try { await api('/api/pedido-effi/programados/' + encodeURIComponent(c), 'DELETE'); programados = programados.filter(x => x.codigo !== c); pintar(); toast(c + ' quitado de la lista', 'ok'); } catch (er) { toast(er.message, 'error'); }
+    const c = b.dataset.quitarProg, o = produccion[c], filas = (o && o.filas) || [];
+    try {
+      if (filas.length) {   // borrado seguro de Producción para TODA la orden: todas sus tarjetas + la carpeta NAS (pide contraseña, deja copia de recuperación)
+        const clave = await pedirClave('Eliminar ' + o.orden, 'Se eliminará de TODO el panel: ' + (filas.length > 1 ? 'sus <b>' + filas.length + ' tarjetas</b>' : 'la <b>tarjeta</b>') + ' de Producción, la <b>carpeta de la orden en la NAS</b> y esta lista.<br>Queda una copia de recuperación en el servidor.');
+        if (!clave) return;
+        b.disabled = true; b.textContent = 'ELIMINANDO…';
+        await api('/api/produccion/orden/' + encodeURIComponent(o.orden), 'DELETE', { password: clave });
+      } else if (!confirm('¿Eliminar ' + c + '?\n\nNo está en Producción: solo se quita de esta lista.')) return;
+      await api('/api/pedido-effi/programados/' + encodeURIComponent(c), 'DELETE');
+      programados = programados.filter(x => x.codigo !== c); delete produccion[c]; pintar();
+      toast(c + (filas.length ? ' eliminado de Producción y de la NAS' : ' quitado de la lista'), 'ok');
+    } catch (er) { b.disabled = false; b.textContent = '🗑 ELIMINAR'; toast(er.message, 'error'); }
   });
   document.addEventListener('click', async e => {
     const b = e.target.closest('[data-abrir-excel]'); if (!b) return;
