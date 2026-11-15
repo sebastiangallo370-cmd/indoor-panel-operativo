@@ -89,6 +89,19 @@ async def eliminar_documento(numero:str):
     pdf=_PDF_DIR/f"{_safe(numero)}.pdf"
     if pdf.exists(): pdf.unlink()
     _save(data); return {"ok":True,"eliminado":numero}
+def quitar_orden_eliminada(orden:str,usuario:str="")->dict:
+    """Al eliminar una orden de Producción también sale de Cartera cada cotización CO#### que tenga, salvo si ya tiene pagos (eso no se borra)."""
+    data=_load(); quitadas=[]; con_pagos=[]
+    for numero in re.findall(r"CO[\s_-]*(\d{3,})",str(orden or "").upper()):
+        if not any(x["numero"]==numero for x in data["documentos"]): continue
+        if any(p for p in data["comprobantes"] if p["cotizacionNumero"]==numero and not p.get("anulado")):
+            con_pagos.append(numero); continue
+        data["documentos"]=[x for x in data["documentos"] if x["numero"]!=numero]
+        pdf=_PDF_DIR/f"{_safe(numero)}.pdf"
+        if pdf.exists(): pdf.unlink()
+        quitadas.append(numero)
+    if quitadas: _save(data)
+    return {"quitadas":quitadas,"con_pagos":con_pagos}
 @cartera_router.post("/comprobantes")
 async def guardar_comprobante(payload:dict):
     data=_load(); p=dict(payload); numero=str(p.get("cotizacionNumero","")).strip(); doc=next((x for x in data["documentos"] if x["numero"]==numero),None)

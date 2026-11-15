@@ -352,14 +352,15 @@
     const c = b.dataset.quitarProg, o = produccion[c], filas = (o && o.filas) || [];
     try {
       if (filas.length) {   // borrado seguro de Producción para TODA la orden: todas sus tarjetas + la carpeta NAS (pide contraseña, deja copia de recuperación)
-        const clave = await pedirClave('Eliminar ' + o.orden, 'Se eliminará de TODO el panel: ' + (filas.length > 1 ? 'sus <b>' + filas.length + ' tarjetas</b>' : 'la <b>tarjeta</b>') + ' de Producción, la <b>carpeta de la orden en la NAS</b> y esta lista.<br>Queda una copia de recuperación en el servidor.');
+        const clave = await pedirClave('Eliminar ' + o.orden, 'Se eliminará de TODO el panel: ' + (filas.length > 1 ? 'sus <b>' + filas.length + ' tarjetas</b>' : 'la <b>tarjeta</b>') + ' de Producción, la <b>carpeta de la orden en la NAS</b>, la cotización en <b>Cartera</b> (si no tiene pagos) y esta lista.<br>Queda una copia de recuperación en el servidor.');
         if (!clave) return;
         b.disabled = true; b.textContent = 'ELIMINANDO…';
-        await api('/api/produccion/orden/' + encodeURIComponent(o.orden), 'DELETE', { password: clave });
+        const rb = await api('/api/produccion/orden/' + encodeURIComponent(o.orden), 'DELETE', { password: clave });
+        const cp = (rb.cartera && rb.cartera.con_pagos) || []; if (cp.length) toast('La cotización ' + cp.join(', ') + ' sigue en Cartera porque tiene pagos registrados.', 'error');
       } else if (!confirm('¿Eliminar ' + c + '?\n\nNo está en Producción: solo se quita de esta lista.')) return;
       await api('/api/pedido-effi/programados/' + encodeURIComponent(c), 'DELETE');
       programados = programados.filter(x => x.codigo !== c); delete produccion[c]; pintar();
-      toast(c + (filas.length ? ' eliminado de Producción y de la NAS' : ' quitado de la lista'), 'ok');
+      toast(c + (filas.length ? ' eliminado de Producción, la NAS y Cartera' : ' quitado de la lista'), 'ok');
     } catch (er) { b.disabled = false; b.textContent = '🗑 ELIMINAR'; toast(er.message, 'error'); }
   });
   document.addEventListener('click', async e => {
