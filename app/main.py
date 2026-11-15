@@ -8266,11 +8266,21 @@ def pedidos_programados(usuario=Depends(authenticate)):
         lista = json.loads(_PROGRAMADOS.read_text(encoding='utf-8'))
     except (OSError, ValueError):
         lista = []
+    # también los programados ANTES de existir esta lista: cada carpeta CO####/RM#### con su Excel
+    ya = {x.get('codigo') for x in lista}
+    if PEDIDO_EXCEL_DIR.is_dir():
+        for d in PEDIDO_EXCEL_DIR.iterdir():
+            xl = sorted(d.glob('*.xls*')) if d.is_dir() and re.fullmatch(r'(CO|RM)\d{1,10}', d.name) and d.name not in ya else []
+            if xl:
+                resto = xl[0].stem.split('_', 1)[1] if '_' in xl[0].stem else ''
+                lista.append({'codigo': d.name, 'cliente': resto.replace('_', ' '), 'proyecto': '', 'usuario': '', 'referencias': [], 'prendas': 0,
+                              'fecha': datetime.fromtimestamp(xl[0].stat().st_mtime).isoformat(timespec='seconds'), 'excel': f'/api/pedido-effi/excel/{d.name}', 'estado': ''})
+    lista.sort(key=lambda x: x.get('fecha') or '', reverse=True)
     with connect() as db:   # estado actual de la programación (COMPLETADO / ERROR …)
         for x in lista:
-            if x.get('job'):
-                r = db.execute('SELECT status FROM jobs WHERE id = ?', (x['job'],)).fetchone()
-                x['estado'] = r[0] if r else ''
+            r = db.execute('SELECT status FROM jobs WHERE id = ?', (x['job'],)).fetchone() if x.get('job') else \
+                db.execute('SELECT status FROM jobs WHERE order_number = ? ORDER BY id DESC LIMIT 1', (x['codigo'],)).fetchone()
+            x['estado'] = r[0] if r else ''
     return {'programados': lista}
 
 
