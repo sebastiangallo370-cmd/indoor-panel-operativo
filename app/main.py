@@ -4939,7 +4939,24 @@ def _orden_programada_en_panel(codigo: str) -> bool:
         return False
 
 
-def production_delete_target(db, row, username, orden_completa=False):
+_REVISION_CARPETA: dict = {}   # carpeta -> cuándo se revisó por última vez que no tiene enlaces ni montajes (la NAS es lenta: no se repite la revisión a cada paso)
+
+
+def _revisar_carpeta_sin_enlaces(target) -> None:
+    """Rechaza enlaces, junctions y montajes dentro de la carpeta ANTES de borrarla. Una sola pasada con scandir (1 operación por entrada, no 6 como antes con resolve())."""
+    pila = [str(target)]
+    while pila:
+        with os.scandir(pila.pop()) as it:
+            for e in it:
+                if e.is_symlink() or (hasattr(e, 'is_junction') and e.is_junction()):
+                    raise HTTPException(409, 'La carpeta contiene enlaces o rutas externas. Se requiere revisión manual.')
+                if e.is_dir(follow_symlinks=False):
+                    if os.path.ismount(e.path):
+                        raise HTTPException(409, 'La carpeta contiene enlaces o rutas externas. Se requiere revisión manual.')
+                    pila.append(e.path)
+
+
+def production_delete_target(db, row, username, orden_completa=False, fresco=False):
     profile = db.execute('SELECT process FROM users WHERE name=? COLLATE NOCASE', (username,)).fetchone()
     es_admin = username == os.getenv('APP_USER', 'indoor') or bool(profile and can_delete_production_profile(profile['process']))
     es_comercial = (not es_admin) and permisos_mod.comerciales_permitido(str(username))
@@ -4975,12 +4992,10 @@ def production_delete_target(db, row, username, orden_completa=False):
     target = candidate.resolve(strict=True)
     if candidate.is_symlink() or target.parent!=client or len(target.relative_to(root).parts)!=2:
         raise HTTPException(403, 'Ruta de orden no permitida')
-    # Reject links/junctions and nested mount points before any recursive deletion.
-    for parent, dirs, files in os.walk(target, followlinks=False):
-        for name in dirs + files:
-            entry = Path(parent) / name
-            if entry.is_symlink() or (hasattr(entry, 'is_junction') and entry.is_junction()) or os.path.ismount(entry) or not entry.resolve().is_relative_to(target):
-                raise HTTPException(409, 'La carpeta contiene enlaces o rutas externas. Se requiere revisión manual.')
+    # Reject links/junctions and nested mount points before any recursive deletion (la revisión se repite siempre justo antes de borrar: fresco=True).
+    if fresco or time.time() - _REVISION_CARPETA.get(str(target), 0) > 120:
+        _revisar_carpeta_sin_enlaces(target)
+        _REVISION_CARPETA[str(target)] = time.time()
     relative = str(target.relative_to(root)).replace('\\','/')
     fingerprint = hashlib.sha256((record['values_json']+'\n'+relative).encode()).hexdigest()
     return record, target, order, relative, fingerprint
@@ -5085,12 +5100,17 @@ def delete_production_row(row: int, payload: dict = Body(...), _=Depends(authent
         backup_dir.mkdir(parents=True, exist_ok=True)
         backup_base = backup_dir / (str(row)+'-'+secrets.token_hex(12))
         # Complete a server-side recovery copy before touching NAS files.
-        backup = shutil.make_archive(str(backup_base), 'zip', root_dir=str(target.parent), base_dir=target.name)
+        backup = str(backup_base) + '.zip'   # sin comprimir (ZIP_STORED): las fotos y el Excel ya vienen comprimidos y comprimir solo gasta tiempo
+        with zipfile.ZipFile(backup, 'w', zipfile.ZIP_STORED, allowZip64=True) as zf:
+            for parent, dirs_, files_ in os.walk(target, followlinks=False):
+                zf.write(parent, Path(parent).relative_to(target.parent).as_posix() + '/')
+                for nombre in files_:
+                    zf.write(Path(parent) / nombre, (Path(parent) / nombre).relative_to(target.parent).as_posix())
         db.execute('CREATE TABLE IF NOT EXISTS production_nas_deletions (id INTEGER PRIMARY KEY AUTOINCREMENT, source_row INTEGER, folder TEXT, backup TEXT, actor TEXT, deleted_at TEXT)')
         db.execute('INSERT INTO production_nas_deletions(source_row,folder,backup,actor,deleted_at) VALUES (?,?,?,?,?)',
                    (row,relative,backup,_,datetime.now(timezone.utc).isoformat()))
         # Resolve again after backup and require the same exact target and row.
-        verified_record, verified, verified_order, verified_relative, verified_fingerprint = production_delete_target(db,row,_)
+        verified_record, verified, verified_order, verified_relative, verified_fingerprint = production_delete_target(db,row,_,fresco=True)
         if verified!=target or verified_fingerprint!=fingerprint:
             raise HTTPException(409, 'La orden cambió durante la operación. No se eliminó nada.')
         shutil.rmtree(verified)
