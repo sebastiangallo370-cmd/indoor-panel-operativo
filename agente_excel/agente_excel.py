@@ -24,7 +24,7 @@ import urllib.request
 from pathlib import Path
 from tkinter import messagebox, simpledialog
 
-VERSION = '1.1.4'
+VERSION = '1.1.5'
 URL = os.getenv('AGENTE_EXCEL_URL', 'https://produccion.cloud').rstrip('/')
 CONFIG = Path.home() / '.agente_excel_indoor.json'
 SALIDA = Path.home() / 'Documents' / 'Indoor Pedidos'
@@ -69,6 +69,19 @@ def registrar_enlace() -> None:
         with winreg.CreateKey(winreg.HKEY_CURRENT_USER, base + r'\shell\open\command') as k:
             winreg.SetValueEx(k, '', 0, winreg.REG_SZ, f'"{exe}" "%1"')
     except Exception:  # noqa: BLE001 - sin el enlace igual funciona abriéndolo a mano
+        pass
+
+
+def tarea_de_relevo() -> None:
+    """Tarea programada de Windows (sin permisos de administrador): cada 5 minutos intenta abrir el agente; si ya está abierto, la copia nueva se cierra sola.
+    Así el agente nunca queda cerrado por accidente (se cerró el PC, un error, Ctrl+Q…) y Excel se abre cuando programas."""
+    exe = sys.executable if getattr(sys, 'frozen', False) else ''
+    if not exe or platform.system() != 'Windows':
+        return
+    try:
+        import subprocess
+        subprocess.run(['schtasks', '/create', '/tn', 'AgenteExcelIndoor', '/sc', 'minute', '/mo', '5', '/tr', f'"{exe}"', '/f'], capture_output=True, timeout=20, creationflags=0x08000000)
+    except Exception:  # noqa: BLE001
         pass
 
 
@@ -546,7 +559,7 @@ class Agente:
         self.ventana.mainloop()
 
     def empezar(self):
-        registrar_enlace()
+        registrar_enlace(); tarea_de_relevo()
         if not self.vincular():
             self.ventana.destroy(); return
         self.ciclo()

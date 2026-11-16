@@ -278,6 +278,13 @@
   }
   document.addEventListener('click', e => {
     const b = e.target.closest('[data-abrir-agente-top]'); if (!b) return;
+    const ver = ((agenteTop && agenteTop.equipos || []).map(x => x.version).filter(Boolean)[0] || '0').split('.').map(Number);
+    const viejo = ver[0] < 1 || (ver[0] === 1 && (ver[1] < 1 || (ver[1] === 1 && ver[2] < 4)));   // antes de la 1.1.4 el agente no responde al enlace: se baja el abridor
+    if (viejo) {
+      const a = document.createElement('a'); a.href = '/api/agente-excel/abrir.bat'; a.download = 'Abrir-Agente-Excel-Indoor.bat'; a.style.display = 'none'; document.body.appendChild(a); a.click(); a.remove();
+      toast('Se bajó «Abrir-Agente-Excel-Indoor.bat»: ábrelo con doble clic (solo esta vez) y el agente se abre. Si Windows avisa, pulsa «Más información → Ejecutar de todas formas».', 'ok');
+      return;
+    }
     if (window.abrirAgenteExcelPC) window.abrirAgenteExcelPC();
     b.disabled = true; b.textContent = 'Abriendo…';
     toast('Abriendo tu agente… si el navegador pregunta, pulsa «Abrir».', 'ok');
