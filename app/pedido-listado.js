@@ -328,7 +328,7 @@
     }
     q('[data-cuerpo]').innerHTML = '<div class="pl-refs">' + gs.map(x => '<button type="button" class="pl-ref ' + (x.referencia === L.abierta ? 'on' : '') + '" data-ref="' + esc(x.referencia) + '">' + esc(x.referencia) + contador(x) + '</button>').join('') + '</div>' +
       '<div class="pl-tarjeta"><h3>' + esc(g.referencia) + ' · ' + esc(g.descripcion) + ' · ' + g.cantidad + ' prendas</h3>' +
-      '<div class="pl-herr"><label>Diseño nuevo<select data-def-diseno>' + Array.from({ length: L.disenos }, (_, k) => '<option value="' + (k + 1) + '"' + (k + 1 === L.defDiseno ? ' selected' : '') + '>D' + (k + 1) + '</option>').join('') + '</select></label>' +
+      '<div class="pl-herr"><label>N° de diseños<select data-n-disenos>' + Array.from({ length: MAX_DISENOS }, (_, k) => '<option value="' + (k + 1) + '"' + (k + 1 === L.disenos ? ' selected' : '') + '>' + (k + 1) + '</option>').join('') + '</select></label><label>Diseño nuevo<select data-def-diseno>' + Array.from({ length: L.disenos }, (_, k) => '<option value="' + (k + 1) + '"' + (k + 1 === L.defDiseno ? ' selected' : '') + '>D' + (k + 1) + '</option>').join('') + '</select></label>' +
       '<label>Género nuevo<select data-def-genero><option' + (L.defGenero === 'MASC' ? ' selected' : '') + '>MASC</option><option' + (L.defGenero === 'FEM' ? ' selected' : '') + '>FEM</option></select></label>' +
       '<button class="pl-btn sec mini" type="button" data-mas>+ AGREGAR FILA</button><button class="pl-btn sec mini" type="button" data-mas5>+ AGREGAR 5 FILAS</button><button class="pl-btn sec mini" type="button" data-completar>COMPLETAR HASTA ' + g.cantidad + '</button><button class="pl-btn sec mini" type="button" data-pegar>PEGAR DESDE EXCEL</button></div>' +
       '<div data-pegado hidden class="pl-tarjeta" style="margin:0 0 10px"><label>Pega aquí las filas copiadas de Excel (columnas: NOMBRE, TALLA, NÚMERO, DISEÑO, GÉNERO, OBSERVACIÓN; separadas por tabulador o punto y coma)<textarea data-pegado-texto spellcheck="false"></textarea></label><div style="display:flex;gap:8px;margin-top:8px"><button class="pl-btn mini" type="button" data-pegado-ok>PEGAR FILAS</button><button class="pl-btn sec mini" type="button" data-pegado-no>CANCELAR</button></div></div>' +
@@ -338,6 +338,7 @@
     estadoListado();
     raiz.querySelectorAll('[data-ref]').forEach(b => b.onclick = () => { L.abierta = b.dataset.ref; pantallaListado(); });
     q('[data-atras]').onclick = () => { if (L.previo) { if (L.opts.onVolver) L.opts.onVolver(); return; } L.pantalla = 'mockups'; dibujar(); };
+    q('[data-n-disenos]').onchange = e => { const n = Number(e.target.value); L.disenos = n; if (L.defDiseno > n) L.defDiseno = n; filasDe(L.abierta).forEach(f => { if (Number(f.diseno) > n) f.diseno = n; }); guardarBorrador(); pantallaListado(); };   // más o menos diseños: la lista DISEÑO de cada fila se ajusta
     q('[data-def-diseno]').onchange = e => { L.defDiseno = Number(e.target.value); };
     q('[data-def-genero]').onchange = e => { L.defGenero = e.target.value; };
     q('[data-mas]').onclick = () => { filas.push(filaVacia()); guardarBorrador(); pantallaListado(); enfocarUltima(); };
@@ -577,9 +578,9 @@
     L.previo = !!(opts && opts.previo);
     if (pr && pr.listado) {   // lo que se llenó en el LISTADO PREVIO (antes de crear la cotización)
       Object.entries(pr.listado).forEach(([ref, filas]) => { if (Array.isArray(filas) && filas.some(f => f.nombre || f.talla || f.numero || f.observacion)) { L.listado[String(ref).toUpperCase()] = filas.map(f => Object.assign({}, f)); L.relleno[String(ref).toUpperCase()] = true; } });
-      if (pr.disenos) L.disenos = Math.max(L.disenos || 1, Number(pr.disenos) || 1);
       if (pr.observaciones) L.observaciones = pr.observaciones;
     }
+    if (pr && pr.disenos) L.disenos = Math.min(MAX_DISENOS, Math.max(L.disenos || 1, Number(pr.disenos) || 1));
     if (pr) {   // viene de EMPEZAR PEDIDO con la línea, el proyecto y los mockups ya elegidos: directo al LISTADO (sin pasos de más)
       if (pr.linea) L.linea = pr.linea;
       if (pr.proyecto) L.proyecto = pr.proyecto;

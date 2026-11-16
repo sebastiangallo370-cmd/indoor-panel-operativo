@@ -851,7 +851,8 @@
     st.guardCampos = ['sucursal', 'bodega', 'centro_costos', 'vendedor', 'fecha_entrega', 'garantia', 'observacion', 'cliente-q'].reduce((o, n) => (o[n] = valor(n), o), {});
     const doc = { tipo: st.tipo, numero: 'PREVIO', prefijo: '', cliente: { nombre: st.cliente ? st.cliente.nombre : '' }, proyecto: valor('garantia').trim(), conceptos };
     const lp = st.listadoPrevio || {};
-    window.PedidoListado.abrir(panel, doc, { cat: (st.cat && st.cat.listado) || {}, previo: true, onVolver: volverAlFormulario, preset: { linea: st.linea, proyecto: doc.proyecto, listado: lp.listado, disenos: lp.disenos, observaciones: lp.observaciones } });
+    const porMockups = Math.max(1, ...Object.values(st.mkSel).map(v => (v || []).length));   // tantos diseños como mockups elegidos en el documento
+    window.PedidoListado.abrir(panel, doc, { cat: (st.cat && st.cat.listado) || {}, previo: true, onVolver: volverAlFormulario, preset: { linea: st.linea, proyecto: doc.proyecto, listado: lp.listado, disenos: Math.max(Number(lp.disenos) || 1, porMockups), observaciones: lp.observaciones } });
     return true;
   }
   function volverAlFormulario() {
