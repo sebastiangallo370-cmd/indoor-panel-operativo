@@ -24,7 +24,7 @@ import urllib.request
 from pathlib import Path
 from tkinter import messagebox, simpledialog
 
-VERSION = '1.1.5'
+VERSION = '1.1.6'
 URL = os.getenv('AGENTE_EXCEL_URL', 'https://produccion.cloud').rstrip('/')
 CONFIG = Path.home() / '.agente_excel_indoor.json'
 SALIDA = Path.home() / 'Documents' / 'Indoor Pedidos'
@@ -297,8 +297,12 @@ def igualar_vistas(wb, app) -> None:
 def seguir_al_frente(app, wb) -> None:
     """Excel y ESTE libro deben seguir adelante mientras se llena (obligatorio): si otra ventana quedó encima, se trae de nuevo."""
     try:
-        if wb.app.books.active.name != wb.name:
-            wb.activate()
+        wb.activate()
+        if not ES_MAC:
+            try:
+                wb.api.Windows(1).Activate()   # la ventana de ESTE listado encima de cualquier otro libro abierto
+            except Exception:  # noqa: BLE001
+                pass
         if not ES_MAC:
             import ctypes
             if ctypes.windll.user32.GetForegroundWindow() != app.hwnd:
@@ -334,6 +338,61 @@ def poner_imagen(hoja, ruta: str, im: dict) -> None:
         pass
 
 
+_FRENTE = {'parar': None}
+
+
+def vigilar_primer_plano(hwnd) -> None:
+    """Mientras el agente trabaja, Excel se mantiene en PRIMER PLANO: cada segundo, si otra ventana lo tapó, se vuelve a poner adelante.
+    Solo usa la API de ventanas de Windows (no toca Excel por COM), así que es seguro hacerlo desde otro hilo."""
+    detener_primer_plano()
+    if ES_MAC or not hwnd:
+        return
+    import threading
+    parar = threading.Event(); _FRENTE['parar'] = parar
+
+    def vigilar():
+        import ctypes
+        u = ctypes.windll.user32
+        while not parar.wait(1.0):
+            try:
+                if u.GetAncestor(u.GetForegroundWindow(), 2) != u.GetAncestor(hwnd, 2):
+                    u.keybd_event(0x12, 0, 0, 0); u.keybd_event(0x12, 0, 2, 0)
+                    if u.IsIconic(hwnd):
+                        u.ShowWindow(hwnd, 9)
+                    u.BringWindowToTop(hwnd)
+                    u.SetForegroundWindow(hwnd)
+            except Exception:  # noqa: BLE001
+                pass
+    threading.Thread(target=vigilar, daemon=True).start()
+
+
+def detener_primer_plano() -> None:
+    if _FRENTE.get('parar') is not None:
+        _FRENTE['parar'].set(); _FRENTE['parar'] = None
+
+
+def instancia_en_uso(xw):
+    """Con varias ventanas de Excel abiertas: la que el comercial tiene al frente (si no, la primera visible). Así el listado se arma donde él está mirando."""
+    visibles = []
+    for a in list(xw.apps):
+        try:
+            if a.visible:
+                visibles.append(a)
+        except Exception:  # noqa: BLE001
+            pass
+    if not ES_MAC and len(visibles) > 1:
+        try:
+            import ctypes
+            u = ctypes.windll.user32
+            fg = u.GetAncestor(u.GetForegroundWindow(), 2)
+            for a in visibles:
+                if u.GetAncestor(a.hwnd, 2) == fg:
+                    return a
+        except Exception:  # noqa: BLE001
+            pass
+    return visibles[0] if visibles else None
+
+
 def llenar(trabajo: dict, token: str, aviso) -> str:
     import xlwings as xw
     carpeta = Path(tempfile.mkdtemp(prefix='indoor_'))
@@ -345,13 +404,7 @@ def llenar(trabajo: dict, token: str, aviso) -> str:
     # el archivo se abre YA con el nombre del pedido y en su carpeta final (Excel no deja abrir dos libros con el mismo nombre:
     # si uno igual sigue abierto de una prueba anterior, se usa CO6380_2.xlsm, _3…)
     # un Excel ya abierto y VISIBLE; si no hay, uno nuevo. (Un Excel invisible abierto por otro programa mostraba una ventana negra vacía.)
-    app = None
-    for a in list(xw.apps):
-        try:
-            if a.visible:
-                app = a; break
-        except Exception:  # noqa: BLE001
-            pass
+    app = instancia_en_uso(xw)
     if app is None:
         app = xw.App(visible=True, add_book=False)
     try:
@@ -380,6 +433,10 @@ def llenar(trabajo: dict, token: str, aviso) -> str:
     wb = app.books.open(str(destino))
     mostrar_libro(app, wb)
     al_frente(app)   # Excel al FRENTE y maximizado, para que el comercial lo vea llenarse
+    try:
+        vigilar_primer_plano(app.hwnd)   # y se mantiene al frente MIENTRAS se ejecuta
+    except Exception:  # noqa: BLE001
+        pass
     total = sum(len(h['celdas']) for h in trabajo['plan']['hojas']) or 1
     hechas, fallos = 0, []
     for h in trabajo['plan']['hojas']:
@@ -395,7 +452,7 @@ def llenar(trabajo: dict, token: str, aviso) -> str:
                 pass
             escribir(rango, c)
             hechas += 1
-            if hechas % 8 == 0:
+            if hechas % 4 == 0:
                 seguir_al_frente(app, wb)   # si otra ventana tapó a Excel, vuelve a ponerlo adelante
             if hechas % 5 == 0 or hechas == total:
                 aviso(f'Llenando {hechas} de {total} celdas…', hechas, total)
@@ -430,6 +487,10 @@ def llenar(trabajo: dict, token: str, aviso) -> str:
         wb = app.books.open(str(destino))
         fallos = []
     al_frente(app)
+    try:
+        wb.save()   # guardado automático al terminar
+    except Exception:  # noqa: BLE001
+        pass
     if fallos:
         raise RuntimeError('Listado guardado en ' + str(destino) + ', pero no pude insertar el mockup: ' + ' | '.join(fallos))
     faltan = [h['nombre'] for h in trabajo['plan']['hojas'] if h['imagenes'] and len(wb.sheets[h['nombre']].pictures) < len(h['imagenes'])]
@@ -552,6 +613,7 @@ class Agente:
             self.resultados.append({'id': tid, 'estado': 'error', 'detalle': detalle})
             self.poner('No pude llenar Excel: ' + detalle)
         finally:
+            detener_primer_plano()
             self.ocupado = False
 
     def correr(self):
