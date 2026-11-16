@@ -24,7 +24,7 @@ import urllib.request
 from pathlib import Path
 from tkinter import messagebox, simpledialog
 
-VERSION = '1.1.1'
+VERSION = '1.1.2'
 URL = os.getenv('AGENTE_EXCEL_URL', 'https://produccion.cloud').rstrip('/')
 CONFIG = Path.home() / '.agente_excel_indoor.json'
 SALIDA = Path.home() / 'Documents' / 'Indoor Pedidos'
@@ -229,6 +229,28 @@ def verificar(wb, plan: dict) -> int:
     return corregidas
 
 
+def igualar_vistas(wb, app) -> None:
+    """Todas las pestañas quedan IGUALES a la primera (zoom, vista normal, sin saltos de página): se toma la vista de la primera hoja y se copia a las demás."""
+    if ES_MAC:
+        return
+    try:
+        primera = wb.sheets[0]; primera.activate()
+        ventana = app.api.ActiveWindow
+        zoom, vista, cuadricula = ventana.Zoom, ventana.View, ventana.DisplayGridlines
+        for hoja in wb.sheets:
+            try:
+                hoja.activate()
+                v = app.api.ActiveWindow
+                v.View = vista; v.Zoom = zoom; v.DisplayGridlines = cuadricula
+                hoja.api.DisplayPageBreaks = False
+                hoja.range('A1').select()
+            except Exception:  # noqa: BLE001 - una hoja que no deje cambiar su vista no frena a las demás
+                pass
+        primera.activate()
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def seguir_al_frente(app, wb) -> None:
     """Excel y ESTE libro deben seguir adelante mientras se llena (obligatorio): si otra ventana quedó encima, se trae de nuevo."""
     try:
@@ -349,6 +371,7 @@ def llenar(trabajo: dict, token: str, aviso) -> str:
             time.sleep(0.6)
     aviso('Verificando el listado…', hechas, total)
     corregidas = verificar(wb, trabajo['plan'])
+    igualar_vistas(wb, app)
     wb.sheets[0].activate()
     try:
         wb.sheets[0].range('A1').select()
