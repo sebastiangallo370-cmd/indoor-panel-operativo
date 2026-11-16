@@ -8520,6 +8520,16 @@ def _excel_del_agente(codigo: str, nombre: str, ruta: Path) -> None:
     threading.Thread(target=_vigilar_post_orden, args=(codigo, 0), daemon=True).start()
 
 
+def _liberar_excel_agente(codigo: str, d: dict, nota=lambda t: None, forzar: bool = False) -> None:
+    """Suelta el Excel al agente del PC. Nunca debe quedar retenido por la NAS: pasados 150 s desde que se programó, se libera sí o sí."""
+    if not d.get('agente_tid') or d.get('agente_liberado'):
+        return
+    pasado = time.time() - d.get('creado', time.time()) > 150
+    if forzar or pasado:
+        agente_excel_mod.liberar(d['agente_tid']); d['agente_liberado'] = True; _guardar_post_orden()
+        nota('Se libera el Excel para el agente' + (' (la NAS o el PDF tardaron: no se espera más)' if pasado and not forzar else ''))
+
+
 def _aplicar_post_orden(codigo: str, diag: list | None = None) -> bool:
     """Copia a la carpeta de la orden lo que ya esté disponible. True = no queda nada pendiente."""
     with _post_lock:
@@ -8536,9 +8546,10 @@ def _aplicar_post_orden(codigo: str, diag: list | None = None) -> bool:
         nota('Carpeta de la orden en la NAS: ' + str(carpeta))
     except HTTPException as exc:
         nota('NO encontré la carpeta de la orden en la NAS: ' + str(exc.detail))
+        _liberar_excel_agente(codigo, d)
         return False   # la orden todavía no tiene carpeta
     except Exception as exc:   # noqa: BLE001
-        nota('Error al buscar la carpeta en la NAS: ' + str(exc)[:150]); return False
+        nota('Error al buscar la carpeta en la NAS: ' + str(exc)[:150]); _liberar_excel_agente(codigo, d); return False
     log = logging.getLogger(__name__)
     if d.get('pdf_effi') and not d.get('pdf_hecho'):
         datos = effitron_mod.pdf_cotizacion_bytes(int(d['pdf_effi']))
@@ -8599,6 +8610,10 @@ def _vigilar_post_orden(codigo: str, job_id: int = 0) -> None:
                 if r and r[0] in ('ERROR', 'REVISAR'):
                     return
                 if not r or r[0] != 'COMPLETADO':
+                    with _post_lock:
+                        dd = _POST_ORDEN.get(codigo)
+                    if dd:
+                        _liberar_excel_agente(codigo, dd)   # aunque la orden tarde en crearse, el Excel no se queda esperando
                     time.sleep(4); continue
             if _aplicar_post_orden(codigo):
                 return
