@@ -402,12 +402,13 @@
     return new Promise(res => {
       const f = document.createElement('div'); f.className = 'ax-fondo';
       f.innerHTML = '<div class="ax-card" style="max-width:460px"><div class="ax-cab"><div><span class="ax-eye">ELIMINAR DE PRODUCCIÓN</span><h3>' + esc(titulo) + '</h3></div></div><p class="ax-p">' + texto + '</p>' +
-        '<input type="password" data-clave name="clave-' + Math.random().toString(36).slice(2) + '" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" data-lpignore="true" data-1p-ignore placeholder="Tu contraseña del panel" style="width:100%;box-sizing:border-box;padding:10px 12px;border-radius:10px;border:1px solid #3d4c3b;background:#0d140e;color:#f5faef;font:700 14px Arial">' +
+        '<input type="text" data-clave name="c' + Math.random().toString(36).slice(2) + '" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="text" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="Tu contraseña del panel" style="width:100%;box-sizing:border-box;padding:10px 12px;border-radius:10px;border:1px solid #3d4c3b;background:#0d140e;color:#f5faef;font:700 14px Arial;-webkit-text-security:disc;text-security:disc">' +
         '<p data-estado style="margin:10px 0 0;font:800 12px/1.4 Arial;min-height:16px"></p>' +
         '<div class="ax-btns" style="margin-top:8px;justify-content:flex-end"><button class="ax-btn" type="button" data-no>CANCELAR</button><button class="ax-btn" type="button" data-si style="background:#7a2a2a;color:#fff;border-color:#a33">ELIMINAR</button></div></div>';
       document.body.appendChild(f);
       const inp = f.querySelector('[data-clave]'), est = f.querySelector('[data-estado]'), si = f.querySelector('[data-si]'), no = f.querySelector('[data-no]'); let ocupado = false;
-      const cerrar = v => { f.remove(); res(v); };
+      const buscador = document.getElementById('tc-buscar'), antes = buscador ? buscador.value : '';   // el navegador no debe pegar nada en el buscador de la lista
+      const cerrar = v => { f.remove(); const b2 = document.getElementById('tc-buscar'); if (b2 && b2.value !== antes) { b2.value = antes; busqueda = antes; pintar(); } res(v); };
       const marca = (t, c) => { est.textContent = t; est.style.color = c; };
       inp.focus();
       const eliminar = async () => {
