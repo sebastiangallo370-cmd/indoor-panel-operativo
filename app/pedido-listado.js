@@ -458,6 +458,21 @@
     L.xlCargado = false; L.xlVista = null;
     L.pantalla = 'enviado'; L.job = { id: 0, estado: 'ENVIANDO', progreso: 3, detail: 'Creando el listado de Excel con la plantilla de Indoor…', excel: '', insertados: null }; dibujar();
     try {
+      if (L.doc.tipo !== 'remision') {   // el PDF de Effi es OBLIGATORIO: se espera aquí, a la vista, antes de programar (con el motivo si no llega)
+        const t0 = Date.now(); let est = null;
+        for (;;) {
+          est = await fetch('/api/pedido-effi/pdf-estado/' + L.doc.numero, { credentials: 'same-origin', cache: 'no-store' }).then(x => x.ok ? x.json() : null).catch(() => null);
+          if (est && (est.estado === 'listo' || est.estado === 'error')) break;
+          const seg = Math.round((Date.now() - t0) / 1000);
+          if (seg > 120) break;
+          L.job.detail = 'Esperando el PDF de Effi (obligatorio)… ' + seg + ' s' + (est && est.agente === false ? ' · EFFITRON no está conectado' : '');
+          if (raiz && raiz.isConnected && L.pantalla === 'enviado') pantallaEnviado();
+          await new Promise(r => setTimeout(r, 2500));
+        }
+        if (!est || est.estado !== 'listo') throw new Error('No llegó el PDF de Effi de la cotización ' + L.doc.numero + (est && est.detalle ? ' (' + est.detalle + ')' : '') + '. Es obligatorio para programar: revisa que EFFITRON esté conectado y vuelve a pulsar PROGRAMAR PEDIDO.');
+        L.job.detail = 'PDF de Effi listo. Creando el listado de Excel con la plantilla de Indoor…';
+        if (raiz && raiz.isConnected && L.pantalla === 'enviado') pantallaEnviado();
+      }
       const r = await fetch('/api/pedido-effi/programar', { method: 'POST', body: fd, credentials: 'same-origin' });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(typeof j.detail === 'string' ? j.detail : 'No se pudo programar el pedido (error ' + r.status + ')');
