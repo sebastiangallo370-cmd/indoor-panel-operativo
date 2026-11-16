@@ -329,7 +329,7 @@
           '<div class="tc-caja"><div style="display:flex;justify-content:space-between;gap:10px"><div><small>REFERENCIA</small><b>' + esc((o ? o.refs : x.referencias || []).join(', ') || '—') + '</b>' + (o && o.tela ? '<small style="margin-top:6px">TELA</small><b class="tc-tela">' + esc(o.tela) + '</b>' : '') + '</div>' +
           '<div style="text-align:right"><small>CANTIDAD</small><b style="font-size:20px">' + (o ? o.units : x.prendas || 0) + '</b> <small style="display:inline">und.</small></div></div>' +
           '<small style="margin-top:8px">ENTREGA</small>' + (dias == null ? '<b>—</b>' : '<span class="tc-dias' + (dias < 0 ? ' tarde' : '') + '">' + (dias < 0 ? 'Atrasado ' + (-dias) + ' días' : dias === 0 ? 'Hoy' : dias + ' Días') + '</span>') + '</div>' +
-          '<div class="trace-card-actions">' + (x.excel ? '<a class="tc-btn tc-b-line" href="' + esc(x.excel) + '" title="Descargar el listado">⬇ EXCEL</a>' : '') + '<button type="button" class="operator-open" data-abrir-excel="' + esc(x.codigo) + '">ABRIR EN EXCEL</button><button type="button" data-quitar-prog="' + esc(x.codigo) + '" style="border-color:#7a3a3a;color:#ffb4b4">🗑 ELIMINAR</button></div>' +
+          '<div class="trace-card-actions">' + (x.excel ? '<a class="tc-btn tc-b-line" href="' + esc(x.excel) + '" title="Descargar el listado">⬇ EXCEL</a>' : '') + '<button type="button" class="operator-open" data-abrir-excel="' + esc(x.codigo) + '">ABRIR EN EXCEL</button><button type="button" data-sync-nas="' + esc(x.codigo) + '" title="Vuelve a dejar en la carpeta de la orden (NAS) el PDF de Effi, el Excel del agente y los mockups de MAESTROS">⟳ SINCRONIZAR NAS</button><button type="button" data-quitar-prog="' + esc(x.codigo) + '" style="border-color:#7a3a3a;color:#ffb4b4">🗑 ELIMINAR</button></div>' +
           (o ? '<div class="tc-ruta">' + o.states.map(s => '<i class="' + s.state + '" title="' + esc(s.label) + '"></i>').join('') + '</div><div class="tc-sig"><span>' + esc(o.focus ? 'Siguiente: ' + o.focus.label : 'Ruta completada') + '</span><b>' + o.percent + '% COMPLETADO</b></div>' : '') +
           '<div style="font:600 11px Arial;color:#7f8c79;margin-top:6px">Programó ' + esc(x.usuario || '—') + ' · ' + esc(String(x.fecha || '').replace('T', ' ').slice(0, 16)) + '</div></div></article>';
       }).join('') + '</div></div>';
@@ -374,6 +374,10 @@
       inp.onkeydown = e => { if (e.key === 'Enter') fin(inp.value); if (e.key === 'Escape') fin(''); };
     });
   }
+  document.addEventListener('click', async e => {
+    const sn = e.target.closest('[data-sync-nas]'); if (!sn) return;
+    try { sn.disabled = true; const r = await api('/api/pedido-effi/programados/' + encodeURIComponent(sn.dataset.syncNas) + '/sincronizar', 'POST', {}); toast('Sincronizando ' + sn.dataset.syncNas + ': PDF de Effi' + (r.excel ? ', Excel del agente' : '') + (r.mockups ? ' y mockups' : '') + ' → carpeta de la orden en la NAS (unos segundos).', 'ok'); } catch (er) { toast(er.message, 'error'); } finally { setTimeout(() => { sn.disabled = false; }, 4000); }
+  });
   document.addEventListener('click', async e => {
     const b = e.target.closest('[data-quitar-prog]'); if (!b) return;
     const c = b.dataset.quitarProg, o = produccion[c], filas = (o && o.filas) || [];

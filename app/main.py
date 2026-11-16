@@ -7911,7 +7911,7 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
     const commercialGroup=commercialToggle.closest('.nav-group');commercialGroup.classList.add('collapsed');const productionToggle=document.getElementById('production-toggle');if(productionToggle)productionToggle.addEventListener('click',()=>{{const g=productionToggle.closest('.nav-group');g.classList.toggle('collapsed');if(!g.classList.contains('collapsed')&&window.innerWidth>860)g.querySelector('.nav-children .tab')?.click()}});
     setTimeout(()=>{{if(!document.querySelector('.panel.active'))document.querySelector('.tab[data-kind="inicio"]')?.click()}},0);
     setTimeout(()=>{{const panel=document.querySelector('.panel.active');const kind=panel?.dataset?.panel;const activeTab=kind&&document.querySelector(`.tab[data-kind="${{kind}}"]`);if(activeTab)document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===activeTab))}},100);
-</script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/liquid-stats.js?v=20261019-1'></script><script src='/nombres-effi.js?v=20261022-2'></script><script src='/permisos.js?v=20261007-2'></script><script src='/reposiciones.js?v=20261019-1'></script><script src='/agentes.js?v=20261107-14'></script><script src='/promedios.js?v=20261109-1'></script><script src='/capacidad.js?v=20261009-2'></script><script src='/molderia.js?v=20261010-2'></script><script src='/estandar.js?v=20261020-1'></script><script src='/proveedores-tela.js?v=20261022-4'></script><script src='/terminos.js?v=20261010-1'></script><script src='/cookies-aviso.js?v=20261010-1'></script><script src='/rh-contratos.js?v=20261009-3'></script><script src='/fichas-resumen.js?v=20261022-2'></script><script src='/api/cartera/cartera.js?v=20261009-1'></script><script src='/trace-ui.js?v=20261109-2'></script><script src='/home-dashboard.js?v=20261110-1'></script><script src='/bodega-dashboard.js?v=20261109-3'></script><script src='/bodegas.js?v=20261009-7'></script><script src='/codigos-barras.js?v=20261014-3'></script><script src='/mis-pedidos.js?v=20261008-1'></script><script src='/crear-cliente.js?v=20261024-31'></script><script src='/pedido-effi.js?v=20261116-6'></script><script src='/pedido-listado.js?v=20261116-10'></script><script src='/instalar-app.js?v=20261115-1'></script><script src='/club-admin.js?v=20261116-5'></script><script src='/mobile-nav.js?v=20261108-1'></script><script src='/nav-liquid.js?v=20261109-1'></script><script src='/build-watch.js?v=20261105-1'></script><script src='/salud.js?v=20261014-2'></script><script src='/alertas.js?v=20261030-1'></script><script src='/bitacora.js?v=20261016-2'></script><script src='/memoria.js?v=20261018-1'></script><script src='/ecommerce.js?v=20261019-1'></script><script src='/zeus.js?v=20261110-3'></script><script src='/minimaximan.js?v=20261023-2'></script><script src='/aviso-agentes.js?v=20261023-5'></script><script src='/descuento-sublimacion.js?v=20261026-1'></script><script src='/stockman.js?v=20261022-30'></script><script src='/draco-panel.js?v=20261021-8'></script><script src='/laser-panel.js?v=20261113-1'></script><script src='/agentes-hub.js?v=20261109-1'></script><script src='/recordar-vista.js?v=20261109-1'></script><script src='/tema.js?v=20261008-1'></script><script src='/tarjeta-iconos.js?v=20261110-2'></script><script src='/confeccion-preparacion.js?v=20261113-2'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261021-1'></script><script src='/linea-editor.js?v=20261030-1'></script><script src='/lineas-producto-panel.js?v=20261030-1'></script><script src='/menu-cuenta.js?v=20261016-3'></script><script src='/foto-perfil.js?v=20261030-1'></script><script src='/efecto-vidrio.js?v=20261029-1'></script><script src='/motion.js?v=11.18.2'></script><script src='/home-hero.js?v=20261108-5'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab=>tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
+</script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/liquid-stats.js?v=20261019-1'></script><script src='/nombres-effi.js?v=20261022-2'></script><script src='/permisos.js?v=20261007-2'></script><script src='/reposiciones.js?v=20261019-1'></script><script src='/agentes.js?v=20261107-14'></script><script src='/promedios.js?v=20261109-1'></script><script src='/capacidad.js?v=20261009-2'></script><script src='/molderia.js?v=20261010-2'></script><script src='/estandar.js?v=20261020-1'></script><script src='/proveedores-tela.js?v=20261022-4'></script><script src='/terminos.js?v=20261010-1'></script><script src='/cookies-aviso.js?v=20261010-1'></script><script src='/rh-contratos.js?v=20261009-3'></script><script src='/fichas-resumen.js?v=20261022-2'></script><script src='/api/cartera/cartera.js?v=20261009-1'></script><script src='/trace-ui.js?v=20261109-2'></script><script src='/home-dashboard.js?v=20261110-1'></script><script src='/bodega-dashboard.js?v=20261109-3'></script><script src='/bodegas.js?v=20261009-7'></script><script src='/codigos-barras.js?v=20261014-3'></script><script src='/mis-pedidos.js?v=20261008-1'></script><script src='/crear-cliente.js?v=20261024-31'></script><script src='/pedido-effi.js?v=20261116-6'></script><script src='/pedido-listado.js?v=20261116-10'></script><script src='/instalar-app.js?v=20261115-1'></script><script src='/club-admin.js?v=20261116-6'></script><script src='/mobile-nav.js?v=20261108-1'></script><script src='/nav-liquid.js?v=20261109-1'></script><script src='/build-watch.js?v=20261105-1'></script><script src='/salud.js?v=20261014-2'></script><script src='/alertas.js?v=20261030-1'></script><script src='/bitacora.js?v=20261016-2'></script><script src='/memoria.js?v=20261018-1'></script><script src='/ecommerce.js?v=20261019-1'></script><script src='/zeus.js?v=20261110-3'></script><script src='/minimaximan.js?v=20261023-2'></script><script src='/aviso-agentes.js?v=20261023-5'></script><script src='/descuento-sublimacion.js?v=20261026-1'></script><script src='/stockman.js?v=20261022-30'></script><script src='/draco-panel.js?v=20261021-8'></script><script src='/laser-panel.js?v=20261113-1'></script><script src='/agentes-hub.js?v=20261109-1'></script><script src='/recordar-vista.js?v=20261109-1'></script><script src='/tema.js?v=20261008-1'></script><script src='/tarjeta-iconos.js?v=20261110-2'></script><script src='/confeccion-preparacion.js?v=20261113-2'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261021-1'></script><script src='/linea-editor.js?v=20261030-1'></script><script src='/lineas-producto-panel.js?v=20261030-1'></script><script src='/menu-cuenta.js?v=20261016-3'></script><script src='/foto-perfil.js?v=20261030-1'></script><script src='/efecto-vidrio.js?v=20261029-1'></script><script src='/motion.js?v=11.18.2'></script><script src='/home-hero.js?v=20261108-5'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab=>tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
 
 
 def ordered_mockup_uploads(extras, slots):
@@ -8417,9 +8417,37 @@ _POST_ORDEN: dict = {}
 _post_lock = threading.Lock()
 
 
+_POST_ARCHIVO = STATE_DIR / 'post_orden.json'   # se guarda en disco: si el servidor se reinicia a mitad de camino (por ejemplo al publicar una versión), lo pendiente se retoma
+
+
+def _guardar_post_orden() -> None:
+    try:
+        recientes = {k: v for k, v in _POST_ORDEN.items() if time.time() - v.get('creado', time.time()) < 3 * 86400}
+        _POST_ARCHIVO.parent.mkdir(parents=True, exist_ok=True)
+        _POST_ARCHIVO.write_text(json.dumps(recientes, ensure_ascii=False), encoding='utf-8')
+    except OSError:
+        logging.getLogger(__name__).exception('No se pudo guardar el estado de lo pendiente de las órdenes')
+
+
 def _registrar_post_orden(codigo: str, **datos) -> None:
     with _post_lock:
-        _POST_ORDEN.setdefault(codigo, {}).update(datos)
+        d = _POST_ORDEN.setdefault(codigo, {'creado': time.time()})
+        d.update(datos)
+        _guardar_post_orden()
+
+
+def _reanudar_post_orden() -> None:
+    """Al arrancar el servidor: retoma las órdenes que quedaron a medias (PDF de Effi, Excel del agente o mockups de MAESTROS aún sin copiar a la NAS)."""
+    try:
+        guardado = json.loads(_POST_ARCHIVO.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return
+    for codigo, d in guardado.items():
+        pendiente = (d.get('pdf_effi') and not d.get('pdf_hecho')) or (d.get('maestros') and not d.get('maestros_hecho')) or (d.get('xlsx') and not d.get('xlsx_hecho'))
+        if pendiente:
+            with _post_lock:
+                _POST_ORDEN.setdefault(codigo, d)
+            threading.Thread(target=_vigilar_post_orden, args=(codigo, 0), daemon=True).start()
 
 
 def _excel_del_agente(codigo: str, nombre: str, ruta: Path) -> None:
@@ -8443,7 +8471,7 @@ def _aplicar_post_orden(codigo: str) -> bool:
         datos = effitron_mod.pdf_cotizacion_bytes(int(d['pdf_effi']))
         if datos:
             destino = next((p for p in carpeta.glob('*.pdf') if p.stem.upper().startswith(codigo.upper())), carpeta / f'{codigo}.pdf')
-            destino.write_bytes(datos); d['pdf_hecho'] = True
+            destino.write_bytes(datos); d['pdf_hecho'] = True; _guardar_post_orden()
     if d.get('maestros') and not d.get('maestros_hecho'):
         ok = True
         for m in d['maestros']:
@@ -8457,7 +8485,7 @@ def _aplicar_post_orden(codigo: str) -> bool:
             except Exception:   # noqa: BLE001
                 log.exception('No se pudo copiar el mockup maestro %s', m)
                 ok = False
-        d['maestros_hecho'] = ok
+        d['maestros_hecho'] = ok; _guardar_post_orden()
     if d.get('xlsx') and not d.get('xlsx_hecho'):
         origen = Path(d['xlsx'])
         if origen.is_file():
@@ -8468,7 +8496,7 @@ def _aplicar_post_orden(codigo: str) -> bool:
             else:
                 respaldo = STATE_DIR / 'excel-servidor'; respaldo.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(destino, respaldo / f'{codigo}-{int(time.time())}{destino.suffix}')   # el que armó el servidor queda de respaldo
-            shutil.copy2(origen, destino); d['xlsx_hecho'] = True
+            shutil.copy2(origen, destino); d['xlsx_hecho'] = True; _guardar_post_orden()
     pendientes = [('pdf_hecho', d.get('pdf_effi')), ('maestros_hecho', d.get('maestros')), ('xlsx_hecho', d.get('xlsx'))]
     return all(d.get(k) for k, esperado in pendientes if esperado)
 
@@ -8490,6 +8518,39 @@ def _vigilar_post_orden(codigo: str, job_id: int = 0) -> None:
         except Exception:   # noqa: BLE001
             logging.getLogger(__name__).exception('Falló copiar lo de la orden %s a la NAS', codigo)
         time.sleep(8)
+
+
+@app.post("/api/pedido-effi/programados/{codigo}/sincronizar")
+def sincronizar_programado(codigo: str, usuario=Depends(authenticate)):
+    """Vuelve a dejar en la carpeta de la orden (NAS) el PDF de Effi, el Excel que llenó el agente y los mockups de MAESTROS. Sirve si algo quedó a medias."""
+    if not permisos_mod.comerciales_permitido(str(usuario)):
+        raise HTTPException(403, 'Solo para el equipo comercial')
+    if not re.fullmatch(r'(CO|RM)\d{1,10}', codigo):
+        raise HTTPException(400, 'Código no válido')
+    d = _POST_ORDEN.get(codigo) or {}
+    if codigo.startswith('CO') and not d.get('pdf_effi'):
+        d['pdf_effi'] = int(codigo[2:])
+    if d.get('pdf_effi') and not effitron_mod.pdf_cotizacion_bytes(int(d['pdf_effi'])):
+        try:
+            effitron_mod.solicitar_pdf_cotizacion(int(d['pdf_effi']))   # si nunca se bajó, se vuelve a pedir a EFFITRON
+        except Exception:   # noqa: BLE001
+            logging.getLogger(__name__).exception('No se pudo pedir el PDF de %s', codigo)
+    if not d.get('xlsx'):   # el último Excel que subió el agente para esta orden
+        candidatos = sorted(agente_excel_mod.CARPETA.glob('*/final.xls*'), key=lambda p: p.stat().st_mtime, reverse=True) if agente_excel_mod.CARPETA.is_dir() else []
+        for c in candidatos:
+            try:
+                t = agente_excel_mod._leer()['trabajos'].get(c.parent.name) or {}
+            except Exception:   # noqa: BLE001
+                t = {}
+            if str(t.get('nombre', '')).upper().startswith(codigo):
+                d['xlsx'] = str(c); d['xlsx_nombre'] = t['nombre']; d['xlsx_hecho'] = False; break
+    d['pdf_hecho'] = False
+    _registrar_post_orden(codigo, **d)
+    threading.Thread(target=_vigilar_post_orden, args=(codigo, 0), daemon=True).start()
+    return {'ok': True, 'pdf': bool(d.get('pdf_effi')), 'excel': bool(d.get('xlsx')), 'mockups': len(d.get('maestros') or [])}
+
+
+threading.Thread(target=_reanudar_post_orden, daemon=True).start()
 
 
 @app.post("/crear-xlsx/vista-previa")
