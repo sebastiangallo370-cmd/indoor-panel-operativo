@@ -271,10 +271,10 @@
     if (!agenteTop) return '';
     const a = agenteTop, hay = (a.equipos || []).length > 0, v = (a.equipos || []).map(x => x.version).filter(Boolean)[0];
     if (a.conectado) return '<span class="tc-ag-top ok" title="Tu agente Excel está conectado: Excel se abre y se llena solo al programar">🟢 Agente conectado' + (v ? ' · v' + esc(v) : '') + '</span>';
-    return '<span class="tc-ag-top mal" title="El agente Excel está cerrado: Excel no se abrirá solo">⚪ Agente cerrado</span>' + (hay ? '<button class="tc-btn tc-b-lime" data-abrir-agente-top type="button" title="Abre el agente instalado en este computador">▶ ABRIR AGENTE</button>' : '<button class="tc-btn tc-b-line" data-agente-excel type="button">⬇ INSTALAR AGENTE</button>');
+    return '<span class="tc-ag-top mal" title="El agente Excel está cerrado: Excel no se abrirá solo">⚪ Agente cerrado</span>' + (hay ? '<button class="tc-btn tc-b-lime" data-abrir-agente-top type="button" title="Abre el agente instalado en este computador">▶ ABRIR AGENTE</button>' + (a.abridor ? '<a class="tc-btn tc-b-line" href="/api/agente-excel/abrir.bat" download title="Archivo que busca el agente en tu computador y lo abre: ejecútalo con doble clic">⬇ ABRIDOR</a>' : '') : '<button class="tc-btn tc-b-line" data-agente-excel type="button">⬇ INSTALAR AGENTE</button>');
   }
   async function cargarAgenteTop() {
-    try { const r = await api('/api/agente-excel/estado'); const nuevo = { conectado: !!r.conectado, equipos: r.equipos || [] }; if (JSON.stringify(nuevo) !== JSON.stringify(agenteTop)) { agenteTop = nuevo; pintar(); } } catch (e) { /* sin estado */ }
+    try { const r = await api('/api/agente-excel/estado'); const nuevo = { conectado: !!r.conectado, equipos: r.equipos || [], abridor: !!(agenteTop && agenteTop.abridor) }; if (JSON.stringify(nuevo) !== JSON.stringify(agenteTop)) { agenteTop = nuevo; pintar(); } } catch (e) { /* sin estado */ }
   }
   document.addEventListener('click', e => {
     const b = e.target.closest('[data-abrir-agente-top]'); if (!b) return;
@@ -282,7 +282,7 @@
     b.disabled = true; b.textContent = 'Abriendo…';
     toast('Abriendo tu agente… si el navegador pregunta, pulsa «Abrir».', 'ok');
     [1500, 3500, 6000].forEach(ms => setTimeout(cargarAgenteTop, ms));
-    setTimeout(() => { if (!(agenteTop && agenteTop.conectado)) { b.disabled = false; b.textContent = '▶ ABRIR AGENTE'; toast('No se abrió. Ábrelo una vez a mano: tecla Windows → AgenteExcelIndoor (o reinicia el computador: arranca solo). Desde la versión 1.1.4 este botón lo abre.', 'error'); } }, 9000);
+    setTimeout(() => { if (!(agenteTop && agenteTop.conectado)) { b.disabled = false; b.textContent = '▶ ABRIR AGENTE'; agenteTop = Object.assign({}, agenteTop, { abridor: true }); pintar(); toast('No se abrió (tu agente es anterior a la 1.1.4). Pulsa ⬇ ABRIDOR y ejecuta el archivo que baja, o búscalo en Windows: AgenteExcelIndoor. Desde la 1.1.4 este botón lo abre.', 'error'); } }, 9000);
   });
   let programados = [];
   let produccion = {};   // CO#### -> datos de la orden en Producción (las mismas columnas que usa su tarjeta)

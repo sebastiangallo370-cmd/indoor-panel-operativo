@@ -170,6 +170,31 @@ def encolar(usuario: str, final: Path, nombre: str) -> str | None:
 
 
 # ---------------------------------------------------------------- lo que usa el panel (con sesión)
+@router.get('/abrir.bat')
+def abridor_bat(request: Request):
+    """Archivito que busca AgenteExcelIndoor.exe en las carpetas del usuario y lo abre: sirve cuando el enlace del botón aún no está registrado (agente viejo)."""
+    from fastapi.responses import Response
+    _usuario(request)
+    lineas = [
+        '@echo off',
+        'chcp 65001 >nul',
+        'title Abrir el agente Excel de Indoor',
+        'set "EXE="',
+        'for %%D in ("%USERPROFILE%\\Downloads" "%USERPROFILE%\\Desktop" "%USERPROFILE%\\Documents" "%USERPROFILE%\\OneDrive" "%USERPROFILE%") do (',
+        '  if not defined EXE for /f "delims=" %%F in (\'where /r "%%~D" AgenteExcelIndoor.exe 2^>nul\') do if not defined EXE set "EXE=%%F"',
+        ')',
+        'if defined EXE (',
+        '  echo Abriendo: %EXE%',
+        '  start "" "%EXE%"',
+        ') else (',
+        '  echo No encontre AgenteExcelIndoor.exe en tu usuario.',
+        '  echo Descargalo en el panel: PROGRAMAR CLUB - AGENTE EXCEL - WINDOWS.',
+        '  pause',
+        ')',
+    ]
+    return Response('\r\n'.join(lineas) + '\r\n', media_type='application/octet-stream', headers={'Content-Disposition': 'attachment; filename="Abrir-Agente-Excel-Indoor.bat"'})
+
+
 @router.post('/codigo')
 def nuevo_codigo(request: Request):
     u = _usuario(request)

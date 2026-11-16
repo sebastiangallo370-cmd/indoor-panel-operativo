@@ -152,3 +152,14 @@ class AgenteCerrado(Trabajo):
             d = ax._leer(); d['trabajos'][tid]['estado'] = 'pendiente'; d['trabajos'][tid]['creado'] -= 1000; ax._guardar(d)
         self.assertEqual(ax.sondeo(pedir(token), {'version': '1.1.3'})['trabajos'], [])   # pasaron 15 min: ya no se abre sola
         self.assertEqual(ax.ver_trabajo(mock.Mock(), tid)['estado'], 'error')
+
+
+class Abridor(Base):
+    def test_el_abridor_bat_busca_y_lanza_el_agente(self):
+        ax.configurar(lambda r: 'ANA')
+        r = ax.abridor_bat(mock.Mock())
+        cuerpo = r.body.decode()
+        self.assertIn('AgenteExcelIndoor.exe', cuerpo)
+        self.assertIn('start "" "%EXE%"', cuerpo)
+        self.assertIn('\r\n', cuerpo)
+        self.assertIn('abrir', r.headers['content-disposition'].lower())
