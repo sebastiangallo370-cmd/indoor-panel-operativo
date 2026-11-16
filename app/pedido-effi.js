@@ -5,6 +5,7 @@
   const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const money = n => '$ ' + Number(n || 0).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
   const hoy = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+  const entregaPorDefecto = () => { const d = new Date(); d.setDate(d.getDate() + 15); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };   // fecha de entrega predeterminada: 15 días después de hoy
   const nuevaClave = () => 'pedido-' + [...crypto.getRandomValues(new Uint8Array(10))].map(b => b.toString(16).padStart(2, '0')).join('');
 
   const css = document.createElement('style');
@@ -244,7 +245,7 @@
           <label>Sucursal*<select name="sucursal">${opciones(c.sucursales, suc)}</select></label>
           <label>Bodega*<select name="bodega">${opciones(bodegas, guard.bodega)}</select></label>
           <label>Centro de costos*<select name="centro_costos">${opciones(c.centros, guard.centro_costos)}</select></label>
-          <label>Fecha de entrega*<input type="date" name="fecha_entrega" value="${esc(guard.fecha_entrega || hoy())}"></label>
+          <label>Fecha de entrega*<input type="date" name="fecha_entrega" value="${esc(guard.fecha_entrega || entregaPorDefecto())}"></label>
           <label>Moneda*<select name="moneda">${(c.monedas || [{ id: 'COP', nombre: 'Peso Colombiano $ COP' }]).map(m => '<option value="' + m.id + '"' + (m.id === st.moneda ? ' selected' : '') + '>' + esc(m.nombre) + '</option>').join('')}</select></label>
           <label>TRM*<input name="trm" inputmode="decimal" value="${esc(st.moneda === 'COP' ? '1' : st.trm)}" ${st.moneda === 'COP' ? 'disabled' : ''}></label>
           <label>Vendedor<select name="vendedor">${opciones(c.vendedores, guard.vendedor)}</select></label>
