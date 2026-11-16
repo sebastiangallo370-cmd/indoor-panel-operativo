@@ -24,7 +24,7 @@ import urllib.request
 from pathlib import Path
 from tkinter import messagebox, simpledialog
 
-VERSION = '1.1.6'
+VERSION = '1.1.7'
 URL = os.getenv('AGENTE_EXCEL_URL', 'https://produccion.cloud').rstrip('/')
 CONFIG = Path.home() / '.agente_excel_indoor.json'
 SALIDA = Path.home() / 'Documents' / 'Indoor Pedidos'
@@ -338,6 +338,21 @@ def poner_imagen(hoja, ruta: str, im: dict) -> None:
         pass
 
 
+def minimizar_todo() -> None:
+    """Al empezar el listado: se minimizan TODAS las ventanas abiertas (como Windows+M) para que en pantalla solo quede el Excel que se va a llenar."""
+    try:
+        if ES_MAC:
+            import subprocess
+            subprocess.run(['osascript', '-e', 'tell application "System Events" to set visible of (every process whose visible is true and name is not "Microsoft Excel" and name is not "Finder") to false'], timeout=10, check=False)
+            return
+        import ctypes
+        u = ctypes.windll.user32
+        u.keybd_event(0x5B, 0, 0, 0); u.keybd_event(0x4D, 0, 0, 0); u.keybd_event(0x4D, 0, 2, 0); u.keybd_event(0x5B, 0, 2, 0)   # Windows + M
+        time.sleep(0.8)
+    except Exception:  # noqa: BLE001
+        pass
+
+
 _FRENTE = {'parar': None}
 
 
@@ -430,6 +445,7 @@ def llenar(trabajo: dict, token: str, aviso) -> str:
         app.activate(steal_focus=True)
     except Exception:  # noqa: BLE001
         pass
+    minimizar_todo()   # se minimizan las demás ventanas; luego se abre y se muestra SOLO el listado
     wb = app.books.open(str(destino))
     mostrar_libro(app, wb)
     al_frente(app)   # Excel al FRENTE y maximizado, para que el comercial lo vea llenarse
