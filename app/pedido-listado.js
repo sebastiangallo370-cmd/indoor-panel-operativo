@@ -323,8 +323,10 @@
   // el comercial ve ANTES de programar si su agente está abierto (si no, Excel no se abre en su computador)
   // abre el AGENTE EXCEL instalado en este computador (enlace indoorexcel:// que registra el propio agente la primera vez que corre)
   window.abrirAgenteExcelPC = function () { const a = document.createElement('a'); a.href = 'indoorexcel://abrir'; a.style.display = 'none'; document.body.appendChild(a); a.click(); setTimeout(() => a.remove(), 1000); };
+  const esMovil = () => /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || (window.matchMedia && matchMedia('(pointer:coarse)').matches && window.innerWidth < 900);   // fuera de la oficina: sin agentes, todo lo hace el servidor (VPS)
   async function estadoAgente() {
     const e = q('[data-ag]'); if (!e) return;
+    if (esMovil()) { e.hidden = true; return; }   // en el móvil no hay agente: el servidor arma el Excel
     try {
       const r = await fetch('/api/agente-excel/estado', { credentials: 'same-origin', cache: 'no-store' }).then(x => x.json());
       if (!raiz || !raiz.isConnected) return;
@@ -456,6 +458,7 @@
     const listado = {}; grupos().forEach(g => { listado[g.referencia] = filasDe(g.referencia).map(x => ({ nombre: x.nombre, talla: x.talla, numero: x.numero, diseno: Number(x.diseno), genero: x.genero, observacion: x.observacion })); });
     const doc = Object.assign({}, L.doc, { proyecto: L.proyecto.trim(), disenos: L.disenos });
     const fd = new FormData(); fd.append('payload', JSON.stringify({ doc, listado, linea: L.linea, observaciones: L.observaciones }));
+    if (esMovil()) fd.append('sin_agente', '1');   // desde el móvil no se usa ningún agente: todo lo arma el servidor
     grupos().forEach(g => { for (let n = 1; n <= L.disenos; n++) { const img = imagenDe(L.compartir ? '*' : g.referencia, n); if (img) { fd.append('mockup:' + g.referencia + ':' + n, img, img.name); const mm = (L.mkMaestro || {})[g.referencia + '|' + n]; if (mm) fd.append('maestro:' + g.referencia + ':' + n, JSON.stringify(mm)); } } });   // los de MAESTROS también van con su origen: en la NAS se copian idénticos
     // al pulsar PROGRAMAR PEDIDO el trabajo empieza YA y se ve en pantalla: el listado de Excel que se está creando y cómo avanza cada paso
     L.xlCargado = false; L.xlVista = null;
@@ -588,7 +591,7 @@
         if (L.job.estado === 'COMPLETADO' && !(L.job.pdf && L.job.pdf.hecho) && k % 2 === 0) {   // el PDF de Effi debe quedar en la carpeta antes de cerrar
           try { let q = await fetch('/api/pedido-effi/pdf-orden/' + encodeURIComponent((L.doc.tipo === 'remision' ? 'RM' : 'CO') + L.doc.numero), { credentials: 'same-origin', cache: 'no-store' }).then(x => x.json()); if (!q || q.detalle === undefined) q = { hecho: false, estado: 'error', detalle: 'No pude consultar el estado del PDF (' + JSON.stringify(q).slice(0, 80) + ')' }; if (!L.job.pdf || q.detalle !== L.job.pdf.detalle || q.hecho !== L.job.pdf.hecho) { L.job.pdf = q; if (raiz.isConnected && L.pantalla === 'enviado') pantallaEnviado(); } } catch (e) { /* se reintenta */ }
         }
-        if (L.job.estado === 'COMPLETADO' && (!L.job.agente || L.job.agenteEstado === 'listo') && L.job.pdf && L.job.pdf.hecho) {   // todo salió bien: se cierra la ventana y se avisa
+        if (L.job.estado === 'COMPLETADO' && (!L.job.agente || L.job.agenteEstado === 'listo') && (esMovil() || (L.job.pdf && L.job.pdf.hecho))) {   // todo salió bien: se cierra la ventana y se avisa
           const cod = (L.doc.tipo === 'remision' ? 'RM' : 'CO') + L.doc.numero;
           await new Promise(r => setTimeout(r, 1200));
           avisoProgramado(cod); if (L.opts.onCerrar) L.opts.onCerrar(); return;

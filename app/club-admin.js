@@ -571,8 +571,9 @@
     pintar(); f._t = setInterval(pintar, 4000);
   }
   async function abrirPedido() {
-    // sin los dos agentes conectados no se puede empezar: así nada se crea a ciegas (ni en segundo plano desde el móvil)
-    try {
+    // en el computador de la oficina se exigen los agentes; desde el MÓVIL (fuera de la oficina) no hay agentes y el servidor lo hace todo
+    const movil = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || (window.matchMedia && matchMedia('(pointer:coarse)').matches && window.innerWidth < 900);
+    if (!movil) try {
       const a = await api('/api/pedido-effi/agentes'), faltan = [];
       if (!a.excel) faltan.push('el AGENTE EXCEL de tu computador (pulsa ▶ ABRIR AGENTE)');
       if (!a.effitron) faltan.push('el agente EFFITRON (PDF de Effi)');
