@@ -368,6 +368,14 @@
       const tr = e.target.closest('tr'), col = COLS.indexOf(e.target.dataset.c); if (!tr || col < 0) return;
       const n = pegarEn(g.referencia, Number(tr.dataset.i), col, texto); guardarBorrador(); pantallaListado(); setMsg(n + ' fila(s) pegadas.', 'ok');
     });
+    tb.addEventListener('keydown', e => {   // flechas ↑ / ↓: saltan a la misma columna de la fila de arriba o de abajo (en TALLA, DISEÑO y GÉNERO: Ctrl + flecha, porque la flecha sola cambia la opción)
+      if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+      const t = e.target, c = t.dataset && t.dataset.c; if (!c) return;
+      if (t.tagName === 'SELECT' && !(e.ctrlKey || e.metaKey)) return;
+      const tr = t.closest('tr'), dest = e.key === 'ArrowUp' ? tr.previousElementSibling : tr.nextElementSibling;
+      e.preventDefault(); if (!dest) return;
+      const n = dest.querySelector('[data-c="' + c + '"]'); if (n) { n.focus(); if (n.select) try { n.select(); } catch (er) { /* select sin texto */ } }
+    });
     tb.addEventListener('click', e => { const b = e.target.closest('[data-quitar-fila]'); if (!b) return; filas.splice(Number(b.closest('tr').dataset.i), 1); guardarBorrador(); pantallaListado(); });
     q('[data-programar]').onclick = enviar;
   }
