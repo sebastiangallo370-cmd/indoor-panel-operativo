@@ -320,26 +320,7 @@
       '<td data-l="GÉNERO" style="width:100px"><select data-c="genero"><option value="MASC"' + (f.genero === 'MASC' ? ' selected' : '') + '>MASC</option><option value="FEM"' + (f.genero === 'FEM' ? ' selected' : '') + '>FEM</option></select></td>' +
       '<td data-l="OBSERVACIÓN"><input data-c="observacion" value="' + esc(f.observacion) + '" placeholder="Observación" autocomplete="off"></td><td style="width:34px"><button class="pl-x" type="button" data-quitar-fila aria-label="Quitar">✕</button></td></tr>';
   }
-  // el comercial ve ANTES de programar si su agente está abierto (si no, Excel no se abre en su computador)
-  // abre el AGENTE EXCEL instalado en este computador (enlace indoorexcel:// que registra el propio agente la primera vez que corre)
-  window.abrirAgenteExcelPC = function () { const a = document.createElement('a'); a.href = 'indoorexcel://abrir'; a.style.display = 'none'; document.body.appendChild(a); a.click(); setTimeout(() => a.remove(), 1000); };
   const esMovil = () => /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || (window.matchMedia && matchMedia('(pointer:coarse)').matches && window.innerWidth < 900);   // fuera de la oficina: sin agentes, todo lo hace el servidor (VPS)
-  async function estadoAgente() {
-    const e = q('[data-ag]'); if (!e) return;
-    if (esMovil()) { e.hidden = true; return; }   // en el móvil no hay agente: el servidor arma el Excel
-    try {
-      const r = await fetch('/api/agente-excel/estado', { credentials: 'same-origin', cache: 'no-store' }).then(x => x.json());
-      if (!raiz || !raiz.isConnected) return;
-      const ok = !!r.conectado, hay = (r.equipos || []).length > 0;
-      e.className = 'pl-ag ' + (ok ? 'ok' : 'mal');
-      e.innerHTML = ok ? '💻 Agente Excel conectado ✓' : hay ? '⚠ Agente Excel CERRADO <button type="button" class="pl-ag-abrir" data-abrir-agente>▶ ABRIR AGENTE</button>' : '⚠ Sin agente Excel instalado (botón AGENTE EXCEL en PROGRAMAR CLUB)';
-      const b = e.querySelector('[data-abrir-agente]'); if (b) b.onclick = () => {
-        window.abrirAgenteExcelPC(); b.disabled = true; b.textContent = 'Abriendo…'; clearTimeout(L.tAg); L.tAg = setTimeout(estadoAgente, 2500);
-        setTimeout(() => { const x = q('[data-ag]'); if (x && x.classList.contains('mal')) { const y = x.querySelector('[data-abrir-agente]'); if (y) { y.disabled = false; y.textContent = '▶ ABRIR AGENTE'; } setMsg('Si no se abrió: búscalo una vez en Windows (tecla Windows → AgenteExcelIndoor). Desde entonces este botón lo abre.', ''); } }, 9000);
-      };
-    } catch (er) { /* sin estado */ }
-    if (raiz && raiz.isConnected && L.pantalla === 'listado') { clearTimeout(L.tAg); L.tAg = setTimeout(estadoAgente, 8000); }
-  }
   function pantallaListado() {
     const gs = grupos(); if (!gs.find(g => g.referencia === L.abierta)) L.abierta = gs[0].referencia;
     const g = gs.find(x => x.referencia === L.abierta), filas = filasDe(g.referencia);
@@ -354,10 +335,8 @@
       '<button class="pl-btn sec mini" type="button" data-mas>+ AGREGAR FILA</button><button class="pl-btn sec mini" type="button" data-mas5>+ AGREGAR 5 FILAS</button><button class="pl-btn sec mini" type="button" data-completar>COMPLETAR HASTA ' + g.cantidad + '</button><button class="pl-btn sec mini" type="button" data-pegar>PEGAR DESDE EXCEL</button></div>' +
       '<div data-pegado hidden class="pl-tarjeta" style="margin:0 0 10px"><label>Pega aquí las filas copiadas de Excel (columnas: NOMBRE, TALLA, NÚMERO, DISEÑO, GÉNERO, OBSERVACIÓN; separadas por tabulador o punto y coma)<textarea data-pegado-texto spellcheck="false"></textarea></label><div style="display:flex;gap:8px;margin-top:8px"><button class="pl-btn mini" type="button" data-pegado-ok>PEGAR FILAS</button><button class="pl-btn sec mini" type="button" data-pegado-no>CANCELAR</button></div></div>' +
       '<div class="pl-tabla-caja"><table class="pl-tabla"><thead><tr><th></th><th>NOMBRE</th><th>TALLA *</th><th>NÚMERO</th><th>DISEÑO</th><th>GÉNERO</th><th>OBSERVACIÓN</th><th></th></tr></thead><tbody data-filas>' + filas.map(filaHtml).join('') + '</tbody></table></div></div>';
-    const badge = '<span class="pl-ag" data-ag title="Estado de tu AGENTE EXCEL (el que abre Excel y lo llena en este computador)">💻 Agente Excel…</span>';
-    if (L.previo) acciones('<button class="pl-btn sec" type="button" data-atras>◀ VOLVER A CO/RM</button><button class="pl-btn" type="button" data-programar disabled>CREA LA COTIZACIÓN PARA PROGRAMAR</button>' + badge, '', '');
-    else acciones('<button class="pl-btn sec" type="button" data-atras>◀ MOCKUPS</button><button class="pl-btn" type="button" data-programar>PROGRAMAR PEDIDO EN PRODUCCIÓN</button>' + badge, '', '');
-    estadoAgente();
+    if (L.previo) acciones('<button class="pl-btn sec" type="button" data-atras>◀ VOLVER A CO/RM</button><button class="pl-btn" type="button" data-programar disabled>CREA LA COTIZACIÓN PARA PROGRAMAR</button>', '', '');
+    else acciones('<button class="pl-btn sec" type="button" data-atras>◀ MOCKUPS</button><button class="pl-btn" type="button" data-programar>PROGRAMAR PEDIDO EN PRODUCCIÓN</button>', '', '');
     estadoListado();
     raiz.querySelectorAll('[data-ref]').forEach(b => b.onclick = () => { L.abierta = b.dataset.ref; pantallaListado(); });
     q('[data-atras]').onclick = () => { if (L.previo) { if (L.opts.onVolver) L.opts.onVolver(); return; } L.pantalla = 'mockups'; dibujar(); };
@@ -458,7 +437,6 @@
     const listado = {}; grupos().forEach(g => { listado[g.referencia] = filasDe(g.referencia).map(x => ({ nombre: x.nombre, talla: x.talla, numero: x.numero, diseno: Number(x.diseno), genero: x.genero, observacion: x.observacion })); });
     const doc = Object.assign({}, L.doc, { proyecto: L.proyecto.trim(), disenos: L.disenos });
     const fd = new FormData(); fd.append('payload', JSON.stringify({ doc, listado, linea: L.linea, observaciones: L.observaciones }));
-    if (esMovil()) fd.append('sin_agente', '1');   // desde el móvil no se usa ningún agente: todo lo arma el servidor
     grupos().forEach(g => { for (let n = 1; n <= L.disenos; n++) { const img = imagenDe(L.compartir ? '*' : g.referencia, n); if (img) { fd.append('mockup:' + g.referencia + ':' + n, img, img.name); const mm = (L.mkMaestro || {})[g.referencia + '|' + n]; if (mm) fd.append('maestro:' + g.referencia + ':' + n, JSON.stringify(mm)); } } });   // los de MAESTROS también van con su origen: en la NAS se copian idénticos
     // al pulsar PROGRAMAR PEDIDO el trabajo empieza YA y se ve en pantalla: el listado de Excel que se está creando y cómo avanza cada paso
     L.xlCargado = false; L.xlVista = null;
@@ -467,7 +445,7 @@
       const r = await fetch('/api/pedido-effi/programar', { method: 'POST', body: fd, credentials: 'same-origin' });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(typeof j.detail === 'string' ? j.detail : 'No se pudo programar el pedido (error ' + r.status + ')');
-      L.enviando = false; Object.assign(L.job, { id: j.id, estado: j.estado || 'RECIBIDO', progreso: 8, detail: j.mensaje || '', excel: j.excel || '', excel_nombre: j.excel_nombre || '', agente: j.agente_trabajo || '', agenteEstado: j.agente_trabajo ? 'pendiente' : '', agenteDetalle: '', insertados: j.mockups_insertados == null ? null : j.mockups_insertados });
+      L.enviando = false; Object.assign(L.job, { id: j.id, estado: j.estado || 'RECIBIDO', progreso: 8, detail: j.mensaje || '', excel: j.excel || '', excel_nombre: j.excel_nombre || '', insertados: j.mockups_insertados == null ? null : j.mockups_insertados });
       if (raiz.isConnected && L.pantalla === 'enviado') pantallaEnviado(); seguir();
     } catch (e) {
       L.enviando = false; L.pantalla = 'listado'; if (raiz.isConnected) { dibujar(); setMsg(String(e.message || e), 'error'); }
@@ -556,11 +534,9 @@
       '<div class="pl-progreso"><i style="width:' + pr + '%"></i></div><div style="font:800 12px Arial;color:#c9d3c1">' + pr + ' %</div><ul class="pl-pasos2">' + pasos + '</ul>' +
       (j.detail ? '<div class="caja ' + (ok ? 'ok' : fin ? 'error' : '') + '">' + esc(j.detail) + '</div>' : '') +
             (j.pdf ? '<div class="caja ' + (j.pdf.hecho ? 'ok' : j.pdf.estado === 'esperando' || j.pdf.estado === 'copiando' ? '' : 'error') + '" style="margin-top:8px">' + (j.pdf.hecho ? '✅ ' : j.pdf.estado === 'esperando' || j.pdf.estado === 'copiando' ? '⏳ ' : '⚠️ ') + 'PDF de Effi: ' + esc(j.pdf.detalle) + '</div>' : '') + (j.excel ? '<div style="margin-top:12px"><a class="pl-btn" href="' + esc(j.excel) + '">⬇ DESCARGAR EL EXCEL' + (j.insertados != null ? ' (' + j.insertados + ' mockup(s) insertado(s))' : '') + '</a></div>' : '');
-    // el Excel NO se dibuja en el panel: lo abre y lo llena el AGENTE EXCEL en el computador, con el programa Excel
-    const st = j.agenteEstado, pc = !j.excel && !j.agente && !fin ? ['⏳', 'Preparando el listado…', 'El listado se arma en segundo plano en tu computador, sin abrir ventanas.']
-      : j.agente ? (st === 'listo' ? ['✅', 'Excel listo en tu computador', j.agenteDetalle || ''] : st === 'error' ? ['⚠️', 'Tu agente no pudo llenar Excel', j.agenteDetalle || ''] : ['💻', st === 'llenando' ? 'El listado se está armando en segundo plano' : 'Armando el listado en segundo plano…', j.agenteDetalle || 'Se arma en segundo plano, sin abrir ventanas: no tienes que hacer nada.'])
-      : fin ? ['💡', 'Tu agente Excel no está conectado', 'Abre el AGENTE EXCEL en este computador (botón en PROGRAMAR CLUB) para que Excel se abra y se llene solo. Mientras, puedes descargar el archivo.'] : ['⏳', 'Programando…', ''];
-    const pcHtml = '<div class="pl-pdf-estado">' + (st === 'listo' || st === 'error' || (fin && !j.agente) ? '' : '<div class="pl-spin"></div>') + '<div style="font-size:42px">' + pc[0] + '</div><b>' + esc(pc[1]) + '</b><small>' + esc(pc[2]) + '</small></div>';
+    // el listado lo arma el servidor en segundo plano: no se abre nada en tu equipo
+    const pc = !fin ? ['⏳', 'Armando el listado en segundo plano…', 'No tienes que hacer nada: el servidor lo deja en la carpeta de la orden.'] : ok ? ['✅', 'Listado listo', 'Quedó guardado en la carpeta de la orden (NAS). También puedes descargarlo a la izquierda.'] : ['⚠️', 'No se pudo terminar', j.detail || ''];
+    const pcHtml = '<div class="pl-pdf-estado">' + (fin ? '' : '<div class="pl-spin"></div>') + '<div style="font-size:42px">' + pc[0] + '</div><b>' + esc(pc[1]) + '</b><small>' + esc(pc[2]) + '</small></div>';
     const yaEsta = raiz.querySelector('[data-env-estado]');
     if (yaEsta) { yaEsta.innerHTML = estado; const x = raiz.querySelector('[data-xl]'); if (x) x.innerHTML = pcHtml; }   // solo se actualiza el avance: la hoja de Excel que se está dibujando no se toca
     else {
@@ -581,22 +557,19 @@
   }
   async function seguir() {
     let fin = false;
-    for (let k = 0; k < 700 && raiz && raiz.isConnected && L.pantalla === 'enviado'; k++) {   // hasta ~14 min: si el agente estaba cerrado, espera a que se abra
+    for (let k = 0; k < 700 && raiz && raiz.isConnected && L.pantalla === 'enviado'; k++) {   // hasta ~14 min
       await new Promise(r => setTimeout(r, 1200));
       try {
         const r = await fetch('/api/procesos', { credentials: 'same-origin' }); const lista = await r.json();
-        if (L.job.agente && !['listo', 'error'].includes(L.job.agenteEstado)) {
-          try { const a = await fetch('/api/agente-excel/trabajo/' + L.job.agente, { credentials: 'same-origin', cache: 'no-store' }).then(x => x.json()); if (a.estado && (a.estado !== L.job.agenteEstado || a.detalle !== L.job.agenteDetalle)) { L.job.agenteEstado = a.estado; L.job.agenteDetalle = a.detalle; if (raiz.isConnected && L.pantalla === 'enviado') pantallaEnviado(); } } catch (e) { /* se reintenta */ }
-        }
         if (L.job.estado === 'COMPLETADO' && !(L.job.pdf && L.job.pdf.hecho) && k % 2 === 0) {   // el PDF de Effi debe quedar en la carpeta antes de cerrar
           try { let q = await fetch('/api/pedido-effi/pdf-orden/' + encodeURIComponent((L.doc.tipo === 'remision' ? 'RM' : 'CO') + L.doc.numero), { credentials: 'same-origin', cache: 'no-store' }).then(x => x.json()); if (!q || q.detalle === undefined) q = { hecho: false, estado: 'error', detalle: 'No pude consultar el estado del PDF (' + JSON.stringify(q).slice(0, 80) + ')' }; if (!L.job.pdf || q.detalle !== L.job.pdf.detalle || q.hecho !== L.job.pdf.hecho) { L.job.pdf = q; if (raiz.isConnected && L.pantalla === 'enviado') pantallaEnviado(); } } catch (e) { /* se reintenta */ }
         }
-        if (L.job.estado === 'COMPLETADO' && (!L.job.agente || L.job.agenteEstado === 'listo') && (esMovil() || (L.job.pdf && L.job.pdf.hecho))) {   // todo salió bien: se cierra la ventana y se avisa
+        if (L.job.estado === 'COMPLETADO' && (esMovil() || (L.job.pdf && L.job.pdf.hecho))) {   // todo salió bien: se cierra la ventana y se avisa
           const cod = (L.doc.tipo === 'remision' ? 'RM' : 'CO') + L.doc.numero;
           await new Promise(r => setTimeout(r, 1200));
           avisoProgramado(cod); if (L.opts.onCerrar) L.opts.onCerrar(); return;
         }
-        if (fin) { if (!L.job.agente || ['listo', 'error'].includes(L.job.agenteEstado)) return; continue; }
+        if (fin) { if (L.job.estado !== 'COMPLETADO') return; continue; }   // si salió bien, se sigue vigilando el PDF de Effi hasta que quede en la carpeta
         const m = (lista || []).find(x => x.id === L.job.id); if (!m) continue;
         const cambio = m.status !== L.job.estado || m.detail !== L.job.detail || Number(m.progress) !== L.job.progreso;
         L.job.estado = m.status; L.job.detail = m.detail || ''; L.job.progreso = Number(m.progress) || L.job.progreso;

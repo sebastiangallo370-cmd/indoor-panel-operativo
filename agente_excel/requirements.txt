@@ -1,2 +1,0 @@
-xlwings==0.33.4
-pyinstaller==6.11.1

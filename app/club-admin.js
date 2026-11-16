@@ -239,7 +239,7 @@
     const lista = pedidos.filter(p => ESTADOS_VISIBLES.includes(p.estado) && (!filtro || p.estado === filtro) && coincide(p));   // Pendientes y Rechazadas ocultas por pedido del usuario (2026-11-14): no se borra nada, basta quitarlas de ESTADOS_VISIBLES
     const nuevos = new Set(pedidos.map(p => p.id).filter(id => !vistos.has(id)));
     const html = '<div class="tc">' +
-      '<section class="tc-plano"><div class="tc-cabeza"><h2>Reprogramaciones de los clubes</h2><span class="tc-acc">' + htmlAgenteTop() + '<button class="tc-btn tc-b-lime" data-pedido="nuevo" type="button">EMPEZAR PEDIDO</button><button class="tc-btn tc-b-line" data-agente-excel type="button" title="Descarga e instala el agente que llena el listado en tu Excel">💻 AGENTE EXCEL</button></span></div>' +
+      '<section class="tc-plano"><div class="tc-cabeza"><h2>Reprogramaciones de los clubes</h2><span class="tc-acc">' + '<button class="tc-btn tc-b-lime" data-pedido="nuevo" type="button">EMPEZAR PEDIDO</button></span></div>' +
       (effi ? '<p class="tc-aviso tc-info" style="margin-bottom:12px"><span class="tc-dot ' + (effi.activo && effi.conectado ? 'on' : effi.activo ? 'off' : '') + '"></span><span>EFFITRON · ' + (effi.activo ? (effi.conectado ? 'en línea' : 'SIN CONEXIÓN') : 'apagado') + (effi.ultima ? ' · ' + esc(effi.ultima) : '') + '</span></p>' : '') +
       '<div class="tc-barra"><span></span>' +
       '<input id="tc-buscar" class="tc-buscar" type="search" placeholder="Buscar club, contacto o cotización" autocomplete="off" value="' + esc(busqueda) + '"></div>' +
@@ -268,32 +268,6 @@
       '<div class="tc-form"><button class="tc-btn tc-b-lime" id="tc-correos-guardar" type="button">Guardar</button></div></div>';
   }
 
-  // estado del AGENTE EXCEL y botón para abrirlo, a la vista en el encabezado de PROGRAMAR CLUB
-  let agenteTop = null;   // null = aún no se sabe · {conectado, equipos, version}
-  function htmlAgenteTop() {
-    if (!agenteTop) return '';
-    const a = agenteTop, hay = (a.equipos || []).length > 0, v = (a.equipos || []).map(x => x.version).filter(Boolean)[0];
-    if (a.conectado) return '<span class="tc-ag-top ok" title="Tu agente Excel está conectado: Excel se abre y se llena solo al programar">🟢 Agente conectado' + (v ? ' · v' + esc(v) : '') + '</span>';
-    return '<span class="tc-ag-top mal" title="El agente Excel está cerrado: Excel no se abrirá solo">⚪ Agente cerrado</span>' + (hay ? '<button class="tc-btn tc-b-lime" data-abrir-agente-top type="button" title="Abre el agente instalado en este computador">▶ ABRIR AGENTE</button>' + (a.abridor ? '<a class="tc-btn tc-b-line" href="/api/agente-excel/abrir.bat" download title="Archivo que busca el agente en tu computador y lo abre: ejecútalo con doble clic">⬇ ABRIDOR</a>' : '') : '<button class="tc-btn tc-b-line" data-agente-excel type="button">⬇ INSTALAR AGENTE</button>');
-  }
-  async function cargarAgenteTop() {
-    try { const r = await api('/api/agente-excel/estado'); const nuevo = { conectado: !!r.conectado, equipos: r.equipos || [], abridor: !!(agenteTop && agenteTop.abridor) }; if (JSON.stringify(nuevo) !== JSON.stringify(agenteTop)) { agenteTop = nuevo; pintar(); } } catch (e) { /* sin estado */ }
-  }
-  document.addEventListener('click', e => {
-    const b = e.target.closest('[data-abrir-agente-top]'); if (!b) return;
-    const ver = ((agenteTop && agenteTop.equipos || []).map(x => x.version).filter(Boolean)[0] || '0').split('.').map(Number);
-    const viejo = ver[0] < 1 || (ver[0] === 1 && (ver[1] < 1 || (ver[1] === 1 && ver[2] < 4)));   // antes de la 1.1.4 el agente no responde al enlace: se baja el abridor
-    if (viejo) {
-      const a = document.createElement('a'); a.href = '/api/agente-excel/abrir.bat'; a.download = 'Abrir-Agente-Excel-Indoor.bat'; a.style.display = 'none'; document.body.appendChild(a); a.click(); a.remove();
-      toast('Se bajó «Abrir-Agente-Excel-Indoor.bat»: ábrelo con doble clic (solo esta vez) y el agente se abre. Si Windows avisa, pulsa «Más información → Ejecutar de todas formas».', 'ok');
-      return;
-    }
-    if (window.abrirAgenteExcelPC) window.abrirAgenteExcelPC();
-    b.disabled = true; b.textContent = 'Abriendo…';
-    toast('Abriendo tu agente… si el navegador pregunta, pulsa «Abrir».', 'ok');
-    [1500, 3500, 6000].forEach(ms => setTimeout(cargarAgenteTop, ms));
-    setTimeout(() => { if (!(agenteTop && agenteTop.conectado)) { b.disabled = false; b.textContent = '▶ ABRIR AGENTE'; agenteTop = Object.assign({}, agenteTop, { abridor: true }); pintar(); toast('No se abrió (tu agente es anterior a la 1.1.4). Pulsa ⬇ ABRIDOR y ejecuta el archivo que baja, o búscalo en Windows: AgenteExcelIndoor. Desde la 1.1.4 este botón lo abre.', 'error'); } }, 9000);
-  });
   let programados = [];
   let produccion = {};   // CO#### -> datos de la orden en Producción (las mismas columnas que usa su tarjeta)
   const norm = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase();
@@ -380,7 +354,7 @@
         '<div class="tp-cant"><small>CANTIDAD</small><b>' + (f.units != null ? f.units : (x.prendas || 0)) + '</b> <small>und.</small></div></div>' +
         '<div class="tp-entrega"><small>ENTREGA :</small>' + (dias == null ? '<b>—</b>' : '<span class="tp-dias' + (dias < 0 ? ' tarde' : '') + '">' + (dias < 0 ? 'Atrasado ' + (-dias) + ' días' : dias === 0 ? 'Hoy' : dias + ' Días') + '</span>') + '</div>' +
         '<div class="tp-acc"><button type="button" class="tp-b-nas" title="Ir a la carpeta de la orden en la NAS"' + nasId + '>📁</button><button type="button" class="tp-b-edit" title="Editar / ver en Producción"' + editId + '>✎</button><button type="button" class="tp-b-del" title="Eliminar la orden de todo el panel y la NAS" data-quitar-prog="' + esc(x.codigo) + '">🗑</button></div>' +
-        (true ? '<div class="tp-extra"><small>Programó ' + esc(x.usuario || '—') + ' · ' + esc(String(x.fecha || '').replace('T', ' ').slice(0, 16)) + '</small>' + (x.excel ? '<a class="tp-link" href="' + esc(x.excel) + '" title="Descargar el listado">⬇ EXCEL</a>' : '') + '<button type="button" class="tp-link" data-abrir-excel="' + esc(x.codigo) + '">ABRIR EN EXCEL</button></div>' : '') +
+        (true ? '<div class="tp-extra"><small>Programó ' + esc(x.usuario || '—') + ' · ' + esc(String(x.fecha || '').replace('T', ' ').slice(0, 16)) + '</small>' + (x.excel ? '<a class="tp-link" href="' + esc(x.excel) + '" title="Descargar el listado">⬇ EXCEL</a>' : '') + '</div>' : '') +
         '</div>' + ruta + '</article>';
     }).join('');
   }
@@ -459,17 +433,13 @@
       toast(c + (filas.length ? ' eliminado de Producción, la NAS y Cartera' : ' quitado de la lista'), 'ok');
     } catch (er) { b.disabled = false; b.textContent = '🗑 ELIMINAR'; toast(er.message, 'error'); }
   });
-  document.addEventListener('click', async e => {
-    const b = e.target.closest('[data-abrir-excel]'); if (!b) return;
-    try { await api('/api/agente-excel/abrir/' + encodeURIComponent(b.dataset.abrirExcel), 'POST', {}); toast('Abriendo ' + b.dataset.abrirExcel + ' en tu Excel…', 'ok'); } catch (er) { toast(er.message, 'error'); }
-  });
   async function cargar() {
     if (cargando || !panel) return;
     cargando = true;
     try {
       const [p, e, c, pr] = await Promise.all([api('/api/club/pedidos'), api('/api/club/effitron').catch(() => null), api('/api/club/correos').catch(() => null), api('/api/pedido-effi/programados').catch(() => null)]);
       if (pr) programados = pr.programados || [];
-      cargarAgenteTop(); cargarProduccion();
+      cargarProduccion();
       pedidos = p.pedidos; effi = e; if (c) correos = c; pintar();
     } catch (e) { panel.innerHTML = '<div class="tc"><div class="tc-card"><p>' + esc(e.message) + '</p></div></div>'; ultimo = ''; }
     finally { cargando = false; }
@@ -519,67 +489,11 @@
       } catch (er) { toast(er.message, 'error'); pintar(); }
     });
     document.querySelectorAll('.tab[data-kind="club"]').forEach(tab => tab.addEventListener('click', () => cargar()));
-    document.addEventListener('click', e => { if (e.target.closest('[data-pedido="nuevo"]')) abrirPedido(); if (e.target.closest('[data-agente-excel]')) abrirAgenteExcel(); });
+    document.addEventListener('click', e => { if (e.target.closest('[data-pedido="nuevo"]')) abrirPedido(); });
     setInterval(() => { if (!document.hidden && panel.classList.contains('active')) cargar(); }, 60000);
-    setInterval(() => { if (!document.hidden && panel.classList.contains('active')) cargarAgenteTop(); }, 15000);
   }
   // EMPEZAR PEDIDO: formulario igual al de «Crear cotización» de Effi (pedido-effi.js). Crea la cotización o la remisión de venta en Effi (solo si la cuenta Indoor Sport lo tiene ENCENDIDO).
-  // ---- AGENTE EXCEL: descargar, instalar y vincular (una vez por computador). El agente llena el listado en el Excel del PC a la vista.
-  function abrirAgenteExcel() {
-    document.querySelector('.ax-fondo')?.remove();
-    const f = document.createElement('div'); f.className = 'ax-fondo';
-    f.innerHTML = '<div class="ax-card"><div class="ax-cab"><div><span class="ax-eye">PROGRAMAR CLUB</span><h3>💻 Agente Excel</h3></div><button class="ax-x" type="button" data-ax-cerrar>CERRAR ✕</button></div>' +
-      '<p class="ax-p">Con el agente instalado, al pulsar <b>PROGRAMAR PEDIDO</b> se arma el listado en segundo plano con Microsoft Excel en tu computador y el listado se llena solo, a la vista (encabezado, filas y mockups). Se instala una sola vez. Necesitas Excel de escritorio con licencia.</p>' +
-      '<div class="ax-estado" data-ax-estado>Consultando tu agente…</div><div class="ax-btns" style="margin:0 0 10px"><button class="ax-btn lime" type="button" data-ax-abrir-agente>▶ ABRIR AGENTE</button><small data-ax-abrir-msg style="align-self:center;color:#a9b5a3">Abre el agente instalado en este computador.</small></div>' +
-      '<div class="ax-pasos"><div class="ax-paso"><b>1 · Descarga e instala</b><div class="ax-btns"><a class="ax-btn" data-ax-win href="#" rel="noopener">⬇ WINDOWS</a><a class="ax-btn" data-ax-mac href="#" rel="noopener">⬇ MAC</a></div>' +
-      '<small><b>Windows:</b> descomprime y abre <i>AgenteExcelIndoor.exe</i>. Si aparece «Windows protegió su PC»: <i>Más información → Ejecutar de todas formas</i>.<br><b>Mac:</b> descomprime, arrastra <i>AgenteExcelIndoor</i> a Aplicaciones y la primera vez ábrelo con <i>clic derecho → Abrir</i>. Cuando pregunte, permite que controle Microsoft Excel (Ajustes → Privacidad y seguridad → Automatización).</small></div>' +
-      '<div class="ax-paso"><b>2 · Vincula este computador con tu usuario</b><div class="ax-btns"><button class="ax-btn lime" type="button" data-ax-codigo>GENERAR CÓDIGO</button></div><div class="ax-codigo" data-ax-ver hidden></div><small>El agente te pedirá este código la primera vez. Sirve 10 minutos.</small></div>' +
-      '<div class="ax-paso"><b>▶ Ver cómo se llena Excel</b><div class="ax-btns"><input data-ax-pedido placeholder="CO6379" style="width:110px;padding:8px;border-radius:8px;border:1px solid #3d4c3b;background:#0d140e;color:#e8f0e0;font:700 13px Arial;text-transform:uppercase"><button class="ax-btn lime" type="button" data-ax-abrir>ABRIR EN EXCEL</button></div><small data-ax-abrir-estado>Escribe un pedido ya programado: Excel se abre en este computador y se llena solo, a la vista.</small></div>' +
-      '<div class="ax-paso"><b>3 · Listo</b><small>El agente arranca solo al prender el computador. Cuando diga «Conectado», programa un pedido y mira tu Excel.</small></div></div></div>';
-    document.body.appendChild(f);
-    const cierra = () => { clearInterval(f._t); f.remove(); };
-    f.querySelector('[data-ax-cerrar]').onclick = cierra; f.addEventListener('click', e => { if (e.target === f) cierra(); });
-    const pintar = async () => {
-      if (!f.isConnected) return;
-      try {
-        const r = await api('/api/agente-excel/estado');
-        f.querySelector('[data-ax-win]').href = r.descargas.windows; f.querySelector('[data-ax-mac]').href = r.descargas.mac;
-        const e = f.querySelector('[data-ax-estado]');
-        e.className = 'ax-estado ' + (r.conectado ? 'ok' : '');
-        e.innerHTML = r.equipos.length ? r.equipos.map(x => '<div>' + (x.conectado ? '🟢 Conectado' : '⚪ Desconectado') + ' · <b>' + esc(x.equipo || 'equipo') + '</b> (' + esc(x.so || '') + (x.version ? ' · v' + esc(x.version) : '') + ')' + (x.conectado ? '' : x.visto_hace != null ? ' · visto hace ' + Math.round(x.visto_hace / 60) + ' min' : '') + '</div>').join('') : 'Aún no tienes ningún computador vinculado.';
-      } catch (er) { f.querySelector('[data-ax-estado]').textContent = er.message; }
-    };
-    f.querySelector('[data-ax-codigo]').onclick = async () => {
-      try {
-        const r = await api('/api/agente-excel/codigo', 'POST', {}); const v = f.querySelector('[data-ax-ver]'); v.hidden = false;
-        let resta = r.vence_seg; v.innerHTML = '<span>' + esc(r.codigo) + '</span><small data-ax-resta></small>';
-        clearInterval(v._t); v._t = setInterval(() => { resta--; const z = v.querySelector('[data-ax-resta]'); if (z) z.textContent = resta > 0 ? 'vence en ' + Math.floor(resta / 60) + ':' + String(resta % 60).padStart(2, '0') : 'venció: genera otro'; if (resta <= 0) clearInterval(v._t); }, 1000);
-      } catch (er) { toast(er.message, 'error'); }
-    };
-    f.querySelector('[data-ax-abrir-agente]').onclick = () => {
-      const m = f.querySelector('[data-ax-abrir-msg]'); if (window.abrirAgenteExcelPC) window.abrirAgenteExcelPC();
-      m.textContent = 'Abriendo… si el navegador pregunta, pulsa «Abrir». Debe aparecer 🟢 Conectado aquí arriba.';
-      setTimeout(() => { if (f.isConnected && !f.querySelector('[data-ax-estado].ok')) m.textContent = 'Si no se abrió: búscalo una vez en Windows (tecla Windows → AgenteExcelIndoor). Desde entonces este botón lo abre.'; }, 9000);
-    };
-    f.querySelector('[data-ax-abrir]').onclick = async () => {
-      const c = f.querySelector('[data-ax-pedido]').value.trim().toUpperCase(), z = f.querySelector('[data-ax-abrir-estado]');
-      if (!c) { z.textContent = 'Escribe el pedido, por ejemplo CO6379.'; return; }
-      try {
-        const r = await api('/api/agente-excel/abrir/' + encodeURIComponent(c), 'POST', {}); z.textContent = 'Enviado a tu agente: mira tu Excel…';
-        clearInterval(f._a); f._a = setInterval(async () => { try { const a = await api('/api/agente-excel/trabajo/' + r.trabajo); z.textContent = (a.estado === 'listo' ? '✅ ' : a.estado === 'error' ? '⚠️ ' : '💻 ') + (a.detalle || a.estado); if (['listo', 'error'].includes(a.estado) || !f.isConnected) clearInterval(f._a); } catch (e) { clearInterval(f._a); } }, 2000);
-      } catch (er) { z.textContent = '⚠️ ' + er.message; }
-    };
-    pintar(); f._t = setInterval(pintar, 4000);
-  }
-  async function abrirPedido() {
-    // en el computador de la oficina se exigen los agentes; desde el MÓVIL (fuera de la oficina) no hay agentes y el servidor lo hace todo
-    const movil = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || (window.matchMedia && matchMedia('(pointer:coarse)').matches && window.innerWidth < 900);
-    if (!movil) try {
-      const a = await api('/api/pedido-effi/agentes'), faltan = [];
-      if (!a.excel) faltan.push('el AGENTE EXCEL de tu computador (pulsa ▶ ABRIR AGENTE)');
-      if (!a.effitron) faltan.push('el agente EFFITRON (PDF de Effi)');
-      if (faltan.length) { toast('No puedes empezar el pedido: falta conectar ' + faltan.join(' y ') + '.', 'error'); return; }
-    } catch (er) { toast('No pude verificar los agentes: ' + er.message, 'error'); return; }
+  function abrirPedido() {
     document.querySelector('.tc-pedido-fondo')?.remove();
     const f = document.createElement('div');
     f.className = 'tc-pedido-fondo';

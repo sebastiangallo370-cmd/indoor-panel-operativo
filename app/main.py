@@ -348,10 +348,6 @@ from app import pedido_effi as pedido_effi_mod
 from app import listado_pedido as listado_pedido_mod
 pedido_effi_mod.configurar(authenticate, permisos_mod.comerciales_permitido, lambda: zeus_mod._leer_secreto().get('llave', ''), permisos_mod.bitacora_permitido)
 app.include_router(pedido_effi_mod.router)
-from app import agente_excel as agente_excel_mod
-agente_excel_mod.configurar(authenticate, lambda codigo, nombre, ruta: _excel_del_agente(codigo, nombre, ruta))
-app.include_router(agente_excel_mod.router)
-app.include_router(agente_excel_mod.pc_router)
 from app import ventas_effi as ventas_effi_mod
 ventas_effi_mod.configurar(authenticate, permisos_mod.comerciales_permitido, lambda: zeus_mod._leer_secreto().get('llave', ''),
                            lambda: CONFIG['ruta_nas_clientes'],
@@ -7926,7 +7922,7 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
     const commercialGroup=commercialToggle.closest('.nav-group');commercialGroup.classList.add('collapsed');const productionToggle=document.getElementById('production-toggle');if(productionToggle)productionToggle.addEventListener('click',()=>{{const g=productionToggle.closest('.nav-group');g.classList.toggle('collapsed');if(!g.classList.contains('collapsed')&&window.innerWidth>860)g.querySelector('.nav-children .tab')?.click()}});
     setTimeout(()=>{{if(!document.querySelector('.panel.active'))document.querySelector('.tab[data-kind="inicio"]')?.click()}},0);
     setTimeout(()=>{{const panel=document.querySelector('.panel.active');const kind=panel?.dataset?.panel;const activeTab=kind&&document.querySelector(`.tab[data-kind="${{kind}}"]`);if(activeTab)document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===activeTab))}},100);
-</script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/liquid-stats.js?v=20261019-1'></script><script src='/nombres-effi.js?v=20261022-2'></script><script src='/permisos.js?v=20261007-2'></script><script src='/reposiciones.js?v=20261019-1'></script><script src='/agentes.js?v=20261107-14'></script><script src='/promedios.js?v=20261109-1'></script><script src='/capacidad.js?v=20261009-2'></script><script src='/molderia.js?v=20261010-2'></script><script src='/estandar.js?v=20261020-1'></script><script src='/proveedores-tela.js?v=20261022-4'></script><script src='/terminos.js?v=20261010-1'></script><script src='/cookies-aviso.js?v=20261010-1'></script><script src='/rh-contratos.js?v=20261009-3'></script><script src='/fichas-resumen.js?v=20261022-2'></script><script src='/api/cartera/cartera.js?v=20261009-1'></script><script src='/trace-ui.js?v=20261116-1'></script><script src='/home-dashboard.js?v=20261110-1'></script><script src='/bodega-dashboard.js?v=20261109-3'></script><script src='/bodegas.js?v=20261009-7'></script><script src='/codigos-barras.js?v=20261014-3'></script><script src='/mis-pedidos.js?v=20261008-1'></script><script src='/crear-cliente.js?v=20261024-31'></script><script src='/pedido-effi.js?v=20261116-7'></script><script src='/pedido-listado.js?v=20261116-15'></script><script src='/instalar-app.js?v=20261115-1'></script><script src='/club-admin.js?v=20261116-23'></script><script src='/mobile-nav.js?v=20261108-1'></script><script src='/nav-liquid.js?v=20261109-1'></script><script src='/build-watch.js?v=20261105-1'></script><script src='/salud.js?v=20261014-2'></script><script src='/alertas.js?v=20261030-1'></script><script src='/bitacora.js?v=20261016-2'></script><script src='/memoria.js?v=20261018-1'></script><script src='/ecommerce.js?v=20261019-1'></script><script src='/zeus.js?v=20261110-3'></script><script src='/minimaximan.js?v=20261023-2'></script><script src='/aviso-agentes.js?v=20261023-5'></script><script src='/descuento-sublimacion.js?v=20261026-1'></script><script src='/stockman.js?v=20261022-30'></script><script src='/draco-panel.js?v=20261021-8'></script><script src='/laser-panel.js?v=20261113-1'></script><script src='/agentes-hub.js?v=20261109-1'></script><script src='/recordar-vista.js?v=20261109-1'></script><script src='/tema.js?v=20261008-1'></script><script src='/tarjeta-iconos.js?v=20261110-2'></script><script src='/confeccion-preparacion.js?v=20261113-2'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261021-1'></script><script src='/linea-editor.js?v=20261030-1'></script><script src='/lineas-producto-panel.js?v=20261030-1'></script><script src='/menu-cuenta.js?v=20261016-3'></script><script src='/foto-perfil.js?v=20261030-1'></script><script src='/efecto-vidrio.js?v=20261029-1'></script><script src='/motion.js?v=11.18.2'></script><script src='/home-hero.js?v=20261108-5'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab=>tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
+</script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/liquid-stats.js?v=20261019-1'></script><script src='/nombres-effi.js?v=20261022-2'></script><script src='/permisos.js?v=20261007-2'></script><script src='/reposiciones.js?v=20261019-1'></script><script src='/agentes.js?v=20261107-14'></script><script src='/promedios.js?v=20261109-1'></script><script src='/capacidad.js?v=20261009-2'></script><script src='/molderia.js?v=20261010-2'></script><script src='/estandar.js?v=20261020-1'></script><script src='/proveedores-tela.js?v=20261022-4'></script><script src='/terminos.js?v=20261010-1'></script><script src='/cookies-aviso.js?v=20261010-1'></script><script src='/rh-contratos.js?v=20261009-3'></script><script src='/fichas-resumen.js?v=20261022-2'></script><script src='/api/cartera/cartera.js?v=20261009-1'></script><script src='/trace-ui.js?v=20261116-1'></script><script src='/home-dashboard.js?v=20261110-1'></script><script src='/bodega-dashboard.js?v=20261109-3'></script><script src='/bodegas.js?v=20261009-7'></script><script src='/codigos-barras.js?v=20261014-3'></script><script src='/mis-pedidos.js?v=20261008-1'></script><script src='/crear-cliente.js?v=20261024-31'></script><script src='/pedido-effi.js?v=20261116-7'></script><script src='/pedido-listado.js?v=20261116-16'></script><script src='/instalar-app.js?v=20261115-1'></script><script src='/club-admin.js?v=20261116-24'></script><script src='/mobile-nav.js?v=20261108-1'></script><script src='/nav-liquid.js?v=20261109-1'></script><script src='/build-watch.js?v=20261105-1'></script><script src='/salud.js?v=20261014-2'></script><script src='/alertas.js?v=20261030-1'></script><script src='/bitacora.js?v=20261016-2'></script><script src='/memoria.js?v=20261018-1'></script><script src='/ecommerce.js?v=20261019-1'></script><script src='/zeus.js?v=20261110-3'></script><script src='/minimaximan.js?v=20261023-2'></script><script src='/aviso-agentes.js?v=20261023-5'></script><script src='/descuento-sublimacion.js?v=20261026-1'></script><script src='/stockman.js?v=20261022-30'></script><script src='/draco-panel.js?v=20261021-8'></script><script src='/laser-panel.js?v=20261113-1'></script><script src='/agentes-hub.js?v=20261109-1'></script><script src='/recordar-vista.js?v=20261109-1'></script><script src='/tema.js?v=20261008-1'></script><script src='/tarjeta-iconos.js?v=20261110-2'></script><script src='/confeccion-preparacion.js?v=20261113-2'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261021-1'></script><script src='/linea-editor.js?v=20261030-1'></script><script src='/lineas-producto-panel.js?v=20261030-1'></script><script src='/menu-cuenta.js?v=20261016-3'></script><script src='/foto-perfil.js?v=20261030-1'></script><script src='/efecto-vidrio.js?v=20261029-1'></script><script src='/motion.js?v=11.18.2'></script><script src='/home-hero.js?v=20261108-5'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab=>tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
 
 
 def ordered_mockup_uploads(extras, slots):
@@ -8285,15 +8281,6 @@ async def programar_pedido_effi(request: Request, usuario=Depends(authenticate))
         descarga = await asyncio.to_thread(_excel_para_descargar, arch, imagenes_listas, datos.get('doc') or {})
     except Exception:   # noqa: BLE001 - la descarga nunca debe impedir programar la orden
         logging.getLogger(__name__).exception('No se pudo armar la copia descargable del listado')
-    # el AGENTE EXCEL empieza YA (antes de crear la orden en la NAS): el comercial ve llenarse su Excel apenas pulsa PROGRAMAR PEDIDO
-    agente = None
-    if descarga.get('excel') and str(form.get('sin_agente') or '') != '1':   # (desde el móvil no hay agente) si el comercial tiene su AGENTE EXCEL conectado, el listado también se llena a la vista en su computador
-        try:
-            codigo_xl = descarga['excel'].rsplit('/', 1)[-1]
-            # el trabajo queda EN ESPERA: primero se crea la carpeta en la NAS y se pone el PDF de Effi; recién ahí se libera para que el agente abra Excel
-            agente = await asyncio.to_thread(agente_excel_mod.encolar, str(usuario), PEDIDO_EXCEL_DIR / codigo_xl / descarga['excel_nombre'], descarga['excel_nombre'], True)
-        except Exception:   # noqa: BLE001 - el agente nunca debe impedir programar la orden
-            logging.getLogger(__name__).exception('No se pudo dejar el trabajo al agente Excel')
     codigo_orden = '%s%s' % listado_pedido_mod.prefijo_numero(datos.get('doc') or {})
     maestros = []
     for clave, valor in form.multi_items():   # mockups que salieron de MAESTROS: se copian idénticos a la carpeta de la orden
@@ -8308,12 +8295,7 @@ async def programar_pedido_effi(request: Request, usuario=Depends(authenticate))
         pdf_effi = int(str((datos.get('doc') or {}).get('numero') or '')) if codigo_orden.startswith('CO') else None   # las remisiones no tienen PDF por esta vía
     except ValueError:
         pdf_effi = None
-    _registrar_post_orden(codigo_orden, pdf_effi=pdf_effi, pdf_hecho=False, maestros=maestros, maestros_hecho=False, agente_tid=agente or '', agente_liberado=False)
-    if agente:   # el Excel se empieza a llenar YA, a la vez que se crea la carpeta y se baja el PDF (todo en paralelo)
-        try:
-            agente_excel_mod.liberar(agente); _registrar_post_orden(codigo_orden, agente_liberado=True)
-        except Exception:   # noqa: BLE001
-            logging.getLogger(__name__).exception('No se pudo liberar el Excel de %s', codigo_orden)
+    _registrar_post_orden(codigo_orden, pdf_effi=pdf_effi, pdf_hecho=False, maestros=maestros, maestros_hecho=False)
     resultado = await upload_order(pdf=pdf, observaciones=arch['observaciones'], linea=arch['linea'], excel=excel, extras=extras,
                                    mockup_d1=None, mockup_d2=None, mockup_d3=None, mockup_d4=None, mockups_opcionales=True, _=usuario)
     threading.Thread(target=_vigilar_post_orden, args=(codigo_orden, int(resultado.get('id') or 0)), daemon=True).start()
@@ -8321,7 +8303,7 @@ async def programar_pedido_effi(request: Request, usuario=Depends(authenticate))
         _registrar_programado(datos.get('doc') or {}, arch, descarga, str(usuario), resultado)
     except Exception:   # noqa: BLE001
         logging.getLogger(__name__).exception('No se pudo registrar el pedido programado')
-    return {**resultado, **descarga, 'agente_trabajo': agente}
+    return {**resultado, **descarga}
 
 
 _PROGRAMADOS = PEDIDO_EXCEL_DIR / '_programados.json'
@@ -8448,10 +8430,10 @@ def _resumen_programados(codigos: set) -> dict:
 
 @app.get("/api/pedido-effi/agentes")
 def pedido_agentes(usuario=Depends(authenticate)):
-    """Estado de los dos agentes que necesita EMPEZAR PEDIDO: el Excel de TU computador y EFFITRON (PDF de Effi)."""
+    """Estado de EFFITRON (el agente del servidor que baja el PDF de Effi)."""
     if not permisos_mod.comerciales_permitido(str(usuario)):
         raise HTTPException(403, 'Solo para el equipo comercial')
-    return {'excel': agente_excel_mod.conectado(str(usuario)), 'effitron': bool(effitron_mod.agente().get('conectado'))}
+    return {'effitron': bool(effitron_mod.agente().get('conectado'))}
 
 
 @app.get("/api/pedido-effi/pdf-orden/{codigo}")
@@ -8544,27 +8526,11 @@ def _reanudar_post_orden() -> None:
     except (OSError, ValueError):
         return
     for codigo, d in guardado.items():
-        pendiente = (d.get('pdf_effi') and not d.get('pdf_hecho')) or (d.get('maestros') and not d.get('maestros_hecho')) or (d.get('xlsx') and not d.get('xlsx_hecho')) or (d.get('agente_tid') and not d.get('agente_liberado'))
+        pendiente = (d.get('pdf_effi') and not d.get('pdf_hecho')) or (d.get('maestros') and not d.get('maestros_hecho'))
         if pendiente:
             with _post_lock:
                 _POST_ORDEN.setdefault(codigo, d)
             threading.Thread(target=_vigilar_post_orden, args=(codigo, 0), daemon=True).start()
-
-
-def _excel_del_agente(codigo: str, nombre: str, ruta: Path) -> None:
-    """El agente terminó de llenar el Excel en el PC y lo subió: pasa a la carpeta de la orden en la NAS apenas exista."""
-    _registrar_post_orden(codigo, xlsx=str(ruta), xlsx_nombre=nombre, xlsx_hecho=False)
-    threading.Thread(target=_vigilar_post_orden, args=(codigo, 0), daemon=True).start()
-
-
-def _liberar_excel_agente(codigo: str, d: dict, nota=lambda t: None, forzar: bool = False) -> None:
-    """Suelta el Excel al agente del PC. Nunca debe quedar retenido por la NAS: pasados 150 s desde que se programó, se libera sí o sí."""
-    if not d.get('agente_tid') or d.get('agente_liberado'):
-        return
-    pasado = time.time() - d.get('creado', time.time()) > 150
-    if forzar or pasado:
-        agente_excel_mod.liberar(d['agente_tid']); d['agente_liberado'] = True; _guardar_post_orden()
-        nota('Se libera el Excel para el agente' + (' (la NAS o el PDF tardaron: no se espera más)' if pasado and not forzar else ''))
 
 
 def _aplicar_post_orden(codigo: str, diag: list | None = None) -> bool:
@@ -8583,10 +8549,9 @@ def _aplicar_post_orden(codigo: str, diag: list | None = None) -> bool:
         nota('Carpeta de la orden en la NAS: ' + str(carpeta))
     except HTTPException as exc:
         nota('NO encontré la carpeta de la orden en la NAS: ' + str(exc.detail))
-        _liberar_excel_agente(codigo, d)
         return False   # la orden todavía no tiene carpeta
     except Exception as exc:   # noqa: BLE001
-        nota('Error al buscar la carpeta en la NAS: ' + str(exc)[:150]); _liberar_excel_agente(codigo, d); return False
+        nota('Error al buscar la carpeta en la NAS: ' + str(exc)[:150]); return False
     log = logging.getLogger(__name__)
     if d.get('pdf_hecho') and d.get('pdf_effi'):   # comprobación: nada (p. ej. el programar pedido) debe volver a dejar su propio PDF encima del de Effi
         buenos = effitron_mod.pdf_cotizacion_bytes(int(d['pdf_effi']))
@@ -8627,31 +8592,14 @@ def _aplicar_post_orden(codigo: str, diag: list | None = None) -> bool:
                 log.exception('No se pudo copiar el mockup maestro %s', m)
                 ok = False
         d['maestros_hecho'] = ok; _guardar_post_orden()
-    if d.get('xlsx') and not d.get('xlsx_hecho'):
-        origen = Path(d['xlsx'])
-        if origen.is_file():
-            existentes = [p for p in carpeta.iterdir() if p.is_file() and p.suffix.lower() in ('.xlsx', '.xlsm') and not p.name.startswith('~$')]
-            destino = next((p for p in existentes if p.stem.upper().startswith(codigo.upper())), None)
-            if destino is None:
-                destino = carpeta / (d.get('xlsx_nombre') or origen.name)
-            else:
-                respaldo = STATE_DIR / 'excel-servidor'; respaldo.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(destino, respaldo / f'{codigo}-{int(time.time())}{destino.suffix}')   # el que armó el servidor queda de respaldo
-            shutil.copy2(origen, destino); d['xlsx_hecho'] = True; _guardar_post_orden()
-    # orden: carpeta -> PDF de Effi -> (recién ahora) Excel en el PC del comercial. Si el PDF tarda más de 2 minutos no se bloquea el Excel; el PDF sigue intentándose.
-    if d.get('agente_tid') and not d.get('agente_liberado'):
-        d.setdefault('carpeta_lista', time.time())
-        if d.get('pdf_hecho') or not d.get('pdf_effi') or time.time() - d['carpeta_lista'] > 120:
-            agente_excel_mod.liberar(d['agente_tid']); d['agente_liberado'] = True; _guardar_post_orden()
-            nota('Carpeta lista' + (' y PDF de Effi dentro' if d.get('pdf_hecho') else ' (el PDF de Effi aún no llega)') + ': se libera el Excel para el agente')
-    pendientes = [('pdf_hecho', d.get('pdf_effi')), ('maestros_hecho', d.get('maestros')), ('xlsx_hecho', d.get('xlsx')), ('agente_liberado', d.get('agente_tid'))]
+    pendientes = [('pdf_hecho', d.get('pdf_effi')), ('maestros_hecho', d.get('maestros'))]
     if d.get('pdf_effi') and time.time() - d.get('pdf_ok_desde', time.time()) < 90:
         return False   # se sigue vigilando un poco más por si algo sobreescribe el PDF
     return all(d.get(k) for k, esperado in pendientes if esperado)
 
 
 def _vigilar_post_orden(codigo: str, job_id: int = 0) -> None:
-    """En segundo plano: espera a que la orden esté creada (y a que lleguen el PDF de Effi y el Excel del agente) y los deja en su carpeta de la NAS. Máx. 15 minutos."""
+    """En segundo plano: espera a que la orden esté creada (y a que llegue el PDF de Effi) y los deja en su carpeta de la NAS. Máx. 15 minutos."""
     limite = time.time() + 900; vuelta = 0
     while time.time() < limite:
         vuelta += 1
@@ -8662,10 +8610,6 @@ def _vigilar_post_orden(codigo: str, job_id: int = 0) -> None:
                 if r and r[0] in ('ERROR', 'REVISAR'):
                     return
                 if not r or r[0] != 'COMPLETADO':
-                    with _post_lock:
-                        dd = _POST_ORDEN.get(codigo)
-                    if dd:
-                        _liberar_excel_agente(codigo, dd)   # aunque la orden tarde en crearse, el Excel no se queda esperando
                     time.sleep(4); continue
             if _aplicar_post_orden(codigo):
                 return
@@ -8692,15 +8636,6 @@ def sincronizar_programado(codigo: str, usuario=Depends(authenticate)):
         except Exception as exc:   # noqa: BLE001
             logging.getLogger(__name__).exception('No se pudo pedir el PDF de %s', codigo)
             diag.append('No pude pedir el PDF a EFFITRON: ' + str(exc)[:150])
-    if not d.get('xlsx'):   # el último Excel que subió el agente para esta orden
-        candidatos = sorted(agente_excel_mod.CARPETA.glob('*/final.xls*'), key=lambda p: p.stat().st_mtime, reverse=True) if agente_excel_mod.CARPETA.is_dir() else []
-        for c in candidatos:
-            try:
-                t = agente_excel_mod._leer()['trabajos'].get(c.parent.name) or {}
-            except Exception:   # noqa: BLE001
-                t = {}
-            if str(t.get('nombre', '')).upper().startswith(codigo):
-                d['xlsx'] = str(c); d['xlsx_nombre'] = t['nombre']; d['xlsx_hecho'] = False; break
     d['pdf_hecho'] = False
     _registrar_post_orden(codigo, **d)
     try:
@@ -8709,7 +8644,7 @@ def sincronizar_programado(codigo: str, usuario=Depends(authenticate)):
         logging.getLogger(__name__).exception('Sincronizar %s', codigo); diag.append('Error: ' + str(exc)[:200]); completo = False
     if not completo:
         threading.Thread(target=_vigilar_post_orden, args=(codigo, 0), daemon=True).start()   # lo que falte se sigue intentando 15 minutos
-    return {'ok': True, 'completo': completo, 'detalle': diag, 'pdf': bool(d.get('pdf_effi')), 'excel': bool(d.get('xlsx')), 'mockups': len(d.get('maestros') or [])}
+    return {'ok': True, 'completo': completo, 'detalle': diag, 'pdf': bool(d.get('pdf_effi')), 'mockups': len(d.get('maestros') or [])}
 
 
 threading.Thread(target=_reanudar_post_orden, daemon=True).start()

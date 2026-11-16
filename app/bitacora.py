@@ -96,7 +96,6 @@ ETIQUETAS = [
     ('DELETE', r'^/api/club/enlaces/\d+$', 'Tienda club', 'Revocó un enlace de club'),
     ('POST', r'^/api/club/pedidos/\d+/resolver$', 'Tienda club', 'Resolvió una reposición de club'),
     ('DELETE', r'^/api/club/pedidos/\d+$', 'Tienda club', 'Eliminó una reprogramación de club'),
-    ('POST', r'^/api/agente-excel/codigo$', 'Agente Excel', 'Generó un código para vincular un computador'),
     ('DELETE', r'^/api/pedido-effi/programados/[A-Z]+\d+$', 'Programar club', 'Quitó un pedido de la lista de programados'),
     ('DELETE', r'^/api/produccion/orden/[^/]+$', 'Producción', 'Eliminó una orden completa (tarjetas y carpeta NAS)'),
     ('POST', r'^/api/molderia.*$', 'Moldería', 'Cambió algo de moldería'),
