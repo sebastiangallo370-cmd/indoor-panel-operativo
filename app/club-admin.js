@@ -398,17 +398,29 @@
     e.preventDefault(); e.stopPropagation();
     const id = Number(b.dataset.gal), g = galerias.get(id); if (!g) return; g.i = Number(b.dataset.gi); pintarGaleria(id);
   }, true);
-  function pedirClave(titulo, texto) {   // contraseña en un cuadro propio (nunca en un prompt() que la muestra)
+  function pedirClave(titulo, texto, accion) {   // contraseña en un cuadro propio (nunca en un prompt()): al ponerla empieza a eliminar AQUÍ MISMO, con avance y errores dentro de la ventana
     return new Promise(res => {
       const f = document.createElement('div'); f.className = 'ax-fondo';
       f.innerHTML = '<div class="ax-card" style="max-width:460px"><div class="ax-cab"><div><span class="ax-eye">ELIMINAR DE PRODUCCIÓN</span><h3>' + esc(titulo) + '</h3></div></div><p class="ax-p">' + texto + '</p>' +
-        '<input type="password" data-clave autocomplete="current-password" placeholder="Tu contraseña del panel" style="width:100%;box-sizing:border-box;padding:10px 12px;border-radius:10px;border:1px solid #3d4c3b;background:#0d140e;color:#f5faef;font:700 14px Arial">' +
-        '<div class="ax-btns" style="margin-top:12px;justify-content:flex-end"><button class="ax-btn" type="button" data-no>CANCELAR</button><button class="ax-btn" type="button" data-si style="background:#7a2a2a;color:#fff;border-color:#a33">ELIMINAR</button></div></div>';
+        '<input type="password" data-clave name="clave-' + Math.random().toString(36).slice(2) + '" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" data-lpignore="true" data-1p-ignore placeholder="Tu contraseña del panel" style="width:100%;box-sizing:border-box;padding:10px 12px;border-radius:10px;border:1px solid #3d4c3b;background:#0d140e;color:#f5faef;font:700 14px Arial">' +
+        '<p data-estado style="margin:10px 0 0;font:800 12px/1.4 Arial;min-height:16px"></p>' +
+        '<div class="ax-btns" style="margin-top:8px;justify-content:flex-end"><button class="ax-btn" type="button" data-no>CANCELAR</button><button class="ax-btn" type="button" data-si style="background:#7a2a2a;color:#fff;border-color:#a33">ELIMINAR</button></div></div>';
       document.body.appendChild(f);
-      const fin = v => { f.remove(); res(v); }, inp = f.querySelector('[data-clave]'); inp.focus();
-      f.querySelector('[data-no]').onclick = () => fin('');
-      f.querySelector('[data-si]').onclick = () => fin(inp.value);
-      inp.onkeydown = e => { if (e.key === 'Enter') fin(inp.value); if (e.key === 'Escape') fin(''); };
+      const inp = f.querySelector('[data-clave]'), est = f.querySelector('[data-estado]'), si = f.querySelector('[data-si]'), no = f.querySelector('[data-no]'); let ocupado = false;
+      const cerrar = v => { f.remove(); res(v); };
+      const marca = (t, c) => { est.textContent = t; est.style.color = c; };
+      inp.focus();
+      const eliminar = async () => {
+        if (ocupado) return;
+        if (!inp.value) { marca('Escribe tu contraseña para continuar.', '#ffb547'); inp.focus(); return; }
+        ocupado = true; const clave = inp.value; inp.value = ''; inp.disabled = si.disabled = no.disabled = true; si.textContent = 'ELIMINANDO…';
+        marca('⏳ Eliminando: tarjetas de Producción, Cartera y carpeta de la NAS… no cierres la página.', '#d0f44c');
+        try { await accion(clave); cerrar(true); }
+        catch (er) { ocupado = false; inp.disabled = si.disabled = no.disabled = false; si.textContent = 'ELIMINAR'; marca('⚠ ' + (er && er.message ? er.message : 'No se pudo eliminar.'), '#ff9b9b'); inp.focus(); }
+      };
+      no.onclick = () => { if (!ocupado) cerrar(false); };
+      si.onclick = eliminar;
+      inp.onkeydown = e => { if (e.key === 'Enter') eliminar(); if (e.key === 'Escape' && !ocupado) cerrar(false); };
     });
   }
   document.addEventListener('click', async e => {
@@ -432,11 +444,11 @@
       if (filas.length) {   // borrado seguro de Producción SOLO de esta orden: sus tarjetas + su carpeta NAS (pide contraseña, deja copia de recuperación)
         if (norm(o.orden) !== c) { toast(c + ' está agrupada con otras órdenes en una misma tarjeta de Producción (' + o.orden + '). Para no borrar las otras, elimínala desde PRODUCCIÓN.', 'error'); return; }
         const pv = await api('/api/produccion/fila/' + filas[0] + '/eliminacion?orden=1');   // la carpeta EXACTA que se va a borrar
-        const clave = await pedirClave('Eliminar ' + c, 'Se eliminará <b>solo la orden ' + esc(c) + '</b>: ' + (filas.length > 1 ? 'sus <b>' + filas.length + ' tarjetas</b>' : 'su <b>tarjeta</b>') + ' de Producción, su cotización en <b>Cartera</b> (si no tiene pagos), esta lista y <b>esta carpeta de la NAS</b>:<br><small style="word-break:break-all;color:#d0f44c">' + esc(pv.folder) + '</small><br>Queda una copia de recuperación en el servidor. Ninguna otra orden se toca.');
-        if (!clave) return;
+        let rb = null;
+        const hecho = await pedirClave('Eliminar ' + c, 'Se eliminará <b>solo la orden ' + esc(c) + '</b>: ' + (filas.length > 1 ? 'sus <b>' + filas.length + ' tarjetas</b>' : 'su <b>tarjeta</b>') + ' de Producción, su cotización en <b>Cartera</b> (si no tiene pagos), esta lista y <b>esta carpeta de la NAS</b>:<br><small style="word-break:break-all;color:#d0f44c">' + esc(pv.folder) + '</small><br>Queda una copia de recuperación en el servidor. Ninguna otra orden se toca.', async clave => { rb = await api('/api/produccion/orden/' + encodeURIComponent(c), 'DELETE', { password: clave }); });
+        if (!hecho) return;
         b.disabled = true; b.textContent = 'ELIMINANDO…';
-        const rb = await api('/api/produccion/orden/' + encodeURIComponent(c), 'DELETE', { password: clave });
-        const cp = (rb.cartera && rb.cartera.con_pagos) || []; if (cp.length) toast('La cotización ' + cp.join(', ') + ' sigue en Cartera porque tiene pagos registrados.', 'error');
+        const cp = (rb && rb.cartera && rb.cartera.con_pagos) || []; if (cp.length) toast('La cotización ' + cp.join(', ') + ' sigue en Cartera porque tiene pagos registrados.', 'error');
       } else if (!confirm('¿Eliminar ' + c + '?\n\nNo está en Producción: solo se quita de esta lista.')) return;
       await api('/api/pedido-effi/programados/' + encodeURIComponent(c), 'DELETE');
       programados = programados.filter(x => x.codigo !== c); delete produccion[c]; pintar();
