@@ -320,11 +320,14 @@
   function estiloTarjetas() {
     if (document.getElementById('tp-css')) return;
     const st = document.createElement('style'); st.id = 'tp-css';
-    st.textContent = `.tp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:18px;align-items:start}
-    .tp-card{display:flex;flex-direction:column;overflow:hidden;border:1px solid #35403a;border-radius:18px;background:linear-gradient(160deg,rgba(255,255,255,.06),rgba(0,0,0,.35));box-shadow:0 8px 24px rgba(0,0,0,.35);min-width:0}
-    .tp-card .tp-media{height:230px;background:#e9eeea;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;color:#52604f;font:700 12px Arial;text-align:center}
-    .tp-card .tp-media img{width:100%;height:100%;object-fit:contain}
-    .tp-cuerpo{padding:14px 16px 10px;display:grid;gap:8px}
+    st.textContent = `.tp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:18px;align-items:stretch}
+    .tp-card{display:flex;flex-direction:column;height:100%;min-height:760px;overflow:hidden;border:1px solid #35403a;border-radius:18px;background:linear-gradient(160deg,rgba(255,255,255,.06),rgba(0,0,0,.35));box-shadow:0 8px 24px rgba(0,0,0,.35);min-width:0}
+    .tp-card .tp-media{height:380px;flex:none;background:#e9eeea;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;color:#52604f;font:700 12px Arial;text-align:center}
+    .tp-card .tp-media img{width:100%;height:100%;object-fit:contain;object-position:center}.tp-card .tp-media .trace-design-view{display:flex;flex-direction:column;width:100%;height:100%}.tp-card .tp-media .trace-design-stage{position:relative;flex:1;min-height:0;display:block}.tp-card .tp-media .trace-design-main{display:block;position:absolute;inset:0}.tp-card .tp-media .trace-design-main img{width:100%;height:100%;object-fit:contain}
+    .tp-card .tp-media .trace-design-count{position:absolute;top:8px;left:8px;z-index:3;padding:4px 10px;border-radius:99px;background:#0d140e;color:#d0f44c;font:900 10px Arial;letter-spacing:.08em}.tp-card .tp-media .trace-design-zoom{position:absolute;top:8px;right:8px;z-index:3;color:#52604f}
+    .tp-card .tp-media .trace-design-nav{all:unset;cursor:pointer;position:absolute;top:50%;transform:translateY(-50%);z-index:4;box-sizing:border-box;width:34px!important;min-width:34px!important;max-width:34px!important;height:34px!important;border-radius:50%;line-height:1;display:grid;place-items:center;background:rgba(13,20,14,.8);color:#d0f44c;font:900 22px Arial}.tp-card .tp-media .trace-design-nav.is-prev{left:8px}.tp-card .tp-media .trace-design-nav.is-next{right:8px}.tp-card .tp-media .trace-design-nav:hover{background:#d0f44c;color:#0d140e}
+    .tp-card .tp-media .trace-design-tabs{display:flex;gap:6px;justify-content:center;padding:6px;background:rgba(13,20,14,.06);flex:none}.tp-card .tp-media .trace-design-tabs button{all:unset;cursor:pointer;min-width:34px;text-align:center;padding:4px 8px;border-radius:99px;border:1px solid #9aa89a;color:#33402f;font:900 11px Arial}.tp-card .tp-media .trace-design-tabs button[aria-pressed=true]{background:#d0f44c;border-color:#8fb30f;color:#0d140e}
+    .tp-cuerpo{padding:14px 16px 10px;display:grid;gap:8px;align-content:start;flex:1}
     .tp-cab{display:flex;justify-content:space-between;align-items:center;gap:8px}.tp-cab h3{margin:0;font:900 22px Arial;color:#f5faef;letter-spacing:.02em}
     .tp-linea{padding:4px 12px;border-radius:99px;background:#b9d3f5;color:#16304f;font:700 9px Arial;letter-spacing:.08em}.tp-linea b{font-size:11px;margin-left:4px}
     .tp-cliente{margin:0;font:900 13px Arial;color:#f0f3eb;text-transform:uppercase}.tp-proy{margin:0;font:700 12px Arial;color:#aab6a5}
@@ -338,7 +341,7 @@
     .tp-acc button{all:unset;box-sizing:border-box;cursor:pointer;text-align:center;padding:9px 0;border-radius:10px;border:1px solid #4d5d4a;font:700 15px Arial;color:#e6efdf;background:rgba(0,0,0,.25)}.tp-acc button:disabled{opacity:.4;cursor:default}
     .tp-b-nas{border-color:#3d8a5f!important;background:rgba(61,138,95,.15)!important}.tp-b-edit{border-color:#3d6a9a!important;background:rgba(61,106,154,.15)!important}.tp-b-del{border-color:#a04040!important;background:rgba(160,64,64,.15)!important;color:#ffb4b4!important}
     .tp-extra{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}.tp-extra small{font:600 10px Arial;color:#7f8c79}.tp-link{all:unset;cursor:pointer;font:800 10px Arial;letter-spacing:.08em;color:#d0f44c;padding:3px 8px;border:1px solid #4d5d4a;border-radius:99px}
-    .tp-ruta{padding:0 16px 14px;display:grid;gap:6px}.tp-puntos{display:flex;justify-content:space-between;gap:3px}.tp-puntos i{all:unset;display:grid;place-items:center;flex:1;max-width:22px;height:18px;border-radius:50%;background:#2a332c;color:#c9d3c1;font:900 9px Arial;border:1px solid #3d4c3b}.tp-puntos i.finished{background:#3d8a5f;color:#fff;border-color:#3d8a5f}.tp-puntos i.active{background:#b98e3a;color:#1a1a1a;border-color:#b98e3a}.tp-puntos i.rework{background:#a04040;color:#fff}
+    .tp-ruta{padding:0 16px 14px;display:grid;gap:6px;margin-top:auto}.tp-puntos{display:flex;justify-content:space-between;gap:3px}.tp-puntos i{all:unset;display:grid;place-items:center;flex:1;max-width:22px;height:18px;border-radius:50%;background:#2a332c;color:#c9d3c1;font:900 9px Arial;border:1px solid #3d4c3b}.tp-puntos i.finished{background:#3d8a5f;color:#fff;border-color:#3d8a5f}.tp-puntos i.active{background:#b98e3a;color:#1a1a1a;border-color:#b98e3a}.tp-puntos i.rework{background:#a04040;color:#fff}
     .tp-sig{display:flex;justify-content:space-between;font:700 11px Arial;color:#c9d3c1}.tp-sig b{color:#d0f44c}.tp-barra{height:5px;border-radius:99px;background:rgba(255,255,255,.1);overflow:hidden}.tp-barra span{display:block;height:100%;background:#9be37a;border-radius:inherit}`;
     document.head.appendChild(st);
   }
@@ -357,6 +360,13 @@
     if (real) { real.click(); return; }
     toast('Esta orden no está visible en Producción ahora (revisa los filtros de PRODUCCIÓN). Ábrela desde allí.', 'error');
   });
+  // flechas ‹ › y botones D1, D2, D3… del mockup: cambian de diseño igual que en Producción
+  document.addEventListener('click', e => {
+    const b = e.target.closest('.tp-card [data-design-index]'); if (!b) return;
+    e.preventDefault(); e.stopPropagation();
+    const id = Number(b.dataset.designRow); if (!id || typeof traceDesignSelection === 'undefined' || typeof paintTraceAssets !== 'function') return;
+    traceDesignSelection.set(id, Number(b.dataset.designIndex)); paintTraceAssets(id);
+  }, true);
   function tarjetaPrograma(x) {
     const o = produccion[x.codigo] || null, ids = o && o.filas && o.filas.length ? o.filas : [0];
     return ids.map((id, k) => {
@@ -376,7 +386,7 @@
         '<div class="tp-cant"><small>CANTIDAD</small><b>' + (f.units != null ? f.units : (x.prendas || 0)) + '</b> <small>und.</small></div></div>' +
         '<div class="tp-entrega"><small>ENTREGA :</small>' + (dias == null ? '<b>—</b>' : '<span class="tp-dias' + (dias < 0 ? ' tarde' : '') + '">' + (dias < 0 ? 'Atrasado ' + (-dias) + ' días' : dias === 0 ? 'Hoy' : dias + ' Días') + '</span>') + '</div>' +
         '<div class="tp-acc"><button type="button" class="tp-b-nas" title="Ir a la carpeta de la orden en la NAS"' + nasId + '>📁</button><button type="button" class="tp-b-edit" title="Editar / ver en Producción"' + editId + '>✎</button><button type="button" class="tp-b-del" title="Eliminar la orden de todo el panel y la NAS" data-quitar-prog="' + esc(x.codigo) + '">🗑</button></div>' +
-        (k === 0 ? '<div class="tp-extra"><small>Programó ' + esc(x.usuario || '—') + ' · ' + esc(String(x.fecha || '').replace('T', ' ').slice(0, 16)) + '</small>' + (x.excel ? '<a class="tp-link" href="' + esc(x.excel) + '" title="Descargar el listado">⬇ EXCEL</a>' : '') + '<button type="button" class="tp-link" data-abrir-excel="' + esc(x.codigo) + '">ABRIR EN EXCEL</button></div>' : '') +
+        (true ? '<div class="tp-extra"><small>Programó ' + esc(x.usuario || '—') + ' · ' + esc(String(x.fecha || '').replace('T', ' ').slice(0, 16)) + '</small>' + (x.excel ? '<a class="tp-link" href="' + esc(x.excel) + '" title="Descargar el listado">⬇ EXCEL</a>' : '') + '<button type="button" class="tp-link" data-abrir-excel="' + esc(x.codigo) + '">ABRIR EN EXCEL</button></div>' : '') +
         '</div>' + ruta + '</article>';
     }).join('');
   }
