@@ -41,7 +41,8 @@
   .tc-fila{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px;align-items:center;padding:10px 12px;border:1px solid rgba(255,255,255,.12);border-radius:12px;background:#121712}
   .tc-fila strong{color:#f2f7ea}.tc-fila small{display:block;color:#a9b5a3;font-size:.74rem}
   .tc-acc{display:flex;gap:8px;flex-wrap:wrap}
-  .panel[data-panel="club"]{position:relative}.tc-ptabs{display:inline-flex;margin:0 auto;border:1px solid #3d4c3b;border-radius:99px;overflow:hidden;background:rgba(0,0,0,.3)}.tc-ptabs button{all:unset;cursor:pointer;padding:9px 26px!important;color:#c9d3c1!important;background:transparent!important;border:0!important;box-shadow:none!important;min-height:0!important;width:auto!important;font:900 12px Arial!important;letter-spacing:.12em!important;transition:background .2s,color .2s}.tc-ptabs button:hover{color:#d0f44c!important}.tc-ptabs button.on{background:#d0f44c!important;color:#0d140e!important}@media(max-width:600px){.tc-ptabs button{padding:8px 14px;font-size:11px}}
+  .panel[data-panel="club"]{position:relative}.tc-ag-top{display:inline-flex;align-items:center;padding:8px 14px;border-radius:99px;border:1px solid #3d4c3b;font:800 11px Arial;letter-spacing:.04em;white-space:nowrap;margin-right:8px;background:rgba(0,0,0,.25)}.tc-ag-top.ok{border-color:#6f9410;color:#9be37a}.tc-ag-top.mal{border-color:#ffb547;color:#ffb547}
+  .tc-ptabs{display:inline-flex;margin:0 auto;border:1px solid #3d4c3b;border-radius:99px;overflow:hidden;background:rgba(0,0,0,.3)}.tc-ptabs button{all:unset;cursor:pointer;padding:9px 26px!important;color:#c9d3c1!important;background:transparent!important;border:0!important;box-shadow:none!important;min-height:0!important;width:auto!important;font:900 12px Arial!important;letter-spacing:.12em!important;transition:background .2s,color .2s}.tc-ptabs button:hover{color:#d0f44c!important}.tc-ptabs button.on{background:#d0f44c!important;color:#0d140e!important}@media(max-width:600px){.tc-ptabs button{padding:8px 14px;font-size:11px}}
   .tc .tc-aviso.tc-info{display:inline-flex!important;align-items:center;gap:8px;width:auto!important;padding:0!important;background:transparent!important;border:0!important;box-shadow:none!important;font-size:13px}
   @media (min-width:900px){.tc>*{width:calc(100vw - 64px)!important;max-width:none!important;box-sizing:border-box}}
   @media (min-width:900px){.tc-plano .tc-cabeza{width:calc(100vw - 64px);justify-content:space-between;flex-wrap:nowrap}.tc-plano .tc-cabeza .tc-acc{margin-left:auto;flex-wrap:nowrap}}
@@ -236,7 +237,7 @@
     const lista = pedidos.filter(p => ESTADOS_VISIBLES.includes(p.estado) && (!filtro || p.estado === filtro) && coincide(p));   // Pendientes y Rechazadas ocultas por pedido del usuario (2026-11-14): no se borra nada, basta quitarlas de ESTADOS_VISIBLES
     const nuevos = new Set(pedidos.map(p => p.id).filter(id => !vistos.has(id)));
     const html = '<div class="tc">' +
-      '<section class="tc-plano"><div class="tc-cabeza"><h2>Reprogramaciones de los clubes</h2><span class="tc-acc"><button class="tc-btn tc-b-lime" data-pedido="nuevo" type="button">EMPEZAR PEDIDO</button><button class="tc-btn tc-b-line" data-agente-excel type="button" title="Descarga e instala el agente que llena el listado en tu Excel">💻 AGENTE EXCEL</button></span></div>' +
+      '<section class="tc-plano"><div class="tc-cabeza"><h2>Reprogramaciones de los clubes</h2><span class="tc-acc">' + htmlAgenteTop() + '<button class="tc-btn tc-b-lime" data-pedido="nuevo" type="button">EMPEZAR PEDIDO</button><button class="tc-btn tc-b-line" data-agente-excel type="button" title="Descarga e instala el agente que llena el listado en tu Excel">💻 AGENTE EXCEL</button></span></div>' +
       (effi ? '<p class="tc-aviso tc-info" style="margin-bottom:12px"><span class="tc-dot ' + (effi.activo && effi.conectado ? 'on' : effi.activo ? 'off' : '') + '"></span><span>EFFITRON · ' + (effi.activo ? (effi.conectado ? 'en línea' : 'SIN CONEXIÓN') : 'apagado') + (effi.ultima ? ' · ' + esc(effi.ultima) : '') + '</span></p>' : '') +
       '<div class="tc-barra"><span></span>' +
       '<input id="tc-buscar" class="tc-buscar" type="search" placeholder="Buscar club, contacto o cotización" autocomplete="off" value="' + esc(busqueda) + '"></div>' +
@@ -264,6 +265,25 @@
       '<div class="tc-form"><button class="tc-btn tc-b-lime" id="tc-correos-guardar" type="button">Guardar</button></div></div>';
   }
 
+  // estado del AGENTE EXCEL y botón para abrirlo, a la vista en el encabezado de PROGRAMAR CLUB
+  let agenteTop = null;   // null = aún no se sabe · {conectado, equipos, version}
+  function htmlAgenteTop() {
+    if (!agenteTop) return '';
+    const a = agenteTop, hay = (a.equipos || []).length > 0, v = (a.equipos || []).map(x => x.version).filter(Boolean)[0];
+    if (a.conectado) return '<span class="tc-ag-top ok" title="Tu agente Excel está conectado: Excel se abre y se llena solo al programar">🟢 Agente conectado' + (v ? ' · v' + esc(v) : '') + '</span>';
+    return '<span class="tc-ag-top mal" title="El agente Excel está cerrado: Excel no se abrirá solo">⚪ Agente cerrado</span>' + (hay ? '<button class="tc-btn tc-b-lime" data-abrir-agente-top type="button" title="Abre el agente instalado en este computador">▶ ABRIR AGENTE</button>' : '<button class="tc-btn tc-b-line" data-agente-excel type="button">⬇ INSTALAR AGENTE</button>');
+  }
+  async function cargarAgenteTop() {
+    try { const r = await api('/api/agente-excel/estado'); const nuevo = { conectado: !!r.conectado, equipos: r.equipos || [] }; if (JSON.stringify(nuevo) !== JSON.stringify(agenteTop)) { agenteTop = nuevo; pintar(); } } catch (e) { /* sin estado */ }
+  }
+  document.addEventListener('click', e => {
+    const b = e.target.closest('[data-abrir-agente-top]'); if (!b) return;
+    if (window.abrirAgenteExcelPC) window.abrirAgenteExcelPC();
+    b.disabled = true; b.textContent = 'Abriendo…';
+    toast('Abriendo tu agente… si el navegador pregunta, pulsa «Abrir».', 'ok');
+    [1500, 3500, 6000].forEach(ms => setTimeout(cargarAgenteTop, ms));
+    setTimeout(() => { if (!(agenteTop && agenteTop.conectado)) { b.disabled = false; b.textContent = '▶ ABRIR AGENTE'; toast('No se abrió. Ábrelo una vez a mano: tecla Windows → AgenteExcelIndoor (o reinicia el computador: arranca solo). Desde la versión 1.1.4 este botón lo abre.', 'error'); } }, 9000);
+  });
   let programados = [];
   let produccion = {};   // CO#### -> datos de la orden en Producción (las mismas columnas que usa su tarjeta)
   const norm = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase();
@@ -374,7 +394,8 @@
     cargando = true;
     try {
       const [p, e, c, pr] = await Promise.all([api('/api/club/pedidos'), api('/api/club/effitron').catch(() => null), api('/api/club/correos').catch(() => null), api('/api/pedido-effi/programados').catch(() => null)]);
-      if (pr) programados = pr.programados || []; await cargarProduccion();
+      if (pr) programados = pr.programados || [];
+      cargarAgenteTop(); await cargarProduccion();
       pedidos = p.pedidos; effi = e; if (c) correos = c; pintar();
     } catch (e) { panel.innerHTML = '<div class="tc"><div class="tc-card"><p>' + esc(e.message) + '</p></div></div>'; ultimo = ''; }
     finally { cargando = false; }
@@ -426,6 +447,7 @@
     document.querySelectorAll('.tab[data-kind="club"]').forEach(tab => tab.addEventListener('click', () => cargar()));
     document.addEventListener('click', e => { if (e.target.closest('[data-pedido="nuevo"]')) abrirPedido(); if (e.target.closest('[data-agente-excel]')) abrirAgenteExcel(); });
     setInterval(() => { if (!document.hidden && panel.classList.contains('active')) cargar(); }, 30000);
+    setInterval(() => { if (!document.hidden && panel.classList.contains('active')) cargarAgenteTop(); }, 8000);
   }
   // EMPEZAR PEDIDO: formulario igual al de «Crear cotización» de Effi (pedido-effi.js). Crea la cotización o la remisión de venta en Effi (solo si la cuenta Indoor Sport lo tiene ENCENDIDO).
   // ---- AGENTE EXCEL: descargar, instalar y vincular (una vez por computador). El agente llena el listado en el Excel del PC a la vista.
