@@ -8562,14 +8562,28 @@ def _aplicar_post_orden(codigo: str, diag: list | None = None) -> bool:
     if d.get('pdf_effi') and not d.get('pdf_hecho'):
         datos = effitron_mod.pdf_cotizacion_bytes(int(d['pdf_effi']))
         if datos:
-            destino = next((p for p in carpeta.glob('*.pdf') if p.stem.upper().startswith(codigo.upper())), carpeta / f'{codigo}.pdf')
+            propios = [p for p in carpeta.glob('*.pdf') if p.stem.upper().startswith(codigo.upper())]
+            destino = propios[0] if propios else carpeta / f'{codigo}.pdf'
             try:
                 destino.write_bytes(datos); d['pdf_hecho'] = True; d['pdf_ok_desde'] = time.time(); _guardar_post_orden()
                 nota(f'PDF de Effi copiado a {destino.name} ({len(datos)} bytes)')
+                for otro in propios[1:]:   # en la carpeta solo puede quedar el PDF de Effi
+                    otro.unlink(missing_ok=True)
+                try:   # también es el que se ve en Cartera
+                    from app import cartera_api as cartera_mod
+                    cartera_mod.poner_pdf(codigo, datos)
+                except Exception:   # noqa: BLE001
+                    log.exception('No se pudo poner el PDF de Effi en Cartera (%s)', codigo)
             except OSError as exc:
                 nota('No pude escribir el PDF en la NAS: ' + str(exc)[:150])
         else:
             nota('El PDF de Effi todavía NO está en el servidor (EFFITRON no lo ha bajado)')
+            for propio in carpeta.glob('*.pdf'):   # el PDF que arma el panel es solo para procesar el pedido: NUNCA queda en la carpeta de la orden
+                if propio.stem.upper().startswith(codigo.upper()):
+                    try:
+                        propio.unlink(); nota('Se retiró de la carpeta el PDF armado por el panel (solo debe quedar el de Effi)')
+                    except OSError as exc:
+                        nota('No pude retirar el PDF del panel: ' + str(exc)[:100])
             if time.time() - d.get('pdf_repedido', 0) > 60:   # se vuelve a pedir cada minuto (también tras agotar intentos) mientras la orden siga con el PDF del panel
                 d['pdf_repedido'] = time.time()
                 try:
@@ -8599,8 +8613,8 @@ def _aplicar_post_orden(codigo: str, diag: list | None = None) -> bool:
 
 
 def _vigilar_post_orden(codigo: str, job_id: int = 0) -> None:
-    """En segundo plano: espera a que la orden esté creada (y a que llegue el PDF de Effi) y los deja en su carpeta de la NAS. Máx. 15 minutos."""
-    limite = time.time() + 900; vuelta = 0
+    """En segundo plano: espera a que la orden esté creada (y a que llegue el PDF de Effi) y los deja en su carpeta de la NAS. Máx. 4 horas."""
+    limite = time.time() + 4 * 3600; vuelta = 0   # el PDF de Effi puede tardar: se sigue intentando hasta 4 horas
     while time.time() < limite:
         vuelta += 1
         try:

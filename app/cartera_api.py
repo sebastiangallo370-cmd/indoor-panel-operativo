@@ -209,6 +209,11 @@ def registrar_programado(orden,pdf_bytes:bytes|None=None,usuario:str="",registro
         if not destino.exists(): destino.write_bytes(pdf_bytes)
     _save(data); return {"numero":numero,"creado":creado,"total":doc.get("total",0)}
 
+def poner_pdf(numero:str,content:bytes):
+    """Deja como PDF de la cotización el de Effi (reemplaza cualquier otro)."""
+    if content and content.startswith(b"%PDF"):
+        _PDF_DIR.mkdir(parents=True,exist_ok=True); (_PDF_DIR/f"{_safe(str(numero).upper().replace('CO',''))}.pdf").write_bytes(content)
+
 @cartera_router.get("/pendientes/{archivo}/resumen")
 def resumen_pendiente(archivo:str):
     path=(_PDF_DIR/"pendientes"/_safe(Path(archivo).stem)).with_suffix(".pdf")
