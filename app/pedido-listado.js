@@ -91,6 +91,7 @@
   .pl-tabla td{padding:0 3px}.pl-tabla td.n{width:34px;color:#8f9d88;font:700 12px Arial;text-align:right}.pl-tabla input,.pl-tabla select{min-height:34px}
   .pl-tabla .bad{border-color:#ff7b7b!important;background:#2a1414!important}
   .pl-x{all:unset;cursor:pointer;color:#ff9b9b;font:900 16px Arial;padding:6px}
+  .pl-ag{margin-left:auto;padding:6px 12px;border-radius:99px;border:1px solid #3d4c3b;color:#a9b5a3;font:800 11px Arial;white-space:nowrap}.pl-ag.ok{border-color:#6f9410;color:#9be37a}.pl-ag.mal{border-color:#ffb547;color:#ffb547;background:rgba(255,181,71,.08)}
   .pl-herr{display:flex;flex-wrap:nowrap;gap:8px;align-items:flex-end;margin-bottom:10px;overflow-x:auto}.pl-herr label{min-width:130px;flex:0 0 auto}.pl-herr .pl-btn{width:auto!important;flex:0 0 auto!important;white-space:nowrap;min-height:38px;padding:8px 14px}
   .pl-listo{max-width:720px;margin:30px auto;text-align:center}.pl-listo strong{display:block;font:900 26px Arial;color:#d0f44c;margin:8px 0}
   .pl-listo .caja{margin-top:14px;padding:14px;border-radius:12px;text-align:left;font:700 13px/1.5 Arial;white-space:pre-line;border:1px solid rgba(255,255,255,.2)}
@@ -319,6 +320,18 @@
       '<td data-l="GÉNERO" style="width:100px"><select data-c="genero"><option value="MASC"' + (f.genero === 'MASC' ? ' selected' : '') + '>MASC</option><option value="FEM"' + (f.genero === 'FEM' ? ' selected' : '') + '>FEM</option></select></td>' +
       '<td data-l="OBSERVACIÓN"><input data-c="observacion" value="' + esc(f.observacion) + '" placeholder="Observación" autocomplete="off"></td><td style="width:34px"><button class="pl-x" type="button" data-quitar-fila aria-label="Quitar">✕</button></td></tr>';
   }
+  // el comercial ve ANTES de programar si su agente está abierto (si no, Excel no se abre en su computador)
+  async function estadoAgente() {
+    const e = q('[data-ag]'); if (!e) return;
+    try {
+      const r = await fetch('/api/agente-excel/estado', { credentials: 'same-origin', cache: 'no-store' }).then(x => x.json());
+      if (!raiz || !raiz.isConnected) return;
+      const ok = !!r.conectado, hay = (r.equipos || []).length > 0;
+      e.className = 'pl-ag ' + (ok ? 'ok' : 'mal');
+      e.textContent = ok ? '💻 Agente Excel conectado ✓' : hay ? '⚠ Agente Excel CERRADO: ábrelo en este computador para ver llenarse el Excel' : '⚠ Sin agente Excel instalado (botón AGENTE EXCEL en PROGRAMAR CLUB)';
+    } catch (er) { /* sin estado */ }
+    if (raiz && raiz.isConnected && L.pantalla === 'listado') { clearTimeout(L.tAg); L.tAg = setTimeout(estadoAgente, 8000); }
+  }
   function pantallaListado() {
     const gs = grupos(); if (!gs.find(g => g.referencia === L.abierta)) L.abierta = gs[0].referencia;
     const g = gs.find(x => x.referencia === L.abierta), filas = filasDe(g.referencia);
@@ -333,8 +346,10 @@
       '<button class="pl-btn sec mini" type="button" data-mas>+ AGREGAR FILA</button><button class="pl-btn sec mini" type="button" data-mas5>+ AGREGAR 5 FILAS</button><button class="pl-btn sec mini" type="button" data-completar>COMPLETAR HASTA ' + g.cantidad + '</button><button class="pl-btn sec mini" type="button" data-pegar>PEGAR DESDE EXCEL</button></div>' +
       '<div data-pegado hidden class="pl-tarjeta" style="margin:0 0 10px"><label>Pega aquí las filas copiadas de Excel (columnas: NOMBRE, TALLA, NÚMERO, DISEÑO, GÉNERO, OBSERVACIÓN; separadas por tabulador o punto y coma)<textarea data-pegado-texto spellcheck="false"></textarea></label><div style="display:flex;gap:8px;margin-top:8px"><button class="pl-btn mini" type="button" data-pegado-ok>PEGAR FILAS</button><button class="pl-btn sec mini" type="button" data-pegado-no>CANCELAR</button></div></div>' +
       '<div class="pl-tabla-caja"><table class="pl-tabla"><thead><tr><th></th><th>NOMBRE</th><th>TALLA *</th><th>NÚMERO</th><th>DISEÑO</th><th>GÉNERO</th><th>OBSERVACIÓN</th><th></th></tr></thead><tbody data-filas>' + filas.map(filaHtml).join('') + '</tbody></table></div></div>';
-    if (L.previo) acciones('<button class="pl-btn sec" type="button" data-atras>◀ VOLVER A CO/RM</button><button class="pl-btn" type="button" data-programar disabled>CREA LA COTIZACIÓN PARA PROGRAMAR</button>', '', '');
-    else acciones('<button class="pl-btn sec" type="button" data-atras>◀ MOCKUPS</button><button class="pl-btn" type="button" data-programar>PROGRAMAR PEDIDO EN PRODUCCIÓN</button>', '', '');
+    const badge = '<span class="pl-ag" data-ag title="Estado de tu AGENTE EXCEL (el que abre Excel y lo llena en este computador)">💻 Agente Excel…</span>';
+    if (L.previo) acciones('<button class="pl-btn sec" type="button" data-atras>◀ VOLVER A CO/RM</button><button class="pl-btn" type="button" data-programar disabled>CREA LA COTIZACIÓN PARA PROGRAMAR</button>' + badge, '', '');
+    else acciones('<button class="pl-btn sec" type="button" data-atras>◀ MOCKUPS</button><button class="pl-btn" type="button" data-programar>PROGRAMAR PEDIDO EN PRODUCCIÓN</button>' + badge, '', '');
+    estadoAgente();
     estadoListado();
     raiz.querySelectorAll('[data-ref]').forEach(b => b.onclick = () => { L.abierta = b.dataset.ref; pantallaListado(); });
     q('[data-atras]').onclick = () => { if (L.previo) { if (L.opts.onVolver) L.opts.onVolver(); return; } L.pantalla = 'mockups'; dibujar(); };
@@ -550,7 +565,7 @@
   }
   async function seguir() {
     let fin = false;
-    for (let k = 0; k < 150 && raiz && raiz.isConnected && L.pantalla === 'enviado'; k++) {
+    for (let k = 0; k < 700 && raiz && raiz.isConnected && L.pantalla === 'enviado'; k++) {   // hasta ~14 min: si el agente estaba cerrado, espera a que se abra
       await new Promise(r => setTimeout(r, 1200));
       try {
         const r = await fetch('/api/procesos', { credentials: 'same-origin' }); const lista = await r.json();

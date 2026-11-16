@@ -132,3 +132,23 @@ class ExcelFinal(Base):
             async def body(self): return b'no es un excel'
         with self.assertRaises(HTTPException):
             asyncio.run(ax.recibir_final(Malo(), tid))
+
+
+@unittest.skipUnless(PLANTILLA.is_file(), 'falta la plantilla real')
+class AgenteCerrado(Trabajo):
+    def test_si_el_agente_esta_cerrado_el_trabajo_espera_y_vence_a_los_15_minutos(self):
+        token = self.vincular()
+        with ax._lock:
+            d = ax._leer()
+            for e in d['equipos'].values():
+                e['visto'] = 0   # agente cerrado desde hace mucho
+            ax._guardar(d)
+        tid = ax.encolar('ANA', self.excel(), 'x.xlsm')
+        self.assertTrue(tid)   # antes devolvía None y el Excel nunca se abría
+        self.assertIn('cerrado', ax.ver_trabajo(mock.Mock(), tid)['detalle'])
+        r = ax.sondeo(pedir(token), {'version': '1.1.3'})   # el agente se abre: recibe el trabajo que estaba esperando
+        self.assertEqual([t['id'] for t in r['trabajos']], [tid])
+        with ax._lock:
+            d = ax._leer(); d['trabajos'][tid]['estado'] = 'pendiente'; d['trabajos'][tid]['creado'] -= 1000; ax._guardar(d)
+        self.assertEqual(ax.sondeo(pedir(token), {'version': '1.1.3'})['trabajos'], [])   # pasaron 15 min: ya no se abre sola
+        self.assertEqual(ax.ver_trabajo(mock.Mock(), tid)['estado'], 'error')

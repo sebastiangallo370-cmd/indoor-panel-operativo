@@ -157,13 +157,13 @@ def encolar(usuario: str, final: Path, nombre: str) -> str | None:
     """Deja el trabajo al agente de ESE comercial (si está conectado). Devuelve el id del trabajo o None."""
     with _lock:
         d = _leer()
-        if not conectado(usuario, d):
-            return None
-        tid = secrets.token_hex(8)
+        if not any(e.get('usuario') == usuario for e in d['equipos'].values()):
+            return None   # este usuario nunca vinculó un computador
+        tid = secrets.token_hex(8)   # aunque el agente esté cerrado ahora, el trabajo queda esperando: al abrirlo, Excel arranca solo (vence a los 15 min)
     plan = preparar_trabajo(Path(final), CARPETA / tid)
     with _lock:
         d = _leer()
-        d['trabajos'][tid] = {'usuario': usuario, 'nombre': nombre, 'estado': 'pendiente', 'detalle': 'Esperando a tu agente Excel…', 'creado': time.time(),
+        d['trabajos'][tid] = {'usuario': usuario, 'nombre': nombre, 'estado': 'pendiente', 'detalle': 'Esperando a tu agente Excel…' if conectado(usuario, d) else 'Tu agente Excel está cerrado: ábrelo en este computador y Excel se abrirá solo (esperando hasta 15 minutos)…', 'creado': time.time(),
                               'base': 'base' + Path(final).suffix, 'celdas': sum(len(h['celdas']) for h in plan['hojas'])}
         _guardar(d)
     return tid
@@ -263,6 +263,9 @@ def sondeo(request: Request, payload: dict):
         trabajos = []
         if payload.get('puede_trabajar', True):
             for tid, t in d['trabajos'].items():
+                if t['usuario'] == e['usuario'] and t['estado'] == 'pendiente' and ahora - t.get('creado', ahora) > 900:
+                    t['estado'] = 'error'; t['detalle'] = 'Venció: el agente no se abrió en 15 minutos. Usa «ABRIR EN EXCEL» en PROGRAMAR CLUB cuando lo tengas abierto.'
+                    continue
                 if t['usuario'] == e['usuario'] and t['estado'] == 'pendiente':
                     if viejo:   # la 1.0.2 abría siempre «base.xlsm» y Excel no deja abrir dos libros con ese nombre
                         t['estado'] = 'error'; t['detalle'] = 'Tu agente Excel está desactualizado: cierra Excel y el agente (Ctrl+Q), descarga el nuevo en PROGRAMAR CLUB → AGENTE EXCEL y ábrelo.'

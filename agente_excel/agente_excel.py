@@ -24,7 +24,7 @@ import urllib.request
 from pathlib import Path
 from tkinter import messagebox, simpledialog
 
-VERSION = '1.1.2'
+VERSION = '1.1.3'
 URL = os.getenv('AGENTE_EXCEL_URL', 'https://produccion.cloud').rstrip('/')
 CONFIG = Path.home() / '.agente_excel_indoor.json'
 SALIDA = Path.home() / 'Documents' / 'Indoor Pedidos'
@@ -469,8 +469,21 @@ class Agente:
                 pass
         self.ventana.after(SONDEO_MS, self.ciclo)
 
+    def latido(self):
+        """Mientras Excel se llena, la ventana no pregunta al panel: este hilo avisa cada 20 s que el agente sigue conectado (si no, el panel lo daría por desconectado)."""
+        import threading
+        def correr():
+            while getattr(self, 'ocupado', False):
+                try:
+                    pedir('/api/agente-excel/pc/sondeo', {'resultados': [], 'version': VERSION, 'puede_trabajar': False}, token=self.config['token'])
+                except Exception:  # noqa: BLE001
+                    pass
+                time.sleep(20)
+        threading.Thread(target=correr, daemon=True).start()
+
     def trabajar(self, t):
         tid = t['id']
+        self.ocupado = True; self.latido()
         self.poner(f'Abriendo Excel para {t["nombre"]}…')
 
         def aviso(texto, hechas, total):
@@ -495,6 +508,8 @@ class Agente:
                 detalle = 'Mac: falta el permiso. Ajustes → Privacidad y seguridad → Automatización → permite que AgenteExcelIndoor controle Microsoft Excel.'
             self.resultados.append({'id': tid, 'estado': 'error', 'detalle': detalle})
             self.poner('No pude llenar Excel: ' + detalle)
+        finally:
+            self.ocupado = False
 
     def correr(self):
         self.ventana.after(200, self.empezar)
