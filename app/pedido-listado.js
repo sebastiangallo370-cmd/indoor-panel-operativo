@@ -569,6 +569,13 @@
     }
     const v = q('[data-volver]'); if (v) v.hidden = !(fin && !ok);
   }
+  function avisoProgramado(cod) {
+    const e = document.createElement('div'); e.setAttribute('role', 'status');
+    e.style.cssText = 'position:fixed;left:50%;top:22px;transform:translateX(-50%);z-index:2147483000;background:#d0f44c;color:#10200a;font:900 14px Arial;padding:14px 22px;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.45);transition:opacity .5s,transform .5s;max-width:92vw;text-align:center';
+    e.textContent = '✅ El pedido ' + cod + ' se programó correctamente';
+    document.body.appendChild(e);
+    setTimeout(() => { e.style.opacity = '0'; e.style.transform = 'translateX(-50%) translateY(-10px)'; }, 4500); setTimeout(() => e.remove(), 5200);
+  }
   async function seguir() {
     let fin = false;
     for (let k = 0; k < 700 && raiz && raiz.isConnected && L.pantalla === 'enviado'; k++) {   // hasta ~14 min: si el agente estaba cerrado, espera a que se abra
@@ -577,6 +584,11 @@
         const r = await fetch('/api/procesos', { credentials: 'same-origin' }); const lista = await r.json();
         if (L.job.agente && !['listo', 'error'].includes(L.job.agenteEstado)) {
           try { const a = await fetch('/api/agente-excel/trabajo/' + L.job.agente, { credentials: 'same-origin', cache: 'no-store' }).then(x => x.json()); if (a.estado && (a.estado !== L.job.agenteEstado || a.detalle !== L.job.agenteDetalle)) { L.job.agenteEstado = a.estado; L.job.agenteDetalle = a.detalle; if (raiz.isConnected && L.pantalla === 'enviado') pantallaEnviado(); } } catch (e) { /* se reintenta */ }
+        }
+        if (L.job.estado === 'COMPLETADO' && (!L.job.agente || L.job.agenteEstado === 'listo')) {   // todo salió bien: se cierra la ventana y se avisa
+          const cod = (L.doc.tipo === 'remision' ? 'RM' : 'CO') + L.doc.numero;
+          await new Promise(r => setTimeout(r, 1200));
+          avisoProgramado(cod); if (L.opts.onCerrar) L.opts.onCerrar(); return;
         }
         if (fin) { if (!L.job.agente || ['listo', 'error'].includes(L.job.agenteEstado)) return; continue; }
         const m = (lista || []).find(x => x.id === L.job.id); if (!m) continue;
