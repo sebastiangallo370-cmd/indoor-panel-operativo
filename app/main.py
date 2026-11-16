@@ -8309,6 +8309,11 @@ async def programar_pedido_effi(request: Request, usuario=Depends(authenticate))
     except ValueError:
         pdf_effi = None
     _registrar_post_orden(codigo_orden, pdf_effi=pdf_effi, pdf_hecho=False, maestros=maestros, maestros_hecho=False, agente_tid=agente or '', agente_liberado=False)
+    if agente:   # el Excel se empieza a llenar YA, a la vez que se crea la carpeta y se baja el PDF (todo en paralelo)
+        try:
+            agente_excel_mod.liberar(agente); _registrar_post_orden(codigo_orden, agente_liberado=True)
+        except Exception:   # noqa: BLE001
+            logging.getLogger(__name__).exception('No se pudo liberar el Excel de %s', codigo_orden)
     resultado = await upload_order(pdf=pdf, observaciones=arch['observaciones'], linea=arch['linea'], excel=excel, extras=extras,
                                    mockup_d1=None, mockup_d2=None, mockup_d3=None, mockup_d4=None, mockups_opcionales=True, _=usuario)
     threading.Thread(target=_vigilar_post_orden, args=(codigo_orden, int(resultado.get('id') or 0)), daemon=True).start()
