@@ -401,7 +401,8 @@
   function fechaDe(v) { const m = String(v || '').trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})|^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})/); if (!m) return null; return m[1] ? new Date(+m[1], m[2] - 1, +m[3]) : new Date(+(m[6].length === 2 ? '20' + m[6] : m[6]), m[5] - 1, +m[4]); }
   async function cargarProduccion() {
     try {
-      const d = await fetch('/api/produccion', { cache: 'no-cache', credentials: 'same-origin' }).then(r => r.json());
+      // se reutiliza la base de Producción que la página ya tiene cargada y se actualiza sola (no se vuelve a bajar entera cada vez: era lo más pesado)
+      const d = (typeof productionData !== 'undefined' && productionData && productionData.rows) ? productionData : await fetch('/api/produccion', { cache: 'no-cache', credentials: 'same-origin' }).then(r => r.json());
       const h = (d.headers || []).map(norm), col = n => h.indexOf(n);
       const iO = col('ORDEN') >= 0 ? col('ORDEN') : h.findIndex(x => x.includes('ORDEN')), iR = col('REFERENCIA'), iC = col('CANTIDAD'), iCl = col('NOMBRE DEL CLIENTE'), iP = col('NOMBRE PROYECTO'), iE = col('FECHA DE ENTREGA'), iT = h.findIndex(x => x === 'TELA' || x.startsWith('TELA'));
       const flow = typeof indoorProcessFlow !== 'undefined' ? indoorProcessFlow : [];
@@ -525,8 +526,8 @@
     });
     document.querySelectorAll('.tab[data-kind="club"]').forEach(tab => tab.addEventListener('click', () => cargar()));
     document.addEventListener('click', e => { if (e.target.closest('[data-pedido="nuevo"]')) abrirPedido(); if (e.target.closest('[data-agente-excel]')) abrirAgenteExcel(); });
-    setInterval(() => { if (!document.hidden && panel.classList.contains('active')) cargar(); }, 30000);
-    setInterval(() => { if (!document.hidden && panel.classList.contains('active')) cargarAgenteTop(); }, 8000);
+    setInterval(() => { if (!document.hidden && panel.classList.contains('active')) cargar(); }, 60000);
+    setInterval(() => { if (!document.hidden && panel.classList.contains('active')) cargarAgenteTop(); }, 15000);
   }
   // EMPEZAR PEDIDO: formulario igual al de «Crear cotización» de Effi (pedido-effi.js). Crea la cotización o la remisión de venta en Effi (solo si la cuenta Indoor Sport lo tiene ENCENDIDO).
   // ---- AGENTE EXCEL: descargar, instalar y vincular (una vez por computador). El agente llena el listado en el Excel del PC a la vista.
