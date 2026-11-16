@@ -305,9 +305,14 @@
 
   // ---------------------------------------------------------------- 3) listado
   function contador(g) { const n = filasDe(g.referencia).length; return '<span class="pl-cont ' + (n === g.cantidad ? 'ok' : '') + '" data-cont="' + esc(g.referencia) + '">' + n + ' / ' + g.cantidad + '</span>'; }
+  // la talla puede ser una que no está en la lista (5XL, 18, 3-4…): se escribe con «＋ OTRA TALLA…» y queda disponible para las demás filas
+  const limpiaTalla = v => String(v || '').toUpperCase().replace(/\s+/g, '').replace(/[^A-Z0-9/-]/g, '').slice(0, 10);
+  const tallasBase = () => [...(L.cat.tallas || TALLAS), ...(L.tallasExtra || [])];
+  const tallasConActual = actual => { const l = tallasBase(); if (actual && !l.includes(actual)) l.push(actual); return l; };
+  const aceptaTalla = v => { const t = limpiaTalla(v); if (!t) return ''; if (!tallasBase().includes(t)) (L.tallasExtra = L.tallasExtra || []).push(t); return t; };
   function filaHtml(f, i) {
     return '<tr data-i="' + i + '"><td class="n">' + (i + 1) + '</td><td><input data-c="nombre" value="' + esc(f.nombre) + '" placeholder="NOMBRE" autocomplete="off"></td>' +
-      '<td data-l="TALLA" style="width:96px"><select data-c="talla" class="' + (f.talla ? '' : 'bad') + '"><option value="">—</option>' + (L.cat.tallas || TALLAS).map(t => '<option' + (t === f.talla ? ' selected' : '') + '>' + esc(t) + '</option>').join('') + '</select></td>' +
+      '<td data-l="TALLA" style="width:96px"><select data-c="talla" class="' + (f.talla ? '' : 'bad') + '"><option value="">—</option>' + tallasConActual(f.talla).map(t => '<option' + (t === f.talla ? ' selected' : '') + '>' + esc(t) + '</option>').join('') + '<option value="__otra">＋ OTRA TALLA…</option></select></td>' +
       '<td data-l="NÚMERO" style="width:90px"><input data-c="numero" value="' + esc(f.numero) + '" placeholder="Nº" inputmode="numeric" autocomplete="off"></td>' +
       '<td data-l="DISEÑO" style="width:96px"><select data-c="diseno">' + Array.from({ length: L.disenos }, (_, k) => '<option value="' + (k + 1) + '"' + (k + 1 === Number(f.diseno) ? ' selected' : '') + '>D' + (k + 1) + '</option>').join('') + '</select></td>' +
       '<td data-l="GÉNERO" style="width:100px"><select data-c="genero"><option value="MASC"' + (f.genero === 'MASC' ? ' selected' : '') + '>MASC</option><option value="FEM"' + (f.genero === 'FEM' ? ' selected' : '') + '>FEM</option></select></td>' +
@@ -344,6 +349,11 @@
     tb.addEventListener('input', e => {   // sin redibujar la tabla: solo se actualiza la fila, el contador y el estado
       const tr = e.target.closest('tr'); if (!tr) return; const f = filas[Number(tr.dataset.i)], c = e.target.dataset.c; if (!f || !c) return;
       if (c === 'nombre' || c === 'observacion') { const pos = e.target.selectionStart; e.target.value = e.target.value.toUpperCase(); try { e.target.setSelectionRange(pos, pos); } catch (er) { /* sin cursor */ } }   // se ve y se guarda en mayúsculas, como en la plantilla
+      if (c === 'talla' && e.target.value === '__otra') {
+        const t = aceptaTalla(window.prompt('Escribe la talla que necesita el cliente (letras y números, ej. 5XL, 18, 3-4):') || '');
+        if (!t) { e.target.value = f.talla || ''; return; }
+        f.talla = t; guardarBorrador(); pantallaListado(); return;
+      }
       f[c] = e.target.value; if (c === 'diseno') f.diseno = Number(e.target.value);
       if (c === 'talla') e.target.classList.toggle('bad', !f.talla);
       guardarBorrador(); estadoListado();
@@ -365,7 +375,7 @@
   const COLS = ['nombre', 'talla', 'numero', 'diseno', 'genero', 'observacion'];   // mismo orden que la plantilla: NOMBRE · TALLA · NÚMERO · DISEÑO · GÉNERO · OBSERVACIÓN
   function valorCol(c, v) {
     v = String(v == null ? '' : v).trim();
-    if (c === 'talla') { const t = v.toUpperCase(); return (L.cat.tallas || TALLAS).includes(t) ? t : ''; }
+    if (c === 'talla') return aceptaTalla(v);
     if (c === 'diseno') { const d = v.match(/\d+/); return d && Number(d[0]) >= 1 && Number(d[0]) <= L.disenos ? Number(d[0]) : (L.defDiseno || 1); }
     if (c === 'genero') { const g = v.toUpperCase(); return /^F/.test(g) ? 'FEM' : /^M/.test(g) ? 'MASC' : (L.defGenero || 'MASC'); }
     return c === 'numero' ? v : v.toUpperCase();
@@ -389,7 +399,7 @@
       const c = (linea.includes('\t') ? linea.split('\t') : linea.split(';')).map(x => x.trim());
       if (/^nombre$/i.test(c[0]) && /^talla$/i.test(c[1] || '')) return;   // encabezado copiado
       const talla = String(c[1] || '').toUpperCase(), d = String(c[3] || '').match(/\d+/), g = String(c[4] || '').toUpperCase();
-      const nueva = { nombre: String(c[0] || '').toUpperCase(), talla: (L.cat.tallas || TALLAS).includes(talla) ? talla : '', numero: c[2] || '', diseno: d && Number(d[0]) >= 1 && Number(d[0]) <= L.disenos ? Number(d[0]) : (L.defDiseno || 1), genero: /^F/.test(g) ? 'FEM' : /^M/.test(g) ? 'MASC' : (L.defGenero || 'MASC'), observacion: String(c[5] || '').toUpperCase() };
+      const nueva = { nombre: String(c[0] || '').toUpperCase(), talla: aceptaTalla(talla), numero: c[2] || '', diseno: d && Number(d[0]) >= 1 && Number(d[0]) <= L.disenos ? Number(d[0]) : (L.defDiseno || 1), genero: /^F/.test(g) ? 'FEM' : /^M/.test(g) ? 'MASC' : (L.defGenero || 'MASC'), observacion: String(c[5] || '').toUpperCase() };
       const hueco = filas.findIndex(x => !x.nombre && !x.talla && !x.numero && !x.observacion);   // primero llena las filas en blanco y solo agrega si no quedan
       if (hueco >= 0) filas[hueco] = nueva; else filas.push(nueva);
       n++;
