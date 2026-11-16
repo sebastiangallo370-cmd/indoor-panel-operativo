@@ -796,8 +796,8 @@
       const column = Number(String(key).split(':')[1]);
       return mtsColi >= 0 && column === mtsColi + 1;
     };
-    const cardHtmls = rows.map(row => {
-      const summary = summaries.get(row.source_row), id = row.source_row;
+    const cardHtmlFor = (row, summaryOverride) => {
+      const summary = summaryOverride || summaries.get(row.source_row), id = row.source_row;
       const _rowNotes = Object.entries(productionData.notes || {}).filter(([key, value]) => key.startsWith(id + ':') && String(value || '').trim());
       const _reference = String(traceField(row, 'REFERENCIA') || '').trim().toUpperCase();
       const _mtsRaw = String(productionData.notes?.[id + ':17'] || '').trim();
@@ -825,7 +825,14 @@
       const dueLabel = !summary.due ? 'Sin fecha' : summary.overdue ? 'Atrasado' : summary.state !== 'finished' && summary.due.getTime() === scheduleToday().getTime() ? 'Entrega hoy' : 'Entrega';
       const hasRework = summary.groups.some(group => group.state === 'rework');
       return '<article class="trace-card state-' + summary.state + '" data-card-row="' + id + '"><div class="trace-media">' + traceAssetsMarkup(id) + '</div><div class="trace-card-body"><div class="trace-card-heading"><h3>' + esc(traceField(row, 'ORDEN') || 'Sin número') + '</h3><button type="button" class="trace-order-rework' + (hasRework ? ' has-rework' : '') + '" data-card-rework="' + esc(traceField(row, 'ORDEN')) + '" aria-label="Registrar reproceso de la orden ' + esc(traceField(row, 'ORDEN')) + '">REPROCESO</button><span class="trace-stage ' + summary.state + '">' + labels[summary.state] + '</span></div><p class="trace-client">' + esc(traceField(row, 'NOMBRE DEL CLIENTE') || 'Sin cliente') + '</p><p class="trace-project">' + esc(traceField(row, 'NOMBRE PROYECTO')) + '</p><div class="trace-mts-row' + (mtsV ? ' con-mts' : ' sin-mts') + '">' + ('<div class="trace-machine-top"><small>MÁQUINA DE IMPRESIÓN</small><button type="button" class="trace-machine-btn' + (traceField(row, 'MAQUINA DE IMPRESION').trim() ? ' has-value' : '') + '" data-card-machine="' + id + '" title="Máquina de impresión: clic para elegirla">' + esc(traceField(row, 'MAQUINA DE IMPRESION').trim() || 'Seleccionar') + '</button></div>') + '<button class="trace-mts-btn' + (mtsV ? ' has-value' : '') + '" type="button" data-card-mts="' + id + '"><span class="mts-label">Ingresar MTS REQUERIDOS</span></button><button class="trace-mts-inventory" type="button" data-card-inventory="' + id + '">STOCK TELA ↗</button><div class="trace-mts-display' + (mtsV ? ' has-value' : '') + (detalleMateriales.length ? ' multi-material' : '') + '"><small>MTS REQUERIDOS</small><strong>' + detalleMtsHtml + '</strong></div></div><dl><div><dt>Referencia</dt><dd class="trace-ref" title="' + esc(traceField(row, 'REFERENCIA') || '') + '">' + esc(traceField(row, 'REFERENCIA') || '—') + '</dd>' + telaMarkup(row) + '</div>' + '<div><dt>Cantidad</dt><dd class="trace-quantity">' + esc(traceField(row, 'CANTIDAD') || '0') + ' <small>und.</small></dd></div><div class="trace-due ' + (summary.overdue ? 'late' : '') + '"><dt>' + dueLabel + '</dt><dd>' + esc(summary.due ? displayProductionDate(due) : 'Sin programar') + diasParaEntrega(summary) + '</dd></div><div><dt>Responsable del proceso</dt><dd>' + (responsible ? responsible.split(/[,;·\n]+/).filter(x => x.trim()).map(name => '<span class="trace-person">' + esc(name.trim()) + '</span>').join(' ') : '<span class="trace-unassigned">Sin asignar</span>') + '</dd></div></dl><div class="trace-card-meta"><span>' + notes + ' nota' + (notes === 1 ? '' : 's') + '</span><span>Fila ' + id + '</span></div><div class="trace-card-actions"><button type="button" class="operator-open" data-card-full-edit="' + id + '">PRODUCCIÓN</button><button type="button" data-card-detail="' + id + '">Ver detalle</button><button type="button" data-card-nas="' + id + '" aria-label="Abrir carpeta del pedido">NAS ↗</button></div></div>' + routeMarkup(row, summary) + '</article>';
-    });
+    };
+    const cardHtmls = rows.map(row => cardHtmlFor(row));
+    // para reutilizar la MISMA tarjeta en otros lugares (PEDIDOS PROGRAMADOS de PROGRAMAR CLUB): devuelve su HTML a partir de la fila de Producción
+    window.traceCardHtml = sourceRow => {
+      const row = productionData && productionData.rows.find(r => Number(r.source_row) === Number(sourceRow)); if (!row) return '';
+      const completo = summarize(productionData, row, processStatusHeaders, user, scheduleToday());
+      return cardHtmlFor(row, summaryForView(completo, '', profile, user, scheduleToday(), isAdmin, false));
+    };
     // Sin parpadeo: solo se vuelven a dibujar las tarjetas que cambiaron; las demás se conservan tal cual (con su imagen y su scroll).
     // Mantiene la altura durante el redibujado: la página no se encoge ni vuelve al inicio
     traceCards.style.minHeight = traceCards.offsetHeight + 'px';

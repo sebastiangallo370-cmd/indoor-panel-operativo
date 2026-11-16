@@ -42,6 +42,7 @@
   .tc-fila strong{color:#f2f7ea}.tc-fila small{display:block;color:#a9b5a3;font-size:.74rem}
   .tc-acc{display:flex;gap:8px;flex-wrap:wrap}
   .panel[data-panel="club"]{position:relative}.tc-ag-top{display:inline-flex;align-items:center;padding:8px 14px;border-radius:99px;border:1px solid #3d4c3b;font:800 11px Arial;letter-spacing:.04em;white-space:nowrap;margin-right:8px;background:rgba(0,0,0,.25)}.tc-ag-top.ok{border-color:#6f9410;color:#9be37a}.tc-ag-top.mal{border-color:#ffb547;color:#ffb547}
+  .tc-progcards [data-card-delete]{display:none!important}.tc-prog-orden{display:flex;flex-direction:column;gap:8px;min-width:0}.tc-prog-barra{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:2px 4px}.tc-prog-barra small{font:600 11px Arial;color:#7f8c79}.tc-prog-btns{display:flex;gap:6px;flex-wrap:wrap}
   .tc-ptabs{display:inline-flex;margin:0 auto;border:1px solid #3d4c3b;border-radius:99px;overflow:hidden;background:rgba(0,0,0,.3)}.tc-ptabs button{all:unset;cursor:pointer;padding:9px 26px!important;color:#c9d3c1!important;background:transparent!important;border:0!important;box-shadow:none!important;min-height:0!important;width:auto!important;font:900 12px Arial!important;letter-spacing:.12em!important;transition:background .2s,color .2s}.tc-ptabs button:hover{color:#d0f44c!important}.tc-ptabs button.on{background:#d0f44c!important;color:#0d140e!important}@media(max-width:600px){.tc-ptabs button{padding:8px 14px;font-size:11px}}
   .tc .tc-aviso.tc-info{display:inline-flex!important;align-items:center;gap:8px;width:auto!important;padding:0!important;background:transparent!important;border:0!important;box-shadow:none!important;font-size:13px}
   @media (min-width:900px){.tc>*{width:calc(100vw - 64px)!important;max-width:none!important;box-sizing:border-box}}
@@ -250,6 +251,7 @@
     // Antes de redibujar guardamos el foco y la posición del cursor para no perder lo que se escribe.
     const act = document.activeElement, idAct = act && act.id, pos = act && act.selectionStart;
     panel.innerHTML = ultimo = html;
+    if (typeof loadTraceAssets === 'function') panel.querySelectorAll('.tc-progcards [data-card-row]').forEach(c => { try { loadTraceAssets(Number(c.dataset.cardRow)); } catch (er) { /* sin imagen */ } });
     const destino = idAct && panel.querySelector('#' + idAct);
     if (destino) { destino.focus(); if (pos != null && destino.setSelectionRange) destino.setSelectionRange(pos, pos); }
   }
@@ -299,9 +301,12 @@
   function copiarEstiloProduccion() {
     if (document.getElementById('tc-progcards-css')) return;
     const out = [];
+    const MODO = /(?:production-mode|trace-cards-mode)/; const aqui = sel => sel.replace(/body((?:\.[\w-]+)*\.(?:production-mode|trace-cards-mode)(?:\.[\w-]+)*)/g, '.tc-progcards');   // body.production-mode[.trace-cards-mode…] -> nuestro contenedor
     const recorrer = (reglas, envolver) => { for (const r of Array.from(reglas || [])) {
       if (r.cssRules && r.media) { recorrer(r.cssRules, x => envolver('@media ' + r.media.mediaText + '{' + x + '}')); continue; }
-      if (r.selectorText && r.selectorText.includes('body.production-mode')) out.push(envolver(r.cssText.split('body.production-mode').join('.tc-progcards')));
+      if (!r.selectorText || !r.style || !MODO.test(r.selectorText)) continue;
+      const partes = r.selectorText.split(',').map(x => x.trim()).filter(x => MODO.test(x) && /\.trace-/.test(x));   // solo los selectores de Producción (no se tocan los demás de la misma regla)
+      if (partes.length) out.push(envolver(partes.map(aqui).join(',') + '{' + r.style.cssText + '}'));
     } };
     for (const h of Array.from(document.styleSheets)) { try { recorrer(h.cssRules, x => x); } catch (e) { /* hoja de otro dominio */ } }
     const st = document.createElement('style'); st.id = 'tc-progcards-css';
@@ -312,27 +317,64 @@
       '.tc-progcards .tc-sig{display:flex;justify-content:space-between;font:700 11px Arial;color:#c9d3c1}.tc-progcards .tc-sig b{color:#d0f44c}';
     document.head.appendChild(st);
   }
+  function estiloTarjetas() {
+    if (document.getElementById('tp-css')) return;
+    const st = document.createElement('style'); st.id = 'tp-css';
+    st.textContent = `.tp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:18px;align-items:start}
+    .tp-card{display:flex;flex-direction:column;overflow:hidden;border:1px solid #35403a;border-radius:18px;background:linear-gradient(160deg,rgba(255,255,255,.06),rgba(0,0,0,.35));box-shadow:0 8px 24px rgba(0,0,0,.35);min-width:0}
+    .tp-card .tp-media{height:230px;background:#e9eeea;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;color:#52604f;font:700 12px Arial;text-align:center}
+    .tp-card .tp-media img{width:100%;height:100%;object-fit:contain}
+    .tp-cuerpo{padding:14px 16px 10px;display:grid;gap:8px}
+    .tp-cab{display:flex;justify-content:space-between;align-items:center;gap:8px}.tp-cab h3{margin:0;font:900 22px Arial;color:#f5faef;letter-spacing:.02em}
+    .tp-linea{padding:4px 12px;border-radius:99px;background:#b9d3f5;color:#16304f;font:700 9px Arial;letter-spacing:.08em}.tp-linea b{font-size:11px;margin-left:4px}
+    .tp-cliente{margin:0;font:900 13px Arial;color:#f0f3eb;text-transform:uppercase}.tp-proy{margin:0;font:700 12px Arial;color:#aab6a5}
+    .tp-estado{justify-self:start;padding:4px 12px;border-radius:99px;border:1px solid #4d5d4a;background:#243024;color:#c9d3c1;font:700 11px Arial}.tp-estado.active{border-color:#b98e3a;color:#f3d196;background:#3a2f18}.tp-estado.finished{border-color:#3d8a5f;color:#bce4c9;background:#1c3a2c}.tp-estado.late{border-color:#a04040;color:#ffb4b4;background:#3a1c1c}
+    .tp-dos{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .tp-caja{all:unset;box-sizing:border-box;cursor:pointer;display:grid;gap:3px;padding:9px 11px;border-radius:12px;border:1px dashed #4d5d4a;background:rgba(0,0,0,.25)}.tp-caja.con{border:1px solid #3d8a5f;background:rgba(61,138,95,.12)}
+    .tp-caja small{font:800 9px Arial;letter-spacing:.08em;color:#9caa95}.tp-caja b{font:800 12px Arial;color:#d0f44c}.tp-caja:hover{border-color:#d0f44c}
+    .tp-datos{display:flex;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid #35403a;border-radius:12px;background:rgba(0,0,0,.2)}.tp-datos small{display:block;font:800 9px Arial;letter-spacing:.1em;color:#9caa95;margin-top:4px}.tp-datos b{display:block;font:900 13px Arial;color:#ecf0e7}.tp-datos .tp-tela{color:#d0f44c;font-size:12px}.tp-cant{text-align:right}.tp-cant b{display:inline;font-size:22px}
+    .tp-entrega{display:flex;align-items:center;gap:8px}.tp-entrega small{font:800 10px Arial;letter-spacing:.1em;color:#9caa95}.tp-dias{padding:4px 14px;border-radius:99px;border:1px solid #d0f44c;background:rgba(208,244,76,.12);color:#d0f44c;font:900 12px Arial}.tp-dias.tarde{border-color:#ff8f8f;color:#ff8f8f;background:rgba(255,143,143,.1)}
+    .tp-acc{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:4px;padding-top:10px;border-top:1px solid rgba(255,255,255,.1)}
+    .tp-acc button{all:unset;box-sizing:border-box;cursor:pointer;text-align:center;padding:9px 0;border-radius:10px;border:1px solid #4d5d4a;font:700 15px Arial;color:#e6efdf;background:rgba(0,0,0,.25)}.tp-acc button:disabled{opacity:.4;cursor:default}
+    .tp-b-nas{border-color:#3d8a5f!important;background:rgba(61,138,95,.15)!important}.tp-b-edit{border-color:#3d6a9a!important;background:rgba(61,106,154,.15)!important}.tp-b-del{border-color:#a04040!important;background:rgba(160,64,64,.15)!important;color:#ffb4b4!important}
+    .tp-extra{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}.tp-extra small{font:600 10px Arial;color:#7f8c79}.tp-link{all:unset;cursor:pointer;font:800 10px Arial;letter-spacing:.08em;color:#d0f44c;padding:3px 8px;border:1px solid #4d5d4a;border-radius:99px}
+    .tp-ruta{padding:0 16px 14px;display:grid;gap:6px}.tp-puntos{display:flex;justify-content:space-between;gap:3px}.tp-puntos i{all:unset;display:grid;place-items:center;flex:1;max-width:22px;height:18px;border-radius:50%;background:#2a332c;color:#c9d3c1;font:900 9px Arial;border:1px solid #3d4c3b}.tp-puntos i.finished{background:#3d8a5f;color:#fff;border-color:#3d8a5f}.tp-puntos i.active{background:#b98e3a;color:#1a1a1a;border-color:#b98e3a}.tp-puntos i.rework{background:#a04040;color:#fff}
+    .tp-sig{display:flex;justify-content:space-between;font:700 11px Arial;color:#c9d3c1}.tp-sig b{color:#d0f44c}.tp-barra{height:5px;border-radius:99px;background:rgba(255,255,255,.1);overflow:hidden}.tp-barra span{display:block;height:100%;background:#9be37a;border-radius:inherit}`;
+    document.head.appendChild(st);
+  }
+  // La tarjeta de un pedido programado: el MISMO diseño de la tarjeta de Producción (mockup, orden y línea, cliente, proyecto, estado, MTS, máquina,
+  // referencia, tela, cantidad, entrega, ruta de procesos) y sus mismos botones (los atributos data-card-* los atiende el código de Producción)
+  function tarjetaPrograma(x) {
+    const o = produccion[x.codigo] || null, ids = o && o.filas && o.filas.length ? o.filas : [0];
+    return ids.map((id, k) => {
+      const f = (o && o.info && o.info[id]) || {};
+      const estado = x.estado === 'ERROR' || x.estado === 'REVISAR' ? ['late', 'Error al programar'] : !o ? ['late', x.estado === 'COMPLETADO' ? 'No está en Producción' : 'Programando…'] : o.percent >= 100 ? ['finished', 'Terminado'] : o.focus ? [o.focus.state === 'active' ? 'active' : 'pending', (o.focus.state === 'active' ? 'En ' : 'Pendiente - ') + o.focus.label] : ['pending', 'Programado'];
+      const dias = o && o.entrega ? Math.round((o.entrega - new Date().setHours(0, 0, 0, 0)) / 864e5) : null;
+      const mts = /MTS/i.test(f.mts || '') ? f.mts.split(/\n|<br>/)[0].trim() : '';
+      const ruta = o ? '<div class="tp-ruta"><div class="tp-puntos">' + o.states.map((st, n) => '<i class="' + st.state + '" title="' + esc(st.label) + '">' + (st.state === 'finished' ? '✓' : n + 1) + '</i>').join('') + '</div><div class="tp-sig"><span>' + esc(o.focus ? 'Siguiente: ' + o.focus.label : 'Ruta completada') + '</span><b>' + o.percent + '% COMPLETADO</b></div><div class="tp-barra"><span style="width:' + o.percent + '%"></span></div></div>' : '';
+      const nasId = id ? ' data-card-nas="' + id + '"' : ' disabled', editId = id ? ' data-card-full-edit="' + id + '"' : ' disabled';
+      return '<article class="tp-card state-' + estado[0] + '"' + (id ? ' data-card-row="' + id + '"' : '') + '>' +
+        '<div class="trace-media tp-media">' + (id && typeof traceAssetsMarkup === 'function' ? traceAssetsMarkup(id) : '<span>Sin diseño</span>') + '</div>' +
+        '<div class="tp-cuerpo"><div class="tp-cab"><h3>' + esc(x.codigo) + '</h3>' + (f.linea ? '<span class="tp-linea">LÍNEA <b>' + esc(f.linea) + '</b></span>' : '') + '</div>' +
+        '<p class="tp-cliente">' + esc((o && o.cliente) || x.cliente || 'Sin cliente') + '</p><p class="tp-proy">' + esc((o && o.proyecto) || x.proyecto || '') + '</p>' +
+        '<span class="tp-estado ' + estado[0] + '">' + esc(estado[1]) + '</span>' +
+        '<div class="tp-dos"><button type="button" class="tp-caja' + (mts ? ' con' : '') + '"' + (id ? ' data-card-mts="' + id + '"' : ' disabled') + '><small>MTS REQUERIDOS</small><b>' + esc(mts || 'Ingresar MTS REQUERIDOS') + '</b></button>' +
+        '<button type="button" class="tp-caja"' + (id ? ' data-card-machine="' + id + '"' : ' disabled') + '><small>MÁQUINA DE IMPRESIÓN</small><b>' + esc(f.maq || 'Seleccionar') + '</b></button></div>' +
+        '<div class="tp-datos"><div><small>REFERENCIA</small><b>' + esc(f.ref || (x.referencias || []).join(', ') || '—') + '</b>' + (f.tela ? '<small>TELA</small><b class="tp-tela">' + esc(f.tela) + '</b>' : '') + '</div>' +
+        '<div class="tp-cant"><small>CANTIDAD</small><b>' + (f.units != null ? f.units : (x.prendas || 0)) + '</b> <small>und.</small></div></div>' +
+        '<div class="tp-entrega"><small>ENTREGA :</small>' + (dias == null ? '<b>—</b>' : '<span class="tp-dias' + (dias < 0 ? ' tarde' : '') + '">' + (dias < 0 ? 'Atrasado ' + (-dias) + ' días' : dias === 0 ? 'Hoy' : dias + ' Días') + '</span>') + '</div>' +
+        '<div class="tp-acc"><button type="button" class="tp-b-nas" title="Abrir la carpeta de la orden en la NAS"' + nasId + '>📁</button><button type="button" class="tp-b-edit" title="Editar / ver en Producción"' + editId + '>✎</button><button type="button" class="tp-b-del" title="Eliminar la orden de todo el panel y la NAS" data-quitar-prog="' + esc(x.codigo) + '">🗑</button></div>' +
+        (k === 0 ? '<div class="tp-extra"><small>Programó ' + esc(x.usuario || '—') + ' · ' + esc(String(x.fecha || '').replace('T', ' ').slice(0, 16)) + '</small>' + (x.excel ? '<a class="tp-link" href="' + esc(x.excel) + '" title="Descargar el listado">⬇ EXCEL</a>' : '') + '<button type="button" class="tp-link" data-abrir-excel="' + esc(x.codigo) + '">ABRIR EN EXCEL</button></div>' : '') +
+        '</div>' + ruta + '</article>';
+    }).join('');
+  }
   function htmlProgramados() {
     const q = busqueda.trim().toLowerCase();
     const lista = programados.filter(x => !q || (x.codigo + ' ' + x.cliente + ' ' + x.proyecto).toLowerCase().includes(q));
     if (!lista.length) return '';
-    copiarEstiloProduccion();
-    return '<h3 style="margin:18px 0 10px;font:900 12px Arial;letter-spacing:.14em;color:#d0f44c">PEDIDOS PROGRAMADOS <em class="tc-n">' + lista.length + '</em></h3><div class="tc-progcards"><div class="trace-cards">' +
-      lista.slice(0, 60).map(x => {
-        const o = produccion[x.codigo] || null;
-        const e = x.estado === 'ERROR' || x.estado === 'REVISAR' ? ['late', 'Error al programar'] : !o ? ['late', x.estado === 'COMPLETADO' ? 'No está en Producción' : 'Programando…'] : o.percent >= 100 ? ['finished', 'Terminado'] : o.focus ? [o.focus.state === 'active' ? 'active' : 'pending', (o.focus.state === 'active' ? 'En ' : 'Pendiente - ') + o.focus.label] : ['pending', 'Programado'];
-        const dias = o && o.entrega ? Math.round((o.entrega - new Date().setHours(0, 0, 0, 0)) / 864e5) : null;
-        return '<article class="trace-card state-' + e[0] + '"><div class="trace-media"><span class="tc-disenio">DISEÑO 1</span><img loading="lazy" alt="Mockup ' + esc(x.codigo) + '" src="/api/pedido-effi/programados/' + encodeURIComponent(x.codigo) + '/mockup" onerror="this.replaceWith(Object.assign(document.createElement(\'span\'),{textContent:\'Sin mockup\'}))"></div>' +
-          '<div class="trace-card-body"><div class="trace-card-heading"><h3>' + esc(o && o.orden || x.codigo) + '</h3></div>' +
-          '<p class="trace-client">' + esc((o && o.cliente) || x.cliente || 'Sin cliente') + '</p><p class="trace-project">' + esc((o && o.proyecto) || x.proyecto || '') + '</p>' +
-          '<span class="trace-stage ' + e[0] + '">' + esc(e[1]) + '</span>' +
-          '<div class="tc-caja"><div style="display:flex;justify-content:space-between;gap:10px"><div><small>REFERENCIA</small><b>' + esc((o ? o.refs : x.referencias || []).join(', ') || '—') + '</b>' + (o && o.tela ? '<small style="margin-top:6px">TELA</small><b class="tc-tela">' + esc(o.tela) + '</b>' : '') + '</div>' +
-          '<div style="text-align:right"><small>CANTIDAD</small><b style="font-size:20px">' + (o ? o.units : x.prendas || 0) + '</b> <small style="display:inline">und.</small></div></div>' +
-          '<small style="margin-top:8px">ENTREGA</small>' + (dias == null ? '<b>—</b>' : '<span class="tc-dias' + (dias < 0 ? ' tarde' : '') + '">' + (dias < 0 ? 'Atrasado ' + (-dias) + ' días' : dias === 0 ? 'Hoy' : dias + ' Días') + '</span>') + '</div>' +
-          '<div class="trace-card-actions">' + (x.excel ? '<a class="tc-btn tc-b-line" href="' + esc(x.excel) + '" title="Descargar el listado">⬇ EXCEL</a>' : '') + '<button type="button" class="operator-open" data-abrir-excel="' + esc(x.codigo) + '">ABRIR EN EXCEL</button><button type="button" data-quitar-prog="' + esc(x.codigo) + '" style="border-color:#7a3a3a;color:#ffb4b4">🗑 ELIMINAR</button></div>' +
-          (o ? '<div class="tc-ruta">' + o.states.map(s => '<i class="' + s.state + '" title="' + esc(s.label) + '"></i>').join('') + '</div><div class="tc-sig"><span>' + esc(o.focus ? 'Siguiente: ' + o.focus.label : 'Ruta completada') + '</span><b>' + o.percent + '% COMPLETADO</b></div>' : '') +
-          '<div style="font:600 11px Arial;color:#7f8c79;margin-top:6px">Programó ' + esc(x.usuario || '—') + ' · ' + esc(String(x.fecha || '').replace('T', ' ').slice(0, 16)) + '</div></div></article>';
-      }).join('') + '</div></div>';
+    estiloTarjetas();
+    return '<h3 style="margin:18px 0 10px;font:900 12px Arial;letter-spacing:.14em;color:#d0f44c">PEDIDOS PROGRAMADOS <em class="tc-n">' + lista.length + '</em></h3><div class="tc-progcards"><div class="tp-grid">' +
+      lista.slice(0, 60).map(x => tarjetaPrograma(x)).join('') + '</div></div>';
   }
   function fechaDe(v) { const m = String(v || '').trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})|^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})/); if (!m) return null; return m[1] ? new Date(+m[1], m[2] - 1, +m[3]) : new Date(+(m[6].length === 2 ? '20' + m[6] : m[6]), m[5] - 1, +m[4]); }
   async function cargarProduccion() {
@@ -347,7 +389,7 @@
         const v = r.values || r, orden = String(v[iO] || '').trim(); if (!orden) return;
         (orden.toUpperCase().match(/\b(?:CO|RM)\d+\b/g) || []).forEach(cod => {
           const o = out[cod] = out[cod] || { orden, filas: [], cliente: v[iCl], proyecto: v[iP], refs: [], units: 0, tela: v[iT] || '', entrega: fechaDe(v[iE]), cells: procs.map(() => []) };
-          o.filas.push(r.source_row); if (v[iR]) o.refs.push(String(v[iR]).trim()); o.units += Number(String(v[iC] || '0').replace(/[^0-9.-]/g, '')) || 0;
+          o.filas.push(r.source_row); (o.info = o.info || {})[r.source_row] = { ref: String(v[iR] || '').trim(), units: Number(String(v[iC] || '0').replace(/[^0-9.-]/g, '')) || 0, linea: String(v[h.indexOf('LINEA')] || '').trim(), maq: String(v[h.indexOf('MAQUINA DE IMPRESION')] || '').trim(), tela: String(v[iT] || '').trim(), mts: String((d.notes || {})[r.source_row + ':17'] || '').trim() }; if (v[iR]) o.refs.push(String(v[iR]).trim()); o.units += Number(String(v[iC] || '0').replace(/[^0-9.-]/g, '')) || 0;
           procs.forEach((p, k) => p.cols.forEach(c => o.cells[k].push(norm(v[c]))));
         });
       });
@@ -359,6 +401,10 @@
         delete o.cells;
       });
       produccion = out;
+      if (!window.traceCardHtml && typeof loadProduction === 'function' && !cargarProduccion._intento) {   // si Producción aún no se ha abierto, se carga su base para poder dibujar LA MISMA tarjeta
+        cargarProduccion._intento = true;
+        try { if (typeof productionData === 'undefined' || !productionData) await loadProduction(); else if (typeof renderProduction === 'function') renderProduction(); if (typeof renderTraceCards === 'function') renderTraceCards(); } catch (er) { /* se queda con la tarjeta simple */ }
+      }
     } catch (e) { /* sin Producción: la tarjeta usa lo guardado al programar */ }
   }
   function pedirClave(titulo, texto) {   // contraseña en un cuadro propio (nunca en un prompt() que la muestra)
