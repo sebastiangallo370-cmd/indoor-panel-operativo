@@ -4939,6 +4939,39 @@ def _orden_programada_en_panel(codigo: str) -> bool:
         return False
 
 
+def _borrar_carpeta_orden(carpeta) -> None:
+    """Borra la carpeta de la orden archivo por archivo, reintentando los que la NAS no suelta al primer intento (un archivo abierto en otro equipo, de solo lectura...).
+    Si alguno no se puede borrar, lanza OSError diciendo CUÁL y por qué (antes solo salía un aviso genérico)."""
+    fallos = []
+    for parent, dirs_, files_ in os.walk(carpeta, topdown=False, followlinks=False):
+        for nombre in files_:
+            ruta = Path(parent) / nombre
+            for intento in range(4):
+                try:
+                    try:
+                        os.chmod(ruta, 0o666)   # quita «solo lectura»
+                    except OSError:
+                        pass
+                    ruta.unlink()
+                    break
+                except FileNotFoundError:
+                    break
+                except OSError as exc:
+                    if intento == 3:
+                        fallos.append(f'{nombre}: {exc.strerror or exc}')
+                    else:
+                        time.sleep(0.6)
+        try:
+            Path(parent).rmdir()
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            if not fallos:
+                fallos.append(f'carpeta {Path(parent).name}: {exc.strerror or exc}')
+    if fallos:
+        raise OSError('No se pudo borrar: ' + ' · '.join(fallos[:3]) + (f' (+{len(fallos) - 3} más)' if len(fallos) > 3 else '') + '. Si está abierto en otro equipo (por ejemplo el PDF o el Excel), ciérralo y vuelve a eliminar.')
+
+
 _REVISION_CARPETA: dict = {}   # carpeta -> cuándo se revisó por última vez que no tiene enlaces ni montajes (la NAS es lenta: no se repite la revisión a cada paso)
 
 
@@ -5113,7 +5146,7 @@ def delete_production_row(row: int, payload: dict = Body(...), _=Depends(authent
         verified_record, verified, verified_order, verified_relative, verified_fingerprint = production_delete_target(db,row,_,fresco=True)
         if verified!=target or verified_fingerprint!=fingerprint:
             raise HTTPException(409, 'La orden cambió durante la operación. No se eliminó nada.')
-        shutil.rmtree(verified)
+        _borrar_carpeta_orden(verified)
         db.execute('CREATE TABLE IF NOT EXISTS production_deleted_rows (id INTEGER PRIMARY KEY AUTOINCREMENT, source_row INTEGER, payload TEXT, deleted_by TEXT, deleted_at TEXT)')
         db.execute('INSERT INTO production_deleted_rows(source_row,payload,deleted_by,deleted_at) VALUES (?,?,?,?)',
                    (row, json.dumps(dict(record), ensure_ascii=False), _, datetime.now(timezone.utc).isoformat()))
@@ -5129,7 +5162,7 @@ def delete_production_row(row: int, payload: dict = Body(...), _=Depends(authent
     except OSError as error:
         db.rollback()
         logging.exception('No se completó la eliminación NAS de fila %s', row)
-        raise HTTPException(503, 'No se completó la eliminación del NAS. La tarjeta se conserva; si comenzó el borrado, hay un respaldo en el servidor para recuperación.') from error
+        raise HTTPException(503, 'No se completó la eliminación del NAS. ' + (str(error)[:380] if str(error).startswith('No se pudo borrar') else 'Detalle: ' + (str(error)[:200] or type(error).__name__) + '. La tarjeta se conserva; si comenzó el borrado, hay un respaldo en el servidor para recuperación.')) from error
     except Exception:
         db.rollback()
         raise

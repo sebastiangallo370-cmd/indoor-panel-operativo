@@ -38,5 +38,35 @@ class RevisionCarpeta(unittest.TestCase):
             main._revisar_carpeta_sin_enlaces(self.c)
 
 
+class BorradoCarpeta(unittest.TestCase):
+    def setUp(self):
+        self.c = Path(tempfile.mkdtemp()) / 'CO2_X'
+        (self.c / 'APLIQUE').mkdir(parents=True)
+        (self.c / 'a.pdf').write_bytes(b'x')
+        (self.c / 'APLIQUE' / 'b.txt').write_text('x')
+
+    def test_borra_todo(self):
+        main._borrar_carpeta_orden(self.c)
+        self.assertFalse(self.c.exists())
+
+    def test_archivo_solo_lectura_se_borra(self):
+        os.chmod(self.c / 'a.pdf', 0o444)
+        main._borrar_carpeta_orden(self.c)
+        self.assertFalse(self.c.exists())
+
+    def test_archivo_ocupado_dice_cual_es(self):
+        from unittest import mock
+        orig = Path.unlink
+        def ocupado(self_, *a, **k):
+            if self_.name == 'a.pdf':
+                raise PermissionError(13, 'El proceso no tiene acceso al archivo porque está siendo utilizado por otro proceso')
+            return orig(self_, *a, **k)
+        with mock.patch.object(Path, 'unlink', ocupado), mock.patch('time.sleep', lambda *_: None):
+            with self.assertRaises(OSError) as e:
+                main._borrar_carpeta_orden(self.c)
+        self.assertIn('a.pdf', str(e.exception))
+        self.assertIn('ciérralo', str(e.exception))
+
+
 if __name__ == '__main__':
     unittest.main()
