@@ -312,7 +312,7 @@
   const aceptaTalla = v => { const t = limpiaTalla(v); if (!t) return ''; if (!tallasBase().includes(t)) (L.tallasExtra = L.tallasExtra || []).push(t); return t; };
   function filaHtml(f, i) {
     return '<tr data-i="' + i + '"><td class="n">' + (i + 1) + '</td><td><input data-c="nombre" value="' + esc(f.nombre) + '" placeholder="NOMBRE" autocomplete="off"></td>' +
-      '<td data-l="TALLA" style="width:96px"><select data-c="talla" class="' + (f.talla ? '' : 'bad') + '"><option value="">—</option>' + tallasConActual(f.talla).map(t => '<option' + (t === f.talla ? ' selected' : '') + '>' + esc(t) + '</option>').join('') + '<option value="__otra">＋ OTRA TALLA…</option></select></td>' +
+      '<td data-l="TALLA" style="width:96px"><select data-c="talla" class="' + (f.talla ? '' : 'bad') + '"><option value="">—</option>' + tallasConActual(f.talla).map(t => '<option' + (t === f.talla ? ' selected' : '') + '>' + esc(t) + '</option>').join('') + '<option value="__otra" title="Agregar otra talla">+</option></select></td>' +
       '<td data-l="NÚMERO" style="width:90px"><input data-c="numero" value="' + esc(f.numero) + '" placeholder="Nº" inputmode="numeric" autocomplete="off"></td>' +
       '<td data-l="DISEÑO" style="width:96px"><select data-c="diseno">' + Array.from({ length: L.disenos }, (_, k) => '<option value="' + (k + 1) + '"' + (k + 1 === Number(f.diseno) ? ' selected' : '') + '>D' + (k + 1) + '</option>').join('') + '</select></td>' +
       '<td data-l="GÉNERO" style="width:100px"><select data-c="genero"><option value="MASC"' + (f.genero === 'MASC' ? ' selected' : '') + '>MASC</option><option value="FEM"' + (f.genero === 'FEM' ? ' selected' : '') + '>FEM</option></select></td>' +
