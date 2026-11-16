@@ -650,6 +650,20 @@ def mockups(request: Request, cliente: str = '', proyecto: str = '', ref: str = 
     return mockups_de(cliente, proyecto, ref)
 
 
+def ruta_mockup(cliente: str, proyecto: str, carpeta: str, archivo: str) -> Path:
+    """Ruta (validada) de un mockup dentro de MAESTROS: para copiarlo idéntico a la carpeta de la orden."""
+    if any(x in (carpeta + archivo) for x in ('/', '\\', '..')) or Path(archivo).suffix.lower() not in EXT_IMAGEN:
+        raise ValueError('Archivo no válido')
+    ubicado = _dir_proyecto(cliente, proyecto)
+    if ubicado is None:
+        raise FileNotFoundError('No existe ese proyecto')
+    ruta = ubicado[0] / carpeta / archivo
+    ruta.resolve().relative_to(ubicado[0].resolve())
+    if not ruta.is_file():
+        raise FileNotFoundError('No existe esa imagen')
+    return ruta
+
+
 @router.get('/mockup-img')
 def mockup_img(request: Request, cliente: str = '', proyecto: str = '', carpeta: str = '', archivo: str = ''):
     from fastapi.responses import FileResponse

@@ -111,3 +111,24 @@ class AgenteViejo(Trabajo):
             t = ax.ver_trabajo(mock.Mock(), tid)
         self.assertEqual(t['estado'], 'error')
         self.assertIn('desactualizado', t['detalle'])
+
+
+class ExcelFinal(Base):
+    def test_el_excel_que_llena_el_agente_se_recibe_y_se_avisa_al_servidor(self):
+        import asyncio
+        token = self.vincular()
+        recibido = []
+        ax.configurar(lambda r: 'ANA', lambda codigo, nombre, ruta: recibido.append((codigo, nombre, Path(ruta).read_bytes()[:2])))
+        tid = ax.encolar.__globals__['secrets'].token_hex(8)
+        with ax._lock:
+            d = ax._leer(); d['trabajos'][tid] = {'usuario': 'ANA', 'nombre': 'CO6385_UNIFORMES 2027.xlsm', 'estado': 'llenando', 'detalle': '', 'creado': 0, 'base': 'base.xlsm', 'celdas': 1}; ax._guardar(d)
+        class Req:
+            headers = {'authorization': 'Bearer ' + token}
+            async def body(self): return b'PK\x03\x04contenido'
+        r = asyncio.run(ax.recibir_final(Req(), tid))
+        self.assertTrue(r['ok'])
+        self.assertEqual(recibido, [('CO6385', 'CO6385_UNIFORMES 2027.xlsm', b'PK')])
+        class Malo(Req):
+            async def body(self): return b'no es un excel'
+        with self.assertRaises(HTTPException):
+            asyncio.run(ax.recibir_final(Malo(), tid))

@@ -434,7 +434,7 @@
     const listado = {}; grupos().forEach(g => { listado[g.referencia] = filasDe(g.referencia).map(x => ({ nombre: x.nombre, talla: x.talla, numero: x.numero, diseno: Number(x.diseno), genero: x.genero, observacion: x.observacion })); });
     const doc = Object.assign({}, L.doc, { proyecto: L.proyecto.trim(), disenos: L.disenos });
     const fd = new FormData(); fd.append('payload', JSON.stringify({ doc, listado, linea: L.linea, observaciones: L.observaciones }));
-    grupos().forEach(g => { for (let n = 1; n <= L.disenos; n++) { const img = imagenDe(L.compartir ? '*' : g.referencia, n); if (img) fd.append('mockup:' + g.referencia + ':' + n, img, img.name); } });
+    grupos().forEach(g => { for (let n = 1; n <= L.disenos; n++) { const img = imagenDe(L.compartir ? '*' : g.referencia, n); if (img) { fd.append('mockup:' + g.referencia + ':' + n, img, img.name); const mm = (L.mkMaestro || {})[g.referencia + '|' + n]; if (mm) fd.append('maestro:' + g.referencia + ':' + n, JSON.stringify(mm)); } } });   // los de MAESTROS también van con su origen: en la NAS se copian idénticos
     // al pulsar PROGRAMAR PEDIDO el trabajo empieza YA y se ve en pantalla: el listado de Excel que se está creando y cómo avanza cada paso
     L.xlCargado = false; L.xlVista = null;
     L.pantalla = 'enviado'; L.job = { id: 0, estado: 'ENVIANDO', progreso: 3, detail: 'Creando el listado de Excel con la plantilla de Indoor…', excel: '', insertados: null }; dibujar();
@@ -586,7 +586,8 @@
       const m = pr.mockups || {}, refs = Object.keys(m);
       if (refs.length) { L.compartir = false; L.disenos = Math.min(MAX_DISENOS, Math.max(L.disenos || 1, ...refs.map(r => m[r].length))); }
       L.pantalla = 'listado'; L.abierta = grupos()[0].referencia;
-      L.mkEsperados = refs.flatMap(ref => m[ref].map((u, i) => [ref, i + 1])); L.mkCarga = [];
+      L.mkEsperados = refs.flatMap(ref => m[ref].map((u, i) => [ref, i + 1])); L.mkCarga = []; L.mkMaestro = {};
+      refs.forEach(ref => m[ref].forEach((u, i) => { if (typeof u === 'string') { try { const q = Object.fromEntries(new URL(u, location.origin).searchParams); if (q.cliente && q.proyecto && q.carpeta && q.archivo) L.mkMaestro[ref + '|' + (i + 1)] = q; } catch (e) { /* sin datos de MAESTROS */ } } }));
       refs.forEach(ref => m[ref].forEach((url, i) => L.mkCarga.push((async () => {
         try {
           const b = typeof url === 'string' ? await fetch(url, { credentials: 'same-origin' }).then(x => { if (!x.ok) throw new Error(); return x.blob(); }) : url;   // una URL de la NAS o un archivo que subió el comercial

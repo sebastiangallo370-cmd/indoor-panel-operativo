@@ -24,7 +24,7 @@ import urllib.request
 from pathlib import Path
 from tkinter import messagebox, simpledialog
 
-VERSION = '1.1.0'
+VERSION = '1.1.1'
 URL = os.getenv('AGENTE_EXCEL_URL', 'https://produccion.cloud').rstrip('/')
 CONFIG = Path.home() / '.agente_excel_indoor.json'
 SALIDA = Path.home() / 'Documents' / 'Indoor Pedidos'
@@ -372,6 +372,14 @@ def llenar(trabajo: dict, token: str, aviso) -> str:
     return str(destino) + f' · verificado ✓ ({total} celdas' + (f', {corregidas} corregidas' if corregidas else '') + ')'
 
 
+def subir_final(ruta: str, tid: str, token: str) -> None:
+    """Sube al panel el Excel terminado: ese es el que queda en la carpeta de la orden en la NAS."""
+    datos = Path(ruta).read_bytes()
+    req = urllib.request.Request(URL + '/api/agente-excel/pc/final/' + tid, data=datos, method='POST',
+                                 headers={'Content-Type': 'application/octet-stream', 'User-Agent': f'AgenteExcelIndoor/{VERSION}', 'Authorization': 'Bearer ' + token})
+    urllib.request.urlopen(req, timeout=120).read()
+
+
 # ---------------------------------------------------------------- ventana
 class Agente:
     def __init__(self):
@@ -451,6 +459,11 @@ class Agente:
                     pass
         try:
             ruta = llenar(t, self.config['token'], aviso)
+            try:
+                subir_final(ruta.split(' · ')[0], tid, self.config['token'])
+                ruta += ' · guardado también en la carpeta de la orden (NAS)'
+            except Exception as e:  # noqa: BLE001 - el Excel local ya está listo; si no sube, queda el que armó el servidor
+                ruta += f' · no pude subirlo a la NAS ({str(e)[:60]})'
             self.resultados.append({'id': tid, 'estado': 'listo', 'detalle': 'Listo en tu computador: ' + ruta})
             self.poner('Listo ✓ ' + Path(ruta).name)
         except Exception as e:  # noqa: BLE001

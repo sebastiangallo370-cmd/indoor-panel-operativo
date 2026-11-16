@@ -41,9 +41,14 @@ _lock = threading.Lock()
 _auth: Callable = lambda request: ''
 
 
-def configurar(auth: Callable) -> None:
-    global _auth
+_al_final: Callable = lambda codigo, nombre, ruta: None
+
+
+def configurar(auth: Callable, al_final: Callable | None = None) -> None:
+    global _auth, _al_final
     _auth = auth
+    if al_final:
+        _al_final = al_final
 
 
 def _usuario(request: Request) -> str:
@@ -270,6 +275,25 @@ def sondeo(request: Request, payload: dict):
                     break
         _guardar(d)
     return {'trabajos': trabajos, 'usuario': e['usuario']}
+
+
+@pc_router.post('/final/{tid}')
+async def recibir_final(request: Request, tid: str):
+    """El agente terminó de llenar el Excel en el PC del comercial y lo sube: ese es el listado que queda en la carpeta de la orden en la NAS."""
+    h, e = _equipo(request)
+    d = _leer(); t = d['trabajos'].get(tid)
+    if not t or t['usuario'] != e['usuario']:
+        raise HTTPException(404, 'No existe ese trabajo')
+    cuerpo = await request.body()
+    if not cuerpo or len(cuerpo) > 30 * 1024 * 1024 or cuerpo[:2] != b'PK':
+        raise HTTPException(400, 'Archivo no válido')
+    sufijo = Path(t['nombre']).suffix.lower() if Path(t['nombre']).suffix.lower() in ('.xlsx', '.xlsm') else '.xlsm'
+    ruta = CARPETA / tid / ('final' + sufijo)
+    ruta.parent.mkdir(parents=True, exist_ok=True); ruta.write_bytes(cuerpo)
+    m = re.match(r'(CO|RM)\d+', str(t['nombre']), re.I)
+    if m:
+        _al_final(m.group(0).upper(), str(t['nombre']), ruta)
+    return {'ok': True, 'bytes': len(cuerpo)}
 
 
 @pc_router.get('/archivo/{tid}/{nombre}')
