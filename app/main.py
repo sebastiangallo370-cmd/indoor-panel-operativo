@@ -8483,6 +8483,8 @@ def pedido_pdf_estado(codigo: str, usuario=Depends(authenticate)):
     if d.get('pdf_hecho'):
         return {'hecho': True, 'estado': 'listo', 'detalle': 'El PDF de Effi ya está en la carpeta de la orden'}
     if effitron_mod.pdf_cotizacion_bytes(cot):
+        if d.get('pdf_error'):
+            return {'hecho': False, 'estado': 'error', 'detalle': 'El PDF de Effi llegó pero NO se pudo copiar a la carpeta de la NAS: ' + str(d['pdf_error'])}
         return {'hecho': False, 'estado': 'copiando', 'detalle': 'El PDF de Effi llegó al servidor; se está copiando a la NAS'}
     info = effitron_mod._pdf_pendientes.get(cot) or {}
     if not ag.get('conectado'):
@@ -8595,19 +8597,44 @@ def _aplicar_post_orden(codigo: str, diag: list | None = None) -> bool:
         datos = effitron_mod.pdf_cotizacion_bytes(int(d['pdf_effi']))
         if datos:
             propios = [p for p in carpeta.glob('*.pdf') if p.stem.upper().startswith(codigo.upper())]
-            destino = propios[0] if propios else carpeta / f'{codigo}.pdf'
-            try:
-                destino.write_bytes(datos); d['pdf_hecho'] = True; d['pdf_ok_desde'] = time.time(); _guardar_post_orden()
+            destino = carpeta / f'{codigo}.pdf'
+            fallos = []
+            for viejo in propios:   # primero se quita el PDF que armó el panel (si el archivo está ocupado o es de solo lectura, se avisa)
+                try:
+                    try:
+                        os.chmod(viejo, 0o666)
+                    except OSError:
+                        pass
+                    viejo.unlink()
+                except OSError as exc:
+                    fallos.append(f'no pude quitar {viejo.name}: {exc}')
+            escrito = False
+            for intento in ('directo', 'temporal'):   # 1) escribir el archivo ya sin el viejo; 2) escribir uno temporal y renombrarlo encima
+                try:
+                    if intento == 'directo':
+                        destino.write_bytes(datos)
+                    else:
+                        tmp = carpeta / f'.{codigo}.pdf.tmp'
+                        tmp.write_bytes(datos)
+                        os.replace(tmp, destino)
+                    if destino.stat().st_size == len(datos):
+                        escrito = True
+                        break
+                    fallos.append(f'{intento}: el archivo quedó de {destino.stat().st_size} bytes y no de {len(datos)}')
+                except OSError as exc:
+                    fallos.append(f'{intento}: {exc}')
+            if escrito:
+                d['pdf_hecho'] = True; d['pdf_ok_desde'] = time.time(); d.pop('pdf_error', None); _guardar_post_orden()
                 nota(f'PDF de Effi copiado a {destino.name} ({len(datos)} bytes)')
-                for otro in propios[1:]:   # en la carpeta solo puede quedar el PDF de Effi
-                    otro.unlink(missing_ok=True)
                 try:   # también es el que se ve en Cartera
                     from app import cartera_api as cartera_mod
                     cartera_mod.poner_pdf(codigo, datos)
                 except Exception:   # noqa: BLE001
                     log.exception('No se pudo poner el PDF de Effi en Cartera (%s)', codigo)
-            except OSError as exc:
-                nota('No pude escribir el PDF en la NAS: ' + str(exc)[:150])
+            else:
+                d['pdf_error'] = ' | '.join(fallos)[:300]; _guardar_post_orden()
+                nota('No pude dejar el PDF de Effi en la NAS: ' + d['pdf_error'])
+                log.error('PDF de Effi de %s no se pudo escribir en %s: %s', codigo, carpeta, d['pdf_error'])
         else:
             nota('El PDF de Effi todavía NO está en el servidor (EFFITRON no lo ha bajado)')
             for propio in carpeta.glob('*.pdf'):   # el PDF que arma el panel es solo para procesar el pedido: NUNCA queda en la carpeta de la orden

@@ -52,6 +52,23 @@ class PdfEffiCarpeta(unittest.TestCase):
         main._aplicar_post_orden('CO6392')
         self.assertEqual((self.orden / 'CO6392.pdf').read_bytes(), EFFI)
 
+    def test_si_la_nas_no_deja_escribir_el_motivo_se_ve(self):
+        from unittest import mock
+        effitron.PEDIDO_PDF_DIR.mkdir(parents=True, exist_ok=True)
+        effitron.pdf_cotizacion_ruta(6392).write_bytes(EFFI)
+        main.permisos_mod.comerciales_permitido = lambda u: True
+        with mock.patch.object(Path, 'unlink', side_effect=PermissionError('archivo en uso por otro equipo')):
+            orig = Path.write_bytes
+            def solo_nas(self_, data, *a, **k):
+                if str(self_).startswith(str(self.orden)):
+                    raise OSError('acceso denegado')
+                return orig(self_, data, *a, **k)
+            with mock.patch.object(Path, 'write_bytes', solo_nas):
+                main._aplicar_post_orden('CO6392')
+        e = main.pedido_pdf_estado('CO6392', 'u')
+        self.assertEqual(e['estado'], 'error')
+        self.assertIn('acceso denegado', e['detalle'])
+
 
 if __name__ == '__main__':
     unittest.main()
