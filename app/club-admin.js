@@ -357,7 +357,7 @@
         '<div class="tp-cant"><small>CANTIDAD</small><b>' + (f.units != null ? f.units : (x.prendas || 0)) + '</b> <small>und.</small></div></div>' +
         '<div class="tp-entrega"><small>ENTREGA :</small>' + (dias == null ? '<b>—</b>' : '<span class="tp-dias' + (dias < 0 ? ' tarde' : '') + '">' + (dias < 0 ? 'Atrasado ' + (-dias) + ' días' : dias === 0 ? 'Hoy' : dias + ' Días') + '</span>') + '</div>' +
         '<div class="tp-acc"><button type="button" class="tp-b-nas" title="Ir a la carpeta de la orden en la NAS"' + nasId + '>📁</button><button type="button" class="tp-b-edit" title="Editar / ver en Producción"' + editId + '>✎</button><button type="button" class="tp-b-del" title="Eliminar la orden de todo el panel y la NAS" data-quitar-prog="' + esc(x.codigo) + '">🗑</button></div>' +
-        (true ? '<div class="tp-extra"><small>Programó ' + esc(x.usuario || '—') + ' · ' + esc(String(x.fecha || '').replace('T', ' ').slice(0, 16)) + '</small>' + (x.excel ? '<a class="tp-link" href="' + esc(x.excel) + '" title="Descargar el listado">⬇ EXCEL</a>' : '') + (/^CO/.test(x.codigo) ? '<button type="button" class="tp-link" data-pdf-effi="' + esc(x.codigo) + '" title="Pide a EFFITRON el PDF de Effi y lo deja en la carpeta de la orden">📄 PDF EFFI</button>' : '') + '</div>' : '') +
+        (true ? '<div class="tp-extra"><small>Programó ' + esc(x.usuario || '—') + ' · ' + esc(String(x.fecha || '').replace('T', ' ').slice(0, 16)) + '</small>' + (x.excel ? '<a class="tp-link" href="' + esc(x.excel) + '" title="Descargar el listado">⬇ EXCEL</a>' : '') + '</div>' : '') +
         '</div>' + ruta + '</article>';
     }).join('');
   }
@@ -430,16 +430,6 @@
   document.addEventListener('click', async e => {
     const sn = e.target.closest('[data-sync-nas]'); if (!sn) return;
     try { sn.disabled = true; const r = await api('/api/pedido-effi/programados/' + encodeURIComponent(sn.dataset.syncNas) + '/sincronizar', 'POST', {}); const det = (r.detalle || []).join('\n'); toast((r.completo ? '✓ ' + sn.dataset.syncNas + ' sincronizada con la NAS.' : '⚠ ' + sn.dataset.syncNas + ' quedó pendiente (se sigue intentando 15 min).') + '\n' + det, r.completo ? 'ok' : 'error'); console.log('Sincronizar ' + sn.dataset.syncNas, det); } catch (er) { toast(er.message, 'error'); } finally { setTimeout(() => { sn.disabled = false; }, 4000); }
-  });
-  document.addEventListener('click', async e => {   // 📄 PDF EFFI: el servidor (con su acceso a la NAS) pide el PDF a EFFITRON y lo deja en la carpeta de la orden
-    const b = e.target.closest('[data-pdf-effi]'); if (!b) return;
-    const c = b.dataset.pdfEffi, txt = b.textContent; b.disabled = true; b.textContent = 'Pidiendo…';
-    try {
-      const r = await api('/api/pedido-effi/programados/' + encodeURIComponent(c) + '/sincronizar', 'POST', {});
-      const det = (r.detalle || []).filter(x => /PDF|EFFITRON/i.test(x)).join(' · ') || 'Listo.';
-      toast((r.completo ? '✅ ' : '⏳ ') + c + ': ' + det + (r.completo ? '' : ' El servidor sigue intentándolo.'), r.completo ? 'ok' : 'info');
-    } catch (er) { toast(er.message, 'error'); }
-    b.disabled = false; b.textContent = txt;
   });
   document.addEventListener('click', async e => {
     const b = e.target.closest('[data-quitar-prog]'); if (!b) return;
