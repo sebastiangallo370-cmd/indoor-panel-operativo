@@ -8556,12 +8556,18 @@ def _aplicar_post_orden(codigo: str, diag: list | None = None) -> bool:
     except Exception as exc:   # noqa: BLE001
         nota('Error al buscar la carpeta en la NAS: ' + str(exc)[:150]); _liberar_excel_agente(codigo, d); return False
     log = logging.getLogger(__name__)
+    if d.get('pdf_hecho') and d.get('pdf_effi'):   # comprobación: nada (p. ej. el programar pedido) debe volver a dejar su propio PDF encima del de Effi
+        buenos = effitron_mod.pdf_cotizacion_bytes(int(d['pdf_effi']))
+        pdfs = [p for p in carpeta.glob('*.pdf') if p.stem.upper().startswith(codigo.upper())]
+        if buenos and (not pdfs or any(p.stat().st_size != len(buenos) for p in pdfs)):
+            d['pdf_hecho'] = False; nota('Había otro PDF encima del de Effi: se vuelve a poner el de Effi')
+        d.setdefault('pdf_ok_desde', time.time())
     if d.get('pdf_effi') and not d.get('pdf_hecho'):
         datos = effitron_mod.pdf_cotizacion_bytes(int(d['pdf_effi']))
         if datos:
             destino = next((p for p in carpeta.glob('*.pdf') if p.stem.upper().startswith(codigo.upper())), carpeta / f'{codigo}.pdf')
             try:
-                destino.write_bytes(datos); d['pdf_hecho'] = True; _guardar_post_orden()
+                destino.write_bytes(datos); d['pdf_hecho'] = True; d['pdf_ok_desde'] = time.time(); _guardar_post_orden()
                 nota(f'PDF de Effi copiado a {destino.name} ({len(datos)} bytes)')
             except OSError as exc:
                 nota('No pude escribir el PDF en la NAS: ' + str(exc)[:150])
@@ -8607,6 +8613,8 @@ def _aplicar_post_orden(codigo: str, diag: list | None = None) -> bool:
             agente_excel_mod.liberar(d['agente_tid']); d['agente_liberado'] = True; _guardar_post_orden()
             nota('Carpeta lista' + (' y PDF de Effi dentro' if d.get('pdf_hecho') else ' (el PDF de Effi aún no llega)') + ': se libera el Excel para el agente')
     pendientes = [('pdf_hecho', d.get('pdf_effi')), ('maestros_hecho', d.get('maestros')), ('xlsx_hecho', d.get('xlsx')), ('agente_liberado', d.get('agente_tid'))]
+    if d.get('pdf_effi') and time.time() - d.get('pdf_ok_desde', time.time()) < 90:
+        return False   # se sigue vigilando un poco más por si algo sobreescribe el PDF
     return all(d.get(k) for k, esperado in pendientes if esperado)
 
 
