@@ -209,6 +209,18 @@ def _clonar_adornos(base, nueva) -> None:
         for regla in rango.rules:
             nueva.conditional_formatting.add(str(rango.sqref), copy(regla))
     nueva.protection = copy(base.protection)
+    # la vista y la página también: sin esto la copia perdía el zoom (70 %), las líneas de cuadrícula ocultas y la configuración de impresión,
+    # y las pestañas de una misma orden se veían distintas (la primera con el formato de la plantilla y las demás no)
+    for atributo in ('sheet_format', 'sheet_properties', 'page_setup', 'page_margins', 'print_options', 'HeaderFooter'):
+        try:
+            setattr(nueva, atributo, copy(getattr(base, atributo)))
+        except Exception:  # noqa: BLE001 - un atributo que no se deje copiar no debe romper el listado
+            pass
+    try:   # la vista (zoom, cuadrícula, paneles) es una propiedad sin asignación directa: se copia su contenido
+        nueva.views.sheetView[0] = copy(base.views.sheetView[0])
+        nueva.views.sheetView[0].tabSelected = False   # solo la primera hoja queda seleccionada
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def _llenar_hoja(ws, doc: dict, g: dict, comercial: str, linea_producto: str) -> int:
@@ -223,8 +235,6 @@ def _llenar_hoja(ws, doc: dict, g: dict, comercial: str, linea_producto: str) ->
         pass
     if linea_producto:
         ws['J6'] = linea_producto
-    ws['P2'] = 'COTIZACIÓN'
-    ws['P3'] = '%s%s' % prefijo_numero(doc)
     fila, maximo = 8, 1
     for f in sorted(g['filas'], key=lambda x: int(x.get('diseno') or 1)):   # como la skill: cada diseño en su propio bloque, D1 primero, luego D2…
         ws.cell(row=fila, column=3, value=f['nombre'] or None)

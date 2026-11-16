@@ -83,7 +83,7 @@ def _limpiar(d: dict, ahora: float) -> None:
 
 # ---------------------------------------------------------------- plan y base a partir del Excel ya armado
 def _es_dato(r: int, c: int) -> bool:
-    """Celdas que llena el panel (listado_pedido._llenar_hoja): cabecera J2:J6, P2:P3, AG3 y, desde la fila 8, NOMBRE..OBSERVACIÓN (C..R)."""
+    """Celdas que llena el panel (listado_pedido._llenar_hoja): cabecera J2:J6, AG3 y, desde la fila 8, NOMBRE..OBSERVACIÓN (C..R)."""
     return (2 <= r <= 6 and c == 10) or (r in (2, 3) and c == 16) or (r == 3 and c == 33) or (r >= 8 and 3 <= c <= 18)
 
 

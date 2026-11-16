@@ -149,3 +149,24 @@ class PestanasPorFamilia(unittest.TestCase):
         from unittest import mock
         with mock.patch.object(L, 'AGRUPAR_FAMILIAS', True):
             self.assertEqual([x['referencia'] for x in L.hojas_por_familia(gs)], ['A200FUT01-A200FUT02', 'A100CA02'])
+
+
+class PestanasIguales(unittest.TestCase):
+    def test_todas_las_pestañas_quedan_con_el_mismo_formato_y_sin_cotizacion_en_p2(self):
+        import io
+        from openpyxl import load_workbook
+        from app import listado_pedido as L
+        import os
+        ruta = '/tmp/claude-0/pt/Plantilla.xlsm'
+        if not os.path.exists(ruta):
+            self.skipTest('sin plantilla local')
+        doc = {'numero': '6390', 'cliente': {'nombre': 'C'}, 'proyecto': 'P', 'disenos': 1, 'conceptos': [{'referencia': 'A200FUT02', 'cantidad': 1}, {'referencia': 'A500PE01', 'cantidad': 1}]}
+        f = [{'nombre': 'A', 'talla': 'M', 'numero': '1', 'diseno': 1, 'genero': 'MASC'}]
+        r = L.preparar({'doc': doc, 'listado': {'A200FUT02': f, 'A500PE01': f}}, lambda: open(ruta, 'rb').read())
+        wb = load_workbook(io.BytesIO(r['excel']), keep_vba=True)
+        def info(w):
+            v = w.sheet_view
+            return (v.zoomScale, v.showGridLines, len(w.data_validations.dataValidation), len(w.conditional_formatting), len(w.merged_cells.ranges), len(w._images))
+        self.assertEqual(len({info(w) for w in wb.worksheets}), 1)
+        for w in wb.worksheets:
+            self.assertIsNone(w['P2'].value); self.assertIsNone(w['P3'].value)
