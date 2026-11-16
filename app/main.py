@@ -942,7 +942,7 @@ def process_reprogram_excel_job(job_id: int, excel_path: Path, extra_paths: list
 _PDF_EFFI_ORDEN: dict = {}   # código de orden -> PDF de Effi que se pega en la carpeta apenas se crea
 
 
-def _dejar_pdf_effi(carpeta: Path, codigo: str, datos: bytes) -> str:
+def _dejar_pdf_effi(carpeta: Path, codigo: str, datos: bytes, nombre: str = '') -> str:
     """Deja en la carpeta de la orden SOLO el PDF que creó Effi (quita cualquier otro CO####*.pdf, como el que arma el panel para procesar). Devuelve '' si salió bien o el motivo si no."""
     fallos: list = []
     for viejo in [p for p in carpeta.glob('*.pdf') if p.stem.upper().startswith(codigo.upper())]:
@@ -954,13 +954,14 @@ def _dejar_pdf_effi(carpeta: Path, codigo: str, datos: bytes) -> str:
             viejo.unlink()
         except OSError as exc:
             fallos.append(f'no pude quitar {viejo.name}: {exc}')
-    destino = carpeta / f'{codigo}.pdf'
+    base = re.sub(r'[\\/:*?"<>|]', '', nombre or '').strip() or codigo   # el PDF se llama IGUAL que el listado (p. ej. CO6394_UNIFORMES 2027.pdf)
+    destino = carpeta / f'{base}.pdf'
     for intento in ('directo', 'temporal'):   # 1) escribir ya sin el viejo; 2) escribir uno temporal y renombrarlo encima
         try:
             if intento == 'directo':
                 destino.write_bytes(datos)
             else:
-                tmp = carpeta / f'.{codigo}.pdf.tmp'
+                tmp = carpeta / f'.{base}.pdf.tmp'
                 tmp.write_bytes(datos)
                 os.replace(tmp, destino)
             if destino.stat().st_size == len(datos):
@@ -1007,7 +1008,7 @@ def process_order_job(job_id: int, job_dir: Path, pdf_path: Path, excel_path: Pa
             datos_effi = _PDF_EFFI_ORDEN.pop(str(order_number).upper(), None)
             if datos_effi:   # LO PRIMERO con la carpeta ya creada: el PDF tal como lo creó Effi (producción lo necesita así)
                 update_job_progress(job_id, 93, "Pegando en la carpeta el PDF de Effi")
-                err = _dejar_pdf_effi(Path(ok), order_number, datos_effi)
+                err = _dejar_pdf_effi(Path(ok), order_number, datos_effi, Path(excel_path).stem)
                 if err:
                     logging.getLogger(__name__).error('PDF de Effi de %s no se pudo dejar en %s: %s', order_number, ok, err)
                     pdf_effi_detalle = '. PDF de Effi NO se pudo copiar a la carpeta: ' + err
@@ -8669,10 +8670,11 @@ def _aplicar_post_orden(codigo: str, diag: list | None = None) -> bool:
     if d.get('pdf_effi') and not d.get('pdf_hecho'):
         datos = effitron_mod.pdf_cotizacion_bytes(int(d['pdf_effi']))
         if datos:
-            err = _dejar_pdf_effi(carpeta, codigo, datos)
+            listado = next((x for x in sorted(carpeta.glob('*.xls*')) if x.stem.upper().startswith(codigo.upper()) and not x.name.startswith('~$')), None)   # el PDF lleva el mismo nombre del listado
+            err = _dejar_pdf_effi(carpeta, codigo, datos, listado.stem if listado else '')
             if not err:
                 d['pdf_hecho'] = True; d['pdf_ok_desde'] = time.time(); d.pop('pdf_error', None); _guardar_post_orden()
-                nota(f'PDF de Effi copiado a {codigo}.pdf ({len(datos)} bytes)')
+                nota(f'PDF de Effi copiado con el nombre del listado ({len(datos)} bytes)')
             else:
                 d['pdf_error'] = err; _guardar_post_orden()
                 nota('No pude dejar el PDF de Effi en la NAS: ' + err)

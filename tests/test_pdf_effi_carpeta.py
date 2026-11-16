@@ -76,6 +76,15 @@ class PdfEffiCarpeta(unittest.TestCase):
         self.assertEqual(pdfs, ['CO6392.pdf'])
         self.assertEqual((self.orden / 'CO6392.pdf').read_bytes(), EFFI)
 
+    def test_el_pdf_se_llama_igual_que_el_listado(self):
+        (self.orden / 'CO6392_UNIFORMES 2027.xlsm').write_bytes(b'PK')
+        effitron.PEDIDO_PDF_DIR.mkdir(parents=True, exist_ok=True)
+        effitron.pdf_cotizacion_ruta(6392).write_bytes(EFFI)
+        main._aplicar_post_orden('CO6392')   # (vía el vigilante)
+        self.assertEqual(sorted(p.name for p in self.orden.glob('*.pdf')), ['CO6392_UNIFORMES 2027.pdf'])
+        self.assertEqual((self.orden / 'CO6392_UNIFORMES 2027.pdf').read_bytes(), EFFI)
+        self.assertEqual(main._dejar_pdf_effi(self.orden, 'CO6392', EFFI, 'CO6392_UNIFORMES 2027'), '')   # y no se duplica
+
 
 if __name__ == '__main__':
     unittest.main()
