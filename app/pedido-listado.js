@@ -552,7 +552,7 @@
     const estado = '<span style="font:800 12px Arial;letter-spacing:.14em;color:' + (fin && !ok ? '#ff9b9b' : '#d0f44c') + '">' + titulo + '</span><strong>' + esc((L.doc.tipo === 'remision' ? 'RM' : 'CO') + L.doc.numero) + '</strong>' +
       '<div class="pl-progreso"><i style="width:' + pr + '%"></i></div><div style="font:800 12px Arial;color:#c9d3c1">' + pr + ' %</div><ul class="pl-pasos2">' + pasos + '</ul>' +
       (j.detail ? '<div class="caja ' + (ok ? 'ok' : fin ? 'error' : '') + '">' + esc(j.detail) + '</div>' : '') +
-            (j.excel ? '<div style="margin-top:12px"><a class="pl-btn" href="' + esc(j.excel) + '">⬇ DESCARGAR EL EXCEL' + (j.insertados != null ? ' (' + j.insertados + ' mockup(s) insertado(s))' : '') + '</a></div>' : '');
+            (j.pdf ? '<div class="caja ' + (j.pdf.hecho ? 'ok' : j.pdf.estado === 'esperando' || j.pdf.estado === 'copiando' ? '' : 'error') + '" style="margin-top:8px">' + (j.pdf.hecho ? '✅ ' : j.pdf.estado === 'esperando' || j.pdf.estado === 'copiando' ? '⏳ ' : '⚠️ ') + 'PDF de Effi: ' + esc(j.pdf.detalle) + '</div>' : '') + (j.excel ? '<div style="margin-top:12px"><a class="pl-btn" href="' + esc(j.excel) + '">⬇ DESCARGAR EL EXCEL' + (j.insertados != null ? ' (' + j.insertados + ' mockup(s) insertado(s))' : '') + '</a></div>' : '');
     // el Excel NO se dibuja en el panel: lo abre y lo llena el AGENTE EXCEL en el computador, con el programa Excel
     const st = j.agenteEstado, pc = !j.excel && !j.agente && !fin ? ['⏳', 'Preparando el listado…', 'Al terminar, Excel se abrirá en tu computador y se llenará solo.']
       : j.agente ? (st === 'listo' ? ['✅', 'Excel listo en tu computador', j.agenteDetalle || ''] : st === 'error' ? ['⚠️', 'Tu agente no pudo llenar Excel', j.agenteDetalle || ''] : ['💻', st === 'llenando' ? 'Excel se está llenando en tu computador' : 'Abriendo Excel en tu computador…', j.agenteDetalle || 'Mira la ventana de Excel: se llena sola, celda por celda.'])
@@ -585,7 +585,10 @@
         if (L.job.agente && !['listo', 'error'].includes(L.job.agenteEstado)) {
           try { const a = await fetch('/api/agente-excel/trabajo/' + L.job.agente, { credentials: 'same-origin', cache: 'no-store' }).then(x => x.json()); if (a.estado && (a.estado !== L.job.agenteEstado || a.detalle !== L.job.agenteDetalle)) { L.job.agenteEstado = a.estado; L.job.agenteDetalle = a.detalle; if (raiz.isConnected && L.pantalla === 'enviado') pantallaEnviado(); } } catch (e) { /* se reintenta */ }
         }
-        if (L.job.estado === 'COMPLETADO' && (!L.job.agente || L.job.agenteEstado === 'listo')) {   // todo salió bien: se cierra la ventana y se avisa
+        if (L.job.estado === 'COMPLETADO' && !(L.job.pdf && L.job.pdf.hecho) && k % 2 === 0) {   // el PDF de Effi debe quedar en la carpeta antes de cerrar
+          try { const q = await fetch('/api/pedido-effi/pdf-estado/' + encodeURIComponent((L.doc.tipo === 'remision' ? 'RM' : 'CO') + L.doc.numero), { credentials: 'same-origin', cache: 'no-store' }).then(x => x.json()); if (!L.job.pdf || q.detalle !== L.job.pdf.detalle || q.hecho !== L.job.pdf.hecho) { L.job.pdf = q; if (raiz.isConnected && L.pantalla === 'enviado') pantallaEnviado(); } } catch (e) { /* se reintenta */ }
+        }
+        if (L.job.estado === 'COMPLETADO' && (!L.job.agente || L.job.agenteEstado === 'listo') && L.job.pdf && L.job.pdf.hecho) {   // todo salió bien: se cierra la ventana y se avisa
           const cod = (L.doc.tipo === 'remision' ? 'RM' : 'CO') + L.doc.numero;
           await new Promise(r => setTimeout(r, 1200));
           avisoProgramado(cod); if (L.opts.onCerrar) L.opts.onCerrar(); return;
