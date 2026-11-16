@@ -163,3 +163,14 @@ class Abridor(Base):
         self.assertIn('start "" "%EXE%"', cuerpo)
         self.assertIn('\r\n', cuerpo)
         self.assertIn('abrir', r.headers['content-disposition'].lower())
+
+
+@unittest.skipUnless(PLANTILLA.is_file(), 'falta la plantilla real')
+class EnEspera(Trabajo):
+    def test_un_trabajo_en_espera_no_se_entrega_hasta_liberarlo(self):
+        token = self.vincular()
+        tid = ax.encolar('ANA', self.excel(), 'x.xlsm', True)
+        self.assertEqual(ax.sondeo(pedir(token), {'version': '1.1.5'})['trabajos'], [])   # carpeta y PDF aún no están
+        self.assertIn('carpeta', ax.ver_trabajo(mock.Mock(), tid)['detalle'])
+        ax.liberar(tid)
+        self.assertEqual([t['id'] for t in ax.sondeo(pedir(token), {'version': '1.1.5'})['trabajos']], [tid])

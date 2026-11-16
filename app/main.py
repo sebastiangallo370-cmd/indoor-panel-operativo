@@ -8275,7 +8275,8 @@ async def programar_pedido_effi(request: Request, usuario=Depends(authenticate))
     if descarga.get('excel'):   # si el comercial tiene su AGENTE EXCEL conectado, el listado también se llena a la vista en su computador
         try:
             codigo_xl = descarga['excel'].rsplit('/', 1)[-1]
-            agente = await asyncio.to_thread(agente_excel_mod.encolar, str(usuario), PEDIDO_EXCEL_DIR / codigo_xl / descarga['excel_nombre'], descarga['excel_nombre'])
+            # el trabajo queda EN ESPERA: primero se crea la carpeta en la NAS y se pone el PDF de Effi; recién ahí se libera para que el agente abra Excel
+            agente = await asyncio.to_thread(agente_excel_mod.encolar, str(usuario), PEDIDO_EXCEL_DIR / codigo_xl / descarga['excel_nombre'], descarga['excel_nombre'], True)
         except Exception:   # noqa: BLE001 - el agente nunca debe impedir programar la orden
             logging.getLogger(__name__).exception('No se pudo dejar el trabajo al agente Excel')
     codigo_orden = '%s%s' % listado_pedido_mod.prefijo_numero(datos.get('doc') or {})
@@ -8292,7 +8293,7 @@ async def programar_pedido_effi(request: Request, usuario=Depends(authenticate))
         pdf_effi = int(str((datos.get('doc') or {}).get('numero') or '')) if codigo_orden.startswith('CO') else None   # las remisiones no tienen PDF por esta vía
     except ValueError:
         pdf_effi = None
-    _registrar_post_orden(codigo_orden, pdf_effi=pdf_effi, pdf_hecho=False, maestros=maestros, maestros_hecho=False)
+    _registrar_post_orden(codigo_orden, pdf_effi=pdf_effi, pdf_hecho=False, maestros=maestros, maestros_hecho=False, agente_tid=agente or '', agente_liberado=False)
     resultado = await upload_order(pdf=pdf, observaciones=arch['observaciones'], linea=arch['linea'], excel=excel, extras=extras,
                                    mockup_d1=None, mockup_d2=None, mockup_d3=None, mockup_d4=None, mockups_opcionales=True, _=usuario)
     threading.Thread(target=_vigilar_post_orden, args=(codigo_orden, int(resultado.get('id') or 0)), daemon=True).start()
@@ -8443,7 +8444,7 @@ def _reanudar_post_orden() -> None:
     except (OSError, ValueError):
         return
     for codigo, d in guardado.items():
-        pendiente = (d.get('pdf_effi') and not d.get('pdf_hecho')) or (d.get('maestros') and not d.get('maestros_hecho')) or (d.get('xlsx') and not d.get('xlsx_hecho'))
+        pendiente = (d.get('pdf_effi') and not d.get('pdf_hecho')) or (d.get('maestros') and not d.get('maestros_hecho')) or (d.get('xlsx') and not d.get('xlsx_hecho')) or (d.get('agente_tid') and not d.get('agente_liberado'))
         if pendiente:
             with _post_lock:
                 _POST_ORDEN.setdefault(codigo, d)
@@ -8509,7 +8510,13 @@ def _aplicar_post_orden(codigo: str, diag: list | None = None) -> bool:
                 respaldo = STATE_DIR / 'excel-servidor'; respaldo.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(destino, respaldo / f'{codigo}-{int(time.time())}{destino.suffix}')   # el que armó el servidor queda de respaldo
             shutil.copy2(origen, destino); d['xlsx_hecho'] = True; _guardar_post_orden()
-    pendientes = [('pdf_hecho', d.get('pdf_effi')), ('maestros_hecho', d.get('maestros')), ('xlsx_hecho', d.get('xlsx'))]
+    # orden: carpeta -> PDF de Effi -> (recién ahora) Excel en el PC del comercial. Si el PDF tarda más de 2 minutos no se bloquea el Excel; el PDF sigue intentándose.
+    if d.get('agente_tid') and not d.get('agente_liberado'):
+        d.setdefault('carpeta_lista', time.time())
+        if d.get('pdf_hecho') or not d.get('pdf_effi') or time.time() - d['carpeta_lista'] > 120:
+            agente_excel_mod.liberar(d['agente_tid']); d['agente_liberado'] = True; _guardar_post_orden()
+            nota('Carpeta lista' + (' y PDF de Effi dentro' if d.get('pdf_hecho') else ' (el PDF de Effi aún no llega)') + ': se libera el Excel para el agente')
+    pendientes = [('pdf_hecho', d.get('pdf_effi')), ('maestros_hecho', d.get('maestros')), ('xlsx_hecho', d.get('xlsx')), ('agente_liberado', d.get('agente_tid'))]
     return all(d.get(k) for k, esperado in pendientes if esperado)
 
 
@@ -8529,7 +8536,7 @@ def _vigilar_post_orden(codigo: str, job_id: int = 0) -> None:
                 return
         except Exception:   # noqa: BLE001
             logging.getLogger(__name__).exception('Falló copiar lo de la orden %s a la NAS', codigo)
-        time.sleep(8)
+        time.sleep(4)
 
 
 @app.post("/api/pedido-effi/programados/{codigo}/sincronizar")
