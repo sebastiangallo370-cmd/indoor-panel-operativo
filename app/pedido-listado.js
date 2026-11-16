@@ -43,12 +43,12 @@
   /* réplica de la cotización: la misma hoja que imprime Effi (se ve igual en computador y en celular; en celular se reduce para que quepa) */
   .pl-hoja-caja{width:100%;max-width:820px;margin:0 auto;overflow:hidden}
   ${HOJA_CSS}
-  .pl-pdf-caja{max-width:1000px}
+  .pl-pdf-caja{max-width:1100px}
   .pl-pdf-estado{display:flex;flex-direction:column;align-items:center;gap:10px;padding:46px 20px;border:1px dashed rgba(208,244,76,.45);border-radius:16px;background:rgba(208,244,76,.05);text-align:center}
   .pl-pdf-estado b{font:900 15px Arial}.pl-pdf-estado small{color:#a9b5a3;font:600 12px/1.5 Arial;max-width:460px}.pl-pdf-acc{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:6px}
   .pl-spin{width:34px;height:34px;border-radius:50%;border:3px solid rgba(208,244,76,.25);border-top-color:#d0f44c;animation:plgira 1s linear infinite}@keyframes plgira{to{transform:rotate(360deg)}}
   .pl-pdf-barra{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 4px;font:800 12px Arial;color:#c9d3c1}.pl-pdf-barra a{text-decoration:none;display:inline-flex;align-items:center}
-  .pl-pdf{display:grid;gap:12px;justify-items:center;max-height:calc(100vh - 300px);overflow:auto;padding:4px}.pl-pdf-hoja{display:block;width:100%;max-width:900px;height:auto;background:#fff;border-radius:6px;box-shadow:0 6px 20px rgba(0,0,0,.4)}
+  .pl-pdf{display:grid;gap:12px;justify-items:center;max-height:calc(100vh - 300px);overflow:auto;padding:4px}.pl-pdf-hoja{display:block;width:100%;max-width:1000px;image-rendering:auto;height:auto;background:#fff;border-radius:6px;box-shadow:0 6px 20px rgba(0,0,0,.4)}
   .pl-progreso{height:12px;border-radius:99px;background:rgba(255,255,255,.1);overflow:hidden;margin:14px auto 4px;max-width:520px}.pl-progreso i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#9fcd12,#d0f44c);box-shadow:0 0 12px rgba(208,244,76,.6);transition:width .5s}
   .pl-pasos2{list-style:none;margin:14px auto 0;padding:0;max-width:520px;text-align:left;display:grid;gap:6px}.pl-pasos2 li{display:flex;gap:10px;align-items:center;font:700 13px Arial;color:#7d8a77}.pl-pasos2 li span{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;border:1px solid #3d4c3b;font:900 12px Arial}
   .pl-pasos2 li.hecho{color:#e8f0e0}.pl-pasos2 li.hecho span{background:#d0f44c;color:#142017;border-color:#d0f44c}.pl-pasos2 li.activo{color:#d0f44c}.pl-pasos2 li.activo span{border-color:#d0f44c;animation:plpulso 1s infinite}@keyframes plpulso{50%{opacity:.35}}

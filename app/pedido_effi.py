@@ -708,12 +708,12 @@ def pdf_imagen(request: Request, numero: int, pagina: int):
     ruta = effitron.pdf_cotizacion_ruta(numero)
     if not ruta.is_file():
         raise HTTPException(404, 'El PDF de Effi todavía no está listo')
-    png = ruta.with_name(f'{ruta.stem}-p{int(pagina)}.png')
+    png = ruta.with_name(f'{ruta.stem}-p{int(pagina)}-n250.png')   # 250 dpi: nítido también en pantallas de alta densidad (el de 150 dpi se veía borroso)
     if not png.is_file() or png.stat().st_mtime < ruta.stat().st_mtime:
         with pdfplumber.open(str(ruta)) as pdf:
             if not 1 <= pagina <= len(pdf.pages):
                 raise HTTPException(404, 'Esa página no existe')
-            pdf.pages[pagina - 1].to_image(resolution=150).original.convert('RGB').save(png, 'PNG', optimize=True)
+            pdf.pages[pagina - 1].to_image(resolution=250).original.convert('RGB').save(png, 'PNG', optimize=True)
     return FileResponse(png, media_type='image/png', headers={'Cache-Control': 'private, max-age=300'})
 
 
