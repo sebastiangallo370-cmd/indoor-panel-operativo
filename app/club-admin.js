@@ -351,11 +351,13 @@
     const b = e.target.closest('[data-quitar-prog]'); if (!b) return;
     const c = b.dataset.quitarProg, o = produccion[c], filas = (o && o.filas) || [];
     try {
-      if (filas.length) {   // borrado seguro de Producción para TODA la orden: todas sus tarjetas + la carpeta NAS (pide contraseña, deja copia de recuperación)
-        const clave = await pedirClave('Eliminar ' + o.orden, 'Se eliminará de TODO el panel: ' + (filas.length > 1 ? 'sus <b>' + filas.length + ' tarjetas</b>' : 'la <b>tarjeta</b>') + ' de Producción, la <b>carpeta de la orden en la NAS</b>, la cotización en <b>Cartera</b> (si no tiene pagos) y esta lista.<br>Queda una copia de recuperación en el servidor.');
+      if (filas.length) {   // borrado seguro de Producción SOLO de esta orden: sus tarjetas + su carpeta NAS (pide contraseña, deja copia de recuperación)
+        if (norm(o.orden) !== c) { toast(c + ' está agrupada con otras órdenes en una misma tarjeta de Producción (' + o.orden + '). Para no borrar las otras, elimínala desde PRODUCCIÓN.', 'error'); return; }
+        const pv = await api('/api/produccion/fila/' + filas[0] + '/eliminacion');   // la carpeta EXACTA que se va a borrar
+        const clave = await pedirClave('Eliminar ' + c, 'Se eliminará <b>solo la orden ' + esc(c) + '</b>: ' + (filas.length > 1 ? 'sus <b>' + filas.length + ' tarjetas</b>' : 'su <b>tarjeta</b>') + ' de Producción, su cotización en <b>Cartera</b> (si no tiene pagos), esta lista y <b>esta carpeta de la NAS</b>:<br><small style="word-break:break-all;color:#d0f44c">' + esc(pv.folder) + '</small><br>Queda una copia de recuperación en el servidor. Ninguna otra orden se toca.');
         if (!clave) return;
         b.disabled = true; b.textContent = 'ELIMINANDO…';
-        const rb = await api('/api/produccion/orden/' + encodeURIComponent(o.orden), 'DELETE', { password: clave });
+        const rb = await api('/api/produccion/orden/' + encodeURIComponent(c), 'DELETE', { password: clave });
         const cp = (rb.cartera && rb.cartera.con_pagos) || []; if (cp.length) toast('La cotización ' + cp.join(', ') + ' sigue en Cartera porque tiene pagos registrados.', 'error');
       } else if (!confirm('¿Eliminar ' + c + '?\n\nNo está en Producción: solo se quita de esta lista.')) return;
       await api('/api/pedido-effi/programados/' + encodeURIComponent(c), 'DELETE');
