@@ -5,7 +5,28 @@
   const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const money = n => '$ ' + Number(n || 0).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
   const hoy = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
-  const entregaPorDefecto = () => { const d = new Date(); d.setDate(d.getDate() + 15); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };   // fecha de entrega predeterminada: 15 días después de hoy
+  // Fecha de entrega predeterminada: 15 DÍAS HÁBILES después de hoy (sin sábados, domingos ni festivos de Colombia)
+  const festivosCO = anio => {
+    const f = new Set(), pad = n => String(n).padStart(2, '0'), key = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+    const fijo = (m, d) => f.add(anio + '-' + pad(m) + '-' + pad(d));
+    const lunes = (m, d) => { const x = new Date(anio, m - 1, d); const dow = x.getDay(); if (dow !== 1) x.setDate(x.getDate() + ((8 - dow) % 7)); f.add(key(x)); };   // se traslada al lunes siguiente (Ley Emiliani)
+    [[1, 1], [5, 1], [7, 20], [8, 7], [12, 8], [12, 25]].forEach(([m, d]) => fijo(m, d));
+    [[1, 6], [3, 19], [6, 29], [8, 15], [10, 12], [11, 1], [11, 11]].forEach(([m, d]) => lunes(m, d));
+    const a = anio % 19, b = Math.floor(anio / 100), c = anio % 100, d = Math.floor(b / 4), e = b % 4, g = Math.floor((b + 8) / 25), h = Math.floor((b - g + 1) / 3), i = (19 * a + b - d - h + 15) % 30, k = Math.floor(c / 4), l = c % 4, m = (32 + 2 * e + 2 * k - i - l) % 7, n = Math.floor((a + 11 * i + 22 * m) / 451), mes = Math.floor((i + m - 7 * n + 114) / 31), dia = ((i + m - 7 * n + 114) % 31) + 1;
+    const pascua = new Date(anio, mes - 1, dia), mas = n => { const x = new Date(pascua); x.setDate(x.getDate() + n); return x; };
+    f.add(key(mas(-3))); f.add(key(mas(-2))); f.add(key(mas(43))); f.add(key(mas(64))); f.add(key(mas(71)));   // jueves y viernes santo; Ascensión, Corpus Christi y Sagrado Corazón (lunes)
+    return f;
+  };
+  const entregaPorDefecto = () => {
+    const d = new Date(), cache = {}, pad = n => String(n).padStart(2, '0'); let falta = 15;
+    while (falta > 0) {
+      d.setDate(d.getDate() + 1);
+      const dow = d.getDay(), y = d.getFullYear(); if (dow === 0 || dow === 6) continue;
+      if ((cache[y] = cache[y] || festivosCO(y)).has(y + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()))) continue;
+      falta--;
+    }
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+  };
   const nuevaClave = () => 'pedido-' + [...crypto.getRandomValues(new Uint8Array(10))].map(b => b.toString(16).padStart(2, '0')).join('');
 
   const css = document.createElement('style');
