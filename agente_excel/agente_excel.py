@@ -24,7 +24,7 @@ import urllib.request
 from pathlib import Path
 from tkinter import messagebox, simpledialog
 
-VERSION = '1.1.7'
+VERSION = '1.1.8'
 URL = os.getenv('AGENTE_EXCEL_URL', 'https://produccion.cloud').rstrip('/')
 CONFIG = Path.home() / '.agente_excel_indoor.json'
 SALIDA = Path.home() / 'Documents' / 'Indoor Pedidos'
@@ -354,6 +354,16 @@ def minimizar_todo() -> None:
 
 
 _FRENTE = {'parar': None}
+_OCULTA = {'app': None}   # el Excel oculto en uso: se cierra siempre al terminar, también si hubo error
+
+
+def cerrar_oculta() -> None:
+    a, _OCULTA['app'] = _OCULTA['app'], None
+    if a is not None:
+        try:
+            a.quit()
+        except Exception:  # noqa: BLE001
+            pass
 
 
 def vigilar_primer_plano(hwnd) -> None:
@@ -419,9 +429,13 @@ def llenar(trabajo: dict, token: str, aviso) -> str:
     # el archivo se abre YA con el nombre del pedido y en su carpeta final (Excel no deja abrir dos libros con el mismo nombre:
     # si uno igual sigue abierto de una prueba anterior, se usa CO6380_2.xlsm, _3…)
     # un Excel ya abierto y VISIBLE; si no hay, uno nuevo. (Un Excel invisible abierto por otro programa mostraba una ventana negra vacía.)
-    app = instancia_en_uso(xw)
-    if app is None:
-        app = xw.App(visible=True, add_book=False)
+    segundo = bool(leer_config().get('segundo_plano', True))   # SIEMPRE en segundo plano (pedido del usuario): Excel oculto, sin tocar tus otros libros ni quitarte el foco
+    if segundo:
+        app = xw.App(visible=False, add_book=False); _OCULTA['app'] = app
+    else:
+        app = instancia_en_uso(xw)
+        if app is None:
+            app = xw.App(visible=True, add_book=False)
     try:
         app.screen_updating = True
         app.display_alerts = False
@@ -440,23 +454,26 @@ def llenar(trabajo: dict, token: str, aviso) -> str:
     while destino.name.lower() in abiertos or destino.exists():
         destino = SALIDA / f'{nombre.stem}_{k}{nombre.suffix}'; k += 1
     destino.write_bytes(datos_base)
-    app.visible = True
-    try:
-        app.activate(steal_focus=True)
-    except Exception:  # noqa: BLE001
-        pass
-    minimizar_todo()   # se minimizan las demás ventanas; luego se abre y se muestra SOLO el listado
+    if not segundo:
+        app.visible = True
+        try:
+            app.activate(steal_focus=True)
+        except Exception:  # noqa: BLE001
+            pass
+        minimizar_todo()   # se minimizan las demás ventanas; luego se abre y se muestra SOLO el listado
     wb = app.books.open(str(destino))
-    mostrar_libro(app, wb)
-    al_frente(app)   # Excel al FRENTE y maximizado, para que el comercial lo vea llenarse
+    if not segundo:
+        mostrar_libro(app, wb)
+        al_frente(app)   # Excel al FRENTE y maximizado, para que el comercial lo vea llenarse
     try:
-        vigilar_primer_plano(app.hwnd)   # y se mantiene al frente MIENTRAS se ejecuta
+        if not segundo:
+            vigilar_primer_plano(app.hwnd)   # y se mantiene al frente MIENTRAS se ejecuta
     except Exception:  # noqa: BLE001
         pass
     total = sum(len(h['celdas']) for h in trabajo['plan']['hojas']) or 1
     hechas, fallos = 0, []
     for h in trabajo['plan']['hojas']:
-        if hechas == 0:
+        if hechas == 0 and not segundo:
             al_frente(app)
         hoja = wb.sheets[h['nombre']]
         hoja.activate()
@@ -468,7 +485,7 @@ def llenar(trabajo: dict, token: str, aviso) -> str:
                 pass
             escribir(rango, c)
             hechas += 1
-            if hechas % 4 == 0:
+            if hechas % 4 == 0 and not segundo:
                 seguir_al_frente(app, wb)   # si otra ventana tapó a Excel, vuelve a ponerlo adelante
             if hechas % 5 == 0 or hechas == total:
                 aviso(f'Llenando {hechas} de {total} celdas…', hechas, total)
@@ -502,7 +519,8 @@ def llenar(trabajo: dict, token: str, aviso) -> str:
         destino.write_bytes(completo)
         wb = app.books.open(str(destino))
         fallos = []
-    al_frente(app)
+    if not segundo:
+        al_frente(app)
     try:
         wb.save()   # guardado automático al terminar
     except Exception:  # noqa: BLE001
@@ -512,7 +530,17 @@ def llenar(trabajo: dict, token: str, aviso) -> str:
     faltan = [h['nombre'] for h in trabajo['plan']['hojas'] if h['imagenes'] and len(wb.sheets[h['nombre']].pictures) < len(h['imagenes'])]
     if faltan:
         raise RuntimeError('Listado guardado en ' + str(destino) + ', pero falta el mockup en: ' + ', '.join(faltan))
-    return str(destino) + f' · verificado ✓ ({total} celdas' + (f', {corregidas} corregidas' if corregidas else '') + ')'
+    resultado = str(destino) + f' · verificado ✓ ({total} celdas' + (f', {corregidas} corregidas' if corregidas else '') + ')'
+    if segundo:   # Excel oculto: se cierra el libro y la instancia (el archivo queda guardado y libre para subirse a la NAS)
+        try:
+            wb.save(); wb.close()
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            app.quit()
+        except Exception:  # noqa: BLE001
+            pass
+    return resultado
 
 
 def subir_final(ruta: str, tid: str, token: str) -> None:
@@ -629,6 +657,7 @@ class Agente:
             self.resultados.append({'id': tid, 'estado': 'error', 'detalle': detalle})
             self.poner('No pude llenar Excel: ' + detalle)
         finally:
+            cerrar_oculta()
             detener_primer_plano()
             self.ocupado = False
 
