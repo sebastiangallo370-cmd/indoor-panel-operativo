@@ -619,7 +619,7 @@ def _mockups_en(carpeta_proyecto: Path, bases: list[str], proyecto: str) -> list
 
 def mockups_de(cliente: str, proyecto: str, ref: str) -> dict:
     """Imágenes (JPG de impresión: REFERENCIA_Dn_MAQUINA.jpg) de las carpetas de esa referencia dentro del proyecto. Solo lectura.
-    Si el proyecto elegido no las tiene, se buscan en los OTROS proyectos del cliente y se dice en cuál están."""
+    SOLO del proyecto elegido: si no las tiene, no se muestran las de otro proyecto (se pueden subir con SUBIR MOCKUP)."""
     ubicado = _dir_proyecto(cliente, proyecto)
     if ubicado is None:
         return {'items': [], 'motivo': 'El proyecto no está en la carpeta MAESTROS del cliente.'}
@@ -629,16 +629,9 @@ def mockups_de(cliente: str, proyecto: str, ref: str) -> dict:
         items = _mockups_en(carpeta_proyecto, bases, proyecto)
         if items:
             return {'items': items, 'motivo': '', 'otro_proyecto': ''}
-        for otro in proyectos_de_cliente(cliente).get('proyectos', []):
-            if otro == proyecto:
-                continue
-            u = _dir_proyecto(cliente, otro)
-            encontrados = _mockups_en(u[0], bases, otro) if u else []
-            if encontrados:
-                return {'items': encontrados, 'motivo': '', 'otro_proyecto': otro}
     except OSError:
         return {'items': [], 'motivo': 'No pude leer la NAS ahora.'}
-    return {'items': [], 'motivo': 'Ningún proyecto del cliente tiene mockups para la referencia ' + ', '.join(bases) + '.', 'otro_proyecto': ''}
+    return {'items': [], 'motivo': 'El proyecto ' + proyecto + ' no tiene mockups de la referencia ' + ', '.join(bases) + '. Puedes subirlos con SUBIR MOCKUP.', 'otro_proyecto': ''}
 
 
 @router.get('/mockups')
