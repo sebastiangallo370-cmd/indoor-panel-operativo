@@ -7926,7 +7926,7 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
     const commercialGroup=commercialToggle.closest('.nav-group');commercialGroup.classList.add('collapsed');const productionToggle=document.getElementById('production-toggle');if(productionToggle)productionToggle.addEventListener('click',()=>{{const g=productionToggle.closest('.nav-group');g.classList.toggle('collapsed');if(!g.classList.contains('collapsed')&&window.innerWidth>860)g.querySelector('.nav-children .tab')?.click()}});
     setTimeout(()=>{{if(!document.querySelector('.panel.active'))document.querySelector('.tab[data-kind="inicio"]')?.click()}},0);
     setTimeout(()=>{{const panel=document.querySelector('.panel.active');const kind=panel?.dataset?.panel;const activeTab=kind&&document.querySelector(`.tab[data-kind="${{kind}}"]`);if(activeTab)document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===activeTab))}},100);
-</script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/liquid-stats.js?v=20261019-1'></script><script src='/nombres-effi.js?v=20261022-2'></script><script src='/permisos.js?v=20261007-2'></script><script src='/reposiciones.js?v=20261019-1'></script><script src='/agentes.js?v=20261107-14'></script><script src='/promedios.js?v=20261109-1'></script><script src='/capacidad.js?v=20261009-2'></script><script src='/molderia.js?v=20261010-2'></script><script src='/estandar.js?v=20261020-1'></script><script src='/proveedores-tela.js?v=20261022-4'></script><script src='/terminos.js?v=20261010-1'></script><script src='/cookies-aviso.js?v=20261010-1'></script><script src='/rh-contratos.js?v=20261009-3'></script><script src='/fichas-resumen.js?v=20261022-2'></script><script src='/api/cartera/cartera.js?v=20261009-1'></script><script src='/trace-ui.js?v=20261116-1'></script><script src='/home-dashboard.js?v=20261110-1'></script><script src='/bodega-dashboard.js?v=20261109-3'></script><script src='/bodegas.js?v=20261009-7'></script><script src='/codigos-barras.js?v=20261014-3'></script><script src='/mis-pedidos.js?v=20261008-1'></script><script src='/crear-cliente.js?v=20261024-31'></script><script src='/pedido-effi.js?v=20261116-6'></script><script src='/pedido-listado.js?v=20261116-10'></script><script src='/instalar-app.js?v=20261115-1'></script><script src='/club-admin.js?v=20261116-18'></script><script src='/mobile-nav.js?v=20261108-1'></script><script src='/nav-liquid.js?v=20261109-1'></script><script src='/build-watch.js?v=20261105-1'></script><script src='/salud.js?v=20261014-2'></script><script src='/alertas.js?v=20261030-1'></script><script src='/bitacora.js?v=20261016-2'></script><script src='/memoria.js?v=20261018-1'></script><script src='/ecommerce.js?v=20261019-1'></script><script src='/zeus.js?v=20261110-3'></script><script src='/minimaximan.js?v=20261023-2'></script><script src='/aviso-agentes.js?v=20261023-5'></script><script src='/descuento-sublimacion.js?v=20261026-1'></script><script src='/stockman.js?v=20261022-30'></script><script src='/draco-panel.js?v=20261021-8'></script><script src='/laser-panel.js?v=20261113-1'></script><script src='/agentes-hub.js?v=20261109-1'></script><script src='/recordar-vista.js?v=20261109-1'></script><script src='/tema.js?v=20261008-1'></script><script src='/tarjeta-iconos.js?v=20261110-2'></script><script src='/confeccion-preparacion.js?v=20261113-2'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261021-1'></script><script src='/linea-editor.js?v=20261030-1'></script><script src='/lineas-producto-panel.js?v=20261030-1'></script><script src='/menu-cuenta.js?v=20261016-3'></script><script src='/foto-perfil.js?v=20261030-1'></script><script src='/efecto-vidrio.js?v=20261029-1'></script><script src='/motion.js?v=11.18.2'></script><script src='/home-hero.js?v=20261108-5'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab=>tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
+</script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/liquid-stats.js?v=20261019-1'></script><script src='/nombres-effi.js?v=20261022-2'></script><script src='/permisos.js?v=20261007-2'></script><script src='/reposiciones.js?v=20261019-1'></script><script src='/agentes.js?v=20261107-14'></script><script src='/promedios.js?v=20261109-1'></script><script src='/capacidad.js?v=20261009-2'></script><script src='/molderia.js?v=20261010-2'></script><script src='/estandar.js?v=20261020-1'></script><script src='/proveedores-tela.js?v=20261022-4'></script><script src='/terminos.js?v=20261010-1'></script><script src='/cookies-aviso.js?v=20261010-1'></script><script src='/rh-contratos.js?v=20261009-3'></script><script src='/fichas-resumen.js?v=20261022-2'></script><script src='/api/cartera/cartera.js?v=20261009-1'></script><script src='/trace-ui.js?v=20261116-1'></script><script src='/home-dashboard.js?v=20261110-1'></script><script src='/bodega-dashboard.js?v=20261109-3'></script><script src='/bodegas.js?v=20261009-7'></script><script src='/codigos-barras.js?v=20261014-3'></script><script src='/mis-pedidos.js?v=20261008-1'></script><script src='/crear-cliente.js?v=20261024-31'></script><script src='/pedido-effi.js?v=20261116-6'></script><script src='/pedido-listado.js?v=20261116-10'></script><script src='/instalar-app.js?v=20261115-1'></script><script src='/club-admin.js?v=20261116-19'></script><script src='/mobile-nav.js?v=20261108-1'></script><script src='/nav-liquid.js?v=20261109-1'></script><script src='/build-watch.js?v=20261105-1'></script><script src='/salud.js?v=20261014-2'></script><script src='/alertas.js?v=20261030-1'></script><script src='/bitacora.js?v=20261016-2'></script><script src='/memoria.js?v=20261018-1'></script><script src='/ecommerce.js?v=20261019-1'></script><script src='/zeus.js?v=20261110-3'></script><script src='/minimaximan.js?v=20261023-2'></script><script src='/aviso-agentes.js?v=20261023-5'></script><script src='/descuento-sublimacion.js?v=20261026-1'></script><script src='/stockman.js?v=20261022-30'></script><script src='/draco-panel.js?v=20261021-8'></script><script src='/laser-panel.js?v=20261113-1'></script><script src='/agentes-hub.js?v=20261109-1'></script><script src='/recordar-vista.js?v=20261109-1'></script><script src='/tema.js?v=20261008-1'></script><script src='/tarjeta-iconos.js?v=20261110-2'></script><script src='/confeccion-preparacion.js?v=20261113-2'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261021-1'></script><script src='/linea-editor.js?v=20261030-1'></script><script src='/lineas-producto-panel.js?v=20261030-1'></script><script src='/menu-cuenta.js?v=20261016-3'></script><script src='/foto-perfil.js?v=20261030-1'></script><script src='/efecto-vidrio.js?v=20261029-1'></script><script src='/motion.js?v=11.18.2'></script><script src='/home-hero.js?v=20261108-5'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab=>tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
 
 
 def ordered_mockup_uploads(extras, slots):
@@ -8396,6 +8396,51 @@ def mockup_programado(codigo: str, usuario=Depends(authenticate)):
     return FileResponse(png, media_type='image/png', headers={'Cache-Control': 'private, max-age=600'})
 
 
+def _resumen_programados(codigos: set) -> dict:
+    """Por cada orden CO/RM: filas de Producción, estado por área, % y área en curso. Se calcula aquí (no en el navegador)."""
+    try:
+        base = _produccion_base()
+        flow = json.loads((Path(__file__).parent / 'process-flow.json').read_text(encoding='utf-8'))
+    except Exception:
+        return {}
+    nm = lambda t: re.sub(r'\s+', ' ', unicodedata.normalize('NFKD', str(t or '')).encode('ascii', 'ignore').decode().upper()).strip()
+    h = [nm(x) for x in (base.get('headers') or [])]
+    ix = lambda n: h.index(n) if n in h else -1
+    iO = ix('ORDEN') if ix('ORDEN') >= 0 else next((i for i, x in enumerate(h) if 'ORDEN' in x), -1)
+    iR, iC, iCl, iP, iE, iL, iT = ix('REFERENCIA'), ix('CANTIDAD'), ix('NOMBRE DEL CLIENTE'), ix('NOMBRE PROYECTO'), ix('FECHA DE ENTREGA'), ix('LINEA'), next((i for i, x in enumerate(h) if x == 'TELA' or x.startswith('TELA')), -1)
+    procs = []
+    for pr in flow:
+        cols = [i for hd in pr['headers'] for i, y in enumerate(h) if y == nm(hd)]
+        if cols:
+            procs.append((pr['label'], nm(pr['label']) == 'DISENO', cols))
+    g = lambda v, i: str(v[i]).strip() if 0 <= i < len(v) and v[i] is not None else ''
+    fecha = re.compile(r'^\d{1,4}[/-]\d{1,2}[/-]\d{1,4}')
+    out = {}
+    for r in base.get('rows') or []:
+        v = r.get('values') or []
+        for cod in set(re.findall(r'\b(?:CO|RM)\d+\b', g(v, iO).upper())):
+            if cod not in codigos:
+                continue
+            o = out.setdefault(cod, {'filas': [], 'cliente': g(v, iCl), 'proyecto': g(v, iP), 'entrega': g(v, iE), 'celdas': [[] for _ in procs]})
+            mts = str((base.get('notes') or {}).get(f"{r['source_row']}:17") or '').strip()
+            o['filas'].append({'id': r['source_row'], 'ref': g(v, iR), 'units': int(re.sub(r'[^0-9]', '', g(v, iC)) or 0), 'linea': g(v, iL), 'tela': g(v, iT), 'mts': mts})
+            for k, (_, _, cols) in enumerate(procs):
+                o['celdas'][k].extend(nm(g(v, c)) for c in cols)
+    for o in out.values():
+        est = []
+        for k, (lab, ext, _) in enumerate(procs):
+            c = o['celdas'][k]
+            st = 'rework' if 'R' in c else 'active' if 'P' in c else 'finished' if c and all(x == 'N/A' or fecha.match(x) for x in c) else 'pending'
+            est.append({'label': lab, 'ext': ext, 'state': st})
+        inter = [e for e in est if not e['ext']]
+        hechos = sum(1 for e in inter if e['state'] == 'finished')
+        o['percent'] = round(hechos / len(inter) * 100) if inter else 0
+        foco = next((e for e in inter if e['state'] == 'rework'), None) or next((e for e in reversed(inter) if e['state'] == 'active'), None) or next((e for e in inter if e['state'] != 'finished'), None)
+        o['focus'] = foco
+        del o['celdas']
+    return out
+
+
 @app.get("/api/pedido-effi/programados")
 def pedidos_programados(usuario=Depends(authenticate)):
     """Los pedidos programados desde EMPEZAR PEDIDO, más reciente primero (se muestran en PROGRAMAR CLUB)."""
@@ -8422,6 +8467,9 @@ def pedidos_programados(usuario=Depends(authenticate)):
             r = db.execute('SELECT status FROM jobs WHERE id = ?', (x['job'],)).fetchone() if x.get('job') else \
                 db.execute('SELECT status FROM jobs WHERE order_number = ? ORDER BY id DESC LIMIT 1', (x['codigo'],)).fetchone()
             x['estado'] = r[0] if r else ''
+    res = _resumen_programados({x['codigo'] for x in lista})
+    for x in lista:
+        x['prod'] = res.get(x['codigo'])
     return {'programados': lista}
 
 

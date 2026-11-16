@@ -251,7 +251,7 @@
     // Antes de redibujar guardamos el foco y la posición del cursor para no perder lo que se escribe.
     const act = document.activeElement, idAct = act && act.id, pos = act && act.selectionStart;
     panel.innerHTML = ultimo = html;
-    if (typeof loadTraceAssets === 'function') panel.querySelectorAll('.tc-progcards [data-card-row]').forEach(c => { try { loadTraceAssets(Number(c.dataset.cardRow)); } catch (er) { /* sin imagen */ } });
+    observarTarjetas();
     const destino = idAct && panel.querySelector('#' + idAct);
     if (destino) { destino.focus(); if (pos != null && destino.setSelectionRange) destino.setSelectionRange(pos, pos); }
   }
@@ -360,13 +360,6 @@
     if (real) { real.click(); return; }
     toast('Esta orden no está visible en Producción ahora (revisa los filtros de PRODUCCIÓN). Ábrela desde allí.', 'error');
   });
-  // flechas ‹ › y botones D1, D2, D3… del mockup: cambian de diseño igual que en Producción
-  document.addEventListener('click', e => {
-    const b = e.target.closest('.tp-card [data-design-index]'); if (!b) return;
-    e.preventDefault(); e.stopPropagation();
-    const id = Number(b.dataset.designRow); if (!id || typeof traceDesignSelection === 'undefined' || typeof paintTraceAssets !== 'function') return;
-    traceDesignSelection.set(id, Number(b.dataset.designIndex)); paintTraceAssets(id);
-  }, true);
   function tarjetaPrograma(x) {
     const o = produccion[x.codigo] || null, ids = o && o.filas && o.filas.length ? o.filas : [0];
     return ids.map((id, k) => {
@@ -377,7 +370,7 @@
       const ruta = o ? '<div class="tp-ruta"><div class="tp-sig"><span>' + esc(o.focus ? 'Siguiente: ' + o.focus.label : 'Ruta completada') + '</span><b>' + o.percent + '% COMPLETADO</b></div><div class="tp-barra"><span style="width:' + o.percent + '%"></span></div></div>' : '';
       const nasId = ' data-ir-nas="' + esc(x.codigo) + '" data-cliente="' + esc((o && o.cliente) || x.cliente || '') + '"', editId = id ? ' data-puente="full-edit" data-id="' + id + '"' : ' disabled';
       return '<article class="tp-card state-' + estado[0] + '"' + (id ? ' data-card-row="' + id + '"' : '') + '>' +
-        '<div class="trace-media tp-media">' + (id && typeof traceAssetsMarkup === 'function' ? traceAssetsMarkup(id) : '<span>Sin diseño</span>') + '</div>' +
+        '<div class="trace-media tp-media">' + (id ? galeriaHtml(id) : '<span>Sin diseño</span>') + '</div>' +
         '<div class="tp-cuerpo"><div class="tp-cab"><h3>' + esc(x.codigo) + '</h3>' + (f.linea ? '<span class="tp-linea">LÍNEA <b>' + esc(f.linea) + '</b></span>' : '') + '</div>' +
         '<p class="tp-cliente">' + esc((o && o.cliente) || x.cliente || 'Sin cliente') + '</p><p class="tp-proy">' + esc((o && o.proyecto) || x.proyecto || '') + '</p>' +
         '<span class="tp-estado ' + estado[0] + '">' + esc(estado[1]) + '</span>' +
@@ -399,37 +392,37 @@
       lista.slice(0, 60).map(x => tarjetaPrograma(x)).join('') + '</div></div>';
   }
   function fechaDe(v) { const m = String(v || '').trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})|^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})/); if (!m) return null; return m[1] ? new Date(+m[1], m[2] - 1, +m[3]) : new Date(+(m[6].length === 2 ? '20' + m[6] : m[6]), m[5] - 1, +m[4]); }
-  async function cargarProduccion() {
-    try {
-      // se reutiliza la base de Producción que la página ya tiene cargada y se actualiza sola (no se vuelve a bajar entera cada vez: era lo más pesado)
-      const d = (typeof productionData !== 'undefined' && productionData && productionData.rows) ? productionData : await fetch('/api/produccion', { cache: 'no-cache', credentials: 'same-origin' }).then(r => r.json());
-      const h = (d.headers || []).map(norm), col = n => h.indexOf(n);
-      const iO = col('ORDEN') >= 0 ? col('ORDEN') : h.findIndex(x => x.includes('ORDEN')), iR = col('REFERENCIA'), iC = col('CANTIDAD'), iCl = col('NOMBRE DEL CLIENTE'), iP = col('NOMBRE PROYECTO'), iE = col('FECHA DE ENTREGA'), iT = h.findIndex(x => x === 'TELA' || x.startsWith('TELA'));
-      const flow = typeof indoorProcessFlow !== 'undefined' ? indoorProcessFlow : [];
-      const procs = flow.map(p => ({ label: p.label, ext: norm(p.label) === 'DISENO', cols: p.headers.flatMap(x => h.flatMap((y, i) => y === norm(x) ? [i] : [])) })).filter(p => p.cols.length);
-      const out = {};
-      (d.rows || []).forEach(r => {
-        const v = r.values || r, orden = String(v[iO] || '').trim(); if (!orden) return;
-        (orden.toUpperCase().match(/\b(?:CO|RM)\d+\b/g) || []).forEach(cod => {
-          const o = out[cod] = out[cod] || { orden, filas: [], cliente: v[iCl], proyecto: v[iP], refs: [], units: 0, tela: v[iT] || '', entrega: fechaDe(v[iE]), cells: procs.map(() => []) };
-          o.filas.push(r.source_row); (o.info = o.info || {})[r.source_row] = { ref: String(v[iR] || '').trim(), units: Number(String(v[iC] || '0').replace(/[^0-9.-]/g, '')) || 0, linea: String(v[h.indexOf('LINEA')] || '').trim(), maq: String(v[h.indexOf('MAQUINA DE IMPRESION')] || '').trim(), tela: String(v[iT] || '').trim(), mts: String((d.notes || {})[r.source_row + ':17'] || '').trim() }; if (v[iR]) o.refs.push(String(v[iR]).trim()); o.units += Number(String(v[iC] || '0').replace(/[^0-9.-]/g, '')) || 0;
-          procs.forEach((p, k) => p.cols.forEach(c => o.cells[k].push(norm(v[c]))));
-        });
-      });
-      Object.values(out).forEach(o => {
-        o.states = procs.map((p, k) => { const c = o.cells[k]; return { label: p.label, ext: p.ext, state: c.includes('R') ? 'rework' : c.includes('P') ? 'active' : c.length && c.every(x => x === 'N/A' || esFecha(x)) ? 'finished' : 'pending' }; });
-        const internos = o.states.filter(s => !s.ext), hechos = internos.filter(s => s.state === 'finished').length;
-        o.percent = internos.length ? Math.round(hechos / internos.length * 100) : 0;
-        o.focus = internos.find(s => s.state === 'rework') || [...internos].reverse().find(s => s.state === 'active') || internos.find(s => s.state !== 'finished');
-        delete o.cells;
-      });
-      produccion = out;
-      if (!window.traceCardHtml && typeof loadProduction === 'function' && !cargarProduccion._intento) {   // si Producción aún no se ha abierto, se carga su base para poder dibujar LA MISMA tarjeta
-        cargarProduccion._intento = true;
-        try { if (typeof productionData === 'undefined' || !productionData) await loadProduction(); else if (typeof renderProduction === 'function') renderProduction(); if (typeof renderTraceCards === 'function') renderTraceCards(); } catch (er) { /* se queda con la tarjeta simple */ }
-      }
-    } catch (e) { /* sin Producción: la tarjeta usa lo guardado al programar */ }
+  function cargarProduccion() {   // el cálculo lo hace el servidor (x.prod); aquí solo se adapta a lo que dibuja la tarjeta
+    const out = {};
+    programados.forEach(x => {
+      const p = x.prod; if (!p) return;
+      const info = {}; p.filas.forEach(f => { info[f.id] = f; });
+      out[x.codigo] = { orden: x.codigo, filas: p.filas.map(f => f.id), info, cliente: p.cliente, proyecto: p.proyecto, entrega: fechaDe(p.entrega), percent: p.percent, focus: p.focus };
+    });
+    produccion = out;
   }
+  const galerias = new Map();   // id de fila -> {imgs, i} ; las imágenes se piden solo cuando la tarjeta se ve
+  function galeriaHtml(id) {
+    const g = galerias.get(id);
+    if (!g) return '<span>Buscando diseño…</span>';
+    if (!g.imgs.length) return '<div class="trace-no-design"><span aria-hidden="true">◇</span><strong>Sin diseño adjunto</strong></div>';
+    const n = g.imgs.length, i = Math.min(g.i || 0, n - 1), c = g.imgs[i];
+    return '<div class="trace-design-view"><div class="trace-design-stage"><a class="trace-design-main" href="' + esc(c.url) + '" target="_blank" rel="noopener"><img loading="lazy" decoding="async" src="' + esc(c.url) + '" alt=""></a><span class="trace-design-count">DISEÑO ' + (c.design || i + 1) + (n > 1 ? ' <small>· ' + (i + 1) + '/' + n + '</small>' : '') + '</span>' +
+      (n > 1 ? '<button type="button" class="trace-design-nav is-prev" data-gal="' + id + '" data-gi="' + ((i - 1 + n) % n) + '">‹</button><button type="button" class="trace-design-nav is-next" data-gal="' + id + '" data-gi="' + ((i + 1) % n) + '">›</button>' : '') +
+      '</div><div class="trace-design-tabs">' + g.imgs.map((m, k) => '<button type="button" data-gal="' + id + '" data-gi="' + k + '" aria-pressed="' + (k === i) + '">D' + (m.design || k + 1) + '</button>').join('') + '</div></div>';
+  }
+  function pintarGaleria(id) { document.querySelectorAll('.tp-card[data-card-row="' + id + '"] .tp-media').forEach(m => { m.innerHTML = galeriaHtml(id); }); }
+  const observador = typeof IntersectionObserver === 'function' ? new IntersectionObserver(es => es.forEach(e => {
+    if (!e.isIntersecting) return; observador.unobserve(e.target);
+    const id = Number(e.target.dataset.cardRow); if (!id || galerias.has(id)) return;
+    fetch('/api/produccion/fila/' + id + '/archivos', { credentials: 'same-origin' }).then(r => r.json()).then(d => { galerias.set(id, { imgs: d.images || [], i: 0 }); pintarGaleria(id); }).catch(() => { galerias.set(id, { imgs: [], i: 0 }); pintarGaleria(id); });
+  }), { rootMargin: '200px' }) : null;
+  function observarTarjetas() { document.querySelectorAll('.tp-card[data-card-row]').forEach(c => { const id = Number(c.dataset.cardRow); if (galerias.has(id)) pintarGaleria(id); else if (observador) observador.observe(c); }); }
+  document.addEventListener('click', e => {
+    const b = e.target.closest('.tp-card [data-gal]'); if (!b) return;
+    e.preventDefault(); e.stopPropagation();
+    const id = Number(b.dataset.gal), g = galerias.get(id); if (!g) return; g.i = Number(b.dataset.gi); pintarGaleria(id);
+  }, true);
   function pedirClave(titulo, texto) {   // contraseña en un cuadro propio (nunca en un prompt() que la muestra)
     return new Promise(res => {
       const f = document.createElement('div'); f.className = 'ax-fondo';
@@ -475,7 +468,7 @@
     try {
       const [p, e, c, pr] = await Promise.all([api('/api/club/pedidos'), api('/api/club/effitron').catch(() => null), api('/api/club/correos').catch(() => null), api('/api/pedido-effi/programados').catch(() => null)]);
       if (pr) programados = pr.programados || [];
-      cargarAgenteTop(); await cargarProduccion();
+      cargarAgenteTop(); cargarProduccion();
       pedidos = p.pedidos; effi = e; if (c) correos = c; pintar();
     } catch (e) { panel.innerHTML = '<div class="tc"><div class="tc-card"><p>' + esc(e.message) + '</p></div></div>'; ultimo = ''; }
     finally { cargando = false; }
