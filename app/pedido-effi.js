@@ -290,7 +290,7 @@
           <label>Impuesto<select data-siniva-sel><option value="0"${l.sinIva ? '' : ' selected'}>${esc(l.impuesto || 'Sin impuesto')}</option>${l.impuesto ? `<option value="1"${l.sinIva ? ' selected' : ''}>Quitar IVA (sin impuesto)</option>` : ''}</select></label>
           <div><span style="color:#c9d3c1;font:800 11px Arial;letter-spacing:.08em">Total sin IVA</span><div class="pe-total-linea">${money(brutoDe(l) - descDe(l))}</div></div>
           <button class="pe-x" type="button" data-quitar aria-label="Quitar concepto">✕</button>
-          <div class="pe-tela" data-tela>${telaHtml(l)}</div><div class="pe-mas"><button type="button" class="pe-link" data-detalles>${l.abierta ? '▾' : '▸'} Más detalles${l.obsequio || l.obs || l.sinIva ? ' ●' : ''}</button><button type="button" class="pe-link pe-link-mk" data-mockups title="Ver los mockups de este proyecto para la referencia de este concepto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>VER MOCKUPS</button><label class="pe-link pe-link-mk pe-sube" title="Sube un mockup de tu computador (pedido nuevo o un diseño que no está en la NAS)"><input type="file" accept="image/*" multiple hidden data-up-linea><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg>SUBIR MOCKUP</label>${l.abierta ? `<div class="pe-detalles"><label class="pe-chk"><input type="checkbox" data-obsequio ${l.obsequio ? 'checked' : ''}> Sumar solo impuestos para Obsequio, degustación o donación (descuento del 100 %)</label><label class="pe-chk"><input type="checkbox" data-siniva ${l.sinIva ? 'checked' : ''}> Sin IVA en este concepto</label><label>Observación del concepto<input data-f="obs" maxlength="250" value="${esc(l.obs)}" placeholder="Opcional"></label></div>` : ''}</div>
+          <div class="pe-tela" data-tela>${telaHtml(l)}</div><div class="pe-mas"><button type="button" class="pe-link" data-detalles>${l.abierta ? '▾' : '▸'} Más detalles${l.obsequio || l.obs || l.sinIva ? ' ●' : ''}</button><button type="button" class="pe-link pe-link-mk" data-mockups title="Ver los mockups de este proyecto para la referencia de este concepto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>VER MOCKUPS</button><label class="pe-link pe-link-mk pe-sube" title="Sube un mockup de tu computador (pedido nuevo o un diseño que no está en la NAS)"><input type="file" accept="image/*" multiple hidden data-up-linea><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg>SUBIR MOCKUP</label><button type="button" class="pe-link pe-link-mk pe-vit-mas" data-vit-mas title="Volver a ver todos los mockups para elegir más"${st.vitCompacta ? '' : ' hidden'}>↺ ELEGIR MÁS MOCKUPS</button>${l.abierta ? `<div class="pe-detalles"><label class="pe-chk"><input type="checkbox" data-obsequio ${l.obsequio ? 'checked' : ''}> Sumar solo impuestos para Obsequio, degustación o donación (descuento del 100 %)</label><label class="pe-chk"><input type="checkbox" data-siniva ${l.sinIva ? 'checked' : ''}> Sin IVA en este concepto</label><label>Observación del concepto<input data-f="obs" maxlength="250" value="${esc(l.obs)}" placeholder="Opcional"></label></div>` : ''}</div>
         </div>`).join('')}</div>
         <div style="margin-top:10px"><button class="pe-btn sec mini" type="button" data-mas>+ Agregar concepto</button></div>
       </div>
@@ -361,7 +361,7 @@
       const body = leerFormulario();
       if (!crear) {
         const r = await post('/api/pedido-effi/vista-previa', body);
-        st.prev = r.resumen; st.ocupado = false; dibujarConservando(); msg('Vista previa lista: revisa los totales y pulsa CREAR.', 'ok');
+        st.prev = r.resumen; st.ocupado = false; st.vitCompacta = Object.values(st.mkSel || {}).some(v => v && v.length); dibujarConservando(); msg('Vista previa lista: revisa los totales y pulsa CREAR.', 'ok');
       } else {
         if (!confirm('Se va a crear en Effi una ' + nombreDoc() + ' por ' + money(st.prev.total) + '. ¿Confirmas?')) { st.ocupado = false; msg('', ''); return; }
         const r = await post('/api/pedido-effi/crear', body);
@@ -534,6 +534,7 @@
       else { st.proyNuevo = false; t.hidden = true; t.value = ps.value; }
       // al cambiar de proyecto, lo elegido del proyecto anterior NO se queda: solo se conserva lo que subiste tú desde tu equipo
       Object.keys(st.mkSel || {}).forEach(r => { st.mkSel[r] = (st.mkSel[r] || []).filter(x => typeof x !== 'string'); });
+      st.vitCompacta = false;
       t.dispatchEvent(new Event('input', { bubbles: true }));
     });
     const cq = q('[name="cliente-q"]');
@@ -561,6 +562,7 @@
       row.querySelector('[data-dtipo]').onclick = () => { if (l.obsequio) return; l.dtipo = l.dtipo === 'pct' ? 'valor' : 'pct'; invalidar(); dibujar(); };
       row.querySelector('[data-detalles]').onclick = () => { l.abierta = !l.abierta; dibujar(); };
       row.querySelector('[data-mockups]').onclick = () => verMockups(l);
+      const mas = row.querySelector('[data-vit-mas]'); if (mas) mas.onclick = () => { st.vitCompacta = false; document.querySelectorAll('[data-vit-mas]').forEach(b => { b.hidden = true; }); pintarVitrina(); const v = q('[data-vitrina]'); if (v) v.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); };
       const up = row.querySelector('[data-up-linea]'); if (up) up.onchange = () => { if (!String(l.ref || '').trim() || !l.articulo) { msg('Primero elige el artículo (referencia) para saber a qué referencia pertenece el mockup.', 'error'); up.value = ''; return; } agregarMockups(l.ref, up.files); up.value = ''; };
       const ss = row.querySelector('[data-siniva-sel]'); if (ss) ss.onchange = () => { l.sinIva = ss.value === '1'; st.sinIvaTodos = st.conceptos.every(x => x.sinIva); invalidar(); dibujar(); };
       const si = row.querySelector('[data-siniva]'); if (si) si.onchange = () => { l.sinIva = si.checked; st.sinIvaTodos = st.conceptos.every(x => x.sinIva); invalidar(); dibujar(); };
@@ -729,6 +731,7 @@
     ref = String(ref || '').trim().toUpperCase(); if (!ref) return;
     const lista = st.mkFiles[ref] = st.mkFiles[ref] || [], sel = st.mkSel[ref] = st.mkSel[ref] || [];
     [...files].forEach(fl => { if (!/^image\//.test(fl.type) || fl.size > 10 * 1024 * 1024) return; lista.push(fl); if (sel.length < 20) sel.push(fl); });
+    st.vitCompacta = false; document.querySelectorAll('[data-vit-mas]').forEach(b => { b.hidden = true; });
     pintarVitrina(); guardarBorradorPronto();
   }
   function pintarVitrina() {
@@ -738,13 +741,13 @@
     const vistas = new Set();
     const html = ls.map(l => {
       const ref = String(l.ref || '').trim().toUpperCase(); if (vistas.has(ref)) return ''; vistas.add(ref);
-      const f = fotoMockup(l), tela = telaHtml(l), sel = st.mkSel[ref] || [];
+      const f = fotoMockup(l), tela = telaHtml(l), sel = st.mkSel[ref] || [], solo = !!st.vitCompacta && sel.length > 0;   // resumida: solo lo elegido (para elegir más hay un botón en el concepto)
       const aviso = t => '<div class="pe-vit"><div class="foto">' + t + '</div>' + (tela ? '<div class="t">' + tela + '</div>' : '') + '</div>';
-      const subidos = (st.mkFiles[ref] || []).map((fl, j) => { const k = sel.indexOf(fl);
+      const subidos = (st.mkFiles[ref] || []).map((fl, j) => { const k = sel.indexOf(fl); if (solo && k < 0) return '';
         return '<div class="pe-vit' + (k >= 0 ? ' elegido' : '') + '" data-vit-ref="' + esc(ref) + '" data-vit-file="' + j + '" title="Mockup subido: clic para elegirlo o quitarlo"><div class="foto"><img alt="Mockup subido" src="' + esc(urlArchivo(fl)) + '"><span class="pe-vit-d">' + (k >= 0 ? '✓ D' + (k + 1) : 'SUBIDO · ELEGIR') + '</span><button type="button" class="pe-vit-lupa" data-vit-borrar title="Quitar este mockup">✕</button></div></div>'; }).join('');
       const subir = '';   // el botón de subir mockups está en cada concepto (junto a VER MOCKUPS): no ocupa lugar en la vitrina
       if (!Array.isArray(f) || !f.length) return aviso(f === 'cargando' ? 'Buscando mockups…' : !st.cliente ? 'Elige el cliente para ver los mockups' : !valor('garantia').trim() ? 'Elige el proyecto para ver los mockups' : 'Sin mockups en la NAS (pedido nuevo): usa ⬆ SUBIR MOCKUP en el concepto') + subidos + subir;
-      return subidos + subir + f.map(m => { const k = sel.indexOf(m.url);
+      return subidos + subir + f.filter(m => !solo || sel.indexOf(m.url) >= 0).map(m => { const k = sel.indexOf(m.url);
         return '<div class="pe-vit' + (k >= 0 ? ' elegido' : '') + '" data-vit-ref="' + esc(ref) + '" data-vit-url="' + esc(m.url) + '" title="Clic para ' + (k >= 0 ? 'quitarlo de' : 'usarlo en') + ' el listado"><div class="foto"><img alt="Mockup ' + esc(ref) + '" src="' + esc(m.url) + '"><span class="pe-vit-d">' + (k >= 0 ? '✓ D' + (k + 1) : 'ELEGIR') + '</span><button type="button" class="pe-vit-lupa" data-vit-lupa title="Ver en grande">🔍</button></div>' + (tela ? '<div class="t">' + tela + '</div>' : '') + '</div>'; }).join('');
     }).join('');
     if (caja._html === html) return; caja._html = html; caja.innerHTML = html;
