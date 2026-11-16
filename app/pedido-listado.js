@@ -117,6 +117,22 @@
     .pl-slot{justify-items:center;align-items:center}.pl-slot>div{justify-content:center}.pl-msg{font-size:12px;text-align:center}
     .pl-acciones{justify-content:center}
   }
+  @media(max-width:700px){
+    /* listado en móvil: cada prenda es una tarjeta clara, con campos grandes y el número y la X en las esquinas */
+    .pl-tabla tr{padding:34px 12px 12px!important;gap:10px!important}
+    .pl-tabla td.n{position:absolute!important;top:9px!important;left:14px!important;right:auto!important;width:auto!important;font:900 11px Arial!important;letter-spacing:.1em;color:#d0f44c!important;text-align:left!important}
+    .pl-tabla td.n::before{content:'PRENDA '}
+    .pl-tabla td:last-child{top:3px!important;right:6px!important}.pl-tabla .pl-x{width:34px!important;height:34px!important;min-height:0!important;padding:0!important;border-radius:10px}
+    .pl-tabla td[data-l]::before{font-size:10px!important;margin-bottom:4px!important;text-align:left!important}
+    .pl-tabla input,.pl-tabla select{min-height:46px!important;height:46px!important;font-size:16px!important;border-radius:12px!important;text-align:left!important;text-align-last:left!important;padding:0 12px!important}
+    .pl-tabla input::placeholder{font-size:15px;opacity:.55}
+    .pl-herr{display:grid!important;grid-template-columns:1fr 1fr;gap:8px!important}.pl-herr .pl-btn{width:100%!important;min-height:44px!important;font-size:11px!important;padding:8px 6px!important;white-space:normal!important}.pl-herr label{min-width:0!important}
+    .pl-herr [data-mas],.pl-herr [data-pegar]{grid-column:1/-1}
+    .pl-acciones{flex-direction:column;align-items:stretch!important;gap:8px!important;padding:10px 12px calc(10px + env(safe-area-inset-bottom))!important}
+    .pl-acciones .pl-btn{flex:0 0 auto!important;width:100%!important;min-height:48px!important;font-size:13px!important;letter-spacing:.04em;padding:10px 12px!important;white-space:normal!important;line-height:1.25}
+    .pl-acciones .pl-btn:not(.sec){order:-1}
+    .pl-acciones p,.pl-acciones [data-msg]{font-size:13px!important;text-align:center}
+  }
   `;
   document.head.appendChild(css);
 
@@ -313,7 +329,7 @@
   const tallasConActual = actual => { const l = tallasBase(); if (actual && !l.includes(actual)) l.push(actual); return l; };
   const aceptaTalla = v => { const t = limpiaTalla(v); if (!t) return ''; if (!tallasBase().includes(t)) (L.tallasExtra = L.tallasExtra || []).push(t); return t; };
   function filaHtml(f, i) {
-    return '<tr data-i="' + i + '"><td class="n">' + (i + 1) + '</td><td><input data-c="nombre" value="' + esc(f.nombre) + '" placeholder="NOMBRE" autocomplete="off"></td>' +
+    return '<tr data-i="' + i + '"><td class="n">' + (i + 1) + '</td><td data-l="NOMBRE"><input data-c="nombre" value="' + esc(f.nombre) + '" placeholder="NOMBRE" autocomplete="off"></td>' +
       '<td data-l="TALLA" style="width:96px"><select data-c="talla" class="' + (f.talla ? '' : 'bad') + '"><option value="">—</option>' + tallasConActual(f.talla).map(t => '<option' + (t === f.talla ? ' selected' : '') + '>' + esc(t) + '</option>').join('') + '<option value="__otra" title="Agregar otra talla">+</option></select></td>' +
       '<td data-l="NÚMERO" style="width:90px"><input data-c="numero" value="' + esc(f.numero) + '" placeholder="Nº" inputmode="numeric" autocomplete="off"></td>' +
       '<td data-l="DISEÑO" style="width:96px"><select data-c="diseno">' + Array.from({ length: L.disenos }, (_, k) => '<option value="' + (k + 1) + '"' + (k + 1 === Number(f.diseno) ? ' selected' : '') + '>D' + (k + 1) + '</option>').join('') + '</select></td>' +
