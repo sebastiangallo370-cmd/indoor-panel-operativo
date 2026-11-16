@@ -361,6 +361,13 @@
     cardEditorDialog.showModal();
     setTimeout(() => cardEditorFields.querySelector('input,textarea')?.focus(), 0);
   }
+  // abre el editor de una tarjeta SIN que la tarjeta esté dibujada en Producción (lo usa PROGRAMAR CLUB): si los datos no están cargados los baja antes
+  window.traceAbrirEditor = async function (id) {
+    const hay = () => !!(productionData && productionData.rows && productionData.rows.some(item => Number(item.source_row) === Number(id)));
+    if (!hay()) { try { if (typeof loadProduction === 'function') await loadProduction(); } catch (e) { /* se avisa abajo */ } }
+    if (!hay()) return false;
+    openCardEditor(Number(id)); return true;
+  };
   cardEditorDialog.querySelector('.trace-card-editor-close').onclick = () => cardEditorDialog.close();
   cardEditorDialog.querySelector('.trace-card-editor-cancel').onclick = () => cardEditorDialog.close();
   cardEditorDialog.addEventListener('submit', async event => {

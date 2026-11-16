@@ -331,6 +331,9 @@
   // EDITAR / MTS / MÁQUINA: se le pasa el clic a la misma tarjeta de Producción (así abre exactamente la misma ventana)
   document.addEventListener('click', e => {
     const b = e.target.closest('[data-puente]'); if (!b) return;
+    if (b.dataset.puente === 'full-edit' && window.traceAbrirEditor) {   // EDITAR abre el mismo editor de Producción directo, aunque la tarjeta no esté visible allá
+      b.disabled = true; window.traceAbrirEditor(Number(b.dataset.id)).then(ok => { if (!ok) toast('No encontré esta orden en Producción para editarla. Ábrela desde PRODUCCIÓN.', 'error'); }).finally(() => { b.disabled = false; }); return;
+    }
     const real = document.querySelector('.trace-cards [data-card-' + b.dataset.puente + '="' + b.dataset.id + '"]');
     if (real) { real.click(); return; }
     toast('Esta orden no está visible en Producción ahora (revisa los filtros de PRODUCCIÓN). Ábrela desde allí.', 'error');
