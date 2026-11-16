@@ -214,6 +214,11 @@
     .pl:has(.pg) .pl-acciones{flex-direction:row!important;flex-wrap:wrap;justify-content:center;position:static!important;padding:8px!important;gap:8px!important;box-shadow:none!important}
     .pl:has(.pg) .pl-acciones .pl-btn{flex:1 1 40%!important;min-height:42px!important;font-size:12px!important;padding:6px 8px!important;width:auto!important}}
   .pl-btn[hidden],.pl-acciones [hidden]{display:none!important}.pg-anillo .pg-ico svg{transform:none;width:46%;height:auto}
+  /* botones más pequeños en la pantalla de programar */
+  .pl:has(.pg) .pl-acciones{padding:6px 10px;gap:8px}
+  .pl:has(.pg) .pl-acciones .pl-btn{min-width:0!important;min-height:32px!important;padding:6px 16px!important;font-size:11px!important;letter-spacing:.06em}
+  .pg-descarga{padding:7px 14px;font-size:10.5px;box-shadow:0 5px 14px rgba(208,244,76,.2)}.pg-descarga small{font-size:9.5px}
+  @media(max-width:900px){.pl:has(.pg) .pl-acciones .pl-btn{flex:0 1 auto!important;min-height:34px!important;padding:6px 14px!important;font-size:11px!important}.pg-descarga{padding:7px 12px;font-size:10px}}
   @media(prefers-reduced-motion:reduce){.pg *,.pg{animation-duration:.01s!important;animation-iteration-count:1!important}.pg-aura{display:none}}
   `;
   document.head.appendChild(css);
