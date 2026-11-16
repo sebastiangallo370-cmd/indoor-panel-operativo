@@ -35,6 +35,7 @@ jobs:
         run: |
           pyinstaller --noconfirm --windowed --name AgenteExcelIndoor --osx-bundle-identifier co.indoorsport.agenteexcel --collect-all xlwings agente_excel/agente_excel.py
           plutil -insert NSAppleEventsUsageDescription -string "El agente de Indoor abre Microsoft Excel y llena el listado del pedido." dist/AgenteExcelIndoor.app/Contents/Info.plist
+          plutil -insert CFBundleURLTypes -json '[{"CFBundleURLName":"Agente Excel Indoor","CFBundleURLSchemes":["indoorexcel"]}]' dist/AgenteExcelIndoor.app/Contents/Info.plist
           codesign --force --deep -s - dist/AgenteExcelIndoor.app
           ditto -c -k --keepParent dist/AgenteExcelIndoor.app ${{ matrix.nombre }}
       - uses: actions/upload-artifact@v4

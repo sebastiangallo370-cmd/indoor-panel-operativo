@@ -432,7 +432,7 @@
     const f = document.createElement('div'); f.className = 'ax-fondo';
     f.innerHTML = '<div class="ax-card"><div class="ax-cab"><div><span class="ax-eye">PROGRAMAR CLUB</span><h3>💻 Agente Excel</h3></div><button class="ax-x" type="button" data-ax-cerrar>CERRAR ✕</button></div>' +
       '<p class="ax-p">Con el agente instalado, al pulsar <b>PROGRAMAR PEDIDO</b> se abre Microsoft Excel en tu computador y el listado se llena solo, a la vista (encabezado, filas y mockups). Se instala una sola vez. Necesitas Excel de escritorio con licencia.</p>' +
-      '<div class="ax-estado" data-ax-estado>Consultando tu agente…</div>' +
+      '<div class="ax-estado" data-ax-estado>Consultando tu agente…</div><div class="ax-btns" style="margin:0 0 10px"><button class="ax-btn lime" type="button" data-ax-abrir-agente>▶ ABRIR AGENTE</button><small data-ax-abrir-msg style="align-self:center;color:#a9b5a3">Abre el agente instalado en este computador.</small></div>' +
       '<div class="ax-pasos"><div class="ax-paso"><b>1 · Descarga e instala</b><div class="ax-btns"><a class="ax-btn" data-ax-win href="#" rel="noopener">⬇ WINDOWS</a><a class="ax-btn" data-ax-mac href="#" rel="noopener">⬇ MAC</a></div>' +
       '<small><b>Windows:</b> descomprime y abre <i>AgenteExcelIndoor.exe</i>. Si aparece «Windows protegió su PC»: <i>Más información → Ejecutar de todas formas</i>.<br><b>Mac:</b> descomprime, arrastra <i>AgenteExcelIndoor</i> a Aplicaciones y la primera vez ábrelo con <i>clic derecho → Abrir</i>. Cuando pregunte, permite que controle Microsoft Excel (Ajustes → Privacidad y seguridad → Automatización).</small></div>' +
       '<div class="ax-paso"><b>2 · Vincula este computador con tu usuario</b><div class="ax-btns"><button class="ax-btn lime" type="button" data-ax-codigo>GENERAR CÓDIGO</button></div><div class="ax-codigo" data-ax-ver hidden></div><small>El agente te pedirá este código la primera vez. Sirve 10 minutos.</small></div>' +
@@ -457,6 +457,11 @@
         let resta = r.vence_seg; v.innerHTML = '<span>' + esc(r.codigo) + '</span><small data-ax-resta></small>';
         clearInterval(v._t); v._t = setInterval(() => { resta--; const z = v.querySelector('[data-ax-resta]'); if (z) z.textContent = resta > 0 ? 'vence en ' + Math.floor(resta / 60) + ':' + String(resta % 60).padStart(2, '0') : 'venció: genera otro'; if (resta <= 0) clearInterval(v._t); }, 1000);
       } catch (er) { toast(er.message, 'error'); }
+    };
+    f.querySelector('[data-ax-abrir-agente]').onclick = () => {
+      const m = f.querySelector('[data-ax-abrir-msg]'); if (window.abrirAgenteExcelPC) window.abrirAgenteExcelPC();
+      m.textContent = 'Abriendo… si el navegador pregunta, pulsa «Abrir». Debe aparecer 🟢 Conectado aquí arriba.';
+      setTimeout(() => { if (f.isConnected && !f.querySelector('[data-ax-estado].ok')) m.textContent = 'Si no se abrió: búscalo una vez en Windows (tecla Windows → AgenteExcelIndoor). Desde entonces este botón lo abre.'; }, 9000);
     };
     f.querySelector('[data-ax-abrir]').onclick = async () => {
       const c = f.querySelector('[data-ax-pedido]').value.trim().toUpperCase(), z = f.querySelector('[data-ax-abrir-estado]');

@@ -24,7 +24,7 @@ import urllib.request
 from pathlib import Path
 from tkinter import messagebox, simpledialog
 
-VERSION = '1.1.3'
+VERSION = '1.1.4'
 URL = os.getenv('AGENTE_EXCEL_URL', 'https://produccion.cloud').rstrip('/')
 CONFIG = Path.home() / '.agente_excel_indoor.json'
 SALIDA = Path.home() / 'Documents' / 'Indoor Pedidos'
@@ -54,6 +54,36 @@ def pedir(ruta: str, datos: dict | None = None, token: str = '', binario: bool =
     with urllib.request.urlopen(req, timeout=60) as r:
         cuerpo = r.read()
     return cuerpo if binario else json.loads(cuerpo or b'{}')
+
+
+def registrar_enlace() -> None:
+    """Registra el enlace indoorexcel:// en Windows: así el botón «ABRIR AGENTE» del panel puede abrir este programa. (En Mac lo trae la app en su Info.plist.)"""
+    exe = sys.executable if getattr(sys, 'frozen', False) else ''
+    if not exe or platform.system() != 'Windows':
+        return
+    try:
+        import winreg
+        base = r'Software\Classes\indoorexcel'
+        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, base) as k:
+            winreg.SetValueEx(k, '', 0, winreg.REG_SZ, 'URL:Agente Excel Indoor'); winreg.SetValueEx(k, 'URL Protocol', 0, winreg.REG_SZ, '')
+        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, base + r'\shell\open\command') as k:
+            winreg.SetValueEx(k, '', 0, winreg.REG_SZ, f'"{exe}" "%1"')
+    except Exception:  # noqa: BLE001 - sin el enlace igual funciona abriéndolo a mano
+        pass
+
+
+_cerrojo = None
+
+
+def ya_hay_uno_abierto() -> bool:
+    """Solo una copia del agente a la vez (el botón del panel lo puede lanzar varias veces)."""
+    global _cerrojo
+    try:
+        _cerrojo = socket.socket(); _cerrojo.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 0)
+        _cerrojo.bind(('127.0.0.1', 47653)); _cerrojo.listen(1)
+        return False
+    except OSError:
+        return True
 
 
 def iniciar_con_el_equipo() -> None:
@@ -516,10 +546,13 @@ class Agente:
         self.ventana.mainloop()
 
     def empezar(self):
+        registrar_enlace()
         if not self.vincular():
             self.ventana.destroy(); return
         self.ciclo()
 
 
 if __name__ == '__main__':
+    if ya_hay_uno_abierto():
+        sys.exit(0)   # ya está abierto (por ejemplo, el botón del panel lo lanzó otra vez)
     Agente().correr()

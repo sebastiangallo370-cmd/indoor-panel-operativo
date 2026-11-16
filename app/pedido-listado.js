@@ -91,7 +91,7 @@
   .pl-tabla td{padding:0 3px}.pl-tabla td.n{width:34px;color:#8f9d88;font:700 12px Arial;text-align:right}.pl-tabla input,.pl-tabla select{min-height:34px}
   .pl-tabla .bad{border-color:#ff7b7b!important;background:#2a1414!important}
   .pl-x{all:unset;cursor:pointer;color:#ff9b9b;font:900 16px Arial;padding:6px}
-  .pl-ag{margin-left:auto;padding:6px 12px;border-radius:99px;border:1px solid #3d4c3b;color:#a9b5a3;font:800 11px Arial;white-space:nowrap}.pl-ag.ok{border-color:#6f9410;color:#9be37a}.pl-ag.mal{border-color:#ffb547;color:#ffb547;background:rgba(255,181,71,.08)}
+  .pl-ag{margin-left:auto;padding:6px 12px;border-radius:99px;border:1px solid #3d4c3b;color:#a9b5a3;font:800 11px Arial;white-space:nowrap}.pl-ag-abrir{margin-left:8px;padding:4px 10px;border-radius:99px;border:1px solid #b9e03a;background:#d0f44c;color:#0d140e;font:900 10px Arial;cursor:pointer;width:auto!important;min-height:0!important}.pl-ag.ok{border-color:#6f9410;color:#9be37a}.pl-ag.mal{border-color:#ffb547;color:#ffb547;background:rgba(255,181,71,.08)}
   .pl-herr{display:flex;flex-wrap:nowrap;gap:8px;align-items:flex-end;margin-bottom:10px;overflow-x:auto}.pl-herr label{min-width:130px;flex:0 0 auto}.pl-herr .pl-btn{width:auto!important;flex:0 0 auto!important;white-space:nowrap;min-height:38px;padding:8px 14px}
   .pl-listo{max-width:720px;margin:30px auto;text-align:center}.pl-listo strong{display:block;font:900 26px Arial;color:#d0f44c;margin:8px 0}
   .pl-listo .caja{margin-top:14px;padding:14px;border-radius:12px;text-align:left;font:700 13px/1.5 Arial;white-space:pre-line;border:1px solid rgba(255,255,255,.2)}
@@ -321,6 +321,8 @@
       '<td data-l="OBSERVACIÓN"><input data-c="observacion" value="' + esc(f.observacion) + '" placeholder="Observación" autocomplete="off"></td><td style="width:34px"><button class="pl-x" type="button" data-quitar-fila aria-label="Quitar">✕</button></td></tr>';
   }
   // el comercial ve ANTES de programar si su agente está abierto (si no, Excel no se abre en su computador)
+  // abre el AGENTE EXCEL instalado en este computador (enlace indoorexcel:// que registra el propio agente la primera vez que corre)
+  window.abrirAgenteExcelPC = function () { const a = document.createElement('a'); a.href = 'indoorexcel://abrir'; a.style.display = 'none'; document.body.appendChild(a); a.click(); setTimeout(() => a.remove(), 1000); };
   async function estadoAgente() {
     const e = q('[data-ag]'); if (!e) return;
     try {
@@ -328,7 +330,11 @@
       if (!raiz || !raiz.isConnected) return;
       const ok = !!r.conectado, hay = (r.equipos || []).length > 0;
       e.className = 'pl-ag ' + (ok ? 'ok' : 'mal');
-      e.textContent = ok ? '💻 Agente Excel conectado ✓' : hay ? '⚠ Agente Excel CERRADO: ábrelo en este computador para ver llenarse el Excel' : '⚠ Sin agente Excel instalado (botón AGENTE EXCEL en PROGRAMAR CLUB)';
+      e.innerHTML = ok ? '💻 Agente Excel conectado ✓' : hay ? '⚠ Agente Excel CERRADO <button type="button" class="pl-ag-abrir" data-abrir-agente>▶ ABRIR AGENTE</button>' : '⚠ Sin agente Excel instalado (botón AGENTE EXCEL en PROGRAMAR CLUB)';
+      const b = e.querySelector('[data-abrir-agente]'); if (b) b.onclick = () => {
+        window.abrirAgenteExcelPC(); b.disabled = true; b.textContent = 'Abriendo…'; clearTimeout(L.tAg); L.tAg = setTimeout(estadoAgente, 2500);
+        setTimeout(() => { const x = q('[data-ag]'); if (x && x.classList.contains('mal')) { const y = x.querySelector('[data-abrir-agente]'); if (y) { y.disabled = false; y.textContent = '▶ ABRIR AGENTE'; } setMsg('Si no se abrió: búscalo una vez en Windows (tecla Windows → AgenteExcelIndoor). Desde entonces este botón lo abre.', ''); } }, 9000);
+      };
     } catch (er) { /* sin estado */ }
     if (raiz && raiz.isConnected && L.pantalla === 'listado') { clearTimeout(L.tAg); L.tAg = setTimeout(estadoAgente, 8000); }
   }
