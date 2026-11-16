@@ -342,10 +342,11 @@
     const o = produccion[x.codigo] || null, ids = o && o.filas && o.filas.length ? o.filas : [0];
     return ids.map((id, k) => {
       const f = (o && o.info && o.info[id]) || {};
-      const estado = x.estado === 'ERROR' || x.estado === 'REVISAR' ? ['late', 'Error al programar'] : !o ? ['late', x.estado === 'COMPLETADO' ? 'No está en Producción' : 'Programando…'] : o.percent >= 100 ? ['finished', 'Terminado'] : o.focus ? [o.focus.state === 'active' ? 'active' : 'pending', (o.focus.state === 'active' ? 'En ' : 'Pendiente - ') + o.focus.label] : ['pending', 'Programado'];
+      const pct = f.percent != null ? f.percent : (o ? o.percent : 0), foco = f.percent != null ? f.focus : (o ? o.focus : null);   // avance de ESTA tarjeta
+      const estado = x.estado === 'ERROR' || x.estado === 'REVISAR' ? ['late', 'Error al programar'] : !o ? ['late', x.estado === 'COMPLETADO' ? 'No está en Producción' : 'Programando…'] : pct >= 100 ? ['finished', 'Terminado'] : foco ? [foco.state === 'active' ? 'active' : 'pending', (foco.state === 'active' ? 'En ' : 'Pendiente - ') + foco.label] : ['pending', 'Programado'];
       const dias = o && o.entrega ? Math.round((o.entrega - new Date().setHours(0, 0, 0, 0)) / 864e5) : null;
       const mts = /MTS/i.test(f.mts || '') ? f.mts.split(/\n|<br>/)[0].trim() : '';
-      const ruta = o ? '<div class="tp-ruta"><div class="tp-sig"><span>' + esc(o.focus ? 'Siguiente: ' + o.focus.label : 'Ruta completada') + '</span><b>' + o.percent + '% COMPLETADO</b></div><div class="tp-barra"><span style="width:' + o.percent + '%"></span></div></div>' : '';
+      const ruta = o ? '<div class="tp-ruta"><div class="tp-sig"><span>' + esc(foco ? 'Siguiente: ' + foco.label : 'Ruta completada') + '</span><b>' + pct + '% COMPLETADO</b></div><div class="tp-barra"><span style="width:' + pct + '%"></span></div></div>' : '';
       const nasId = ' data-ir-nas="' + esc(x.codigo) + '" data-cliente="' + esc((o && o.cliente) || x.cliente || '') + '"', editId = id ? ' data-puente="full-edit" data-id="' + id + '"' : ' disabled';
       return '<article class="tp-card state-' + estado[0] + '"' + (id ? ' data-card-row="' + id + '"' : '') + '>' +
         '<div class="trace-media tp-media">' + (id ? galeriaHtml(id) : '<span>Sin diseño</span>') + '</div>' +
