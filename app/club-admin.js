@@ -570,7 +570,14 @@
     };
     pintar(); f._t = setInterval(pintar, 4000);
   }
-  function abrirPedido() {
+  async function abrirPedido() {
+    // sin los dos agentes conectados no se puede empezar: así nada se crea a ciegas (ni en segundo plano desde el móvil)
+    try {
+      const a = await api('/api/pedido-effi/agentes'), faltan = [];
+      if (!a.excel) faltan.push('el AGENTE EXCEL de tu computador (pulsa ▶ ABRIR AGENTE)');
+      if (!a.effitron) faltan.push('el agente EFFITRON (PDF de Effi)');
+      if (faltan.length) { toast('No puedes empezar el pedido: falta conectar ' + faltan.join(' y ') + '.', 'error'); return; }
+    } catch (er) { toast('No pude verificar los agentes: ' + er.message, 'error'); return; }
     document.querySelector('.tc-pedido-fondo')?.remove();
     const f = document.createElement('div');
     f.className = 'tc-pedido-fondo';
