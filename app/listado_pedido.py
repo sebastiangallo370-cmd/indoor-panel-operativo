@@ -11,7 +11,8 @@ import re
 import unicodedata
 from datetime import date
 
-MAX_DISENOS = 6                       # la plantilla trae las columnas DISEÑO 1 a 6
+MAX_DISENOS = 20                      # la plantilla acepta hasta 20 diseños (AG3 «N° de diseños a usar (1-20)»); en la lista de personas solo hay columnas DISEÑO 1 a 6
+COLUMNAS_DISENO = 6
 GENEROS = ('MASC', 'FEM')
 TALLAS = ['2', '4', '6', '8', '10', '12', '14', '16', 'XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL']   # lista desplegable de TALLA de la plantilla de Indoor
 LINEAS = ['COPA', 'PLUS', 'MAQUILA', 'PREMIUM', 'ESTANDAR']                                             # lista desplegable de LINEA DE PRODUCTO
@@ -241,9 +242,13 @@ def _llenar_hoja(ws, doc: dict, g: dict, comercial: str, linea_producto: str) ->
         ws.cell(row=fila, column=4, value=f['talla'] or None)
         ws.cell(row=fila, column=5, value=f['numero'] or None)
         maximo = max(maximo, f['diseno'])
-        ws.cell(row=fila, column=9 + f['diseno'], value='X')
-        if f['observacion']:
-            ws.cell(row=fila, column=18, value=f['observacion'])
+        obs = f['observacion']
+        if f['diseno'] <= COLUMNAS_DISENO:
+            ws.cell(row=fila, column=9 + f['diseno'], value='X')
+        else:   # la plantilla no trae columna para el diseño 7 en adelante: se anota en OBSERVACIONES («DISEÑO 7 · …»), como en el generador anterior
+            obs = f'DISEÑO {f["diseno"]}' + (f' · {obs}' if obs else '')
+        if obs:
+            ws.cell(row=fila, column=18, value=obs)
         ws.cell(row=fila, column=16 if f['genero'] == 'MASC' else 17, value='X')
         fila += 1
     return maximo

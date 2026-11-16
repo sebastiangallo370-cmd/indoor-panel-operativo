@@ -138,7 +138,7 @@ def catalogos(request: Request):
     _usuario(request)
     _con_llave()
     from app import listado_pedido
-    return {**_effi(_catalogos), 'listado': {'tallas': listado_pedido.TALLAS, 'lineas': listado_pedido.LINEAS, 'max_disenos': 4}}
+    return {**_effi(_catalogos), 'listado': {'tallas': listado_pedido.TALLAS, 'lineas': listado_pedido.LINEAS, 'max_disenos': 20}}
 
 
 @router.get('/clientes')

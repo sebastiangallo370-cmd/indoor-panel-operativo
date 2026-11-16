@@ -726,7 +726,7 @@
   function agregarMockups(ref, files) {   // lo que subes queda elegido, en orden (D1, D2…)
     ref = String(ref || '').trim().toUpperCase(); if (!ref) return;
     const lista = st.mkFiles[ref] = st.mkFiles[ref] || [], sel = st.mkSel[ref] = st.mkSel[ref] || [];
-    [...files].forEach(fl => { if (!/^image\//.test(fl.type) || fl.size > 10 * 1024 * 1024) return; lista.push(fl); if (sel.length < 6) sel.push(fl); });
+    [...files].forEach(fl => { if (!/^image\//.test(fl.type) || fl.size > 10 * 1024 * 1024) return; lista.push(fl); if (sel.length < 20) sel.push(fl); });
     pintarVitrina(); guardarBorradorPronto();
   }
   function pintarVitrina() {
@@ -750,14 +750,14 @@
       const ref = c.dataset.vitRef, lista = st.mkFiles[ref] || [], fl = lista[Number(c.dataset.vitFile)]; if (!fl) return;
       const sel = st.mkSel[ref] = st.mkSel[ref] || [];
       if (e.target.closest('[data-vit-borrar]')) { lista.splice(lista.indexOf(fl), 1); const k = sel.indexOf(fl); if (k >= 0) sel.splice(k, 1); pintarVitrina(); return; }
-      const k = sel.indexOf(fl); if (k >= 0) sel.splice(k, 1); else if (sel.length < 6) sel.push(fl);
+      const k = sel.indexOf(fl); if (k >= 0) sel.splice(k, 1); else if (sel.length < 20) sel.push(fl);
       pintarVitrina();
     });
     caja.querySelectorAll('[data-vit-url]').forEach(c => c.onclick = e => {
       const ref = c.dataset.vitRef;
       if (e.target.closest('[data-vit-lupa]')) { const l = st.conceptos.find(x => String(x.ref || '').toUpperCase() === ref); if (l) verMockups(l); return; }
       const sel = st.mkSel[ref] = st.mkSel[ref] || [], k = sel.indexOf(c.dataset.vitUrl);
-      if (k >= 0) sel.splice(k, 1); else if (sel.length < 6) sel.push(c.dataset.vitUrl);
+      if (k >= 0) sel.splice(k, 1); else if (sel.length < 20) sel.push(c.dataset.vitUrl);
       pintarVitrina(); guardarBorradorPronto();
     });
   }
