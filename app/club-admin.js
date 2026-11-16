@@ -507,7 +507,7 @@
     });
     document.querySelectorAll('.tab[data-kind="club"]').forEach(tab => tab.addEventListener('click', () => cargar()));
     document.addEventListener('click', e => { if (e.target.closest('[data-pedido="nuevo"]')) abrirPedido(); });
-    setInterval(() => { if (!document.hidden && panel.classList.contains('active')) cargar(); }, 60000);
+    setInterval(() => { if (!document.hidden && panel.classList.contains('active')) cargar(); }, 20000);
   }
   // EMPEZAR PEDIDO: formulario igual al de «Crear cotización» de Effi (pedido-effi.js). Crea la cotización o la remisión de venta en Effi (solo si la cuenta Indoor Sport lo tiene ENCENDIDO).
   function abrirPedido() {
