@@ -344,6 +344,19 @@
   }
   // La tarjeta de un pedido programado: el MISMO diseño de la tarjeta de Producción (mockup, orden y línea, cliente, proyecto, estado, MTS, máquina,
   // referencia, tela, cantidad, entrega, ruta de procesos) y sus mismos botones (los atributos data-card-* los atiende el código de Producción)
+  // IR A LA NAS: abre la carpeta de la orden en el Explorador/Finder (el mismo enlace que usa Producción)
+  document.addEventListener('click', e => {
+    const n = e.target.closest('[data-ir-nas]'); if (!n) return;
+    toast('Abriendo la carpeta de ' + n.dataset.irNas + ' en tu Explorador…', 'ok');
+    window.location.assign('/nas/abrir?order=' + encodeURIComponent(n.dataset.irNas) + '&client=' + encodeURIComponent(n.dataset.cliente || ''));
+  });
+  // EDITAR / MTS / MÁQUINA: se le pasa el clic a la misma tarjeta de Producción (así abre exactamente la misma ventana)
+  document.addEventListener('click', e => {
+    const b = e.target.closest('[data-puente]'); if (!b) return;
+    const real = document.querySelector('.trace-cards [data-card-' + b.dataset.puente + '="' + b.dataset.id + '"]');
+    if (real) { real.click(); return; }
+    toast('Esta orden no está visible en Producción ahora (revisa los filtros de PRODUCCIÓN). Ábrela desde allí.', 'error');
+  });
   function tarjetaPrograma(x) {
     const o = produccion[x.codigo] || null, ids = o && o.filas && o.filas.length ? o.filas : [0];
     return ids.map((id, k) => {
@@ -351,19 +364,18 @@
       const estado = x.estado === 'ERROR' || x.estado === 'REVISAR' ? ['late', 'Error al programar'] : !o ? ['late', x.estado === 'COMPLETADO' ? 'No está en Producción' : 'Programando…'] : o.percent >= 100 ? ['finished', 'Terminado'] : o.focus ? [o.focus.state === 'active' ? 'active' : 'pending', (o.focus.state === 'active' ? 'En ' : 'Pendiente - ') + o.focus.label] : ['pending', 'Programado'];
       const dias = o && o.entrega ? Math.round((o.entrega - new Date().setHours(0, 0, 0, 0)) / 864e5) : null;
       const mts = /MTS/i.test(f.mts || '') ? f.mts.split(/\n|<br>/)[0].trim() : '';
-      const ruta = o ? '<div class="tp-ruta"><div class="tp-puntos">' + o.states.map((st, n) => '<i class="' + st.state + '" title="' + esc(st.label) + '">' + (st.state === 'finished' ? '✓' : n + 1) + '</i>').join('') + '</div><div class="tp-sig"><span>' + esc(o.focus ? 'Siguiente: ' + o.focus.label : 'Ruta completada') + '</span><b>' + o.percent + '% COMPLETADO</b></div><div class="tp-barra"><span style="width:' + o.percent + '%"></span></div></div>' : '';
-      const nasId = id ? ' data-card-nas="' + id + '"' : ' disabled', editId = id ? ' data-card-full-edit="' + id + '"' : ' disabled';
+      const ruta = o ? '<div class="tp-ruta"><div class="tp-sig"><span>' + esc(o.focus ? 'Siguiente: ' + o.focus.label : 'Ruta completada') + '</span><b>' + o.percent + '% COMPLETADO</b></div><div class="tp-barra"><span style="width:' + o.percent + '%"></span></div></div>' : '';
+      const nasId = ' data-ir-nas="' + esc(x.codigo) + '" data-cliente="' + esc((o && o.cliente) || x.cliente || '') + '"', editId = id ? ' data-puente="full-edit" data-id="' + id + '"' : ' disabled';
       return '<article class="tp-card state-' + estado[0] + '"' + (id ? ' data-card-row="' + id + '"' : '') + '>' +
         '<div class="trace-media tp-media">' + (id && typeof traceAssetsMarkup === 'function' ? traceAssetsMarkup(id) : '<span>Sin diseño</span>') + '</div>' +
         '<div class="tp-cuerpo"><div class="tp-cab"><h3>' + esc(x.codigo) + '</h3>' + (f.linea ? '<span class="tp-linea">LÍNEA <b>' + esc(f.linea) + '</b></span>' : '') + '</div>' +
         '<p class="tp-cliente">' + esc((o && o.cliente) || x.cliente || 'Sin cliente') + '</p><p class="tp-proy">' + esc((o && o.proyecto) || x.proyecto || '') + '</p>' +
         '<span class="tp-estado ' + estado[0] + '">' + esc(estado[1]) + '</span>' +
-        '<div class="tp-dos"><button type="button" class="tp-caja' + (mts ? ' con' : '') + '"' + (id ? ' data-card-mts="' + id + '"' : ' disabled') + '><small>MTS REQUERIDOS</small><b>' + esc(mts || 'Ingresar MTS REQUERIDOS') + '</b></button>' +
-        '<button type="button" class="tp-caja"' + (id ? ' data-card-machine="' + id + '"' : ' disabled') + '><small>MÁQUINA DE IMPRESIÓN</small><b>' + esc(f.maq || 'Seleccionar') + '</b></button></div>' +
+
         '<div class="tp-datos"><div><small>REFERENCIA</small><b>' + esc(f.ref || (x.referencias || []).join(', ') || '—') + '</b>' + (f.tela ? '<small>TELA</small><b class="tp-tela">' + esc(f.tela) + '</b>' : '') + '</div>' +
         '<div class="tp-cant"><small>CANTIDAD</small><b>' + (f.units != null ? f.units : (x.prendas || 0)) + '</b> <small>und.</small></div></div>' +
         '<div class="tp-entrega"><small>ENTREGA :</small>' + (dias == null ? '<b>—</b>' : '<span class="tp-dias' + (dias < 0 ? ' tarde' : '') + '">' + (dias < 0 ? 'Atrasado ' + (-dias) + ' días' : dias === 0 ? 'Hoy' : dias + ' Días') + '</span>') + '</div>' +
-        '<div class="tp-acc"><button type="button" class="tp-b-nas" title="Abrir la carpeta de la orden en la NAS"' + nasId + '>📁</button><button type="button" class="tp-b-edit" title="Editar / ver en Producción"' + editId + '>✎</button><button type="button" class="tp-b-del" title="Eliminar la orden de todo el panel y la NAS" data-quitar-prog="' + esc(x.codigo) + '">🗑</button></div>' +
+        '<div class="tp-acc"><button type="button" class="tp-b-nas" title="Ir a la carpeta de la orden en la NAS"' + nasId + '>📁</button><button type="button" class="tp-b-edit" title="Editar / ver en Producción"' + editId + '>✎</button><button type="button" class="tp-b-del" title="Eliminar la orden de todo el panel y la NAS" data-quitar-prog="' + esc(x.codigo) + '">🗑</button></div>' +
         (k === 0 ? '<div class="tp-extra"><small>Programó ' + esc(x.usuario || '—') + ' · ' + esc(String(x.fecha || '').replace('T', ' ').slice(0, 16)) + '</small>' + (x.excel ? '<a class="tp-link" href="' + esc(x.excel) + '" title="Descargar el listado">⬇ EXCEL</a>' : '') + '<button type="button" class="tp-link" data-abrir-excel="' + esc(x.codigo) + '">ABRIR EN EXCEL</button></div>' : '') +
         '</div>' + ruta + '</article>';
     }).join('');
