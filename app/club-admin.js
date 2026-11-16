@@ -420,7 +420,7 @@
     const c = b.dataset.pdfEffi, txt = b.textContent; b.disabled = true; b.textContent = 'Pidiendo…';
     try {
       const r = await api('/api/pedido-effi/programados/' + encodeURIComponent(c) + '/sincronizar', 'POST', {});
-      const det = (r.detalle || []).filter(x => /PDF/i.test(x)).join(' · ') || 'Listo.';
+      const det = (r.detalle || []).filter(x => /PDF|EFFITRON/i.test(x)).join(' · ') || 'Listo.';
       toast((r.completo ? '✅ ' : '⏳ ') + c + ': ' + det + (r.completo ? '' : ' El servidor sigue intentándolo.'), r.completo ? 'ok' : 'info');
     } catch (er) { toast(er.message, 'error'); }
     b.disabled = false; b.textContent = txt;
