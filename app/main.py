@@ -939,6 +939,43 @@ def process_reprogram_excel_job(job_id: int, excel_path: Path, extra_paths: list
         update_job(job_id, "ERROR", str(error))
 
 
+_PDF_EFFI_ORDEN: dict = {}   # código de orden -> PDF de Effi que se pega en la carpeta apenas se crea
+
+
+def _dejar_pdf_effi(carpeta: Path, codigo: str, datos: bytes) -> str:
+    """Deja en la carpeta de la orden SOLO el PDF que creó Effi (quita cualquier otro CO####*.pdf, como el que arma el panel para procesar). Devuelve '' si salió bien o el motivo si no."""
+    fallos: list = []
+    for viejo in [p for p in carpeta.glob('*.pdf') if p.stem.upper().startswith(codigo.upper())]:
+        try:
+            try:
+                os.chmod(viejo, 0o666)
+            except OSError:
+                pass
+            viejo.unlink()
+        except OSError as exc:
+            fallos.append(f'no pude quitar {viejo.name}: {exc}')
+    destino = carpeta / f'{codigo}.pdf'
+    for intento in ('directo', 'temporal'):   # 1) escribir ya sin el viejo; 2) escribir uno temporal y renombrarlo encima
+        try:
+            if intento == 'directo':
+                destino.write_bytes(datos)
+            else:
+                tmp = carpeta / f'.{codigo}.pdf.tmp'
+                tmp.write_bytes(datos)
+                os.replace(tmp, destino)
+            if destino.stat().st_size == len(datos):
+                try:   # también es el que se ve en Cartera
+                    from app import cartera_api as cartera_mod
+                    cartera_mod.poner_pdf(codigo, datos)
+                except Exception:   # noqa: BLE001
+                    logging.getLogger(__name__).exception('No se pudo poner el PDF de Effi en Cartera (%s)', codigo)
+                return ''
+            fallos.append(f'{intento}: el archivo quedó de {destino.stat().st_size} bytes y no de {len(datos)}')
+        except OSError as exc:
+            fallos.append(f'{intento}: {exc}')
+    return ' | '.join(fallos)[:300]
+
+
 def process_order_job(job_id: int, job_dir: Path, pdf_path: Path, excel_path: Path, observations: str = '', author: str = '', linea: str = '', overrides: dict | None = None):
     _MOCKUP_OPCIONAL.set(job_id in _MOCKUPS_OPCIONALES_JOBS)
     try:
@@ -966,6 +1003,24 @@ def process_order_job(job_id: int, job_dir: Path, pdf_path: Path, excel_path: Pa
             ),
         )
         if ok:
+            pdf_effi_detalle = ''
+            datos_effi = _PDF_EFFI_ORDEN.pop(str(order_number).upper(), None)
+            if datos_effi:   # LO PRIMERO con la carpeta ya creada: el PDF tal como lo creó Effi (producción lo necesita así)
+                update_job_progress(job_id, 93, "Pegando en la carpeta el PDF de Effi")
+                err = _dejar_pdf_effi(Path(ok), order_number, datos_effi)
+                if err:
+                    logging.getLogger(__name__).error('PDF de Effi de %s no se pudo dejar en %s: %s', order_number, ok, err)
+                    pdf_effi_detalle = '. PDF de Effi NO se pudo copiar a la carpeta: ' + err
+                    try:
+                        _registrar_post_orden(str(order_number), pdf_error=err)
+                    except Exception:   # noqa: BLE001
+                        pass
+                else:
+                    pdf_effi_detalle = '. PDF de Effi dentro de la carpeta'
+                    try:
+                        _registrar_post_orden(str(order_number), pdf_hecho=True, pdf_ok_desde=time.time())
+                    except Exception:   # noqa: BLE001
+                        pass
             copied = 0
             for attachment in job_dir.iterdir():
                 if not attachment.is_file() or attachment in (pdf_path, excel_path):
@@ -975,7 +1030,7 @@ def process_order_job(job_id: int, job_dir: Path, pdf_path: Path, excel_path: Pa
                 uploaded_names.add(attachment.name)
                 attachment.unlink()
                 copied += 1
-            detail = "Pedido creado en NAS y registrado en Producción local"
+            detail = "Pedido creado en NAS y registrado en Producción local" + pdf_effi_detalle
             inserted, image_issues = sync_order_uploads(Path(ok), STATE_DIR / 'mockup-backups', uploaded_names=uploaded_names)
             detail += f". {inserted} mockup(s) insertado(s) en el listado; originales conservados en la carpeta"
             if image_issues:
@@ -8327,6 +8382,24 @@ async def programar_pedido_effi(request: Request, usuario=Depends(authenticate))
         pdf_effi = int(str((datos.get('doc') or {}).get('numero') or '')) if codigo_orden.startswith('CO') else None   # las remisiones no tienen PDF por esta vía
     except ValueError:
         pdf_effi = None
+    datos_effi = None
+    if pdf_effi:   # el PDF que creó Effi es OBLIGATORIO: producción lo necesita tal cual. Si todavía no llega, se espera un momento y, si no llega, NO se programa con otro documento.
+        datos_effi = await asyncio.to_thread(effitron_mod.pdf_cotizacion_bytes, pdf_effi)
+        if not datos_effi:
+            try:
+                await asyncio.to_thread(effitron_mod.solicitar_pdf_cotizacion, pdf_effi)
+            except Exception:   # noqa: BLE001
+                logging.getLogger(__name__).exception('No se pudo pedir el PDF de %s', codigo_orden)
+            for _ in range(int(os.getenv('PDF_EFFI_ESPERA_SEG', '30'))):
+                await asyncio.sleep(1)
+                datos_effi = await asyncio.to_thread(effitron_mod.pdf_cotizacion_bytes, pdf_effi)
+                if datos_effi:
+                    break
+        if not datos_effi:
+            ag = effitron_mod.agente()
+            raise HTTPException(409, f'Todavía no llega el PDF de Effi de la cotización {pdf_effi}. Es obligatorio para programar (producción usa ese documento tal como lo crea Effi). ' +
+                                ('EFFITRON está conectado: espera unos segundos y vuelve a pulsar PROGRAMAR PEDIDO.' if ag.get('conectado') else 'EFFITRON NO está conectado ahora: hay que reconectarlo en el servidor y volver a pulsar PROGRAMAR PEDIDO.'))
+        _PDF_EFFI_ORDEN[codigo_orden.upper()] = datos_effi
     _registrar_post_orden(codigo_orden, pdf_effi=pdf_effi, pdf_hecho=False, maestros=maestros, maestros_hecho=False)
     resultado = await upload_order(pdf=pdf, observaciones=arch['observaciones'], linea=arch['linea'], excel=excel, extras=extras,
                                    mockup_d1=None, mockup_d2=None, mockup_d3=None, mockup_d4=None, mockups_opcionales=True, _=usuario)
@@ -8596,45 +8669,14 @@ def _aplicar_post_orden(codigo: str, diag: list | None = None) -> bool:
     if d.get('pdf_effi') and not d.get('pdf_hecho'):
         datos = effitron_mod.pdf_cotizacion_bytes(int(d['pdf_effi']))
         if datos:
-            propios = [p for p in carpeta.glob('*.pdf') if p.stem.upper().startswith(codigo.upper())]
-            destino = carpeta / f'{codigo}.pdf'
-            fallos = []
-            for viejo in propios:   # primero se quita el PDF que armó el panel (si el archivo está ocupado o es de solo lectura, se avisa)
-                try:
-                    try:
-                        os.chmod(viejo, 0o666)
-                    except OSError:
-                        pass
-                    viejo.unlink()
-                except OSError as exc:
-                    fallos.append(f'no pude quitar {viejo.name}: {exc}')
-            escrito = False
-            for intento in ('directo', 'temporal'):   # 1) escribir el archivo ya sin el viejo; 2) escribir uno temporal y renombrarlo encima
-                try:
-                    if intento == 'directo':
-                        destino.write_bytes(datos)
-                    else:
-                        tmp = carpeta / f'.{codigo}.pdf.tmp'
-                        tmp.write_bytes(datos)
-                        os.replace(tmp, destino)
-                    if destino.stat().st_size == len(datos):
-                        escrito = True
-                        break
-                    fallos.append(f'{intento}: el archivo quedó de {destino.stat().st_size} bytes y no de {len(datos)}')
-                except OSError as exc:
-                    fallos.append(f'{intento}: {exc}')
-            if escrito:
+            err = _dejar_pdf_effi(carpeta, codigo, datos)
+            if not err:
                 d['pdf_hecho'] = True; d['pdf_ok_desde'] = time.time(); d.pop('pdf_error', None); _guardar_post_orden()
-                nota(f'PDF de Effi copiado a {destino.name} ({len(datos)} bytes)')
-                try:   # también es el que se ve en Cartera
-                    from app import cartera_api as cartera_mod
-                    cartera_mod.poner_pdf(codigo, datos)
-                except Exception:   # noqa: BLE001
-                    log.exception('No se pudo poner el PDF de Effi en Cartera (%s)', codigo)
+                nota(f'PDF de Effi copiado a {codigo}.pdf ({len(datos)} bytes)')
             else:
-                d['pdf_error'] = ' | '.join(fallos)[:300]; _guardar_post_orden()
-                nota('No pude dejar el PDF de Effi en la NAS: ' + d['pdf_error'])
-                log.error('PDF de Effi de %s no se pudo escribir en %s: %s', codigo, carpeta, d['pdf_error'])
+                d['pdf_error'] = err; _guardar_post_orden()
+                nota('No pude dejar el PDF de Effi en la NAS: ' + err)
+                log.error('PDF de Effi de %s no se pudo escribir en %s: %s', codigo, carpeta, err)
         else:
             nota('El PDF de Effi todavía NO está en el servidor (EFFITRON no lo ha bajado)')
             for propio in carpeta.glob('*.pdf'):   # el PDF que arma el panel es solo para procesar el pedido: NUNCA queda en la carpeta de la orden

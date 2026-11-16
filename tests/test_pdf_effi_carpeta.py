@@ -69,6 +69,13 @@ class PdfEffiCarpeta(unittest.TestCase):
         self.assertEqual(e['estado'], 'error')
         self.assertIn('acceso denegado', e['detalle'])
 
+    def test_al_crear_la_carpeta_se_deja_solo_el_pdf_de_effi(self):
+        (self.orden / 'CO6392_OTRO.pdf').write_bytes(PANEL)
+        self.assertEqual(main._dejar_pdf_effi(self.orden, 'CO6392', EFFI), '')
+        pdfs = sorted(p.name for p in self.orden.glob('*.pdf'))
+        self.assertEqual(pdfs, ['CO6392.pdf'])
+        self.assertEqual((self.orden / 'CO6392.pdf').read_bytes(), EFFI)
+
 
 if __name__ == '__main__':
     unittest.main()
