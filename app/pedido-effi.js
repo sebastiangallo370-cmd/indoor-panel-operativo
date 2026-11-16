@@ -532,6 +532,8 @@
       const t = q('[name="garantia"]'); if (!t) return;
       if (ps.value === '__nuevo') { st.proyNuevo = true; t.type = 'text'; t.hidden = false; t.value = ''; t.focus(); }
       else { st.proyNuevo = false; t.hidden = true; t.value = ps.value; }
+      // al cambiar de proyecto, lo elegido del proyecto anterior NO se queda: solo se conserva lo que subiste tú desde tu equipo
+      Object.keys(st.mkSel || {}).forEach(r => { st.mkSel[r] = (st.mkSel[r] || []).filter(x => typeof x !== 'string'); });
       t.dispatchEvent(new Event('input', { bubbles: true }));
     });
     const cq = q('[name="cliente-q"]');
