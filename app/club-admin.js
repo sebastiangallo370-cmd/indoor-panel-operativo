@@ -295,7 +295,7 @@
   function estiloTarjetas() {
     if (document.getElementById('tp-css')) return;
     const st = document.createElement('style'); st.id = 'tp-css';
-    st.textContent = `.tp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:18px;align-items:stretch}
+    st.textContent = `.tp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));grid-auto-rows:1fr;gap:18px;align-items:stretch}
     .tp-card{display:flex;flex-direction:column;height:100%;min-height:760px;overflow:hidden;border:1px solid #35403a;border-radius:18px;background:linear-gradient(160deg,rgba(255,255,255,.06),rgba(0,0,0,.35));box-shadow:0 8px 24px rgba(0,0,0,.35);min-width:0}
     .tp-card .tp-media{height:380px;flex:none;background:#e9eeea;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;color:#52604f;font:700 12px Arial;text-align:center}
     .tp-card .tp-media img{width:100%;height:100%;object-fit:contain;object-position:center}.tp-card .tp-media .trace-design-view{display:flex;flex-direction:column;width:100%;height:100%}.tp-card .tp-media .trace-design-stage{position:relative;flex:1;min-height:0;display:block}.tp-card .tp-media .trace-design-main{display:block;position:absolute;inset:0}.tp-card .tp-media .trace-design-main img{width:100%;height:100%;object-fit:contain}

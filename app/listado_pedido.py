@@ -394,3 +394,15 @@ def vista_excel(ruta, max_cols: int = 48, extra: int = 2, lado_img: int = 700) -
         hojas.append({'nombre': ws.title, 'filas': filas, 'cols': n_cols, 'primera_dato': 8, 'ultima_dato': ultima, 'anchos': anchos, 'altos': altos,
                       'combinadas': combinadas, 'celdas': [x for x in celdas if x['c'] <= n_cols], 'imagenes': imagenes})
     return {'hojas': hojas}
+
+
+def preparar_en_proceso(datos: dict, plantilla: bytes, comercial: str = '') -> dict:
+    """Igual que `preparar`, pero pensado para correr en OTRO proceso (arma el Excel con openpyxl, que es lo más pesado): así varios comerciales programando a la vez
+    usan todos los núcleos y no se frenan unos a otros ni frenan al resto del panel."""
+    return preparar(datos, lambda: plantilla, comercial)
+
+
+def calentar() -> int:
+    """No hace nada: sirve para que el proceso trabajador ya esté arrancado (y con openpyxl cargado) cuando llegue el primer pedido."""
+    import openpyxl  # noqa: F401
+    return 1
