@@ -155,7 +155,7 @@
   .tc-sugerencias[hidden]{display:none}.tc-sugerencias button{display:flex!important;justify-content:space-between!important;align-items:center!important;gap:10px;width:100%!important;min-height:36px;padding:8px 10px!important;border:0!important;border-radius:8px!important;background:transparent!important;color:#eff6e8!important;text-align:left!important;font:700 13px Arial!important;cursor:pointer}.tc-sugerencias button:hover{background:rgba(208,244,76,.13)!important}.tc-sugerencias small{color:#aab7a5;font:600 11px Arial;white-space:nowrap}
   .tc-seleccion{display:flex;align-items:center;gap:8px;min-height:38px;padding:0 12px;border:1px dashed #4a5a48;border-radius:11px;background:#121912;color:#aab7a5;font:700 12px Arial}.tc-seleccion.on{border-style:solid;border-color:#a7d943;background:#1b2a18;color:#eef8dc}.tc-seleccion b{color:#d1eb89}
   .tc-toasts{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);display:grid;gap:8px;z-index:9999;pointer-events:none;width:min(92vw,420px)}
-  .tc-toast{padding:12px 16px;border-radius:14px;background:#1d2a1d;border:1px solid rgba(208,244,76,.35);color:#f5faef;font:700 14px Arial;box-shadow:0 12px 30px rgba(0,0,0,.4);opacity:0;transform:translateY(12px);transition:opacity .25s ease,transform .25s ease;text-align:center}
+  .tc-toast{white-space:pre-line;max-width:min(620px,92vw);padding:12px 16px;border-radius:14px;background:#1d2a1d;border:1px solid rgba(208,244,76,.35);color:#f5faef;font:700 14px Arial;box-shadow:0 12px 30px rgba(0,0,0,.4);opacity:0;transform:translateY(12px);transition:opacity .25s ease,transform .25s ease;text-align:center}
   .tc-toast.on{opacity:1;transform:none}
   .tc-toast.error{border-color:rgba(255,107,92,.6);color:#ffd2cc}
   @keyframes tcEntra{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
@@ -191,7 +191,7 @@
     t.textContent = msg;
     zona.appendChild(t);
     requestAnimationFrame(() => requestAnimationFrame(() => t.classList.add('on')));
-    setTimeout(() => { t.classList.remove('on'); setTimeout(() => t.remove(), 300); }, 3200);
+    setTimeout(() => { t.classList.remove('on'); setTimeout(() => t.remove(), 300); }, Math.min(16000, 3200 + String(msg).length * 45));   // los avisos largos (diagnóstico) duran más
   }
 
   function detalle(p) {
@@ -376,7 +376,7 @@
   }
   document.addEventListener('click', async e => {
     const sn = e.target.closest('[data-sync-nas]'); if (!sn) return;
-    try { sn.disabled = true; const r = await api('/api/pedido-effi/programados/' + encodeURIComponent(sn.dataset.syncNas) + '/sincronizar', 'POST', {}); toast('Sincronizando ' + sn.dataset.syncNas + ': PDF de Effi' + (r.excel ? ', Excel del agente' : '') + (r.mockups ? ' y mockups' : '') + ' → carpeta de la orden en la NAS (unos segundos).', 'ok'); } catch (er) { toast(er.message, 'error'); } finally { setTimeout(() => { sn.disabled = false; }, 4000); }
+    try { sn.disabled = true; const r = await api('/api/pedido-effi/programados/' + encodeURIComponent(sn.dataset.syncNas) + '/sincronizar', 'POST', {}); const det = (r.detalle || []).join('\n'); toast((r.completo ? '✓ ' + sn.dataset.syncNas + ' sincronizada con la NAS.' : '⚠ ' + sn.dataset.syncNas + ' quedó pendiente (se sigue intentando 15 min).') + '\n' + det, r.completo ? 'ok' : 'error'); console.log('Sincronizar ' + sn.dataset.syncNas, det); } catch (er) { toast(er.message, 'error'); } finally { setTimeout(() => { sn.disabled = false; }, 4000); }
   });
   document.addEventListener('click', async e => {
     const b = e.target.closest('[data-quitar-prog]'); if (!b) return;
