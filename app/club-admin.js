@@ -459,6 +459,7 @@
       toast(c + (filas.length ? ' eliminado de Producción, la NAS y Cartera' : ' quitado de la lista'), 'ok');
     } catch (er) { b.disabled = false; b.textContent = '🗑 ELIMINAR'; toast(er.message, 'error'); }
   });
+  window.addEventListener('produccion-editada', () => { ultimo = ''; cargar(); });   // si se edita una orden en el editor de Producción, la tarjeta de aquí se actualiza al instante
   async function cargar() {
     if (cargando || !panel) return;
     cargando = true;

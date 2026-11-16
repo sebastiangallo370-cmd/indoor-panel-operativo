@@ -390,6 +390,7 @@
         row.values = data.values || row.values;
       }
       renderProduction();
+      window.dispatchEvent(new CustomEvent('produccion-editada', { detail: { row: rowId } }));   // avisa a PROGRAMAR CLUB, Inicio, etc. para que se actualicen al instante
       cardEditorMessage.className = 'trace-card-editor-message is-success';
       cardEditorMessage.textContent = '✓ CAMBIOS GUARDADOS · SE ACTUALIZAN EN LA TARJETA';
       setTimeout(() => {
