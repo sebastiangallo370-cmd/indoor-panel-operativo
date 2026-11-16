@@ -581,7 +581,7 @@
   function refrescarTotales() { const t = totales(), tot = q('.pe-tot'); if (!tot) return; const v = tot.querySelectorAll('b'); v[0].textContent = money(t.b); v[1].textContent = money(t.d); v[2].textContent = money(t.s); if (!st.prev) { const e = estimado(), i = q('[data-imp]'), n = q('[data-neto]'), r = q('[data-ret]'); if (i) i.textContent = est(e.imp); if (n) n.textContent = est(e.neto); if (r) r.textContent = st.retenciones.length ? est(e.ret) : '—'; } }
 
   async function iniciar() {
-    panel.innerHTML = '<div class="pe"><div class="pe-card" style="color:#a9b5a3;font:600 14px Arial">Cargando datos de Effi…</div></div>';
+    panel.innerHTML = '<div class="pe"><div class="pe-cargando" role="status" aria-live="polite"><img class="pe-logo-anim" src="/marca-indoor.svg" alt="Indoor"><div class="pe-barra-carga"><i></i></div><span>Cargando datos de Effi…</span></div></div>';
     try {
       const [estado, cat] = await Promise.all([api('/api/pedido-effi/estado'), api('/api/pedido-effi/catalogos')]);
       st.estado = estado; st.cat = cat; st.conceptos = [lineaVacia()]; st.formas = [defectoForma()];
@@ -628,6 +628,13 @@
   let ultimoNeto = null;
   const cssPlus = document.createElement('style');
   cssPlus.textContent = `
+  .pe-cargando{display:grid;justify-items:center;align-content:center;gap:18px;min-height:min(60vh,520px);color:#a9b5a3;font:700 13px Arial;letter-spacing:.08em}
+  .pe-logo-anim{width:min(300px,62vw);height:auto;filter:drop-shadow(0 0 0 rgba(208,244,76,0));animation:peLogo 2s ease-in-out infinite}
+  @keyframes peLogo{0%{opacity:.35;transform:scale(.96);filter:drop-shadow(0 0 0 rgba(208,244,76,0))}50%{opacity:1;transform:scale(1);filter:drop-shadow(0 0 18px rgba(208,244,76,.55))}100%{opacity:.35;transform:scale(.96);filter:drop-shadow(0 0 0 rgba(208,244,76,0))}}
+  .pe-barra-carga{width:min(280px,60vw);height:5px;border-radius:99px;background:rgba(255,255,255,.1);overflow:hidden}
+  .pe-barra-carga i{display:block;width:40%;height:100%;border-radius:inherit;background:linear-gradient(90deg,transparent,#d0f44c,transparent);animation:peBarra 1.3s ease-in-out infinite}
+  @keyframes peBarra{from{transform:translateX(-120%)}to{transform:translateX(280%)}}
+  @media(prefers-reduced-motion:reduce){.pe-logo-anim,.pe-barra-carga i{animation:none}}
   .pe-pasos{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:0 auto 0 18px}
   .pe-paso{display:flex;align-items:center;gap:6px;padding:5px 11px 5px 6px;border-radius:99px;border:1px solid #3d4c3b;color:#a9b5a3;font:900 10.5px Arial;letter-spacing:.08em;cursor:pointer;transition:all .25s;background:rgba(0,0,0,.25)}
   .pe-paso i{display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:#2a332c;color:#c9d3c1;font:900 11px Arial;font-style:normal;transition:all .25s}
