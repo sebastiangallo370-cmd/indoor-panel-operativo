@@ -133,6 +133,88 @@
     .pl-acciones .pl-btn:not(.sec){order:-1}
     .pl-acciones p,.pl-acciones [data-msg]{font-size:13px!important;text-align:center}
   }
+  /* ===== PROGRAMANDO EL PEDIDO: anillo de avance, línea de tiempo y animaciones ===== */
+  .pg{position:relative;max-width:1000px;margin:6px auto 0;padding:26px 22px 22px;border-radius:26px;border:1px solid rgba(208,244,76,.28);background:linear-gradient(160deg,rgba(20,32,23,.92),rgba(8,12,9,.96));overflow:hidden;isolation:isolate;box-shadow:0 22px 60px rgba(0,0,0,.5)}
+  .pg-aura{position:absolute;inset:-40%;z-index:-1;background:conic-gradient(from 0deg,rgba(208,244,76,.0),rgba(208,244,76,.22),rgba(110,231,183,.14),rgba(208,244,76,.0) 60%);filter:blur(60px);animation:pgAura 14s linear infinite;opacity:.9}
+  @keyframes pgAura{to{transform:rotate(360deg)}}
+  .pg-cab{text-align:center;display:grid;gap:4px;animation:pgEntra .6s cubic-bezier(.2,.8,.2,1) both}
+  @keyframes pgEntra{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+  .pg-eye{font:900 12px Arial;letter-spacing:.32em;color:#d0f44c;transition:color .4s}
+  .pg-cod{margin:0;font:900 clamp(38px,7vw,62px)/1 Arial;letter-spacing:.02em;color:#f5faef;text-shadow:0 0 34px rgba(208,244,76,.28)}
+  .pg-sub{margin:2px 0 0;font:700 13px Arial;color:#9db094;letter-spacing:.04em}
+  .pg-cuerpo{display:grid;grid-template-columns:minmax(220px,300px) minmax(0,1fr);gap:30px;align-items:center;margin-top:20px}
+  .pg-anillo{position:relative;width:min(260px,64vw);aspect-ratio:1;margin:0 auto;animation:pgEntra .7s .1s cubic-bezier(.2,.8,.2,1) both}
+  .pg-anillo svg{width:100%;height:100%;transform:rotate(-90deg);overflow:visible}
+  .pg-pista{fill:none;stroke:rgba(255,255,255,.09);stroke-width:7}
+  .pg-arco{fill:none;stroke:url(#pgGrad);stroke-width:7;stroke-linecap:round;transition:stroke-dashoffset .9s cubic-bezier(.3,.7,.2,1),stroke .4s;filter:drop-shadow(0 0 7px rgba(208,244,76,.65))}
+  .pg-brillo{fill:none;stroke:rgba(255,255,255,.85);stroke-width:7;stroke-linecap:round;stroke-dasharray:3 97;animation:pgBarrido 2.2s linear infinite;filter:blur(1.2px)}
+  @keyframes pgBarrido{to{stroke-dashoffset:-100}}
+  .pg-centro{position:absolute;inset:0;display:grid;place-content:center;text-align:center;font-family:Arial;transition:opacity .3s,transform .4s}
+  .pg-centro b{font:900 clamp(46px,9vw,68px)/1 Arial;color:#f5faef;font-variant-numeric:tabular-nums}.pg-centro span{font:900 18px Arial;color:#d0f44c;margin-top:-2px}
+  .pg-orbita{position:absolute;inset:0;animation:pgGira 2.6s linear infinite;pointer-events:none}.pg-orbita i{position:absolute;left:50%;top:-5px;width:12px;height:12px;margin-left:-6px;border-radius:50%;background:#e6ff7a;box-shadow:0 0 14px 4px rgba(208,244,76,.8)}
+  @keyframes pgGira{to{transform:rotate(360deg)}}
+  .pg-ico{position:absolute;inset:0;display:grid;place-items:center;opacity:0;transform:scale(.4);pointer-events:none}
+  .pg-ico svg{width:46%;fill:none;stroke:#d0f44c;stroke-width:5;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:60;stroke-dashoffset:60}
+  .pg-ico b{font:900 90px Arial;color:#ff8f8f}
+  .pg-onda{position:absolute;inset:0;border-radius:50%;border:2px solid #d0f44c;opacity:0;pointer-events:none}
+  .pg-confeti{position:absolute;left:50%;top:50%;width:0;height:0;pointer-events:none}.pg-confeti i{position:absolute;left:-4px;top:-4px;width:8px;height:14px;border-radius:2px;background:var(--c);opacity:0;transform:rotate(var(--a)) translateY(0)}
+  .pg.ok .pg-orbita,.pg.mal .pg-orbita,.pg.ok .pg-brillo,.pg.mal .pg-brillo{display:none}
+  .pg.ok .pg-centro{opacity:0;transform:scale(.7)}.pg.mal .pg-centro{opacity:.0}
+  .pg.ok .pg-ico{opacity:1;transform:scale(1);transition:opacity .35s,transform .55s cubic-bezier(.3,1.6,.4,1)}.pg.ok .pg-ico svg{animation:pgTrazo .6s .25s ease-out forwards}
+  @keyframes pgTrazo{to{stroke-dashoffset:0}}
+  .pg.ok .pg-arco{stroke:#d0f44c}.pg.ok .pg-eye{color:#d0f44c}
+  .pg.festejo .pg-onda{animation:pgOnda 1.4s ease-out}.pg.festejo .pg-onda.b{animation-delay:.25s}
+  @keyframes pgOnda{0%{opacity:.8;transform:scale(1)}100%{opacity:0;transform:scale(1.9)}}
+  .pg.festejo .pg-confeti i{animation:pgConfeti 1.6s cubic-bezier(.15,.7,.3,1) forwards}
+  @keyframes pgConfeti{0%{opacity:1;transform:rotate(var(--a)) translateY(0) rotate(0)}70%{opacity:1}100%{opacity:0;transform:rotate(var(--a)) translateY(calc(var(--d) * -1.5)) rotate(var(--r))}}
+  .pg.mal .pg-arco{stroke:#ff7b7b;filter:drop-shadow(0 0 7px rgba(255,123,123,.6))}.pg.mal .pg-eye{color:#ff9b9b}
+  .pg.mal .pg-ico{opacity:1;transform:scale(1);transition:opacity .3s,transform .4s cubic-bezier(.3,1.6,.4,1)}
+  .pg.sacude .pg-anillo{animation:pgSacude .6s}
+  @keyframes pgSacude{20%,60%{transform:translateX(-9px)}40%,80%{transform:translateX(9px)}}
+  .pg-info{display:grid;gap:16px;min-width:0}
+  .pg-actual{display:grid;gap:4px;padding:16px 18px;border-radius:18px;border:1px solid rgba(208,244,76,.3);background:linear-gradient(120deg,rgba(208,244,76,.12),rgba(208,244,76,.03));position:relative;overflow:hidden}
+  .pg-actual::after{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent 30%,rgba(255,255,255,.1) 50%,transparent 70%);transform:translateX(-100%);animation:pgBrillo 2.8s ease-in-out infinite}
+  @keyframes pgBrillo{60%,100%{transform:translateX(100%)}}
+  .pg.ok .pg-actual::after,.pg.mal .pg-actual::after{display:none}
+  .pg-actual small{font:900 10px Arial;letter-spacing:.3em;color:#d0f44c}
+  .pg-actual b{font:900 clamp(18px,3.2vw,24px)/1.2 Arial;color:#f5faef}.pg-actual b.cambia{animation:pgCambia .45s cubic-bezier(.2,.8,.2,1)}
+  @keyframes pgCambia{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+  .pg-actual span{font:600 13px/1.45 Arial;color:#b6c4ad}
+  .pg.mal .pg-actual{border-color:rgba(255,123,123,.45);background:linear-gradient(120deg,rgba(255,123,123,.14),rgba(255,123,123,.03))}.pg.mal .pg-actual small{color:#ff9b9b}
+  .pg-pasos{list-style:none;margin:0;padding:0;display:grid;gap:3px;position:relative}
+  .pg-pasos li{display:flex;align-items:center;gap:12px;padding:7px 8px;border-radius:12px;font:700 13px Arial;color:#6d7a68;animation:pgEntra .5s cubic-bezier(.2,.8,.2,1) both;transition:color .3s,background .3s}
+  .pg-pasos li em{font-style:normal}
+  .pg-p{position:relative;flex:none;width:26px;height:26px;border-radius:50%;border:2px solid #36432f;display:grid;place-items:center;transition:background .35s,border-color .35s,transform .35s}
+  .pg-p svg{width:15px;fill:none;stroke:#10200a;stroke-width:3.2;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:30;stroke-dashoffset:30;animation:pgTrazo .45s .05s ease-out forwards}
+  .pg-pasos li.hecho{color:#dfe9d6}.pg-pasos li.hecho .pg-p{background:#d0f44c;border-color:#d0f44c;animation:pgPop .45s cubic-bezier(.3,1.6,.4,1)}
+  @keyframes pgPop{0%{transform:scale(.6)}100%{transform:scale(1)}}
+  .pg-pasos li.activo{color:#f5faef;background:rgba(208,244,76,.08)}.pg-pasos li.activo .pg-p{border-color:#d0f44c}
+  .pg-p i{width:10px;height:10px;border-radius:50%;background:#d0f44c;animation:pgLate 1s ease-in-out infinite}
+  .pg-pasos li.activo .pg-p::after{content:"";position:absolute;inset:-6px;border-radius:50%;border:2px solid rgba(208,244,76,.5);animation:pgOndaP 1.4s ease-out infinite}
+  @keyframes pgLate{50%{transform:scale(.55);opacity:.6}}
+  @keyframes pgOndaP{from{opacity:.9;transform:scale(.7)}to{opacity:0;transform:scale(1.35)}}
+  .pg-avisos{display:grid;gap:8px;margin-top:18px;max-width:760px;margin-left:auto;margin-right:auto}
+  .pg-aviso{padding:11px 14px;border-radius:12px;font:700 12.5px/1.45 Arial;border:1px solid rgba(255,255,255,.14);color:#c9d3c1;background:rgba(255,255,255,.04);animation:pgEntra .4s both}
+  .pg-aviso.ok{border-color:rgba(191,242,106,.45);color:#bff26a}.pg-aviso.mal{border-color:rgba(255,123,123,.5);color:#ff9b9b}.pg-aviso.esp{border-color:rgba(208,244,76,.3)}
+  .pg-descarga{justify-self:center;display:inline-flex;align-items:center;gap:8px;padding:11px 20px;border-radius:99px;background:#d0f44c;color:#142017;font:900 12px Arial;letter-spacing:.06em;text-decoration:none;box-shadow:0 8px 22px rgba(208,244,76,.25);transition:transform .2s}.pg-descarga:hover{transform:translateY(-2px)}.pg-descarga small{font-weight:700;opacity:.75}
+  @media(max-width:760px){.pg{padding:20px 14px 16px;border-radius:20px}.pg-cuerpo{grid-template-columns:1fr;gap:20px}.pg-anillo{width:min(210px,58vw)}.pg-pasos li{font-size:12.5px}}
+  /* ocupa TODA la pantalla disponible, sin scroll: las medidas salen del alto de la ventana */
+  .pl-cuerpo:has(>.pg){overflow:hidden;display:flex}
+  .pg{flex:1;min-height:0;width:100%;max-width:none;margin:0;display:grid;grid-template-rows:auto minmax(0,1fr) auto;padding:clamp(10px,2.2vh,26px) clamp(12px,2vw,30px)}
+  .pg-cuerpo{min-height:0;margin-top:0;align-content:center;justify-content:center;grid-template-columns:minmax(0,auto) minmax(0,560px);gap:clamp(18px,5vw,70px)}
+  .pg-anillo{width:min(46vh,34vw,380px)}
+  .pg-cod{font-size:clamp(32px,7.5vh,66px)}.pg-actual{padding:clamp(10px,2vh,18px) 18px}.pg-info{gap:clamp(8px,1.8vh,16px)}
+  .pg-pasos li{padding:clamp(3px,.8vh,7px) 8px}.pg-avisos{margin-top:clamp(6px,1.4vh,14px);gap:6px}.pg-aviso{padding:8px 12px}
+  @media(max-height:700px){.pg-eye{font-size:10px}.pg-sub{font-size:11px}.pg-pasos li{font-size:12px}.pg-p{width:22px;height:22px}}
+  @media(max-width:900px){.pl-cuerpo:has(>.pg){overflow:visible;display:block}.pg{display:block;padding:12px 12px 10px}.pg-cuerpo{grid-template-columns:1fr;gap:10px;margin-top:8px}.pg-anillo{width:min(36vw,150px)}.pg-cod{font-size:34px}.pg-centro b{font-size:34px}.pg-centro span{font-size:13px}
+    .pg-actual{padding:9px 12px}.pg-actual b{font-size:16px}.pg-actual span{font-size:12px}.pg-pasos{grid-template-columns:1fr 1fr;gap:2px 8px}.pg-pasos li{padding:3px 4px;font-size:11px;gap:7px}.pg-p{width:20px;height:20px}.pg-p svg{width:11px}.pg-avisos{margin-top:8px}.pg-descarga{padding:9px 14px}}
+  .pg-cuerpo{margin-top:clamp(8px,1.8vh,16px)}.pg-brillo{opacity:.55}
+  @media(max-width:900px){.pg-cuerpo{margin-top:8px}.pg-anillo{width:min(32vw,128px)}.pg-cod{font-size:30px}.pg-eye{font-size:10px;letter-spacing:.24em}.pg-sub{font-size:11px}
+    .pg-pasos{display:flex;justify-content:center;flex-wrap:wrap;gap:8px;margin-top:2px}.pg-pasos li{padding:0;background:none!important;gap:0}.pg-pasos li em{display:none}.pg-p{width:22px;height:22px}
+    .pl:has(.pg) .pl-acciones{flex-direction:row!important;flex-wrap:wrap;justify-content:center;position:static!important;padding:8px!important;gap:8px!important;box-shadow:none!important}
+    .pl:has(.pg) .pl-acciones .pl-btn{flex:1 1 40%!important;min-height:42px!important;font-size:12px!important;padding:6px 8px!important;width:auto!important}}
+  .pl-btn[hidden],.pl-acciones [hidden]{display:none!important}.pg-anillo .pg-ico svg{transform:none;width:46%;height:auto}
+  @media(prefers-reduced-motion:reduce){.pg *,.pg{animation-duration:.01s!important;animation-iteration-count:1!important}.pg-aura{display:none}}
   `;
   document.head.appendChild(css);
 
@@ -557,27 +639,71 @@
     const aviso = t => { const e = caja.querySelector('[data-xl-aviso]'); if (e) e.textContent = t; };
     if (animar) animarHoja(caja, h, aviso); else { caja.querySelectorAll('.xl-c,.xl-img,.xl-fil').forEach(e => e.classList.add('on')); aviso(''); }
   }
-  function pantallaEnviado() {
+  // ---------------------------------------------------------------- pantalla «PROGRAMANDO EL PEDIDO»: anillo de avance, línea de tiempo y animaciones de éxito / error
+  function pgPasos() {
+    const cot = L.doc.tipo !== 'remision';
+    return (cot ? [{ pdf: true, t: 'PDF de Effi (obligatorio)' }] : []).concat(PASOS_ENVIO.map(([u, t]) => ({ u, t })));
+  }
+  function pgEstadoPasos() {
     const j = L.job || {}, fin = ['COMPLETADO', 'ERROR', 'REVISAR'].includes(j.estado), ok = j.estado === 'COMPLETADO', pr = ok ? 100 : Math.max(3, Number(j.progreso) || 3);
-    const pasos = PASOS_ENVIO.map(([umbral, texto], k) => { const hecho = ok || pr > umbral || (k === 0 && pr >= 8), activo = !fin && !hecho && (k === 0 || pr >= PASOS_ENVIO[k - 1][0]); return '<li class="' + (hecho ? 'hecho' : activo ? 'activo' : '') + '"><span>' + (hecho ? '✓' : activo ? '…' : '·') + '</span>' + esc(texto) + '</li>'; }).join('');
-    const titulo = ok ? 'PEDIDO PROGRAMADO' : fin ? 'NO SE PUDO TERMINAR' : 'PROGRAMANDO EL PEDIDO…';
-    const estado = '<span style="font:800 12px Arial;letter-spacing:.14em;color:' + (fin && !ok ? '#ff9b9b' : '#d0f44c') + '">' + titulo + '</span><strong>' + esc((L.doc.tipo === 'remision' ? 'RM' : 'CO') + L.doc.numero) + '</strong>' +
-      '<div class="pl-progreso"><i style="width:' + pr + '%"></i></div><div style="font:800 12px Arial;color:#c9d3c1">' + pr + ' %</div><ul class="pl-pasos2">' + pasos + '</ul>' +
-      (j.detail ? '<div class="caja ' + (ok ? 'ok' : fin ? 'error' : '') + '">' + esc(j.detail) + '</div>' : '') +
-            (j.pdf ? '<div class="caja ' + (j.pdf.hecho ? 'ok' : j.pdf.estado === 'esperando' || j.pdf.estado === 'copiando' ? '' : 'error') + '" style="margin-top:8px">' + (j.pdf.hecho ? '✅ ' : j.pdf.estado === 'esperando' || j.pdf.estado === 'copiando' ? '⏳ ' : '⚠️ ') + 'PDF de Effi: ' + esc(j.pdf.detalle) + '</div>' : '') + (j.excel ? '<div style="margin-top:12px"><a class="pl-btn" href="' + esc(j.excel) + '">⬇ DESCARGAR EL EXCEL' + (j.insertados != null ? ' (' + j.insertados + ' mockup(s) insertado(s))' : '') + '</a></div>' : '');
-    // el listado lo arma el servidor en segundo plano: no se abre nada en tu equipo
-    const pc = !fin ? ['⏳', 'Armando el listado en segundo plano…', 'No tienes que hacer nada: el servidor lo deja en la carpeta de la orden.'] : ok ? ['✅', 'Listado listo', 'Quedó guardado en la carpeta de la orden (NAS). También puedes descargarlo a la izquierda.'] : ['⚠️', 'No se pudo terminar', j.detail || ''];
-    const pcHtml = '<div class="pl-pdf-estado">' + (fin ? '' : '<div class="pl-spin"></div>') + '<div style="font-size:42px">' + pc[0] + '</div><b>' + esc(pc[1]) + '</b><small>' + esc(pc[2]) + '</small></div>';
-    const yaEsta = raiz.querySelector('[data-env-estado]');
-    if (yaEsta) { yaEsta.innerHTML = estado; const x = raiz.querySelector('[data-xl]'); if (x) x.innerHTML = pcHtml; }   // solo se actualiza el avance: la hoja de Excel que se está dibujando no se toca
-    else {
-      q('[data-cuerpo]').innerHTML = '<div class="pl-env"><div class="pl-listo pl-env-estado" data-env-estado>' + estado + '</div><div class="pl-xl" data-xl>' + pcHtml + '</div></div>';
+    const pdfListo = !!j.id || /PDF de Effi listo/.test(j.detail || '') || ok;
+    const lista = pgPasos().map(p => ({ t: p.t, hecho: p.pdf ? pdfListo : (ok || pr > p.u || (p.u === 3 && pr >= 8)), activo: false }));
+    const primero = lista.findIndex(p => !p.hecho); if (!fin && primero >= 0) lista[primero].activo = true;
+    return lista;
+  }
+  function pgAnimarNumero(el, hasta) {
+    const desde = Number(el.dataset.v || 0); el.dataset.v = hasta;
+    if (desde === hasta || (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) { el.textContent = hasta; return; }
+    const t0 = performance.now(), dur = 700;
+    const paso = t => { const x = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - x, 3); el.textContent = Math.round(desde + (hasta - desde) * e); if (x < 1 && el.isConnected) requestAnimationFrame(paso); };
+    requestAnimationFrame(paso);
+  }
+  function pgConfeti() {
+    const colores = ['#d0f44c', '#9fcd12', '#ffffff', '#6ee7b7', '#bff26a'];
+    return Array.from({ length: 22 }, (_, i) => { const a = Math.round((360 / 22) * i + (i % 3) * 9), d = 90 + (i % 5) * 22, c = colores[i % colores.length], r = (i % 2 ? 1 : -1) * (180 + i * 17); return '<i style="--a:' + a + 'deg;--d:' + d + 'px;--r:' + r + 'deg;--c:' + c + ';animation-delay:' + ((i % 6) * 0.04).toFixed(2) + 's"></i>'; }).join('');
+  }
+  function pantallaEnviado() {
+    const j = L.job || {}, fin = ['COMPLETADO', 'ERROR', 'REVISAR'].includes(j.estado), ok = j.estado === 'COMPLETADO', mal = fin && !ok;
+    const pr = ok ? 100 : Math.max(3, Number(j.progreso) || 3), codigo = (L.doc.tipo === 'remision' ? 'RM' : 'CO') + L.doc.numero;
+    const pasos = pgEstadoPasos(), activo = pasos.find(p => p.activo);
+    const ahora = ok ? 'Todo listo' : mal ? 'Hubo un problema' : (activo ? activo.t : 'Terminando…');
+    const nota = ok ? 'El pedido quedó programado en Producción y guardado en la carpeta de la NAS.' : mal ? (j.detail || '') : (/Esperando el PDF/.test(j.detail || '') ? (j.detail || '') : (j.detail || 'No tienes que hacer nada: el servidor lo hace en segundo plano.'));
+    const eye = ok ? 'PEDIDO PROGRAMADO' : mal ? 'NO SE PUDO TERMINAR' : 'PROGRAMANDO EL PEDIDO';
+    const clase = ok ? 'ok' : mal ? 'mal' : 'run';
+    const avisos = (j.detail && (ok || mal) ? '<div class="pg-aviso ' + (ok ? 'ok' : 'mal') + '">' + esc(j.detail) + '</div>' : '') +
+      (j.pdf ? '<div class="pg-aviso ' + (j.pdf.hecho ? 'ok' : (j.pdf.estado === 'esperando' || j.pdf.estado === 'copiando') ? 'esp' : 'mal') + '">' + (j.pdf.hecho ? '✅ ' : (j.pdf.estado === 'esperando' || j.pdf.estado === 'copiando') ? '⏳ ' : '⚠️ ') + 'PDF de Effi: ' + esc(j.pdf.detalle) + '</div>' : '') +
+      (j.excel ? '<a class="pg-descarga" href="' + esc(j.excel) + '">⬇ DESCARGAR EL EXCEL' + (j.insertados != null ? ' <small>(' + j.insertados + ' mockup(s) insertado(s))</small>' : '') + '</a>' : '');
+    let pg = raiz.querySelector('[data-pg]');
+    if (!pg) {
+      q('[data-cuerpo]').innerHTML = '<div class="pg run" data-pg><div class="pg-aura"></div>' +
+        '<header class="pg-cab"><span class="pg-eye" data-pg-eye></span><h2 class="pg-cod">' + esc(codigo) + '</h2><p class="pg-sub">' + esc(String((L.doc.cliente && L.doc.cliente.nombre) || '')) + (L.proyecto ? ' · ' + esc(L.proyecto) : '') + '</p></header>' +
+        '<div class="pg-cuerpo"><div class="pg-anillo"><svg viewBox="0 0 120 120" aria-hidden="true"><defs><linearGradient id="pgGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#9fcd12"/><stop offset="1" stop-color="#e6ff7a"/></linearGradient></defs>' +
+        '<circle class="pg-pista" cx="60" cy="60" r="52"/><circle class="pg-arco" cx="60" cy="60" r="52" pathLength="100" stroke-dasharray="100" stroke-dashoffset="97"/><circle class="pg-brillo" cx="60" cy="60" r="52" pathLength="100"/></svg>' +
+        '<div class="pg-centro"><b data-pg-pct data-v="0">0</b><span>%</span></div><div class="pg-ico" data-pg-ico></div><span class="pg-orbita"><i></i></span><span class="pg-onda"></span><span class="pg-onda b"></span><div class="pg-confeti" data-pg-confeti></div></div>' +
+        '<div class="pg-info"><div class="pg-actual"><small>' + 'AHORA' + '</small><b data-pg-ahora></b><span data-pg-nota></span></div><ol class="pg-pasos" data-pg-pasos></ol></div></div>' +
+        '<div class="pg-avisos" data-pg-avisos></div></div>';
       acciones('<button class="pl-btn sec" type="button" data-volver hidden>◀ VOLVER AL LISTADO</button><button class="pl-btn sec" type="button" data-otro>CREAR OTRO DOCUMENTO</button><button class="pl-btn" type="button" data-cerrar>CERRAR</button>', '', '');
       q('[data-volver]').onclick = () => { L.pantalla = 'listado'; dibujar(); };
       q('[data-otro]').onclick = () => L.opts.onOtro && L.opts.onOtro();
       q('[data-cerrar]').onclick = () => L.opts.onCerrar && L.opts.onCerrar();
+      pg = raiz.querySelector('[data-pg]'); pg.dataset.pasos = '';
     }
-    const v = q('[data-volver]'); if (v) v.hidden = !(fin && !ok);
+    // se actualiza EN SU LUGAR (no se vuelve a dibujar): así el anillo, los números y los pasos se mueven con animación
+    const previa = pg.classList.contains('ok') ? 'ok' : pg.classList.contains('mal') ? 'mal' : 'run';
+    pg.classList.remove('run', 'ok', 'mal'); pg.classList.add(clase);
+    pg.querySelector('[data-pg-eye]').textContent = eye;
+    pg.querySelector('.pg-arco').style.strokeDashoffset = String(100 - pr);
+    pgAnimarNumero(pg.querySelector('[data-pg-pct]'), pr);
+    const ahoraEl = pg.querySelector('[data-pg-ahora]'); if (ahoraEl.textContent !== ahora) { ahoraEl.textContent = ahora; ahoraEl.classList.remove('cambia'); void ahoraEl.offsetWidth; ahoraEl.classList.add('cambia'); }
+    pg.querySelector('[data-pg-nota]').textContent = nota;
+    pg.querySelector('[data-pg-ico]').innerHTML = ok ? '<svg viewBox="0 0 52 52"><path d="M14 27 l8 8 l16 -18"/></svg>' : mal ? '<b>!</b>' : '';
+    const ol = pg.querySelector('[data-pg-pasos]'), claveP = pasos.map(p => p.t).join('|');
+    if (pg.dataset.pasos !== claveP) { pg.dataset.pasos = claveP; ol.innerHTML = pasos.map((p, k) => '<li style="animation-delay:' + (k * 0.07).toFixed(2) + 's"><span class="pg-p"></span><em>' + esc(p.t) + '</em></li>').join(''); }
+    ol.querySelectorAll('li').forEach((li, k) => { const p = pasos[k]; li.classList.toggle('hecho', !!p.hecho); li.classList.toggle('activo', !!p.activo && !fin); li.querySelector('.pg-p').innerHTML = p.hecho ? '<svg viewBox="0 0 24 24"><path d="M5 12.5 l4.5 4.5 l9 -10"/></svg>' : (p.activo && !fin ? '<i></i>' : ''); });
+    if (clase === 'ok' && previa !== 'ok') { pg.querySelector('[data-pg-confeti]').innerHTML = pgConfeti(); pg.classList.add('festejo'); }
+    if (clase === 'mal' && previa !== 'mal') { pg.classList.remove('sacude'); void pg.offsetWidth; pg.classList.add('sacude'); }
+    pg.querySelector('[data-pg-avisos]').innerHTML = avisos;
+    const v = q('[data-volver]'); if (v) v.hidden = !mal;
   }
   function avisoProgramado(cod) {
     const e = document.createElement('div'); e.setAttribute('role', 'status');
@@ -597,7 +723,7 @@
         }
         if (L.job.estado === 'COMPLETADO' && (esMovil() || (L.job.pdf && L.job.pdf.hecho))) {   // todo salió bien: se cierra la ventana y se avisa
           const cod = (L.doc.tipo === 'remision' ? 'RM' : 'CO') + L.doc.numero;
-          await new Promise(r => setTimeout(r, 1200));
+          await new Promise(r => setTimeout(r, 2600));   // se alcanza a ver el festejo antes de cerrar
           avisoProgramado(cod); if (L.opts.onCerrar) L.opts.onCerrar(); return;
         }
         if (fin) { if (L.job.estado !== 'COMPLETADO') return; continue; }   // si salió bien, se sigue vigilando el PDF de Effi hasta que quede en la carpeta
