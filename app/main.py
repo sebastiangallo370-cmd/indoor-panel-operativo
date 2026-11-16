@@ -5014,11 +5014,20 @@ def production_delete_target(db, row, username, orden_completa=False, fresco=Fal
         if field(other_values,'ORDEN').upper()==order and not orden_completa:   # al eliminar la ORDEN COMPLETA (todas sus referencias) las demás tarjetas de esa misma orden se borran juntas
             raise HTTPException(409, 'Otra tarjeta comparte esta orden. No se puede borrar su carpeta mientras siga programada.')
     root = Path(CONFIG['ruta_nas_clientes']).resolve(strict=True)
+    if not any(True for _entrada in root.iterdir()):   # carpeta de clientes vacía = NAS desconectada: NO se puede dar por «ya borrada» ninguna carpeta
+        raise HTTPException(503, 'La NAS parece desconectada (la carpeta de clientes está vacía). No se eliminó nada.')
+    def sin_carpeta():   # la carpeta de la orden ya no existe (se borró antes o quedó a medias): solo falta lo demás (tarjeta, Cartera, lista)
+        rel = f'{client_name}/{order} (la carpeta ya no existe)'
+        return record, None, order, rel, hashlib.sha256((record['values_json']+'\n'+rel).encode()).hexdigest()
     client = root / client_name
+    if not client.exists() and not client.is_symlink():
+        return sin_carpeta()
     if client.is_symlink() or client.resolve().parent != root or not client.is_dir():
         raise HTTPException(409, 'No se pudo confirmar la carpeta exacta del cliente. No se eliminó nada.')
     client = client.resolve(strict=True)
     matches = [p for p in client.iterdir() if p.is_dir() and (p.name.upper()==order or any(p.name.upper().startswith(order+s) for s in ('_', ' ', '-')))]
+    if not matches:
+        return sin_carpeta()
     if len(matches)!=1:
         raise HTTPException(409, 'Debe existir una única carpeta de esta orden en el cliente. No se eliminó nada.')
     candidate = matches[0]
@@ -5039,7 +5048,7 @@ def preview_production_delete(row: int, orden: int = 0, _=Depends(authenticate))
     db = connect()
     try:
         record, target, order, relative, fingerprint = production_delete_target(db,row,_,bool(orden))
-        return dict(order=order, folder='\\\\192.168.0.120\\NAS INDOOR\\CLIENTES\\'+relative.replace('/','\\'), confirmation=fingerprint)
+        return dict(order=order, folder=('\\\\192.168.0.120\\NAS INDOOR\\CLIENTES\\'+relative.replace('/','\\')) if target is not None else '(la carpeta ya no existe en la NAS: solo se quitará lo que falta)', confirmation=fingerprint)
     except OSError as error:
         raise HTTPException(503, 'No se pudo acceder al NAS. No se eliminó nada.') from error
     finally:
@@ -5079,8 +5088,20 @@ def delete_production_order(order: str, payload: dict = Body(...), _=Depends(aut
         io_ = next((i for i, h in enumerate(headers) if str(h).strip().upper() == 'ORDEN'), -1)
         rows = [r['source_row'] for r in db.execute('SELECT source_row, values_json FROM production_rows')
                 if io_ >= 0 and str((json.loads(r['values_json']) + [''] * (io_ + 1))[io_] or '').strip().upper() == order]
-        if not rows:
-            raise HTTPException(404, 'La orden ya no está en Producción')
+        if not rows:   # sus tarjetas ya no están (se borraron antes): solo falta limpiar Cartera
+            perfil = db.execute('SELECT process FROM users WHERE name=? COLLATE NOCASE', (_,)).fetchone()
+            admin_ = _ == os.getenv('APP_USER', 'indoor') or bool(perfil and can_delete_production_profile(perfil['process']))
+            if not admin_ and not (permisos_mod.comerciales_permitido(str(_)) and _orden_programada_en_panel(order)):
+                raise HTTPException(403, 'Un comercial solo puede eliminar las órdenes que programó desde PROGRAMAR CLUB')
+            verify_delete_password(db, _, payload.get('password'))
+            res = {'ok': True, 'sin_tarjetas': True}
+            try:
+                from app import cartera_api as cartera_mod
+                res['cartera'] = cartera_mod.quitar_orden_eliminada(order, str(_))
+            except Exception:   # noqa: BLE001
+                logging.getLogger(__name__).exception('No se pudo quitar la orden %s de Cartera', order)
+                res['cartera'] = {'error': True}
+            return res
         profile = db.execute('SELECT process FROM users WHERE name=? COLLATE NOCASE', (_,)).fetchone()
         es_admin = _ == os.getenv('APP_USER', 'indoor') or bool(profile and can_delete_production_profile(profile['process']))
         if not es_admin and not (permisos_mod.comerciales_permitido(str(_)) and _orden_programada_en_panel(order)):
@@ -5129,24 +5150,25 @@ def delete_production_row(row: int, payload: dict = Body(...), _=Depends(authent
         verify_delete_password(db, _, payload.get('password'))
         if payload.get('confirmation')!=fingerprint or payload.get('order')!=order:
             raise HTTPException(409, 'Confirma la carpeta y la orden actual antes de eliminarla.')
-        backup_dir = STATE_DIR / 'deleted-order-backups'
-        backup_dir.mkdir(parents=True, exist_ok=True)
-        backup_base = backup_dir / (str(row)+'-'+secrets.token_hex(12))
-        # Complete a server-side recovery copy before touching NAS files.
-        backup = str(backup_base) + '.zip'   # sin comprimir (ZIP_STORED): las fotos y el Excel ya vienen comprimidos y comprimir solo gasta tiempo
-        with zipfile.ZipFile(backup, 'w', zipfile.ZIP_STORED, allowZip64=True) as zf:
-            for parent, dirs_, files_ in os.walk(target, followlinks=False):
-                zf.write(parent, Path(parent).relative_to(target.parent).as_posix() + '/')
-                for nombre in files_:
-                    zf.write(Path(parent) / nombre, (Path(parent) / nombre).relative_to(target.parent).as_posix())
-        db.execute('CREATE TABLE IF NOT EXISTS production_nas_deletions (id INTEGER PRIMARY KEY AUTOINCREMENT, source_row INTEGER, folder TEXT, backup TEXT, actor TEXT, deleted_at TEXT)')
-        db.execute('INSERT INTO production_nas_deletions(source_row,folder,backup,actor,deleted_at) VALUES (?,?,?,?,?)',
-                   (row,relative,backup,_,datetime.now(timezone.utc).isoformat()))
-        # Resolve again after backup and require the same exact target and row.
-        verified_record, verified, verified_order, verified_relative, verified_fingerprint = production_delete_target(db,row,_,fresco=True)
-        if verified!=target or verified_fingerprint!=fingerprint:
-            raise HTTPException(409, 'La orden cambió durante la operación. No se eliminó nada.')
-        _borrar_carpeta_orden(verified)
+        if target is not None:   # si la carpeta ya no existe (borrada antes o a medias) se salta la NAS y se elimina lo que falta
+            backup_dir = STATE_DIR / 'deleted-order-backups'
+            backup_dir.mkdir(parents=True, exist_ok=True)
+            backup_base = backup_dir / (str(row)+'-'+secrets.token_hex(12))
+            # Complete a server-side recovery copy before touching NAS files.
+            backup = str(backup_base) + '.zip'   # sin comprimir (ZIP_STORED): las fotos y el Excel ya vienen comprimidos y comprimir solo gasta tiempo
+            with zipfile.ZipFile(backup, 'w', zipfile.ZIP_STORED, allowZip64=True) as zf:
+                for parent, dirs_, files_ in os.walk(target, followlinks=False):
+                    zf.write(parent, Path(parent).relative_to(target.parent).as_posix() + '/')
+                    for nombre in files_:
+                        zf.write(Path(parent) / nombre, (Path(parent) / nombre).relative_to(target.parent).as_posix())
+            db.execute('CREATE TABLE IF NOT EXISTS production_nas_deletions (id INTEGER PRIMARY KEY AUTOINCREMENT, source_row INTEGER, folder TEXT, backup TEXT, actor TEXT, deleted_at TEXT)')
+            db.execute('INSERT INTO production_nas_deletions(source_row,folder,backup,actor,deleted_at) VALUES (?,?,?,?,?)',
+                       (row,relative,backup,_,datetime.now(timezone.utc).isoformat()))
+            # Resolve again after backup and require the same exact target and row.
+            verified_record, verified, verified_order, verified_relative, verified_fingerprint = production_delete_target(db,row,_,fresco=True)
+            if verified!=target or verified_fingerprint!=fingerprint:
+                raise HTTPException(409, 'La orden cambió durante la operación. No se eliminó nada.')
+            _borrar_carpeta_orden(verified)
         db.execute('CREATE TABLE IF NOT EXISTS production_deleted_rows (id INTEGER PRIMARY KEY AUTOINCREMENT, source_row INTEGER, payload TEXT, deleted_by TEXT, deleted_at TEXT)')
         db.execute('INSERT INTO production_deleted_rows(source_row,payload,deleted_by,deleted_at) VALUES (?,?,?,?)',
                    (row, json.dumps(dict(record), ensure_ascii=False), _, datetime.now(timezone.utc).isoformat()))
@@ -5158,7 +5180,7 @@ def delete_production_row(row: int, payload: dict = Body(...), _=Depends(authent
         now = datetime.now(timezone.utc).isoformat()
         db.execute("INSERT OR REPLACE INTO production_meta(key, value) VALUES ('updated_at', ?)", (now,))
         db.commit()
-        return {"ok": True, "row": row, "updated_at": now, "nas_deleted": relative}
+        return {"ok": True, "row": row, "updated_at": now, "nas_deleted": relative if target is not None else 'la carpeta ya no existía'}
     except OSError as error:
         db.rollback()
         logging.exception('No se completó la eliminación NAS de fila %s', row)
