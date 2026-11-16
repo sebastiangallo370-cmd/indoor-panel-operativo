@@ -8567,6 +8567,13 @@ def _aplicar_post_orden(codigo: str, diag: list | None = None) -> bool:
                 nota('No pude escribir el PDF en la NAS: ' + str(exc)[:150])
         else:
             nota('El PDF de Effi todavía NO está en el servidor (EFFITRON no lo ha bajado)')
+            if time.time() - d.get('pdf_repedido', 0) > 60:   # se vuelve a pedir cada minuto (también tras agotar intentos) mientras la orden siga con el PDF del panel
+                d['pdf_repedido'] = time.time()
+                try:
+                    est = effitron_mod.solicitar_pdf_cotizacion(int(d['pdf_effi']))
+                    nota('PDF de Effi pedido a EFFITRON (estado: ' + str(est.get('estado')) + ', agente EFFITRON conectado: ' + str(est.get('agente')) + ')')
+                except Exception:   # noqa: BLE001
+                    log.exception('No se pudo pedir el PDF de %s', codigo)
     if d.get('maestros') and not d.get('maestros_hecho'):
         ok = True
         for m in d['maestros']:
