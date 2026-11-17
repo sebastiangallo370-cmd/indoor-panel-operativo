@@ -286,7 +286,7 @@
         <div class="pe-grid pe-fila2">
           <label>Cliente*<input name="cliente-q" autocomplete="off" autocapitalize="words" autocorrect="off" spellcheck="false" enterkeyhint="search" placeholder="Buscar por nombre (3 letras)…" value="${esc(st.cliente ? st.cliente.nombre : guard['cliente-q'])}"></label>
           <label>Dirección del cliente<select name="direccion">${st.cliente && st.cliente.direcciones.length ? st.cliente.direcciones.map((d, i) => '<option value="' + i + '"' + (i === st.direccion ? ' selected' : '') + '>' + esc((d.ciudad ? d.ciudad + ' · ' : '') + d.direccion) + '</option>').join('') : '<option value="-1">No registra</option>'}</select></label>
-          <label class="pe-proy">Nombre del proyecto (Garantía)${proyectoHtml(guard.garantia)}</label><label class="pe-linea-prod">Línea del producto<select name="linea_prod"><option value="">Seleccionar…</option>${((c.listado && c.listado.lineas) || ['COPA', 'PLUS', 'MAQUILA', 'PREMIUM', 'ESTANDAR']).map(x => '<option' + (x === st.linea ? ' selected' : '') + '>' + esc(x) + '</option>').join('')}</select></label>
+          <label class="pe-proy">Nombre del proyecto (Garantía)*${proyectoHtml(guard.garantia)}</label><label class="pe-linea-prod">Línea del producto*<select name="linea_prod"><option value="">Seleccionar…</option>${((c.listado && c.listado.lineas) || ['COPA', 'PLUS', 'MAQUILA', 'PREMIUM', 'ESTANDAR']).map(x => '<option' + (x === st.linea ? ' selected' : '') + '>' + esc(x) + '</option>').join('')}</select></label>
         </div>
       </div>
       <div class="pe-card pe-con"><div class="pe-h3row"><h3>Conceptos</h3><label class="pe-chk pe-siniva-todos" style="margin-left:auto"><input type="checkbox" data-siniva-todos ${st.sinIvaTodos ? 'checked' : ''}> Sin IVA (todos)</label></div>
@@ -365,6 +365,7 @@
   }
   async function previa(crear) {
     if (st.ocupado) return;
+    if (!valor('garantia').trim() || !st.linea) { msg('Falta el nombre del proyecto (Garantía) o la línea del producto.', 'error'); estadoPasos(); pintarPasos(); return; }
     st.ocupado = true; msg(crear ? 'Creando en Effi…' : 'Calculando con Effi…', '');
     try {
       const body = leerFormulario();
@@ -778,7 +779,7 @@
   document.head.appendChild(cssPlus);
   const lineaLista = l => !!(l.articulo && num(l.cantidad) > 0 && String(l.precio) !== '' && String(l.descripcion || '').trim());
   function estadoPasos() {
-    const cliente = !!st.cliente && !!valor('bodega') && !!valor('centro_costos') && !!valor('garantia').trim() && !!valor('fecha_entrega');
+    const cliente = !!st.cliente && !!valor('bodega') && !!valor('centro_costos') && !!valor('garantia').trim() && !!valor('fecha_entrega') && !!st.linea;
     const conceptos = st.conceptos.length > 0 && st.conceptos.every(lineaLista);
     const pago = st.formas.length > 0 && st.formas.every(f => !!f.id);
     return [['Cliente', cliente], ['Conceptos', conceptos], ['Pago', pago], ['Crear', !!st.prev]];
@@ -792,7 +793,7 @@
     const marca = (sel, falta) => { const e = q(sel); if (e && falta) e.classList.add('pe-falta'); };
     if (aqui >= 0) {
       marca('[name="cliente-q"]', !st.cliente); marca('[name="bodega"]', !valor('bodega')); marca('[name="centro_costos"]', !valor('centro_costos'));
-      marca('[name="proyecto_sel"]', !!st.cliente && !valor('garantia').trim()); marca('[name="fecha_entrega"]', !valor('fecha_entrega'));
+      marca('[name="proyecto_sel"]', !!st.cliente && !valor('garantia').trim()); marca('[name="linea_prod"]', !!st.cliente && !st.linea); marca('[name="fecha_entrega"]', !valor('fecha_entrega'));
       if (aqui >= 1) panel.querySelectorAll('[data-lineas] .pe-linea').forEach(row => { const l = st.conceptos[Number(row.dataset.i)]; if (!l) return; if (!l.articulo) row.querySelector('[data-f="ref"]').classList.add('pe-falta'); else if (String(l.precio) === '') row.querySelector('[data-f="precio"]').classList.add('pe-falta'); });
       if (aqui >= 2) panel.querySelectorAll('[data-formas] [data-g="id"]').forEach(s => { if (!s.value) s.classList.add('pe-falta'); });
     }
