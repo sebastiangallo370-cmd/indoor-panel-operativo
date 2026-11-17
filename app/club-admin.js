@@ -35,7 +35,7 @@
   .tc-b-soft{background:rgba(255,255,255,.08)!important;color:#f5faef!important;border-color:transparent!important}
   .tc-aviso{padding:10px 12px;border-radius:10px;background:#1b2a1b;color:#d0f44c;font:700 13px Arial;overflow-wrap:anywhere;display:flex;align-items:center;gap:8px}
   .tc-dot{flex:0 0 auto;display:inline-block;width:9px;height:9px;border-radius:50%;background:#ffb74d}
-  .tc-dot.on{background:#d0f44c;animation:tcPulso 1.8s ease-out infinite}
+  .tc-dot.on{background:#d0f44c;animation:tcPulso 1.8s ease-out 2}
   .tc-dot.off{background:#ff6b5c}
   .tc-lista{display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(min(100%,440px),1fr))}
   .tc-fila{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px;align-items:center;padding:10px 12px;border:1px solid rgba(255,255,255,.12);border-radius:12px;background:#121712}
@@ -136,7 +136,7 @@
   .tc-pdl dd{margin:0;font:600 15px Arial;line-height:1.35;color:#e8efe8;overflow-wrap:anywhere}
   .tc-prog{height:6px;margin:0 0 8px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden}
   .tc-prog i{display:block;height:100%;width:0;border-radius:inherit;background:#d1eb89;transition:width .7s cubic-bezier(.2,.8,.2,1),background .4s ease}
-  .tc-prog.activo i{background:linear-gradient(90deg,#8bd450,#d1eb89,#8bd450);background-size:200% 100%;animation:tcBrillo 1.4s linear infinite}
+  .tc-prog.activo i{background:linear-gradient(90deg,#8bd450,#d1eb89,#8bd450);background-size:200% 100%;animation:tcBrillo 1.4s linear 2}
   .tc-prog.lista i{background:#8bd450}
   .tc-prog.error i{background:#ff6b5c;width:100%!important}
   .tc-cot{margin:0 0 6px;font:700 13px Arial;color:#ffd08a}
@@ -238,9 +238,9 @@
     if (!panel) return;
     const lista = pedidos.filter(p => ESTADOS_VISIBLES.includes(p.estado) && (!filtro || p.estado === filtro) && coincide(p));   // Pendientes y Rechazadas ocultas por pedido del usuario (2026-11-14): no se borra nada, basta quitarlas de ESTADOS_VISIBLES
     const nuevos = new Set(pedidos.map(p => p.id).filter(id => !vistos.has(id)));
-    const html = '<div class="tc">' +
-      '<section class="tc-plano"><div class="tc-cabeza"><h2>Reprogramaciones de los clubes</h2><span class="tc-acc">' + '<button class="tc-btn tc-b-lime" data-pedido="nuevo" type="button">EMPEZAR PEDIDO</button></span></div>' +
-      (effi ? '<p class="tc-aviso tc-info" style="margin-bottom:12px"><span class="tc-dot ' + (effi.activo && effi.conectado ? 'on' : effi.activo ? 'off' : '') + '"></span><span>EFFITRON · ' + (effi.activo ? (effi.conectado ? 'en línea' : 'SIN CONEXIÓN') : 'apagado') + (effi.ultima ? ' · ' + esc(effi.ultima) : '') + '</span></p>' : '') +
+    const html = vista === 'estadisticas' ? ('<div class="tc">' + barraVistas() + estadisticasHtml() + '</div>') : '<div class="tc">' + barraVistas() +
+      '<section class="tc-plano"><div class="tc-cabeza"><span class="tc-acc">' + '<button class="tc-btn tc-b-lime" data-pedido="nuevo" type="button">EMPEZAR PEDIDO</button></span></div>' +
+      ''+
       '<div class="tc-barra"><span></span>' +
       '<input id="tc-buscar" class="tc-buscar" type="search" placeholder="Buscar club, contacto o cotización" autocomplete="off" value="' + esc(busqueda) + '"></div>' +
       (lista.length ? '<div class="tc-cards">' + lista.map(p => tarjeta(p, nuevos.has(p.id) && !primeraCarga)).join('') + '</div>' : (busqueda ? '<div class="tc-vacio">Ninguna reprogramación coincide con la búsqueda.</div>' : '')) +
@@ -362,6 +362,166 @@
         '</div>' + ruta + '</article>';
     }).join('');
   }
+  // ---------------------------------------------------------------- ESTADÍSTICAS de los pedidos programados (pestaña en PROGRAMAR CLUB)
+  let vista = 'pedidos';
+  try { vista = localStorage.getItem('clubVista') === 'estadisticas' ? 'estadisticas' : 'pedidos'; } catch (er) { /* sin almacenamiento */ }
+  const PALETA = ['#d0f44c', '#4fd1c5', '#60a5fa', '#f5b041', '#f472b6', '#a78bfa', '#fb7185', '#34d399'];
+  function estiloEstadisticas() {
+    if (document.getElementById('tc-est-css')) return;
+    const st = document.createElement('style');
+    st.id = 'tc-est-css';
+    st.textContent = `
+      .tc-est{display:grid;gap:14px}
+      .tc-est-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+      .tc-est-kpi{padding:14px 16px;border-radius:16px;border:1px solid rgba(255,255,255,.12);min-width:0}
+      .tc-est-kpi small{display:block;font:800 11px Arial;letter-spacing:.12em;color:#c9d6c2}
+      .tc-est-kpi b{display:block;margin-top:6px;font:900 28px Arial;color:#fff}
+      .tc-est-kpi span{display:block;margin-top:3px;font:700 11px Arial;color:#c9d6c2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .tc-est-grid{display:grid;grid-template-columns:1.25fr 1fr;gap:14px}
+      .tc-est-card{padding:16px 18px;border-radius:16px;background:rgba(10,18,12,.55);border:1px solid rgba(255,255,255,.1);min-width:0}
+      .tc-est-card h4{margin:0 0 12px;font:900 12px Arial;letter-spacing:.14em;color:#d0f44c}
+      .tc-est-fila{display:grid;grid-template-columns:minmax(80px,130px) minmax(0,1fr) auto;gap:10px;align-items:center;margin:9px 0;font:700 12px Arial;color:#e6eee2}
+      .tc-est-barra{height:12px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden}
+      .tc-est-barra i{display:block;height:100%;border-radius:99px}
+      .tc-est-num{font:800 12px Arial;color:#fff;white-space:nowrap}
+      .tc-est-tabla{width:100%;border-collapse:collapse;font:700 12px Arial;color:#e6eee2}
+      .tc-est-tabla th{text-align:left;font:800 10px Arial;letter-spacing:.12em;color:#a9b5a3;padding:6px 8px;border-bottom:1px solid rgba(255,255,255,.12)}
+      .tc-est-tabla td{padding:7px 8px;border-bottom:1px solid rgba(255,255,255,.07)}
+      .tc-est-tabla td.n{text-align:right;white-space:nowrap}
+      .tc-est-leyenda{display:grid;gap:8px;font:700 12px Arial;color:#e6eee2}
+      .tc-est-leyenda span{display:flex;align-items:center;gap:8px}
+      .tc-est-leyenda i{width:11px;height:11px;border-radius:4px;display:inline-block}
+      @media (max-width:900px){.tc-est-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.tc-est-grid{grid-template-columns:1fr}}
+      @media (max-width:520px){.tc-est-fila{grid-template-columns:86px minmax(0,1fr) auto}.tc-est-kpi b{font-size:22px}.tc-est-num{font-size:11px}}
+    `;
+    document.head.appendChild(st);
+  }
+  function donutSvg(partes, total) {
+    const r = 56, c = 2 * Math.PI * r;
+    let acum = 0;
+    const arcos = partes.filter(p => p.valor > 0).map(p => {
+      const len = total ? c * p.valor / total : 0;
+      const arco = '<circle cx="70" cy="70" r="' + r + '" fill="none" stroke="' + p.color + '" stroke-width="18" stroke-dasharray="' + len.toFixed(2) + ' ' + (c - len).toFixed(2) + '" stroke-dashoffset="' + (-acum).toFixed(2) + '" transform="rotate(-90 70 70)"><title>' + esc(p.nombre) + ': ' + p.valor + '</title></circle>';
+      acum += len;
+      return arco;
+    }).join('');
+    return '<svg viewBox="0 0 140 140" width="160" height="160" role="img" aria-label="Estado de los pedidos">' +
+      '<circle cx="70" cy="70" r="' + r + '" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="18"/>' + arcos +
+      '<text x="70" y="68" text-anchor="middle" fill="#fff" font-size="24" font-weight="900">' + total + '</text>' +
+      '<text x="70" y="86" text-anchor="middle" fill="#a9b5a3" font-size="10" font-weight="800">PEDIDOS</text></svg>';
+  }
+  function barrasSvg(serie) {
+    const W = 600, H = 230, pad = { l: 34, r: 10, t: 22, b: 34 };
+    const max = Math.max(1, ...serie.map(s => s.valor));
+    const ancho = (W - pad.l - pad.r) / serie.length, bw = Math.min(34, ancho * 0.6);
+    const yde = v => H - pad.b - (H - pad.t - pad.b) * v / max;
+    let g = '';
+    for (let k = 0; k <= 4; k++) {
+      const v = Math.round(max * k / 4), y = yde(v);
+      g += '<line x1="' + pad.l + '" x2="' + (W - pad.r) + '" y1="' + y + '" y2="' + y + '" stroke="rgba(255,255,255,.09)"/>' +
+        '<text x="' + (pad.l - 6) + '" y="' + (y + 4) + '" text-anchor="end" fill="#a9b5a3" font-size="10">' + v + '</text>';
+    }
+    g += serie.map((s, i) => {
+      const x = pad.l + ancho * i + (ancho - bw) / 2, y = yde(s.valor), h = Math.max(0, H - pad.b - y), cx = x + bw / 2;
+      return '<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + h.toFixed(1) + '" rx="6" fill="url(#tcEstGrad)"><title>Semana del ' + esc(s.etiqueta) + ': ' + s.valor + ' pedido(s)</title></rect>' +
+        (s.valor ? '<text x="' + cx.toFixed(1) + '" y="' + (y - 6).toFixed(1) + '" text-anchor="middle" fill="#fff" font-size="11" font-weight="800">' + s.valor + '</text>' : '') +
+        '<text x="' + cx.toFixed(1) + '" y="' + (H - 12) + '" text-anchor="middle" fill="#a9b5a3" font-size="10">' + esc(s.etiqueta) + '</text>';
+    }).join('');
+    return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" role="img" aria-label="Pedidos por semana">' +
+      '<defs><linearGradient id="tcEstGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d0f44c"/><stop offset="1" stop-color="#4fd1c5" stop-opacity=".5"/></linearGradient></defs>' + g + '</svg>';
+  }
+  function estadisticasHtml() {
+    estiloEstadisticas();
+    const L = programados || [];
+    if (!L.length) return '<div class="tc-vacio">Todavía no hay pedidos programados para estadísticas.</div>';
+    const total = L.length;
+    const prendas = L.reduce((s, x) => s + (Number(x.prendas) || 0), 0);
+    const porCliente = {}, porUsuario = {}, refs = {};
+    const est = { completado: 0, proceso: 0, error: 0 };
+    L.forEach(x => {
+      const cli = String(x.cliente || 'SIN CLIENTE').trim().toUpperCase();
+      const c = porCliente[cli] || (porCliente[cli] = { nombre: cli, pedidos: 0, prendas: 0 });
+      c.pedidos++; c.prendas += Number(x.prendas) || 0;
+      const u = String(x.usuario || 'SIN VENDEDOR').trim().toUpperCase();
+      const o = porUsuario[u] || (porUsuario[u] = { nombre: u, pedidos: 0, prendas: 0 });
+      o.pedidos++; o.prendas += Number(x.prendas) || 0;
+      (x.referencias || []).forEach(r => { refs[r] = (refs[r] || 0) + 1; });
+      const s = String(x.estado || '').toUpperCase();
+      if (s === 'COMPLETADO') est.completado++; else if (/ERROR|FALL/.test(s)) est.error++; else est.proceso++;
+    });
+    const pct = (a, b) => b ? Math.round(100 * a / b) : 0;
+    const usuarios = Object.values(porUsuario).sort((a, b) => b.pedidos - a.pedidos || b.prendas - a.prendas);
+    const liderPedidos = usuarios[0];
+    const liderPrendas = [...usuarios].sort((a, b) => b.prendas - a.prendas)[0];
+    const clientes = Object.values(porCliente).sort((a, b) => b.pedidos - a.pedidos || b.prendas - a.prendas);
+    const repetidos = clientes.filter(c => c.pedidos > 1).length;
+    const top = Object.entries(refs).sort((a, b) => b[1] - a[1]).slice(0, 8);
+    // pedidos por semana: últimas 12 semanas (lunes a domingo)
+    const hoy = new Date(), lunes = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+    lunes.setDate(lunes.getDate() - ((lunes.getDay() + 6) % 7));
+    const claves = [];
+    for (let k = 11; k >= 0; k--) { const d = new Date(lunes); d.setDate(d.getDate() - 7 * k); claves.push(d); }
+    const llave = d => d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
+    const conteo = {};
+    L.forEach(x => {
+      const d = fechaDe(x.fecha); if (!d) return;
+      d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+      conteo[llave(d)] = (conteo[llave(d)] || 0) + 1;
+    });
+    const serie = claves.map(d => ({ etiqueta: String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0'), valor: conteo[llave(d)] || 0 }));
+    const maxU = Math.max(1, ...usuarios.map(u => u.pedidos));
+    const maxRef = Math.max(1, ...top.map(r => r[1]));
+    const tarjeta = (titulo, valor, pie, nivel, tono) => '<div class="tc-est-kpi" data-lq="' + nivel + '" data-lq-tone="' + tono + '"><small>' + titulo + '</small><b>' + valor + '</b><span>' + esc(pie) + '</span></div>';
+    const kpis = '<div class="tc-est-kpis">' +
+      tarjeta('PEDIDOS PROGRAMADOS', total, pct(est.completado, total) + '% completados', pct(est.completado, total), 'verde') +
+      tarjeta('PRENDAS', prendas.toLocaleString('es-CO'), liderPrendas ? 'Lidera ' + liderPrendas.nombre + ' con ' + liderPrendas.prendas : '', liderPrendas ? pct(liderPrendas.prendas, prendas) : 0, 'azul') +
+      tarjeta('CLIENTES', clientes.length, repetidos + ' con más de un pedido', pct(repetidos, clientes.length), 'teal') +
+      tarjeta('COMERCIALES', usuarios.length, liderPedidos ? 'Más pedidos: ' + liderPedidos.nombre : '', liderPedidos ? pct(liderPedidos.pedidos, total) : 0, 'ambar') +
+      '</div>';
+    const dona = donutSvg([
+      { valor: est.completado, color: '#d0f44c', nombre: 'Completados' },
+      { valor: est.proceso, color: '#60a5fa', nombre: 'En proceso' },
+      { valor: est.error, color: '#fb7185', nombre: 'Con error' }], total);
+    const leyenda = '<div class="tc-est-leyenda">' +
+      '<span><i style="background:#d0f44c"></i>Completados · ' + est.completado + '</span>' +
+      '<span><i style="background:#60a5fa"></i>En proceso · ' + est.proceso + '</span>' +
+      '<span><i style="background:#fb7185"></i>Con error · ' + est.error + '</span></div>';
+    const filasUsuario = usuarios.map((u, i) => '<div class="tc-est-fila"><span>' + esc(u.nombre) + '</span><div class="tc-est-barra"><i style="width:' + pct(u.pedidos, maxU) + '%;background:' + PALETA[i % PALETA.length] + '"></i></div><span class="tc-est-num">' + u.pedidos + ' pedidos · ' + u.prendas + ' prendas</span></div>').join('');
+    const filasRef = top.map(([r, n], i) => '<div class="tc-est-fila"><span>' + esc(r) + '</span><div class="tc-est-barra"><i style="width:' + pct(n, maxRef) + '%;background:' + PALETA[(i + 2) % PALETA.length] + '"></i></div><span class="tc-est-num">' + n + ' pedido' + (n === 1 ? '' : 's') + '</span></div>').join('');
+    const tablaClientes = '<table class="tc-est-tabla"><thead><tr><th>CLIENTE</th><th style="text-align:right">PEDIDOS</th><th style="text-align:right">PRENDAS</th></tr></thead><tbody>' +
+      clientes.slice(0, 12).map(c => '<tr><td>' + esc(c.nombre) + '</td><td class="n">' + c.pedidos + '</td><td class="n">' + c.prendas + '</td></tr>').join('') + '</tbody></table>';
+    return '<section class="tc-est">' + kpis +
+      '<div class="tc-est-grid">' +
+        '<div class="tc-est-card"><h4>PEDIDOS POR SEMANA · ÚLTIMAS 12</h4>' + barrasSvg(serie) + '</div>' +
+        '<div class="tc-est-card"><h4>ESTADO DE LOS PEDIDOS</h4><div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">' + dona + leyenda + '</div></div>' +
+      '</div>' +
+      '<div class="tc-est-grid">' +
+        '<div class="tc-est-card"><h4>PEDIDOS Y PRENDAS POR COMERCIAL</h4>' + (filasUsuario || '<p>Sin datos.</p>') + '</div>' +
+        '<div class="tc-est-card"><h4>REFERENCIAS MÁS PROGRAMADAS</h4>' + (filasRef || '<p>Sin datos.</p>') + '</div>' +
+      '</div>' +
+      '<div class="tc-est-card"><h4>CLIENTES</h4>' + tablaClientes + '</div>' +
+    '</section>';
+  }
+  function barraVistas() {
+    if (!document.getElementById('tc-vistas-css')) {
+      const st = document.createElement('style');
+      st.id = 'tc-vistas-css';
+      st.textContent = '.tc-vistas-flot{position:sticky;top:8px;z-index:40;margin:0 0 12px;padding:6px 0;pointer-events:none}' +
+        '.tc-vistas-fila{pointer-events:auto;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px}' +
+        '.tc-vistas-fila .tc-efi{justify-self:end}' +
+        '@media (max-width:700px){.tc-vistas-fila{grid-template-columns:1fr;justify-items:center}.tc-vistas-fila .tc-efi{justify-self:center}}' +
+        '.tc-efi{display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border-radius:99px;border:1px solid #3d4c3b;background:rgba(0,0,0,.35);font:800 11px Arial;letter-spacing:.08em;color:#c9d6c2;white-space:nowrap}';
+      document.head.appendChild(st);
+    }
+    const estado = !effi ? '' : (effi.activo && effi.conectado) ? 'CONECTADO' : effi.activo ? 'DESCONECTADO' : 'APAGADO';
+    const punto = !effi ? '' : (effi.activo && effi.conectado) ? 'on' : effi.activo ? 'off' : '';
+    const pastilla = effi ? '<span class="tc-efi" title="' + esc(effi.ultima ? 'Última señal: ' + effi.ultima : '') + '"><span class="tc-dot ' + punto + '"></span>EFFITRON · ' + estado + '</span>' : '';
+    return '<div class="tc-vistas-flot"><div class="tc-vistas-fila"><span></span>' +
+      '<div class="tc-ptabs" role="tablist">' +
+      '<button type="button" role="tab" data-vista="pedidos" class="' + (vista === 'pedidos' ? 'on' : '') + '">PEDIDOS</button>' +
+      '<button type="button" role="tab" data-vista="estadisticas" class="' + (vista === 'estadisticas' ? 'on' : '') + '">ESTADÍSTICAS</button></div>' +
+      pastilla + '</div></div>';
+  }
   function htmlProgramados() {
     const q = busqueda.trim().toLowerCase();
     const lista = programados.filter(x => !q || (x.codigo + ' ' + x.cliente + ' ' + x.proyecto).toLowerCase().includes(q));
@@ -440,11 +600,11 @@
         if (norm(o.orden) !== c) { toast(c + ' está agrupada con otras órdenes en una misma tarjeta de Producción (' + o.orden + '). Para no borrar las otras, elimínala desde PRODUCCIÓN.', 'error'); return; }
         const pv = await api('/api/produccion/fila/' + filas[0] + '/eliminacion?orden=1');   // la carpeta EXACTA que se va a borrar
         let rb = null;
-        const hecho = await pedirClave('Eliminar ' + c, 'Se eliminará <b>solo la orden ' + esc(c) + '</b>: ' + (filas.length > 1 ? 'sus <b>' + filas.length + ' tarjetas</b>' : 'su <b>tarjeta</b>') + ' de Producción, su cotización en <b>Cartera</b> (si no tiene pagos), esta lista y <b>esta carpeta de la NAS</b>:<br><small style="word-break:break-all;color:#d0f44c">' + esc(pv.folder) + '</small><br>Queda una copia de recuperación en el servidor. Ninguna otra orden se toca.', async clave => { rb = await api('/api/produccion/orden/' + encodeURIComponent(c), 'DELETE', { password: clave }); });
+        const hecho = await pedirClave('Eliminar ' + c, 'Se eliminará <b>solo la orden ' + esc(c) + '</b>: ' + (filas.length > 1 ? 'sus <b>' + filas.length + ' tarjetas</b>' : 'su <b>tarjeta</b>') + ' de Producción, sus filas en la <b>hoja de Google Sheets</b>, su cotización en <b>Cartera</b> (si no tiene pagos), esta lista y <b>esta carpeta de la NAS</b>:<br><small style="word-break:break-all;color:#d0f44c">' + esc(pv.folder) + '</small><br>Queda una copia de recuperación en el servidor. Ninguna otra orden se toca.', async clave => { rb = await api('/api/produccion/orden/' + encodeURIComponent(c), 'DELETE', { password: clave }); });
         if (!hecho) return;
         b.disabled = true; b.textContent = 'ELIMINANDO…';
         const cp = (rb && rb.cartera && rb.cartera.con_pagos) || []; if (cp.length) toast('La cotización ' + cp.join(', ') + ' sigue en Cartera porque tiene pagos registrados.', 'error');
-      } else if (!confirm('¿Eliminar ' + c + '?\n\nNo está en Producción: solo se quita de esta lista.')) return;
+      } else if (!confirm('¿Eliminar ' + c + '?\n\nSe quitará de esta lista y se borrarán sus filas de la hoja de Google Sheets.')) return;
       await api('/api/pedido-effi/programados/' + encodeURIComponent(c), 'DELETE');
       programados = programados.filter(x => x.codigo !== c); delete produccion[c]; pintar();
       toast(c + (filas.length ? ' eliminado de Producción, la NAS y Cartera' : ' quitado de la lista'), 'ok');
@@ -489,6 +649,7 @@
     panel.addEventListener('click', async e => {
       const b = e.target.closest('button'); if (!b) return;
       try {
+        if (b.dataset.vista !== undefined) { vista = b.dataset.vista; try { localStorage.setItem('clubVista', vista); } catch (er) { /* sin almacenamiento */ } pintar(); return; }
         if (b.dataset.correos !== undefined) { modoDlg = 'correos'; pintarCorreos(); dlg.showModal(); return; }
         if (b.dataset.cotreint) { await api('/api/club/pedidos/' + b.dataset.cotreint + '/cotizacion/reintentar', 'POST'); aviso = 'Reintentando la cotización…'; toast('Reintentando la cotización…', 'ok'); await cargar(); return; }
         if (b.dataset.eliminar) { const id = b.dataset.eliminar; if (!confirm('¿Eliminar la reprogramación #' + id + '? Desaparece de esta pantalla (no borra la cotización de Effi ni lo ya programado en Producción).')) return; await api('/api/club/pedidos/' + id, 'DELETE'); toast('Reprogramación #' + id + ' eliminada', 'ok'); await cargar(); return; }
@@ -540,4 +701,59 @@
     else caja.innerHTML = '<p style="color:#ffb4a2;font:700 13px Arial">No cargó el formulario. Recarga la página con Ctrl+F5.</p>';
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar); else iniciar();
+})();
+
+// Interruptor «HOJA PRODUCCIÓN»: decide si cada pedido programado también se escribe en la hoja de Google Sheets.
+// Solo lo ve la cuenta Indoor Sport (el servidor responde 403 a las demás, y ahí no se intenta más).
+(() => {
+  let denegado = false, ultimo = 0;
+  function pintar(b, on) {
+    b.innerHTML = '<span class="hp-txt">HOJA PRODUCCIÓN</span><span class="hp-pill"><i></i></span><small class="hp-est">' + (on ? 'ENCENDIDA' : 'APAGADA') + '</small>';
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-checked', on ? 'true' : 'false');
+  }
+  if (!document.getElementById('hp-estilo')) {
+    const st = document.createElement('style');
+    st.id = 'hp-estilo';
+    st.textContent = '[data-hoja]{display:inline-flex!important;align-items:center;gap:9px;padding:6px 12px 6px 14px!important;border-radius:99px!important;border:1px solid rgba(208,244,76,.3)!important;background:rgba(0,0,0,.25)!important;color:#c9d3c1!important;cursor:pointer;font:800 11px Arial!important;letter-spacing:.06em;margin-right:8px}' +
+      '[data-hoja] .hp-pill{position:relative;width:44px;height:24px;border-radius:99px;background:#2a332c;border:1px solid rgba(255,255,255,.12);transition:background .2s;flex:0 0 auto}' +
+      '[data-hoja] .hp-pill i{position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#c9d3c1;transition:transform .2s,background .2s;box-shadow:0 1px 3px rgba(0,0,0,.5)}' +
+      '[data-hoja][aria-checked="true"] .hp-pill{background:linear-gradient(180deg,#3fb24c,#2a8a36);border-color:#3fb24c}' +
+      '[data-hoja][aria-checked="true"] .hp-pill i{transform:translateX(20px);background:#fff}' +
+      '[data-hoja][aria-checked="true"] .hp-est{color:#d0f44c}' +
+      '[data-hoja] .hp-est{font:900 10px Arial;letter-spacing:.08em}' +
+      '[data-hoja]:disabled{opacity:.6;cursor:progress}';
+    document.head.appendChild(st);
+  }
+  async function montar() {
+    const acc = document.querySelector('.tc-cabeza .tc-acc');
+    if (!acc || acc.querySelector('[data-hoja]') || denegado) return;
+    if (Date.now() - ultimo < 4000) return;
+    ultimo = Date.now();
+    let on = null;
+    try {
+      const r = await fetch('/api/hoja-produccion', { credentials: 'same-origin', cache: 'no-store' });
+      if (r.status === 403) { denegado = true; return; }
+      if (r.ok) on = !!(await r.json()).activo;
+    } catch (e) { return; }
+    if (on === null || acc.querySelector('[data-hoja]')) return;
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.setAttribute('data-hoja', '');
+    b.setAttribute('role', 'switch');
+    b.className = 'hp-sw';
+    b.title = 'Si está encendida, cada pedido programado también se escribe en la hoja de Producción de Google Sheets';
+    pintar(b, on);
+    b.onclick = async () => {
+      const nuevo = b.getAttribute('aria-checked') !== 'true';
+      b.disabled = true;
+      try {
+        const r = await fetch('/api/hoja-produccion', { method: 'PUT', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ activo: nuevo }) });
+        if (r.ok) pintar(b, !!(await r.json()).activo); else alert('No se pudo cambiar el interruptor');
+      } finally { b.disabled = false; }
+    };
+    acc.insertBefore(b, acc.firstChild);
+  }
+  new MutationObserver(() => { montar(); }).observe(document.body, { childList: true, subtree: true });
+  montar();
 })();
