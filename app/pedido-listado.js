@@ -472,7 +472,7 @@
     const cuerpo = q('[data-cuerpo]'); if (!cuerpo) return;
     if (!document.getElementById('pl-dos-css')) {
       const st = document.createElement('style'); st.id = 'pl-dos-css';
-      st.textContent = '.pl-dos{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(260px,1fr);gap:14px;align-items:start}.pl-der{position:sticky;top:8px;min-width:0}.pl-izq{min-width:0}@media (max-width:900px){.pl-dos{grid-template-columns:1fr}.pl-der{position:static}}.pl-izq .pl-herr{flex-wrap:wrap!important;overflow:visible!important}.pl-izq .pl-herr label{min-width:0}';
+      st.textContent = '.pl-dos{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(260px,1fr);gap:14px;align-items:start}.pl-der{position:sticky;top:8px;min-width:0}.pl-izq{min-width:0}@media (max-width:900px){.pl-dos{grid-template-columns:1fr}.pl-der{position:static}}.pl-izq .pl-herr{flex-wrap:wrap!important;overflow:visible!important}.pl-izq .pl-herr label{min-width:0}.pl-izq .pl-aplique{flex-wrap:nowrap!important;min-width:0}.pl-izq .pl-aplique [data-tipos]{min-width:170px!important}@media (max-width:700px){.pl-izq .pl-aplique{flex-wrap:wrap!important}}';
       document.head.appendChild(st);
     }
     cuerpo.classList.add('pl-dos');
