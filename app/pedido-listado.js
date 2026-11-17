@@ -392,7 +392,7 @@
     const gs = grupos(), varias = gs.length > 1;
     const bloques = (L.compartir ? [['*', 'Todas las referencias']] : gs.map(g => [g.referencia, g.referencia + ' · ' + g.descripcion])).map(([ref, titulo]) =>
       '<div class="pl-tarjeta"><h3>' + esc(titulo) + '</h3><div class="pl-slots">' + Array.from({ length: L.disenos }, (_, i) => slotHtml(ref, i + 1)).join('') + '</div></div>').join('');
-    q('[data-cuerpo]').innerHTML = '<div class="pl-tarjeta"><h3>Datos del pedido · mockups opcionales</h3><div class="pl-grid">' +
+    q('[data-cuerpo]').innerHTML = '<div class="pl-tarjeta"><h3>Datos del pedido · mockups obligatorios</h3><div class="pl-grid">' +
       '<label>Proyecto *<input data-proyecto value="' + esc(L.proyecto) + '" placeholder="Ej. TEMPORADA 2027"></label>' +
       '<label>Línea de producto<select data-linea><option value="">—</option>' + (L.cat.lineas || []).map(x => '<option' + (x === L.linea ? ' selected' : '') + '>' + esc(x) + '</option>').join('') + '</select></label>' +
       '<label>Número de diseños *<select data-disenos>' + Array.from({ length: MAX_DISENOS }, (_, i) => '<option value="' + (i + 1) + '"' + (i + 1 === L.disenos ? ' selected' : '') + '>' + (i + 1) + '</option>').join('') + '</select></label></div>' +
@@ -423,9 +423,9 @@
     });
   }
   function actualizarMockups() {
-    const falta = slotsNecesarios().filter(([r, n]) => !imagenDe(r, n)).length, ok = !!L.proyecto.trim();   // los mockups son opcionales: solo hace falta el proyecto
+    const falta = slotsNecesarios().filter(([r, n]) => !imagenDe(r, n)).length, ok = !!L.proyecto.trim() && falta === 0;   // los mockups son OBLIGATORIOS: se eligen aquí, antes del listado y de programar
     const b = q('[data-sigue]'); if (b) b.disabled = !ok;
-    setMsg(!L.proyecto.trim() ? 'Escribe el nombre del proyecto.' : falta ? 'Mockups opcionales: faltan ' + falta + ' imagen(es). Puedes continuar sin ellas o adjuntarlas ahora.' : 'Mockups completos ✓', ok ? 'ok' : '');
+    setMsg(!L.proyecto.trim() ? 'Escribe el nombre del proyecto.' : falta ? 'Faltan ' + falta + ' mockup(s): selecciónalos para continuar.' : 'Mockups completos ✓', ok ? 'ok' : 'error');
   }
 
   // ---------------------------------------------------------------- 3) listado
