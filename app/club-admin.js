@@ -676,7 +676,7 @@
     document.querySelector('.tc-pedido-fondo')?.remove();
     const f = document.createElement('div');
     f.className = 'tc-pedido-fondo';
-    f.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.65);padding:8px;overflow:auto';
+    f.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#060a07;padding:8px;overflow:auto';
     f.innerHTML = '<div class="tc-pedido-card" style="width:100%;margin:0;box-sizing:border-box;background:#101a12;border:1px solid rgba(230,235,241,.3);border-radius:18px;padding:14px">' +
       '<div class="tc-pedido-herr" data-herr><div class="tc-ptabs" role="tablist"><button type="button" role="tab" data-ptab="doc" class="on">CO/RM</button><button type="button" role="tab" data-ptab="listado">LISTADO</button></div><button type="button" class="tc-btn tc-b-line tc-pedido-cerrar" data-cerrar-pedido>Cerrar</button></div>' +
       '<div data-pedido-effi></div></div>';
