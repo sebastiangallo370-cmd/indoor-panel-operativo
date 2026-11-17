@@ -344,6 +344,10 @@ ecommerce_mod.configurar_effi(lambda: zeus_mod._leer_secreto().get('llave', ''))
 from app import cliente_effi as cliente_effi_mod
 cliente_effi_mod.configurar(authenticate, permisos_mod.comerciales_permitido, lambda: zeus_mod._leer_secreto().get('llave', ''))
 app.include_router(cliente_effi_mod.router)
+from app import pedido_effi as pedido_effi_mod
+from app import listado_pedido as listado_pedido_mod
+pedido_effi_mod.configurar(authenticate, permisos_mod.comerciales_permitido, lambda: zeus_mod._leer_secreto().get('llave', ''), permisos_mod.bitacora_permitido)
+app.include_router(pedido_effi_mod.router)
 from app import ventas_effi as ventas_effi_mod
 ventas_effi_mod.configurar(authenticate, permisos_mod.comerciales_permitido, lambda: zeus_mod._leer_secreto().get('llave', ''),
                            lambda: CONFIG['ruta_nas_clientes'],
@@ -407,6 +411,9 @@ app.include_router(perfil_foto_mod.router)
 app.include_router(molderia_mod.router, dependencies=[Depends(authenticate), Depends(permisos_mod.exigir('molderia'))])
 app.include_router(fichas_resumen_mod.router, dependencies=[Depends(authenticate)])
 app.include_router(agentes_mod.pc_router)  # el PC de los agentes entra con su token, sin sesión
+from app import marcaman_canal as marcaman_mod
+app.include_router(marcaman_mod.pc_router)  # MARCAMAN: la PC de la cortadora entra con el token de agentes
+app.include_router(marcaman_mod.panel_router, dependencies=[Depends(authenticate)])
 app.include_router(permisos_mod.router)
 app.include_router(exportar_mod.router)
 app.include_router(cartera_router, dependencies=[Depends(authenticate), Depends(permisos_mod.exigir('cartera'))])
@@ -434,10 +441,16 @@ app.include_router(stockman_mod.router, dependencies=[Depends(authenticate), Dep
 app.include_router(stockman_mod.webhook_router)   # webhook de Effi: sin sesión, protegido por la clave de su dirección
 app.include_router(zeus_mod.public_router)
 from app import club as club_mod
+from app import leer_listado as leer_listado_mod
+from app import sheet_pedidos as sheet_pedidos_mod
 club_mod.configurar(lambda: connect(), authenticate, permisos_mod.comerciales_permitido, lambda *a, **k: _too_many(*a, **k),
                     lambda row: (_PREFETCH_POOL.submit(_prefetch_public, row), _public_mockup_info(row))[1],
                     lambda: CONFIG['ruta_nas_clientes'])
 app.include_router(club_mod.router)
+leer_listado_mod.configurar(permisos_mod.comerciales_permitido, authenticate)
+app.include_router(leer_listado_mod.router)
+sheet_pedidos_mod.configurar(permisos_mod.bitacora_permitido, authenticate)
+app.include_router(sheet_pedidos_mod.router)
 app.include_router(club_mod.public)
 app.include_router(club_mod.pagina)
 from app import effitron as effitron_mod
@@ -760,6 +773,10 @@ def append_local_production(record: dict, row_builder=None, observations: str = 
         db.close()
 
 
+_MOCKUPS_OPCIONALES_JOBS: set[int] = set()   # órdenes creadas desde EMPEZAR PEDIDO: el mockup es opcional (se programan aunque no lleven imagen)
+_MOCKUP_OPCIONAL = __import__('contextvars').ContextVar('mockup_opcional', default=False)
+
+
 def verify_order_mockups(order_dir, records):
     """Use the same reader as cards; never publish a reference without a design."""
     files = [p for p in Path(order_dir).iterdir() if p.is_file() and not p.is_symlink()]
@@ -768,7 +785,7 @@ def verify_order_mockups(order_dir, records):
     for record in records:
         reference = str(record.get('referencia') or '').strip()
         designs, status = listing_designs(files, reference)
-        if not designs:
+        if not designs and not _MOCKUP_OPCIONAL.get():
             raise ValueError(f'No se programó la tarjeta: falta el mockup de {reference}. {status}. '
                              'Sube la imagen con la referencia correcta en el nombre y vuelve a procesar.')
 
@@ -833,6 +850,10 @@ def process_job(job_id: int, pdf_path: Path, extra_paths: list[Path], observatio
                 detail += ". Avisos: " + " | ".join(warnings)
             if image_issues:
                 raise ValueError('No se programó: ' + ' | '.join(image_issues))
+            # mockups opcionales = se puede programar SIN imágenes; pero si el comercial subió alguna, es OBLIGATORIO que quede insertada
+            subidas = [n for n in uploaded_names if Path(n).suffix.lower() in {'.jpg', '.jpeg', '.png', '.webp', '.bmp', '.tif', '.tiff'}]
+            if _MOCKUP_OPCIONAL.get() and subidas and inserted < len(subidas):
+                raise ValueError(f'No se insertaron todos los mockups subidos ({inserted} de {len(subidas)}). Revisa las imágenes y vuelve a programar.')
             detail += '. ' + _verificar_listado(pdf_path, items_pdf, order_dir / f'{pdf_path.stem}.xlsx')
             verify_order_mockups(order_dir, pending_records)
             for record in pending_records:
@@ -924,7 +945,46 @@ def process_reprogram_excel_job(job_id: int, excel_path: Path, extra_paths: list
         update_job(job_id, "ERROR", str(error))
 
 
+_PDF_EFFI_ORDEN: dict = {}   # código de orden -> PDF de Effi que se pega en la carpeta apenas se crea
+
+
+def _dejar_pdf_effi(carpeta: Path, codigo: str, datos: bytes, nombre: str = '') -> str:
+    """Deja en la carpeta de la orden SOLO el PDF que creó Effi (quita cualquier otro CO####*.pdf, como el que arma el panel para procesar). Devuelve '' si salió bien o el motivo si no."""
+    fallos: list = []
+    for viejo in [p for p in carpeta.glob('*.pdf') if p.stem.upper().startswith(codigo.upper())]:
+        try:
+            try:
+                os.chmod(viejo, 0o666)
+            except OSError:
+                pass
+            viejo.unlink()
+        except OSError as exc:
+            fallos.append(f'no pude quitar {viejo.name}: {exc}')
+    base = re.sub(r'[\\/:*?"<>|]', '', nombre or '').strip() or codigo   # el PDF se llama IGUAL que el listado (p. ej. CO6394_UNIFORMES 2027.pdf)
+    destino = carpeta / f'{base}.pdf'
+    for intento in ('directo', 'temporal'):   # 1) escribir ya sin el viejo; 2) escribir uno temporal y renombrarlo encima
+        try:
+            if intento == 'directo':
+                destino.write_bytes(datos)
+            else:
+                tmp = carpeta / f'.{base}.pdf.tmp'
+                tmp.write_bytes(datos)
+                os.replace(tmp, destino)
+            if destino.stat().st_size == len(datos):
+                try:   # también es el que se ve en Cartera
+                    from app import cartera_api as cartera_mod
+                    cartera_mod.poner_pdf(codigo, datos)
+                except Exception:   # noqa: BLE001
+                    logging.getLogger(__name__).exception('No se pudo poner el PDF de Effi en Cartera (%s)', codigo)
+                return ''
+            fallos.append(f'{intento}: el archivo quedó de {destino.stat().st_size} bytes y no de {len(datos)}')
+        except OSError as exc:
+            fallos.append(f'{intento}: {exc}')
+    return ' | '.join(fallos)[:300]
+
+
 def process_order_job(job_id: int, job_dir: Path, pdf_path: Path, excel_path: Path, observations: str = '', author: str = '', linea: str = '', overrides: dict | None = None):
+    _MOCKUP_OPCIONAL.set(job_id in _MOCKUPS_OPCIONALES_JOBS)
     try:
         pending_records = []
         # The legacy processor moves/removes attachments: remember them beforehand.
@@ -950,6 +1010,24 @@ def process_order_job(job_id: int, job_dir: Path, pdf_path: Path, excel_path: Pa
             ),
         )
         if ok:
+            pdf_effi_detalle = ''
+            datos_effi = _PDF_EFFI_ORDEN.pop(str(order_number).upper(), None)
+            if datos_effi:   # LO PRIMERO con la carpeta ya creada: el PDF tal como lo creó Effi (producción lo necesita así)
+                update_job_progress(job_id, 93, "Pegando en la carpeta el PDF de Effi")
+                err = _dejar_pdf_effi(Path(ok), order_number, datos_effi, Path(excel_path).stem)
+                if err:
+                    logging.getLogger(__name__).error('PDF de Effi de %s no se pudo dejar en %s: %s', order_number, ok, err)
+                    pdf_effi_detalle = '. PDF de Effi NO se pudo copiar a la carpeta: ' + err
+                    try:
+                        _registrar_post_orden(str(order_number), pdf_error=err)
+                    except Exception:   # noqa: BLE001
+                        pass
+                else:
+                    pdf_effi_detalle = '. PDF de Effi dentro de la carpeta'
+                    try:
+                        _registrar_post_orden(str(order_number), pdf_hecho=True, pdf_ok_desde=time.time())
+                    except Exception:   # noqa: BLE001
+                        pass
             copied = 0
             for attachment in job_dir.iterdir():
                 if not attachment.is_file() or attachment in (pdf_path, excel_path):
@@ -959,7 +1037,7 @@ def process_order_job(job_id: int, job_dir: Path, pdf_path: Path, excel_path: Pa
                 uploaded_names.add(attachment.name)
                 attachment.unlink()
                 copied += 1
-            detail = "Pedido creado en NAS y registrado en Producción local"
+            detail = "Pedido creado en NAS y registrado en Producción local" + pdf_effi_detalle
             inserted, image_issues = sync_order_uploads(Path(ok), STATE_DIR / 'mockup-backups', uploaded_names=uploaded_names)
             detail += f". {inserted} mockup(s) insertado(s) en el listado; originales conservados en la carpeta"
             if image_issues:
@@ -1145,11 +1223,6 @@ def tarjeta_iconos_js():
 @app.get('/confeccion-preparacion.js')
 def confeccion_preparacion_js():
     return FileResponse(Path(__file__).with_name('confeccion-preparacion.js'), media_type='application/javascript', headers={'Cache-Control': 'no-store, max-age=0, must-revalidate'})
-
-
-@app.get('/confeccion-boton.js')
-def confeccion_boton_js():
-    return FileResponse(Path(__file__).with_name('confeccion-boton.js'), media_type='application/javascript', headers={'Cache-Control': 'no-store, max-age=0, must-revalidate'})
 
 
 @app.get('/contabilidad-confeccion-ui.js')
@@ -1676,6 +1749,11 @@ def minimaximan_js():
 @app.get('/zeus.js')
 def zeus_js():
     return FileResponse(Path(__file__).with_name('zeus.js'), media_type='application/javascript', headers={'Cache-Control': 'no-store'})
+
+
+@app.get('/laser-panel.js')
+def laser_panel_js():
+    return FileResponse(Path(__file__).with_name('laser-panel.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
 
 
 @app.get('/draco-panel.js')
@@ -2712,6 +2790,23 @@ def trace_ui_script():
     )
 
 
+@app.get("/icono-{lado}.png")
+def icono_app(lado: int):
+    if lado not in (192, 512):
+        raise HTTPException(404, 'No existe')
+    return FileResponse(Path(__file__).with_name(f'icono-{lado}.png'), media_type='image/png', headers={'Cache-Control': 'public, max-age=86400'})
+
+
+@app.get("/sw.js")
+def service_worker():
+    return FileResponse(Path(__file__).with_name('sw.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache', 'Service-Worker-Allowed': '/'})
+
+
+@app.get("/instalar-app.js")
+def instalar_app_js():
+    return FileResponse(Path(__file__).with_name('instalar-app.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
+
+
 @app.get("/manifest.webmanifest")
 def web_manifest():
     """Permite instalar el panel en el teléfono y abrirlo a pantalla completa, sin barras del navegador."""
@@ -2727,7 +2822,11 @@ def web_manifest():
         "icons": [
             {"src": "/favicon.svg?v=7", "sizes": "any", "type": "image/svg+xml", "purpose": "any"},
             {"src": "/favicon.png", "sizes": "64x64", "type": "image/png"},
+            {"src": "/icono-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+            {"src": "/icono-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
         ],
+        "id": "/",
+        "description": "Panel operativo de Indoor Sport: pedidos, producción e inventario. Todo corre en el servidor de Indoor.",
     }, media_type="application/manifest+json")
 
 
@@ -4678,6 +4777,7 @@ async def update_production_cell(payload: dict = Body(...), _=Depends(authentica
         db.execute("INSERT OR REPLACE INTO production_meta(key, value) VALUES ('updated_at', ?)", (now,))
         db.commit()
         db.close()
+        _PROD_CACHE['at'] = 0.0   # el cambio se ve YA en Producción, Inicio y PROGRAMAR CLUB (no hay que esperar a que venza la caché de unos segundos)
         if value.strip().upper() == 'P' and str(previous).strip().upper() != 'P' and (_proceso_de(header) == trazo_plt.ETIQUETA or 'TRAZO' in header):
             try:
                 ref_fila = next((str(values[i]) for i, h in enumerate(headers) if str(h).strip().upper() == 'REFERENCIA'), '')
@@ -4837,10 +4937,71 @@ def can_delete_rework_profile(profile):
     return ' '.join(normalized.upper().split()) in {'ADMINISTRACION', 'ADMINISTRATIVA', 'ADMINISTRATIVO', 'COORDINADOR'}
 
 
-def production_delete_target(db, row, username):
+def _orden_programada_en_panel(codigo: str) -> bool:
+    """¿Esta orden se programó desde EMPEZAR PEDIDO? (los comerciales pueden eliminar las que se programan desde su panel)."""
+    codigo = str(codigo or '').strip().upper()
+    try:
+        return (PEDIDO_EXCEL_DIR / codigo).is_dir() or codigo in {str(x.get('codigo')) for x in _leer_json(_PROGRAMADOS, [])}
+    except Exception:   # noqa: BLE001
+        return False
+
+
+def _borrar_carpeta_orden(carpeta) -> None:
+    """Borra la carpeta de la orden archivo por archivo, reintentando los que la NAS no suelta al primer intento (un archivo abierto en otro equipo, de solo lectura...).
+    Si alguno no se puede borrar, lanza OSError diciendo CUÁL y por qué (antes solo salía un aviso genérico)."""
+    fallos = []
+    for parent, dirs_, files_ in os.walk(carpeta, topdown=False, followlinks=False):
+        for nombre in files_:
+            ruta = Path(parent) / nombre
+            for intento in range(4):
+                try:
+                    try:
+                        os.chmod(ruta, 0o666)   # quita «solo lectura»
+                    except OSError:
+                        pass
+                    ruta.unlink()
+                    break
+                except FileNotFoundError:
+                    break
+                except OSError as exc:
+                    if intento == 3:
+                        fallos.append(f'{nombre}: {exc.strerror or exc}')
+                    else:
+                        time.sleep(0.6)
+        try:
+            Path(parent).rmdir()
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            if not fallos:
+                fallos.append(f'carpeta {Path(parent).name}: {exc.strerror or exc}')
+    if fallos:
+        raise OSError('No se pudo borrar: ' + ' · '.join(fallos[:3]) + (f' (+{len(fallos) - 3} más)' if len(fallos) > 3 else '') + '. Si está abierto en otro equipo (por ejemplo el PDF o el Excel), ciérralo y vuelve a eliminar.')
+
+
+_REVISION_CARPETA: dict = {}   # carpeta -> cuándo se revisó por última vez que no tiene enlaces ni montajes (la NAS es lenta: no se repite la revisión a cada paso)
+
+
+def _revisar_carpeta_sin_enlaces(target) -> None:
+    """Rechaza enlaces, junctions y montajes dentro de la carpeta ANTES de borrarla. Una sola pasada con scandir (1 operación por entrada, no 6 como antes con resolve())."""
+    pila = [str(target)]
+    while pila:
+        with os.scandir(pila.pop()) as it:
+            for e in it:
+                if e.is_symlink() or (hasattr(e, 'is_junction') and e.is_junction()):
+                    raise HTTPException(409, 'La carpeta contiene enlaces o rutas externas. Se requiere revisión manual.')
+                if e.is_dir(follow_symlinks=False):
+                    if os.path.ismount(e.path):
+                        raise HTTPException(409, 'La carpeta contiene enlaces o rutas externas. Se requiere revisión manual.')
+                    pila.append(e.path)
+
+
+def production_delete_target(db, row, username, orden_completa=False, fresco=False):
     profile = db.execute('SELECT process FROM users WHERE name=? COLLATE NOCASE', (username,)).fetchone()
-    if username != os.getenv('APP_USER', 'indoor') and not (profile and can_delete_production_profile(profile['process'])):
-        raise HTTPException(403, 'Solo Administración y Edición pueden eliminar órdenes')
+    es_admin = username == os.getenv('APP_USER', 'indoor') or bool(profile and can_delete_production_profile(profile['process']))
+    es_comercial = (not es_admin) and permisos_mod.comerciales_permitido(str(username))
+    if not es_admin and not es_comercial:
+        raise HTTPException(403, 'Solo Administración, Edición y Comerciales pueden eliminar órdenes')
     record = db.execute('SELECT * FROM production_rows WHERE source_row=?', (row,)).fetchone()
     if not record:
         raise HTTPException(404, 'La tarjeta ya no existe')
@@ -4851,41 +5012,50 @@ def production_delete_target(db, row, username):
         index = next((i for i,h in enumerate(headers) if str(h).strip().upper()==title), -1)
         return str(items[index] or '').strip() if 0 <= index < len(items) else ''
     order, client_name = field(values, 'ORDEN').upper(), legacy.sanitize(field(values, 'NOMBRE DEL CLIENTE'))
+    if es_comercial and not _orden_programada_en_panel(order):
+        raise HTTPException(403, 'Un comercial solo puede eliminar las órdenes que programó desde PROGRAMAR CLUB')
     if not client_name or not re.fullmatch(r'[A-Z0-9_-]{2,40}', order) or not any(c.isdigit() for c in order):
         raise HTTPException(409, 'La tarjeta no identifica un cliente y una orden válidos. No se eliminó nada.')
     for other in db.execute('SELECT source_row,values_json FROM production_rows WHERE source_row<>?', (row,)):
         other_values = json.loads(other['values_json'])
-        if field(other_values,'ORDEN').upper()==order:
+        if field(other_values,'ORDEN').upper()==order and not orden_completa:   # al eliminar la ORDEN COMPLETA (todas sus referencias) las demás tarjetas de esa misma orden se borran juntas
             raise HTTPException(409, 'Otra tarjeta comparte esta orden. No se puede borrar su carpeta mientras siga programada.')
     root = Path(CONFIG['ruta_nas_clientes']).resolve(strict=True)
+    if not any(True for _entrada in root.iterdir()):   # carpeta de clientes vacía = NAS desconectada: NO se puede dar por «ya borrada» ninguna carpeta
+        raise HTTPException(503, 'La NAS parece desconectada (la carpeta de clientes está vacía). No se eliminó nada.')
+    def sin_carpeta():   # la carpeta de la orden ya no existe (se borró antes o quedó a medias): solo falta lo demás (tarjeta, Cartera, lista)
+        rel = f'{client_name}/{order} (la carpeta ya no existe)'
+        return record, None, order, rel, hashlib.sha256((record['values_json']+'\n'+rel).encode()).hexdigest()
     client = root / client_name
+    if not client.exists() and not client.is_symlink():
+        return sin_carpeta()
     if client.is_symlink() or client.resolve().parent != root or not client.is_dir():
         raise HTTPException(409, 'No se pudo confirmar la carpeta exacta del cliente. No se eliminó nada.')
     client = client.resolve(strict=True)
     matches = [p for p in client.iterdir() if p.is_dir() and (p.name.upper()==order or any(p.name.upper().startswith(order+s) for s in ('_', ' ', '-')))]
+    if not matches:
+        return sin_carpeta()
     if len(matches)!=1:
         raise HTTPException(409, 'Debe existir una única carpeta de esta orden en el cliente. No se eliminó nada.')
     candidate = matches[0]
     target = candidate.resolve(strict=True)
     if candidate.is_symlink() or target.parent!=client or len(target.relative_to(root).parts)!=2:
         raise HTTPException(403, 'Ruta de orden no permitida')
-    # Reject links/junctions and nested mount points before any recursive deletion.
-    for parent, dirs, files in os.walk(target, followlinks=False):
-        for name in dirs + files:
-            entry = Path(parent) / name
-            if entry.is_symlink() or (hasattr(entry, 'is_junction') and entry.is_junction()) or os.path.ismount(entry) or not entry.resolve().is_relative_to(target):
-                raise HTTPException(409, 'La carpeta contiene enlaces o rutas externas. Se requiere revisión manual.')
+    # Reject links/junctions and nested mount points before any recursive deletion (la revisión se repite siempre justo antes de borrar: fresco=True).
+    if fresco or time.time() - _REVISION_CARPETA.get(str(target), 0) > 120:
+        _revisar_carpeta_sin_enlaces(target)
+        _REVISION_CARPETA[str(target)] = time.time()
     relative = str(target.relative_to(root)).replace('\\','/')
     fingerprint = hashlib.sha256((record['values_json']+'\n'+relative).encode()).hexdigest()
     return record, target, order, relative, fingerprint
 
 
 @app.get('/api/produccion/fila/{row}/eliminacion')
-def preview_production_delete(row: int, _=Depends(authenticate)):
+def preview_production_delete(row: int, orden: int = 0, _=Depends(authenticate)):
     db = connect()
     try:
-        record, target, order, relative, fingerprint = production_delete_target(db,row,_)
-        return dict(order=order, folder='\\\\192.168.0.120\\NAS INDOOR\\CLIENTES\\'+relative.replace('/','\\'), confirmation=fingerprint)
+        record, target, order, relative, fingerprint = production_delete_target(db,row,_,bool(orden))
+        return dict(order=order, folder=('\\\\192.168.0.120\\NAS INDOOR\\CLIENTES\\'+relative.replace('/','\\')) if target is not None else '(la carpeta ya no existe en la NAS: solo se quitará lo que falta)', confirmation=fingerprint)
     except OSError as error:
         raise HTTPException(503, 'No se pudo acceder al NAS. No se eliminó nada.') from error
     finally:
@@ -4911,6 +5081,71 @@ def verify_delete_password(db, username, password):
     db.execute('DELETE FROM production_delete_attempts WHERE username=?',(username,))
 
 
+@app.delete("/api/produccion/orden/{order}")
+def delete_production_order(order: str, payload: dict = Body(...), _=Depends(authenticate)):
+    """Elimina TODA una orden de Producción aunque tenga varias tarjetas (una por referencia): las tarjetas extra se archivan y
+    la última se borra con el mismo borrado seguro de siempre (contraseña, copia de recuperación y carpeta NAS)."""
+    order = str(order or '').strip().upper()
+    if not re.fullmatch(r'(?:CO|RM)\d{1,10}', order):   # una sola orden, nunca un grupo («CO1_CO2») ni un texto libre
+        raise HTTPException(400, 'Código de orden no válido')
+    db = connect()
+    try:
+        meta = db.execute("SELECT value FROM production_meta WHERE key='headers'").fetchone()
+        headers = json.loads(meta['value']) if meta else []
+        io_ = next((i for i, h in enumerate(headers) if str(h).strip().upper() == 'ORDEN'), -1)
+        rows = [r['source_row'] for r in db.execute('SELECT source_row, values_json FROM production_rows')
+                if io_ >= 0 and str((json.loads(r['values_json']) + [''] * (io_ + 1))[io_] or '').strip().upper() == order]
+        if not rows:   # sus tarjetas ya no están (se borraron antes): solo falta limpiar Cartera
+            perfil = db.execute('SELECT process FROM users WHERE name=? COLLATE NOCASE', (_,)).fetchone()
+            admin_ = _ == os.getenv('APP_USER', 'indoor') or bool(perfil and can_delete_production_profile(perfil['process']))
+            if not admin_ and not (permisos_mod.comerciales_permitido(str(_)) and _orden_programada_en_panel(order)):
+                raise HTTPException(403, 'Un comercial solo puede eliminar las órdenes que programó desde PROGRAMAR CLUB')
+            verify_delete_password(db, _, payload.get('password'))
+            res = {'ok': True, 'sin_tarjetas': True}
+            try:
+                from app import cartera_api as cartera_mod
+                res['cartera'] = cartera_mod.quitar_orden_eliminada(order, str(_))
+            except Exception:   # noqa: BLE001
+                logging.getLogger(__name__).exception('No se pudo quitar la orden %s de Cartera', order)
+                res['cartera'] = {'error': True}
+            return res
+        profile = db.execute('SELECT process FROM users WHERE name=? COLLATE NOCASE', (_,)).fetchone()
+        es_admin = _ == os.getenv('APP_USER', 'indoor') or bool(profile and can_delete_production_profile(profile['process']))
+        if not es_admin and not (permisos_mod.comerciales_permitido(str(_)) and _orden_programada_en_panel(order)):
+            raise HTTPException(403, 'Un comercial solo puede eliminar las órdenes que programó desde PROGRAMAR CLUB')
+        production_delete_target(db, rows[0], _, True)   # antes de tocar nada: se confirma que la carpeta de la NAS se puede resolver (si no, no se borra ninguna tarjeta)
+        db.execute('BEGIN IMMEDIATE')
+        verify_delete_password(db, _, payload.get('password'))
+        db.execute('CREATE TABLE IF NOT EXISTS production_deleted_rows (id INTEGER PRIMARY KEY AUTOINCREMENT, source_row INTEGER, payload TEXT, deleted_by TEXT, deleted_at TEXT)')
+        for row in rows[1:]:   # las tarjetas extra (otras referencias de la misma orden): archivadas y quitadas
+            record = db.execute('SELECT * FROM production_rows WHERE source_row=?', (row,)).fetchone()
+            db.execute('INSERT INTO production_deleted_rows(source_row,payload,deleted_by,deleted_at) VALUES (?,?,?,?)',
+                       (row, json.dumps(dict(record), ensure_ascii=False), _, datetime.now(timezone.utc).isoformat()))
+            archive_production_activity(db, row, 'Orden eliminada por ' + str(_))
+            db.execute('DELETE FROM production_rows WHERE source_row = ?', (row,))
+            db.execute('DELETE FROM production_notes WHERE source_row = ?', (row,))
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+    # la última tarjeta y la carpeta NAS: el borrado seguro de siempre (vuelve a pedir la misma contraseña ya validada)
+    db = connect()
+    try:
+        record, target, order2, relative, fingerprint = production_delete_target(db, rows[0], _)
+    finally:
+        db.close()
+    resultado = delete_production_row(rows[0], {'order': order2, 'confirmation': fingerprint, 'password': payload.get('password')}, _)
+    try:   # y también sale de Cartera (si la cotización no tiene pagos)
+        from app import cartera_api as cartera_mod
+        resultado['cartera'] = cartera_mod.quitar_orden_eliminada(order, str(_))
+    except Exception:   # noqa: BLE001 - la orden ya se borró; Cartera se puede limpiar a mano
+        logging.getLogger(__name__).exception('No se pudo quitar la orden %s de Cartera', order)
+        resultado['cartera'] = {'error': True}
+    return resultado
+
+
 @app.delete("/api/produccion/fila/{row}")
 def delete_production_row(row: int, payload: dict = Body(...), _=Depends(authenticate)):
     if row < PRODUCTION_START_ROW:
@@ -4922,19 +5157,25 @@ def delete_production_row(row: int, payload: dict = Body(...), _=Depends(authent
         verify_delete_password(db, _, payload.get('password'))
         if payload.get('confirmation')!=fingerprint or payload.get('order')!=order:
             raise HTTPException(409, 'Confirma la carpeta y la orden actual antes de eliminarla.')
-        backup_dir = STATE_DIR / 'deleted-order-backups'
-        backup_dir.mkdir(parents=True, exist_ok=True)
-        backup_base = backup_dir / (str(row)+'-'+secrets.token_hex(12))
-        # Complete a server-side recovery copy before touching NAS files.
-        backup = shutil.make_archive(str(backup_base), 'zip', root_dir=str(target.parent), base_dir=target.name)
-        db.execute('CREATE TABLE IF NOT EXISTS production_nas_deletions (id INTEGER PRIMARY KEY AUTOINCREMENT, source_row INTEGER, folder TEXT, backup TEXT, actor TEXT, deleted_at TEXT)')
-        db.execute('INSERT INTO production_nas_deletions(source_row,folder,backup,actor,deleted_at) VALUES (?,?,?,?,?)',
-                   (row,relative,backup,_,datetime.now(timezone.utc).isoformat()))
-        # Resolve again after backup and require the same exact target and row.
-        verified_record, verified, verified_order, verified_relative, verified_fingerprint = production_delete_target(db,row,_)
-        if verified!=target or verified_fingerprint!=fingerprint:
-            raise HTTPException(409, 'La orden cambió durante la operación. No se eliminó nada.')
-        shutil.rmtree(verified)
+        if target is not None:   # si la carpeta ya no existe (borrada antes o a medias) se salta la NAS y se elimina lo que falta
+            backup_dir = STATE_DIR / 'deleted-order-backups'
+            backup_dir.mkdir(parents=True, exist_ok=True)
+            backup_base = backup_dir / (str(row)+'-'+secrets.token_hex(12))
+            # Complete a server-side recovery copy before touching NAS files.
+            backup = str(backup_base) + '.zip'   # sin comprimir (ZIP_STORED): las fotos y el Excel ya vienen comprimidos y comprimir solo gasta tiempo
+            with zipfile.ZipFile(backup, 'w', zipfile.ZIP_STORED, allowZip64=True) as zf:
+                for parent, dirs_, files_ in os.walk(target, followlinks=False):
+                    zf.write(parent, Path(parent).relative_to(target.parent).as_posix() + '/')
+                    for nombre in files_:
+                        zf.write(Path(parent) / nombre, (Path(parent) / nombre).relative_to(target.parent).as_posix())
+            db.execute('CREATE TABLE IF NOT EXISTS production_nas_deletions (id INTEGER PRIMARY KEY AUTOINCREMENT, source_row INTEGER, folder TEXT, backup TEXT, actor TEXT, deleted_at TEXT)')
+            db.execute('INSERT INTO production_nas_deletions(source_row,folder,backup,actor,deleted_at) VALUES (?,?,?,?,?)',
+                       (row,relative,backup,_,datetime.now(timezone.utc).isoformat()))
+            # Resolve again after backup and require the same exact target and row.
+            verified_record, verified, verified_order, verified_relative, verified_fingerprint = production_delete_target(db,row,_,fresco=True)
+            if verified!=target or verified_fingerprint!=fingerprint:
+                raise HTTPException(409, 'La orden cambió durante la operación. No se eliminó nada.')
+            _borrar_carpeta_orden(verified)
         db.execute('CREATE TABLE IF NOT EXISTS production_deleted_rows (id INTEGER PRIMARY KEY AUTOINCREMENT, source_row INTEGER, payload TEXT, deleted_by TEXT, deleted_at TEXT)')
         db.execute('INSERT INTO production_deleted_rows(source_row,payload,deleted_by,deleted_at) VALUES (?,?,?,?)',
                    (row, json.dumps(dict(record), ensure_ascii=False), _, datetime.now(timezone.utc).isoformat()))
@@ -4946,11 +5187,11 @@ def delete_production_row(row: int, payload: dict = Body(...), _=Depends(authent
         now = datetime.now(timezone.utc).isoformat()
         db.execute("INSERT OR REPLACE INTO production_meta(key, value) VALUES ('updated_at', ?)", (now,))
         db.commit()
-        return {"ok": True, "row": row, "updated_at": now, "nas_deleted": relative}
+        return {"ok": True, "row": row, "updated_at": now, "nas_deleted": relative if target is not None else 'la carpeta ya no existía'}
     except OSError as error:
         db.rollback()
         logging.exception('No se completó la eliminación NAS de fila %s', row)
-        raise HTTPException(503, 'No se completó la eliminación del NAS. La tarjeta se conserva; si comenzó el borrado, hay un respaldo en el servidor para recuperación.') from error
+        raise HTTPException(503, 'No se completó la eliminación del NAS. ' + (str(error)[:380] if str(error).startswith('No se pudo borrar') else 'Detalle: ' + (str(error)[:200] or type(error).__name__) + '. La tarjeta se conserva; si comenzó el borrado, hay un respaldo en el servidor para recuperación.')) from error
     except Exception:
         db.rollback()
         raise
@@ -5594,6 +5835,33 @@ def save_confeccionista(payload: dict = Body(...), username=Depends(permisos_mod
     return {'ok': True, 'confeccionista': name, 'whatsapp': whatsapp, 'updated_at': now}
 
 
+_CACHE_EXCEL_ORDEN = {}
+_CACHE_HOJAS = {}
+
+
+def _excel_orden_cache(folder, order):
+    """Busca el Excel de la orden en la NAS; se reutiliza 5 minutos (la búsqueda tarda varios segundos)."""
+    clave = (str(folder), order)
+    hit = _CACHE_EXCEL_ORDEN.get(clave)
+    if hit and time.time() - hit[0] < 300:
+        return hit[1]
+    valor = listado_tallas_mod.excel_de_orden(folder, order)
+    _CACHE_EXCEL_ORDEN[clave] = (time.time(), valor)
+    return valor
+
+
+def _leer_hojas_cache(workbook):
+    """Lee las hojas del Excel una sola vez mientras el archivo no cambie."""
+    try:
+        clave = (str(workbook), Path(workbook).stat().st_mtime)
+    except OSError:
+        return listado_tallas_mod.leer_hojas(workbook)
+    if clave not in _CACHE_HOJAS:
+        _CACHE_HOJAS.clear()
+        _CACHE_HOJAS[clave] = listado_tallas_mod.leer_hojas(workbook)
+    return _CACHE_HOJAS[clave]
+
+
 def _datos_preparacion_confeccion(source_row: int) -> dict:
     """Datos de una tarjeta para la pestaña interna de preparación de confección.
 
@@ -5627,10 +5895,11 @@ def _datos_preparacion_confeccion(source_row: int) -> dict:
     project = field('NOMBRE PROYECTO', 'PROYECTO')
     quantity = field('CANTIDAD')
     curve, curve_error = [], ''
+    carpeta_orden = None
     try:
-        folder = listado_tallas_mod.carpeta_de_orden(client, order)
-        workbook = listado_tallas_mod.excel_de_orden(folder, order) if folder else None
-        sheets = listado_tallas_mod.leer_hojas(workbook) if workbook else {}
+        folder = carpeta_orden = listado_tallas_mod.carpeta_de_orden(client, order)
+        workbook = _excel_orden_cache(folder, order) if folder else None
+        sheets = _leer_hojas_cache(workbook) if workbook else {}
         wanted = listado_tallas_mod._codigo(reference)
         matching = [rows for title, rows in sheets.items()
                     if (listado_tallas_mod._codigo(title) == wanted
@@ -5652,6 +5921,21 @@ def _datos_preparacion_confeccion(source_row: int) -> dict:
     except Exception:
         logging.exception('No se pudo leer la curva del listado para la fila %s', source_row)
         curve_error = 'No se pudo leer la curva del listado ahora. Intenta nuevamente.'
+    # Aviso si el nombre de proyecto de la hoja no coincide con la carpeta de la orden en la NAS
+    proyecto_error = ''
+    try:
+        if carpeta_orden is None:
+            carpeta_orden = listado_tallas_mod.carpeta_de_orden(client, order)
+        if not carpeta_orden:
+            proyecto_error = 'No se encontró la carpeta de esta orden en la NAS.'
+        else:
+            nombre_carpeta = getattr(carpeta_orden, 'name', str(carpeta_orden))
+            def _sin_espacios(texto):
+                return ''.join(c for c in unicodedata.normalize('NFD', str(texto or '')) if not unicodedata.combining(c)).upper().replace(' ', '')
+            if project and _sin_espacios(project) not in _sin_espacios(nombre_carpeta):
+                proyecto_error = f'El proyecto de la hoja ("{project}") no coincide con la carpeta de la NAS ("{nombre_carpeta}").'
+    except Exception:
+        logging.exception('No se pudo revisar el proyecto de la fila %s', source_row)
     assets = production_card_assets(source_row, None)
     # El enlace de cada mockup solo se comparte con la confeccionista elegida
     # al abrir WhatsApp. Caduca pronto y no da acceso a otros documentos.
@@ -5667,13 +5951,103 @@ def _datos_preparacion_confeccion(source_row: int) -> dict:
     return {
         'source_row': source_row, 'orden': order, 'cliente': client, 'proyecto': project,
         'referencia': reference, 'cantidad': quantity, 'mockups': mockups,
-        'curva': curve, 'curva_error': curve_error,
+        'curva': curve, 'curva_error': curve_error, 'proyecto_error': proyecto_error,
         'confeccionistas': [item['confeccionista'] for item in _lista_confeccionistas()],
         'whatsapps': {row['confeccionista']: row['whatsapp'] for row in contacts if row['whatsapp']},
         'preparacion': ({'confeccionista': saved['confeccionista'],
                           'precio_prenda': saved['precio_centavos'] / 100,
                           'updated_at': saved['updated_at']} if saved else None),
     }
+
+
+def _asegurar_tablas_envios():
+    # Tablas de los envíos de confección y de los tokens de la extensión (se crean si faltan)
+    with connect() as db:
+        db.execute("""CREATE TABLE IF NOT EXISTS confeccion_tokens (
+            usuario TEXT PRIMARY KEY,
+            token TEXT NOT NULL UNIQUE,
+            created_at TEXT NOT NULL DEFAULT ''
+        )""")
+        db.execute("""CREATE TABLE IF NOT EXISTS confeccion_envios (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            mensaje_id TEXT NOT NULL UNIQUE,
+            source_row INTEGER NOT NULL DEFAULT 0,
+            orden TEXT NOT NULL DEFAULT '',
+            referencia TEXT NOT NULL DEFAULT '',
+            cliente TEXT NOT NULL DEFAULT '',
+            confeccionista TEXT NOT NULL DEFAULT '',
+            whatsapp TEXT NOT NULL DEFAULT '',
+            unidades INTEGER NOT NULL DEFAULT 0,
+            precio REAL NOT NULL DEFAULT 0,
+            registrado_por TEXT NOT NULL DEFAULT '',
+            detectado_at TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT ''
+        )""")
+        db.commit()
+
+
+def _usuario_envio_confeccion(request: Request):
+    token = request.headers.get('x-confeccion-token', '').strip()
+    if token:
+        with connect() as db:
+            row = db.execute('SELECT usuario FROM confeccion_tokens WHERE token=?', (token,)).fetchone()
+        if row:
+            return row['usuario']
+        raise HTTPException(401, 'El token de la extensión no es válido. Abre el panel de producción para vincularla de nuevo.')
+    return authenticate(request)
+
+
+@app.get('/api/confeccion/token')
+def token_extension_confeccion(username=Depends(authenticate)):
+    _asegurar_tablas_envios()
+    now = datetime.now(timezone.utc).isoformat()
+    with connect() as db:
+        row = db.execute('SELECT token FROM confeccion_tokens WHERE usuario=?', (username,)).fetchone()
+        if row:
+            token = row['token']
+        else:
+            token = secrets.token_urlsafe(32)
+            db.execute('INSERT INTO confeccion_tokens (usuario, token, created_at) VALUES (?, ?, ?)', (username, token, now))
+            db.commit()
+    return {'token': token}
+
+
+@app.post('/api/confeccion/envios')
+def registrar_envio_confeccion(request: Request, payload: dict = Body(...)):
+    _asegurar_tablas_envios()
+    username = _usuario_envio_confeccion(request)
+    orden = str(payload.get('orden') or '').strip()[:60]
+    confeccionista = re.sub(r'\s+', ' ', str(payload.get('confeccionista') or '')).strip().upper()[:80]
+    if not orden or not confeccionista:
+        raise HTTPException(400, 'Falta la orden o la confeccionista del envío')
+    try:
+        unidades = int(float(payload.get('unidades') or 0))
+        precio = float(payload.get('precio') or 0)
+        source_row = int(payload.get('source_row') or 0)
+    except (TypeError, ValueError):
+        raise HTTPException(400, 'Unidades, precio o fila no válidos')
+    detectado = str(payload.get('detectado_at') or '')[:40]
+    mensaje_id = str(payload.get('mensaje_id') or '').strip()[:120]
+    if not mensaje_id:
+        mensaje_id = hashlib.sha256(f'{orden}|{confeccionista}|{detectado}'.encode('utf-8')).hexdigest()[:32]
+    now = datetime.now(timezone.utc).isoformat()
+    with connect() as db:
+        cur = db.execute('''INSERT OR IGNORE INTO confeccion_envios
+            (mensaje_id, source_row, orden, referencia, cliente, confeccionista, whatsapp, unidades, precio, registrado_por, detectado_at, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+            (mensaje_id, source_row, orden, str(payload.get('referencia') or '')[:120], str(payload.get('cliente') or '')[:160],
+             confeccionista, re.sub(r'[^0-9+]', '', str(payload.get('whatsapp') or ''))[:20], unidades, precio,
+             username, detectado or now, now))
+        db.commit()
+    return {'ok': True, 'duplicado': cur.rowcount == 0, 'mensaje_id': mensaje_id}
+
+
+@app.get('/api/confeccion/envios')
+def listar_envios_confeccion(_=Depends(permisos_mod.exigir('contabilidad_confeccion'))):
+    _asegurar_tablas_envios()
+    with connect() as db:
+        rows = [dict(r) for r in db.execute('SELECT * FROM confeccion_envios ORDER BY detectado_at DESC, id DESC LIMIT 5000').fetchall()]
+    return {'items': rows, 'total_unidades': sum(r['unidades'] for r in rows), 'total_valor': sum(r['unidades'] * r['precio'] for r in rows)}
 
 
 @app.get('/api/produccion/fila/{source_row}/confeccion')
@@ -6497,7 +6871,7 @@ def home(response: Response, _=Depends(authenticate)):
     @media(max-width:860px){{html,body{{width:100%;max-width:100%;overflow-x:hidden}}body{{-webkit-tap-highlight-color:transparent}}main,body.sidebar-hidden main{{width:100%;min-width:0;padding:76px 14px 34px}}.brand{{position:fixed;top:4px;left:64px;right:8px;width:auto;min-width:0;padding:7px 9px 9px}}.brand-logo{{width:96px;height:38px}}.panel,.panel.active{{min-width:0;width:100%}}button,input,select,textarea{{font-size:16px!important}}button{{min-height:42px}}.card,.ct-card,.ct-aging,.ct-group,.ct-alerts{{max-width:100%}}}}
     @media(max-width:620px){{main,body.sidebar-hidden main{{padding:72px 10px 28px}}.brand{{left:58px;right:6px;gap:7px}}.brand-logo{{width:78px;height:34px}}.session-user{{max-width:132px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}.home-page{{gap:18px}}.home-hero-copy{{padding:18px}}.home-hero-copy p{{font-size:.88rem}}.home-section h3{{font-size:1.05rem}}.home-gallery{{grid-auto-columns:minmax(175px,78vw)}}.ct-head{{align-items:stretch!important}}.ct-head h2{{font-size:1.42rem!important}}.ct-head>div:last-child{{display:grid!important;grid-template-columns:1fr 1fr;gap:8px}}.ct-head>div:last-child button{{width:100%;padding:9px 7px!important}}.ct-tabs{{gap:12px!important;padding-bottom:8px!important;scrollbar-width:none}}.ct-tabs::-webkit-scrollbar{{display:none}}.ct-tabs button{{font-size:.68rem!important}}.ct-filters{{gap:8px!important;padding:11px!important}}.ct-filters label{{font-size:.61rem!important}}.ct-filters input,.ct-filters select{{min-height:42px;padding:10px!important}}.ct-filters button{{width:100%;min-height:42px}}.ct-aging,.ct-documents,.ct-card,.ct-group,.ct-alerts{{border-radius:14px!important}}.ct-aging{{padding:14px!important}}.ct-aging-total{{min-width:0!important;width:100%;text-align:left!important}}body.cartera-mode .ct-bands{{grid-template-columns:1fr 1fr!important;gap:8px!important;overflow:visible!important}}body.cartera-mode .ct-bands .ct-liquid-card{{min-width:0!important;min-height:132px!important;padding:12px!important}}.ct-liquid-card span{{margin-top:20px!important;font-size:1.05rem!important}}.ct-kpis,body.cartera-mode .ct-kpis{{grid-template-columns:1fr 1fr!important}}.ct-kpi,body.cartera-mode .ct-kpi{{min-width:0;min-height:104px!important;padding:12px!important}}.ct-kpi span{{font-size:.57rem}}.ct-kpi strong{{font-size:1rem!important;overflow-wrap:anywhere}}.ct-kpi-icon{{right:10px!important;top:10px!important;transform:scale(.86)}}.ct-groups,body.cartera-mode .ct-groups{{grid-template-columns:1fr!important}}.ct-group{{min-height:0!important;padding:14px!important}}.ct-group div{{grid-template-columns:minmax(88px,1fr) minmax(54px,.9fr) auto!important;font-size:.68rem!important}}.ct-group strong{{font-size:.66rem}}.ct-document-card{{padding:14px!important}}.ct-document-card h4{{max-width:170px;font-size:.86rem!important}}.ct-doc-meta,.ct-doc-values{{gap:7px!important}}.ct-document-card footer{{align-items:flex-start!important;flex-direction:column}}.ct-document-card footer>small{{line-height:1.45}}.ct-document-card footer div{{width:100%}}.ct-document-card footer button{{width:36px!important;height:36px!important}}.ct-table-wrap{{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:10px}}.ct-table-wrap table{{min-width:720px}}.ct-card header{{align-items:stretch!important}}.ct-card header>div:last-child{{display:flex;gap:6px;flex-wrap:wrap}}.ct-card header button{{min-height:38px}}.ct-settings{{gap:10px!important}}.ct-settings article{{padding:16px!important}}#ct-dialog{{width:calc(100vw - 20px);max-height:calc(100dvh - 20px);border-radius:14px}}.ct-form,.ct-detail{{max-height:calc(100dvh - 40px);overflow:auto;padding:17px}}.ct-form button,.ct-detail button{{min-height:44px;width:100%}}.ct-upload-layout{{gap:12px!important}}.ct-upload-intro{{grid-template-columns:auto 1fr!important;padding:17px!important}}.ct-upload-stat{{grid-column:1/-1;justify-self:stretch;text-align:left!important;border-left:0!important;border-top:1px solid rgba(208,244,76,.18);padding:10px 0 0!important}}.ct-upload-card{{padding:16px!important}}.ct-upload-grid{{grid-template-columns:1fr!important}}.ct-upload-zone{{min-height:150px!important}}.ct-pending>article{{padding:12px 0!important}}.ct-pending-actions{{grid-column:1/-1;width:100%}}.ct-pending-actions button{{flex:1;min-height:40px}}.preview-modal{{padding:8px}}.preview-dialog{{width:100%;max-height:calc(100dvh - 16px);border-radius:14px}}.preview-head,.preview-content,.preview-actions{{padding:14px!important}}.preview-actions{{flex-direction:column}}.preview-actions button{{width:100%;min-width:0}}}}
     /* Inicio mientras carga: esqueleto en vez del tablero vacío; las galerías de fotos solo aparecen cuando el resumen ya está pintado */.home-page:not(.dash-ready) .home-section{{display:none}}.dash-skel{{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:18px 0}}.dash-skel i,.dash-skel b{{display:block;border-radius:16px;border:1px solid rgba(255,255,255,.06);background:linear-gradient(100deg,rgba(255,255,255,.04) 30%,rgba(208,244,76,.11) 50%,rgba(255,255,255,.04) 70%);background-size:200% 100%;animation:dashSkel 1.3s linear infinite}}.dash-skel i{{height:92px}}.dash-skel b{{grid-column:1/-1;height:240px}}@keyframes dashSkel{{to{{background-position:-200% 0}}}}@media(max-width:700px){{.dash-skel{{grid-template-columns:1fr 1fr}}.dash-skel b{{height:180px}}}}@media(prefers-reduced-motion:reduce){{.dash-skel i,.dash-skel b{{animation:none}}}}
-    html{{background:#080b08}}html:not(.ui-ready) body{{visibility:hidden}}</style><script>window.__indoorNombre={nombre_js}</script><script src='/sin-parpadeo.js?v=20261014-1'></script><script src='/splash-intro.js?v=20261012-10'></script><script src='/session-guard.js?v=20261005-3'></script><script>window.__telasP=fetch('/api/alertas-telas',{{cache:'no-store',credentials:'same-origin'}}).then(function(r){{return r.ok?r.json():null}}).catch(function(){{return null}})</script><script src='/alertas-telas.js?v=20261107-3'></script><script>try{{if(localStorage.getItem('indoor-theme')==='light')document.documentElement.classList.add('theme-light')}}catch(e){{}}setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},3500)</script></head><body class='inicio-mode'><div class='topbar'></div><button id='menu-toggle' class='menu-toggle' type='button' aria-label='Ocultar menú' aria-expanded='true'>‹</button><aside class='sidebar' aria-label='Menú principal'><div class='sidebar-brand'><img src='/marca-indoor.svg' alt='Indoor'></div><div class='session-card'><div class='session-avatar'>IS</div><div class='session-copy'><strong>INDOOR SPORT SAS</strong><span>Panel operativo</span></div></div><div class='sidebar-label'>Menú principal</div><nav class='tabs' aria-label='Navegación principal'><button class='tab home-nav active' data-kind='inicio' type='button'><span class='nav-icon'>IN</span><strong>INICIO</strong></button><div class='nav-group collapsed'><button id='news-toggle' class='nav-parent' type='button'><span class='nav-icon'>CO</span><span>CONTROL</span></button><div class='nav-children'><button class='tab schedule-nav' data-kind='cronograma' type='button'><span class='nav-icon'>CR</span><strong>CRONOGRAMA</strong></button><button class='tab' data-kind='operarios' type='button'><span class='nav-icon'>OP</span><strong>CONTROL OPERARIOS</strong></button></div></div><div class='nav-group'><button id='commercial-toggle' class='nav-parent' type='button'><span class='nav-icon'>AC</span><span>Asistentes Comerciales</span></button><div class='nav-children'><button class='tab' data-kind='reprogramacion' type='button'><span class='nav-icon'>RP</span><strong>REPROGRAMACIONES</strong></button><button class='tab' data-kind='pedido' type='button'><span class='nav-icon'>PN</span><strong>PROGRAMAR</strong></button><button class='tab' data-kind='creador' type='button'><span class='nav-icon'>XL</span><strong>EXCEL</strong></button><button class='tab' data-kind='cliente-effi' type='button'><span class='nav-icon'>CC</span><strong>CREAR CLIENTE</strong></button><button class='tab' data-kind='club' type='button'><span class='nav-icon'>TC</span><strong>TIENDA CLUB</strong></button><button class='tab' data-kind='cartera' type='button'><span class='nav-icon'>CT</span><strong>CARTERA</strong></button><button class='tab' data-kind='rh-contratos' type='button'><span class='nav-icon'>CT</span><strong>CONTRATOS</strong></button><button class='tab' data-kind='rh-claboral' type='button'><span class='nav-icon'>CL</span><strong>C.LABORAL</strong></button></div></div><div class='nav-group collapsed'><button id='production-toggle' class='nav-parent' type='button'><span class='nav-icon'>PR</span><span>Producción</span></button><div class='nav-children'><button class='tab production-nav' data-kind='produccion' type='button'><span class='nav-icon'>TR</span><strong>TRAZABILIDAD</strong></button><button class='tab' data-kind='inventario' type='button'><span class='nav-icon'>IT</span><strong>INVENTARIOS</strong></button></div></div></nav><div class='sidebar-foot'>Indoor Sport · Operación interna</div></aside><main>
+    html{{background:#080b08}}html:not(.ui-ready) body{{visibility:hidden}}</style><script>window.__indoorNombre={nombre_js}</script><script src='/sin-parpadeo.js?v=20261014-1'></script><script src='/splash-intro.js?v=20261012-10'></script><script src='/session-guard.js?v=20261005-3'></script><script>window.__telasP=fetch('/api/alertas-telas',{{cache:'no-store',credentials:'same-origin'}}).then(function(r){{return r.ok?r.json():null}}).catch(function(){{return null}})</script><script src='/alertas-telas.js?v=20261107-3'></script><script>try{{if(localStorage.getItem('indoor-theme')==='light')document.documentElement.classList.add('theme-light')}}catch(e){{}}setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},3500)</script></head><body class='inicio-mode'><div class='topbar'></div><button id='menu-toggle' class='menu-toggle' type='button' aria-label='Ocultar menú' aria-expanded='true'>‹</button><aside class='sidebar' aria-label='Menú principal'><div class='sidebar-brand'><img src='/marca-indoor.svg' alt='Indoor'></div><div class='session-card'><div class='session-avatar'>IS</div><div class='session-copy'><strong>INDOOR SPORT SAS</strong><span>Panel operativo</span></div></div><div class='sidebar-label'>Menú principal</div><nav class='tabs' aria-label='Navegación principal'><button class='tab home-nav active' data-kind='inicio' type='button'><span class='nav-icon'>IN</span><strong>INICIO</strong></button><div class='nav-group collapsed'><button id='news-toggle' class='nav-parent' type='button'><span class='nav-icon'>CO</span><span>CONTROL</span></button><div class='nav-children'><button class='tab schedule-nav' data-kind='cronograma' type='button'><span class='nav-icon'>CR</span><strong>CRONOGRAMA</strong></button><button class='tab' data-kind='operarios' type='button'><span class='nav-icon'>OP</span><strong>CONTROL OPERARIOS</strong></button></div></div><div class='nav-group'><button id='commercial-toggle' class='nav-parent' type='button'><span class='nav-icon'>AC</span><span>Asistentes Comerciales</span></button><div class='nav-children'><button class='tab' data-kind='reprogramacion' type='button'><span class='nav-icon'>RP</span><strong>REPROGRAMACIONES</strong></button><button class='tab' data-kind='pedido' type='button'><span class='nav-icon'>PN</span><strong>PROGRAMAR</strong></button><button class='tab' data-kind='creador' type='button'><span class='nav-icon'>XL</span><strong>EXCEL</strong></button><button class='tab' data-kind='cliente-effi' type='button'><span class='nav-icon'>CC</span><strong>CREAR CLIENTE</strong></button><button class='tab' data-kind='club' type='button'><span class='nav-icon'>TC</span><strong>PROGRAMAR CLUB</strong></button><button class='tab' data-kind='cartera' type='button'><span class='nav-icon'>CT</span><strong>CARTERA</strong></button><button class='tab' data-kind='rh-contratos' type='button'><span class='nav-icon'>CT</span><strong>CONTRATOS</strong></button><button class='tab' data-kind='rh-claboral' type='button'><span class='nav-icon'>CL</span><strong>C.LABORAL</strong></button></div></div><div class='nav-group collapsed'><button id='production-toggle' class='nav-parent' type='button'><span class='nav-icon'>PR</span><span>Producción</span></button><div class='nav-children'><button class='tab production-nav' data-kind='produccion' type='button'><span class='nav-icon'>TR</span><strong>TRAZABILIDAD</strong></button><button class='tab' data-kind='inventario' type='button'><span class='nav-icon'>IT</span><strong>INVENTARIOS</strong></button></div></div></nav><div class='sidebar-foot'>Indoor Sport · Operación interna</div></aside><main>
     <section class='panel' data-panel='inventario'><div class='inventory-shell'><section class='inventory-hero'><div><span class='eyebrow'>Producción · Existencias</span><h2>INVENTARIOS</h2><p>Catálogo local de telas, insumos y materia prima, disponible de inmediato.</p></div><button id='inventory-refresh' class='inventory-refresh' type='button'>↻ Actualizar</button></section><section id='inventory-categories' class='inventory-category-grid' aria-label='Categorías de inventarios'></section><section class='card inventory-table-card'><div class='inventory-toolbar'><div><strong>Detalle de existencias</strong><div id='inventory-status' class='inventory-status'>Cargando inventario local…</div></div><input id='inventory-search' type='search' placeholder='Buscar referencia, tela o insumo' aria-label='Buscar inventario'></div><div class='inventory-cards-wrap'><div id='inventory-body' class='inventory-cards-grid'><div class='inventory-empty'>Cargando inventario local…</div></div></div></section></div></section>
     <div class='brand'><span class='brand-logo' aria-label='Indoor'><img src='/marca-indoor.svg' alt='Indoor'></span><span class='brand-line'></span><span class='eyebrow'>Panel operativo</span><div class='systems'><span class='session-user' aria-label='Usuario conectado'>{escape(user_display)}</span></div></div>
     <section class='panel active' data-panel='inicio'><div class='home-page'>
@@ -7473,7 +7847,7 @@ function traceOpenTable(sourceRow){{openOperatorProduction(Number(sourceRow))}}
 function setTraceView(){{if(traceView==='table'&&!canViewAdministration)traceView='cards';localStorage.setItem('indoor-trace-view',traceView);document.body.classList.toggle('trace-cards-mode',traceView==='cards');traceCards.hidden=traceView!=='cards';traceViewBar.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.traceView===traceView)));if(traceView==='cards')renderTraceCards();else requestAnimationFrame(()=>{{freezeProductionColumns();fitProductionHeight()}})}}
 traceViewBar.querySelectorAll('button').forEach(b=>b.onclick=()=>{{traceView=b.dataset.traceView;setTraceView()}});
 function traceAssetsMarkup(sourceRow){{const asset=traceAssets.get(sourceRow);if(!asset)return '<span>Buscando diseño…</span>';if(asset.error)return '<span>'+esc(asset.error)+'</span><button type="button" data-card-retry="'+sourceRow+'">Reintentar</button>';if(!asset.images.length)return '<div class="trace-no-design"><span aria-hidden="true">◇</span><strong>Sin diseño adjunto</strong><small>'+esc(asset.image_status||'Información del pedido disponible')+'</small></div>';const images=asset.images,selected=Math.min(traceDesignSelection.get(Number(sourceRow))||0,images.length-1),current=images[selected];const total=images.length,prev=(selected-1+total)%total,next=(selected+1)%total;return '<div class="trace-design-view"><div class="trace-design-stage"><a class="trace-design-main" href="'+esc(current.url)+'" target="_blank" rel="noopener" title="Ampliar diseño del listado Excel"><img loading="lazy" src="'+esc(current.url)+'" alt="'+esc(current.name)+'"></a><span class="trace-design-count">DISEÑO '+(current.design||selected+1)+(total>1?' <small>· '+(selected+1)+'/'+total+'</small>':'')+'</span><span class="trace-design-zoom" aria-hidden="true">⤢</span>'+(total>1?'<button type="button" class="trace-design-nav is-prev" data-design-row="'+sourceRow+'" data-design-index="'+prev+'" aria-label="Diseño anterior">‹</button><button type="button" class="trace-design-nav is-next" data-design-row="'+sourceRow+'" data-design-index="'+next+'" aria-label="Diseño siguiente">›</button>':'')+'</div><div class="trace-design-tabs" aria-label="Diseños del pedido">'+images.map((image,i)=>'<button type="button" data-design-row="'+sourceRow+'" data-design-index="'+i+'" aria-pressed="'+(i===selected)+'">D'+(image.design||i+1)+'</button>').join('')+'</div></div>'}}
-function paintTraceAssets(sourceRow){{const card=traceCards.querySelector('[data-card-row="'+sourceRow+'"]');if(card){{card.querySelector('.trace-media').innerHTML=traceAssetsMarkup(sourceRow);const tabs=card.querySelector('.trace-design-tabs'),on=tabs&&tabs.querySelector('[aria-pressed=true]');if(on)tabs.scrollLeft=on.offsetLeft-(tabs.clientWidth-on.offsetWidth)/2}}}}
+function paintTraceAssets(sourceRow){{document.querySelectorAll('[data-card-row="'+sourceRow+'"]').forEach(card=>{{const media=card.querySelector('.trace-media');if(!media)return;media.innerHTML=traceAssetsMarkup(sourceRow);const tabs=card.querySelector('.trace-design-tabs'),on=tabs&&tabs.querySelector('[aria-pressed=true]');if(on)tabs.scrollLeft=on.offsetLeft-(tabs.clientWidth-on.offsetWidth)/2}})}}
 async function loadTraceAssets(sourceRow,force=false){{if((traceAssets.has(sourceRow)&&!force)||traceAssetBusy.has(sourceRow))return;traceAssetBusy.add(sourceRow);let changed=false;try{{const response=await fetch('/api/produccion/fila/'+sourceRow+'/archivos',{{cache:'no-store'}});const data=await response.json();if(!response.ok)throw Error(data.detail||'No se pudo consultar el NAS');if(JSON.stringify(traceAssets.get(sourceRow))!==JSON.stringify(data)){{traceAssets.set(sourceRow,data);changed=true}}}}catch(error){{if(!traceAssets.has(sourceRow)){{traceAssets.set(sourceRow,{{error:error.message}});changed=true}}}}finally{{traceAssetBusy.delete(sourceRow);if(changed)paintTraceAssets(sourceRow)}}}}
 let traceSyncBusy=false;
 async function syncTraceMockups(){{if(traceSyncBusy||document.hidden||traceCards.hidden||document.querySelector('.tab.active')?.dataset.kind!=='produccion')return;traceSyncBusy=true;try{{const bounds=traceCards.getBoundingClientRect(),rows=[...traceCards.querySelectorAll('[data-card-row]')].filter(card=>{{const r=card.getBoundingClientRect();return r.bottom>Math.max(0,bounds.top)&&r.top<Math.min(innerHeight,bounds.bottom)}}).map(card=>Number(card.dataset.cardRow));for(const id of rows){{if(document.hidden||traceCards.hidden)break;await loadTraceAssets(id,false)}}}}finally{{traceSyncBusy=false}}}}
@@ -7503,7 +7877,7 @@ if(canViewRHumano&&rhumanoTabs.length){{document.querySelector('nav.tabs').appen
 const comercialesGroup=document.createElement('div');comercialesGroup.className='nav-group collapsed';comercialesGroup.innerHTML='<button class="nav-parent" type="button"><span class="nav-icon">CM</span><span>COMERCIALES</span></button><div class="nav-children"></div>';
 /* Sus pestañas son las herramientas del equipo comercial: REPROGRAMACIONES, PROGRAMAR y EXCEL (antes estaban en ADMINISTRACIÓN) */
 const comercialesTabs=['reprogramacion','pedido','creador','cliente-effi','club'].map(kind=>document.querySelector('.tab[data-kind="'+kind+'"]')).filter(Boolean);
-if(canViewComerciales&&comercialesTabs.length){{const navTabs=document.querySelector('nav.tabs');navTabs.insertBefore(comercialesGroup,tesoreriaGroup.parentNode===navTabs?tesoreriaGroup:null);comercialesTabs.forEach(tab=>comercialesGroup.querySelector('.nav-children').appendChild(tab));comercialesGroup.querySelector('.nav-parent').onclick=()=>{{comercialesGroup.classList.toggle('collapsed');if(!comercialesGroup.classList.contains('collapsed'))comercialesGroup.querySelector('.nav-children .tab')?.click()}}}}else{{comercialesTabs.forEach(tab=>tab.remove())}}   /* quien no ve COMERCIALES tampoco ve sus herramientas en otro módulo */
+document.querySelectorAll('.tab[data-kind="reprogramacion"],.tab[data-kind="pedido"]').forEach(t=>{{t.style.display='none'}});if(canViewComerciales&&comercialesTabs.length){{const navTabs=document.querySelector('nav.tabs');navTabs.insertBefore(comercialesGroup,tesoreriaGroup.parentNode===navTabs?tesoreriaGroup:null);comercialesTabs.forEach(tab=>comercialesGroup.querySelector('.nav-children').appendChild(tab));comercialesGroup.querySelector('.nav-parent').onclick=()=>{{comercialesGroup.classList.toggle('collapsed');if(!comercialesGroup.classList.contains('collapsed'))comercialesGroup.querySelector('.nav-children .tab')?.click()}}}}else{{comercialesTabs.forEach(tab=>tab.remove())}}   /* quien no ve COMERCIALES tampoco ve sus herramientas en otro módulo */
 if(!adminGroup.querySelector('.nav-children .tab'))adminGroup.remove();   /* ADMINISTRACIÓN quedó sin pestañas: no se muestra vacía */
 let carteraLoaded=false;
 commercialMenu.hidden=true;commercialMenu.style.display='none';
@@ -7686,7 +8060,7 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
     const commercialGroup=commercialToggle.closest('.nav-group');commercialGroup.classList.add('collapsed');const productionToggle=document.getElementById('production-toggle');if(productionToggle)productionToggle.addEventListener('click',()=>{{const g=productionToggle.closest('.nav-group');g.classList.toggle('collapsed');if(!g.classList.contains('collapsed')&&window.innerWidth>860)g.querySelector('.nav-children .tab')?.click()}});
     setTimeout(()=>{{if(!document.querySelector('.panel.active'))document.querySelector('.tab[data-kind="inicio"]')?.click()}},0);
     setTimeout(()=>{{const panel=document.querySelector('.panel.active');const kind=panel?.dataset?.panel;const activeTab=kind&&document.querySelector(`.tab[data-kind="${{kind}}"]`);if(activeTab)document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===activeTab))}},100);
-</script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/liquid-stats.js?v=20261019-1'></script><script src='/nombres-effi.js?v=20261022-2'></script><script src='/permisos.js?v=20261007-2'></script><script src='/reposiciones.js?v=20261019-1'></script><script src='/agentes.js?v=20261107-14'></script><script src='/promedios.js?v=20261109-1'></script><script src='/capacidad.js?v=20261009-2'></script><script src='/molderia.js?v=20261010-2'></script><script src='/estandar.js?v=20261020-1'></script><script src='/proveedores-tela.js?v=20261022-4'></script><script src='/terminos.js?v=20261010-1'></script><script src='/cookies-aviso.js?v=20261010-1'></script><script src='/rh-contratos.js?v=20261009-3'></script><script src='/fichas-resumen.js?v=20261022-2'></script><script src='/api/cartera/cartera.js?v=20261009-1'></script><script src='/trace-ui.js?v=20261109-2'></script><script src='/home-dashboard.js?v=20261110-1'></script><script src='/bodega-dashboard.js?v=20261109-3'></script><script src='/bodegas.js?v=20261009-7'></script><script src='/codigos-barras.js?v=20261014-3'></script><script src='/mis-pedidos.js?v=20261008-1'></script><script src='/crear-cliente.js?v=20261024-31'></script><script src='/club-admin.js?v=20261020-1'></script><script src='/mobile-nav.js?v=20261108-1'></script><script src='/nav-liquid.js?v=20261109-1'></script><script src='/build-watch.js?v=20261105-1'></script><script src='/salud.js?v=20261014-2'></script><script src='/alertas.js?v=20261030-1'></script><script src='/bitacora.js?v=20261016-2'></script><script src='/memoria.js?v=20261018-1'></script><script src='/ecommerce.js?v=20261019-1'></script><script src='/zeus.js?v=20261110-3'></script><script src='/minimaximan.js?v=20261023-2'></script><script src='/aviso-agentes.js?v=20261023-5'></script><script src='/descuento-sublimacion.js?v=20261026-1'></script><script src='/stockman.js?v=20261022-30'></script><script src='/draco-panel.js?v=20261021-8'></script><script src='/agentes-hub.js?v=20261109-1'></script><script src='/recordar-vista.js?v=20261109-1'></script><script src='/tema.js?v=20261008-1'></script><script src='/tarjeta-iconos.js?v=20261110-2'></script><script src='/confeccion-boton.js?v=20261111-1'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261021-1'></script><script src='/linea-editor.js?v=20261030-1'></script><script src='/lineas-producto-panel.js?v=20261030-1'></script><script src='/menu-cuenta.js?v=20261016-3'></script><script src='/foto-perfil.js?v=20261030-1'></script><script src='/efecto-vidrio.js?v=20261029-1'></script><script src='/motion.js?v=11.18.2'></script><script src='/home-hero.js?v=20261108-5'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab=>tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
+</script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/liquid-stats.js?v=20261019-1'></script><script src='/nombres-effi.js?v=20261022-2'></script><script src='/permisos.js?v=20261007-2'></script><script src='/reposiciones.js?v=20261019-1'></script><script src='/agentes.js?v=20261107-14'></script><script src='/promedios.js?v=20261109-1'></script><script src='/capacidad.js?v=20261009-2'></script><script src='/molderia.js?v=20261010-2'></script><script src='/estandar.js?v=20261020-1'></script><script src='/proveedores-tela.js?v=20261022-4'></script><script src='/terminos.js?v=20261010-1'></script><script src='/cookies-aviso.js?v=20261010-1'></script><script src='/rh-contratos.js?v=20261009-3'></script><script src='/fichas-resumen.js?v=20261022-2'></script><script src='/api/cartera/cartera.js?v=20261009-1'></script><script src='/trace-ui.js?v=20261116-3'></script><script src='/home-dashboard.js?v=20261110-1'></script><script src='/bodega-dashboard.js?v=20261109-3'></script><script src='/bodegas.js?v=20261009-7'></script><script src='/codigos-barras.js?v=20261014-3'></script><script src='/mis-pedidos.js?v=20261008-1'></script><script src='/crear-cliente.js?v=20261024-31'></script><script src='/pedido-effi.js?v=20261116-14'></script><script src='/pedido-listado.js?v=20261117-22'></script><script src='/instalar-app.js?v=20261115-1'></script><script src='/club-admin.js?v=20261117-35'></script><script src='/mobile-nav.js?v=20261108-1'></script><script src='/nav-liquid.js?v=20261109-1'></script><script src='/build-watch.js?v=20261105-1'></script><script src='/salud.js?v=20261014-2'></script><script src='/alertas.js?v=20261030-1'></script><script src='/bitacora.js?v=20261016-2'></script><script src='/memoria.js?v=20261018-1'></script><script src='/ecommerce.js?v=20261019-1'></script><script src='/zeus.js?v=20261110-3'></script><script src='/minimaximan.js?v=20261023-2'></script><script src='/aviso-agentes.js?v=20261023-5'></script><script src='/descuento-sublimacion.js?v=20261026-1'></script><script src='/stockman.js?v=20261022-30'></script><script src='/draco-panel.js?v=20261021-8'></script><script src='/laser-panel.js?v=20261113-1'></script><script src='/agentes-hub.js?v=20261109-1'></script><script src='/recordar-vista.js?v=20261109-1'></script><script src='/tema.js?v=20261008-1'></script><script src='/tarjeta-iconos.js?v=20261110-2'></script><script src='/confeccion-preparacion.js?v=20261113-2'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261021-1'></script><script src='/linea-editor.js?v=20261030-1'></script><script src='/lineas-producto-panel.js?v=20261030-1'></script><script src='/menu-cuenta.js?v=20261016-3'></script><script src='/foto-perfil.js?v=20261030-1'></script><script src='/efecto-vidrio.js?v=20261029-1'></script><script src='/motion.js?v=11.18.2'></script><script src='/home-hero.js?v=20261108-5'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab=>tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
 
 
 def ordered_mockup_uploads(extras, slots):
@@ -7854,6 +8228,16 @@ def club_admin_js():
     return FileResponse(Path(__file__).with_name('club-admin.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
 
 
+@app.get('/pedido-listado.js')
+def pedido_listado_js():
+    return FileResponse(Path(__file__).with_name('pedido-listado.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
+
+
+@app.get('/pedido-effi.js')
+def pedido_effi_js():
+    return FileResponse(Path(__file__).with_name('pedido-effi.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
+
+
 @app.get('/crear-cliente.js')
 def crear_cliente_js():
     return FileResponse(Path(__file__).with_name('crear-cliente.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
@@ -7880,11 +8264,13 @@ async def upload_order(
     mockup_d2: UploadFile = File(default=None),
     mockup_d3: UploadFile = File(default=None),
     mockup_d4: UploadFile = File(default=None),
+    mockups_opcionales: bool = Form(default=False),
     _=Depends(authenticate),
 ):
     extras = ordered_mockup_uploads(extras, [mockup_d1, mockup_d2, mockup_d3, mockup_d4])
     try:
-        await require_mockup_upload(extras)
+        if not (mockups_opcionales and not [e for e in extras if e.filename]):   # opcional y sin imágenes: se programa sin mockups
+            await require_mockup_upload(extras)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     if not pdf.filename or Path(pdf.filename).suffix.lower() != ".pdf":
@@ -7923,8 +8309,562 @@ async def upload_order(
             (display_name, "RECIBIDO", "En cola", now, now, "pedido", json.dumps({'observaciones': observaciones.strip(), 'linea': linea.strip(), 'usuario': str(_)}, ensure_ascii=False), checked_order or None),
         )
         job_id = cursor.lastrowid
+    if mockups_opcionales:
+        _MOCKUPS_OPCIONALES_JOBS.add(job_id)
     asyncio.create_task(asyncio.to_thread(process_order_job, job_id, job_dir, saved[0], saved[1], observaciones.strip(), str(_), linea.strip()))
     return {"id": job_id, "estado": "RECIBIDO", "mensaje": "El pedido se está procesando"}
+
+
+PEDIDO_EXCEL_DIR = Path(os.getenv('PEDIDO_EFFI_EXCEL_DIR', '/data/state/pedido_effi_excel'))
+
+
+def _excel_para_descargar(arch: dict, imagenes: list, doc: dict) -> dict:
+    """Listado en la plantilla de Indoor con los mockups ya insertados (mismo código que usa el programar pedido), guardado para descargarlo en pantalla."""
+    import shutil
+    import tempfile
+    from app import listado_pedido
+    from app.uploaded_mockups import embed_uploads
+    prefijo, numero = listado_pedido.prefijo_numero(doc)
+    codigo = f'{prefijo}{numero}'
+    with tempfile.TemporaryDirectory() as tmp:
+        t = Path(tmp)
+        ruta = t / arch['excel_nombre']
+        ruta.write_bytes(arch['excel'])
+        fotos = []
+        for nombre, datos in imagenes:
+            (t / nombre).write_bytes(datos)
+            fotos.append(t / nombre)
+        insertadas, avisos = (0, [])
+        if fotos:
+            insertadas, avisos = embed_uploads(ruta, fotos, t / 'respaldo', False)
+        destino = PEDIDO_EXCEL_DIR / codigo
+        if destino.exists():
+            shutil.rmtree(destino)
+        destino.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(ruta, destino / arch['excel_nombre'])
+    return {'excel': f'/api/pedido-effi/excel/{codigo}', 'excel_nombre': arch['excel_nombre'], 'mockups_insertados': int(insertadas), 'avisos_excel': list(avisos)[:5]}
+
+
+@app.get("/api/pedido-effi/excel/{codigo}")
+def descargar_excel_pedido(codigo: str, usuario=Depends(authenticate)):
+    """El listado en Excel (plantilla de Indoor + mockups) que se armó al pulsar PROGRAMAR PEDIDO."""
+    if not re.fullmatch(r'(CO|RM)\d{1,10}', codigo):
+        raise HTTPException(400, 'Código no válido')
+    carpeta = PEDIDO_EXCEL_DIR / codigo
+    archivos = sorted(carpeta.glob('*.xls*')) if carpeta.is_dir() else []
+    if not archivos:
+        raise HTTPException(404, 'Ese listado todavía no está listo')
+    return FileResponse(archivos[0], filename=archivos[0].name, headers={'Cache-Control': 'no-store'})
+
+
+@app.get("/api/pedido-effi/excel-vista/{codigo}")
+def vista_excel_pedido(codigo: str, usuario=Depends(authenticate)):
+    """El Excel del listado (con mockups) para dibujarlo en pantalla como una hoja de Excel."""
+    if not re.fullmatch(r'(CO|RM)\d{1,10}', codigo):
+        raise HTTPException(400, 'Código no válido')
+    carpeta = PEDIDO_EXCEL_DIR / codigo
+    archivos = sorted(carpeta.glob('*.xls*')) if carpeta.is_dir() else []
+    if not archivos:
+        raise HTTPException(404, 'Ese listado todavía no está listo')
+    return {'nombre': archivos[0].name, **listado_pedido_mod.vista_excel(archivos[0])}
+
+
+_POOL_LISTADO: dict = {'p': None}
+
+
+def _pool_listado():
+    """Procesos aparte para armar el Excel del listado (lo más pesado de PROGRAMAR PEDIDO): con 10 comerciales a la vez no hacen fila en un solo hilo."""
+    if _POOL_LISTADO['p'] is None:
+        import multiprocessing
+        from concurrent.futures import ProcessPoolExecutor
+        n = max(1, min(4, (os.cpu_count() or 2)))
+        _POOL_LISTADO['p'] = ProcessPoolExecutor(max_workers=n, mp_context=multiprocessing.get_context('spawn'))
+        for _ in range(n):   # arranca ya los procesos: el primer pedido no espera
+            _POOL_LISTADO['p'].submit(listado_pedido_mod.calentar)
+    return _POOL_LISTADO['p']
+
+
+async def _preparar_listado(datos: dict, vendedor: str) -> dict:
+    plantilla = await asyncio.to_thread(club_mod._plantilla)   # puede lanzar OSError (NAS sin conexión): lo maneja quien llama
+    try:
+        return await asyncio.get_running_loop().run_in_executor(_pool_listado(), listado_pedido_mod.preparar_en_proceso, datos, plantilla, vendedor)
+    except ValueError:
+        raise
+    except Exception:   # noqa: BLE001 - si el proceso aparte falla, se arma en este mismo proceso como antes
+        logging.getLogger(__name__).exception('El proceso aparte del listado falló; se arma en el servidor principal')
+        _POOL_LISTADO['p'] = None
+        return await asyncio.to_thread(listado_pedido_mod.preparar, datos, lambda: plantilla, vendedor)
+
+
+import multiprocessing as _mp
+if _mp.current_process().name == 'MainProcess':   # en un proceso trabajador no se crea otro grupo (evita que se multipliquen)
+    threading.Thread(target=lambda: _pool_listado(), daemon=True).start()   # calentar al arrancar el servidor
+
+
+@app.post("/api/pedido-effi/programar", status_code=202)
+async def programar_pedido_effi(request: Request, usuario=Depends(authenticate)):
+    """PEDIDO EN EFFI → «Continuar con el listado»: con la cotización ya creada, el listado y los mockups que llenó el comercial, arma el PDF y el Excel con el formato de siempre
+    y los entrega al MISMO programar pedido (`/procesar/pedido`): tarjeta en Producción, carpeta del NAS, mockups, y rechaza una orden que ya esté programada.
+    Formulario multipart: `payload` (JSON: doc, listado, linea, observaciones) y un archivo `mockup:REFERENCIA:N` por cada referencia y diseño (se renombra REFERENCIA_DN.ext,
+    que es como el programar pedido sabe a qué hoja y diseño va cada imagen)."""
+    if not permisos_mod.comerciales_permitido(str(usuario)):
+        raise HTTPException(403, 'PEDIDO EN EFFI es solo para el equipo comercial')
+    form = await request.form()
+    try:
+        datos = json.loads(str(form.get('payload') or ''))
+        assert isinstance(datos, dict)
+    except (ValueError, AssertionError):
+        raise HTTPException(400, 'Los datos del listado no son válidos')
+    imagenes: dict[tuple[str, int], UploadFile] = {}
+    for clave, valor in form.multi_items():
+        if not str(clave).startswith('mockup:') or not getattr(valor, 'filename', ''):
+            continue
+        try:
+            _, ref, n = str(clave).split(':', 2)
+            imagenes[(ref.upper(), int(n))] = valor
+        except ValueError:
+            raise HTTPException(400, 'Nombre de mockup no válido: ' + str(clave)[:60])
+    try:
+        arch = await _preparar_listado(datos, str((datos.get('doc') or {}).get('vendedor') or ''))
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except OSError as exc:
+        raise HTTPException(503, 'No pude abrir la plantilla del listado (¿la NAS está sin conexión?). Intenta de nuevo en un momento.') from exc
+    referencias = {g['referencia'] for g in arch['grupos']}
+    extras, imagenes_listas, puestos = [], [], set()
+    for (ref, n), archivo in sorted(imagenes.items()):
+        if ref not in referencias:
+            continue
+        hoja = arch.get('hoja_de', {}).get(ref, ref)   # pestaña de la familia (A200FUT01-A200FUT02): una imagen por pestaña y diseño, la primera
+        if (hoja, n) in puestos:
+            continue
+        puestos.add((hoja, n))
+        extension = Path(archivo.filename or '').suffix.lower() or '.png'
+        datos_img = await archivo.read()
+        imagenes_listas.append((f'{hoja}_D{n}{extension}', datos_img))
+        extras.append(UploadFile(file=io.BytesIO(datos_img), filename=f'{hoja}_D{n}{extension}'))
+    pdf = UploadFile(file=io.BytesIO(arch['pdf']), filename=arch['pdf_nombre'])
+    excel = UploadFile(file=io.BytesIO(arch['excel']), filename=arch['excel_nombre'])
+    # Copia descargable del listado YA con las imágenes insertadas: se arma al instante para que el usuario la vea/descargue en su pantalla (la orden sigue su curso en Producción)
+    descarga = {}
+    try:
+        descarga = await asyncio.to_thread(_excel_para_descargar, arch, imagenes_listas, datos.get('doc') or {})
+    except Exception:   # noqa: BLE001 - la descarga nunca debe impedir programar la orden
+        logging.getLogger(__name__).exception('No se pudo armar la copia descargable del listado')
+    codigo_orden = '%s%s' % listado_pedido_mod.prefijo_numero(datos.get('doc') or {})
+    maestros = []
+    for clave, valor in form.multi_items():   # mockups que salieron de MAESTROS: se copian idénticos a la carpeta de la orden
+        if str(clave).startswith('maestro:') and isinstance(valor, str):
+            try:
+                _, ref, n = str(clave).split(':', 2); info = json.loads(valor)
+                if all(k in info for k in ('cliente', 'proyecto', 'carpeta', 'archivo')):
+                    maestros.append({'ref': ref.upper(), 'n': int(n), **{k: str(info[k]) for k in ('cliente', 'proyecto', 'carpeta', 'archivo')}})
+            except (ValueError, TypeError):
+                continue
+    try:
+        pdf_effi = int(str((datos.get('doc') or {}).get('numero') or '')) if codigo_orden.startswith('CO') else None   # las remisiones no tienen PDF por esta vía
+    except ValueError:
+        pdf_effi = None
+    datos_effi = None
+    if pdf_effi:   # el PDF que creó Effi es OBLIGATORIO: producción lo necesita tal cual. Si todavía no llega, se espera un momento y, si no llega, NO se programa con otro documento.
+        datos_effi = await asyncio.to_thread(effitron_mod.pdf_cotizacion_bytes, pdf_effi)
+        if not datos_effi:
+            try:
+                await asyncio.to_thread(effitron_mod.solicitar_pdf_cotizacion, pdf_effi)
+            except Exception:   # noqa: BLE001
+                logging.getLogger(__name__).exception('No se pudo pedir el PDF de %s', codigo_orden)
+            for _ in range(int(os.getenv('PDF_EFFI_ESPERA_SEG', '30'))):
+                await asyncio.sleep(1)
+                datos_effi = await asyncio.to_thread(effitron_mod.pdf_cotizacion_bytes, pdf_effi)
+                if datos_effi:
+                    break
+        if not datos_effi:
+            ag = effitron_mod.agente()
+            raise HTTPException(409, f'Todavía no llega el PDF de Effi de la cotización {pdf_effi}. Es obligatorio para programar (producción usa ese documento tal como lo crea Effi). ' +
+                                ('EFFITRON está conectado: espera unos segundos y vuelve a pulsar PROGRAMAR PEDIDO.' if ag.get('conectado') else 'EFFITRON NO está conectado ahora: hay que reconectarlo en el servidor y volver a pulsar PROGRAMAR PEDIDO.'))
+        _PDF_EFFI_ORDEN[codigo_orden.upper()] = datos_effi
+    _registrar_post_orden(codigo_orden, pdf_effi=pdf_effi, pdf_hecho=False, maestros=maestros, maestros_hecho=False)
+    resultado = await upload_order(pdf=pdf, observaciones=arch['observaciones'], linea=arch['linea'], excel=excel, extras=extras,
+                                   mockup_d1=None, mockup_d2=None, mockup_d3=None, mockup_d4=None, mockups_opcionales=True, _=usuario)
+    threading.Thread(target=_vigilar_post_orden, args=(codigo_orden, int(resultado.get('id') or 0)), daemon=True).start()
+    try:   # queda en la lista «Programados» de PROGRAMAR CLUB
+        _registrar_programado(datos.get('doc') or {}, arch, descarga, str(usuario), resultado)
+        sheet_pedidos_mod.registrar_seguro(codigo_orden, datos, arch.get('grupos') or [])
+    except Exception:   # noqa: BLE001
+        logging.getLogger(__name__).exception('No se pudo registrar el pedido programado')
+    return {**resultado, **descarga}
+
+
+_PROGRAMADOS = PEDIDO_EXCEL_DIR / '_programados.json'
+_programados_lock = threading.Lock()
+
+
+def _registrar_programado(doc: dict, arch: dict, descarga: dict, usuario: str, resultado: dict) -> None:
+    pref, numero = listado_pedido_mod.prefijo_numero(doc)
+    item = {'codigo': f'{pref}{numero}', 'cliente': str((doc.get('cliente') or {}).get('nombre') or ''), 'proyecto': str(doc.get('proyecto') or ''),
+            'usuario': usuario, 'fecha': datetime.now().isoformat(timespec='seconds'), 'job': resultado.get('id'),
+            'referencias': [g['referencia'] for g in arch.get('grupos') or []], 'prendas': sum(int(g.get('cantidad') or 0) for g in arch.get('grupos') or []),
+            'excel': descarga.get('excel', ''), 'excel_nombre': descarga.get('excel_nombre', ''), 'mockups': descarga.get('mockups_insertados', 0)}
+    with _programados_lock:
+        try:
+            lista = json.loads(_PROGRAMADOS.read_text(encoding='utf-8'))
+        except (OSError, ValueError):
+            lista = []
+        lista = [x for x in lista if x.get('codigo') != item['codigo']]
+        lista.insert(0, item)
+        _PROGRAMADOS.parent.mkdir(parents=True, exist_ok=True)
+        _PROGRAMADOS.write_text(json.dumps(lista[:500], ensure_ascii=False), encoding='utf-8')
+
+
+_PROGRAMADOS_OCULTOS = PEDIDO_EXCEL_DIR / '_programados_ocultos.json'
+
+
+def _leer_json(ruta: Path, defecto):
+    try:
+        return json.loads(ruta.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return defecto
+
+
+@app.delete("/api/pedido-effi/programados/{codigo}")
+def quitar_programado(codigo: str, usuario=Depends(authenticate)):
+    """Quita la tarjeta de la lista de PROGRAMAR CLUB. NO borra la orden de Producción ni su carpeta en la NAS."""
+    if not permisos_mod.comerciales_permitido(str(usuario)):
+        raise HTTPException(403, 'Solo para el equipo comercial')
+    if not re.fullmatch(r'(CO|RM)\d{1,10}', codigo):
+        raise HTTPException(400, 'Código no válido')
+    try:
+        sheet_pedidos_mod.borrar(codigo)   # primero la hoja: si falla, la tarjeta NO se quita
+    except Exception as exc:  # noqa: BLE001
+        logging.getLogger(__name__).exception('No se pudo borrar %s de la hoja', codigo)
+        raise HTTPException(503, 'No pude borrar las filas de la hoja de Producción; la tarjeta no se quitó. Intenta de nuevo.') from exc
+    shutil.rmtree(PEDIDO_EXCEL_DIR / codigo, ignore_errors=True)   # la copia descargable del listado de ESTA orden (el nombre ya se validó: CO/RM + números)
+    with _programados_lock:
+        ocultos = _leer_json(_PROGRAMADOS_OCULTOS, [])
+        if codigo not in ocultos:
+            ocultos.append(codigo)
+        _PROGRAMADOS_OCULTOS.parent.mkdir(parents=True, exist_ok=True)
+        _PROGRAMADOS_OCULTOS.write_text(json.dumps(ocultos), encoding='utf-8')
+    return {'ok': True}
+
+
+@app.get("/api/pedido-effi/programados/{codigo}/mockup")
+def mockup_programado(codigo: str, usuario=Depends(authenticate)):
+    """Miniatura del primer mockup del listado (para la tarjeta). Se saca una vez del Excel y se guarda."""
+    if not re.fullmatch(r'(CO|RM)\d{1,10}', codigo):
+        raise HTTPException(400, 'Código no válido')
+    carpeta = PEDIDO_EXCEL_DIR / codigo
+    png = carpeta / '_mockup.png'
+    if not png.is_file():
+        xl = sorted(carpeta.glob('*.xls*')) if carpeta.is_dir() else []
+        if not xl:
+            raise HTTPException(404, 'Sin listado')
+        from openpyxl import load_workbook
+        from PIL import Image
+        import io as _io
+        mejor = None
+        for ws in load_workbook(xl[0]).worksheets:
+            for im in getattr(ws, '_images', []):
+                de = getattr(im.anchor, '_from', None)
+                if de is not None and de.col <= 4 and de.row <= 6:
+                    continue   # el logo de la plantilla
+                im.ref.seek(0); mejor = im.ref.read(); break
+            if mejor:
+                break
+        if not mejor:
+            raise HTTPException(404, 'El listado no tiene mockup')
+        foto = Image.open(_io.BytesIO(mejor)).convert('RGB'); foto.thumbnail((500, 500)); foto.save(png, 'PNG')
+    return FileResponse(png, media_type='image/png', headers={'Cache-Control': 'private, max-age=600'})
+
+
+def _resumen_programados(codigos: set) -> dict:
+    """Por cada orden CO/RM: filas de Producción, estado por área, % y área en curso. Se calcula aquí (no en el navegador)."""
+    try:
+        base = _produccion_base()
+        flow = json.loads((Path(__file__).parent / 'process-flow.json').read_text(encoding='utf-8'))
+    except Exception:
+        return {}
+    nm = lambda t: re.sub(r'\s+', ' ', unicodedata.normalize('NFKD', str(t or '')).encode('ascii', 'ignore').decode().upper()).strip()
+    h = [nm(x) for x in (base.get('headers') or [])]
+    ix = lambda n: h.index(n) if n in h else -1
+    iO = ix('ORDEN') if ix('ORDEN') >= 0 else next((i for i, x in enumerate(h) if 'ORDEN' in x), -1)
+    iR, iC, iCl, iP, iE, iL, iT = ix('REFERENCIA'), ix('CANTIDAD'), ix('NOMBRE DEL CLIENTE'), ix('NOMBRE PROYECTO'), ix('FECHA DE ENTREGA'), ix('LINEA'), next((i for i, x in enumerate(h) if x == 'TELA' or x.startswith('TELA')), -1)
+    procs = []
+    for pr in flow:
+        cols = [i for hd in pr['headers'] for i, y in enumerate(h) if y == nm(hd)]
+        if cols:
+            procs.append((pr['label'], nm(pr['label']) == 'DISENO', cols))
+    g = lambda v, i: str(v[i]).strip() if 0 <= i < len(v) and v[i] is not None else ''
+    fecha = re.compile(r'^\d{1,4}[/-]\d{1,2}[/-]\d{1,4}')
+    auto = set(base.get('auto_closed') or [])
+    out = {}
+    for r in base.get('rows') or []:
+        v = r.get('values') or []
+        for cod in set(re.findall(r'\b(?:CO|RM)\d+\b', g(v, iO).upper())):
+            if cod not in codigos:
+                continue
+            _fe = parse_production_date(g(v, iE))   # la fecha puede venir como «7-dic-2026»: se pasa a AAAA-MM-DD para que la tarjeta la entienda
+            o = out.setdefault(cod, {'filas': [], 'cliente': g(v, iCl), 'proyecto': g(v, iP), 'entrega': (_fe.isoformat()[:10] if _fe else g(v, iE))})
+            mts = str((base.get('notes') or {}).get(f"{r['source_row']}:17") or '').strip()
+            # AVANCE de ESTA tarjeta (esta referencia), con la misma regla de la tarjeta de Producción: R reproceso · P en proceso · fecha o N/A = terminado · cierre automático = terminado
+            est = []
+            for lab, ext, cols in procs:
+                vals = [nm(g(v, c)) for c in cols]
+                cerrados = [x == 'N/A' or parse_production_date(x) is not None or bool(fecha.match(x)) for x in vals]
+                st = 'rework' if 'R' in vals else 'active' if 'P' in vals else 'finished' if vals and all(cerrados) else 'pending'
+                if st == 'pending' and any(vals) and f"{r['source_row']}:{cols[0] + 1}" in auto:
+                    st = 'finished'
+                est.append({'label': lab, 'ext': ext, 'state': st})
+            inter = [e for e in est if not e['ext']]
+            hechos = sum(1 for e in inter if e['state'] == 'finished')
+            foco = (next((e for e in inter if e['state'] == 'rework'), None) or next((e for e in reversed(inter) if e['state'] == 'active'), None)
+                    or next((e for e in inter if e['state'] != 'finished'), None) or (inter[-1] if inter else None))
+            o['filas'].append({'id': r['source_row'], 'ref': g(v, iR), 'units': int(re.sub(r'[^0-9]', '', g(v, iC)) or 0), 'linea': g(v, iL), 'tela': g(v, iT), 'mts': mts,
+                               'percent': round(hechos / len(inter) * 100) if inter else 0, 'focus': foco})
+    for o in out.values():   # a nivel de orden (compatibilidad): el avance de su primera tarjeta
+        o['percent'] = o['filas'][0]['percent'] if o['filas'] else 0
+        o['focus'] = o['filas'][0]['focus'] if o['filas'] else None
+    return out
+
+
+@app.get("/api/pedido-effi/agentes")
+def pedido_agentes(usuario=Depends(authenticate)):
+    """Estado de EFFITRON (el agente del servidor que baja el PDF de Effi)."""
+    if not permisos_mod.comerciales_permitido(str(usuario)):
+        raise HTTPException(403, 'Solo para el equipo comercial')
+    return {'effitron': bool(effitron_mod.agente().get('conectado'))}
+
+
+@app.get("/api/pedido-effi/pdf-orden/{codigo}")
+def pedido_pdf_estado(codigo: str, usuario=Depends(authenticate)):
+    """Cómo va el PDF de Effi de una orden: ya está en la carpeta, lo está bajando EFFITRON o falló (y por qué)."""
+    if not permisos_mod.comerciales_permitido(str(usuario)):
+        raise HTTPException(403, 'Solo para el equipo comercial')
+    if not re.fullmatch(r'(CO|RM)\d{1,10}', codigo):
+        raise HTTPException(400, 'Código no válido')
+    d = _POST_ORDEN.get(codigo) or {}
+    if not d.get('pdf_effi'):
+        return {'hecho': True, 'estado': 'no_aplica', 'detalle': ''}
+    cot = int(d['pdf_effi'])
+    ag = effitron_mod.agente()
+    if d.get('pdf_hecho'):
+        return {'hecho': True, 'estado': 'listo', 'detalle': 'El PDF de Effi ya está en la carpeta de la orden'}
+    if effitron_mod.pdf_cotizacion_bytes(cot):
+        if d.get('pdf_error'):
+            return {'hecho': False, 'estado': 'error', 'detalle': 'El PDF de Effi llegó pero NO se pudo copiar a la carpeta de la NAS: ' + str(d['pdf_error'])}
+        return {'hecho': False, 'estado': 'copiando', 'detalle': 'El PDF de Effi llegó al servidor; se está copiando a la NAS'}
+    info = effitron_mod._pdf_pendientes.get(cot) or {}
+    if not ag.get('conectado'):
+        return {'hecho': False, 'estado': 'sin_agente', 'detalle': 'EFFITRON no está conectado: no puede bajar el PDF de Effi'}
+    if info.get('error'):
+        return {'hecho': False, 'estado': 'error', 'detalle': 'EFFITRON no pudo bajar el PDF: ' + str(info['error'])}
+    return {'hecho': False, 'estado': 'esperando', 'detalle': 'Esperando a que EFFITRON baje el PDF de Effi…' + (f" (intento {info.get('intentos', 0) + 1})" if info else ' (sin pedir aún)')}
+
+
+@app.get("/api/pedido-effi/programados")
+def pedidos_programados(usuario=Depends(authenticate)):
+    """Los pedidos programados desde EMPEZAR PEDIDO, más reciente primero (se muestran en PROGRAMAR CLUB)."""
+    if not permisos_mod.comerciales_permitido(str(usuario)):
+        raise HTTPException(403, 'Solo para el equipo comercial')
+    try:
+        lista = json.loads(_PROGRAMADOS.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        lista = []
+    # también los programados ANTES de existir esta lista: cada carpeta CO####/RM#### con su Excel
+    ya = {x.get('codigo') for x in lista}
+    if PEDIDO_EXCEL_DIR.is_dir():
+        for d in PEDIDO_EXCEL_DIR.iterdir():
+            xl = sorted(d.glob('*.xls*')) if d.is_dir() and re.fullmatch(r'(CO|RM)\d{1,10}', d.name) and d.name not in ya else []
+            if xl:
+                resto = xl[0].stem.split('_', 1)[1] if '_' in xl[0].stem else ''
+                lista.append({'codigo': d.name, 'cliente': resto.replace('_', ' '), 'proyecto': '', 'usuario': '', 'referencias': [], 'prendas': 0,
+                              'fecha': datetime.fromtimestamp(xl[0].stat().st_mtime).isoformat(timespec='seconds'), 'excel': f'/api/pedido-effi/excel/{d.name}', 'estado': ''})
+    ocultos = set(_leer_json(_PROGRAMADOS_OCULTOS, []))
+    lista = [x for x in lista if x.get('codigo') not in ocultos]
+    lista.sort(key=lambda x: x.get('fecha') or '', reverse=True)
+    with connect() as db:   # estado actual de la programación (COMPLETADO / ERROR …)
+        for x in lista:
+            r = db.execute('SELECT status FROM jobs WHERE id = ?', (x['job'],)).fetchone() if x.get('job') else \
+                db.execute('SELECT status FROM jobs WHERE order_number = ? ORDER BY id DESC LIMIT 1', (x['codigo'],)).fetchone()
+            x['estado'] = r[0] if r else ''
+    res = _resumen_programados({x['codigo'] for x in lista})
+    for x in lista:
+        x['prod'] = res.get(x['codigo'])
+    return {'programados': lista}
+
+
+# ---------------------------------------------------------------- carpeta de la orden en la NAS: lo MISMO que se vio y se hizo en el panel
+# - PDF: el que generó Effi (no el que arma el panel para programar)
+# - Excel: el que llenó el AGENTE en el PC del comercial (con los mockups insertados)
+# - Mockups: copias idénticas de los archivos de MAESTROS (mismo nombre y bytes), no renombrados
+_POST_ORDEN: dict = {}
+_post_lock = threading.Lock()
+
+
+_POST_ARCHIVO = STATE_DIR / 'post_orden.json'   # se guarda en disco: si el servidor se reinicia a mitad de camino (por ejemplo al publicar una versión), lo pendiente se retoma
+
+
+def _guardar_post_orden() -> None:
+    try:
+        recientes = {k: v for k, v in _POST_ORDEN.items() if time.time() - v.get('creado', time.time()) < 3 * 86400}
+        _POST_ARCHIVO.parent.mkdir(parents=True, exist_ok=True)
+        _POST_ARCHIVO.write_text(json.dumps(recientes, ensure_ascii=False), encoding='utf-8')
+    except OSError:
+        logging.getLogger(__name__).exception('No se pudo guardar el estado de lo pendiente de las órdenes')
+
+
+def _registrar_post_orden(codigo: str, **datos) -> None:
+    with _post_lock:
+        d = _POST_ORDEN.setdefault(codigo, {'creado': time.time()})
+        d.update(datos)
+        _guardar_post_orden()
+
+
+def _reanudar_post_orden() -> None:
+    """Al arrancar el servidor: retoma las órdenes que quedaron a medias (PDF de Effi, Excel del agente o mockups de MAESTROS aún sin copiar a la NAS)."""
+    try:
+        guardado = json.loads(_POST_ARCHIVO.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return
+    for codigo, d in guardado.items():
+        pendiente = (d.get('pdf_effi') and not d.get('pdf_hecho')) or (d.get('maestros') and not d.get('maestros_hecho'))
+        if pendiente:
+            with _post_lock:
+                _POST_ORDEN.setdefault(codigo, d)
+            threading.Thread(target=_vigilar_post_orden, args=(codigo, 0), daemon=True).start()
+
+
+def _aplicar_post_orden(codigo: str, diag: list | None = None) -> bool:
+    """Copia a la carpeta de la orden lo que ya esté disponible. True = no queda nada pendiente."""
+    with _post_lock:
+        d = _POST_ORDEN.get(codigo)
+    if not d:
+        return True
+    nota = (lambda t: diag.append(t)) if diag is not None else (lambda t: None)
+    try:
+        previa = Path(d['carpeta']) if d.get('carpeta') else None
+        if previa is not None and previa.is_dir():
+            carpeta = previa   # ya se encontró antes: no se vuelve a recorrer toda la NAS (eso la dejaba lenta y trababa el panel)
+        else:
+            carpeta = find_nas_order(codigo); d['carpeta'] = str(carpeta)
+        nota('Carpeta de la orden en la NAS: ' + str(carpeta))
+    except HTTPException as exc:
+        nota('NO encontré la carpeta de la orden en la NAS: ' + str(exc.detail))
+        return False   # la orden todavía no tiene carpeta
+    except Exception as exc:   # noqa: BLE001
+        nota('Error al buscar la carpeta en la NAS: ' + str(exc)[:150]); return False
+    log = logging.getLogger(__name__)
+    if d.get('pdf_hecho') and d.get('pdf_effi'):   # comprobación: nada (p. ej. el programar pedido) debe volver a dejar su propio PDF encima del de Effi
+        buenos = effitron_mod.pdf_cotizacion_bytes(int(d['pdf_effi']))
+        pdfs = [p for p in carpeta.glob('*.pdf') if p.stem.upper().startswith(codigo.upper())]
+        if buenos and (not pdfs or any(p.stat().st_size != len(buenos) for p in pdfs)):
+            d['pdf_hecho'] = False; nota('Había otro PDF encima del de Effi: se vuelve a poner el de Effi')
+        d.setdefault('pdf_ok_desde', time.time())
+    if d.get('pdf_effi') and not d.get('pdf_hecho'):
+        datos = effitron_mod.pdf_cotizacion_bytes(int(d['pdf_effi']))
+        if datos:
+            listado = next((x for x in sorted(carpeta.glob('*.xls*')) if x.stem.upper().startswith(codigo.upper()) and not x.name.startswith('~$')), None)   # el PDF lleva el mismo nombre del listado
+            err = _dejar_pdf_effi(carpeta, codigo, datos, listado.stem if listado else '')
+            if not err:
+                d['pdf_hecho'] = True; d['pdf_ok_desde'] = time.time(); d.pop('pdf_error', None); _guardar_post_orden()
+                nota(f'PDF de Effi copiado con el nombre del listado ({len(datos)} bytes)')
+            else:
+                d['pdf_error'] = err; _guardar_post_orden()
+                nota('No pude dejar el PDF de Effi en la NAS: ' + err)
+                log.error('PDF de Effi de %s no se pudo escribir en %s: %s', codigo, carpeta, err)
+        else:
+            nota('El PDF de Effi todavía NO está en el servidor (EFFITRON no lo ha bajado)')
+            for propio in carpeta.glob('*.pdf'):   # el PDF que arma el panel es solo para procesar el pedido: NUNCA queda en la carpeta de la orden
+                if propio.stem.upper().startswith(codigo.upper()):
+                    try:
+                        propio.unlink(); nota('Se retiró de la carpeta el PDF armado por el panel (solo debe quedar el de Effi)')
+                    except OSError as exc:
+                        nota('No pude retirar el PDF del panel: ' + str(exc)[:100])
+            if time.time() - d.get('pdf_repedido', 0) > 60:   # se vuelve a pedir cada minuto (también tras agotar intentos) mientras la orden siga con el PDF del panel
+                d['pdf_repedido'] = time.time()
+                try:
+                    est = effitron_mod.solicitar_pdf_cotizacion(int(d['pdf_effi']))
+                    nota('PDF de Effi pedido a EFFITRON (estado: ' + str(est.get('estado')) + ', agente EFFITRON conectado: ' + str(est.get('agente')) + ')')
+                except Exception:   # noqa: BLE001
+                    log.exception('No se pudo pedir el PDF de %s', codigo)
+    if d.get('maestros') and not d.get('maestros_hecho'):
+        ok = True
+        for m in d['maestros']:
+            nota('Mockup de MAESTROS: ' + str(m.get('archivo')))
+            try:
+                origen = pedido_effi_mod.ruta_mockup(m['cliente'], m['proyecto'], m['carpeta'], m['archivo'])
+                shutil.copy2(origen, carpeta / origen.name)   # mismo nombre y mismo contenido que en MAESTROS
+                if m.get('ref') and m.get('n'):   # se quita la copia renombrada (REF_Dn.ext) que dejó el programar pedido: ya está la original
+                    for extra in carpeta.iterdir():
+                        if extra.is_file() and extra.name != origen.name and re.fullmatch(re.escape(m['ref']) + r'_D' + str(int(m['n'])) + r'\.(?:jpe?g|png|webp)', extra.name, re.I):
+                            extra.unlink(missing_ok=True)
+            except Exception:   # noqa: BLE001
+                log.exception('No se pudo copiar el mockup maestro %s', m)
+                ok = False
+        d['maestros_hecho'] = ok; _guardar_post_orden()
+    pendientes = [('pdf_hecho', d.get('pdf_effi')), ('maestros_hecho', d.get('maestros'))]
+    if d.get('pdf_effi') and time.time() - d.get('pdf_ok_desde', time.time()) < 90:
+        return False   # se sigue vigilando un poco más por si algo sobreescribe el PDF
+    return all(d.get(k) for k, esperado in pendientes if esperado)
+
+
+def _vigilar_post_orden(codigo: str, job_id: int = 0) -> None:
+    """En segundo plano: espera a que la orden esté creada (y a que llegue el PDF de Effi) y los deja en su carpeta de la NAS. Máx. 4 horas."""
+    limite = time.time() + 4 * 3600; vuelta = 0   # el PDF de Effi puede tardar: se sigue intentando hasta 4 horas
+    while time.time() < limite:
+        vuelta += 1
+        try:
+            if job_id:
+                with connect() as db:
+                    r = db.execute('SELECT status FROM jobs WHERE id = ?', (job_id,)).fetchone()
+                if r and r[0] in ('ERROR', 'REVISAR'):
+                    return
+                if not r or r[0] != 'COMPLETADO':
+                    time.sleep(4); continue
+            if _aplicar_post_orden(codigo):
+                return
+        except Exception:   # noqa: BLE001
+            logging.getLogger(__name__).exception('Falló copiar lo de la orden %s a la NAS', codigo)
+        time.sleep(4 if vuelta < 15 else 20)   # al principio mira seguido; si tarda, espacia las revisiones para no cargar la NAS ni el servidor
+
+
+@app.post("/api/pedido-effi/programados/{codigo}/sincronizar")
+def sincronizar_programado(codigo: str, usuario=Depends(authenticate)):
+    """Vuelve a dejar en la carpeta de la orden (NAS) el PDF de Effi, el Excel que llenó el agente y los mockups de MAESTROS. Sirve si algo quedó a medias."""
+    if not permisos_mod.comerciales_permitido(str(usuario)):
+        raise HTTPException(403, 'Solo para el equipo comercial')
+    if not re.fullmatch(r'(CO|RM)\d{1,10}', codigo):
+        raise HTTPException(400, 'Código no válido')
+    d = _POST_ORDEN.get(codigo) or {}
+    diag: list = []
+    if codigo.startswith('CO') and not d.get('pdf_effi'):
+        d['pdf_effi'] = int(codigo[2:])
+    if d.get('pdf_effi') and not effitron_mod.pdf_cotizacion_bytes(int(d['pdf_effi'])):
+        try:
+            est = effitron_mod.solicitar_pdf_cotizacion(int(d['pdf_effi']))   # si nunca se bajó, se vuelve a pedir a EFFITRON
+            diag.append('PDF de Effi no está en el servidor: se volvió a pedir a EFFITRON (estado: ' + str(est.get('estado')) + ', agente EFFITRON conectado: ' + str(est.get('agente')) + (', detalle: ' + str(est.get('detalle')) if est.get('detalle') else '') + ')')
+        except Exception as exc:   # noqa: BLE001
+            logging.getLogger(__name__).exception('No se pudo pedir el PDF de %s', codigo)
+            diag.append('No pude pedir el PDF a EFFITRON: ' + str(exc)[:150])
+    try:   # qué está haciendo EFFITRON ahora y qué fue lo último que dijo (así se ve por qué no llega el PDF)
+        ag = effitron_mod.agente()
+        info = effitron_mod._pdf_pendientes.get(int(d['pdf_effi'])) if d.get('pdf_effi') else None
+        diag.append('EFFITRON: ' + ('conectado en ' + (ag.get('equipo') or '?') + ' · estado ' + str(ag.get('estado')) + (' · último mensaje: ' + ag['ultima'] if ag.get('ultima') else '') if ag.get('conectado') else 'NO está conectado (revisa el contenedor del agente en el servidor)')
+                    + (' · error del PDF: ' + str(info['error']) if info and info.get('error') else '') + (f" · intentos {info.get('intentos')}" if info else ''))
+    except Exception:   # noqa: BLE001
+        pass
+    d['pdf_hecho'] = False
+    _registrar_post_orden(codigo, **d)
+    try:
+        completo = _aplicar_post_orden(codigo, diag)   # se hace ahora mismo y se cuenta qué pasó
+    except Exception as exc:   # noqa: BLE001
+        logging.getLogger(__name__).exception('Sincronizar %s', codigo); diag.append('Error: ' + str(exc)[:200]); completo = False
+    if not completo:
+        threading.Thread(target=_vigilar_post_orden, args=(codigo, 0), daemon=True).start()   # lo que falte se sigue intentando 15 minutos
+    return {'ok': True, 'completo': completo, 'detalle': diag, 'pdf': bool(d.get('pdf_effi')), 'mockups': len(d.get('maestros') or [])}
+
+
+threading.Thread(target=_reanudar_post_orden, daemon=True).start()
 
 
 @app.post("/crear-xlsx/vista-previa")
