@@ -725,7 +725,7 @@
           est = await fetchT('/api/pedido-effi/pdf-estado/' + L.doc.numero, { credentials: 'same-origin', cache: 'no-store' }).then(x => x.ok ? x.json() : null).catch(() => null);
           if (est && (est.estado === 'listo' || est.estado === 'error')) break;
           const seg = Math.round((Date.now() - t0) / 1000);
-          if (seg > 120) break;
+          if (seg > 60) break;   // a los 60 s se avisa qué revisar (EFFITRON) en vez de esperar más
           L.job.detail = 'Esperando el PDF de Effi (obligatorio)… ' + seg + ' s' + (est && est.agente === false ? ' · EFFITRON no está conectado' : '');
           if (raiz && raiz.isConnected && L.pantalla === 'enviado') pantallaEnviado();
           await new Promise(r => setTimeout(r, 2500));
