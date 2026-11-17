@@ -17,6 +17,8 @@
     f.add(key(mas(-3))); f.add(key(mas(-2))); f.add(key(mas(43))); f.add(key(mas(64))); f.add(key(mas(71)));   // jueves y viernes santo; Ascensión, Corpus Christi y Sagrado Corazón (lunes)
     return f;
   };
+  // fecha de entrega mínima: 5 días calendario desde hoy (AAAA-MM-DD)
+  const entregaMinima = () => { const d = new Date(); d.setDate(d.getDate() + 5); const pad = n => String(n).padStart(2, '0'); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); };
   const entregaPorDefecto = () => {
     const d = new Date(), cache = {}, pad = n => String(n).padStart(2, '0'); let falta = 15;
     while (falta > 0) {
@@ -31,7 +33,7 @@
   const css = document.createElement('style');
   css.textContent = `
   .pe{width:100%;max-width:none;margin:8px 0;display:grid;gap:14px}
-  .pe-card{padding:20px;border:1px solid rgba(255,255,255,.14);border-radius:20px;background:linear-gradient(160deg,rgba(255,255,255,.07),rgba(0,0,0,.28));backdrop-filter:blur(14px)}
+  .pe-card{padding:20px;border:1px solid rgba(255,255,255,.14);border-radius:20px;background:linear-gradient(160deg,rgba(255,255,255,.07),rgba(0,0,0,.28));backdrop-filter:none}
   .pe-top{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
   .pe h2{margin:0;font:900 clamp(20px,3vw,26px) Arial;color:#f5faef}
   .pe h3{margin:0 0 12px;font:900 15px Arial;color:#f5faef;letter-spacing:.04em;display:flex;align-items:center;gap:8px}
@@ -277,7 +279,7 @@
           <label>Sucursal*<select name="sucursal">${opciones(c.sucursales, suc)}</select></label>
           <label>Bodega*<select name="bodega">${opciones(bodegas, guard.bodega)}</select></label>
           <label>Centro de costos*<select name="centro_costos">${opciones(c.centros, guard.centro_costos)}</select></label>
-          <label>Fecha de entrega*<input type="date" name="fecha_entrega" value="${esc(guard.fecha_entrega || entregaPorDefecto())}"></label>
+          <label>Fecha de entrega*<input type="date" name="fecha_entrega" min="${entregaMinima()}" value="${esc(guard.fecha_entrega || entregaPorDefecto())}"></label>
           <label>Moneda*<select name="moneda">${(c.monedas || [{ id: 'COP', nombre: 'Peso Colombiano $ COP' }]).map(m => '<option value="' + m.id + '"' + (m.id === st.moneda ? ' selected' : '') + '>' + esc(m.nombre) + '</option>').join('')}</select></label>
           <label>TRM*<input name="trm" inputmode="decimal" value="${esc(st.moneda === 'COP' ? '1' : st.trm)}" ${st.moneda === 'COP' ? 'disabled' : ''}></label>
           <label>Vendedor<select name="vendedor">${opciones(c.vendedores, guard.vendedor)}</select></label>
@@ -286,7 +288,6 @@
         <div class="pe-grid pe-fila2">
           <label>Cliente*<input name="cliente-q" autocomplete="off" autocapitalize="words" autocorrect="off" spellcheck="false" enterkeyhint="search" placeholder="Buscar por nombre (3 letras)…" value="${esc(st.cliente ? st.cliente.nombre : guard['cliente-q'])}"></label>
           <label>Dirección del cliente<select name="direccion">${st.cliente && st.cliente.direcciones.length ? st.cliente.direcciones.map((d, i) => '<option value="' + i + '"' + (i === st.direccion ? ' selected' : '') + '>' + esc((d.ciudad ? d.ciudad + ' · ' : '') + d.direccion) + '</option>').join('') : '<option value="-1">No registra</option>'}</select></label>
-          <label class="pe-proy">Nombre del proyecto (Garantía)*${proyectoHtml(guard.garantia)}</label><label class="pe-linea-prod">Línea del producto*<select name="linea_prod"><option value="">Seleccionar…</option>${((c.listado && c.listado.lineas) || ['COPA', 'PLUS', 'MAQUILA', 'PREMIUM', 'ESTANDAR']).map(x => '<option' + (x === st.linea ? ' selected' : '') + '>' + esc(x) + '</option>').join('')}</select></label>
         </div>
       </div>
       <div class="pe-card pe-con"><div class="pe-h3row"><h3>Conceptos</h3><label class="pe-chk pe-siniva-todos" style="margin-left:auto"><input type="checkbox" data-siniva-todos ${st.sinIvaTodos ? 'checked' : ''}> Sin IVA (todos)</label></div>
@@ -301,7 +302,7 @@
           <label>Impuesto<select data-siniva-sel><option value="0"${l.sinIva ? '' : ' selected'}>${esc(l.impuesto || 'Sin impuesto')}</option>${l.impuesto ? `<option value="1"${l.sinIva ? ' selected' : ''}>Quitar IVA (sin impuesto)</option>` : ''}</select></label>
           <div><span style="color:#c9d3c1;font:800 11px Arial;letter-spacing:.08em">Total sin IVA</span><div class="pe-total-linea">${money(brutoDe(l) - descDe(l))}</div></div>
           <button class="pe-x" type="button" data-quitar aria-label="Quitar concepto">✕</button>
-          <div class="pe-tela" data-tela>${telaHtml(l)}</div><div class="pe-mas"><button type="button" class="pe-link" data-detalles>${l.abierta ? '▾' : '▸'} Más detalles${l.obsequio || l.obs || l.sinIva ? ' ●' : ''}</button><button type="button" class="pe-link pe-link-mk" data-mockups title="Ver los mockups de este proyecto para la referencia de este concepto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>VER MOCKUPS</button><label class="pe-link pe-link-mk pe-sube" title="Sube un mockup de tu computador (pedido nuevo o un diseño que no está en la NAS)"><input type="file" accept="image/*" multiple hidden data-up-linea><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg>SUBIR MOCKUP</label><button type="button" class="pe-link pe-link-mk pe-sube pe-vit-mas" data-vit-mas aria-label="Elegir más mockups" title="Elegir más mockups (vuelve a mostrar todos)"${st.vitCompacta ? '' : ' hidden'}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 12a8.5 8.5 0 1 1-2.6-6.1"/><path d="M20.8 3.2v5.4h-5.4" fill="currentColor"/></svg></button>${l.abierta ? `<div class="pe-detalles"><label class="pe-chk"><input type="checkbox" data-obsequio ${l.obsequio ? 'checked' : ''}> Sumar solo impuestos para Obsequio, degustación o donación (descuento del 100 %)</label><label class="pe-chk"><input type="checkbox" data-siniva ${l.sinIva ? 'checked' : ''}> Sin IVA en este concepto</label><label>Observación del concepto<input data-f="obs" maxlength="250" value="${esc(l.obs)}" placeholder="Opcional"></label></div>` : ''}</div>
+          <div class="pe-tela" data-tela>${telaHtml(l)}</div><div class="pe-mas"><button type="button" class="pe-link" data-detalles>${l.abierta ? '▾' : '▸'} Más detalles${l.obsequio || l.obs || l.sinIva ? ' ●' : ''}</button>${l.abierta ? `<div class="pe-detalles"><label class="pe-chk"><input type="checkbox" data-obsequio ${l.obsequio ? 'checked' : ''}> Sumar solo impuestos para Obsequio, degustación o donación (descuento del 100 %)</label><label class="pe-chk"><input type="checkbox" data-siniva ${l.sinIva ? 'checked' : ''}> Sin IVA en este concepto</label><label>Observación del concepto<input data-f="obs" maxlength="250" value="${esc(l.obs)}" placeholder="Opcional"></label></div>` : ''}</div>
         </div>`).join('')}</div>
         <div style="margin-top:10px"><button class="pe-btn sec mini" type="button" data-mas>+ Agregar concepto</button></div>
       </div>
@@ -335,7 +336,7 @@
     const d = st.cliente && st.direccion >= 0 ? st.cliente.direcciones[st.direccion] : null;
     return {
       tipo: st.tipo, clave: st.clave, sucursal: valor('sucursal'), bodega: valor('bodega'), centro_costos: valor('centro_costos'), fecha_entrega: valor('fecha_entrega'),
-      cliente: st.cliente ? st.cliente.tercero : '', direccion: d || undefined, vendedor: valor('vendedor') || undefined, garantia: valor('garantia'), observacion: valor('observacion'),
+      cliente: st.cliente ? st.cliente.tercero : '', direccion: d || undefined, vendedor: valor('vendedor') || undefined, garantia: garantiaListado().proyecto, observacion: valor('observacion'),
       divisa: st.moneda, trm: st.trm, descuento_global: st.global || 0, propina: propinaValor() || 0, retenciones: st.retenciones, prontopago: st.pronto || 0, fecha_prontopago: st.fechaPronto,
       conceptos: st.conceptos.map(l => ({ articulo: l.articulo, descripcion: l.descripcion, cantidad: l.cantidad, precio: l.precio, descuento: descDe(l), obsequio: l.obsequio, sin_iva: !!l.sinIva, observacion: l.obs, id_serie: l.id_serie || undefined })),
       formas_pago: st.formas.map(f => ({ id: f.id, valor: f.valor })),
@@ -363,9 +364,17 @@
       formas, subtotal: prev.subtotal, total,
     };
   }
+  // proyecto y línea: los de la PRIMERA referencia del listado previo (ya no se escriben en el documento)
+  function garantiaListado() {
+    const rd = ((st.listadoPrevio || {}).refDatos) || {};
+    const ref = String((st.conceptos.find(c => String(c.ref || '').trim()) || {}).ref || '').trim().toUpperCase();
+    const d = rd[ref] || {};
+    return { proyecto: String(d.proyecto || '').trim(), linea: String(d.linea || '').trim() };
+  }
   async function previa(crear) {
     if (st.ocupado) return;
-    if (!valor('garantia').trim() || !st.linea) { msg('Falta el nombre del proyecto (Garantía) o la línea del producto.', 'error'); estadoPasos(); pintarPasos(); return; }
+    if (crear && !garantiaListado().proyecto) { msg('Falta el NOMBRE DEL PROYECTO: complétalo en el listado (LISTADO PREVIO) antes de crear la cotización.', 'error'); return; }
+    if (valor('fecha_entrega') && valor('fecha_entrega') < entregaMinima()) { msg('La fecha de entrega debe ser al menos 5 días después de hoy (desde ' + entregaMinima() + ').', 'error'); return; }
     st.ocupado = true; msg(crear ? 'Creando en Effi…' : 'Calculando con Effi…', '');
     try {
       const body = leerFormulario();
@@ -378,7 +387,7 @@
         const doc = construirDoc(r, body);   // se arma ANTES de redibujar: usa lo que hay en pantalla
         st.hecho = r; st.ocupado = false; guardarLS(CLAVE_BORRADOR, null);   // ya está en Effi: el borrador se descarta
         const lp = st.listadoPrevio || {};
-        const preset = { linea: st.linea || lp.linea, proyecto: doc.proyecto, mockups: Object.fromEntries(Object.entries(st.mkSel).filter(([, v]) => v && v.length)), listado: lp.listado, disenos: lp.disenos, observaciones: lp.observaciones };
+        const preset = { linea: garantiaListado().linea || st.linea || lp.linea, proyecto: doc.proyecto, mockups: Object.fromEntries(Object.entries(st.mkSel).filter(([, v]) => v && v.length)), listado: lp.listado, disenos: lp.disenos, observaciones: lp.observaciones };
         if (window.PedidoListado) window.PedidoListado.abrir(panel, doc, { cat: (st.cat && st.cat.listado) || {}, onOtro: nuevoDocumento, onCerrar: cerrarVentana, preset });   // réplica de la cotización + «Continuar con el listado»
         else dibujar();
       }
@@ -569,10 +578,8 @@
       if (/^A\d+[A-Z]{1,8}\d{2}/i.test(String(l.ref || ''))) cargarTela(l.ref);
       row.querySelector('[data-dtipo]').onclick = () => { if (l.obsequio) return; l.dtipo = l.dtipo === 'pct' ? 'valor' : 'pct'; invalidar(); dibujar(); };
       row.querySelector('[data-detalles]').onclick = () => { l.abierta = !l.abierta; dibujar(); };
-      row.querySelector('[data-mockups]').onclick = () => verMockups(l);
-      const mas = row.querySelector('[data-vit-mas]'); if (mas) mas.onclick = () => { st.vitCompacta = false; document.querySelectorAll('[data-vit-mas]').forEach(b => { b.hidden = true; }); pintarVitrina(); const v = q('[data-vitrina]'); if (v) v.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); };
-      const up = row.querySelector('[data-up-linea]'); if (up) up.onchange = () => { if (!String(l.ref || '').trim() || !l.articulo) { msg('Primero elige el artículo (referencia) para saber a qué referencia pertenece el mockup.', 'error'); up.value = ''; return; } agregarMockups(l.ref, up.files); up.value = ''; };
-      const ss = row.querySelector('[data-siniva-sel]'); if (ss) ss.onchange = () => { l.sinIva = ss.value === '1'; st.sinIvaTodos = st.conceptos.every(x => x.sinIva); invalidar(); dibujar(); };
+            const mas = row.querySelector('[data-vit-mas]'); if (mas) mas.onclick = () => { st.vitCompacta = false; document.querySelectorAll('[data-vit-mas]').forEach(b => { b.hidden = true; }); pintarVitrina(); const v = q('[data-vitrina]'); if (v) v.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); };
+            const ss = row.querySelector('[data-siniva-sel]'); if (ss) ss.onchange = () => { l.sinIva = ss.value === '1'; st.sinIvaTodos = st.conceptos.every(x => x.sinIva); invalidar(); dibujar(); };
       const si = row.querySelector('[data-siniva]'); if (si) si.onchange = () => { l.sinIva = si.checked; st.sinIvaTodos = st.conceptos.every(x => x.sinIva); invalidar(); dibujar(); };
       const ob = row.querySelector('[data-obsequio]'); if (ob) ob.onchange = () => { l.obsequio = ob.checked; invalidar(); dibujar(); };
       row.querySelector('[data-quitar]').onclick = () => { st.conceptos.splice(i, 1); if (!st.conceptos.length) st.conceptos.push(lineaVacia()); invalidar(); dibujar(); };
@@ -639,17 +646,17 @@
   const cssPlus = document.createElement('style');
   cssPlus.textContent = `
   .pe-cargando{display:grid;justify-items:center;align-content:center;gap:18px;min-height:min(60vh,520px);color:#a9b5a3;font:700 13px Arial;letter-spacing:.08em}
-  .pe-logo-anim{width:min(300px,62vw);height:auto;filter:drop-shadow(0 0 0 rgba(208,244,76,0));animation:peLogo 2s ease-in-out infinite}
+  .pe-logo-anim{width:min(300px,62vw);height:auto;filter:drop-shadow(0 0 0 rgba(208,244,76,0));animation:peLogo 2s ease-in-out 2}
   @keyframes peLogo{0%{opacity:.35;transform:scale(.96);filter:drop-shadow(0 0 0 rgba(208,244,76,0))}50%{opacity:1;transform:scale(1);filter:drop-shadow(0 0 18px rgba(208,244,76,.55))}100%{opacity:.35;transform:scale(.96);filter:drop-shadow(0 0 0 rgba(208,244,76,0))}}
   .pe-barra-carga{width:min(280px,60vw);height:5px;border-radius:99px;background:rgba(255,255,255,.1);overflow:hidden}
-  .pe-barra-carga i{display:block;width:40%;height:100%;border-radius:inherit;background:linear-gradient(90deg,transparent,#d0f44c,transparent);animation:peBarra 1.3s ease-in-out infinite}
+  .pe-barra-carga i{display:block;width:40%;height:100%;border-radius:inherit;background:linear-gradient(90deg,transparent,#d0f44c,transparent);animation:peBarra 1.3s ease-in-out 2}
   @keyframes peBarra{from{transform:translateX(-120%)}to{transform:translateX(280%)}}
   @media(prefers-reduced-motion:reduce){.pe-logo-anim,.pe-barra-carga i{animation:none}}
   .pe-pasos{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:0 auto 0 18px}
   .pe-paso{display:flex;align-items:center;gap:6px;padding:5px 11px 5px 6px;border-radius:99px;border:1px solid #3d4c3b;color:#a9b5a3;font:900 10.5px Arial;letter-spacing:.08em;cursor:pointer;transition:all .25s;background:rgba(0,0,0,.25)}
   .pe-paso i{display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:#2a332c;color:#c9d3c1;font:900 11px Arial;font-style:normal;transition:all .25s}
   .pe-paso.ok{border-color:#6f9410;color:#d0f44c}.pe-paso.ok i{background:#9be37a;color:#0d140e}
-  .pe-paso.aqui{border-color:#d0f44c;color:#f5faef;box-shadow:0 0 0 3px rgba(208,244,76,.15)}.pe-paso.aqui i{background:#d0f44c;color:#0d140e;animation:pePulso 1.6s ease-in-out infinite}
+  .pe-paso.aqui{border-color:#d0f44c;color:#f5faef;box-shadow:0 0 0 3px rgba(208,244,76,.15)}.pe-paso.aqui i{background:#d0f44c;color:#0d140e;animation:pePulso 1.6s ease-in-out 2}
   .pe-paso-sep{width:14px;height:2px;background:#3d4c3b;border-radius:2px}.pe-paso-sep.ok{background:#9be37a}
   @keyframes pePulso{50%{box-shadow:0 0 0 5px rgba(208,244,76,.25)}}
   .pe .pe-falta{outline:2px solid rgba(255,181,71,.75)!important;outline-offset:1px;border-radius:8px}
@@ -676,7 +683,7 @@
   .pe-vit-vacia{border:1px dashed #3d4c3b;border-radius:14px;padding:22px;text-align:center;color:#7f8c79;font:700 13px Arial}
   .pe-resumen [data-neto]{transition:transform .25s,color .25s;display:inline-block}
   .pe-resumen [data-neto].sube{transform:scale(1.12);color:#fff}
-  .pe-btn[data-crear]:not(:disabled){animation:peBrillo 1.8s ease-in-out infinite}
+  .pe-btn[data-crear]:not(:disabled){animation:peBrillo 1.8s ease-in-out 2}
   @keyframes peBrillo{50%{box-shadow:0 0 0 4px rgba(208,244,76,.35),0 0 22px rgba(208,244,76,.45)}}
   .pe-resumen .pe-listo-txt{font:800 11px Arial;color:#9be37a;margin-top:4px}
   .pe-enc.pe-compacto label:has(> [name="sucursal"]),.pe-enc.pe-compacto label:has(> [name="moneda"]),.pe-enc.pe-compacto label:has(> [name="trm"]),.pe-enc.pe-compacto label:has(> [name="centro_costos"]){display:none}
@@ -779,7 +786,7 @@
   document.head.appendChild(cssPlus);
   const lineaLista = l => !!(l.articulo && num(l.cantidad) > 0 && String(l.precio) !== '' && String(l.descripcion || '').trim());
   function estadoPasos() {
-    const cliente = !!st.cliente && !!valor('bodega') && !!valor('centro_costos') && !!valor('garantia').trim() && !!valor('fecha_entrega') && !!st.linea;
+    const cliente = !!st.cliente && !!valor('bodega') && !!valor('centro_costos') && !!valor('fecha_entrega');
     const conceptos = st.conceptos.length > 0 && st.conceptos.every(lineaLista);
     const pago = st.formas.length > 0 && st.formas.every(f => !!f.id);
     return [['Cliente', cliente], ['Conceptos', conceptos], ['Pago', pago], ['Crear', !!st.prev]];
@@ -793,7 +800,7 @@
     const marca = (sel, falta) => { const e = q(sel); if (e && falta) e.classList.add('pe-falta'); };
     if (aqui >= 0) {
       marca('[name="cliente-q"]', !st.cliente); marca('[name="bodega"]', !valor('bodega')); marca('[name="centro_costos"]', !valor('centro_costos'));
-      marca('[name="proyecto_sel"]', !!st.cliente && !valor('garantia').trim()); marca('[name="linea_prod"]', !!st.cliente && !st.linea); marca('[name="fecha_entrega"]', !valor('fecha_entrega'));
+      marca('[name="fecha_entrega"]', !valor('fecha_entrega'));
       if (aqui >= 1) panel.querySelectorAll('[data-lineas] .pe-linea').forEach(row => { const l = st.conceptos[Number(row.dataset.i)]; if (!l) return; if (!l.articulo) row.querySelector('[data-f="ref"]').classList.add('pe-falta'); else if (String(l.precio) === '') row.querySelector('[data-f="precio"]').classList.add('pe-falta'); });
       if (aqui >= 2) panel.querySelectorAll('[data-formas] [data-g="id"]').forEach(s => { if (!s.value) s.classList.add('pe-falta'); });
     }
@@ -915,7 +922,6 @@
     }
     textoAjustes();
     // 2) vitrina dentro de Conceptos (llena el espacio vacío)
-    const con = q('.pe-con'); if (con && !q('[data-vitrina]')) { const v = document.createElement('div'); v.className = 'pe-vitrina'; v.dataset.vitrina = ''; con.appendChild(v); }
     // 3) la línea recién agregada entra animada
     const filas = panel.querySelectorAll('[data-lineas] .pe-linea');
     if (panel._nLineas !== undefined && filas.length > panel._nLineas) filas[filas.length - 1].classList.add('nueva');

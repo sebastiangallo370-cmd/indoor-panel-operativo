@@ -928,7 +928,7 @@
       if (pr.proyecto) L.proyecto = pr.proyecto;
       const m = pr.mockups || {}, refs = Object.keys(m);
       if (refs.length) { L.compartir = false; L.disenos = Math.min(MAX_DISENOS, Math.max(L.disenos || 1, ...refs.map(r => m[r].length))); }
-      L.pantalla = 'listado'; L.abierta = grupos()[0].referencia;
+      L.pantalla = refs.length ? 'listado' : 'mockups'; L.abierta = grupos()[0].referencia;   // sin mockups del documento: primero se eligen en el paso 2 (en el listado)
       L.mkEsperados = refs.flatMap(ref => m[ref].map((u, i) => [ref, i + 1])); L.mkCarga = []; L.mkMaestro = {};
       refs.forEach(ref => m[ref].forEach((u, i) => { if (typeof u === 'string') { try { const q = Object.fromEntries(new URL(u, location.origin).searchParams); if (q.cliente && q.proyecto && q.carpeta && q.archivo) L.mkMaestro[ref + '|' + (i + 1)] = q; } catch (e) { /* sin datos de MAESTROS */ } } }));
       refs.forEach(ref => m[ref].forEach((url, i) => L.mkCarga.push((async () => {
@@ -946,6 +946,6 @@
   const activo = () => (L.doc && raiz && raiz.isConnected && raiz.querySelector('.pl, [data-cuerpo]')) ? L.pantalla : null;
   function ir(p) { if (!activo() || L.pantalla === 'enviado' || L.enviando) return false; L.pantalla = p; if (p === 'listado') L.abierta = L.abierta || grupos()[0].referencia; dibujar(); return true; }
   const previo = () => !!(L.previo && activo());
-  const datos = () => ({ listado: L.listado, disenos: L.disenos, linea: L.linea, observaciones: L.observaciones });
+  const datos = () => ({ listado: L.listado, disenos: L.disenos, linea: L.linea, observaciones: L.observaciones, proyecto: L.proyecto, refDatos: L.refDatos || {} });
   window.PedidoListado = { abrir, activo, ir, previo, datos };
 })();
