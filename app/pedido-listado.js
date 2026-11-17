@@ -232,6 +232,7 @@
   window.addEventListener('resize', () => ajustarHoja());
   const L = {};   // estado del flujo (uno por ventana abierta)
   let raiz = null;
+  let ULTIMO = null;   // lo último que se llenó en el listado (se recupera al volver al documento y regresar)
   const q = s => raiz.querySelector(s);
 
   // ---------------------------------------------------------------- datos
@@ -977,6 +978,14 @@
     Object.keys(L).forEach(k => delete L[k]);
     Object.assign(L, { doc, opts: opts || {}, cat: (opts && opts.cat) || {}, pantalla: 'doc', disenos: 1, proyecto: String(doc.proyecto || doc.garantia || ''), linea: '', observaciones: '', compartir: true, imgs: {}, listado: {}, relleno: {}, defDiseno: 1, defGenero: 'MASC', enviando: false });
     cargarBorrador();
+    // al volver al documento y regresar, se recupera lo que ya estaba seleccionado (proyectos, aplique, mockups, género)
+    if (ULTIMO && ULTIMO.clave === claveDocumento()) {
+      L.refDatos = Object.keys(L.refDatos || {}).length ? L.refDatos : ULTIMO.refDatos;
+      L.textura = L.textura || ULTIMO.textura; L.tipos = L.tipos || ULTIMO.tipos;
+      L.imgs = Object.keys(L.imgs || {}).length ? L.imgs : ULTIMO.imgs;
+      L.defGenero = ULTIMO.defGenero || L.defGenero; L.defDiseno = ULTIMO.defDiseno || L.defDiseno;
+      L.proyLista = ULTIMO.proyLista;
+    }
     L.compartir = false;   // cada referencia con sus propios mockups
     const pr = (opts && opts.preset) || null;
     L.previo = !!(opts && opts.previo);
@@ -1008,6 +1017,11 @@
   const activo = () => (L.doc && raiz && raiz.isConnected && raiz.querySelector('.pl, [data-cuerpo]')) ? L.pantalla : null;
   function ir(p) { if (!activo() || L.pantalla === 'enviado' || L.enviando) return false; L.pantalla = p; if (p === 'listado') L.abierta = L.abierta || grupos()[0].referencia; dibujar(); return true; }
   const previo = () => !!(L.previo && activo());
-  const datos = () => ({ listado: L.listado, disenos: L.disenos, linea: L.linea, observaciones: L.observaciones, proyecto: L.proyecto, refDatos: L.refDatos || {} });
+  const claveDocumento = () => String((L.doc.cliente && L.doc.cliente.nombre) || '') + '|' + grupos().map(g => g.referencia).join(',');
+  const datos = () => {
+    const d = { listado: L.listado, disenos: L.disenos, linea: L.linea, observaciones: L.observaciones, proyecto: L.proyecto, refDatos: L.refDatos || {} };
+    ULTIMO = Object.assign({ clave: claveDocumento(), textura: L.textura, tipos: L.tipos, imgs: L.imgs, defGenero: L.defGenero, defDiseno: L.defDiseno, proyLista: L.proyLista }, d);
+    return d;
+  };
   window.PedidoListado = { abrir, activo, ir, previo, datos };
 })();
