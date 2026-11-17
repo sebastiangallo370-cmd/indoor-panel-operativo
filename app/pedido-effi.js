@@ -713,6 +713,8 @@
     .pe-bloque-izq [data-formas]{flex:0 0 auto}
     .pe-vit .foto{flex:1 1 0!important;height:auto!important;min-height:0!important;position:relative}
     .pe-vit .foto img{position:absolute;inset:0;width:100%;height:100%}
+    .pe-vit .foto img{object-fit:contain!important;box-sizing:border-box!important;padding:6px!important}
+    .pe-vit .foto{background:#fff!important}
     .pe-vit .t{flex:0 0 auto;max-height:40px;overflow:hidden;margin-top:6px}
     .pe-vit-vacia{flex:1 1 100%;height:auto!important;display:grid;place-content:center}
     .pe-slot{margin-left:auto;display:flex;align-items:center}
