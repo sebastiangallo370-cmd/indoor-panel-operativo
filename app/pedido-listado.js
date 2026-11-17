@@ -622,7 +622,7 @@
       pn.style.right = 'auto';
       pn.style.width = ancho + 'px';
     });
-    raiz.querySelectorAll('[data-ref]').forEach(b => b.onclick = () => { L.abierta = b.dataset.ref; pantallaListado(); });
+    raiz.querySelectorAll('button.pl-ref[data-ref]').forEach(b => b.onclick = () => { L.abierta = b.dataset.ref; pantallaListado(); });   // solo los botones de referencia (los campos de proyecto también llevan data-ref)
     q('[data-atras]').onclick = () => { if (L.previo) { if (L.opts.onVolver) L.opts.onVolver(); return; } L.pantalla = 'mockups'; dibujar(); };
     q('[data-n-disenos]').onchange = e => { const n = Number(e.target.value); L.disenos = n; if (L.defDiseno > n) L.defDiseno = n; filasDe(L.abierta).forEach(f => { if (Number(f.diseno) > n) f.diseno = n; }); guardarBorrador(); pantallaListado(); };   // más o menos diseños: la lista DISEÑO de cada fila se ajusta
     q('[data-def-diseno]').onchange = e => { L.defDiseno = Number(e.target.value); };
