@@ -509,9 +509,10 @@
   function panelMockupsListado(ref) {
     if (!ref) return '';
     const slots = Array.from({ length: L.disenos }, (_, i) => i + 1).filter(n => !imagenDe(ref, n)).map(n => slotHtml(ref, n)).join('');
+    const elegidos = (galPick()[ref] || []).map((pk, k) => '<div style="display:inline-block;width:96px;margin:0 8px 8px 0;vertical-align:top"><img src="' + esc(URL.createObjectURL(pk.file)) + '" alt="D' + (k + 1) + '" style="width:96px;height:128px;object-fit:contain;border-radius:8px;background:#0b120d;border:2px solid #d0f44c;display:block"><small style="color:#d0f44c;font:800 11px Arial">DISEÑO ' + (k + 1) + '</small></div>').join('');
     return '<div class="pl-tarjeta"><h3>MOCKUPS · ' + esc(ref) + '</h3>' +
       '<div style="margin:0 0 8px"><button class="pl-btn sec mini" type="button" data-galeria="' + esc(ref) + '">VER MOCKUPS DE MAESTROS</button></div>' +
-      galeriaHtml(ref) + '<div class="pl-slots">' + slots + '</div></div>';
+      (elegidos ? '<div style="margin:0 0 8px">' + elegidos + '</div>' : '') + galeriaHtml(ref) + '<div class="pl-slots">' + slots + '</div></div>';
   }
   function layoutListado() {
     const cuerpo = q('[data-cuerpo]'); if (!cuerpo) return;
@@ -1026,6 +1027,7 @@
     if (ULTIMO && ULTIMO.clave === claveDocumento()) {
       L.refDatos = Object.keys(L.refDatos || {}).length ? L.refDatos : ULTIMO.refDatos;
       L.textura = L.textura || ULTIMO.textura; L.tipos = L.tipos || ULTIMO.tipos;
+      if (ULTIMO.galPick && !Object.keys(L.galPick || {}).length) { L.galPick = ULTIMO.galPick; Object.keys(L.galPick).forEach(ref => sincronizar(ref)); }
       L.imgs = Object.keys(L.imgs || {}).length ? L.imgs : ULTIMO.imgs;
       L.defGenero = ULTIMO.defGenero || L.defGenero; L.defDiseno = ULTIMO.defDiseno || L.defDiseno;
       L.proyLista = ULTIMO.proyLista;
@@ -1064,7 +1066,7 @@
   const claveDocumento = () => String((L.doc.cliente && L.doc.cliente.nombre) || '') + '|' + grupos().map(g => g.referencia).join(',');
   const datos = () => {
     const d = { listado: L.listado, disenos: L.disenos, linea: L.linea, observaciones: L.observaciones, proyecto: L.proyecto, refDatos: L.refDatos || {} };
-    ULTIMO = Object.assign({ clave: claveDocumento(), textura: L.textura, tipos: L.tipos, imgs: L.imgs, defGenero: L.defGenero, defDiseno: L.defDiseno, proyLista: L.proyLista }, d);
+    ULTIMO = Object.assign({ clave: claveDocumento(), textura: L.textura, tipos: L.tipos, imgs: L.imgs, galPick: L.galPick, defGenero: L.defGenero, defDiseno: L.defDiseno, proyLista: L.proyLista }, d);
     return d;
   };
   window.PedidoListado = { abrir, activo, ir, previo, datos };
