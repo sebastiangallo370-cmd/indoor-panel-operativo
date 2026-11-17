@@ -28,7 +28,6 @@
     return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
   };
   const nuevaClave = () => 'pedido-' + [...crypto.getRandomValues(new Uint8Array(10))].map(b => b.toString(16).padStart(2, '0')).join('');
-
   const css = document.createElement('style');
   css.textContent = `
   .pe{width:100%;max-width:none;margin:8px 0;display:grid;gap:14px}
@@ -132,6 +131,24 @@
     .pe-acciones{padding:5px 10px}.pe-forma{margin-bottom:4px}
     .pe-con .pe-h3row{margin-bottom:4px}.pe-btn.mini{min-height:28px}
   }
+  /* Pantalla ancha: la tarjeta «Formas de pago» queda más pequeña (no se estira a la altura del resumen) para dejar más espacio a los mockups de la referencia. */
+  @media(min-width:1000px){
+    .pe-abajo{grid-template-columns:minmax(0,1.3fr) minmax(0,.7fr) minmax(0,1fr)!important}
+    .pe-abajo>.pe-card:nth-child(2){align-self:start;padding:8px 12px!important}
+    .pe-abajo>.pe-card:nth-child(2) h3{margin-bottom:4px;font-size:12px}
+    .pe-abajo>.pe-card:nth-child(2) .pe-forma{grid-template-columns:minmax(0,1fr) minmax(0,.8fr) auto;gap:6px;margin-bottom:4px}
+    .pe-abajo>.pe-card:nth-child(2) label{font-size:10px;gap:2px}
+    .pe-abajo>.pe-card:nth-child(2) input,.pe-abajo>.pe-card:nth-child(2) select{min-height:30px;font-size:13px}
+    .pe-abajo>.pe-card:nth-child(2) .pe-btn{min-height:28px;font-size:11px}
+  }
+  /* Espacio de los mockups FIJO: la franja tiene siempre la misma altura (con mockups, con aviso o vacía) y, si hay varios, se desplaza dentro de ella. */
+  @media(min-width:1000px){
+    .pe-vitrina{height:462px;min-height:462px;max-height:462px;overflow-y:auto;overflow-x:hidden;align-content:flex-start;margin-top:12px}
+    .pe-vit{height:430px;min-height:430px;max-height:430px;overflow:hidden;box-sizing:border-box}
+    .pe-vit .foto{height:340px;min-height:340px}
+    .pe-vit .t{overflow:hidden;max-height:48px}
+    .pe-vit-vacia{width:100%;box-sizing:border-box;height:462px;display:grid;place-content:center}
+  }
   @media(max-width:900px){
     .pe-sug{width:calc(100% - 12px)}.pe-sug button{white-space:normal;gap:10px}
     .pe-linea{grid-template-columns:1fr 1fr;padding:14px 0}
@@ -199,16 +216,13 @@
     .pe-acciones{display:grid;grid-template-columns:1fr 1fr;gap:8px;position:static!important;padding:0;border:0;background:none}.pe-acciones .pe-msg{grid-column:1/-1}
     .pe-dos{display:flex!important;flex-direction:column;gap:10px}.pe-dos>.pe-izq{display:contents}.pe-izq>.pe-garm{order:1}.pe-izq>label:not(.pe-garm){order:2}.pe-izq>div:not(.pe-sub){order:3}.pe-dos>*:not(.pe-izq){order:4}.pe-izq>.pe-sub{order:5;grid-template-columns:1fr!important}
     .pe-izq>div:not(.pe-sub)>div[style*="display:flex"]{flex-direction:column;align-items:stretch}.pe-izq select{width:100%}
-    
   }`;
   document.head.appendChild(css);
-
   const estadoInicial = () => ({ tipo: 'cotizacion', cat: null, estado: null, cliente: null, direccion: -1, conceptos: [], telas: {}, proy: { cliente: '', cargando: false, lista: [], carpeta: null, error: '' }, sinIvaTodos: false, formas: [], clave: nuevaClave(), previa: false, prev: null, ocupado: false, hecho: null, capturando: false, capTexto: '', capMsg: '', moneda: 'COP', trm: '1', global: '', propina: '', propinaPct: false, retenciones: [], pronto: '', fechaPronto: '', linea: '', mkSel: {}, listadoPrevio: null, mkFiles: {} });
   const st = estadoInicial();
   let panel = null;
   const q = s => panel.querySelector(s);
   const nombreDoc = () => (st.tipo === 'cotizacion' ? 'cotización' : 'remisión de venta');
-
   const api = async (url, opts) => {
     const r = await fetch(url, Object.assign({ credentials: 'same-origin' }, opts || {}));
     const j = await r.json().catch(() => ({}));
@@ -218,7 +232,6 @@
   const post = (url, body) => api(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   const debounce = (fn, ms) => { let t = 0; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
   const msg = (t, tipo) => { const m = q('[data-msg]'); if (m) { m.textContent = t || ''; m.className = 'pe-msg ' + (tipo || ''); } };
-
   const lineaVacia = () => ({ articulo: 0, ref: '', descripcion: '', cantidad: 1, precio: '', descuento: 0, dtipo: 'valor', obsequio: false, sinIva: false, obs: '', impuesto: '', abierta: false, id_serie: null });
   const num = v => { const n = Number(String(v).replace(',', '.')); return isFinite(n) ? n : 0; };
   const brutoDe = l => num(l.cantidad) * num(l.precio);
@@ -235,12 +248,10 @@
   }
   const est = v => '≈ ' + money(v);
   const propinaValor = () => (st.propinaPct ? Math.round(totales().s * num(st.propina)) / 100 : num(st.propina));
-
   function opciones(lista, sel, vacio) {
     return '<option value="">' + esc(vacio || 'Seleccionar…') + '</option>' + lista.map(o => '<option value="' + o.id + '"' + (String(o.id) === String(sel) ? ' selected' : '') + '>' + esc(o.nombre) + '</option>').join('');
   }
   const valor = n => { const e = q('[name="' + n + '"]'); return e ? e.value : ''; };
-
   function refrescarDirecciones() {   // al volver a escribir el cliente, la dirección del anterior ya no vale
     const dir = q('[name="direccion"]'); if (dir) dir.innerHTML = st.cliente && st.cliente.direcciones.length ? st.cliente.direcciones.map((d, i) => '<option value="' + i + '"' + (i === st.direccion ? ' selected' : '') + '>' + esc((d.ciudad ? d.ciudad + ' · ' : '') + d.direccion) + '</option>').join('') : '<option value="-1">No registra</option>';
   }
@@ -261,7 +272,7 @@
       ${apagado ? '<div class="pe-aviso pe-av"><span>La creación en Effi está frenada desde el servidor: puedes armar el documento y ver la vista previa, pero no se envía. Avisa a administración.</span></div>' : ''}
       <div class="pe-card pe-enc">
         <div class="pe-top"><div><span class="eyebrow">COMERCIALES · EFFI</span><h2>+ Crear ${nombreDoc()}</h2></div>
-          <div class="pe-tipo" role="group" aria-label="Tipo de documento"><button type="button" data-tipo="cotizacion" class="${st.tipo === 'cotizacion' ? 'on' : ''}">COTIZACIÓN</button><button type="button" data-tipo="remision" class="${st.tipo === 'remision' ? 'on' : ''}">REMISIÓN</button></div></div>
+          <div class="pe-tipo" role="group" aria-label="Tipo de documento"><button type="button" data-tipo="cotizacion" class="${st.tipo === 'cotizacion' ? 'on' : ''}">COTIZACIÓN</button><button type="button" data-tipo="remision" class="${st.tipo === 'remision' ? 'on' : ''}">REMISIÓN</button></div><div class="pe-slot" data-pe-slot></div></div>
         <div class="pe-grid" style="margin-top:14px">
           <label>Sucursal*<select name="sucursal">${opciones(c.sucursales, suc)}</select></label>
           <label>Bodega*<select name="bodega">${opciones(bodegas, guard.bodega)}</select></label>
@@ -295,17 +306,18 @@
         <div style="margin-top:10px"><button class="pe-btn sec mini" type="button" data-mas>+ Agregar concepto</button></div>
       </div>
       <div class="pe-abajo">
-      <div class="pe-card pe-det"><h3>Detalles de la ${nombreDoc()}</h3>
+      <div class="pe-bloque-izq"><div class="pe-card pe-det"><h3>Detalles de la ${nombreDoc()}</h3>
         <div class="pe-grid pe-izq"><label>Observación<textarea name="observacion" maxlength="800" placeholder="Observación">${esc(guard.observacion)}</textarea></label>
           <div><div style="display:flex;gap:8px;align-items:end"><label style="flex:1;min-width:0">Retenciones<select data-ret-sel>${opciones((c.retenciones || []).filter(r => !st.retenciones.includes(r.id)), '', 'Seleccionar…')}</select></label><button class="pe-btn sec mini" type="button" data-ret-add>+ Agregar</button></div>
             <div class="pe-chips">${st.retenciones.map(id => { const r = (c.retenciones || []).find(x => x.id === id); return '<span class="pe-chip">' + esc(r ? r.nombre : id) + '<button type="button" data-ret-quitar="' + id + '" aria-label="Quitar">✕</button></span>'; }).join('')}</div></div>
-          <div class="pe-sub"><label>Descuento pronto pago ($)<input name="pronto" inputmode="decimal" placeholder="0" value="${esc(st.pronto)}"></label><label>Fecha pronto pago<input type="date" name="fecha_pronto" value="${esc(st.fechaPronto)}"></label></div></div>
+          </div>
       </div>
       <div class="pe-card"><h3>Formas de pago</h3><div data-formas>${st.formas.map((f, i) => `
         <div class="pe-forma" data-j="${i}"><label>Forma de pago*<select data-g="id">${opciones(c.formas_pago.filter(x => st.tipo === 'cotizacion' || x.credito), f.id, 'Seleccionar…')}</select></label><label>Valor${st.formas.length > 1 ? '' : ' (vacío = total)'}<input data-g="valor" inputmode="decimal" value="${esc(f.valor)}"></label>${st.formas.length > 1 ? '<button class="pe-x" type="button" data-quitar-forma aria-label="Quitar">✕</button>' : '<span></span>'}</div>`).join('')}</div>
         <button class="pe-btn sec mini" type="button" data-mas-forma>+ Agregar forma de pago</button>
+        <div class="pe-sub"><label>Descuento pronto pago ($)<input name="pronto" inputmode="decimal" placeholder="0" value="${esc(st.pronto)}"></label><label>Fecha pronto pago<input type="date" name="fecha_pronto" value="${esc(st.fechaPronto)}"></label></div>
         ${st.tipo === 'remision' ? '<p style="margin:10px 0 0;color:#a9b5a3;font:500 12px/1.5 Arial">En remisión solo van formas a crédito o «Contado a 1 día»; el cobro en caja se registra en Effi.</p>' : ''}
-      </div>
+      </div></div>
       <div class="pe-card pe-resumen"><h3>Resumen</h3>
         <div class="pe-tot"><div><span>TOTAL BRUTO</span><b>${money(t.b)}</b></div><div><span>− Descuentos</span><b>${money(t.d)}</b></div><div><span>SUBTOTAL</span><b>${money(t.s)}</b></div>
           <div class="pe-propina"><span>+ Propina</span><span class="pe-dto"><input name="propina" inputmode="decimal" placeholder="0" value="${esc(st.propina)}"><button class="pe-pct" type="button" data-propina-tipo title="Cambiar entre valor ($) y porcentaje (%)">${st.propinaPct ? '%' : '$'}</button></span></div>
@@ -319,7 +331,6 @@
     </div>`;
     enlazar();
   }
-
   function leerFormulario() {
     const d = st.cliente && st.direccion >= 0 ? st.cliente.direcciones[st.direccion] : null;
     return {
@@ -332,7 +343,6 @@
   }
   function invalidar() { if (st.prev) { st.prev = null; const b = q('[data-crear]'); if (b) b.disabled = true; const p = q('[data-previa]'); if (p) p.hidden = true; const i = q('[data-imp]'), n = q('[data-neto]'), r = q('[data-ret]'); refrescarTotales(); msg('Cambiaste algo: vuelve a pulsar VISTA PREVIA.', ''); } }
   function defectoForma() { const f = st.cat.formas_pago.find(x => x.defecto) || st.cat.formas_pago[0]; return { id: f ? f.id : '', valor: '' }; }
-
   const cerrarVentana = () => { const f = document.querySelector('.tc-pedido-fondo'); if (f) f.remove(); };
   function nuevoDocumento() { st.hecho = null; st.cliente = null; st.conceptos = [lineaVacia()]; st.formas = [defectoForma()]; st.clave = nuevaClave(); st.previa = false; st.prev = null; dibujar(); }
   // Lo que el listado necesita de la cotización recién creada (la réplica en pantalla y el PDF para el programar pedido)
@@ -353,7 +363,6 @@
       formas, subtotal: prev.subtotal, total,
     };
   }
-
   async function previa(crear) {
     if (st.ocupado) return;
     st.ocupado = true; msg(crear ? 'Creando en Effi…' : 'Calculando con Effi…', '');
@@ -375,7 +384,6 @@
     } catch (e) { st.ocupado = false; msg(String(e.message || e), 'error'); }
   }
   function dibujarConservando() { const y = window.scrollY; dibujar(); window.scrollTo(0, y); }
-
   // Lista flotante ÚNICA (hija de .pe, no de una tarjeta): así no la tapa el vidrio de otra tarjeta ni la recorta un scroll. Una fila por resultado con el nombre completo.
   const resaltar = (t, texto) => {
     const ws = String(texto || '').trim().split(/\s+/).filter(w => w.length > 1 && !/[&<>"']/.test(w)).map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
@@ -505,7 +513,6 @@
       mostrarSug(input, r.articulos.length ? r.articulos.map((a, k) => '<button type="button" data-i="' + k + '"><span class="n">' + resaltar(a.referencia + ' · ' + a.descripcion, texto) + '</span><span class="d">' + (a.precio ? money(a.precio) : 'sin precio de lista') + (a.impuesto ? ' · ' + esc(a.impuesto) : '') + '</span></button>').join('') : '<div class="pe-sug-nota">Sin resultados para «' + esc(texto.trim()) + '»</div>', r.articulos, 'a', i);
     } catch (e) { mostrarSug(input, '<div class="pe-sug-nota">No se pudo buscar: ' + esc(String(e.message || e)) + '</div>', [], 'a', i); }
   }, 300);
-
   function enlazar() {
     if (st.hecho) return;
     panel.querySelectorAll('[data-tipo]').forEach(b => b.onclick = () => { if (st.tipo === b.dataset.tipo) return; st.tipo = b.dataset.tipo; st.prev = null; if (st.tipo === 'remision') st.formas = st.formas.map(f => { const x = st.cat.formas_pago.find(y => y.id === Number(f.id)); return x && !x.credito ? defectoForma() : f; }); dibujar(); });
@@ -583,7 +590,6 @@
   }
   function cierraSug(e) { if (!panel || !e.target.closest) return; const box = q('[data-sug-global]'); if (box && !box.hidden && !box.contains(e.target) && e.target !== box._ancla) box.hidden = true; }
   function refrescarTotales() { const t = totales(), tot = q('.pe-tot'); if (!tot) return; const v = tot.querySelectorAll('b'); v[0].textContent = money(t.b); v[1].textContent = money(t.d); v[2].textContent = money(t.s); if (!st.prev) { const e = estimado(), i = q('[data-imp]'), n = q('[data-neto]'), r = q('[data-ret]'); if (i) i.textContent = est(e.imp); if (n) n.textContent = est(e.neto); if (r) r.textContent = st.retenciones.length ? est(e.ret) : '—'; } }
-
   async function iniciar() {
     panel.innerHTML = '<div class="pe"><div class="pe-cargando" role="status" aria-live="polite"><img class="pe-logo-anim" src="/marca-indoor.svg" alt="Indoor"><div class="pe-barra-carga"><i></i></div><span>Cargando datos de Effi…</span></div></div>';
     try {
@@ -595,7 +601,6 @@
       q('[data-reintentar]').onclick = iniciar;
     }
   }
-
   // Se monta dentro de cualquier contenedor (hoy: el botón EMPEZAR PEDIDO de PROGRAMAR CLUB, en club-admin.js). Cada montaje empieza limpio y con su propia clave de envío.
   function montar(el) {
     panel = el; Object.assign(st, estadoInicial());
@@ -658,7 +663,7 @@
   .pe-vit .foto{position:relative}.pe-vit .foto img{width:100%;height:100%;object-fit:contain}
   .pe-vit{cursor:pointer;transition:border-color .2s,box-shadow .2s}.pe-vit:hover{border-color:rgba(208,244,76,.5)}
   .pe-vit.elegido{border:2px solid #d0f44c;box-shadow:0 0 0 3px rgba(208,244,76,.2)}
-  .pe-link.pe-vit-mas{padding:4px!important;margin-left:8px;min-width:0;background:transparent!important;border:0!important;box-shadow:none!important}.pe-link.pe-vit-mas[hidden]{display:none!important}.pe-link.pe-vit-mas{color:#d0f44c!important;align-self:center;height:34px;display:inline-flex;align-items:center;justify-content:center}.pe-link.pe-vit-mas svg{width:28px;height:28px;filter:drop-shadow(0 0 6px rgba(208,244,76,.6)) drop-shadow(0 2px 0 rgba(111,148,16,.9));transition:transform .35s cubic-bezier(.3,1.4,.4,1),filter .2s}.pe-link.pe-vit-mas:hover svg{transform:rotate(180deg);filter:drop-shadow(0 0 10px rgba(230,255,107,.9)) drop-shadow(0 2px 0 rgba(111,148,16,.9))}.pe-link.pe-vit-mas:active svg{transform:rotate(180deg) scale(.88)}.pe-link.pe-vit-mas:hover{background:transparent!important;transform:scale(1.15)}
+  .pe-link.pe-vit-mas{padding:4px!important;margin-left:8px;min-width:0;background:transparent!important;border:0!important;box-shadow:none!important}.pe-link.pe-vit-mas[hidden]{display:none!important}.pe-link.pe-vit-mas{color:#d0f44c!important;align-self:center;height:24px;display:inline-flex;align-items:center;justify-content:center}.pe-link.pe-vit-mas svg{width:18px;height:18px;filter:drop-shadow(0 0 6px rgba(208,244,76,.6)) drop-shadow(0 2px 0 rgba(111,148,16,.9));transition:transform .35s cubic-bezier(.3,1.4,.4,1),filter .2s}.pe-link.pe-vit-mas:hover svg{transform:rotate(180deg);filter:drop-shadow(0 0 10px rgba(230,255,107,.9)) drop-shadow(0 2px 0 rgba(111,148,16,.9))}.pe-link.pe-vit-mas:active svg{transform:rotate(180deg) scale(.88)}.pe-link.pe-vit-mas:hover{background:transparent!important;transform:scale(1.15)}
   .pe-link.pe-sube{cursor:pointer;background:rgba(208,244,76,.08)!important;color:#d0f44c!important;box-shadow:none!important}.pe-link.pe-sube:hover{background:rgba(208,244,76,.2)!important}
   .pe-vit-up{cursor:pointer;border-style:dashed!important}.pe-vit-up .foto{background:rgba(208,244,76,.07);color:#d0f44c;font:900 13px/1.6 Arial;text-align:center;align-content:center}.pe-vit-up .foto small{color:#a9b5a3;font-weight:700}.pe-vit-up:hover .foto{background:rgba(208,244,76,.15)}
   .pe-vit-d{position:absolute;top:8px;left:8px;padding:4px 10px;border-radius:99px;background:#0d140e;color:#a9b5a3;font:900 11px Arial;letter-spacing:.08em}
@@ -681,9 +686,86 @@
   .pe-atajos{color:#7f8c79;font:600 10.5px Arial;margin-top:6px}
   .pe-recuperar{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:10px 14px;border:1px solid rgba(208,244,76,.4);border-radius:14px;background:rgba(208,244,76,.07);color:#e8f0e0;font:700 13px Arial}
   @media(max-width:999px){.pe-pasos{margin:8px 0 0;width:100%}.pe-paso{padding:4px 8px 4px 5px;font-size:9.5px}.pe-paso-sep{display:none}.pe-vit{width:calc(50% - 8px);box-sizing:border-box}.pe-vit .foto{height:260px}}
+  /* Pantalla ancha: sin barra de título ni scroll en Conceptos. Los mockups ocupan el espacio que sobra (ancho fijo, alto variable) y las pestañas + CERRAR van dentro del formulario. */
+  @media(min-width:1000px){
+    /* Mockups DEBAJO de los conceptos, en una fila de altura FIJA; los conceptos usan el resto (con scroll solo si hay muchos) de la tarjeta */
+    .pe-con{display:flex!important;flex-direction:column;overflow:hidden!important;min-height:0!important}
+    .pe-con>.pe-h3row{flex:0 0 auto}
+    .pe-con>[data-lineas]{flex:1 1 auto;min-height:150px;overflow:auto;scrollbar-width:thin}
+    .pe-con>.pe-vitrina{flex:0 0 230px!important;height:230px!important;min-height:230px!important;max-height:230px!important;margin:8px 0 0!important;display:flex!important;flex-direction:row!important;flex-wrap:nowrap!important;gap:12px!important;overflow-x:auto!important;overflow-y:hidden!important;scrollbar-width:none}
+    .pe-vit{flex:0 0 240px!important;width:240px!important;height:270px!important;min-height:270px!important;max-height:270px!important;display:flex!important;flex-direction:column;overflow:hidden!important;box-sizing:border-box;margin:0!important}
+    .pe-vit .foto{flex:1 1 0!important;min-height:0!important}
+    /* Detalles de la cotización y Formas de pago UNIFICADOS en un solo bloque (a la izquierda del resumen) */
+    .pe-abajo{grid-template-columns:minmax(0,2.1fr) minmax(0,1fr)!important}
+    .pe-bloque-izq{display:grid!important;grid-template-columns:minmax(0,1.3fr) minmax(0,.8fr);gap:8px;align-items:stretch;min-height:0;border:1px solid rgba(255,255,255,.14);border-radius:16px;padding:6px;background:linear-gradient(160deg,rgba(255,255,255,.05),rgba(0,0,0,.22))}
+    .pe-bloque-izq>.pe-card{border:0!important;background:none!important;backdrop-filter:none!important;padding:4px 8px!important}
+    /* Resumen compacto: los totales en dos columnas (menos filas) para ganar altura a conceptos y mockups */
+    .pe-abajo .pe-resumen h3{margin-bottom:2px!important}
+    .pe-abajo .pe-msg:empty{display:none}
+    /* Detalles del documento + forma de pago UNIFICADOS: un solo recuadro, dos columnas, sin huecos (la observación crece) */
+    .pe-bloque-izq{align-items:stretch!important;padding:8px 10px!important}
+    .pe-bloque-izq>.pe-card{display:flex!important;flex-direction:column;min-height:0}
+    .pe-bloque-izq>.pe-card+.pe-card{border-left:1px solid rgba(255,255,255,.12)!important;padding-left:12px!important}
+    .pe-bloque-izq .pe-izq{flex:1 1 auto;display:flex!important;flex-direction:column;min-height:0}
+    .pe-bloque-izq .pe-izq>label{flex:1 1 auto;display:flex!important;flex-direction:column}
+    .pe-bloque-izq textarea[name="observacion"]{flex:1 1 auto;min-height:60px!important;height:auto!important;resize:none}
+    .pe-bloque-izq .pe-sub{margin-top:auto}
+    .pe-bloque-izq [data-formas]{flex:0 0 auto}
+    .pe-vit .foto{flex:1 1 0!important;height:auto!important;min-height:0!important;position:relative}
+    .pe-vit .foto img{position:absolute;inset:0;width:100%;height:100%}
+    .pe-vit .t{flex:0 0 auto;max-height:40px;overflow:hidden;margin-top:6px}
+    .pe-vit-vacia{flex:1 1 100%;height:auto!important;display:grid;place-content:center}
+    .pe-slot{margin-left:auto;display:flex;align-items:center}
+    .pe-slot .tc-pedido-herr{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+    .pe-slot .tc-ptabs{margin:0!important}
+    .pe-slot .tc-pedido-cerrar{min-height:34px}
+    /* franja de abajo (detalles, formas de pago, resumen) más baja: el espacio se le da a los mockups */
+    .pe{gap:6px!important;grid-template-rows:auto auto minmax(0,1fr) auto!important}
+    .pe-abajo{gap:8px!important}
+    .pe-abajo>.pe-card{padding:7px 11px!important}
+    .pe-abajo h3{margin-bottom:3px!important;font-size:12px!important}
+    .pe-abajo label{gap:1px!important;font-size:10px!important}
+    .pe-abajo textarea{min-height:26px!important;height:30px!important}
+    .pe-abajo input,.pe-abajo select{min-height:28px!important;font-size:12px!important}
+    .pe-abajo .pe-izq{gap:5px!important}
+    .pe-abajo .pe-sub{gap:5px!important}
+    .pe-abajo .pe-chips{margin-top:2px}
+    .pe-abajo .pe-tot{gap:0!important}
+    .pe-abajo .pe-tot>div{font-size:12px;line-height:1.3;padding:1px 0}
+    .pe-abajo .pe-tot .neto{font-size:15px!important;padding:4px 10px}
+    .pe-abajo .pe-acciones{padding:4px 0 0!important;gap:6px}
+    .pe-abajo .pe-acciones .pe-btn{min-height:32px!important}
+    .pe-abajo .pe-msg{font-size:11px}
+    .pe-abajo>.pe-card:nth-child(2) .pe-btn{min-height:26px!important}
+  }
+  /* Pantalla ancha: si hay muchos conceptos o mockups, se desplaza TODA la pestaña (no solo la lista de conceptos). */
+    /* Cada espacio conserva SU tamaño: nada se aplasta cuando hay muchos conceptos (la pestaña entera se desplaza) */
+    .tc-pedido-card [data-pedido-effi]{flex:0 0 auto!important;min-height:auto!important}
+    .pe>*{flex-shrink:0!important;min-height:auto!important}
+    .pe-enc,.pe-con,.pe-abajo,.pe-abajo>*{min-height:auto!important;flex-shrink:0!important}
+    .pe-con>[data-lineas]{min-height:auto!important;flex:0 0 auto!important}
+    .pe-con>.pe-vitrina{flex:0 0 270px!important;min-height:270px!important;max-height:270px!important;height:270px!important}
+    .pe-vit{flex:0 0 240px!important;width:240px!important;height:270px!important;min-height:270px!important;max-height:270px!important}
+  @media(min-width:1000px){
+    .tc-pedido-card{height:auto!important;min-height:calc(100vh - 12px)!important}
+    .tc-pedido-fondo{overflow:auto!important}
+    .pe{height:auto!important;grid-template-rows:auto auto auto auto!important}
+    .pe-con{overflow:visible!important;min-height:0!important}
+    .pe-con>[data-lineas]{flex:0 0 auto!important;overflow:visible!important;min-height:0!important}
+    .pe-abajo{min-height:0}
+  }
+  /* Celular: las pestañas CO/RM · LISTADO y CERRAR ocupan el ancho de la fila de arriba; el mockup se ve completo sin pasar de la pantalla */
+  @media(max-width:999px){
+    .pe-slot{width:100%;margin:0}
+    .pe-slot .tc-pedido-herr{width:100%;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+    .pe-slot .tc-ptabs{flex:1 1 auto;display:flex}
+    .pe-slot .tc-ptabs button{flex:1 1 0}
+    .pe-slot .tc-pedido-cerrar{flex:0 0 auto}
+    .pe-vit{max-width:100%}
+    .pe-vitrina{max-width:100%}
+  }
   `;
   document.head.appendChild(cssPlus);
-
   const lineaLista = l => !!(l.articulo && num(l.cantidad) > 0 && String(l.precio) !== '' && String(l.descripcion || '').trim());
   function estadoPasos() {
     const cliente = !!st.cliente && !!valor('bodega') && !!valor('centro_costos') && !!valor('garantia').trim() && !!valor('fecha_entrega');
@@ -843,7 +925,6 @@
         const n = e.target && e.target.name; if (['sucursal', 'centro_costos', 'vendedor', 'bodega'].includes(n)) { const p = leerLS(CLAVE_PREF, {}); p[n] = e.target.value; guardarLS(CLAVE_PREF, p); }
       });
       panel.addEventListener('click', () => setTimeout(vivoPronto, 50));
-
     }
     pintarPasos(); pintarVitrina(); animarNeto();
     if (!panel._ofrecido) { panel._ofrecido = true; ofrecerBorrador(); }
