@@ -763,6 +763,10 @@
     .pe-slot .tc-pedido-cerrar{flex:0 0 auto}
     .pe-vit{max-width:100%}
     .pe-vitrina{max-width:100%}
+    /* móvil: la franja de mockups crece con su contenido (foto + nombre); no se encima con la tarjeta de abajo */
+    .pe-con>.pe-vitrina{height:auto!important;min-height:0!important;max-height:none!important;overflow:visible!important;margin:10px 0 0!important;flex:0 0 auto!important}
+    .pe-vit{height:auto!important;min-height:0!important;max-height:none!important;overflow:visible!important;margin-bottom:6px}
+    .pe-vit .t{margin-top:8px;position:static}
   }
   `;
   document.head.appendChild(cssPlus);
