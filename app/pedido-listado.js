@@ -268,6 +268,16 @@
   function dibujar() {
     const p = L.pantalla;
     raiz.innerHTML = '<div class="pl">' + barra() + '<div class="pl-cuerpo" data-cuerpo></div><div class="pl-acciones" data-acciones></div></div>';
+    // Botón con X para cerrar el listado (usa la misma acción de cierre que el resto de la ventana)
+    const barraPl = raiz.querySelector('.pl-barra');
+    if (barraPl && L.opts && L.opts.onCerrar) {
+      const x = document.createElement('button');
+      x.type = 'button'; x.className = 'pl-btn sec mini'; x.setAttribute('data-x-cerrar', ''); x.title = 'Cerrar'; x.setAttribute('aria-label', 'Cerrar');
+      x.style.cssText = 'display:inline-flex!important;align-items:center;justify-content:center;flex:0 0 34px!important;width:34px!important;min-width:34px!important;height:34px!important;min-height:34px!important;padding:0!important;margin:0 0 0 auto!important;border-radius:50%!important;background:rgba(255,255,255,.08)!important;border:1px solid rgba(255,255,255,.22)!important;color:#f4f7fa!important;cursor:pointer';
+      x.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg>';
+      x.onclick = () => L.opts.onCerrar();
+      barraPl.appendChild(x);
+    }
     if (p === 'doc') pantallaDoc(); else if (p === 'mockups') pantallaMockups(); else if (p === 'listado') pantallaListado(); else pantallaEnviado();
   }
   const acciones = (html, msg, tipo) => { q('[data-acciones]').innerHTML = html + '<div class="pl-msg ' + (tipo || '') + '" data-msg>' + esc(msg || '') + '</div>'; };
@@ -435,12 +445,63 @@
       '<div class="pl-tarjeta"><h3>' + esc(g.referencia) + ' · ' + esc(g.descripcion) + ' · ' + g.cantidad + ' prendas</h3>' +
       '<div class="pl-herr"><label>N° de diseños<select data-n-disenos>' + Array.from({ length: MAX_DISENOS }, (_, k) => '<option value="' + (k + 1) + '"' + (k + 1 === L.disenos ? ' selected' : '') + '>' + (k + 1) + '</option>').join('') + '</select></label><label>Diseño nuevo<select data-def-diseno>' + Array.from({ length: L.disenos }, (_, k) => '<option value="' + (k + 1) + '"' + (k + 1 === L.defDiseno ? ' selected' : '') + '>D' + (k + 1) + '</option>').join('') + '</select></label>' +
       '<label>Género nuevo<select data-def-genero><option' + (L.defGenero === 'MASC' ? ' selected' : '') + '>MASC</option><option' + (L.defGenero === 'FEM' ? ' selected' : '') + '>FEM</option></select></label>' +
-      '<button class="pl-btn sec mini" type="button" data-mas>+ AGREGAR FILA</button><button class="pl-btn sec mini" type="button" data-mas5>+ AGREGAR 5 FILAS</button><button class="pl-btn sec mini" type="button" data-completar>COMPLETAR HASTA ' + g.cantidad + '</button><button class="pl-btn sec mini" type="button" data-pegar>PEGAR DESDE EXCEL</button></div>' +
-      '<div data-pegado hidden class="pl-tarjeta" style="margin:0 0 10px"><label>Pega aquí las filas copiadas de Excel (columnas: NOMBRE, TALLA, NÚMERO, DISEÑO, GÉNERO, OBSERVACIÓN; separadas por tabulador o punto y coma)<textarea data-pegado-texto spellcheck="false"></textarea></label><div style="display:flex;gap:8px;margin-top:8px"><button class="pl-btn mini" type="button" data-pegado-ok>PEGAR FILAS</button><button class="pl-btn sec mini" type="button" data-pegado-no>CANCELAR</button></div></div>' +
+      '<button class="pl-btn sec mini" type="button" data-mas style="display:inline-flex;align-items:center;gap:6px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>AGREGAR FILA</button><button class="pl-btn sec mini" type="button" data-mas5 style="display:inline-flex;align-items:center;gap:6px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h10"/><path d="M4 12h10"/><path d="M4 18h6"/><path d="M19 15v6"/><path d="M16 18h6"/></svg>AGREGAR 5 FILAS</button><button class="pl-btn sec mini" type="button" data-pegar style="display:inline-flex;align-items:center;gap:6px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4"/><path d="M6.5 9.5 12 4l5.5 5.5"/><path d="M4 16v3.5A.5.5 0 0 0 4.5 20h15a.5.5 0 0 0 .5-.5V16"/></svg>SUBIR ARCHIVO</button><button class="pl-btn sec mini" type="button" data-pegar-texto>PEGAR DESDE EXCEL</button>'+ '<div data-tipos' + ' style="position:relative;min-width:220px;margin-left:auto;visibility:' + (L.textura === 'SI' ? 'visible' : 'hidden') + '">' + '<button type="button" data-tipos-btn style="width:100%;min-height:38px;padding:0 10px;border:1px solid #3d4c3b;border-radius:8px;background:#17201a;color:#f4f7fa;font:700 13px Arial;text-align:left;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + ((L.tipos || []).length ? L.tipos.join(', ') : 'TIPO DE APLIQUE') + ' ▾</button>' + '<div data-tipos-panel hidden style="position:absolute;z-index:20;left:0;right:0;top:100%;margin-top:4px;background:#101a12;border:1px solid #3d4c3b;border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:6px;font:700 11px Arial">' + ['TEXTURIZADO TPU', 'BORDADO', 'SELLO PRESTIGIO', 'DTF/VINILO'].map(t => '<label style="display:flex;gap:6px;align-items:center;white-space:nowrap;cursor:pointer;padding:6px 12px;min-height:26px"><input type="checkbox" data-tipo style="display:none" value="' + t + '"' + ((L.tipos || []).includes(t) ? ' checked' : '') + '><span data-chk style="width:14px;color:#d0f44c;font-size:13px">' + ((L.tipos || []).includes(t) ? '✓' : '') + '</span>' + t + '</label>').join('') + '</div></div>' + '<label class="pl-tex" style="margin-left:8px;min-width:120px;max-width:160px">Aplique *<select data-textura><option value="">Seleccionar…</option><option value="SI"' + (L.textura === 'SI' ? ' selected' : '') + '>SÍ</option><option value="NO"' + (L.textura === 'NO' ? ' selected' : '') + '>NO</option></select></label></div>' +
       '<div class="pl-tabla-caja"><table class="pl-tabla"><thead><tr><th></th><th>NOMBRE</th><th>TALLA *</th><th>NÚMERO</th><th>DISEÑO</th><th>GÉNERO</th><th>OBSERVACIÓN</th><th></th></tr></thead><tbody data-filas>' + filas.map(filaHtml).join('') + '</tbody></table></div></div>';
     if (L.previo) acciones('<button class="pl-btn sec" type="button" data-atras>◀ VOLVER A CO/RM</button><button class="pl-btn" type="button" data-programar disabled>CREA LA COTIZACIÓN PARA PROGRAMAR</button>', '', '');
     else acciones('<button class="pl-btn sec" type="button" data-atras>◀ MOCKUPS</button><button class="pl-btn" type="button" data-programar>PROGRAMAR PEDIDO EN PRODUCCIÓN</button>', '', '');
     estadoListado();
+    // el botón de tipos copia el formato exacto del desplegable de Aplique (alto, borde, fondo, letra y esquinas)
+    const ref = raiz.querySelector('[data-textura]');
+    if (ref) {
+      const cs = getComputedStyle(ref);
+      raiz.querySelectorAll('[data-tipos-btn]').forEach(b => {
+        Object.assign(b.style, { height: cs.height, minHeight: cs.height, boxSizing: 'border-box', background: cs.backgroundColor, color: cs.color, border: cs.borderTop, borderRadius: cs.borderRadius, fontFamily: cs.fontFamily, fontSize: cs.fontSize, fontWeight: cs.fontWeight, padding: cs.padding, textAlign: 'left' });
+      });
+      raiz.querySelectorAll('[data-tipos-panel]').forEach(p => {
+        Object.assign(p.style, { background: cs.backgroundColor, border: cs.borderTop, borderRadius: '4px', padding: '4px 0', gap: '0', fontFamily: cs.fontFamily, fontSize: cs.fontSize, fontWeight: cs.fontWeight, color: cs.color });
+      });
+    }
+    raiz.querySelectorAll('.pl-herr').forEach(hr => { hr.style.flexWrap = window.innerWidth < 1400 ? 'wrap' : 'nowrap'; hr.style.alignItems = 'flex-end'; hr.style.overflow = 'visible'; });
+    raiz.querySelectorAll('[data-textura]').forEach(sel => sel.onchange = e => {
+      L.textura = e.target.value;
+      raiz.querySelectorAll('[data-textura]').forEach(o => { o.value = L.textura; });
+      raiz.querySelectorAll('[data-tipos]').forEach(t => { t.style.visibility = L.textura === 'SI' ? 'visible' : 'hidden'; });
+      raiz.querySelectorAll('[data-tipos-panel]').forEach(p => { p.hidden = true; });   // al elegir SÍ/NO la lista se queda cerrada
+      L.ultimoCambioTextura = Date.now();   // el clic que cierra el desplegable de Aplique no debe abrir la lista
+    });
+    raiz.querySelectorAll('[data-tipo]').forEach(cb => cb.onchange = () => {
+      L.tipos = [...raiz.querySelectorAll('[data-tipo]:checked')].map(x => x.value);
+      raiz.querySelectorAll('[data-tipo]').forEach(o => { o.checked = L.tipos.includes(o.value); const sp = o.parentElement.querySelector('[data-chk]'); if (sp) sp.textContent = o.checked ? '✓' : ''; });
+      raiz.querySelectorAll('[data-tipos-btn]').forEach(b => { b.textContent = (L.tipos.length ? L.tipos.join(', ') : 'TIPO DE APLIQUE') + ' ▾'; });
+    });
+    // la lista de tipos se cierra al hacer clic fuera de ella (dentro sigue abierta para marcar varias)
+    if (!document.getElementById('pl-tipos-css')) {   // el atributo hidden debe ocultar la lista aunque tenga display:flex en línea
+      const st = document.createElement('style');
+      st.id = 'pl-tipos-css';
+      st.textContent = '[data-tipos-panel][hidden]{display:none!important}[data-tipos-panel] label{padding:7px 12px;min-height:30px;font:inherit;color:inherit}[data-tipos-panel] label:hover{background:rgba(156,201,255,.25)}[data-tipos-panel] label:has(input:checked){background:#9cc9ff;color:#0b120c}';
+      document.head.appendChild(st);
+    }
+    if (!window.__cerrarTiposListo) {
+      window.__cerrarTiposListo = true;
+      document.addEventListener('keydown', e => { if (e.key === 'Escape') document.querySelectorAll('[data-tipos-panel]').forEach(p => { p.hidden = true; }); });
+      document.addEventListener('click', e => {
+        if (!(e.target && e.target.closest && e.target.closest('[data-tipos]'))) document.querySelectorAll('[data-tipos-panel]').forEach(p => { p.hidden = true; });
+      });
+    }
+    raiz.querySelectorAll('[data-tipos-btn]').forEach(b => b.onclick = () => {
+      if (Date.now() - (L.ultimoCambioTextura || 0) < 600) return;   // clic que llega junto con la elección de SÍ/NO: se ignora
+      const pn = b.parentElement.querySelector('[data-tipos-panel]');
+      pn.hidden = !pn.hidden;
+      if (pn.hidden) return;
+      // la lista va FIJA en la pantalla: alineada con el borde derecho de Aplique, sin salirse del ancho visible
+      const rb = b.getBoundingClientRect();   // la lista queda CENTRADA bajo el botón TIPO DE APLIQUE, con su mismo ancho
+      const ancho = Math.min(Math.max(220, Math.round(rb.width)), innerWidth - 16);
+      pn.style.position = 'fixed';
+      pn.style.top = Math.round(rb.bottom + 4) + 'px';
+      pn.style.left = Math.max(8, Math.min(Math.round(rb.left), innerWidth - ancho - 8)) + 'px';
+      pn.style.right = 'auto';
+      pn.style.width = ancho + 'px';
+    });
     raiz.querySelectorAll('[data-ref]').forEach(b => b.onclick = () => { L.abierta = b.dataset.ref; pantallaListado(); });
     q('[data-atras]').onclick = () => { if (L.previo) { if (L.opts.onVolver) L.opts.onVolver(); return; } L.pantalla = 'mockups'; dibujar(); };
     q('[data-n-disenos]').onchange = e => { const n = Number(e.target.value); L.disenos = n; if (L.defDiseno > n) L.defDiseno = n; filasDe(L.abierta).forEach(f => { if (Number(f.diseno) > n) f.diseno = n; }); guardarBorrador(); pantallaListado(); };   // más o menos diseños: la lista DISEÑO de cada fila se ajusta
@@ -448,10 +509,40 @@
     q('[data-def-genero]').onchange = e => { L.defGenero = e.target.value; };
     q('[data-mas]').onclick = () => { filas.push(filaVacia()); guardarBorrador(); pantallaListado(); enfocarUltima(); };
     q('[data-mas5]').onclick = () => { for (let k = 0; k < 5; k++) filas.push(filaVacia()); guardarBorrador(); pantallaListado(); enfocarUltima(); };
-    q('[data-completar]').onclick = () => { while (filas.length < g.cantidad) filas.push(filaVacia()); guardarBorrador(); pantallaListado(); };
-    q('[data-pegar]').onclick = () => { q('[data-pegado]').hidden = !q('[data-pegado]').hidden; q('[data-pegado-texto]').focus(); };
-    q('[data-pegado-no]').onclick = () => { q('[data-pegado]').hidden = true; };
-    q('[data-pegado-ok]').onclick = () => { const n = pegar(g.referencia, q('[data-pegado-texto]').value); guardarBorrador(); pantallaListado(); setMsg(n + ' fila(s) agregadas.', 'ok'); };
+    q('[data-pegar]').onclick = () => {
+      const inp = document.createElement('input');
+      inp.type = 'file';
+      inp.accept = '.xlsx,.xlsm,.docx,.pdf,.jpg,.jpeg,.png';
+      inp.onchange = async () => {
+        const f = inp.files && inp.files[0];
+        if (!f) return;
+        if (f.size > 10 * 1024 * 1024) { setMsg('El archivo pesa más de 10 MB.', 'error'); return; }
+        setMsg('Leyendo ' + f.name + '…', '');
+        const fd = new FormData();
+        fd.append('archivo', f);
+        try {
+          const r = await fetch('/api/listado/leer-archivo', { method: 'POST', body: fd, credentials: 'same-origin' });
+          const j = await r.json().catch(() => ({}));
+          if (!r.ok) { setMsg(j.detail || 'No pude leer el archivo.', 'error'); return; }
+          const n = pegar(g.referencia, j.texto);
+          guardarBorrador();
+          pantallaListado();
+          setMsg(n + ' fila(s) cargadas desde ' + f.name + '. Revísalas antes de programar.', 'ok');
+        } catch (e) { setMsg('No pude subir el archivo: ' + e.message, 'error'); }
+      };
+      inp.click();
+    };
+    q('[data-pegar-texto]').onclick = () => {
+      let p = q('[data-pegado]');
+      if (!p) {
+        q('.pl-herr').insertAdjacentHTML('afterend', '<div data-pegado class="pl-tarjeta" style="margin:0 0 10px"><label>Copia las filas de Excel (columnas NOMBRE, TALLA, NÚMERO; separadas por tabulador o punto y coma)<textarea data-pegado-texto spellcheck="false" style="width:100%;min-height:120px"></textarea></label><div style="display:flex;gap:8px;margin-top:8px"><button class="pl-btn mini" type="button" data-pegado-ok>PEGAR FILAS</button><button class="pl-btn sec mini" type="button" data-pegado-no>CANCELAR</button></div></div>');
+        p = q('[data-pegado]');
+        p.querySelector('[data-pegado-no]').onclick = () => { p.hidden = true; };
+        p.querySelector('[data-pegado-ok]').onclick = () => { const n = pegar(g.referencia, p.querySelector('[data-pegado-texto]').value); guardarBorrador(); pantallaListado(); setMsg(n + ' fila(s) agregadas.', 'ok'); };
+      }
+      p.hidden = !p.hidden;
+      if (!p.hidden) p.querySelector('[data-pegado-texto]').focus();
+    };
     const tb = q('[data-filas]');
     tb.addEventListener('input', e => {   // sin redibujar la tabla: solo se actualiza la fila, el contador y el estado
       const tr = e.target.closest('tr'); if (!tr) return; const f = filas[Number(tr.dataset.i)], c = e.target.dataset.c; if (!f || !c) return;
@@ -539,7 +630,9 @@
     }
     const listado = {}; grupos().forEach(g => { listado[g.referencia] = filasDe(g.referencia).map(x => ({ nombre: x.nombre, talla: x.talla, numero: x.numero, diseno: Number(x.diseno), genero: x.genero, observacion: x.observacion })); });
     const doc = Object.assign({}, L.doc, { proyecto: L.proyecto.trim(), disenos: L.disenos });
-    const fd = new FormData(); fd.append('payload', JSON.stringify({ doc, listado, linea: L.linea, observaciones: L.observaciones }));
+    if (!L.textura) { alert('Elige si el pedido lleva aplique texturizado, bordado, sellos o basters (SÍ o NO) antes de programar.'); return; }
+    if (L.textura === 'SI' && !(L.tipos || []).length) { alert('Si lleva aplique, elige al menos un tipo: TEXTURIZADO TPU, BORDADO, SELLO PRESTIGIO o DTF/VINILO.'); return; }
+    const fd = new FormData(); fd.append('payload', JSON.stringify({ doc, listado, linea: L.linea, observaciones: L.observaciones, textura: L.textura, tipos: L.textura === 'SI' ? (L.tipos || []) : [] }));
     grupos().forEach(g => { for (let n = 1; n <= L.disenos; n++) { const img = imagenDe(L.compartir ? '*' : g.referencia, n); if (img) { fd.append('mockup:' + g.referencia + ':' + n, img, img.name); const mm = (L.mkMaestro || {})[g.referencia + '|' + n]; if (mm) fd.append('maestro:' + g.referencia + ':' + n, JSON.stringify(mm)); } } });   // los de MAESTROS también van con su origen: en la NAS se copian idénticos
     // al pulsar PROGRAMAR PEDIDO el trabajo empieza YA y se ve en pantalla: el listado de Excel que se está creando y cómo avanza cada paso
     L.xlCargado = false; L.xlVista = null;
