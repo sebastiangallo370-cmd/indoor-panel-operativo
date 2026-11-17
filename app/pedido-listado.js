@@ -268,6 +268,15 @@
     return '<div class="pl-barra"><div class="pl-pasos">' + PASOS.map(([k, t], j) => '<span class="pl-paso ' + (j === i ? 'on' : j < i ? 'hecho' : '') + '">' + t + '</span>').join('') + '</div><span style="color:#a9b5a3;font:700 12px Arial">' + esc((L.doc.tipo === 'remision' ? 'Remisión ' : 'Cotización ') + (L.doc.numero_completo || L.doc.numero)) + ' · ' + esc((L.doc.cliente || {}).nombre) + '</span></div>';
   }
   function dibujar() {
+    if (!raiz.dataset.galeriaPedido) {
+      raiz.dataset.galeriaPedido = '1';
+      raiz.addEventListener('click', e => {
+        const g = e.target.closest && e.target.closest('[data-galeria]');
+        if (g) { abrirGaleria(g.dataset.galeria); return; }
+        const it = e.target.closest && e.target.closest('[data-gal-item]');
+        if (it) elegirMaestro(it.dataset.galRef, it.dataset.galItem);
+      });
+    }
     const p = L.pantalla;
     raiz.innerHTML = '<div class="pl">' + barra() + '<div class="pl-cuerpo" data-cuerpo></div><div class="pl-acciones" data-acciones></div></div>';
     // Botón con X para cerrar el listado (usa la misma acción de cierre que el resto de la ventana)
@@ -383,7 +392,7 @@
   function pantallaMockups() {
     const gs = grupos(), varias = gs.length > 1;
     const bloques = (L.compartir ? [['*', 'Todas las referencias']] : gs.map(g => [g.referencia, g.referencia + ' · ' + g.descripcion])).map(([ref, titulo]) =>
-      '<div class="pl-tarjeta"><h3>' + esc(titulo) + '</h3><div class="pl-slots">' + Array.from({ length: L.disenos }, (_, i) => slotHtml(ref, i + 1)).join('') + '</div></div>').join('');
+      '<div class="pl-tarjeta"><h3>' + esc(titulo) + '</h3>' + (L.compartir ? gs.map(g => cabeceraRef(g.referencia, false)).join('') : cabeceraRef(ref, true)) + '<div class="pl-slots">' + Array.from({ length: L.disenos }, (_, i) => slotHtml(ref, i + 1)).join('') + '</div></div>').join('');
     q('[data-cuerpo]').innerHTML = '<div class="pl-tarjeta"><h3>Datos del pedido · mockups obligatorios</h3><div class="pl-grid">' +
       '<label>Número de diseños *<select data-disenos>' + Array.from({ length: MAX_DISENOS }, (_, i) => '<option value="' + (i + 1) + '"' + (i + 1 === L.disenos ? ' selected' : '') + '>' + (i + 1) + '</option>').join('') + '</select></label></div>' +
       '<label style="margin-top:12px">Observaciones del pedido<textarea data-obs placeholder="Opcional: llega a la tarjeta de Producción">' + esc(L.observaciones) + '</textarea></label>' +
@@ -410,10 +419,57 @@
       };
     });
   }
+  function cabeceraRef(ref, conGaleria) {
+    const d = datosRef(ref);
+    return '<div class="pl-grid" style="margin:0 0 10px"><label>NOMBRE DEL PROYECTO *<input data-ref-proyecto data-ref="' + esc(ref) + '" value="' + esc(d.proyecto) + '" placeholder="Ej. TEMPORADA 2027"></label>' +
+      '<label>LÍNEA DEL PRODUCTO<select data-ref-linea data-ref="' + esc(ref) + '"><option value="">—</option>' + (L.cat.lineas || []).map(x => '<option' + (x === d.linea ? ' selected' : '') + '>' + esc(x) + '</option>').join('') + '</select></label></div>' +
+      (conGaleria ? '<div style="margin:0 0 8px"><button class="pl-btn sec mini" type="button" data-galeria="' + esc(ref) + '">VER MOCKUPS DE MAESTROS</button></div>' + galeriaHtml(ref) : '');
+  }
+  function galeriaHtml(ref) {
+    const items = ((L.galItems || {})[ref]) || [];
+    if (!(L.galOpen || {})[ref]) return '';
+    if (!items.length) return '<p style="color:#c9d6c2;font:700 12px Arial;margin:6px 0">No hay mockups de ' + esc(ref) + ' en este proyecto.</p>';
+    return '<div style="display:flex;flex-wrap:wrap;gap:8px;margin:8px 0">' + items.map((it, i) =>
+      '<button type="button" data-gal-ref="' + esc(ref) + '" data-gal-item="' + i + '" style="width:118px;border:1px solid #3d4c3b;border-radius:8px;background:#17201a;padding:4px;cursor:pointer;text-align:left">' +
+      '<img src="' + esc(it.url) + '" alt="' + esc(it.nombre) + '" loading="lazy" style="width:100%;height:90px;object-fit:cover;border-radius:6px;display:block">' +
+      '<small style="color:#c9d6c2;font:700 10px Arial;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">D' + it.diseno + ' · ' + esc(it.nombre) + '</small></button>').join('') + '</div>';
+  }
+  async function abrirGaleria(ref) {
+    const pr = String(datosRef(ref).proyecto || '').trim(), cliente = (L.doc.cliente && L.doc.cliente.nombre) || '';
+    if (!pr) { setMsg('Escribe el NOMBRE DEL PROYECTO de ' + ref + ' para ver sus mockups.', 'error'); return; }
+    setMsg('Buscando mockups de ' + ref + ' en MAESTROS…', '');
+    try {
+      const r = await fetch('/api/pedido-effi/mockups?cliente=' + encodeURIComponent(cliente) + '&proyecto=' + encodeURIComponent(pr) + '&ref=' + encodeURIComponent(ref), { credentials: 'same-origin' });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.detail || 'MAESTROS no respondió');
+      L.galItems = L.galItems || {}; L.galOpen = L.galOpen || {};
+      L.galItems[ref] = (j.items || []).map(i => ({ url: '/api/pedido-effi/mockup-img?cliente=' + encodeURIComponent(cliente) + '&proyecto=' + encodeURIComponent(i.proyecto || pr) + '&carpeta=' + encodeURIComponent(i.carpeta) + '&archivo=' + encodeURIComponent(i.archivo), nombre: i.archivo, diseno: Number(i.diseno) || 1 }));
+      L.galOpen[ref] = true;
+      setMsg(L.galItems[ref].length ? 'Elige el mockup de ' + ref + '.' : 'No hay mockups de ' + ref + ' en el proyecto ' + pr + '.', L.galItems[ref].length ? 'ok' : 'error');
+      pantallaMockups();
+    } catch (e) { setMsg('No pude traer los mockups: ' + (e.message || e), 'error'); }
+  }
+  async function elegirMaestro(ref, idx) {
+    const it = ((L.galItems || {})[ref] || [])[Number(idx)]; if (!it) return;
+    setMsg('Cargando ' + it.nombre + '…', '');
+    try {
+      const r = await fetch(it.url, { credentials: 'same-origin' }); if (!r.ok) throw new Error('la NAS no entregó la imagen (' + r.status + ')');
+      const b = await r.blob();
+      if (it.diseno > L.disenos) L.disenos = Math.min(MAX_DISENOS, it.diseno);   // el mockup pide más diseños: se amplían
+      let n = it.diseno >= 1 && it.diseno <= L.disenos ? it.diseno : 0;
+      if (!n) for (let k = 1; k <= L.disenos && !n; k++) if (!imagenDe(ref, k)) n = k;
+      if (!n) n = 1;
+      const ext = (b.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg');
+      (L.imgs[ref] = L.imgs[ref] || {})[n] = new File([b], ref + '_D' + n + '.' + ext, { type: b.type || 'image/jpeg' });
+      setMsg(it.nombre + ' asignado a ' + ref + ' · D' + n + '.', 'ok');
+      pantallaMockups();
+    } catch (e) { setMsg('No pude cargar el mockup: ' + (e.message || e), 'error'); }
+  }
   function actualizarMockups() {
-    const falta = slotsNecesarios().filter(([r, n]) => !imagenDe(r, n)).length, ok = falta === 0;   // los mockups son OBLIGATORIOS: se eligen aquí, antes del listado y de programar
+    const falta = slotsNecesarios().filter(([r, n]) => !imagenDe(r, n)).length, ok = falta === 0 && grupos().every(g => String(datosRef(g.referencia).proyecto || '').trim());   // los mockups son OBLIGATORIOS: se eligen aquí, antes del listado y de programar
     const b = q('[data-sigue]'); if (b) b.disabled = !ok;
-    setMsg(falta ? 'Faltan ' + falta + ' mockup(s): selecciónalos para continuar.' : 'Mockups completos ✓', ok ? 'ok' : 'error');
+    const sinProy = grupos().filter(g => !String(datosRef(g.referencia).proyecto || '').trim()).map(g => g.referencia);
+    setMsg(sinProy.length ? 'Falta el NOMBRE DEL PROYECTO de: ' + sinProy.join(', ') + '.' : falta ? 'Faltan ' + falta + ' mockup(s): selecciónalos para continuar.' : 'Mockups completos ✓', ok ? 'ok' : 'error');
   }
 
   // ---------------------------------------------------------------- 3) listado
