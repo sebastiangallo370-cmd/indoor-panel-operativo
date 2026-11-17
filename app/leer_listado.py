@@ -16,7 +16,7 @@ SINONIMOS = {
     'numero': ['NUMERO', 'NÚMERO'],
 }
 ORDEN = ['nombre', 'talla', 'numero']
-ENCABEZADO = 'NOMBRE\tTALLA\tNÚMERO'
+ENCABEZADO = 'NOMBRE\tTALLA\tNÚMERO\tDISEÑO\tGÉNERO'
 EXT = {'.xlsx', '.xlsm', '.docx', '.pdf', '.jpg', '.jpeg', '.png'}
 
 router = APIRouter(prefix='/api/listado', tags=['listado'])
@@ -50,7 +50,8 @@ def _campo(celda) -> str | None:
 
 
 def _filas_a_texto(filas: list[list]) -> str:
-    """Busca la fila de encabezados y devuelve las filas siguientes en el formato del listado."""
+    """Busca la fila de encabezados y devuelve las filas siguientes en el formato del listado:
+    NOMBRE, TALLA, NÚMERO, DISEÑO (1 a 4, la columna marcada) y GÉNERO (M o F, la columna MASC o FEM marcada)."""
     for i, fila in enumerate(filas[:30]):
         mapa = {}
         for j, celda in enumerate(fila):
@@ -58,16 +59,25 @@ def _filas_a_texto(filas: list[list]) -> str:
             if c and c not in mapa.values():
                 mapa[j] = c
         if 'nombre' in mapa.values() and len(mapa) >= 3:
+            masc = [j for j, celda in enumerate(fila) if _sin_acentos(celda) == 'MASC']
+            fem = [j for j, celda in enumerate(fila) if _sin_acentos(celda) == 'FEM']
+            disenos = {}
+            for j, celda in enumerate(fila):
+                m = re.fullmatch(r'(?:DISENO|D)\s*(\d{1,2})', _sin_acentos(celda))   # DISEÑO 1 … DISEÑO 20, o D1 … D20
+                if m:
+                    disenos[j] = int(m.group(1))
             salida = [ENCABEZADO]
             for datos in filas[i + 1:]:
                 reg = {c: ('' if j >= len(datos) or datos[j] is None else str(datos[j]).strip()) for j, c in mapa.items()}
                 # Conserva la fila si trae talla o número aunque no tenga nombre (p. ej. listados sin nombres de jugador)
                 if not (reg.get('nombre') or reg.get('talla') or reg.get('numero')):
                     continue
-                salida.append('\t'.join(reg.get(c, '') for c in ORDEN))
+                marcada = lambda cols: any(j < len(datos) and str(datos[j] or '').strip() for j in cols)
+                genero = 'MASC' if marcada(masc) else ('FEM' if marcada(fem) else '')
+                diseno = next((str(n) for j, n in sorted(disenos.items()) if j < len(datos) and str(datos[j] or '').strip()), '')
+                salida.append('\t'.join([reg.get('nombre', ''), reg.get('talla', ''), reg.get('numero', ''), diseno, genero]))
             return '\n'.join(salida)
     raise ValueError('No encontré una fila de encabezados con NOMBRE, TALLA, NÚMERO, DISEÑO, GÉNERO u OBSERVACIÓN.')
-
 
 def _excel(data: bytes) -> list[list[list]]:
     import openpyxl
