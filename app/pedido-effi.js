@@ -963,3 +963,58 @@
   }
   window.PedidoEffi = { montar, listadoPrevio, volverAlFormulario };
 })();
+
+// Avisos en el PC: cuando un comercial programa un pedido, la cuenta «Indoor Sport» recibe una notificación de escritorio.
+// Usa la bitácora (solo lectura, misma sesión). Si la cuenta no es la de Indoor Sport, no hace nada.
+(() => {
+  if (window.__avisosProgramarListo) return;
+  window.__avisosProgramarListo = true;
+  const CLAVE = 'avisosProgramarUltimoId';
+  const leer = () => { try { return Number(localStorage.getItem(CLAVE)) || 0; } catch (e) { return 0; } };
+  const guardar = v => { try { localStorage.setItem(CLAVE, String(v)); } catch (e) { /* sin almacenamiento */ } };
+  const soportado = () => 'Notification' in window;
+  let ultimo = leer(), primera = true;
+
+  async function esAdmin() {
+    try { const r = await fetch('/api/bitacora/mi', { credentials: 'same-origin', cache: 'no-store' }); return r.ok; } catch (e) { return false; }
+  }
+  function avisar(x) {
+    if (!soportado() || Notification.permission !== 'granted') return;
+    const cuerpo = (x.detalle || x.accion || 'Pedido programado') + (x.username ? ' · ' + x.username : '');
+    try {
+      const n = new Notification('Pedido programado · ' + (x.modulo || 'Producción'), { body: cuerpo, tag: 'prog-' + x.id });
+      n.onclick = () => { window.focus(); n.close(); };
+    } catch (e) { /* el navegador no permite la notificación */ }
+  }
+  async function revisar() {
+    try {
+      const r = await fetch('/api/bitacora?q=Program&limite=100', { credentials: 'same-origin', cache: 'no-store' });
+      if (!r.ok) return;
+      const items = (await r.json()).items || [];
+      const maximo = items.reduce((m, x) => Math.max(m, x.id), ultimo);
+      if (primera) { primera = false; ultimo = maximo; guardar(ultimo); return; }   // al abrir la página no avisa de lo ya programado
+      items.filter(x => x.id > ultimo && /Program/.test(x.accion || '')).sort((a, b) => a.id - b.id).forEach(avisar);
+      if (maximo > ultimo) { ultimo = maximo; guardar(ultimo); }
+    } catch (e) { /* se reintenta en el siguiente ciclo */ }
+  }
+  function botonPermiso() {
+    if (!soportado() || Notification.permission !== 'default') return;
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = '🔔 Activar avisos en el PC';
+    b.style.cssText = 'position:fixed;left:12px;bottom:12px;z-index:99998;padding:8px 12px;border-radius:99px;border:1px solid #d0f44c;background:#1d2a14;color:#e7ff9a;font:800 12px Arial;cursor:pointer';
+    b.onclick = async () => {
+      const p = await Notification.requestPermission();
+      b.remove();
+      if (p === 'granted') new Notification('Avisos activados', { body: 'Te avisaremos cuando un comercial programe un pedido.' });
+    };
+    document.body.appendChild(b);
+  }
+  (async () => {
+    if (document.readyState === 'loading') await new Promise(r => document.addEventListener('DOMContentLoaded', r));
+    if (!(await esAdmin())) return;
+    botonPermiso();
+    revisar();
+    setInterval(revisar, 20000);
+  })();
+})();
