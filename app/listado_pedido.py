@@ -21,7 +21,7 @@ TALLAS_CONOCIDAS = {'XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '4', '6', '8
 
 # MISMO patrón que pedidos_legacy.REF_HOJA_RE: el programar pedido solo toma como hoja de producto los nombres con este formato (A100CA02, FUT01 NO).
 _REF_BASE = r'[A-Z]\d{2,}(?:[A-Z]{1,6}\d{1,3}[A-Z]?)?'
-REF_PRODUCCION_RE = re.compile(r'^(?:' + _REF_BASE + r'(?:[-+/]' + _REF_BASE + r')*|[A-Z]\d{2,}-\d{2,}[A-Z]{1,6}\d{1,3}|[A-Z]-[A-Z0-9-]*\d[A-Z0-9-]*)$')
+REF_PRODUCCION_RE = re.compile(r'^(?!BASE_DATOS$|REFERENCIA$).+$')   # cualquier tipo de referencia; solo se excluyen hojas auxiliares
 
 
 def _sin_acentos(t) -> str:
