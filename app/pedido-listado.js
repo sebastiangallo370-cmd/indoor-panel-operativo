@@ -280,7 +280,7 @@
     if (!raiz.dataset.datosPedido) {   // proyecto y línea: un solo manejador para toda la ventana
       raiz.dataset.datosPedido = '1';
       raiz.addEventListener('input', e => { if (e.target.matches && e.target.matches('[data-ref-proyecto]')) { const ref = e.target.dataset.ref; L.refDatos = L.refDatos || {}; L.refDatos[ref] = Object.assign({}, datosRef(ref), { proyecto: e.target.value }); guardarBorrador(); estadoListado(); } });
-      raiz.addEventListener('change', e => { if (e.target.matches && e.target.matches('[data-ref-proy-sel]')) { const ref = e.target.dataset.ref, v = e.target.value; L.refDatos = L.refDatos || {}; L.refDatos[ref] = v === '__nuevo' ? Object.assign({}, datosRef(ref), { proyecto: '', nuevo: true }) : Object.assign({}, datosRef(ref), { proyecto: v, nuevo: false }); guardarBorrador(); dibujar(); estadoListado(); } });
+      raiz.addEventListener('change', e => { if (e.target.matches && e.target.matches('[data-ref-proy-sel]')) { const ref = e.target.dataset.ref, v = e.target.value; L.refDatos = L.refDatos || {}; L.refDatos[ref] = v === '__nuevo' ? Object.assign({}, datosRef(ref), { proyecto: '', nuevo: true }) : Object.assign({}, datosRef(ref), { proyecto: v, nuevo: false }); guardarBorrador(); dibujar(); estadoListado(); if (v && v !== '__nuevo') abrirGaleria(ref); } });   // al elegir el proyecto se traen sus mockups de esta referencia
       raiz.addEventListener('change', e => { if (e.target.matches && e.target.matches('[data-ref-linea]')) { const ref = e.target.dataset.ref; L.refDatos = L.refDatos || {}; L.refDatos[ref] = Object.assign({}, datosRef(ref), { linea: e.target.value }); guardarBorrador(); estadoListado(); } });
     }
     if (!raiz.dataset.galeriaPedido) {
