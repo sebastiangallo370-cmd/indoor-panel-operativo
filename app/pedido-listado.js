@@ -255,6 +255,7 @@
   const filasDe = ref => (L.listado[ref] = L.listado[ref] || []);
   const faltantes = () => {   // lo que impide programar: se muestra completo, no uno por uno
     const out = [];
+    if (!String(L.proyecto || '').trim()) out.push('Escribe el NOMBRE DEL PROYECTO (está en el listado).');
     grupos().forEach(g => {
       const f = filasDe(g.referencia);
       if (f.length !== g.cantidad) out.push(g.referencia + ': la cotización dice ' + g.cantidad + ' prendas y el listado tiene ' + f.length + (f.length < g.cantidad ? ' (faltan ' + (g.cantidad - f.length) + ')' : ' (sobran ' + (f.length - g.cantidad) + ')'));
@@ -393,16 +394,12 @@
     const bloques = (L.compartir ? [['*', 'Todas las referencias']] : gs.map(g => [g.referencia, g.referencia + ' · ' + g.descripcion])).map(([ref, titulo]) =>
       '<div class="pl-tarjeta"><h3>' + esc(titulo) + '</h3><div class="pl-slots">' + Array.from({ length: L.disenos }, (_, i) => slotHtml(ref, i + 1)).join('') + '</div></div>').join('');
     q('[data-cuerpo]').innerHTML = '<div class="pl-tarjeta"><h3>Datos del pedido · mockups obligatorios</h3><div class="pl-grid">' +
-      '<label>Proyecto *<input data-proyecto value="' + esc(L.proyecto) + '" placeholder="Ej. TEMPORADA 2027"></label>' +
-      '<label>Línea de producto<select data-linea><option value="">—</option>' + (L.cat.lineas || []).map(x => '<option' + (x === L.linea ? ' selected' : '') + '>' + esc(x) + '</option>').join('') + '</select></label>' +
       '<label>Número de diseños *<select data-disenos>' + Array.from({ length: MAX_DISENOS }, (_, i) => '<option value="' + (i + 1) + '"' + (i + 1 === L.disenos ? ' selected' : '') + '>' + (i + 1) + '</option>').join('') + '</select></label></div>' +
       '<label style="margin-top:12px">Observaciones del pedido<textarea data-obs placeholder="Opcional: llega a la tarjeta de Producción">' + esc(L.observaciones) + '</textarea></label>' +
       (varias ? '<label style="display:flex;flex-direction:row;align-items:center;gap:8px;margin-top:12px;font:700 13px Arial;letter-spacing:0"><input type="checkbox" data-compartir ' + (L.compartir ? 'checked' : '') + ' style="width:auto;min-height:0"> Usar los mismos mockups en todas las referencias (' + gs.map(g => esc(g.referencia)).join(', ') + ')</label>' : '') + '</div>' + bloques +
       '<div style="margin:10px 0"><button class="pl-btn sec" type="button" data-mas-mockup' + (L.disenos >= MAX_DISENOS ? ' disabled' : '') + '>+ AGREGAR MÁS MOCKUPS</button> <small style="color:#888">Cada clic agrega un diseño más (hasta ' + MAX_DISENOS + ').</small></div>';
     acciones('<button class="pl-btn sec" type="button" data-atras>◀ VOLVER A LA COTIZACIÓN</button><button class="pl-btn" type="button" data-sigue>CONTINUAR AL LISTADO ▶</button>', '', '');
     actualizarMockups();
-    q('[data-proyecto]').oninput = e => { L.proyecto = e.target.value; guardarBorrador(); actualizarMockups(); };
-    q('[data-linea]').onchange = e => { L.linea = e.target.value; guardarBorrador(); };
     q('[data-obs]').oninput = e => { L.observaciones = e.target.value; guardarBorrador(); };
     q('[data-disenos]').onchange = e => { L.disenos = Number(e.target.value); guardarBorrador(); pantallaMockups(); };
     q('[data-mas-mockup]').onclick = () => { if (L.disenos < MAX_DISENOS) { L.disenos++; guardarBorrador(); pantallaMockups(); } };
@@ -423,9 +420,9 @@
     });
   }
   function actualizarMockups() {
-    const falta = slotsNecesarios().filter(([r, n]) => !imagenDe(r, n)).length, ok = !!L.proyecto.trim() && falta === 0;   // los mockups son OBLIGATORIOS: se eligen aquí, antes del listado y de programar
+    const falta = slotsNecesarios().filter(([r, n]) => !imagenDe(r, n)).length, ok = falta === 0;   // los mockups son OBLIGATORIOS: se eligen aquí, antes del listado y de programar
     const b = q('[data-sigue]'); if (b) b.disabled = !ok;
-    setMsg(!L.proyecto.trim() ? 'Escribe el nombre del proyecto.' : falta ? 'Faltan ' + falta + ' mockup(s): selecciónalos para continuar.' : 'Mockups completos ✓', ok ? 'ok' : 'error');
+    setMsg(falta ? 'Faltan ' + falta + ' mockup(s): selecciónalos para continuar.' : 'Mockups completos ✓', ok ? 'ok' : 'error');
   }
 
   // ---------------------------------------------------------------- 3) listado
@@ -445,13 +442,21 @@
   }
   const esMovil = () => /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || (window.matchMedia && matchMedia('(pointer:coarse)').matches && window.innerWidth < 900);   // fuera de la oficina: sin agentes, todo lo hace el servidor (VPS)
   function pantallaListado() {
+    if (!raiz.dataset.datosPedido) {   // proyecto y línea: un solo manejador para toda la ventana
+      raiz.dataset.datosPedido = '1';
+      raiz.addEventListener('input', e => { if (e.target.matches && e.target.matches('[data-proyecto]')) { L.proyecto = e.target.value; guardarBorrador(); } });
+      raiz.addEventListener('change', e => { if (e.target.matches && e.target.matches('[data-linea]')) { L.linea = e.target.value; guardarBorrador(); } });
+    }
     const gs = grupos(); if (!gs.find(g => g.referencia === L.abierta)) L.abierta = gs[0].referencia;
     const g = gs.find(x => x.referencia === L.abierta), filas = filasDe(g.referencia);
     if (!filas.length && !L.relleno[g.referencia]) {   // la primera vez que se abre una referencia ya trae sus filas en blanco (una por prenda cotizada)
       for (let k = 0; k < g.cantidad; k++) filas.push(filaVacia());
       L.relleno[g.referencia] = true; guardarBorrador();
     }
-    q('[data-cuerpo]').innerHTML = '<div class="pl-refs">' + gs.map(x => '<button type="button" class="pl-ref ' + (x.referencia === L.abierta ? 'on' : '') + '" data-ref="' + esc(x.referencia) + '">' + esc(x.referencia) + contador(x) + '</button>').join('') + '</div>' +
+    q('[data-cuerpo]').innerHTML = '<div class="pl-tarjeta" style="margin-bottom:10px"><h3>Datos del pedido</h3><div class="pl-grid">' +
+      '<label>NOMBRE DEL PROYECTO *<input data-proyecto value="' + esc(L.proyecto) + '" placeholder="Ej. TEMPORADA 2027"></label>' +
+      '<label>LÍNEA DEL PRODUCTO<select data-linea><option value="">—</option>' + (L.cat.lineas || []).map(x => '<option' + (x === L.linea ? ' selected' : '') + '>' + esc(x) + '</option>').join('') + '</select></label>' +
+      '</div></div><div class="pl-refs">' + gs.map(x => '<button type="button" class="pl-ref ' + (x.referencia === L.abierta ? 'on' : '') + '" data-ref="' + esc(x.referencia) + '">' + esc(x.referencia) + contador(x) + '</button>').join('') + '</div>' +
       '<div class="pl-tarjeta"><h3>' + esc(g.referencia) + ' · ' + esc(g.descripcion) + ' · ' + g.cantidad + ' prendas</h3>' +
       '<div class="pl-herr"><label>N° de diseños<select data-n-disenos>' + Array.from({ length: MAX_DISENOS }, (_, k) => '<option value="' + (k + 1) + '"' + (k + 1 === L.disenos ? ' selected' : '') + '>' + (k + 1) + '</option>').join('') + '</select></label><label>Diseño nuevo<select data-def-diseno>' + Array.from({ length: L.disenos }, (_, k) => '<option value="' + (k + 1) + '"' + (k + 1 === L.defDiseno ? ' selected' : '') + '>D' + (k + 1) + '</option>').join('') + '</select></label>' +
       '<label>Género nuevo<select data-def-genero><option' + (L.defGenero === 'MASC' ? ' selected' : '') + '>MASC</option><option' + (L.defGenero === 'FEM' ? ' selected' : '') + '>FEM</option></select></label>' +
