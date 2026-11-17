@@ -453,14 +453,20 @@
     const [ref, n] = el.dataset.slot.split('|'), f = imagenDe(ref, Number(n)), inp = el.querySelector('[data-file]');
     if (f) { const im = el.querySelector('[data-prev]'); if (im) im.src = URL.createObjectURL(f); }
     el.querySelector('[data-elegir]').onclick = () => inp.click();
-    const quitar = el.querySelector('[data-quitar]'); if (quitar) quitar.onclick = () => { delete (L.imgs[ref] || {})[Number(n)]; dibujar(); };
+    const quitar = el.querySelector('[data-quitar]'); if (quitar) quitar.onclick = () => { delete (L.imgs[ref] || {})[Number(n)]; ajustarDisenos(); dibujar(); };
     inp.onchange = () => {
       const a = inp.files[0]; if (!a) return;
       if (!/^image\//.test(a.type)) { setMsg('«' + a.name + '» no es una imagen.', 'error'); return; }
       if (a.size > MAX_BYTES) { setMsg('«' + a.name + '» pesa más de 10 MB.', 'error'); return; }
-      (L.imgs[ref] = L.imgs[ref] || {})[Number(n)] = a; dibujar();
+      (L.imgs[ref] = L.imgs[ref] || {})[Number(n)] = a; ajustarDisenos(); dibujar();
     };
   });
+  }
+  // número de diseños = el diseño más alto con mockup seleccionado (en cualquier referencia)
+  function ajustarDisenos() {
+    let max = 1;
+    grupos().forEach(g => { for (let n = 1; n <= MAX_DISENOS; n++) if (imagenDe(g.referencia, n)) max = Math.max(max, n); });
+    L.disenos = max;
   }
   function panelMockupsListado(ref) {
     if (!ref) return '';
@@ -519,7 +525,7 @@
     const it = ((L.galItems || {})[ref] || [])[Number(idx)]; if (!it) return;
     L.galSel = L.galSel || {}; L.galAsig = L.galAsig || {};
     if (L.galSel[ref] === Number(idx)) {   // el círculo ya estaba relleno: se quita el mockup
-      delete (L.imgs[ref] || {})[L.galAsig[ref]]; delete L.galSel[ref]; setMsg('Mockup quitado de ' + ref + '.', ''); dibujar(); return;
+      delete (L.imgs[ref] || {})[L.galAsig[ref]]; delete L.galSel[ref]; ajustarDisenos(); setMsg('Mockup quitado de ' + ref + '.', ''); dibujar(); return;
     }
     L.galSel[ref] = Number(idx);
     setMsg('Cargando ' + it.nombre + '…', '');
@@ -532,7 +538,7 @@
       if (!n) n = 1;
       const ext = (b.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg');
       (L.imgs[ref] = L.imgs[ref] || {})[n] = new File([b], ref + '_D' + n + '.' + ext, { type: b.type || 'image/jpeg' });
-      L.galAsig[ref] = n;
+      L.galAsig[ref] = n; ajustarDisenos();
       setMsg(it.nombre + ' asignado a ' + ref + ' · D' + n + '.', 'ok');
       dibujar();
     } catch (e) { setMsg('No pude cargar el mockup: ' + (e.message || e), 'error'); }
