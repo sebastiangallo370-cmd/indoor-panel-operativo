@@ -1,15 +1,24 @@
 (() => {
-  // TIENDA CLUB (COMERCIALES): enlaces privados por cliente y bandeja de reprogramaciones que mandan los clubes.
+  // PROGRAMAR CLUB (COMERCIALES): bandeja de reprogramaciones de los clubes y EMPEZAR PEDIDO (formulario tipo Effi). Los enlaces para clientes se quitaron de la pantalla (2026-11-13); el backend de enlaces sigue en club.py.
   if (window.__clubAdminListo) return;
   window.__clubAdminListo = true;
   const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  let panel = null, dlg = null, modoDlg = 'enlaces', correos = { comerciales: '', sin_vendedor: '', efectivos: '' }, effi = null, enlaces = [], pedidos = [], filtro = 'pendiente', busqueda = '', aviso = '', ultimo = '', ultimoDlg = '', cargando = false, clienteElegido = null;
+  const ESTADOS_VISIBLES = ['aprobada'];
+  let panel = null, dlg = null, modoDlg = 'correos', correos = { comerciales: '', sin_vendedor: '', efectivos: '' }, effi = null, pedidos = [], filtro = 'aprobada', busqueda = '', aviso = '', ultimo = '', ultimoDlg = '', cargando = false, clienteElegido = null;
   let abiertos = new Set(), ocupados = new Set(), vistos = new Set(), primeraCarga = true;
 
   const css = document.createElement('style');
   css.textContent = `
   .tc{width:100%;max-width:none;margin:14px 0 0;display:grid;grid-template-columns:minmax(0,1fr);gap:16px;box-sizing:border-box}
   .tc-cards{display:grid;gap:20px;padding:24px;align-items:start;background:#111715;border-radius:14px;grid-template-columns:repeat(auto-fill,minmax(min(100%,500px),1fr))}
+  .ax-fondo{position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.7);display:grid;place-items:center;padding:12px;overflow:auto}
+  .ax-card{width:min(640px,100%);box-sizing:border-box;padding:18px;border:1px solid rgba(208,244,76,.4);border-radius:18px;background:#101a12;color:#f5faef;font-family:Arial,sans-serif}
+  .ax-cab{display:flex;justify-content:space-between;align-items:center;gap:10px}.ax-cab h3{margin:2px 0 0;font:900 20px Arial}.ax-eye{color:#d0f44c;font:800 11px Arial;letter-spacing:.14em}
+  .ax-x{all:unset;cursor:pointer;padding:7px 14px;border:1px solid rgba(255,255,255,.3);border-radius:99px;font:800 12px Arial}
+  .ax-p{color:#c9d3c1;font:600 13px/1.5 Arial}.ax-estado{padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.05);font:700 13px/1.6 Arial;color:#c9d3c1}.ax-estado.ok{border:1px solid rgba(208,244,76,.5);color:#e8f0e0}
+  .ax-pasos{display:grid;gap:10px;margin-top:12px}.ax-paso{display:grid;gap:8px;padding:12px;border:1px solid rgba(255,255,255,.1);border-radius:12px}.ax-paso b{font:900 13px Arial;color:#d0f44c}.ax-paso small{color:#a9b5a3;font:600 12px/1.55 Arial}
+  .ax-btns{display:flex;gap:8px;flex-wrap:wrap}.ax-btn{all:unset;cursor:pointer;padding:9px 16px;border-radius:99px;background:rgba(255,255,255,.1);color:#f5faef;font:900 12px Arial;letter-spacing:.05em}.ax-btn.lime{background:#d0f44c;color:#142017}
+  .ax-codigo{display:flex;align-items:baseline;gap:12px}.ax-codigo span{font:900 30px Consolas,monospace;letter-spacing:.24em;color:#d0f44c}.ax-codigo small{color:#a9b5a3}
   .tc-card{padding:22px;border:1px solid #35403a;border-radius:18px;background:#1a201d;box-shadow:0 5px 20px #0002;box-sizing:border-box;min-width:0}
   .tc-cabeza{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}
   .tc-card h2{margin:0;font:600 clamp(20px,2.4vw,25px) Arial;letter-spacing:-.02em;color:#f4f7f2}
@@ -32,11 +41,15 @@
   .tc-fila{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px;align-items:center;padding:10px 12px;border:1px solid rgba(255,255,255,.12);border-radius:12px;background:#121712}
   .tc-fila strong{color:#f2f7ea}.tc-fila small{display:block;color:#a9b5a3;font-size:.74rem}
   .tc-acc{display:flex;gap:8px;flex-wrap:wrap}
-  .panel[data-panel="club"]{position:relative}
+  .panel[data-panel="club"]{position:relative}.tc-ag-top{display:inline-flex;align-items:center;padding:8px 14px;border-radius:99px;border:1px solid #3d4c3b;font:800 11px Arial;letter-spacing:.04em;white-space:nowrap;margin-right:8px;background:rgba(0,0,0,.25)}.tc-ag-top.ok{border-color:#6f9410;color:#9be37a}.tc-ag-top.mal{border-color:#ffb547;color:#ffb547}
+  .tc-progcards [data-card-delete]{display:none!important}.tc-prog-orden{display:flex;flex-direction:column;gap:8px;min-width:0}.tc-prog-barra{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:2px 4px}.tc-prog-barra small{font:600 11px Arial;color:#7f8c79}.tc-prog-btns{display:flex;gap:6px;flex-wrap:wrap}
+  .tc-ptabs{display:inline-flex;margin:0 auto;border:1px solid #3d4c3b;border-radius:99px;overflow:hidden;background:rgba(0,0,0,.3)}.tc-ptabs button{all:unset;cursor:pointer;padding:9px 26px!important;color:#c9d3c1!important;background:transparent!important;border:0!important;box-shadow:none!important;min-height:0!important;width:auto!important;font:900 12px Arial!important;letter-spacing:.12em!important;transition:background .2s,color .2s}.tc-ptabs button:hover{color:#d0f44c!important}.tc-ptabs button.on{background:#d0f44c!important;color:#0d140e!important}@media(max-width:600px){.tc-ptabs button{padding:8px 14px;font-size:11px}}
+  .tc-ptabs button{white-space:nowrap!important}@media (max-width:700px){.tc-pedido-cab{display:grid!important;grid-template-columns:1fr auto;align-items:center;row-gap:10px}.tc-pedido-cab .tc-ptabs{grid-column:1/-1;order:3;display:grid;grid-template-columns:1fr 1fr;margin:0;width:100%}.tc-pedido-cab .tc-ptabs button{text-align:center;padding:12px 8px!important;font-size:13px!important;letter-spacing:.08em!important}.tc-pedido-cab .tc-b-line{padding:8px 14px!important;min-height:0!important}.tc-pedido-cab h2{font-size:20px!important}}
   .tc .tc-aviso.tc-info{display:inline-flex!important;align-items:center;gap:8px;width:auto!important;padding:0!important;background:transparent!important;border:0!important;box-shadow:none!important;font-size:13px}
   @media (min-width:900px){.tc>*{width:calc(100vw - 64px)!important;max-width:none!important;box-sizing:border-box}}
   @media (min-width:900px){.tc-plano .tc-cabeza{width:calc(100vw - 64px);justify-content:space-between;flex-wrap:nowrap}.tc-plano .tc-cabeza .tc-acc{margin-left:auto;flex-wrap:nowrap}}
-  .tc-plano{overflow:visible!important;padding:4px 0!important;border:0!important;background:transparent!important;box-shadow:none!important;backdrop-filter:none!important}
+  .panel[data-panel="club"]{background:transparent!important;border:0!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}.panel[data-panel="club"]::before,.panel[data-panel="club"]::after{display:none!important}   /* sin recuadro: los botones quedan flotando sobre el fondo */
+  html body main section.panel.panel.panel.panel.panel[data-panel="club"][data-panel]:not(.lq):not(.lq *):not(.x1):not(.x2),html body main section.panel.panel.panel.panel.panel[data-panel="club"][data-panel]:not(.lq):not(.lq *):not(.x1):not(.x2):hover{background:transparent!important;border-color:transparent!important;box-shadow:none!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;transform:none!important}main:has(.panel[data-panel="club"].active) .footer-note{display:none}.tc-plano .tc-cabeza h2{text-shadow:0 2px 10px #000a}.tc-plano .tc-btn{box-shadow:0 6px 18px rgba(0,0,0,.45)}.tc-plano{overflow:visible!important;padding:4px 0!important;border:0!important;background:transparent!important;box-shadow:none!important;backdrop-filter:none!important}
   .tc-barra{display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:center;margin-bottom:14px}
   .tc-chips{display:flex;gap:8px;flex-wrap:wrap}
   .tc-chips button{display:inline-flex;align-items:center;gap:6px;min-height:30px;padding:4px 12px;border:1px solid #455449!important;border-radius:999px;background:transparent!important;color:#c4d2c6!important;font:700 12px Arial;cursor:pointer;transition:background .2s ease,border-color .2s ease,color .2s ease}
@@ -144,7 +157,7 @@
   .tc-sugerencias[hidden]{display:none}.tc-sugerencias button{display:flex!important;justify-content:space-between!important;align-items:center!important;gap:10px;width:100%!important;min-height:36px;padding:8px 10px!important;border:0!important;border-radius:8px!important;background:transparent!important;color:#eff6e8!important;text-align:left!important;font:700 13px Arial!important;cursor:pointer}.tc-sugerencias button:hover{background:rgba(208,244,76,.13)!important}.tc-sugerencias small{color:#aab7a5;font:600 11px Arial;white-space:nowrap}
   .tc-seleccion{display:flex;align-items:center;gap:8px;min-height:38px;padding:0 12px;border:1px dashed #4a5a48;border-radius:11px;background:#121912;color:#aab7a5;font:700 12px Arial}.tc-seleccion.on{border-style:solid;border-color:#a7d943;background:#1b2a18;color:#eef8dc}.tc-seleccion b{color:#d1eb89}
   .tc-toasts{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);display:grid;gap:8px;z-index:9999;pointer-events:none;width:min(92vw,420px)}
-  .tc-toast{padding:12px 16px;border-radius:14px;background:#1d2a1d;border:1px solid rgba(208,244,76,.35);color:#f5faef;font:700 14px Arial;box-shadow:0 12px 30px rgba(0,0,0,.4);opacity:0;transform:translateY(12px);transition:opacity .25s ease,transform .25s ease;text-align:center}
+  .tc-toast{white-space:pre-line;max-width:min(620px,92vw);padding:12px 16px;border-radius:14px;background:#1d2a1d;border:1px solid rgba(208,244,76,.35);color:#f5faef;font:700 14px Arial;box-shadow:0 12px 30px rgba(0,0,0,.4);opacity:0;transform:translateY(12px);transition:opacity .25s ease,transform .25s ease;text-align:center}
   .tc-toast.on{opacity:1;transform:none}
   .tc-toast.error{border-color:rgba(255,107,92,.6);color:#ffd2cc}
   @keyframes tcEntra{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
@@ -180,7 +193,7 @@
     t.textContent = msg;
     zona.appendChild(t);
     requestAnimationFrame(() => requestAnimationFrame(() => t.classList.add('on')));
-    setTimeout(() => { t.classList.remove('on'); setTimeout(() => t.remove(), 300); }, 3200);
+    setTimeout(() => { t.classList.remove('on'); setTimeout(() => t.remove(), 300); }, Math.min(16000, 3200 + String(msg).length * 45));   // los avisos largos (diagnóstico) duran más
   }
 
   function detalle(p) {
@@ -209,7 +222,7 @@
       '<div class="tc-ph"><span class="tc-cod">' + (p.cot_numero ? 'CO' + esc(p.cot_numero) : '#' + p.id) + '</span><span class="tc-ava">' + esc(String(p.cliente || '?').trim().charAt(0).toUpperCase()) + '</span><div><h3>' + esc(p.cliente) + '</h3><small class="tc-num">#' + p.id + '</small><span class="tc-sub">' + esc(p.contacto) + ' · ' + fecha(p.creado) + '</span></div><span class="tc-badge ' + p.estado + '">' + esc(p.estado) + '</span></div>' +
       '<dl class="tc-pdl"><div><dt>Prendas</dt><dd>' + p.prendas + '</dd></div><div><dt>Teléfono</dt><dd>' + esc(p.telefono) + '</dd></div><div><dt>Cotización</dt><dd>' + (p.cot_numero ? 'N° ' + esc(p.cot_numero) : '—') + '</dd></div><div><dt>Club</dt><dd>' + esc(p.cliente) + '</dd></div></dl>' +
       '<div class="tc-estado"><span class="tc-pill ' + p.estado + '">' + esc(p.estado.charAt(0).toUpperCase() + p.estado.slice(1)) + (p.cot_estado ? ' · ' + esc(COT[p.cot_estado] || p.cot_estado).replace('…', '') : '') + '</span></div>' + (((p.lineas || [])[0]) ? '<div class="tc-refb"><div><small>REFERENCIA</small><b>' + esc(p.lineas[0].referencia) + (p.lineas.length > 1 ? ' +' + (p.lineas.length - 1) : '') + '</b><small>TELA</small><em>' + esc(p.lineas[0].tela || '—') + '</em></div><div class="tc-cant"><small>CANTIDAD</small><b>' + p.prendas + '</b> <span>und.</span></div></div>' : '') + '<div class="tc-mini"><span>👕 ' + p.prendas + ' prendas</span>' + (p.cot_numero ? '<span>🧾 Cot. ' + esc(p.cot_numero) + '</span>' : '') + '<span>🗓 ' + fecha(p.creado) + '</span>' + (p.contacto ? '<span class="tc-fila-i">👤 ' + esc(p.contacto) + '</span>' : '') + (p.telefono ? '<span class="tc-fila-i">📞 ' + esc(p.telefono) + '</span>' : '') + (p.cot_vendedor ? '<span class="tc-fila-i">💼 Vendedor: ' + esc(p.cot_vendedor) + '</span>' : '') + ((p.lineas || []).length ? '<span class="tc-fila-i">📋 ' + (p.lineas || []).map(l => esc(l.proyecto || l.referencia)).join(', ') + '</span>' : '') + ((p.lineas || []).length ? '<span class="tc-fila-i">🧍 ' + (p.lineas || []).reduce((n, l) => n + (l.jugadores || []).length, 0) + ' jugadores</span>' : '') + (p.notas ? '<span class="tc-fila-i">💬 ' + esc(p.notas) + '</span>' : '') + (p.nota_comercial ? '<span class="tc-fila-i">📝 ' + esc(p.nota_comercial) + '</span>' : '') + '</div>' + barra + cot + nota +
-      '<div class="tc-pact">' + pdf + reintento + '<a class="tc-btn tc-b-line" data-ic="⬇" title="Descargar listado" href="/api/club/pedidos/' + p.id + '/excel"><svg class="tc-svg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Descargar listado</a><button class="tc-btn tc-b-line" data-ic="👁" title="Ver detalle" data-ver="' + p.id + '" aria-expanded="' + abierto + '"><svg class="tc-svg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>' + (abierto ? 'Ocultar detalle' : 'Ver detalle') + '</button>' + acciones + '</div>' +
+      '<div class="tc-pact">' + pdf + reintento + '<a class="tc-btn tc-b-line" data-ic="⬇" title="Descargar listado" href="/api/club/pedidos/' + p.id + '/excel"><svg class="tc-svg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Descargar listado</a><button class="tc-btn tc-b-line" data-ic="👁" title="Ver detalle" data-ver="' + p.id + '" aria-expanded="' + abierto + '"><svg class="tc-svg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>' + (abierto ? 'Ocultar detalle' : 'Ver detalle') + '</button>' + acciones + '<button class="tc-btn tc-b-line" data-ic="🗑" title="Eliminar esta reprogramación" data-eliminar="' + p.id + '"><svg class="tc-svg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>Eliminar</button></div>' +
       (abierto ? detalle(p) : '') + '</div>';
   }
 
@@ -220,61 +233,28 @@
   };
   const cuenta = k => pedidos.filter(p => !k || p.estado === k).length;
 
-  // Pestaña: solo la tarjeta de reprogramaciones. Los enlaces para clientes se gestionan en una ventana aparte.
+  // Pestaña: solo la tarjeta de reprogramaciones.
   function pintar() {
     if (!panel) return;
-    const lista = pedidos.filter(p => (!filtro || p.estado === filtro) && coincide(p));
+    const lista = pedidos.filter(p => ESTADOS_VISIBLES.includes(p.estado) && (!filtro || p.estado === filtro) && coincide(p));   // Pendientes y Rechazadas ocultas por pedido del usuario (2026-11-14): no se borra nada, basta quitarlas de ESTADOS_VISIBLES
     const nuevos = new Set(pedidos.map(p => p.id).filter(id => !vistos.has(id)));
     const html = '<div class="tc">' +
-      '<section class="tc-card tc-plano"><div class="tc-cabeza"><h2>Reprogramaciones de los clubes</h2><span class="tc-acc"><button class="tc-btn tc-b-lime" data-enlaces="nuevo" type="button">+ Generar enlace</button><button class="tc-btn tc-b-line" data-enlaces="lista" type="button">Enlaces activos (' + enlaces.length + ')</button><button class="tc-btn tc-b-line" data-correos type="button" title="A quién le llega el correo con el botón APROBAR REPROGRAMACIÓN">✉ Aviso por correo</button></span></div>' +
+      '<section class="tc-plano"><div class="tc-cabeza"><h2>Reprogramaciones de los clubes</h2><span class="tc-acc">' + '<button class="tc-btn tc-b-lime" data-pedido="nuevo" type="button">EMPEZAR PEDIDO</button></span></div>' +
       (effi ? '<p class="tc-aviso tc-info" style="margin-bottom:12px"><span class="tc-dot ' + (effi.activo && effi.conectado ? 'on' : effi.activo ? 'off' : '') + '"></span><span>EFFITRON · ' + (effi.activo ? (effi.conectado ? 'en línea' : 'SIN CONEXIÓN') : 'apagado') + (effi.ultima ? ' · ' + esc(effi.ultima) : '') + '</span></p>' : '') +
-      '<div class="tc-barra"><div class="tc-chips" role="group" aria-label="Filtrar reprogramaciones">' + [['pendiente', 'Pendientes'], ['aprobada', 'Aprobadas'], ['rechazada', 'Rechazadas'], ['', 'Todas']].map(([k, t]) => '<button type="button" data-filtro="' + k + '" aria-pressed="' + (filtro === k) + '" class="' + (filtro === k ? 'on' : '') + '">' + t + ' <em class="tc-n">' + cuenta(k) + '</em></button>').join('') + '</div>' +
+      '<div class="tc-barra"><span></span>' +
       '<input id="tc-buscar" class="tc-buscar" type="search" placeholder="Buscar club, contacto o cotización" autocomplete="off" value="' + esc(busqueda) + '"></div>' +
-      (lista.length ? '<div class="tc-cards">' + lista.map(p => tarjeta(p, nuevos.has(p.id) && !primeraCarga)).join('') + '</div>' : '<div class="tc-vacio">' + (busqueda ? 'Ninguna reprogramación coincide con la búsqueda.' : 'No hay reprogramaciones en esta vista.') + '</div>') +
-      '<p style="margin-top:14px;color:#a9b5a3;font:500 13px/1.5 Arial">El Excel usa la plantilla de listado de Indoor (una hoja con el nombre de la referencia; si son varias referencias, vienen en un .zip) y trae la tela del pedido anterior con su código. Si una tela aparece con varios códigos (colores), elige el correcto antes de programar.</p></section></div>';
+      (lista.length ? '<div class="tc-cards">' + lista.map(p => tarjeta(p, nuevos.has(p.id) && !primeraCarga)).join('') + '</div>' : (busqueda ? '<div class="tc-vacio">Ninguna reprogramación coincide con la búsqueda.</div>' : '')) +
+      htmlProgramados() +
+      '</section></div>';
     pedidos.forEach(p => vistos.add(p.id));
     primeraCarga = false;
     if (html === ultimo) return;   // sin cambios: no se redibuja (evita parpadeo)
     // Antes de redibujar guardamos el foco y la posición del cursor para no perder lo que se escribe.
     const act = document.activeElement, idAct = act && act.id, pos = act && act.selectionStart;
     panel.innerHTML = ultimo = html;
+    observarTarjetas();
     const destino = idAct && panel.querySelector('#' + idAct);
     if (destino) { destino.focus(); if (pos != null && destino.setSelectionRange) destino.setSelectionRange(pos, pos); }
-  }
-
-  // Ventana de enlaces para clientes: generar y gestionar. Se redibuja aparte para no cerrarse al refrescar.
-  function pintarEnlaces(enfocar) {
-    if (!dlg) return;
-    const cliente0 = dlg.querySelector('#tc-cliente')?.value ?? '';
-    const html = '<div class="tc-dlg-cuerpo">' +
-      '<div class="tc-dlg-cabeza"><div><span class="eyebrow">TIENDA CLUB</span><h2>Enlaces para clientes</h2></div><button class="tc-btn tc-b-line" data-cerrar type="button">Cerrar</button></div>' +
-      '<p>Genera un enlace privado: el cliente ve los diseños que ya produjo con nosotros y arma su reprogramación con nombres, números y tallas.</p>' +
-      '<div class="tc-form"><label>CLIENTE<div class="tc-cliente-wrap"><input id="tc-cliente" placeholder="Escribe el nombre del cliente" autocomplete="off" aria-autocomplete="list" aria-controls="tc-sugerencias"><div id="tc-sugerencias" class="tc-sugerencias" role="listbox" hidden></div></div></label>' +
-      '<label style="flex:0 1 150px">VIGENCIA<select id="tc-dias"><option value="15">15 días</option><option value="30" selected>30 días</option><option value="90">90 días</option><option value="365">1 año</option></select></label>' +
-      '<button class="tc-btn tc-b-lime" id="tc-crear" type="button"' + (clienteElegido ? '' : ' disabled') + '>Generar enlace</button></div>' +
-      '<div id="tc-seleccion" class="tc-seleccion' + (clienteElegido ? ' on' : '') + '">' + (clienteElegido ? '✓ Cliente seleccionado: <b>' + esc(clienteElegido.nombre) + '</b>' + (clienteElegido.proyectos ? ' · ' + clienteElegido.proyectos + ' proyectos' : '') : '1. Busca y selecciona un cliente para habilitar la generación.') + '</div>' + (aviso ? '<p class="tc-aviso">' + aviso + '</p>' : '') +
-      '<h2 style="font-size:18px">Enlaces activos</h2>' + (enlaces.length ? '<div class="tc-lista" style="grid-template-columns:minmax(0,1fr)">' + enlaces.map(e => '<div class="tc-fila"><span><strong>' + esc(e.cliente) + '</strong><small>Vence ' + fecha(e.vence) + ' · ' + e.pedidos + (e.pedidos === 1 ? ' reprogramación' : ' reprogramaciones') + (e.vencido ? ' · VENCIDO' : '') + '</small></span><span class="tc-acc"><button class="tc-btn tc-b-line" data-copiar="' + esc(e.token) + '">Copiar enlace</button><button class="tc-btn tc-b-red" data-revocar="' + e.id + '">Revocar</button></span></div>').join('') + '</div>' : '<div class="tc-vacio">Todavía no hay enlaces.</div>') +
-      '</div>';
-    if (html === ultimoDlg) return;
-    dlg.innerHTML = ultimoDlg = html;
-    const cliente = dlg.querySelector('#tc-cliente');
-    if (cliente && cliente0) cliente.value = cliente0;
-    const crear = dlg.querySelector('#tc-crear');
-    if (crear) crear.onclick = async e => {
-      e.preventDefault(); e.stopPropagation();
-      const nombre = clienteElegido?.nombre || '';
-      if (!nombre) { toast('Selecciona un cliente de la lista', 'error'); return; }
-      crear.disabled = true; crear.textContent = 'Generando…';
-      try {
-        const d = await api('/api/club/enlaces', 'POST', { cliente: nombre, dias: Number(dlg.querySelector('#tc-dias').value) });
-        aviso = 'Enlace listo: <b>' + esc(url(d.token)) + '</b>';
-        clienteElegido = null;
-        try { await navigator.clipboard.writeText(url(d.token)); aviso += ' (copiado)'; } catch (er) { /* sin portapapeles */ }
-        toast('Enlace de ' + nombre + ' listo', 'ok');
-        await cargar();
-      } catch (er) { toast(er.message || 'No se pudo generar el enlace', 'error'); crear.disabled = false; crear.textContent = 'Generar enlace'; }
-    };
-    if (cliente && enfocar) cliente.focus();
   }
 
   // Ventana «Aviso por correo»: a quién le llega el correo con el botón APROBAR REPROGRAMACIÓN. Se dibuja una sola vez al abrirla (no se redibuja mientras se escribe).
@@ -288,34 +268,201 @@
       '<div class="tc-form"><button class="tc-btn tc-b-lime" id="tc-correos-guardar" type="button">Guardar</button></div></div>';
   }
 
+  let programados = [];
+  let produccion = {};   // CO#### -> datos de la orden en Producción (las mismas columnas que usa su tarjeta)
+  const norm = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase();
+  const esFecha = v => /^\d{1,4}[-/]\d{1,2}[-/]\d{1,4}/.test(String(v || '').trim());
+  // las tarjetas usan EXACTAMENTE el estilo de Producción: se copian sus reglas «body.production-mode …» a «.tc-prog …»
+  function copiarEstiloProduccion() {
+    if (document.getElementById('tc-progcards-css')) return;
+    const out = [];
+    const MODO = /(?:production-mode|trace-cards-mode)/; const aqui = sel => sel.replace(/body((?:\.[\w-]+)*\.(?:production-mode|trace-cards-mode)(?:\.[\w-]+)*)/g, '.tc-progcards');   // body.production-mode[.trace-cards-mode…] -> nuestro contenedor
+    const recorrer = (reglas, envolver) => { for (const r of Array.from(reglas || [])) {
+      if (r.cssRules && r.media) { recorrer(r.cssRules, x => envolver('@media ' + r.media.mediaText + '{' + x + '}')); continue; }
+      if (!r.selectorText || !r.style || !MODO.test(r.selectorText)) continue;
+      const partes = r.selectorText.split(',').map(x => x.trim()).filter(x => MODO.test(x) && /\.trace-/.test(x));   // solo los selectores de Producción (no se tocan los demás de la misma regla)
+      if (partes.length) out.push(envolver(partes.map(aqui).join(',') + '{' + r.style.cssText + '}'));
+    } };
+    for (const h of Array.from(document.styleSheets)) { try { recorrer(h.cssRules, x => x); } catch (e) { /* hoja de otro dominio */ } }
+    const st = document.createElement('style'); st.id = 'tc-progcards-css';
+    st.textContent = out.join('\n') + '.tc-progcards .trace-cards{background:transparent!important;padding:0!important;overflow:visible!important}.tc-progcards .trace-media{position:relative}.tc-progcards .tc-disenio{position:absolute;top:10px;left:10px;background:#0d140e;color:#d0f44c;font:900 10px Arial;letter-spacing:.1em;padding:4px 9px;border-radius:12px}' +
+      '.tc-progcards .tc-caja{border:1px solid #35403a;border-radius:12px;padding:10px 12px;margin:10px 0;background:#141a16}.tc-progcards .tc-caja small{display:block;font:800 10px Arial;letter-spacing:.1em;color:#9caa95}.tc-progcards .tc-caja b{color:#ecf0e7;font-size:14px}.tc-progcards .tc-tela{color:#d0f44c!important;font-size:12px!important}' +
+      '.tc-progcards .tc-dias{display:inline-block;margin-top:4px;padding:3px 10px;border:1px solid #d0f44c;border-radius:12px;color:#d0f44c;font:800 12px Arial}.tc-progcards .tc-dias.tarde{border-color:#ff8f8f;color:#ff8f8f}' +
+      '.tc-progcards .tc-ruta{display:flex;gap:4px;margin:10px 0 4px}.tc-progcards .tc-ruta i{flex:1;height:6px;border-radius:3px;background:#2a332c}.tc-progcards .tc-ruta i.finished{background:#9be37a}.tc-progcards .tc-ruta i.active{background:#f3d196}.tc-progcards .tc-ruta i.rework{background:#ff8f8f}' +
+      '.tc-progcards .tc-sig{display:flex;justify-content:space-between;font:700 11px Arial;color:#c9d3c1}.tc-progcards .tc-sig b{color:#d0f44c}';
+    document.head.appendChild(st);
+  }
+  function estiloTarjetas() {
+    if (document.getElementById('tp-css')) return;
+    const st = document.createElement('style'); st.id = 'tp-css';
+    st.textContent = `.tp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));grid-auto-rows:1fr;gap:18px;align-items:stretch}
+    .tp-card{display:flex;flex-direction:column;height:100%;min-height:760px;overflow:hidden;border:1px solid #35403a;border-radius:18px;background:linear-gradient(160deg,rgba(255,255,255,.06),rgba(0,0,0,.35));box-shadow:0 8px 24px rgba(0,0,0,.35);min-width:0}
+    .tp-card .tp-media{height:380px;flex:none;background:#e9eeea;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;color:#52604f;font:700 12px Arial;text-align:center}
+    .tp-card .tp-media img{width:100%;height:100%;object-fit:contain;object-position:center}.tp-card .tp-media .trace-design-view{display:flex;flex-direction:column;width:100%;height:100%}.tp-card .tp-media .trace-design-stage{position:relative;flex:1;min-height:0;display:block}.tp-card .tp-media .trace-design-main{display:block;position:absolute;inset:0}.tp-card .tp-media .trace-design-main img{width:100%;height:100%;object-fit:contain}
+    .tp-card .tp-media .trace-design-count{position:absolute;top:8px;left:8px;z-index:3;padding:4px 10px;border-radius:99px;background:#0d140e;color:#d0f44c;font:900 10px Arial;letter-spacing:.08em}.tp-card .tp-media .trace-design-zoom{position:absolute;top:8px;right:8px;z-index:3;color:#52604f}
+    .tp-card .tp-media .trace-design-nav{all:unset;cursor:pointer;position:absolute;top:50%;transform:translateY(-50%);z-index:4;box-sizing:border-box;width:34px!important;min-width:34px!important;max-width:34px!important;height:34px!important;border-radius:50%;line-height:1;display:grid;place-items:center;background:rgba(13,20,14,.8);color:#d0f44c;font:900 22px Arial}.tp-card .tp-media .trace-design-nav.is-prev{left:8px}.tp-card .tp-media .trace-design-nav.is-next{right:8px}.tp-card .tp-media .trace-design-nav:hover{background:#d0f44c;color:#0d140e}
+    .tp-card .tp-media .trace-design-tabs{display:flex;gap:6px;justify-content:center;padding:6px;background:rgba(13,20,14,.06);flex:none}.tp-card .tp-media .trace-design-tabs button{all:unset;cursor:pointer;min-width:34px;text-align:center;padding:4px 8px;border-radius:99px;border:1px solid #9aa89a;color:#33402f;font:900 11px Arial}.tp-card .tp-media .trace-design-tabs button[aria-pressed=true]{background:#d0f44c;border-color:#8fb30f;color:#0d140e}
+    .tp-cuerpo{padding:14px 16px 10px;display:grid;gap:8px;align-content:start;flex:1}
+    .tp-cab{display:flex;justify-content:space-between;align-items:center;gap:8px}.tp-cab h3{margin:0;font:900 22px Arial;color:#f5faef;letter-spacing:.02em}
+    .tp-linea{padding:4px 12px;border-radius:99px;background:#b9d3f5;color:#16304f;font:700 9px Arial;letter-spacing:.08em}.tp-linea b{font-size:11px;margin-left:4px}
+    .tp-cliente{margin:0;font:900 13px Arial;color:#f0f3eb;text-transform:uppercase}.tp-proy{margin:0;font:700 12px Arial;color:#aab6a5}
+    .tp-estado{justify-self:start;padding:4px 12px;border-radius:99px;border:1px solid #4d5d4a;background:#243024;color:#c9d3c1;font:700 11px Arial}.tp-estado.active{border-color:#b98e3a;color:#f3d196;background:#3a2f18}.tp-estado.finished{border-color:#3d8a5f;color:#bce4c9;background:#1c3a2c}.tp-estado.late{border-color:#a04040;color:#ffb4b4;background:#3a1c1c}
+    .tp-dos{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .tp-caja{all:unset;box-sizing:border-box;cursor:pointer;display:grid;gap:3px;padding:9px 11px;border-radius:12px;border:1px dashed #4d5d4a;background:rgba(0,0,0,.25)}.tp-caja.con{border:1px solid #3d8a5f;background:rgba(61,138,95,.12)}
+    .tp-caja small{font:800 9px Arial;letter-spacing:.08em;color:#9caa95}.tp-caja b{font:800 12px Arial;color:#d0f44c}.tp-caja:hover{border-color:#d0f44c}
+    .tp-datos{display:flex;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid #35403a;border-radius:12px;background:rgba(0,0,0,.2)}.tp-datos small{display:block;font:800 9px Arial;letter-spacing:.1em;color:#9caa95;margin-top:4px}.tp-datos b{display:block;font:900 13px Arial;color:#ecf0e7}.tp-datos .tp-tela{color:#d0f44c;font-size:12px}.tp-cant{text-align:right}.tp-cant b{display:inline;font-size:22px}
+    .tp-entrega{display:flex;align-items:center;gap:8px}.tp-entrega small{font:800 10px Arial;letter-spacing:.1em;color:#9caa95}.tp-dias{padding:4px 14px;border-radius:99px;border:1px solid #d0f44c;background:rgba(208,244,76,.12);color:#d0f44c;font:900 12px Arial}.tp-dias.tarde{border-color:#ff8f8f;color:#ff8f8f;background:rgba(255,143,143,.1)}
+    .tp-acc{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:4px;padding-top:10px;border-top:1px solid rgba(255,255,255,.1)}
+    .tp-acc button{all:unset;box-sizing:border-box;cursor:pointer;text-align:center;padding:9px 0;border-radius:10px;border:1px solid #4d5d4a;font:700 15px Arial;color:#e6efdf;background:rgba(0,0,0,.25)}.tp-acc button:disabled{opacity:.4;cursor:default}
+    .tp-b-nas{border-color:#3d8a5f!important;background:rgba(61,138,95,.15)!important}.tp-b-edit{border-color:#3d6a9a!important;background:rgba(61,106,154,.15)!important}.tp-b-del{border-color:#a04040!important;background:rgba(160,64,64,.15)!important;color:#ffb4b4!important}
+    .tp-extra{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}.tp-extra small{font:600 10px Arial;color:#7f8c79}.tp-link{all:unset;cursor:pointer;font:800 10px Arial;letter-spacing:.08em;color:#d0f44c;padding:3px 8px;border:1px solid #4d5d4a;border-radius:99px}
+    .tp-ruta{padding:0 16px 14px;display:grid;gap:6px;margin-top:auto}.tp-puntos{display:flex;justify-content:space-between;gap:3px}.tp-puntos i{all:unset;display:grid;place-items:center;flex:1;max-width:22px;height:18px;border-radius:50%;background:#2a332c;color:#c9d3c1;font:900 9px Arial;border:1px solid #3d4c3b}.tp-puntos i.finished{background:#3d8a5f;color:#fff;border-color:#3d8a5f}.tp-puntos i.active{background:#b98e3a;color:#1a1a1a;border-color:#b98e3a}.tp-puntos i.rework{background:#a04040;color:#fff}
+    .tp-sig{display:flex;justify-content:space-between;font:700 11px Arial;color:#c9d3c1}.tp-sig b{color:#d0f44c}.tp-barra{height:5px;border-radius:99px;background:rgba(255,255,255,.1);overflow:hidden}.tp-barra span{display:block;height:100%;background:#9be37a;border-radius:inherit}`;
+    document.head.appendChild(st);
+  }
+  // La tarjeta de un pedido programado: el MISMO diseño de la tarjeta de Producción (mockup, orden y línea, cliente, proyecto, estado, MTS, máquina,
+  // referencia, tela, cantidad, entrega, ruta de procesos) y sus mismos botones (los atributos data-card-* los atiende el código de Producción)
+  // IR A LA NAS: abre la carpeta de la orden en el Explorador/Finder (el mismo enlace que usa Producción)
+  document.addEventListener('click', e => {
+    const n = e.target.closest('[data-ir-nas]'); if (!n) return;
+    toast('Abriendo la carpeta de ' + n.dataset.irNas + ' en tu Explorador…', 'ok');
+    window.location.assign('/nas/abrir?order=' + encodeURIComponent(n.dataset.irNas) + '&client=' + encodeURIComponent(n.dataset.cliente || ''));
+  });
+  // EDITAR / MTS / MÁQUINA: se le pasa el clic a la misma tarjeta de Producción (así abre exactamente la misma ventana)
+  document.addEventListener('click', e => {
+    const b = e.target.closest('[data-puente]'); if (!b) return;
+    if (b.dataset.puente === 'full-edit' && window.traceAbrirEditor) {   // EDITAR abre el mismo editor de Producción directo, aunque la tarjeta no esté visible allá
+      b.disabled = true; window.traceAbrirEditor(Number(b.dataset.id)).then(ok => { if (!ok) toast('No encontré esta orden en Producción para editarla. Ábrela desde PRODUCCIÓN.', 'error'); }).finally(() => { b.disabled = false; }); return;
+    }
+    const real = document.querySelector('.trace-cards [data-card-' + b.dataset.puente + '="' + b.dataset.id + '"]');
+    if (real) { real.click(); return; }
+    toast('Esta orden no está visible en Producción ahora (revisa los filtros de PRODUCCIÓN). Ábrela desde allí.', 'error');
+  });
+  function tarjetaPrograma(x) {
+    const o = produccion[x.codigo] || null, ids = o && o.filas && o.filas.length ? o.filas : [0];
+    return ids.map((id, k) => {
+      const f = (o && o.info && o.info[id]) || {};
+      const pct = f.percent != null ? f.percent : (o ? o.percent : 0), foco = f.percent != null ? f.focus : (o ? o.focus : null);   // avance de ESTA tarjeta
+      const estado = x.estado === 'ERROR' || x.estado === 'REVISAR' ? ['late', 'Error al programar'] : !o ? ['late', x.estado === 'COMPLETADO' ? 'No está en Producción' : 'Programando…'] : pct >= 100 ? ['finished', 'Terminado'] : foco ? [foco.state === 'active' ? 'active' : 'pending', (foco.state === 'active' ? 'En ' : 'Pendiente - ') + foco.label] : ['pending', 'Programado'];
+      const dias = o && o.entrega ? Math.round((o.entrega - new Date().setHours(0, 0, 0, 0)) / 864e5) : null;
+      const mts = /MTS/i.test(f.mts || '') ? f.mts.split(/\n|<br>/)[0].trim() : '';
+      const ruta = o ? '<div class="tp-ruta"><div class="tp-sig"><span>' + esc(foco ? 'Siguiente: ' + foco.label : 'Ruta completada') + '</span><b>' + pct + '% COMPLETADO</b></div><div class="tp-barra"><span style="width:' + pct + '%"></span></div></div>' : '';
+      const nasId = ' data-ir-nas="' + esc(x.codigo) + '" data-cliente="' + esc((o && o.cliente) || x.cliente || '') + '"', editId = id ? ' data-puente="full-edit" data-id="' + id + '"' : ' disabled';
+      return '<article class="tp-card state-' + estado[0] + '"' + (id ? ' data-card-row="' + id + '"' : '') + '>' +
+        '<div class="trace-media tp-media">' + (id ? galeriaHtml(id) : '<span>Sin diseño</span>') + '</div>' +
+        '<div class="tp-cuerpo"><div class="tp-cab"><h3>' + esc(x.codigo) + '</h3>' + (f.linea ? '<span class="tp-linea">LÍNEA <b>' + esc(f.linea) + '</b></span>' : '') + '</div>' +
+        '<p class="tp-cliente">' + esc((o && o.cliente) || x.cliente || 'Sin cliente') + '</p><p class="tp-proy">' + esc((o && o.proyecto) || x.proyecto || '') + '</p>' +
+        '<span class="tp-estado ' + estado[0] + '">' + esc(estado[1]) + '</span>' +
+
+        '<div class="tp-datos"><div><small>REFERENCIA</small><b>' + esc(f.ref || (x.referencias || []).join(', ') || '—') + '</b>' + (f.tela ? '<small>TELA</small><b class="tp-tela">' + esc(f.tela) + '</b>' : '') + '</div>' +
+        '<div class="tp-cant"><small>CANTIDAD</small><b>' + (f.units != null ? f.units : (x.prendas || 0)) + '</b> <small>und.</small></div></div>' +
+        '<div class="tp-entrega"><small>ENTREGA :</small>' + (dias == null ? '<b>—</b>' : '<span class="tp-dias' + (dias < 0 ? ' tarde' : '') + '">' + (dias < 0 ? 'Atrasado ' + (-dias) + ' días' : dias === 0 ? 'Hoy' : dias + ' Días') + '</span>') + '</div>' +
+        '<div class="tp-acc"><button type="button" class="tp-b-nas" title="Ir a la carpeta de la orden en la NAS"' + nasId + '>📁</button><button type="button" class="tp-b-edit" title="Editar / ver en Producción"' + editId + '>✎</button><button type="button" class="tp-b-del" title="Eliminar la orden de todo el panel y la NAS" data-quitar-prog="' + esc(x.codigo) + '">🗑</button></div>' +
+        (true ? '<div class="tp-extra"><small>Programó ' + esc(x.usuario || '—') + ' · ' + esc(String(x.fecha || '').replace('T', ' ').slice(0, 16)) + '</small>' + (x.excel ? '<a class="tp-link" href="' + esc(x.excel) + '" title="Descargar el listado">⬇ EXCEL</a>' : '') + '</div>' : '') +
+        '</div>' + ruta + '</article>';
+    }).join('');
+  }
+  function htmlProgramados() {
+    const q = busqueda.trim().toLowerCase();
+    const lista = programados.filter(x => !q || (x.codigo + ' ' + x.cliente + ' ' + x.proyecto).toLowerCase().includes(q));
+    if (!lista.length) return '';
+    estiloTarjetas();
+    return '<h3 style="margin:18px 0 10px;font:900 12px Arial;letter-spacing:.14em;color:#d0f44c">PEDIDOS PROGRAMADOS <em class="tc-n">' + lista.length + '</em></h3><div class="tc-progcards"><div class="tp-grid">' +
+      lista.slice(0, 60).map(x => tarjetaPrograma(x)).join('') + '</div></div>';
+  }
+  function fechaDe(v) { const m = String(v || '').trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})|^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})/); if (!m) return null; return m[1] ? new Date(+m[1], m[2] - 1, +m[3]) : new Date(+(m[6].length === 2 ? '20' + m[6] : m[6]), m[5] - 1, +m[4]); }
+  function cargarProduccion() {   // el cálculo lo hace el servidor (x.prod); aquí solo se adapta a lo que dibuja la tarjeta
+    const out = {};
+    programados.forEach(x => {
+      const p = x.prod; if (!p) return;
+      const info = {}; p.filas.forEach(f => { info[f.id] = f; });
+      out[x.codigo] = { orden: x.codigo, filas: p.filas.map(f => f.id), info, cliente: p.cliente, proyecto: p.proyecto, entrega: fechaDe(p.entrega), percent: p.percent, focus: p.focus };
+    });
+    produccion = out;
+  }
+  const galerias = new Map();   // id de fila -> {imgs, i} ; las imágenes se piden solo cuando la tarjeta se ve
+  function galeriaHtml(id) {
+    const g = galerias.get(id);
+    if (!g) return '<span>Buscando diseño…</span>';
+    if (!g.imgs.length) return '<div class="trace-no-design"><span aria-hidden="true">◇</span><strong>Sin diseño adjunto</strong></div>';
+    const n = g.imgs.length, i = Math.min(g.i || 0, n - 1), c = g.imgs[i];
+    return '<div class="trace-design-view"><div class="trace-design-stage"><a class="trace-design-main" href="' + esc(c.url) + '" target="_blank" rel="noopener"><img loading="lazy" decoding="async" src="' + esc(c.url) + '" alt=""></a><span class="trace-design-count">DISEÑO ' + (c.design || i + 1) + (n > 1 ? ' <small>· ' + (i + 1) + '/' + n + '</small>' : '') + '</span>' +
+      (n > 1 ? '<button type="button" class="trace-design-nav is-prev" data-gal="' + id + '" data-gi="' + ((i - 1 + n) % n) + '">‹</button><button type="button" class="trace-design-nav is-next" data-gal="' + id + '" data-gi="' + ((i + 1) % n) + '">›</button>' : '') +
+      '</div><div class="trace-design-tabs">' + g.imgs.map((m, k) => '<button type="button" data-gal="' + id + '" data-gi="' + k + '" aria-pressed="' + (k === i) + '">D' + (m.design || k + 1) + '</button>').join('') + '</div></div>';
+  }
+  function pintarGaleria(id) { document.querySelectorAll('.tp-card[data-card-row="' + id + '"] .tp-media').forEach(m => { m.innerHTML = galeriaHtml(id); }); }
+  const observador = typeof IntersectionObserver === 'function' ? new IntersectionObserver(es => es.forEach(e => {
+    if (!e.isIntersecting) return; observador.unobserve(e.target);
+    const id = Number(e.target.dataset.cardRow); if (!id || galerias.has(id)) return;
+    fetch('/api/produccion/fila/' + id + '/archivos', { credentials: 'same-origin' }).then(r => r.json()).then(d => { galerias.set(id, { imgs: d.images || [], i: 0 }); pintarGaleria(id); }).catch(() => { galerias.set(id, { imgs: [], i: 0 }); pintarGaleria(id); });
+  }), { rootMargin: '200px' }) : null;
+  function observarTarjetas() { document.querySelectorAll('.tp-card[data-card-row]').forEach(c => { const id = Number(c.dataset.cardRow); if (galerias.has(id)) pintarGaleria(id); else if (observador) observador.observe(c); }); }
+  document.addEventListener('click', e => {
+    const b = e.target.closest('.tp-card [data-gal]'); if (!b) return;
+    e.preventDefault(); e.stopPropagation();
+    const id = Number(b.dataset.gal), g = galerias.get(id); if (!g) return; g.i = Number(b.dataset.gi); pintarGaleria(id);
+  }, true);
+  function pedirClave(titulo, texto, accion) {   // contraseña en un cuadro propio (nunca en un prompt()): al ponerla empieza a eliminar AQUÍ MISMO, con avance y errores dentro de la ventana
+    return new Promise(res => {
+      const f = document.createElement('div'); f.className = 'ax-fondo';
+      f.innerHTML = '<div class="ax-card" style="max-width:460px"><div class="ax-cab"><div><span class="ax-eye">ELIMINAR DE PRODUCCIÓN</span><h3>' + esc(titulo) + '</h3></div></div><p class="ax-p">' + texto + '</p>' +
+        '<input type="text" data-clave name="c' + Math.random().toString(36).slice(2) + '" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="text" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="Tu contraseña del panel" style="width:100%;box-sizing:border-box;padding:10px 12px;border-radius:10px;border:1px solid #3d4c3b;background:#0d140e;color:#f5faef;font:700 14px Arial;-webkit-text-security:disc;text-security:disc">' +
+        '<p data-estado style="margin:10px 0 0;font:800 12px/1.4 Arial;min-height:16px"></p>' +
+        '<div class="ax-btns" style="margin-top:8px;justify-content:flex-end"><button class="ax-btn" type="button" data-no>CANCELAR</button><button class="ax-btn" type="button" data-si style="background:#7a2a2a;color:#fff;border-color:#a33">ELIMINAR</button></div></div>';
+      document.body.appendChild(f);
+      const inp = f.querySelector('[data-clave]'), est = f.querySelector('[data-estado]'), si = f.querySelector('[data-si]'), no = f.querySelector('[data-no]'); let ocupado = false;
+      const buscador = document.getElementById('tc-buscar'), antes = buscador ? buscador.value : '';   // el navegador no debe pegar nada en el buscador de la lista
+      const cerrar = v => { f.remove(); const b2 = document.getElementById('tc-buscar'); if (b2 && b2.value !== antes) { b2.value = antes; busqueda = antes; pintar(); } res(v); };
+      const marca = (t, c) => { est.textContent = t; est.style.color = c; };
+      inp.focus();
+      const eliminar = async () => {
+        if (ocupado) return;
+        if (!inp.value) { marca('Escribe tu contraseña para continuar.', '#ffb547'); inp.focus(); return; }
+        ocupado = true; const clave = inp.value; inp.value = ''; inp.disabled = si.disabled = no.disabled = true; si.textContent = 'ELIMINANDO…';
+        marca('⏳ Eliminando: tarjetas de Producción, Cartera y carpeta de la NAS… no cierres la página.', '#d0f44c');
+        try { await accion(clave); cerrar(true); }
+        catch (er) { ocupado = false; inp.disabled = si.disabled = no.disabled = false; si.textContent = 'ELIMINAR'; marca('⚠ ' + (er && er.message ? er.message : 'No se pudo eliminar.'), '#ff9b9b'); inp.focus(); }
+      };
+      no.onclick = () => { if (!ocupado) cerrar(false); };
+      si.onclick = eliminar;
+      inp.onkeydown = e => { if (e.key === 'Enter') eliminar(); if (e.key === 'Escape' && !ocupado) cerrar(false); };
+    });
+  }
+  document.addEventListener('click', async e => {
+    const sn = e.target.closest('[data-sync-nas]'); if (!sn) return;
+    try { sn.disabled = true; const r = await api('/api/pedido-effi/programados/' + encodeURIComponent(sn.dataset.syncNas) + '/sincronizar', 'POST', {}); const det = (r.detalle || []).join('\n'); toast((r.completo ? '✓ ' + sn.dataset.syncNas + ' sincronizada con la NAS.' : '⚠ ' + sn.dataset.syncNas + ' quedó pendiente (se sigue intentando 15 min).') + '\n' + det, r.completo ? 'ok' : 'error'); console.log('Sincronizar ' + sn.dataset.syncNas, det); } catch (er) { toast(er.message, 'error'); } finally { setTimeout(() => { sn.disabled = false; }, 4000); }
+  });
+  document.addEventListener('click', async e => {
+    const b = e.target.closest('[data-quitar-prog]'); if (!b) return;
+    const c = b.dataset.quitarProg, o = produccion[c], filas = (o && o.filas) || [];
+    try {
+      if (filas.length) {   // borrado seguro de Producción SOLO de esta orden: sus tarjetas + su carpeta NAS (pide contraseña, deja copia de recuperación)
+        if (norm(o.orden) !== c) { toast(c + ' está agrupada con otras órdenes en una misma tarjeta de Producción (' + o.orden + '). Para no borrar las otras, elimínala desde PRODUCCIÓN.', 'error'); return; }
+        const pv = await api('/api/produccion/fila/' + filas[0] + '/eliminacion?orden=1');   // la carpeta EXACTA que se va a borrar
+        let rb = null;
+        const hecho = await pedirClave('Eliminar ' + c, 'Se eliminará <b>solo la orden ' + esc(c) + '</b>: ' + (filas.length > 1 ? 'sus <b>' + filas.length + ' tarjetas</b>' : 'su <b>tarjeta</b>') + ' de Producción, su cotización en <b>Cartera</b> (si no tiene pagos), esta lista y <b>esta carpeta de la NAS</b>:<br><small style="word-break:break-all;color:#d0f44c">' + esc(pv.folder) + '</small><br>Queda una copia de recuperación en el servidor. Ninguna otra orden se toca.', async clave => { rb = await api('/api/produccion/orden/' + encodeURIComponent(c), 'DELETE', { password: clave }); });
+        if (!hecho) return;
+        b.disabled = true; b.textContent = 'ELIMINANDO…';
+        const cp = (rb && rb.cartera && rb.cartera.con_pagos) || []; if (cp.length) toast('La cotización ' + cp.join(', ') + ' sigue en Cartera porque tiene pagos registrados.', 'error');
+      } else if (!confirm('¿Eliminar ' + c + '?\n\nNo está en Producción: solo se quita de esta lista.')) return;
+      await api('/api/pedido-effi/programados/' + encodeURIComponent(c), 'DELETE');
+      programados = programados.filter(x => x.codigo !== c); delete produccion[c]; pintar();
+      toast(c + (filas.length ? ' eliminado de Producción, la NAS y Cartera' : ' quitado de la lista'), 'ok');
+    } catch (er) { b.disabled = false; b.textContent = '🗑 ELIMINAR'; toast(er.message, 'error'); }
+  });
+  window.addEventListener('produccion-editada', () => { ultimo = ''; cargar(); });   // si se edita una orden en el editor de Producción, la tarjeta de aquí se actualiza al instante
   async function cargar() {
     if (cargando || !panel) return;
     cargando = true;
     try {
-      const [a, p, e, c] = await Promise.all([api('/api/club/enlaces'), api('/api/club/pedidos'), api('/api/club/effitron').catch(() => null), api('/api/club/correos').catch(() => null)]);
-      enlaces = a.enlaces; pedidos = p.pedidos; effi = e; if (c) correos = c; pintar();
-      if (dlg && dlg.open && modoDlg === 'enlaces') pintarEnlaces(false);
+      const [p, e, c, pr] = await Promise.all([api('/api/club/pedidos'), api('/api/club/effitron').catch(() => null), api('/api/club/correos').catch(() => null), api('/api/pedido-effi/programados').catch(() => null)]);
+      if (pr) programados = pr.programados || [];
+      cargarProduccion();
+      pedidos = p.pedidos; effi = e; if (c) correos = c; pintar();
     } catch (e) { panel.innerHTML = '<div class="tc"><div class="tc-card"><p>' + esc(e.message) + '</p></div></div>'; ultimo = ''; }
     finally { cargando = false; }
   }
 
-  async function sugerir(q) {
-    const texto = String(q || '').trim();
-    const caja = dlg && dlg.querySelector('#tc-sugerencias');
-    if (!texto) { if (caja) { caja.hidden = true; caja.innerHTML = ''; } return; }
-    try {
-      const d = await api('/api/club/clientes?q=' + encodeURIComponent(texto));
-      const campo = dlg && dlg.querySelector('#tc-cliente');
-      if (!campo || campo.value.trim() !== texto) return;
-      const clientes = d.clientes || [], dl = dlg.querySelector('#tc-clientes');
-      if (dl) dl.innerHTML = clientes.map(c => '<option value="' + esc(c.nombre) + '"></option>').join('');
-      if (!caja) return;
-      caja.innerHTML = clientes.length
-        ? clientes.map(c => '<button type="button" role="option" data-sugerencia="' + esc(c.nombre) + '" data-proyectos="' + Number(c.proyectos || c.pedidos || 0) + '"><span>' + esc(c.nombre) + '</span><small>' + (Number(c.proyectos || c.pedidos || 0) ? Number(c.proyectos || c.pedidos) + ' proyectos' : 'Cliente NAS') + '</small></button>').join('')
-        : '<div style="padding:10px;color:#aab7a5;font:600 13px Arial">No hay clientes con MAESTROS que coincidan.</div>';
-      caja.hidden = false;
-    } catch (e) { if (caja) { caja.hidden = false; caja.innerHTML = '<div style="padding:10px;color:#ffb0a5;font:600 13px Arial">No se pudo buscar ahora. Intenta de nuevo.</div>'; } }
-  }
 
   function iniciar() {
     panel = document.querySelector('.panel[data-panel="club"]');
@@ -324,20 +471,16 @@
     dlg.className = 'tc-dlg';
     document.body.appendChild(dlg);
     let t = 0;
-    dlg.addEventListener('input', e => { if (e.target.id === 'tc-cliente') { clienteElegido = null; const crear = dlg.querySelector('#tc-crear'), seleccion = dlg.querySelector('#tc-seleccion'); if (crear) crear.disabled = true; if (seleccion) { seleccion.classList.remove('on'); seleccion.textContent = '1. Busca y selecciona un cliente para habilitar la generación.'; } clearTimeout(t); t = setTimeout(() => sugerir(e.target.value), 250); } });
     dlg.addEventListener('click', async e => {
       const b = e.target.closest('button'); if (!b) return;
       try {
-        if (b.dataset.sugerencia) { clienteElegido = { nombre: b.dataset.sugerencia, proyectos: Number(b.dataset.proyectos || 0) }; const campo = dlg.querySelector('#tc-cliente'), crear = dlg.querySelector('#tc-crear'), seleccion = dlg.querySelector('#tc-seleccion'); if (campo) { campo.value = clienteElegido.nombre; campo.focus(); } if (crear) crear.disabled = false; if (seleccion) { seleccion.classList.add('on'); seleccion.innerHTML = '✓ Cliente seleccionado: <b>' + esc(clienteElegido.nombre) + '</b>' + (clienteElegido.proyectos ? ' · ' + clienteElegido.proyectos + ' proyectos' : ''); } const caja = dlg.querySelector('#tc-sugerencias'); if (caja) caja.hidden = true; return; }
         if (b.dataset.cerrar !== undefined) { dlg.close(); return; }
         if (b.id === 'tc-correos-guardar') {
           const d = await api('/api/club/correos', 'PUT', { comerciales: dlg.querySelector('#tc-correos').value, sin_vendedor: dlg.querySelector('#tc-sin-vendedor').value.trim() });
           correos = { ...correos, comerciales: d.comerciales, sin_vendedor: d.sin_vendedor };
           toast('Correos guardados', 'ok'); return;
         }
-        if (b.dataset.copiar) { try { await navigator.clipboard.writeText(url(b.dataset.copiar)); toast('Enlace copiado', 'ok'); aviso = 'Enlace copiado: ' + esc(url(b.dataset.copiar)); } catch (er) { aviso = 'Copia este enlace: ' + esc(url(b.dataset.copiar)); } pintarEnlaces(false); return; }
-        if (b.dataset.revocar) { if (!confirm('¿Revocar este enlace? El cliente ya no podrá abrirlo.')) return; await api('/api/club/enlaces/' + b.dataset.revocar, 'DELETE'); aviso = 'Enlace revocado.'; toast('Enlace revocado', 'ok'); await cargar(); return; }
-      } catch (er) { toast(er.message, 'error'); if (modoDlg === 'enlaces') pintarEnlaces(false); }
+      } catch (er) { toast(er.message, 'error'); }
     });
     dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });   // clic fuera de la tarjeta cierra
     panel.addEventListener('input', e => {
@@ -347,8 +490,8 @@
       const b = e.target.closest('button'); if (!b) return;
       try {
         if (b.dataset.correos !== undefined) { modoDlg = 'correos'; pintarCorreos(); dlg.showModal(); return; }
-        if (b.dataset.enlaces) { modoDlg = 'enlaces'; ultimoDlg = ''; pintarEnlaces(b.dataset.enlaces === 'nuevo'); dlg.showModal(); return; }
         if (b.dataset.cotreint) { await api('/api/club/pedidos/' + b.dataset.cotreint + '/cotizacion/reintentar', 'POST'); aviso = 'Reintentando la cotización…'; toast('Reintentando la cotización…', 'ok'); await cargar(); return; }
+        if (b.dataset.eliminar) { const id = b.dataset.eliminar; if (!confirm('¿Eliminar la reprogramación #' + id + '? Desaparece de esta pantalla (no borra la cotización de Effi ni lo ya programado en Producción).')) return; await api('/api/club/pedidos/' + id, 'DELETE'); toast('Reprogramación #' + id + ' eliminada', 'ok'); await cargar(); return; }
         if (b.dataset.filtro !== undefined) { filtro = b.dataset.filtro; pintar(); return; }
         if (b.dataset.ver) { const id = Number(b.dataset.ver); abiertos.has(id) ? abiertos.delete(id) : abiertos.add(id); pintar(); return; }
         if (b.dataset.res) {
@@ -364,7 +507,37 @@
       } catch (er) { toast(er.message, 'error'); pintar(); }
     });
     document.querySelectorAll('.tab[data-kind="club"]').forEach(tab => tab.addEventListener('click', () => cargar()));
-    setInterval(() => { if (!document.hidden && panel.classList.contains('active')) cargar(); }, 30000);
+    document.addEventListener('click', e => { if (e.target.closest('[data-pedido="nuevo"]')) abrirPedido(); });
+    setInterval(() => { if (!document.hidden && panel.classList.contains('active')) cargar(); }, 20000);
+  }
+  // EMPEZAR PEDIDO: formulario igual al de «Crear cotización» de Effi (pedido-effi.js). Crea la cotización o la remisión de venta en Effi (solo si la cuenta Indoor Sport lo tiene ENCENDIDO).
+  function abrirPedido() {
+    document.querySelector('.tc-pedido-fondo')?.remove();
+    const f = document.createElement('div');
+    f.className = 'tc-pedido-fondo';
+    f.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.65);padding:8px;overflow:auto';
+    f.innerHTML = '<div class="tc-pedido-card" style="width:100%;margin:0;box-sizing:border-box;background:#101a12;border:1px solid rgba(230,235,241,.3);border-radius:18px;padding:14px">' +
+      '<div class="tc-pedido-herr" data-herr><div class="tc-ptabs" role="tablist"><button type="button" role="tab" data-ptab="doc" class="on">CO/RM</button><button type="button" role="tab" data-ptab="listado">LISTADO</button></div><button type="button" class="tc-btn tc-b-line tc-pedido-cerrar" data-cerrar-pedido>Cerrar</button></div>' +
+      '<div data-pedido-effi></div></div>';
+    document.body.appendChild(f);
+    f.addEventListener('click', e => { if (e.target.closest('[data-cerrar-pedido]')) f.remove(); });   // solo con el botón Cerrar: un clic fuera no debe perder un pedido a medio llenar
+    const caja = f.querySelector('[data-pedido-effi]');
+    // pestañas CO/RM (la cotización o remisión) y LISTADO
+    const marcarTab = () => { const p = window.PedidoListado && window.PedidoListado.activo && window.PedidoListado.activo(); const lst = p === 'listado' || p === 'mockups' || p === 'enviado'; f.querySelectorAll('[data-ptab]').forEach(b => b.classList.toggle('on', (b.dataset.ptab === 'listado') === lst)); };
+    // Las pestañas CO/RM · LISTADO y CERRAR van DENTRO del formulario: en la franja de arriba (pe-slot) o, si no hay franja, en la tarjeta.
+    const herr = f.querySelector('[data-herr]'), tarjeta = f.querySelector('.tc-pedido-card');
+    const acomodar = () => { const s = caja.querySelector('[data-pe-slot]'); if (s) { if (herr.parentNode !== s) s.appendChild(herr); } else if (herr.parentNode !== tarjeta) tarjeta.insertBefore(herr, caja); };
+    new MutationObserver(() => { acomodar(); marcarTab(); }).observe(caja, { childList: true, subtree: true });
+    acomodar();
+    f.addEventListener('click', e => {
+      const b = e.target.closest('[data-ptab]'); if (!b) return;
+      const PL = window.PedidoListado, PE = window.PedidoEffi, hay = PL && PL.activo && PL.activo(), previo = hay && PL.previo && PL.previo();
+      if (previo) { if (b.dataset.ptab === 'doc' && PE.volverAlFormulario) PE.volverAlFormulario(); marcarTab(); return; }   // listado previo -> vuelve al formulario guardando lo llenado
+      if (!hay) { if (b.dataset.ptab === 'listado' && PE && PE.listadoPrevio && !PE.listadoPrevio()) { toast('Para llenar el LISTADO primero agrega al menos un artículo en Conceptos (el listado se arma por referencia y cantidad).', 'error'); const r = caja.querySelector('[data-f="ref"]'); if (r) { r.scrollIntoView({ block: 'center', behavior: 'smooth' }); r.focus(); r.classList.add('pe-falta'); } } marcarTab(); return; }   // aún sin documento: listado PREVIO
+      PL.ir(b.dataset.ptab); marcarTab();
+    });
+    if (window.PedidoEffi) window.PedidoEffi.montar(caja);
+    else caja.innerHTML = '<p style="color:#ffb4a2;font:700 13px Arial">No cargó el formulario. Recarga la página con Ctrl+F5.</p>';
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar); else iniciar();
 })();
