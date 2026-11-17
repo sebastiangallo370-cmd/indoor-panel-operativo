@@ -1,4 +1,10 @@
 (() => {
+  // Toda llamada al servidor tiene límite de tiempo: si la NAS o el servidor no responden, la pantalla no se queda cargando
+  const fetchT = (url, opts) => {
+    const lento = /programar|leer-archivo|crear|vista-previa|excel|sincron/.test(String(url));
+    const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), lento ? 180000 : 45000);
+    return fetch(url, Object.assign({}, opts || {}, { signal: ctl.signal })).finally(() => clearTimeout(t));
+  };
   // PEDIDO EN EFFI: formulario con la estructura de «Crear cotización» de Effi. Al confirmar crea la COTIZACIÓN o la REMISIÓN DE VENTA en Effi. Lo abre EMPEZAR PEDIDO (PROGRAMAR CLUB).
   if (window.__pedidoEffiListo) return;
   window.__pedidoEffiListo = true;
@@ -982,7 +988,7 @@
   let ultimo = leer(), primera = true;
 
   async function esAdmin() {
-    try { const r = await fetch('/api/bitacora/mi', { credentials: 'same-origin', cache: 'no-store' }); return r.ok; } catch (e) { return false; }
+    try { const r = await fetchT('/api/bitacora/mi', { credentials: 'same-origin', cache: 'no-store' }); return r.ok; } catch (e) { return false; }
   }
   function avisar(x) {
     if (!soportado() || Notification.permission !== 'granted') return;
@@ -994,7 +1000,7 @@
   }
   async function revisar() {
     try {
-      const r = await fetch('/api/bitacora?q=Program&limite=100', { credentials: 'same-origin', cache: 'no-store' });
+      const r = await fetchT('/api/bitacora?q=Program&limite=100', { credentials: 'same-origin', cache: 'no-store' });
       if (!r.ok) return;
       const items = (await r.json()).items || [];
       const maximo = items.reduce((m, x) => Math.max(m, x.id), ultimo);

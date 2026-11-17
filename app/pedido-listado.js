@@ -2,6 +2,12 @@
   // LISTADO DEL PEDIDO (EMPEZAR PEDIDO): al crear la cotización en Effi se muestra aquí su réplica; con «Continuar con el listado» el comercial adjunta los mockups, llena el
   // listado (nombre, talla, número, diseño, género y observación de cada prenda) y lo programa en Producción (POST /api/pedido-effi/programar → el programar pedido de siempre).
   if (window.PedidoListado) return;
+  // Toda llamada al servidor tiene límite de tiempo: si la NAS o el servidor no responden, la pantalla no se queda cargando
+  const fetchT = (url, opts) => {
+    const lento = /programar|leer-archivo|crear|vista-previa|excel|sincron/.test(String(url));
+    const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), lento ? 180000 : 45000);
+    return fetch(url, Object.assign({}, opts || {}, { signal: ctl.signal })).finally(() => clearTimeout(t));
+  };
   const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const money = n => '$ ' + Number(n || 0).toLocaleString('es-CO', { maximumFractionDigits: 0 });
   const num = v => { const n = Number(String(v).replace(',', '.')); return isFinite(n) ? n : 0; };
@@ -368,7 +374,7 @@
       c.querySelector('[data-pdf-replica]').onclick = () => { c.classList.remove('pl-pdf-caja'); c.innerHTML = htmlDoc(); ajustarHoja(); };
     };
     try {
-      const r = await fetch('/api/pedido-effi/pdf-estado/' + numero, { credentials: 'same-origin', cache: 'no-store' }).then(x => x.ok ? x.json() : Promise.reject(new Error('Error ' + x.status)));
+      const r = await fetchT('/api/pedido-effi/pdf-estado/' + numero, { credentials: 'same-origin', cache: 'no-store' }).then(x => x.ok ? x.json() : Promise.reject(new Error('Error ' + x.status)));
       if (r.estado === 'listo') {
         L.pdfListo = true; L.pdfUrl = '/api/pedido-effi/pdf/' + numero;
         if (!caja()) return;   // llegó mientras se trabajaba en otro paso: se mostrará al volver a «1 · COTIZACIÓN»
@@ -439,7 +445,7 @@
     if (!pr) { setMsg('Escribe el NOMBRE DEL PROYECTO de ' + ref + ' para ver sus mockups.', 'error'); return; }
     setMsg('Buscando mockups de ' + ref + ' en MAESTROS…', '');
     try {
-      const r = await fetch('/api/pedido-effi/mockups?cliente=' + encodeURIComponent(cliente) + '&proyecto=' + encodeURIComponent(pr) + '&ref=' + encodeURIComponent(ref), { credentials: 'same-origin' });
+      const r = await fetchT('/api/pedido-effi/mockups?cliente=' + encodeURIComponent(cliente) + '&proyecto=' + encodeURIComponent(pr) + '&ref=' + encodeURIComponent(ref), { credentials: 'same-origin' });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(j.detail || 'MAESTROS no respondió');
       L.galItems = L.galItems || {}; L.galOpen = L.galOpen || {};
@@ -453,7 +459,7 @@
     const it = ((L.galItems || {})[ref] || [])[Number(idx)]; if (!it) return;
     setMsg('Cargando ' + it.nombre + '…', '');
     try {
-      const r = await fetch(it.url, { credentials: 'same-origin' }); if (!r.ok) throw new Error('la NAS no entregó la imagen (' + r.status + ')');
+      const r = await fetchT(it.url, { credentials: 'same-origin' }); if (!r.ok) throw new Error('la NAS no entregó la imagen (' + r.status + ')');
       const b = await r.blob();
       if (it.diseno > L.disenos) L.disenos = Math.min(MAX_DISENOS, it.diseno);   // el mockup pide más diseños: se amplían
       let n = it.diseno >= 1 && it.diseno <= L.disenos ? it.diseno : 0;
@@ -582,7 +588,7 @@
         const fd = new FormData();
         fd.append('archivo', f);
         try {
-          const r = await fetch('/api/listado/leer-archivo', { method: 'POST', body: fd, credentials: 'same-origin' });
+          const r = await fetchT('/api/listado/leer-archivo', { method: 'POST', body: fd, credentials: 'same-origin' });
           const j = await r.json().catch(() => ({}));
           if (!r.ok) { setMsg(j.detail || 'No pude leer el archivo.', 'error'); return; }
           // Cada pestaña del Excel que se llame igual que una referencia va a esa referencia; el resto se avisa
@@ -716,7 +722,7 @@
       if (L.doc.tipo !== 'remision') {   // el PDF de Effi es OBLIGATORIO: se espera aquí, a la vista, antes de programar (con el motivo si no llega)
         const t0 = Date.now(); let est = null;
         for (;;) {
-          est = await fetch('/api/pedido-effi/pdf-estado/' + L.doc.numero, { credentials: 'same-origin', cache: 'no-store' }).then(x => x.ok ? x.json() : null).catch(() => null);
+          est = await fetchT('/api/pedido-effi/pdf-estado/' + L.doc.numero, { credentials: 'same-origin', cache: 'no-store' }).then(x => x.ok ? x.json() : null).catch(() => null);
           if (est && (est.estado === 'listo' || est.estado === 'error')) break;
           const seg = Math.round((Date.now() - t0) / 1000);
           if (seg > 120) break;
@@ -728,7 +734,7 @@
         L.job.detail = 'PDF de Effi listo. Creando el listado de Excel con la plantilla de Indoor…';
         if (raiz && raiz.isConnected && L.pantalla === 'enviado') pantallaEnviado();
       }
-      const r = await fetch('/api/pedido-effi/programar', { method: 'POST', body: fd, credentials: 'same-origin' });
+      const r = await fetchT('/api/pedido-effi/programar', { method: 'POST', body: fd, credentials: 'same-origin' });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(typeof j.detail === 'string' ? j.detail : 'No se pudo programar el pedido (error ' + r.status + ')');
       L.enviando = false; Object.assign(L.job, { id: j.id, estado: j.estado || 'RECIBIDO', progreso: 8, detail: j.mensaje || '', excel: j.excel || '', excel_nombre: j.excel_nombre || '', insertados: j.mockups_insertados == null ? null : j.mockups_insertados });
@@ -797,7 +803,7 @@
     try { const d = document.createElement('iframe'); d.style.cssText = 'position:fixed;width:0;height:0;border:0;left:-9999px'; d.src = L.job.excel; document.body.appendChild(d); setTimeout(() => d.remove(), 60000); } catch (e) { /* queda el botón DESCARGAR */ }   // se baja solo: con «Abrir siempre archivos de este tipo» se abre en Excel de una vez
     const codigo = L.job.excel.split('/').pop();
     try {
-      const r = await fetch('/api/pedido-effi/excel-vista/' + encodeURIComponent(codigo), { credentials: 'same-origin', cache: 'no-store' });
+      const r = await fetchT('/api/pedido-effi/excel-vista/' + encodeURIComponent(codigo), { credentials: 'same-origin', cache: 'no-store' });
       if (!r.ok) throw new Error('Error ' + r.status);
       const v = await r.json(); L.xlVista = v;
       mostrarHoja(0, true);
@@ -890,11 +896,12 @@
     for (let k = 0; k < 700 && raiz && raiz.isConnected && L.pantalla === 'enviado'; k++) {   // hasta ~14 min
       await new Promise(r => setTimeout(r, 1200));
       try {
-        const r = await fetch('/api/procesos', { credentials: 'same-origin' }); const lista = await r.json();
+        const r = await fetchT('/api/procesos', { credentials: 'same-origin' }); const lista = await r.json();
         if (L.job.estado === 'COMPLETADO' && !(L.job.pdf && L.job.pdf.hecho) && k % 2 === 0) {   // el PDF de Effi debe quedar en la carpeta antes de cerrar
-          try { let q = await fetch('/api/pedido-effi/pdf-orden/' + encodeURIComponent((L.doc.tipo === 'remision' ? 'RM' : 'CO') + L.doc.numero), { credentials: 'same-origin', cache: 'no-store' }).then(x => x.json()); if (!q || q.detalle === undefined) q = { hecho: false, estado: 'error', detalle: 'No pude consultar el estado del PDF (' + JSON.stringify(q).slice(0, 80) + ')' }; if (!L.job.pdf || q.detalle !== L.job.pdf.detalle || q.hecho !== L.job.pdf.hecho) { L.job.pdf = q; if (raiz.isConnected && L.pantalla === 'enviado') pantallaEnviado(); } } catch (e) { /* se reintenta */ }
+          try { let q = await fetchT('/api/pedido-effi/pdf-orden/' + encodeURIComponent((L.doc.tipo === 'remision' ? 'RM' : 'CO') + L.doc.numero), { credentials: 'same-origin', cache: 'no-store' }).then(x => x.json()); if (!q || q.detalle === undefined) q = { hecho: false, estado: 'error', detalle: 'No pude consultar el estado del PDF (' + JSON.stringify(q).slice(0, 80) + ')' }; if (!L.job.pdf || q.detalle !== L.job.pdf.detalle || q.hecho !== L.job.pdf.hecho) { L.job.pdf = q; if (raiz.isConnected && L.pantalla === 'enviado') pantallaEnviado(); } } catch (e) { /* se reintenta */ }
         }
-        if (L.job.estado === 'COMPLETADO' && (esMovil() || (L.job.pdf && L.job.pdf.hecho))) {   // todo salió bien: se cierra la ventana y se avisa
+        // todo salió bien: se cierra y se avisa. Si el PDF de Effi no llega en 60 s, no se espera más (queda pendiente en la carpeta)
+        if (L.job.estado === 'COMPLETADO' && (esMovil() || (L.job.pdf && L.job.pdf.hecho) || (L.job.completadoEn && Date.now() - L.job.completadoEn > 60000))) {
           const cod = (L.doc.tipo === 'remision' ? 'RM' : 'CO') + L.doc.numero;
           await new Promise(r => setTimeout(r, 2600));   // se alcanza a ver el festejo antes de cerrar
           avisoProgramado(cod); if (L.opts.onCerrar) L.opts.onCerrar(); return;
@@ -903,6 +910,7 @@
         const m = (lista || []).find(x => x.id === L.job.id); if (!m) continue;
         const cambio = m.status !== L.job.estado || m.detail !== L.job.detail || Number(m.progress) !== L.job.progreso;
         L.job.estado = m.status; L.job.detail = m.detail || ''; L.job.progreso = Number(m.progress) || L.job.progreso;
+        if (m.status === 'COMPLETADO' && !L.job.completadoEn) L.job.completadoEn = Date.now();
         if (cambio && raiz.isConnected && L.pantalla === 'enviado') pantallaEnviado();
         if (['COMPLETADO', 'ERROR', 'REVISAR'].includes(m.status)) { if (m.status === 'COMPLETADO') { try { localStorage.removeItem(claveBorrador()); } catch (e) { /* nada */ } } fin = true; }
       } catch (e) { /* se reintenta */ }
@@ -933,7 +941,7 @@
       refs.forEach(ref => m[ref].forEach((u, i) => { if (typeof u === 'string') { try { const q = Object.fromEntries(new URL(u, location.origin).searchParams); if (q.cliente && q.proyecto && q.carpeta && q.archivo) L.mkMaestro[ref + '|' + (i + 1)] = q; } catch (e) { /* sin datos de MAESTROS */ } } }));
       refs.forEach(ref => m[ref].forEach((url, i) => L.mkCarga.push((async () => {
         try {
-          const b = typeof url === 'string' ? await fetch(url, { credentials: 'same-origin' }).then(x => { if (!x.ok) throw new Error(); return x.blob(); }) : url;   // una URL de la NAS o un archivo que subió el comercial
+          const b = typeof url === 'string' ? await fetchT(url, { credentials: 'same-origin' }).then(x => { if (!x.ok) throw new Error(); return x.blob(); }) : url;   // una URL de la NAS o un archivo que subió el comercial
           const ext = (b.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
           (L.imgs[ref] = L.imgs[ref] || {})[i + 1] = new File([b], ref + '_D' + (i + 1) + '.' + ext, { type: b.type || 'image/png' });
           if (raiz && raiz.isConnected && L.pantalla === 'mockups') dibujar();
