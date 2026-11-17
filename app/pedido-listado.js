@@ -239,15 +239,16 @@
     return [...m.values()];
   };
   const claveBorrador = () => 'pedidoListado:' + (L.doc.prefijo || '') + L.doc.numero;
-  function guardarBorrador() { try { localStorage.setItem(claveBorrador(), JSON.stringify({ disenos: L.disenos, proyecto: L.proyecto, linea: L.linea, observaciones: L.observaciones, listado: L.listado })); } catch (e) { /* sin almacenamiento */ } }
-  function cargarBorrador() { if (L.doc.numero === 'PREVIO') return; try { const b = JSON.parse(localStorage.getItem(claveBorrador()) || 'null'); if (b && b.listado) Object.assign(L, { disenos: b.disenos || 1, proyecto: b.proyecto || L.proyecto, linea: b.linea || '', observaciones: b.observaciones || '', listado: b.listado }); } catch (e) { /* borrador dañado */ } }
+  const datosRef = ref => { const d = (L.refDatos || {})[ref] || {}; return { proyecto: d.proyecto != null ? d.proyecto : (L.proyecto || ''), linea: d.linea != null ? d.linea : (L.linea || '') }; };
+  function guardarBorrador() { try { localStorage.setItem(claveBorrador(), JSON.stringify({ disenos: L.disenos, proyecto: L.proyecto, linea: L.linea, observaciones: L.observaciones, listado: L.listado, refDatos: L.refDatos || {} })); } catch (e) { /* sin almacenamiento */ } }
+  function cargarBorrador() { if (L.doc.numero === 'PREVIO') return; try { const b = JSON.parse(localStorage.getItem(claveBorrador()) || 'null'); if (b && b.listado) Object.assign(L, { disenos: b.disenos || 1, proyecto: b.proyecto || L.proyecto, linea: b.linea || '', observaciones: b.observaciones || '', listado: b.listado, refDatos: b.refDatos || {} }); } catch (e) { /* borrador dañado */ } }
   const filaVacia = () => ({ nombre: '', talla: '', numero: '', diseno: L.defDiseno || 1, genero: L.defGenero || 'MASC', observacion: '' });
   const filasDe = ref => (L.listado[ref] = L.listado[ref] || []);
   const faltantes = () => {   // lo que impide programar: se muestra completo, no uno por uno
     const out = [];
-    if (!String(L.proyecto || '').trim()) out.push('Escribe el NOMBRE DEL PROYECTO (está en el listado).');
     grupos().forEach(g => {
       const f = filasDe(g.referencia);
+      if (!String(datosRef(g.referencia).proyecto || '').trim()) out.push(g.referencia + ': escribe el NOMBRE DEL PROYECTO');
       if (f.length !== g.cantidad) out.push(g.referencia + ': la cotización dice ' + g.cantidad + ' prendas y el listado tiene ' + f.length + (f.length < g.cantidad ? ' (faltan ' + (g.cantidad - f.length) + ')' : ' (sobran ' + (f.length - g.cantidad) + ')'));
       const sinTalla = f.filter(x => !String(x.talla || '').trim()).length, sinGen = f.filter(x => !x.genero).length;
       if (sinTalla) out.push(g.referencia + ': ' + sinTalla + ' prenda(s) sin talla');
@@ -434,8 +435,8 @@
   function pantallaListado() {
     if (!raiz.dataset.datosPedido) {   // proyecto y línea: un solo manejador para toda la ventana
       raiz.dataset.datosPedido = '1';
-      raiz.addEventListener('input', e => { if (e.target.matches && e.target.matches('[data-proyecto]')) { L.proyecto = e.target.value; guardarBorrador(); estadoListado(); } });
-      raiz.addEventListener('change', e => { if (e.target.matches && e.target.matches('[data-linea]')) { L.linea = e.target.value; guardarBorrador(); estadoListado(); } });
+      raiz.addEventListener('input', e => { if (e.target.matches && e.target.matches('[data-ref-proyecto]')) { const ref = e.target.dataset.ref; L.refDatos = L.refDatos || {}; L.refDatos[ref] = Object.assign({}, datosRef(ref), { proyecto: e.target.value }); guardarBorrador(); estadoListado(); } });
+      raiz.addEventListener('change', e => { if (e.target.matches && e.target.matches('[data-ref-linea]')) { const ref = e.target.dataset.ref; L.refDatos = L.refDatos || {}; L.refDatos[ref] = Object.assign({}, datosRef(ref), { linea: e.target.value }); guardarBorrador(); estadoListado(); } });
     }
     const gs = grupos(); if (!gs.find(g => g.referencia === L.abierta)) L.abierta = gs[0].referencia;
     const g = gs.find(x => x.referencia === L.abierta), filas = filasDe(g.referencia);
@@ -443,12 +444,11 @@
       for (let k = 0; k < g.cantidad; k++) filas.push(filaVacia());
       L.relleno[g.referencia] = true; guardarBorrador();
     }
-    q('[data-cuerpo]').innerHTML = '<div class="pl-tarjeta" style="margin-bottom:10px"><h3>Datos del pedido</h3><div class="pl-grid">' +
-      '<label>NOMBRE DEL PROYECTO *<input data-proyecto value="' + esc(L.proyecto) + '" placeholder="Ej. TEMPORADA 2027"></label>' +
-      '<label>LÍNEA DEL PRODUCTO<select data-linea><option value="">—</option>' + (L.cat.lineas || []).map(x => '<option' + (x === L.linea ? ' selected' : '') + '>' + esc(x) + '</option>').join('') + '</select></label>' +
-      '</div></div><div class="pl-refs">' + gs.map(x => '<button type="button" class="pl-ref ' + (x.referencia === L.abierta ? 'on' : '') + '" data-ref="' + esc(x.referencia) + '">' + esc(x.referencia) + contador(x) + '</button>').join('') + '</div>' +
+    q('[data-cuerpo]').innerHTML = '<div class="pl-refs">' + gs.map(x => '<button type="button" class="pl-ref ' + (x.referencia === L.abierta ? 'on' : '') + '" data-ref="' + esc(x.referencia) + '">' + esc(x.referencia) + contador(x) + '</button>').join('') + '</div>' +
       '<div class="pl-tarjeta"><h3>' + esc(g.referencia) + ' · ' + esc(g.descripcion) + ' · ' + g.cantidad + ' prendas</h3>' +
-      '<div class="pl-herr"><label>N° de diseños<select data-n-disenos>' + Array.from({ length: MAX_DISENOS }, (_, k) => '<option value="' + (k + 1) + '"' + (k + 1 === L.disenos ? ' selected' : '') + '>' + (k + 1) + '</option>').join('') + '</select></label><label>Diseño nuevo<select data-def-diseno>' + Array.from({ length: L.disenos }, (_, k) => '<option value="' + (k + 1) + '"' + (k + 1 === L.defDiseno ? ' selected' : '') + '>D' + (k + 1) + '</option>').join('') + '</select></label>' +
+      '<div class="pl-herr"><label>NOMBRE DEL PROYECTO *<input data-ref-proyecto data-ref="' + esc(g.referencia) + '" value="' + esc(datosRef(g.referencia).proyecto) + '" placeholder="Ej. TEMPORADA 2027"></label>' +
+      '<label>LÍNEA DEL PRODUCTO<select data-ref-linea data-ref="' + esc(g.referencia) + '"><option value="">—</option>' + (L.cat.lineas || []).map(x => '<option' + (x === datosRef(g.referencia).linea ? ' selected' : '') + '>' + esc(x) + '</option>').join('') + '</select></label>' +
+      '<label>N° de diseños<select data-n-disenos>' + Array.from({ length: MAX_DISENOS }, (_, k) => '<option value="' + (k + 1) + '"' + (k + 1 === L.disenos ? ' selected' : '') + '>' + (k + 1) + '</option>').join('') + '</select></label><label>Diseño nuevo<select data-def-diseno>' + Array.from({ length: L.disenos }, (_, k) => '<option value="' + (k + 1) + '"' + (k + 1 === L.defDiseno ? ' selected' : '') + '>D' + (k + 1) + '</option>').join('') + '</select></label>' +
       '<label>Género nuevo<select data-def-genero><option' + (L.defGenero === 'MASC' ? ' selected' : '') + '>MASC</option><option' + (L.defGenero === 'FEM' ? ' selected' : '') + '>FEM</option></select></label>' +
       '<button class="pl-btn sec mini" type="button" data-mas style="display:inline-flex;align-items:center;gap:6px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>AGREGAR FILA</button><button class="pl-btn sec mini" type="button" data-mas5 style="display:inline-flex;align-items:center;gap:6px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h10"/><path d="M4 12h10"/><path d="M4 18h6"/><path d="M19 15v6"/><path d="M16 18h6"/></svg>AGREGAR 5 FILAS</button><button class="pl-btn sec mini" type="button" data-pegar style="display:inline-flex;align-items:center;gap:6px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4"/><path d="M6.5 9.5 12 4l5.5 5.5"/><path d="M4 16v3.5A.5.5 0 0 0 4.5 20h15a.5.5 0 0 0 .5-.5V16"/></svg>SUBIR ARCHIVO</button><button class="pl-btn sec mini" type="button" data-pegar-texto>PEGAR DESDE EXCEL</button>' + '<div class="pl-aplique" style="display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px;flex:0 0 auto;max-width:100%;order:-1;grid-column:1/-1">' + '<div data-tipos' + ' style="position:relative;min-width:min(220px,100%);visibility:' + (L.textura === 'SI' ? 'visible' : 'hidden') + '">' + '<button type="button" data-tipos-btn style="width:100%;min-height:38px;padding:0 10px;border:1px solid #3d4c3b;border-radius:8px;background:#17201a;color:#f4f7fa;font:700 13px Arial;text-align:left;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + ((L.tipos || []).length ? L.tipos.join(', ') : 'TIPO DE APLIQUE') + ' ▾</button>' + '<div data-tipos-panel hidden style="position:absolute;z-index:20;left:0;right:0;top:100%;margin-top:4px;background:#101a12;border:1px solid #3d4c3b;border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:6px;font:700 11px Arial">' + ['TEXTURIZADO TPU', 'BORDADO', 'SELLO PRESTIGIO', 'DTF/VINILO'].map(t => '<label style="display:flex;gap:6px;align-items:center;white-space:nowrap;cursor:pointer;padding:6px 12px;min-height:26px"><input type="checkbox" data-tipo style="display:none" value="' + t + '"' + ((L.tipos || []).includes(t) ? ' checked' : '') + '><span data-chk style="width:14px;color:#d0f44c;font-size:13px">' + ((L.tipos || []).includes(t) ? '✓' : '') + '</span>' + t + '</label>').join('') + '</div></div>' + '<label class="pl-tex" style="margin-left:8px;min-width:120px;max-width:160px">Aplique *<select data-textura><option value="">Seleccionar…</option><option value="SI"' + (L.textura === 'SI' ? ' selected' : '') + '>SÍ</option><option value="NO"' + (L.textura === 'NO' ? ' selected' : '') + '>NO</option></select></label></div></div>' +
       '<div class="pl-tabla-caja"><table class="pl-tabla"><thead><tr><th></th><th>NOMBRE</th><th>TALLA *</th><th>NÚMERO</th><th>DISEÑO</th><th>GÉNERO</th><th>OBSERVACIÓN</th><th></th></tr></thead><tbody data-filas>' + filas.map(filaHtml).join('') + '</tbody></table></div></div>';
@@ -641,10 +641,11 @@
       }
     }
     const listado = {}; grupos().forEach(g => { listado[g.referencia] = filasDe(g.referencia).map(x => ({ nombre: x.nombre, talla: x.talla, numero: x.numero, diseno: Number(x.diseno), genero: x.genero, observacion: x.observacion })); });
-    const doc = Object.assign({}, L.doc, { proyecto: L.proyecto.trim(), disenos: L.disenos });
+    const proyectos = Object.fromEntries(grupos().map(g => [g.referencia, datosRef(g.referencia)]));
+    const doc = Object.assign({}, L.doc, { proyecto: String((proyectos[grupos()[0].referencia] || {}).proyecto || '').trim(), disenos: L.disenos });
     if (!L.textura) { alert('Elige si el pedido lleva aplique texturizado, bordado, sellos o basters (SÍ o NO) antes de programar.'); return; }
     if (L.textura === 'SI' && !(L.tipos || []).length) { alert('Si lleva aplique, elige al menos un tipo: TEXTURIZADO TPU, BORDADO, SELLO PRESTIGIO o DTF/VINILO.'); return; }
-    const fd = new FormData(); fd.append('payload', JSON.stringify({ doc, listado, linea: L.linea, observaciones: L.observaciones, textura: L.textura, tipos: L.textura === 'SI' ? (L.tipos || []) : [] }));
+    const fd = new FormData(); fd.append('payload', JSON.stringify({ doc, listado, proyectos, linea: L.linea, observaciones: L.observaciones, textura: L.textura, tipos: L.textura === 'SI' ? (L.tipos || []) : [] }));
     grupos().forEach(g => { for (let n = 1; n <= L.disenos; n++) { const img = imagenDe(L.compartir ? '*' : g.referencia, n); if (img) { fd.append('mockup:' + g.referencia + ':' + n, img, img.name); const mm = (L.mkMaestro || {})[g.referencia + '|' + n]; if (mm) fd.append('maestro:' + g.referencia + ':' + n, JSON.stringify(mm)); } } });   // los de MAESTROS también van con su origen: en la NAS se copian idénticos
     // al pulsar PROGRAMAR PEDIDO el trabajo empieza YA y se ve en pantalla: el listado de Excel que se está creando y cómo avanza cada paso
     L.xlCargado = false; L.xlVista = null;
