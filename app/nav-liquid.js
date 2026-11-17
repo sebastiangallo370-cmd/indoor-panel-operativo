@@ -136,17 +136,6 @@
     N+'.sidebar :is(.tab,.nav-parent){text-shadow:none!important;background:transparent!important;border-color:transparent!important;box-shadow:none!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important}',
     N+'.sidebar .tab:hover{background:rgba(255,255,255,.1)!important}',
     '}',
-    /* Pantallas medianas (861–1280 px): la barra cabe sin que las pestañas invadan el logo ni los iconos de la derecha */
-    '@media(min-width:601px) and (max-width:1280px){',
-    N+'.sidebar .tabs{gap:clamp(2px,.45vw,5px)!important;min-width:0!important;flex:1 1 0!important;justify-content:center!important;overflow:visible!important;flex-wrap:nowrap!important}',
-    N+'.sidebar :is(.tabs > .tab,.tabs > .nav-group > .nav-parent,.nav-group > .nav-parent){font-size:clamp(8px,.8vw,11px)!important;letter-spacing:.03em!important;padding-left:.42em!important;padding-right:.42em!important;white-space:nowrap!important}',
-    N+'.sidebar .systems{flex:0 0 auto!important;position:relative!important;z-index:2;margin-left:8px!important;gap:4px!important}',
-    N+'.sidebar .systems > *{flex:0 0 auto!important}',
-    N+'.sidebar-brand{flex:0 0 auto!important;width:auto!important}',
-    N+'.sidebar-brand img{max-width:96px!important;width:auto!important;height:auto!important}',
-    N+'.sidebar .systems .user-info{display:none!important}',
-    '@media(min-width:601px) and (max-width:960px){' + N + '.sidebar .systems .theme-icon,' + N + '.sidebar .systems .listo{display:none!important}}',
-    '}',
     '@media(max-width:860px){',
     N+'.sidebar{background:linear-gradient(180deg,rgba(4,8,5,.82),rgba(4,8,5,0))!important;border:0!important;border-bottom:0!important;box-shadow:none!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important}',
     N+'.sidebar .systems,'+N+'.sidebar .nav-children{background:transparent!important;border:0!important;box-shadow:none!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important}',
@@ -161,4 +150,22 @@
   style.id = 'interfaz-flotante';
   style.textContent = css;
   document.head.appendChild(style);
+})();
+
+// Barra superior: en pantallas más angostas que la de referencia se reduce TODA la barra en proporción
+// (mismos botones, mismo orden, nada oculto). Por debajo de 701 px se mantiene la barra móvil.
+(() => {
+  const REF = 1240;
+  function ajustarBarra() {
+    const sb = document.querySelector('.sidebar');
+    if (!sb) return;
+    const w = window.innerWidth;
+    const z = w < REF && w >= 701 ? w / REF : 1;
+    sb.style.zoom = z < 1 ? String(z) : '';
+    sb.style.width = z < 1 ? Math.round(w / z) + 'px' : '';
+  }
+  window.addEventListener('resize', ajustarBarra);
+  document.addEventListener('DOMContentLoaded', ajustarBarra);
+  setInterval(ajustarBarra, 1500);
+  ajustarBarra();
 })();
