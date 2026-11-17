@@ -642,9 +642,16 @@
     const f = faltantes(); if (f.length) { setMsg(f.join('\n'), 'error'); return; }
     L.enviando = true;
     if (L.mkCarga && L.mkCarga.length) {   // los mockups elegidos en el documento SON los que se insertan: se espera a que terminen de bajar y se exige que estén todos
-      setMsg('Preparando los mockups elegidos…', ''); await Promise.all(L.mkCarga);
+      setMsg('Preparando los mockups elegidos…', '');
+      // espera como máximo 30 s: si la NAS tarda o falla, no se queda cargando para siempre
+      const tiempo = new Promise(r => setTimeout(() => r('tiempo'), 30000));
+      const resultado = await Promise.race([Promise.allSettled(L.mkCarga), tiempo]);
       const faltan = (L.mkEsperados || []).filter(([r, n]) => !imagenDe(r, n));
-      if (faltan.length) { L.enviando = false; setMsg('No pude traer el mockup ' + faltan.map(([r, n]) => r + ' D' + n).join(', ') + ' desde la NAS. Súbelo a mano en ◀ MOCKUPS o vuelve a intentar.', 'error'); return; }
+      if (resultado === 'tiempo' || faltan.length) {
+        L.enviando = false; estadoListado();
+        setMsg((faltan.length ? 'No pude traer el mockup ' + faltan.map(([r, n]) => r + ' D' + n).join(', ') + ' desde la NAS' : 'La NAS tardó demasiado en traer los mockups') + '. Súbelo a mano en ◀ MOCKUPS o vuelve a intentar.', 'error');
+        return;
+      }
     }
     const listado = {}; grupos().forEach(g => { listado[g.referencia] = filasDe(g.referencia).map(x => ({ nombre: x.nombre, talla: x.talla, numero: x.numero, diseno: Number(x.diseno), genero: x.genero, observacion: x.observacion })); });
     const doc = Object.assign({}, L.doc, { proyecto: L.proyecto.trim(), disenos: L.disenos });
