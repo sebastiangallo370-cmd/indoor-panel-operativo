@@ -473,7 +473,7 @@
     const cuerpo = q('[data-cuerpo]'); if (!cuerpo) return;
     if (!document.getElementById('pl-dos-css')) {
       const st = document.createElement('style'); st.id = 'pl-dos-css';
-      st.textContent = '.pl-dos{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(260px,1fr);gap:14px;align-items:start}.pl-der{position:sticky;top:8px;min-width:0}.pl-izq{min-width:0}@media (max-width:900px){.pl-dos{grid-template-columns:1fr}.pl-der{position:static}}.pl-izq .pl-herr{flex-wrap:wrap!important;overflow:visible!important}.pl-izq .pl-herr label{min-width:0}.pl-izq .pl-aplique{flex-wrap:nowrap!important;min-width:0}.pl-izq .pl-aplique [data-tipos]{min-width:170px!important}@media (max-width:700px){.pl-izq .pl-aplique{flex-wrap:wrap!important}}';
+      st.textContent = '.pl-dos{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(260px,1fr);gap:14px;align-items:start}.pl-der{position:sticky;top:8px;min-width:0}.pl-izq{min-width:0}@media (max-width:900px){.pl-dos{grid-template-columns:1fr}.pl-der{position:static}}.pl-izq .pl-herr{flex-wrap:wrap!important;overflow:visible!important}.pl-izq .pl-herr label{min-width:0}.pl-dos button:focus{outline:none!important}.pl-izq .pl-aplique{flex-wrap:nowrap!important;min-width:0}.pl-izq .pl-aplique [data-tipos]{min-width:170px!important}@media (max-width:700px){.pl-izq .pl-aplique{flex-wrap:wrap!important}}';
       document.head.appendChild(st);
     }
     cuerpo.classList.add('pl-dos');
@@ -495,7 +495,8 @@
     if (!(L.galOpen || {})[ref]) return '';
     if (!items.length) return '<p style="color:#c9d6c2;font:700 12px Arial;margin:6px 0">No hay mockups de ' + esc(ref) + ' en este proyecto.</p>';
     return '<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:8px 0">' + items.map((it, i) =>
-      '<button type="button" data-gal-ref="' + esc(ref) + '" data-gal-item="' + i + '" style="width:100%;min-width:0;border:1px solid #3d4c3b;border-radius:10px;background:#17201a;padding:6px;cursor:pointer;text-align:left">' +
+      '<button type="button" data-gal-ref="' + esc(ref) + '" data-gal-item="' + i + '" style="position:relative;width:100%;min-width:0;border:1px solid #3d4c3b;border-radius:10px;background:#17201a;padding:6px;cursor:pointer;text-align:left;outline:none">' +
+      '<span style="position:absolute;top:8px;right:8px;width:22px;height:22px;border-radius:50%;border:2px solid #d0f44c;background:' + (((L.galSel || {})[ref]) === i ? '#d0f44c' : 'rgba(0,0,0,.45)') + ';box-shadow:0 0 0 2px rgba(0,0,0,.35);pointer-events:none"></span>' +
       '<img src="' + esc(it.url) + '" alt="' + esc(it.nombre) + '" loading="lazy" style="width:100%;height:auto;aspect-ratio:3/4;object-fit:contain;border-radius:6px;display:block;background:#0b120d">' +
       '<small style="color:#c9d6c2;font:700 10px Arial;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">D' + it.diseno + ' · ' + esc(it.nombre) + '</small></button>').join('') + '</div>';
   }
@@ -516,6 +517,7 @@
   }
   async function elegirMaestro(ref, idx) {
     const it = ((L.galItems || {})[ref] || [])[Number(idx)]; if (!it) return;
+    L.galSel = L.galSel || {}; L.galSel[ref] = Number(idx);
     setMsg('Cargando ' + it.nombre + '…', '');
     try {
       const r = await fetchT(it.url, { credentials: 'same-origin' }); if (!r.ok) throw new Error('la NAS no entregó la imagen (' + r.status + ')');
