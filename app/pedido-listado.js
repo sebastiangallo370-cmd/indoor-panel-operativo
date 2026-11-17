@@ -245,10 +245,39 @@
     });
     return [...m.values()];
   };
-  const claveBorrador = () => 'pedidoListado:' + (L.doc.prefijo || '') + L.doc.numero;
+  const claveBorrador = () => 'pedidoListado:' + (L.doc.prefijo || '') + L.doc.numero + (L.doc.numero === 'PREVIO' ? '|' + claveDocumento() : '');
   const datosRef = ref => { const d = (L.refDatos || {})[ref] || {}; return { proyecto: d.proyecto != null ? d.proyecto : (L.proyecto || ''), linea: d.linea != null ? d.linea : (L.linea || '') }; };
-  function guardarBorrador() { try { localStorage.setItem(claveBorrador(), JSON.stringify({ disenos: L.disenos, proyecto: L.proyecto, linea: L.linea, observaciones: L.observaciones, listado: L.listado, refDatos: L.refDatos || {} })); } catch (e) { /* sin almacenamiento */ } }
-  function cargarBorrador() { if (L.doc.numero === 'PREVIO') return; try { const b = JSON.parse(localStorage.getItem(claveBorrador()) || 'null'); if (b && b.listado) Object.assign(L, { disenos: b.disenos || 1, proyecto: b.proyecto || L.proyecto, linea: b.linea || '', observaciones: b.observaciones || '', listado: b.listado, refDatos: b.refDatos || {} }); } catch (e) { /* borrador dañado */ } }
+  function guardarBorrador() {
+    try {
+      const galeria = {};
+      Object.entries(L.galPick || {}).forEach(([ref, lista]) => { galeria[ref] = lista.filter(pk => pk.url).map(pk => ({ idx: pk.idx, url: pk.url, nombre: pk.nombre })); });
+      localStorage.setItem(claveBorrador(), JSON.stringify({ disenos: L.disenos, proyecto: L.proyecto, linea: L.linea, observaciones: L.observaciones, listado: L.listado, refDatos: L.refDatos || {}, textura: L.textura, tipos: L.tipos || [], defGenero: L.defGenero, defDiseno: L.defDiseno, galeria }));
+    } catch (e) { /* sin almacenamiento */ } }
+  function cargarBorrador() {
+    try {
+      const b = JSON.parse(localStorage.getItem(claveBorrador()) || 'null');
+      if (b && b.listado) Object.assign(L, { disenos: b.disenos || 1, proyecto: b.proyecto || L.proyecto, linea: b.linea || '', observaciones: b.observaciones || '', listado: b.listado, refDatos: b.refDatos || {}, textura: b.textura || L.textura, tipos: b.tipos || [], defGenero: b.defGenero || L.defGenero, defDiseno: b.defDiseno || L.defDiseno });
+      L.galGuardada = (b && b.galeria) || {};
+    } catch (e) { /* borrador dañado */ }
+  }
+  // vuelve a bajar los mockups elegidos (guardados por su dirección) para que el listado quede como lo dejaste
+  async function restaurarMockups() {
+    const guardada = L.galGuardada || {};
+    L.galGuardada = {};
+    for (const ref of Object.keys(guardada)) {
+      for (const it of guardada[ref]) {
+        try {
+          const r = await fetchT(it.url, { credentials: 'same-origin' }); if (!r.ok) continue;
+          const b = await r.blob();
+          const ext = (b.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg');
+          const lista = galPick()[ref] = galPick()[ref] || [];
+          lista.push({ idx: it.idx, url: it.url, nombre: it.nombre, file: new File([b], ref + '_D' + (lista.length + 1) + '.' + ext, { type: b.type || 'image/jpeg' }) });
+        } catch (e) { /* ese mockup se vuelve a elegir */ }
+      }
+      sincronizar(ref);
+    }
+    dibujar();
+  }
   const filaVacia = () => ({ nombre: '', talla: '', numero: '', diseno: L.defDiseno || 1, genero: L.defGenero || 'MASC', observacion: '' });
   const filasDe = ref => (L.listado[ref] = L.listado[ref] || []);
   const faltantes = () => {   // lo que impide programar: se muestra completo, no uno por uno
@@ -469,6 +498,7 @@
     L.imgs[ref] = {};
     lista.forEach((pk, k) => { L.imgs[ref][k + 1] = pk.file; });
     ajustarDisenos();
+    guardarBorrador();
   }
   // número de diseños = cuántos mockups hay elegidos (en la referencia que más tenga)
   function ajustarDisenos() {
@@ -540,7 +570,7 @@
       const r = await fetch(it.url, { credentials: 'same-origin' }); if (!r.ok) throw new Error('la NAS no entregó la imagen (' + r.status + ')');
       const b = await r.blob();
       const ext = (b.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg');
-      lista.push({ idx: i, file: new File([b], ref + '_D' + (lista.length + 1) + '.' + ext, { type: b.type || 'image/jpeg' }) });
+      lista.push({ idx: i, url: it.url, nombre: it.nombre, file: new File([b], ref + '_D' + (lista.length + 1) + '.' + ext, { type: b.type || 'image/jpeg' }) });
       sincronizar(ref);
       setMsg(it.nombre + ' → diseño ' + lista.length + ' de ' + ref + '.', 'ok');
       dibujar();
@@ -600,7 +630,7 @@
     }
     raiz.querySelectorAll('.pl-herr').forEach(hr => { hr.style.flexWrap = window.innerWidth < 1400 ? 'wrap' : 'nowrap'; hr.style.alignItems = 'flex-end'; hr.style.overflow = 'visible'; });
     raiz.querySelectorAll('[data-textura]').forEach(sel => sel.onchange = e => {
-      L.textura = e.target.value;
+      L.textura = e.target.value; guardarBorrador();
       raiz.querySelectorAll('[data-textura]').forEach(o => { o.value = L.textura; });
       raiz.querySelectorAll('[data-tipos]').forEach(t => { t.style.display = L.textura === 'SI' ? 'block' : 'none'; });   // TIPO DE APLIQUE solo aparece con SÍ, a la derecha de Aplique
       raiz.querySelectorAll('[data-tipos-panel]').forEach(p => { p.hidden = true; });   // al elegir SÍ/NO la lista se queda cerrada
@@ -991,6 +1021,7 @@
     Object.keys(L).forEach(k => delete L[k]);
     Object.assign(L, { doc, opts: opts || {}, cat: (opts && opts.cat) || {}, pantalla: 'doc', disenos: 1, proyecto: String(doc.proyecto || doc.garantia || ''), linea: '', observaciones: '', compartir: true, imgs: {}, listado: {}, relleno: {}, defDiseno: 1, defGenero: 'MASC', enviando: false });
     cargarBorrador();
+    if (Object.keys(L.galGuardada || {}).length) { restaurarMockups(); }
     // al volver al documento y regresar, se recupera lo que ya estaba seleccionado (proyectos, aplique, mockups, género)
     if (ULTIMO && ULTIMO.clave === claveDocumento()) {
       L.refDatos = Object.keys(L.refDatos || {}).length ? L.refDatos : ULTIMO.refDatos;
