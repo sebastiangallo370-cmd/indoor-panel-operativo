@@ -294,6 +294,7 @@
         <div class="pe-grid pe-fila2">
           <label>Cliente*<input name="cliente-q" autocomplete="off" autocapitalize="words" autocorrect="off" spellcheck="false" enterkeyhint="search" placeholder="Buscar por nombre (3 letras)…" value="${esc(st.cliente ? st.cliente.nombre : guard['cliente-q'])}"></label>
           <label>Dirección del cliente<select name="direccion">${st.cliente && st.cliente.direcciones.length ? st.cliente.direcciones.map((d, i) => '<option value="' + i + '"' + (i === st.direccion ? ' selected' : '') + '>' + esc((d.ciudad ? d.ciudad + ' · ' : '') + d.direccion) + '</option>').join('') : '<option value="-1">No registra</option>'}</select></label>
+          <label class="pe-proy">Nombre del proyecto*${proyectoHtml(guard.garantia)}</label>
         </div>
       </div>
       <div class="pe-card pe-con"><div class="pe-h3row"><h3>Conceptos</h3><label class="pe-chk pe-siniva-todos" style="margin-left:auto"><input type="checkbox" data-siniva-todos ${st.sinIvaTodos ? 'checked' : ''}> Sin IVA (todos)</label></div>
@@ -375,7 +376,7 @@
     const rd = ((st.listadoPrevio || {}).refDatos) || {};
     const ref = String((st.conceptos.find(c => String(c.ref || '').trim()) || {}).ref || '').trim().toUpperCase();
     const d = rd[ref] || {};
-    return { proyecto: String(d.proyecto || '').trim(), linea: String(d.linea || '').trim() };
+    return { proyecto: String(d.proyecto || valor('garantia') || '').trim(), linea: String(d.linea || '').trim() };   // si el listado aún no tiene proyecto, sirve el que se eligió con el cliente
   }
   async function previa(crear) {
     if (st.ocupado) return;
