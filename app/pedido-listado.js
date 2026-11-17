@@ -274,6 +274,13 @@
     return '<div class="pl-barra"><div class="pl-pasos">' + PASOS.map(([k, t], j) => '<span class="pl-paso ' + (j === i ? 'on' : j < i ? 'hecho' : '') + '">' + t + '</span>').join('') + '</div><span style="color:#a9b5a3;font:700 12px Arial">' + esc((L.doc.tipo === 'remision' ? 'Remisión ' : 'Cotización ') + (L.doc.numero_completo || L.doc.numero)) + ' · ' + esc((L.doc.cliente || {}).nombre) + '</span></div>';
   }
   function dibujar() {
+    if (L.proyLista === undefined && !L.proyCargando) { L.proyCargando = true; cargarProyLista(); }
+    if (!raiz.dataset.datosPedido) {   // proyecto y línea: un solo manejador para toda la ventana
+      raiz.dataset.datosPedido = '1';
+      raiz.addEventListener('input', e => { if (e.target.matches && e.target.matches('[data-ref-proyecto]')) { const ref = e.target.dataset.ref; L.refDatos = L.refDatos || {}; L.refDatos[ref] = Object.assign({}, datosRef(ref), { proyecto: e.target.value }); guardarBorrador(); estadoListado(); } });
+      raiz.addEventListener('change', e => { if (e.target.matches && e.target.matches('[data-ref-proy-sel]')) { const ref = e.target.dataset.ref, v = e.target.value; L.refDatos = L.refDatos || {}; L.refDatos[ref] = v === '__nuevo' ? Object.assign({}, datosRef(ref), { proyecto: '', nuevo: true }) : Object.assign({}, datosRef(ref), { proyecto: v, nuevo: false }); guardarBorrador(); dibujar(); estadoListado(); } });
+      raiz.addEventListener('change', e => { if (e.target.matches && e.target.matches('[data-ref-linea]')) { const ref = e.target.dataset.ref; L.refDatos = L.refDatos || {}; L.refDatos[ref] = Object.assign({}, datosRef(ref), { linea: e.target.value }); guardarBorrador(); estadoListado(); } });
+    }
     if (!raiz.dataset.galeriaPedido) {
       raiz.dataset.galeriaPedido = '1';
       raiz.addEventListener('click', e => {
@@ -425,9 +432,27 @@
       };
     });
   }
+  function proyectoCampo(ref) {
+    const d = datosRef(ref), lista = L.proyLista || [];
+    const nuevo = !!((L.refDatos || {})[ref] || {}).nuevo || (!!d.proyecto && lista.length > 0 && !lista.includes(d.proyecto));
+    return '<label>NOMBRE DEL PROYECTO *<select data-ref-proy-sel data-ref="' + esc(ref) + '"><option value="">' + (L.proyCargando ? 'Cargando proyectos…' : 'Seleccionar…') + '</option>' +
+      lista.map(x => '<option' + (x === d.proyecto && !nuevo ? ' selected' : '') + '>' + esc(x) + '</option>').join('') +
+      '<option value="__nuevo"' + (nuevo ? ' selected' : '') + '>+ Proyecto nuevo (escribir)…</option></select>' +
+      '<input data-ref-proyecto data-ref="' + esc(ref) + '" value="' + esc(d.proyecto) + '" placeholder="Nombre del proyecto nuevo" style="margin-top:6px' + (nuevo ? '' : ';display:none') + '"></label>';
+  }
+  async function cargarProyLista() {
+    const cliente = (L.doc.cliente && L.doc.cliente.nombre) || '';
+    try {
+      const r = await fetchT('/api/pedido-effi/proyectos?cliente=' + encodeURIComponent(cliente), { credentials: 'same-origin' });
+      const j = await r.json().catch(() => ({}));
+      L.proyLista = Array.isArray(j.proyectos) ? j.proyectos.slice() : [];
+    } catch (e) { L.proyLista = []; }
+    L.proyCargando = false;
+    dibujar();
+  }
   function cabeceraRef(ref, conGaleria) {
     const d = datosRef(ref);
-    return '<div class="pl-grid" style="margin:0 0 10px"><label>NOMBRE DEL PROYECTO *<input data-ref-proyecto data-ref="' + esc(ref) + '" value="' + esc(d.proyecto) + '" placeholder="Ej. TEMPORADA 2027"></label>' +
+    return '<div class="pl-grid" style="margin:0 0 10px">' + proyectoCampo(ref) +
       '<label>LÍNEA DEL PRODUCTO<select data-ref-linea data-ref="' + esc(ref) + '"><option value="">—</option>' + (L.cat.lineas || []).map(x => '<option' + (x === d.linea ? ' selected' : '') + '>' + esc(x) + '</option>').join('') + '</select></label></div>' +
       (conGaleria ? '<div style="margin:0 0 8px"><button class="pl-btn sec mini" type="button" data-galeria="' + esc(ref) + '">VER MOCKUPS DE MAESTROS</button></div>' + galeriaHtml(ref) : '');
   }
@@ -495,11 +520,6 @@
   }
   const esMovil = () => /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || (window.matchMedia && matchMedia('(pointer:coarse)').matches && window.innerWidth < 900);   // fuera de la oficina: sin agentes, todo lo hace el servidor (VPS)
   function pantallaListado() {
-    if (!raiz.dataset.datosPedido) {   // proyecto y línea: un solo manejador para toda la ventana
-      raiz.dataset.datosPedido = '1';
-      raiz.addEventListener('input', e => { if (e.target.matches && e.target.matches('[data-ref-proyecto]')) { const ref = e.target.dataset.ref; L.refDatos = L.refDatos || {}; L.refDatos[ref] = Object.assign({}, datosRef(ref), { proyecto: e.target.value }); guardarBorrador(); estadoListado(); } });
-      raiz.addEventListener('change', e => { if (e.target.matches && e.target.matches('[data-ref-linea]')) { const ref = e.target.dataset.ref; L.refDatos = L.refDatos || {}; L.refDatos[ref] = Object.assign({}, datosRef(ref), { linea: e.target.value }); guardarBorrador(); estadoListado(); } });
-    }
     const gs = grupos(); if (!gs.find(g => g.referencia === L.abierta)) L.abierta = gs[0].referencia;
     const g = gs.find(x => x.referencia === L.abierta), filas = filasDe(g.referencia);
     if (!filas.length && !L.relleno[g.referencia]) {   // la primera vez que se abre una referencia ya trae sus filas en blanco (una por prenda cotizada)
@@ -508,7 +528,7 @@
     }
     q('[data-cuerpo]').innerHTML = '<div class="pl-refs">' + gs.map(x => '<button type="button" class="pl-ref ' + (x.referencia === L.abierta ? 'on' : '') + '" data-ref="' + esc(x.referencia) + '">' + esc(x.referencia) + contador(x) + '</button>').join('') + '</div>' +
       '<div class="pl-tarjeta"><h3>' + esc(g.referencia) + ' · ' + esc(g.descripcion) + ' · ' + g.cantidad + ' prendas</h3>' +
-      '<div class="pl-herr"><label>NOMBRE DEL PROYECTO *<input data-ref-proyecto data-ref="' + esc(g.referencia) + '" value="' + esc(datosRef(g.referencia).proyecto) + '" placeholder="Ej. TEMPORADA 2027"></label>' +
+      '<div class="pl-herr">' + proyectoCampo(g.referencia) +
       '<label>LÍNEA DEL PRODUCTO<select data-ref-linea data-ref="' + esc(g.referencia) + '"><option value="">—</option>' + (L.cat.lineas || []).map(x => '<option' + (x === datosRef(g.referencia).linea ? ' selected' : '') + '>' + esc(x) + '</option>').join('') + '</select></label>' +
       '<label>N° de diseños<select data-n-disenos>' + Array.from({ length: MAX_DISENOS }, (_, k) => '<option value="' + (k + 1) + '"' + (k + 1 === L.disenos ? ' selected' : '') + '>' + (k + 1) + '</option>').join('') + '</select></label><label>Diseño nuevo<select data-def-diseno>' + Array.from({ length: L.disenos }, (_, k) => '<option value="' + (k + 1) + '"' + (k + 1 === L.defDiseno ? ' selected' : '') + '>D' + (k + 1) + '</option>').join('') + '</select></label>' +
       '<label>Género nuevo<select data-def-genero><option' + (L.defGenero === 'MASC' ? ' selected' : '') + '>MASC</option><option' + (L.defGenero === 'FEM' ? ' selected' : '') + '>FEM</option></select></label>' +
