@@ -423,12 +423,17 @@
     q('[data-sigue]').onclick = () => { L.pantalla = 'listado'; L.abierta = L.abierta || grupos()[0].referencia; dibujar(); };
     enlazarSlots(raiz);
   }
+  function opcionesProyecto(ref) {
+    const d = datosRef(ref), lista = L.proyLista || [];
+    const nuevo = !!((L.refDatos || {})[ref] || {}).nuevo || (!!d.proyecto && lista.length > 0 && !lista.includes(d.proyecto));
+    return '<option value="">' + (L.proyCargando ? 'Cargando proyectos…' : 'Seleccionar…') + '</option>' +
+      lista.map(x => '<option' + (x === d.proyecto && !nuevo ? ' selected' : '') + '>' + esc(x) + '</option>').join('') +
+      '<option value="__nuevo"' + (nuevo ? ' selected' : '') + '>+ Proyecto nuevo (escribir)…</option>';
+  }
   function proyectoCampo(ref) {
     const d = datosRef(ref), lista = L.proyLista || [];
     const nuevo = !!((L.refDatos || {})[ref] || {}).nuevo || (!!d.proyecto && lista.length > 0 && !lista.includes(d.proyecto));
-    return '<label>NOMBRE DEL PROYECTO *<select data-ref-proy-sel data-ref="' + esc(ref) + '"><option value="">' + (L.proyCargando ? 'Cargando proyectos…' : 'Seleccionar…') + '</option>' +
-      lista.map(x => '<option' + (x === d.proyecto && !nuevo ? ' selected' : '') + '>' + esc(x) + '</option>').join('') +
-      '<option value="__nuevo"' + (nuevo ? ' selected' : '') + '>+ Proyecto nuevo (escribir)…</option></select>' +
+    return '<label>NOMBRE DEL PROYECTO *<select data-ref-proy-sel data-ref="' + esc(ref) + '">' + opcionesProyecto(ref) + '</select>' +
       '<input data-ref-proyecto data-ref="' + esc(ref) + '" value="' + esc(d.proyecto) + '" placeholder="Nombre del proyecto nuevo" style="margin-top:6px' + (nuevo ? '' : ';display:none') + '"></label>';
   }
   async function cargarProyLista() {
@@ -439,7 +444,8 @@
       L.proyLista = Array.isArray(j.proyectos) ? j.proyectos.slice() : [];
     } catch (e) { L.proyLista = []; }
     L.proyCargando = false;
-    dibujar();
+    // solo se actualizan las opciones: no se vuelve a dibujar la pantalla (así un desplegable abierto no se cierra)
+    document.querySelectorAll('[data-ref-proy-sel]').forEach(sel => { if (sel.isConnected && raiz && raiz.contains(sel)) sel.innerHTML = opcionesProyecto(sel.dataset.ref); });
   }
   function enlazarSlots(scope) {
   scope.querySelectorAll('[data-slot]').forEach(el => {
