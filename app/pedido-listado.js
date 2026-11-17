@@ -450,7 +450,7 @@
     q('[data-mas-mockup]').onclick = () => { if (L.disenos < MAX_DISENOS) { L.disenos++; guardarBorrador(); dibujar(); } };
     const comp = q('[data-compartir]'); if (comp) comp.onchange = () => { L.compartir = comp.checked; dibujar(); };
     q('[data-atras]').onclick = () => { L.pantalla = 'doc'; dibujar(); };
-    q('[data-sigue]').onclick = () => { L.pantalla = 'listado'; L.abierta = L.abierta || grupos()[0].referencia; dibujar(); };
+    q('[data-sigue]').onclick = () => { L.pantalla = 'listado'; L.abierta = L.abierta || (grupos()[0] || { referencia: '' }).referencia; dibujar(); };
     enlazarSlots(raiz);
   }
   function opcionesProyecto(ref) {
@@ -601,7 +601,14 @@
   }
   const esMovil = () => /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || (window.matchMedia && matchMedia('(pointer:coarse)').matches && window.innerWidth < 900);   // fuera de la oficina: sin agentes, todo lo hace el servidor (VPS)
   function pantallaListado() {
-    const gs = grupos(); if (!gs.find(g => g.referencia === L.abierta)) L.abierta = gs[0].referencia;
+    const gs = grupos();
+    if (!gs.length) {   // sin referencias todavía: se avisa en vez de romper la pantalla
+      q('[data-cuerpo]').innerHTML = '<div class="pl-tarjeta"><h3>Sin referencias todavía</h3><p>Agrega las referencias en CO/RM (Conceptos). Mientras tanto ya puedes elegir el proyecto en el documento.</p></div>';
+      acciones('<button class="pl-btn sec" type="button" data-atras>◀ VOLVER A CO/RM</button>', 'Agrega al menos una referencia para llenar el listado.', 'error');
+      q('[data-atras]').onclick = () => { if (L.previo) { if (L.opts.onVolver) L.opts.onVolver(); return; } L.pantalla = 'doc'; dibujar(); };
+      return;
+    }
+    if (!gs.find(g => g.referencia === L.abierta)) L.abierta = gs[0].referencia;
     const g = gs.find(x => x.referencia === L.abierta), filas = filasDe(g.referencia);
     if (!filas.length && !L.relleno[g.referencia]) {   // la primera vez que se abre una referencia ya trae sus filas en blanco (una por prenda cotizada)
       for (let k = 0; k < g.cantidad; k++) filas.push(filaVacia());
@@ -811,7 +818,7 @@
     }
     const listado = {}; grupos().forEach(g => { listado[g.referencia] = filasDe(g.referencia).map(x => ({ nombre: x.nombre, talla: x.talla, numero: x.numero, diseno: Number(x.diseno), genero: x.genero, observacion: x.observacion })); });
     const proyectos = Object.fromEntries(grupos().map(g => [g.referencia, datosRef(g.referencia)]));
-    const doc = Object.assign({}, L.doc, { proyecto: String((proyectos[grupos()[0].referencia] || {}).proyecto || '').trim(), disenos: L.disenos });
+    const doc = Object.assign({}, L.doc, { proyecto: String((proyectos[(grupos()[0] || { referencia: '' }).referencia] || {}).proyecto || '').trim(), disenos: L.disenos });
     const fd = new FormData(); fd.append('payload', JSON.stringify({ doc, listado, proyectos, linea: L.linea, observaciones: L.observaciones, textura: L.textura, tipos: L.textura === 'SI' ? (L.tipos || []) : [] }));
     grupos().forEach(g => { for (let n = 1; n <= L.disenos; n++) { const img = imagenDe(L.compartir ? '*' : g.referencia, n); if (img) { fd.append('mockup:' + g.referencia + ':' + n, img, img.name); const mm = (L.mkMaestro || {})[g.referencia + '|' + n]; if (mm) fd.append('maestro:' + g.referencia + ':' + n, JSON.stringify(mm)); } } });   // los de MAESTROS también van con su origen: en la NAS se copian idénticos
     // al pulsar PROGRAMAR PEDIDO el trabajo empieza YA y se ve en pantalla: el listado de Excel que se está creando y cómo avanza cada paso
@@ -1045,7 +1052,7 @@
       if (pr.proyecto) L.proyecto = pr.proyecto;
       const m = pr.mockups || {}, refs = Object.keys(m);
       if (refs.length) { L.compartir = false; L.disenos = Math.min(MAX_DISENOS, Math.max(L.disenos || 1, ...refs.map(r => m[r].length))); }
-      L.pantalla = 'listado'; L.abierta = grupos()[0].referencia;   // los mockups se eligen en el panel de la derecha del listado
+      L.pantalla = 'listado'; L.abierta = (grupos()[0] || { referencia: '' }).referencia;   // los mockups se eligen en el panel de la derecha del listado
       L.mkEsperados = refs.flatMap(ref => m[ref].map((u, i) => [ref, i + 1])); L.mkCarga = []; L.mkMaestro = {};
       refs.forEach(ref => m[ref].forEach((u, i) => { if (typeof u === 'string') { try { const q = Object.fromEntries(new URL(u, location.origin).searchParams); if (q.cliente && q.proyecto && q.carpeta && q.archivo) L.mkMaestro[ref + '|' + (i + 1)] = q; } catch (e) { /* sin datos de MAESTROS */ } } }));
       refs.forEach(ref => m[ref].forEach((url, i) => L.mkCarga.push((async () => {
@@ -1061,7 +1068,7 @@
   }
   // para las pestañas CO/RM y LISTADO de la ventana: en qué pantalla está el listado (null = aún no hay documento creado) y saltar a otra
   const activo = () => (L.doc && raiz && raiz.isConnected && raiz.querySelector('.pl, [data-cuerpo]')) ? L.pantalla : null;
-  function ir(p) { if (!activo() || L.pantalla === 'enviado' || L.enviando) return false; L.pantalla = p; if (p === 'listado') L.abierta = L.abierta || grupos()[0].referencia; dibujar(); return true; }
+  function ir(p) { if (!activo() || L.pantalla === 'enviado' || L.enviando) return false; L.pantalla = p; if (p === 'listado') L.abierta = L.abierta || (grupos()[0] || { referencia: '' }).referencia; dibujar(); return true; }
   const previo = () => !!(L.previo && activo());
   const claveDocumento = () => String((L.doc.cliente && L.doc.cliente.nombre) || '') + '|' + grupos().map(g => g.referencia).join(',');
   const datos = () => {

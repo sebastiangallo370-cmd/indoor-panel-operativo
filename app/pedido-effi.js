@@ -958,7 +958,7 @@
   function listadoPrevio() {
     if (!window.PedidoListado || !st.cat || st.hecho) return false;
     const conceptos = st.conceptos.filter(l => String(l.ref || '').trim()).map(l => ({ referencia: l.ref, descripcion: l.descripcion, cantidad: num(l.cantidad) }));
-    if (!conceptos.length) { msg('Primero agrega al menos un artículo en Conceptos: el listado se arma por referencia.', 'error'); return false; }
+    if (!st.cliente) { msg('Primero elige el cliente para abrir el listado.', 'error'); return false; }   // solo el cliente: las referencias se pueden agregar después
     st.guardCampos = ['sucursal', 'bodega', 'centro_costos', 'vendedor', 'fecha_entrega', 'garantia', 'observacion', 'cliente-q'].reduce((o, n) => (o[n] = valor(n), o), {});
     const doc = { tipo: st.tipo, numero: 'PREVIO', prefijo: '', cliente: { nombre: st.cliente ? st.cliente.nombre : '' }, proyecto: valor('garantia').trim(), conceptos };
     const lp = st.listadoPrevio || {};
