@@ -493,9 +493,9 @@
     const items = ((L.galItems || {})[ref]) || [];
     if (!(L.galOpen || {})[ref]) return '';
     if (!items.length) return '<p style="color:#c9d6c2;font:700 12px Arial;margin:6px 0">No hay mockups de ' + esc(ref) + ' en este proyecto.</p>';
-    return '<div style="display:flex;flex-wrap:wrap;gap:8px;margin:8px 0">' + items.map((it, i) =>
-      '<button type="button" data-gal-ref="' + esc(ref) + '" data-gal-item="' + i + '" style="width:118px;border:1px solid #3d4c3b;border-radius:8px;background:#17201a;padding:4px;cursor:pointer;text-align:left">' +
-      '<img src="' + esc(it.url) + '" alt="' + esc(it.nombre) + '" loading="lazy" style="width:100%;height:90px;object-fit:cover;border-radius:6px;display:block">' +
+    return '<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:8px 0">' + items.map((it, i) =>
+      '<button type="button" data-gal-ref="' + esc(ref) + '" data-gal-item="' + i + '" style="width:100%;min-width:0;border:1px solid #3d4c3b;border-radius:10px;background:#17201a;padding:6px;cursor:pointer;text-align:left">' +
+      '<img src="' + esc(it.url) + '" alt="' + esc(it.nombre) + '" loading="lazy" style="width:100%;height:auto;aspect-ratio:3/4;object-fit:contain;border-radius:6px;display:block;background:#0b120d">' +
       '<small style="color:#c9d6c2;font:700 10px Arial;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">D' + it.diseno + ' · ' + esc(it.nombre) + '</small></button>').join('') + '</div>';
   }
   async function abrirGaleria(ref) {
