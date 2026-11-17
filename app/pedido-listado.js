@@ -453,19 +453,27 @@
     const [ref, n] = el.dataset.slot.split('|'), f = imagenDe(ref, Number(n)), inp = el.querySelector('[data-file]');
     if (f) { const im = el.querySelector('[data-prev]'); if (im) im.src = URL.createObjectURL(f); }
     el.querySelector('[data-elegir]').onclick = () => inp.click();
-    const quitar = el.querySelector('[data-quitar]'); if (quitar) quitar.onclick = () => { delete (L.imgs[ref] || {})[Number(n)]; ajustarDisenos(); dibujar(); };
+    const quitar = el.querySelector('[data-quitar]'); if (quitar) quitar.onclick = () => { (galPick()[ref] || []).splice(Number(n) - 1, 1); sincronizar(ref); dibujar(); };
     inp.onchange = () => {
       const a = inp.files[0]; if (!a) return;
       if (!/^image\//.test(a.type)) { setMsg('«' + a.name + '» no es una imagen.', 'error'); return; }
       if (a.size > MAX_BYTES) { setMsg('«' + a.name + '» pesa más de 10 MB.', 'error'); return; }
-      (L.imgs[ref] = L.imgs[ref] || {})[Number(n)] = a; ajustarDisenos(); dibujar();
+      (galPick()[ref] = galPick()[ref] || []).push({ idx: null, file: a }); sincronizar(ref); dibujar();
     };
   });
   }
-  // número de diseños = el diseño más alto con mockup seleccionado (en cualquier referencia)
+  const galPick = () => (L.galPick = L.galPick || {});
+  // los diseños son los mockups elegidos, en orden: 1, 2, 3… (sin huecos)
+  function sincronizar(ref) {
+    const lista = galPick()[ref] || [];
+    L.imgs[ref] = {};
+    lista.forEach((pk, k) => { L.imgs[ref][k + 1] = pk.file; });
+    ajustarDisenos();
+  }
+  // número de diseños = cuántos mockups hay elegidos (en la referencia que más tenga)
   function ajustarDisenos() {
     let max = 1;
-    grupos().forEach(g => { for (let n = 1; n <= MAX_DISENOS; n++) if (imagenDe(g.referencia, n)) max = Math.max(max, n); });
+    grupos().forEach(g => { max = Math.max(max, (galPick()[g.referencia] || []).length); });
     L.disenos = max;
   }
   function panelMockupsListado(ref) {
@@ -502,7 +510,7 @@
     if (!items.length) return '<p style="color:#c9d6c2;font:700 12px Arial;margin:6px 0">No hay mockups de ' + esc(ref) + ' en este proyecto.</p>';
     return '<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:8px 0">' + items.map((it, i) =>
       '<button type="button" data-gal-ref="' + esc(ref) + '" data-gal-item="' + i + '" style="position:relative;width:100%;min-width:0;border:1px solid #3d4c3b;border-radius:10px;background:#17201a;padding:6px;cursor:pointer;text-align:left;outline:none">' +
-      '<span style="position:absolute;top:8px;right:8px;width:22px;height:22px;border-radius:50%;border:2px solid #d0f44c;background:' + (((L.galSel || {})[ref]) === i ? '#d0f44c' : 'rgba(0,0,0,.45)') + ';box-shadow:0 0 0 2px rgba(0,0,0,.35);pointer-events:none"></span>' +
+      '<span style="position:absolute;top:8px;right:8px;width:22px;height:22px;border-radius:50%;border:2px solid #d0f44c;background:' + ((galPick()[ref] || []).some(pk => pk.idx === i) ? '#d0f44c' : 'rgba(0,0,0,.45)') + ';box-shadow:0 0 0 2px rgba(0,0,0,.35);pointer-events:none"></span>' +
       '<img src="' + esc(it.url) + '" alt="' + esc(it.nombre) + '" loading="lazy" style="width:100%;height:auto;aspect-ratio:3/4;object-fit:contain;border-radius:6px;display:block;background:#0b120d">' +
       '<small style="color:#c9d6c2;font:700 10px Arial;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">D' + it.diseno + ' · ' + esc(it.nombre) + '</small></button>').join('') + '</div>';
   }
@@ -522,24 +530,19 @@
     } catch (e) { setMsg('No pude traer los mockups: ' + (e.message || e), 'error'); }
   }
   async function elegirMaestro(ref, idx) {
-    const it = ((L.galItems || {})[ref] || [])[Number(idx)]; if (!it) return;
-    L.galSel = L.galSel || {}; L.galAsig = L.galAsig || {};
-    if (L.galSel[ref] === Number(idx)) {   // el círculo ya estaba relleno: se quita el mockup
-      delete (L.imgs[ref] || {})[L.galAsig[ref]]; delete L.galSel[ref]; ajustarDisenos(); setMsg('Mockup quitado de ' + ref + '.', ''); dibujar(); return;
-    }
-    L.galSel[ref] = Number(idx);
+    const i = Number(idx), it = ((L.galItems || {})[ref] || [])[i]; if (!it) return;
+    const lista = galPick()[ref] = galPick()[ref] || [];
+    const pos = lista.findIndex(pk => pk.idx === i);
+    if (pos >= 0) { lista.splice(pos, 1); sincronizar(ref); setMsg('Mockup quitado de ' + ref + '.', ''); dibujar(); return; }
+    if (lista.length >= MAX_DISENOS) { setMsg('Ya hay ' + MAX_DISENOS + ' diseños en ' + ref + '.', 'error'); return; }
     setMsg('Cargando ' + it.nombre + '…', '');
     try {
-      const r = await fetchT(it.url, { credentials: 'same-origin' }); if (!r.ok) throw new Error('la NAS no entregó la imagen (' + r.status + ')');
+      const r = await fetch(it.url, { credentials: 'same-origin' }); if (!r.ok) throw new Error('la NAS no entregó la imagen (' + r.status + ')');
       const b = await r.blob();
-      if (it.diseno > L.disenos) L.disenos = Math.min(MAX_DISENOS, it.diseno);   // el mockup pide más diseños: se amplían
-      let n = it.diseno >= 1 && it.diseno <= L.disenos ? it.diseno : 0;
-      if (!n) for (let k = 1; k <= L.disenos && !n; k++) if (!imagenDe(ref, k)) n = k;
-      if (!n) n = 1;
       const ext = (b.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg');
-      (L.imgs[ref] = L.imgs[ref] || {})[n] = new File([b], ref + '_D' + n + '.' + ext, { type: b.type || 'image/jpeg' });
-      L.galAsig[ref] = n; ajustarDisenos();
-      setMsg(it.nombre + ' asignado a ' + ref + ' · D' + n + '.', 'ok');
+      lista.push({ idx: i, file: new File([b], ref + '_D' + (lista.length + 1) + '.' + ext, { type: b.type || 'image/jpeg' }) });
+      sincronizar(ref);
+      setMsg(it.nombre + ' → diseño ' + lista.length + ' de ' + ref + '.', 'ok');
       dibujar();
     } catch (e) { setMsg('No pude cargar el mockup: ' + (e.message || e), 'error'); }
   }
