@@ -252,6 +252,8 @@
   const filasDe = ref => (L.listado[ref] = L.listado[ref] || []);
   const faltantes = () => {   // lo que impide programar: se muestra completo, no uno por uno
     const out = [];
+    const mkFalta = slotsNecesarios().filter(([r, n]) => !imagenDe(r, n));
+    if (mkFalta.length) out.push('Faltan mockups de: ' + [...new Set(mkFalta.map(x => x[0]))].join(', '));
     grupos().forEach(g => {
       const f = filasDe(g.referencia);
       if (!String(datosRef(g.referencia).proyecto || '').trim()) out.push(g.referencia + ': escribe el NOMBRE DEL PROYECTO');
@@ -414,23 +416,12 @@
     acciones('<button class="pl-btn sec" type="button" data-atras>◀ VOLVER A LA COTIZACIÓN</button><button class="pl-btn" type="button" data-sigue>CONTINUAR AL LISTADO ▶</button>', '', '');
     actualizarMockups();
     q('[data-obs]').oninput = e => { L.observaciones = e.target.value; guardarBorrador(); };
-    q('[data-disenos]').onchange = e => { L.disenos = Number(e.target.value); guardarBorrador(); pantallaMockups(); };
-    q('[data-mas-mockup]').onclick = () => { if (L.disenos < MAX_DISENOS) { L.disenos++; guardarBorrador(); pantallaMockups(); } };
-    const comp = q('[data-compartir]'); if (comp) comp.onchange = () => { L.compartir = comp.checked; pantallaMockups(); };
+    q('[data-disenos]').onchange = e => { L.disenos = Number(e.target.value); guardarBorrador(); dibujar(); };
+    q('[data-mas-mockup]').onclick = () => { if (L.disenos < MAX_DISENOS) { L.disenos++; guardarBorrador(); dibujar(); } };
+    const comp = q('[data-compartir]'); if (comp) comp.onchange = () => { L.compartir = comp.checked; dibujar(); };
     q('[data-atras]').onclick = () => { L.pantalla = 'doc'; dibujar(); };
     q('[data-sigue]').onclick = () => { L.pantalla = 'listado'; L.abierta = L.abierta || grupos()[0].referencia; dibujar(); };
-    raiz.querySelectorAll('[data-slot]').forEach(el => {
-      const [ref, n] = el.dataset.slot.split('|'), f = imagenDe(ref, Number(n)), inp = el.querySelector('[data-file]');
-      if (f) { const im = el.querySelector('[data-prev]'); if (im) im.src = URL.createObjectURL(f); }
-      el.querySelector('[data-elegir]').onclick = () => inp.click();
-      const quitar = el.querySelector('[data-quitar]'); if (quitar) quitar.onclick = () => { delete (L.imgs[ref] || {})[Number(n)]; pantallaMockups(); };
-      inp.onchange = () => {
-        const a = inp.files[0]; if (!a) return;
-        if (!/^image\//.test(a.type)) { setMsg('«' + a.name + '» no es una imagen.', 'error'); return; }
-        if (a.size > MAX_BYTES) { setMsg('«' + a.name + '» pesa más de 10 MB.', 'error'); return; }
-        (L.imgs[ref] = L.imgs[ref] || {})[Number(n)] = a; pantallaMockups();
-      };
-    });
+    enlazarSlots(raiz);
   }
   function proyectoCampo(ref) {
     const d = datosRef(ref), lista = L.proyLista || [];
@@ -449,6 +440,42 @@
     } catch (e) { L.proyLista = []; }
     L.proyCargando = false;
     dibujar();
+  }
+  function enlazarSlots(scope) {
+  scope.querySelectorAll('[data-slot]').forEach(el => {
+    const [ref, n] = el.dataset.slot.split('|'), f = imagenDe(ref, Number(n)), inp = el.querySelector('[data-file]');
+    if (f) { const im = el.querySelector('[data-prev]'); if (im) im.src = URL.createObjectURL(f); }
+    el.querySelector('[data-elegir]').onclick = () => inp.click();
+    const quitar = el.querySelector('[data-quitar]'); if (quitar) quitar.onclick = () => { delete (L.imgs[ref] || {})[Number(n)]; dibujar(); };
+    inp.onchange = () => {
+      const a = inp.files[0]; if (!a) return;
+      if (!/^image\//.test(a.type)) { setMsg('«' + a.name + '» no es una imagen.', 'error'); return; }
+      if (a.size > MAX_BYTES) { setMsg('«' + a.name + '» pesa más de 10 MB.', 'error'); return; }
+      (L.imgs[ref] = L.imgs[ref] || {})[Number(n)] = a; dibujar();
+    };
+  });
+  }
+  function panelMockupsListado(ref) {
+    if (!ref) return '';
+    const slots = Array.from({ length: L.disenos }, (_, i) => slotHtml(ref, i + 1)).join('');
+    return '<div class="pl-tarjeta"><h3>MOCKUPS · ' + esc(ref) + '</h3>' +
+      '<div style="margin:0 0 8px"><button class="pl-btn sec mini" type="button" data-galeria="' + esc(ref) + '">VER MOCKUPS DE MAESTROS</button></div>' +
+      galeriaHtml(ref) + '<div class="pl-slots">' + slots + '</div></div>';
+  }
+  function layoutListado() {
+    const cuerpo = q('[data-cuerpo]'); if (!cuerpo) return;
+    if (!document.getElementById('pl-dos-css')) {
+      const st = document.createElement('style'); st.id = 'pl-dos-css';
+      st.textContent = '.pl-dos{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(260px,1fr);gap:14px;align-items:start}.pl-der{position:sticky;top:8px;min-width:0}.pl-izq{min-width:0}@media (max-width:900px){.pl-dos{grid-template-columns:1fr}.pl-der{position:static}}';
+      document.head.appendChild(st);
+    }
+    cuerpo.classList.add('pl-dos');
+    const izq = document.createElement('div'); izq.className = 'pl-izq';
+    while (cuerpo.firstChild) izq.appendChild(cuerpo.firstChild);
+    const der = document.createElement('aside'); der.className = 'pl-der';
+    der.innerHTML = panelMockupsListado(L.abierta);
+    cuerpo.appendChild(izq); cuerpo.appendChild(der);
+    enlazarSlots(der);
   }
   function cabeceraRef(ref, conGaleria) {
     const d = datosRef(ref);
@@ -477,7 +504,7 @@
       L.galItems[ref] = (j.items || []).map(i => ({ url: '/api/pedido-effi/mockup-img?cliente=' + encodeURIComponent(cliente) + '&proyecto=' + encodeURIComponent(i.proyecto || pr) + '&carpeta=' + encodeURIComponent(i.carpeta) + '&archivo=' + encodeURIComponent(i.archivo), nombre: i.archivo, diseno: Number(i.diseno) || 1 }));
       L.galOpen[ref] = true;
       setMsg(L.galItems[ref].length ? 'Elige el mockup de ' + ref + '.' : 'No hay mockups de ' + ref + ' en el proyecto ' + pr + '.', L.galItems[ref].length ? 'ok' : 'error');
-      pantallaMockups();
+      dibujar();
     } catch (e) { setMsg('No pude traer los mockups: ' + (e.message || e), 'error'); }
   }
   async function elegirMaestro(ref, idx) {
@@ -493,7 +520,7 @@
       const ext = (b.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg');
       (L.imgs[ref] = L.imgs[ref] || {})[n] = new File([b], ref + '_D' + n + '.' + ext, { type: b.type || 'image/jpeg' });
       setMsg(it.nombre + ' asignado a ' + ref + ' · D' + n + '.', 'ok');
-      pantallaMockups();
+      dibujar();
     } catch (e) { setMsg('No pude cargar el mockup: ' + (e.message || e), 'error'); }
   }
   function actualizarMockups() {
@@ -668,6 +695,7 @@
     });
     tb.addEventListener('click', e => { const b = e.target.closest('[data-quitar-fila]'); if (!b) return; filas.splice(Number(b.closest('tr').dataset.i), 1); guardarBorrador(); pantallaListado(); });
     q('[data-programar]').onclick = enviar;
+    layoutListado();
   }
   function enfocarUltima() { const t = q('[data-filas]'); const u = t && t.querySelector('tr:last-child [data-c="nombre"]'); if (u) u.focus(); }
   const COLS = ['nombre', 'talla', 'numero', 'diseno', 'genero', 'observacion'];   // mismo orden que la plantilla: NOMBRE · TALLA · NÚMERO · DISEÑO · GÉNERO · OBSERVACIÓN
@@ -943,7 +971,7 @@
     Object.keys(L).forEach(k => delete L[k]);
     Object.assign(L, { doc, opts: opts || {}, cat: (opts && opts.cat) || {}, pantalla: 'doc', disenos: 1, proyecto: String(doc.proyecto || doc.garantia || ''), linea: '', observaciones: '', compartir: true, imgs: {}, listado: {}, relleno: {}, defDiseno: 1, defGenero: 'MASC', enviando: false });
     cargarBorrador();
-    L.compartir = grupos().length > 1;
+    L.compartir = false;   // cada referencia con sus propios mockups
     const pr = (opts && opts.preset) || null;
     L.previo = !!(opts && opts.previo);
     if (pr && pr.listado) {   // lo que se llenó en el LISTADO PREVIO (antes de crear la cotización)
@@ -956,7 +984,7 @@
       if (pr.proyecto) L.proyecto = pr.proyecto;
       const m = pr.mockups || {}, refs = Object.keys(m);
       if (refs.length) { L.compartir = false; L.disenos = Math.min(MAX_DISENOS, Math.max(L.disenos || 1, ...refs.map(r => m[r].length))); }
-      L.pantalla = refs.length ? 'listado' : 'mockups'; L.abierta = grupos()[0].referencia;   // sin mockups del documento: primero se eligen en el paso 2 (en el listado)
+      L.pantalla = 'listado'; L.abierta = grupos()[0].referencia;   // los mockups se eligen en el panel de la derecha del listado
       L.mkEsperados = refs.flatMap(ref => m[ref].map((u, i) => [ref, i + 1])); L.mkCarga = []; L.mkMaestro = {};
       refs.forEach(ref => m[ref].forEach((u, i) => { if (typeof u === 'string') { try { const q = Object.fromEntries(new URL(u, location.origin).searchParams); if (q.cliente && q.proyecto && q.carpeta && q.archivo) L.mkMaestro[ref + '|' + (i + 1)] = q; } catch (e) { /* sin datos de MAESTROS */ } } }));
       refs.forEach(ref => m[ref].forEach((url, i) => L.mkCarga.push((async () => {
