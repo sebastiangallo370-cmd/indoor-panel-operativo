@@ -464,7 +464,7 @@
   }
   function panelMockupsListado(ref) {
     if (!ref) return '';
-    const slots = Array.from({ length: L.disenos }, (_, i) => slotHtml(ref, i + 1)).join('');
+    const slots = Array.from({ length: L.disenos }, (_, i) => i + 1).filter(n => !imagenDe(ref, n)).map(n => slotHtml(ref, n)).join('');
     return '<div class="pl-tarjeta"><h3>MOCKUPS · ' + esc(ref) + '</h3>' +
       '<div style="margin:0 0 8px"><button class="pl-btn sec mini" type="button" data-galeria="' + esc(ref) + '">VER MOCKUPS DE MAESTROS</button></div>' +
       galeriaHtml(ref) + '<div class="pl-slots">' + slots + '</div></div>';
@@ -517,7 +517,11 @@
   }
   async function elegirMaestro(ref, idx) {
     const it = ((L.galItems || {})[ref] || [])[Number(idx)]; if (!it) return;
-    L.galSel = L.galSel || {}; L.galSel[ref] = Number(idx);
+    L.galSel = L.galSel || {}; L.galAsig = L.galAsig || {};
+    if (L.galSel[ref] === Number(idx)) {   // el círculo ya estaba relleno: se quita el mockup
+      delete (L.imgs[ref] || {})[L.galAsig[ref]]; delete L.galSel[ref]; setMsg('Mockup quitado de ' + ref + '.', ''); dibujar(); return;
+    }
+    L.galSel[ref] = Number(idx);
     setMsg('Cargando ' + it.nombre + '…', '');
     try {
       const r = await fetchT(it.url, { credentials: 'same-origin' }); if (!r.ok) throw new Error('la NAS no entregó la imagen (' + r.status + ')');
@@ -528,6 +532,7 @@
       if (!n) n = 1;
       const ext = (b.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg');
       (L.imgs[ref] = L.imgs[ref] || {})[n] = new File([b], ref + '_D' + n + '.' + ext, { type: b.type || 'image/jpeg' });
+      L.galAsig[ref] = n;
       setMsg(it.nombre + ' asignado a ' + ref + ' · D' + n + '.', 'ok');
       dibujar();
     } catch (e) { setMsg('No pude cargar el mockup: ' + (e.message || e), 'error'); }
