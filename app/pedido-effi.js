@@ -956,9 +956,8 @@
   document.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && panel && panel.isConnected && q('.pe-enc')) { e.preventDefault(); const b = q('[data-previa-btn]'); if (b) b.click(); } });   // Ctrl+Enter = VISTA PREVIA
   // pestaña LISTADO antes de crear el documento: listado PREVIO con las referencias y cantidades del formulario (se guarda y pasa solo al crear)
   function listadoPrevio() {
-    if (!window.PedidoListado || !st.cat || st.hecho) return false;
+    if (!window.PedidoListado || st.hecho) return false;   // el listado se abre cuando quieras, en el orden que decidas
     const conceptos = st.conceptos.filter(l => String(l.ref || '').trim()).map(l => ({ referencia: l.ref, descripcion: l.descripcion, cantidad: num(l.cantidad) }));
-    if (!st.cliente) { msg('Primero elige el cliente para abrir el listado.', 'error'); return false; }   // solo el cliente: las referencias se pueden agregar después
     st.guardCampos = ['sucursal', 'bodega', 'centro_costos', 'vendedor', 'fecha_entrega', 'garantia', 'observacion', 'cliente-q'].reduce((o, n) => (o[n] = valor(n), o), {});
     const doc = { tipo: st.tipo, numero: 'PREVIO', prefijo: '', cliente: { nombre: st.cliente ? st.cliente.nombre : '' }, proyecto: valor('garantia').trim(), conceptos };
     const lp = st.listadoPrevio || {};
