@@ -241,6 +241,22 @@ def _imagen_tabla(data: bytes, ext: str) -> str:
     return '\n'.join(salida)
 
 
+def pestanas_xlsx(data: bytes) -> dict:
+    """Texto del listado de CADA pestaña del libro, por nombre de pestaña (la pestaña es la referencia).
+    Las pestañas sin datos reconocibles se omiten. Así el mismo Excel puede cargar varias referencias."""
+    import openpyxl
+    wb = openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+    salida = {}
+    for hoja in wb.worksheets:
+        filas = [list(r) for r in hoja.iter_rows(values_only=True)]
+        try:
+            texto = _orden_a_texto(filas) if _es_orden(filas) else _filas_a_texto(filas)
+        except ValueError:
+            continue
+        salida[hoja.title] = texto
+    return salida
+
+
 def _libro_a_texto(pestanas: list[list[list]]) -> str:
     """Lee todas las pestañas del libro. Cada una puede ser una orden de compra o una tabla con encabezados;
     las pestañas sin datos reconocibles se omiten. Las filas se juntan bajo un solo encabezado."""
@@ -288,4 +304,10 @@ async def leer_archivo(request: Request, archivo: UploadFile = File(...)):
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     lineas = texto.count('\n')
-    return {'texto': texto, 'filas': max(0, lineas)}
+    pestanas = {}
+    if os.path.splitext((archivo.filename or '').lower())[1] in ('.xlsx', '.xlsm'):
+        try:
+            pestanas = pestanas_xlsx(data)
+        except Exception:   # noqa: BLE001 — si una pestaña no se puede leer, queda la pestaña activa
+            pestanas = {}
+    return {'texto': texto, 'filas': max(0, lineas), 'pestanas': pestanas}

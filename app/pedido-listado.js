@@ -529,10 +529,16 @@
           const r = await fetch('/api/listado/leer-archivo', { method: 'POST', body: fd, credentials: 'same-origin' });
           const j = await r.json().catch(() => ({}));
           if (!r.ok) { setMsg(j.detail || 'No pude leer el archivo.', 'error'); return; }
-          const n = pegar(g.referencia, j.texto);
+          // Cada pestaña del Excel que se llame igual que una referencia va a esa referencia; el resto se avisa
+          const refs = grupos().map(x => x.referencia), pest = j.pestanas || {};
+          const coinciden = Object.keys(pest).filter(t => refs.includes(String(t).trim().toUpperCase()));
+          let n = 0;
+          if (coinciden.length) { coinciden.forEach(t => { n += pegar(String(t).trim().toUpperCase(), pest[t]); }); }
+          else { n = pegar(g.referencia, j.texto); }
+          const ignoradas = coinciden.length ? Object.keys(pest).filter(t => !coinciden.includes(t)) : [];
           guardarBorrador();
           pantallaListado();
-          setMsg(n + ' fila(s) cargadas desde ' + f.name + '. Revísalas antes de programar.', 'ok');
+          setMsg(n + ' fila(s) cargadas desde ' + f.name + (coinciden.length ? ' (pestañas: ' + coinciden.join(', ') + ')' : '') + (ignoradas.length ? '. No se cargaron las pestañas sin referencia: ' + ignoradas.join(', ') : '') + '. Revísalas antes de programar.', 'ok');
         } catch (e) { setMsg('No pude subir el archivo: ' + e.message, 'error'); }
       };
       inp.click();
