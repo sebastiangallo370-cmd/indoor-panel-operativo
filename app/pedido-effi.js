@@ -767,6 +767,10 @@
     .pe-con>.pe-vitrina{height:auto!important;min-height:0!important;max-height:none!important;overflow:visible!important;margin:10px 0 0!important;flex:0 0 auto!important}
     .pe-vit{height:auto!important;min-height:0!important;max-height:none!important;overflow:visible!important;margin-bottom:6px}
     .pe-vit .t{margin-top:8px;position:static}
+    /* móvil: el resumen de sucursal/moneda/centro es UNA línea compacta, no un botón gigante */
+    [data-ajustes]{font:800 11px Arial!important;padding:6px 10px!important;min-height:0!important;height:auto!important;line-height:1.2!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;display:flex!important;align-items:center;gap:6px;justify-content:space-between}
+    .pe-recuperar{flex-direction:column;align-items:stretch}.pe-recuperar button{white-space:nowrap!important;flex:1 1 0;min-width:0;padding:8px 10px!important;font-size:12px!important}
+    [data-ajustes] span{font-size:10px!important;white-space:nowrap}
   }
   `;
   document.head.appendChild(cssPlus);
