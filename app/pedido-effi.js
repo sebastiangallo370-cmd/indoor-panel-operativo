@@ -960,7 +960,10 @@
     if (!codigo) return { no: true };
     if (!st.cliente) return { sinCliente: true };
     const h = await api('/api/pedido-effi/referencias-cliente?cliente=' + encodeURIComponent(st.cliente.nombre));
-    const ref = (h.referencias || []).map(x => String(x.referencia || '').toUpperCase()).find(r => r.replace(/[^A-Z0-9]/g, '').endsWith(codigo));   // la más usada primero
+    // la referencia que el cliente usó más recientemente con ese código (no la más repetida)
+    const candidatas = (h.referencias || []).filter(x => String(x.referencia || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase().endsWith(codigo))
+      .sort((x, y) => String(y.ultima_fecha || '').localeCompare(String(x.ultima_fecha || '')) || (y.veces || 0) - (x.veces || 0));
+    const ref = candidatas.length ? String(candidatas[0].referencia).toUpperCase() : '';
     if (!ref) return { sinHistorial: true, codigo };
     if (st.conceptos.some(l => String(l.ref || '').trim().toUpperCase() === ref)) return { ya: true, ref };
     const r = await api('/api/pedido-effi/articulos?q=' + encodeURIComponent(ref));
