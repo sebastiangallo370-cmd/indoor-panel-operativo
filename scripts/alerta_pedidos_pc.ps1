@@ -1,4 +1,4 @@
-# Alerta de pedidos en el PC: espera la señal del servidor (cuando un comercial da clic en PROGRAMAR)
+﻿# Alerta de pedidos en el PC: espera la señal del servidor (cuando un comercial da clic en PROGRAMAR)
 # y muestra una notificación de Windows. Usa una sola consulta abierta, no consulta cada minuto.
 # La clave de alerta está en %USERPROFILE%\.indoor_alerta_token (no hay contraseñas en este archivo).
 $ErrorActionPreference = 'SilentlyContinue'
