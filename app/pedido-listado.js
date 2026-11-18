@@ -468,6 +468,26 @@
     return '<label>NOMBRE DEL PROYECTO *<select data-ref-proy-sel data-ref="' + esc(ref) + '">' + opcionesProyecto(ref) + '</select>' +
       '<input data-ref-proyecto data-ref="' + esc(ref) + '" value="' + esc(d.proyecto) + '" placeholder="Nombre del proyecto nuevo" style="margin-top:6px' + (nuevo ? '' : ';display:none') + '"></label>';
   }
+  // mockups de TODO el proyecto elegido (sin referencias): se cargan una vez por proyecto
+  function galeriaProyectoHtml(pr) {
+    if (!pr) return '<p style="color:#a9b5a3">Elige el proyecto para ver sus mockups.</p>';
+    const g = L.galProy;
+    if (!g || g.proyecto !== pr || g.items === null) { cargarGaleriaProyecto(pr); return '<p style="color:#a9b5a3">Cargando mockups de ' + esc(pr) + '…</p>'; }
+    if (!g.items.length) return '<p style="color:#a9b5a3">El proyecto ' + esc(pr) + ' no tiene mockups todavía.</p>';
+    const cliente = (L.doc.cliente && L.doc.cliente.nombre) || '';
+    return '<div style="display:flex;flex-wrap:wrap;gap:10px;max-height:460px;overflow-y:auto;padding:4px 2px">' + g.items.map(i => '<figure style="margin:0;width:150px"><img loading="lazy" alt="' + esc(i.ref + ' D' + i.diseno) + '" style="width:150px;border-radius:8px;display:block" src="/api/pedido-effi/mockup-img?cliente=' + encodeURIComponent(cliente) + '&proyecto=' + encodeURIComponent(i.proyecto || pr) + '&carpeta=' + encodeURIComponent(i.carpeta) + '&archivo=' + encodeURIComponent(i.archivo) + '"><figcaption style="font:700 11px Arial;color:#a9b5a3">' + esc(i.ref) + ' · D' + i.diseno + '</figcaption></figure>').join('') + '</div>';
+  }
+  async function cargarGaleriaProyecto(pr) {
+    const cliente = (L.doc.cliente && L.doc.cliente.nombre) || '';
+    L.galProy = { proyecto: pr, items: null };
+    try {
+      const r = await fetchT('/api/pedido-effi/mockups-proyecto?cliente=' + encodeURIComponent(cliente) + '&proyecto=' + encodeURIComponent(pr), { credentials: 'same-origin' });
+      const j = await r.json().catch(() => ({}));
+      if (!L.galProy || L.galProy.proyecto !== pr) return;   // ya se eligió otro proyecto
+      L.galProy.items = Array.isArray(j.items) ? j.items : [];
+    } catch (e) { if (L.galProy && L.galProy.proyecto === pr) L.galProy.items = []; }
+    dibujar();
+  }
   async function cargarProyLista() {
     const cliente = (L.doc.cliente && L.doc.cliente.nombre) || '';
     let lista = [];
@@ -610,8 +630,8 @@
   const esMovil = () => /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || (window.matchMedia && matchMedia('(pointer:coarse)').matches && window.innerWidth < 900);   // fuera de la oficina: sin agentes, todo lo hace el servidor (VPS)
   function pantallaListado() {
     const gs = grupos();
-    if (!gs.length) {   // sin referencias todavía: se avisa en vez de romper la pantalla
-      q('[data-cuerpo]').innerHTML = '<div class="pl-tarjeta"><h3>Proyecto del pedido</h3><div class="pl-grid" style="margin:0 0 10px">' + proyectoCampo('') + '</div><p>Todavía no hay referencias: agrégalas en CO/RM (Conceptos) para llenar el listado.</p></div>';
+    if (!gs.length) {   // sin referencias todavía: el proyecto y sus mockups (todos), para ver lo disponible
+      q('[data-cuerpo]').innerHTML = '<div class="pl-tarjeta"><h3>Proyecto del pedido</h3><div class="pl-grid" style="margin:0 0 10px">' + proyectoCampo('') + '</div>' + galeriaProyectoHtml(datosRef('').proyecto) + '<p>Todavía no hay referencias: agrégalas en CO/RM (Conceptos) para llenar el listado.</p></div>';
       acciones('<button class="pl-btn sec" type="button" data-atras>◀ VOLVER A CO/RM</button>', 'Agrega al menos una referencia para llenar el listado.', 'error');
       q('[data-atras]').onclick = () => { if (L.previo) { if (L.opts.onVolver) L.opts.onVolver(); return; } L.pantalla = 'doc'; dibujar(); };
       return;

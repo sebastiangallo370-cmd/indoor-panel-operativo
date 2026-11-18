@@ -673,6 +673,31 @@ def mockups(request: Request, cliente: str = '', proyecto: str = '', ref: str = 
     return mockups_de(cliente, proyecto, ref)
 
 
+@router.get('/mockups-proyecto')
+def mockups_proyecto(request: Request, cliente: str = '', proyecto: str = ''):
+    """Todos los mockups del proyecto (sin elegir referencia): para verlos en el listado antes de tener referencias."""
+    _usuario(request)
+    if len(cliente.strip()) < 3 or not proyecto.strip():
+        raise HTTPException(400, 'Faltan el cliente o el proyecto')
+    ubicado = _dir_proyecto(cliente, proyecto)
+    if ubicado is None:
+        return {'items': [], 'motivo': 'El proyecto no está en la carpeta MAESTROS del cliente.'}
+    carpeta_proyecto, _ = ubicado
+    items = []
+    try:
+        for sub in sorted((p for p in carpeta_proyecto.iterdir() if p.is_dir()), key=lambda p: p.name.upper()):
+            for f in sorted((x for x in sub.iterdir() if x.is_file() and x.suffix.lower() in EXT_IMAGEN), key=lambda x: x.name.upper()):
+                if re.search(r'[0-9A-F]{8}-[0-9A-F]{4}-', f.name, re.I):   # nombres generados (UUID), no mockups
+                    continue
+                m = re.match(r'^\s*(.+?)[\s_-]*D\s*(\d+)(?=[\s_.-]|$)', f.name, re.I)
+                if m:
+                    items.append({'ref': _plano_ref(m.group(1)), 'diseno': int(m.group(2)), 'carpeta': sub.name, 'archivo': f.name, 'proyecto': proyecto})
+    except OSError:
+        return {'items': [], 'motivo': 'No pude leer la NAS ahora.'}
+    items.sort(key=lambda i: (i['ref'], i['diseno'], i['archivo'].upper()))
+    return {'items': items[:400], 'motivo': ''}
+
+
 def ruta_mockup(cliente: str, proyecto: str, carpeta: str, archivo: str) -> Path:
     """Ruta (validada) de un mockup dentro de MAESTROS: para copiarlo idéntico a la carpeta de la orden."""
     if any(x in (carpeta + archivo) for x in ('/', '\\', '..')) or Path(archivo).suffix.lower() not in EXT_IMAGEN:
