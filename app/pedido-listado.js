@@ -306,7 +306,9 @@
     return '<div class="pl-barra"><div class="pl-pasos">' + PASOS.map(([k, t], j) => '<span class="pl-paso ' + (j === i ? 'on' : j < i ? 'hecho' : '') + '">' + t + '</span>').join('') + '</div><span style="color:#a9b5a3;font:700 12px Arial">' + esc((L.doc.tipo === 'remision' ? 'Remisión ' : 'Cotización ') + (L.doc.numero_completo || L.doc.numero)) + ' · ' + esc((L.doc.cliente || {}).nombre) + '</span></div>';
   }
   function dibujar() {
-    if (L.proyLista === undefined && !L.proyCargando) { L.proyCargando = true; cargarProyLista(); }
+    // la lista de proyectos es del CLIENTE del documento: se pide al abrir y de nuevo si cambia el cliente
+    const clienteDoc = (L.doc.cliente && L.doc.cliente.nombre) || '';
+    if (clienteDoc && L.proyCliente !== clienteDoc) { L.proyCliente = clienteDoc; L.proyLista = undefined; L.proyCargando = true; cargarProyLista(); }
     if (!raiz.dataset.datosPedido) {   // proyecto y línea: un solo manejador para toda la ventana
       raiz.dataset.datosPedido = '1';
       raiz.addEventListener('input', e => { if (e.target.matches && e.target.matches('[data-ref-proyecto]')) { const ref = e.target.dataset.ref; L.refDatos = L.refDatos || {}; L.refDatos[ref] = Object.assign({}, datosRef(ref), { proyecto: e.target.value }); guardarBorrador(); estadoListado(); } });
@@ -468,12 +470,18 @@
   }
   async function cargarProyLista() {
     const cliente = (L.doc.cliente && L.doc.cliente.nombre) || '';
+    let lista = [];
     try {
-      const r = await fetchT('/api/pedido-effi/proyectos?cliente=' + encodeURIComponent(cliente), { credentials: 'same-origin' });
-      const j = await r.json().catch(() => ({}));
-      L.proyLista = Array.isArray(j.proyectos) ? j.proyectos.slice() : [];
-    } catch (e) { L.proyLista = []; }
-    L.proyCargando = false;
+      for (let intento = 0; intento < 8; intento++) {   // la NAS puede tardar en listar: el servidor responde «pendiente»
+        const r = await fetchT('/api/pedido-effi/proyectos?cliente=' + encodeURIComponent(cliente), { credentials: 'same-origin' });
+        const j = await r.json().catch(() => ({}));
+        if (L.proyCliente !== cliente) return;   // ya se eligió otro cliente
+        if (!j.pendiente) { lista = Array.isArray(j.proyectos) ? j.proyectos.slice() : []; break; }
+        await new Promise(ok => setTimeout(ok, 1500));
+      }
+    } catch (e) { lista = []; }
+    if (L.proyCliente !== cliente) return;
+    L.proyLista = lista; L.proyCargando = false;
     // solo se actualizan las opciones: no se vuelve a dibujar la pantalla (así un desplegable abierto no se cierra)
     document.querySelectorAll('[data-ref-proy-sel]').forEach(sel => { if (sel.isConnected && raiz && raiz.contains(sel)) sel.innerHTML = opcionesProyecto(sel.dataset.ref); });
   }
@@ -603,7 +611,7 @@
   function pantallaListado() {
     const gs = grupos();
     if (!gs.length) {   // sin referencias todavía: se avisa en vez de romper la pantalla
-      q('[data-cuerpo]').innerHTML = '<div class="pl-tarjeta"><h3>Sin referencias todavía</h3><p>Agrega las referencias en CO/RM (Conceptos). Mientras tanto ya puedes elegir el proyecto en el documento.</p></div>';
+      q('[data-cuerpo]').innerHTML = '<div class="pl-tarjeta"><h3>Proyecto del pedido</h3><div class="pl-grid" style="margin:0 0 10px">' + proyectoCampo('') + '</div><p>Todavía no hay referencias: agrégalas en CO/RM (Conceptos) para llenar el listado.</p></div>';
       acciones('<button class="pl-btn sec" type="button" data-atras>◀ VOLVER A CO/RM</button>', 'Agrega al menos una referencia para llenar el listado.', 'error');
       q('[data-atras]').onclick = () => { if (L.previo) { if (L.opts.onVolver) L.opts.onVolver(); return; } L.pantalla = 'doc'; dibujar(); };
       return;
@@ -1037,7 +1045,7 @@
       if (ULTIMO.galPick && !Object.keys(L.galPick || {}).length) { L.galPick = ULTIMO.galPick; Object.keys(L.galPick).forEach(ref => sincronizar(ref)); }
       L.imgs = Object.keys(L.imgs || {}).length ? L.imgs : ULTIMO.imgs;
       L.defGenero = ULTIMO.defGenero || L.defGenero; L.defDiseno = ULTIMO.defDiseno || L.defDiseno;
-      L.proyLista = ULTIMO.proyLista;
+      if (ULTIMO.proyLista) { L.proyLista = ULTIMO.proyLista; L.proyCliente = (L.doc.cliente && L.doc.cliente.nombre) || ''; }
     }
     L.compartir = false;   // cada referencia con sus propios mockups
     const pr = (opts && opts.preset) || null;

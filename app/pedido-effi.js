@@ -294,7 +294,7 @@
         <div class="pe-grid pe-fila2">
           <label>Cliente*<input name="cliente-q" autocomplete="off" autocapitalize="words" autocorrect="off" spellcheck="false" enterkeyhint="search" placeholder="Buscar por nombre (3 letras)…" value="${esc(st.cliente ? st.cliente.nombre : guard['cliente-q'])}"></label>
           <label>Dirección del cliente<select name="direccion">${st.cliente && st.cliente.direcciones.length ? st.cliente.direcciones.map((d, i) => '<option value="' + i + '"' + (i === st.direccion ? ' selected' : '') + '>' + esc((d.ciudad ? d.ciudad + ' · ' : '') + d.direccion) + '</option>').join('') : '<option value="-1">No registra</option>'}</select></label>
-          <label class="pe-proy">Nombre del proyecto*${proyectoHtml(guard.garantia)}</label>${refsClienteHtml()}
+          <label class="pe-proy">Nombre del proyecto*${proyectoHtml(guard.garantia)}</label>
         </div>
       </div>
       <div class="pe-card pe-con"><div class="pe-h3row"><h3>Conceptos</h3><label class="pe-chk pe-siniva-todos" style="margin-left:auto"><input type="checkbox" data-siniva-todos ${st.sinIvaTodos ? 'checked' : ''}> Sin IVA (todos)</label></div>
@@ -448,34 +448,16 @@
       '<input name="garantia" maxlength="255" autocomplete="off" placeholder="Nombre del proyecto nuevo, ej. TEMPORADA 2027" value="' + esc(txt) + '"' + (mostrarTxt ? '' : ' hidden') + '>' +
       (y.error ? '<small style="color:#ffb547">' + esc(y.error) + '</small>' : '');
   }
-  // referencias que el cliente ya tuvo: se ven como botones para elegir la del pedido
+  // referencias que el cliente ya tuvo: el listado las trae para llenarlo aunque aún no haya conceptos
   async function cargarRefsCliente() {
     const nombre = st.cliente && st.cliente.nombre; st.refsCliente = [];
     if (!nombre) return;
     try {
       const r = await api('/api/pedido-effi/referencias-cliente?cliente=' + encodeURIComponent(nombre));
-      if (st.cliente && st.cliente.nombre === nombre) { st.refsCliente = r.referencias || []; dibujar(); }
+      if (st.cliente && st.cliente.nombre === nombre) st.refsCliente = r.referencias || [];
+      // si el LISTADO ya se abrió antes de que llegaran estas referencias, se vuelve a armar con ellas
+      if (st.refsCliente.length && window.PedidoListado && window.PedidoListado.previo && window.PedidoListado.previo()) listadoPrevio();
     } catch (e) { /* sin referencias previas */ }
-  }
-  function refsClienteHtml() {
-    const lista = st.refsCliente || [];
-    if (!st.cliente || !lista.length) return '';
-    return '<div class="pe-refs-cli" style="grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:6px"><small style="font:800 11px Arial;letter-spacing:.1em;color:#a9b5a3">REFERENCIAS DE ESTE CLIENTE</small>' +
-      lista.map(c => '<button type="button" class="pe-btn" data-refcli="' + esc(c.referencia) + '" title="Programado ' + c.veces + ' vez/veces' + (c.ultimo_proyecto ? ' · último proyecto: ' + esc(c.ultimo_proyecto) : '') + '" style="padding:6px 12px">' + esc(c.referencia) + ' <span style="opacity:.7">· ' + c.veces + '</span></button>').join('') + '</div>';
-  }
-  // agrega al documento la referencia elegida (su artículo de Effi)
-  async function elegirRefCliente(ref) {
-    msg('Buscando el artículo ' + ref + '…', '');
-    try {
-      const r = await api('/api/pedido-effi/articulos?q=' + encodeURIComponent(ref));
-      const lista = r.articulos || [];
-      const a = lista.find(x => String(x.referencia || '').toUpperCase() === ref) || lista[0];
-      if (!a) { msg('No encontré el artículo ' + ref + ' en Effi.', 'error'); return; }
-      let l = st.conceptos.find(x => !String(x.ref || '').trim());
-      if (!l) { l = lineaVacia(); st.conceptos.push(l); }
-      Object.assign(l, { articulo: a.id, ref: a.referencia, descripcion: String(a.descripcion || '').slice(0, 120), precio: a.precio || l.precio, impuesto: a.impuesto || '' });
-      invalidar(); dibujar(); msg('Referencia ' + a.referencia + ' agregada al documento.', 'ok');
-    } catch (e) { msg(String(e.message || e), 'error'); }
   }
   async function cargarProyectos() {
     const c = st.cliente; if (!c) return;
@@ -621,7 +603,6 @@
       row.querySelector('[data-quitar]').onclick = () => { st.conceptos.splice(i, 1); if (!st.conceptos.length) st.conceptos.push(lineaVacia()); invalidar(); dibujar(); };
     });
     q('[data-mas]').onclick = () => { const n = lineaVacia(); n.sinIva = st.sinIvaTodos; st.conceptos.push(n); invalidar(); dibujar(); };
-    panel.querySelectorAll('[data-refcli]').forEach(b => b.onclick = () => elegirRefCliente(b.dataset.refcli));
     const sit = q('[data-siniva-todos]'); if (sit) sit.onchange = () => { st.sinIvaTodos = sit.checked; st.conceptos.forEach(l => { l.sinIva = sit.checked; }); invalidar(); dibujar(); };
     panel.querySelectorAll('[data-formas] .pe-forma').forEach(row => {
       const j = Number(row.dataset.j);
@@ -987,7 +968,9 @@
   // pestaña LISTADO antes de crear el documento: listado PREVIO con las referencias y cantidades del formulario (se guarda y pasa solo al crear)
   function listadoPrevio() {
     if (!window.PedidoListado || st.hecho) return false;   // el listado se abre cuando quieras, en el orden que decidas
-    const conceptos = st.conceptos.filter(l => String(l.ref || '').trim()).map(l => ({ referencia: l.ref, descripcion: l.descripcion, cantidad: num(l.cantidad) }));
+    let conceptos = st.conceptos.filter(l => String(l.ref || '').trim()).map(l => ({ referencia: l.ref, descripcion: l.descripcion, cantidad: num(l.cantidad) }));
+    // sin conceptos todavía: el listado usa las referencias que este cliente ya tuvo (1 fila de cada una para empezar)
+    if (!conceptos.length && st.cliente) conceptos = (st.refsCliente || []).map(c => ({ referencia: c.referencia, descripcion: c.referencia, cantidad: 1 }));
     st.guardCampos = ['sucursal', 'bodega', 'centro_costos', 'vendedor', 'fecha_entrega', 'garantia', 'observacion', 'cliente-q'].reduce((o, n) => (o[n] = valor(n), o), {});
     const doc = { tipo: st.tipo, numero: 'PREVIO', prefijo: '', cliente: { nombre: st.cliente ? st.cliente.nombre : '' }, proyecto: valor('garantia').trim(), conceptos };
     const lp = st.listadoPrevio || {};
