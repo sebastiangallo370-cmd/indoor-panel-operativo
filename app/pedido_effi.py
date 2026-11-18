@@ -724,9 +724,21 @@ def codigo_plano_de(codigo: str) -> str:
     return re.sub(r'[^A-Z0-9]', '', str(codigo or '').upper())
 
 
+def _coincide_codigo(ref: str, codigo: str) -> bool:
+    """A100FUT02 coincide con FUT02. Una pestaña combinada (A100CB02-A100PT01) coincide con CB02PT01 (los dos códigos juntos)."""
+    if not codigo:
+        return True
+    if re.sub(r'[^A-Z0-9]', '', ref).endswith(codigo):
+        return True
+    if '-' in ref:
+        partes = [re.sub(r'^A\d+', '', re.sub(r'[^A-Z0-9]', '', x.upper())) for x in ref.split('-')]
+        return ''.join(partes) == codigo
+    return False
+
+
 def _filtrar_ordenes(ordenes: list, codigo_plano: str) -> dict:
     """Órdenes cuya referencia termina en el código (sin código: todas), las más recientes primero, máximo 20."""
-    lista = [o for o in ordenes if not codigo_plano or re.sub(r'[^A-Z0-9]', '', o['referencia']).endswith(codigo_plano)][:20]
+    lista = [o for o in ordenes if _coincide_codigo(o['referencia'], codigo_plano)][:20]
     return {'ordenes': lista, 'motivo': ''}
 
 
