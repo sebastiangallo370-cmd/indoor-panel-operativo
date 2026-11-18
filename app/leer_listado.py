@@ -99,6 +99,8 @@ LECTOR_IA_MODELO = os.getenv('LECTOR_IA_MODELO', 'qwen2.5:1.5b')
 def _etiqueta_por_texto(texto: str) -> str:
     """Reglas por palabras clave: entienden la mayoría de los encabezados sin IA."""
     u = _sin_acentos(texto)
+    if re.search(r'PROYECTO|CLIENTE|COMERCIAL|FECHA|ENTREGA|LINEA|CANTIDAD|REFERENCIA|VENDEDOR|OBSERV', u):
+        return 'OTRO'
     if 'MASC' in u:
         return 'MASC'
     if re.search(r'\bFEM', u):
@@ -124,9 +126,12 @@ def _ia_columnas(filas: list[list]) -> dict | None:
     import json
     import urllib.request
     fila_i, encabezados = None, None
-    for i, fila in enumerate(filas[:25]):
+    for i, fila in enumerate(filas[:40]):
         textos = [str(c).strip() if c is not None else '' for c in fila]
-        if sum(1 for t in textos if t and not re.fullmatch(r'[\d.,\s]+', t)) >= 3:
+        if sum(1 for t in textos if t and not re.fullmatch(r'[\d.,\s]+', t)) < 3:
+            continue
+        etiq = [_etiqueta_por_texto(t) for t in textos if t]
+        if 'NOMBRE' in etiq and ('TALLA' in etiq or 'NUMERO' in etiq):
             fila_i, encabezados = i, textos
             break
     if encabezados is None:
