@@ -954,6 +954,23 @@
   }
   document.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && panel && panel.isConnected && q('.pe-enc')) { e.preventDefault(); const b = q('[data-previa-btn]'); if (b) b.click(); } });   // Ctrl+Enter = VISTA PREVIA
   // pestaña LISTADO antes de crear el documento: listado PREVIO con las referencias y cantidades del formulario (se guarda y pasa solo al crear)
+  // mockup elegido en el listado (p. ej. FUT01): se agrega el artículo que este cliente ya tuvo con ese código (A200FUT01, etc.). Sin historial no se adivina.
+  async function agregarReferencia(base) {
+    const codigo = String(base || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+    if (!codigo) return { no: true };
+    if (!st.cliente) return { sinCliente: true };
+    const h = await api('/api/pedido-effi/referencias-cliente?cliente=' + encodeURIComponent(st.cliente.nombre));
+    const ref = (h.referencias || []).map(x => String(x.referencia || '').toUpperCase()).find(r => r.replace(/[^A-Z0-9]/g, '').endsWith(codigo));   // la más usada primero
+    if (!ref) return { sinHistorial: true, codigo };
+    if (st.conceptos.some(l => String(l.ref || '').trim().toUpperCase() === ref)) return { ya: true, ref };
+    const r = await api('/api/pedido-effi/articulos?q=' + encodeURIComponent(ref));
+    const a = (r.articulos || []).find(x => String(x.referencia || '').toUpperCase() === ref);
+    if (!a) return { no: true, ref };
+    let l = st.conceptos.find(x => !String(x.ref || '').trim()); if (!l) { l = lineaVacia(); st.conceptos.push(l); }
+    Object.assign(l, { articulo: a.id, ref: a.referencia, descripcion: String(a.descripcion || '').slice(0, 120), precio: a.precio || l.precio, impuesto: a.impuesto || '' });
+    invalidar();
+    return { ok: true, ref: a.referencia };
+  }
   function listadoPrevio() {
     if (!window.PedidoListado || st.hecho) return false;   // el listado se abre cuando quieras, en el orden que decidas
     const conceptos = st.conceptos.filter(l => String(l.ref || '').trim()).map(l => ({ referencia: l.ref, descripcion: l.descripcion, cantidad: num(l.cantidad) }));
@@ -972,7 +989,7 @@
     try { pintarPasos(); } catch (e) { /* nada */ }
     return true;
   }
-  window.PedidoEffi = { montar, listadoPrevio, volverAlFormulario };
+  window.PedidoEffi = { montar, listadoPrevio, volverAlFormulario, agregarReferencia };
 })();
 
 // Avisos en el PC: cuando un comercial programa un pedido, la cuenta «Indoor Sport» recibe una notificación de escritorio.

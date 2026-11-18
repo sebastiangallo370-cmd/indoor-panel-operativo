@@ -323,6 +323,7 @@
       raiz.dataset.galeriaPedido = '1';
       raiz.addEventListener('click', e => {
         const g = e.target.closest && e.target.closest('[data-galeria]');
+        const pg = e.target.closest && e.target.closest('[data-prog-ref]'); if (pg) { agregarAlDocumento(pg.dataset.progRef); return; }
         if (g) { abrirGaleria(g.dataset.galeria); return; }
         const it = e.target.closest && e.target.closest('[data-gal-item]');
         if (it) elegirMaestro(it.dataset.galRef, it.dataset.galItem);
@@ -479,7 +480,7 @@
     if (!g || g.proyecto !== pr || g.items === null) { cargarGaleriaProyecto(pr); return '<p style="color:#a9b5a3">Cargando mockups de ' + esc(pr) + '…</p>'; }
     if (!g.items.length) return '<p style="color:#a9b5a3">El proyecto ' + esc(pr) + ' no tiene mockups todavía.</p>';
     const cliente = (L.doc.cliente && L.doc.cliente.nombre) || '';
-    return '<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;max-height:620px;overflow-y:auto;padding:4px 2px">' + g.items.map(i => '<figure style="margin:0;min-width:0"><img loading="lazy" alt="' + esc(i.ref + ' D' + i.diseno) + '" style="width:100%;aspect-ratio:3/4;object-fit:contain;border-radius:8px;display:block;background:#0b120d" src="/api/pedido-effi/mockup-img?cliente=' + encodeURIComponent(cliente) + '&proyecto=' + encodeURIComponent(i.proyecto || pr) + '&carpeta=' + encodeURIComponent(i.carpeta) + '&archivo=' + encodeURIComponent(i.archivo) + '"><figcaption style="font:700 11px Arial;color:#a9b5a3">' + esc(i.ref) + ' · D' + i.diseno + '</figcaption></figure>').join('') + '</div>';
+    return '<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;max-height:620px;overflow-y:auto;padding:4px 2px">' + g.items.map(i => '<figure data-prog-ref="' + esc(i.ref) + '" title="Agregar al documento" style="margin:0;min-width:0;cursor:pointer"><img loading="lazy" alt="' + esc(i.ref + ' D' + i.diseno) + '" style="width:100%;aspect-ratio:3/4;object-fit:contain;border-radius:8px;display:block;background:#0b120d" src="/api/pedido-effi/mockup-img?cliente=' + encodeURIComponent(cliente) + '&proyecto=' + encodeURIComponent(i.proyecto || pr) + '&carpeta=' + encodeURIComponent(i.carpeta) + '&archivo=' + encodeURIComponent(i.archivo) + '"><figcaption style="font:700 11px Arial;color:#a9b5a3">' + esc(i.ref) + ' · D' + i.diseno + '</figcaption></figure>').join('') + '</div>';
   }
   async function cargarGaleriaProyecto(pr) {
     const cliente = (L.doc.cliente && L.doc.cliente.nombre) || '';
@@ -491,6 +492,22 @@
       L.galProy.items = Array.isArray(j.items) ? j.items : [];
     } catch (e) { if (L.galProy && L.galProy.proyecto === pr) L.galProy.items = []; }
     dibujar();
+  }
+  // mockup elegido: su artículo entra al documento (CO/RM) y el listado se rearma con esa referencia; lo llenado se conserva
+  async function agregarAlDocumento(base) {
+    if (!window.PedidoEffi || !window.PedidoEffi.agregarReferencia) return setMsg('No pude conectar con CO/RM.', 'error');
+    setMsg('Buscando el artículo de ' + base + '…', '');
+    try {
+      const r = await window.PedidoEffi.agregarReferencia(base);
+      if (r.sinCliente) return setMsg('Elige primero el cliente en CO/RM.', 'error');
+      if (r.sinHistorial) return setMsg('El cliente no tiene ningún artículo ' + r.codigo + ' anterior: agrégalo en CO/RM (Conceptos).', 'error');
+      if (r.no) return setMsg('No encontré el artículo ' + (r.ref || base) + ' en Effi.', 'error');
+      if (r.ya) return setMsg(r.ref + ' ya está en el documento.', 'ok');
+      const pr = String(datosRef(PH).proyecto || '').trim();   // el proyecto ya elegido pasa a la referencia nueva
+      window.PedidoEffi.listadoPrevio();
+      if (pr && !String(datosRef(r.ref).proyecto || '').trim()) { L.refDatos = L.refDatos || {}; L.refDatos[r.ref] = Object.assign({}, datosRef(r.ref), { proyecto: pr, nuevo: false }); guardarBorrador(); dibujar(); }
+      setMsg(r.ref + ' agregado al documento.', 'ok');
+    } catch (e) { setMsg('No pude agregar ' + base + ': ' + (e.message || e), 'error'); }
   }
   async function cargarProyLista() {
     const cliente = (L.doc.cliente && L.doc.cliente.nombre) || '';
@@ -543,7 +560,7 @@
     if (ref === PH) return '<div class="pl-tarjeta"><h3>MOCKUPS DEL PROYECTO</h3>' + galeriaProyectoHtml(datosRef(PH).proyecto) + '</div>';
     const slots = Array.from({ length: L.disenos }, (_, i) => i + 1).filter(n => !imagenDe(ref, n)).map(n => slotHtml(ref, n)).join('');
     const elegidos = (galPick()[ref] || []).map((pk, k) => '<div style="display:inline-block;width:96px;margin:0 8px 8px 0;vertical-align:top"><img src="' + esc(URL.createObjectURL(pk.file)) + '" alt="D' + (k + 1) + '" style="width:96px;height:128px;object-fit:contain;border-radius:8px;background:#0b120d;border:2px solid #d0f44c;display:block"><small style="color:#d0f44c;font:800 11px Arial">DISEÑO ' + (k + 1) + '</small></div>').join('');
-    return '<div class="pl-tarjeta"><h3>MOCKUPS · ' + esc(ref) + '</h3>' +
+    return '<div class="pl-tarjeta"><h3>MOCKUPS DEL PROYECTO · TOCA UNO PARA AGREGARLO</h3>' + galeriaProyectoHtml(datosRef(ref).proyecto) + '<h3>MOCKUPS · ' + esc(ref) + '</h3>' +
       '<div style="margin:0 0 8px"><button class="pl-btn sec mini" type="button" data-galeria="' + esc(ref) + '">VER MOCKUPS DE MAESTROS</button></div>' +
       (elegidos ? '<div style="margin:0 0 8px">' + elegidos + '</div>' : '') + galeriaHtml(ref) + '<div class="pl-slots">' + slots + '</div></div>';
   }
