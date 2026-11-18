@@ -62,7 +62,7 @@ def _filas_a_texto(filas: list[list]) -> str:
             c = _campo(celda)
             if c and c not in mapa.values():
                 mapa[j] = c
-        if 'nombre' in mapa.values() and len(mapa) >= 3:
+        if 'nombre' in mapa.values() and len(mapa) >= 2 and ('talla' in mapa.values() or 'numero' in mapa.values()):
             masc = [j for j, celda in enumerate(fila) if _sin_acentos(celda) == 'MASC']
             fem = [j for j, celda in enumerate(fila) if _sin_acentos(celda) == 'FEM']
             disenos = {}
@@ -141,7 +141,7 @@ def _ia_columnas(filas: list[list]) -> dict | None:
               '2) Clasifica cada columna de esa fila: NOMBRE (nombre del jugador), TALLA, NUMERO (número o dorsal), '
               'MASC (marca de masculino), FEM (marca de femenino), DISENO (diseño o arte), OTRO (cualquier otra cosa).\n'
               'Ignora los datos del pedido (proyecto, comercial, fecha, cantidad total).\n'
-              'Responde SOLO un JSON así: {"fila": 7, "columnas": {"0": "OTRO", "1": "NOMBRE", "2": "TALLA", "3": "NUMERO"}}\n\n'
+              'Responde SOLO un JSON así: {"fila": <numero de fila>, "columnas": {"<numero de columna>": "<ETIQUETA>"}} con numeros reales de este archivo\n\n'
               + '\n'.join(lineas))
     cuerpo = json.dumps({'model': LECTOR_IA_MODELO, 'prompt': prompt, 'stream': False, 'format': 'json', 'options': {'temperature': 0}}).encode('utf-8')
     try:
