@@ -104,7 +104,7 @@
 
   // botón en el encabezado del panel de Confección
   function poner() {
-    var cabecera = document.querySelector('.confeccion-panel .confeccion-head');
+    var cabecera = document.querySelector('.confeccion-panel .cf-tabbar');
     if (!cabecera || cabecera.querySelector('[data-varias]')) return;
     var b = document.createElement('button');
     b.type = 'button';
