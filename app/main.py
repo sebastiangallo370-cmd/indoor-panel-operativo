@@ -8228,6 +8228,11 @@ def club_admin_js():
     return FileResponse(Path(__file__).with_name('club-admin.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
 
 
+@app.get('/alerta-pedidos.js')
+def alerta_pedidos_js():
+    return FileResponse(Path(__file__).with_name('alerta-pedidos.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
+
+
 @app.get('/rendimiento.js')
 def rendimiento_js():
     return FileResponse(Path(__file__).with_name('rendimiento.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})

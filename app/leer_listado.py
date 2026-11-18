@@ -146,7 +146,7 @@ def _ia_columnas(filas: list[list]) -> dict | None:
     cuerpo = json.dumps({'model': LECTOR_IA_MODELO, 'prompt': prompt, 'stream': False, 'format': 'json', 'options': {'temperature': 0}}).encode('utf-8')
     try:
         req = urllib.request.Request(OLLAMA_URL + '/api/generate', data=cuerpo, headers={'Content-Type': 'application/json'})
-        with urllib.request.urlopen(req, timeout=170) as r:
+        with urllib.request.urlopen(req, timeout=30) as r:
             crudo = json.loads(json.loads(r.read().decode('utf-8')).get('response') or '{}')
     except Exception:   # noqa: BLE001 — sin IA, se usan las reglas
         return None

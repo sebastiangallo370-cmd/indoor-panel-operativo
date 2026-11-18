@@ -487,6 +487,24 @@ def revocar_enlace(request: Request, link_id: int):
     return {'ok': True}
 
 
+@router.get('/alertas/pendientes')
+def alertas_pendientes(request: Request):
+    """Pedidos pendientes para la alerta del PC. Usa una clave secreta (cabecera X-Alerta-Token), no la sesión del panel."""
+    archivo = Path(os.getenv('ALERTA_TOKEN_FILE', '/data/state/alerta_pedidos_token.txt'))
+    esperado = archivo.read_text(encoding='utf-8').strip() if archivo.exists() else ''
+    recibido = request.headers.get('X-Alerta-Token', '')
+    if not esperado or not secrets.compare_digest(esperado, recibido):
+        raise HTTPException(401, 'Clave de alerta no válida')
+    with _connect() as db:
+        filas = [dict(r) for r in db.execute("SELECT id, cliente, lineas, creado FROM club_pedidos WHERE estado='pendiente' ORDER BY id DESC LIMIT 50")]
+    pedidos = []
+    for f in filas:
+        lineas = json.loads(f['lineas'] or '[]')
+        prendas = sum(int(j.get('cantidad') or 1) for l in lineas for j in l.get('jugadores', []))
+        pedidos.append({'id': f['id'], 'cliente': f['cliente'] or '', 'prendas': prendas, 'creado': f['creado'] or ''})
+    return {'pedidos': pedidos}
+
+
 @router.get('/pedidos')
 def listar_pedidos(request: Request, estado: str = ''):
     _usuario(request)
