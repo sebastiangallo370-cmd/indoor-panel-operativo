@@ -5912,6 +5912,10 @@ def _datos_preparacion_confeccion(source_row: int) -> dict:
                     if (listado_tallas_mod._codigo(title) == wanted
                         or listado_tallas_mod._codigo(title).startswith(wanted)
                         or wanted.startswith(listado_tallas_mod._codigo(title)))]
+        # si hay una pestaña cuyo nombre coincide exactamente con la referencia, solo esa (no mezclar A100CA00 con A100CA00-A100PT21)
+        exactas = [rows for title, rows in sheets.items() if listado_tallas_mod._codigo(title) == wanted]
+        if exactas:
+            matching = exactas
         if not matching and len(sheets) == 1:
             matching = list(sheets.values())
         totals = {}
