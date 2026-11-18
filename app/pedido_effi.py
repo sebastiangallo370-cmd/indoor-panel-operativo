@@ -561,6 +561,36 @@ def proyectos_de_cliente(nombre: str) -> dict:
     return resultado
 
 
+@router.get('/referencias-cliente')
+def referencias_cliente(request: Request, cliente: str = ''):
+    """Referencias que este cliente ya tuvo programadas (para elegir la del pedido sin tener que saberla de memoria)."""
+    _usuario(request)
+    import json
+    clave = re.sub(r'\s+', ' ', (cliente or '')).strip().upper()
+    if len(clave) < 3:
+        return {'referencias': []}
+    try:
+        ruta = Path(os.getenv('PEDIDO_EFFI_EXCEL_DIR', '/data/state/pedido_effi_excel')) / '_programados.json'
+        programados = json.loads(ruta.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        programados = []
+    cuenta: dict = {}
+    for x in programados:
+        if re.sub(r'\s+', ' ', str(x.get('cliente') or '')).strip().upper() != clave:
+            continue
+        for ref in x.get('referencias') or []:
+            r = str(ref).strip().upper()
+            if not r:
+                continue
+            c = cuenta.setdefault(r, {'referencia': r, 'veces': 0, 'ultimo_proyecto': '', 'ultima_fecha': ''})
+            c['veces'] += 1
+            if str(x.get('fecha') or '') >= c['ultima_fecha']:
+                c['ultima_fecha'] = str(x.get('fecha') or '')
+                c['ultimo_proyecto'] = str(x.get('proyecto') or '')
+    lista = sorted(cuenta.values(), key=lambda c: (-c['veces'], c['referencia']))
+    return {'referencias': lista}
+
+
 @router.get('/proyectos')
 def proyectos(request: Request, cliente: str = ''):
     """Proyectos que ya existen en la carpeta MAESTROS de la NAS del cliente (para la lista desplegable del campo Proyecto)."""
