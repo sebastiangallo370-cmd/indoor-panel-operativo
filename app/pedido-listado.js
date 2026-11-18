@@ -474,10 +474,14 @@
       '<input data-ref-proyecto data-ref="' + esc(ref) + '" value="' + esc(d.proyecto) + '" placeholder="Nombre del proyecto nuevo" style="margin-top:6px' + (nuevo ? '' : ';display:none') + '"></label>';
   }
   // un mockup está seleccionado si su referencia (p. ej. FUT02) ya está en el documento (A200FUT02)
-  const seleccionadoEn = base => {
+  // referencia completa del documento que corresponde al mockup (FUT02 -> A200FUT02), o '' si no está
+  const refDocDe = base => {
     const k = String(base || '').replace(/[^A-Z0-9]/gi, '').toUpperCase();
-    return !!k && (L.doc.conceptos || []).some(c => String(c.referencia || '').replace(/[^A-Z0-9]/gi, '').toUpperCase().endsWith(k));
+    if (!k) return '';
+    const c = (L.doc.conceptos || []).find(x => String(x.referencia || '').replace(/[^A-Z0-9]/gi, '').toUpperCase().endsWith(k));
+    return c ? String(c.referencia).trim().toUpperCase() : '';
   };
+  const seleccionadoEn = base => !!refDocDe(base);
   // mockups de TODO el proyecto elegido (sin referencias): se cargan una vez por proyecto
   function galeriaProyectoHtml(pr) {
     if (!pr) return '<p style="color:#a9b5a3">Elige el proyecto para ver sus mockups.</p>';
@@ -485,7 +489,7 @@
     if (!g || g.proyecto !== pr || g.items === null) { cargarGaleriaProyecto(pr); return '<p style="color:#a9b5a3">Cargando mockups de ' + esc(pr) + '…</p>'; }
     if (!g.items.length) return '<p style="color:#a9b5a3">El proyecto ' + esc(pr) + ' no tiene mockups todavía.</p>';
     const cliente = (L.doc.cliente && L.doc.cliente.nombre) || '';
-    return '<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;max-height:620px;overflow-y:auto;padding:4px 2px">' + g.items.map(i => '<figure data-prog-ref="' + esc(i.ref) + '" title="Agregar al documento" style="margin:0;min-width:0;cursor:pointer;position:relative;outline:' + (seleccionadoEn(i.ref) ? '3px solid #d0f44c' : 'none') + '"> ' + (seleccionadoEn(i.ref) ? '<span style="position:absolute;top:8px;left:8px;right:8px;z-index:2;text-align:center;background:#d0f44c;color:#0b120d;border-radius:999px;padding:4px 8px;font:800 11px Arial">✓ SELECCIONADO</span>' : '') + '<img loading="lazy" alt="' + esc(i.ref + ' D' + i.diseno) + '" style="width:100%;aspect-ratio:3/4;object-fit:contain;border-radius:8px;display:block;background:#0b120d" src="/api/pedido-effi/mockup-img?cliente=' + encodeURIComponent(cliente) + '&proyecto=' + encodeURIComponent(i.proyecto || pr) + '&carpeta=' + encodeURIComponent(i.carpeta) + '&archivo=' + encodeURIComponent(i.archivo) + '"><figcaption style="font:700 11px Arial;color:#a9b5a3">' + esc(i.ref) + ' · D' + i.diseno + '</figcaption></figure>').join('') + '</div>';
+    return '<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;max-height:620px;overflow-y:auto;padding:4px 2px">' + g.items.map(i => '<figure data-prog-ref="' + esc(i.ref) + '" title="Agregar al documento" style="margin:0;min-width:0;cursor:pointer;position:relative;outline:' + (seleccionadoEn(i.ref) ? '3px solid #d0f44c' : 'none') + '"> ' + (seleccionadoEn(i.ref) ? '<span style="position:absolute;top:8px;left:8px;right:8px;z-index:2;text-align:center;background:#d0f44c;color:#0b120d;border-radius:999px;padding:4px 8px;font:800 11px Arial">✓ SELECCIONADO</span>' : '') + '<img loading="lazy" alt="' + esc(i.ref + ' D' + i.diseno) + '" style="width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:8px;display:block" src="/api/pedido-effi/mockup-img?cliente=' + encodeURIComponent(cliente) + '&proyecto=' + encodeURIComponent(i.proyecto || pr) + '&carpeta=' + encodeURIComponent(i.carpeta) + '&archivo=' + encodeURIComponent(i.archivo) + '"><figcaption style="font:800 12px Arial;color:#d0f44c;margin-top:4px">' + esc(refDocDe(i.ref) || i.ref) + ' · D' + i.diseno + '</figcaption></figure>').join('') + '</div>';
   }
   async function cargarGaleriaProyecto(pr) {
     const cliente = (L.doc.cliente && L.doc.cliente.nombre) || '';
