@@ -1,4 +1,4 @@
-# Aviso con el estilo de Indoor: esquina de la pantalla, por encima de las demás ventanas, 60 segundos (o hasta cerrarlo).
+﻿# Aviso con el estilo de Indoor: esquina de la pantalla, por encima de las demás ventanas, 60 segundos (o hasta cerrarlo).
 param([string]$Titulo = 'Aviso', [string]$Texto = '')
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
