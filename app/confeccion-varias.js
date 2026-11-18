@@ -114,6 +114,5 @@
     b.onclick = abrir;
     cabecera.appendChild(b);
   }
-  new MutationObserver(poner).observe(document.body, { childList: true, subtree: true });
-  poner();
+  // El botón ENVIAR VARIAS de la barra superior se quitó.
 })();
