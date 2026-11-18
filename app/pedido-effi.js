@@ -955,16 +955,16 @@
   document.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && panel && panel.isConnected && q('.pe-enc')) { e.preventDefault(); const b = q('[data-previa-btn]'); if (b) b.click(); } });   // Ctrl+Enter = VISTA PREVIA
   // pestaña LISTADO antes de crear el documento: listado PREVIO con las referencias y cantidades del formulario (se guarda y pasa solo al crear)
   // mockup elegido en el listado (p. ej. FUT01): se agrega el artículo que este cliente ya tuvo con ese código (A200FUT01, etc.). Sin historial no se adivina.
-  async function agregarReferencia(base) {
+  async function agregarReferencia(base, proyecto) {
     const codigo = String(base || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
     if (!codigo) return { no: true };
     if (!st.cliente) return { sinCliente: true };
-    const h = await api('/api/pedido-effi/referencias-cliente?cliente=' + encodeURIComponent(st.cliente.nombre));
-    // la referencia que el cliente usó más recientemente con ese código (no la más repetida)
-    const candidatas = (h.referencias || []).filter(x => String(x.referencia || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase().endsWith(codigo))
-      .sort((x, y) => String(y.ultima_fecha || '').localeCompare(String(x.ultima_fecha || '')) || (y.veces || 0) - (x.veces || 0));
-    const ref = candidatas.length ? String(candidatas[0].referencia).toUpperCase() : '';
-    if (!ref) return { sinHistorial: true, codigo };
+    const pr = String(proyecto || '').trim();
+    if (!pr) return { sinProyecto: true };
+    // orden CO de ESTE proyecto cuyo Excel tiene la referencia del mockup (cada orden tiene una sola); la más reciente primero
+    const o = await api('/api/pedido-effi/ordenes-referencia?cliente=' + encodeURIComponent(st.cliente.nombre) + '&proyecto=' + encodeURIComponent(pr) + '&codigo=' + encodeURIComponent(codigo));
+    const ref = String(((o.ordenes || [])[0] || {}).referencia || '').toUpperCase();
+    if (!ref) return { sinHistorial: true, codigo, proyecto: pr };
     if (st.conceptos.some(l => String(l.ref || '').trim().toUpperCase() === ref)) return { ya: true, ref };
     const r = await api('/api/pedido-effi/articulos?q=' + encodeURIComponent(ref));
     const a = (r.articulos || []).find(x => String(x.referencia || '').toUpperCase() === ref);

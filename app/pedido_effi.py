@@ -676,6 +676,65 @@ def mockups(request: Request, cliente: str = '', proyecto: str = '', ref: str = 
 _cache_mockups_proyecto: dict = {}   # (cliente, proyecto) -> (momento, respuesta): la NAS es lenta, se reutiliza 5 min
 
 
+def _pestanas_xlsx(ruta: Path) -> list[str]:
+    """Nombres de las pestañas de un .xlsx (solo el índice del libro, sin leer las celdas)."""
+    import html as _html
+    import zipfile
+    try:
+        with zipfile.ZipFile(ruta) as z:
+            xml = z.read('xl/workbook.xml').decode('utf-8', 'replace')
+    except (OSError, KeyError, zipfile.BadZipFile):
+        return []
+    return [_html.unescape(n) for n in re.findall(r'<sheet\b[^>]*\bname="([^"]+)"', xml)]
+
+
+_cache_ordenes: dict = {}
+
+
+@router.get('/ordenes-referencia')
+def ordenes_referencia(request: Request, cliente: str = '', proyecto: str = '', codigo: str = ''):
+    """Órdenes CO del cliente cuya carpeta es ESE proyecto y cuyo Excel tiene una pestaña (referencia) que termina en el código del mockup.
+    Cada orden tiene una sola referencia. Las más recientes primero (número CO más alto)."""
+    _usuario(request)
+    if len(cliente.strip()) < 3 or not proyecto.strip():
+        raise HTTPException(400, 'Faltan el cliente o el proyecto')
+    clave = (cliente.strip().upper(), proyecto.strip().upper(), codigo.strip().upper())
+    hit = _cache_ordenes.get(clave)
+    if hit and time.time() - hit[0] < 300:
+        return hit[1]
+
+    def norm(x: str) -> str:
+        return ' '.join(str(x).split()).upper()
+
+    info = proyectos_de_cliente(cliente)
+    raiz = _raiz_clientes()
+    if raiz is None or not info.get('carpeta'):
+        return {'ordenes': [], 'motivo': 'No pude leer la NAS ahora.'}
+    base = raiz / info['carpeta']
+    codigo_plano = re.sub(r'[^A-Z0-9]', '', codigo.upper())
+    ordenes = []
+    try:
+        for carpeta in base.iterdir():
+            m = re.match(r'^CO(\d+)_(.+)$', carpeta.name, re.I)
+            if not m or not carpeta.is_dir() or norm(m.group(2)) != norm(proyecto):
+                continue
+            for x in carpeta.iterdir():
+                if not (x.is_file() and x.suffix.lower() == '.xlsx') or x.name.startswith('~$'):
+                    continue
+                for hoja in _pestanas_xlsx(x):
+                    if norm(hoja) in ('BASE_DATOS', 'REFERENCIA'):
+                        continue
+                    ref = re.sub(r'[^A-Z0-9]', '', hoja.upper())
+                    if not codigo_plano or ref.endswith(codigo_plano):   # sin código: todas las referencias del proyecto
+                        ordenes.append({'co': int(m.group(1)), 'carpeta': carpeta.name, 'referencia': ref})
+    except OSError:
+        return {'ordenes': [], 'motivo': 'No pude leer la NAS ahora.'}
+    ordenes.sort(key=lambda o: -o['co'])
+    respuesta = {'ordenes': ordenes[:20], 'motivo': ''}
+    _cache_ordenes[clave] = (time.time(), respuesta)
+    return respuesta
+
+
 @router.get('/mockups-proyecto')
 def mockups_proyecto(request: Request, cliente: str = '', proyecto: str = ''):
     """Todos los mockups del proyecto (sin elegir referencia): para verlos en el listado antes de tener referencias."""
