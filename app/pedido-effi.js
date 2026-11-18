@@ -448,17 +448,6 @@
       '<input name="garantia" maxlength="255" autocomplete="off" placeholder="Nombre del proyecto nuevo, ej. TEMPORADA 2027" value="' + esc(txt) + '"' + (mostrarTxt ? '' : ' hidden') + '>' +
       (y.error ? '<small style="color:#ffb547">' + esc(y.error) + '</small>' : '');
   }
-  // referencias que el cliente ya tuvo: el listado las trae para llenarlo aunque aún no haya conceptos
-  async function cargarRefsCliente() {
-    const nombre = st.cliente && st.cliente.nombre; st.refsCliente = [];
-    if (!nombre) return;
-    try {
-      const r = await api('/api/pedido-effi/referencias-cliente?cliente=' + encodeURIComponent(nombre));
-      if (st.cliente && st.cliente.nombre === nombre) st.refsCliente = r.referencias || [];
-      // si el LISTADO ya se abrió antes de que llegaran estas referencias, se vuelve a armar con ellas
-      if (st.refsCliente.length && window.PedidoListado && window.PedidoListado.previo && window.PedidoListado.previo()) listadoPrevio();
-    } catch (e) { /* sin referencias previas */ }
-  }
   async function cargarProyectos() {
     const c = st.cliente; if (!c) return;
     const y = st.proy;
@@ -508,7 +497,7 @@
       st.cliente = box._lista[idx]; st.direccion = st.cliente.direcciones.length ? 0 : -1; invalidar();
       const v = st.cat.vendedores.find(x => String(x.id) === String(st.cliente.vendedor)); const guardado = valor('vendedor');
       dibujar(); if (v && !guardado) { q('[name="vendedor"]').value = v.id; }
-      cargarProyectos(); cargarRefsCliente();
+      cargarProyectos();
     } else {
       const l = st.conceptos[box._i], a = box._lista[idx];
       Object.assign(l, { articulo: a.id, ref: a.referencia, descripcion: a.descripcion.slice(0, 120), precio: a.precio || l.precio, impuesto: a.impuesto || '' }); invalidar(); dibujar();
@@ -968,9 +957,7 @@
   // pestaña LISTADO antes de crear el documento: listado PREVIO con las referencias y cantidades del formulario (se guarda y pasa solo al crear)
   function listadoPrevio() {
     if (!window.PedidoListado || st.hecho) return false;   // el listado se abre cuando quieras, en el orden que decidas
-    let conceptos = st.conceptos.filter(l => String(l.ref || '').trim()).map(l => ({ referencia: l.ref, descripcion: l.descripcion, cantidad: num(l.cantidad) }));
-    // sin conceptos todavía: el listado usa las referencias que este cliente ya tuvo (1 fila de cada una para empezar)
-    if (!conceptos.length && st.cliente) conceptos = (st.refsCliente || []).map(c => ({ referencia: c.referencia, descripcion: c.referencia, cantidad: 1 }));
+    const conceptos = st.conceptos.filter(l => String(l.ref || '').trim()).map(l => ({ referencia: l.ref, descripcion: l.descripcion, cantidad: num(l.cantidad) }));
     st.guardCampos = ['sucursal', 'bodega', 'centro_costos', 'vendedor', 'fecha_entrega', 'garantia', 'observacion', 'cliente-q'].reduce((o, n) => (o[n] = valor(n), o), {});
     const doc = { tipo: st.tipo, numero: 'PREVIO', prefijo: '', cliente: { nombre: st.cliente ? st.cliente.nombre : '' }, proyecto: valor('garantia').trim(), conceptos };
     const lp = st.listadoPrevio || {};
