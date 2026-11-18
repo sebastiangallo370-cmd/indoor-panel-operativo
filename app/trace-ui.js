@@ -718,7 +718,9 @@
     const comKey = row => String(traceField(row, 'ORDEN') || '').replace(/[\s-]+/g, '').toUpperCase();
     const base = productionData.rows.filter(row => visible.has(row.source_row) && ['ORDEN', 'NOMBRE DEL CLIENTE', 'NOMBRE PROYECTO', 'REFERENCIA'].some(name => traceField(row, name).trim())
       && (!comercialesMode || (comercialMap.has(comKey(row)) && (!comercialUser || comercialMap.get(comKey(row)).usuario.toLowerCase() === comercialUser.toLowerCase()))));
-    if (renderTraceCards._summaryData !== productionData) { renderTraceCards._summaryData = productionData; renderTraceCards._summaryCache = new Map(); }
+    // La caché se reinicia solo si cambia el día, el usuario o las columnas (no con cada actualización de datos): cada pedido ya se revisa por su firma
+    const claveCache = new Date().toDateString() + '|' + String(user || '') + '|' + String(navigationProcess ? navigationProcess.label : '') + '|' + (productionData.headers || []).join('');
+    if (renderTraceCards._summaryClave !== claveCache) { renderTraceCards._summaryClave = claveCache; renderTraceCards._summaryCache = new Map(); }
     const cache = renderTraceCards._summaryCache;
     const fullSummaries = new Map(base.map(row => {
       const firma = JSON.stringify([row.values, productionData.notes?.[row.source_row + ':17'], productionData.paused?.[row.source_row]]);
