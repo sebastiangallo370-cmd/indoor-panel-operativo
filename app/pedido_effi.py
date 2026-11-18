@@ -141,7 +141,33 @@ def catalogos(request: Request):
     return {**_effi(_catalogos), 'listado': {'tallas': listado_pedido.TALLAS, 'lineas': listado_pedido.LINEAS, 'max_disenos': 20}}
 
 
+def _cache_ttl(segundos: int):
+    """Reutiliza la respuesta de una búsqueda por nombre durante unos minutos (Effi cambia poco).
+    La autenticación se revisa siempre, aunque la respuesta venga de la caché."""
+    import functools
+
+    def deco(fn):
+        @functools.wraps(fn)
+        def envoltura(*args, **kwargs):
+            request = kwargs.get('request')
+            if request is not None:
+                _usuario(request)
+            clave = (fn.__name__, re.sub(r'\s+', ' ', kwargs.get('q') or '').strip().upper())
+            hit = _cache_busquedas.get(clave)
+            if hit and time.time() - hit[0] < segundos:
+                return hit[1]
+            v = fn(*args, **kwargs)
+            _cache_busquedas[clave] = (time.time(), v)
+            return v
+        return envoltura
+    return deco
+
+
+_cache_busquedas: dict = {}
+
+
 @router.get('/clientes')
+@_cache_ttl(300)
 def clientes(request: Request, q: str = ''):
     _usuario(request)
     _con_llave()
@@ -161,6 +187,7 @@ def clientes(request: Request, q: str = ''):
 
 
 @router.get('/articulos')
+@_cache_ttl(300)
 def articulos(request: Request, q: str = ''):
     _usuario(request)
     _con_llave()
@@ -688,7 +715,19 @@ def _pestanas_xlsx(ruta: Path) -> list[str]:
     return [_html.unescape(n) for n in re.findall(r'<sheet\b[^>]*\bname="([^"]+)"', xml)]
 
 
+import threading as _threading
+_candado_nas = _threading.Lock()
 _cache_ordenes: dict = {}
+
+
+def codigo_plano_de(codigo: str) -> str:
+    return re.sub(r'[^A-Z0-9]', '', str(codigo or '').upper())
+
+
+def _filtrar_ordenes(ordenes: list, codigo_plano: str) -> dict:
+    """Órdenes cuya referencia termina en el código (sin código: todas), las más recientes primero, máximo 20."""
+    lista = [o for o in ordenes if not codigo_plano or o['referencia'].endswith(codigo_plano)][:20]
+    return {'ordenes': lista, 'motivo': ''}
 
 
 @router.get('/ordenes-referencia')
@@ -698,41 +737,39 @@ def ordenes_referencia(request: Request, cliente: str = '', proyecto: str = '', 
     _usuario(request)
     if len(cliente.strip()) < 3 or not proyecto.strip():
         raise HTTPException(400, 'Faltan el cliente o el proyecto')
-    clave = (cliente.strip().upper(), proyecto.strip().upper(), codigo.strip().upper())
-    hit = _cache_ordenes.get(clave)
-    if hit and time.time() - hit[0] < 300:
-        return hit[1]
+    clave = (cliente.strip().upper(), proyecto.strip().upper())
+    with _candado_nas:   # una sola lectura del NAS a la vez: los demás esperan y usan la caché
+        hit = _cache_ordenes.get(clave)
+        if hit and time.time() - hit[0] < 1800:
+            return _filtrar_ordenes(hit[1], codigo_plano_de(codigo))
 
-    def norm(x: str) -> str:
-        return ' '.join(str(x).split()).upper()
+        def norm(x: str) -> str:
+            return ' '.join(str(x).split()).upper()
 
-    info = proyectos_de_cliente(cliente)
-    raiz = _raiz_clientes()
-    if raiz is None or not info.get('carpeta'):
-        return {'ordenes': [], 'motivo': 'No pude leer la NAS ahora.'}
-    base = raiz / info['carpeta']
-    codigo_plano = re.sub(r'[^A-Z0-9]', '', codigo.upper())
-    ordenes = []
-    try:
-        for carpeta in base.iterdir():
-            m = re.match(r'^CO(\d+)_(.+)$', carpeta.name, re.I)
-            if not m or not carpeta.is_dir() or norm(m.group(2)) != norm(proyecto):
-                continue
-            for x in carpeta.iterdir():
-                if not (x.is_file() and x.suffix.lower() == '.xlsx') or x.name.startswith('~$'):
+        info = proyectos_de_cliente(cliente)
+        raiz = _raiz_clientes()
+        if raiz is None or not info.get('carpeta'):
+            return {'ordenes': [], 'motivo': 'No pude leer la NAS ahora.'}
+        base = raiz / info['carpeta']
+        ordenes = []
+        try:
+            for carpeta in base.iterdir():
+                m = re.match(r'^CO(\d+)_(.+)$', carpeta.name, re.I)
+                if not m or not carpeta.is_dir() or norm(m.group(2)) != norm(proyecto):
                     continue
-                for hoja in _pestanas_xlsx(x):
-                    if norm(hoja) in ('BASE_DATOS', 'REFERENCIA'):
+                for x in carpeta.iterdir():
+                    if not (x.is_file() and x.suffix.lower() == '.xlsx') or x.name.startswith('~$'):
                         continue
-                    ref = re.sub(r'[^A-Z0-9]', '', hoja.upper())
-                    if not codigo_plano or ref.endswith(codigo_plano):   # sin código: todas las referencias del proyecto
+                    for hoja in _pestanas_xlsx(x):
+                        if norm(hoja) in ('BASE_DATOS', 'REFERENCIA'):
+                            continue
+                        ref = re.sub(r'[^A-Z0-9]', '', hoja.upper())
                         ordenes.append({'co': int(m.group(1)), 'carpeta': carpeta.name, 'referencia': ref})
-    except OSError:
-        return {'ordenes': [], 'motivo': 'No pude leer la NAS ahora.'}
-    ordenes.sort(key=lambda o: -o['co'])
-    respuesta = {'ordenes': ordenes[:20], 'motivo': ''}
-    _cache_ordenes[clave] = (time.time(), respuesta)
-    return respuesta
+        except OSError:
+            return {'ordenes': [], 'motivo': 'No pude leer la NAS ahora.'}
+        ordenes.sort(key=lambda o: -o['co'])
+        _cache_ordenes[clave] = (time.time(), ordenes)
+        return _filtrar_ordenes(ordenes, codigo_plano_de(codigo))
 
 
 @router.get('/mockups-proyecto')
@@ -742,28 +779,29 @@ def mockups_proyecto(request: Request, cliente: str = '', proyecto: str = ''):
     if len(cliente.strip()) < 3 or not proyecto.strip():
         raise HTTPException(400, 'Faltan el cliente o el proyecto')
     clave_cache = (cliente.strip().upper(), proyecto.strip().upper())
-    hit = _cache_mockups_proyecto.get(clave_cache)
-    if hit and time.time() - hit[0] < 300:
-        return hit[1]
-    ubicado = _dir_proyecto(cliente, proyecto)
-    if ubicado is None:
-        return {'items': [], 'motivo': 'El proyecto no está en la carpeta MAESTROS del cliente.'}
-    carpeta_proyecto, _ = ubicado
-    items = []
-    try:
-        for sub in sorted((p for p in carpeta_proyecto.iterdir() if p.is_dir() and 'MUESTRA' not in p.name.upper()), key=lambda p: p.name.upper()):   # las MUESTRAS no son mockups del maestro
-            for f in sorted((x for x in sub.iterdir() if x.is_file() and x.suffix.lower() == '.jpg'), key=lambda x: x.name.upper()):
-                if re.search(r'[0-9A-F]{8}-[0-9A-F]{4}-', f.name, re.I):   # nombres generados (UUID), no mockups
-                    continue
-                m = re.match(r'^\s*(.+?)[\s_-]*D\s*(\d+)(?=[\s_.-]|$)', f.name, re.I)
-                if m:
-                    items.append({'ref': _plano_ref(m.group(1)), 'diseno': int(m.group(2)), 'carpeta': sub.name, 'archivo': f.name, 'proyecto': proyecto})
-    except OSError:
-        return {'items': [], 'motivo': 'No pude leer la NAS ahora.'}
-    items.sort(key=lambda i: (i['ref'], i['diseno'], i['archivo'].upper()))
-    respuesta = {'items': items[:400], 'motivo': ''}
-    _cache_mockups_proyecto[clave_cache] = (time.time(), respuesta)
-    return respuesta
+    with _candado_nas:   # una sola lectura del NAS a la vez: los demás esperan y usan la caché
+        hit = _cache_mockups_proyecto.get(clave_cache)
+        if hit and time.time() - hit[0] < 1800:
+            return hit[1]
+        ubicado = _dir_proyecto(cliente, proyecto)
+        if ubicado is None:
+            return {'items': [], 'motivo': 'El proyecto no está en la carpeta MAESTROS del cliente.'}
+        carpeta_proyecto, _ = ubicado
+        items = []
+        try:
+            for sub in sorted((p for p in carpeta_proyecto.iterdir() if p.is_dir() and 'MUESTRA' not in p.name.upper()), key=lambda p: p.name.upper()):   # las MUESTRAS no son mockups del maestro
+                for f in sorted((x for x in sub.iterdir() if x.is_file() and x.suffix.lower() == '.jpg'), key=lambda x: x.name.upper()):
+                    if re.search(r'[0-9A-F]{8}-[0-9A-F]{4}-', f.name, re.I):   # nombres generados (UUID), no mockups
+                        continue
+                    m = re.match(r'^\s*(.+?)[\s_-]*D\s*(\d+)(?=[\s_.-]|$)', f.name, re.I)
+                    if m:
+                        items.append({'ref': _plano_ref(m.group(1)), 'diseno': int(m.group(2)), 'carpeta': sub.name, 'archivo': f.name, 'proyecto': proyecto})
+        except OSError:
+            return {'items': [], 'motivo': 'No pude leer la NAS ahora.'}
+        items.sort(key=lambda i: (i['ref'], i['diseno'], i['archivo'].upper()))
+        respuesta = {'items': items[:400], 'motivo': ''}
+        _cache_mockups_proyecto[clave_cache] = (time.time(), respuesta)
+        return respuesta
 
 
 def ruta_mockup(cliente: str, proyecto: str, carpeta: str, archivo: str) -> Path:
