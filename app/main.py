@@ -5761,12 +5761,19 @@ def _refresh_card_assets(source_row: int):
             _ASSET_BUSY.discard(source_row)
 
 
+_ASSET_CHECKED: dict = {}
+
+
 @app.get('/api/produccion/fila/{source_row}/archivos')
 def production_card_assets(source_row: int, _=Depends(authenticate)):
     """Los diseños se entregan al instante desde memoria; si ya pasaron 30 s se renuevan en segundo plano.
     Si el Excel del listado se guardó después de lo que hay en memoria, se vuelve a leer en este mismo momento (la tarjeta lo muestra enseguida)."""
     firma = _ASSET_SIG.get(source_row)
-    if firma and source_row in _ASSET_CACHE and _asset_signature(p for p, _m, _t in firma) != firma:
+    # la firma (lecturas a la NAS) se revisa como máximo una vez por minuto por fila: así las tarjetas no esperan la NAS en cada refresco
+    revisar = bool(firma) and source_row in _ASSET_CACHE and time.monotonic() - _ASSET_CHECKED.get(source_row, 0.0) > 60
+    if revisar:
+        _ASSET_CHECKED[source_row] = time.monotonic()
+    if revisar and _asset_signature(p for p, _m, _t in firma) != firma:
         try:
             payload = _compute_card_assets(source_row)
             with _ASSET_LOCK:
