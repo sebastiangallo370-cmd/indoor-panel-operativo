@@ -673,12 +673,19 @@ def mockups(request: Request, cliente: str = '', proyecto: str = '', ref: str = 
     return mockups_de(cliente, proyecto, ref)
 
 
+_cache_mockups_proyecto: dict = {}   # (cliente, proyecto) -> (momento, respuesta): la NAS es lenta, se reutiliza 5 min
+
+
 @router.get('/mockups-proyecto')
 def mockups_proyecto(request: Request, cliente: str = '', proyecto: str = ''):
     """Todos los mockups del proyecto (sin elegir referencia): para verlos en el listado antes de tener referencias."""
     _usuario(request)
     if len(cliente.strip()) < 3 or not proyecto.strip():
         raise HTTPException(400, 'Faltan el cliente o el proyecto')
+    clave_cache = (cliente.strip().upper(), proyecto.strip().upper())
+    hit = _cache_mockups_proyecto.get(clave_cache)
+    if hit and time.time() - hit[0] < 300:
+        return hit[1]
     ubicado = _dir_proyecto(cliente, proyecto)
     if ubicado is None:
         return {'items': [], 'motivo': 'El proyecto no está en la carpeta MAESTROS del cliente.'}
@@ -695,7 +702,9 @@ def mockups_proyecto(request: Request, cliente: str = '', proyecto: str = ''):
     except OSError:
         return {'items': [], 'motivo': 'No pude leer la NAS ahora.'}
     items.sort(key=lambda i: (i['ref'], i['diseno'], i['archivo'].upper()))
-    return {'items': items[:400], 'motivo': ''}
+    respuesta = {'items': items[:400], 'motivo': ''}
+    _cache_mockups_proyecto[clave_cache] = (time.time(), respuesta)
+    return respuesta
 
 
 def ruta_mockup(cliente: str, proyecto: str, carpeta: str, archivo: str) -> Path:
