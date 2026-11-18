@@ -107,11 +107,23 @@ def _sin_tildes(texto: str) -> str:
     return ''.join(c for c in unicodedata.normalize('NFKD', texto) if not unicodedata.combining(c)).upper().strip()
 
 
+# Iniciales fijas por vendedor (como las pide el equipo comercial en la hoja)
+INICIALES_FIJAS = {
+    'DAVID HINCAPIE': 'DH',
+    'CESAR ANDRES LOPEZ ZULUAGA': 'AL',
+    'CESAR AUGUSTO LOPEZ ZULUAGA': 'AU',
+    'YENIFER SANCHEZ': 'YS',
+}
+
+
 def iniciales_de(vendedor: str) -> str:
     """Nombre del vendedor -> sus iniciales de la cuenta del panel (DH, YS, AL...). Sin cuenta: vacío."""
     buscado = _sin_tildes(vendedor or '')
     if not buscado:
         return ''
+    fija = INICIALES_FIJAS.get(buscado)
+    if fija:
+        return fija
     try:
         db = sqlite3.connect(f"file:{Path(os.getenv('STATE_DIR', '/data/state')) / 'jobs.sqlite3'}?mode=ro", uri=True)
         filas = db.execute('SELECT name, display_name FROM users').fetchall()
