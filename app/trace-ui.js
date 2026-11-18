@@ -562,6 +562,8 @@
   toolbar.className = 'trace-workspace';
   toolbar.setAttribute('aria-label', 'Filtros de trazabilidad');
   toolbar.innerHTML = '<div class="trace-workspace-top"><div><h3>Pedidos en seguimiento</h3></div><span class="trace-live">Actualización automática</span></div><div class="trace-quick-filters" role="group" aria-label="Estado de los pedidos">' + filters.map(([id, label]) => '<button type="button" data-trace-filter="' + id + '" aria-pressed="' + (id === 'all') + '">' + label + '<span>0</span></button>').join('') + '</div><p class="trace-results" role="status" aria-live="polite"></p>';
+  // se quita el bloque «Pedidos en seguimiento» con sus filtros; el resto de la pantalla queda igual
+  toolbar.querySelectorAll('.trace-workspace-top, .trace-quick-filters').forEach(el => { el.style.display = 'none'; });
   traceCards.before(toolbar);
   // Totales de la lista que se está viendo (unidades y MTS) y filtro por máquina
   let maquinaFiltro = '';
@@ -716,7 +718,14 @@
     const comKey = row => String(traceField(row, 'ORDEN') || '').replace(/[\s-]+/g, '').toUpperCase();
     const base = productionData.rows.filter(row => visible.has(row.source_row) && ['ORDEN', 'NOMBRE DEL CLIENTE', 'NOMBRE PROYECTO', 'REFERENCIA'].some(name => traceField(row, name).trim())
       && (!comercialesMode || (comercialMap.has(comKey(row)) && (!comercialUser || comercialMap.get(comKey(row)).usuario.toLowerCase() === comercialUser.toLowerCase()))));
-    const fullSummaries = new Map(base.map(row => [row.source_row, summarize(productionData, row, processStatusHeaders, user, scheduleToday())]));
+    if (renderTraceCards._summaryData !== productionData) { renderTraceCards._summaryData = productionData; renderTraceCards._summaryCache = new Map(); }
+    const cache = renderTraceCards._summaryCache;
+    const fullSummaries = new Map(base.map(row => {
+      const firma = JSON.stringify([row.values, productionData.notes?.[row.source_row + ':17'], productionData.paused?.[row.source_row]]);
+      const previo = cache.get(row.source_row);
+      if (!previo || previo.firma !== firma) cache.set(row.source_row, { firma, valor: summarize(productionData, row, processStatusHeaders, user, scheduleToday()) });
+      return [row.source_row, cache.get(row.source_row).valor];
+    }));
     const forView = (row, stateFilter) => navigationProcess
       ? processQueueSummary(fullSummaries.get(row.source_row), navigationProcess.label, user, scheduleToday())
       : summaryForView(fullSummaries.get(row.source_row), stateFilter, profile, user, scheduleToday(), isAdmin, ownAreaFilter);
