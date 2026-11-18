@@ -726,7 +726,7 @@ def codigo_plano_de(codigo: str) -> str:
 
 def _filtrar_ordenes(ordenes: list, codigo_plano: str) -> dict:
     """Órdenes cuya referencia termina en el código (sin código: todas), las más recientes primero, máximo 20."""
-    lista = [o for o in ordenes if not codigo_plano or o['referencia'].endswith(codigo_plano)][:20]
+    lista = [o for o in ordenes if not codigo_plano or re.sub(r'[^A-Z0-9]', '', o['referencia']).endswith(codigo_plano)][:20]
     return {'ordenes': lista, 'motivo': ''}
 
 
@@ -758,12 +758,12 @@ def ordenes_referencia(request: Request, cliente: str = '', proyecto: str = '', 
                 if not m or not carpeta.is_dir() or norm(m.group(2)) != norm(proyecto):
                     continue
                 for x in carpeta.iterdir():
-                    if not (x.is_file() and x.suffix.lower() == '.xlsx') or x.name.startswith('~$'):
+                    if not (x.is_file() and x.suffix.lower() in ('.xlsx', '.xlsm')) or x.name.startswith('~$'):
                         continue
                     for hoja in _pestanas_xlsx(x):
                         if norm(hoja) in ('BASE_DATOS', 'REFERENCIA'):
                             continue
-                        ref = re.sub(r'[^A-Z0-9]', '', hoja.upper())
+                        ref = re.sub(r'-\d+$', '', hoja.strip().upper())   # nombre real de la pestaña (sin el sufijo -1)
                         ordenes.append({'co': int(m.group(1)), 'carpeta': carpeta.name, 'referencia': ref})
         except OSError:
             return {'ordenes': [], 'motivo': 'No pude leer la NAS ahora.'}

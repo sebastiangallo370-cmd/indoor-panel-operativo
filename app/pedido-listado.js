@@ -486,7 +486,7 @@
   const refOrdenDe = base => {
     const k = String(base || '').replace(/[^A-Z0-9]/gi, '').toUpperCase();
     const lista = (L.galProy && L.galProy.ordenes) || [];
-    return k ? (lista.find(r => r.endsWith(k)) || '') : '';
+    return k ? (lista.find(r => r.replace(/[^A-Z0-9]/g, '').endsWith(k)) || '') : '';
   };
   // mockups de TODO el proyecto elegido (sin referencias): se cargan una vez por proyecto
   function galeriaProyectoHtml(pr) {
