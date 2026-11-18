@@ -1,6 +1,7 @@
 """Lee un archivo de listado (Excel, Word, PDF o imagen) y devuelve sus filas en el formato del listado:
 NOMBRE<TAB>TALLA<TAB>NÚMERO<TAB>DISEÑO<TAB>GÉNERO<TAB>OBSERVACIÓN. Detecta la fila de encabezados por su nombre."""
 import io
+import asyncio
 import os
 import re
 import subprocess
@@ -66,6 +67,18 @@ def _filas_a_texto(filas: list[list]) -> str:
                 m = re.fullmatch(r'(?:DISENO|D)\s*(\d{1,2})', _sin_acentos(celda))   # DISEÑO 1 … DISEÑO 20, o D1 … D20
                 if m:
                     disenos[j] = int(m.group(1))
+            return _armar(filas, i, mapa, masc, fem, disenos)
+    # ninguna regla reconoce el formato: la IA (local, en el VPS) propone las columnas
+    propuesta = _ia_columnas(filas)
+    if propuesta:
+        return _armar(filas, propuesta['fila'], propuesta['mapa'], propuesta['masc'], propuesta['fem'], propuesta['disenos'])
+    raise ValueError('No encontré una fila de encabezados con NOMBRE, TALLA, NÚMERO, DISEÑO, GÉNERO u OBSERVACIÓN.')
+
+
+def _armar(filas: list[list], i: int, mapa: dict, masc: list, fem: list, disenos: dict) -> str:
+    """Las filas de datos después del encabezado, en el formato del listado."""
+    if True:
+        if True:
             salida = [ENCABEZADO]
             for datos in filas[i + 1:]:
                 reg = {c: ('' if j >= len(datos) or datos[j] is None else str(datos[j]).strip()) for j, c in mapa.items()}
@@ -77,7 +90,91 @@ def _filas_a_texto(filas: list[list]) -> str:
                 diseno = next((str(n) for j, n in sorted(disenos.items()) if j < len(datos) and str(datos[j] or '').strip()), '')
                 salida.append('\t'.join([reg.get('nombre', ''), reg.get('talla', ''), reg.get('numero', ''), diseno, genero]))
             return '\n'.join(salida)
-    raise ValueError('No encontré una fila de encabezados con NOMBRE, TALLA, NÚMERO, DISEÑO, GÉNERO u OBSERVACIÓN.')
+
+
+OLLAMA_URL = os.getenv('OLLAMA_URL', 'http://ollama:11434').rstrip('/')
+LECTOR_IA_MODELO = os.getenv('LECTOR_IA_MODELO', 'qwen2.5:1.5b')
+
+
+def _etiqueta_por_texto(texto: str) -> str:
+    """Reglas por palabras clave: entienden la mayoría de los encabezados sin IA."""
+    u = _sin_acentos(texto)
+    if 'MASC' in u:
+        return 'MASC'
+    if re.search(r'\bFEM', u):
+        return 'FEM'
+    if re.search(r'DISEN|^D\s*\d', u):
+        return 'DISENO'
+    if re.search(r'NUM|DORSAL|^N\s*[°ºO.]', u) and 'NOMBRE' not in u:
+        return 'NUMERO'
+    if re.search(r'NOMBRE|JUGADOR', u):
+        return 'NOMBRE'
+    if 'TALLA' in u:
+        return 'TALLA'
+    return 'OTRO'
+
+
+_ETIQUETAS = {'NOMBRE', 'TALLA', 'NUMERO', 'MASC', 'FEM', 'DISENO', 'OTRO'}
+
+
+def _ia_columnas(filas: list[list]) -> dict | None:
+    """Clasifica los encabezados de la hoja. Primero reglas por palabras clave; el modelo local (Ollama en el VPS)
+    solo decide los encabezados que las reglas no entienden. Los números de columna los calcula el sistema.
+    Sin IA disponible y sin NOMBRE reconocible devuelve None."""
+    import json
+    import urllib.request
+    fila_i, encabezados = None, None
+    for i, fila in enumerate(filas[:25]):
+        textos = [str(c).strip() if c is not None else '' for c in fila]
+        if sum(1 for t in textos if t and not re.fullmatch(r'[\d.,\s]+', t)) >= 3:
+            fila_i, encabezados = i, textos
+            break
+    if encabezados is None:
+        return None
+    columnas = [(j, t) for j, t in enumerate(encabezados) if t]
+    etiquetas = {j: _etiqueta_por_texto(t) for j, t in columnas}
+    ia_ids = set()
+    dudosas = [(j, t) for j, t in columnas if etiquetas[j] == 'OTRO']
+    if dudosas:
+        lista = '\n'.join(f'{j}: {t}' for j, t in dudosas)
+        prompt = ('Clasifica estos encabezados de un pedido de uniformes. Etiquetas: NOMBRE (jugador), TALLA, NUMERO (número o dorsal), '
+                  'MASC, FEM, DISENO, OTRO. Ejemplo de respuesta: {"3": "NUMERO", "7": "OTRO"}. Responde solo ese JSON.\n' + lista)
+        cuerpo = json.dumps({'model': LECTOR_IA_MODELO, 'prompt': prompt, 'stream': False, 'format': 'json', 'options': {'temperature': 0}}).encode('utf-8')
+        try:
+            req = urllib.request.Request(OLLAMA_URL + '/api/generate', data=cuerpo, headers={'Content-Type': 'application/json'})
+            with urllib.request.urlopen(req, timeout=150) as r:
+                crudo = json.loads(json.loads(r.read().decode('utf-8')).get('response') or '{}')
+        except Exception:   # noqa: BLE001 — sin IA, esas columnas quedan como OTRO
+            crudo = {}
+        if isinstance(crudo, dict) and isinstance(crudo.get('encabezados'), list):
+            pares = [(str(x.get('clave')), str(x.get('valor'))) for x in crudo['encabezados'] if isinstance(x, dict)]
+        elif isinstance(crudo, dict):
+            pares = [(str(k), str(v)) for k, v in crudo.items() if isinstance(v, str)]
+        else:
+            pares = []
+        for k, v in pares:
+            if k.isdigit() and int(k) in etiquetas and etiquetas[int(k)] == 'OTRO':
+                etiqueta = _sin_acentos(v).replace(' ', '')
+                if etiqueta in _ETIQUETAS:
+                    etiquetas[int(k)] = etiqueta
+                    ia_ids.add(int(k))
+    mapa, masc, fem, disenos = {}, [], [], {}
+    # primero las columnas que entienden las reglas; la IA solo llena lo que quede libre
+    for j, t in sorted(columnas, key=lambda jt: jt[0] in ia_ids):
+        e = etiquetas[j]
+        if e in ('NOMBRE', 'TALLA', 'NUMERO') and e.lower() not in mapa.values():
+            mapa[j] = e.lower()
+        elif e == 'MASC':
+            masc.append(j)
+        elif e == 'FEM':
+            fem.append(j)
+        elif e == 'DISENO':
+            m = re.search(r'(\d{1,2})', t)
+            if m:
+                disenos[j] = int(m.group(1))
+    if 'nombre' not in mapa.values():
+        return None
+    return {'fila': fila_i, 'mapa': mapa, 'masc': masc, 'fem': fem, 'disenos': disenos}
 
 def _excel(data: bytes) -> list[list[list]]:
     import openpyxl
@@ -300,7 +397,7 @@ async def leer_archivo(request: Request, archivo: UploadFile = File(...)):
         raise HTTPException(403, 'Solo para el equipo comercial')
     data = await archivo.read()
     try:
-        texto = leer(archivo.filename or '', data)
+        texto = await asyncio.to_thread(leer, archivo.filename or '', data)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     lineas = texto.count('\n')
