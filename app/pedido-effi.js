@@ -992,7 +992,12 @@
     try { pintarPasos(); } catch (e) { /* nada */ }
     return true;
   }
-  window.PedidoEffi = { montar, listadoPrevio, volverAlFormulario, agregarReferencia, fechaEntrega: () => { try { return valor('fecha_entrega') || ''; } catch (e) { return ''; } } };
+  // guarda lo llenado en el listado previo sin cambiar de pantalla (para agregar mockups uno a uno)
+  function guardarListado() {
+    if (window.PedidoListado && window.PedidoListado.previo && window.PedidoListado.previo()) st.listadoPrevio = window.PedidoListado.datos();
+    return true;
+  }
+  window.PedidoEffi = { montar, listadoPrevio, volverAlFormulario, guardarListado, agregarReferencia, fechaEntrega: () => { try { return valor('fecha_entrega') || ''; } catch (e) { return ''; } } };
 })();
 
 // Avisos en el PC: cuando un comercial programa un pedido, la cuenta «Indoor Sport» recibe una notificación de escritorio.

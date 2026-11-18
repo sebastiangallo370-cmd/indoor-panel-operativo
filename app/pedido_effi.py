@@ -10,6 +10,7 @@ Seguridad:
 Los totales los calcula Effi y los compara con los enviados: aquí se calculan igual (descuento por concepto e impuestos en porcentaje)."""
 from __future__ import annotations
 
+import hashlib
 import os
 import re
 import time
@@ -835,8 +836,33 @@ def ruta_mockup(cliente: str, proyecto: str, carpeta: str, archivo: str) -> Path
     return ruta
 
 
+_MINIATURAS = Path(os.getenv('PEDIDO_MINIATURAS_DIR', '/data/state/pedido_miniaturas'))
+
+
+def _miniatura(ruta: Path, ancho: int) -> Path | None:
+    """JPG reducido de un mockup, guardado en disco: la galería no baja las fotos de impresión completas (pesan varios MB).
+    La clave incluye fecha y tamaño del archivo, así que un mockup nuevo o cambiado genera su miniatura otra vez."""
+    try:
+        st = ruta.stat()
+        clave = hashlib.sha1(f'{ruta}|{st.st_mtime_ns}|{st.st_size}|{ancho}'.encode('utf-8')).hexdigest()
+        destino = _MINIATURAS / (clave + '.jpg')
+        if destino.is_file():
+            return destino
+        from PIL import Image, ImageOps
+        _MINIATURAS.mkdir(parents=True, exist_ok=True)
+        with Image.open(ruta) as im:
+            im = ImageOps.exif_transpose(im).convert('RGB')
+            im.thumbnail((ancho, ancho * 2))   # cabe en ancho x 2·ancho, con su proporción
+            tmp = destino.with_name(destino.name + '.tmp')
+            im.save(tmp, 'JPEG', quality=82, optimize=True)
+            tmp.replace(destino)
+        return destino
+    except Exception:  # noqa: BLE001 — si no se puede reducir, se entrega la original
+        return None
+
+
 @router.get('/mockup-img')
-def mockup_img(request: Request, cliente: str = '', proyecto: str = '', carpeta: str = '', archivo: str = ''):
+def mockup_img(request: Request, cliente: str = '', proyecto: str = '', carpeta: str = '', archivo: str = '', w: int = 0):
     from fastapi.responses import FileResponse
     _usuario(request)
     if any(x in (carpeta + archivo) for x in ('/', '\\', '..')) or Path(archivo).suffix.lower() not in EXT_IMAGEN:
@@ -851,6 +877,10 @@ def mockup_img(request: Request, cliente: str = '', proyecto: str = '', carpeta:
         raise HTTPException(400, 'Archivo no válido')
     if not ruta.is_file():
         raise HTTPException(404, 'No existe esa imagen')
+    if 0 < w <= 1200:   # vista de galería: versión reducida, guardada en disco
+        mini = _miniatura(ruta, w)
+        if mini is not None:
+            return FileResponse(mini, media_type='image/jpeg', headers={'Cache-Control': 'private, max-age=86400'})
     return FileResponse(ruta, headers={'Cache-Control': 'private, max-age=300'})
 
 # ---------------------------------------------------------------- El MISMO PDF que genera Effi (lo baja EFFITRON con su sesión web)

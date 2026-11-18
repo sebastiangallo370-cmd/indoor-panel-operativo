@@ -323,9 +323,9 @@
       raiz.dataset.galeriaPedido = '1';
       raiz.addEventListener('click', e => {
         const modoBtn = e.target.closest && e.target.closest('[data-gal-modo]');
-        if (modoBtn) { L.galVista = modoBtn.dataset.galModo; dibujar(); return; }
+        if (modoBtn) { L.galVista = modoBtn.dataset.galModo; conservarVista(dibujar); return; }
         const g = e.target.closest && e.target.closest('[data-galeria]');
-        const pg = e.target.closest && e.target.closest('[data-prog-ref]'); if (pg) { agregarAlDocumento(pg.dataset.progRef); return; }
+        const pg = e.target.closest && e.target.closest('[data-prog-ref]'); if (pg) { toggleElegido(pg.dataset.progRef); return; }
         if (g) { abrirGaleria(g.dataset.galeria); return; }
         const it = e.target.closest && e.target.closest('[data-gal-item]');
         if (it) elegirMaestro(it.dataset.galRef, it.dataset.galItem);
@@ -501,9 +501,11 @@
     // VISTA PREVIA: solo los mockups seleccionados; VOLVER A SELECCIONAR: todos otra vez para elegir
     const modo = L.galVista === 'seleccion' ? 'seleccion' : 'todos';
     const mostrar = modo === 'seleccion' ? g.items.filter(i => seleccionadoEn(i.ref)) : g.items;
-    const barra = '<div style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 10px"><button type="button" class="pl-btn' + (modo === 'seleccion' ? '' : ' sec') + '" data-gal-modo="seleccion">VISTA PREVIA</button><button type="button" class="pl-btn' + (modo === 'todos' ? '' : ' sec') + '" data-gal-modo="todos">VOLVER A SELECCIONAR</button></div>';
+    // botones de solo icono (el texto queda en el título)
+    const bt = (attr, activo, icono, texto) => '<button type="button" ' + attr + ' title="' + texto + '" aria-label="' + texto + '" style="display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;padding:0;border-radius:999px;border:1px solid ' + (activo ? '#d0f44c' : '#2e4a35') + ';background:' + (activo ? '#d0f44c' : '#14231a') + ';color:' + (activo ? '#0b120d' : '#d7e6cf') + ';font:900 16px Arial;line-height:1;cursor:pointer"><span aria-hidden="true">' + icono + '</span></button>';
+    const barra = '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:0 0 10px">' + bt('data-gal-modo="seleccion"', modo === 'seleccion', '◉', 'VISTA PREVIA') + bt('data-gal-modo="todos"', modo === 'todos', '↺', 'VOLVER A SELECCIONAR') + '</div>';
     if (!mostrar.length) return barra + '<p style="color:#a9b5a3">Todavía no hay mockups seleccionados: toca «VOLVER A SELECCIONAR» y elige.</p>';
-    return barra + '<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;max-height:620px;overflow-y:auto;padding:4px 2px">' + mostrar.map(i => '<figure data-prog-ref="' + esc(i.ref) + '" title="Agregar al documento" style="margin:0;min-width:0;cursor:pointer;position:relative;outline:' + (seleccionadoEn(i.ref) ? '3px solid #d0f44c' : 'none') + '"> ' + (seleccionadoEn(i.ref) ? '<span style="position:absolute;top:8px;left:8px;right:8px;z-index:2;text-align:center;background:#d0f44c;color:#0b120d;border-radius:999px;padding:4px 8px;font:800 11px Arial">✓ SELECCIONADO</span>' : '') + '<img loading="lazy" alt="' + esc(i.ref + ' D' + i.diseno) + '" style="width:100%;height:auto;object-fit:contain;border-radius:8px;display:block" src="/api/pedido-effi/mockup-img?cliente=' + encodeURIComponent(cliente) + '&proyecto=' + encodeURIComponent(i.proyecto || pr) + '&carpeta=' + encodeURIComponent(i.carpeta) + '&archivo=' + encodeURIComponent(i.archivo) + '"><figcaption style="font:800 12px Arial;color:#d0f44c;margin-top:4px">' + esc(refDocDe(i.ref) || refOrdenDe(i.ref) || i.ref) + ' · D' + i.diseno + '</figcaption></figure>').join('') + '</div>';
+    return barra + '<div data-gal-grid style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;max-height:620px;overflow-y:auto;padding:4px 2px">' + mostrar.map(i => '<figure data-prog-ref="' + esc(i.ref) + '" title="Agregar al documento" style="margin:0;min-width:0;cursor:pointer;position:relative;outline:' + (seleccionadoEn(i.ref) ? '3px solid #d0f44c' : 'none') + '"> ' + (seleccionadoEn(i.ref) ? '<span style="position:absolute;top:8px;left:8px;z-index:2;text-align:center;background:#d0f44c;color:#0b120d;border-radius:999px;width:26px;height:26px;line-height:26px;font:800 14px Arial">✓</span>' : '') + '<img loading="lazy" alt="' + esc(i.ref + ' D' + i.diseno) + '" style="width:100%;height:auto;object-fit:contain;border-radius:8px;display:block" src="/api/pedido-effi/mockup-img?cliente=' + encodeURIComponent(cliente) + '&proyecto=' + encodeURIComponent(i.proyecto || pr) + '&carpeta=' + encodeURIComponent(i.carpeta) + '&archivo=' + encodeURIComponent(i.archivo) + '&w=560"><figcaption style="font:800 12px Arial;color:#d0f44c;margin-top:4px">' + esc(refDocDe(i.ref) || refOrdenDe(i.ref) || i.ref) + ' · D' + i.diseno + '</figcaption></figure>').join('') + '</div>';
   }
   async function cargarGaleriaProyecto(pr) {
     const cliente = (L.doc.cliente && L.doc.cliente.nombre) || '';
@@ -521,21 +523,40 @@
     } catch (e) { if (L.galProy && L.galProy.proyecto === pr) L.galProy.items = []; }
     dibujar();
   }
-  // mockup elegido: su artículo entra al documento (CO/RM) y el listado se rearma con esa referencia; lo llenado se conserva
-  async function agregarAlDocumento(base) {
+  // al redibujar la ventana no se pierde el desplazamiento (ni el de la galería de mockups)
+  function conservarVista(fn) {
+    const movs = []; let n = raiz;
+    while (n && n.nodeType === 1) { if (n.scrollTop) movs.push([n, n.scrollTop]); n = n.parentElement; }
+    const gAntes = raiz.querySelector('[data-gal-grid]'), gt = gAntes ? gAntes.scrollTop : 0;
+    const y = window.scrollY;
+    fn();
+    movs.forEach(([el, t]) => { el.scrollTop = t; });
+    window.scrollTo(0, y);
+    const gDespues = raiz.querySelector('[data-gal-grid]'); if (gDespues) gDespues.scrollTop = gt;
+  }
+  // tocar un mockup lo agrega al documento de inmediato; si tocas varios seguidos, se agregan en fila (una cola)
+  let colaAgregar = Promise.resolve();
+  function toggleElegido(base) {
+    if (seleccionadoEn(base)) return setMsg((refDocDe(base) || base) + ' ya está en el documento.', 'ok');
+    colaAgregar = colaAgregar.then(() => agregarMockup(base));
+  }
+  async function agregarMockup(base) {
     if (!window.PedidoEffi || !window.PedidoEffi.agregarReferencia) return setMsg('No pude conectar con CO/RM.', 'error');
-    setMsg('Buscando el artículo de ' + base + '…', '');
+    const pr = String(datosRef(PH).proyecto || '').trim();
+    setMsg('Agregando ' + base + ' al documento…', '');
     try {
-      const r = await window.PedidoEffi.agregarReferencia(base, datosRef(PH).proyecto);
-      if (r.sinCliente) return setMsg('Elige primero el cliente en CO/RM.', 'error');
-      if (r.sinProyecto) return setMsg('Elige primero el NOMBRE DEL PROYECTO.', 'error');
-      if (r.sinHistorial) return setMsg('No hay una orden de ' + r.proyecto + ' con la referencia de ' + r.codigo + ': agrégala en CO/RM (Conceptos).', 'error');
-      if (r.no) return setMsg('No encontré el artículo ' + (r.ref || base) + ' en Effi.', 'error');
-      if (r.ya) return setMsg(r.ref + ' ya está en el documento.', 'ok');
-      const pr = String(datosRef(PH).proyecto || '').trim();   // el proyecto ya elegido pasa a la referencia nueva
+      window.PedidoEffi.guardarListado();   // guarda lo llenado en el listado antes de cambiar las referencias
+      const r = await window.PedidoEffi.agregarReferencia(base, pr);
+      let msg = r.ref + ' agregado al documento.', tipo = 'ok';
+      if (r.sinCliente) { msg = 'Elige primero el cliente en CO/RM.'; tipo = 'error'; }
+      else if (r.sinProyecto) { msg = 'Elige primero el NOMBRE DEL PROYECTO.'; tipo = 'error'; }
+      else if (r.sinHistorial) { msg = base + ': no hay una orden de este proyecto con esa referencia.'; tipo = 'error'; }
+      else if (r.no) { msg = (r.ref || base) + ' no está en Effi: hay que crear ese artículo primero.'; tipo = 'error'; }
+      else if (r.ya) { msg = r.ref + ' ya estaba en el documento.'; }
       window.PedidoEffi.listadoPrevio();
-      if (pr && !String(datosRef(r.ref).proyecto || '').trim()) { L.refDatos = L.refDatos || {}; L.refDatos[r.ref] = Object.assign({}, datosRef(r.ref), { proyecto: pr, nuevo: false }); guardarBorrador(); dibujar(); }
-      setMsg(r.ref + ' agregado al documento.', 'ok');
+      if (r.ref && pr && !String(datosRef(r.ref).proyecto || '').trim()) { L.refDatos = L.refDatos || {}; L.refDatos[r.ref] = Object.assign({}, datosRef(r.ref), { proyecto: pr, nuevo: false }); }
+      guardarBorrador(); dibujar();
+      setMsg(msg, tipo);
     } catch (e) { setMsg('No pude agregar ' + base + ': ' + (e.message || e), 'error'); }
   }
   async function cargarProyLista() {
