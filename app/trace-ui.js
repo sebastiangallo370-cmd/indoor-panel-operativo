@@ -561,9 +561,8 @@
   const toolbar = document.createElement('section');
   toolbar.className = 'trace-workspace';
   toolbar.setAttribute('aria-label', 'Filtros de trazabilidad');
-  toolbar.innerHTML = '<div class="trace-workspace-top"><div><h3>Pedidos en seguimiento</h3></div><span class="trace-live">Actualización automática</span></div><div class="trace-quick-filters" role="group" aria-label="Estado de los pedidos">' + filters.map(([id, label]) => '<button type="button" data-trace-filter="' + id + '" aria-pressed="' + (id === 'all') + '">' + label + '<span>0</span></button>').join('') + '</div><p class="trace-results" role="status" aria-live="polite"></p>';
-  // se quita el bloque «Pedidos en seguimiento» con sus filtros; el resto de la pantalla queda igual
-  toolbar.querySelectorAll('.trace-workspace-top, .trace-quick-filters').forEach(el => { el.style.display = 'none'; });
+  // Sin el bloque «Pedidos en seguimiento» ni sus filtros (ahorra memoria); se conservan totales, máquina, comercial y vista
+  toolbar.innerHTML = '<div class="trace-workspace-top"></div><div class="trace-quick-filters" role="group" aria-label="Totales"></div><p class="trace-results" role="status" aria-live="polite"></p>';
   traceCards.before(toolbar);
   // Totales de la lista que se está viendo (unidades y MTS) y filtro por máquina
   let maquinaFiltro = '';
