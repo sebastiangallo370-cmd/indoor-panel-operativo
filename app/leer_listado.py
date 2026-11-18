@@ -96,7 +96,7 @@ def _armar(filas: list[list], i: int, mapa: dict, masc: list, fem: list, disenos
 
 
 OLLAMA_URL = os.getenv('OLLAMA_URL', 'http://ollama:11434').rstrip('/')
-LECTOR_IA_MODELO = os.getenv('LECTOR_IA_MODELO', 'qwen2.5:1.5b')
+LECTOR_IA_MODELO = os.getenv('LECTOR_IA_MODELO', 'qwen2.5:3b')
 
 
 def _etiqueta_por_texto(texto: str) -> str:
