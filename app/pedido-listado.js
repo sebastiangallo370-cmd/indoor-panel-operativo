@@ -236,6 +236,8 @@
   const q = s => raiz.querySelector(s);
 
   // ---------------------------------------------------------------- datos
+  const PH = 'SIN REFERENCIA';
+  const hayReferencias = () => (L.doc.conceptos || []).some(c => String(c.referencia || '').trim());
   const grupos = () => {
     const m = new Map();
     (L.doc.conceptos || []).forEach(c => {
@@ -243,6 +245,8 @@
       const g = m.get(ref) || { referencia: ref, descripcion: c.descripcion || ref, cantidad: 0 };
       g.cantidad += num(c.cantidad); m.set(ref, g);
     });
+    // sin conceptos todavía: el listado sale completo igual (tabla, filas, proyecto y mockups del proyecto)
+    if (!m.size) return [{ referencia: PH, descripcion: 'Sin referencia', cantidad: 1 }];
     return [...m.values()];
   };
   const claveBorrador = () => 'pedidoListado:' + (L.doc.prefijo || '') + L.doc.numero + (L.doc.numero === 'PREVIO' ? '|' + claveDocumento() : '');
@@ -312,7 +316,7 @@
     if (!raiz.dataset.datosPedido) {   // proyecto y línea: un solo manejador para toda la ventana
       raiz.dataset.datosPedido = '1';
       raiz.addEventListener('input', e => { if (e.target.matches && e.target.matches('[data-ref-proyecto]')) { const ref = e.target.dataset.ref; L.refDatos = L.refDatos || {}; L.refDatos[ref] = Object.assign({}, datosRef(ref), { proyecto: e.target.value }); guardarBorrador(); estadoListado(); } });
-      raiz.addEventListener('change', e => { if (e.target.matches && e.target.matches('[data-ref-proy-sel]')) { const ref = e.target.dataset.ref, v = e.target.value; L.refDatos = L.refDatos || {}; L.refDatos[ref] = v === '__nuevo' ? Object.assign({}, datosRef(ref), { proyecto: '', nuevo: true }) : Object.assign({}, datosRef(ref), { proyecto: v, nuevo: false }); guardarBorrador(); dibujar(); estadoListado(); if (v && v !== '__nuevo') abrirGaleria(ref); } });   // al elegir el proyecto se traen sus mockups de esta referencia
+      raiz.addEventListener('change', e => { if (e.target.matches && e.target.matches('[data-ref-proy-sel]')) { const ref = e.target.dataset.ref, v = e.target.value; L.refDatos = L.refDatos || {}; L.refDatos[ref] = v === '__nuevo' ? Object.assign({}, datosRef(ref), { proyecto: '', nuevo: true }) : Object.assign({}, datosRef(ref), { proyecto: v, nuevo: false }); guardarBorrador(); dibujar(); estadoListado(); if (v && v !== '__nuevo' && ref && ref !== PH) abrirGaleria(ref); else dibujar(); } });   // al elegir el proyecto se traen sus mockups de esta referencia
       raiz.addEventListener('change', e => { if (e.target.matches && e.target.matches('[data-ref-linea]')) { const ref = e.target.dataset.ref; L.refDatos = L.refDatos || {}; L.refDatos[ref] = Object.assign({}, datosRef(ref), { linea: e.target.value }); guardarBorrador(); estadoListado(); } });
     }
     if (!raiz.dataset.galeriaPedido) {
@@ -536,6 +540,7 @@
   }
   function panelMockupsListado(ref) {
     if (!ref) return '';
+    if (ref === PH) return '<div class="pl-tarjeta"><h3>MOCKUPS DEL PROYECTO</h3>' + galeriaProyectoHtml(datosRef(PH).proyecto) + '</div>';
     const slots = Array.from({ length: L.disenos }, (_, i) => i + 1).filter(n => !imagenDe(ref, n)).map(n => slotHtml(ref, n)).join('');
     const elegidos = (galPick()[ref] || []).map((pk, k) => '<div style="display:inline-block;width:96px;margin:0 8px 8px 0;vertical-align:top"><img src="' + esc(URL.createObjectURL(pk.file)) + '" alt="D' + (k + 1) + '" style="width:96px;height:128px;object-fit:contain;border-radius:8px;background:#0b120d;border:2px solid #d0f44c;display:block"><small style="color:#d0f44c;font:800 11px Arial">DISEÑO ' + (k + 1) + '</small></div>').join('');
     return '<div class="pl-tarjeta"><h3>MOCKUPS · ' + esc(ref) + '</h3>' +
@@ -822,7 +827,7 @@
     grupos().forEach(g => { const el = raiz.querySelector('[data-cont="' + g.referencia.replace(/"/g, '') + '"]'); if (el) { const n = filasDe(g.referencia).length; el.textContent = n + ' / ' + g.cantidad; el.classList.toggle('ok', n === g.cantidad); } });
     const f = faltantes(), b = q('[data-programar]'); if (b) b.disabled = f.length > 0 || L.enviando || !!L.previo;
     if (L.enviando) return;
-    setMsg(f.length ? f.slice(0, 6).join('\n') + (f.length > 6 ? '\n…y ' + (f.length - 6) + ' más' : '') : 'Listado completo ✓ Ya puedes programar el pedido.', f.length ? '' : 'ok');
+    setMsg(f.length ? f.slice(0, 6).join('\n') + (f.length > 6 ? '\n…y ' + (f.length - 6) + ' más' : '') : (hayReferencias() ? 'Listado completo ✓ Ya puedes programar el pedido.' : 'Llena el listado; las referencias salen de CO/RM cuando las agregues.'), f.length ? '' : (hayReferencias() ? 'ok' : ''));
   }
 
   // ---------------------------------------------------------------- envío y seguimiento
