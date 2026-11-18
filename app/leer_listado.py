@@ -51,6 +51,9 @@ def _campo(celda) -> str | None:
 
 
 def _filas_a_texto(filas: list[list]) -> str:
+    propuesta = _ia_columnas(filas)   # la IA interpreta primero
+    if propuesta:
+        return _armar(filas, propuesta['fila'], propuesta['mapa'], propuesta['masc'], propuesta['fem'], propuesta['disenos'])
     """Busca la fila de encabezados y devuelve las filas siguientes en el formato del listado:
     NOMBRE, TALLA, NÚMERO, DISEÑO (1 a 4, la columna marcada) y GÉNERO (M o F, la columna MASC o FEM marcada)."""
     for i, fila in enumerate(filas[:30]):
@@ -139,11 +142,11 @@ def _ia_columnas(filas: list[list]) -> dict | None:
     columnas = [(j, t) for j, t in enumerate(encabezados) if t]
     etiquetas = {j: _etiqueta_por_texto(t) for j, t in columnas}
     ia_ids = set()
-    dudosas = [(j, t) for j, t in columnas if etiquetas[j] == 'OTRO']
-    if dudosas:
-        lista = '\n'.join(f'{j}: {t}' for j, t in dudosas)
-        prompt = ('Clasifica estos encabezados de un pedido de uniformes. Etiquetas: NOMBRE (jugador), TALLA, NUMERO (número o dorsal), '
-                  'MASC, FEM, DISENO, OTRO. Ejemplo de respuesta: {"3": "NUMERO", "7": "OTRO"}. Responde solo ese JSON.\n' + lista)
+    if True:   # siempre: la IA interpreta el encabezado completo
+        lista = '\n'.join(f'{j}: {t}' for j, t in columnas)
+        prompt = ('Clasifica cada encabezado de un pedido de uniformes deportivos. Etiquetas: NOMBRE (nombre del jugador), TALLA, NUMERO (número o dorsal), '
+                  'MASC (marca de masculino), FEM (marca de femenino), DISENO (diseño o arte), OTRO (cualquier otra cosa). '
+                  'Ejemplo de respuesta: {"0": "NOMBRE", "1": "TALLA", "2": "NUMERO", "3": "OTRO"}. Responde solo ese JSON.\n' + lista)
         cuerpo = json.dumps({'model': LECTOR_IA_MODELO, 'prompt': prompt, 'stream': False, 'format': 'json', 'options': {'temperature': 0}}).encode('utf-8')
         try:
             req = urllib.request.Request(OLLAMA_URL + '/api/generate', data=cuerpo, headers={'Content-Type': 'application/json'})
@@ -158,7 +161,7 @@ def _ia_columnas(filas: list[list]) -> dict | None:
         else:
             pares = []
         for k, v in pares:
-            if k.isdigit() and int(k) in etiquetas and etiquetas[int(k)] == 'OTRO':
+            if k.isdigit() and int(k) in etiquetas:
                 etiqueta = _sin_acentos(v).replace(' ', '')
                 if etiqueta in _ETIQUETAS:
                     etiquetas[int(k)] = etiqueta
