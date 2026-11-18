@@ -747,6 +747,11 @@ def ordenes_referencia(request: Request, cliente: str = '', proyecto: str = '', 
             return ' '.join(str(x).split()).upper()
 
         info = proyectos_de_cliente(cliente)
+        for _ in range(8):   # la NAS puede estar listando los clientes (tras un reinicio): se espera, no se responde vacío
+            if not info.get('pendiente'):
+                break
+            time.sleep(1.5)
+            info = proyectos_de_cliente(cliente)
         raiz = _raiz_clientes()
         if raiz is None or not info.get('carpeta'):
             return {'ordenes': [], 'motivo': 'No pude leer la NAS ahora.'}
@@ -754,7 +759,7 @@ def ordenes_referencia(request: Request, cliente: str = '', proyecto: str = '', 
         ordenes = []
         try:
             for carpeta in base.iterdir():
-                m = re.match(r'^CO(\d+)_(.+)$', carpeta.name, re.I)
+                m = re.match(r'^(?:CO|RM)(\d+)_(.+)$', carpeta.name, re.I)
                 if not m or not carpeta.is_dir() or norm(m.group(2)) != norm(proyecto):
                     continue
                 for x in carpeta.iterdir():
