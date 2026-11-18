@@ -1,32 +1,32 @@
-# Alerta de pedidos nuevos en el PC: consulta cada minuto y muestra una notificación de Windows.
-# No guarda ninguna contraseña: usa una clave de alerta en %USERPROFILE%\.indoor_alerta_token.
+# Alerta de pedidos en el PC: espera la señal del servidor (cuando un comercial da clic en PROGRAMAR)
+# y muestra una notificación de Windows. Usa una sola consulta abierta, no consulta cada minuto.
+# La clave de alerta está en %USERPROFILE%\.indoor_alerta_token (no hay contraseñas en este archivo).
 $ErrorActionPreference = 'SilentlyContinue'
-$url = 'https://produccion.cloud/api/club/alertas/pendientes'
+$base = 'https://produccion.cloud/api/club/alertas/esperar'
 $tokenFile = Join-Path $env:USERPROFILE '.indoor_alerta_token'
-$vistosFile = Join-Path $env:LOCALAPPDATA 'IndoorAlerta\vistos.txt'
-New-Item -ItemType Directory -Force -Path (Split-Path $vistosFile) | Out-Null
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 $icono = New-Object System.Windows.Forms.NotifyIcon
 $icono.Icon = [System.Drawing.SystemIcons]::Information
 $icono.Visible = $true
-$primera = -not (Test-Path $vistosFile)
-$vistos = @()
-if (-not $primera) { $vistos = @(Get-Content $vistosFile | Where-Object { $_ -match '^\d+$' } | ForEach-Object { [int]$_ }) }
+$version = -1
+$primera = $true
 while ($true) {
   try {
     $token = (Get-Content $tokenFile -Raw).Trim()
-    $r = Invoke-RestMethod -Uri $url -Headers @{ 'X-Alerta-Token' = $token } -TimeoutSec 20
-    foreach ($p in @($r.pedidos)) {
-      if ($vistos -notcontains [int]$p.id) {
-        $vistos += [int]$p.id
-        if (-not $primera) {
-          $icono.ShowBalloonTip(8000, 'Nuevo pedido de comercial', ("{0} · {1} prendas · reposición #{2}" -f $p.cliente, $p.prendas, $p.id), [System.Windows.Forms.ToolTipIcon]::Info)
-        }
+    $r = Invoke-RestMethod -Uri ("{0}?desde={1}" -f $base, $version) -Headers @{ 'X-Alerta-Token' = $token } -TimeoutSec 70
+    if ($r.version -gt $version) {
+      $version = [int]$r.version
+      if (-not $primera -and $r.evento) {
+        $e = $r.evento
+        $texto = "{0} · {1} prendas" -f $e.cliente, $e.prendas
+        if ($e.proyecto) { $texto += " · " + $e.proyecto }
+        $aviso = Join-Path $env:LOCALAPPDATA 'IndoorAlertaviso_pc.ps1'
+        Start-Process -FilePath 'powershell.exe' -WindowStyle Hidden -ArgumentList ("-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"{0}`" -Titulo 'Un comercial está programando un pedido' -Texto `"{1}`"" -f $aviso, $texto)
       }
     }
-    $vistos | Set-Content $vistosFile
     $primera = $false
-  } catch { }
-  Start-Sleep -Seconds 60
+  } catch {
+    Start-Sleep -Seconds 30
+  }
 }

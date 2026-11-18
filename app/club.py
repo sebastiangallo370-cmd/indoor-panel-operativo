@@ -16,6 +16,7 @@ import logging
 import os
 import re
 import secrets
+import threading
 import time
 import unicodedata
 from concurrent.futures import ThreadPoolExecutor
@@ -503,6 +504,41 @@ def alertas_pendientes(request: Request):
         prendas = sum(int(j.get('cantidad') or 1) for l in lineas for j in l.get('jugadores', []))
         pedidos.append({'id': f['id'], 'cliente': f['cliente'] or '', 'prendas': prendas, 'creado': f['creado'] or ''})
     return {'pedidos': pedidos}
+
+
+_senal_cond = threading.Condition()
+_senal = {'version': 0, 'evento': None}
+
+
+def _clave_alerta_ok(request: Request) -> bool:
+    archivo = Path(os.getenv('ALERTA_TOKEN_FILE', '/data/state/alerta_pedidos_token.txt'))
+    esperado = archivo.read_text(encoding='utf-8').strip() if archivo.exists() else ''
+    return bool(esperado) and secrets.compare_digest(esperado, request.headers.get('X-Alerta-Token', ''))
+
+
+@router.post('/alertas/senal')
+def alerta_senal(request: Request, payload: dict = Body(default={})):
+    """El panel avisa que un comercial dio clic en PROGRAMAR; el PC que espera recibe el aviso al instante."""
+    usuario = _usuario(request)
+    with _senal_cond:
+        _senal['version'] += 1
+        _senal['evento'] = {'usuario': str(usuario or '')[:80], 'cliente': str(payload.get('cliente') or '')[:120],
+                            'proyecto': str(payload.get('proyecto') or '')[:120], 'prendas': int(payload.get('prendas') or 0),
+                            'momento': _ahora()}
+        _senal_cond.notify_all()
+    return {'ok': True, 'version': _senal['version']}
+
+
+@router.get('/alertas/esperar')
+def alerta_esperar(request: Request, desde: int = 0):
+    """El PC deja esta consulta abierta: responde cuando hay una señal nueva o al cabo de 50 s."""
+    if not _clave_alerta_ok(request):
+        raise HTTPException(401, 'Clave de alerta no válida')
+    with _senal_cond:
+        if _senal['version'] <= desde:
+            _senal_cond.wait(timeout=50)
+        nueva = _senal['version'] > desde
+        return {'version': _senal['version'], 'evento': _senal['evento'] if nueva else None}
 
 
 @router.get('/pedidos')

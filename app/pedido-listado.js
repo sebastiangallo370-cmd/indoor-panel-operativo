@@ -912,6 +912,10 @@
         L.job.detail = 'PDF de Effi listo. Creando el listado de Excel con la plantilla de Indoor…';
         if (raiz && raiz.isConnected && L.pantalla === 'enviado') pantallaEnviado();
       }
+      // aviso al PC de la oficina: un comercial empezó a programar (no bloquea nada si falla)
+      fetch('/api/club/alertas/senal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
+        body: JSON.stringify({ cliente: (L.doc.cliente || {}).nombre || '', proyecto: datosRef((grupos()[0] || {}).referencia || PH).proyecto || '',
+          prendas: Object.values(L.listado || {}).reduce((a, f) => a + (Array.isArray(f) ? f.length : 0), 0) }) }).catch(() => {});
       const r = await fetchT('/api/pedido-effi/programar', { method: 'POST', body: fd, credentials: 'same-origin' });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(typeof j.detail === 'string' ? j.detail : 'No se pudo programar el pedido (error ' + r.status + ')');
