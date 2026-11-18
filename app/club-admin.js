@@ -693,7 +693,8 @@
     f.addEventListener('click', e => {
       const b = e.target.closest('[data-ptab]'); if (!b) return;
       const PL = window.PedidoListado, PE = window.PedidoEffi, hay = PL && PL.activo && PL.activo(), previo = hay && PL.previo && PL.previo();
-      if (previo) { if (b.dataset.ptab === 'doc' && PE.volverAlFormulario) PE.volverAlFormulario(); marcarTab(); return; }   // listado previo -> vuelve al formulario guardando lo llenado
+      // al pasar a LISTADO se arma de nuevo con lo que hay ahora en CO/RM (cliente, proyecto, referencias y cantidades); lo llenado en el listado se conserva
+      if (previo) { if (b.dataset.ptab === 'doc' && PE.volverAlFormulario) PE.volverAlFormulario(); else if (b.dataset.ptab === 'listado' && PE && PE.listadoPrevio) PE.listadoPrevio(); marcarTab(); return; }   // listado previo -> vuelve al formulario guardando lo llenado
       if (!hay) { if (b.dataset.ptab === 'listado' && PE && PE.listadoPrevio && !PE.listadoPrevio()) { toast('Para llenar el LISTADO primero agrega al menos un artículo en Conceptos (el listado se arma por referencia y cantidad).', 'error'); const r = caja.querySelector('[data-f="ref"]'); if (r) { r.scrollIntoView({ block: 'center', behavior: 'smooth' }); r.focus(); r.classList.add('pe-falta'); } } marcarTab(); return; }   // aún sin documento: listado PREVIO
       PL.ir(b.dataset.ptab); marcarTab();
     });

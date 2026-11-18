@@ -632,7 +632,7 @@
     const gs = grupos();
     if (!gs.length) {   // sin referencias todavía: el proyecto y sus mockups (todos), para ver lo disponible
       q('[data-cuerpo]').innerHTML = '<div class="pl-tarjeta"><h3>Proyecto del pedido</h3><div class="pl-grid" style="margin:0 0 10px">' + proyectoCampo('') + '</div>' + galeriaProyectoHtml(datosRef('').proyecto) + '<p>Todavía no hay referencias: agrégalas en CO/RM (Conceptos) para llenar el listado.</p></div>';
-      acciones('<button class="pl-btn sec" type="button" data-atras>◀ VOLVER A CO/RM</button>', 'Agrega al menos una referencia para llenar el listado.', 'error');
+      acciones('<button class="pl-btn sec" type="button" data-atras>◀ VOLVER A CO/RM</button>', 'Puedes seguir llenando el proyecto; las referencias aparecen cuando las agregas en CO/RM.');
       q('[data-atras]').onclick = () => { if (L.previo) { if (L.opts.onVolver) L.opts.onVolver(); return; } L.pantalla = 'doc'; dibujar(); };
       return;
     }
