@@ -27,6 +27,8 @@
     try {
       sessionStorage.setItem(CLAVE_SESION, '1');
       sessionStorage.setItem(CLAVE_PANEL, panel);
+      var proceso = document.querySelector('.tab.process-nav.active');
+      sessionStorage.setItem('indoor-proceso', proceso ? (proceso.dataset.productionRoute || '') : '');
       sessionStorage.setItem(claveUbicacion(), String(Math.max(0, Math.round(scrollY))));
     } catch (e) { /* sin almacenamiento */ }
   };
@@ -60,6 +62,17 @@
     const destino = document.querySelector('.tab[data-kind="' + CSS.escape(panel) + '"]');
     if (!destino) return false;
     if (!destino.classList.contains('active')) destino.click();
+    // si se estaba en un proceso de Producción (EDICIÓN, DISEÑO…), se vuelve a elegir el mismo
+    var ruta = '';
+    try { ruta = sessionStorage.getItem('indoor-proceso') || ''; } catch (e) { /* sin almacenamiento */ }
+    if (panel === 'produccion' && ruta) {
+      var intentos = 0;
+      var elegir = setInterval(function () {
+        var boton = document.querySelector('.tab.process-nav[data-production-route="' + CSS.escape(ruta) + '"]');
+        if (boton) { clearInterval(elegir); boton.click(); }
+        else if (++intentos > 60) clearInterval(elegir);
+      }, 500);
+    }
     return true;
   };
   try { localStorage.removeItem(CLAVE); } catch (e) { /* dato heredado */ }
