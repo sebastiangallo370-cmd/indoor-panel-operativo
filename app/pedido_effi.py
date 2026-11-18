@@ -639,7 +639,7 @@ def _mockups_en(carpeta_proyecto: Path, bases: list[str], proyecto: str) -> list
         base = next((b for b in bases if nombre.startswith(b)), None)
         if not base:
             continue
-        for f in sorted((x for x in sub.iterdir() if x.is_file() and x.suffix.lower() in EXT_IMAGEN), key=lambda x: x.name.upper()):
+        for f in sorted((x for x in sub.iterdir() if x.is_file() and x.suffix.lower() == '.jpg'), key=lambda x: x.name.upper()):
             m = re.match(r'^\s*' + re.escape(base) + r'[\s_-]*D\s*(\d+)', f.name, re.I)
             if m:
                 items.append({'ref': base, 'diseno': int(m.group(1)), 'carpeta': sub.name, 'archivo': f.name, 'proyecto': proyecto})
@@ -693,7 +693,7 @@ def mockups_proyecto(request: Request, cliente: str = '', proyecto: str = ''):
     items = []
     try:
         for sub in sorted((p for p in carpeta_proyecto.iterdir() if p.is_dir() and 'MUESTRA' not in p.name.upper()), key=lambda p: p.name.upper()):   # las MUESTRAS no son mockups del maestro
-            for f in sorted((x for x in sub.iterdir() if x.is_file() and x.suffix.lower() in EXT_IMAGEN), key=lambda x: x.name.upper()):
+            for f in sorted((x for x in sub.iterdir() if x.is_file() and x.suffix.lower() == '.jpg'), key=lambda x: x.name.upper()):
                 if re.search(r'[0-9A-F]{8}-[0-9A-F]{4}-', f.name, re.I):   # nombres generados (UUID), no mockups
                     continue
                 m = re.match(r'^\s*(.+?)[\s_-]*D\s*(\d+)(?=[\s_.-]|$)', f.name, re.I)
