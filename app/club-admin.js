@@ -239,7 +239,7 @@
     const lista = pedidos.filter(p => ESTADOS_VISIBLES.includes(p.estado) && (!filtro || p.estado === filtro) && coincide(p));   // Pendientes y Rechazadas ocultas por pedido del usuario (2026-11-14): no se borra nada, basta quitarlas de ESTADOS_VISIBLES
     const nuevos = new Set(pedidos.map(p => p.id).filter(id => !vistos.has(id)));
     const html = vista === 'estadisticas' ? ('<div class="tc">' + barraVistas() + estadisticasHtml() + '</div>') : '<div class="tc">' + barraVistas() +
-      '<section class="tc-plano"><div class="tc-cabeza"><span class="tc-acc">' + '<button class="tc-btn tc-b-lime" data-pedido="nuevo" type="button">EMPEZAR PEDIDO</button></span></div>' +
+      '<section class="tc-plano"><div class="tc-cabeza"><span class="tc-acc">' + '<button class="tc-btn tc-b-lime" data-pedido="nuevo" type="button">EMPEZAR PEDIDO</button> <button class="tc-btn" data-probar-alerta type="button" title="Prueba el aviso del PC">PROBAR ALERTA</button></span></div>' +
       ''+
       '<div class="tc-barra"><span></span>' +
       '<input id="tc-buscar" class="tc-buscar" type="search" placeholder="Buscar club, contacto o cotización" autocomplete="off" value="' + esc(busqueda) + '"></div>' +
@@ -669,6 +669,7 @@
     });
     document.querySelectorAll('.tab[data-kind="club"]').forEach(tab => tab.addEventListener('click', () => cargar()));
     document.addEventListener('click', e => { if (e.target.closest('[data-pedido="nuevo"]')) abrirPedido(); });
+    document.addEventListener('click', e => { if (!e.target.closest('[data-probar-alerta]')) return; fetch('/api/club/alertas/senal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: JSON.stringify({ cliente: 'PRUEBA · ALERTA', proyecto: 'PRUEBA', prendas: 24 }) }).then(r => alert(r.ok ? 'Prueba enviada: debe aparecer el aviso en tu PC.' : 'No se pudo enviar la prueba (' + r.status + ').')).catch(() => alert('Sin conexión.')); });
     setInterval(() => { if (!document.hidden && panel.classList.contains('active')) cargar(); }, 20000);
   }
   // EMPEZAR PEDIDO: formulario igual al de «Crear cotización» de Effi (pedido-effi.js). Crea la cotización o la remisión de venta en Effi (solo si la cuenta Indoor Sport lo tiene ENCENDIDO).
