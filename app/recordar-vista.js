@@ -56,7 +56,8 @@
   const abrirPanelGuardado = () => {
     let panel = '';
     try { panel = sessionStorage.getItem(CLAVE_PANEL) || ''; } catch (e) { /* sin almacenamiento */ }
-    if (!panel || panel === 'inicio') return abrirInicio();
+    // Producción no se reabre sola al recargar: es pesada y se traba; se abre Inicio y el usuario entra cuando quiera
+    if (!panel || panel === 'inicio' || panel === 'produccion') return abrirInicio();
     const destino = document.querySelector('.tab[data-kind="' + CSS.escape(panel) + '"]');
     if (!destino) return false;
     if (!destino.classList.contains('active')) destino.click();
