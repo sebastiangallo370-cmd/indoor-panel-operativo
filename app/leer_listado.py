@@ -123,52 +123,54 @@ _ETIQUETAS = {'NOMBRE', 'TALLA', 'NUMERO', 'MASC', 'FEM', 'DISENO', 'OTRO'}
 
 
 def _ia_columnas(filas: list[list]) -> dict | None:
-    """Clasifica los encabezados de la hoja. Primero reglas por palabras clave; el modelo local (Ollama en el VPS)
-    solo decide los encabezados que las reglas no entienden. Los números de columna los calcula el sistema.
-    Sin IA disponible y sin NOMBRE reconocible devuelve None."""
+    """La IA (modelo local en el VPS) lee las primeras filas de la hoja, ubica el encabezado de la tabla
+    y clasifica cada columna (NOMBRE, TALLA, NUMERO, MASC, FEM, DISENO, OTRO). El sistema verifica la propuesta
+    (que haya filas de datos debajo). Sin IA o con una propuesta inválida devuelve None y se usan las reglas."""
     import json
     import urllib.request
-    fila_i, encabezados = None, None
-    for i, fila in enumerate(filas[:40]):
-        textos = [str(c).strip() if c is not None else '' for c in fila]
-        if sum(1 for t in textos if t and not re.fullmatch(r'[\d.,\s]+', t)) < 3:
-            continue
-        etiq = [_etiqueta_por_texto(t) for t in textos if t]
-        if 'NOMBRE' in etiq and ('TALLA' in etiq or 'NUMERO' in etiq):
-            fila_i, encabezados = i, textos
-            break
-    if encabezados is None:
+    lineas = []
+    for i, fila in enumerate(filas[:30]):
+        celdas = ['' if c is None else str(c).strip() for c in fila]
+        if any(celdas):
+            lineas.append(f"fila {i}: " + ' | '.join(f'[{j}] {c}' for j, c in enumerate(celdas) if c))
+    if not lineas:
         return None
+    prompt = ('Eres un lector de pedidos de uniformes deportivos. Te paso las primeras filas de una hoja de Excel. '
+              'Cada celda muestra su número de columna entre corchetes. Tu tarea:\n'
+              '1) Encuentra la fila de encabezados: la que nombra las columnas de la tabla de jugadores o prendas.\n'
+              '2) Clasifica cada columna de esa fila: NOMBRE (nombre del jugador), TALLA, NUMERO (número o dorsal), '
+              'MASC (marca de masculino), FEM (marca de femenino), DISENO (diseño o arte), OTRO (cualquier otra cosa).\n'
+              'Ignora los datos del pedido (proyecto, comercial, fecha, cantidad total).\n'
+              'Responde SOLO un JSON así: {"fila": 7, "columnas": {"0": "OTRO", "1": "NOMBRE", "2": "TALLA", "3": "NUMERO"}}\n\n'
+              + '\n'.join(lineas))
+    cuerpo = json.dumps({'model': LECTOR_IA_MODELO, 'prompt': prompt, 'stream': False, 'format': 'json', 'options': {'temperature': 0}}).encode('utf-8')
+    try:
+        req = urllib.request.Request(OLLAMA_URL + '/api/generate', data=cuerpo, headers={'Content-Type': 'application/json'})
+        with urllib.request.urlopen(req, timeout=170) as r:
+            crudo = json.loads(json.loads(r.read().decode('utf-8')).get('response') or '{}')
+    except Exception:   # noqa: BLE001 — sin IA, se usan las reglas
+        return None
+    if not isinstance(crudo, dict):
+        return None
+    try:
+        fila_i = int(crudo.get('fila'))
+    except (TypeError, ValueError):
+        return None
+    if not 0 <= fila_i < len(filas):
+        return None
+    cols = crudo.get('columnas')
+    if isinstance(cols, list):
+        cols = {str(x.get('clave')): str(x.get('valor')) for x in cols if isinstance(x, dict)}
+    if not isinstance(cols, dict):
+        cols = {k: v for k, v in crudo.items() if isinstance(v, str)}
+    encabezados = ['' if c is None else str(c).strip() for c in filas[fila_i]]
     columnas = [(j, t) for j, t in enumerate(encabezados) if t]
-    etiquetas = {j: _etiqueta_por_texto(t) for j, t in columnas}
-    ia_ids = set()
-    if True:   # siempre: la IA interpreta el encabezado completo
-        lista = '\n'.join(f'{j}: {t}' for j, t in columnas)
-        prompt = ('Clasifica cada encabezado de un pedido de uniformes deportivos. Etiquetas: NOMBRE (nombre del jugador), TALLA, NUMERO (número o dorsal), '
-                  'MASC (marca de masculino), FEM (marca de femenino), DISENO (diseño o arte), OTRO (cualquier otra cosa). '
-                  'Ejemplo de respuesta: {"0": "NOMBRE", "1": "TALLA", "2": "NUMERO", "3": "OTRO"}. Responde solo ese JSON.\n' + lista)
-        cuerpo = json.dumps({'model': LECTOR_IA_MODELO, 'prompt': prompt, 'stream': False, 'format': 'json', 'options': {'temperature': 0}}).encode('utf-8')
-        try:
-            req = urllib.request.Request(OLLAMA_URL + '/api/generate', data=cuerpo, headers={'Content-Type': 'application/json'})
-            with urllib.request.urlopen(req, timeout=150) as r:
-                crudo = json.loads(json.loads(r.read().decode('utf-8')).get('response') or '{}')
-        except Exception:   # noqa: BLE001 — sin IA, esas columnas quedan como OTRO
-            crudo = {}
-        if isinstance(crudo, dict) and isinstance(crudo.get('encabezados'), list):
-            pares = [(str(x.get('clave')), str(x.get('valor'))) for x in crudo['encabezados'] if isinstance(x, dict)]
-        elif isinstance(crudo, dict):
-            pares = [(str(k), str(v)) for k, v in crudo.items() if isinstance(v, str)]
-        else:
-            pares = []
-        for k, v in pares:
-            if k.isdigit() and int(k) in etiquetas:
-                etiqueta = _sin_acentos(v).replace(' ', '')
-                if etiqueta in _ETIQUETAS:
-                    etiquetas[int(k)] = etiqueta
-                    ia_ids.add(int(k))
+    etiquetas = {}
+    for j, t in columnas:
+        v = _sin_acentos(str(cols.get(str(j), ''))).replace(' ', '')
+        etiquetas[j] = v if v in _ETIQUETAS else _etiqueta_por_texto(t)
     mapa, masc, fem, disenos = {}, [], [], {}
-    # primero las columnas que entienden las reglas; la IA solo llena lo que quede libre
-    for j, t in sorted(columnas, key=lambda jt: jt[0] in ia_ids):
+    for j, t in columnas:
         e = etiquetas[j]
         if e in ('NOMBRE', 'TALLA', 'NUMERO') and e.lower() not in mapa.values():
             mapa[j] = e.lower()
@@ -181,6 +183,16 @@ def _ia_columnas(filas: list[list]) -> dict | None:
             if m:
                 disenos[j] = int(m.group(1))
     if 'nombre' not in mapa.values():
+        return None
+    # verificación: la fila elegida tiene que parecer encabezado (palabras clave), no un dato
+    if not any(_etiqueta_por_texto(t) != 'OTRO' and (not re.search(r'\d', t) or _etiqueta_por_texto(t) == 'DISENO') for _, t in columnas):
+        return None
+    # verificación: debajo del encabezado tiene que haber filas de datos con talla o número
+    con_datos = 0
+    for datos in filas[fila_i + 1:]:
+        if any(j < len(datos) and datos[j] not in (None, '') and str(datos[j]).strip() for j in mapa if mapa[j] in ('talla', 'numero')):
+            con_datos += 1
+    if con_datos < 1:
         return None
     return {'fila': fila_i, 'mapa': mapa, 'masc': masc, 'fem': fem, 'disenos': disenos}
 
