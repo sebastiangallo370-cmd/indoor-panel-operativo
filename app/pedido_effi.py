@@ -634,7 +634,7 @@ def _dir_proyecto(cliente: str, proyecto: str) -> tuple[Path, str] | None:
 
 def _mockups_en(carpeta_proyecto: Path, bases: list[str], proyecto: str) -> list[dict]:
     items = []
-    for sub in sorted((p for p in carpeta_proyecto.iterdir() if p.is_dir()), key=lambda p: p.name.upper()):
+    for sub in sorted((p for p in carpeta_proyecto.iterdir() if p.is_dir() and 'MUESTRA' not in p.name.upper()), key=lambda p: p.name.upper()):   # las MUESTRAS no son mockups del maestro
         nombre = _plano_ref(sub.name)
         base = next((b for b in bases if nombre.startswith(b)), None)
         if not base:
@@ -692,7 +692,7 @@ def mockups_proyecto(request: Request, cliente: str = '', proyecto: str = ''):
     carpeta_proyecto, _ = ubicado
     items = []
     try:
-        for sub in sorted((p for p in carpeta_proyecto.iterdir() if p.is_dir()), key=lambda p: p.name.upper()):
+        for sub in sorted((p for p in carpeta_proyecto.iterdir() if p.is_dir() and 'MUESTRA' not in p.name.upper()), key=lambda p: p.name.upper()):   # las MUESTRAS no son mockups del maestro
             for f in sorted((x for x in sub.iterdir() if x.is_file() and x.suffix.lower() in EXT_IMAGEN), key=lambda x: x.name.upper()):
                 if re.search(r'[0-9A-F]{8}-[0-9A-F]{4}-', f.name, re.I):   # nombres generados (UUID), no mockups
                     continue
