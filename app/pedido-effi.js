@@ -992,7 +992,7 @@
     try { pintarPasos(); } catch (e) { /* nada */ }
     return true;
   }
-  window.PedidoEffi = { montar, listadoPrevio, volverAlFormulario, agregarReferencia };
+  window.PedidoEffi = { montar, listadoPrevio, volverAlFormulario, agregarReferencia, fechaEntrega: () => valor('fecha_entrega') };
 })();
 
 // Avisos en el PC: cuando un comercial programa un pedido, la cuenta «Indoor Sport» recibe una notificación de escritorio.

@@ -890,7 +890,9 @@
     }
     const listado = {}; grupos().forEach(g => { listado[g.referencia] = filasDe(g.referencia).map(x => ({ nombre: x.nombre, talla: x.talla, numero: x.numero, diseno: Number(x.diseno), genero: x.genero, observacion: x.observacion })); });
     const proyectos = Object.fromEntries(grupos().map(g => [g.referencia, datosRef(g.referencia)]));
-    const doc = Object.assign({}, L.doc, { proyecto: String((proyectos[(grupos()[0] || { referencia: '' }).referencia] || {}).proyecto || '').trim(), disenos: L.disenos });
+    // la fecha de entrega es la del documento (la que se escribe en el Google Sheet)
+    const fechaDoc = (window.PedidoEffi && window.PedidoEffi.fechaEntrega) ? window.PedidoEffi.fechaEntrega() : '';
+    const doc = Object.assign({}, L.doc, { fecha_entrega: fechaDoc || L.doc.fecha_entrega || '', proyecto: String((proyectos[(grupos()[0] || { referencia: '' }).referencia] || {}).proyecto || '').trim(), disenos: L.disenos });
     const fd = new FormData(); fd.append('payload', JSON.stringify({ doc, listado, proyectos, linea: L.linea, observaciones: L.observaciones, textura: L.textura, tipos: L.textura === 'SI' ? (L.tipos || []) : [] }));
     grupos().forEach(g => { for (let n = 1; n <= L.disenos; n++) { const img = imagenDe(L.compartir ? '*' : g.referencia, n); if (img) { fd.append('mockup:' + g.referencia + ':' + n, img, img.name); const mm = (L.mkMaestro || {})[g.referencia + '|' + n]; if (mm) fd.append('maestro:' + g.referencia + ':' + n, JSON.stringify(mm)); } } });   // los de MAESTROS también van con su origen: en la NAS se copian idénticos
     // al pulsar PROGRAMAR PEDIDO el trabajo empieza YA y se ve en pantalla: el listado de Excel que se está creando y cómo avanza cada paso
