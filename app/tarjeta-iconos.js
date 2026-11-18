@@ -45,7 +45,7 @@
     B+'.trace-rail .trace-order-finish{color:#7fe08f!important}'+
     B+'.trace-rail .trace-order-clear{color:#f2c14e!important}'+
     B+'.trace-rail [data-card-rework].has-rework{background:rgba(239,115,112,.28)!important;border-color:#ef7370!important;color:#ffb3ae!important}'+
-    B+'.trace-rail button::after{content:attr(data-tip);position:absolute;right:46px;top:50%;transform:translateY(-50%);padding:5px 9px;border-radius:7px;background:#10150e;color:#fff;font:700 11px Arial;letter-spacing:.03em;white-space:nowrap;box-shadow:0 4px 14px rgba(0,0,0,.4);opacity:0;pointer-events:none;transition:opacity .12s}'+
+    B+'.trace-rail button::after{display:none!important;content:attr(data-tip);position:absolute;right:46px;top:50%;transform:translateY(-50%);padding:5px 9px;border-radius:7px;background:#10150e;color:#fff;font:700 11px Arial;letter-spacing:.03em;white-space:nowrap;box-shadow:0 4px 14px rgba(0,0,0,.4);opacity:0;pointer-events:none;transition:opacity .12s}'+
     B+'.trace-rail button:hover::after,'+B+'.trace-rail button:focus-visible::after{opacity:1}'+
     B+'.trace-order-actions:empty,'+B+'.trace-card-actions:empty{display:none!important}'+
     B+'.trace-media{position:relative}'+
@@ -116,6 +116,17 @@
   async function fetchImage(url){var response=await fetch(url,{credentials:'same-origin'});if(!response.ok)throw Error('No se pudo leer el mockup');return response.blob()}
   function loadImage(blob){return new Promise(function(resolve,reject){var image=new Image(),url=URL.createObjectURL(blob);image.onload=function(){URL.revokeObjectURL(url);resolve(image)};image.onerror=function(){URL.revokeObjectURL(url);reject(Error('No se pudo abrir el mockup'))};image.src=url})}
   async function groupedMockup(urls){var images=await Promise.all(urls.map(async function(url){return loadImage(await fetchImage(url))})),tileW=760,tileH=980,columns=Math.min(2,images.length),rows=Math.ceil(images.length/columns),canvas=document.createElement('canvas');canvas.width=tileW*columns;canvas.height=tileH*rows;var ctx=canvas.getContext('2d');ctx.fillStyle='#f7f8f4';ctx.fillRect(0,0,canvas.width,canvas.height);images.forEach(function(image,index){var x=(index%columns)*tileW,y=Math.floor(index/columns)*tileH,scale=Math.min((tileW-36)/image.naturalWidth,(tileH-36)/image.naturalHeight),w=image.naturalWidth*scale,h=image.naturalHeight*scale;ctx.drawImage(image,x+(tileW-w)/2,y+(tileH-h)/2,w,h)});return new Promise(function(resolve,reject){canvas.toBlob(function(blob){blob?resolve(blob):reject(Error('No se pudo preparar el grupo'))},'image/png')})}
+  function blobToDataUrl(blob){return new Promise(function(resolve,reject){var reader=new FileReader();reader.onload=function(){resolve(reader.result)};reader.onerror=function(){reject(Error('No se pudo preparar la imagen agrupada'))};reader.readAsDataURL(blob)})}
+  async function mockupsAgrupadosDesdeFila(row){
+    var response=await fetch('/api/produccion/fila/'+encodeURIComponent(row)+'/archivos',{cache:'no-store',credentials:'same-origin'});
+    if(!response.ok)throw Error('No se pudieron consultar los mockups de la tarjeta');
+    var data=await response.json(),urls=(data.images||[]).map(function(image){return image.url}).filter(Boolean);
+    if(!urls.length)throw Error('Esta tarjeta no tiene mockups disponibles');
+    var blob=await groupedMockup(urls);
+    return {nombre:'mockups-agrupados.png',tipo:'image/png',dataUrl:await blobToDataUrl(blob),total:urls.length};
+  }
+  window.indoorMockups=window.indoorMockups||{};
+  window.indoorMockups.agrupadosDesdeFila=mockupsAgrupadosDesdeFila;
   async function mockupSheet(card,urls){var images=await Promise.all(urls.map(async function(url){return loadImage(await fetchImage(url))})),tileW=760,tileH=980,columns=Math.min(2,images.length),rows=Math.ceil(images.length/columns),headerH=238,canvas=document.createElement('canvas');canvas.width=tileW*columns;canvas.height=headerH+tileH*rows;var ctx=canvas.getContext('2d'),get=function(selector){return textOf(card.querySelector(selector))||'—'},lines=['CLIENTE: '+get('.trace-client'),'REFERENCIA: '+get('.trace-ref'),'ORDEN: '+get('.trace-card-heading h3'),'CANTIDAD: '+get('.trace-quantity')];ctx.fillStyle='#101a13';ctx.fillRect(0,0,canvas.width,headerH);ctx.fillStyle='#d0f44c';ctx.font='700 28px Arial';ctx.fillText('MOCKUPS',34,47);ctx.font='600 22px Arial';ctx.fillStyle='#f4f8ed';lines.forEach(function(line,index){ctx.fillText(line,34,91+index*34)});ctx.fillStyle='#f7f8f4';ctx.fillRect(0,headerH,canvas.width,canvas.height-headerH);images.forEach(function(image,index){var x=(index%columns)*tileW,y=headerH+Math.floor(index/columns)*tileH,scale=Math.min((tileW-36)/image.naturalWidth,(tileH-36)/image.naturalHeight),w=image.naturalWidth*scale,h=image.naturalHeight*scale;ctx.drawImage(image,x+(tileW-w)/2,y+(tileH-h)/2,w,h)});return new Promise(function(resolve,reject){canvas.toBlob(function(blob){blob?resolve(blob):reject(Error('No fue posible preparar la ficha de mockups'))},'image/png')})}
   function detailsText(card){var get=function(selector){return textOf(card.querySelector(selector))||'—'};return ['CLIENTE: '+get('.trace-client'),'PROYECTO: '+get('.trace-project'),'REFERENCIA: '+get('.trace-ref'),'TELA: '+get('.trace-tela span'),'FECHA DE ENTREGA: '+get('.trace-due dd'),'MÁQUINA DE IMPRESIÓN: '+get('.trace-machine-btn'),'CANTIDAD: '+get('.trace-quantity')].join('\n')}
   function copyButton(icon,tip,action){var button=document.createElement('button');button.type='button';button.dataset.tip=tip;button.title=tip;button.setAttribute('aria-label',tip);button.dataset.copyAction=action;button.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true">'+ICONS[icon]+'</svg>';return button}
@@ -124,7 +135,7 @@
     var stage=media.querySelector('.trace-design-stage');if(!stage)return;
     var tools=document.createElement('div');tools.className='trace-copy-tools';tools.style.cssText='position:absolute!important;right:8px!important;bottom:36px!important;flex-direction:column!important';tools.setAttribute('role','toolbar');tools.setAttribute('aria-label','Copiar mockups');
     var infoButton=copyButton('copy','Copiar información de la tarjeta','info');infoButton.className='trace-copy-info';infoButton.style.cssText='position:absolute!important;z-index:8!important;bottom:8px!important;left:8px!important';
-    var summaryButton=copyButton('sewing','Copiar mockups, cliente, referencia, orden y cantidad','summary');summaryButton.className='trace-copy-info trace-copy-summary';summaryButton.style.cssText='position:absolute!important;z-index:8!important;bottom:8px!important;left:42px!important';
+    var summaryButton=copyButton('sewing','Preparar envío a confección','confeccion');summaryButton.className='trace-copy-info trace-copy-summary';summaryButton.style.cssText='position:absolute!important;z-index:8!important;bottom:8px!important;left:42px!important';
     tools.appendChild(copyButton('image','Copiar mockup visible','visible'));
     tools.appendChild(copyButton('images','Copiar todos los mockups agrupados','group'));
     var copiar=async function(event){
@@ -133,7 +144,7 @@
         button.disabled=true;
         if(action==='info'){await copyText(detailsText(card));flash(button,'Información copiada');return}
         var row=card.dataset.cardRow,urls=[];
-        if(action==='summary'){var summaryResponse=await fetch('/api/produccion/fila/'+encodeURIComponent(row)+'/archivos',{cache:'no-store',credentials:'same-origin'}),summaryData=await summaryResponse.json();if(!summaryResponse.ok)throw Error(summaryData.detail||'No se pudieron consultar los mockups');urls=(summaryData.images||[]).map(function(image){return image.url}).filter(Boolean);if(!urls.length)throw Error('No hay mockups disponibles');await copyImageBlob(await mockupSheet(card,urls));flash(button,'Mockups y datos copiados');return}
+        if(action==='confeccion'){window.dispatchEvent(new CustomEvent('indoor:preparar-confeccion',{detail:{row:Number(row)}}));return}
         if(action==='visible'){var image=media.querySelector('.trace-design-main img');if(!image)throw Error('El mockup todavía no está disponible');urls=[image.currentSrc||image.src]}
         else {var response=await fetch('/api/produccion/fila/'+encodeURIComponent(row)+'/archivos',{cache:'no-store',credentials:'same-origin'}),data=await response.json();if(!response.ok)throw Error(data.detail||'No se pudieron consultar los mockups');urls=(data.images||[]).map(function(image){return image.url}).filter(Boolean);if(!urls.length)throw Error('No hay mockups disponibles')}
         var blob=action==='visible'?await fetchImage(urls[0]):await groupedMockup(urls);
