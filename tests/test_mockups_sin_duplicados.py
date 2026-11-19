@@ -17,6 +17,30 @@ class MismoContenidoTest(unittest.TestCase):
             self.assertTrue(pedido_effi._mismo_contenido_en(carpeta, b'mockup-uno'))
             self.assertFalse(pedido_effi._mismo_contenido_en(carpeta, b'mockup-dos'))
 
+    def test_galeria_no_repite_el_mismo_mockup(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proy = Path(tmp)
+            (proy / 'FUT02').mkdir()
+            (proy / 'FUT02' / 'FUT02_D1.jpg').write_bytes(b'igual')
+            (proy / 'FUT02' / 'FUT02_D2_COPIA.jpg').write_bytes(b'igual')
+            (proy / 'FUT02' / 'FUT02_D3.jpg').write_bytes(b'otro')
+            items = [{'ref': 'FUT02', 'carpeta': 'FUT02', 'archivo': 'FUT02_D1.jpg'},
+                     {'ref': 'FUT02', 'carpeta': 'FUT02', 'archivo': 'FUT02_D2_COPIA.jpg'},
+                     {'ref': 'FUT02', 'carpeta': 'FUT02', 'archivo': 'FUT02_D3.jpg'}]
+            salida = pedido_effi._sin_repetidos(items, proy)
+            self.assertEqual([i['archivo'] for i in salida], ['FUT02_D1.jpg', 'FUT02_D3.jpg'])
+
+    def test_mismo_contenido_con_referencia_escrita_distinta(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proy = Path(tmp)
+            (proy / 'A100FUT02').mkdir()
+            (proy / 'FUT02').mkdir()
+            (proy / 'A100FUT02' / 'A100FUT02_D1.jpg').write_bytes(b'mismo')
+            (proy / 'FUT02' / 'FUT02_D1_EPSON JESAM.jpg').write_bytes(b'mismo')
+            items = [{'ref': 'A100FUT02', 'carpeta': 'A100FUT02', 'archivo': 'A100FUT02_D1.jpg'},
+                     {'ref': 'FUT02', 'carpeta': 'FUT02', 'archivo': 'FUT02_D1_EPSON JESAM.jpg'}]
+            self.assertEqual(len(pedido_effi._sin_repetidos(items, proy)), 1)
+
     def test_carpeta_inexistente(self):
         self.assertFalse(pedido_effi._mismo_contenido_en(Path('/no/existe/nunca'), b'x'))
 

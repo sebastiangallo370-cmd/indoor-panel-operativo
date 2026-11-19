@@ -726,6 +726,24 @@ def _dir_proyecto_nas(cliente: str, proyecto: str) -> tuple[Path, str] | None:
     return (destino, info['carpeta']) if destino.is_dir() else None
 
 
+def _sin_repetidos(items: list, carpeta_proyecto: Path) -> list:
+    """Un mismo mockup (mismo contenido) aparece UNA sola vez en la galería."""
+    import hashlib
+    vistos, salida = set(), []
+    for it in items:
+        try:
+            huella = hashlib.sha256((carpeta_proyecto / it['carpeta'] / it['archivo']).read_bytes()).hexdigest()
+        except (OSError, KeyError):
+            huella = ''
+        # mismo contenido = mismo mockup, aunque la referencia venga escrita distinta (FUT02 y A100FUT02)
+        clave = huella if huella else 'nombre:' + str(it.get('ref', '')) + str(it.get('archivo', ''))
+        if clave in vistos:
+            continue
+        vistos.add(clave)
+        salida.append(it)
+    return salida
+
+
 def _mockups_en(carpeta_proyecto: Path, bases: list[str], proyecto: str) -> list[dict]:
     items = []
     for sub in sorted((p for p in carpeta_proyecto.iterdir() if p.is_dir() and 'MUESTRA' not in p.name.upper()), key=lambda p: p.name.upper()):   # las MUESTRAS no son mockups del maestro
@@ -738,7 +756,7 @@ def _mockups_en(carpeta_proyecto: Path, bases: list[str], proyecto: str) -> list
             if m:
                 items.append({'ref': base, 'diseno': int(m.group(1)), 'carpeta': sub.name, 'archivo': f.name, 'proyecto': proyecto})
     items.sort(key=lambda i: (i['ref'], i['diseno'], i['archivo'].upper()))
-    return items
+    return _sin_repetidos(items, carpeta_proyecto)
 
 
 def mockups_de(cliente: str, proyecto: str, ref: str) -> dict:
@@ -1035,6 +1053,7 @@ def _mockups_del_proyecto(cliente: str, proyecto: str) -> dict:
         except OSError:
             return {'items': [], 'motivo': 'No pude leer la NAS ahora.'}
         items.sort(key=lambda i: (i['ref'], i['diseno'], i['archivo'].upper()))
+        items = _sin_repetidos(items, carpeta_proyecto)
         respuesta = {'items': items[:400], 'motivo': ''}
         if items:   # una lista VACÍA no se guarda: si la NAS respondió mal una vez, no debe quedar «sin mockups» 30 minutos
             _cache_mockups_proyecto[clave_cache] = (time.time(), respuesta)

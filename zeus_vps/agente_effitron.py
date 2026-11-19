@@ -33,14 +33,14 @@ def pdf_de_documento(effi, doc_id: str, doc: str = 'cotizacion') -> str:
         href = d.execute_script("""
           const tr = [...document.querySelectorAll('table tbody tr')].find(t => t.children.length >= 7 && (t.children[3].innerText||'').trim() === arguments[0]);
           if (!tr) return '';
-          const a = [...tr.querySelectorAll('a')].find(x => /consultar_pdf/.test(x.getAttribute('href') || '')); return a ? a.href : '';""", str(cot_id))
+          const a = [...tr.querySelectorAll('a')].find(x => /consultar_pdf/.test(x.getAttribute('href') || '')); return a ? a.href : '';""", str(doc_id))
         if href:
             break
         time.sleep(3)
         d.refresh()
         time.sleep(4)
     if not href:
-        raise RuntimeError(f'No encontré el enlace «Ver PDF» de {doc} {cot_id}')
+        raise RuntimeError(f'No encontré el enlace «Ver PDF» de {doc} {doc_id}')
     d.set_script_timeout(60)
     b64 = d.execute_async_script("""
       const fin = arguments[arguments.length - 1];
