@@ -512,7 +512,9 @@
     pedir.then(r => {
       if (!r || !r.encontrado || !st.conceptos.includes(l) || String(l.ref || '').trim() !== ref) return;   // ya cambió el artículo o el cliente
       l.precio = String(r.precio);
-      invalidar(); dibujar();
+      invalidar();
+      // si estás en el listado no se repinta CO/RM (eso te mandaba a CO/RM); el precio ya queda guardado
+      if (!(window.PedidoListado && window.PedidoListado.activo && window.PedidoListado.activo())) dibujar();
       msg('Precio de la última venta a este cliente: $' + Number(r.precio).toLocaleString('es-CO') + ' (' + (r.numero ? 'CO/RM ' + r.numero : '') + (r.fecha ? ' · ' + r.fecha : '') + '). Puedes cambiarlo.', 'ok');
     }).catch(() => { /* sin historial: queda el precio de lista */ });
   }

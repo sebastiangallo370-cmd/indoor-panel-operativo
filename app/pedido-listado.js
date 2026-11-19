@@ -293,6 +293,24 @@
   const filaVacia = () => ({ nombre: '', talla: '', numero: '', diseno: L.defDiseno || 1, genero: L.defGenero || 'MASC', observacion: '' });
   const filasDe = ref => (L.listado[ref] = L.listado[ref] || []);
   // las filas del listado y la cantidad de CO/RM son lo mismo: si cambian filas, se iguala la cantidad (solo en el listado previo)
+  // cuando el documento ya tiene referencias, lo que estaba en «sin referencia» (filas y mockups) pasa a la primera
+  function repartirSinReferencia() {
+    const reales = grupos().map(g => g.referencia).filter(r => r !== PH);
+    if (!reales.length) return;
+    const destino = reales[0];
+    if ((L.listado[PH] || []).length && !(L.listado[destino] || []).length) { L.listado[destino] = L.listado[PH]; delete L.listado[PH]; L.relleno[destino] = true; guardarBorrador(); }
+    const sinRef = galPick()[PH] || [];
+    if (sinRef.length) {
+      const quedan = [];
+      sinRef.forEach(pk => {
+        const base = String(pk.nombre || '').split('_')[0], rd = refDocDe(base);
+        if (rd && rd !== PH && reales.includes(rd)) { (galPick()[rd] = galPick()[rd] || []).push(pk); sincronizar(rd); }
+        else quedan.push(pk);
+      });
+      if (quedan.length) { galPick()[PH] = quedan; } else delete galPick()[PH];
+      guardarBorrador();
+    }
+  }
   function sincronizarCantidad(ref) {
     if (!L.previo || !window.PedidoEffi || !window.PedidoEffi.setCantidadRef) return;
     if (window.PedidoEffi.setCantidadRef(ref, filasDe(ref).length)) L.doc.conceptos = window.PedidoEffi.conceptosListado();
@@ -605,11 +623,27 @@
   let colaAgregar = Promise.resolve();
   let avisoGaleria = null;   // lo que pasó con el último mockup tocado (se ve encima de la galería)
   // cada MOCKUP (referencia + archivo) se elige por separado: el de la misma referencia con otro D# es OTRO diseño de esa pestaña
-  const mockupDoc = (base, archivo) => { const rd = refDocDe(base); return rd && (galPick()[rd] || []).find(pk => pk.nombre === archivo) ? rd : ''; };
+  const mockupDoc = (base, archivo) => Object.keys(galPick()).find(r => (galPick()[r] || []).some(pk => pk.nombre === archivo)) || '';
   function toggleElegido(base, carpeta, archivo) {
-    const rd = mockupDoc(base, archivo);
-    if (rd) { colaAgregar = colaAgregar.then(() => quitarDiseno(rd, archivo)); return; }   // tocar otra vez ese mockup lo quita
-    colaAgregar = colaAgregar.then(() => agregarMockup(base, carpeta, archivo));
+    // SOLO en el listado: no se manda nada a CO/RM. Se agrega como diseño de la referencia abierta (o de «sin referencia»)
+    const enListado = mockupDoc(base, archivo);
+    if (enListado) {   // tocar otra vez ese mockup lo quita (sin tocar CO/RM)
+      colaAgregar = colaAgregar.then(() => { const l = galPick()[enListado] || [], p = l.findIndex(pk => pk.nombre === archivo); if (p >= 0) l.splice(p, 1); sincronizar(enListado); guardarBorrador(); dibujar(); });
+      return;
+    }
+    // si la referencia del mockup no está en CO/RM, se agrega en segundo plano (te quedas en el listado)
+    if (!refDocDe(base)) { colaAgregar = colaAgregar.then(() => agregarMockup(base, carpeta, archivo)); return; }
+    const enDoc = refDocDe(base);   // su referencia ya está en el documento: va a su pestaña
+    const destino = enDoc || PH;
+    colaAgregar = colaAgregar.then(async () => {
+      try {
+        await agregarDisenoMockup(destino, carpeta, archivo);
+        setMsg(enDoc ? archivo + ' → diseño ' + (galPick()[destino] || []).length + ' de ' + destino + ' (CO/RM no cambia).'
+          : archivo + ' queda en SIN REFERENCIA. Agrega ' + String(base).toUpperCase() + ' en CO/RM y el mockup pasa solo a su pestaña.', 'ok');
+      }
+      catch (e) { setMsg('No pude agregar ' + archivo + ': ' + (e.message || e), 'error'); }
+      dibujar();
+    });
   }
   // quita de la pestaña el diseño de ese mockup; si era el último de la referencia, también quita la referencia del documento
   async function quitarDiseno(rd, archivo) {
@@ -875,6 +909,7 @@
       q('[data-atras]').onclick = () => { if (L.previo) { if (L.opts.onVolver) L.opts.onVolver(); return; } L.pantalla = 'doc'; dibujar(); };
       return;
     }
+    repartirSinReferencia();
     if (!gs.find(g => g.referencia === L.abierta)) L.abierta = gs[0].referencia;
     let g = gs.find(x => x.referencia === L.abierta), filas = filasDe(g.referencia);
     if (!filas.length && !L.relleno[g.referencia]) {   // la primera vez que se abre una referencia ya trae sus filas en blanco (una por prenda cotizada)
@@ -886,17 +921,15 @@
       // AUTOMÁTICO: manda lo último que se cambió. Si el comercial escribió la cantidad en CO/RM, esa manda; si no, mandan las filas del listado
       const manual = !!(window.PedidoEffi && window.PedidoEffi.cantidadManual && window.PedidoEffi.cantidadManual(g.referencia));
       if (manual) {
-        // solo se quitan filas VACÍAS de abajo; las que tienen datos nunca se borran
+        // la cantidad escrita en CO/RM manda: se quitan las filas de abajo que sobren (avisa cuántas tenían datos) y se agregan en blanco si faltan
         const conDatosFila = f => !!(f && (f.nombre || f.talla || f.numero || f.observacion));
-        let k = filas.length;
-        while (k > g.cantidad && !conDatosFila(filas[k - 1])) k--;
-        if (k < filas.length) { filas.splice(k); guardarBorrador(); }
+        if (filas.length > g.cantidad) {
+          const quitadas = filas.splice(g.cantidad), conDatos = quitadas.filter(conDatosFila).length;
+          guardarBorrador();
+          setMsg('Igualé ' + g.referencia + ' a ' + g.cantidad + ' fila(s) como en CO/RM' + (conDatos ? '. Se quitaron ' + conDatos + ' fila(s) que tenían datos' : '') + '.', conDatos ? 'error' : 'ok');
+        }
         while (filas.length < g.cantidad) filas.push(filaVacia());
         window.PedidoEffi.cantidadManual(g.referencia, false);
-        if (filas.length > g.cantidad) {
-          sincronizarCantidad(g.referencia);   // hay filas con datos: la cantidad sube a ese número, no se borra nada
-          setMsg('No bajé ' + g.referencia + ' a ' + g.cantidad + ': hay filas con datos. La cantidad queda en ' + filas.length + '.', 'error');
-        }
       } else if (filas.length !== g.cantidad) {
         sincronizarCantidad(g.referencia);
       }
@@ -1329,7 +1362,9 @@
     Object.keys(L).forEach(k => delete L[k]);
     Object.assign(L, { doc, opts: opts || {}, cat: (opts && opts.cat) || {}, pantalla: 'doc', disenos: 1, proyecto: String(doc.proyecto || doc.garantia || ''), linea: '', observaciones: '', compartir: true, imgs: {}, listado: {}, relleno: {}, defDiseno: 1, defGenero: 'MASC', enviando: false });
     cargarBorrador();
-    if (Object.values(L.galGuardada || {}).some(a => a && a.length)) { restaurarMockups(); }   // solo si hay algo que bajar: vacío no debe borrar lo adjuntado
+    // al cambiar entre CO/RM y LISTADO no se vuelven a bajar los mockups de la NAS si ya están en memoria (cambio inmediato)
+    const enMemoria = !!(MEM_MOCKUPS[claveCliente()] && Object.keys(MEM_MOCKUPS[claveCliente()]).length);
+    if (!enMemoria && Object.values(L.galGuardada || {}).some(a => a && a.length)) { restaurarMockups(); }   // solo si hay algo que bajar y no está ya en memoria
     // al volver al documento y regresar, se recupera lo que ya estaba seleccionado (proyectos, aplique, mockups, género)
     if (ULTIMO && ULTIMO.clave === claveDocumento()) {
       L.refDatos = Object.keys(L.refDatos || {}).length ? L.refDatos : ULTIMO.refDatos;
