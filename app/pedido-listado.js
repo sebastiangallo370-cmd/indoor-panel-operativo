@@ -293,15 +293,6 @@
   const filaVacia = () => ({ nombre: '', talla: '', numero: '', diseno: L.defDiseno || 1, genero: L.defGenero || 'MASC', observacion: '' });
   const filasDe = ref => (L.listado[ref] = L.listado[ref] || []);
   // las filas del listado y la cantidad de CO/RM son lo mismo: si cambian filas, se iguala la cantidad (solo en el listado previo)
-  function modoCant() {
-    try { return localStorage.getItem('pl-modo-cant') === 'listado' ? 'listado' : 'crm'; } catch (e) { return 'crm'; }
-  }
-  function modoCantHtml() {
-    const m = modoCant();
-    return '<span style="color:#a9b5a3;font:800 12px Arial;margin-right:4px">Cantidad y filas · manda:</span>' +
-      '<button type="button" class="pl-btn mini' + (m === 'listado' ? '' : ' sec') + '" data-modo-cant="listado">LISTADO → CO/RM</button> ' +
-      '<button type="button" class="pl-btn mini' + (m === 'crm' ? '' : ' sec') + '" data-modo-cant="crm">CO/RM → LISTADO</button>';
-  }
   function sincronizarCantidad(ref) {
     if (!L.previo || !window.PedidoEffi || !window.PedidoEffi.setCantidadRef) return;
     if (window.PedidoEffi.setCantidadRef(ref, filasDe(ref).length)) L.doc.conceptos = window.PedidoEffi.conceptosListado();
@@ -376,11 +367,6 @@
           } catch (err) { setMsg('No pude subir el mockup: ' + (err.message || err), 'error'); }
         };
         inp.click();
-      });
-      raiz.addEventListener('click', e => {
-        const mb = e.target.closest && e.target.closest('[data-modo-cant]'); if (!mb) return;
-        try { localStorage.setItem('pl-modo-cant', mb.dataset.modoCant); } catch (er) { /* sin almacenamiento */ }
-        pantallaListado();
       });
       raiz.addEventListener('change', e => { if (e.target.matches && e.target.matches('[data-ref-proy-sel]')) { const ref = e.target.dataset.ref, v = e.target.value; L.refDatos = L.refDatos || {}; L.refDatos[ref] = v === '__nuevo' ? Object.assign({}, datosRef(ref), { proyecto: '', nuevo: true }) : Object.assign({}, datosRef(ref), { proyecto: v, nuevo: false }); guardarBorrador(); dibujar(); estadoListado(); if (v && v !== '__nuevo' && ref && ref !== PH) abrirGaleria(ref); else dibujar(); } });   // al elegir el proyecto se traen sus mockups de esta referencia
       raiz.addEventListener('change', e => { if (e.target.matches && e.target.matches('[data-ref-linea]')) { const ref = e.target.dataset.ref; L.refDatos = L.refDatos || {}; L.refDatos[ref] = Object.assign({}, datosRef(ref), { linea: e.target.value }); guardarBorrador(); estadoListado(); } });
@@ -893,22 +879,23 @@
     }
     // CO/RM subió la cantidad → se agregan filas en blanco; el listado tiene más filas → la cantidad sube a ese número
     if (L.previo) {
-      // CUÁL MANDA (botones del listado): CO/RM → LISTADO: la cantidad de CO/RM decide las filas; LISTADO → CO/RM: las filas deciden la cantidad
-      if (modoCant() === 'crm') {
+      // AUTOMÁTICO: manda lo último que se cambió. Si el comercial escribió la cantidad en CO/RM, esa manda; si no, mandan las filas del listado
+      const manual = !!(window.PedidoEffi && window.PedidoEffi.cantidadManual && window.PedidoEffi.cantidadManual(g.referencia));
+      if (manual) {
         if (filas.length > g.cantidad) {
           const quitadas = filas.splice(g.cantidad), conDatos = quitadas.filter(f => f.nombre || f.talla || f.numero || f.observacion).length;
           setMsg('Igualé ' + g.referencia + ' a ' + g.cantidad + ' fila(s) como en CO/RM' + (conDatos ? '. Se quitaron ' + conDatos + ' fila(s) que tenían datos' : '') + '.', conDatos ? 'error' : 'ok');
           guardarBorrador();
         }
         while (filas.length < g.cantidad) filas.push(filaVacia());
+        window.PedidoEffi.cantidadManual(g.referencia, false);
       } else if (filas.length !== g.cantidad) {
-        sincronizarCantidad(g.referencia);   // las filas mandan: la cantidad de CO/RM queda igual al número de filas
+        sincronizarCantidad(g.referencia);
       }
       g = grupos().find(x => x.referencia === L.abierta) || g;
     }
     q('[data-cuerpo]').innerHTML = '<div class="pl-refs">' + gs.map(x => '<button type="button" class="pl-ref ' + (x.referencia === L.abierta ? 'on' : '') + '" data-ref="' + esc(x.referencia) + '">' + esc(x.referencia) + contador(x) + '</button>').join('') + '</div>' +
       '<div class="pl-tarjeta"><h3>' + esc(g.referencia) + ' · ' + esc(g.descripcion) + ' · ' + g.cantidad + ' prendas</h3>' +
-      (L.previo ? '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 10px">' + modoCantHtml() + '</div>' : '') +
       '<div class="pl-herr">' + proyectoCampo(g.referencia) +
       '<label>LÍNEA DEL PRODUCTO<select data-ref-linea data-ref="' + esc(g.referencia) + '"><option value="">—</option>' + (L.cat.lineas || []).map(x => '<option' + (x === datosRef(g.referencia).linea ? ' selected' : '') + '>' + esc(x) + '</option>').join('') + '</select></label>' +
       '' +
