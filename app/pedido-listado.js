@@ -707,8 +707,8 @@
     return !!((L.refDatos || {})[ref] || {}).nuevo || (!!d.proyecto && lista.length > 0 && !lista.includes(d.proyecto));
   }
   function selectorDiseno(ref, k, n) {
-    return '<select data-cambiar-diseno="' + esc(ref) + '" data-pos="' + k + '" aria-label="Diseño de este mockup" style="width:96px;min-height:30px;margin-top:4px;font:800 11px Arial">' +
-      Array.from({ length: n }, (_, i) => '<option value="' + (i + 1) + '"' + (i === k ? ' selected' : '') + '>DISEÑO ' + (i + 1) + '</option>').join('') + '</select>';
+    return '<select data-cambiar-diseno="' + esc(ref) + '" data-pos="' + k + '" aria-label="Diseño de este mockup" style="width:72px;min-height:28px;margin-top:4px;padding:0 4px;font:800 12px Arial">' +
+      Array.from({ length: n }, (_, i) => '<option value="' + (i + 1) + '"' + (i === k ? ' selected' : '') + '>D' + (i + 1) + '</option>').join('') + '</select>';
   }
   // el mockup de la posición "from" pasa a "to"; el que estaba en "to" ocupa "from" (así no quedan huecos)
   function cambiarDiseno(ref, from, to) {
