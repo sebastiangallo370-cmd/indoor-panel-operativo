@@ -36,6 +36,10 @@ class PrecioReprogramacionTest(unittest.TestCase):
         r = self._buscar('JUAN CAMILO MUÑOZ PALACIO', 'FUT04')
         self.assertEqual(r['precio'], 31000)
 
+    def test_prefijo_de_articulo_distinto_mismo_diseno(self):
+        r = self._buscar('JUAN CAMILO MUÑOZ PALACIO', 'A100FUT04')
+        self.assertEqual(r['precio'], 31000)
+
     def test_no_mezcla_clientes(self):
         r = self._buscar('OTRO CLIENTE', 'A200FUT04')
         self.assertEqual(r['precio'], 50000)

@@ -496,6 +496,7 @@
       st.cliente = box._lista[idx]; st.direccion = st.cliente.direcciones.length ? 0 : -1; invalidar();
       const v = st.cat.vendedores.find(x => String(x.id) === String(st.cliente.vendedor)); const guardado = valor('vendedor');
       dibujar(); if (v && !guardado) { q('[name="vendedor"]').value = v.id; }
+      preciosAnterioresTodos();
       cargarProyectos();
     } else {
       const l = st.conceptos[box._i], a = box._lista[idx];
@@ -506,7 +507,7 @@
   const precioCache = {};
   function aplicarPrecioAnterior(l) {
     const cli = st.cliente && st.cliente.nombre, ref = String(l.ref || '').trim();
-    if (!cli || !ref) return;
+    if (!cli || !ref || l.precioManual) return;
     const k = cli + '|' + ref.toUpperCase();
     const pedir = precioCache[k] ? Promise.resolve(precioCache[k]) : api('/api/pedido-effi/precio-anterior?cliente=' + encodeURIComponent(cli) + '&ref=' + encodeURIComponent(ref)).then(r => (precioCache[k] = r));
     pedir.then(r => {
@@ -517,6 +518,10 @@
       if (!(window.PedidoListado && window.PedidoListado.activo && window.PedidoListado.activo())) dibujar();
       msg('Precio de la última venta a este cliente: $' + Number(r.precio).toLocaleString('es-CO') + ' (' + (r.numero ? 'CO/RM ' + r.numero : '') + (r.fecha ? ' · ' + r.fecha : '') + '). Puedes cambiarlo.', 'ok');
     }).catch(() => { /* sin historial: queda el precio de lista */ });
+  }
+  // al elegir el cliente, cada artículo del documento toma el último precio de ese cliente (salvo los escritos a mano)
+  function preciosAnterioresTodos() {
+    st.conceptos.forEach(l => { if (String(l.ref || '').trim()) aplicarPrecioAnterior(l); });
   }
   function teclaSug(e) {
     const box = q('[data-sug-global]'); if (!box || box.hidden || box._ancla !== e.target) return;
@@ -593,6 +598,7 @@
       const i = Number(row.dataset.i), l = st.conceptos[i];
       row.querySelectorAll('[data-f]').forEach(inp => inp.addEventListener('input', () => {
         const f = inp.dataset.f; l[f] = inp.value; invalidar();
+        if (f === 'precio') l.precioManual = true;   // lo escribió el comercial: el precio anterior ya no lo cambia
         if (f === 'cantidad') l.cantManual = true;   // lo escribió el comercial en CO/RM: manda sobre las filas del listado
         if (f === 'ref') { l.articulo = 0; buscarArticulo(inp.value, inp, i); }
         else if (['cantidad', 'precio', 'descuento'].includes(f)) { row.querySelector('.pe-total-linea').textContent = money(brutoDe(l) - descDe(l)); row.querySelectorAll('input[disabled]')[0].value = money(brutoDe(l)); refrescarTotales(); if (f === 'cantidad') pintarTelas(); }

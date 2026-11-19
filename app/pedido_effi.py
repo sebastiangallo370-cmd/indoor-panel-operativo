@@ -191,11 +191,16 @@ def _ref_clave(x) -> str:
     return re.sub(r'[^A-Z0-9]', '', str(x or '').upper())
 
 
+def _ref_diseno(x) -> str:
+    """Código de diseño de la referencia: quita el prefijo del artículo (A100FUT02 y A200FUT02 → FUT02)."""
+    return re.sub(r'^[A-Z]\d{2,}(?=[A-Z])', '', _ref_clave(x))
+
+
 def precio_ultima_venta(cliente: str, ref: str) -> dict:
     """Precio unitario de la última venta (no anulada) de ese cliente para esa referencia, desde el registro de cartera."""
     from app import cartera_api
     cli = re.sub(r'\s+', ' ', str(cliente or '')).strip().upper()
-    buscada = _ref_clave(ref)
+    buscada = _ref_diseno(ref)
     if not cli or len(buscada) < 4:
         return {'encontrado': False}
     mejor = None
@@ -205,7 +210,7 @@ def precio_ultima_venta(cliente: str, ref: str) -> dict:
         if str(d.get('estado') or '').lower().startswith('anul'):
             continue
         for it in d.get('items') or []:
-            ir = _ref_clave(it.get('ref'))
+            ir = _ref_diseno(it.get('ref'))
             if not ir or not (ir == buscada or ir.endswith(buscada) or buscada.endswith(ir)):
                 continue
             try:
@@ -896,6 +901,21 @@ def _pendientes_dir(cliente: str, proyecto: str) -> Path:
     return PENDIENTES / _nombre_seguro(cliente.strip().upper()) / _nombre_seguro(proyecto.strip().upper())
 
 
+def _mismo_contenido_en(carpeta: Path, datos: bytes) -> bool:
+    """¿Ya hay en la carpeta un archivo con exactamente el mismo contenido (aunque tenga otro nombre)?"""
+    import hashlib
+    if not carpeta.is_dir():
+        return False
+    huella = hashlib.sha256(datos).hexdigest()
+    for f in carpeta.iterdir():
+        try:
+            if f.is_file() and f.stat().st_size == len(datos) and hashlib.sha256(f.read_bytes()).hexdigest() == huella:
+                return True
+        except OSError:
+            continue
+    return False
+
+
 def guardar_en_maestros(cliente: str, proyecto: str, archivos: list) -> int:
     """Guarda en MAESTROS/<proyecto>/<REFERENCIA>/ los mockups que se adjuntaron al programar (no pisa los que ya existen)."""
     raiz = _raiz_clientes()
@@ -910,7 +930,7 @@ def guardar_en_maestros(cliente: str, proyecto: str, archivos: list) -> int:
         destino_dir = base / ref
         destino_dir.mkdir(parents=True, exist_ok=True)
         destino = destino_dir / Path(nombre).name
-        if destino.exists():
+        if destino.exists() or _mismo_contenido_en(destino_dir, datos):   # mismo mockup = no se duplica, aunque cambie el nombre
             continue
         destino.write_bytes(datos)
         guardados += 1
@@ -933,9 +953,14 @@ def materializar_pendientes(cliente: str, proyecto: str) -> None:
     if origen.is_dir():
         for sub in origen.iterdir():
             if sub.is_dir():
-                (destino_proy / sub.name).mkdir(parents=True, exist_ok=True)
+                destino_ref = destino_proy / sub.name
+                destino_ref.mkdir(parents=True, exist_ok=True)
                 for f in sub.iterdir():
-                    shutil.move(str(f), str(destino_proy / sub.name / f.name))
+                    # si ese mockup ya está en MAESTROS (mismo contenido, otro nombre), no se duplica: se descarta la copia pendiente
+                    if f.is_file() and _mismo_contenido_en(destino_ref, f.read_bytes()):
+                        f.unlink()
+                        continue
+                    shutil.move(str(f), str(destino_ref / f.name))
         shutil.rmtree(origen, ignore_errors=True)
     _cache_proyectos.pop(re.sub(r'[^A-Z0-9]', '', str(cliente or '').upper()), None)
     _cache_dir_proyecto.pop((str(cliente or '').strip().upper(), str(proyecto or '').strip().upper()), None)
