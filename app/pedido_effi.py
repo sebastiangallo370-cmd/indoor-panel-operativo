@@ -19,7 +19,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Callable
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 
 from app import effi_api
 
@@ -185,6 +185,46 @@ def clientes(request: Request, q: str = ''):
                        'telefono': str(c.get('celular') or c.get('telefono_1') or ''), 'email': str(c.get('email') or ''),
                        'direcciones': [{k: d.get(k) for k in ('id_pais', 'id_provincia', 'id_ciudad', 'direccion', 'referencia', 'ciudad', 'provincia', 'pais')} for d in (c.get('direcciones') or [])]})
     return {'clientes': salida}
+
+
+def _ref_clave(x) -> str:
+    return re.sub(r'[^A-Z0-9]', '', str(x or '').upper())
+
+
+def precio_ultima_venta(cliente: str, ref: str) -> dict:
+    """Precio unitario de la última venta (no anulada) de ese cliente para esa referencia, desde el registro de cartera."""
+    from app import cartera_api
+    cli = re.sub(r'\s+', ' ', str(cliente or '')).strip().upper()
+    buscada = _ref_clave(ref)
+    if not cli or len(buscada) < 4:
+        return {'encontrado': False}
+    mejor = None
+    for d in cartera_api._load().get('documentos') or []:
+        if re.sub(r'\s+', ' ', str(d.get('cliente') or '')).strip().upper() != cli:
+            continue
+        if str(d.get('estado') or '').lower().startswith('anul'):
+            continue
+        for it in d.get('items') or []:
+            ir = _ref_clave(it.get('ref'))
+            if not ir or not (ir == buscada or ir.endswith(buscada) or buscada.endswith(ir)):
+                continue
+            try:
+                precio = float(it.get('precio') or 0)
+            except (TypeError, ValueError):
+                continue
+            if precio <= 0:
+                continue
+            fecha = str(d.get('fechaCreacion') or '')
+            if mejor is None or fecha > mejor['fecha']:
+                mejor = {'precio': precio, 'numero': str(d.get('numero') or ''), 'fecha': fecha, 'ref': str(it.get('ref') or '')}
+    return {'encontrado': mejor is not None, **(mejor or {})}
+
+
+@router.get('/precio-anterior')
+def precio_anterior(request: Request, cliente: str = '', ref: str = ''):
+    """REPROGRAMACIÓN: el precio con el que ya se le vendió esa referencia a ese cliente."""
+    _usuario(request)
+    return precio_ultima_venta(cliente, ref)
 
 
 @router.get('/articulos')
@@ -480,12 +520,11 @@ def crear(request: Request, payload: dict):
     r = construir(payload or {}, usuario)
     tipo = str(payload.get('tipo'))
     hecho = _effi(effi_api.crear_cotizacion if tipo == 'cotizacion' else effi_api.crear_remision, r['cuerpo'])
-    if tipo == 'cotizacion':   # se pide el PDF de Effi YA, sin esperar a que el navegador lo pida: así EFFITRON empieza antes
-        try:
-            from app import effitron
-            effitron.solicitar_pdf_cotizacion(int(hecho['id']))
-        except Exception:  # noqa: BLE001 - nunca debe afectar la creación
-            pass
+    try:   # se pide el PDF de Effi YA (cotización o remisión), sin esperar a que el navegador lo pida: así EFFITRON empieza antes
+        from app import effitron
+        effitron.solicitar_pdf('cotizacion' if tipo == 'cotizacion' else 'remision', int(hecho['id']))
+    except Exception:  # noqa: BLE001 - nunca debe afectar la creación
+        pass
     return {'ok': True, 'tipo': TIPOS[tipo], 'id': hecho['id'], 'numero': f"{hecho.get('prefijo') or ''}{hecho['id']}", 'total': hecho.get('total') or r['resumen']['total']}
 
 # ---------------------------------------------------------------- Proyectos del cliente (carpeta MAESTROS en la NAS)
@@ -494,6 +533,7 @@ _PALABRAS_SUELTAS = {'SAS', 'SA', 'S', 'A', 'LTDA', 'CIA', 'E', 'U', 'Y', 'DE', 
 _cache_carpetas: dict = {'t': 0.0, 'nombres': []}
 _cache_proyectos: dict[str, tuple[float, dict]] = {}
 MOTIVO_CLIENTE_NO_ENCONTRADO = 'CLIENTE NO ENCONTRADO EN EL NAS, RENÓMBRALO E INTENTA DE NUEVO'
+MOTIVO_CLIENTE_NUEVO = 'Cliente nuevo: su carpeta en el NAS se crea al programar el pedido. Los mockups que subas quedan listos para entonces.'
 MOTIVO_SIN_MAESTROS = 'El cliente está en el NAS pero no tiene la carpeta MAESTROS.'
 CACHE_SEG = 300
 
@@ -574,12 +614,11 @@ def proyectos_de_cliente(nombre: str) -> dict:
     try:
         carpeta = next((cand for cand in dict.fromkeys([str(nombre).strip(), str(nombre).replace('.', '').strip(), re.sub(r'\s+', ' ', str(nombre)).strip()])
                         if cand and (raiz / cand).is_dir()), None)
-        if carpeta is None:
-            # no se guarda en caché: al renombrar la carpeta en la NAS, el reintento la encuentra de inmediato
-            return {'carpeta': None, 'proyectos': [], 'motivo': MOTIVO_CLIENTE_NO_ENCONTRADO}
+        if carpeta is None:   # cliente nuevo: su carpeta se crea al PROGRAMAR el pedido, no antes
+            return {'carpeta': None, 'proyectos': [], 'motivo': MOTIVO_CLIENTE_NUEVO}
         maestros = next((p for p in (raiz / carpeta).iterdir() if p.is_dir() and p.name.strip().upper() == 'MAESTROS'), None)
-        if maestros is None:
-            resultado.update(carpeta=carpeta, motivo=MOTIVO_SIN_MAESTROS)
+        if maestros is None:   # sin MAESTROS todavía: se crea al programar
+            resultado.update(carpeta=carpeta, proyectos=[], motivo=MOTIVO_CLIENTE_NUEVO)
         else:
             resultado.update(carpeta=carpeta, proyectos=sorted((p.name for p in maestros.iterdir() if p.is_dir() and not p.name.startswith('.')), key=lambda n: n.upper()))
     except OSError:
@@ -624,7 +663,9 @@ def proyectos(request: Request, cliente: str = ''):
     _usuario(request)
     if len((cliente or '').strip()) < 3:
         return {'carpeta': None, 'proyectos': []}
-    return proyectos_de_cliente(cliente)
+    info = proyectos_de_cliente(cliente)
+    precalentar_cliente(cliente)   # sus mockups quedan listos en segundo plano
+    return info
 
 # ---------------------------------------------------------------- Mockups de un proyecto (CLIENTE/MAESTROS/PROYECTO/REFERENCIA_D1_D2/REFERENCIA_D1_MAQUINA.jpg)
 EXT_IMAGEN = {'.jpg', '.jpeg', '.png', '.webp'}
@@ -647,7 +688,22 @@ def _motivo_proyecto(cliente: str, proyecto: str) -> str:
     return info.get('motivo') or f'El proyecto {proyecto} no está en la carpeta MAESTROS de {cliente}.'
 
 
-def _dir_proyecto(cliente: str, proyecto: str) -> tuple[Path, str] | None:
+_cache_dir_proyecto: dict = {}
+
+
+def _dir_proyecto(cliente: str, proyecto: str):
+    """Caché de 30 min de la carpeta del proyecto (cada imagen la pedía a la NAS): solo se guardan los aciertos."""
+    clave = (str(cliente or '').strip().upper(), str(proyecto or '').strip().upper())
+    hit = _cache_dir_proyecto.get(clave)
+    if hit and time.time() - hit[0] < 1800:
+        return hit[1]
+    ubicado = _dir_proyecto_nas(cliente, proyecto)
+    if ubicado is not None:
+        _cache_dir_proyecto[clave] = (time.time(), ubicado)
+    return ubicado
+
+
+def _dir_proyecto_nas(cliente: str, proyecto: str) -> tuple[Path, str] | None:
     """(carpeta del proyecto, nombre de la carpeta del cliente) o None. Solo carpetas reales dentro de CLIENTE/MAESTROS: sin rutas de otro lado."""
     info = proyectos_de_cliente(cliente)
     raiz = _raiz_clientes()
@@ -795,37 +851,193 @@ def ordenes_referencia(request: Request, cliente: str = '', proyecto: str = '', 
         return _filtrar_ordenes(ordenes, codigo_plano_de(codigo))
 
 
+@router.post('/subir-mockup')
+async def subir_mockup(request: Request, cliente: str = Form(''), proyecto: str = Form(''), referencia: str = Form(''), archivo: UploadFile = File(...)):
+    """Sube un mockup al proyecto de MAESTROS: se guarda en su subcarpeta de referencia (REFERENCIA_Dn.jpg)."""
+    _usuario(request)
+    if len(cliente.strip()) < 3 or not proyecto.strip():
+        raise HTTPException(400, 'Faltan el cliente o el proyecto')
+    nombre = Path(archivo.filename or '').name
+    ext = Path(nombre).suffix.lower()
+    if not re.fullmatch(r'\.[a-z0-9]{1,8}', ext):   # cualquier tipo de archivo (jpg, png, word, pdf…); la extensión solo debe ser letras y números
+        ext = '.bin'
+    m = re.match(r'^\s*(.+?)[\s_-]*D\s*(\d+)(?=[\s_.-]|$)', nombre, re.I)
+    ref_form = re.sub(r'[^A-Z0-9]', '', str(referencia or '').upper())
+    if m:
+        carpeta = _plano_ref(m.group(1)) or m.group(1).upper()
+    elif ref_form:   # el nombre del archivo no dice la referencia: se usa la que tienes abierta en el listado
+        carpeta = ref_form
+    else:
+        raise HTTPException(400, 'Abre la referencia en el listado antes de subir el mockup')
+    datos = await archivo.read()
+    if len(datos) > 30 * 1024 * 1024:
+        raise HTTPException(400, 'El archivo pesa más de 30 MB')
+    with _candado_nas:
+        destino_dir = _pendientes_dir(cliente, proyecto) / carpeta
+        destino_dir.mkdir(parents=True, exist_ok=True)
+        if m:
+            nombre_final = nombre
+        else:   # nombre libre: se guarda como REFERENCIA_Dn con el siguiente número
+            usados = [int(x.group(1)) for f in destino_dir.iterdir() for x in [re.match(r'^' + re.escape(carpeta) + r'_D(\d+)', f.name, re.I)] if x]
+            nombre_final = f'{carpeta}_D{(max(usados) if usados else 0) + 1}{ext}'
+        destino = destino_dir / nombre_final
+        destino.write_bytes(datos)
+    return {'ok': True, 'carpeta': carpeta, 'archivo': destino.name, 'pendiente': True}
+
+
+PENDIENTES = Path(os.getenv('PEDIDO_PENDIENTES_DIR', '/data/state/pedido_mockups_pendientes'))
+
+
+def _nombre_seguro(texto) -> str:
+    return re.sub(r'[\\/:*?"<>|]', '_', re.sub(r'\s+', ' ', str(texto or '')).strip()) or '_'
+
+
+def _pendientes_dir(cliente: str, proyecto: str) -> Path:
+    return PENDIENTES / _nombre_seguro(cliente.strip().upper()) / _nombre_seguro(proyecto.strip().upper())
+
+
+def guardar_en_maestros(cliente: str, proyecto: str, archivos: list) -> int:
+    """Guarda en MAESTROS/<proyecto>/<REFERENCIA>/ los mockups que se adjuntaron al programar (no pisa los que ya existen)."""
+    raiz = _raiz_clientes()
+    if raiz is None:
+        raise OSError('La NAS de clientes no está disponible')
+    info = proyectos_de_cliente(cliente)
+    carpeta_cli = info.get('carpeta') or re.sub(r'\s+', ' ', str(cliente or '')).strip()
+    base = raiz / carpeta_cli / 'MAESTROS' / re.sub(r'\s+', ' ', str(proyecto or '')).strip()
+    guardados = 0
+    for nombre, datos in archivos:
+        ref = re.split(r'_D\d+', Path(nombre).stem, flags=re.I)[0].upper() or 'SIN REFERENCIA'
+        destino_dir = base / ref
+        destino_dir.mkdir(parents=True, exist_ok=True)
+        destino = destino_dir / Path(nombre).name
+        if destino.exists():
+            continue
+        destino.write_bytes(datos)
+        guardados += 1
+    _cache_mockups_proyecto.pop((str(cliente or '').strip().upper(), str(proyecto or '').strip().upper()), None)
+    _cache_dir_proyecto.pop((str(cliente or '').strip().upper(), str(proyecto or '').strip().upper()), None)
+    return guardados
+
+
+def materializar_pendientes(cliente: str, proyecto: str) -> None:
+    """Al PROGRAMAR: crea la carpeta del cliente y del proyecto en la NAS y mueve ahí los mockups que se subieron antes."""
+    import shutil
+    raiz = _raiz_clientes()
+    if raiz is None:
+        raise OSError('La NAS de clientes no está disponible')
+    info = proyectos_de_cliente(cliente)
+    carpeta_cli = info.get('carpeta') or re.sub(r'\s+', ' ', str(cliente or '')).strip()
+    destino_proy = raiz / carpeta_cli / 'MAESTROS' / re.sub(r'\s+', ' ', str(proyecto or '')).strip()
+    destino_proy.mkdir(parents=True, exist_ok=True)
+    origen = _pendientes_dir(cliente, proyecto)
+    if origen.is_dir():
+        for sub in origen.iterdir():
+            if sub.is_dir():
+                (destino_proy / sub.name).mkdir(parents=True, exist_ok=True)
+                for f in sub.iterdir():
+                    shutil.move(str(f), str(destino_proy / sub.name / f.name))
+        shutil.rmtree(origen, ignore_errors=True)
+    _cache_proyectos.pop(re.sub(r'[^A-Z0-9]', '', str(cliente or '').upper()), None)
+    _cache_dir_proyecto.pop((str(cliente or '').strip().upper(), str(proyecto or '').strip().upper()), None)
+    _cache_mockups_proyecto.pop((str(cliente or '').strip().upper(), str(proyecto or '').strip().upper()), None)
+
+
 @router.get('/mockups-proyecto')
 def mockups_proyecto(request: Request, cliente: str = '', proyecto: str = ''):
     """Todos los mockups del proyecto (sin elegir referencia): para verlos en el listado antes de tener referencias."""
     _usuario(request)
     if len(cliente.strip()) < 3 or not proyecto.strip():
         raise HTTPException(400, 'Faltan el cliente o el proyecto')
+    return _mockups_del_proyecto(cliente, proyecto)
+
+
+_candados_proyecto: dict = {}
+_candados_proyecto_lock = _threading.Lock()
+
+
+def _candado_de(clave):
+    """Un candado por proyecto: el mismo proyecto se lee una vez; proyectos distintos pueden leerse a la vez."""
+    with _candados_proyecto_lock:
+        return _candados_proyecto.setdefault(clave, _threading.Lock())
+
+
+def _crear_proyecto(cliente: str, proyecto: str) -> bool:
+    """Crea MAESTROS/<proyecto> dentro de la carpeta del cliente (si el cliente existe). Nunca crea rutas con barras ni '..'."""
+    nombre = re.sub(r'\s+', ' ', str(proyecto or '')).strip()
+    if len(nombre) < 2 or any(x in nombre for x in ('/', '\\', '..')):
+        return False
+    info = proyectos_de_cliente(cliente)
+    raiz = _raiz_clientes()
+    if raiz is None or not info.get('carpeta'):
+        return False
+    try:
+        (raiz / info['carpeta'] / 'MAESTROS' / nombre).mkdir(parents=True, exist_ok=True)
+    except OSError:
+        return False
+    _cache_proyectos.pop(re.sub(r'[^A-Z0-9]', '', str(cliente or '').upper()), None)   # que la lista de proyectos lo incluya
+    return True
+
+
+def _mockups_del_proyecto(cliente: str, proyecto: str) -> dict:
+    """Mockups de un proyecto. Caché de 30 min (solo si hay mockups). Las subcarpetas se leen EN PARALELO: la NAS tarda por cada una."""
+    from concurrent.futures import ThreadPoolExecutor
     clave_cache = (cliente.strip().upper(), proyecto.strip().upper())
-    with _candado_nas:   # una sola lectura del NAS a la vez: los demás esperan y usan la caché
+    with _candado_de(clave_cache):   # el mismo proyecto no se lee dos veces a la vez; los demás proyectos sí
         hit = _cache_mockups_proyecto.get(clave_cache)
-        if hit and time.time() - hit[0] < 1800:
+        if hit and time.time() - hit[0] < 21600:   # los mockups casi no cambian: 6 horas en caché
             return hit[1]
         ubicado = _dir_proyecto(cliente, proyecto)
-        if ubicado is None:
-            return {'items': [], 'motivo': _motivo_proyecto(cliente, proyecto)}
+        if ubicado is None:   # proyecto nuevo: su carpeta se crea al programar, no antes
+            return {'items': [], 'motivo': 'Proyecto nuevo: su carpeta se crea al programar el pedido.'}
         carpeta_proyecto, _ = ubicado
+
+        def _de_subcarpeta(sub):
+            salida = []
+            for f in sorted((x for x in sub.iterdir() if x.is_file() and x.suffix.lower() == '.jpg'), key=lambda x: x.name.upper()):
+                if re.search(r'[0-9A-F]{8}-[0-9A-F]{4}-', f.name, re.I):   # nombres generados (UUID), no mockups
+                    continue
+                m = re.match(r'^\s*(.+?)[\s_-]*D\s*(\d+)(?=[\s_.-]|$)', f.name, re.I)
+                if m:
+                    salida.append({'ref': _plano_ref(m.group(1)), 'diseno': int(m.group(2)), 'carpeta': sub.name, 'archivo': f.name, 'proyecto': proyecto})
+            return salida
+
         items = []
         try:
-            for sub in sorted((p for p in carpeta_proyecto.iterdir() if p.is_dir() and 'MUESTRA' not in p.name.upper()), key=lambda p: p.name.upper()):   # las MUESTRAS no son mockups del maestro
-                for f in sorted((x for x in sub.iterdir() if x.is_file() and x.suffix.lower() == '.jpg'), key=lambda x: x.name.upper()):
-                    if re.search(r'[0-9A-F]{8}-[0-9A-F]{4}-', f.name, re.I):   # nombres generados (UUID), no mockups
-                        continue
-                    m = re.match(r'^\s*(.+?)[\s_-]*D\s*(\d+)(?=[\s_.-]|$)', f.name, re.I)
-                    if m:
-                        items.append({'ref': _plano_ref(m.group(1)), 'diseno': int(m.group(2)), 'carpeta': sub.name, 'archivo': f.name, 'proyecto': proyecto})
+            subs = sorted((p for p in carpeta_proyecto.iterdir() if p.is_dir() and 'MUESTRA' not in p.name.upper()), key=lambda p: p.name.upper())   # las MUESTRAS no son mockups del maestro
+            with ThreadPoolExecutor(max_workers=5) as pool:
+                for lista in pool.map(_de_subcarpeta, subs):
+                    items.extend(lista)
         except OSError:
             return {'items': [], 'motivo': 'No pude leer la NAS ahora.'}
         items.sort(key=lambda i: (i['ref'], i['diseno'], i['archivo'].upper()))
         respuesta = {'items': items[:400], 'motivo': ''}
-        _cache_mockups_proyecto[clave_cache] = (time.time(), respuesta)
+        if items:   # una lista VACÍA no se guarda: si la NAS respondió mal una vez, no debe quedar «sin mockups» 30 minutos
+            _cache_mockups_proyecto[clave_cache] = (time.time(), respuesta)
         _calentar_miniaturas([carpeta_proyecto / i['carpeta'] / i['archivo'] for i in items[:400]])
         return respuesta
+
+
+_precalentando: set = set()
+
+
+def precalentar_cliente(cliente: str) -> None:
+    """Al elegir el cliente, se leen en segundo plano los mockups de TODOS sus proyectos: al elegir el proyecto ya están listos."""
+    clave = str(cliente or '').strip().upper()
+    if len(clave) < 3 or clave in _precalentando:
+        return
+    _precalentando.add(clave)
+
+    def trabajo():
+        from concurrent.futures import ThreadPoolExecutor
+        try:
+            proyectos = (proyectos_de_cliente(cliente).get('proyectos') or [])[:20]
+            with ThreadPoolExecutor(max_workers=4) as pool:   # 4 proyectos a la vez: más agentes saturan la NAS y todo se vuelve más lento
+                list(pool.map(lambda p: _mockups_del_proyecto(cliente, p), proyectos))
+        except Exception:   # noqa: BLE001 - es solo una ayuda: nunca debe afectar la pantalla
+            pass
+        finally:
+            _precalentando.discard(clave)
+    _threading.Thread(target=trabajo, daemon=True).start()
 
 
 def ruta_mockup(cliente: str, proyecto: str, carpeta: str, archivo: str) -> Path:
@@ -899,20 +1111,20 @@ def mockup_img(request: Request, cliente: str = '', proyecto: str = '', carpeta:
 
 # ---------------------------------------------------------------- El MISMO PDF que genera Effi (lo baja EFFITRON con su sesión web)
 @router.get('/pdf-estado/{numero}')
-def pdf_estado(request: Request, numero: int):
+def pdf_estado(request: Request, numero: int, doc: str = 'cotizacion'):
     """Pide el PDF de la cotización a EFFITRON (la primera vez) y dice cómo va. Para remisiones no hay PDF por esta vía."""
     _usuario(request)
     from app import effitron
-    r = effitron.solicitar_pdf_cotizacion(numero)
+    r = effitron.solicitar_pdf(doc, numero)
     if r.get('estado') == 'listo':
-        r['paginas'] = paginas_pdf(numero)
+        r['paginas'] = paginas_pdf(numero, doc)
     return r
 
 
-def paginas_pdf(numero: int) -> int:
+def paginas_pdf(numero: int, doc: str = 'cotizacion') -> int:
     from app import effitron
     import pdfplumber
-    ruta = effitron.pdf_cotizacion_ruta(numero)
+    ruta = effitron.pdf_ruta(doc, numero)
     try:
         with pdfplumber.open(str(ruta)) as pdf:
             return len(pdf.pages)
@@ -921,13 +1133,13 @@ def paginas_pdf(numero: int) -> int:
 
 
 @router.get('/pdf-img/{numero}/{pagina}')
-def pdf_imagen(request: Request, numero: int, pagina: int):
+def pdf_imagen(request: Request, numero: int, pagina: int, doc: str = 'cotizacion'):
     """Cada página del PDF de Effi como imagen: se ve igual en cualquier navegador y en el celular (sin visor de PDF ni marcos bloqueados)."""
     from fastapi.responses import FileResponse
     _usuario(request)
     from app import effitron
     import pdfplumber
-    ruta = effitron.pdf_cotizacion_ruta(numero)
+    ruta = effitron.pdf_ruta(doc, numero)
     if not ruta.is_file():
         raise HTTPException(404, 'El PDF de Effi todavía no está listo')
     png = ruta.with_name(f'{ruta.stem}-p{int(pagina)}-n250.png')   # 250 dpi: nítido también en pantallas de alta densidad (el de 150 dpi se veía borroso)
@@ -940,14 +1152,14 @@ def pdf_imagen(request: Request, numero: int, pagina: int):
 
 
 @router.get('/pdf/{numero}')
-def pdf_cotizacion(request: Request, numero: int, descargar: int = 0):
+def pdf_cotizacion(request: Request, numero: int, descargar: int = 0, doc: str = 'cotizacion'):
     from fastapi.responses import Response
     _usuario(request)
     from app import effitron
-    datos = effitron.pdf_cotizacion_bytes(numero)
+    datos = effitron.pdf_bytes_doc(doc, numero)
     if not datos:
         raise HTTPException(404, 'El PDF de Effi todavía no está listo')
-    return Response(datos, media_type='application/pdf', headers={'Content-Disposition': ('attachment' if descargar else 'inline') + f'; filename="Cotizacion_{numero}.pdf"', 'Cache-Control': 'private, max-age=300'})
+    return Response(datos, media_type='application/pdf', headers={'Content-Disposition': ('attachment' if descargar else 'inline') + f'; filename="{"Remision" if doc == "remision" else "Cotizacion"}_{numero}.pdf"', 'Cache-Control': 'private, max-age=300'})
 
 
 @router.get('/tela')

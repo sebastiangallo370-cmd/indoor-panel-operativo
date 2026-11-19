@@ -17,10 +17,16 @@ import effi_api
 SONDEO_SEG = 15
 
 
-def pdf_de_cotizacion(effi, cot_id: str) -> str:
-    """PDF de la cotización desde Ventas > Cotizaciones («Ver PDF»), con la sesión abierta. Devuelve base64 o lanza RuntimeError."""
+PAGINA_PDF = {
+    'cotizacion': 'https://effi.com.co/app/cotizacion',
+    'remision': 'https://effi.com.co/app/remision_v',   # Ventas > Remisiones de venta: fila con «Ver PDF» (consultar_pdf)
+}
+
+
+def pdf_de_documento(effi, doc_id: str, doc: str = 'cotizacion') -> str:
+    """PDF de Effi de una cotización o una remisión («Ver PDF» de su fila), con la sesión abierta. Devuelve base64 o lanza RuntimeError."""
     d = effi.driver
-    d.get('https://effi.com.co/app/cotizacion')
+    d.get(PAGINA_PDF.get(doc, PAGINA_PDF['cotizacion']))
     time.sleep(5)
     href = ''
     for _ in range(3):
@@ -34,7 +40,7 @@ def pdf_de_cotizacion(effi, cot_id: str) -> str:
         d.refresh()
         time.sleep(4)
     if not href:
-        raise RuntimeError(f'No encontré el enlace «Ver PDF» de la cotización {cot_id}')
+        raise RuntimeError(f'No encontré el enlace «Ver PDF» de {doc} {cot_id}')
     d.set_script_timeout(60)
     b64 = d.execute_async_script("""
       const fin = arguments[arguments.length - 1];
@@ -42,6 +48,10 @@ def pdf_de_cotizacion(effi, cot_id: str) -> str:
     if not b64 or base64.b64decode(b64)[:4] != b'%PDF':
         raise RuntimeError('Effi no devolvió un PDF válido')
     return b64
+
+
+def pdf_de_cotizacion(effi, cot_id: str) -> str:
+    return pdf_de_documento(effi, cot_id, 'cotizacion')
 
 
 def main():
@@ -85,7 +95,7 @@ def main():
                         pdf_b64 = ''
                         try:
                             effi.abrir()
-                            pdf_b64 = pdf_de_cotizacion(effi, cot['id'])
+                            pdf_b64 = pdf_de_documento(effi, cot['id'], job.get('doc') or 'cotizacion')
                         except Exception as e:   # noqa: BLE001
                             z.log(f'Sin PDF de la cotización {cot["id"]}: {str(e)[:120]}')
                             effi.cerrar()

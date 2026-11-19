@@ -232,11 +232,17 @@
   window.addEventListener('resize', () => ajustarHoja());
   const L = {};   // estado del flujo (uno por ventana abierta)
   let raiz = null;
-  let ULTIMO = null;   // lo último que se llenó en el listado (se recupera al volver al documento y regresar)
+  let ULTIMO = null;
+  // mockups adjuntos guardados por cliente mientras la página está abierta: no se pierden al ir de CO/RM al listado
+  const MEM_MOCKUPS = {};
+  const claveCliente = () => String((L.doc && L.doc.cliente && L.doc.cliente.nombre) || '').trim().toUpperCase();   // lo último que se llenó en el listado (se recupera al volver al documento y regresar)
   const q = s => raiz.querySelector(s);
 
   // ---------------------------------------------------------------- datos
   const PH = 'SIN REFERENCIA';
+  // remisión: su PDF de Effi se pide con ?doc=remision (cotización: sin parámetro)
+  const pdfQS = () => (L.doc && L.doc.tipo === 'remision' ? 'doc=remision' : '');
+  const pdfUrl = n => '/api/pedido-effi/pdf/' + n + (pdfQS() ? '?' + pdfQS() : '');
   const hayReferencias = () => (L.doc.conceptos || []).some(c => String(c.referencia || '').trim());
   const grupos = () => {
     const m = new Map();
@@ -254,7 +260,7 @@
   function guardarBorrador() {
     try {
       const galeria = {};
-      Object.entries(L.galPick || {}).forEach(([ref, lista]) => { galeria[ref] = lista.filter(pk => pk.url).map(pk => ({ idx: pk.idx, url: pk.url, nombre: pk.nombre })); });
+      Object.entries(L.galPick || {}).forEach(([ref, lista]) => { const items = lista.filter(pk => pk.url); if (items.length) galeria[ref] = items.map(pk => ({ idx: pk.idx, url: pk.url, nombre: pk.nombre })); });   // solo las referencias con mockups de la NAS (las que son solo subidas no van aquí)
       localStorage.setItem(claveBorrador(), JSON.stringify({ disenos: L.disenos, proyecto: L.proyecto, linea: L.linea, observaciones: L.observaciones, listado: L.listado, refDatos: L.refDatos || {}, textura: L.textura, tipos: L.tipos || [], defGenero: L.defGenero, defDiseno: L.defDiseno, galeria }));
     } catch (e) { /* sin almacenamiento */ } }
   function cargarBorrador() {
@@ -269,6 +275,7 @@
     const guardada = L.galGuardada || {};
     L.galGuardada = {};
     for (const ref of Object.keys(guardada)) {
+      if (!(guardada[ref] || []).length) continue;   // sin mockups guardados: no se toca la lista de esa referencia
       for (const it of guardada[ref]) {
         try {
           const r = await fetchT(it.url, { credentials: 'same-origin' }); if (!r.ok) continue;
@@ -285,6 +292,20 @@
   }
   const filaVacia = () => ({ nombre: '', talla: '', numero: '', diseno: L.defDiseno || 1, genero: L.defGenero || 'MASC', observacion: '' });
   const filasDe = ref => (L.listado[ref] = L.listado[ref] || []);
+  // las filas del listado y la cantidad de CO/RM son lo mismo: si cambian filas, se iguala la cantidad (solo en el listado previo)
+  function modoCant() {
+    try { return localStorage.getItem('pl-modo-cant') === 'listado' ? 'listado' : 'crm'; } catch (e) { return 'crm'; }
+  }
+  function modoCantHtml() {
+    const m = modoCant();
+    return '<span style="color:#a9b5a3;font:800 12px Arial;margin-right:4px">Cantidad y filas · manda:</span>' +
+      '<button type="button" class="pl-btn mini' + (m === 'listado' ? '' : ' sec') + '" data-modo-cant="listado">LISTADO → CO/RM</button> ' +
+      '<button type="button" class="pl-btn mini' + (m === 'crm' ? '' : ' sec') + '" data-modo-cant="crm">CO/RM → LISTADO</button>';
+  }
+  function sincronizarCantidad(ref) {
+    if (!L.previo || !window.PedidoEffi || !window.PedidoEffi.setCantidadRef) return;
+    if (window.PedidoEffi.setCantidadRef(ref, filasDe(ref).length)) L.doc.conceptos = window.PedidoEffi.conceptosListado();
+  }
   const faltantes = () => {   // lo que impide programar: se muestra completo, no uno por uno
     const out = [];
     const mkFalta = slotsNecesarios().filter(([r, n]) => !imagenDe(r, n));
@@ -355,6 +376,11 @@
           } catch (err) { setMsg('No pude subir el mockup: ' + (err.message || err), 'error'); }
         };
         inp.click();
+      });
+      raiz.addEventListener('click', e => {
+        const mb = e.target.closest && e.target.closest('[data-modo-cant]'); if (!mb) return;
+        try { localStorage.setItem('pl-modo-cant', mb.dataset.modoCant); } catch (er) { /* sin almacenamiento */ }
+        pantallaListado();
       });
       raiz.addEventListener('change', e => { if (e.target.matches && e.target.matches('[data-ref-proy-sel]')) { const ref = e.target.dataset.ref, v = e.target.value; L.refDatos = L.refDatos || {}; L.refDatos[ref] = v === '__nuevo' ? Object.assign({}, datosRef(ref), { proyecto: '', nuevo: true }) : Object.assign({}, datosRef(ref), { proyecto: v, nuevo: false }); guardarBorrador(); dibujar(); estadoListado(); if (v && v !== '__nuevo' && ref && ref !== PH) abrirGaleria(ref); else dibujar(); } });   // al elegir el proyecto se traen sus mockups de esta referencia
       raiz.addEventListener('change', e => { if (e.target.matches && e.target.matches('[data-ref-linea]')) { const ref = e.target.dataset.ref; L.refDatos = L.refDatos || {}; L.refDatos[ref] = Object.assign({}, datosRef(ref), { linea: e.target.value }); guardarBorrador(); estadoListado(); } });
@@ -433,7 +459,7 @@
   }
   // El documento que se muestra es el MISMO PDF que genera Effi (lo baja EFFITRON con su sesión web). La réplica propia solo queda para remisiones o si el PDF no llega.
   function pantallaDoc() {
-    const numero = String(L.doc.numero || '').replace(/\D/g, ''), conPdf = L.doc.tipo !== 'remision' && !!numero;
+    const numero = String(L.doc.numero || '').replace(/\D/g, ''), conPdf = !!numero;
     const botones = '<button class="pl-btn sec" type="button" data-imprimir>IMPRIMIR</button><button class="pl-btn" type="button" data-continuar>CONTINUAR CON EL LISTADO ▶</button><button class="pl-btn sec" type="button" data-otro>CREAR OTRO DOCUMENTO</button><button class="pl-btn sec" type="button" data-cerrar>CERRAR</button>';
     const msgOk = 'La ' + (L.doc.tipo === 'remision' ? 'remisión' : 'cotización') + ' ya está creada en Effi. Continúa con el listado para programar el pedido.';
     if (L.numeroPdf !== numero) { L.pdfListo = false; L.numeroPdf = numero; }
@@ -441,7 +467,7 @@
     else { q('[data-cuerpo]').innerHTML = '<div class="pl-hoja-caja">' + htmlDoc() + '</div>'; ajustarHoja(); }
     acciones(botones, msgOk, 'ok');
     q('[data-imprimir]').onclick = () => {
-      if (L.pdfListo) { window.open('/api/pedido-effi/pdf/' + numero, '_blank'); return; }   // se abre el PDF de Effi: ahí se imprime tal cual
+      if (L.pdfListo) { window.open(pdfUrl(numero), '_blank'); return; }   // se abre el PDF de Effi: ahí se imprime tal cual
       if (conPdf && !raiz.querySelector('#pl-doc')) { setMsg('Espera un momento: el PDF de Effi todavía se está trayendo.', 'error'); return; }
       imprimir();
     };
@@ -462,13 +488,13 @@
       c.querySelector('[data-pdf-replica]').onclick = () => { c.classList.remove('pl-pdf-caja'); c.innerHTML = htmlDoc(); ajustarHoja(); };
     };
     try {
-      const r = await fetchT('/api/pedido-effi/pdf-estado/' + numero, { credentials: 'same-origin', cache: 'no-store' }).then(x => x.ok ? x.json() : Promise.reject(new Error('Error ' + x.status)));
+      const r = await fetchT('/api/pedido-effi/pdf-estado/' + numero + '?' + pdfQS(), { credentials: 'same-origin', cache: 'no-store' }).then(x => x.ok ? x.json() : Promise.reject(new Error('Error ' + x.status)));
       if (r.estado === 'listo') {
-        L.pdfListo = true; L.pdfUrl = '/api/pedido-effi/pdf/' + numero;
+        L.pdfListo = true; L.pdfUrl = pdfUrl(numero);
         if (!caja()) return;   // llegó mientras se trabajaba en otro paso: se mostrará al volver a «1 · COTIZACIÓN»
-        const url = '/api/pedido-effi/pdf/' + numero;
-        const hojas = Array.from({ length: Math.max(1, Number(r.paginas) || 1) }, (_, k) => '<img class="pl-pdf-hoja" alt="Página ' + (k + 1) + '" src="/api/pedido-effi/pdf-img/' + numero + '/' + (k + 1) + '">').join('');
-        caja().innerHTML = '<div class="pl-pdf-barra"><span>PDF de Effi · Cotización ' + esc(numero) + '</span><span><a class="pl-btn sec mini" href="' + url + '" target="_blank" rel="noopener">ABRIR</a> <a class="pl-btn sec mini" href="' + url + '?descargar=1">DESCARGAR</a></span></div><div class="pl-pdf">' + hojas + '</div>';
+        const url = pdfUrl(numero);
+        const hojas = Array.from({ length: Math.max(1, Number(r.paginas) || 1) }, (_, k) => '<img class="pl-pdf-hoja" alt="Página ' + (k + 1) + '" src="/api/pedido-effi/pdf-img/' + numero + '/' + (k + 1) + '?' + pdfQS() + '">').join('');
+        caja().innerHTML = '<div class="pl-pdf-barra"><span>PDF de Effi · Cotización ' + esc(numero) + '</span><span><a class="pl-btn sec mini" href="' + url + '" target="_blank" rel="noopener">ABRIR</a> <a class="pl-btn sec mini" href="' + url + (url.includes('?') ? '&' : '?') + 'descargar=1">DESCARGAR</a></span></div><div class="pl-pdf">' + hojas + '</div>';
         return;
       }
       if (r.estado === 'error') return falla('No pude traer el PDF de Effi: ' + (r.detalle || 'el agente no respondió'));
@@ -739,6 +765,7 @@
     const lista = galPick()[ref] = (galPick()[ref] || []).filter((pk, i, arr) => !pk.nombre || arr.findIndex(x => x.nombre === pk.nombre) === i);
     L.imgs[ref] = {};
     lista.forEach((pk, k) => { L.imgs[ref][k + 1] = pk.file; });
+    if (L.doc) MEM_MOCKUPS[claveCliente()] = Object.assign({}, L.galPick);
     ajustarDisenos();
     guardarBorrador();
   }
@@ -859,13 +886,29 @@
       return;
     }
     if (!gs.find(g => g.referencia === L.abierta)) L.abierta = gs[0].referencia;
-    const g = gs.find(x => x.referencia === L.abierta), filas = filasDe(g.referencia);
+    let g = gs.find(x => x.referencia === L.abierta), filas = filasDe(g.referencia);
     if (!filas.length && !L.relleno[g.referencia]) {   // la primera vez que se abre una referencia ya trae sus filas en blanco (una por prenda cotizada)
       for (let k = 0; k < g.cantidad; k++) filas.push(filaVacia());
       L.relleno[g.referencia] = true; guardarBorrador();
     }
+    // CO/RM subió la cantidad → se agregan filas en blanco; el listado tiene más filas → la cantidad sube a ese número
+    if (L.previo) {
+      // CUÁL MANDA (botones del listado): CO/RM → LISTADO: la cantidad de CO/RM decide las filas; LISTADO → CO/RM: las filas deciden la cantidad
+      if (modoCant() === 'crm') {
+        if (filas.length > g.cantidad) {
+          const quitadas = filas.splice(g.cantidad), conDatos = quitadas.filter(f => f.nombre || f.talla || f.numero || f.observacion).length;
+          setMsg('Igualé ' + g.referencia + ' a ' + g.cantidad + ' fila(s) como en CO/RM' + (conDatos ? '. Se quitaron ' + conDatos + ' fila(s) que tenían datos' : '') + '.', conDatos ? 'error' : 'ok');
+          guardarBorrador();
+        }
+        while (filas.length < g.cantidad) filas.push(filaVacia());
+      } else if (filas.length !== g.cantidad) {
+        sincronizarCantidad(g.referencia);   // las filas mandan: la cantidad de CO/RM queda igual al número de filas
+      }
+      g = grupos().find(x => x.referencia === L.abierta) || g;
+    }
     q('[data-cuerpo]').innerHTML = '<div class="pl-refs">' + gs.map(x => '<button type="button" class="pl-ref ' + (x.referencia === L.abierta ? 'on' : '') + '" data-ref="' + esc(x.referencia) + '">' + esc(x.referencia) + contador(x) + '</button>').join('') + '</div>' +
       '<div class="pl-tarjeta"><h3>' + esc(g.referencia) + ' · ' + esc(g.descripcion) + ' · ' + g.cantidad + ' prendas</h3>' +
+      (L.previo ? '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 10px">' + modoCantHtml() + '</div>' : '') +
       '<div class="pl-herr">' + proyectoCampo(g.referencia) +
       '<label>LÍNEA DEL PRODUCTO<select data-ref-linea data-ref="' + esc(g.referencia) + '"><option value="">—</option>' + (L.cat.lineas || []).map(x => '<option' + (x === datosRef(g.referencia).linea ? ' selected' : '') + '>' + esc(x) + '</option>').join('') + '</select></label>' +
       '' +
@@ -940,8 +983,8 @@
     });
     raiz.querySelectorAll('button.pl-ref[data-ref]').forEach(b => b.onclick = () => { L.abierta = b.dataset.ref; pantallaListado(); });   // solo los botones de referencia (los campos de proyecto también llevan data-ref)
     q('[data-atras]').onclick = () => { if (L.previo) { if (L.opts.onVolver) L.opts.onVolver(); return; } L.pantalla = 'mockups'; dibujar(); };
-    q('[data-mas]').onclick = () => { filas.push(filaVacia()); guardarBorrador(); pantallaListado(); enfocarUltima(); };
-    q('[data-mas5]').onclick = () => { for (let k = 0; k < 5; k++) filas.push(filaVacia()); guardarBorrador(); pantallaListado(); enfocarUltima(); };
+    q('[data-mas]').onclick = () => { filas.push(filaVacia()); sincronizarCantidad(L.abierta); guardarBorrador(); pantallaListado(); enfocarUltima(); };
+    q('[data-mas5]').onclick = () => { for (let k = 0; k < 5; k++) filas.push(filaVacia()); sincronizarCantidad(L.abierta); guardarBorrador(); pantallaListado(); enfocarUltima(); };
     q('[data-pegar]').onclick = () => {
       const inp = document.createElement('input');
       inp.type = 'file';
@@ -1008,7 +1051,7 @@
       e.preventDefault(); if (!dest) return;
       const n = dest.querySelector('[data-c="' + c + '"]'); if (n) { n.focus(); if (n.select) try { n.select(); } catch (er) { /* select sin texto */ } }
     });
-    tb.addEventListener('click', e => { const b = e.target.closest('[data-quitar-fila]'); if (!b) return; filas.splice(Number(b.closest('tr').dataset.i), 1); guardarBorrador(); pantallaListado(); });
+    tb.addEventListener('click', e => { const b = e.target.closest('[data-quitar-fila]'); if (!b) return; filas.splice(Number(b.closest('tr').dataset.i), 1); sincronizarCantidad(L.abierta); guardarBorrador(); pantallaListado(); });
     q('[data-programar]').onclick = enviar;
     layoutListado();
   }
@@ -1082,10 +1125,10 @@
     L.xlCargado = false; L.xlVista = null;
     L.pantalla = 'enviado'; L.job = { id: 0, estado: 'ENVIANDO', progreso: 3, detail: 'Creando el listado de Excel con la plantilla de Indoor…', excel: '', insertados: null }; dibujar();
     try {
-      if (L.doc.tipo !== 'remision') {   // el PDF de Effi es OBLIGATORIO: se espera aquí, a la vista, antes de programar (con el motivo si no llega)
+      {   // el PDF de Effi es OBLIGATORIO (cotización y remisión): se espera aquí, a la vista, antes de programar (con el motivo si no llega)
         const t0 = Date.now(); let est = null;
         for (;;) {
-          est = await fetchT('/api/pedido-effi/pdf-estado/' + L.doc.numero, { credentials: 'same-origin', cache: 'no-store' }).then(x => x.ok ? x.json() : null).catch(() => null);
+          est = await fetchT('/api/pedido-effi/pdf-estado/' + L.doc.numero + '?' + pdfQS(), { credentials: 'same-origin', cache: 'no-store' }).then(x => x.ok ? x.json() : null).catch(() => null);
           if (est && (est.estado === 'listo' || est.estado === 'error')) break;
           const seg = Math.round((Date.now() - t0) / 1000);
           if (seg > 60) break;   // a los 60 s se avisa qué revisar (EFFITRON) en vez de esperar más
@@ -1187,7 +1230,7 @@
   }
   // ---------------------------------------------------------------- pantalla «PROGRAMANDO EL PEDIDO»: anillo de avance, línea de tiempo y animaciones de éxito / error
   function pgPasos() {
-    const cot = L.doc.tipo !== 'remision';
+    const cot = true;   // cotización y remisión: las dos traen su PDF de Effi
     return (cot ? [{ pdf: true, t: 'PDF de Effi (obligatorio)' }] : []).concat(PASOS_ENVIO.map(([u, t]) => ({ u, t })));
   }
   function pgEstadoPasos() {
@@ -1290,7 +1333,7 @@
     Object.keys(L).forEach(k => delete L[k]);
     Object.assign(L, { doc, opts: opts || {}, cat: (opts && opts.cat) || {}, pantalla: 'doc', disenos: 1, proyecto: String(doc.proyecto || doc.garantia || ''), linea: '', observaciones: '', compartir: true, imgs: {}, listado: {}, relleno: {}, defDiseno: 1, defGenero: 'MASC', enviando: false });
     cargarBorrador();
-    if (Object.keys(L.galGuardada || {}).length) { restaurarMockups(); }
+    if (Object.values(L.galGuardada || {}).some(a => a && a.length)) { restaurarMockups(); }   // solo si hay algo que bajar: vacío no debe borrar lo adjuntado
     // al volver al documento y regresar, se recupera lo que ya estaba seleccionado (proyectos, aplique, mockups, género)
     if (ULTIMO && ULTIMO.clave === claveDocumento()) {
       L.refDatos = Object.keys(L.refDatos || {}).length ? L.refDatos : ULTIMO.refDatos;
@@ -1300,6 +1343,8 @@
       L.defGenero = ULTIMO.defGenero || L.defGenero; L.defDiseno = ULTIMO.defDiseno || L.defDiseno;
       if (ULTIMO.proyLista) { L.proyLista = ULTIMO.proyLista; L.proyCliente = (L.doc.cliente && L.doc.cliente.nombre) || ''; }
     }
+    // lo adjuntado antes (aunque se haya salido a CO/RM) vuelve a aparecer si el listado no lo trae
+    if (!Object.keys(L.galPick || {}).length && MEM_MOCKUPS[claveCliente()] && Object.keys(MEM_MOCKUPS[claveCliente()]).length) { L.galPick = Object.assign({}, MEM_MOCKUPS[claveCliente()]); Object.keys(L.galPick).forEach(ref => sincronizar(ref)); }
     L.compartir = false;   // cada referencia con sus propios mockups
     const pr = (opts && opts.preset) || null;
     L.previo = !!(opts && opts.previo);

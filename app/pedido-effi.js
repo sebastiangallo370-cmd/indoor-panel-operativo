@@ -499,8 +499,22 @@
       cargarProyectos();
     } else {
       const l = st.conceptos[box._i], a = box._lista[idx];
-      Object.assign(l, { articulo: a.id, ref: a.referencia, descripcion: a.descripcion.slice(0, 120), precio: a.precio || l.precio, impuesto: a.impuesto || '' }); invalidar(); dibujar();
+      Object.assign(l, { articulo: a.id, ref: a.referencia, descripcion: a.descripcion.slice(0, 120), precio: a.precio || l.precio, impuesto: a.impuesto || '' }); aplicarPrecioAnterior(l); invalidar(); dibujar();
     }
+  }
+  // REPROGRAMACIÓN: si el cliente ya compró esa referencia, el precio es el de su última venta (no el de lista)
+  const precioCache = {};
+  function aplicarPrecioAnterior(l) {
+    const cli = st.cliente && st.cliente.nombre, ref = String(l.ref || '').trim();
+    if (!cli || !ref) return;
+    const k = cli + '|' + ref.toUpperCase();
+    const pedir = precioCache[k] ? Promise.resolve(precioCache[k]) : api('/api/pedido-effi/precio-anterior?cliente=' + encodeURIComponent(cli) + '&ref=' + encodeURIComponent(ref)).then(r => (precioCache[k] = r));
+    pedir.then(r => {
+      if (!r || !r.encontrado || !st.conceptos.includes(l) || String(l.ref || '').trim() !== ref) return;   // ya cambió el artículo o el cliente
+      l.precio = String(r.precio);
+      invalidar(); dibujar();
+      msg('Precio de la última venta a este cliente: $' + Number(r.precio).toLocaleString('es-CO') + ' (' + (r.numero ? 'CO/RM ' + r.numero : '') + (r.fecha ? ' · ' + r.fecha : '') + '). Puedes cambiarlo.', 'ok');
+    }).catch(() => { /* sin historial: queda el precio de lista */ });
   }
   function teclaSug(e) {
     const box = q('[data-sug-global]'); if (!box || box.hidden || box._ancla !== e.target) return;
@@ -577,6 +591,7 @@
       const i = Number(row.dataset.i), l = st.conceptos[i];
       row.querySelectorAll('[data-f]').forEach(inp => inp.addEventListener('input', () => {
         const f = inp.dataset.f; l[f] = inp.value; invalidar();
+        if (f === 'cantidad') l.cantManual = true;   // lo escribió el comercial en CO/RM: manda sobre las filas del listado
         if (f === 'ref') { l.articulo = 0; buscarArticulo(inp.value, inp, i); }
         else if (['cantidad', 'precio', 'descuento'].includes(f)) { row.querySelector('.pe-total-linea').textContent = money(brutoDe(l) - descDe(l)); row.querySelectorAll('input[disabled]')[0].value = money(brutoDe(l)); refrescarTotales(); if (f === 'cantidad') pintarTelas(); }
       }));
@@ -971,8 +986,26 @@
     if (!a) return { no: true, ref };
     let l = st.conceptos.find(x => !String(x.ref || '').trim()); if (!l) { l = lineaVacia(); st.conceptos.push(l); }
     Object.assign(l, { articulo: a.id, ref: a.referencia, descripcion: String(a.descripcion || '').slice(0, 120), precio: a.precio || l.precio, impuesto: a.impuesto || '' });
+    aplicarPrecioAnterior(l);
     invalidar();
     return { ok: true, ref: a.referencia };
+  }
+  // LISTADO → CO/RM: la cantidad de la referencia pasa a ser el número de filas del listado (devuelve true si cambió)
+  function setCantidadRef(ref, n) {
+    const k = String(ref || '').trim().toUpperCase();
+    const l = st.conceptos.find(x => String(x.ref || '').trim().toUpperCase() === k);
+    if (!l) return false;
+    l.cantManual = false;
+    if (num(l.cantidad) === Number(n)) return false;
+    l.cantidad = Number(n); invalidar(); return true;
+  }
+  // CO/RM → listado: ¿la cantidad la escribió el comercial en CO/RM y el listado aún no se igualó? (sin valor = leer; con valor = fijar)
+  function cantidadManual(ref, valor) {
+    const k = String(ref || '').trim().toUpperCase();
+    const l = st.conceptos.find(x => String(x.ref || '').trim().toUpperCase() === k);
+    if (!l) return false;
+    if (valor === undefined) return !!l.cantManual;
+    l.cantManual = !!valor; return l.cantManual;
   }
   // las referencias del documento tal como las necesita el listado (sin volver a abrirlo)
   function conceptosListado() {
@@ -1011,7 +1044,7 @@
     if (window.PedidoListado && window.PedidoListado.previo && window.PedidoListado.previo()) st.listadoPrevio = window.PedidoListado.datos();
     return true;
   }
-  window.PedidoEffi = { montar, listadoPrevio, volverAlFormulario, guardarListado, agregarReferencia, quitarReferencia, conceptosListado, fechaEntrega: () => { try { return valor('fecha_entrega') || ''; } catch (e) { return ''; } } };
+  window.PedidoEffi = { montar, listadoPrevio, volverAlFormulario, guardarListado, agregarReferencia, quitarReferencia, conceptosListado, setCantidadRef, cantidadManual, fechaEntrega: () => { try { return valor('fecha_entrega') || ''; } catch (e) { return ''; } } };
 })();
 
 // Avisos en el PC: cuando un comercial programa un pedido, la cuenta «Indoor Sport» recibe una notificación de escritorio.

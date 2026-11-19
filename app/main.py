@@ -948,6 +948,20 @@ def process_reprogram_excel_job(job_id: int, excel_path: Path, extra_paths: list
 _PDF_EFFI_ORDEN: dict = {}   # código de orden -> PDF de Effi que se pega en la carpeta apenas se crea
 
 
+def _pdf_effi_doc(valor) -> tuple:
+    """Número de PDF de Effi guardado en la orden: positivo = cotización, negativo = remisión. Devuelve (doc, número)."""
+    v = int(valor)
+    return ('remision', -v) if v < 0 else ('cotizacion', v)
+
+
+def _pdf_effi_bytes(valor):
+    return effitron_mod.pdf_bytes_doc(*_pdf_effi_doc(valor))
+
+
+def _pdf_effi_pedir(valor):
+    return effitron_mod.solicitar_pdf(*_pdf_effi_doc(valor))
+
+
 def _dejar_pdf_effi(carpeta: Path, codigo: str, datos: bytes, nombre: str = '') -> str:
     """Deja en la carpeta de la orden SOLO el PDF que creó Effi (quita cualquier otro CO####*.pdf, como el que arma el panel para procesar). Devuelve '' si salió bien o el motivo si no."""
     fallos: list = []
@@ -8076,7 +8090,7 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
     const commercialGroup=commercialToggle.closest('.nav-group');commercialGroup.classList.add('collapsed');const productionToggle=document.getElementById('production-toggle');if(productionToggle)productionToggle.addEventListener('click',()=>{{const g=productionToggle.closest('.nav-group');g.classList.toggle('collapsed');if(!g.classList.contains('collapsed')&&window.innerWidth>860)g.querySelector('.nav-children .tab')?.click()}});
     setTimeout(()=>{{if(!document.querySelector('.panel.active'))document.querySelector('.tab[data-kind="inicio"]')?.click()}},0);
     setTimeout(()=>{{const panel=document.querySelector('.panel.active');const kind=panel?.dataset?.panel;const activeTab=kind&&document.querySelector(`.tab[data-kind="${{kind}}"]`);if(activeTab)document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===activeTab))}},100);
-</script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/aplazar-alertas.js?v=20261118-1'></script><script src='/rendimiento.js?v=20261118-1'></script><script src='/liquid-stats.js?v=20261019-1'></script><script src='/nombres-effi.js?v=20261022-2'></script><script src='/permisos.js?v=20261007-2'></script><script src='/reposiciones.js?v=20261019-1'></script><script src='/agentes.js?v=20261107-14'></script><script src='/promedios.js?v=20261109-1'></script><script src='/capacidad.js?v=20261119-1'></script><script src='/molderia.js?v=20261010-2'></script><script src='/estandar.js?v=20261020-1'></script><script src='/proveedores-tela.js?v=20261022-4'></script><script src='/terminos.js?v=20261010-1'></script><script src='/cookies-aviso.js?v=20261010-1'></script><script src='/rh-contratos.js?v=20261009-3'></script><script src='/fichas-resumen.js?v=20261022-2'></script><script src='/api/cartera/cartera.js?v=20261009-1'></script><script src='/trace-ui.js?v=20261118-6'></script><script src='/home-dashboard.js?v=20261110-1'></script><script src='/bodega-dashboard.js?v=20261109-3'></script><script src='/bodegas.js?v=20261009-7'></script><script src='/codigos-barras.js?v=20261014-3'></script><script src='/mis-pedidos.js?v=20261008-1'></script><script src='/crear-cliente.js?v=20261024-31'></script><script src='/pedido-effi.js?v=20261119-2'></script><script src='/pedido-listado.js?v=20261119-13'></script><script src='/instalar-app.js?v=20261115-1'></script><script src='/club-admin.js?v=20261118-38'></script><script src='/mobile-nav.js?v=20261108-1'></script><script src='/nav-liquid.js?v=20261109-1'></script><script src='/build-watch.js?v=20261105-1'></script><script src='/salud.js?v=20261014-2'></script><script src='/alertas.js?v=20261030-1'></script><script src='/bitacora.js?v=20261016-2'></script><script src='/memoria.js?v=20261018-1'></script><script src='/ecommerce.js?v=20261019-1'></script><script src='/zeus.js?v=20261110-3'></script><script src='/minimaximan.js?v=20261023-2'></script><script src='/aviso-agentes.js?v=20261023-5'></script><script src='/descuento-sublimacion.js?v=20261026-1'></script><script src='/stockman.js?v=20261022-30'></script><script src='/draco-panel.js?v=20261021-8'></script><script src='/laser-panel.js?v=20261113-1'></script><script src='/agentes-hub.js?v=20261109-1'></script><script src='/recordar-vista.js?v=20261118-3'></script><script src='/tema.js?v=20261008-1'></script><script src='/tarjeta-iconos.js?v=20261118-1'></script><script src='/confeccion-preparacion.js?v=20261113-2'></script><script src='/confeccion-varias.js?v=20261118-1'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261021-1'></script><script src='/linea-editor.js?v=20261030-1'></script><script src='/lineas-producto-panel.js?v=20261030-1'></script><script src='/menu-cuenta.js?v=20261016-3'></script><script src='/foto-perfil.js?v=20261030-1'></script><script src='/efecto-vidrio.js?v=20261029-1'></script><script src='/motion.js?v=11.18.2'></script><script src='/home-hero.js?v=20261108-5'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab=>tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
+</script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/aplazar-alertas.js?v=20261118-1'></script><script src='/rendimiento.js?v=20261118-1'></script><script src='/liquid-stats.js?v=20261019-1'></script><script src='/nombres-effi.js?v=20261022-2'></script><script src='/permisos.js?v=20261007-2'></script><script src='/reposiciones.js?v=20261019-1'></script><script src='/agentes.js?v=20261107-14'></script><script src='/promedios.js?v=20261109-1'></script><script src='/capacidad.js?v=20261119-1'></script><script src='/molderia.js?v=20261010-2'></script><script src='/estandar.js?v=20261020-1'></script><script src='/proveedores-tela.js?v=20261022-4'></script><script src='/terminos.js?v=20261010-1'></script><script src='/cookies-aviso.js?v=20261010-1'></script><script src='/rh-contratos.js?v=20261009-3'></script><script src='/fichas-resumen.js?v=20261022-2'></script><script src='/api/cartera/cartera.js?v=20261009-1'></script><script src='/trace-ui.js?v=20261118-6'></script><script src='/home-dashboard.js?v=20261110-1'></script><script src='/bodega-dashboard.js?v=20261109-3'></script><script src='/bodegas.js?v=20261009-7'></script><script src='/codigos-barras.js?v=20261014-3'></script><script src='/mis-pedidos.js?v=20261008-1'></script><script src='/crear-cliente.js?v=20261024-31'></script><script src='/pedido-effi.js?v=20261119-5'></script><script src='/pedido-listado.js?v=20261119-19'></script><script src='/instalar-app.js?v=20261115-1'></script><script src='/club-admin.js?v=20261118-38'></script><script src='/mobile-nav.js?v=20261108-1'></script><script src='/nav-liquid.js?v=20261109-1'></script><script src='/build-watch.js?v=20261105-1'></script><script src='/salud.js?v=20261014-2'></script><script src='/alertas.js?v=20261030-1'></script><script src='/bitacora.js?v=20261016-2'></script><script src='/memoria.js?v=20261018-1'></script><script src='/ecommerce.js?v=20261019-1'></script><script src='/zeus.js?v=20261110-3'></script><script src='/minimaximan.js?v=20261023-2'></script><script src='/aviso-agentes.js?v=20261023-5'></script><script src='/descuento-sublimacion.js?v=20261026-1'></script><script src='/stockman.js?v=20261022-30'></script><script src='/draco-panel.js?v=20261021-8'></script><script src='/laser-panel.js?v=20261113-1'></script><script src='/agentes-hub.js?v=20261109-1'></script><script src='/recordar-vista.js?v=20261118-3'></script><script src='/tema.js?v=20261008-1'></script><script src='/tarjeta-iconos.js?v=20261118-1'></script><script src='/confeccion-preparacion.js?v=20261113-2'></script><script src='/confeccion-varias.js?v=20261118-1'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261021-1'></script><script src='/linea-editor.js?v=20261030-1'></script><script src='/lineas-producto-panel.js?v=20261030-1'></script><script src='/menu-cuenta.js?v=20261016-3'></script><script src='/foto-perfil.js?v=20261030-1'></script><script src='/efecto-vidrio.js?v=20261029-1'></script><script src='/motion.js?v=11.18.2'></script><script src='/home-hero.js?v=20261108-5'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab=>tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
 
 
 def ordered_mockup_uploads(extras, slots):
@@ -8493,25 +8507,26 @@ async def programar_pedido_effi(request: Request, usuario=Depends(authenticate))
             except (ValueError, TypeError):
                 continue
     try:
-        pdf_effi = int(str((datos.get('doc') or {}).get('numero') or '')) if codigo_orden.startswith('CO') else None   # las remisiones no tienen PDF por esta vía
+        numero_doc = int(str((datos.get('doc') or {}).get('numero') or ''))
+        pdf_effi = numero_doc if codigo_orden.startswith('CO') else -numero_doc   # remisión: número negativo (ver _pdf_effi_doc)
     except ValueError:
         pdf_effi = None
     datos_effi = None
     if pdf_effi:   # el PDF que creó Effi es OBLIGATORIO: producción lo necesita tal cual. Si todavía no llega, se espera un momento y, si no llega, NO se programa con otro documento.
-        datos_effi = await asyncio.to_thread(effitron_mod.pdf_cotizacion_bytes, pdf_effi)
+        datos_effi = await asyncio.to_thread(_pdf_effi_bytes, pdf_effi)
         if not datos_effi:
             try:
-                await asyncio.to_thread(effitron_mod.solicitar_pdf_cotizacion, pdf_effi)
+                await asyncio.to_thread(_pdf_effi_pedir, pdf_effi)
             except Exception:   # noqa: BLE001
                 logging.getLogger(__name__).exception('No se pudo pedir el PDF de %s', codigo_orden)
             for _ in range(int(os.getenv('PDF_EFFI_ESPERA_SEG', '30'))):
                 await asyncio.sleep(1)
-                datos_effi = await asyncio.to_thread(effitron_mod.pdf_cotizacion_bytes, pdf_effi)
+                datos_effi = await asyncio.to_thread(_pdf_effi_bytes, pdf_effi)
                 if datos_effi:
                     break
         if not datos_effi:
             ag = effitron_mod.agente()
-            raise HTTPException(409, f'Todavía no llega el PDF de Effi de la cotización {pdf_effi}. Es obligatorio para programar (producción usa ese documento tal como lo crea Effi). ' +
+            raise HTTPException(409, f'Todavía no llega el PDF de Effi de {'la remisión' if pdf_effi < 0 else 'la cotización'} {abs(pdf_effi)}. Es obligatorio para programar (producción usa ese documento tal como lo crea Effi). ' +
                                 ('EFFITRON está conectado: espera unos segundos y vuelve a pulsar PROGRAMAR PEDIDO.' if ag.get('conectado') else 'EFFITRON NO está conectado ahora: hay que reconectarlo en el servidor y volver a pulsar PROGRAMAR PEDIDO.'))
         _PDF_EFFI_ORDEN[codigo_orden.upper()] = datos_effi
     _registrar_post_orden(codigo_orden, pdf_effi=pdf_effi, pdf_hecho=False, maestros=maestros, maestros_hecho=False)
@@ -8709,11 +8724,11 @@ def pedido_pdf_estado(codigo: str, usuario=Depends(authenticate)):
     ag = effitron_mod.agente()
     if d.get('pdf_hecho'):
         return {'hecho': True, 'estado': 'listo', 'detalle': 'El PDF de Effi ya está en la carpeta de la orden'}
-    if effitron_mod.pdf_cotizacion_bytes(cot):
+    if _pdf_effi_bytes(cot):
         if d.get('pdf_error'):
             return {'hecho': False, 'estado': 'error', 'detalle': 'El PDF de Effi llegó pero NO se pudo copiar a la carpeta de la NAS: ' + str(d['pdf_error'])}
         return {'hecho': False, 'estado': 'copiando', 'detalle': 'El PDF de Effi llegó al servidor; se está copiando a la NAS'}
-    info = effitron_mod._pdf_pendientes.get(cot) or {}
+    info = effitron_mod._pdf_pendientes.get(effitron_mod._clave(*_pdf_effi_doc(cot))) or {}
     if not ag.get('conectado'):
         return {'hecho': False, 'estado': 'sin_agente', 'detalle': 'EFFITRON no está conectado: no puede bajar el PDF de Effi'}
     if info.get('error'):
@@ -8815,13 +8830,13 @@ def _aplicar_post_orden(codigo: str, diag: list | None = None) -> bool:
         nota('Error al buscar la carpeta en la NAS: ' + str(exc)[:150]); return False
     log = logging.getLogger(__name__)
     if d.get('pdf_hecho') and d.get('pdf_effi'):   # comprobación: nada (p. ej. el programar pedido) debe volver a dejar su propio PDF encima del de Effi
-        buenos = effitron_mod.pdf_cotizacion_bytes(int(d['pdf_effi']))
+        buenos = _pdf_effi_bytes(d['pdf_effi'])
         pdfs = [p for p in carpeta.glob('*.pdf') if p.stem.upper().startswith(codigo.upper())]
         if buenos and (not pdfs or any(p.stat().st_size != len(buenos) for p in pdfs)):
             d['pdf_hecho'] = False; nota('Había otro PDF encima del de Effi: se vuelve a poner el de Effi')
         d.setdefault('pdf_ok_desde', time.time())
     if d.get('pdf_effi') and not d.get('pdf_hecho'):
-        datos = effitron_mod.pdf_cotizacion_bytes(int(d['pdf_effi']))
+        datos = _pdf_effi_bytes(d['pdf_effi'])
         if datos:
             listado = next((x for x in sorted(carpeta.glob('*.xls*')) if x.stem.upper().startswith(codigo.upper()) and not x.name.startswith('~$')), None)   # el PDF lleva el mismo nombre del listado
             err = _dejar_pdf_effi(carpeta, codigo, datos, listado.stem if listado else '')
@@ -8843,7 +8858,7 @@ def _aplicar_post_orden(codigo: str, diag: list | None = None) -> bool:
             if time.time() - d.get('pdf_repedido', 0) > 60:   # se vuelve a pedir cada minuto (también tras agotar intentos) mientras la orden siga con el PDF del panel
                 d['pdf_repedido'] = time.time()
                 try:
-                    est = effitron_mod.solicitar_pdf_cotizacion(int(d['pdf_effi']))
+                    est = _pdf_effi_pedir(d['pdf_effi'])
                     nota('PDF de Effi pedido a EFFITRON (estado: ' + str(est.get('estado')) + ', agente EFFITRON conectado: ' + str(est.get('agente')) + ')')
                 except Exception:   # noqa: BLE001
                     log.exception('No se pudo pedir el PDF de %s', codigo)
@@ -8899,16 +8914,18 @@ def sincronizar_programado(codigo: str, usuario=Depends(authenticate)):
     diag: list = []
     if codigo.startswith('CO') and not d.get('pdf_effi'):
         d['pdf_effi'] = int(codigo[2:])
-    if d.get('pdf_effi') and not effitron_mod.pdf_cotizacion_bytes(int(d['pdf_effi'])):
+    elif codigo.startswith('RM') and not d.get('pdf_effi'):
+        d['pdf_effi'] = -int(codigo[2:])
+    if d.get('pdf_effi') and not _pdf_effi_bytes(d['pdf_effi']):
         try:
-            est = effitron_mod.solicitar_pdf_cotizacion(int(d['pdf_effi']))   # si nunca se bajó, se vuelve a pedir a EFFITRON
+            est = _pdf_effi_pedir(d['pdf_effi'])   # si nunca se bajó, se vuelve a pedir a EFFITRON
             diag.append('PDF de Effi no está en el servidor: se volvió a pedir a EFFITRON (estado: ' + str(est.get('estado')) + ', agente EFFITRON conectado: ' + str(est.get('agente')) + (', detalle: ' + str(est.get('detalle')) if est.get('detalle') else '') + ')')
         except Exception as exc:   # noqa: BLE001
             logging.getLogger(__name__).exception('No se pudo pedir el PDF de %s', codigo)
             diag.append('No pude pedir el PDF a EFFITRON: ' + str(exc)[:150])
     try:   # qué está haciendo EFFITRON ahora y qué fue lo último que dijo (así se ve por qué no llega el PDF)
         ag = effitron_mod.agente()
-        info = effitron_mod._pdf_pendientes.get(int(d['pdf_effi'])) if d.get('pdf_effi') else None
+        info = effitron_mod._pdf_pendientes.get(effitron_mod._clave(*_pdf_effi_doc(d['pdf_effi']))) if d.get('pdf_effi') else None
         diag.append('EFFITRON: ' + ('conectado en ' + (ag.get('equipo') or '?') + ' · estado ' + str(ag.get('estado')) + (' · último mensaje: ' + ag['ultima'] if ag.get('ultima') else '') if ag.get('conectado') else 'NO está conectado (revisa el contenedor del agente en el servidor)')
                     + (' · error del PDF: ' + str(info['error']) if info and info.get('error') else '') + (f" · intentos {info.get('intentos')}" if info else ''))
     except Exception:   # noqa: BLE001

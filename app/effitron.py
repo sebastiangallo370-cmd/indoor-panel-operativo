@@ -64,6 +64,104 @@ def _ahora() -> float:
     return time.time()
 
 
+# ---- PDF de las cotizaciones creadas desde EMPEZAR PEDIDO (pedido_effi.py): se baja el MISMO PDF que genera Effi usando al agente EFFITRON,
+#      que ya tiene la sesión web de Effi. Se reutiliza su protocolo de trabajos «pdf» con un id sintético (PEDIDO_PDF_BASE + número), así no hay que cambiar al agente.
+PEDIDO_PDF_BASE = 900_000_000
+REMISION_PDF_OFFSET = 100_000_000   # id de trabajo = PEDIDO_PDF_BASE + OFFSET + numero, para distinguir remisiones de cotizaciones
+PEDIDO_PDF_DIR = Path(os.getenv('PEDIDO_EFFI_PDF_DIR', '/data/state/pedido_effi_pdf'))
+_pdf_lock = threading.Lock()
+# clave: numero de la cotizacion (positivo) o de la remision (negativo); valor: {'entregada': ts, 'intentos': n, 'error': texto}
+_pdf_pendientes: dict[int, dict] = {}
+
+
+def _doc_normal(doc) -> str:
+    return 'remision' if str(doc or '').lower().startswith('rem') else 'cotizacion'
+
+
+def _clave(doc: str, numero: int) -> int:
+    return -int(numero) if _doc_normal(doc) == 'remision' else int(numero)
+
+
+def pdf_ruta(doc: str, numero: int) -> Path:
+    return PEDIDO_PDF_DIR / f'{_doc_normal(doc)}-{int(numero)}.pdf'
+
+
+def pdf_bytes_doc(doc: str, numero: int) -> bytes | None:
+    f = pdf_ruta(doc, numero)
+    return f.read_bytes() if f.is_file() else None
+
+
+def pdf_cotizacion_ruta(cot_id: int) -> Path:
+    return pdf_ruta('cotizacion', cot_id)
+
+
+def pdf_cotizacion_bytes(cot_id: int) -> bytes | None:
+    return pdf_bytes_doc('cotizacion', cot_id)
+
+
+def solicitar_pdf(doc: str, numero: int) -> dict:
+    """Pide (una sola vez) a EFFITRON el PDF de Effi de la cotizacion o la remision y dice como va: listo, pendiente o error."""
+    numero = int(numero)
+    if pdf_ruta(doc, numero).is_file():
+        return {'estado': 'listo', 'agente': agente()['conectado']}
+    clave = _clave(doc, numero)
+    with _pdf_lock:
+        info = _pdf_pendientes.get(clave)
+        if info is None:
+            info = _pdf_pendientes[clave] = {'entregada': 0.0, 'intentos': 0, 'error': ''}
+        elif info['error'] and info['intentos'] >= MAX_INTENTOS:
+            info.update(intentos=0, error='', entregada=0.0)   # volver a pedirlo (boton REINTENTAR)
+        error = info['error'] if info['intentos'] >= MAX_INTENTOS else ''
+    return {'estado': 'error' if error else 'pendiente', 'agente': agente()['conectado'], 'detalle': error}
+
+
+def solicitar_pdf_cotizacion(cot_id: int) -> dict:
+    return solicitar_pdf('cotizacion', cot_id)
+
+
+def solicitar_pdf_remision(numero: int) -> dict:
+    return solicitar_pdf('remision', numero)
+
+
+def _trabajos_pdf_pedido(cupo: int) -> list[dict]:
+    ahora, salida = _ahora(), []
+    with _pdf_lock:
+        for clave, info in list(_pdf_pendientes.items()):
+            if len(salida) >= cupo:
+                break
+            if info['intentos'] >= MAX_INTENTOS or ahora - info['entregada'] < 120:
+                continue
+            info['entregada'] = ahora
+            if clave < 0:
+                salida.append({'id': PEDIDO_PDF_BASE + REMISION_PDF_OFFSET + (-clave), 'tipo': 'pdf', 'doc': 'remision', 'cot_id': str(-clave)})
+            else:
+                salida.append({'id': PEDIDO_PDF_BASE + clave, 'tipo': 'pdf', 'doc': 'cotizacion', 'cot_id': str(clave)})
+    return salida
+
+
+def _resultado_pdf_pedido(r: dict) -> None:
+    rid = int(r.get('id') or 0) - PEDIDO_PDF_BASE
+    doc, numero = ('remision', rid - REMISION_PDF_OFFSET) if rid >= REMISION_PDF_OFFSET else ('cotizacion', rid)
+    clave = _clave(doc, numero)
+    with _pdf_lock:
+        info = _pdf_pendientes.get(clave)
+    if info is None and not r.get('pdf_b64'):
+        return
+    if r.get('ok') and r.get('pdf_b64'):
+        raw_pdf = base64.b64decode(r['pdf_b64'])
+        if raw_pdf[:4] == b'%PDF' and len(raw_pdf) <= 12 * 1024 * 1024:
+            PEDIDO_PDF_DIR.mkdir(parents=True, exist_ok=True)
+            pdf_ruta(doc, numero).write_bytes(raw_pdf)
+            with _pdf_lock:
+                _pdf_pendientes.pop(clave, None)
+            return
+    with _pdf_lock:
+        if info is not None:
+            info['intentos'] += 1
+            info['entregada'] = 0.0
+            info['error'] = str(r.get('detalle') or 'EFFITRON no pudo bajar el PDF de Effi')[:200]
+
+
 def _plano(t) -> str:
     return re.sub(r'\s+', ' ', str(t or '')).strip().upper()
 
@@ -292,6 +390,9 @@ def _resultado(r: dict) -> None:
     pid = int(r.get('id') or 0)
     if not pid:
         return
+    if pid >= PEDIDO_PDF_BASE:   # PDF de una cotización creada desde EMPEZAR PEDIDO
+        _resultado_pdf_pedido(r)
+        return
     p = _pedido(pid)
     if not p:
         return
@@ -344,9 +445,11 @@ def sondeo(request: Request, payload: dict):
                 else:
                     trabajos.append({'id': r['id'], 'tipo': 'crear', 'cuerpo': json.loads(r['cot_cuerpo'] or '{}'), 'api': {'llave': _llave()}})
                 db.execute("UPDATE club_pedidos SET cot_estado='entregada', cot_entregada_at=? WHERE id=?", (_ahora(), r['id']))
+        if payload.get('puede_trabajar') and len(trabajos) < 3:
+            trabajos += _trabajos_pdf_pedido(3 - len(trabajos))
     return {'trabajos': trabajos}
 
 
 def agente() -> dict:
     vivo = _ahora() - latido['at'] < 60
-    return {'nombre': 'EFFITRON', 'conectado': vivo, 'estado': latido['estado'] if vivo else 'SIN_CONECTAR', 'ultima': latido['ultima'] if vivo else '', 'equipo': latido['equipo']}
+    return {'nombre': 'EFFITRON', 'conectado': vivo, 'estado': latido['estado'] if vivo else 'SIN_CONECTAR', 'ultima': re.sub(r' del pedido #9\d{8}', ' del panel', latido['ultima']) if vivo else '', 'equipo': latido['equipo']}
