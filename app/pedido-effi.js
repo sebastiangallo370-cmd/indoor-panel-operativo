@@ -889,7 +889,7 @@
     const b = q('[data-borrador]'); if (b) { b.classList.add('si'); b.textContent = panel._borradorTxt; }
   }
   const guardarBorradorPronto = debounce(guardarBorrador, 700);
-  function ponerCampos(campos) { Object.entries(campos || {}).forEach(([n, v]) => { const e = q('[name="' + n + '"]'); if (e && v && !e.value) e.value = v; }); }
+  function ponerCampos(campos) { Object.entries(campos || {}).forEach(([n, v]) => { const e = q('[name="' + n + '"]'); if (e && v && (n === 'fecha_entrega' || !e.value)) e.value = v; }); }
   function ofrecerBorrador() {
     const b = leerLS(CLAVE_BORRADOR, null); if (!b || !b.cuando || Date.now() - b.cuando > 7 * 864e5 || q('[data-recuperar]')) return;
     const d = document.createElement('div'); d.className = 'pe-recuperar'; d.dataset.recuperar = '';
@@ -995,13 +995,13 @@
     const doc = { tipo: st.tipo, numero: 'PREVIO', prefijo: '', cliente: { nombre: st.cliente ? st.cliente.nombre : '' }, proyecto: garantiaListado().proyecto, conceptos };
     const lp = st.listadoPrevio || {};
     const porMockups = Math.max(1, ...Object.values(st.mkSel).map(v => (v || []).length));   // tantos diseños como mockups elegidos en el documento
-    window.PedidoListado.abrir(panel, doc, { cat: (st.cat && st.cat.listado) || {}, previo: true, onVolver: volverAlFormulario, preset: { linea: st.linea, proyecto: doc.proyecto, listado: lp.listado, refDatos: lp.refDatos, disenos: Math.max(Number(lp.disenos) || 1, porMockups), observaciones: lp.observaciones } });
+    window.PedidoListado.abrir(panel, doc, { cat: (st.cat && st.cat.listado) || {}, previo: true, onVolver: volverAlFormulario, preset: { linea: st.linea, proyecto: doc.proyecto, listado: lp.listado, refDatos: lp.refDatos, galPick: lp.galPick, disenos: Math.max(Number(lp.disenos) || 1, porMockups), observaciones: lp.observaciones } });
     return true;
   }
   function volverAlFormulario() {
     if (window.PedidoListado && window.PedidoListado.previo && window.PedidoListado.previo()) st.listadoPrevio = window.PedidoListado.datos();
     dibujar();
-    const g = st.guardCampos || {}; Object.entries(g).forEach(([n, v]) => { const e = q('[name="' + n + '"]'); if (e && v && !e.value) e.value = v; });
+    const g = st.guardCampos || {}; Object.entries(g).forEach(([n, v]) => { const e = q('[name="' + n + '"]'); if (e && v && (n === 'fecha_entrega' || !e.value)) e.value = v; });
     const ps = q('[name="proyecto_sel"]'); if (ps && g.garantia && st.proy.lista.includes(g.garantia)) ps.value = g.garantia;
     try { pintarPasos(); } catch (e) { /* nada */ }
     return true;
