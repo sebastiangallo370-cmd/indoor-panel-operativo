@@ -665,6 +665,8 @@
       else if (r.no) { msg = (r.ref || base) + ' no está en Effi: hay que crear ese artículo primero.'; tipo = 'error'; }
       else if (r.ya) { msg = r.ref + ' ya estaba en el documento.'; }
       L.doc.conceptos = window.PedidoEffi.conceptosListado();   // se actualiza en sitio: NO se vuelve a abrir el listado (eso reiniciaba la galería)
+      // las filas de «SIN REFERENCIA» (cotización sin referencia) pasan a la primera referencia que se agrega: no se pierden
+      if (r.ok && r.ref && (L.listado[PH] || []).length && !(L.listado[r.ref] || []).length) { L.listado[r.ref] = L.listado[PH]; delete L.listado[PH]; L.relleno[r.ref] = true; guardarBorrador(); }
       if (r.ref && pr && !String(datosRef(r.ref).proyecto || '').trim()) { L.refDatos = L.refDatos || {}; L.refDatos[r.ref] = Object.assign({}, datosRef(r.ref), { proyecto: pr, nuevo: false }); }
       const rd = (r.ok || r.ya) ? refDocDe(base) : '';   // el mockup va como DISEÑO de su referencia (misma pestaña)
       if (rd) {
@@ -732,6 +734,7 @@
   }
   // sube uno o varios mockups de una vez; cada uno es un diseño, en orden (máximo MAX_DISENOS por referencia)
   function agregarArchivos(ref, files) {
+    if (L.previo && window.PedidoEffi && window.PedidoEffi.guardarListado) window.PedidoEffi.guardarListado();
     const lista = galPick()[ref] = galPick()[ref] || [];
     const fs = [...(files || [])];
     let libres = MAX_DISENOS - lista.length, sinCupo = 0; const malos = [];
@@ -766,7 +769,7 @@
     const lista = galPick()[ref] || [], n = lista.length;
     const elegidos = lista.map((pk, k) => '<div style="display:inline-block;width:96px;margin:0 8px 8px 0;vertical-align:top"><img src="' + esc(URL.createObjectURL(pk.file)) + '" alt="D' + (k + 1) + '" style="width:96px;height:128px;object-fit:contain;border-radius:8px;background:#0b120d;border:2px solid #d0f44c;display:block"><small style="color:#d0f44c;font:800 11px Arial">DISEÑO ' + (k + 1) + '</small>' + '<br>' + selectorDiseno(ref, k, n) + '</div>').join('');
     return (elegidos ? '<div style="margin:0 0 8px">' + elegidos + '</div>' : '') +
-      '<div style="margin:0 0 10px"><button class="pl-btn mini" type="button" data-lote="' + esc(ref) + '"' + (n >= MAX_DISENOS ? ' disabled' : '') + '>SUBIR MOCKUPS (hasta ' + MAX_DISENOS + ' · puedes elegir varios)</button> <small style="color:#a9b5a3">' + n + ' de ' + MAX_DISENOS + ' elegidos</small><input type="file" multiple hidden accept="image/jpeg,image/png,image/webp,image/bmp,image/tiff" data-lote-file></div>';
+      '<div style="margin:0 0 10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap"><button class="pl-btn mini" type="button" style="width:auto;display:inline-block;padding:6px 12px;font-size:11px" data-lote="' + esc(ref) + '"' + (n >= MAX_DISENOS ? ' disabled' : '') + '>SUBIR MOCKUPS</button> <small style="color:#a9b5a3">' + n + ' de ' + MAX_DISENOS + ' elegidos</small><input type="file" multiple hidden accept="image/jpeg,image/png,image/webp,image/bmp,image/tiff" data-lote-file></div>';
   }
   function panelMockupsListado(ref) {
     if (!ref) return '';
@@ -824,6 +827,7 @@
     } catch (e) { setMsg('No pude traer los mockups: ' + (e.message || e), 'error'); }
   }
   async function elegirMaestro(ref, idx) {
+    if (L.previo && window.PedidoEffi && window.PedidoEffi.guardarListado) window.PedidoEffi.guardarListado();
     const i = Number(idx), it = ((L.galItems || {})[ref] || [])[i]; if (!it) return;
     const lista = galPick()[ref] = galPick()[ref] || [];
     const pos = lista.findIndex(pk => pk.idx === i);
@@ -882,13 +886,17 @@
       // AUTOMÁTICO: manda lo último que se cambió. Si el comercial escribió la cantidad en CO/RM, esa manda; si no, mandan las filas del listado
       const manual = !!(window.PedidoEffi && window.PedidoEffi.cantidadManual && window.PedidoEffi.cantidadManual(g.referencia));
       if (manual) {
-        if (filas.length > g.cantidad) {
-          const quitadas = filas.splice(g.cantidad), conDatos = quitadas.filter(f => f.nombre || f.talla || f.numero || f.observacion).length;
-          setMsg('Igualé ' + g.referencia + ' a ' + g.cantidad + ' fila(s) como en CO/RM' + (conDatos ? '. Se quitaron ' + conDatos + ' fila(s) que tenían datos' : '') + '.', conDatos ? 'error' : 'ok');
-          guardarBorrador();
-        }
+        // solo se quitan filas VACÍAS de abajo; las que tienen datos nunca se borran
+        const conDatosFila = f => !!(f && (f.nombre || f.talla || f.numero || f.observacion));
+        let k = filas.length;
+        while (k > g.cantidad && !conDatosFila(filas[k - 1])) k--;
+        if (k < filas.length) { filas.splice(k); guardarBorrador(); }
         while (filas.length < g.cantidad) filas.push(filaVacia());
         window.PedidoEffi.cantidadManual(g.referencia, false);
+        if (filas.length > g.cantidad) {
+          sincronizarCantidad(g.referencia);   // hay filas con datos: la cantidad sube a ese número, no se borra nada
+          setMsg('No bajé ' + g.referencia + ' a ' + g.cantidad + ': hay filas con datos. La cantidad queda en ' + filas.length + '.', 'error');
+        }
       } else if (filas.length !== g.cantidad) {
         sincronizarCantidad(g.referencia);
       }
@@ -1018,6 +1026,7 @@
         f.talla = t; guardarBorrador(); pantallaListado(); return;
       }
       f[c] = e.target.value; if (c === 'diseno') f.diseno = Number(e.target.value);
+      guardarBorrador();
       if (c === 'talla') e.target.classList.toggle('bad', !f.talla);
       guardarBorrador(); estadoListado();
     });
