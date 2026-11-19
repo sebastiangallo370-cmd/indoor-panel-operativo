@@ -748,16 +748,21 @@
     grupos().forEach(g => { max = Math.max(max, (galPick()[g.referencia] || []).length); });
     L.disenos = max;
   }
+  // lo adjuntado para una referencia (o para «sin referencia»): miniaturas, desplegable de diseño (proyecto nuevo) y el botón de lote
+  function subirHtml(ref) {
+    const lista = galPick()[ref] || [], n = lista.length;
+    const elegidos = lista.map((pk, k) => '<div style="display:inline-block;width:96px;margin:0 8px 8px 0;vertical-align:top"><img src="' + esc(URL.createObjectURL(pk.file)) + '" alt="D' + (k + 1) + '" style="width:96px;height:128px;object-fit:contain;border-radius:8px;background:#0b120d;border:2px solid #d0f44c;display:block"><small style="color:#d0f44c;font:800 11px Arial">DISEÑO ' + (k + 1) + '</small>' + '<br>' + selectorDiseno(ref, k, n) + '</div>').join('');
+    return (elegidos ? '<div style="margin:0 0 8px">' + elegidos + '</div>' : '') +
+      '<div style="margin:0 0 10px"><button class="pl-btn mini" type="button" data-lote="' + esc(ref) + '"' + (n >= MAX_DISENOS ? ' disabled' : '') + '>SUBIR MOCKUPS (hasta ' + MAX_DISENOS + ' · puedes elegir varios)</button> <small style="color:#a9b5a3">' + n + ' de ' + MAX_DISENOS + ' elegidos</small><input type="file" multiple hidden accept="image/jpeg,image/png,image/webp,image/bmp,image/tiff" data-lote-file></div>';
+  }
   function panelMockupsListado(ref) {
     if (!ref) return '';
-    if (ref === PH) return '<div class="pl-tarjeta"><h3>MOCKUPS DEL PROYECTO</h3>' + galeriaProyectoHtml(datosRef(PH).proyecto) + '</div>';
+    // «sin referencia» (cotización sin referencia): también puede subir sus mockups
+    if (ref === PH) return '<div class="pl-tarjeta"><h3>MOCKUPS DEL PROYECTO</h3>' + galeriaProyectoHtml(datosRef(PH).proyecto) + '<h3>MOCKUPS ADJUNTOS · SIN REFERENCIA</h3>' + subirHtml(PH) + '</div>';
     const slots = Array.from({ length: L.disenos }, (_, i) => i + 1).filter(n => !imagenDe(ref, n)).map(n => slotHtml(ref, n)).join('');
-    const nuevoProy = proyectoNuevo(ref), nAdj = (galPick()[ref] || []).length;
-    const elegidos = (galPick()[ref] || []).map((pk, k) => '<div style="display:inline-block;width:96px;margin:0 8px 8px 0;vertical-align:top"><img src="' + esc(URL.createObjectURL(pk.file)) + '" alt="D' + (k + 1) + '" style="width:96px;height:128px;object-fit:contain;border-radius:8px;background:#0b120d;border:2px solid #d0f44c;display:block"><small style="color:#d0f44c;font:800 11px Arial">DISEÑO ' + (k + 1) + '</small>' + (nuevoProy ? '<br>' + selectorDiseno(ref, k, nAdj) : '') + '</div>').join('');
     return '<div class="pl-tarjeta"><h3>MOCKUPS DEL PROYECTO · TOCA UNO PARA AGREGARLO</h3>' + galeriaProyectoHtml(datosRef(ref).proyecto) + '<h3>MOCKUPS · ' + esc(ref) + '</h3>' +
       '<div style="margin:0 0 8px"><button class="pl-btn sec mini" type="button" data-galeria="' + esc(ref) + '">VER MOCKUPS DE MAESTROS</button></div>' +
-      (elegidos ? '<div style="margin:0 0 8px">' + elegidos + '</div>' : '') +
-      '<div style="margin:0 0 10px"><button class="pl-btn mini" type="button" data-lote="' + esc(ref) + '"' + ((galPick()[ref] || []).length >= MAX_DISENOS ? ' disabled' : '') + '>SUBIR MOCKUPS (hasta ' + MAX_DISENOS + ' · puedes elegir varios)</button> <small style="color:#a9b5a3">' + (galPick()[ref] || []).length + ' de ' + MAX_DISENOS + ' elegidos</small><input type="file" multiple hidden accept="image/jpeg,image/png,image/webp,image/bmp,image/tiff" data-lote-file></div>' + galeriaHtml(ref) + '<div class="pl-slots">' + slots + '</div></div>';
+      subirHtml(ref) + galeriaHtml(ref) + '<div class="pl-slots">' + slots + '</div></div>';
   }
   function layoutListado() {
     const cuerpo = q('[data-cuerpo]'); if (!cuerpo) return;
