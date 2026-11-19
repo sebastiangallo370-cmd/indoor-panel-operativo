@@ -161,9 +161,17 @@
     return { groups, finished, total: internal.length, state, focus, mine, myPending, doneToday, sheetToday, due, overdue, percent: internal.length ? Math.round(finished / internal.length * 100) : 0 };
   }
   // Días que faltan para la entrega (o de atraso) junto a la fecha de la tarjeta; una orden ya terminada no lo muestra.
+  // DÍAS HÁBILES hasta la entrega, igual que DÍAS ENTREGA FINAL del Sheet (NETWORKDAYS: lunes a viernes, hoy incluido)
+  function diasHabiles(desde, hasta) {
+    const a = new Date(desde.getFullYear(), desde.getMonth(), desde.getDate()), b = new Date(hasta.getFullYear(), hasta.getMonth(), hasta.getDate());
+    const s = b >= a ? 1 : -1;
+    let n = 0;
+    for (let c = new Date(a); ; c.setDate(c.getDate() + s)) { if (c.getDay() % 6) n++; if (c.getTime() === b.getTime()) break; }
+    return s * n;
+  }
   function diasParaEntrega(summary) {
     if (!summary.due || summary.state === 'finished') return '';
-    const hoy = scheduleToday(), dias = Math.round((summary.due.getTime() - hoy.getTime()) / 86400000);
+    const hoy = scheduleToday(), dias = diasHabiles(hoy, summary.due);
     const [texto, tono] = dias < 0 ? [(-dias) + (dias === -1 ? ' Dia de atraso' : ' Dias de atraso'), 'tarde'] : dias === 0 ? ['HOY', 'hoy'] : [dias + (dias === 1 ? ' Dia' : ' Dias'), dias <= 2 ? 'cerca' : 'ok'];
     return ' <b class="trace-dias dias-' + tono + '">' + texto + '</b>';
   }

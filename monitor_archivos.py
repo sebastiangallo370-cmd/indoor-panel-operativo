@@ -1859,13 +1859,22 @@ def procesar_orden(orden, ruta_pdf, config, production_writer=None, write_google
             imagenes.setdefault(ref, {}).update(por_diseno)
         _, imagenes_usadas = crear_excel_listado(header_pdf, items_pdf, ruta_excel, imagenes)
         logging.info(f"Excel del listado creado: {ruta_excel} ({len(imagenes_usadas)} imagen(es) de diseño)")
-        for ruta_img in imagenes_usadas:
+        from concurrent.futures import ThreadPoolExecutor
+
+        def _copiar_imagen(ruta_img):
             try:
                 copiar_archivo(ruta_img, ruta_orden)
-                if os.path.dirname(ruta_img) == carpeta_vigilada:
-                    imagenes_copiadas.append(ruta_img)
+                return ruta_img, None
             except OSError as e:
-                logging.error(f"No se pudo copiar la imagen {ruta_img} a la orden (se deja en la carpeta): {e}")
+                return ruta_img, e
+
+        # en paralelo: la NAS tarda unos 3 s por archivo; así toda la copia cabe en un minuto
+        with ThreadPoolExecutor(max_workers=6) as pool:
+            for ruta_img, err in pool.map(_copiar_imagen, imagenes_usadas):
+                if err is not None:
+                    logging.error(f"No se pudo copiar la imagen {ruta_img} a la orden (se deja en la carpeta): {err}")
+                elif os.path.dirname(ruta_img) == carpeta_vigilada:
+                    imagenes_copiadas.append(ruta_img)
     except Exception:
         logging.exception(f"Orden {orden_num}: no se pudo crear el Excel del listado")
 
@@ -1873,12 +1882,19 @@ def procesar_orden(orden, ruta_pdf, config, production_writer=None, write_google
     guardar_cliente_supabase(cliente_safe, ruta_cliente)
 
     # 6. Hoja de PRODUCCION: una fila por referencia del PDF.
+    # GUARDIA: si la orden YA tiene filas en el Sheet (las escribió el programar pedido con tela, aplique y
+    # línea correctos), no se vuelven a escribir: el PDF no trae esos datos y dejaría filas dobles con datos malos.
+    ya_en_produccion = (write_google_sheets or production_writer) and _orden_en_sheets(orden_num)
+    if ya_en_produccion:
+        logging.info(f"Orden {orden_num} ya está en la hoja de PRODUCCION: no se duplican sus filas")
     for datos in datos_pdf:
         if datos.get("referencia"):
             guardar_referencia_supabase(datos["referencia"], datos.get("proyecto"))
         datos["cliente"] = cliente_safe
         datos["proyecto"] = proyecto_safe
         datos["orden"] = orden_num
+        if ya_en_produccion:
+            continue
         if production_writer:
             production_writer(datos)
         elif write_google_sheets:

@@ -344,7 +344,8 @@
       const f = (o && o.info && o.info[id]) || {};
       const pct = f.percent != null ? f.percent : (o ? o.percent : 0), foco = f.percent != null ? f.focus : (o ? o.focus : null);   // avance de ESTA tarjeta
       const estado = x.estado === 'ERROR' || x.estado === 'REVISAR' ? ['late', 'Error al programar'] : !o ? ['late', x.estado === 'COMPLETADO' ? 'No está en Producción' : 'Programando…'] : pct >= 100 ? ['finished', 'Terminado'] : foco ? [foco.state === 'active' ? 'active' : 'pending', (foco.state === 'active' ? 'En ' : 'Pendiente - ') + foco.label] : ['pending', 'Programado'];
-      const dias = o && o.entrega ? Math.round((o.entrega - new Date().setHours(0, 0, 0, 0)) / 864e5) : null;
+      // DÍAS HÁBILES hasta la entrega, igual que DÍAS ENTREGA FINAL del Sheet (NETWORKDAYS: lunes a viernes, hoy incluido)
+      const dias = o && o.entrega ? ((h, d) => { const a = new Date(h.getFullYear(), h.getMonth(), h.getDate()), b = new Date(d.getFullYear(), d.getMonth(), d.getDate()), s = b >= a ? 1 : -1; let n = 0; for (let c = new Date(a); ; c.setDate(c.getDate() + s)) { if (c.getDay() % 6) n++; if (c.getTime() === b.getTime()) break; } return s * n; })(new Date(), o.entrega) : null;
       const mts = /MTS/i.test(f.mts || '') ? f.mts.split(/\n|<br>/)[0].trim() : '';
       const ruta = o ? '<div class="tp-ruta"><div class="tp-sig"><span>' + esc(foco ? 'Siguiente: ' + foco.label : 'Ruta completada') + '</span><b>' + pct + '% COMPLETADO</b></div><div class="tp-barra"><span style="width:' + pct + '%"></span></div></div>' : '';
       const nasId = ' data-ir-nas="' + esc(x.codigo) + '" data-cliente="' + esc((o && o.cliente) || x.cliente || '') + '"', editId = id ? ' data-puente="full-edit" data-id="' + id + '"' : ' disabled';

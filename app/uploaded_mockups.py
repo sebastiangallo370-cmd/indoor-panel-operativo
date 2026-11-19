@@ -83,9 +83,60 @@ def match_uploads(paths, references):
             if output.tell() > 10 * 1024 * 1024:
                 raise ValueError('Imagen demasiado grande para el listado: ' + path.name)
             slots[design] = (path, output.getvalue(), image.width, image.height)
-    if sum(len(item[1]) for slots in result.values() for item in slots.values()) > 40 * 1024 * 1024:
-        raise ValueError('El conjunto de mockups supera 40 MB')
+    if sum(len(item[1]) for slots in result.values() for item in slots.values()) > 150 * 1024 * 1024:   # hasta 20 diseños por referencia: con fotos grandes se pasaba de 40 MB
+        raise ValueError('El conjunto de mockups supera 150 MB')
     return result, issues
+
+
+def base_col(sheet, shared):
+    """Columna (0 = A) del recuadro «DISEÑO 1» de la fila 2 de la plantilla: AH en la plantilla nueva. Sin ese título, la antigua (S)."""
+    for c in sheet.iter('{' + S + '}c'):
+        m = re.fullmatch(r'([A-Z]+)2', c.get('r', ''))
+        if not m:
+            continue
+        v = c.findtext('{' + S + '}v') or ''.join(t.text or '' for t in c.iter('{' + S + '}t'))
+        if c.get('t') == 's' and v.isdigit() and int(v) < len(shared):
+            v = shared[int(v)]
+        if re.sub(r'\s+', ' ', str(v)).strip().upper() in ('DISEÑO 1', 'DISENO 1'):
+            n = 0
+            for ch in m.group(1):
+                n = n * 26 + ord(ch) - 64
+            return n - 1, (340, 700)
+    return 18, (330, 620)
+
+
+def _medidas(sheet):
+    """Anchos de columna y altos de fila de la hoja, en píxeles (Calibri 11: ancho = carácteres·7+5; alto = puntos·4/3)."""
+    anchos, altos = {}, {}
+    for c in sheet.iter('{' + S + '}col'):
+        for i in range(int(c.get('min', '1')), int(c.get('max', '1')) + 1):
+            anchos[i - 1] = float(c.get('width', '8.43')) * 7 + 5
+    for r in sheet.iter('{' + S + '}row'):
+        if r.get('ht') and r.get('r', '').isdigit():
+            altos[int(r.get('r')) - 1] = float(r.get('ht')) * 4 / 3
+    return anchos, altos
+
+
+def _colocar(sheet, col0, width, height):
+    """Centra la imagen DENTRO del recuadro del diseño (5 columnas desde col0, filas 3 a 27) sin salirse de él.
+    Devuelve (marcas de inicio, escala): la imagen cabe completa y queda en medio del recuadro."""
+    anchos, altos = _medidas(sheet)
+    ancho_col = lambda i: anchos.get(i, 64.0)
+    alto_fila = lambda i: altos.get(i, 20.0)
+    caja_w = sum(ancho_col(col0 + k) for k in range(5))
+    caja_h = sum(alto_fila(2 + k) for k in range(25))
+    escala = min((caja_w - 8) / width, (caja_h - 8) / height)
+    w_px, h_px = width * escala, height * escala
+    x, y = (caja_w - w_px) / 2, (caja_h - h_px) / 2
+    c, r = col0, 2
+    while c < col0 + 4 and x >= ancho_col(c):
+        x -= ancho_col(c)
+        c += 1
+    while r < 26 and y >= alto_fila(r):
+        y -= alto_fila(r)
+        r += 1
+    marcas = [('col', c), ('colOff', int(x * 9525)), ('row', r), ('rowOff', int(y * 9525))]
+    return marcas, escala
 
 
 def embed_uploads(workbook_path, paths, backup_dir, missing_only=False):
@@ -125,12 +176,14 @@ def embed_uploads(workbook_path, paths, backup_dir, missing_only=False):
     book_rels = rels('xl/workbook.xml')
     content = xml('[Content_Types].xml')
     inserted = 0
+    shared = [''.join(t.text or '' for t in si.iter('{' + S + '}t')) for si in xml('xl/sharedStrings.xml').findall('{' + S + '}si')] if 'xl/sharedStrings.xml' in entries else []
     for name, designs in assignments.items():
         part = target_for('xl/workbook.xml', book_rels, sheets[name].get('{'+R+'}id'))
         if not part or part not in entries:
             raise ValueError('Hoja no disponible: ' + name)
         sheet = xml(part)
         sheet_rels = rels(part)
+        base, (max_w, max_h) = base_col(sheet, shared)
         drawing_tag = sheet.find('{'+S+'}drawing')
         drawing_part = target_for(part, sheet_rels, drawing_tag.get('{'+R+'}id')) if drawing_tag is not None else None
         if drawing_tag is not None and not drawing_part:
@@ -159,8 +212,8 @@ def embed_uploads(workbook_path, paths, backup_dir, missing_only=False):
             if marker is not None:
                 col = int(marker.findtext('{'+X+'}col', '-1'))
                 row = int(marker.findtext('{'+X+'}row', '-1'))
-                if 17 <= col <= 42 and 0 <= row <= 100:
-                    existing.setdefault(max(1, round((col-18)/6)+1), []).append(anchor)
+                if base <= col <= base + 6 * 19 + 5 and 0 <= row <= 100:
+                    existing.setdefault(max(1, round((col - base) / 6) + 1), []).append(anchor)
         image_rels = rels(drawing_part)
         for design, (path, data, width, height) in designs.items():
             if missing_only and existing:
@@ -173,11 +226,11 @@ def embed_uploads(workbook_path, paths, backup_dir, missing_only=False):
             rid = 'rIdIndoor' + digest[:20] + str(design)
             if not any(rel.get('Id') == rid for rel in image_rels):
                 ET.SubElement(image_rels, '{'+P+'}Relationship', Id=rid, Type=R+'/image', Target=posixpath.relpath(media, posixpath.dirname(drawing_part)))
+            marcas, scale = _colocar(sheet, base + (design - 1) * 6, width, height)
             anchor = ET.SubElement(drawing, '{'+X+'}oneCellAnchor')
             marker = ET.SubElement(anchor, '{'+X+'}from')
-            for key, value in [('col', 18+(design-1)*6), ('colOff', 0), ('row', 2), ('rowOff', 0)]:
+            for key, value in marcas:
                 ET.SubElement(marker, '{'+X+'}'+key).text = str(value)
-            scale = min(330/width, 620/height)
             ET.SubElement(anchor, '{'+X+'}ext', cx=str(int(width*scale*9525)), cy=str(int(height*scale*9525)))
             picture = ET.SubElement(anchor, '{'+X+'}pic')
             props = ET.SubElement(picture, '{'+X+'}nvPicPr')

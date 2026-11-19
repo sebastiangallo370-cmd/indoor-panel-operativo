@@ -974,6 +974,20 @@
     invalidar();
     return { ok: true, ref: a.referencia };
   }
+  // las referencias del documento tal como las necesita el listado (sin volver a abrirlo)
+  function conceptosListado() {
+    return st.conceptos.filter(l => String(l.ref || '').trim()).map(l => ({ referencia: l.ref, descripcion: l.descripcion, cantidad: num(l.cantidad) }));
+  }
+  // quita del documento la referencia de un mockup que estaba elegido (la línea queda libre para otra)
+  function quitarReferencia(base) {
+    const k = String(base || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+    const l = k ? st.conceptos.find(x => String(x.ref || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase().endsWith(k)) : null;
+    if (!l) return { no: true };
+    st.conceptos = st.conceptos.filter(x => x !== l);
+    if (!st.conceptos.length) st.conceptos.push(lineaVacia());
+    invalidar();
+    return { ok: true, ref: l.ref };
+  }
   function listadoPrevio() {
     if (!window.PedidoListado || st.hecho) return false;   // el listado se abre cuando quieras, en el orden que decidas
     const conceptos = st.conceptos.filter(l => String(l.ref || '').trim()).map(l => ({ referencia: l.ref, descripcion: l.descripcion, cantidad: num(l.cantidad) }));
@@ -981,7 +995,7 @@
     const doc = { tipo: st.tipo, numero: 'PREVIO', prefijo: '', cliente: { nombre: st.cliente ? st.cliente.nombre : '' }, proyecto: garantiaListado().proyecto, conceptos };
     const lp = st.listadoPrevio || {};
     const porMockups = Math.max(1, ...Object.values(st.mkSel).map(v => (v || []).length));   // tantos diseños como mockups elegidos en el documento
-    window.PedidoListado.abrir(panel, doc, { cat: (st.cat && st.cat.listado) || {}, previo: true, onVolver: volverAlFormulario, preset: { linea: st.linea, proyecto: doc.proyecto, listado: lp.listado, disenos: Math.max(Number(lp.disenos) || 1, porMockups), observaciones: lp.observaciones } });
+    window.PedidoListado.abrir(panel, doc, { cat: (st.cat && st.cat.listado) || {}, previo: true, onVolver: volverAlFormulario, preset: { linea: st.linea, proyecto: doc.proyecto, listado: lp.listado, refDatos: lp.refDatos, disenos: Math.max(Number(lp.disenos) || 1, porMockups), observaciones: lp.observaciones } });
     return true;
   }
   function volverAlFormulario() {
@@ -997,7 +1011,7 @@
     if (window.PedidoListado && window.PedidoListado.previo && window.PedidoListado.previo()) st.listadoPrevio = window.PedidoListado.datos();
     return true;
   }
-  window.PedidoEffi = { montar, listadoPrevio, volverAlFormulario, guardarListado, agregarReferencia, fechaEntrega: () => { try { return valor('fecha_entrega') || ''; } catch (e) { return ''; } } };
+  window.PedidoEffi = { montar, listadoPrevio, volverAlFormulario, guardarListado, agregarReferencia, quitarReferencia, conceptosListado, fechaEntrega: () => { try { return valor('fecha_entrega') || ''; } catch (e) { return ''; } } };
 })();
 
 // Avisos en el PC: cuando un comercial programa un pedido, la cuenta «Indoor Sport» recibe una notificación de escritorio.

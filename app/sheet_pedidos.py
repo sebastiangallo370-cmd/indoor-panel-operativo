@@ -150,18 +150,19 @@ def tela_de(ref: str) -> str:
     return nombres.pop() if len(nombres) == 1 else ''
 
 
+def _textura_texto(textura, tipos) -> str:
+    """APLIQUE como se escribe en la columna TEXTURIZADO del Sheet: solo «SI», «NO» o vacío.
+    Los tipos de aplique NO van al Sheet: van en el listado (OBSERVACIONES Y NOTAS)."""
+    textura = str(textura or '').upper()
+    return textura if textura in ('SI', 'NO') else ''
+
+
 def filas_del_pedido(codigo: str, datos: dict, grupos: list) -> list:
-    """Filas de 14 campos: B:L (11), luego RESP (P), TELA (Q) y TEXTURIZADO (T)."""
+    """Filas de 14 campos: B:L (11), luego RESP (P), TELA (Q) y TEXTURIZADO (T). Cada referencia lleva SU línea, proyecto y aplique;
+    si el grupo no los trae, se usan los del documento (pedidos anteriores)."""
     doc = datos.get('doc') or {}
     resp = iniciales_de(str(doc.get('vendedor') or ''))
-    textura = str(datos.get('textura') or '').upper()
-    textura = textura if textura in ('SI', 'NO') else ''
-    tipos = [str(t).strip().upper() for t in (datos.get('tipos') or []) if str(t).strip()]
-    if textura == 'SI' and tipos:
-        textura = 'SI - ' + ', '.join(tipos)
     cliente = doc.get('cliente') or {}
-    linea = str(datos.get('linea') or '').strip().upper()
-    proyecto = str(doc.get('proyecto') or '').strip().upper()
     nombre = str(cliente.get('nombre') or '').strip().upper()
     correo = str(cliente.get('correo') or '').strip()
     obs = str(datos.get('observaciones') or doc.get('observacion') or '').strip()
@@ -170,6 +171,9 @@ def filas_del_pedido(codigo: str, datos: dict, grupos: list) -> list:
     filas = []
     for g in grupos:
         ref = str(g.get('referencia') or '').upper()
+        linea = str(g.get('linea', datos.get('linea')) or '').strip().upper()
+        proyecto = str(g.get('proyecto', doc.get('proyecto')) or '').strip().upper()
+        textura = _textura_texto(g.get('textura', datos.get('textura')), g.get('tipos', datos.get('tipos')))
         filas.append([linea, nombre, proyecto, codigo, correo, ref,
                       int(g.get('cantidad') or 0), '', obs, inicio, entrega, resp, tela_de(ref), textura])
     return filas

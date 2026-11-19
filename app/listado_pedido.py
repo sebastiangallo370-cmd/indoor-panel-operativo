@@ -228,14 +228,15 @@ def _llenar_hoja(ws, doc: dict, g: dict, comercial: str, linea_producto: str) ->
     """Mismo mapa de celdas que club.construir_excels: cabecera en J2:J4, y por prenda NOMBRE(C), TALLA(D), NÚMERO(E), X en DISEÑO (J..O), MASC (P) / FEM (Q), OBSERVACIONES (R)."""
     ws.title = referencia_de({'referencia': g['referencia']}) or 'REFERENCIA'
     ws['J2'] = str((doc.get('cliente') or {}).get('nombre') or '')
-    ws['J3'] = str(doc.get('proyecto') or '')
+    ws['J3'] = str(g.get('proyecto') or doc.get('proyecto') or '')   # cada referencia lleva SU proyecto
     ws['J4'] = comercial
     try:
         ws['J5'] = date.fromisoformat(str(doc.get('fecha_entrega') or '')[:10])   # «FECHA DE ENTREGA» de la plantilla
     except ValueError:
         pass
-    if linea_producto:
-        ws['J6'] = linea_producto
+    linea_g = str(g.get('linea') or linea_producto or '')   # y su línea de producto
+    if linea_g:
+        ws['J6'] = linea_g
     fila, maximo = 8, 1
     for f in sorted(g['filas'], key=lambda x: int(x.get('diseno') or 1)):   # como la skill: cada diseño en su propio bloque, D1 primero, luego D2…
         ws.cell(row=fila, column=3, value=f['nombre'] or None)
@@ -251,7 +252,26 @@ def _llenar_hoja(ws, doc: dict, g: dict, comercial: str, linea_producto: str) ->
             ws.cell(row=fila, column=18, value=obs)
         ws.cell(row=fila, column=16 if f['genero'] == 'MASC' else 17, value='X')
         fila += 1
+    # APLIQUE de la referencia: en el recuadro «OBSERVACIONES Y NOTAS» de cada diseño (fila 29; D1 en AH, D2 en AN… cada 6 columnas)
+    texto = _aplique_texto(g)
+    if texto:
+        from copy import copy
+        from openpyxl.styles import Alignment
+        for d in range(1, min(maximo, 20) + 1):
+            celda = ws.cell(row=29, column=34 + 6 * (d - 1), value=texto)
+            celda.alignment = Alignment(wrap_text=True, horizontal='center', vertical='center')   # centrado en el recuadro
+            fuente = copy(celda.font)
+            fuente.sz = 14   # un poco más grande que el texto normal
+            celda.font = fuente
     return maximo
+
+
+def _aplique_texto(g: dict) -> str:
+    """Lo que va en OBSERVACIONES Y NOTAS: los tipos elegidos, uno por línea; con NO no se escribe nada."""
+    textura = str(g.get('textura') or '').upper()
+    if textura == 'SI':
+        return '\n'.join(str(x).strip().upper() for x in (g.get('tipos') or []) if str(x).strip())
+    return ''   # NO (o sin elegir): no se escribe nada
 
 
 AGRUPAR_FAMILIAS = False   # True = como la skill: A200FUT01 y A200FUT02 en una sola pestaña
@@ -275,7 +295,8 @@ def hojas_por_familia(grupos: list[dict]) -> list[dict]:
         for p in partes:
             filas = [f for d in range(1, MAX_DISENOS + 1) for g in p for f in g['filas'] if int(f.get('diseno') or 1) == d]
             hojas.append({'referencia': '-'.join(g['referencia'] for g in p), 'refs': [g['referencia'] for g in p], 'filas': filas,
-                          'cantidad': sum(g['cantidad'] for g in p)})
+                          'cantidad': sum(g['cantidad'] for g in p), 'proyecto': p[0].get('proyecto', ''), 'linea': p[0].get('linea', ''),
+                          'textura': p[0].get('textura', ''), 'tipos': p[0].get('tipos', [])})   # el APLIQUE de la hoja (las notas del listado lo necesitan)
     return hojas
 
 
@@ -309,6 +330,14 @@ def preparar(datos: dict, plantilla_fn, comercial: str = '') -> dict:
     """Valida y arma los archivos del programar pedido: {'pdf_nombre','pdf','excel_nombre','excel','observaciones','linea'}."""
     doc = datos.get('doc') or {}
     grupos = validar(doc, datos.get('listado') or {})
+    por_ref = datos.get('proyectos') or {}
+    for g in grupos:   # proyecto, línea y APLIQUE son de CADA referencia (si una no los trae, los del documento)
+        p = por_ref.get(g['referencia']) or {}
+        g['proyecto'] = str(p.get('proyecto') or doc.get('proyecto') or '').strip()
+        g['linea'] = str(p.get('linea') or datos.get('linea') or '').strip().upper()[:40]
+        origen = p if 'textura' in p else datos
+        g['textura'] = str(origen.get('textura') or '').upper()
+        g['tipos'] = [str(x).strip().upper() for x in (origen.get('tipos') or []) if str(x).strip()]
     pref, numero = prefijo_numero(doc)
     linea_producto = str(datos.get('linea') or '').strip().upper()[:40]
     nombre_xlsx, xlsx = excel_listado(doc, grupos, plantilla_fn(), comercial or str(doc.get('vendedor') or ''), linea_producto)

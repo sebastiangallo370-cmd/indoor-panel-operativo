@@ -43,7 +43,7 @@
   .pl-cuerpo{flex:1;min-height:0;overflow:auto}
   .pl-btn{min-height:42px;padding:0 20px;border:0;border-radius:12px;background:#d0f44c;color:#142017;font:900 13px Arial;letter-spacing:.05em;cursor:pointer}
   .pl-btn.sec{background:rgba(255,255,255,.1);color:#f5faef}.pl-btn.mini{min-height:34px;padding:0 14px;font-size:12px}.pl-btn:disabled{opacity:.45;cursor:not-allowed}
-  .pl-acciones{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:10px 14px;border:1px solid rgba(255,255,255,.14);border-radius:14px;background:#0b0f09}
+  .pl-acciones{position:sticky;top:8px;z-index:30;display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:10px 14px;border:1px solid rgba(255,255,255,.14);border-radius:14px;background:#0b0f09;box-shadow:0 10px 24px rgba(0,0,0,.55)}
   .pl-acciones .pl-btn{width:auto!important;flex:0 0 auto!important;min-width:200px;min-height:42px;padding:10px 22px;white-space:nowrap}.pl-acciones .pl-msg,.pl-acciones [data-msg]{flex:1 1 220px;min-width:0;margin:0}
   .pl-msg{flex:1 1 260px;font:700 13px/1.45 Arial;color:#a9b5a3;white-space:pre-line}.pl-msg.error{color:#ff9b9b}.pl-msg.ok{color:#bff26a}
   /* réplica de la cotización: la misma hoja que imprime Effi (se ve igual en computador y en celular; en celular se reduce para que quepa) */
@@ -109,7 +109,7 @@
     .pl-tabla td[data-l="NOMBRE"],.pl-tabla td[data-l="OBSERVACIÓN"]{grid-column:1/-1}
     .pl-tabla td[data-l]::before{content:attr(data-l);display:block;font:800 10px Arial;letter-spacing:.08em;color:#a9b5a3;margin-bottom:3px}
     .pl-tabla td:last-child{position:absolute;top:2px;right:4px}.pl-tabla input,.pl-tabla select{min-height:44px;font-size:16px}.pl-tabla-caja{overflow:visible!important}
-    .pl-acciones{position:sticky;bottom:0;z-index:6;box-shadow:0 -8px 18px rgba(0,0,0,.45);padding:8px 10px;gap:6px}.pl-acciones .pl-btn{width:auto!important;flex:1 1 42%!important;min-width:0!important;min-height:28px!important;padding:3px 8px!important;font-size:9px}.pl-acciones p,.pl-acciones [data-msg]{flex:1 1 100%;font-size:12px;margin:0}
+    .pl-acciones{position:sticky;top:6px;z-index:30;box-shadow:0 8px 18px rgba(0,0,0,.45);padding:8px 10px;gap:6px}.pl-acciones .pl-btn{width:auto!important;flex:1 1 42%!important;min-width:0!important;min-height:28px!important;padding:3px 8px!important;font-size:9px}.pl-acciones p,.pl-acciones [data-msg]{flex:1 1 100%;font-size:12px;margin:0}
     .pl-slots{grid-template-columns:1fr!important}.pl-herr{flex-wrap:wrap}.pl-herr .pl-btn{flex:1 1 45%!important}
   }
   @media(max-width:900px){.pl{height:auto}.pl-tabla{min-width:720px}.pl-cuerpo{overflow:visible}.pl-tabla-caja{overflow:auto}}
@@ -250,7 +250,7 @@
     return [...m.values()];
   };
   const claveBorrador = () => 'pedidoListado:' + (L.doc.prefijo || '') + L.doc.numero + (L.doc.numero === 'PREVIO' ? '|' + claveDocumento() : '');
-  const datosRef = ref => { const d = (L.refDatos || {})[ref] || {}; return { proyecto: d.proyecto != null ? d.proyecto : (L.proyecto || ''), linea: d.linea != null ? d.linea : (L.linea || '') }; };
+  const datosRef = ref => { const d = (L.refDatos || {})[ref] || {}; return { proyecto: d.proyecto != null ? d.proyecto : (L.proyecto || ''), linea: d.linea != null ? d.linea : (L.linea || ''), textura: d.textura || '', tipos: Array.isArray(d.tipos) ? d.tipos : [] }; };
   function guardarBorrador() {
     try {
       const galeria = {};
@@ -275,6 +275,7 @@
           const b = await r.blob();
           const ext = (b.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg');
           const lista = galPick()[ref] = galPick()[ref] || [];
+          if (lista.some(pk => pk.nombre === it.nombre)) continue;   // ya está: restaurar dos veces NO debe duplicar el mockup
           lista.push({ idx: it.idx, url: it.url, nombre: it.nombre, file: new File([b], ref + '_D' + (lista.length + 1) + '.' + ext, { type: b.type || 'image/jpeg' }) });
         } catch (e) { /* ese mockup se vuelve a elegir */ }
       }
@@ -291,6 +292,8 @@
     grupos().forEach(g => {
       const f = filasDe(g.referencia);
       if (!String(datosRef(g.referencia).proyecto || '').trim()) out.push(g.referencia + ': escribe el NOMBRE DEL PROYECTO');
+      if (!datosRef(g.referencia).textura) out.push(g.referencia + ': elige si lleva APLIQUE (SÍ o NO)');
+      else if (datosRef(g.referencia).textura === 'SI' && !datosRef(g.referencia).tipos.length) out.push(g.referencia + ': elige el tipo de aplique');
       if (f.length !== g.cantidad) out.push(g.referencia + ': la cotización dice ' + g.cantidad + ' prendas y el listado tiene ' + f.length + (f.length < g.cantidad ? ' (faltan ' + (g.cantidad - f.length) + ')' : ' (sobran ' + (f.length - g.cantidad) + ')'));
       const sinTalla = f.filter(x => !String(x.talla || '').trim()).length, sinGen = f.filter(x => !x.genero).length;
       if (sinTalla) out.push(g.referencia + ': ' + sinTalla + ' prenda(s) sin talla');
@@ -298,7 +301,13 @@
     });
     return out;
   };
-  const slotsNecesarios = () => { const s = []; const refs = L.compartir ? ['*'] : grupos().map(g => g.referencia); refs.forEach(r => { for (let n = 1; n <= L.disenos; n++) s.push([r, n]); }); return s; };
+  // cada referencia pide SUS diseños: los que eligió (mínimo 1). Así una referencia con 1 mockup no exige los de otra con 4.
+  const slotsNecesarios = () => {
+    const s = [];
+    if (L.compartir) { for (let n = 1; n <= L.disenos; n++) s.push(['*', n]); return s; }
+    grupos().forEach(g => { const k = Math.max(1, (galPick()[g.referencia] || []).length); for (let n = 1; n <= k; n++) s.push([g.referencia, n]); });
+    return s;
+  };
   const imagenDe = (ref, n) => (L.imgs[ref] || {})[n];
   const mockupsCompletos = () => slotsNecesarios().every(([r, n]) => imagenDe(r, n));
 
@@ -309,7 +318,9 @@
     const orden = ['doc', 'mockups', 'listado', 'enviado'], i = orden.indexOf(L.pantalla);
     return '<div class="pl-barra"><div class="pl-pasos">' + PASOS.map(([k, t], j) => '<span class="pl-paso ' + (j === i ? 'on' : j < i ? 'hecho' : '') + '">' + t + '</span>').join('') + '</div><span style="color:#a9b5a3;font:700 12px Arial">' + esc((L.doc.tipo === 'remision' ? 'Remisión ' : 'Cotización ') + (L.doc.numero_completo || L.doc.numero)) + ' · ' + esc((L.doc.cliente || {}).nombre) + '</span></div>';
   }
-  function dibujar() {
+  // redibujar NO debe saltar la pantalla arriba: se conserva el desplazamiento de la ventana, de la galería y de las listas
+  function dibujar() { conservarVista(dibujarBase); }
+  function dibujarBase() {
     // la lista de proyectos es del CLIENTE del documento: se pide al abrir y de nuevo si cambia el cliente
     const clienteDoc = (L.doc.cliente && L.doc.cliente.nombre) || '';
     if (clienteDoc && L.proyCliente !== clienteDoc) { L.proyCliente = clienteDoc; L.proyLista = undefined; L.proyCargando = true; cargarProyLista(); }
@@ -325,14 +336,14 @@
         const modoBtn = e.target.closest && e.target.closest('[data-gal-modo]');
         if (modoBtn) { L.galVista = modoBtn.dataset.galModo; conservarVista(dibujar); return; }
         const g = e.target.closest && e.target.closest('[data-galeria]');
-        const pg = e.target.closest && e.target.closest('[data-prog-ref]'); if (pg) { toggleElegido(pg.dataset.progRef); return; }
+        const pg = e.target.closest && e.target.closest('[data-prog-ref]'); if (pg) { toggleElegido(pg.dataset.progRef, pg.dataset.progCarpeta, pg.dataset.progArchivo); return; }
         if (g) { abrirGaleria(g.dataset.galeria); return; }
         const it = e.target.closest && e.target.closest('[data-gal-item]');
         if (it) elegirMaestro(it.dataset.galRef, it.dataset.galItem);
       });
     }
     const p = L.pantalla;
-    raiz.innerHTML = '<div class="pl">' + barra() + '<div class="pl-cuerpo" data-cuerpo></div><div class="pl-acciones" data-acciones></div></div>';
+    raiz.innerHTML = '<div class="pl">' + barra() + '<div class="pl-acciones" data-acciones></div><div class="pl-cuerpo" data-cuerpo></div></div>';   // botones ARRIBA y fijos: se ven aunque se baje
     // Botón con X para cerrar el listado (usa la misma acción de cierre que el resto de la ventana)
     const barraPl = raiz.querySelector('.pl-barra');
     if (barraPl && L.opts && L.opts.onCerrar) {
@@ -496,16 +507,17 @@
     if (!pr) return '<p style="color:#a9b5a3">Elige el proyecto para ver sus mockups.</p>';
     const g = L.galProy;
     if (!g || g.proyecto !== pr || g.items === null) { cargarGaleriaProyecto(pr); return '<p style="color:#a9b5a3">Cargando mockups de ' + esc(pr) + '…</p>'; }
-    if (!g.items.length) return '<p style="color:#a9b5a3">El proyecto ' + esc(pr) + ' no tiene mockups todavía.</p>';
+    if (!g.items.length) return '<p style="color:#ffb4a2;font:800 13px Arial">' + esc(g.motivo || ('El proyecto ' + pr + ' no tiene mockups todavía.')) + '</p>';
     const cliente = (L.doc.cliente && L.doc.cliente.nombre) || '';
     // VISTA PREVIA: solo los mockups seleccionados; VOLVER A SELECCIONAR: todos otra vez para elegir
     const modo = L.galVista === 'seleccion' ? 'seleccion' : 'todos';
-    const mostrar = modo === 'seleccion' ? g.items.filter(i => seleccionadoEn(i.ref)) : g.items;
+    const mostrar = modo === 'seleccion' ? g.items.filter(i => mockupDoc(i.ref, i.archivo)) : g.items;
     // botones de solo icono (el texto queda en el título)
     const bt = (attr, activo, icono, texto) => '<button type="button" ' + attr + ' title="' + texto + '" aria-label="' + texto + '" style="display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;padding:0;border-radius:999px;border:1px solid ' + (activo ? '#d0f44c' : '#2e4a35') + ';background:' + (activo ? '#d0f44c' : '#14231a') + ';color:' + (activo ? '#0b120d' : '#d7e6cf') + ';font:900 16px Arial;line-height:1;cursor:pointer"><span aria-hidden="true">' + icono + '</span></button>';
-    const barra = '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:0 0 10px">' + bt('data-gal-modo="seleccion"', modo === 'seleccion', '◉', 'VISTA PREVIA') + bt('data-gal-modo="todos"', modo === 'todos', '↺', 'VOLVER A SELECCIONAR') + '</div>';
+    const av = avisoGaleria ? '<div style="margin:0 0 8px;font:800 12px Arial;line-height:1.35;color:' + (avisoGaleria.tipo === 'error' ? '#ffb4a2' : '#d0f44c') + '">' + esc(avisoGaleria.t) + '</div>' : '';
+    const barra = av + '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:0 0 10px">' + bt('data-gal-modo="seleccion"', modo === 'seleccion', '◉', 'VISTA PREVIA') + bt('data-gal-modo="todos"', modo === 'todos', '↺', 'VOLVER A SELECCIONAR') + '</div>';
     if (!mostrar.length) return barra + '<p style="color:#a9b5a3">Todavía no hay mockups seleccionados: toca «VOLVER A SELECCIONAR» y elige.</p>';
-    return barra + '<div data-gal-grid style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;max-height:620px;overflow-y:auto;padding:4px 2px">' + mostrar.map(i => '<figure data-prog-ref="' + esc(i.ref) + '" title="Agregar al documento" style="margin:0;min-width:0;cursor:pointer;position:relative;outline:' + (seleccionadoEn(i.ref) ? '3px solid #d0f44c' : 'none') + '"> ' + (seleccionadoEn(i.ref) ? '<span style="position:absolute;top:8px;left:8px;z-index:2;text-align:center;background:#d0f44c;color:#0b120d;border-radius:999px;width:26px;height:26px;line-height:26px;font:800 14px Arial">✓</span>' : '') + '<img loading="lazy" alt="' + esc(i.ref + ' D' + i.diseno) + '" style="width:100%;height:auto;object-fit:contain;border-radius:8px;display:block" src="/api/pedido-effi/mockup-img?cliente=' + encodeURIComponent(cliente) + '&proyecto=' + encodeURIComponent(i.proyecto || pr) + '&carpeta=' + encodeURIComponent(i.carpeta) + '&archivo=' + encodeURIComponent(i.archivo) + '&w=560"><figcaption style="font:800 12px Arial;color:#d0f44c;margin-top:4px">' + esc(refDocDe(i.ref) || refOrdenDe(i.ref) || i.ref) + ' · D' + i.diseno + '</figcaption></figure>').join('') + '</div>';
+    return barra + '<div data-gal-grid style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;max-height:620px;overflow-y:auto;padding:4px 2px">' + mostrar.map(i => '<figure data-prog-ref="' + esc(i.ref) + '" data-prog-carpeta="' + esc(i.carpeta) + '" data-prog-archivo="' + esc(i.archivo) + '" title="' + (mockupDoc(i.ref, i.archivo) ? 'Tocar para quitar este diseño' : 'Tocar para agregar al documento') + '" style="margin:0;min-width:0;cursor:pointer;position:relative;outline:' + (mockupDoc(i.ref, i.archivo) ? '3px solid #d0f44c' : 'none') + '"> ' + (mockupDoc(i.ref, i.archivo) ? '<span style="position:absolute;top:8px;left:8px;z-index:2;text-align:center;background:#d0f44c;color:#0b120d;border-radius:999px;width:26px;height:26px;line-height:26px;font:800 14px Arial">✓</span>' : '') + '<img loading="lazy" alt="' + esc(i.ref + ' D' + i.diseno) + '" style="width:100%;height:auto;object-fit:contain;border-radius:8px;display:block" src="/api/pedido-effi/mockup-img?cliente=' + encodeURIComponent(cliente) + '&proyecto=' + encodeURIComponent(i.proyecto || pr) + '&carpeta=' + encodeURIComponent(i.carpeta) + '&archivo=' + encodeURIComponent(i.archivo) + '&w=560"><figcaption style="font:800 12px Arial;color:#d0f44c;margin-top:4px">' + esc(refDocDe(i.ref) || refOrdenDe(i.ref) || i.ref) + ' · D' + i.diseno + '</figcaption></figure>').join('') + '</div>';
   }
   async function cargarGaleriaProyecto(pr) {
     const cliente = (L.doc.cliente && L.doc.cliente.nombre) || '';
@@ -519,6 +531,7 @@
       const jo = ro ? await ro.json().catch(() => ({})) : {};
       if (!L.galProy || L.galProy.proyecto !== pr) return;   // ya se eligió otro proyecto
       L.galProy.items = Array.isArray(j.items) ? j.items : [];
+      L.galProy.motivo = j.motivo || '';
       L.galProy.ordenes = (jo.ordenes || []).map(o => o.referencia);
     } catch (e) { if (L.galProy && L.galProy.proyecto === pr) L.galProy.items = []; }
     dibujar();
@@ -536,14 +549,58 @@
   }
   // tocar un mockup lo agrega al documento de inmediato; si tocas varios seguidos, se agregan en fila (una cola)
   let colaAgregar = Promise.resolve();
-  function toggleElegido(base) {
-    if (seleccionadoEn(base)) return setMsg((refDocDe(base) || base) + ' ya está en el documento.', 'ok');
-    colaAgregar = colaAgregar.then(() => agregarMockup(base));
+  let avisoGaleria = null;   // lo que pasó con el último mockup tocado (se ve encima de la galería)
+  // cada MOCKUP (referencia + archivo) se elige por separado: el de la misma referencia con otro D# es OTRO diseño de esa pestaña
+  const mockupDoc = (base, archivo) => { const rd = refDocDe(base); return rd && (galPick()[rd] || []).find(pk => pk.nombre === archivo) ? rd : ''; };
+  function toggleElegido(base, carpeta, archivo) {
+    const rd = mockupDoc(base, archivo);
+    if (rd) { colaAgregar = colaAgregar.then(() => quitarDiseno(rd, archivo)); return; }   // tocar otra vez ese mockup lo quita
+    colaAgregar = colaAgregar.then(() => agregarMockup(base, carpeta, archivo));
   }
-  async function agregarMockup(base) {
-    if (!window.PedidoEffi || !window.PedidoEffi.agregarReferencia) return setMsg('No pude conectar con CO/RM.', 'error');
+  // quita de la pestaña el diseño de ese mockup; si era el último de la referencia, también quita la referencia del documento
+  async function quitarDiseno(rd, archivo) {
+    const lista = galPick()[rd] || [];
+    const pos = lista.findIndex(pk => pk.nombre === archivo);
+    if (pos >= 0) lista.splice(pos, 1);
+    sincronizar(rd);
+    if (!lista.length && window.PedidoEffi && window.PedidoEffi.quitarReferencia) {
+      window.PedidoEffi.guardarListado();
+      window.PedidoEffi.quitarReferencia(rd);
+      L.doc.conceptos = window.PedidoEffi.conceptosListado();
+    }
+    avisoGaleria = { t: rd + ': mockup quitado.', tipo: '' };
+    guardarBorrador(); dibujar();
+  }
+  // agrega el mockup como diseño de su referencia (la siguiente pestaña D# de esa referencia), sin volver a abrir el listado
+  async function agregarDisenoMockup(rd, carpeta, archivo) {
+    const pr = String(datosRef(PH).proyecto || '').trim() || String(L.proyecto || '');
+    const cliente = (L.doc.cliente && L.doc.cliente.nombre) || '';
+    const url = '/api/pedido-effi/mockup-img?cliente=' + encodeURIComponent(cliente) + '&proyecto=' + encodeURIComponent(pr) + '&carpeta=' + encodeURIComponent(carpeta) + '&archivo=' + encodeURIComponent(archivo);
+    const r = await fetch(url, { credentials: 'same-origin' }); if (!r.ok) throw new Error('la NAS no entregó la imagen (' + r.status + ')');
+    const b = await r.blob();
+    const lista = galPick()[rd] = galPick()[rd] || [];
+    // GUARDIA: comprobado DESPUÉS de bajar la imagen (dos clics seguidos en el mismo mockup no pueden quedar como dos diseños)
+    if (lista.some(pk => pk.nombre === archivo)) return;
+    lista.push({ idx: null, url, nombre: archivo, file: new File([b], rd + '_D' + (lista.length + 1) + '.jpg', { type: b.type || 'image/jpeg' }) });
+    sincronizar(rd);
+  }
+  async function quitarMockup(base) {
+    if (!window.PedidoEffi || !window.PedidoEffi.quitarReferencia) { avisoGaleria = { t: 'No pude conectar con CO/RM.', tipo: 'error' }; return dibujar(); }
+    avisoGaleria = { t: 'Quitando ' + base + ' del documento…', tipo: '' }; dibujar();
+    try {
+      window.PedidoEffi.guardarListado();   // guarda lo llenado antes de cambiar las referencias
+      const r = window.PedidoEffi.quitarReferencia(base);
+      if (r.no) { avisoGaleria = { t: base + ' ya no está en el documento.', tipo: '' }; return dibujar(); }
+      L.doc.conceptos = window.PedidoEffi.conceptosListado();
+      guardarBorrador();
+      avisoGaleria = { t: r.ref + ' quitado del documento.', tipo: 'ok' };
+      dibujar();
+    } catch (e) { avisoGaleria = { t: 'No pude quitar ' + base + ': ' + (e.message || e), tipo: 'error' }; dibujar(); }
+  }
+  async function agregarMockup(base, carpeta, archivo) {
+    if (!window.PedidoEffi || !window.PedidoEffi.agregarReferencia) { avisoGaleria = { t: 'No pude conectar con CO/RM.', tipo: 'error' }; return dibujar(); }
     const pr = String(datosRef(PH).proyecto || '').trim();
-    setMsg('Agregando ' + base + ' al documento…', '');
+    avisoGaleria = { t: 'Agregando ' + base + ' al documento…', tipo: '' }; dibujar();
     try {
       window.PedidoEffi.guardarListado();   // guarda lo llenado en el listado antes de cambiar las referencias
       const r = await window.PedidoEffi.agregarReferencia(base, pr);
@@ -553,26 +610,34 @@
       else if (r.sinHistorial) { msg = base + ': no hay una orden de este proyecto con esa referencia.'; tipo = 'error'; }
       else if (r.no) { msg = (r.ref || base) + ' no está en Effi: hay que crear ese artículo primero.'; tipo = 'error'; }
       else if (r.ya) { msg = r.ref + ' ya estaba en el documento.'; }
-      window.PedidoEffi.listadoPrevio();
+      L.doc.conceptos = window.PedidoEffi.conceptosListado();   // se actualiza en sitio: NO se vuelve a abrir el listado (eso reiniciaba la galería)
       if (r.ref && pr && !String(datosRef(r.ref).proyecto || '').trim()) { L.refDatos = L.refDatos || {}; L.refDatos[r.ref] = Object.assign({}, datosRef(r.ref), { proyecto: pr, nuevo: false }); }
-      guardarBorrador(); dibujar();
-      setMsg(msg, tipo);
-    } catch (e) { setMsg('No pude agregar ' + base + ': ' + (e.message || e), 'error'); }
+      const rd = (r.ok || r.ya) ? refDocDe(base) : '';   // el mockup va como DISEÑO de su referencia (misma pestaña)
+      if (rd) {
+        await agregarDisenoMockup(rd, carpeta, archivo);
+        msg = archivo + ' → diseño ' + (galPick()[rd] || []).length + ' de ' + rd + (r.ya ? '' : ' (referencia agregada al documento)');
+        tipo = 'ok';
+      }
+      guardarBorrador();
+      avisoGaleria = { t: msg, tipo };
+      dibujar();
+    } catch (e) { avisoGaleria = { t: 'No pude agregar ' + base + ': ' + (e.message || e), tipo: 'error' }; dibujar(); }
   }
   async function cargarProyLista() {
     const cliente = (L.doc.cliente && L.doc.cliente.nombre) || '';
-    let lista = [];
+    let lista = [], motivo = '';
     try {
       for (let intento = 0; intento < 8; intento++) {   // la NAS puede tardar en listar: el servidor responde «pendiente»
         const r = await fetchT('/api/pedido-effi/proyectos?cliente=' + encodeURIComponent(cliente), { credentials: 'same-origin' });
         const j = await r.json().catch(() => ({}));
         if (L.proyCliente !== cliente) return;   // ya se eligió otro cliente
-        if (!j.pendiente) { lista = Array.isArray(j.proyectos) ? j.proyectos.slice() : []; break; }
+        if (!j.pendiente) { lista = Array.isArray(j.proyectos) ? j.proyectos.slice() : []; motivo = j.motivo || ''; break; }
         await new Promise(ok => setTimeout(ok, 1500));
       }
     } catch (e) { lista = []; }
     if (L.proyCliente !== cliente) return;
     L.proyLista = lista; L.proyCargando = false;
+    if (!lista.length && motivo) setMsg(motivo, 'error');   // el comercial ve en el panel por qué no hay proyectos (cliente no encontrado en la NAS)
     // solo se actualizan las opciones: no se vuelve a dibujar la pantalla (así un desplegable abierto no se cierra)
     document.querySelectorAll('[data-ref-proy-sel]').forEach(sel => { if (sel.isConnected && raiz && raiz.contains(sel)) sel.innerHTML = opcionesProyecto(sel.dataset.ref); });
   }
@@ -593,7 +658,8 @@
   const galPick = () => (L.galPick = L.galPick || {});
   // los diseños son los mockups elegidos, en orden: 1, 2, 3… (sin huecos)
   function sincronizar(ref) {
-    const lista = galPick()[ref] || [];
+    // quita duplicados (mismo archivo dos veces) que ya estuvieran guardados en el borrador: cada mockup cuenta UNA vez
+    const lista = galPick()[ref] = (galPick()[ref] || []).filter((pk, i, arr) => !pk.nombre || arr.findIndex(x => x.nombre === pk.nombre) === i);
     L.imgs[ref] = {};
     lista.forEach((pk, k) => { L.imgs[ref][k + 1] = pk.file; });
     ajustarDisenos();
@@ -618,7 +684,7 @@
     const cuerpo = q('[data-cuerpo]'); if (!cuerpo) return;
     if (!document.getElementById('pl-dos-css')) {
       const st = document.createElement('style'); st.id = 'pl-dos-css';
-      st.textContent = '.pl-dos{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(260px,1fr);gap:14px;align-items:start}.pl-der{position:sticky;top:8px;min-width:0}.pl-izq{min-width:0}@media (max-width:900px){.pl-dos{grid-template-columns:1fr}.pl-der{position:static}}.pl-izq .pl-herr{flex-wrap:wrap!important;overflow:visible!important}.pl-izq .pl-herr label{min-width:0}.pl-dos button:focus{outline:none!important}.pl-izq .pl-aplique{flex-wrap:nowrap!important;min-width:0}.pl-izq .pl-aplique [data-tipos]{min-width:170px!important}@media (max-width:700px){.pl-izq .pl-aplique{flex-wrap:wrap!important}}';
+      st.textContent = '.pl-dos{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(260px,1fr);gap:14px;align-items:start}.pl-der{position:sticky;top:8px;min-width:0}.pl-izq{min-width:0}@media (max-width:900px){.pl-dos{grid-template-columns:1fr}.pl-der{position:static}}.pl-izq .pl-herr{flex-wrap:wrap!important;overflow:visible!important}.pl-izq .pl-herr label{min-width:0}.pl-dos button:focus{outline:none!important}.pl-izq .pl-aplique{flex-wrap:nowrap!important;min-width:0}.pl-izq .pl-aplique [data-tipos]{min-width:170px!important}@media (max-width:700px){.pl-izq .pl-aplique{flex-wrap:wrap!important}}@media (min-width:901px){.pl-der [data-gal-grid]{max-height:calc(100vh - 190px)!important;min-height:420px}}';
       document.head.appendChild(st);
     }
     cuerpo.classList.add('pl-dos');
@@ -720,7 +786,7 @@
       '<label>LÍNEA DEL PRODUCTO<select data-ref-linea data-ref="' + esc(g.referencia) + '"><option value="">—</option>' + (L.cat.lineas || []).map(x => '<option' + (x === datosRef(g.referencia).linea ? ' selected' : '') + '>' + esc(x) + '</option>').join('') + '</select></label>' +
       '' +
       '' +
-      '<button class="pl-btn sec mini" type="button" data-mas style="display:inline-flex;align-items:center;gap:6px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>AGREGAR FILA</button><button class="pl-btn sec mini" type="button" data-mas5 style="display:inline-flex;align-items:center;gap:6px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h10"/><path d="M4 12h10"/><path d="M4 18h6"/><path d="M19 15v6"/><path d="M16 18h6"/></svg>AGREGAR 5 FILAS</button><button class="pl-btn sec mini" type="button" data-pegar style="display:inline-flex;align-items:center;gap:6px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4"/><path d="M6.5 9.5 12 4l5.5 5.5"/><path d="M4 16v3.5A.5.5 0 0 0 4.5 20h15a.5.5 0 0 0 .5-.5V16"/></svg>SUBIR ARCHIVO</button><button class="pl-btn sec mini" type="button" data-pegar-texto>PEGAR DESDE EXCEL</button>' + '<div class="pl-aplique" style="display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px;flex:0 0 auto;max-width:100%;order:-1;grid-column:1/-1">' + '<div data-tipos' + ' style="position:relative;min-width:min(220px,100%);order:2;display:' + (L.textura === 'SI' ? 'block' : 'none') + '">' + '<button type="button" data-tipos-btn style="width:100%;min-height:38px;padding:0 10px;border:1px solid #3d4c3b;border-radius:8px;background:#17201a;color:#f4f7fa;font:700 13px Arial;text-align:left;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + ((L.tipos || []).length ? L.tipos.join(', ') : 'TIPO DE APLIQUE') + ' ▾</button>' + '<div data-tipos-panel hidden style="position:absolute;z-index:20;left:0;right:0;top:100%;margin-top:4px;background:#101a12;border:1px solid #3d4c3b;border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:6px;font:700 11px Arial">' + ['TEXTURIZADO TPU', 'BORDADO', 'SELLO PRESTIGIO', 'DTF/VINILO'].map(t => '<label style="display:flex;gap:6px;align-items:center;white-space:nowrap;cursor:pointer;padding:6px 12px;min-height:26px"><input type="checkbox" data-tipo style="display:none" value="' + t + '"' + ((L.tipos || []).includes(t) ? ' checked' : '') + '><span data-chk style="width:14px;color:#d0f44c;font-size:13px">' + ((L.tipos || []).includes(t) ? '✓' : '') + '</span>' + t + '</label>').join('') + '</div></div>' + '<label class="pl-tex" style="margin-left:8px;min-width:120px;max-width:160px;order:1">Aplique *<select data-textura><option value="">Seleccionar…</option><option value="SI"' + (L.textura === 'SI' ? ' selected' : '') + '>SÍ</option><option value="NO"' + (L.textura === 'NO' ? ' selected' : '') + '>NO</option></select></label></div></div>' +
+      '<button class="pl-btn sec mini" type="button" data-mas style="display:inline-flex;align-items:center;gap:6px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>AGREGAR FILA</button><button class="pl-btn sec mini" type="button" data-mas5 style="display:inline-flex;align-items:center;gap:6px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h10"/><path d="M4 12h10"/><path d="M4 18h6"/><path d="M19 15v6"/><path d="M16 18h6"/></svg>AGREGAR 5 FILAS</button><button class="pl-btn sec mini" type="button" data-pegar style="display:inline-flex;align-items:center;gap:6px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4"/><path d="M6.5 9.5 12 4l5.5 5.5"/><path d="M4 16v3.5A.5.5 0 0 0 4.5 20h15a.5.5 0 0 0 .5-.5V16"/></svg>SUBIR ARCHIVO</button><button class="pl-btn sec mini" type="button" data-pegar-texto>PEGAR DESDE EXCEL</button>' + '<div class="pl-aplique" style="display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px;flex:0 0 auto;max-width:100%;order:-1;grid-column:1/-1">' + '<div data-tipos data-ref="' + esc(g.referencia) + '" style="position:relative;min-width:min(220px,100%);order:2;display:' + (datosRef(g.referencia).textura === 'SI' ? 'block' : 'none') + '">' + '<button type="button" data-tipos-btn style="width:100%;min-height:38px;padding:0 10px;border:1px solid #3d4c3b;border-radius:8px;background:#17201a;color:#f4f7fa;font:700 13px Arial;text-align:left;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + ((datosRef(g.referencia).tipos || []).length ? datosRef(g.referencia).tipos.join(', ') : 'TIPO DE APLIQUE') + ' ▾</button>' + '<div data-tipos-panel hidden style="position:absolute;z-index:20;left:0;right:0;top:100%;margin-top:4px;background:#101a12;border:1px solid #3d4c3b;border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:6px;font:700 11px Arial">' + ['TEXTURIZADO TPU', 'BORDADO', 'SELLO PRESTIGIO', 'DTF/VINILO'].map(t => '<label style="display:flex;gap:6px;align-items:center;white-space:nowrap;cursor:pointer;padding:6px 12px;min-height:26px"><input type="checkbox" data-tipo style="display:none" value="' + t + '"' + (datosRef(g.referencia).tipos.includes(t) ? ' checked' : '') + '><span data-chk style="width:14px;color:#d0f44c;font-size:13px">' + (datosRef(g.referencia).tipos.includes(t) ? '✓' : '') + '</span>' + t + '</label>').join('') + '</div></div>' + '<label class="pl-tex" style="margin-left:8px;min-width:120px;max-width:160px;order:1">Aplique *<select data-textura data-ref="' + esc(g.referencia) + '"><option value="">Seleccionar…</option><option value="SI"' + (datosRef(g.referencia).textura === 'SI' ? ' selected' : '') + '>SÍ</option><option value="NO"' + (datosRef(g.referencia).textura === 'NO' ? ' selected' : '') + '>NO</option></select></label></div></div>' +
       '<div class="pl-tabla-caja"><table class="pl-tabla"><thead><tr><th></th><th>NOMBRE</th><th>TALLA *</th><th>NÚMERO</th><th>DISEÑO</th><th>GÉNERO</th><th>OBSERVACIÓN</th><th></th></tr></thead><tbody data-filas>' + filas.map(filaHtml).join('') + '</tbody></table></div></div>';
     if (L.previo) acciones('<button class="pl-btn sec" type="button" data-atras>◀ VOLVER A CO/RM</button><button class="pl-btn" type="button" data-programar disabled>CREA LA COTIZACIÓN PARA PROGRAMAR</button>', '', '');
     else acciones('<button class="pl-btn sec" type="button" data-atras>◀ MOCKUPS</button><button class="pl-btn" type="button" data-programar>PROGRAMAR PEDIDO EN PRODUCCIÓN</button>', '', '');
@@ -737,17 +803,28 @@
       });
     }
     raiz.querySelectorAll('.pl-herr').forEach(hr => { hr.style.flexWrap = window.innerWidth < 1400 ? 'wrap' : 'nowrap'; hr.style.alignItems = 'flex-end'; hr.style.overflow = 'visible'; });
-    raiz.querySelectorAll('[data-textura]').forEach(sel => sel.onchange = e => {
-      L.textura = e.target.value; guardarBorrador();
-      raiz.querySelectorAll('[data-textura]').forEach(o => { o.value = L.textura; });
-      raiz.querySelectorAll('[data-tipos]').forEach(t => { t.style.display = L.textura === 'SI' ? 'block' : 'none'; });   // TIPO DE APLIQUE solo aparece con SÍ, a la derecha de Aplique
-      raiz.querySelectorAll('[data-tipos-panel]').forEach(p => { p.hidden = true; });   // al elegir SÍ/NO la lista se queda cerrada
+    raiz.querySelectorAll('[data-textura]').forEach(sel => sel.onchange = e => {   // el APLIQUE es de CADA referencia: solo cambia la de este desplegable
+      const ref = sel.dataset.ref, v = sel.value, cur = datosRef(ref);
+      L.refDatos = L.refDatos || {};
+      L.refDatos[ref] = Object.assign({}, cur, { textura: v, tipos: v === 'SI' ? cur.tipos : [] });
+      guardarBorrador();
+      const bloque = sel.closest('.pl-aplique');
+      if (bloque) {
+        bloque.querySelectorAll('[data-tipos]').forEach(x => { x.style.display = v === 'SI' ? 'block' : 'none'; });   // TIPO DE APLIQUE solo aparece con SÍ, a la derecha de Aplique
+        bloque.querySelectorAll('[data-tipos-panel]').forEach(p => { p.hidden = true; });   // al elegir SÍ/NO la lista se queda cerrada
+      }
       L.ultimoCambioTextura = Date.now();   // el clic que cierra el desplegable de Aplique no debe abrir la lista
+      estadoListado();
     });
     raiz.querySelectorAll('[data-tipo]').forEach(cb => cb.onchange = () => {
-      L.tipos = [...raiz.querySelectorAll('[data-tipo]:checked')].map(x => x.value);
-      raiz.querySelectorAll('[data-tipo]').forEach(o => { o.checked = L.tipos.includes(o.value); const sp = o.parentElement.querySelector('[data-chk]'); if (sp) sp.textContent = o.checked ? '✓' : ''; });
-      raiz.querySelectorAll('[data-tipos-btn]').forEach(b => { b.textContent = (L.tipos.length ? L.tipos.join(', ') : 'TIPO DE APLIQUE') + ' ▾'; });
+      const cont = cb.closest('[data-tipos]'), ref = cont.dataset.ref;
+      const tipos = [...cont.querySelectorAll('[data-tipo]:checked')].map(x => x.value);
+      L.refDatos = L.refDatos || {};
+      L.refDatos[ref] = Object.assign({}, datosRef(ref), { tipos });
+      guardarBorrador();
+      cont.querySelectorAll('[data-tipo]').forEach(o => { o.checked = tipos.includes(o.value); const sp = o.parentElement.querySelector('[data-chk]'); if (sp) sp.textContent = o.checked ? '✓' : ''; });
+      cont.querySelectorAll('[data-tipos-btn]').forEach(b => { b.textContent = (tipos.length ? tipos.join(', ') : 'TIPO DE APLIQUE') + ' ▾'; });
+      estadoListado();
     });
     // la lista de tipos se cierra al hacer clic fuera de ella (dentro sigue abierta para marcar varias)
     if (!document.getElementById('pl-tipos-css')) {   // el atributo hidden debe ocultar la lista aunque tenga display:flex en línea
@@ -901,8 +978,6 @@
   async function enviar() {
     if (L.enviando) return;
     const f = faltantes(); if (f.length) { setMsg(f.join('\n'), 'error'); return; }
-    if (!L.textura) { alert('Elige si el pedido lleva aplique texturizado, bordado, sellos o basters (SÍ o NO) antes de programar.'); return; }
-    if (L.textura === 'SI' && !(L.tipos || []).length) { alert('Si lleva aplique, elige al menos un tipo: TEXTURIZADO TPU, BORDADO, SELLO PRESTIGIO o DTF/VINILO.'); return; }
     L.enviando = true;
     if (L.mkCarga && L.mkCarga.length) {   // los mockups elegidos en el documento SON los que se insertan: se espera a que terminen de bajar y se exige que estén todos
       setMsg('Preparando los mockups elegidos…', '');
@@ -921,7 +996,7 @@
     // la fecha de entrega es la del documento (la que se escribe en el Google Sheet)
     const fechaDoc = (window.PedidoEffi && window.PedidoEffi.fechaEntrega) ? window.PedidoEffi.fechaEntrega() : '';
     const doc = Object.assign({}, L.doc, { fecha_entrega: fechaDoc || L.doc.fecha_entrega || '', proyecto: String((proyectos[(grupos()[0] || { referencia: '' }).referencia] || {}).proyecto || '').trim(), disenos: L.disenos });
-    const fd = new FormData(); fd.append('payload', JSON.stringify({ doc, listado, proyectos, linea: L.linea, observaciones: L.observaciones, textura: L.textura, tipos: L.textura === 'SI' ? (L.tipos || []) : [] }));
+    const fd = new FormData(); fd.append('payload', JSON.stringify({ doc, listado, proyectos, linea: L.linea, observaciones: L.observaciones, textura: ((proyectos[(grupos()[0] || { referencia: '' }).referencia]) || {}).textura || '', tipos: ((proyectos[(grupos()[0] || { referencia: '' }).referencia]) || {}).tipos || [] }));
     grupos().forEach(g => { for (let n = 1; n <= L.disenos; n++) { const img = imagenDe(L.compartir ? '*' : g.referencia, n); if (img) { fd.append('mockup:' + g.referencia + ':' + n, img, img.name); const mm = (L.mkMaestro || {})[g.referencia + '|' + n]; if (mm) fd.append('maestro:' + g.referencia + ':' + n, JSON.stringify(mm)); } } });   // los de MAESTROS también van con su origen: en la NAS se copian idénticos
     // al pulsar PROGRAMAR PEDIDO el trabajo empieza YA y se ve en pantalla: el listado de Excel que se está creando y cómo avanza cada paso
     L.xlCargado = false; L.xlVista = null;
@@ -1152,6 +1227,8 @@
       Object.entries(pr.listado).forEach(([ref, filas]) => { if (Array.isArray(filas) && filas.some(f => f.nombre || f.talla || f.numero || f.observacion)) { L.listado[String(ref).toUpperCase()] = filas.map(f => Object.assign({}, f)); L.relleno[String(ref).toUpperCase()] = true; } });
       if (pr.observaciones) L.observaciones = pr.observaciones;
     }
+    // LÍNEA, PROYECTO y APLIQUE de cada referencia: se recuperan del listado anterior (si no, la línea volvía a la general)
+    if (pr && pr.refDatos && typeof pr.refDatos === 'object') L.refDatos = Object.assign({}, pr.refDatos, L.refDatos || {});
     if (pr && pr.disenos) L.disenos = Math.min(MAX_DISENOS, Math.max(L.disenos || 1, Number(pr.disenos) || 1));
     if (pr) {   // viene de EMPEZAR PEDIDO con la línea, el proyecto y los mockups ya elegidos: directo al LISTADO (sin pasos de más)
       if (pr.linea) L.linea = pr.linea;

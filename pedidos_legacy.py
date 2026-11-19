@@ -1478,6 +1478,7 @@ def copiar_extras_a_orden(carpeta_monitoreo, ruta_orden, orden, config):
     except OSError as e:
         logging.warning(f"No se pudieron listar los extras de {carpeta_monitoreo}: {e}")
         return copiados
+    candidatos = []
     for nombre in nombres:
         origen = os.path.join(carpeta_monitoreo, nombre)
         if not os.path.isfile(origen) or not es_archivo_extra(nombre, config):
@@ -1485,8 +1486,13 @@ def copiar_extras_a_orden(carpeta_monitoreo, ruta_orden, orden, config):
         de_orden = orden_en_nombre(nombre)
         if de_orden and de_orden != orden:
             continue   # es de otra orden; se reparte cuando esa orden se procese
-        if copiar_extra(origen, ruta_orden):
-            copiados.append(origen)
+        candidatos.append(origen)
+    # en paralelo: la NAS tarda unos 3 s por archivo; así toda la copia cabe en un minuto
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        for origen, ok in pool.map(lambda o: (o, copiar_extra(o, ruta_orden)), candidatos):
+            if ok:
+                copiados.append(origen)
     if copiados:
         logging.info(f"Orden {orden}: {len(copiados)} archivo(s) extra copiados a la carpeta de la orden.")
     return copiados

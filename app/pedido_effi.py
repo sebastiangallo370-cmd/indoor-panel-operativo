@@ -493,6 +493,8 @@ _PALABRAS_SUELTAS = {'SAS', 'SA', 'S', 'A', 'LTDA', 'CIA', 'E', 'U', 'Y', 'DE', 
                      'CORPORACION', 'FUNDACION', 'ASOCIACION', 'LIQUIDACION', 'ESCUELA', 'ACADEMIA', 'COLEGIO'}
 _cache_carpetas: dict = {'t': 0.0, 'nombres': []}
 _cache_proyectos: dict[str, tuple[float, dict]] = {}
+MOTIVO_CLIENTE_NO_ENCONTRADO = 'CLIENTE NO ENCONTRADO EN EL NAS, RENÓMBRALO E INTENTA DE NUEVO'
+MOTIVO_SIN_MAESTROS = 'El cliente está en el NAS pero no tiene la carpeta MAESTROS.'
 CACHE_SEG = 300
 
 
@@ -565,26 +567,23 @@ def proyectos_de_cliente(nombre: str) -> dict:
     if hit and ahora - hit[0] < CACHE_SEG:
         return hit[1]
     raiz = _raiz_clientes()
-    resultado = {'carpeta': None, 'proyectos': []}
-    if raiz is not None:
-        try:
-            carpeta = None
-            for cand in dict.fromkeys([str(nombre).strip(), str(nombre).replace('.', '').strip(), re.sub(r'\s+', ' ', str(nombre)).strip()]):
-                if cand and (raiz / cand).is_dir():
-                    carpeta = cand
-                    break
-            if carpeta is None:
-                carpetas = _carpetas_clientes(raiz)
-                if carpetas is None:
-                    return {'carpeta': None, 'proyectos': [], 'pendiente': True}   # la NAS aún está listando: no se guarda en caché
-                carpeta = carpeta_de_cliente(nombre, carpetas)
-            if carpeta:
-                resultado['carpeta'] = carpeta
-                maestros = next((p for p in (raiz / carpeta).iterdir() if p.is_dir() and p.name.strip().upper() == 'MAESTROS'), None)
-                if maestros is not None:
-                    resultado['proyectos'] = sorted((p.name for p in maestros.iterdir() if p.is_dir() and not p.name.startswith('.')), key=lambda n: n.upper())
-        except OSError:
-            return {'carpeta': None, 'proyectos': [], 'error': 'No pude leer la NAS ahora'}
+    resultado = {'carpeta': None, 'proyectos': [], 'motivo': ''}
+    if raiz is None:
+        return {'carpeta': None, 'proyectos': [], 'motivo': 'No pude leer la NAS ahora.'}
+    # REGLA: se busca SOLO el nombre del cliente (sin parecidos) y los proyectos SIEMPRE dentro de su carpeta MAESTROS
+    try:
+        carpeta = next((cand for cand in dict.fromkeys([str(nombre).strip(), str(nombre).replace('.', '').strip(), re.sub(r'\s+', ' ', str(nombre)).strip()])
+                        if cand and (raiz / cand).is_dir()), None)
+        if carpeta is None:
+            # no se guarda en caché: al renombrar la carpeta en la NAS, el reintento la encuentra de inmediato
+            return {'carpeta': None, 'proyectos': [], 'motivo': MOTIVO_CLIENTE_NO_ENCONTRADO}
+        maestros = next((p for p in (raiz / carpeta).iterdir() if p.is_dir() and p.name.strip().upper() == 'MAESTROS'), None)
+        if maestros is None:
+            resultado.update(carpeta=carpeta, motivo=MOTIVO_SIN_MAESTROS)
+        else:
+            resultado.update(carpeta=carpeta, proyectos=sorted((p.name for p in maestros.iterdir() if p.is_dir() and not p.name.startswith('.')), key=lambda n: n.upper()))
+    except OSError:
+        return {'carpeta': None, 'proyectos': [], 'motivo': 'No pude leer la NAS ahora.'}
     _cache_proyectos[clave] = (ahora, resultado)
     return resultado
 
@@ -642,6 +641,12 @@ def referencias_base(ref: str) -> list[str]:
     return [_plano_ref(p) for p in partes if _plano_ref(p)]
 
 
+def _motivo_proyecto(cliente: str, proyecto: str) -> str:
+    """Qué decirle al comercial cuando no se encuentra el proyecto: el cliente (y su MAESTROS) o el proyecto dentro de MAESTROS."""
+    info = proyectos_de_cliente(cliente)
+    return info.get('motivo') or f'El proyecto {proyecto} no está en la carpeta MAESTROS de {cliente}.'
+
+
 def _dir_proyecto(cliente: str, proyecto: str) -> tuple[Path, str] | None:
     """(carpeta del proyecto, nombre de la carpeta del cliente) o None. Solo carpetas reales dentro de CLIENTE/MAESTROS: sin rutas de otro lado."""
     info = proyectos_de_cliente(cliente)
@@ -680,7 +685,7 @@ def mockups_de(cliente: str, proyecto: str, ref: str) -> dict:
     SOLO del proyecto elegido: si no las tiene, no se muestran las de otro proyecto (se pueden subir con SUBIR MOCKUP)."""
     ubicado = _dir_proyecto(cliente, proyecto)
     if ubicado is None:
-        return {'items': [], 'motivo': 'El proyecto no está en la carpeta MAESTROS del cliente.'}
+        return {'items': [], 'motivo': _motivo_proyecto(cliente, proyecto)}
     carpeta_proyecto, _ = ubicado
     bases = referencias_base(ref)
     try:
@@ -767,7 +772,7 @@ def ordenes_referencia(request: Request, cliente: str = '', proyecto: str = '', 
             info = proyectos_de_cliente(cliente)
         raiz = _raiz_clientes()
         if raiz is None or not info.get('carpeta'):
-            return {'ordenes': [], 'motivo': 'No pude leer la NAS ahora.'}
+            return {'ordenes': [], 'motivo': info.get('motivo') or 'No pude leer la NAS ahora.'}
         base = raiz / info['carpeta']
         ordenes = []
         try:
@@ -803,7 +808,7 @@ def mockups_proyecto(request: Request, cliente: str = '', proyecto: str = ''):
             return hit[1]
         ubicado = _dir_proyecto(cliente, proyecto)
         if ubicado is None:
-            return {'items': [], 'motivo': 'El proyecto no está en la carpeta MAESTROS del cliente.'}
+            return {'items': [], 'motivo': _motivo_proyecto(cliente, proyecto)}
         carpeta_proyecto, _ = ubicado
         items = []
         try:
@@ -819,6 +824,7 @@ def mockups_proyecto(request: Request, cliente: str = '', proyecto: str = ''):
         items.sort(key=lambda i: (i['ref'], i['diseno'], i['archivo'].upper()))
         respuesta = {'items': items[:400], 'motivo': ''}
         _cache_mockups_proyecto[clave_cache] = (time.time(), respuesta)
+        _calentar_miniaturas([carpeta_proyecto / i['carpeta'] / i['archivo'] for i in items[:400]])
         return respuesta
 
 
@@ -859,6 +865,14 @@ def _miniatura(ruta: Path, ancho: int) -> Path | None:
         return destino
     except Exception:  # noqa: BLE001 — si no se puede reducir, se entrega la original
         return None
+
+
+def _calentar_miniaturas(rutas: list) -> None:
+    """Genera en segundo plano las miniaturas de la galería: al abrir un proyecto no hay que esperar a que la NAS entregue cada foto completa."""
+    def trabajo():
+        for r in rutas:
+            _miniatura(r, 560)   # mismo ancho que pide la galería (w=560)
+    _threading.Thread(target=trabajo, daemon=True).start()
 
 
 @router.get('/mockup-img')
