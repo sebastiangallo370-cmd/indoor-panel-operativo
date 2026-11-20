@@ -29,6 +29,21 @@
   var modal = null;
   function cerrar() { if (modal) { modal.remove(); modal = null; } }
 
+  // abre la ventana con las órdenes que ya elegiste en Producción (mismo cliente)
+  async function abrirCon(lista, cliente) {
+    cerrar();
+    modal = document.createElement('div');
+    modal.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(6,10,7,.92);display:flex;align-items:center;justify-content:center;padding:18px';
+    modal.innerHTML = '<div style="width:min(980px,100%);max-height:92vh;overflow:auto;background:#101a13;border:1px solid #2e4a35;border-radius:16px;padding:20px;color:#e8f0e2;font-family:Arial">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><h2 style="margin:0;color:#d0f44c;font-size:18px">ENVIAR A CONFECCIÓN · ' + esc(cliente || '') + '</h2><button type="button" data-cerrar style="border:0;background:transparent;color:#a9b5a3;font-size:22px;cursor:pointer">×</button></div>' +
+      '<p style="color:#a9b5a3;font-size:13px">Cada orden se envía en su propio mensaje, con su precio. Marca las que quieres enviar.</p>' +
+      '<div data-cuerpo></div></div>';
+    document.body.appendChild(modal);
+    modal.querySelector('[data-cerrar]').onclick = cerrar;
+    var ordenes = lista.map(function (x) { return { row: x.row, orden: x.orden, referencia: x.referencia, cantidad: x.cantidad }; });
+    await mostrarOrdenes(ordenes);
+  }
+
   async function abrir() {
     cerrar();
     modal = document.createElement('div');
@@ -101,6 +116,8 @@
     }
     estado.textContent = 'Listo: ' + ok + ' de ' + filas.length + ' órdenes enviadas al agente de Confección.';
   }
+
+  window.ConfeccionVarias = { abrirCon: abrirCon };
 
   // botón en el encabezado del panel de Confección
   function poner() {
