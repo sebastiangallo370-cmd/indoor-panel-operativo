@@ -10,6 +10,8 @@ from typing import Callable
 
 from fastapi import APIRouter, HTTPException, Request
 
+from app import telas_excel
+
 router = APIRouter(prefix='/api/proveedores-tela', tags=['proveedores-tela'])
 _file = Path(os.getenv('PROVEEDORES_TELA_FILE', '/data/state/proveedores_tela.json'))
 _lock = threading.Lock()
@@ -147,7 +149,8 @@ def _prov_inventario(texto) -> str:
 
 
 def telas() -> list[dict]:
-    guardado = _leer()
+    telas_excel.procesar()
+    guardado = telas_excel.combinar(_leer())
     por_codigo: dict[str, dict] = {}
     for i in _items():
         if i.get('categoria') != 'BODEGA TELA':
@@ -314,9 +317,14 @@ def guardar(payload: dict, request: Request):
         else:
             d.pop(codigo, None)
         _guardar(d)
+    try:   # el Excel de costos (hoja TELAS) se actualiza con el mismo cambio
+        cambios = {k: g.get(k, '') for k in payload if k in telas_excel.MAPA}
+        excel = telas_excel.registrar(codigo, cambios, str(g.get('nombre') or ''))
+    except Exception:   # noqa: BLE001 — el panel ya guardó; el Excel se reintenta
+        excel = 'pendiente'
     try:
         from app import tiempo_real
         tiempo_real.avisar('info_tela')   # los agentes se enteran al instante
     except Exception:   # noqa: BLE001
         pass
-    return {'ok': True}
+    return {'ok': True, 'excel': excel}
