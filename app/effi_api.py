@@ -63,6 +63,10 @@ def _peticion(metodo: str, ruta: str, params: dict | None = None, cuerpo: dict |
         mensaje = j.get('mensaje') or {401: 'La API key no es válida o venció (renuévala en Effi: Administración > Usuarios).', 403: 'La API key no tiene permiso para esa función.'}.get(e.code) or f'Effi respondió {e.code}'
         raise EffiError(mensaje, e.code, j)
     except (urllib.error.URLError, TimeoutError, OSError) as e:
+        # Fallo de red (p. ej. apretón TLS que vence): en GET se reintenta una vez; en POST no, para no duplicar documentos.
+        if metodo == 'GET' and reintento:
+            time.sleep(2)
+            return _peticion(metodo, ruta, params, cuerpo, reintento=False)
         raise EffiError(f'No se pudo conectar con la API de Effi: {e}', 0)
 
 
