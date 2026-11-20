@@ -311,6 +311,22 @@
       guardarBorrador();
     }
   }
+  // aviso de arriba del listado: precio de la última programación del proyecto y su orden (ej. 22.000 - CO6071)
+  async function precioAvisos() {
+    if (!window.PedidoEffi || !window.PedidoEffi.precioAnteriorDe) return;
+    L.avisosPrecio = L.avisosPrecio || {};
+    let cambio = false;
+    const refs = [...new Set([...grupos().map(g => g.referencia), ...Object.keys(L.galPick || {}).filter(r => (L.galPick[r] || []).length)])].filter(r => r && r !== PH);
+    for (const ref of refs) {
+      let txt;
+      try {
+        const pa = await window.PedidoEffi.precioAnteriorDe(ref);
+        txt = pa && pa.encontrado ? Number(pa.precio).toLocaleString('es-CO') + ' - ' + pa.numero + (pa.fuente === 'pdf' ? ' (PDF de esa orden)' : ' (cartera)') : 'sin precio anterior en este proyecto';
+      } catch (e) { txt = 'no pude consultar el precio anterior'; }
+      if (L.avisosPrecio[ref] !== txt) { L.avisosPrecio[ref] = txt; cambio = true; }
+    }
+    if (cambio) estadoListado();
+  }
   function sincronizarCantidad(ref) {
     if (!L.previo || !window.PedidoEffi || !window.PedidoEffi.setCantidadRef) return;
     if (window.PedidoEffi.setCantidadRef(ref, filasDe(ref).length)) L.doc.conceptos = window.PedidoEffi.conceptosListado();
@@ -415,8 +431,11 @@
     }
     if (p === 'doc') pantallaDoc(); else if (p === 'mockups') pantallaMockups(); else if (p === 'listado') pantallaListado(); else pantallaEnviado();
   }
-  const acciones = (html, msg, tipo) => { q('[data-acciones]').innerHTML = html + '<div class="pl-msg ' + (tipo || '') + '" data-msg>' + esc(msg || '') + '</div>'; };
-  const setMsg = (t, tipo) => { const m = q('[data-msg]'); if (m) { m.textContent = t || ''; m.className = 'pl-msg ' + (tipo || ''); } };
+  const acciones = (html, msg, tipo) => { q('[data-acciones]').innerHTML = html + '<div class="pl-msg ' + (tipo || '') + '" data-msg>' + esc(msg || '') + '</div>' + '<div class="pl-msg" data-precios style="flex:1 1 340px;min-width:0;margin:0;white-space:pre-line;font:700 12px Arial;color:#d0f44c;text-align:left"></div>'; };
+  // el aviso de precio anterior va SIEMPRE arriba, encima de cualquier otro mensaje
+  const setMsg = (t, tipo) => { const m = q('[data-msg]'); const p = q('[data-precios]'); const lineas = []; Object.entries(L.galPick || {}).forEach(([ref, lista]) => (lista || []).forEach(pk => { const nom = pk && (pk.nombre || (pk.file && pk.file.name)); if (!nom) return; lineas.push(nom + ' → ' + (ref === PH ? 'sin referencia en CO/RM (al agregarla aparece su precio)' : ref + ': ' + ((L.avisosPrecio || {})[ref] || 'buscando precio…'))); })); const faltan = Object.keys(L.galPick || {}).some(r => r !== PH && (L.galPick[r] || []).length && !((L.avisosPrecio || {})[r]));
+    if (faltan) setTimeout(() => precioAvisos(), 0);   // precio que todavía no se ha pedido: se pide y el bloque se actualiza
+    if (p) p.textContent = lineas.join('\n') || Object.entries(L.avisosPrecio || {}).map(([r, x]) => r + ': ' + x).join('\n'); if (m) { m.textContent = t || ''; m.className = 'pl-msg ' + (tipo || ''); } };
 
   // ---------------------------------------------------------------- 1) réplica de la cotización
   const EMPRESA = { nombre: 'INDOOR SPORT SAS', marca: 'INDOOR', nit: '901282105', regimen: 'Régimen ordinario Responsable de IVA', provincia: 'Antioquia', ciudad: 'Itagüí', direccion: 'Calle 45 No 48- 43 Edf Libertador Brr La Gloria', telefonos: '3178861060', email: 'facturacion1indoor@gmail.com' };
@@ -635,6 +654,7 @@
     if (!refDocDe(base)) { colaAgregar = colaAgregar.then(() => agregarMockup(base, carpeta, archivo)); return; }
     const enDoc = refDocDe(base);   // su referencia ya está en el documento: va a su pestaña
     const destino = enDoc || PH;
+    if (enDoc) precioAvisos();
     colaAgregar = colaAgregar.then(async () => {
       try {
         await agregarDisenoMockup(destino, carpeta, archivo);
@@ -709,6 +729,7 @@
         tipo = 'ok';
       }
       guardarBorrador();
+      if (r.ref) precioAvisos();   // precio anterior de todas las referencias
       avisoGaleria = { t: msg, tipo };
       dibujar();
     } catch (e) { avisoGaleria = { t: 'No pude agregar ' + base + ': ' + (e.message || e), tipo: 'error' }; dibujar(); }
@@ -909,6 +930,7 @@
       q('[data-atras]').onclick = () => { if (L.previo) { if (L.opts.onVolver) L.opts.onVolver(); return; } L.pantalla = 'doc'; dibujar(); };
       return;
     }
+    precioAvisos();   // precio anterior de cada referencia (con caché)
     repartirSinReferencia();
     if (!gs.find(g => g.referencia === L.abierta)) L.abierta = gs[0].referencia;
     let g = gs.find(x => x.referencia === L.abierta), filas = filasDe(g.referencia);

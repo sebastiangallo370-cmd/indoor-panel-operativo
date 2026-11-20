@@ -505,11 +505,20 @@
   }
   // REPROGRAMACIÓN: si el cliente ya compró esa referencia, el precio es el de su última venta (no el de lista)
   const precioCache = {};
+  // precio de la última programación de este proyecto (con caché): lo usan el formulario y el listado
+  function precioAnteriorDe(ref) {
+    const cli = st.cliente && st.cliente.nombre, r0 = String(ref || '').trim();
+    if (!cli || !r0) return Promise.resolve(null);
+    const pr = String((garantiaListado() || {}).proyecto || '').trim();
+    const k = cli + '|' + pr + '|' + r0.toUpperCase();
+    return precioCache[k] ? Promise.resolve(precioCache[k]) : api('/api/pedido-effi/precio-anterior?cliente=' + encodeURIComponent(cli) + '&ref=' + encodeURIComponent(r0) + '&proyecto=' + encodeURIComponent(pr)).then(r => (precioCache[k] = r));
+  }
   function aplicarPrecioAnterior(l) {
     const cli = st.cliente && st.cliente.nombre, ref = String(l.ref || '').trim();
     if (!cli || !ref || l.precioManual) return;
-    const k = cli + '|' + ref.toUpperCase();
-    const pedir = precioCache[k] ? Promise.resolve(precioCache[k]) : api('/api/pedido-effi/precio-anterior?cliente=' + encodeURIComponent(cli) + '&ref=' + encodeURIComponent(ref)).then(r => (precioCache[k] = r));
+    const pr = String((garantiaListado() || {}).proyecto || '').trim();   // la última programación de ESE proyecto
+    const k = cli + '|' + pr + '|' + ref.toUpperCase();
+    const pedir = precioCache[k] ? Promise.resolve(precioCache[k]) : api('/api/pedido-effi/precio-anterior?cliente=' + encodeURIComponent(cli) + '&ref=' + encodeURIComponent(ref) + '&proyecto=' + encodeURIComponent(pr)).then(r => (precioCache[k] = r));
     pedir.then(r => {
       if (!r || !r.encontrado || !st.conceptos.includes(l) || String(l.ref || '').trim() !== ref) return;   // ya cambió el artículo o el cliente
       l.precio = String(r.precio);
@@ -1052,7 +1061,7 @@
     if (window.PedidoListado && window.PedidoListado.previo && window.PedidoListado.previo()) st.listadoPrevio = window.PedidoListado.datos();
     return true;
   }
-  window.PedidoEffi = { montar, listadoPrevio, volverAlFormulario, guardarListado, agregarReferencia, quitarReferencia, conceptosListado, setCantidadRef, cantidadManual, fechaEntrega: () => { try { return valor('fecha_entrega') || ''; } catch (e) { return ''; } } };
+  window.PedidoEffi = { montar, listadoPrevio, volverAlFormulario, guardarListado, agregarReferencia, quitarReferencia, conceptosListado, setCantidadRef, cantidadManual, precioAnteriorDe, fechaEntrega: () => { try { return valor('fecha_entrega') || ''; } catch (e) { return ''; } } };
 })();
 
 // Avisos en el PC: cuando un comercial programa un pedido, la cuenta «Indoor Sport» recibe una notificación de escritorio.

@@ -196,6 +196,97 @@ def _ref_diseno(x) -> str:
     return re.sub(r'^[A-Z]\d{2,}(?=[A-Z])', '', _ref_clave(x))
 
 
+_cache_hojas: dict = {}     # ruta del Excel -> (fecha de cambio, pestañas)
+_cache_lineas_pdf: dict = {}   # ruta del PDF -> (fecha de cambio, líneas)
+
+
+def _hojas_cacheadas(ruta: Path) -> list:
+    try:
+        m = ruta.stat().st_mtime
+    except OSError:
+        return []
+    hit = _cache_hojas.get(str(ruta))
+    if hit and hit[0] == m:
+        return hit[1]
+    hojas = _pestanas_xlsx(ruta)
+    _cache_hojas[str(ruta)] = (m, hojas)
+    return hojas
+
+
+def _lineas_pdf_cacheadas(ruta: Path) -> list:
+    from app import effitron
+    try:
+        m = ruta.stat().st_mtime
+    except OSError:
+        return []
+    hit = _cache_lineas_pdf.get(str(ruta))
+    if hit and hit[0] == m:
+        return hit[1]
+    try:
+        lineas = effitron.leer_cotizacion_pdf(ruta)['lineas']
+    except Exception:
+        lineas = []
+    _cache_lineas_pdf[str(ruta)] = (m, lineas)
+    return lineas
+
+
+def _precio_en_pdf_de_orden(ruta_pdf, referencia: str, codigo: str):
+    """Precio unitario de esa referencia dentro del PDF de la orden (la misma cotización/remisión que se programó)."""
+    lineas = _lineas_pdf_cacheadas(ruta_pdf)
+    completa = _ref_clave(referencia)
+    for l in lineas:
+        if _ref_clave(l.get('ref')) == completa and l.get('precio'):
+            return float(l['precio'])
+    for l in lineas:   # misma referencia con otro prefijo en el PDF (A200FUT02 para A100FUT02)
+        if l.get('precio') and _coincide_codigo(_ref_clave(l.get('ref')), codigo):
+            return float(l['precio'])
+    return None
+
+
+def precio_de_ultima_orden(cliente: str, proyecto: str, ref: str):
+    """SIEMPRE la última programación de ESE proyecto (carpeta CO####_PROYECTO o RM####_PROYECTO) que tenga ese diseño:
+    su código completo sale de su listado (pestañas) y su precio, del PDF de esa misma orden. None si no se encuentra."""
+    def norm(x: str) -> str:
+        return ' '.join(str(x).split()).upper()
+    raiz = _raiz_clientes()
+    info = proyectos_de_cliente(cliente)
+    if raiz is None or not info.get('carpeta'):
+        return None
+    base = raiz / info['carpeta']
+    diseno = _ref_diseno(ref)
+    if len(diseno) < 4:
+        return None
+    candidatas = []
+    for carpeta in base.iterdir():
+        m = re.match(r'^(?:CO|RM)(\d+)_(.+)$', carpeta.name, re.I)
+        if m and carpeta.is_dir() and norm(m.group(2)) == norm(proyecto):
+            candidatas.append((int(m.group(1)), carpeta))
+    for numero, carpeta in sorted(candidatas, key=lambda c: -c[0]):
+        ref_orden = None
+        for x in carpeta.iterdir():
+            if not (x.is_file() and x.suffix.lower() in ('.xlsx', '.xlsm')) or x.name.startswith('~$'):
+                continue
+            for hoja in _hojas_cacheadas(x):
+                if norm(hoja) in ('BASE_DATOS', 'REFERENCIA'):
+                    continue
+                h = re.sub(r'-\d+$', '', hoja.strip().upper())
+                if _coincide_codigo(_ref_clave(h), diseno):
+                    ref_orden = h
+                    break
+            if ref_orden:
+                break
+        if not ref_orden:
+            continue   # esa programación no tiene este diseño: se busca la anterior
+        codigo_orden = carpeta.name.split('_')[0].upper()   # solo el PDF de ESA orden (CO3545…), no otros PDF de la carpeta
+        for pdf in sorted(carpeta.iterdir()):
+            if pdf.is_file() and pdf.suffix.lower() == '.pdf' and not pdf.name.startswith('~$') and pdf.name.upper().startswith(codigo_orden):
+                precio = _precio_en_pdf_de_orden(pdf, ref_orden, diseno)
+                if precio:
+                    return {'encontrado': True, 'precio': precio, 'numero': carpeta.name.split('_')[0], 'referencia': ref_orden, 'fecha': '', 'ref': ref_orden, 'fuente': 'pdf'}
+        return None
+    return None
+
+
 def precio_ultima_venta(cliente: str, ref: str) -> dict:
     """Precio unitario de la última venta (no anulada) de ese cliente para esa referencia, desde el registro de cartera."""
     from app import cartera_api
@@ -225,10 +316,24 @@ def precio_ultima_venta(cliente: str, ref: str) -> dict:
     return {'encontrado': mejor is not None, **(mejor or {})}
 
 
+_cache_precios: dict = {}   # (cliente, proyecto, ref) -> (momento, resultado del precio anterior)
+
+
 @router.get('/precio-anterior')
-def precio_anterior(request: Request, cliente: str = '', ref: str = ''):
-    """REPROGRAMACIÓN: el precio con el que ya se le vendió esa referencia a ese cliente."""
+def precio_anterior(request: Request, cliente: str = '', ref: str = '', proyecto: str = ''):
+    """REPROGRAMACIÓN: el precio de la última programación de ese proyecto (su PDF); si no se encuentra, la última venta en cartera."""
     _usuario(request)
+    if proyecto.strip() and len(cliente.strip()) >= 3:
+        # sin candado global (bloqueaba otras búsquedas de la NAS); el resultado se guarda 30 min para no leer los PDFs otra vez
+        clave = (cliente.strip().upper(), proyecto.strip().upper(), ref.strip().upper())
+        hit = _cache_precios.get(clave)
+        if hit and time.time() - hit[0] < 1800:
+            encontrado = hit[1]
+        else:
+            encontrado = precio_de_ultima_orden(cliente, proyecto, ref)
+            _cache_precios[clave] = (time.time(), encontrado)
+        if encontrado:
+            return encontrado
     return precio_ultima_venta(cliente, ref)
 
 
