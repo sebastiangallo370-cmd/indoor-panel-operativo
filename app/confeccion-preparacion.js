@@ -12,6 +12,8 @@
   let panel, tab, production, selectedRow = null, selected = null, mockupBlob = null, anterior = null;
   let pedido = {maker: '', phone: '', price: 0};
 
+  const pedidos = {};   // fila -> datos de esa orden (cada pestaña es independiente)
+
   async function api(url, options = {}) {
     const r = await fetch(url, {cache: 'no-store', credentials: 'same-origin', ...options, headers: {'Content-Type': 'application/json', ...(options.headers || {})}});
     const d = await r.json().catch(() => ({}));
@@ -103,7 +105,7 @@
   .cf-plegable summary::after{content:"▾";color:#d8f86c;transition:transform .2s}
   .cf-plegable[open] summary::after{transform:rotate(180deg)}
   .cf-lista{display:grid;gap:6px;padding:0 10px 10px}
-  .cf-opcion{min-height:38px;border:1px solid rgba(255,255,255,.16);border-radius:10px;background:rgba(255,255,255,.06);color:#f4f8ef;font:700 13px Arial;text-align:left;padding:0 12px;cursor:pointer}
+  .cf-opcion{min-height:30px;border:1px solid rgba(255,255,255,.16);border-radius:10px;background:rgba(255,255,255,.06);color:#f4f8ef;font:700 12px Arial;text-align:left;padding:0 10px;cursor:pointer}
   .cf-opcion:hover,.cf-opcion.on{background:rgba(208,244,76,.16);border-color:rgba(208,244,76,.7)}
   .cf-field{display:grid;gap:6px;font:800 11px Arial;letter-spacing:.08em;color:#d4e1d0;margin-bottom:10px}
   .cf-field input{height:42px;padding:0 12px;border:1px solid rgba(255,255,255,.2);border-radius:12px;background:rgba(0,0,0,.28);color:#f4f8ef;font:700 14px Arial}
@@ -112,7 +114,7 @@
   .cf-checks span{font:800 10px Arial;letter-spacing:.08em;padding:4px 8px;border-radius:999px;background:rgba(255,255,255,.08);color:#c9d3c4}
   .cf-checks span.ok{background:rgba(139,212,80,.22);color:#d6f7b0}
   .cf-text{white-space:pre-wrap;margin:0;color:#f4f8ef;font:13px/1.45 Arial,sans-serif}
-  .cf-acciones button{min-height:46px;width:100%;border:0;border-radius:12px;background:#d0f44c;color:#15200f;font:900 14px Arial;cursor:pointer}
+  .cf-acciones button{min-height:34px;width:100%;border:0;border-radius:12px;background:#d0f44c;color:#15200f;font:900 12px Arial;cursor:pointer}
   .cf-acciones{display:flex;flex-wrap:nowrap;gap:10px;align-items:stretch}
   .cf-acciones button{flex:1 1 0;min-width:0;padding:0 12px}
   .cf-acciones button:disabled{opacity:.4;cursor:not-allowed}
@@ -124,7 +126,7 @@
   .cf-talla span{font:800 11px Arial;letter-spacing:.12em;color:#c9d3c4}
   .cf-talla b{font:900 24px Arial;color:#fff}
   .cf-empty{margin:0;color:#becbbb;font-size:13px}
-  .cf-obs-btn{margin:0 0 10px;padding:8px 14px;border-radius:999px;border:1px solid rgba(230,235,241,.4);background:rgba(230,235,241,.12);color:#f4f7fa;font:800 12px Arial;cursor:pointer}
+  .cf-obs-btn{margin:0 0 10px;padding:5px 10px;border-radius:999px;border:1px solid rgba(230,235,241,.4);background:rgba(230,235,241,.12);color:#f4f7fa;font:800 12px Arial;cursor:pointer}
   .cf-obs-btn:hover{background:rgba(230,235,241,.22)}
   .cf-obs-wrap{display:grid;grid-template-rows:0fr;opacity:0;transition:grid-template-rows .35s cubic-bezier(.2,.8,.2,1),opacity .3s ease,margin .35s ease;margin-bottom:0}
   .cf-obs-wrap.abierto{grid-template-rows:1fr;opacity:1;margin-bottom:10px}
@@ -152,7 +154,7 @@
   .cf-modal-fotos img{width:100%;height:96px;object-fit:contain;border-radius:10px;background:#f6f7f1}
   .cf-modal .cf-text{background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:12px;max-height:240px;overflow:auto}
   .cf-modal-acc{display:grid;grid-template-columns:1fr 1.4fr;gap:8px;margin-top:14px}
-  .cf-modal-acc button{min-height:46px;border-radius:12px;font:900 14px Arial;cursor:pointer}
+  .cf-modal-acc button{min-height:34px;border-radius:12px;font:900 12px Arial;cursor:pointer}
   .cf-modal-acc .cf-sec{background:transparent;border:1px solid rgba(255,255,255,.3);color:#e6efe2}
   .cf-modal-acc .cf-pri{border:0;background:#d0f44c;color:#15200f}
   @keyframes cfFade{from{opacity:0}to{opacity:1}}
@@ -194,7 +196,7 @@
   .cf-checks span{background:rgba(255,255,255,.12);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
   .cf-resumen{background:none;border:0;padding:0;margin:6px 0}
   .cf-text{background:none;border:0;padding:0;color:#f4f8ef}
-  .cf-acciones button{min-height:52px;border-radius:999px;background:rgba(208,244,76,.86);color:#15200f;border:1px solid rgba(255,255,255,.55);backdrop-filter:blur(18px) saturate(1.6);-webkit-backdrop-filter:blur(18px) saturate(1.6);box-shadow:inset 0 1px 0 rgba(255,255,255,.7),0 12px 30px rgba(208,244,76,.25)}
+  .cf-acciones button{min-height:34px;border-radius:999px;font:800 12px Arial;background:rgba(208,244,76,.86);color:#15200f;border:1px solid rgba(255,255,255,.55);backdrop-filter:blur(18px) saturate(1.6);-webkit-backdrop-filter:blur(18px) saturate(1.6);box-shadow:inset 0 1px 0 rgba(255,255,255,.7),0 12px 30px rgba(208,244,76,.25)}
   .cf-tallas-mini .cf-talla{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.22);border-radius:999px;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);box-shadow:inset 0 1px 0 rgba(255,255,255,.35)}
   .cf-talla::after{display:none}
   .cf-modal{background:linear-gradient(160deg,rgba(40,58,40,.55),rgba(14,22,15,.55));backdrop-filter:blur(26px) saturate(1.6);-webkit-backdrop-filter:blur(26px) saturate(1.6);border:1px solid rgba(255,255,255,.3);border-radius:26px;box-shadow:inset 0 1px 0 rgba(255,255,255,.45),0 24px 60px rgba(0,0,0,.45)}
@@ -212,10 +214,10 @@
   .cf-cerrar{display:grid;place-items:center;line-height:1}
   .cf-chip,.cf-opcion,.cf-acciones button,.cf-modal-acc button{display:flex;align-items:center;justify-content:center;text-align:center}
   .cf-opcion{width:100%}
-  .cf-plegable summary{position:relative;display:flex;align-items:center;justify-content:center;gap:10px;text-align:center;min-height:46px;padding:0 44px}
+  .cf-plegable summary{position:relative;display:flex;align-items:center;justify-content:center;gap:10px;text-align:center;min-height:34px;padding:0 44px}
   .cf-plegable summary::after{position:absolute;right:20px;top:50%;margin-top:-.55em}
   .cf-plegable summary span,.cf-plegable summary b{text-align:center}
-  .cf-acciones button{min-height:52px;width:100%}
+  .cf-acciones button{min-height:34px;width:100%;font-size:12px}
   .cf-datos .cf-dato{text-align:center}
   .cf-tallas-mini .cf-talla{display:flex;flex-direction:column;align-items:center;justify-content:center}
   .cf-fotos{grid-template-columns:repeat(var(--cols,3),var(--cell,220px));justify-content:start}
@@ -270,6 +272,7 @@
       price: Number(prep.precio_prenda) || 0,
       observaciones: ''
     };
+    if (pedidos[selectedRow]) pedido = pedidos[selectedRow];   // lo que ya se escribió en esta pestaña
   }
 
   function details() {
@@ -329,6 +332,7 @@
       `<option value="${r.source_row}">${esc([field(r, 'ORDEN'), field(r, 'REFERENCIA'), field(r, 'NOMBRE DEL CLIENTE')].filter(Boolean).join(' · '))}</option>`).join('')}</select></label>`;
     panel.innerHTML = `<div class="cf-shell"><div class="cf-tabbar"><span class="cf-chip"><i>CF</i>CONFECCIÓN</span><button type="button" class="cf-cerrar" data-close aria-label="Cerrar" title="Cerrar"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" fill="none"/></svg></button></div>${selector}<div data-detail>${details()}</div></div>`;
     panel.querySelector('[data-close]').onclick = cerrar;
+    pintarPestanas();
     bind();
     ajustarMockups();
   }
@@ -340,6 +344,7 @@
 
   // Se actualiza en cada cambio: el resumen, las comprobaciones y el botón.
   function actualizar() {
+    if (selectedRow && pedido) pedidos[selectedRow] = pedido;
     if (!panel || !selected) return;
     const resumen = panel.querySelector('[data-resumen]');
     if (resumen) resumen.textContent = mensaje(pedido.maker, pedido.price);
@@ -463,7 +468,10 @@
     }
   }
 
-  async function enviar() {
+  // Envía el mensaje de la pestaña activa; devuelve 'ok', 'fallo', 'error' o 'sin_confirmar'
+  function enviar() { return new Promise(done => { enviarCon(done).catch(() => done('error')); }); }
+
+  async function enviarCon(done) {
     const status = panel.querySelector('[data-status]');
     const boton = panel.querySelector('[data-send]');
     const {maker, phone, price} = pedido;
@@ -479,6 +487,7 @@
     } catch (error) {
       boton.disabled = !listo();
       status.textContent = error.message;
+      done('error');
       return;
     }
     // Extensión de WhatsApp: abre el chat en la pestaña de WhatsApp Web y adjunta los mockups (sin enviar)
@@ -497,6 +506,7 @@
           ? 'WhatsApp Web no está abierto en este Chrome. Ábrelo con el WhatsApp de confección y vuelve a pulsar Enviar a confección.'
           : (d.error || 'No se pudo preparar el chat.') + ' Si lo necesitas, pega el mockup con Ctrl+V.');
       if (!d.ok || !(d.attached > 0)) mostrarDescargas(mockups);
+      done(d.ok ? 'ok' : 'fallo');
     };
     window.addEventListener('indoor:whatsapp-confeccion:resultado', alResultado);
     const registro = {source_row: selectedRow, orden: selected.orden || '', referencia: selected.referencia || '', cliente: selected.cliente || '', confeccionista: maker, whatsapp: intl, unidades: Number(selected.cantidad) || 0, precio: Number(price) || 0};
@@ -508,6 +518,7 @@
       boton.disabled = !listo();
       status.textContent = 'WhatsApp todavía no confirma los mockups. Revisa el chat; si el mockup no aparece, usa los enlaces de abajo.';
       mostrarDescargas(mockups);
+      done('sin_confirmar');
     }, 45000);
   }
 
@@ -516,6 +527,150 @@
 
   // Animación mientras se abre Confección desde la tarjeta (carga la orden, mockups y curva)
   const CARGA_HTML = '<div class="cf-carga" role="status" aria-label="Cargando Confección"><img class="cf-carga-logo" src="/marca-indoor.svg" alt="Indoor Sport"><div class="cf-carga-barra"><i></i></div><p>Cargando la orden…</p></div>';
+
+  function pintarPestanas() {
+    const lista = window.__confLista;
+    if (!lista || lista.length < 2 || !panel) return;
+    const barra = document.createElement('div');
+    barra.className = 'cf-pestanas';
+    barra.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px';
+    const etiqueta = id => { const r = (production?.rows || []).find(x => Number(x.source_row) === Number(id)); return r ? field(r, 'ORDEN') + ' · ' + field(r, 'REFERENCIA') : 'Fila ' + id; };
+    barra.innerHTML = lista.map(id => {
+      const r = (production?.rows || []).find(x => Number(x.source_row) === Number(id));
+      const texto = r ? field(r, 'ORDEN') + ' · ' + field(r, 'REFERENCIA') : 'Fila ' + id;
+      const on = Number(id) === Number(selectedRow);
+      return `<button type="button" data-tab="${id}" style="width:auto;flex:0 0 auto;padding:5px 10px;border-radius:999px;border:1px solid #2e4a35;background:${on ? '#d0f44c' : '#0b130d'};color:${on ? '#13210b' : '#e8f0e2'};font:700 12px Arial;cursor:pointer">${esc(texto)}</button>`;
+    }).join('') + '<button type="button" data-masivo style="margin-left:auto;width:auto;padding:5px 12px;border-radius:999px;border:0;background:#d0f44c;color:#13210b;font:800 12px Arial;cursor:pointer">ENVIAR MASIVAMENTE</button><button type="button" data-registrar-todo style="margin-left:6px;width:auto;padding:5px 12px;border-radius:999px;border:1px solid #d0f44c;background:transparent;color:#d0f44c;font:800 12px Arial;cursor:pointer">REGISTRAR TODO</button>';
+    const cabecera = panel.querySelector('.cf-tabbar');
+    if (cabecera) cabecera.insertAdjacentElement('afterend', barra);
+    barra.querySelectorAll('[data-tab]').forEach(b => { b.onclick = () => cambiarPestana(Number(b.dataset.tab)); });
+    barra.querySelector('[data-registrar-todo]').onclick = () => registrarTodo();
+    barra.querySelector('[data-masivo]').onclick = () => { if (masivoActivo) { masivoCancelado = true; const st = panel.querySelector('[data-status]'); if (st) st.textContent = 'Se detendrá después del mensaje actual.'; } else { enviarMasivo(); } };
+  }
+
+  // Envía un mensaje por cada pestaña: carga uno, espera a que lo envíes en WhatsApp y recién carga el siguiente
+  // Descripción del producto, tomada de la ficha técnica de la referencia
+  async function descripcionDe(ref) {
+    if (!ref) return '';
+    try {
+      const r = await api('/api/fichas/resumen?ref=' + encodeURIComponent(ref));
+      const ficha = (r.fichas || [])[0];
+      return ficha ? (ficha.descripcion || []).map(d => String(d || '').trim()).filter(d => d && !/\bM\d\s*(?:\([^)]*\))?\s*[:\-]/i.test(d)).join('. ') : '';
+    } catch (_) { return ''; }
+  }
+
+  // Muestra la tabla de lo que se va a registrar en contabilidad de confección; devuelve true si confirman
+  function confirmarRegistroTodo(filas, faltan) {
+    return new Promise(resolver => {
+      document.querySelector('.cf-confirm')?.remove();
+      const cab = ['NOMBRE DEL CLIENTE (PROYECTO)', 'COTIZACIÓN', 'REFERENCIA', 'DESCRIPCIÓN DEL PRODUCTO', 'FECHA ENVÍO', 'FECHA ENTREGA', 'ENTREGA AL CLIENTE', 'UNIDADES ENVIADAS', 'UNIDADES RECIBIDAS', 'VALOR UNIDAD'];
+      const cuerpo = filas.map(f => {
+        const p = f.payload;
+        const hoy = new Date().toLocaleDateString('es-CO');
+        const celdas = [p.cliente, p.orden, p.referencia, f.descripcion || '', hoy, '', '—', p.unidades, '', pesos(p.precio)];
+        return '<tr>' + celdas.map(c => '<td>' + esc(String(c)) + '</td>').join('') + '</tr>';
+      }).join('');
+      const ov = document.createElement('div');
+      ov.className = 'cf-confirm';
+      ov.innerHTML = '<div class="cf-modal" role="dialog" aria-modal="true" aria-label="Confirmar registro en contabilidad" style="max-width:min(1000px,96vw)">' +
+        '<style>.cf-reg th{text-align:left;padding:6px 8px;border-bottom:1px solid #2e4a35;color:#d0f44c;white-space:nowrap;font-size:11px}.cf-reg td{padding:6px 8px;border-bottom:1px solid rgba(255,255,255,.08);white-space:nowrap;font-size:12px}</style>' +
+        '<h3>Confirmar registro en contabilidad de confección</h3>' +
+        '<p style="margin:0 0 10px;font-size:12px;color:#a9b5a3">Se registran ' + filas.length + ' órdenes. No se envía ningún WhatsApp.' + (faltan.length ? ' Se omiten por faltar datos: ' + esc(faltan.join(', ')) + '.' : '') + '</p>' +
+        '<div style="overflow-x:auto"><table class="cf-reg" style="width:100%;border-collapse:collapse"><thead><tr>' + cab.map(c => '<th>' + c + '</th>').join('') + '</tr></thead><tbody>' + cuerpo + '</tbody></table></div>' +
+        '<div class="cf-modal-acc"><button type="button" class="cf-sec" data-cancel>Cancelar</button><button type="button" class="cf-pri" data-ok>Confirmar y registrar</button></div>' +
+        '</div>';
+      document.body.appendChild(ov);
+      const cerrar = valor => { ov.remove(); resolver(valor); };
+      ov.querySelector('[data-cancel]').onclick = () => cerrar(false);
+      ov.querySelector('[data-ok]').onclick = () => cerrar(true);
+      ov.addEventListener('click', e => { if (e.target === ov) cerrar(false); });
+    });
+  }
+
+  // Registra en contabilidad de confección todas las órdenes de la barra (sin enviar WhatsApp)
+  async function registrarTodo() {
+    const ids = (window.__confLista || []).slice();
+    if (!ids.length || !panel || masivoActivo) return;
+    if (selectedRow && pedido) pedidos[selectedRow] = pedido;
+    const etiqueta = id => { const r = (production?.rows || []).find(x => Number(x.source_row) === Number(id)); return r ? field(r, 'ORDEN') + ' · ' + field(r, 'REFERENCIA') : 'Fila ' + id; };
+    const estado = txt => { const st = panel.querySelector('[data-status]'); if (st) st.textContent = txt; };
+    // Primero se reúnen los datos de todas las pestañas, para mostrar la tabla completa
+    const filas = [], faltan = [];
+    for (const id of ids) {
+      await cambiarPestana(id);
+      if (!selected || !listo()) { faltan.push(etiqueta(id)); continue; }
+      const {maker, phone, price} = pedido;
+      const orden = selected.orden || '';
+      const descripcion = await descripcionDe(selected.referencia || '');
+      filas.push({
+        etiqueta: etiqueta(id),
+        descripcion,
+        payload: {
+          source_row: selectedRow, orden, referencia: selected.referencia || '', cliente: selected.cliente || '',
+          confeccionista: maker, whatsapp: phone, unidades: Number(selected.cantidad) || 0, precio: Number(price) || 0,
+          mensaje_id: 'manual|' + orden + '|' + maker
+        }
+      });
+    }
+    if (!filas.length) { estado('Ninguna orden tiene confeccionista, WhatsApp y precio. Faltan: ' + faltan.join(', ') + '.'); return; }
+    if (!(await confirmarRegistroTodo(filas, faltan))) { estado('Registro cancelado.'); return; }
+    const registradas = [], duplicadas = [], revisar = [];
+    for (const f of filas) {
+      try {
+        const r = await api('/api/confeccion/envios', {method: 'POST', body: JSON.stringify(f.payload)});
+        (r.duplicado ? duplicadas : registradas).push(f.etiqueta);
+      } catch (error) {
+        revisar.push(f.etiqueta + ' (' + error.message + ')');
+      }
+    }
+    estado('Registradas ' + registradas.length + ' de ' + filas.length + '.' + (duplicadas.length ? ' Ya estaban: ' + duplicadas.join(', ') + '.' : '') + (revisar.length ? ' Revisar: ' + revisar.join(', ') + '.' : '') + (faltan.length ? ' Omitidas por faltar datos: ' + faltan.join(', ') + '.' : ''));
+  }
+
+  let masivoActivo = false, masivoCancelado = false;
+  // Resuelve true cuando la extensión avisa que esa orden fue enviada; false si se detiene el proceso
+  function esperarEnvio(orden) {
+    return new Promise(resolver => {
+      const alEnviar = e => { if (String((e.detail || {}).orden || '') === String(orden)) terminar(true); };
+      const vigilar = setInterval(() => { if (masivoCancelado) terminar(false); }, 500);
+      const terminar = valor => { clearInterval(vigilar); window.removeEventListener('indoor:whatsapp-confeccion:enviado', alEnviar); resolver(valor); };
+      window.addEventListener('indoor:whatsapp-confeccion:enviado', alEnviar);
+    });
+  }
+
+  async function enviarMasivo() {
+    const ids = (window.__confLista || []).slice();
+    if (!ids.length || !panel) return;
+    if (!window.confirm('¿Enviar ' + ids.length + ' mensajes a confección, uno por uno?\n\nSe carga un mensaje; cuando lo envíes en WhatsApp, se carga el siguiente. Se omiten las pestañas sin confeccionista, WhatsApp o precio.')) return;
+    if (selectedRow && pedido) pedidos[selectedRow] = pedido;
+    masivoActivo = true; masivoCancelado = false;
+    const enviados = [], revisar = [];
+    const etiqueta = id => { const r = (production?.rows || []).find(x => Number(x.source_row) === Number(id)); return r ? field(r, 'ORDEN') + ' · ' + field(r, 'REFERENCIA') : 'Fila ' + id; };
+    const estado = txt => { const st = panel.querySelector('[data-status]'); if (st) st.textContent = txt; };
+    for (const id of ids) {
+      if (masivoCancelado) { revisar.push(etiqueta(id) + ' (detenido)'); continue; }
+      await cambiarPestana(id);
+      if (!selected || !listo()) { revisar.push(etiqueta(id) + ' (faltan datos)'); continue; }
+      const esperaEnvio = esperarEnvio(selected.orden);
+      const resultado = await enviar();
+      if (resultado !== 'ok') { revisar.push(etiqueta(id) + ' (' + resultado + ')'); continue; }
+      estado('Mensaje de ' + etiqueta(id) + ' cargado en WhatsApp. Envíalo ahí; cuando lo envíes, el panel carga el siguiente.');
+      const enviado = await esperaEnvio;
+      if (!enviado) { revisar.push(etiqueta(id) + ' (detenido)'); break; }
+      enviados.push(etiqueta(id));
+    }
+    masivoActivo = false;
+    estado('Enviados ' + enviados.length + ' de ' + ids.length + '.' + (revisar.length ? ' Pendientes: ' + revisar.join(', ') + '.' : ''));
+  }
+
+  async function cambiarPestana(id) {
+    if (Number(id) === Number(selectedRow)) return;
+    if (selectedRow && pedido) pedidos[selectedRow] = pedido;
+    selectedRow = Number(id);
+    selected = null;
+    mockupBlob = null;
+    try { await cargar(); render(); }
+    catch (error) { panel.innerHTML = `<p class="cf-empty">${esc(error.message)}</p>`; }
+  }
 
   async function open(row) {
     mount();
@@ -534,7 +689,10 @@
     render();
   }
 
-  window.addEventListener('indoor:preparar-confeccion', e => open(e.detail?.row));
+  window.addEventListener('indoor:preparar-confeccion', e => {
+    window.__confLista = Array.isArray(e.detail?.lista) && e.detail.lista.length > 1 ? e.detail.lista.map(Number) : null;
+    open(e.detail?.row);
+  });
   document.addEventListener('DOMContentLoaded', () => {
     mount();
   });
