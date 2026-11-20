@@ -284,6 +284,19 @@ def crear_cotizacion(cuerpo: dict) -> dict:
     return {'id': str(data.get('id')), 'prefijo': str(data.get('prefijo') or ''), 'total': data.get('total')}
 
 
+def crear_remision(cuerpo: dict) -> dict:
+    """POST /remision_v (remisión de venta nueva; descuenta inventario). Misma idempotencia que crear_cotizacion. Devuelve {'id','prefijo','total'}."""
+    try:
+        data = _peticion('POST', 'remision_v', cuerpo=cuerpo).get('data') or {}
+    except EffiError as e:
+        if e.estado != 409:
+            raise
+        data = (e.cuerpo.get('data') or {}) if isinstance(e.cuerpo, dict) else {}
+        if not data.get('id'):
+            raise EffiError('Effi dice que esta remisión ya se creó, pero no devolvió su número: revísala en Ventas > Remisiones de venta', 409)
+    return {'id': str(data.get('id')), 'prefijo': str(data.get('prefijo') or ''), 'total': data.get('total')}
+
+
 def anular_orden(oc_id, motivo: str) -> dict:
     """Anula una orden de compra vigente (DELETE /orden_c). Si ya estaba anulada lo dice Effi con un 400: el llamador lo trata como anulada."""
     cuerpo = {'sucursal': int(os.getenv('EFFI_SUCURSAL', '1')), 'id': int(oc_id), 'observacion_anular': str(motivo or 'Anulada desde el panel')[:255]}
