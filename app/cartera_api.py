@@ -1,5 +1,5 @@
 """API del control compartido de cartera; JSON único y escrituras atómicas."""
-import io, json, os, re, shutil
+import io, json, os, re, shutil, urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 from fastapi import APIRouter, File, HTTPException, UploadFile
@@ -49,7 +49,7 @@ def _normalize(raw):
     for row in data.get("documentos") or []:
         d=dict(row); d["numero"]=str(d.get("numero","")).strip()
         if not d["numero"]: continue
-        d["fechaCreacion"]=_date(d.get("fechaCreacion",d.get("fecha"))); d["fechaEntrega"]=_date(d.get("fechaEntrega")) or None; d["total"]=_amount(d.get("total")); d["pagadoImportado"]=_amount(d.get("pagadoImportado",d.get("pagado"))); d["items"]=d.get("items") or []; d["estado"]=d.get("estado","pedido"); d["historial"]=d.get("historial") or []; d["plazoDias"]=int(d.get("plazoDias") or _term(d.get("formaPago"))); docs.append(d)
+        d["fechaCreacion"]=_date(d.get("fechaCreacion",d.get("fecha"))); d["fechaEntrega"]=_date(d.get("fechaEntrega")) or None; d["total"]=_amount(d.get("total")); d["pagadoImportado"]=_amount(d.get("pagadoImportado",d.get("pagado"))); d["items"]=d.get("items") or []; d["estado"]=d.get("estado","pedido"); d["historial"]=d.get("historial") or []; d["plazoDias"]=int(d.get("plazoDias") or 0) if d.get("origenLan") else int(d.get("plazoDias") or _term(d.get("formaPago"))); docs.append(d)
     data["documentos"]=docs; data["comprobantes"]=data.get("comprobantes") or []; data["contadorComprobante"]=max(int(data.get("contadorComprobante") or 1),len(data["comprobantes"])+1); return data
 def _load():
     _ROOT.mkdir(parents=True,exist_ok=True); source=_STATE if _STATE.exists() else _OLD
@@ -250,8 +250,56 @@ def respaldo(): return JSONResponse(_save(_load()),headers={"Content-Disposition
 async def restaurar(file:UploadFile=File(...)):
     try: return _save(json.loads((await file.read()).decode("utf-8")))
     except Exception as exc: raise HTTPException(400,"El respaldo no es un JSON válido") from exc
+# Servidor de Cartera de la LAN (la aplicación de cobro con los datos reales)
+LAN_URL_DEFAULT="http://192.168.0.134:8080"
+def _key_comprobante(c): return (str(c.get("cotizacionNumero","")), round(_amount(c.get("valor")),2), _date(c.get("fecha")))
+def _fusionar_lan(data, lan):
+    """Actualiza documentos y comprobantes con los de la LAN. Lo que solo existe en el panel se conserva."""
+    docs_lan=lan.get("docs") or []; pagos_lan=lan.get("pagos") or []
+    previos={str(d.get("numero","")):d for d in data.get("documentos",[])}
+    documentos=[]; numeros=set(); numero_de_id={}
+    for x in docs_lan:
+        numero=str(x.get("numero","")).strip()
+        if not numero: continue
+        numeros.add(numero); numero_de_id[str(x.get("id"))]=numero
+        d=dict(previos.get(numero,{}))
+        d.update({"numero":numero,"tipo":x.get("tipo") or "COT","cliente":str(x.get("cliente") or "SIN CLIENTE").strip(),
+            "tipoDoc":x.get("tipoDoc") or "","docCliente":str(x.get("docCliente") or ""),"telefono":str(x.get("telefono") or ""),
+            "email":str(x.get("email") or ""),"direccion":x.get("direccion") or "","ciudad":x.get("ciudad") or "",
+            "vendedor":str(x.get("vendedor") or "").strip(),"club":x.get("club") or "","fechaCreacion":_date(x.get("fechaCreacion")),
+            "fechaEntrega":_date(x.get("fechaEntrega")) or None,"formaPago":x.get("formaPagoTxt") or "","plazoDias":int(x.get("dias") or 0),
+            "total":_amount(x.get("total")),"iva":_amount(x.get("iva")),"items":x.get("items") or [],
+            "estado":"anulada" if x.get("anulada") else (x.get("estado") or "pedido"),"factura":x.get("factura") or "",
+            "notas":x.get("notas") or "","origenLan":True})
+        d.setdefault("historial",[])
+        documentos.append(d)
+    solo_panel=[d for n,d in previos.items() if n not in numeros]
+    comprobantes_lan=[]
+    cliente_de={d["numero"]:d.get("cliente","") for d in documentos}
+    for p in pagos_lan:
+        numero=numero_de_id.get(str(p.get("docId")),"")
+        comprobantes_lan.append({"id":"LAN-"+str(p.get("id")),"cotizacionNumero":numero,"cliente":cliente_de.get(numero,""),
+            "valor":_amount(p.get("valor")),"fecha":_date(p.get("fecha")),"medio":p.get("medio") or "","referencia":p.get("referencia") or "",
+            "tipo":(p.get("tipo") or "abono").capitalize(),"recibio":"","notas":p.get("notas") or "","anulado":bool(p.get("anulado")),
+            "creadoEn":p.get("creadoEn") or "","historial":p.get("historial") or [],"origenLan":True})
+    claves_lan={_key_comprobante(c) for c in comprobantes_lan}
+    solo_panel_pagos=[c for c in data.get("comprobantes",[]) if _key_comprobante(c) not in claves_lan]
+    data["documentos"]=documentos  # igual que la LAN: lo que solo existe en el panel se quita
+    data["comprobantes"]=comprobantes_lan
+    data["contadorComprobante"]=max(int(data.get("contadorComprobante") or 1),len(data["comprobantes"])+1)
+    data["ultimaSincronizacionLan"]=datetime.now(timezone.utc).isoformat()
+    return data, {"documentos_lan":len(documentos),"documentos_quitados_solo_panel":len(solo_panel),"comprobantes_lan":len(comprobantes_lan),"comprobantes_quitados_solo_panel":len(solo_panel_pagos)}
+def _sincronizar_lan():
+    url=(os.getenv("CARTERA_LAN_URL") or LAN_URL_DEFAULT).strip().rstrip("/")
+    try:
+        with urllib.request.urlopen(url+"/api/estado",timeout=30) as respuesta: lan=json.loads(respuesta.read().decode("utf-8"))
+    except Exception as exc: raise HTTPException(502,f"No se pudo leer el servidor de cartera de la LAN: {exc}") from exc
+    if not isinstance(lan,dict) or "docs" not in lan or "pagos" not in lan: raise HTTPException(502,"La respuesta de la LAN no trae documentos y pagos")
+    data,resumen=_fusionar_lan(_load(),lan); _save(data)
+    return {"ok":True,"origen":"LAN",**resumen}
 @cartera_router.post("/sincronizar")
 def sincronizar():
+    if (os.getenv("CARTERA_LAN_URL") or LAN_URL_DEFAULT).strip(): return _sincronizar_lan()
     creds=Path(os.getenv("GOOGLE_CREDENTIALS","/run/secrets/google-service-account.json")); file_id=os.getenv("PAGOS_COTIZACIONES_FILE_ID","").strip()
     if not file_id or not creds.is_file(): raise HTTPException(503,"Falta configurar Google Sheets en el servidor")
     try:
