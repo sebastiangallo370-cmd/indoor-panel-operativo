@@ -250,6 +250,31 @@ def respaldo(): return JSONResponse(_save(_load()),headers={"Content-Disposition
 async def restaurar(file:UploadFile=File(...)):
     try: return _save(json.loads((await file.read()).decode("utf-8")))
     except Exception as exc: raise HTTPException(400,"El respaldo no es un JSON válido") from exc
+def poner_pdf(codigo, datos: bytes) -> str:
+    """Guarda el PDF de Effi de una cotización en la carpeta de Cartera (la que muestra «ver PDF»). Usa solo el número (CO6442 -> 6442).
+    Devuelve el número guardado o '' si no era un PDF válido. Nunca borra nada que no sea ese mismo PDF."""
+    if not isinstance(datos, (bytes, bytearray)) or bytes(datos[:4]) != b'%PDF':
+        return ''
+    numero = re.sub(r'\D', '', str(codigo or ''))
+    if not numero:
+        return ''
+    _PDF_DIR.mkdir(parents=True, exist_ok=True)
+    (_PDF_DIR / f"{_safe(numero)}.pdf").write_bytes(bytes(datos))
+    return numero
+
+
+def quitar_orden_eliminada(orden, usuario='') -> dict:
+    """Llamado cuando se elimina una orden en producción. Por seguridad NO borra nada de Cartera (los datos de cobro los maneja Tesorería):
+    solo informa si la cotización relacionada tiene pagos o PDF, para que se revise a mano."""
+    numero = re.sub(r'\D', '', str(orden or ''))
+    data = _load()
+    doc = next((x for x in data.get('documentos', []) if str(x.get('numero', '')) == numero), None)
+    pagos = [p for p in data.get('comprobantes', []) if str(p.get('cotizacionNumero', '')) == numero and not p.get('anulado')]
+    return {'ok': True, 'accion': 'sin_cambios', 'cotizacion': numero, 'en_cartera': doc is not None,
+            'pagos_activos': len(pagos), 'tiene_pdf': (_PDF_DIR / f"{_safe(numero)}.pdf").exists() if numero else False,
+            'mensaje': 'La orden se eliminó en producción; Cartera no se modificó. Revísela en Tesorería si corresponde.'}
+
+
 # Servidor de Cartera de la LAN (la aplicación de cobro con los datos reales)
 LAN_URL_DEFAULT="http://192.168.0.134:8080"
 def _key_comprobante(c): return (str(c.get("cotizacionNumero","")), round(_amount(c.get("valor")),2), _date(c.get("fecha")))
