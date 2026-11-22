@@ -1,0 +1,12 @@
+services:
+  voz:
+    build: .
+    container_name: asistente-voz
+    restart: unless-stopped
+    env_file: .env
+    mem_limit: 2g
+    networks: [red]
+networks:
+  red:
+    name: asistente-reprogramaciones_default
+    external: true
