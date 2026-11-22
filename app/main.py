@@ -59,6 +59,7 @@ from app.cartera_externa import externa_router
 from app import diseno_versiones as versiones_mod
 from app import bitacora as bitacora_mod
 from app import ecommerce_canal as ecommerce_mod
+from app import telegram_bot as telegram_bot_mod
 from app import dinoman as dinoman_mod
 from app import contabilidad_confeccion as contabilidad_confeccion_mod
 app = FastAPI(title="Asistente de Reprogramaciones", version="1.0.0")
@@ -356,6 +357,8 @@ dinoman_mod.configurar(connect, legacy.get_gspread, lambda: CONFIG['ruta_nas_cli
 app.include_router(ventas_effi_mod.router)
 app.include_router(ecommerce_mod.router)
 app.include_router(ecommerce_mod.pc_router)
+telegram_bot_mod.configurar(authenticate, permisos_mod.bitacora_permitido)
+app.include_router(telegram_bot_mod.router)
 app.include_router(ecommerce_mod.webhook_router)   # Effi llama aquí cuando entra una orden de venta (código secreto en la dirección)
 agentes_mod.configurar(authenticate, lambda u: permisos_mod.rol_de(u) == 'administracion')
 def _usuarios_detalle() -> list:
