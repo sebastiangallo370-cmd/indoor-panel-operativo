@@ -98,7 +98,7 @@ class BotTest(unittest.TestCase):
                 return [{'tercero': 99, 'nombre': 'CLUB SAN LORENZO DE LA PAZ'}]
             return [{'id': 555, 'referencia': 'A100FUT01', 'descripcion': 'UNIFORME FUTBOL', 'precios_venta': 'Tarifa normal: 65000.0000; Tarifa Mayorista: 0'}]
         estado = {'paso': 'creando', 'tipo': 'cotizacion', 'cliente': 'CLUB SAN LORENZO DE LA PAZ',
-                  'lineas': [{'referencia': 'A100FUT01', 'talla': 'M', 'cantidad': 30}], 'pago': 'Contado'}
+                  'lineas': [{'referencia': 'A100FUT01', 'talla': 'M', 'cantidad': 30}], 'pago': 'Contado', 'entrega': '2026-12-20'}
         vistos = {}
         def construir(p, usuario=''):
             vistos['payload'] = p
@@ -119,7 +119,7 @@ class BotTest(unittest.TestCase):
         self.assertIn('CO6500', texto)
 
     def test_crear_sin_cliente_unico_no_crea(self):
-        estado = {'paso': 'creando', 'tipo': 'cotizacion', 'cliente': 'CLUB X',
+        estado = {'paso': 'creando', 'tipo': 'cotizacion', 'cliente': 'CLUB X', 'entrega': '2026-12-20',
                   'lineas': [{'referencia': 'A1', 'talla': 'M', 'cantidad': 1}], 'pago': 'Contado'}
         with mock.patch.object(tb.pe, 'activo', return_value=True), \
                 mock.patch.object(tb.pe, '_catalogos', return_value={'sucursales': [{'id': 1}], 'bodegas': [{'id': 10, 'sucursal': 1}], 'centros': [{'id': 3}], 'formas_pago': []}), \

@@ -9,10 +9,49 @@ Pasos: tipo -> cliente -> referencia -> talla y cantidad -> forma de pago -> res
 from __future__ import annotations
 
 import copy
+import re
+from datetime import date, timedelta
+
+MESES = {'enero': 1, 'febrero': 2, 'marzo': 3, 'abril': 4, 'mayo': 5, 'junio': 6, 'julio': 7, 'agosto': 8,
+         'septiembre': 9, 'setiembre': 9, 'octubre': 10, 'noviembre': 11, 'diciembre': 12}
+
+
+def parse_fecha(texto: str) -> str | None:
+    """Fecha de entrega en ISO (YYYY-MM-DD) a partir de '20/12/2026', '20-12', '20 de diciembre de 2026' o '2026-12-20'.
+    Si no trae año se usa el próximo año que no quede en el pasado. Devuelve None si no entiende."""
+    t = (texto or '').lower().strip()
+    hoy = date.today()
+    m = re.search(r'(\d{4})-(\d{1,2})-(\d{1,2})', t)
+    if m:
+        try:
+            return date(int(m[1]), int(m[2]), int(m[3])).isoformat()
+        except ValueError:
+            return None
+    anio = None
+    m = re.search(r'(\d{1,2})\s*[/-]\s*(\d{1,2})(?:\s*[/-]\s*(\d{2,4}))?', t)
+    if m:
+        dia, mes = int(m[1]), int(m[2])
+        if m[3]:
+            anio = int(m[3]) + (2000 if len(m[3]) == 2 else 0)
+    else:
+        m = re.search(r'(\d{1,2})\s+(?:de\s+)?([a-záéíóú]+)(?:\s+(?:de\s+)?(\d{4}))?', t)
+        if not m or m[2] not in MESES:
+            return None
+        dia, mes = int(m[1]), MESES[m[2]]
+        anio = int(m[3]) if m[3] else None
+    try:
+        if anio:
+            return date(anio, mes, dia).isoformat()
+        f = date(hoy.year, mes, dia)
+        if f < hoy:
+            f = date(hoy.year + 1, mes, dia)
+        return f.isoformat()
+    except ValueError:
+        return None
 
 TALLAS = ['XS', 'S', 'M', 'L', 'XL', 'XXL']
 PAGOS = ['Contado', 'Crédito 30 días', 'Crédito 60 días']
-PASO_INICIAL = {'paso': 'inicio', 'tipo': '', 'cliente': '', 'lineas': [], 'linea': {}, 'pago': ''}
+PASO_INICIAL = {'paso': 'inicio', 'tipo': '', 'cliente': '', 'lineas': [], 'linea': {}, 'pago': '', 'entrega': ''}
 
 
 def _teclado(filas: list[list[tuple[str, str]]]) -> list[list[dict]]:
@@ -23,7 +62,7 @@ def _teclado(filas: list[list[tuple[str, str]]]) -> list[list[dict]]:
 def _resumen(e: dict) -> str:
     lineas = '\n'.join(f"  • {x['referencia']} · talla {x['talla']} · {x['cantidad']} u" for x in e['lineas']) or '  (sin líneas)'
     return (f"<b>{'Cotización' if e['tipo'] == 'cotizacion' else 'Remisión de venta'}</b>\n"
-            f"Cliente: {e['cliente']}\nForma de pago: {e['pago']}\nProductos:\n{lineas}")
+            f"Cliente: {e['cliente']}\nForma de pago: {e['pago']}\nFecha de entrega: {e.get('entrega') or '(sin fecha)'}\nProductos:\n{lineas}")
 
 
 def inicio(texto: str = '') -> dict:
@@ -39,6 +78,13 @@ def interpretar_voz(estado: dict | None, texto: str) -> str:
         for talla in TALLAS:
             if f' {talla} ' in f' {t.upper()} ' or t.upper() == talla:
                 return f't:{talla}'
+        return t
+    if paso == 'entrega':
+        baja = t.lower()
+        if re.search(r'\b15\b', baja) and 'día' in baja:
+            return 'e:15'
+        if re.search(r'\b30\b', baja) and 'día' in baja:
+            return 'e:30'
         return t
     if paso == 'pago':
         baja = t.lower()
@@ -130,7 +176,26 @@ def procesar(estado: dict | None, entrada: str, *, buscar_clientes=None, buscar_
         return e, 'Forma de pago:', _teclado([[(p, f'p:{p}')] for p in PAGOS])
 
     if paso == 'pago' and entrada.startswith('p:'):
-        e['pago'] = entrada[2:]; e['paso'] = 'resumen'
+        e['pago'] = entrada[2:]; e['paso'] = 'entrega'
+        return e, '¿Para qué fecha de entrega?', _teclado([[('En 15 días', 'e:15'), ('En 30 días', 'e:30')], [('Escribir fecha', 'e:otra')]])
+
+    if paso == 'entrega':
+        fecha = parse_fecha(entrada)   # también acepta una fecha escrita o dictada
+        if entrada.startswith('e:') and entrada != 'e:otra':
+            fecha = (date.today() + timedelta(days=int(entrada[2:]))).isoformat()
+        elif entrada == 'e:otra':
+            e['paso'] = 'entrega_fecha'
+            return e, 'Escribe la fecha de entrega (dd/mm/aaaa), por ejemplo 20/12/2026.', None
+        if fecha:
+            e['entrega'] = fecha; e['paso'] = 'resumen'
+            return e, _resumen(e), _teclado([[('✅ Crear en Effi', 'crear'), ('❌ Cancelar', 'cancelar')]])
+        return e, '¿Para qué fecha de entrega? Elige un botón o escribe la fecha.', _teclado([[('En 15 días', 'e:15'), ('En 30 días', 'e:30')], [('Escribir fecha', 'e:otra')]])
+
+    if paso == 'entrega_fecha':
+        fecha = parse_fecha(entrada)
+        if not fecha:
+            return e, 'No entendí la fecha. Escríbela como 20/12/2026.', None
+        e['entrega'] = fecha; e['paso'] = 'resumen'
         return e, _resumen(e), _teclado([[('✅ Crear en Effi', 'crear'), ('❌ Cancelar', 'cancelar')]])
 
     if paso == 'resumen':

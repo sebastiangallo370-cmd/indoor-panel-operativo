@@ -191,7 +191,7 @@ def _forma_de_pago(cat: dict, pago: str) -> int:
 
 def crear_documento(estado: dict, usuario: str) -> str:
     """Arma el documento con las mismas reglas del panel (pedido_effi.construir) y lo crea en Effi.
-    Sucursal y bodega: la primera vigente (o TELEGRAM_SUCURSAL / TELEGRAM_CENTRO_COSTOS). Fecha de entrega: 15 días."""
+    Sucursal y bodega: la primera vigente (o TELEGRAM_SUCURSAL / TELEGRAM_CENTRO_COSTOS). La fecha de entrega la confirma el comercial.."""
     from datetime import date, timedelta
     import uuid
     if not pe.activo():
@@ -199,6 +199,8 @@ def crear_documento(estado: dict, usuario: str) -> str:
     tipo = estado.get('tipo') or ''
     if tipo not in ('cotizacion', 'remision') or not estado.get('lineas') or not estado.get('cliente'):
         return 'Faltan datos del documento. Empieza de nuevo con /cotizar o /remision.'
+    if not estado.get('entrega'):   # nunca se asume una fecha: el comercial la confirma antes
+        return 'Falta la fecha de entrega. Pídela de nuevo antes de crear el documento.'
     try:
         cat = pe._catalogos()
         suc_id = int(_env('TELEGRAM_SUCURSAL') or (cat['sucursales'][0]['id'] if cat['sucursales'] else 0))
@@ -213,7 +215,7 @@ def crear_documento(estado: dict, usuario: str) -> str:
                               'descripcion': desc, 'observacion': f"Talla {l.get('talla', '')}".strip()})
         payload = {'tipo': tipo, 'clave': 'tg' + uuid.uuid4().hex, 'cliente': _tercero(estado['cliente']),
                    'sucursal': suc_id, 'bodega': int(bodega['id']), 'centro_costos': centro,
-                   'fecha_entrega': (date.today() + timedelta(days=15)).isoformat(), 'divisa': 'COP',
+                   'fecha_entrega': estado['entrega'], 'divisa': 'COP',
                    'formas_pago': [{'id': _forma_de_pago(cat, estado.get('pago', 'Contado')), 'valor': ''}],
                    'conceptos': conceptos, 'observacion': f'Creada desde Telegram por {usuario}'}
         r = pe.construir(payload, usuario)
