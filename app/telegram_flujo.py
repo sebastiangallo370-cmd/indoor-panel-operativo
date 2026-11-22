@@ -30,6 +30,38 @@ def inicio(texto: str = '') -> dict:
     return copy.deepcopy(PASO_INICIAL)
 
 
+def interpretar_voz(estado: dict | None, texto: str) -> str:
+    """Convierte lo que dijo el comercial (transcrito) en la entrada del paso actual. Sin IA: busca palabras clave.
+    Devuelve el texto tal cual para cliente y referencia; para talla, pago y cantidad devuelve el dato de botón o el número."""
+    paso = (estado or {}).get('paso', 'inicio')
+    t = ' '.join((texto or '').split())
+    if paso == 'talla':
+        for talla in TALLAS:
+            if f' {talla} ' in f' {t.upper()} ' or t.upper() == talla:
+                return f't:{talla}'
+        return t
+    if paso == 'pago':
+        baja = t.lower()
+        if 'contado' in baja or 'de contado' in baja:
+            return 'p:Contado'
+        if '60' in baja or 'sesenta' in baja:
+            return 'p:Crédito 60 días'
+        if '30' in baja or 'treinta' in baja:
+            return 'p:Crédito 30 días'
+        return t
+    if paso == 'cantidad':
+        digitos = ''.join(ch for ch in t if ch.isdigit())
+        return digitos or t
+    if paso == 'mas':
+        baja = t.lower()
+        if baja.startswith('si') or baja.startswith('sí') or 'otra' in baja:
+            return 'mas:si'
+        if baja.startswith('no') or 'sigo' in baja:
+            return 'mas:no'
+        return t
+    return t
+
+
 def procesar(estado: dict | None, entrada: str, *, buscar_clientes=None, buscar_referencias=None) -> tuple[dict, str, list | None]:
     """Devuelve (estado_nuevo, texto, teclado). `entrada` es un comando (/cotizar), un dato de botón o texto libre.
     buscar_clientes(q) y buscar_referencias(cliente, q) son funciones inyectadas (Effi / panel) que devuelven listas de strings."""

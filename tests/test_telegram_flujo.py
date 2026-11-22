@@ -62,6 +62,28 @@ class FlujoTelegramTest(unittest.TestCase):
         e, _, _ = self.paso(None, '/remision')
         self.assertEqual(e['tipo'], 'remision')
 
+    def test_voz_llena_talla_cantidad_y_pago(self):
+        e, _, _ = self.paso(None, '/cotizar')
+        self.assertEqual(f.interpretar_voz(e, 'Cliente'), 'Cliente')
+        e = {'paso': 'talla'}
+        self.assertEqual(f.interpretar_voz(e, 'la talla es m'), 't:M')
+        e = {'paso': 'cantidad'}
+        self.assertEqual(f.interpretar_voz(e, '30 unidades'), '30')
+        e = {'paso': 'pago'}
+        self.assertEqual(f.interpretar_voz(e, 'contado'), 'p:Contado')
+        self.assertEqual(f.interpretar_voz(e, 'a treinta días'), 'p:Crédito 30 días')
+        self.assertEqual(f.interpretar_voz(e, 'a sesenta días'), 'p:Crédito 60 días')
+        e = {'paso': 'mas'}
+        self.assertEqual(f.interpretar_voz(e, 'no, ya'), 'mas:no')
+
+    def test_voz_con_respuesta_no_entendida_se_pide_de_nuevo(self):
+        e, _, _ = self.paso(None, '/cotizar')
+        e, _, _ = self.paso(e, 'san lorenzo')
+        e, _, _ = self.paso(e, 'c:CLUB SAN LORENZO DE LA PAZ')
+        e, _, _ = self.paso(e, 'a100fut01')
+        e, _, _ = self.paso(e, f.interpretar_voz(e, 'talla enorme'))
+        self.assertEqual(e['paso'], 'talla')
+
 
 if __name__ == '__main__':
     unittest.main()
