@@ -21,6 +21,8 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 
+from app import effi_api
+from app import pedido_effi as pe
 from app import telegram_flujo as flujo
 
 ESTADO_DIR = Path(os.getenv('TELEGRAM_ESTADO_DIR', '/data/state/telegram'))
@@ -136,17 +138,96 @@ def _audio_a_texto(file_id: str) -> str:
 
 # ---------- búsquedas (inyectables para pruebas; en producción leen Effi y el panel)
 def buscar_clientes(texto: str) -> list[str]:
-    return []
+    """Clientes de Effi cuyo nombre contiene el texto (solo lectura)."""
+    q = ' '.join((texto or '').split())
+    if len(q) < 3:
+        return []
+    pe._con_llave()
+    filas = pe._effi(effi_api._lista, 'cliente', {'nombre': q})[:25]
+    return [str(c.get('nombre') or '') for c in filas if c.get('tercero') and c.get('nombre')]
 
 
 def buscar_referencias(cliente: str, texto: str) -> list[str]:
-    return []
+    """Referencias de Effi que empiezan por el texto (solo lectura)."""
+    q = ' '.join((texto or '').split()).upper()
+    if len(q) < 2:
+        return []
+    pe._con_llave()
+    filas = pe._effi(effi_api._lista, 'articulo', {'referencia': q + '%'})
+    return sorted({str(a.get('referencia') or '') for a in filas if a.get('referencia') and str(a.get('ventas', '1')) != '0'})[:25]
+
+
+def _tercero(nombre: str) -> int:
+    pe._con_llave()
+    filas = [c for c in pe._effi(effi_api._lista, 'cliente', {'nombre': nombre})[:25]
+             if c.get('tercero') and str(c.get('nombre') or '').strip().upper() == nombre.strip().upper()]
+    if len(filas) != 1:
+        raise ValueError(f'No encontré un único cliente llamado «{nombre}». Revísalo en Effi.')
+    return int(filas[0]['tercero'])
+
+
+def _articulo(referencia: str) -> tuple[int, float, str]:
+    pe._con_llave()
+    filas = [a for a in pe._effi(effi_api._lista, 'articulo', {'referencia': referencia}) if str(a.get('referencia') or '').upper() == referencia.upper()]
+    if len(filas) != 1:
+        raise ValueError(f'No encontré la referencia {referencia} en Effi.')
+    precio = pe._precio_de(filas[0])
+    if precio <= 0:
+        raise ValueError(f'La referencia {referencia} no tiene precio de venta en Effi.')
+    return int(filas[0]['id']), precio, str(filas[0].get('descripcion') or referencia)
+
+
+def _forma_de_pago(cat: dict, pago: str) -> int:
+    formas = cat['formas_pago']
+    if 'contado' in pago.lower():
+        f = next((x for x in formas if not x['credito'] and 'contado' in x['nombre'].lower()), None)
+    else:
+        dias = '60' if '60' in pago else '30'
+        f = next((x for x in formas if x['credito'] and dias in x['nombre']), None)
+    if not f:
+        raise ValueError(f'No encontré la forma de pago «{pago}» en Effi.')
+    return int(f['id'])
 
 
 def crear_documento(estado: dict, usuario: str) -> str:
-    """Crea la cotización o remisión en Effi con la misma función del panel. Por ahora solo queda preparado:
-    no se llama a Effi hasta conectar el mapeo del pedido (ver pedido_effi.construir)."""
-    return 'La creación en Effi todavía no está conectada. No se creó nada.'
+    """Arma el documento con las mismas reglas del panel (pedido_effi.construir) y lo crea en Effi.
+    Sucursal y bodega: la primera vigente (o TELEGRAM_SUCURSAL / TELEGRAM_CENTRO_COSTOS). Fecha de entrega: 15 días."""
+    from datetime import date, timedelta
+    import uuid
+    if not pe.activo():
+        return 'La creación en Effi está frenada desde el servidor. Avisa a administración.'
+    tipo = estado.get('tipo') or ''
+    if tipo not in ('cotizacion', 'remision') or not estado.get('lineas') or not estado.get('cliente'):
+        return 'Faltan datos del documento. Empieza de nuevo con /cotizar o /remision.'
+    try:
+        cat = pe._catalogos()
+        suc_id = int(_env('TELEGRAM_SUCURSAL') or (cat['sucursales'][0]['id'] if cat['sucursales'] else 0))
+        bodega = next((b for b in cat['bodegas'] if b['sucursal'] == suc_id), None)
+        centro = int(_env('TELEGRAM_CENTRO_COSTOS') or (cat['centros'][0]['id'] if cat['centros'] else 0))
+        if not bodega or not centro:
+            return 'Falta configurar sucursal, bodega o centro de costos en Effi.'
+        conceptos = []
+        for l in estado['lineas']:
+            aid, precio, desc = _articulo(l['referencia'])
+            conceptos.append({'articulo': aid, 'cantidad': l['cantidad'], 'precio': precio, 'descuento': 0,
+                              'descripcion': desc, 'observacion': f"Talla {l.get('talla', '')}".strip()})
+        payload = {'tipo': tipo, 'clave': 'tg' + uuid.uuid4().hex, 'cliente': _tercero(estado['cliente']),
+                   'sucursal': suc_id, 'bodega': int(bodega['id']), 'centro_costos': centro,
+                   'fecha_entrega': (date.today() + timedelta(days=15)).isoformat(), 'divisa': 'COP',
+                   'formas_pago': [{'id': _forma_de_pago(cat, estado.get('pago', 'Contado')), 'valor': ''}],
+                   'conceptos': conceptos, 'observacion': f'Creada desde Telegram por {usuario}'}
+        r = pe.construir(payload, usuario)
+        if tipo == 'cotizacion':
+            hecho = pe._effi(effi_api.crear_cotizacion, r['cuerpo'])
+            nombre = 'Cotización'
+        else:
+            hecho = pe._effi(effi_api.crear_remision, r['cuerpo'])
+            nombre = 'Remisión de venta'
+        return f"✅ {nombre} creada en Effi: <b>{hecho.get('prefijo') or ''}{hecho['id']}</b>. Total ${r['resumen']['total']:,.0f}."
+    except HTTPException as exc:
+        return f'No se creó nada: {exc.detail}'
+    except ValueError as exc:
+        return f'No se creó nada: {exc}'
 
 
 def procesar_mensaje(chat_id, usuario: str, texto: str | None = None, boton: str | None = None, voz_file_id: str | None = None) -> None:

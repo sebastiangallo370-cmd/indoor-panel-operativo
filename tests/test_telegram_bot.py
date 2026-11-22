@@ -89,6 +89,47 @@ class BotTest(unittest.TestCase):
         with mock.patch.dict(os.environ, {'TELEGRAM_ACTIVO': '0'}):
             self.assertFalse(tb.activo())
 
+    def test_crear_cotizacion_arma_el_payload_del_panel(self):
+        catalogo = {'sucursales': [{'id': 1}], 'bodegas': [{'id': 10, 'sucursal': 1}], 'centros': [{'id': 3}],
+                    'formas_pago': [{'id': 7, 'nombre': 'Contado a 1 día', 'credito': False},
+                                    {'id': 8, 'nombre': 'Crédito 30 días', 'credito': True}]}
+        def lista(ruta, params=None):
+            if ruta == 'cliente':
+                return [{'tercero': 99, 'nombre': 'CLUB SAN LORENZO DE LA PAZ'}]
+            return [{'id': 555, 'referencia': 'A100FUT01', 'descripcion': 'UNIFORME FUTBOL', 'precios_venta': 'Tarifa normal: 65000.0000; Tarifa Mayorista: 0'}]
+        estado = {'paso': 'creando', 'tipo': 'cotizacion', 'cliente': 'CLUB SAN LORENZO DE LA PAZ',
+                  'lineas': [{'referencia': 'A100FUT01', 'talla': 'M', 'cantidad': 30}], 'pago': 'Contado'}
+        vistos = {}
+        def construir(p, usuario=''):
+            vistos['payload'] = p
+            return {'cuerpo': {'x': 1}, 'resumen': {'total': 1950000}}
+        with mock.patch.object(tb.pe, 'activo', return_value=True), \
+                mock.patch.object(tb.pe, '_catalogos', return_value=catalogo), \
+                mock.patch.object(tb.pe, '_con_llave', return_value=None), \
+                mock.patch.object(tb.pe, 'construir', side_effect=construir), \
+                mock.patch.object(tb.effi_api, '_lista', side_effect=lista), \
+                mock.patch.object(tb.effi_api, 'crear_cotizacion', return_value={'id': '6500', 'prefijo': 'CO', 'total': 1950000}):
+            texto = tb.crear_documento(estado, 'comercial1')
+        p = vistos['payload']
+        self.assertEqual(p['cliente'], 99)
+        self.assertEqual(p['bodega'], 10)
+        self.assertEqual(p['formas_pago'], [{'id': 7, 'valor': ''}])
+        self.assertEqual(p['conceptos'][0]['articulo'], 555)
+        self.assertEqual(p['conceptos'][0]['precio'], 65000.0)
+        self.assertIn('CO6500', texto)
+
+    def test_crear_sin_cliente_unico_no_crea(self):
+        estado = {'paso': 'creando', 'tipo': 'cotizacion', 'cliente': 'CLUB X',
+                  'lineas': [{'referencia': 'A1', 'talla': 'M', 'cantidad': 1}], 'pago': 'Contado'}
+        with mock.patch.object(tb.pe, 'activo', return_value=True), \
+                mock.patch.object(tb.pe, '_catalogos', return_value={'sucursales': [{'id': 1}], 'bodegas': [{'id': 10, 'sucursal': 1}], 'centros': [{'id': 3}], 'formas_pago': []}), \
+                mock.patch.object(tb.pe, '_con_llave', return_value=None), \
+                mock.patch.object(tb.effi_api, '_lista', return_value=[]), \
+                mock.patch.object(tb.effi_api, 'crear_cotizacion') as creado:
+            texto = tb.crear_documento(estado, 'comercial1')
+        creado.assert_not_called()
+        self.assertIn('No se creó nada', texto)
+
     def _codigo_de(self, telegram_id):
         tb.manejar_update(self.update_texto('/start', telegram_id=telegram_id, chat_id=telegram_id))
         return self.enviados[-1]['text'].split('<b>')[1].split('</b>')[0]
