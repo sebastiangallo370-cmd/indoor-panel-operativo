@@ -28,7 +28,7 @@ class LlaveApi(unittest.TestCase):
         self.dir.cleanup()
 
     def test_guardar_y_nunca_devolver_la_llave(self):
-        with mock.patch.object(effi_api, '_lista', return_value=[{'id': '1'}]):
+        with mock.patch.object(effi_api, 'probar_llave', return_value=None):
             vista = zeus.api_guardar_llave(None, {'llave': LLAVE})
         self.assertTrue(vista['configurada'])
         self.assertEqual(vista['ultimos4'], 'AAAA')
@@ -37,7 +37,7 @@ class LlaveApi(unittest.TestCase):
         self.assertEqual(zeus._leer_secreto()['llave'], LLAVE)
 
     def test_llave_invalida_no_se_guarda(self):
-        with mock.patch.object(effi_api, '_lista', side_effect=effi_api.EffiError('La API key no es válida', 401)):
+        with mock.patch.object(effi_api, 'probar_llave', side_effect=effi_api.EffiError('La API key no es válida', 401)):
             with self.assertRaises(HTTPException) as e:
                 zeus.api_guardar_llave(None, {'llave': LLAVE})
         self.assertEqual(e.exception.status_code, 400)
@@ -53,7 +53,7 @@ class LlaveApi(unittest.TestCase):
                 self.assertEqual(e.exception.status_code, 403)
 
     def test_viaja_al_agente_con_los_ajustes(self):
-        with mock.patch.object(effi_api, '_lista', return_value=[{'id': '1'}]):
+        with mock.patch.object(effi_api, 'probar_llave', return_value=None):
             zeus.api_guardar_llave(None, {'llave': LLAVE})
         zeus.api_ajustes(None, {'descuento_pct': '12', 'retenciones': [5]})
         api = zeus.api_para_agente(zeus._leer())

@@ -799,13 +799,11 @@ def api_guardar_llave(request: Request, payload: dict):
     k = str(payload.get('llave', '')).strip()
     if not re.fullmatch(r'[A-Za-z0-9]{32,40}', k):
         raise HTTPException(400, 'La API key debe tener entre 32 y 40 letras y números, sin espacios')
-    previa = effi_api.llave()
-    effi_api.usar_llave(k)
     try:
-        effi_api._lista('sucursal')
+        effi_api.probar_llave(k)   # se prueba ESA llave sin tocar la global (otros hilos la reponen en cada vuelta y pisaban la prueba)
     except effi_api.EffiError as e:
-        effi_api.usar_llave(previa)
         raise HTTPException(400, 'Effi no aceptó la llave: ' + str(e))
+    effi_api.usar_llave(k)
     with _lock:
         _guardar_secreto({'llave': k, 'guardada_at': _iso()})
         return _api_vista(_leer())

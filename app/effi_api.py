@@ -44,10 +44,12 @@ def disponible() -> bool:
     return bool(llave())
 
 
-def _peticion(metodo: str, ruta: str, params: dict | None = None, cuerpo: dict | None = None, reintento: bool = True) -> dict:
+def _peticion(metodo: str, ruta: str, params: dict | None = None, cuerpo: dict | None = None, reintento: bool = True, llave_ext: str | None = None) -> dict:
+    """llave_ext: llave solo para ESTA petición (sin tocar la global). Sirve para probar una llave nueva sin que otro hilo (ecommerce, STOCKMAN,
+    MINIMAXIMAN... que reponen la llave guardada en cada vuelta) la pise a medias."""
     url = f'{BASE}/{ruta.lstrip("/")}' + ('?' + urllib.parse.urlencode(params) if params else '')
     datos = json.dumps(cuerpo, ensure_ascii=False).encode('utf-8') if cuerpo is not None else None
-    req = urllib.request.Request(url, data=datos, method=metodo, headers={'Authorization': 'Bearer ' + llave(), 'Content-Type': 'application/json', 'Accept': 'application/json'})
+    req = urllib.request.Request(url, data=datos, method=metodo, headers={'Authorization': 'Bearer ' + (llave_ext if llave_ext is not None else llave()), 'Content-Type': 'application/json', 'Accept': 'application/json'})
     try:
         with urllib.request.urlopen(req, timeout=40) as r:
             return json.loads(r.read().decode('utf-8'))
@@ -59,16 +61,25 @@ def _peticion(metodo: str, ruta: str, params: dict | None = None, cuerpo: dict |
             j = {}
         if e.code == 429 and reintento:   # 120 peticiones por minuto: se espera lo que pida Effi y se reintenta una vez
             time.sleep(min(60, int(e.headers.get('Retry-After') or 5)))
-            return _peticion(metodo, ruta, params, cuerpo, reintento=False)
+            return _peticion(metodo, ruta, params, cuerpo, reintento=False, llave_ext=llave_ext)
         mensaje = j.get('mensaje') or {401: 'La API key no es válida o venció (renuévala en Effi: Administración > Usuarios).', 403: 'La API key no tiene permiso para esa función.'}.get(e.code) or f'Effi respondió {e.code}'
         raise EffiError(mensaje, e.code, j)
     except (urllib.error.URLError, TimeoutError, OSError) as e:
         raise EffiError(f'No se pudo conectar con la API de Effi: {e}', 0)
 
 
-def _lista(ruta: str, params: dict | None = None) -> list[dict]:
-    d = _peticion('GET', ruta, {**(params or {}), 'por_pagina': 100})
+def _lista(ruta: str, params: dict | None = None, llave_ext: str | None = None) -> list[dict]:
+    d = _peticion('GET', ruta, {**(params or {}), 'por_pagina': 100}, llave_ext=llave_ext)
     return d.get('data') or []
+
+
+def probar_llave(k: str) -> None:
+    """Comprueba una llave con una consulta de solo lectura (sucursales) usando ESA llave, sin tocar la global.
+    Lanza EffiError con el estado HTTP y la función que falló."""
+    try:
+        _peticion('GET', 'sucursal', {'por_pagina': 1}, llave_ext=k)
+    except EffiError as e:
+        raise EffiError(f'{e} [Effi respondió {e.estado or "sin respuesta"} al consultar «sucursal»]', e.estado, e.cuerpo) from e
 
 
 def _d(valor) -> Decimal:
