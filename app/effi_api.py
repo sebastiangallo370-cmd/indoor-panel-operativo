@@ -49,7 +49,11 @@ def _peticion(metodo: str, ruta: str, params: dict | None = None, cuerpo: dict |
     MINIMAXIMAN... que reponen la llave guardada en cada vuelta) la pise a medias."""
     url = f'{BASE}/{ruta.lstrip("/")}' + ('?' + urllib.parse.urlencode(params) if params else '')
     datos = json.dumps(cuerpo, ensure_ascii=False).encode('utf-8') if cuerpo is not None else None
-    req = urllib.request.Request(url, data=datos, method=metodo, headers={'Authorization': 'Bearer ' + (llave_ext if llave_ext is not None else llave()), 'Content-Type': 'application/json', 'Accept': 'application/json'})
+    cab = {'Authorization': 'Bearer ' + (llave_ext if llave_ext is not None else llave()), 'Accept': 'application/json',
+           'User-Agent': 'Mozilla/5.0 (compatible; IndoorPanel/1.0)'}   # sin User-Agent propio Python manda «Python-urllib», que un firewall puede rechazar (403) aunque curl con la misma llave pase
+    if datos is not None:
+        cab['Content-Type'] = 'application/json'   # solo cuando hay cuerpo (en un GET no hace falta)
+    req = urllib.request.Request(url, data=datos, method=metodo, headers=cab)
     try:
         with urllib.request.urlopen(req, timeout=40) as r:
             return json.loads(r.read().decode('utf-8'))
