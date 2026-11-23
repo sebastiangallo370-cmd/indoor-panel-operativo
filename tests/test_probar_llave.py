@@ -14,7 +14,10 @@ BUENA, VIEJA = 'B' * 36, 'V' * 36
 
 
 class _Effi(BaseHTTPRequestHandler):
+    agentes: list = []
+
     def do_GET(self):
+        _Effi.agentes.append(self.headers.get('User-Agent') or '')
         llave = (self.headers.get('Authorization') or '').replace('Bearer ', '')
         if llave == BUENA:
             codigo, cuerpo = 200, {'ok': True, 'data': [{'id': 1, 'nombre': 'Principal'}]}
@@ -76,6 +79,12 @@ class ProbarLlave(unittest.TestCase):
         self.assertEqual(cm.exception.estado, 403)
         self.assertIn('403', str(cm.exception))
         self.assertIn('sucursal', str(cm.exception))
+
+    def test_no_se_identifica_como_python_urllib(self):
+        """Cloudflare rechaza (403, error 1010) el User-Agent «Python-urllib»: el cliente debe mandar el de curl."""
+        _Effi.agentes.clear()
+        effi_api.probar_llave(BUENA)
+        self.assertTrue(_Effi.agentes and all(a.startswith('curl/') for a in _Effi.agentes), _Effi.agentes)
 
     def test_peticion_normal_sigue_usando_la_global(self):
         effi_api.usar_llave(BUENA)

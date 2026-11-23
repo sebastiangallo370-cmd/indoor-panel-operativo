@@ -123,3 +123,4 @@ Espera ~15 s tras reiniciar (el contenedor pasa por "health: starting"). Comprue
 - No toques `/data` real para pruebas ni cambies inventario real sin confirmación.
 - No subas a GitHub nada de la lista de "no versionar", ni hagas push sin que el usuario lo pida.
 - No mezcles el JS de Inventarios (llaves simples) con el resto de main.py (llaves dobles).
+- No quites el `User-Agent: curl/...` de `app/effi_api.py`: Cloudflare (delante de Effi) rechaza con 403 «error 1010» al `Python-urllib` aunque la llave sea buena (2026-11-23: curl 200, urllib 403 con la misma llave).

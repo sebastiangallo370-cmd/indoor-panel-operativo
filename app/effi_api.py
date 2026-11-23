@@ -49,8 +49,9 @@ def _peticion(metodo: str, ruta: str, params: dict | None = None, cuerpo: dict |
     MINIMAXIMAN... que reponen la llave guardada en cada vuelta) la pise a medias."""
     url = f'{BASE}/{ruta.lstrip("/")}' + ('?' + urllib.parse.urlencode(params) if params else '')
     datos = json.dumps(cuerpo, ensure_ascii=False).encode('utf-8') if cuerpo is not None else None
-    cab = {'Authorization': 'Bearer ' + (llave_ext if llave_ext is not None else llave()), 'Accept': 'application/json',
-           'User-Agent': 'Mozilla/5.0 (compatible; IndoorPanel/1.0)'}   # sin User-Agent propio Python manda «Python-urllib», que un firewall puede rechazar (403) aunque curl con la misma llave pase
+    # Cloudflare (delante de Effi) rechaza con 403 «error 1010» al User-Agent «Python-urllib/3.x» aunque la llave sea buena; con el de curl pasa (probado
+    # el 2026-11-23 desde el VPS con la misma llave: urllib 403, curl 200). Por eso se manda el mismo User-Agent y Accept que curl.
+    cab = {'Authorization': 'Bearer ' + (llave_ext if llave_ext is not None else llave()), 'Accept': '*/*', 'User-Agent': 'curl/8.5.0'}
     if datos is not None:
         cab['Content-Type'] = 'application/json'   # solo cuando hay cuerpo (en un GET no hace falta)
     req = urllib.request.Request(url, data=datos, method=metodo, headers=cab)
