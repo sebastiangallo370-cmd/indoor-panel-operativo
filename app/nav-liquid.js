@@ -151,3 +151,21 @@
   style.textContent = css;
   document.head.appendChild(style);
 })();
+
+// Barra superior: en pantallas más angostas que la de referencia se reduce TODA la barra en proporción
+// (mismos botones, mismo orden, nada oculto). Por debajo de 701 px se mantiene la barra móvil.
+(() => {
+  const REF = 1240;
+  function ajustarBarra() {
+    const sb = document.querySelector('.sidebar');
+    if (!sb) return;
+    const w = window.innerWidth;
+    const z = w < REF && w >= 701 ? w / REF : 1;
+    sb.style.zoom = z < 1 ? String(z) : '';
+    sb.style.width = z < 1 ? Math.round(w / z) + 'px' : '';
+  }
+  window.addEventListener('resize', ajustarBarra);
+  document.addEventListener('DOMContentLoaded', ajustarBarra);
+  setInterval(ajustarBarra, 1500);
+  ajustarBarra();
+})();

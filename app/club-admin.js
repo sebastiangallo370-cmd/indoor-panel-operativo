@@ -458,7 +458,7 @@
       const [p, e, c, pr] = await Promise.all([api('/api/club/pedidos'), api('/api/club/effitron').catch(() => null), api('/api/club/correos').catch(() => null), api('/api/pedido-effi/programados').catch(() => null)]);
       if (pr) programados = pr.programados || [];
       cargarProduccion();
-      pedidos = p.pedidos; effi = e; if (c) correos = c; pintar();
+      pedidos = p.pedidos; effi = e; if (c) correos = c; pintar();
     } catch (e) { panel.innerHTML = '<div class="tc"><div class="tc-card"><p>' + esc(e.message) + '</p></div></div>'; ultimo = ''; }
     finally { cargando = false; }
   }
@@ -517,14 +517,18 @@
     f.className = 'tc-pedido-fondo';
     f.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.65);padding:8px;overflow:auto';
     f.innerHTML = '<div class="tc-pedido-card" style="width:100%;margin:0;box-sizing:border-box;background:#101a12;border:1px solid rgba(230,235,241,.3);border-radius:18px;padding:14px">' +
-      '<div class="tc-pedido-cab" style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:2px 4px 8px"><div><span class="eyebrow">PROGRAMAR CLUB</span><h2 style="margin:4px 0 0;font:900 18px Arial;color:#f4f7fa">Empezar pedido</h2></div><div class="tc-ptabs" role="tablist"><button type="button" role="tab" data-ptab="doc" class="on">CO/RM</button><button type="button" role="tab" data-ptab="listado">LISTADO</button></div><button type="button" class="tc-btn tc-b-line" data-cerrar-pedido>Cerrar</button></div>' +
+      '<div class="tc-pedido-herr" data-herr><div class="tc-ptabs" role="tablist"><button type="button" role="tab" data-ptab="doc" class="on">CO/RM</button><button type="button" role="tab" data-ptab="listado">LISTADO</button></div><button type="button" class="tc-btn tc-b-line tc-pedido-cerrar" data-cerrar-pedido>Cerrar</button></div>' +
       '<div data-pedido-effi></div></div>';
     document.body.appendChild(f);
     f.addEventListener('click', e => { if (e.target.closest('[data-cerrar-pedido]')) f.remove(); });   // solo con el botón Cerrar: un clic fuera no debe perder un pedido a medio llenar
     const caja = f.querySelector('[data-pedido-effi]');
     // pestañas CO/RM (la cotización o remisión) y LISTADO
     const marcarTab = () => { const p = window.PedidoListado && window.PedidoListado.activo && window.PedidoListado.activo(); const lst = p === 'listado' || p === 'mockups' || p === 'enviado'; f.querySelectorAll('[data-ptab]').forEach(b => b.classList.toggle('on', (b.dataset.ptab === 'listado') === lst)); };
-    new MutationObserver(marcarTab).observe(caja, { childList: true, subtree: true });
+    // Las pestañas CO/RM · LISTADO y CERRAR van DENTRO del formulario: en la franja de arriba (pe-slot) o, si no hay franja, en la tarjeta.
+    const herr = f.querySelector('[data-herr]'), tarjeta = f.querySelector('.tc-pedido-card');
+    const acomodar = () => { const s = caja.querySelector('[data-pe-slot]'); if (s) { if (herr.parentNode !== s) s.appendChild(herr); } else if (herr.parentNode !== tarjeta) tarjeta.insertBefore(herr, caja); };
+    new MutationObserver(() => { acomodar(); marcarTab(); }).observe(caja, { childList: true, subtree: true });
+    acomodar();
     f.addEventListener('click', e => {
       const b = e.target.closest('[data-ptab]'); if (!b) return;
       const PL = window.PedidoListado, PE = window.PedidoEffi, hay = PL && PL.activo && PL.activo(), previo = hay && PL.previo && PL.previo();
