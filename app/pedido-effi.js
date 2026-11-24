@@ -506,14 +506,16 @@
   // REPROGRAMACIÓN: si el cliente ya compró esa referencia, el precio es el de su última venta (no el de lista)
   const precioCache = {};
   // pedido pasado elegido por el comercial en el listado (ref -> número, p. ej. RM7751)
+  // el pedido pasado elegido vale para TODO el proyecto (cliente + proyecto): su PDF da el precio de cada referencia que trae
   const pedidoElegido = {};
-  const claveRef = (ref) => (st.cliente && st.cliente.nombre) + '|' + String((garantiaListado() || {}).proyecto || '').trim() + '|' + String(ref || '').trim().toUpperCase();
+  const claveProy = () => (st.cliente && st.cliente.nombre) + '|' + String((garantiaListado() || {}).proyecto || '').trim();
+  const claveRef = (ref) => claveProy() + '|' + String(ref || '').trim().toUpperCase();
   // precio de la última programación de este proyecto (con caché): lo usan el formulario y el listado
   function precioAnteriorDe(ref) {
     const cli = st.cliente && st.cliente.nombre, r0 = String(ref || '').trim();
     if (!cli || !r0) return Promise.resolve(null);
     const pr = String((garantiaListado() || {}).proyecto || '').trim();
-    const k = claveRef(r0), num = pedidoElegido[k] || '';
+    const num = pedidoElegido[claveProy()] || '', k = claveRef(r0) + '|' + num;
     return precioCache[k] ? Promise.resolve(precioCache[k]) : api('/api/pedido-effi/precio-anterior?cliente=' + encodeURIComponent(cli) + '&ref=' + encodeURIComponent(r0) + '&proyecto=' + encodeURIComponent(pr) + (num ? '&numero=' + encodeURIComponent(num) : '')).then(r => (precioCache[k] = r));
   }
   // lista de pedidos pasados del proyecto (con el precio de cada referencia, desde su PDF)
@@ -522,26 +524,30 @@
     if (!cli || !String(proyecto || '').trim()) return Promise.resolve([]);
     return api('/api/pedido-effi/pedidos-pasados?cliente=' + encodeURIComponent(cli) + '&proyecto=' + encodeURIComponent(String(proyecto).trim())).then(r => r.pedidos || []);
   }
-  function pedidoElegidoDe(ref) { return pedidoElegido[claveRef(ref)] || ''; }
-  // el comercial elige un pedido pasado: se usa su precio para esa referencia (y se aplica a las líneas que ya existen)
-  function elegirPedido(ref, numero) {
-    const r0 = String(ref || '').trim().toUpperCase(), k = claveRef(r0);
-    if (numero) pedidoElegido[k] = numero; else delete pedidoElegido[k];
-    delete precioCache[k];
-    st.conceptos.filter(l => String(l.ref || '').trim().toUpperCase() === r0 && !l.precioManual).forEach(l => aplicarPrecioAnterior(l));
+  function pedidoElegidoDe() { return pedidoElegido[claveProy()] || ''; }
+  // el comercial elige un pedido pasado (ej. RM7751): su PDF da el precio de cada referencia del proyecto que trae
+  function elegirPedido(numero) {
+    const pk = claveProy();
+    if (numero) pedidoElegido[pk] = numero; else delete pedidoElegido[pk];
+    Object.keys(precioCache).forEach(k => delete precioCache[k]);   // se vuelve a leer con el pedido elegido
+    st.conceptos.filter(l => String(l.ref || '').trim() && !l.precioManual).forEach(l => aplicarPrecioAnterior(l));
   }
   function aplicarPrecioAnterior(l) {
     const cli = st.cliente && st.cliente.nombre, ref = String(l.ref || '').trim();
     if (!cli || !ref || l.precioManual) return;
     const pr = String((garantiaListado() || {}).proyecto || '').trim();   // la última programación de ESE proyecto
-    const k = claveRef(ref), num = pedidoElegido[k] || '';
+    const num = pedidoElegido[claveProy()] || '', k = claveRef(ref) + '|' + num;
     const pedir = precioCache[k] ? Promise.resolve(precioCache[k]) : api('/api/pedido-effi/precio-anterior?cliente=' + encodeURIComponent(cli) + '&ref=' + encodeURIComponent(ref) + '&proyecto=' + encodeURIComponent(pr) + (num ? '&numero=' + encodeURIComponent(num) : '')).then(r => (precioCache[k] = r));
     pedir.then(r => {
       if (!r || !r.encontrado || !st.conceptos.includes(l) || String(l.ref || '').trim() !== ref) return;   // ya cambió el artículo o el cliente
       l.precio = String(r.precio);
       invalidar();
-      // si estás en el listado no se repinta CO/RM (eso te mandaba a CO/RM); el precio ya queda guardado
-      if (!(window.PedidoListado && window.PedidoListado.activo && window.PedidoListado.activo())) dibujar();
+      // el precio se escribe directamente en el campo «Precio ud.» de ese concepto del CO/RM que se está creando
+      const idx = st.conceptos.indexOf(l);
+      const campo = panel && panel.querySelector ? panel.querySelector('[data-lineas] .pe-linea[data-i="' + idx + '"] [data-f="precio"]') : null;
+      if (campo) { campo.value = l.precio; refrescarTotales(); }
+      // si no hay campo a la vista (estás en el listado) el precio queda en el documento y se muestra al volver a CO/RM
+      else if (!(window.PedidoListado && window.PedidoListado.activo && window.PedidoListado.activo())) dibujar();
       msg('Precio de la última venta a este cliente: $' + Number(r.precio).toLocaleString('es-CO') + ' (' + (r.numero ? 'CO/RM ' + r.numero : '') + (r.fecha ? ' · ' + r.fecha : '') + '). Puedes cambiarlo.', 'ok');
     }).catch(() => { /* sin historial: queda el precio de lista */ });
   }
