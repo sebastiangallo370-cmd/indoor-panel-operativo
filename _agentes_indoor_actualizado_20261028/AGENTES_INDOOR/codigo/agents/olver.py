@@ -576,6 +576,11 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
     simulado = illustrator.modo_simulado()
     if not simulado and not ai.exists():
         return {"ok": False, "error": f"No encuentro el archivo: {ai}"}
+    # Regla obligatoria: ningún PDF se crea sin revisar primero las mesas de
+    # Montajes. Ahí se reutilizan las que ya existen y se exportan únicamente
+    # las tallas faltantes; sin ese destino no se continúa a los PDFs.
+    if not simulado and not destino.get("montajes"):
+        return {"ok": False, "error": "No encontré la carpeta Montajes para verificar/exportar las tallas; no genero PDFs sin esa revisión."}
 
     hoja = next((j["hoja"] for _, js in por_talla for j in js if j["hoja"]), "")
     carpeta = Path(destino["carpeta"]) / (_seguro(hoja) or ref) / f"D{diseno}" / f"{ref}{genero}{suf_maestro}"
@@ -710,33 +715,32 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
                 candidatas = list(dict.fromkeys(candidatas))
             elif genero in ("M", "F"):   # maestro F con mesas rotuladas Gen_M (o al revés): se prueba primero la propia y luego la otra letra
                 candidatas += [f"Talla_{talla}_Tipo_D{diseno}_Gen_{'F' if genero == 'M' else 'M'}"]
-            # El PDF siempre parte de la mesa independiente exacta de Montajes:
-            # talla, diseño y género que pidió el cliente. Se usa una copia local
-            # temporal para que Illustrator nunca modifique la talla guardada.
+            # Tras la verificación/exportación obligatoria se reutiliza la
+            # mesa independiente exacta. El JSX corre sobre esa copia local,
+            # nunca sobre el archivo guardado en Montajes.
             fuente, usada_trabajo, mesa_independiente = ai, None, False
-            if destino.get("montajes"):
-                for carpeta_m in carpetas_m:
-                    for cand in candidatas:
-                        propia = carpeta_m / f"{cand}.ai"
-                        if propia.exists():
-                            try:
-                                trabajo = _dir_trabajo(carpeta_m)
-                                trabajo.mkdir(parents=True, exist_ok=True)
-                                copia = trabajo / f"pdf_{int(time.time() * 1000)}_{cand}.ai"
-                                shutil.copy2(propia, copia)
-                                fuente, usada_trabajo = copia, copia
-                                candidatas, mesa_independiente = [cand], True
-                            except OSError as e:
-                                omitidas.append(f"talla {talla}: no pude preparar una copia temporal de {propia.name}: {e}")
-                                log(AGENTE, f"Talla {talla}: no pude copiar {propia} para el PDF: {e}", "WARN")
-                            break
-                    if mesa_independiente:
+            for carpeta_m in carpetas_m:
+                for cand in candidatas:
+                    propia = carpeta_m / f"{cand}.ai"
+                    if propia.exists():
+                        try:
+                            trabajo = _dir_trabajo(carpeta_m)
+                            trabajo.mkdir(parents=True, exist_ok=True)
+                            copia = trabajo / f"pdf_{int(time.time() * 1000)}_{cand}.ai"
+                            shutil.copy2(propia, copia)
+                            fuente, usada_trabajo = copia, copia
+                            candidatas, mesa_independiente = [cand], True
+                        except OSError as e:
+                            omitidas.append(f"talla {talla}: no pude preparar una copia temporal de {propia.name}: {e}")
+                            log(AGENTE, f"Talla {talla}: no pude copiar {propia} para el PDF: {e}", "WARN")
                         break
-            if destino.get("montajes") and not mesa_independiente:
-                omitidas.append(f"talla {talla}: no existe su mesa independiente en Montajes; no hice el PDF desde el maestro completo")
-                log(AGENTE, f"Talla {talla}: sin mesa independiente en Montajes: no abro el maestro completo", "WARN")
+                if mesa_independiente:
+                    break
+            if not mesa_independiente:
+                omitidas.append(f"talla {talla}: no existe su mesa independiente en Montajes; no ejecuté JSX")
+                log(AGENTE, f"Talla {talla}: falta la mesa tras la exportación obligatoria; no ejecuto JSX", "WARN")
                 continue
-            log(AGENTE, f"Talla {talla}: reutilizo {fuente.name} desde Montajes para poner nombre y número")
+            log(AGENTE, f"Talla {talla}: reutilizo {fuente.name} de Montajes y ejecuto JSX")
             vigia = _VigiaCarpeta(carpeta, f"{base}_*.pdf", lambda f, js=jugadores, t=talla: _evento_pdf(f, js, t, diseno, genero))
             try:
                 for cand in candidatas:
@@ -745,17 +749,9 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
                         log(AGENTE, f"La mesa de niño de la talla {talla} se llama «{cand}» en {fuente.name}: usé esa")
                     if not (res.get("error") and "no tiene la mesa" in res["error"]):
                         break
-                # Las mesas infantiles exportadas por Illustrator pueden perder
-                # los nombres internos de los cuadros de texto. No se acepta el
-                # PDF incompleto; se reintenta desde el maestro infantil, pero
-                # limitado a la misma mesa exacta de talla, diseño y sexo.
-                if (res.get("error") and "no conserva los textos guía" in res["error"]
-                        and genero == "N" and fuente != ai):
-                    log(AGENTE, f"Talla {talla}: la copia de Montajes perdió las guías; reintento {artboard} desde {ai.name}")
-                    res = _correr_bot(codigo, ai, artboard, base, carpeta, jugadores, orden, tela, saltos)
             finally:
                 vigia.parar()
-                if usada_trabajo:   # la copia de trabajo ya cumplió: se borra. La mesa de la NAS nunca se abrió ni se modificó
+                if usada_trabajo:
                     try:
                         usada_trabajo.unlink()
                     except OSError:
@@ -816,6 +812,7 @@ def _correr_bot(codigo, ai, artboard, base, carpeta, jugadores, orden, tela, sal
         "var INDOOR_AI_NAME = " + json.dumps(ai.stem) + ";\n"
         "var INDOOR_ORDEN = " + json.dumps(str(orden or "")) + ";\n"
         "var INDOOR_TELA = " + json.dumps(str(tela or "")) + ";\n"
+        "var INDOOR_PERMITIR_SIN_GUIAS = " + ("true" if not any((j.get("nombre") or "").strip() or str(j.get("numero") or "").strip() for j in jugadores) else "false") + ";\n"
         "var INDOOR_ARTBOARD_NAME = " + json.dumps(artboard) + ";\n"
         "var INDOOR_ROW_TARGET = undefined;\n"
         "var INDOOR_TMP_DIR = " + json.dumps(tmp.as_posix()) + ";\n")
@@ -827,23 +824,16 @@ def _correr_bot(codigo, ai, artboard, base, carpeta, jugadores, orden, tela, sal
     for linea in mensajes.splitlines():
         log(AGENTE, "[JSX] " + linea, "ERROR" if "ERROR" in linea else "INFO")
     _cerrar_si_abierto(app, ai)   # BOT.jsx ya lo cierra; esto solo cubre un fallo a medias
-    sin_guias = "no se encontro ningun placeholder" in mensajes.lower()
+    sin_guias = ("no se encontro ningun placeholder" in mensajes.lower()
+                  or "no conserva los textos guía" in mensajes.lower())
     requiere_personalizacion = any((j.get("nombre") or "").strip() or str(j.get("numero") or "").strip() for j in jugadores)
-    if sin_guias and requiere_personalizacion:
-        # No aceptar un PDF que salió sin poder escribir nombre y número. Esto
-        # deja intacta la talla de Montajes y hace visible que debe repararse.
-        for i, jugador in enumerate(jugadores, 1):
-            try:
-                _archivo_pdf(carpeta, base, i, jugador).unlink(missing_ok=True)
-            except OSError:
-                pass
-        diagnostico = next((x for x in mensajes.splitlines() if "DIAGNOSTICO MARCADORES:" in x), "")
-        detalle = f" ({diagnostico[:700]})" if diagnostico else ""
-        return {"error": f"{ai.name} no conserva los textos guía NOMBRE y 00; no generé un PDF incompleto{detalle}"}
     if sin_guias:
-        # La talla no lleva nombre ni dorsal: se conserva el PDF tal cual,
-        # agrupado por cantidad (p. ej. «3unds»). No hay texto que aplicar.
-        log(AGENTE, f"{ai.name}: sin guías NOMBRE/00, pero la talla no tiene personalización; conservo el PDF de producción")
+        # Sin guías NOMBRE/00 el PDF se conserva tal cual (decisión: no bloquear el pedido).
+        # Si la orden pedía nombre o número, queda marcado en el registro para revisarlo.
+        if requiere_personalizacion:
+            log(AGENTE, f"{ai.name}: sin guías NOMBRE/00 y la talla pedía nombre o número: el PDF sale SIN personalizar, revisar", "WARN")
+        else:
+            log(AGENTE, f"{ai.name}: sin guías NOMBRE/00, pero la talla no tiene personalización; conservo el PDF de producción")
     time.sleep(0.3)               # pausa mínima tras cerrar un .ai pesado antes de abrir el siguiente
     return {"mensajes": mensajes}
 
