@@ -287,6 +287,69 @@ def precio_de_ultima_orden(cliente: str, proyecto: str, ref: str):
     return None
 
 
+def _carpetas_del_proyecto(cliente: str, proyecto: str) -> list:
+    """(número, carpeta, PDF de esa orden) de los pedidos CO####/RM#### del proyecto, del más nuevo al más viejo."""
+    def norm(x: str) -> str:
+        return ' '.join(str(x).split()).upper()
+    raiz = _raiz_clientes()
+    info = proyectos_de_cliente(cliente)
+    if raiz is None or not info.get('carpeta'):
+        return []
+    base = raiz / info['carpeta']
+    salida = []
+    for carpeta in base.iterdir():
+        m = re.match(r'^(?:CO|RM)(\d+)_(.+)$', carpeta.name, re.I)
+        if not (m and carpeta.is_dir() and norm(m.group(2)) == norm(proyecto)):
+            continue
+        codigo = carpeta.name.split('_')[0].upper()
+        pdf = next((p for p in sorted(carpeta.iterdir()) if p.is_file() and p.suffix.lower() == '.pdf'
+                    and not p.name.startswith('~$') and p.name.upper().startswith(codigo)), None)
+        salida.append((int(m.group(1)), carpeta, pdf))
+    return sorted(salida, key=lambda t: -t[0])
+
+
+def pedidos_pasados(cliente: str, proyecto: str) -> list:
+    """Lista de pedidos pasados del proyecto, cada uno con las referencias y el precio unitario que trae su PDF de Effi."""
+    salida = []
+    for numero, carpeta, pdf in _carpetas_del_proyecto(cliente, proyecto):
+        refs, vistos = [], set()
+        for l in (_lineas_pdf_cacheadas(pdf) if pdf else []):
+            if l.get('precio') and l.get('ref') and l['ref'] not in vistos:
+                vistos.add(l['ref'])
+                refs.append({'ref': l['ref'], 'precio': l['precio']})
+        salida.append({'numero': carpeta.name.split('_')[0].upper(), 'carpeta': carpeta.name,
+                       'pdf': pdf.name if pdf else '', 'referencias': refs})
+    return salida
+
+
+def precio_de_pedido(cliente: str, proyecto: str, numero: str, ref: str) -> dict:
+    """Precio de esa referencia en el PDF del pedido elegido (p. ej. RM7751). Si no está, {'encontrado': False}."""
+    for _, carpeta, pdf in _carpetas_del_proyecto(cliente, proyecto):
+        if carpeta.name.split('_')[0].upper() != str(numero).strip().upper() or not pdf:
+            continue
+        lineas = _lineas_pdf_cacheadas(pdf)
+        for l in lineas:   # primero la referencia exacta
+            if l.get('precio') and _ref_clave(l.get('ref')) == _ref_clave(ref):
+                return {'encontrado': True, 'precio': l['precio'], 'numero': carpeta.name.split('_')[0].upper(),
+                        'referencia': l['ref'], 'fecha': '', 'ref': l['ref'], 'fuente': 'pdf'}
+        d = _ref_diseno(ref)   # si no, la misma referencia con otro prefijo (A200FUT01 para A100FUT01)
+        for l in lineas:
+            if l.get('precio') and _coincide_codigo(_ref_clave(l.get('ref')), d):
+                return {'encontrado': True, 'precio': l['precio'], 'numero': carpeta.name.split('_')[0].upper(),
+                        'referencia': l['ref'], 'fecha': '', 'ref': l['ref'], 'fuente': 'pdf'}
+        return {'encontrado': False, 'numero': str(numero).upper()}
+    return {'encontrado': False, 'numero': str(numero).upper()}
+
+
+@router.get('/pedidos-pasados')
+def pedidos_pasados_lista(request: Request, cliente: str = '', proyecto: str = ''):
+    """Lista desplegable: los pedidos pasados del proyecto con el precio de cada referencia (desde el PDF de Effi)."""
+    _usuario(request)
+    if len(cliente.strip()) < 3 or not proyecto.strip():
+        return {'pedidos': []}
+    return {'pedidos': pedidos_pasados(cliente, proyecto)}
+
+
 def precio_ultima_venta(cliente: str, ref: str) -> dict:
     """Precio unitario de la última venta (no anulada) de ese cliente para esa referencia, desde el registro de cartera."""
     from app import cartera_api
@@ -320,9 +383,12 @@ _cache_precios: dict = {}   # (cliente, proyecto, ref) -> (momento, resultado de
 
 
 @router.get('/precio-anterior')
-def precio_anterior(request: Request, cliente: str = '', ref: str = '', proyecto: str = ''):
-    """REPROGRAMACIÓN: el precio de la última programación de ese proyecto (su PDF); si no se encuentra, la última venta en cartera."""
+def precio_anterior(request: Request, cliente: str = '', ref: str = '', proyecto: str = '', numero: str = ''):
+    """REPROGRAMACIÓN: el precio de la última programación de ese proyecto (su PDF); si no se encuentra, la última venta en cartera.
+    Con `numero` (p. ej. RM7751) lee el precio de ese pedido elegido en la lista desplegable."""
     _usuario(request)
+    if numero.strip() and proyecto.strip() and len(cliente.strip()) >= 3:
+        return precio_de_pedido(cliente, proyecto, numero, ref)
     if proyecto.strip() and len(cliente.strip()) >= 3:
         # sin candado global (bloqueaba otras búsquedas de la NAS); el resultado se guarda 30 min para no leer los PDFs otra vez
         clave = (cliente.strip().upper(), proyecto.strip().upper(), ref.strip().upper())
