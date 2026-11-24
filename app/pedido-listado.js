@@ -318,10 +318,8 @@
     const pedidos = L.pedidosPasados || [];
     const elegido = window.PedidoEffi && window.PedidoEffi.pedidoElegidoDe ? window.PedidoEffi.pedidoElegidoDe(ref) : '';
     const opciones = pedidos.map(p => {
-      // si hay referencia, se muestra su precio; si no, las referencias que trae ese pedido
-      const x = r0 ? p.referencias.find(y => String(y.ref).toUpperCase() === r0) : null;
-      const texto = x ? Number(x.precio).toLocaleString('es-CO') : p.referencias.map(y => y.ref).join(', ');
-      return '<option value="' + esc(p.numero) + '"' + (p.numero === elegido ? ' selected' : '') + '>' + esc(p.numero) + ' · ' + esc(texto) + '</option>';
+      // se muestra como la carpeta del pedido: NUMERO_NOMBRE PROYECTO (ej. CO5780_SOCCER CAMP)
+      return '<option value="' + esc(p.numero) + '"' + (p.numero === elegido ? ' selected' : '') + '>' + esc(p.carpeta || p.numero) + '</option>';
     }).join('');
     return '<label>PEDIDO PASADO<select data-pp-ref="' + esc(ref) + '"><option value="">' + (pedidos.length ? '— último automático —' : 'sin pedidos pasados') + '</option>' + opciones + '</select></label>';
   }
