@@ -541,13 +541,16 @@
     const num = pedidoElegido[claveProy()] || '', k = claveRef(ref) + '|' + num;
     const pedir = precioCache[k] ? Promise.resolve(precioCache[k]) : api('/api/pedido-effi/precio-anterior?cliente=' + encodeURIComponent(cli) + '&ref=' + encodeURIComponent(ref) + '&proyecto=' + encodeURIComponent(pr) + (num ? '&numero=' + encodeURIComponent(num) : '')).then(r => (precioCache[k] = r));
     pedir.then(r => {
-      if (!r || !r.encontrado || !st.conceptos.includes(l) || String(l.ref || '').trim() !== ref) return;   // ya cambió el artículo o el cliente
-      l.precio = String(r.precio);
+      if (!r || !r.encontrado) return;
+      // la línea puede haberse reemplazado al cambiar entre listado y CO/RM: se busca por su referencia
+      const destino = st.conceptos.includes(l) ? l : st.conceptos.find(x => String(x.ref || '').trim() === ref && !x.precioManual);
+      if (!destino || String(destino.ref || '').trim() !== ref) return;   // ya cambió el artículo o el cliente
+      destino.precio = String(r.precio);
       invalidar();
       // el precio se escribe directamente en el campo «Precio ud.» de ese concepto del CO/RM que se está creando
-      const idx = st.conceptos.indexOf(l);
+      const idx = st.conceptos.indexOf(destino);
       const campo = panel && panel.querySelector ? panel.querySelector('[data-lineas] .pe-linea[data-i="' + idx + '"] [data-f="precio"]') : null;
-      if (campo) { campo.value = l.precio; refrescarTotales(); }
+      if (campo) { campo.value = destino.precio; refrescarTotales(); }
       // si no hay campo a la vista (estás en el listado) el precio queda en el documento y se muestra al volver a CO/RM
       else if (!(window.PedidoListado && window.PedidoListado.activo && window.PedidoListado.activo())) dibujar();
       msg('Precio de la última venta a este cliente: $' + Number(r.precio).toLocaleString('es-CO') + ' (' + (r.numero ? 'CO/RM ' + r.numero : '') + (r.fecha ? ' · ' + r.fecha : '') + '). Puedes cambiarlo.', 'ok');
