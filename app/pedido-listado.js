@@ -311,6 +311,27 @@
       guardarBorrador();
     }
   }
+  // lista desplegable de pedidos pasados (del proyecto) para una referencia: muestra el precio que trae cada PDF
+  function pedidoPasadoCampo(ref) {
+    const r0 = String(ref || '').trim().toUpperCase();
+    const pedidos = (L.pedidosPasados || []).filter(p => p.referencias.some(x => String(x.ref).toUpperCase() === r0));
+    const elegido = window.PedidoEffi && window.PedidoEffi.pedidoElegidoDe ? window.PedidoEffi.pedidoElegidoDe(ref) : '';
+    const opciones = pedidos.map(p => {
+      const x = p.referencias.find(y => String(y.ref).toUpperCase() === r0);
+      return '<option value="' + esc(p.numero) + '"' + (p.numero === elegido ? ' selected' : '') + '>' + esc(p.numero) + ' · ' + Number(x.precio).toLocaleString('es-CO') + '</option>';
+    }).join('');
+    return '<label>PEDIDO PASADO<select data-pp-ref="' + esc(ref) + '"><option value="">' + (pedidos.length ? '— último automático —' : 'sin pedidos pasados') + '</option>' + opciones + '</select></label>';
+  }
+  // carga los pedidos pasados del proyecto una vez por proyecto y repinta el listado
+  async function cargarPedidosPasados() {
+    if (!window.PedidoEffi || !window.PedidoEffi.pedidosPasados) return;
+    const gs = grupos();
+    const pr = gs.length ? String(datosRef(gs[0].referencia).proyecto || '').trim() : '';
+    if (!pr || L.pedidosPasadosPr === pr) return;
+    L.pedidosPasadosPr = pr;
+    try { L.pedidosPasados = await window.PedidoEffi.pedidosPasados(pr); } catch (e) { L.pedidosPasados = []; }
+    pantallaListado();
+  }
   // aviso de arriba del listado: precio de la última programación del proyecto y su orden (ej. 22.000 - CO6071)
   async function precioAvisos() {
     if (!window.PedidoEffi || !window.PedidoEffi.precioAnteriorDe) return;
@@ -959,7 +980,7 @@
     }
     q('[data-cuerpo]').innerHTML = '<div class="pl-refs">' + gs.map(x => '<button type="button" class="pl-ref ' + (x.referencia === L.abierta ? 'on' : '') + '" data-ref="' + esc(x.referencia) + '">' + esc(x.referencia) + contador(x) + '</button>').join('') + '</div>' +
       '<div class="pl-tarjeta"><h3>' + esc(g.referencia) + ' · ' + esc(g.descripcion) + ' · ' + g.cantidad + ' prendas</h3>' +
-      '<div class="pl-herr">' + proyectoCampo(g.referencia) +
+      '<div class="pl-herr">' + proyectoCampo(g.referencia) + pedidoPasadoCampo(g.referencia) +
       '<label>LÍNEA DEL PRODUCTO<select data-ref-linea data-ref="' + esc(g.referencia) + '"><option value="">—</option>' + (L.cat.lineas || []).map(x => '<option' + (x === datosRef(g.referencia).linea ? ' selected' : '') + '>' + esc(x) + '</option>').join('') + '</select></label>' +
       '' +
       '' +
@@ -1031,7 +1052,14 @@
       pn.style.right = 'auto';
       pn.style.width = ancho + 'px';
     });
-    raiz.querySelectorAll('button.pl-ref[data-ref]').forEach(b => b.onclick = () => { L.abierta = b.dataset.ref; pantallaListado(); });   // solo los botones de referencia (los campos de proyecto también llevan data-ref)
+    raiz.querySelectorAll('button.pl-ref[data-ref]').forEach(b => b.onclick = () => { L.abierta = b.dataset.ref; pantallaListado(); });
+    // el comercial elige un pedido pasado: su precio se aplica a esa referencia y se muestra en el aviso
+    raiz.querySelectorAll('select[data-pp-ref]').forEach(s => s.onchange = () => {
+      if (window.PedidoEffi && window.PedidoEffi.elegirPedido) window.PedidoEffi.elegirPedido(s.dataset.ppRef, s.value);
+      L.avisosPrecio = {};   // se vuelve a leer el aviso con el pedido elegido
+      precioAvisos();
+    });
+    cargarPedidosPasados();   // solo los botones de referencia (los campos de proyecto también llevan data-ref)
     q('[data-atras]').onclick = () => { if (L.previo) { if (L.opts.onVolver) L.opts.onVolver(); return; } L.pantalla = 'mockups'; dibujar(); };
     q('[data-mas]').onclick = () => { filas.push(filaVacia()); sincronizarCantidad(L.abierta); guardarBorrador(); pantallaListado(); enfocarUltima(); };
     q('[data-mas5]').onclick = () => { for (let k = 0; k < 5; k++) filas.push(filaVacia()); sincronizarCantidad(L.abierta); guardarBorrador(); pantallaListado(); enfocarUltima(); };

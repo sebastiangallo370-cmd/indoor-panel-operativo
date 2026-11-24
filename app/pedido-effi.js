@@ -505,20 +505,37 @@
   }
   // REPROGRAMACIÓN: si el cliente ya compró esa referencia, el precio es el de su última venta (no el de lista)
   const precioCache = {};
+  // pedido pasado elegido por el comercial en el listado (ref -> número, p. ej. RM7751)
+  const pedidoElegido = {};
+  const claveRef = (ref) => (st.cliente && st.cliente.nombre) + '|' + String((garantiaListado() || {}).proyecto || '').trim() + '|' + String(ref || '').trim().toUpperCase();
   // precio de la última programación de este proyecto (con caché): lo usan el formulario y el listado
   function precioAnteriorDe(ref) {
     const cli = st.cliente && st.cliente.nombre, r0 = String(ref || '').trim();
     if (!cli || !r0) return Promise.resolve(null);
     const pr = String((garantiaListado() || {}).proyecto || '').trim();
-    const k = cli + '|' + pr + '|' + r0.toUpperCase();
-    return precioCache[k] ? Promise.resolve(precioCache[k]) : api('/api/pedido-effi/precio-anterior?cliente=' + encodeURIComponent(cli) + '&ref=' + encodeURIComponent(r0) + '&proyecto=' + encodeURIComponent(pr)).then(r => (precioCache[k] = r));
+    const k = claveRef(r0), num = pedidoElegido[k] || '';
+    return precioCache[k] ? Promise.resolve(precioCache[k]) : api('/api/pedido-effi/precio-anterior?cliente=' + encodeURIComponent(cli) + '&ref=' + encodeURIComponent(r0) + '&proyecto=' + encodeURIComponent(pr) + (num ? '&numero=' + encodeURIComponent(num) : '')).then(r => (precioCache[k] = r));
+  }
+  // lista de pedidos pasados del proyecto (con el precio de cada referencia, desde su PDF)
+  function pedidosPasados(proyecto) {
+    const cli = st.cliente && st.cliente.nombre;
+    if (!cli || !String(proyecto || '').trim()) return Promise.resolve([]);
+    return api('/api/pedido-effi/pedidos-pasados?cliente=' + encodeURIComponent(cli) + '&proyecto=' + encodeURIComponent(String(proyecto).trim())).then(r => r.pedidos || []);
+  }
+  function pedidoElegidoDe(ref) { return pedidoElegido[claveRef(ref)] || ''; }
+  // el comercial elige un pedido pasado: se usa su precio para esa referencia (y se aplica a las líneas que ya existen)
+  function elegirPedido(ref, numero) {
+    const r0 = String(ref || '').trim().toUpperCase(), k = claveRef(r0);
+    if (numero) pedidoElegido[k] = numero; else delete pedidoElegido[k];
+    delete precioCache[k];
+    st.conceptos.filter(l => String(l.ref || '').trim().toUpperCase() === r0 && !l.precioManual).forEach(l => aplicarPrecioAnterior(l));
   }
   function aplicarPrecioAnterior(l) {
     const cli = st.cliente && st.cliente.nombre, ref = String(l.ref || '').trim();
     if (!cli || !ref || l.precioManual) return;
     const pr = String((garantiaListado() || {}).proyecto || '').trim();   // la última programación de ESE proyecto
-    const k = cli + '|' + pr + '|' + ref.toUpperCase();
-    const pedir = precioCache[k] ? Promise.resolve(precioCache[k]) : api('/api/pedido-effi/precio-anterior?cliente=' + encodeURIComponent(cli) + '&ref=' + encodeURIComponent(ref) + '&proyecto=' + encodeURIComponent(pr)).then(r => (precioCache[k] = r));
+    const k = claveRef(ref), num = pedidoElegido[k] || '';
+    const pedir = precioCache[k] ? Promise.resolve(precioCache[k]) : api('/api/pedido-effi/precio-anterior?cliente=' + encodeURIComponent(cli) + '&ref=' + encodeURIComponent(ref) + '&proyecto=' + encodeURIComponent(pr) + (num ? '&numero=' + encodeURIComponent(num) : '')).then(r => (precioCache[k] = r));
     pedir.then(r => {
       if (!r || !r.encontrado || !st.conceptos.includes(l) || String(l.ref || '').trim() !== ref) return;   // ya cambió el artículo o el cliente
       l.precio = String(r.precio);
@@ -1061,7 +1078,7 @@
     if (window.PedidoListado && window.PedidoListado.previo && window.PedidoListado.previo()) st.listadoPrevio = window.PedidoListado.datos();
     return true;
   }
-  window.PedidoEffi = { montar, listadoPrevio, volverAlFormulario, guardarListado, agregarReferencia, quitarReferencia, conceptosListado, setCantidadRef, cantidadManual, precioAnteriorDe, fechaEntrega: () => { try { return valor('fecha_entrega') || ''; } catch (e) { return ''; } } };
+  window.PedidoEffi = { montar, listadoPrevio, volverAlFormulario, guardarListado, agregarReferencia, quitarReferencia, conceptosListado, setCantidadRef, cantidadManual, precioAnteriorDe, pedidosPasados, pedidoElegidoDe, elegirPedido, fechaEntrega: () => { try { return valor('fecha_entrega') || ''; } catch (e) { return ''; } } };
 })();
 
 // Avisos en el PC: cuando un comercial programa un pedido, la cuenta «Indoor Sport» recibe una notificación de escritorio.
