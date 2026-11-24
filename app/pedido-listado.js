@@ -313,12 +313,15 @@
   }
   // lista desplegable de pedidos pasados (del proyecto) para una referencia: muestra el precio que trae cada PDF
   function pedidoPasadoCampo(ref) {
+    // todos los pedidos pasados DEL CLIENTE (la lista ya viene filtrada por cliente y proyecto)
     const r0 = String(ref || '').trim().toUpperCase();
-    const pedidos = (L.pedidosPasados || []).filter(p => p.referencias.some(x => String(x.ref).toUpperCase() === r0));
+    const pedidos = L.pedidosPasados || [];
     const elegido = window.PedidoEffi && window.PedidoEffi.pedidoElegidoDe ? window.PedidoEffi.pedidoElegidoDe(ref) : '';
     const opciones = pedidos.map(p => {
-      const x = p.referencias.find(y => String(y.ref).toUpperCase() === r0);
-      return '<option value="' + esc(p.numero) + '"' + (p.numero === elegido ? ' selected' : '') + '>' + esc(p.numero) + ' · ' + Number(x.precio).toLocaleString('es-CO') + '</option>';
+      // si hay referencia, se muestra su precio; si no, las referencias que trae ese pedido
+      const x = r0 ? p.referencias.find(y => String(y.ref).toUpperCase() === r0) : null;
+      const texto = x ? Number(x.precio).toLocaleString('es-CO') : p.referencias.map(y => y.ref).join(', ');
+      return '<option value="' + esc(p.numero) + '"' + (p.numero === elegido ? ' selected' : '') + '>' + esc(p.numero) + ' · ' + esc(texto) + '</option>';
     }).join('');
     return '<label>PEDIDO PASADO<select data-pp-ref="' + esc(ref) + '"><option value="">' + (pedidos.length ? '— último automático —' : 'sin pedidos pasados') + '</option>' + opciones + '</select></label>';
   }
