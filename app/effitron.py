@@ -167,11 +167,16 @@ def _plano(t) -> str:
 
 
 def _dinero(t: str) -> float:
-    return float(re.sub(r'[^\d]', '', str(t)) or 0)
+    s = str(t).strip()
+    dec = re.search(r'[.,](\d{2})$', s)   # formato nuevo de Effi: 57,983.19 (decimales de dos cifras)
+    if dec:
+        entero = re.sub(r'[^\d]', '', s[:dec.start()])
+        return float(f"{entero or 0}.{dec.group(1)}")
+    return float(re.sub(r'[^\d]', '', s) or 0)   # formato anterior: $65.000 (pesos enteros)
 
 
 # ------------------------------------------------------------------ preparar el cuerpo de la cotización
-LINEA_PDF = re.compile(r'^(\d+)\s+([A-Z0-9\-]+)\s+(.+?)\s+(\d+)\s+\$([\d.,]+)\s+\$([\d.,]+)(?:\s+\$([\d.,]+))?\s+\$([\d.,]+)\s*$')
+LINEA_PDF = re.compile(r'^(\d+)\s+([A-Z0-9\-]+)\s+(.+?)\s+(\d+)\s+\$([\d.,]+)\s+\$([\d.,]+)(?:\s+(?:\d+%|\$[\d.,]+))*\s+\$([\d.,]+)\s*$')   # acepta la columna de IVA en % del formato nuevo de Effi
 
 
 def leer_cotizacion_pdf(ruta) -> dict:
@@ -197,7 +202,7 @@ def leer_cotizacion_pdf(ruta) -> dict:
         # ya completas.
         referencia = m.group(2)
         siguiente = lineas_texto[index + 1].strip() if index + 1 < len(lineas_texto) else ''
-        if re.fullmatch(r'\d{2,3}', siguiente):
+        if re.fullmatch(r'[A-Z]{0,3}\d{2,3}', siguiente):   # sufijo de la referencia partido en dos líneas (A200-7200V + OL01)
             referencia += siguiente
         lineas.append({'ref': referencia, 'desc': desc, 'diseno': int(d.group(1)) if d else 1, 'genero': g, 'precio': _dinero(m.group(5))})
     dias = re.search(r'(\d+)\s*d[ií]as', texto, re.I)
