@@ -530,6 +530,8 @@
     const pk = claveProy();
     if (numero) pedidoElegido[pk] = numero; else delete pedidoElegido[pk];
     Object.keys(precioCache).forEach(k => delete precioCache[k]);   // se vuelve a leer con el pedido elegido
+    // una línea sin precio vuelve a tomarlo del pedido elegido (aunque antes se hubiera tocado a mano sin escribir precio)
+    st.conceptos.forEach(l => { if (String(l.ref || '').trim() && !(Number(l.precio) > 0)) l.precioManual = false; });
     st.conceptos.filter(l => String(l.ref || '').trim() && !l.precioManual).forEach(l => aplicarPrecioAnterior(l));
   }
   function aplicarPrecioAnterior(l) {
