@@ -981,7 +981,7 @@
     }
     q('[data-cuerpo]').innerHTML = '<div class="pl-refs">' + gs.map(x => '<button type="button" class="pl-ref ' + (x.referencia === L.abierta ? 'on' : '') + '" data-ref="' + esc(x.referencia) + '">' + esc(x.referencia) + contador(x) + '</button>').join('') + '</div>' +
       '<div class="pl-tarjeta"><h3>' + esc(g.referencia) + ' · ' + esc(g.descripcion) + ' · ' + g.cantidad + ' prendas</h3>' +
-      '<div class="pl-herr">' + proyectoCampo(g.referencia) + pedidoPasadoCampo(g.referencia) +
+      '<div class="pl-herr">' + proyectoCampo(g.referencia) +
       '<label>LÍNEA DEL PRODUCTO<select data-ref-linea data-ref="' + esc(g.referencia) + '"><option value="">—</option>' + (L.cat.lineas || []).map(x => '<option' + (x === datosRef(g.referencia).linea ? ' selected' : '') + '>' + esc(x) + '</option>').join('') + '</select></label>' +
       '' +
       '' +
@@ -1054,13 +1054,7 @@
       pn.style.width = ancho + 'px';
     });
     raiz.querySelectorAll('button.pl-ref[data-ref]').forEach(b => b.onclick = () => { L.abierta = b.dataset.ref; pantallaListado(); });
-    // el comercial elige un pedido pasado: su precio se aplica a esa referencia y se muestra en el aviso
-    raiz.querySelectorAll('select[data-pp-ref]').forEach(s => s.onchange = () => {
-      if (window.PedidoEffi && window.PedidoEffi.elegirPedido) window.PedidoEffi.elegirPedido(s.dataset.ppRef, s.value);
-      L.avisosPrecio = {};   // se vuelve a leer el aviso con el pedido elegido
-      precioAvisos();
-    });
-    cargarPedidosPasados();   // solo los botones de referencia (los campos de proyecto también llevan data-ref)
+   // solo los botones de referencia (los campos de proyecto también llevan data-ref)
     q('[data-atras]').onclick = () => { if (L.previo) { if (L.opts.onVolver) L.opts.onVolver(); return; } L.pantalla = 'mockups'; dibujar(); };
     q('[data-mas]').onclick = () => { filas.push(filaVacia()); sincronizarCantidad(L.abierta); guardarBorrador(); pantallaListado(); enfocarUltima(); };
     q('[data-mas5]').onclick = () => { for (let k = 0; k < 5; k++) filas.push(filaVacia()); sincronizarCantidad(L.abierta); guardarBorrador(); pantallaListado(); enfocarUltima(); };

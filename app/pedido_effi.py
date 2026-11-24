@@ -111,6 +111,15 @@ def _catalogos() -> dict:
 
 def _precio_de(art: dict) -> float:
     """Precio de venta de la «Tarifa normal» (Effi lo entrega como texto: «Tarifa normal: 71000.0000; Tarifa Mayorista: 0.0000»); si no hay, el primer precio mayor que cero; si no, 0 y el comercial lo escribe."""
+    # Effi entrega las tarifas en «lista_precios_venta» (lista con tarifa_precio / nombre / precio).
+    lista = art.get('lista_precios_venta')
+    if isinstance(lista, list):
+        for t in lista:
+            if not isinstance(t, dict):
+                continue
+            es_normal = str(t.get('tarifa_precio', '')).strip() == '1' or 'normal' in str(t.get('nombre_tarifa_precio', '')).lower()
+            if es_normal and effi_api._d(t.get('precio')) > 0:
+                return float(effi_api._d(t.get('precio')))
     texto = str(art.get('precios_venta') or '')
     m = re.search(r'tarifa normal\s*:\s*([\d.,]+)', texto, re.I)
     if m and effi_api._d(m.group(1)) > 0:
@@ -339,15 +348,6 @@ def precio_de_pedido(cliente: str, proyecto: str, numero: str, ref: str) -> dict
                         'referencia': l['ref'], 'fecha': '', 'ref': l['ref'], 'fuente': 'pdf'}
         return {'encontrado': False, 'numero': str(numero).upper()}
     return {'encontrado': False, 'numero': str(numero).upper()}
-
-
-@router.get('/pedidos-pasados')
-def pedidos_pasados_lista(request: Request, cliente: str = '', proyecto: str = ''):
-    """Lista desplegable: los pedidos pasados del proyecto con el precio de cada referencia (desde el PDF de Effi)."""
-    _usuario(request)
-    if len(cliente.strip()) < 3 or not proyecto.strip():
-        return {'pedidos': []}
-    return {'pedidos': pedidos_pasados(cliente, proyecto)}
 
 
 def precio_ultima_venta(cliente: str, ref: str) -> dict:
