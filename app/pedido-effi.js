@@ -535,6 +535,8 @@
     st.conceptos.filter(l => String(l.ref || '').trim() && !l.precioManual).forEach(l => aplicarPrecioAnterior(l));
   }
   function aplicarPrecioAnterior(l) {
+    // ya no se toma el precio de reprogramaciones anteriores: el precio del artículo es el que tiene Effi
+    return;
     const cli = st.cliente && st.cliente.nombre, ref = String(l.ref || '').trim();
     if (!cli || !ref || l.precioManual) return;
     const pr = String((garantiaListado() || {}).proyecto || '').trim();   // la última programación de ESE proyecto
