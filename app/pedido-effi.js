@@ -240,17 +240,25 @@
   const post = (url, body) => api(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   const debounce = (fn, ms) => { let t = 0; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
   const msg = (t, tipo) => { const m = q('[data-msg]'); if (m) { m.textContent = t || ''; m.className = 'pe-msg ' + (tipo || ''); } };
-  const lineaVacia = () => ({ articulo: 0, ref: '', descripcion: '', cantidad: 1, precio: '', descuento: 0, dtipo: 'valor', obsequio: false, sinIva: false, obs: '', impuesto: '', abierta: false, id_serie: null });
+  const lineaVacia = () => ({ articulo: 0, ref: '', descripcion: '', cantidad: 1, precio: '', descuento: 0, dtipo: 'valor', obsequio: false, sinIva: false, obs: '', impuesto: '', impuestosIds: null, abierta: false, id_serie: null });
   const num = v => { const n = Number(String(v).replace(',', '.')); return isFinite(n) ? n : 0; };
   const brutoDe = l => num(l.cantidad) * num(l.precio);
   // descuento de un concepto en $: obsequio = 100 %; en % se calcula sobre su bruto; en valor se usa tal cual
   const descDe = l => l.obsequio ? brutoDe(l) : (l.dtipo === 'pct' ? Math.round(brutoDe(l) * num(l.descuento)) / 100 : num(l.descuento));
   const totales = () => { const b = st.conceptos.reduce((s, l) => s + brutoDe(l), 0), d = st.conceptos.reduce((s, l) => s + descDe(l), 0); return { b, d, s: b - d }; };
   const pctDe = t => { const m = String(t || '').match(/(\d+(?:[.,]\d+)?)\s*%/); return m ? Number(m[1].replace(',', '.')) : 0; };
+  // impuestos del concepto: los que eligió el comercial (ids del catálogo de Effi) o, si no eligió, los del artículo
+  const catImp = () => (st.cat && st.cat.impuestos) || [];
+  const impuestosDe = l => {
+    if (Array.isArray(l.impuestosIds)) return l.impuestosIds.map(id => catImp().find(x => x.id === id)).filter(Boolean);
+    const partes = String(l.impuesto || '').split(/<hr[^>]*>|;/).map(s => s.trim().toUpperCase()).filter(Boolean);
+    return partes.map(p => catImp().find(x => String(x.etiqueta).toUpperCase() === p)).filter(Boolean);
+  };
+  const pctImp = l => impuestosDe(l).reduce((a, x) => a + (String(x.tipo_calculo || '').toLowerCase() === 'porcentaje' ? num(x.valor) : 0), 0);
   // Estimado local hasta la VISTA PREVIA (que trae el cálculo exacto de Effi): IVA de cada concepto, propina y retenciones sobre el subtotal
   function estimado() {
     const t = totales(); let imp = 0;
-    st.conceptos.forEach(l => { const base = l.obsequio ? brutoDe(l) : brutoDe(l) - descDe(l); if (!l.sinIva) imp += base * pctDe(l.impuesto) / 100; });
+    st.conceptos.forEach(l => { const base = l.obsequio ? brutoDe(l) : brutoDe(l) - descDe(l); if (!l.sinIva) imp += base * pctImp(l) / 100; });
     const prop = propinaValor() || 0, ret = (st.retenciones || []).reduce((a, id) => { const r = ((st.cat || {}).retenciones || []).find(x => x.id === id); return a + (r ? t.s * pctDe(r.nombre) / 100 : 0); }, 0);
     return { imp: Math.round(imp), ret: Math.round(ret), neto: Math.round(t.s + imp + prop - ret) };
   }
@@ -305,7 +313,7 @@
           <label>Precio ud.*<input data-f="precio" inputmode="decimal" value="${esc(l.precio)}"></label>
           <label>Bruto<input value="${money(brutoDe(l))}" disabled></label>
           <label>Descuento<div class="pe-dto"><input data-f="descuento" inputmode="decimal" value="${esc(l.obsequio ? '100' : l.descuento)}" ${l.obsequio ? 'disabled' : ''}><button class="pe-pct" type="button" data-dtipo title="Cambiar entre valor ($) y porcentaje (%)">${l.obsequio || l.dtipo === 'pct' ? '%' : '$'}</button></div></label>
-          <label>Impuesto<select data-siniva-sel><option value="0"${l.sinIva ? '' : ' selected'}>${esc(l.impuesto || 'Sin impuesto')}</option>${l.impuesto ? `<option value="1"${l.sinIva ? ' selected' : ''}>Quitar IVA (sin impuesto)</option>` : ''}</select></label>
+          <label>Impuesto<div class="pe-chips" data-imp-box>${l.sinIva ? '<span class="pe-chip">Sin IVA</span>' : (impuestosDe(l).map(x => '<span class="pe-chip">' + esc(x.nombre) + '<button type="button" data-imp-quitar="' + x.id + '" aria-label="Quitar">✕</button></span>').join('') || '<span class="pe-chip">Sin impuesto</span>')}</div><select data-imp-add style="margin-top:6px"><option value="">+ Agregar impuesto…</option>${catImp().filter(x => !impuestosDe(l).some(y => y.id === x.id)).map(x => '<option value="' + x.id + '">' + esc(x.nombre) + '</option>').join('')}</select></label>
           <div><span style="color:#c9d3c1;font:800 11px Arial;letter-spacing:.08em">Total sin IVA</span><div class="pe-total-linea">${money(brutoDe(l) - descDe(l))}</div></div>
           <button class="pe-x" type="button" data-quitar aria-label="Quitar concepto">✕</button>
           <div class="pe-tela" data-tela>${telaHtml(l)}</div><div class="pe-mas"><button type="button" class="pe-link" data-detalles>${l.abierta ? '▾' : '▸'} Más detalles${l.obsequio || l.obs || l.sinIva ? ' ●' : ''}</button>${l.abierta ? `<div class="pe-detalles"><label class="pe-chk"><input type="checkbox" data-obsequio ${l.obsequio ? 'checked' : ''}> Sumar solo impuestos para Obsequio, degustación o donación (descuento del 100 %)</label><label class="pe-chk"><input type="checkbox" data-siniva ${l.sinIva ? 'checked' : ''}> Sin IVA en este concepto</label><label>Observación del concepto<input data-f="obs" maxlength="250" value="${esc(l.obs)}" placeholder="Opcional"></label></div>` : ''}</div>
@@ -344,7 +352,7 @@
       tipo: st.tipo, clave: st.clave, sucursal: valor('sucursal'), bodega: valor('bodega'), centro_costos: valor('centro_costos'), fecha_entrega: valor('fecha_entrega'),
       cliente: st.cliente ? st.cliente.tercero : '', direccion: d || undefined, vendedor: valor('vendedor') || undefined, garantia: garantiaListado().proyecto, observacion: valor('observacion'),
       divisa: st.moneda, trm: st.trm, descuento_global: st.global || 0, propina: propinaValor() || 0, retenciones: st.retenciones, prontopago: st.pronto || 0, fecha_prontopago: st.fechaPronto,
-      conceptos: st.conceptos.map(l => ({ articulo: l.articulo, descripcion: l.descripcion, cantidad: l.cantidad, precio: l.precio, descuento: descDe(l), obsequio: l.obsequio, sin_iva: !!l.sinIva, observacion: l.obs, id_serie: l.id_serie || undefined })),
+      conceptos: st.conceptos.map(l => ({ articulo: l.articulo, descripcion: l.descripcion, cantidad: l.cantidad, precio: l.precio, descuento: descDe(l), obsequio: l.obsequio, sin_iva: !!l.sinIva, observacion: l.obs, id_serie: l.id_serie || undefined, impuesto_ids: Array.isArray(l.impuestosIds) ? l.impuestosIds : undefined })),
       formas_pago: st.formas.map(f => ({ id: f.id, valor: f.valor })),
     };
   }
@@ -499,7 +507,7 @@
       cargarProyectos();
     } else {
       const l = st.conceptos[box._i], a = box._lista[idx];
-      Object.assign(l, { articulo: a.id, ref: a.referencia, descripcion: a.descripcion.slice(0, 120), precio: a.precio || l.precio, impuesto: a.impuesto || '' }); invalidar(); dibujar();
+      Object.assign(l, { articulo: a.id, ref: a.referencia, descripcion: a.descripcion.slice(0, 120), precio: a.precio || l.precio, impuesto: a.impuesto || '', impuestosIds: null }); invalidar(); dibujar();
     }
   }
   function teclaSug(e) {
@@ -587,7 +595,8 @@
       row.querySelector('[data-dtipo]').onclick = () => { if (l.obsequio) return; l.dtipo = l.dtipo === 'pct' ? 'valor' : 'pct'; invalidar(); dibujar(); };
       row.querySelector('[data-detalles]').onclick = () => { l.abierta = !l.abierta; dibujar(); };
             const mas = row.querySelector('[data-vit-mas]'); if (mas) mas.onclick = () => { st.vitCompacta = false; document.querySelectorAll('[data-vit-mas]').forEach(b => { b.hidden = true; }); pintarVitrina(); const v = q('[data-vitrina]'); if (v) v.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); };
-            const ss = row.querySelector('[data-siniva-sel]'); if (ss) ss.onchange = () => { l.sinIva = ss.value === '1'; st.sinIvaTodos = st.conceptos.every(x => x.sinIva); invalidar(); dibujar(); };
+            const ia = row.querySelector('[data-imp-add]'); if (ia) ia.onchange = () => { const id = Number(ia.value); if (!id) return; const ids = impuestosDe(l).map(x => x.id); l.impuestosIds = [...ids.filter(x => x !== id), id]; l.sinIva = false; invalidar(); dibujar(); };
+            row.querySelectorAll('[data-imp-quitar]').forEach(b => { b.onclick = () => { const id = Number(b.dataset.impQuitar); l.impuestosIds = impuestosDe(l).map(x => x.id).filter(x => x !== id); invalidar(); dibujar(); }; });
       const si = row.querySelector('[data-siniva]'); if (si) si.onchange = () => { l.sinIva = si.checked; st.sinIvaTodos = st.conceptos.every(x => x.sinIva); invalidar(); dibujar(); };
       const ob = row.querySelector('[data-obsequio]'); if (ob) ob.onchange = () => { l.obsequio = ob.checked; invalidar(); dibujar(); };
       row.querySelector('[data-quitar]').onclick = () => { st.conceptos.splice(i, 1); if (!st.conceptos.length) st.conceptos.push(lineaVacia()); invalidar(); dibujar(); };
@@ -972,7 +981,7 @@
     const a = (r.articulos || []).find(x => String(x.referencia || '').toUpperCase() === ref);
     if (!a) return { no: true, ref };
     let l = st.conceptos.find(x => !String(x.ref || '').trim()); if (!l) { l = lineaVacia(); st.conceptos.push(l); }
-    Object.assign(l, { articulo: a.id, ref: a.referencia, descripcion: String(a.descripcion || '').slice(0, 120), precio: a.precio || l.precio, impuesto: a.impuesto || '' });
+    Object.assign(l, { articulo: a.id, ref: a.referencia, descripcion: String(a.descripcion || '').slice(0, 120), precio: a.precio || l.precio, impuesto: a.impuesto || '', impuestosIds: null });
     invalidar();
     return { ok: true, ref: a.referencia };
   }

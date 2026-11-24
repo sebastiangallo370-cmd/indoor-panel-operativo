@@ -105,6 +105,9 @@ def _catalogos() -> dict:
                          'base': str(r.get('base') or '0'), 'base_excluida': str(r.get('base_excluida') or '0'), 'base_maxima': str(r.get('base_maxima') or '0')}
                         for r in effi_api._lista('retencion') if str(r.get('vigente', '1')) == '1'],
     }
+    d['impuestos'] = sorted([{'id': int(i['id']), 'etiqueta': str(i.get('etiqueta') or ''), 'nombre': f"{int(i['id'])} - {str(i.get('etiqueta') or '')}",
+                       'valor': str(i.get('valor') or '0'), 'tipo_calculo': str(i.get('tipo_calculo') or '')}
+                      for i in effi_api._lista('impuesto') if str(i.get('vigente', '1')) == '1'], key=lambda x: x['id'])
     _cache.update(t=ahora, d=d)
     return d
 
@@ -409,6 +412,16 @@ def construir(p: dict, usuario: str = '') -> dict:
                     raise HTTPException(400, f"El impuesto «{x.get('etiqueta')}» del artículo {art.get('referencia')} no es de porcentaje: no sé calcularlo")
             arts[aid] = (art, imps)
         art, imps = arts[aid]
+        if isinstance(l.get('impuesto_ids'), list):   # el comercial eligió los impuestos del concepto en la lista de Effi
+            imp_cat = {x['id']: x for x in cat['impuestos']}
+            imps = []
+            for x in l['impuesto_ids']:
+                k = _entero(x, f'Impuesto del concepto {i}')
+                if k not in imp_cat:
+                    raise HTTPException(400, f'El impuesto {k} del concepto {i} no existe en Effi')
+                if str(imp_cat[k].get('tipo_calculo') or '').lower() != 'porcentaje':
+                    raise HTTPException(400, f"El impuesto «{imp_cat[k]['etiqueta']}» no es de porcentaje: no sé calcularlo")
+                imps.append(imp_cat[k])
         if l.get('sin_iva'):   # el comercial pidió quitar el IVA de este concepto: se crea sin impuestos
             imps = []
         efectivo = bruto if obsequio else desc   # un obsequio se descuenta al 100 %
