@@ -1113,11 +1113,22 @@ def _pdfs_y_sheets(s, sobrescribir, permitir_tallas_faltantes=False):
     log(AGENTE, f"PDF · pestaña {eleccion_hoja or 'todas'} · {len(fila.get('lineas') or [])} líneas · {len(trabajos)} trabajo(s): "
         + " | ".join(f"{Path(str(a)).name}{(' · Gen_' + g) if g else ''}" for a, g in trabajos), archivo={"tipo": "pestana", "nombre": eleccion_hoja or "todas"})
     procesados = set()   # diseños (1, 2, 3…) cuyo maestro ya quedó con sus PDF: se verifica que cubran TODO lo que pide el listado
-    for ai, genero_destino in trabajos:
-        destino = (s.get("destinos_prod") or {}).get(str(ai))
+    def _destino_de_ai(ai):
+        d_ = (s.get("destinos_prod") or {}).get(str(ai))
         # Un destino guardado de otra orden (p. ej. RM7718 de la corrida anterior) NO se usa: se recalcula con la orden actual
-        if not destino or (p.get("orden") and str(p["orden"]).upper() not in str(destino.get("carpeta", "")).upper()):
-            destino = (ordenes.destino_impresion(p["orden"], ai) if p.get("orden") else None) or {"carpeta": str(olver.carpeta_mesas(p["cliente"], p["referencia"], p.get("orden")).parent / "produccion")}
+        if not d_ or (p.get("orden") and str(p["orden"]).upper() not in str(d_.get("carpeta", "")).upper()):
+            d_ = (ordenes.destino_impresion(p["orden"], ai) if p.get("orden") else None) or {"carpeta": str(olver.carpeta_mesas(p["cliente"], p["referencia"], p.get("orden")).parent / "produccion")}
+        return d_
+    # FASE 1: revisar y exportar las mesas de trabajo que falten de TODOS los diseños del listado; la fase 2 crea los PDF
+    for ai, genero_destino in trabajos:
+        r1 = olver.pdfs_por_jugador(ai, fila["lineas"], _destino_de_ai(ai), p.get("orden"), tela=tela or "", sobrescribir=False,
+                                    tela_archivo=tela_archivo, referencia=p.get("referencia", ""), genero_destino=genero_destino,
+                                    permitir_faltantes=False, solo_mesas=True)
+        if r1.get("faltantes"):
+            log(AGENTE, f"{Path(str(ai)).name}: siguen faltando mesas de {', '.join(r1['faltantes'])}; se confirmará antes de los PDF", "WARN")
+    # FASE 2: PDF por jugador
+    for ai, genero_destino in trabajos:
+        destino = _destino_de_ai(ai)
         etiqueta_ai = Path(ai).name + (f" · Gen_{genero_destino}" if genero_destino else "")
         log(AGENTE, f"OLVER crea los PDF de producción por jugador de {etiqueta_ai}")
         r = olver.pdfs_por_jugador(ai, fila["lineas"], destino, p.get("orden"), tela=tela or "", sobrescribir=sobrescribir,
