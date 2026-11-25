@@ -44,6 +44,9 @@ foreach ($f in $archivos) {
     $cambiados++
     Write-Output "Publicado: $rel"
 }
+$version = (git -C $Repo log -1 --format="%h %ci") 2>$null
+if (-not $version) { $version = "sin git" }
+Set-Content -Path (Join-Path $Nas "VERSION.txt") -Value ("Version " + (Get-Date -Format "yyyy-MM-dd HH:mm") + " · " + $version) -Encoding UTF8
 Write-Output "Archivos publicados en la NAS: $cambiados (respaldo de lo anterior en $Backup)"
 
 if ($SoloCopiar) { Write-Output "Solo copia: no reinicio el servidor."; exit 0 }
