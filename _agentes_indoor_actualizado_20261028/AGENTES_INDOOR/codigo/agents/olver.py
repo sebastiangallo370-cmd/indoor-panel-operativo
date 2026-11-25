@@ -955,9 +955,9 @@ def _filas_generador(jugadores):
     return filas
 
 
-def _correr_generador(doc, filas, montajes, salida, prefijo):
-    """Abre el maestro/mesa con Illustrator y corre GENERADOR_AGENTES.jsx: aplica las filas a TODOS los .ai de la misma talla,
-    diseño y género de la carpeta de diseño (hermanos incluidos) y guarda los PDF en salida/<relativo a Montajes>."""
+def _correr_generador(doc, filas, montajes, salida, prefijo, solo=None, listar=False):
+    """Corre GENERADOR_AGENTES.jsx por lotes: listar=True solo devuelve los .ai que aplican; solo=<ruta> procesa UN archivo.
+    Así Illustrator responde entre un archivo y el siguiente."""
     csv = "NOMBRE1;NUMERO1\n" + "".join(f"{n};{u}\n" for n, u in filas)
     pre = ("var INDOOR_DOC = " + json.dumps(Path(doc).as_posix()) + ";\n"
            "var INDOOR_CSV = " + json.dumps(csv) + ";\n"
@@ -965,7 +965,9 @@ def _correr_generador(doc, filas, montajes, salida, prefijo):
            "var INDOOR_SALIDA = " + json.dumps(str(salida).replace("\\", "/")) + ";\n"
            "var INDOOR_TMP = " + json.dumps(Path(tempfile.gettempdir()).as_posix() + "/indoor_agentes_pdf") + ";\n"
            "var INDOOR_PREFIJO = " + json.dumps(prefijo or "") + ";\n"
-           "var INDOOR_JSX_MESSAGES = [];\n")
+           "var INDOOR_SOLO_LISTAR = " + ("true" if listar else "false") + ";\n"
+           + ("var INDOOR_SOLO_ARCHIVO = " + json.dumps(Path(solo).as_posix()) + ";\n" if solo else "")
+           + "var INDOOR_JSX_MESSAGES = [];\n")
     # Se lee de la misma carpeta de código que está corriendo (NAS o copia local), así siempre es la versión publicada
     codigo = (Path(__file__).resolve().parent.parent / "jsx" / "GENERADOR_AGENTES.jsx").read_text(encoding="utf-8")
     Path(tempfile.gettempdir(), "indoor_agentes_pdf").mkdir(parents=True, exist_ok=True)
@@ -973,8 +975,15 @@ def _correr_generador(doc, filas, montajes, salida, prefijo):
     illustrator.traer_al_frente()
     msgs = str(app.DoJavaScript(pre + codigo + "\nINDOOR_JSX_MESSAGES.join(String.fromCharCode(10));"))
     for linea in msgs.splitlines():
-        log(AGENTE, "[JSX] " + linea, "ERROR" if "ERROR" in linea else "INFO")
+        if not linea.startswith("ARCHIVO:"):
+            log(AGENTE, "[JSX] " + linea, "ERROR" if "ERROR" in linea else "INFO")
     return msgs
+
+
+def _archivos_del_lote(doc, filas, montajes, salida, prefijo):
+    """Lista (sin guardar nada) los .ai de la misma talla, diseño y género que procesará el JSX."""
+    msgs = _correr_generador(doc, filas, montajes, salida, prefijo, listar=True)
+    return [Path(l[len("ARCHIVO:"):].strip()) for l in msgs.splitlines() if l.startswith("ARCHIVO:")]
 
 
 def _pdfs_de(carpeta_raiz):
@@ -995,7 +1004,12 @@ def _generar_por_talla(doc, jugadores, montajes, salida, prefijo, talla, diseno=
     jug_panel = [{"nombre": n, "numero": u} for n, u in filas]
     vigia = _VigiaCarpeta(Path(salida), "*.pdf", lambda f: _evento_pdf(f, jug_panel, talla, diseno or "", genero or ""))
     try:
-        _correr_generador(doc, filas, montajes, salida, prefijo)
+        # Por lotes: un archivo por llamada a Illustrator, para que el programa responda entre uno y otro
+        archivos = _archivos_del_lote(doc, filas, montajes, salida, prefijo)
+        log(AGENTE, f"Talla {talla}: {len(archivos)} archivo(s) (principal y hermanos) · {len(filas)} PDF por archivo")
+        for ar in archivos:
+            log(AGENTE, f"Generando {ar.name} · talla {talla}")
+            _correr_generador(doc, filas, montajes, salida, prefijo, solo=ar)
     except Exception as e:  # noqa: BLE001
         log(AGENTE, f"No pude generar los PDF de la talla {talla} con el JSX: {e}", "ERROR")
         return []

@@ -169,6 +169,22 @@ var INDOOR_PAUSA_MS = (typeof INDOOR_PAUSA_MS !== "undefined") ? INDOOR_PAUSA_MS
     }
     log("Archivos a procesar (talla, diseño y género iguales): " + filesToProcess.length);
 
+    // Modo listar: solo devuelve la lista de archivos (el agente la usa para procesarlos uno por uno)
+    if (typeof INDOOR_SOLO_LISTAR !== "undefined" && INDOOR_SOLO_LISTAR) {
+        for (var lf = 0; lf < filesToProcess.length; lf++) { INDOOR_JSX_MESSAGES.push("ARCHIVO:" + decodeURI(filesToProcess[lf].fullName)); }
+        try { docA.close(SaveOptions.DONOTSAVECHANGES); } catch (eLC) {}
+        app.userInteractionLevel = originalInteraction;
+        return;
+    }
+    // Modo un archivo: solo procesa el indicado
+    if (typeof INDOOR_SOLO_ARCHIVO !== "undefined" && INDOOR_SOLO_ARCHIVO) {
+        var soloLista = [];
+        for (var sf = 0; sf < filesToProcess.length; sf++) {
+            if (decodeURI(filesToProcess[sf].fullName).toLowerCase() === decodeURI(INDOOR_SOLO_ARCHIVO).toLowerCase()) { soloLista.push(filesToProcess[sf]); }
+        }
+        filesToProcess = soloLista;
+    }
+
     // --- 2) Columnas del CSV (igual que el original) ---
     var hCols = filasDataGlobal[0].split((filasDataGlobal[0].indexOf(";") !== -1) ? ";" : ",");
     var jugMapa = {};
