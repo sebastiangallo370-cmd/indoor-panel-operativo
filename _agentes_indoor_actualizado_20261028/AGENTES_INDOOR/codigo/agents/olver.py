@@ -758,31 +758,37 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
             for t in faltan
         )
     if JSX_GENERADOR and not simulado:
-        # Ruta nueva: por cada talla, el JSX toma el maestro principal de esa talla y aplica el listado a todos los .ai hermanos
-        # de la misma talla, diseño y género (carpeta de diseño). Las tallas que solo tienen hermanos (p. ej. 4 a 16 de niño) también.
+        # TAVO elige los maestros: solo las carpetas de la referencia de la pestaña (mismo diseño) y, de cada una,
+        # las mesas de la talla que se hace (principal, Costados, Petico). Nada de otras referencias.
         salida_hoja = Path(destino["carpeta"]) / (_seguro(hoja) or ref)
         pdfs_jsx, tallas_hechas = [], set()
+        mapa_jsx = _hermanos_por_talla(destino["montajes"], diseno, ref, genero, suf_maestro) if destino.get("montajes") else {}
+        carpetas_ref = [Path(info["carpeta"]) for info in mapa_jsx.values() if info["ref"] == ref]
         for talla, artboard, base, jugadores in plan:
             if not mesa_independiente_principal(artboard) or str(talla).upper() in tallas_hechas:
                 continue
-            doc_t = next((cm / f"{artboard}.ai" for cm in carpetas_m if (cm / f"{artboard}.ai").exists()), None)
-            if doc_t is None:
+            principal = next((cm for cm in carpetas_m if (cm / f"{artboard}.ai").exists()), None)
+            if principal is None:
                 omitidas.append(f"talla {talla}: no encuentro la mesa principal en Montajes")
                 continue
             tallas_hechas.add(str(talla).upper())
-            pdfs_jsx += _generar_por_talla(doc_t, jugadores, destino["montajes"], salida_hoja, prefijo, talla, diseno, genero, refs=[ref])
-        if destino.get("montajes"):
-            mapa_jsx = _hermanos_por_talla(destino["montajes"], diseno, ref, genero, suf_maestro)
-            solo = sorted({t for info in mapa_jsx.values() for t in info["mesas"]} - tallas_hechas, key=lambda t: (not str(t).isdigit(), str(t)))
-            for t in solo:
-                info = next(i for i in mapa_jsx.values() if str(t).upper() in i["mesas"])
-                gen_t = "N" if str(t).isdigit() and genero in ("M", "F") else genero
-                jug_t = [j for tt, js in _solo_sexo_del_maestro(_jugadores_de(lineas, diseno, gen_t), suf_maestro) if str(tt).upper() == str(t).upper() for j in js]
-                if not jug_t:
-                    omitidas.append(f"talla {t} de los hermanos: el listado no tiene jugadores")
-                    continue
-                tallas_hechas.add(str(t).upper())
-                pdfs_jsx += _generar_por_talla(info["mesas"][str(t).upper()], jug_t, destino["montajes"], salida_hoja, prefijo, t, diseno, gen_t, refs=[ref])
+            archivos = _archivos_de_talla([principal] + carpetas_ref, talla, diseno, genero)
+            if not archivos:
+                omitidas.append(f"talla {talla}: no hay mesas en las carpetas elegidas")
+                continue
+            pdfs_jsx += _generar_por_talla(archivos[0], jugadores, destino["montajes"], salida_hoja, prefijo, talla, diseno, genero, refs=[ref], archivos=archivos)
+        solo = sorted({t for info in mapa_jsx.values() for t in info["mesas"]} - tallas_hechas, key=lambda t: (not str(t).isdigit(), str(t)))
+        for t in solo:
+            gen_t = "N" if str(t).isdigit() and genero in ("M", "F") else genero
+            jug_t = [j for tt, js in _solo_sexo_del_maestro(_jugadores_de(lineas, diseno, gen_t), suf_maestro) if str(tt).upper() == str(t).upper() for j in js]
+            if not jug_t:
+                omitidas.append(f"talla {t} de los hermanos: el listado no tiene jugadores")
+                continue
+            archivos = _archivos_de_talla(carpetas_ref, t, diseno, genero)
+            if not archivos:
+                continue
+            tallas_hechas.add(str(t).upper())
+            pdfs_jsx += _generar_por_talla(archivos[0], jug_t, destino["montajes"], salida_hoja, prefijo, t, diseno, gen_t, refs=[ref], archivos=archivos)
         if not pdfs_jsx:
             return {"ok": False, "error": "No se creó ningún PDF de producción con el JSX. " + "; ".join(omitidas)}
         return {"ok": True, "pdfs": pdfs_jsx, "carpeta": str(salida_hoja), "simulado": False, "omitidas": omitidas,
@@ -998,7 +1004,16 @@ def _pdfs_de(carpeta_raiz):
         return set()
 
 
-def _generar_por_talla(doc, jugadores, montajes, salida, prefijo, talla, diseno=None, genero=None, refs=None):
+def _archivos_de_talla(carpetas, talla, diseno, genero):
+    """Los .ai (principal, Costados, Petico…) de esa talla, diseño y género en las carpetas que elige TAVO."""
+    out = []
+    for c in carpetas:
+        for stem in _mesas_de(Path(c), talla, diseno, {genero}):
+            out.append(Path(c) / f"{stem}.ai")
+    return out
+
+
+def _generar_por_talla(doc, jugadores, montajes, salida, prefijo, talla, diseno=None, genero=None, refs=None, archivos=None):
     """Un PDF por jugador (y por archivo hermano de la misma talla). Devuelve la lista de PDF nuevos con su jugador.
     Cada PDF se manda al panel en cuanto existe (pantalla en vivo), igual que antes."""
     filas = _filas_generador(jugadores)
@@ -1010,11 +1025,12 @@ def _generar_por_talla(doc, jugadores, montajes, salida, prefijo, talla, diseno=
     vigia = _VigiaCarpeta(Path(salida), "*.pdf", lambda f: _evento_pdf(f, jug_panel, talla, diseno or "", genero or ""), recursivo=True)
     try:
         # Por lotes: un archivo por llamada a Illustrator, para que el programa responda entre uno y otro
-        archivos = _archivos_del_lote(doc, filas, montajes, salida, prefijo, refs=refs)
-        log(AGENTE, f"Talla {talla}: {len(archivos)} archivo(s) (principal y hermanos) · {len(filas)} PDF por archivo")
-        for ar in archivos:
+        # Los archivos los elige TAVO (maestros de la referencia de la pestaña). Illustrator abre el primero como maestro.
+        lista = archivos if archivos is not None else _archivos_del_lote(doc, filas, montajes, salida, prefijo, refs=refs)
+        log(AGENTE, f"Talla {talla}: {len(lista)} archivo(s) elegidos por TAVO · {len(filas)} PDF por archivo")
+        for ar in lista:
             log(AGENTE, f"Generando {ar.name} · talla {talla}")
-            _correr_generador(doc, filas, montajes, salida, prefijo, solo=ar, refs=refs)
+            _correr_generador(lista[0], filas, montajes, salida, prefijo, solo=ar, refs=refs)
     except Exception as e:  # noqa: BLE001
         log(AGENTE, f"No pude generar los PDF de la talla {talla} con el JSX: {e}", "ERROR")
         return []
