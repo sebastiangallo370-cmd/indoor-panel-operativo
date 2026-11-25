@@ -17,6 +17,18 @@ function Huella {
 }
 function Anotar($t) { Add-Content -Path $LogVig -Value ("{0} {1}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $t) }
 
+# Un solo vigilante por PC: cierra cualquier copia anterior (incluidas las que no escriben latido)
+Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" | Where-Object { $_.CommandLine -like "*vigilar_codigo_agentes*" -and $_.ProcessId -ne $PID } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+
+# Latido en la NAS: un archivo por PC con la hora de la última revisión (para verificar desde cualquier lugar)
+$Latidos = Join-Path $Nas "latidos"
+function Latir {
+    try {
+        New-Item -ItemType Directory -Force -Path $Latidos | Out-Null
+        Set-Content -Path (Join-Path $Latidos "$env:COMPUTERNAME.txt") -Value ((Get-Date -Format "yyyy-MM-dd HH:mm:ss") + " vigilante activo") -Encoding UTF8
+    } catch {}
+}
+
 $previa = $null
 Anotar "Vigilancia iniciada. NAS: $Nas"
 
@@ -46,6 +58,7 @@ function ReiniciarServidor($motivo) {
 }
 
 while ($true) {
+    Latir
     try {
         if (Atascado) { ReiniciarServidor "Atasco detectado (sin actividad 15 min en mitad de una orden): reinicio el servidor para que siga."; $previa = Huella; continue }
         if (-not (Test-Path "$Nas\server.py")) { Anotar "NAS no disponible; reintento"; Start-Sleep -Seconds 60; continue }
