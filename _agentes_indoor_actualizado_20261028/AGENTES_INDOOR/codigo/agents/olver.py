@@ -19,17 +19,21 @@ FORMATOS = ("ai", "pdf", "png", "ambos")   # «ai»: cada mesa como archivo .ai 
 class _VigiaCarpeta:
     """Mira una carpeta mientras Illustrator trabaja y avisa (una sola vez por archivo) apenas aparece y deja de crecer."""
 
-    def __init__(self, carpeta, patron, al_ver):
+    def __init__(self, carpeta, patron, al_ver, recursivo=False):
         self.carpeta, self.patron, self.al_ver = Path(carpeta), patron, al_ver
-        self.vistos = {f.name: f.stat().st_mtime_ns for f in self.carpeta.glob(patron)} if self.carpeta.exists() else {}
+        self.recursivo = recursivo   # True: también mira las subcarpetas (los PDF del JSX van a D1\FUT09M, D1\FUT09N…)
+        self.vistos = {f.name: f.stat().st_mtime_ns for f in self._archivos()} if self.carpeta.exists() else {}
         self.avisados, self.tamanos = set(), {}
         self.fin = False
         self.hilo = threading.Thread(target=self._correr, daemon=True)
         self.hilo.start()
 
+    def _archivos(self):
+        return self.carpeta.rglob(self.patron) if self.recursivo else self.carpeta.glob(self.patron)
+
     def _revisar(self, definitivo=False):
         try:
-            for f in sorted(self.carpeta.glob(self.patron), key=lambda x: x.stat().st_mtime_ns):
+            for f in sorted(self._archivos(), key=lambda x: x.stat().st_mtime_ns):
                 est = f.stat()
                 if f.name in self.avisados or self.vistos.get(f.name) == est.st_mtime_ns:
                     continue
@@ -1002,7 +1006,7 @@ def _generar_por_talla(doc, jugadores, montajes, salida, prefijo, talla, diseno=
     antes = _pdfs_de(salida)
     # Lo que ve el panel: los jugadores con el mismo orden de las filas que se mandan al JSX
     jug_panel = [{"nombre": n, "numero": u} for n, u in filas]
-    vigia = _VigiaCarpeta(Path(salida), "*.pdf", lambda f: _evento_pdf(f, jug_panel, talla, diseno or "", genero or ""))
+    vigia = _VigiaCarpeta(Path(salida), "*.pdf", lambda f: _evento_pdf(f, jug_panel, talla, diseno or "", genero or ""), recursivo=True)
     try:
         # Por lotes: un archivo por llamada a Illustrator, para que el programa responda entre uno y otro
         archivos = _archivos_del_lote(doc, filas, montajes, salida, prefijo)
