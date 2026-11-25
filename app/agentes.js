@@ -11,6 +11,8 @@
   const AGENTES_BTN = [['LEO', 'Listado', 'Qué dice el listado de la orden '], ['JACK', 'Muestra', 'Crea la muestra de la orden '], ['OLVER', 'Mesas', 'Expórtame las mesas de trabajo de la orden '],
     ['OLIVER', 'Jugadores', 'jugadores'], ['TERRY', 'MTS', 'Calcula los MTS requeridos de la orden '], ['DRACO', 'Trazo', 'draco ayuda']];
   const st = { orden: '', cambiandoOrden: false, ordenes: [], ordenesCargadas: false, abiertos: {}, msgs: [], ultimo: 0, evs: [], ultimoEv: 0, esperando: false, trabajo: null, estado: { conectado: false }, cargando: false, enviando: false };
+  const esConfeccion = p => /CONFECCION|CONFECCIÓN/i.test(String(p?.nombre || ''));
+  const pcsEdicion = lista => (lista || []).filter(p => !esConfeccion(p));
   let panel, tab, timer = 0;
 
   async function api(url, options) {
@@ -1229,7 +1231,7 @@
     const todos = st.evs || [], ult = todos.length ? todos[todos.length - 1].msg_id : null;
     const evs = ult == null ? [] : todos.filter(ev => ev.msg_id === ult);
     let total = 0; const pdfs = new Set();
-    evs.forEach(ev => { const a = ev.archivo; if (!a) return; if (a.tipo === 'plan') total += Number(a.pdfs) || 0; else if (a.tipo === 'pdf') pdfs.add(a.detalle || (a.nombre + a.numero + a.talla)); });
+    evs.forEach(ev => { const a = ev.archivo; if (!a) return; if (a.tipo === 'pestana') { total = 0; pdfs.clear(); } else if (a.tipo === 'plan') total += Number(a.pdfs) || 0; else if (a.tipo === 'pdf') pdfs.add(a.detalle || (a.nombre + a.numero + a.talla)); });
     const etapas = [['LEO', 12], ['JACK', 12], ['OLVER', 26], ['OLIVER', 40], ['TERRY', 10]];
     const visto = id => evs.some(ev => ev.agente === id);
     let actual = -1; etapas.forEach(([id], i) => { if (visto(id)) actual = i; });
@@ -1267,7 +1269,9 @@
     const montajes = [], pdfs = [], vm = new Set(), vp = new Set(); let total = 0, dm = '', dp = '';
     evs.forEach((e, idx) => {
       const a = e.archivo; a._i = idx;
-      if (a.tipo === 'plan') total += Number(a.pdfs) || 0;
+      // inicio de cada corrida (pestaña): la pantalla solo muestra lo de la pestaña en curso, no las corridas anteriores
+      if (a.tipo === 'pestana') { total = 0; montajes.length = 0; pdfs.length = 0; vm.clear(); vp.clear(); dm = ''; dp = ''; }
+      else if (a.tipo === 'plan') total += Number(a.pdfs) || 0;
       else if (a.tipo === 'montaje' && !vm.has(a.nombre)) { vm.add(a.nombre); montajes.push(a); dm = a.carpeta || dm; }
       else if (a.tipo === 'pdf') { const k = a.detalle || (a.nombre + a.numero + a.talla); if (!vp.has(k)) { vp.add(k); pdfs.push(a); dp = a.carpeta || dp; } }
     });
@@ -1409,9 +1413,10 @@
   const mmss = seg => { seg = Math.max(0, Math.round(seg)); return Math.floor(seg / 60) + ':' + String(seg % 60).padStart(2, '0'); };
   function datosOrden() {
     const evs = flow.ejec ? flow.ejec.eventos : [], d = { mts: [], plantillas: [], ignoradas: [], enProceso: [], blancos: 0, lineas: 0, muestra: '', montajes: 0, pdfs: 0, pdfsPlan: 0, avisos: 0, errores: 0 };
-    const vm = new Set(), vp = new Set();
+    const vm = new Set(), vp = new Set(), vplan = new Set();
     evs.forEach(e => {
       const m = e.msg || '';
+      // inicio de cada corrida de PDF: el contador solo cuenta la pestaña que se está ejecutando (las corridas anteriores no suman)
       if (e.nivel === 'WARN') d.avisos++; if (e.nivel === 'ERROR') d.errores++;
       let r;
       if ((r = /LEO informó: (\S+) = cliente (.+) \/ proyecto (.+)$/.exec(m))) { d.orden = r[1]; d.cliente = r[2]; d.proyecto = r[3]; }
@@ -1423,7 +1428,9 @@
       if (/Muestra lista:|conservo la muestra/.test(m)) d.muestra = /conservo/.test(m) ? 'Conservada (ya existía)' : 'Creada';
       const a = e.archivo;
       if (a) {
-        if (a.tipo === 'plan') d.pdfsPlan += Number(a.pdfs) || 0;
+        // inicio de cada corrida de PDF: el contador solo cuenta la pestaña que se está ejecutando
+        if (a.tipo === 'pestana') { d.pestana = a.nombre; d.pdfs = 0; d.pdfsPlan = 0; vp.clear(); vplan.clear(); }
+        else if (a.tipo === 'plan') { const k = JSON.stringify(a); if (!vplan.has(k)) { vplan.add(k); d.pdfsPlan += Number(a.pdfs) || 0; } }
         else if (a.tipo === 'montaje' && !vm.has(a.nombre)) { vm.add(a.nombre); d.montajes++; }
         else if (a.tipo === 'pdf') { const k = a.detalle || (a.nombre + a.numero + a.talla); if (!vp.has(k)) { vp.add(k); d.pdfs++; } }
       }
@@ -1456,7 +1463,7 @@
       const e = estados[i], txt = { ok: 'Listo', corriendo: 'Trabajando…', espera: 'Esperando', error: 'Con error', inactivo: '—' }[e];
       let extra = '';
       if (id === 'OLVER' && d.montajes) extra = ' · ' + d.montajes + ' tallas';
-      if (id === 'OLIVER' && d.pdfs) extra = ' · ' + d.pdfs + (d.pdfsPlan ? '/' + d.pdfsPlan : '') + ' PDF';
+      if (id === 'OLIVER' && d.pdfs) extra = ' · ' + (d.pestana ? d.pestana + ' · ' : '') + d.pdfs + (d.pdfsPlan ? '/' + d.pdfsPlan : '') + ' PDF';
       return '<div class="ag-paso ' + e + '"><i class="pt"></i><b>' + esc(nom) + '</b><em>' + txt + extra + '</em></div>';
     }).join('');
     const dato = (k, v, aviso) => v ? '<div class="ag-dato' + (aviso ? ' aviso' : '') + '"><small>' + esc(k) + '</small><span>' + esc(v) + '</span></div>' : '';
@@ -1606,7 +1613,7 @@
     aviso('↻ Reiniciando ' + objetivo.map(o => o.nombre).join(' y ') + '… te aviso cuando esté listo.', false);
     const reloj = setInterval(async () => {
       try { await cargar(true); } catch (err) { /* se reintenta */ }
-      const lista = st.estado.pcs || [];
+      const lista = pcsEdicion(st.estado.pcs);
       for (const [id, o] of [...pendientes]) {
         const p = lista.find(x => x.id === id);
         if (p && p.conectado && p.visto && p.visto !== o.antes && (!o.antes || Date.parse(p.visto) - Date.parse(o.antes) > 8000)) {
@@ -1681,12 +1688,13 @@
   function pintar() {
     if (!panel || !panel.dataset.armado) return;
     const e = st.estado, ultimo = st.msgs[st.msgs.length - 1];
+    const pcLista = pcsEdicion(e.pcs), pcVista = pcLista.find(p => p.id === (e.pc && e.pc.id)) || pcLista[0] || null;
     const botones = ultimo && ultimo.rol === 'bot' && !st.esperando ? (ultimo.botones || []) : [];
     const pill = (clase, texto) => '<span class="ag-pill ' + clase + '"><i></i>' + esc(texto) + '</span>';
     const modo = v => !v ? '' : v === 'real' ? 'ok' : /^error/.test(v) ? 'mal' : 'sim';
-    { const __el = panel.querySelector('[data-estado]'), __h = pill(e.conectado ? 'ok' : 'mal', (e.pc && e.pc.nombre ? e.pc.nombre + ' · ' : '') + (e.conectado ? 'PC conectado' : 'PC desconectado')) + 
+    { const __el = panel.querySelector('[data-estado]'), __h = pill(pcVista && pcVista.conectado ? 'ok' : 'mal', (pcVista && pcVista.nombre ? pcVista.nombre + ' · ' : '') + (pcVista && pcVista.conectado ? 'PC conectado' : 'PC desconectado')) +
       '<button type="button" class="ag-pill ' + (e.auto ? 'ok' : 'sim') + '" data-auto title="Cuando una tarjeta de EDICIÓN pasa a «en proceso», los agentes arrancan solos con esa orden. Toca para ' + (e.auto ? 'apagar' : 'encender') + '" style="cursor:pointer"><i></i>Auto ' + (e.auto ? 'ON' : 'OFF') + '</button>'; if (__el && __el.__h !== __h) { __el.__h = __h; __el.innerHTML = __h; } }
-    { const __el = panel.querySelector('[data-aviso]'), __h = !e.conectado ? '<div class="ag-warn">El PC «' + esc((e.pc && e.pc.nombre) || 'de los agentes') + '» no está conectado. Tu mensaje queda en cola y se atiende cuando ese PC esté encendido con los agentes iniciados' + ((e.pcs || []).some(p => p.conectado && p.id !== (e.pc && e.pc.id)) ? '; también puedes elegir otro PC conectado arriba.' : '.') + '</div>' : ''; if (__el && __el.__h !== __h) { __el.__h = __h; __el.innerHTML = __h; } }
+    { const __el = panel.querySelector('[data-aviso]'), __h = (!pcVista || !pcVista.conectado) ? '<div class="ag-warn">No hay un PC de edición conectado. Tu mensaje queda en cola hasta que se encienda un agente de edición' + (pcLista.some(p => p.conectado) ? '; también puedes elegir otro PC conectado arriba.' : '.') + '</div>' : ''; if (__el && __el.__h !== __h) { __el.__h = __h; __el.innerHTML = __h; } }
     const trabajo = st.trabajo;
     const hilo = st.msgs.length ? hiloHtml()
       : '<div class="ag-empty"><div class="ag-empty-av">' + ['TAVO', 'LEO', 'JACK', 'OLVER', 'OLIVER', 'TERRY', 'DRACO'].map(avatar).join('') + '</div><h3>¿Qué necesitas hoy?</h3><p>' + (st.orden ? 'Trabajando con la orden <b>' + esc(st.orden) + '</b>. Elige una acción o escríbele a TAVO.' : 'Fija la orden arriba y pídele lo que necesites. TAVO decide qué agente actúa.') + '</p>' +
@@ -1736,7 +1744,7 @@
     if (st.admin) panel.querySelector('[data-conectar]').hidden = false;
     const tabsEl = panel.querySelector('[data-tabs]');
     if (tabsEl) {
-      const listaT = e.pcs || [], firmaT = JSON.stringify(listaT) + '|' + st.pc;
+      const listaT = pcsEdicion(e.pcs), firmaT = JSON.stringify(listaT) + '|' + st.pc;
       tabsEl.hidden = listaT.length < 2;
       if (listaT.length > 1 && tabsEl.dataset.f !== firmaT) {
         tabsEl.dataset.f = firmaT;
@@ -1747,7 +1755,7 @@
     const selPc = panel.querySelector('[data-pc-activo]');
     if (selPc) {
       selPc.hidden = !st.admin;
-      const lista = e.pcs || [], firma = lista.map(p => p.id + p.nombre + (p.conectado ? '1' : '0')).join(',') + '|' + (e.pc_activo || '');
+      const lista = pcsEdicion(e.pcs), firma = lista.map(p => p.id + p.nombre + (p.conectado ? '1' : '0')).join(',') + '|' + (e.pc_activo || '');
       if (selPc.dataset.firma !== firma) {
         selPc.title = 'PC donde arranca solo el proceso cuando alguien pone la P en EDICIÓN';
         selPc.innerHTML = '<option value="">Inicio automático en: cualquiera</option>' + lista.map(p => '<option value="' + esc(p.id) + '">' + (p.conectado ? '● ' : '○ ') + esc(p.nombre) + '</option>').join('');
@@ -1918,10 +1926,10 @@
 
   // Cada PC con Illustrator tiene su propia pestaña (su chat, su flujo y su registro): se puede trabajar en uno mientras el otro está ocupado
   function elegirPcInicial(e) {
-    const lista = (e && e.pcs) || [];
+    const lista = pcsEdicion((e && e.pcs) || []);
     let guardado = ''; try { guardado = localStorage.getItem('agentes_pc') || ''; } catch (x) { /* sin almacenamiento */ }
     const ok = id => lista.some(p => p.id === id), ocupado = lista.find(p => p.ocupado);
-    return (ok(e && e.pc_activo) && e.pc_activo) || (ok(guardado) && guardado) || (ocupado && ocupado.id) || (e && e.pc && e.pc.id) || 'principal';
+    return (ok(e && e.pc_activo) && e.pc_activo) || (ok(guardado) && guardado) || (ocupado && ocupado.id) || (lista[0] && lista[0].id) || 'principal';
   }
   // La pestaña activa es también el PC donde arranca solo el proceso (la P de EDICIÓN): se guarda en el servidor al cambiar de pestaña
   async function sincronizarPcAuto(id) {
@@ -1988,7 +1996,7 @@
     let datos, nuevo = null;
     const cargarPcs = async () => { datos = await api('/api/agentes/pcs'); };
     const pintar = () => {
-      const filas = datos.pcs.map(p => '<div class="ag-pcrow"><div><b>' + esc(p.nombre) + '</b><small>' + (p.conectado ? '● conectado' : '○ desconectado') + (p.equipo ? ' · ' + esc(p.equipo) : '') + (p.illustrator ? ' · Illustrator: ' + esc(p.illustrator) : '') + '</small></div>' +
+      const filas = pcsEdicion(datos.pcs).map(p => '<div class="ag-pcrow"><div><b>' + esc(p.nombre) + '</b><small>' + (p.conectado ? '● conectado' : '○ desconectado') + (p.equipo ? ' · ' + esc(p.equipo) : '') + (p.illustrator ? ' · Illustrator: ' + esc(p.illustrator) : '') + '</small></div>' +
         '<span><button type="button" class="ag-btn sec" data-pc-token="' + esc(p.id) + '">Código nuevo</button>' + (p.principal ? '' : '<button type="button" class="ag-btn danger" data-pc-quitar="' + esc(p.id) + '">Quitar</button>') + '</span></div>').join('');
       const caja = nuevo ? '<div class="ag-pcnuevo"><b>Código de ' + esc(nuevo.nombre || 'este PC') + '</b> (se muestra una sola vez; trátalo como una contraseña)<code data-token>' + esc(nuevo.token) + '</code><b style="font-size:.8rem">Dirección del panel</b><code>' + esc(nuevo.url) + '</code>' +
         '<ol><li>En ese PC abre la carpeta <b>agentes_uniformes</b>.</li><li>Ejecuta <b>conectar_panel.bat</b> (o <b>INSTALAR_TODO.bat</b> si es la primera vez) y pega la dirección y el código.</li><li>Abre <b>iniciar.bat</b>: aquí debe aparecer «conectado».</li></ol><button type="button" class="ag-btn sec" data-copiar>Copiar código</button></div>' : '';
@@ -2069,13 +2077,13 @@
       } else if (e.target.closest('[data-iniciar]')) {
         if (!st.esperando && st.orden) enviar('Pedido completo de la orden ' + st.orden);
       } else if (e.target.closest('[data-detener-todo]')) {
-        const ids = (st.estado.pcs || []).map(p => p.id); if (!ids.length) ids.push(st.pc || 'principal');
+        const ids = pcsEdicion(st.estado.pcs || []).map(p => p.id); if (!ids.length) ids.push(st.pc || 'principal');
         for (const id of ids) { try { await api('/api/agentes/detener', { method: 'POST', body: JSON.stringify({ pc: id }) }); } catch (err) { alert(err.message); } }
         st.esperando = false; st.trabajo = null; await cargar(true); pintar();
       } else if (e.target.closest('[data-reiniciar]') || e.target.closest('[data-reiniciar-todo]')) {
         const todos = !!e.target.closest('[data-reiniciar-todo]');
         if (!confirm(todos ? '¿Reiniciar los agentes de TODOS los PC? Lo que estén haciendo se corta.' : '¿Reiniciar los agentes de este PC? Lo que estén haciendo se corta.')) return;
-        const lista = st.estado.pcs || [], objetivo = todos ? lista : lista.filter(p => p.id === st.pc);
+        const lista = pcsEdicion(st.estado.pcs || []), objetivo = todos ? lista : lista.filter(p => p.id === st.pc);
         try { await api('/api/agentes/reiniciar', { method: 'POST', body: JSON.stringify({ pc: todos ? '*' : st.pc }) }); } catch (err) { alert(err.message); return; }
         try { if (window.Notification && Notification.permission === 'default') Notification.requestPermission(); } catch (err) { /* sin avisos del navegador: queda el aviso en pantalla */ }
         esperarReinicio(objetivo.map(p => ({ id: p.id, nombre: p.nombre, antes: p.visto || '' })));

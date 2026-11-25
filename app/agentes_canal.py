@@ -41,7 +41,7 @@ _vistas: dict[str, dict] = {}   # id -> {sesion, nombre, ext}: se pierden al rei
 _lock_vistas = threading.Lock()
 _TIPOS = {'pdf': ('application/pdf', b'%PDF'), 'png': ('image/png', b'\x89PNG'), 'jpg': ('image/jpeg', b'\xff\xd8\xff'), 'jpeg': ('image/jpeg', b'\xff\xd8\xff')}
 LATIDO_SEG = 25          # el PC se considera conectado si sondeó hace menos de esto
-ESPERA_MAX_SEG = 900     # evita que una orden quede bloqueada si el PC de edición deja de responder
+ESPERA_MAX_SEG = 0       # 0 = nunca se cierra sola: la orden sigue hasta terminar; solo se detiene con el botón Detener
 _auth: Callable = lambda request: None
 _es_admin: Callable[[str], bool] = lambda usuario: False
 _lista_usuarios: Callable[[], list] = lambda: []
@@ -244,7 +244,7 @@ def _liberar_vencidos(datos: dict) -> bool:
     """Un mensaje tomado por el PC que no se responde en ESPERA_MAX_SEG se cierra con un aviso."""
     cambio = False
     for m in list(datos['mensajes']):
-        if m['rol'] == 'yo' and not m.get('respondido') and _ahora() - m.get('t', _ahora()) > ESPERA_MAX_SEG:
+        if ESPERA_MAX_SEG and m['rol'] == 'yo' and not m.get('respondido') and _ahora() - m.get('t', _ahora()) > ESPERA_MAX_SEG:
             m['respondido'] = True
             if m.get('oculto'):
                 continue
@@ -919,7 +919,7 @@ def mts_orden(request: Request, payload: dict):
 
 def _archivo_evento(valor) -> dict | None:
     """Datos de un archivo recién creado (montaje o PDF de producción) para la pantalla en vivo; solo se aceptan campos conocidos y cortos."""
-    if not isinstance(valor, dict) or valor.get('tipo') not in ('montaje', 'pdf', 'plan'):
+    if not isinstance(valor, dict) or valor.get('tipo') not in ('montaje', 'pdf', 'plan', 'pestana'):
         return None
     limpio = {k: str(valor.get(k, ''))[:160] for k in ('tipo', 'nombre', 'numero', 'talla', 'diseno', 'genero', 'detalle', 'carpeta')}
     ruta = str(valor.get('ruta') or '')[:500]   # ruta completa del archivo (para «Abrir en Illustrator»)
@@ -1090,7 +1090,8 @@ def auto_procesar(candidatos: list[dict], inmediato: bool = False) -> list[str]:
                 sesion = _sesion(base, _pc_de(datos, base))   # canal del PC elegido para el inicio automático
             if not sesion or not _conectado(datos, _pc_de(datos, sesion)):
                 continue   # sin a quién avisarle o sin el PC de esa persona: se reintenta luego
-            if any(m['sesion'] == sesion and m['rol'] == 'yo' and not m.get('respondido') and not m.get('oculto') for m in datos['mensajes']):
+            # con un trabajo en curso (p. ej. OLVER exportando mesas) no se manda «cancelar» ni se cambia la orden: se reintenta después
+            if datos['trabajo'].get(sesion) or any(m['sesion'] == sesion and m['rol'] == 'yo' and not m.get('respondido') and not m.get('oculto') for m in datos['mensajes']):
                 continue   # esa persona ya tiene un pedido en curso: se espera
             orden = c['orden']
             datos['ordenes'][sesion] = orden
@@ -1142,7 +1143,8 @@ def auto_trazo(candidatos: list[dict], reactivar: str = '') -> list[str]:
             if not base:
                 continue
             sesion = _sesion(base, pid)
-            if any(m['sesion'] == sesion and m['rol'] == 'yo' and not m.get('respondido') and not m.get('oculto') for m in datos['mensajes']):
+            # con un trabajo en curso (p. ej. OLVER exportando mesas) no se manda «cancelar» ni se cambia la orden: se reintenta después
+            if datos['trabajo'].get(sesion) or any(m['sesion'] == sesion and m['rol'] == 'yo' and not m.get('respondido') and not m.get('oculto') for m in datos['mensajes']):
                 continue
             orden = c['orden']
             # SOLO la referencia a la que le pusieron la «P» (las demás referencias de la orden no se tocan)
@@ -1181,7 +1183,8 @@ def auto_mts(candidatos: list[dict], vistos_clave: str = 'vistos_mts', motivo: s
                 sesion = _sesion(base, _pc_de(datos, base))
             if not sesion or not _conectado(datos, _pc_de(datos, sesion)):
                 continue
-            if any(m['sesion'] == sesion and m['rol'] == 'yo' and not m.get('respondido') and not m.get('oculto') for m in datos['mensajes']):
+            # con un trabajo en curso (p. ej. OLVER exportando mesas) no se manda «cancelar» ni se cambia la orden: se reintenta después
+            if datos['trabajo'].get(sesion) or any(m['sesion'] == sesion and m['rol'] == 'yo' and not m.get('respondido') and not m.get('oculto') for m in datos['mensajes']):
                 continue
             orden = c['orden']
             datos['ordenes'][sesion] = orden

@@ -621,6 +621,8 @@
   }
   // tocar un mockup lo agrega al documento de inmediato; si tocas varios seguidos, se agregan en fila (una cola)
   let colaAgregar = Promise.resolve();
+  // la cola SIGUE aunque un paso falle: antes, un error dejaba rechazada la cadena y todos los clics siguientes no hacían nada
+  const encolar = fn => { colaAgregar = colaAgregar.then(fn).catch(e => { setMsg('No pude completar el mockup: ' + (e.message || e), 'error'); }); };
   let avisoGaleria = null;   // lo que pasó con el último mockup tocado (se ve encima de la galería)
   // cada MOCKUP (referencia + archivo) se elige por separado: el de la misma referencia con otro D# es OTRO diseño de esa pestaña
   const mockupDoc = (base, archivo) => Object.keys(galPick()).find(r => (galPick()[r] || []).some(pk => pk.nombre === archivo)) || '';
@@ -628,14 +630,14 @@
     // SOLO en el listado: no se manda nada a CO/RM. Se agrega como diseño de la referencia abierta (o de «sin referencia»)
     const enListado = mockupDoc(base, archivo);
     if (enListado) {   // tocar otra vez ese mockup lo quita (sin tocar CO/RM)
-      colaAgregar = colaAgregar.then(() => { const l = galPick()[enListado] || [], p = l.findIndex(pk => pk.nombre === archivo); if (p >= 0) l.splice(p, 1); sincronizar(enListado); guardarBorrador(); dibujar(); });
+      encolar(() => { const l = galPick()[enListado] || [], p = l.findIndex(pk => pk.nombre === archivo); if (p >= 0) l.splice(p, 1); sincronizar(enListado); guardarBorrador(); dibujar(); });
       return;
     }
     // si la referencia del mockup no está en CO/RM, se agrega en segundo plano (te quedas en el listado)
-    if (!refDocDe(base)) { colaAgregar = colaAgregar.then(() => agregarMockup(base, carpeta, archivo)); return; }
+    if (!refDocDe(base)) { encolar(() => agregarMockup(base, carpeta, archivo)); return; }
     const enDoc = refDocDe(base);   // su referencia ya está en el documento: va a su pestaña
     const destino = enDoc || PH;
-    colaAgregar = colaAgregar.then(async () => {
+    encolar(async () => {
       try {
         await agregarDisenoMockup(destino, carpeta, archivo);
         setMsg(enDoc ? archivo + ' → diseño ' + (galPick()[destino] || []).length + ' de ' + destino + ' (CO/RM no cambia).'
