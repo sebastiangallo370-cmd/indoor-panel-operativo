@@ -318,15 +318,11 @@ def exportar_mesas(cliente, referencia, ruta_ai, formato="ai", sobrescribir=Fals
                     if arch:
                         shutil.move(str(arch[0]), str(trabajo / f"{sub.name}.ai"))
                     shutil.rmtree(sub, ignore_errors=True)
-                # La copia de trabajo incorpora las imágenes y conserva los
-                # textos editables NOMBRE/00. Se deja también en Montajes:
-                # esa es la versión que luego se reutiliza para los PDF por
-                # jugador. Solo contiene las tallas recién exportadas, por lo
-                # que nunca reemplaza una talla existente que se conservó.
+                # La copia de trabajo (imágenes incrustadas) se queda SOLO en este PC, en la carpeta temporal de trabajo.
+                # Las mesas que quedan en Montajes NO llevan imágenes incrustadas: se guardan tal cual (vinculadas).
+                # La copia incrustada local la usa el paso de PDF por jugador para no volver a incrustar.
                 for lista in trabajo.glob("*.ai"):
-                    destino_mesa = carpeta / lista.name
-                    shutil.copy2(lista, destino_mesa)
-                    log(AGENTE, f"Mesa reutilizable guardada: {destino_mesa.name}")
+                    log(AGENTE, f"Copia de trabajo local (no va a Montajes): {lista.name}")
             if res.startswith("FALTAN"):   # se exportó, pero el maestro no tiene la mesa de alguna talla pedida
                 log(AGENTE, f"{ai.name}: el maestro no tiene mesa de las tallas {res.split('|', 1)[1]}", "WARN")
                 res = "OK|0"
@@ -542,8 +538,40 @@ def _nombres_esperados(carpeta, base, jugadores):
     return [_archivo_pdf(carpeta, base, i, j) for i, j in enumerate(jugadores, 1)]
 
 
+def _hermanos_del_maestro(montajes, diseno, ref_actual, genero, suf, tallas):
+    """Carpetas HERMANAS de Montajes (otra tela, mismo diseño y mismo género) que ya tienen la mesa independiente de CADA talla pedida.
+    Igual que Generador_PDFS.jsx: se busca en la carpeta de diseño, nunca en otro diseño (D2, D3…).
+    Devuelve (con_mesas [(referencia, ruta_de_una_mesa.ai)], sin_mesas [referencia])."""
+    actual = f"{ref_actual}{genero}{suf}".upper()
+    try:
+        carpetas = sorted((c for c in (Path(montajes) / f"D{diseno}").iterdir() if c.is_dir()), key=lambda p: p.name)
+    except OSError:
+        return [], []
+    con, sin = [], []
+    for c in carpetas:
+        nombre = c.name.upper()
+        if nombre == actual:
+            continue
+        m = re.fullmatch(rf"([A-Z0-9]+){re.escape(genero)}{re.escape(suf)}", nombre)
+        if not m:
+            continue
+        mesa_por_talla, faltan = {}, []
+        for t in tallas:
+            nombres = _mesas_de(c, t, diseno, {genero})
+            if not nombres:
+                faltan.append(t)
+                continue
+            principal = [n for n in nombres if n.startswith("Talla_")] or nombres
+            mesa_por_talla[t] = c / f"{principal[0]}.ai"
+        if faltan:
+            sin.append(m.group(1))
+        else:
+            con.append((m.group(1), next(iter(mesa_por_talla.values()))))
+    return con, sin
+
+
 def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=False, tela_archivo=None, referencia="", genero_destino=None,
-                      permitir_faltantes=False, solo_mesas=False):
+                      permitir_faltantes=False, solo_mesas=False, _sin_hermanos=False):
     # destino["montajes"]: carpeta Montajes (MÁQUINA) del maestro; si ahí ya están las mesas independientes exportadas, se abre cada talla desde su archivo
     """Crea un PDF por jugador. Devuelve:
         {"ok": True, "pdfs": [{"ruta", "nombre", "numero", "talla"}], "carpeta", "simulado", "omitidas": [...]}
@@ -747,8 +775,12 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
                         try:
                             trabajo = _dir_trabajo(carpeta_m)
                             trabajo.mkdir(parents=True, exist_ok=True)
+                            # Si la exportación dejó la copia local con imágenes ya incrustadas (y es de esta mesa), se usa esa:
+                            # Montajes queda sin incrustar y aquí no se vuelve a incrustar cada vez.
+                            embebida = trabajo / f"{cand}.ai"
+                            origen = embebida if (embebida.is_file() and embebida.stat().st_size > 0) else propia
                             copia = trabajo / f"pdf_{int(time.time() * 1000)}_{cand}.ai"
-                            shutil.copy2(propia, copia)
+                            shutil.copy2(origen, copia)
                             fuente, usada_trabajo = copia, copia
                             candidatas, mesa_independiente = [cand], True
                         except OSError as e:
@@ -786,6 +818,25 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
                 pdfs.append({"ruta": str(f), "nombre": j["nombre"], "numero": j["numero"], "talla": talla, **({"cantidad": j["cantidad"]} if j.get("sufijo") else {})})
             else:
                 omitidas.append(f"talla {talla}: no quedó el PDF de {j['nombre'] or j['numero'] or j.get('sufijo') or 'sin datos'}")
+    unidades_extra, esperados_extra = 0, 0
+    # HERMANOS: el mismo listado (talla, diseño y género) se aplica también a las demás telas de ese diseño que ya tengan sus mesas
+    # (igual que Generador_PDFS.jsx). Nunca exporta mesas nuevas para un hermano: si le falta alguna talla, se avisa y no se crea.
+    if not _sin_hermanos and not simulado and destino.get("montajes"):
+        con_mesas, sin_mesas = _hermanos_del_maestro(destino["montajes"], diseno, ref, genero, suf_maestro, [t for t, _a, _b, _j in plan])
+        for ref_h in sin_mesas:
+            omitidas.append(f"hermano {ref_h}{genero}{suf_maestro}: le faltan mesas de alguna talla; no se crearon sus PDF")
+            log(AGENTE, f"Hermano {ref_h}{genero}{suf_maestro}: le faltan mesas de alguna talla; no lo proceso", "WARN")
+        for ref_h, mesa_h in con_mesas:
+            log(AGENTE, f"Hermano {ref_h}{genero}{suf_maestro}: aplico el mismo listado (talla {', '.join(t for t, _a, _b, _j in plan)}, diseño {diseno}, género {genero})")
+            r_h = pdfs_por_jugador(mesa_h, lineas, destino, orden, tela=tela, sobrescribir=sobrescribir, tela_archivo=tela_archivo,
+                                   referencia=ref_h, genero_destino=genero, _sin_hermanos=True)
+            if r_h.get("ok"):
+                pdfs.extend(r_h["pdfs"])
+                omitidas.extend(r_h.get("omitidas", []))
+                esperados_extra += r_h.get("esperados", 0)
+                unidades_extra += r_h.get("unidades", 0)
+            else:
+                omitidas.append(f"hermano {ref_h}{genero}{suf_maestro}: {r_h.get('error') or 'no se crearon PDF'}")
     if not pdfs:
         return {"ok": False, "error": "No se creó ningún PDF de producción. " + "; ".join(omitidas)}
     log(AGENTE, f"{len(pdfs)} PDF(s) de producción en {carpeta}" + (f" · con problemas: {len(omitidas)}" if omitidas else ""),
@@ -794,8 +845,8 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
             "omitidas": omitidas, "omitidas_autorizadas": [
                 f"talla {t}: no existe mesa independiente en {ai.name}; se dejó pendiente por decisión del usuario"
                 for t in faltan
-            ], "pendientes_autorizados": pendientes_autorizados, "esperados": total_plan,
-            "unidades": sum(sum(int(j.get("cantidad", 1) or 1) for j in js) for _t, _a, _b, js in plan)}
+            ], "pendientes_autorizados": pendientes_autorizados, "esperados": total_plan + esperados_extra,
+            "unidades": sum(sum(int(j.get("cantidad", 1) or 1) for j in js) for _t, _a, _b, js in plan) + unidades_extra}
 
 
 def _correr_bot(codigo, ai, artboard, base, carpeta, jugadores, orden, tela, saltos=False):

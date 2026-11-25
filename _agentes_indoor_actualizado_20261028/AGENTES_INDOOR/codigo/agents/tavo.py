@@ -728,6 +728,18 @@ def _exportar_mesas(s, sobrescribir):
     sobrescribir = sobrescribir or s.get("repro") == "reemplazar"
     p = s["pedido"]
     archivos = p.get("mesas_ai") or [p["archivo"]]
+    # Solo se exportan los maestros de los diseños que pide el listado (D1 y D2 → no se toca D3 aunque esté en la carpeta)
+    lineas_listado = (s.get("leo") or {}).get("lineas") or []
+    pedidos_listado = seleccion.disenos_de(lineas_listado)
+    if pedidos_listado:
+        fuera = [a for a in archivos if seleccion.diseno_del_archivo(Path(str(a)).name) not in pedidos_listado]
+        archivos = [a for a in archivos if a not in fuera]
+        if fuera:
+            log(AGENTE, f"No exporto los maestros que el listado no pide: {', '.join(Path(str(a)).name for a in fuera)}")
+        if not archivos:
+            return _err("OLVER no tiene maestros de los diseños que pide el listado.",
+                        f"Los maestros encontrados no son de los diseños pedidos ({', '.join(f'D{d}' for d in sorted(pedidos_listado))}).",
+                        "Revisa que el maestro de cada diseño esté en la carpeta de MAESTROS.")
     carpeta = olver.carpeta_mesas(p["cliente"], p["referencia"], p.get("orden"))
     # PRODUCCIÓN: los PDF van a la carpeta IMPRESIÓN (MÁQUINA) de la orden en la NAS. No se borra nada: si un archivo ya existe se pregunta.
     # Si no se puede determinar esa carpeta (o es modo simulado), queda la copia local en salidas\ como antes.
@@ -1114,11 +1126,13 @@ def _pdfs_y_sheets(s, sobrescribir, permitir_tallas_faltantes=False):
         + " | ".join(f"{Path(str(a)).name}{(' · Gen_' + g) if g else ''}" for a, g in trabajos), archivo={"tipo": "pestana", "nombre": eleccion_hoja or "todas"})
     procesados = set()   # diseños (1, 2, 3…) cuyo maestro ya quedó con sus PDF: se verifica que cubran TODO lo que pide el listado
     # Solo los diseños que pide el listado de la pestaña en curso (no todos los maestros de la carpeta)
-    disenos_pedidos = {m_.group(1) for m_ in (re.search(r"(\d+)", str(l.get("diseno") or "")) for l in (fila.get("lineas") or [])) if m_}
-    def _diseno_de(a):
-        m_ = re.match(r"^D(\d+)\b", Path(str(a)).name, re.I)
-        return m_.group(1) if m_ else None
-    trabajos = [(a, g) for a, g in trabajos if _diseno_de(a) is None or _diseno_de(a) in disenos_pedidos]
+    # Estricto: solo los maestros cuyo diseño (D1, DISEÑO1…) está en el listado. Un archivo sin diseño reconocible NO se ejecuta.
+    disenos_pedidos = seleccion.disenos_de(fila.get("lineas") or [])
+    antes_filtro = len(trabajos)
+    if disenos_pedidos:   # si el listado no dice ningún diseño, no se filtra (como antes)
+        trabajos = [(a, g) for a, g in trabajos if seleccion.diseno_del_archivo(Path(str(a)).name) in disenos_pedidos]
+    if len(trabajos) != antes_filtro:
+        log(AGENTE, f"Omito {antes_filtro - len(trabajos)} maestro(s) que no están en el listado (diseños pedidos: {', '.join(f'D{d}' for d in sorted(disenos_pedidos))})")
     def _destino_de_ai(ai):
         d_ = (s.get("destinos_prod") or {}).get(str(ai))
         # Un destino guardado de otra orden (p. ej. RM7718 de la corrida anterior) NO se usa: se recalcula con la orden actual

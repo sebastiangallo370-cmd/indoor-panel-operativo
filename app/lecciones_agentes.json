@@ -159,5 +159,37 @@
     "por": "Claude",
     "nota": "doc.saveAs cambia el archivo al que apunta el documento abierto; si la carpeta temporal de la mesa anterior se borra antes del siguiente saveAs, Illustrator cancela esa operación (the operation was cancelled). Regla: las carpetas temporales se borran al final, después de doc.close (jsx/exportar_mesas.jsx, borrarCarpeta).",
     "regex": "the operation was cancelled"
+  },
+  {
+    "id": "leccion-zeus-sin-sesion-no-crea-ordenes",
+    "agente": "ZEUS",
+    "titulo": "El AGENTE INVENTARIO no creaba órdenes de compra aunque la llave de la API estuviera guardada en el panel",
+    "fecha": "2026-11-25T12:00:00",
+    "por": "Claude",
+    "nota": "Causa: el agente (zeus_vps/agente_zeus.py) solo pedía trabajo si tenía sesión de Effi en su entorno (ZEUS_EFFI_USERNAME o EFFI_API_KEY) y el panel solo entregaba trabajos a un agente con puede_trabajar. La llave de la API se guarda en el panel (zeus_secreto.json), así que el agente sin variables nunca recibía nada. Regla: el panel entrega la compra si el agente puede trabajar O si el panel tiene la llave de la API (app/zeus.py sondeo, puede_crear). Los envíos al proveedor y los PDF siguen necesitando la sesión del navegador. Prueba: tests/test_zeus_sondeo_api.py."
+  },
+  {
+    "id": "leccion-olver-fuera-del-listado",
+    "agente": "OLVER",
+    "titulo": "Se ejecutaban maestros de diseños que el listado no pedía (p. ej. D3 o DISEÑO3 con un listado de D1 y D2)",
+    "fecha": "2026-11-25T11:00:00",
+    "por": "Claude",
+    "nota": "Causa: el paso de PDF dejaba pasar los maestros cuyo nombre no tenía un número de diseño reconocible (regex ^D(\\d+) no entiende «DISEÑO3»), y la exportación de mesas no filtraba por el listado. Regla: solo se ejecutan los diseños que pide el listado (seleccion.diseno_del_archivo + disenos_de); un archivo sin diseño reconocible no se ejecuta. Código: agents/tavo.py (_exportar_mesas y paso de PDF)."
+  },
+  {
+    "id": "leccion-olver-mesas-sin-incrustar",
+    "agente": "OLVER",
+    "titulo": "Las mesas de Montajes salían con las imágenes incrustadas",
+    "fecha": "2026-11-25T11:05:00",
+    "por": "Claude",
+    "nota": "Causa: la copia de trabajo (con imágenes incrustadas) se guardaba también en Montajes. Regla: Montajes guarda las mesas tal cual (vinculadas); la copia incrustada queda solo en la carpeta temporal local y la usa el paso de PDF (agents/olver.py: exportar_mesas y pdfs_por_jugador)."
+  },
+  {
+    "id": "leccion-olver-hermanos",
+    "agente": "OLVER",
+    "titulo": "Los PDF por jugador no llegaban a las telas hermanas del mismo diseño",
+    "fecha": "2026-11-25T10:30:00",
+    "por": "Claude",
+    "nota": "Causa: el listado solo se aplicaba a la carpeta del maestro en curso. Regla: como Generador_PDFS.jsx, el mismo listado (talla, diseño y género) se aplica a las carpetas hermanas de Montajes del mismo diseño que tengan la mesa de cada talla; nunca exporta mesas nuevas para un hermano (agents/olver.py: _hermanos_del_maestro)."
   }
 ]
