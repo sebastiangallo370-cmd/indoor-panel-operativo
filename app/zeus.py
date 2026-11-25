@@ -1013,7 +1013,10 @@ def sondeo(request: Request, payload: dict):
                 item.update(estado='error', detalle=str(r.get('detalle', ''))[:300])
                 memoria_agentes.registrar('ZEUS', str(r.get('detalle', '')), 'ERROR')
         _vencer(d)
-        if payload.get('puede_trabajar'):
+        # Crear la orden no necesita la sesión del navegador si el panel tiene la llave de la API: el agente
+        # no la conoce hasta recibir un trabajo, así que el panel decide por su cuenta (si no, nunca llegaba nada).
+        puede_crear = bool(payload.get('puede_trabajar')) or bool(api_para_agente(d))
+        if puede_crear:
             for i in d['items']:
                 if i['estado'] in ('pendiente',) or (i['estado'] == 'error' and int(i.get('intentos', 0)) < 3 and _ahora() - float(i.get('entregada_at') or 0) > 600):
                     i['estado'], i['entregada_at'] = 'entregada', _ahora()

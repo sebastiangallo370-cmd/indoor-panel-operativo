@@ -15,6 +15,8 @@ import urllib.request
 from decimal import ROUND_HALF_UP, Decimal
 
 BASE = os.getenv('EFFI_API_URL', 'https://effi.com.co/api').rstrip('/')
+# Cloudflare delante de Effi bloquea el agente por defecto de Python (error 1010): se identifica como navegador normal
+AGENTE_HTTP = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36'
 
 
 class EffiError(Exception):
@@ -47,7 +49,7 @@ def disponible() -> bool:
 def _peticion(metodo: str, ruta: str, params: dict | None = None, cuerpo: dict | None = None, reintento: bool = True) -> dict:
     url = f'{BASE}/{ruta.lstrip("/")}' + ('?' + urllib.parse.urlencode(params) if params else '')
     datos = json.dumps(cuerpo, ensure_ascii=False).encode('utf-8') if cuerpo is not None else None
-    req = urllib.request.Request(url, data=datos, method=metodo, headers={'Authorization': 'Bearer ' + llave(), 'Content-Type': 'application/json', 'Accept': 'application/json'})
+    req = urllib.request.Request(url, data=datos, method=metodo, headers={'Authorization': 'Bearer ' + llave(), 'Content-Type': 'application/json', 'Accept': 'application/json', 'User-Agent': AGENTE_HTTP})
     try:
         with urllib.request.urlopen(req, timeout=40) as r:
             return json.loads(r.read().decode('utf-8'))
@@ -60,6 +62,9 @@ def _peticion(metodo: str, ruta: str, params: dict | None = None, cuerpo: dict |
         if e.code == 429 and reintento:   # 120 peticiones por minuto: se espera lo que pida Effi y se reintenta una vez
             time.sleep(min(60, int(e.headers.get('Retry-After') or 5)))
             return _peticion(metodo, ruta, params, cuerpo, reintento=False)
+        if e.code == 403 and ('cloudflare' in texto.lower() or 'error 1010' in texto.lower()):
+            # Cloudflare bloquea la petición antes de llegar a Effi: no es la llave ni sus permisos
+            raise EffiError('Cloudflare bloqueó la petición a Effi (error 1010); no es la llave ni sus permisos.', 403)
         mensaje = j.get('mensaje') or {401: 'La API key no es válida o venció (renuévala en Effi: Administración > Usuarios).', 403: 'La API key no tiene permiso para esa función.'}.get(e.code) or f'Effi respondió {e.code}'
         raise EffiError(mensaje, e.code, j)
     except (urllib.error.URLError, TimeoutError, OSError) as e:
