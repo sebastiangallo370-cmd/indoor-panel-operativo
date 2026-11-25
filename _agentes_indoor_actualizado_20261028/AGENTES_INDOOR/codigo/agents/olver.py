@@ -982,16 +982,23 @@ def _correr_generador(doc, filas, montajes, salida, prefijo, solo=None, listar=F
     # Se lee de la misma carpeta de código que está corriendo (NAS o copia local), así siempre es la versión publicada
     codigo = (Path(__file__).resolve().parent.parent / "jsx" / "GENERADOR_AGENTES.jsx").read_text(encoding="utf-8")
     Path(tempfile.gettempdir(), "indoor_agentes_pdf").mkdir(parents=True, exist_ok=True)
-    app = illustrator.conectar(AGENTE)
+    illustrator.conectar(AGENTE)          # espera a que Illustrator responda (lo abre si está cerrado)
     illustrator.traer_al_frente()
     # Límite de tiempo: si Illustrator no termina el archivo, no se queda parado para siempre
     resultado = {}
 
     def _ejecutar():
+        # El objeto COM se crea DENTRO de este hilo (con su propia inicialización COM): fuera del hilo no expone DoJavaScript
+        import pythoncom
+        import win32com.client
+        pythoncom.CoInitialize()
         try:
+            app = win32com.client.Dispatch("Illustrator.Application")
             resultado["msgs"] = str(app.DoJavaScript(pre + codigo + "\nINDOOR_JSX_MESSAGES.join(String.fromCharCode(10));"))
         except Exception as e:  # noqa: BLE001
             resultado["err"] = e
+        finally:
+            pythoncom.CoUninitialize()
 
     hilo = threading.Thread(target=_ejecutar, daemon=True)
     hilo.start()

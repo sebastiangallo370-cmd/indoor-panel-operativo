@@ -298,7 +298,11 @@ var INDOOR_PAUSA_MS = (typeof INDOOR_PAUSA_MS !== "undefined") ? INDOOR_PAUSA_MS
         if (!targetFolder.exists) { targetFolder.create(); }
 
         var creados = 0;
-        for (var row = 1; row < filasDataGlobal.length; row++) {
+        // Sin cuadros NOMBRE ni 00 en la pieza: se hace SOLO un PDF (no uno por jugador)
+        var sinGuias = (nameFrames.length === 0 && numberCandidates.length === 0);
+        log("Guías en " + doc.name + ": NOMBRE=" + nameFrames.length + " · 00=" + numberCandidates.length + (sinGuias ? " → se hace solo 1 PDF" : ""));
+        var filasAUsar = sinGuias ? 2 : filasDataGlobal.length;
+        for (var row = 1; row < filasAUsar; row++) {
             var cdr = filasDataGlobal[row].split(separador);
             var pData = [];
             for (var cc = 0; cc < nP; cc++) {
