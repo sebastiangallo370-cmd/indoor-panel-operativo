@@ -764,6 +764,16 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
             log(AGENTE, f"Hermano {nombre_h}: tiene mesas de las tallas {', '.join(sorted(info_h['mesas']))}")
     extra = {"esperados": 0, "unidades": 0}
 
+    TALLAS_STD = ["XS", "S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL"]
+
+    def _clave_talla(t):
+        t = str(t).upper()
+        if t in TALLAS_STD:
+            return (0, TALLAS_STD.index(t), "")
+        if t.isdigit():
+            return (1, int(t), "")
+        return (2, 0, t)
+
     def _hermanos_de_talla(talla_actual):
         for nombre_h, info_h in hermanos_mapa.items():
             mesa_h = info_h["mesas"].get(str(talla_actual).upper())
@@ -771,9 +781,11 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
                 omitidas.append(f"hermano {nombre_h} talla {talla_actual}: no tiene su mesa; no se creó su PDF")
                 log(AGENTE, f"Hermano {nombre_h}: no tiene la mesa de la talla {talla_actual}; no lo proceso", "WARN")
                 continue
-            log(AGENTE, f"Hermano {nombre_h} · talla {talla_actual}: aplico el mismo listado")
+            # Una talla numérica (4 a 16) en MASC/FEM es de niño/niña: sus jugadores están como género N en el listado
+            genero_h = "N" if str(talla_actual).isdigit() and genero in ("M", "F") else genero
+            log(AGENTE, f"Hermano {nombre_h} · talla {talla_actual}: aplico el mismo listado (género {genero_h})")
             r_h = pdfs_por_jugador(mesa_h, lineas, destino, orden, tela=tela, sobrescribir=sobrescribir, tela_archivo=tela_archivo,
-                                   referencia=info_h["ref"], genero_destino=genero, _sin_hermanos=True, solo_talla=talla_actual,
+                                   referencia=info_h["ref"], genero_destino=genero_h, _sin_hermanos=True, solo_talla=talla_actual,
                                    carpeta_mesas=info_h["carpeta"])
             if r_h.get("ok"):
                 pdfs.extend(r_h["pdfs"])
@@ -783,10 +795,25 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
             else:
                 omitidas.append(f"hermano {nombre_h} talla {talla_actual}: {r_h.get('error') or 'no se crearon PDF'}")
 
+    # Tallas que solo tienen HERMANOS (p. ej. la 8 de niño en FUT09N, que el maestro principal no trae): también se procesan, en su orden
+    plan_tallas = {str(t).upper() for t, _a, _b, _j in plan}
+    solo_hermanos = sorted({t for info in hermanos_mapa.values() for t in info["mesas"]} - plan_tallas, key=_clave_talla)
+    hechas_solo = set()
+
+    def _solo_hermanos_antes_de(limite):
+        for t in solo_hermanos:
+            if t in hechas_solo:
+                continue
+            if limite is not None and _clave_talla(t) >= _clave_talla(limite):
+                break
+            hechas_solo.add(t)
+            _hermanos_de_talla(t)
+
     talla_pendiente = None
     for talla, artboard, base, jugadores in plan:
         if talla_pendiente is not None:   # la talla anterior ya tiene su principal: ahora sus hermanos, luego esta talla
             _hermanos_de_talla(talla_pendiente)
+        _solo_hermanos_antes_de(talla)
         talla_pendiente = talla
         log(AGENTE, f"PDFs de producción · {ai.name} · talla {talla}: {len(jugadores)} jugador(es)")
         if simulado:
@@ -861,6 +888,7 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
                 omitidas.append(f"talla {talla}: no quedó el PDF de {j['nombre'] or j['numero'] or j.get('sufijo') or 'sin datos'}")
     if talla_pendiente is not None:   # la última talla: ahora sus hermanos
         _hermanos_de_talla(talla_pendiente)
+    _solo_hermanos_antes_de(None)     # tallas solo de hermanos que vienen después de la última del maestro
     esperados_extra, unidades_extra = extra["esperados"], extra["unidades"]
     if not pdfs:
         return {"ok": False, "error": "No se creó ningún PDF de producción. " + "; ".join(omitidas)}
