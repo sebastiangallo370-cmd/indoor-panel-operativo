@@ -885,15 +885,9 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
                 omitidas.append(f"talla {talla}: {res['error']}")
                 continue
             if res.get("sin_guias") and not mesa_independiente_principal(artboard):
-                # Costados/Petico sin guías NOMBRE/00: sus PDF saldrían en blanco. No se entregan: se quitan y se avisa.
-                for i, j in enumerate(jugadores, 1):
-                    try:
-                        _archivo_pdf(carpeta, base, i, j).unlink(missing_ok=True)
-                    except OSError:
-                        pass
-                omitidas.append(f"{artboard}: no tiene guías NOMBRE/00 en la plantilla; no se crearon sus PDF (revisar la mesa en Illustrator)")
-                log(AGENTE, f"{artboard}: sin guías NOMBRE/00 en la mesa: no entrego sus PDF en blanco", "WARN")
-                continue
+                # Costados/Petico sin guías NOMBRE/00: el PDF se genera igual (tal cual está la mesa) y se avisa para revisar la plantilla.
+                omitidas.append(f"{artboard}: sin guías NOMBRE/00 en la plantilla; el PDF sale sin nombre ni número (revisar la mesa en Illustrator)")
+                log(AGENTE, f"{artboard}: sin guías NOMBRE/00: el PDF se crea igual, sin personalizar", "WARN")
         for i, j in enumerate(jugadores, 1):
             f = _archivo_pdf(carpeta, base, i, j)
             if f.exists():
