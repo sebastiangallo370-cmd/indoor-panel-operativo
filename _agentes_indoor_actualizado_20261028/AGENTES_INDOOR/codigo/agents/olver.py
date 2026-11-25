@@ -884,6 +884,16 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
             if res.get("error"):
                 omitidas.append(f"talla {talla}: {res['error']}")
                 continue
+            if res.get("sin_guias") and not mesa_independiente_principal(artboard):
+                # Costados/Petico sin guías NOMBRE/00: sus PDF saldrían en blanco. No se entregan: se quitan y se avisa.
+                for i, j in enumerate(jugadores, 1):
+                    try:
+                        _archivo_pdf(carpeta, base, i, j).unlink(missing_ok=True)
+                    except OSError:
+                        pass
+                omitidas.append(f"{artboard}: no tiene guías NOMBRE/00 en la plantilla; no se crearon sus PDF (revisar la mesa en Illustrator)")
+                log(AGENTE, f"{artboard}: sin guías NOMBRE/00 en la mesa: no entrego sus PDF en blanco", "WARN")
+                continue
         for i, j in enumerate(jugadores, 1):
             f = _archivo_pdf(carpeta, base, i, j)
             if f.exists():
@@ -904,6 +914,11 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
                 for t in faltan
             ], "pendientes_autorizados": pendientes_autorizados, "esperados": total_plan + esperados_extra,
             "unidades": sum(sum(int(j.get("cantidad", 1) or 1) for j in js) for _t, _a, _b, js in plan) + unidades_extra}
+
+
+def mesa_independiente_principal(nombre):
+    """La pieza principal de una talla («Talla_…»). Costados y Petico son las demás piezas."""
+    return str(nombre).startswith("Talla_")
 
 
 def _correr_bot(codigo, ai, artboard, base, carpeta, jugadores, orden, tela, saltos=False):
@@ -965,7 +980,7 @@ def _correr_bot(codigo, ai, artboard, base, carpeta, jugadores, orden, tela, sal
         else:
             log(AGENTE, f"{ai.name}: sin guías NOMBRE/00, pero la talla no tiene personalización; conservo el PDF de producción")
     time.sleep(0.3)               # pausa mínima tras cerrar un .ai pesado antes de abrir el siguiente
-    return {"mensajes": mensajes}
+    return {"mensajes": mensajes, "sin_guias": sin_guias and requiere_personalizacion}
 
 
 def _cerrar_si_abierto(app, ai):
