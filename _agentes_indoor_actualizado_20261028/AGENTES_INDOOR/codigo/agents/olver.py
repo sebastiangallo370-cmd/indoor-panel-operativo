@@ -733,11 +733,13 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
             })
             if len(mesas) > 1:
                 log(AGENTE, f"Talla {talla}: {len(mesas)} mesas coinciden en talla, diseño y género ({', '.join(mesas)}): el nombre y el número van en todas")
-            # Por jugador: un solo PDF por talla, de la pieza principal («Talla_…»). Costados y Petico no se crean.
+            # TODO lo que coincide en talla, diseño y género recibe su PDF por jugador: la pieza principal («Talla_…») primero,
+            # y después Costados y Petico de esa misma talla (cada una con su propio PDF).
             principal = [m for m in mesas if m.startswith("Talla_")]
+            resto = [m for m in mesas if m not in principal]
+            mesas = principal[:1] + resto
             if len(mesas) > 1:
-                log(AGENTE, f"Talla {talla}: se usa solo la pieza principal {(principal or mesas[:1])[0]} (un PDF por jugador)")
-            mesas = principal[:1] or mesas[:1]
+                log(AGENTE, f"Talla {talla}: {len(mesas)} mesas coinciden (principal y demás piezas): cada una recibe su PDF por jugador ({', '.join(mesas)})")
             ampliado += [(talla, m, f"{prefijo}{m}", js) for m in mesas] or [(talla, art, base, js)]
         plan = ampliado
         esperados = [p for _, _, base, js in plan for p in _nombres_esperados(carpeta, base, js)]
@@ -811,9 +813,11 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
 
     talla_pendiente = None
     for talla, artboard, base, jugadores in plan:
-        if talla_pendiente is not None:   # la talla anterior ya tiene su principal: ahora sus hermanos, luego esta talla
+        cambia = talla_pendiente is None or str(talla) != str(talla_pendiente)   # Costados/Petico de la misma talla no cambian de talla
+        if cambia and talla_pendiente is not None:   # la talla anterior ya tiene sus piezas: ahora sus hermanos, luego esta talla
             _hermanos_de_talla(talla_pendiente)
-        _solo_hermanos_antes_de(talla)
+        if cambia:
+            _solo_hermanos_antes_de(talla)
         talla_pendiente = talla
         log(AGENTE, f"PDFs de producción · {ai.name} · talla {talla}: {len(jugadores)} jugador(es)")
         if simulado:
