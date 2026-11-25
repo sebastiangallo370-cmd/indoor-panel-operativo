@@ -149,7 +149,17 @@ var INDOOR_PAUSA_MS = (typeof INDOOR_PAUSA_MS !== "undefined") ? INDOOR_PAUSA_MS
     // --- 1) Archivos de la MISMA talla, diseño y género: en la carpeta del maestro y en las carpetas hermanas del diseño ---
     var filesToProcess = [];
     var addedPaths = {};
+    // Solo las referencias de la pestaña del listado (INDOOR_REFS). Una carpeta de otra referencia (p. ej. CA04N) no se procesa.
+    var refsPermitidas = (typeof INDOOR_REFS !== "undefined" && INDOOR_REFS) ? INDOOR_REFS : null;
+    function refPermitida(f) {
+        if (!refsPermitidas || refsPermitidas.length === 0) return true;
+        var m = decodeURI(f.parent.name).toUpperCase().match(/^([A-Z]+\d+)/);
+        if (!m) return false;
+        for (var r = 0; r < refsPermitidas.length; r++) { if (refsPermitidas[r] === m[1]) return true; }
+        return false;
+    }
     function addFileUnique(f) {
+        if (!refPermitida(f)) { log("No proceso " + f.name + ": su referencia no está en la pestaña del listado."); return; }
         var key = decodeURI(f.fullName).toLowerCase();
         if (!addedPaths[key]) { addedPaths[key] = true; filesToProcess.push(f); }
     }

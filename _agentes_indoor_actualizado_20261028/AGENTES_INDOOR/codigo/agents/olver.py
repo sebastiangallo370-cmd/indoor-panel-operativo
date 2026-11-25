@@ -770,7 +770,7 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
                 omitidas.append(f"talla {talla}: no encuentro la mesa principal en Montajes")
                 continue
             tallas_hechas.add(str(talla).upper())
-            pdfs_jsx += _generar_por_talla(doc_t, jugadores, destino["montajes"], salida_hoja, prefijo, talla, diseno, genero)
+            pdfs_jsx += _generar_por_talla(doc_t, jugadores, destino["montajes"], salida_hoja, prefijo, talla, diseno, genero, refs=[ref])
         if destino.get("montajes"):
             mapa_jsx = _hermanos_por_talla(destino["montajes"], diseno, ref, genero, suf_maestro)
             solo = sorted({t for info in mapa_jsx.values() for t in info["mesas"]} - tallas_hechas, key=lambda t: (not str(t).isdigit(), str(t)))
@@ -782,7 +782,7 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
                     omitidas.append(f"talla {t} de los hermanos: el listado no tiene jugadores")
                     continue
                 tallas_hechas.add(str(t).upper())
-                pdfs_jsx += _generar_por_talla(info["mesas"][str(t).upper()], jug_t, destino["montajes"], salida_hoja, prefijo, t, diseno, gen_t)
+                pdfs_jsx += _generar_por_talla(info["mesas"][str(t).upper()], jug_t, destino["montajes"], salida_hoja, prefijo, t, diseno, gen_t, refs=[ref])
         if not pdfs_jsx:
             return {"ok": False, "error": "No se creó ningún PDF de producción con el JSX. " + "; ".join(omitidas)}
         return {"ok": True, "pdfs": pdfs_jsx, "carpeta": str(salida_hoja), "simulado": False, "omitidas": omitidas,
@@ -959,7 +959,7 @@ def _filas_generador(jugadores):
     return filas
 
 
-def _correr_generador(doc, filas, montajes, salida, prefijo, solo=None, listar=False):
+def _correr_generador(doc, filas, montajes, salida, prefijo, solo=None, listar=False, refs=None):
     """Corre GENERADOR_AGENTES.jsx por lotes: listar=True solo devuelve los .ai que aplican; solo=<ruta> procesa UN archivo.
     Así Illustrator responde entre un archivo y el siguiente."""
     csv = "NOMBRE1;NUMERO1\n" + "".join(f"{n};{u}\n" for n, u in filas)
@@ -970,6 +970,7 @@ def _correr_generador(doc, filas, montajes, salida, prefijo, solo=None, listar=F
            "var INDOOR_TMP = " + json.dumps(Path(tempfile.gettempdir()).as_posix() + "/indoor_agentes_pdf") + ";\n"
            "var INDOOR_PREFIJO = " + json.dumps(prefijo or "") + ";\n"
            "var INDOOR_SOLO_LISTAR = " + ("true" if listar else "false") + ";\n"
+           + ("var INDOOR_REFS = " + json.dumps([str(r).upper() for r in refs]) + ";\n" if refs else "")
            + ("var INDOOR_SOLO_ARCHIVO = " + json.dumps(Path(solo).as_posix()) + ";\n" if solo else "")
            + "var INDOOR_JSX_MESSAGES = [];\n")
     # Se lee de la misma carpeta de código que está corriendo (NAS o copia local), así siempre es la versión publicada
@@ -984,9 +985,9 @@ def _correr_generador(doc, filas, montajes, salida, prefijo, solo=None, listar=F
     return msgs
 
 
-def _archivos_del_lote(doc, filas, montajes, salida, prefijo):
-    """Lista (sin guardar nada) los .ai de la misma talla, diseño y género que procesará el JSX."""
-    msgs = _correr_generador(doc, filas, montajes, salida, prefijo, listar=True)
+def _archivos_del_lote(doc, filas, montajes, salida, prefijo, refs=None):
+    """Lista (sin guardar nada) los .ai de la misma talla, diseño, género y referencia que procesará el JSX."""
+    msgs = _correr_generador(doc, filas, montajes, salida, prefijo, listar=True, refs=refs)
     return [Path(l[len("ARCHIVO:"):].strip()) for l in msgs.splitlines() if l.startswith("ARCHIVO:")]
 
 
@@ -997,7 +998,7 @@ def _pdfs_de(carpeta_raiz):
         return set()
 
 
-def _generar_por_talla(doc, jugadores, montajes, salida, prefijo, talla, diseno=None, genero=None):
+def _generar_por_talla(doc, jugadores, montajes, salida, prefijo, talla, diseno=None, genero=None, refs=None):
     """Un PDF por jugador (y por archivo hermano de la misma talla). Devuelve la lista de PDF nuevos con su jugador.
     Cada PDF se manda al panel en cuanto existe (pantalla en vivo), igual que antes."""
     filas = _filas_generador(jugadores)
@@ -1009,11 +1010,11 @@ def _generar_por_talla(doc, jugadores, montajes, salida, prefijo, talla, diseno=
     vigia = _VigiaCarpeta(Path(salida), "*.pdf", lambda f: _evento_pdf(f, jug_panel, talla, diseno or "", genero or ""), recursivo=True)
     try:
         # Por lotes: un archivo por llamada a Illustrator, para que el programa responda entre uno y otro
-        archivos = _archivos_del_lote(doc, filas, montajes, salida, prefijo)
+        archivos = _archivos_del_lote(doc, filas, montajes, salida, prefijo, refs=refs)
         log(AGENTE, f"Talla {talla}: {len(archivos)} archivo(s) (principal y hermanos) · {len(filas)} PDF por archivo")
         for ar in archivos:
             log(AGENTE, f"Generando {ar.name} · talla {talla}")
-            _correr_generador(doc, filas, montajes, salida, prefijo, solo=ar)
+            _correr_generador(doc, filas, montajes, salida, prefijo, solo=ar, refs=refs)
     except Exception as e:  # noqa: BLE001
         log(AGENTE, f"No pude generar los PDF de la talla {talla} con el JSX: {e}", "ERROR")
         return []
