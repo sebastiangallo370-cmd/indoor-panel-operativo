@@ -1113,6 +1113,12 @@ def _pdfs_y_sheets(s, sobrescribir, permitir_tallas_faltantes=False):
     log(AGENTE, f"PDF · pestaña {eleccion_hoja or 'todas'} · {len(fila.get('lineas') or [])} líneas · {len(trabajos)} trabajo(s): "
         + " | ".join(f"{Path(str(a)).name}{(' · Gen_' + g) if g else ''}" for a, g in trabajos), archivo={"tipo": "pestana", "nombre": eleccion_hoja or "todas"})
     procesados = set()   # diseños (1, 2, 3…) cuyo maestro ya quedó con sus PDF: se verifica que cubran TODO lo que pide el listado
+    # Solo los diseños que pide el listado de la pestaña en curso (no todos los maestros de la carpeta)
+    disenos_pedidos = {m_.group(1) for m_ in (re.search(r"(\d+)", str(l.get("diseno") or "")) for l in (fila.get("lineas") or [])) if m_}
+    def _diseno_de(a):
+        m_ = re.match(r"^D(\d+)\b", Path(str(a)).name, re.I)
+        return m_.group(1) if m_ else None
+    trabajos = [(a, g) for a, g in trabajos if _diseno_de(a) is None or _diseno_de(a) in disenos_pedidos]
     def _destino_de_ai(ai):
         d_ = (s.get("destinos_prod") or {}).get(str(ai))
         # Un destino guardado de otra orden (p. ej. RM7718 de la corrida anterior) NO se usa: se recalcula con la orden actual
