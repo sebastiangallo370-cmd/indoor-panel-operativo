@@ -753,6 +753,37 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
             f"talla {t}: no existe mesa independiente en {ai.name}; se dejó pendiente por decisión del usuario"
             for t in faltan
         )
+    if JSX_GENERADOR and not simulado:
+        # Ruta nueva: por cada talla, el JSX toma el maestro principal de esa talla y aplica el listado a todos los .ai hermanos
+        # de la misma talla, diseño y género (carpeta de diseño). Las tallas que solo tienen hermanos (p. ej. 4 a 16 de niño) también.
+        salida_hoja = Path(destino["carpeta"]) / (_seguro(hoja) or ref)
+        pdfs_jsx, tallas_hechas = [], set()
+        for talla, artboard, base, jugadores in plan:
+            if not mesa_independiente_principal(artboard) or str(talla).upper() in tallas_hechas:
+                continue
+            doc_t = next((cm / f"{artboard}.ai" for cm in carpetas_m if (cm / f"{artboard}.ai").exists()), None)
+            if doc_t is None:
+                omitidas.append(f"talla {talla}: no encuentro la mesa principal en Montajes")
+                continue
+            tallas_hechas.add(str(talla).upper())
+            pdfs_jsx += _generar_por_talla(doc_t, jugadores, destino["montajes"], salida_hoja, prefijo, talla)
+        if destino.get("montajes"):
+            mapa_jsx = _hermanos_por_talla(destino["montajes"], diseno, ref, genero, suf_maestro)
+            solo = sorted({t for info in mapa_jsx.values() for t in info["mesas"]} - tallas_hechas, key=lambda t: (not str(t).isdigit(), str(t)))
+            for t in solo:
+                info = next(i for i in mapa_jsx.values() if str(t).upper() in i["mesas"])
+                gen_t = "N" if str(t).isdigit() and genero in ("M", "F") else genero
+                jug_t = [j for tt, js in _solo_sexo_del_maestro(_jugadores_de(lineas, diseno, gen_t), suf_maestro) if str(tt).upper() == str(t).upper() for j in js]
+                if not jug_t:
+                    omitidas.append(f"talla {t} de los hermanos: el listado no tiene jugadores")
+                    continue
+                tallas_hechas.add(str(t).upper())
+                pdfs_jsx += _generar_por_talla(info["mesas"][str(t).upper()], jug_t, destino["montajes"], salida_hoja, prefijo, t)
+        if not pdfs_jsx:
+            return {"ok": False, "error": "No se creó ningún PDF de producción con el JSX. " + "; ".join(omitidas)}
+        return {"ok": True, "pdfs": pdfs_jsx, "carpeta": str(salida_hoja), "simulado": False, "omitidas": omitidas,
+                "omitidas_autorizadas": [], "pendientes_autorizados": [], "esperados": len(pdfs_jsx),
+                "unidades": sum(int(j.get("cantidad", 1) or 1) for _t, _a, _b, js in plan for j in js)}
     codigo, ruta_bot = (None, "") if simulado else _bot_jsx()
     codigo, saltos = _parchar_saltos(codigo)
     total_plan = sum(len(js) for _, _, _, js in plan)
@@ -908,6 +939,70 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
                 for t in faltan
             ], "pendientes_autorizados": pendientes_autorizados, "esperados": total_plan + esperados_extra,
             "unidades": sum(sum(int(j.get("cantidad", 1) or 1) for j in js) for _t, _a, _b, js in plan) + unidades_extra}
+
+
+JSX_GENERADOR = True   # True: los PDF por jugador los hace jsx/GENERADOR_AGENTES.jsx (igual que Generador_PDFS.jsx, con los hermanos incluidos)
+
+
+def _filas_generador(jugadores):
+    """(nombre, numero) por cada PDF: una fila por prenda; los grupos sin datos («3unds») son una fila por prenda."""
+    filas = []
+    for j in jugadores:
+        n = int(j.get("cantidad", 1) or 1) if j.get("sufijo") else 1
+        nom = str(j.get("nombre") or "").replace(";", " ").replace("\n", " ").strip()
+        num = str(j.get("numero") or "").replace(";", " ").strip()
+        filas += [(nom, num)] * n
+    return filas
+
+
+def _correr_generador(doc, filas, montajes, salida, prefijo):
+    """Abre el maestro/mesa con Illustrator y corre GENERADOR_AGENTES.jsx: aplica las filas a TODOS los .ai de la misma talla,
+    diseño y género de la carpeta de diseño (hermanos incluidos) y guarda los PDF en salida/<relativo a Montajes>."""
+    csv = "NOMBRE1;NUMERO1\n" + "".join(f"{n};{u}\n" for n, u in filas)
+    pre = ("var INDOOR_DOC = " + json.dumps(Path(doc).as_posix()) + ";\n"
+           "var INDOOR_CSV = " + json.dumps(csv) + ";\n"
+           "var INDOOR_MONTAJES = " + json.dumps(str(montajes).replace("\\", "/")) + ";\n"
+           "var INDOOR_SALIDA = " + json.dumps(str(salida).replace("\\", "/")) + ";\n"
+           "var INDOOR_TMP = " + json.dumps(Path(tempfile.gettempdir()).as_posix() + "/indoor_agentes_pdf") + ";\n"
+           "var INDOOR_PREFIJO = " + json.dumps(prefijo or "") + ";\n"
+           "var INDOOR_JSX_MESSAGES = [];\n")
+    # Se lee de la misma carpeta de código que está corriendo (NAS o copia local), así siempre es la versión publicada
+    codigo = (Path(__file__).resolve().parent.parent / "jsx" / "GENERADOR_AGENTES.jsx").read_text(encoding="utf-8")
+    Path(tempfile.gettempdir(), "indoor_agentes_pdf").mkdir(parents=True, exist_ok=True)
+    app = illustrator.conectar(AGENTE)
+    illustrator.traer_al_frente()
+    msgs = str(app.DoJavaScript(pre + codigo + "\nINDOOR_JSX_MESSAGES.join(String.fromCharCode(10));"))
+    for linea in msgs.splitlines():
+        log(AGENTE, "[JSX] " + linea, "ERROR" if "ERROR" in linea else "INFO")
+    return msgs
+
+
+def _pdfs_de(carpeta_raiz):
+    try:
+        return {str(p) for p in Path(carpeta_raiz).rglob("*.pdf") if p.is_file()}
+    except OSError:
+        return set()
+
+
+def _generar_por_talla(doc, jugadores, montajes, salida, prefijo, talla):
+    """Un PDF por jugador (y por archivo hermano de la misma talla). Devuelve la lista de PDF nuevos con su jugador."""
+    filas = _filas_generador(jugadores)
+    if not filas:
+        return []
+    antes = _pdfs_de(salida)
+    try:
+        _correr_generador(doc, filas, montajes, salida, prefijo)
+    except Exception as e:  # noqa: BLE001
+        log(AGENTE, f"No pude generar los PDF de la talla {talla} con el JSX: {e}", "ERROR")
+        return []
+    nuevos = sorted(_pdfs_de(salida) - antes)
+    res = []
+    for ruta in nuevos:
+        m = re.search(r"_(\d{2})\.pdf$", ruta)
+        i = int(m.group(1)) - 1 if m else -1
+        nom, num = filas[i] if 0 <= i < len(filas) else ("", "")
+        res.append({"ruta": ruta, "nombre": nom, "numero": num, "talla": talla})
+    return res
 
 
 def mesa_independiente_principal(nombre):

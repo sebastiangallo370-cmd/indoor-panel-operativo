@@ -27,7 +27,7 @@ Write-Output "Validacion OK (todo compila)."
 # 2) Copiar a la NAS solo lo que cambio; el respaldo de lo anterior va a _respaldos_codigo (no ensucia la carpeta de los PC)
 $cambiados = 0
 $archivos = @()
-foreach ($c in $Carpetas) { if (Test-Path (Join-Path $Src $c)) { $archivos += Get-ChildItem (Join-Path $Src $c) -Recurse -File -Filter *.py } }
+foreach ($c in $Carpetas) { if (Test-Path (Join-Path $Src $c)) { $archivos += Get-ChildItem (Join-Path $Src $c) -Recurse -File -Include *.py,*.jsx } }
 $archivos += Get-ChildItem $Src -File -Filter *.py
 foreach ($f in $archivos) {
     $rel = $f.FullName.Substring($Src.Length).TrimStart("\")
