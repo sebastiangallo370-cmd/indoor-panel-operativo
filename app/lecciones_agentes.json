@@ -191,5 +191,14 @@
     "fecha": "2026-11-25T10:30:00",
     "por": "Claude",
     "nota": "Causa: el listado solo se aplicaba a la carpeta del maestro en curso. Regla: como Generador_PDFS.jsx, el mismo listado (talla, diseño y género) se aplica a las carpetas hermanas de Montajes del mismo diseño que tengan la mesa de cada talla; nunca exporta mesas nuevas para un hermano (agents/olver.py: _hermanos_del_maestro)."
+  },
+  {
+    "id": "leccion-olver-com-hilo",
+    "agente": "OLVER",
+    "titulo": "El agente de edición fallaba con «Illustrator.Application.DoJavaScript» al generar los PDF",
+    "fecha": "2026-11-25T16:50:00",
+    "por": "Claude",
+    "regex": "Illustrator.Application.DoJavaScript",
+    "nota": "Causa: el objeto COM que devolvía el conector no expone DoJavaScript cuando se usa desde otro hilo. Regla: el objeto COM de Illustrator se crea DENTRO del hilo que ejecuta el JSX, con CoInitialize (agents/olver.py, _correr_generador)."
   }
 ]
