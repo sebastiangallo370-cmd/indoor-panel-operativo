@@ -984,7 +984,23 @@ def _correr_generador(doc, filas, montajes, salida, prefijo, solo=None, listar=F
     Path(tempfile.gettempdir(), "indoor_agentes_pdf").mkdir(parents=True, exist_ok=True)
     app = illustrator.conectar(AGENTE)
     illustrator.traer_al_frente()
-    msgs = str(app.DoJavaScript(pre + codigo + "\nINDOOR_JSX_MESSAGES.join(String.fromCharCode(10));"))
+    # Límite de tiempo: si Illustrator no termina el archivo, no se queda parado para siempre
+    resultado = {}
+
+    def _ejecutar():
+        try:
+            resultado["msgs"] = str(app.DoJavaScript(pre + codigo + "\nINDOOR_JSX_MESSAGES.join(String.fromCharCode(10));"))
+        except Exception as e:  # noqa: BLE001
+            resultado["err"] = e
+
+    hilo = threading.Thread(target=_ejecutar, daemon=True)
+    hilo.start()
+    hilo.join(900)
+    if hilo.is_alive():
+        raise RuntimeError("Illustrator no terminó este archivo en 15 minutos; se omite y sigo con el siguiente")
+    if "err" in resultado:
+        raise resultado["err"]
+    msgs = resultado.get("msgs", "")
     for linea in msgs.splitlines():
         if not linea.startswith("ARCHIVO:"):
             log(AGENTE, "[JSX] " + linea, "ERROR" if "ERROR" in linea else "INFO")
@@ -1030,7 +1046,10 @@ def _generar_por_talla(doc, jugadores, montajes, salida, prefijo, talla, diseno=
         log(AGENTE, f"Talla {talla}: {len(lista)} archivo(s) elegidos por TAVO · {len(filas)} PDF por archivo")
         for ar in lista:
             log(AGENTE, f"Generando {ar.name} · talla {talla}")
-            _correr_generador(lista[0], filas, montajes, salida, prefijo, solo=ar, refs=refs)
+            try:
+                _correr_generador(lista[0], filas, montajes, salida, prefijo, solo=ar, refs=refs)
+            except Exception as e:  # noqa: BLE001   (un archivo que falla no detiene los demás ni los demás maestros)
+                log(AGENTE, f"No pude generar {ar.name} (talla {talla}): {e}", "ERROR")
     except Exception as e:  # noqa: BLE001
         log(AGENTE, f"No pude generar los PDF de la talla {talla} con el JSX: {e}", "ERROR")
         return []
