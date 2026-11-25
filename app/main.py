@@ -401,6 +401,7 @@ _VIGILANTE_BAT = "\r\n".join([
     'copy /Y "%NAS%\iniciar_oculto.vbs" "%LOCAL%\\" >nul',
     'if not exist "%LOCAL%\iniciar_oculto.vbs" (echo No pude copiar desde la NAS. Revisa la conexion y vuelve a intentar. & pause & exit /b 1)',
     'powershell -NoProfile -ExecutionPolicy Bypass -Command "$s=(New-Object -ComObject WScript.Shell).CreateShortcut([Environment]::GetFolderPath(\'Startup\')+\'\Vigilante agentes.lnk\'); $s.TargetPath=\'powershell.exe\'; $s.Arguments=\'-WindowStyle Hidden -ExecutionPolicy Bypass -File \\\"%LOCAL%\vigilar_codigo_agentes.ps1\\\"\'; $s.WindowStyle=7; $s.Save()"',
+    'powershell -NoProfile -ExecutionPolicy Bypass -File "%LOCAL%\reiniciar_agentes_pc.ps1"',
     'start "" /min powershell -WindowStyle Hidden -ExecutionPolicy Bypass -File "%LOCAL%\vigilar_codigo_agentes.ps1"',
     "echo.",
     "echo Vigilante instalado. Los agentes de este PC quedan activos y se actualizan solos.",
