@@ -1009,7 +1009,8 @@ def _archivos_de_talla(carpetas, talla, diseno, genero):
     out = []
     for c in carpetas:
         for stem in _mesas_de(Path(c), talla, diseno, {genero}):
-            out.append(Path(c) / f"{stem}.ai")
+            if stem.startswith("Talla_"):   # solo la pieza principal: un PDF por jugador (Costados y Petico no se crean)
+                out.append(Path(c) / f"{stem}.ai")
     return out
 
 
