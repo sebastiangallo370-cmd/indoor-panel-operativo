@@ -541,17 +541,16 @@ def _nombres_esperados(carpeta, base, jugadores):
 def _hermanos_por_talla(montajes, diseno, ref_actual, genero, suf):
     """Carpetas HERMANAS de Montajes (otra tela, mismo diseño y mismo género). Igual que Generador_PDFS.jsx: solo la carpeta de diseño,
     nunca otro diseño (D2, D3…). Devuelve {referencia: {talla: ruta_de_la_mesa.ai}} con las tallas que ya tienen mesa."""
-    actual = f"{ref_actual}{genero}{suf}".upper()
+    propia = f"{ref_actual}{genero}{suf}".upper()   # la carpeta del maestro en curso no es hermana de sí misma
     try:
         carpetas = sorted((c for c in (Path(montajes) / f"D{diseno}").iterdir() if c.is_dir()), key=lambda p: p.name)
     except OSError:
         return {}
     mapa = {}
     for c in carpetas:
-        nombre = c.name.upper()
-        if nombre == actual:
+        if c.name.upper() == propia:
             continue
-        m = re.fullmatch(rf"([A-Z0-9]+){re.escape(genero)}{re.escape(suf)}", nombre)
+        m = re.match(r"^([A-Z]+\d+)", c.name.upper())   # la tela de la carpeta: FUT09N → FUT09. Manda el género de las MESAS, no el sufijo de la carpeta
         if not m:
             continue
         por_talla = {}
@@ -560,7 +559,7 @@ def _hermanos_por_talla(montajes, diseno, ref_actual, genero, suf):
             principal = [n for n in nombres if n.startswith("Talla_")] or nombres
             por_talla[t] = c / f"{principal[0]}.ai"
         if por_talla:
-            mapa[m.group(1)] = por_talla
+            mapa[c.name] = {"ref": m.group(1), "carpeta": str(c), "mesas": por_talla}   # clave: nombre de la carpeta (única)
     return mapa
 
 
@@ -578,7 +577,7 @@ def _tallas_en_carpeta(carpeta, diseno, genero):
 
 
 def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=False, tela_archivo=None, referencia="", genero_destino=None,
-                      permitir_faltantes=False, solo_mesas=False, _sin_hermanos=False, solo_talla=None):
+                      permitir_faltantes=False, solo_mesas=False, _sin_hermanos=False, solo_talla=None, carpeta_mesas=None):
     # destino["montajes"]: carpeta Montajes (MÁQUINA) del maestro; si ahí ya están las mesas independientes exportadas, se abre cada talla desde su archivo
     """Crea un PDF por jugador. Devuelve:
         {"ok": True, "pdfs": [{"ruta", "nombre", "numero", "talla"}], "carpeta", "simulado", "omitidas": [...]}
@@ -632,7 +631,8 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
         return {"ok": False, "error": "No encontré la carpeta Montajes para verificar/exportar las tallas; no genero PDFs sin esa revisión."}
 
     hoja = next((j["hoja"] for _, js in por_talla for j in js if j["hoja"]), "")
-    carpeta = Path(destino["carpeta"]) / (_seguro(hoja) or ref) / f"D{diseno}" / f"{ref}{genero}{suf_maestro}"
+    # Hermano: sus PDF van a SU carpeta (p. ej. FUT09N), así no se mezclan con los del maestro principal (FUT09M)
+    carpeta = Path(destino["carpeta"]) / (_seguro(hoja) or ref) / f"D{diseno}" / (Path(carpeta_mesas).name if carpeta_mesas else f"{ref}{genero}{suf_maestro}")
     prefijo = f"{util.limpiar(orden)}_" if orden else ""
     en_archivo = tela if tela_archivo is None else tela_archivo   # el nombre del archivo lleva la tela sin color (MONTECATINI); dentro del PDF sigue la descripción completa
     if en_archivo:
@@ -663,8 +663,8 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
     faltan = []
     pendientes_autorizados = []
     if not simulado and destino.get("montajes"):   # RECTIFICA que existan las mesas independientes de TODAS las tallas (adulto o niño) ANTES de poner nombre y número
-        carpetas_m = [Path(destino["montajes"]) / f"D{diseno}" / f"{ref}{genero}{suf_maestro}"]
-        if genero_maestro != genero:
+        carpetas_m = [Path(carpeta_mesas)] if carpeta_mesas else [Path(destino["montajes"]) / f"D{diseno}" / f"{ref}{genero}{suf_maestro}"]
+        if genero_maestro != genero and not carpeta_mesas:
             carpetas_m.append(Path(destino["montajes"]) / f"D{diseno}" / f"{ref}{genero_maestro}{suf_maestro}")
 
         def _mesa_ok(art, talla):
@@ -712,8 +712,8 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
     if solo_mesas:   # fase 1 completa: las mesas de este maestro ya están revisadas
         return {"ok": True, "faltantes": [], "maestro": ai.name, "solo_mesas": True}
     if not simulado and destino.get("montajes"):   # nombre y número se aplican a TODAS las mesas que coinciden en talla, diseño y género (p. ej. Frente_ y Espalda_)
-        carpetas_m = [Path(destino["montajes"]) / f"D{diseno}" / f"{ref}{genero}{suf_maestro}"]
-        if genero_maestro != genero:
+        carpetas_m = [Path(carpeta_mesas)] if carpeta_mesas else [Path(destino["montajes"]) / f"D{diseno}" / f"{ref}{genero}{suf_maestro}"]
+        if genero_maestro != genero and not carpeta_mesas:
             carpetas_m.append(Path(destino["montajes"]) / f"D{diseno}" / f"{ref}{genero_maestro}{suf_maestro}")
         ampliado = []
         for talla, art, base, js in plan:
@@ -760,27 +760,28 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
     hermanos_mapa = {}
     if not _sin_hermanos and not simulado and destino.get("montajes"):
         hermanos_mapa = _hermanos_por_talla(destino["montajes"], diseno, ref, genero, suf_maestro)
-        for ref_h, por_t in hermanos_mapa.items():
-            log(AGENTE, f"Hermano {ref_h}{genero}{suf_maestro}: tiene mesas de las tallas {', '.join(sorted(por_t))}")
+        for nombre_h, info_h in hermanos_mapa.items():
+            log(AGENTE, f"Hermano {nombre_h}: tiene mesas de las tallas {', '.join(sorted(info_h['mesas']))}")
     extra = {"esperados": 0, "unidades": 0}
 
     def _hermanos_de_talla(talla_actual):
-        for ref_h, por_t in hermanos_mapa.items():
-            mesa_h = por_t.get(str(talla_actual).upper())
+        for nombre_h, info_h in hermanos_mapa.items():
+            mesa_h = info_h["mesas"].get(str(talla_actual).upper())
             if not mesa_h:
-                omitidas.append(f"hermano {ref_h}{genero}{suf_maestro} talla {talla_actual}: no tiene su mesa; no se creó su PDF")
-                log(AGENTE, f"Hermano {ref_h}{genero}{suf_maestro}: no tiene la mesa de la talla {talla_actual}; no lo proceso", "WARN")
+                omitidas.append(f"hermano {nombre_h} talla {talla_actual}: no tiene su mesa; no se creó su PDF")
+                log(AGENTE, f"Hermano {nombre_h}: no tiene la mesa de la talla {talla_actual}; no lo proceso", "WARN")
                 continue
-            log(AGENTE, f"Hermano {ref_h}{genero}{suf_maestro} · talla {talla_actual}: aplico el mismo listado")
+            log(AGENTE, f"Hermano {nombre_h} · talla {talla_actual}: aplico el mismo listado")
             r_h = pdfs_por_jugador(mesa_h, lineas, destino, orden, tela=tela, sobrescribir=sobrescribir, tela_archivo=tela_archivo,
-                                   referencia=ref_h, genero_destino=genero, _sin_hermanos=True, solo_talla=talla_actual)
+                                   referencia=info_h["ref"], genero_destino=genero, _sin_hermanos=True, solo_talla=talla_actual,
+                                   carpeta_mesas=info_h["carpeta"])
             if r_h.get("ok"):
                 pdfs.extend(r_h["pdfs"])
                 omitidas.extend(r_h.get("omitidas", []))
                 extra["esperados"] += r_h.get("esperados", 0)
                 extra["unidades"] += r_h.get("unidades", 0)
             else:
-                omitidas.append(f"hermano {ref_h}{genero}{suf_maestro} talla {talla_actual}: {r_h.get('error') or 'no se crearon PDF'}")
+                omitidas.append(f"hermano {nombre_h} talla {talla_actual}: {r_h.get('error') or 'no se crearon PDF'}")
 
     talla_pendiente = None
     for talla, artboard, base, jugadores in plan:
