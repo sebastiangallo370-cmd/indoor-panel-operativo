@@ -793,7 +793,7 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
             return {"ok": False, "error": "No se creó ningún PDF de producción con el JSX. " + "; ".join(omitidas)}
         return {"ok": True, "pdfs": pdfs_jsx, "carpeta": str(salida_hoja), "simulado": False, "omitidas": omitidas,
                 "omitidas_autorizadas": [], "pendientes_autorizados": [], "esperados": len(pdfs_jsx),
-                "unidades": sum(int(j.get("cantidad", 1) or 1) for _t, _a, _b, js in plan for j in js)}
+                "unidades": sum(int(j.get("cantidad", 1) or 1) for _t, a_, _b, js in plan if mesa_independiente_principal(a_) for j in js)}
     codigo, ruta_bot = (None, "") if simulado else _bot_jsx()
     codigo, saltos = _parchar_saltos(codigo)
     total_plan = sum(len(js) for _, _, _, js in plan)
@@ -1009,8 +1009,7 @@ def _archivos_de_talla(carpetas, talla, diseno, genero):
     out = []
     for c in carpetas:
         for stem in _mesas_de(Path(c), talla, diseno, {genero}):
-            if stem.startswith("Talla_"):   # solo la pieza principal: un PDF por jugador (Costados y Petico no se crean)
-                out.append(Path(c) / f"{stem}.ai")
+            out.append(Path(c) / f"{stem}.ai")   # principal + Costados + Petico: cada una da su PDF por jugador
     return out
 
 
