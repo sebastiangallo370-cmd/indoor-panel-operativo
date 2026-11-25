@@ -20,6 +20,14 @@ function Anotar($t) { Add-Content -Path $LogVig -Value ("{0} {1}" -f (Get-Date -
 $previa = $null
 Anotar "Vigilancia iniciada. NAS: $Nas"
 
+# Al arrancar el PC (o el vigilante): si el servidor de agentes no corre, lo arranca
+$vivoAlInicio = Get-CimInstance Win32_Process -Filter "Name like 'python%'" | Where-Object { $_.CommandLine -like "*server.py*" }
+if (-not $vivoAlInicio -and (Test-Path "$Nas\server.py")) {
+    Anotar "El servidor de agentes no estaba corriendo: lo arranco con el codigo de la NAS."
+    Start-Process -FilePath "wscript.exe" -ArgumentList "`"$Local\iniciar_oculto.vbs`"" -WindowStyle Hidden
+    Start-Sleep -Seconds 40
+}
+
 # Atasco: el log lleva mas de 15 min sin moverse en MITAD de una orden (no esperando una respuesta ni ya terminada) -> reinicio
 function Atascado {
     if (-not (Test-Path $LogAg)) { return $false }
