@@ -526,10 +526,15 @@ def _mesas_de(carpeta_m, talla, diseno, generos):
     """Nombres (sin .ai) de TODAS las mesas independientes de esa talla, diseño y género que hay en Montajes: Talla_10_Tipo_D1_Gen_M, y también
     Frente_Talla_10_Tipo_D1_Gen_M y Espalda_Talla_10_Tipo_D1_Gen_M cuando el maestro separa frente y espalda."""
     patron = re.compile(rf"^(?:.+_)?Talla_{re.escape(str(talla))}_Tipo_D{re.escape(str(diseno))}_Gen_({'|'.join(re.escape(g) for g in generos)})$", re.I)
-    try:
-        return sorted(f.stem for f in Path(carpeta_m).glob("*.ai") if f.is_file() and f.stat().st_size > 0 and patron.match(f.stem))
-    except OSError:
-        return []
+    # La NAS puede tardar o fallar un instante: se reintenta antes de dar la mesa por inexistente (3 intentos)
+    for intento in range(3):
+        try:
+            if Path(carpeta_m).is_dir():
+                return sorted(f.stem for f in Path(carpeta_m).glob("*.ai") if f.is_file() and f.stat().st_size > 0 and patron.match(f.stem))
+        except OSError:
+            pass
+        time.sleep(4)
+    return []
 
 
 
@@ -1053,10 +1058,17 @@ def _generar_por_talla(doc, jugadores, montajes, salida, prefijo, talla, diseno=
         log(AGENTE, f"Talla {talla}: {len(lista)} archivo(s) elegidos por TAVO · {len(filas)} PDF por archivo")
         for ar in lista:
             log(AGENTE, f"Generando {ar.name} · talla {talla}")
-            try:
-                _correr_generador(lista[0], filas, montajes, salida, prefijo, solo=ar, refs=refs)
-            except Exception as e:  # noqa: BLE001   (un archivo que falla no detiene los demás ni los demás maestros)
-                log(AGENTE, f"No pude generar {ar.name} (talla {talla}): {e}", "ERROR")
+            # Hasta 3 intentos por archivo (1 + 2 reintentos). Si ninguno sale, se registra y sigue con el siguiente.
+            for intento in range(1, 4):
+                try:
+                    _correr_generador(lista[0], filas, montajes, salida, prefijo, solo=ar, refs=refs)
+                    break
+                except Exception as e:  # noqa: BLE001   (un archivo que falla no detiene los demás ni los demás maestros)
+                    if intento < 3:
+                        log(AGENTE, f"{ar.name} (talla {talla}) falló (intento {intento}/3): {e}. Reintento.", "WARN")
+                        time.sleep(10 * intento)
+                    else:
+                        log(AGENTE, f"No pude generar {ar.name} (talla {talla}) tras 3 intentos: {e}", "ERROR")
     except Exception as e:  # noqa: BLE001
         log(AGENTE, f"No pude generar los PDF de la talla {talla} con el JSX: {e}", "ERROR")
         return []
