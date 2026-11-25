@@ -1412,7 +1412,7 @@
   const PASOS = [['LEO', 'Listado'], ['JACK', 'Muestra'], ['APROB', 'Aprobación'], ['OLVER', 'Mesas'], ['OLIVER', 'PDF por jugador'], ['TERRY', 'MTS y Sheets']];
   const mmss = seg => { seg = Math.max(0, Math.round(seg)); return Math.floor(seg / 60) + ':' + String(seg % 60).padStart(2, '0'); };
   function datosOrden() {
-    const evs = flow.ejec ? flow.ejec.eventos : [], d = { mts: [], plantillas: [], ignoradas: [], enProceso: [], blancos: 0, lineas: 0, muestra: '', montajes: 0, pdfs: 0, pdfsPlan: 0, avisos: 0, errores: 0 };
+    const evs = flow.ejec ? flow.ejec.eventos : [], d = { mts: [], plantillas: [], ignoradas: [], enProceso: [], blancos: 0, lineas: 0, muestra: '', montajes: 0, pdfs: 0, pdfsPlan: 0, desglose: {}, avisos: 0, errores: 0 };
     const vm = new Set(), vp = new Set(), vplan = new Set();
     evs.forEach(e => {
       const m = e.msg || '';
@@ -1429,8 +1429,18 @@
       const a = e.archivo;
       if (a) {
         // inicio de cada corrida de PDF: el contador solo cuenta la pestaña que se está ejecutando
-        if (a.tipo === 'pestana') { d.pestana = a.nombre; d.pdfs = 0; d.pdfsPlan = 0; vp.clear(); vplan.clear(); }
-        else if (a.tipo === 'plan') { const k = JSON.stringify(a); if (!vplan.has(k)) { vplan.add(k); d.pdfsPlan += Number(a.pdfs) || 0; } }
+        if (a.tipo === 'pestana') { d.pestana = a.nombre; d.pdfs = 0; d.pdfsPlan = 0; d.desglose = {}; vp.clear(); vplan.clear(); }
+        else if (a.tipo === 'plan') {
+          const k = JSON.stringify(a);
+          if (!vplan.has(k)) {
+            vplan.add(k); const n = Number(a.pdfs) || 0; d.pdfsPlan += n;
+            // desglose por género y diseño: «D1 FUT09M …» = adulto D1; «D1 FUT09N …» = niño D1; «F» = niña
+            const m2 = /^D(\d+) [A-Z0-9-]*?([MFN])(?=\s|\.|$)/i.exec(a.nombre || '');
+            const g = m2 ? m2[2].toUpperCase() : '';
+            const cla = m2 ? (g === 'N' ? 'Niño' : g === 'F' ? 'Niña' : 'Adulto') + ' D' + m2[1] : 'Otros';
+            d.desglose[cla] = (d.desglose[cla] || 0) + n;
+          }
+        }
         else if (a.tipo === 'montaje' && !vm.has(a.nombre)) { vm.add(a.nombre); d.montajes++; }
         else if (a.tipo === 'pdf') { const k = a.detalle || (a.nombre + a.numero + a.talla); if (!vp.has(k)) { vp.add(k); d.pdfs++; } }
       }
@@ -1470,6 +1480,7 @@
     const datos = dato('Cliente · proyecto', d.cliente ? d.cliente + ' · ' + d.proyecto : '') + dato('Referencias en proceso', d.enProceso.join(', ')) +
       dato('Ignoradas (no están en proceso o en el listado)', d.ignoradas.join(', '), true) + dato('Plantillas (Promedios maestros)', d.plantillas.join(' | ')) +
       dato('Muestra', d.muestra) + dato('Mesas exportadas', d.montajes ? d.montajes + ' tallas' : '') + dato('PDF de producción', d.pdfs ? d.pdfs + (d.pdfsPlan ? ' de ' + d.pdfsPlan : '') : '') +
+      dato('Desglose de PDF (' + (d.pestana || 'orden') + ')', Object.keys(d.desglose).length ? Object.entries(d.desglose).sort((x, y) => { const r = k => (k.startsWith('Adulto') ? 0 : k.startsWith('Niña') ? 1 : k.startsWith('Niño') ? 2 : 3); return r(x[0]) - r(y[0]) || x[0].localeCompare(y[0], 'es', { numeric: true }); }).map(([k, v]) => k + ': ' + v).join(' · ') + ' · total ' + d.pdfsPlan : '') +
       dato('Líneas del listado', d.lineas ? d.lineas + (d.blancos ? ' · ' + d.blancos + ' datos en blanco (nombre/número)' : '') : '', d.blancos > 0) + dato('MTS requeridos', d.mts.join(' · '));
     box.style.setProperty('--respct', Math.round(avance) + '%');
     box.innerHTML = '<div class="ag-res-top"><div class="qa"><h3>Resumen de la orden</h3><b>' + esc(d.orden || st.orden || '') + '</b><small>' + (d.errores ? '✖ ' + d.errores + ' error(es)' : '') + (d.avisos ? ' ⚠ ' + d.avisos + ' aviso(s)' : '') + '</small></div><span class="tiempo">⏱ ' + mmss(total) + (corriendo ? ' en curso' : '') + '</span></div>' +
