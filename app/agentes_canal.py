@@ -658,7 +658,7 @@ def listar_pcs(request: Request):
     with _lock:
         datos = _leer()
     nombres = sorted({str(u) for u in (_lista_usuarios() or []) if u}, key=str.casefold)
-    return {'pcs': [_resumen_pc(datos, p) for p in _ids_pcs(datos)], 'usuarios': nombres}
+    return {'pcs': [_resumen_pc(datos, p) for p in _ids_pcs(datos)], 'usuarios': nombres, 'vigilantes': datos.get('vigilantes', {})}
 
 
 @router.post('/pcs')
@@ -745,6 +745,21 @@ def borrar_pc(request: Request, pid: str):
 
 
 # ------------------------------------------------------------------ PC con Illustrator
+@pc_router.post('/vigilante')
+def vigilante_latido(request: Request, payload: dict):
+    """El vigilante de un PC avisa cada minuto que sigue activo. Se guarda por nombre del equipo (para el panel)."""
+    _pc(request)   # valida el token del PC
+    equipo = re.sub(r'\s+', ' ', str(payload.get('equipo') or '')).strip()[:60]
+    if not equipo:
+        raise HTTPException(400, 'Falta el nombre del equipo')
+    with _lock:
+        datos = _leer()
+        datos.setdefault('vigilantes', {})[equipo.casefold()] = {
+            'equipo': equipo, 'ts': time.time(), 'version': str(payload.get('version') or '')[:40]}
+        _guardar(datos)
+    return {'ok': True}
+
+
 @pc_router.post('/sondeo')
 def sondeo(request: Request, payload: dict):
     """El PC avisa que está vivo y recibe SOLO los mensajes que le tocan a él (los de las personas asignadas a ese PC)."""

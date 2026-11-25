@@ -15,6 +15,15 @@ function Huella {
     Get-ChildItem "$Nas\agents", "$Nas\core", "$Nas\jsx", "$Nas\web" -Recurse -File -Include *.py, *.jsx, *.js, *.html -ErrorAction SilentlyContinue |
         Sort-Object FullName | ForEach-Object { "$($_.FullName)|$($_.Length)|$($_.LastWriteTimeUtc.Ticks)" } | Out-String
 }
+# Latido al panel (con el token del PC, de datos\panel.json): así el panel muestra que el vigilante está activo
+function LatidoPanel {
+    try {
+        $cfg = Get-Content (Join-Path $Local "datos\panel.json") -Raw -Encoding UTF8 | ConvertFrom-Json
+        $ver = (Get-Item (Join-Path $Local "vigilar_codigo_agentes.ps1")).LastWriteTime.ToString("yyyyMMdd-HHmm")
+        $body = @{ equipo = $env:COMPUTERNAME; version = $ver } | ConvertTo-Json -Compress
+        Invoke-RestMethod -Uri ($cfg.url.TrimEnd("/") + "/api/agentes/pc/vigilante") -Method Post -Headers @{ "X-Agentes-Token" = $cfg.token } -Body $body -ContentType "application/json" -TimeoutSec 15 | Out-Null
+    } catch { }
+}
 function Anotar($t) { Add-Content -Path $LogVig -Value ("{0} {1}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $t) }
 
 # Un solo vigilante por PC: cierra cualquier copia anterior (incluidas las que no escriben latido)
@@ -59,6 +68,7 @@ function ReiniciarServidor($motivo) {
 
 while ($true) {
     Latir
+    LatidoPanel
     try {
         if (Atascado) { ReiniciarServidor "Atasco detectado (sin actividad 15 min en mitad de una orden): reinicio el servidor para que siga."; $previa = Huella; continue }
         if (-not (Test-Path "$Nas\server.py")) { Anotar "NAS no disponible; reintento"; Start-Sleep -Seconds 60; continue }
