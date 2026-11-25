@@ -243,7 +243,7 @@ def exportar_mesas(cliente, referencia, ruta_ai, formato="ai", sobrescribir=Fals
         prefijo = f"{util.limpiar(cliente)}_{util.limpiar(referencia)}"
     if not simulado or not destino or tallas:
         carpeta.mkdir(parents=True, exist_ok=True)
-    if tallas and not sobrescribir and not simulado and carpeta.exists() and not SIEMPRE_TODAS_LAS_MESAS:
+    if tallas and not sobrescribir and not simulado and carpeta.exists():   # siempre verifica Montajes antes de exportar (antes se saltaba con SIEMPRE_TODAS_LAS_MESAS)
         # Las mesas por talla que ya están exportadas no se vuelven a exportar: solo se exportan las que faltan
         # En los maestros de niño (N) la mesa NO se llama Gen_N: se guarda como Gen_M o Gen_F (el sexo del maestro «N(F)»/«N(M)» o el de los
         # jugadores de esa talla). Antes solo se buscaba Gen_N, no se encontraba nunca y las tallas de niño se exportaban en cada ejecución.
@@ -332,6 +332,14 @@ def exportar_mesas(cliente, referencia, ruta_ai, formato="ai", sobrescribir=Fals
                 res = "OK|0"
             if res.startswith("EXISTE"):
                 return {"ok": False, "existe": True, "carpeta": str(carpeta), "n": 1, "archivo": res.split("|", 1)[1]}
+            avisos = []
+            if res.startswith("PARCIAL|"):   # alguna mesa no se guardó, pero las demás sí: se exporta lo que salió y se avisa
+                _, buenas, sin = (res.split("|", 2) + ["", ""])[:3]
+                if buenas in ("0", ""):
+                    raise RuntimeError(res)
+                log(AGENTE, f"{ai.name}: exportadas {buenas} mesas; NO se pudieron exportar: {sin}", "WARN")
+                avisos.append(f"Mesas sin exportar: {sin}")
+                res = "OK|" + buenas
             if not res.startswith("OK"):
                 raise RuntimeError(res)
     except Exception as e:  # noqa: BLE001
@@ -345,7 +353,7 @@ def exportar_mesas(cliente, referencia, ruta_ai, formato="ai", sobrescribir=Fals
         log(AGENTE, "No se generó ningún archivo", "ERROR")
         return {"ok": False, "error": "No se generó ningún archivo. Revisa el .ai."}
     log(AGENTE, f"{len(archivos)} archivos exportados")
-    return {"ok": True, "carpeta": str(carpeta), "archivos": archivos, "simulado": simulado}
+    return {"ok": True, "carpeta": str(carpeta), "archivos": archivos, "simulado": simulado, "avisos": avisos}
 
 
 # =====================================================================================================
@@ -524,6 +532,7 @@ def _mesas_de(carpeta_m, talla, diseno, generos):
         return []
 
 
+
 def _archivo_pdf(carpeta, base, i, j):
     """Ruta del PDF del jugador o del grupo sin datos («…_3unds.pdf»)."""
     return Path(carpeta) / (f"{base}_{j['sufijo']}.pdf" if j.get("sufijo") else f"{base}_{i:02d}.pdf")
@@ -571,6 +580,9 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
     else:
         return {"ok": False, "error": f"El nombre del archivo no dice diseño, referencia y género (D1 FUT02F …): {ai.name}"}
     por_talla = _solo_sexo_del_maestro(_jugadores_de(lineas, diseno, genero), suf_maestro)
+    # DIAGNÓSTICO: líneas que recibe el plan, de qué pestañas son y cuántos jugadores quedan para este maestro
+    log(AGENTE, f"DIAG plan {ai.name}: {len(lineas)} líneas recibidas · pestañas {sorted({str(l.get('hoja', '')) for l in lineas})} · "
+        f"diseño {diseno} género {genero} sufijo '{suf_maestro}' → {sum(len(js) for _, js in por_talla)} jugador(es) en tallas {[t for t, _ in por_talla]}")
     if not por_talla:
         return {"ok": False, "error": f"El listado no tiene jugadores de diseño {diseno} y género {genero} para {ai.name}."}
     simulado = illustrator.modo_simulado()
@@ -634,7 +646,7 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
                 # a encontrar Talla_16_Tipo_Dn_Gen_F.
                 exportar_mesas("", "", str(ai), "ai", True, orden=orden,
                                 destino={**destino, "carpeta": destino["montajes"]}, generos=destino.get("generos"),
-                                limpiar=True, lineas=lineas, tallas_forzadas=[t for t, _a, _b, _j in plan])
+                                limpiar=False, lineas=lineas, tallas_forzadas=list(faltan))   # solo las tallas que faltan; las mesas ya exportadas no se tocan
             except Exception as e:  # noqa: BLE001
                 log(AGENTE, f"No pude exportar las mesas que faltaban de {ai.name}: {e}", "WARN")
             faltan = [t for t, art, _b, _j in plan if not _mesa_ok(art, t)]
@@ -680,6 +692,11 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
             })
             if len(mesas) > 1:
                 log(AGENTE, f"Talla {talla}: {len(mesas)} mesas coinciden en talla, diseño y género ({', '.join(mesas)}): el nombre y el número van en todas")
+            # Por jugador: un solo PDF por talla, de la pieza principal («Talla_…»). Costados y Petico no se crean.
+            principal = [m for m in mesas if m.startswith("Talla_")]
+            if len(mesas) > 1:
+                log(AGENTE, f"Talla {talla}: se usa solo la pieza principal {(principal or mesas[:1])[0]} (un PDF por jugador)")
+            mesas = principal[:1] or mesas[:1]
             ampliado += [(talla, m, f"{prefijo}{m}", js) for m in mesas] or [(talla, art, base, js)]
         plan = ampliado
         esperados = [p for _, _, base, js in plan for p in _nombres_esperados(carpeta, base, js)]
@@ -773,7 +790,8 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
             "omitidas": omitidas, "omitidas_autorizadas": [
                 f"talla {t}: no existe mesa independiente en {ai.name}; se dejó pendiente por decisión del usuario"
                 for t in faltan
-            ], "pendientes_autorizados": pendientes_autorizados, "esperados": total_plan}
+            ], "pendientes_autorizados": pendientes_autorizados, "esperados": total_plan,
+            "unidades": sum(sum(int(j.get("cantidad", 1) or 1) for j in js) for _t, _a, _b, js in plan)}
 
 
 def _correr_bot(codigo, ai, artboard, base, carpeta, jugadores, orden, tela, saltos=False):

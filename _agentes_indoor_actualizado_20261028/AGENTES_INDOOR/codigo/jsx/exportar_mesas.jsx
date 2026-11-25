@@ -41,6 +41,8 @@ try { __resultadoIA = (function () {
     }
     // avisa al panel en qué paso va (el programa de los agentes lee este archivo y lo muestra en el registro)
     function prog(t) { try { if (PARAMS.progreso) { var pf = new File(PARAMS.progreso); pf.encoding = "UTF-8"; pf.open("w"); pf.write(t); pf.close(); } } catch (ep) {} }
+    // borra una carpeta temporal con sus archivos (Folder.remove() solo borra carpetas vacías)
+    function borrarCarpeta(f) { try { var xs = f.getFiles(); for (var k = 0; k < xs.length; k++) { try { xs[k].remove(); } catch (e1) {} } f.remove(); } catch (e2) {} }
     var doc = null;
     try {
         var carpeta = new Folder(PARAMS.carpeta);
@@ -118,8 +120,10 @@ try { __resultadoIA = (function () {
             ou.compressed = true;
             ou.saveMultipleArtboards = true;
             // una mesa a la vez: así cada archivo aparece en la carpeta apenas termina y el panel puede ir avisando «EXPORTADA: …»
+            var fallidas = [], buenas = 0, borrar = [];
             for (var p = 0; p < pendientes.length; p++) {
                 var n2 = pendientes[p];
+                try {
                 // se ve trabajar: va a la mesa de cada talla en pantalla antes de exportarla
                 prog("Exportando mesa " + (p + 1) + " de " + pendientes.length + ": " + nombres[n2]);
                 try { doc.artboards.setActiveArtboardIndex(idx[n2] - 1); app.executeMenuCommand("fitin"); app.redraw(); $.sleep(350); } catch (evis) {}
@@ -147,19 +151,29 @@ try { __resultadoIA = (function () {
                     try { doc.artboards.setActiveArtboardIndex(idx[n2] - 1); doc.saveAs(new File(tw.fsName + "/m.ai"), ow); }
                     catch (etw) { prog("Sin copia de trabajo de " + nombres[n2] + " (se sigue igual): " + etw); try { tw.remove(); } catch (etw2) {} }
                 }
-                if (PARAMS.local) continue;
+                if (PARAMS.local) { buenas++; continue; }
                 var fin = new File(PARAMS.carpeta + "/" + nombres[n2] + ".ai");
                 copiarConReintentos(gen[0], fin);
-                gen[0].remove();
-                tmpU.remove();
+                // la carpeta temporal NO se borra aquí: Illustrator sigue apuntando a ese archivo hasta el siguiente saveAs (si se borra, la siguiente mesa se cancela)
+                borrar.push(tmpU);
+                buenas++;
+                } catch (efalla) {
+                    // una mesa que Illustrator no guarda NO detiene las demás: se registra y se sigue con las siguientes
+                    fallidas.push(nombres[n2]);
+                    prog("No se pudo exportar la mesa " + nombres[n2] + " (se siguen las demás): " + efalla);
+                    borrar.push(tmpU);
+                }
             }
             doc.close(SaveOptions.DONOTSAVECHANGES);
             doc = null;
+            for (var bj = 0; bj < borrar.length; bj++) borrarCarpeta(borrar[bj]);
+            if (fallidas.length) return "PARCIAL|" + buenas + "|" + fallidas.join(", ");
             var faltan = [];
             for (var q = 0; q < PARAMS.tallas.length; q++) if (!hay[String(PARAMS.tallas[q]).toUpperCase()]) faltan.push(PARAMS.tallas[q]);
             return faltan.length ? "FALTAN|" + faltan.join(", ") : "OK|" + idx.length;
         }
         var usados = {};
+        var fallidas2 = [], borrar2 = [];
         var total = doc.artboards.length;
         for (var i = 0; i < total; i++) {
             var nombre = limpio(doc.artboards[i].name) || ("mesa" + (i + 1));
@@ -184,6 +198,7 @@ try { __resultadoIA = (function () {
             }
 
             if (PARAMS.formato == "ai") {
+                try {
                 // Illustrator guarda cada mesa como "<nombre>-<mesa>.ai": se guarda en una carpeta temporal y se copia con el nombre final
                 var tmp = new Folder(Folder.temp + "/olver_" + new Date().getTime() + "_" + i);
                 tmp.create();
@@ -197,8 +212,11 @@ try { __resultadoIA = (function () {
                 if (!generados || generados.length != 1) throw "No pude guardar la mesa «" + doc.artboards[i].name + "» como .ai";
                 var destino = new File(PARAMS.carpeta + "/" + base + ".ai");
                 copiarConReintentos(generados[0], destino);
-                generados[0].remove();
-                tmp.remove();
+                borrar2.push(tmp);
+                } catch (efalla2) {
+                    fallidas2.push(base);
+                    prog("No se pudo exportar la mesa " + base + " (se siguen las demás): " + efalla2);
+                }
             }
             if (PARAMS.formato == "pdf" || PARAMS.formato == "ambos") {
                 var p = new PDFSaveOptions();
@@ -219,7 +237,8 @@ try { __resultadoIA = (function () {
             }
         }
         doc.close(SaveOptions.DONOTSAVECHANGES);
-        return "OK|" + total;
+        for (var bk = 0; bk < borrar2.length; bk++) borrarCarpeta(borrar2[bk]);
+        return fallidas2.length ? "PARCIAL|" + (total - fallidas2.length) + "|" + fallidas2.join(", ") : "OK|" + total;
     } catch (e) {
         try { if (doc) doc.close(SaveOptions.DONOTSAVECHANGES); } catch (e2) {}
         return "ERROR: " + e;

@@ -333,6 +333,7 @@ def _con_listado(s, cod, fila):
             # sin saber de qué mesas salen los jugadores NO se crea nada ni se da el pedido por terminado
             log(AGENTE, f"Jugadores de {cod}: no pude elegir las mesas ({motivo})", "WARN")
             return _err(f"NO creé los PDF de los jugadores de {cod}: no pude elegir las mesas del maestro.", motivo, "Corrige el listado o el maestro y vuelve a intentarlo.", "ERROR", [f"Exportar mesas de {cod}"])
+        sel = _completar_disenos(sel, cod, fila["lineas"], plantillas)   # todos los diseños que pide el listado
         p["mesas_ai"] = [str(x) for x in sel]
         p["archivo"] = str(sel[0])
         s["destinos_prod"] = {ai: d for ai, d in ((ai, ordenes.destino_impresion(cod, ai)) for ai in p["mesas_ai"]) if d}
@@ -681,6 +682,7 @@ def _mesas_tras_muestra(s, prefijo, estado_error, botones_error):
         motivo = ("Los .ai del maestro no corresponden a las plantillas que Promedios maestros asigna a esta referencia (" + ", ".join(sorted(plantillas)) + ").")
         log(AGENTE, "Ningún .ai del maestro coincide con las plantillas de Promedios maestros: " + ", ".join(sorted(plantillas)), "WARN")
     if sel:
+        sel = _completar_disenos(sel, p.get("orden"), lineas, plantillas)   # todos los diseños que pide el listado
         p["mesas_ai"], p["archivo"] = [str(x) for x in sel], str(sel[0])
         return _exportar_mesas(s, False)
     if len(disenos) > 1:
@@ -798,11 +800,20 @@ def _exportar_mesas(s, sobrescribir):
         r = None
     info = None
     exportados, simulado, saltadas = [], False, []
-    for ai in archivos:
+    # Orden de producción: maestro por maestro. Con varios maestros NO se exportan todas las mesas primero: en el paso de PDF
+    # (pdfs_por_jugador) cada maestro exporta solo sus mesas que faltan, aplica JSX y crea sus PDF, y recién después sigue con el siguiente.
+    secuencial = produccion and len(archivos) > 1 and bool(s.get("leo"))
+    if secuencial:
+        log(AGENTE, f"Varios maestros ({len(archivos)}): se procesan uno por uno (mesas → JSX → PDF) sin empezar el siguiente antes de terminar el anterior")
+    for ai in ([] if secuencial else archivos):
         if r:
             break
         if produccion:
             info = destinos[ai]
+            if _montajes_ya_listos(ai, info, (s.get("leo") or {}).get("lineas")):
+                log(AGENTE, f"{Path(ai).name}: sus mesas ya están en Montajes; no las vuelvo a exportar")
+                r = None
+                continue
             log(AGENTE, f"OLVER exporta {Path(ai).name} a producción: {info['carpeta']}")
             r = olver.exportar_mesas(p["cliente"], p["referencia"], str(ai), p.get("formato", "ai"), sobrescribir,
                                      orden=p.get("orden"), destino=info, generos=info.get("generos"), limpiar=True,
@@ -944,6 +955,32 @@ def _jugadores_desde_listado(s):
     return fin
 
 
+def _completar_disenos(sel, cod, lineas, plantillas=None):
+    """Si el listado pide diseños (D1, D2, D3…) que la selección no trae, busca sus maestros en MAESTROS y los agrega.
+    Antes solo se usaban los .ai que devolvía la búsqueda por referencia y los diseños 2 y 3 (arqueros) quedaban fuera."""
+    pedidos = seleccion.disenos_de(lineas or [])
+    if not pedidos:
+        return list(sel)
+    presentes = {seleccion.diseno_del_archivo(Path(str(x)).name) for x in sel}
+    faltan = sorted(pedidos - presentes)
+    if not faltan:
+        return list(sel)
+    try:
+        extra = [a for c in ordenes.carpetas_maestros(cod) for a in ordenes._ai_en([c], 300, 6)]
+    except Exception:  # noqa: BLE001
+        extra = []
+    cand = [a for a in dict.fromkeys(list(sel) + extra)
+            if "muestra" not in a.name.lower() and not any("montajes" in parte.lower() for parte in a.parts)]
+    agregados = list(sel)
+    for d in faltan:
+        del_diseno = [a for a in cand if seleccion.diseno_del_archivo(a.name) == d]
+        lin = [l for l in lineas if d in seleccion.disenos_de([l])]
+        halladas, motivo = seleccion.mesas_para(del_diseno, lin, plantillas)
+        log(AGENTE, f"Diseño {d} pedido en el listado: {len(halladas)} maestro(s) encontrados" + ("" if halladas else f" ({motivo})"))
+        agregados += [h for h in halladas if h not in agregados]
+    return agregados
+
+
 def _copiar_jpgs_a_orden(archivos, destinos):
     """Al terminar los PDF de producción: copia a la carpeta de la orden los JPG (REFERENCIA_DISEÑO_MAQUINA) del maestro de cada diseño.
     No pisa nada: si el JPG ya está en la carpeta de la orden, lo deja. Devuelve (copiados, ya_estaban, errores)."""
@@ -979,11 +1016,49 @@ def _copiar_jpgs_a_orden(archivos, destinos):
     return copiados, estaban, errores
 
 
+def _montajes_ya_listos(ai, destino, lineas):
+    """True si en Montajes ya están TODAS las mesas de las tallas que pide el listado para este maestro (no se vuelve a exportar)."""
+    m = olver._maestro_match(Path(str(ai)))
+    if not m or getattr(m, "sin_genero", False) or not destino or not destino.get("montajes"):
+        return False
+    diseno, ref, gen, suf = m.group(1), m.group(2).upper(), m.group(3).upper(), (m.group(4) or "").upper()
+    tallas = [t for t, _js in olver._solo_sexo_del_maestro(olver._jugadores_de(lineas or [], diseno, gen), suf)]
+    if not tallas:
+        return False
+    carpeta = Path(destino["montajes"]) / f"D{diseno}" / f"{ref}{gen}{suf}"
+    return all(olver._mesas_de(carpeta, t, diseno, {gen, "M", "F"}) for t in tallas)
+
+
+def _unidades_listado(lineas, ai, genero_destino=None):
+    """Prendas que el listado pide para el diseño y género de este maestro (None si no se puede saber)."""
+    m = olver._maestro_match(Path(str(ai)))
+    if not m or getattr(m, "sin_genero", False):
+        return None
+    diseno, genero = m.group(1), (genero_destino or m.group(3)).upper()
+    sufijo = (m.group(4) or "").strip("()").upper()
+    n = 0
+    for l in lineas or []:
+        if not str(l.get("talla") or "").strip():
+            continue
+        if str(diseno) not in {str(d) for d in seleccion.disenos_de([l])}:
+            continue
+        if seleccion._genero_efectivo(l) != genero:
+            continue
+        if sufijo and (seleccion._sexo(l) or "M") != sufijo:
+            continue
+        n += 1
+    return n
+
+
 def _pdfs_y_sheets(s, sobrescribir, permitir_tallas_faltantes=False):
     sobrescribir = sobrescribir or s.get("repro") == "reemplazar"
     """Crea los PDF de producción por jugador y devuelve la pregunta de Google Sheets (o pide confirmar si ya existen)."""
     resp = s.get("resp_sheets")
     p, fila = s["pedido"], s["leo"]
+    # Solo los PDF de la pestaña (referencia) que eligió el comercial: el listado trae TODAS las pestañas del Excel
+    eleccion_hoja = (s.get("pestana_sel") or (None, None))[1]
+    if eleccion_hoja:
+        fila = _solo_hoja(fila, eleccion_hoja)
     archivos = p.get("mesas_ai") or [p.get("archivo")]
     # La sesión puede conservar una selección de mesas de un intento anterior.
     # Antes de crear PDF se vuelve a cruzar con el listado recién leído para no
@@ -1034,8 +1109,15 @@ def _pdfs_y_sheets(s, sobrescribir, permitir_tallas_faltantes=False):
     tarjetas, textos, avisos, total, conservados, fallos = [], [], [], 0, 0, []
     clave_firma, firma = _clave(p), _firma_jugadores(fila["lineas"])
     igual = db.firma_guardada(clave_firma) == firma   # ¿son los mismos jugadores con los que se hicieron los PDF que ya existen?
+    # DIAGNÓSTICO: cuántas líneas entran (ya filtradas por pestaña) y qué trabajos de PDF se van a crear
+    log(AGENTE, f"PDF · pestaña {eleccion_hoja or 'todas'} · {len(fila.get('lineas') or [])} líneas · {len(trabajos)} trabajo(s): "
+        + " | ".join(f"{Path(str(a)).name}{(' · Gen_' + g) if g else ''}" for a, g in trabajos), archivo={"tipo": "pestana", "nombre": eleccion_hoja or "todas"})
+    procesados = set()   # diseños (1, 2, 3…) cuyo maestro ya quedó con sus PDF: se verifica que cubran TODO lo que pide el listado
     for ai, genero_destino in trabajos:
-        destino = (s.get("destinos_prod") or {}).get(str(ai)) or {"carpeta": str(olver.carpeta_mesas(p["cliente"], p["referencia"], p.get("orden")).parent / "produccion")}
+        destino = (s.get("destinos_prod") or {}).get(str(ai))
+        # Un destino guardado de otra orden (p. ej. RM7718 de la corrida anterior) NO se usa: se recalcula con la orden actual
+        if not destino or (p.get("orden") and str(p["orden"]).upper() not in str(destino.get("carpeta", "")).upper()):
+            destino = (ordenes.destino_impresion(p["orden"], ai) if p.get("orden") else None) or {"carpeta": str(olver.carpeta_mesas(p["cliente"], p["referencia"], p.get("orden")).parent / "produccion")}
         etiqueta_ai = Path(ai).name + (f" · Gen_{genero_destino}" if genero_destino else "")
         log(AGENTE, f"OLVER crea los PDF de producción por jugador de {etiqueta_ai}")
         r = olver.pdfs_por_jugador(ai, fila["lineas"], destino, p.get("orden"), tela=tela or "", sobrescribir=sobrescribir,
@@ -1064,12 +1146,20 @@ def _pdfs_y_sheets(s, sobrescribir, permitir_tallas_faltantes=False):
         if r.get("existe"):   # mismos jugadores: se conservan los PDF que ya estaban
             log(AGENTE, f"Los PDF de producción de {etiqueta_ai} ya existían y el listado no cambió: no los toco")
             conservados += r.get("n", 0)
+            procesados.add(seleccion.diseno_del_archivo(Path(str(ai)).name))
             continue
         if not r["ok"]:
             avisos.append(f"{Path(ai).name}: {r['error']}")
             fallos.append(Path(ai).name)
             continue
         total += len(r["pdfs"])
+        procesados.add(seleccion.diseno_del_archivo(Path(str(ai)).name))
+        # Cantidades: las prendas planeadas deben ser TODAS las que pide el listado para este diseño y género
+        pedidas = _unidades_listado(fila.get("lineas"), ai, genero_destino)
+        if pedidas is not None and r.get("unidades") is not None and int(r["unidades"]) != pedidas:
+            avisos.append(f"{etiqueta_ai}: el listado pide {pedidas} prendas y solo se van a producir {r['unidades']}")
+            fallos.append(etiqueta_ai)
+            log(AGENTE, f"{etiqueta_ai}: cantidades no cuadran con el listado ({r['unidades']} de {pedidas})", "ERROR")
         textos.append(f"{etiqueta_ai}: {len(r['pdfs'])} PDF" + (" (simulado)" if r.get("simulado") else "") + f"\n{r['carpeta']}")
         omitidas_autorizadas = set(r.get("omitidas_autorizadas") or [])
         omitidas_reales = [o for o in r.get("omitidas", []) if o not in omitidas_autorizadas]
@@ -1084,6 +1174,14 @@ def _pdfs_y_sheets(s, sobrescribir, permitir_tallas_faltantes=False):
             fallos.append(etiqueta_ai)
         for x in r["pdfs"]:
             tarjetas.append({"ruta": x["ruta"], "tipo": "produccion", "titulo": f"{x['nombre'] or 'Jugador'} · #{x['numero']} · talla {x['talla']}"})
+    # Control final: TODOS los diseños que pide el listado deben tener su maestro procesado. Si falta alguno (p. ej. D2 o D3), el pedido NO se da por terminado.
+    pedidos_diseno = seleccion.disenos_de(fila.get("lineas") or [])
+    sin_procesar = sorted(pedidos_diseno - procesados)
+    if sin_procesar:
+        faltan_txt = ", ".join(f"D{d}" for d in sin_procesar)
+        log(AGENTE, f"Faltan los PDF de producción de {faltan_txt}: el pedido queda SIN finalizar", "ERROR")
+        avisos.append(f"faltan los PDF de producción de {faltan_txt} (el listado los pide y no se crearon)")
+        fallos.append(faltan_txt)
     if total or conservados:
         db.guardar_firma(clave_firma, firma)
     cabeza = (f"OLVER creó {total} PDF de producción, uno por jugador (solo cambian el nombre y el número):\n" + "\n".join(textos)) if total else (
@@ -1191,7 +1289,8 @@ def _jugadores(s, t):
                   "JUGADORES")
     s["jugadores"] = r["jugadores"]
     fin = _subir_sheets(s)
-    fin["respuesta"] = f"OLIVER validó {len(r['jugadores'])} jugadores sin problemas:\n{oliver.resumen(r['jugadores'])}\n\n" + fin["respuesta"]
+    avisos = ("⚠ " + "\n⚠ ".join(r.get("avisos", [])) + "\n(No bloquean: se usan tal cual están en la lista.)\n\n") if r.get("avisos") else ""
+    fin["respuesta"] = f"OLIVER validó {len(r['jugadores'])} jugadores:\n{oliver.resumen(r['jugadores'])}\n\n{avisos}" + fin["respuesta"]
     return fin
 
 
