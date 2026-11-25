@@ -15,6 +15,7 @@
 
 var INDOOR_JSX_MESSAGES = (typeof INDOOR_JSX_MESSAGES !== "undefined") ? INDOOR_JSX_MESSAGES : [];
 var INDOOR_RESULTADO = [];
+var INDOOR_PAUSA_MS = (typeof INDOOR_PAUSA_MS !== "undefined") ? INDOOR_PAUSA_MS : 700;   // pausa para que se vea cada archivo
 
 (function () {
     var originalInteraction = app.userInteractionLevel;
@@ -287,6 +288,9 @@ var INDOOR_RESULTADO = [];
                 for (var a2 = 0; a2 < jr.nom.length; a2++) { jr.nom[a2].item.layer.locked = false; reubicarYCentrar(jr.nom[a2], p.nom); }
                 for (var b2 = 0; b2 < jr.num.length; b2++) { jr.num[b2].item.layer.locked = false; reubicarYCentrar(jr.num[b2], p.num); }
             }
+            // Para verlo en pantalla: se muestra el archivo con el nombre y número de este jugador antes de guardar su PDF
+            try { doc.activate(); app.activeDocument = doc; app.executeMenuCommand("fitin"); app.redraw(); } catch (eVis) {}
+            $.sleep(INDOOR_PAUSA_MS || 700);
             var rStr = (row < 10) ? ("0" + row) : row.toString();
             var fName = (INDOOR_PREFIJO || "") + nombreBase + "_" + rStr + ".pdf";
             var tempFile = new File(INDOOR_TMP + "/" + fName);

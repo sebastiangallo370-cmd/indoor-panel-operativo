@@ -766,7 +766,7 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
                 omitidas.append(f"talla {talla}: no encuentro la mesa principal en Montajes")
                 continue
             tallas_hechas.add(str(talla).upper())
-            pdfs_jsx += _generar_por_talla(doc_t, jugadores, destino["montajes"], salida_hoja, prefijo, talla)
+            pdfs_jsx += _generar_por_talla(doc_t, jugadores, destino["montajes"], salida_hoja, prefijo, talla, diseno, genero)
         if destino.get("montajes"):
             mapa_jsx = _hermanos_por_talla(destino["montajes"], diseno, ref, genero, suf_maestro)
             solo = sorted({t for info in mapa_jsx.values() for t in info["mesas"]} - tallas_hechas, key=lambda t: (not str(t).isdigit(), str(t)))
@@ -778,7 +778,7 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
                     omitidas.append(f"talla {t} de los hermanos: el listado no tiene jugadores")
                     continue
                 tallas_hechas.add(str(t).upper())
-                pdfs_jsx += _generar_por_talla(info["mesas"][str(t).upper()], jug_t, destino["montajes"], salida_hoja, prefijo, t)
+                pdfs_jsx += _generar_por_talla(info["mesas"][str(t).upper()], jug_t, destino["montajes"], salida_hoja, prefijo, t, diseno, gen_t)
         if not pdfs_jsx:
             return {"ok": False, "error": "No se creó ningún PDF de producción con el JSX. " + "; ".join(omitidas)}
         return {"ok": True, "pdfs": pdfs_jsx, "carpeta": str(salida_hoja), "simulado": False, "omitidas": omitidas,
@@ -984,17 +984,23 @@ def _pdfs_de(carpeta_raiz):
         return set()
 
 
-def _generar_por_talla(doc, jugadores, montajes, salida, prefijo, talla):
-    """Un PDF por jugador (y por archivo hermano de la misma talla). Devuelve la lista de PDF nuevos con su jugador."""
+def _generar_por_talla(doc, jugadores, montajes, salida, prefijo, talla, diseno=None, genero=None):
+    """Un PDF por jugador (y por archivo hermano de la misma talla). Devuelve la lista de PDF nuevos con su jugador.
+    Cada PDF se manda al panel en cuanto existe (pantalla en vivo), igual que antes."""
     filas = _filas_generador(jugadores)
     if not filas:
         return []
     antes = _pdfs_de(salida)
+    # Lo que ve el panel: los jugadores con el mismo orden de las filas que se mandan al JSX
+    jug_panel = [{"nombre": n, "numero": u} for n, u in filas]
+    vigia = _VigiaCarpeta(Path(salida), "*.pdf", lambda f: _evento_pdf(f, jug_panel, talla, diseno or "", genero or ""))
     try:
         _correr_generador(doc, filas, montajes, salida, prefijo)
     except Exception as e:  # noqa: BLE001
         log(AGENTE, f"No pude generar los PDF de la talla {talla} con el JSX: {e}", "ERROR")
         return []
+    finally:
+        vigia.parar()
     nuevos = sorted(_pdfs_de(salida) - antes)
     res = []
     for ruta in nuevos:
