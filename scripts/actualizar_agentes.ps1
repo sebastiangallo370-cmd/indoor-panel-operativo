@@ -46,6 +46,12 @@ foreach ($f in $archivos) {
 }
 $version = (git -C $Repo log -1 --format="%h %ci") 2>$null
 if (-not $version) { $version = "sin git" }
+# Paquete comprimido para descargar: la carpeta codigo\ en un .zip junto a VERSION.txt
+$zip = Join-Path (Split-Path $Nas) "AGENTES_actualizados.zip"
+$tmpZip = Join-Path $env:TEMP "AGENTES_actualizados.zip"
+if (Test-Path $tmpZip) { Remove-Item $tmpZip -Force }
+Compress-Archive -Path (Join-Path $Src "*") -DestinationPath $tmpZip -Force
+Copy-Item $tmpZip $zip -Force
 Set-Content -Path (Join-Path $Nas "VERSION.txt") -Value ("Version " + (Get-Date -Format "yyyy-MM-dd HH:mm") + " · " + $version) -Encoding UTF8
 Write-Output "Archivos publicados en la NAS: $cambiados (respaldo de lo anterior en $Backup)"
 
