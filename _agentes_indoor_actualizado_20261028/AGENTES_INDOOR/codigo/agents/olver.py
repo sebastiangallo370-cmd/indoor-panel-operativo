@@ -1,5 +1,6 @@
 """OLVER: exporta cada mesa de trabajo del .ai como archivo independiente (cliente_referencia_mesa)."""
 import json
+import os
 import re
 import shutil
 import tempfile
@@ -29,7 +30,17 @@ class _VigiaCarpeta:
         self.hilo.start()
 
     def _archivos(self):
-        return self.carpeta.rglob(self.patron) if self.recursivo else self.carpeta.glob(self.patron)
+        if not self.recursivo:
+            return self.carpeta.glob(self.patron)
+        # Recorre todas las subcarpetas IGNORANDO las que no se pueden leer (acceso denegado): antes una sola carpeta
+        # protegida hacía fallar el recorrido completo y el panel no recibía ningún PDF
+        import fnmatch
+        salida = []
+        for dirpath, _dirs, archivos in os.walk(self.carpeta, onerror=lambda e: None):
+            for nombre in archivos:
+                if fnmatch.fnmatch(nombre.lower(), self.patron.lower()):
+                    salida.append(Path(dirpath) / nombre)
+        return salida
 
     def _revisar(self, definitivo=False):
         try:
