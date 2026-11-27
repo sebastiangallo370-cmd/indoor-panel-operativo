@@ -248,21 +248,43 @@
     const A = kpisDe(r), B = kpisDe(rAnt), h = histIni();
     const variacionTxt = (act, ant, base) => rAnt.ini < base ? '<span class="ec-dl na">histórico insuficiente para comparar</span>'
       : !ant ? '' : '<span class="ec-dl ' + (act >= ant ? 'up' : 'down') + '">' + (act >= ant ? '▲ +' : '▼ ') + Math.round(100 * (act - ant) / ant) + '% vs. ' + esc(rAnt.etq) + '</span>';
-    // 1) ¿Cuánto se vende? — columnas de los últimos 8 periodos; el elegido resaltado
-    const m1 = st.met.ventas || 'cop', din1 = m1 === 'cop';
-    const serie = detalle(r).map(b => ({ ...b, v: din1 ? kpisDe(b).dinero : kpisDe(b).unidades }));
-    const fmt1 = din1 ? cop : und, uni = st.periodo === 'anual' || (st.periodo === 'rango' && (r.dias || 0) > 62) ? 'mes' : 'día';
-    const base1 = din1 ? datos.desde : (datos.pedidos_desde || datos.desde);   // antes de esta fecha no hay datos cargados: no cuentan para el promedio
-    const conVentas = serie.filter(b => !b.futuro && b.fin > base1);
-    const mejor = conVentas.reduce((m, b) => (!m || b.v > m.v ? b : m), null);
-    const promedio = conVentas.length ? conVentas.reduce((t, b) => t + b.v, 0) / conVentas.length : 0;
-    const selDia = st.periodo === 'diario' ? serie.find(b => b.on) : null;
-    // Qué mide cada barra, dicho en simple (antes no se entendía)
-    const queMide = din1 ? 'Cada barra = dinero vendido ese ' + uni + ' (facturas + remisiones de Effi, sin IVA).'
-      : 'Cada barra = prendas que se programaron ese ' + uni + ' (pedidos del panel y del Google Sheets).';
-    const tit1 = selDia ? (selDia.v ? 'Este día: <b>' + fmt1(selDia.v) + '</b>' : 'Este día <b>no hubo ' + (din1 ? 'ventas' : 'pedidos programados') + '</b>') + '<span>' + queMide + ' Promedio de los últimos 14 días: ' + fmt1(promedio) + '.</span>'
-      : mejor && mejor.v ? 'El ' + uni + ' con más ' + (din1 ? 'ventas' : 'prendas programadas') + ' fue <b>' + esc(mejor.largo) + '</b>: <b>' + fmt1(mejor.v) + '</b><span>' + queMide + ' Promedio por ' + uni + ': ' + fmt1(promedio) + '. Clic en una barra para ver ese ' + uni + '.</span>' : (din1 ? 'Sin ventas' : 'Sin prendas programadas') + ' en el periodo<span>' + queMide + '</span>';
-    const g1 = grafica('¿CUÁNTO SE VENDE?', tit1, columnas(serie, fmt1, din1, 'Ventas por ' + uni), selMet('ventas', 'cop'));
+    // 1) ¿Cuánto se programa? — POR MES, todos los meses con datos (pedido del usuario 2026-11-27). Los meses del periodo elegido van
+    //    resaltados y un clic entra a ese mes. «DETALLE» muestra el periodo día por día (lo de antes).
+    const m1 = st.met.ventas || 'und', din1 = m1 === 'cop';
+    const vista1 = st.met.vista1 || 'mes';
+    const fmt1 = din1 ? cop : und;
+    const queMide = din1 ? 'dinero vendido (facturas + remisiones de Effi, sin IVA)' : 'prendas programadas (pedidos del panel y del Google Sheets)';
+    let serie, tit1, uni;
+    if (vista1 === 'mes') {
+      uni = 'mes';
+      const h0 = hoy0(), desdeM = (din1 ? datos.desde : (datos.pedidos_desde || datos.desde)).slice(0, 7);
+      serie = [];
+      for (let d = new Date(desdeM + '-01T00:00:00'); d <= h0; d = new Date(d.getFullYear(), d.getMonth() + 1, 1)) {
+        const ini = iso(d), fin = iso(new Date(d.getFullYear(), d.getMonth() + 1, 1));
+        const b = { ini, fin, etq: MES[d.getMonth()] + (d.getMonth() === 0 ? ' ' + d.getFullYear() : ''), largo: MES[d.getMonth()] + ' ' + d.getFullYear(),
+          on: ini < r.fin && fin > r.ini, ir: 'mensual|' + ((d.getFullYear() - h0.getFullYear()) * 12 + (d.getMonth() - h0.getMonth())) };
+        b.v = din1 ? kpisDe(b).dinero : kpisDe(b).unidades;
+        serie.push(b);
+      }
+      const total = serie.reduce((t, b) => t + b.v, 0);
+      const mejor = serie.reduce((m, b) => (!m || b.v > m.v ? b : m), null);
+      const actual = serie[serie.length - 1];
+      tit1 = mejor && mejor.v ? 'Mes con más ' + (din1 ? 'ventas' : 'prendas programadas') + ': <b>' + esc(mejor.largo) + '</b> con <b>' + fmt1(mejor.v) + '</b>' +
+        '<span>Cada barra = ' + queMide + ' en el mes. Total de ' + serie.length + ' meses: ' + fmt1(total) + ' · promedio por mes: ' + fmt1(total / Math.max(1, serie.length)) +
+        (actual ? ' · ' + esc(actual.largo) + ' va en ' + fmt1(actual.v) + ' (mes en curso)' : '') + '. Clic en un mes para verlo.</span>'
+        : 'Sin ' + (din1 ? 'ventas' : 'prendas programadas') + ' todavía<span>Cada barra = ' + queMide + ' en el mes.</span>';
+    } else {
+      serie = detalle(r).map(b => ({ ...b, v: din1 ? kpisDe(b).dinero : kpisDe(b).unidades }));
+      uni = st.periodo === 'anual' || (st.periodo === 'rango' && (r.dias || 0) > 62) ? 'mes' : 'día';
+      const base1 = din1 ? datos.desde : (datos.pedidos_desde || datos.desde);
+      const conVentas = serie.filter(b => !b.futuro && b.fin > base1);
+      const mejor = conVentas.reduce((m, b) => (!m || b.v > m.v ? b : m), null);
+      const promedio = conVentas.length ? conVentas.reduce((t, b) => t + b.v, 0) / conVentas.length : 0;
+      tit1 = mejor && mejor.v ? 'El ' + uni + ' con más ' + (din1 ? 'ventas' : 'prendas programadas') + ' fue <b>' + esc(mejor.largo) + '</b>: <b>' + fmt1(mejor.v) + '</b><span>Cada barra = ' + queMide + ' ese ' + uni + '. Promedio por ' + uni + ': ' + fmt1(promedio) + '. Clic en una barra para verlo.</span>'
+        : 'Sin ' + (din1 ? 'ventas' : 'prendas programadas') + ' en el periodo<span>Cada barra = ' + queMide + ' ese ' + uni + '.</span>';
+    }
+    const vistaSel = '<div class="ec-seg" role="group" aria-label="Vista"><button type="button" data-ec-met="vista1:mes" class="' + (vista1 === 'mes' ? 'on' : '') + '">POR MES</button><button type="button" data-ec-met="vista1:det" class="' + (vista1 === 'det' ? 'on' : '') + '">DETALLE</button></div>';
+    const g1 = grafica(din1 ? '¿CUÁNTO SE VENDE?' : '¿CUÁNTO SE PROGRAMA?', tit1, columnas(serie, fmt1, din1, 'Programado por ' + uni), '<span class="ec-g-ctl">' + vistaSel + selMet('ventas', 'und') + '</span>');
     // 2) ¿Quién lo vende? — ranking por comercial (clic = filtrar todo)
     const m2 = st.met.quien || 'cop', din2 = m2 === 'cop';
     const S = datos.comerciales.map(c => statsComercial(c, r));
@@ -744,6 +766,8 @@
     .ec .ec-filtros>.ec-xls{justify-self:end;padding:10px 16px}
     @media (max-width:1280px){.ec .ec-filtros{display:flex;flex-wrap:wrap}.ec .ec-filtros .ec-nav{flex:1 1 280px}.ec .ec-filtros select{flex:1 1 180px;width:auto!important}}
     @media (max-width:600px){.ec .ec-filtros{padding:10px}.ec .ec-filtros .ec-per,.ec .ec-filtros .ec-nav,.ec .ec-filtros select{flex:1 1 100%;width:100%!important;min-width:0}.ec .ec-per button{padding:8px 2px}}
+
+    .ec-g-ctl{display:inline-flex;gap:8px;flex-wrap:wrap}
     @media (prefers-reduced-motion:reduce){.ec *,.ec{animation:none!important;transition:none!important}}
     .ec-rango{display:flex;flex-wrap:wrap;align-items:end;gap:10px 14px;padding:12px 14px;border-radius:14px;background:rgba(200,236,74,.06);border:1px solid rgba(200,236,74,.25);animation:ecSube .3s ease both}
     .ec-rango label{display:grid;gap:5px;font:900 12px Arial;letter-spacing:.14em;color:#c8ec4a}
