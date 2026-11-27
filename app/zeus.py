@@ -175,6 +175,15 @@ def sincronizar() -> dict:
     nuevas = canceladas = 0
     with _lock:
         d = _leer()
+        # Órdenes que el usuario dio por entregadas: no vuelven a generar compra aunque la tela siga figurando como faltante
+        descartadas = set(d.get('ordenes_descartadas', []))
+        if descartadas:
+            filtradas = {}
+            for tela, f in faltantes.items():
+                ordenes = [o for o in f['ordenes'] if o.get('orden') not in descartadas]
+                if ordenes:
+                    filtradas[tela] = {**f, 'ordenes': ordenes, 'falta': round(sum(float(o.get('falta') or 0) for o in ordenes), 2)}
+            faltantes = filtradas
         activas = {i['tela']: i for i in d['items'] if i['estado'] in ('pendiente', 'entregada', 'error')}
         for tela, f in faltantes.items():
             ya_pedido = float(d['pedido_por_tela'].get(tela, 0))
@@ -190,7 +199,7 @@ def sincronizar() -> dict:
                 nuevas += 1
         for item in d['items']:
             if item['estado'] in ('pendiente', 'error') and not item.get('manual') and (item['tela'] not in faltantes or item['falta'] <= MARGEN_MTS):
-                item['estado'], item['detalle'], item['actualizado'] = 'cancelada', 'Ya alcanza la tela: no hace falta comprar.', _iso()
+                item['estado'], item['detalle'], item['actualizado'] = 'cancelada', 'Ya no hace falta comprar: la tela alcanza o la orden ya pasó por Corte láser (se fabricó con lo que llegó).', _iso()
                 canceladas += 1
         d['items'] = d['items'][-200:]
         _guardar(d)   # también cuando solo cambió lo que falta de una compra pendiente

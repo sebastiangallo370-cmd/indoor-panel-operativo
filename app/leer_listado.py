@@ -12,9 +12,11 @@ from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 
 MAX_BYTES = 10 * 1024 * 1024
 SINONIMOS = {
-    'nombre': ['NOMBRE', 'NOMBRE JUGADOR', 'NOMBRE DORSAL', 'DORSAL'],
-    'talla': ['TALLA'],
-    'numero': ['NUMERO', 'NÚMERO'],
+    'nombre': ['NOMBRE', 'NOMBRE JUGADOR', 'NOMBRE DORSAL', 'JUGADOR', 'NOMBRE COMPLETO', 'NOMBRES Y APELLIDOS', 'NOMBRE Y APELLIDO'],
+    'talla': ['TALLA', 'TALLA CAMISETA', 'TALLA CAMISA', 'TALLAS', 'SIZE'],
+    'numero': ['NUMERO', 'NÚMERO', 'Nº', 'N°', 'NRO', 'NRO.', 'DORSAL', 'NUMERO CAMISETA'],
+    'genero': ['GENERO', 'GÉNERO', 'SEXO'],
+    'diseno': ['DISENO', 'DISEÑO', 'DISEÑO N', 'DISENO N'],
 }
 ORDEN = ['nombre', 'talla', 'numero']
 ENCABEZADO = 'NOMBRE\tTALLA\tNÚMERO\tDISEÑO\tGÉNERO'
@@ -51,9 +53,6 @@ def _campo(celda) -> str | None:
 
 
 def _filas_a_texto(filas: list[list]) -> str:
-    propuesta = _ia_columnas(filas)   # la IA interpreta primero
-    if propuesta:
-        return _armar(filas, propuesta['fila'], propuesta['mapa'], propuesta['masc'], propuesta['fem'], propuesta['disenos'])
     """Busca la fila de encabezados y devuelve las filas siguientes en el formato del listado:
     NOMBRE, TALLA, NÚMERO, DISEÑO (1 a 4, la columna marcada) y GÉNERO (M o F, la columna MASC o FEM marcada)."""
     for i, fila in enumerate(filas[:30]):
@@ -78,6 +77,21 @@ def _filas_a_texto(filas: list[list]) -> str:
     raise ValueError('No encontré una fila de encabezados con NOMBRE, TALLA, NÚMERO, DISEÑO, GÉNERO u OBSERVACIÓN.')
 
 
+def _genero_de(valor) -> str:
+    n = _sin_acentos(valor)
+    if n in ('M', 'MASC', 'MASCULINO', 'HOMBRE', 'NINO', 'NIÑO'):
+        return 'MASC'
+    if n in ('F', 'FEM', 'FEMENINO', 'MUJER', 'NINA', 'NIÑA'):
+        return 'FEM'
+    return ''
+
+
+def _diseno_de(valor) -> str:
+    """«D1», «DISEÑO 2», «3» o 3 → '1', '2', '3' (solo del 1 al 20)."""
+    m = re.search(r'(\d{1,2})', _sin_acentos(valor))
+    return str(int(m.group(1))) if m and 1 <= int(m.group(1)) <= 20 else ''
+
+
 def _armar(filas: list[list], i: int, mapa: dict, masc: list, fem: list, disenos: dict) -> str:
     """Las filas de datos después del encabezado, en el formato del listado."""
     if True:
@@ -89,8 +103,12 @@ def _armar(filas: list[list], i: int, mapa: dict, masc: list, fem: list, disenos
                 if not (reg.get('nombre') or reg.get('talla') or reg.get('numero')):
                     continue
                 marcada = lambda cols: any(j < len(datos) and str(datos[j] or '').strip() for j in cols)
-                genero = 'MASC' if marcada(masc) else ('FEM' if marcada(fem) else '')
-                diseno = next((str(n) for j, n in sorted(disenos.items()) if j < len(datos) and str(datos[j] or '').strip()), '')
+                genero = _genero_de(reg.get('genero', ''))
+                if not genero:
+                    genero = 'MASC' if marcada(masc) else ('FEM' if marcada(fem) else '')
+                diseno = _diseno_de(reg.get('diseno', ''))
+                if not diseno:
+                    diseno = next((str(n) for j, n in sorted(disenos.items()) if j < len(datos) and str(datos[j] or '').strip()), '')
                 salida.append('\t'.join([reg.get('nombre', ''), reg.get('talla', ''), reg.get('numero', ''), diseno, genero]))
             return '\n'.join(salida)
 
@@ -236,7 +254,9 @@ def _orden_a_texto(filas: list[list]) -> str:
     producto = None      # {'obs', 'genero', 'cant', 'con_tallas'}
     def cerrar():
         if producto and not producto['con_tallas']:
-            pass   # producto sin tallas: no hay talla ni número que cargar
+            # producto sin tallas (p. ej. «Patinaje», 10 unidades): sus unidades se cargan SIN nombre, talla ni número, como pide el cliente
+            for _ in range(max(0, int(producto['cant']))):
+                salida.append('	'.join(['', '', '', '', producto['genero'] and ('MASC' if producto['genero'] == 'M' else 'FEM') or '']))
     for fila in filas[inicio:]:
         if not fila:
             continue
@@ -364,7 +384,7 @@ def pestanas_xlsx(data: bytes) -> dict:
     import openpyxl
     wb = openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=True)
     salida = {}
-    for hoja in wb.worksheets:
+    for hoja in [wb.active]:   # solo la pestaña ACTIVA al guardar (la que estaba abierta), igual que el lector
         filas = [list(r) for r in hoja.iter_rows(values_only=True)]
         try:
             texto = _orden_a_texto(filas) if _es_orden(filas) else _filas_a_texto(filas)
@@ -393,6 +413,55 @@ def _libro_a_texto(pestanas: list[list[list]]) -> str:
     return '\n'.join([ENCABEZADO] + [l for l in lineas if l.strip()])
 
 
+def _es_plantilla(filas: list[list]) -> bool:
+    """Plantilla de Comerciales: encabezado NOMBRE / TALLA y columnas DISEÑO 1…N en la misma fila."""
+    for fila in filas[:15]:
+        textos = {_sin_acentos(c) for c in fila if c not in (None, '')}
+        if {'NOMBRE', 'TALLA'} <= textos and any(re.match(r'DISENO\s*\d+$', t) for t in textos):
+            return True
+    return False
+
+
+def _plantilla_a_texto(filas: list[list]) -> str:
+    """Pasa la plantilla al formato del listado: una línea por jugador y diseño. Cualquier dato en la columna DISEÑO n cuenta."""
+    enc_i = next(i for i, fila in enumerate(filas[:15]) if {'NOMBRE', 'TALLA'} <= {_sin_acentos(c) for c in fila if c not in (None, '')})
+    col = {}
+    for j, c in enumerate(filas[enc_i]):
+        t = _sin_acentos(c)
+        if t == 'NOMBRE':
+            col['nombre'] = j
+        elif t == 'TALLA':
+            col['talla'] = j
+        elif t.startswith('NUMERO'):
+            col['numero'] = j
+        elif t in ('MASC', 'MASCULINO'):   # columna de género: la X marca MASC
+            col['masc'] = j
+        elif t in ('FEM', 'FEMENINO'):     # columna de género: la X marca FEM
+            col['fem'] = j
+        elif t.startswith('OBSERV'):
+            col['obs'] = j
+        else:
+            m = re.match(r'DISENO\s*(\d+)$', t)
+            if m:
+                col[f'd{m.group(1)}'] = j
+    disenos = sorted((k for k in col if k.startswith('d')), key=lambda k: int(k[1:]))
+    lineas = []
+    for fila in filas[enc_i + 1:]:
+        def v(k):
+            j = col.get(k)
+            return str(fila[j]).strip() if j is not None and j < len(fila) and fila[j] not in (None, '') else ''
+        talla, numero, nombre, obs = v('talla'), v('numero'), v('nombre'), v('obs')
+        genero = 'MASC' if v('masc') else ('FEM' if v('fem') else '')   # la X en MASC o FEM
+        if not talla and not numero:
+            continue
+        for dk in disenos:
+            if v(dk):   # cualquier dato en la columna DISEÑO n: el jugador lleva ese diseño
+                lineas.append('\t'.join([nombre, talla, numero, f"DISEÑO {dk[1:]}", genero, obs]))
+    if not lineas:
+        raise ValueError('La plantilla no tiene jugadores con diseño marcado.')
+    return '\n'.join(['NOMBRE\tTALLA\tNÚMERO\tDISEÑO\tGÉNERO\tOBSERVACIÓN'] + lineas)
+
+
 def leer(nombre: str, data: bytes) -> str:
     ext = os.path.splitext(nombre.lower())[1]
     if ext not in EXT:
@@ -400,7 +469,10 @@ def leer(nombre: str, data: bytes) -> str:
     if len(data) > MAX_BYTES:
         raise ValueError('El archivo pesa más de 10 MB.')
     if ext in ('.xlsx', '.xlsm'):
-        return _libro_a_texto(_excel(data))
+        hojas = _excel(data)
+        if hojas and _es_plantilla(hojas[0][1]):
+            return _plantilla_a_texto(hojas[0][1])   # formato de Comerciales (Plantilla.xlsm): solo este formato
+        return _libro_a_texto(hojas)
     elif ext == '.docx':
         filas = _word(data)
     elif ext == '.pdf':
@@ -408,6 +480,33 @@ def leer(nombre: str, data: bytes) -> str:
     else:
         return _imagen_tabla(data, ext)
     return _filas_a_texto(filas)
+
+
+ETIQUETAS_CLIENTE = {
+    'nombre del cliente': 'cliente',
+    'nombre del proyecto': 'proyecto',
+    'comercial': 'comercial',
+    'fecha de entrega': 'fecha_entrega',
+    'linea de producto': 'linea',
+}
+
+
+def datos_del_cliente(data: bytes) -> dict:
+    """Lee la cabecera de la plantilla (cliente, proyecto, comercial, fecha de entrega, línea): la etiqueta y su valor a la derecha."""
+    import openpyxl
+    wb = openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+    filas = [list(r) for r in wb.active.iter_rows(min_row=1, max_row=12, values_only=True)]
+    datos = {}
+    for fila in filas:
+        for j, celda in enumerate(fila):
+            clave = ETIQUETAS_CLIENTE.get(_sin_acentos(celda).strip().lower().replace('  ', ' ')) if celda else None
+            if not clave or clave in datos:
+                continue
+            # El valor es la primera celda con dato a la derecha que NO sea otra etiqueta de la cabecera
+            valor = next((str(v).strip() for v in fila[j + 1:j + 9] if v not in (None, '') and str(v).strip()
+                          and _sin_acentos(v).strip().lower() not in ETIQUETAS_CLIENTE), '')
+            datos[clave] = valor
+    return datos
 
 
 @router.post('/leer-archivo')
@@ -427,4 +526,10 @@ async def leer_archivo(request: Request, archivo: UploadFile = File(...)):
             pestanas = pestanas_xlsx(data)
         except Exception:   # noqa: BLE001 — si una pestaña no se puede leer, queda la pestaña activa
             pestanas = {}
-    return {'texto': texto, 'filas': max(0, lineas), 'pestanas': pestanas}
+    cliente = {}
+    if os.path.splitext((archivo.filename or '').lower())[1] in ('.xlsx', '.xlsm'):
+        try:
+            cliente = datos_del_cliente(data)
+        except Exception:   # noqa: BLE001 — si la cabecera no se lee, el listado sigue igual
+            cliente = {}
+    return {'texto': texto, 'filas': max(0, lineas), 'pestanas': pestanas, 'cliente': cliente}

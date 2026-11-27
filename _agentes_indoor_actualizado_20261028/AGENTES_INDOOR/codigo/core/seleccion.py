@@ -161,6 +161,14 @@ def _talla_ok(talla, genero, rango):
     return t.isdigit() if genero == "N" else t in [_norm_talla(x) for x in ADULTO]
 
 
+def _disenos_de_carpeta(nombre):
+    """Diseños que declara el nombre de una carpeta de maestro («CA04_D7_D8» -> {7, 8}; «CA04_D1_D2» -> {1, 2}). Vacío si no declara."""
+    m = re.search(r"_D(\d+)(?:_D(\d+))?(?=_|$)", str(nombre), re.I)
+    if not m:
+        return set()
+    return {int(x) for x in m.groups() if x}
+
+
 def mesas_para(rutas, lineas, plantillas=None):
     """Devuelve (seleccionadas, motivo). Si el listado no permite decidir, seleccionadas == [] y el motivo lo explica.
     `plantillas`: códigos de plantilla que Promedios maestros asigna a las referencias del listado (CA02M, CA02F, CA02N…).
@@ -181,6 +189,7 @@ def mesas_para(rutas, lineas, plantillas=None):
     # ese género y una talla que el archivo cubra. Nombres como «D1 PE03F.ai» (sin rango de tallas) y «D1 PE03N(M).ai» (niño) también se entienden.
     plantillas_ok = {x.upper() for x in plantillas} if plantillas else None
     sel = []
+    vistos = set()
     for r in candidatas:
         m = MESA_AI.match(r.name)
         alt = MESA_ALT.match(r.name) if not m else None
@@ -214,7 +223,17 @@ def mesas_para(rutas, lineas, plantillas=None):
         # de tallas, por ejemplo «D1 CA42 XS A 5XL.ai».
         if g is None and not rango:
             continue
+        # Copia mal ubicada: «D1 CA04N» dentro de la carpeta CA04_D7_D8 (que declara solo los diseños 7 y 8) no es el diseño 1
+        decl = _disenos_de_carpeta(r.parent.name)
+        if decl and n not in decl:
+            continue
         if plantillas_ok is not None and ref_arch and g and (ref_arch + g + (f"({sexo_archivo})" if sexo_archivo else "")) not in plantillas_ok:
+            # La plantilla de NIÑO de una referencia sirve aunque Promedios maestros solo nombre la de adulto (CA16M / CA16F):
+            # «D1 CA16N 4 A 16.ai» son las tallas 4 a 16 de esa misma referencia (RM7756: antes se descartaba y no salía ningún niño).
+            if not (g == "N" and any(ref_arch + x in plantillas_ok for x in ("M", "F"))):
+                continue
+        clave = (n, ref_arch, g, sexo_archivo, rango)   # la misma mesa en dos carpetas cuenta una sola vez
+        if clave in vistos:
             continue
         for l in lineas:
             refs_l = {x for x in referencias_del_listado([l]) if re.fullmatch(r"[A-Z]{1,5}\d{2,3}[MFN]?", x)}
@@ -231,6 +250,7 @@ def mesas_para(rutas, lineas, plantillas=None):
             if not _talla_ok(l.get("talla", ""), g or "M", rango):
                 continue
             sel.append(r)
+            vistos.add(clave)
             break
     if not sel:
         return [], "Ninguna talla/género del listado coincide con los archivos del maestro."

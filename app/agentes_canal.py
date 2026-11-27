@@ -268,6 +268,29 @@ def _canal(datos: dict, usuario: str, pc: str) -> tuple[str, str]:
     return pid, _sesion(usuario, pid)
 
 
+VERSION_CODIGO = Path(os.getenv('AGENTES_VERSION_FILE', '/mnt/nas/DIRECCION PRODUCCION/CARPETAS PERSONALES/GALLO/AGENTES_INDOOR/codigo/VERSION.txt'))
+
+
+@router.get('/codigo-version')
+def codigo_version(request: Request):
+    """Cuándo se publicó el código de los agentes en la NAS (lo escribe scripts/actualizar_agentes.ps1)."""
+    if not VERSION_CODIGO.exists():
+        return {'ok': False, 'texto': 'Sin dato: no encuentro VERSION.txt en la NAS', 'actualizado': None}
+    texto = VERSION_CODIGO.read_text(encoding='utf-8', errors='ignore').strip()
+    cuando = datetime.fromtimestamp(VERSION_CODIGO.stat().st_mtime).strftime('%d/%m/%Y %H:%M')
+    pcs = []
+    carpeta_latidos = VERSION_CODIGO.parent / 'latidos'
+    if carpeta_latidos.is_dir():
+        for f in sorted(carpeta_latidos.glob('*.txt')):
+            try:
+                linea = f.read_text(encoding='utf-8-sig', errors='ignore').strip()
+            except OSError:
+                linea = ''
+            arranque = linea.split('servidor arrancó:', 1)[1].strip() if 'servidor arrancó:' in linea else 'sin dato (reinstala el vigilante)'
+            pcs.append({'pc': f.stem, 'latido': linea.split(' vigilante')[0].strip(), 'servidor_arranco': arranque})
+    return {'ok': True, 'texto': texto, 'actualizado': cuando, 'pcs': pcs}
+
+
 @router.get('/estado')
 def estado(request: Request, pc: str = ''):
     usuario = _auth(request)

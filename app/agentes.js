@@ -1487,7 +1487,7 @@
       '<div class="ag-barra2' + (d.errores ? ' err' : '') + '"><i style="width:' + Math.round(avance) + '%"></i></div><div class="ag-pasos">' + pasosHtml + '</div>' +
       (ahoraHtml ? '<div class="ag-ahora' + (nota ? ' nota' : '') + '">' + ahoraHtml + '</div>' : '') + (datos ? ('<details class="ag-det" data-resdet' + (st.resAbierto ? ' open' : '') + '><summary>Detalles de la orden</summary><div class="ag-datos" style="margin-top:8px">' + datos + '</div></details>') : '');
   }
-  setInterval(() => { if (panel && panel.classList.contains('active') && st.esperando) pintarResumen(); }, 1000);
+  setInterval(() => { if (panel && panel.classList.contains('active') && st.esperando) pintarResumen(); }, 2000);
 
   // Qué significa cada mensaje de error o aviso y qué hacer (con botones que mandan el mensaje al chat)
   const AYUDAS = [
@@ -1565,6 +1565,7 @@
       '<nav class="ag-tabs" data-tabs hidden aria-label="PC de los agentes" title="La pestaña activa es el PC donde arranca solo el proceso cuando alguien pone la P en EDICIÓN"></nav>' +
       '<div class="ag-indiv" aria-label="Usar un agente por separado">' + AGENTES_BTN.map(([a, t, p]) => '<button type="button" class="ag-agbtn" style="--c:' + (COLORES[a] || '#c4cfbf') + '" data-atajo="' + esc(p) + '" title="' + esc(a + ': ' + ROLES[a] + ' (usa la orden activa)') + '"><i></i>' + esc(a) + '<small>' + esc(t) + '</small></button>').join('') + '</div>' +
       '<div class="ag-hacc"><button type="button" class="ag-ico ag-campana" data-avisos aria-label="Avisos del chat">🔔</button><button type="button" class="ag-ico" data-historial title="Historial: busca en el chat y vuelve a leer conversaciones anteriores" aria-label="Historial del chat">🕘</button><button type="button" class="ag-btn danger ag-stop inactivo" data-detener data-txt="⏹ Detener" title="Detiene los agentes de esta pestaña (el PC elegido)">⏹ Detener</button>' +
+      '<button type="button" class="ag-btn" onclick="agVerVersionCodigo()" title="Muestra cuándo se publicó el código de los agentes en la NAS">🕒 Código</button>' +
       '<button type="button" class="ag-btn ag-reiniciar" data-reiniciar title="Reinicia el programa de los agentes en el PC elegido (se cierra y se vuelve a abrir solo)">↻ Reiniciar</button>' +
       '<a class="ag-btn" href="/agentes/vigilante.bat" download title="Descarga el vigilante: ejecútalo UNA vez en cada PC de agentes">🛡 Vigilante</a>' +
       '<details class="ag-menu"><summary class="ag-ico" title="Más opciones">⋯</summary><div class="ag-menu-l"><button type="button" class="solo-movil" data-reiniciar>↻ Reiniciar este PC</button><button type="button" data-detener-todo>⏹ Detener todo (ambos PC)</button><button type="button" data-reiniciar-todo>↻ Reiniciar todos los PC</button><button type="button" data-nueva>Nueva conversación</button><button type="button" data-historial>🕘 Historial del chat</button><button type="button" data-conectar hidden>PC de los agentes…</button></div></details></div></header>' +
@@ -1972,8 +1973,8 @@
       if (estabaTrabajando && !st.esperando && !primera) setTimeout(avisarFin, 600);   // dejar que lleguen los últimos eventos y archivos
       if (st.esperando) flow.fin = null;
       if (!st.cambiandoOrden) st.orden = datos.orden || '';
-      if (nuevos.length) { st.msgs = st.msgs.concat(nuevos); st.ultimo = Math.max(...nuevos.map(m => m.id), st.ultimo); if (!primera) avisarMensajes(nuevos); }
-      if (evs.length) st.evs = st.evs.concat(evs);
+      if (nuevos.length) { st.msgs = st.msgs.concat(nuevos).slice(-400); st.ultimo = Math.max(...nuevos.map(m => m.id), st.ultimo); if (!primera) avisarMensajes(nuevos); }
+      if (evs.length) st.evs = st.evs.concat(evs).slice(-400);
       st.ultimoEv = Math.max(st.ultimoEv, datos.ultimo_ev || 0);
       pintarProg();
       if (primera) {
@@ -1985,6 +1986,7 @@
         // pedidos hechos desde otra pestaña o dispositivo también abren su ejecución; luego el avance y por último el resultado
         nuevos.filter(m => m.rol === 'yo' && m.id > flow.preparado).forEach(m => flow.cola.push({ tipo: 'nueva', id: m.id }));
         evs.forEach(ev => flow.cola.push({ tipo: 'ev', ev }));
+        if (flow.cola.length > 40) flow.cola = flow.cola.slice(-40);   // si hay muchos PDF seguidos, se muestran los últimos (no se congela la pantalla)
         nuevos.filter(m => m.rol === 'bot').forEach(m => flow.cola.push({ tipo: 'fin', estado: m.estado }));
         reproducir();
       }
@@ -2204,3 +2206,15 @@
     const wait = setInterval(() => { if ((build() && addMenuItem()) || ++tries > 60) clearInterval(wait); }, 250);
   }).catch(() => { /* sin permisos confirmados: no se muestra */ });
 })();
+
+// Botón 🕒 Código: muestra cuándo se publicó el código de los agentes en la NAS
+window.agVerVersionCodigo = async function () {
+  try {
+    const r = await fetch('/api/agentes/codigo-version', { credentials: 'same-origin', cache: 'no-store' });
+    const j = await r.json();
+    const pcs = (j.pcs || []).map(p => p.pc + ': servidor arrancó ' + p.servidor_arranco + ' (' + p.latido + ')').join('\n');
+    alert(j.ok ? ('Código publicado en la NAS: ' + j.actualizado + '\n\n' + (pcs || 'Ningún PC ha reportado todavía.') + '\n\nSi la hora de arranque es posterior a la publicación, el PC ya carga el código nuevo.') : j.texto);
+  } catch (e) {
+    alert('No pude consultar la versión del código.');
+  }
+};

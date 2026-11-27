@@ -602,6 +602,11 @@ def _pedidos() -> list[dict] | None:
         ki = headers.index('NOMBRE DEL CLIENTE') if 'NOMBRE DEL CLIENTE' in headers else None
         pi = headers.index('NOMBRE PROYECTO') if 'NOMBRE PROYECTO' in headers else None
         texto = lambda v, i: str(v[i]).strip() if i is not None and i < len(v) else ''
+        # Regla del usuario (2026-11-27): si CORTE LÁSER ya tiene fecha, la prenda YA se fabricó con la tela que llegó (aunque nunca
+        # se registrara en el inventario): lo pedido fue preciso y se usó, así que ya no hay «tela que falta». Lo mismo si ya tiene
+        # fecha en Confección, Empaque o Entregado (pasos posteriores).
+        fabricado_cols = [headers.index(h) for h in ('CORTE LASER', 'CONFECCION', 'EMPACADO Y EMBALAJE', 'ENTREGADO') if h in headers]
+        es_fecha = lambda x: bool(parse_date(x)) or bool(re.match(r'^\s*\d{4}-\d{1,2}-\d{1,2}', str(x or '')))
         limite = (_hoy() - timedelta(days=DIAS_GRACIA)).isoformat()
         # Misma prioridad que las tarjetas: nota web, después nota del Sheet.
         web = {r: n for r, n in db.execute('SELECT source_row,note FROM production_notes WHERE column_number=17')}
@@ -622,6 +627,8 @@ def _pedidos() -> list[dict] | None:
                 activo = bool(entrega) and entrega >= limite
             else:
                 activo = False   # fecha (ya consumida) o N/A
+            if activo and any(c < len(v) and es_fecha(v[c]) for c in fabricado_cols):
+                activo = False   # ya pasó por Corte láser (o después): ya se fabricó, no falta tela
             tela = norm(v[ti])
             cantidad = _cantidad(v[ci])
             if not activo or not tela or not cantidad:

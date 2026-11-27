@@ -249,6 +249,14 @@
     pedidos.forEach(p => vistos.add(p.id));
     primeraCarga = false;
     if (html === ultimo) return;   // sin cambios: no se redibuja (evita parpadeo)
+    if (vista === 'estadisticas' && window.EstadisticasComerciales) {
+      // ESTADÍSTICAS se dibuja sola: solo se pone la barra y la raíz cuando cambia de vista (no se borra en cada refresco de pedidos)
+      const raizEc = panel.querySelector('#ec-root');
+      if (raizEc && raizEc.isConnected) { ultimo = html; return; }
+      panel.innerHTML = ultimo = html;
+      window.EstadisticasComerciales.montar(panel.querySelector('#ec-root'));
+      return;
+    }
     // Antes de redibujar guardamos el foco y la posición del cursor para no perder lo que se escribe.
     const act = document.activeElement, idAct = act && act.id, pos = act && act.selectionStart;
     panel.innerHTML = ultimo = html;
@@ -431,7 +439,12 @@
     return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" role="img" aria-label="Pedidos por semana">' +
       '<defs><linearGradient id="tcEstGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d0f44c"/><stop offset="1" stop-color="#4fd1c5" stop-opacity=".5"/></linearGradient></defs>' + g + '</svg>';
   }
+  // ESTADÍSTICAS nuevas (2026-11-26): las dibuja estadisticas-comerciales.js (pedidos del panel + dinero de Effi). La versión
+  // anterior queda abajo (estadisticasHtmlAnterior) por si ese módulo no cargara.
   function estadisticasHtml() {
+    return window.EstadisticasComerciales ? '<div id="ec-root"></div>' : estadisticasHtmlAnterior();
+  }
+  function estadisticasHtmlAnterior() {
     estiloEstadisticas();
     const L = programados || [];
     if (!L.length) return '<div class="tc-vacio">Todavía no hay pedidos programados para estadísticas.</div>';

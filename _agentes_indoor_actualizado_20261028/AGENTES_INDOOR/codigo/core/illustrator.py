@@ -68,6 +68,7 @@ def conectar(agente="TAVO", espera_seg=240):
         return listo()
     except Exception:  # noqa: BLE001
         pass
+    lanzado = False
     if _proceso_activo():                # ya se está abriendo (o cargando): se espera, no se lanza otro
         log(agente, "Illustrator se está abriendo; espero a que termine de cargar")
     else:
@@ -76,11 +77,13 @@ def conectar(agente="TAVO", espera_seg=240):
             raise RuntimeError("No encuentro Illustrator.exe en este PC (ni registrado ni en Program Files\\Adobe).")
         log(agente, "Illustrator estaba cerrado: lo abro como si lo abrieras tú (doble clic, sin archivos)")
         os.startfile(exe)
+        lanzado = True
     t0, ultimo = time.time(), None
     while time.time() - t0 < espera_seg:
         try:
             app = listo()
-            time.sleep(5)                # que termine de arrancar (paneles, fuentes) antes de pedirle trabajo
+            if lanzado:                  # solo si se acaba de abrir: si ya estaba abierto no hay espera
+                time.sleep(5)            # que termine de arrancar (paneles, fuentes) antes de pedirle trabajo
             log(agente, f"Illustrator listo ({time.time() - t0:.0f} s)")
             return app
         except Exception as e:  # noqa: BLE001

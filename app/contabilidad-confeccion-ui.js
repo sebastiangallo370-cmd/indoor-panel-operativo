@@ -229,12 +229,29 @@
     makerMonthlyChart(root, rows);
     root.querySelectorAll('[data-maker-mode]').forEach(button => button.addEventListener('click', () => { root.querySelectorAll('[data-maker-mode]').forEach(item=>item.classList.toggle('is-active',item===button)); makerMonthlyChart(root,rows,button.dataset.makerMode); }));
   }
-  function makerSummary(root, maker) {
-    const rows = maker.details || [];
-    root.innerHTML = `<section class="cc-maker-summary"><form class="cc-date-filter"><label>Filtrar por <select name="kind"><option value="received_date">fecha de entrega</option><option value="sent_date">fecha de envío</option></select></label><label>Desde <input name="from" type="date"></label><label>Hasta <input name="to" type="date"></label><button type="button" data-clear-filter>Limpiar filtro</button></form><div class="cc-maker-data"></div></section>`;
+  // Próxima liquidación: quincena calendario (1 al 14 → se liquida el 15; 15 en adelante → se liquida el 1 del mes siguiente)
+  function proximaLiquidacion(hoy = new Date()) {
+    const dia = hoy.getDate(), fecha = dia <= 14 ? new Date(hoy.getFullYear(), hoy.getMonth(), 15) : new Date(hoy.getFullYear(), hoy.getMonth() + 1, 1);
+    return fecha.toLocaleDateString('es-CO');
+  }
+  function makerSummary(root, maker, todos = maker.details || []) {
+    const rows = maker.details || [], porLiquidar = todos.filter(row => !row.paid && Number(row.amount || 0) > 0);
+    const totalLiquidar = porLiquidar.reduce((sum, row) => sum + Number(row.amount || 0), 0), unidadesLiquidar = porLiquidar.reduce((sum, row) => sum + Number(row.received || 0), 0);
+    root.innerHTML = `<section class="cc-maker-summary"><div class="cc-liquidar-bar" style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin:0 0 12px"><button type="button" data-cc-liquidar ${totalLiquidar ? '' : 'disabled'} style="border:0;border-radius:999px;padding:10px 18px;font-weight:800;background:#d7ff3c;color:#0b1a0f;cursor:pointer">Liquidar · ${money(totalLiquidar)} · ${unidadesLiquidar.toLocaleString('es-CO')} und.</button><span style="opacity:.8">Próxima liquidación: <b>${proximaLiquidacion()}</b></span></div><form class="cc-date-filter"><label>Filtrar por <select name="kind"><option value="received_date">fecha de entrega</option><option value="sent_date">fecha de envío</option></select></label><label>Desde <input name="from" type="date"></label><label>Hasta <input name="to" type="date"></label><button type="button" data-clear-filter>Limpiar filtro</button></form><div class="cc-maker-data"></div></section>`;
     const form=root.querySelector('.cc-date-filter'), dataBox=root.querySelector('.cc-maker-data');
     const refresh=() => { const kind=form.elements.kind.value, from=form.elements.from.value, to=form.elements.to.value, filtered=rowsForDate(rows,kind,from,to); const label = from || to ? `${kind === 'received_date' ? 'entregas' : 'envíos'} ${from ? `desde ${day(from)}` : ''}${from && to ? ' ' : ''}${to ? `hasta ${day(to)}` : ''}` : 'todo 2026'; makerDashboard(dataBox,maker,filtered,label); };
     form.addEventListener('input',refresh); form.querySelector('[data-clear-filter]').addEventListener('click',()=>{ form.reset(); refresh(); }); refresh();
+    const botonLiquidar = root.querySelector('[data-cc-liquidar]');
+    botonLiquidar?.addEventListener('click', async () => {
+      if (!confirm(`¿Liquidar a ${maker.name}? Se marcan como pagados ${money(totalLiquidar)} (${unidadesLiquidar.toLocaleString('es-CO')} und.) y el contador vuelve a cero.`)) return;
+      botonLiquidar.disabled = true;
+      try {
+        const r = await fetch('/api/contabilidad-confeccion/liquidar', {method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'}, body: JSON.stringify({maker: maker.name})});
+        if (!r.ok) { const e = await r.json().catch(() => ({})); alert(e.detail || 'No se pudo liquidar.'); botonLiquidar.disabled = false; return; }
+        const nuevo = await (await fetch('/api/contabilidad-confeccion', {credentials:'same-origin', cache:'no-store'})).json();
+        ultimoCC = ''; renderExcel(nuevo, `maker:${maker.name}`);
+      } catch (_) { alert('No se pudo conectar con el panel. Intenta de nuevo.'); botonLiquidar.disabled = false; }
+    });
   }
   const ccState = {period:'year', makers:new Set(), types:new Set(), products:new Set(), drawer:false, light:false};
   function rowsWithMaker(payload) {
@@ -296,7 +313,7 @@
           const eventDate = dateValue(row.received_date || row.sent_date);
           return (ccState.period === 'year' ? true : (!cutoff || (eventDate && eventDate >= cutoff))) && (!ccState.types.size || ccState.types.has(row.client_type)) && (!ccState.products.size || ccState.products.has(row.product_category));
         });
-        makerSummary(content, {...source, details}); setAccountingLoading(root, false); return;
+        makerSummary(content, {...source, details}, source.details || []); setAccountingLoading(root, false); return;
       }
     }
     const s = view.summary, d = {orders:s.orders, sent:s.sent, received:s.received, total:s.amount, due:s.pending_payment, paid:s.paid};
@@ -309,6 +326,21 @@
     detail.innerHTML = `<details><summary>Ver detalle de confección <span>${view.makers.length} confeccionistas · ${s.average_days ?? '—'} días envío–entrega</span></summary><div class="cc-home-makers">${view.makers.map((maker, index) => `<article><em>${index + 1}</em><div><b>${clean(maker.name)}</b><span>${maker.sent.toLocaleString('es-CO')} enviadas · ${maker.received.toLocaleString('es-CO')} recibidas · ${maker.pending_units.toLocaleString('es-CO')} pendientes</span></div><strong>${money(maker.amount)}</strong><small>${maker.average_days ?? '—'} días</small></article>`).join('')}</div></details>`;
     replayAccountingMotion(content);
     setAccountingLoading(root, false);
+  }
+  // Tiempo real: cada 15 s se vuelve a pedir la copia; solo se redibuja si cambió algo (sin recargar la página)
+  let ultimoCC = '';
+  async function refrescarCC() {
+    if (document.hidden) return;
+    try {
+      const r = await fetch('/api/contabilidad-confeccion', {credentials:'same-origin', cache:'no-store'});
+      if (!r.ok) return;
+      const texto = await r.text();
+      if (texto === ultimoCC) return;
+      ultimoCC = texto;
+      const y = window.scrollY;
+      renderExcel(JSON.parse(texto));
+      window.scrollTo(0, y);
+    } catch (_) { /* se reintenta en 15 s */ }
   }
   async function loadExcel() {
     const root = accountingPanel(); setAccountingLoading(root, true, 'Cargando datos del VPS…');
@@ -441,5 +473,5 @@
     @media(prefers-reduced-motion:reduce){#cc-accounting .cc-motion-enter,#cc-accounting .cc-month-bars i,#cc-accounting .cc-maker-bar>i em,#cc-accounting .cc-product-bars i em,#cc-accounting .cc-detail-row:not(.cc-detail-head){animation:none!important;transform:none!important;opacity:1!important}}
   `; document.head.appendChild(detailMotionPatch);
   function scan(root=document) { const panels=root.matches?.(PANEL)?[root]:[...root.querySelectorAll?.(PANEL)||[]]; panels.forEach(enhance); }
-  scan(); loadExcel(); new MutationObserver(records => records.forEach(record => record.addedNodes.forEach(node => { if (node.nodeType === 1) scan(node); }))).observe(document.documentElement,{childList:true,subtree:true});
+  scan(); loadExcel(); setInterval(refrescarCC, 15000); new MutationObserver(records => records.forEach(record => record.addedNodes.forEach(node => { if (node.nodeType === 1) scan(node); }))).observe(document.documentElement,{childList:true,subtree:true});
 })();

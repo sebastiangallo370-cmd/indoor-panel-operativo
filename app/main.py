@@ -355,6 +355,11 @@ ventas_effi_mod.configurar(authenticate, permisos_mod.comerciales_permitido, lam
                            lambda: __import__('app.inventario_api', fromlist=['x']).inventory_snapshot())
 dinoman_mod.configurar(connect, legacy.get_gspread, lambda: CONFIG['ruta_nas_clientes'], STATE_DIR / 'dinoman.json')
 app.include_router(ventas_effi_mod.router)
+from app import estadisticas_comerciales as estadisticas_comerciales_mod
+# _lista_programados se define más abajo: se pasa una función que la busca al momento de usarla
+estadisticas_comerciales_mod.configurar(authenticate, permisos_mod.comerciales_permitido, lambda: zeus_mod._leer_secreto().get('llave', ''),
+                                        lambda: _pedidos_estadisticas())
+app.include_router(estadisticas_comerciales_mod.router)
 app.include_router(ecommerce_mod.router)
 app.include_router(ecommerce_mod.pc_router)
 telegram_bot_mod.configurar(authenticate, permisos_mod.bitacora_permitido)
@@ -8125,7 +8130,7 @@ body.production-mode .trace-stage{{font-size:11px;border-radius:6px;padding:8px 
     const commercialGroup=commercialToggle.closest('.nav-group');commercialGroup.classList.add('collapsed');const productionToggle=document.getElementById('production-toggle');if(productionToggle)productionToggle.addEventListener('click',()=>{{const g=productionToggle.closest('.nav-group');g.classList.toggle('collapsed');if(!g.classList.contains('collapsed')&&window.innerWidth>860)g.querySelector('.nav-children .tab')?.click()}});
     setTimeout(()=>{{if(!document.querySelector('.panel.active'))document.querySelector('.tab[data-kind="inicio"]')?.click()}},0);
     setTimeout(()=>{{const panel=document.querySelector('.panel.active');const kind=panel?.dataset?.panel;const activeTab=kind&&document.querySelector(`.tab[data-kind="${{kind}}"]`);if(activeTab)document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab===activeTab))}},100);
-</script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/aplazar-alertas.js?v=20261118-1'></script><script src='/rendimiento.js?v=20261118-1'></script><script src='/liquid-stats.js?v=20261019-1'></script><script src='/nombres-effi.js?v=20261022-2'></script><script src='/permisos.js?v=20261007-2'></script><script src='/reposiciones.js?v=20261019-1'></script><script src='/agentes.js?v=20261125-6'></script><script src='/promedios.js?v=20261109-1'></script><script src='/capacidad.js?v=20261119-1'></script><script src='/molderia.js?v=20261010-2'></script><script src='/estandar.js?v=20261120-1'></script><script src='/proveedores-tela.js?v=20261022-4'></script><script src='/terminos.js?v=20261010-1'></script><script src='/cookies-aviso.js?v=20261010-1'></script><script src='/rh-contratos.js?v=20261009-3'></script><script src='/fichas-resumen.js?v=20261022-2'></script><script src='/api/cartera/cartera.js?v=20261120-3'></script><script src='/trace-ui.js?v=20261120-4'></script><script src='/home-dashboard.js?v=20261110-1'></script><script src='/bodega-dashboard.js?v=20261109-3'></script><script src='/bodegas.js?v=20261009-7'></script><script src='/codigos-barras.js?v=20261014-3'></script><script src='/mis-pedidos.js?v=20261008-1'></script><script src='/crear-cliente.js?v=20261024-31'></script><script src='/pedido-effi.js?v=20261124-10'></script><script src='/pedido-listado.js?v=20261124-2'></script><script src='/instalar-app.js?v=20261115-1'></script><script src='/club-admin.js?v=20261118-38'></script><script src='/mobile-nav.js?v=20261108-1'></script><script src='/nav-liquid.js?v=20261109-1'></script><script src='/build-watch.js?v=20261105-1'></script><script src='/salud.js?v=20261014-2'></script><script src='/alertas.js?v=20261030-1'></script><script src='/bitacora.js?v=20261016-2'></script><script src='/memoria.js?v=20261018-1'></script><script src='/ecommerce.js?v=20261019-1'></script><script src='/zeus.js?v=20261110-3'></script><script src='/minimaximan.js?v=20261023-2'></script><script src='/aviso-agentes.js?v=20261023-5'></script><script src='/descuento-sublimacion.js?v=20261026-1'></script><script src='/stockman.js?v=20261022-30'></script><script src='/draco-panel.js?v=20261021-8'></script><script src='/laser-panel.js?v=20261113-1'></script><script src='/agentes-hub.js?v=20261109-1'></script><script src='/recordar-vista.js?v=20261118-3'></script><script src='/tema.js?v=20261008-1'></script><script src='/tarjeta-iconos.js?v=20261118-1'></script><script src='/confeccion-preparacion.js?v=20261120-13'></script><script src='/confeccion-varias.js?v=20261120-1'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261021-1'></script><script src='/linea-editor.js?v=20261030-1'></script><script src='/lineas-producto-panel.js?v=20261030-1'></script><script src='/menu-cuenta.js?v=20261016-3'></script><script src='/foto-perfil.js?v=20261030-1'></script><script src='/efecto-vidrio.js?v=20261029-1'></script><script src='/motion.js?v=11.18.2'></script><script src='/home-hero.js?v=20261108-5'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab=>tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
+</script>{PERSONAL_NOTES_SCRIPT}{REWORK_MODULE_SCRIPT}{REWORK_LAYOUT_STYLE}{REWORK_CONTROLS_SCRIPT}{INVENTORY_CONTROL_SCRIPT}<script src='/aplazar-alertas.js?v=20261118-1'></script><script src='/rendimiento.js?v=20261118-1'></script><script src='/liquid-stats.js?v=20261019-1'></script><script src='/nombres-effi.js?v=20261022-2'></script><script src='/permisos.js?v=20261007-2'></script><script src='/reposiciones.js?v=20261019-1'></script><script src='/agentes.js?v=20261126-9'></script><script src='/promedios.js?v=20261109-1'></script><script src='/capacidad.js?v=20261119-1'></script><script src='/molderia.js?v=20261010-2'></script><script src='/estandar.js?v=20261120-1'></script><script src='/proveedores-tela.js?v=20261022-4'></script><script src='/terminos.js?v=20261010-1'></script><script src='/cookies-aviso.js?v=20261010-1'></script><script src='/rh-contratos.js?v=20261009-3'></script><script src='/fichas-resumen.js?v=20261022-2'></script><script src='/api/cartera/cartera.js?v=20261120-3'></script><script src='/trace-ui.js?v=20261120-4'></script><script src='/home-dashboard.js?v=20261110-1'></script><script src='/bodega-dashboard.js?v=20261109-3'></script><script src='/bodegas.js?v=20261009-7'></script><script src='/codigos-barras.js?v=20261014-3'></script><script src='/mis-pedidos.js?v=20261008-1'></script><script src='/crear-cliente.js?v=20261024-31'></script><script src='/pedido-effi.js?v=20261124-10'></script><script src='/pedido-listado.js?v=20261124-2'></script><script src='/instalar-app.js?v=20261115-1'></script><script src='/estadisticas-comerciales.js?v=20261127-3'></script><script src='/club-admin.js?v=20261126-1'></script><script src='/mobile-nav.js?v=20261108-1'></script><script src='/nav-liquid.js?v=20261109-1'></script><script src='/build-watch.js?v=20261105-1'></script><script src='/salud.js?v=20261014-2'></script><script src='/alertas.js?v=20261030-1'></script><script src='/bitacora.js?v=20261016-2'></script><script src='/memoria.js?v=20261018-1'></script><script src='/ecommerce.js?v=20261019-1'></script><script src='/zeus.js?v=20261110-3'></script><script src='/minimaximan.js?v=20261023-2'></script><script src='/aviso-agentes.js?v=20261023-5'></script><script src='/descuento-sublimacion.js?v=20261026-1'></script><script src='/stockman.js?v=20261022-30'></script><script src='/draco-panel.js?v=20261021-8'></script><script src='/laser-panel.js?v=20261113-1'></script><script src='/agentes-hub.js?v=20261109-1'></script><script src='/recordar-vista.js?v=20261118-3'></script><script src='/tema.js?v=20261008-1'></script><script src='/tarjeta-iconos.js?v=20261118-1'></script><script src='/confeccion-preparacion.js?v=20261120-13'></script><script src='/confeccion-varias.js?v=20261120-1'></script><script src='/linea-info.js?v=20261003-1'></script><script src='/inventario-alertas.js?v=20261021-1'></script><script src='/linea-editor.js?v=20261030-1'></script><script src='/lineas-producto-panel.js?v=20261030-1'></script><script src='/menu-cuenta.js?v=20261016-3'></script><script src='/foto-perfil.js?v=20261030-1'></script><script src='/efecto-vidrio.js?v=20261029-1'></script><script src='/motion.js?v=11.18.2'></script><script src='/home-hero.js?v=20261108-5'></script><script>setTimeout(function(){{const panels=[...document.querySelectorAll('.panel')],visible=panels.some(panel=>panel.classList.contains('active')&&getComputedStyle(panel).display!=='none');if(!visible){{const home=document.querySelector('.panel[data-panel="inicio"]'),homeTab=document.querySelector('.tab[data-kind="inicio"]');panels.forEach(panel=>panel.classList.toggle('active',panel===home));document.querySelectorAll('.tab').forEach(tab=>tab.classList.toggle('active',tab=>tab===homeTab));document.body.classList.add('inicio-mode');document.body.classList.remove('inventory-mode','production-mode','schedule-mode','operarios-mode')}}}},80);setTimeout(function(){{document.documentElement.classList.add('ui-ready')}},150);</script></body></html>"""
 
 
 def ordered_mockup_uploads(extras, slots):
@@ -8296,6 +8301,11 @@ def aplazar_alertas_js():
 @app.get('/club-admin.js')
 def club_admin_js():
     return FileResponse(Path(__file__).with_name('club-admin.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
+
+
+@app.get('/estadisticas-comerciales.js')
+def estadisticas_comerciales_js():
+    return FileResponse(Path(__file__).with_name('estadisticas-comerciales.js'), media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
 
 
 @app.get('/alerta-pedidos.js')
@@ -8710,7 +8720,7 @@ def _resumen_programados(codigos: set) -> dict:
     out = {}
     for r in base.get('rows') or []:
         v = r.get('values') or []
-        for cod in set(re.findall(r'\b(?:CO|RM)\d+\b', g(v, iO).upper())):
+        for cod in set(re.findall(r'\b(?:CO|RM|OV)\d+\b', g(v, iO).upper())):   # OV: órdenes de venta (ecommerce) programadas en el Sheet
             if cod not in codigos:
                 continue
             _fe = parse_production_date(g(v, iE))   # la fecha puede venir como «7-dic-2026»: se pasa a AAAA-MM-DD para que la tarjeta la entienda
@@ -8730,7 +8740,8 @@ def _resumen_programados(codigos: set) -> dict:
             foco = (next((e for e in inter if e['state'] == 'rework'), None) or next((e for e in reversed(inter) if e['state'] == 'active'), None)
                     or next((e for e in inter if e['state'] != 'finished'), None) or (inter[-1] if inter else None))
             o['filas'].append({'id': r['source_row'], 'ref': g(v, iR), 'units': int(re.sub(r'[^0-9]', '', g(v, iC)) or 0), 'linea': g(v, iL), 'tela': g(v, iT), 'mts': mts,
-                               'percent': round(hechos / len(inter) * 100) if inter else 0, 'focus': foco})
+                               'percent': round(hechos / len(inter) * 100) if inter else 0, 'focus': foco,
+                               'areas': [[e['label'], e['state']] for e in inter]})   # estado de cada área (ESTADÍSTICAS calcula dónde va realmente)
     for o in out.values():   # a nivel de orden (compatibilidad): el avance de su primera tarjeta
         o['percent'] = o['filas'][0]['percent'] if o['filas'] else 0
         o['focus'] = o['filas'][0]['focus'] if o['filas'] else None
@@ -8776,6 +8787,59 @@ def pedidos_programados(usuario=Depends(authenticate)):
     """Los pedidos programados desde EMPEZAR PEDIDO, más reciente primero (se muestran en PROGRAMAR CLUB)."""
     if not permisos_mod.comerciales_permitido(str(usuario)):
         raise HTTPException(403, 'Solo para el equipo comercial')
+    return {'programados': _lista_programados()}
+
+
+ESTADISTICAS_SHEET_DESDE = '2026-10-01'   # ESTADÍSTICAS de COMERCIALES cuenta lo programado en el Google Sheets desde esta fecha (pedido del usuario)
+
+
+def _pedidos_estadisticas() -> list:
+    """Pedidos para ESTADÍSTICAS: los programados en el panel (EMPEZAR PEDIDO) + TODO lo programado en el Sheet de producción desde
+    ESTADISTICAS_SHEET_DESDE (FECHA DE INICIO). Un pedido = un código CO/RM/OV; sus unidades = suma de CANTIDAD de sus filas.
+    El comercial sale de la columna RESP del Sheet (AL, AU, DH…); si el Sheet no lo trae, de quien lo programó en el panel."""
+    panel = {x['codigo']: x for x in _lista_programados()}
+    try:
+        base = _produccion_base()
+    except Exception:   # noqa: BLE001 - sin Sheet quedan solo los del panel
+        return list(panel.values())
+    nm = lambda t: re.sub(r'\s+', ' ', unicodedata.normalize('NFKD', str(t or '')).encode('ascii', 'ignore').decode().upper()).strip()
+    h = [nm(x) for x in (base.get('headers') or [])]
+    ix = lambda n: h.index(n) if n in h else -1
+    iO, iCl, iP, iR, iC, iI, iL, iRe = ix('ORDEN'), ix('NOMBRE DEL CLIENTE'), ix('NOMBRE PROYECTO'), ix('REFERENCIA'), ix('CANTIDAD'), ix('FECHA DE INICIO'), ix('LINEA'), ix('RESP')
+    g = lambda v, i: str(v[i]).strip() if 0 <= i < len(v) and v[i] is not None else ''
+    hoja = {}
+    for r in base.get('rows') or []:
+        v = r.get('values') or []
+        cods = set(re.findall(r'\b(?:CO|RM|OV)\d+\b', g(v, iO).upper()))
+        if not cods:
+            continue
+        fi = parse_production_date(g(v, iI))
+        fecha = fi.isoformat()[:10] if fi else ''
+        for cod in cods:
+            o = hoja.setdefault(cod, {'codigo': cod, 'cliente': g(v, iCl), 'proyecto': g(v, iP), 'fecha': fecha, 'resp': '', 'referencias': [], 'prendas': 0})
+            if fecha and (not o['fecha'] or fecha < o['fecha']):
+                o['fecha'] = fecha
+            if not o['resp'] and g(v, iRe):
+                o['resp'] = g(v, iRe)
+            if g(v, iR) and g(v, iR) not in o['referencias']:
+                o['referencias'].append(g(v, iR))
+            o['prendas'] += int(re.sub(r'[^0-9]', '', g(v, iC)) or 0)
+    nuevos = [c for c, o in hoja.items() if c not in panel and o['fecha'] >= ESTADISTICAS_SHEET_DESDE]
+    res = _resumen_programados(set(nuevos))
+    salida = []
+    for x in panel.values():   # los del panel: el comercial y las unidades reales los pone el Sheet si ya tiene sus filas
+        o = hoja.get(x['codigo'])
+        if o:
+            x = {**x, 'resp': o['resp'] or x.get('resp', ''), 'prendas': o['prendas'] or x.get('prendas', 0)}
+        salida.append(x)
+    for c in nuevos:
+        salida.append({**hoja[c], 'usuario': '', 'estado': '', 'fuente': 'sheet', 'prod': res.get(c)})
+    salida.sort(key=lambda x: x.get('fecha') or '', reverse=True)
+    return salida
+
+
+def _lista_programados() -> list:
+    """Lista de pedidos programados con su estado de programación y su avance en Producción (la usan PEDIDOS y ESTADÍSTICAS)."""
     try:
         lista = json.loads(_PROGRAMADOS.read_text(encoding='utf-8'))
     except (OSError, ValueError):
@@ -8800,7 +8864,7 @@ def pedidos_programados(usuario=Depends(authenticate)):
     res = _resumen_programados({x['codigo'] for x in lista})
     for x in lista:
         x['prod'] = res.get(x['codigo'])
-    return {'programados': lista}
+    return lista
 
 
 # ---------------------------------------------------------------- carpeta de la orden en la NAS: lo MISMO que se vio y se hizo en el panel

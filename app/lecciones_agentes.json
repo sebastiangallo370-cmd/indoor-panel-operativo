@@ -200,5 +200,32 @@
     "por": "Claude",
     "regex": "Illustrator.Application.DoJavaScript",
     "nota": "Causa: el objeto COM que devolvía el conector no expone DoJavaScript cuando se usa desde otro hilo. Regla: el objeto COM de Illustrator se crea DENTRO del hilo que ejecuta el JSX, con CoInitialize (agents/olver.py, _correr_generador)."
+  },
+  {
+    "id": "leccion-olver-unisex-varios-generos",
+    "agente": "OLVER",
+    "titulo": "Maestro unisex con FEM y MASC en el mismo diseño",
+    "nota": "El maestro «D1 CA42 XS A 5XL.ai» no trae género. Si el listado tenía FEM y MASC en D1 (CO6465), OLVER fallaba con «necesita un único género». Regla: se exporta y se crea una vez por género, cada una solo con sus líneas; solo la primera limpia la carpeta.",
+    "regex": "necesita un único género",
+    "fecha": "2026-11-26",
+    "por": "Claude"
+  },
+  {
+    "id": "leccion-olver-no-reexportar-mesas",
+    "agente": "OLVER",
+    "titulo": "No volver a exportar tallas que ya están en Montajes",
+    "nota": "Al exportar las tallas que faltaban, OLVER llamaba exportar_mesas con sobrescribir=True y el JSX re-exportaba TODAS las mesas del maestro, también las ya exportadas (RM7756: 23 mesas otra vez). Regla del usuario: el listado dice diseño y género -> qué plantilla; de esa plantilla se exportan todas sus tallas UNA vez; una talla ya exportada en Montajes NO se vuelve a exportar (solo si el usuario confirma reemplazar).",
+    "regex": "",
+    "fecha": "2026-11-26",
+    "por": "Claude"
+  },
+  {
+    "id": "leccion-tavo-plantilla-nino-promedios",
+    "agente": "TAVO",
+    "titulo": "Plantilla de niño descartada por Promedios maestros",
+    "nota": "RM7756 (CA16): el listado pedía tallas 4-16 pero TAVO usaba «D1 CA16M XS A 4XL.ai» (adulto) y nunca exportaba las de niño. Causa: Promedios maestros solo nombra CA16M/CA16F y seleccion.mesas_para descartaba «D1 CA16N 4 A 16.ai». Regla: la plantilla N de una referencia sirve si Promedios tiene su M o F. Los maestros de niño se nombran con N (CA16N), no con M.",
+    "regex": "no tiene mesa independiente para: \\d",
+    "fecha": "2026-11-26",
+    "por": "Claude"
   }
 ]

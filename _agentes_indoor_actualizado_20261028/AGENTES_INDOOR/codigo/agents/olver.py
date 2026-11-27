@@ -59,7 +59,7 @@ class _VigiaCarpeta:
     def _correr(self):
         while not self.fin:
             self._revisar()
-            time.sleep(0.5)
+            time.sleep(0.2)
 
     def parar(self):
         self.fin = True
@@ -71,6 +71,9 @@ class _VigiaCarpeta:
 # corresponde al pedido. Después, PDF por jugador filtra estrictamente por
 # talla, diseño y género del listado para aplicar el JSX solo donde corresponde.
 # Las mesas ya existentes se conservan salvo un reproceso con reemplazo.
+# REGLA del usuario (2026-11-26): primero se lee en el listado qué DISEÑO y GÉNERO piden -> eso dice qué plantilla (maestro) usar
+# (D1 CA16M = diseño 1, género M). De ESA plantilla se exportan TODAS sus tallas, una sola vez: las que ya están en Montajes
+# NO se vuelven a exportar (el JSX las salta porque sobrescribir va en False salvo reproceso confirmado).
 SIEMPRE_TODAS_LAS_MESAS = True
 
 def _cache_maestro(ai):
@@ -128,7 +131,7 @@ class _VigiaTraslado:
                 tam = f.stat().st_size
                 # Illustrator terminó de guardarlo: no está vacío, no crece y nadie lo modificó en los últimos 3 s. Si se traslada (y se borra su carpeta) mientras Illustrator
                 # todavía escribe, Illustrator responde «the operation was cancelled» (pasaba siempre con la 3.ª mesa).
-                estable = tam > 0 and self.tamanos.get(clave) == tam and (time.time() - f.stat().st_mtime) > 3
+                estable = tam > 0 and self.tamanos.get(clave) == tam and (time.time() - f.stat().st_mtime) > 1
                 self.tamanos[clave] = tam
                 if estable or definitivo:
                     self.hechos.add(clave)
@@ -163,12 +166,79 @@ class _VigiaTraslado:
     def _correr(self):
         while not self.fin:
             self._revisar()
-            time.sleep(0.5)
+            time.sleep(0.2)
 
     def parar(self):
         self.fin = True
         self.hilo.join(2)
         self._revisar(definitivo=True)
+
+
+class _VigiaPdf:
+    """Mira SOLO los PDF de los archivos que se están generando (carpeta exacta + nombre «<prefijo><mesa>_*.pdf»).
+    Antes se recorría TODA la carpeta de la orden en la NAS cada 0,2 s: con cientos de PDF eso peleaba con Illustrator
+    por la red y los avisos llegaban tarde, amontonados y repetidos. La vista previa se dibuja aparte (2 hilos), así
+    detectar el siguiente PDF nunca espera a la imagen del anterior. Cada archivo se avisa UNA vez (por ruta completa)."""
+
+    def __init__(self, objetivos, al_ver):
+        import concurrent.futures
+        self.objetivos = sorted({(str(c), p) for c, p in objetivos})
+        self.al_ver = al_ver
+        self.vistos = {str(f): self._mt(f) for f in self._archivos()}
+        self.avisados, self.tamanos, self.fin = set(), {}, False
+        self.pool = concurrent.futures.ThreadPoolExecutor(max_workers=2)
+        self.hilo = threading.Thread(target=self._correr, daemon=True)
+        self.hilo.start()
+
+    @staticmethod
+    def _mt(f):
+        try:
+            return Path(f).stat().st_mtime_ns
+        except OSError:
+            return None
+
+    def _archivos(self):
+        import fnmatch
+        out = []
+        for carpeta, patron in self.objetivos:
+            try:
+                with os.scandir(carpeta) as it:
+                    out += [Path(e.path) for e in it if fnmatch.fnmatch(e.name.lower(), patron.lower())]
+            except OSError:
+                pass
+        return out
+
+    def _revisar(self, definitivo=False):
+        for f in self._archivos():
+            clave = str(f)
+            if clave in self.avisados:
+                continue
+            try:
+                est = f.stat()
+            except OSError:
+                continue
+            if self.vistos.get(clave) == est.st_mtime_ns:
+                continue   # ya estaba antes y no se reescribió
+            estable = self.tamanos.get(clave) == est.st_size and est.st_size > 0
+            self.tamanos[clave] = est.st_size
+            if estable or definitivo:
+                self.avisados.add(clave)
+                self.pool.submit(self.al_ver, f)
+
+    def _correr(self):
+        while not self.fin:
+            self._revisar()
+            time.sleep(0.3)
+
+    def parar(self):
+        self.fin = True
+        self.hilo.join(2)
+        self._revisar(definitivo=True)
+        self.pool.shutdown(wait=True)
+
+    def actuales(self):
+        """{ruta: mtime} de los PDF de estos archivos ahora mismo."""
+        return {str(f): self._mt(f) for f in self._archivos()}
 
 
 class _Vigia(_VigiaCarpeta):
@@ -318,7 +388,7 @@ def exportar_mesas(cliente, referencia, ruta_ai, formato="ai", sobrescribir=Fals
             res = illustrator.ejecutar_jsx(
                 "exportar_mesas.jsx",
                 {"ai": ai.as_posix(), "carpeta": carpeta.as_posix(), "prefijo": prefijo, "formato": formato,
-                 "conGenero": bool(ref), "ref": ref, "disenos": disenos, "sobrescribir": bool(sobrescribir) or not limpiar,
+                 "conGenero": bool(ref), "ref": ref, "disenos": disenos, "sobrescribir": bool(sobrescribir) or (not limpiar and not tallas),   # mesas por talla: una mesa ya exportada solo se rehace si el usuario lo confirmó
                  "generoUnico": generos[0] if generos and len(generos) == 1 else "",
                  "tallas": tallas, "nombre": nombre_final, "todas": SIEMPRE_TODAS_LAS_MESAS, "cache": cache, "local": local.as_posix() if tallas else "", "trabajo": trabajo.as_posix() if trabajo else ""},
             )
@@ -537,15 +607,48 @@ def _mesas_de(carpeta_m, talla, diseno, generos):
     """Nombres (sin .ai) de TODAS las mesas independientes de esa talla, diseño y género que hay en Montajes: Talla_10_Tipo_D1_Gen_M, y también
     Frente_Talla_10_Tipo_D1_Gen_M y Espalda_Talla_10_Tipo_D1_Gen_M cuando el maestro separa frente y espalda."""
     patron = re.compile(rf"^(?:.+_)?Talla_{re.escape(str(talla))}_Tipo_D{re.escape(str(diseno))}_Gen_({'|'.join(re.escape(g) for g in generos)})$", re.I)
-    # La NAS puede tardar o fallar un instante: se reintenta antes de dar la mesa por inexistente (3 intentos)
+    return sorted(n for n in _ai_de_carpeta(carpeta_m) if patron.match(n))
+
+
+# Lista de .ai por carpeta, guardada unos segundos: antes cada talla volvía a leer la carpeta en la NAS y, si la carpeta
+# NO existía, esperaba 4 s × 3 intentos POR TALLA (más de un minuto antes de abrir Illustrator). Ahora una carpeta que
+# no existe responde al instante; solo un error de red real se reintenta (2 veces, 1 s).
+_CACHE_AI = {}
+_CACHE_AI_SEG = 20
+
+
+def _ai_de_carpeta(carpeta):
+    clave = str(carpeta).lower()
+    hit = _CACHE_AI.get(clave)
+    if hit and time.time() - hit[0] < _CACHE_AI_SEG:
+        return hit[1]
+    nombres = []
     for intento in range(3):
         try:
-            if Path(carpeta_m).is_dir():
-                return sorted(f.stem for f in Path(carpeta_m).glob("*.ai") if f.is_file() and f.stat().st_size > 0 and patron.match(f.stem))
+            with os.scandir(str(carpeta)) as it:
+                nombres = [e.name[:-3] for e in it if e.name.lower().endswith(".ai") and e.is_file() and e.stat().st_size > 0]
+            break
+        except FileNotFoundError:
+            break   # la carpeta no existe: no hay mesas, sin esperar
         except OSError:
-            pass
-        time.sleep(4)
-    return []
+            time.sleep(1)
+    _CACHE_AI[clave] = (time.time(), nombres)
+    return nombres
+
+
+def _existentes(rutas):
+    """Cuáles de esas rutas existen, leyendo cada carpeta UNA vez (antes era un exists() por PDF sobre la NAS)."""
+    por_carpeta = {}
+    for p in rutas:
+        por_carpeta.setdefault(Path(p).parent, []).append(Path(p))
+    hay = []
+    for carpeta, ps in por_carpeta.items():
+        try:
+            nombres = {n.lower() for n in os.listdir(str(carpeta))}
+        except OSError:
+            continue
+        hay += [p for p in ps if p.name.lower() in nombres]
+    return hay
 
 
 
@@ -672,7 +775,7 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
             plan.append((talla, nom, f"{prefijo}{nom}", _agrupar_sin_datos(js)))
 
     esperados = [p for _, _, base, js in plan for p in _nombres_esperados(carpeta, base, js)]
-    previos = [p for p in esperados if p.exists()]
+    previos = _existentes(esperados)
     if previos and not sobrescribir:
         # No basta con que exista *algún* PDF. Antes esto hacía que una
         # exportación incompleta pareciera terminada y TAVO la conservara.
@@ -701,12 +804,15 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
                 # pedir talla 16/N se fuerza esa talla: de otro modo OLVER
                 # exportaba solo las tallas adultas masculinas y nunca llegaba
                 # a encontrar Talla_16_Tipo_Dn_Gen_F.
-                exportar_mesas("", "", str(ai), "ai", True, orden=orden,
+                # sobrescribir=False: REGLA del usuario, las tallas ya exportadas NO se vuelven a exportar (antes iba True y el
+                # script re-exportaba TODAS las mesas del maestro, también las que ya estaban en Montajes)
+                exportar_mesas("", "", str(ai), "ai", False, orden=orden,
                                 destino={**destino, "carpeta": destino["montajes"]}, generos=destino.get("generos"),
                                 limpiar=False, lineas=lineas, tallas_forzadas=list(faltan))   # solo las tallas que faltan; las mesas ya exportadas no se tocan
             except Exception as e:  # noqa: BLE001
                 log(AGENTE, f"No pude exportar las mesas que faltaban de {ai.name}: {e}", "WARN")
-            faltan = [t for t, art, _b, _j in plan if not _mesa_ok(art, t)]
+            _CACHE_AI.clear()   # se acaban de exportar mesas: leer las carpetas de nuevo
+            faltan =[t for t, art, _b, _j in plan if not _mesa_ok(art, t)]
         if faltan:
             # Una talla puede ser perfectamente válida en el listado (por
             # ejemplo 5XL) pero no existir físicamente en este maestro (que
@@ -763,7 +869,7 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
             ampliado += [(talla, m, f"{prefijo}{m}", js) for m in mesas] or [(talla, art, base, js)]
         plan = ampliado
         esperados = [p for _, _, base, js in plan for p in _nombres_esperados(carpeta, base, js)]
-        previos = [p for p in esperados if p.exists()]
+        previos = _existentes(esperados)
         if previos and not sobrescribir:
             return {"ok": False, "existe": True, "incompleto": len(previos) != len(esperados),
                     "carpeta": str(carpeta), "n": len(previos), "esperados": len(esperados)}
@@ -782,13 +888,17 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
         carpetas_ref = [Path(info["carpeta"]) for info in mapa_jsx.values() if info["ref"] == ref]
         for talla, artboard, base, jugadores in plan:
             if not mesa_independiente_principal(artboard) or str(talla).upper() in tallas_hechas:
+                log(AGENTE, f"[DIAG JSX] {Path(str(ruta_ai)).name} talla {talla}: omitida (principal={mesa_independiente_principal(artboard)}, ya hecha={str(talla).upper() in tallas_hechas})")
                 continue
-            principal = next((cm for cm in carpetas_m if (cm / f"{artboard}.ai").exists()), None)
+            principal = next((cm for cm in carpetas_m if any((cm / f"{a}.ai").exists() for a in _variantes_gen(artboard))), None)
+            if principal is None:   # sin «Talla_X» exacto: la talla viene en piezas (Piezas1_Talla_X + Piezas2_Talla_X) y la primera hace de principal
+                principal = next((cm for cm in carpetas_m if _mesas_de(cm, talla, diseno, {genero, "M", "F"})), None)
             if principal is None:
                 omitidas.append(f"talla {talla}: no encuentro la mesa principal en Montajes")
                 continue
             tallas_hechas.add(str(talla).upper())
             archivos = _archivos_de_talla([principal] + carpetas_ref, talla, diseno, genero)
+            log(AGENTE, f"[DIAG JSX] {Path(str(ruta_ai)).name} talla {talla} gen {genero}: principal={principal} · mesas={[a.name for a in archivos]} · jugadores={len(jugadores)}")
             if not archivos:
                 omitidas.append(f"talla {talla}: no hay mesas en las carpetas elegidas")
                 continue
@@ -798,7 +908,7 @@ def pdfs_por_jugador(ruta_ai, lineas, destino, orden, tela="", sobrescribir=Fals
             gen_t = "N" if str(t).isdigit() and genero in ("M", "F") else genero
             jug_t = [j for tt, js in _solo_sexo_del_maestro(_jugadores_de(lineas, diseno, gen_t), suf_maestro) if str(tt).upper() == str(t).upper() for j in js]
             if not jug_t:
-                omitidas.append(f"talla {t} de los hermanos: el listado no tiene jugadores")
+                # Talla de hermanos sin jugadores en este género (p. ej. MASC sin S/M/XS): no hay PDF que hacer y no es un fallo
                 continue
             archivos = _archivos_de_talla(carpetas_ref, t, diseno, genero)
             if not archivos:
@@ -981,7 +1091,7 @@ def _filas_generador(jugadores):
     return filas
 
 
-def _correr_generador(doc, filas, montajes, salida, prefijo, solo=None, listar=False, refs=None):
+def _correr_generador(doc, filas, montajes, salida, prefijo, solo=None, listar=False, refs=None, rango=None):
     """Corre GENERADOR_AGENTES.jsx por lotes: listar=True solo devuelve los .ai que aplican; solo=<ruta> procesa UN archivo.
     Así Illustrator responde entre un archivo y el siguiente."""
     csv = "NOMBRE1;NUMERO1\n" + "".join(f"{n};{u}\n" for n, u in filas)
@@ -993,7 +1103,8 @@ def _correr_generador(doc, filas, montajes, salida, prefijo, solo=None, listar=F
            "var INDOOR_PREFIJO = " + json.dumps(prefijo or "") + ";\n"
            "var INDOOR_SOLO_LISTAR = " + ("true" if listar else "false") + ";\n"
            + ("var INDOOR_REFS = " + json.dumps([str(r).upper() for r in refs]) + ";\n" if refs else "")
-           + ("var INDOOR_SOLO_ARCHIVO = " + json.dumps(Path(solo).as_posix()) + ";\n" if solo else "")
+           + ("var INDOOR_SOLO_ARCHIVO = " + json.dumps([Path(s).as_posix() for s in solo] if isinstance(solo, (list, tuple)) else Path(solo).as_posix()) + ";\n" if solo else "")
+           + ("var INDOOR_FILA_DESDE = " + str(int(rango[0])) + ";\n" + "var INDOOR_FILA_HASTA = " + str(int(rango[1])) + ";\n" if rango else "")
            + "var INDOOR_JSX_MESSAGES = [];\n")
     # Se lee de la misma carpeta de código que está corriendo (NAS o copia local), así siempre es la versión publicada
     codigo = (Path(__file__).resolve().parent.parent / "jsx" / "GENERADOR_AGENTES.jsx").read_text(encoding="utf-8")
@@ -1043,11 +1154,32 @@ def _pdfs_de(carpeta_raiz):
         return set()
 
 
+def _carpeta_salida_jsx(ar, montajes, salida):
+    """La misma carpeta que arma GENERADOR_AGENTES.jsx: salida + (carpeta del .ai relativa a Montajes); si no está bajo Montajes, salida/<carpeta del .ai>."""
+    padre = str(Path(ar).parent).replace("\\", "/").rstrip("/")
+    base = str(montajes).replace("\\", "/").rstrip("/")
+    if padre.lower().startswith(base.lower() + "/"):
+        rel = [re.sub(r'[\\/:*?"<>|]', "_", p) for p in padre[len(base) + 1:].split("/") if p]
+        return Path(salida).joinpath(*rel)
+    return Path(salida) / re.sub(r'[\\/:*?"<>|]', "_", Path(ar).parent.name)
+
+
+def _patron_fn(texto):
+    """Escapa [ y ] para fnmatch (el resto del nombre es literal)."""
+    return re.sub(r"([\[\]])", r"[\1]", texto)
+
+
+def _variantes_gen(artboard):
+    """«Talla_M_Tipo_D1_Gen_F» también existe como «..._Gen_M» (maestros F con mesas rotuladas M)."""
+    base = re.sub(r"_Gen_[MF]$", "", artboard)
+    return [f"{base}_Gen_M", f"{base}_Gen_F"]
+
+
 def _archivos_de_talla(carpetas, talla, diseno, genero):
     """Los .ai (principal, Costados, Petico…) de esa talla, diseño y género en las carpetas que elige TAVO."""
     out = []
     for c in carpetas:
-        for stem in _mesas_de(Path(c), talla, diseno, {genero}):
+        for stem in _mesas_de(Path(c), talla, diseno, {genero, "M", "F"}):   # las mesas de una carpeta F pueden venir rotuladas Gen_M
             out.append(Path(c) / f"{stem}.ai")   # principal + Costados + Petico: cada una da su PDF por jugador
     return out
 
@@ -1058,34 +1190,56 @@ def _generar_por_talla(doc, jugadores, montajes, salida, prefijo, talla, diseno=
     filas = _filas_generador(jugadores)
     if not filas:
         return []
-    antes = _pdfs_de(salida)
+    t0 = time.time()
     # Lo que ve el panel: los jugadores con el mismo orden de las filas que se mandan al JSX
     jug_panel = [{"nombre": n, "numero": u} for n, u in filas]
-    vigia = _VigiaCarpeta(Path(salida), "*.pdf", lambda f: _evento_pdf(f, jug_panel, talla, diseno or "", genero or ""), recursivo=True)
+    # Los archivos los elige TAVO (maestros de la referencia de la pestaña). Illustrator abre el primero como maestro.
+    try:
+        lista = [Path(a) for a in (archivos if archivos is not None else _archivos_del_lote(doc, filas, montajes, salida, prefijo, refs=refs))]
+    except Exception as e:  # noqa: BLE001
+        log(AGENTE, f"No pude generar los PDF de la talla {talla} con el JSX: {e}", "ERROR")
+        return []
+    # Solo se miran los PDF de ESTOS archivos (misma carpeta y nombre que usa el JSX), no toda la carpeta de la orden
+    objetivos = [(_carpeta_salida_jsx(ar, montajes, salida), _patron_fn(f"{prefijo}{Path(ar).stem}_") + "*.pdf") for ar in lista]
+    vigia = _VigiaPdf(objetivos, lambda f: _evento_pdf(f, jug_panel, talla, diseno or "", genero or ""))
+    antes_m = dict(vigia.vistos)
     try:
         # Por lotes: un archivo por llamada a Illustrator, para que el programa responda entre uno y otro
-        # Los archivos los elige TAVO (maestros de la referencia de la pestaña). Illustrator abre el primero como maestro.
-        lista = archivos if archivos is not None else _archivos_del_lote(doc, filas, montajes, salida, prefijo, refs=refs)
         log(AGENTE, f"Talla {talla}: {len(lista)} archivo(s) elegidos por TAVO · {len(filas)} PDF por archivo")
+        # Una llamada a Illustrator por archivo: entre una y otra Illustrator atiende su ventana (no se congela)
         for ar in lista:
             log(AGENTE, f"Generando {ar.name} · talla {talla}")
             # Hasta 3 intentos por archivo (1 + 2 reintentos). Si ninguno sale, se registra y sigue con el siguiente.
             for intento in range(1, 4):
                 try:
-                    _correr_generador(lista[0], filas, montajes, salida, prefijo, solo=ar, refs=refs)
+                    # Lotes de LOTE_PDF jugadores por llamada: Illustrator responde entre un lote y otro (no se congela)
+                    for lote_ini in range(1, len(filas) + 1, LOTE_PDF):
+                        lote_fin = min(lote_ini + LOTE_PDF - 1, len(filas))
+                        msgs = _correr_generador(lista[0], filas, montajes, salida, prefijo, solo=ar, refs=refs, rango=(lote_ini, lote_fin))
+                        # Pieza SIN «NOMBRE» ni «00» (Costados, Fusionado, Petico…): lleva un solo PDF, que sale en el primer lote.
+                        # Antes se lanzaban igual los demás lotes y cada uno abría y cerraba el archivo para nada (~2 s cada uno).
+                        if 'se hace solo 1 PDF' in (msgs or ''):
+                            break
                     break
                 except Exception as e:  # noqa: BLE001   (un archivo que falla no detiene los demás ni los demás maestros)
                     if intento < 3:
                         log(AGENTE, f"{ar.name} (talla {talla}) falló (intento {intento}/3): {e}. Reintento.", "WARN")
                         time.sleep(10 * intento)
-                    else:
-                        log(AGENTE, f"No pude generar {ar.name} (talla {talla}) tras 3 intentos: {e}", "ERROR")
+                else:
+                    log(AGENTE, f"No pude generar {ar.name} (talla {talla}) tras 3 intentos", "ERROR")
     except Exception as e:  # noqa: BLE001
         log(AGENTE, f"No pude generar los PDF de la talla {talla} con el JSX: {e}", "ERROR")
         return []
     finally:
         vigia.parar()
-    nuevos = sorted(_pdfs_de(salida) - antes)
+    # Un PDF que se reescribe con el mismo nombre también cuenta: se compara la fecha de modificación, no solo si existía
+    despues_m = vigia.actuales()
+    nuevos = sorted(r for r, mt in despues_m.items() if mt is not None and mt != antes_m.get(r))
+    if not nuevos:
+        # Red de seguridad: si la carpeta calculada no coincidiera con la del JSX, se busca en toda la salida lo escrito desde t0
+        nuevos = sorted(r for r in _pdfs_de(salida) if os.path.getmtime(r) >= t0 - 2)
+        if nuevos:
+            log(AGENTE, f"Talla {talla}: los PDF quedaron fuera de la carpeta esperada; los tomo de la búsqueda completa", "WARN")
     res = []
     for ruta in nuevos:
         m = re.search(r"_(\d{2})\.pdf$", ruta)
@@ -1095,9 +1249,13 @@ def _generar_por_talla(doc, jugadores, montajes, salida, prefijo, talla, diseno=
     return res
 
 
+LOTE_PDF = 10   # jugadores por llamada a Illustrator (entre lotes Illustrator atiende su ventana)
+
+
 def mesa_independiente_principal(nombre):
     """La pieza principal de una talla («Talla_…»). Costados y Petico son las demás piezas."""
-    return str(nombre).startswith("Talla_")
+    # «Piezas1_Talla_X» es la pieza principal cuando el maestro no trae «Talla_X» (niños PE03N(F), tallas 8 a 14)
+    return str(nombre).startswith("Talla_") or str(nombre).startswith("Piezas1_Talla_")
 
 
 def _correr_bot(codigo, ai, artboard, base, carpeta, jugadores, orden, tela, saltos=False):
@@ -1167,3 +1325,72 @@ def _cerrar_si_abierto(app, ai):
         app.DoJavaScript("(function(){for(var i=app.documents.length-1;i>=0;i--){if(app.documents[i].name==%s){app.documents[i].close(SaveOptions.DONOTSAVECHANGES);}}return 'ok';})();" % json.dumps(ai.name))
     except Exception:  # noqa: BLE001
         pass
+
+# ── Maestro unisex con varios géneros en el listado (CO6465: FEM y MASC en D1) ──
+# Antes el maestro unisex fallaba con «necesita un único género». Ahora se exporta/crea una vez por género,
+# cada una solo con sus líneas, y se juntan los resultados.
+def _generos_del_listado(lineas):
+    return sorted({seleccion._genero_efectivo(l) for l in (lineas or []) if seleccion._genero_efectivo(l)})
+
+
+def _por_genero_si_hace_falta(fn, args, kwargs):
+    import inspect
+    cuenta = dict(inspect.signature(fn).bind_partial(*args, **kwargs).arguments)
+    ruta, lineas = cuenta.get('ruta_ai'), cuenta.get('lineas') or []
+    m = _maestro_match(Path(str(ruta).strip().strip('"'))) if ruta else None
+    generos = _generos_del_listado(lineas)
+    if not (m and getattr(m, 'sin_genero', False) and len(generos) > 1):
+        return fn(*args, **kwargs)
+    resultados, omitidos = [], []
+    for i, g in enumerate(generos):
+        parte = dict(cuenta)
+        parte['lineas'] = [l for l in lineas if seleccion._genero_efectivo(l) == g]
+        if i > 0 and 'limpiar' in parte:   # limpiar solo la primera vez: no borrar lo que ya exportó el otro género
+            parte['limpiar'] = False
+        r = fn(**parte)
+        if not r.get('ok') and r.get('existe'):
+            # Los PDF de este género ya estaban hechos y el listado no cambió: se conservan (no es un fallo)
+            resultados.append({'ok': True, 'pdfs': [], 'carpeta': r.get('carpeta'), 'esperados': 0, 'unidades': 0, 'omitidas': [], 'conservados': r.get('n', 0)})
+            continue
+        if not r.get('ok') and not r.get('sin_tallas') and cuenta.get('permitir_faltantes'):
+            # La persona ya autorizó seguir solo con las disponibles: este género se omite
+            omitidos.append(g)
+            log(AGENTE, f"Género {g} omitido en {Path(str(ruta)).name} (sigo con los demás): {r.get('error') or 'sin detalle'}", "WARN")
+            continue
+        if not r.get('ok'):
+            # No hay plantilla de este género: no se sigue sola; se pregunta si continúa con las disponibles
+            if not r.get('sin_tallas'):
+                faltante = 'FEM' if g == 'F' else 'MASC' if g == 'M' else g
+                r = dict(r, ok=False, error=f"No hay plantilla {faltante} para {Path(str(ruta)).name}. ¿Deseas continuar solo con las disponibles?", pregunta_continuar=True, genero_faltante=g)
+            return r
+        resultados.append(r)
+    if not resultados:
+        return {"ok": False, "error": "No hay plantillas para ningún género del listado en " + Path(str(ruta)).name}
+    combinado = dict(resultados[0])
+    combinado['unidades'] = sum(int(x.get('unidades', 0) or 0) for x in resultados)
+    combinado['esperados'] = sum(int(x.get('esperados', 0) or 0) for x in resultados)
+    if omitidos:
+        combinado['omitidos_genero'] = omitidos
+    for r in resultados[1:]:
+        for clave in ('pdfs', 'archivos', 'omitidas'):
+            if isinstance(r.get(clave), list):
+                combinado[clave] = list(combinado.get(clave) or []) + r[clave]
+        if 'ya_existian' in r:
+            combinado['ya_existian'] = int(combinado.get('ya_existian', 0)) + int(r['ya_existian'])
+    return combinado
+
+
+_exportar_mesas_una = exportar_mesas
+_pdfs_por_jugador_una = pdfs_por_jugador
+
+
+def exportar_mesas(*args, **kwargs):
+    try:
+        return _por_genero_si_hace_falta(_exportar_mesas_una, args, kwargs)
+    finally:
+        _CACHE_AI.clear()   # pudo crear mesas nuevas: la lista de carpetas guardada ya no sirve
+
+
+def pdfs_por_jugador(*args, **kwargs):
+    return _por_genero_si_hace_falta(_pdfs_por_jugador_una, args, kwargs)
+

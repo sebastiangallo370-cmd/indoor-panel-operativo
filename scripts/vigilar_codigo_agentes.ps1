@@ -10,6 +10,14 @@ $LogAg = Join-Path $Local "logs\agentes.log"
 $LogVig = Join-Path $Local "logs\vigilancia.txt"
 New-Item -ItemType Directory -Force -Path (Split-Path $LogVig) | Out-Null
 
+# Espera solo lo necesario: hasta que el servidor de agentes responde en el puerto 8000 (máximo 40 s)
+function Esperar-Servidor {
+    for ($i = 0; $i -lt 40; $i++) {
+        try { $r = Invoke-WebRequest -Uri 'http://127.0.0.1:8000/' -UseBasicParsing -TimeoutSec 2; if ($r.StatusCode -eq 200) { return } } catch { }
+        Start-Sleep -Seconds 1
+    }
+}
+
 function Huella {
     # Nombre, tamaño y fecha de cada archivo de codigo en la NAS: basta para saber si algo cambio
     Get-ChildItem "$Nas\agents", "$Nas\core", "$Nas\jsx", "$Nas\web" -Recurse -File -Include *.py, *.jsx, *.js, *.html -ErrorAction SilentlyContinue |
@@ -34,7 +42,10 @@ $Latidos = Join-Path $Nas "latidos"
 function Latir {
     try {
         New-Item -ItemType Directory -Force -Path $Latidos | Out-Null
-        Set-Content -Path (Join-Path $Latidos "$env:COMPUTERNAME.txt") -Value ((Get-Date -Format "yyyy-MM-dd HH:mm:ss") + " vigilante activo") -Encoding UTF8
+        # Hora de arranque del servidor de agentes en este PC: así el panel muestra si ya carga el código nuevo
+        $srv = Get-CimInstance Win32_Process -Filter "Name like 'python%'" | Where-Object { $_.CommandLine -like "*server.py*" } | Select-Object -First 1
+        $arranque = if ($srv) { $srv.CreationDate.ToString("yyyy-MM-dd HH:mm:ss") } else { "sin servidor" }
+        Set-Content -Path (Join-Path $Latidos "$env:COMPUTERNAME.txt") -Value ((Get-Date -Format "yyyy-MM-dd HH:mm:ss") + " vigilante activo | servidor arrancó: " + $arranque) -Encoding UTF8
     } catch {}
 }
 
@@ -46,7 +57,7 @@ $vivoAlInicio = Get-CimInstance Win32_Process -Filter "Name like 'python%'" | Wh
 if (-not $vivoAlInicio -and (Test-Path "$Nas\server.py")) {
     Anotar "El servidor de agentes no estaba corriendo: lo arranco con el codigo de la NAS."
     Start-Process -FilePath "wscript.exe" -ArgumentList "`"$Local\iniciar_oculto.vbs`"" -WindowStyle Hidden
-    Start-Sleep -Seconds 40
+    Esperar-Servidor
 }
 
 # Atasco: el log lleva mas de 15 min sin moverse en MITAD de una orden (no esperando una respuesta ni ya terminada) -> reinicio
@@ -63,7 +74,7 @@ function ReiniciarServidor($motivo) {
     Get-CimInstance Win32_Process -Filter "Name like 'python%'" | Where-Object { $_.CommandLine -like "*server.py*" } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
     Start-Sleep -Seconds 3
     Start-Process -FilePath "wscript.exe" -ArgumentList "`"$Local\iniciar_oculto.vbs`"" -WindowStyle Hidden
-    Start-Sleep -Seconds 40
+    Esperar-Servidor
 }
 
 while ($true) {
@@ -77,12 +88,16 @@ while ($true) {
             $idle = if (Test-Path $LogAg) { ((Get-Date) - (Get-Item $LogAg).LastWriteTime).TotalSeconds } else { 9999 }
             if ($idle -lt 120) {
                 Anotar "Codigo nuevo en la NAS, pero hay una orden en curso; espero."
+                # NO se actualiza $previa: así en la próxima vuelta sigue viendo el código nuevo y reinicia apenas el PC quede libre
+                # (antes se olvidaba del cambio y el PC se quedaba con el código viejo hasta el siguiente cambio)
+                Start-Sleep -Seconds 60
+                continue
             } else {
                 Anotar "Codigo nuevo en la NAS: reinicio el servidor de agentes."
                 Get-CimInstance Win32_Process -Filter "Name like 'python%'" | Where-Object { $_.CommandLine -like "*server.py*" } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
                 Start-Sleep -Seconds 3
                 Start-Process -FilePath "wscript.exe" -ArgumentList "`"$Local\iniciar_oculto.vbs`"" -WindowStyle Hidden
-                Start-Sleep -Seconds 40
+                Esperar-Servidor
                 $previa = Huella   # ya quedo con el codigo nuevo
                 Anotar "Servidor reiniciado con el codigo de la NAS."
                 continue

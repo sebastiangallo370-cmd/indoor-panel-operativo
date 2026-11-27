@@ -1063,6 +1063,7 @@ def _unidades_listado(lineas, ai, genero_destino=None):
 
 
 def _pdfs_y_sheets(s, sobrescribir, permitir_tallas_faltantes=False):
+    s.setdefault("inicio_txt", datetime.now().strftime("%H:%M"))   # hora de inicio de la edición (para la nota)
     sobrescribir = sobrescribir or s.get("repro") == "reemplazar"
     """Crea los PDF de producción por jugador y devuelve la pregunta de Google Sheets (o pide confirmar si ya existen)."""
     resp = s.get("resp_sheets")
@@ -1154,6 +1155,12 @@ def _pdfs_y_sheets(s, sobrescribir, permitir_tallas_faltantes=False):
         r = olver.pdfs_por_jugador(ai, fila["lineas"], destino, p.get("orden"), tela=tela or "", sobrescribir=sobrescribir,
                                    tela_archivo=tela_archivo, referencia=p.get("referencia", ""), genero_destino=genero_destino,
                                    permitir_faltantes=permitir_tallas_faltantes)
+        if r.get("pregunta_continuar"):   # falta la plantilla de un género: se pregunta antes de seguir
+            s["pdfs_faltantes"] = {"sobrescribir": sobrescribir}
+            s["estado"] = "CONFIRMAR_TALLAS_MESAS"
+            log(AGENTE, f"{Path(ai).name}: {r.get('error')}", "WARN")
+            return _r(f"{r.get('error')}\n\nNo generé PDF de ese género todavía. ¿Continúo solo con las disponibles o cancelo?",
+                      "CONFIRMAR_TALLAS_MESAS", ["Continuar con disponibles", "Cancelar"])
         if r.get("requiere_confirmacion"):
             faltantes = ", ".join(r.get("faltantes") or [])
             maestro = r.get("maestro") or Path(ai).name
@@ -1336,6 +1343,17 @@ def _subir_sheets(s):
     s["estado"] = "FIN"
     nota = " (simulado: se guardó como CSV)" if r.get("simulado") else ""
     log(AGENTE, f"Pedido {_clave(p)} completo")
+    # Notas en la hoja ORDENES DE PRODUCCION (no cambian valores): inicio, fin y responsable de la edición
+    if p.get("orden"):
+        ahora = datetime.now().strftime("%H:%M")
+        from core import notas_sheets
+        # EDICIÓN va como valor de la celda (no nota): inicio, fin y responsable
+        n = notas_sheets.escribir(p["orden"], valores={
+            "AP": s.get("inicio_txt") or ahora,
+            "AQ": ahora,
+            "AR": "AGENT",
+        })
+        log(AGENTE, f"Notas en {p['orden']}: " + ("ok" if n.get("ok") else n.get("error", "sin detalle")), "INFO" if n.get("ok") else "WARN")
     return _r(f"TERRY guardó {r['filas']} filas en la pestaña «{r['pestana']}»{nota}.\n{r['destino']}\n\n"
               "Pedido terminado. Cuando quieras, envíame el siguiente.", "FIN")
 

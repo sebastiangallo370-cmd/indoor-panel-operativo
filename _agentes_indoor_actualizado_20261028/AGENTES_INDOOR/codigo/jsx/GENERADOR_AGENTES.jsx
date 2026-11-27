@@ -15,7 +15,8 @@
 
 var INDOOR_JSX_MESSAGES = (typeof INDOOR_JSX_MESSAGES !== "undefined") ? INDOOR_JSX_MESSAGES : [];
 var INDOOR_RESULTADO = [];
-var INDOOR_PAUSA_MS = (typeof INDOOR_PAUSA_MS !== "undefined") ? INDOOR_PAUSA_MS : 700;   // pausa para que se vea cada archivo
+var INDOOR_PAUSA_MS = (typeof INDOOR_PAUSA_MS !== "undefined") ? INDOOR_PAUSA_MS : 150;   // pausa mínima para que se vea cada archivo
+var INDOOR_RITMO_MS = (typeof INDOOR_RITMO_MS !== "undefined") ? INDOOR_RITMO_MS : 2000;  // un PDF cada 2 s (pedido del usuario 2026-11-26): si guardar tarda menos, se espera mostrando al jugador; si tarda más, no se espera nada
 
 (function () {
     var originalInteraction = app.userInteractionLevel;
@@ -135,7 +136,10 @@ var INDOOR_PAUSA_MS = (typeof INDOOR_PAUSA_MS !== "undefined") ? INDOOR_PAUSA_MS
     }
 
     var maestroFile = new File(INDOOR_DOC);
-    var docA = app.open(maestroFile);
+    var soloModo = (typeof INDOOR_SOLO_ARCHIVO !== "undefined" && INDOOR_SOLO_ARCHIVO) && !(typeof INDOOR_SOLO_LISTAR !== "undefined" && INDOOR_SOLO_LISTAR);
+    // Con archivo(s) indicados por el agente NO se abre el maestro ni se recorren las carpetas hermanas en la NAS
+    // (antes se hacía en CADA lote de 10 PDF: ~7 s perdidos por lote). Cada archivo se abre una vez en el paso 4.
+    var docA = soloModo ? null : app.open(maestroFile);
     var materialFolderA = maestroFile.parent;          // carpeta de material (p. ej. FUT09M)
     var designFolder = materialFolderA.parent;         // carpeta de diseño (p. ej. D1)
     var montajesFolder = new Folder(INDOOR_MONTAJES);
@@ -163,8 +167,8 @@ var INDOOR_PAUSA_MS = (typeof INDOOR_PAUSA_MS !== "undefined") ? INDOOR_PAUSA_MS
         var key = decodeURI(f.fullName).toLowerCase();
         if (!addedPaths[key]) { addedPaths[key] = true; filesToProcess.push(f); }
     }
-    var carpetas = [materialFolderA];
-    var hermanas = designFolder.getFiles(function (f) { return f instanceof Folder && f.name.indexOf(".") !== 0; });
+    var carpetas = soloModo ? [] : [materialFolderA];
+    var hermanas = soloModo ? [] : designFolder.getFiles(function (f) { return f instanceof Folder && f.name.indexOf(".") !== 0; });
     for (var h = 0; hermanas && h < hermanas.length; h++) {
         if (decodeURI(hermanas[h].fullName).toLowerCase() !== decodeURI(materialFolderA.fullName).toLowerCase()) { carpetas.push(hermanas[h]); }
     }
@@ -177,7 +181,7 @@ var INDOOR_PAUSA_MS = (typeof INDOOR_PAUSA_MS !== "undefined") ? INDOOR_PAUSA_MS
             }
         }
     }
-    log("Archivos a procesar (talla, diseño y género iguales): " + filesToProcess.length);
+    if (!soloModo) { log("Archivos a procesar (talla, diseño y género iguales): " + filesToProcess.length); }
 
     // Modo listar: solo devuelve la lista de archivos (el agente la usa para procesarlos uno por uno)
     if (typeof INDOOR_SOLO_LISTAR !== "undefined" && INDOOR_SOLO_LISTAR) {
@@ -188,9 +192,13 @@ var INDOOR_PAUSA_MS = (typeof INDOOR_PAUSA_MS !== "undefined") ? INDOOR_PAUSA_MS
     }
     // Modo un archivo: solo procesa el indicado
     if (typeof INDOOR_SOLO_ARCHIVO !== "undefined" && INDOOR_SOLO_ARCHIVO) {
+        // Una ruta o una lista de rutas (todos los archivos de la talla en UNA sola apertura del maestro)
+        var soloNombres = (INDOOR_SOLO_ARCHIVO instanceof Array) ? INDOOR_SOLO_ARCHIVO : [INDOOR_SOLO_ARCHIVO];
         var soloLista = [];
-        for (var sf = 0; sf < filesToProcess.length; sf++) {
-            if (decodeURI(filesToProcess[sf].fullName).toLowerCase() === decodeURI(INDOOR_SOLO_ARCHIVO).toLowerCase()) { soloLista.push(filesToProcess[sf]); }
+        // El agente ya eligió los archivos (misma talla, diseño, género y referencia): se usan tal cual, sin volver a buscarlos
+        for (var sn = 0; sn < soloNombres.length; sn++) {
+            var fSolo = new File(soloNombres[sn]);
+            if (fSolo.exists) { soloLista.push(fSolo); } else { log("ERROR: no encuentro " + decodeURI(fSolo.fullName)); }
         }
         filesToProcess = soloLista;
     }
@@ -240,6 +248,12 @@ var INDOOR_PAUSA_MS = (typeof INDOOR_PAUSA_MS !== "undefined") ? INDOOR_PAUSA_MS
 
     // --- 3) Procesar cada archivo con las mismas filas del CSV ---
     function procesarDocumento(doc, targetFolder, nombreBase) {
+        // Igual que Generador_PDFS.jsx: al empezar, el archivo al frente, pantalla completa con menú y
+        // «Ajustar mesa de trabajo en la ventana» (Ctrl+0), para ver TODA la mesa mientras cambian nombres y números
+        try { doc.activate(); app.activeDocument = doc; app.redraw(); } catch (eAct) {}
+        try { if (doc.windows && doc.windows.length > 0) { doc.windows[0].screenMode = DocumentWindowScreenMode.FULLSCREENWITHMENU; } } catch (eScr) {}
+        try { app.executeMenuCommand("fitin"); } catch (eFit) {}
+        try { app.redraw(); } catch (eRd) {}
         var tfs = doc.textFrames;
         var nameFrames = [];
         var i, tfi, txt;
@@ -301,8 +315,13 @@ var INDOOR_PAUSA_MS = (typeof INDOOR_PAUSA_MS !== "undefined") ? INDOOR_PAUSA_MS
         // Sin cuadros NOMBRE ni 00 en la pieza: se hace SOLO un PDF (no uno por jugador)
         var sinGuias = (nameFrames.length === 0 && numberCandidates.length === 0);
         log("Guías en " + doc.name + ": NOMBRE=" + nameFrames.length + " · 00=" + numberCandidates.length + (sinGuias ? " → se hace solo 1 PDF" : ""));
-        var filasAUsar = sinGuias ? 2 : filasDataGlobal.length;
-        for (var row = 1; row < filasAUsar; row++) {
+        // Lote de filas (INDOOR_FILA_DESDE..INDOOR_FILA_HASTA): así Illustrator responde entre un lote y otro
+        var filaIni = (typeof INDOOR_FILA_DESDE !== "undefined" && INDOOR_FILA_DESDE) ? INDOOR_FILA_DESDE : 1;
+        var filaFin = (typeof INDOOR_FILA_HASTA !== "undefined" && INDOOR_FILA_HASTA) ? INDOOR_FILA_HASTA : filasDataGlobal.length - 1;
+        var filasAUsar = sinGuias ? 2 : (Math.min(filaFin, filasDataGlobal.length - 1) + 1);
+        if (sinGuias && filaIni > 1) { filasAUsar = 0; }   // un solo PDF: va en el primer lote
+        var tLote = new Date().getTime(), tPrev = tLote, msGuardar = 0, msGuardarTotal = 0;
+        for (var row = filaIni; row < filasAUsar; row++) {
             var cdr = filasDataGlobal[row].split(separador);
             var pData = [];
             for (var cc = 0; cc < nP; cc++) {
@@ -319,13 +338,18 @@ var INDOOR_PAUSA_MS = (typeof INDOOR_PAUSA_MS !== "undefined") ? INDOOR_PAUSA_MS
                 for (var b2 = 0; b2 < jr.num.length; b2++) { jr.num[b2].item.layer.locked = false; reubicarYCentrar(jr.num[b2], p.num); }
             }
             // Para verlo en pantalla: se muestra el archivo con el nombre y número de este jugador antes de guardar su PDF
-            try { doc.activate(); app.activeDocument = doc; app.executeMenuCommand("fitin"); app.redraw(); } catch (eVis) {}
-            $.sleep(INDOOR_PAUSA_MS || 700);
+            try { app.redraw(); } catch (eVis) {}
+            // Ritmo: lo que falte para completar 3 s desde el PDF anterior (contando lo que tardó guardar el anterior)
+            // (el primer PDF del lote no espera: así arranca enseguida)
+            var espera = (row === filaIni) ? 0 : INDOOR_RITMO_MS - (new Date().getTime() - tPrev) - msGuardar;
+            // si guardar ya tarda más que el ritmo no se espera nada (el jugador se ve en pantalla mientras se guarda)
+            if (espera > 0) { $.sleep(espera); } else if (row === filaIni) { $.sleep(INDOOR_PAUSA_MS); }
             var rStr = (row < 10) ? ("0" + row) : row.toString();
             var fName = (INDOOR_PREFIJO || "") + nombreBase + "_" + rStr + ".pdf";
             var tempFile = new File(INDOOR_TMP + "/" + fName);
             if (tempFile.exists) { try { tempFile.remove(); } catch (eT) {} }
             var destFile = new File(decodeURI(targetFolder.fullName) + "/" + fName);
+            var tG = new Date().getTime();
             try {
                 doc.saveAs(tempFile, pdfOpt);
                 if (tempFile.exists) {
@@ -336,12 +360,16 @@ var INDOOR_PAUSA_MS = (typeof INDOOR_PAUSA_MS !== "undefined") ? INDOOR_PAUSA_MS
             } catch (eSave) {
                 log("Error al guardar " + fName + ": " + eSave);
             }
-            // restaurar el texto original para la siguiente fila
-            for (var j2 = 0; j2 < jerseys.length; j2++) {
-                var jr2 = jerseys[j2];
-                for (var a3 = 0; a3 < jr2.nom.length; a3++) { reubicarYCentrar(jr2.nom[a3], jr2.nom[a3].origContents); }
-                for (var b3 = 0; b3 < jr2.num.length; b3++) { reubicarYCentrar(jr2.num[b3], jr2.num[b3].origContents); }
-            }
+            msGuardar = new Date().getTime() - tG;   // guardar + copiar a la NAS
+            msGuardarTotal += msGuardar;
+            tPrev = new Date().getTime();
+            // Ya NO se devuelven «NOMBRE»/«00» después de cada PDF: el siguiente jugador reemplaza todos los textos y el
+            // archivo se cierra SIN guardar (la talla queda intacta). Era trabajo repetido en cada PDF.
+        }
+        if (creados > 0) {
+            var segLote = (new Date().getTime() - tLote) / 1000;
+            log("Tiempo filas " + filaIni + "-" + (filasAUsar - 1) + ": " + creados + " PDF en " + segLote.toFixed(1) + " s · " +
+                (segLote / creados).toFixed(1) + " s por PDF (guardar y copiar " + (msGuardarTotal / creados / 1000).toFixed(1) + " s)");
         }
         return creados;
     }
@@ -350,7 +378,7 @@ var INDOOR_PAUSA_MS = (typeof INDOOR_PAUSA_MS !== "undefined") ? INDOOR_PAUSA_MS
     var relMontajes;
     for (var fIdx = 0; fIdx < filesToProcess.length; fIdx++) {
         var currentFile = filesToProcess[fIdx];
-        var isDocA = (decodeURI(currentFile.fullName).toLowerCase() === decodeURI(maestroFile.fullName).toLowerCase());
+        var isDocA = !!docA && (decodeURI(currentFile.fullName).toLowerCase() === decodeURI(maestroFile.fullName).toLowerCase());
         var currentDoc = isDocA ? docA : app.open(currentFile);
         relMontajes = getRelativePath(montajesFolder, currentFile.parent);
         var carpetaSalida = (relMontajes !== "") ? createFolderRecursive(salidaRaiz, relMontajes) : new Folder(salidaRaiz.fullName + "/" + sanitize(currentFile.parent.name));
@@ -361,6 +389,6 @@ var INDOOR_PAUSA_MS = (typeof INDOOR_PAUSA_MS !== "undefined") ? INDOOR_PAUSA_MS
         if (!isDocA) { try { currentDoc.close(SaveOptions.DONOTSAVECHANGES); } catch (eC) {} }
     }
 
-    try { docA.close(SaveOptions.DONOTSAVECHANGES); } catch (eCl) {}
+    if (docA) { try { docA.close(SaveOptions.DONOTSAVECHANGES); } catch (eCl) {} }
     app.userInteractionLevel = originalInteraction;
 })();

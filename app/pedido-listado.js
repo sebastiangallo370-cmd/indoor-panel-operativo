@@ -1042,6 +1042,13 @@
           // Cada pestaña del Excel que se llame igual que una referencia va a esa referencia; el resto se avisa
           // SIEMPRE a la referencia en la que estás parado (la pestaña activa del Excel), no a la pestaña con su nombre
           const n = pegar(g.referencia, j.texto);
+          // Cabecera de la plantilla (cliente, proyecto, línea): llena el proyecto y la línea de esta referencia
+          const cab = j.cliente || {};
+          if (cab.proyecto || cab.linea) {
+            L.refDatos = L.refDatos || {};
+            const previo = L.refDatos[g.referencia] || {};
+            L.refDatos[g.referencia] = { ...previo, proyecto: cab.proyecto || previo.proyecto || '', linea: cab.linea || previo.linea || '' };
+          }
           guardarBorrador();
           pantallaListado();
           setMsg(n + ' fila(s) cargadas en ' + g.referencia + ' desde ' + f.name + '. Revísalas antes de programar.', 'ok');
