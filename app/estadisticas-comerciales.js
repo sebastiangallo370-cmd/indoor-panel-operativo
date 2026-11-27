@@ -20,6 +20,8 @@
   try { Object.assign(st, JSON.parse(localStorage.getItem('ecEstado') || '{}'), { off: 0 }); } catch (e) { /* sin almacenamiento */ }
   const guardar = () => { try { localStorage.setItem('ecEstado', JSON.stringify({ periodo: st.periodo, met: st.met, metCom: st.metCom, abiertos: st.abiertos, desde: st.desde, hasta: st.hasta })); } catch (e) { /* nada */ } };
   (() => { const h = new Date(); const d = h.getFullYear() + '-' + String(h.getMonth() + 1).padStart(2, '0');
+    // 2026-11-27: la pestaña arranca (una vez) en RANGO desde el 1 de septiembre, con lo que programó cada comercial
+    try { if (!localStorage.getItem('ecInicioSep')) { st.periodo = 'rango'; st.desde = '2026-09-01'; st.hasta = ''; localStorage.setItem('ecInicioSep', '1'); } } catch (e) { /* nada */ }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(st.desde || '')) st.desde = d + '-01';
     if (!/^\d{4}-\d{2}-\d{2}$/.test(st.hasta || '')) st.hasta = d + '-' + String(h.getDate()).padStart(2, '0'); })();
 
@@ -361,6 +363,38 @@
       '<div class="ec-card"><h4>' + (top.length ? 'REFERENCIAS MÁS PROGRAMADAS · ' + esc(top[0].etq) + ' VA PRIMERO' : 'REFERENCIAS MÁS PROGRAMADAS') + '</h4>' + (top.length ? hbarras(top, v => v + ' pedido' + (v === 1 ? '' : 's')) : '<p class="ec-nota">Sin referencias en el periodo.</p>') + '</div></div>';
   }
 
+  // LO QUE PROGRAMÓ CADA COMERCIAL (2026-11-27): pedidos del Sheet de producción + panel (desde el 1 de septiembre), por comercial y por mes
+  function mesesDe(r) {
+    const out = [], fin = new Date(r.fin + 'T00:00:00');
+    for (let d = new Date(r.ini.slice(0, 7) + '-01T00:00:00'); d < fin; d = new Date(d.getFullYear(), d.getMonth() + 1, 1)) {
+      const ini = new Date(Math.max(d, new Date(r.ini + 'T00:00:00'))), sig = new Date(Math.min(new Date(d.getFullYear(), d.getMonth() + 1, 1), fin));
+      out.push({ ini: iso(ini), fin: iso(sig), etq: MES[d.getMonth()] + (d.getMonth() === 0 ? ' ' + d.getFullYear() : '') });
+    }
+    return out;
+  }
+  function programadoPorComercial(r) {
+    const P = pedidosEn(r, true), meses = mesesDe(r);
+    const filas = datos.comerciales.map(c => {
+      const l = P.filter(p => p.comercial === c.id);
+      return { c, ped: l.length, und: suma(l, 'unidades'), cli: new Set(l.map(p => norm(p.cliente))).size,
+        mes: meses.map(m => { const x = l.filter(p => dentro(p.fecha, m)); return { ped: x.length, und: suma(x, 'unidades') }; }) };
+    }).filter(f => f.ped || (f.c.panel && f.c.id !== 'sin-comercial')).sort((a, b) => b.und - a.und || b.ped - a.ped);
+    return { meses, filas, totU: suma(filas, 'und'), totP: suma(filas, 'ped') };
+  }
+  function bloqueProgramado(r) {
+    const { meses, filas, totU, totP } = programadoPorComercial(r);
+    const inicio = datos.pedidos_desde || '';
+    const lider = filas[0] && filas[0].und ? filas[0] : null;
+    const concl = lider ? esc(lider.c.nombre) + ' programó <b>' + pct(lider.und, totU) + '%</b> de las ' + nf.format(totU) + ' unidades (' + nf.format(totP) + ' pedidos) del periodo.' : 'Ningún comercial programó en el periodo.';
+    const tarjetas = filas.map(f => '<button type="button" class="ec-com ec-prog' + (st.comercial === f.c.id ? ' on' : '') + (f.c.panel ? '' : ' effi') + '" data-ec-com="' + esc(f.c.id) + '" data-lq="' + pct(f.und, totU || 1) + '" data-lq-tone="' + (f.c.panel && f.c.id !== 'sin-comercial' ? 'verde' : 'gris') + '">' +
+      '<span class="ec-com-cab"><i>' + esc(f.c.sigla) + '</i><strong>' + esc(f.c.nombre) + '</strong></span>' +
+      '<span class="ec-com-g ec-prog-g"><span><small>UNIDADES</small><b>' + nf.format(f.und) + '</b></span><span><small>PEDIDOS</small><b>' + nf.format(f.ped) + '</b></span><span><small>CLIENTES</small><b>' + nf.format(f.cli) + '</b></span></span>' +
+      (meses.length > 1 ? '<span class="ec-prog-m">' + meses.map((m, i) => '<em>' + esc(m.etq) + ' <b>' + nf.format(f.mes[i].und) + '</b> und · ' + f.mes[i].ped + ' ped.</em>').join('') + '</span>' : '') + '</button>').join('');
+    return '<section class="ec-blq" id="ec-programado"><header class="ec-cab"><h3>LO QUE PROGRAMÓ CADA COMERCIAL <small>' + esc(r.largo) + ' · pedidos del Sheet de producción y del panel' + (inicio ? ' · datos desde el ' + dmy(inicio) : '') + ' · clic para filtrar todo</small></h3>' +
+      '<div class="ec-cab-b">' + (st.periodo === 'rango' && st.desde === inicio ? '' : '<button type="button" class="ec-xls" data-ec-rapido="sep">Desde el 1 sep</button>') + '<button type="button" class="ec-xls" data-ec-xls="programado">⬇ Excel</button></div></header>' +
+      '<p class="ec-concl">' + concl + '</p><div class="ec-coms">' + (tarjetas || '<p class="ec-nota">Sin pedidos en el periodo.</p>') + '</div></section>';
+  }
+
   const nombreCom = id => ((datos.comerciales.find(c => c.id === id) || {}).nombre) || id;
   function statsComercial(c, r) {
     const P = datos.pedidos.filter(p => p.comercial === c.id && dentro(p.fecha, r) && clienteOk(p) && (!st.linea || (p.lineas || []).includes(st.linea)));
@@ -468,6 +502,13 @@
       { nombre: 'Pedidos', columnas: ['PEDIDO', 'FECHA', 'CLIENTE', 'COMERCIAL', 'UNIDADES', 'VALOR EFFI SIN IVA (COP)'], filas: A.P.map(p => [p.codigo, p.fecha, p.cliente, nombreCom(p.comercial), p.unidades, p.effi ? Math.round(p.effi.sin_iva) : 'sin precio']) }];
     if (bloque === 'comerciales') return [{ nombre: 'Comerciales', columnas: ['COMERCIAL', 'PEDIDOS', 'UNIDADES', 'VENDIDO SIN IVA (COP)', 'CLIENTES', 'COTIZACIONES', 'CONVERTIDAS', 'TASA %', 'TICKET/PEDIDO (COP)', 'VENDEDOR EN EFFI'],
       filas: datos.comerciales.map(c => { const s = statsComercial(c, r); return [c.nombre, s.pedidos, s.unidades, Math.round(s.dinero), s.clientes, s.cot, s.conv, s.tasa, s.ticket == null ? '' : Math.round(s.ticket), c.effi.join(', ')]; }) }];
+    if (bloque === 'programado') {
+      const { meses, filas } = programadoPorComercial(r);
+      return [{ nombre: 'Programado por comercial', columnas: ['COMERCIAL', 'PEDIDOS', 'UNIDADES', 'CLIENTES'].concat(meses.reduce((s, m) => s.concat([m.etq.toUpperCase() + ' UND.', m.etq.toUpperCase() + ' PED.']), [])),
+        filas: filas.map(f => [f.c.nombre, f.ped, f.und, f.cli].concat(f.mes.reduce((s, m) => s.concat([m.und, m.ped]), []))) },
+        { nombre: 'Pedidos', columnas: ['PEDIDO', 'FECHA', 'CLIENTE', 'COMERCIAL', 'RESP', 'UNIDADES', 'ESTADO'],
+          filas: pedidosEn(r, true).sort((a, b) => a.fecha.localeCompare(b.fecha)).map(p => [p.codigo, p.fecha, p.cliente, nombreCom(p.comercial), p.resp, p.unidades, p.estado.texto]) }];
+    }
     if (bloque === 'cotizacion') return [{ nombre: 'Cotizaciones', columnas: cab.concat(['ESTADO']), filas: docsEn(datos.cotizaciones, r).map(d => fil(d).concat([estadoCot(d)])) }];
     if (bloque === 'remision') return [{ nombre: 'Remisiones', columnas: cab.concat(['ESTADO', 'ENTREGA']), filas: docsEn(datos.remisiones, r).map(d => fil(d).concat([d.facturada ? 'Facturada' : 'Pendiente de facturar', d.entrega])) }];
     return [{ nombre: 'Ventas Effi', columnas: cab.concat(['TIPO']), filas: A.V.map(d => fil(d).concat([d.tipo])) }];
@@ -553,7 +594,7 @@
     const hoyIso = iso(hoy0());
     const fechas = st.periodo === 'rango' ? '<div class="ec-rango"><label>DESDE<input type="date" data-ec-fecha="desde" value="' + esc(st.desde) + '" min="' + esc(datos.desde) + '" max="' + hoyIso + '"></label>' +
       '<label>HASTA<input type="date" data-ec-fecha="hasta" value="' + esc(st.hasta) + '" min="' + esc(datos.desde) + '" max="' + hoyIso + '"></label>' +
-      '<div class="ec-rapidos">' + [['Hoy', 0, 0], ['Últimos 7 días', 6, 0], ['Últimos 30 días', 29, 0], ['Este año', 'a', 0]].map(([t, d]) => '<button type="button" data-ec-rapido="' + d + '">' + t + '</button>').join('') + '</div></div>' : '';
+      '<div class="ec-rapidos">' + [['Desde 1 sep', 'sep', 0], ['Hoy', 0, 0], ['Últimos 7 días', 6, 0], ['Últimos 30 días', 29, 0], ['Este año', 'a', 0]].map(([t, d]) => '<button type="button" data-ec-rapido="' + d + '">' + t + '</button>').join('') + '</div></div>' : '';
     return '<div class="ec-filtros"><div class="ec-seg ec-per">' + per.map(p => '<button type="button" data-ec-per="' + p + '" class="' + (st.periodo === p ? 'on' : '') + '">' + p.toUpperCase() + '</button>').join('') + '</div>' +
       '<div class="ec-nav"><button type="button" data-ec-off="-1" aria-label="Periodo anterior">‹</button><span>' + esc(r.largo) + '</span><button type="button" data-ec-off="1" aria-label="Periodo siguiente"' + (st.off >= 0 ? ' disabled' : '') + '>›</button></div>' +
       '<select data-ec-f="comercial" aria-label="Comercial"><option value="">Todos los comerciales</option>' + datos.comerciales.map(c => '<option value="' + esc(c.id) + '"' + (st.comercial === c.id ? ' selected' : '') + '>' + esc(c.nombre) + '</option>').join('') + '</select>' +
@@ -569,7 +610,7 @@
     const r = rango(st.periodo, st.off), rAnt = rango(st.periodo, st.off - 1);
     const y = window.scrollY;
     raiz.innerHTML = '<div class="ec">' + filtros(r) + (datos.errores.length ? '<div class="ec-aviso">' + datos.errores.map(esc).join('<br>') + '</div>' : '') +
-      bloquePrincipal(r, rAnt) +
+      bloqueProgramado(r) + bloquePrincipal(r, rAnt) +
       '<section class="ec-blq ec-detalle">' + plegable('detalle', 'Ver cifras: resumen y tarjetas por comercial', bloqueResumen(r, rAnt) + bloqueComerciales(r)) + '</section>' +
       bloqueCotizacion(r) + bloqueRemision(r) + bloqueValidaciones(r) +
       '<p class="ec-nota ec-pie">Effi leído desde el ' + dmy(datos.desde) + ' · actualizado ' + esc(String(datos.generado).replace('T', ' ').slice(0, 16)) + ' · valores en COP sin IVA.</p></div>';
@@ -604,7 +645,8 @@
     if (!b) return;
     if (b.dataset.ecRapido != null) {   // atajos del rango
       const h = hoy0(); st.hasta = iso(h);
-      if (b.dataset.ecRapido === 'a') st.desde = h.getFullYear() + '-01-01';
+      if (b.dataset.ecRapido === 'sep') { st.periodo = 'rango'; st.desde = (datos && datos.pedidos_desde) || '2026-09-01'; }
+      else if (b.dataset.ecRapido === 'a') st.desde = h.getFullYear() + '-01-01';
       else { const d = new Date(h); d.setDate(d.getDate() - Number(b.dataset.ecRapido)); st.desde = iso(d); }
       st.off = 0; guardar(); pintar(); return;
     }
@@ -781,7 +823,12 @@
     .ec-coms{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,330px),1fr));gap:12px}
     .ec-com{all:unset;box-sizing:border-box;cursor:pointer;display:grid;gap:10px;padding:14px;border-radius:18px;border:1px solid #2f3d30;min-width:0}.ec-com:hover{border-color:#6f9410}.ec-com.on{border-color:#d0f44c;box-shadow:0 0 0 2px rgba(208,244,76,.35)}.ec-com.effi{opacity:.85}
     .ec-com-cab{display:flex;align-items:center;gap:10px}.ec-com-cab i{display:inline-grid;place-items:center;width:38px;height:38px;border-radius:12px;background:#d0f44c;color:#0d140e;font:900 14px Arial;font-style:normal}.ec-com.effi .ec-com-cab i{background:#5b6b58;color:#fff}.ec-com-cab strong{font:900 16px Arial;color:#fff}.ec-com-cab em{margin-left:auto;font:700 10px Arial;font-style:normal;color:#a9b5a3;border:1px solid #3d4c3b;border-radius:99px;padding:2px 8px}
-    .ec-com-g{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.ec-com-g>span{display:grid;gap:2px;min-width:0}.ec-com-g small{font:800 9px Arial;letter-spacing:.1em;color:#a9b5a3}.ec-com-g b{font:900 15px Arial;color:#fff;overflow-wrap:anywhere}.ec-com-g b.mal{color:#ff8f84}.ec-com-g em{font:600 10px Arial;font-style:normal;color:#a9b5a3}
+    .ec-com-g{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.ec-com-g>span{display:grid;gap:2px;min-width:0}.ec-com-g small{font:800 9px Arial;letter-spacing:.1em;color:#a9b5a3}.ec-com-g b{font:900 15px Arial;color:#fff;overflow-wrap:anywhere}.ec-com-g b.mal{color:#ff8f84}
+    .ec .ec-com-g.ec-prog-g{grid-template-columns:repeat(3,minmax(0,1fr))}
+    .ec-prog-m{display:flex;flex-wrap:wrap;gap:6px;position:relative;z-index:1}
+    .ec-prog-m em{font:700 11px Arial;font-style:normal;color:#cfd8ca;border:1px solid #3d4c3b;border-radius:99px;padding:3px 9px;background:rgba(0,0,0,.25)}
+    .ec-prog-m em b{color:#fff}
+    .ec-cab-b{display:flex;gap:8px;flex-wrap:wrap}.ec-com-g em{font:600 10px Arial;font-style:normal;color:#a9b5a3}
     .ec-hb{display:grid;gap:8px}.ec-hb-f{display:grid;grid-template-columns:minmax(90px,170px) minmax(0,1fr) auto;gap:10px;align-items:center;font:700 12px Arial;padding:2px 4px;border-radius:8px}.ec-hb-f span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ec-hb-f.ec-click{cursor:pointer}.ec-hb-f.ec-click:hover,.ec-hb-f.on{background:rgba(208,244,76,.08)}.ec-hb-b{height:14px;border-radius:99px;background:rgba(255,255,255,.07);overflow:hidden}.ec-hb-b i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#6f9410,#d0f44c)}.ec-hb-f b{white-space:nowrap}
     .ec-cruce{display:grid;grid-template-columns:1fr 1fr;gap:10px}.ec-cruce div{padding:12px;border-radius:12px;background:#18221a}.ec-cruce b{display:block;font:900 26px Arial;color:#d0f44c}.ec-cruce span{font:600 12px Arial;color:#c9d6c2}
     .ec-lista{margin:0;padding-left:18px;display:grid;gap:6px;font:600 12px/1.5 Arial}.ec-lista .ok{color:#9be37a}.ec-lista .mal{color:#ff8f84}

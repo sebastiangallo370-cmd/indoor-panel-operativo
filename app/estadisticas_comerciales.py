@@ -28,7 +28,7 @@ from app import effi_api
 router = APIRouter(prefix='/api/estadisticas-comerciales', tags=['estadisticas-comerciales'])
 
 MESES_ATRAS = 6
-PEDIDOS_DESDE = '2026-10-01'   # el Sheet de producción se cuenta desde aquí (main.ESTADISTICAS_SHEET_DESDE)
+PEDIDOS_DESDE = '2026-09-01'   # el Sheet de producción se cuenta desde aquí (main.ESTADISTICAS_SHEET_DESDE)
 CACHE_SEG = 600          # 10 min: después se refresca en segundo plano
 DIAS_VENCIDA = 30        # una cotización pendiente de venta con más de 30 días se muestra como «vencida»
 
